@@ -1,0 +1,57 @@
+{
+  "experiment": "20260519_zero_drift_60_600_1800",
+  "segments": [
+    {
+      "name": "S00_prezero_60s",
+      "zeroed": "No",
+      "duration_label": "60 s",
+      "purpose": "pre-zero baseline",
+      "csv": "/home/andy/ur10e_ros2_ws/experiments/zero_drift/20260519_zero_drift_60_600_1800/artifacts/S00_prezero_60s_20260519_010728.csv",
+      "samples": 1200,
+      "duration_s": 59.95261597633362,
+      "plots": [
+        "/home/andy/ur10e_ros2_ws/experiments/zero_drift/20260519_zero_drift_60_600_1800/artifacts/S00_prezero_60s_20260519_010728.png",
+        "/home/andy/ur10e_ros2_ws/experiments/zero_drift/20260519_zero_drift_60_600_1800/artifacts/S00_prezero_60s_20260519_010728_fz.png"
+      ]
+    },
+    {
+      "name": "S01_rezero_60s",
+      "zeroed": "Yes",
+      "duration_label": "60 s",
+      "purpose": "post-zero short drift",
+      "csv": "/home/andy/ur10e_ros2_ws/experiments/zero_drift/20260519_zero_drift_60_600_1800/artifacts/S01_rezero_60s_20260519_010836.csv",
+      "samples": 1200,
+      "duration_s": 59.9522008895874,
+      "plots": [
+        "/home/andy/ur10e_ros2_ws/experiments/zero_drift/20260519_zero_drift_60_600_1800/artifacts/S01_rezero_60s_20260519_010836.png",
+        "/home/andy/ur10e_ros2_ws/experiments/zero_drift/20260519_zero_drift_60_600_1800/artifacts/S01_rezero_60s_20260519_010836_fz.png"
+      ]
+    },
+    {
+      "name": "S02_rezero_600s",
+      "zeroed": "Yes",
+      "duration_label": "600 s",
+      "purpose": "post-zero mid drift",
+      "csv": "/home/andy/ur10e_ros2_ws/experiments/zero_drift/20260519_zero_drift_60_600_1800/artifacts/S02_rezero_600s_20260519_011845.csv",
+      "samples": 12000,
+      "duration_s": 599.9617438316345,
+      "plots": [
+        "/home/andy/ur10e_ros2_ws/experiments/zero_drift/20260519_zero_drift_60_600_1800/artifacts/S02_rezero_600s_20260519_011845.png",
+        "/home/andy/ur10e_ros2_ws/experiments/zero_drift/20260519_zero_drift_60_600_1800/artifacts/S02_rezero_600s_20260519_011845_fz.png"
+      ]
+    },
+    {
+      "name": "S03_rezero_1800s",
+      "zeroed": "Yes",
+      "duration_label": "1800 s",
+      "purpose": "post-zero long drift",
+      "csv": "/home/andy/ur10e_ros2_ws/experiments/zero_drift/20260519_zero_drift_60_600_1800/artifacts/S03_rezero_1800s_20260519_015109.csv",
+      "samples": 36000,
+      "duration_s": 1799.9646661281586,
+      "plots": [
+        "/home/andy/ur10e_ros2_ws/experiments/zero_drift/20260519_zero_drift_60_600_1800/artifacts/S03_rezero_1800s_20260519_015109.png",
+        "/home/andy/ur10e_ros2_ws/experiments/zero_drift/20260519_zero_drift_60_600_1800/artifacts/S03_rezero_1800s_20260519_015109_fz.png"
+      ]
+    }
+  ]
+}

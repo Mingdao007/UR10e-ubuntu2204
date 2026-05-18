@@ -1,4 +1,4 @@
-# UR10e Zero-Drift 60/600/3000 Protocol
+# UR10e Zero-Drift 60/600/1800 Protocol
 
 目标：在末端工具已摘下、当前 payload/TCP 配置保持不变的情况下，记录一组无运动、无接触的 UR10e 力传感器零漂数据。
 
@@ -18,6 +18,6 @@
 | S00_prezero_60s | No | 60 s | Fx/Fy/Fz/|F| | 清零前当前配置基线 |
 | S01_rezero_60s | Yes | 60 s | Fx/Fy/Fz/|F| | 清零后短时零漂 |
 | S02_rezero_600s | Yes | 600 s | Fx/Fy/Fz/|F| | 清零后中时零漂 |
-| S03_rezero_3000s | Yes | 3000 s | Fx/Fy/Fz/|F| | 清零后长时零漂 |
+| S03_rezero_1800s | Yes | 1800 s | Fx/Fy/Fz/|F| | 清零后长时零漂 |
 
-每个 zeroed segment 前单独执行一次 `zero_ftsensor()`，等待 2 秒后采样。
+每个 zeroed segment 前单独执行一次 `zero_ftsensor()`，等待 2 秒后采样。原计划中的 3000 秒段已按用户更正取消，正式长时段以 1800 秒为准。
