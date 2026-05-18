@@ -1,0 +1,19 @@
+# ROS 2 / colcon generated files
+build/
+install/
+log/
+
+# Python generated files
+__pycache__/
+*.py[cod]
+
+# Large runtime recordings are archived manually unless explicitly selected.
+*.db3
+*.mcap
+*.bag
+*.zstd
+
+# Local editor/cache files
+.DS_Store
+*.swp
+*~
