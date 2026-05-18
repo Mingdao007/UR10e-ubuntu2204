@@ -14,6 +14,7 @@ __pycache__/
 *.zstd
 
 # Local editor/cache files
+.vscode/
 .DS_Store
 *.swp
 *~
@@ -21,4 +22,5 @@ __pycache__/
 # Obsidian local window state
 .obsidian/workspace.json
 .obsidian/workspace-mobile.json
+ur10e/.obsidian/
 .trash/

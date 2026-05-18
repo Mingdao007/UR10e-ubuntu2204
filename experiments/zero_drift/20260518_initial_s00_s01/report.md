@@ -73,10 +73,10 @@ S01 图是本次真正的清零后 Fz 漂移观察：
 
 ## Protocol 总表
 
-| Segment | Zeroed? | Purpose | Duration | Samples | Contact state | Command | Comparable as |
-| --- | --- | --- | ---: | ---: | --- | --- | --- |
-| S00 | No | 原始静态偏置基线 | 5.00 s | 101 | 无接触、无运动 | `sample_tcp_force.py` | raw bias baseline |
-| S01 | Yes | 清零后长时零漂测试 | 699.98 s | 14001 | 无接触、无运动 | `measure_zero_drift_after_zeroft.py` | post-zero drift run |
+| Segment | Zeroed? | Purpose   | Duration | Samples | Contact state | Command                              | Comparable as       |
+| ------- | ------- | --------- | -------: | ------: | ------------- | ------------------------------------ | ------------------- |
+| S00     | No      | 原始静态偏置基线  |   5.00 s |     101 | 无接触、无运动       | `sample_tcp_force.py`                | raw bias baseline   |
+| S01     | Yes     | 清零后长时零漂测试 | 699.98 s |   14001 | 无接触、无运动       | `measure_zero_drift_after_zeroft.py` | post-zero drift run |
 
 `Zeroed?` 是一级实验条件。S00 的作用是说明未清零前偏置有多大；S01 才回答清零后是否稳定。二者可以共享统计列，但不能被解释为同一条件下的前后复测。
 
