@@ -1,0 +1,48 @@
+{
+  "version": "v5_receiver_fitcheck",
+  "purpose": "Bench-only receiver/thread strategy coupons, not robot-mounted parts.",
+  "parameters": {
+    "coupon_length_x_mm": 42.0,
+    "coupon_width_y_mm": 34.0,
+    "coupon_height_z_mm": 20.0,
+    "m6_clearance_hole_mm": 6.6,
+    "m6_hex_nut_across_flats_pocket_mm": 10.6,
+    "m6_hex_nut_pocket_depth_mm": 5.8,
+    "self_thread_pilot_holes_mm": [
+      5.0,
+      5.2,
+      5.4
+    ],
+    "self_thread_hole_spacing_y_mm": 10.0
+  },
+  "parts": {
+    "v5_receiver_fitcheck_captive_m6_nut": {
+      "use": "Insert an M6 hex nut from the back/side pocket; screw KSM or M6 ball plunger through the front clearance hole into the metal nut.",
+      "nut_pocket": "M6 hex pocket, 10.6 mm across flats, 5.8 mm deep.",
+      "expected_feedback": [
+        "Does the M6 nut press in by hand?",
+        "Does the nut rotate when tightening?",
+        "Does the KSM / ball plunger thread engage smoothly?"
+      ]
+    },
+    "v5_receiver_fitcheck_self_thread_m6_pilots": {
+      "use": "Try the KSM or M6 ball plunger in the three pilot holes. Mark which hole feels best.",
+      "pilot_holes_mm": [
+        5.0,
+        5.2,
+        5.4
+      ],
+      "hole_order_when_viewed_from_front": "left to right by Y position: 5.0, 5.2, 5.4 mm",
+      "expected_feedback": [
+        "Which pilot diameter starts without cracking?",
+        "Which pilot diameter holds without wobble?",
+        "How much torque/force does insertion require?"
+      ]
+    }
+  },
+  "notes": [
+    "The self-threading coupon is for quick comparison only; do not assume it is durable enough for the final contact head.",
+    "The captive-nut coupon is the preferred functional direction if repeated tool changes are expected.",
+    "Glue is optional only to stop an unloaded nut from falling out; the load path should be the printed geometry plus metal nut."
+  ]
+}

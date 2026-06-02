@@ -1,0 +1,14 @@
+ Program
+   Robot Program
+     MoveL
+       Waypoint_1
+       RG Grip
+       Waypoint_2
+       RG Grip
+       Waypoint_1
+       Waypoint_3
+       Waypoint_4
+       RG Grip
+       Waypoint_3
+       Waypoint_1
+       Halt

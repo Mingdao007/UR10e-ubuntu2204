@@ -1,0 +1,29 @@
+ Program
+   Robot Program
+     MoveJ
+       start
+       Waypoint_10
+       Waypoint_11
+       RG Grip
+       Waypoint_12
+       Waypoint_13
+       Waypoint_14
+       RG Grip
+       start
+       Waypoint_20
+       Waypoint_21
+       RG Grip
+       Waypoint_22
+       Waypoint_23
+       Waypoint_24
+       RG Grip
+       start
+       Waypoint_30
+       Waypoint_31
+       RG Grip
+       Waypoint_32
+       Waypoint_33
+       Waypoint_34
+       RG Grip
+       start
+       Halt

@@ -1,0 +1,7 @@
+  #======    OnRobot Gripper Centering Messages    ======#
+  
+  of_gripper_centering_title="OnRobot - Gripper Centering"
+  of_gripper_centering_start_error="Gripper Centering state error. Program stopped."
+  
+  
+  #======    End of OnRobot Gripper Centering Messages    ======#

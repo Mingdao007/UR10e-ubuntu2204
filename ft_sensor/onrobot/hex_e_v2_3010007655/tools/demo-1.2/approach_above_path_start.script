@@ -1,0 +1,23 @@
+# UR10e demo-1.2: approach above the recorded F/T Path start.
+# Use this from a PolyScope Script node before F/T Search.
+# It keeps the current TCP Z, aligns X/Y/orientation to the path home pose,
+# then moves slowly with movel. It does not execute any force search.
+
+path_home_x = 0.4447489624
+path_home_y = 0.2284111481
+path_home_z = 0.0195379200
+path_home_rx = 3.1415727139
+path_home_ry = -0.0000264648
+path_home_rz = -0.0000241579
+
+start_pose = get_actual_tcp_pose()
+safe_min_z = path_home_z + 0.010
+
+if start_pose[2] < safe_min_z:
+  popup("Start TCP is too low for XY approach. Move up first.", title="Approach guard", error=True, blocking=True)
+  halt
+end
+
+approach_pose = p[path_home_x, path_home_y, start_pose[2], path_home_rx, path_home_ry, path_home_rz]
+textmsg("approach_above_path_start target: ", approach_pose)
+movel(approach_pose, a=0.05, v=0.01)

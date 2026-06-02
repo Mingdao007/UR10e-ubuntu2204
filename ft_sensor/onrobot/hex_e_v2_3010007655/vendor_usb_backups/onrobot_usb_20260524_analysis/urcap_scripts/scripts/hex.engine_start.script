@@ -1,0 +1,28 @@
+  #======    OnRobot Engine Start    ======#
+  
+  of_vectorProcess_running=True
+  sync()
+  of_vectorProcess_thrd=run of_vectorProcess_hex_thread()
+  sync()
+  sync()
+  of_hex_mounted_mass=of_hex_mass
+  of_hex_mounted_cog=of_hex_body_cog
+  of_hex_mount_offset=of_hex_body_offset
+  local hex_mount=of_hex_mount_offset
+  if(of_mounting_qc_use):
+  hex_mount=of_hex_mount_qc10()
+  end 
+  of_sensor_config_send(hex_mount)
+  if(of_install_tcp):
+  of_hex_relative_rpy_offset_set(offset=of_hex_part_tcp_offset_xyz,rpy=of_hex_part_tcp_offset_rpy)
+  if(of_hex_install_cog2tcp):
+  local cog_mass=of_hex_part_cog_mass+of_hex_mounted_mass
+  of_hex_relative_payload_set(mass=cog_mass,center_of_gravity=of_hex_part_cog_offset)
+  else:
+  of_hex_compensated_relative_payload_set(tool_mass=of_hex_part_cog_mass,center_of_gravity=of_hex_part_cog_offset)
+  end 
+  end 
+  of_tcp_offset_send_actual()
+  of_ft_bias()
+  
+  #======    End of OnRobot Engine Start    ======#

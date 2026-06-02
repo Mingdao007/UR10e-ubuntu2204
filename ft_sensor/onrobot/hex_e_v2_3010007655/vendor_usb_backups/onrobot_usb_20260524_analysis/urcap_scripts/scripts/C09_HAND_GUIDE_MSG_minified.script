@@ -1,0 +1,11 @@
+  #======    OnRobot Hand Guide Messages    ======#
+  
+  of_hand_guide_title="OnRobot - Hand Guide"
+  of_hand_guide_error_high_ft="Too high forces. Hand Guide stopped."
+  of_hand_guide_error_singularity="The tool flange is too close to a singularity. Hand Guide stopped."
+  of_hand_guide_safemode_enter="The tool flange is too close to the Base Z-axis singularity. Hand Guide is in Safe mode."
+  of_hand_guide_start_error="Do not include a Hand Guide command under another Hand Guide command."
+  of_hand_guide_safemode_exit="Hand Guide Safe mode ended."
+  
+  
+  #======    End of OnRobot Hand Guide Messages    ======#

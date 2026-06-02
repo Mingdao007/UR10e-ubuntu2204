@@ -1,0 +1,31 @@
+  #======    OnRobot F/T Move  F/T Search Messages    ======#
+  
+  of_move_error_title="OnRobot - F/T Move error"
+  of_search_error_title="OnRobot - F/T Search error"
+  of_move_init_error="Wrong F/T Move or F/T Search status when initializing.<br>Another thread is using an F/T Move or F/T Search command. Program stopped."
+  of_move_start_error="Wrong F/T Move or F/T Search status when starting.<br>Another thread is using an F/T Move or F/T Search command. Program stopped."
+  of_move_return_error="Wrong F/T Move or F/T Search status when returning.<br>Another thread is using an F/T Move or F/T Search command. Program stopped."
+  of_move_parameter_error_count="Parameter error.<br>Incorrect use of F/T Waypoint or F/T Path in the F/T Move or F/T Search command. Program stopped."
+  of_move_move_return_title="OnRobot - F/T Move"
+  of_move_move_return_0="The move ended without detecting a force or torque greater than the set limit."
+  of_move_move_return_1="The move ended, because a force or torque greater than the set limit was detected."
+  of_move_move_return_2="The move cannot start due to a force or torque exceeding the set limit."
+  of_move_move_return_3="The move was interrupted by a command."
+  of_move_move_return_11="The move cannot start, because there is no recorded path on the Compute Box with the selected ID."
+  of_move_move_return_12="The move cannot start, because there are no recorded points in this Path."
+  of_move_move_return_13="The move cannot start, because the Path file found at this Path ID is empty."
+  of_move_move_return_14="The move cannot start, because the Path file is corrupted."
+  of_move_move_return_unknown="F/T Move finished with unknown return value."
+  of_move_search_return_title="OnRobot - F/T Search"
+  of_move_search_return_0="The search ended successfully, because a force or torque greater than the set limit was detected."
+  of_move_search_return_1="The search ended without detecting a force or torque greater than the set limit."
+  of_move_search_return_2="The search cannot start due to a force or torque exceeding the set limit."
+  of_move_search_return_3="The search was interrupted by a command."
+  of_move_search_return_11="The search cannot start, because there is no recorded path on the Compute Box with the selected ID."
+  of_move_search_return_12="The search cannot start, because there are no recorded points in this Path."
+  of_move_search_return_13="The search cannot start, because the Path file found at this Path ID is empty."
+  of_move_search_return_14="The search cannot start, because the Path file is corrupted."
+  of_move_search_return_unknown="F/T Search finished with unknown return value."
+  
+  
+  #======    End of OnRobot F/T Move & F/T Search Messages    ======#

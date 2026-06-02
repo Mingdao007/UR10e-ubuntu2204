@@ -1,0 +1,109 @@
+  #======    OnRobot Engine    ======#
+  
+  ft_Engine_state=0
+  rg_lastZ_left=0
+  rg_lastZ_right=0
+  rg_Grip_edge=2
+  def of_vectorProcess_errors_rg2ft(sensor_stop=False):
+  if(ft_Status_backpack!=0):
+  local sensor_status_bits=integer_to_binary_list(ft_Status_backpack)
+  sensor_stop=of_error(sensor_status_bits[0],of_rg2ft_sensor_bit0_error_backpack,of_rg2ft_sensor_error_title,sensor_stop)
+  sensor_stop=of_error(sensor_status_bits[1],of_rg2ft_sensor_bit1_error_backpack,of_rg2ft_sensor_error_title,sensor_stop)
+  sensor_stop=of_error(sensor_status_bits[2],of_rg2ft_sensor_bit2_error_backpack,of_rg2ft_sensor_error_title,sensor_stop)
+  sensor_stop=of_error(sensor_status_bits[3],of_rg2ft_sensor_bit3_error_backpack,of_rg2ft_sensor_error_title,sensor_stop)
+  sensor_stop=of_error(sensor_status_bits[4],of_rg2ft_sensor_bit4_error_backpack,of_rg2ft_sensor_error_title,sensor_stop)
+  sensor_stop=of_error((ft_Status_backpack>31),of_rg2ft_sensor_else_error,of_rg2ft_sensor_error_title,sensor_stop)
+  textmsg(of_rg2ft_sensor_status_msg_backpack,ft_Status_backpack)
+  end 
+  if(ft_Status_left!=0):
+  local sensor_status_bits=integer_to_binary_list(ft_Status_left)
+  sensor_stop=of_error(sensor_status_bits[0],of_rg2ft_sensor_bit0_error_left,of_rg2ft_sensor_error_title,sensor_stop)
+  sensor_stop=of_error(sensor_status_bits[1],of_rg2ft_sensor_bit1_error_left,of_rg2ft_sensor_error_title,sensor_stop)
+  sensor_stop=of_error(sensor_status_bits[2],of_rg2ft_sensor_bit2_error_left,of_rg2ft_sensor_error_title,sensor_stop)
+  sensor_stop=of_error(sensor_status_bits[3],of_rg2ft_sensor_bit3_error_left,of_rg2ft_sensor_error_title,sensor_stop)
+  sensor_stop=of_error(sensor_status_bits[4],of_rg2ft_sensor_bit4_error_left,of_rg2ft_sensor_error_title,sensor_stop)
+  sensor_stop=of_error(sensor_status_bits[5],of_rg2ft_sensor_bit5_error_left,of_rg2ft_sensor_error_title,sensor_stop)
+  sensor_stop=of_error(sensor_status_bits[6],of_rg2ft_sensor_bit6_error_left,of_rg2ft_sensor_error_title,sensor_stop)
+  of_warning(sensor_status_bits[7],of_rg2ft_sensor_bit7_warning_left,of_rg2ft_sensor_warning_title)
+  sensor_stop=of_error(sensor_status_bits[8],of_rg2ft_sensor_bit8_error_left,of_rg2ft_sensor_error_title,sensor_stop)
+  sensor_stop=of_error((ft_Status_left>511),of_rg2ft_sensor_else_error,of_rg2ft_sensor_error_title,sensor_stop)
+  textmsg(of_rg2ft_sensor_status_msg_left,ft_Status_left)
+  end 
+  if(ft_Status_right!=0):
+  local sensor_status_bits=integer_to_binary_list(ft_Status_right)
+  sensor_stop=of_error(sensor_status_bits[0],of_rg2ft_sensor_bit0_error_right,of_rg2ft_sensor_error_title,sensor_stop)
+  sensor_stop=of_error(sensor_status_bits[1],of_rg2ft_sensor_bit1_error_right,of_rg2ft_sensor_error_title,sensor_stop)
+  sensor_stop=of_error(sensor_status_bits[2],of_rg2ft_sensor_bit2_error_right,of_rg2ft_sensor_error_title,sensor_stop)
+  sensor_stop=of_error(sensor_status_bits[3],of_rg2ft_sensor_bit3_error_right,of_rg2ft_sensor_error_title,sensor_stop)
+  sensor_stop=of_error(sensor_status_bits[4],of_rg2ft_sensor_bit4_error_right,of_rg2ft_sensor_error_title,sensor_stop)
+  sensor_stop=of_error(sensor_status_bits[5],of_rg2ft_sensor_bit5_error_right,of_rg2ft_sensor_error_title,sensor_stop)
+  sensor_stop=of_error(sensor_status_bits[6],of_rg2ft_sensor_bit6_error_right,of_rg2ft_sensor_error_title,sensor_stop)
+  of_warning(sensor_status_bits[7],of_rg2ft_sensor_bit7_warning_right,of_rg2ft_sensor_warning_title)
+  sensor_stop=of_error(sensor_status_bits[8],of_rg2ft_sensor_bit8_error_right,of_rg2ft_sensor_error_title,sensor_stop)
+  sensor_stop=of_error((ft_Status_right>511),of_rg2ft_sensor_else_error,of_rg2ft_sensor_error_title,sensor_stop)
+  textmsg(of_rg2ft_sensor_status_msg_right,ft_Status_right)
+  end 
+  return sensor_stop
+  end 
+  thread of_vectorProcess_rg2ft_thread():
+  if OF_DEBUG_STATE:
+  textmsg("Starting vectorProcess thread")
+  end 
+  while of_vectorProcess_running:
+  sync()
+  local sensor_stop=False
+  if(ft_Sensor_ID==OF_SENSOR_ID_HEX_V1 or ft_Sensor_ID==OF_SENSOR_ID_HEX_V2):
+  of_hex=True
+  elif(ft_Sensor_ID==OF_SENSOR_ID_RG2FT_V0):
+  of_hex=False
+  elif(ft_Sensor_ID==OF_SENSOR_ID_UNDEFINED):
+  if OF_DEBUG_STATE:
+  textmsg("Establishing connection with the sensor.. Undefined sensor: ",ft_Sensor_ID)
+  end 
+  else:
+  textmsg("Sensor type ID: ",ft_Sensor_ID)
+  popup(of_sensor_error_type,title=of_sensor_error_title,error=True,blocking=False)
+  halt
+  end 
+  sensor_stop=of_error((({{hex}})xor(of_hex)),of_rg2ft_sensor_error_mixed,of_rg2ft_sensor_error_title,sensor_stop)
+  sensor_stop=of_vectorProcess_errors_rg2ft(sensor_stop)
+  if sensor_stop:
+  halt
+  end 
+  enter_critical
+  F3D_left=sqrt(FT_left[0]*FT_left[0]+FT_left[1]*FT_left[1]+FT_left[2]*FT_left[2])
+  F3D_right=sqrt(FT_right[0]*FT_right[0]+FT_right[1]*FT_right[1]+FT_right[2]*FT_right[2])
+  T3D_left=sqrt(FT_left[3]*FT_left[3]+FT_left[4]*FT_left[4]+FT_left[5]*FT_left[5])
+  T3D_right=sqrt(FT_right[3]*FT_right[3]+FT_right[4]*FT_right[4]+FT_right[5]*FT_right[5])
+  if((FT_left[2]-rg_lastZ_left>rg_Grip_edge)and(FT_right[2]-rg_lastZ_right>rg_Grip_edge)):
+  ft_FGrip_detected=True
+  ft_FGripped=True
+  end 
+  if((FT_left[2]-rg_lastZ_left<-rg_Grip_edge)and(FT_right[2]-rg_lastZ_right<-rg_Grip_edge)):
+  ft_FGrip_lost=True
+  ft_FGripped=False
+  end 
+  ft_Slip_alert=((sqrt(pow(FT_left[0],2)+pow(FT_left[1],2))>FT_left[2]*0.5)or(sqrt(pow(FT_right[0],2)+pow(FT_right[1],2))>FT_right[2]*0.5))
+  ft_Part_width=ft_Width-(ft_Prox_left+ft_Prox_right)
+  if ft_Part_width<0:
+  if ft_Part_width<-0.5*ft_Width:
+  ft_Part_width=-1
+  else:
+  ft_Part_width=0
+  end 
+  end 
+  if ft_Part_width>=0:
+  ft_Part_weight=sqrt(pow((FT_left[0]+FT_right[0]),2)+pow((FT_left[1]+FT_right[1]),2)+pow((FT_left[2]+FT_right[2]),2))
+  else:
+  ft_Part_weight=-1
+  end 
+  rg_lastZ_left=FT_left[2]
+  rg_lastZ_right=FT_right[2]
+  exit_critical
+  end 
+  if OF_DEBUG_STATE:
+  textmsg("Stopping vectorProcess thread")
+  end 
+  end 
+  
+  #======    End of OnRobot Engine    ======#

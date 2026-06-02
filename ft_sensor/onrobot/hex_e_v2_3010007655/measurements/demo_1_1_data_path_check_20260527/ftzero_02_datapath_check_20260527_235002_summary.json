@@ -1,0 +1,38 @@
+{
+  "ok": true,
+  "csv_path": "/home/andy/ur10e_ros2_ws/ft_sensor/onrobot/hex_e_v2_3010007655/measurements/demo_1_1_data_path_check_20260527/ftzero_02_datapath_check_20260527_235002.csv",
+  "summary_path": "/home/andy/ur10e_ros2_ws/ft_sensor/onrobot/hex_e_v2_3010007655/measurements/demo_1_1_data_path_check_20260527/ftzero_02_datapath_check_20260527_235002_summary.json",
+  "requested_hz": 125.0,
+  "requested_seconds": 6.0,
+  "samples": 751,
+  "local_duration_s": 5.999976394996338,
+  "effective_hz": 125.00049177284434,
+  "runtime_state_counts": {
+    "1": 687,
+    "2": 64
+  },
+  "robot_mode_counts": {
+    "7": 751
+  },
+  "safety_mode_counts": {
+    "1": 751
+  },
+  "speed_scaling_range": [
+    0.0,
+    1.0
+  ],
+  "onrobot_register_mapping": {
+    "output_double_register_24": "Fx",
+    "output_double_register_25": "Fy",
+    "output_double_register_26": "Fz",
+    "output_double_register_27": "Tx",
+    "output_double_register_28": "Ty",
+    "output_double_register_29": "Tz"
+  },
+  "register_staleness_warning": "Output registers persist their last written values. Treat them as live OnRobot data only inside a program window that is actively writing Fx/Fy/Fz/Tx/Ty/Tz.",
+  "fz_register_range_n": [
+    -58.91427600000195,
+    0.1149999999999999
+  ],
+  "max_tcp_linear_speed_mm_s": 0.02338352761885299
+}

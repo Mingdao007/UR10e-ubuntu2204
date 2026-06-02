@@ -1,0 +1,3 @@
+ Program
+   Robot Program
+     Script: jerry_new_robot_2.script

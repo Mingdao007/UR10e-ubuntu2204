@@ -1,0 +1,142 @@
+{
+  "commands_sent": [
+    {
+      "command": "SPEED",
+      "command_hex": "0x0082",
+      "data": 2,
+      "sent_wall": "2026-05-26T20:41:43.844"
+    },
+    {
+      "command": "START",
+      "command_hex": "0x0002",
+      "data": 1000,
+      "sent_wall": "2026-05-26T20:41:43.849"
+    },
+    {
+      "command": "STOP",
+      "command_hex": "0x0000",
+      "data": 0,
+      "sent_wall": "2026-05-26T20:41:45.846"
+    }
+  ],
+  "configuration": {
+    "filter_mode": null,
+    "initial_bias": "none",
+    "midrun_at_sample": 500,
+    "midrun_bias": "none",
+    "profile": "custom",
+    "speed_divisor": 2,
+    "start_count": 1000
+  },
+  "csv_path": "/home/andy/ur10e_ros2_ws/ft_sensor/onrobot/hex_e_v2_3010007655/measurements/udp_highspeed_open_reference_20260526_204143/onrobot_udp_open_reference_20260526_204143.csv",
+  "duration_first_last_s": 1.991440054,
+  "errors": [],
+  "finished_wall": "2026-05-26T20:41:45",
+  "first_t_s": 0.010233591,
+  "force_torque": {
+    "fx_n": {
+      "first": 0.28,
+      "last": 0.16,
+      "last_minus_first": -0.12000000000000002,
+      "max": 0.44,
+      "mean": 0.29022965931863726,
+      "min": 0.15
+    },
+    "fy_n": {
+      "first": 3.09,
+      "last": 3.03,
+      "last_minus_first": -0.06000000000000005,
+      "max": 3.18,
+      "mean": 3.094417334669339,
+      "min": 3.03
+    },
+    "fz_n": {
+      "first": -28.34,
+      "last": -28.19,
+      "last_minus_first": 0.14999999999999858,
+      "max": -27.98,
+      "mean": -28.27437875751503,
+      "min": -28.62
+    },
+    "tx_nm": {
+      "first": -0.022,
+      "last": -0.016,
+      "last_minus_first": 0.005999999999999998,
+      "max": -0.012,
+      "mean": -0.02513079158316633,
+      "min": -0.037
+    },
+    "ty_nm": {
+      "first": -0.07599,
+      "last": -0.068,
+      "last_minus_first": 0.007989999999999997,
+      "max": -0.067,
+      "mean": -0.07841780561122244,
+      "min": -0.089
+    },
+    "tz_nm": {
+      "first": 0.069,
+      "last": 0.066,
+      "last_minus_first": -0.0030000000000000027,
+      "max": 0.075,
+      "mean": 0.07025215430861723,
+      "min": 0.064
+    }
+  },
+  "host": "192.168.1.1",
+  "intervals_per_duration_hz": 500.6427373987126,
+  "last_t_s": 2.001673645,
+  "max_dt_ms": 2.6113779999999975,
+  "max_recv_latency_ms": 2.609134,
+  "max_samples": 1000,
+  "mean_dt_ms": 1.9974323510531595,
+  "mean_recv_latency_ms": 1.9899400861723446,
+  "median_dt_ms": 2.001982999999985,
+  "median_recv_latency_ms": 1.9974055000000002,
+  "min_dt_ms": 0.010539999999999855,
+  "min_recv_latency_ms": 0.003436,
+  "one_over_mean_dt_hz": 500.64273739871254,
+  "p95_dt_ms": 2.0368680000000414,
+  "p95_recv_latency_ms": 2.02879615,
+  "p99_dt_ms": 2.0689920399999995,
+  "p99_recv_latency_ms": 2.0639067499999997,
+  "port": 49152,
+  "requested_seconds": 2.0,
+  "safety_boundary": [
+    "open-permission reference client",
+    "may send SPEED/FILTER/BIAS when requested or when profile=vendor-demo",
+    "no TCP/payload/URScript/URCap/robot-motion commands",
+    "final STOP attempted after START"
+  ],
+  "sample_counter": {
+    "backward_count": 1,
+    "duplicate_or_zero_delta_count": 0,
+    "first": 63698,
+    "last": 156,
+    "lost_estimate": 996,
+    "max_forward_delta": 2,
+    "wrap_count": 0
+  },
+  "samples": 998,
+  "samples_per_duration_hz": 501.14488658366616,
+  "scaling": {
+    "force_divisor": 10000.0,
+    "source": "OnRobot vendor highspeed_udp.c Newton/Newton-meter mode",
+    "torque_divisor": 100000.0
+  },
+  "script_mode": "open_reference_allows_speed_filter_bias",
+  "sequence_number": {
+    "backward_count": 0,
+    "duplicate_or_zero_delta_count": 0,
+    "first": 1,
+    "last": 998,
+    "lost_estimate": 0,
+    "max_forward_delta": 1,
+    "wrap_count": 0
+  },
+  "started_wall": "2026-05-26T20:41:43",
+  "status_counts": {
+    "0": 998
+  },
+  "summary_path": "/home/andy/ur10e_ros2_ws/ft_sensor/onrobot/hex_e_v2_3010007655/measurements/udp_highspeed_open_reference_20260526_204143/onrobot_udp_open_reference_20260526_204143_summary.json"
+}

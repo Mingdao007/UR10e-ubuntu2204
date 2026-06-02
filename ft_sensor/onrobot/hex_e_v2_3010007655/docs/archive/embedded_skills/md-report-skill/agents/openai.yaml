@@ -1,0 +1,4 @@
+interface:
+  display_name: "MD Report Skill"
+  short_description: "Markdown reports with upright image evidence."
+  default_prompt: "Use $md-report-skill to create or repair a Markdown experiment report so photos, screenshots, and figures appear upright as thumbnails/contact sheets with human labels, purpose, and uncertainty."

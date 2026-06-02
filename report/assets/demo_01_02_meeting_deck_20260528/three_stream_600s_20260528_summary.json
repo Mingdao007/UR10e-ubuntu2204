@@ -1,0 +1,25 @@
+{
+  "clean_duration_s": null,
+  "clean_windows": null,
+  "comparison_png": "/home/andy/ur10e_ros2_ws/report/assets/demo_01_02_meeting_deck_20260528/three_stream_600s_20260528_fz_urcap125_udp500_compare.png",
+  "fz_comparison": {
+    "mae_n": 0.22147701444017007,
+    "matched_pairs": 74996,
+    "max_abs_n": 0.7500000000001587,
+    "mean_diff_n": -0.21966519132958107,
+    "nearest_time_offset_abs_mean_ms": 0.5059332124113267,
+    "one_second_mean_rmse_n": 0.2197603682927188,
+    "residual_std_n": 0.10777503604192622,
+    "rmse_n": 0.24467958597860398,
+    "udp_mean_n": 0.30227042375593277,
+    "urcap_mean_n": 0.08260523242635168
+  },
+  "overlay_png": "/home/andy/ur10e_ros2_ws/report/assets/demo_01_02_meeting_deck_20260528/three_stream_600s_20260528_fz_overlay_zeroed.png",
+  "rtde_rate_hz": 499.99276868674747,
+  "rtde_rows": 299993,
+  "udp_packets": 299755,
+  "udp_rate_hz": 499.5998302370043,
+  "urcap_update_rate_hz": 124.9940231616945,
+  "urcap_updates": 74996,
+  "window_s": 600.0
+}

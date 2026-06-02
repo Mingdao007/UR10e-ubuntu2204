@@ -1,0 +1,82 @@
+  #======    OnRobot Gripper Measure Part    ======#
+  
+  of__gripper_measure_part_title="OnRobot - Gripper Measure Part"
+  of__gripper_measure_part_error_mode="Unknown measurement mode.<br>Please define parameter 'mode' as a valid measurement mode."
+  of__gripper_measure_part_width_error_resolution="Please define parameter 'resolution' as a positive integer."
+  of__gripper_measure_part_weigth_error_resolution="Please define parameter 'resolution' as a positive integer."
+  def of_gripper_measure_part_width(mode=0,resolution=10,closingForce=10):
+  if OF_DEBUG_STATE:
+  textmsg("Gripper Measure Part Width starting..")
+  end 
+  local parameter_error=False
+  if not(resolution>0):
+  popup(of__gripper_measure_part_width_error_resolution,title=of__gripper_measure_part_title,error=True,blocking=False)
+  parameter_error=True
+  end 
+  if not(mode==0 or mode==1):
+  popup(of__gripper_measure_part_error_mode,title=of__gripper_measure_part_title,error=True,blocking=False)
+  parameter_error=True
+  end 
+  if(parameter_error):
+  halt
+  end 
+  local part_width=0
+  of_gripper_width_filtering_set(resolution)
+  local i=0
+  if(mode==0):
+  while(i<resolution):
+  i=i+1
+  sync()
+  end 
+  part_width=rg_Part_width
+  elif(mode==1):
+  local lastGripperWidth=rg_Width
+  of_gripper_centering_enable(1)
+  of_gripper_set_width(0,closingForce,blocking=True,depth_compensation=True,popupmsg=False)
+  of_gripper_centering_disable()
+  sync()
+  part_width=rg_Width
+  sync()
+  of_gripper_set_width(lastGripperWidth,closingForce,blocking=True,depth_compensation=True,popupmsg=False)
+  else:
+  popup(of__gripper_measure_part_error_mode,title=of__gripper_measure_part_title,error=True,blocking=False)
+  halt 
+  end 
+  if OF_DEBUG_STATE:
+  textmsg("End of Gripper Measure Part Width.")
+  end 
+  return part_width
+  end 
+  def of_gripper_measure_part_weigth(mode=1,resolution=10):
+  if OF_DEBUG_STATE:
+  textmsg("Gripper Measure Part Weigth starting..")
+  end 
+  local parameter_error=False
+  if not(resolution>0):
+  popup(of__gripper_measure_part_weigth_error_resolution,title=of__gripper_measure_part_title,error=True,blocking=False)
+  parameter_error=True
+  end 
+  if not(mode==1):
+  popup(of__gripper_measure_part_error_mode,title=of__gripper_measure_part_title,error=True,blocking=False)
+  parameter_error=True
+  end 
+  if(parameter_error):
+  halt
+  end 
+  of_gripper_width_filtering_set(resolution)
+  local part_weigth_sum=0.0
+  local i=0
+  while(i<resolution):
+  part_weigth_sum=part_weigth_sum+rg_Part_weight
+  i=i+1
+  sync()
+  end 
+  local part_weigth=part_weigth_sum/resolution
+  if OF_DEBUG_STATE:
+  textmsg("End of Gripper Measure Part Weigth.")
+  end 
+  return part_weigth
+  end 
+  
+  
+  #======    End of OnRobot Gripper Measure Part    ======#

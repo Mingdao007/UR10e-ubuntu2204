@@ -1,0 +1,84 @@
+  #======    OnRobot Gripper Set Width    ======#
+  
+  textmsg("Gripper Set Width script started...")
+  MATH_PI=d2r(180)
+  readString=""
+  enableGripperSetWidth=True
+  of_gripper_set_width_running=False
+  of_alive_thrd=0
+  of_control_thrd=0
+  thread of_gripper_set_width_thread():
+  enter_critical
+  of_gripper_set_width_running=True
+  exit_critical
+  if(gripper_centering):
+  of_gripper_centering_enable(1)
+  end 
+  of_gripper_set_width(width=gripper_width,force=gripper_force,blocking=True,depth_compensation=gripper_depth_compensation,popupmsg=True)
+  if(gripper_centering):
+  of_gripper_centering_disable()
+  end 
+  enter_critical
+  of_gripper_set_width_running=False
+  exit_critical
+  end 
+  thread OptoForceAliveThread():
+  local first_msg=True
+  while(True):
+  if of_portopened_controlSocket:
+  if first_msg:
+  local succ=socket_send_line("GRIPPER_SET_WIDTH","controlSocket")
+  if succ:
+  first_msg=False
+  end 
+  else:
+  socket_send_line("RUNNING","controlSocket")
+  end 
+  end 
+  of_wait_ms(100)
+  sync()
+  end 
+  end 
+  thread OptoForceControlThread():
+  while(True):
+  if of_portopened_controlSocket:
+  readString=socket_read_line("controlSocket",0)
+  if length(readString)!=0:
+  if OF_DEBUG_VAR:
+  textmsg("ControlSocket readString: ",readString)
+  end 
+  end 
+  if readString=="DISABLE":
+  enableGripperSetWidth=False
+  end 
+  end 
+  sync()
+  end 
+  end 
+  def closeAppEngine():
+  if of_gripper_set_width_running:
+  kill of_gripper_set_width_handler
+  of_gripper_stop()
+  end 
+  kill of_alive_thrd
+  kill of_control_thrd
+  end 
+  sync()
+  of_alive_thrd=run OptoForceAliveThread()
+  sync()
+  of_control_thrd=run OptoForceControlThread()
+  sync()
+  of_gripper_set_width_handler=run of_gripper_set_width_thread()
+  sync()
+  while(enableGripperSetWidth and of_gripper_set_width_running):
+  sync()
+  end 
+  closeAppEngine()
+  sync()
+  stopl(1.2)
+  of_wait_ms(100)
+  textmsg("Gripper Set Width script stopped.")
+  halt
+  
+  
+  #======    End of OnRobot Gripper Set Width    ======#

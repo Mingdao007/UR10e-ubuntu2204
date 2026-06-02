@@ -1,0 +1,50 @@
+v1:
+  allow_pending_pdf_verify: true
+  note: "V1 uses plausible paper-truth draft values with warnings; PDF extraction is a v2 gate."
+
+paper:
+  title: "Finite-Time Convergence Neural Network-Based Force-Motion Control for Unknown Surface With Orientation Compliance"
+  section_v:
+    pending_pdf_verify:
+      - q0
+      - trajectory
+      - orientation_signal_raw
+      - desired_normal_force_N
+      - r_sweep
+    q0: [0.0, -0.7853981634, 0.0, -2.3561944902, 0.0, 1.5707963268, 0.7853981634]
+    trajectory:
+      x: "0.2*cos(0.2*t)"
+      y: "0.2*sin(0.2*t)"
+      z: "z0_TBD"
+    orientation_signal_raw: "[cos(0.1*t), sin(0.1*t)]"
+    orientation_signal_note: "Pending PDF resolution for the 2D/3D orientation signal ambiguity."
+    joint_limit_rad: [-2.5, 2.5]
+    joint_velocity_limit_rad_s: [-1.5, 1.5]
+    desired_normal_force_N: 5.0
+    r_sweep: [0.2, 0.4, 0.6, 0.8, 1.0]
+  section_vi:
+    pending_pdf_verify:
+      - Md_diag
+      - Bd_diag
+      - epsilon
+      - kp
+      - ko
+      - kf
+      - force_filter
+    Md_diag: 12.0
+    Bd_diag: 550.0
+    epsilon: 0.022
+    kp: 4.0
+    ko: 5.0
+    kf: 1.0
+    experimental_joint_limit_rad: [-3.0, 3.0]
+    experimental_joint_velocity_limit_rad_s: [-0.15, 0.15]
+    force_filter: "none in paper"
+
+fig5:
+  initial_error: 1.0
+  gain: 5.0
+  dt: 0.0005
+  duration_s: 2.0
+  convergence_tol: 0.001
+

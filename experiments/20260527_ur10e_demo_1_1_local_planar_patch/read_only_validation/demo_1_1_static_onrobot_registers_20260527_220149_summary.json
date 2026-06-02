@@ -1,0 +1,86 @@
+{
+  "csv_path": "/home/andy/ur10e_ros2_ws/experiments/20260527_ur10e_demo_1_1_local_planar_patch/read_only_validation/demo_1_1_static_onrobot_registers_20260527_220149.csv",
+  "duration_first_last_s": 4.607688785999926,
+  "errors": [],
+  "finished_wall": "2026-05-27T22:01:54",
+  "first_t_s": 0.39567899699977715,
+  "force_norm_n": {
+    "first": 0.0,
+    "last": 0.0,
+    "max": 0.0,
+    "mean": 0.0,
+    "min": 0.0
+  },
+  "fx_n": {
+    "first": 0.0,
+    "last": 0.0,
+    "max": 0.0,
+    "mean": 0.0,
+    "min": 0.0,
+    "std": 0.0
+  },
+  "fy_n": {
+    "first": 0.0,
+    "last": 0.0,
+    "max": 0.0,
+    "mean": 0.0,
+    "min": 0.0,
+    "std": 0.0
+  },
+  "fz_n": {
+    "first": 0.0,
+    "last": 0.0,
+    "max": 0.0,
+    "mean": 0.0,
+    "min": 0.0,
+    "std": 0.0
+  },
+  "host": "192.168.1.18",
+  "last_t_s": 5.003367782999703,
+  "mean_dt_ms": 7.999459697916538,
+  "ok": true,
+  "p95_dt_ms": 8.15594699997746,
+  "p99_dt_ms": 8.20885325083509,
+  "port": 30004,
+  "register_mapping": {
+    "output_double_register_24": "Fx",
+    "output_double_register_25": "Fy",
+    "output_double_register_26": "Fz",
+    "output_double_register_27": "Tx",
+    "output_double_register_28": "Ty",
+    "output_double_register_29": "Tz"
+  },
+  "requested_hz": 125.0,
+  "requested_seconds": 5.0,
+  "safety_boundary": [
+    "Ubuntu side reads RTDE output registers only",
+    "no URScript/register writes/motion/zero/bias/filter/speed/TCP/payload commands"
+  ],
+  "sample_rate_hz": 125.00844279026124,
+  "samples": 577,
+  "started_wall": "2026-05-27T22:01:49",
+  "tx_nm": {
+    "first": 0.0,
+    "last": 0.0,
+    "max": 0.0,
+    "mean": 0.0,
+    "min": 0.0,
+    "std": 0.0
+  },
+  "ty_nm": {
+    "first": 0.0,
+    "last": 0.0,
+    "max": 0.0,
+    "mean": 0.0,
+    "min": 0.0,
+    "std": 0.0
+  },
+  "tz_nm": {
+    "first": 0.0,
+    "last": 0.0,
+    "max": 0.0,
+    "mean": 0.0,
+    "min": 0.0,
+    "std": 0.0
+  }
+}

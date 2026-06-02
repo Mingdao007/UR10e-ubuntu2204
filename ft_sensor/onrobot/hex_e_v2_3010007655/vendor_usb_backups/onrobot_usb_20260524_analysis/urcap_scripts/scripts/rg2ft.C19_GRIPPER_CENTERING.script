@@ -1,0 +1,40 @@
+  #======    OnRobot Gripper Centering    ======#
+  
+  of_gripper_centering_state=0
+  OF_GRIPPER_CENTERING_STATE_IDLE=0
+  OF_GRIPPER_CENTERING_STATE_RUNNING=1
+  def of_gripper_centering_enable(gain,pow_gain=0.05):
+  sync()
+  if OF_DEBUG_STATE:
+  textmsg("Gripper Centering Enable starting..")
+  end 
+  if not(of_gripper_centering_state==OF_GRIPPER_CENTERING_STATE_IDLE):
+  textmsg("of_gripper_centering_state: ",of_gripper_centering_state)
+  popup(of_gripper_centering_start_error,title=of_gripper_centering_title,error=True,blocking=False)
+  halt
+  else:
+  of_gripper_centering_state=OF_GRIPPER_CENTERING_STATE_RUNNING
+  end 
+  enableFlag=binary_list_to_integer([True])
+  of_send_full(OF_CMD_GRIPPER_CENTERING,enableFlag,of_float_to_int(gain),of_float_to_int(pow_gain))
+  of_speedl_start_for_CMD(OF_CMD_GRIPPER_CENTERING)
+  if OF_DEBUG_STATE:
+  textmsg("End of Gripper Centering Enable.")
+  end 
+  end 
+  def of_gripper_centering_disable():
+  if OF_DEBUG_STATE:
+  textmsg("Start of Gripper Centering Disable.")
+  end 
+  enableFlag=binary_list_to_integer([False])
+  of_send_full(OF_CMD_GRIPPER_CENTERING,enableFlag,0,0)
+  of_speedl_stop_for_CMD(OF_CMD_GRIPPER_CENTERING)
+  enter_critical
+  of_gripper_centering_state=OF_GRIPPER_CENTERING_STATE_IDLE
+  exit_critical
+  if OF_DEBUG_STATE:
+  textmsg("Gripper Centering Disabled.")
+  end 
+  end 
+  
+  #======    End of OnRobot Gripper Centering    ======#

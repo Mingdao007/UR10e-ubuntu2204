@@ -1,0 +1,32 @@
+  #======    OnRobot Gripper Proximity Averaging Window    ======#
+  
+  of_gProx_avg_window_default=10
+  of_gProx_avg_window=10
+  of_gProx_avg_window_last=of_gProx_avg_window
+  of__gripper_proxi_avg_window_error_title="OnRobot - Gripper Proximity"
+  of__gripper_proxi_avg_window_error_windowSize="Please define parameter windowSize as a positive integer between 0 and 20."
+  def of_gripper_proxi_avg_window_set(windowSize=10):
+  sync()
+  if OF_DEBUG_STATE:
+  textmsg("Gripper Proxi Avg Window Set command starting..")
+  end 
+  if not(windowSize>0 and windowSize<=20):
+  popup(of__gripper_proxi_avg_window_error_windowSize,title=of__gripper_proxi_avg_window_error_title,error=True,blocking=False)
+  halt
+  end 
+  of_gProx_avg_window_last=of_gProx_avg_window
+  of_gProx_avg_window=windowSize
+  of_send_full(OF_CMD_GRIPPER_PROXI_AVG_WINDOW,windowSize)
+  if OF_DEBUG_STATE:
+  textmsg("Gripper Proxi Avg Window Set command ended.")
+  end 
+  end 
+  def of_gripper_proxi_avg_window_reset_last():
+  of_gripper_proxi_avg_window_set(of_gProx_avg_window_last)
+  end 
+  def of_gripper_proxi_avg_window_reset_default():
+  of_gripper_proxi_avg_window_set(of_gProx_avg_window_default)
+  end 
+  
+  
+  #======    End of OnRobot Gripper Proximity Averaging Window    ======#

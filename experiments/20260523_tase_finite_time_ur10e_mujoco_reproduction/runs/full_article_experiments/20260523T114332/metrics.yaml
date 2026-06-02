@@ -1,0 +1,59 @@
+run_id: 20260523T114332
+config: /home/andy/ur10e_ros2_ws/experiments/20260523_tase_finite_time_ur10e_mujoco_reproduction/configs/full_article_experiments.yaml
+experiments:
+- experiment: E1
+  paper_label: 'Experiment #1'
+  trajectory: cycloid
+  material: single
+  contact_time_s: 2.0
+  proposed_miae_force_N: 0.18385248342863766
+  baseline_miae_force_N: 0.8952312007997592
+  miae_reduction_percent: 79.46312826626327
+  proposed_tail_mean_abs_force_error_N: 0.08000642330929131
+  baseline_tail_mean_abs_force_error_N: 0.5500177083808763
+  proposed_tail_position_error_m: 0.0018060163298583174
+  baseline_tail_position_error_m: 0.005853864891180789
+  proposed_tail_orientation_error: 8.000000000000559e-05
+  baseline_tail_orientation_error: 0.00162000000000001
+- experiment: E2
+  paper_label: 'Experiment #2'
+  trajectory: figure-eight
+  material: single
+  contact_time_s: 2.0
+  proposed_miae_force_N: 0.18385248342863766
+  baseline_miae_force_N: 0.8952312007997592
+  miae_reduction_percent: 79.46312826626327
+  proposed_tail_mean_abs_force_error_N: 0.08000642330929131
+  baseline_tail_mean_abs_force_error_N: 0.5500177083808763
+  proposed_tail_position_error_m: 0.0018060163298583174
+  baseline_tail_position_error_m: 0.005853864891180789
+  proposed_tail_orientation_error: 8.000000000931616e-05
+  baseline_tail_orientation_error: 0.0016200000000167693
+- experiment: E3
+  paper_label: 'Experiment #3'
+  trajectory: circle
+  material: multi
+  contact_time_s: 3.5
+  proposed_miae_force_N: 0.1962069615241835
+  baseline_miae_force_N: 1.0106652360393522
+  miae_reduction_percent: 80.58635495437743
+  proposed_tail_mean_abs_force_error_N: 0.07999395560693055
+  baseline_tail_mean_abs_force_error_N: 0.553723047268624
+  proposed_tail_position_error_m: 0.001806016329858399
+  baseline_tail_position_error_m: 0.0058540399187285395
+  proposed_tail_orientation_error: 8.000000000093046e-05
+  baseline_tail_orientation_error: 0.0016200000000016748
+- experiment: E4
+  paper_label: 'Experiment #4'
+  trajectory: cardioid
+  material: multi
+  contact_time_s: 1.5
+  proposed_miae_force_N: 0.19223391163145367
+  baseline_miae_force_N: 0.9949159335944524
+  miae_reduction_percent: 80.67837641950842
+  proposed_tail_mean_abs_force_error_N: 0.08000358297326128
+  baseline_tail_mean_abs_force_error_N: 0.5537262139934045
+  proposed_tail_position_error_m: 0.001806016329858304
+  baseline_tail_position_error_m: 0.005853817691641936
+  proposed_tail_orientation_error: 8.000000010674546e-05
+  baseline_tail_orientation_error: 0.0016200000001921418

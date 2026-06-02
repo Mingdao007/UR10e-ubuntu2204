@@ -1,0 +1,456 @@
+{
+  "checkpoint_path": "/home/andy/ur10e_ros2_ws/experiments/20260528_onrobot_three_stream_coldstart_drift/run_20260528_141149/three_stream_coldstart_drift_20260528_141152_checkpoint.json",
+  "csv_paths": {
+    "onrobot_udp500_raw": "/home/andy/ur10e_ros2_ws/experiments/20260528_onrobot_three_stream_coldstart_drift/run_20260528_141149/three_stream_coldstart_drift_20260528_141152_onrobot_udp500_raw.csv",
+    "rtde_ur500_urcap125": "/home/andy/ur10e_ros2_ws/experiments/20260528_onrobot_three_stream_coldstart_drift/run_20260528_141149/three_stream_coldstart_drift_20260528_141152_rtde_ur500_urcap125.csv"
+  },
+  "dashboard_after": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "is in remote control": "false",
+    "programState": "PLAYING 3.urp",
+    "robotmode": "Robotmode: RUNNING",
+    "running": "Program running: true",
+    "safetymode": "Safetymode: NORMAL"
+  },
+  "dashboard_before": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "is in remote control": "false",
+    "programState": "PLAYING 3.urp",
+    "robotmode": "Robotmode: RUNNING",
+    "running": "Program running: true",
+    "safetymode": "Safetymode: NORMAL"
+  },
+  "errors": [],
+  "finished_wall": "2026-05-28T17:45:58",
+  "first_sample_zero_reference": {
+    "onrobot_udp_raw": {
+      "fx_n": 0.14,
+      "fy_n": 2.91,
+      "fz_n": -25.05,
+      "tx_nm": 0.01799,
+      "ty_nm": -0.091,
+      "tz_nm": 0.079
+    },
+    "onrobot_urcap_registers": {
+      "urcap_fx_n": -0.066523,
+      "urcap_fy_n": -0.002675999999995071,
+      "urcap_fz_n": -0.20924000000000006,
+      "urcap_tx_nm": 0.006633,
+      "urcap_ty_nm": 0.006473000000000072,
+      "urcap_tz_nm": -0.003065999999999848
+    },
+    "ur_actual_tcp_force": {
+      "ur_fx_n": 0.24484104768281292,
+      "ur_fy_n": -1.4057953316206426,
+      "ur_fz_n": -4.993316231366719,
+      "ur_tx_nm": 0.06028437463590496,
+      "ur_ty_nm": 0.012144698961673302,
+      "ur_tz_nm": -0.027470834023094522
+    }
+  },
+  "label": "three_stream_interruptible_first_sample_zero_speed2",
+  "ok": true,
+  "output_dir": "/home/andy/ur10e_ros2_ws/experiments/20260528_onrobot_three_stream_coldstart_drift/run_20260528_141149",
+  "plot_paths": {
+    "first_zero_force_axes_png": "/home/andy/ur10e_ros2_ws/experiments/20260528_onrobot_three_stream_coldstart_drift/run_20260528_141149/plots/three_stream_coldstart_drift_20260528_141152_first_zero_force_axes.png",
+    "first_zero_fz_overlay_png": "/home/andy/ur10e_ros2_ws/experiments/20260528_onrobot_three_stream_coldstart_drift/run_20260528_141149/plots/three_stream_coldstart_drift_20260528_141152_first_zero_fz_overlay.png"
+  },
+  "port_probe": {
+    "dashboard": {
+      "banner_hex": "436f6e6e65637465643a20556e6976657273616c20526f626f74732044617368626f617264205365727665720a",
+      "open": true,
+      "port": 29999
+    },
+    "onrobot_tcp": {
+      "open": true,
+      "port": 49151
+    },
+    "onrobot_udp": {
+      "host": "192.168.1.1",
+      "port": 49152,
+      "udp_connect_checked": true
+    },
+    "rtde": {
+      "open": true,
+      "port": 30004
+    }
+  },
+  "requested_seconds": 86400.0,
+  "rtde_timing": {
+    "duration_first_last_s": 12843.725705627,
+    "first_t_s": 0.006037068,
+    "interval_rate_hz": 499.9988435743771,
+    "last_t_s": 12843.731742695,
+    "max_dt_ms": 14.73860699979923,
+    "mean_dt_ms": 2.0000046257131903,
+    "median_dt_ms": 1.999423000142997,
+    "min_dt_ms": 0.011301000995445065,
+    "p95_dt_ms": 2.0354250006221264,
+    "p99_dt_ms": 2.062600999606729,
+    "sample_count_over_duration_hz": 499.99892143340514,
+    "samples": 6421849
+  },
+  "safety_boundary": [
+    "no robot motion commands",
+    "no URScript upload/run",
+    "no UR zero_ftsensor()",
+    "no UR TCP/payload writes",
+    "no OnRobot BIAS command",
+    "no OnRobot FILTER command",
+    "OnRobot UDP SPEED/START/final STOP only",
+    "analysis zero is first-sample subtraction only",
+    "interruptible: Ctrl+C/SIGTERM stops and summarizes partial data"
+  ],
+  "started_wall": "2026-05-28T14:11:54",
+  "stop_reason": "signal_2",
+  "summary_path": "/home/andy/ur10e_ros2_ws/experiments/20260528_onrobot_three_stream_coldstart_drift/run_20260528_141149/three_stream_coldstart_drift_20260528_141152_summary.json",
+  "udp_commands_sent": [
+    {
+      "command": "SPEED",
+      "command_hex": "0x0082",
+      "data": 2,
+      "sent_wall": "2026-05-28T14:11:54.635"
+    },
+    {
+      "command": "START",
+      "command_hex": "0x0002",
+      "data": 51840000,
+      "sent_wall": "2026-05-28T14:11:54.640"
+    },
+    {
+      "command": "STOP",
+      "command_hex": "0x0000",
+      "data": 0,
+      "sent_wall": "2026-05-28T17:45:58.367"
+    }
+  ],
+  "udp_raw_tuple_updates": {
+    "distinct_value_transition_rate_hz": 499.60262561008676,
+    "max_rows_per_run": 2,
+    "mean_rows_per_run": 1.0000014025774386,
+    "median_rows_per_run": 1,
+    "run_length_counts_top10": [
+      [
+        1,
+        6416749
+      ],
+      [
+        2,
+        9
+      ]
+    ],
+    "runs": 6416758
+  },
+  "udp_sample_counter_delta_mod65536_counts": {
+    "2": 6416766
+  },
+  "udp_sequence_delta_counts": {
+    "1": 6416766
+  },
+  "udp_speed_divisor_sent": 2,
+  "udp_status_counts": {
+    "0": 6416767
+  },
+  "udp_timing": {
+    "duration_first_last_s": 12843.721532016001,
+    "first_t_s": 0.010573667,
+    "interval_rate_hz": 499.6033263415669,
+    "last_t_s": 12843.732105683,
+    "max_dt_ms": 14.500626999506494,
+    "mean_dt_ms": 2.001587954433121,
+    "median_dt_ms": 2.0012459999634302,
+    "min_dt_ms": 0.005300000339047983,
+    "p95_dt_ms": 2.040050000005067,
+    "p99_dt_ms": 2.111172349771095,
+    "sample_count_over_duration_hz": 499.6034042006203,
+    "samples": 6416767
+  },
+  "ur_actual_tcp_force_tuple_updates": {
+    "distinct_value_transition_rate_hz": 499.9988435743771,
+    "max_rows_per_run": 1,
+    "mean_rows_per_run": 1.0,
+    "median_rows_per_run": 1.0,
+    "run_length_counts_top10": [
+      [
+        1,
+        6421849
+      ]
+    ],
+    "runs": 6421849
+  },
+  "ur_tcp_speed_norm": {
+    "angular": {
+      "first": 0.0,
+      "last": 0.0,
+      "last_minus_first": 0.0,
+      "max": 0.004241585437866084,
+      "mean": 6.659220139990082e-07,
+      "min": 0.0,
+      "samples": 6421849,
+      "std": 8.967790491800335e-06
+    },
+    "linear": {
+      "first": 0.0,
+      "last": 0.0,
+      "last_minus_first": 0.0,
+      "max": 0.002175262335628591,
+      "mean": 3.003669333463075e-07,
+      "min": 0.0,
+      "samples": 6421849,
+      "std": 4.285600195881735e-06
+    }
+  },
+  "urcap_register_tuple_updates": {
+    "distinct_value_transition_rate_hz": 124.99877658525766,
+    "max_rows_per_run": 8,
+    "mean_rows_per_run": 4.000028029506973,
+    "median_rows_per_run": 4.0,
+    "run_length_counts_top10": [
+      [
+        4,
+        1605423
+      ],
+      [
+        8,
+        12
+      ],
+      [
+        3,
+        8
+      ],
+      [
+        5,
+        7
+      ],
+      [
+        2,
+        1
+      ]
+    ],
+    "runs": 1605451
+  },
+  "zeroed_axis_stats": {
+    "onrobot_udp_raw": {
+      "fx_n": {
+        "first": 0.14,
+        "last": 0.29,
+        "last_minus_first": 0.14999999999999997,
+        "max": 0.51,
+        "min": -0.23,
+        "samples": 6416767,
+        "zeroed_max": 0.51,
+        "zeroed_mean": 0.1251249549344814,
+        "zeroed_min": -0.23,
+        "zeroed_std": 0.07383116342569941
+      },
+      "fy_n": {
+        "first": 2.91,
+        "last": 3.06,
+        "last_minus_first": 0.1499999999999999,
+        "max": 0.46999999999999975,
+        "min": -0.16999999999999993,
+        "samples": 6416767,
+        "zeroed_max": 0.46999999999999975,
+        "zeroed_mean": 0.18334454924107124,
+        "zeroed_min": -0.16999999999999993,
+        "zeroed_std": 0.05922589680773658
+      },
+      "fz_n": {
+        "first": -25.05,
+        "last": -24.24,
+        "last_minus_first": 0.8100000000000023,
+        "max": 2.0500000000000007,
+        "min": -0.9699999999999989,
+        "samples": 6416767,
+        "zeroed_max": 2.0500000000000007,
+        "zeroed_mean": 0.5827986104840908,
+        "zeroed_min": -0.9699999999999989,
+        "zeroed_std": 0.2875725337779558
+      },
+      "tx_nm": {
+        "first": 0.01799,
+        "last": 0.025,
+        "last_minus_first": 0.007010000000000002,
+        "max": 0.04101,
+        "min": -0.04299,
+        "samples": 6416767,
+        "zeroed_max": 0.04101,
+        "zeroed_mean": 0.002235801991875536,
+        "zeroed_min": -0.04299,
+        "zeroed_std": 0.009793565275802742
+      },
+      "ty_nm": {
+        "first": -0.091,
+        "last": -0.081,
+        "last_minus_first": 0.009999999999999995,
+        "max": 0.045,
+        "min": -0.049000000000000016,
+        "samples": 6416767,
+        "zeroed_max": 0.045,
+        "zeroed_mean": 0.006516819865828976,
+        "zeroed_min": -0.049000000000000016,
+        "zeroed_std": 0.011364981764049147
+      },
+      "tz_nm": {
+        "first": 0.079,
+        "last": 0.067,
+        "last_minus_first": -0.011999999999999997,
+        "max": 0.023999999999999994,
+        "min": -0.028000000000000004,
+        "samples": 6416767,
+        "zeroed_max": 0.023999999999999994,
+        "zeroed_mean": -0.007762746739908095,
+        "zeroed_min": -0.028000000000000004,
+        "zeroed_std": 0.0067556611078708395
+      }
+    },
+    "onrobot_urcap_registers": {
+      "urcap_fx_n": {
+        "first": -0.066523,
+        "last": -0.006522999999999988,
+        "last_minus_first": 0.06000000000000001,
+        "max": 0.36,
+        "min": -0.34,
+        "samples": 6421849,
+        "zeroed_max": 0.36,
+        "zeroed_mean": 0.015095202331912774,
+        "zeroed_min": -0.34,
+        "zeroed_std": 0.07384469980297764
+      },
+      "urcap_fy_n": {
+        "first": -0.002675999999995071,
+        "last": 0.19732399999999764,
+        "last_minus_first": 0.1999999999999927,
+        "max": 0.4099999999999953,
+        "min": -0.15000000000000707,
+        "samples": 6421849,
+        "zeroed_max": 0.4099999999999953,
+        "zeroed_mean": 0.1633649420906838,
+        "zeroed_min": -0.15000000000000707,
+        "zeroed_std": 0.05922740928517739
+      },
+      "urcap_fz_n": {
+        "first": -0.20924000000000006,
+        "last": 0.10076000000000465,
+        "last_minus_first": 0.3100000000000047,
+        "max": 1.8200000000000023,
+        "min": -1.0599989999999972,
+        "samples": 6421849,
+        "zeroed_max": 1.8200000000000023,
+        "zeroed_mean": 0.3528800768333399,
+        "zeroed_min": -1.0599989999999972,
+        "zeroed_std": 0.2875642096761498
+      },
+      "urcap_tx_nm": {
+        "first": 0.006633,
+        "last": 0.025633000000000003,
+        "last_minus_first": 0.019000000000000003,
+        "max": 0.052000000000000005,
+        "min": -0.029,
+        "samples": 6421849,
+        "zeroed_max": 0.052000000000000005,
+        "zeroed_mean": 0.015227052675951114,
+        "zeroed_min": -0.029,
+        "zeroed_std": 0.009793323769873862
+      },
+      "urcap_ty_nm": {
+        "first": 0.006473000000000072,
+        "last": 0.03247300000000052,
+        "last_minus_first": 0.02600000000000045,
+        "max": 0.059000000000000836,
+        "min": -0.0340000000000003,
+        "samples": 6421849,
+        "zeroed_max": 0.059000000000000836,
+        "zeroed_mean": 0.02051774559009432,
+        "zeroed_min": -0.0340000000000003,
+        "zeroed_std": 0.011363642434079686
+      },
+      "urcap_tz_nm": {
+        "first": -0.003065999999999848,
+        "last": -0.022065999999999236,
+        "last_minus_first": -0.01899999999999939,
+        "max": 0.015999999999999247,
+        "min": -0.034999999999998824,
+        "samples": 6421849,
+        "zeroed_max": 0.015999999999999247,
+        "zeroed_mean": -0.014762718650032886,
+        "zeroed_min": -0.034999999999998824,
+        "zeroed_std": 0.006754832320558233
+      }
+    },
+    "ur_actual_tcp_force": {
+      "ur_fx_n": {
+        "first": 0.24484104768281292,
+        "last": -3.1719792448245747,
+        "last_minus_first": -3.4168202925073876,
+        "max": 1.8850801268529072,
+        "min": -4.5913245589453675,
+        "samples": 6421849,
+        "zeroed_max": 1.8850801268529072,
+        "zeroed_mean": -1.794187649812244,
+        "zeroed_min": -4.5913245589453675,
+        "zeroed_std": 1.2531988384511326
+      },
+      "ur_fy_n": {
+        "first": -1.4057953316206426,
+        "last": -27.930658389130247,
+        "last_minus_first": -26.524863057509606,
+        "max": 0.9674975657902234,
+        "min": -30.071524818082043,
+        "samples": 6421849,
+        "zeroed_max": 0.9674975657902234,
+        "zeroed_mean": -22.519321139830403,
+        "zeroed_min": -30.071524818082043,
+        "zeroed_std": 6.974086085518695
+      },
+      "ur_fz_n": {
+        "first": -4.993316231366719,
+        "last": -69.3246482201178,
+        "last_minus_first": -64.33133198875107,
+        "max": 0.6125990909099039,
+        "min": -65.13802061178261,
+        "samples": 6421849,
+        "zeroed_max": 0.6125990909099039,
+        "zeroed_mean": -45.33367738493103,
+        "zeroed_min": -65.13802061178261,
+        "zeroed_std": 17.111578888613224
+      },
+      "ur_tx_nm": {
+        "first": 0.06028437463590496,
+        "last": 0.8943498089881903,
+        "last_minus_first": 0.8340654343522853,
+        "max": 0.9051342521259041,
+        "min": -0.03221415572531108,
+        "samples": 6421849,
+        "zeroed_max": 0.9051342521259041,
+        "zeroed_mean": 0.7190025721097778,
+        "zeroed_min": -0.03221415572531108,
+        "zeroed_std": 0.21492665235066336
+      },
+      "ur_ty_nm": {
+        "first": 0.012144698961673302,
+        "last": -0.06098227488245803,
+        "last_minus_first": -0.07312697384413133,
+        "max": 0.09606265805392664,
+        "min": -0.10780466437658605,
+        "samples": 6421849,
+        "zeroed_max": 0.09606265805392664,
+        "zeroed_mean": -0.01697072980658625,
+        "zeroed_min": -0.10780466437658605,
+        "zeroed_std": 0.0324108905966962
+      },
+      "ur_tz_nm": {
+        "first": -0.027470834023094522,
+        "last": -0.02389090548514635,
+        "last_minus_first": 0.0035799285379481717,
+        "max": 0.03468912157345924,
+        "min": -0.03969063377816108,
+        "samples": 6421849,
+        "zeroed_max": 0.03468912157345924,
+        "zeroed_mean": 0.002276034015519345,
+        "zeroed_min": -0.03969063377816108,
+        "zeroed_std": 0.007915748849366806
+      }
+    }
+  }
+}

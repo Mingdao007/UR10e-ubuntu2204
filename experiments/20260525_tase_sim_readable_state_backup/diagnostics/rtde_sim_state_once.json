@@ -1,0 +1,122 @@
+{
+  "captured_wall": "2026-05-25T16:41:25",
+  "derived": {
+    "actual_q_deg": [
+      40.44393039657125,
+      -96.33198516579093,
+      -146.0740182693961,
+      -27.88210694464024,
+      90.08923892598439,
+      -49.707320044258765
+    ],
+    "actual_qd_norm_rad_s": 0.0,
+    "actual_tcp_force_norm_N": 4.009794025945639,
+    "actual_tcp_speed_norm": 0.0,
+    "actual_tcp_torque_norm_Nm": 0.014102516086210728,
+    "target_actual_q_error_norm_rad": 5.917993870021778e-05
+  },
+  "fields": [
+    "timestamp",
+    "target_q",
+    "actual_q",
+    "actual_qd",
+    "target_TCP_pose",
+    "actual_TCP_pose",
+    "actual_TCP_speed",
+    "actual_TCP_force",
+    "payload",
+    "payload_cog",
+    "tcp_offset",
+    "speed_scaling",
+    "target_speed_fraction",
+    "runtime_state",
+    "robot_mode",
+    "safety_mode"
+  ],
+  "host": "192.168.1.18",
+  "ok": true,
+  "port": 30004,
+  "safety_boundary": [
+    "RTDE output recipe read only",
+    "no RTDE inputs/register writes",
+    "no URScript, motion, zero, bias, TCP, payload, or URCap commands"
+  ],
+  "values": {
+    "actual_TCP_force": [
+      0.4323903831010829,
+      0.24560844413325422,
+      -3.978839426174607,
+      -0.0008496220946268611,
+      0.003756538854385925,
+      -0.013566411393350974
+    ],
+    "actual_TCP_pose": [
+      0.4561937863181124,
+      0.16055373507071327,
+      0.044664812807231266,
+      3.1374700419770174,
+      0.007051636876497421,
+      -0.006273548913546367
+    ],
+    "actual_TCP_speed": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "actual_q": [
+      0.7058797478675842,
+      -1.681310316125387,
+      -2.5494725704193115,
+      -0.4866345685771485,
+      1.5723538398742676,
+      -0.867556397114889
+    ],
+    "actual_qd": [
+      -0.0,
+      0.0,
+      -0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "payload": 0.44,
+    "payload_cog": [
+      0.005,
+      -0.005,
+      0.025
+    ],
+    "robot_mode": 7,
+    "runtime_state": 1,
+    "safety_mode": 1,
+    "speed_scaling": 0.0,
+    "target_TCP_pose": [
+      0.45621636609368604,
+      0.16057797174607755,
+      0.04467268561039227,
+      3.137484656057068,
+      0.007037770415287315,
+      -0.006207623878934825
+    ],
+    "target_q": [
+      0.7058965563774109,
+      -1.6813298664488734,
+      -2.5494368076324463,
+      -0.48660941541705327,
+      1.5723376274108887,
+      -0.867530647908346
+    ],
+    "target_speed_fraction": 1.0,
+    "tcp_offset": [
+      0.0,
+      0.0,
+      0.12254000000000001,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "timestamp": 5876.639999999999
+  }
+}

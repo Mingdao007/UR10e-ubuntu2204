@@ -1,0 +1,27 @@
+{
+  "consecutive_change_rate_hz": 100.6035073300157,
+  "consecutive_raw_tuple_changes": 6036,
+  "csv_path": "/home/andy/ur10e_ros2_ws/experiments/20260520_ur10e_poweron_readonly/onrobot_tcpdaq_readonly_60s_20260520/onrobot_tcpdaq_readonly_maxpoll_60s_20260520_161711.csv",
+  "duration_first_last_s": 59.997908226,
+  "force_torque_max": {
+    "fx_n": 0.58,
+    "fy_n": 3.6999999999999997,
+    "fz_n": -35.18,
+    "tx_nm": -0.06999999999999999,
+    "ty_nm": -0.037,
+    "tz_nm": 0.091
+  },
+  "force_torque_min": {
+    "fx_n": 0.04,
+    "fy_n": 3.36,
+    "fz_n": -36.86,
+    "tx_nm": -0.124,
+    "ty_nm": -0.089,
+    "tz_nm": 0.060450000000000004
+  },
+  "interpretation": "TCP request/response polling rate is not the same as unique raw-tuple update rate; this analysis estimates how often the returned raw six-axis tuple changed during a static run.",
+  "max_constant_raw_run_reads": 65,
+  "mean_reads_per_constant_raw_run": 57.78582077190658,
+  "rows": 348853,
+  "unique_raw_tuples": 6023
+}

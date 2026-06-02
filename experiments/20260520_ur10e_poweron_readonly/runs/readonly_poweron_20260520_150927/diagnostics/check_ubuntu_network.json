@@ -1,0 +1,42 @@
+{
+  "ok": false,
+  "robot_host": "192.168.1.18",
+  "device": "enp3s0",
+  "expected_connection": "Profile 2",
+  "expected_host_ipv4": "192.168.1.10/24",
+  "device_state": {
+    "device": "enp3s0",
+    "type": "ethernet",
+    "state": "unavailable",
+    "connection": ""
+  },
+  "ipv4_addresses": [],
+  "same_subnet": false,
+  "default_routes": [
+    {
+      "dev": "wlp4s0",
+      "gateway": "10.11.192.2",
+      "metric": "600",
+      "protocol": "dhcp"
+    }
+  ],
+  "default_route_on_direct_link": false,
+  "ping": {
+    "ok": false,
+    "returncode": 1,
+    "stdout": "PING 192.168.1.18 (192.168.1.18) 56(84) bytes of data.\n\n--- 192.168.1.18 ping statistics ---\n2 packets transmitted, 0 received, 100% packet loss, time 1004ms",
+    "stderr": ""
+  },
+  "issues": [
+    "direct_link_has_no_ipv4",
+    "robot_ping_failed"
+  ],
+  "command": [
+    "/usr/bin/python3",
+    "scripts/check_ubuntu_network.py",
+    "--robot-host",
+    "192.168.1.18",
+    "--json-only"
+  ],
+  "returncode": 0
+}

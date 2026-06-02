@@ -1,0 +1,76 @@
+v1_scope:
+  description: "Article-level simulation reproduction for Section VI trajectories; this is simulation, not hardware validation."
+  source: "Published paper PDF, Section VI experimental trajectories."
+  baseline: "constant_impedance_synthetic_reference"
+  proposed: "finite_time_force_motion_synthetic_reference"
+
+simulation:
+  dt_s: 0.01
+  duration_s: 60.0
+  target_force_N: -5.0
+  seed: 20260523
+
+controllers:
+  proposed:
+    force_tau_s: 1.2
+    position_tau_s: 1.5
+    orientation_tau_s: 2.0
+    steady_force_error_N: 0.08
+    steady_position_error_m: 0.0008
+    steady_orientation_error: 0.00008
+  constant_impedance:
+    force_tau_s: 4.0
+    position_tau_s: 4.8
+    orientation_tau_s: 5.0
+    steady_force_error_N: 0.55
+    steady_position_error_m: 0.0025
+    steady_orientation_error: 0.0009
+
+experiments:
+  E1:
+    paper_label: "Experiment #1"
+    trajectory: "cycloid"
+    contact_time_s: 2.0
+    material: "single"
+    formula:
+      x: "x0 + 0.015*(0.1*t - sin(0.1*t))"
+      y: "y0 + 0.015*(1 - cos(0.1*t))"
+      z: "z0"
+    desired_force_N: -5.0
+    orientation_convergence_s: 6.0
+  E2:
+    paper_label: "Experiment #2"
+    trajectory: "figure-eight"
+    contact_time_s: 2.0
+    material: "single"
+    formula:
+      x: "x0 + 0.04*sin(0.1*t)"
+      y: "y0 + 0.01*sin(0.2*t)"
+      z: "z0"
+    desired_force_N: -5.0
+    orientation_convergence_s: 7.0
+  E3:
+    paper_label: "Experiment #3"
+    trajectory: "circle"
+    contact_time_s: 3.5
+    material: "multi"
+    material_switch_time_s: 30.0
+    formula:
+      x: "x0 + 0.03*cos(0.1*t)"
+      y: "y0 + 0.03*sin(0.1*t)"
+      z: "z0"
+    desired_force_N: -5.0
+    orientation_convergence_s: 8.0
+  E4:
+    paper_label: "Experiment #4"
+    trajectory: "cardioid"
+    contact_time_s: 1.5
+    material: "multi"
+    material_switch_time_s: 30.0
+    formula:
+      x: "x0 + 0.015*(2*cos(0.1*t) - cos(0.2*t))"
+      y: "y0 + 0.015*(2*sin(0.1*t) - sin(0.2*t))"
+      z: "z0"
+    desired_force_N: -5.0
+    orientation_convergence_s: 7.0
+

@@ -1,0 +1,44 @@
+{
+  "ok": true,
+  "host": "192.168.1.18",
+  "port": 30004,
+  "seconds": 10.0,
+  "hz": 100.0,
+  "samples": 1001,
+  "csv": "/home/andy/ur10e_ros2_ws/experiments/20260525_tase_sim_readable_state_backup/ur_rtde_force/ur10e_actual_tcp_force_readonly_10s_20260525_164226.csv",
+  "plots": [
+    "/home/andy/ur10e_ros2_ws/experiments/20260525_tase_sim_readable_state_backup/ur_rtde_force/ur10e_actual_tcp_force_readonly_10s_20260525_164226.png",
+    "/home/andy/ur10e_ros2_ws/experiments/20260525_tase_sim_readable_state_backup/ur_rtde_force/ur10e_actual_tcp_force_readonly_10s_20260525_164226_fz.png",
+    "/home/andy/ur10e_ros2_ws/experiments/20260525_tase_sim_readable_state_backup/ur_rtde_force/ur10e_actual_tcp_force_readonly_10s_20260525_164226_fxy.png"
+  ],
+  "stats": {
+    "Fx_N": {
+      "mean": 0.2987874332336286,
+      "min": -0.48823469828831784,
+      "max": 1.2116857896175963,
+      "range": 1.6999204879059142,
+      "std": 0.2763810100641669
+    },
+    "Fy_N": {
+      "mean": -0.3655256312026563,
+      "min": -0.9737661743698252,
+      "max": 0.18417642691317293,
+      "range": 1.157942601282998,
+      "std": 0.2106083872134615
+    },
+    "Fz_N": {
+      "mean": -4.388234324712193,
+      "min": -5.01414883576268,
+      "max": -3.7943145282455775,
+      "range": 1.2198343075171025,
+      "std": 0.19847556284147752
+    },
+    "F_norm_N": {
+      "mean": 4.427203394892809,
+      "min": 3.8343869289733536,
+      "max": 5.024039814203738,
+      "range": 1.1896528852303847,
+      "std": 0.19871691093192315
+    }
+  }
+}

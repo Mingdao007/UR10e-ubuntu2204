@@ -1,0 +1,86 @@
+{
+  "ok": false,
+  "host": "192.168.1.18",
+  "samples": 925,
+  "duration_first_last_s": 7.392120419001003,
+  "script_sent": true,
+  "script_error": null,
+  "motion_plan": {
+    "z_lift_m": 0.005,
+    "y_line_m": 0.005,
+    "speed_m_s": 0.01,
+    "accel_m_s2": 0.03,
+    "description": "lift +Z, short +Y line at lifted height, return, fixed TCP orientation"
+  },
+  "preflight_thresholds": {
+    "min_start_z_m": 0.2,
+    "max_start_tcp_speed_m_s": 0.001
+  },
+  "start_actual_tcp_pose": [
+    0.44393767460961703,
+    0.12082203891503761,
+    0.24369679445959122,
+    3.122666148683226,
+    -0.024666397077465117,
+    -0.05351952169330846
+  ],
+  "end_actual_tcp_pose": [
+    0.44392234830463284,
+    0.1207948282681257,
+    0.24367464446328568,
+    3.122609088456265,
+    -0.024730264595518938,
+    -0.053559025428318724
+  ],
+  "max_delta": {
+    "dx_m": -5.461254834382423e-05,
+    "dy_m": -6.880069138989753e-05,
+    "dz_m": -7.865713241664296e-05,
+    "translation_norm_m": 0.00010373477811641331
+  },
+  "actual_tcp_speed_norm_m_s": {
+    "max": 5.5361117629588694e-05,
+    "mean": 2.635051433732781e-07
+  },
+  "actual_tcp_force_norm_N": {
+    "max": 19.692303888423858,
+    "mean": 19.017951517683606
+  },
+  "unique_runtime_state": [
+    1
+  ],
+  "unique_robot_mode": [
+    7
+  ],
+  "unique_safety_mode": [
+    1
+  ],
+  "script": "def codex_demo_1_1_no_contact_dry_run():\n  textmsg(\"codex demo 1.1 no-contact dry run start\")\n  p0 = get_actual_tcp_pose()\n  p_safe = p[p0[0], p0[1], p0[2] + 0.005000, p0[3], p0[4], p0[5]]\n  p_line = p[p0[0], p0[1] + 0.005000, p0[2] + 0.005000, p0[3], p0[4], p0[5]]\n  movel(p_safe, a=0.030000, v=0.010000, r=0.0)\n  movel(p_line, a=0.030000, v=0.010000, r=0.0)\n  movel(p_safe, a=0.030000, v=0.010000, r=0.0)\n  movel(p0, a=0.030000, v=0.010000, r=0.0)\n  stopl(0.5)\n  textmsg(\"codex demo 1.1 no-contact dry run done\")\nend\ncodex_demo_1_1_no_contact_dry_run()\n",
+  "safety_boundary": [
+    "no TCP/payload writes",
+    "no zero_ftsensor or OnRobot zero/bias",
+    "no URCap setting change",
+    "secondary URScript is not saved to the controller"
+  ],
+  "csv_path": "/home/andy/ur10e_ros2_ws/experiments/20260527_ur10e_demo_1_1_local_planar_patch/no_contact_dry_run/demo_1_1_no_contact_secondary_dry_run_20260527_221448.csv",
+  "summary_path": "/home/andy/ur10e_ros2_ws/experiments/20260527_ur10e_demo_1_1_local_planar_patch/no_contact_dry_run/demo_1_1_no_contact_secondary_dry_run_20260527_221448_summary.json",
+  "pre_dashboard": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "is in remote control": "false",
+    "safetymode": "Safetymode: NORMAL",
+    "robotmode": "Robotmode: RUNNING",
+    "running": "Program running: false",
+    "programState": "STOPPED <unnamed>"
+  },
+  "post_dashboard": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "is in remote control": "false",
+    "safetymode": "Safetymode: NORMAL",
+    "robotmode": "Robotmode: RUNNING",
+    "running": "Program running: false",
+    "programState": "STOPPED <unnamed>"
+  },
+  "expected_translation_norm_m": 0.007071067811865475,
+  "moved_as_expected": false,
+  "posthoc_interpretation": "Script was sent but RTDE pose did not show the planned dry-run displacement; treat as no actual motion."
+}

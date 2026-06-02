@@ -1,0 +1,171 @@
+{
+  "run_dir": "/home/andy/ur10e_ros2_ws/experiments/20260520_ur10e_poweron_readonly/runs/readonly_poweron_20260520_150927",
+  "robot_host": "192.168.1.18",
+  "onrobot_host": "192.168.1.1",
+  "operator_confirmations": {
+    "no_motion": false,
+    "no_contact": false,
+    "cables_slack": false
+  },
+  "ubuntu_network": {
+    "ok": false,
+    "robot_host": "192.168.1.18",
+    "device": "enp3s0",
+    "expected_connection": "Profile 2",
+    "expected_host_ipv4": "192.168.1.10/24",
+    "device_state": {
+      "device": "enp3s0",
+      "type": "ethernet",
+      "state": "unavailable",
+      "connection": ""
+    },
+    "ipv4_addresses": [],
+    "same_subnet": false,
+    "default_routes": [
+      {
+        "dev": "wlp4s0",
+        "gateway": "10.11.192.2",
+        "metric": "600",
+        "protocol": "dhcp"
+      }
+    ],
+    "default_route_on_direct_link": false,
+    "ping": {
+      "ok": false,
+      "returncode": 1,
+      "stdout": "PING 192.168.1.18 (192.168.1.18) 56(84) bytes of data.\n\n--- 192.168.1.18 ping statistics ---\n2 packets transmitted, 0 received, 100% packet loss, time 1004ms",
+      "stderr": ""
+    },
+    "issues": [
+      "direct_link_has_no_ipv4",
+      "robot_ping_failed"
+    ],
+    "command": [
+      "/usr/bin/python3",
+      "scripts/check_ubuntu_network.py",
+      "--robot-host",
+      "192.168.1.18",
+      "--json-only"
+    ],
+    "returncode": 0
+  },
+  "ur_interfaces": {
+    "ok": false,
+    "host": "192.168.1.18",
+    "timeout": 1.5,
+    "results": [
+      {
+        "port": 22,
+        "open": false,
+        "error": "TimeoutError: timed out"
+      },
+      {
+        "port": 29999,
+        "open": false,
+        "error": "TimeoutError: timed out"
+      },
+      {
+        "port": 30001,
+        "open": false,
+        "error": "TimeoutError: timed out"
+      },
+      {
+        "port": 30002,
+        "open": false,
+        "error": "TimeoutError: timed out"
+      },
+      {
+        "port": 30003,
+        "open": false,
+        "error": "TimeoutError: timed out"
+      },
+      {
+        "port": 30004,
+        "open": false,
+        "error": "TimeoutError: timed out"
+      },
+      {
+        "port": 30011,
+        "open": false,
+        "error": "TimeoutError: timed out"
+      },
+      {
+        "port": 30012,
+        "open": false,
+        "error": "TimeoutError: timed out"
+      },
+      {
+        "port": 30013,
+        "open": false,
+        "error": "TimeoutError: timed out"
+      }
+    ],
+    "open_ports": [],
+    "closed_ports": [
+      22,
+      29999,
+      30001,
+      30002,
+      30003,
+      30004,
+      30011,
+      30012,
+      30013
+    ],
+    "required_ports": [
+      29999,
+      30002,
+      30004
+    ],
+    "issues": [
+      "required_port_29999_closed",
+      "required_port_30002_closed",
+      "required_port_30004_closed"
+    ],
+    "command": [
+      "/usr/bin/python3",
+      "scripts/check_ur_interfaces.py",
+      "--host",
+      "192.168.1.18",
+      "--json-only"
+    ],
+    "returncode": 0
+  },
+  "dashboard_state": {
+    "ok": false,
+    "error": "TimeoutError: timed out",
+    "host": "192.168.1.18",
+    "port": 29999,
+    "command": [
+      "/usr/bin/python3",
+      "scripts/check_dashboard_state.py",
+      "--host",
+      "192.168.1.18",
+      "--json-only"
+    ],
+    "returncode": 0
+  },
+  "payload_tcp_state": {
+    "ok": false,
+    "error": "TimeoutError: timed out",
+    "host": "192.168.1.18",
+    "port": 30004,
+    "command": [
+      "/usr/bin/python3",
+      "scripts/read_payload_tcp_state.py",
+      "--host",
+      "192.168.1.18",
+      "--json-only"
+    ],
+    "returncode": 0
+  },
+  "onrobot_version": {
+    "ok": false,
+    "url": "http://192.168.1.1/version",
+    "error": "URLError: <urlopen error timed out>"
+  },
+  "simultaneous_capture": {
+    "attempted": false,
+    "reason": "missing explicit operator confirmations"
+  }
+}

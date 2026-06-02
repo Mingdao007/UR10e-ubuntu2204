@@ -1,0 +1,100 @@
+{
+  "version": "v6_slim_adapter_72mm",
+  "concept": "Paper-like direct-mount UR5e flat-pad contact tool with a slimmer 72 mm adapter OD.",
+  "parameters": {
+    "adapter_outer_diameter_mm": 72.0,
+    "adapter_thickness_mm": 12.0,
+    "robot_pattern_pcd_mm": 50.0,
+    "robot_screw_clearance_mm": 6.6,
+    "robot_socket_head_counterbore_mm": 11.0,
+    "robot_socket_head_cbore_depth_mm": 6.0,
+    "robot_center_recess_mm": 31.7,
+    "robot_center_recess_depth_mm": 2.0,
+    "upper_body_diameter_mm": 40.0,
+    "upper_body_height_mm": 50.0,
+    "lower_body_diameter_mm": 30.0,
+    "lower_body_height_mm": 26.0,
+    "pad_mount_diameter_mm": 18.0,
+    "pad_mount_height_mm": 4.0,
+    "pad_top_diameter_mm": 24.0,
+    "pad_bottom_diameter_mm": 30.0,
+    "pad_height_mm": 8.0,
+    "pad_locating_recess_diameter_mm": 18.4,
+    "pad_locating_recess_depth_mm": 3.2,
+    "center_bore_mm": 6.0
+  },
+  "derived": {
+    "upper_body_diameter_mm": 40.0,
+    "lower_body_diameter_mm": 30.0,
+    "contact_pad_bottom_diameter_mm": 30.0,
+    "contact_pad_height_mm": 8.0,
+    "contact_face_from_flange_face_mm": 96.0,
+    "overall_tool_length_mm": 96.0,
+    "adapter_outer_radius_mm": 36.0,
+    "counterbore_outer_radius_from_center_mm": 30.5,
+    "outer_edge_margin_after_counterbore_mm": 5.5
+  },
+  "bounding_boxes": {
+    "body": {
+      "xmin": -35.99661238166723,
+      "xmax": 36.0,
+      "ymin": -35.9991530854548,
+      "ymax": 35.9991530854548,
+      "zmin": 0.0,
+      "zmax": 92.0,
+      "xlen": 71.99661238166723,
+      "ylen": 71.9983061709096,
+      "zlen": 92.0
+    },
+    "pad": {
+      "xmin": -14.998588492361346,
+      "xmax": 15.0,
+      "ymin": -14.999647118939501,
+      "ymax": 14.999647118939501,
+      "zmin": 88.0,
+      "zmax": 96.0,
+      "xlen": 29.998588492361346,
+      "ylen": 29.999294237879003,
+      "zlen": 8.0
+    },
+    "assembly": {
+      "xmin": -35.99661238166723,
+      "xmax": 36.0,
+      "ymin": -35.9991530854548,
+      "ymax": 35.9991530854548,
+      "zmin": 0.0,
+      "zmax": 96.0,
+      "xlen": 71.99661238166723,
+      "ylen": 71.9983061709096,
+      "zlen": 96.0
+    },
+    "onepiece": {
+      "xmin": -35.99661238166723,
+      "xmax": 36.0,
+      "ymin": -35.9991530854548,
+      "ymax": 35.9991530854548,
+      "zmin": 0.0,
+      "zmax": 96.0,
+      "xlen": 71.99661238166723,
+      "ylen": 71.9983061709096,
+      "zlen": 96.0
+    },
+    "fitcheck": {
+      "xmin": -35.99661238166723,
+      "xmax": 36.0,
+      "ymin": -35.9991530854548,
+      "ymax": 35.9991530854548,
+      "zmin": 0.0,
+      "zmax": 4.0,
+      "xlen": 71.99661238166723,
+      "ylen": 71.9983061709096,
+      "zlen": 4.0
+    }
+  },
+  "assumptions_to_confirm": [
+    "This follows the paper-like flat contact appearance, not an exact published mechanical drawing.",
+    "UR5e center locating register/recess diameter is still assumed as 31.7 mm and should be checked on the bare flange.",
+    "The smooth OnRobot QC-R locating pin is not copied in this direct UR5e flange version.",
+    "If the real contact material should be foam, rubber, or abrasive pad, this printed pad is only the carrier geometry."
+  ]
+}

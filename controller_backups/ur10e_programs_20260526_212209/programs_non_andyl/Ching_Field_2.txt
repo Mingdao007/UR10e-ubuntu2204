@@ -1,0 +1,41 @@
+ Program
+   Robot Program
+     MoveL
+       Start
+       Lift_00
+       Touch_00
+         Until (tool_contact_detection)
+       Direction: Base Y-
+         Until (distance)
+       Lift_01
+       Lift_00
+       Touch_00
+         Until (tool_contact_detection)
+       Direction: Base X+
+         Until (distance)
+       Lift_02
+       Touch_02
+         Until (tool_contact_detection)
+       Direction: Base Y-
+         Until (distance)
+       Lift_03
+       Lift_01
+       Touch_01
+         Until (tool_contact_detection)
+       Direction: Base X+
+         Until (distance)
+       Lift_03
+       Lift_04
+       Touch_04
+         Until (tool_contact_detection)
+       Direction: Base X+
+         Until (distance)
+       Lift_05
+       Lift_06
+       Touch_06
+         Until (tool_contact_detection)
+       Direction: Base Y-
+         Until (distance)
+       Lift_07
+       Start
+       Halt

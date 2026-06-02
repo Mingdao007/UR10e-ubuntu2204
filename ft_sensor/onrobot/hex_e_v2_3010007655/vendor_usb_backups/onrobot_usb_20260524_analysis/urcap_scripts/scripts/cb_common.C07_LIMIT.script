@@ -1,0 +1,26 @@
+  #======    OnRobot F/T Limit    ======#
+  
+  def of_limit_start(ft_select=FALSE8D,ft_limits=[0,0,0,0,0,0,0,0],ft_abs=FALSE6D,timeout=0,v_min=0,frameID=0,frameRPY=[0,0,0],forFTControl=False,popupmsg=True):
+  local binary_list=integer_to_binary_list(0)
+  local iBin=0
+  while iBin<15:
+  if iBin<6:
+  binary_list[iBin]=ft_abs[iBin]
+  elif iBin<(6+8):
+  binary_list[iBin]=ft_select[iBin-6]
+  elif iBin==14:
+  binary_list[iBin]=forFTControl
+  else:
+  sync()
+  end 
+  iBin=iBin+1
+  end 
+  local int_bool_list=binary_list_to_integer(binary_list)
+  local frame_rotvec=rpy2rotvec(frameRPY)
+  of_send_full(OF_CMD_LIMIT,of_float_to_int(ft_limits[0]),of_float_to_int(ft_limits[1]),of_float_to_int(ft_limits[2]),of_float_to_int(ft_limits[3]),of_float_to_int(ft_limits[4]),of_float_to_int(ft_limits[5]),of_float_to_int(ft_limits[6]),of_float_to_int(ft_limits[7]),int_bool_list,of_float_to_int(timeout),of_float_to_int(v_min),frameID,of_float_to_int(frame_rotvec[0]),of_float_to_int(frame_rotvec[1]),of_float_to_int(frame_rotvec[2]))
+  end 
+  def of_limit_stop(forFTControl=False):
+  of_stop_atomic(stopLimit=True)
+  end 
+  
+  #======    End of OnRobot F/T Limit    ======#

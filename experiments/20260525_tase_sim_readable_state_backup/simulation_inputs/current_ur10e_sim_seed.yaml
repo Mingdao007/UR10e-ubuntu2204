@@ -1,0 +1,257 @@
+artifact: ur10e_current_readable_state_for_tase_sim
+source_backup_root: /home/andy/ur10e_ros2_ws/experiments/20260525_tase_sim_readable_state_backup
+captured_wall: '2026-05-25T16:41:25'
+scope: read_only_current_state_backup_for_simulation_seed_not_approved_calibration_evidence
+safety_boundary:
+  robot_motion_commanded: false
+  robot_configuration_written: false
+  ur_script_sent: false
+  rtde_inputs_written: false
+  zero_ftsensor_or_bias_commanded: false
+  approved_read_only_evidence_claim: false
+connectivity:
+  robot_host: 192.168.1.18
+  ubuntu_device: enp3s0
+  ubuntu_ipv4:
+  - 192.168.1.10/24
+  dashboard_port_open: true
+  rtde_port_open: true
+  dashboard:
+    banner: 'Connected: Universal Robots Dashboard Server'
+    is in remote control: 'false'
+    safetymode: 'Safetymode: NORMAL'
+    robotmode: 'Robotmode: RUNNING'
+    running: 'Program running: false'
+    programState: STOPPED <unnamed>
+    get loaded program: 'Loaded program: /programs/<unnamed>.urp'
+    PolyscopeVersion: URSoftware 5.11.9.1010452 (Jan 24 2022)
+ur_kinematics_calibration:
+  backup_file: calibration/ur10e_calibration_20260525T1641.yaml
+  installed_local_file: /home/andy/ur10e_ros2_ws/src/ur10e_bringup/config/ur10e_calibration.yaml
+  hash: calib_7367377276742883610
+  kinematics:
+    shoulder:
+      x: 0
+      y: 0
+      z: 0.1808937726775539
+      roll: 0
+      pitch: 0
+      yaw: -2.1094217540068572e-07
+    upper_arm:
+      x: 2.0416891277915125e-05
+      y: 0
+      z: 0
+      roll: 1.5714252480212174
+      pitch: 0
+      yaw: 4.3097689086459036e-07
+    forearm:
+      x: -0.6123166571631581
+      y: 0
+      z: 0
+      roll: 3.140166179395725
+      pitch: -3.141029083275299
+      yaw: 3.1415907616199834
+    wrist_1:
+      x: -0.5712610120160018
+      y: -0.0005624459499792545
+      z: 0.17399893501546188
+      roll: 0.0032324565145805486
+      pitch: 0.0009126747441231154
+      yaw: -2.104311108699691e-06
+    wrist_2:
+      x: -9.504674691390763e-06
+      y: -0.11977755060957024
+      z: 0.00024639437567913606
+      roll: 1.5687392298942362
+      pitch: 0
+      yaw: -1.8024952768980198e-06
+    wrist_3:
+      x: -3.603723657207661e-05
+      y: 0.11560209879378842
+      z: -7.871533992021617e-05
+      roll: 1.5701154107165884
+      pitch: 3.141592653589793
+      yaw: -3.141592624187467
+    hash: calib_7367377276742883610
+current_rtde_state:
+  actual_q_rad:
+  - 0.7058797478675842
+  - -1.681310316125387
+  - -2.5494725704193115
+  - -0.4866345685771485
+  - 1.5723538398742676
+  - -0.867556397114889
+  actual_q_deg:
+  - 40.44393039657125
+  - -96.33198516579093
+  - -146.0740182693961
+  - -27.88210694464024
+  - 90.08923892598439
+  - -49.707320044258765
+  target_q_rad:
+  - 0.7058965563774109
+  - -1.6813298664488734
+  - -2.5494368076324463
+  - -0.48660941541705327
+  - 1.5723376274108887
+  - -0.867530647908346
+  actual_qd_rad_s:
+  - -0.0
+  - 0.0
+  - -0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  actual_tcp_pose_m_axis_angle:
+  - 0.4561937863181124
+  - 0.16055373507071327
+  - 0.044664812807231266
+  - 3.1374700419770174
+  - 0.007051636876497421
+  - -0.006273548913546367
+  target_tcp_pose_m_axis_angle:
+  - 0.45621636609368604
+  - 0.16057797174607755
+  - 0.04467268561039227
+  - 3.137484656057068
+  - 0.007037770415287315
+  - -0.006207623878934825
+  actual_tcp_speed:
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  actual_tcp_force_N_Nm:
+  - 0.4323903831010829
+  - 0.24560844413325422
+  - -3.978839426174607
+  - -0.0008496220946268611
+  - 0.003756538854385925
+  - -0.013566411393350974
+  tcp_offset_m_axis_angle:
+  - 0.0
+  - 0.0
+  - 0.12254000000000001
+  - 0.0
+  - 0.0
+  - 0.0
+  payload_kg: 0.44
+  payload_cog_m:
+  - 0.005
+  - -0.005
+  - 0.025
+  speed_scaling: 0.0
+  target_speed_fraction: 1.0
+  runtime_state: 1
+  robot_mode: 7
+  safety_mode: 1
+current_payload_tcp_once:
+  payload_kg: 0.44
+  payload_cog_m:
+  - 0.005
+  - -0.005
+  - 0.025
+  tcp_offset_m_axis_angle:
+  - 0.0
+  - 0.0
+  - 0.12254000000000001
+  - 0.0
+  - 0.0
+  - 0.0
+  actual_tcp_force:
+    Fx: -0.182236812612445
+    Fy: 0.05810175268484719
+    Fz: -3.2005757654734386
+    Tx: 0.002051463990124468
+    Ty: -0.006969187905751175
+    Tz: -0.024576074191754994
+force_trace_artifacts:
+  ur_rtde_actual_tcp_force_10s:
+    csv: /home/andy/ur10e_ros2_ws/experiments/20260525_tase_sim_readable_state_backup/ur_rtde_force/ur10e_actual_tcp_force_readonly_10s_20260525_164226.csv
+    plots:
+    - /home/andy/ur10e_ros2_ws/experiments/20260525_tase_sim_readable_state_backup/ur_rtde_force/ur10e_actual_tcp_force_readonly_10s_20260525_164226.png
+    - /home/andy/ur10e_ros2_ws/experiments/20260525_tase_sim_readable_state_backup/ur_rtde_force/ur10e_actual_tcp_force_readonly_10s_20260525_164226_fz.png
+    - /home/andy/ur10e_ros2_ws/experiments/20260525_tase_sim_readable_state_backup/ur_rtde_force/ur10e_actual_tcp_force_readonly_10s_20260525_164226_fxy.png
+    seconds: 10.0
+    hz: 100.0
+    samples: 1001
+    stats:
+      Fx_N:
+        mean: 0.2987874332336286
+        min: -0.48823469828831784
+        max: 1.2116857896175963
+        range: 1.6999204879059142
+        std: 0.2763810100641669
+      Fy_N:
+        mean: -0.3655256312026563
+        min: -0.9737661743698252
+        max: 0.18417642691317293
+        range: 1.157942601282998
+        std: 0.2106083872134615
+      Fz_N:
+        mean: -4.388234324712193
+        min: -5.01414883576268
+        max: -3.7943145282455775
+        range: 1.2198343075171025
+        std: 0.19847556284147752
+      F_norm_N:
+        mean: 4.427203394892809
+        min: 3.8343869289733536
+        max: 5.024039814203738
+        range: 1.1896528852303847
+        std: 0.19871691093192315
+  onrobot_tcpdaq_readonly_5s:
+    csv: /home/andy/ur10e_ros2_ws/experiments/20260525_tase_sim_readable_state_backup/onrobot_tcpdaq/onrobot_tcpdaq_readonly_5s_20260525_164241.csv
+    samples: 27369
+    request_response_hz: 5476.945522638729
+    raw_tuple_change_rate_hz: 249.74343279817072
+    force_torque_min:
+      fx_n: 0.12
+      fy_n: 2.98
+      fz_n: -31.56
+      tx_nm: -0.07200000000000001
+      ty_nm: -0.105
+      tz_nm: 0.0754
+    force_torque_max:
+      fx_n: 0.42
+      fy_n: 3.1399999999999997
+      fz_n: -30.759999999999998
+      tx_nm: -0.047
+      ty_nm: -0.08099999999999999
+      tz_nm: 0.0884
+    calibration:
+      counts_per_force: 10000
+      counts_per_torque: 100000
+      force_units: 2
+      header: 4660
+      scale_factors:
+      - 200
+      - 200
+      - 200
+      - 100
+      - 100
+      - 65
+      torque_units: 3
+    caveat: direct TCP DAQ READFT values are not treated as equivalent to PolyScope
+      OnRobot Variables or UR actual_TCP_force
+  urcap_rtde_output_registers_24_29_5s:
+    csv: /home/andy/ur10e_ros2_ws/experiments/20260525_tase_sim_readable_state_backup/urcap_registers/urcap_ft_rtde_registers_readonly_5s_20260525_164308.csv
+    samples: 555
+    sample_rate_hz: 125.00494254639325
+    force_norm_n:
+      first: 0.0
+      last: 0.0
+      max: 0.0
+      mean: 0.0
+      min: 0.0
+    interpretation: all zero during this read; no PolyScope output-register mapping
+      is proven active
+simulation_use:
+  safe_to_use_as_initial_pose_seed: true
+  safe_to_use_as_urdf_kinematics_calibration_seed: true
+  safe_to_use_as_payload_tcp_snapshot: true
+  not_safe_to_use_as_contact_model_acceptance: true
+  not_safe_to_use_as_force_control_validation: true
+  not_safe_to_use_as_approved_read_only_calibration_evidence: true

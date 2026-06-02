@@ -1,0 +1,33 @@
+v1:
+  model_status: "v1_approximation_not_calibrated"
+  tcp_status: "unverified_tcp_guess"
+
+ur10e_mujoco:
+  mjcf_path: "assets/mjcf/ur10e_nominal.xml"
+  urdf_nominal_path: "assets/urdf/ur10e_nominal.urdf"
+  timestep_s: 0.002
+  smoke_duration_s: 2.0
+  qdot_limit_initial_rad_s: 0.05
+  qdot_limit_after_sim_validation_rad_s: 0.15
+  force_ladder_N: [0.5, 1.0, 2.0, 5.0]
+  joint_names:
+    - shoulder_pan_joint
+    - shoulder_lift_joint
+    - elbow_joint
+    - wrist_1_joint
+    - wrist_2_joint
+    - wrist_3_joint
+  joint_limit_rad:
+    source: "v1_from_ur_description_typical_ur10e_range_pending_parse"
+    lower: [-6.283185307, -6.283185307, -3.141592654, -6.283185307, -6.283185307, -6.283185307]
+    upper: [6.283185307, 6.283185307, 3.141592654, 6.283185307, 6.283185307, 6.283185307]
+  joint_velocity_limit_rad_s:
+    source: "v1_safe_initial_override"
+    lower: [-0.05, -0.05, -0.05, -0.05, -0.05, -0.05]
+    upper: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
+  contact:
+    surface: "single_material_analytic_plane"
+    plane_z_m: 0.0
+    tcp_guess_m: [0.0, 0.0, -0.085]
+    target_force_ladder_N: [0.5, 1.0, 2.0, 5.0]
+

@@ -1,0 +1,7 @@
+  #======    OnRobot Gripper Set LEDs Messages    ======#
+  
+  of_gripper_set_LEDs_error_title="OnRobot - Gripper Set LEDs error"
+  of_gripper_set_LEDs_error_no_select="Please select at least one finger sensor LED."
+  
+  
+  #======    End of OnRobot Gripper Set LEDs Messages    ======#

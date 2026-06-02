@@ -1,0 +1,14 @@
+  #======    OnRobot Gripper Mount    ======#
+  
+  def of_gripper_mount_send(gripper_offset):
+  sync()
+  if OF_DEBUG_STATE:
+  textmsg("Gripper Mount Send command starting..")
+  end 
+  of_send_full(OF_CMD_GRIPPER_MOUNT,of_float_to_int(gripper_offset[0]),of_float_to_int(gripper_offset[1]),of_float_to_int(gripper_offset[2]),of_float_to_int(gripper_offset[3]),of_float_to_int(gripper_offset[4]),of_float_to_int(gripper_offset[5]))
+  if OF_DEBUG_STATE:
+  textmsg("Gripper Mount Send command ended.")
+  end 
+  end 
+  
+  #======    End of OnRobot Gripper Mount    ======#

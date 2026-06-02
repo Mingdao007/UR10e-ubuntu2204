@@ -1,0 +1,29 @@
+{
+  "duration_h": 3.5677015848963887,
+  "started_wall": "2026-05-28T14:11:54",
+  "finished_wall": "2026-05-28T17:45:58",
+  "rtde_samples": 6421849,
+  "udp_samples": 6416767,
+  "urcap_updates": 1605451,
+  "rtde_rate_hz": 499.9988435743771,
+  "udp_rate_hz": 499.6033263415669,
+  "urcap_rate_hz": 124.99877658525766,
+  "udp_sequence_delta_counts": {
+    "1": 6416766
+  },
+  "udp_sample_counter_delta_counts": {
+    "2": 6416766
+  },
+  "onrobot_fz_last_minus_first": {
+    "urcap_n": 0.3100000000000047,
+    "udp_n": 0.8100000000000023
+  },
+  "onrobot_fz_zeroed_mean": {
+    "urcap_n": 0.3528800768333399,
+    "udp_n": 0.5827986104840908,
+    "urcap_minus_udp_n": -0.22991853365075088
+  },
+  "ur_actual_tcp_force_fz_last_minus_first_n": -64.33133198875107,
+  "stop_reason": "signal_2",
+  "errors": []
+}

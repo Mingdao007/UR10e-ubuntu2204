@@ -1,0 +1,56 @@
+Starting full TASE reproduction workflow in:
+  /home/andy/ur10e_ros2_ws/experiments/20260523_tase_finite_time_ur10e_mujoco_reproduction/runs/full_paper_matlab/20260523T114034/worktree/RNN_F2
+
+=== formula_faithful_run ===
+paper_method_formula_faithful simulation complete. 30000 steps saved to:
+  /home/andy/ur10e_ros2_ws/experiments/20260523_tase_finite_time_ur10e_mujoco_reproduction/runs/full_paper_matlab/20260523T114034/worktree/RNN_F2/results/paper_method_formula_faithful
+All 9 paper_ideal figures exported to:
+  /home/andy/ur10e_ros2_ws/experiments/20260523_tase_finite_time_ur10e_mujoco_reproduction/runs/full_paper_matlab/20260523T114034/worktree/RNN_F2/results/paper_method_formula_faithful
+Report written to: /home/andy/ur10e_ros2_ws/experiments/20260523_tase_finite_time_ur10e_mujoco_reproduction/runs/full_paper_matlab/20260523T114034/worktree/RNN_F2/results/paper_method_formula_faithful/paper_method_formula_faithful_results_report.md
+Current verdict: Partially matching, but still not paper-faithful.
+Biggest blocker: The paper's clearest timing landmark, q7 hitting the limit at 22 s, is still missing.
+Next step: Make the paper_ideal scene more comparable before chasing secondary plot shape details.
+Verification report written to:
+  /home/andy/ur10e_ros2_ws/experiments/20260523_tase_finite_time_ur10e_mujoco_reproduction/runs/full_paper_matlab/20260523T114034/worktree/RNN_F2/results/paper_method_formula_faithful/paper_method_formula_faithful_verification.md
+Completed formula_faithful_run in 19.39 s.
+
+=== figure_match_run ===
+paper_method_figure_match simulation complete. 30000 steps saved to:
+  /home/andy/ur10e_ros2_ws/experiments/20260523_tase_finite_time_ur10e_mujoco_reproduction/runs/full_paper_matlab/20260523T114034/worktree/RNN_F2/results/paper_method_figure_match
+All 9 paper_ideal figures exported to:
+  /home/andy/ur10e_ros2_ws/experiments/20260523_tase_finite_time_ur10e_mujoco_reproduction/runs/full_paper_matlab/20260523T114034/worktree/RNN_F2/results/paper_method_figure_match
+Report written to: /home/andy/ur10e_ros2_ws/experiments/20260523_tase_finite_time_ur10e_mujoco_reproduction/runs/full_paper_matlab/20260523T114034/worktree/RNN_F2/results/paper_method_figure_match/paper_method_figure_match_results_report.md
+Current verdict: Close on the core paper landmarks.
+Biggest blocker: Only secondary plot-shape differences remain.
+Next step: Diagnose the remaining spike and start-up velocity shape.
+Verification report written to:
+  /home/andy/ur10e_ros2_ws/experiments/20260523_tase_finite_time_ur10e_mujoco_reproduction/runs/full_paper_matlab/20260523T114034/worktree/RNN_F2/results/paper_method_figure_match/paper_method_figure_match_verification.md
+Completed figure_match_run in 12.55 s.
+
+=== formula_faithful_bundle ===
+Paper simulation figure bundle generated at:
+  /home/andy/ur10e_ros2_ws/experiments/20260523_tase_finite_time_ur10e_mujoco_reproduction/runs/full_paper_matlab/20260523T114034/worktree/RNN_F2/results/paper_method_formula_faithful_figure_bundle
+Bundle zip:
+  /home/andy/ur10e_ros2_ws/experiments/20260523_tase_finite_time_ur10e_mujoco_reproduction/runs/full_paper_matlab/20260523T114034/worktree/RNN_F2/results/paper_method_formula_faithful_figure_bundle/paper_method_formula_faithful_figure_bundle.zip
+Completed formula_faithful_bundle in 23.76 s.
+
+=== figure_match_bundle ===
+Paper simulation figure bundle generated at:
+  /home/andy/ur10e_ros2_ws/experiments/20260523_tase_finite_time_ur10e_mujoco_reproduction/runs/full_paper_matlab/20260523T114034/worktree/RNN_F2/results/paper_method_figure_match_figure_bundle
+Bundle zip:
+  /home/andy/ur10e_ros2_ws/experiments/20260523_tase_finite_time_ur10e_mujoco_reproduction/runs/full_paper_matlab/20260523T114034/worktree/RNN_F2/results/paper_method_figure_match_figure_bundle/paper_method_figure_match_figure_bundle.zip
+Completed figure_match_bundle in 22.14 s.
+
+Full TASE reproduction workflow complete.
+Summary saved to:
+  /home/andy/ur10e_ros2_ws/experiments/20260523_tase_finite_time_ur10e_mujoco_reproduction/runs/full_paper_matlab/20260523T114034/worktree/RNN_F2/results/full_tase_reproduction_summary.mat
+
+ans = 
+
+  struct with fields:
+
+       repo_root: '/home/andy/ur10e_ros2_ws/experiments/20260523_tase_finite_time_ur10e_mujoco_reproduction/runs/full_paper_matlab/20260523T114034/worktree/RNN_F2'
+      started_at: '20260523T114044'
+           steps: {4×1 cell}
+    completed_at: '20260523T114202'
+

@@ -1,0 +1,13 @@
+[launcher] run_dir=/home/andy/ur10e_ros2_ws/experiments/20260528_onrobot_three_stream_coldstart_drift/run_20260528_140915
+[launcher] log=/home/andy/ur10e_ros2_ws/experiments/20260528_onrobot_three_stream_coldstart_drift/run_20260528_140915/launcher_20260528_140915.log
+[launcher] cap_seconds=86400
+[launcher] checkpoint_interval_s=300
+[launcher] robot_host=192.168.1.18
+[launcher] compute_box_host=192.168.1.1
+[launcher] require_program_running=1
+[launcher] require_urcap_activity=1
+[launcher] start_time=2026-05-28T14:09:15+08:00
+
+[launcher] Waiting for UR Dashboard/RTDE and OnRobot Compute Box TCP DAQ.
+[launcher] You can start/power the bench now. Press Ctrl+C before capture starts to abort.
+2026-05-28T14:09:19 UR Dashboard=WAIT UR RTDE=WAIT OnRobot TCP DAQ=WAIT

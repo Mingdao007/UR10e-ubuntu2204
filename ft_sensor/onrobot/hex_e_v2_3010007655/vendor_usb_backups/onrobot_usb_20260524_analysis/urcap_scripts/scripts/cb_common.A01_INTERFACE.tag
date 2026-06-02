@@ -1,0 +1,25 @@
+  #======    OnRobot Interface Messages    ======#
+  
+  of_ce_comm_error_textmsg_title="{{of_ce_comm_error_textmsg_title}}"
+  of_ce_comm_controlsocket_open_error="{{of_ce_comm_controlsocket_open_error}}"
+  of_ce_comm_commandflow_open_error="{{of_ce_comm_commandflow_open_error}}"
+  of_ce_comm_error_title="{{of_ce_comm_error_title}}"
+  of_ce_comm_socket_open_error="{{of_ce_comm_socket_open_error}}"
+  of_ce_comm_socket_packet_error="{{of_ce_comm_socket_packet_error}}"
+  of_ce_comm_safeguard_lost_error="{{of_ce_comm_safeguard_lost_error}}"
+  of_ce_comm_cmd_send_error="{{of_ce_comm_cmd_send_error}}"
+  of_ce_comm_cmd_send_again="{{of_ce_comm_cmd_send_again}}"
+  of_ce_comm_int_send_error="{{of_ce_comm_int_send_error}}"
+  of_ce_comm_int_send_again="{{of_ce_comm_int_send_again}}"
+  of_ce_comm_float_send_error="{{of_ce_comm_float_send_error}}"
+  of_ce_comm_float_send_again="{{of_ce_comm_float_send_again}}"
+  of_ce_comm_dummy_send_error="{{of_ce_comm_dummy_send_error}}"
+  of_ce_comm_dummy_send_again="{{of_ce_comm_dummy_send_again}}"
+  of_cmd_error_title="{{of_cmd_error_title}}"
+  of_cmd_rx_invalid_id="{{of_cmd_rx_invalid_id}}"
+  of_cmd_rx_wrong_state="{{of_cmd_rx_wrong_state}}"
+  of_cmd_rx_error_length="{{of_cmd_rx_error_length}}"
+  of_float_to_int_overflow="{{of_float_to_int_overflow}}"
+  of_float_to_int_underflow="{{of_float_to_int_underflow}}"
+  
+  #======    End of OnRobot Interface Messages    ======#

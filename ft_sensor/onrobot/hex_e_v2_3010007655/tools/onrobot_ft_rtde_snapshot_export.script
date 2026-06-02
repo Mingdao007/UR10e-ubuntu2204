@@ -1,0 +1,16 @@
+global snap_Fx = Fx
+global snap_Fy = Fy
+global snap_Fz = Fz
+global snap_Tx = Tx
+global snap_Ty = Ty
+global snap_Tz = Tz
+
+while True:
+  write_output_float_register(24, snap_Fx)
+  write_output_float_register(25, snap_Fy)
+  write_output_float_register(26, snap_Fz)
+  write_output_float_register(27, snap_Tx)
+  write_output_float_register(28, snap_Ty)
+  write_output_float_register(29, snap_Tz)
+  sync()
+end

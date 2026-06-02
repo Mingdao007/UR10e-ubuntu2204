@@ -1,0 +1,86 @@
+{
+  "csv_path": "/home/andy/ur10e_ros2_ws/ft_sensor/onrobot/hex_e_v2_3010007655/measurements/urcap_variables_rtde_register_mapped_600s_20260526/urcap_ft_rtde_registers_mapped_600s_20260526_215305.csv",
+  "duration_first_last_s": 599.3078361919988,
+  "errors": [],
+  "finished_wall": "2026-05-26T22:03:05",
+  "first_t_s": 0.6958399089999148,
+  "force_norm_n": {
+    "first": 0.10030394433919336,
+    "last": 0.05136563248904855,
+    "max": 0.6707678842423809,
+    "mean": 0.13852657082299955,
+    "min": 0.006533088855970045
+  },
+  "fx_n": {
+    "first": 0.055605000000000036,
+    "last": -0.014394999999999993,
+    "max": 0.21560499999999996,
+    "mean": 0.026101168940384972,
+    "min": -0.17439499999999997,
+    "std": 0.0423857141252052
+  },
+  "fy_n": {
+    "first": 0.033360000000001576,
+    "last": 0.04335999999999952,
+    "max": 0.16335899999999384,
+    "mean": 0.021429341257975267,
+    "min": -0.10664100000000425,
+    "std": 0.03390726589554119
+  },
+  "fz_n": {
+    "first": 0.07652499999999929,
+    "last": -0.023476000000000902,
+    "max": 0.6465240000000005,
+    "mean": -0.02558269366206629,
+    "min": -0.6634750000000014,
+    "std": 0.14562597269984875
+  },
+  "host": "192.168.1.18",
+  "last_t_s": 600.0036761009987,
+  "mean_dt_ms": 8.00005120862866,
+  "ok": true,
+  "p95_dt_ms": 8.195787600197946,
+  "p99_dt_ms": 8.3493911604819,
+  "port": 30004,
+  "register_mapping": {
+    "output_double_register_24": "Fx",
+    "output_double_register_25": "Fy",
+    "output_double_register_26": "Fz",
+    "output_double_register_27": "Tx",
+    "output_double_register_28": "Ty",
+    "output_double_register_29": "Tz"
+  },
+  "requested_hz": 125.0,
+  "requested_seconds": 600.0,
+  "safety_boundary": [
+    "Ubuntu side reads RTDE output registers only",
+    "no URScript/register writes/motion/zero/bias/filter/speed/TCP/payload commands"
+  ],
+  "sample_rate_hz": 124.99919987029888,
+  "samples": 74914,
+  "started_wall": "2026-05-26T21:53:05",
+  "tx_nm": {
+    "first": -0.006273000000000002,
+    "last": -0.005273,
+    "max": 0.013727000000000001,
+    "mean": -0.005030335077555598,
+    "min": -0.022273000000000005,
+    "std": 0.00417228328510014
+  },
+  "ty_nm": {
+    "first": -0.006808999999999931,
+    "last": -0.002808999999999931,
+    "max": 0.011190999999999875,
+    "mean": -0.005099906906586157,
+    "min": -0.02280899999999976,
+    "std": 0.003865286680463035
+  },
+  "tz_nm": {
+    "first": 0.003217000000000144,
+    "last": 0.00321700000000006,
+    "max": 0.011217000000000482,
+    "mean": 0.0028900651146649236,
+    "min": -0.005783000000000238,
+    "std": 0.002089314037580238
+  }
+}

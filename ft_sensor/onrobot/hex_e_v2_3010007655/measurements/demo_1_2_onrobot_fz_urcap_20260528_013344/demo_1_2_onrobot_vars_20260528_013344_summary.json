@@ -1,0 +1,143 @@
+{
+  "ok": true,
+  "error": null,
+  "csv_path": "/home/andy/ur10e_ros2_ws/ft_sensor/onrobot/hex_e_v2_3010007655/measurements/demo_1_2_onrobot_fz_urcap_20260528_013344/demo_1_2_onrobot_vars_20260528_013344.csv",
+  "summary_path": "/home/andy/ur10e_ros2_ws/ft_sensor/onrobot/hex_e_v2_3010007655/measurements/demo_1_2_onrobot_fz_urcap_20260528_013344/demo_1_2_onrobot_vars_20260528_013344_summary.json",
+  "samples": 14971,
+  "requested_seconds": 120.0,
+  "requested_hz": 125.0,
+  "local_duration_s": 119.75550045099953,
+  "effective_hz": 125.00469659951267,
+  "start_dashboard": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "get loaded program": "Loaded program: /programs/andyl/path_straight_line.urp",
+    "programState": "STOPPED path_straight_line.urp",
+    "robotmode": "Robotmode: RUNNING",
+    "safetystatus": "Safetystatus: NORMAL",
+    "is in remote control": "false"
+  },
+  "end_dashboard": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "get loaded program": "Loaded program: /programs/andyl/path_straight_line.urp",
+    "programState": "STOPPED path_straight_line.urp",
+    "robotmode": "Robotmode: RUNNING",
+    "safetystatus": "Safetystatus: NORMAL",
+    "is in remote control": "false"
+  },
+  "runtime_state_counts": {
+    "1": 13738,
+    "2": 1233
+  },
+  "runtime_runs": [
+    {
+      "state": 1,
+      "start_s": 0.249,
+      "end_s": 8.737,
+      "duration_s": 8.488
+    },
+    {
+      "state": 2,
+      "start_s": 8.745,
+      "end_s": 13.425,
+      "duration_s": 4.68
+    },
+    {
+      "state": 1,
+      "start_s": 13.433,
+      "end_s": 34.08,
+      "duration_s": 20.647
+    },
+    {
+      "state": 2,
+      "start_s": 34.088,
+      "end_s": 34.904,
+      "duration_s": 0.816
+    },
+    {
+      "state": 1,
+      "start_s": 34.912,
+      "end_s": 83.606,
+      "duration_s": 48.694
+    },
+    {
+      "state": 2,
+      "start_s": 83.614,
+      "end_s": 87.006,
+      "duration_s": 3.392
+    },
+    {
+      "state": 1,
+      "start_s": 87.014,
+      "end_s": 91.534,
+      "duration_s": 4.52
+    },
+    {
+      "state": 2,
+      "start_s": 91.542,
+      "end_s": 92.486,
+      "duration_s": 0.944
+    },
+    {
+      "state": 1,
+      "start_s": 92.494,
+      "end_s": 120.005,
+      "duration_s": 27.511
+    }
+  ],
+  "robot_mode_counts": {
+    "7": 14971
+  },
+  "safety_mode_counts": {
+    "1": 14971
+  },
+  "speed_scaling_range": [
+    0.0,
+    1.0
+  ],
+  "onrobot_fx_range_N": [
+    -0.24681600000000356,
+    0.17140600000000003
+  ],
+  "onrobot_fy_range_N": [
+    -0.085703,
+    0.30671900001343466
+  ],
+  "onrobot_fz_range_N": [
+    -7.721893,
+    0.4103320000003312
+  ],
+  "onrobot_tx_range_Nm": [
+    -0.020680000000000007,
+    0.013811
+  ],
+  "onrobot_ty_range_Nm": [
+    -0.012836000000000214,
+    0.01450799999999682
+  ],
+  "onrobot_tz_range_Nm": [
+    -0.006282999999999999,
+    0.006212999999980409
+  ],
+  "onrobot_f3d_range_N": [
+    0.0,
+    7.722438150548957
+  ],
+  "fz_unique_values_rounded_1e_5": 205,
+  "register_liveness_note": "Fz register changed during capture",
+  "first_pose": [
+    0.4447638390263969,
+    0.22843566160902093,
+    0.053013786968831605,
+    3.128641731259006,
+    9.872328092303452e-05,
+    3.9675807053752605e-05
+  ],
+  "last_pose": [
+    0.4447532897641454,
+    0.22842272539349148,
+    0.05485919407704927,
+    3.141537568509714,
+    -4.781029633488089e-05,
+    2.9621844536090342e-05
+  ]
+}

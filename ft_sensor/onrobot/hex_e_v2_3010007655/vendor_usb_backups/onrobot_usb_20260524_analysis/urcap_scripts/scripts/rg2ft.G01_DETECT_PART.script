@@ -1,0 +1,54 @@
+  #======    OnRobot Gripper Detect Part    ======#
+  
+  RG_DETECT_PART_NO_WIDTH_MAX=999
+  OF_DEBUG_DETECT_PART=False
+  of__gripper_detect_part_width_error_detector="No detect mode selected.<br>Please set at least one element of parameter 'detector' to True."
+  of__gripper_detect_part_width_error_width_threshold="Please define parameter Width Threshold as a positive real number."
+  of__gripper_detect_part_width_error_width_max="Please define parameter Width Max as a positive real number."
+  of__gripper_detect_part_width_error_force_threshold="Please define parameter Force Threshold as a positive real number."
+  def of_gripper_detect_part_check(detector=[False,False],width_threshold=0,width_max=RG_DETECT_PART_NO_WIDTH_MAX,force_threshold=0):
+  if OF_DEBUG_STATE and OF_DEBUG_DETECT_PART:
+  textmsg("Gripper Detect Part Check starting..")
+  end 
+  local parameter_error=False
+  if not(detector[0]or detector[1]):
+  popup(of__gripper_detect_part_width_error_detector,title=of_gripper_detect_part_title,error=True,blocking=False)
+  parameter_error=True
+  end 
+  if not((detector[0]and width_threshold>=0)or not detector[0]):
+  popup(of__gripper_detect_part_width_error_width_threshold,title=of_gripper_detect_part_title,error=True,blocking=False)
+  parameter_error=True
+  end 
+  if not((detector[0]and((width_max>=width_threshold)or(width_max==RG_DETECT_PART_NO_WIDTH_MAX)))or not detector[0]):
+  popup(of__gripper_detect_part_width_error_width_max,title=of_gripper_detect_part_title,error=True,blocking=False)
+  parameter_error=True
+  end 
+  if not((detector[1]and force_threshold>0)or not detector[1]):
+  popup(of__gripper_detect_part_width_error_force_threshold,title=of_gripper_detect_part_title,error=True,blocking=False)
+  parameter_error=True
+  end 
+  if(parameter_error):
+  halt
+  end 
+  local part_detected=False
+  local ft_limit_reached=False
+  local prox_limit_reached=False
+  if detector[0]:
+  local partWidth=ft_Part_width
+  if width_max==RG_DETECT_PART_NO_WIDTH_MAX:
+  prox_limit_reached=(width_threshold<=partWidth)
+  else:
+  prox_limit_reached=((width_threshold<=partWidth)and(width_max>=partWidth))
+  end 
+  end 
+  if detector[1]:
+  ft_limit_reached=(force_threshold<=F3D_right)or(force_threshold<=F3D_left)
+  end 
+  part_detected=ft_limit_reached or prox_limit_reached
+  if OF_DEBUG_STATE and OF_DEBUG_DETECT_PART:
+  textmsg("End of Gripper Detect Part Check.")
+  end 
+  return part_detected
+  end 
+  
+  #======    End of OnRobot Gripper Detect Part    ======#

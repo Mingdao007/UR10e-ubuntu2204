@@ -1,0 +1,62 @@
+{
+  "report": "/home/andy/ur10e_ros2_ws/weekly_meeting/demo_01_02_weekly.md",
+  "html": "/home/andy/ur10e_ros2_ws/weekly_meeting/demo_01_02_meeting_deck.html",
+  "representative_segment": "Run 2",
+  "representative_selection": "minimum 2D P95 path error, then minimum measured Fz target-error MAE",
+  "figures": {
+    "path_xy": "assets/path_tracking_xy.png",
+    "xy_error": "assets/path_tracking_xy_error.png",
+    "fz_error": "assets/force_control_fz_tracking.png"
+  },
+  "assets": {
+    "hex_sensor": "assets/hex_sensor.jpg",
+    "small_switch": "assets/small_switch.jpg",
+    "compute_box": "assets/compute_box.jpg",
+    "onrobot_tcpdaq_10min_fz": "assets/onrobot_tcpdaq_10min_fz.png",
+    "ur_builtin_static_fz": "assets/ur_builtin_static_fz.png",
+    "program_interface_clip": "assets/program_interface.mp4",
+    "program_interface_still": "assets/program_interface.jpg",
+    "final_wiring_clip": "assets/final_wiring.mp4",
+    "final_wiring_still": "assets/final_wiring.png",
+    "demo_experiment_clip": "assets/demo_experiment.mp4",
+    "demo_experiment_still": "assets/demo_experiment.png"
+  },
+  "metrics": {
+    "representative": {
+      "segment": "Run 2",
+      "samples": 809,
+      "start_s": 60.039794090000214,
+      "end_s": 66.50374635800108,
+      "duration_s": 6.463952268000867,
+      "actual_xy_length_mm": 69.92485273288789,
+      "reference_progress_start_mm": 2.689021370715185,
+      "reference_progress_end_mm": 66.26504202044079,
+      "x_error": {
+        "mean_mm": -0.1684947878320172,
+        "mae_mm": 0.1684947878320172,
+        "rms_mm": 0.17202631020459389,
+        "p95_abs_mm": 0.21640273071642513,
+        "max_abs_mm": 0.24986871955040568
+      },
+      "y_error": {
+        "mean_mm": -0.15900713909447864,
+        "mae_mm": 0.15900713909447864,
+        "rms_mm": 0.16600830177131795,
+        "p95_abs_mm": 0.2393708940361005,
+        "max_abs_mm": 0.42196891712178997
+      },
+      "error_2d": {
+        "mean_mm": 0.2352872147706751,
+        "p95_mm": 0.3037488616818729,
+        "max_mm": 0.4430758063346837
+      }
+    },
+    "representative_force": {
+      "logged_target_n": -5.0,
+      "fz_error_mae_n": 0.6118649093959974,
+      "fz_error_iae_n_s": 58.23236085300645,
+      "duration_s": 11.919976252997003,
+      "fz_error_le_1n_fraction": 0.8590604026845637
+    }
+  }
+}

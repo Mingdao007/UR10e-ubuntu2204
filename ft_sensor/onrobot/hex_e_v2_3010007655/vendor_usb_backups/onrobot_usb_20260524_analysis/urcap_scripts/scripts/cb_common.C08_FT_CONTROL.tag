@@ -1,0 +1,6 @@
+  #======    OnRobot F/T Control Messages    ======#
+  
+  of_ft_control_title="{{of_ft_control_title}}"
+  of_ft_control_start_error="{{of_ft_control_start_error}}"
+  
+  #======    End of OnRobot F/T Control Messages    ======#

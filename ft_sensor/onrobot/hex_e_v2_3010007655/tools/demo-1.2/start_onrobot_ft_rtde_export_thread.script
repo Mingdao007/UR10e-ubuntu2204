@@ -1,0 +1,18 @@
+# UR10e demo-1.2: non-blocking OnRobot Variables RTDE export.
+# Insert this as a PolyScope Script node near the start of the program.
+# It continuously writes the OnRobot URCap variables Fx/Fy/Fz/Tx/Ty/Tz
+# into RTDE output_double_register_24..29 while the program runs.
+
+thread onrobot_ft_rtde_export_thread():
+  while True:
+    write_output_float_register(24, Fx)
+    write_output_float_register(25, Fy)
+    write_output_float_register(26, Fz)
+    write_output_float_register(27, Tx)
+    write_output_float_register(28, Ty)
+    write_output_float_register(29, Tz)
+    sync()
+  end
+end
+
+global onrobot_ft_rtde_export_handle = run onrobot_ft_rtde_export_thread()

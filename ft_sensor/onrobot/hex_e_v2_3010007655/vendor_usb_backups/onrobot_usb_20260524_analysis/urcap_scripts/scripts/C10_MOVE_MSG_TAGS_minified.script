@@ -1,0 +1,31 @@
+  #======    OnRobot F/T Move  F/T Search Messages    ======#
+  
+  of_move_error_title="{{of_move_error_title}}"
+  of_search_error_title="{{of_search_error_title}}"
+  of_move_init_error="{{of_move_init_error}}"
+  of_move_start_error="{{of_move_start_error}}"
+  of_move_return_error="{{of_move_return_error}}"
+  of_move_parameter_error_count="{{of_move_parameter_error_count}}"
+  of_move_move_return_title="{{of_move_move_return_title}}"
+  of_move_move_return_0="{{of_move_move_return_0}}"
+  of_move_move_return_1="{{of_move_move_return_1}}"
+  of_move_move_return_2="{{of_move_move_return_2}}"
+  of_move_move_return_3="{{of_move_move_return_3}}"
+  of_move_move_return_11="{{of_move_move_return_11}}"
+  of_move_move_return_12="{{of_move_move_return_12}}"
+  of_move_move_return_13="{{of_move_move_return_13}}"
+  of_move_move_return_14="{{of_move_move_return_14}}"
+  of_move_move_return_unknown="{{of_move_move_return_unknown}}"
+  of_move_search_return_title="{{of_move_search_return_title}}"
+  of_move_search_return_0="{{of_move_search_return_0}}"
+  of_move_search_return_1="{{of_move_search_return_1}}"
+  of_move_search_return_2="{{of_move_search_return_2}}"
+  of_move_search_return_3="{{of_move_search_return_3}}"
+  of_move_search_return_11="{{of_move_search_return_11}}"
+  of_move_search_return_12="{{of_move_search_return_12}}"
+  of_move_search_return_13="{{of_move_search_return_13}}"
+  of_move_search_return_14="{{of_move_search_return_14}}"
+  of_move_search_return_unknown="{{of_move_search_return_unknown}}"
+  
+  
+  #======    End of OnRobot F/T Move & F/T Search Messages    ======#

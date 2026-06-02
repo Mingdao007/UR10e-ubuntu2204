@@ -1,0 +1,24 @@
+{
+  "created_utc": "2026-05-19T06:28:39+00:00",
+  "local_root": "/Users/andyl/Documents/UR10e/eoat_transfer_bundles/eoat_v13_tcp_candidate_20260519_0329",
+  "intended_remote_root": "/home/andy/ur10e_ros2_ws/experiments/onrobot_hex_e_v2_3010007655/eoat_design",
+  "version": "v13_ksm8n_receiver_5p3mm_side_window_85mm",
+  "contact_point_from_flange_face_mm_parameters": 85.0,
+  "contact_point_from_flange_face_mm_derived": 85.0,
+  "tcp_on_centerline": true,
+  "file_count_excluding_manifest": 18,
+  "total_size_bytes_excluding_manifest": 18710145,
+  "required_paths": [
+    "EOAT_TCP_NOTE.md",
+    "GOAL_PROMPT_EOAT_PATCH.md",
+    "archive_context/eoat_print_archive_README.md",
+    "v13_ksm8n_receiver_5p3mm_side_window_85mm/README.md",
+    "v13_ksm8n_receiver_5p3mm_side_window_85mm/verification.json",
+    "v13_ksm8n_receiver_5p3mm_side_window_85mm/make_ur5e_ksm8n_ball_transfer_tool_v13.py",
+    "v13_ksm8n_receiver_5p3mm_side_window_85mm/ur5e_ksm8n_ball_transfer_tool_v13_body.step",
+    "v13_ksm8n_receiver_5p3mm_side_window_85mm/ur5e_ksm8n_ball_transfer_tool_v13_body.stl",
+    "v13_ksm8n_receiver_5p3mm_side_window_85mm/ur5e_ksm8n_ball_transfer_tool_v13_assembly.step",
+    "v13_ksm8n_receiver_5p3mm_side_window_85mm/ur5e_ksm8n_ball_transfer_tool_v13_receiver_fitcheck.stl"
+  ],
+  "missing_required_paths": []
+}

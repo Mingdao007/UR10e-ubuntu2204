@@ -1,0 +1,13 @@
+  #======    OnRobot Acknowledge    ======#
+  
+  def of_ack_send():
+  if OF_DEBUG_STATE:
+  textmsg("Acknowledge sending started..")
+  end 
+  of_send_full(OF_CMD_ACK)
+  if OF_DEBUG_STATE:
+  textmsg("Acknowledge sent")
+  end 
+  end 
+  
+  #======    End of OnRobot Acknowledge    ======#

@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-05-18T17:21:02.215234+00:00",
+  "report_root": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655",
+  "backup_dir": "/Users/andyl/.codex/backups/onrobot-orientation-md-report-skill-20260519_011959",
+  "policy": "Original HEIC files were rotated only after full rollback backup and staging validation.",
+  "records": [
+    {
+      "source_name": "IMG_1167.HEIC",
+      "rotate_degrees_clockwise": 90,
+      "before": {
+        "path": "/Users/andyl/.codex/backups/onrobot-orientation-md-report-skill-20260519_011959/photos_raw.before/IMG_1167.HEIC",
+        "sha256": "56a31c632897643a6a2f84912d2daf09195786814bd6aa90b8536faafe36e493",
+        "size_bytes": 2539027,
+        "mtime_epoch": 1779117869,
+        "format": "heic",
+        "pixel_width": 5712,
+        "pixel_height": 4284
+      },
+      "after": {
+        "path": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1167.HEIC",
+        "sha256": "0606ba3fb85aed94c94f0dcb780fc393c0badd2804bf087ff8e1ed05594ce6f2",
+        "size_bytes": 2033439,
+        "mtime_epoch": 1779124829,
+        "format": "heic",
+        "pixel_width": 4284,
+        "pixel_height": 5712
+      },
+      "backup_original": "/Users/andyl/.codex/backups/onrobot-orientation-md-report-skill-20260519_011959/photos_raw.before/IMG_1167.HEIC",
+      "staging_output": "/Users/andyl/.codex/backups/onrobot-orientation-md-report-skill-20260519_011959/heic_rotation_staging/IMG_1167.HEIC",
+      "reason": "manual upright correction for Markdown report and archival readability"
+    },
+    {
+      "source_name": "IMG_1168.HEIC",
+      "rotate_degrees_clockwise": 90,
+      "before": {
+        "path": "/Users/andyl/.codex/backups/onrobot-orientation-md-report-skill-20260519_011959/photos_raw.before/IMG_1168.HEIC",
+        "sha256": "d635b553f4b54b5479b19d0016efe378371b08760fa65f6f0dfd5d131fa5e5e9",
+        "size_bytes": 2267861,
+        "mtime_epoch": 1779117856,
+        "format": "heic",
+        "pixel_width": 5712,
+        "pixel_height": 4284
+      },
+      "after": {
+        "path": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1168.HEIC",
+        "sha256": "e9115053c59d19678abfd7218725de125d709ea4ab4d856add535742188f6d04",
+        "size_bytes": 1826552,
+        "mtime_epoch": 1779124829,
+        "format": "heic",
+        "pixel_width": 4284,
+        "pixel_height": 5712
+      },
+      "backup_original": "/Users/andyl/.codex/backups/onrobot-orientation-md-report-skill-20260519_011959/photos_raw.before/IMG_1168.HEIC",
+      "staging_output": "/Users/andyl/.codex/backups/onrobot-orientation-md-report-skill-20260519_011959/heic_rotation_staging/IMG_1168.HEIC",
+      "reason": "manual upright correction for Markdown report and archival readability"
+    },
+    {
+      "source_name": "IMG_1187.HEIC",
+      "rotate_degrees_clockwise": 180,
+      "before": {
+        "path": "/Users/andyl/.codex/backups/onrobot-orientation-md-report-skill-20260519_011959/photos_raw.before/IMG_1187.HEIC",
+        "sha256": "75880280a1d3b52f26b5b218ef510e71a758a79295e993992f0540baadc91129",
+        "size_bytes": 1062131,
+        "mtime_epoch": 1779119772,
+        "format": "heic",
+        "pixel_width": 4032,
+        "pixel_height": 3024
+      },
+      "after": {
+        "path": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1187.HEIC",
+        "sha256": "87818a623fa1569b1c7399936fd5a55ecbad03fbef4caab3571985577c220b63",
+        "size_bytes": 705507,
+        "mtime_epoch": 1779124830,
+        "format": "heic",
+        "pixel_width": 4032,
+        "pixel_height": 3024
+      },
+      "backup_original": "/Users/andyl/.codex/backups/onrobot-orientation-md-report-skill-20260519_011959/photos_raw.before/IMG_1187.HEIC",
+      "staging_output": "/Users/andyl/.codex/backups/onrobot-orientation-md-report-skill-20260519_011959/heic_rotation_staging/IMG_1187.HEIC",
+      "reason": "manual upright correction for Markdown report and archival readability"
+    },
+    {
+      "source_name": "IMG_1205.HEIC",
+      "rotate_degrees_clockwise": 180,
+      "before": {
+        "path": "/Users/andyl/.codex/backups/onrobot-orientation-md-report-skill-20260519_011959/photos_raw.before/IMG_1205.HEIC",
+        "sha256": "b3d379953230b36b1f5f2e5ed9257b644eb427b7db4ca542b03d06d838886205",
+        "size_bytes": 997834,
+        "mtime_epoch": 1779119674,
+        "format": "heic",
+        "pixel_width": 4032,
+        "pixel_height": 3024
+      },
+      "after": {
+        "path": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1205.HEIC",
+        "sha256": "fa6401dd5827b5306827a419afd94d7321cacc0540ae76c9530af63d01bba85b",
+        "size_bytes": 731566,
+        "mtime_epoch": 1779124830,
+        "format": "heic",
+        "pixel_width": 4032,
+        "pixel_height": 3024
+      },
+      "backup_original": "/Users/andyl/.codex/backups/onrobot-orientation-md-report-skill-20260519_011959/photos_raw.before/IMG_1205.HEIC",
+      "staging_output": "/Users/andyl/.codex/backups/onrobot-orientation-md-report-skill-20260519_011959/heic_rotation_staging/IMG_1205.HEIC",
+      "reason": "manual upright correction for Markdown report and archival readability"
+    }
+  ]
+}

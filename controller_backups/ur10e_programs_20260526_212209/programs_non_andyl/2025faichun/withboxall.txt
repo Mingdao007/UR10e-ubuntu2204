@@ -1,0 +1,6 @@
+ Program
+   Robot Program
+     Script: output_left.script
+     Script: output_middle.script
+     Script: output_RSettings.script
+     Halt

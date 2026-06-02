@@ -1,0 +1,284 @@
+  #======    OnRobot F/T Move  F/T Search    ======#
+  
+  of_move_state=0
+  of_move_return=0
+  of_move_frameID=0 
+  of_move_frame=ZEROFRAME
+  of_move_last_pose=ZEROPOSE
+  of_move_min_dist=0
+  of_move_wp_count=0
+  of_move_path_count=0
+  of_move_path_move_home=False
+  of_move_min_dist=0.001
+  OF_MOVE_STATE_IDLE=0
+  OF_MOVE_STATE_INIT=1
+  OF_MOVE_STATE_GLOBALS_SET=2
+  OF_MOVE_STATE_PARAM_SEND=3
+  OF_MOVE_STATE_PARAM_SENT=4
+  OF_MOVE_STATE_INITED=5
+  OF_MOVE_STATE_STARTING=6
+  OF_MOVE_STATE_WP_SENT=7
+  OF_MOVE_STATE_STARTED=8
+  OF_MOVE_STATE_RETURNING=9
+  OF_MOVE_STATE_FINISHED=10
+  OF_MOVE_STATE_STOPPING=11
+  OF_MOVE_STATE_PATH_STOPPED=12
+  of__move_parameter_error_coordsys="Parameter error.<br>Unknown coordinate system. Program stopped."
+  of__move_parameter_error_speed="Parameter error.<br>Invalid value for the speed parameter. Program stopped."
+  of__move_parameter_error_acc="Parameter error.<br>Invalid value for the acc parameter. Program stopped."
+  def of_move_init(frameID=0,frameRPY=[0,0,0],speed=0.05,acc=1.2,scale=False,move2First=True,move21Last=True):
+  sync()
+  if not(of_move_state==OF_MOVE_STATE_IDLE):
+  textmsg("of_move_state: ",of_move_state)
+  popup(of_move_init_error,title=of_move_error_title,error=True,blocking=False)
+  halt
+  end 
+  enter_critical
+  of_move_state=OF_MOVE_STATE_INIT
+  exit_critical
+  if OF_DEBUG_STATE:
+  textmsg("FT Move initializing..")
+  end 
+  if not(speed>0):
+  popup(of__move_parameter_error_speed,title=of_move_error_title,error=True,blocking=False)
+  halt
+  elif not(acc>0):
+  popup(of__move_parameter_error_acc,title=of_move_error_title,error=True,blocking=False)
+  halt
+  else:
+  sync()
+  end
+  enter_critical
+  of_move_state=OF_MOVE_STATE_GLOBALS_SET
+  exit_critical
+  of_tcp_offset_send_actual()
+  of_move_frameID=frameID
+  if frameID==0 or frameID==1:
+  of_move_frame=ZEROFRAME
+  elif frameID==2 or frameID==3:
+  frame_rotvec=rpy2rotvec(frameRPY)
+  of_move_frame=p[0,0,0,frame_rotvec[0],frame_rotvec[1],frame_rotvec[2]]
+  elif frameID==4:
+  parentID=of_parent_of_move_frameID
+  if parentID==0 or parentID==1 or parentID==2 or parentID==3:
+  of_move_frameID=of_parent_of_move_frameID
+  of_move_frame=of_parent_of_move_frame
+  else:
+  textmsg("Invalid of_parent_of_move_frameID, frame set to Base. Invalid ID: ",of_parent_of_move_frameID)
+  of_parent_of_move_frameID=0
+  of_parent_of_move_frame=ZEROFRAME 
+  of_move_frameID=of_parent_of_move_frameID
+  of_move_frame=of_parent_of_move_frame
+  end 
+  sync()
+  else:
+  popup(of__move_parameter_error_coordsys,title=of_move_error_title,error=True,blocking=False)
+  halt
+  end 
+  of_move_path_move_home=False
+  of_move_path_count=0
+  of_move_wp_count=0
+  of_move_last_pose=get_actual_tcp_pose()
+  local flags=binary_list_to_integer([scale,move2First,move21Last])
+  enter_critical
+  of_move_state=OF_MOVE_STATE_PARAM_SEND
+  exit_critical
+  of_send_full(OF_CMD_MOVE,of_float_to_int(speed),of_float_to_int(acc),of_move_frameID,of_float_to_int(of_move_frame[3]),of_float_to_int(of_move_frame[4]),of_float_to_int(of_move_frame[5]),flags)
+  enter_critical
+  of_move_state=OF_MOVE_STATE_PARAM_SENT
+  exit_critical
+  if OF_DEBUG_STATE:
+  textmsg("FT Move initialized")
+  end 
+  enter_critical
+  of_move_state=OF_MOVE_STATE_INITED
+  exit_critical
+  sync()
+  end 
+  def of_move_start_move(popupmsg=True):
+  sync()
+  if(of_move_state==OF_MOVE_STATE_PATH_STOPPED):
+  sync()
+  elif not(of_move_state==OF_MOVE_STATE_INITED):
+  textmsg("of_move_state: ",of_move_state)
+  popup(of_move_start_error,title=of_move_error_title,error=True,blocking=False)
+  halt
+  else:
+  enter_critical
+  of_move_state=OF_MOVE_STATE_STARTING
+  exit_critical
+  if not(of_move_wp_count>0 or of_move_path_count==1):
+  textmsg("[Waypoint#, Path#]: ",[of_move_wp_count,of_move_path_count])
+  popup(of_move_parameter_error_count,title=of_move_error_title,error=True,blocking=False)
+  halt
+  else:
+  sync()
+  end
+  enter_critical
+  of_move_state=OF_MOVE_STATE_WP_SENT
+  exit_critical
+  of_start_atomic(startMove=True)
+  if OF_DEBUG_STATE:
+  textmsg("FT Move started")
+  end 
+  enter_critical
+  of_move_state=OF_MOVE_STATE_STARTED
+  exit_critical
+  of_move_return=of_wait_for_return(OF_CMD_MOVE,True)
+  of_speedl_stop_for_CMD(OF_CMD_MOVE)
+  end 
+  enter_critical
+  of_move_state=OF_MOVE_STATE_FINISHED
+  exit_critical
+  if OF_DEBUG_STATE:
+  textmsg("FT Move finished with return value: ",of_move_return)
+  end 
+  if of_move_return==0:
+  elif of_move_return==1:
+  if popupmsg:
+  popup(of_move_move_return_1,title=of_move_move_return_title,warning=True,blocking=True)
+  end 
+  elif of_move_return==3:
+  if popupmsg:
+  popup(of_move_move_return_3,title=of_move_move_return_title,warning=True,blocking=True)
+  end 
+  elif of_move_return==11:
+  popup(of_move_move_return_11,title=of_move_move_return_title,warning=True,blocking=True)
+  elif of_move_return==12:
+  popup(of_move_move_return_12,title=of_move_move_return_title,warning=True,blocking=True)
+  elif of_move_return==13:
+  popup(of_move_move_return_13,title=of_move_move_return_title,warning=True,blocking=True)
+  elif of_move_return==14:
+  popup(of_move_move_return_14,title=of_move_move_return_title,warning=True,blocking=True)
+  else:
+  popup(of_move_move_return_unknown,title=of_move_move_return_title,warning=True,blocking=True)
+  end 
+  if(of_move_path_move_home):
+  if(of_move_return==0):
+  enter_critical
+  of_move_state=OF_MOVE_STATE_INITED
+  exit_critical
+  else:
+  enter_critical
+  of_move_state=OF_MOVE_STATE_PATH_STOPPED
+  exit_critical
+  end 
+  else:
+  enter_critical
+  of_move_state=OF_MOVE_STATE_IDLE
+  exit_critical
+  end 
+  sync()
+  return of_move_return
+  end 
+  def of_move_start_search(popupmsg=True):
+  sync()
+  if(of_move_state==OF_MOVE_STATE_PATH_STOPPED):
+  sync()
+  elif not(of_move_state==OF_MOVE_STATE_INITED):
+  textmsg("of_move_state: ",of_move_state)
+  popup(of_move_start_error,title=of_search_error_title,error=True,blocking=False)
+  halt
+  else:
+  enter_critical
+  of_move_state=OF_MOVE_STATE_STARTING
+  exit_critical
+  if not(of_move_wp_count>0 or of_move_path_count==1):
+  textmsg("[Waypoint#, Path#]: ",[of_move_wp_count,of_move_path_count])
+  popup(of_move_parameter_error_count,title=of_search_error_title,error=True,blocking=False)
+  halt
+  else:
+  sync()
+  end
+  enter_critical
+  of_move_state=OF_MOVE_STATE_WP_SENT
+  exit_critical
+  of_start_atomic(startMove=True)
+  if OF_DEBUG_STATE:
+  textmsg("FT Move started")
+  end 
+  enter_critical
+  of_move_state=OF_MOVE_STATE_STARTED
+  exit_critical
+  of_move_return=of_wait_for_return(OF_CMD_MOVE,True)
+  of_speedl_stop_for_CMD(OF_CMD_MOVE)
+  end 
+  enter_critical
+  of_move_state=OF_MOVE_STATE_FINISHED
+  exit_critical
+  local of_search_return=of_move_return
+  if of_move_return==0:
+  of_search_return=1
+  elif of_move_return==1:
+  of_search_return=0
+  end 
+  if OF_DEBUG_STATE:
+  textmsg("FT Search finished with return value: ",of_search_return)
+  end 
+  if of_search_return==0:
+  elif of_search_return==1:
+  if popupmsg:
+  popup(of_move_search_return_1,title=of_move_search_return_title,warning=True,blocking=True)
+  end 
+  elif of_search_return==3:
+  if popupmsg:
+  popup(of_move_search_return_3,title=of_move_search_return_title,warning=True,blocking=True)
+  end 
+  elif of_search_return==11:
+  popup(of_move_search_return_11,title=of_move_search_return_title,warning=True,blocking=True)
+  elif of_search_return==12:
+  popup(of_move_search_return_12,title=of_move_search_return_title,warning=True,blocking=True)
+  elif of_search_return==13:
+  popup(of_move_search_return_13,title=of_move_search_return_title,warning=True,blocking=True)
+  elif of_search_return==14:
+  popup(of_move_search_return_14,title=of_move_search_return_title,warning=True,blocking=True)
+  else:
+  popup(of_move_search_return_unknown,title=of_move_search_return_title,warning=True,blocking=True)
+  end 
+  if(of_move_path_move_home):
+  if(of_move_return==0):
+  enter_critical
+  of_move_state=OF_MOVE_STATE_INITED
+  exit_critical
+  else:
+  enter_critical
+  of_move_state=OF_MOVE_STATE_PATH_STOPPED
+  exit_critical
+  end 
+  else:
+  enter_critical
+  of_move_state=OF_MOVE_STATE_IDLE
+  exit_critical
+  end 
+  sync()
+  return of_search_return
+  end 
+  def of_move_limit_return(limit_return):
+  if limit_return==0:
+  of_move_return=0
+  elif limit_return==1:
+  of_move_return=1
+  else:
+  of_move_return=2
+  if OF_DEBUG_STATE:
+  textmsg("FT Move returned with limit_return: ",limit_return)
+  end 
+  end 
+  end 
+  def of_move_stop():
+  if of_move_state==OF_MOVE_STATE_IDLE:
+  textmsg("No move command has been stopped")
+  else:
+  enter_critical
+  of_move_state=OF_MOVE_STATE_STOPPING
+  exit_critical
+  of_wait_for_return_stop(OF_CMD_MOVE)
+  of_stop_atomic(stopMove=True)
+  of_move_return=of_wait_for_return(OF_CMD_MOVE,True)
+  end 
+  enter_critical
+  of_move_state=OF_MOVE_STATE_IDLE
+  exit_critical
+  end 
+  
+  #======    End of OnRobot F/T Move & F/T Search    ======#

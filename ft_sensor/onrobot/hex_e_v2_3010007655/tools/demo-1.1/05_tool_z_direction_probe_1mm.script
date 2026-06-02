@@ -1,0 +1,76 @@
+def demo_1_1_write_onrobot_registers():
+  write_output_float_register(24, Fx)
+  write_output_float_register(25, Fy)
+  write_output_float_register(26, Fz)
+  write_output_float_register(27, Tx)
+  write_output_float_register(28, Ty)
+  write_output_float_register(29, Tz)
+end
+
+def demo_1_1_speed_along_start_tool_z(contact_sign, speed_mps):
+  start_pose = get_actual_tcp_pose()
+  probe_pose = pose_trans(start_pose, p[0.0, 0.0, contact_sign * 0.001, 0.0, 0.0, 0.0])
+  dir_x = (probe_pose[0] - start_pose[0]) / 0.001
+  dir_y = (probe_pose[1] - start_pose[1]) / 0.001
+  dir_z = (probe_pose[2] - start_pose[2]) / 0.001
+  return [speed_mps * dir_x, speed_mps * dir_y, speed_mps * dir_z, 0.0, 0.0, 0.0]
+end
+
+def demo_1_1_tool_z_direction_probe_1mm():
+  contact_sign = 1
+  probe_distance_m = 0.001
+  probe_speed_mps = 0.002
+  accel_mps2 = 0.02
+  control_period_s = 0.016
+  max_phase_time_s = 2.0
+
+  textmsg("demo-1.1: Tool-Z direction probe; motion test in free space only")
+  start_pose = get_actual_tcp_pose()
+  forward_twist = demo_1_1_speed_along_start_tool_z(contact_sign, probe_speed_mps)
+  reverse_twist = demo_1_1_speed_along_start_tool_z(contact_sign, -probe_speed_mps)
+
+  forward_done = 0
+  forward_elapsed_s = 0.0
+  while forward_done == 0:
+    demo_1_1_write_onrobot_registers()
+    rel = pose_trans(pose_inv(start_pose), get_actual_tcp_pose())
+    travel_m = contact_sign * rel[2]
+    if travel_m >= probe_distance_m:
+      stopl(0.3)
+      forward_done = 1
+    elif forward_elapsed_s >= max_phase_time_s:
+      stopl(0.3)
+      forward_done = 1
+    else:
+      speedl(forward_twist, accel_mps2, control_period_s)
+      sync()
+      forward_elapsed_s = forward_elapsed_s + control_period_s
+    end
+  end
+
+  sleep(0.2)
+  back_start_pose = get_actual_tcp_pose()
+  back_done = 0
+  back_elapsed_s = 0.0
+  while back_done == 0:
+    demo_1_1_write_onrobot_registers()
+    rel_back = pose_trans(pose_inv(back_start_pose), get_actual_tcp_pose())
+    back_travel_m = -contact_sign * rel_back[2]
+    if back_travel_m >= probe_distance_m:
+      stopl(0.3)
+      back_done = 1
+    elif back_elapsed_s >= max_phase_time_s:
+      stopl(0.3)
+      back_done = 1
+    else:
+      speedl(reverse_twist, accel_mps2, control_period_s)
+      sync()
+      back_elapsed_s = back_elapsed_s + control_period_s
+    end
+  end
+
+  stopl(0.3)
+  textmsg("demo-1.1: Tool-Z direction probe finished")
+end
+
+demo_1_1_tool_z_direction_probe_1mm()

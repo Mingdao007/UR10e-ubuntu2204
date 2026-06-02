@@ -1,0 +1,4 @@
+ Program
+   Robot Program
+     Script: Fuk_Rabbit_01D.script
+     Halt

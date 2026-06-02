@@ -1,0 +1,10 @@
+{
+  "rest": "R00_rest_30min",
+  "after": "S00_60s",
+  "planned_duration_s": 1800,
+  "elapsed_s": 1800.022969851998,
+  "remaining_s": 0.0,
+  "start_wall_time_utc": "2026-05-20T03:24:09.102+00:00",
+  "updated_wall_time_utc": "2026-05-20T03:54:09.125+00:00",
+  "power_state": "continuous_on"
+}

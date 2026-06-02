@@ -1,0 +1,172 @@
+{
+  "csv_paths": {
+    "onrobot_udp_raw": "/home/andy/ur10e_ros2_ws/experiments/20260528_static_three_stream_capture/start_stop_only_expected_125_250_500/start_stop_only_expected_125_250_500_onrobot_udp_raw_20260528_040832.csv",
+    "rtde_ur500_urcap125": "/home/andy/ur10e_ros2_ws/experiments/20260528_static_three_stream_capture/start_stop_only_expected_125_250_500/start_stop_only_expected_125_250_500_rtde_ur500_urcap125_20260528_040832.csv"
+  },
+  "dashboard_after": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "programState": "PLAYING 3.urp",
+    "robotmode": "Robotmode: RUNNING",
+    "running": "Program running: true",
+    "safetymode": "Safetymode: NORMAL"
+  },
+  "dashboard_before": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "is in remote control": "false",
+    "programState": "PLAYING 3.urp",
+    "robotmode": "Robotmode: RUNNING",
+    "running": "Program running: true",
+    "safetymode": "Safetymode: NORMAL"
+  },
+  "errors": [],
+  "finished_wall": "2026-05-28T04:08:39",
+  "label": "start_stop_only_expected_125_250_500",
+  "ok": true,
+  "port_probe_rtde": {
+    "open": true,
+    "port": 30004
+  },
+  "rate_gate": {
+    "rtde_gt_450": true,
+    "udp_rate_hz": 249.90900151026125,
+    "urcap_100_to_150": true
+  },
+  "requested_seconds": 5.0,
+  "rtde_requested_hz": 500.0,
+  "rtde_timing": {
+    "duration_first_last_s": 5.010001206,
+    "first_t_s": 0.000416119,
+    "interval_rate_hz": 499.9998796407475,
+    "last_t_s": 5.010417325,
+    "max_dt_ms": 2.138268999999582,
+    "mean_dt_ms": 2.0000004814371257,
+    "median_dt_ms": 1.99912999999996,
+    "min_dt_ms": 1.8418150000005795,
+    "p95_dt_ms": 2.0250477999999905,
+    "p99_dt_ms": 2.0523329599999585,
+    "samples": 2506
+  },
+  "rtde_type_names": [
+    "VECTOR6D",
+    "VECTOR6D",
+    "DOUBLE",
+    "DOUBLE",
+    "DOUBLE",
+    "DOUBLE",
+    "DOUBLE",
+    "DOUBLE"
+  ],
+  "safety_boundary": [
+    "robot RTDE reads only",
+    "Dashboard status queries only",
+    "Compute Box UDP START and final STOP",
+    "SPEED command only when speed_divisor_sent is not null",
+    "no FILTER command",
+    "no BIAS command",
+    "no zero/F-T Zero",
+    "no URScript/motion/TCP/payload writes"
+  ],
+  "speed_divisor_sent": null,
+  "started_wall": "2026-05-28T04:08:32",
+  "summary_path": "/home/andy/ur10e_ros2_ws/experiments/20260528_static_three_stream_capture/start_stop_only_expected_125_250_500/start_stop_only_expected_125_250_500_summary_20260528_040832.json",
+  "udp_all_zero": false,
+  "udp_commands_sent": [
+    {
+      "command": "START",
+      "command_hex": "0x0002",
+      "data": 3200,
+      "sent_wall": "2026-05-28T04:08:34.189"
+    },
+    {
+      "command": "STOP",
+      "command_hex": "0x0000",
+      "data": 0,
+      "sent_wall": "2026-05-28T04:08:39.200"
+    }
+  ],
+  "udp_raw_tuple_updates": {
+    "distinct_value_transition_rate_hz": 249.90900151026125,
+    "max_rows_per_run": 1,
+    "mean_rows_per_run": 1.0,
+    "median_rows_per_run": 1.0,
+    "run_length_counts_top10": [
+      [
+        1,
+        1252
+      ]
+    ],
+    "runs": 1252
+  },
+  "udp_sample_counter_delta_mod65536_counts": {
+    "4": 1251
+  },
+  "udp_sequence_delta_counts": {
+    "1": 1251
+  },
+  "udp_status_counts": {
+    "0": 1252
+  },
+  "udp_timing": {
+    "duration_first_last_s": 5.005822089,
+    "first_t_s": 0.00532465,
+    "interval_rate_hz": 249.90900151026125,
+    "last_t_s": 5.011146739,
+    "max_dt_ms": 4.142548999999995,
+    "mean_dt_ms": 4.001456505995204,
+    "median_dt_ms": 4.002806999999997,
+    "min_dt_ms": 1.905645,
+    "p95_dt_ms": 4.039941499999977,
+    "p99_dt_ms": 4.07140550000018,
+    "samples": 1252
+  },
+  "ur_actual_tcp_force_all_zero": false,
+  "ur_actual_tcp_force_tuple_updates": {
+    "distinct_value_transition_rate_hz": 499.9998796407475,
+    "max_rows_per_run": 1,
+    "mean_rows_per_run": 1.0,
+    "median_rows_per_run": 1.0,
+    "run_length_counts_top10": [
+      [
+        1,
+        2506
+      ]
+    ],
+    "runs": 2506
+  },
+  "ur_tcp_angular_speed_norm": {
+    "first": 0.0,
+    "last": 0.0,
+    "max": 3.4482800970166534e-07,
+    "mean": 1.517625473359019e-10,
+    "min": 0.0,
+    "range": 3.4482800970166534e-07,
+    "std": 6.9175329561320085e-09
+  },
+  "ur_tcp_speed_norm": {
+    "first": 0.0,
+    "last": 0.0,
+    "max": 9.189771924220852e-08,
+    "mean": 4.0445183308752936e-11,
+    "min": 0.0,
+    "range": 9.189771924220852e-08,
+    "std": 1.8435436912286371e-09
+  },
+  "urcap_all_zero": false,
+  "urcap_register_tuple_updates": {
+    "distinct_value_transition_rate_hz": 125.14967047295357,
+    "max_rows_per_run": 4,
+    "mean_rows_per_run": 3.9904458598726116,
+    "median_rows_per_run": 4.0,
+    "run_length_counts_top10": [
+      [
+        4,
+        626
+      ],
+      [
+        1,
+        2
+      ]
+    ],
+    "runs": 628
+  }
+}

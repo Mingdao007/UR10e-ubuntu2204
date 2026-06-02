@@ -1,0 +1,163 @@
+  #======    OnRobot Engine    ======#
+  
+  FT_hex=[0.0,0.0,0.0,0.0,0.0,0.0]
+  ft_Status_hex=0
+  ft_Engine_state=0
+  floatRegShift=24
+  intRegShift=24
+  boolRegShift=64
+  OF_SENSOR_ID_UNDEFINED=0
+  OF_SENSOR_ID_UNKNOWN=1
+  OF_SENSOR_ID_HEX_V1=11
+  OF_SENSOR_ID_HEX_V2=12
+  OF_SENSOR_ID_RG2FT_V0=20
+  def of_error(status_flag,message,title,stop_var=False):
+  if(status_flag):
+  popup(message,title=title,error=True,blocking=False)
+  stop_var=True
+  end 
+  return stop_var
+  end 
+  def of_warning(status_flag,message,title):
+  if(status_flag):
+  textmsg(title,message)
+  end 
+  end 
+  def of_vectorRead_RTDE_registers():
+  enter_critical
+  floatRegDummy=read_input_float_register(0+floatRegShift)
+  of_speedVect[0]=floatRegDummy
+  floatRegDummy=read_input_float_register(1+floatRegShift)
+  of_speedVect[1]=floatRegDummy
+  floatRegDummy=read_input_float_register(2+floatRegShift)
+  of_speedVect[2]=floatRegDummy
+  floatRegDummy=read_input_float_register(3+floatRegShift)
+  of_speedVect[3]=floatRegDummy
+  floatRegDummy=read_input_float_register(4+floatRegShift)
+  of_speedVect[4]=floatRegDummy
+  floatRegDummy=read_input_float_register(5+floatRegShift)
+  of_speedVect[5]=floatRegDummy
+  floatRegDummy=read_input_float_register(6+floatRegShift)
+  FT_hex[0]=floatRegDummy
+  FT_left[0]=floatRegDummy
+  floatRegDummy=read_input_float_register(7+floatRegShift)
+  FT_hex[1]=floatRegDummy
+  FT_left[1]=floatRegDummy
+  floatRegDummy=read_input_float_register(8+floatRegShift)
+  FT_hex[2]=floatRegDummy
+  FT_left[2]=floatRegDummy
+  floatRegDummy=read_input_float_register(9+floatRegShift)
+  FT_hex[3]=floatRegDummy
+  FT_left[3]=floatRegDummy
+  floatRegDummy=read_input_float_register(10+floatRegShift)
+  FT_hex[4]=floatRegDummy
+  FT_left[4]=floatRegDummy
+  floatRegDummy=read_input_float_register(11+floatRegShift)
+  FT_hex[5]=floatRegDummy
+  FT_left[5]=floatRegDummy
+  floatRegDummy=read_input_float_register(12+floatRegShift)
+  FT_right[0]=floatRegDummy
+  rg_Width{{rg_master_postfix}}=floatRegDummy
+  vg_Vacuum_A{{vg_master_postfix}}=floatRegDummy
+  floatRegDummy=read_input_float_register(13+floatRegShift)
+  FT_right[1]=floatRegDummy
+  rg_Depth{{rg_master_postfix}}=floatRegDummy
+  vg_Vacuum_B{{vg_master_postfix}}=floatRegDummy
+  floatRegDummy=read_input_float_register(14+floatRegShift)
+  FT_right[2]=floatRegDummy
+  rg_DepthRel{{rg_master_postfix}}=floatRegDummy
+  floatRegDummy=read_input_float_register(15+floatRegShift)
+  FT_right[3]=floatRegDummy
+  rg_Width_slave=floatRegDummy
+  vg_Vacuum_A_slave=floatRegDummy
+  floatRegDummy=read_input_float_register(16+floatRegShift)
+  FT_right[4]=floatRegDummy
+  rg_Depth_slave=floatRegDummy
+  vg_Vacuum_B_slave=floatRegDummy
+  floatRegDummy=read_input_float_register(17+floatRegShift)
+  FT_right[5]=floatRegDummy
+  rg_DepthRel_slave=floatRegDummy
+  floatRegDummy=read_input_float_register(18+floatRegShift)
+  ft_Prox_left=floatRegDummy
+  floatRegDummy=read_input_float_register(19+floatRegShift)
+  ft_Prox_right=floatRegDummy
+  floatRegDummy=read_input_float_register(20+floatRegShift)
+  ft_Width=floatRegDummy
+  floatRegDummy=read_input_float_register(21+floatRegShift)
+  ft_Gyro[0]=floatRegDummy
+  floatRegDummy=read_input_float_register(22+floatRegShift)
+  ft_Gyro[1]=floatRegDummy
+  floatRegDummy=read_input_float_register(23+floatRegShift)
+  ft_Gyro[2]=floatRegDummy
+  intRegDummy=read_input_integer_register(0+intRegShift)
+  ft_Engine_state=intRegDummy
+  intRegDummy=read_input_integer_register(1+intRegShift)
+  ft_Sensor_ID=intRegDummy
+  intRegDummy=read_input_integer_register(2+intRegShift)
+  ft_Status_hex=intRegDummy
+  ft_Status_left=intRegDummy
+  intRegDummy=read_input_integer_register(3+intRegShift)
+  ft_Status_right=intRegDummy
+  rg_Device_ID{{rg_master_postfix}}=intRegDummy
+  vg_Device_ID{{vg_master_postfix}}=intRegDummy
+  intRegDummy=read_input_integer_register(4+intRegShift)
+  ft_Status_backpack=intRegDummy
+  rg_Status{{rg_master_postfix}}=intRegDummy
+  vg_Limit_ma{{vg_master_postfix}}=intRegDummy
+  intRegDummy=read_input_integer_register(5+intRegShift)
+  rg_Device_ID_slave=intRegDummy
+  vg_Device_ID_slave=intRegDummy
+  intRegDummy=read_input_integer_register(6+intRegShift)
+  rg_Status_slave=intRegDummy
+  vg_Limit_ma_slave=intRegDummy
+  boolRegDummy=read_input_boolean_register(0+boolRegShift)
+  ft_Biased=boolRegDummy
+  boolRegDummy=read_input_boolean_register(1+boolRegShift)
+  ft_Stopped=boolRegDummy
+  rg_Busy{{rg_master_postfix}}=boolRegDummy
+  boolRegDummy=read_input_boolean_register(2+boolRegShift)
+  ft_Gripped=boolRegDummy
+  rg_Grip_detected{{rg_master_postfix}}=boolRegDummy
+  boolRegDummy=read_input_boolean_register(3+boolRegShift)
+  rg_S1_pushed{{rg_master_postfix}}=boolRegDummy
+  boolRegDummy=read_input_boolean_register(4+boolRegShift)
+  rg_S1_triggered{{rg_master_postfix}}=boolRegDummy
+  boolRegDummy=read_input_boolean_register(5+boolRegShift)
+  rg_S2_pushed{{rg_master_postfix}}=boolRegDummy
+  boolRegDummy=read_input_boolean_register(6+boolRegShift)
+  rg_S2_triggered{{rg_master_postfix}}=boolRegDummy
+  boolRegDummy=read_input_boolean_register(7+boolRegShift)
+  rg_Busy_slave=boolRegDummy
+  boolRegDummy=read_input_boolean_register(8+boolRegShift)
+  rg_Grip_detected_slave=boolRegDummy
+  boolRegDummy=read_input_boolean_register(9+boolRegShift)
+  rg_S1_pushed_slave=boolRegDummy
+  boolRegDummy=read_input_boolean_register(10+boolRegShift)
+  rg_S1_triggered_slave=boolRegDummy
+  boolRegDummy=read_input_boolean_register(11+boolRegShift)
+  rg_S2_pushed_slave=boolRegDummy
+  boolRegDummy=read_input_boolean_register(12+boolRegShift)
+  rg_S2_triggered_slave=boolRegDummy
+  exit_critical
+  end 
+  def ft_set_rtde_watchdog(update_hz=5):
+  watchdog_int_reg_str=str_cat("input_int_register_",intRegShift)
+  rtde_set_watchdog(watchdog_int_reg_str,update_hz,"stop")
+  end 
+  def get_of_speedVect():
+  return[of_speedVect[0],of_speedVect[1],of_speedVect[2],of_speedVect[3],of_speedVect[4],of_speedVect[5]]
+  end 
+  thread of_vectorRead_thread():
+  if OF_DEBUG_STATE:
+  textmsg("Starting vectorProcess thread")
+  end 
+  while of_vectorRead_running:
+  sync()
+  of_vectorRead_RTDE_registers()
+  end 
+  if OF_DEBUG_STATE:
+  textmsg("Stopping vectorProcess thread")
+  end 
+  end 
+  
+  #======    End of OnRobot Engine    ======#

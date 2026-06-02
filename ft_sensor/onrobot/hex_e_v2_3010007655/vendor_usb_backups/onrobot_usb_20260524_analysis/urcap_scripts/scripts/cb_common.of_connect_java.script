@@ -1,0 +1,14 @@
+  #======    OnRobot Connect Java    ======#
+  
+  of_portopened_javaSocket=False
+  def of_connect_javaSocket():
+  of_portopened_javaSocket=socket_open("127.0.0.1",44005,"javaSocket")
+  if not of_portopened_javaSocket:
+  sync()
+  of_connect_javaSocket()
+  end 
+  end 
+  of_connect_javaSocket()
+  sync()
+  
+  #======    End of OnRobot Connect Java    ======#

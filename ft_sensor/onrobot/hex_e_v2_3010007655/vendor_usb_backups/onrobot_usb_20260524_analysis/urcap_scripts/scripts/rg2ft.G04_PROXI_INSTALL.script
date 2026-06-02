@@ -1,0 +1,48 @@
+  #======    OnRobot Gripper Proximity Offset Install    ======#
+  
+  def of_proxi_set_offsets_install():
+  gProxLoT=0
+  gProxRoT=0
+  prevWidth=ft_Width
+  if(prevWidth<30):
+  of_gripper_set_width(30,40,True,False,True)
+  end 
+  of_wait_ms(500)
+  popup(of_gripper_proxi_offsets_paper,title=of_gripper_install_title,warning=False,blocking=True)
+  of_gripper_proxi_offsets(0,0)
+  of_gripper_set_width(0,20,True,False,True)
+  of_wait_ms(500)
+  i=0
+  while(i<100):
+  gProxLoT=gProxLoT+ft_Prox_left
+  gProxRoT=gProxRoT+ft_Prox_right
+  i=i+1
+  sync()
+  sync()
+  sync()
+  sync()
+  end 
+  gProxLoT=gProxLoT/100
+  gProxRoT=gProxRoT/100
+  local proxi_offsets=[gProxLoT,gProxRoT]
+  of_gripper_proxi_offsets(of_proxi_offsets[0],of_proxi_offsets[1])
+  if(prevWidth<30):
+  of_gripper_set_width(30,40,True,False,True)
+  else:
+  of_gripper_set_width(prevWidth,40,True,False,True)
+  end 
+  of_wait_ms(100)
+  local proxi_values=of_RPC.strCon(of_gripper_proxi_offsets_measured,proxi_offsets)
+  local proxi_msg=of_RPC.strCon(proxi_values,of_gripper_proxi_offsets_accept)
+  local accepted=request_boolean_from_primary_client(proxi_msg)
+  if accepted:
+  of_proxi_offsets=proxi_offsets
+  else:
+  of_proxi_offsets=[0,0]
+  end 
+  of_gripper_proxi_offsets(of_proxi_offsets[0],of_proxi_offsets[1])
+  textmsg(of_gripper_proxi_offsets_result,of_proxi_offsets)
+  return of_proxi_offsets
+  end 
+  
+  #======    End of OnRobot Gripper Proximity Offset Install    ======#

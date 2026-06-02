@@ -1,0 +1,169 @@
+  #======    OnRobot F/T Insert Pin    ======#
+  
+  of_insert_pin_state=0
+  of_insert_pin_return=0
+  of_insert_pin_frameID=1
+  of_insert_pin_frameID_default=1
+  of_insert_pin_frameRPY=[0,0,0]
+  of_insert_pin_frameRPY_default=[0,0,0]
+  of_insert_pin_retAccept=[True,True,True,False,False,False,False,False,False]
+  of_insert_pin_retAccept_default=[True,True,True,False,False,False,False,False,False]
+  OF_INSERT_PIN_STATE_IDLE=0
+  OF_INSERT_PIN_STATE_INIT=1
+  OF_INSERT_PIN_STATE_STARTED=2
+  OF_INSERT_PIN_STATE_RETURNING=3
+  of__insert_pin_param_error_minDistZ="Please define parameter 'minDistZ' as a positive real number in meters!"
+  of__insert_pin_param_error_forceZ="Please define parameter 'forceZ' as a positive number in Newtons!"
+  of__insert_pin_param_error_maxDistZ="Please define parameter 'maxDistZ' as a positive real number in meters!"
+  of__insert_pin_param_error_maxDistZ_minDistZ="Please define the parameters as 'maxDistZ' >= 'minDistZ'!"
+  of__insert_pin_param_error_expSpeed="Please define parameter 'expSpeed' as a positive real number in meters!"
+  of__insert_pin_param_error_deltaForce="Please define parameter 'deltaForce' as a positive number in Newtons!"
+  of__insert_pin_param_error_timeOut="Please define parameter 'timeOut' as a positive number in seconds!"
+  of__insert_pin_param_error_FTLimits="Please define parameter 'FTLimits' as a 6-element array of positive numbers in Newtons & Newton-meters!"
+  of__insert_pin_param_error_PGainFxy="Please define parameter 'PGainFxy' as a positive real number!"
+  of__insert_pin_param_error_PGainFz="Please define parameter 'PGainFz' as a positive real number!"
+  of__insert_pin_param_error_PGainTxy="Please define parameter 'PGainTxy' as a positive real number!"
+  of__insert_pin_param_error_PGainTz="Please define parameter 'PGainTz' as a positive real number!"
+  def of_insert_pin(forceZ,minDistZ,maxDistZ=0,deltaForce=0,expSpeed=0,timeOut=0,compliance=[True,True,True,True,True,True],FTLimits=[0,0,0,0,0,0],PGainFxy=1.0,PGainFz=1.0,PGainTxy=0.2,PGainTz=0.2,popupmsg=True):
+  sync()
+  if OF_DEBUG_STATE:
+  textmsg("Insert Pin starting..")
+  end 
+  if not(of_insert_pin_state==OF_INSERT_PIN_STATE_IDLE):
+  textmsg("of_insert_pin_state: ",of_insert_pin_state)
+  popup(of_insert_pin_state_error_start,title=of_insert_pin_error_title,error=True,blocking=False)
+  halt
+  else:
+  enter_critical
+  of_insert_pin_state=OF_INSERT_PIN_STATE_INIT
+  exit_critical
+  end 
+  of_insert_pin_return=0
+  if not(minDistZ>=0):
+  of_insert_pin_return=8
+  popup(of__insert_pin_param_error_minDistZ,title=of_insert_pin_error_title,error=True,blocking=True)
+  elif not(forceZ!=0):
+  of_insert_pin_return=8
+  popup(of__insert_pin_param_error_forceZ,title=of_insert_pin_error_title,error=True,blocking=True)
+  elif not(maxDistZ>=0):
+  of_insert_pin_return=8
+  popup(of__insert_pin_param_error_maxDistZ,title=of_insert_pin_error_title,error=True,blocking=False)
+  elif not(maxDistZ>=minDistZ or maxDistZ==0):
+  of_insert_pin_return=8
+  popup(of__insert_pin_param_error_maxDistZ_minDistZ,title=of_insert_pin_error_title,error=True,blocking=False)
+  elif not(expSpeed>=0):
+  of_insert_pin_return=8
+  popup(of__insert_pin_param_error_expSpeed,title=of_insert_pin_error_title,error=True,blocking=False)
+  elif not(deltaForce>=0):
+  of_insert_pin_return=8
+  popup(of__insert_pin_param_error_deltaForce,title=of_insert_pin_error_title,error=True,blocking=False)
+  elif not(timeOut>=0):
+  of_insert_pin_return=8
+  popup(of__insert_pin_param_error_timeOut,title=of_insert_pin_error_title,error=True,blocking=False)
+  elif not(FTLimits[0]>=0):
+  of_insert_pin_return=8
+  popup(of__insert_pin_param_error_FTLimits,title=of_insert_pin_error_title,error=True,blocking=False)
+  elif not(FTLimits[1]>=0):
+  of_insert_pin_return=8
+  popup(of__insert_pin_param_error_FTLimits,title=of_insert_pin_error_title,error=True,blocking=False)
+  elif not(FTLimits[3]>=0):
+  of_insert_pin_return=8
+  popup(of__insert_pin_param_error_FTLimits,title=of_insert_pin_error_title,error=True,blocking=False)
+  elif not(FTLimits[4]>=0):
+  of_insert_pin_return=8
+  popup(of__insert_pin_param_error_FTLimits,title=of_insert_pin_error_title,error=True,blocking=False)
+  elif not(FTLimits[5]>=0):
+  of_insert_pin_return=8
+  popup(of__insert_pin_param_error_FTLimits,title=of_insert_pin_error_title,error=True,blocking=False)
+  elif not(PGainFxy>0):
+  of_insert_pin_return=8
+  popup(of__insert_pin_param_error_PGainFxy,title=of_insert_pin_error_title,error=True,blocking=False)
+  elif not(PGainFz>0):
+  of_insert_pin_return=8
+  popup(of__insert_pin_param_error_PGainFz,title=of_insert_pin_error_title,error=True,blocking=False)
+  elif not(PGainTxy>0):
+  of_insert_pin_return=8
+  popup(of__insert_pin_param_error_PGainTxy,title=of_insert_pin_error_title,error=True,blocking=False)
+  elif not(PGainTz>0):
+  of_insert_pin_return=8
+  popup(of__insert_pin_param_error_PGainTz,title=of_insert_pin_error_title,error=True,blocking=False)
+  end 
+  if(of_insert_pin_return!=0):
+  halt
+  end 
+  of_tcp_offset_send_actual()
+  local retAccept=of_insert_pin_retAccept
+  of_insert_pin_retAccept=of_insert_pin_retAccept_default
+  local ft_compliance=compliance
+  ft_compliance[2]=True
+  local ft_threshold=[FTLimits[0],FTLimits[1],(forceZ+deltaForce),FTLimits[3],FTLimits[4],FTLimits[5],0,0]
+  i=0
+  while i<6:
+  if ft_compliance[i]:
+  ft_threshold[i]=0
+  end 
+  i=i+1
+  end 
+  local flags=binary_list_to_integer(ft_compliance)+(of_insert_pin_frameID*64)
+  of_insert_pin_frameID=of_insert_pin_frameID_default
+  local of_insert_pin_frame=rpy2rotvec(of_insert_pin_frameRPY)
+  of_insert_pin_frameRPY=of_insert_pin_frameRPY_default
+  sync()
+  of_send_full(OF_CMD_INSERT_PIN,of_float_to_int(forceZ),of_float_to_int(minDistZ),of_float_to_int(maxDistZ),of_float_to_int(deltaForce),of_float_to_int(expSpeed),of_float_to_int(timeOut),flags,of_float_to_int(ft_threshold[0]),of_float_to_int(ft_threshold[1]),of_float_to_int(ft_threshold[3]),of_float_to_int(ft_threshold[4]),of_float_to_int(ft_threshold[5]),of_float_to_int(PGainFxy),of_float_to_int(PGainFz),of_float_to_int(PGainTxy),of_float_to_int(PGainTz))
+  of_speedl_start_for_CMD(OF_CMD_INSERT_PIN)
+  if OF_DEBUG_STATE:
+  textmsg("Insert Pin command sent, waiting for the return.")
+  end 
+  enter_critical
+  of_insert_pin_state=OF_INSERT_PIN_STATE_STARTED
+  exit_critical
+  of_insert_pin_return=of_wait_for_return(OF_CMD_INSERT_PIN,blocking=True)
+  of_speedl_stop_for_CMD(OF_CMD_INSERT_PIN)
+  if OF_DEBUG_STATE:
+  textmsg("Insert Pin returned.")
+  end 
+  if of_insert_pin_return==0:
+  if(popupmsg and(not retAccept[0])):
+  popup(of_insert_pin_return_0,title=of_insert_pin_return_title,warning=True,blocking=True)
+  end 
+  elif of_insert_pin_return==1:
+  if(popupmsg and(not retAccept[1])):
+  popup(of_insert_pin_return_1,title=of_insert_pin_return_title,warning=True,blocking=True)
+  end 
+  elif of_insert_pin_return==2:
+  if(popupmsg and(not retAccept[2])):
+  popup(of_insert_pin_return_2,title=of_insert_pin_return_title,warning=True,blocking=True)
+  end 
+  elif of_insert_pin_return==3:
+  if(popupmsg and(not retAccept[3])):
+  popup(of_insert_pin_return_3,title=of_insert_pin_return_title,warning=True,blocking=True)
+  end 
+  elif of_insert_pin_return==4:
+  if(popupmsg and(not retAccept[4])):
+  popup(of_insert_pin_return_4,title=of_insert_pin_return_title,warning=True,blocking=True)
+  end 
+  elif of_insert_pin_return==5:
+  if(popupmsg and(not retAccept[5])):
+  popup(of_insert_pin_return_5,title=of_insert_pin_return_title,warning=True,blocking=True)
+  end 
+  elif of_insert_pin_return==6:
+  if(popupmsg and(not retAccept[6])):
+  popup(of_insert_pin_return_6,title=of_insert_pin_return_title,warning=True,blocking=True)
+  end 
+  elif of_insert_pin_return==7:
+  if(popupmsg and(not retAccept[7])):
+  popup(of_insert_pin_return_7,title=of_insert_pin_return_title,warning=True,blocking=True)
+  end 
+  else:
+  popup(of_insert_pin_return_unknown,title=of_insert_pin_return_title,warning=True,blocking=True)
+  end 
+  enter_critical
+  of_insert_pin_state=OF_INSERT_PIN_STATE_IDLE
+  exit_critical
+  if OF_DEBUG_STATE:
+  textmsg("End of Insert Pin.")
+  end 
+  return of_insert_pin_return 
+  end 
+  
+  #======    End of OnRobot F/T Insert Pin    ======#

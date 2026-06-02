@@ -1,0 +1,15 @@
+{
+  "ok": true,
+  "host": "192.168.1.18",
+  "port": 29999,
+  "responses": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "is in remote control": "false",
+    "safetymode": "Safetymode: NORMAL",
+    "robotmode": "Robotmode: RUNNING",
+    "running": "Program running: false",
+    "programState": "STOPPED path_straight_line.urp",
+    "get loaded program": "Loaded program: /programs/andyl/path_straight_line.urp",
+    "PolyscopeVersion": "URSoftware 5.11.9.1010452 (Jan 24 2022)"
+  }
+}

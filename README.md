@@ -13,6 +13,18 @@ unchanged.
 - local bringup package: `src/ur10e_bringup`
 - calibration file: `src/ur10e_bringup/config/ur10e_calibration.yaml`
 
+## Workspace Organization
+
+Filename and folder cleanup is staged. New experiment folders should follow the
+future layout in `docs/workspace-organization.md`; historical raw runs, vendor
+backups, controller programs, generated docs, and ROS package paths should not
+be moved for cosmetic cleanup.
+
+This branch also serves as a dated UR10e materials archive for evidence gathered
+from 2026-05-20 through 2026-06-02. See
+`docs/materials-archive-20260520-20260602.md` before treating the contents as a
+single clean experiment result.
+
 ## Build
 
 ```bash

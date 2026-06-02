@@ -1,0 +1,17 @@
+  #======    OnRobot Sensor Config    ======#
+  
+  of_sensor_flange_offset=ZEROFRAME
+  of_sensor_TCP_offset=ZEROFRAME
+  def of_sensor_config_send(sensorFlangeOffset=ZEROFRAME,sensorTCPOffset=ZEROFRAME):
+  if OF_DEBUG_STATE:
+  textmsg("Sensor Config sending started!")
+  end 
+  of_send_full(OF_CMD_SENSOR_CONFIG,of_float_to_int(sensorFlangeOffset[0]),of_float_to_int(sensorFlangeOffset[1]),of_float_to_int(sensorFlangeOffset[2]),of_float_to_int(sensorFlangeOffset[3]),of_float_to_int(sensorFlangeOffset[4]),of_float_to_int(sensorFlangeOffset[5]),of_float_to_int(sensorTCPOffset[0]),of_float_to_int(sensorTCPOffset[1]),of_float_to_int(sensorTCPOffset[2]),of_float_to_int(sensorTCPOffset[3]),of_float_to_int(sensorTCPOffset[4]),of_float_to_int(sensorTCPOffset[5]))
+  of_sensor_flange_offset=sensorFlangeOffset
+  of_sensor_TCP_offset=of_sensor_TCP_offset
+  if OF_DEBUG_STATE:
+  textmsg("Sensor Config sent.")
+  end 
+  end 
+  
+  #======    End of OnRobot Sensor Config    ======#

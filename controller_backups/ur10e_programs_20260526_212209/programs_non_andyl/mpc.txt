@@ -1,0 +1,7 @@
+ Program
+   Robot Program
+     RG Grip
+     MoveJ
+       Waypoint_1
+       MoveJ
+         Waypoint_2

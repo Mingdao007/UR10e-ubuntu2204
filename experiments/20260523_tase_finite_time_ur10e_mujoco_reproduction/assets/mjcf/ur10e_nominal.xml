@@ -1,0 +1,56 @@
+<mujoco model="ur10e_nominal_v1_approx">
+  <compiler angle="radian" autolimits="true"/>
+  <option timestep="0.002" gravity="0 0 -9.81"/>
+  <default>
+    <joint damping="8" armature="0.02" limited="true"/>
+    <geom type="capsule" size="0.035" density="1200" friction="1 0.005 0.0001"/>
+  </default>
+  <asset>
+    <material name="steel" rgba="0.55 0.58 0.62 1"/>
+    <material name="tool" rgba="0.1 0.1 0.1 1"/>
+    <material name="surface" rgba="0.75 0.78 0.72 1"/>
+  </asset>
+  <worldbody>
+    <light name="top" pos="0 0 2"/>
+    <geom name="contact_plane" type="plane" pos="0 0 0" size="1.2 1.2 0.02" material="surface"/>
+    <body name="base_link" pos="0 0 0.98985">
+      <joint name="shoulder_pan_joint" axis="0 0 1" range="-6.283185307 6.283185307"/>
+      <geom name="base_geom" fromto="0 0 0 0 0 -0.12" material="steel"/>
+      <body name="shoulder_link" pos="0 0 -0.12">
+        <joint name="shoulder_lift_joint" axis="0 1 0" range="-6.283185307 6.283185307"/>
+        <geom name="shoulder_geom" fromto="0 0 0 0 0 -0.16" material="steel"/>
+        <body name="upper_arm_link" pos="0 0 -0.16">
+          <joint name="elbow_joint" axis="0 1 0" range="-3.141592654 3.141592654"/>
+          <geom name="upper_arm_geom" fromto="0 0 0 0 0 -0.22" material="steel"/>
+          <body name="forearm_link" pos="0 0 -0.22">
+            <joint name="wrist_1_joint" axis="0 1 0" range="-6.283185307 6.283185307"/>
+            <geom name="forearm_geom" fromto="0 0 0 0 0 -0.18" material="steel"/>
+            <body name="wrist_1_link" pos="0 0 -0.18">
+              <joint name="wrist_2_joint" axis="1 0 0" range="-6.283185307 6.283185307"/>
+              <geom name="wrist_1_geom" fromto="0 0 0 0 0 -0.12" material="steel"/>
+              <body name="wrist_2_link" pos="0 0 -0.12">
+                <joint name="wrist_3_joint" axis="0 1 0" range="-6.283185307 6.283185307"/>
+                <geom name="wrist_2_geom" fromto="0 0 0 0 0 -0.09" material="steel"/>
+                <body name="onrobot_hex_v1_primitive" pos="0 0 -0.06">
+                  <geom name="hex_body_primitive" type="cylinder" size="0.055 0.035" material="tool" density="1000"/>
+                  <body name="eoat_v13_tcp_guess" pos="0 0 -0.085">
+                    <geom name="contact_tip" type="sphere" size="0.045" material="tool" density="700"/>
+                    <site name="tcp_site_unverified_85mm" pos="0 0 0" size="0.012" rgba="1 0 0 1"/>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+  <actuator>
+    <motor name="shoulder_pan_motor" joint="shoulder_pan_joint" gear="20" ctrllimited="true" ctrlrange="-1 1"/>
+    <motor name="shoulder_lift_motor" joint="shoulder_lift_joint" gear="20" ctrllimited="true" ctrlrange="-1 1"/>
+    <motor name="elbow_motor" joint="elbow_joint" gear="20" ctrllimited="true" ctrlrange="-1 1"/>
+    <motor name="wrist_1_motor" joint="wrist_1_joint" gear="10" ctrllimited="true" ctrlrange="-1 1"/>
+    <motor name="wrist_2_motor" joint="wrist_2_joint" gear="10" ctrllimited="true" ctrlrange="-1 1"/>
+    <motor name="wrist_3_motor" joint="wrist_3_joint" gear="10" ctrllimited="true" ctrlrange="-1 1"/>
+  </actuator>
+</mujoco>

@@ -1,0 +1,7 @@
+ Program
+   Robot Program
+     Script: john_leftupper_rotate.script
+     Script: john_leftlower_rotate.script_bak
+     Script: john_midlower_rotate.script_bak
+     Script: john_rightlower_rotate.script_bak
+     Halt

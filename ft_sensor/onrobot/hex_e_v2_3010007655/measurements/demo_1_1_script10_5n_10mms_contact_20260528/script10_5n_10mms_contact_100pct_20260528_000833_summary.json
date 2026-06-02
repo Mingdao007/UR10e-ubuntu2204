@@ -1,0 +1,58 @@
+{
+  "ok": true,
+  "csv_path": "/home/andy/ur10e_ros2_ws/ft_sensor/onrobot/hex_e_v2_3010007655/measurements/demo_1_1_script10_5n_10mms_contact_20260528/script10_5n_10mms_contact_100pct_20260528_000833.csv",
+  "summary_path": "/home/andy/ur10e_ros2_ws/ft_sensor/onrobot/hex_e_v2_3010007655/measurements/demo_1_1_script10_5n_10mms_contact_20260528/script10_5n_10mms_contact_100pct_20260528_000833_summary.json",
+  "requested_hz": 125.0,
+  "requested_seconds": 25.0,
+  "samples": 3126,
+  "local_duration_s": 24.999580596995656,
+  "effective_hz": 125.00209705020208,
+  "runtime_state_counts": {
+    "1": 2649,
+    "2": 477
+  },
+  "robot_mode_counts": {
+    "7": 3126
+  },
+  "safety_mode_counts": {
+    "1": 3126
+  },
+  "speed_scaling_range": [
+    0.0,
+    1.0
+  ],
+  "onrobot_register_mapping": {
+    "output_double_register_24": "Fx",
+    "output_double_register_25": "Fy",
+    "output_double_register_26": "Fz",
+    "output_double_register_27": "Tx",
+    "output_double_register_28": "Ty",
+    "output_double_register_29": "Tz",
+    "output_double_register_30": "stop_reason",
+    "output_double_register_31": "travel_m",
+    "output_double_register_32": "abs_fz_delta",
+    "output_double_register_33": "base_fz"
+  },
+  "register_staleness_warning": "Output registers persist their last written values. Treat them as live OnRobot data only inside a program window that is actively writing Fx/Fy/Fz/Tx/Ty/Tz.",
+  "fz_register_range_n": [
+    -7.359767999999987,
+    0.3602329999999965
+  ],
+  "stop_reason_register_range": [
+    0.0,
+    3.0
+  ],
+  "travel_m_register_range": [
+    9.797718192317006e-15,
+    0.012155917893143787
+  ],
+  "abs_fz_delta_register_range_n": [
+    0.00032035199999431996,
+    7.289680647999988
+  ],
+  "base_fz_register_range_n": [
+    -0.07008735199999967,
+    0.019407680000000826
+  ],
+  "max_tcp_linear_speed_mm_s": 33.861321905676135
+}

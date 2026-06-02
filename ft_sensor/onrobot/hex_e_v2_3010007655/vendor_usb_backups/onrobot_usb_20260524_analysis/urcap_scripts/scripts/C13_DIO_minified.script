@@ -1,0 +1,23 @@
+  #======    OnRobot DIO    ======#
+  
+  def of_digital_out_send(port,value):
+  of_send_full(OF_CMD_DIO,port,value)
+  return 0
+  end 
+  def of_digital_out_set_polling():
+  local digital_in_return=of_wait_for_return(OF_CMD_DIO,blocking=True)
+  local receivedList=integer_to_binary_list(digital_in_return)
+  local valueDO=receivedList[31]
+  receivedList[31]=False
+  local receivedDO=binary_list_to_integer(receivedList)
+  if OF_DEBUG_RX:
+  textmsg("Return Set DO command received: ",[receivedDO,valueDO])
+  end 
+  set_standard_digital_out(receivedDO,valueDO)
+  if OF_DEBUG_STATE:
+  textmsg("Digital Output #, set to #: ",[receivedDO,valueDO])
+  end 
+  end 
+  
+  
+  #======    End of OnRobot DIO    ======#

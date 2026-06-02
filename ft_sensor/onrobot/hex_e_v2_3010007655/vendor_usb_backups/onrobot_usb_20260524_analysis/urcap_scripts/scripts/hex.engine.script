@@ -1,0 +1,77 @@
+  #======    OnRobot Engine    ======#
+  
+  FT_hex=[0.0,0.0,0.0,0.0,0.0,0.0]
+  of_speedVect=[0.0,0.0,0.0,0.0,0.0,0.0]
+  ft_Status_hex=0
+  def of_vectorProcess_errors_hex(sensor_stop=False):
+  if(ft_Status_hex!=0):
+  local sensor_status_bits=integer_to_binary_list(ft_Status_hex)
+  sensor_stop=of_error(sensor_status_bits[0],of_hex_sensor_bit0_error,of_hex_sensor_error_title,sensor_stop)
+  sensor_stop=of_error(sensor_status_bits[1],of_hex_sensor_bit1_error,of_hex_sensor_error_title,sensor_stop)
+  sensor_stop=of_error(sensor_status_bits[2],of_hex_sensor_bit2_error,of_hex_sensor_error_title,sensor_stop)
+  sensor_stop=of_error(sensor_status_bits[3],of_hex_sensor_bit3_error,of_hex_sensor_error_title,sensor_stop)
+  sensor_stop=of_error(sensor_status_bits[4],of_hex_sensor_bit4_error,of_hex_sensor_error_title,sensor_stop)
+  sensor_stop=of_error(sensor_status_bits[5],of_hex_sensor_bit5_error,of_hex_sensor_error_title,sensor_stop)
+  sensor_stop=of_error(sensor_status_bits[6],of_hex_sensor_bit6_error,of_hex_sensor_error_title,sensor_stop)
+  of_warning(sensor_status_bits[7],of_hex_sensor_bit7_warning,of_hex_sensor_warning_title)
+  sensor_stop=of_error(sensor_status_bits[8],of_hex_sensor_bit8_error,of_hex_sensor_error_title,sensor_stop)
+  sensor_stop=of_error((ft_Status_hex>511),of_hex_sensor_else_error,of_hex_sensor_error_title,sensor_stop)
+  textmsg(of_hex_sensor_status_msg,ft_Status_hex)
+  end 
+  return sensor_stop
+  end 
+  thread of_vectorProcess_hex_thread():
+  if OF_DEBUG_STATE:
+  textmsg("Starting vectorProcess thread")
+  end 
+  while of_vectorProcess_running:
+  sync()
+  local sensor_stop=False
+  if(ft_Sensor_ID==OF_SENSOR_ID_HEX_V1 or ft_Sensor_ID==OF_SENSOR_ID_HEX_V2):
+  of_hex=True
+  elif(ft_Sensor_ID==OF_SENSOR_ID_RG2FT_V0):
+  of_hex=False
+  elif(ft_Sensor_ID==OF_SENSOR_ID_UNDEFINED):
+  if OF_DEBUG_STATE:
+  textmsg("Establishing connection with the sensor.. Undefined sensor: ",ft_Sensor_ID)
+  end 
+  else:
+  textmsg("Sensor type ID: ",ft_Sensor_ID)
+  popup(of_sensor_error_type,title=of_sensor_error_title,error=True,blocking=False)
+  halt
+  end 
+  sensor_stop=of_error((({{hex}})xor(of_hex)),of_hex_sensor_error_mixed,of_hex_sensor_error_title,sensor_stop)
+  sensor_stop=of_vectorProcess_errors_hex(sensor_stop)
+  if sensor_stop:
+  halt
+  end 
+  local tcp_transform=of_robot_TCP_offset
+  tcp_transform[0]=0
+  tcp_transform[1]=0
+  tcp_transform[2]=0
+  tcp_transform=pose_inv(tcp_transform)
+  local tcpF=pose_trans(tcp_transform,p[FT_hex[0],FT_hex[1],FT_hex[2],0,0,0])
+  local tcpT=pose_trans(tcp_transform,p[FT_hex[3],FT_hex[4],FT_hex[5],0,0,0])
+  Fx=tcpF[0]
+  Fy=tcpF[1]
+  Fz=tcpF[2]
+  Tx=tcpT[0]
+  Ty=tcpT[1]
+  Tz=tcpT[2]
+  F3D=sqrt(Fx*Fx+Fy*Fy+Fz*Fz)
+  T3D=sqrt(Tx*Tx+Ty*Ty+Tz*Tz)
+  local act_transform=get_actual_tool_flange_pose()
+  act_transform[0]=0
+  act_transform[1]=0
+  act_transform[2]=0
+  local bF=pose_trans(act_transform,p[FT_hex[0],FT_hex[1],FT_hex[2],0,0,0])
+  local bT=pose_trans(act_transform,p[FT_hex[3],FT_hex[4],FT_hex[5],0,0,0])
+  bFT=[bF[0],bF[1],bF[2],bT[0],bT[1],bT[2]]
+  tFT=[Fx,Fy,Fz,Tx,Ty,Tz]
+  end 
+  if OF_DEBUG_STATE:
+  textmsg("Stopping vectorProcess thread")
+  end 
+  end 
+  
+  #======    End of OnRobot Engine    ======#

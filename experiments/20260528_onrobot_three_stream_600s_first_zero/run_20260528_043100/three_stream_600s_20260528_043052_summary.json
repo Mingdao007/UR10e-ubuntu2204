@@ -1,0 +1,376 @@
+{
+  "csv_paths": {
+    "onrobot_udp500_raw": "/home/andy/ur10e_ros2_ws/experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv",
+    "rtde_ur500_urcap125": "/home/andy/ur10e_ros2_ws/experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_rtde_ur500_urcap125.csv"
+  },
+  "dashboard_after": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "is in remote control": "false",
+    "programState": "PLAYING 3.urp",
+    "robotmode": "Robotmode: RUNNING",
+    "running": "Program running: true",
+    "safetymode": "Safetymode: NORMAL"
+  },
+  "dashboard_before": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "is in remote control": "false",
+    "programState": "PLAYING 3.urp",
+    "robotmode": "Robotmode: RUNNING",
+    "running": "Program running: true",
+    "safetymode": "Safetymode: NORMAL"
+  },
+  "errors": [],
+  "finished_wall": "2026-05-28T04:40:56",
+  "first_sample_zero_reference": {
+    "onrobot_udp_raw": {
+      "fx_n": 0.28,
+      "fy_n": 3.1,
+      "fz_n": -25.54,
+      "tx_nm": 0.01899,
+      "ty_nm": -0.082,
+      "tz_nm": 0.068
+    },
+    "onrobot_urcap_registers": {
+      "urcap_fx_n": 0.161582,
+      "urcap_fy_n": 0.1586719999998935,
+      "urcap_fz_n": 0.006660000002537467,
+      "urcap_tx_nm": 0.00036699999999999824,
+      "urcap_ty_nm": 0.0026520000000434516,
+      "urcap_tz_nm": -0.002716999999957588
+    },
+    "ur_actual_tcp_force": {
+      "ur_fx_n": -0.13960838594654146,
+      "ur_fy_n": -8.766400552844212,
+      "ur_fz_n": -19.681551979061865,
+      "ur_tx_nm": 0.3059248682062516,
+      "ur_ty_nm": -0.01799254928467818,
+      "ur_tz_nm": 0.024355241895190456
+    }
+  },
+  "label": "three_stream_600s_first_sample_zero_speed2",
+  "ok": true,
+  "output_dir": "/home/andy/ur10e_ros2_ws/experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100",
+  "plot_paths": {
+    "first_zero_force_axes_png": "/home/andy/ur10e_ros2_ws/experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/plots/three_stream_600s_20260528_043052_first_zero_force_axes.png",
+    "first_zero_fz_overlay_png": "/home/andy/ur10e_ros2_ws/experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/plots/three_stream_600s_20260528_043052_first_zero_fz_overlay.png"
+  },
+  "port_probe": {
+    "dashboard": {
+      "banner_hex": "436f6e6e65637465643a20556e6976657273616c20526f626f74732044617368626f617264205365727665720a",
+      "open": true,
+      "port": 29999
+    },
+    "onrobot_tcp": {
+      "open": true,
+      "port": 49151
+    },
+    "onrobot_udp": {
+      "host": "192.168.1.1",
+      "port": 49152,
+      "udp_connect_checked": true
+    },
+    "rtde": {
+      "open": true,
+      "port": 30004
+    }
+  },
+  "requested_seconds": 600.0,
+  "rtde_requested_hz": 500.0,
+  "rtde_timing": {
+    "duration_first_last_s": 599.994669122,
+    "first_t_s": 0.005742175,
+    "interval_rate_hz": 499.9927756674799,
+    "last_t_s": 600.000411297,
+    "max_dt_ms": 10.528930999996078,
+    "mean_dt_ms": 2.000028897747614,
+    "median_dt_ms": 1.999918999899819,
+    "min_dt_ms": 0.03577700000079176,
+    "p95_dt_ms": 2.029374400012784,
+    "p99_dt_ms": 2.0547521600451546,
+    "sample_count_over_duration_hz": 499.99444234895475,
+    "samples": 299994
+  },
+  "safety_boundary": [
+    "no robot motion commands",
+    "no URScript upload/run",
+    "no UR zero_ftsensor()",
+    "no UR TCP/payload writes",
+    "no OnRobot BIAS command",
+    "no OnRobot FILTER command",
+    "OnRobot UDP SPEED/START/final STOP only",
+    "analysis zero is first-sample subtraction only"
+  ],
+  "started_wall": "2026-05-28T04:30:54",
+  "summary_path": "/home/andy/ur10e_ros2_ws/experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_summary.json",
+  "udp_commands_sent": [
+    {
+      "command": "SPEED",
+      "command_hex": "0x0082",
+      "data": 2,
+      "sent_wall": "2026-05-28T04:30:54.996"
+    },
+    {
+      "command": "START",
+      "command_hex": "0x0002",
+      "data": 360000,
+      "sent_wall": "2026-05-28T04:30:55.001"
+    },
+    {
+      "command": "STOP",
+      "command_hex": "0x0000",
+      "data": 0,
+      "sent_wall": "2026-05-28T04:40:54.997"
+    }
+  ],
+  "udp_raw_tuple_updates": {
+    "distinct_value_transition_rate_hz": 499.3864435431294,
+    "max_rows_per_run": 2,
+    "mean_rows_per_run": 1.0004271963901905,
+    "median_rows_per_run": 1.0,
+    "run_length_counts_top10": [
+      [
+        1,
+        299500
+      ],
+      [
+        2,
+        128
+      ]
+    ],
+    "runs": 299628
+  },
+  "udp_sample_counter_delta_mod65536_counts": {
+    "2": 299755
+  },
+  "udp_sequence_delta_counts": {
+    "1": 299755
+  },
+  "udp_speed_divisor_sent": 2,
+  "udp_status_counts": {
+    "0": 299756
+  },
+  "udp_timing": {
+    "duration_first_last_s": 599.990255791,
+    "first_t_s": 0.010724335,
+    "interval_rate_hz": 499.5997803411267,
+    "last_t_s": 600.000980126,
+    "max_dt_ms": 10.542397000001813,
+    "mean_dt_ms": 2.0016021610682055,
+    "median_dt_ms": 2.0013489999968215,
+    "min_dt_ms": 0.013514999977815023,
+    "p95_dt_ms": 2.038824599964073,
+    "p99_dt_ms": 2.112572440004215,
+    "sample_count_over_duration_hz": 499.60144703486105,
+    "samples": 299756
+  },
+  "ur_actual_tcp_force_tuple_updates": {
+    "distinct_value_transition_rate_hz": 499.9927756674799,
+    "max_rows_per_run": 1,
+    "mean_rows_per_run": 1.0,
+    "median_rows_per_run": 1.0,
+    "run_length_counts_top10": [
+      [
+        1,
+        299994
+      ]
+    ],
+    "runs": 299994
+  },
+  "ur_tcp_speed_norm": {
+    "angular_max": 0.0001840591867221519,
+    "angular_mean": 1.4894489875420927e-07,
+    "linear_max": 6.9906220934827e-05,
+    "linear_mean": 6.839221864091913e-08
+  },
+  "urcap_register_tuple_updates": {
+    "distinct_value_transition_rate_hz": 124.99277720207691,
+    "max_rows_per_run": 8,
+    "mean_rows_per_run": 4.000133340444823,
+    "median_rows_per_run": 4.0,
+    "run_length_counts_top10": [
+      [
+        4,
+        74992
+      ],
+      [
+        8,
+        3
+      ],
+      [
+        2,
+        1
+      ]
+    ],
+    "runs": 74996
+  },
+  "zeroed_axis_stats": {
+    "onrobot_udp_raw": {
+      "fx_n": {
+        "first": 0.28,
+        "last": 0.24,
+        "last_minus_first": -0.040000000000000036,
+        "zeroed_max": 0.18999999999999995,
+        "zeroed_mean": -0.011876605639253282,
+        "zeroed_min": -0.22000000000000003,
+        "zeroed_std": 0.04528115144296893
+      },
+      "fy_n": {
+        "first": 3.1,
+        "last": 3.09,
+        "last_minus_first": -0.010000000000000231,
+        "zeroed_max": 0.1599999999999997,
+        "zeroed_mean": 0.02890608161304519,
+        "zeroed_min": -0.10000000000000009,
+        "zeroed_std": 0.030217404368855793
+      },
+      "fz_n": {
+        "first": -25.54,
+        "last": -25.32,
+        "last_minus_first": 0.21999999999999886,
+        "zeroed_max": 1.0399999999999991,
+        "zeroed_mean": 0.3025133935600947,
+        "zeroed_min": -0.35999999999999943,
+        "zeroed_std": 0.15406786324859795
+      },
+      "tx_nm": {
+        "first": 0.01899,
+        "last": 0.016,
+        "last_minus_first": -0.0029899999999999996,
+        "zeroed_max": 0.01301,
+        "zeroed_mean": -0.0050943195799250055,
+        "zeroed_min": -0.02399,
+        "zeroed_std": 0.004237236071881485
+      },
+      "ty_nm": {
+        "first": -0.082,
+        "last": -0.082,
+        "last_minus_first": 0.0,
+        "zeroed_max": 0.015,
+        "zeroed_mean": -0.0032307975820333834,
+        "zeroed_min": -0.02099999999999999,
+        "zeroed_std": 0.004090183897076226
+      },
+      "tz_nm": {
+        "first": 0.068,
+        "last": 0.071,
+        "last_minus_first": 0.002999999999999989,
+        "zeroed_max": 0.012999999999999998,
+        "zeroed_mean": 0.004039629365217037,
+        "zeroed_min": -0.006000000000000005,
+        "zeroed_std": 0.0021510578041150285
+      }
+    },
+    "onrobot_urcap_registers": {
+      "urcap_fx_n": {
+        "first": 0.161582,
+        "last": 0.13158200000000012,
+        "last_minus_first": -0.029999999999999888,
+        "zeroed_max": 0.15000000000000008,
+        "zeroed_mean": -0.03185477042874185,
+        "zeroed_min": -0.23999999999999982,
+        "zeroed_std": 0.04528332005980303
+      },
+      "urcap_fy_n": {
+        "first": 0.1586719999998935,
+        "last": 0.1886719999968549,
+        "last_minus_first": 0.029999999996961402,
+        "zeroed_max": 0.16000000000367826,
+        "zeroed_mean": 0.03891091155024329,
+        "zeroed_min": -0.09000000000767644,
+        "zeroed_std": 0.030214795690046873
+      },
+      "urcap_fz_n": {
+        "first": 0.006660000002537467,
+        "last": 0.19666100000301726,
+        "last_minus_first": 0.19000100000047979,
+        "zeroed_max": 0.77000100000016,
+        "zeroed_mean": 0.08260434556753364,
+        "zeroed_min": -0.5599989999995202,
+        "zeroed_std": 0.1541692172887238
+      },
+      "urcap_tx_nm": {
+        "first": 0.00036699999999999824,
+        "last": -0.004633000000000002,
+        "last_minus_first": -0.005,
+        "zeroed_max": 0.013999999999999995,
+        "zeroed_mean": -0.003100328673240131,
+        "zeroed_min": -0.019999999999999997,
+        "zeroed_std": 0.004234882071233277
+      },
+      "urcap_ty_nm": {
+        "first": 0.0026520000000434516,
+        "last": 0.004652000000043451,
+        "last_minus_first": 0.0019999999999999996,
+        "zeroed_max": 0.020000000000127936,
+        "zeroed_mean": 0.0017687553751068806,
+        "zeroed_min": -0.015000000000143931,
+        "zeroed_std": 0.004090846384766426
+      },
+      "urcap_tz_nm": {
+        "first": -0.002716999999957588,
+        "last": -0.0027169999999255997,
+        "last_minus_first": 3.198830089701232e-14,
+        "zeroed_max": 0.008999999999760125,
+        "zeroed_mean": 3.886744404383589e-05,
+        "zeroed_min": -0.008999999999744126,
+        "zeroed_std": 0.002149839651540301
+      }
+    },
+    "ur_actual_tcp_force": {
+      "ur_fx_n": {
+        "first": -0.13960838594654146,
+        "last": -0.8007382679767191,
+        "last_minus_first": -0.6611298820301776,
+        "zeroed_max": 1.1195690872631405,
+        "zeroed_mean": -0.31101857914303854,
+        "zeroed_min": -1.6785261742070348,
+        "zeroed_std": 0.29844444430350314
+      },
+      "ur_fy_n": {
+        "first": -8.766400552844212,
+        "last": -10.413508975154755,
+        "last_minus_first": -1.6471084223105432,
+        "zeroed_max": 0.8298476169558784,
+        "zeroed_mean": -0.8209658955792564,
+        "zeroed_min": -2.4512342928477793,
+        "zeroed_std": 0.5477324697784473
+      },
+      "ur_fz_n": {
+        "first": -19.681551979061865,
+        "last": -23.353292672200244,
+        "last_minus_first": -3.6717406931383785,
+        "zeroed_max": 0.5035660588757196,
+        "zeroed_mean": -2.04977456930812,
+        "zeroed_min": -4.443402819597374,
+        "zeroed_std": 0.961766441959859
+      },
+      "ur_tx_nm": {
+        "first": 0.3059248682062516,
+        "last": 0.3562768893873791,
+        "last_minus_first": 0.050352021181127526,
+        "zeroed_max": 0.07963830516116954,
+        "zeroed_mean": 0.02413754898984137,
+        "zeroed_min": -0.03140500867902363,
+        "zeroed_std": 0.018100155767694272
+      },
+      "ur_ty_nm": {
+        "first": -0.01799254928467818,
+        "last": -0.031401471247122975,
+        "last_minus_first": -0.013408921962444795,
+        "zeroed_max": 0.04169168838420356,
+        "zeroed_mean": -0.002501946662768177,
+        "zeroed_min": -0.041804688648964444,
+        "zeroed_std": 0.008772455356805592
+      },
+      "ur_tz_nm": {
+        "first": 0.024355241895190456,
+        "last": 0.025615515386431448,
+        "last_minus_first": 0.0012602734912409916,
+        "zeroed_max": 0.02874436559027628,
+        "zeroed_mean": 0.003505017743351548,
+        "zeroed_min": -0.022168032910307785,
+        "zeroed_std": 0.005791344122207051
+      }
+    }
+  }
+}

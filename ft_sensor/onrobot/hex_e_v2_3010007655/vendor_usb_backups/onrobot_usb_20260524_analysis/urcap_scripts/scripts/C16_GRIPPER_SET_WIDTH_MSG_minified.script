@@ -1,0 +1,14 @@
+  #======    OnRobot Gripper Set Width Messages    ======#
+  
+  of_gripper_set_width_error_title="OnRobot - Gripper Set Width error"
+  of_gripper_set_width_state_error_start="Wrong Gripper Set Width status when initializing.<br>Another thread is using a Gripper Set Width command. Program stopped."
+  of_gripper_set_width_state_error_return="Wrong Gripper Set Width status when returning.<br>Another thread is using a Gripper Set Width command. Program stopped."
+  of_gripper_set_width_return_title="OnRobot - Gripper Set Width"
+  of_gripper_set_width_return_nonblocking="The Gripper Set Width non-blocking command sent."
+  of_gripper_set_width_return_0="The Gripper Set Width command reached the set width."
+  of_gripper_set_width_return_1="The Gripper Set Width command reached the set force."
+  of_gripper_set_width_return_PE="The Gripper Set Width command has a parameter error.<br>Program stopped."
+  of_gripper_set_width_return_unknown="The Gripper Set Width command finished with unknown return value."
+  
+  
+  #======    End of OnRobot Gripper Set Width Messages    ======#

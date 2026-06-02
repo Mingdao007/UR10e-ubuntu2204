@@ -1,0 +1,27 @@
+  #======    OnRobot AIO    ======#
+  
+  def of_analog_out_send(port,value):
+  of_send_full(OF_CMD_DIO,port,of_float_to_int(value))
+  return 0
+  end 
+  def of_analog_out_set_polling():
+  local receivedInt=of_wait_for_return(OF_CMD_AIO,bloking=True)
+  local selector=pow(2,16)
+  local receivedAO=receivedInt%selector
+  local valueAO=(receivedInt-receivedAO)/selector/selector
+  if OF_DEBUG_RX:
+  textmsg("Return Set AO command received: ",[receivedAO,valueAO])
+  end 
+  if receivedAO==0 or receivedAO==1:
+  set_standard_analog_out(receivedAO,valueAO)
+  else:
+  textmsg("Invalid Analog Output selected! ",receivedAO)
+  end 
+  of_send_full(OF_CMD_ACK)
+  if OF_DEBUG_STATE:
+  textmsg("Analog Output #, set to #: ",[receivedAO,valueAO])
+  end 
+  end 
+  
+  
+  #======    End of OnRobot AIO    ======#

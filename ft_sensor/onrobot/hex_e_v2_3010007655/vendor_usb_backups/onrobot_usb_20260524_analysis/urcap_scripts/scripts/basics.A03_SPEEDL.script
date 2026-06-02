@@ -1,0 +1,135 @@
+  #======    OnRobot Speedl    ======#
+  
+  of_speedl_thread_handler=0
+  of_speedl_is_enabled=False
+  of_speedl_is_running=False
+  of_speedbase=[0,0,0,0,0,0]
+  of_speedl_acc=0
+  of_speedl_hg_caranteen_reached=False
+  of_speedl_hg_caranteen_safemode=False
+  of_speedl_for_limit=False
+  of_speedl_for_ft_control=False
+  of_speedl_for_move=False
+  of_speedl_for_hand_guide=False
+  of_speedl_for_insert_pin=False
+  of_speedl_for_gripper_set_width=False
+  of_speedl_for_gripper_centering=False
+  of_speedl_acc=10000.0 
+  of_speedl_acc_to_zero=3.0 
+  def of_speedl_add_extra(speedBase,speedExtra):
+  speedSum=[0,0,0,0,0,0]
+  speedBaseP=p[speedBase[0],speedBase[1],speedBase[2],speedBase[3],speedBase[4],speedBase[5]]
+  speedExtraP=p[speedExtra[0],speedExtra[1],speedExtra[2],speedExtra[3],speedExtra[4],speedExtra[5]]
+  speedSumP=pose_add(speedExtraP,speedBaseP)
+  speedSum=[speedBaseP[0],speedBaseP[1],speedBaseP[2],speedBaseP[3],speedBaseP[4],speedBaseP[5]]
+  return speedSum
+  end 
+  def of_speedl_hg_caranteen_check(speedBase):
+  if of_speedl_hg_caranteen_reached:
+  if of_speedl_hg_caranteen_safemode:
+  local XYplane=get_actual_tool_flange_pose()
+  if(XYplane[0]<0 and speedBase[0]>0)or(XYplane[0]>0 and speedBase[0]<0):
+  speedBase[0]=0
+  end 
+  if(XYplane[1]<0 and speedBase[1]>0)or(XYplane[1]>0 and speedBase[1]<0):
+  speedBase[1]=0
+  end 
+  else:
+  speedBase=[0,0,0,0,0,0]
+  end 
+  end 
+  return speedBase
+  end 
+  thread of_speedl_thread():
+  if OF_DEBUG_STATE:
+  textmsg("Speedl thread started..")
+  end 
+  enter_critical
+  of_speedl_is_running=True
+  of_speedl_is_enabled=True
+  exit_critical
+  of_speedbase=[0,0,0,0,0,0]
+  while of_speedl_is_running:
+  of_speedbase=get_of_speedVect()
+  of_speedbase=of_speedl_add_extra(of_speedbase,[0,0,0.001,0,0,0])
+  if of_speedl_for_hand_guide:
+  of_speedbase=of_speedl_hg_caranteen_check(of_speedbase)
+  end 
+  if of_speedl_is_enabled:
+  speedl(of_speedbase,a=of_speedl_acc,t=0.001)
+  else:
+  speedl([0,0,0,0,0,0],a=of_speedl_acc_to_zero,t=0.001)
+  end 
+  end 
+  if OF_DEBUG_STATE:
+  textmsg("Speedl thread ended.")
+  end 
+  end 
+  def of_speedl_start_for_CMD(start_for_CMD):
+  if(start_for_CMD==OF_CMD_LIMIT):
+  of_speedl_for_limit=True
+  elif(start_for_CMD==OF_CMD_FT_CONTROL):
+  of_speedl_for_ft_control=True
+  elif(start_for_CMD==OF_CMD_MOVE):
+  of_speedl_for_move=True
+  elif(start_for_CMD==OF_CMD_HAND_GUIDE):
+  of_speedl_for_hand_guide=True
+  elif(start_for_CMD==OF_CMD_INSERT_PIN):
+  of_speedl_for_insert_pin=True
+  elif(start_for_CMD==OF_CMD_GRIPPER_SET_WIDTH):
+  of_speedl_for_gripper_set_width=True
+  elif(start_for_CMD==OF_CMD_GRIPPER_CENTERING):
+  of_speedl_for_gripper_centering=True
+  else:
+  textmsg("Unknown Start speedl CMD received: ",start_for_CMD)
+  end 
+  local speedl_integer=binary_list_to_integer([of_speedl_for_limit,of_speedl_for_ft_control,of_speedl_for_hand_guide,of_speedl_for_move,of_speedl_for_insert_pin,of_speedl_for_gripper_set_width,of_speedl_for_gripper_centering])
+  if not(speedl_integer==0):
+  if not of_speedl_is_running:
+  of_speedl_thread_handler=run of_speedl_thread()
+  end 
+  end 
+  return of_speedl_is_running
+  end 
+  def of_speedl_stop_for_CMD(stop_for_CMD,brake=10):
+  if(stop_for_CMD==OF_CMD_LIMIT):
+  of_speedl_for_limit=False
+  elif(stop_for_CMD==OF_CMD_FT_CONTROL):
+  of_speedl_for_ft_control=False
+  elif(stop_for_CMD==OF_CMD_MOVE):
+  of_speedl_for_move=False
+  elif(stop_for_CMD==OF_CMD_HAND_GUIDE):
+  of_speedl_for_hand_guide=False
+  elif(stop_for_CMD==OF_CMD_INSERT_PIN):
+  of_speedl_for_insert_pin=False
+  elif(stop_for_CMD==OF_CMD_GRIPPER_SET_WIDTH):
+  of_speedl_for_gripper_set_width=False
+  elif(stop_for_CMD==OF_CMD_GRIPPER_CENTERING):
+  of_speedl_for_gripper_centering=False
+  else:
+  textmsg("Unknown Stop speedl CMD received: ",stop_for_CMD)
+  end 
+  local speedl_integer=binary_list_to_integer([of_speedl_for_limit,of_speedl_for_ft_control,of_speedl_for_hand_guide,of_speedl_for_move,of_speedl_for_insert_pin,of_speedl_for_gripper_set_width,of_speedl_for_gripper_centering])
+  if(speedl_integer==0):
+  if(of_speedl_is_running):
+  kill of_speedl_thread_handler
+  enter_critical
+  of_speedl_is_running=False
+  exit_critical
+  end 
+  if OF_DEBUG_STATE:
+  textmsg("Speedl thread stopped")
+  end 
+  stopl(brake)
+  end 
+  return of_speedl_is_running
+  end 
+  def of_wait_ms(time_ms):
+  local sync_time=ceil(norm(time_ms/{%if eSeries%}2.0{%else%}8.0{%end%}))
+  while(sync_time>0):
+  sync_time=sync_time-1
+  sync()
+  end
+  end
+  
+  #======    End of OnRobot Speedl    ======#

@@ -1,0 +1,9 @@
+  #======    OnRobot F/T Path Messages    ======#
+  
+  of_path_error_title="{{of_path_error_title}}"
+  of_path_move_state_error="{{of_path_move_state_error}}"
+  of_path_path_count_error="{{of_path_path_count_error}}"
+  of_path_wp_count_error="{{of_path_wp_count_error}}"
+  of_path_parameter_error_pathid="{{of_path_parameter_error_pathid}}"
+  
+  #======    End of OnRobot F/T Path Messages    ======#

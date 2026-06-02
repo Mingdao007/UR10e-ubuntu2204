@@ -1,0 +1,13 @@
+  #======    OnRobot F/T Zero    ======#
+  
+  def of_ft_bias():
+  if OF_DEBUG_STATE:
+  textmsg("FT Bias sending...")
+  end 
+  of_send_full(OF_CMD_BIAS,0)
+  if OF_DEBUG_STATE:
+  textmsg("FT Bias sent.")
+  end 
+  end 
+  
+  #======    End of OnRobot F/T Zero    ======#

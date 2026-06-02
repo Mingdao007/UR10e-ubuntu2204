@@ -1,0 +1,266 @@
+{
+  "csv_path": "/home/andy/ur10e_ros2_ws/experiments/20260528_dual_ur500_onrobot_registers_probe/ur500_actual_tcp_force_onrobot_registers_20260528_035636.csv",
+  "dashboard_after": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "programState": "PLAYING 3.urp",
+    "robotmode": "Robotmode: RUNNING",
+    "running": "Program running: true",
+    "safetymode": "Safetymode: NORMAL"
+  },
+  "dashboard_before": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "is in remote control": "false",
+    "programState": "PLAYING 3.urp",
+    "robotmode": "Robotmode: RUNNING",
+    "running": "Program running: true",
+    "safetymode": "Safetymode: NORMAL"
+  },
+  "duration_first_last_s": 4.999964671995258,
+  "errors": [],
+  "fields": [
+    "actual_TCP_force",
+    "output_double_register_24",
+    "output_double_register_25",
+    "output_double_register_26",
+    "output_double_register_27",
+    "output_double_register_28",
+    "output_double_register_29"
+  ],
+  "finished_wall": "2026-05-28T03:56:42",
+  "first_row": {
+    "onrobot_fx_n": 0.041581999999999945,
+    "onrobot_fy_n": 0.09867200000133282,
+    "onrobot_fz_n": -0.08333999999842201,
+    "onrobot_tx_nm": 0.0013669999999999995,
+    "onrobot_ty_nm": 0.004652000000011466,
+    "onrobot_tz_nm": -0.0007169999999256035,
+    "sample_index": 0,
+    "t_s": 0.0017116880044341087,
+    "ur_fx_n": 0.21184914016982148,
+    "ur_fy_n": -0.45709880778661993,
+    "ur_fz_n": -3.2318056328051044,
+    "ur_tx_nm": -0.0003096615623882336,
+    "ur_ty_nm": 0.02990594486398685,
+    "ur_tz_nm": -0.0018098653617136954
+  },
+  "first_t_s": 0.0017116880044341087,
+  "host": "192.168.1.18",
+  "last_row": {
+    "onrobot_fx_n": 0.11158199999999975,
+    "onrobot_fy_n": 0.12867200000645043,
+    "onrobot_fz_n": -0.40333899999794226,
+    "onrobot_tx_nm": -0.003633,
+    "onrobot_ty_nm": 0.0016519999999954741,
+    "onrobot_tz_nm": 0.00028300000002642195,
+    "sample_index": 2500,
+    "t_s": 5.001676359999692,
+    "ur_fx_n": -0.22147379578443427,
+    "ur_fy_n": -1.1898032748841094,
+    "ur_fz_n": -1.7642309025275915,
+    "ur_tx_nm": 0.05936075425899514,
+    "ur_ty_nm": -0.01600534588955245,
+    "ur_tz_nm": 0.009928997638318362
+  },
+  "last_t_s": 5.001676359999692,
+  "max_dt_ms": 2.0973599966964684,
+  "mean_dt_ms": 1.9999858687981031,
+  "ok": true,
+  "onrobot_all_zero": false,
+  "onrobot_force_norm_n": {
+    "first": 0.13568633648234446,
+    "last": 0.4378234521231132,
+    "max": 0.7320555775274169,
+    "mean": 0.3342940397928044,
+    "min": 0.06050406521879336,
+    "range": 0.6715515123086235,
+    "std": 0.11671548433179933
+  },
+  "onrobot_fx_n": {
+    "first": 0.041581999999999945,
+    "last": 0.11158199999999975,
+    "max": 0.21158199999999974,
+    "mean": 0.11003461895241884,
+    "min": 0.0015819999999998648,
+    "range": 0.20999999999999988,
+    "std": 0.03787195075696976
+  },
+  "onrobot_fy_n": {
+    "first": 0.09867200000133282,
+    "last": 0.12867200000645043,
+    "max": 0.1686720000064504,
+    "mean": 0.0915068660582649,
+    "min": 0.018672000001972538,
+    "range": 0.15000000000447788,
+    "std": 0.024334344451699658
+  },
+  "onrobot_fz_n": {
+    "first": -0.08333999999842201,
+    "last": -0.40333899999794226,
+    "max": 0.15666000000077832,
+    "mean": -0.29303196641197127,
+    "min": -0.713340999998422,
+    "range": 0.8700009999992003,
+    "std": 0.13039121352994057
+  },
+  "onrobot_tuple_hold_run_summary": {
+    "distinct_value_transition_rate_hz": 125.00088320635894,
+    "max_rows_per_run": 4,
+    "mean_rows_per_run": 3.9952076677316293,
+    "median_rows_per_run": 4.0,
+    "run_length_counts_top10": [
+      [
+        4,
+        625
+      ],
+      [
+        1,
+        1
+      ]
+    ],
+    "runs": 626
+  },
+  "onrobot_tx_nm": {
+    "first": 0.0013669999999999995,
+    "last": -0.003633,
+    "max": 0.009366999999999999,
+    "mean": -0.0026905769692123142,
+    "min": -0.011632999999999996,
+    "range": 0.020999999999999994,
+    "std": 0.0033098464566461935
+  },
+  "onrobot_ty_nm": {
+    "first": 0.004652000000011466,
+    "last": 0.0016519999999954741,
+    "max": 0.009652000000059445,
+    "mean": -0.00015247820873192912,
+    "min": -0.009348000000068496,
+    "range": 0.019000000000127942,
+    "std": 0.0033002660404570896
+  },
+  "onrobot_tz_nm": {
+    "first": -0.0007169999999256035,
+    "last": 0.00028300000002642195,
+    "max": 0.005282999999930472,
+    "mean": 0.0009639276289459839,
+    "min": -0.003716999999909612,
+    "range": 0.008999999999840084,
+    "std": 0.0017791436420342725
+  },
+  "p95_dt_ms": 2.030383999226615,
+  "p99_dt_ms": 2.0544989965856075,
+  "port": 30004,
+  "port_probe_dashboard": {
+    "banner_hex": "436f6e6e65637465643a20556e6976657273616c20526f626f74732044617368626f617264205365727665720a",
+    "open": true,
+    "port": 29999
+  },
+  "port_probe_rtde": {
+    "open": true,
+    "port": 30004
+  },
+  "register_mapping": {
+    "output_double_register_24": "OnRobot Fx",
+    "output_double_register_25": "OnRobot Fy",
+    "output_double_register_26": "OnRobot Fz",
+    "output_double_register_27": "OnRobot Tx",
+    "output_double_register_28": "OnRobot Ty",
+    "output_double_register_29": "OnRobot Tz"
+  },
+  "requested_hz": 500.0,
+  "requested_seconds": 5.0,
+  "rtde_type_names": [
+    "VECTOR6D",
+    "DOUBLE",
+    "DOUBLE",
+    "DOUBLE",
+    "DOUBLE",
+    "DOUBLE",
+    "DOUBLE"
+  ],
+  "safety_boundary": [
+    "read-only Dashboard queries",
+    "read-only RTDE output recipe at 500 Hz",
+    "no URScript, no register writes, no motion, no zero/bias/filter/speed/TCP/payload writes"
+  ],
+  "sample_rate_hz": 500.00353282543574,
+  "samples": 2501,
+  "started_wall": "2026-05-28T03:56:36",
+  "summary_path": "/home/andy/ur10e_ros2_ws/experiments/20260528_dual_ur500_onrobot_registers_probe/ur500_actual_tcp_force_onrobot_registers_20260528_035636_summary.json",
+  "ur_actual_tcp_force_all_zero": false,
+  "ur_force_norm_n": {
+    "first": 3.2708388872736367,
+    "last": 2.1394375785653192,
+    "max": 3.4779619072154424,
+    "mean": 2.4266059725677733,
+    "min": 1.4938397685381355,
+    "range": 1.984122138677307,
+    "std": 0.3317460474637028
+  },
+  "ur_fx_n": {
+    "first": 0.21184914016982148,
+    "last": -0.22147379578443427,
+    "max": 0.9685345747743389,
+    "mean": -0.05156222023234853,
+    "min": -0.9842464501083147,
+    "range": 1.9527810248826536,
+    "std": 0.2800445780636105
+  },
+  "ur_fy_n": {
+    "first": -0.45709880778661993,
+    "last": -1.1898032748841094,
+    "max": 0.07292250416962522,
+    "mean": -0.7630670552747836,
+    "min": -1.594322484793948,
+    "range": 1.6672449889635732,
+    "std": 0.24114365725222695
+  },
+  "ur_fz_n": {
+    "first": -3.2318056328051044,
+    "last": -1.7642309025275915,
+    "max": -1.3712605205226196,
+    "mean": -2.2661270881260753,
+    "min": -3.3909579086082804,
+    "range": 2.019697388085661,
+    "std": 0.3764333219350452
+  },
+  "ur_tuple_hold_run_summary": {
+    "distinct_value_transition_rate_hz": 500.00353282543574,
+    "max_rows_per_run": 1,
+    "mean_rows_per_run": 1.0,
+    "median_rows_per_run": 1,
+    "run_length_counts_top10": [
+      [
+        1,
+        2501
+      ]
+    ],
+    "runs": 2501
+  },
+  "ur_tx_nm": {
+    "first": -0.0003096615623882336,
+    "last": 0.05936075425899514,
+    "max": 0.07335805782695322,
+    "mean": 0.034525764685610735,
+    "min": -0.016249359612879495,
+    "range": 0.08960741743983272,
+    "std": 0.017022722656624082
+  },
+  "ur_ty_nm": {
+    "first": 0.02990594486398685,
+    "last": -0.01600534588955245,
+    "max": 0.047758937449598506,
+    "mean": 0.0017783504858756083,
+    "min": -0.035558320614700344,
+    "range": 0.08331725806429885,
+    "std": 0.01505047073160768
+  },
+  "ur_tz_nm": {
+    "first": -0.0018098653617136954,
+    "last": 0.009928997638318362,
+    "max": 0.020550950353354802,
+    "mean": -0.00020362315961573713,
+    "min": -0.02022346278947162,
+    "range": 0.04077441314282643,
+    "std": 0.007108377884124004
+  }
+}

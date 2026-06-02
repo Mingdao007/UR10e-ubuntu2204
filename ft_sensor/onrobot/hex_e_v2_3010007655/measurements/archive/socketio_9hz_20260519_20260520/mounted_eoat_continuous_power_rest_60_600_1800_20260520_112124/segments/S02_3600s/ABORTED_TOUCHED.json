@@ -1,0 +1,25 @@
+{
+  "segment": "S02_3600s",
+  "planned_duration_s": 3600,
+  "aborted": true,
+  "valid_for_report": false,
+  "aborted_reason": "user touched the setup during this measurement and requested cancellation",
+  "rows_recorded_before_abort": 2599,
+  "last_row_before_abort": {
+    "t_s": "289.22205781936646",
+    "wall_time_utc": "2026-05-20T04:28:13.461+00:00",
+    "sample_counter": "15660",
+    "name": "HEX 6-AXIS F/T SENSOR",
+    "serial_number": "HEXEB806",
+    "status": "0",
+    "authenticated": "True",
+    "bias": "False",
+    "fxN": "0.5",
+    "fyN": "3.509999990463257",
+    "fzN": "-37",
+    "txNm": "-0.11800000071525574",
+    "tyNm": "-0.09600000083446503",
+    "tzNm": "0.09200000017881393"
+  },
+  "wall_time_utc": "2026-05-20T04:28:26.772+00:00"
+}

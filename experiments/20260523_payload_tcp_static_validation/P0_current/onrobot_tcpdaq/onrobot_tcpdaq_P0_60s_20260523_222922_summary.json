@@ -1,0 +1,50 @@
+{
+  "calibration": {
+    "counts_per_force": 10000,
+    "counts_per_torque": 100000,
+    "force_units": 2,
+    "header": 4660,
+    "scale_factors": [
+      200,
+      200,
+      200,
+      100,
+      100,
+      65
+    ],
+    "torque_units": 3
+  },
+  "csv_path": "/home/andy/ur10e_ros2_ws/experiments/20260523_payload_tcp_static_validation/P0_current/onrobot_tcpdaq/onrobot_tcpdaq_P0_60s_20260523_222922.csv",
+  "duration_first_last_s": 59.997501967000005,
+  "errors": [],
+  "finished_wall": "2026-05-23T22:30:23",
+  "first_t_s": 0.002511205,
+  "host": "192.168.1.1",
+  "intervals_per_duration_hz": 5648.035149636482,
+  "last_t_s": 60.000013172,
+  "max_dt_ms": 2.6590619999993237,
+  "max_latency_ms": 2.655937,
+  "mean_dt_ms": 0.17705272249666537,
+  "mean_latency_ms": 0.17254839913949047,
+  "median_dt_ms": 0.17028999999979533,
+  "median_latency_ms": 0.166843,
+  "min_dt_ms": 0.15164500000253156,
+  "min_latency_ms": 0.148218,
+  "one_over_mean_dt_hz": 5648.035149636482,
+  "p95_dt_ms": 0.1993240000004448,
+  "p95_latency_ms": 0.194184,
+  "p99_dt_ms": 0.22559697000001946,
+  "p99_latency_ms": 0.21311320000000006,
+  "port": 49151,
+  "raw_tuple_change_analysis_path": "/home/andy/ur10e_ros2_ws/experiments/20260523_payload_tcp_static_validation/P0_current/onrobot_tcpdaq/onrobot_tcpdaq_P0_60s_20260523_222922_raw_tuple_change_analysis.json",
+  "requested_seconds": 60.0,
+  "rows_per_duration_hz": 5648.051816997076,
+  "safety_boundary": [
+    "READCALIBRATIONINFO command only before sampling",
+    "READFT command only during sampling",
+    "no bias/filter/speed/zero/TCP/payload/URScript/motion commands"
+  ],
+  "samples": 338869,
+  "source_example": "OnRobot USB Ethernet Example/tcp.c",
+  "started_wall": "2026-05-23T22:29:22"
+}

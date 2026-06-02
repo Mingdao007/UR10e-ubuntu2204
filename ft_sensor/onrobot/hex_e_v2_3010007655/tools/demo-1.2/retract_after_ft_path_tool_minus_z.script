@@ -1,0 +1,15 @@
+# UR10e demo-1.2: automatic retract after F/T Control + F/T Path.
+# Assumption for the current program: F/T Search contacts along Tool +Z,
+# so retracting along Tool -Z moves away from the surface.
+
+retract_distance = -0.020
+retract_speed = 0.010
+retract_acc = 0.050
+
+retract_start_pose = get_actual_tcp_pose()
+retract_target_pose = pose_trans(retract_start_pose, p[0, 0, retract_distance, 0, 0, 0])
+
+textmsg("retract_after_ft_path_tool_minus_z start: ", retract_start_pose)
+textmsg("retract_after_ft_path_tool_minus_z target: ", retract_target_pose)
+
+movel(retract_target_pose, a=retract_acc, v=retract_speed)

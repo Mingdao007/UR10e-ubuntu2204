@@ -1,0 +1,24 @@
+  #======    OnRobot Template    ======#
+  
+  of_compute_engine_ping=0
+  of_compute_engine_ping_max=0
+  of_compute_engine_IP=""
+  OF_COMMAND_PORT=0
+  of_portopened_javaSocket=False
+  of_portopened_commandFlow=False
+  of_vectorProcess_running=False
+  of_cmd_received=0 
+  of_dataAVFT=[0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+  of_data=[0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+  of_cmd_state=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+  of_cmd_return=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+  of_cmd_rx=[0,0,0]
+  of_ack_received=False
+  ON_TEMPLATE_CONST=3.14159
+  def on_template_function(parameter_0=0):
+  if(parameter_0==0):
+  popup()
+  return(parameter_0-1)
+  end 
+  
+  #======    End of OnRobot Template    ======#
