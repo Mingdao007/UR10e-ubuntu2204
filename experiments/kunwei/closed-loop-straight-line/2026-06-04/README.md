@@ -22,10 +22,18 @@ Use a split-control workflow:
   input-register bridge.
 - The teach pendant remains the motion authority. You choose the reviewed
   Script program and press Play there.
-- Do not send motion URScript from Ubuntu for Step0. Remote Control can support
-  that technically, but it removes the clear human decision point we want here.
+- Do not send motion URScript from Ubuntu for these steps. Remote Control can
+  support that technically, but it removes the clear human decision point we
+  want here.
 
-Operator command wrapper:
+Step numbering:
+
+- `Step0`: no-motion register echo and frequency benchmark.
+- `Step1`: full no-contact pipeline, the final-run scaffold without touching
+  the surface.
+- `Step2`: real contact search, pilot closed-loop, and final repeats.
+
+Step0 operator command wrapper:
 
 ```bash
 /home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/scripts/step0-operator.sh preflight
@@ -37,13 +45,15 @@ Then use either:
 /home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/scripts/step0-operator.sh benchmark-freq
 ```
 
-for the no-motion highest-frequency check, or:
+for the no-motion highest-frequency check.
+
+Step1 operator command wrapper:
 
 ```bash
-/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/scripts/step0-operator.sh bridge-full
+/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/scripts/step1-operator.sh bridge
 ```
 
-or, for Kunwei logging without RTDE input writes:
+For Kunwei logging without RTDE input writes:
 
 ```bash
 /home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/scripts/step0-operator.sh bridge-minimal-log
@@ -51,13 +61,13 @@ or, for Kunwei logging without RTDE input writes:
 
 The bridge commands ask for a typed confirmation before sending Kunwei stream
 commands. The teach pendant scripts are deployed on the UR controller under
-`/programs/andyl/kunwei/`; after `bridge-full` is running, run
-`/programs/andyl/kunwei/step0_full_no_contact_pipeline.script` from the teach
+`/programs/andyl/kunwei/`; after `step1-operator.sh bridge` is running, run
+`/programs/andyl/kunwei/step1_full_no_contact_pipeline.script` from the teach
 pendant.
 
 ## Control Mode And Data Path
 
-The intended Step0 mode is **TP-started, RTDE-assisted**:
+The intended mode is **TP-started, RTDE-assisted**:
 
 - You start the reviewed URScript from the teach pendant.
 - Ubuntu does not send motion URScript to ports `30001/30002/30003`.
@@ -90,12 +100,12 @@ No-motion echo test:
 Then run this on the teach pendant:
 
 ```text
-/programs/andyl/kunwei/kunwei_register_echo.script
+/programs/andyl/kunwei/step0_register_echo.script
 ```
 
 Pass condition: the bridge log shows output registers `24..35` changing with
 the same values written into input registers `24..36`. Only after that passes
-should `step0_full_no_contact_pipeline.script` be trusted to read Kunwei values.
+should `step1_full_no_contact_pipeline.script` be trusted to read Kunwei values.
 
 ## Step0 Highest-Frequency Benchmark
 
@@ -109,7 +119,7 @@ benchmark:
 Operator split:
 
 - Ubuntu sends the Kunwei stream command and writes RTDE input registers.
-- Teach pendant runs `/programs/andyl/kunwei/kunwei_register_echo.script`.
+- Teach pendant runs `/programs/andyl/kunwei/step0_register_echo.script`.
 - After typing `START_FREQ_BENCH`, immediately press Play on the teach pendant;
   the benchmark spends the first `3 s` on Kunwei baseline, then starts the
   frequency sweep.
@@ -133,20 +143,19 @@ Remote only by the measured echo rate in this no-motion benchmark.
 
 ## Frequency Budget
 
-Do not describe the current Step0/closed-loop scaffold as `1 kHz` force
-control.
+Do not describe the current Step1/Step2 scaffold as `1 kHz` force control.
 
 Current motion-control implementation:
 
 - Kunwei TCP frame parsing: sensor-side stream is expected at about `1 kHz`.
 - Ubuntu bridge output to UR RTDE input registers: configured at `125 Hz`
   by `--rtde-hz 125`.
-- URScript loop in the checked-in Step0 programs: `dt = 0.008`, so nominally
+- URScript loop in the checked-in Step1/Step2 programs: `dt = 0.008`, so nominally
   `125 Hz`.
 - Therefore, the active force-control input path is `125 Hz`, while the raw
   Kunwei log can still preserve `1 kHz` sensor data.
 
-Why this is intentional for Step0:
+Why this is intentional for Step0 and Step1:
 
 - The previous OnRobot URCap register export evidence was also about `125 Hz`,
   and the first goal is to prove direction, sign, guard, and data-chain
@@ -175,7 +184,7 @@ Evidence-based boundary:
 - UR e-Series robot/controller update paths exposed through standard external
   interfaces are normally bounded at or below `500 Hz`, and RTDE may be lower
   depending on controller/software/interface path.
-- The checked-in Step0 bridge is deliberately configured at `125 Hz`.
+- The checked-in Step0/Step1 bridge is deliberately configured at `125 Hz`.
 
 Therefore, do not claim that tuning `--rtde-hz`, using Local/Remote Control, or
 starting the same URScript differently makes this a true `1 kHz` robot-side
@@ -195,7 +204,8 @@ Architectures that could satisfy a strict `1 kHz` force-control requirement:
 
 Practical decision for this bench:
 
-- Continue Step0 only as a data-chain and dry-run scaffold.
+- Continue Step0 as a no-motion data-chain check and Step1 as a no-contact
+  dry-run scaffold.
 - Do not proceed to contact force-control under the label `1 kHz control` until
   the actuator/controller architecture that owns the `1 kHz` loop is chosen and
   measured.
@@ -211,12 +221,16 @@ Practical decision for this bench:
   runtime/contact/speed style gates as the OnRobot baseline.
 - Local `programs/*.script` files are source copies; the deployed teach-pendant
   paths are `/programs/andyl/kunwei/*.script`.
+- `step0_register_echo.script`: Step0 no-motion input-to-output register echo.
 - `step0_no_contact_straight_10mm.script`: minimal no-contact 10 mm
   straight-line check with no Kunwei or RTDE input dependency.
-- `step0_full_no_contact_pipeline.script`: no-contact pipeline dry run with
-  Kunwei bridge, software zero, guard, XY line, and retract, but no search or
-  force-control.
-- `kunwei_register_echo.script`: no-motion input-to-output register echo.
+- `step1_full_no_contact_pipeline.script`: full no-contact pipeline dry run
+  with Kunwei bridge, software zero, guard, reference XY start, full XY line,
+  and retract, but no contact search or force-control.
+- `step0_full_no_contact_pipeline.script`: older 10 mm no-contact pipeline
+  source retained for comparison.
+- `kunwei_register_echo.script`: older name for Step0 register echo, retained
+  for comparison.
 - `kunwei_no_contact_line.script`: current-pose no-contact XY line.
 - `kunwei_contact_search.script`: low-speed base-Z contact trigger.
 - `kunwei_closed_loop_line.script`: speedl closed-loop line.
@@ -229,20 +243,22 @@ Practical decision for this bench:
 - Contact window: `2.69 mm` to `66.27 mm` progress
 - XY unit vector: `[0.679764156, -0.733430768]`
 
-The URScript programs start from the current TCP pose and follow this XY
-direction. They do not move to the old absolute Z.
+The minimal scripts start from the current TCP pose and follow this XY
+direction. Step1 moves to the reference XY start at the current TCP Z, then
+follows the full reference XY line. None of these programs move to the old
+absolute contact Z.
 
 ## Zero Policy
 
-For Kunwei Step0, use software zero in the Ubuntu bridge:
+For Kunwei Step1, use software zero in the Ubuntu bridge:
 
 - Initial zero: `kunwei_rtde_bridge.py --baseline-s 5` averages the first
   no-motion window and subtracts it from all six axes.
-- Path-start zero: `step0_full_no_contact_pipeline.script` writes
+- Path-start zero: `step1_full_no_contact_pipeline.script` writes
   `output_double_register_34` with a request counter; the bridge then collects
   `--rezero-s` seconds of no-contact data and updates the software baseline.
 
-Do not use these for Step0 unless a separate safety gate explicitly approves
+Do not use these for Step1 unless a separate safety gate explicitly approves
 them:
 
 - UR `zero_ftsensor()`
@@ -252,11 +268,10 @@ them:
 This keeps the dry run reversible and makes the sign problem visible in logs
 instead of hiding it in a hardware-side bias.
 
-## Step0-Minimal: No-Contact Line
+## Older 10 mm No-Contact Line
 
-Use this before the full Kunwei bridge and closed-loop plan. It is only a
-10 mm straight-line check from the current TCP pose along the reference XY
-direction.
+This older reference program is retained for comparison. The current Step1
+choice is `step1_full_no_contact_pipeline.script`, not this 10 mm script.
 
 Required gate before running:
 
@@ -283,10 +298,11 @@ Expected result:
 If direction, cable slack, or clearance is questionable, stop here and do not
 continue to Kunwei streaming or closed-loop force control.
 
-## Step0-Full: No-Contact Pipeline
+## Step1: Full No-Contact Pipeline
 
-Use this when the minimal line is already reasonable and you want the whole
-non-contact scaffold in place before touching the surface.
+Use this after Step0 echo/frequency has passed and you want the whole
+non-contact scaffold in place before touching the surface. This is the final
+contact-run shape, except it skips contact search and force control.
 
 Ubuntu bridge:
 
@@ -305,7 +321,7 @@ python3 /home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/20
 Teach pendant program:
 
 ```text
-/programs/andyl/kunwei/step0_full_no_contact_pipeline.script
+/programs/andyl/kunwei/step1_full_no_contact_pipeline.script
 ```
 
 What this does:
@@ -319,13 +335,20 @@ What this does:
 - `4`: leaves the F/T search stage in code but skips it.
 - `5`: leaves the F/T control/PID stage in code but skips it. The `+5/-5 N`
   sign remains unresolved until contact-search evidence identifies the axis.
-- `5.1`: moves `10 mm` in the XY plane at `5 mm/s`, fixed Z.
+- `5.1`: moves the full `63.58 mm` reference line in the XY plane at `5 mm/s`,
+  fixed Z.
 - `6`: retracts `+5 mm` in Z while keeping XY unchanged.
 
 Stop here if guard trips, direction is wrong, `sensor_ok` drops, or the
 path-start move is not the expected safe no-contact move.
 
-## Stage 1: Read-Only Preflight
+## Legacy Roadmap
+
+The original Stage 1..6 list below is retained as a planning reference only.
+For current teach-pendant selection, use the explicit `Step0`, `Step1`, and
+`Step2` names above.
+
+### Legacy Stage 1: Read-Only Preflight
 
 Read-only command:
 
@@ -341,7 +364,7 @@ Pass criteria:
 - RTDE reports the expected current TCP/payload; TCP is observed, not changed.
 - Kunwei TCP endpoint accepts a connect-only probe.
 
-## Stage 2: Kunwei No-Motion Zero And Bridge
+### Legacy Stage 2: Kunwei No-Motion Zero And Bridge
 
 Live sensor command and RTDE-write command:
 
@@ -368,12 +391,12 @@ Pass criteria:
 - Bridge writes about `125 Hz`.
 - `sensor_ok` becomes `1` after baseline and stays live.
 
-## Stage 3: RTDE Register Echo
+### Legacy Stage 3: RTDE Register Echo
 
 Keep the bridge running. On the teach pendant, run:
 
 ```text
-/programs/andyl/kunwei/kunwei_register_echo.script
+/programs/andyl/kunwei/step0_register_echo.script
 ```
 
 Pass criteria:
@@ -382,7 +405,7 @@ Pass criteria:
   values while the program is active.
 - No motion occurs.
 
-## Stage 4: No-Contact Line
+### Legacy Stage 4: No-Contact Line
 
 At a safe no-contact height and with cable slack confirmed, run the bridge for
 logging, then run:
@@ -398,7 +421,7 @@ Pass criteria:
 - Kunwei force remains near the zero baseline.
 - UR stop reason code is `1` for path complete.
 
-## Stage 5: Contact Search
+### Legacy Stage 5: Contact Search
 
 Run the bridge with the candidate normal axis/sign. Then run:
 
@@ -413,7 +436,7 @@ Pass criteria:
   sign.
 - There is no safety stop or guard stop.
 
-## Stage 6: Closed-Loop Pilot And Final Repeats
+### Legacy Stage 6: Closed-Loop Pilot And Final Repeats
 
 Pilot bridge command:
 
