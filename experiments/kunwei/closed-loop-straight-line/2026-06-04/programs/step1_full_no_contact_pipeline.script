@@ -1,8 +1,8 @@
 # Step1: full no-contact pipeline dry run.
-# VERSION: 2026-06-05T00:49:20+08:00
+# VERSION: 2026-06-05T00:52:09+08:00
 # BEHAVIOR: no output_register_34 zero request; move reference XY start at
 # current Z; descend 50 mm in base Z; run full 63.58 mm XY line; retract +50 mm;
-# speedl acceleration 0.5 m/s^2 so 5 mm/s commands actually reach speed.
+# uses movel for all Step1 geometry moves. Step2 will tune speedl separately.
 # This is the final contact-run scaffold without contact search or force
 # control. It requires the Python Kunwei RTDE bridge to be running.
 #
@@ -64,19 +64,14 @@ def codex_step1_full_no_contact_pipeline():
   local approach_speed_m_s = 0.010
   local search_down_m = 0.050
   local search_speed_m_s = 0.005
-  local search_runtime_limit_s = 12.0
   local tangent_speed_m_s = 0.005
-  local speedl_accel_m_s2 = 0.5
   local path_length_m = 0.06358
-  local path_progress_min_m = -0.003
-  local path_progress_max_m = 0.067
-  local path_runtime_limit_s = 18.0
   local retract_z_m = 0.050
   local retract_speed_m_s = 0.005
   local dt = 0.008
   local stop_reason = 0.0
 
-  textmsg("codex step1 version 2026-06-05T00:49:20+08:00 no-reg34 z-down50 z-up50 accel0p5 start")
+  textmsg("codex step1 version 2026-06-05T00:52:09+08:00 no-reg34 movel z-down50 line63p58 z-up50 start")
 
   # 0. Sensor stream and initial software zero must already be good.
   write_output_float_register(35, 0.0)
@@ -114,30 +109,22 @@ def codex_step1_full_no_contact_pipeline():
   end
 
   # 4. Search-like Z descent: mimics the final contact-search travel without
-  # using a contact trigger. The F/T guard remains active.
+  # using a contact trigger. For Step1 no-contact geometry, use movel so UR's
+  # planner handles smoothing; Step2 will tune speedl for interruptible contact.
   if stop_reason == 0.0:
     write_output_float_register(35, 4.0)
     local search_start = get_actual_tcp_pose()
-    local search_done = False
-    local t_search = 0.0
-    while not search_done and stop_reason == 0.0:
-      local pose_now = get_actual_tcp_pose()
-      local dz = pose_now[2] - search_start[2]
-      write_output_float_register(30, stop_reason)
-      write_output_float_register(32, dz)
+    local target_search = p[search_start[0], search_start[1], search_start[2] - search_down_m, search_start[3], search_start[4], search_start[5]]
+    if not codex_guard_ok():
+      stop_reason = 4.0
+    else:
+      movel(target_search, a=0.030, v=search_speed_m_s, r=0.0)
+      stopl(0.5)
+      write_output_float_register(32, -search_down_m)
       if not codex_guard_ok():
         stop_reason = 4.0
-      elif dz <= -search_down_m:
-        search_done = True
-      elif t_search > search_runtime_limit_s:
-        stop_reason = 10.0
-      else:
-        speedl([0.0, 0.0, -search_speed_m_s, 0.0, 0.0, 0.0], speedl_accel_m_s2, dt)
-        sync()
-        t_search = t_search + dt
       end
     end
-    stopl(0.5)
   end
 
   # 5. Force-control placeholder: skipped for Step1.
@@ -145,58 +132,40 @@ def codex_step1_full_no_contact_pipeline():
     write_output_float_register(35, 5.0)
   end
 
-  # 5.1. Execute the full XY dry-run line at fixed Z.
+  # 5.1. Execute the full XY dry-run line at fixed Z using movel.
   if stop_reason == 0.0:
     write_output_float_register(35, 5.1)
     local start_pose = get_actual_tcp_pose()
-    local t = 0.0
-    while stop_reason == 0.0:
-      local pose_now = get_actual_tcp_pose()
-      local dx = pose_now[0] - start_pose[0]
-      local dy = pose_now[1] - start_pose[1]
-      local progress_m = dx * ux + dy * uy
-      write_output_float_register(30, stop_reason)
-      write_output_float_register(31, progress_m)
-      write_output_float_register(32, 0.0)
-      write_output_float_register(33, 0.0)
+    local target_end = p[start_pose[0] + ux * path_length_m, start_pose[1] + uy * path_length_m, start_pose[2], start_pose[3], start_pose[4], start_pose[5]]
+    write_output_float_register(31, 0.0)
+    write_output_float_register(32, 0.0)
+    write_output_float_register(33, 0.0)
+    if not codex_guard_ok():
+      stop_reason = 4.0
+    else:
+      movel(target_end, a=0.030, v=tangent_speed_m_s, r=0.0)
+      stopl(0.5)
+      write_output_float_register(31, path_length_m)
       if not codex_guard_ok():
         stop_reason = 4.0
-      elif progress_m >= path_length_m:
-        stop_reason = 1.0
-      elif progress_m < path_progress_min_m or progress_m > path_progress_max_m:
-        stop_reason = 9.0
-      elif t > path_runtime_limit_s:
-        stop_reason = 10.0
       else:
-        speedl([ux * tangent_speed_m_s, uy * tangent_speed_m_s, 0.0, 0.0, 0.0, 0.0], speedl_accel_m_s2, dt)
-        sync()
-        t = t + dt
+        stop_reason = 1.0
       end
     end
-    stopl(0.5)
   end
 
-  # 6. Retract: keep XY unchanged, move +Z.
+  # 6. Retract: keep XY unchanged, move +Z using movel.
   if stop_reason == 1.0:
     write_output_float_register(35, 6.0)
     local retract_start = get_actual_tcp_pose()
-    local retract_done = False
-    while not retract_done:
-      local pose_now = get_actual_tcp_pose()
-      local dz = pose_now[2] - retract_start[2]
-      write_output_float_register(32, dz)
-      if dz >= retract_z_m:
-        retract_done = True
-      else:
-        speedl([0.0, 0.0, retract_speed_m_s, 0.0, 0.0, 0.0], speedl_accel_m_s2, dt)
-        sync()
-      end
-    end
+    local target_retract = p[retract_start[0], retract_start[1], retract_start[2] + retract_z_m, retract_start[3], retract_start[4], retract_start[5]]
+    movel(target_retract, a=0.030, v=retract_speed_m_s, r=0.0)
     stopl(0.5)
+    write_output_float_register(32, retract_z_m)
   end
 
   write_output_float_register(30, stop_reason)
-  textmsg("codex step1 version 2026-06-05T00:49:20+08:00 stop reason:", stop_reason)
+  textmsg("codex step1 version 2026-06-05T00:52:09+08:00 stop reason:", stop_reason)
 end
 
 codex_step1_full_no_contact_pipeline()
