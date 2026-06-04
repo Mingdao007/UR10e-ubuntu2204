@@ -26,9 +26,9 @@ What this script does:
   bridge-minimal-log Starts Kunwei stream and logging only; no RTDE input writes.
 
 Teach pendant remains the motion authority:
-  - echo check: programs/kunwei_register_echo.script
-  - minimal line: programs/step0_no_contact_straight_10mm.script
-  - full pipeline: programs/step0_full_no_contact_pipeline.script
+  - echo check: /programs/andyl/kunwei/kunwei_register_echo.script
+  - minimal line: /programs/andyl/kunwei/step0_no_contact_straight_10mm.script
+  - full pipeline: /programs/andyl/kunwei/step0_full_no_contact_pipeline.script
 USAGE
 }
 
@@ -42,7 +42,7 @@ case "${mode}" in
     cat <<'WARNING'
 This will send Kunwei 48 AA 0D 0A and write UR RTDE input registers for echo testing.
 It will not send URScript and will not move the robot.
-Start this first, then run programs/kunwei_register_echo.script on the teach pendant.
+Start this first, then run /programs/andyl/kunwei/kunwei_register_echo.script on the teach pendant.
 Type START_ECHO to continue:
 WARNING
     read -r confirm
@@ -66,7 +66,7 @@ WARNING
     cat <<'WARNING'
 This will send Kunwei 48 AA 0D 0A and write UR RTDE input registers.
 It will not send URScript and will not move the robot.
-Start programs/kunwei_register_echo.script on the teach pendant while this is running.
+Start /programs/andyl/kunwei/kunwei_register_echo.script on the teach pendant while this is running.
 The sweep requests 125, 250, 500, and 1000 Hz; pass/fail is based on measured UR echo.
 Type START_FREQ_BENCH to continue:
 WARNING
@@ -90,7 +90,7 @@ WARNING
     cat <<'WARNING'
 This will send Kunwei 48 AA 0D 0A and write UR RTDE input registers.
 It will not send URScript and will not move the robot.
-Start this first, then run programs/step0_full_no_contact_pipeline.script on the teach pendant.
+Start this first, then run /programs/andyl/kunwei/step0_full_no_contact_pipeline.script on the teach pendant.
 Type START_BRIDGE to continue:
 WARNING
     read -r confirm

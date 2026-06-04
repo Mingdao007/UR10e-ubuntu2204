@@ -50,8 +50,10 @@ or, for Kunwei logging without RTDE input writes:
 ```
 
 The bridge commands ask for a typed confirmation before sending Kunwei stream
-commands. After `bridge-full` is running, run
-`programs/step0_full_no_contact_pipeline.script` from the teach pendant.
+commands. The teach pendant scripts are deployed on the UR controller under
+`/programs/andyl/kunwei/`; after `bridge-full` is running, run
+`/programs/andyl/kunwei/step0_full_no_contact_pipeline.script` from the teach
+pendant.
 
 ## Control Mode And Data Path
 
@@ -88,7 +90,7 @@ No-motion echo test:
 Then run this on the teach pendant:
 
 ```text
-programs/kunwei_register_echo.script
+/programs/andyl/kunwei/kunwei_register_echo.script
 ```
 
 Pass condition: the bridge log shows output registers `24..35` changing with
@@ -107,7 +109,7 @@ benchmark:
 Operator split:
 
 - Ubuntu sends the Kunwei stream command and writes RTDE input registers.
-- Teach pendant runs `programs/kunwei_register_echo.script`.
+- Teach pendant runs `/programs/andyl/kunwei/kunwei_register_echo.script`.
 - After typing `START_FREQ_BENCH`, immediately press Play on the teach pendant;
   the benchmark spends the first `3 s` on Kunwei baseline, then starts the
   frequency sweep.
@@ -207,15 +209,17 @@ Practical decision for this bench:
   input-register writer.
 - `tools/analyze_kunwei_closed_loop_run.py`: run-summary analysis with the same
   runtime/contact/speed style gates as the OnRobot baseline.
-- `programs/step0_no_contact_straight_10mm.script`: minimal no-contact 10 mm
+- Local `programs/*.script` files are source copies; the deployed teach-pendant
+  paths are `/programs/andyl/kunwei/*.script`.
+- `step0_no_contact_straight_10mm.script`: minimal no-contact 10 mm
   straight-line check with no Kunwei or RTDE input dependency.
-- `programs/step0_full_no_contact_pipeline.script`: no-contact pipeline dry run
-  with Kunwei bridge, software zero, guard, XY line, and retract, but no search
-  or force-control.
-- `programs/kunwei_register_echo.script`: no-motion input-to-output register echo.
-- `programs/kunwei_no_contact_line.script`: current-pose no-contact XY line.
-- `programs/kunwei_contact_search.script`: low-speed base-Z contact trigger.
-- `programs/kunwei_closed_loop_line.script`: speedl closed-loop line.
+- `step0_full_no_contact_pipeline.script`: no-contact pipeline dry run with
+  Kunwei bridge, software zero, guard, XY line, and retract, but no search or
+  force-control.
+- `kunwei_register_echo.script`: no-motion input-to-output register echo.
+- `kunwei_no_contact_line.script`: current-pose no-contact XY line.
+- `kunwei_contact_search.script`: low-speed base-Z contact trigger.
+- `kunwei_closed_loop_line.script`: speedl closed-loop line.
 
 ## Reference Line
 
@@ -266,7 +270,7 @@ Required gate before running:
 Teach pendant program:
 
 ```text
-programs/step0_no_contact_straight_10mm.script
+/programs/andyl/kunwei/step0_no_contact_straight_10mm.script
 ```
 
 Expected result:
@@ -301,7 +305,7 @@ python3 /home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/20
 Teach pendant program:
 
 ```text
-programs/step0_full_no_contact_pipeline.script
+/programs/andyl/kunwei/step0_full_no_contact_pipeline.script
 ```
 
 What this does:
@@ -369,7 +373,7 @@ Pass criteria:
 Keep the bridge running. On the teach pendant, run:
 
 ```text
-programs/kunwei_register_echo.script
+/programs/andyl/kunwei/kunwei_register_echo.script
 ```
 
 Pass criteria:
@@ -384,7 +388,7 @@ At a safe no-contact height and with cable slack confirmed, run the bridge for
 logging, then run:
 
 ```text
-programs/kunwei_no_contact_line.script
+/programs/andyl/kunwei/kunwei_no_contact_line.script
 ```
 
 Pass criteria:
@@ -399,7 +403,7 @@ Pass criteria:
 Run the bridge with the candidate normal axis/sign. Then run:
 
 ```text
-programs/kunwei_contact_search.script
+/programs/andyl/kunwei/kunwei_contact_search.script
 ```
 
 Pass criteria:
@@ -424,8 +428,8 @@ python3 /home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/20
   --normal-sign 1
 ```
 
-For final repeats, set `--target-force-n 5` and edit
-`programs/kunwei_closed_loop_line.script` only after the pilot confirms the
+For final repeats, set `--target-force-n 5` and update/deploy
+`kunwei_closed_loop_line.script` only after the pilot confirms the
 normal-velocity sign. The final tangent speed is `0.010 m/s`; the checked-in
 program keeps `0.005 m/s` for the pilot.
 
