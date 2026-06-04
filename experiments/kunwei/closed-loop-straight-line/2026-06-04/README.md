@@ -337,7 +337,8 @@ What this does:
 - `5`: leaves the F/T control/PID stage in code but skips it. The `+5/-5 N`
   sign remains unresolved until contact-search evidence identifies the axis.
 - `5.1`: moves the full `63.58 mm` reference line in the XY plane at `5 mm/s`,
-  fixed Z.
+  fixed Z. Step1 uses `0.5 m/s^2` speedl acceleration so the low-speed command
+  reaches the intended velocity within the 8 ms control loop.
 - `6`: retracts `+50 mm` in Z while keeping XY unchanged.
 
 Stop here if guard trips, direction is wrong, `sensor_ok` drops, or the
