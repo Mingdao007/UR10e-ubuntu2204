@@ -1,4 +1,7 @@
 # Step1: full no-contact pipeline dry run.
+# VERSION: 2026-06-05T00:46:10+08:00
+# BEHAVIOR: no output_register_34 zero request; move reference XY start at
+# current Z; descend 50 mm in base Z; run full 63.58 mm XY line; retract +50 mm.
 # This is the final contact-run scaffold without contact search or force
 # control. It requires the Python Kunwei RTDE bridge to be running.
 #
@@ -71,7 +74,7 @@ def codex_step1_full_no_contact_pipeline():
   local dt = 0.008
   local stop_reason = 0.0
 
-  textmsg("codex step1 full no-contact pipeline start")
+  textmsg("codex step1 version 2026-06-05T00:46:10+08:00 no-reg34 z-down50 z-up50 start")
 
   # 0. Sensor stream and initial software zero must already be good.
   write_output_float_register(35, 0.0)
@@ -191,7 +194,7 @@ def codex_step1_full_no_contact_pipeline():
   end
 
   write_output_float_register(30, stop_reason)
-  textmsg("codex step1 full no-contact pipeline stop reason:", stop_reason)
+  textmsg("codex step1 version 2026-06-05T00:46:10+08:00 stop reason:", stop_reason)
 end
 
 codex_step1_full_no_contact_pipeline()
