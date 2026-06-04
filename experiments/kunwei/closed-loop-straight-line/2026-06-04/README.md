@@ -312,7 +312,7 @@ python3 /home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/20
   --write-rtde-inputs \
   --baseline-s 5 \
   --rezero-s 1 \
-  --duration-s 30 \
+  --duration-s 60 \
   --target-force-n 3 \
   --normal-axis fz \
   --normal-sign 1
@@ -332,7 +332,8 @@ What this does:
 - `2`: requests a second software zero at path start through
   `output_double_register_34`.
 - `3`: keeps a simple F/T guard active from the existing thresholds.
-- `4`: leaves the F/T search stage in code but skips it.
+- `4`: mimics the F/T search travel by descending `50 mm` in base Z with the
+  guard active. It does not use a contact trigger.
 - `5`: leaves the F/T control/PID stage in code but skips it. The `+5/-5 N`
   sign remains unresolved until contact-search evidence identifies the axis.
 - `5.1`: moves the full `63.58 mm` reference line in the XY plane at `5 mm/s`,
@@ -340,7 +341,9 @@ What this does:
 - `6`: retracts `+50 mm` in Z while keeping XY unchanged.
 
 Stop here if guard trips, direction is wrong, `sensor_ok` drops, or the
-path-start move is not the expected safe no-contact move.
+path-start move is not the expected safe no-contact move. Before pressing Play,
+confirm the path-start area has at least `50 mm` safe downward clearance and
+the final retract has at least `50 mm` upward clearance.
 
 ## Legacy Roadmap
 

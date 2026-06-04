@@ -14,8 +14,8 @@ Usage:
 Step1 is the full no-contact pipeline:
   - Ubuntu starts Kunwei stream, software zero, logging, and RTDE input writes.
   - Teach pendant runs /programs/andyl/kunwei/step1_full_no_contact_pipeline.script.
-  - Robot moves to reference XY start at current Z, runs the full no-contact
-    reference line, then retracts +50 mm.
+  - Robot moves to reference XY start at current Z, descends 50 mm in base Z,
+    runs the full no-contact reference line, then retracts +50 mm.
   - No contact search, force-control correction, TCP/payload write, UR zero, or
     Kunwei tare/config write.
 USAGE
@@ -46,7 +46,7 @@ WARNING
       --write-rtde-inputs \
       --baseline-s 5 \
       --rezero-s 1 \
-      --duration-s 30 \
+      --duration-s 60 \
       --target-force-n 3 \
       --normal-axis fz \
       --normal-sign 1 \

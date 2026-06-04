@@ -58,6 +58,9 @@ def codex_step1_full_no_contact_pipeline():
   local ref_rz = -0.000024158
   local use_reference_orientation = 0
   local approach_speed_m_s = 0.010
+  local search_down_m = 0.050
+  local search_speed_m_s = 0.005
+  local search_runtime_limit_s = 12.0
   local tangent_speed_m_s = 0.005
   local path_length_m = 0.06358
   local path_progress_min_m = -0.003
@@ -105,9 +108,31 @@ def codex_step1_full_no_contact_pipeline():
     stop_reason = 4.0
   end
 
-  # 4. Contact search placeholder: skipped for Step1.
+  # 4. Search-like Z descent: mimics the final contact-search travel without
+  # using a contact trigger. The F/T guard remains active.
   if stop_reason == 0.0:
     write_output_float_register(35, 4.0)
+    local search_start = get_actual_tcp_pose()
+    local search_done = False
+    local t_search = 0.0
+    while not search_done and stop_reason == 0.0:
+      local pose_now = get_actual_tcp_pose()
+      local dz = pose_now[2] - search_start[2]
+      write_output_float_register(30, stop_reason)
+      write_output_float_register(32, dz)
+      if not codex_guard_ok():
+        stop_reason = 4.0
+      elif dz <= -search_down_m:
+        search_done = True
+      elif t_search > search_runtime_limit_s:
+        stop_reason = 10.0
+      else:
+        speedl([0.0, 0.0, -search_speed_m_s, 0.0, 0.0, 0.0], 0.03, dt)
+        sync()
+        t_search = t_search + dt
+      end
+    end
+    stopl(0.5)
   end
 
   # 5. Force-control placeholder: skipped for Step1.
