@@ -63,7 +63,7 @@ def codex_step1_full_no_contact_pipeline():
   local path_progress_min_m = -0.003
   local path_progress_max_m = 0.067
   local path_runtime_limit_s = 18.0
-  local retract_z_m = 0.005
+  local retract_z_m = 0.050
   local retract_speed_m_s = 0.005
   local dt = 0.008
   local stop_reason = 0.0

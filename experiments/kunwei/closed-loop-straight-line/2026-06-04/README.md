@@ -337,7 +337,7 @@ What this does:
   sign remains unresolved until contact-search evidence identifies the axis.
 - `5.1`: moves the full `63.58 mm` reference line in the XY plane at `5 mm/s`,
   fixed Z.
-- `6`: retracts `+5 mm` in Z while keeping XY unchanged.
+- `6`: retracts `+50 mm` in Z while keeping XY unchanged.
 
 Stop here if guard trips, direction is wrong, `sensor_ok` drops, or the
 path-start move is not the expected safe no-contact move.
