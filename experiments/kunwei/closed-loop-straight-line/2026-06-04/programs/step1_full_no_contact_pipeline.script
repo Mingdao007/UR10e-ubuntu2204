@@ -92,11 +92,11 @@ def codex_step1_full_no_contact_pipeline():
     stopl(0.5)
   end
 
-  # 2. Request a second software ftzero at the path start.
+  # 2. Settle at the path start. Do not request a second software zero here:
+  # output register 34 is reserved for explicit zero requests and stale/cached
+  # values can cause repeated bridge re-zeroing.
   if stop_reason == 0.0:
     write_output_float_register(35, 2.0)
-    local zero_request = read_input_float_register(26)
-    write_output_float_register(34, zero_request)
     sleep(0.20)
     if not codex_wait_for_sensor_ok(3.0):
       stop_reason = 3.0

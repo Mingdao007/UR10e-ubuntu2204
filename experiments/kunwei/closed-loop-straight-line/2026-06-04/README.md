@@ -329,8 +329,8 @@ What this does:
 - `0`: waits for Kunwei bridge sensor readout and initial software zero.
 - `1`: moves to the old reference path-start XY at the current Z; it does not
   move to the old contact Z.
-- `2`: requests a second software zero at path start through
-  `output_double_register_34`.
+- `2`: settles briefly at path start. It does not request a second software
+  zero, so `output_double_register_34` is not touched during Step1.
 - `3`: keeps a simple F/T guard active from the existing thresholds.
 - `4`: mimics the F/T search travel by descending `50 mm` in base Z with the
   guard active. It does not use a contact trigger.
