@@ -1,0 +1,103 @@
+# Kunwei closed-loop straight-line force control.
+# Run only after read-only preflight, no-motion zero, RTDE echo, no-contact
+# line, and contact-search sign checks have passed.
+
+def codex_abs(x):
+  if x < 0.0:
+    return -x
+  end
+  return x
+end
+
+def codex_clamp(x, lo, hi):
+  if x < lo:
+    return lo
+  elif x > hi:
+    return hi
+  end
+  return x
+end
+
+def codex_kunwei_closed_loop_line():
+  local ux = 0.679764156
+  local uy = -0.733430768
+  local tangent_speed_m_s = 0.005
+  local path_length_m = 0.06358
+  local normal_velocity_gain = 0.0004
+  local normal_velocity_limit_m_s = 0.003
+  local normal_velocity_sign = 1.0
+  local stale_limit_s = 0.08
+  local runtime_limit_s = 16.0
+  local dt = 0.008
+  local start_pose = get_actual_tcp_pose()
+  local last_heartbeat = read_input_float_register(26)
+  local stale_s = 0.0
+  local t = 0.0
+  local stop_reason = 0.0
+
+  textmsg("codex kunwei closed-loop line start")
+  while stop_reason == 0.0:
+    local normal_force = read_input_float_register(24)
+    local force_norm = read_input_float_register(25)
+    local heartbeat = read_input_float_register(26)
+    local sensor_ok = read_input_float_register(27)
+    local stop_request = read_input_float_register(28)
+    local target_force = read_input_float_register(29)
+    local torque_norm = read_input_float_register(30)
+    local pose_now = get_actual_tcp_pose()
+    local dx = pose_now[0] - start_pose[0]
+    local dy = pose_now[1] - start_pose[1]
+    local progress_m = dx * ux + dy * uy
+    local correction_m = pose_now[2] - start_pose[2]
+    local normal_velocity = normal_velocity_sign * codex_clamp(normal_velocity_gain * (target_force - normal_force), -normal_velocity_limit_m_s, normal_velocity_limit_m_s)
+
+    if heartbeat == last_heartbeat:
+      stale_s = stale_s + dt
+    else:
+      stale_s = 0.0
+      last_heartbeat = heartbeat
+    end
+
+    write_output_float_register(24, normal_force)
+    write_output_float_register(25, force_norm)
+    write_output_float_register(26, heartbeat)
+    write_output_float_register(27, sensor_ok)
+    write_output_float_register(28, stop_request)
+    write_output_float_register(29, target_force)
+    write_output_float_register(30, stop_reason)
+    write_output_float_register(31, progress_m)
+    write_output_float_register(32, correction_m)
+    write_output_float_register(33, normal_velocity)
+
+    if stale_s > stale_limit_s:
+      stop_reason = 2.0
+    elif sensor_ok < 0.5:
+      stop_reason = 3.0
+    elif stop_request > 0.5:
+      stop_reason = 4.0
+    elif codex_abs(normal_force) > 12.0:
+      stop_reason = 5.0
+    elif force_norm > 15.0:
+      stop_reason = 6.0
+    elif torque_norm > 0.6:
+      stop_reason = 7.0
+    elif codex_abs(correction_m) > 0.008:
+      stop_reason = 8.0
+    elif progress_m < -0.003 or progress_m > 0.067:
+      stop_reason = 9.0
+    elif t > runtime_limit_s:
+      stop_reason = 10.0
+    elif progress_m >= path_length_m:
+      stop_reason = 1.0
+    else:
+      speedl([ux * tangent_speed_m_s, uy * tangent_speed_m_s, normal_velocity, 0.0, 0.0, 0.0], 0.03, dt)
+      sync()
+      t = t + dt
+    end
+  end
+  stopl(0.5)
+  write_output_float_register(30, stop_reason)
+  textmsg("codex kunwei closed-loop line stop reason:", stop_reason)
+end
+
+codex_kunwei_closed_loop_line()
