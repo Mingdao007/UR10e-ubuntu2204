@@ -11,6 +11,8 @@ Usage:
   step0-operator.sh preflight
   step0-operator.sh bridge-echo
   step0-operator.sh benchmark-freq
+  step0-operator.sh benchmark-freq-500
+  step0-operator.sh benchmark-freq-250
   step0-operator.sh bridge-minimal-log
 
 What this script does:
@@ -25,6 +27,33 @@ Teach pendant remains the motion authority:
   - step0 echo check: /programs/andyl/kunwei/step0_register_echo.script
   - minimal line: /programs/andyl/kunwei/step0_no_contact_straight_10mm.script
 USAGE
+}
+
+run_benchmark_rate() {
+  local rate_hz="$1"
+  local confirm_phrase="START_FREQ_${rate_hz}"
+  cat <<WARNING
+This will send Kunwei 48 AA 0D 0A and write UR RTDE input registers at ${rate_hz} Hz.
+It will not send URScript and will not move the robot.
+Start /programs/andyl/kunwei/step0_register_echo.script on the teach pendant while this is running.
+Pass/fail is based on measured UR echo heartbeat transitions, not requested rate.
+Type ${confirm_phrase} to continue:
+WARNING
+  read -r confirm
+  if [[ "${confirm}" != "${confirm_phrase}" ]]; then
+    echo "aborted"
+    exit 2
+  fi
+  out_dir="${RUN_ROOT}/rtde_frequency_benchmark_${rate_hz}hz_${STAMP}"
+  python3 "${ROOT}/tools/benchmark_rtde_frequency.py" \
+    --allow-kunwei-stream-command \
+    --baseline-s 3 \
+    --duration-s 8 \
+    --rates "${rate_hz}" \
+    --target-force-n 3 \
+    --normal-axis fz \
+    --normal-sign 1 \
+    --output-dir "${out_dir}"
 }
 
 mode="${1:-}"
@@ -80,6 +109,12 @@ WARNING
       --normal-axis fz \
       --normal-sign 1 \
       --output-dir "${out_dir}"
+    ;;
+  benchmark-freq-500)
+    run_benchmark_rate 500
+    ;;
+  benchmark-freq-250)
+    run_benchmark_rate 250
     ;;
   bridge-full|bridge-step1)
     echo "step1 is separated now. Use: ${ROOT}/scripts/step1-operator.sh bridge" >&2

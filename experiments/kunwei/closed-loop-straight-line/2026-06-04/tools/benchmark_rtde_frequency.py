@@ -145,6 +145,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--strict-1khz-min-echo-rate-hz", type=float, default=950.0)
     parser.add_argument("--strict-1khz-max-echo-gap-s", type=float, default=0.003)
     parser.add_argument("--rate-pass-fraction", type=float, default=0.9)
+    parser.add_argument("--between-rate-pause-s", type=float, default=0.5)
     return parser.parse_args(argv)
 
 
@@ -531,6 +532,7 @@ def main(argv: list[str] | None = None) -> int:
                 rate_summaries.append(
                     benchmark_one_rate(rate_hz, args, sock, buffer, raw_handle, baseline, raw_prefix)
                 )
+                time.sleep(args.between_rate_pause_s)
     finally:
         if sock is not None and not args.no_stop_command:
             try:

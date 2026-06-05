@@ -1,0 +1,165 @@
+# Step1 high-rate full no-contact pipeline dry run.
+# VERSION: 2026-06-05T500HZ_NO_CONTACT_V1
+# BEHAVIOR: full Step1 geometry with speedl-loop Z down, full XY line, and
+# retract. No contact search and no normal-force correction.
+# Required bridge: RTDE_HZ=500, target force is logged only.
+
+def codex_abs(x):
+  if x < 0.0:
+    return -x
+  end
+  return x
+end
+
+def codex_step1_guard_stop_reason():
+  local normal_force = read_input_float_register(24)
+  local force_norm = read_input_float_register(25)
+  local sensor_ok = read_input_float_register(27)
+  local stop_request = read_input_float_register(28)
+  local torque_norm = read_input_float_register(30)
+  if sensor_ok < 0.5:
+    return 3.0
+  elif stop_request > 0.5:
+    return 4.0
+  elif codex_abs(normal_force) > 12.0:
+    return 5.0
+  elif force_norm > 15.0:
+    return 6.0
+  elif torque_norm > 0.6:
+    return 7.0
+  end
+  return 0.0
+end
+
+def codex_step1_write_echo(stop_reason, stage, progress_m, z_progress_m, commanded_z_m_s):
+  write_output_float_register(24, read_input_float_register(24))
+  write_output_float_register(25, read_input_float_register(25))
+  write_output_float_register(26, read_input_float_register(26))
+  write_output_float_register(27, read_input_float_register(27))
+  write_output_float_register(28, read_input_float_register(28))
+  write_output_float_register(29, read_input_float_register(29))
+  write_output_float_register(30, stop_reason)
+  write_output_float_register(31, progress_m)
+  write_output_float_register(32, z_progress_m)
+  write_output_float_register(33, commanded_z_m_s)
+  write_output_float_register(35, stage)
+end
+
+def codex_step1_wait_for_sensor_ok(timeout_s):
+  local dt = 0.002
+  local t = 0.0
+  while t < timeout_s:
+    codex_step1_write_echo(0.0, 0.0, 0.0, 0.0, 0.0)
+    if read_input_float_register(27) > 0.5:
+      return True
+    end
+    sync()
+    t = t + dt
+  end
+  return False
+end
+
+def codex_step1_full_no_contact_pipeline_500hz():
+  local ux = 0.679764156
+  local uy = -0.733430768
+  local path_start_x = 0.446585764
+  local path_start_y = 0.226717001
+  local ref_rx = 3.141572714
+  local ref_ry = -0.000026465
+  local ref_rz = -0.000024158
+  local use_reference_orientation = 0
+  local approach_speed_m_s = 0.010
+  local z_down_m = 0.050
+  local z_down_speed_m_s = 0.005
+  local tangent_speed_m_s = 0.005
+  local path_length_m = 0.06358
+  local retract_z_m = 0.050
+  local retract_speed_m_s = 0.005
+  local line_accel_m_s2 = 0.300
+  local speedl_hold_s = 0.002
+  local dt = 0.002
+  local stop_reason = 0.0
+
+  textmsg("codex step1 highrate 500hz no-contact v1 start")
+  codex_step1_write_echo(0.0, 0.0, 0.0, 0.0, 0.0)
+
+  if not codex_step1_wait_for_sensor_ok(3.0):
+    stop_reason = 3.0
+  end
+
+  if stop_reason == 0.0:
+    codex_step1_write_echo(0.0, 1.0, 0.0, 0.0, 0.0)
+    local p0 = get_actual_tcp_pose()
+    local target_start = p[path_start_x, path_start_y, p0[2], p0[3], p0[4], p0[5]]
+    if use_reference_orientation > 0.5:
+      target_start = p[path_start_x, path_start_y, p0[2], ref_rx, ref_ry, ref_rz]
+    end
+    movel(target_start, a=0.030, v=approach_speed_m_s, r=0.0)
+    stopl(0.5)
+  end
+
+  if stop_reason == 0.0:
+    codex_step1_write_echo(0.0, 2.0, 0.0, 0.0, 0.0)
+    sleep(0.20)
+    if not codex_step1_wait_for_sensor_ok(3.0):
+      stop_reason = 3.0
+    end
+  end
+
+  if stop_reason == 0.0:
+    stop_reason = codex_step1_guard_stop_reason()
+  end
+
+  if stop_reason == 0.0:
+    local z_progress = 0.0
+    while stop_reason == 0.0 and z_progress < z_down_m:
+      stop_reason = codex_step1_guard_stop_reason()
+      if stop_reason == 0.0:
+        speedl([0.0, 0.0, -z_down_speed_m_s, 0.0, 0.0, 0.0], line_accel_m_s2, speedl_hold_s)
+        codex_step1_write_echo(0.0, 4.0, 0.0, -z_progress, -z_down_speed_m_s)
+        sync()
+        z_progress = z_progress + z_down_speed_m_s * dt
+      end
+    end
+    stopl(0.5)
+  end
+
+  if stop_reason == 0.0:
+    local progress = 0.0
+    while stop_reason == 0.0 and progress < path_length_m:
+      stop_reason = codex_step1_guard_stop_reason()
+      if stop_reason == 0.0:
+        speedl([ux * tangent_speed_m_s, uy * tangent_speed_m_s, 0.0, 0.0, 0.0, 0.0], line_accel_m_s2, speedl_hold_s)
+        codex_step1_write_echo(0.0, 5.1, progress, -z_down_m, 0.0)
+        sync()
+        progress = progress + tangent_speed_m_s * dt
+      end
+    end
+    stopl(0.5)
+    if stop_reason == 0.0:
+      stop_reason = 1.0
+    end
+  end
+
+  if stop_reason == 1.0:
+    local retract_progress = 0.0
+    while stop_reason == 1.0 and retract_progress < retract_z_m:
+      local retract_guard = codex_step1_guard_stop_reason()
+      if retract_guard != 0.0:
+        stop_reason = retract_guard
+      else:
+        speedl([0.0, 0.0, retract_speed_m_s, 0.0, 0.0, 0.0], line_accel_m_s2, speedl_hold_s)
+        codex_step1_write_echo(1.0, 6.0, path_length_m, -z_down_m + retract_progress, retract_speed_m_s)
+        sync()
+        retract_progress = retract_progress + retract_speed_m_s * dt
+      end
+    end
+    stopl(0.5)
+  end
+
+  codex_step1_write_echo(stop_reason, 9.0, path_length_m, 0.0, 0.0)
+  write_output_float_register(30, stop_reason)
+  textmsg("codex step1 highrate 500hz no-contact v1 stop reason:", stop_reason)
+end
+
+codex_step1_full_no_contact_pipeline_500hz()

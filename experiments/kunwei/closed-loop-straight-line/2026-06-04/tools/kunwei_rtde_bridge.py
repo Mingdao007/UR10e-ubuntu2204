@@ -125,7 +125,43 @@ def stats(values: list[float]) -> dict[str, Any]:
     }
 
 
+def percentile(values: list[float], pct: float) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    index = (len(ordered) - 1) * pct
+    lower = math.floor(index)
+    upper = math.ceil(index)
+    if lower == upper:
+        return ordered[int(index)]
+    return ordered[lower] + (ordered[upper] - ordered[lower]) * (index - lower)
+
+
+def interval_stats(times: list[float]) -> dict[str, Any]:
+    if len(times) < 2:
+        return {"samples": len(times), "rate_hz": 0.0}
+    intervals = [b - a for a, b in zip(times, times[1:]) if b > a]
+    elapsed = times[-1] - times[0]
+    return {
+        "samples": len(times),
+        "elapsed_s": elapsed,
+        "rate_hz": (len(times) - 1) / elapsed if elapsed > 0 else 0.0,
+        "dt_mean_s": statistics.fmean(intervals) if intervals else None,
+        "dt_p95_s": percentile(intervals, 0.95),
+        "dt_p99_s": percentile(intervals, 0.99),
+        "dt_max_s": max(intervals) if intervals else None,
+    }
+
+
 class RTDEBridgeClient(RTDEClient):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._started = False
+
+    def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
+        self.pause(best_effort=True)
+        super().__exit__(exc_type, exc, tb)
+
     def setup_inputs(self, fields: list[str]) -> tuple[int, list[str]]:
         self._send_packet("I", ",".join(fields).encode())
         ptype, data = self._recv_packet()
@@ -144,6 +180,26 @@ class RTDEBridgeClient(RTDEClient):
         for type_name, value in zip(type_names, values):
             payload.extend(pack_rtde_value(type_name, value))
         self._send_packet("U", bytes(payload))
+
+    def start(self) -> None:
+        super().start()
+        self._started = True
+
+    def pause(self, best_effort: bool = False) -> bool:
+        if self.sock is None or not self._started:
+            return False
+        try:
+            self._send_packet("P")
+            ptype, payload = self._recv_packet()
+            ok = ptype == ord("P") and payload == b"\x01"
+            if not ok and not best_effort:
+                raise RuntimeError(f"RTDE pause failed: type={ptype} payload={payload!r}")
+            self._started = False
+            return ok
+        except (OSError, RuntimeError, socket.timeout):
+            if not best_effort:
+                raise
+            return False
 
     def recv_available_sample(
         self, recipe_id: int, type_names: list[str], timeout_s: float = 0.0
@@ -248,7 +304,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--write-rtde-inputs", action="store_true")
     parser.add_argument("--skip-dashboard-preflight", action="store_true")
     parser.add_argument("--max-normal-force-n", type=float, default=12.0)
-    parser.add_argument("--max-force-norm-n", type=float, default=15.0)
+    parser.add_argument("--max-force-norm-n", type=float, default=50.0)
     parser.add_argument("--max-torque-norm-nm", type=float, default=0.6)
     parser.add_argument("--sensor-stale-s", type=float, default=0.08)
     parser.add_argument("--rezero-s", type=float, default=1.0)
@@ -264,7 +320,8 @@ def main(argv: list[str] | None = None) -> int:
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     sensor_csv_path = args.output_dir / "kunwei_sensor_1khz.csv"
-    bridge_csv_path = args.output_dir / "bridge_rtde_125hz.csv"
+    rtde_hz_label = f"{args.rtde_hz:g}".replace(".", "p")
+    bridge_csv_path = args.output_dir / f"bridge_rtde_{rtde_hz_label}hz.csv"
     raw_path = args.output_dir / "raw_frames.bin"
     metadata_path = args.output_dir / "metadata.json"
     summary_path = args.output_dir / "summary.json"
@@ -317,6 +374,10 @@ def main(argv: list[str] | None = None) -> int:
     dropped_sync_bytes = 0
     samples = 0
     bridge_writes = 0
+    bridge_write_times: list[float] = []
+    rtde_output_times: list[float] = []
+    echo_transition_times: list[float] = []
+    last_echo_heartbeat: float | None = None
     normals: list[float] = []
     force_norms: list[float] = []
     torque_norms: list[float] = []
@@ -405,7 +466,7 @@ def main(argv: list[str] | None = None) -> int:
 
                 try:
                     chunk = sock.recv(8192)
-                except socket.timeout:
+                except (BlockingIOError, socket.timeout):
                     chunk = b""
                 if chunk:
                     buffer.extend(chunk)
@@ -476,6 +537,14 @@ def main(argv: list[str] | None = None) -> int:
                     sample = rtde.recv_available_sample(rtde_output_recipe, rtde_output_types)
                     if sample is not None:
                         latest_output = sample
+                        rtde_output_time = time.monotonic()
+                        rtde_output_times.append(rtde_output_time)
+                        echo = sample.get("output_double_register_26")
+                        if echo is not None:
+                            echo_float = float(echo)
+                            if last_echo_heartbeat is None or echo_float != last_echo_heartbeat:
+                                echo_transition_times.append(rtde_output_time)
+                                last_echo_heartbeat = echo_float
                         zero_request = float(sample.get("output_double_register_34", 0.0))
                         if last_zero_request is None:
                             last_zero_request = zero_request
@@ -538,6 +607,7 @@ def main(argv: list[str] | None = None) -> int:
                     row.update(flatten_output(latest_output))
                     bridge_writer.writerow(row)
                     bridge_writes += 1
+                    bridge_write_times.append(now)
                     heartbeat += 1.0
                     next_write += write_period
                     if guard_reason is not None:
@@ -558,6 +628,10 @@ def main(argv: list[str] | None = None) -> int:
         "stop_reason": stop_reason,
         "samples": samples,
         "bridge_writes": bridge_writes,
+        "bridge_write_timing": interval_stats(bridge_write_times),
+        "rtde_output_timing": interval_stats(rtde_output_times),
+        "echo_heartbeat_transitions": interval_stats(echo_transition_times),
+        "last_echo_heartbeat": last_echo_heartbeat,
         "parse_errors": parse_errors,
         "dropped_sync_bytes": dropped_sync_bytes,
         "baseline_ready": baseline_ready,
