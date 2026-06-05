@@ -1,5 +1,6 @@
 # Step1 high-rate full no-contact pipeline dry run.
-# VERSION: 2026-06-05T500HZ_NO_CONTACT_V1
+# VERSION: 2026-06-05T1747HKT_500HZ_NO_CONTACT_V2
+# GENERATED_AT_LOCAL: 2026-06-05T17:47:26+0800
 # BEHAVIOR: full Step1 geometry with speedl-loop Z down, full XY line, and
 # retract. No contact search and no normal-force correction.
 # Required bridge: RTDE_HZ=500, target force is logged only.
@@ -80,7 +81,7 @@ def codex_step1_full_no_contact_pipeline_500hz():
   local dt = 0.002
   local stop_reason = 0.0
 
-  textmsg("codex step1 highrate 500hz no-contact v1 start")
+  textmsg("codex step1 highrate 500hz no-contact 2026-06-05T1747HKT_500HZ_NO_CONTACT_V2 start")
   codex_step1_write_echo(0.0, 0.0, 0.0, 0.0, 0.0)
 
   if not codex_step1_wait_for_sensor_ok(3.0):
@@ -159,7 +160,7 @@ def codex_step1_full_no_contact_pipeline_500hz():
 
   codex_step1_write_echo(stop_reason, 9.0, path_length_m, 0.0, 0.0)
   write_output_float_register(30, stop_reason)
-  textmsg("codex step1 highrate 500hz no-contact v1 stop reason:", stop_reason)
+  textmsg("codex step1 highrate 500hz no-contact 2026-06-05T1747HKT_500HZ_NO_CONTACT_V2 stop reason:", stop_reason)
 end
 
 codex_step1_full_no_contact_pipeline_500hz()
