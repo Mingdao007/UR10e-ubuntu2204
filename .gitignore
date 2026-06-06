@@ -6,6 +6,8 @@ log/
 # Python generated files
 __pycache__/
 *.py[cod]
+.conda/
+.venv/
 
 # Large runtime recordings are archived manually unless explicitly selected.
 *.db3

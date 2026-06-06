@@ -33,6 +33,33 @@ cd /home/andy/ur10e_ros2_ws
 colcon build --symlink-install
 ```
 
+## Data Analysis Python
+
+Keep `/usr/bin/python3` for ROS, apt-backed tools, and live bench scripts that
+depend on the system environment. Run UR10e reports and offline data analysis
+through the repo-local conda prefix instead:
+
+```bash
+cd /home/andy/ur10e_ros2_ws
+/home/andy/miniconda3/bin/conda env create \
+  -p /home/andy/ur10e_ros2_ws/.conda/ur10e-data \
+  -f /home/andy/ur10e_ros2_ws/environment-ur10e-data.yml
+scripts/ur10e_data_python.sh weekly_meeting/analyze_three_stream_600s.py
+```
+
+For an existing environment, update it with:
+
+```bash
+/home/andy/miniconda3/bin/conda env update \
+  -p /home/andy/ur10e_ros2_ws/.conda/ur10e-data \
+  -f /home/andy/ur10e_ros2_ws/environment-ur10e-data.yml \
+  --prune
+```
+
+The wrapper clears `PYTHONPATH`, disables user-site packages, and forces
+Matplotlib's non-interactive backend so report scripts do not mix conda, apt,
+ROS, and `~/.local` packages.
+
 ## Calibration
 
 Do not reuse the UR5e calibration. After the UR10e is reachable at
