@@ -157,7 +157,7 @@
     <section id="summary">
       <div class="eyebrow">Kunwei KWR75 / UR10e</div>
       <h1>Kunwei force sensor progress report</h1>
-      <p class="lead">Kunwei is no longer just a bring-up task: the TCP raw logging path has a stable 19 h 15 min run, and Step2C has completed a closed-loop straight-line contact task. The remaining issue is force transient and Fz stability, not basic connectivity.</p>
+      <p class="lead">Kunwei is no longer just a bring-up task: the TCP raw logging path has a stable 19 h 15 min run, and Step2C has completed a closed-loop straight-line contact task. The OnRobot/Kunwei comparison in this deck uses existing logs only, with first-value software zero inside each selected window.</p>
       <div class="grid">
         <div class="metric"><span>Long raw capture</span><strong>69.3M samples</strong></div>
         <div class="metric"><span>Average raw rate</span><strong>999.990 Hz</strong></div>
@@ -169,7 +169,7 @@
     <section id="link">
       <div class="eyebrow">Sensor link</div>
       <h2>1 kHz TCP logging is stable for the current bench</h2>
-      <p>The 19 h 15 min no-motion run received converted Kunwei frames continuously over TCP. This validates the current Ubuntu collection path, but it is not a 24 h run and it is not a zero-load calibration.</p>
+      <p>The 19 h 15 min no-motion run received converted Kunwei frames continuously over TCP. This validates the current Ubuntu collection path, but it is not a 24 h run and it is not a device-side zero/tare calibration.</p>
       <div class="grid">
         <div class="metric"><span>Duration</span><strong>19.257 h</strong></div>
         <div class="metric"><span>Fz last-first</span><strong>0.0457 N</strong></div>
@@ -191,10 +191,10 @@
     <section id="compare">
       <div class="eyebrow">Sensor comparison</div>
       <h2>OnRobot vs Kunwei, first 600 s</h2>
-      <p>Both traces are first-sample software zeroed inside their own 600 s windows. The shaded region is a min/max envelope; statistics use all samples in the selected window.</p>
+      <p>Both traces are first-value software zeroed inside their own 600 s windows. No device-side zero/tare was executed for this report version. The shaded region is a min/max envelope; statistics use all samples in the selected window.</p>
       <div class="grid">
-        <figure class="span-12"><img src="assets/kunwei_kwr75_20260608/first600_onrobot_kunwei_force_axes_envelope.png" alt="First 600 s force axes comparison"><figcaption>Fig. 1. Fx/Fy/Fz first-zeroed envelopes. This compares short-window stability, not absolute bias.</figcaption></figure>
-        <figure class="span-7"><img src="assets/kunwei_kwr75_20260608/first600_onrobot_kunwei_fz_envelope.png" alt="First 600 s Fz comparison"><figcaption>Fig. 2. Fz detail, first-zeroed within each sensor's own run.</figcaption></figure>
+        <figure class="span-12"><img src="assets/kunwei_kwr75_20260608/first600_onrobot_kunwei_force_axes_envelope.png" alt="First 600 s force axes comparison"><figcaption>Fig. 1. Fx/Fy/Fz first-value-zeroed envelopes. This compares short-window stability, not absolute bias.</figcaption></figure>
+        <figure class="span-7"><img src="assets/kunwei_kwr75_20260608/first600_onrobot_kunwei_fz_envelope.png" alt="First 600 s Fz comparison"><figcaption>Fig. 2. Fz detail, first-value-zeroed within each sensor's own run.</figcaption></figure>
         <figure class="span-5"><img src="assets/kunwei_kwr75_20260608/first600_onrobot_kunwei_force_std.png" alt="First 600 s force standard deviation"><figcaption>Fig. 3. Force-axis standard deviation in the first 600 s windows.</figcaption></figure>
       </div>
     </section>
@@ -207,15 +207,15 @@
         <div class="metric"><span>OnRobot available</span><strong>8.79 h</strong></div>
         <div class="metric"><span>Common max</span><strong>8.79 h</strong></div>
         <div class="metric"><span>Selected window</span><strong>6.00 h</strong></div>
-        <figure class="span-12"><img src="assets/kunwei_kwr75_20260608/sixh_onrobot_kunwei_fz_envelope.png" alt="6 h Fz comparison"><figcaption>Fig. 4. Fz first-zeroed envelope for the selected 6 h comparison window. Statistics use all samples in the window.</figcaption></figure>
-        <figure class="span-12"><img src="assets/kunwei_kwr75_20260608/sixh_onrobot_kunwei_force_axes_envelope.png" alt="6 h force axes comparison"><figcaption>Fig. 5. Fx/Fy/Fz first-zeroed envelopes over 6 h. This is a long-window drift comparison, not an absolute calibration claim.</figcaption></figure>
+        <figure class="span-12"><img src="assets/kunwei_kwr75_20260608/sixh_onrobot_kunwei_fz_envelope.png" alt="6 h Fz comparison"><figcaption>Fig. 4. Fz first-value-zeroed envelope for the selected 6 h comparison window. Statistics use all samples in the window.</figcaption></figure>
+        <figure class="span-12"><img src="assets/kunwei_kwr75_20260608/sixh_onrobot_kunwei_force_axes_envelope.png" alt="6 h force axes comparison"><figcaption>Fig. 5. Fx/Fy/Fz first-value-zeroed envelopes over 6 h. This is a long-window drift comparison, not an absolute calibration claim.</figcaption></figure>
         <figure class="span-12"><img src="assets/kunwei_kwr75_20260608/sixh_onrobot_kunwei_force_std.png" alt="6 h force standard deviation"><figcaption>Fig. 6. Force-axis standard deviation over the selected 6 h window.</figcaption></figure>
       </div>
     </section>
     <section id="next">
       <div class="eyebrow">Next action</div>
       <h2>Stabilize contact entry before chasing higher frequency</h2>
-      <p>The next Step2C change should reduce line-entry force transient: add a settle stage, or minimally lower normal velocity limit to +/-3 mm/s and alpha to 0.50. A formal OnRobot/Kunwei A/B needs same fixture, same zero/tare strategy, and same no-contact window.</p>
+      <p>The next Step2C change should reduce line-entry force transient: add a settle stage, or minimally lower normal velocity limit to +/-3 mm/s and alpha to 0.50. This report version does not require a new OnRobot/Kunwei experiment; the comparison is explicitly a first-value software-zeroed view of existing logs.</p>
       <div class="grid">
         <table class="span-12">
           <thead><tr><th>Decision</th><th>Current evidence</th><th>Default next move</th></tr></thead>
@@ -223,7 +223,7 @@
             <tr><td>Logging route</td><td>Kunwei TCP raw is stable at 1 kHz class</td><td>Use it as the default Kunwei collector</td></tr>
             <tr><td>Force control</td><td>Mean Fz is near target, but transient and ripple remain large</td><td>Add settle or soften normal correction</td></tr>
             <tr><td>Frequency claim</td><td>RTDE/bridge are 500 Hz class; stage25 echo is ~250 Hz</td><td>Keep these frequency layers separate</td></tr>
-            <tr><td>A/B comparison</td><td>Existing 600 s windows differ in setup/date/load</td><td>Run a same-fixture comparison if absolute claims are needed</td></tr>
+            <tr><td>A/B comparison</td><td>Existing 600 s and 6 h windows differ in setup/date/load</td><td>Use first-value software zero for this report; reserve same-fixture testing only for future absolute calibration claims</td></tr>
           </tbody>
         </table>
       </div>

@@ -2,7 +2,7 @@
 
 ## 实验目的
 
-这份报告把 Kunwei KWR75/KWR75B 当前证据单独整理出来，用于说明三件事：传感器与通信链路是否已经可用，长时间无运动 `1 kHz` 采集是否稳定，以及当前 Step2C 闭环直线实验走到什么程度。报告包含两层 OnRobot/Kunwei 对比：前 `600 s` 用于短窗口 noise/drift 判断，`6 h` 用于长时间漂移判断。两者都只作为 drift/noise 口径对照，不作为同机械状态下的绝对标定结论。
+这份报告把 Kunwei KWR75/KWR75B 当前证据单独整理出来，用于说明三件事：传感器与通信链路是否已经可用，长时间无运动 `1 kHz` 采集是否稳定，以及当前 Step2C 闭环直线实验走到什么程度。报告包含两层 OnRobot/Kunwei 对比：前 `600 s` 用于短窗口 noise/drift 判断，`6 h` 用于长时间漂移判断。当前版本只使用已有日志，不重做实验；两者都按各自窗口第一帧做 software zero，只作为 drift/noise 口径对照，不作为同机械状态下的绝对标定结论。
 
 结论先给出：Kunwei TCP raw logging 已经支撑 `19 h 15 min`、约 `1 kHz`、无 parse error 的长跑；Step2C 已经完成 `search5 + guard20` 下的闭环直线，力均值能靠近 `-5 N`，但进入 line 阶段的瞬态和 Fz 波动仍是主要问题。机器人侧运动闭环频率不能写成 `500 Hz`，本轮 stage25 echo/motion gate 实测约 `246.55 Hz`。
 
@@ -15,7 +15,7 @@
 | Ubuntu bench IP | `192.168.50.26/24` on `enp3s0` |
 | Vendor GUI 状态 | Windows 11 原生 `SensorLinker.exe` 已验证 live 数据与 CSV 记录；Ubuntu/Wine 不是当前默认路线 |
 | 长时采集状态 | 无机器人运动、无接触操作，只测传感器通信和静态读数 |
-| Step2C zero 口径 | bridge 软件 baseline；未调用 Kunwei hardware tare，未调用 UR `zero_ftsensor()` |
+| zero 口径 | 本报告 OnRobot/Kunwei 对比均为 first-value software zero；未调用 Kunwei hardware tare、OnRobot device bias/tare 或 UR `zero_ftsensor()` |
 | Step2C 参考线 | 长度约 `63.58 mm` 的 XY straight-line reference |
 | 本报告图表口径 | 统计用选定窗口内全样本；长 trace 图用 min/max envelope，不用等间隔抽样线作为主证据 |
 | 最长可用公共窗口 | Kunwei `19.26 h`，OnRobot UDP `8.79 h`；本报告长对比采用更适合汇报的 `6 h` |
@@ -37,15 +37,15 @@
 | OnRobot 600s UDP raw CSV | [../experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv](../experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv) |
 | OnRobot 6h UDP raw CSV | [../experiments/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217/three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv](../experiments/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217/three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv) |
 
-图 1 是本报告最主要的 OnRobot/Kunwei 前 `600 s` 对比图。两条曲线都先减去各自窗口第一帧，因此显示的是本窗口内的相对变化。阴影是每个时间 bin 内的 min/max envelope，实线是 bin mean；统计表仍使用窗口内所有样本。
+图 1 是本报告最主要的 OnRobot/Kunwei 前 `600 s` 对比图。两条曲线都先减去各自窗口第一帧，因此显示的是本窗口内的相对变化。这个 zero 是软件分析口径，不是 device-side zero/tare。阴影是每个时间 bin 内的 min/max envelope，实线是 bin mean；统计表仍使用窗口内所有样本。
 
 ![OnRobot vs Kunwei first 600s force axes](assets/kunwei-kwr75-progress-20260608/first600_onrobot_kunwei_force_axes_envelope.png)
 
-图 2 单独展开 Fz。Kunwei 前 `600 s` 的 first-zeroed Fz 标准差是 `0.0113 N`，OnRobot UDP raw 是 `0.1541 N`。这个数值不能直接解释成传感器规格优劣，因为两个窗口的安装、载荷和日期不同。
+图 2 单独展开 Fz。Kunwei 前 `600 s` 的 first-value-zeroed Fz 标准差是 `0.0113 N`，OnRobot UDP raw 是 `0.1541 N`。这个数值不能直接解释成传感器规格优劣，因为两个窗口的安装、载荷和日期不同。
 
 ![OnRobot vs Kunwei first 600s Fz](assets/kunwei-kwr75-progress-20260608/first600_onrobot_kunwei_fz_envelope.png)
 
-图 3 把前三个力轴的 first-zeroed 标准差放在同一张图里，用于快速看 `600 s` 窗口内的波动量级。
+图 3 把前三个力轴的 first-value-zeroed 标准差放在同一张图里，用于快速看 `600 s` 窗口内的波动量级。
 
 ![OnRobot vs Kunwei first 600s std](assets/kunwei-kwr75-progress-20260608/first600_onrobot_kunwei_force_std.png)
 
@@ -57,7 +57,7 @@
 
 ![OnRobot vs Kunwei 6h force axes](assets/kunwei-kwr75-progress-20260608/sixh_onrobot_kunwei_force_axes_envelope.png)
 
-图 6 是 `6 h` 窗口下三个力轴的 first-zeroed 标准差。
+图 6 是 `6 h` 窗口下三个力轴的 first-value-zeroed 标准差。
 
 ![OnRobot vs Kunwei 6h std](assets/kunwei-kwr75-progress-20260608/sixh_onrobot_kunwei_force_std.png)
 
@@ -116,7 +116,7 @@
 | Kunwei TCP raw | Mz/Tz | 0.00033 | 0.00084 | 0.05950 / 0.06300 |
 | OnRobot UDP raw | Mz/Tz | 0.00215 | 0.00300 | 0.06200 / 0.08100 |
 
-比较限制必须写清楚：Kunwei 的前 `600 s` 来自 `19h15min` 未归零静态长跑，OnRobot 来自 `20260528` 的 dedicated `600s_first_zero` run；两者不是同一天、同治具、同预载的同步 A/B。这里能比较的是当前可用 raw stream 在自身 first-zero 口径下的短窗口稳定性和采样路线差异。
+比较限制必须写清楚：Kunwei 的前 `600 s` 来自 `19h15min` 未做 device-side zero/tare 的静态长跑，OnRobot 来自 `20260528` 的 dedicated `600s_first_zero` run；两者不是同一天、同治具、同预载的同步 A/B。这里能比较的是当前可用 raw stream 在自身 first-value software zero 口径下的短窗口稳定性和采样路线差异。
 
 ### OnRobot vs Kunwei 6h
 
@@ -131,19 +131,19 @@
 | Kunwei TCP raw | Fz | 21,599,781 | 6.000 | 999.990 | 0.0156 | 0.0176 | 0.0308 | -1.604 / -0.497 |
 | OnRobot UDP raw | Fz | 10,791,425 | 6.000 | 499.603 | 0.3212 | 0.4000 | 0.7036 | -25.490 / -22.480 |
 
-这个 `6 h` 对比仍然不是严格同治具同步 A/B。它更适合回答“当前两条 raw stream 的长窗口稳定性量级如何”，不适合回答“哪个传感器绝对零点更准”。
+这个 `6 h` 对比仍然不是严格同治具同步 A/B。它更适合回答“当前两条 raw stream 在首值归零后的长窗口稳定性量级如何”，不适合回答“哪个传感器绝对零点更准”。
 
 ## 结论
 
 1. Kunwei TCP raw logging 路线已经可用：`19 h 15 min` 内约 `1 kHz`，`parse_errors=0`，`dropped_sync_bytes=0`。
 2. Kunwei 已经从传感器 bring-up 进入机器人闭环验证阶段。Step2C 主 run 能完成搜索、直线、卸载和回撤；均值层面能围绕 `-5 N` 工作。
 3. 当前不能把 Step2C 写成机器人侧 `500 Hz` 闭环。bridge/RTDE logging 是 500Hz 级，但 URScript stage25 echo/motion gate 约 `246.55 Hz`。
-4. OnRobot/Kunwei 前 `600 s` 与 `6 h` 对比图说明两条 raw stream 都可以做短窗口和长窗口漂移分析；但由于机械状态不同，报告只解释相对漂移和波动，不解释绝对偏置或规格优劣。
+4. OnRobot/Kunwei 前 `600 s` 与 `6 h` 对比图说明两条 raw stream 都可以用 first-value software zero 做短窗口和长窗口漂移分析；但由于机械状态不同，报告只解释相对漂移和波动，不解释绝对偏置或规格优劣。
 
 ## 下一步
 
 - Step2C 默认加入 settle stage，或先把 `normal velocity limit` 从 `±5 mm/s` 降到 `±3 mm/s`、`alpha` 从 `0.70` 降到 `0.50`，目标是降低 stage25 开头瞬态。
-- 如果要正式做 OnRobot vs Kunwei A/B，应在同一机械状态、同一无接触窗口、明确 zero/tare 策略下同步或连续采集，不能把当前两个历史窗口当成严格标定对照。
+- 本版本不需要新做 OnRobot/Kunwei A/B 实验；当前会议材料只使用已有日志，并明确标注为 first-value software zero 的历史窗口比较。若未来要回答绝对标定问题，再另开同机械状态、同无接触窗口、明确 device-side zero/tare 策略的实验。
 - 如果目标是机器人侧 `500 Hz` 运动闭环，需要另开 `servoj/speedj`、多线程 URScript 或外部实时接口路线，而不是从当前 `speedl` echo 推断。
 
 ## 附录

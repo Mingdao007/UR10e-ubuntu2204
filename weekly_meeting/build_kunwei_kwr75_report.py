@@ -368,9 +368,9 @@ def build_figures(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, lo
 
     fig, axes = plt.subplots(3, 1, figsize=(10.2, 8.2), sharex=True)
     pairs = [
-        ("Fz", "Fz_N", "fz_n", "Fz first-zeroed (N)"),
-        ("Fx", "Fx_N", "fx_n", "Fx first-zeroed (N)"),
-        ("Fy", "Fy_N", "fy_n", "Fy first-zeroed (N)"),
+        ("Fz", "Fz_N", "fz_n", "Fz first-value-zeroed (N)"),
+        ("Fx", "Fx_N", "fx_n", "Fx first-value-zeroed (N)"),
+        ("Fy", "Fy_N", "fy_n", "Fy first-value-zeroed (N)"),
     ]
     for ax, (_, k_col, o_col, ylabel) in zip(axes, pairs):
         plot_envelope(ax, short_kunwei["series"][k_col], "Kunwei TCP raw 1 kHz", "#2f8068")
@@ -380,7 +380,7 @@ def build_figures(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, lo
         ax.grid(True, alpha=0.25)
     axes[0].legend(loc="upper right", fontsize=8)
     axes[-1].set_xlabel("Time (s)")
-    fig.suptitle("First 600 s force drift comparison, first-sample software zero", y=0.995)
+    fig.suptitle("First 600 s force drift comparison, first-value software zero", y=0.995)
     fig.tight_layout()
     figures["first600_force_axes"] = save_and_copy(fig, "first600_onrobot_kunwei_force_axes_envelope.png")
 
@@ -389,7 +389,7 @@ def build_figures(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, lo
     plot_envelope(ax, short_onrobot["series"]["fz_n"], "OnRobot UDP raw 500 Hz", "#2e6ea6")
     ax.axhline(0.0, color="#7b8794", linewidth=0.8, linestyle="--")
     ax.set_xlabel("Time (s)")
-    ax.set_ylabel("Fz first-zeroed (N)")
+    ax.set_ylabel("Fz first-value-zeroed (N)")
     ax.set_title("Fz drift comparison, first 600 s")
     ax.grid(True, alpha=0.25)
     ax.legend(loc="upper right", fontsize=8)
@@ -408,7 +408,7 @@ def build_figures(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, lo
     ]
     colors = ["#2f8068", "#2e6ea6", "#2f8068", "#2e6ea6", "#2f8068", "#2e6ea6"]
     ax.bar(labels, values, color=colors)
-    ax.set_ylabel("Std after first-sample zero (N)")
+    ax.set_ylabel("Std after first-value zero (N)")
     ax.set_title("First 600 s force noise/drift scale")
     ax.grid(axis="y", alpha=0.25)
     ax.tick_params(axis="x", rotation=25)
@@ -424,7 +424,7 @@ def build_figures(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, lo
         ax.grid(True, alpha=0.25)
     axes[0].legend(loc="upper right", fontsize=8)
     axes[-1].set_xlabel("Time (s)")
-    fig.suptitle("6 h force drift comparison, first-sample software zero", y=0.995)
+    fig.suptitle("6 h force drift comparison, first-value software zero", y=0.995)
     fig.tight_layout()
     figures["sixh_force_axes"] = save_and_copy(fig, "sixh_onrobot_kunwei_force_axes_envelope.png")
 
@@ -433,7 +433,7 @@ def build_figures(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, lo
     plot_precomputed_envelope(ax, long_onrobot["envelopes"]["fz_n"], "OnRobot UDP raw 500 Hz", "#2e6ea6")
     ax.axhline(0.0, color="#7b8794", linewidth=0.8, linestyle="--")
     ax.set_xlabel("Time (s)")
-    ax.set_ylabel("Fz first-zeroed (N)")
+    ax.set_ylabel("Fz first-value-zeroed (N)")
     ax.set_title("Fz drift comparison, 6 h")
     ax.grid(True, alpha=0.25)
     ax.legend(loc="upper right", fontsize=8)
@@ -450,7 +450,7 @@ def build_figures(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, lo
         long_onrobot["zeroed_stats"]["fy_n"]["std"],
     ]
     ax.bar(labels, values, color=colors)
-    ax.set_ylabel("Std after first-sample zero (N)")
+    ax.set_ylabel("Std after first-value zero (N)")
     ax.set_title("6 h force noise/drift scale")
     ax.grid(axis="y", alpha=0.25)
     ax.tick_params(axis="x", rotation=25)
@@ -596,7 +596,7 @@ def strip_plot_data(data: dict) -> dict:
 
 def write_summary_json(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, long_onrobot: dict, figures: dict, long_summary: dict, step2c: dict) -> Path:
     payload = {
-        "comparison_note": "Both streams use first-sample software zero in their own selected windows; this is not a same-fixture absolute calibration comparison.",
+        "comparison_note": "Both streams use first-value software zero in their own selected windows; no device-side zero/tare was executed and no new experiment is required for this report version.",
         "available_duration": {
             "kunwei_s": 69325.77287676797,
             "onrobot_udp_s": COMMON_MAX_WINDOW_S,
@@ -636,7 +636,7 @@ def build_markdown(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, l
 
 ## 实验目的
 
-这份报告把 Kunwei KWR75/KWR75B 当前证据单独整理出来，用于说明三件事：传感器与通信链路是否已经可用，长时间无运动 `1 kHz` 采集是否稳定，以及当前 Step2C 闭环直线实验走到什么程度。报告包含两层 OnRobot/Kunwei 对比：前 `600 s` 用于短窗口 noise/drift 判断，`6 h` 用于长时间漂移判断。两者都只作为 drift/noise 口径对照，不作为同机械状态下的绝对标定结论。
+这份报告把 Kunwei KWR75/KWR75B 当前证据单独整理出来，用于说明三件事：传感器与通信链路是否已经可用，长时间无运动 `1 kHz` 采集是否稳定，以及当前 Step2C 闭环直线实验走到什么程度。报告包含两层 OnRobot/Kunwei 对比：前 `600 s` 用于短窗口 noise/drift 判断，`6 h` 用于长时间漂移判断。当前版本只使用已有日志，不重做实验；两者都按各自窗口第一帧做 software zero，只作为 drift/noise 口径对照，不作为同机械状态下的绝对标定结论。
 
 结论先给出：Kunwei TCP raw logging 已经支撑 `19 h 15 min`、约 `1 kHz`、无 parse error 的长跑；Step2C 已经完成 `search5 + guard20` 下的闭环直线，力均值能靠近 `-5 N`，但进入 line 阶段的瞬态和 Fz 波动仍是主要问题。机器人侧运动闭环频率不能写成 `500 Hz`，本轮 stage25 echo/motion gate 实测约 `{fmt(stage25_echo['rate_hz'], 2)} Hz`。
 
@@ -649,7 +649,7 @@ def build_markdown(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, l
 | Ubuntu bench IP | `192.168.50.26/24` on `enp3s0` |
 | Vendor GUI 状态 | Windows 11 原生 `SensorLinker.exe` 已验证 live 数据与 CSV 记录；Ubuntu/Wine 不是当前默认路线 |
 | 长时采集状态 | 无机器人运动、无接触操作，只测传感器通信和静态读数 |
-| Step2C zero 口径 | bridge 软件 baseline；未调用 Kunwei hardware tare，未调用 UR `zero_ftsensor()` |
+| zero 口径 | 本报告 OnRobot/Kunwei 对比均为 first-value software zero；未调用 Kunwei hardware tare、OnRobot device bias/tare 或 UR `zero_ftsensor()` |
 | Step2C 参考线 | 长度约 `63.58 mm` 的 XY straight-line reference |
 | 本报告图表口径 | 统计用选定窗口内全样本；长 trace 图用 min/max envelope，不用等间隔抽样线作为主证据 |
 | 最长可用公共窗口 | Kunwei `19.26 h`，OnRobot UDP `8.79 h`；本报告长对比采用更适合汇报的 `6 h` |
@@ -671,15 +671,15 @@ def build_markdown(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, l
 | OnRobot 600s UDP raw CSV | [../experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv](../experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv) |
 | OnRobot 6h UDP raw CSV | [../experiments/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217/three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv](../experiments/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217/three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv) |
 
-图 1 是本报告最主要的 OnRobot/Kunwei 前 `600 s` 对比图。两条曲线都先减去各自窗口第一帧，因此显示的是本窗口内的相对变化。阴影是每个时间 bin 内的 min/max envelope，实线是 bin mean；统计表仍使用窗口内所有样本。
+图 1 是本报告最主要的 OnRobot/Kunwei 前 `600 s` 对比图。两条曲线都先减去各自窗口第一帧，因此显示的是本窗口内的相对变化。这个 zero 是软件分析口径，不是 device-side zero/tare。阴影是每个时间 bin 内的 min/max envelope，实线是 bin mean；统计表仍使用窗口内所有样本。
 
 ![OnRobot vs Kunwei first 600s force axes]({figures['first600_force_axes']['report']})
 
-图 2 单独展开 Fz。Kunwei 前 `600 s` 的 first-zeroed Fz 标准差是 `{fmt(short_kunwei['zeroed_stats']['Fz_N']['std'], 4)} N`，OnRobot UDP raw 是 `{fmt(short_onrobot['zeroed_stats']['fz_n']['std'], 4)} N`。这个数值不能直接解释成传感器规格优劣，因为两个窗口的安装、载荷和日期不同。
+图 2 单独展开 Fz。Kunwei 前 `600 s` 的 first-value-zeroed Fz 标准差是 `{fmt(short_kunwei['zeroed_stats']['Fz_N']['std'], 4)} N`，OnRobot UDP raw 是 `{fmt(short_onrobot['zeroed_stats']['fz_n']['std'], 4)} N`。这个数值不能直接解释成传感器规格优劣，因为两个窗口的安装、载荷和日期不同。
 
 ![OnRobot vs Kunwei first 600s Fz]({figures['first600_fz']['report']})
 
-图 3 把前三个力轴的 first-zeroed 标准差放在同一张图里，用于快速看 `600 s` 窗口内的波动量级。
+图 3 把前三个力轴的 first-value-zeroed 标准差放在同一张图里，用于快速看 `600 s` 窗口内的波动量级。
 
 ![OnRobot vs Kunwei first 600s std]({figures['first600_std']['report']})
 
@@ -691,7 +691,7 @@ def build_markdown(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, l
 
 ![OnRobot vs Kunwei 6h force axes]({figures['sixh_force_axes']['report']})
 
-图 6 是 `6 h` 窗口下三个力轴的 first-zeroed 标准差。
+图 6 是 `6 h` 窗口下三个力轴的 first-value-zeroed 标准差。
 
 ![OnRobot vs Kunwei 6h std]({figures['sixh_std']['report']})
 
@@ -736,7 +736,7 @@ def build_markdown(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, l
 
 {rows_for_torque_table(short_kunwei, short_onrobot)}
 
-比较限制必须写清楚：Kunwei 的前 `600 s` 来自 `19h15min` 未归零静态长跑，OnRobot 来自 `20260528` 的 dedicated `600s_first_zero` run；两者不是同一天、同治具、同预载的同步 A/B。这里能比较的是当前可用 raw stream 在自身 first-zero 口径下的短窗口稳定性和采样路线差异。
+比较限制必须写清楚：Kunwei 的前 `600 s` 来自 `19h15min` 未做 device-side zero/tare 的静态长跑，OnRobot 来自 `20260528` 的 dedicated `600s_first_zero` run；两者不是同一天、同治具、同预载的同步 A/B。这里能比较的是当前可用 raw stream 在自身 first-value software zero 口径下的短窗口稳定性和采样路线差异。
 
 ### OnRobot vs Kunwei 6h
 
@@ -744,19 +744,19 @@ def build_markdown(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, l
 
 {rows_for_long_force_table(long_kunwei, long_onrobot)}
 
-这个 `6 h` 对比仍然不是严格同治具同步 A/B。它更适合回答“当前两条 raw stream 的长窗口稳定性量级如何”，不适合回答“哪个传感器绝对零点更准”。
+这个 `6 h` 对比仍然不是严格同治具同步 A/B。它更适合回答“当前两条 raw stream 在首值归零后的长窗口稳定性量级如何”，不适合回答“哪个传感器绝对零点更准”。
 
 ## 结论
 
 1. Kunwei TCP raw logging 路线已经可用：`19 h 15 min` 内约 `1 kHz`，`parse_errors=0`，`dropped_sync_bytes=0`。
 2. Kunwei 已经从传感器 bring-up 进入机器人闭环验证阶段。Step2C 主 run 能完成搜索、直线、卸载和回撤；均值层面能围绕 `-5 N` 工作。
 3. 当前不能把 Step2C 写成机器人侧 `500 Hz` 闭环。bridge/RTDE logging 是 500Hz 级，但 URScript stage25 echo/motion gate 约 `{fmt(stage25_echo['rate_hz'], 2)} Hz`。
-4. OnRobot/Kunwei 前 `600 s` 与 `6 h` 对比图说明两条 raw stream 都可以做短窗口和长窗口漂移分析；但由于机械状态不同，报告只解释相对漂移和波动，不解释绝对偏置或规格优劣。
+4. OnRobot/Kunwei 前 `600 s` 与 `6 h` 对比图说明两条 raw stream 都可以用 first-value software zero 做短窗口和长窗口漂移分析；但由于机械状态不同，报告只解释相对漂移和波动，不解释绝对偏置或规格优劣。
 
 ## 下一步
 
 - Step2C 默认加入 settle stage，或先把 `normal velocity limit` 从 `±5 mm/s` 降到 `±3 mm/s`、`alpha` 从 `0.70` 降到 `0.50`，目标是降低 stage25 开头瞬态。
-- 如果要正式做 OnRobot vs Kunwei A/B，应在同一机械状态、同一无接触窗口、明确 zero/tare 策略下同步或连续采集，不能把当前两个历史窗口当成严格标定对照。
+- 本版本不需要新做 OnRobot/Kunwei A/B 实验；当前会议材料只使用已有日志，并明确标注为 first-value software zero 的历史窗口比较。若未来要回答绝对标定问题，再另开同机械状态、同无接触窗口、明确 device-side zero/tare 策略的实验。
 - 如果目标是机器人侧 `500 Hz` 运动闭环，需要另开 `servoj/speedj`、多线程 URScript 或外部实时接口路线，而不是从当前 `speedl` echo 推断。
 
 ## 附录
@@ -949,7 +949,7 @@ def build_html(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, long_
     <section id="summary">
       <div class="eyebrow">Kunwei KWR75 / UR10e</div>
       <h1>Kunwei force sensor progress report</h1>
-      <p class="lead">Kunwei is no longer just a bring-up task: the TCP raw logging path has a stable 19 h 15 min run, and Step2C has completed a closed-loop straight-line contact task. The remaining issue is force transient and Fz stability, not basic connectivity.</p>
+      <p class="lead">Kunwei is no longer just a bring-up task: the TCP raw logging path has a stable 19 h 15 min run, and Step2C has completed a closed-loop straight-line contact task. The OnRobot/Kunwei comparison in this deck uses existing logs only, with first-value software zero inside each selected window.</p>
       <div class="grid">
         {html_metric("Long raw capture", "69.3M samples")}
         {html_metric("Average raw rate", f"{fmt(overall['rate_hz'], 3)} Hz")}
@@ -961,7 +961,7 @@ def build_html(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, long_
     <section id="link">
       <div class="eyebrow">Sensor link</div>
       <h2>1 kHz TCP logging is stable for the current bench</h2>
-      <p>The 19 h 15 min no-motion run received converted Kunwei frames continuously over TCP. This validates the current Ubuntu collection path, but it is not a 24 h run and it is not a zero-load calibration.</p>
+      <p>The 19 h 15 min no-motion run received converted Kunwei frames continuously over TCP. This validates the current Ubuntu collection path, but it is not a 24 h run and it is not a device-side zero/tare calibration.</p>
       <div class="grid">
         {html_metric("Duration", f"{fmt(overall['duration_s'] / 3600.0, 3)} h")}
         {html_metric("Fz last-first", f"{fmt(overall['fz_last_first'], 4)} N")}
@@ -983,10 +983,10 @@ def build_html(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, long_
     <section id="compare">
       <div class="eyebrow">Sensor comparison</div>
       <h2>OnRobot vs Kunwei, first 600 s</h2>
-      <p>Both traces are first-sample software zeroed inside their own 600 s windows. The shaded region is a min/max envelope; statistics use all samples in the selected window.</p>
+      <p>Both traces are first-value software zeroed inside their own 600 s windows. No device-side zero/tare was executed for this report version. The shaded region is a min/max envelope; statistics use all samples in the selected window.</p>
       <div class="grid">
-        <figure class="span-12"><img src="{force_img}" alt="First 600 s force axes comparison"><figcaption>Fig. 1. Fx/Fy/Fz first-zeroed envelopes. This compares short-window stability, not absolute bias.</figcaption></figure>
-        <figure class="span-7"><img src="{fz_img}" alt="First 600 s Fz comparison"><figcaption>Fig. 2. Fz detail, first-zeroed within each sensor's own run.</figcaption></figure>
+        <figure class="span-12"><img src="{force_img}" alt="First 600 s force axes comparison"><figcaption>Fig. 1. Fx/Fy/Fz first-value-zeroed envelopes. This compares short-window stability, not absolute bias.</figcaption></figure>
+        <figure class="span-7"><img src="{fz_img}" alt="First 600 s Fz comparison"><figcaption>Fig. 2. Fz detail, first-value-zeroed within each sensor's own run.</figcaption></figure>
         <figure class="span-5"><img src="{std_img}" alt="First 600 s force standard deviation"><figcaption>Fig. 3. Force-axis standard deviation in the first 600 s windows.</figcaption></figure>
       </div>
     </section>
@@ -999,15 +999,15 @@ def build_html(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, long_
         {html_metric("OnRobot available", "8.79 h")}
         {html_metric("Common max", "8.79 h")}
         {html_metric("Selected window", "6.00 h")}
-        <figure class="span-12"><img src="{sixh_fz_img}" alt="6 h Fz comparison"><figcaption>Fig. 4. Fz first-zeroed envelope for the selected 6 h comparison window. Statistics use all samples in the window.</figcaption></figure>
-        <figure class="span-12"><img src="{sixh_force_img}" alt="6 h force axes comparison"><figcaption>Fig. 5. Fx/Fy/Fz first-zeroed envelopes over 6 h. This is a long-window drift comparison, not an absolute calibration claim.</figcaption></figure>
+        <figure class="span-12"><img src="{sixh_fz_img}" alt="6 h Fz comparison"><figcaption>Fig. 4. Fz first-value-zeroed envelope for the selected 6 h comparison window. Statistics use all samples in the window.</figcaption></figure>
+        <figure class="span-12"><img src="{sixh_force_img}" alt="6 h force axes comparison"><figcaption>Fig. 5. Fx/Fy/Fz first-value-zeroed envelopes over 6 h. This is a long-window drift comparison, not an absolute calibration claim.</figcaption></figure>
         <figure class="span-12"><img src="{sixh_std_img}" alt="6 h force standard deviation"><figcaption>Fig. 6. Force-axis standard deviation over the selected 6 h window.</figcaption></figure>
       </div>
     </section>
     <section id="next">
       <div class="eyebrow">Next action</div>
       <h2>Stabilize contact entry before chasing higher frequency</h2>
-      <p>The next Step2C change should reduce line-entry force transient: add a settle stage, or minimally lower normal velocity limit to +/-3 mm/s and alpha to 0.50. A formal OnRobot/Kunwei A/B needs same fixture, same zero/tare strategy, and same no-contact window.</p>
+      <p>The next Step2C change should reduce line-entry force transient: add a settle stage, or minimally lower normal velocity limit to +/-3 mm/s and alpha to 0.50. This report version does not require a new OnRobot/Kunwei experiment; the comparison is explicitly a first-value software-zeroed view of existing logs.</p>
       <div class="grid">
         <table class="span-12">
           <thead><tr><th>Decision</th><th>Current evidence</th><th>Default next move</th></tr></thead>
@@ -1015,7 +1015,7 @@ def build_html(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, long_
             <tr><td>Logging route</td><td>Kunwei TCP raw is stable at 1 kHz class</td><td>Use it as the default Kunwei collector</td></tr>
             <tr><td>Force control</td><td>Mean Fz is near target, but transient and ripple remain large</td><td>Add settle or soften normal correction</td></tr>
             <tr><td>Frequency claim</td><td>RTDE/bridge are 500 Hz class; stage25 echo is ~250 Hz</td><td>Keep these frequency layers separate</td></tr>
-            <tr><td>A/B comparison</td><td>Existing 600 s windows differ in setup/date/load</td><td>Run a same-fixture comparison if absolute claims are needed</td></tr>
+            <tr><td>A/B comparison</td><td>Existing 600 s and 6 h windows differ in setup/date/load</td><td>Use first-value software zero for this report; reserve same-fixture testing only for future absolute calibration claims</td></tr>
           </tbody>
         </table>
       </div>

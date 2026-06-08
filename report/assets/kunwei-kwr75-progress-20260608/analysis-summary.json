@@ -1,5 +1,5 @@
 {
-  "comparison_note": "Both streams use first-sample software zero in their own selected windows; this is not a same-fixture absolute calibration comparison.",
+  "comparison_note": "Both streams use first-value software zero in their own selected windows; no device-side zero/tare was executed and no new experiment is required for this report version.",
   "available_duration": {
     "kunwei_s": 69325.77287676797,
     "onrobot_udp_s": 31632.103973266,
