@@ -1,0 +1,99 @@
+# Step3-0D: minimal speedl(t=0.002) 500 Hz isolation.
+# VERSION: 2026-06-08T1148HKT_STEP3_0D_MIN_SPEEDL_500HZ_V1
+# GENERATED_AT_LOCAL: 2026-06-08T11:48:00+0800
+# BEHAVIOR: wait for Kunwei bridge/RTDE input registers; each 2 ms loop echoes
+# RTDE registers, calls get_actual_tcp_pose(), and calls speedl(). No force
+# control, no contact trigger, no line controller, no zero/tare/config writes.
+# MOTION: stage 42 commands +X at 2 mm/s for 0.5 s, stage 43 commands -X at
+# 2 mm/s for 0.5 s, so the planned round trip is about 1 mm out and 1 mm back.
+# ACCELERATION: speedl acceleration a=0.100 m/s^2 = 100 mm/s^2.
+# PURPOSE: isolate whether speedl(t=0.002) itself limits URScript echo cadence
+# after Step3-0C proved register reads + get_actual_tcp_pose() + math can run
+# near 500 Hz.
+
+def codex_wait_for_sensor_ok(timeout_s):
+  local dt = 0.002
+  local t = 0.0
+  while t < timeout_s:
+    if read_input_float_register(27) > 0.5:
+      return True
+    end
+    sync()
+    t = t + dt
+  end
+  return False
+end
+
+def codex_step3_0d_min_speedl_500hz():
+  local dt = 0.002
+  local runtime_s = 120.0
+  local zero_hold_s = 1.0
+  local move_each_way_s = 0.5
+  local speed_x_m_s = 0.002
+  local accel_m_s2 = 0.100
+  local t = 0.0
+  local loop_counter = 0.0
+  local stop_reason = 0.0
+  local stage = 40.0
+
+  textmsg("codex step3-0d min speedl version 2026-06-08T1148HKT_STEP3_0D_MIN_SPEEDL_500HZ_V1 start speed=2mmps accel=100mmps2 t=2ms")
+
+  if not codex_wait_for_sensor_ok(30.0):
+    stop_reason = 3.0
+  end
+
+  while t < runtime_s and stop_reason == 0.0:
+    local normal_force = read_input_float_register(24)
+    local force_norm = read_input_float_register(25)
+    local heartbeat = read_input_float_register(26)
+    local sensor_ok = read_input_float_register(27)
+    local stop_request = read_input_float_register(28)
+    local target_force_abs = read_input_float_register(29)
+    local torque_norm = read_input_float_register(30)
+    local pose_now = get_actual_tcp_pose()
+
+    local vx = 0.0
+    if t < zero_hold_s:
+      stage = 41.0
+      vx = 0.0
+    elif t < zero_hold_s + move_each_way_s:
+      stage = 42.0
+      vx = speed_x_m_s
+    elif t < zero_hold_s + 2.0 * move_each_way_s:
+      stage = 43.0
+      vx = -speed_x_m_s
+    else:
+      stage = 44.0
+      vx = 0.0
+    end
+
+    if sensor_ok < 0.5:
+      stop_reason = 3.0
+    elif stop_request > 0.5:
+      stop_reason = 4.0
+    end
+
+    write_output_float_register(24, normal_force)
+    write_output_float_register(25, force_norm)
+    write_output_float_register(26, heartbeat)
+    write_output_float_register(27, sensor_ok)
+    write_output_float_register(28, stop_request)
+    write_output_float_register(29, target_force_abs)
+    write_output_float_register(30, stop_reason)
+    write_output_float_register(31, pose_now[0])
+    write_output_float_register(32, pose_now[1])
+    write_output_float_register(33, vx)
+    write_output_float_register(34, stage)
+    write_output_float_register(35, loop_counter)
+
+    speedl([vx, 0.0, 0.0, 0.0, 0.0, 0.0], accel_m_s2, dt)
+    loop_counter = loop_counter + 1.0
+    t = t + dt
+  end
+
+  speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], accel_m_s2, 0.010)
+  write_output_float_register(30, stop_reason)
+  textmsg("codex step3-0d min speedl version 2026-06-08T1148HKT_STEP3_0D_MIN_SPEEDL_500HZ_V1 stop reason:", stop_reason)
+end
+
+codex_step3_0d_min_speedl_500hz()
