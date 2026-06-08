@@ -12,6 +12,7 @@ WAIT_FOR_PLAY_S="${WAIT_FOR_PLAY_S:-45}"
 AUTOWATCH_WAIT_FOR_PLAY_S="${AUTOWATCH_WAIT_FOR_PLAY_S:-600}"
 DASHBOARD_MISS_LIMIT_S="${DASHBOARD_MISS_LIMIT_S:-5}"
 BENCH_GATE="/home/andy/codex-private-skills/skills/ur10e-realsetup/scripts/check_ubuntu_network.py"
+DATA_PYTHON="/home/andy/ur10e_ros2_ws/scripts/ur10e_data_python.sh"
 
 usage() {
   cat <<'USAGE'
@@ -28,6 +29,7 @@ Bridge lifecycle:
   stops bridge when the TP program stops, safety is not NORMAL, or Dashboard is unreachable
   sends Kunwei stop-stream quiet command after bridge exit
   writes stage_frequency_summary.json after bridge exit
+  writes fz_tracking.png after bridge exit
 
 Motion settings in the TP program:
   pre-contact: direct Z prep to old contact Z + 30 mm, with no explicit stopl after orientation, XY, or Z prep
@@ -122,6 +124,110 @@ result = {
 summary_path.write_text(json.dumps(result, indent=2) + '\n')
 print(json.dumps(result, indent=2))
 PY
+}
+
+fz_plot() {
+  local out_dir="$1"
+  "${DATA_PYTHON}" - "$out_dir" <<'FZ_PLOT_PY'
+import json
+import math
+import sys
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import pandas as pd
+
+out_dir = Path(sys.argv[1])
+csv_path = out_dir / "bridge_rtde_500hz.csv"
+plot_path = out_dir / "fz_tracking.png"
+summary_path = out_dir / "fz_tracking_summary.json"
+
+if not csv_path.exists():
+    result = {"ok": False, "issue": "bridge_rtde_500hz.csv not found", "out_dir": str(out_dir)}
+    summary_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    print(json.dumps(result, indent=2, sort_keys=True))
+    raise SystemExit(0)
+
+usecols = [
+    "t_monotonic_s",
+    "normal_force_n",
+    "target_force_n",
+    "ur_output_double_register_35",
+]
+df = pd.read_csv(csv_path, usecols=lambda c: c in usecols)
+df = df.dropna(subset=["t_monotonic_s", "normal_force_n"])
+if df.empty:
+    result = {"ok": False, "issue": "no Fz rows found", "bridge_csv": str(csv_path)}
+    summary_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    print(json.dumps(result, indent=2, sort_keys=True))
+    raise SystemExit(0)
+
+t = df["t_monotonic_s"] - float(df["t_monotonic_s"].iloc[0])
+fz = df["normal_force_n"]
+stage = df.get("ur_output_double_register_35")
+
+fig, ax = plt.subplots(figsize=(11, 5.5), dpi=160)
+if stage is not None:
+    bands = [
+        (24.0, "#e8f1ff", "search"),
+        (24.4, "#fff4d8", "soft acquire"),
+        (25.0, "#e7f7ed", "FT line"),
+        (26.0, "#f4e8ff", "retract 10mm"),
+        (27.0, "#eeeeee", "return home"),
+    ]
+    label_seen = set()
+    for st, color, label in bands:
+        mask = (stage - st).abs() < 0.05
+        if not mask.any():
+            continue
+        indices = list(df.index[mask])
+        spans = []
+        start = prev = indices[0]
+        for idx in indices[1:]:
+            if idx == prev + 1:
+                prev = idx
+            else:
+                spans.append((start, prev))
+                start = prev = idx
+        spans.append((start, prev))
+        for start, end in spans:
+            x0 = float(t.loc[start])
+            x1 = float(t.loc[end])
+            ax.axvspan(x0, x1, color=color, alpha=0.55, label=label if label not in label_seen else None)
+            label_seen.add(label)
+
+ax.plot(t, fz, color="#111827", linewidth=1.1, label="signed Fz / normal force")
+if "target_force_n" in df.columns:
+    target = -df["target_force_n"].ffill().fillna(5.0)
+    ax.plot(t, target, color="#dc2626", linewidth=1.0, linestyle="--", label="-target force")
+
+ax.axhline(0.0, color="#6b7280", linewidth=0.7)
+ax.set_title("Step2C v5 Fz Tracking")
+ax.set_xlabel("time since bridge start (s)")
+ax.set_ylabel("force (N)")
+ax.grid(True, color="#d1d5db", linewidth=0.6, alpha=0.8)
+ax.legend(loc="best", fontsize=8)
+fig.tight_layout()
+fig.savefig(plot_path)
+plt.close(fig)
+
+stage25 = df[(stage - 25.0).abs() < 0.05] if stage is not None else df.iloc[0:0]
+result = {
+    "ok": True,
+    "bridge_csv": str(csv_path),
+    "plot": str(plot_path),
+    "samples": int(len(df)),
+    "fz_min_n": float(fz.min()),
+    "fz_max_n": float(fz.max()),
+    "fz_mean_n": float(fz.mean()),
+    "stage25_samples": int(len(stage25)),
+    "stage25_fz_mean_n": None if stage25.empty else float(stage25["normal_force_n"].mean()),
+    "stage25_fz_min_n": None if stage25.empty else float(stage25["normal_force_n"].min()),
+    "stage25_fz_max_n": None if stage25.empty else float(stage25["normal_force_n"].max()),
+}
+summary_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+print(json.dumps(result, indent=2, sort_keys=True))
+FZ_PLOT_PY
 }
 
 dashboard_monitor() {
@@ -378,6 +484,7 @@ WARNING
     fi
 
     stage_summary "${out_dir}"
+    fz_plot "${out_dir}"
     ;;
   bridge)
     cat <<'WARNING'
@@ -463,6 +570,7 @@ WARNING
     fi
 
     stage_summary "${out_dir}"
+    fz_plot "${out_dir}"
     ;;
   *)
     usage
