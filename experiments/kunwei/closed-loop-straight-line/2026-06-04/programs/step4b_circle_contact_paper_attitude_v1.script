@@ -1,6 +1,6 @@
 # Step4b contact circle v1: Step2C v8 scaffold with circular tangent twist, Z force admittance, and bounded paper-first attitude compliance.
-# VERSION: 2026-06-08T1617HKT_STEP4B_CIRCLE_CONTACT_PAPER_ATTITUDE_V1
-# GENERATED_AT_LOCAL: 2026-06-08T16:17:01+0800
+# VERSION: 2026-06-08T1630HKT_STEP4B_CIRCLE_CONTACT_PAPER_ATTITUDE_V1
+# GENERATED_AT_LOCAL: 2026-06-08T16:30:56+0800
 # BEHAVIOR: wait for Kunwei bridge; align to old reference orientation; move to
 # Step4b circle-start XY derived from the middle half of the old contact path;
 # do bounded Z prep instead of blindly returning to contact Z + 100 mm. If current Z is already 30-100 mm above known contact,
@@ -20,8 +20,8 @@
 # Frequency contract: Kunwei raw may be about 1 kHz; RTDE handoff is requested
 # at 500 Hz; search/admittance motion gate uses 2 ms speedl holds; line control
 # switches to 1 ms holds after 0.10 s, but both phases must be measured before
-# calling them 500 Hz authority. On successful completion only, retract 10 mm
-# upward and then return to the TP-start home pose; failure paths do not auto-home.
+# calling them 500 Hz authority. On recoverable stops, retract 10 mm upward
+# and then return to the TP-start home pose while preserving the true stop reason.
 
 def codex_abs(x):
   if x < 0.0:
@@ -90,6 +90,25 @@ def codex_step2_guard_stop_reason():
   return 0.0
 end
 
+def codex_should_auto_home(stop_reason):
+  if stop_reason == 1.0:
+    return True
+  elif stop_reason == 2.0:
+    return True
+  elif stop_reason == 4.0:
+    return True
+  elif stop_reason == 8.0:
+    return True
+  elif stop_reason == 9.0:
+    return True
+  elif stop_reason == 10.0:
+    return True
+  elif stop_reason == 12.0:
+    return True
+  end
+  return False
+end
+
 def codex_write_echo(stop_reason, progress_m, correction_m, commanded_z_m_s):
   write_output_float_register(24, read_input_float_register(24))
   write_output_float_register(25, read_input_float_register(25))
@@ -154,10 +173,11 @@ def codex_step4b_circle_contact():
   local stop_reason = 0.0
   local contact_triggered = 0
   local max_observed_stale_s = 0.0
+  local final_progress_m = 0.0
 
   local home_pose = get_actual_tcp_pose()
 
-  textmsg("codex step4b version 2026-06-08T1617HKT_STEP4B_CIRCLE_CONTACT_PAPER_ATTITUDE_V1 start circle_contact_paper_attitude_v1")
+  textmsg("codex step4b version 2026-06-08T1630HKT_STEP4B_CIRCLE_CONTACT_PAPER_ATTITUDE_V1 start circle_contact_paper_attitude_v1")
   write_output_float_register(35, 20.0)
   codex_write_echo(0.0, 0.0, 0.0, 0.0)
 
@@ -336,6 +356,7 @@ def codex_step4b_circle_contact():
       local pose_line = get_actual_tcp_pose()
       local progress_m = theta * circle_radius_m
       local correction_m = pose_line[2] - circle_start_pose[2]
+      final_progress_m = progress_m
 
       if target_force_abs < 0.1:
         target_force_abs = target_force_abs_default_n
@@ -408,15 +429,15 @@ def codex_step4b_circle_contact():
     end
     stopl(0.5)
   end
-  if stop_reason == 1.0:
+  if codex_should_auto_home(stop_reason):
     write_output_float_register(35, 26.0)
     local short_retract_start = get_actual_tcp_pose()
     local short_retract_pose = p[short_retract_start[0], short_retract_start[1], short_retract_start[2] + short_retract_z_m, short_retract_start[3], short_retract_start[4], short_retract_start[5]]
-    codex_write_echo(stop_reason, path_length_m, short_retract_z_m, 0.0)
+    codex_write_echo(stop_reason, final_progress_m, short_retract_z_m, 0.0)
     movel(short_retract_pose, a=0.030, v=short_retract_speed_m_s, r=0.0)
     stopl(0.5)
     write_output_float_register(35, 27.0)
-    codex_write_echo(stop_reason, path_length_m, short_retract_z_m, 0.0)
+    codex_write_echo(stop_reason, final_progress_m, short_retract_z_m, 0.0)
     movel(home_pose, a=0.030, v=home_return_speed_m_s, r=0.0)
     stopl(0.5)
   end
@@ -424,7 +445,7 @@ def codex_step4b_circle_contact():
   write_output_float_register(30, stop_reason)
   write_output_float_register(31, max_observed_stale_s)
   write_output_float_register(35, 29.0)
-  textmsg("codex step4b version 2026-06-08T1617HKT_STEP4B_CIRCLE_CONTACT_PAPER_ATTITUDE_V1 stop reason:", stop_reason)
+  textmsg("codex step4b version 2026-06-08T1630HKT_STEP4B_CIRCLE_CONTACT_PAPER_ATTITUDE_V1 stop reason:", stop_reason)
 end
 
 codex_step4b_circle_contact()

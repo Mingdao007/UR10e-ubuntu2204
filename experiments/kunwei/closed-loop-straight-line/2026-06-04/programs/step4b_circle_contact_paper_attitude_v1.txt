@@ -7,7 +7,7 @@ Script source:
   /programs/andyl/kunwei/step4/step4b_circle_contact_paper_attitude_v1.script
 
 Version stamp:
-  2026-06-08T1617HKT_STEP4B_CIRCLE_CONTACT_PAPER_ATTITUDE_V1
+  2026-06-08T1630HKT_STEP4B_CIRCLE_CONTACT_PAPER_ATTITUDE_V1
 
 Geometry:
   source: middle half of the existing Step2C contact path
@@ -18,11 +18,15 @@ Geometry:
   full-circle arc length: 99.871 mm
 
 Motion summary:
-  Step2C v8 scaffold: bounded high approach, contact search, soft acquisition, short retract, home return
+  Step2C v8 scaffold: bounded high approach, contact search, soft acquisition, recoverable-stop short retract, home return
   circle: full circle, Cartesian speedl twist, UR handles IK
   tangent speed: 5 mm/s in v1
   Z control: signed Fz velocity admittance
   attitude: bounded force/torque-based paper-first compliance proxy, wx/wy only
+
+Auto-home policy:
+  auto-home after recoverable stops: complete, stale heartbeat, external stop request, Z correction guard, path progress guard, runtime limit, attitude proxy guard
+  hold position after hard stops: sensor_not_ok, raw normal force guard, force norm guard, torque norm guard
 
 Raw guards:
   normal force guard: 20 N
