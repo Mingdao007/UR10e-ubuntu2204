@@ -13,6 +13,7 @@ Usage:
   step0-operator.sh benchmark-freq
   step0-operator.sh benchmark-freq-500
   step0-operator.sh benchmark-freq-250
+  step0-operator.sh step3-0c-pose-math-500
   step0-operator.sh bridge-minimal-log
 
 What this script does:
@@ -21,12 +22,47 @@ What this script does:
                      step0_register_echo.script. No robot motion.
   benchmark-freq     No-motion frequency sweep. Requests 125, 250, 500, and
                      1000 Hz RTDE input writes and measures UR echo rate.
+  step3-0c-pose-math-500
+                     No-motion 500 Hz isolation for
+                     step3_0c_pose_math_500hz_v1.urp: URScript reads registers,
+                     calls get_actual_tcp_pose(), runs filter/control math, and
+                     echoes output registers. No robot motion.
   bridge-minimal-log Starts Kunwei stream and logging only; no RTDE input writes.
 
 Teach pendant remains the motion authority:
   - step0 echo check: /programs/andyl/kunwei/step0_register_echo.script
   - minimal line: /programs/andyl/kunwei/step0_no_contact_straight_10mm.script
 USAGE
+}
+
+run_step3_0c_pose_math_500() {
+  cat <<'WARNING'
+This will send Kunwei 48 AA 0D 0A and write UR RTDE input registers at 500 Hz.
+It will not send URScript from Ubuntu and will not move the robot.
+Open /programs/andyl/kunwei/step3_0c_pose_math_500hz_v1.urp on the teach pendant.
+After typing START_STEP3_0C here, press Play on the teach pendant during the 3 s baseline window.
+The program itself does no speedl, no movel, no stopl, no zero, and no tare.
+Pass/fail is based on measured UR echo heartbeat transitions, not requested rate.
+Type START_STEP3_0C to continue:
+WARNING
+  read -r confirm
+  if [[ "${confirm}" != "START_STEP3_0C" ]]; then
+    echo "aborted"
+    exit 2
+  fi
+  out_dir="${RUN_ROOT}/step3_0c_pose_math_500hz_${STAMP}"
+  python3 "${ROOT}/tools/benchmark_rtde_frequency.py" \
+    --allow-kunwei-stream-command \
+    --baseline-s 3 \
+    --duration-s 8 \
+    --rates 500 \
+    --target-force-n 5 \
+    --normal-axis fz \
+    --normal-sign 1 \
+    --max-normal-force-n 20 \
+    --max-force-norm-n 50 \
+    --sensor-stale-s 0.10 \
+    --output-dir "${out_dir}"
 }
 
 run_benchmark_rate() {
@@ -115,6 +151,9 @@ WARNING
     ;;
   benchmark-freq-250)
     run_benchmark_rate 250
+    ;;
+  step3-0c-pose-math-500)
+    run_step3_0c_pose_math_500
     ;;
   bridge-full|bridge-step1)
     echo "step1 is separated now. Use: ${ROOT}/scripts/step1-operator.sh bridge" >&2
