@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Iterable
 
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 
 
 ROOT = Path("/home/andy/ur10e_ros2_ws")
@@ -36,7 +38,13 @@ ONROBOT_RTDE_CSV = ONROBOT_600_DIR / "three_stream_600s_20260528_043052_rtde_ur5
 ONROBOT_SUMMARY = ONROBOT_600_DIR / "three_stream_600s_20260528_043052_summary.json"
 ONROBOT_ALIGNMENT = ONROBOT_600_DIR / "three_stream_600s_20260528_043052_urcap_udp_alignment_stats.json"
 
+ONROBOT_LONG_DIR = ROOT / "experiments/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217"
+ONROBOT_LONG_UDP_CSV = ONROBOT_LONG_DIR / "three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv"
+ONROBOT_LONG_SUMMARY = ONROBOT_LONG_DIR / "three_stream_24h_20260530_20260530_175220_summary.json"
+
 WINDOW_S = 600.0
+LONG_WINDOW_S = 21600.0
+COMMON_MAX_WINDOW_S = 31632.103973266
 
 
 @dataclass
@@ -72,6 +80,87 @@ class RunningStats:
             "std": math.sqrt(self.m2 / (self.n - 1)) if self.n > 1 else 0.0,
             "min": self.min,
             "max": self.max,
+        }
+
+
+@dataclass
+class VectorStats:
+    n: int = 0
+    mean: float = 0.0
+    m2: float = 0.0
+    first: float | None = None
+    last: float | None = None
+    min: float | None = None
+    max: float | None = None
+
+    def add_many(self, values: np.ndarray) -> None:
+        if values.size == 0:
+            return
+        values = values.astype(float, copy=False)
+        if self.n == 0:
+            self.first = float(values[0])
+        self.last = float(values[-1])
+        chunk_n = int(values.size)
+        chunk_mean = float(values.mean())
+        chunk_m2 = float(((values - chunk_mean) ** 2).sum())
+        chunk_min = float(values.min())
+        chunk_max = float(values.max())
+        if self.n == 0:
+            self.n = chunk_n
+            self.mean = chunk_mean
+            self.m2 = chunk_m2
+            self.min = chunk_min
+            self.max = chunk_max
+            return
+        new_n = self.n + chunk_n
+        delta = chunk_mean - self.mean
+        self.m2 = self.m2 + chunk_m2 + delta * delta * self.n * chunk_n / new_n
+        self.mean = self.mean + delta * chunk_n / new_n
+        self.n = new_n
+        self.min = chunk_min if self.min is None else min(self.min, chunk_min)
+        self.max = chunk_max if self.max is None else max(self.max, chunk_max)
+
+    def as_dict(self) -> dict[str, float | int | None]:
+        return {
+            "n": self.n,
+            "first": self.first,
+            "last": self.last,
+            "last_first": None if self.first is None or self.last is None else self.last - self.first,
+            "mean": self.mean if self.n else None,
+            "std": math.sqrt(self.m2 / (self.n - 1)) if self.n > 1 else 0.0,
+            "min": self.min,
+            "max": self.max,
+        }
+
+
+class EnvelopeBins:
+    def __init__(self, window_s: float, bins: int = 1800) -> None:
+        self.window_s = window_s
+        self.bins = bins
+        self.count = np.zeros(bins, dtype=np.int64)
+        self.t_sum = np.zeros(bins, dtype=float)
+        self.value_sum = np.zeros(bins, dtype=float)
+        self.min = np.full(bins, np.inf, dtype=float)
+        self.max = np.full(bins, -np.inf, dtype=float)
+
+    def add_many(self, t_values: np.ndarray, values: np.ndarray) -> None:
+        if values.size == 0:
+            return
+        indices = np.floor(t_values / self.window_s * self.bins).astype(np.int64)
+        indices = np.clip(indices, 0, self.bins - 1)
+        np.add.at(self.count, indices, 1)
+        np.add.at(self.t_sum, indices, t_values)
+        np.add.at(self.value_sum, indices, values)
+        np.minimum.at(self.min, indices, values)
+        np.maximum.at(self.max, indices, values)
+
+    def as_dict(self) -> dict[str, list[float]]:
+        mask = self.count > 0
+        return {
+            "t": (self.t_sum[mask] / self.count[mask]).tolist(),
+            "min": self.min[mask].tolist(),
+            "max": self.max[mask].tolist(),
+            "mean": (self.value_sum[mask] / self.count[mask]).tolist(),
         }
 
 
@@ -151,6 +240,79 @@ def scan_window(
     }
 
 
+def scan_window_envelope(
+    path: Path,
+    time_col: str,
+    columns: dict[str, str],
+    *,
+    window_s: float,
+    bins: int = 1800,
+    chunksize: int = 500_000,
+) -> dict:
+    raw_stats = {name: VectorStats() for name in columns}
+    zeroed_stats = {name: VectorStats() for name in columns}
+    front_60s_stats = {name: VectorStats() for name in columns}
+    back_60s_stats = {name: VectorStats() for name in columns}
+    envelopes = {name: EnvelopeBins(window_s, bins=bins) for name in columns}
+    zero: dict[str, float | None] = {name: None for name in columns}
+    first_t: float | None = None
+    last_t: float | None = None
+    rows = 0
+    usecols = [time_col, *columns.values()]
+
+    for frame in pd.read_csv(path, usecols=usecols, chunksize=chunksize):
+        if first_t is None:
+            first_t = float(frame[time_col].iloc[0])
+        frame["_elapsed_s"] = frame[time_col].astype(float) - first_t
+        frame = frame[frame["_elapsed_s"] <= window_s]
+        if frame.empty:
+            break
+        t_values = frame["_elapsed_s"].to_numpy(dtype=float)
+        last_t = float(t_values[-1])
+        rows += int(len(frame))
+        front_mask = t_values <= 60.0
+        back_mask = t_values >= max(0.0, window_s - 60.0)
+        for name, csv_col in columns.items():
+            raw_values = frame[csv_col].to_numpy(dtype=float)
+            if zero[name] is None:
+                zero[name] = float(raw_values[0])
+            zeroed = raw_values - float(zero[name])
+            raw_stats[name].add_many(raw_values)
+            zeroed_stats[name].add_many(zeroed)
+            if front_mask.any():
+                front_60s_stats[name].add_many(zeroed[front_mask])
+            if back_mask.any():
+                back_60s_stats[name].add_many(zeroed[back_mask])
+            envelopes[name].add_many(t_values, zeroed)
+        if last_t >= window_s:
+            break
+
+    duration = last_t if last_t is not None else 0.0
+    front_back_delta = {}
+    for name in columns:
+        front = front_60s_stats[name].as_dict()
+        back = back_60s_stats[name].as_dict()
+        front_back_delta[name] = {
+            "front_60s_mean": front["mean"],
+            "back_60s_mean": back["mean"],
+            "back_minus_front": None
+            if front["mean"] is None or back["mean"] is None
+            else float(back["mean"]) - float(front["mean"]),
+        }
+    return {
+        "path": str(path),
+        "rows": rows,
+        "duration_s": duration,
+        "rate_hz": (rows - 1) / duration if rows > 1 and duration > 0 else None,
+        "window_s": window_s,
+        "software_zero": zero,
+        "stats": {name: item.as_dict() for name, item in raw_stats.items()},
+        "zeroed_stats": {name: item.as_dict() for name, item in zeroed_stats.items()},
+        "front_back_60s": front_back_delta,
+        "envelopes": {name: item.as_dict() for name, item in envelopes.items()},
+    }
+
+
 def envelope(points: list[tuple[float, float]], bins: int = 1200) -> dict[str, list[float]]:
     if not points:
         return {"t": [], "min": [], "max": [], "mean": []}
@@ -187,6 +349,11 @@ def plot_envelope(ax: plt.Axes, points: list[tuple[float, float]], label: str, c
     ax.plot(env["t"], env["mean"], color=color, linewidth=1.6, label=label)
 
 
+def plot_precomputed_envelope(ax: plt.Axes, env: dict[str, list[float]], label: str, color: str) -> None:
+    ax.fill_between(env["t"], env["min"], env["max"], color=color, alpha=0.18, linewidth=0)
+    ax.plot(env["t"], env["mean"], color=color, linewidth=1.6, label=label)
+
+
 def save_and_copy(fig: plt.Figure, filename: str) -> dict[str, str]:
     report_path = REPORT_ASSETS / filename
     fig.savefig(report_path, dpi=180)
@@ -196,7 +363,7 @@ def save_and_copy(fig: plt.Figure, filename: str) -> dict[str, str]:
     return {"report": rel_from_report(report_path), "weekly": rel_from_weekly(weekly_path)}
 
 
-def build_figures(kunwei: dict, onrobot: dict) -> dict[str, dict[str, str]]:
+def build_figures(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, long_onrobot: dict) -> dict[str, dict[str, str]]:
     figures: dict[str, dict[str, str]] = {}
 
     fig, axes = plt.subplots(3, 1, figsize=(10.2, 8.2), sharex=True)
@@ -206,22 +373,22 @@ def build_figures(kunwei: dict, onrobot: dict) -> dict[str, dict[str, str]]:
         ("Fy", "Fy_N", "fy_n", "Fy first-zeroed (N)"),
     ]
     for ax, (_, k_col, o_col, ylabel) in zip(axes, pairs):
-        plot_envelope(ax, kunwei["series"][k_col], "Kunwei TCP raw 1 kHz", "#2f8068")
-        plot_envelope(ax, onrobot["series"][o_col], "OnRobot UDP raw 500 Hz", "#2e6ea6")
+        plot_envelope(ax, short_kunwei["series"][k_col], "Kunwei TCP raw 1 kHz", "#2f8068")
+        plot_envelope(ax, short_onrobot["series"][o_col], "OnRobot UDP raw 500 Hz", "#2e6ea6")
         ax.axhline(0.0, color="#7b8794", linewidth=0.8, linestyle="--")
         ax.set_ylabel(ylabel)
         ax.grid(True, alpha=0.25)
     axes[0].legend(loc="upper right", fontsize=8)
-    axes[-1].set_xlabel("Elapsed time in selected window (s)")
+    axes[-1].set_xlabel("Time (s)")
     fig.suptitle("First 600 s force drift comparison, first-sample software zero", y=0.995)
     fig.tight_layout()
     figures["first600_force_axes"] = save_and_copy(fig, "first600_onrobot_kunwei_force_axes_envelope.png")
 
     fig, ax = plt.subplots(figsize=(10.2, 4.8))
-    plot_envelope(ax, kunwei["series"]["Fz_N"], "Kunwei TCP raw 1 kHz", "#2f8068")
-    plot_envelope(ax, onrobot["series"]["fz_n"], "OnRobot UDP raw 500 Hz", "#2e6ea6")
+    plot_envelope(ax, short_kunwei["series"]["Fz_N"], "Kunwei TCP raw 1 kHz", "#2f8068")
+    plot_envelope(ax, short_onrobot["series"]["fz_n"], "OnRobot UDP raw 500 Hz", "#2e6ea6")
     ax.axhline(0.0, color="#7b8794", linewidth=0.8, linestyle="--")
-    ax.set_xlabel("Elapsed time in selected window (s)")
+    ax.set_xlabel("Time (s)")
     ax.set_ylabel("Fz first-zeroed (N)")
     ax.set_title("Fz drift comparison, first 600 s")
     ax.grid(True, alpha=0.25)
@@ -232,12 +399,12 @@ def build_figures(kunwei: dict, onrobot: dict) -> dict[str, dict[str, str]]:
     fig, ax = plt.subplots(figsize=(8.2, 4.6))
     labels = ["Kunwei Fz", "OnRobot Fz", "Kunwei Fx", "OnRobot Fx", "Kunwei Fy", "OnRobot Fy"]
     values = [
-        kunwei["zeroed_stats"]["Fz_N"]["std"],
-        onrobot["zeroed_stats"]["fz_n"]["std"],
-        kunwei["zeroed_stats"]["Fx_N"]["std"],
-        onrobot["zeroed_stats"]["fx_n"]["std"],
-        kunwei["zeroed_stats"]["Fy_N"]["std"],
-        onrobot["zeroed_stats"]["fy_n"]["std"],
+        short_kunwei["zeroed_stats"]["Fz_N"]["std"],
+        short_onrobot["zeroed_stats"]["fz_n"]["std"],
+        short_kunwei["zeroed_stats"]["Fx_N"]["std"],
+        short_onrobot["zeroed_stats"]["fx_n"]["std"],
+        short_kunwei["zeroed_stats"]["Fy_N"]["std"],
+        short_onrobot["zeroed_stats"]["fy_n"]["std"],
     ]
     colors = ["#2f8068", "#2e6ea6", "#2f8068", "#2e6ea6", "#2f8068", "#2e6ea6"]
     ax.bar(labels, values, color=colors)
@@ -247,6 +414,48 @@ def build_figures(kunwei: dict, onrobot: dict) -> dict[str, dict[str, str]]:
     ax.tick_params(axis="x", rotation=25)
     fig.tight_layout()
     figures["first600_std"] = save_and_copy(fig, "first600_onrobot_kunwei_force_std.png")
+
+    fig, axes = plt.subplots(3, 1, figsize=(10.2, 8.2), sharex=True)
+    for ax, (_, k_col, o_col, ylabel) in zip(axes, pairs):
+        plot_precomputed_envelope(ax, long_kunwei["envelopes"][k_col], "Kunwei TCP raw 1 kHz", "#2f8068")
+        plot_precomputed_envelope(ax, long_onrobot["envelopes"][o_col], "OnRobot UDP raw 500 Hz", "#2e6ea6")
+        ax.axhline(0.0, color="#7b8794", linewidth=0.8, linestyle="--")
+        ax.set_ylabel(ylabel)
+        ax.grid(True, alpha=0.25)
+    axes[0].legend(loc="upper right", fontsize=8)
+    axes[-1].set_xlabel("Time (s)")
+    fig.suptitle("6 h force drift comparison, first-sample software zero", y=0.995)
+    fig.tight_layout()
+    figures["sixh_force_axes"] = save_and_copy(fig, "sixh_onrobot_kunwei_force_axes_envelope.png")
+
+    fig, ax = plt.subplots(figsize=(10.2, 4.8))
+    plot_precomputed_envelope(ax, long_kunwei["envelopes"]["Fz_N"], "Kunwei TCP raw 1 kHz", "#2f8068")
+    plot_precomputed_envelope(ax, long_onrobot["envelopes"]["fz_n"], "OnRobot UDP raw 500 Hz", "#2e6ea6")
+    ax.axhline(0.0, color="#7b8794", linewidth=0.8, linestyle="--")
+    ax.set_xlabel("Time (s)")
+    ax.set_ylabel("Fz first-zeroed (N)")
+    ax.set_title("Fz drift comparison, 6 h")
+    ax.grid(True, alpha=0.25)
+    ax.legend(loc="upper right", fontsize=8)
+    fig.tight_layout()
+    figures["sixh_fz"] = save_and_copy(fig, "sixh_onrobot_kunwei_fz_envelope.png")
+
+    fig, ax = plt.subplots(figsize=(8.2, 4.6))
+    values = [
+        long_kunwei["zeroed_stats"]["Fz_N"]["std"],
+        long_onrobot["zeroed_stats"]["fz_n"]["std"],
+        long_kunwei["zeroed_stats"]["Fx_N"]["std"],
+        long_onrobot["zeroed_stats"]["fx_n"]["std"],
+        long_kunwei["zeroed_stats"]["Fy_N"]["std"],
+        long_onrobot["zeroed_stats"]["fy_n"]["std"],
+    ]
+    ax.bar(labels, values, color=colors)
+    ax.set_ylabel("Std after first-sample zero (N)")
+    ax.set_title("6 h force noise/drift scale")
+    ax.grid(axis="y", alpha=0.25)
+    ax.tick_params(axis="x", rotation=25)
+    fig.tight_layout()
+    figures["sixh_std"] = save_and_copy(fig, "sixh_onrobot_kunwei_force_std.png")
 
     return figures
 
@@ -280,6 +489,44 @@ def rows_for_force_table(kunwei: dict, onrobot: dict) -> str:
                         fmt(z["mean"], 4),
                         fmt(z["std"], 4),
                         fmt(z["last_first"], 4),
+                        f"{fmt(raw['min'], 3)} / {fmt(raw['max'], 3)}",
+                    ]
+                )
+                + " |"
+            )
+    return "\n".join(rows)
+
+
+def rows_for_long_force_table(kunwei: dict, onrobot: dict) -> str:
+    mapping = [
+        ("Fx", "Fx_N", "fx_n"),
+        ("Fy", "Fy_N", "fy_n"),
+        ("Fz", "Fz_N", "fz_n"),
+    ]
+    rows = [
+        "| Sensor | Axis | samples | duration (h) | rate (Hz) | zeroed std (N) | zeroed last-first (N) | back60-front60 mean (N) | raw min/max (N) |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---|",
+    ]
+    for axis, k_col, o_col in mapping:
+        for label, data, col in [
+            ("Kunwei TCP raw", kunwei, k_col),
+            ("OnRobot UDP raw", onrobot, o_col),
+        ]:
+            z = data["zeroed_stats"][col]
+            raw = data["stats"][col]
+            fb = data["front_back_60s"][col]
+            rows.append(
+                "| "
+                + " | ".join(
+                    [
+                        label,
+                        axis,
+                        fmt(data["rows"]),
+                        fmt(data["duration_s"] / 3600.0, 3),
+                        fmt(data["rate_hz"], 3),
+                        fmt(z["std"], 4),
+                        fmt(z["last_first"], 4),
+                        fmt(fb["back_minus_front"], 4),
                         f"{fmt(raw['min'], 3)} / {fmt(raw['max'], 3)}",
                     ]
                 )
@@ -339,19 +586,32 @@ def step2c_metrics(step2c: dict) -> dict:
     }
 
 
-def write_summary_json(kunwei: dict, onrobot: dict, figures: dict, long_summary: dict, step2c: dict) -> Path:
+def strip_plot_data(data: dict) -> dict:
+    return {
+        key: value
+        for key, value in data.items()
+        if key not in {"series", "raw_series", "envelopes"}
+    }
+
+
+def write_summary_json(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, long_onrobot: dict, figures: dict, long_summary: dict, step2c: dict) -> Path:
     payload = {
-        "window_s": WINDOW_S,
-        "comparison_note": "Both streams use first-sample software zero in their own first 600 s windows; this is not a same-fixture absolute calibration comparison.",
-        "kunwei_tcp_raw_first600": {
-            key: value
-            for key, value in kunwei.items()
-            if key not in {"series", "raw_series"}
+        "comparison_note": "Both streams use first-sample software zero in their own selected windows; this is not a same-fixture absolute calibration comparison.",
+        "available_duration": {
+            "kunwei_s": 69325.77287676797,
+            "onrobot_udp_s": COMMON_MAX_WINDOW_S,
+            "common_max_s": COMMON_MAX_WINDOW_S,
+            "report_long_window_s": LONG_WINDOW_S,
         },
-        "onrobot_udp_raw_first600": {
-            key: value
-            for key, value in onrobot.items()
-            if key not in {"series", "raw_series"}
+        "short_600s": {
+            "window_s": WINDOW_S,
+            "kunwei_tcp_raw": strip_plot_data(short_kunwei),
+            "onrobot_udp_raw": strip_plot_data(short_onrobot),
+        },
+        "long_6h": {
+            "window_s": LONG_WINDOW_S,
+            "kunwei_tcp_raw": strip_plot_data(long_kunwei),
+            "onrobot_udp_raw": strip_plot_data(long_onrobot),
         },
         "long_run_overall": long_summary.get("overall", {}),
         "step2c_summary": step2c.get("summary", {}),
@@ -363,7 +623,7 @@ def write_summary_json(kunwei: dict, onrobot: dict, figures: dict, long_summary:
     return out
 
 
-def build_markdown(kunwei: dict, onrobot: dict, figures: dict, summary_json: Path, long_summary: dict, step2c: dict) -> str:
+def build_markdown(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, long_onrobot: dict, figures: dict, summary_json: Path, long_summary: dict, step2c: dict) -> str:
     overall = long_overall_metrics(long_summary)
     stage25 = step2c["stage25_force_all"]
     stage25_after = step2c["stage25_force_after_0p5s"]
@@ -376,7 +636,7 @@ def build_markdown(kunwei: dict, onrobot: dict, figures: dict, summary_json: Pat
 
 ## 实验目的
 
-这份报告把 Kunwei KWR75/KWR75B 当前证据单独整理出来，用于说明三件事：传感器与通信链路是否已经可用，长时间无运动 1 kHz 采集是否稳定，以及当前 Step2C 闭环直线实验走到什么程度。最后一节把 Kunwei 与 OnRobot 的前 `600 s` 传感器读数放在同一张图里，但只作为 drift/noise 口径对照，不作为同机械状态下的绝对标定结论。
+这份报告把 Kunwei KWR75/KWR75B 当前证据单独整理出来，用于说明三件事：传感器与通信链路是否已经可用，长时间无运动 `1 kHz` 采集是否稳定，以及当前 Step2C 闭环直线实验走到什么程度。报告包含两层 OnRobot/Kunwei 对比：前 `600 s` 用于短窗口 noise/drift 判断，`6 h` 用于长时间漂移判断。两者都只作为 drift/noise 口径对照，不作为同机械状态下的绝对标定结论。
 
 结论先给出：Kunwei TCP raw logging 已经支撑 `19 h 15 min`、约 `1 kHz`、无 parse error 的长跑；Step2C 已经完成 `search5 + guard20` 下的闭环直线，力均值能靠近 `-5 N`，但进入 line 阶段的瞬态和 Fz 波动仍是主要问题。机器人侧运动闭环频率不能写成 `500 Hz`，本轮 stage25 echo/motion gate 实测约 `{fmt(stage25_echo['rate_hz'], 2)} Hz`。
 
@@ -392,6 +652,7 @@ def build_markdown(kunwei: dict, onrobot: dict, figures: dict, summary_json: Pat
 | Step2C zero 口径 | bridge 软件 baseline；未调用 Kunwei hardware tare，未调用 UR `zero_ftsensor()` |
 | Step2C 参考线 | 长度约 `63.58 mm` 的 XY straight-line reference |
 | 本报告图表口径 | 统计用选定窗口内全样本；长 trace 图用 min/max envelope，不用等间隔抽样线作为主证据 |
+| 最长可用公共窗口 | Kunwei `19.26 h`，OnRobot UDP `8.79 h`；本报告长对比采用更适合汇报的 `6 h` |
 
 ## 实验命令
 
@@ -408,18 +669,31 @@ def build_markdown(kunwei: dict, onrobot: dict, figures: dict, summary_json: Pat
 | Kunwei 19h15min logger summary | [../ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/summary.json](../ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/summary.json) |
 | Step2C metrics | [assets/step2c-kunwei-search5-guard20-line2ms/analysis-metrics.json](assets/step2c-kunwei-search5-guard20-line2ms/analysis-metrics.json) |
 | OnRobot 600s UDP raw CSV | [../experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv](../experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv) |
+| OnRobot 6h UDP raw CSV | [../experiments/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217/three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv](../experiments/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217/three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv) |
 
 图 1 是本报告最主要的 OnRobot/Kunwei 前 `600 s` 对比图。两条曲线都先减去各自窗口第一帧，因此显示的是本窗口内的相对变化。阴影是每个时间 bin 内的 min/max envelope，实线是 bin mean；统计表仍使用窗口内所有样本。
 
 ![OnRobot vs Kunwei first 600s force axes]({figures['first600_force_axes']['report']})
 
-图 2 单独展开 Fz。Kunwei 前 `600 s` 的 first-zeroed Fz 标准差是 `{fmt(kunwei['zeroed_stats']['Fz_N']['std'], 4)} N`，OnRobot UDP raw 是 `{fmt(onrobot['zeroed_stats']['fz_n']['std'], 4)} N`。这个数值不能直接解释成传感器规格优劣，因为两个窗口的安装、载荷和日期不同。
+图 2 单独展开 Fz。Kunwei 前 `600 s` 的 first-zeroed Fz 标准差是 `{fmt(short_kunwei['zeroed_stats']['Fz_N']['std'], 4)} N`，OnRobot UDP raw 是 `{fmt(short_onrobot['zeroed_stats']['fz_n']['std'], 4)} N`。这个数值不能直接解释成传感器规格优劣，因为两个窗口的安装、载荷和日期不同。
 
 ![OnRobot vs Kunwei first 600s Fz]({figures['first600_fz']['report']})
 
 图 3 把前三个力轴的 first-zeroed 标准差放在同一张图里，用于快速看 `600 s` 窗口内的波动量级。
 
 ![OnRobot vs Kunwei first 600s std]({figures['first600_std']['report']})
+
+图 4 是本次新增的 `6 h` 长时间 Fz 对比。当前本地数据的最长公共窗口是 `8.79 h`，但本报告采用 `6 h` 作为主图口径，避免把会议汇报拖进过长的历史细节。统计仍使用 `6 h` 内全样本，图中阴影仍是 min/max envelope。
+
+![OnRobot vs Kunwei 6h Fz]({figures['sixh_fz']['report']})
+
+图 5 展示 `6 h` 的 Fx/Fy/Fz 三轴上下文。它用于判断 Fz 漂移是否伴随横向力变化。
+
+![OnRobot vs Kunwei 6h force axes]({figures['sixh_force_axes']['report']})
+
+图 6 是 `6 h` 窗口下三个力轴的 first-zeroed 标准差。
+
+![OnRobot vs Kunwei 6h std]({figures['sixh_std']['report']})
 
 ## 统计结果
 
@@ -458,18 +732,26 @@ def build_markdown(kunwei: dict, onrobot: dict, figures: dict, summary_json: Pat
 
 ### OnRobot vs Kunwei 前 600s
 
-{rows_for_force_table(kunwei, onrobot)}
+{rows_for_force_table(short_kunwei, short_onrobot)}
 
-{rows_for_torque_table(kunwei, onrobot)}
+{rows_for_torque_table(short_kunwei, short_onrobot)}
 
 比较限制必须写清楚：Kunwei 的前 `600 s` 来自 `19h15min` 未归零静态长跑，OnRobot 来自 `20260528` 的 dedicated `600s_first_zero` run；两者不是同一天、同治具、同预载的同步 A/B。这里能比较的是当前可用 raw stream 在自身 first-zero 口径下的短窗口稳定性和采样路线差异。
+
+### OnRobot vs Kunwei 6h
+
+本地可用数据里，Kunwei 最长为 `19.26 h`，OnRobot UDP raw 最长为 `8.79 h`，两者最长公共窗口为 `8.79 h`。本报告采用 `6 h` 作为长时间对比主口径；这个窗口已经足够覆盖慢漂移趋势，也更适合会议图表。
+
+{rows_for_long_force_table(long_kunwei, long_onrobot)}
+
+这个 `6 h` 对比仍然不是严格同治具同步 A/B。它更适合回答“当前两条 raw stream 的长窗口稳定性量级如何”，不适合回答“哪个传感器绝对零点更准”。
 
 ## 结论
 
 1. Kunwei TCP raw logging 路线已经可用：`19 h 15 min` 内约 `1 kHz`，`parse_errors=0`，`dropped_sync_bytes=0`。
 2. Kunwei 已经从传感器 bring-up 进入机器人闭环验证阶段。Step2C 主 run 能完成搜索、直线、卸载和回撤；均值层面能围绕 `-5 N` 工作。
 3. 当前不能把 Step2C 写成机器人侧 `500 Hz` 闭环。bridge/RTDE logging 是 500Hz 级，但 URScript stage25 echo/motion gate 约 `{fmt(stage25_echo['rate_hz'], 2)} Hz`。
-4. OnRobot/Kunwei 前 `600 s` 对比图说明两条 raw stream 都可以做短窗口漂移分析；但由于机械状态不同，报告只解释相对漂移和波动，不解释绝对偏置或规格优劣。
+4. OnRobot/Kunwei 前 `600 s` 与 `6 h` 对比图说明两条 raw stream 都可以做短窗口和长窗口漂移分析；但由于机械状态不同，报告只解释相对漂移和波动，不解释绝对偏置或规格优劣。
 
 ## 下一步
 
@@ -487,7 +769,7 @@ python3 /home/andy/ur10e_ros2_ws/weekly_meeting/build_kunwei_kwr75_report.py
 
 ### 生成口径
 
-脚本读取 Kunwei raw CSV 到 `t <= 600 s` 即停止，不扫描完整 `18 GB` 文件。统计直接使用窗口内所有样本；图形先按时间 bin 聚合为 min/max/mean envelope，保留尖峰范围，不使用等间隔抽样折线作为主要证据。HTML deck 只使用生成的数据图，没有抽取或嵌入新的视频帧。
+脚本对 `600 s` 窗口保留短窗口点列；对 `6 h` 窗口只保留统计量和时间 bin envelope，不把千万级样本全部留在内存里。统计直接使用窗口内所有样本；图形先按时间 bin 聚合为 min/max/mean envelope，保留尖峰范围，不使用等间隔抽样折线作为主要证据。HTML deck 只使用生成的数据图，没有抽取或嵌入新的视频帧。
 """
 
 
@@ -495,7 +777,7 @@ def html_metric(label: str, value: str) -> str:
     return f"<div class=\"metric\"><span>{label}</span><strong>{value}</strong></div>"
 
 
-def build_html(kunwei: dict, onrobot: dict, figures: dict, long_summary: dict, step2c: dict) -> str:
+def build_html(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, long_onrobot: dict, figures: dict, long_summary: dict, step2c: dict) -> str:
     overall = long_overall_metrics(long_summary)
     stage25 = step2c["stage25_force_all"]
     path_metrics = step2c["path_metrics"]
@@ -504,6 +786,9 @@ def build_html(kunwei: dict, onrobot: dict, figures: dict, long_summary: dict, s
     force_img = figures["first600_force_axes"]["weekly"]
     fz_img = figures["first600_fz"]["weekly"]
     std_img = figures["first600_std"]["weekly"]
+    sixh_force_img = figures["sixh_force_axes"]["weekly"]
+    sixh_fz_img = figures["sixh_fz"]["weekly"]
+    sixh_std_img = figures["sixh_std"]["weekly"]
 
     return f"""<!doctype html>
 <html lang="en">
@@ -592,6 +877,7 @@ def build_html(kunwei: dict, onrobot: dict, figures: dict, long_summary: dict, s
     .span-8 {{ grid-column: span 8; }}
     .span-12 {{ grid-column: span 12; }}
     .metric {{
+      grid-column: span 3;
       border: 1px solid var(--line);
       background: var(--panel);
       border-radius: 8px;
@@ -656,6 +942,7 @@ def build_html(kunwei: dict, onrobot: dict, figures: dict, long_summary: dict, s
     <a href="#link">1 kHz Link</a>
     <a href="#step2c">Step2C</a>
     <a href="#compare">600 s Compare</a>
+    <a href="#long-compare">6 h Compare</a>
     <a href="#next">Next</a>
   </nav>
   <main>
@@ -668,6 +955,7 @@ def build_html(kunwei: dict, onrobot: dict, figures: dict, long_summary: dict, s
         {html_metric("Average raw rate", f"{fmt(overall['rate_hz'], 3)} Hz")}
         {html_metric("Frame errors", "0 parse / 0 sync")}
         {html_metric("Step2C state", "line completed")}
+        {html_metric("Long comparison", "6 h selected")}
       </div>
     </section>
     <section id="link">
@@ -697,9 +985,23 @@ def build_html(kunwei: dict, onrobot: dict, figures: dict, long_summary: dict, s
       <h2>OnRobot vs Kunwei, first 600 s</h2>
       <p>Both traces are first-sample software zeroed inside their own 600 s windows. The shaded region is a min/max envelope; statistics use all samples in the selected window.</p>
       <div class="grid">
-        <figure class="span-12"><img src="{force_img}" alt="First 600 s force axes comparison"><figcaption>Fx/Fy/Fz first-zeroed envelopes. This compares short-window stability, not absolute bias.</figcaption></figure>
-        <figure class="span-7"><img src="{fz_img}" alt="First 600 s Fz comparison"><figcaption>Fz detail, first-zeroed within each sensor's own run.</figcaption></figure>
-        <figure class="span-5"><img src="{std_img}" alt="First 600 s force standard deviation"><figcaption>Force-axis standard deviation in the first 600 s windows.</figcaption></figure>
+        <figure class="span-12"><img src="{force_img}" alt="First 600 s force axes comparison"><figcaption>Fig. 1. Fx/Fy/Fz first-zeroed envelopes. This compares short-window stability, not absolute bias.</figcaption></figure>
+        <figure class="span-7"><img src="{fz_img}" alt="First 600 s Fz comparison"><figcaption>Fig. 2. Fz detail, first-zeroed within each sensor's own run.</figcaption></figure>
+        <figure class="span-5"><img src="{std_img}" alt="First 600 s force standard deviation"><figcaption>Fig. 3. Force-axis standard deviation in the first 600 s windows.</figcaption></figure>
+      </div>
+    </section>
+    <section id="long-compare">
+      <div class="eyebrow">Sensor comparison</div>
+      <h2>OnRobot vs Kunwei, 6 h</h2>
+      <p>The local common maximum is 8.79 h, limited by the OnRobot UDP run. This deck uses 6 h as the main long-window comparison so the result stays readable and avoids overfitting the meeting story to a tail segment.</p>
+      <div class="grid">
+        {html_metric("Kunwei available", "19.26 h")}
+        {html_metric("OnRobot available", "8.79 h")}
+        {html_metric("Common max", "8.79 h")}
+        {html_metric("Selected window", "6.00 h")}
+        <figure class="span-12"><img src="{sixh_fz_img}" alt="6 h Fz comparison"><figcaption>Fig. 4. Fz first-zeroed envelope for the selected 6 h comparison window. Statistics use all samples in the window.</figcaption></figure>
+        <figure class="span-12"><img src="{sixh_force_img}" alt="6 h force axes comparison"><figcaption>Fig. 5. Fx/Fy/Fz first-zeroed envelopes over 6 h. This is a long-window drift comparison, not an absolute calibration claim.</figcaption></figure>
+        <figure class="span-12"><img src="{sixh_std_img}" alt="6 h force standard deviation"><figcaption>Fig. 6. Force-axis standard deviation over the selected 6 h window.</figcaption></figure>
       </div>
     </section>
     <section id="next">
@@ -732,8 +1034,9 @@ def main() -> None:
     load_json(KUNWEI_LONG_SUMMARY)
     load_json(ONROBOT_SUMMARY)
     load_json(ONROBOT_ALIGNMENT)
+    load_json(ONROBOT_LONG_SUMMARY)
 
-    kunwei = scan_window(
+    short_kunwei = scan_window(
         KUNWEI_LONG_CSV,
         "t_monotonic_s",
         {
@@ -745,7 +1048,7 @@ def main() -> None:
             "Mz_Nm": "Mz_Nm",
         },
     )
-    onrobot = scan_window(
+    short_onrobot = scan_window(
         ONROBOT_UDP_CSV,
         "t_s",
         {
@@ -757,16 +1060,42 @@ def main() -> None:
             "tz_nm": "tz_nm",
         },
     )
+    long_kunwei = scan_window_envelope(
+        KUNWEI_LONG_CSV,
+        "t_monotonic_s",
+        {
+            "Fx_N": "Fx_N",
+            "Fy_N": "Fy_N",
+            "Fz_N": "Fz_N",
+            "Mx_Nm": "Mx_Nm",
+            "My_Nm": "My_Nm",
+            "Mz_Nm": "Mz_Nm",
+        },
+        window_s=LONG_WINDOW_S,
+    )
+    long_onrobot = scan_window_envelope(
+        ONROBOT_LONG_UDP_CSV,
+        "t_s",
+        {
+            "fx_n": "fx_n",
+            "fy_n": "fy_n",
+            "fz_n": "fz_n",
+            "tx_nm": "tx_nm",
+            "ty_nm": "ty_nm",
+            "tz_nm": "tz_nm",
+        },
+        window_s=LONG_WINDOW_S,
+    )
 
-    figures = build_figures(kunwei, onrobot)
-    summary_json = write_summary_json(kunwei, onrobot, figures, long_summary, step2c)
+    figures = build_figures(short_kunwei, short_onrobot, long_kunwei, long_onrobot)
+    summary_json = write_summary_json(short_kunwei, short_onrobot, long_kunwei, long_onrobot, figures, long_summary, step2c)
 
     REPORT_MD.write_text(
-        build_markdown(kunwei, onrobot, figures, summary_json, long_summary, step2c),
+        build_markdown(short_kunwei, short_onrobot, long_kunwei, long_onrobot, figures, summary_json, long_summary, step2c),
         encoding="utf-8",
     )
     REPORT_HTML.write_text(
-        build_html(kunwei, onrobot, figures, long_summary, step2c),
+        build_html(short_kunwei, short_onrobot, long_kunwei, long_onrobot, figures, long_summary, step2c),
         encoding="utf-8",
     )
     print(json.dumps({

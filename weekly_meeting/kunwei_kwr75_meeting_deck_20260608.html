@@ -85,6 +85,7 @@
     .span-8 { grid-column: span 8; }
     .span-12 { grid-column: span 12; }
     .metric {
+      grid-column: span 3;
       border: 1px solid var(--line);
       background: var(--panel);
       border-radius: 8px;
@@ -149,6 +150,7 @@
     <a href="#link">1 kHz Link</a>
     <a href="#step2c">Step2C</a>
     <a href="#compare">600 s Compare</a>
+    <a href="#long-compare">6 h Compare</a>
     <a href="#next">Next</a>
   </nav>
   <main>
@@ -161,6 +163,7 @@
         <div class="metric"><span>Average raw rate</span><strong>999.990 Hz</strong></div>
         <div class="metric"><span>Frame errors</span><strong>0 parse / 0 sync</strong></div>
         <div class="metric"><span>Step2C state</span><strong>line completed</strong></div>
+        <div class="metric"><span>Long comparison</span><strong>6 h selected</strong></div>
       </div>
     </section>
     <section id="link">
@@ -190,9 +193,23 @@
       <h2>OnRobot vs Kunwei, first 600 s</h2>
       <p>Both traces are first-sample software zeroed inside their own 600 s windows. The shaded region is a min/max envelope; statistics use all samples in the selected window.</p>
       <div class="grid">
-        <figure class="span-12"><img src="assets/kunwei_kwr75_20260608/first600_onrobot_kunwei_force_axes_envelope.png" alt="First 600 s force axes comparison"><figcaption>Fx/Fy/Fz first-zeroed envelopes. This compares short-window stability, not absolute bias.</figcaption></figure>
-        <figure class="span-7"><img src="assets/kunwei_kwr75_20260608/first600_onrobot_kunwei_fz_envelope.png" alt="First 600 s Fz comparison"><figcaption>Fz detail, first-zeroed within each sensor's own run.</figcaption></figure>
-        <figure class="span-5"><img src="assets/kunwei_kwr75_20260608/first600_onrobot_kunwei_force_std.png" alt="First 600 s force standard deviation"><figcaption>Force-axis standard deviation in the first 600 s windows.</figcaption></figure>
+        <figure class="span-12"><img src="assets/kunwei_kwr75_20260608/first600_onrobot_kunwei_force_axes_envelope.png" alt="First 600 s force axes comparison"><figcaption>Fig. 1. Fx/Fy/Fz first-zeroed envelopes. This compares short-window stability, not absolute bias.</figcaption></figure>
+        <figure class="span-7"><img src="assets/kunwei_kwr75_20260608/first600_onrobot_kunwei_fz_envelope.png" alt="First 600 s Fz comparison"><figcaption>Fig. 2. Fz detail, first-zeroed within each sensor's own run.</figcaption></figure>
+        <figure class="span-5"><img src="assets/kunwei_kwr75_20260608/first600_onrobot_kunwei_force_std.png" alt="First 600 s force standard deviation"><figcaption>Fig. 3. Force-axis standard deviation in the first 600 s windows.</figcaption></figure>
+      </div>
+    </section>
+    <section id="long-compare">
+      <div class="eyebrow">Sensor comparison</div>
+      <h2>OnRobot vs Kunwei, 6 h</h2>
+      <p>The local common maximum is 8.79 h, limited by the OnRobot UDP run. This deck uses 6 h as the main long-window comparison so the result stays readable and avoids overfitting the meeting story to a tail segment.</p>
+      <div class="grid">
+        <div class="metric"><span>Kunwei available</span><strong>19.26 h</strong></div>
+        <div class="metric"><span>OnRobot available</span><strong>8.79 h</strong></div>
+        <div class="metric"><span>Common max</span><strong>8.79 h</strong></div>
+        <div class="metric"><span>Selected window</span><strong>6.00 h</strong></div>
+        <figure class="span-12"><img src="assets/kunwei_kwr75_20260608/sixh_onrobot_kunwei_fz_envelope.png" alt="6 h Fz comparison"><figcaption>Fig. 4. Fz first-zeroed envelope for the selected 6 h comparison window. Statistics use all samples in the window.</figcaption></figure>
+        <figure class="span-12"><img src="assets/kunwei_kwr75_20260608/sixh_onrobot_kunwei_force_axes_envelope.png" alt="6 h force axes comparison"><figcaption>Fig. 5. Fx/Fy/Fz first-zeroed envelopes over 6 h. This is a long-window drift comparison, not an absolute calibration claim.</figcaption></figure>
+        <figure class="span-12"><img src="assets/kunwei_kwr75_20260608/sixh_onrobot_kunwei_force_std.png" alt="6 h force standard deviation"><figcaption>Fig. 6. Force-axis standard deviation over the selected 6 h window.</figcaption></figure>
       </div>
     </section>
     <section id="next">
