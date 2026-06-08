@@ -33,6 +33,7 @@ Bridge lifecycle:
 
 Motion settings in the TP program:
   pre-contact: v4-style bounded Z prep into old contact Z + 30..200 mm, with stopl after orientation/XY/Z moves
+  search-depth limit: dynamic from actual search-start Z to old contact Z - 10 mm; no failure auto-retract
   far search: 30 mm/s, 500 mm/s^2, speedl t=2 ms
   near search: 5 mm/s inside 10 mm above known contact Z, speedl t=2 ms
   soft acquisition: 2 N velocity admittance, gain 0.0030, vlim 8 mm/s, speedl t=2 ms
@@ -419,7 +420,7 @@ mode="${1:-}"
 case "${mode}" in
   autowatch)
     cat <<'WARNING'
-STEP2C admittance-search30 v5 v4z30-200 damp50 autowatch.
+STEP2C admittance-search30 v5 v4z30-200 damp50 depthfix autowatch.
 This mode waits for Teach Pendant Play first.
 It does not start Kunwei streaming or write RTDE inputs while waiting.
 
@@ -435,7 +436,7 @@ WARNING
     wait_for_tp_play_autowatch
 
     STAMP="$(date +%Y%m%d_%H%M%S)"
-    out_dir="${RUN_ROOT}/bridge_step2c_admittance_search30_v5_v4z30_200_damp50_autowatch_search2ms_line1ms_alpha70_${STAMP}"
+    out_dir="${RUN_ROOT}/bridge_step2c_admittance_search30_v5_v4z30_200_damp50_depthfix_autowatch_search2ms_line1ms_alpha70_${STAMP}"
     mkdir -p "${out_dir}"
 
     bridge_pid=""
@@ -488,7 +489,7 @@ WARNING
     ;;
   bridge)
     cat <<'WARNING'
-STEP2C admittance-search30 v5 v4z30-200 damp50 lifecycle bridge.
+STEP2C admittance-search30 v5 v4z30-200 damp50 depthfix lifecycle bridge.
 This sends Kunwei 48 AA 0D 0A and writes UR RTDE input registers.
 It does not send URScript from Ubuntu.
 
@@ -521,7 +522,7 @@ WARNING
       exit 2
     fi
 
-    out_dir="${RUN_ROOT}/bridge_step2c_admittance_search30_v5_v4z30_200_damp50_search2ms_line1ms_alpha70_${STAMP}"
+    out_dir="${RUN_ROOT}/bridge_step2c_admittance_search30_v5_v4z30_200_damp50_depthfix_search2ms_line1ms_alpha70_${STAMP}"
     mkdir -p "${out_dir}"
 
     bridge_pid=""

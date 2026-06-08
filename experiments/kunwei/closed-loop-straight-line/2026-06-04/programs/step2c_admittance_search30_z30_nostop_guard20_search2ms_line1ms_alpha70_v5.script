@@ -1,6 +1,6 @@
-# Step2C admittance search30 v5: v4-style pre-contact approach with a 30-200 mm Z window and 50 percent lower normal admittance gain; TP-openable package.
-# VERSION: 2026-06-08T1430HKT_STEP2C_V5_V4Z30_200_DAMP50
-# GENERATED_AT_LOCAL: 2026-06-08T14:30:47+0800
+# Step2C admittance search30 v5: v4-style pre-contact approach with a 30-200 mm Z window, 50 percent lower normal admittance gain, and dynamic search-depth limit; TP-openable package.
+# VERSION: 2026-06-08T1435HKT_STEP2C_V5_V4Z30_200_DAMP50_DEPTHFIX_NOFAILRETRACT
+# GENERATED_AT_LOCAL: 2026-06-08T14:35:56+0800
 # BEHAVIOR: wait for Kunwei bridge; align to old reference orientation; move to
 # old contact-start XY; then bound the Z prep into old contact Z + 30..200 mm.
 # If the current Z is already inside that window, keep it; otherwise move to the
@@ -11,7 +11,10 @@
 # soft acquisition targeting 2 N. The
 # first 0.10 s of line control uses 10 ms speedl holds, then line control
 # switches to 1 ms holds. Normal admittance P/I gains are reduced by 50 percent
-# relative to the prior v4/v5 controller.
+# relative to the prior v4/v5 controller. Search-depth timeout is computed
+# from the actual search-start Z so a 30-200 mm prep window can still search to
+# 10 mm below known contact Z. A search-depth failure stops in place; it does
+# not auto-retract upward.
 # Aggressive normal Z correction targets signed Fz ~= -target_force_abs, where the bridge
 # normally writes target_force_abs=5 N into input register 29.
 # Raw contact triggers and safety guards remain unfiltered; only controller
@@ -144,7 +147,7 @@ def codex_step2c_full():
 
   local home_pose = get_actual_tcp_pose()
 
-  textmsg("codex step2c version 2026-06-08T1430HKT_STEP2C_V5_V4Z30_200_DAMP50 start admittance_search30_v5_v4z30_200_damp50_short_retract_home_return")
+  textmsg("codex step2c version 2026-06-08T1435HKT_STEP2C_V5_V4Z30_200_DAMP50_DEPTHFIX_NOFAILRETRACT start admittance_search30_v5_v4z30_200_damp50_depthfix_short_retract_home_return")
   write_output_float_register(35, 20.0)
   codex_write_echo(0.0, 0.0, 0.0, 0.0)
 
@@ -185,6 +188,12 @@ def codex_step2c_full():
   if stop_reason == 0.0:
     write_output_float_register(35, 24.0)
     local search_start = get_actual_tcp_pose()
+    max_search_down_m = search_start[2] - old_contact_z + 0.010
+    if max_search_down_m < 0.040:
+      max_search_down_m = 0.040
+    elif max_search_down_m > 0.210:
+      max_search_down_m = 0.210
+    end
     local last_heartbeat = read_input_float_register(26)
     local stale_s = 0.0
     local t = 0.0
@@ -287,13 +296,6 @@ def codex_step2c_full():
     end
     stopl(0.5)
 
-    if stop_reason == 8.0:
-      write_output_float_register(35, 28.0)
-      local p_end = get_actual_tcp_pose()
-      local retract_pose = p[p_end[0], p_end[1], entry_z, p_end[3], p_end[4], p_end[5]]
-      movel(retract_pose, a=0.030, v=0.005, r=0.0)
-      stopl(0.5)
-    end
   end
 
   if contact_triggered == 1:
@@ -379,7 +381,7 @@ def codex_step2c_full():
   write_output_float_register(30, stop_reason)
   write_output_float_register(31, max_observed_stale_s)
   write_output_float_register(35, 29.0)
-  textmsg("codex step2c version 2026-06-08T1430HKT_STEP2C_V5_V4Z30_200_DAMP50 stop reason:", stop_reason)
+  textmsg("codex step2c version 2026-06-08T1435HKT_STEP2C_V5_V4Z30_200_DAMP50_DEPTHFIX_NOFAILRETRACT stop reason:", stop_reason)
 end
 
 codex_step2c_full()
