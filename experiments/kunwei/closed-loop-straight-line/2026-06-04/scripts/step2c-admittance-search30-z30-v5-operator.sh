@@ -9,18 +9,22 @@ EXPECTED_BASENAME="step2c_admittance_search30_z30_nostop_guard20_search2ms_line1
 ROBOT_HOST="${ROBOT_HOST:-192.168.1.18}"
 DASHBOARD_PORT="${DASHBOARD_PORT:-29999}"
 WAIT_FOR_PLAY_S="${WAIT_FOR_PLAY_S:-45}"
+AUTOWATCH_WAIT_FOR_PLAY_S="${AUTOWATCH_WAIT_FOR_PLAY_S:-600}"
 DASHBOARD_MISS_LIMIT_S="${DASHBOARD_MISS_LIMIT_S:-5}"
+BENCH_GATE="/home/andy/codex-private-skills/skills/ur10e-realsetup/scripts/check_ubuntu_network.py"
 
 usage() {
   cat <<'USAGE'
 Usage:
   step2c-admittance-search30-z30-v5-operator.sh bridge
+  step2c-admittance-search30-z30-v5-operator.sh autowatch
 
 Teach Pendant program:
   /programs/andyl/kunwei/step2/step2c_admittance_search30_z30_nostop_guard20_search2ms_line1ms_alpha70_v5.urp
 
 Bridge lifecycle:
-  starts Kunwei/RTDE bridge, then waits up to 45 s for TP Play
+  bridge: starts Kunwei/RTDE bridge, then waits up to 45 s for TP Play
+  autowatch: waits for TP Play, then starts Kunwei/RTDE bridge automatically
   stops bridge when the TP program stops, safety is not NORMAL, or Dashboard is unreachable
   sends Kunwei stop-stream quiet command after bridge exit
   writes stage_frequency_summary.json after bridge exit
@@ -33,6 +37,18 @@ Motion settings in the TP program:
   line: 10 mm/s tangent, 500 mm/s^2, first 0.10 s at t=10 ms, then t=1 ms
   success exit: retract upward 10 mm, then movel back to TP-start home pose
 USAGE
+}
+
+run_bench_gate() {
+  python3 "${BENCH_GATE}" --include-kunwei --json-only
+}
+
+ensure_no_existing_bridge() {
+  if pgrep -f "${ROOT}/tools/kunwei_rtde_bridge.py" >/dev/null 2>&1; then
+    echo "refusing: an existing Kunwei RTDE bridge process is already active"
+    pgrep -af "${ROOT}/tools/kunwei_rtde_bridge.py" || true
+    exit 3
+  fi
 }
 
 stage_summary() {
@@ -110,7 +126,8 @@ PY
 
 dashboard_monitor() {
   local bridge_pid="$1"
-  python3 - "$bridge_pid" "$EXPECTED_PROGRAM" "$EXPECTED_BASENAME" "$ROBOT_HOST" "$DASHBOARD_PORT" "$WAIT_FOR_PLAY_S" "$DASHBOARD_MISS_LIMIT_S" <<'PY'
+  local initial_state="${2:-wait_for_play}"
+  python3 - "$bridge_pid" "$EXPECTED_PROGRAM" "$EXPECTED_BASENAME" "$ROBOT_HOST" "$DASHBOARD_PORT" "$WAIT_FOR_PLAY_S" "$DASHBOARD_MISS_LIMIT_S" "$initial_state" <<'PY'
 import os
 import socket
 import sys
@@ -123,6 +140,7 @@ host = sys.argv[4]
 port = int(sys.argv[5])
 wait_for_play_s = float(sys.argv[6])
 miss_limit_s = float(sys.argv[7])
+initial_state = sys.argv[8]
 
 def bridge_alive():
     try:
@@ -171,11 +189,14 @@ def stop_bridge(reason):
         except OSError:
             pass
 
-print('[operator] bridge is running. Now press TP Play for:', flush=True)
-print(f'  {expected_program}', flush=True)
+if initial_state == 'already_running':
+    print('[operator] bridge is running; expected TP program was already playing.', flush=True)
+else:
+    print('[operator] bridge is running. Now press TP Play for:', flush=True)
+    print(f'  {expected_program}', flush=True)
 start = time.monotonic()
 last_ok = start
-seen_running = False
+seen_running = initial_state == 'already_running'
 while bridge_alive():
     now = time.monotonic()
     try:
@@ -210,8 +231,154 @@ while bridge_alive():
 PY
 }
 
+wait_for_tp_play_autowatch() {
+  python3 - "$EXPECTED_PROGRAM" "$EXPECTED_BASENAME" "$ROBOT_HOST" "$DASHBOARD_PORT" "$AUTOWATCH_WAIT_FOR_PLAY_S" "$DASHBOARD_MISS_LIMIT_S" <<'PY'
+import socket
+import sys
+import time
+
+expected_program = sys.argv[1]
+expected_basename = sys.argv[2]
+host = sys.argv[3]
+port = int(sys.argv[4])
+wait_for_play_s = float(sys.argv[5])
+miss_limit_s = float(sys.argv[6])
+
+
+def dash_cmd(cmd, timeout=1.0):
+    with socket.create_connection((host, port), timeout=timeout) as s:
+        s.settimeout(timeout)
+        try:
+            s.recv(4096)
+        except socket.timeout:
+            pass
+        s.sendall((cmd + "\n").encode("ascii"))
+        return s.recv(4096).decode("utf-8", errors="replace").strip()
+
+
+def snapshot():
+    running = dash_cmd("running")
+    loaded = dash_cmd("get loaded program")
+    state = dash_cmd("programState")
+    safety = dash_cmd("safetymode")
+    raw = "\n".join([running, loaded, state, safety])
+    return {
+        "running": "true" in running.lower(),
+        "loaded_ok": expected_program in loaded or expected_basename in loaded,
+        "safety_normal": "NORMAL" in safety.upper(),
+        "raw": raw,
+    }
+
+
+print("[autowatch] Watching for TP Play on:", flush=True)
+print(f"  {expected_program}", flush=True)
+start = time.monotonic()
+last_dashboard_ok = start
+while True:
+    now = time.monotonic()
+    try:
+        snap = snapshot()
+        last_dashboard_ok = now
+    except Exception as exc:
+        if now - last_dashboard_ok > miss_limit_s:
+            print(f"[autowatch] Dashboard unreachable for >{miss_limit_s:.1f} s: {exc}", flush=True)
+            raise SystemExit(4)
+        time.sleep(0.25)
+        continue
+
+    if not snap["safety_normal"]:
+        print(snap["raw"], flush=True)
+        print("[autowatch] refusing: safety mode is not NORMAL", flush=True)
+        raise SystemExit(5)
+
+    if not snap["loaded_ok"]:
+        print(snap["raw"], flush=True)
+        print("[autowatch] refusing: loaded program is not the expected v5 .urp", flush=True)
+        raise SystemExit(6)
+
+    if snap["running"]:
+        print("[autowatch] expected v5 program is running; starting bridge.", flush=True)
+        raise SystemExit(0)
+
+    if now - start > wait_for_play_s:
+        print(snap["raw"], flush=True)
+        print(f"[autowatch] timed out waiting for TP Play after {wait_for_play_s:.1f} s", flush=True)
+        raise SystemExit(7)
+
+    time.sleep(0.25)
+PY
+}
+
 mode="${1:-}"
 case "${mode}" in
+  autowatch)
+    cat <<'WARNING'
+STEP2C admittance-search30 z30 v5 autowatch.
+This mode waits for Teach Pendant Play first.
+It does not start Kunwei streaming or write RTDE inputs while waiting.
+
+Open this Teach Pendant program first:
+  /programs/andyl/kunwei/step2/step2c_admittance_search30_z30_nostop_guard20_search2ms_line1ms_alpha70_v5.urp
+
+Then run this mode and press Play on the Teach Pendant.
+The bridge will start automatically only after Dashboard reports that exact v5 program running.
+WARNING
+
+    run_bench_gate
+    ensure_no_existing_bridge
+    wait_for_tp_play_autowatch
+
+    STAMP="$(date +%Y%m%d_%H%M%S)"
+    out_dir="${RUN_ROOT}/bridge_step2c_admittance_search30_z30_v5_autowatch_search2ms_line1ms_alpha70_${STAMP}"
+    mkdir -p "${out_dir}"
+
+    bridge_pid=""
+    cleanup() {
+      if [[ -n "${bridge_pid}" ]] && kill -0 "${bridge_pid}" 2>/dev/null; then
+        kill -INT "${bridge_pid}" 2>/dev/null || true
+        sleep 0.5
+        kill -TERM "${bridge_pid}" 2>/dev/null || true
+      fi
+    }
+    trap cleanup INT TERM EXIT
+
+    python3 "${ROOT}/tools/kunwei_rtde_bridge.py" \
+      --allow-kunwei-stream-command \
+      --write-rtde-inputs \
+      --baseline-s 5 \
+      --rezero-s 1 \
+      --duration-s 180 \
+      --rtde-hz 500 \
+      --socket-timeout-s 0.0 \
+      --sensor-stale-s 0.10 \
+      --target-force-n 5 \
+      --normal-axis fz \
+      --normal-sign 1 \
+      --max-normal-force-n 20 \
+      --max-force-norm-n 50 \
+      --output-dir "${out_dir}" &
+    bridge_pid="$!"
+
+    dashboard_monitor "${bridge_pid}" already_running || true
+    wait "${bridge_pid}" || true
+    trap - INT TERM EXIT
+
+    echo "[operator] bridge output: ${out_dir}"
+
+    quiet_json="${out_dir}/kunwei_quiet_stream.json"
+    quiet_rc=0
+    if python3 "${ROOT}/tools/kunwei_quiet_stream.py" --json-only --output-json "${quiet_json}"; then
+      echo "[operator] Kunwei quiet stop passed: ${quiet_json}"
+    else
+      quiet_rc="$?"
+      echo "[operator] Kunwei quiet stop reported issue rc=${quiet_rc}: ${quiet_json}"
+    fi
+    if [[ -f "${quiet_json}" ]]; then
+      cat "${quiet_json}"
+    fi
+
+    stage_summary "${out_dir}"
+    ;;
   bridge)
     cat <<'WARNING'
 STEP2C admittance-search30 z30 v5 lifecycle bridge.
