@@ -95,6 +95,36 @@ dashboard_snapshot() {
   python3 -c "${dashboard_snapshot_py}" "${EXPECTED_PROGRAM}" "${EXPECTED_BASENAME}" "${ROBOT_HOST}" "${DASHBOARD_PORT}"
 }
 
+stop_bridge_process() {
+  local bridge_pid="$1"
+  local reason="$2"
+  if ! kill -0 "${bridge_pid}" 2>/dev/null; then
+    return 0
+  fi
+
+  echo "[operator] stopping bridge: ${reason}"
+  kill -INT "${bridge_pid}" 2>/dev/null || true
+  local i
+  for i in 1 2 3 4; do
+    sleep 0.5
+    if ! kill -0 "${bridge_pid}" 2>/dev/null; then
+      return 0
+    fi
+  done
+
+  echo "[operator] bridge ignored SIGINT after 2 s; sending SIGTERM"
+  kill -TERM "${bridge_pid}" 2>/dev/null || true
+  for i in 1 2 3 4; do
+    sleep 0.5
+    if ! kill -0 "${bridge_pid}" 2>/dev/null; then
+      return 0
+    fi
+  done
+
+  echo "[operator] bridge ignored SIGTERM after 2 s; sending SIGKILL"
+  kill -KILL "${bridge_pid}" 2>/dev/null || true
+}
+
 wait_for_tp_play_autowatch() {
   echo "[autowatch] Watching for TP Play on:"
   echo "  ${EXPECTED_PROGRAM}"
@@ -153,12 +183,12 @@ PY
       if [[ "${rc}" == "10" ]]; then
         seen_running=1
       elif [[ "${rc}" == "11" && "${seen_running}" == "1" ]]; then
-        echo "[operator] TP program stopped; stopping bridge"
-        kill -INT "${bridge_pid}" 2>/dev/null || true
+        echo "[operator] TP program stopped"
+        stop_bridge_process "${bridge_pid}" "TP program stopped"
         return 0
       elif [[ "${rc}" == "20" ]]; then
-        echo "[operator] safety mode is not NORMAL; stopping bridge"
-        kill -INT "${bridge_pid}" 2>/dev/null || true
+        echo "[operator] safety mode is not NORMAL"
+        stop_bridge_process "${bridge_pid}" "safety mode is not NORMAL"
         return 0
       fi
     fi
@@ -173,8 +203,8 @@ import sys
 raise SystemExit(0 if float(sys.argv[2]) - float(sys.argv[1]) > float(sys.argv[3]) else 1)
 PY
       then
-        echo "[operator] expected program did not start within ${WAIT_FOR_PLAY_S} s; stopping bridge"
-        kill -INT "${bridge_pid}" 2>/dev/null || true
+        echo "[operator] expected program did not start within ${WAIT_FOR_PLAY_S} s"
+        stop_bridge_process "${bridge_pid}" "TP Play timeout"
         return 0
       fi
     fi
@@ -200,9 +230,7 @@ run_bridge_for_mode() {
   local bridge_pid=""
   cleanup() {
     if [[ -n "${bridge_pid}" ]] && kill -0 "${bridge_pid}" 2>/dev/null; then
-      kill -INT "${bridge_pid}" 2>/dev/null || true
-      sleep 0.5
-      kill -TERM "${bridge_pid}" 2>/dev/null || true
+      stop_bridge_process "${bridge_pid}" "operator cleanup"
     fi
   }
   trap cleanup INT TERM EXIT
