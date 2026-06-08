@@ -1,16 +1,17 @@
-# Step2C admittance search30 v5: v4 control law plus smoother pre-contact approach with direct Z30 prep and fewer pre-search stops; TP-openable package.
-# VERSION: 2026-06-08T1406HKT_STEP2C_ADMITTANCE_SEARCH30_Z30_NOSTOP_GUARD20_SEARCH2MS_LINE1MS_ALPHA70_V5
-# GENERATED_AT_LOCAL: 2026-06-08T14:06:43+0800
+# Step2C admittance search30 v5: v4-style pre-contact approach with a 30-200 mm Z window and 50 percent lower normal admittance gain; TP-openable package.
+# VERSION: 2026-06-08T1430HKT_STEP2C_V5_V4Z30_200_DAMP50
+# GENERATED_AT_LOCAL: 2026-06-08T14:30:47+0800
 # BEHAVIOR: wait for Kunwei bridge; align to old reference orientation; move to
-# old contact-start XY; then move directly to old contact Z + 30 mm without
-# the bounded 30-100 mm Z clamp or pre-search stop/sleep. Then search downward
-# at 30 mm/s until 10 mm above known contact,
+# old contact-start XY; then bound the Z prep into old contact Z + 30..200 mm.
+# If the current Z is already inside that window, keep it; otherwise move to the
+# nearest bound and stop before search. Then search downward at 30 mm/s until 10 mm above known contact,
 # 5 mm/s near the surface, using 2 ms speedl holds in both search and
 # soft acquisition. Small-force early contact is gated to the near
 # zone; far-zone unexpected contact requires larger raw force before entering
 # soft acquisition targeting 2 N. The
 # first 0.10 s of line control uses 10 ms speedl holds, then line control
-# switches to 1 ms holds.
+# switches to 1 ms holds. Normal admittance P/I gains are reduced by 50 percent
+# relative to the prior v4/v5 controller.
 # Aggressive normal Z correction targets signed Fz ~= -target_force_abs, where the bridge
 # normally writes target_force_abs=5 N into input register 29.
 # Raw contact triggers and safety guards remain unfiltered; only controller
@@ -129,8 +130,8 @@ def codex_step2c_full():
   local line_fast_after_s = 0.100
   local line_runtime_limit_s = 15.0
   local target_force_abs_default_n = 5.0
-  local normal_velocity_p_gain = 0.0006
-  local normal_velocity_i_gain = 0.00008
+  local normal_velocity_p_gain = 0.0003
+  local normal_velocity_i_gain = 0.00004
   local normal_velocity_limit_m_s = 0.005
   local normal_filter_alpha = 0.70
   local integral_error_limit_n_s = 10.0
@@ -143,7 +144,7 @@ def codex_step2c_full():
 
   local home_pose = get_actual_tcp_pose()
 
-  textmsg("codex step2c version 2026-06-08T1406HKT_STEP2C_ADMITTANCE_SEARCH30_Z30_NOSTOP_GUARD20_SEARCH2MS_LINE1MS_ALPHA70_V5 start admittance_search30_v5_z30_nostop_short_retract_home_return")
+  textmsg("codex step2c version 2026-06-08T1430HKT_STEP2C_V5_V4Z30_200_DAMP50 start admittance_search30_v5_v4z30_200_damp50_short_retract_home_return")
   write_output_float_register(35, 20.0)
   codex_write_echo(0.0, 0.0, 0.0, 0.0)
 
@@ -156,14 +157,28 @@ def codex_step2c_full():
     local p0 = get_actual_tcp_pose()
     local reference_orientation_pose = p[p0[0], p0[1], p0[2], ref_rx, ref_ry, ref_rz]
     movel(reference_orientation_pose, a=0.030, v=approach_speed_m_s, r=0.0)
+    stopl(0.5)
     write_output_float_register(35, 22.0)
     local p1 = get_actual_tcp_pose()
     local entry_xy_pose = p[entry_x, entry_y, p1[2], ref_rx, ref_ry, ref_rz]
     movel(entry_xy_pose, a=0.030, v=approach_speed_m_s, r=0.0)
+    stopl(0.5)
     write_output_float_register(35, 23.0)
-    local direct_entry_z = old_contact_z + 0.030
-    local entry_pose = p[entry_x, entry_y, direct_entry_z, ref_rx, ref_ry, ref_rz]
-    movel(entry_pose, a=0.030, v=approach_z_speed_m_s, r=0.0)
+    local p2 = get_actual_tcp_pose()
+    local max_entry_z = old_contact_z + 0.200
+    local min_entry_z = old_contact_z + 0.030
+    local bounded_entry_z = p2[2]
+    if bounded_entry_z > max_entry_z:
+      bounded_entry_z = max_entry_z
+    elif bounded_entry_z < min_entry_z:
+      bounded_entry_z = min_entry_z
+    end
+    if codex_abs(bounded_entry_z - p2[2]) > 0.002:
+      local entry_pose = p[entry_x, entry_y, bounded_entry_z, ref_rx, ref_ry, ref_rz]
+      movel(entry_pose, a=0.030, v=approach_z_speed_m_s, r=0.0)
+      stopl(0.5)
+    end
+    sleep(0.20)
     stop_reason = codex_step2_guard_stop_reason()
   end
 
@@ -364,7 +379,7 @@ def codex_step2c_full():
   write_output_float_register(30, stop_reason)
   write_output_float_register(31, max_observed_stale_s)
   write_output_float_register(35, 29.0)
-  textmsg("codex step2c version 2026-06-08T1406HKT_STEP2C_ADMITTANCE_SEARCH30_Z30_NOSTOP_GUARD20_SEARCH2MS_LINE1MS_ALPHA70_V5 stop reason:", stop_reason)
+  textmsg("codex step2c version 2026-06-08T1430HKT_STEP2C_V5_V4Z30_200_DAMP50 stop reason:", stop_reason)
 end
 
 codex_step2c_full()

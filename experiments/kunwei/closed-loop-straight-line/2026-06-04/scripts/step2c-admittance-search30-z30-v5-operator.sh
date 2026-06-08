@@ -32,11 +32,11 @@ Bridge lifecycle:
   writes fz_tracking.png after bridge exit
 
 Motion settings in the TP program:
-  pre-contact: direct Z prep to old contact Z + 30 mm, with no explicit stopl after orientation, XY, or Z prep
+  pre-contact: v4-style bounded Z prep into old contact Z + 30..200 mm, with stopl after orientation/XY/Z moves
   far search: 30 mm/s, 500 mm/s^2, speedl t=2 ms
   near search: 5 mm/s inside 10 mm above known contact Z, speedl t=2 ms
   soft acquisition: 2 N velocity admittance, gain 0.0030, vlim 8 mm/s, speedl t=2 ms
-  line: 10 mm/s tangent, 500 mm/s^2, first 0.10 s at t=10 ms, then t=1 ms
+  line: 10 mm/s tangent, 500 mm/s^2, first 0.10 s at t=10 ms, then t=1 ms; normal P/I gains are 50% lower
   success exit: retract upward 10 mm, then movel back to TP-start home pose
 USAGE
 }
@@ -202,7 +202,7 @@ if "target_force_n" in df.columns:
     ax.plot(t, target, color="#dc2626", linewidth=1.0, linestyle="--", label="-target force")
 
 ax.axhline(0.0, color="#6b7280", linewidth=0.7)
-ax.set_title("Step2C v5 Fz Tracking")
+ax.set_title("Step2C v5 v4z30-200 damp50 Fz Tracking")
 ax.set_xlabel("time since bridge start (s)")
 ax.set_ylabel("force (N)")
 ax.grid(True, color="#d1d5db", linewidth=0.6, alpha=0.8)
@@ -419,7 +419,7 @@ mode="${1:-}"
 case "${mode}" in
   autowatch)
     cat <<'WARNING'
-STEP2C admittance-search30 z30 v5 autowatch.
+STEP2C admittance-search30 v5 v4z30-200 damp50 autowatch.
 This mode waits for Teach Pendant Play first.
 It does not start Kunwei streaming or write RTDE inputs while waiting.
 
@@ -435,7 +435,7 @@ WARNING
     wait_for_tp_play_autowatch
 
     STAMP="$(date +%Y%m%d_%H%M%S)"
-    out_dir="${RUN_ROOT}/bridge_step2c_admittance_search30_z30_v5_autowatch_search2ms_line1ms_alpha70_${STAMP}"
+    out_dir="${RUN_ROOT}/bridge_step2c_admittance_search30_v5_v4z30_200_damp50_autowatch_search2ms_line1ms_alpha70_${STAMP}"
     mkdir -p "${out_dir}"
 
     bridge_pid=""
@@ -488,7 +488,7 @@ WARNING
     ;;
   bridge)
     cat <<'WARNING'
-STEP2C admittance-search30 z30 v5 lifecycle bridge.
+STEP2C admittance-search30 v5 v4z30-200 damp50 lifecycle bridge.
 This sends Kunwei 48 AA 0D 0A and writes UR RTDE input registers.
 It does not send URScript from Ubuntu.
 
@@ -521,7 +521,7 @@ WARNING
       exit 2
     fi
 
-    out_dir="${RUN_ROOT}/bridge_step2c_admittance_search30_z30_v5_search2ms_line1ms_alpha70_${STAMP}"
+    out_dir="${RUN_ROOT}/bridge_step2c_admittance_search30_v5_v4z30_200_damp50_search2ms_line1ms_alpha70_${STAMP}"
     mkdir -p "${out_dir}"
 
     bridge_pid=""
