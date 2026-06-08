@@ -1,0 +1,38 @@
+Step4c circle attitude-admittance v1 TP package
+
+Open on Teach Pendant:
+  /programs/andyl/kunwei/step4/step4c_circle_attitude_admittance_v1.urp
+
+Script source:
+  /programs/andyl/kunwei/step4/step4c_circle_attitude_admittance_v1.script
+
+Version stamp:
+  2026-06-08T1638HKT_STEP4C_CIRCLE_ATTITUDE_ADMITTANCE_V1
+
+Geometry:
+  source: middle half of the existing Step2C contact path
+  circle start XY: 0.457390615, 0.215059119
+  circle center XY: 0.468195467, 0.203401237
+  opposite diameter XY: 0.479000318, 0.191743355
+  radius: 15.895 mm
+  full-circle arc length: 99.871 mm
+
+Motion summary:
+  Step2C v8 scaffold: bounded high approach, contact search, soft acquisition, recoverable-stop short retract, home return
+  circle: full circle, Cartesian speedl twist, UR handles IK
+  tangent speed: 5 mm/s in v1
+  circle runtime limit: 30 s for full 99.871 mm circle
+  Z control: signed Fz velocity admittance
+  attitude: velocity-admittance wx/wy correction from filtered Fx/Fy and Mx/My; no filtered-lateral-force attitude stop
+
+Auto-home policy:
+  auto-home after recoverable stops: complete, stale heartbeat, external stop request, Z correction guard, path progress guard, runtime limit
+  hold position after hard stops: sensor_not_ok, raw normal force guard, force norm guard, torque norm guard
+
+Raw guards:
+  normal force guard: 20 N
+  force norm guard: 50 N
+  torque norm guard: 0.6 Nm
+  sensor stale: 100 ms
+  Z correction guard: 8 mm
+  attitude proxy clamp: 0.35 rad, no direct stop guard
