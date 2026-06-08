@@ -11,7 +11,7 @@ Usage:
   step2c-line1ms-operator.sh bridge
 
 Teach Pendant program:
-  /programs/andyl/kunwei/step2c/step2c_aggressive_search5_guard20_line1ms_alpha70_vlim5_v1.urp
+  /programs/andyl/kunwei/step2/step2c_aggressive_search5_guard20_line1ms_alpha70_vlim5_v1.urp
 
 Bridge settings:
   RTDE writes: 500 Hz
@@ -35,7 +35,7 @@ STEP2C line1ms bridge:
 This sends Kunwei 48 AA 0D 0A and writes UR RTDE input registers.
 It does not send URScript from Ubuntu.
 Open and Play on the Teach Pendant:
-  /programs/andyl/kunwei/step2c/step2c_aggressive_search5_guard20_line1ms_alpha70_vlim5_v1.urp
+  /programs/andyl/kunwei/step2/step2c_aggressive_search5_guard20_line1ms_alpha70_vlim5_v1.urp
 
 Program motion:
   search = 5 mm/s, acceleration = 500 mm/s^2, speedl t=10 ms
