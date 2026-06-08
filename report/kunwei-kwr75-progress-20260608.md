@@ -2,9 +2,9 @@
 
 ## 实验目的
 
-这份报告把 Kunwei KWR75/KWR75B 当前证据单独整理出来，用于说明三件事：传感器与通信链路是否已经可用，长时间无运动 `1 kHz` 采集是否稳定，以及当前 Step2C 闭环直线实验走到什么程度。报告包含两层 OnRobot/Kunwei 对比：前 `600 s` 用于短窗口 noise/drift 判断，`6 h` 用于长时间漂移判断。当前版本只使用已有日志，不重做实验；两者都按各自窗口第一帧做 software zero，只作为 drift/noise 口径对照，不作为同机械状态下的绝对标定结论。
+这份报告把 Kunwei KWR75/KWR75B 当前证据单独整理出来，用于说明四件事：传感器与通信链路是否已经可用，长时间无运动 `1 kHz` 采集是否稳定，当前 Step2C 闭环直线实验走到什么程度，以及 Step4D 圆轨迹接触实验是否完成。报告包含两层 OnRobot/Kunwei 对比：前 `600 s` 用于短窗口 noise/drift 判断，`6 h` 用于长时间漂移判断。当前版本只使用已有日志，不重做实验；两者都按各自窗口第一帧做 software zero，只作为 drift/noise 口径对照，不作为同机械状态下的绝对标定结论。
 
-结论先给出：Kunwei TCP raw logging 已经支撑 `19 h 15 min`、约 `1 kHz`、无 parse error 的长跑；Step2C final 在 line 阶段保持 URScript stage25 echo cadence 约 `489.83 Hz`，路径跟踪 p95 约 `0.080 mm`，Fz error MAE 从 V4 的 `1.87 N` 降到 `1.39 N`。这说明 final 已经不只是 frequency 进展，也把 force ripple/误差压低了一档；但它仍是一次选定 final run，不等于完整统计验证。
+结论先给出：Kunwei TCP raw logging 已经支撑 `19 h 15 min`、约 `1 kHz`、无 parse error 的长跑；Step2C final 在 line 阶段保持 URScript stage25 echo cadence 约 `489.83 Hz`，路径跟踪 p95 约 `0.080 mm`，Fz error MAE 从 V4 的 `1.87 N` 降到 `1.39 N`。Step4D 已完成从 middle-half 直线路径生成的完整圆轨迹，arc progress 约 `99.875 mm`，closure error 约 `0.828 mm`，radial error p95 约 `0.111 mm`。这说明 final 已经不只是 frequency 进展，也把 force ripple/误差压低了一档；Step4D 则证明圆轨迹 scaffold、确定性接触搜索和姿态 admittance 能跑完整圈。但它们都仍是 selected single-run evidence，不等于完整统计验证。
 
 ## 设备与实验条件
 
@@ -17,13 +17,14 @@
 | 长时采集状态 | 无机器人运动、无接触操作，只测传感器通信和静态读数 |
 | zero 口径 | 本报告 OnRobot/Kunwei 对比均为 first-value software zero；未调用 Kunwei hardware tare、OnRobot device bias/tare 或 UR `zero_ftsensor()` |
 | Step2C 参考线 | 长度约 `63.58 mm` 的 XY straight-line reference |
+| Step4D 圆轨迹 | 取 Step2C contact path 的 middle half 作为直径；半径约 `15.895 mm`，full-circle arc 约 `99.871 mm` |
 | 本报告图表口径 | 统计用选定窗口内全样本；长 trace 图用 min/max envelope，不用等间隔抽样线作为主证据 |
 | 最长可用公共窗口 | Kunwei `19.26 h`，OnRobot UDP `8.79 h`；本报告长对比采用更适合汇报的 `6.00 h` |
 | Step2C final 口径 | final 从已有 `bridge_rtde_500hz.csv`、`kunwei_sensor_1khz.csv` 和 `stage_frequency_summary.json` 计算；不补实验、不补写 `summary.json` |
 
 ## 实验命令
 
-长时采集由 `capture_kunwei_kwr75_1khz.py` 运行，核心参数是 `--transport tcp-client --sensor-ip 192.168.50.25 --sensor-port 5152 --duration-s 86400 --checkpoint-interval-s 900`。旧 Step2C 主 run 使用 `search5_guard20_line2ms_alpha70_vlim5` 版本；final 使用 `step2c_final` 程序包和 `search2ms_line1ms_alpha70` autowatch bridge，line 阶段目标仍是 `-5 N`。
+长时采集由 `capture_kunwei_kwr75_1khz.py` 运行，核心参数是 `--transport tcp-client --sensor-ip 192.168.50.25 --sensor-port 5152 --duration-s 86400 --checkpoint-interval-s 900`。旧 Step2C 主 run 使用 `search5_guard20_line2ms_alpha70_vlim5` 版本；final 使用 `step2c_final` 程序包和 `search2ms_line1ms_alpha70` autowatch bridge，line 阶段目标仍是 `-5 N`。Step4D 使用 `step4d_circle_detsearch_attitude_v1` TP package，Python bridge 只写 Kunwei zeroed force/torque、target、heartbeat 和状态 register；机器人运动仍由 TP 上已打开的 URP 执行，UR 通过 Cartesian `speedl` twist 负责 IK。
 
 本报告的生成脚本只读取已有 CSV/JSON 并写出报告资产，没有向 UR、OnRobot 或 Kunwei 发送命令，也没有做视频多帧抽样或视频帧分析；HTML evidence clip 只使用转码 mp4 和一个 poster。
 
@@ -38,6 +39,7 @@
 | Step2C V4 comparison run | [../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_admittance_search30_v4_search2ms_line1ms_alpha70_20260608_135945](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_admittance_search30_v4_search2ms_line1ms_alpha70_20260608_135945) |
 | Step2C final run | [../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_final_autowatch_search2ms_line1ms_alpha70_20260608_154123](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_final_autowatch_search2ms_line1ms_alpha70_20260608_154123) |
 | Step2C final video | [assets/kunwei-kwr75-progress-20260608/step2c_final_experiment.mp4](assets/kunwei-kwr75-progress-20260608/step2c_final_experiment.mp4) |
+| Step4D circle run | [../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4d_circle_v1_autowatch_detsearch_attitude_20260608_165457](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4d_circle_v1_autowatch_detsearch_attitude_20260608_165457) |
 | OnRobot 600s UDP raw CSV | [../experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv](../experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv) |
 | OnRobot 6h UDP raw CSV | [../experiments/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217/three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv](../experiments/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217/three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv) |
 
@@ -116,6 +118,30 @@ V4 的主要意义是 frequency 层面的进展：stage25 echo cadence 从旧成
 
 [Step2C final experiment video](assets/kunwei-kwr75-progress-20260608/step2c_final_experiment.mp4)
 
+### Step4D 圆轨迹接触进展
+
+Step4D 把 Step2C contact path 的中间一半作为直径，生成半径约 `15.895 mm` 的完整圆。程序复用 Step2C final 风格的高点进入、确定性接触搜索、卸载和回撤框架；圆阶段用 Cartesian `speedl` twist 走轨迹，Z 方向继续用 signed Fz velocity admittance，`wx/wy` 姿态修正来自 filtered Fx/Fy 与 Mx/My 的 bounded velocity admittance。
+
+| Metric | Step4D result |
+|---|---:|
+| run | `bridge_step4d_circle_v1_autowatch_detsearch_attitude_20260608_165457` |
+| circle completed | yes |
+| stage25 samples | `19,883` |
+| stage25 echo rate | `490.72 Hz` |
+| radius / arc progress | `15.895 / 99.875 mm` |
+| closure error | `0.828 mm` |
+| radial error mean / p95 | `0.066 / 0.111 mm` |
+| XY tracking error mean / p95 | `0.828 / 0.881 mm` |
+| normal-force error MAE / p95 | `2.216 / 4.417 N` |
+| lateral force p95 | `1.554 N` |
+| torque norm p95 | `0.120 Nm` |
+
+这次 Step4D 的关键结果是 stop reason 进入 `circle_complete`，arc progress 到 `99.875 mm`，接近 full-circle nominal `99.871 mm`。closure error 约 `0.828 mm`，radial error p95 约 `0.111 mm`。力控制部分还没有达到 Step2C final 的力误差水平，normal-force error MAE 为 `2.216 N`，所以这里的结论应写成“圆轨迹 contact scaffold 已跑通”，而不是“圆轨迹 force quality 已收敛”。
+
+![Step4D circle path tracking](assets/kunwei-kwr75-progress-20260608/step4d_circle_path_tracking.png)
+
+![Step4D circle force and path evidence](assets/kunwei-kwr75-progress-20260608/step4d_circle_force_path.png)
+
 ### OnRobot vs Kunwei 前 600s
 
 | Sensor | Axis | samples | duration (s) | rate (Hz) | zeroed mean (N) | zeroed std (N) | zeroed last-first (N) | raw min/max (N) |
@@ -158,11 +184,13 @@ V4 的主要意义是 frequency 层面的进展：stage25 echo cadence 从旧成
 1. Kunwei TCP raw logging 路线已经可用：`19 h 15 min` 内约 `1 kHz`，`parse_errors=0`，`dropped_sync_bytes=0`。
 2. Kunwei 已经从传感器 bring-up 进入机器人闭环验证阶段。旧 Step2C、V4 和 final 都能完成搜索、直线、卸载和回撤；均值层面能围绕 `-5 N` 工作。
 3. final 的 stage25 measured echo cadence 约 `489.83 Hz`，比旧成功 Step2C 的 `246.55 Hz` 明显提高，并且 Fz error MAE 比 V4 更低；但这仍不能写成 UR 内部 servo loop 频率。
-4. OnRobot/Kunwei 前 `600 s` 与 `6 h` 对比图说明两条 raw stream 都可以用 first-value software zero 做短窗口和长窗口漂移分析；但由于机械状态不同，报告只解释相对漂移和波动，不解释绝对偏置或规格优劣。
+4. Step4D 首次把 “middle-half 直线路径作为直径 -> 完整圆 -> 接触搜索 -> 姿态 admittance -> 回撤” 这一套流程跑完；但圆轨迹与 Step2C 直线任务几何不同，不能把两者的 force/path 指标当作同任务直接排序。
+5. OnRobot/Kunwei 前 `600 s` 与 `6 h` 对比图说明两条 raw stream 都可以用 first-value software zero 做短窗口和长窗口漂移分析；但由于机械状态不同，报告只解释相对漂移和波动，不解释绝对偏置或规格优劣。
 
 ## 下一步
 
 - Step2C 下一步应围绕 final 的重复性和 contact-entry transient 继续验证；频率证据已经足够支持约 `490 Hz` measured echo cadence 进入报告，force quality 也相对 V4 有改善，但还不应该外推成跨治具、跨日期的传感器绝对性能结论。
+- Step4D 下一步应先围绕完整圆的重复性、entry transient 和 normal-force ripple 收敛，不要急着把它写成传感器绝对性能或最终算法效果。若要进一步降低圆轨迹误差，再考虑是否把 IK/trajectory optimization 从 UR 内部逐步外移到脚本侧。
 - 本版本不需要新做 OnRobot/Kunwei A/B 实验；当前会议材料只使用已有日志，并明确标注为 first-value software zero 的历史窗口比较。若未来要回答绝对标定问题，再另开同机械状态、同无接触窗口、明确 device-side zero/tare 策略的实验。
 - 如果目标是机器人侧 `500 Hz` 运动闭环，需要另开 `servoj/speedj`、多线程 URScript 或外部实时接口路线，而不是从当前 `speedl` echo 推断。
 

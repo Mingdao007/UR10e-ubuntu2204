@@ -46,6 +46,13 @@ STEP2C_RESULT_LABEL = "Step2C final"
 STEP2C_RESULT_FILE_PREFIX = "step2c_final"
 STEP2C_REFERENCE = ROOT / "experiments/kunwei/closed-loop-straight-line/2026-06-04/config/straight_line_reference.json"
 STEP2C_RESULT_VIDEO_PREVIEW = Path("/home/andy/.cache/codex/phone-photo-intake/previews/IMG_1735_step2c_final.mov")
+STEP4D_RUN_DIR = (
+    ROOT
+    / "experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/"
+    "bridge_step4d_circle_v1_autowatch_detsearch_attitude_20260608_165457"
+)
+STEP4D_RESULT_LABEL = "Step4D circle"
+STEP4D_RESULT_FILE_PREFIX = "step4d_circle"
 
 ONROBOT_600_DIR = ROOT / "experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100"
 ONROBOT_UDP_CSV = ONROBOT_600_DIR / "three_stream_600s_20260528_043052_onrobot_udp500_raw.csv"
@@ -534,6 +541,124 @@ def strip_step2c_run_series(step2c_run: dict) -> dict:
     return {key: value for key, value in step2c_run.items() if key != "series"}
 
 
+def analyze_step4d_run(run_dir: Path, *, label: str, file_prefix: str) -> dict:
+    bridge_csv = run_dir / "bridge_rtde_500hz.csv"
+    summary_json = run_dir / "step4d_circle_analysis_summary.json"
+    frequency_json = run_dir / "stage_frequency_summary.json"
+    metadata_json = run_dir / "metadata.json"
+
+    bridge = pd.read_csv(bridge_csv)
+    summary = load_json(summary_json)
+    if "baseline_step2c_v4" in summary:
+        summary["baseline_step2c_v4"]["note"] = (
+            "Use only as prior Step2C baseline; Step4D changes geometry and attitude compliance."
+        )
+    frequency = load_json(frequency_json)
+    metadata = load_json(metadata_json)
+    config = load_json(STEP2C_REFERENCE)
+    reference = config["reference_line"]
+    circle_cfg = config["step2d_circle"]
+    unit = reference["xy_unit_vector"]
+
+    stage25 = bridge[np.isclose(bridge["ur_output_double_register_35"].astype(float), 25.0, atol=0.05)].copy()
+    if "ur_runtime_state" in stage25.columns:
+        stage25 = stage25[np.isclose(stage25["ur_runtime_state"].astype(float), 2.0, atol=0.05)].copy()
+    speed_cols = [f"ur_actual_TCP_speed_{idx}" for idx in range(3)]
+    if all(col in stage25.columns for col in speed_cols):
+        speed_norm = np.sqrt(sum(stage25[col].astype(float) ** 2 for col in speed_cols))
+        min_tcp_speed = float(summary.get("selection", {}).get("min_tcp_speed_m_s", 0.001))
+        stage25 = stage25[speed_norm >= min_tcp_speed].copy()
+    if stage25.empty:
+        raise RuntimeError(f"no moving stage25 rows in {bridge_csv}")
+
+    t0 = float(stage25["t_monotonic_s"].iloc[0])
+    stage25["_stage_t_s"] = stage25["t_monotonic_s"].astype(float) - t0
+    normal_values = stage25["normal_force_n"].astype(float).to_numpy()
+    target = float(summary["target_force_n"])
+    stage25["_normal_error_n"] = stage25["normal_force_n"].astype(float) + target
+
+    radius = float(summary["circle"]["radius_m"])
+    progress = stage25["ur_output_double_register_31"].astype(float).to_numpy()
+    theta = progress / radius if radius > 0 else np.zeros_like(progress)
+    x0 = float(stage25["ur_actual_TCP_pose_0"].iloc[0])
+    y0 = float(stage25["ur_actual_TCP_pose_1"].iloc[0])
+    ux = float(unit[0])
+    uy = float(unit[1])
+    direction = 1.0 if float(circle_cfg.get("circle_direction", 1.0)) >= 0 else -1.0
+    e1x = direction * -uy
+    e1y = direction * ux
+    desired_x = x0 + radius * (1.0 - np.cos(theta)) * ux + radius * np.sin(theta) * e1x
+    desired_y = y0 + radius * (1.0 - np.cos(theta)) * uy + radius * np.sin(theta) * e1y
+
+    x = stage25["ur_actual_TCP_pose_0"].astype(float).to_numpy()
+    y = stage25["ur_actual_TCP_pose_1"].astype(float).to_numpy()
+    xy_error = np.sqrt((x - desired_x) ** 2 + (y - desired_y) ** 2) * 1000.0
+    center_x, center_y = [float(value) for value in summary["circle"]["derived_center_xy_m"]]
+    radial_error = (np.sqrt((x - center_x) ** 2 + (y - center_y) ** 2) - radius) * 1000.0
+    stage25_duration = float(stage25["_stage_t_s"].iloc[-1])
+    stop_counts = {str(key): int(value) for key, value in summary.get("stop_reason_counts", {}).items()}
+
+    return {
+        "label": label,
+        "file_prefix": file_prefix,
+        "run_name": run_dir.name,
+        "run_dir": str(run_dir),
+        "bridge_csv": str(bridge_csv),
+        "summary": summary,
+        "frequency": frequency,
+        "metadata": metadata,
+        "stage25": {
+            "rows": int(summary["samples_stage25"]),
+            "duration_s": stage25_duration,
+            "rtde_row_rate_hz": (len(stage25) - 1) / stage25_duration if stage25_duration > 0 else None,
+            "echo_rate_hz": frequency["stage25_ft_line_control_echo_rate"]["echo_rate_hz"],
+            "bridge_write_rate_hz": frequency["bridge_write_rate_hz"],
+            "rtde_output_logging_rate_hz": frequency["rtde_output_logging_rate_hz"],
+            "target_force_n": target,
+            "normal_force_mean_n": summary["normal_force_n"]["mean"],
+            "normal_force_std_n": summary["normal_force_n"]["std"],
+            "normal_force_min_n": summary["normal_force_n"]["min"],
+            "normal_force_max_n": summary["normal_force_n"]["max"],
+            "normal_error_mean_n": summary["signed_normal_target_error_n"]["mean"],
+            "normal_error_mae_n": summary["abs_normal_target_error_n"]["mean"],
+            "normal_error_p95_abs_n": summary["abs_normal_target_error_n"]["p95"],
+            "normal_error_max_abs_n": summary["abs_normal_target_error_n"]["max"],
+            "lateral_force_p95_n": summary["lateral_force_n"]["p95"],
+            "torque_norm_p95_nm": summary["torque_norm_nm"]["p95"],
+        },
+        "circle": {
+            "completed": stop_counts.get("1", 0) > 0,
+            "stop_reason_counts": stop_counts,
+            "radius_mm": radius * 1000.0,
+            "arc_progress_end_mm": summary["circle"]["arc_progress_end_m"] * 1000.0,
+            "theta_end_rad": summary["circle"]["theta_end_rad"],
+            "closure_error_mm": summary["circle"]["closure_error_mm"],
+            "radial_error_mean_mm": summary["circle"]["radial_error_mm"]["mean"],
+            "radial_error_p95_mm": summary["circle"]["radial_error_mm"]["p95"],
+            "radial_error_max_mm": summary["circle"]["radial_error_mm"]["max"],
+            "xy_error_mean_mm": summary["circle"]["xy_tracking_error_mm"]["mean"],
+            "xy_error_p95_mm": summary["circle"]["xy_tracking_error_mm"]["p95"],
+            "xy_error_max_mm": summary["circle"]["xy_tracking_error_mm"]["max"],
+        },
+        "series": {
+            "stage25_t_s": stage25["_stage_t_s"].to_numpy(dtype=float),
+            "normal_force_n": normal_values,
+            "normal_error_n": stage25["_normal_error_n"].to_numpy(dtype=float),
+            "progress_mm": progress * 1000.0,
+            "radial_error_mm": radial_error,
+            "xy_error_mm": xy_error,
+            "x_mm": x * 1000.0,
+            "y_mm": y * 1000.0,
+            "reference_x_mm": desired_x * 1000.0,
+            "reference_y_mm": desired_y * 1000.0,
+        },
+    }
+
+
+def strip_step4d_run_series(step4d_run: dict) -> dict:
+    return {key: value for key, value in step4d_run.items() if key != "series"}
+
+
 def build_step2c_result_figures(result: dict, old_step2c: dict, v4: dict) -> dict[str, dict[str, str]]:
     figures: dict[str, dict[str, str]] = {}
     s = result["series"]
@@ -596,6 +721,52 @@ def build_step2c_result_figures(result: dict, old_step2c: dict, v4: dict) -> dic
     fig.suptitle("Step2C tradeoff: previous, V4, final", y=0.995)
     fig.tight_layout()
     figures[f"{prefix}_tradeoff"] = save_and_copy(fig, f"{prefix}_tradeoff.png")
+    return figures
+
+
+def build_step4d_result_figures(result: dict) -> dict[str, dict[str, str]]:
+    figures: dict[str, dict[str, str]] = {}
+    s = result["series"]
+    circle = result["circle"]
+    stage25 = result["stage25"]
+    prefix = result["file_prefix"]
+
+    fig, ax = plt.subplots(figsize=(8.2, 7.2))
+    ax.plot(s["reference_x_mm"], s["reference_y_mm"], color="#172026", linestyle="--", linewidth=1.4, label="reference circle")
+    ax.plot(s["x_mm"], s["y_mm"], color="#2f8068", linewidth=1.4, label="actual TCP")
+    ax.scatter([s["x_mm"][0]], [s["y_mm"][0]], color="#2e6ea6", s=26, label="start", zorder=4)
+    ax.scatter([s["x_mm"][-1]], [s["y_mm"][-1]], color="#9a6b22", s=26, label="end", zorder=4)
+    ax.set_xlabel("TCP X (mm)")
+    ax.set_ylabel("TCP Y (mm)")
+    ax.set_title(
+        f"Step4D circle path, closure {fmt(circle['closure_error_mm'], 3)} mm"
+    )
+    ax.axis("equal")
+    ax.grid(True, alpha=0.25)
+    ax.legend(loc="best", fontsize=8)
+    fig.tight_layout()
+    figures[f"{prefix}_path_tracking"] = save_and_copy(fig, f"{prefix}_path_tracking.png")
+
+    fig, axes = plt.subplots(3, 1, figsize=(10.2, 8.0), sharex=False)
+    axes[0].plot(s["stage25_t_s"], s["normal_force_n"], color="#2f8068", linewidth=1.1, label="measured normal force")
+    axes[0].axhline(-stage25["target_force_n"], color="#172026", linewidth=0.9, linestyle="--", label="target -5 N")
+    axes[0].set_ylabel("Normal force (N)")
+    axes[0].grid(True, alpha=0.25)
+    axes[0].legend(loc="upper right", fontsize=8)
+    axes[1].plot(s["stage25_t_s"], s["normal_error_n"], color="#9a6b22", linewidth=1.1)
+    axes[1].axhline(0.0, color="#172026", linewidth=0.9, linestyle="--")
+    axes[1].set_ylabel("Normal - target (N)")
+    axes[1].grid(True, alpha=0.25)
+    axes[2].plot(s["progress_mm"], s["radial_error_mm"], color="#2e6ea6", linewidth=1.1, label="signed radial error")
+    axes[2].plot(s["progress_mm"], s["xy_error_mm"], color="#7b8794", linewidth=1.1, label="XY tracking error")
+    axes[2].axhline(0.0, color="#172026", linewidth=0.9, linestyle="--")
+    axes[2].set_xlabel("Arc progress (mm)")
+    axes[2].set_ylabel("Error (mm)")
+    axes[2].grid(True, alpha=0.25)
+    axes[2].legend(loc="upper right", fontsize=8)
+    fig.suptitle("Step4D force and circle tracking, stage25", y=0.995)
+    fig.tight_layout()
+    figures[f"{prefix}_force_path"] = save_and_copy(fig, f"{prefix}_force_path.png")
     return figures
 
 
@@ -951,6 +1122,28 @@ def rows_for_step2c_comparison(old_step2c: dict, v4: dict, result: dict) -> str:
     return "\n".join(rows)
 
 
+def rows_for_step4d_result(step4d: dict) -> str:
+    stage25 = step4d["stage25"]
+    circle = step4d["circle"]
+    return "\n".join(
+        [
+            "| Metric | Step4D result |",
+            "|---|---:|",
+            f"| run | `{step4d['run_name']}` |",
+            f"| circle completed | {'yes' if circle['completed'] else 'no'} |",
+            f"| stage25 samples | `{fmt(stage25['rows'])}` |",
+            f"| stage25 echo rate | `{fmt(stage25['echo_rate_hz'], 2)} Hz` |",
+            f"| radius / arc progress | `{fmt(circle['radius_mm'], 3)} / {fmt(circle['arc_progress_end_mm'], 3)} mm` |",
+            f"| closure error | `{fmt(circle['closure_error_mm'], 3)} mm` |",
+            f"| radial error mean / p95 | `{fmt(circle['radial_error_mean_mm'], 3)} / {fmt(circle['radial_error_p95_mm'], 3)} mm` |",
+            f"| XY tracking error mean / p95 | `{fmt(circle['xy_error_mean_mm'], 3)} / {fmt(circle['xy_error_p95_mm'], 3)} mm` |",
+            f"| normal-force error MAE / p95 | `{fmt(stage25['normal_error_mae_n'], 3)} / {fmt(stage25['normal_error_p95_abs_n'], 3)} N` |",
+            f"| lateral force p95 | `{fmt(stage25['lateral_force_p95_n'], 3)} N` |",
+            f"| torque norm p95 | `{fmt(stage25['torque_norm_p95_nm'], 3)} Nm` |",
+        ]
+    )
+
+
 def strip_plot_data(data: dict) -> dict:
     return {
         key: value
@@ -970,6 +1163,7 @@ def write_summary_json(
     step2c: dict,
     step2c_v4: dict,
     step2c_result: dict,
+    step4d_result: dict,
 ) -> Path:
     available = available_duration_metrics(long_summary)
     payload = {
@@ -994,6 +1188,7 @@ def write_summary_json(
         "step2c_summary": step2c.get("summary", {}),
         "step2c_v4": strip_step2c_run_series(step2c_v4),
         "step2c_result": strip_step2c_run_series(step2c_result),
+        "step4d_result": strip_step4d_run_series(step4d_result),
         "missing_data_requests": step2c_result.get("missing_data_requests", []),
         "media_assets": media_assets,
         "figures": figures,
@@ -1016,6 +1211,7 @@ def build_markdown(
     step2c: dict,
     step2c_v4: dict,
     step2c_result: dict,
+    step4d_result: dict,
 ) -> str:
     overall = long_overall_metrics(long_summary)
     available = available_duration_metrics(long_summary)
@@ -1032,14 +1228,17 @@ def build_markdown(
     result_video = media_assets.get("video_mp4", {}).get("report") if media_assets.get("video_mp4") else None
     result_poster = media_assets.get("video_poster", {}).get("report") if media_assets.get("video_poster") else None
     result_prefix = step2c_result["file_prefix"]
+    step4d_stage25 = step4d_result["stage25"]
+    step4d_circle = step4d_result["circle"]
+    step4d_prefix = step4d_result["file_prefix"]
 
     return f"""# Kunwei KWR75 当前进展报告（2026-06-08）
 
 ## 实验目的
 
-这份报告把 Kunwei KWR75/KWR75B 当前证据单独整理出来，用于说明三件事：传感器与通信链路是否已经可用，长时间无运动 `1 kHz` 采集是否稳定，以及当前 Step2C 闭环直线实验走到什么程度。报告包含两层 OnRobot/Kunwei 对比：前 `600 s` 用于短窗口 noise/drift 判断，`6 h` 用于长时间漂移判断。当前版本只使用已有日志，不重做实验；两者都按各自窗口第一帧做 software zero，只作为 drift/noise 口径对照，不作为同机械状态下的绝对标定结论。
+这份报告把 Kunwei KWR75/KWR75B 当前证据单独整理出来，用于说明四件事：传感器与通信链路是否已经可用，长时间无运动 `1 kHz` 采集是否稳定，当前 Step2C 闭环直线实验走到什么程度，以及 Step4D 圆轨迹接触实验是否完成。报告包含两层 OnRobot/Kunwei 对比：前 `600 s` 用于短窗口 noise/drift 判断，`6 h` 用于长时间漂移判断。当前版本只使用已有日志，不重做实验；两者都按各自窗口第一帧做 software zero，只作为 drift/noise 口径对照，不作为同机械状态下的绝对标定结论。
 
-结论先给出：Kunwei TCP raw logging 已经支撑 `19 h 15 min`、约 `1 kHz`、无 parse error 的长跑；Step2C final 在 line 阶段保持 URScript stage25 echo cadence 约 `{fmt(result['echo_rate_hz'], 2)} Hz`，路径跟踪 p95 约 `{fmt(result['xy_error_p95_mm'], 3)} mm`，Fz error MAE 从 V4 的 `{fmt(v4['signed_error_mae_n'], 2)} N` 降到 `{fmt(result['signed_error_mae_n'], 2)} N`。这说明 final 已经不只是 frequency 进展，也把 force ripple/误差压低了一档；但它仍是一次选定 final run，不等于完整统计验证。
+结论先给出：Kunwei TCP raw logging 已经支撑 `19 h 15 min`、约 `1 kHz`、无 parse error 的长跑；Step2C final 在 line 阶段保持 URScript stage25 echo cadence 约 `{fmt(result['echo_rate_hz'], 2)} Hz`，路径跟踪 p95 约 `{fmt(result['xy_error_p95_mm'], 3)} mm`，Fz error MAE 从 V4 的 `{fmt(v4['signed_error_mae_n'], 2)} N` 降到 `{fmt(result['signed_error_mae_n'], 2)} N`。Step4D 已完成从 middle-half 直线路径生成的完整圆轨迹，arc progress 约 `{fmt(step4d_circle['arc_progress_end_mm'], 3)} mm`，closure error 约 `{fmt(step4d_circle['closure_error_mm'], 3)} mm`，radial error p95 约 `{fmt(step4d_circle['radial_error_p95_mm'], 3)} mm`。这说明 final 已经不只是 frequency 进展，也把 force ripple/误差压低了一档；Step4D 则证明圆轨迹 scaffold、确定性接触搜索和姿态 admittance 能跑完整圈。但它们都仍是 selected single-run evidence，不等于完整统计验证。
 
 ## 设备与实验条件
 
@@ -1052,13 +1251,14 @@ def build_markdown(
 | 长时采集状态 | 无机器人运动、无接触操作，只测传感器通信和静态读数 |
 | zero 口径 | 本报告 OnRobot/Kunwei 对比均为 first-value software zero；未调用 Kunwei hardware tare、OnRobot device bias/tare 或 UR `zero_ftsensor()` |
 | Step2C 参考线 | 长度约 `63.58 mm` 的 XY straight-line reference |
+| Step4D 圆轨迹 | 取 Step2C contact path 的 middle half 作为直径；半径约 `{fmt(step4d_circle['radius_mm'], 3)} mm`，full-circle arc 约 `99.871 mm` |
 | 本报告图表口径 | 统计用选定窗口内全样本；长 trace 图用 min/max envelope，不用等间隔抽样线作为主证据 |
 | 最长可用公共窗口 | Kunwei `{fmt(available['kunwei_h'], 2)} h`，OnRobot UDP `{fmt(available['onrobot_udp_h'], 2)} h`；本报告长对比采用更适合汇报的 `{fmt(available['report_long_window_h'], 2)} h` |
 | Step2C final 口径 | final 从已有 `bridge_rtde_500hz.csv`、`kunwei_sensor_1khz.csv` 和 `stage_frequency_summary.json` 计算；不补实验、不补写 `summary.json` |
 
 ## 实验命令
 
-长时采集由 `capture_kunwei_kwr75_1khz.py` 运行，核心参数是 `--transport tcp-client --sensor-ip 192.168.50.25 --sensor-port 5152 --duration-s 86400 --checkpoint-interval-s 900`。旧 Step2C 主 run 使用 `search5_guard20_line2ms_alpha70_vlim5` 版本；final 使用 `step2c_final` 程序包和 `search2ms_line1ms_alpha70` autowatch bridge，line 阶段目标仍是 `-5 N`。
+长时采集由 `capture_kunwei_kwr75_1khz.py` 运行，核心参数是 `--transport tcp-client --sensor-ip 192.168.50.25 --sensor-port 5152 --duration-s 86400 --checkpoint-interval-s 900`。旧 Step2C 主 run 使用 `search5_guard20_line2ms_alpha70_vlim5` 版本；final 使用 `step2c_final` 程序包和 `search2ms_line1ms_alpha70` autowatch bridge，line 阶段目标仍是 `-5 N`。Step4D 使用 `step4d_circle_detsearch_attitude_v1` TP package，Python bridge 只写 Kunwei zeroed force/torque、target、heartbeat 和状态 register；机器人运动仍由 TP 上已打开的 URP 执行，UR 通过 Cartesian `speedl` twist 负责 IK。
 
 本报告的生成脚本只读取已有 CSV/JSON 并写出报告资产，没有向 UR、OnRobot 或 Kunwei 发送命令，也没有做视频多帧抽样或视频帧分析；HTML evidence clip 只使用转码 mp4 和一个 poster。
 
@@ -1073,6 +1273,7 @@ def build_markdown(
 | Step2C V4 comparison run | [../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step2c_v4['run_name']}](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step2c_v4['run_name']}) |
 | Step2C final run | [../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step2c_result['run_name']}](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step2c_result['run_name']}) |
 | Step2C final video | {f'[{result_video}]({result_video})' if result_video else 'N/A'} |
+| Step4D circle run | [../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step4d_result['run_name']}](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step4d_result['run_name']}) |
 | OnRobot 600s UDP raw CSV | [../experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv](../experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv) |
 | OnRobot 6h UDP raw CSV | [../experiments/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217/three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv](../experiments/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217/three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv) |
 
@@ -1147,6 +1348,18 @@ V4 的主要意义是 frequency 层面的进展：stage25 echo cadence 从旧成
 
 {f'[Step2C final experiment video]({result_video})' if result_video else ''}
 
+### Step4D 圆轨迹接触进展
+
+Step4D 把 Step2C contact path 的中间一半作为直径，生成半径约 `{fmt(step4d_circle['radius_mm'], 3)} mm` 的完整圆。程序复用 Step2C final 风格的高点进入、确定性接触搜索、卸载和回撤框架；圆阶段用 Cartesian `speedl` twist 走轨迹，Z 方向继续用 signed Fz velocity admittance，`wx/wy` 姿态修正来自 filtered Fx/Fy 与 Mx/My 的 bounded velocity admittance。
+
+{rows_for_step4d_result(step4d_result)}
+
+这次 Step4D 的关键结果是 stop reason 进入 `circle_complete`，arc progress 到 `{fmt(step4d_circle['arc_progress_end_mm'], 3)} mm`，接近 full-circle nominal `99.871 mm`。closure error 约 `{fmt(step4d_circle['closure_error_mm'], 3)} mm`，radial error p95 约 `{fmt(step4d_circle['radial_error_p95_mm'], 3)} mm`。力控制部分还没有达到 Step2C final 的力误差水平，normal-force error MAE 为 `{fmt(step4d_stage25['normal_error_mae_n'], 3)} N`，所以这里的结论应写成“圆轨迹 contact scaffold 已跑通”，而不是“圆轨迹 force quality 已收敛”。
+
+![Step4D circle path tracking]({figures[f'{step4d_prefix}_path_tracking']['report']})
+
+![Step4D circle force and path evidence]({figures[f'{step4d_prefix}_force_path']['report']})
+
 ### OnRobot vs Kunwei 前 600s
 
 {rows_for_force_table(short_kunwei, short_onrobot)}
@@ -1168,11 +1381,13 @@ V4 的主要意义是 frequency 层面的进展：stage25 echo cadence 从旧成
 1. Kunwei TCP raw logging 路线已经可用：`19 h 15 min` 内约 `1 kHz`，`parse_errors=0`，`dropped_sync_bytes=0`。
 2. Kunwei 已经从传感器 bring-up 进入机器人闭环验证阶段。旧 Step2C、V4 和 final 都能完成搜索、直线、卸载和回撤；均值层面能围绕 `-5 N` 工作。
 3. final 的 stage25 measured echo cadence 约 `{fmt(result['echo_rate_hz'], 2)} Hz`，比旧成功 Step2C 的 `{fmt(stage25_echo['rate_hz'], 2)} Hz` 明显提高，并且 Fz error MAE 比 V4 更低；但这仍不能写成 UR 内部 servo loop 频率。
-4. OnRobot/Kunwei 前 `600 s` 与 `6 h` 对比图说明两条 raw stream 都可以用 first-value software zero 做短窗口和长窗口漂移分析；但由于机械状态不同，报告只解释相对漂移和波动，不解释绝对偏置或规格优劣。
+4. Step4D 首次把 “middle-half 直线路径作为直径 -> 完整圆 -> 接触搜索 -> 姿态 admittance -> 回撤” 这一套流程跑完；但圆轨迹与 Step2C 直线任务几何不同，不能把两者的 force/path 指标当作同任务直接排序。
+5. OnRobot/Kunwei 前 `600 s` 与 `6 h` 对比图说明两条 raw stream 都可以用 first-value software zero 做短窗口和长窗口漂移分析；但由于机械状态不同，报告只解释相对漂移和波动，不解释绝对偏置或规格优劣。
 
 ## 下一步
 
 - Step2C 下一步应围绕 final 的重复性和 contact-entry transient 继续验证；频率证据已经足够支持约 `490 Hz` measured echo cadence 进入报告，force quality 也相对 V4 有改善，但还不应该外推成跨治具、跨日期的传感器绝对性能结论。
+- Step4D 下一步应先围绕完整圆的重复性、entry transient 和 normal-force ripple 收敛，不要急着把它写成传感器绝对性能或最终算法效果。若要进一步降低圆轨迹误差，再考虑是否把 IK/trajectory optimization 从 UR 内部逐步外移到脚本侧。
 - 本版本不需要新做 OnRobot/Kunwei A/B 实验；当前会议材料只使用已有日志，并明确标注为 first-value software zero 的历史窗口比较。若未来要回答绝对标定问题，再另开同机械状态、同无接触窗口、明确 device-side zero/tare 策略的实验。
 - 如果目标是机器人侧 `500 Hz` 运动闭环，需要另开 `servoj/speedj`、多线程 URScript 或外部实时接口路线，而不是从当前 `speedl` echo 推断。
 
@@ -1205,6 +1420,7 @@ def build_html(
     step2c: dict,
     step2c_v4: dict,
     step2c_result: dict,
+    step4d_result: dict,
 ) -> str:
     overall = long_overall_metrics(long_summary)
     available = available_duration_metrics(long_summary)
@@ -1228,6 +1444,11 @@ def build_html(
     result_tradeoff_img = figures[f"{result_prefix}_tradeoff"]["weekly"]
     result_video = media_assets.get("video_mp4", {}).get("weekly") if media_assets.get("video_mp4") else None
     result_video_poster = media_assets.get("video_poster", {}).get("weekly") if media_assets.get("video_poster") else None
+    step4d_stage25 = step4d_result["stage25"]
+    step4d_circle = step4d_result["circle"]
+    step4d_prefix = step4d_result["file_prefix"]
+    step4d_path_img = figures[f"{step4d_prefix}_path_tracking"]["weekly"]
+    step4d_force_path_img = figures[f"{step4d_prefix}_force_path"]["weekly"]
     result_video_html = (
         f'<figure class="span-5 media-video"><video controls preload="metadata" poster="{result_video_poster or ""}" src="{result_video}"></video><figcaption>Fig. F-A. Step2C final experiment evidence clip from the 2026-06-08 Step2C final run.</figcaption></figure>'
         if result_video
@@ -1393,6 +1614,7 @@ def build_html(
     <a href="#summary">Summary</a>
     <a href="#link">1 kHz Link</a>
     <a href="#step2c">Step2C</a>
+    <a href="#step4d">Step4D</a>
     <a href="#compare">600 s Compare</a>
     <a href="#long-compare">6 h Compare</a>
     <a href="#next">Next</a>
@@ -1401,12 +1623,13 @@ def build_html(
     <section id="summary">
       <div class="eyebrow">Kunwei KWR75 / UR10e</div>
       <h1>Kunwei force sensor progress report</h1>
-      <p class="lead">Kunwei is no longer just a bring-up task: the TCP raw logging path has a stable 19 h 15 min run, and Step2C has completed a closed-loop straight-line contact task. The OnRobot/Kunwei comparison in this deck uses existing logs only, with first-value software zero inside each selected window.</p>
+      <p class="lead">Kunwei is no longer just a bring-up task: the TCP raw logging path has a stable 19 h 15 min run, Step2C has completed a closed-loop straight-line contact task, and Step4D has completed the first full contact circle with deterministic search and attitude admittance. The OnRobot/Kunwei comparison in this deck uses existing logs only, with first-value software zero inside each selected window.</p>
       <div class="grid">
         {html_metric("Long raw capture", "69.3M samples")}
         {html_metric("Average raw rate", f"{fmt(overall['rate_hz'], 3)} Hz")}
         {html_metric("Frame errors", "0 parse / 0 sync")}
         {html_metric("Step2C final echo", f"{fmt(result['echo_rate_hz'], 1)} Hz")}
+        {html_metric("Step4D closure", f"{fmt(step4d_circle['closure_error_mm'], 3)} mm")}
         {html_metric("Long comparison", "6 h selected")}
       </div>
     </section>
@@ -1438,6 +1661,23 @@ def build_html(
         <figure class="span-5"><img src="{result_tradeoff_img}" alt="Step2C final tradeoff chart"><figcaption>Fig. 2. Final keeps the cadence/path improvement and lowers Fz MAE versus V4.</figcaption></figure>
         <figure class="span-12"><img src="{result_path_img}" alt="Step2C final path tracking"><figcaption>Fig. 3. Final path tracking remains tight; XY p95 is about {fmt(result['xy_error_p95_mm'], 3)} mm.</figcaption></figure>
         {result_video_html}
+      </div>
+    </section>
+    <section id="step4d">
+      <div class="eyebrow">Robot experiment</div>
+      <h2>Step4D completes a full contact circle with attitude admittance</h2>
+      <p>Step4D uses the middle half of the prior contact path as the circle diameter, then runs deterministic contact search, signed-Fz velocity admittance, and bounded wx/wy attitude admittance while UR handles IK through Cartesian speedl twist. The selected run reached circle_complete with {fmt(step4d_circle['arc_progress_end_mm'], 3)} mm arc progress, {fmt(step4d_circle['closure_error_mm'], 3)} mm closure error, and {fmt(step4d_circle['radial_error_p95_mm'], 3)} mm radial p95. This is circular-contact scaffold evidence, not a same-task ranking against Step2C straight-line force quality.</p>
+      <div class="grid">
+        {html_metric("Step4D run", step4d_result["run_name"])}
+        {html_metric("Stage25 echo", f"{fmt(step4d_stage25['echo_rate_hz'], 2)} Hz")}
+        {html_metric("Radius", f"{fmt(step4d_circle['radius_mm'], 3)} mm")}
+        {html_metric("Arc progress", f"{fmt(step4d_circle['arc_progress_end_mm'], 3)} mm")}
+        {html_metric("Closure error", f"{fmt(step4d_circle['closure_error_mm'], 3)} mm")}
+        {html_metric("Radial p95", f"{fmt(step4d_circle['radial_error_p95_mm'], 3)} mm")}
+        {html_metric("Normal MAE", f"{fmt(step4d_stage25['normal_error_mae_n'], 2)} N")}
+        {html_metric("Torque p95", f"{fmt(step4d_stage25['torque_norm_p95_nm'], 3)} Nm")}
+        <figure class="span-6"><img src="{step4d_path_img}" alt="Step4D circle path tracking"><figcaption>Fig. 4. Actual TCP path closes the commanded full-circle contact trajectory; closure error is {fmt(step4d_circle['closure_error_mm'], 3)} mm.</figcaption></figure>
+        <figure class="span-6"><img src="{step4d_force_path_img}" alt="Step4D force and path evidence"><figcaption>Fig. 5. Normal-force ripple remains the next target; radial path tracking is already tight for this first complete circle.</figcaption></figure>
       </div>
     </section>
     <section id="compare">
@@ -1474,6 +1714,7 @@ def build_html(
           <tbody>
             <tr><td>Logging route</td><td>Kunwei TCP raw is stable at 1 kHz class</td><td>Use it as the default Kunwei collector</td></tr>
             <tr><td>Force control</td><td>Final mean Fz is near target and error MAE is {fmt(result['signed_error_mae_n'], 2)} N</td><td>Confirm repeatability before broader force-quality claims</td></tr>
+            <tr><td>Circle contact</td><td>Step4D completed the full circle with {fmt(step4d_circle['closure_error_mm'], 3)} mm closure error</td><td>Reduce contact-entry transient and normal-force ripple before stronger algorithm claims</td></tr>
             <tr><td>Frequency claim</td><td>Final stage25 echo is {fmt(result['echo_rate_hz'], 2)} Hz; RTDE logging is {fmt(result_freq['rtde_output_logging_rate_hz'], 2)} Hz</td><td>Report measured cadence, not internal servo-loop frequency</td></tr>
             <tr><td>A/B comparison</td><td>Existing 600 s and 6 h windows differ in setup/date/load</td><td>Use first-value software zero for this report; reserve same-fixture testing only for future absolute calibration claims</td></tr>
           </tbody>
@@ -1553,8 +1794,14 @@ def main() -> None:
         label=STEP2C_RESULT_LABEL,
         file_prefix=STEP2C_RESULT_FILE_PREFIX,
     )
+    step4d_result = analyze_step4d_run(
+        STEP4D_RUN_DIR,
+        label=STEP4D_RESULT_LABEL,
+        file_prefix=STEP4D_RESULT_FILE_PREFIX,
+    )
     figures = build_figures(short_kunwei, short_onrobot, long_kunwei, long_onrobot)
     figures.update(build_step2c_result_figures(step2c_result, step2c, step2c_v4))
+    figures.update(build_step4d_result_figures(step4d_result))
     media_assets = build_step2c_result_media_assets()
     summary_json = write_summary_json(
         short_kunwei,
@@ -1567,6 +1814,7 @@ def main() -> None:
         step2c,
         step2c_v4,
         step2c_result,
+        step4d_result,
     )
 
     REPORT_MD.write_text(
@@ -1582,6 +1830,7 @@ def main() -> None:
             step2c,
             step2c_v4,
             step2c_result,
+            step4d_result,
         ),
         encoding="utf-8",
     )
@@ -1597,6 +1846,7 @@ def main() -> None:
             step2c,
             step2c_v4,
             step2c_result,
+            step4d_result,
         ),
         encoding="utf-8",
     )

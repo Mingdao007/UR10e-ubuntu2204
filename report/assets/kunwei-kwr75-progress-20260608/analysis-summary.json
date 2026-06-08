@@ -989,6 +989,313 @@
       "torque_norm_max_nm": 0.0885970472
     }
   },
+  "step4d_result": {
+    "label": "Step4D circle",
+    "file_prefix": "step4d_circle",
+    "run_name": "bridge_step4d_circle_v1_autowatch_detsearch_attitude_20260608_165457",
+    "run_dir": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4d_circle_v1_autowatch_detsearch_attitude_20260608_165457",
+    "bridge_csv": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4d_circle_v1_autowatch_detsearch_attitude_20260608_165457/bridge_rtde_500hz.csv",
+    "summary": {
+      "abs_normal_target_error_n": {
+        "max": 5.564282199999999,
+        "mean": 2.2161858051915706,
+        "min": 0.0016121699999995798,
+        "p50": 2.11171396,
+        "p95": 4.41679914,
+        "p99": 4.713898059,
+        "samples": 19883,
+        "std": 1.1629709814577256
+      },
+      "baseline_step2c_v4": {
+        "fz_mae_n": 1.8668028413172717,
+        "note": "Use only as prior Step2C baseline; Step4D changes geometry and attitude compliance.",
+        "stage25_echo_hz": 489.8278793286306,
+        "xy_p95_mm": 0.08250615739360033
+      },
+      "bridge_csv": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4d_circle_v1_autowatch_detsearch_attitude_20260608_165457/bridge_rtde_500hz.csv",
+      "circle": {
+        "arc_progress_end_m": 0.09987499999997675,
+        "closure_error_mm": 0.8279686147774511,
+        "derived_center_xy_m": [
+          0.4682231190008445,
+          0.20345529507334198
+        ],
+        "radial_error_mm": {
+          "max": 0.19464258020791478,
+          "mean": 0.06569799811224604,
+          "min": 6.10796482836129e-09,
+          "p50": 0.06521141429891367,
+          "p95": 0.11114233649864544,
+          "p99": 0.14033718408857226,
+          "samples": 19883,
+          "std": 0.027275841177152423
+        },
+        "radius_m": 0.015895,
+        "signed_radial_error_mm": {
+          "max": 0.19464258020791478,
+          "mean": 0.06497920139572282,
+          "min": -0.0693748518172492,
+          "p50": 0.0652026276189363,
+          "p95": 0.11114233649864544,
+          "p99": 0.14033718408857226,
+          "samples": 19883,
+          "std": 0.028946616006763636
+        },
+        "theta_end_rad": 6.283422459891585,
+        "xy_tracking_error_mm": {
+          "max": 0.9527954237366271,
+          "mean": 0.8284401055304874,
+          "min": 0.0,
+          "p50": 0.8366294367830739,
+          "p95": 0.8807433770508614,
+          "p99": 0.9031546695025254,
+          "samples": 19883,
+          "std": 0.07420291445415966
+        }
+      },
+      "config": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/config/straight_line_reference.json",
+      "created_at": "2026-06-08T16:56:14",
+      "force_norm_n": {
+        "max": 10.9552827,
+        "mean": 4.868800924607252,
+        "min": 0.255141959,
+        "p50": 4.65508663,
+        "p95": 8.60609347,
+        "p99": 9.587423914000047,
+        "samples": 19883,
+        "std": 2.5101244487022667
+      },
+      "lateral_force_n": {
+        "max": 2.9327046607434366,
+        "mean": 0.45370691485001985,
+        "min": 0.0055303544616396244,
+        "p50": 0.2693801167930595,
+        "p95": 1.5541651136250896,
+        "p99": 2.330030650091635,
+        "samples": 19883,
+        "std": 0.4823524361978281
+      },
+      "mx_nm_zeroed": {
+        "max": 0.167961791,
+        "mean": 0.003904384151145212,
+        "min": -0.164913913,
+        "p50": -0.000536945671,
+        "p95": 0.0911805667,
+        "p99": 0.134666146,
+        "samples": 19883,
+        "std": 0.03936567879108152
+      },
+      "my_nm_zeroed": {
+        "max": 0.10279103,
+        "mean": -0.004312270766709161,
+        "min": -0.188658708,
+        "p50": -0.00242526682,
+        "p95": 0.0471401253,
+        "p99": 0.0738084068,
+        "samples": 19883,
+        "std": 0.031783539105674254
+      },
+      "normal_force_n": {
+        "max": 0.470658383,
+        "mean": -4.813267210378012,
+        "min": -10.5642822,
+        "p50": -4.63302494,
+        "p95": -0.944831953,
+        "p99": 0.407554569,
+        "samples": 19883,
+        "std": 2.5298041037789583
+      },
+      "samples_stage25": 19883,
+      "samples_total": 35026,
+      "selection": {
+        "min_tcp_speed_m_s": 0.001,
+        "runtime_state": 2,
+        "stage": 25.0
+      },
+      "signed_normal_target_error_n": {
+        "max": 5.470658383,
+        "mean": 0.1867327896219886,
+        "min": -5.564282199999999,
+        "p50": 0.3669750599999997,
+        "p95": 4.055168047,
+        "p99": 5.407554569,
+        "samples": 19883,
+        "std": 2.5298041037789583
+      },
+      "stop_reason_codes": {
+        "1": "circle_complete",
+        "10": "runtime_limit",
+        "11": "contact_search_trigger",
+        "12": "attitude_proxy_guard",
+        "2": "heartbeat_stale",
+        "3": "sensor_not_ok",
+        "4": "external_stop_request",
+        "5": "normal_force_guard",
+        "6": "force_norm_guard",
+        "7": "torque_norm_guard",
+        "8": "normal_correction_guard",
+        "9": "path_progress_guard"
+      },
+      "stop_reason_counts": {
+        "0": 30844,
+        "1": 4176,
+        "11": 4
+      },
+      "target_force_n": 5.0,
+      "torque_norm_nm": {
+        "max": 0.236325607,
+        "mean": 0.03651017087794498,
+        "min": 0.00060959135,
+        "p50": 0.0226230643,
+        "p95": 0.119800094,
+        "p99": 0.170861939,
+        "samples": 19883,
+        "std": 0.0370536828857599
+      }
+    },
+    "frequency": {
+      "bridge_csv": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4d_circle_v1_autowatch_detsearch_attitude_20260608_165457/bridge_rtde_500hz.csv",
+      "bridge_write_rate_hz": 505.09263189344136,
+      "frequency_contract_note": "Stage25 echo rate is measured from ur_output_double_register_26 heartbeat transitions; do not treat it as internal servo-loop frequency.",
+      "ok": true,
+      "rtde_output_logging_rate_hz": 505.09263189344136,
+      "stage24_4_soft_acquisition_echo_rate": {
+        "duration_s": 0.0,
+        "echo_rate_hz": null,
+        "echo_transitions": 0,
+        "rtde_row_rate_hz": null,
+        "rtde_rows": 0,
+        "stage": 24.4
+      },
+      "stage24_search_echo_rate": {
+        "duration_s": 9.472000623994973,
+        "echo_rate_hz": 249.78883489580056,
+        "echo_transitions": 2366,
+        "rtde_row_rate_hz": 499.99996706107834,
+        "rtde_rows": 4737,
+        "stage": 24.0
+      },
+      "stage25_ft_line_control_echo_rate": {
+        "duration_s": 39.86799938802142,
+        "echo_rate_hz": 490.7193814665835,
+        "echo_transitions": 19564,
+        "rtde_row_rate_hz": 500.0000076750601,
+        "rtde_rows": 19935,
+        "stage": 25.0
+      },
+      "stage26_unload_echo_rate": {
+        "duration_s": 1.1540000170352869,
+        "echo_rate_hz": 0.0,
+        "echo_transitions": 0,
+        "rtde_row_rate_hz": 499.9999926190266,
+        "rtde_rows": 578,
+        "stage": 26.0
+      },
+      "stage27_retract_echo_rate": {
+        "duration_s": 5.075999638007488,
+        "echo_rate_hz": 0.0,
+        "echo_transitions": 0,
+        "rtde_row_rate_hz": 500.00003565726337,
+        "rtde_rows": 2539,
+        "stage": 27.0
+      },
+      "total_rows": 35026
+    },
+    "metadata": {
+      "args": {
+        "allow_kunwei_stream_command": true,
+        "baseline_s": 5.0,
+        "connect_timeout_s": 3.0,
+        "duration_s": 180.0,
+        "max_force_norm_n": 50.0,
+        "max_normal_force_n": 20.0,
+        "max_torque_norm_nm": 0.6,
+        "no_start_command": false,
+        "no_stop_command": false,
+        "normal_axis": "fz",
+        "normal_sign": 1.0,
+        "output_dir": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4d_circle_v1_autowatch_detsearch_attitude_20260608_165457",
+        "rezero_s": 1.0,
+        "robot_host": "192.168.1.18",
+        "rtde_hz": 500.0,
+        "sensor_ip": "192.168.50.25",
+        "sensor_port": 5152,
+        "sensor_stale_s": 0.1,
+        "skip_dashboard_preflight": false,
+        "socket_timeout_s": 0.0,
+        "target_force_n": 5.0,
+        "write_rtde_inputs": true
+      },
+      "created_at": "2026-06-08T16:55:02",
+      "dashboard_preflight": {
+        "banner": "Connected: Universal Robots Dashboard Server",
+        "is in remote control": "false",
+        "programState": "PLAYING step4d_circle_detsearch_attitude_v1.urp",
+        "robotmode": "Robotmode: RUNNING",
+        "running": "Program running: true",
+        "safetymode": "Safetymode: NORMAL"
+      },
+      "register_map": {
+        "input_double_register_24": "normal_force_n",
+        "input_double_register_25": "force_norm_n",
+        "input_double_register_26": "heartbeat",
+        "input_double_register_27": "sensor_ok",
+        "input_double_register_28": "stop_request",
+        "input_double_register_29": "target_force_n",
+        "input_double_register_30": "torque_norm_nm",
+        "input_double_register_31": "fx_n_zeroed",
+        "input_double_register_32": "fy_n_zeroed",
+        "input_double_register_33": "fz_n_zeroed",
+        "input_double_register_34": "mx_nm_zeroed",
+        "input_double_register_35": "my_nm_zeroed",
+        "input_double_register_36": "mz_nm_zeroed"
+      },
+      "safety_boundary": [
+        "no URScript upload or program start",
+        "no robot motion command from Python",
+        "no UR TCP/payload writes",
+        "no zero_ftsensor",
+        "no Kunwei zero/tare/config write"
+      ]
+    },
+    "stage25": {
+      "rows": 19883,
+      "duration_s": 39.86600029398687,
+      "rtde_row_rate_hz": 498.72071071546327,
+      "echo_rate_hz": 490.7193814665835,
+      "bridge_write_rate_hz": 505.09263189344136,
+      "rtde_output_logging_rate_hz": 505.09263189344136,
+      "target_force_n": 5.0,
+      "normal_force_mean_n": -4.813267210378012,
+      "normal_force_std_n": 2.5298041037789583,
+      "normal_force_min_n": -10.5642822,
+      "normal_force_max_n": 0.470658383,
+      "normal_error_mean_n": 0.1867327896219886,
+      "normal_error_mae_n": 2.2161858051915706,
+      "normal_error_p95_abs_n": 4.41679914,
+      "normal_error_max_abs_n": 5.564282199999999,
+      "lateral_force_p95_n": 1.5541651136250896,
+      "torque_norm_p95_nm": 0.119800094
+    },
+    "circle": {
+      "completed": true,
+      "stop_reason_counts": {
+        "0": 30844,
+        "1": 4176,
+        "11": 4
+      },
+      "radius_mm": 15.895,
+      "arc_progress_end_mm": 99.87499999997675,
+      "theta_end_rad": 6.283422459891585,
+      "closure_error_mm": 0.8279686147774511,
+      "radial_error_mean_mm": 0.06569799811224604,
+      "radial_error_p95_mm": 0.11114233649864544,
+      "radial_error_max_mm": 0.19464258020791478,
+      "xy_error_mean_mm": 0.8284401055304874,
+      "xy_error_p95_mm": 0.8807433770508614,
+      "xy_error_max_mm": 0.9527954237366271
+    }
+  },
   "missing_data_requests": [],
   "media_assets": {
     "tp_image": null,
@@ -1037,6 +1344,14 @@
     "step2c_final_tradeoff": {
       "report": "assets/kunwei-kwr75-progress-20260608/step2c_final_tradeoff.png",
       "weekly": "assets/kunwei_kwr75_20260608/step2c_final_tradeoff.png"
+    },
+    "step4d_circle_path_tracking": {
+      "report": "assets/kunwei-kwr75-progress-20260608/step4d_circle_path_tracking.png",
+      "weekly": "assets/kunwei_kwr75_20260608/step4d_circle_path_tracking.png"
+    },
+    "step4d_circle_force_path": {
+      "report": "assets/kunwei-kwr75-progress-20260608/step4d_circle_force_path.png",
+      "weekly": "assets/kunwei_kwr75_20260608/step4d_circle_force_path.png"
     }
   }
 }

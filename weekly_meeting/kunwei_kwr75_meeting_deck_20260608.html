@@ -157,6 +157,7 @@
     <a href="#summary">Summary</a>
     <a href="#link">1 kHz Link</a>
     <a href="#step2c">Step2C</a>
+    <a href="#step4d">Step4D</a>
     <a href="#compare">600 s Compare</a>
     <a href="#long-compare">6 h Compare</a>
     <a href="#next">Next</a>
@@ -165,12 +166,13 @@
     <section id="summary">
       <div class="eyebrow">Kunwei KWR75 / UR10e</div>
       <h1>Kunwei force sensor progress report</h1>
-      <p class="lead">Kunwei is no longer just a bring-up task: the TCP raw logging path has a stable 19 h 15 min run, and Step2C has completed a closed-loop straight-line contact task. The OnRobot/Kunwei comparison in this deck uses existing logs only, with first-value software zero inside each selected window.</p>
+      <p class="lead">Kunwei is no longer just a bring-up task: the TCP raw logging path has a stable 19 h 15 min run, Step2C has completed a closed-loop straight-line contact task, and Step4D has completed the first full contact circle with deterministic search and attitude admittance. The OnRobot/Kunwei comparison in this deck uses existing logs only, with first-value software zero inside each selected window.</p>
       <div class="grid">
         <div class="metric"><span>Long raw capture</span><strong>69.3M samples</strong></div>
         <div class="metric"><span>Average raw rate</span><strong>999.990 Hz</strong></div>
         <div class="metric"><span>Frame errors</span><strong>0 parse / 0 sync</strong></div>
         <div class="metric"><span>Step2C final echo</span><strong>489.8 Hz</strong></div>
+        <div class="metric"><span>Step4D closure</span><strong>0.828 mm</strong></div>
         <div class="metric"><span>Long comparison</span><strong>6 h selected</strong></div>
       </div>
     </section>
@@ -202,6 +204,23 @@
         <figure class="span-5"><img src="assets/kunwei_kwr75_20260608/step2c_final_tradeoff.png" alt="Step2C final tradeoff chart"><figcaption>Fig. 2. Final keeps the cadence/path improvement and lowers Fz MAE versus V4.</figcaption></figure>
         <figure class="span-12"><img src="assets/kunwei_kwr75_20260608/step2c_final_path_tracking.png" alt="Step2C final path tracking"><figcaption>Fig. 3. Final path tracking remains tight; XY p95 is about 0.080 mm.</figcaption></figure>
         <figure class="span-5 media-video"><video controls preload="metadata" poster="assets/kunwei_kwr75_20260608/step2c_final_experiment_poster.jpg" src="assets/kunwei_kwr75_20260608/step2c_final_experiment.mp4"></video><figcaption>Fig. F-A. Step2C final experiment evidence clip from the 2026-06-08 Step2C final run.</figcaption></figure>
+      </div>
+    </section>
+    <section id="step4d">
+      <div class="eyebrow">Robot experiment</div>
+      <h2>Step4D completes a full contact circle with attitude admittance</h2>
+      <p>Step4D uses the middle half of the prior contact path as the circle diameter, then runs deterministic contact search, signed-Fz velocity admittance, and bounded wx/wy attitude admittance while UR handles IK through Cartesian speedl twist. The selected run reached circle_complete with 99.875 mm arc progress, 0.828 mm closure error, and 0.111 mm radial p95. This is circular-contact scaffold evidence, not a same-task ranking against Step2C straight-line force quality.</p>
+      <div class="grid">
+        <div class="metric"><span>Step4D run</span><strong>bridge_step4d_circle_v1_autowatch_detsearch_attitude_20260608_165457</strong></div>
+        <div class="metric"><span>Stage25 echo</span><strong>490.72 Hz</strong></div>
+        <div class="metric"><span>Radius</span><strong>15.895 mm</strong></div>
+        <div class="metric"><span>Arc progress</span><strong>99.875 mm</strong></div>
+        <div class="metric"><span>Closure error</span><strong>0.828 mm</strong></div>
+        <div class="metric"><span>Radial p95</span><strong>0.111 mm</strong></div>
+        <div class="metric"><span>Normal MAE</span><strong>2.22 N</strong></div>
+        <div class="metric"><span>Torque p95</span><strong>0.120 Nm</strong></div>
+        <figure class="span-6"><img src="assets/kunwei_kwr75_20260608/step4d_circle_path_tracking.png" alt="Step4D circle path tracking"><figcaption>Fig. 4. Actual TCP path closes the commanded full-circle contact trajectory; closure error is 0.828 mm.</figcaption></figure>
+        <figure class="span-6"><img src="assets/kunwei_kwr75_20260608/step4d_circle_force_path.png" alt="Step4D force and path evidence"><figcaption>Fig. 5. Normal-force ripple remains the next target; radial path tracking is already tight for this first complete circle.</figcaption></figure>
       </div>
     </section>
     <section id="compare">
@@ -238,6 +257,7 @@
           <tbody>
             <tr><td>Logging route</td><td>Kunwei TCP raw is stable at 1 kHz class</td><td>Use it as the default Kunwei collector</td></tr>
             <tr><td>Force control</td><td>Final mean Fz is near target and error MAE is 1.39 N</td><td>Confirm repeatability before broader force-quality claims</td></tr>
+            <tr><td>Circle contact</td><td>Step4D completed the full circle with 0.828 mm closure error</td><td>Reduce contact-entry transient and normal-force ripple before stronger algorithm claims</td></tr>
             <tr><td>Frequency claim</td><td>Final stage25 echo is 489.83 Hz; RTDE logging is 507.53 Hz</td><td>Report measured cadence, not internal servo-loop frequency</td></tr>
             <tr><td>A/B comparison</td><td>Existing 600 s and 6 h windows differ in setup/date/load</td><td>Use first-value software zero for this report; reserve same-fixture testing only for future absolute calibration claims</td></tr>
           </tbody>
