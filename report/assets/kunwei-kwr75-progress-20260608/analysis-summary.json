@@ -1,0 +1,449 @@
+{
+  "window_s": 600.0,
+  "comparison_note": "Both streams use first-sample software zero in their own first 600 s windows; this is not a same-fixture absolute calibration comparison.",
+  "kunwei_tcp_raw_first600": {
+    "path": "/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/data.csv",
+    "rows": 599988,
+    "duration_s": 599.9709458569996,
+    "rate_hz": 1000.0267582007283,
+    "software_zero": {
+      "Fx_N": 2.43794392,
+      "Fy_N": -1.09227684,
+      "Fz_N": -0.928559491,
+      "Mx_Nm": 0.0520392852,
+      "My_Nm": -0.0638403072,
+      "Mz_Nm": 0.0607896007
+    },
+    "stats": {
+      "Fx_N": {
+        "n": 599988,
+        "first": 2.43794392,
+        "last": 2.39904662,
+        "last_first": -0.03889729999999991,
+        "mean": 2.4345754233467254,
+        "std": 0.013560665022408559,
+        "min": 2.3266679,
+        "max": 2.52918822
+      },
+      "Fy_N": {
+        "n": 599988,
+        "first": -1.09227684,
+        "last": -1.11322603,
+        "last_first": -0.020949190000000062,
+        "mean": -1.102269306622714,
+        "std": 0.012216802055457044,
+        "min": -1.21604204,
+        "max": -1.0264181
+      },
+      "Fz_N": {
+        "n": 599988,
+        "first": -0.928559491,
+        "last": -0.906691504,
+        "last_first": 0.021867987000000033,
+        "mean": -0.9242596380381096,
+        "std": 0.011299767146196243,
+        "min": -1.60359825,
+        "max": -0.497041248
+      },
+      "Mx_Nm": {
+        "n": 599988,
+        "first": 0.0520392852,
+        "last": 0.0511141103,
+        "last_first": -0.000925174899999999,
+        "mean": 0.051803522994117786,
+        "std": 0.00033083457602039464,
+        "min": 0.0466879416,
+        "max": 0.0555034861
+      },
+      "My_Nm": {
+        "n": 599988,
+        "first": -0.0638403072,
+        "last": -0.0628943316,
+        "last_first": 0.0009459755999999958,
+        "mean": -0.06377617915292708,
+        "std": 0.00033474595045637767,
+        "min": -0.0675139816,
+        "max": -0.0602179246
+      },
+      "Mz_Nm": {
+        "n": 599988,
+        "first": 0.0607896007,
+        "last": 0.0616276178,
+        "last_first": 0.0008380170999999978,
+        "mean": 0.06103108916926209,
+        "std": 0.0003305959132947029,
+        "min": 0.0595028442,
+        "max": 0.0630031303
+      }
+    },
+    "zeroed_stats": {
+      "Fx_N": {
+        "n": 599988,
+        "first": 0.0,
+        "last": -0.03889729999999991,
+        "last_first": -0.03889729999999991,
+        "mean": -0.003368496653282949,
+        "std": 0.013560665022407003,
+        "min": -0.11127602000000003,
+        "max": 0.09124430000000006
+      },
+      "Fy_N": {
+        "n": 599988,
+        "first": 0.0,
+        "last": -0.020949190000000062,
+        "last_first": -0.020949190000000062,
+        "mean": -0.009992466622715947,
+        "std": 0.012216802055455276,
+        "min": -0.12376520000000002,
+        "max": 0.06585873999999992
+      },
+      "Fz_N": {
+        "n": 599988,
+        "first": 0.0,
+        "last": 0.021867987000000033,
+        "last_first": 0.021867987000000033,
+        "mean": 0.004299852961907562,
+        "std": 0.011299767146192683,
+        "min": -0.6750387589999999,
+        "max": 0.431518243
+      },
+      "Mx_Nm": {
+        "n": 599988,
+        "first": 0.0,
+        "last": -0.000925174899999999,
+        "last_first": -0.000925174899999999,
+        "mean": -0.00023576220588078555,
+        "std": 0.0003308345760204551,
+        "min": -0.0053513436000000025,
+        "max": 0.0034642008999999988
+      },
+      "My_Nm": {
+        "n": 599988,
+        "first": 0.0,
+        "last": 0.0009459755999999958,
+        "last_first": 0.0009459755999999958,
+        "mean": 6.412804707194161e-05,
+        "std": 0.00033474595045640613,
+        "min": -0.0036736743999999932,
+        "max": 0.0036223826000000015
+      },
+      "Mz_Nm": {
+        "n": 599988,
+        "first": 0.0,
+        "last": 0.0008380170999999978,
+        "last_first": 0.0008380170999999978,
+        "mean": 0.00024148846926072738,
+        "std": 0.00033059591329472033,
+        "min": -0.0012867564999999997,
+        "max": 0.0022135296
+      }
+    }
+  },
+  "onrobot_udp_raw_first600": {
+    "path": "/home/andy/ur10e_ros2_ws/experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv",
+    "rows": 299756,
+    "duration_s": 599.990255791,
+    "rate_hz": 499.5997803411267,
+    "software_zero": {
+      "fx_n": 0.28,
+      "fy_n": 3.1,
+      "fz_n": -25.54,
+      "tx_nm": 0.01899,
+      "ty_nm": -0.082,
+      "tz_nm": 0.068
+    },
+    "stats": {
+      "fx_n": {
+        "n": 299756,
+        "first": 0.28,
+        "last": 0.24,
+        "last_first": -0.040000000000000036,
+        "mean": 0.268123394360738,
+        "std": 0.04528115144296941,
+        "min": 0.06,
+        "max": 0.47
+      },
+      "fy_n": {
+        "n": 299756,
+        "first": 3.1,
+        "last": 3.09,
+        "last_first": -0.010000000000000231,
+        "mean": 3.1289060816130507,
+        "std": 0.03021740436885662,
+        "min": 3.0,
+        "max": 3.26
+      },
+      "fz_n": {
+        "n": 299756,
+        "first": -25.54,
+        "last": -25.32,
+        "last_first": 0.21999999999999886,
+        "mean": -25.237486606440243,
+        "std": 0.15406786324854968,
+        "min": -25.9,
+        "max": -24.5
+      },
+      "tx_nm": {
+        "n": 299756,
+        "first": 0.01899,
+        "last": 0.016,
+        "last_first": -0.0029899999999999996,
+        "mean": 0.013895680420074925,
+        "std": 0.004237236071881516,
+        "min": -0.005,
+        "max": 0.032
+      },
+      "ty_nm": {
+        "n": 299756,
+        "first": -0.082,
+        "last": -0.082,
+        "last_first": 0.0,
+        "mean": -0.08523079758203242,
+        "std": 0.004090183897076269,
+        "min": -0.103,
+        "max": -0.067
+      },
+      "tz_nm": {
+        "n": 299756,
+        "first": 0.068,
+        "last": 0.071,
+        "last_first": 0.002999999999999989,
+        "mean": 0.07203962936521607,
+        "std": 0.00215105780411498,
+        "min": 0.062,
+        "max": 0.081
+      }
+    },
+    "zeroed_stats": {
+      "fx_n": {
+        "n": 299756,
+        "first": 0.0,
+        "last": -0.040000000000000036,
+        "last_first": -0.040000000000000036,
+        "mean": -0.011876605639253246,
+        "std": 0.04528115144296949,
+        "min": -0.22000000000000003,
+        "max": 0.18999999999999995
+      },
+      "fy_n": {
+        "n": 299756,
+        "first": 0.0,
+        "last": -0.010000000000000231,
+        "last_first": -0.010000000000000231,
+        "mean": 0.028906081613045483,
+        "std": 0.030217404368855588,
+        "min": -0.10000000000000009,
+        "max": 0.1599999999999997
+      },
+      "fz_n": {
+        "n": 299756,
+        "first": 0.0,
+        "last": 0.21999999999999886,
+        "last_first": 0.21999999999999886,
+        "mean": 0.30251339356009493,
+        "std": 0.15406786324859686,
+        "min": -0.35999999999999943,
+        "max": 1.0399999999999991
+      },
+      "tx_nm": {
+        "n": 299756,
+        "first": 0.0,
+        "last": -0.0029899999999999996,
+        "last_first": -0.0029899999999999996,
+        "mean": -0.005094319579924963,
+        "std": 0.004237236071881491,
+        "min": -0.02399,
+        "max": 0.01301
+      },
+      "ty_nm": {
+        "n": 299756,
+        "first": 0.0,
+        "last": 0.0,
+        "last_first": 0.0,
+        "mean": -0.003230797582033427,
+        "std": 0.004090183897076273,
+        "min": -0.02099999999999999,
+        "max": 0.015
+      },
+      "tz_nm": {
+        "n": 299756,
+        "first": 0.0,
+        "last": 0.002999999999999989,
+        "last_first": 0.002999999999999989,
+        "mean": 0.004039629365217006,
+        "std": 0.0021510578041150346,
+        "min": -0.006000000000000005,
+        "max": 0.012999999999999998
+      }
+    }
+  },
+  "long_run_overall": {
+    "samples": 69325059,
+    "duration_first_last_s": 69325.77287676797,
+    "rate_hz_by_first_last": 999.9897025775791,
+    "dt_mean_ms": 1.000010311953406,
+    "dt_min_ms": 0.006061047315597534,
+    "dt_max_ms": 63.37462901137769,
+    "stats": {
+      "Fx_N": {
+        "first": 2.43794392,
+        "last": 2.37468652,
+        "last_minus_first": -0.06325739999999991,
+        "mean": 2.409634121549102,
+        "std": 0.0176863846710509,
+        "min": 2.26284936,
+        "max": 2.59396845
+      },
+      "Fy_N": {
+        "first": -1.09227684,
+        "last": -1.04189544,
+        "last_minus_first": 0.05038140000000002,
+        "mean": -1.0695517676881134,
+        "std": 0.01746514120802355,
+        "min": -1.29556573,
+        "max": -0.908167057
+      },
+      "Fz_N": {
+        "first": -0.928559491,
+        "last": -0.882840673,
+        "last_minus_first": 0.045718817999999994,
+        "mean": -0.8990230321550813,
+        "std": 0.014582066469279174,
+        "min": -1.60359825,
+        "max": -0.497041248
+      },
+      "Mx_Nm": {
+        "first": 0.0520392852,
+        "last": 0.0524282251,
+        "last_minus_first": 0.00038893990000000295,
+        "mean": 0.051958331729522494,
+        "std": 0.00036955103723133843,
+        "min": 0.0442252687,
+        "max": 0.0582259151
+      },
+      "My_Nm": {
+        "first": -0.0638403072,
+        "last": -0.0636329937,
+        "last_minus_first": 0.00020731350000000037,
+        "mean": -0.06422959070822516,
+        "std": 0.00038718170607520504,
+        "min": -0.0703151749,
+        "max": -0.0573553519
+      },
+      "Mz_Nm": {
+        "first": 0.0607896007,
+        "last": 0.0620538439,
+        "last_minus_first": 0.001264243200000001,
+        "mean": 0.06183063581068477,
+        "std": 0.0005586713645383542,
+        "min": 0.0591425185,
+        "max": 0.0646440659
+      }
+    },
+    "summary_stop_reason": "signal_2",
+    "summary_finished_at": "2026-06-03T15:12:53",
+    "summary_parse_errors": 0,
+    "summary_dropped_sync_bytes": 0
+  },
+  "step2c_summary": {
+    "baseline_epoch": 0,
+    "baseline_ready": true,
+    "baseline_samples": 4987,
+    "baseline_si_offsets": {
+      "fx_n": 8.480456994630039,
+      "fy_n": 3.117848715654436,
+      "fz_n": 3.0091359449813315,
+      "mx_nm": 0.22942584251770912,
+      "my_nm": -0.28026047155385997,
+      "mz_nm": 0.0894189879537618
+    },
+    "bridge_write_timing": {
+      "dt_max_s": 0.01180795198888518,
+      "dt_mean_s": 0.00199108116500002,
+      "dt_p95_s": 0.002000954991672188,
+      "dt_p99_s": 0.0020013159955851734,
+      "elapsed_s": 149.33108737500152,
+      "rate_hz": 502.2396964917248,
+      "samples": 75001
+    },
+    "bridge_writes": 75001,
+    "dropped_sync_bytes": 0,
+    "echo_heartbeat_transitions": {
+      "dt_max_s": 32.619742237002356,
+      "dt_mean_s": 0.01986301214238053,
+      "dt_p95_s": 0.012039144989103079,
+      "dt_p99_s": 0.012092845019651577,
+      "elapsed_s": 65.56780308199814,
+      "rate_hz": 50.34483153068005,
+      "samples": 3302
+    },
+    "finished_at": "2026-06-06T22:10:47",
+    "force_norm_stats_n": {
+      "max": 24.850506691768885,
+      "mean": 0.8236413667129877,
+      "min": 0.010513393646971961,
+      "samples": 149985,
+      "std": 1.9570838463901286
+    },
+    "last_echo_heartbeat": 33116.0,
+    "last_zero_request": 0.0,
+    "normal_force_stats_n": {
+      "max": 3.592182780200243,
+      "mean": -0.11526085051379767,
+      "min": -23.43594690182209,
+      "samples": 149985,
+      "std": 1.3180822342290839
+    },
+    "parse_errors": 0,
+    "paths": {
+      "bridge_csv": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_search5_guard20_line2ms_alpha70_vlim5_20260606_220817/bridge_rtde_500hz.csv",
+      "metadata": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_search5_guard20_line2ms_alpha70_vlim5_20260606_220817/metadata.json",
+      "raw_frames": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_search5_guard20_line2ms_alpha70_vlim5_20260606_220817/raw_frames.bin",
+      "sensor_csv": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_search5_guard20_line2ms_alpha70_vlim5_20260606_220817/kunwei_sensor_1khz.csv",
+      "summary": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_search5_guard20_line2ms_alpha70_vlim5_20260606_220817/summary.json"
+    },
+    "rtde_output_timing": {
+      "dt_max_s": 0.010779907985124737,
+      "dt_mean_s": 0.0019999748384651427,
+      "dt_p95_s": 0.002039912005420774,
+      "dt_p99_s": 0.002085154613014311,
+      "elapsed_s": 149.32812131399987,
+      "rate_hz": 500.0062904628532,
+      "samples": 74666
+    },
+    "rtde_reconnect_event_count": 0,
+    "rtde_reconnect_events": [],
+    "samples": 149985,
+    "stop_reason": "duration",
+    "torque_norm_stats_nm": {
+      "max": 0.4469032056044458,
+      "mean": 0.02214757482907547,
+      "min": 7.447320415216551e-05,
+      "samples": 149985,
+      "std": 0.06551282099459863
+    },
+    "zero_events": [
+      {
+        "baseline_epoch": 0,
+        "completed_at_monotonic_s": 167729.759417858,
+        "completed_at_sample": 4987,
+        "duration_s": 5.037218172015855,
+        "samples": 4987
+      }
+    ]
+  },
+  "figures": {
+    "first600_force_axes": {
+      "report": "assets/kunwei-kwr75-progress-20260608/first600_onrobot_kunwei_force_axes_envelope.png",
+      "weekly": "assets/kunwei_kwr75_20260608/first600_onrobot_kunwei_force_axes_envelope.png"
+    },
+    "first600_fz": {
+      "report": "assets/kunwei-kwr75-progress-20260608/first600_onrobot_kunwei_fz_envelope.png",
+      "weekly": "assets/kunwei_kwr75_20260608/first600_onrobot_kunwei_fz_envelope.png"
+    },
+    "first600_std": {
+      "report": "assets/kunwei-kwr75-progress-20260608/first600_onrobot_kunwei_force_std.png",
+      "weekly": "assets/kunwei_kwr75_20260608/first600_onrobot_kunwei_force_std.png"
+    }
+  }
+}
