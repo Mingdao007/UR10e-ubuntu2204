@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04"
 RUN_ROOT="${ROOT}/runs"
 STAMP="$(date +%Y%m%d_%H%M%S)"
-EXPECTED_PROGRAM="/programs/andyl/kunwei/step2/step4b_circle_contact_paper_attitude_v1.urp"
+EXPECTED_PROGRAM="/programs/andyl/kunwei/step4/step4b_circle_contact_paper_attitude_v1.urp"
 EXPECTED_BASENAME="step4b_circle_contact_paper_attitude_v1.urp"
 ROBOT_HOST="${ROBOT_HOST:-192.168.1.18}"
 DASHBOARD_PORT="${DASHBOARD_PORT:-29999}"
@@ -20,7 +20,7 @@ Usage:
   step4-circle-v1-operator.sh autowatch
 
 Teach Pendant program:
-  /programs/andyl/kunwei/step2/step4b_circle_contact_paper_attitude_v1.urp
+  /programs/andyl/kunwei/step4/step4b_circle_contact_paper_attitude_v1.urp
 
 Bridge lifecycle:
   bridge: starts Kunwei/RTDE bridge, then waits up to 45 s for TP Play
@@ -248,7 +248,7 @@ This mode waits for Teach Pendant Play first.
 It does not start Kunwei streaming or write RTDE inputs while waiting.
 
 Open this Teach Pendant program first:
-  /programs/andyl/kunwei/step2/step4b_circle_contact_paper_attitude_v1.urp
+  /programs/andyl/kunwei/step4/step4b_circle_contact_paper_attitude_v1.urp
 
 Then run this mode and press Play on the Teach Pendant.
 The bridge will start automatically only after Dashboard reports that exact Step4b program running.
@@ -265,7 +265,7 @@ This sends Kunwei 48 AA 0D 0A and writes UR RTDE input registers.
 It does not send URScript from Ubuntu.
 
 Before pressing Play, open this Teach Pendant program:
-  /programs/andyl/kunwei/step2/step4b_circle_contact_paper_attitude_v1.urp
+  /programs/andyl/kunwei/step4/step4b_circle_contact_paper_attitude_v1.urp
 
 Motion:
   full circle from middle-half diameter of the prior contact path

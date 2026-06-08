@@ -1,13 +1,13 @@
 Step4a no-contact circle v1 TP package
 
 Open on Teach Pendant:
-  /programs/andyl/kunwei/step2/step4a_circle_no_contact_v1.urp
+  /programs/andyl/kunwei/step4/step4a_circle_no_contact_v1.urp
 
 Script source:
-  /programs/andyl/kunwei/step2/step4a_circle_no_contact_v1.script
+  /programs/andyl/kunwei/step4/step4a_circle_no_contact_v1.script
 
 Version stamp:
-  2026-06-08T1604HKT_STEP4A_CIRCLE_NO_CONTACT_V1
+  2026-06-08T1617HKT_STEP4A_CIRCLE_NO_CONTACT_V1
 
 Purpose:
   First dry run before contact. It verifies the Step4a circle geometry and UR-owned IK at safe Z.

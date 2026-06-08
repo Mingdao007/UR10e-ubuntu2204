@@ -1,6 +1,6 @@
 # Step4a no-contact circle v1: fixed-Z motion validation for circle geometry and UR-owned IK.
-# VERSION: 2026-06-08T1604HKT_STEP4A_CIRCLE_NO_CONTACT_V1
-# GENERATED_AT_LOCAL: 2026-06-08T16:04:00+0800
+# VERSION: 2026-06-08T1617HKT_STEP4A_CIRCLE_NO_CONTACT_V1
+# GENERATED_AT_LOCAL: 2026-06-08T16:17:01+0800
 # BEHAVIOR: align to Step2C reference orientation, move to Step4a circle start at safe Z,
 # trace one full circle with Cartesian speedl XY twist, stop, and return to TP-start home.
 # No Kunwei stream, no RTDE input dependency, no contact search, no force control,
@@ -44,7 +44,7 @@ def codex_step4a_circle_no_contact():
   local accel_m_s2 = 0.300
 
   local home_pose = get_actual_tcp_pose()
-  textmsg("codex step4a no-contact version 2026-06-08T1604HKT_STEP4A_CIRCLE_NO_CONTACT_V1 start")
+  textmsg("codex step4a no-contact version 2026-06-08T1617HKT_STEP4A_CIRCLE_NO_CONTACT_V1 start")
 
   local p0 = get_actual_tcp_pose()
   movel(p[p0[0], p0[1], p0[2], ref_rx, ref_ry, ref_rz], a=0.030, v=0.050, r=0.0)
@@ -72,7 +72,7 @@ def codex_step4a_circle_no_contact():
   stopl(0.5)
   movel(home_pose, a=0.030, v=0.050, r=0.0)
   stopl(0.5)
-  textmsg("codex step4a no-contact version 2026-06-08T1604HKT_STEP4A_CIRCLE_NO_CONTACT_V1 complete")
+  textmsg("codex step4a no-contact version 2026-06-08T1617HKT_STEP4A_CIRCLE_NO_CONTACT_V1 complete")
 end
 
 codex_step4a_circle_no_contact()

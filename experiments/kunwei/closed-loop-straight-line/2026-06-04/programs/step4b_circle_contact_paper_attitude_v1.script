@@ -1,6 +1,6 @@
 # Step4b contact circle v1: Step2C v8 scaffold with circular tangent twist, Z force admittance, and bounded paper-first attitude compliance.
-# VERSION: 2026-06-08T1604HKT_STEP4B_CIRCLE_CONTACT_PAPER_ATTITUDE_V1
-# GENERATED_AT_LOCAL: 2026-06-08T16:04:00+0800
+# VERSION: 2026-06-08T1617HKT_STEP4B_CIRCLE_CONTACT_PAPER_ATTITUDE_V1
+# GENERATED_AT_LOCAL: 2026-06-08T16:17:01+0800
 # BEHAVIOR: wait for Kunwei bridge; align to old reference orientation; move to
 # Step4b circle-start XY derived from the middle half of the old contact path;
 # do bounded Z prep instead of blindly returning to contact Z + 100 mm. If current Z is already 30-100 mm above known contact,
@@ -157,7 +157,7 @@ def codex_step4b_circle_contact():
 
   local home_pose = get_actual_tcp_pose()
 
-  textmsg("codex step4b version 2026-06-08T1604HKT_STEP4B_CIRCLE_CONTACT_PAPER_ATTITUDE_V1 start circle_contact_paper_attitude_v1")
+  textmsg("codex step4b version 2026-06-08T1617HKT_STEP4B_CIRCLE_CONTACT_PAPER_ATTITUDE_V1 start circle_contact_paper_attitude_v1")
   write_output_float_register(35, 20.0)
   codex_write_echo(0.0, 0.0, 0.0, 0.0)
 
@@ -424,7 +424,7 @@ def codex_step4b_circle_contact():
   write_output_float_register(30, stop_reason)
   write_output_float_register(31, max_observed_stale_s)
   write_output_float_register(35, 29.0)
-  textmsg("codex step4b version 2026-06-08T1604HKT_STEP4B_CIRCLE_CONTACT_PAPER_ATTITUDE_V1 stop reason:", stop_reason)
+  textmsg("codex step4b version 2026-06-08T1617HKT_STEP4B_CIRCLE_CONTACT_PAPER_ATTITUDE_V1 stop reason:", stop_reason)
 end
 
 codex_step4b_circle_contact()
