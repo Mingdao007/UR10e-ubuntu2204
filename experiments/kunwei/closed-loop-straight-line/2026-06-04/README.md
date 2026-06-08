@@ -53,6 +53,38 @@ Step1 operator command wrapper:
 /home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/scripts/step1-operator.sh bridge
 ```
 
+Step2D circular-contact package:
+
+```bash
+/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/tools/build_step2d_circle_program.py
+/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/scripts/step2d-circle-v1-operator.sh autowatch
+```
+
+Teach Pendant target:
+
+```text
+/programs/andyl/kunwei/step2/step2d_circle_no_contact_v1.urp
+/programs/andyl/kunwei/step2/step2d_circle_full_paper_attitude_v1.urp
+```
+
+Step2D reuses the Step2C v8 scaffold for high approach, contact search, soft
+acquisition, short retract, and home return. The controlled-contact stage is
+changed from a straight line to a full circle whose diameter is the middle half
+of the prior contact path: `25% -> 75%`, radius `15.895 mm`, full arc length
+`99.871 mm`. The UR still owns IK through Cartesian `speedl()` twist commands.
+The first Step2D program includes bounded `wx/wy` attitude compliance based on
+lateral force plus `Mx/My` as a paper-first force-shortest-arc proxy; treat that
+as a v1 experimental controller, not as a validated paper-faithful claim until
+there is run evidence.
+
+Execution order is intentionally staged. First open and run
+`step2d_circle_no_contact_v1.urp`; it uses the same circle geometry at safe Z
+with no Kunwei stream, no RTDE input dependency, no contact search, no force
+control, and no attitude compliance. Only after that dry run is visually and
+logically acceptable should the operator open
+`step2d_circle_full_paper_attitude_v1.urp` and use the Step2D bridge/autowatch
+wrapper.
+
 For Kunwei logging without RTDE input writes:
 
 ```bash

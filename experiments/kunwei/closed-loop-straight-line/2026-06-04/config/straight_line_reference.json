@@ -17,6 +17,23 @@
     "xy_unit_vector": [0.679764156, -0.733430768],
     "xy_length_m": 0.06358
   },
+  "step2d_circle": {
+    "source": "middle half of reference_line contact path",
+    "diameter_start_fraction": 0.25,
+    "diameter_end_fraction": 0.75,
+    "circle_direction": 1.0,
+    "derived_start_xy_m": [0.457390615, 0.215059119],
+    "derived_center_xy_m": [0.468195467, 0.203401237],
+    "derived_opposite_xy_m": [0.479000318, 0.191743355],
+    "derived_radius_m": 0.015895,
+    "derived_full_arc_length_m": 0.09987123,
+    "first_version_policy": {
+      "trajectory": "full circle",
+      "ik_owner": "UR controller through speedl Cartesian twist",
+      "normal_control": "reuse Step2C signed-Fz velocity admittance",
+      "attitude_control": "bounded force/torque-based paper-first compliance proxy"
+    }
+  },
   "robot_state_policy": {
     "keep_existing_tcp_payload": true,
     "current_tcp_z_mm_used_as_field_state": 122.5,

@@ -1,0 +1,78 @@
+# Step2D no-contact full-circle v1: fixed-Z dry run for circle geometry and UR-owned IK.
+# VERSION: 2026-06-08T1700HKT_STEP2D_CIRCLE_FULL_PAPER_ATTITUDE_V1_NO_CONTACT
+# GENERATED_AT_LOCAL: 2026-06-08T15:26:34+08:00
+# BEHAVIOR: align to Step2C reference orientation, move to Step2D circle start at safe Z,
+# trace one full circle with Cartesian speedl XY twist, stop, and return to TP-start home.
+# No Kunwei stream, no RTDE input dependency, no contact search, no force control,
+# no attitude compliance, no UR zero_ftsensor, no TCP/payload write.
+
+def codex_abs(x):
+  if x < 0.0:
+    return -x
+  end
+  return x
+end
+
+def codex_clamp(x, lo, hi):
+  if x < lo:
+    return lo
+  elif x > hi:
+    return hi
+  end
+  return x
+end
+
+def codex_step2d_circle_no_contact():
+  local ux = 0.679764156
+  local uy = -0.733430768
+  local entry_x = 0.457390615
+  local entry_y = 0.215059119
+  local old_contact_z = 0.020279919
+  local safe_z = old_contact_z + 0.100
+  local ref_rx = 3.141572714
+  local ref_ry = -0.000026465
+  local ref_rz = -0.000024158
+  local circle_radius_m = 0.015895
+  local two_pi = 6.283185307
+  local circle_direction = 1
+  local circle_perp_x = 0.733430768
+  local circle_perp_y = 0.679764156
+  local tangent_speed_m_s = 0.005
+  local circle_xy_p_gain_m_s_per_m = 3.0
+  local circle_xy_velocity_limit_m_s = 0.003
+  local hold_s = 0.008
+  local accel_m_s2 = 0.300
+
+  local home_pose = get_actual_tcp_pose()
+  textmsg("codex step2d no-contact version 2026-06-08T1700HKT_STEP2D_CIRCLE_FULL_PAPER_ATTITUDE_V1_NO_CONTACT start")
+
+  local p0 = get_actual_tcp_pose()
+  movel(p[p0[0], p0[1], p0[2], ref_rx, ref_ry, ref_rz], a=0.030, v=0.050, r=0.0)
+  stopl(0.5)
+  movel(p[entry_x, entry_y, safe_z, ref_rx, ref_ry, ref_rz], a=0.030, v=0.050, r=0.0)
+  stopl(0.5)
+
+  local circle_start_pose = get_actual_tcp_pose()
+  local theta = 0.0
+  while theta < two_pi:
+    local pose_now = get_actual_tcp_pose()
+    local sin_theta = sin(theta)
+    local cos_theta = cos(theta)
+    local e1x = circle_direction * circle_perp_x
+    local e1y = circle_direction * circle_perp_y
+    local desired_x = circle_start_pose[0] + circle_radius_m * (1.0 - cos_theta) * ux + circle_radius_m * sin_theta * e1x
+    local desired_y = circle_start_pose[1] + circle_radius_m * (1.0 - cos_theta) * uy + circle_radius_m * sin_theta * e1y
+    local tangent_vx = tangent_speed_m_s * (sin_theta * ux + cos_theta * e1x)
+    local tangent_vy = tangent_speed_m_s * (sin_theta * uy + cos_theta * e1y)
+    local correction_vx = codex_clamp(circle_xy_p_gain_m_s_per_m * (desired_x - pose_now[0]), -circle_xy_velocity_limit_m_s, circle_xy_velocity_limit_m_s)
+    local correction_vy = codex_clamp(circle_xy_p_gain_m_s_per_m * (desired_y - pose_now[1]), -circle_xy_velocity_limit_m_s, circle_xy_velocity_limit_m_s)
+    speedl([tangent_vx + correction_vx, tangent_vy + correction_vy, 0.0, 0.0, 0.0, 0.0], accel_m_s2, hold_s)
+    theta = theta + tangent_speed_m_s * hold_s / circle_radius_m
+  end
+  stopl(0.5)
+  movel(home_pose, a=0.030, v=0.050, r=0.0)
+  stopl(0.5)
+  textmsg("codex step2d no-contact version 2026-06-08T1700HKT_STEP2D_CIRCLE_FULL_PAPER_ATTITUDE_V1_NO_CONTACT complete")
+end
+
+codex_step2d_circle_no_contact()
