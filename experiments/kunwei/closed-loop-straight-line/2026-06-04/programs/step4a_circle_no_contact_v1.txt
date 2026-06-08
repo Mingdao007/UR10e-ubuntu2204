@@ -1,0 +1,28 @@
+Step4a no-contact circle v1 TP package
+
+Open on Teach Pendant:
+  /programs/andyl/kunwei/step2/step4a_circle_no_contact_v1.urp
+
+Script source:
+  /programs/andyl/kunwei/step2/step4a_circle_no_contact_v1.script
+
+Version stamp:
+  2026-06-08T1604HKT_STEP4A_CIRCLE_NO_CONTACT_V1
+
+Purpose:
+  First dry run before contact. It verifies the Step4a circle geometry and UR-owned IK at safe Z.
+
+Geometry:
+  circle start XY: 0.457390615, 0.215059119
+  circle center XY: 0.468195467, 0.203401237
+  radius: 15.895 mm
+  full-circle arc length: 99.871 mm
+
+Motion summary:
+  no Kunwei stream
+  no RTDE input dependency
+  no contact search
+  no force control
+  no attitude compliance
+  fixed safe Z = old contact Z + 100 mm
+  tangent speed = 5 mm/s
