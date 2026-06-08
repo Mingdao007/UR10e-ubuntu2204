@@ -15,6 +15,7 @@ Usage:
   step0-operator.sh benchmark-freq-250
   step0-operator.sh step3-0c-pose-math-500
   step0-operator.sh step3-0d-min-speedl-500
+  step0-operator.sh step3-0e-min-speedl-1ms
   step0-operator.sh bridge-minimal-log
 
 What this script does:
@@ -33,6 +34,11 @@ What this script does:
                      step3_0d_min_speedl_500hz_v1.urp: speedl t=2 ms, 2 mm/s,
                      100 mm/s^2, about 1 mm +X then 1 mm back. No contact or
                      force-control law.
+  step3-0e-min-speedl-1ms
+                     Minimal speedl 1 ms hold isolation for
+                     step3_0e_min_speedl_1ms_v1.urp: speedl t=1 ms, 2 mm/s,
+                     100 mm/s^2, about 1 mm +X then 1 mm back. This tests
+                     whether 1 ms hold raises measured echo cadence above 250 Hz.
   bridge-minimal-log Starts Kunwei stream and logging only; no RTDE input writes.
 
 Teach pendant remains the motion authority:
@@ -89,6 +95,39 @@ WARNING
     exit 2
   fi
   out_dir="${RUN_ROOT}/step3_0d_min_speedl_500hz_${STAMP}"
+  python3 "${ROOT}/tools/benchmark_rtde_frequency.py" \
+    --allow-kunwei-stream-command \
+    --baseline-s 3 \
+    --duration-s 8 \
+    --rates 500 \
+    --target-force-n 5 \
+    --normal-axis fz \
+    --normal-sign 1 \
+    --max-normal-force-n 20 \
+    --max-force-norm-n 50 \
+    --sensor-stale-s 0.10 \
+    --output-dir "${out_dir}"
+}
+
+run_step3_0e_min_speedl_1ms() {
+  cat <<'WARNING'
+This will send Kunwei 48 AA 0D 0A and write UR RTDE input registers at 500 Hz.
+It will not send URScript from Ubuntu.
+Open /programs/andyl/kunwei/step3_0e_min_speedl_1ms_v1.urp on the teach pendant.
+After typing START_STEP3_0E here, press Play on the teach pendant during the 3 s baseline window.
+The program uses speedl(t=0.001) with a small no-contact XY motion:
+  speed = 2 mm/s, acceleration = 100 mm/s^2, about 1 mm +X then 1 mm back.
+It does no contact search, no force-control law, no zero, and no tare.
+This tests whether 1 ms speedl hold can raise measured echo cadence above 250 Hz.
+Pass/fail is based on measured UR echo heartbeat transitions, not requested rate.
+Type START_STEP3_0E to continue:
+WARNING
+  read -r confirm
+  if [[ "${confirm}" != "START_STEP3_0E" ]]; then
+    echo "aborted"
+    exit 2
+  fi
+  out_dir="${RUN_ROOT}/step3_0e_min_speedl_1ms_${STAMP}"
   python3 "${ROOT}/tools/benchmark_rtde_frequency.py" \
     --allow-kunwei-stream-command \
     --baseline-s 3 \
@@ -195,6 +234,9 @@ WARNING
     ;;
   step3-0d-min-speedl-500)
     run_step3_0d_min_speedl_500
+    ;;
+  step3-0e-min-speedl-1ms)
+    run_step3_0e_min_speedl_1ms
     ;;
   bridge-full|bridge-step1)
     echo "step1 is separated now. Use: ${ROOT}/scripts/step1-operator.sh bridge" >&2
