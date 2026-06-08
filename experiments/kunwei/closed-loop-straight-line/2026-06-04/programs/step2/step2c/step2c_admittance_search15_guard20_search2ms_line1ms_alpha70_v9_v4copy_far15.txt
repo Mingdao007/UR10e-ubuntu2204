@@ -1,10 +1,10 @@
 Step2C admittance search15 v9 TP package
 
 Open on Teach Pendant:
-  /programs/andyl/kunwei/step2/step2c_admittance_search15_guard20_search2ms_line1ms_alpha70_v9_v4copy_far15.urp
+  /programs/andyl/kunwei/step2/step2c/step2c_admittance_search15_guard20_search2ms_line1ms_alpha70_v9_v4copy_far15.urp
 
 Script source:
-  /programs/andyl/kunwei/step2/step2c_admittance_search15_guard20_search2ms_line1ms_alpha70_v9_v4copy_far15.script
+  /programs/andyl/kunwei/step2/step2c/step2c_admittance_search15_guard20_search2ms_line1ms_alpha70_v9_v4copy_far15.script
 
 Version stamp:
   2026-06-08T1516HKT_STEP2C_V9_V4COPY_FAR15

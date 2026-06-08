@@ -1,0 +1,3 @@
+ Program
+   Robot Program
+     Script: step2c_closed_loop_full.script

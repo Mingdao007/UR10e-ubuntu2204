@@ -1,10 +1,10 @@
 Step2C admittance search30 v7 TP package
 
 Open on Teach Pendant:
-  /programs/andyl/kunwei/step2/step2c_admittance_search30_guard20_search2ms_line1ms_alpha70_v7_accel300_near3.urp
+  /programs/andyl/kunwei/step2/step2c/step2c_admittance_search30_guard20_search2ms_line1ms_alpha70_v7_accel300_near3.urp
 
 Script source:
-  /programs/andyl/kunwei/step2/step2c_admittance_search30_guard20_search2ms_line1ms_alpha70_v7_accel300_near3.script
+  /programs/andyl/kunwei/step2/step2c/step2c_admittance_search30_guard20_search2ms_line1ms_alpha70_v7_accel300_near3.script
 
 Version stamp:
   2026-06-08T1459HKT_STEP2C_V7_V4_ACCEL300_NEAR3

@@ -1,0 +1,301 @@
+def step2c():
+  set_tool_communication(True, 1000000, 2, 1, 1.5, 3.5)
+  set_tool_output_mode(0)
+  set_tool_digital_output_mode(0, 1)
+  set_tool_digital_output_mode(1, 1)
+  set_tool_voltage(24)
+  set_tcp(p[0.0,0.0,0.1225,0.0,0.0,0.0])
+  set_target_payload(0.401000, [0.001000, 0.001000, 0.025000], [0.000336, 0.000336, 0.000336, 0.000000, 0.000000, 0.000000])
+  set_standard_analog_input_domain(0, 1)
+  set_standard_analog_input_domain(1, 1)
+  set_tool_analog_input_domain(0, 1)
+  set_tool_analog_input_domain(1, 1)
+  set_analog_outputdomain(0, 0)
+  set_analog_outputdomain(1, 0)
+  set_input_actions_to_default()
+  step_count_ee695f16_b203_4777_85cc_13858a58e1ae = 0.0
+  thread Step_Counter_Thread_38b49084_9662_4727_8919_3cb4191109ca():
+    while (True):
+      step_count_ee695f16_b203_4777_85cc_13858a58e1ae = step_count_ee695f16_b203_4777_85cc_13858a58e1ae + 1.0
+      sync()
+    end
+  end
+  run Step_Counter_Thread_38b49084_9662_4727_8919_3cb4191109ca()
+  set_safety_mode_transition_hardness(1)
+  set_gravity([0.0, 0.0, 9.82])
+  global B1empty=False
+  global A2Empty=0
+  global A1Empty=0
+  global B2Empty=False
+  global pallet_step=0
+  global Pallet_1_cnt=2
+  global bright_box=0
+  global dark_boxes=0
+  global Point_1=p[0.6913645118948067,-0.12399382748223003,0.49223711947071,-1.2983729986843258,1.1259514972191385,-1.2203503861141718]
+  # begin: URCap Installation Node
+  #   Source: External Control, 1.0.5, FZI Research Center for Information Technology
+  #   Type: External Control
+  # end: URCap Installation Node
+  $ 1 "Robot Program"
+  $ 2 "Script: step2c_closed_loop_full.script"
+  # Step2C: integrated contact search + 5 N / 10 mm/s closed-loop full run.
+  # VERSION: 2026-06-05T02:19:09+08:00
+  # BEHAVIOR: same corrected-orientation shape as Step2B, but tangent speed is
+  # 10 mm/s and PI normal Z correction uses lightly filtered Kunwei normal force.
+  # Contact trigger and safety guards use raw unfiltered force. The Ubuntu bridge
+  # must be started with target-force 5 N after the 3 N pilot is accepted.
+
+  def codex_abs(x):
+    if x < 0.0:
+      return -x
+    end
+    return x
+  end
+
+  def codex_clamp(x, lo, hi):
+    if x < lo:
+      return lo
+    elif x > hi:
+      return hi
+    end
+    return x
+  end
+
+  def codex_wait_for_sensor_ok(timeout_s):
+    local dt = 0.002
+    local t = 0.0
+    while t < timeout_s:
+      if read_input_float_register(27) > 0.5:
+        return True
+      end
+      sync()
+      t = t + dt
+    end
+    return False
+  end
+
+  def codex_step2_guard_stop_reason():
+    local normal_force = read_input_float_register(24)
+    local force_norm = read_input_float_register(25)
+    local sensor_ok = read_input_float_register(27)
+    local stop_request = read_input_float_register(28)
+    local torque_norm = read_input_float_register(30)
+    if sensor_ok < 0.5:
+      return 3.0
+    elif stop_request > 0.5:
+      return 4.0
+    elif codex_abs(normal_force) > 12.0:
+      return 5.0
+    elif force_norm > 50.0:
+      return 6.0
+    elif torque_norm > 0.6:
+      return 7.0
+    end
+    return 0.0
+  end
+
+  def codex_write_echo(stop_reason, progress_m, correction_m, commanded_z_m_s):
+    write_output_float_register(24, read_input_float_register(24))
+    write_output_float_register(25, read_input_float_register(25))
+    write_output_float_register(26, read_input_float_register(26))
+    write_output_float_register(27, read_input_float_register(27))
+    write_output_float_register(28, read_input_float_register(28))
+    write_output_float_register(29, read_input_float_register(29))
+    write_output_float_register(30, stop_reason)
+    write_output_float_register(31, progress_m)
+    write_output_float_register(32, correction_m)
+    write_output_float_register(33, commanded_z_m_s)
+  end
+
+  def codex_step2c_closed_loop_full():
+    local ux = 0.679764156
+    local uy = -0.733430768
+    local entry_x = 0.446585764
+    local entry_y = 0.226717001
+    local old_contact_z = 0.020279919
+    local entry_z = old_contact_z + 0.015
+    local ref_rx = 3.141572714
+    local ref_ry = -0.000026465
+    local ref_rz = -0.000024158
+    local approach_speed_m_s = 0.080
+    local approach_z_speed_m_s = 0.080
+    local search_speed_m_s = -0.015
+    local search_accel_m_s2 = 0.300
+    local line_accel_m_s2 = 0.500
+    local speedl_hold_s = 0.002
+    local trigger_normal_force_n = 2.0
+    local max_search_down_m = 0.020
+    local tangent_speed_m_s = 0.010
+    local path_length_m = 0.06358
+    local normal_velocity_p_gain = 0.0004
+    local normal_velocity_i_gain = 0.00008
+    local normal_velocity_limit_m_s = 0.003
+    local normal_velocity_sign = -1.0
+    local normal_filter_alpha = 0.25
+    local integral_error_limit_n_s = 10.0
+    local unload_speed_m_s = 0.001
+    local unload_force_norm_n = 0.8
+    local retract_z_m = 0.050
+    local stale_limit_s = 0.080
+    local search_runtime_limit_s = 65.0
+    local line_runtime_limit_s = 15.0
+    local unload_runtime_limit_s = 10.0
+    local dt = 0.002
+    local stop_reason = 0.0
+    local contact_triggered = 0
+
+    textmsg("codex step2c version 2026-06-05T02:19:09+08:00 full pi_filter_125hz_search15_acc300 start")
+    write_output_float_register(35, 20.0)
+    codex_write_echo(0.0, 0.0, 0.0, 0.0)
+
+    if not codex_wait_for_sensor_ok(15.0):
+      stop_reason = 3.0
+    end
+
+    if stop_reason == 0.0:
+      write_output_float_register(35, 21.0)
+      local p0 = get_actual_tcp_pose()
+      local reference_orientation_pose = p[p0[0], p0[1], p0[2], ref_rx, ref_ry, ref_rz]
+      movel(reference_orientation_pose, a=0.030, v=approach_speed_m_s, r=0.0)
+      stopl(0.5)
+      write_output_float_register(35, 22.0)
+      local p1 = get_actual_tcp_pose()
+      local entry_xy_pose = p[entry_x, entry_y, p1[2], ref_rx, ref_ry, ref_rz]
+      movel(entry_xy_pose, a=0.030, v=approach_speed_m_s, r=0.0)
+      stopl(0.5)
+      write_output_float_register(35, 23.0)
+      local entry_pose = p[entry_x, entry_y, entry_z, ref_rx, ref_ry, ref_rz]
+      movel(entry_pose, a=0.030, v=approach_z_speed_m_s, r=0.0)
+      stopl(0.5)
+      sleep(0.20)
+      stop_reason = codex_step2_guard_stop_reason()
+    end
+
+    if stop_reason == 0.0:
+      write_output_float_register(35, 24.0)
+      local search_start = get_actual_tcp_pose()
+      local last_heartbeat = read_input_float_register(26)
+      local stale_s = 0.0
+      local t = 0.0
+      while stop_reason == 0.0:
+        local heartbeat = read_input_float_register(26)
+        local normal_force = read_input_float_register(24)
+        local pose_now = get_actual_tcp_pose()
+        local search_depth_m = search_start[2] - pose_now[2]
+        if heartbeat == last_heartbeat:
+          stale_s = stale_s + dt
+        else:
+          stale_s = 0.0
+          last_heartbeat = heartbeat
+        end
+        codex_write_echo(stop_reason, 0.0, search_depth_m, search_speed_m_s)
+        if stale_s > stale_limit_s:
+          stop_reason = 2.0
+        else:
+          stop_reason = codex_step2_guard_stop_reason()
+        end
+        if stop_reason == 0.0:
+          if normal_force >= trigger_normal_force_n:
+            contact_triggered = 1
+            stop_reason = 11.0
+          elif search_depth_m >= max_search_down_m:
+            stop_reason = 8.0
+          elif t >= search_runtime_limit_s:
+            stop_reason = 10.0
+          else:
+            speedl([0.0, 0.0, search_speed_m_s, 0.0, 0.0, 0.0], search_accel_m_s2, speedl_hold_s)
+            sync()
+            t = t + dt
+          end
+        end
+      end
+      stopl(0.5)
+    end
+
+    if contact_triggered == 1:
+      stop_reason = 0.0
+    end
+
+    if stop_reason == 0.0:
+      write_output_float_register(35, 25.0)
+      local line_start = get_actual_tcp_pose()
+      local last_heartbeat2 = read_input_float_register(26)
+      local stale_s2 = 0.0
+      local t2 = 0.0
+      local filtered_normal_force = read_input_float_register(24)
+      local integral_error = 0.0
+      while stop_reason == 0.0:
+        local raw_normal_force = read_input_float_register(24)
+        local heartbeat2 = read_input_float_register(26)
+        local target_force = read_input_float_register(29)
+        local pose_line = get_actual_tcp_pose()
+        local dx = pose_line[0] - line_start[0]
+        local dy = pose_line[1] - line_start[1]
+        local progress_m = dx * ux + dy * uy
+        local correction_m = pose_line[2] - line_start[2]
+        filtered_normal_force = normal_filter_alpha * raw_normal_force + (1.0 - normal_filter_alpha) * filtered_normal_force
+        local force_error = target_force - filtered_normal_force
+        integral_error = codex_clamp(integral_error + force_error * dt, -integral_error_limit_n_s, integral_error_limit_n_s)
+        local normal_velocity = normal_velocity_sign * codex_clamp(normal_velocity_p_gain * force_error + normal_velocity_i_gain * integral_error, -normal_velocity_limit_m_s, normal_velocity_limit_m_s)
+        if heartbeat2 == last_heartbeat2:
+          stale_s2 = stale_s2 + dt
+        else:
+          stale_s2 = 0.0
+          last_heartbeat2 = heartbeat2
+        end
+        codex_write_echo(stop_reason, progress_m, correction_m, normal_velocity)
+        if stale_s2 > stale_limit_s:
+          stop_reason = 2.0
+        else:
+          stop_reason = codex_step2_guard_stop_reason()
+        end
+        if stop_reason == 0.0:
+          if codex_abs(correction_m) > 0.008:
+            stop_reason = 8.0
+          elif progress_m < -0.003 or progress_m > 0.067:
+            stop_reason = 9.0
+          elif t2 >= line_runtime_limit_s:
+            stop_reason = 10.0
+          elif progress_m >= path_length_m:
+            stop_reason = 1.0
+          else:
+            speedl([ux * tangent_speed_m_s, uy * tangent_speed_m_s, normal_velocity, 0.0, 0.0, 0.0], line_accel_m_s2, speedl_hold_s)
+            sync()
+            t2 = t2 + dt
+          end
+        end
+      end
+      stopl(0.5)
+    end
+
+    if stop_reason == 1.0:
+      write_output_float_register(35, 26.0)
+      local unload_start = get_actual_tcp_pose()
+      local t3 = 0.0
+      while t3 < unload_runtime_limit_s and read_input_float_register(25) > unload_force_norm_n:
+        local unload_pose = get_actual_tcp_pose()
+        local unload_m = unload_pose[2] - unload_start[2]
+        codex_write_echo(stop_reason, path_length_m, unload_m, unload_speed_m_s)
+        if unload_m > 0.008:
+          t3 = unload_runtime_limit_s
+        else:
+          speedl([0.0, 0.0, unload_speed_m_s, 0.0, 0.0, 0.0], line_accel_m_s2, speedl_hold_s)
+          sync()
+          t3 = t3 + dt
+        end
+      end
+      stopl(0.5)
+      write_output_float_register(35, 27.0)
+      local retract_start = get_actual_tcp_pose()
+      local retract_pose = p[retract_start[0], retract_start[1], retract_start[2] + retract_z_m, retract_start[3], retract_start[4], retract_start[5]]
+      movel(retract_pose, a=0.030, v=0.005, r=0.0)
+      stopl(0.5)
+    end
+
+    write_output_float_register(30, stop_reason)
+    write_output_float_register(35, 29.0)
+    textmsg("codex step2c version 2026-06-05T02:19:09+08:00 stop reason:", stop_reason)
+  end
+
+  codex_step2c_closed_loop_full()
+end
