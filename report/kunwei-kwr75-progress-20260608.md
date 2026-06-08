@@ -18,7 +18,7 @@
 | zero 口径 | 本报告 OnRobot/Kunwei 对比均为 first-value software zero；未调用 Kunwei hardware tare、OnRobot device bias/tare 或 UR `zero_ftsensor()` |
 | Step2C 参考线 | 长度约 `63.58 mm` 的 XY straight-line reference |
 | 本报告图表口径 | 统计用选定窗口内全样本；长 trace 图用 min/max envelope，不用等间隔抽样线作为主证据 |
-| 最长可用公共窗口 | Kunwei `19.26 h`，OnRobot UDP `8.79 h`；本报告长对比采用更适合汇报的 `6 h` |
+| 最长可用公共窗口 | Kunwei `19.26 h`，OnRobot UDP `8.79 h`；本报告长对比采用更适合汇报的 `6.00 h` |
 | Step2C final 口径 | final 从已有 `bridge_rtde_500hz.csv`、`kunwei_sensor_1khz.csv` 和 `stage_frequency_summary.json` 计算；不补实验、不补写 `summary.json` |
 
 ## 实验命令
@@ -53,7 +53,7 @@
 
 ![OnRobot vs Kunwei first 600s std](assets/kunwei-kwr75-progress-20260608/first600_onrobot_kunwei_force_std.png)
 
-图 4 是本次新增的 `6 h` 长时间 Fz 对比。当前本地数据的最长公共窗口是 `8.79 h`，但本报告采用 `6 h` 作为主图口径，避免把会议汇报拖进过长的历史细节。统计仍使用 `6 h` 内全样本，图中阴影仍是 min/max envelope。
+图 4 是本次新增的 `6.00 h` 长时间 Fz 对比。当前本地数据的最长公共窗口是 `8.79 h`，但本报告采用 `6.00 h` 作为主图口径，避免把会议汇报拖进过长的历史细节。统计仍使用 `6.00 h` 内全样本，图中阴影仍是 min/max envelope。
 
 ![OnRobot vs Kunwei 6h Fz](assets/kunwei-kwr75-progress-20260608/sixh_onrobot_kunwei_fz_envelope.png)
 
@@ -103,7 +103,7 @@ V4 的主要意义是 frequency 层面的进展：stage25 echo cadence 从旧成
 | Result | stage25 echo (Hz) | stage25 duration (s) | Fz mean/std (N) | Fz error MAE (N) | Fz p95 abs err (N) | XY p95 (mm) | note |
 |---|---:|---:|---:|---:|---:|---:|---|
 | previous Step2C | 246.55 | 6.392 | -5.13 / 1.96 | 1.57 | 3.62 | 0.100 | first successful line run |
-| Step2C V4 | 489.83 | 6.390 | -5.08 / 2.36 | 1.87 | 4.58 | 0.083 | 1 ms line-control cadence evidence |
+| Step2C V4 | 489.83 | 6.390 | -5.08 / 2.36 | 1.87 | 4.58 | 0.083 | 489.83 Hz measured echo cadence evidence |
 | Step2C final | 489.83 | 6.394 | -5.09 / 1.67 | 1.39 | 3.25 | 0.080 | selected final run; lower Fz error than V4 |
 
 ![Step2C final force tracking](assets/kunwei-kwr75-progress-20260608/step2c_final_fz_tracking.png)
@@ -140,7 +140,7 @@ V4 的主要意义是 frequency 层面的进展：stage25 echo cadence 从旧成
 
 ### OnRobot vs Kunwei 6h
 
-本地可用数据里，Kunwei 最长为 `19.26 h`，OnRobot UDP raw 最长为 `8.79 h`，两者最长公共窗口为 `8.79 h`。本报告采用 `6 h` 作为长时间对比主口径；这个窗口已经足够覆盖慢漂移趋势，也更适合会议图表。
+本地可用数据里，Kunwei 最长为 `19.26 h`，OnRobot UDP raw 最长为 `8.79 h`，两者最长公共窗口为 `8.79 h`。本报告采用 `6.00 h` 作为长时间对比主口径；这个窗口已经足够覆盖慢漂移趋势，也更适合会议图表。
 
 | Sensor | Axis | samples | duration (h) | rate (Hz) | zeroed std (N) | zeroed last-first (N) | back60-front60 mean (N) | raw min/max (N) |
 |---|---|---:|---:|---:|---:|---:|---:|---|
@@ -162,7 +162,7 @@ V4 的主要意义是 frequency 层面的进展：stage25 echo cadence 从旧成
 
 ## 下一步
 
-- Step2C 下一步应围绕 final 的重复性和 contact-entry transient 继续验证；频率证据已经足够支持 `1 ms` line-control cadence 进入报告，force quality 也相对 V4 有改善，但还不应该外推成跨治具、跨日期的传感器绝对性能结论。
+- Step2C 下一步应围绕 final 的重复性和 contact-entry transient 继续验证；频率证据已经足够支持约 `490 Hz` measured echo cadence 进入报告，force quality 也相对 V4 有改善，但还不应该外推成跨治具、跨日期的传感器绝对性能结论。
 - 本版本不需要新做 OnRobot/Kunwei A/B 实验；当前会议材料只使用已有日志，并明确标注为 first-value software zero 的历史窗口比较。若未来要回答绝对标定问题，再另开同机械状态、同无接触窗口、明确 device-side zero/tare 策略的实验。
 - 如果目标是机器人侧 `500 Hz` 运动闭环，需要另开 `servoj/speedj`、多线程 URScript 或外部实时接口路线，而不是从当前 `speedl` echo 推断。
 

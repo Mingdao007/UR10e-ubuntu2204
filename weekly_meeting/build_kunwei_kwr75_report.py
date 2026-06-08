@@ -59,7 +59,6 @@ ONROBOT_LONG_SUMMARY = ONROBOT_LONG_DIR / "three_stream_24h_20260530_20260530_17
 
 WINDOW_S = 600.0
 LONG_WINDOW_S = 21600.0
-COMMON_MAX_WINDOW_S = 31632.103973266
 
 
 @dataclass
@@ -869,6 +868,22 @@ def long_overall_metrics(long_summary: dict) -> dict:
     }
 
 
+def available_duration_metrics(long_summary: dict) -> dict[str, float]:
+    kunwei_s = float(long_overall_metrics(long_summary)["duration_s"])
+    onrobot_summary = load_json(ONROBOT_LONG_SUMMARY)
+    onrobot_s = float(onrobot_summary["udp_timing"]["duration_first_last_s"])
+    return {
+        "kunwei_s": kunwei_s,
+        "onrobot_udp_s": onrobot_s,
+        "common_max_s": min(kunwei_s, onrobot_s),
+        "report_long_window_s": LONG_WINDOW_S,
+        "kunwei_h": kunwei_s / 3600.0,
+        "onrobot_udp_h": onrobot_s / 3600.0,
+        "common_max_h": min(kunwei_s, onrobot_s) / 3600.0,
+        "report_long_window_h": LONG_WINDOW_S / 3600.0,
+    }
+
+
 def step2c_metrics(step2c: dict) -> dict:
     summary = step2c["summary"]
     return {
@@ -914,7 +929,7 @@ def rows_for_step2c_comparison(old_step2c: dict, v4: dict, result: dict) -> str:
                 fmt(v4_stage25["signed_error_mae_n"], 2),
                 fmt(v4_stage25["signed_error_p95_abs_n"], 2),
                 fmt(v4_stage25["xy_error_p95_mm"], 3),
-                "1 ms line-control cadence evidence",
+                "489.83 Hz measured echo cadence evidence",
             ]
         )
         + " |",
@@ -956,13 +971,14 @@ def write_summary_json(
     step2c_v4: dict,
     step2c_result: dict,
 ) -> Path:
+    available = available_duration_metrics(long_summary)
     payload = {
         "comparison_note": "Both streams use first-value software zero in their own selected windows; no device-side zero/tare was executed and no new experiment is required for this report version.",
         "available_duration": {
-            "kunwei_s": 69325.77287676797,
-            "onrobot_udp_s": COMMON_MAX_WINDOW_S,
-            "common_max_s": COMMON_MAX_WINDOW_S,
-            "report_long_window_s": LONG_WINDOW_S,
+            "kunwei_s": available["kunwei_s"],
+            "onrobot_udp_s": available["onrobot_udp_s"],
+            "common_max_s": available["common_max_s"],
+            "report_long_window_s": available["report_long_window_s"],
         },
         "short_600s": {
             "window_s": WINDOW_S,
@@ -1002,6 +1018,7 @@ def build_markdown(
     step2c_result: dict,
 ) -> str:
     overall = long_overall_metrics(long_summary)
+    available = available_duration_metrics(long_summary)
     stage25 = step2c["stage25_force_all"]
     stage25_after = step2c["stage25_force_after_0p5s"]
     path_metrics = step2c["path_metrics"]
@@ -1036,7 +1053,7 @@ def build_markdown(
 | zero 口径 | 本报告 OnRobot/Kunwei 对比均为 first-value software zero；未调用 Kunwei hardware tare、OnRobot device bias/tare 或 UR `zero_ftsensor()` |
 | Step2C 参考线 | 长度约 `63.58 mm` 的 XY straight-line reference |
 | 本报告图表口径 | 统计用选定窗口内全样本；长 trace 图用 min/max envelope，不用等间隔抽样线作为主证据 |
-| 最长可用公共窗口 | Kunwei `19.26 h`，OnRobot UDP `8.79 h`；本报告长对比采用更适合汇报的 `6 h` |
+| 最长可用公共窗口 | Kunwei `{fmt(available['kunwei_h'], 2)} h`，OnRobot UDP `{fmt(available['onrobot_udp_h'], 2)} h`；本报告长对比采用更适合汇报的 `{fmt(available['report_long_window_h'], 2)} h` |
 | Step2C final 口径 | final 从已有 `bridge_rtde_500hz.csv`、`kunwei_sensor_1khz.csv` 和 `stage_frequency_summary.json` 计算；不补实验、不补写 `summary.json` |
 
 ## 实验命令
@@ -1071,7 +1088,7 @@ def build_markdown(
 
 ![OnRobot vs Kunwei first 600s std]({figures['first600_std']['report']})
 
-图 4 是本次新增的 `6 h` 长时间 Fz 对比。当前本地数据的最长公共窗口是 `8.79 h`，但本报告采用 `6 h` 作为主图口径，避免把会议汇报拖进过长的历史细节。统计仍使用 `6 h` 内全样本，图中阴影仍是 min/max envelope。
+图 4 是本次新增的 `{fmt(available['report_long_window_h'], 2)} h` 长时间 Fz 对比。当前本地数据的最长公共窗口是 `{fmt(available['common_max_h'], 2)} h`，但本报告采用 `{fmt(available['report_long_window_h'], 2)} h` 作为主图口径，避免把会议汇报拖进过长的历史细节。统计仍使用 `{fmt(available['report_long_window_h'], 2)} h` 内全样本，图中阴影仍是 min/max envelope。
 
 ![OnRobot vs Kunwei 6h Fz]({figures['sixh_fz']['report']})
 
@@ -1140,7 +1157,7 @@ V4 的主要意义是 frequency 层面的进展：stage25 echo cadence 从旧成
 
 ### OnRobot vs Kunwei 6h
 
-本地可用数据里，Kunwei 最长为 `19.26 h`，OnRobot UDP raw 最长为 `8.79 h`，两者最长公共窗口为 `8.79 h`。本报告采用 `6 h` 作为长时间对比主口径；这个窗口已经足够覆盖慢漂移趋势，也更适合会议图表。
+本地可用数据里，Kunwei 最长为 `{fmt(available['kunwei_h'], 2)} h`，OnRobot UDP raw 最长为 `{fmt(available['onrobot_udp_h'], 2)} h`，两者最长公共窗口为 `{fmt(available['common_max_h'], 2)} h`。本报告采用 `{fmt(available['report_long_window_h'], 2)} h` 作为长时间对比主口径；这个窗口已经足够覆盖慢漂移趋势，也更适合会议图表。
 
 {rows_for_long_force_table(long_kunwei, long_onrobot)}
 
@@ -1155,7 +1172,7 @@ V4 的主要意义是 frequency 层面的进展：stage25 echo cadence 从旧成
 
 ## 下一步
 
-- Step2C 下一步应围绕 final 的重复性和 contact-entry transient 继续验证；频率证据已经足够支持 `1 ms` line-control cadence 进入报告，force quality 也相对 V4 有改善，但还不应该外推成跨治具、跨日期的传感器绝对性能结论。
+- Step2C 下一步应围绕 final 的重复性和 contact-entry transient 继续验证；频率证据已经足够支持约 `490 Hz` measured echo cadence 进入报告，force quality 也相对 V4 有改善，但还不应该外推成跨治具、跨日期的传感器绝对性能结论。
 - 本版本不需要新做 OnRobot/Kunwei A/B 实验；当前会议材料只使用已有日志，并明确标注为 first-value software zero 的历史窗口比较。若未来要回答绝对标定问题，再另开同机械状态、同无接触窗口、明确 device-side zero/tare 策略的实验。
 - 如果目标是机器人侧 `500 Hz` 运动闭环，需要另开 `servoj/speedj`、多线程 URScript 或外部实时接口路线，而不是从当前 `speedl` echo 推断。
 
@@ -1190,6 +1207,7 @@ def build_html(
     step2c_result: dict,
 ) -> str:
     overall = long_overall_metrics(long_summary)
+    available = available_duration_metrics(long_summary)
     stage25 = step2c["stage25_force_all"]
     path_metrics = step2c["path_metrics"]
     stage25_echo = step2c["stage25_echo"]
@@ -1211,7 +1229,7 @@ def build_html(
     result_video = media_assets.get("video_mp4", {}).get("weekly") if media_assets.get("video_mp4") else None
     result_video_poster = media_assets.get("video_poster", {}).get("weekly") if media_assets.get("video_poster") else None
     result_video_html = (
-        f'<figure class="span-5 media-video"><video controls preload="metadata" poster="{result_video_poster or ""}" src="{result_video}"></video><figcaption>Fig. F-A. Step2C final experiment evidence clip from the latest drop.</figcaption></figure>'
+        f'<figure class="span-5 media-video"><video controls preload="metadata" poster="{result_video_poster or ""}" src="{result_video}"></video><figcaption>Fig. F-A. Step2C final experiment evidence clip from the 2026-06-08 Step2C final run.</figcaption></figure>'
         if result_video
         else ""
     )
@@ -1405,7 +1423,7 @@ def build_html(
     </section>
     <section id="step2c">
       <div class="eyebrow">Robot experiment</div>
-      <h2>Step2C final keeps 1 ms-class cadence and improves force tracking</h2>
+      <h2>Step2C final holds ~490 Hz measured echo and improves force tracking</h2>
       <p>The selected final run keeps measured stage25 echo cadence at {fmt(result['echo_rate_hz'], 2)} Hz while reducing Fz error MAE from V4's {fmt(v4['signed_error_mae_n'], 2)} N to {fmt(result['signed_error_mae_n'], 2)} N. RTDE logging stays near 500 Hz and Kunwei raw stage25 remains near {fmt(result_raw['rate_hz'], 2)} Hz. This is measured URScript echo/motion-gate evidence, not a claim about the internal servo loop.</p>
       <div class="grid">
         {html_metric("Final run", step2c_result["run_name"])}
@@ -1435,12 +1453,12 @@ def build_html(
     <section id="long-compare">
       <div class="eyebrow">Sensor comparison</div>
       <h2>OnRobot vs Kunwei, 6 h</h2>
-      <p>The local common maximum is 8.79 h, limited by the OnRobot UDP run. This deck uses 6 h as the main long-window comparison so the result stays readable and avoids overfitting the meeting story to a tail segment.</p>
+      <p>The local common maximum is {fmt(available['common_max_h'], 2)} h, limited by the OnRobot UDP run. This deck uses {fmt(available['report_long_window_h'], 2)} h as the main long-window comparison so the result stays readable and avoids overfitting the meeting story to a tail segment.</p>
       <div class="grid">
-        {html_metric("Kunwei available", "19.26 h")}
-        {html_metric("OnRobot available", "8.79 h")}
-        {html_metric("Common max", "8.79 h")}
-        {html_metric("Selected window", "6.00 h")}
+        {html_metric("Kunwei available", f"{fmt(available['kunwei_h'], 2)} h")}
+        {html_metric("OnRobot available", f"{fmt(available['onrobot_udp_h'], 2)} h")}
+        {html_metric("Common max", f"{fmt(available['common_max_h'], 2)} h")}
+        {html_metric("Selected window", f"{fmt(available['report_long_window_h'], 2)} h")}
         <figure class="span-12"><img src="{sixh_fz_img}" alt="6 h Fz comparison"><figcaption>Fig. 4. Fz first-value-zeroed envelope for the selected 6 h comparison window. Statistics use all samples in the window.</figcaption></figure>
         <figure class="span-12"><img src="{sixh_force_img}" alt="6 h force axes comparison"><figcaption>Fig. 5. Fx/Fy/Fz first-value-zeroed envelopes over 6 h. This is a long-window drift comparison, not an absolute calibration claim.</figcaption></figure>
         <figure class="span-12"><img src="{sixh_std_img}" alt="6 h force standard deviation"><figcaption>Fig. 6. Force-axis standard deviation over the selected 6 h window.</figcaption></figure>
