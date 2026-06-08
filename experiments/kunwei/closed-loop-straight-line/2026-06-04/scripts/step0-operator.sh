@@ -36,7 +36,7 @@ What this script does:
                      force-control law.
   step3-0e-min-speedl-1ms
                      Minimal speedl 1 ms hold isolation for
-                     step3_0e_min_speedl_1ms_v1.urp: speedl t=1 ms, 2 mm/s,
+                     step3_0e_min_speedl_1ms_v2.urp: speedl t=1 ms, 2 mm/s,
                      100 mm/s^2, about 1 mm +X then 1 mm back. This tests
                      whether 1 ms hold raises measured echo cadence above 250 Hz.
   bridge-minimal-log Starts Kunwei stream and logging only; no RTDE input writes.
@@ -113,7 +113,7 @@ run_step3_0e_min_speedl_1ms() {
   cat <<'WARNING'
 This will send Kunwei 48 AA 0D 0A and write UR RTDE input registers at 500 Hz.
 It will not send URScript from Ubuntu.
-Open /programs/andyl/kunwei/step3_0e_min_speedl_1ms_v1.urp on the teach pendant.
+Open /programs/andyl/kunwei/step3_0e_min_speedl_1ms_v2.urp on the teach pendant.
 After typing START_STEP3_0E here, press Play on the teach pendant during the 3 s baseline window.
 The program uses speedl(t=0.001) with a small no-contact XY motion:
   speed = 2 mm/s, acceleration = 100 mm/s^2, about 1 mm +X then 1 mm back.
