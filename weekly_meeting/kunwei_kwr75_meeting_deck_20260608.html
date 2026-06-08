@@ -170,7 +170,7 @@
         <div class="metric"><span>Long raw capture</span><strong>69.3M samples</strong></div>
         <div class="metric"><span>Average raw rate</span><strong>999.990 Hz</strong></div>
         <div class="metric"><span>Frame errors</span><strong>0 parse / 0 sync</strong></div>
-        <div class="metric"><span>Step2C V4 echo</span><strong>489.8 Hz</strong></div>
+        <div class="metric"><span>Step2C final echo</span><strong>489.8 Hz</strong></div>
         <div class="metric"><span>Long comparison</span><strong>6 h selected</strong></div>
       </div>
     </section>
@@ -187,22 +187,21 @@
     </section>
     <section id="step2c">
       <div class="eyebrow">Robot experiment</div>
-      <h2>Step2C V4 reaches 1 ms-class line cadence, with force ripple still open</h2>
-      <p>V4 is the latest complete Step2C result. It raises measured stage25 echo cadence from 246.55 Hz to 489.83 Hz, while keeping RTDE logging near 500 Hz and Kunwei raw stage25 near 1007.65 Hz. This is measured URScript echo/motion-gate evidence, not a claim about the internal servo loop.</p>
+      <h2>Step2C final keeps 1 ms-class cadence and improves force tracking</h2>
+      <p>The selected final run keeps measured stage25 echo cadence at 489.83 Hz while reducing Fz error MAE from V4's 1.87 N to 1.39 N. RTDE logging stays near 500 Hz and Kunwei raw stage25 remains near 1007.59 Hz. This is measured URScript echo/motion-gate evidence, not a claim about the internal servo loop.</p>
       <div class="grid">
-        <div class="metric"><span>V4 run</span><strong>bridge_step2c_admittance_search30_v4_search2ms_line1ms_alpha70_20260608_135945</strong></div>
+        <div class="metric"><span>Final run</span><strong>bridge_step2c_final_autowatch_search2ms_line1ms_alpha70_20260608_154123</strong></div>
         <div class="metric"><span>Stage25 echo</span><strong>489.83 Hz</strong></div>
-        <div class="metric"><span>RTDE log</span><strong>503.91 Hz</strong></div>
-        <div class="metric"><span>Kunwei raw</span><strong>1007.65 Hz</strong></div>
+        <div class="metric"><span>RTDE log</span><strong>507.53 Hz</strong></div>
+        <div class="metric"><span>Kunwei raw</span><strong>1007.59 Hz</strong></div>
+        <div class="metric"><span>Final Fz MAE</span><strong>1.39 N</strong></div>
+        <div class="metric"><span>Final XY p95</span><strong>0.080 mm</strong></div>
         <div class="metric"><span>V4 Fz MAE</span><strong>1.87 N</strong></div>
-        <div class="metric"><span>V4 XY p95</span><strong>0.083 mm</strong></div>
-        <div class="metric"><span>Old Fz MAE</span><strong>1.57 N</strong></div>
         <div class="metric"><span>Old echo</span><strong>246.55 Hz</strong></div>
-        <figure class="span-7"><img src="assets/kunwei_kwr75_20260608/step2c_v4_fz_tracking.png" alt="Step2C V4 force tracking"><figcaption>Fig. 1. V4 Fz tracking shows mean force near target, but transient and ripple remain the force-quality blocker.</figcaption></figure>
-        <figure class="span-5"><img src="assets/kunwei_kwr75_20260608/step2c_v4_tradeoff.png" alt="Step2C V4 tradeoff chart"><figcaption>Fig. 2. V4 improves cadence and path p95, but force MAE is worse than the previous successful Step2C.</figcaption></figure>
-        <figure class="span-12"><img src="assets/kunwei_kwr75_20260608/step2c_v4_path_tracking.png" alt="Step2C V4 path tracking"><figcaption>Fig. 3. V4 path tracking is not the main blocker; XY p95 is about 0.083 mm.</figcaption></figure>
-        <figure class="span-5 media-video"><video controls preload="metadata" poster="assets/kunwei_kwr75_20260608/step2c_v4_experiment_poster.jpg" src="assets/kunwei_kwr75_20260608/step2c_v4_experiment.mp4"></video><figcaption>Fig. V4-A. Step2C V4 experiment evidence clip from the latest drop.</figcaption></figure>
-        <figure class="span-7"><img src="assets/kunwei_kwr75_20260608/step2c_v4_teach_pendant_program.jpg" alt="Step2C V4 Teach Pendant program"><figcaption>Fig. V4-B. Teach Pendant evidence for the Step2C admittance-search30 V4 program.</figcaption></figure>
+        <figure class="span-7"><img src="assets/kunwei_kwr75_20260608/step2c_final_fz_tracking.png" alt="Step2C final force tracking"><figcaption>Fig. 1. Final Fz tracking keeps the mean near target and reduces error relative to V4.</figcaption></figure>
+        <figure class="span-5"><img src="assets/kunwei_kwr75_20260608/step2c_final_tradeoff.png" alt="Step2C final tradeoff chart"><figcaption>Fig. 2. Final keeps the cadence/path improvement and lowers Fz MAE versus V4.</figcaption></figure>
+        <figure class="span-12"><img src="assets/kunwei_kwr75_20260608/step2c_final_path_tracking.png" alt="Step2C final path tracking"><figcaption>Fig. 3. Final path tracking remains tight; XY p95 is about 0.080 mm.</figcaption></figure>
+        <figure class="span-5 media-video"><video controls preload="metadata" poster="assets/kunwei_kwr75_20260608/step2c_final_experiment_poster.jpg" src="assets/kunwei_kwr75_20260608/step2c_final_experiment.mp4"></video><figcaption>Fig. F-A. Step2C final experiment evidence clip from the latest drop.</figcaption></figure>
       </div>
     </section>
     <section id="compare">
@@ -232,14 +231,14 @@
     <section id="next">
       <div class="eyebrow">Next action</div>
       <h2>Stabilize contact entry before chasing higher frequency</h2>
-      <p>The next Step2C change should reduce force transient and ripple after the V4 cadence improvement. The report should keep frequency layers separate: sensor raw stream, bridge/RTDE logging, measured URScript echo cadence, and unvalidated internal servo-loop behavior.</p>
+      <p>The next Step2C work should confirm repeatability and reduce contact-entry transient after the final-run improvement. The report should keep frequency layers separate: sensor raw stream, bridge/RTDE logging, measured URScript echo cadence, and unvalidated internal servo-loop behavior.</p>
       <div class="grid">
         <table class="span-12">
           <thead><tr><th>Decision</th><th>Current evidence</th><th>Default next move</th></tr></thead>
           <tbody>
             <tr><td>Logging route</td><td>Kunwei TCP raw is stable at 1 kHz class</td><td>Use it as the default Kunwei collector</td></tr>
-            <tr><td>Force control</td><td>V4 mean Fz is near target, but error MAE is 1.87 N</td><td>Reduce transient and ripple before claiming force-quality improvement</td></tr>
-            <tr><td>Frequency claim</td><td>V4 stage25 echo is 489.83 Hz; RTDE logging is 503.91 Hz</td><td>Report measured cadence, not internal servo-loop frequency</td></tr>
+            <tr><td>Force control</td><td>Final mean Fz is near target and error MAE is 1.39 N</td><td>Confirm repeatability before broader force-quality claims</td></tr>
+            <tr><td>Frequency claim</td><td>Final stage25 echo is 489.83 Hz; RTDE logging is 507.53 Hz</td><td>Report measured cadence, not internal servo-loop frequency</td></tr>
             <tr><td>A/B comparison</td><td>Existing 600 s and 6 h windows differ in setup/date/load</td><td>Use first-value software zero for this report; reserve same-fixture testing only for future absolute calibration claims</td></tr>
           </tbody>
         </table>

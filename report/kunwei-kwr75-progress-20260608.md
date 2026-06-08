@@ -4,7 +4,7 @@
 
 这份报告把 Kunwei KWR75/KWR75B 当前证据单独整理出来，用于说明三件事：传感器与通信链路是否已经可用，长时间无运动 `1 kHz` 采集是否稳定，以及当前 Step2C 闭环直线实验走到什么程度。报告包含两层 OnRobot/Kunwei 对比：前 `600 s` 用于短窗口 noise/drift 判断，`6 h` 用于长时间漂移判断。当前版本只使用已有日志，不重做实验；两者都按各自窗口第一帧做 software zero，只作为 drift/noise 口径对照，不作为同机械状态下的绝对标定结论。
 
-结论先给出：Kunwei TCP raw logging 已经支撑 `19 h 15 min`、约 `1 kHz`、无 parse error 的长跑；Step2C V4 已经把 line 阶段的 URScript stage25 echo cadence 提高到约 `489.83 Hz`，路径跟踪 p95 约 `0.083 mm`。但 V4 不是全面改善：Fz error MAE 约 `1.87 N`，比上一版成功 Step2C 的 `1.57 N` 更大，力瞬态和 ripple 仍是主要问题。
+结论先给出：Kunwei TCP raw logging 已经支撑 `19 h 15 min`、约 `1 kHz`、无 parse error 的长跑；Step2C final 在 line 阶段保持 URScript stage25 echo cadence 约 `489.83 Hz`，路径跟踪 p95 约 `0.080 mm`，Fz error MAE 从 V4 的 `1.87 N` 降到 `1.39 N`。这说明 final 已经不只是 frequency 进展，也把 force ripple/误差压低了一档；但它仍是一次选定 final run，不等于完整统计验证。
 
 ## 设备与实验条件
 
@@ -19,13 +19,13 @@
 | Step2C 参考线 | 长度约 `63.58 mm` 的 XY straight-line reference |
 | 本报告图表口径 | 统计用选定窗口内全样本；长 trace 图用 min/max envelope，不用等间隔抽样线作为主证据 |
 | 最长可用公共窗口 | Kunwei `19.26 h`，OnRobot UDP `8.79 h`；本报告长对比采用更适合汇报的 `6 h` |
-| Step2C V4 口径 | V4 从已有 `bridge_rtde_500hz.csv`、`kunwei_sensor_1khz.csv` 和 `stage_frequency_summary.json` 计算；不补实验、不补写 `summary.json` |
+| Step2C final 口径 | final 从已有 `bridge_rtde_500hz.csv`、`kunwei_sensor_1khz.csv` 和 `stage_frequency_summary.json` 计算；不补实验、不补写 `summary.json` |
 
 ## 实验命令
 
-长时采集由 `capture_kunwei_kwr75_1khz.py` 运行，核心参数是 `--transport tcp-client --sensor-ip 192.168.50.25 --sensor-port 5152 --duration-s 86400 --checkpoint-interval-s 900`。旧 Step2C 主 run 使用 `search5_guard20_line2ms_alpha70_vlim5` 版本；V4 使用 `admittance_search30_guard20_search2ms_line1ms_alpha70` 版本，line 阶段目标仍是 `-5 N`。
+长时采集由 `capture_kunwei_kwr75_1khz.py` 运行，核心参数是 `--transport tcp-client --sensor-ip 192.168.50.25 --sensor-port 5152 --duration-s 86400 --checkpoint-interval-s 900`。旧 Step2C 主 run 使用 `search5_guard20_line2ms_alpha70_vlim5` 版本；final 使用 `step2c_final` 程序包和 `search2ms_line1ms_alpha70` autowatch bridge，line 阶段目标仍是 `-5 N`。
 
-本报告的生成脚本只读取已有 CSV/JSON 并写出报告资产，没有向 UR、OnRobot 或 Kunwei 发送命令，也没有做视频抽帧。
+本报告的生成脚本只读取已有 CSV/JSON 并写出报告资产，没有向 UR、OnRobot 或 Kunwei 发送命令，也没有做视频多帧抽样或视频帧分析；HTML evidence clip 只使用转码 mp4 和一个 poster。
 
 ## 数据与图片
 
@@ -35,9 +35,9 @@
 | Kunwei 19h15min raw CSV | [../ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/data.csv](../ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/data.csv) |
 | Kunwei 19h15min logger summary | [../ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/summary.json](../ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/summary.json) |
 | Step2C metrics | [assets/step2c-kunwei-search5-guard20-line2ms/analysis-metrics.json](assets/step2c-kunwei-search5-guard20-line2ms/analysis-metrics.json) |
-| Step2C V4 run | [../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_admittance_search30_v4_search2ms_line1ms_alpha70_20260608_135945](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_admittance_search30_v4_search2ms_line1ms_alpha70_20260608_135945) |
-| Step2C V4 video | [assets/kunwei-kwr75-progress-20260608/step2c_v4_experiment.mp4](assets/kunwei-kwr75-progress-20260608/step2c_v4_experiment.mp4) |
-| Step2C V4 Teach Pendant image | [assets/kunwei-kwr75-progress-20260608/step2c_v4_teach_pendant_program.jpg](assets/kunwei-kwr75-progress-20260608/step2c_v4_teach_pendant_program.jpg) |
+| Step2C V4 comparison run | [../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_admittance_search30_v4_search2ms_line1ms_alpha70_20260608_135945](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_admittance_search30_v4_search2ms_line1ms_alpha70_20260608_135945) |
+| Step2C final run | [../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_final_autowatch_search2ms_line1ms_alpha70_20260608_154123](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_final_autowatch_search2ms_line1ms_alpha70_20260608_154123) |
+| Step2C final video | [assets/kunwei-kwr75-progress-20260608/step2c_final_experiment.mp4](assets/kunwei-kwr75-progress-20260608/step2c_final_experiment.mp4) |
 | OnRobot 600s UDP raw CSV | [../experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv](../experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv) |
 | OnRobot 6h UDP raw CSV | [../experiments/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217/three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv](../experiments/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217/three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv) |
 
@@ -86,33 +86,35 @@
 | 项目 | 结果 |
 |---|---:|
 | 旧成功 run | `bridge_step2c_search5_guard20_line2ms_alpha70_vlim5_20260606_220817` |
-| V4 最新 run | `bridge_step2c_admittance_search30_v4_search2ms_line1ms_alpha70_20260608_135945` |
+| V4 comparison run | `bridge_step2c_admittance_search30_v4_search2ms_line1ms_alpha70_20260608_135945` |
+| final run | `bridge_step2c_final_autowatch_search2ms_line1ms_alpha70_20260608_154123` |
 | 旧 run 是否完成 line | `yes` |
 | bridge stop reason | `duration` |
-| V4 bridge write / RTDE log rate | `503.91 / 503.91 Hz` |
-| V4 raw sensor stage25 rate | `1007.65 Hz` |
-| V4 stage25 echo rate | `489.83 Hz` |
-| V4 stage25 Fz mean/std | `-5.08 / 2.36 N` |
-| V4 stage25 Fz error MAE | `1.87 N` |
-| V4 raw stage25 Fz min | `-13.40 N` |
-| V4 XY error mean / p95 | `0.033 / 0.083 mm` |
+| final bridge write / RTDE log rate | `507.53 / 507.53 Hz` |
+| final raw sensor stage25 rate | `1007.59 Hz` |
+| final stage25 echo rate | `489.83 Hz` |
+| final stage25 Fz mean/std | `-5.09 / 1.67 N` |
+| final stage25 Fz error MAE | `1.39 N` |
+| final raw stage25 Fz min | `-11.71 N` |
+| final XY error mean / p95 | `0.031 / 0.080 mm` |
 
-V4 的主要意义是 frequency 层面的进展：stage25 echo cadence 从旧成功 Step2C 的约 `246.55 Hz` 提高到约 `489.83 Hz`。这里仍然只写成 measured URScript echo/motion-gate cadence，不写成内部 servo loop 频率。路径跟踪也更干净，XY p95 从 `0.100 mm` 降到 `0.083 mm`；但 Fz error MAE 从 `1.57 N` 升到 `1.87 N`，所以 V4 的下一步不是继续追频率，而是压低 force transient/ripple。
+V4 的主要意义是 frequency 层面的进展：stage25 echo cadence 从旧成功 Step2C 的约 `246.55 Hz` 提高到约 `489.83 Hz`，但 Fz error MAE 升到 `1.87 N`。final 保持同样的 measured URScript echo/motion-gate cadence，同时把 Fz error MAE 降到 `1.39 N`、p95 abs error 降到 `3.25 N`。这里仍然只写成 measured cadence，不写成内部 servo loop 频率；力控制结论也只针对这次 selected final run。
 
 | Result | stage25 echo (Hz) | stage25 duration (s) | Fz mean/std (N) | Fz error MAE (N) | Fz p95 abs err (N) | XY p95 (mm) | note |
 |---|---:|---:|---:|---:|---:|---:|---|
 | previous Step2C | 246.55 | 6.392 | -5.13 / 1.96 | 1.57 | 3.62 | 0.100 | first successful line run |
 | Step2C V4 | 489.83 | 6.390 | -5.08 / 2.36 | 1.87 | 4.58 | 0.083 | 1 ms line-control cadence evidence |
+| Step2C final | 489.83 | 6.394 | -5.09 / 1.67 | 1.39 | 3.25 | 0.080 | selected final run; lower Fz error than V4 |
 
-![Step2C V4 force tracking](assets/kunwei-kwr75-progress-20260608/step2c_v4_fz_tracking.png)
+![Step2C final force tracking](assets/kunwei-kwr75-progress-20260608/step2c_final_fz_tracking.png)
 
-![Step2C V4 path tracking](assets/kunwei-kwr75-progress-20260608/step2c_v4_path_tracking.png)
+![Step2C final path tracking](assets/kunwei-kwr75-progress-20260608/step2c_final_path_tracking.png)
 
-![Step2C V4 tradeoff](assets/kunwei-kwr75-progress-20260608/step2c_v4_tradeoff.png)
+![Step2C final tradeoff](assets/kunwei-kwr75-progress-20260608/step2c_final_tradeoff.png)
 
-![Step2C V4 experiment poster](assets/kunwei-kwr75-progress-20260608/step2c_v4_experiment_poster.jpg)
+![Step2C final experiment poster](assets/kunwei-kwr75-progress-20260608/step2c_final_experiment_poster.jpg)
 
-![Step2C V4 Teach Pendant program](assets/kunwei-kwr75-progress-20260608/step2c_v4_teach_pendant_program.jpg)
+[Step2C final experiment video](assets/kunwei-kwr75-progress-20260608/step2c_final_experiment.mp4)
 
 ### OnRobot vs Kunwei 前 600s
 
@@ -154,13 +156,13 @@ V4 的主要意义是 frequency 层面的进展：stage25 echo cadence 从旧成
 ## 结论
 
 1. Kunwei TCP raw logging 路线已经可用：`19 h 15 min` 内约 `1 kHz`，`parse_errors=0`，`dropped_sync_bytes=0`。
-2. Kunwei 已经从传感器 bring-up 进入机器人闭环验证阶段。旧 Step2C 和 V4 都能完成搜索、直线、卸载和回撤；均值层面能围绕 `-5 N` 工作。
-3. V4 的 stage25 measured echo cadence 约 `489.83 Hz`，比旧成功 Step2C 的 `246.55 Hz` 明显提高；但这仍不能写成 UR 内部 servo loop 频率。
+2. Kunwei 已经从传感器 bring-up 进入机器人闭环验证阶段。旧 Step2C、V4 和 final 都能完成搜索、直线、卸载和回撤；均值层面能围绕 `-5 N` 工作。
+3. final 的 stage25 measured echo cadence 约 `489.83 Hz`，比旧成功 Step2C 的 `246.55 Hz` 明显提高，并且 Fz error MAE 比 V4 更低；但这仍不能写成 UR 内部 servo loop 频率。
 4. OnRobot/Kunwei 前 `600 s` 与 `6 h` 对比图说明两条 raw stream 都可以用 first-value software zero 做短窗口和长窗口漂移分析；但由于机械状态不同，报告只解释相对漂移和波动，不解释绝对偏置或规格优劣。
 
 ## 下一步
 
-- Step2C 下一步应围绕 V4 的 force transient/ripple 调参；频率证据已经足够支持 `1 ms` line-control cadence 进入报告，但还不支持说 force quality 已经优于旧成功 Step2C。
+- Step2C 下一步应围绕 final 的重复性和 contact-entry transient 继续验证；频率证据已经足够支持 `1 ms` line-control cadence 进入报告，force quality 也相对 V4 有改善，但还不应该外推成跨治具、跨日期的传感器绝对性能结论。
 - 本版本不需要新做 OnRobot/Kunwei A/B 实验；当前会议材料只使用已有日志，并明确标注为 first-value software zero 的历史窗口比较。若未来要回答绝对标定问题，再另开同机械状态、同无接触窗口、明确 device-side zero/tare 策略的实验。
 - 如果目标是机器人侧 `500 Hz` 运动闭环，需要另开 `servoj/speedj`、多线程 URScript 或外部实时接口路线，而不是从当前 `speedl` echo 推断。
 
@@ -174,4 +176,4 @@ python3 /home/andy/ur10e_ros2_ws/weekly_meeting/build_kunwei_kwr75_report.py
 
 ### 生成口径
 
-脚本对 `600 s` 窗口保留短窗口点列；对 `6 h` 窗口只保留统计量和时间 bin envelope，不把千万级样本全部留在内存里。统计直接使用窗口内所有样本；图形先按时间 bin 聚合为 min/max/mean envelope，保留尖峰范围，不使用等间隔抽样折线作为主要证据。HTML deck 只使用生成的数据图，没有抽取或嵌入新的视频帧。
+脚本对 `600 s` 窗口保留短窗口点列；对 `6 h` 窗口只保留统计量和时间 bin envelope，不把千万级样本全部留在内存里。统计直接使用窗口内所有样本；图形先按时间 bin 聚合为 min/max/mean envelope，保留尖峰范围，不使用等间隔抽样折线作为主要证据。HTML deck 使用生成的数据图和压缩后的 Step2C final 视频，不嵌入原始 MOV。

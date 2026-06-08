@@ -786,6 +786,8 @@
     ]
   },
   "step2c_v4": {
+    "label": "Step2C V4",
+    "file_prefix": "step2c_v4",
     "run_name": "bridge_step2c_admittance_search30_v4_search2ms_line1ms_alpha70_20260608_135945",
     "run_dir": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_admittance_search30_v4_search2ms_line1ms_alpha70_20260608_135945",
     "missing_data_requests": [],
@@ -885,19 +887,118 @@
       "torque_norm_max_nm": 0.105172305
     }
   },
+  "step2c_result": {
+    "label": "Step2C final",
+    "file_prefix": "step2c_final",
+    "run_name": "bridge_step2c_final_autowatch_search2ms_line1ms_alpha70_20260608_154123",
+    "run_dir": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_final_autowatch_search2ms_line1ms_alpha70_20260608_154123",
+    "missing_data_requests": [],
+    "reference_length_m": 0.06358,
+    "frequency": {
+      "ok": true,
+      "bridge_csv": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_final_autowatch_search2ms_line1ms_alpha70_20260608_154123/bridge_rtde_500hz.csv",
+      "total_rows": 16434,
+      "bridge_write_rate_hz": 507.53098762659965,
+      "rtde_output_logging_rate_hz": 507.53098762659965,
+      "stage24_search_echo_rate": {
+        "stage": 24.0,
+        "duration_s": 7.316000316990539,
+        "rtde_rows": 3659,
+        "rtde_row_rate_hz": 499.99997833580335,
+        "echo_transitions": 1826,
+        "echo_rate_hz": 249.58992904351473
+      },
+      "stage24_4_soft_acquisition_echo_rate": {
+        "stage": 24.4,
+        "duration_s": 0.0620004259981215,
+        "rtde_rows": 32,
+        "rtde_row_rate_hz": 499.996564554883,
+        "echo_transitions": 14,
+        "echo_rate_hz": 225.80490012156005
+      },
+      "stage25_ft_line_control_echo_rate": {
+        "stage": 25.0,
+        "duration_s": 6.394000719010364,
+        "rtde_rows": 3198,
+        "rtde_row_rate_hz": 499.9999437746103,
+        "echo_transitions": 3132,
+        "echo_rate_hz": 489.83416449861727
+      },
+      "stage26_unload_echo_rate": {
+        "stage": 26.0,
+        "duration_s": 1.1540001999819651,
+        "rtde_rows": 578,
+        "rtde_row_rate_hz": 499.9999133527164,
+        "echo_transitions": 0,
+        "echo_rate_hz": 0.0
+      },
+      "stage27_retract_echo_rate": {
+        "stage": 27.0,
+        "duration_s": 5.052000298979692,
+        "rtde_rows": 2527,
+        "rtde_row_rate_hz": 499.9999704097709,
+        "echo_transitions": 0,
+        "echo_rate_hz": 0.0
+      },
+      "frequency_contract_note": "FT control phase is output_double_register_35 == 25.0; echo rate is heartbeat transition rate from ur_output_double_register_26."
+    },
+    "stage25": {
+      "rows": 3198,
+      "duration_s": 6.394000719010364,
+      "rtde_row_rate_hz": 499.9999437746103,
+      "echo_rate_hz": 489.83416449861727,
+      "fz_mean_n": -5.091333282514071,
+      "fz_std_n": 1.6728095505113394,
+      "fz_min_n": -9.21792838,
+      "fz_max_n": -1.40022034,
+      "signed_error_mean_n": -0.09133328251407133,
+      "signed_error_mae_n": 1.3925828952407753,
+      "signed_error_p95_abs_n": 3.24570348,
+      "cmdz_mean_mm_s": 0.07027794386607135,
+      "cmdz_min_mm_s": -2.154456738515,
+      "cmdz_max_mm_s": 2.5591893881742003,
+      "xy_displacement_mm": 63.719965062288416,
+      "progress_start_mm": -0.004422030576161938,
+      "progress_end_mm": 63.715533221331974,
+      "xy_error_mean_mm": 0.030510481605391476,
+      "xy_error_p95_mm": 0.07971246240273043,
+      "xy_error_max_mm": 0.2093971130309125,
+      "cross_error_abs_mean_mm": 0.030510481593562778,
+      "cross_error_abs_p95_mm": 0.07971246237210416,
+      "z_start_mm": 19.5319857582443,
+      "z_end_mm": 19.959369468326297
+    },
+    "raw_sensor": {
+      "rows": 32902,
+      "duration_s": 32.414805661013816,
+      "rate_hz": 1014.9991440353117,
+      "fz_min_n": -13.6836978,
+      "fz_mean_n": -0.574428702554433,
+      "fz_max_n": 3.4949008,
+      "force_norm_max_n": 13.6964364,
+      "torque_norm_max_nm": 0.37509357
+    },
+    "raw_stage25": {
+      "rows": 6400,
+      "duration_s": 6.350813076016493,
+      "rate_hz": 1007.5875204334831,
+      "fz_min_n": -11.7131161,
+      "fz_mean_n": -5.110793083822617,
+      "fz_max_n": 0.417054558,
+      "force_norm_max_n": 11.7504896,
+      "torque_norm_max_nm": 0.0885970472
+    }
+  },
   "missing_data_requests": [],
   "media_assets": {
-    "tp_image": {
-      "report": "assets/kunwei-kwr75-progress-20260608/step2c_v4_teach_pendant_program.jpg",
-      "weekly": "assets/kunwei_kwr75_20260608/step2c_v4_teach_pendant_program.jpg"
-    },
+    "tp_image": null,
     "video_mp4": {
-      "report": "assets/kunwei-kwr75-progress-20260608/step2c_v4_experiment.mp4",
-      "weekly": "assets/kunwei_kwr75_20260608/step2c_v4_experiment.mp4"
+      "report": "assets/kunwei-kwr75-progress-20260608/step2c_final_experiment.mp4",
+      "weekly": "assets/kunwei_kwr75_20260608/step2c_final_experiment.mp4"
     },
     "video_poster": {
-      "report": "assets/kunwei-kwr75-progress-20260608/step2c_v4_experiment_poster.jpg",
-      "weekly": "assets/kunwei_kwr75_20260608/step2c_v4_experiment_poster.jpg"
+      "report": "assets/kunwei-kwr75-progress-20260608/step2c_final_experiment_poster.jpg",
+      "weekly": "assets/kunwei_kwr75_20260608/step2c_final_experiment_poster.jpg"
     }
   },
   "figures": {
@@ -925,17 +1026,17 @@
       "report": "assets/kunwei-kwr75-progress-20260608/sixh_onrobot_kunwei_force_std.png",
       "weekly": "assets/kunwei_kwr75_20260608/sixh_onrobot_kunwei_force_std.png"
     },
-    "step2c_v4_fz_tracking": {
-      "report": "assets/kunwei-kwr75-progress-20260608/step2c_v4_fz_tracking.png",
-      "weekly": "assets/kunwei_kwr75_20260608/step2c_v4_fz_tracking.png"
+    "step2c_final_fz_tracking": {
+      "report": "assets/kunwei-kwr75-progress-20260608/step2c_final_fz_tracking.png",
+      "weekly": "assets/kunwei_kwr75_20260608/step2c_final_fz_tracking.png"
     },
-    "step2c_v4_path_tracking": {
-      "report": "assets/kunwei-kwr75-progress-20260608/step2c_v4_path_tracking.png",
-      "weekly": "assets/kunwei_kwr75_20260608/step2c_v4_path_tracking.png"
+    "step2c_final_path_tracking": {
+      "report": "assets/kunwei-kwr75-progress-20260608/step2c_final_path_tracking.png",
+      "weekly": "assets/kunwei_kwr75_20260608/step2c_final_path_tracking.png"
     },
-    "step2c_v4_tradeoff": {
-      "report": "assets/kunwei-kwr75-progress-20260608/step2c_v4_tradeoff.png",
-      "weekly": "assets/kunwei_kwr75_20260608/step2c_v4_tradeoff.png"
+    "step2c_final_tradeoff": {
+      "report": "assets/kunwei-kwr75-progress-20260608/step2c_final_tradeoff.png",
+      "weekly": "assets/kunwei_kwr75_20260608/step2c_final_tradeoff.png"
     }
   }
 }

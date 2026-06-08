@@ -37,13 +37,15 @@ STEP2C_V4_RUN_DIR = (
     / "experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/"
     "bridge_step2c_admittance_search30_v4_search2ms_line1ms_alpha70_20260608_135945"
 )
+STEP2C_RESULT_RUN_DIR = (
+    ROOT
+    / "experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/"
+    "bridge_step2c_final_autowatch_search2ms_line1ms_alpha70_20260608_154123"
+)
+STEP2C_RESULT_LABEL = "Step2C final"
+STEP2C_RESULT_FILE_PREFIX = "step2c_final"
 STEP2C_REFERENCE = ROOT / "experiments/kunwei/closed-loop-straight-line/2026-06-04/config/straight_line_reference.json"
-STEP2C_V4_BRIDGE_CSV = STEP2C_V4_RUN_DIR / "bridge_rtde_500hz.csv"
-STEP2C_V4_SENSOR_CSV = STEP2C_V4_RUN_DIR / "kunwei_sensor_1khz.csv"
-STEP2C_V4_FREQUENCY = STEP2C_V4_RUN_DIR / "stage_frequency_summary.json"
-
-STEP2C_V4_VIDEO_PREVIEW = Path("/home/andy/.cache/codex/phone-photo-intake/previews/IMG_1733_1441027f404e.mov")
-STEP2C_V4_TP_PREVIEW = Path("/home/andy/.cache/codex/phone-photo-intake/previews/IMG_1734_5f08ba121a3e.jpg")
+STEP2C_RESULT_VIDEO_PREVIEW = Path("/home/andy/.cache/codex/phone-photo-intake/previews/IMG_1735_step2c_final.mov")
 
 ONROBOT_600_DIR = ROOT / "experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100"
 ONROBOT_UDP_CSV = ONROBOT_600_DIR / "three_stream_600s_20260528_043052_onrobot_udp500_raw.csv"
@@ -416,10 +418,14 @@ def std(values: Iterable[float]) -> float:
     return float(np.std(clean, ddof=1))
 
 
-def analyze_step2c_v4() -> dict:
-    bridge = pd.read_csv(STEP2C_V4_BRIDGE_CSV)
-    sensor = pd.read_csv(STEP2C_V4_SENSOR_CSV)
-    frequency = load_json(STEP2C_V4_FREQUENCY)
+def analyze_step2c_run(run_dir: Path, *, label: str, file_prefix: str) -> dict:
+    bridge_csv = run_dir / "bridge_rtde_500hz.csv"
+    sensor_csv = run_dir / "kunwei_sensor_1khz.csv"
+    frequency_json = run_dir / "stage_frequency_summary.json"
+
+    bridge = pd.read_csv(bridge_csv)
+    sensor = pd.read_csv(sensor_csv)
+    frequency = load_json(frequency_json)
     reference = load_json(STEP2C_REFERENCE)["reference_line"]
     start = reference["contact_start_xyz_m"]
     unit = reference["xy_unit_vector"]
@@ -427,7 +433,7 @@ def analyze_step2c_v4() -> dict:
 
     stage25 = bridge[np.isclose(bridge["ur_output_double_register_35"].astype(float), 25.0, atol=0.05)].copy()
     if stage25.empty:
-        raise RuntimeError(f"no stage25 rows in {STEP2C_V4_BRIDGE_CSV}")
+        raise RuntimeError(f"no stage25 rows in {bridge_csv}")
 
     t0 = float(stage25["t_monotonic_s"].iloc[0])
     stage25["_stage_t_s"] = stage25["t_monotonic_s"].astype(float) - t0
@@ -458,8 +464,10 @@ def analyze_step2c_v4() -> dict:
     abs_error = np.abs(stage25["_fz_error_n"].to_numpy())
 
     return {
-        "run_name": STEP2C_V4_RUN_DIR.name,
-        "run_dir": str(STEP2C_V4_RUN_DIR),
+        "label": label,
+        "file_prefix": file_prefix,
+        "run_name": run_dir.name,
+        "run_dir": str(run_dir),
         "missing_data_requests": [],
         "reference_length_m": reference_length_m,
         "frequency": frequency,
@@ -523,19 +531,22 @@ def analyze_step2c_v4() -> dict:
     }
 
 
-def strip_v4_series(v4: dict) -> dict:
-    return {key: value for key, value in v4.items() if key != "series"}
+def strip_step2c_run_series(step2c_run: dict) -> dict:
+    return {key: value for key, value in step2c_run.items() if key != "series"}
 
 
-def build_v4_figures(v4: dict, old_step2c: dict) -> dict[str, dict[str, str]]:
+def build_step2c_result_figures(result: dict, old_step2c: dict, v4: dict) -> dict[str, dict[str, str]]:
     figures: dict[str, dict[str, str]] = {}
-    s = v4["series"]
-    stage25 = v4["stage25"]
+    s = result["series"]
+    stage25 = result["stage25"]
     old_stage25 = old_step2c["stage25_force_all"]
     old_path = old_step2c["path_metrics"]
+    v4_stage25 = v4["stage25"]
+    prefix = result["file_prefix"]
+    label = result["label"]
 
     fig, axes = plt.subplots(2, 1, figsize=(10.2, 6.4), sharex=True)
-    axes[0].plot(s["stage25_t_s"], s["fz_n"], color="#2f8068", linewidth=1.1, label="V4 measured Fz")
+    axes[0].plot(s["stage25_t_s"], s["fz_n"], color="#2f8068", linewidth=1.1, label=f"{label} measured Fz")
     axes[0].axhline(-5.0, color="#172026", linewidth=0.9, linestyle="--", label="target -5 N")
     axes[0].set_ylabel("Fz (N)")
     axes[0].grid(True, alpha=0.25)
@@ -547,9 +558,9 @@ def build_v4_figures(v4: dict, old_step2c: dict) -> dict[str, dict[str, str]]:
     axes[1].set_xlabel("Stage25 time (s)")
     axes[1].set_ylabel("Fz - target (N)")
     axes[1].grid(True, alpha=0.25)
-    fig.suptitle("Step2C V4 force tracking, stage25", y=0.995)
+    fig.suptitle(f"{label} force tracking, stage25", y=0.995)
     fig.tight_layout()
-    figures["step2c_v4_fz_tracking"] = save_and_copy(fig, "step2c_v4_fz_tracking.png")
+    figures[f"{prefix}_fz_tracking"] = save_and_copy(fig, f"{prefix}_fz_tracking.png")
 
     fig, axes = plt.subplots(2, 1, figsize=(10.2, 6.0))
     axes[0].plot(s["progress_mm"], s["xy_error_mm"], color="#2e6ea6", linewidth=1.1)
@@ -562,41 +573,41 @@ def build_v4_figures(v4: dict, old_step2c: dict) -> dict[str, dict[str, str]]:
     axes[1].axis("equal")
     axes[1].grid(True, alpha=0.25)
     axes[1].legend(loc="best", fontsize=8)
-    fig.suptitle("Step2C V4 path tracking, stage25", y=0.995)
+    fig.suptitle(f"{label} path tracking, stage25", y=0.995)
     fig.tight_layout()
-    figures["step2c_v4_path_tracking"] = save_and_copy(fig, "step2c_v4_path_tracking.png")
+    figures[f"{prefix}_path_tracking"] = save_and_copy(fig, f"{prefix}_path_tracking.png")
 
     fig, axes = plt.subplots(1, 2, figsize=(10.2, 4.6))
     axes[0].bar(
-        ["old Step2C", "V4"],
-        [old_stage25["signed_error_mae_n"], stage25["signed_error_mae_n"]],
-        color=["#7b8794", "#2f8068"],
+        ["old Step2C", "V4", "final"],
+        [old_stage25["signed_error_mae_n"], v4_stage25["signed_error_mae_n"], stage25["signed_error_mae_n"]],
+        color=["#7b8794", "#9a6b22", "#2f8068"],
     )
     axes[0].set_ylabel("Fz error MAE (N)")
     axes[0].set_title("Force tracking")
     axes[0].grid(axis="y", alpha=0.25)
     axes[1].bar(
-        ["old Step2C", "V4"],
-        [old_path["xy_error_p95_mm"], stage25["xy_error_p95_mm"]],
-        color=["#7b8794", "#2e6ea6"],
+        ["old Step2C", "V4", "final"],
+        [old_path["xy_error_p95_mm"], v4_stage25["xy_error_p95_mm"], stage25["xy_error_p95_mm"]],
+        color=["#7b8794", "#9a6b22", "#2e6ea6"],
     )
     axes[1].set_ylabel("XY error p95 (mm)")
     axes[1].set_title("Path tracking")
     axes[1].grid(axis="y", alpha=0.25)
-    fig.suptitle("Step2C V4 tradeoff against previous successful Step2C", y=0.995)
+    fig.suptitle("Step2C tradeoff: previous, V4, final", y=0.995)
     fig.tight_layout()
-    figures["step2c_v4_tradeoff"] = save_and_copy(fig, "step2c_v4_tradeoff.png")
+    figures[f"{prefix}_tradeoff"] = save_and_copy(fig, f"{prefix}_tradeoff.png")
     return figures
 
 
-def build_v4_media_assets() -> dict[str, dict[str, str] | None]:
+def build_step2c_result_media_assets() -> dict[str, dict[str, str] | None]:
     assets: dict[str, dict[str, str] | None] = {
-        "tp_image": copy_to_assets(STEP2C_V4_TP_PREVIEW, "step2c_v4_teach_pendant_program.jpg"),
+        "tp_image": None,
         "video_mp4": None,
         "video_poster": None,
     }
-    if STEP2C_V4_VIDEO_PREVIEW.exists():
-        report_mp4 = REPORT_ASSETS / "step2c_v4_experiment.mp4"
+    if STEP2C_RESULT_VIDEO_PREVIEW.exists():
+        report_mp4 = REPORT_ASSETS / f"{STEP2C_RESULT_FILE_PREFIX}_experiment.mp4"
         if run_media_command(
             [
                 "ffmpeg",
@@ -605,7 +616,7 @@ def build_v4_media_assets() -> dict[str, dict[str, str] | None]:
                 "error",
                 "-y",
                 "-i",
-                str(STEP2C_V4_VIDEO_PREVIEW),
+                str(STEP2C_RESULT_VIDEO_PREVIEW),
                 "-vf",
                 "scale=720:-2",
                 "-c:v",
@@ -622,7 +633,7 @@ def build_v4_media_assets() -> dict[str, dict[str, str] | None]:
             shutil.copy2(report_mp4, weekly_mp4)
             assets["video_mp4"] = {"report": rel_from_report(report_mp4), "weekly": rel_from_weekly(weekly_mp4)}
 
-        report_poster = REPORT_ASSETS / "step2c_v4_experiment_poster.jpg"
+        report_poster = REPORT_ASSETS / f"{STEP2C_RESULT_FILE_PREFIX}_experiment_poster.jpg"
         if run_media_command(
             [
                 "ffmpeg",
@@ -633,7 +644,7 @@ def build_v4_media_assets() -> dict[str, dict[str, str] | None]:
                 "-ss",
                 "8",
                 "-i",
-                str(STEP2C_V4_VIDEO_PREVIEW),
+                str(STEP2C_RESULT_VIDEO_PREVIEW),
                 "-vf",
                 "scale=720:-2,crop=720:900:0:220",
                 "-frames:v",
@@ -870,11 +881,12 @@ def step2c_metrics(step2c: dict) -> dict:
     }
 
 
-def rows_for_step2c_comparison(old_step2c: dict, v4: dict) -> str:
+def rows_for_step2c_comparison(old_step2c: dict, v4: dict, result: dict) -> str:
     old_stage25 = old_step2c["stage25_force_all"]
     old_path = old_step2c["path_metrics"]
     old_echo = old_step2c["stage25_echo"]
     v4_stage25 = v4["stage25"]
+    result_stage25 = result["stage25"]
     rows = [
         "| Result | stage25 echo (Hz) | stage25 duration (s) | Fz mean/std (N) | Fz error MAE (N) | Fz p95 abs err (N) | XY p95 (mm) | note |",
         "|---|---:|---:|---:|---:|---:|---:|---|",
@@ -906,6 +918,20 @@ def rows_for_step2c_comparison(old_step2c: dict, v4: dict) -> str:
             ]
         )
         + " |",
+        "| "
+        + " | ".join(
+            [
+                result["label"],
+                fmt(result_stage25["echo_rate_hz"], 2),
+                fmt(result_stage25["duration_s"], 3),
+                f"{fmt(result_stage25['fz_mean_n'], 2)} / {fmt(result_stage25['fz_std_n'], 2)}",
+                fmt(result_stage25["signed_error_mae_n"], 2),
+                fmt(result_stage25["signed_error_p95_abs_n"], 2),
+                fmt(result_stage25["xy_error_p95_mm"], 3),
+                "selected final run; lower Fz error than V4",
+            ]
+        )
+        + " |",
     ]
     return "\n".join(rows)
 
@@ -928,6 +954,7 @@ def write_summary_json(
     long_summary: dict,
     step2c: dict,
     step2c_v4: dict,
+    step2c_result: dict,
 ) -> Path:
     payload = {
         "comparison_note": "Both streams use first-value software zero in their own selected windows; no device-side zero/tare was executed and no new experiment is required for this report version.",
@@ -949,8 +976,9 @@ def write_summary_json(
         },
         "long_run_overall": long_summary.get("overall", {}),
         "step2c_summary": step2c.get("summary", {}),
-        "step2c_v4": strip_v4_series(step2c_v4),
-        "missing_data_requests": step2c_v4.get("missing_data_requests", []),
+        "step2c_v4": strip_step2c_run_series(step2c_v4),
+        "step2c_result": strip_step2c_run_series(step2c_result),
+        "missing_data_requests": step2c_result.get("missing_data_requests", []),
         "media_assets": media_assets,
         "figures": figures,
     }
@@ -971,6 +999,7 @@ def build_markdown(
     long_summary: dict,
     step2c: dict,
     step2c_v4: dict,
+    step2c_result: dict,
 ) -> str:
     overall = long_overall_metrics(long_summary)
     stage25 = step2c["stage25_force_all"]
@@ -980,11 +1009,12 @@ def build_markdown(
     stage25_echo = step2c["stage25_echo"]
     summary = step2c_metrics(step2c)
     v4 = step2c_v4["stage25"]
-    v4_raw = step2c_v4["raw_stage25"]
-    v4_freq = step2c_v4["frequency"]
-    v4_tp_img = media_assets.get("tp_image", {}).get("report") if media_assets.get("tp_image") else None
-    v4_video = media_assets.get("video_mp4", {}).get("report") if media_assets.get("video_mp4") else None
-    v4_poster = media_assets.get("video_poster", {}).get("report") if media_assets.get("video_poster") else None
+    result = step2c_result["stage25"]
+    result_raw = step2c_result["raw_stage25"]
+    result_freq = step2c_result["frequency"]
+    result_video = media_assets.get("video_mp4", {}).get("report") if media_assets.get("video_mp4") else None
+    result_poster = media_assets.get("video_poster", {}).get("report") if media_assets.get("video_poster") else None
+    result_prefix = step2c_result["file_prefix"]
 
     return f"""# Kunwei KWR75 当前进展报告（2026-06-08）
 
@@ -992,7 +1022,7 @@ def build_markdown(
 
 这份报告把 Kunwei KWR75/KWR75B 当前证据单独整理出来，用于说明三件事：传感器与通信链路是否已经可用，长时间无运动 `1 kHz` 采集是否稳定，以及当前 Step2C 闭环直线实验走到什么程度。报告包含两层 OnRobot/Kunwei 对比：前 `600 s` 用于短窗口 noise/drift 判断，`6 h` 用于长时间漂移判断。当前版本只使用已有日志，不重做实验；两者都按各自窗口第一帧做 software zero，只作为 drift/noise 口径对照，不作为同机械状态下的绝对标定结论。
 
-结论先给出：Kunwei TCP raw logging 已经支撑 `19 h 15 min`、约 `1 kHz`、无 parse error 的长跑；Step2C V4 已经把 line 阶段的 URScript stage25 echo cadence 提高到约 `{fmt(v4['echo_rate_hz'], 2)} Hz`，路径跟踪 p95 约 `{fmt(v4['xy_error_p95_mm'], 3)} mm`。但 V4 不是全面改善：Fz error MAE 约 `{fmt(v4['signed_error_mae_n'], 2)} N`，比上一版成功 Step2C 的 `{fmt(stage25['signed_error_mae_n'], 2)} N` 更大，力瞬态和 ripple 仍是主要问题。
+结论先给出：Kunwei TCP raw logging 已经支撑 `19 h 15 min`、约 `1 kHz`、无 parse error 的长跑；Step2C final 在 line 阶段保持 URScript stage25 echo cadence 约 `{fmt(result['echo_rate_hz'], 2)} Hz`，路径跟踪 p95 约 `{fmt(result['xy_error_p95_mm'], 3)} mm`，Fz error MAE 从 V4 的 `{fmt(v4['signed_error_mae_n'], 2)} N` 降到 `{fmt(result['signed_error_mae_n'], 2)} N`。这说明 final 已经不只是 frequency 进展，也把 force ripple/误差压低了一档；但它仍是一次选定 final run，不等于完整统计验证。
 
 ## 设备与实验条件
 
@@ -1007,13 +1037,13 @@ def build_markdown(
 | Step2C 参考线 | 长度约 `63.58 mm` 的 XY straight-line reference |
 | 本报告图表口径 | 统计用选定窗口内全样本；长 trace 图用 min/max envelope，不用等间隔抽样线作为主证据 |
 | 最长可用公共窗口 | Kunwei `19.26 h`，OnRobot UDP `8.79 h`；本报告长对比采用更适合汇报的 `6 h` |
-| Step2C V4 口径 | V4 从已有 `bridge_rtde_500hz.csv`、`kunwei_sensor_1khz.csv` 和 `stage_frequency_summary.json` 计算；不补实验、不补写 `summary.json` |
+| Step2C final 口径 | final 从已有 `bridge_rtde_500hz.csv`、`kunwei_sensor_1khz.csv` 和 `stage_frequency_summary.json` 计算；不补实验、不补写 `summary.json` |
 
 ## 实验命令
 
-长时采集由 `capture_kunwei_kwr75_1khz.py` 运行，核心参数是 `--transport tcp-client --sensor-ip 192.168.50.25 --sensor-port 5152 --duration-s 86400 --checkpoint-interval-s 900`。旧 Step2C 主 run 使用 `search5_guard20_line2ms_alpha70_vlim5` 版本；V4 使用 `admittance_search30_guard20_search2ms_line1ms_alpha70` 版本，line 阶段目标仍是 `-5 N`。
+长时采集由 `capture_kunwei_kwr75_1khz.py` 运行，核心参数是 `--transport tcp-client --sensor-ip 192.168.50.25 --sensor-port 5152 --duration-s 86400 --checkpoint-interval-s 900`。旧 Step2C 主 run 使用 `search5_guard20_line2ms_alpha70_vlim5` 版本；final 使用 `step2c_final` 程序包和 `search2ms_line1ms_alpha70` autowatch bridge，line 阶段目标仍是 `-5 N`。
 
-本报告的生成脚本只读取已有 CSV/JSON 并写出报告资产，没有向 UR、OnRobot 或 Kunwei 发送命令，也没有做视频抽帧。
+本报告的生成脚本只读取已有 CSV/JSON 并写出报告资产，没有向 UR、OnRobot 或 Kunwei 发送命令，也没有做视频多帧抽样或视频帧分析；HTML evidence clip 只使用转码 mp4 和一个 poster。
 
 ## 数据与图片
 
@@ -1023,9 +1053,9 @@ def build_markdown(
 | Kunwei 19h15min raw CSV | [../ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/data.csv](../ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/data.csv) |
 | Kunwei 19h15min logger summary | [../ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/summary.json](../ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/summary.json) |
 | Step2C metrics | [assets/step2c-kunwei-search5-guard20-line2ms/analysis-metrics.json](assets/step2c-kunwei-search5-guard20-line2ms/analysis-metrics.json) |
-| Step2C V4 run | [../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step2c_v4['run_name']}](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step2c_v4['run_name']}) |
-| Step2C V4 video | {f'[{v4_video}]({v4_video})' if v4_video else 'N/A'} |
-| Step2C V4 Teach Pendant image | {f'[{v4_tp_img}]({v4_tp_img})' if v4_tp_img else 'N/A'} |
+| Step2C V4 comparison run | [../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step2c_v4['run_name']}](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step2c_v4['run_name']}) |
+| Step2C final run | [../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step2c_result['run_name']}](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step2c_result['run_name']}) |
+| Step2C final video | {f'[{result_video}]({result_video})' if result_video else 'N/A'} |
 | OnRobot 600s UDP raw CSV | [../experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv](../experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv) |
 | OnRobot 6h UDP raw CSV | [../experiments/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217/three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv](../experiments/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217/three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv) |
 
@@ -1074,30 +1104,31 @@ def build_markdown(
 | 项目 | 结果 |
 |---|---:|
 | 旧成功 run | `{summary['run_name']}` |
-| V4 最新 run | `{step2c_v4['run_name']}` |
+| V4 comparison run | `{step2c_v4['run_name']}` |
+| final run | `{step2c_result['run_name']}` |
 | 旧 run 是否完成 line | `{summary['line_completed']}` |
 | bridge stop reason | `{summary['bridge_stop_reason']}` |
-| V4 bridge write / RTDE log rate | `{fmt(v4_freq['bridge_write_rate_hz'], 2)} / {fmt(v4_freq['rtde_output_logging_rate_hz'], 2)} Hz` |
-| V4 raw sensor stage25 rate | `{fmt(v4_raw['rate_hz'], 2)} Hz` |
-| V4 stage25 echo rate | `{fmt(v4['echo_rate_hz'], 2)} Hz` |
-| V4 stage25 Fz mean/std | `{fmt(v4['fz_mean_n'], 2)} / {fmt(v4['fz_std_n'], 2)} N` |
-| V4 stage25 Fz error MAE | `{fmt(v4['signed_error_mae_n'], 2)} N` |
-| V4 raw stage25 Fz min | `{fmt(v4_raw['fz_min_n'], 2)} N` |
-| V4 XY error mean / p95 | `{fmt(v4['xy_error_mean_mm'], 3)} / {fmt(v4['xy_error_p95_mm'], 3)} mm` |
+| final bridge write / RTDE log rate | `{fmt(result_freq['bridge_write_rate_hz'], 2)} / {fmt(result_freq['rtde_output_logging_rate_hz'], 2)} Hz` |
+| final raw sensor stage25 rate | `{fmt(result_raw['rate_hz'], 2)} Hz` |
+| final stage25 echo rate | `{fmt(result['echo_rate_hz'], 2)} Hz` |
+| final stage25 Fz mean/std | `{fmt(result['fz_mean_n'], 2)} / {fmt(result['fz_std_n'], 2)} N` |
+| final stage25 Fz error MAE | `{fmt(result['signed_error_mae_n'], 2)} N` |
+| final raw stage25 Fz min | `{fmt(result_raw['fz_min_n'], 2)} N` |
+| final XY error mean / p95 | `{fmt(result['xy_error_mean_mm'], 3)} / {fmt(result['xy_error_p95_mm'], 3)} mm` |
 
-V4 的主要意义是 frequency 层面的进展：stage25 echo cadence 从旧成功 Step2C 的约 `{fmt(stage25_echo['rate_hz'], 2)} Hz` 提高到约 `{fmt(v4['echo_rate_hz'], 2)} Hz`。这里仍然只写成 measured URScript echo/motion-gate cadence，不写成内部 servo loop 频率。路径跟踪也更干净，XY p95 从 `{fmt(path_metrics['xy_error_p95_mm'], 3)} mm` 降到 `{fmt(v4['xy_error_p95_mm'], 3)} mm`；但 Fz error MAE 从 `{fmt(stage25['signed_error_mae_n'], 2)} N` 升到 `{fmt(v4['signed_error_mae_n'], 2)} N`，所以 V4 的下一步不是继续追频率，而是压低 force transient/ripple。
+V4 的主要意义是 frequency 层面的进展：stage25 echo cadence 从旧成功 Step2C 的约 `{fmt(stage25_echo['rate_hz'], 2)} Hz` 提高到约 `{fmt(v4['echo_rate_hz'], 2)} Hz`，但 Fz error MAE 升到 `{fmt(v4['signed_error_mae_n'], 2)} N`。final 保持同样的 measured URScript echo/motion-gate cadence，同时把 Fz error MAE 降到 `{fmt(result['signed_error_mae_n'], 2)} N`、p95 abs error 降到 `{fmt(result['signed_error_p95_abs_n'], 2)} N`。这里仍然只写成 measured cadence，不写成内部 servo loop 频率；力控制结论也只针对这次 selected final run。
 
-{rows_for_step2c_comparison(step2c, step2c_v4)}
+{rows_for_step2c_comparison(step2c, step2c_v4, step2c_result)}
 
-![Step2C V4 force tracking]({figures['step2c_v4_fz_tracking']['report']})
+![Step2C final force tracking]({figures[f'{result_prefix}_fz_tracking']['report']})
 
-![Step2C V4 path tracking]({figures['step2c_v4_path_tracking']['report']})
+![Step2C final path tracking]({figures[f'{result_prefix}_path_tracking']['report']})
 
-![Step2C V4 tradeoff]({figures['step2c_v4_tradeoff']['report']})
+![Step2C final tradeoff]({figures[f'{result_prefix}_tradeoff']['report']})
 
-{f'![Step2C V4 experiment poster]({v4_poster})' if v4_poster else ''}
+{f'![Step2C final experiment poster]({result_poster})' if result_poster else ''}
 
-{f'![Step2C V4 Teach Pendant program]({v4_tp_img})' if v4_tp_img else ''}
+{f'[Step2C final experiment video]({result_video})' if result_video else ''}
 
 ### OnRobot vs Kunwei 前 600s
 
@@ -1118,13 +1149,13 @@ V4 的主要意义是 frequency 层面的进展：stage25 echo cadence 从旧成
 ## 结论
 
 1. Kunwei TCP raw logging 路线已经可用：`19 h 15 min` 内约 `1 kHz`，`parse_errors=0`，`dropped_sync_bytes=0`。
-2. Kunwei 已经从传感器 bring-up 进入机器人闭环验证阶段。旧 Step2C 和 V4 都能完成搜索、直线、卸载和回撤；均值层面能围绕 `-5 N` 工作。
-3. V4 的 stage25 measured echo cadence 约 `{fmt(v4['echo_rate_hz'], 2)} Hz`，比旧成功 Step2C 的 `{fmt(stage25_echo['rate_hz'], 2)} Hz` 明显提高；但这仍不能写成 UR 内部 servo loop 频率。
+2. Kunwei 已经从传感器 bring-up 进入机器人闭环验证阶段。旧 Step2C、V4 和 final 都能完成搜索、直线、卸载和回撤；均值层面能围绕 `-5 N` 工作。
+3. final 的 stage25 measured echo cadence 约 `{fmt(result['echo_rate_hz'], 2)} Hz`，比旧成功 Step2C 的 `{fmt(stage25_echo['rate_hz'], 2)} Hz` 明显提高，并且 Fz error MAE 比 V4 更低；但这仍不能写成 UR 内部 servo loop 频率。
 4. OnRobot/Kunwei 前 `600 s` 与 `6 h` 对比图说明两条 raw stream 都可以用 first-value software zero 做短窗口和长窗口漂移分析；但由于机械状态不同，报告只解释相对漂移和波动，不解释绝对偏置或规格优劣。
 
 ## 下一步
 
-- Step2C 下一步应围绕 V4 的 force transient/ripple 调参；频率证据已经足够支持 `1 ms` line-control cadence 进入报告，但还不支持说 force quality 已经优于旧成功 Step2C。
+- Step2C 下一步应围绕 final 的重复性和 contact-entry transient 继续验证；频率证据已经足够支持 `1 ms` line-control cadence 进入报告，force quality 也相对 V4 有改善，但还不应该外推成跨治具、跨日期的传感器绝对性能结论。
 - 本版本不需要新做 OnRobot/Kunwei A/B 实验；当前会议材料只使用已有日志，并明确标注为 first-value software zero 的历史窗口比较。若未来要回答绝对标定问题，再另开同机械状态、同无接触窗口、明确 device-side zero/tare 策略的实验。
 - 如果目标是机器人侧 `500 Hz` 运动闭环，需要另开 `servoj/speedj`、多线程 URScript 或外部实时接口路线，而不是从当前 `speedl` echo 推断。
 
@@ -1138,7 +1169,7 @@ python3 /home/andy/ur10e_ros2_ws/weekly_meeting/build_kunwei_kwr75_report.py
 
 ### 生成口径
 
-脚本对 `600 s` 窗口保留短窗口点列；对 `6 h` 窗口只保留统计量和时间 bin envelope，不把千万级样本全部留在内存里。统计直接使用窗口内所有样本；图形先按时间 bin 聚合为 min/max/mean envelope，保留尖峰范围，不使用等间隔抽样折线作为主要证据。HTML deck 只使用生成的数据图，没有抽取或嵌入新的视频帧。
+脚本对 `600 s` 窗口保留短窗口点列；对 `6 h` 窗口只保留统计量和时间 bin envelope，不把千万级样本全部留在内存里。统计直接使用窗口内所有样本；图形先按时间 bin 聚合为 min/max/mean envelope，保留尖峰范围，不使用等间隔抽样折线作为主要证据。HTML deck 使用生成的数据图和压缩后的 Step2C final 视频，不嵌入原始 MOV。
 """
 
 
@@ -1156,6 +1187,7 @@ def build_html(
     long_summary: dict,
     step2c: dict,
     step2c_v4: dict,
+    step2c_result: dict,
 ) -> str:
     overall = long_overall_metrics(long_summary)
     stage25 = step2c["stage25_force_all"]
@@ -1163,28 +1195,24 @@ def build_html(
     stage25_echo = step2c["stage25_echo"]
     summary = step2c_metrics(step2c)
     v4 = step2c_v4["stage25"]
-    v4_raw = step2c_v4["raw_stage25"]
-    v4_freq = step2c_v4["frequency"]
+    result = step2c_result["stage25"]
+    result_raw = step2c_result["raw_stage25"]
+    result_freq = step2c_result["frequency"]
+    result_prefix = step2c_result["file_prefix"]
     force_img = figures["first600_force_axes"]["weekly"]
     fz_img = figures["first600_fz"]["weekly"]
     std_img = figures["first600_std"]["weekly"]
     sixh_force_img = figures["sixh_force_axes"]["weekly"]
     sixh_fz_img = figures["sixh_fz"]["weekly"]
     sixh_std_img = figures["sixh_std"]["weekly"]
-    v4_fz_img = figures["step2c_v4_fz_tracking"]["weekly"]
-    v4_path_img = figures["step2c_v4_path_tracking"]["weekly"]
-    v4_tradeoff_img = figures["step2c_v4_tradeoff"]["weekly"]
-    v4_video = media_assets.get("video_mp4", {}).get("weekly") if media_assets.get("video_mp4") else None
-    v4_video_poster = media_assets.get("video_poster", {}).get("weekly") if media_assets.get("video_poster") else None
-    v4_tp_img = media_assets.get("tp_image", {}).get("weekly") if media_assets.get("tp_image") else None
-    v4_video_html = (
-        f'<figure class="span-5 media-video"><video controls preload="metadata" poster="{v4_video_poster or ""}" src="{v4_video}"></video><figcaption>Fig. V4-A. Step2C V4 experiment evidence clip from the latest drop.</figcaption></figure>'
-        if v4_video
-        else ""
-    )
-    v4_tp_html = (
-        f'<figure class="span-7"><img src="{v4_tp_img}" alt="Step2C V4 Teach Pendant program"><figcaption>Fig. V4-B. Teach Pendant evidence for the Step2C admittance-search30 V4 program.</figcaption></figure>'
-        if v4_tp_img
+    result_fz_img = figures[f"{result_prefix}_fz_tracking"]["weekly"]
+    result_path_img = figures[f"{result_prefix}_path_tracking"]["weekly"]
+    result_tradeoff_img = figures[f"{result_prefix}_tradeoff"]["weekly"]
+    result_video = media_assets.get("video_mp4", {}).get("weekly") if media_assets.get("video_mp4") else None
+    result_video_poster = media_assets.get("video_poster", {}).get("weekly") if media_assets.get("video_poster") else None
+    result_video_html = (
+        f'<figure class="span-5 media-video"><video controls preload="metadata" poster="{result_video_poster or ""}" src="{result_video}"></video><figcaption>Fig. F-A. Step2C final experiment evidence clip from the latest drop.</figcaption></figure>'
+        if result_video
         else ""
     )
 
@@ -1360,7 +1388,7 @@ def build_html(
         {html_metric("Long raw capture", "69.3M samples")}
         {html_metric("Average raw rate", f"{fmt(overall['rate_hz'], 3)} Hz")}
         {html_metric("Frame errors", "0 parse / 0 sync")}
-        {html_metric("Step2C V4 echo", f"{fmt(v4['echo_rate_hz'], 1)} Hz")}
+        {html_metric("Step2C final echo", f"{fmt(result['echo_rate_hz'], 1)} Hz")}
         {html_metric("Long comparison", "6 h selected")}
       </div>
     </section>
@@ -1377,22 +1405,21 @@ def build_html(
     </section>
     <section id="step2c">
       <div class="eyebrow">Robot experiment</div>
-      <h2>Step2C V4 reaches 1 ms-class line cadence, with force ripple still open</h2>
-      <p>V4 is the latest complete Step2C result. It raises measured stage25 echo cadence from {fmt(stage25_echo['rate_hz'], 2)} Hz to {fmt(v4['echo_rate_hz'], 2)} Hz, while keeping RTDE logging near 500 Hz and Kunwei raw stage25 near {fmt(v4_raw['rate_hz'], 2)} Hz. This is measured URScript echo/motion-gate evidence, not a claim about the internal servo loop.</p>
+      <h2>Step2C final keeps 1 ms-class cadence and improves force tracking</h2>
+      <p>The selected final run keeps measured stage25 echo cadence at {fmt(result['echo_rate_hz'], 2)} Hz while reducing Fz error MAE from V4's {fmt(v4['signed_error_mae_n'], 2)} N to {fmt(result['signed_error_mae_n'], 2)} N. RTDE logging stays near 500 Hz and Kunwei raw stage25 remains near {fmt(result_raw['rate_hz'], 2)} Hz. This is measured URScript echo/motion-gate evidence, not a claim about the internal servo loop.</p>
       <div class="grid">
-        {html_metric("V4 run", step2c_v4["run_name"])}
-        {html_metric("Stage25 echo", f"{fmt(v4['echo_rate_hz'], 2)} Hz")}
-        {html_metric("RTDE log", f"{fmt(v4_freq['rtde_output_logging_rate_hz'], 2)} Hz")}
-        {html_metric("Kunwei raw", f"{fmt(v4_raw['rate_hz'], 2)} Hz")}
+        {html_metric("Final run", step2c_result["run_name"])}
+        {html_metric("Stage25 echo", f"{fmt(result['echo_rate_hz'], 2)} Hz")}
+        {html_metric("RTDE log", f"{fmt(result_freq['rtde_output_logging_rate_hz'], 2)} Hz")}
+        {html_metric("Kunwei raw", f"{fmt(result_raw['rate_hz'], 2)} Hz")}
+        {html_metric("Final Fz MAE", f"{fmt(result['signed_error_mae_n'], 2)} N")}
+        {html_metric("Final XY p95", f"{fmt(result['xy_error_p95_mm'], 3)} mm")}
         {html_metric("V4 Fz MAE", f"{fmt(v4['signed_error_mae_n'], 2)} N")}
-        {html_metric("V4 XY p95", f"{fmt(v4['xy_error_p95_mm'], 3)} mm")}
-        {html_metric("Old Fz MAE", f"{fmt(stage25['signed_error_mae_n'], 2)} N")}
         {html_metric("Old echo", f"{fmt(stage25_echo['rate_hz'], 2)} Hz")}
-        <figure class="span-7"><img src="{v4_fz_img}" alt="Step2C V4 force tracking"><figcaption>Fig. 1. V4 Fz tracking shows mean force near target, but transient and ripple remain the force-quality blocker.</figcaption></figure>
-        <figure class="span-5"><img src="{v4_tradeoff_img}" alt="Step2C V4 tradeoff chart"><figcaption>Fig. 2. V4 improves cadence and path p95, but force MAE is worse than the previous successful Step2C.</figcaption></figure>
-        <figure class="span-12"><img src="{v4_path_img}" alt="Step2C V4 path tracking"><figcaption>Fig. 3. V4 path tracking is not the main blocker; XY p95 is about {fmt(v4['xy_error_p95_mm'], 3)} mm.</figcaption></figure>
-        {v4_video_html}
-        {v4_tp_html}
+        <figure class="span-7"><img src="{result_fz_img}" alt="Step2C final force tracking"><figcaption>Fig. 1. Final Fz tracking keeps the mean near target and reduces error relative to V4.</figcaption></figure>
+        <figure class="span-5"><img src="{result_tradeoff_img}" alt="Step2C final tradeoff chart"><figcaption>Fig. 2. Final keeps the cadence/path improvement and lowers Fz MAE versus V4.</figcaption></figure>
+        <figure class="span-12"><img src="{result_path_img}" alt="Step2C final path tracking"><figcaption>Fig. 3. Final path tracking remains tight; XY p95 is about {fmt(result['xy_error_p95_mm'], 3)} mm.</figcaption></figure>
+        {result_video_html}
       </div>
     </section>
     <section id="compare">
@@ -1422,14 +1449,14 @@ def build_html(
     <section id="next">
       <div class="eyebrow">Next action</div>
       <h2>Stabilize contact entry before chasing higher frequency</h2>
-      <p>The next Step2C change should reduce force transient and ripple after the V4 cadence improvement. The report should keep frequency layers separate: sensor raw stream, bridge/RTDE logging, measured URScript echo cadence, and unvalidated internal servo-loop behavior.</p>
+      <p>The next Step2C work should confirm repeatability and reduce contact-entry transient after the final-run improvement. The report should keep frequency layers separate: sensor raw stream, bridge/RTDE logging, measured URScript echo cadence, and unvalidated internal servo-loop behavior.</p>
       <div class="grid">
         <table class="span-12">
           <thead><tr><th>Decision</th><th>Current evidence</th><th>Default next move</th></tr></thead>
           <tbody>
             <tr><td>Logging route</td><td>Kunwei TCP raw is stable at 1 kHz class</td><td>Use it as the default Kunwei collector</td></tr>
-            <tr><td>Force control</td><td>V4 mean Fz is near target, but error MAE is {fmt(v4['signed_error_mae_n'], 2)} N</td><td>Reduce transient and ripple before claiming force-quality improvement</td></tr>
-            <tr><td>Frequency claim</td><td>V4 stage25 echo is {fmt(v4['echo_rate_hz'], 2)} Hz; RTDE logging is {fmt(v4_freq['rtde_output_logging_rate_hz'], 2)} Hz</td><td>Report measured cadence, not internal servo-loop frequency</td></tr>
+            <tr><td>Force control</td><td>Final mean Fz is near target and error MAE is {fmt(result['signed_error_mae_n'], 2)} N</td><td>Confirm repeatability before broader force-quality claims</td></tr>
+            <tr><td>Frequency claim</td><td>Final stage25 echo is {fmt(result['echo_rate_hz'], 2)} Hz; RTDE logging is {fmt(result_freq['rtde_output_logging_rate_hz'], 2)} Hz</td><td>Report measured cadence, not internal servo-loop frequency</td></tr>
             <tr><td>A/B comparison</td><td>Existing 600 s and 6 h windows differ in setup/date/load</td><td>Use first-value software zero for this report; reserve same-fixture testing only for future absolute calibration claims</td></tr>
           </tbody>
         </table>
@@ -1502,10 +1529,15 @@ def main() -> None:
         window_s=LONG_WINDOW_S,
     )
 
-    step2c_v4 = analyze_step2c_v4()
+    step2c_v4 = analyze_step2c_run(STEP2C_V4_RUN_DIR, label="Step2C V4", file_prefix="step2c_v4")
+    step2c_result = analyze_step2c_run(
+        STEP2C_RESULT_RUN_DIR,
+        label=STEP2C_RESULT_LABEL,
+        file_prefix=STEP2C_RESULT_FILE_PREFIX,
+    )
     figures = build_figures(short_kunwei, short_onrobot, long_kunwei, long_onrobot)
-    figures.update(build_v4_figures(step2c_v4, step2c))
-    media_assets = build_v4_media_assets()
+    figures.update(build_step2c_result_figures(step2c_result, step2c, step2c_v4))
+    media_assets = build_step2c_result_media_assets()
     summary_json = write_summary_json(
         short_kunwei,
         short_onrobot,
@@ -1516,6 +1548,7 @@ def main() -> None:
         long_summary,
         step2c,
         step2c_v4,
+        step2c_result,
     )
 
     REPORT_MD.write_text(
@@ -1530,6 +1563,7 @@ def main() -> None:
             long_summary,
             step2c,
             step2c_v4,
+            step2c_result,
         ),
         encoding="utf-8",
     )
@@ -1544,6 +1578,7 @@ def main() -> None:
             long_summary,
             step2c,
             step2c_v4,
+            step2c_result,
         ),
         encoding="utf-8",
     )
