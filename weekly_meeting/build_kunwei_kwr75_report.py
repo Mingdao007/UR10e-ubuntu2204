@@ -977,6 +977,35 @@ def build_step4e_result_figures(result: dict) -> dict[str, dict[str, str]]:
     )
     fig.tight_layout()
     figures[f"{prefix}_force_progress"] = save_and_copy(fig, f"{prefix}_force_progress.png")
+
+    fig, ax = plt.subplots(1, 1, figsize=(10.4, 4.8))
+    ax.plot(s["stage25_t_s"], s["normal_load_error_n"], color="#9a6b22", linewidth=1.0)
+    ax.axhline(0.0, color="#172026", linewidth=0.9, linestyle="--", label="target error")
+    ax.axhline(
+        stage25["normal_load_error_mae_n"],
+        color="#2e6ea6",
+        linewidth=0.9,
+        linestyle=":",
+        label="MAE",
+    )
+    ax.axhline(
+        stage25["normal_load_error_p95_abs_n"],
+        color="#7b8794",
+        linewidth=0.9,
+        linestyle="-.",
+        label="p95 abs",
+    )
+    ax.set_xlabel("Line-stage time (s)")
+    ax.set_ylabel("Normal-load Fz error (N)")
+    ax.set_title(
+        "Normal-load Fz error, external-loop line demo "
+        f"(MAE {fmt(stage25['normal_load_error_mae_n'], 2)} N, "
+        f"p95 {fmt(stage25['normal_load_error_p95_abs_n'], 2)} N)"
+    )
+    ax.grid(True, alpha=0.25)
+    ax.legend(loc="upper right", fontsize=8)
+    fig.tight_layout()
+    figures[f"{prefix}_fz_error"] = save_and_copy(fig, f"{prefix}_fz_error.png")
     return figures
 
 
@@ -1747,6 +1776,8 @@ Step4E 的 normal-load force quality 还没有达到 Step2C final 水平：norma
 
 ![Step4E v13 path tracking]({figures[f'{step4e_prefix}_path_tracking']['report']})
 
+![Step4E v13 normal-load Fz error]({figures[f'{step4e_prefix}_fz_error']['report']})
+
 ![Step4E v13 force and progress evidence]({figures[f'{step4e_prefix}_force_progress']['report']})
 
 {f'![Step4E v13 demo video poster]({step4e_poster})' if step4e_poster else ''}
@@ -1852,6 +1883,7 @@ def build_html(
     step4e_prefix = step4e_result["file_prefix"]
     step4e_path_img = figures[f"{step4e_prefix}_path_tracking"]["weekly"]
     step4e_force_progress_img = figures[f"{step4e_prefix}_force_progress"]["weekly"]
+    step4e_fz_error_img = figures[f"{step4e_prefix}_fz_error"]["weekly"]
     step4e_video = media_assets.get("step4e_video_mp4", {}).get("weekly") if media_assets.get("step4e_video_mp4") else None
     step4e_video_poster = media_assets.get("step4e_video_poster", {}).get("weekly") if media_assets.get("step4e_video_poster") else None
     result_video_html = (
@@ -1865,7 +1897,7 @@ def build_html(
         else ""
     )
     step4e_video_html = (
-        f'<figure class="span-5 media-video"><video controls preload="metadata" poster="{step4e_video_poster or ""}" src="{step4e_video}"></video><figcaption>Fig. 9. Step4E v13 phone video evidence from the latest demo drop.</figcaption></figure>'
+        f'<figure class="span-5 media-video"><video controls preload="metadata" poster="{step4e_video_poster or ""}" src="{step4e_video}"></video><figcaption>Fig. 10. Phone video evidence for the completed external-loop line demo.</figcaption></figure>'
         if step4e_video
         else ""
     )
@@ -2030,7 +2062,7 @@ def build_html(
     <a href="#link">1 kHz Link</a>
     <a href="#step2c">Step2C</a>
     <a href="#step4d">Step4D</a>
-    <a href="#step4e">Step4E</a>
+    <a href="#step4e">Line Demo</a>
     <a href="#compare">600 s Compare</a>
     <a href="#long-compare">6 h Compare</a>
     <a href="#next">Next</a>
@@ -2039,14 +2071,14 @@ def build_html(
     <section id="summary">
       <div class="eyebrow">Kunwei KWR75 / UR10e</div>
       <h1>Kunwei force sensor progress report</h1>
-      <p class="lead">Kunwei is no longer just a bring-up task: the TCP raw logging path has a stable 19 h 15 min run, Step2C has completed a closed-loop straight-line contact task, Step4D has completed the first full contact circle, and Step4E v13 has completed the paper-style outer-loop line demo with unload, retract, and home-return evidence. The OnRobot/Kunwei comparison in this deck uses existing logs only, with first-value software zero inside each selected window.</p>
+      <p class="lead">Kunwei is no longer just a bring-up task: the TCP raw logging path has a stable 19 h 15 min run, Step2C has completed a closed-loop straight-line contact task, Step4D has completed the first full contact circle, and the latest external-loop line-following demo completed with unload, retract, and home-return evidence. The OnRobot/Kunwei comparison in this deck uses existing logs only, with first-value software zero inside each selected window.</p>
       <div class="grid">
         {html_metric("Long raw capture", "69.3M samples")}
         {html_metric("Average raw rate", f"{fmt(overall['rate_hz'], 3)} Hz")}
         {html_metric("Frame errors", "0 parse / 0 sync")}
         {html_metric("Step2C final echo", f"{fmt(result['echo_rate_hz'], 1)} Hz")}
         {html_metric("Step4D closure", f"{fmt(step4d_circle['closure_error_mm'], 3)} mm")}
-        {html_metric("Step4E line", f"{fmt(step4e_line['progress_max_mm'], 1)} mm")}
+        {html_metric("Line demo", f"{fmt(step4e_line['progress_max_mm'], 1)} mm")}
         {html_metric("Long comparison", "6 h selected")}
       </div>
     </section>
@@ -2100,19 +2132,20 @@ def build_html(
     </section>
     <section id="step4e">
       <div class="eyebrow">Robot experiment</div>
-      <h2>Step4E v13 completes the outer-loop line and returns home</h2>
-      <p>Step4E is the paper-style reproduction step: Python computes Cartesian outer-loop commands from Kunwei wrench and RTDE TCP pose, while URScript consumes the registers and lets UR handle IK through speedl. The selected v13 run ended with stop reason {fmt(step4e_line['stop_reason_code'], 1)} ({step4e_line['stop_reason_label']}) and final stage {fmt(step4e_line['final_stage'], 1)}. It crossed the {fmt(step4e_line['success_threshold_mm'], 3)} mm success threshold, reached {fmt(step4e_line['progress_max_mm'], 3)} mm max progress, and kept XY path-error p95 at {fmt(step4e_line['path_error_p95_mm'], 3)} mm. This is successful demo evidence; normal-load force quality still needs tuning.</p>
+      <h2>External-loop line-following demo completes and returns home</h2>
+      <p>This demo reproduces the paper-style architecture in a small straight-line task: Python computes Cartesian correction commands from the Kunwei wrench and measured TCP pose, while the UR controller executes those commands and handles IK through speedl. The run crossed the {fmt(step4e_line['success_threshold_mm'], 3)} mm success threshold, reached {fmt(step4e_line['progress_max_mm'], 3)} mm max progress, kept XY path-error p95 at {fmt(step4e_line['path_error_p95_mm'], 3)} mm, then unloaded, retracted, and returned home. The line-following part is successful demo evidence; normal-load Fz control still needs tuning.</p>
       <div class="grid">
         {html_metric("Line outcome", "complete")}
         {html_metric("Stage25 echo", f"{fmt(step4e_stage25['echo_rate_hz'], 2)} Hz")}
         {html_metric("Path progress", f"{fmt(step4e_line['progress_max_mm'], 3)} mm")}
         {html_metric("XY p95", f"{fmt(step4e_line['path_error_p95_mm'], 3)} mm")}
-        {html_metric("Normal-load MAE", f"{fmt(step4e_stage25['normal_load_error_mae_n'], 2)} N")}
+        {html_metric("Fz MAE", f"{fmt(step4e_stage25['normal_load_error_mae_n'], 2)} N")}
+        {html_metric("Fz p95 abs", f"{fmt(step4e_stage25['normal_load_error_p95_abs_n'], 2)} N")}
         {html_metric("Finish reason", "complete 1")}
-        {html_metric("Final stage", f"{fmt(step4e_line['final_stage'], 1)}")}
         {html_metric("Retract/home", "observed")}
-        <figure class="span-6"><img src="{step4e_path_img}" alt="Step4E v13 line path tracking"><figcaption>Fig. 7. Actual TCP path follows the outer-loop line; path-error p95 is {fmt(step4e_line['path_error_p95_mm'], 3)} mm.</figcaption></figure>
-        <figure class="span-6"><img src="{step4e_force_progress_img}" alt="Step4E v13 force and progress evidence"><figcaption>Fig. 8. Path progress crosses the success threshold; normal-load error remains the next tuning item.</figcaption></figure>
+        <figure class="span-6"><img src="{step4e_path_img}" alt="External-loop line path tracking"><figcaption>Fig. 7. Actual TCP path follows the commanded line; path-error p95 is {fmt(step4e_line['path_error_p95_mm'], 3)} mm.</figcaption></figure>
+        <figure class="span-6"><img src="{step4e_fz_error_img}" alt="External-loop line normal-load Fz error"><figcaption>Fig. 8. Normal-load Fz error is the remaining tuning problem: MAE is {fmt(step4e_stage25['normal_load_error_mae_n'], 2)} N and p95 absolute error is {fmt(step4e_stage25['normal_load_error_p95_abs_n'], 2)} N.</figcaption></figure>
+        <figure class="span-7"><img src="{step4e_force_progress_img}" alt="External-loop line force and progress evidence"><figcaption>Fig. 9. Path progress crosses the success threshold while force and attitude behavior show what still needs tuning.</figcaption></figure>
         {step4e_video_html}
       </div>
     </section>
@@ -2151,7 +2184,7 @@ def build_html(
             <tr><td>Logging route</td><td>Kunwei TCP raw is stable at 1 kHz class</td><td>Use it as the default Kunwei collector</td></tr>
             <tr><td>Force control</td><td>Final mean Fz is near target and error MAE is {fmt(result['signed_error_mae_n'], 2)} N</td><td>Confirm repeatability before broader force-quality claims</td></tr>
             <tr><td>Circle contact</td><td>Step4D completed the full circle with {fmt(step4d_circle['closure_error_mm'], 3)} mm closure error</td><td>Reduce contact-entry transient and normal-force ripple before stronger algorithm claims</td></tr>
-            <tr><td>Outer-loop line</td><td>Step4E v13 completed with stop reason {fmt(step4e_line['stop_reason_code'], 1)}, final stage {fmt(step4e_line['final_stage'], 1)}, and {fmt(step4e_line['path_error_p95_mm'], 3)} mm XY p95</td><td>Tune normal-load and attitude behavior before stronger force-quality claims</td></tr>
+            <tr><td>External-loop line</td><td>The line-following demo completed, returned home, reached {fmt(step4e_line['progress_max_mm'], 3)} mm progress, and kept {fmt(step4e_line['path_error_p95_mm'], 3)} mm XY p95</td><td>Tune normal-load Fz and attitude behavior before stronger force-quality claims</td></tr>
             <tr><td>Frequency claim</td><td>Final stage25 echo is {fmt(result['echo_rate_hz'], 2)} Hz; RTDE logging is {fmt(result_freq['rtde_output_logging_rate_hz'], 2)} Hz</td><td>Report measured cadence, not internal servo-loop frequency</td></tr>
             <tr><td>A/B comparison</td><td>Existing 600 s and 6 h windows differ in setup/date/load</td><td>Use first-value software zero for this report; reserve same-fixture testing only for future absolute calibration claims</td></tr>
           </tbody>

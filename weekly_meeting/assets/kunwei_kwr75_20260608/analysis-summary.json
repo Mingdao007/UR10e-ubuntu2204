@@ -1709,6 +1709,10 @@
     "step4e_v13_line_force_progress": {
       "report": "assets/kunwei-kwr75-progress-20260608/step4e_v13_line_force_progress.png",
       "weekly": "assets/kunwei_kwr75_20260608/step4e_v13_line_force_progress.png"
+    },
+    "step4e_v13_line_fz_error": {
+      "report": "assets/kunwei-kwr75-progress-20260608/step4e_v13_line_fz_error.png",
+      "weekly": "assets/kunwei_kwr75_20260608/step4e_v13_line_fz_error.png"
     }
   }
 }

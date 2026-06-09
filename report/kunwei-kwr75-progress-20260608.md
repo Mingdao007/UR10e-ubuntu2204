@@ -177,6 +177,8 @@ Step4E 的 normal-load force quality 还没有达到 Step2C final 水平：norma
 
 ![Step4E v13 path tracking](assets/kunwei-kwr75-progress-20260608/step4e_v13_line_path_tracking.png)
 
+![Step4E v13 normal-load Fz error](assets/kunwei-kwr75-progress-20260608/step4e_v13_line_fz_error.png)
+
 ![Step4E v13 force and progress evidence](assets/kunwei-kwr75-progress-20260608/step4e_v13_line_force_progress.png)
 
 ![Step4E v13 demo video poster](assets/kunwei-kwr75-progress-20260608/step4e_v13_line_experiment_poster.jpg)
