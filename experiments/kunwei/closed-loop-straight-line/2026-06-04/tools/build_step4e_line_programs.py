@@ -42,7 +42,7 @@ def program_specs(version: str) -> dict[str, dict[str, str]]:
             },
             **specs,
         }
-    if version in {"v15", "v16", "v17"}:
+    if version in {"v15", "v16", "v17", "v18"}:
         return {"line": specs["line"]}
     return specs
 
@@ -261,7 +261,7 @@ codex_step4e_preview_line()
 
 
 def search_profile(version: str) -> dict[str, str]:
-    if version in {"v16", "v17"}:
+    if version in {"v16", "v17", "v18"}:
         return {
             "comment": "two-stage deterministic search directly after XY entry: far 15 mm/s, then near 3 mm/s with no fixed-Z pre-search movel; no force admittance before contact latch.",
             "accel": "0.300",
@@ -359,10 +359,11 @@ def contact_script(mode: str, stamp: str, gen_at: str, geom: dict, version: str)
         "v15",
         "v16",
         "v17",
+        "v18",
     }
     search = search_profile(version)
-    use_vertical_precontact = version in {"v17"}
-    if version in {"v14", "v15", "v16", "v17"}:
+    use_vertical_precontact = version in {"v17", "v18"}
+    if version in {"v14", "v15", "v16", "v17", "v18"}:
         normal_guard_n = "50.0"
     elif version in {"v9", "v10", "v11", "v12", "v13"}:
         normal_guard_n = "100.0"
@@ -370,8 +371,11 @@ def contact_script(mode: str, stamp: str, gen_at: str, geom: dict, version: str)
         normal_guard_n = "30.0"
     else:
         normal_guard_n = "20.0"
-    torque_guard_nm = "1.0" if version in {"v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17"} else "0.6"
-    stop_decel = "0.1" if version in {"v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17"} else "0.5"
+    torque_guard_nm = "3.0" if version == "v18" else (
+        "1.0" if version in {"v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17"} else "0.6"
+    )
+    stop_decel = "0.1" if version in {"v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18"} else "0.5"
+    cmd_angular_xy_limit = "0.120" if version == "v18" else "0.030"
     runtime_limit = 75.0 if is_line else 12.0
     end_check = """elif end_hold_s >= end_hold_required_s:
           stop_reason = 1.0""" if is_line else """elif t2 >= line_runtime_limit_s:
@@ -412,6 +416,81 @@ def contact_script(mode: str, stamp: str, gen_at: str, geom: dict, version: str)
     movel(fixed_search_start_pose, a=0.030, v=home_return_speed_m_s, r=0.0)
     stopl({stop_decel})
 """
+    point_orient_block = ""
+    if version == "v18" and is_line:
+        point_orient_block = f"""
+  if stop_reason == 0.0:
+    write_output_float_register(35, 25.1)
+    local last_heartbeat_orient = read_input_float_register(26)
+    local stale_s_orient = 0.0
+    local t_orient = 0.0
+    saw_cmd_valid = 0
+    cmd_invalid_s = 0.0
+    while stop_reason == 0.0:
+      local heartbeat_orient = read_input_float_register(26)
+      local cmd_valid = read_input_float_register(43)
+      local force_error = read_input_float_register(45)
+      local orientation_error = read_input_float_register(46)
+      local cmd_vx = read_input_float_register(37)
+      local cmd_vy = read_input_float_register(38)
+      local cmd_vz = read_input_float_register(39)
+      local cmd_wx = read_input_float_register(40)
+      local cmd_wy = read_input_float_register(41)
+      local cmd_wz = read_input_float_register(42)
+      if cmd_valid >= 0.5:
+        saw_cmd_valid = 1
+        cmd_invalid_s = 0.0
+      else:
+        cmd_invalid_s = cmd_invalid_s + line_hold_s
+      end
+      if heartbeat_orient == last_heartbeat_orient:
+        stale_s_orient = stale_s_orient + line_hold_s
+      else:
+        stale_s_orient = 0.0
+        last_heartbeat_orient = heartbeat_orient
+      end
+      t_orient = t_orient + line_hold_s
+      if t_orient >= point_orient_min_s and codex_abs(force_error) <= point_orient_force_error_limit_n and orientation_error <= point_orient_error_limit_rad:
+        point_orient_stable_s = point_orient_stable_s + line_hold_s
+      else:
+        point_orient_stable_s = 0.0
+      end
+      codex_echo_step4e(stop_reason)
+      if stale_s_orient > stale_limit_s:
+        stop_reason = 2.0
+      else:
+        stop_reason = codex_step4e_guard_stop_reason()
+      end
+      if stop_reason == 0.0:
+        if point_orient_stable_s >= point_orient_stable_required_s:
+          stop_reason = 16.0
+        elif cmd_valid < 0.5:
+          if saw_cmd_valid == 0 and t_orient < cmd_valid_grace_s:
+            speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)
+          elif saw_cmd_valid == 1 and cmd_invalid_s <= cmd_valid_loss_limit_s:
+            speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)
+          else:
+            stop_reason = 12.0
+          end
+        elif codex_abs(cmd_vx) > 0.010 or codex_abs(cmd_vy) > 0.010 or codex_abs(cmd_vz) > 0.010:
+          stop_reason = 13.0
+        elif codex_abs(cmd_wx) > max_cmd_angular_xy_rad_s or codex_abs(cmd_wy) > max_cmd_angular_xy_rad_s or codex_abs(cmd_wz) > 0.005:
+          stop_reason = 13.0
+        elif t_orient >= point_orient_runtime_limit_s:
+          stop_reason = 10.0
+        else:
+          speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy, 0.0], line_accel_m_s2, line_hold_s)
+        end
+      end
+    end
+    if stop_reason == 16.0:
+      stop_reason = 0.0
+      saw_cmd_valid = 0
+      cmd_invalid_s = 0.0
+      end_hold_s = 0.0
+    end
+  end
+"""
     return f"""# Step4e {program_label} line {version}: deterministic contact search, Step4e bridge outer-loop command consumption.
 # VERSION: {stamp}
 # GENERATED_AT_LOCAL: {gen_at}
@@ -450,9 +529,16 @@ def codex_step4e_{program_label}_line():
   local line_accel_m_s2 = 0.300
   local line_hold_s = 0.002
   local line_runtime_limit_s = {fmt(runtime_limit)}
+  local point_orient_min_s = 1.000
+  local point_orient_runtime_limit_s = 8.000
+  local point_orient_force_error_limit_n = 2.000
+  local point_orient_error_limit_rad = 0.150
+  local point_orient_stable_required_s = 0.250
+  local point_orient_stable_s = 0.0
   local line_success_progress_m = {fmt(max(0.0, geom['length'] - 0.0005))}
   local end_hold_required_s = 0.100
   local end_hold_s = 0.0
+  local max_cmd_angular_xy_rad_s = {cmd_angular_xy_limit}
   local cmd_valid_grace_s = 0.250
   local cmd_valid_loss_limit_s = 0.100
   local cmd_invalid_s = 0.0
@@ -552,6 +638,7 @@ def codex_step4e_{program_label}_line():
     stop_reason = 0.0
   end
 
+{point_orient_block}
   if stop_reason == 0.0:
     write_output_float_register(35, 25.0)
     local last_heartbeat2 = read_input_float_register(26)
@@ -603,7 +690,7 @@ def codex_step4e_{program_label}_line():
           end
         elif codex_abs(cmd_vx) > 0.010 or codex_abs(cmd_vy) > 0.010 or codex_abs(cmd_vz) > 0.010:
           stop_reason = 13.0
-        elif codex_abs(cmd_wx) > 0.030 or codex_abs(cmd_wy) > 0.030 or codex_abs(cmd_wz) > 0.005:
+        elif codex_abs(cmd_wx) > max_cmd_angular_xy_rad_s or codex_abs(cmd_wy) > max_cmd_angular_xy_rad_s or codex_abs(cmd_wz) > 0.005:
           stop_reason = 13.0
         {end_check}
         {timeout_check}
@@ -747,7 +834,7 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str, controlle
                 "max search depth": "local max_search_down_m = 0.092" in xml,
             }
         )
-    if name.endswith(("_v16", "_v17")) and "preview" not in name:
+    if name.endswith(("_v16", "_v17", "_v18")) and "preview" not in name:
         checks.update(
             {
                 "direct xy-to-search": "local fixed_search_start_z_m" not in script
@@ -783,14 +870,27 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str, controlle
                 "torque guard": "torque_norm > 1.0" in script and "torque_norm &gt; 1.0" in xml,
             }
         )
-    if name.endswith(("_v7", "_v8", "_v9", "_v10", "_v11", "_v12", "_v13", "_v14", "_v15", "_v16", "_v17")) and "preview" not in name:
+    if name.endswith("_v18") and "preview" not in name:
+        checks.update(
+            {
+                "normal guard": "codex_abs(normal_force) > 50.0" in script
+                and "codex_abs(normal_force) &gt; 50.0" in xml,
+                "torque guard": "torque_norm > 3.0" in script and "torque_norm &gt; 3.0" in xml,
+                "point orient stage": "write_output_float_register(35, 25.1)" in script
+                and "write_output_float_register(35, 25.1)" in xml,
+                "point orient gate": "point_orient_error_limit_rad = 0.150" in script
+                and "point_orient_force_error_limit_n = 2.000" in script,
+                "v18 angular sanity": "local max_cmd_angular_xy_rad_s = 0.120" in script,
+            }
+        )
+    if name.endswith(("_v7", "_v8", "_v9", "_v10", "_v11", "_v12", "_v13", "_v14", "_v15", "_v16", "_v17", "_v18")) and "preview" not in name:
         checks.update(
             {
                 "fast stop decel": "stopl(0.1)" in script and "stopl(0.1)" in xml,
                 "old stop decel removed": "stopl(0.5)" not in script and "stopl(0.5)" not in xml,
             }
         )
-    if name.endswith(("_v12", "_v13", "_v14", "_v15", "_v16", "_v17")) and "line_outerloop" in name:
+    if name.endswith(("_v12", "_v13", "_v14", "_v15", "_v16", "_v17", "_v18")) and "line_outerloop" in name:
         checks.update(
             {
                 "line success threshold": "local line_success_progress_m = " in script
@@ -811,7 +911,7 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str, controlle
                 and "write_output_float_register(35, 22.5)" in xml,
             }
         )
-    if name.endswith(("_v15", "_v16", "_v17")) and "line_outerloop" in name:
+    if name.endswith(("_v15", "_v16", "_v17", "_v18")) and "line_outerloop" in name:
         checks.update(
             {
                 "cmd valid grace": "local cmd_valid_grace_s = 0.250" in script
@@ -820,7 +920,7 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str, controlle
                 and "cmd_invalid_s &lt;= cmd_valid_loss_limit_s" in xml,
             }
         )
-    if name.endswith("_v17") and "line_outerloop" in name:
+    if name.endswith(("_v17", "_v18")) and "line_outerloop" in name:
         checks.update(
             {
                 "vertical precontact rx": "local search_rx = 3.141592654" in script,
@@ -838,7 +938,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--version",
-        choices=("v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17"),
+        choices=("v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18"),
         default="v2",
     )
     parser.add_argument("--stamp-prefix", default=None)

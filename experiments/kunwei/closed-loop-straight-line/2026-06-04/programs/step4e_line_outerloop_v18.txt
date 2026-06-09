@@ -1,0 +1,20 @@
+Step4e line outer-loop TP package
+
+Program:
+  step4e_line_outerloop_v18
+
+Version:
+  2026-06-09T1715HKT_STEP4E_LINE_OUTERLOOP_V18
+
+Purpose:
+  deterministic search, contact latch, Step4e line outer-loop
+
+Path:
+  start XY: 0.433010000, 0.108020000
+  end XY: 0.492740000, 0.238770000
+  XY length: 143.747 mm
+
+Control boundary:
+  Ubuntu bridge computes Step4e outer-loop command registers 37..47.
+  URScript consumes Cartesian speedl twist only after contact latch.
+  This is not a finite-time RNN/joint-torque inner-loop reproduction.

@@ -280,12 +280,14 @@ def compute_step4e_values(
         robot_stage = float(latest_output.get("output_double_register_35", math.nan))
     except (TypeError, ValueError):
         robot_stage = math.nan
+    orient_stage_active = args.step4e_mode == "line" and abs(robot_stage - 25.1) < 0.05
     line_stage_active = args.step4e_mode == "line" and abs(robot_stage - 25.0) < 0.05
+    control_stage_active = orient_stage_active or line_stage_active
     if args.step4e_mode != "line" or (
         math.isfinite(robot_stage) and (robot_stage < 24.0 or robot_stage >= 26.0)
     ):
         state.reset_line_contact()
-    if line_stage_active:
+    if control_stage_active:
         state.line_stage_s += dt_s
 
     force_t, torque_t = kunwei_to_tcp_wrench(latest_zeroed)
@@ -331,7 +333,9 @@ def compute_step4e_values(
     desired_y = STEP4E_START_XY[1] + progress * STEP4E_LINE_UNIT_XY[1]
     path_error = (desired_x - float(pose[0]), desired_y - float(pose[1]), 0.0)
     tangent_speed = args.step4e_line_speed_m_s if args.step4e_mode == "line" else 0.0
-    if line_stage_active and state.line_stage_s <= args.step4e_line_settle_s:
+    if orient_stage_active:
+        tangent_speed = 0.0
+    elif line_stage_active and state.line_stage_s <= args.step4e_line_settle_s:
         tangent_speed = 0.0
     base_motion = (
         tangent_speed * STEP4E_LINE_UNIT_XY[0] + args.step4e_path_p_gain * path_error[0],
@@ -349,7 +353,7 @@ def compute_step4e_values(
     force_error = args.target_force_n - controlled_force_n
     line_grace_valid = (
         args.step4e_mode == "line"
-        and line_stage_active
+        and control_stage_active
         and not state.normal_acquired
         and state.line_stage_s <= args.step4e_acquire_grace_s
     )
@@ -358,7 +362,7 @@ def compute_step4e_values(
         or (args.step4e_mode == "line" and state.normal_acquired)
         or line_grace_valid
     )
-    if args.step4e_integrate_stage25_only and args.step4e_mode == "line" and not line_stage_active:
+    if args.step4e_integrate_stage25_only and args.step4e_mode == "line" and not control_stage_active:
         control_allowed = False
     if control_allowed:
         if args.step4e_mode == "line" and not state.normal_acquired:
@@ -411,7 +415,9 @@ def compute_step4e_values(
                 "step4e_progress_m": progress,
                 "step4e_force_error_n": force_error,
                 "step4e_orientation_error_rad": orientation_error,
-                "step4e_controller_state": {"preview": 10.0, "hold": 20.0, "line": 30.0}[args.step4e_mode],
+                "step4e_controller_state": 31.0
+                if orient_stage_active
+                else {"preview": 10.0, "hold": 20.0, "line": 30.0}[args.step4e_mode],
             }
         )
     else:

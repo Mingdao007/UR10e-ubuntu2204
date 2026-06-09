@@ -26,11 +26,14 @@ STEP4E_FORCE_I_GAIN="${STEP4E_FORCE_I_GAIN:-0.00008}"
 STEP4E_FORCE_DAMPING="${STEP4E_FORCE_DAMPING:-0.35}"
 STEP4E_INTEGRAL_LIMIT_N_S="${STEP4E_INTEGRAL_LIMIT_N_S:-10.0}"
 STEP4E_REACQUIRE_VELOCITY_M_S="${STEP4E_REACQUIRE_VELOCITY_M_S:-0.001}"
+STEP4E_ANGULAR_LIMIT_RAD_S="${STEP4E_ANGULAR_LIMIT_RAD_S:-0.015}"
 
 PROGRAM_PREVIEW="/programs/andyl/kunwei/step4/step4e_preview_line_${STEP4E_VERSION}.urp"
 PROGRAM_HOLD="/programs/andyl/kunwei/step4/step4e_contact_hold_line_${STEP4E_VERSION}.urp"
 PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_line_outerloop_${STEP4E_VERSION}.urp"
-if [[ "${STEP4E_VERSION}" == "v17" ]]; then
+if [[ "${STEP4E_VERSION}" == "v18" ]]; then
+  SEARCH_DESCRIPTION="two-stage search: v18 first moves TCP orientation to vertical [pi,0,0], then XY entry and downward speedl-search; far 15 mm/s for 130 mm then near 3 mm/s up to 150 mm max depth; after contact latch it holds 5 N point contact and aligns TCP z to the contact normal before XY line motion"
+elif [[ "${STEP4E_VERSION}" == "v17" ]]; then
   SEARCH_DESCRIPTION="two-stage search: v17 first moves TCP orientation to vertical [pi,0,0], then XY entry and downward speedl-search; far 15 mm/s for 130 mm then near 3 mm/s up to 150 mm max depth; bridge attitude outer-loop starts after contact latch"
 elif [[ "${STEP4E_VERSION}" == "v16" ]]; then
   SEARCH_DESCRIPTION="two-stage search: v16 removes fixed-Z pre-search movel; after XY entry it directly speedl-searches downward, far 15 mm/s for 130 mm then near 3 mm/s up to 150 mm max depth; bridge normal/reacquire limit = 2 mm/s"
@@ -356,7 +359,7 @@ run_bridge_for_mode() {
     --step4e-orientation-gain "${STEP4E_ORIENTATION_GAIN}" \
     --step4e-orientation-wx-sign "${STEP4E_ORIENTATION_WX_SIGN}" \
     --step4e-orientation-wy-sign "${STEP4E_ORIENTATION_WY_SIGN}" \
-    --step4e-angular-limit-rad-s 0.015 \
+    --step4e-angular-limit-rad-s "${STEP4E_ANGULAR_LIMIT_RAD_S}" \
     --step4e-contact-offset-min-fz-n 1.0 \
     --output-dir "${out_dir}" &
   bridge_pid="$!"
@@ -411,7 +414,7 @@ Motion/control:
   line XY speed command = 3 mm/s, max Cartesian command = 6 mm/s
   speedl acceleration = 300 mm/s^2, hold time = 2 ms
   target force = 5 N, raw normal guard = ${MAX_NORMAL_FORCE_N} N, force norm guard = 50 N, torque guard = ${MAX_TORQUE_NORM_NM} Nm
-  attitude proxy = bounded wx/wy velocity command, gain = ${STEP4E_ORIENTATION_GAIN}, wx sign = ${STEP4E_ORIENTATION_WX_SIGN}, wy sign = ${STEP4E_ORIENTATION_WY_SIGN}, yaw frozen
+  attitude proxy = bounded wx/wy velocity command, gain = ${STEP4E_ORIENTATION_GAIN}, angular limit = ${STEP4E_ANGULAR_LIMIT_RAD_S} rad/s, wx sign = ${STEP4E_ORIENTATION_WX_SIGN}, wy sign = ${STEP4E_ORIENTATION_WY_SIGN}, yaw frozen
 
 Type START_STEP4E_${STEP4E_MODE^^}_${STEP4E_VERSION^^} to continue:
 WARNING
