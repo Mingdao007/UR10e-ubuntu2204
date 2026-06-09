@@ -1297,123 +1297,123 @@
     }
   },
   "step4e_result": {
-    "label": "Step4E v11 outer-loop line",
-    "file_prefix": "step4e_v11_line",
-    "run_name": "bridge_step4e_line_outerloop_v11_autowatch_20260609_135519",
-    "run_dir": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_line_outerloop_v11_autowatch_20260609_135519",
-    "bridge_csv": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_line_outerloop_v11_autowatch_20260609_135519/bridge_rtde_500hz.csv",
+    "label": "Step4E v13 outer-loop line",
+    "file_prefix": "step4e_v13_line",
+    "run_name": "bridge_step4e_line_outerloop_v13_autowatch_20260609_141027",
+    "run_dir": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_line_outerloop_v13_autowatch_20260609_141027",
+    "bridge_csv": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_line_outerloop_v13_autowatch_20260609_141027/bridge_rtde_500hz.csv",
     "summary": {
       "baseline_epoch": 1,
       "baseline_ready": true,
       "baseline_samples": 1001,
       "baseline_si_offsets": {
-        "fx_n": 7.958148826331379,
-        "fy_n": 3.2294269462733625,
-        "fz_n": 2.974160214895135,
-        "mx_nm": 0.23143957033530657,
-        "my_nm": -0.2762896873230186,
-        "mz_nm": 0.087266529227612
+        "fx_n": 7.896248458648394,
+        "fy_n": 3.260888306478114,
+        "fz_n": 2.966915680375195,
+        "mx_nm": 0.23226051098278339,
+        "my_nm": -0.27506235766750464,
+        "mz_nm": 0.08688910567700404
       },
       "bridge_write_timing": {
-        "dt_max_s": 0.010452503978740424,
-        "dt_mean_s": 0.001992748843372482,
-        "dt_p95_s": 0.0020009950385428965,
-        "dt_p99_s": 0.002001787011977285,
-        "elapsed_s": 172.10176110902103,
-        "rate_hz": 501.81938548142534,
-        "samples": 86365
+        "dt_max_s": 0.010338619002141058,
+        "dt_mean_s": 0.001986612786818296,
+        "dt_p95_s": 0.0020010049920529127,
+        "dt_p99_s": 0.0020046092360280453,
+        "elapsed_s": 78.2228784809704,
+        "rate_hz": 503.3693564419126,
+        "samples": 39376
       },
-      "bridge_writes": 86365,
+      "bridge_writes": 39376,
       "dropped_sync_bytes": 0,
       "echo_heartbeat_transitions": {
-        "dt_max_s": 6.048062773013953,
-        "dt_mean_s": 0.004049656617009945,
-        "dt_p95_s": 0.00401379753020592,
-        "dt_p99_s": 0.004069464030908421,
-        "elapsed_s": 171.7499867840088,
-        "rate_hz": 246.93451681795867,
-        "samples": 42412
+        "dt_max_s": 5.106118816998787,
+        "dt_mean_s": 0.004231251656643482,
+        "dt_p95_s": 0.0040411782247247174,
+        "dt_p99_s": 0.004086835484486073,
+        "elapsed_s": 72.33747832197696,
+        "rate_hz": 236.33668737946644,
+        "samples": 17097
       },
-      "finished_at": "2026-06-09T13:58:13",
+      "finished_at": "2026-06-09T14:11:46",
       "force_norm_stats_n": {
-        "max": 36.876102303309395,
-        "mean": 8.45935156254411,
-        "min": 0.003247380230299452,
-        "samples": 172686,
-        "std": 7.707243892445836
+        "max": 37.02788725171472,
+        "mean": 6.913894440815114,
+        "min": 0.005088205230425684,
+        "samples": 78717,
+        "std": 8.810943551047867
       },
-      "last_echo_heartbeat": 86187.0,
+      "last_echo_heartbeat": 36431.0,
       "last_zero_request": 1.0,
       "normal_force_stats_n": {
-        "max": 3.4934161164999007,
-        "mean": -7.937159328736471,
-        "min": -36.56278004688633,
-        "samples": 172686,
-        "std": 8.018934151501547
+        "max": 3.4616982051998373,
+        "mean": -5.868199108784161,
+        "min": -36.87177822129974,
+        "samples": 78717,
+        "std": 9.167614130722878
       },
       "parse_errors": 0,
       "paths": {
-        "bridge_csv": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_line_outerloop_v11_autowatch_20260609_135519/bridge_rtde_500hz.csv",
-        "metadata": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_line_outerloop_v11_autowatch_20260609_135519/metadata.json",
-        "raw_frames": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_line_outerloop_v11_autowatch_20260609_135519/raw_frames.bin",
-        "sensor_csv": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_line_outerloop_v11_autowatch_20260609_135519/kunwei_sensor_1khz.csv",
-        "summary": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_line_outerloop_v11_autowatch_20260609_135519/summary.json"
+        "bridge_csv": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_line_outerloop_v13_autowatch_20260609_141027/bridge_rtde_500hz.csv",
+        "metadata": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_line_outerloop_v13_autowatch_20260609_141027/metadata.json",
+        "raw_frames": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_line_outerloop_v13_autowatch_20260609_141027/raw_frames.bin",
+        "sensor_csv": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_line_outerloop_v13_autowatch_20260609_141027/kunwei_sensor_1khz.csv",
+        "summary": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_line_outerloop_v13_autowatch_20260609_141027/summary.json"
       },
       "rtde_output_timing": {
-        "dt_max_s": 0.010376361024100333,
-        "dt_mean_s": 0.0020000002447212225,
-        "dt_p95_s": 0.0020142699941061437,
-        "dt_p99_s": 0.002057727589271963,
-        "elapsed_s": 172.09802105801646,
-        "rate_hz": 499.9999388197019,
-        "samples": 86050
+        "dt_max_s": 0.010459757002536207,
+        "dt_mean_s": 0.0019999887919767826,
+        "dt_p95_s": 0.00203624353162013,
+        "dt_p99_s": 0.0020783582061994826,
+        "elapsed_s": 78.22156164300395,
+        "rate_hz": 500.00280202150685,
+        "samples": 39112
       },
       "rtde_reconnect_event_count": 0,
       "rtde_reconnect_events": [],
-      "samples": 172686,
+      "samples": 78717,
       "stop_reason": "signal_sigint",
       "torque_norm_stats_nm": {
-        "max": 0.4718883423189003,
-        "mean": 0.08561028948786105,
-        "min": 7.677606366326137e-05,
-        "samples": 172686,
-        "std": 0.09024148169008864
+        "max": 0.5693585108935643,
+        "mean": 0.0815356210545956,
+        "min": 7.365914520949743e-05,
+        "samples": 78717,
+        "std": 0.11454768562451648
       },
       "zero_events": [
         {
           "baseline_epoch": 0,
-          "completed_at_monotonic_s": 397353.426139466,
-          "completed_at_sample": 4988,
-          "duration_s": 5.03835467697354,
-          "samples": 4988
+          "completed_at_monotonic_s": 398260.731702247,
+          "completed_at_sample": 4968,
+          "duration_s": 5.018289037980139,
+          "samples": 4968
         },
         {
           "baseline_epoch": 1,
           "previous_zero_request": 0.0,
-          "requested_at_monotonic_s": 397359.480172443,
+          "requested_at_monotonic_s": 398268.681552309,
           "zero_request": 1.0
         },
         {
           "baseline_epoch": 1,
-          "completed_at_monotonic_s": 397360.526169641,
-          "completed_at_sample": 12088,
-          "duration_s": 1.0459971979726106,
+          "completed_at_monotonic_s": 398269.681900964,
+          "completed_at_sample": 13918,
+          "duration_s": 1.0003486549830996,
           "samples": 1001
         }
       ]
     },
     "frequency": {
-      "bridge_csv": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_line_outerloop_v11_autowatch_20260609_135519/bridge_rtde_500hz.csv",
-      "bridge_write_rate_hz": 501.81938548142534,
+      "bridge_csv": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_line_outerloop_v13_autowatch_20260609_141027/bridge_rtde_500hz.csv",
+      "bridge_write_rate_hz": 503.3693564419126,
       "frequency_contract_note": "Stage25 echo rate is measured from ur_output_double_register_26 heartbeat transitions; do not treat it as internal servo-loop frequency.",
       "ok": true,
-      "rtde_output_logging_rate_hz": 501.81938548142534,
+      "rtde_output_logging_rate_hz": 503.3693564419126,
       "stage24_2_near_search_echo_rate": {
-        "duration_s": 3.3660001019597985,
-        "echo_rate_hz": 247.47473997846862,
-        "echo_transitions": 833,
-        "rtde_row_rate_hz": 499.999984854457,
-        "rtde_rows": 1684,
+        "duration_s": 3.364000479981769,
+        "echo_rate_hz": 247.32457826656108,
+        "echo_transitions": 832,
+        "rtde_row_rate_hz": 499.9999286590814,
+        "rtde_rows": 1683,
         "stage": 24.2
       },
       "stage24_4_soft_acquisition_echo_rate": {
@@ -1425,38 +1425,38 @@
         "stage": 24.4
       },
       "stage24_search_echo_rate": {
-        "duration_s": 5.364000352972653,
-        "echo_rate_hz": 249.81355552249192,
+        "duration_s": 5.364000082015991,
+        "echo_rate_hz": 249.81356814155342,
         "echo_transitions": 1340,
-        "rtde_row_rate_hz": 499.99996709800246,
+        "rtde_row_rate_hz": 499.99999235495994,
         "rtde_rows": 2683,
         "stage": 24.0
       },
       "stage25_ft_line_control_echo_rate": {
-        "duration_s": 150.14799816400046,
-        "echo_rate_hz": 249.73359923882285,
-        "echo_transitions": 37497,
-        "rtde_row_rate_hz": 500.0000061139661,
-        "rtde_rows": 75075,
+        "duration_s": 48.81800005596597,
+        "echo_rate_hz": 249.23184042876602,
+        "echo_transitions": 12167,
+        "rtde_row_rate_hz": 499.99999942678966,
+        "rtde_rows": 24410,
         "stage": 25.0
       },
       "stage26_unload_echo_rate": {
-        "duration_s": 1.1499993949546479,
+        "duration_s": 1.1420004979590885,
         "echo_rate_hz": 0.0,
         "echo_transitions": 0,
-        "rtde_row_rate_hz": 500.00026306333496,
-        "rtde_rows": 576,
+        "rtde_row_rate_hz": 499.99978197947837,
+        "rtde_rows": 572,
         "stage": 26.0
       },
       "stage27_retract_echo_rate": {
-        "duration_s": 0.3479999389965087,
+        "duration_s": 5.616000112961046,
         "echo_rate_hz": 0.0,
         "echo_transitions": 0,
-        "rtde_row_rate_hz": 500.0000876487097,
-        "rtde_rows": 175,
+        "rtde_row_rate_hz": 499.99998994292696,
+        "rtde_rows": 2809,
         "stage": 27.0
       },
-      "total_rows": 86365
+      "total_rows": 39376
     },
     "metadata": {
       "args": {
@@ -1471,7 +1471,7 @@
         "no_stop_command": false,
         "normal_axis": "fz",
         "normal_sign": 1.0,
-        "output_dir": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_line_outerloop_v11_autowatch_20260609_135519",
+        "output_dir": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_line_outerloop_v13_autowatch_20260609_141027",
         "rezero_s": 1.0,
         "robot_host": "192.168.1.18",
         "rtde_hz": 500.0,
@@ -1502,11 +1502,11 @@
         "target_force_n": 5.0,
         "write_rtde_inputs": true
       },
-      "created_at": "2026-06-09T13:55:20",
+      "created_at": "2026-06-09T14:10:28",
       "dashboard_preflight": {
         "banner": "Connected: Universal Robots Dashboard Server",
         "is in remote control": "false",
-        "programState": "PLAYING step4e_line_outerloop_v11.urp",
+        "programState": "PLAYING step4e_line_outerloop_v13.urp",
         "robotmode": "Robotmode: RUNNING",
         "running": "Program running: true",
         "safetymode": "Safetymode: NORMAL"
@@ -1566,61 +1566,67 @@
     },
     "line": {
       "bridge_length_mm": 143.7471231016468,
-      "script_completion_threshold_mm": 143.751504,
-      "length_mismatch_mm": 0.004380898353195661,
-      "progress_end_mm": 143.7471231016468,
-      "progress_max_mm": 143.7471231016468,
-      "completion_pct_bridge_length": 100.0,
-      "completion_pct_script_threshold": 99.99695245042223,
-      "first_95pct_progress_s": 46.361999374988955,
-      "first_999pct_progress_s": 48.61199939902872,
-      "path_error_mean_mm": 1.3875903135953425,
-      "path_error_p95_mm": 2.1902563427659483,
-      "path_error_max_mm": 2.387799788270176,
-      "stop_reason_code": 10.0,
-      "stop_reason_label": "line_runtime_timeout",
-      "retract_stage26_rows": 576,
-      "home_stage27_rows": 175,
+      "success_threshold_mm": 143.24712300000002,
+      "threshold_margin_mm": 0.5000001016468025,
+      "progress_end_mm": 143.53247970782346,
+      "progress_max_mm": 143.61774967016785,
+      "completion_pct_bridge_length": 99.90999928994233,
+      "completion_pct_success_threshold": 100.25873236572286,
+      "completed": true,
+      "first_95pct_progress_s": 46.258000104979146,
+      "first_999pct_progress_s": 48.71630945795914,
+      "first_success_threshold_s": 48.44599912397098,
+      "path_error_mean_mm": 0.04969896514899177,
+      "path_error_p95_mm": 0.13778585453619044,
+      "path_error_max_mm": 0.3133995983139543,
+      "stop_reason_code": 1.0,
+      "stop_reason_label": "line_complete",
+      "retract_stage26_rows": 572,
+      "home_stage27_rows": 2809,
+      "final_stage": 29.0,
+      "stage29_rows": 133,
       "stage_counts": {
-        "25.0": 75075,
+        "25.0": 24410,
+        "27.0": 2809,
         "24.0": 2683,
-        "20.0": 2521,
-        "21.0": 1742,
-        "24.2": 1684,
-        "22.0": 1283,
-        "23.0": 625,
-        "26.0": 576,
-        "27.0": 175
+        "20.0": 2506,
+        "24.2": 1683,
+        "21.0": 1473,
+        "22.5": 1419,
+        "22.0": 1080,
+        "23.0": 602,
+        "26.0": 572,
+        "29.0": 133
       },
       "stop_reason_counts": {
-        "0.0": 85613,
-        "10.0": 751
+        "0.0": 35856,
+        "1.0": 3514
       }
     },
     "stage25": {
-      "rows": 75075,
-      "duration_s": 150.14799816400046,
-      "rtde_row_rate_hz": 500.0000061139661,
-      "echo_rate_hz": 249.73359923882285,
-      "bridge_write_rate_hz": 501.81938548142534,
-      "rtde_output_logging_rate_hz": 501.81938548142534,
+      "rows": 24410,
+      "duration_s": 48.81800005596597,
+      "rtde_row_rate_hz": 499.99999942678966,
+      "echo_rate_hz": 249.23184042876602,
+      "bridge_write_rate_hz": 503.3693564419126,
+      "rtde_output_logging_rate_hz": 503.3693564419126,
       "target_force_n": 5.0,
-      "normal_load_mean_n": 9.29233286160957,
-      "normal_load_std_n": 7.796493996146936,
-      "normal_load_max_n": 35.9517873,
-      "normal_load_error_mae_n": 7.189750792869815,
-      "normal_load_error_p95_abs_n": 17.6557812,
-      "normal_load_error_max_abs_n": 30.9517873,
-      "orientation_error_mean_rad": 0.12928244139106154,
-      "orientation_error_p95_rad": 0.368867603,
-      "orientation_error_max_rad": 0.601283583,
-      "normal_force_mean_n": -9.225186783414708,
-      "normal_force_min_n": -35.909315,
-      "normal_force_max_n": 0.520516131,
-      "force_norm_max_n": 35.9528013,
-      "torque_norm_max_nm": 0.468055075,
-      "cmd_norm_p95_mm_s": 3.4993252642974464,
-      "actual_speed_p95_mm_s": 4.6948613
+      "normal_load_mean_n": 9.82574287658014,
+      "normal_load_std_n": 9.817272053955298,
+      "normal_load_max_n": 36.2600276,
+      "normal_load_error_mae_n": 8.586809362710317,
+      "normal_load_error_p95_abs_n": 22.4882923,
+      "normal_load_error_max_abs_n": 31.2600276,
+      "orientation_error_mean_rad": 0.10926594444048997,
+      "orientation_error_p95_rad": 0.226009021,
+      "orientation_error_max_rad": 0.333482705,
+      "normal_force_mean_n": -9.748514129969639,
+      "normal_force_min_n": -36.1158605,
+      "normal_force_max_n": 0.415876161,
+      "force_norm_max_n": 36.2614124,
+      "torque_norm_max_nm": 0.563563897,
+      "cmd_norm_p95_mm_s": 3.939536538657556,
+      "actual_speed_p95_mm_s": 5.70317262
     }
   },
   "missing_data_requests": [],
@@ -1641,6 +1647,14 @@
     "step4d_video_poster": {
       "report": "assets/kunwei-kwr75-progress-20260608/step4d_circle_experiment_poster.jpg",
       "weekly": "assets/kunwei_kwr75_20260608/step4d_circle_experiment_poster.jpg"
+    },
+    "step4e_video_mp4": {
+      "report": "assets/kunwei-kwr75-progress-20260608/step4e_v13_line_experiment.mp4",
+      "weekly": "assets/kunwei_kwr75_20260608/step4e_v13_line_experiment.mp4"
+    },
+    "step4e_video_poster": {
+      "report": "assets/kunwei-kwr75-progress-20260608/step4e_v13_line_experiment_poster.jpg",
+      "weekly": "assets/kunwei_kwr75_20260608/step4e_v13_line_experiment_poster.jpg"
     }
   },
   "figures": {
@@ -1688,13 +1702,13 @@
       "report": "assets/kunwei-kwr75-progress-20260608/step4d_circle_force_path.png",
       "weekly": "assets/kunwei_kwr75_20260608/step4d_circle_force_path.png"
     },
-    "step4e_v11_line_path_tracking": {
-      "report": "assets/kunwei-kwr75-progress-20260608/step4e_v11_line_path_tracking.png",
-      "weekly": "assets/kunwei_kwr75_20260608/step4e_v11_line_path_tracking.png"
+    "step4e_v13_line_path_tracking": {
+      "report": "assets/kunwei-kwr75-progress-20260608/step4e_v13_line_path_tracking.png",
+      "weekly": "assets/kunwei_kwr75_20260608/step4e_v13_line_path_tracking.png"
     },
-    "step4e_v11_line_force_progress": {
-      "report": "assets/kunwei-kwr75-progress-20260608/step4e_v11_line_force_progress.png",
-      "weekly": "assets/kunwei_kwr75_20260608/step4e_v11_line_force_progress.png"
+    "step4e_v13_line_force_progress": {
+      "report": "assets/kunwei-kwr75-progress-20260608/step4e_v13_line_force_progress.png",
+      "weekly": "assets/kunwei_kwr75_20260608/step4e_v13_line_force_progress.png"
     }
   }
 }

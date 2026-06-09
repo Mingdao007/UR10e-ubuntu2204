@@ -58,11 +58,12 @@ STEP4D_RESULT_VIDEO_PREVIEW = Path("/home/andy/.cache/codex/phone-photo-intake/p
 STEP4E_RUN_DIR = (
     ROOT
     / "experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/"
-    "bridge_step4e_line_outerloop_v11_autowatch_20260609_135519"
+    "bridge_step4e_line_outerloop_v13_autowatch_20260609_141027"
 )
-STEP4E_SCRIPT = ROOT / "experiments/kunwei/closed-loop-straight-line/2026-06-04/programs/step4e_line_outerloop_v11.script"
-STEP4E_RESULT_LABEL = "Step4E v11 outer-loop line"
-STEP4E_RESULT_FILE_PREFIX = "step4e_v11_line"
+STEP4E_SCRIPT = ROOT / "experiments/kunwei/closed-loop-straight-line/2026-06-04/programs/step4e_line_outerloop_v13.script"
+STEP4E_RESULT_LABEL = "Step4E v13 outer-loop line"
+STEP4E_RESULT_FILE_PREFIX = "step4e_v13_line"
+STEP4E_RESULT_VIDEO_PREVIEW = Path("/home/andy/.cache/codex/phone-photo-intake/previews/IMG_1748_step4e_v13.mov")
 
 ONROBOT_600_DIR = ROOT / "experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100"
 ONROBOT_UDP_CSV = ONROBOT_600_DIR / "three_stream_600s_20260528_043052_onrobot_udp500_raw.csv"
@@ -683,10 +684,13 @@ def analyze_step4e_run(run_dir: Path, *, label: str, file_prefix: str) -> dict:
     start_xy = path_cfg["start_xy_m"]
     unit = path_cfg["line_unit_xy"]
     bridge_length_m = float(path_cfg["line_length_m"])
-    threshold_match = re.search(r"progress_m >= ([0-9.]+)", STEP4E_SCRIPT.read_text(encoding="utf-8"))
+    script_text = STEP4E_SCRIPT.read_text(encoding="utf-8")
+    threshold_match = re.search(r"line_success_progress_m = ([0-9.]+)", script_text)
+    if not threshold_match:
+        threshold_match = re.search(r"progress_m >= ([0-9.]+)", script_text)
     if not threshold_match:
         raise RuntimeError(f"cannot find Step4E completion threshold in {STEP4E_SCRIPT}")
-    script_length_m = float(threshold_match.group(1))
+    success_threshold_m = float(threshold_match.group(1))
 
     stage25 = bridge[np.isclose(bridge["ur_output_double_register_35"].astype(float), 25.0, atol=0.05)].copy()
     if stage25.empty:
@@ -724,6 +728,17 @@ def analyze_step4e_run(run_dir: Path, *, label: str, file_prefix: str) -> dict:
 
     stage_counts = bridge["ur_output_double_register_35"].dropna().astype(float).round(1).value_counts().to_dict()
     stop_counts = bridge["ur_output_double_register_30"].dropna().astype(float).round(1).value_counts().to_dict()
+    stop_reason_code = float(bridge["ur_output_double_register_30"].dropna().astype(float).iloc[-1])
+    stop_reason_labels = {
+        1.0: "line_complete",
+        2.0: "sensor_stale",
+        3.0: "no_fresh_heartbeat",
+        8.0: "search_depth_limit",
+        10.0: "runtime_timeout",
+        12.0: "command_invalid",
+        13.0: "command_guard",
+        14.0: "rezero_failed",
+    }
     return {
         "label": label,
         "file_prefix": file_prefix,
@@ -735,21 +750,25 @@ def analyze_step4e_run(run_dir: Path, *, label: str, file_prefix: str) -> dict:
         "metadata": metadata,
         "line": {
             "bridge_length_mm": bridge_length_m * 1000.0,
-            "script_completion_threshold_mm": script_length_m * 1000.0,
-            "length_mismatch_mm": (script_length_m - bridge_length_m) * 1000.0,
+            "success_threshold_mm": success_threshold_m * 1000.0,
+            "threshold_margin_mm": (bridge_length_m - success_threshold_m) * 1000.0,
             "progress_end_mm": float(progress_m[-1] * 1000.0),
             "progress_max_mm": float(np.max(progress_m) * 1000.0),
             "completion_pct_bridge_length": float(np.max(progress_m) / bridge_length_m * 100.0),
-            "completion_pct_script_threshold": float(np.max(progress_m) / script_length_m * 100.0),
+            "completion_pct_success_threshold": float(np.max(progress_m) / success_threshold_m * 100.0),
+            "completed": stop_reason_code == 1.0 or float(np.max(progress_m)) >= success_threshold_m,
             "first_95pct_progress_s": first_time_for_progress(0.95 * bridge_length_m),
             "first_999pct_progress_s": first_time_for_progress(0.999 * bridge_length_m),
+            "first_success_threshold_s": first_time_for_progress(success_threshold_m),
             "path_error_mean_mm": float(np.mean(xy_error)),
             "path_error_p95_mm": percentile(xy_error, 0.95),
             "path_error_max_mm": float(np.max(xy_error)),
-            "stop_reason_code": float(bridge["ur_output_double_register_30"].dropna().astype(float).iloc[-1]),
-            "stop_reason_label": "line_runtime_timeout",
+            "stop_reason_code": stop_reason_code,
+            "stop_reason_label": stop_reason_labels.get(stop_reason_code, "unknown"),
             "retract_stage26_rows": int(stage_counts.get(26.0, 0)),
             "home_stage27_rows": int(stage_counts.get(27.0, 0)),
+            "final_stage": float(bridge["ur_output_double_register_35"].dropna().astype(float).iloc[-1]),
+            "stage29_rows": int(stage_counts.get(29.0, 0)),
             "stage_counts": {str(key): int(value) for key, value in stage_counts.items()},
             "stop_reason_counts": {str(key): int(value) for key, value in stop_counts.items()},
         },
@@ -932,7 +951,7 @@ def build_step4e_result_figures(result: dict) -> dict[str, dict[str, str]]:
     axes[1].grid(True, alpha=0.25)
     axes[1].legend(loc="upper right", fontsize=8)
     fig.suptitle(
-        f"Step4E v11 outer-loop line, progress {fmt(line['progress_max_mm'], 3)} mm",
+        f"Step4E v13 outer-loop line, progress {fmt(line['progress_max_mm'], 3)} mm",
         y=0.995,
     )
     fig.tight_layout()
@@ -953,7 +972,7 @@ def build_step4e_result_figures(result: dict) -> dict[str, dict[str, str]]:
     axes[2].set_ylabel("Orientation error (rad)")
     axes[2].grid(True, alpha=0.25)
     fig.suptitle(
-        f"Step4E v11 force/orientation evidence, normal-load MAE {fmt(stage25['normal_load_error_mae_n'], 2)} N",
+        f"Step4E v13 force/orientation evidence, normal-load MAE {fmt(stage25['normal_load_error_mae_n'], 2)} N",
         y=0.995,
     )
     fig.tight_layout()
@@ -1077,6 +1096,67 @@ def build_step4d_result_media_assets() -> dict[str, dict[str, str] | None]:
             weekly_poster = WEEKLY_ASSETS / report_poster.name
             shutil.copy2(report_poster, weekly_poster)
             assets["step4d_video_poster"] = {"report": rel_from_report(report_poster), "weekly": rel_from_weekly(weekly_poster)}
+    return assets
+
+
+def build_step4e_result_media_assets() -> dict[str, dict[str, str] | None]:
+    assets: dict[str, dict[str, str] | None] = {
+        "step4e_video_mp4": None,
+        "step4e_video_poster": None,
+    }
+    if STEP4E_RESULT_VIDEO_PREVIEW.exists():
+        report_mp4 = REPORT_ASSETS / f"{STEP4E_RESULT_FILE_PREFIX}_experiment.mp4"
+        if run_media_command(
+            [
+                "ffmpeg",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-i",
+                str(STEP4E_RESULT_VIDEO_PREVIEW),
+                "-vf",
+                "scale=720:-2",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-crf",
+                "28",
+                "-pix_fmt",
+                "yuv420p",
+                "-movflags",
+                "+faststart",
+                "-an",
+                str(report_mp4),
+            ]
+        ):
+            weekly_mp4 = WEEKLY_ASSETS / report_mp4.name
+            shutil.copy2(report_mp4, weekly_mp4)
+            assets["step4e_video_mp4"] = {"report": rel_from_report(report_mp4), "weekly": rel_from_weekly(weekly_mp4)}
+
+        report_poster = REPORT_ASSETS / f"{STEP4E_RESULT_FILE_PREFIX}_experiment_poster.jpg"
+        if run_media_command(
+            [
+                "ffmpeg",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-ss",
+                "38",
+                "-i",
+                str(STEP4E_RESULT_VIDEO_PREVIEW),
+                "-vf",
+                "scale=720:-2",
+                "-frames:v",
+                "1",
+                str(report_poster),
+            ]
+        ):
+            weekly_poster = WEEKLY_ASSETS / report_poster.name
+            shutil.copy2(report_poster, weekly_poster)
+            assets["step4e_video_poster"] = {"report": rel_from_report(report_poster), "weekly": rel_from_weekly(weekly_poster)}
     return assets
 
 
@@ -1401,16 +1481,16 @@ def rows_for_step4e_result(step4e: dict) -> str:
     line = step4e["line"]
     return "\n".join(
         [
-            "| Metric | Step4E v11 result |",
+            "| Metric | Step4E v13 result |",
             "|---|---:|",
             f"| run | `{step4e['run_name']}` |",
-            f"| line path completed | {'yes' if line['completion_pct_bridge_length'] >= 99.99 else 'no'} |",
-            f"| bridge path / script threshold | `{fmt(line['bridge_length_mm'], 3)} / {fmt(line['script_completion_threshold_mm'], 3)} mm` |",
+            f"| line path completed | {'yes' if line['completed'] else 'no'} |",
+            f"| bridge path / success threshold | `{fmt(line['bridge_length_mm'], 3)} / {fmt(line['success_threshold_mm'], 3)} mm` |",
             f"| progress max | `{fmt(line['progress_max_mm'], 3)} mm` |",
-            f"| first 99.9% progress | `{fmt(line['first_999pct_progress_s'], 3)} s` |",
+            f"| first success threshold | `{fmt(line['first_success_threshold_s'], 3)} s` |",
             f"| final stop reason | `{fmt(line['stop_reason_code'], 1)} ({line['stop_reason_label']})` |",
-            f"| retract/home evidence | `stage26 rows={fmt(line['retract_stage26_rows'])}`, `stage27 rows={fmt(line['home_stage27_rows'])}` |",
-            f"| length mismatch | `{fmt(line['length_mismatch_mm'], 4)} mm` |",
+            f"| final stage | `{fmt(line['final_stage'], 1)}` |",
+            f"| unload/retract/home evidence | `stage26 rows={fmt(line['retract_stage26_rows'])}`, `stage27 rows={fmt(line['home_stage27_rows'])}`, `stage29 rows={fmt(line['stage29_rows'])}` |",
             f"| stage25 samples / duration | `{fmt(stage25['rows'])}` / `{fmt(stage25['duration_s'], 3)} s` |",
             f"| stage25 echo rate | `{fmt(stage25['echo_rate_hz'], 2)} Hz` |",
             f"| XY path error mean / p95 | `{fmt(line['path_error_mean_mm'], 3)} / {fmt(line['path_error_p95_mm'], 3)} mm` |",
@@ -1516,6 +1596,8 @@ def build_markdown(
     step4e_stage25 = step4e_result["stage25"]
     step4e_line = step4e_result["line"]
     step4e_prefix = step4e_result["file_prefix"]
+    step4e_video = media_assets.get("step4e_video_mp4", {}).get("report") if media_assets.get("step4e_video_mp4") else None
+    step4e_poster = media_assets.get("step4e_video_poster", {}).get("report") if media_assets.get("step4e_video_poster") else None
 
     return f"""# Kunwei KWR75 当前进展报告（2026-06-08）
 
@@ -1523,7 +1605,7 @@ def build_markdown(
 
 这份报告把 Kunwei KWR75/KWR75B 当前证据单独整理出来，用于说明五件事：传感器与通信链路是否已经可用，长时间无运动 `1 kHz` 采集是否稳定，当前 Step2C 闭环直线实验走到什么程度，Step4D 圆轨迹接触实验是否完成，以及 Step4E paper-style 外环直线路线是否已经跑通。报告包含两层 OnRobot/Kunwei 对比：前 `600 s` 用于短窗口 noise/drift 判断，`6 h` 用于长时间漂移判断。当前版本只使用已有日志，不重做实验；两者都按各自窗口第一帧做 software zero，只作为 drift/noise 口径对照，不作为同机械状态下的绝对标定结论。
 
-结论先给出：Kunwei TCP raw logging 已经支撑 `19 h 15 min`、约 `1 kHz`、无 parse error 的长跑；Step2C final 在 line 阶段保持 URScript stage25 echo cadence 约 `{fmt(result['echo_rate_hz'], 2)} Hz`，路径跟踪 p95 约 `{fmt(result['xy_error_p95_mm'], 3)} mm`，Fz error MAE 从 V4 的 `{fmt(v4['signed_error_mae_n'], 2)} N` 降到 `{fmt(result['signed_error_mae_n'], 2)} N`。Step4D 已完成从 middle-half 直线路径生成的完整圆轨迹，arc progress 约 `{fmt(step4d_circle['arc_progress_end_mm'], 3)} mm`，closure error 约 `{fmt(step4d_circle['closure_error_mm'], 3)} mm`，radial error p95 约 `{fmt(step4d_circle['radial_error_p95_mm'], 3)} mm`。Step4E v11 已用 Python 外环 command + UR `speedl` IK 跑完整条 `{fmt(step4e_line['bridge_length_mm'], 3)} mm` 直线路径，XY path p95 约 `{fmt(step4e_line['path_error_p95_mm'], 3)} mm`；收尾问题是 clean-complete 阈值比 bridge progress clamp 高约 `{fmt(step4e_line['length_mismatch_mm'], 4)} mm`，导致最终以 runtime timeout reason `{fmt(step4e_line['stop_reason_code'], 1)}` 而不是 completion reason `1.0` 结束。它们都仍是 selected single-run evidence，不等于完整统计验证。
+结论先给出：Kunwei TCP raw logging 已经支撑 `19 h 15 min`、约 `1 kHz`、无 parse error 的长跑；Step2C final 在 line 阶段保持 URScript stage25 echo cadence 约 `{fmt(result['echo_rate_hz'], 2)} Hz`，路径跟踪 p95 约 `{fmt(result['xy_error_p95_mm'], 3)} mm`，Fz error MAE 从 V4 的 `{fmt(v4['signed_error_mae_n'], 2)} N` 降到 `{fmt(result['signed_error_mae_n'], 2)} N`。Step4D 已完成从 middle-half 直线路径生成的完整圆轨迹，arc progress 约 `{fmt(step4d_circle['arc_progress_end_mm'], 3)} mm`，closure error 约 `{fmt(step4d_circle['closure_error_mm'], 3)} mm`，radial error p95 约 `{fmt(step4d_circle['radial_error_p95_mm'], 3)} mm`。Step4E v13 已用 Python 外环 command + UR `speedl` IK 完成 `{fmt(step4e_line['bridge_length_mm'], 3)} mm` 直线 demo，final stop reason 为 `{fmt(step4e_line['stop_reason_code'], 1)} ({step4e_line['stop_reason_label']})`，final stage 为 `{fmt(step4e_line['final_stage'], 1)}`，并有 unload/retract/home 阶段证据；XY path p95 约 `{fmt(step4e_line['path_error_p95_mm'], 3)} mm`。它们都仍是 selected single-run evidence，不等于完整统计验证。
 
 ## 设备与实验条件
 
@@ -1537,14 +1619,14 @@ def build_markdown(
 | zero 口径 | 本报告 OnRobot/Kunwei 对比均为 first-value software zero；未调用 Kunwei hardware tare、OnRobot device bias/tare 或 UR `zero_ftsensor()` |
 | Step2C 参考线 | 长度约 `63.58 mm` 的 XY straight-line reference |
 | Step4D 圆轨迹 | 取 Step2C contact path 的 middle half 作为直径；半径约 `{fmt(step4d_circle['radius_mm'], 3)} mm`，full-circle arc 约 `99.871 mm` |
-| Step4E v11 直线路径 | 两张 TP Move 截图定义 XY 直线，bridge path length `{fmt(step4e_line['bridge_length_mm'], 3)} mm`；Z 与姿态由 Step4E 外环 command 调整 |
+| Step4E v13 直线路径 | 两张 TP Move 截图定义 XY 直线，bridge path length `{fmt(step4e_line['bridge_length_mm'], 3)} mm`；Z 与姿态由 Step4E 外环 command 调整 |
 | 本报告图表口径 | 统计用选定窗口内全样本；长 trace 图用 min/max envelope，不用等间隔抽样线作为主证据 |
 | 最长可用公共窗口 | Kunwei `{fmt(available['kunwei_h'], 2)} h`，OnRobot UDP `{fmt(available['onrobot_udp_h'], 2)} h`；本报告长对比采用更适合汇报的 `{fmt(available['report_long_window_h'], 2)} h` |
 | Step2C final 口径 | final 从已有 `bridge_rtde_500hz.csv`、`kunwei_sensor_1khz.csv` 和 `stage_frequency_summary.json` 计算；不补实验、不补写 `summary.json` |
 
 ## 实验命令
 
-长时采集由 `capture_kunwei_kwr75_1khz.py` 运行，核心参数是 `--transport tcp-client --sensor-ip 192.168.50.25 --sensor-port 5152 --duration-s 86400 --checkpoint-interval-s 900`。旧 Step2C 主 run 使用 `search5_guard20_line2ms_alpha70_vlim5` 版本；final 使用 `step2c_final` 程序包和 `search2ms_line1ms_alpha70` autowatch bridge，line 阶段目标仍是 `-5 N`。Step4D 使用 `step4d_circle_detsearch_attitude_v1` TP package。Step4E 使用 `step4e_line_outerloop_v11` TP package：Python bridge 计算 outer-loop Cartesian command，URScript 读取 input registers 后通过 `speedl` 执行，IK 仍交给 UR 控制器。
+长时采集由 `capture_kunwei_kwr75_1khz.py` 运行，核心参数是 `--transport tcp-client --sensor-ip 192.168.50.25 --sensor-port 5152 --duration-s 86400 --checkpoint-interval-s 900`。旧 Step2C 主 run 使用 `search5_guard20_line2ms_alpha70_vlim5` 版本；final 使用 `step2c_final` 程序包和 `search2ms_line1ms_alpha70` autowatch bridge，line 阶段目标仍是 `-5 N`。Step4D 使用 `step4d_circle_detsearch_attitude_v1` TP package。Step4E 使用 `step4e_line_outerloop_v13` TP package：Python bridge 计算 outer-loop Cartesian command，URScript 读取 input registers 后通过 `speedl` 执行，IK 仍交给 UR 控制器。
 
 本报告的生成脚本只读取已有 CSV/JSON 并写出报告资产，没有向 UR、OnRobot 或 Kunwei 发送命令，也没有做视频多帧抽样或视频帧分析；HTML evidence clip 只使用转码 mp4 和一个 poster。
 
@@ -1561,7 +1643,8 @@ def build_markdown(
 | Step2C final video | {f'[{result_video}]({result_video})' if result_video else 'N/A'} |
 | Step4D circle run | [../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step4d_result['run_name']}](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step4d_result['run_name']}) |
 | Step4D demo video | {f'[{step4d_video}]({step4d_video})' if step4d_video else 'N/A'} |
-| Step4E v11 run | [../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step4e_result['run_name']}](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step4e_result['run_name']}) |
+| Step4E v13 run | [../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step4e_result['run_name']}](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step4e_result['run_name']}) |
+| Step4E v13 demo video | {f'[{step4e_video}]({step4e_video})' if step4e_video else 'N/A'} |
 | OnRobot 600s UDP raw CSV | [../experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv](../experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv) |
 | OnRobot 6h UDP raw CSV | [../experiments/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217/three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv](../experiments/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217/three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv) |
 
@@ -1652,19 +1735,23 @@ Step4D 把 Step2C contact path 的中间一半作为直径，生成半径约 `{f
 
 {f'[Step4D demo video]({step4d_video})' if step4d_video else ''}
 
-### Step4E v11 外环直线进展
+### Step4E v13 外环直线进展
 
-Step4E v11 是这次 paper-style 外环复现的小步验证：URP 仍负责高点进入、entry-pose re-zero、两阶段确定性接触搜索、line stage、短回撤和回 home；Python bridge 在 line stage 读取 Kunwei zeroed wrench 与 RTDE actual TCP pose，计算 Cartesian `vx/vy/vz/wx/wy` command，并通过 RTDE input registers 交给 URScript。机器人 IK 仍由 UR 控制器通过 `speedl` 处理。
+Step4E v13 是这次 paper-style 外环复现的小步验证中第一次适合作为成功 demo 汇报的结果：URP 仍负责高点进入、fixed search start、entry-pose re-zero、两阶段确定性接触搜索、line stage、短回撤和回 home；Python bridge 在 line stage 读取 Kunwei zeroed wrench 与 RTDE actual TCP pose，计算 Cartesian `vx/vy/vz/wx/wy` command，并通过 RTDE input registers 交给 URScript。机器人 IK 仍由 UR 控制器通过 `speedl` 处理。
 
 {rows_for_step4e_result(step4e_result)}
 
-这次 v11 的关键结果是路径层面已经跑满：bridge 侧 progress clamp 到 `{fmt(step4e_line['progress_max_mm'], 3)} mm`，等于 bridge path length `{fmt(step4e_line['bridge_length_mm'], 3)} mm`，约 `{fmt(step4e_line['first_999pct_progress_s'], 3)} s` 达到 `99.9%` progress。XY path error p95 为 `{fmt(step4e_line['path_error_p95_mm'], 3)} mm`。但 final stop reason 是 `{fmt(step4e_line['stop_reason_code'], 1)}`，因为 URScript 的 completion threshold `{fmt(step4e_line['script_completion_threshold_mm'], 3)} mm` 比 bridge length 高 `{fmt(step4e_line['length_mismatch_mm'], 4)} mm`，导致 clean completion 没有触发而进入 runtime timeout。数据中仍有 stage26/stage27 行，说明 retract/home 路径有执行证据；这里更准确的结论是“外环直线路径复现已跑通，clean-complete 判定和 force quality 仍需收尾”，不是“Step4E 已完全收敛”。
+这次 v13 的关键结果是 line stage clean complete：final stop reason 是 `{fmt(step4e_line['stop_reason_code'], 1)} ({step4e_line['stop_reason_label']})`，最终进入 stage `{fmt(step4e_line['final_stage'], 1)}`；数据中有 stage26 unload、stage27 retract/home 和 stage29 final evidence。bridge path length 为 `{fmt(step4e_line['bridge_length_mm'], 3)} mm`，success threshold 为 `{fmt(step4e_line['success_threshold_mm'], 3)} mm`，约 `{fmt(step4e_line['first_success_threshold_s'], 3)} s` 达到 success threshold；XY path error mean/p95/max 为 `{fmt(step4e_line['path_error_mean_mm'], 3)} / {fmt(step4e_line['path_error_p95_mm'], 3)} / {fmt(step4e_line['path_error_max_mm'], 3)} mm`。这里可以写成“外环直线路径 demo 成功完成并回撤”，但不能写成 force quality 已收敛。
 
-Step4E 的 normal-load force quality 还没有达到 Step2C final 水平：normal-load error MAE 为 `{fmt(step4e_stage25['normal_load_error_mae_n'], 3)} N`，p95 为 `{fmt(step4e_stage25['normal_load_error_p95_abs_n'], 3)} N`。这条证据的价值主要是 architecture：Python 外环 command、UR register consumption、UR-side IK 和接触路径执行形成闭环。
+Step4E 的 normal-load force quality 还没有达到 Step2C final 水平：normal-load error MAE 为 `{fmt(step4e_stage25['normal_load_error_mae_n'], 3)} N`，p95 为 `{fmt(step4e_stage25['normal_load_error_p95_abs_n'], 3)} N`。这条证据的价值主要是 architecture 和 demo completion：Python 外环 command、UR register consumption、UR-side IK、接触路径执行和回撤形成闭环。
 
-![Step4E v11 path tracking]({figures[f'{step4e_prefix}_path_tracking']['report']})
+![Step4E v13 path tracking]({figures[f'{step4e_prefix}_path_tracking']['report']})
 
-![Step4E v11 force and progress evidence]({figures[f'{step4e_prefix}_force_progress']['report']})
+![Step4E v13 force and progress evidence]({figures[f'{step4e_prefix}_force_progress']['report']})
+
+{f'![Step4E v13 demo video poster]({step4e_poster})' if step4e_poster else ''}
+
+{f'[Step4E v13 demo video]({step4e_video})' if step4e_video else ''}
 
 ### OnRobot vs Kunwei 前 600s
 
@@ -1688,14 +1775,14 @@ Step4E 的 normal-load force quality 还没有达到 Step2C final 水平：norma
 2. Kunwei 已经从传感器 bring-up 进入机器人闭环验证阶段。旧 Step2C、V4 和 final 都能完成搜索、直线、卸载和回撤；均值层面能围绕 `-5 N` 工作。
 3. final 的 stage25 measured echo cadence 约 `{fmt(result['echo_rate_hz'], 2)} Hz`，比旧成功 Step2C 的 `{fmt(stage25_echo['rate_hz'], 2)} Hz` 明显提高，并且 Fz error MAE 比 V4 更低；但这仍不能写成 UR 内部 servo loop 频率。
 4. Step4D 首次把 “middle-half 直线路径作为直径 -> 完整圆 -> 接触搜索 -> 姿态 admittance -> 回撤” 这一套流程跑完；但圆轨迹与 Step2C 直线任务几何不同，不能把两者的 force/path 指标当作同任务直接排序。
-5. Step4E v11 已证明 paper-style 外环 command + UR `speedl` IK 的直线复现路线可跑满 `{fmt(step4e_line['bridge_length_mm'], 3)} mm` 路径；clean-complete 判定差 `{fmt(step4e_line['length_mismatch_mm'], 4)} mm` 是小收尾问题，force quality 还不是最终水平。
+5. Step4E v13 已证明 paper-style 外环 command + UR `speedl` IK 的直线复现路线可以完成 demo：stop reason `1.0`，final stage `29.0`，并有 unload/retract/home evidence；force quality 还不是最终水平。
 6. OnRobot/Kunwei 前 `600 s` 与 `6 h` 对比图说明两条 raw stream 都可以用 first-value software zero 做短窗口和长窗口漂移分析；但由于机械状态不同，报告只解释相对漂移和波动，不解释绝对偏置或规格优劣。
 
 ## 下一步
 
 - Step2C 下一步应围绕 final 的重复性和 contact-entry transient 继续验证；频率证据已经足够支持约 `490 Hz` measured echo cadence 进入报告，force quality 也相对 V4 有改善，但还不应该外推成跨治具、跨日期的传感器绝对性能结论。
 - Step4D 下一步应先围绕完整圆的重复性、entry transient 和 normal-force ripple 收敛，不要急着把它写成传感器绝对性能或最终算法效果。若要进一步降低圆轨迹误差，再考虑是否把 IK/trajectory optimization 从 UR 内部逐步外移到脚本侧。
-- Step4E 下一步不需要新实验来完成这版报告；工程上只需把 bridge line length 和 URScript completion threshold 统一，避免满路径后靠 runtime timeout 收尾。之后再谈 normal-load MAE 和 attitude gain 的调参。
+- Step4E 下一步不需要新实验来完成这版报告；工程上下一步应围绕 normal-load MAE、attitude gain 和接触阶段力波动调参，而不是再证明外环路线能否跑通。
 - 本版本不需要新做 OnRobot/Kunwei A/B 实验；当前会议材料只使用已有日志，并明确标注为 first-value software zero 的历史窗口比较。若未来要回答绝对标定问题，再另开同机械状态、同无接触窗口、明确 device-side zero/tare 策略的实验。
 - 如果目标是机器人侧 `500 Hz` 运动闭环，需要另开 `servoj/speedj`、多线程 URScript 或外部实时接口路线，而不是从当前 `speedl` echo 推断。
 
@@ -1709,7 +1796,7 @@ python3 /home/andy/ur10e_ros2_ws/weekly_meeting/build_kunwei_kwr75_report.py
 
 ### 生成口径
 
-脚本对 `600 s` 窗口保留短窗口点列；对 `6 h` 窗口只保留统计量和时间 bin envelope，不把千万级样本全部留在内存里。统计直接使用窗口内所有样本；图形先按时间 bin 聚合为 min/max/mean envelope，保留尖峰范围，不使用等间隔抽样折线作为主要证据。HTML deck 使用生成的数据图和压缩后的 Step2C final / Step4D 视频，不嵌入原始 MOV。
+脚本对 `600 s` 窗口保留短窗口点列；对 `6 h` 窗口只保留统计量和时间 bin envelope，不把千万级样本全部留在内存里。统计直接使用窗口内所有样本；图形先按时间 bin 聚合为 min/max/mean envelope，保留尖峰范围，不使用等间隔抽样折线作为主要证据。HTML deck 使用生成的数据图和压缩后的 Step2C final / Step4D / Step4E v13 视频，不嵌入原始 MOV。
 """
 
 
@@ -1765,6 +1852,8 @@ def build_html(
     step4e_prefix = step4e_result["file_prefix"]
     step4e_path_img = figures[f"{step4e_prefix}_path_tracking"]["weekly"]
     step4e_force_progress_img = figures[f"{step4e_prefix}_force_progress"]["weekly"]
+    step4e_video = media_assets.get("step4e_video_mp4", {}).get("weekly") if media_assets.get("step4e_video_mp4") else None
+    step4e_video_poster = media_assets.get("step4e_video_poster", {}).get("weekly") if media_assets.get("step4e_video_poster") else None
     result_video_html = (
         f'<figure class="span-5 media-video"><video controls preload="metadata" poster="{result_video_poster or ""}" src="{result_video}"></video><figcaption>Fig. F-A. Step2C final experiment evidence clip from the 2026-06-08 Step2C final run.</figcaption></figure>'
         if result_video
@@ -1773,6 +1862,11 @@ def build_html(
     step4d_video_html = (
         f'<figure class="span-5 media-video"><video controls preload="metadata" poster="{step4d_video_poster or ""}" src="{step4d_video}"></video><figcaption>Fig. 6. Step4D phone video evidence from the 2026-06-09 demo drop.</figcaption></figure>'
         if step4d_video
+        else ""
+    )
+    step4e_video_html = (
+        f'<figure class="span-5 media-video"><video controls preload="metadata" poster="{step4e_video_poster or ""}" src="{step4e_video}"></video><figcaption>Fig. 9. Step4E v13 phone video evidence from the latest demo drop.</figcaption></figure>'
+        if step4e_video
         else ""
     )
 
@@ -1945,7 +2039,7 @@ def build_html(
     <section id="summary">
       <div class="eyebrow">Kunwei KWR75 / UR10e</div>
       <h1>Kunwei force sensor progress report</h1>
-      <p class="lead">Kunwei is no longer just a bring-up task: the TCP raw logging path has a stable 19 h 15 min run, Step2C has completed a closed-loop straight-line contact task, Step4D has completed the first full contact circle, and Step4E v11 has run the paper-style outer-loop line path to full progress. The OnRobot/Kunwei comparison in this deck uses existing logs only, with first-value software zero inside each selected window.</p>
+      <p class="lead">Kunwei is no longer just a bring-up task: the TCP raw logging path has a stable 19 h 15 min run, Step2C has completed a closed-loop straight-line contact task, Step4D has completed the first full contact circle, and Step4E v13 has completed the paper-style outer-loop line demo with unload, retract, and home-return evidence. The OnRobot/Kunwei comparison in this deck uses existing logs only, with first-value software zero inside each selected window.</p>
       <div class="grid">
         {html_metric("Long raw capture", "69.3M samples")}
         {html_metric("Average raw rate", f"{fmt(overall['rate_hz'], 3)} Hz")}
@@ -2006,19 +2100,20 @@ def build_html(
     </section>
     <section id="step4e">
       <div class="eyebrow">Robot experiment</div>
-      <h2>Step4E v11 runs the outer-loop line to full path progress</h2>
-      <p>Step4E is the paper-style reproduction step: Python computes Cartesian outer-loop commands from Kunwei wrench and RTDE TCP pose, while URScript consumes the registers and lets UR handle IK through speedl. The selected v11 run reached {fmt(step4e_line['progress_max_mm'], 3)} mm progress, matching the bridge path length, with {fmt(step4e_line['path_error_p95_mm'], 3)} mm XY path-error p95. The remaining finish issue is small and specific: the URScript clean-complete threshold is {fmt(step4e_line['length_mismatch_mm'], 4)} mm higher than the bridge clamp, so the line ended by runtime timeout rather than completion reason 1.0.</p>
+      <h2>Step4E v13 completes the outer-loop line and returns home</h2>
+      <p>Step4E is the paper-style reproduction step: Python computes Cartesian outer-loop commands from Kunwei wrench and RTDE TCP pose, while URScript consumes the registers and lets UR handle IK through speedl. The selected v13 run ended with stop reason {fmt(step4e_line['stop_reason_code'], 1)} ({step4e_line['stop_reason_label']}) and final stage {fmt(step4e_line['final_stage'], 1)}. It crossed the {fmt(step4e_line['success_threshold_mm'], 3)} mm success threshold, reached {fmt(step4e_line['progress_max_mm'], 3)} mm max progress, and kept XY path-error p95 at {fmt(step4e_line['path_error_p95_mm'], 3)} mm. This is successful demo evidence; normal-load force quality still needs tuning.</p>
       <div class="grid">
-        {html_metric("Line outcome", "full path")}
+        {html_metric("Line outcome", "complete")}
         {html_metric("Stage25 echo", f"{fmt(step4e_stage25['echo_rate_hz'], 2)} Hz")}
         {html_metric("Path progress", f"{fmt(step4e_line['progress_max_mm'], 3)} mm")}
         {html_metric("XY p95", f"{fmt(step4e_line['path_error_p95_mm'], 3)} mm")}
         {html_metric("Normal-load MAE", f"{fmt(step4e_stage25['normal_load_error_mae_n'], 2)} N")}
-        {html_metric("Finish reason", "timeout 10")}
-        {html_metric("Length mismatch", f"{fmt(step4e_line['length_mismatch_mm'], 4)} mm")}
+        {html_metric("Finish reason", "complete 1")}
+        {html_metric("Final stage", f"{fmt(step4e_line['final_stage'], 1)}")}
         {html_metric("Retract/home", "observed")}
-        <figure class="span-6"><img src="{step4e_path_img}" alt="Step4E v11 line path tracking"><figcaption>Fig. 7. Actual TCP path follows the outer-loop line; path-error p95 is {fmt(step4e_line['path_error_p95_mm'], 3)} mm.</figcaption></figure>
-        <figure class="span-6"><img src="{step4e_force_progress_img}" alt="Step4E v11 force and progress evidence"><figcaption>Fig. 8. Path progress reaches the bridge length; normal-load error and the completion threshold mismatch remain the next cleanup items.</figcaption></figure>
+        <figure class="span-6"><img src="{step4e_path_img}" alt="Step4E v13 line path tracking"><figcaption>Fig. 7. Actual TCP path follows the outer-loop line; path-error p95 is {fmt(step4e_line['path_error_p95_mm'], 3)} mm.</figcaption></figure>
+        <figure class="span-6"><img src="{step4e_force_progress_img}" alt="Step4E v13 force and progress evidence"><figcaption>Fig. 8. Path progress crosses the success threshold; normal-load error remains the next tuning item.</figcaption></figure>
+        {step4e_video_html}
       </div>
     </section>
     <section id="compare">
@@ -2056,7 +2151,7 @@ def build_html(
             <tr><td>Logging route</td><td>Kunwei TCP raw is stable at 1 kHz class</td><td>Use it as the default Kunwei collector</td></tr>
             <tr><td>Force control</td><td>Final mean Fz is near target and error MAE is {fmt(result['signed_error_mae_n'], 2)} N</td><td>Confirm repeatability before broader force-quality claims</td></tr>
             <tr><td>Circle contact</td><td>Step4D completed the full circle with {fmt(step4d_circle['closure_error_mm'], 3)} mm closure error</td><td>Reduce contact-entry transient and normal-force ripple before stronger algorithm claims</td></tr>
-            <tr><td>Outer-loop line</td><td>Step4E v11 reached {fmt(step4e_line['progress_max_mm'], 3)} mm full-path progress, then timed out on a {fmt(step4e_line['length_mismatch_mm'], 4)} mm threshold mismatch</td><td>Clean up finish logic before treating it as a polished demo</td></tr>
+            <tr><td>Outer-loop line</td><td>Step4E v13 completed with stop reason {fmt(step4e_line['stop_reason_code'], 1)}, final stage {fmt(step4e_line['final_stage'], 1)}, and {fmt(step4e_line['path_error_p95_mm'], 3)} mm XY p95</td><td>Tune normal-load and attitude behavior before stronger force-quality claims</td></tr>
             <tr><td>Frequency claim</td><td>Final stage25 echo is {fmt(result['echo_rate_hz'], 2)} Hz; RTDE logging is {fmt(result_freq['rtde_output_logging_rate_hz'], 2)} Hz</td><td>Report measured cadence, not internal servo-loop frequency</td></tr>
             <tr><td>A/B comparison</td><td>Existing 600 s and 6 h windows differ in setup/date/load</td><td>Use first-value software zero for this report; reserve same-fixture testing only for future absolute calibration claims</td></tr>
           </tbody>
@@ -2152,6 +2247,7 @@ def main() -> None:
     figures.update(build_step4e_result_figures(step4e_result))
     media_assets = build_step2c_result_media_assets()
     media_assets.update(build_step4d_result_media_assets())
+    media_assets.update(build_step4e_result_media_assets())
     summary_json = write_summary_json(
         short_kunwei,
         short_onrobot,
