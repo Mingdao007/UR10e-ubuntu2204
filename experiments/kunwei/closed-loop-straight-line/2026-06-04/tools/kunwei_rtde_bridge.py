@@ -15,6 +15,7 @@ import csv
 import json
 import math
 import select
+import signal
 import socket
 import statistics
 import struct
@@ -246,6 +247,16 @@ class Step4EState:
     def __init__(self) -> None:
         self.integral_error_n_s = 0.0
         self.normal_velocity_m_s = 0.0
+        self.latched_normal_b: tuple[float, float, float] | None = None
+        self.normal_acquired = False
+        self.line_stage_s = 0.0
+
+    def reset_line_contact(self) -> None:
+        self.integral_error_n_s = 0.0
+        self.normal_velocity_m_s = 0.0
+        self.latched_normal_b = None
+        self.normal_acquired = False
+        self.line_stage_s = 0.0
 
 
 def compute_step4e_values(
@@ -265,6 +276,17 @@ def compute_step4e_values(
     if not pose or len(pose) < 6:
         values["step4e_controller_state"] = 2.0
         return values
+    try:
+        robot_stage = float(latest_output.get("output_double_register_35", math.nan))
+    except (TypeError, ValueError):
+        robot_stage = math.nan
+    line_stage_active = args.step4e_mode == "line" and abs(robot_stage - 25.0) < 0.05
+    if args.step4e_mode != "line" or (
+        math.isfinite(robot_stage) and (robot_stage < 24.0 or robot_stage >= 26.0)
+    ):
+        state.reset_line_contact()
+    if line_stage_active:
+        state.line_stage_s += dt_s
 
     force_t, torque_t = kunwei_to_tcp_wrench(latest_zeroed)
     force_abs = norm3(force_t)
@@ -277,8 +299,20 @@ def compute_step4e_values(
     rotation = rotvec_to_matrix(float(pose[3]), float(pose[4]), float(pose[5]))
     force_b = mat_vec3(rotation, force_t)
     n_reaction_b = normalize3(force_b)
+    if sensor_ok > 0.5 and force_abs >= args.step4e_min_force_for_control_n:
+        if state.latched_normal_b is None:
+            state.latched_normal_b = n_reaction_b
+        else:
+            blended = tuple(
+                0.95 * state.latched_normal_b[idx] + 0.05 * n_reaction_b[idx]
+                for idx in range(3)
+            )
+            state.latched_normal_b = normalize3(blended, state.latched_normal_b)
+        state.normal_acquired = True
+    n_control_b = state.latched_normal_b if state.latched_normal_b is not None else n_reaction_b
+    normal_load_n = max(0.0, dot3(force_b, n_control_b)) if state.normal_acquired else 0.0
     tcp_z_axis_b = (rotation[0][2], rotation[1][2], rotation[2][2])
-    orientation_axis = cross3(tcp_z_axis_b, n_reaction_b)
+    orientation_axis = cross3(tcp_z_axis_b, n_control_b)
     orientation_error = math.asin(clamp(norm3(orientation_axis), -1.0, 1.0))
     orientation_cmd = tuple(args.step4e_orientation_gain * value for value in orientation_axis)
     orientation_norm = norm3(orientation_cmd)
@@ -298,38 +332,61 @@ def compute_step4e_values(
         tangent_speed * STEP4E_LINE_UNIT_XY[1] + args.step4e_path_p_gain * path_error[1],
         0.0,
     )
-    normal_projection = dot3(base_motion, n_reaction_b)
-    motion_cmd = tuple(base_motion[idx] - normal_projection * n_reaction_b[idx] for idx in range(3))
+    normal_projection = dot3(base_motion, n_control_b)
+    motion_cmd = tuple(base_motion[idx] - normal_projection * n_control_b[idx] for idx in range(3))
     motion_norm = norm3(motion_cmd)
     if motion_norm > args.step4e_motion_limit_m_s:
         scale = args.step4e_motion_limit_m_s / motion_norm
         motion_cmd = tuple(value * scale for value in motion_cmd)
 
-    force_error = args.target_force_n - force_abs
+    controlled_force_n = normal_load_n if args.step4e_mode == "line" else force_abs
+    force_error = args.target_force_n - controlled_force_n
+    line_grace_valid = (
+        args.step4e_mode == "line"
+        and line_stage_active
+        and not state.normal_acquired
+        and state.line_stage_s <= args.step4e_acquire_grace_s
+    )
     control_allowed = sensor_ok > 0.5 and (
-        force_abs >= args.step4e_min_force_for_control_n or args.step4e_mode == "line"
+        force_abs >= args.step4e_min_force_for_control_n
+        or (args.step4e_mode == "line" and state.normal_acquired)
+        or line_grace_valid
     )
     if control_allowed:
-        state.integral_error_n_s = clamp(
-            state.integral_error_n_s + force_error * dt_s,
-            -args.step4e_integral_limit_n_s,
-            args.step4e_integral_limit_n_s,
-        )
-        accel_like = (
-            args.step4e_force_p_gain * force_error
-            + args.step4e_force_i_gain * state.integral_error_n_s
-            - args.step4e_force_damping * state.normal_velocity_m_s
-        )
-        state.normal_velocity_m_s = clamp(
-            state.normal_velocity_m_s + accel_like * dt_s,
-            -args.step4e_normal_velocity_limit_m_s,
-            args.step4e_normal_velocity_limit_m_s,
-        )
-        force_cmd = tuple(
-            -args.step4e_normal_command_sign * n_reaction_b[idx] * state.normal_velocity_m_s
-            for idx in range(3)
-        )
-        cmd = tuple(motion_cmd[idx] + force_cmd[idx] for idx in range(3))
+        if args.step4e_mode == "line" and not state.normal_acquired:
+            cmd = (0.0, 0.0, 0.0)
+            orientation_cmd = (0.0, 0.0, 0.0)
+        else:
+            state.integral_error_n_s = clamp(
+                state.integral_error_n_s + force_error * dt_s,
+                -args.step4e_integral_limit_n_s,
+                args.step4e_integral_limit_n_s,
+            )
+            accel_like = (
+                args.step4e_force_p_gain * force_error
+                + args.step4e_force_i_gain * state.integral_error_n_s
+                - args.step4e_force_damping * state.normal_velocity_m_s
+            )
+            state.normal_velocity_m_s = clamp(
+                state.normal_velocity_m_s + accel_like * dt_s,
+                -args.step4e_normal_velocity_limit_m_s,
+                args.step4e_normal_velocity_limit_m_s,
+            )
+            if (
+                args.step4e_mode == "line"
+                and state.normal_acquired
+                and normal_load_n < args.step4e_min_force_for_control_n
+                and force_error > 0.0
+            ):
+                state.normal_velocity_m_s = max(
+                    state.normal_velocity_m_s,
+                    min(args.step4e_reacquire_velocity_m_s, args.step4e_normal_velocity_limit_m_s),
+                )
+            force_cmd = tuple(
+                -args.step4e_normal_command_sign * n_control_b[idx] * state.normal_velocity_m_s
+                for idx in range(3)
+            )
+            cmd = tuple(motion_cmd[idx] + force_cmd[idx] for idx in range(3))
         cmd_norm = norm3(cmd)
         if cmd_norm > args.step4e_total_linear_limit_m_s:
             scale = args.step4e_total_linear_limit_m_s / cmd_norm
@@ -370,6 +427,13 @@ def compute_step4e_values(
     values["_step4e_normal_b_x"] = n_reaction_b[0]
     values["_step4e_normal_b_y"] = n_reaction_b[1]
     values["_step4e_normal_b_z"] = n_reaction_b[2]
+    values["_step4e_latched_normal_b_x"] = "" if state.latched_normal_b is None else state.latched_normal_b[0]
+    values["_step4e_latched_normal_b_y"] = "" if state.latched_normal_b is None else state.latched_normal_b[1]
+    values["_step4e_latched_normal_b_z"] = "" if state.latched_normal_b is None else state.latched_normal_b[2]
+    values["_step4e_normal_load_n"] = normal_load_n
+    values["_step4e_normal_force_error_n"] = force_error
+    values["_step4e_normal_acquired"] = 1.0 if state.normal_acquired else 0.0
+    values["_step4e_line_stage_s"] = state.line_stage_s
     values["_step4e_contact_offset_x_m"] = contact_offset_x
     values["_step4e_contact_offset_y_m"] = contact_offset_y
     if speed and len(speed) >= 6:
@@ -611,6 +675,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--step4e-normal-command-sign", type=float, choices=(-1.0, 1.0), default=1.0)
     parser.add_argument("--step4e-integral-limit-n-s", type=float, default=10.0)
     parser.add_argument("--step4e-min-force-for-control-n", type=float, default=1.0)
+    parser.add_argument("--step4e-acquire-grace-s", type=float, default=0.25)
+    parser.add_argument("--step4e-reacquire-velocity-m-s", type=float, default=0.001)
     parser.add_argument("--step4e-orientation-gain", type=float, default=0.20)
     parser.add_argument("--step4e-angular-limit-rad-s", type=float, default=0.015)
     parser.add_argument("--step4e-contact-offset-min-fz-n", type=float, default=1.0)
@@ -631,6 +697,13 @@ def main(argv: list[str] | None = None) -> int:
     raw_path = args.output_dir / "raw_frames.bin"
     metadata_path = args.output_dir / "metadata.json"
     summary_path = args.output_dir / "summary.json"
+    stop_signal: dict[str, str | None] = {"name": None}
+
+    def request_stop(signum: int, _frame: Any) -> None:
+        stop_signal["name"] = signal.Signals(signum).name
+
+    signal.signal(signal.SIGINT, request_stop)
+    signal.signal(signal.SIGTERM, request_stop)
 
     dashboard: dict[str, str] | None = None
     if not args.skip_dashboard_preflight:
@@ -661,6 +734,7 @@ def main(argv: list[str] | None = None) -> int:
             "line_unit_xy": STEP4E_LINE_UNIT_XY,
             "kunwei_to_tcp": "F_T=[Fx_K,-Fy_K,-Fz_K], M_T=[Mx_K,-My_K,-Mz_K]",
             "tcp_contact_length_m": 0.1221,
+            "line_control_target": "latched contact normal load, not total force norm",
         },
     }
     write_json(metadata_path, metadata)
@@ -754,6 +828,13 @@ def main(argv: list[str] | None = None) -> int:
             "_step4e_normal_b_x",
             "_step4e_normal_b_y",
             "_step4e_normal_b_z",
+            "_step4e_latched_normal_b_x",
+            "_step4e_latched_normal_b_y",
+            "_step4e_latched_normal_b_z",
+            "_step4e_normal_load_n",
+            "_step4e_normal_force_error_n",
+            "_step4e_normal_acquired",
+            "_step4e_line_stage_s",
             "_step4e_contact_offset_x_m",
             "_step4e_contact_offset_y_m",
             "_step4e_actual_speed_norm_m_s",
@@ -777,6 +858,9 @@ def main(argv: list[str] | None = None) -> int:
 
             while True:
                 now = time.monotonic()
+                if stop_signal["name"] is not None:
+                    stop_reason = f"signal_{stop_signal['name'].lower()}"
+                    break
                 if now - start_mono >= args.duration_s:
                     stop_reason = "duration"
                     break

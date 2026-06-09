@@ -17,7 +17,9 @@ MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-20}"
 PROGRAM_PREVIEW="/programs/andyl/kunwei/step4/step4e_preview_line_${STEP4E_VERSION}.urp"
 PROGRAM_HOLD="/programs/andyl/kunwei/step4/step4e_contact_hold_line_${STEP4E_VERSION}.urp"
 PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_line_outerloop_${STEP4E_VERSION}.urp"
-if [[ "${STEP4E_VERSION}" == "v7" ]]; then
+if [[ "${STEP4E_VERSION}" == "v8" ]]; then
+  SEARCH_DESCRIPTION="two-stage search: far 15 mm/s for 80 mm, then near 3 mm/s for the final 12 mm, 92 mm max depth; v8 keeps v7 stopl(0.1) and uses latched-normal 5N line control"
+elif [[ "${STEP4E_VERSION}" == "v7" ]]; then
   SEARCH_DESCRIPTION="two-stage search: far 15 mm/s for 80 mm, then near 3 mm/s for the final 12 mm, 92 mm max depth; v7 keeps v6 normal command sign/30N guard and uses stopl(0.1)"
 elif [[ "${STEP4E_VERSION}" == "v6" ]]; then
   SEARCH_DESCRIPTION="two-stage search: far 15 mm/s for 80 mm, then near 3 mm/s for the final 12 mm, 92 mm max depth; v6 flips normal command sign to unload after contact"
@@ -310,6 +312,8 @@ run_bridge_for_mode() {
     --step4e-force-damping 0.35 \
     --step4e-normal-command-sign "${STEP4E_NORMAL_COMMAND_SIGN}" \
     --step4e-min-force-for-control-n 1.0 \
+    --step4e-acquire-grace-s 0.25 \
+    --step4e-reacquire-velocity-m-s 0.001 \
     --step4e-orientation-gain 0.20 \
     --step4e-angular-limit-rad-s 0.015 \
     --step4e-contact-offset-min-fz-n 1.0 \
