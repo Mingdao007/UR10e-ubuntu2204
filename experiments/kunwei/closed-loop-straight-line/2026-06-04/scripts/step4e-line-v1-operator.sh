@@ -17,7 +17,9 @@ MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-20}"
 PROGRAM_PREVIEW="/programs/andyl/kunwei/step4/step4e_preview_line_${STEP4E_VERSION}.urp"
 PROGRAM_HOLD="/programs/andyl/kunwei/step4/step4e_contact_hold_line_${STEP4E_VERSION}.urp"
 PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_line_outerloop_${STEP4E_VERSION}.urp"
-if [[ "${STEP4E_VERSION}" == "v6" ]]; then
+if [[ "${STEP4E_VERSION}" == "v7" ]]; then
+  SEARCH_DESCRIPTION="two-stage search: far 15 mm/s for 80 mm, then near 3 mm/s for the final 12 mm, 92 mm max depth; v7 keeps v6 normal command sign/30N guard and uses stopl(0.1)"
+elif [[ "${STEP4E_VERSION}" == "v6" ]]; then
   SEARCH_DESCRIPTION="two-stage search: far 15 mm/s for 80 mm, then near 3 mm/s for the final 12 mm, 92 mm max depth; v6 flips normal command sign to unload after contact"
 elif [[ "${STEP4E_VERSION}" == "v5" ]]; then
   SEARCH_DESCRIPTION="two-stage search: far 15 mm/s for 80 mm, then near 3 mm/s for the final 12 mm, 92 mm max depth"

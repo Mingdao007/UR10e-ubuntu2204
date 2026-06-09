@@ -247,7 +247,7 @@ codex_step4e_preview_line()
 
 
 def search_profile(version: str) -> dict[str, str]:
-    if version == "v6":
+    if version in {"v6", "v7"}:
         return {
             "comment": "two-stage deterministic search: far 15 mm/s, then near 3 mm/s with 12 mm slow-search margin; no force admittance before contact latch.",
             "accel": "0.300",
@@ -315,9 +315,10 @@ def search_profile(version: str) -> dict[str, str]:
 
 def contact_script(mode: str, stamp: str, gen_at: str, geom: dict, version: str) -> str:
     is_line = mode == "line"
-    enable_entry_rezero = version in {"v2", "v3", "v4", "v5", "v6"}
+    enable_entry_rezero = version in {"v2", "v3", "v4", "v5", "v6", "v7"}
     search = search_profile(version)
-    normal_guard_n = "30.0" if version == "v6" else "20.0"
+    normal_guard_n = "30.0" if version in {"v6", "v7"} else "20.0"
+    stop_decel = "0.1" if version == "v7" else "0.5"
     runtime_limit = 75.0 if is_line else 12.0
     end_check = f"""elif progress_m >= {fmt(geom['length'])}:
           stop_reason = 1.0""" if is_line else """elif t2 >= line_runtime_limit_s:
@@ -392,12 +393,12 @@ def codex_step4e_{program_label}_line():
     local p0 = get_actual_tcp_pose()
     local reference_orientation_pose = p[p0[0], p0[1], p0[2], ref_rx, ref_ry, ref_rz]
     movel(reference_orientation_pose, a=0.030, v=approach_speed_m_s, r=0.0)
-    stopl(0.5)
+    stopl({stop_decel})
     write_output_float_register(35, 22.0)
     local p1 = get_actual_tcp_pose()
     local entry_xy_pose = p[entry_x, entry_y, p1[2], ref_rx, ref_ry, ref_rz]
     movel(entry_xy_pose, a=0.030, v=approach_speed_m_s, r=0.0)
-    stopl(0.5)
+    stopl({stop_decel})
     sleep(0.20)
 {entry_rezero_block}    if stop_reason == 0.0:
       sleep(0.20)
@@ -456,7 +457,7 @@ def codex_step4e_{program_label}_line():
         end
       end
     end
-    stopl(0.5)
+    stopl({stop_decel})
   end
 
   if contact_triggered == 1:
@@ -506,7 +507,7 @@ def codex_step4e_{program_label}_line():
         end
       end
     end
-    stopl(0.5)
+    stopl({stop_decel})
   end
 
   if codex_should_auto_home(stop_reason):
@@ -515,11 +516,11 @@ def codex_step4e_{program_label}_line():
     local short_retract_pose = p[short_retract_start[0], short_retract_start[1], short_retract_start[2] + short_retract_z_m, short_retract_start[3], short_retract_start[4], short_retract_start[5]]
     codex_echo_step4e(stop_reason)
     movel(short_retract_pose, a=0.030, v=short_retract_speed_m_s, r=0.0)
-    stopl(0.5)
+    stopl({stop_decel})
     write_output_float_register(35, 27.0)
     codex_echo_step4e(stop_reason)
     movel(home_pose, a=0.030, v=home_return_speed_m_s, r=0.0)
-    stopl(0.5)
+    stopl({stop_decel})
   end
 
   write_output_float_register(30, stop_reason)
@@ -589,7 +590,7 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str) -> None:
         "cached stamp": stamp in xml,
         "step4e registers": "read_input_float_register(37)" in xml,
     }
-    if name.endswith(("_v2", "_v3", "_v4", "_v5", "_v6")) and "preview" not in name:
+    if name.endswith(("_v2", "_v3", "_v4", "_v5", "_v6", "_v7")) and "preview" not in name:
         checks.update(
             {
                 "entry rezero request": "write_output_float_register(34, 1.0)" in xml,
@@ -617,7 +618,7 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str) -> None:
                 "max search depth": "local max_search_down_m = 0.090" in xml,
             }
         )
-    if name.endswith(("_v5", "_v6")) and "preview" not in name:
+    if name.endswith(("_v5", "_v6", "_v7")) and "preview" not in name:
         checks.update(
             {
                 "far search speed": "local search_far_down_m_s = -0.015" in xml,
@@ -627,11 +628,18 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str) -> None:
                 "max search depth": "local max_search_down_m = 0.092" in xml,
             }
         )
-    if name.endswith("_v6") and "preview" not in name:
+    if name.endswith(("_v6", "_v7")) and "preview" not in name:
         checks.update(
             {
                 "normal guard": "codex_abs(normal_force) > 30.0" in script
                 and "codex_abs(normal_force) &gt; 30.0" in xml,
+            }
+        )
+    if name.endswith("_v7") and "preview" not in name:
+        checks.update(
+            {
+                "fast stop decel": "stopl(0.1)" in script and "stopl(0.1)" in xml,
+                "old stop decel removed": "stopl(0.5)" not in script and "stopl(0.5)" not in xml,
             }
         )
     failed = [label for label, ok in checks.items() if not ok]
@@ -641,7 +649,7 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--version", choices=("v1", "v2", "v3", "v4", "v5", "v6"), default="v2")
+    parser.add_argument("--version", choices=("v1", "v2", "v3", "v4", "v5", "v6", "v7"), default="v2")
     parser.add_argument("--stamp-prefix", default=None)
     args = parser.parse_args()
     now = datetime.now(timezone(timedelta(hours=8)))

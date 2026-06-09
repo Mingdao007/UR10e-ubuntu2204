@@ -306,7 +306,10 @@ def compute_step4e_values(
         motion_cmd = tuple(value * scale for value in motion_cmd)
 
     force_error = args.target_force_n - force_abs
-    if sensor_ok > 0.5 and force_abs >= args.step4e_min_force_for_control_n:
+    control_allowed = sensor_ok > 0.5 and (
+        force_abs >= args.step4e_min_force_for_control_n or args.step4e_mode == "line"
+    )
+    if control_allowed:
         state.integral_error_n_s = clamp(
             state.integral_error_n_s + force_error * dt_s,
             -args.step4e_integral_limit_n_s,
