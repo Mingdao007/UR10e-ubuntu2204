@@ -41,7 +41,7 @@ def program_specs(version: str) -> dict[str, dict[str, str]]:
             },
             **specs,
         }
-    if version == "v15":
+    if version in {"v15", "v16"}:
         return {"line": specs["line"]}
     return specs
 
@@ -260,6 +260,19 @@ codex_step4e_preview_line()
 
 
 def search_profile(version: str) -> dict[str, str]:
+    if version == "v16":
+        return {
+            "comment": "two-stage deterministic search directly after XY entry: far 15 mm/s, then near 3 mm/s with no fixed-Z pre-search movel; no force admittance before contact latch.",
+            "accel": "0.300",
+            "hold": "0.002",
+            "single_speed": "-0.003",
+            "far_speed": "-0.015",
+            "near_speed": "-0.003",
+            "near_start": "0.130",
+            "max_depth": "0.150",
+            "runtime": "40.0",
+            "two_stage": "True",
+        }
     if version in {"v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15"}:
         return {
             "comment": "two-stage deterministic search: far 15 mm/s, then near 3 mm/s with 12 mm slow-search margin; no force admittance before contact latch.",
@@ -343,9 +356,10 @@ def contact_script(mode: str, stamp: str, gen_at: str, geom: dict, version: str)
         "v13",
         "v14",
         "v15",
+        "v16",
     }
     search = search_profile(version)
-    if version in {"v14", "v15"}:
+    if version in {"v14", "v15", "v16"}:
         normal_guard_n = "50.0"
     elif version in {"v9", "v10", "v11", "v12", "v13"}:
         normal_guard_n = "100.0"
@@ -353,8 +367,8 @@ def contact_script(mode: str, stamp: str, gen_at: str, geom: dict, version: str)
         normal_guard_n = "30.0"
     else:
         normal_guard_n = "20.0"
-    torque_guard_nm = "1.0" if version in {"v9", "v10", "v11", "v12", "v13", "v14", "v15"} else "0.6"
-    stop_decel = "0.1" if version in {"v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15"} else "0.5"
+    torque_guard_nm = "1.0" if version in {"v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16"} else "0.6"
+    stop_decel = "0.1" if version in {"v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16"} else "0.5"
     runtime_limit = 75.0 if is_line else 12.0
     end_check = """elif end_hold_s >= end_hold_required_s:
           stop_reason = 1.0""" if is_line else """elif t2 >= line_runtime_limit_s:
@@ -708,6 +722,19 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str) -> None:
                 "max search depth": "local max_search_down_m = 0.092" in xml,
             }
         )
+    if name.endswith("_v16") and "preview" not in name:
+        checks.update(
+            {
+                "direct xy-to-search": "local fixed_search_start_z_m" not in script
+                and "write_output_float_register(35, 22.5)" not in script,
+                "far search speed": "local search_far_down_m_s = -0.015" in xml,
+                "near search speed": "local search_near_down_m_s = -0.003" in xml,
+                "near search stage": "write_output_float_register(35, 24.2)" in xml,
+                "near start depth": "local search_near_start_depth_m = 0.130" in xml,
+                "max search depth": "local max_search_down_m = 0.150" in xml,
+                "search runtime": "local search_runtime_limit_s = 40.0" in xml,
+            }
+        )
     if name.endswith(("_v6", "_v7", "_v8")) and "preview" not in name:
         checks.update(
             {
@@ -723,7 +750,7 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str) -> None:
                 "torque guard": "torque_norm > 1.0" in script and "torque_norm &gt; 1.0" in xml,
             }
         )
-    if name.endswith(("_v14", "_v15")) and "preview" not in name:
+    if name.endswith(("_v14", "_v15", "_v16")) and "preview" not in name:
         checks.update(
             {
                 "normal guard": "codex_abs(normal_force) > 50.0" in script
@@ -731,14 +758,14 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str) -> None:
                 "torque guard": "torque_norm > 1.0" in script and "torque_norm &gt; 1.0" in xml,
             }
         )
-    if name.endswith(("_v7", "_v8", "_v9", "_v10", "_v11", "_v12", "_v13", "_v14", "_v15")) and "preview" not in name:
+    if name.endswith(("_v7", "_v8", "_v9", "_v10", "_v11", "_v12", "_v13", "_v14", "_v15", "_v16")) and "preview" not in name:
         checks.update(
             {
                 "fast stop decel": "stopl(0.1)" in script and "stopl(0.1)" in xml,
                 "old stop decel removed": "stopl(0.5)" not in script and "stopl(0.5)" not in xml,
             }
         )
-    if name.endswith(("_v12", "_v13", "_v14", "_v15")) and "line_outerloop" in name:
+    if name.endswith(("_v12", "_v13", "_v14", "_v15", "_v16")) and "line_outerloop" in name:
         checks.update(
             {
                 "line success threshold": "local line_success_progress_m = " in script
@@ -759,7 +786,7 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str) -> None:
                 and "write_output_float_register(35, 22.5)" in xml,
             }
         )
-    if name.endswith("_v15") and "line_outerloop" in name:
+    if name.endswith(("_v15", "_v16")) and "line_outerloop" in name:
         checks.update(
             {
                 "cmd valid grace": "local cmd_valid_grace_s = 0.250" in script
@@ -777,7 +804,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--version",
-        choices=("v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15"),
+        choices=("v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16"),
         default="v2",
     )
     parser.add_argument("--stamp-prefix", default=None)
