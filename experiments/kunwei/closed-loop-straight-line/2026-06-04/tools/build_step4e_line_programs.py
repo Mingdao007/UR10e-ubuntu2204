@@ -204,10 +204,13 @@ end
 """
 
 
-def common_functions(normal_guard_n: str = "20.0") -> str:
-    return COMMON_FUNCTIONS.replace(
+def common_functions(normal_guard_n: str = "20.0", torque_guard_nm: str = "0.6") -> str:
+    return (
+        COMMON_FUNCTIONS.replace(
         "codex_abs(normal_force) > 20.0",
         f"codex_abs(normal_force) > {normal_guard_n}",
+    )
+        .replace("torque_norm > 0.6", f"torque_norm > {torque_guard_nm}")
     )
 
 
@@ -247,7 +250,7 @@ codex_step4e_preview_line()
 
 
 def search_profile(version: str) -> dict[str, str]:
-    if version in {"v6", "v7", "v8"}:
+    if version in {"v6", "v7", "v8", "v9"}:
         return {
             "comment": "two-stage deterministic search: far 15 mm/s, then near 3 mm/s with 12 mm slow-search margin; no force admittance before contact latch.",
             "accel": "0.300",
@@ -315,10 +318,11 @@ def search_profile(version: str) -> dict[str, str]:
 
 def contact_script(mode: str, stamp: str, gen_at: str, geom: dict, version: str) -> str:
     is_line = mode == "line"
-    enable_entry_rezero = version in {"v2", "v3", "v4", "v5", "v6", "v7", "v8"}
+    enable_entry_rezero = version in {"v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9"}
     search = search_profile(version)
-    normal_guard_n = "30.0" if version in {"v6", "v7", "v8"} else "20.0"
-    stop_decel = "0.1" if version in {"v7", "v8"} else "0.5"
+    normal_guard_n = "100.0" if version == "v9" else "30.0" if version in {"v6", "v7", "v8"} else "20.0"
+    torque_guard_nm = "1.0" if version == "v9" else "0.6"
+    stop_decel = "0.1" if version in {"v7", "v8", "v9"} else "0.5"
     runtime_limit = 75.0 if is_line else 12.0
     end_check = f"""elif progress_m >= {fmt(geom['length'])}:
           stop_reason = 1.0""" if is_line else """elif t2 >= line_runtime_limit_s:
@@ -348,7 +352,7 @@ def contact_script(mode: str, stamp: str, gen_at: str, geom: dict, version: str)
 # SEARCH: {search['comment']}
 # {rezero_comment}
 # SAFETY: raw guards use registers 24..30; recoverable stops retract 10 mm then return home.
-{common_functions(normal_guard_n)}
+{common_functions(normal_guard_n, torque_guard_nm)}
 
 def codex_step4e_{program_label}_line():
   local entry_x = {fmt(geom['start_x'])}
@@ -590,7 +594,7 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str) -> None:
         "cached stamp": stamp in xml,
         "step4e registers": "read_input_float_register(37)" in xml,
     }
-    if name.endswith(("_v2", "_v3", "_v4", "_v5", "_v6", "_v7", "_v8")) and "preview" not in name:
+    if name.endswith(("_v2", "_v3", "_v4", "_v5", "_v6", "_v7", "_v8", "_v9")) and "preview" not in name:
         checks.update(
             {
                 "entry rezero request": "write_output_float_register(34, 1.0)" in xml,
@@ -618,7 +622,7 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str) -> None:
                 "max search depth": "local max_search_down_m = 0.090" in xml,
             }
         )
-    if name.endswith(("_v5", "_v6", "_v7", "_v8")) and "preview" not in name:
+    if name.endswith(("_v5", "_v6", "_v7", "_v8", "_v9")) and "preview" not in name:
         checks.update(
             {
                 "far search speed": "local search_far_down_m_s = -0.015" in xml,
@@ -635,7 +639,15 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str) -> None:
                 and "codex_abs(normal_force) &gt; 30.0" in xml,
             }
         )
-    if name.endswith(("_v7", "_v8")) and "preview" not in name:
+    if name.endswith("_v9") and "preview" not in name:
+        checks.update(
+            {
+                "normal guard": "codex_abs(normal_force) > 100.0" in script
+                and "codex_abs(normal_force) &gt; 100.0" in xml,
+                "torque guard": "torque_norm > 1.0" in script and "torque_norm &gt; 1.0" in xml,
+            }
+        )
+    if name.endswith(("_v7", "_v8", "_v9")) and "preview" not in name:
         checks.update(
             {
                 "fast stop decel": "stopl(0.1)" in script and "stopl(0.1)" in xml,
@@ -649,7 +661,7 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--version", choices=("v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8"), default="v2")
+    parser.add_argument("--version", choices=("v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9"), default="v2")
     parser.add_argument("--stamp-prefix", default=None)
     args = parser.parse_args()
     now = datetime.now(timezone(timedelta(hours=8)))
