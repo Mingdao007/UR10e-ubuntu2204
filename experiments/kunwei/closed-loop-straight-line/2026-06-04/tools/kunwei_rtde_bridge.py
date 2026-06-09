@@ -43,7 +43,7 @@ from capture_kunwei_kwr75_1khz import (  # noqa: E402
 from _ur_common import RTDEClient, dashboard_exchange  # noqa: E402
 
 
-INPUT_FIELDS = [
+BASE_INPUT_FIELDS = [
     "input_double_register_24",
     "input_double_register_25",
     "input_double_register_26",
@@ -58,7 +58,7 @@ INPUT_FIELDS = [
     "input_double_register_35",
     "input_double_register_36",
 ]
-INPUT_NAMES = [
+BASE_INPUT_NAMES = [
     "normal_force_n",
     "force_norm_n",
     "heartbeat",
@@ -73,6 +73,34 @@ INPUT_NAMES = [
     "my_nm_zeroed",
     "mz_nm_zeroed",
 ]
+STEP4E_INPUT_FIELDS = [
+    "input_double_register_37",
+    "input_double_register_38",
+    "input_double_register_39",
+    "input_double_register_40",
+    "input_double_register_41",
+    "input_double_register_42",
+    "input_double_register_43",
+    "input_double_register_44",
+    "input_double_register_45",
+    "input_double_register_46",
+    "input_double_register_47",
+]
+STEP4E_INPUT_NAMES = [
+    "step4e_cmd_vx_m_s",
+    "step4e_cmd_vy_m_s",
+    "step4e_cmd_vz_m_s",
+    "step4e_cmd_wx_rad_s",
+    "step4e_cmd_wy_rad_s",
+    "step4e_cmd_wz_rad_s",
+    "step4e_cmd_valid",
+    "step4e_progress_m",
+    "step4e_force_error_n",
+    "step4e_orientation_error_rad",
+    "step4e_controller_state",
+]
+INPUT_FIELDS = BASE_INPUT_FIELDS + STEP4E_INPUT_FIELDS
+INPUT_NAMES = BASE_INPUT_NAMES + STEP4E_INPUT_NAMES
 OUTPUT_FIELDS = [
     "actual_TCP_pose",
     "actual_TCP_speed",
@@ -92,7 +120,30 @@ OUTPUT_FIELDS = [
     "output_double_register_33",
     "output_double_register_34",
     "output_double_register_35",
+    "output_double_register_36",
+    "output_double_register_37",
+    "output_double_register_38",
+    "output_double_register_39",
+    "output_double_register_40",
+    "output_double_register_41",
+    "output_double_register_42",
+    "output_double_register_43",
+    "output_double_register_44",
+    "output_double_register_45",
+    "output_double_register_46",
+    "output_double_register_47",
 ]
+
+
+STEP4E_START_XY = (0.43301, 0.10802)
+STEP4E_END_XY = (0.49274, 0.23877)
+STEP4E_LINE_DX = STEP4E_END_XY[0] - STEP4E_START_XY[0]
+STEP4E_LINE_DY = STEP4E_END_XY[1] - STEP4E_START_XY[1]
+STEP4E_LINE_LENGTH_M = math.hypot(STEP4E_LINE_DX, STEP4E_LINE_DY)
+STEP4E_LINE_UNIT_XY = (
+    STEP4E_LINE_DX / STEP4E_LINE_LENGTH_M,
+    STEP4E_LINE_DY / STEP4E_LINE_LENGTH_M,
+)
 
 
 def now_stamp() -> str:
@@ -109,8 +160,215 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     tmp.replace(path)
 
 
+def csv_value(value: Any) -> str:
+    if value == "":
+        return ""
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            return ""
+        return f"{value:.9g}"
+    if isinstance(value, int):
+        return str(value)
+    return str(value)
+
+
 def vec_norm(values: list[float]) -> float:
     return math.sqrt(sum(value * value for value in values))
+
+
+def clamp(value: float, lo: float, hi: float) -> float:
+    return min(max(value, lo), hi)
+
+
+def dot3(a: tuple[float, float, float] | list[float], b: tuple[float, float, float] | list[float]) -> float:
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+
+
+def cross3(
+    a: tuple[float, float, float] | list[float],
+    b: tuple[float, float, float] | list[float],
+) -> tuple[float, float, float]:
+    return (
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    )
+
+
+def norm3(values: tuple[float, float, float] | list[float]) -> float:
+    return math.sqrt(dot3(values, values))
+
+
+def normalize3(
+    values: tuple[float, float, float] | list[float],
+    fallback: tuple[float, float, float] = (0.0, 0.0, 1.0),
+) -> tuple[float, float, float]:
+    length = norm3(values)
+    if length < 1e-9:
+        return fallback
+    return (values[0] / length, values[1] / length, values[2] / length)
+
+
+def mat_vec3(matrix: list[list[float]], vector: tuple[float, float, float] | list[float]) -> tuple[float, float, float]:
+    return (
+        dot3(matrix[0], vector),
+        dot3(matrix[1], vector),
+        dot3(matrix[2], vector),
+    )
+
+
+def rotvec_to_matrix(rx: float, ry: float, rz: float) -> list[list[float]]:
+    theta = math.sqrt(rx * rx + ry * ry + rz * rz)
+    if theta < 1e-12:
+        return [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+    kx, ky, kz = rx / theta, ry / theta, rz / theta
+    c = math.cos(theta)
+    s = math.sin(theta)
+    v = 1.0 - c
+    return [
+        [c + kx * kx * v, kx * ky * v - kz * s, kx * kz * v + ky * s],
+        [ky * kx * v + kz * s, c + ky * ky * v, ky * kz * v - kx * s],
+        [kz * kx * v - ky * s, kz * ky * v + kx * s, c + kz * kz * v],
+    ]
+
+
+def kunwei_to_tcp_wrench(values_si_zeroed: list[float]) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+    force_t = (values_si_zeroed[0], -values_si_zeroed[1], -values_si_zeroed[2])
+    torque_t = (values_si_zeroed[3], -values_si_zeroed[4], -values_si_zeroed[5])
+    return force_t, torque_t
+
+
+def step4e_zero_values() -> dict[str, float]:
+    return {name: 0.0 for name in STEP4E_INPUT_NAMES}
+
+
+class Step4EState:
+    def __init__(self) -> None:
+        self.integral_error_n_s = 0.0
+        self.normal_velocity_m_s = 0.0
+
+
+def compute_step4e_values(
+    args: argparse.Namespace,
+    latest_zeroed: list[float],
+    latest_output: dict[str, Any] | None,
+    sensor_ok: float,
+    state: Step4EState,
+    dt_s: float,
+) -> dict[str, float]:
+    values = step4e_zero_values()
+    if args.step4e_mode == "off" or latest_output is None:
+        return values
+
+    pose = latest_output.get("actual_TCP_pose")
+    speed = latest_output.get("actual_TCP_speed")
+    if not pose or len(pose) < 6:
+        values["step4e_controller_state"] = 2.0
+        return values
+
+    force_t, torque_t = kunwei_to_tcp_wrench(latest_zeroed)
+    force_abs = norm3(force_t)
+    contact_offset_x = ""
+    contact_offset_y = ""
+    if abs(force_t[2]) > args.step4e_contact_offset_min_fz_n:
+        contact_offset_x = -torque_t[1] / force_t[2]
+        contact_offset_y = torque_t[0] / force_t[2]
+
+    rotation = rotvec_to_matrix(float(pose[3]), float(pose[4]), float(pose[5]))
+    force_b = mat_vec3(rotation, force_t)
+    n_reaction_b = normalize3(force_b)
+    tcp_z_axis_b = (rotation[0][2], rotation[1][2], rotation[2][2])
+    orientation_axis = cross3(tcp_z_axis_b, n_reaction_b)
+    orientation_error = math.asin(clamp(norm3(orientation_axis), -1.0, 1.0))
+    orientation_cmd = tuple(args.step4e_orientation_gain * value for value in orientation_axis)
+    orientation_norm = norm3(orientation_cmd)
+    if orientation_norm > args.step4e_angular_limit_rad_s:
+        scale = args.step4e_angular_limit_rad_s / orientation_norm
+        orientation_cmd = tuple(value * scale for value in orientation_cmd)
+
+    path_x = float(pose[0]) - STEP4E_START_XY[0]
+    path_y = float(pose[1]) - STEP4E_START_XY[1]
+    progress = clamp(path_x * STEP4E_LINE_UNIT_XY[0] + path_y * STEP4E_LINE_UNIT_XY[1], 0.0, STEP4E_LINE_LENGTH_M)
+    desired_x = STEP4E_START_XY[0] + progress * STEP4E_LINE_UNIT_XY[0]
+    desired_y = STEP4E_START_XY[1] + progress * STEP4E_LINE_UNIT_XY[1]
+    path_error = (desired_x - float(pose[0]), desired_y - float(pose[1]), 0.0)
+    tangent_speed = args.step4e_line_speed_m_s if args.step4e_mode == "line" else 0.0
+    base_motion = (
+        tangent_speed * STEP4E_LINE_UNIT_XY[0] + args.step4e_path_p_gain * path_error[0],
+        tangent_speed * STEP4E_LINE_UNIT_XY[1] + args.step4e_path_p_gain * path_error[1],
+        0.0,
+    )
+    normal_projection = dot3(base_motion, n_reaction_b)
+    motion_cmd = tuple(base_motion[idx] - normal_projection * n_reaction_b[idx] for idx in range(3))
+    motion_norm = norm3(motion_cmd)
+    if motion_norm > args.step4e_motion_limit_m_s:
+        scale = args.step4e_motion_limit_m_s / motion_norm
+        motion_cmd = tuple(value * scale for value in motion_cmd)
+
+    force_error = args.target_force_n - force_abs
+    if sensor_ok > 0.5 and force_abs >= args.step4e_min_force_for_control_n:
+        state.integral_error_n_s = clamp(
+            state.integral_error_n_s + force_error * dt_s,
+            -args.step4e_integral_limit_n_s,
+            args.step4e_integral_limit_n_s,
+        )
+        accel_like = (
+            args.step4e_force_p_gain * force_error
+            + args.step4e_force_i_gain * state.integral_error_n_s
+            - args.step4e_force_damping * state.normal_velocity_m_s
+        )
+        state.normal_velocity_m_s = clamp(
+            state.normal_velocity_m_s + accel_like * dt_s,
+            -args.step4e_normal_velocity_limit_m_s,
+            args.step4e_normal_velocity_limit_m_s,
+        )
+        force_cmd = tuple(-n_reaction_b[idx] * state.normal_velocity_m_s for idx in range(3))
+        cmd = tuple(motion_cmd[idx] + force_cmd[idx] for idx in range(3))
+        cmd_norm = norm3(cmd)
+        if cmd_norm > args.step4e_total_linear_limit_m_s:
+            scale = args.step4e_total_linear_limit_m_s / cmd_norm
+            cmd = tuple(value * scale for value in cmd)
+        values.update(
+            {
+                "step4e_cmd_vx_m_s": cmd[0],
+                "step4e_cmd_vy_m_s": cmd[1],
+                "step4e_cmd_vz_m_s": cmd[2],
+                "step4e_cmd_wx_rad_s": orientation_cmd[0],
+                "step4e_cmd_wy_rad_s": orientation_cmd[1],
+                "step4e_cmd_wz_rad_s": 0.0,
+                "step4e_cmd_valid": 0.0 if args.step4e_mode == "preview" else 1.0,
+                "step4e_progress_m": progress,
+                "step4e_force_error_n": force_error,
+                "step4e_orientation_error_rad": orientation_error,
+                "step4e_controller_state": {"preview": 10.0, "hold": 20.0, "line": 30.0}[args.step4e_mode],
+            }
+        )
+    else:
+        state.integral_error_n_s = 0.0
+        state.normal_velocity_m_s = 0.0
+        values.update(
+            {
+                "step4e_progress_m": progress,
+                "step4e_force_error_n": force_error,
+                "step4e_orientation_error_rad": orientation_error,
+                "step4e_controller_state": 1.0,
+            }
+        )
+
+    values["_step4e_force_t_x"] = force_t[0]
+    values["_step4e_force_t_y"] = force_t[1]
+    values["_step4e_force_t_z"] = force_t[2]
+    values["_step4e_force_b_x"] = force_b[0]
+    values["_step4e_force_b_y"] = force_b[1]
+    values["_step4e_force_b_z"] = force_b[2]
+    values["_step4e_normal_b_x"] = n_reaction_b[0]
+    values["_step4e_normal_b_y"] = n_reaction_b[1]
+    values["_step4e_normal_b_z"] = n_reaction_b[2]
+    values["_step4e_contact_offset_x_m"] = contact_offset_x
+    values["_step4e_contact_offset_y_m"] = contact_offset_y
+    if speed and len(speed) >= 6:
+        values["_step4e_actual_speed_norm_m_s"] = norm3([float(speed[0]), float(speed[1]), float(speed[2])])
+    return values
 
 
 def stats(values: list[float]) -> dict[str, Any]:
@@ -222,6 +480,33 @@ class RTDEBridgeClient(RTDEClient):
         return {field: value for field, value in zip(OUTPUT_FIELDS, values)}
 
 
+def open_rtde_bridge(args: argparse.Namespace) -> tuple[RTDEBridgeClient, int, list[str], int, list[str]]:
+    rtde = RTDEBridgeClient(args.robot_host, timeout=args.connect_timeout_s)
+    rtde.__enter__()
+    try:
+        rtde.negotiate()
+        output_recipe, output_types = rtde.setup_outputs(args.rtde_hz, OUTPUT_FIELDS)
+        input_recipe, input_types = rtde.setup_inputs(INPUT_FIELDS)
+        rtde.start()
+    except Exception:
+        rtde.__exit__(None, None, None)
+        raise
+    return rtde, input_recipe, input_types, output_recipe, output_types
+
+
+def close_rtde_bridge(rtde: RTDEBridgeClient | None) -> None:
+    if rtde is None:
+        return
+    try:
+        rtde.__exit__(None, None, None)
+    except (OSError, RuntimeError, socket.timeout):
+        pass
+
+
+def rtde_error_name(exc: BaseException) -> str:
+    return f"{type(exc).__name__}: {exc}"
+
+
 def rtde_struct_format(type_name: str) -> str:
     mapping = {
         "DOUBLE": "d",
@@ -308,6 +593,20 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max-torque-norm-nm", type=float, default=0.6)
     parser.add_argument("--sensor-stale-s", type=float, default=0.08)
     parser.add_argument("--rezero-s", type=float, default=1.0)
+    parser.add_argument("--step4e-mode", choices=("off", "preview", "hold", "line"), default="off")
+    parser.add_argument("--step4e-line-speed-m-s", type=float, default=0.003)
+    parser.add_argument("--step4e-path-p-gain", type=float, default=1.5)
+    parser.add_argument("--step4e-motion-limit-m-s", type=float, default=0.004)
+    parser.add_argument("--step4e-total-linear-limit-m-s", type=float, default=0.006)
+    parser.add_argument("--step4e-normal-velocity-limit-m-s", type=float, default=0.003)
+    parser.add_argument("--step4e-force-p-gain", type=float, default=0.0007)
+    parser.add_argument("--step4e-force-i-gain", type=float, default=0.00008)
+    parser.add_argument("--step4e-force-damping", type=float, default=0.35)
+    parser.add_argument("--step4e-integral-limit-n-s", type=float, default=10.0)
+    parser.add_argument("--step4e-min-force-for-control-n", type=float, default=1.0)
+    parser.add_argument("--step4e-orientation-gain", type=float, default=0.20)
+    parser.add_argument("--step4e-angular-limit-rad-s", type=float, default=0.015)
+    parser.add_argument("--step4e-contact-offset-min-fz-n", type=float, default=1.0)
     return parser.parse_args(argv)
 
 
@@ -347,6 +646,15 @@ def main(argv: list[str] | None = None) -> int:
             "no Kunwei zero/tare/config write",
         ],
         "register_map": dict(zip(INPUT_FIELDS, INPUT_NAMES)),
+        "step4e_path": {
+            "type": "line_from_two_tcp_points",
+            "start_xy_m": STEP4E_START_XY,
+            "end_xy_m": STEP4E_END_XY,
+            "line_length_m": STEP4E_LINE_LENGTH_M,
+            "line_unit_xy": STEP4E_LINE_UNIT_XY,
+            "kunwei_to_tcp": "F_T=[Fx_K,-Fy_K,-Fz_K], M_T=[Mx_K,-My_K,-Mz_K]",
+            "tcp_contact_length_m": 0.1221,
+        },
     }
     write_json(metadata_path, metadata)
 
@@ -377,12 +685,15 @@ def main(argv: list[str] | None = None) -> int:
     bridge_write_times: list[float] = []
     rtde_output_times: list[float] = []
     echo_transition_times: list[float] = []
+    rtde_reconnect_events: list[dict[str, Any]] = []
+    next_rtde_reconnect_mono = start_mono
     last_echo_heartbeat: float | None = None
     normals: list[float] = []
     force_norms: list[float] = []
     torque_norms: list[float] = []
     zero_events: list[dict[str, Any]] = []
     buffer = bytearray()
+    step4e_state = Step4EState()
 
     next_write = start_mono
     write_period = 1.0 / args.rtde_hz
@@ -394,12 +705,7 @@ def main(argv: list[str] | None = None) -> int:
             sock.sendall(START_STREAM)
 
         if args.write_rtde_inputs:
-            rtde = RTDEBridgeClient(args.robot_host, timeout=args.connect_timeout_s)
-            rtde.__enter__()
-            rtde.negotiate()
-            rtde_output_recipe, rtde_output_types = rtde.setup_outputs(args.rtde_hz, OUTPUT_FIELDS)
-            rtde_input_recipe, rtde_input_types = rtde.setup_inputs(INPUT_FIELDS)
-            rtde.start()
+            rtde, rtde_input_recipe, rtde_input_types, rtde_output_recipe, rtde_output_types = open_rtde_bridge(args)
 
         sensor_fields = [
             "sample_index",
@@ -427,26 +733,26 @@ def main(argv: list[str] | None = None) -> int:
             "baseline_ready",
             "baseline_epoch",
             "last_zero_request",
+            "rtde_connected",
+            "rtde_reconnects",
+        ]
+        step4e_diag_fields = [
+            "_step4e_force_t_x",
+            "_step4e_force_t_y",
+            "_step4e_force_t_z",
+            "_step4e_force_b_x",
+            "_step4e_force_b_y",
+            "_step4e_force_b_z",
+            "_step4e_normal_b_x",
+            "_step4e_normal_b_y",
+            "_step4e_normal_b_z",
+            "_step4e_contact_offset_x_m",
+            "_step4e_contact_offset_y_m",
+            "_step4e_actual_speed_norm_m_s",
         ]
         bridge_output_fields = [f"ur_{field}_{idx}" for field in ["actual_TCP_pose", "actual_TCP_speed"] for idx in range(6)]
-        bridge_output_fields += [
-            "ur_runtime_state",
-            "ur_robot_mode",
-            "ur_safety_mode",
-            "ur_speed_scaling",
-            "ur_output_double_register_24",
-            "ur_output_double_register_25",
-            "ur_output_double_register_26",
-            "ur_output_double_register_27",
-            "ur_output_double_register_28",
-            "ur_output_double_register_29",
-            "ur_output_double_register_30",
-            "ur_output_double_register_31",
-            "ur_output_double_register_32",
-            "ur_output_double_register_33",
-            "ur_output_double_register_34",
-            "ur_output_double_register_35",
-        ]
+        bridge_output_fields += ["ur_runtime_state", "ur_robot_mode", "ur_safety_mode", "ur_speed_scaling"]
+        bridge_output_fields += [f"ur_output_double_register_{idx}" for idx in range(24, 48)]
 
         with (
             sensor_csv_path.open("w", newline="", encoding="utf-8") as sensor_handle,
@@ -454,7 +760,10 @@ def main(argv: list[str] | None = None) -> int:
             raw_path.open("wb") as raw_handle,
         ):
             sensor_writer = csv.DictWriter(sensor_handle, fieldnames=sensor_fields)
-            bridge_writer = csv.DictWriter(bridge_handle, fieldnames=bridge_fields + bridge_output_fields)
+            bridge_writer = csv.DictWriter(
+                bridge_handle,
+                fieldnames=bridge_fields + step4e_diag_fields + bridge_output_fields,
+            )
             sensor_writer.writeheader()
             bridge_writer.writeheader()
 
@@ -533,8 +842,45 @@ def main(argv: list[str] | None = None) -> int:
                     stop_reason = "socket_closed"
                     break
 
+                if args.write_rtde_inputs and rtde is None and now >= next_rtde_reconnect_mono:
+                    try:
+                        rtde, rtde_input_recipe, rtde_input_types, rtde_output_recipe, rtde_output_types = open_rtde_bridge(args)
+                        rtde_reconnect_events.append(
+                            {
+                                "event": "reconnected",
+                                "at_monotonic_s": now,
+                                "count": len(rtde_reconnect_events) + 1,
+                            }
+                        )
+                    except (OSError, RuntimeError, socket.timeout) as exc:
+                        rtde_reconnect_events.append(
+                            {
+                                "event": "reconnect_failed",
+                                "at_monotonic_s": now,
+                                "error": rtde_error_name(exc),
+                                "count": len(rtde_reconnect_events) + 1,
+                            }
+                        )
+                        close_rtde_bridge(rtde)
+                        rtde = None
+                        next_rtde_reconnect_mono = now + 0.05
+
                 if rtde is not None:
-                    sample = rtde.recv_available_sample(rtde_output_recipe, rtde_output_types)
+                    try:
+                        sample = rtde.recv_available_sample(rtde_output_recipe, rtde_output_types)
+                    except (OSError, RuntimeError, socket.timeout) as exc:
+                        rtde_reconnect_events.append(
+                            {
+                                "event": "recv_failed",
+                                "at_monotonic_s": now,
+                                "error": rtde_error_name(exc),
+                                "count": len(rtde_reconnect_events) + 1,
+                            }
+                        )
+                        close_rtde_bridge(rtde)
+                        rtde = None
+                        next_rtde_reconnect_mono = now + 0.05
+                        sample = None
                     if sample is not None:
                         latest_output = sample
                         rtde_output_time = time.monotonic()
@@ -581,28 +927,56 @@ def main(argv: list[str] | None = None) -> int:
                         "my_nm_zeroed": latest_zeroed[4],
                         "mz_nm_zeroed": latest_zeroed[5],
                     }
+                    step4e_values = compute_step4e_values(
+                        args,
+                        latest_zeroed,
+                        latest_output,
+                        sensor_ok,
+                        step4e_state,
+                        write_period,
+                    )
+                    for name in STEP4E_INPUT_NAMES:
+                        bridge_values[name] = float(step4e_values.get(name, 0.0))
                     if sensor_ok:
                         guard_reason = guard_stop_reason(args, bridge_values)
                         if guard_reason is not None:
                             bridge_values["stop_request"] = 1.0
                             stop_request = 1.0
                             stop_reason = guard_reason
+                    rtde_connected = rtde is not None
                     if rtde is not None:
-                        rtde.send_input_sample(
-                            rtde_input_recipe,
-                            rtde_input_types,
-                            [bridge_values[name] for name in INPUT_NAMES],
-                        )
+                        try:
+                            rtde.send_input_sample(
+                                rtde_input_recipe,
+                                rtde_input_types,
+                                [bridge_values[name] for name in INPUT_NAMES],
+                            )
+                        except (OSError, RuntimeError, socket.timeout) as exc:
+                            rtde_reconnect_events.append(
+                                {
+                                    "event": "send_failed",
+                                    "at_monotonic_s": now,
+                                    "error": rtde_error_name(exc),
+                                    "count": len(rtde_reconnect_events) + 1,
+                                }
+                            )
+                            close_rtde_bridge(rtde)
+                            rtde = None
+                            rtde_connected = False
+                            next_rtde_reconnect_mono = now + 0.05
                     row = {
                         "write_index": bridge_writes + 1,
                         "t_wall_ns": time.time_ns(),
                         "t_monotonic_s": f"{now:.9f}",
                         "sensor_age_s": sensor_age if math.isfinite(sensor_age) else "",
-                        **{key: f"{value:.9g}" for key, value in bridge_values.items()},
+                        **{key: csv_value(value) for key, value in bridge_values.items()},
+                        **{key: csv_value(step4e_values.get(key, "")) for key in step4e_diag_fields},
                         "guard_reason": guard_reason or "",
                         "baseline_ready": int(baseline_ready),
                         "baseline_epoch": baseline_epoch,
                         "last_zero_request": "" if last_zero_request is None else last_zero_request,
+                        "rtde_connected": int(rtde_connected),
+                        "rtde_reconnects": len(rtde_reconnect_events),
                     }
                     row.update(flatten_output(latest_output))
                     bridge_writer.writerow(row)
@@ -620,8 +994,7 @@ def main(argv: list[str] | None = None) -> int:
                 pass
         if sock is not None:
             sock.close()
-        if rtde is not None:
-            rtde.__exit__(None, None, None)
+        close_rtde_bridge(rtde)
 
     summary = {
         "finished_at": datetime.now().isoformat(timespec="seconds"),
@@ -639,6 +1012,8 @@ def main(argv: list[str] | None = None) -> int:
         "baseline_epoch": baseline_epoch,
         "last_zero_request": last_zero_request,
         "zero_events": zero_events,
+        "rtde_reconnect_events": rtde_reconnect_events,
+        "rtde_reconnect_event_count": len(rtde_reconnect_events),
         "baseline_si_offsets": dict(zip(["fx_n", "fy_n", "fz_n", "mx_nm", "my_nm", "mz_nm"], baseline)),
         "normal_force_stats_n": stats(normals),
         "force_norm_stats_n": stats(force_norms),

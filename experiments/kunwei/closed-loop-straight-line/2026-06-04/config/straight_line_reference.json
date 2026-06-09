@@ -34,9 +34,27 @@
       "attitude_control": "bounded force/torque-based paper-first compliance proxy"
     }
   },
+  "step4e_line": {
+    "source": "user TP Move screenshots IMG_1740.JPG and IMG_1741.JPG on 2026-06-09",
+    "type": "line_from_two_tcp_points",
+    "start_label": "lower/start",
+    "end_label": "higher/end",
+    "start_tcp_pose_m_rad": [0.43301, 0.10802, -0.39179, 3.133, 0.529, 0.191],
+    "end_tcp_pose_m_rad": [0.49274, 0.23877, -0.38146, 2.968, 0.717, 0.007],
+    "path_frame": "base_xy_projection",
+    "z_policy": "force_control_not_interpolated",
+    "xy_unit_vector": [0.415512246, 0.909587417],
+    "xy_length_m": 0.143751504,
+    "first_version_policy": {
+      "trajectory": "straight line in XY projection from start to end",
+      "ik_owner": "UR controller through speedl Cartesian twist",
+      "normal_control": "Step4e bridge computes paper-style force-motion outer loop",
+      "attitude_control": "force-normal roll/pitch compliance, yaw frozen"
+    }
+  },
   "robot_state_policy": {
     "keep_existing_tcp_payload": true,
-    "current_tcp_z_mm_used_as_field_state": 122.5,
+    "current_tcp_z_mm_used_as_field_state": 122.1,
     "do_not_write_tcp": true,
     "do_not_write_payload": true,
     "do_not_call_zero_ftsensor": true
@@ -93,15 +111,19 @@
       "tangent_speed_m_s": 0.01
     },
     "normal_velocity_gain_m_per_s_per_n": 0.0004,
+    "normal_velocity_p_gain_m_per_s_per_n": 0.0004,
+    "normal_velocity_i_gain_m_per_s_per_n_s": 0.00008,
     "normal_velocity_limit_m_s": 0.003,
+    "normal_force_filter_alpha": 0.25,
+    "integral_error_limit_n_s": 10.0,
     "normal_axis_base": [0.0, 0.0, 1.0],
-    "closed_loop_control_period_s": 0.008,
+    "closed_loop_control_period_s": 0.002,
     "python_rtde_write_rate_hz": 125.0
   },
   "guards": {
     "heartbeat_stale_s": 0.08,
     "normal_force_abs_max_n": 12.0,
-    "force_norm_abs_max_n": 15.0,
+    "force_norm_abs_max_n": 50.0,
     "torque_norm_abs_max_nm": 0.6,
     "normal_correction_abs_max_m": 0.008,
     "path_progress_min_m": -0.003,
