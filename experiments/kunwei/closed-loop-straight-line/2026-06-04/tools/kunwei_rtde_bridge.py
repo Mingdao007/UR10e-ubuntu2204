@@ -331,6 +331,8 @@ def compute_step4e_values(
     desired_y = STEP4E_START_XY[1] + progress * STEP4E_LINE_UNIT_XY[1]
     path_error = (desired_x - float(pose[0]), desired_y - float(pose[1]), 0.0)
     tangent_speed = args.step4e_line_speed_m_s if args.step4e_mode == "line" else 0.0
+    if line_stage_active and state.line_stage_s <= args.step4e_line_settle_s:
+        tangent_speed = 0.0
     base_motion = (
         tangent_speed * STEP4E_LINE_UNIT_XY[0] + args.step4e_path_p_gain * path_error[0],
         tangent_speed * STEP4E_LINE_UNIT_XY[1] + args.step4e_path_p_gain * path_error[1],
@@ -356,6 +358,8 @@ def compute_step4e_values(
         or (args.step4e_mode == "line" and state.normal_acquired)
         or line_grace_valid
     )
+    if args.step4e_integrate_stage25_only and args.step4e_mode == "line" and not line_stage_active:
+        control_allowed = False
     if control_allowed:
         if args.step4e_mode == "line" and not state.normal_acquired:
             cmd = (0.0, 0.0, 0.0)
@@ -669,6 +673,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--rezero-s", type=float, default=1.0)
     parser.add_argument("--step4e-mode", choices=("off", "preview", "hold", "line"), default="off")
     parser.add_argument("--step4e-line-speed-m-s", type=float, default=0.003)
+    parser.add_argument("--step4e-line-settle-s", type=float, default=0.0)
+    parser.add_argument("--step4e-integrate-stage25-only", action="store_true")
     parser.add_argument("--step4e-path-p-gain", type=float, default=1.5)
     parser.add_argument("--step4e-motion-limit-m-s", type=float, default=0.004)
     parser.add_argument("--step4e-total-linear-limit-m-s", type=float, default=0.006)

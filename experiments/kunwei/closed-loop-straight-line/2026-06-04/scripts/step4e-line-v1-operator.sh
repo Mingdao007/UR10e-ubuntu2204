@@ -17,11 +17,22 @@ MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-0.6}"
 STEP4E_ORIENTATION_GAIN="${STEP4E_ORIENTATION_GAIN:-0.20}"
 STEP4E_ORIENTATION_WX_SIGN="${STEP4E_ORIENTATION_WX_SIGN:-1}"
 STEP4E_ORIENTATION_WY_SIGN="${STEP4E_ORIENTATION_WY_SIGN:-1}"
+STEP4E_LINE_SPEED_M_S="${STEP4E_LINE_SPEED_M_S:-0.003}"
+STEP4E_LINE_SETTLE_S="${STEP4E_LINE_SETTLE_S:-0.0}"
+STEP4E_STAGE25_ONLY="${STEP4E_STAGE25_ONLY:-0}"
+STEP4E_NORMAL_VELOCITY_LIMIT_M_S="${STEP4E_NORMAL_VELOCITY_LIMIT_M_S:-0.003}"
+STEP4E_FORCE_P_GAIN="${STEP4E_FORCE_P_GAIN:-0.0007}"
+STEP4E_FORCE_I_GAIN="${STEP4E_FORCE_I_GAIN:-0.00008}"
+STEP4E_FORCE_DAMPING="${STEP4E_FORCE_DAMPING:-0.35}"
+STEP4E_INTEGRAL_LIMIT_N_S="${STEP4E_INTEGRAL_LIMIT_N_S:-10.0}"
+STEP4E_REACQUIRE_VELOCITY_M_S="${STEP4E_REACQUIRE_VELOCITY_M_S:-0.001}"
 
 PROGRAM_PREVIEW="/programs/andyl/kunwei/step4/step4e_preview_line_${STEP4E_VERSION}.urp"
 PROGRAM_HOLD="/programs/andyl/kunwei/step4/step4e_contact_hold_line_${STEP4E_VERSION}.urp"
 PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_line_outerloop_${STEP4E_VERSION}.urp"
-if [[ "${STEP4E_VERSION}" == "v13" ]]; then
+if [[ "${STEP4E_VERSION}" == "v14" ]]; then
+  SEARCH_DESCRIPTION="two-stage search: first move to fixed validated search-start z=98.35 mm, then far 15 mm/s for 80 mm, near 3 mm/s for final 12 mm, 92 mm max depth; v14 starts admittance integration only in stage25 and settles normal force before line motion"
+elif [[ "${STEP4E_VERSION}" == "v13" ]]; then
   SEARCH_DESCRIPTION="two-stage search: first move to fixed validated search-start z=98.35 mm, then far 15 mm/s for 80 mm, near 3 mm/s for final 12 mm, 92 mm max depth; v13 fixes v12 high-start no-contact miss"
 elif [[ "${STEP4E_VERSION}" == "v12" ]]; then
   SEARCH_DESCRIPTION="two-stage search: far 15 mm/s for 80 mm, then near 3 mm/s for the final 12 mm, 92 mm max depth; v12 keeps v11 attitude signs and fixes endpoint success/retract"
@@ -294,6 +305,10 @@ run_bridge_for_mode() {
   local already_running="$2"
   mkdir -p "${out_dir}"
   local bridge_pid=""
+  local stage25_only_args=()
+  if [[ "${STEP4E_STAGE25_ONLY}" == "1" ]]; then
+    stage25_only_args+=(--step4e-integrate-stage25-only)
+  fi
   cleanup() {
     if [[ -n "${bridge_pid}" ]] && kill -0 "${bridge_pid}" 2>/dev/null; then
       stop_bridge_process "${bridge_pid}" "operator cleanup"
@@ -317,18 +332,21 @@ run_bridge_for_mode() {
     --max-force-norm-n 50 \
     --max-torque-norm-nm "${MAX_TORQUE_NORM_NM}" \
     --step4e-mode "${STEP4E_MODE}" \
-    --step4e-line-speed-m-s 0.003 \
+    --step4e-line-speed-m-s "${STEP4E_LINE_SPEED_M_S}" \
+    --step4e-line-settle-s "${STEP4E_LINE_SETTLE_S}" \
+    "${stage25_only_args[@]}" \
     --step4e-path-p-gain 1.5 \
     --step4e-motion-limit-m-s 0.004 \
     --step4e-total-linear-limit-m-s 0.006 \
-    --step4e-normal-velocity-limit-m-s 0.003 \
-    --step4e-force-p-gain 0.0007 \
-    --step4e-force-i-gain 0.00008 \
-    --step4e-force-damping 0.35 \
+    --step4e-normal-velocity-limit-m-s "${STEP4E_NORMAL_VELOCITY_LIMIT_M_S}" \
+    --step4e-force-p-gain "${STEP4E_FORCE_P_GAIN}" \
+    --step4e-force-i-gain "${STEP4E_FORCE_I_GAIN}" \
+    --step4e-force-damping "${STEP4E_FORCE_DAMPING}" \
     --step4e-normal-command-sign "${STEP4E_NORMAL_COMMAND_SIGN}" \
+    --step4e-integral-limit-n-s "${STEP4E_INTEGRAL_LIMIT_N_S}" \
     --step4e-min-force-for-control-n 1.0 \
     --step4e-acquire-grace-s 0.25 \
-    --step4e-reacquire-velocity-m-s 0.001 \
+    --step4e-reacquire-velocity-m-s "${STEP4E_REACQUIRE_VELOCITY_M_S}" \
     --step4e-orientation-gain "${STEP4E_ORIENTATION_GAIN}" \
     --step4e-orientation-wx-sign "${STEP4E_ORIENTATION_WX_SIGN}" \
     --step4e-orientation-wy-sign "${STEP4E_ORIENTATION_WY_SIGN}" \
