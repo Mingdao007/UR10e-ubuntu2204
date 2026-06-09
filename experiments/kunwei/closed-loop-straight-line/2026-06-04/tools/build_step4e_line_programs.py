@@ -16,7 +16,7 @@ from pathlib import Path
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
 PROGRAM_DIR = EXPERIMENT_ROOT / "programs"
 CONFIG_PATH = EXPERIMENT_ROOT / "config" / "straight_line_reference.json"
-TEMPLATE_URP = PROGRAM_DIR / "step4d_circle_detsearch_attitude_v1.urp"
+TEMPLATE_URP = PROGRAM_DIR / "step4abcd" / "step4d_circle_detsearch_attitude_v1.urp"
 CONTROLLER_DIR = "/programs/andyl/kunwei/step4"
 
 def program_specs(version: str) -> dict[str, dict[str, str]]:
@@ -641,6 +641,7 @@ def build_urp(script: str, name: str) -> bytes:
     xml = gzip.decompress(TEMPLATE_URP.read_bytes()).decode("utf-8")
     xml = re.sub(r'<URProgram name="[^"]+"', f'<URProgram name="{name}"', xml, count=1)
     xml = re.sub(r'directory="[^"]+"', f'directory="{CONTROLLER_DIR}"', xml, count=1)
+    xml = re.sub(r'installationRelativePath="[^"]+"', 'installationRelativePath="../../../default"', xml, count=1)
     xml = re.sub(
         r'<cachedContents>.*?</cachedContents>',
         f"<cachedContents>{html.escape(script)}</cachedContents>",
