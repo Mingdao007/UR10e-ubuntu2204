@@ -158,6 +158,7 @@
     <a href="#link">1 kHz Link</a>
     <a href="#step2c">Step2C</a>
     <a href="#step4d">Step4D</a>
+    <a href="#step4e">Step4E</a>
     <a href="#compare">600 s Compare</a>
     <a href="#long-compare">6 h Compare</a>
     <a href="#next">Next</a>
@@ -166,13 +167,14 @@
     <section id="summary">
       <div class="eyebrow">Kunwei KWR75 / UR10e</div>
       <h1>Kunwei force sensor progress report</h1>
-      <p class="lead">Kunwei is no longer just a bring-up task: the TCP raw logging path has a stable 19 h 15 min run, Step2C has completed a closed-loop straight-line contact task, and Step4D has completed the first full contact circle with deterministic search and attitude admittance. The OnRobot/Kunwei comparison in this deck uses existing logs only, with first-value software zero inside each selected window.</p>
+      <p class="lead">Kunwei is no longer just a bring-up task: the TCP raw logging path has a stable 19 h 15 min run, Step2C has completed a closed-loop straight-line contact task, Step4D has completed the first full contact circle, and Step4E v11 has run the paper-style outer-loop line path to full progress. The OnRobot/Kunwei comparison in this deck uses existing logs only, with first-value software zero inside each selected window.</p>
       <div class="grid">
         <div class="metric"><span>Long raw capture</span><strong>69.3M samples</strong></div>
         <div class="metric"><span>Average raw rate</span><strong>999.990 Hz</strong></div>
         <div class="metric"><span>Frame errors</span><strong>0 parse / 0 sync</strong></div>
         <div class="metric"><span>Step2C final echo</span><strong>489.8 Hz</strong></div>
         <div class="metric"><span>Step4D closure</span><strong>0.828 mm</strong></div>
+        <div class="metric"><span>Step4E line</span><strong>143.7 mm</strong></div>
         <div class="metric"><span>Long comparison</span><strong>6 h selected</strong></div>
       </div>
     </section>
@@ -224,6 +226,23 @@
         <figure class="span-5 media-video"><video controls preload="metadata" poster="assets/kunwei_kwr75_20260608/step4d_circle_experiment_poster.jpg" src="assets/kunwei_kwr75_20260608/step4d_circle_experiment.mp4"></video><figcaption>Fig. 6. Step4D phone video evidence from the 2026-06-09 demo drop.</figcaption></figure>
       </div>
     </section>
+    <section id="step4e">
+      <div class="eyebrow">Robot experiment</div>
+      <h2>Step4E v11 runs the outer-loop line to full path progress</h2>
+      <p>Step4E is the paper-style reproduction step: Python computes Cartesian outer-loop commands from Kunwei wrench and RTDE TCP pose, while URScript consumes the registers and lets UR handle IK through speedl. The selected v11 run reached 143.747 mm progress, matching the bridge path length, with 2.190 mm XY path-error p95. The remaining finish issue is small and specific: the URScript clean-complete threshold is 0.0044 mm higher than the bridge clamp, so the line ended by runtime timeout rather than completion reason 1.0.</p>
+      <div class="grid">
+        <div class="metric"><span>Line outcome</span><strong>full path</strong></div>
+        <div class="metric"><span>Stage25 echo</span><strong>249.73 Hz</strong></div>
+        <div class="metric"><span>Path progress</span><strong>143.747 mm</strong></div>
+        <div class="metric"><span>XY p95</span><strong>2.190 mm</strong></div>
+        <div class="metric"><span>Normal-load MAE</span><strong>7.19 N</strong></div>
+        <div class="metric"><span>Finish reason</span><strong>timeout 10</strong></div>
+        <div class="metric"><span>Length mismatch</span><strong>0.0044 mm</strong></div>
+        <div class="metric"><span>Retract/home</span><strong>observed</strong></div>
+        <figure class="span-6"><img src="assets/kunwei_kwr75_20260608/step4e_v11_line_path_tracking.png" alt="Step4E v11 line path tracking"><figcaption>Fig. 7. Actual TCP path follows the outer-loop line; path-error p95 is 2.190 mm.</figcaption></figure>
+        <figure class="span-6"><img src="assets/kunwei_kwr75_20260608/step4e_v11_line_force_progress.png" alt="Step4E v11 force and progress evidence"><figcaption>Fig. 8. Path progress reaches the bridge length; normal-load error and the completion threshold mismatch remain the next cleanup items.</figcaption></figure>
+      </div>
+    </section>
     <section id="compare">
       <div class="eyebrow">Sensor comparison</div>
       <h2>OnRobot vs Kunwei, first 600 s</h2>
@@ -259,6 +278,7 @@
             <tr><td>Logging route</td><td>Kunwei TCP raw is stable at 1 kHz class</td><td>Use it as the default Kunwei collector</td></tr>
             <tr><td>Force control</td><td>Final mean Fz is near target and error MAE is 1.39 N</td><td>Confirm repeatability before broader force-quality claims</td></tr>
             <tr><td>Circle contact</td><td>Step4D completed the full circle with 0.828 mm closure error</td><td>Reduce contact-entry transient and normal-force ripple before stronger algorithm claims</td></tr>
+            <tr><td>Outer-loop line</td><td>Step4E v11 reached 143.747 mm full-path progress, then timed out on a 0.0044 mm threshold mismatch</td><td>Clean up finish logic before treating it as a polished demo</td></tr>
             <tr><td>Frequency claim</td><td>Final stage25 echo is 489.83 Hz; RTDE logging is 507.53 Hz</td><td>Report measured cadence, not internal servo-loop frequency</td></tr>
             <tr><td>A/B comparison</td><td>Existing 600 s and 6 h windows differ in setup/date/load</td><td>Use first-value software zero for this report; reserve same-fixture testing only for future absolute calibration claims</td></tr>
           </tbody>
