@@ -11,11 +11,15 @@ AUTOWATCH_WAIT_FOR_PLAY_S="${AUTOWATCH_WAIT_FOR_PLAY_S:-600}"
 BENCH_GATE="/home/andy/codex-private-skills/skills/ur10e-realsetup/scripts/check_ubuntu_network.py"
 STEP4E_VERSION="${STEP4E_VERSION:-v1}"
 BRIDGE_DURATION_S="${BRIDGE_DURATION_S:-180}"
+STEP4E_NORMAL_COMMAND_SIGN="${STEP4E_NORMAL_COMMAND_SIGN:-1}"
+MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-20}"
 
 PROGRAM_PREVIEW="/programs/andyl/kunwei/step4/step4e_preview_line_${STEP4E_VERSION}.urp"
 PROGRAM_HOLD="/programs/andyl/kunwei/step4/step4e_contact_hold_line_${STEP4E_VERSION}.urp"
 PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_line_outerloop_${STEP4E_VERSION}.urp"
-if [[ "${STEP4E_VERSION}" == "v5" ]]; then
+if [[ "${STEP4E_VERSION}" == "v6" ]]; then
+  SEARCH_DESCRIPTION="two-stage search: far 15 mm/s for 80 mm, then near 3 mm/s for the final 12 mm, 92 mm max depth; v6 flips normal command sign to unload after contact"
+elif [[ "${STEP4E_VERSION}" == "v5" ]]; then
   SEARCH_DESCRIPTION="two-stage search: far 15 mm/s for 80 mm, then near 3 mm/s for the final 12 mm, 92 mm max depth"
 elif [[ "${STEP4E_VERSION}" == "v4" ]]; then
   SEARCH_DESCRIPTION="two-stage search: far 10 mm/s for 80 mm, then near 3 mm/s for the final 10 mm, 90 mm max depth"
@@ -49,7 +53,7 @@ Step4e motion boundary:
   preview: no robot motion, echo Step4e command registers only.
   hold: contact search, then 12 s force/orientation hold.
   line: contact search, then straight XY line from the two TP screenshot points.
-  force target = 5 N, raw normal guard = 20 N, force norm guard = 50 N, torque guard = 0.6 Nm.
+  force target = 5 N, raw normal guard = ${MAX_NORMAL_FORCE_N} N, force norm guard = 50 N, torque guard = 0.6 Nm.
 USAGE
 }
 
@@ -291,7 +295,7 @@ run_bridge_for_mode() {
     --target-force-n 5 \
     --normal-axis fz \
     --normal-sign 1 \
-    --max-normal-force-n 20 \
+    --max-normal-force-n "${MAX_NORMAL_FORCE_N}" \
     --max-force-norm-n 50 \
     --step4e-mode "${STEP4E_MODE}" \
     --step4e-line-speed-m-s 0.003 \
@@ -302,6 +306,7 @@ run_bridge_for_mode() {
     --step4e-force-p-gain 0.0007 \
     --step4e-force-i-gain 0.00008 \
     --step4e-force-damping 0.35 \
+    --step4e-normal-command-sign "${STEP4E_NORMAL_COMMAND_SIGN}" \
     --step4e-min-force-for-control-n 1.0 \
     --step4e-orientation-gain 0.20 \
     --step4e-angular-limit-rad-s 0.015 \
@@ -358,7 +363,7 @@ Motion/control:
   preview = no motion, hold/line = ${SEARCH_DESCRIPTION} before contact latch
   line XY speed command = 3 mm/s, max Cartesian command = 6 mm/s
   speedl acceleration = 300 mm/s^2, hold time = 2 ms
-  target force = 5 N, raw normal guard = 20 N, force norm guard = 50 N
+  target force = 5 N, raw normal guard = ${MAX_NORMAL_FORCE_N} N, force norm guard = 50 N
   attitude proxy = bounded wx/wy velocity command, yaw frozen
 
 Type START_STEP4E_${STEP4E_MODE^^}_${STEP4E_VERSION^^} to continue:

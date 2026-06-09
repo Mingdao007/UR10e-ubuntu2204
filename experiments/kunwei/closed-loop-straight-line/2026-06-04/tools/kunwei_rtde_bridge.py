@@ -322,7 +322,10 @@ def compute_step4e_values(
             -args.step4e_normal_velocity_limit_m_s,
             args.step4e_normal_velocity_limit_m_s,
         )
-        force_cmd = tuple(-n_reaction_b[idx] * state.normal_velocity_m_s for idx in range(3))
+        force_cmd = tuple(
+            -args.step4e_normal_command_sign * n_reaction_b[idx] * state.normal_velocity_m_s
+            for idx in range(3)
+        )
         cmd = tuple(motion_cmd[idx] + force_cmd[idx] for idx in range(3))
         cmd_norm = norm3(cmd)
         if cmd_norm > args.step4e_total_linear_limit_m_s:
@@ -602,6 +605,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--step4e-force-p-gain", type=float, default=0.0007)
     parser.add_argument("--step4e-force-i-gain", type=float, default=0.00008)
     parser.add_argument("--step4e-force-damping", type=float, default=0.35)
+    parser.add_argument("--step4e-normal-command-sign", type=float, choices=(-1.0, 1.0), default=1.0)
     parser.add_argument("--step4e-integral-limit-n-s", type=float, default=10.0)
     parser.add_argument("--step4e-min-force-for-control-n", type=float, default=1.0)
     parser.add_argument("--step4e-orientation-gain", type=float, default=0.20)
