@@ -15,6 +15,11 @@ BRIDGE_DURATION_S="${BRIDGE_DURATION_S:-180}"
 PROGRAM_PREVIEW="/programs/andyl/kunwei/step4/step4e_preview_line_${STEP4E_VERSION}.urp"
 PROGRAM_HOLD="/programs/andyl/kunwei/step4/step4e_contact_hold_line_${STEP4E_VERSION}.urp"
 PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_line_outerloop_${STEP4E_VERSION}.urp"
+if [[ "${STEP4E_VERSION}" == "v3" ]]; then
+  SEARCH_DESCRIPTION="two-stage search: far 10 mm/s for 45 mm, then near 3 mm/s until 70 mm max depth"
+else
+  SEARCH_DESCRIPTION="deterministic 3 mm/s downward search"
+fi
 
 usage() {
   cat <<'USAGE'
@@ -38,8 +43,8 @@ Bridge lifecycle:
 
 Step4e motion boundary:
   preview: no robot motion, echo Step4e command registers only.
-  hold: deterministic 3 mm/s downward search, then 12 s force/orientation hold.
-  line: deterministic 3 mm/s downward search, then straight XY line from the two TP screenshot points.
+  hold: contact search, then 12 s force/orientation hold.
+  line: contact search, then straight XY line from the two TP screenshot points.
   force target = 5 N, raw normal guard = 20 N, force norm guard = 50 N, torque guard = 0.6 Nm.
 USAGE
 }
@@ -346,7 +351,7 @@ Before pressing Play, open this Teach Pendant program:
   ${EXPECTED_PROGRAM}
 
 Motion/control:
-  preview = no motion, hold/line = deterministic 3 mm/s search before contact latch
+  preview = no motion, hold/line = ${SEARCH_DESCRIPTION} before contact latch
   line XY speed command = 3 mm/s, max Cartesian command = 6 mm/s
   speedl acceleration = 300 mm/s^2, hold time = 2 ms
   target force = 5 N, raw normal guard = 20 N, force norm guard = 50 N

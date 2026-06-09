@@ -19,12 +19,7 @@ TEMPLATE_URP = PROGRAM_DIR / "step4d_circle_detsearch_attitude_v1.urp"
 CONTROLLER_DIR = "/programs/andyl/kunwei/step4"
 
 def program_specs(version: str) -> dict[str, dict[str, str]]:
-    return {
-        "preview": {
-            "name": f"step4e_preview_line_{version}",
-            "suffix": f"PREVIEW_LINE_{version.upper()}",
-            "description": "no-motion RTDE/command preview",
-        },
+    specs = {
         "hold": {
             "name": f"step4e_contact_hold_line_{version}",
             "suffix": f"CONTACT_HOLD_LINE_{version.upper()}",
@@ -36,6 +31,16 @@ def program_specs(version: str) -> dict[str, dict[str, str]]:
             "description": "deterministic search, contact latch, Step4e line outer-loop",
         },
     }
+    if version in {"v1", "v2"}:
+        return {
+            "preview": {
+                "name": f"step4e_preview_line_{version}",
+                "suffix": f"PREVIEW_LINE_{version.upper()}",
+                "description": "no-motion RTDE/command preview",
+            },
+            **specs,
+        }
+    return specs
 
 
 def load_json(path: Path) -> dict:
@@ -234,9 +239,38 @@ codex_step4e_preview_line()
 """
 
 
+def search_profile(version: str) -> dict[str, str]:
+    if version == "v3":
+        return {
+            "comment": "two-stage deterministic search: far 10 mm/s, then near 3 mm/s; no force admittance before contact latch.",
+            "accel": "0.300",
+            "hold": "0.002",
+            "single_speed": "-0.003",
+            "far_speed": "-0.010",
+            "near_speed": "-0.003",
+            "near_start": "0.045",
+            "max_depth": "0.070",
+            "runtime": "25.0",
+            "two_stage": "True",
+        }
+    return {
+        "comment": "deterministic downward speedl at 3 mm/s; no force admittance before contact latch.",
+        "accel": "0.300",
+        "hold": "0.002",
+        "single_speed": "-0.003",
+        "far_speed": "-0.003",
+        "near_speed": "-0.003",
+        "near_start": "0.060",
+        "max_depth": "0.060",
+        "runtime": "25.0",
+        "two_stage": "False",
+    }
+
+
 def contact_script(mode: str, stamp: str, gen_at: str, geom: dict, version: str) -> str:
     is_line = mode == "line"
-    enable_entry_rezero = version == "v2"
+    enable_entry_rezero = version in {"v2", "v3"}
+    search = search_profile(version)
     runtime_limit = 75.0 if is_line else 12.0
     end_check = f"""elif progress_m >= {fmt(geom['length'])}:
           stop_reason = 1.0""" if is_line else """elif t2 >= line_runtime_limit_s:
@@ -263,7 +297,7 @@ def contact_script(mode: str, stamp: str, gen_at: str, geom: dict, version: str)
 # to P1 [{fmt(geom['end_x'])}, {fmt(geom['end_y'])}], length {fmt(geom['length'])} m.
 # CONTROL: Ubuntu bridge computes paper-style outer-loop command in registers 37..47.
 # URScript consumes speedl([37..42]) only after contact latch; yaw command is expected 0.
-# SEARCH: deterministic downward speedl at 3 mm/s; no force admittance before contact latch.
+# SEARCH: {search['comment']}
 # {rezero_comment}
 # SAFETY: raw guards use registers 24..30; recoverable stops retract 10 mm then return home.
 {COMMON_FUNCTIONS}
@@ -275,12 +309,16 @@ def codex_step4e_{program_label}_line():
   local ref_ry = {fmt(geom['ref_ry'])}
   local ref_rz = {fmt(geom['ref_rz'])}
   local approach_speed_m_s = 0.050
-  local search_accel_m_s2 = 0.300
-  local search_hold_s = 0.002
-  local search_down_m_s = -0.003
-  local max_search_down_m = 0.060
+  local search_accel_m_s2 = {search['accel']}
+  local search_hold_s = {search['hold']}
+  local search_down_m_s = {search['single_speed']}
+  local search_far_down_m_s = {search['far_speed']}
+  local search_near_down_m_s = {search['near_speed']}
+  local search_near_start_depth_m = {search['near_start']}
+  local max_search_down_m = {search['max_depth']}
+  local use_two_stage_search = {search['two_stage']}
   local stale_limit_s = 0.100
-  local search_runtime_limit_s = 25.0
+  local search_runtime_limit_s = {search['runtime']}
   local line_accel_m_s2 = 0.300
   local line_hold_s = 0.002
   local line_runtime_limit_s = {fmt(runtime_limit)}
@@ -355,8 +393,18 @@ def codex_step4e_{program_label}_line():
         elif t >= search_runtime_limit_s:
           stop_reason = 10.0
         else:
-          codex_echo_step4e(stop_reason)
-          speedl([0.0, 0.0, search_down_m_s, 0.0, 0.0, 0.0], search_accel_m_s2, search_hold_s)
+          if use_two_stage_search and search_depth_m < search_near_start_depth_m:
+            write_output_float_register(35, 24.0)
+            codex_echo_step4e(stop_reason)
+            speedl([0.0, 0.0, search_far_down_m_s, 0.0, 0.0, 0.0], search_accel_m_s2, search_hold_s)
+          elif use_two_stage_search:
+            write_output_float_register(35, 24.2)
+            codex_echo_step4e(stop_reason)
+            speedl([0.0, 0.0, search_near_down_m_s, 0.0, 0.0, 0.0], search_accel_m_s2, search_hold_s)
+          else:
+            codex_echo_step4e(stop_reason)
+            speedl([0.0, 0.0, search_down_m_s, 0.0, 0.0, 0.0], search_accel_m_s2, search_hold_s)
+          end
           t = t + search_hold_s
         end
       end
@@ -494,12 +542,22 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str) -> None:
         "cached stamp": stamp in xml,
         "step4e registers": "read_input_float_register(37)" in xml,
     }
-    if name.endswith("_v2") and "preview" not in name:
+    if name.endswith(("_v2", "_v3")) and "preview" not in name:
         checks.update(
             {
                 "entry rezero request": "write_output_float_register(34, 1.0)" in xml,
                 "entry rezero wait": "codex_wait_for_rezero_complete(5.0)" in xml,
                 "rezero stop reason": "stop_reason = 14.0" in xml,
+            }
+        )
+    if name.endswith("_v3") and "preview" not in name:
+        checks.update(
+            {
+                "far search speed": "local search_far_down_m_s = -0.010" in xml,
+                "near search speed": "local search_near_down_m_s = -0.003" in xml,
+                "near search stage": "write_output_float_register(35, 24.2)" in xml,
+                "near start depth": "local search_near_start_depth_m = 0.045" in xml,
+                "max search depth": "local max_search_down_m = 0.070" in xml,
             }
         )
     failed = [label for label, ok in checks.items() if not ok]
@@ -509,7 +567,7 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--version", choices=("v1", "v2"), default="v2")
+    parser.add_argument("--version", choices=("v1", "v2", "v3"), default="v2")
     parser.add_argument("--stamp-prefix", default=None)
     args = parser.parse_args()
     now = datetime.now(timezone(timedelta(hours=8)))
