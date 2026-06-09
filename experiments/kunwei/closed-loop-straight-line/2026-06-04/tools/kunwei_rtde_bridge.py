@@ -248,15 +248,19 @@ class Step4EState:
         self.integral_error_n_s = 0.0
         self.normal_velocity_m_s = 0.0
         self.latched_normal_b: tuple[float, float, float] | None = None
+        self.latched_normal_locked = False
         self.normal_acquired = False
         self.line_stage_s = 0.0
+        self.last_robot_stage: float | None = None
 
     def reset_line_contact(self) -> None:
         self.integral_error_n_s = 0.0
         self.normal_velocity_m_s = 0.0
         self.latched_normal_b = None
+        self.latched_normal_locked = False
         self.normal_acquired = False
         self.line_stage_s = 0.0
+        self.last_robot_stage = None
 
 
 def compute_step4e_values(
@@ -280,13 +284,24 @@ def compute_step4e_values(
         robot_stage = float(latest_output.get("output_double_register_35", math.nan))
     except (TypeError, ValueError):
         robot_stage = math.nan
-    orient_stage_active = args.step4e_mode == "line" and abs(robot_stage - 25.1) < 0.05
+    v20_profile = args.step4e_version == "v20"
+    latch_stage_active = args.step4e_mode == "line" and v20_profile and abs(robot_stage - 25.05) < 0.03
+    detach_stage_active = args.step4e_mode == "line" and v20_profile and abs(robot_stage - 25.1) < 0.03
+    orient_stage_active = args.step4e_mode == "line" and (
+        (v20_profile and abs(robot_stage - 25.2) < 0.05)
+        or (not v20_profile and abs(robot_stage - 25.1) < 0.05)
+    )
+    acquire_stage_active = args.step4e_mode == "line" and v20_profile and abs(robot_stage - 25.3) < 0.05
     line_stage_active = args.step4e_mode == "line" and abs(robot_stage - 25.0) < 0.05
-    control_stage_active = orient_stage_active or line_stage_active
+    control_stage_active = latch_stage_active or orient_stage_active or acquire_stage_active or line_stage_active
     if args.step4e_mode != "line" or (
         math.isfinite(robot_stage) and (robot_stage < 24.0 or robot_stage >= 26.0)
     ):
         state.reset_line_contact()
+    if math.isfinite(robot_stage):
+        if state.last_robot_stage is None or abs(robot_stage - state.last_robot_stage) >= 0.03:
+            state.line_stage_s = 0.0
+            state.last_robot_stage = robot_stage
     if control_stage_active:
         state.line_stage_s += dt_s
 
@@ -301,7 +316,21 @@ def compute_step4e_values(
     rotation = rotvec_to_matrix(float(pose[3]), float(pose[4]), float(pose[5]))
     force_b = mat_vec3(rotation, force_t)
     n_reaction_b = normalize3(force_b)
-    if sensor_ok > 0.5 and force_abs >= args.step4e_min_force_for_control_n:
+    if (
+        v20_profile
+        and latch_stage_active
+        and sensor_ok > 0.5
+        and force_abs >= args.step4e_min_force_for_control_n
+        and not state.latched_normal_locked
+    ):
+        state.latched_normal_b = n_reaction_b
+        state.latched_normal_locked = True
+        state.normal_acquired = True
+    elif (
+        not v20_profile
+        and sensor_ok > 0.5
+        and force_abs >= args.step4e_min_force_for_control_n
+    ):
         if state.latched_normal_b is None:
             state.latched_normal_b = n_reaction_b
         else:
@@ -332,16 +361,17 @@ def compute_step4e_values(
     desired_x = STEP4E_START_XY[0] + progress * STEP4E_LINE_UNIT_XY[0]
     desired_y = STEP4E_START_XY[1] + progress * STEP4E_LINE_UNIT_XY[1]
     path_error = (desired_x - float(pose[0]), desired_y - float(pose[1]), 0.0)
-    tangent_speed = args.step4e_line_speed_m_s if args.step4e_mode == "line" else 0.0
-    if orient_stage_active:
+    tangent_speed = args.step4e_line_speed_m_s if args.step4e_mode == "line" and line_stage_active else 0.0
+    if line_stage_active and state.line_stage_s <= args.step4e_line_settle_s:
         tangent_speed = 0.0
-    elif line_stage_active and state.line_stage_s <= args.step4e_line_settle_s:
-        tangent_speed = 0.0
-    base_motion = (
-        tangent_speed * STEP4E_LINE_UNIT_XY[0] + args.step4e_path_p_gain * path_error[0],
-        tangent_speed * STEP4E_LINE_UNIT_XY[1] + args.step4e_path_p_gain * path_error[1],
-        0.0,
-    )
+    if v20_profile and not line_stage_active:
+        base_motion = (0.0, 0.0, 0.0)
+    else:
+        base_motion = (
+            tangent_speed * STEP4E_LINE_UNIT_XY[0] + args.step4e_path_p_gain * path_error[0],
+            tangent_speed * STEP4E_LINE_UNIT_XY[1] + args.step4e_path_p_gain * path_error[1],
+            0.0,
+        )
     normal_projection = dot3(base_motion, n_control_b)
     motion_cmd = tuple(base_motion[idx] - normal_projection * n_control_b[idx] for idx in range(3))
     motion_norm = norm3(motion_cmd)
@@ -353,21 +383,34 @@ def compute_step4e_values(
     force_error = args.target_force_n - controlled_force_n
     line_grace_valid = (
         args.step4e_mode == "line"
+        and not v20_profile
         and control_stage_active
         and not state.normal_acquired
         and state.line_stage_s <= args.step4e_acquire_grace_s
     )
-    control_allowed = sensor_ok > 0.5 and (
-        force_abs >= args.step4e_min_force_for_control_n
-        or (args.step4e_mode == "line" and state.normal_acquired)
-        or line_grace_valid
-    )
+    if v20_profile:
+        control_allowed = sensor_ok > 0.5 and (
+            (latch_stage_active and state.normal_acquired)
+            or ((orient_stage_active or acquire_stage_active or line_stage_active) and state.normal_acquired)
+            or line_grace_valid
+        )
+    else:
+        control_allowed = sensor_ok > 0.5 and (
+            force_abs >= args.step4e_min_force_for_control_n
+            or (args.step4e_mode == "line" and state.normal_acquired)
+            or line_grace_valid
+        )
     if args.step4e_integrate_stage25_only and args.step4e_mode == "line" and not control_stage_active:
         control_allowed = False
     if control_allowed:
         if args.step4e_mode == "line" and not state.normal_acquired:
             cmd = (0.0, 0.0, 0.0)
             orientation_cmd = (0.0, 0.0, 0.0)
+        elif v20_profile and latch_stage_active:
+            cmd = (0.0, 0.0, 0.0)
+            orientation_cmd = (0.0, 0.0, 0.0)
+        elif v20_profile and orient_stage_active:
+            cmd = (0.0, 0.0, 0.0)
         else:
             state.integral_error_n_s = clamp(
                 state.integral_error_n_s + force_error * dt_s,
@@ -384,6 +427,12 @@ def compute_step4e_values(
                 -args.step4e_normal_velocity_limit_m_s,
                 args.step4e_normal_velocity_limit_m_s,
             )
+            if v20_profile and acquire_stage_active and force_error < -0.25:
+                unload_speed = min(
+                    args.step4e_normal_velocity_limit_m_s,
+                    max(args.step4e_reacquire_velocity_m_s, 0.003),
+                )
+                state.normal_velocity_m_s = min(state.normal_velocity_m_s, -unload_speed)
             if (
                 args.step4e_mode == "line"
                 and state.normal_acquired
@@ -399,6 +448,8 @@ def compute_step4e_values(
                 for idx in range(3)
             )
             cmd = tuple(motion_cmd[idx] + force_cmd[idx] for idx in range(3))
+            if v20_profile and acquire_stage_active:
+                orientation_cmd = (0.0, 0.0, 0.0)
         cmd_norm = norm3(cmd)
         if cmd_norm > args.step4e_total_linear_limit_m_s:
             scale = args.step4e_total_linear_limit_m_s / cmd_norm
@@ -415,9 +466,15 @@ def compute_step4e_values(
                 "step4e_progress_m": progress,
                 "step4e_force_error_n": force_error,
                 "step4e_orientation_error_rad": orientation_error,
-                "step4e_controller_state": 31.0
-                if orient_stage_active
-                else {"preview": 10.0, "hold": 20.0, "line": 30.0}[args.step4e_mode],
+                "step4e_controller_state": (
+                    33.0
+                    if latch_stage_active
+                    else 31.0
+                    if orient_stage_active
+                    else 32.0
+                    if acquire_stage_active
+                    else {"preview": 10.0, "hold": 20.0, "line": 30.0}[args.step4e_mode]
+                ),
             }
         )
     else:
@@ -678,6 +735,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--sensor-stale-s", type=float, default=0.08)
     parser.add_argument("--rezero-s", type=float, default=1.0)
     parser.add_argument("--step4e-mode", choices=("off", "preview", "hold", "line"), default="off")
+    parser.add_argument("--step4e-version", default="")
     parser.add_argument("--step4e-line-speed-m-s", type=float, default=0.003)
     parser.add_argument("--step4e-line-settle-s", type=float, default=0.0)
     parser.add_argument("--step4e-integrate-stage25-only", action="store_true")

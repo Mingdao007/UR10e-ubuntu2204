@@ -31,7 +31,9 @@ STEP4E_ANGULAR_LIMIT_RAD_S="${STEP4E_ANGULAR_LIMIT_RAD_S:-0.015}"
 PROGRAM_PREVIEW="/programs/andyl/kunwei/step4/step4e_preview_line_${STEP4E_VERSION}.urp"
 PROGRAM_HOLD="/programs/andyl/kunwei/step4/step4e_contact_hold_line_${STEP4E_VERSION}.urp"
 PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_line_outerloop_${STEP4E_VERSION}.urp"
-if [[ "${STEP4E_VERSION}" == "v19" ]]; then
+if [[ "${STEP4E_VERSION}" == "v20" ]]; then
+  SEARCH_DESCRIPTION="two-stage search: v20 moves directly to entry XY with vertical TCP orientation [pi,0,0], searches far 15 mm/s then near 3 mm/s, latches first-contact normal only, lifts base-Z 2 mm, aligns attitude while detached, reacquires 5 N along the locked normal, then runs the 5 mm/s XY line"
+elif [[ "${STEP4E_VERSION}" == "v19" ]]; then
   SEARCH_DESCRIPTION="two-stage search: v19 first moves TCP orientation to vertical [pi,0,0], then XY entry and downward speedl-search; far 15 mm/s for 130 mm then near 3 mm/s up to 150 mm max depth; after contact latch it holds 5 N point contact and aligns TCP z to the contact normal before 5 mm/s XY line motion"
 elif [[ "${STEP4E_VERSION}" == "v18" ]]; then
   SEARCH_DESCRIPTION="two-stage search: v18 first moves TCP orientation to vertical [pi,0,0], then XY entry and downward speedl-search; far 15 mm/s for 130 mm then near 3 mm/s up to 150 mm max depth; after contact latch it holds 5 N point contact and aligns TCP z to the contact normal before XY line motion"
@@ -343,6 +345,7 @@ run_bridge_for_mode() {
     --max-force-norm-n 50 \
     --max-torque-norm-nm "${MAX_TORQUE_NORM_NM}" \
     --step4e-mode "${STEP4E_MODE}" \
+    --step4e-version "${STEP4E_VERSION}" \
     --step4e-line-speed-m-s "${STEP4E_LINE_SPEED_M_S}" \
     --step4e-line-settle-s "${STEP4E_LINE_SETTLE_S}" \
     "${stage25_only_args[@]}" \
