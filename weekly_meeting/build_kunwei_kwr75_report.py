@@ -77,6 +77,7 @@ ONROBOT_LONG_SUMMARY = ONROBOT_LONG_DIR / "three_stream_24h_20260530_20260530_17
 
 WINDOW_S = 600.0
 LONG_WINDOW_S = 21600.0
+ZERO_WINDOW_S = 1.0
 
 
 @dataclass
@@ -221,6 +222,34 @@ def ensure_dirs() -> None:
     WEEKLY_ASSETS.mkdir(parents=True, exist_ok=True)
 
 
+def first_window_mean_zero(
+    path: Path,
+    time_col: str,
+    columns: dict[str, str],
+    *,
+    zero_window_s: float = ZERO_WINDOW_S,
+) -> dict[str, float]:
+    sums = {name: 0.0 for name in columns}
+    counts = {name: 0 for name in columns}
+    first_t: float | None = None
+    with path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            source_t = float(row[time_col])
+            if first_t is None:
+                first_t = source_t
+            t = source_t - first_t
+            if t > zero_window_s:
+                break
+            for name, csv_col in columns.items():
+                sums[name] += float(row[csv_col])
+                counts[name] += 1
+    missing = [name for name, count in counts.items() if count == 0]
+    if missing:
+        raise RuntimeError(f"cannot compute first {zero_window_s:g}s mean zero for {path}: missing {missing}")
+    return {name: sums[name] / counts[name] for name in columns}
+
+
 def scan_window(
     path: Path,
     time_col: str,
@@ -229,7 +258,7 @@ def scan_window(
     window_s: float = WINDOW_S,
 ) -> dict:
     stats = {name: RunningStats() for name in columns}
-    zero = {name: None for name in columns}
+    zero = first_window_mean_zero(path, time_col, columns)
     zeroed_stats = {name: RunningStats() for name in columns}
     series: dict[str, list[tuple[float, float]]] = {name: [] for name in columns}
     raw_series: dict[str, list[tuple[float, float]]] = {name: [] for name in columns}
@@ -250,8 +279,6 @@ def scan_window(
             rows += 1
             for name, csv_col in columns.items():
                 value = float(row[csv_col])
-                if zero[name] is None:
-                    zero[name] = value
                 stats[name].add(value)
                 zeroed = value - float(zero[name])
                 zeroed_stats[name].add(zeroed)
@@ -264,6 +291,8 @@ def scan_window(
         "rows": rows,
         "duration_s": duration,
         "rate_hz": (rows - 1) / duration if rows > 1 and duration > 0 else None,
+        "zero_method": "first_window_mean",
+        "zero_window_s": ZERO_WINDOW_S,
         "software_zero": zero,
         "stats": {name: item.as_dict() for name, item in stats.items()},
         "zeroed_stats": {name: item.as_dict() for name, item in zeroed_stats.items()},
@@ -286,7 +315,7 @@ def scan_window_envelope(
     front_60s_stats = {name: VectorStats() for name in columns}
     back_60s_stats = {name: VectorStats() for name in columns}
     envelopes = {name: EnvelopeBins(window_s, bins=bins) for name in columns}
-    zero: dict[str, float | None] = {name: None for name in columns}
+    zero = first_window_mean_zero(path, time_col, columns)
     first_t: float | None = None
     last_t: float | None = None
     rows = 0
@@ -306,8 +335,6 @@ def scan_window_envelope(
         back_mask = t_values >= max(0.0, window_s - 60.0)
         for name, csv_col in columns.items():
             raw_values = frame[csv_col].to_numpy(dtype=float)
-            if zero[name] is None:
-                zero[name] = float(raw_values[0])
             zeroed = raw_values - float(zero[name])
             raw_stats[name].add_many(raw_values)
             zeroed_stats[name].add_many(zeroed)
@@ -337,6 +364,8 @@ def scan_window_envelope(
         "duration_s": duration,
         "rate_hz": (rows - 1) / duration if rows > 1 and duration > 0 else None,
         "window_s": window_s,
+        "zero_method": "first_window_mean",
+        "zero_window_s": ZERO_WINDOW_S,
         "software_zero": zero,
         "stats": {name: item.as_dict() for name, item in raw_stats.items()},
         "zeroed_stats": {name: item.as_dict() for name, item in zeroed_stats.items()},
@@ -1194,9 +1223,9 @@ def build_figures(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, lo
 
     fig, axes = plt.subplots(3, 1, figsize=(10.2, 8.2), sharex=True)
     pairs = [
-        ("Fz", "Fz_N", "fz_n", "Fz first-value-zeroed (N)"),
-        ("Fx", "Fx_N", "fx_n", "Fx first-value-zeroed (N)"),
-        ("Fy", "Fy_N", "fy_n", "Fy first-value-zeroed (N)"),
+        ("Fz", "Fz_N", "fz_n", "Fz after first 1 s mean zero (N)"),
+        ("Fx", "Fx_N", "fx_n", "Fx after first 1 s mean zero (N)"),
+        ("Fy", "Fy_N", "fy_n", "Fy after first 1 s mean zero (N)"),
     ]
     for ax, (_, k_col, o_col, ylabel) in zip(axes, pairs):
         plot_envelope(ax, short_kunwei["series"][k_col], "Kunwei TCP raw 1 kHz", "#2f8068")
@@ -1206,7 +1235,7 @@ def build_figures(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, lo
         ax.grid(True, alpha=0.25)
     axes[0].legend(loc="upper right", fontsize=8)
     axes[-1].set_xlabel("Time (s)")
-    fig.suptitle("First 600 s force drift comparison, first-value software zero", y=0.995)
+    fig.suptitle("First 600 s force drift comparison, first 1 s mean zero", y=0.995)
     fig.tight_layout()
     figures["first600_force_axes"] = save_and_copy(fig, "first600_onrobot_kunwei_force_axes_envelope.png")
 
@@ -1215,7 +1244,7 @@ def build_figures(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, lo
     plot_envelope(ax, short_onrobot["series"]["fz_n"], "OnRobot UDP raw 500 Hz", "#2e6ea6")
     ax.axhline(0.0, color="#7b8794", linewidth=0.8, linestyle="--")
     ax.set_xlabel("Time (s)")
-    ax.set_ylabel("Fz first-value-zeroed (N)")
+    ax.set_ylabel("Fz after first 1 s mean zero (N)")
     ax.set_title("Fz drift comparison, first 600 s")
     ax.grid(True, alpha=0.25)
     ax.legend(loc="upper right", fontsize=8)
@@ -1234,7 +1263,7 @@ def build_figures(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, lo
     ]
     colors = ["#2f8068", "#2e6ea6", "#2f8068", "#2e6ea6", "#2f8068", "#2e6ea6"]
     ax.bar(labels, values, color=colors)
-    ax.set_ylabel("Std after first-value zero (N)")
+    ax.set_ylabel("Std after first 1 s mean zero (N)")
     ax.set_title("First 600 s force noise/drift scale")
     ax.grid(axis="y", alpha=0.25)
     ax.tick_params(axis="x", rotation=25)
@@ -1250,7 +1279,7 @@ def build_figures(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, lo
         ax.grid(True, alpha=0.25)
     axes[0].legend(loc="upper right", fontsize=8)
     axes[-1].set_xlabel("Time (s)")
-    fig.suptitle("6 h force drift comparison, first-value software zero", y=0.995)
+    fig.suptitle("6 h force drift comparison, first 1 s mean zero", y=0.995)
     fig.tight_layout()
     figures["sixh_force_axes"] = save_and_copy(fig, "sixh_onrobot_kunwei_force_axes_envelope.png")
 
@@ -1259,7 +1288,7 @@ def build_figures(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, lo
     plot_precomputed_envelope(ax, long_onrobot["envelopes"]["fz_n"], "OnRobot UDP raw 500 Hz", "#2e6ea6")
     ax.axhline(0.0, color="#7b8794", linewidth=0.8, linestyle="--")
     ax.set_xlabel("Time (s)")
-    ax.set_ylabel("Fz first-value-zeroed (N)")
+    ax.set_ylabel("Fz after first 1 s mean zero (N)")
     ax.set_title("Fz drift comparison, 6 h")
     ax.grid(True, alpha=0.25)
     ax.legend(loc="upper right", fontsize=8)
@@ -1276,7 +1305,7 @@ def build_figures(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, lo
         long_onrobot["zeroed_stats"]["fy_n"]["std"],
     ]
     ax.bar(labels, values, color=colors)
-    ax.set_ylabel("Std after first-value zero (N)")
+    ax.set_ylabel("Std after first 1 s mean zero (N)")
     ax.set_title("6 h force noise/drift scale")
     ax.grid(axis="y", alpha=0.25)
     ax.tick_params(axis="x", rotation=25)
@@ -1293,7 +1322,7 @@ def rows_for_force_table(kunwei: dict, onrobot: dict) -> str:
         ("Fz", "Fz_N", "fz_n"),
     ]
     rows = [
-        "| Sensor | Axis | samples | duration (s) | rate (Hz) | zeroed mean (N) | zeroed std (N) | zeroed last-first (N) | raw min/max (N) |",
+        "| Sensor | Axis | samples | duration (s) | rate (Hz) | 1s-zeroed mean (N) | 1s-zeroed std (N) | 1s-zeroed last-first (N) | raw min/max (N) |",
         "|---|---|---:|---:|---:|---:|---:|---:|---|",
     ]
     for axis, k_col, o_col in mapping:
@@ -1330,7 +1359,7 @@ def rows_for_long_force_table(kunwei: dict, onrobot: dict) -> str:
         ("Fz", "Fz_N", "fz_n"),
     ]
     rows = [
-        "| Sensor | Axis | samples | duration (h) | rate (Hz) | zeroed std (N) | zeroed last-first (N) | back60-front60 mean (N) | raw min/max (N) |",
+        "| Sensor | Axis | samples | duration (h) | rate (Hz) | 1s-zeroed std (N) | 1s-zeroed last-first (N) | back60-front60 mean (N) | raw min/max (N) |",
         "|---|---|---:|---:|---:|---:|---:|---:|---|",
     ]
     for axis, k_col, o_col in mapping:
@@ -1368,7 +1397,7 @@ def rows_for_torque_table(kunwei: dict, onrobot: dict) -> str:
         ("Mz/Tz", "Mz_Nm", "tz_nm"),
     ]
     rows = [
-        "| Sensor | Axis | zeroed std (Nm) | zeroed last-first (Nm) | raw min/max (Nm) |",
+        "| Sensor | Axis | 1s-zeroed std (Nm) | 1s-zeroed last-first (Nm) | raw min/max (Nm) |",
         "|---|---|---:|---:|---|",
     ]
     for axis, k_col, o_col in mapping:
@@ -1554,7 +1583,7 @@ def write_summary_json(
 ) -> Path:
     available = available_duration_metrics(long_summary)
     payload = {
-        "comparison_note": "Both streams use first-value software zero in their own selected windows; no device-side zero/tare was executed and no new experiment is required for this report version.",
+        "comparison_note": "Both streams subtract the first 1 s mean in their own selected windows; no device-side zero/tare was executed and no new experiment is required for this report version.",
         "available_duration": {
             "kunwei_s": available["kunwei_s"],
             "onrobot_udp_s": available["onrobot_udp_s"],
@@ -1632,7 +1661,7 @@ def build_markdown(
 
 ## 实验目的
 
-这份报告把 Kunwei KWR75/KWR75B 当前证据单独整理出来，用于说明五件事：传感器与通信链路是否已经可用，长时间无运动 `1 kHz` 采集是否稳定，当前 Step2C 闭环直线实验走到什么程度，Step4D 圆轨迹接触实验是否完成，以及 Step4E paper-style 外环直线路线是否已经跑通。报告包含两层 OnRobot/Kunwei 对比：前 `600 s` 用于短窗口 noise/drift 判断，`6 h` 用于长时间漂移判断。当前版本只使用已有日志，不重做实验；两者都按各自窗口第一帧做 software zero，只作为 drift/noise 口径对照，不作为同机械状态下的绝对标定结论。
+这份报告把 Kunwei KWR75/KWR75B 当前证据单独整理出来，用于说明五件事：传感器与通信链路是否已经可用，长时间无运动 `1 kHz` 采集是否稳定，当前 Step2C 闭环直线实验走到什么程度，Step4D 圆轨迹接触实验是否完成，以及 Step4E paper-style 外环直线路线是否已经跑通。报告包含两层 OnRobot/Kunwei 对比：前 `600 s` 用于短窗口 noise/drift 判断，`6 h` 用于长时间漂移判断。当前版本只使用已有日志，不重做实验；两者都按各自窗口前 `1 s` 均值做 software zero，只作为 drift/noise 口径对照，不作为同机械状态下的绝对标定结论。
 
 结论先给出：Kunwei TCP raw logging 已经支撑 `19 h 15 min`、约 `1 kHz`、无 parse error 的长跑；Step2C final 在 line 阶段保持 URScript stage25 echo cadence 约 `{fmt(result['echo_rate_hz'], 2)} Hz`，路径跟踪 p95 约 `{fmt(result['xy_error_p95_mm'], 3)} mm`，Fz error MAE 从 V4 的 `{fmt(v4['signed_error_mae_n'], 2)} N` 降到 `{fmt(result['signed_error_mae_n'], 2)} N`。Step4D 已完成从 middle-half 直线路径生成的完整圆轨迹，arc progress 约 `{fmt(step4d_circle['arc_progress_end_mm'], 3)} mm`，closure error 约 `{fmt(step4d_circle['closure_error_mm'], 3)} mm`，radial error p95 约 `{fmt(step4d_circle['radial_error_p95_mm'], 3)} mm`。Step4E v13 已用 Python 外环 command + UR `speedl` IK 完成 `{fmt(step4e_line['bridge_length_mm'], 3)} mm` 直线 demo，final stop reason 为 `{fmt(step4e_line['stop_reason_code'], 1)} ({step4e_line['stop_reason_label']})`，final stage 为 `{fmt(step4e_line['final_stage'], 1)}`，并有 unload/retract/home 阶段证据；XY path p95 约 `{fmt(step4e_line['path_error_p95_mm'], 3)} mm`。它们都仍是 selected single-run evidence，不等于完整统计验证。
 
@@ -1645,7 +1674,7 @@ def build_markdown(
 | Ubuntu bench IP | `192.168.50.26/24` on `enp3s0` |
 | Vendor GUI 状态 | Windows 11 原生 `SensorLinker.exe` 已验证 live 数据与 CSV 记录；Ubuntu/Wine 不是当前默认路线 |
 | 长时采集状态 | 无机器人运动、无接触操作，只测传感器通信和静态读数 |
-| zero 口径 | 本报告 OnRobot/Kunwei 对比均为 first-value software zero；未调用 Kunwei hardware tare、OnRobot device bias/tare 或 UR `zero_ftsensor()` |
+| zero 口径 | 本报告 OnRobot/Kunwei 对比均为 first `1 s` mean software zero；未调用 Kunwei hardware tare、OnRobot device bias/tare 或 UR `zero_ftsensor()` |
 | Step2C 参考线 | 长度约 `63.58 mm` 的 XY straight-line reference |
 | Step4D 圆轨迹 | 取 Step2C contact path 的 middle half 作为直径；半径约 `{fmt(step4d_circle['radius_mm'], 3)} mm`，full-circle arc 约 `99.871 mm` |
 | Step4E v13 直线路径 | 两张 TP Move 截图定义 XY 直线，bridge path length `{fmt(step4e_line['bridge_length_mm'], 3)} mm`；Z 与姿态由 Step4E 外环 command 调整 |
@@ -1677,15 +1706,15 @@ def build_markdown(
 | OnRobot 600s UDP raw CSV | [../experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv](../experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv) |
 | OnRobot 6h UDP raw CSV | [../experiments/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217/three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv](../experiments/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217/three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv) |
 
-图 1 是本报告最主要的 OnRobot/Kunwei 前 `600 s` 对比图。两条曲线都先减去各自窗口第一帧，因此显示的是本窗口内的相对变化。这个 zero 是软件分析口径，不是 device-side zero/tare。阴影是每个时间 bin 内的 min/max envelope，实线是 bin mean；统计表仍使用窗口内所有样本。
+图 1 是本报告最主要的 OnRobot/Kunwei 前 `600 s` 对比图。两条曲线都先减去各自窗口前 `1 s` 均值，因此显示的是本窗口内的相对变化。这个 zero 是软件分析口径，不是 device-side zero/tare。阴影是每个时间 bin 内的 min/max envelope，实线是 bin mean；统计表仍使用窗口内所有样本。
 
 ![OnRobot vs Kunwei first 600s force axes]({figures['first600_force_axes']['report']})
 
-图 2 单独展开 Fz。Kunwei 前 `600 s` 的 first-value-zeroed Fz 标准差是 `{fmt(short_kunwei['zeroed_stats']['Fz_N']['std'], 4)} N`，OnRobot UDP raw 是 `{fmt(short_onrobot['zeroed_stats']['fz_n']['std'], 4)} N`。这个数值不能直接解释成传感器规格优劣，因为两个窗口的安装、载荷和日期不同。
+图 2 单独展开 Fz。Kunwei 前 `600 s` 的 first-1s-mean-zeroed Fz 标准差是 `{fmt(short_kunwei['zeroed_stats']['Fz_N']['std'], 4)} N`，OnRobot UDP raw 是 `{fmt(short_onrobot['zeroed_stats']['fz_n']['std'], 4)} N`。这个数值不能直接解释成传感器规格优劣，因为两个窗口的安装、载荷和日期不同。
 
 ![OnRobot vs Kunwei first 600s Fz]({figures['first600_fz']['report']})
 
-图 3 把前三个力轴的 first-value-zeroed 标准差放在同一张图里，用于快速看 `600 s` 窗口内的波动量级。
+图 3 把前三个力轴的 first-1s-mean-zeroed 标准差放在同一张图里，用于快速看 `600 s` 窗口内的波动量级。
 
 ![OnRobot vs Kunwei first 600s std]({figures['first600_std']['report']})
 
@@ -1697,7 +1726,7 @@ def build_markdown(
 
 ![OnRobot vs Kunwei 6h force axes]({figures['sixh_force_axes']['report']})
 
-图 6 是 `6 h` 窗口下三个力轴的 first-value-zeroed 标准差。
+图 6 是 `6 h` 窗口下三个力轴的 first-1s-mean-zeroed 标准差。
 
 ![OnRobot vs Kunwei 6h std]({figures['sixh_std']['report']})
 
@@ -1790,7 +1819,7 @@ Step4E 的 contact-force Fz quality 还没有达到 Step2C final 水平：contac
 
 {rows_for_torque_table(short_kunwei, short_onrobot)}
 
-比较限制必须写清楚：Kunwei 的前 `600 s` 来自 `19h15min` 未做 device-side zero/tare 的静态长跑，OnRobot 来自 `20260528` 的 dedicated `600s_first_zero` run；两者不是同一天、同治具、同预载的同步 A/B。这里能比较的是当前可用 raw stream 在自身 first-value software zero 口径下的短窗口稳定性和采样路线差异。
+比较限制必须写清楚：Kunwei 的前 `600 s` 来自 `19h15min` 未做 device-side zero/tare 的静态长跑，OnRobot 来自 `20260528` 的 dedicated `600s_first_zero` run；两者不是同一天、同治具、同预载的同步 A/B。这里能比较的是当前可用 raw stream 在自身 first `1 s` mean software zero 口径下的短窗口稳定性和采样路线差异。
 
 ### OnRobot vs Kunwei 6h
 
@@ -1807,14 +1836,14 @@ Step4E 的 contact-force Fz quality 还没有达到 Step2C final 水平：contac
 3. final 的 stage25 measured echo cadence 约 `{fmt(result['echo_rate_hz'], 2)} Hz`，比旧成功 Step2C 的 `{fmt(stage25_echo['rate_hz'], 2)} Hz` 明显提高，并且 Fz error MAE 比 V4 更低；但这仍不能写成 UR 内部 servo loop 频率。
 4. Step4D 首次把 “middle-half 直线路径作为直径 -> 完整圆 -> 接触搜索 -> 姿态 admittance -> 回撤” 这一套流程跑完；但圆轨迹与 Step2C 直线任务几何不同，不能把两者的 force/path 指标当作同任务直接排序。
 5. Step4E v13 已证明 paper-style 外环 command + UR `speedl` IK 的直线复现路线可以完成 demo：stop reason `1.0`，final stage `29.0`，并有 unload/retract/home evidence；force quality 还不是最终水平。
-6. OnRobot/Kunwei 前 `600 s` 与 `6 h` 对比图说明两条 raw stream 都可以用 first-value software zero 做短窗口和长窗口漂移分析；但由于机械状态不同，报告只解释相对漂移和波动，不解释绝对偏置或规格优劣。
+6. OnRobot/Kunwei 前 `600 s` 与 `6 h` 对比图说明两条 raw stream 都可以用 first `1 s` mean software zero 做短窗口和长窗口漂移分析；但由于机械状态不同，报告只解释相对漂移和波动，不解释绝对偏置或规格优劣。
 
 ## 下一步
 
 - Step2C 下一步应围绕 final 的重复性和 contact-entry transient 继续验证；频率证据已经足够支持约 `490 Hz` measured echo cadence 进入报告，force quality 也相对 V4 有改善，但还不应该外推成跨治具、跨日期的传感器绝对性能结论。
 - Step4D 下一步应先围绕完整圆的重复性、entry transient 和 normal-force ripple 收敛，不要急着把它写成传感器绝对性能或最终算法效果。若要进一步降低圆轨迹误差，再考虑是否把 IK/trajectory optimization 从 UR 内部逐步外移到脚本侧。
 - Step4E 下一步不需要新实验来完成这版报告；工程上下一步应围绕 contact-force Fz MAE、attitude gain 和接触阶段力波动调参，而不是再证明外环路线能否跑通。
-- 本版本不需要新做 OnRobot/Kunwei A/B 实验；当前会议材料只使用已有日志，并明确标注为 first-value software zero 的历史窗口比较。若未来要回答绝对标定问题，再另开同机械状态、同无接触窗口、明确 device-side zero/tare 策略的实验。
+- 本版本不需要新做 OnRobot/Kunwei A/B 实验；当前会议材料只使用已有日志，并明确标注为 first `1 s` mean software zero 的历史窗口比较。若未来要回答绝对标定问题，再另开同机械状态、同无接触窗口、明确 device-side zero/tare 策略的实验。
 - 如果目标是机器人侧 `500 Hz` 运动闭环，需要另开 `servoj/speedj`、多线程 URScript 或外部实时接口路线，而不是从当前 `speedl` echo 推断。
 
 ## 附录
@@ -2071,7 +2100,7 @@ def build_html(
     <section id="summary">
       <div class="eyebrow">Kunwei KWR75 / UR10e</div>
       <h1>Kunwei force sensor progress report</h1>
-      <p class="lead">Kunwei is no longer just a bring-up task: the TCP raw logging path has a stable 19 h 15 min run, the straight-line contact run completed with improved force tracking, the first full contact circle completed, and the latest external-loop line-following demo completed with unload, retract, and home-return evidence. The OnRobot/Kunwei comparison in this deck uses existing logs only, with first-value software zero inside each selected window.</p>
+      <p class="lead">Kunwei is no longer just a bring-up task: the TCP raw logging path has a stable 19 h 15 min run, the straight-line contact run completed with improved force tracking, the first full contact circle completed, and the latest external-loop line-following demo completed with unload, retract, and home-return evidence. The OnRobot/Kunwei comparison in this deck uses existing logs only, with first 1 s mean software zero inside each selected window.</p>
       <div class="grid">
         {html_metric("Long raw capture", "69.3M samples")}
         {html_metric("Average raw rate", f"{fmt(overall['rate_hz'], 3)} Hz")}
@@ -2085,10 +2114,10 @@ def build_html(
     <section id="compare">
       <div class="eyebrow">Sensor comparison</div>
       <h2>OnRobot vs Kunwei, first 600 s</h2>
-      <p>Both traces are first-value software zeroed inside their own 600 s windows. No device-side zero/tare was executed for this report version. The shaded region is a min/max envelope; statistics use all samples in the selected window.</p>
+      <p>Both traces subtract the mean of their own first 1 s inside the 600 s window. No device-side zero/tare was executed for this report version. The shaded region is a min/max envelope; statistics use all samples in the selected window.</p>
       <div class="grid">
-        <figure class="span-12"><img src="{force_img}" alt="First 600 s force axes comparison"><figcaption>Fig. 1. Fx/Fy/Fz first-value-zeroed envelopes. This compares short-window stability, not absolute bias.</figcaption></figure>
-        <figure class="span-7"><img src="{fz_img}" alt="First 600 s Fz comparison"><figcaption>Fig. 2. Fz detail, first-value-zeroed within each sensor's own run.</figcaption></figure>
+        <figure class="span-12"><img src="{force_img}" alt="First 600 s force axes comparison"><figcaption>Fig. 1. Fx/Fy/Fz envelopes after first 1 s mean zero. This compares short-window stability, not absolute bias.</figcaption></figure>
+        <figure class="span-7"><img src="{fz_img}" alt="First 600 s Fz comparison"><figcaption>Fig. 2. Fz detail after first 1 s mean zero inside each sensor's own run.</figcaption></figure>
         <figure class="span-5"><img src="{std_img}" alt="First 600 s force standard deviation"><figcaption>Fig. 3. Force-axis standard deviation in the first 600 s windows.</figcaption></figure>
       </div>
     </section>
@@ -2101,8 +2130,8 @@ def build_html(
         {html_metric("OnRobot available", f"{fmt(available['onrobot_udp_h'], 2)} h")}
         {html_metric("Common max", f"{fmt(available['common_max_h'], 2)} h")}
         {html_metric("Selected window", f"{fmt(available['report_long_window_h'], 2)} h")}
-        <figure class="span-12"><img src="{sixh_fz_img}" alt="6 h Fz comparison"><figcaption>Fig. 4. Fz first-value-zeroed envelope for the selected 6 h comparison window. Statistics use all samples in the window.</figcaption></figure>
-        <figure class="span-12"><img src="{sixh_force_img}" alt="6 h force axes comparison"><figcaption>Fig. 5. Fx/Fy/Fz first-value-zeroed envelopes over 6 h. This is a long-window drift comparison, not an absolute calibration claim.</figcaption></figure>
+        <figure class="span-12"><img src="{sixh_fz_img}" alt="6 h Fz comparison"><figcaption>Fig. 4. Fz envelope after first 1 s mean zero for the selected 6 h comparison window. Statistics use all samples in the window.</figcaption></figure>
+        <figure class="span-12"><img src="{sixh_force_img}" alt="6 h force axes comparison"><figcaption>Fig. 5. Fx/Fy/Fz envelopes after first 1 s mean zero over 6 h. This is a long-window drift comparison, not an absolute calibration claim.</figcaption></figure>
         <figure class="span-12"><img src="{sixh_std_img}" alt="6 h force standard deviation"><figcaption>Fig. 6. Force-axis standard deviation over the selected 6 h window.</figcaption></figure>
       </div>
     </section>
@@ -2186,7 +2215,7 @@ def build_html(
             <tr><td>Circle contact</td><td>The full contact circle completed with {fmt(step4d_circle['closure_error_mm'], 3)} mm closure error</td><td>Reduce contact-entry transient and contact-force ripple before stronger algorithm claims</td></tr>
             <tr><td>External-loop line</td><td>The line-following demo completed, returned home, reached {fmt(step4e_line['progress_max_mm'], 3)} mm progress, and kept {fmt(step4e_line['path_error_p95_mm'], 3)} mm XY p95</td><td>Tune contact-force Fz and attitude behavior before stronger force-quality claims</td></tr>
             <tr><td>Frequency claim</td><td>Final line-stage echo is {fmt(result['echo_rate_hz'], 2)} Hz; RTDE logging is {fmt(result_freq['rtde_output_logging_rate_hz'], 2)} Hz</td><td>Report measured cadence, not internal servo-loop frequency</td></tr>
-            <tr><td>A/B comparison</td><td>Existing 600 s and 6 h windows differ in setup/date/load</td><td>Use first-value software zero for this report; reserve same-fixture testing only for future absolute calibration claims</td></tr>
+            <tr><td>A/B comparison</td><td>Existing 600 s and 6 h windows differ in setup/date/load</td><td>Use first 1 s mean software zero for this report; reserve same-fixture testing only for future absolute calibration claims</td></tr>
           </tbody>
         </table>
       </div>

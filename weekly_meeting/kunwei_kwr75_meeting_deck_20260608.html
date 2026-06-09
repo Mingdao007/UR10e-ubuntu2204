@@ -167,7 +167,7 @@
     <section id="summary">
       <div class="eyebrow">Kunwei KWR75 / UR10e</div>
       <h1>Kunwei force sensor progress report</h1>
-      <p class="lead">Kunwei is no longer just a bring-up task: the TCP raw logging path has a stable 19 h 15 min run, the straight-line contact run completed with improved force tracking, the first full contact circle completed, and the latest external-loop line-following demo completed with unload, retract, and home-return evidence. The OnRobot/Kunwei comparison in this deck uses existing logs only, with first-value software zero inside each selected window.</p>
+      <p class="lead">Kunwei is no longer just a bring-up task: the TCP raw logging path has a stable 19 h 15 min run, the straight-line contact run completed with improved force tracking, the first full contact circle completed, and the latest external-loop line-following demo completed with unload, retract, and home-return evidence. The OnRobot/Kunwei comparison in this deck uses existing logs only, with first 1 s mean software zero inside each selected window.</p>
       <div class="grid">
         <div class="metric"><span>Long raw capture</span><strong>69.3M samples</strong></div>
         <div class="metric"><span>Average raw rate</span><strong>999.990 Hz</strong></div>
@@ -181,10 +181,10 @@
     <section id="compare">
       <div class="eyebrow">Sensor comparison</div>
       <h2>OnRobot vs Kunwei, first 600 s</h2>
-      <p>Both traces are first-value software zeroed inside their own 600 s windows. No device-side zero/tare was executed for this report version. The shaded region is a min/max envelope; statistics use all samples in the selected window.</p>
+      <p>Both traces subtract the mean of their own first 1 s inside the 600 s window. No device-side zero/tare was executed for this report version. The shaded region is a min/max envelope; statistics use all samples in the selected window.</p>
       <div class="grid">
-        <figure class="span-12"><img src="assets/kunwei_kwr75_20260608/first600_onrobot_kunwei_force_axes_envelope.png" alt="First 600 s force axes comparison"><figcaption>Fig. 1. Fx/Fy/Fz first-value-zeroed envelopes. This compares short-window stability, not absolute bias.</figcaption></figure>
-        <figure class="span-7"><img src="assets/kunwei_kwr75_20260608/first600_onrobot_kunwei_fz_envelope.png" alt="First 600 s Fz comparison"><figcaption>Fig. 2. Fz detail, first-value-zeroed within each sensor's own run.</figcaption></figure>
+        <figure class="span-12"><img src="assets/kunwei_kwr75_20260608/first600_onrobot_kunwei_force_axes_envelope.png" alt="First 600 s force axes comparison"><figcaption>Fig. 1. Fx/Fy/Fz envelopes after first 1 s mean zero. This compares short-window stability, not absolute bias.</figcaption></figure>
+        <figure class="span-7"><img src="assets/kunwei_kwr75_20260608/first600_onrobot_kunwei_fz_envelope.png" alt="First 600 s Fz comparison"><figcaption>Fig. 2. Fz detail after first 1 s mean zero inside each sensor's own run.</figcaption></figure>
         <figure class="span-5"><img src="assets/kunwei_kwr75_20260608/first600_onrobot_kunwei_force_std.png" alt="First 600 s force standard deviation"><figcaption>Fig. 3. Force-axis standard deviation in the first 600 s windows.</figcaption></figure>
       </div>
     </section>
@@ -197,8 +197,8 @@
         <div class="metric"><span>OnRobot available</span><strong>8.79 h</strong></div>
         <div class="metric"><span>Common max</span><strong>8.79 h</strong></div>
         <div class="metric"><span>Selected window</span><strong>6.00 h</strong></div>
-        <figure class="span-12"><img src="assets/kunwei_kwr75_20260608/sixh_onrobot_kunwei_fz_envelope.png" alt="6 h Fz comparison"><figcaption>Fig. 4. Fz first-value-zeroed envelope for the selected 6 h comparison window. Statistics use all samples in the window.</figcaption></figure>
-        <figure class="span-12"><img src="assets/kunwei_kwr75_20260608/sixh_onrobot_kunwei_force_axes_envelope.png" alt="6 h force axes comparison"><figcaption>Fig. 5. Fx/Fy/Fz first-value-zeroed envelopes over 6 h. This is a long-window drift comparison, not an absolute calibration claim.</figcaption></figure>
+        <figure class="span-12"><img src="assets/kunwei_kwr75_20260608/sixh_onrobot_kunwei_fz_envelope.png" alt="6 h Fz comparison"><figcaption>Fig. 4. Fz envelope after first 1 s mean zero for the selected 6 h comparison window. Statistics use all samples in the window.</figcaption></figure>
+        <figure class="span-12"><img src="assets/kunwei_kwr75_20260608/sixh_onrobot_kunwei_force_axes_envelope.png" alt="6 h force axes comparison"><figcaption>Fig. 5. Fx/Fy/Fz envelopes after first 1 s mean zero over 6 h. This is a long-window drift comparison, not an absolute calibration claim.</figcaption></figure>
         <figure class="span-12"><img src="assets/kunwei_kwr75_20260608/sixh_onrobot_kunwei_force_std.png" alt="6 h force standard deviation"><figcaption>Fig. 6. Force-axis standard deviation over the selected 6 h window.</figcaption></figure>
       </div>
     </section>
@@ -282,7 +282,7 @@
             <tr><td>Circle contact</td><td>The full contact circle completed with 0.828 mm closure error</td><td>Reduce contact-entry transient and contact-force ripple before stronger algorithm claims</td></tr>
             <tr><td>External-loop line</td><td>The line-following demo completed, returned home, reached 143.618 mm progress, and kept 0.138 mm XY p95</td><td>Tune contact-force Fz and attitude behavior before stronger force-quality claims</td></tr>
             <tr><td>Frequency claim</td><td>Final line-stage echo is 489.83 Hz; RTDE logging is 507.53 Hz</td><td>Report measured cadence, not internal servo-loop frequency</td></tr>
-            <tr><td>A/B comparison</td><td>Existing 600 s and 6 h windows differ in setup/date/load</td><td>Use first-value software zero for this report; reserve same-fixture testing only for future absolute calibration claims</td></tr>
+            <tr><td>A/B comparison</td><td>Existing 600 s and 6 h windows differ in setup/date/load</td><td>Use first 1 s mean software zero for this report; reserve same-fixture testing only for future absolute calibration claims</td></tr>
           </tbody>
         </table>
       </div>
