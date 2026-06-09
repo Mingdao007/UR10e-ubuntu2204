@@ -18,23 +18,24 @@ CONFIG_PATH = EXPERIMENT_ROOT / "config" / "straight_line_reference.json"
 TEMPLATE_URP = PROGRAM_DIR / "step4d_circle_detsearch_attitude_v1.urp"
 CONTROLLER_DIR = "/programs/andyl/kunwei/step4"
 
-PROGRAMS = {
-    "preview": {
-        "name": "step4e_preview_line_v1",
-        "suffix": "PREVIEW_LINE_V1",
-        "description": "no-motion RTDE/command preview",
-    },
-    "hold": {
-        "name": "step4e_contact_hold_line_v1",
-        "suffix": "CONTACT_HOLD_LINE_V1",
-        "description": "deterministic search, contact latch, force/orientation hold",
-    },
-    "line": {
-        "name": "step4e_line_outerloop_v1",
-        "suffix": "LINE_OUTERLOOP_V1",
-        "description": "deterministic search, contact latch, Step4e line outer-loop",
-    },
-}
+def program_specs(version: str) -> dict[str, dict[str, str]]:
+    return {
+        "preview": {
+            "name": f"step4e_preview_line_{version}",
+            "suffix": f"PREVIEW_LINE_{version.upper()}",
+            "description": "no-motion RTDE/command preview",
+        },
+        "hold": {
+            "name": f"step4e_contact_hold_line_{version}",
+            "suffix": f"CONTACT_HOLD_LINE_{version.upper()}",
+            "description": "deterministic search, contact latch, force/orientation hold",
+        },
+        "line": {
+            "name": f"step4e_line_outerloop_{version}",
+            "suffix": f"LINE_OUTERLOOP_{version.upper()}",
+            "description": "deterministic search, contact latch, Step4e line outer-loop",
+        },
+    }
 
 
 def load_json(path: Path) -> dict:
@@ -105,6 +106,26 @@ def codex_wait_for_fresh_heartbeat(timeout_s):
   return False
 end
 
+def codex_wait_for_rezero_complete(timeout_s):
+  local dt = 0.002
+  local t = 0.0
+  local initial_heartbeat = read_input_float_register(26)
+  local current_heartbeat = initial_heartbeat
+  local saw_sensor_not_ready = False
+  while t < timeout_s:
+    current_heartbeat = read_input_float_register(26)
+    write_output_float_register(26, current_heartbeat)
+    if read_input_float_register(27) < 0.5:
+      saw_sensor_not_ready = True
+    elif saw_sensor_not_ready and read_input_float_register(27) > 0.5 and current_heartbeat != initial_heartbeat:
+      return True
+    end
+    sync()
+    t = t + dt
+  end
+  return False
+end
+
 def codex_step4e_guard_stop_reason():
   local normal_force = read_input_float_register(24)
   local force_norm = read_input_float_register(25)
@@ -142,6 +163,8 @@ def codex_should_auto_home(stop_reason):
     return True
   elif stop_reason == 13.0:
     return True
+  elif stop_reason == 14.0:
+    return True
   end
   return False
 end
@@ -176,8 +199,8 @@ end
 """
 
 
-def preview_script(stamp: str, gen_at: str) -> str:
-    return f"""# Step4e line preview v1: no-motion RTDE/command preview.
+def preview_script(stamp: str, gen_at: str, version: str) -> str:
+    return f"""# Step4e line preview {version}: no-motion RTDE/command preview.
 # VERSION: {stamp}
 # GENERATED_AT_LOCAL: {gen_at}
 # BEHAVIOR: wait for Kunwei bridge, echo Step4e command registers for review,
@@ -189,7 +212,8 @@ def codex_step4e_preview_line():
   local stop_reason = 0.0
   local t = 0.0
   local hold_s = 0.002
-  textmsg("codex step4e version {stamp} start preview_line_v1")
+  textmsg("codex step4e version {stamp} start preview_line_{version}")
+  write_output_float_register(34, 0.0)
   write_output_float_register(35, 20.0)
   if not codex_wait_for_fresh_heartbeat(30.0):
     stop_reason = 3.0
@@ -210,8 +234,9 @@ codex_step4e_preview_line()
 """
 
 
-def contact_script(mode: str, stamp: str, gen_at: str, geom: dict) -> str:
+def contact_script(mode: str, stamp: str, gen_at: str, geom: dict, version: str) -> str:
     is_line = mode == "line"
+    enable_entry_rezero = version == "v2"
     runtime_limit = 75.0 if is_line else 12.0
     end_check = f"""elif progress_m >= {fmt(geom['length'])}:
           stop_reason = 1.0""" if is_line else """elif t2 >= line_runtime_limit_s:
@@ -219,7 +244,19 @@ def contact_script(mode: str, stamp: str, gen_at: str, geom: dict) -> str:
     timeout_check = """elif t2 >= line_runtime_limit_s:
           stop_reason = 10.0""" if is_line else "# hold mode reaches success at line_runtime_limit_s"
     program_label = "outerloop" if is_line else mode
-    return f"""# Step4e {program_label} line v1: deterministic contact search, Step4e bridge outer-loop command consumption.
+    entry_rezero_block = """    write_output_float_register(35, 23.0)
+    codex_echo_step4e(stop_reason)
+    write_output_float_register(34, 1.0)
+    if not codex_wait_for_rezero_complete(5.0):
+      stop_reason = 14.0
+    end
+""" if enable_entry_rezero else ""
+    rezero_comment = (
+        "ENTRY_REZERO: request bridge re-baseline at entry pose before contact search."
+        if enable_entry_rezero
+        else "ENTRY_REZERO: not enabled in this version."
+    )
+    return f"""# Step4e {program_label} line {version}: deterministic contact search, Step4e bridge outer-loop command consumption.
 # VERSION: {stamp}
 # GENERATED_AT_LOCAL: {gen_at}
 # PATH: XY line from TP screenshot P0 [{fmt(geom['start_x'])}, {fmt(geom['start_y'])}]
@@ -227,6 +264,7 @@ def contact_script(mode: str, stamp: str, gen_at: str, geom: dict) -> str:
 # CONTROL: Ubuntu bridge computes paper-style outer-loop command in registers 37..47.
 # URScript consumes speedl([37..42]) only after contact latch; yaw command is expected 0.
 # SEARCH: deterministic downward speedl at 3 mm/s; no force admittance before contact latch.
+# {rezero_comment}
 # SAFETY: raw guards use registers 24..30; recoverable stops retract 10 mm then return home.
 {COMMON_FUNCTIONS}
 
@@ -255,7 +293,8 @@ def codex_step4e_{program_label}_line():
   local final_progress_m = 0.0
   local home_pose = get_actual_tcp_pose()
 
-  textmsg("codex step4e version {stamp} start {program_label}_line_v1")
+  textmsg("codex step4e version {stamp} start {program_label}_line_{version}")
+  write_output_float_register(34, 0.0)
   write_output_float_register(35, 20.0)
   codex_echo_step4e(0.0)
 
@@ -275,7 +314,10 @@ def codex_step4e_{program_label}_line():
     movel(entry_xy_pose, a=0.030, v=approach_speed_m_s, r=0.0)
     stopl(0.5)
     sleep(0.20)
-    stop_reason = codex_step4e_guard_stop_reason()
+{entry_rezero_block}    if stop_reason == 0.0:
+      sleep(0.20)
+      stop_reason = codex_step4e_guard_stop_reason()
+    end
   end
 
   if stop_reason == 0.0:
@@ -452,6 +494,14 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str) -> None:
         "cached stamp": stamp in xml,
         "step4e registers": "read_input_float_register(37)" in xml,
     }
+    if name.endswith("_v2") and "preview" not in name:
+        checks.update(
+            {
+                "entry rezero request": "write_output_float_register(34, 1.0)" in xml,
+                "entry rezero wait": "codex_wait_for_rezero_complete(5.0)" in xml,
+                "rezero stop reason": "stop_reason = 14.0" in xml,
+            }
+        )
     failed = [label for label, ok in checks.items() if not ok]
     if failed:
         raise RuntimeError(f"{name} validation failed: {failed}")
@@ -459,18 +509,23 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--version", choices=("v1", "v2"), default="v2")
     parser.add_argument("--stamp-prefix", default=None)
     args = parser.parse_args()
     now = datetime.now(timezone(timedelta(hours=8)))
     config = load_json(CONFIG_PATH)
     geom = line_cfg(config)
     generated = {}
-    for mode, spec in PROGRAMS.items():
+    for mode, spec in program_specs(args.version).items():
         stamp = args.stamp_prefix or source_stamp(spec["suffix"], now)
         if args.stamp_prefix:
             stamp = f"{args.stamp_prefix}_{spec['suffix']}"
         name = spec["name"]
-        script = preview_script(stamp, generated_at(now)) if mode == "preview" else contact_script(mode, stamp, generated_at(now), geom)
+        script = (
+            preview_script(stamp, generated_at(now), args.version)
+            if mode == "preview"
+            else contact_script(mode, stamp, generated_at(now), geom, args.version)
+        )
         txt = build_txt(name, stamp, spec["description"], geom)
         urp = build_urp(script, name)
         validate(name, script, txt, urp, stamp)

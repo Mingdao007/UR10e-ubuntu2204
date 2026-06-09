@@ -674,6 +674,7 @@ def main(argv: list[str] | None = None) -> int:
     latest_frame_time: float | None = None
     latest_output: dict[str, Any] | None = None
     last_zero_request: float | None = None
+    zero_request_epsilon = 1e-6
     heartbeat = 0.0
     stop_request = 0.0
     stop_reason = "duration"
@@ -894,19 +895,26 @@ def main(argv: list[str] | None = None) -> int:
                         zero_request = float(sample.get("output_double_register_34", 0.0))
                         if last_zero_request is None:
                             last_zero_request = zero_request
-                        elif zero_request > last_zero_request:
-                            baseline_epoch += 1
-                            baseline_ready = False
-                            baseline_raw_si = []
-                            baseline_start_mono = time.monotonic()
+                        elif abs(zero_request - last_zero_request) > zero_request_epsilon:
+                            previous_zero_request = last_zero_request
                             last_zero_request = zero_request
-                            zero_events.append(
-                                {
-                                    "baseline_epoch": baseline_epoch,
-                                    "requested_at_monotonic_s": baseline_start_mono,
-                                    "zero_request": zero_request,
-                                }
-                            )
+                            if (
+                                args.step4e_mode in {"hold", "line"}
+                                and zero_request > previous_zero_request
+                                and zero_request > 0.5
+                            ):
+                                baseline_epoch += 1
+                                baseline_ready = False
+                                baseline_raw_si = []
+                                baseline_start_mono = time.monotonic()
+                                zero_events.append(
+                                    {
+                                        "baseline_epoch": baseline_epoch,
+                                        "requested_at_monotonic_s": baseline_start_mono,
+                                        "zero_request": zero_request,
+                                        "previous_zero_request": previous_zero_request,
+                                    }
+                                )
 
                 now = time.monotonic()
                 if now >= next_write:

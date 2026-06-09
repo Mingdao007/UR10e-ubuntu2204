@@ -9,10 +9,12 @@ DASHBOARD_PORT="${DASHBOARD_PORT:-29999}"
 WAIT_FOR_PLAY_S="${WAIT_FOR_PLAY_S:-45}"
 AUTOWATCH_WAIT_FOR_PLAY_S="${AUTOWATCH_WAIT_FOR_PLAY_S:-600}"
 BENCH_GATE="/home/andy/codex-private-skills/skills/ur10e-realsetup/scripts/check_ubuntu_network.py"
+STEP4E_VERSION="${STEP4E_VERSION:-v1}"
+BRIDGE_DURATION_S="${BRIDGE_DURATION_S:-180}"
 
-PROGRAM_PREVIEW="/programs/andyl/kunwei/step4/step4e_preview_line_v1.urp"
-PROGRAM_HOLD="/programs/andyl/kunwei/step4/step4e_contact_hold_line_v1.urp"
-PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_line_outerloop_v1.urp"
+PROGRAM_PREVIEW="/programs/andyl/kunwei/step4/step4e_preview_line_${STEP4E_VERSION}.urp"
+PROGRAM_HOLD="/programs/andyl/kunwei/step4/step4e_contact_hold_line_${STEP4E_VERSION}.urp"
+PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_line_outerloop_${STEP4E_VERSION}.urp"
 
 usage() {
   cat <<'USAGE'
@@ -25,9 +27,9 @@ Usage:
   step4e-line-v1-operator.sh line-bridge
 
 Teach Pendant programs:
-  /programs/andyl/kunwei/step4/step4e_preview_line_v1.urp
-  /programs/andyl/kunwei/step4/step4e_contact_hold_line_v1.urp
-  /programs/andyl/kunwei/step4/step4e_line_outerloop_v1.urp
+  /programs/andyl/kunwei/step4/step4e_preview_line_${STEP4E_VERSION}.urp
+  /programs/andyl/kunwei/step4/step4e_contact_hold_line_${STEP4E_VERSION}.urp
+  /programs/andyl/kunwei/step4/step4e_line_outerloop_${STEP4E_VERSION}.urp
 
 Bridge lifecycle:
   * autowatch waits for TP Play, then starts Kunwei/RTDE bridge automatically.
@@ -47,21 +49,21 @@ select_mode() {
   case "${requested}" in
     preview-autowatch|preview-bridge)
       EXPECTED_PROGRAM="${PROGRAM_PREVIEW}"
-      EXPECTED_BASENAME="step4e_preview_line_v1.urp"
+      EXPECTED_BASENAME="step4e_preview_line_${STEP4E_VERSION}.urp"
       STEP4E_MODE="preview"
-      RUN_LABEL="step4e_preview_line_v1"
+      RUN_LABEL="step4e_preview_line_${STEP4E_VERSION}"
       ;;
     hold-autowatch|hold-bridge)
       EXPECTED_PROGRAM="${PROGRAM_HOLD}"
-      EXPECTED_BASENAME="step4e_contact_hold_line_v1.urp"
+      EXPECTED_BASENAME="step4e_contact_hold_line_${STEP4E_VERSION}.urp"
       STEP4E_MODE="hold"
-      RUN_LABEL="step4e_contact_hold_line_v1"
+      RUN_LABEL="step4e_contact_hold_line_${STEP4E_VERSION}"
       ;;
     line-autowatch|line-bridge)
       EXPECTED_PROGRAM="${PROGRAM_LINE}"
-      EXPECTED_BASENAME="step4e_line_outerloop_v1.urp"
+      EXPECTED_BASENAME="step4e_line_outerloop_${STEP4E_VERSION}.urp"
       STEP4E_MODE="line"
-      RUN_LABEL="step4e_line_outerloop_v1"
+      RUN_LABEL="step4e_line_outerloop_${STEP4E_VERSION}"
       ;;
     *)
       usage
@@ -273,7 +275,7 @@ run_bridge_for_mode() {
     --write-rtde-inputs \
     --baseline-s 5 \
     --rezero-s 1 \
-    --duration-s 180 \
+    --duration-s "${BRIDGE_DURATION_S}" \
     --rtde-hz 500 \
     --socket-timeout-s 0.0 \
     --sensor-stale-s 0.10 \
@@ -319,7 +321,7 @@ select_mode "${mode}"
 case "${mode}" in
   *-autowatch)
     cat <<WARNING
-STEP4e ${STEP4E_MODE} line v1 autowatch.
+STEP4e ${STEP4E_MODE} line ${STEP4E_VERSION} autowatch.
 This mode waits for Teach Pendant Play first.
 It does not start Kunwei streaming or write RTDE inputs while waiting.
 
@@ -336,7 +338,7 @@ WARNING
     ;;
   *-bridge)
     cat <<WARNING
-STEP4e ${STEP4E_MODE} line v1 lifecycle bridge.
+STEP4e ${STEP4E_MODE} line ${STEP4E_VERSION} lifecycle bridge.
 This sends Kunwei 48 AA 0D 0A and writes UR RTDE input registers.
 It does not send URScript from Ubuntu.
 
@@ -350,10 +352,10 @@ Motion/control:
   target force = 5 N, raw normal guard = 20 N, force norm guard = 50 N
   attitude proxy = bounded wx/wy velocity command, yaw frozen
 
-Type START_STEP4E_${STEP4E_MODE^^}_V1 to continue:
+Type START_STEP4E_${STEP4E_MODE^^}_${STEP4E_VERSION^^} to continue:
 WARNING
     read -r confirm
-    if [[ "${confirm}" != "START_STEP4E_${STEP4E_MODE^^}_V1" ]]; then
+    if [[ "${confirm}" != "START_STEP4E_${STEP4E_MODE^^}_${STEP4E_VERSION^^}" ]]; then
       echo "aborted"
       exit 2
     fi

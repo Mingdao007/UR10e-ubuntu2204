@@ -63,3 +63,102 @@ Only the XY projection is used for the path. Z is not interpolated; normal motio
 - `scripts/step4e-line-v1-autowatch.sh`
 
 Autowatch waits for the exact expected TP program to be running before starting Kunwei streaming or writing RTDE input registers.
+
+## V2 Audit Response
+
+Step4e v2 keeps v1 intact and adds an entry-pose re-zero gate before contact search:
+
+- Preview, no motion: `/programs/andyl/kunwei/step4/step4e_preview_line_v2.urp`
+- Contact hold with entry re-zero: `/programs/andyl/kunwei/step4/step4e_contact_hold_line_v2.urp`
+- Full line with entry re-zero: `/programs/andyl/kunwei/step4/step4e_line_outerloop_v2.urp`
+- Local autowatch:
+  - `scripts/step4e-preview-v2-autowatch.sh`
+  - `scripts/step4e-hold-v2-autowatch.sh`
+  - `scripts/step4e-line-v2-autowatch.sh`
+
+V2 writes `output_double_register_34 = 0.0` at program start, moves to the reference
+orientation and entry XY, then writes `output_double_register_34 = 1.0` at stage `23.0`.
+The bridge re-baselines for `--rezero-s 1`; URScript waits for `sensor_ok` to drop and
+return. If that does not complete, stop reason `14.0` is emitted and the program uses the
+recoverable retract/home path.
+
+This resolves Claude's v1 baseline-at-wrong-orientation concern, but it does not prove the
+force-control sign. The required run order remains: v2 preview -> v2 hold -> inspect hold
+CSV for `baseline_epoch=1`, `zero_events`, near-zero pre-contact force, and force convergence
+toward 5 N -> only then v2 line.
+
+---
+
+# >>> CLAUDE AUDIT (2026-06-09) — READ THIS BEFORE RUNNING `line` <<<
+
+Static review by Claude (Opus 4.8). No bridge started, no robot moved.
+Full report: `STEP4E_LINE_AUDIT_CLAUDE.md` (same folder). Summary below.
+
+Verdict: architecture + safety envelope are sound. **Cleared to run `preview` then `hold`.
+Do NOT run `line` until the two hardware assumptions below are confirmed in the `hold` run.**
+
+## MUST validate on hardware before `line` (hardware-dependent, not code bugs)
+
+1. **Baseline is zeroed at the start pose, but the robot reorients before contact.**
+   Bridge takes the zero (`--baseline-s 5`) at the stationary start pose; URScript then does
+   `movel` to the fixed reference orientation `[3.133,0.529,0.191]` and to the entry XY
+   (`step4e_line_outerloop_v1.script:151,156`) before searching/contacting. A force sensor's
+   gravity/payload projection is orientation-dependent, so the zero captured at one
+   orientation carries an offset at another. This biases the contact latch (`force_norm>1.5`),
+   the 5 N target, and the computed contact normal `n_reaction_b`.
+   → In the `hold` CSV, confirm `fz_n_zeroed`/`force_norm_n` ≈ 0 *after* reorientation and
+   *before* contact. If not, re-zero at the entry pose, or accept the offset only if it is
+   small vs 1.5 N (per the v1 idealized-assumptions agreement).
+   Note: the bridge CAN re-zero (re-baselines when `output_double_register_34` rises,
+   `kunwei_rtde_bridge.py:894-909`), but NO URScript writes register 34, so today there is no
+   in-program re-zero and `--rezero-s 1` is dead.
+
+2. **Force-control sign convention is unverified end to end.**
+   `kunwei_to_tcp_wrench` negates Fy/Fz (`kunwei_rtde_bridge.py:235`), plus
+   `--normal-axis fz --normal-sign 1`, plus `force_cmd = -n_reaction_b*normal_velocity`
+   (`:325`). If any sign is wrong, the normal loop pushes AWAY from the surface → force
+   diverges to the 20 N guard or contact is lost. Highest-consequence unverified assumption.
+   → The `hold` run is the test: confirm force CONVERGES to +5 N (not diverges) and commanded
+   `vz` points into the surface. Only then run `line`.
+
+The preview→hold→line ladder exists for exactly these two. The operator script enforces
+program identity, but hold-before-line is operator discipline — **read the hold CSV before
+line.**
+
+## Important (non-blocking, fix when convenient)
+
+3. **`--duration-s 180` is a hard self-terminate independent of the robot program**
+   (`kunwei_rtde_bridge.py:772`). If the full program exceeds 180 s, the bridge drops RTDE
+   mid-line → URScript staleness → auto-home. Safe but an avoidable abort; nominal ~80 s but a
+   slow search+line can approach it. Suggest raising to ~240 s.
+4. **URScript `t`/`t2` are loop-iteration budgets, not wall-clock seconds** (each loop runs
+   `speedl(t=0.002)` + register reads, so real time > 2 ms/iter). `search_runtime_limit_s=25`
+   and `line_runtime_limit_s=75` under-count; real terminators are depth (60 mm)/progress
+   (0.1437 m) — fine for safety. For `hold`, `line_runtime_limit_s=12` is the SUCCESS
+   criterion, so the actual hold runs somewhat longer than 12 s wall-clock.
+5. **Dead re-zero path** (same as note in §1): wire a register-34 write into the URScript at
+   the entry pose (also fixes §1), or drop the unused `--rezero-s`.
+
+## Housekeeping
+
+6. Commit `2aa45bd` is clean and pushed, but the working tree overall is NOT clean (unrelated
+   modified `docs/`,`report/`,`ft_sensor/` files + untracked `controller_backups/` etc.).
+   Stage selectively before any future commit so unrelated changes aren't swept in.
+
+## Confirmed OK / positive
+Clean control boundary (Python only streams Kunwei start + writes RTDE registers; no URScript
+upload, no program start, no robot motion, no `zero_ftsensor`; IK stays in UR via `speedl`).
+Defense-in-depth guards (bridge-side 20/50/0.6 → stop_request AND URScript re-checks same +
+100 ms staleness + command-magnitude sanity reason 13). Bridge command caps (6 mm/s, 15 mrad/s)
+make the URScript per-axis limits unreachable in normal use — good redundancy. Heartbeat
+freshness gate before motion; bridge death → stop within 100 ms (≤0.6 mm drift). Path math
+correct (unit vector, projection, progress clamp, path-error normal component removed so
+tangential motion doesn't fight the force loop). Force loop is sane PI+damping with integral
+windup clamp and no pre-contact windup. Loss-of-contact (<1 N) → cmd_valid=0 → reason 12
+auto-home. Preview has no motion nodes; all three `.urp` decompress and embed the matching
+version stamp.
+
+## Recommended order
+preview → hold (read CSV, confirm the 3 things in §2) → line. Optional code follow-ups: §3,§4,§5.
+
+# >>> END CLAUDE AUDIT <<<
