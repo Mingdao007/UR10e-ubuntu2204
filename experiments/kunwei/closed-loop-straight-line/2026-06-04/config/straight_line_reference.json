@@ -44,7 +44,7 @@
     "path_frame": "base_xy_projection",
     "z_policy": "force_control_not_interpolated",
     "xy_unit_vector": [0.415512246, 0.909587417],
-    "xy_length_m": 0.143751504,
+    "xy_length_m": 0.1437471231016468,
     "first_version_policy": {
       "trajectory": "straight line in XY projection from start to end",
       "ik_owner": "UR controller through speedl Cartesian twist",

@@ -14,11 +14,20 @@ BRIDGE_DURATION_S="${BRIDGE_DURATION_S:-180}"
 STEP4E_NORMAL_COMMAND_SIGN="${STEP4E_NORMAL_COMMAND_SIGN:-1}"
 MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-20}"
 MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-0.6}"
+STEP4E_ORIENTATION_GAIN="${STEP4E_ORIENTATION_GAIN:-0.20}"
+STEP4E_ORIENTATION_WX_SIGN="${STEP4E_ORIENTATION_WX_SIGN:-1}"
+STEP4E_ORIENTATION_WY_SIGN="${STEP4E_ORIENTATION_WY_SIGN:-1}"
 
 PROGRAM_PREVIEW="/programs/andyl/kunwei/step4/step4e_preview_line_${STEP4E_VERSION}.urp"
 PROGRAM_HOLD="/programs/andyl/kunwei/step4/step4e_contact_hold_line_${STEP4E_VERSION}.urp"
 PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_line_outerloop_${STEP4E_VERSION}.urp"
-if [[ "${STEP4E_VERSION}" == "v9" ]]; then
+if [[ "${STEP4E_VERSION}" == "v12" ]]; then
+  SEARCH_DESCRIPTION="two-stage search: far 15 mm/s for 80 mm, then near 3 mm/s for the final 12 mm, 92 mm max depth; v12 keeps v11 attitude signs and fixes endpoint success/retract"
+elif [[ "${STEP4E_VERSION}" == "v11" ]]; then
+  SEARCH_DESCRIPTION="two-stage search: far 15 mm/s for 80 mm, then near 3 mm/s for the final 12 mm, 92 mm max depth; v11 keeps v10 force guards and uses independent attitude signs wx=+1, wy=-1"
+elif [[ "${STEP4E_VERSION}" == "v10" ]]; then
+  SEARCH_DESCRIPTION="two-stage search: far 15 mm/s for 80 mm, then near 3 mm/s for the final 12 mm, 92 mm max depth; v10 keeps v9 force guards and reverses the attitude outer-loop direction"
+elif [[ "${STEP4E_VERSION}" == "v9" ]]; then
   SEARCH_DESCRIPTION="two-stage search: far 15 mm/s for 80 mm, then near 3 mm/s for the final 12 mm, 92 mm max depth; v9 keeps v8 latched-normal line control and raises raw normal guard to 100N / torque guard to 1.0Nm"
 elif [[ "${STEP4E_VERSION}" == "v8" ]]; then
   SEARCH_DESCRIPTION="two-stage search: far 15 mm/s for 80 mm, then near 3 mm/s for the final 12 mm, 92 mm max depth; v8 keeps v7 stopl(0.1) and uses latched-normal 5N line control"
@@ -318,7 +327,9 @@ run_bridge_for_mode() {
     --step4e-min-force-for-control-n 1.0 \
     --step4e-acquire-grace-s 0.25 \
     --step4e-reacquire-velocity-m-s 0.001 \
-    --step4e-orientation-gain 0.20 \
+    --step4e-orientation-gain "${STEP4E_ORIENTATION_GAIN}" \
+    --step4e-orientation-wx-sign "${STEP4E_ORIENTATION_WX_SIGN}" \
+    --step4e-orientation-wy-sign "${STEP4E_ORIENTATION_WY_SIGN}" \
     --step4e-angular-limit-rad-s 0.015 \
     --step4e-contact-offset-min-fz-n 1.0 \
     --output-dir "${out_dir}" &
@@ -374,7 +385,7 @@ Motion/control:
   line XY speed command = 3 mm/s, max Cartesian command = 6 mm/s
   speedl acceleration = 300 mm/s^2, hold time = 2 ms
   target force = 5 N, raw normal guard = ${MAX_NORMAL_FORCE_N} N, force norm guard = 50 N, torque guard = ${MAX_TORQUE_NORM_NM} Nm
-  attitude proxy = bounded wx/wy velocity command, yaw frozen
+  attitude proxy = bounded wx/wy velocity command, gain = ${STEP4E_ORIENTATION_GAIN}, wx sign = ${STEP4E_ORIENTATION_WX_SIGN}, wy sign = ${STEP4E_ORIENTATION_WY_SIGN}, yaw frozen
 
 Type START_STEP4E_${STEP4E_MODE^^}_${STEP4E_VERSION^^} to continue:
 WARNING

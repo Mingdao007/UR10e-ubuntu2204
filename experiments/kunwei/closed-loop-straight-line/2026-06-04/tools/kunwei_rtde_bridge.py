@@ -314,7 +314,11 @@ def compute_step4e_values(
     tcp_z_axis_b = (rotation[0][2], rotation[1][2], rotation[2][2])
     orientation_axis = cross3(tcp_z_axis_b, n_control_b)
     orientation_error = math.asin(clamp(norm3(orientation_axis), -1.0, 1.0))
-    orientation_cmd = tuple(args.step4e_orientation_gain * value for value in orientation_axis)
+    orientation_cmd = (
+        args.step4e_orientation_gain * args.step4e_orientation_wx_sign * orientation_axis[0],
+        args.step4e_orientation_gain * args.step4e_orientation_wy_sign * orientation_axis[1],
+        args.step4e_orientation_gain * orientation_axis[2],
+    )
     orientation_norm = norm3(orientation_cmd)
     if orientation_norm > args.step4e_angular_limit_rad_s:
         scale = args.step4e_angular_limit_rad_s / orientation_norm
@@ -678,6 +682,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--step4e-acquire-grace-s", type=float, default=0.25)
     parser.add_argument("--step4e-reacquire-velocity-m-s", type=float, default=0.001)
     parser.add_argument("--step4e-orientation-gain", type=float, default=0.20)
+    parser.add_argument("--step4e-orientation-wx-sign", type=float, choices=(-1.0, 1.0), default=1.0)
+    parser.add_argument("--step4e-orientation-wy-sign", type=float, choices=(-1.0, 1.0), default=1.0)
     parser.add_argument("--step4e-angular-limit-rad-s", type=float, default=0.015)
     parser.add_argument("--step4e-contact-offset-min-fz-n", type=float, default=1.0)
     return parser.parse_args(argv)
