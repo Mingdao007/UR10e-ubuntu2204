@@ -1649,7 +1649,7 @@ def build_html(
       <h2>Step2C final holds ~490 Hz measured echo and improves force tracking</h2>
       <p>The selected final run keeps measured stage25 echo cadence at {fmt(result['echo_rate_hz'], 2)} Hz while reducing Fz error MAE from V4's {fmt(v4['signed_error_mae_n'], 2)} N to {fmt(result['signed_error_mae_n'], 2)} N. RTDE logging stays near 500 Hz and Kunwei raw stage25 remains near {fmt(result_raw['rate_hz'], 2)} Hz. This is measured URScript echo/motion-gate evidence, not a claim about the internal servo loop.</p>
       <div class="grid">
-        {html_metric("Final run", step2c_result["run_name"])}
+        {html_metric("Line outcome", "complete")}
         {html_metric("Stage25 echo", f"{fmt(result['echo_rate_hz'], 2)} Hz")}
         {html_metric("RTDE log", f"{fmt(result_freq['rtde_output_logging_rate_hz'], 2)} Hz")}
         {html_metric("Kunwei raw", f"{fmt(result_raw['rate_hz'], 2)} Hz")}
@@ -1668,7 +1668,7 @@ def build_html(
       <h2>Step4D completes a full contact circle with attitude admittance</h2>
       <p>Step4D uses the middle half of the prior contact path as the circle diameter, then runs deterministic contact search, signed-Fz velocity admittance, and bounded wx/wy attitude admittance while UR handles IK through Cartesian speedl twist. The selected run reached circle_complete with {fmt(step4d_circle['arc_progress_end_mm'], 3)} mm arc progress, {fmt(step4d_circle['closure_error_mm'], 3)} mm closure error, and {fmt(step4d_circle['radial_error_p95_mm'], 3)} mm radial p95. This is circular-contact scaffold evidence, not a same-task ranking against Step2C straight-line force quality.</p>
       <div class="grid">
-        {html_metric("Step4D run", step4d_result["run_name"])}
+        {html_metric("Circle outcome", "full circle")}
         {html_metric("Stage25 echo", f"{fmt(step4d_stage25['echo_rate_hz'], 2)} Hz")}
         {html_metric("Radius", f"{fmt(step4d_circle['radius_mm'], 3)} mm")}
         {html_metric("Arc progress", f"{fmt(step4d_circle['arc_progress_end_mm'], 3)} mm")}
