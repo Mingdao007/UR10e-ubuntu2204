@@ -42,7 +42,7 @@ def program_specs(version: str) -> dict[str, dict[str, str]]:
             },
             **specs,
         }
-    if version in {"v15", "v16", "v17", "v18"}:
+    if version in {"v15", "v16", "v17", "v18", "v19"}:
         return {"line": specs["line"]}
     return specs
 
@@ -261,7 +261,7 @@ codex_step4e_preview_line()
 
 
 def search_profile(version: str) -> dict[str, str]:
-    if version in {"v16", "v17", "v18"}:
+    if version in {"v16", "v17", "v18", "v19"}:
         return {
             "comment": "two-stage deterministic search directly after XY entry: far 15 mm/s, then near 3 mm/s with no fixed-Z pre-search movel; no force admittance before contact latch.",
             "accel": "0.300",
@@ -360,10 +360,11 @@ def contact_script(mode: str, stamp: str, gen_at: str, geom: dict, version: str)
         "v16",
         "v17",
         "v18",
+        "v19",
     }
     search = search_profile(version)
-    use_vertical_precontact = version in {"v17", "v18"}
-    if version in {"v14", "v15", "v16", "v17", "v18"}:
+    use_vertical_precontact = version in {"v17", "v18", "v19"}
+    if version in {"v14", "v15", "v16", "v17", "v18", "v19"}:
         normal_guard_n = "50.0"
     elif version in {"v9", "v10", "v11", "v12", "v13"}:
         normal_guard_n = "100.0"
@@ -371,11 +372,11 @@ def contact_script(mode: str, stamp: str, gen_at: str, geom: dict, version: str)
         normal_guard_n = "30.0"
     else:
         normal_guard_n = "20.0"
-    torque_guard_nm = "3.0" if version == "v18" else (
+    torque_guard_nm = "3.0" if version in {"v18", "v19"} else (
         "1.0" if version in {"v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17"} else "0.6"
     )
-    stop_decel = "0.1" if version in {"v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18"} else "0.5"
-    cmd_angular_xy_limit = "0.120" if version == "v18" else "0.030"
+    stop_decel = "0.1" if version in {"v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18", "v19"} else "0.5"
+    cmd_angular_xy_limit = "0.120" if version in {"v18", "v19"} else "0.030"
     runtime_limit = 75.0 if is_line else 12.0
     end_check = """elif end_hold_s >= end_hold_required_s:
           stop_reason = 1.0""" if is_line else """elif t2 >= line_runtime_limit_s:
@@ -417,7 +418,7 @@ def contact_script(mode: str, stamp: str, gen_at: str, geom: dict, version: str)
     stopl({stop_decel})
 """
     point_orient_block = ""
-    if version == "v18" and is_line:
+    if version in {"v18", "v19"} and is_line:
         point_orient_block = f"""
   if stop_reason == 0.0:
     write_output_float_register(35, 25.1)
@@ -834,7 +835,7 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str, controlle
                 "max search depth": "local max_search_down_m = 0.092" in xml,
             }
         )
-    if name.endswith(("_v16", "_v17", "_v18")) and "preview" not in name:
+    if name.endswith(("_v16", "_v17", "_v18", "_v19")) and "preview" not in name:
         checks.update(
             {
                 "direct xy-to-search": "local fixed_search_start_z_m" not in script
@@ -870,7 +871,7 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str, controlle
                 "torque guard": "torque_norm > 1.0" in script and "torque_norm &gt; 1.0" in xml,
             }
         )
-    if name.endswith("_v18") and "preview" not in name:
+    if name.endswith(("_v18", "_v19")) and "preview" not in name:
         checks.update(
             {
                 "normal guard": "codex_abs(normal_force) > 50.0" in script
@@ -883,14 +884,14 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str, controlle
                 "v18 angular sanity": "local max_cmd_angular_xy_rad_s = 0.120" in script,
             }
         )
-    if name.endswith(("_v7", "_v8", "_v9", "_v10", "_v11", "_v12", "_v13", "_v14", "_v15", "_v16", "_v17", "_v18")) and "preview" not in name:
+    if name.endswith(("_v7", "_v8", "_v9", "_v10", "_v11", "_v12", "_v13", "_v14", "_v15", "_v16", "_v17", "_v18", "_v19")) and "preview" not in name:
         checks.update(
             {
                 "fast stop decel": "stopl(0.1)" in script and "stopl(0.1)" in xml,
                 "old stop decel removed": "stopl(0.5)" not in script and "stopl(0.5)" not in xml,
             }
         )
-    if name.endswith(("_v12", "_v13", "_v14", "_v15", "_v16", "_v17", "_v18")) and "line_outerloop" in name:
+    if name.endswith(("_v12", "_v13", "_v14", "_v15", "_v16", "_v17", "_v18", "_v19")) and "line_outerloop" in name:
         checks.update(
             {
                 "line success threshold": "local line_success_progress_m = " in script
@@ -911,7 +912,7 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str, controlle
                 and "write_output_float_register(35, 22.5)" in xml,
             }
         )
-    if name.endswith(("_v15", "_v16", "_v17", "_v18")) and "line_outerloop" in name:
+    if name.endswith(("_v15", "_v16", "_v17", "_v18", "_v19")) and "line_outerloop" in name:
         checks.update(
             {
                 "cmd valid grace": "local cmd_valid_grace_s = 0.250" in script
@@ -920,7 +921,7 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str, controlle
                 and "cmd_invalid_s &lt;= cmd_valid_loss_limit_s" in xml,
             }
         )
-    if name.endswith(("_v17", "_v18")) and "line_outerloop" in name:
+    if name.endswith(("_v17", "_v18", "_v19")) and "line_outerloop" in name:
         checks.update(
             {
                 "vertical precontact rx": "local search_rx = 3.141592654" in script,
@@ -938,7 +939,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--version",
-        choices=("v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18"),
+        choices=("v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18", "v19"),
         default="v2",
     )
     parser.add_argument("--stamp-prefix", default=None)

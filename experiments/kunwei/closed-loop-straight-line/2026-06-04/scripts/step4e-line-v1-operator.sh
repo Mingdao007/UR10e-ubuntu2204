@@ -31,7 +31,9 @@ STEP4E_ANGULAR_LIMIT_RAD_S="${STEP4E_ANGULAR_LIMIT_RAD_S:-0.015}"
 PROGRAM_PREVIEW="/programs/andyl/kunwei/step4/step4e_preview_line_${STEP4E_VERSION}.urp"
 PROGRAM_HOLD="/programs/andyl/kunwei/step4/step4e_contact_hold_line_${STEP4E_VERSION}.urp"
 PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_line_outerloop_${STEP4E_VERSION}.urp"
-if [[ "${STEP4E_VERSION}" == "v18" ]]; then
+if [[ "${STEP4E_VERSION}" == "v19" ]]; then
+  SEARCH_DESCRIPTION="two-stage search: v19 first moves TCP orientation to vertical [pi,0,0], then XY entry and downward speedl-search; far 15 mm/s for 130 mm then near 3 mm/s up to 150 mm max depth; after contact latch it holds 5 N point contact and aligns TCP z to the contact normal before 5 mm/s XY line motion"
+elif [[ "${STEP4E_VERSION}" == "v18" ]]; then
   SEARCH_DESCRIPTION="two-stage search: v18 first moves TCP orientation to vertical [pi,0,0], then XY entry and downward speedl-search; far 15 mm/s for 130 mm then near 3 mm/s up to 150 mm max depth; after contact latch it holds 5 N point contact and aligns TCP z to the contact normal before XY line motion"
 elif [[ "${STEP4E_VERSION}" == "v17" ]]; then
   SEARCH_DESCRIPTION="two-stage search: v17 first moves TCP orientation to vertical [pi,0,0], then XY entry and downward speedl-search; far 15 mm/s for 130 mm then near 3 mm/s up to 150 mm max depth; bridge attitude outer-loop starts after contact latch"
@@ -385,7 +387,7 @@ select_mode "${mode}"
 case "${mode}" in
   *-autowatch)
     cat <<WARNING
-STEP4e ${STEP4E_MODE} line ${STEP4E_VERSION} autowatch.
+STEP4e ${STEP4E_MODE} ${STEP4E_VERSION} autowatch.
 This mode waits for Teach Pendant Play first.
 It does not start Kunwei streaming or write RTDE inputs while waiting.
 
@@ -402,7 +404,7 @@ WARNING
     ;;
   *-bridge)
     cat <<WARNING
-STEP4e ${STEP4E_MODE} line ${STEP4E_VERSION} lifecycle bridge.
+STEP4e ${STEP4E_MODE} ${STEP4E_VERSION} lifecycle bridge.
 This sends Kunwei 48 AA 0D 0A and writes UR RTDE input registers.
 It does not send URScript from Ubuntu.
 
@@ -410,8 +412,8 @@ Before pressing Play, open this Teach Pendant program:
   ${EXPECTED_PROGRAM}
 
 Motion/control:
-  preview = no motion, hold/line = ${SEARCH_DESCRIPTION} before contact latch
-  line XY speed command = 3 mm/s, max Cartesian command = 6 mm/s
+  preview = no motion, hold/line setup = ${SEARCH_DESCRIPTION}
+  line XY speed command = ${STEP4E_LINE_SPEED_M_S} m/s, max Cartesian command = 6 mm/s
   speedl acceleration = 300 mm/s^2, hold time = 2 ms
   target force = 5 N, raw normal guard = ${MAX_NORMAL_FORCE_N} N, force norm guard = 50 N, torque guard = ${MAX_TORQUE_NORM_NM} Nm
   attitude proxy = bounded wx/wy velocity command, gain = ${STEP4E_ORIENTATION_GAIN}, angular limit = ${STEP4E_ANGULAR_LIMIT_RAD_S} rad/s, wx sign = ${STEP4E_ORIENTATION_WX_SIGN}, wy sign = ${STEP4E_ORIENTATION_WY_SIGN}, yaw frozen
