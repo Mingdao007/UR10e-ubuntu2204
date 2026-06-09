@@ -11,13 +11,14 @@ import math
 import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from pathlib import PurePosixPath
 
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
 PROGRAM_DIR = EXPERIMENT_ROOT / "programs"
 CONFIG_PATH = EXPERIMENT_ROOT / "config" / "straight_line_reference.json"
 TEMPLATE_URP = PROGRAM_DIR / "step4abcd" / "step4d_circle_detsearch_attitude_v1.urp"
-CONTROLLER_DIR = "/programs/andyl/kunwei/step4"
+CONTROLLER_BASE_DIR = "/programs/andyl/kunwei/step4"
 
 def program_specs(version: str) -> dict[str, dict[str, str]]:
     specs = {
@@ -650,12 +651,23 @@ Control boundary:
 """
 
 
-def build_urp(script: str, name: str) -> bytes:
-    controller_script = f"{CONTROLLER_DIR}/{name}.script"
+def installation_relative_path(controller_dir: str) -> str:
+    path = PurePosixPath(controller_dir)
+    try:
+        programs_idx = path.parts.index("programs")
+    except ValueError as exc:
+        raise ValueError(f"controller_dir must be under /programs: {controller_dir}") from exc
+    parent_levels = len(path.parts) - programs_idx - 1
+    return "/".join([".."] * parent_levels + ["default"])
+
+
+def build_urp(script: str, name: str, controller_dir: str) -> bytes:
+    controller_script = f"{controller_dir}/{name}.script"
+    install_rel = installation_relative_path(controller_dir)
     xml = gzip.decompress(TEMPLATE_URP.read_bytes()).decode("utf-8")
     xml = re.sub(r'<URProgram name="[^"]+"', f'<URProgram name="{name}"', xml, count=1)
-    xml = re.sub(r'directory="[^"]+"', f'directory="{CONTROLLER_DIR}"', xml, count=1)
-    xml = re.sub(r'installationRelativePath="[^"]+"', 'installationRelativePath="../../../default"', xml, count=1)
+    xml = re.sub(r'directory="[^"]+"', f'directory="{controller_dir}"', xml, count=1)
+    xml = re.sub(r'installationRelativePath="[^"]+"', f'installationRelativePath="{install_rel}"', xml, count=1)
     xml = re.sub(
         r'<cachedContents>.*?</cachedContents>',
         f"<cachedContents>{html.escape(script)}</cachedContents>",
@@ -673,14 +685,16 @@ def build_urp(script: str, name: str) -> bytes:
     return gzip.compress(xml.encode("utf-8"))
 
 
-def validate(name: str, script: str, txt: str, urp: bytes, stamp: str) -> None:
+def validate(name: str, script: str, txt: str, urp: bytes, stamp: str, controller_dir: str) -> None:
     xml = gzip.decompress(urp).decode("utf-8")
+    install_rel = installation_relative_path(controller_dir)
     checks = {
         "script stamp": stamp in script,
         "txt stamp": stamp in txt,
         "program name": f'URProgram name="{name}"' in xml,
-        "installation path": 'installationRelativePath="../../../default"' in xml,
-        "script file": f"{CONTROLLER_DIR}/{name}.script" in xml,
+        "controller directory": f'directory="{controller_dir}"' in xml,
+        "installation path": f'installationRelativePath="{install_rel}"' in xml,
+        "script file": f"{controller_dir}/{name}.script" in xml,
         "cached stamp": stamp in xml,
         "step4e registers": "read_input_float_register(37)" in xml,
     }
@@ -808,7 +822,15 @@ def main() -> int:
         default="v2",
     )
     parser.add_argument("--stamp-prefix", default=None)
+    parser.add_argument(
+        "--program-subdir",
+        default="",
+        help="Optional local/controller subdirectory under the Step4 program directory, for archived packages such as step4e.",
+    )
     args = parser.parse_args()
+    local_program_dir = PROGRAM_DIR / args.program_subdir if args.program_subdir else PROGRAM_DIR
+    controller_dir = f"{CONTROLLER_BASE_DIR}/{args.program_subdir}" if args.program_subdir else CONTROLLER_BASE_DIR
+    local_program_dir.mkdir(parents=True, exist_ok=True)
     now = datetime.now(timezone(timedelta(hours=8)))
     config = load_json(CONFIG_PATH)
     geom = line_cfg(config)
@@ -824,11 +846,11 @@ def main() -> int:
             else contact_script(mode, stamp, generated_at(now), geom, args.version)
         )
         txt = build_txt(name, stamp, spec["description"], geom)
-        urp = build_urp(script, name)
-        validate(name, script, txt, urp, stamp)
-        script_path = PROGRAM_DIR / f"{name}.script"
-        txt_path = PROGRAM_DIR / f"{name}.txt"
-        urp_path = PROGRAM_DIR / f"{name}.urp"
+        urp = build_urp(script, name, controller_dir)
+        validate(name, script, txt, urp, stamp, controller_dir)
+        script_path = local_program_dir / f"{name}.script"
+        txt_path = local_program_dir / f"{name}.txt"
+        urp_path = local_program_dir / f"{name}.urp"
         script_path.write_text(script, encoding="utf-8")
         txt_path.write_text(txt, encoding="utf-8")
         urp_path.write_bytes(urp)
@@ -836,8 +858,8 @@ def main() -> int:
             "script": str(script_path),
             "txt": str(txt_path),
             "urp": str(urp_path),
-            "controller_script": f"{CONTROLLER_DIR}/{name}.script",
-            "controller_urp": f"{CONTROLLER_DIR}/{name}.urp",
+            "controller_script": f"{controller_dir}/{name}.script",
+            "controller_urp": f"{controller_dir}/{name}.urp",
             "stamp": stamp,
         }
     print(json.dumps({"generated": generated, "line": geom}, indent=2))

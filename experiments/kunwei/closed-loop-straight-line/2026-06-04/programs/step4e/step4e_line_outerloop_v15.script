@@ -1,6 +1,6 @@
 # Step4e outerloop line v15: deterministic contact search, Step4e bridge outer-loop command consumption.
 # VERSION: 2026-06-09T1625HKT_STEP4E_LINE_OUTERLOOP_V15
-# GENERATED_AT_LOCAL: 2026-06-09T16:25:48+08:00
+# GENERATED_AT_LOCAL: 2026-06-09T16:56:32+08:00
 # PATH: XY line from TP screenshot P0 [0.43301, 0.10802]
 # to P1 [0.49274, 0.23877], length 0.143747123 m.
 # CONTROL: Ubuntu bridge computes paper-style outer-loop command in registers 37..47.
