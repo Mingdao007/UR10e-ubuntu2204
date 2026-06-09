@@ -41,6 +41,8 @@ def program_specs(version: str) -> dict[str, dict[str, str]]:
             },
             **specs,
         }
+    if version == "v15":
+        return {"line": specs["line"]}
     return specs
 
 
@@ -258,7 +260,7 @@ codex_step4e_preview_line()
 
 
 def search_profile(version: str) -> dict[str, str]:
-    if version in {"v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14"}:
+    if version in {"v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15"}:
         return {
             "comment": "two-stage deterministic search: far 15 mm/s, then near 3 mm/s with 12 mm slow-search margin; no force admittance before contact latch.",
             "accel": "0.300",
@@ -340,9 +342,10 @@ def contact_script(mode: str, stamp: str, gen_at: str, geom: dict, version: str)
         "v12",
         "v13",
         "v14",
+        "v15",
     }
     search = search_profile(version)
-    if version == "v14":
+    if version in {"v14", "v15"}:
         normal_guard_n = "50.0"
     elif version in {"v9", "v10", "v11", "v12", "v13"}:
         normal_guard_n = "100.0"
@@ -350,8 +353,8 @@ def contact_script(mode: str, stamp: str, gen_at: str, geom: dict, version: str)
         normal_guard_n = "30.0"
     else:
         normal_guard_n = "20.0"
-    torque_guard_nm = "1.0" if version in {"v9", "v10", "v11", "v12", "v13", "v14"} else "0.6"
-    stop_decel = "0.1" if version in {"v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14"} else "0.5"
+    torque_guard_nm = "1.0" if version in {"v9", "v10", "v11", "v12", "v13", "v14", "v15"} else "0.6"
+    stop_decel = "0.1" if version in {"v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15"} else "0.5"
     runtime_limit = 75.0 if is_line else 12.0
     end_check = """elif end_hold_s >= end_hold_required_s:
           stop_reason = 1.0""" if is_line else """elif t2 >= line_runtime_limit_s:
@@ -374,7 +377,7 @@ def contact_script(mode: str, stamp: str, gen_at: str, geom: dict, version: str)
     fixed_search_start_note = "FIXED_SEARCH_START_Z: not enabled in this version."
     fixed_search_start_local = ""
     fixed_search_start_block = ""
-    if version in {"v13", "v14"}:
+    if version in {"v13", "v14", "v15"}:
         fixed_search_start_note = (
             "FIXED_SEARCH_START_Z: after high-Z XY entry, descend to validated "
             f"no-contact search-start TCP z={fmt(geom['validated_search_start_z'])} m before entry re-zero."
@@ -414,7 +417,7 @@ def codex_step4e_{program_label}_line():
   local search_near_down_m_s = {search['near_speed']}
   local search_near_start_depth_m = {search['near_start']}
   local max_search_down_m = {search['max_depth']}
-{fixed_search_start_local}  local use_fixed_search_start_z = {"True" if version in {"v13", "v14"} else "False"}
+{fixed_search_start_local}  local use_fixed_search_start_z = {"True" if version in {"v13", "v14", "v15"} else "False"}
   local use_two_stage_search = {search['two_stage']}
   local stale_limit_s = 0.100
   local search_runtime_limit_s = {search['runtime']}
@@ -424,6 +427,10 @@ def codex_step4e_{program_label}_line():
   local line_success_progress_m = {fmt(max(0.0, geom['length'] - 0.0005))}
   local end_hold_required_s = 0.100
   local end_hold_s = 0.0
+  local cmd_valid_grace_s = 0.250
+  local cmd_valid_loss_limit_s = 0.100
+  local cmd_invalid_s = 0.0
+  local saw_cmd_valid = 0
   local short_retract_z_m = 0.010
   local short_retract_speed_m_s = 0.020
   local home_return_speed_m_s = 0.050
@@ -535,6 +542,12 @@ def codex_step4e_{program_label}_line():
       local cmd_wy = read_input_float_register(41)
       local cmd_wz = read_input_float_register(42)
       final_progress_m = progress_m
+      if cmd_valid >= 0.5:
+        saw_cmd_valid = 1
+        cmd_invalid_s = 0.0
+      else:
+        cmd_invalid_s = cmd_invalid_s + line_hold_s
+      end
       if heartbeat2 == last_heartbeat2:
         stale_s2 = stale_s2 + line_hold_s
       else:
@@ -555,7 +568,13 @@ def codex_step4e_{program_label}_line():
       end
       if stop_reason == 0.0:
         if cmd_valid < 0.5:
-          stop_reason = 12.0
+          if saw_cmd_valid == 0 and t2 < cmd_valid_grace_s:
+            speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)
+          elif saw_cmd_valid == 1 and cmd_invalid_s <= cmd_valid_loss_limit_s:
+            speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)
+          else:
+            stop_reason = 12.0
+          end
         elif codex_abs(cmd_vx) > 0.010 or codex_abs(cmd_vy) > 0.010 or codex_abs(cmd_vz) > 0.010:
           stop_reason = 13.0
         elif codex_abs(cmd_wx) > 0.030 or codex_abs(cmd_wy) > 0.030 or codex_abs(cmd_wz) > 0.005:
@@ -650,7 +669,7 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str) -> None:
         "cached stamp": stamp in xml,
         "step4e registers": "read_input_float_register(37)" in xml,
     }
-    if name.endswith(("_v2", "_v3", "_v4", "_v5", "_v6", "_v7", "_v8", "_v9", "_v10", "_v11", "_v12", "_v13", "_v14")) and "preview" not in name:
+    if name.endswith(("_v2", "_v3", "_v4", "_v5", "_v6", "_v7", "_v8", "_v9", "_v10", "_v11", "_v12", "_v13", "_v14", "_v15")) and "preview" not in name:
         checks.update(
             {
                 "entry rezero request": "write_output_float_register(34, 1.0)" in xml,
@@ -678,7 +697,7 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str) -> None:
                 "max search depth": "local max_search_down_m = 0.090" in xml,
             }
         )
-    if name.endswith(("_v5", "_v6", "_v7", "_v8", "_v9", "_v10", "_v11", "_v12", "_v13", "_v14")) and "preview" not in name:
+    if name.endswith(("_v5", "_v6", "_v7", "_v8", "_v9", "_v10", "_v11", "_v12", "_v13", "_v14", "_v15")) and "preview" not in name:
         checks.update(
             {
                 "far search speed": "local search_far_down_m_s = -0.015" in xml,
@@ -703,7 +722,7 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str) -> None:
                 "torque guard": "torque_norm > 1.0" in script and "torque_norm &gt; 1.0" in xml,
             }
         )
-    if name.endswith("_v14") and "preview" not in name:
+    if name.endswith(("_v14", "_v15")) and "preview" not in name:
         checks.update(
             {
                 "normal guard": "codex_abs(normal_force) > 50.0" in script
@@ -711,14 +730,14 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str) -> None:
                 "torque guard": "torque_norm > 1.0" in script and "torque_norm &gt; 1.0" in xml,
             }
         )
-    if name.endswith(("_v7", "_v8", "_v9", "_v10", "_v11", "_v12", "_v13", "_v14")) and "preview" not in name:
+    if name.endswith(("_v7", "_v8", "_v9", "_v10", "_v11", "_v12", "_v13", "_v14", "_v15")) and "preview" not in name:
         checks.update(
             {
                 "fast stop decel": "stopl(0.1)" in script and "stopl(0.1)" in xml,
                 "old stop decel removed": "stopl(0.5)" not in script and "stopl(0.5)" not in xml,
             }
         )
-    if name.endswith(("_v12", "_v13", "_v14")) and "line_outerloop" in name:
+    if name.endswith(("_v12", "_v13", "_v14", "_v15")) and "line_outerloop" in name:
         checks.update(
             {
                 "line success threshold": "local line_success_progress_m = " in script
@@ -730,13 +749,22 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str) -> None:
                 and "elif stop_reason == 7.0" in script,
             }
         )
-    if name.endswith(("_v13", "_v14")) and "line_outerloop" in name:
+    if name.endswith(("_v13", "_v14", "_v15")) and "line_outerloop" in name:
         checks.update(
             {
                 "fixed search start z": "local fixed_search_start_z_m = 0.09835" in script
                 and "local fixed_search_start_z_m = 0.09835" in xml,
                 "fixed search start stage": "write_output_float_register(35, 22.5)" in script
                 and "write_output_float_register(35, 22.5)" in xml,
+            }
+        )
+    if name.endswith("_v15") and "line_outerloop" in name:
+        checks.update(
+            {
+                "cmd valid grace": "local cmd_valid_grace_s = 0.250" in script
+                and "saw_cmd_valid == 0 and t2 &lt; cmd_valid_grace_s" in xml,
+                "cmd valid loss grace": "local cmd_valid_loss_limit_s = 0.100" in script
+                and "cmd_invalid_s &lt;= cmd_valid_loss_limit_s" in xml,
             }
         )
     failed = [label for label, ok in checks.items() if not ok]
@@ -748,7 +776,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--version",
-        choices=("v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14"),
+        choices=("v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15"),
         default="v2",
     )
     parser.add_argument("--stamp-prefix", default=None)
