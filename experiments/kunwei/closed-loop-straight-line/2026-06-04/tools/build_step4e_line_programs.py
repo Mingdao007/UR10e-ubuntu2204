@@ -240,6 +240,19 @@ codex_step4e_preview_line()
 
 
 def search_profile(version: str) -> dict[str, str]:
+    if version == "v5":
+        return {
+            "comment": "two-stage deterministic search: far 15 mm/s, then near 3 mm/s with 12 mm slow-search margin; no force admittance before contact latch.",
+            "accel": "0.300",
+            "hold": "0.002",
+            "single_speed": "-0.003",
+            "far_speed": "-0.015",
+            "near_speed": "-0.003",
+            "near_start": "0.080",
+            "max_depth": "0.092",
+            "runtime": "25.0",
+            "two_stage": "True",
+        }
     if version == "v4":
         return {
             "comment": "two-stage deterministic search: far 10 mm/s, then near 3 mm/s for the last 10 mm; no force admittance before contact latch.",
@@ -282,7 +295,7 @@ def search_profile(version: str) -> dict[str, str]:
 
 def contact_script(mode: str, stamp: str, gen_at: str, geom: dict, version: str) -> str:
     is_line = mode == "line"
-    enable_entry_rezero = version in {"v2", "v3", "v4"}
+    enable_entry_rezero = version in {"v2", "v3", "v4", "v5"}
     search = search_profile(version)
     runtime_limit = 75.0 if is_line else 12.0
     end_check = f"""elif progress_m >= {fmt(geom['length'])}:
@@ -555,7 +568,7 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str) -> None:
         "cached stamp": stamp in xml,
         "step4e registers": "read_input_float_register(37)" in xml,
     }
-    if name.endswith(("_v2", "_v3", "_v4")) and "preview" not in name:
+    if name.endswith(("_v2", "_v3", "_v4", "_v5")) and "preview" not in name:
         checks.update(
             {
                 "entry rezero request": "write_output_float_register(34, 1.0)" in xml,
@@ -583,6 +596,16 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str) -> None:
                 "max search depth": "local max_search_down_m = 0.090" in xml,
             }
         )
+    if name.endswith("_v5") and "preview" not in name:
+        checks.update(
+            {
+                "far search speed": "local search_far_down_m_s = -0.015" in xml,
+                "near search speed": "local search_near_down_m_s = -0.003" in xml,
+                "near search stage": "write_output_float_register(35, 24.2)" in xml,
+                "near start depth": "local search_near_start_depth_m = 0.080" in xml,
+                "max search depth": "local max_search_down_m = 0.092" in xml,
+            }
+        )
     failed = [label for label, ok in checks.items() if not ok]
     if failed:
         raise RuntimeError(f"{name} validation failed: {failed}")
@@ -590,7 +613,7 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--version", choices=("v1", "v2", "v3", "v4"), default="v2")
+    parser.add_argument("--version", choices=("v1", "v2", "v3", "v4", "v5"), default="v2")
     parser.add_argument("--stamp-prefix", default=None)
     args = parser.parse_args()
     now = datetime.now(timezone(timedelta(hours=8)))
