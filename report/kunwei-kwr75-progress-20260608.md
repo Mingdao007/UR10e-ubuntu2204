@@ -167,17 +167,17 @@ Step4E v13 是这次 paper-style 外环复现的小步验证中第一次适合�
 | stage25 samples / duration | `24,410` / `48.818 s` |
 | stage25 echo rate | `249.23 Hz` |
 | XY path error mean / p95 | `0.050 / 0.138 mm` |
-| normal-load error MAE / p95 | `8.587 / 22.488 N` |
+| contact-force Fz error MAE / p95 | `8.587 / 22.488 N` |
 | orientation error mean / p95 | `0.109 / 0.226 rad` |
 | force norm max / torque norm max | `36.261 N` / `0.564 Nm` |
 
 这次 v13 的关键结果是 line stage clean complete：final stop reason 是 `1.0 (line_complete)`，最终进入 stage `29.0`；数据中有 stage26 unload、stage27 retract/home 和 stage29 final evidence。bridge path length 为 `143.747 mm`，success threshold 为 `143.247 mm`，约 `48.446 s` 达到 success threshold；XY path error mean/p95/max 为 `0.050 / 0.138 / 0.313 mm`。这里可以写成“外环直线路径 demo 成功完成并回撤”，但不能写成 force quality 已收敛。
 
-Step4E 的 normal-load force quality 还没有达到 Step2C final 水平：normal-load error MAE 为 `8.587 N`，p95 为 `22.488 N`。这条证据的价值主要是 architecture 和 demo completion：Python 外环 command、UR register consumption、UR-side IK、接触路径执行和回撤形成闭环。
+Step4E 的 contact-force Fz quality 还没有达到 Step2C final 水平：contact-force Fz error MAE 为 `8.587 N`，p95 为 `22.488 N`。这条证据的价值主要是 architecture 和 demo completion：Python 外环 command、UR register consumption、UR-side IK、接触路径执行和回撤形成闭环。
 
 ![Step4E v13 path tracking](assets/kunwei-kwr75-progress-20260608/step4e_v13_line_path_tracking.png)
 
-![Step4E v13 normal-load Fz error](assets/kunwei-kwr75-progress-20260608/step4e_v13_line_fz_error.png)
+![Step4E v13 contact-force Fz error](assets/kunwei-kwr75-progress-20260608/step4e_v13_line_fz_error.png)
 
 ![Step4E v13 force and progress evidence](assets/kunwei-kwr75-progress-20260608/step4e_v13_line_force_progress.png)
 
@@ -235,7 +235,7 @@ Step4E 的 normal-load force quality 还没有达到 Step2C final 水平：norma
 
 - Step2C 下一步应围绕 final 的重复性和 contact-entry transient 继续验证；频率证据已经足够支持约 `490 Hz` measured echo cadence 进入报告，force quality 也相对 V4 有改善，但还不应该外推成跨治具、跨日期的传感器绝对性能结论。
 - Step4D 下一步应先围绕完整圆的重复性、entry transient 和 normal-force ripple 收敛，不要急着把它写成传感器绝对性能或最终算法效果。若要进一步降低圆轨迹误差，再考虑是否把 IK/trajectory optimization 从 UR 内部逐步外移到脚本侧。
-- Step4E 下一步不需要新实验来完成这版报告；工程上下一步应围绕 normal-load MAE、attitude gain 和接触阶段力波动调参，而不是再证明外环路线能否跑通。
+- Step4E 下一步不需要新实验来完成这版报告；工程上下一步应围绕 contact-force Fz MAE、attitude gain 和接触阶段力波动调参，而不是再证明外环路线能否跑通。
 - 本版本不需要新做 OnRobot/Kunwei A/B 实验；当前会议材料只使用已有日志，并明确标注为 first-value software zero 的历史窗口比较。若未来要回答绝对标定问题，再另开同机械状态、同无接触窗口、明确 device-side zero/tare 策略的实验。
 - 如果目标是机器人侧 `500 Hz` 运动闭环，需要另开 `servoj/speedj`、多线程 URScript 或外部实时接口路线，而不是从当前 `speedl` echo 推断。
 
