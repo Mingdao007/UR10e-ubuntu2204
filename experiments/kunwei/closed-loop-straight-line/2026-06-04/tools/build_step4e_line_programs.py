@@ -42,7 +42,7 @@ def program_specs(version: str) -> dict[str, dict[str, str]]:
             },
             **specs,
         }
-    if version in {"v15", "v16"}:
+    if version in {"v15", "v16", "v17"}:
         return {"line": specs["line"]}
     return specs
 
@@ -261,7 +261,7 @@ codex_step4e_preview_line()
 
 
 def search_profile(version: str) -> dict[str, str]:
-    if version == "v16":
+    if version in {"v16", "v17"}:
         return {
             "comment": "two-stage deterministic search directly after XY entry: far 15 mm/s, then near 3 mm/s with no fixed-Z pre-search movel; no force admittance before contact latch.",
             "accel": "0.300",
@@ -358,9 +358,11 @@ def contact_script(mode: str, stamp: str, gen_at: str, geom: dict, version: str)
         "v14",
         "v15",
         "v16",
+        "v17",
     }
     search = search_profile(version)
-    if version in {"v14", "v15", "v16"}:
+    use_vertical_precontact = version in {"v17"}
+    if version in {"v14", "v15", "v16", "v17"}:
         normal_guard_n = "50.0"
     elif version in {"v9", "v10", "v11", "v12", "v13"}:
         normal_guard_n = "100.0"
@@ -368,8 +370,8 @@ def contact_script(mode: str, stamp: str, gen_at: str, geom: dict, version: str)
         normal_guard_n = "30.0"
     else:
         normal_guard_n = "20.0"
-    torque_guard_nm = "1.0" if version in {"v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16"} else "0.6"
-    stop_decel = "0.1" if version in {"v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16"} else "0.5"
+    torque_guard_nm = "1.0" if version in {"v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17"} else "0.6"
+    stop_decel = "0.1" if version in {"v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17"} else "0.5"
     runtime_limit = 75.0 if is_line else 12.0
     end_check = """elif end_hold_s >= end_hold_required_s:
           stop_reason = 1.0""" if is_line else """elif t2 >= line_runtime_limit_s:
@@ -390,6 +392,11 @@ def contact_script(mode: str, stamp: str, gen_at: str, geom: dict, version: str)
         else "ENTRY_REZERO: not enabled in this version."
     )
     fixed_search_start_note = "FIXED_SEARCH_START_Z: not enabled in this version."
+    precontact_orientation_note = (
+        "PRECONTACT_ORIENTATION: use vertical TCP orientation before XY entry and downward search; bridge attitude outer-loop starts only after contact latch."
+        if use_vertical_precontact
+        else "PRECONTACT_ORIENTATION: use path reference orientation before contact."
+    )
     fixed_search_start_local = ""
     fixed_search_start_block = ""
     if version in {"v13", "v14", "v15"}:
@@ -415,6 +422,7 @@ def contact_script(mode: str, stamp: str, gen_at: str, geom: dict, version: str)
 # SEARCH: {search['comment']}
 # {rezero_comment}
 # {fixed_search_start_note}
+# {precontact_orientation_note}
 # SAFETY: raw guards use registers 24..30; recoverable stops retract 10 mm then return home.
 {common_functions(normal_guard_n, torque_guard_nm)}
 
@@ -424,6 +432,9 @@ def codex_step4e_{program_label}_line():
   local ref_rx = {fmt(geom['ref_rx'])}
   local ref_ry = {fmt(geom['ref_ry'])}
   local ref_rz = {fmt(geom['ref_rz'])}
+  local search_rx = {"3.141592654" if use_vertical_precontact else "ref_rx"}
+  local search_ry = {"0.0" if use_vertical_precontact else "ref_ry"}
+  local search_rz = {"0.0" if use_vertical_precontact else "ref_rz"}
   local approach_speed_m_s = 0.050
   local search_accel_m_s2 = {search['accel']}
   local search_hold_s = {search['hold']}
@@ -467,12 +478,12 @@ def codex_step4e_{program_label}_line():
   if stop_reason == 0.0:
     write_output_float_register(35, 21.0)
     local p0 = get_actual_tcp_pose()
-    local reference_orientation_pose = p[p0[0], p0[1], p0[2], ref_rx, ref_ry, ref_rz]
+    local reference_orientation_pose = p[p0[0], p0[1], p0[2], search_rx, search_ry, search_rz]
     movel(reference_orientation_pose, a=0.030, v=approach_speed_m_s, r=0.0)
     stopl({stop_decel})
     write_output_float_register(35, 22.0)
     local p1 = get_actual_tcp_pose()
-    local entry_xy_pose = p[entry_x, entry_y, p1[2], ref_rx, ref_ry, ref_rz]
+    local entry_xy_pose = p[entry_x, entry_y, p1[2], search_rx, search_ry, search_rz]
     movel(entry_xy_pose, a=0.030, v=approach_speed_m_s, r=0.0)
     stopl({stop_decel})
 {fixed_search_start_block}
@@ -736,7 +747,7 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str, controlle
                 "max search depth": "local max_search_down_m = 0.092" in xml,
             }
         )
-    if name.endswith("_v16") and "preview" not in name:
+    if name.endswith(("_v16", "_v17")) and "preview" not in name:
         checks.update(
             {
                 "direct xy-to-search": "local fixed_search_start_z_m" not in script
@@ -764,7 +775,7 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str, controlle
                 "torque guard": "torque_norm > 1.0" in script and "torque_norm &gt; 1.0" in xml,
             }
         )
-    if name.endswith(("_v14", "_v15", "_v16")) and "preview" not in name:
+    if name.endswith(("_v14", "_v15", "_v16", "_v17")) and "preview" not in name:
         checks.update(
             {
                 "normal guard": "codex_abs(normal_force) > 50.0" in script
@@ -772,14 +783,14 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str, controlle
                 "torque guard": "torque_norm > 1.0" in script and "torque_norm &gt; 1.0" in xml,
             }
         )
-    if name.endswith(("_v7", "_v8", "_v9", "_v10", "_v11", "_v12", "_v13", "_v14", "_v15", "_v16")) and "preview" not in name:
+    if name.endswith(("_v7", "_v8", "_v9", "_v10", "_v11", "_v12", "_v13", "_v14", "_v15", "_v16", "_v17")) and "preview" not in name:
         checks.update(
             {
                 "fast stop decel": "stopl(0.1)" in script and "stopl(0.1)" in xml,
                 "old stop decel removed": "stopl(0.5)" not in script and "stopl(0.5)" not in xml,
             }
         )
-    if name.endswith(("_v12", "_v13", "_v14", "_v15", "_v16")) and "line_outerloop" in name:
+    if name.endswith(("_v12", "_v13", "_v14", "_v15", "_v16", "_v17")) and "line_outerloop" in name:
         checks.update(
             {
                 "line success threshold": "local line_success_progress_m = " in script
@@ -800,13 +811,22 @@ def validate(name: str, script: str, txt: str, urp: bytes, stamp: str, controlle
                 and "write_output_float_register(35, 22.5)" in xml,
             }
         )
-    if name.endswith(("_v15", "_v16")) and "line_outerloop" in name:
+    if name.endswith(("_v15", "_v16", "_v17")) and "line_outerloop" in name:
         checks.update(
             {
                 "cmd valid grace": "local cmd_valid_grace_s = 0.250" in script
                 and "saw_cmd_valid == 0 and t2 &lt; cmd_valid_grace_s" in xml,
                 "cmd valid loss grace": "local cmd_valid_loss_limit_s = 0.100" in script
                 and "cmd_invalid_s &lt;= cmd_valid_loss_limit_s" in xml,
+            }
+        )
+    if name.endswith("_v17") and "line_outerloop" in name:
+        checks.update(
+            {
+                "vertical precontact rx": "local search_rx = 3.141592654" in script,
+                "vertical precontact ry": "local search_ry = 0.0" in script,
+                "vertical precontact rz": "local search_rz = 0.0" in script,
+                "entry uses search orientation": "entry_xy_pose = p[entry_x, entry_y, p1[2], search_rx, search_ry, search_rz]" in script,
             }
         )
     failed = [label for label, ok in checks.items() if not ok]
@@ -818,7 +838,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--version",
-        choices=("v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16"),
+        choices=("v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17"),
         default="v2",
     )
     parser.add_argument("--stamp-prefix", default=None)
