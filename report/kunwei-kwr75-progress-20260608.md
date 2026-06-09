@@ -40,6 +40,7 @@
 | Step2C final run | [../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_final_autowatch_search2ms_line1ms_alpha70_20260608_154123](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_final_autowatch_search2ms_line1ms_alpha70_20260608_154123) |
 | Step2C final video | [assets/kunwei-kwr75-progress-20260608/step2c_final_experiment.mp4](assets/kunwei-kwr75-progress-20260608/step2c_final_experiment.mp4) |
 | Step4D circle run | [../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4d_circle_v1_autowatch_detsearch_attitude_20260608_165457](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4d_circle_v1_autowatch_detsearch_attitude_20260608_165457) |
+| Step4D demo video | [assets/kunwei-kwr75-progress-20260608/step4d_circle_experiment.mp4](assets/kunwei-kwr75-progress-20260608/step4d_circle_experiment.mp4) |
 | OnRobot 600s UDP raw CSV | [../experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv](../experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv) |
 | OnRobot 6h UDP raw CSV | [../experiments/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217/three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv](../experiments/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217/three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv) |
 
@@ -141,6 +142,10 @@ Step4D 把 Step2C contact path 的中间一半作为直径，生成半径约 `15
 ![Step4D circle path tracking](assets/kunwei-kwr75-progress-20260608/step4d_circle_path_tracking.png)
 
 ![Step4D circle force and path evidence](assets/kunwei-kwr75-progress-20260608/step4d_circle_force_path.png)
+
+![Step4D demo video poster](assets/kunwei-kwr75-progress-20260608/step4d_circle_experiment_poster.jpg)
+
+[Step4D demo video](assets/kunwei-kwr75-progress-20260608/step4d_circle_experiment.mp4)
 
 ### OnRobot vs Kunwei 前 600s
 

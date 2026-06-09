@@ -1306,6 +1306,14 @@
     "video_poster": {
       "report": "assets/kunwei-kwr75-progress-20260608/step2c_final_experiment_poster.jpg",
       "weekly": "assets/kunwei_kwr75_20260608/step2c_final_experiment_poster.jpg"
+    },
+    "step4d_video_mp4": {
+      "report": "assets/kunwei-kwr75-progress-20260608/step4d_circle_experiment.mp4",
+      "weekly": "assets/kunwei_kwr75_20260608/step4d_circle_experiment.mp4"
+    },
+    "step4d_video_poster": {
+      "report": "assets/kunwei-kwr75-progress-20260608/step4d_circle_experiment_poster.jpg",
+      "weekly": "assets/kunwei_kwr75_20260608/step4d_circle_experiment_poster.jpg"
     }
   },
   "figures": {

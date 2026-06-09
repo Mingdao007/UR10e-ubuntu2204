@@ -53,6 +53,7 @@ STEP4D_RUN_DIR = (
 )
 STEP4D_RESULT_LABEL = "Step4D circle"
 STEP4D_RESULT_FILE_PREFIX = "step4d_circle"
+STEP4D_RESULT_VIDEO_PREVIEW = Path("/home/andy/.cache/codex/phone-photo-intake/previews/IMG_1742_step4d_demo.mov")
 
 ONROBOT_600_DIR = ROOT / "experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100"
 ONROBOT_UDP_CSV = ONROBOT_600_DIR / "three_stream_600s_20260528_043052_onrobot_udp500_raw.csv"
@@ -828,6 +829,67 @@ def build_step2c_result_media_assets() -> dict[str, dict[str, str] | None]:
     return assets
 
 
+def build_step4d_result_media_assets() -> dict[str, dict[str, str] | None]:
+    assets: dict[str, dict[str, str] | None] = {
+        "step4d_video_mp4": None,
+        "step4d_video_poster": None,
+    }
+    if STEP4D_RESULT_VIDEO_PREVIEW.exists():
+        report_mp4 = REPORT_ASSETS / f"{STEP4D_RESULT_FILE_PREFIX}_experiment.mp4"
+        if run_media_command(
+            [
+                "ffmpeg",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-i",
+                str(STEP4D_RESULT_VIDEO_PREVIEW),
+                "-vf",
+                "scale=720:-2",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-crf",
+                "28",
+                "-pix_fmt",
+                "yuv420p",
+                "-movflags",
+                "+faststart",
+                "-an",
+                str(report_mp4),
+            ]
+        ):
+            weekly_mp4 = WEEKLY_ASSETS / report_mp4.name
+            shutil.copy2(report_mp4, weekly_mp4)
+            assets["step4d_video_mp4"] = {"report": rel_from_report(report_mp4), "weekly": rel_from_weekly(weekly_mp4)}
+
+        report_poster = REPORT_ASSETS / f"{STEP4D_RESULT_FILE_PREFIX}_experiment_poster.jpg"
+        if run_media_command(
+            [
+                "ffmpeg",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-ss",
+                "24",
+                "-i",
+                str(STEP4D_RESULT_VIDEO_PREVIEW),
+                "-vf",
+                "scale=720:-2",
+                "-frames:v",
+                "1",
+                str(report_poster),
+            ]
+        ):
+            weekly_poster = WEEKLY_ASSETS / report_poster.name
+            shutil.copy2(report_poster, weekly_poster)
+            assets["step4d_video_poster"] = {"report": rel_from_report(report_poster), "weekly": rel_from_weekly(weekly_poster)}
+    return assets
+
+
 def build_figures(short_kunwei: dict, short_onrobot: dict, long_kunwei: dict, long_onrobot: dict) -> dict[str, dict[str, str]]:
     figures: dict[str, dict[str, str]] = {}
 
@@ -1231,6 +1293,8 @@ def build_markdown(
     step4d_stage25 = step4d_result["stage25"]
     step4d_circle = step4d_result["circle"]
     step4d_prefix = step4d_result["file_prefix"]
+    step4d_video = media_assets.get("step4d_video_mp4", {}).get("report") if media_assets.get("step4d_video_mp4") else None
+    step4d_poster = media_assets.get("step4d_video_poster", {}).get("report") if media_assets.get("step4d_video_poster") else None
 
     return f"""# Kunwei KWR75 当前进展报告（2026-06-08）
 
@@ -1274,6 +1338,7 @@ def build_markdown(
 | Step2C final run | [../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step2c_result['run_name']}](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step2c_result['run_name']}) |
 | Step2C final video | {f'[{result_video}]({result_video})' if result_video else 'N/A'} |
 | Step4D circle run | [../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step4d_result['run_name']}](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step4d_result['run_name']}) |
+| Step4D demo video | {f'[{step4d_video}]({step4d_video})' if step4d_video else 'N/A'} |
 | OnRobot 600s UDP raw CSV | [../experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv](../experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv) |
 | OnRobot 6h UDP raw CSV | [../experiments/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217/three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv](../experiments/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217/three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv) |
 
@@ -1359,6 +1424,10 @@ Step4D 把 Step2C contact path 的中间一半作为直径，生成半径约 `{f
 ![Step4D circle path tracking]({figures[f'{step4d_prefix}_path_tracking']['report']})
 
 ![Step4D circle force and path evidence]({figures[f'{step4d_prefix}_force_path']['report']})
+
+{f'![Step4D demo video poster]({step4d_poster})' if step4d_poster else ''}
+
+{f'[Step4D demo video]({step4d_video})' if step4d_video else ''}
 
 ### OnRobot vs Kunwei 前 600s
 
@@ -1449,9 +1518,16 @@ def build_html(
     step4d_prefix = step4d_result["file_prefix"]
     step4d_path_img = figures[f"{step4d_prefix}_path_tracking"]["weekly"]
     step4d_force_path_img = figures[f"{step4d_prefix}_force_path"]["weekly"]
+    step4d_video = media_assets.get("step4d_video_mp4", {}).get("weekly") if media_assets.get("step4d_video_mp4") else None
+    step4d_video_poster = media_assets.get("step4d_video_poster", {}).get("weekly") if media_assets.get("step4d_video_poster") else None
     result_video_html = (
         f'<figure class="span-5 media-video"><video controls preload="metadata" poster="{result_video_poster or ""}" src="{result_video}"></video><figcaption>Fig. F-A. Step2C final experiment evidence clip from the 2026-06-08 Step2C final run.</figcaption></figure>'
         if result_video
+        else ""
+    )
+    step4d_video_html = (
+        f'<figure class="span-5 media-video"><video controls preload="metadata" poster="{step4d_video_poster or ""}" src="{step4d_video}"></video><figcaption>Fig. 6. Step4D phone video evidence from the 2026-06-09 demo drop.</figcaption></figure>'
+        if step4d_video
         else ""
     )
 
@@ -1678,6 +1754,7 @@ def build_html(
         {html_metric("Torque p95", f"{fmt(step4d_stage25['torque_norm_p95_nm'], 3)} Nm")}
         <figure class="span-6"><img src="{step4d_path_img}" alt="Step4D circle path tracking"><figcaption>Fig. 4. Actual TCP path closes the commanded full-circle contact trajectory; closure error is {fmt(step4d_circle['closure_error_mm'], 3)} mm.</figcaption></figure>
         <figure class="span-6"><img src="{step4d_force_path_img}" alt="Step4D force and path evidence"><figcaption>Fig. 5. Normal-force ripple remains the next target; radial path tracking is already tight for this first complete circle.</figcaption></figure>
+        {step4d_video_html}
       </div>
     </section>
     <section id="compare">
@@ -1803,6 +1880,7 @@ def main() -> None:
     figures.update(build_step2c_result_figures(step2c_result, step2c, step2c_v4))
     figures.update(build_step4d_result_figures(step4d_result))
     media_assets = build_step2c_result_media_assets()
+    media_assets.update(build_step4d_result_media_assets())
     summary_json = write_summary_json(
         short_kunwei,
         short_onrobot,
