@@ -1,8 +1,8 @@
 # Step4e P1-a detached movel minimal-rotation v21.
-# VERSION: 2026-06-10T2315HKT_STEP4E_DETACHED_MOVEL_MINROT_V21
-# GENERATED_AT_LOCAL: 2026-06-10T23:15:44+08:00
-# PURPOSE: latch first contact normal, detach, then adjust orientation with one minimal-rotation movel.
-# CONTROL: bridge step4e-version=v21 writes 37..39 as detach direction in 25.1 and 40..42 as target rotvec in 25.2.
+# VERSION: 2026-06-11T0048HKT_STEP4E_DETACHED_MOVEL_MINROT_V21
+# GENERATED_AT_LOCAL: 2026-06-11T00:49:39+08:00
+# PURPOSE: latch first contact normal, detach along the locked normal, then adjust orientation with one minimal-rotation movel.
+# CONTROL: bridge step4e-version=v21 writes 37..39 as +locked-normal detach direction in 25.1 and 40..42 as target rotvec for z_tcp_B ~= -locked_normal_B in 25.2.
 # SAFETY: raw normal guard 20 N, force norm guard 50 N, torque guard 3.0 Nm.
 
 def codex_abs(x):
@@ -174,7 +174,7 @@ def codex_step4e_detached_movel_v21():
   local search_near_start_depth_m = 0.130
   local max_search_down_m = 0.150
   local contact_triggered = 0
-  textmsg("codex step4e version 2026-06-10T2315HKT_STEP4E_DETACHED_MOVEL_MINROT_V21 start detached_movel_v21")
+  textmsg("codex step4e version 2026-06-11T0048HKT_STEP4E_DETACHED_MOVEL_MINROT_V21 start detached_movel_v21")
   write_output_float_register(34, 0.0)
   write_output_float_register(35, 20.0)
   codex_echo_step4e(0.0)
@@ -251,14 +251,11 @@ def codex_step4e_detached_movel_v21():
     write_output_float_register(35, 25.1)
     stop_reason = codex_wait_for_cmd_valid(25.1, 1.000)
     local detach_total_m = 0.0
-    while stop_reason == 0.0 and detach_total_m < 0.005 and read_input_float_register(25) > 2.0:
+    while stop_reason == 0.0 and detach_total_m < 0.002 and read_input_float_register(25) > 2.0:
       local dir_x = read_input_float_register(37)
       local dir_y = read_input_float_register(38)
       local dir_z = read_input_float_register(39)
       local step_m = 0.001
-      if detach_total_m < 0.0005:
-        step_m = 0.002
-      end
       local p_detach = get_actual_tcp_pose()
       local detach_pose = p[p_detach[0] + step_m * dir_x, p_detach[1] + step_m * dir_y, p_detach[2] + step_m * dir_z, p_detach[3], p_detach[4], p_detach[5]]
       codex_echo_step4e(stop_reason)
@@ -293,7 +290,7 @@ def codex_step4e_detached_movel_v21():
   end
   write_output_float_register(30, stop_reason)
   write_output_float_register(35, 29.0)
-  textmsg("codex step4e version 2026-06-10T2315HKT_STEP4E_DETACHED_MOVEL_MINROT_V21 stop reason:", stop_reason)
+  textmsg("codex step4e version 2026-06-11T0048HKT_STEP4E_DETACHED_MOVEL_MINROT_V21 stop reason:", stop_reason)
 end
 
 codex_step4e_detached_movel_v21()

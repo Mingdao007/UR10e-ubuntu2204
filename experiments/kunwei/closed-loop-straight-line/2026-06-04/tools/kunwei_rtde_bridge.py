@@ -299,8 +299,8 @@ def synthetic_axis_iso_normal(stage: float, tilt_rad: float) -> tuple[float, flo
 
 
 def kunwei_to_tcp_wrench(values_si_zeroed: list[float]) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
-    force_t = (values_si_zeroed[0], -values_si_zeroed[1], -values_si_zeroed[2])
-    torque_t = (values_si_zeroed[3], -values_si_zeroed[4], -values_si_zeroed[5])
+    force_t = (values_si_zeroed[0], values_si_zeroed[1], values_si_zeroed[2])
+    torque_t = (values_si_zeroed[3], values_si_zeroed[4], values_si_zeroed[5])
     return force_t, torque_t
 
 
@@ -427,11 +427,19 @@ def compute_step4e_values(
     n_control_b = state.latched_normal_b if state.latched_normal_b is not None else n_reaction_b
     normal_load_n = max(0.0, dot3(force_b, n_control_b)) if state.normal_acquired else 0.0
     tcp_z_axis_b = (rotation[0][2], rotation[1][2], rotation[2][2])
-    orientation_axis = cross3(tcp_z_axis_b, n_control_b)
-    orientation_error = math.asin(clamp(norm3(orientation_axis), -1.0, 1.0))
+    orientation_target_axis_b = (
+        (-n_control_b[0], -n_control_b[1], -n_control_b[2])
+        if v21_profile
+        else n_control_b
+    )
+    orientation_axis = cross3(tcp_z_axis_b, orientation_target_axis_b)
+    orientation_error = math.atan2(
+        norm3(orientation_axis),
+        clamp(dot3(tcp_z_axis_b, orientation_target_axis_b), -1.0, 1.0),
+    )
     target_rotvec = (0.0, 0.0, 0.0)
     if v21_profile and orient_stage_active and state.normal_acquired:
-        delta_r = minimal_rotation_between(tcp_z_axis_b, n_control_b)
+        delta_r = minimal_rotation_between(tcp_z_axis_b, orientation_target_axis_b)
         target_rotvec = matrix_to_rotvec(mat_mul3(delta_r, rotation))
     orientation_cmd = (
         args.step4e_orientation_gain * args.step4e_orientation_wx_sign * orientation_axis[0],
@@ -554,9 +562,9 @@ def compute_step4e_values(
             cmd = tuple(value * scale for value in cmd)
         values.update(
             {
-                "step4e_cmd_vx_m_s": -n_control_b[0] if (v21_profile and detach_stage_active) else cmd[0],
-                "step4e_cmd_vy_m_s": -n_control_b[1] if (v21_profile and detach_stage_active) else cmd[1],
-                "step4e_cmd_vz_m_s": -n_control_b[2] if (v21_profile and detach_stage_active) else cmd[2],
+                "step4e_cmd_vx_m_s": n_control_b[0] if (v21_profile and detach_stage_active) else cmd[0],
+                "step4e_cmd_vy_m_s": n_control_b[1] if (v21_profile and detach_stage_active) else cmd[1],
+                "step4e_cmd_vz_m_s": n_control_b[2] if (v21_profile and detach_stage_active) else cmd[2],
                 "step4e_cmd_wx_rad_s": orientation_cmd[0],
                 "step4e_cmd_wy_rad_s": orientation_cmd[1],
                 "step4e_cmd_wz_rad_s": orientation_cmd[2] if (axis_iso_active or v21_profile) else 0.0,
@@ -907,8 +915,8 @@ def main(argv: list[str] | None = None) -> int:
         "register_map": dict(zip(INPUT_FIELDS, INPUT_NAMES)),
         "stage_aware_register_notes": {
             "axis_iso_25.21_to_25.24": "input_double_register_40..42 are angular speedl wx/wy/wz; input_double_register_37..39 must remain zero.",
-            "v21_line_25.1": "input_double_register_37..39 are a unit detach direction, not Cartesian velocity.",
-            "v21_line_25.2": "input_double_register_40..42 are target TCP rotvec rx/ry/rz for a single detached movel, not angular velocity.",
+            "v21_line_25.1": "input_double_register_37..39 are the +locked-normal unit detach direction, not Cartesian velocity.",
+            "v21_line_25.2": "input_double_register_40..42 are target TCP rotvec rx/ry/rz for a single detached movel; target is z_tcp_B ~= -locked_normal_B.",
         },
         "step4e_path": {
             "type": "line_from_two_tcp_points",
@@ -916,7 +924,7 @@ def main(argv: list[str] | None = None) -> int:
             "end_xy_m": STEP4E_END_XY,
             "line_length_m": STEP4E_LINE_LENGTH_M,
             "line_unit_xy": STEP4E_LINE_UNIT_XY,
-            "kunwei_to_tcp": "F_T=[Fx_K,-Fy_K,-Fz_K], M_T=[Mx_K,-My_K,-Mz_K]",
+            "kunwei_to_tcp": "F_T=[Fx_K,Fy_K,Fz_K], M_T=[Mx_K,My_K,Mz_K]",
             "tcp_contact_length_m": 0.1221,
             "line_control_target": "latched contact normal load, not total force norm",
         },

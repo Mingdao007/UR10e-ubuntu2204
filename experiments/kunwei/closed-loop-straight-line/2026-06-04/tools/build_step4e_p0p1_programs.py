@@ -97,7 +97,10 @@ def validate_package(name: str, script: str, txt: str, urp: bytes, stamp: str, c
                 "movel stage": "write_output_float_register(35, 25.2)" in script,
                 "no force acquire": "write_output_float_register(35, 25.3)" not in script,
                 "no line stage": "write_output_float_register(35, 25.0)" not in script,
+                "locked-normal detach semantics": "+locked-normal detach direction" in script,
+                "two millimeter detach cap": "detach_total_m < 0.002" in script,
                 "target rotvec movel": "movel(target_pose, a=0.030, v=0.010, r=0.0)" in script,
+                "negative normal target": "z_tcp_B ~= -locked_normal_B" in script,
             }
         )
     failed = [label for label, ok in checks.items() if not ok]
@@ -233,8 +236,8 @@ def v21_detached_movel_script(stamp: str, gen_at: str, geom: dict[str, float]) -
     return f"""# Step4e P1-a detached movel minimal-rotation v21.
 # VERSION: {stamp}
 # GENERATED_AT_LOCAL: {gen_at}
-# PURPOSE: latch first contact normal, detach, then adjust orientation with one minimal-rotation movel.
-# CONTROL: bridge step4e-version=v21 writes 37..39 as detach direction in 25.1 and 40..42 as target rotvec in 25.2.
+# PURPOSE: latch first contact normal, detach along the locked normal, then adjust orientation with one minimal-rotation movel.
+# CONTROL: bridge step4e-version=v21 writes 37..39 as +locked-normal detach direction in 25.1 and 40..42 as target rotvec for z_tcp_B ~= -locked_normal_B in 25.2.
 # SAFETY: raw normal guard 20 N, force norm guard 50 N, torque guard 3.0 Nm.
 {common_functions("20.0", "3.0")}
 
@@ -355,14 +358,11 @@ def codex_step4e_detached_movel_v21():
     write_output_float_register(35, 25.1)
     stop_reason = codex_wait_for_cmd_valid(25.1, 1.000)
     local detach_total_m = 0.0
-    while stop_reason == 0.0 and detach_total_m < 0.005 and read_input_float_register(25) > 2.0:
+    while stop_reason == 0.0 and detach_total_m < 0.002 and read_input_float_register(25) > 2.0:
       local dir_x = read_input_float_register(37)
       local dir_y = read_input_float_register(38)
       local dir_z = read_input_float_register(39)
       local step_m = 0.001
-      if detach_total_m < 0.0005:
-        step_m = 0.002
-      end
       local p_detach = get_actual_tcp_pose()
       local detach_pose = p[p_detach[0] + step_m * dir_x, p_detach[1] + step_m * dir_y, p_detach[2] + step_m * dir_z, p_detach[3], p_detach[4], p_detach[5]]
       codex_echo_step4e(stop_reason)
@@ -407,6 +407,11 @@ codex_step4e_detached_movel_v21()
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--stamp-prefix", default=None)
+    parser.add_argument(
+        "--program",
+        choices=("all", "step4e_attitude_axis_iso_v1", "step4e_detached_movel_minrot_v21"),
+        default="all",
+    )
     args = parser.parse_args()
     now = datetime.now(timezone(timedelta(hours=8)))
     geom = line_cfg(load_json(CONFIG_PATH))
@@ -424,6 +429,8 @@ def main() -> int:
             v21_detached_movel_script,
         ),
     ]
+    if args.program != "all":
+        specs = [spec for spec in specs if spec[0] == args.program]
     generated = {}
     for name, suffix, description, script_fn in specs:
         stamp = args.stamp_prefix or source_stamp(suffix, now)
