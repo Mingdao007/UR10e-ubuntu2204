@@ -1,9 +1,9 @@
 # Step4e P1-a detached movel minimal-rotation v21.
-# VERSION: 2026-06-11T0048HKT_STEP4E_DETACHED_MOVEL_MINROT_V21
-# GENERATED_AT_LOCAL: 2026-06-11T00:49:39+08:00
+# VERSION: 2026-06-11T0055HKT_STEP4E_DETACHED_MOVEL_MINROT_V21
+# GENERATED_AT_LOCAL: 2026-06-11T00:56:49+08:00
 # PURPOSE: latch first contact normal, detach along the locked normal, then adjust orientation with one minimal-rotation movel.
 # CONTROL: bridge step4e-version=v21 writes 37..39 as +locked-normal detach direction in 25.1 and 40..42 as target rotvec for z_tcp_B ~= -locked_normal_B in 25.2.
-# SAFETY: raw normal guard 20 N, force norm guard 50 N, torque guard 3.0 Nm.
+# SAFETY: raw normal guard 35 N, force norm guard 50 N, torque guard 3.0 Nm.
 
 def codex_abs(x):
   if x < 0.0:
@@ -66,7 +66,7 @@ def codex_step4e_guard_stop_reason():
     return 3.0
   elif stop_request > 0.5:
     return 4.0
-  elif codex_abs(normal_force) > 20.0:
+  elif codex_abs(normal_force) > 35.0:
     return 5.0
   elif force_norm > 50.0:
     return 6.0
@@ -174,7 +174,7 @@ def codex_step4e_detached_movel_v21():
   local search_near_start_depth_m = 0.130
   local max_search_down_m = 0.150
   local contact_triggered = 0
-  textmsg("codex step4e version 2026-06-11T0048HKT_STEP4E_DETACHED_MOVEL_MINROT_V21 start detached_movel_v21")
+  textmsg("codex step4e version 2026-06-11T0055HKT_STEP4E_DETACHED_MOVEL_MINROT_V21 start detached_movel_v21")
   write_output_float_register(34, 0.0)
   write_output_float_register(35, 20.0)
   codex_echo_step4e(0.0)
@@ -232,7 +232,7 @@ def codex_step4e_detached_movel_v21():
           else:
             write_output_float_register(35, 24.2)
             codex_echo_step4e(stop_reason)
-            speedl([0.0, 0.0, -0.003, 0.0, 0.0, 0.0], search_accel_m_s2, search_hold_s)
+            speedl([0.0, 0.0, -0.002, 0.0, 0.0, 0.0], search_accel_m_s2, search_hold_s)
           end
           t = t + get_steptime()
         end
@@ -290,7 +290,7 @@ def codex_step4e_detached_movel_v21():
   end
   write_output_float_register(30, stop_reason)
   write_output_float_register(35, 29.0)
-  textmsg("codex step4e version 2026-06-11T0048HKT_STEP4E_DETACHED_MOVEL_MINROT_V21 stop reason:", stop_reason)
+  textmsg("codex step4e version 2026-06-11T0055HKT_STEP4E_DETACHED_MOVEL_MINROT_V21 stop reason:", stop_reason)
 end
 
 codex_step4e_detached_movel_v21()

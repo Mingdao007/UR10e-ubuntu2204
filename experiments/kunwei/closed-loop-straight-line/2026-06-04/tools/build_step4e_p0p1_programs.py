@@ -95,6 +95,8 @@ def validate_package(name: str, script: str, txt: str, urp: bytes, stamp: str, c
                 "latch stage": "write_output_float_register(35, 25.05)" in script,
                 "detach stage": "write_output_float_register(35, 25.1)" in script,
                 "movel stage": "write_output_float_register(35, 25.2)" in script,
+                "raw normal guard 35n": "codex_abs(normal_force) > 35.0" in script,
+                "near search 2mm/s": "speedl([0.0, 0.0, -0.002, 0.0, 0.0, 0.0]" in script,
                 "no force acquire": "write_output_float_register(35, 25.3)" not in script,
                 "no line stage": "write_output_float_register(35, 25.0)" not in script,
                 "locked-normal detach semantics": "+locked-normal detach direction" in script,
@@ -238,8 +240,8 @@ def v21_detached_movel_script(stamp: str, gen_at: str, geom: dict[str, float]) -
 # GENERATED_AT_LOCAL: {gen_at}
 # PURPOSE: latch first contact normal, detach along the locked normal, then adjust orientation with one minimal-rotation movel.
 # CONTROL: bridge step4e-version=v21 writes 37..39 as +locked-normal detach direction in 25.1 and 40..42 as target rotvec for z_tcp_B ~= -locked_normal_B in 25.2.
-# SAFETY: raw normal guard 20 N, force norm guard 50 N, torque guard 3.0 Nm.
-{common_functions("20.0", "3.0")}
+# SAFETY: raw normal guard 35 N, force norm guard 50 N, torque guard 3.0 Nm.
+{common_functions("35.0", "3.0")}
 
 def codex_wait_for_cmd_valid(stage_code, timeout_s):
   local t = 0.0
@@ -339,7 +341,7 @@ def codex_step4e_detached_movel_v21():
           else:
             write_output_float_register(35, 24.2)
             codex_echo_step4e(stop_reason)
-            speedl([0.0, 0.0, -0.003, 0.0, 0.0, 0.0], search_accel_m_s2, search_hold_s)
+            speedl([0.0, 0.0, -0.002, 0.0, 0.0, 0.0], search_accel_m_s2, search_hold_s)
           end
           t = t + get_steptime()
         end
