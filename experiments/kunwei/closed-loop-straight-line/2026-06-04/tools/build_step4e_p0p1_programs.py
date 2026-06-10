@@ -96,7 +96,9 @@ def validate_package(name: str, script: str, txt: str, urp: bytes, stamp: str, c
                 "detach stage": "write_output_float_register(35, 25.1)" in script,
                 "movel stage": "write_output_float_register(35, 25.2)" in script,
                 "raw normal guard 35n": "codex_abs(normal_force) > 35.0" in script,
-                "near search 2mm/s": "speedl([0.0, 0.0, -0.002, 0.0, 0.0, 0.0]" in script,
+                "single search 3mm/s": "local search_speed_m_s = -0.003" in script
+                and "speedl([0.0, 0.0, search_speed_m_s, 0.0, 0.0, 0.0]" in script,
+                "no far search 15mm/s": "-0.015" not in script,
                 "no force acquire": "write_output_float_register(35, 25.3)" not in script,
                 "no line stage": "write_output_float_register(35, 25.0)" not in script,
                 "locked-normal detach semantics": "+locked-normal detach direction" in script,
@@ -280,7 +282,7 @@ def codex_step4e_detached_movel_v21():
   local search_hold_s = 0.002
   local stale_limit_s = 0.100
   local search_runtime_limit_s = 40.0
-  local search_near_start_depth_m = 0.130
+  local search_speed_m_s = -0.003
   local max_search_down_m = 0.150
   local contact_triggered = 0
   textmsg("codex step4e version {stamp} start detached_movel_v21")
@@ -335,14 +337,8 @@ def codex_step4e_detached_movel_v21():
         elif t >= search_runtime_limit_s:
           stop_reason = 10.0
         else:
-          if search_depth_m < search_near_start_depth_m:
-            codex_echo_step4e(stop_reason)
-            speedl([0.0, 0.0, -0.015, 0.0, 0.0, 0.0], search_accel_m_s2, search_hold_s)
-          else:
-            write_output_float_register(35, 24.2)
-            codex_echo_step4e(stop_reason)
-            speedl([0.0, 0.0, -0.002, 0.0, 0.0, 0.0], search_accel_m_s2, search_hold_s)
-          end
+          codex_echo_step4e(stop_reason)
+          speedl([0.0, 0.0, search_speed_m_s, 0.0, 0.0, 0.0], search_accel_m_s2, search_hold_s)
           t = t + get_steptime()
         end
       end

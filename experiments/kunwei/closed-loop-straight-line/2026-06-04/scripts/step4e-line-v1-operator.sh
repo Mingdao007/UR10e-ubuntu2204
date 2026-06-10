@@ -38,7 +38,7 @@ fi
 if [[ "${STEP4E_VERSION}" == "v20" ]]; then
   SEARCH_DESCRIPTION="two-stage search: v20 moves directly to entry XY with vertical TCP orientation [pi,0,0], searches far 15 mm/s then near 3 mm/s, latches first-contact normal only, lifts base-Z 2 mm, aligns attitude while detached, reacquires 5 N along the locked normal, then runs the 5 mm/s XY line"
 elif [[ "${STEP4E_VERSION}" == "v21" ]]; then
-  SEARCH_DESCRIPTION="two-stage search: v21 moves to vertical TCP orientation, searches far 15 mm/s then near 2 mm/s, latches first-contact normal only, detaches along the locked normal, then runs one minimal-rotation movel attitude adjustment; no 5N acquisition and no XY line"
+  SEARCH_DESCRIPTION="single-speed search: v21 moves to vertical TCP orientation, searches downward at 3 mm/s, latches first-contact normal only, detaches along the locked normal, then runs one minimal-rotation movel attitude adjustment; no 5N acquisition and no XY line"
 elif [[ "${STEP4E_VERSION}" == "v19" ]]; then
   SEARCH_DESCRIPTION="two-stage search: v19 first moves TCP orientation to vertical [pi,0,0], then XY entry and downward speedl-search; far 15 mm/s for 130 mm then near 3 mm/s up to 150 mm max depth; after contact latch it holds 5 N point contact and aligns TCP z to the contact normal before 5 mm/s XY line motion"
 elif [[ "${STEP4E_VERSION}" == "v18" ]]; then
