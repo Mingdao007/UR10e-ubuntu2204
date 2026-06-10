@@ -4,10 +4,10 @@ Program:
   step4e_detached_movel_minrot_v21
 
 Version:
-  2026-06-11T0105HKT_STEP4E_DETACHED_MOVEL_MINROT_V21
+  2026-06-11T0113HKT_STEP4E_DETACHED_MOVEL_MINROT_V21
 
 Purpose:
-  P1-a latch, detach, minimal-rotation movel attitude check
+  P1-a latch, detach, minimal-rotation target preview; no contact-posture motion
 
 Control boundary:
   Ubuntu bridge writes RTDE input registers 24..47.

@@ -96,14 +96,17 @@ def validate_package(name: str, script: str, txt: str, urp: bytes, stamp: str, c
                 "detach stage": "write_output_float_register(35, 25.1)" in script,
                 "movel stage": "write_output_float_register(35, 25.2)" in script,
                 "raw normal guard 35n": "codex_abs(normal_force) > 35.0" in script,
-                "single search 3mm/s": "local search_speed_m_s = -0.003" in script
-                and "speedl([0.0, 0.0, search_speed_m_s, 0.0, 0.0, 0.0]" in script,
-                "no far search 15mm/s": "-0.015" not in script,
+                "two-stage search depths": "local search_near_start_depth_m = 0.080" in script
+                and "local max_search_down_m = 0.092" in script,
+                "far search 15mm/s": "local search_far_speed_m_s = -0.015" in script,
+                "near search 3mm/s": "local search_near_speed_m_s = -0.003" in script,
+                "near search stage": "write_output_float_register(35, 24.2)" in script,
                 "no force acquire": "write_output_float_register(35, 25.3)" not in script,
                 "no line stage": "write_output_float_register(35, 25.0)" not in script,
                 "locked-normal detach semantics": "+locked-normal detach direction" in script,
                 "two millimeter detach cap": "detach_total_m < 0.002" in script,
-                "target rotvec movel": "movel(target_pose, a=0.030, v=0.010, r=0.0)" in script,
+                "target rotvec preview": "25.2 is target-preview only; no contact-posture movel" in script,
+                "no contact-posture movel": "movel(target_pose, a=0.030, v=0.010, r=0.0)" not in script,
                 "negative normal target": "z_tcp_B ~= -locked_normal_B" in script,
             }
         )
@@ -240,7 +243,7 @@ def v21_detached_movel_script(stamp: str, gen_at: str, geom: dict[str, float]) -
     return f"""# Step4e P1-a detached movel minimal-rotation v21.
 # VERSION: {stamp}
 # GENERATED_AT_LOCAL: {gen_at}
-# PURPOSE: latch first contact normal, detach along the locked normal, then adjust orientation with one minimal-rotation movel.
+# PURPOSE: latch first contact normal, detach along the locked normal, then preview the minimal-rotation target without contact-posture motion.
 # CONTROL: bridge step4e-version=v21 writes 37..39 as +locked-normal detach direction in 25.1 and 40..42 as target rotvec for z_tcp_B ~= -locked_normal_B in 25.2.
 # SAFETY: raw normal guard 35 N, force norm guard 50 N, torque guard 3.0 Nm.
 {common_functions("35.0", "3.0")}
@@ -282,8 +285,10 @@ def codex_step4e_detached_movel_v21():
   local search_hold_s = 0.002
   local stale_limit_s = 0.100
   local search_runtime_limit_s = 40.0
-  local search_speed_m_s = -0.003
-  local max_search_down_m = 0.150
+  local search_near_start_depth_m = 0.080
+  local max_search_down_m = 0.092
+  local search_far_speed_m_s = -0.015
+  local search_near_speed_m_s = -0.003
   local contact_triggered = 0
   textmsg("codex step4e version {stamp} start detached_movel_v21")
   write_output_float_register(34, 0.0)
@@ -337,8 +342,14 @@ def codex_step4e_detached_movel_v21():
         elif t >= search_runtime_limit_s:
           stop_reason = 10.0
         else:
-          codex_echo_step4e(stop_reason)
-          speedl([0.0, 0.0, search_speed_m_s, 0.0, 0.0, 0.0], search_accel_m_s2, search_hold_s)
+          if search_depth_m < search_near_start_depth_m:
+            codex_echo_step4e(stop_reason)
+            speedl([0.0, 0.0, search_far_speed_m_s, 0.0, 0.0, 0.0], search_accel_m_s2, search_hold_s)
+          else:
+            write_output_float_register(35, 24.2)
+            codex_echo_step4e(stop_reason)
+            speedl([0.0, 0.0, search_near_speed_m_s, 0.0, 0.0, 0.0], search_accel_m_s2, search_hold_s)
+          end
           t = t + get_steptime()
         end
       end
@@ -374,11 +385,8 @@ def codex_step4e_detached_movel_v21():
     write_output_float_register(35, 25.2)
     stop_reason = codex_wait_for_cmd_valid(25.2, 1.000)
     if stop_reason == 0.0:
-      local p_orient = get_actual_tcp_pose()
-      local target_pose = p[p_orient[0], p_orient[1], p_orient[2], read_input_float_register(40), read_input_float_register(41), read_input_float_register(42)]
+      # 25.2 is target-preview only; no contact-posture movel.
       codex_echo_step4e(stop_reason)
-      movel(target_pose, a=0.030, v=0.010, r=0.0)
-      stopl(0.1)
       sleep(0.250)
       if read_input_float_register(46) > 0.030:
         stop_reason = 15.0
@@ -423,7 +431,7 @@ def main() -> int:
         (
             "step4e_detached_movel_minrot_v21",
             "DETACHED_MOVEL_MINROT_V21",
-            "P1-a latch, detach, minimal-rotation movel attitude check",
+            "P1-a latch, detach, minimal-rotation target preview; no contact-posture motion",
             v21_detached_movel_script,
         ),
     ]
