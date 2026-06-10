@@ -1,0 +1,14 @@
+Step4e P0/P1 attitude package
+
+Program:
+  step4e_detached_movel_minrot_v21
+
+Version:
+  2026-06-10T2315HKT_STEP4E_DETACHED_MOVEL_MINROT_V21
+
+Purpose:
+  P1-a latch, detach, minimal-rotation movel attitude check
+
+Control boundary:
+  Ubuntu bridge writes RTDE input registers 24..47.
+  No UR zero_ftsensor, no Kunwei tare/config write, no TCP/payload write.

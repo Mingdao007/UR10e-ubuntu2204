@@ -218,6 +218,13 @@ def mat_vec3(matrix: list[list[float]], vector: tuple[float, float, float] | lis
     )
 
 
+def mat_mul3(a: list[list[float]], b: list[list[float]]) -> list[list[float]]:
+    return [
+        [sum(a[row][idx] * b[idx][col] for idx in range(3)) for col in range(3)]
+        for row in range(3)
+    ]
+
+
 def rotvec_to_matrix(rx: float, ry: float, rz: float) -> list[list[float]]:
     theta = math.sqrt(rx * rx + ry * ry + rz * rz)
     if theta < 1e-12:
@@ -231,6 +238,64 @@ def rotvec_to_matrix(rx: float, ry: float, rz: float) -> list[list[float]]:
         [ky * kx * v + kz * s, c + ky * ky * v, ky * kz * v - kx * s],
         [kz * kx * v - ky * s, kz * ky * v + kx * s, c + kz * kz * v],
     ]
+
+
+def matrix_to_rotvec(matrix: list[list[float]]) -> tuple[float, float, float]:
+    trace = matrix[0][0] + matrix[1][1] + matrix[2][2]
+    theta = math.acos(clamp((trace - 1.0) * 0.5, -1.0, 1.0))
+    if theta < 1e-12:
+        return (0.0, 0.0, 0.0)
+    if math.pi - theta < 1e-6:
+        xx = max(0.0, (matrix[0][0] + 1.0) * 0.5)
+        yy = max(0.0, (matrix[1][1] + 1.0) * 0.5)
+        zz = max(0.0, (matrix[2][2] + 1.0) * 0.5)
+        axis = [math.sqrt(xx), math.sqrt(yy), math.sqrt(zz)]
+        if matrix[0][1] < 0.0:
+            axis[1] = -axis[1]
+        if matrix[0][2] < 0.0:
+            axis[2] = -axis[2]
+        axis_t = normalize3(axis, (1.0, 0.0, 0.0))
+        return (axis_t[0] * theta, axis_t[1] * theta, axis_t[2] * theta)
+    scale = theta / (2.0 * math.sin(theta))
+    return (
+        (matrix[2][1] - matrix[1][2]) * scale,
+        (matrix[0][2] - matrix[2][0]) * scale,
+        (matrix[1][0] - matrix[0][1]) * scale,
+    )
+
+
+def minimal_rotation_between(
+    source: tuple[float, float, float],
+    target: tuple[float, float, float],
+) -> list[list[float]]:
+    src = normalize3(source)
+    dst = normalize3(target)
+    axis = cross3(src, dst)
+    axis_norm = norm3(axis)
+    c = clamp(dot3(src, dst), -1.0, 1.0)
+    if axis_norm < 1e-9:
+        if c > 0.0:
+            return [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+        helper = (1.0, 0.0, 0.0) if abs(src[0]) < 0.9 else (0.0, 1.0, 0.0)
+        axis = normalize3(cross3(src, helper), (0.0, 0.0, 1.0))
+        return rotvec_to_matrix(axis[0] * math.pi, axis[1] * math.pi, axis[2] * math.pi)
+    axis = (axis[0] / axis_norm, axis[1] / axis_norm, axis[2] / axis_norm)
+    theta = math.atan2(axis_norm, c)
+    return rotvec_to_matrix(axis[0] * theta, axis[1] * theta, axis[2] * theta)
+
+
+def synthetic_axis_iso_normal(stage: float, tilt_rad: float) -> tuple[float, float, float] | None:
+    component = math.sin(tilt_rad) / math.sqrt(2.0)
+    z = -math.cos(tilt_rad)
+    if abs(stage - 25.21) < 0.03:
+        return normalize3((component, component, z))
+    if abs(stage - 25.22) < 0.03:
+        return normalize3((component, -component, z))
+    if abs(stage - 25.23) < 0.03:
+        return normalize3((-component, component, z))
+    if abs(stage - 25.24) < 0.03:
+        return normalize3((-component, -component, z))
+    return None
 
 
 def kunwei_to_tcp_wrench(values_si_zeroed: list[float]) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
@@ -285,16 +350,26 @@ def compute_step4e_values(
     except (TypeError, ValueError):
         robot_stage = math.nan
     v20_profile = args.step4e_version == "v20"
-    latch_stage_active = args.step4e_mode == "line" and v20_profile and abs(robot_stage - 25.05) < 0.03
-    detach_stage_active = args.step4e_mode == "line" and v20_profile and abs(robot_stage - 25.1) < 0.03
+    v21_profile = args.step4e_version == "v21"
+    detached_profile = v20_profile or v21_profile
+    axis_iso_active = args.step4e_mode == "axis_iso" and 25.18 <= robot_stage <= 25.27
+    latch_stage_active = args.step4e_mode == "line" and detached_profile and abs(robot_stage - 25.05) < 0.03
+    detach_stage_active = args.step4e_mode == "line" and detached_profile and abs(robot_stage - 25.1) < 0.03
     orient_stage_active = args.step4e_mode == "line" and (
-        (v20_profile and abs(robot_stage - 25.2) < 0.05)
-        or (not v20_profile and abs(robot_stage - 25.1) < 0.05)
+        (detached_profile and abs(robot_stage - 25.2) < 0.05)
+        or (not detached_profile and abs(robot_stage - 25.1) < 0.05)
     )
     acquire_stage_active = args.step4e_mode == "line" and v20_profile and abs(robot_stage - 25.3) < 0.05
     line_stage_active = args.step4e_mode == "line" and abs(robot_stage - 25.0) < 0.05
-    control_stage_active = latch_stage_active or orient_stage_active or acquire_stage_active or line_stage_active
-    if args.step4e_mode != "line" or (
+    control_stage_active = (
+        latch_stage_active
+        or detach_stage_active
+        or orient_stage_active
+        or acquire_stage_active
+        or line_stage_active
+        or axis_iso_active
+    )
+    if args.step4e_mode not in {"line", "axis_iso"} or (
         math.isfinite(robot_stage) and (robot_stage < 24.0 or robot_stage >= 26.0)
     ):
         state.reset_line_contact()
@@ -314,10 +389,15 @@ def compute_step4e_values(
         contact_offset_y = torque_t[0] / force_t[2]
 
     rotation = rotvec_to_matrix(float(pose[3]), float(pose[4]), float(pose[5]))
+    synthetic_normal = (
+        synthetic_axis_iso_normal(robot_stage, math.radians(args.step4e_axis_iso_tilt_deg))
+        if axis_iso_active
+        else None
+    )
     force_b = mat_vec3(rotation, force_t)
-    n_reaction_b = normalize3(force_b)
+    n_reaction_b = synthetic_normal if synthetic_normal is not None else normalize3(force_b)
     if (
-        v20_profile
+        detached_profile
         and latch_stage_active
         and sensor_ok > 0.5
         and force_abs >= args.step4e_min_force_for_control_n
@@ -327,7 +407,7 @@ def compute_step4e_values(
         state.latched_normal_locked = True
         state.normal_acquired = True
     elif (
-        not v20_profile
+        not detached_profile
         and sensor_ok > 0.5
         and force_abs >= args.step4e_min_force_for_control_n
     ):
@@ -340,11 +420,19 @@ def compute_step4e_values(
             )
             state.latched_normal_b = normalize3(blended, state.latched_normal_b)
         state.normal_acquired = True
+    elif synthetic_normal is not None:
+        state.latched_normal_b = synthetic_normal
+        state.latched_normal_locked = True
+        state.normal_acquired = True
     n_control_b = state.latched_normal_b if state.latched_normal_b is not None else n_reaction_b
     normal_load_n = max(0.0, dot3(force_b, n_control_b)) if state.normal_acquired else 0.0
     tcp_z_axis_b = (rotation[0][2], rotation[1][2], rotation[2][2])
     orientation_axis = cross3(tcp_z_axis_b, n_control_b)
     orientation_error = math.asin(clamp(norm3(orientation_axis), -1.0, 1.0))
+    target_rotvec = (0.0, 0.0, 0.0)
+    if v21_profile and orient_stage_active and state.normal_acquired:
+        delta_r = minimal_rotation_between(tcp_z_axis_b, n_control_b)
+        target_rotvec = matrix_to_rotvec(mat_mul3(delta_r, rotation))
     orientation_cmd = (
         args.step4e_orientation_gain * args.step4e_orientation_wx_sign * orientation_axis[0],
         args.step4e_orientation_gain * args.step4e_orientation_wy_sign * orientation_axis[1],
@@ -364,7 +452,7 @@ def compute_step4e_values(
     tangent_speed = args.step4e_line_speed_m_s if args.step4e_mode == "line" and line_stage_active else 0.0
     if line_stage_active and state.line_stage_s <= args.step4e_line_settle_s:
         tangent_speed = 0.0
-    if v20_profile and not line_stage_active:
+    if detached_profile and not line_stage_active:
         base_motion = (0.0, 0.0, 0.0)
     else:
         base_motion = (
@@ -383,15 +471,17 @@ def compute_step4e_values(
     force_error = args.target_force_n - controlled_force_n
     line_grace_valid = (
         args.step4e_mode == "line"
-        and not v20_profile
+        and not detached_profile
         and control_stage_active
         and not state.normal_acquired
         and state.line_stage_s <= args.step4e_acquire_grace_s
     )
-    if v20_profile:
+    if axis_iso_active:
+        control_allowed = sensor_ok > 0.5 and state.normal_acquired
+    elif detached_profile:
         control_allowed = sensor_ok > 0.5 and (
             (latch_stage_active and state.normal_acquired)
-            or ((orient_stage_active or acquire_stage_active or line_stage_active) and state.normal_acquired)
+            or ((detach_stage_active or orient_stage_active or acquire_stage_active or line_stage_active) and state.normal_acquired)
             or line_grace_valid
         )
     else:
@@ -406,10 +496,18 @@ def compute_step4e_values(
         if args.step4e_mode == "line" and not state.normal_acquired:
             cmd = (0.0, 0.0, 0.0)
             orientation_cmd = (0.0, 0.0, 0.0)
-        elif v20_profile and latch_stage_active:
+        elif detached_profile and latch_stage_active:
             cmd = (0.0, 0.0, 0.0)
             orientation_cmd = (0.0, 0.0, 0.0)
-        elif v20_profile and orient_stage_active:
+        elif v21_profile and detach_stage_active:
+            cmd = (0.0, 0.0, 0.0)
+            orientation_cmd = (0.0, 0.0, 0.0)
+        elif v21_profile and orient_stage_active:
+            cmd = (0.0, 0.0, 0.0)
+            orientation_cmd = target_rotvec
+        elif detached_profile and orient_stage_active:
+            cmd = (0.0, 0.0, 0.0)
+        elif axis_iso_active:
             cmd = (0.0, 0.0, 0.0)
         else:
             state.integral_error_n_s = clamp(
@@ -448,7 +546,7 @@ def compute_step4e_values(
                 for idx in range(3)
             )
             cmd = tuple(motion_cmd[idx] + force_cmd[idx] for idx in range(3))
-            if v20_profile and acquire_stage_active:
+            if detached_profile and acquire_stage_active:
                 orientation_cmd = (0.0, 0.0, 0.0)
         cmd_norm = norm3(cmd)
         if cmd_norm > args.step4e_total_linear_limit_m_s:
@@ -456,12 +554,12 @@ def compute_step4e_values(
             cmd = tuple(value * scale for value in cmd)
         values.update(
             {
-                "step4e_cmd_vx_m_s": cmd[0],
-                "step4e_cmd_vy_m_s": cmd[1],
-                "step4e_cmd_vz_m_s": cmd[2],
+                "step4e_cmd_vx_m_s": -n_control_b[0] if (v21_profile and detach_stage_active) else cmd[0],
+                "step4e_cmd_vy_m_s": -n_control_b[1] if (v21_profile and detach_stage_active) else cmd[1],
+                "step4e_cmd_vz_m_s": -n_control_b[2] if (v21_profile and detach_stage_active) else cmd[2],
                 "step4e_cmd_wx_rad_s": orientation_cmd[0],
                 "step4e_cmd_wy_rad_s": orientation_cmd[1],
-                "step4e_cmd_wz_rad_s": 0.0,
+                "step4e_cmd_wz_rad_s": orientation_cmd[2] if (axis_iso_active or v21_profile) else 0.0,
                 "step4e_cmd_valid": 0.0 if args.step4e_mode == "preview" else 1.0,
                 "step4e_progress_m": progress,
                 "step4e_force_error_n": force_error,
@@ -469,11 +567,15 @@ def compute_step4e_values(
                 "step4e_controller_state": (
                     33.0
                     if latch_stage_active
+                    else 35.0
+                    if detach_stage_active
                     else 31.0
                     if orient_stage_active
                     else 32.0
                     if acquire_stage_active
-                    else {"preview": 10.0, "hold": 20.0, "line": 30.0}[args.step4e_mode]
+                    else 34.0
+                    if axis_iso_active
+                    else {"preview": 10.0, "hold": 20.0, "line": 30.0, "axis_iso": 34.0}[args.step4e_mode]
                 ),
             }
         )
@@ -734,7 +836,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max-torque-norm-nm", type=float, default=0.6)
     parser.add_argument("--sensor-stale-s", type=float, default=0.08)
     parser.add_argument("--rezero-s", type=float, default=1.0)
-    parser.add_argument("--step4e-mode", choices=("off", "preview", "hold", "line"), default="off")
+    parser.add_argument("--step4e-mode", choices=("off", "preview", "hold", "line", "axis_iso"), default="off")
     parser.add_argument("--step4e-version", default="")
     parser.add_argument("--step4e-line-speed-m-s", type=float, default=0.003)
     parser.add_argument("--step4e-line-settle-s", type=float, default=0.0)
@@ -755,6 +857,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--step4e-orientation-wx-sign", type=float, choices=(-1.0, 1.0), default=1.0)
     parser.add_argument("--step4e-orientation-wy-sign", type=float, choices=(-1.0, 1.0), default=1.0)
     parser.add_argument("--step4e-angular-limit-rad-s", type=float, default=0.015)
+    parser.add_argument("--step4e-axis-iso-tilt-deg", type=float, default=10.0)
     parser.add_argument("--step4e-contact-offset-min-fz-n", type=float, default=1.0)
     return parser.parse_args(argv)
 
@@ -802,6 +905,11 @@ def main(argv: list[str] | None = None) -> int:
             "no Kunwei zero/tare/config write",
         ],
         "register_map": dict(zip(INPUT_FIELDS, INPUT_NAMES)),
+        "stage_aware_register_notes": {
+            "axis_iso_25.21_to_25.24": "input_double_register_40..42 are angular speedl wx/wy/wz; input_double_register_37..39 must remain zero.",
+            "v21_line_25.1": "input_double_register_37..39 are a unit detach direction, not Cartesian velocity.",
+            "v21_line_25.2": "input_double_register_40..42 are target TCP rotvec rx/ry/rz for a single detached movel, not angular velocity.",
+        },
         "step4e_path": {
             "type": "line_from_two_tcp_points",
             "start_xy_m": STEP4E_START_XY,

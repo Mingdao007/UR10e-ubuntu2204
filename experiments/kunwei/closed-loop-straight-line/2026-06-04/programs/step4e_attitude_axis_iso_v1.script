@@ -1,0 +1,248 @@
+# Step4e P0-b attitude axis isolation v1.
+# VERSION: 2026-06-10T2315HKT_STEP4E_AXIS_ISO_V1
+# GENERATED_AT_LOCAL: 2026-06-10T23:15:44+08:00
+# PURPOSE: no-contact four-quadrant orientation-axis sign test.
+# CONTROL: bridge step4e-mode=axis_iso writes 40..42 as angular wx/wy/wz; 37..39 must stay zero.
+# SAFETY: raw normal guard 20 N, force norm guard 50 N, torque guard 3.0 Nm.
+
+def codex_abs(x):
+  if x < 0.0:
+    return -x
+  end
+  return x
+end
+
+def codex_clamp(x, lo, hi):
+  if x < lo:
+    return lo
+  elif x > hi:
+    return hi
+  end
+  return x
+end
+
+def codex_wait_for_fresh_heartbeat(timeout_s):
+  local t = 0.0
+  local initial_heartbeat = read_input_float_register(26)
+  local current_heartbeat = initial_heartbeat
+  while t < timeout_s:
+    current_heartbeat = read_input_float_register(26)
+    write_output_float_register(26, current_heartbeat)
+    if read_input_float_register(27) > 0.5 and current_heartbeat != initial_heartbeat:
+      return True
+    end
+    sync()
+    t = t + get_steptime()
+  end
+  return False
+end
+
+def codex_wait_for_rezero_complete(timeout_s):
+  local t = 0.0
+  local initial_heartbeat = read_input_float_register(26)
+  local current_heartbeat = initial_heartbeat
+  local saw_sensor_not_ready = False
+  while t < timeout_s:
+    current_heartbeat = read_input_float_register(26)
+    write_output_float_register(26, current_heartbeat)
+    if read_input_float_register(27) < 0.5:
+      saw_sensor_not_ready = True
+    elif saw_sensor_not_ready and read_input_float_register(27) > 0.5 and current_heartbeat != initial_heartbeat:
+      return True
+    end
+    sync()
+    t = t + get_steptime()
+  end
+  return False
+end
+
+def codex_step4e_guard_stop_reason():
+  local normal_force = read_input_float_register(24)
+  local force_norm = read_input_float_register(25)
+  local sensor_ok = read_input_float_register(27)
+  local stop_request = read_input_float_register(28)
+  local torque_norm = read_input_float_register(30)
+  if sensor_ok < 0.5:
+    return 3.0
+  elif stop_request > 0.5:
+    return 4.0
+  elif codex_abs(normal_force) > 20.0:
+    return 5.0
+  elif force_norm > 50.0:
+    return 6.0
+  elif torque_norm > 3.0:
+    return 7.0
+  end
+  return 0.0
+end
+
+def codex_should_auto_home(stop_reason):
+  if stop_reason == 1.0:
+    return True
+  elif stop_reason == 2.0:
+    return True
+  elif stop_reason == 4.0:
+    return True
+  elif stop_reason == 5.0:
+    return True
+  elif stop_reason == 6.0:
+    return True
+  elif stop_reason == 7.0:
+    return True
+  elif stop_reason == 8.0:
+    return True
+  elif stop_reason == 9.0:
+    return True
+  elif stop_reason == 10.0:
+    return True
+  elif stop_reason == 12.0:
+    return True
+  elif stop_reason == 13.0:
+    return True
+  elif stop_reason == 14.0:
+    return True
+  end
+  return False
+end
+
+def codex_echo_basic(stop_reason):
+  write_output_float_register(24, read_input_float_register(24))
+  write_output_float_register(25, read_input_float_register(25))
+  write_output_float_register(26, read_input_float_register(26))
+  write_output_float_register(27, read_input_float_register(27))
+  write_output_float_register(28, read_input_float_register(28))
+  write_output_float_register(29, read_input_float_register(29))
+  write_output_float_register(30, stop_reason)
+end
+
+def codex_echo_step4e(stop_reason):
+  codex_echo_basic(stop_reason)
+  write_output_float_register(31, read_input_float_register(44))
+  write_output_float_register(32, read_input_float_register(45))
+  write_output_float_register(33, read_input_float_register(39))
+  write_output_float_register(36, read_input_float_register(37))
+  write_output_float_register(37, read_input_float_register(38))
+  write_output_float_register(38, read_input_float_register(39))
+  write_output_float_register(39, read_input_float_register(40))
+  write_output_float_register(40, read_input_float_register(41))
+  write_output_float_register(41, read_input_float_register(42))
+  write_output_float_register(42, read_input_float_register(43))
+  write_output_float_register(43, read_input_float_register(44))
+  write_output_float_register(44, read_input_float_register(45))
+  write_output_float_register(45, read_input_float_register(46))
+  write_output_float_register(46, read_input_float_register(47))
+end
+
+
+def codex_axis_iso_stage(stage_code):
+  local stop_reason = 0.0
+  local last_heartbeat = read_input_float_register(26)
+  local stale_s = 0.0
+  local t = 0.0
+  local stable_s = 0.0
+  local saw_cmd_valid = 0
+  local cmd_invalid_s = 0.0
+  local hold_s = 0.002
+  while stop_reason == 0.0:
+    write_output_float_register(35, stage_code)
+    local heartbeat = read_input_float_register(26)
+    local cmd_valid = read_input_float_register(43)
+    local orientation_error = read_input_float_register(46)
+    local cmd_vx = read_input_float_register(37)
+    local cmd_vy = read_input_float_register(38)
+    local cmd_vz = read_input_float_register(39)
+    local cmd_wx = read_input_float_register(40)
+    local cmd_wy = read_input_float_register(41)
+    local cmd_wz = read_input_float_register(42)
+    local loop_dt = get_steptime()
+    if cmd_valid >= 0.5:
+      saw_cmd_valid = 1
+      cmd_invalid_s = 0.0
+    else:
+      cmd_invalid_s = cmd_invalid_s + loop_dt
+    end
+    if heartbeat == last_heartbeat:
+      stale_s = stale_s + loop_dt
+    else:
+      stale_s = 0.0
+      last_heartbeat = heartbeat
+    end
+    t = t + loop_dt
+    if t >= 0.250 and orientation_error <= 0.050:
+      stable_s = stable_s + loop_dt
+    else:
+      stable_s = 0.0
+    end
+    codex_echo_step4e(stop_reason)
+    if stale_s > 0.100:
+      stop_reason = 2.0
+    else:
+      stop_reason = codex_step4e_guard_stop_reason()
+    end
+    if stop_reason == 0.0:
+      if stable_s >= 0.250:
+        return 0.0
+      elif cmd_valid < 0.5:
+        if saw_cmd_valid == 0 and t < 0.250:
+          speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], 0.300, hold_s)
+        elif saw_cmd_valid == 1 and cmd_invalid_s <= 0.100:
+          speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], 0.300, hold_s)
+        else:
+          stop_reason = 12.0
+        end
+      elif codex_abs(cmd_vx) > 0.001 or codex_abs(cmd_vy) > 0.001 or codex_abs(cmd_vz) > 0.001:
+        stop_reason = 13.0
+      elif codex_abs(cmd_wx) > 0.120 or codex_abs(cmd_wy) > 0.120 or codex_abs(cmd_wz) > 0.120:
+        stop_reason = 13.0
+      elif t >= 8.000:
+        stop_reason = 10.0
+      else:
+        speedl([0.0, 0.0, 0.0, cmd_wx, cmd_wy, cmd_wz], 0.300, hold_s)
+      end
+    end
+  end
+  return stop_reason
+end
+
+def codex_step4e_axis_iso_v1():
+  local stop_reason = 0.0
+  local home_pose = get_actual_tcp_pose()
+  textmsg("codex step4e version 2026-06-10T2315HKT_STEP4E_AXIS_ISO_V1 start axis_iso_v1")
+  write_output_float_register(34, 0.0)
+  write_output_float_register(35, 20.0)
+  codex_echo_step4e(0.0)
+  if not codex_wait_for_fresh_heartbeat(30.0):
+    stop_reason = 3.0
+  end
+  if stop_reason == 0.0:
+    write_output_float_register(35, 22.0)
+    local p0 = get_actual_tcp_pose()
+    local vertical_pose = p[p0[0], p0[1], p0[2], 3.141592654, 0.0, 0.0]
+    movel(vertical_pose, a=0.030, v=0.020, r=0.0)
+    stopl(0.1)
+  end
+  if stop_reason == 0.0:
+    stop_reason = codex_axis_iso_stage(25.21)
+  end
+  if stop_reason == 0.0:
+    stop_reason = codex_axis_iso_stage(25.22)
+  end
+  if stop_reason == 0.0:
+    stop_reason = codex_axis_iso_stage(25.23)
+  end
+  if stop_reason == 0.0:
+    stop_reason = codex_axis_iso_stage(25.24)
+  end
+  stopl(0.1)
+  if stop_reason == 15.0 or codex_should_auto_home(stop_reason):
+    write_output_float_register(35, 27.0)
+    codex_echo_step4e(stop_reason)
+    movel(home_pose, a=0.030, v=0.020, r=0.0)
+    stopl(0.1)
+  end
+  write_output_float_register(30, stop_reason)
+  write_output_float_register(35, 29.0)
+  textmsg("codex step4e version 2026-06-10T2315HKT_STEP4E_AXIS_ISO_V1 stop reason:", stop_reason)
+end
+
+codex_step4e_axis_iso_v1()

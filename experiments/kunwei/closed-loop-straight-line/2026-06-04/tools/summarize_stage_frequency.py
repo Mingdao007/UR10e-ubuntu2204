@@ -27,7 +27,7 @@ def summarize(csv_path: Path) -> dict:
         stage_rows = [
             row
             for row in rows
-            if math.isfinite(row["_stage"]) and abs(row["_stage"] - stage) < 0.05
+            if math.isfinite(row["_stage"]) and abs(row["_stage"] - stage) < 0.005
         ]
         if len(stage_rows) < 2:
             return {
@@ -70,6 +70,10 @@ def summarize(csv_path: Path) -> dict:
         "stage25_1_detach_echo_rate": rate_for(25.1),
         "stage25_2_orientation_echo_rate": rate_for(25.2),
         "stage25_3_force_acquire_echo_rate": rate_for(25.3),
+        "stage25_21_axis_iso_pp_echo_rate": rate_for(25.21),
+        "stage25_22_axis_iso_pn_echo_rate": rate_for(25.22),
+        "stage25_23_axis_iso_np_echo_rate": rate_for(25.23),
+        "stage25_24_axis_iso_nn_echo_rate": rate_for(25.24),
         "stage26_unload_echo_rate": rate_for(26.0),
         "stage27_retract_echo_rate": rate_for(27.0),
         "frequency_contract_note": "Stage25 echo rate is measured from ur_output_double_register_26 heartbeat transitions; do not treat it as internal servo-loop frequency.",

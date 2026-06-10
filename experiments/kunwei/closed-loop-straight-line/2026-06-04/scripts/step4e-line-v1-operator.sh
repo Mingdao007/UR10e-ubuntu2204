@@ -31,8 +31,14 @@ STEP4E_ANGULAR_LIMIT_RAD_S="${STEP4E_ANGULAR_LIMIT_RAD_S:-0.015}"
 PROGRAM_PREVIEW="/programs/andyl/kunwei/step4/step4e_preview_line_${STEP4E_VERSION}.urp"
 PROGRAM_HOLD="/programs/andyl/kunwei/step4/step4e_contact_hold_line_${STEP4E_VERSION}.urp"
 PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_line_outerloop_${STEP4E_VERSION}.urp"
+PROGRAM_AXIS_ISO="/programs/andyl/kunwei/step4/step4e_attitude_axis_iso_v1.urp"
+if [[ "${STEP4E_VERSION}" == "v21" ]]; then
+  PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_detached_movel_minrot_v21.urp"
+fi
 if [[ "${STEP4E_VERSION}" == "v20" ]]; then
   SEARCH_DESCRIPTION="two-stage search: v20 moves directly to entry XY with vertical TCP orientation [pi,0,0], searches far 15 mm/s then near 3 mm/s, latches first-contact normal only, lifts base-Z 2 mm, aligns attitude while detached, reacquires 5 N along the locked normal, then runs the 5 mm/s XY line"
+elif [[ "${STEP4E_VERSION}" == "v21" ]]; then
+  SEARCH_DESCRIPTION="two-stage search: v21 moves to vertical TCP orientation, searches far 15 mm/s then near 3 mm/s, latches first-contact normal only, detaches along the locked normal, then runs one minimal-rotation movel attitude adjustment; no 5N acquisition and no XY line"
 elif [[ "${STEP4E_VERSION}" == "v19" ]]; then
   SEARCH_DESCRIPTION="two-stage search: v19 first moves TCP orientation to vertical [pi,0,0], then XY entry and downward speedl-search; far 15 mm/s for 130 mm then near 3 mm/s up to 150 mm max depth; after contact latch it holds 5 N point contact and aligns TCP z to the contact normal before 5 mm/s XY line motion"
 elif [[ "${STEP4E_VERSION}" == "v18" ]]; then
@@ -77,14 +83,17 @@ Usage:
   step4e-line-v1-operator.sh preview-autowatch
   step4e-line-v1-operator.sh hold-autowatch
   step4e-line-v1-operator.sh line-autowatch
+  step4e-line-v1-operator.sh axis-autowatch
   step4e-line-v1-operator.sh preview-bridge
   step4e-line-v1-operator.sh hold-bridge
   step4e-line-v1-operator.sh line-bridge
+  step4e-line-v1-operator.sh axis-bridge
 
 Teach Pendant programs:
   /programs/andyl/kunwei/step4/step4e_preview_line_${STEP4E_VERSION}.urp
   /programs/andyl/kunwei/step4/step4e_contact_hold_line_${STEP4E_VERSION}.urp
   /programs/andyl/kunwei/step4/step4e_line_outerloop_${STEP4E_VERSION}.urp
+  /programs/andyl/kunwei/step4/step4e_attitude_axis_iso_v1.urp
 
 Bridge lifecycle:
   * autowatch waits for TP Play, then starts Kunwei/RTDE bridge automatically.
@@ -93,6 +102,7 @@ Bridge lifecycle:
 
 Step4e motion boundary:
   preview: no robot motion, echo Step4e command registers only.
+  axis: no-contact four-quadrant attitude axis isolation.
   hold: contact search, then 12 s force/orientation hold.
   line: contact search, then straight XY line from the two TP screenshot points.
   force target = 5 N, raw normal guard = ${MAX_NORMAL_FORCE_N} N, force norm guard = 50 N, torque guard = ${MAX_TORQUE_NORM_NM} Nm.
@@ -116,9 +126,23 @@ select_mode() {
       ;;
     line-autowatch|line-bridge)
       EXPECTED_PROGRAM="${PROGRAM_LINE}"
-      EXPECTED_BASENAME="step4e_line_outerloop_${STEP4E_VERSION}.urp"
+      if [[ "${STEP4E_VERSION}" == "v21" ]]; then
+        EXPECTED_BASENAME="step4e_detached_movel_minrot_v21.urp"
+      else
+        EXPECTED_BASENAME="step4e_line_outerloop_${STEP4E_VERSION}.urp"
+      fi
       STEP4E_MODE="line"
-      RUN_LABEL="step4e_line_outerloop_${STEP4E_VERSION}"
+      if [[ "${STEP4E_VERSION}" == "v21" ]]; then
+        RUN_LABEL="step4e_detached_movel_minrot_v21"
+      else
+        RUN_LABEL="step4e_line_outerloop_${STEP4E_VERSION}"
+      fi
+      ;;
+    axis-autowatch|axis-bridge)
+      EXPECTED_PROGRAM="${PROGRAM_AXIS_ISO}"
+      EXPECTED_BASENAME="step4e_attitude_axis_iso_v1.urp"
+      STEP4E_MODE="axis_iso"
+      RUN_LABEL="step4e_attitude_axis_iso_v1"
       ;;
     *)
       usage
