@@ -1,0 +1,760 @@
+{
+  "run_id": "bridge_step4e_seed_normal_loop_v31_20260612_050155",
+  "generated_from": {
+    "summary_json": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155/summary.json",
+    "metadata_json": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155/metadata.json",
+    "stage_frequency_summary_json": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155/stage_frequency_summary.json",
+    "bridge_csv": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155/bridge_rtde_500hz.csv",
+    "sensor_csv": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155/kunwei_sensor_1khz.csv",
+    "quiet_stream_json": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155/kunwei_quiet_stream.json"
+  },
+  "protocol": {
+    "tp_program": "/programs/andyl/kunwei/step4/step4e_seed_normal_loop_v31.urp",
+    "program_stamp": "2026-06-12T0459HKT_STEP4E_SEED_NORMAL_LOOP_V31",
+    "bridge_args": {
+      "allow_kunwei_stream_command": true,
+      "baseline_s": 5.0,
+      "connect_timeout_s": 3.0,
+      "duration_s": 180.0,
+      "max_force_norm_n": 60.0,
+      "max_normal_force_n": 50.0,
+      "max_torque_norm_nm": 3.0,
+      "no_start_command": false,
+      "no_stop_command": false,
+      "normal_axis": "fz",
+      "normal_sign": 1.0,
+      "output_dir": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155",
+      "rezero_s": 1.0,
+      "robot_host": "192.168.1.18",
+      "rtde_hz": 500.0,
+      "sensor_ip": "192.168.50.25",
+      "sensor_port": 5152,
+      "sensor_stale_s": 0.1,
+      "skip_dashboard_preflight": false,
+      "socket_timeout_s": 0.0,
+      "step4e_acquire_grace_s": 0.25,
+      "step4e_angular_limit_rad_s": 0.015,
+      "step4e_axis_iso_tilt_deg": 10.0,
+      "step4e_contact_offset_min_fz_n": 1.0,
+      "step4e_force_damping": 0.35,
+      "step4e_force_i_gain": 8e-05,
+      "step4e_force_p_gain": 0.0007,
+      "step4e_integral_limit_n_s": 10.0,
+      "step4e_integrate_stage25_only": false,
+      "step4e_line_settle_s": 0.0,
+      "step4e_line_speed_m_s": 0.003,
+      "step4e_min_force_for_control_n": 1.0,
+      "step4e_mode": "line",
+      "step4e_motion_limit_m_s": 0.004,
+      "step4e_normal_command_sign": 1.0,
+      "step4e_normal_filter_alpha": 0.35,
+      "step4e_normal_filter_tau_s": 0.35,
+      "step4e_normal_follow_mode": "filtered_live",
+      "step4e_normal_friction_projection": "on",
+      "step4e_normal_max_angle_from_latch_deg": 20.0,
+      "step4e_normal_max_rate_rad_s": 0.01,
+      "step4e_normal_min_force_n": 2.0,
+      "step4e_normal_velocity_limit_m_s": 0.003,
+      "step4e_orientation_gain": 0.2,
+      "step4e_orientation_wx_sign": 1.0,
+      "step4e_orientation_wy_sign": 1.0,
+      "step4e_path_p_gain": 1.5,
+      "step4e_reacquire_velocity_m_s": 0.001,
+      "step4e_total_linear_limit_m_s": 0.006,
+      "step4e_version": "v31",
+      "target_force_n": 5.0,
+      "write_rtde_inputs": true
+    },
+    "dashboard_preflight": {
+      "banner": "Connected: Universal Robots Dashboard Server",
+      "is in remote control": "false",
+      "programState": "PLAYING step4e_seed_normal_loop_v31.urp",
+      "robotmode": "Robotmode: RUNNING",
+      "running": "Program running: true",
+      "safetymode": "Safetymode: NORMAL"
+    },
+    "guard_contract": {
+      "max_force_norm_n": 60.0,
+      "max_normal_force_n": 50.0,
+      "max_torque_norm_nm": 3.0
+    },
+    "safety_boundary": [
+      "no URScript upload or program start",
+      "no robot motion command from Python",
+      "no UR TCP/payload writes",
+      "no zero_ftsensor",
+      "no Kunwei zero/tare/config write"
+    ],
+    "baseline": {
+      "ready": true,
+      "samples": 1001,
+      "si_offsets": {
+        "fx_n": 7.566093697210354,
+        "fy_n": 3.486762062664476,
+        "fz_n": 2.8061677283303617,
+        "mx_nm": 0.23426008677297122,
+        "my_nm": -0.26651210748621595,
+        "mz_nm": 0.08871610336373853
+      },
+      "zero_events": [
+        {
+          "baseline_epoch": 0,
+          "completed_at_monotonic_s": 624553.34261625,
+          "completed_at_sample": 4993,
+          "duration_s": 5.044180026045069,
+          "samples": 4993
+        },
+        {
+          "baseline_epoch": 1,
+          "previous_zero_request": 0.0,
+          "requested_at_monotonic_s": 624556.360460944,
+          "zero_request": 1.0
+        },
+        {
+          "baseline_epoch": 1,
+          "completed_at_monotonic_s": 624557.392732913,
+          "completed_at_sample": 9043,
+          "duration_s": 1.03227196901571,
+          "samples": 1001
+        }
+      ]
+    },
+    "kunwei_quiet_stop": {
+      "created_at": "2026-06-12T05:03:30",
+      "host": "192.168.50.25",
+      "ok": true,
+      "port": 5152,
+      "probe": {
+        "bytes_seen": 0,
+        "chunks": 0,
+        "duration_s": 0.35068844305351377,
+        "frame_markers_seen": 0,
+        "quiet": true,
+        "sample_hex": ""
+      },
+      "safety_boundary": "stop-stream only; no zero/tare/filter/config/start command",
+      "stop_attempts": [
+        {
+          "duration_s": 0.0007050749845802784,
+          "ok": true
+        },
+        {
+          "duration_s": 0.0004969720030203462,
+          "ok": true
+        },
+        {
+          "duration_s": 0.0004676050739362836,
+          "ok": true
+        },
+        {
+          "duration_s": 0.0005723339272662997,
+          "ok": true
+        },
+        {
+          "duration_s": 0.000390439061447978,
+          "ok": true
+        }
+      ],
+      "stop_command_hex": "43 AA 0D 0A"
+    }
+  },
+  "success_checks": {
+    "final_stage_output_register_35": 29.0,
+    "final_stop_reason_output_register_30": 1.0,
+    "final_progress_output_register_31_m": 0.1437471231016468,
+    "line_length_m": 0.1437471231016468,
+    "stage25_duration_s": 48.08999927190598,
+    "guard_reason_nonempty_rows": 0,
+    "summary_stop_reason": "signal_sigint",
+    "force_norm_max_n": 44.67035747690921,
+    "force_norm_guard_n": 60.0,
+    "torque_norm_max_nm": 0.9130505147607383,
+    "torque_norm_guard_nm": 3.0,
+    "dashboard_program_state": "PLAYING step4e_seed_normal_loop_v31.urp",
+    "dashboard_safety_mode": "Safetymode: NORMAL",
+    "kunwei_quiet_stop_ok": true
+  },
+  "summary": {
+    "baseline_epoch": 1,
+    "baseline_ready": true,
+    "baseline_samples": 1001,
+    "baseline_si_offsets": {
+      "fx_n": 7.566093697210354,
+      "fy_n": 3.486762062664476,
+      "fz_n": 2.8061677283303617,
+      "mx_nm": 0.23426008677297122,
+      "my_nm": -0.26651210748621595,
+      "mz_nm": 0.08871610336373853
+    },
+    "bridge_write_timing": {
+      "dt_max_s": 0.010604302980937064,
+      "dt_mean_s": 0.001995083699063168,
+      "dt_p95_s": 0.0020010090665891767,
+      "dt_p99_s": 0.002001720555126667,
+      "elapsed_s": 88.88895912806038,
+      "rate_hz": 501.2321039310633,
+      "samples": 44555
+    },
+    "bridge_writes": 44555,
+    "dropped_sync_bytes": 0,
+    "echo_heartbeat_transitions": {
+      "dt_max_s": 3.0100674169370905,
+      "dt_mean_s": 0.0040164099404005425,
+      "dt_p95_s": 0.0040447875508107245,
+      "dt_p99_s": 0.004085302534513176,
+      "elapsed_s": 83.08747243706603,
+      "rate_hz": 248.97856912989153,
+      "samples": 20688
+    },
+    "finished_at": "2026-06-12T05:03:29",
+    "force_norm_stats_n": {
+      "max": 44.67035747690921,
+      "mean": 7.662064706074124,
+      "min": 0.0020870131987466,
+      "samples": 89092,
+      "std": 10.433784124854244
+    },
+    "last_echo_heartbeat": 41652.0,
+    "last_zero_request": 1.0,
+    "normal_force_stats_n": {
+      "max": 3.242211989188194,
+      "mean": -6.81871009853283,
+      "min": -44.38284500007795,
+      "samples": 89092,
+      "std": 10.7018138134688
+    },
+    "parse_errors": 0,
+    "paths": {
+      "bridge_csv": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155/bridge_rtde_500hz.csv",
+      "metadata": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155/metadata.json",
+      "raw_frames": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155/raw_frames.bin",
+      "sensor_csv": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155/kunwei_sensor_1khz.csv",
+      "summary": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155/summary.json"
+    },
+    "rtde_output_timing": {
+      "dt_max_s": 0.01072186604142189,
+      "dt_mean_s": 0.0020000364283577735,
+      "dt_p95_s": 0.0020421242283191533,
+      "dt_p99_s": 0.0020805201644543557,
+      "elapsed_s": 88.88561894907616,
+      "rate_hz": 499.9908930764318,
+      "samples": 44443
+    },
+    "rtde_reconnect_event_count": 0,
+    "rtde_reconnect_events": [],
+    "samples": 89092,
+    "stop_reason": "signal_sigint",
+    "torque_norm_stats_nm": {
+      "max": 0.9130505147607383,
+      "mean": 0.08710469455344703,
+      "min": 2.602555260654704e-05,
+      "samples": 89092,
+      "std": 0.13540508848855365
+    },
+    "zero_events": [
+      {
+        "baseline_epoch": 0,
+        "completed_at_monotonic_s": 624553.34261625,
+        "completed_at_sample": 4993,
+        "duration_s": 5.044180026045069,
+        "samples": 4993
+      },
+      {
+        "baseline_epoch": 1,
+        "previous_zero_request": 0.0,
+        "requested_at_monotonic_s": 624556.360460944,
+        "zero_request": 1.0
+      },
+      {
+        "baseline_epoch": 1,
+        "completed_at_monotonic_s": 624557.392732913,
+        "completed_at_sample": 9043,
+        "duration_s": 1.03227196901571,
+        "samples": 1001
+      }
+    ]
+  },
+  "frequency": {
+    "bridge_csv": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155/bridge_rtde_500hz.csv",
+    "bridge_write_rate_hz": 501.2321039310633,
+    "frequency_contract_note": "Stage25 echo rate is measured from ur_output_double_register_26 heartbeat transitions; do not treat it as internal servo-loop frequency.",
+    "ok": true,
+    "rtde_output_logging_rate_hz": 501.2321039310633,
+    "stage24_2_near_search_echo_rate": {
+      "duration_s": 7.920000640093349,
+      "echo_rate_hz": 248.86361625051194,
+      "echo_transitions": 1971,
+      "rtde_row_rate_hz": 499.99995959006964,
+      "rtde_rows": 3961,
+      "stage": 24.2
+    },
+    "stage24_2_v22_first_near_search_echo_rate": {
+      "duration_s": 7.920000640093349,
+      "echo_rate_hz": 248.86361625051194,
+      "echo_transitions": 1971,
+      "rtde_row_rate_hz": 499.99995959006964,
+      "rtde_rows": 3961,
+      "stage": 24.2
+    },
+    "stage24_3_v22_second_far_search_echo_rate": {
+      "duration_s": 4.060000820085406,
+      "echo_rate_hz": 246.7979797055612,
+      "echo_transitions": 1002,
+      "rtde_row_rate_hz": 499.99989900428073,
+      "rtde_rows": 2031,
+      "stage": 24.3
+    },
+    "stage24_4_soft_acquisition_echo_rate": {
+      "duration_s": 0.0,
+      "echo_rate_hz": null,
+      "echo_transitions": 0,
+      "rtde_row_rate_hz": null,
+      "rtde_rows": 0,
+      "stage": 24.4
+    },
+    "stage24_4_v22_second_near_search_echo_rate": {
+      "duration_s": 0.0,
+      "echo_rate_hz": null,
+      "echo_transitions": 0,
+      "rtde_row_rate_hz": null,
+      "rtde_rows": 0,
+      "stage": 24.4
+    },
+    "stage24_search_echo_rate": {
+      "duration_s": 5.551999710965902,
+      "echo_rate_hz": 249.8198977317127,
+      "echo_transitions": 1387,
+      "rtde_row_rate_hz": 500.0000260297292,
+      "rtde_rows": 2777,
+      "stage": 24.0
+    },
+    "stage24_v22_first_far_search_echo_rate": {
+      "duration_s": 5.551999710965902,
+      "echo_rate_hz": 249.8198977317127,
+      "echo_transitions": 1387,
+      "rtde_row_rate_hz": 500.0000260297292,
+      "rtde_rows": 2777,
+      "stage": 24.0
+    },
+    "stage25_05_latch_echo_rate": {
+      "duration_s": 0.001988591975532472,
+      "echo_rate_hz": 502.8683673191614,
+      "echo_transitions": 1,
+      "rtde_row_rate_hz": 502.8683673191614,
+      "rtde_rows": 2,
+      "stage": 25.05
+    },
+    "stage25_1_detach_echo_rate": {
+      "duration_s": 1.6679905339842662,
+      "echo_rate_hz": 0.0,
+      "echo_transitions": 0,
+      "rtde_row_rate_hz": 500.0028375507957,
+      "rtde_rows": 835,
+      "stage": 25.1
+    },
+    "stage25_21_axis_iso_pp_echo_rate": {
+      "duration_s": 0.0,
+      "echo_rate_hz": null,
+      "echo_transitions": 0,
+      "rtde_row_rate_hz": null,
+      "rtde_rows": 0,
+      "stage": 25.21
+    },
+    "stage25_22_axis_iso_pn_echo_rate": {
+      "duration_s": 0.0,
+      "echo_rate_hz": null,
+      "echo_transitions": 0,
+      "rtde_row_rate_hz": null,
+      "rtde_rows": 0,
+      "stage": 25.22
+    },
+    "stage25_23_axis_iso_np_echo_rate": {
+      "duration_s": 0.0,
+      "echo_rate_hz": null,
+      "echo_transitions": 0,
+      "rtde_row_rate_hz": null,
+      "rtde_rows": 0,
+      "stage": 25.23
+    },
+    "stage25_24_axis_iso_nn_echo_rate": {
+      "duration_s": 0.0,
+      "echo_rate_hz": null,
+      "echo_transitions": 0,
+      "rtde_row_rate_hz": null,
+      "rtde_rows": 0,
+      "stage": 25.24
+    },
+    "stage25_2_orientation_echo_rate": {
+      "duration_s": 5.437998844077811,
+      "echo_rate_hz": 245.31082816480867,
+      "echo_transitions": 1334,
+      "rtde_row_rate_hz": 500.00010628194514,
+      "rtde_rows": 2720,
+      "stage": 25.2
+    },
+    "stage25_3_force_acquire_echo_rate": {
+      "duration_s": 0.10400026908610016,
+      "echo_rate_hz": 499.99870632017337,
+      "echo_transitions": 52,
+      "rtde_row_rate_hz": 499.99870632017337,
+      "rtde_rows": 53,
+      "stage": 25.3
+    },
+    "stage25_ft_line_control_echo_rate": {
+      "duration_s": 48.08999927190598,
+      "echo_rate_hz": 249.40736497384094,
+      "echo_transitions": 11994,
+      "rtde_row_rate_hz": 500.00000757011884,
+      "rtde_rows": 24046,
+      "stage": 25.0
+    },
+    "stage26_unload_echo_rate": {
+      "duration_s": 1.157999865943566,
+      "echo_rate_hz": 0.0,
+      "echo_transitions": 0,
+      "rtde_row_rate_hz": 500.00005788275024,
+      "rtde_rows": 580,
+      "stage": 26.0
+    },
+    "stage27_retract_echo_rate": {
+      "duration_s": 5.589998618001118,
+      "echo_rate_hz": 0.0,
+      "echo_transitions": 0,
+      "rtde_row_rate_hz": 500.0001236135262,
+      "rtde_rows": 2796,
+      "stage": 27.0
+    },
+    "total_rows": 44555
+  },
+  "stage_summary": [
+    {
+      "stage": 20.0,
+      "meaning": "start/wait",
+      "rows": 2456,
+      "duration_s": 4.8278097320580855,
+      "row_rate_hz": 508.7193026045399,
+      "tcp_z_min_mm": 110.8249433706298,
+      "tcp_z_max_mm": 110.93585844195209,
+      "normal_force_min_n": 0.396687814,
+      "normal_force_mean_n": 2.7955093904690584,
+      "normal_force_max_n": 3.22417598,
+      "force_norm_max_n": 9.05403566,
+      "torque_norm_max_nm": 0.367049625,
+      "progress_end_m": 0.0215455289596469
+    },
+    {
+      "stage": 22.0,
+      "meaning": "XY entry",
+      "rows": 1505,
+      "duration_s": 3.0079997739521787,
+      "row_rate_hz": 500.3324844079348,
+      "tcp_z_min_mm": 110.7396333672786,
+      "tcp_z_max_mm": 110.95510924395211,
+      "normal_force_min_n": -0.45634575,
+      "normal_force_mean_n": 0.00523454496544853,
+      "normal_force_max_n": 0.451609199,
+      "force_norm_max_n": 0.477122535,
+      "torque_norm_max_nm": 0.0151683279,
+      "progress_end_m": 0.0
+    },
+    {
+      "stage": 23.0,
+      "meaning": "software zero",
+      "rows": 619,
+      "duration_s": 1.235975494957529,
+      "row_rate_hz": 500.8189907691255,
+      "tcp_z_min_mm": 110.82086918060071,
+      "tcp_z_max_mm": 110.92595869834419,
+      "normal_force_min_n": -0.401539516,
+      "normal_force_mean_n": -0.004731527747980617,
+      "normal_force_max_n": 0.417432496,
+      "force_norm_max_n": 0.439114966,
+      "torque_norm_max_nm": 0.014275351,
+      "progress_end_m": 3.6938049433028354e-05
+    },
+    {
+      "stage": 24.0,
+      "meaning": "first far search",
+      "rows": 2777,
+      "duration_s": 5.551999710965902,
+      "row_rate_hz": 500.1801413128812,
+      "tcp_z_min_mm": 27.972821254667,
+      "tcp_z_max_mm": 110.8781842570627,
+      "normal_force_min_n": -0.388710134,
+      "normal_force_mean_n": 0.005637424382592418,
+      "normal_force_max_n": 0.303878893,
+      "force_norm_max_n": 0.403722331,
+      "torque_norm_max_nm": 0.0117492036,
+      "progress_end_m": 1.1680635727785223e-05
+    },
+    {
+      "stage": 24.2,
+      "meaning": "first near search",
+      "rows": 3961,
+      "duration_s": 7.920000640093349,
+      "row_rate_hz": 500.1262222061277,
+      "tcp_z_min_mm": 7.9763442207472,
+      "tcp_z_max_mm": 27.955088609244502,
+      "normal_force_min_n": -6.70274963,
+      "normal_force_mean_n": -0.026811365948428444,
+      "normal_force_max_n": 0.439071207,
+      "force_norm_max_n": 6.75778683,
+      "torque_norm_max_nm": 0.0718870657,
+      "progress_end_m": 5.240587359831852e-05
+    },
+    {
+      "stage": 24.3,
+      "meaning": "second far search",
+      "rows": 2031,
+      "duration_s": 4.060000820085406,
+      "row_rate_hz": 500.24620437324836,
+      "tcp_z_min_mm": 7.9292500719837005,
+      "tcp_z_max_mm": 28.0612313812279,
+      "normal_force_min_n": -20.2483336,
+      "normal_force_mean_n": -0.15667638034645492,
+      "normal_force_max_n": 0.274078214,
+      "force_norm_max_n": 20.3051546,
+      "torque_norm_max_nm": 0.110855708,
+      "progress_end_m": 8.774835778756994e-05
+    },
+    {
+      "stage": 25.0,
+      "meaning": "line control",
+      "rows": 24046,
+      "duration_s": 48.08999927190598,
+      "row_rate_hz": 500.0208019143721,
+      "tcp_z_min_mm": 7.7965399513052,
+      "tcp_z_max_mm": 20.5449477876881,
+      "normal_force_min_n": -44.382845,
+      "normal_force_mean_n": -12.78845049926117,
+      "normal_force_max_n": 0.441194483,
+      "force_norm_max_n": 44.6703575,
+      "torque_norm_max_nm": 0.912256771,
+      "progress_end_m": 0.1437471231016468
+    },
+    {
+      "stage": 25.05,
+      "meaning": "normal latch",
+      "rows": 2,
+      "duration_s": 0.001988591975532472,
+      "row_rate_hz": 1005.7367346383228,
+      "tcp_z_min_mm": 7.998798116724499,
+      "tcp_z_max_mm": 7.9991340585772,
+      "normal_force_min_n": -6.70274963,
+      "normal_force_mean_n": -6.70274963,
+      "normal_force_max_n": -6.70274963,
+      "force_norm_max_n": 6.75778683,
+      "torque_norm_max_nm": 0.0718870657,
+      "progress_end_m": 3.542528646546202e-05
+    },
+    {
+      "stage": 25.1,
+      "meaning": "detach/lift",
+      "rows": 835,
+      "duration_s": 1.6679905339842662,
+      "row_rate_hz": 500.6023613368278,
+      "tcp_z_min_mm": 7.964100453990199,
+      "tcp_z_max_mm": 27.983022081632303,
+      "normal_force_min_n": -8.6557758,
+      "normal_force_mean_n": -0.5081107726936827,
+      "normal_force_max_n": 0.437342776,
+      "force_norm_max_n": 8.74276437,
+      "torque_norm_max_nm": 0.0982570778,
+      "progress_end_m": 4.377723548713638e-05
+    },
+    {
+      "stage": 25.2,
+      "meaning": "orientation correction",
+      "rows": 2720,
+      "duration_s": 5.437998844077811,
+      "row_rate_hz": 500.1839974574809,
+      "tcp_z_min_mm": 27.9161221466914,
+      "tcp_z_max_mm": 28.1133377386725,
+      "normal_force_min_n": -0.25055707,
+      "normal_force_mean_n": -0.023644973702876847,
+      "normal_force_max_n": 0.334488843,
+      "force_norm_max_n": 0.36401469,
+      "torque_norm_max_nm": 0.0104314519,
+      "progress_end_m": 9.562603741544144e-05
+    },
+    {
+      "stage": 25.3,
+      "meaning": "force reacquire",
+      "rows": 53,
+      "duration_s": 0.10400026908610016,
+      "row_rate_hz": 509.61406605709976,
+      "tcp_z_min_mm": 7.867617757446601,
+      "tcp_z_max_mm": 7.9705700953341,
+      "normal_force_min_n": -23.1946747,
+      "normal_force_mean_n": -21.5057929698113,
+      "normal_force_max_n": -20.2483336,
+      "force_norm_max_n": 23.2486879,
+      "torque_norm_max_nm": 0.121312293,
+      "progress_end_m": 0.0001036834117677
+    },
+    {
+      "stage": 26.0,
+      "meaning": "unload",
+      "rows": 580,
+      "duration_s": 1.157999865943566,
+      "row_rate_hz": 500.86361584109693,
+      "tcp_z_min_mm": 18.4661225093388,
+      "tcp_z_max_mm": 28.5013890600518,
+      "normal_force_min_n": -3.92643257,
+      "normal_force_mean_n": -0.3384963189068942,
+      "normal_force_max_n": 0.289146019,
+      "force_norm_max_n": 3.92919801,
+      "torque_norm_max_nm": 0.0424968029,
+      "progress_end_m": 0.1437471231016468
+    },
+    {
+      "stage": 27.0,
+      "meaning": "retract/home",
+      "rows": 2796,
+      "duration_s": 5.589998618001118,
+      "row_rate_hz": 500.1790145343182,
+      "tcp_z_min_mm": 28.459642692194798,
+      "tcp_z_max_mm": 110.9783066356952,
+      "normal_force_min_n": -0.423272913,
+      "normal_force_mean_n": -0.00402158644320455,
+      "normal_force_max_n": 0.469986278,
+      "force_norm_max_n": 0.626036015,
+      "torque_norm_max_nm": 0.0149878193,
+      "progress_end_m": 0.1437471231016468
+    },
+    {
+      "stage": 29.0,
+      "meaning": "final",
+      "rows": 104,
+      "duration_s": 0.20600039698183537,
+      "row_rate_hz": 504.85339603093325,
+      "tcp_z_min_mm": 110.8552634098588,
+      "tcp_z_max_mm": 110.9492964365031,
+      "normal_force_min_n": -0.0452770743,
+      "normal_force_mean_n": 0.021461819692307687,
+      "normal_force_max_n": 0.125213348,
+      "force_norm_max_n": 0.133891248,
+      "torque_norm_max_nm": 0.00628593086,
+      "progress_end_m": 0.1437471231016468
+    }
+  ],
+  "line_control": {
+    "rows": 24046,
+    "duration_s": 48.08999927190598,
+    "progress_min_m": 3.37296605178774e-06,
+    "progress_max_m": 0.1437471231016468,
+    "progress_final_m": 0.1437471231016468,
+    "line_length_m": 0.1437471231016468,
+    "normal_force_n": {
+      "mean": -12.788450499261135,
+      "median": -11.0633917,
+      "std": 11.597471020962764,
+      "min": -44.382845,
+      "max": 0.441194483,
+      "p95_abs": 32.6780771,
+      "p99_abs": 37.919742
+    },
+    "force_error_vs_minus_5_n": {
+      "signed_mean_n": -7.788450499260838,
+      "mae_n": 10.982215927836771,
+      "p95_abs_n": 27.678077100000003,
+      "p99_abs_n": 32.919742,
+      "min_n": -39.382845,
+      "max_n": 5.441194483
+    },
+    "force_norm_n": {
+      "mean": 12.98705689770265,
+      "median": 11.1065967,
+      "std": 11.58741105103864,
+      "min": 0.108135694,
+      "max": 44.6703575,
+      "p95_abs": 32.9868535,
+      "p99_abs": 38.0903156
+    },
+    "torque_norm_nm": {
+      "mean": 0.11827692338433125,
+      "median": 0.0700994041,
+      "std": 0.1412285343446319,
+      "min": 0.000582741171,
+      "max": 0.912256771,
+      "p95_abs": 0.407513532,
+      "p99_abs": 0.639787741
+    },
+    "cmd_vx_mm_s": {
+      "mean": 1.2475132321367794,
+      "median": 1.23261144,
+      "std": 0.12057092950857919,
+      "min": 0.85612219,
+      "max": 1.7881738200000001,
+      "p95_abs": 1.46902239,
+      "p99_abs": 1.5977728099999995
+    },
+    "cmd_vy_mm_s": {
+      "mean": 2.727495682726857,
+      "median": 2.734793415,
+      "std": 0.05564730006411801,
+      "min": 2.44204102,
+      "max": 2.90711427,
+      "p95_abs": 2.805471035,
+      "p99_abs": 2.8409813135
+    },
+    "cmd_vz_mm_s": {
+      "mean": 0.19012186488160865,
+      "median": -0.7248971614999999,
+      "std": 1.7012953740097172,
+      "min": -1.9565005699999998,
+      "max": 3.00849478,
+      "p95_abs": 2.9996703874999997,
+      "p99_abs": 3.002960335
+    }
+  },
+  "path_tracking": {
+    "x_error_mean_mm": -0.0032086795198861206,
+    "x_error_p95_abs_mm": 0.09824177194091288,
+    "x_error_p99_abs_mm": 0.12415590055311614,
+    "x_error_max_abs_mm": 0.18027143349041985,
+    "y_error_mean_mm": 0.024971852980999996,
+    "y_error_p95_abs_mm": 0.08703281566765225,
+    "y_error_p99_abs_mm": 0.11363000360002788,
+    "y_error_max_abs_mm": 0.2542657807330928,
+    "xy_error_mean_mm": 0.059571492258772694,
+    "xy_error_p95_mm": 0.1183800542734934,
+    "xy_error_p99_mm": 0.14532843206665133,
+    "xy_error_max_mm": 0.25989093846880634,
+    "along_error_signed_mean_mm": 0.02138070858899674,
+    "along_error_abs_mean_mm": 0.03311555526944239,
+    "along_error_p95_abs_mm": 0.08006338403299172,
+    "along_error_p99_abs_mm": 0.10667798790512309,
+    "cross_track_signed_mean_mm": 0.013294899992042664,
+    "cross_track_abs_mean_mm": 0.04232091580339231,
+    "cross_track_p95_abs_mm": 0.10605462307553969,
+    "cross_track_p99_abs_mm": 0.13344810722397707,
+    "cross_track_max_abs_mm": 0.18266000300307855
+  },
+  "final_output_registers": {
+    "24": 0.2891460189340828,
+    "25": 0.5814386800178615,
+    "26": 41652.0,
+    "27": 1.0,
+    "28": 0.0,
+    "29": 5.0,
+    "30": 1.0,
+    "31": 0.1437471231016468,
+    "32": 5.0,
+    "33": 0.0,
+    "34": 1.0,
+    "35": 29.0,
+    "36": 0.0,
+    "37": 0.0,
+    "38": 0.0,
+    "39": 0.0,
+    "40": 0.0,
+    "41": 0.0,
+    "42": 0.0,
+    "43": 0.1437471231016468,
+    "44": 5.0,
+    "45": 2.0912733940765467,
+    "46": 1.0,
+    "47": 0.0
+  }
+}
