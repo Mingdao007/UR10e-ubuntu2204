@@ -352,8 +352,14 @@ def compute_step4e_values(
     v20_profile = args.step4e_version == "v20"
     v21_profile = args.step4e_version == "v21"
     v22_profile = args.step4e_version == "v22"
-    detached_profile = v20_profile or v21_profile or v22_profile
+    v23_profile = args.step4e_version == "v23"
+    detached_profile = v20_profile or v21_profile or v22_profile or v23_profile
     axis_iso_active = args.step4e_mode == "axis_iso" and 25.18 <= robot_stage <= 25.27
+    first_search_stage_active = (
+        args.step4e_mode == "line"
+        and v23_profile
+        and (abs(robot_stage - 24.0) < 0.05 or abs(robot_stage - 24.2) < 0.05)
+    )
     latch_stage_active = args.step4e_mode == "line" and detached_profile and abs(robot_stage - 25.05) < 0.03
     detach_stage_active = args.step4e_mode == "line" and detached_profile and abs(robot_stage - 25.1) < 0.03
     orient_stage_active = args.step4e_mode == "line" and (
@@ -362,7 +368,7 @@ def compute_step4e_values(
     )
     acquire_stage_active = (
         args.step4e_mode == "line"
-        and (v20_profile or v22_profile)
+        and (v20_profile or v22_profile or v23_profile)
         and abs(robot_stage - 25.3) < 0.05
     )
     line_stage_active = args.step4e_mode == "line" and abs(robot_stage - 25.0) < 0.05
@@ -403,7 +409,7 @@ def compute_step4e_values(
     n_reaction_b = synthetic_normal if synthetic_normal is not None else normalize3(force_b)
     if (
         detached_profile
-        and latch_stage_active
+        and (latch_stage_active or first_search_stage_active)
         and sensor_ok > 0.5
         and force_abs >= args.step4e_min_force_for_control_n
         and not state.latched_normal_locked
@@ -434,7 +440,7 @@ def compute_step4e_values(
     tcp_z_axis_b = (rotation[0][2], rotation[1][2], rotation[2][2])
     orientation_target_axis_b = (
         (-n_control_b[0], -n_control_b[1], -n_control_b[2])
-        if (v21_profile or v22_profile)
+        if (v21_profile or v22_profile or v23_profile)
         else n_control_b
     )
     orientation_axis = cross3(tcp_z_axis_b, orientation_target_axis_b)
@@ -518,6 +524,8 @@ def compute_step4e_values(
         elif (v21_profile or v22_profile) and orient_stage_active:
             cmd = (0.0, 0.0, 0.0)
             orientation_cmd = target_rotvec
+        elif v23_profile and orient_stage_active:
+            cmd = (0.0, 0.0, 0.0)
         elif detached_profile and orient_stage_active:
             cmd = (0.0, 0.0, 0.0)
         elif axis_iso_active:
@@ -572,7 +580,7 @@ def compute_step4e_values(
                 "step4e_cmd_vz_m_s": n_control_b[2] if (v21_profile and detach_stage_active) else cmd[2],
                 "step4e_cmd_wx_rad_s": orientation_cmd[0],
                 "step4e_cmd_wy_rad_s": orientation_cmd[1],
-                "step4e_cmd_wz_rad_s": orientation_cmd[2] if (axis_iso_active or v21_profile or v22_profile) else 0.0,
+                "step4e_cmd_wz_rad_s": orientation_cmd[2] if (axis_iso_active or v21_profile or v22_profile or v23_profile) else 0.0,
                 "step4e_cmd_valid": 0.0 if args.step4e_mode == "preview" else 1.0,
                 "step4e_progress_m": progress,
                 "step4e_force_error_n": force_error,
@@ -925,6 +933,7 @@ def main(argv: list[str] | None = None) -> int:
             "v21_line_25.1": "input_double_register_37..39 are the +locked-normal unit detach direction, not Cartesian velocity.",
             "v21_line_25.2": "input_double_register_40..42 are target TCP rotvec rx/ry/rz for a single detached movel; target is z_tcp_B ~= -locked_normal_B.",
             "v22_seed_normal_loop": "25.05 latches the first contact normal; 25.2 outputs target TCP rotvec for optional lifted posture correction; 25.3 reacquires 5 N before 25.0 line control.",
+            "v23_seed_normal_loop": "24.0/24.2 latch the first contact normal; 25.2 outputs angular speedl wx/wy/wz for lifted posture correction; 25.3 reacquires 5 N before 25.0 line control.",
         },
         "step4e_path": {
             "type": "line_from_two_tcp_points",

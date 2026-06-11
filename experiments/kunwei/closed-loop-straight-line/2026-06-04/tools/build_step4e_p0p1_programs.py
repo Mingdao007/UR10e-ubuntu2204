@@ -175,6 +175,26 @@ def validate_package(name: str, script: str, txt: str, urp: bytes, stamp: str, c
                 "fast stop": "stopl(0.1)" in script,
             }
         )
+    if name == "step4e_seed_normal_loop_v23":
+        checks.update(
+            {
+                "safe entry stage": "write_output_float_register(35, 21.0)" in script
+                and "reference_orientation_pose = p[p0[0], p0[1], p0[2]" in script,
+                "entry xy at current z": "entry_xy_pose = p[" in script and ", p1[2]," in script,
+                "fixed search start": "local fixed_search_start_z_m = 0.09835" in script
+                and "write_output_float_register(35, 22.5)" in script,
+                "no low z seed movel": "local seed_pose = p[" not in script,
+                "first search v13 envelope": "codex_v23_down_search(24.0, 24.2, 0.092, 0.080, 40.000, -0.015, -0.003)" in script,
+                "lift 50mm": "p_lift[2] + 0.050" in script,
+                "orientation ignore 3deg": "local orientation_ignore_error_rad = 0.052360" in script,
+                "orientation hard stop 30deg": "local orientation_hard_stop_error_rad = 0.523599" in script,
+                "angular speedl orientation": "speedl([0.0, 0.0, 0.0, cmd_wx, cmd_wy, cmd_wz]" in script,
+                "no target pose movel": "movel(target_pose" not in script,
+                "second search": "codex_v23_down_search(24.3, 24.4, 0.070, 0.040, 45.000, -0.005, -0.003)" in script,
+                "acquire stage": "write_output_float_register(35, 25.3)" in script,
+                "line stage": "write_output_float_register(35, 25.0)" in script,
+            }
+        )
     failed = [label for label, ok in checks.items() if not ok]
     if failed:
         raise RuntimeError(f"{name} validation failed: {failed}")
@@ -1128,6 +1148,427 @@ codex_step4e_seed_normal_loop_v22()
 """
 
 
+def v23_seed_normal_loop_script(stamp: str, gen_at: str, geom: dict[str, float]) -> str:
+    near_normal_rotvec = [-3.044172198, -0.130573165, -0.202188631]
+    return f"""# Step4e v23 v13-safe seed-normal TASE minimal reproduction loop.
+# VERSION: {stamp}
+# GENERATED_AT_LOCAL: {gen_at}
+# ENTRY_XY_M: [{geom['start_x']:.9f}, {geom['start_y']:.9f}]
+# NEAR_NORMAL_ROTVEC_RAD: [{format_pose(near_normal_rotvec)}]
+# PURPOSE: keep v13 safe entry/search flow, then add first-contact lift, lifted angular speedl posture adjustment, second touch, 5N acquire and line.
+# CONTROL: bridge step4e-version=v23 latches the first contact normal, writes angular speedl commands in 25.2, reacquires 5 N in 25.3, and runs line control in 25.0.
+# SAFETY: raw normal guard 35 N, force norm guard 50 N, torque guard 3.0 Nm.
+{common_functions("35.0", "3.0")}
+
+def codex_wait_for_cmd_valid(stage_code, timeout_s):
+  local t = 0.0
+  local last_heartbeat = read_input_float_register(26)
+  local stale_s = 0.0
+  while t < timeout_s:
+    write_output_float_register(35, stage_code)
+    local heartbeat = read_input_float_register(26)
+    if heartbeat == last_heartbeat:
+      stale_s = stale_s + get_steptime()
+    else:
+      stale_s = 0.0
+      last_heartbeat = heartbeat
+    end
+    codex_echo_step4e(0.0)
+    if stale_s > 0.100:
+      return 2.0
+    end
+    local guard_reason = codex_step4e_guard_stop_reason()
+    if guard_reason != 0.0:
+      return guard_reason
+    end
+    if read_input_float_register(43) >= 0.5:
+      return 0.0
+    end
+    sync()
+    t = t + get_steptime()
+  end
+  return 12.0
+end
+
+def codex_v23_down_search(search_stage, near_stage, max_search_down_m, search_near_start_depth_m, search_runtime_limit_s, search_far_speed_m_s, search_near_speed_m_s):
+  local stop_reason = 0.0
+  local search_accel_m_s2 = 0.300
+  local search_hold_s = 0.002
+  local stale_limit_s = 0.100
+  local search_start = get_actual_tcp_pose()
+  local last_heartbeat = read_input_float_register(26)
+  local stale_s = 0.0
+  local t = 0.0
+  while stop_reason == 0.0:
+    local heartbeat = read_input_float_register(26)
+    local normal_force = read_input_float_register(24)
+    local force_norm = read_input_float_register(25)
+    local pose_now = get_actual_tcp_pose()
+    local search_depth_m = search_start[2] - pose_now[2]
+    if heartbeat == last_heartbeat:
+      stale_s = stale_s + get_steptime()
+    else:
+      stale_s = 0.0
+      last_heartbeat = heartbeat
+    end
+    if normal_force <= -1.0 or force_norm > 1.5:
+      stop_reason = 11.0
+    elif stale_s > stale_limit_s:
+      stop_reason = 2.0
+    else:
+      stop_reason = codex_step4e_guard_stop_reason()
+    end
+    if stop_reason == 0.0:
+      if search_depth_m >= max_search_down_m:
+        stop_reason = 8.0
+      elif t >= search_runtime_limit_s:
+        stop_reason = 10.0
+      else:
+        if search_depth_m < search_near_start_depth_m:
+          write_output_float_register(35, search_stage)
+          codex_echo_step4e(stop_reason)
+          speedl([0.0, 0.0, search_far_speed_m_s, 0.0, 0.0, 0.0], search_accel_m_s2, search_hold_s)
+        else:
+          write_output_float_register(35, near_stage)
+          codex_echo_step4e(stop_reason)
+          speedl([0.0, 0.0, search_near_speed_m_s, 0.0, 0.0, 0.0], search_accel_m_s2, search_hold_s)
+        end
+        t = t + get_steptime()
+      end
+    end
+  end
+  stopl(0.1)
+  return stop_reason
+end
+
+def codex_step4e_seed_normal_loop_v23():
+  local stop_reason = 0.0
+  local home_pose = get_actual_tcp_pose()
+  local entry_x = {geom['start_x']:.9f}
+  local entry_y = {geom['start_y']:.9f}
+  local ref_rx = {near_normal_rotvec[0]:.9f}
+  local ref_ry = {near_normal_rotvec[1]:.9f}
+  local ref_rz = {near_normal_rotvec[2]:.9f}
+  local fixed_search_start_z_m = {geom['validated_search_start_z']:.5f}
+  local line_accel_m_s2 = 0.300
+  local line_hold_s = 0.002
+  local line_runtime_limit_s = 75.000
+  local line_success_progress_m = {max(0.0, geom['length'] - 0.0005):.9f}
+  local end_hold_required_s = 0.100
+  local end_hold_s = 0.0
+  local max_cmd_angular_xy_rad_s = 0.120
+  local cmd_valid_grace_s = 0.250
+  local cmd_valid_loss_limit_s = 0.100
+  local cmd_invalid_s = 0.0
+  local saw_cmd_valid = 0
+  local short_retract_z_m = 0.010
+  local short_retract_speed_m_s = 0.020
+  local home_return_speed_m_s = 0.050
+  local final_progress_m = 0.0
+
+  textmsg("codex step4e version {stamp} start seed_normal_loop_v23")
+  write_output_float_register(34, 0.0)
+  write_output_float_register(35, 20.0)
+  codex_echo_step4e(0.0)
+  if not codex_wait_for_fresh_heartbeat(30.0):
+    stop_reason = 3.0
+  end
+
+  if stop_reason == 0.0:
+    write_output_float_register(35, 21.0)
+    local p0 = get_actual_tcp_pose()
+    local reference_orientation_pose = p[p0[0], p0[1], p0[2], ref_rx, ref_ry, ref_rz]
+    codex_echo_step4e(stop_reason)
+    movel(reference_orientation_pose, a=0.030, v=0.020, r=0.0)
+    stopl(0.1)
+    write_output_float_register(35, 22.0)
+    local p1 = get_actual_tcp_pose()
+    local entry_xy_pose = p[entry_x, entry_y, p1[2], ref_rx, ref_ry, ref_rz]
+    codex_echo_step4e(stop_reason)
+    movel(entry_xy_pose, a=0.030, v=0.020, r=0.0)
+    stopl(0.1)
+    write_output_float_register(35, 22.5)
+    local p2 = get_actual_tcp_pose()
+    local fixed_search_start_pose = p[p2[0], p2[1], fixed_search_start_z_m, ref_rx, ref_ry, ref_rz]
+    codex_echo_step4e(stop_reason)
+    movel(fixed_search_start_pose, a=0.030, v=home_return_speed_m_s, r=0.0)
+    stopl(0.1)
+    sleep(0.20)
+    write_output_float_register(35, 23.0)
+    codex_echo_step4e(stop_reason)
+    write_output_float_register(34, 1.0)
+    if not codex_wait_for_rezero_complete(5.0):
+      stop_reason = 14.0
+    end
+    if stop_reason == 0.0:
+      sleep(0.20)
+      stop_reason = codex_step4e_guard_stop_reason()
+    end
+  end
+
+  if stop_reason == 0.0:
+    stop_reason = codex_v23_down_search(24.0, 24.2, 0.092, 0.080, 40.000, -0.015, -0.003)
+    if stop_reason == 11.0:
+      stop_reason = 0.0
+    end
+  end
+
+  if stop_reason == 0.0:
+    write_output_float_register(35, 25.05)
+    stop_reason = codex_wait_for_cmd_valid(25.05, 1.000)
+  end
+
+  if stop_reason == 0.0:
+    write_output_float_register(35, 25.1)
+    local p_lift = get_actual_tcp_pose()
+    local lift_pose = p[p_lift[0], p_lift[1], p_lift[2] + 0.050, p_lift[3], p_lift[4], p_lift[5]]
+    codex_echo_step4e(stop_reason)
+    movel(lift_pose, a=0.030, v=0.020, r=0.0)
+    stopl(0.1)
+  end
+
+  if stop_reason == 0.0:
+    write_output_float_register(35, 25.2)
+    stop_reason = codex_wait_for_cmd_valid(25.2, 1.000)
+    if stop_reason == 0.0:
+      local orientation_ignore_error_rad = 0.052360
+      local orientation_hard_stop_error_rad = 0.523599
+      local orientation_runtime_limit_s = 8.000
+      local t_orient = 0.0
+      local stale_s_orient = 0.0
+      local last_heartbeat_orient = read_input_float_register(26)
+      saw_cmd_valid = 0
+      cmd_invalid_s = 0.0
+      while stop_reason == 0.0:
+        local heartbeat_orient = read_input_float_register(26)
+        local cmd_valid = read_input_float_register(43)
+        local orientation_error = read_input_float_register(46)
+        local cmd_vx = read_input_float_register(37)
+        local cmd_vy = read_input_float_register(38)
+        local cmd_vz = read_input_float_register(39)
+        local cmd_wx = read_input_float_register(40)
+        local cmd_wy = read_input_float_register(41)
+        local cmd_wz = read_input_float_register(42)
+        local loop_dt = get_steptime()
+        if cmd_valid >= 0.5:
+          saw_cmd_valid = 1
+          cmd_invalid_s = 0.0
+        else:
+          cmd_invalid_s = cmd_invalid_s + loop_dt
+        end
+        if heartbeat_orient == last_heartbeat_orient:
+          stale_s_orient = stale_s_orient + loop_dt
+        else:
+          stale_s_orient = 0.0
+          last_heartbeat_orient = heartbeat_orient
+        end
+        t_orient = t_orient + loop_dt
+        codex_echo_step4e(stop_reason)
+        if stale_s_orient > 0.100:
+          stop_reason = 2.0
+        else:
+          stop_reason = codex_step4e_guard_stop_reason()
+        end
+        if stop_reason == 0.0:
+          if orientation_error > orientation_hard_stop_error_rad:
+            stop_reason = 15.0
+          elif orientation_error <= orientation_ignore_error_rad:
+            stop_reason = 17.0
+          elif cmd_valid < 0.5:
+            if saw_cmd_valid == 0 and t_orient < cmd_valid_grace_s:
+              speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)
+            elif saw_cmd_valid == 1 and cmd_invalid_s <= cmd_valid_loss_limit_s:
+              speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)
+            else:
+              stop_reason = 12.0
+            end
+          elif codex_abs(cmd_vx) > 0.001 or codex_abs(cmd_vy) > 0.001 or codex_abs(cmd_vz) > 0.001:
+            stop_reason = 13.0
+          elif codex_abs(cmd_wx) > max_cmd_angular_xy_rad_s or codex_abs(cmd_wy) > max_cmd_angular_xy_rad_s or codex_abs(cmd_wz) > max_cmd_angular_xy_rad_s:
+            stop_reason = 13.0
+          elif t_orient >= orientation_runtime_limit_s:
+            stop_reason = 10.0
+          else:
+            speedl([0.0, 0.0, 0.0, cmd_wx, cmd_wy, cmd_wz], line_accel_m_s2, line_hold_s)
+          end
+        end
+      end
+      stopl(0.1)
+      if stop_reason == 17.0:
+        stop_reason = 0.0
+      end
+    end
+  end
+
+  if stop_reason == 0.0:
+    stop_reason = codex_v23_down_search(24.3, 24.4, 0.070, 0.040, 45.000, -0.005, -0.003)
+    if stop_reason == 11.0:
+      stop_reason = 0.0
+    end
+  end
+
+  if stop_reason == 0.0:
+    write_output_float_register(35, 25.3)
+    local last_heartbeat_acquire = read_input_float_register(26)
+    local stale_s_acquire = 0.0
+    local t_acquire = 0.0
+    local acquire_stable_s = 0.0
+    local acquire_min_s = 0.200
+    local acquire_runtime_limit_s = 8.000
+    local acquire_force_error_limit_n = 0.750
+    local acquire_stable_required_s = 0.250
+    saw_cmd_valid = 0
+    cmd_invalid_s = 0.0
+    while stop_reason == 0.0:
+      local heartbeat_acquire = read_input_float_register(26)
+      local cmd_valid = read_input_float_register(43)
+      local force_error = read_input_float_register(45)
+      local cmd_vx = read_input_float_register(37)
+      local cmd_vy = read_input_float_register(38)
+      local cmd_vz = read_input_float_register(39)
+      local loop_dt = get_steptime()
+      if cmd_valid >= 0.5:
+        saw_cmd_valid = 1
+        cmd_invalid_s = 0.0
+      else:
+        cmd_invalid_s = cmd_invalid_s + loop_dt
+      end
+      if heartbeat_acquire == last_heartbeat_acquire:
+        stale_s_acquire = stale_s_acquire + loop_dt
+      else:
+        stale_s_acquire = 0.0
+        last_heartbeat_acquire = heartbeat_acquire
+      end
+      t_acquire = t_acquire + loop_dt
+      if t_acquire >= acquire_min_s and codex_abs(force_error) <= acquire_force_error_limit_n:
+        acquire_stable_s = acquire_stable_s + loop_dt
+      else:
+        acquire_stable_s = 0.0
+      end
+      codex_echo_step4e(stop_reason)
+      if stale_s_acquire > 0.100:
+        stop_reason = 2.0
+      else:
+        stop_reason = codex_step4e_guard_stop_reason()
+      end
+      if stop_reason == 0.0:
+        if acquire_stable_s >= acquire_stable_required_s:
+          stop_reason = 16.0
+        elif cmd_valid < 0.5:
+          if saw_cmd_valid == 0 and t_acquire < cmd_valid_grace_s:
+            speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)
+          elif saw_cmd_valid == 1 and cmd_invalid_s <= cmd_valid_loss_limit_s:
+            speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)
+          else:
+            stop_reason = 12.0
+          end
+        elif codex_abs(cmd_vx) > 0.010 or codex_abs(cmd_vy) > 0.010 or codex_abs(cmd_vz) > 0.010:
+          stop_reason = 13.0
+        elif t_acquire >= acquire_runtime_limit_s:
+          stop_reason = 10.0
+        else:
+          speedl([cmd_vx, cmd_vy, cmd_vz, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)
+        end
+      end
+    end
+    stopl(0.1)
+    if stop_reason == 16.0:
+      stop_reason = 0.0
+      saw_cmd_valid = 0
+      cmd_invalid_s = 0.0
+      end_hold_s = 0.0
+    end
+  end
+
+  if stop_reason == 0.0:
+    write_output_float_register(35, 25.0)
+    local last_heartbeat2 = read_input_float_register(26)
+    local stale_s2 = 0.0
+    local t2 = 0.0
+    while stop_reason == 0.0:
+      local heartbeat2 = read_input_float_register(26)
+      local cmd_valid = read_input_float_register(43)
+      local progress_m = read_input_float_register(44)
+      local cmd_vx = read_input_float_register(37)
+      local cmd_vy = read_input_float_register(38)
+      local cmd_vz = read_input_float_register(39)
+      local cmd_wx = read_input_float_register(40)
+      local cmd_wy = read_input_float_register(41)
+      local cmd_wz = read_input_float_register(42)
+      local loop_dt = get_steptime()
+      final_progress_m = progress_m
+      if cmd_valid >= 0.5:
+        saw_cmd_valid = 1
+        cmd_invalid_s = 0.0
+      else:
+        cmd_invalid_s = cmd_invalid_s + loop_dt
+      end
+      if heartbeat2 == last_heartbeat2:
+        stale_s2 = stale_s2 + loop_dt
+      else:
+        stale_s2 = 0.0
+        last_heartbeat2 = heartbeat2
+      end
+      t2 = t2 + loop_dt
+      if progress_m >= line_success_progress_m:
+        end_hold_s = end_hold_s + loop_dt
+      else:
+        end_hold_s = 0.0
+      end
+      codex_echo_step4e(stop_reason)
+      if stale_s2 > 0.100:
+        stop_reason = 2.0
+      else:
+        stop_reason = codex_step4e_guard_stop_reason()
+      end
+      if stop_reason == 0.0:
+        if cmd_valid < 0.5:
+          if saw_cmd_valid == 0 and t2 < cmd_valid_grace_s:
+            speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)
+          elif saw_cmd_valid == 1 and cmd_invalid_s <= cmd_valid_loss_limit_s:
+            speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)
+          else:
+            stop_reason = 12.0
+          end
+        elif codex_abs(cmd_vx) > 0.010 or codex_abs(cmd_vy) > 0.010 or codex_abs(cmd_vz) > 0.010:
+          stop_reason = 13.0
+        elif codex_abs(cmd_wx) > max_cmd_angular_xy_rad_s or codex_abs(cmd_wy) > max_cmd_angular_xy_rad_s or codex_abs(cmd_wz) > 0.005:
+          stop_reason = 13.0
+        elif end_hold_s >= end_hold_required_s:
+          stop_reason = 1.0
+        elif t2 >= line_runtime_limit_s:
+          stop_reason = 10.0
+        else:
+          speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy, 0.0], line_accel_m_s2, line_hold_s)
+        end
+      end
+    end
+    stopl(0.1)
+  end
+
+  if codex_should_auto_home(stop_reason):
+    write_output_float_register(35, 26.0)
+    local short_retract_start = get_actual_tcp_pose()
+    local short_retract_pose = p[short_retract_start[0], short_retract_start[1], short_retract_start[2] + short_retract_z_m, short_retract_start[3], short_retract_start[4], short_retract_start[5]]
+    codex_echo_step4e(stop_reason)
+    movel(short_retract_pose, a=0.030, v=short_retract_speed_m_s, r=0.0)
+    stopl(0.1)
+    write_output_float_register(35, 27.0)
+    codex_echo_step4e(stop_reason)
+    movel(home_pose, a=0.030, v=home_return_speed_m_s, r=0.0)
+    stopl(0.1)
+  end
+
+  write_output_float_register(30, stop_reason)
+  write_output_float_register(31, final_progress_m)
+  write_output_float_register(35, 29.0)
+  textmsg("codex step4e version {stamp} stop reason:", stop_reason)
+end
+
+codex_step4e_seed_normal_loop_v23()
+"""
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--stamp-prefix", default=None)
@@ -1140,11 +1581,20 @@ def main() -> int:
             "step4e_attitude_axis_iso_v1",
             "step4e_detached_movel_minrot_v21",
             "step4e_seed_normal_loop_v22",
+            "step4e_seed_normal_loop_v23",
         ),
         default="all",
     )
+    parser.add_argument(
+        "--program-subdir",
+        default="",
+        help="Optional local/controller subdirectory under the Step4 program directory, such as step4e.",
+    )
     parser.add_argument("--pose-pair", type=Path, default=None)
     args = parser.parse_args()
+    local_program_dir = PROGRAM_DIR / args.program_subdir if args.program_subdir else PROGRAM_DIR
+    controller_dir = f"{CONTROLLER_BASE_DIR}/{args.program_subdir}" if args.program_subdir else CONTROLLER_BASE_DIR
+    local_program_dir.mkdir(parents=True, exist_ok=True)
     now = datetime.now(timezone(timedelta(hours=8)))
     geom = line_cfg(load_json(CONFIG_PATH))
     pose_pair = None
@@ -1179,6 +1629,12 @@ def main() -> int:
             "marked path-start XYZ with manually marked near-normal rotvec, first touch, 50 mm lift, optional normal alignment, second touch, 5N acquire and line",
             v22_seed_normal_loop_script,
         ),
+        (
+            "step4e_seed_normal_loop_v23",
+            "SEED_NORMAL_LOOP_V23",
+            "v13-safe entry/search with near-normal rotvec, first touch, 50 mm lift, angular speedl alignment, second touch, 5N acquire and line",
+            v23_seed_normal_loop_script,
+        ),
     ]
     if args.program != "all":
         specs = [spec for spec in specs if spec[0] == args.program]
@@ -1193,16 +1649,17 @@ def main() -> int:
             "step4e_ball_first_contact_p0_v1",
             "step4e_detached_movel_minrot_v21",
             "step4e_seed_normal_loop_v22",
+            "step4e_seed_normal_loop_v23",
         }:
             script = script_fn(stamp, generated_at(now), geom)
         else:
             script = script_fn(stamp, generated_at(now))
         txt = build_txt(name, stamp, description)
-        urp = build_urp(script, name, CONTROLLER_BASE_DIR)
-        validate_package(name, script, txt, urp, stamp, CONTROLLER_BASE_DIR)
-        script_path = PROGRAM_DIR / f"{name}.script"
-        txt_path = PROGRAM_DIR / f"{name}.txt"
-        urp_path = PROGRAM_DIR / f"{name}.urp"
+        urp = build_urp(script, name, controller_dir)
+        validate_package(name, script, txt, urp, stamp, controller_dir)
+        script_path = local_program_dir / f"{name}.script"
+        txt_path = local_program_dir / f"{name}.txt"
+        urp_path = local_program_dir / f"{name}.urp"
         script_path.write_text(script, encoding="utf-8")
         txt_path.write_text(txt, encoding="utf-8")
         urp_path.write_bytes(urp)
@@ -1210,8 +1667,8 @@ def main() -> int:
             "script": str(script_path),
             "txt": str(txt_path),
             "urp": str(urp_path),
-            "controller_script": f"{CONTROLLER_BASE_DIR}/{name}.script",
-            "controller_urp": f"{CONTROLLER_BASE_DIR}/{name}.urp",
+            "controller_script": f"{controller_dir}/{name}.script",
+            "controller_urp": f"{controller_dir}/{name}.urp",
             "stamp": stamp,
         }
     print(json.dumps({"generated": generated}, indent=2))
