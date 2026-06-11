@@ -1,0 +1,95 @@
+# Step5a cycloid no-contact fixed-Z rehearsal v2.
+# VERSION: 2026-06-12T0726HKT_STEP5A_CYCLOID_NO_CONTACT_V2
+# GENERATED_AT_LOCAL: 2026-06-12T07:26:13+08:00
+# CONTROLLER_TARGET: /programs/andyl/kunwei/step5/step5a_cycloid_no_contact_v2.urp
+# ENTRY_XY_M: [0.487795411, 0.129326793]
+# FIXED_BASE_Z_M: 0.029423891
+# CLEARANCE_POLICY: highest taught Z 0.019423891 m + 0.010000000 m; no contact search.
+# SAFE_FRAME_SOURCE: config/step5_safe_frame.json from confirmed drag-teach start/mid/end hints.
+# NO_SCALE_POLICY: paper cycloid preserved exactly; frame uses rotation+translation only.
+# X_GUARD: max_base_x <= 0.4888784335 m; generated path max_base_x=0.4877954111 m.
+# PAPER_PATH_FORMULA: x=0.015(0.4t-sin(0.4t)), y=0.015(1-cos(0.4t)), duration=15 s; same no-scale cycloid geometry, faster time parameter.
+# NO_CONTACT_POLICY: fixed base Z, no force control, no contact search, no Kunwei/bridge requirement, no zero_ftsensor(), no TCP/payload write.
+
+def codex_abs(x):
+  if x < 0.0:
+    return -x
+  end
+  return x
+end
+
+def codex_clamp(x, lo, hi):
+  if x < lo:
+    return lo
+  elif x > hi:
+    return hi
+  end
+  return x
+end
+
+def codex_step5a_cycloid_no_contact_v2():
+  local origin_x = 0.487795411
+  local origin_y = 0.129326793
+  local u_along_x = -0.010785643
+  local u_along_y = 0.999941833
+  local p_lateral_x = -0.999941833
+  local p_lateral_y = -0.010785643
+  local fixed_base_z_m = 0.029423891
+  local ref_rx = 3.133000000
+  local ref_ry = 0.529000000
+  local ref_rz = 0.191000000
+  local x_guard_m = 0.4888784335
+  local path_duration_s = 15.000
+  local amplitude_m = 0.015000000
+  local omega_rad_s = 0.400000000
+  local warmup_hold_s = 0.008
+  local fast_hold_s = 0.001
+  local fast_after_s = 0.100
+  local accel_m_s2 = 0.300
+  local xy_p_gain_m_s_per_m = 2.0
+  local z_p_gain_m_s_per_m = 2.0
+  local correction_limit_m_s = 0.003
+  local z_velocity_limit_m_s = 0.003
+  local stop_reason = 0.0
+  local t = 0.0
+
+  textmsg("codex Step5a no-contact cycloid start 2026-06-12T0726HKT_STEP5A_CYCLOID_NO_CONTACT_V2")
+  local entry_pose = p[origin_x, origin_y, fixed_base_z_m, ref_rx, ref_ry, ref_rz]
+  movel(entry_pose, a=0.030, v=0.020, r=0.0)
+  stopl(0.5)
+
+  while stop_reason == 0.0 and t < path_duration_s:
+    local hold_s = warmup_hold_s
+    if t >= fast_after_s:
+      hold_s = fast_hold_s
+    end
+    local pose_now = get_actual_tcp_pose()
+    local phase = omega_rad_s * t
+    local s = sin(phase)
+    local c = cos(phase)
+    local local_x = amplitude_m * (phase - s)
+    local local_y = amplitude_m * (1.0 - c)
+    local local_vx = amplitude_m * omega_rad_s * (1.0 - c)
+    local local_vy = amplitude_m * omega_rad_s * s
+    local desired_x = origin_x + local_x * u_along_x + local_y * p_lateral_x
+    local desired_y = origin_y + local_x * u_along_y + local_y * p_lateral_y
+    local desired_vx = local_vx * u_along_x + local_vy * p_lateral_x
+    local desired_vy = local_vx * u_along_y + local_vy * p_lateral_y
+    local correction_vx = codex_clamp(xy_p_gain_m_s_per_m * (desired_x - pose_now[0]), -correction_limit_m_s, correction_limit_m_s)
+    local correction_vy = codex_clamp(xy_p_gain_m_s_per_m * (desired_y - pose_now[1]), -correction_limit_m_s, correction_limit_m_s)
+    local correction_vz = codex_clamp(z_p_gain_m_s_per_m * (fixed_base_z_m - pose_now[2]), -z_velocity_limit_m_s, z_velocity_limit_m_s)
+    if desired_x > x_guard_m:
+      stop_reason = 8.0
+    elif pose_now[0] > x_guard_m:
+      stop_reason = 9.0
+    else:
+      speedl([desired_vx + correction_vx, desired_vy + correction_vy, correction_vz, 0.0, 0.0, 0.0], accel_m_s2, hold_s)
+      t = t + hold_s
+    end
+  end
+  speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], accel_m_s2, 0.010)
+  stopl(0.5)
+  textmsg("codex Step5a no-contact cycloid stop reason:", stop_reason)
+end
+
+codex_step5a_cycloid_no_contact_v2()
