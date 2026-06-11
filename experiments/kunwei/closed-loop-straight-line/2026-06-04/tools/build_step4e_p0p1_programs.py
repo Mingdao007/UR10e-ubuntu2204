@@ -24,6 +24,12 @@ from build_step4e_line_programs import (
     source_stamp,
 )
 
+V13_FIRST_CONTACT_Z_M = 0.008044839
+V13_FIRST_CONTACT_SOURCE = "bridge_step4e_line_outerloop_v13_autowatch_20260609_141027"
+V16_FIRST_CONTACT_Z_M = 0.007996174
+V27_FIRST_CONTACT_Z_M = V13_FIRST_CONTACT_Z_M
+V27_FIRST_CONTACT_BELOW_MARGIN_M = 0.004
+
 
 def default_pose_pair_path() -> Path:
     tmp_hint = Path("/tmp/base_y_drag_pose_pair_dir.txt")
@@ -77,12 +83,22 @@ Purpose:
 Control boundary:
   Ubuntu bridge writes RTDE input registers 24..47.
   No UR zero_ftsensor, no Kunwei tare/config write, no TCP/payload write.
+
+Canonical flow:
+  STEP4E_FLOW.md
 """
 
 
 def program_default_subdir(name: str) -> str:
     """Return the default Step4 placement subdir for current vs archived packages."""
-    if name in {"step4e_detached_movel_minrot_v21", "step4e_seed_normal_loop_v22"}:
+    if name in {
+        "step4e_detached_movel_minrot_v21",
+        "step4e_seed_normal_loop_v22",
+        "step4e_seed_normal_loop_v23",
+        "step4e_seed_normal_loop_v24",
+        "step4e_seed_normal_loop_v25",
+        "step4e_seed_normal_loop_v26",
+    }:
         return "step4e"
     return ""
 
@@ -198,6 +214,82 @@ def validate_package(name: str, script: str, txt: str, urp: bytes, stamp: str, c
                 "angular speedl orientation": "speedl([0.0, 0.0, 0.0, cmd_wx, cmd_wy, cmd_wz]" in script,
                 "no target pose movel": "movel(target_pose" not in script,
                 "second search": "codex_v23_down_search(24.3, 24.4, 0.070, 0.040, 45.000, -0.005, -0.003)" in script,
+                "acquire stage": "write_output_float_register(35, 25.3)" in script,
+                "line stage": "write_output_float_register(35, 25.0)" in script,
+            }
+        )
+    if name == "step4e_seed_normal_loop_v24":
+        checks.update(
+            {
+                "one-step entry": "entry_xy_pose = p[entry_x, entry_y, p_current[2], target_rx, target_ry, target_rz]" in script,
+                "no split orientation movel": "reference_orientation_pose" not in script
+                and "write_output_float_register(35, 21.0)" not in script,
+                "no fixed search start": "fixed_search_start_z_m" not in script
+                and "fixed_search_start_pose" not in script
+                and "write_output_float_register(35, 22.5)" not in script,
+                "no low z seed movel": "local seed_pose = p[" not in script,
+                "first search": "codex_v24_down_search(24.0, 24.2, 0.092, 0.080, 40.000, -0.015, -0.003)" in script,
+                "lift 30mm": "p_lift[2] + 0.030" in script,
+                "angular speedl orientation": "speedl([0.0, 0.0, 0.0, cmd_wx, cmd_wy, cmd_wz]" in script,
+                "linear command reject": "codex_abs(cmd_vx) > 0.001" in script,
+                "second search": "codex_v24_down_search(24.3, 24.4, 0.070, 0.040, 45.000, -0.005, -0.003)" in script,
+                "acquire stage": "write_output_float_register(35, 25.3)" in script,
+                "line stage": "write_output_float_register(35, 25.0)" in script,
+            }
+        )
+    if name == "step4e_seed_normal_loop_v25":
+        checks.update(
+            {
+                "one-step entry": "entry_xy_pose = p[entry_x, entry_y, p_current[2], target_rx, target_ry, target_rz]" in script,
+                "dynamic near threshold": "local first_near_start_z_m = target_initial_z_m + 0.030" in script
+                and "local first_search_near_start_depth_m = first_search_start_pose[2] - first_near_start_z_m" in script,
+                "dynamic max depth": "local first_max_end_z_m = target_initial_z_m - 0.012" in script
+                and "local first_search_max_down_m = first_search_start_pose[2] - first_max_end_z_m" in script,
+                "no fixed search start": "fixed_search_start_z_m" not in script
+                and "fixed_search_start_pose" not in script
+                and "write_output_float_register(35, 22.5)" not in script,
+                "first search": "codex_v25_down_search(24.0, 24.2, first_search_max_down_m, first_search_near_start_depth_m, 40.000, -0.015, -0.003)" in script,
+                "lift 30mm": "p_lift[2] + 0.030" in script,
+                "angular speedl orientation": "speedl([0.0, 0.0, 0.0, cmd_wx, cmd_wy, cmd_wz]" in script,
+                "linear command reject": "codex_abs(cmd_vx) > 0.001" in script,
+                "second search": "codex_v25_down_search(24.3, 24.4, 0.070, 0.040, 45.000, -0.005, -0.003)" in script,
+                "acquire stage": "write_output_float_register(35, 25.3)" in script,
+                "line stage": "write_output_float_register(35, 25.0)" in script,
+            }
+        )
+    if name == "step4e_seed_normal_loop_v26":
+        checks.update(
+            {
+                "target initial z": f"local target_initial_z_m = {line_cfg(load_json(CONFIG_PATH))['target_initial_z']:.9f}" in script,
+                "one-step entry": "entry_xy_pose = p[entry_x, entry_y, p_current[2], target_rx, target_ry, target_rz]" in script,
+                "dynamic near threshold": "local first_near_start_z_m = target_initial_z_m + 0.030" in script
+                and "local first_search_near_start_depth_m = first_search_start_pose[2] - first_near_start_z_m" in script,
+                "dynamic max depth": "local first_max_end_z_m = target_initial_z_m - 0.012" in script
+                and "local first_search_max_down_m = first_search_start_pose[2] - first_max_end_z_m" in script,
+                "first search": "codex_v26_down_search(24.0, 24.2, first_search_max_down_m, first_search_near_start_depth_m, 40.000, -0.015, -0.003)" in script,
+                "lift 30mm": "p_lift[2] + 0.030" in script,
+                "angular speedl orientation": "speedl([0.0, 0.0, 0.0, cmd_wx, cmd_wy, cmd_wz]" in script,
+                "linear command reject": "codex_abs(cmd_vx) > 0.001" in script,
+                "second search": "codex_v26_down_search(24.3, 24.4, 0.070, 0.040, 45.000, -0.005, -0.003)" in script,
+                "acquire stage": "write_output_float_register(35, 25.3)" in script,
+                "line stage": "write_output_float_register(35, 25.0)" in script,
+            }
+        )
+    if name == "step4e_seed_normal_loop_v27":
+        checks.update(
+            {
+                "v13 first contact z": f"local first_contact_z_m = {V27_FIRST_CONTACT_Z_M:.9f}" in script,
+                "v13 evidence source": V13_FIRST_CONTACT_SOURCE in script,
+                "one-step entry": "entry_xy_pose = p[entry_x, entry_y, p_current[2], target_rx, target_ry, target_rz]" in script,
+                "near threshold from first contact": "local first_near_start_z_m = first_contact_z_m + 0.030" in script
+                and "local first_search_near_start_depth_m = first_search_start_pose[2] - first_near_start_z_m" in script,
+                "max depth from first contact": f"local first_max_end_z_m = first_contact_z_m - {V27_FIRST_CONTACT_BELOW_MARGIN_M:.3f}" in script
+                and "local first_search_max_down_m = first_search_start_pose[2] - first_max_end_z_m" in script,
+                "first search": "codex_v27_down_search(24.0, 24.2, first_search_max_down_m, first_search_near_start_depth_m, 40.000, -0.015, -0.003)" in script,
+                "lift 30mm": "p_lift[2] + 0.030" in script,
+                "angular speedl orientation": "speedl([0.0, 0.0, 0.0, cmd_wx, cmd_wy, cmd_wz]" in script,
+                "linear command reject": "codex_abs(cmd_vx) > 0.001" in script,
+                "second search": "codex_v27_down_search(24.3, 24.4, 0.070, 0.040, 45.000, -0.005, -0.003)" in script,
                 "acquire stage": "write_output_float_register(35, 25.3)" in script,
                 "line stage": "write_output_float_register(35, 25.0)" in script,
             }
@@ -1576,6 +1668,186 @@ codex_step4e_seed_normal_loop_v23()
 """
 
 
+def v24_seed_normal_loop_script(stamp: str, gen_at: str, geom: dict[str, float]) -> str:
+    script = v23_seed_normal_loop_script(stamp, gen_at, geom)
+    script = script.replace("v23", "v24").replace("V23", "V24")
+    script = script.replace(
+        "# Step4e v24 v13-safe seed-normal TASE minimal reproduction loop.",
+        "# Step4e v24 one-step-entry seed-normal TASE minimal reproduction loop.",
+    )
+    script = script.replace(
+        "# PURPOSE: keep v13 safe entry/search flow, then add first-contact lift, lifted angular speedl posture adjustment, second touch, 5N acquire and line.",
+        "# PURPOSE: move once to entry XY with target attitude at current Z, then run far/near search, first-contact lift, lifted angular speedl posture adjustment, second touch, 5N acquire and line.",
+    )
+    script = script.replace("p_lift[2] + 0.050", "p_lift[2] + 0.030")
+    script = script.replace(
+        "# CONTROL: bridge step4e-version=v24",
+        "# FLOW_TABLE: STEP4E_FLOW.md\n# CONTROL: bridge step4e-version=v24",
+    )
+    script = script.replace(
+        "# CONTROL: bridge step4e-version=v24 latches the first contact normal, writes angular speedl commands in 25.2, reacquires 5 N in 25.3, and runs line control in 25.0.",
+        "# CONTROL: bridge step4e-version=v24 latches the first contact normal, forces 37..39 zero during 25.2, writes angular speedl commands in 40..42, reacquires 5 N in 25.3, and runs line control in 25.0.",
+    )
+    script = script.replace("NEAR_NORMAL_ROTVEC_RAD", "TARGET_ROTVEC_RAD")
+    script = script.replace("local ref_rx", "local target_rx")
+    script = script.replace("local ref_ry", "local target_ry")
+    script = script.replace("local ref_rz", "local target_rz")
+    script = script.replace(", ref_rx, ref_ry, ref_rz", ", target_rx, target_ry, target_rz")
+    script = script.replace(f"  local fixed_search_start_z_m = {geom['validated_search_start_z']:.5f}\n", "")
+    old_entry = """  if stop_reason == 0.0:
+    write_output_float_register(35, 21.0)
+    local p0 = get_actual_tcp_pose()
+    local reference_orientation_pose = p[p0[0], p0[1], p0[2], target_rx, target_ry, target_rz]
+    codex_echo_step4e(stop_reason)
+    movel(reference_orientation_pose, a=0.030, v=0.020, r=0.0)
+    stopl(0.1)
+    write_output_float_register(35, 22.0)
+    local p1 = get_actual_tcp_pose()
+    local entry_xy_pose = p[entry_x, entry_y, p1[2], target_rx, target_ry, target_rz]
+    codex_echo_step4e(stop_reason)
+    movel(entry_xy_pose, a=0.030, v=0.020, r=0.0)
+    stopl(0.1)
+    write_output_float_register(35, 22.5)
+    local p2 = get_actual_tcp_pose()
+    local fixed_search_start_pose = p[p2[0], p2[1], fixed_search_start_z_m, target_rx, target_ry, target_rz]
+    codex_echo_step4e(stop_reason)
+    movel(fixed_search_start_pose, a=0.030, v=home_return_speed_m_s, r=0.0)
+    stopl(0.1)
+    sleep(0.20)
+    write_output_float_register(35, 23.0)
+    codex_echo_step4e(stop_reason)
+    write_output_float_register(34, 1.0)
+    if not codex_wait_for_rezero_complete(5.0):
+      stop_reason = 14.0
+    end
+    if stop_reason == 0.0:
+      sleep(0.20)
+      stop_reason = codex_step4e_guard_stop_reason()
+    end
+  end
+"""
+    new_entry = """  if stop_reason == 0.0:
+    write_output_float_register(35, 22.0)
+    local p_current = get_actual_tcp_pose()
+    local entry_xy_pose = p[entry_x, entry_y, p_current[2], target_rx, target_ry, target_rz]
+    codex_echo_step4e(stop_reason)
+    movel(entry_xy_pose, a=0.030, v=0.020, r=0.0)
+    stopl(0.1)
+    sleep(0.20)
+    write_output_float_register(35, 23.0)
+    codex_echo_step4e(stop_reason)
+    write_output_float_register(34, 1.0)
+    if not codex_wait_for_rezero_complete(5.0):
+      stop_reason = 14.0
+    end
+    if stop_reason == 0.0:
+      sleep(0.20)
+      stop_reason = codex_step4e_guard_stop_reason()
+    end
+  end
+"""
+    if old_entry not in script:
+        raise RuntimeError("v24 entry scaffold replacement failed")
+    return script.replace(old_entry, new_entry)
+
+
+def v25_seed_normal_loop_script(stamp: str, gen_at: str, geom: dict[str, float]) -> str:
+    script = v24_seed_normal_loop_script(stamp, gen_at, geom)
+    script = script.replace("v24", "v25").replace("V24", "V25")
+    script = script.replace(
+        "# Step4e v25 one-step-entry seed-normal TASE minimal reproduction loop.",
+        "# Step4e v25 one-step-entry dynamic-search seed-normal TASE minimal reproduction loop.",
+    )
+    script = script.replace(
+        "# PURPOSE: move once to entry XY with target attitude at current Z, then run far/near search, first-contact lift, lifted angular speedl posture adjustment, second touch, 5N acquire and line.",
+        "# PURPOSE: move once to entry XY with target attitude at current Z, then compute first far/near search from current Z so near search starts about 30 mm above the target initial point.",
+    )
+    old_call = """  if stop_reason == 0.0:
+    stop_reason = codex_v25_down_search(24.0, 24.2, 0.092, 0.080, 40.000, -0.015, -0.003)
+    if stop_reason == 11.0:
+      stop_reason = 0.0
+    end
+  end
+"""
+    new_call = f"""  if stop_reason == 0.0:
+    local target_initial_z_m = {geom['validated_search_start_z']:.5f}
+    local first_near_start_z_m = target_initial_z_m + 0.030
+    local first_max_end_z_m = target_initial_z_m - 0.012
+    local first_search_start_pose = get_actual_tcp_pose()
+    local first_search_near_start_depth_m = first_search_start_pose[2] - first_near_start_z_m
+    local first_search_max_down_m = first_search_start_pose[2] - first_max_end_z_m
+    if first_search_near_start_depth_m < 0.0:
+      first_search_near_start_depth_m = 0.0
+    end
+    if first_search_max_down_m < 0.020:
+      first_search_max_down_m = 0.020
+    end
+    if first_search_max_down_m < first_search_near_start_depth_m + 0.010:
+      first_search_max_down_m = first_search_near_start_depth_m + 0.010
+    end
+    stop_reason = codex_v25_down_search(24.0, 24.2, first_search_max_down_m, first_search_near_start_depth_m, 40.000, -0.015, -0.003)
+    if stop_reason == 11.0:
+      stop_reason = 0.0
+    end
+  end
+"""
+    if old_call not in script:
+        raise RuntimeError("v25 first search replacement failed")
+    return script.replace(old_call, new_call)
+
+
+def v26_seed_normal_loop_script(stamp: str, gen_at: str, geom: dict[str, float]) -> str:
+    script = v25_seed_normal_loop_script(stamp, gen_at, geom)
+    script = script.replace("v25", "v26").replace("V25", "V26")
+    script = script.replace(
+        "# Step4e v26 one-step-entry dynamic-search seed-normal TASE minimal reproduction loop.",
+        "# Step4e v26 one-step-entry reference-z-search seed-normal TASE minimal reproduction loop.",
+    )
+    script = script.replace(
+        "# PURPOSE: move once to entry XY with target attitude at current Z, then compute first far/near search from current Z so near search starts about 30 mm above the target initial point.",
+        "# PURPOSE: move once to entry XY with target attitude at current Z, then compute first far/near search so near search starts about 30 mm above the reference target initial point.",
+    )
+    old_z = f"    local target_initial_z_m = {geom['validated_search_start_z']:.5f}\n"
+    new_z = f"    local target_initial_z_m = {geom['target_initial_z']:.9f}\n"
+    if old_z not in script:
+        raise RuntimeError("v26 target initial Z replacement failed")
+    return script.replace(old_z, new_z)
+
+
+def v27_seed_normal_loop_script(stamp: str, gen_at: str, geom: dict[str, float]) -> str:
+    script = v26_seed_normal_loop_script(stamp, gen_at, geom)
+    script = script.replace("v26", "v27").replace("V26", "V27")
+    script = script.replace(
+        "# Step4e v27 one-step-entry reference-z-search seed-normal TASE minimal reproduction loop.",
+        "# Step4e v27 one-step-entry force-jump-z-search seed-normal TASE minimal reproduction loop.",
+    )
+    script = script.replace(
+        "# PURPOSE: move once to entry XY with target attitude at current Z, then compute first far/near search so near search starts about 30 mm above the reference target initial point.",
+        "# PURPOSE: move once to entry XY with target attitude at current Z, then compute first far/near search so near search starts about 30 mm above the v13 force-jump first-contact point.",
+    )
+    script = script.replace(
+        "# FLOW_TABLE: STEP4E_FLOW.md",
+        (
+            "# FLOW_TABLE: STEP4E_FLOW.md\n"
+            f"# FIRST_CONTACT_Z_EVIDENCE: {V13_FIRST_CONTACT_SOURCE} force jump at z={V13_FIRST_CONTACT_Z_M:.9f} m; "
+            f"v16 cross-check z={V16_FIRST_CONTACT_Z_M:.9f} m."
+        ),
+    )
+    script = script.replace(
+        "    local target_initial_z_m = {0:.9f}\n"
+        "    local first_near_start_z_m = target_initial_z_m + 0.030\n"
+        "    local first_max_end_z_m = target_initial_z_m - 0.012\n".format(geom["target_initial_z"]),
+        (
+            f"    local first_contact_z_m = {V27_FIRST_CONTACT_Z_M:.9f}\n"
+            "    local first_near_start_z_m = first_contact_z_m + 0.030\n"
+            f"    local first_max_end_z_m = first_contact_z_m - {V27_FIRST_CONTACT_BELOW_MARGIN_M:.3f}\n"
+        ),
+    )
+    if "local target_initial_z_m =" in script:
+        raise RuntimeError("v27 first-contact Z replacement failed")
+    return script
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--stamp-prefix", default=None)
@@ -1589,6 +1861,10 @@ def main() -> int:
             "step4e_detached_movel_minrot_v21",
             "step4e_seed_normal_loop_v22",
             "step4e_seed_normal_loop_v23",
+            "step4e_seed_normal_loop_v24",
+            "step4e_seed_normal_loop_v25",
+            "step4e_seed_normal_loop_v26",
+            "step4e_seed_normal_loop_v27",
         ),
         default="all",
     )
@@ -1643,6 +1919,30 @@ def main() -> int:
             "v13-safe entry/search with near-normal rotvec, first touch, 50 mm lift, angular speedl alignment, second touch, 5N acquire and line",
             v23_seed_normal_loop_script,
         ),
+        (
+            "step4e_seed_normal_loop_v24",
+            "SEED_NORMAL_LOOP_V24",
+            "one-step entry XY plus target attitude at current Z, far/near search, first touch, 30 mm lift, angular speedl alignment, second touch, 5N acquire and line",
+            v24_seed_normal_loop_script,
+        ),
+        (
+            "step4e_seed_normal_loop_v25",
+            "SEED_NORMAL_LOOP_V25",
+            "one-step entry XY plus target attitude at current Z, dynamic first far/near search, first touch, 30 mm lift, angular speedl alignment, second touch, 5N acquire and line",
+            v25_seed_normal_loop_script,
+        ),
+        (
+            "step4e_seed_normal_loop_v26",
+            "SEED_NORMAL_LOOP_V26",
+            "one-step entry XY plus target attitude at current Z, reference-Z first far/near search, first touch, 30 mm lift, angular speedl alignment, second touch, 5N acquire and line",
+            v26_seed_normal_loop_script,
+        ),
+        (
+            "step4e_seed_normal_loop_v27",
+            "SEED_NORMAL_LOOP_V27",
+            "one-step entry XY plus target attitude at current Z, v13 force-jump first-contact-Z search, first touch, 30 mm lift, angular speedl alignment, second touch, 5N acquire and line",
+            v27_seed_normal_loop_script,
+        ),
     ]
     if args.program != "all":
         specs = [spec for spec in specs if spec[0] == args.program]
@@ -1662,6 +1962,10 @@ def main() -> int:
             "step4e_detached_movel_minrot_v21",
             "step4e_seed_normal_loop_v22",
             "step4e_seed_normal_loop_v23",
+            "step4e_seed_normal_loop_v24",
+            "step4e_seed_normal_loop_v25",
+            "step4e_seed_normal_loop_v26",
+            "step4e_seed_normal_loop_v27",
         }:
             script = script_fn(stamp, generated_at(now), geom)
         else:

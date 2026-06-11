@@ -7,7 +7,7 @@ STAMP="$(date +%Y%m%d_%H%M%S)"
 ROBOT_HOST="${ROBOT_HOST:-192.168.1.18}"
 DASHBOARD_PORT="${DASHBOARD_PORT:-29999}"
 WAIT_FOR_PLAY_S="${WAIT_FOR_PLAY_S:-45}"
-AUTOWATCH_WAIT_FOR_PLAY_S="${AUTOWATCH_WAIT_FOR_PLAY_S:-600}"
+AUTOWATCH_WAIT_FOR_PLAY_S="${AUTOWATCH_WAIT_FOR_PLAY_S:-30}"
 BENCH_GATE="/home/andy/codex-private-skills/skills/ur10e-realsetup/scripts/check_ubuntu_network.py"
 STEP4E_VERSION="${STEP4E_VERSION:-v1}"
 BRIDGE_DURATION_S="${BRIDGE_DURATION_S:-180}"
@@ -41,7 +41,19 @@ if [[ "${STEP4E_VERSION}" == "v22" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e/step4e_seed_normal_loop_v22.urp"
 fi
 if [[ "${STEP4E_VERSION}" == "v23" ]]; then
-  PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_seed_normal_loop_v23.urp"
+  PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e/step4e_seed_normal_loop_v23.urp"
+fi
+if [[ "${STEP4E_VERSION}" == "v24" ]]; then
+  PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e/step4e_seed_normal_loop_v24.urp"
+fi
+if [[ "${STEP4E_VERSION}" == "v25" ]]; then
+  PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e/step4e_seed_normal_loop_v25.urp"
+fi
+if [[ "${STEP4E_VERSION}" == "v26" ]]; then
+  PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_seed_normal_loop_v26.urp"
+fi
+if [[ "${STEP4E_VERSION}" == "v27" ]]; then
+  PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_seed_normal_loop_v27.urp"
 fi
 if [[ "${STEP4E_VERSION}" == "p0_geo_v1" ]]; then
   SEARCH_DESCRIPTION="P0-geo ball-first contact witness: vertical TCP entry, far 15 mm/s until 80 mm depth, then near 3 mm/s until first 1-1.5 N contact or 92 mm max depth; after contact it holds still for visual confirmation, retracts base-Z 2 mm, and never runs attitude, 5N acquisition, or line motion"
@@ -50,7 +62,15 @@ elif [[ "${STEP4E_VERSION}" == "p0_ball_vs_cyl_v1" ]]; then
 elif [[ "${STEP4E_VERSION}" == "v22" ]]; then
   SEARCH_DESCRIPTION="seed-normal TASE minimal loop: move once to the measured near-normal TCP pose, far/near search at 5/3 mm/s, latch first contact normal, lift 50 mm, optionally apply the bridge target rotvec when orientation error exceeds 10 deg, re-search up to 70 mm, acquire 5 N, then run the XY line"
 elif [[ "${STEP4E_VERSION}" == "v23" ]]; then
-  SEARCH_DESCRIPTION="v13-safe seed-normal loop: high-Z near-normal orientation, path-start XY at high Z, fixed search-start z=98.35 mm, first far/near search, latch contact normal, lift 50 mm, angular speedl posture correction only if error is 3..30 deg, second far/near search, acquire 5 N, then run the XY line"
+  SEARCH_DESCRIPTION="failed/archive v23 seed-normal loop: high-Z near-normal orientation, path-start XY at high Z, fixed search-start z=98.35 mm, first far/near search, latch contact normal, lift 50 mm, angular speedl posture correction; archived after stop register 13 at stage 25.2"
+elif [[ "${STEP4E_VERSION}" == "v24" ]]; then
+  SEARCH_DESCRIPTION="evidence v24 Step4e/TASE flow: one-step entry XY plus target attitude at current Z, fixed first far/near transition, first-contact latch, lift 30 mm, angular speedl posture correction with 37..39 forced zero, second search, acquire 5 N, then run the XY line"
+elif [[ "${STEP4E_VERSION}" == "v25" ]]; then
+  SEARCH_DESCRIPTION="failed/archive v25 Step4e/TASE flow: one-step entry XY plus target attitude at current Z, dynamic first far/near search using the wrong target initial Z datum, first-contact latch, lift 30 mm, angular speedl posture correction, second search, acquire 5 N, then run the XY line"
+elif [[ "${STEP4E_VERSION}" == "v26" ]]; then
+  SEARCH_DESCRIPTION="failed/archive v26 Step4e/TASE flow: one-step entry XY plus target attitude at current Z, but first far/near search used the reference path contact-start Z instead of measured first-contact Z, causing near search to start too high and depth-limit before force jump"
+elif [[ "${STEP4E_VERSION}" == "v27" ]]; then
+  SEARCH_DESCRIPTION="current Step4e/TASE flow from STEP4E_FLOW.md: one-step entry XY plus target attitude at current Z, first far/near search using the v13/v16 force-jump first-contact Z evidence so near starts about 30 mm above first contact, first-contact latch, lift 30 mm, angular speedl posture correction with 37..39 forced zero, second search, acquire 5 N, then run the XY line"
 elif [[ "${STEP4E_VERSION}" == "v20" ]]; then
   SEARCH_DESCRIPTION="two-stage search: v20 moves directly to entry XY with vertical TCP orientation [pi,0,0], searches far 15 mm/s then near 3 mm/s, latches first-contact normal only, lifts base-Z 2 mm, aligns attitude while detached, reacquires 5 N along the locked normal, then runs the 5 mm/s XY line"
 elif [[ "${STEP4E_VERSION}" == "v21" ]]; then
@@ -116,11 +136,14 @@ Teach Pendant programs:
   /programs/andyl/kunwei/step4/step4e_ball_first_contact_p0_v1.urp
   /programs/andyl/kunwei/step4/step4e_ball_vs_cyl_contact_p0_v1.urp
   /programs/andyl/kunwei/step4/step4e_attitude_axis_iso_v1.urp
-  v21/v22/v23 line packages live under /programs/andyl/kunwei/step4/step4e/
+  current v27 line package lives under /programs/andyl/kunwei/step4/
+  failed/archive v21/v22/v23/v24/v25/v26 line packages live under /programs/andyl/kunwei/step4/step4e/
+  canonical Step4e/TASE flow table: ${ROOT}/STEP4E_FLOW.md
 
 Bridge lifecycle:
-  * autowatch waits for TP Play, then starts Kunwei/RTDE bridge automatically.
   * bridge starts Kunwei/RTDE bridge immediately, then waits up to 45 s for TP Play.
+  * autowatch waits for TP Play before starting the bridge; keep it for manual
+    testing only, not for the normal 开bridge trigger.
   * bridge is stopped when TP program stops, safety is not NORMAL, or Dashboard is unreachable.
 
 Step4e motion boundary:
@@ -154,7 +177,7 @@ select_mode() {
       EXPECTED_PROGRAM="${PROGRAM_LINE}"
       if [[ "${STEP4E_VERSION}" == "v21" ]]; then
         EXPECTED_BASENAME="step4e_detached_movel_minrot_v21.urp"
-      elif [[ "${STEP4E_VERSION}" == "v22" || "${STEP4E_VERSION}" == "v23" ]]; then
+      elif [[ "${STEP4E_VERSION}" == "v22" || "${STEP4E_VERSION}" == "v23" || "${STEP4E_VERSION}" == "v24" || "${STEP4E_VERSION}" == "v25" || "${STEP4E_VERSION}" == "v26" || "${STEP4E_VERSION}" == "v27" ]]; then
         EXPECTED_BASENAME="step4e_seed_normal_loop_${STEP4E_VERSION}.urp"
       else
         EXPECTED_BASENAME="step4e_line_outerloop_${STEP4E_VERSION}.urp"
@@ -162,7 +185,7 @@ select_mode() {
       STEP4E_MODE="line"
       if [[ "${STEP4E_VERSION}" == "v21" ]]; then
         RUN_LABEL="step4e_detached_movel_minrot_v21"
-      elif [[ "${STEP4E_VERSION}" == "v22" || "${STEP4E_VERSION}" == "v23" ]]; then
+      elif [[ "${STEP4E_VERSION}" == "v22" || "${STEP4E_VERSION}" == "v23" || "${STEP4E_VERSION}" == "v24" || "${STEP4E_VERSION}" == "v25" || "${STEP4E_VERSION}" == "v26" || "${STEP4E_VERSION}" == "v27" ]]; then
         RUN_LABEL="step4e_seed_normal_loop_${STEP4E_VERSION}"
       else
         RUN_LABEL="step4e_line_outerloop_${STEP4E_VERSION}"
