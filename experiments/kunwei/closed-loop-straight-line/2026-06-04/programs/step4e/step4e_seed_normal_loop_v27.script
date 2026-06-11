@@ -1,6 +1,6 @@
 # Step4e v27 one-step-entry force-jump-z-search seed-normal TASE minimal reproduction loop.
-# VERSION: 2026-06-12T0155HKT_STEP4E_SEED_NORMAL_LOOP_V27
-# GENERATED_AT_LOCAL: 2026-06-12T01:55:54+08:00
+# VERSION: 2026-06-12T0210HKT_STEP4E_SEED_NORMAL_LOOP_V27
+# GENERATED_AT_LOCAL: 2026-06-12T02:10:32+08:00
 # ENTRY_XY_M: [0.433010000, 0.108020000]
 # TARGET_ROTVEC_RAD: [-3.044172198, -0.130573165, -0.202188631]
 # PURPOSE: move once to entry XY with target attitude at current Z, then compute first far/near search so near search starts about 30 mm above the v13 force-jump first-contact point.
@@ -243,7 +243,7 @@ def codex_step4e_seed_normal_loop_v27():
   local home_return_speed_m_s = 0.050
   local final_progress_m = 0.0
 
-  textmsg("codex step4e version 2026-06-12T0155HKT_STEP4E_SEED_NORMAL_LOOP_V27 start seed_normal_loop_v27")
+  textmsg("codex step4e version 2026-06-12T0210HKT_STEP4E_SEED_NORMAL_LOOP_V27 start seed_normal_loop_v27")
   write_output_float_register(34, 0.0)
   write_output_float_register(35, 20.0)
   codex_echo_step4e(0.0)
@@ -542,7 +542,7 @@ def codex_step4e_seed_normal_loop_v27():
   write_output_float_register(30, stop_reason)
   write_output_float_register(31, final_progress_m)
   write_output_float_register(35, 29.0)
-  textmsg("codex step4e version 2026-06-12T0155HKT_STEP4E_SEED_NORMAL_LOOP_V27 stop reason:", stop_reason)
+  textmsg("codex step4e version 2026-06-12T0210HKT_STEP4E_SEED_NORMAL_LOOP_V27 stop reason:", stop_reason)
 end
 
 codex_step4e_seed_normal_loop_v27()

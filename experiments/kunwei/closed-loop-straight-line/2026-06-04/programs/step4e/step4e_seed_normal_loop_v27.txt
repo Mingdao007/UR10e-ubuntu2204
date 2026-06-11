@@ -4,7 +4,7 @@ Program:
   step4e_seed_normal_loop_v27
 
 Version:
-  2026-06-12T0155HKT_STEP4E_SEED_NORMAL_LOOP_V27
+  2026-06-12T0210HKT_STEP4E_SEED_NORMAL_LOOP_V27
 
 Purpose:
   one-step entry XY plus target attitude at current Z, v13 force-jump first-contact-Z search, first touch, 30 mm lift, angular speedl alignment, second touch, 5N acquire and line

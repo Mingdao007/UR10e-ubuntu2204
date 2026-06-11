@@ -29,6 +29,11 @@ V13_FIRST_CONTACT_SOURCE = "bridge_step4e_line_outerloop_v13_autowatch_20260609_
 V16_FIRST_CONTACT_Z_M = 0.007996174
 V27_FIRST_CONTACT_Z_M = V13_FIRST_CONTACT_Z_M
 V27_FIRST_CONTACT_BELOW_MARGIN_M = 0.004
+V28_FIRST_CONTACT_Z_M = V13_FIRST_CONTACT_Z_M
+V28_FIRST_CONTACT_BELOW_MARGIN_M = 0.004
+V28_FIRST_CONTACT_NEAR_MARGIN_M = 0.025
+V28_FIRST_SEARCH_NEAR_SPEED_M_S = -0.0025
+V28_RAW_NORMAL_GUARD_N = 50.0
 
 
 def default_pose_pair_path() -> Path:
@@ -98,6 +103,7 @@ def program_default_subdir(name: str) -> str:
         "step4e_seed_normal_loop_v24",
         "step4e_seed_normal_loop_v25",
         "step4e_seed_normal_loop_v26",
+        "step4e_seed_normal_loop_v27",
     }:
         return "step4e"
     return ""
@@ -290,6 +296,26 @@ def validate_package(name: str, script: str, txt: str, urp: bytes, stamp: str, c
                 "angular speedl orientation": "speedl([0.0, 0.0, 0.0, cmd_wx, cmd_wy, cmd_wz]" in script,
                 "linear command reject": "codex_abs(cmd_vx) > 0.001" in script,
                 "second search": "codex_v27_down_search(24.3, 24.4, 0.070, 0.040, 45.000, -0.005, -0.003)" in script,
+                "acquire stage": "write_output_float_register(35, 25.3)" in script,
+                "line stage": "write_output_float_register(35, 25.0)" in script,
+            }
+        )
+    if name == "step4e_seed_normal_loop_v28":
+        checks.update(
+            {
+                "v13 first contact z": f"local first_contact_z_m = {V28_FIRST_CONTACT_Z_M:.9f}" in script,
+                "v13 evidence source": V13_FIRST_CONTACT_SOURCE in script,
+                "raw normal guard 50n": f"codex_abs(normal_force) > {V28_RAW_NORMAL_GUARD_N:.1f}" in script,
+                "one-step entry": "entry_xy_pose = p[entry_x, entry_y, p_current[2], target_rx, target_ry, target_rz]" in script,
+                "near threshold from first contact": f"local first_near_start_z_m = first_contact_z_m + {V28_FIRST_CONTACT_NEAR_MARGIN_M:.3f}" in script
+                and "local first_search_near_start_depth_m = first_search_start_pose[2] - first_near_start_z_m" in script,
+                "max depth from first contact": f"local first_max_end_z_m = first_contact_z_m - {V28_FIRST_CONTACT_BELOW_MARGIN_M:.3f}" in script
+                and "local first_search_max_down_m = first_search_start_pose[2] - first_max_end_z_m" in script,
+                "first search": f"codex_v28_down_search(24.0, 24.2, first_search_max_down_m, first_search_near_start_depth_m, 40.000, -0.015, {V28_FIRST_SEARCH_NEAR_SPEED_M_S:.4f})" in script,
+                "lift 30mm": "p_lift[2] + 0.030" in script,
+                "angular speedl orientation": "speedl([0.0, 0.0, 0.0, cmd_wx, cmd_wy, cmd_wz]" in script,
+                "linear command reject": "codex_abs(cmd_vx) > 0.001" in script,
+                "second search": "codex_v28_down_search(24.3, 24.4, 0.070, 0.040, 45.000, -0.005, -0.003)" in script,
                 "acquire stage": "write_output_float_register(35, 25.3)" in script,
                 "line stage": "write_output_float_register(35, 25.0)" in script,
             }
@@ -1848,6 +1874,36 @@ def v27_seed_normal_loop_script(stamp: str, gen_at: str, geom: dict[str, float])
     return script
 
 
+def v28_seed_normal_loop_script(stamp: str, gen_at: str, geom: dict[str, float]) -> str:
+    script = v27_seed_normal_loop_script(stamp, gen_at, geom)
+    script = script.replace("v27", "v28").replace("V27", "V28")
+    script = script.replace(
+        "# Step4e v28 one-step-entry force-jump-z-search seed-normal TASE minimal reproduction loop.",
+        "# Step4e v28 50N-guard 25mm-near-search seed-normal TASE minimal reproduction loop.",
+    )
+    script = script.replace(
+        "# PURPOSE: move once to entry XY with target attitude at current Z, then compute first far/near search so near search starts about 30 mm above the v13 force-jump first-contact point.",
+        "# PURPOSE: move once to entry XY with target attitude at current Z, then compute first far/near search so near search starts about 25 mm above the v13 force-jump first-contact point at 2.5 mm/s.",
+    )
+    script = script.replace(
+        "# SAFETY: raw normal guard 35 N, force norm guard 50 N, torque guard 3.0 Nm.",
+        "# SAFETY: raw normal guard 50 N, force norm guard 50 N, torque guard 3.0 Nm.",
+    )
+    script = script.replace(
+        "elif codex_abs(normal_force) > 35.0:",
+        f"elif codex_abs(normal_force) > {V28_RAW_NORMAL_GUARD_N:.1f}:",
+    )
+    script = script.replace(
+        "    local first_near_start_z_m = first_contact_z_m + 0.030\n",
+        f"    local first_near_start_z_m = first_contact_z_m + {V28_FIRST_CONTACT_NEAR_MARGIN_M:.3f}\n",
+    )
+    script = script.replace(
+        "    stop_reason = codex_v28_down_search(24.0, 24.2, first_search_max_down_m, first_search_near_start_depth_m, 40.000, -0.015, -0.003)\n",
+        f"    stop_reason = codex_v28_down_search(24.0, 24.2, first_search_max_down_m, first_search_near_start_depth_m, 40.000, -0.015, {V28_FIRST_SEARCH_NEAR_SPEED_M_S:.4f})\n",
+    )
+    return script
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--stamp-prefix", default=None)
@@ -1865,6 +1921,7 @@ def main() -> int:
             "step4e_seed_normal_loop_v25",
             "step4e_seed_normal_loop_v26",
             "step4e_seed_normal_loop_v27",
+            "step4e_seed_normal_loop_v28",
         ),
         default="all",
     )
@@ -1943,6 +2000,12 @@ def main() -> int:
             "one-step entry XY plus target attitude at current Z, v13 force-jump first-contact-Z search, first touch, 30 mm lift, angular speedl alignment, second touch, 5N acquire and line",
             v27_seed_normal_loop_script,
         ),
+        (
+            "step4e_seed_normal_loop_v28",
+            "SEED_NORMAL_LOOP_V28",
+            "one-step entry XY plus target attitude at current Z, v13 force-jump first-contact-Z search with 25 mm near window, 2.5 mm/s near descent, 50 N raw-normal guard, first touch, 30 mm lift, angular speedl alignment, second touch, 5N acquire and line",
+            v28_seed_normal_loop_script,
+        ),
     ]
     if args.program != "all":
         specs = [spec for spec in specs if spec[0] == args.program]
@@ -1966,6 +2029,7 @@ def main() -> int:
             "step4e_seed_normal_loop_v25",
             "step4e_seed_normal_loop_v26",
             "step4e_seed_normal_loop_v27",
+            "step4e_seed_normal_loop_v28",
         }:
             script = script_fn(stamp, generated_at(now), geom)
         else:

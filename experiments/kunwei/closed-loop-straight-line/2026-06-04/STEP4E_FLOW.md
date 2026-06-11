@@ -4,7 +4,7 @@ This table is the source of truth for the Step4e/TASE process. When the
 operator changes the process, update this table first, then update generator,
 bridge, and operator scripts to match it.
 
-Current package: `step4e_seed_normal_loop_v27`
+Current package: `step4e_seed_normal_loop_v28`
 
 Archived failed packages:
 
@@ -28,14 +28,18 @@ Archived failed packages:
   reference path `contact_start_xyz` Z `0.020279919 m` as the first-contact
   datum. Run evidence shows near search started at about `0.05022 m`, never
   saw the v13/v16 force jump, and depth-limited at about `0.00824 m`.
+- `step4e_seed_normal_loop_v27` failed on 2026-06-12 after it corrected the
+  first near-search Z. Run evidence shows the force jump at about
+  `z=0.00797 m`, then stage `25.05` stopped with register `12` because
+  first-contact latch `cmd_valid` was not delivered within the TP timeout.
 
 | order | stage | owner | required behavior | motion parameters | bridge/register contract | success condition | abort/stop evidence |
 |---:|---|---|---|---|---|---|---|
 | 1 | `20.0` | TP + bridge | Wait for fresh Kunwei heartbeat before any motion. | No motion. | Bridge writes base force/heartbeat/guard registers. | Fresh heartbeat and `sensor_ok=1`. | `3` if heartbeat/sensor is not fresh. |
 | 2 | `22.0` | TP | One-step entry: move to path entry `X,Y` and target attitude while preserving current TCP `Z`. Do not run a separate attitude `movel`; do not run a fixed-Z pre-search `movel`. | `movel(entry_xy_pose)`, `a=0.030 m/s^2`, `v=0.020 m/s`. | No Step4e command registers consumed for motion. | TCP is at entry `X,Y`, current `Z`, target rotvec. | Guard stop from force/torque/sensor. |
 | 3 | `23.0` | TP + bridge | Request bridge rezero after entry. | No motion, short settle. | TP sets output register `34=1`; bridge re-baselines Kunwei zero. | `codex_wait_for_rezero_complete(5.0)` returns true. | `14` if rezero handshake times out. |
-| 4 | `24.0` | TP | Far downward search from the actual post-entry Z until TCP reaches roughly `first_contact_z + 30 mm`. Runtime computes the far-search length from current entry Z. | `speedl([0,0,-0.015,0,0,0])`, `a=0.300 m/s^2`, `t=0.002 s`; first-contact Z is the v13/v16 force-jump evidence, about `0.00802 m`. | Bridge latches first contact normal for current v27 when force is sufficient. | Contact trigger or transition to near-search depth. | `8` depth limit, `10` timeout, guard stops. |
-| 5 | `24.2` | TP | Near downward search from about `30 mm` above the force-jump first-contact point. | `speedl([0,0,-0.003,0,0,0])`, `a=0.300 m/s^2`, `t=0.002 s`; max depth extends a few millimeters below the evidence contact Z. | Continue first-contact normal latch. | First contact detected, then convert stop `11` to continue. | `8` depth limit, `10` timeout, guard stops. |
+| 4 | `24.0` | TP | Far downward search from the actual post-entry Z until TCP reaches roughly `first_contact_z + 25 mm`. Runtime computes the far-search length from current entry Z. | `speedl([0,0,-0.015,0,0,0])`, `a=0.300 m/s^2`, `t=0.002 s`; first-contact Z is the v13/v16 force-jump evidence, about `0.00802 m`. | Bridge latches first contact normal for current v28 when force is sufficient. | Contact trigger or transition to near-search depth. | `8` depth limit, `10` timeout, guard stops. |
+| 5 | `24.2` | TP | Near downward search within about `25 mm` above the force-jump first-contact point. | `speedl([0,0,-0.0025,0,0,0])`, `a=0.300 m/s^2`, `t=0.002 s`; max depth extends a few millimeters below the evidence contact Z; raw normal guard is `50 N`. | Continue first-contact normal latch. | First contact detected, then convert stop `11` to continue. | `8` depth limit, `10` timeout, guard stops. |
 | 6 | `25.05` | bridge | Confirm first-contact normal is latched. | No robot motion command required. | `cmd_valid` must become `1`; latched normal must be available. | Command valid before `1.0 s`. | `12` command timeout. |
 | 7 | `25.1` | TP | Lift 30 mm from first contact before attitude correction. | `movel(lift_pose)`, `a=0.030 m/s^2`, `v=0.020 m/s`. | Bridge keeps linear/angular commands zero. | Lift complete. | Guard stops. |
 | 8 | `25.2` | bridge + TP | Lifted attitude correction using angular `speedl` only. | `speedl([0,0,0,wx,wy,wz])`, `a=0.300 m/s^2`, `t=0.002 s`; angular limit `0.120 rad/s`; ignore <= `3 deg`; hard stop > `30 deg`. | For v23/v24, input registers `37..39` must be exactly zero; only `40..42` may be nonzero angular command; `cmd_valid=1`. | Orientation error <= `3 deg`, then continue. | `13` if linear registers are nonzero or angular command exceeds limit; `15` if > `30 deg`; `10` timeout. |
@@ -67,20 +71,23 @@ waiting for the Step4e bridge trigger.
 
 On a valid bridge trigger:
 
-1. Check that Dashboard loaded program is the current `.urp`, safety mode is
-   `NORMAL`, and no Kunwei RTDE bridge process already exists.
-2. Start the current version bridge-first with
+1. Do not repeat package read-back, artifact validation, or Git checks at
+   trigger time; those belong to the package handoff above.
+2. Run the prepared bridge command directly. The operator wrapper owns the
+   live checks for current loaded `.urp`, `NORMAL` safety, no existing bridge,
+   bench connectivity, bridge process lifecycle, and quiet stop.
+3. Start the current version bridge-first with
    `printf 'START_STEP4E_LINE_<CURRENT>\\n' | STEP4E_VERSION=<current> ...
    step4e-line-v1-operator.sh line-bridge`. Do not use `line-autowatch` as
    the main trigger path; it may hide a long wait if Dashboard never reports
    the already-played TP program as running.
-3. Confirm the bridge process, run directory, and
+4. Confirm the bridge process, run directory, and
    `bridge_rtde_500hz.csv` have started writing before doing Git publishing.
-4. In the same turn, commit/push only intended Git changes. Stage only the
+5. In the same turn, commit/push only intended Git changes. Stage only the
    flow, generator/bridge/operator files, current/archived TP packages, and
    related owner-skill/output-rule files needed for this Step4e change.
-5. If push is blocked by no upstream, ambiguous repo/branch, suspected
+6. If push is blocked by no upstream, ambiguous repo/branch, suspected
    sensitive material, failed validation, or unsplittable unrelated dirty state,
    report the exact blocker but keep bridge monitoring active.
-6. Continue monitoring until the TP program stops, bridge shutdown completes,
+7. Continue monitoring until the TP program stops, bridge shutdown completes,
    Kunwei quiet-stop evidence is written, and post-run summaries are generated.
