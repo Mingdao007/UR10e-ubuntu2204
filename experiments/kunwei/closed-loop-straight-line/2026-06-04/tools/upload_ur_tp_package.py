@@ -177,6 +177,28 @@ def validate_package(
                 and "keeps 25.2 and 25.3 on locked-normal behavior" in script,
             }
         )
+    if program in {"step4f_cycloid_seed_normal_v1", "step4g_eight_seed_normal_v1"}:
+        path_shape = "cycloid" if program.startswith("step4f_") else "eight"
+        function_prefix = "step4f" if program.startswith("step4f_") else "step4g"
+        checks.update(
+            {
+                f"{function_prefix} function": f"def codex_{program}()" in script
+                and f"codex_{function_prefix}_down_search" in script,
+                "path shape bridge contract": f"--step4e-path-shape {path_shape}" in script
+                and f"step4e-version={function_prefix}_v1" in script,
+                "60s path-shape runtime": "local line_runtime_limit_s = 65.000" in script
+                and "local line_success_progress_m = 60.000000000" in script
+                and "for 60 s" in script + txt,
+                "v31 force/normal/orientation scaffold": "first-contact normal latch" in script
+                and "25.2 attitude correction" in script
+                and "25.3 line-entry gate" in script
+                and "normal projection and force-loop composition" in script
+                and "force_norm > 60.0" in script
+                and "torque_norm > 3.0" in script,
+                "path-shape semantics": path_shape in script
+                and ("paper-derived cycloid XY reference" in script + txt if path_shape == "cycloid" else "paper-derived 8-shaped XY reference" in script + txt),
+            }
+        )
     failed = [label for label, ok in checks.items() if not ok]
     if failed:
         die(f"{program} validation failed: bridge contract mismatch: {failed}")

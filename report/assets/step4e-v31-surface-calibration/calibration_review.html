@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Step4e v31 Surface Calibration Review</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #1d242b;
+      --muted: #5e6a73;
+      --line: #d5dde5;
+      --accent: #0f766e;
+      --bg: #f7f9fb;
+      --panel: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    html, body { max-width: 100%; overflow-x: hidden; }
+    body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); }
+    header { padding: 24px 28px 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
+    h1 { margin: 0 0 8px; font-size: 26px; line-height: 1.2; }
+    h2 { margin: 24px 0 12px; font-size: 18px; }
+    p { max-width: 980px; line-height: 1.58; color: var(--muted); }
+    main { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; padding: 18px 24px 28px; min-width: 0; }
+    section, .grid, .card, aside, pre { min-width: 0; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+    .card { margin: 0; padding: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; position: relative; overflow: hidden; }
+    .card img { display: block; width: 100%; max-width: 100%; height: auto; border-radius: 4px; cursor: crosshair; }
+    figcaption { margin-top: 8px; font-size: 13px; color: var(--muted); }
+    aside { position: sticky; top: 14px; align-self: start; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+    button { border: 1px solid var(--accent); background: var(--accent); color: white; padding: 8px 10px; border-radius: 6px; cursor: pointer; }
+    button.secondary { background: white; color: var(--accent); }
+    textarea { width: 100%; min-height: 76px; margin: 8px 0; border: 1px solid var(--line); border-radius: 6px; padding: 8px; font: inherit; }
+    .marker-list { padding: 0; margin: 10px 0 0; list-style: none; display: grid; gap: 8px; max-height: 46vh; overflow: auto; }
+    .marker-list li { border: 1px solid var(--line); border-radius: 6px; padding: 8px; font-size: 12px; }
+    .dot { position: absolute; width: 12px; height: 12px; border-radius: 50%; background: #d22f27; border: 2px solid white; transform: translate(-50%, -50%); pointer-events: none; box-shadow: 0 0 0 1px #8f1d18; }
+    pre { white-space: pre-wrap; overflow: auto; background: #111820; color: #d9e5ee; padding: 12px; border-radius: 8px; font-size: 12px; }
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; padding: 14px; }
+      aside { position: static; }
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Step4e v31 Surface Calibration Review</h1>
+    <p>点击任意图像添加 marker；用右侧 note 描述 v31 segment、视频帧或曲线段含义，再导出 JSON 作为下一轮校正输入。</p>
+  </header>
+  <main>
+    <section>
+      <h2>Review Assets</h2>
+      <div class="grid"><figure class="card" data-asset="step4e-v31-surface-calibration/z-profile-fit.png"><img src="../step4e-v31-surface-calibration/z-profile-fit.png" alt="v31 surface profile"><figcaption>v31 surface profile</figcaption></figure>
+<figure class="card" data-asset="step4e-v31-surface-calibration/surface-slope.png"><img src="../step4e-v31-surface-calibration/surface-slope.png" alt="surface slope"><figcaption>surface slope</figcaption></figure>
+<figure class="card" data-asset="step4e-v31-surface-calibration/attitude-error-time.png"><img src="../step4e-v31-surface-calibration/attitude-error-time.png" alt="true attitude error"><figcaption>true attitude error</figcaption></figure>
+<figure class="card" data-asset="step4e-v31-surface-calibration/force-vs-attitude-error.png"><img src="../step4e-v31-surface-calibration/force-vs-attitude-error.png" alt="force vs attitude error"><figcaption>force vs attitude error</figcaption></figure>
+<figure class="card" data-asset="step4e-v31-surface-calibration/normal-comparison.png"><img src="../step4e-v31-surface-calibration/normal-comparison.png" alt="normal comparison"><figcaption>normal comparison</figcaption></figure>
+<figure class="card" data-asset="step4fg-reference-preview/step4f_cycloid_reference_preview.png"><img src="../step4fg-reference-preview/step4f_cycloid_reference_preview.png" alt="Step4f cycloid reference preview"><figcaption>Step4f cycloid reference preview</figcaption></figure>
+<figure class="card" data-asset="step4fg-reference-preview/step4g_eight_reference_preview.png"><img src="../step4fg-reference-preview/step4g_eight_reference_preview.png" alt="Step4g eight reference preview"><figcaption>Step4g eight reference preview</figcaption></figure>
+<figure class="card" data-asset="tase-supplementary-video-screenshots/experiment-1-cycloid-small-surface.jpeg"><img src="../tase-supplementary-video-screenshots/experiment-1-cycloid-small-surface.jpeg" alt="supplementary screenshot: cycloid small surface"><figcaption>supplementary screenshot: cycloid small surface</figcaption></figure>
+<figure class="card" data-asset="tase-supplementary-video-screenshots/experiment-2-eight-small-surface.jpeg"><img src="../tase-supplementary-video-screenshots/experiment-2-eight-small-surface.jpeg" alt="supplementary screenshot: eight small surface"><figcaption>supplementary screenshot: eight small surface</figcaption></figure>
+<figure class="card" data-asset="step4e-v31-surface-calibration/video-frames/tase-video-frame-01-005.0s.jpg"><img src="../step4e-v31-surface-calibration/video-frames/tase-video-frame-01-005.0s.jpg" alt="TASE video frame @ 5.0s"><figcaption>TASE video frame @ 5.0s</figcaption></figure>
+<figure class="card" data-asset="step4e-v31-surface-calibration/video-frames/tase-video-frame-02-020.0s.jpg"><img src="../step4e-v31-surface-calibration/video-frames/tase-video-frame-02-020.0s.jpg" alt="TASE video frame @ 20.0s"><figcaption>TASE video frame @ 20.0s</figcaption></figure>
+<figure class="card" data-asset="step4e-v31-surface-calibration/video-frames/tase-video-frame-03-040.0s.jpg"><img src="../step4e-v31-surface-calibration/video-frames/tase-video-frame-03-040.0s.jpg" alt="TASE video frame @ 40.0s"><figcaption>TASE video frame @ 40.0s</figcaption></figure>
+<figure class="card" data-asset="step4e-v31-surface-calibration/video-frames/tase-video-frame-04-060.0s.jpg"><img src="../step4e-v31-surface-calibration/video-frames/tase-video-frame-04-060.0s.jpg" alt="TASE video frame @ 60.0s"><figcaption>TASE video frame @ 60.0s</figcaption></figure></div>
+      <h2>Metrics Snapshot</h2>
+      <pre>{
+  &quot;run_id&quot;: &quot;bridge_step4e_seed_normal_loop_v31_20260612_050155&quot;,
+  &quot;analysis_window&quot;: {
+    &quot;stage&quot;: 25.0,
+    &quot;rows&quot;: 24046,
+    &quot;duration_s&quot;: 48.08999927190598,
+    &quot;s_min_mm&quot;: -0.046160518253438906,
+    &quot;s_max_mm&quot;: 144.00074548640546,
+    &quot;tcp_z_min_mm&quot;: 7.7965399513052,
+    &quot;tcp_z_max_mm&quot;: 20.5449477876881,
+    &quot;line_length_expected_mm&quot;: 143.7471231016468
+  },
+  &quot;surface_fit&quot;: {
+    &quot;model&quot;: &quot;z = cubic(s), fitted in normalized s&quot;,
+    &quot;degree&quot;: 3,
+    &quot;residual_mm&quot;: {
+      &quot;mean&quot;: -3.5725855905446025e-14,
+      &quot;median&quot;: -0.015232161226653128,
+      &quot;std&quot;: 0.1518431052352883,
+      &quot;min&quot;: -0.3746086907432042,
+      &quot;max&quot;: 0.4239450119035079,
+      &quot;p95_abs&quot;: 0.2872908305777445,
+      &quot;p99_abs&quot;: 0.3611114927851247
+    },
+    &quot;slope_deg&quot;: {
+      &quot;mean&quot;: 4.19646541788884,
+      &quot;median&quot;: 4.0728160885744575,
+      &quot;std&quot;: 5.311016643954774,
+      &quot;min&quot;: -4.699125059182776,
+      &quot;max&quot;: 13.597277507571714,
+      &quot;p95_abs&quot;: 12.63321469267114,
+      &quot;p99_abs&quot;: 13.408129284420966
+    },
+    &quot;surface_normal_sign&quot;: &quot;+z fitted normal; true attitude compares TCP z-axis to -surface_normal&quot;
+  },
+  &quot;attitude&quot;: {
+    &quot;true_tcp_z_vs_negative_surface_normal_deg&quot;: {
+      &quot;mean&quot;: 4.7968066819131066,
+      &quot;median&quot;: 5.148302877347145,
+      &quot;std&quot;: 2.466011059083788,
+      &quot;min&quot;: 0.430806861281453,
+      &quot;max&quot;: 7.9632925453957615,
+      &quot;p95_abs&quot;: 7.870701414673111,
+      &quot;p99_abs&quot;: 7.938987672645053
+    },
+    &quot;bridge_proxy_orientation_error_deg&quot;: {
+      &quot;mean&quot;: 3.76093965567377,
+      &quot;median&quot;: 2.9728105250463406,
+      &quot;std&quot;: 2.9027956410125815,
+      &quot;min&quot;: 0.01446908064546783,
+      &quot;max&quot;: 13.979398541633605,
+      &quot;p95_abs&quot;: 10.509611283395596,
+      &quot;p99_abs&quot;: 11.507171533423223
+    },
+    &quot;control_normal_vs_surface_normal_deg&quot;: {
+      &quot;mean&quot;: 6.861444121738478,
+      &quot;median&quot;: 6.521660613759294,
+      &quot;std&quot;: 3.940366941196392,
+      &quot;min&quot;: 0.012587589882162674,
+      &quot;max&quot;: 16.11904470839897,
+      &quot;p95_abs&quot;: 13.717909966662624,
+      &quot;p99_abs&quot;: 14.98137856045434
+    },
+    &quot;filtered_normal_vs_surface_normal_deg&quot;: {
+      &quot;mean&quot;: 6.861444121738478,
+      &quot;median&quot;: 6.521660613759294,
+      &quot;std&quot;: 3.940366941196392,
+      &quot;min&quot;: 0.012587589882162674,
+      &quot;max&quot;: 16.11904470839897,
+      &quot;p95_abs&quot;: 13.717909966662624,
+      &quot;p99_abs&quot;: 14.98137856045434
+    },
+    &quot;latched_normal_vs_surface_normal_deg&quot;: {
+      &quot;mean&quot;: 13.518658387745774,
+      &quot;median&quot;: 13.09717880405529,
+      &quot;std&quot;: 3.7838937839484155,
+      &quot;min&quot;: 8.391429588295471,
+      &quot;max&quot;: 20.591319153467946,
+      &quot;p95_abs&quot;: 19.86115407793844,
+      &quot;p99_abs&quot;: 20.435530725056335
+    }
+  },
+  &quot;force&quot;: {
+    &quot;normal_force_n&quot;: {
+      &quot;mean&quot;: -12.788450499261135,
+      &quot;median&quot;: -11.0633917,
+      &quot;std&quot;: 11.597471020962764,
+      &quot;min&quot;: -44.382845,
+      &quot;max&quot;: 0.441194483,
+      &quot;p95_abs&quot;: 32.6780771,
+      &quot;p99_abs&quot;: 37.919742
+    },
+    &quot;force_norm_n&quot;: {
+      &quot;mean&quot;: 12.98705689770265,
+      &quot;median&quot;: 11.1065967,
+      &quot;std&quot;: 11.58741105103864,
+      &quot;min&quot;: 0.108135694,
+      &quot;max&quot;: 44.6703575,
+      &quot;p95_abs&quot;: 32.9868535,
+      &quot;p99_abs&quot;: 38.0903156
+    },
+    &quot;target_signed_normal_force_n&quot;: -5.0
+  },
+  &quot;sanity_checks&quot;: {
+    &quot;line_length_143_747_mm_ok&quot;: true,
+    &quot;tcp_z_range_matches_prior_report_ok&quot;: true,
+    &quot;surface_fit_residual_p95_lt_0_5mm&quot;: true,
+    &quot;surface_normal_sign_resolved_by_z_up_and_control_normal&quot;: true,
+    &quot;synthetic_plane_fixture&quot;: {
+      &quot;known_slope_dz_ds&quot;: 0.125,
+      &quot;estimated_slope_mean&quot;: 0.12500000000000003,
+      &quot;max_slope_abs_error&quot;: 5.551115123125783e-17,
+      &quot;max_normal_angle_error_deg&quot;: 0.0,
+      &quot;ok&quot;: true
+    }
+  },
+  &quot;video_reference&quot;: {
+    &quot;duration_s&quot;: 69.162,
+    &quot;width&quot;: 1846,
+    &quot;height&quot;: 1036,
+    &quot;avg_frame_rate&quot;: &quot;1363800/41497&quot;,
+    &quot;size_bytes&quot;: 83957838,
+    &quot;sha256&quot;: &quot;4f2556e47aad9e83df041a09d8c2622682f33691827c48acc61c10d0b01fd32c&quot;,
+    &quot;mac_source&quot;: &quot;/Users/andyl/Documents/UR10e/archive/ur5e_legacy_20260518_223331/tase_reproduction_ur5e/TASE_Zhihao/reference_media/tase_supplementary_video_screenstudio_20260612.mp4&quot;,
+    &quot;local_ignored_copy&quot;: &quot;/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/video_reference_tase_supplementary_20260612/tase_supplementary_video_screenstudio_20260612.mp4&quot;,
+    &quot;frames&quot;: [
+      {
+        &quot;time_s&quot;: 5.0,
+        &quot;path&quot;: &quot;assets/step4e-v31-surface-calibration/video-frames/tase-video-frame-01-005.0s.jpg&quot;
+      },
+      {
+        &quot;time_s&quot;: 20.0,
+        &quot;path&quot;: &quot;assets/step4e-v31-surface-calibration/video-frames/tase-video-frame-02-020.0s.jpg&quot;
+      },
+      {
+        &quot;time_s&quot;: 40.0,
+        &quot;path&quot;: &quot;assets/step4e-v31-surface-calibration/video-frames/tase-video-frame-03-040.0s.jpg&quot;
+      },
+      {
+        &quot;time_s&quot;: 60.0,
+        &quot;path&quot;: &quot;assets/step4e-v31-surface-calibration/video-frames/tase-video-frame-04-060.0s.jpg&quot;
+      }
+    ]
+  },
+  &quot;controller_handoff&quot;: {
+    &quot;step4f_cycloid_seed_normal_v1&quot;: {
+      &quot;program&quot;: &quot;step4f_cycloid_seed_normal_v1&quot;,
+      &quot;controller_paths&quot;: {
+        &quot;.script&quot;: &quot;root@192.168.1.18:/programs/andyl/kunwei/step4/step4f_cycloid_seed_normal_v1.script&quot;,
+        &quot;.txt&quot;: &quot;root@192.168.1.18:/programs/andyl/kunwei/step4/step4f_cycloid_seed_normal_v1.txt&quot;,
+        &quot;.urp&quot;: &quot;root@192.168.1.18:/programs/andyl/kunwei/step4/step4f_cycloid_seed_normal_v1.urp&quot;
+      },
+      &quot;readback_dir&quot;: &quot;/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/controller_readback_step4f_cycloid_seed_normal_v1_20260612_055814&quot;,
+      &quot;stamp&quot;: &quot;2026-06-12T0536HKT_STEP4F_CYCLOID_SEED_NORMAL_V1&quot;,
+      &quot;checks&quot;: {
+        &quot;status&quot;: true,
+        &quot;local_controller_readback_sha_match&quot;: true,
+        &quot;urp_name&quot;: true,
+        &quot;urp_directory&quot;: true,
+        &quot;script_node_path&quot;: true,
+        &quot;cached_script_exact&quot;: true,
+        &quot;stamp_in_script_txt_cache&quot;: true,
+        &quot;path_shape&quot;: true,
+        &quot;sixty_second_reference&quot;: true
+      },
+      &quot;all_checks_ok&quot;: true,
+      &quot;sha256&quot;: {
+        &quot;local&quot;: {
+          &quot;.script&quot;: &quot;a9c413218c53e1bda89b4c321162f6782fce3491703cbb9730406c0f770e8e87&quot;,
+          &quot;.txt&quot;: &quot;e1ad166690f43ce8e8b05ba26bad994a85a1c5f0fe516a3f4d91932ca1cb2a96&quot;,
+          &quot;.urp&quot;: &quot;b37a88d9538466fdabbb9d6bd1b20997aaf40d56f825c973150289eac5fc267f&quot;
+        },
+        &quot;controller&quot;: {
+          &quot;.script&quot;: &quot;a9c413218c53e1bda89b4c321162f6782fce3491703cbb9730406c0f770e8e87&quot;,
+          &quot;.txt&quot;: &quot;e1ad166690f43ce8e8b05ba26bad994a85a1c5f0fe516a3f4d91932ca1cb2a96&quot;,
+          &quot;.urp&quot;: &quot;b37a88d9538466fdabbb9d6bd1b20997aaf40d56f825c973150289eac5fc267f&quot;
+        },
+        &quot;readback&quot;: {
+          &quot;.script&quot;: &quot;a9c413218c53e1bda89b4c321162f6782fce3491703cbb9730406c0f770e8e87&quot;,
+          &quot;.txt&quot;: &quot;e1ad166690f43ce8e8b05ba26bad994a85a1c5f0fe516a3f4d91932ca1cb2a96&quot;,
+          &quot;.urp&quot;: &quot;b37a88d9538466fdabbb9d6bd1b20997aaf40d56f825c973150289eac5fc267f&quot;
+        }
+      }
+    },
+    &quot;step4g_eight_seed_normal_v1&quot;: {
+      &quot;program&quot;: &quot;step4g_eight_seed_normal_v1&quot;,
+      &quot;controller_paths&quot;: {
+        &quot;.script&quot;: &quot;root@192.168.1.18:/programs/andyl/kunwei/step4/step4g_eight_seed_normal_v1.script&quot;,
+        &quot;.txt&quot;: &quot;root@192.168.1.18:/programs/andyl/kunwei/step4/step4g_eight_seed_normal_v1.txt&quot;,
+        &quot;.urp&quot;: &quot;root@192.168.1.18:/programs/andyl/kunwei/step4/step4g_eight_seed_normal_v1.urp&quot;
+      },
+      &quot;readback_dir&quot;: &quot;/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/controller_readback_step4g_eight_seed_normal_v1_20260612_055814&quot;,
+      &quot;stamp&quot;: &quot;2026-06-12T0536HKT_STEP4G_EIGHT_SEED_NORMAL_V1&quot;,
+      &quot;checks&quot;: {
+        &quot;status&quot;: true,
+        &quot;local_controller_readback_sha_match&quot;: true,
+        &quot;urp_name&quot;: true,
+        &quot;urp_directory&quot;: true,
+        &quot;script_node_path&quot;: true,
+        &quot;cached_script_exact&quot;: true,
+        &quot;stamp_in_script_txt_cache&quot;: true,
+        &quot;path_shape&quot;: true,
+        &quot;sixty_second_reference&quot;: true
+      },
+      &quot;all_checks_ok&quot;: true,
+      &quot;sha256&quot;: {
+        &quot;local&quot;: {
+          &quot;.script&quot;: &quot;25a64f0f38b549571cb5b13d70af2b9fd356603ffad80ced7a0ab930cb98c83d&quot;,
+          &quot;.txt&quot;: &quot;d3a002dfa6b1140f4dba627b62bb02f191f65a0cd3d5d4e7fb4cf0fe16493169&quot;,
+          &quot;.urp&quot;: &quot;fd34bd0d31e5da04f00dc54cf75644e912fd7e47e20585b06be7f7f7acbb684f&quot;
+        },
+        &quot;controller&quot;: {
+          &quot;.script&quot;: &quot;25a64f0f38b549571cb5b13d70af2b9fd356603ffad80ced7a0ab930cb98c83d&quot;,
+          &quot;.txt&quot;: &quot;d3a002dfa6b1140f4dba627b62bb02f191f65a0cd3d5d4e7fb4cf0fe16493169&quot;,
+          &quot;.urp&quot;: &quot;fd34bd0d31e5da04f00dc54cf75644e912fd7e47e20585b06be7f7f7acbb684f&quot;
+        },
+        &quot;readback&quot;: {
+          &quot;.script&quot;: &quot;25a64f0f38b549571cb5b13d70af2b9fd356603ffad80ced7a0ab930cb98c83d&quot;,
+          &quot;.txt&quot;: &quot;d3a002dfa6b1140f4dba627b62bb02f191f65a0cd3d5d4e7fb4cf0fe16493169&quot;,
+          &quot;.urp&quot;: &quot;fd34bd0d31e5da04f00dc54cf75644e912fd7e47e20585b06be7f7f7acbb684f&quot;
+        }
+      }
+    }
+  },
+  &quot;generated_assets&quot;: {
+    &quot;z_profile&quot;: &quot;assets/step4e-v31-surface-calibration/z-profile-fit.png&quot;,
+    &quot;slope&quot;: &quot;assets/step4e-v31-surface-calibration/surface-slope.png&quot;,
+    &quot;attitude_time&quot;: &quot;assets/step4e-v31-surface-calibration/attitude-error-time.png&quot;,
+    &quot;force_attitude&quot;: &quot;assets/step4e-v31-surface-calibration/force-vs-attitude-error.png&quot;,
+    &quot;normal_comparison&quot;: &quot;assets/step4e-v31-surface-calibration/normal-comparison.png&quot;,
+    &quot;stage25_surface_csv&quot;: &quot;assets/step4e-v31-surface-calibration/stage25-surface-calibration-window.csv&quot;,
+    &quot;html_review&quot;: &quot;assets/step4e-v31-surface-calibration/calibration_review.html&quot;
+  }
+}</pre>
+    </section>
+    <aside>
+      <h2>Markers</h2>
+      <textarea id="note" placeholder="marker note，例如：候选小平台曲面段 / 视频 frame 对应关系 / force spike 区间"></textarea>
+      <div style="display:flex; gap:8px; flex-wrap:wrap">
+        <button id="export">Export JSON</button>
+        <button id="clear" class="secondary">Clear</button>
+      </div>
+      <ul id="markers" class="marker-list"></ul>
+    </aside>
+  </main>
+  <script>
+    const markers = [];
+    const list = document.getElementById('markers');
+    const note = document.getElementById('note');
+    function render() {
+      list.innerHTML = '';
+      markers.forEach((m, i) => {
+        const li = document.createElement('li');
+        li.textContent = `${i + 1}. ${m.asset} @ ${m.x_pct.toFixed(2)}%, ${m.y_pct.toFixed(2)}% — ${m.note || 'no note'}`;
+        list.appendChild(li);
+      });
+    }
+    document.querySelectorAll('figure.card img').forEach(img => {
+      img.addEventListener('click', event => {
+        const rect = img.getBoundingClientRect();
+        const xPct = (event.clientX - rect.left) / rect.width * 100;
+        const yPct = (event.clientY - rect.top) / rect.height * 100;
+        const figure = img.closest('figure');
+        const marker = { asset: figure.dataset.asset, x_pct: xPct, y_pct: yPct, note: note.value.trim(), created_at: new Date().toISOString() };
+        markers.push(marker);
+        const dot = document.createElement('span');
+        dot.className = 'dot';
+        dot.style.left = `${xPct}%`;
+        dot.style.top = `${yPct}%`;
+        figure.appendChild(dot);
+        render();
+      });
+    });
+    document.getElementById('clear').addEventListener('click', () => {
+      markers.splice(0, markers.length);
+      document.querySelectorAll('.dot').forEach(dot => dot.remove());
+      render();
+    });
+    document.getElementById('export').addEventListener('click', () => {
+      const payload = { source: 'step4e-v31-surface-calibration', exported_at: new Date().toISOString(), markers };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'calibration-markers.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  </script>
+</body>
+</html>
