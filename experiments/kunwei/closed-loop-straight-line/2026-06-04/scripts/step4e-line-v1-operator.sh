@@ -12,6 +12,14 @@ BENCH_GATE="/home/andy/codex-private-skills/skills/ur10e-realsetup/scripts/check
 LONG_CHECK_TTL_S="${LONG_CHECK_TTL_S:-1800}"
 LONG_CHECK_CACHE="${LONG_CHECK_CACHE:-${RUN_ROOT}/.step4e_long_checks_cache.json}"
 STEP4E_VERSION="${STEP4E_VERSION:-v1}"
+case "${STEP4E_VERSION}" in
+  4f|f|cycloid|step4f)
+    STEP4E_VERSION="step4f_v1"
+    ;;
+  4g|g|eight|figure8|figure-8|step4g)
+    STEP4E_VERSION="step4g_v1"
+    ;;
+esac
 BRIDGE_DURATION_S="${BRIDGE_DURATION_S:-180}"
 STEP4E_BACKGROUND_PUSH_AFTER_LIVE="${STEP4E_BACKGROUND_PUSH_AFTER_LIVE:-0}"
 STEP4E_NORMAL_COMMAND_SIGN="${STEP4E_NORMAL_COMMAND_SIGN:-1}"
@@ -38,8 +46,14 @@ STEP4E_NORMAL_MAX_RATE_RAD_S="${STEP4E_NORMAL_MAX_RATE_RAD_S:-0.010}"
 STEP4E_NORMAL_MIN_FORCE_N="${STEP4E_NORMAL_MIN_FORCE_N:-2.0}"
 STEP4E_NORMAL_MAX_ANGLE_FROM_LATCH_DEG="${STEP4E_NORMAL_MAX_ANGLE_FROM_LATCH_DEG:-20}"
 STEP4E_NORMAL_FRICTION_PROJECTION="${STEP4E_NORMAL_FRICTION_PROJECTION:-on}"
+STEP4E_PATH_SHAPE="${STEP4E_PATH_SHAPE:-line}"
+if [[ "${STEP4E_VERSION}" == "step4f_v1" ]]; then
+  STEP4E_PATH_SHAPE="cycloid"
+elif [[ "${STEP4E_VERSION}" == "step4g_v1" ]]; then
+  STEP4E_PATH_SHAPE="eight"
+fi
 if [[ -z "${STEP4E_NORMAL_FOLLOW_MODE}" ]]; then
-  if [[ "${STEP4E_VERSION}" == "v30" || "${STEP4E_VERSION}" == "v31" ]]; then
+  if [[ "${STEP4E_VERSION}" == "v30" || "${STEP4E_VERSION}" == "v31" || "${STEP4E_VERSION}" == "step4f_v1" || "${STEP4E_VERSION}" == "step4g_v1" ]]; then
     STEP4E_NORMAL_FOLLOW_MODE="filtered_live"
   else
     STEP4E_NORMAL_FOLLOW_MODE="locked"
@@ -85,6 +99,12 @@ fi
 if [[ "${STEP4E_VERSION}" == "v31" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_seed_normal_loop_v31.urp"
 fi
+if [[ "${STEP4E_VERSION}" == "step4f_v1" ]]; then
+  PROGRAM_LINE="/programs/andyl/kunwei/step4/step4f_cycloid_seed_normal_v1.urp"
+fi
+if [[ "${STEP4E_VERSION}" == "step4g_v1" ]]; then
+  PROGRAM_LINE="/programs/andyl/kunwei/step4/step4g_eight_seed_normal_v1.urp"
+fi
 if [[ "${STEP4E_VERSION}" == "p0_geo_v1" ]]; then
   SEARCH_DESCRIPTION="P0-geo ball-first contact witness: vertical TCP entry, far 15 mm/s until 80 mm depth, then near 3 mm/s until first 1-1.5 N contact or 92 mm max depth; after contact it holds still for visual confirmation, retracts base-Z 2 mm, and never runs attitude, 5N acquisition, or line motion"
 elif [[ "${STEP4E_VERSION}" == "p0_ball_vs_cyl_v1" ]]; then
@@ -109,6 +129,10 @@ elif [[ "${STEP4E_VERSION}" == "v30" ]]; then
   SEARCH_DESCRIPTION="previous Step4e/TASE conservative filtered-live-normal flow: same TP motion/search/25.2/25.3 line-entry gate as v29, but the bridge uses a gated filtered live normal only during 25.0 line control; force/admittance gains and tangential speed remain unchanged"
 elif [[ "${STEP4E_VERSION}" == "v31" ]]; then
   SEARCH_DESCRIPTION="current Step4e/TASE simple-alpha-normal-follow flow: same TP motion/search/25.2/25.3 line-entry gate as v30, but the bridge uses direct alpha EMA filtered live normal only during 25.0 line control; alpha=0.35, min-force=2.0 N, force/admittance gains and tangential speed remain unchanged"
+elif [[ "${STEP4E_VERSION}" == "step4f_v1" ]]; then
+  SEARCH_DESCRIPTION="Step4f/TASE Experiment #1 cycloid small-surface reproduction: same v31 TP motion/search/25.2/25.3 line-entry gate and filtered-live normal loop, but stage 25.0 follows the paper cycloid XY reference for 60 s"
+elif [[ "${STEP4E_VERSION}" == "step4g_v1" ]]; then
+  SEARCH_DESCRIPTION="Step4g/TASE Experiment #2 8-shaped small-surface reproduction: same v31 TP motion/search/25.2/25.3 line-entry gate and filtered-live normal loop, but stage 25.0 follows the paper 8-shaped XY reference for 60 s"
 elif [[ "${STEP4E_VERSION}" == "v20" ]]; then
   SEARCH_DESCRIPTION="two-stage search: v20 moves directly to entry XY with vertical TCP orientation [pi,0,0], searches far 15 mm/s then near 3 mm/s, latches first-contact normal only, lifts base-Z 2 mm, aligns attitude while detached, reacquires 5 N along the locked normal, then runs the 5 mm/s XY line"
 elif [[ "${STEP4E_VERSION}" == "v21" ]]; then
@@ -181,6 +205,7 @@ Teach Pendant programs:
   locked-normal fallback v29 line package lives under /programs/andyl/kunwei/step4/
   failed/archive v21/v22/v23/v24/v25/v26/v27 line packages live under /programs/andyl/kunwei/step4/step4e/
   failed/archive v28 line package lives under /programs/andyl/kunwei/step4/; it failed from the old bridge profile mismatch, not motion parameters.
+  Step4f/Step4g current packages live under /programs/andyl/kunwei/step4/
   canonical Step4e/TASE flow table: ${ROOT}/STEP4E_FLOW.md
 
 Bridge lifecycle:
@@ -197,7 +222,7 @@ Step4e motion boundary:
   witness: P0 pair witness; ball contact then housing/cylindrical-face contact in one TP program.
   axis: no-contact four-quadrant attitude axis isolation.
   hold: contact search, then 12 s force/orientation hold.
-  line: contact search, then straight XY line from the two TP screenshot points.
+  line: contact search, then XY path from the selected Step4e/Step4f/Step4g bridge reference.
   force target = 5 N for hold/line only; geo contact witness triggers around 1-1.5 N.
   raw normal guard = ${MAX_NORMAL_FORCE_N} N, force norm guard = ${MAX_FORCE_NORM_N} N, torque guard = ${MAX_TORQUE_NORM_NM} Nm.
 USAGE
@@ -222,6 +247,10 @@ select_mode() {
       EXPECTED_PROGRAM="${PROGRAM_LINE}"
       if [[ "${STEP4E_VERSION}" == "v21" ]]; then
         EXPECTED_BASENAME="step4e_detached_movel_minrot_v21.urp"
+      elif [[ "${STEP4E_VERSION}" == "step4f_v1" ]]; then
+        EXPECTED_BASENAME="step4f_cycloid_seed_normal_v1.urp"
+      elif [[ "${STEP4E_VERSION}" == "step4g_v1" ]]; then
+        EXPECTED_BASENAME="step4g_eight_seed_normal_v1.urp"
       elif [[ "${STEP4E_VERSION}" == "v22" || "${STEP4E_VERSION}" == "v23" || "${STEP4E_VERSION}" == "v24" || "${STEP4E_VERSION}" == "v25" || "${STEP4E_VERSION}" == "v26" || "${STEP4E_VERSION}" == "v27" || "${STEP4E_VERSION}" == "v28" || "${STEP4E_VERSION}" == "v29" || "${STEP4E_VERSION}" == "v30" || "${STEP4E_VERSION}" == "v31" ]]; then
         EXPECTED_BASENAME="step4e_seed_normal_loop_${STEP4E_VERSION}.urp"
       else
@@ -230,6 +259,10 @@ select_mode() {
       STEP4E_MODE="line"
       if [[ "${STEP4E_VERSION}" == "v21" ]]; then
         RUN_LABEL="step4e_detached_movel_minrot_v21"
+      elif [[ "${STEP4E_VERSION}" == "step4f_v1" ]]; then
+        RUN_LABEL="step4f_cycloid_seed_normal_v1"
+      elif [[ "${STEP4E_VERSION}" == "step4g_v1" ]]; then
+        RUN_LABEL="step4g_eight_seed_normal_v1"
       elif [[ "${STEP4E_VERSION}" == "v22" || "${STEP4E_VERSION}" == "v23" || "${STEP4E_VERSION}" == "v24" || "${STEP4E_VERSION}" == "v25" || "${STEP4E_VERSION}" == "v26" || "${STEP4E_VERSION}" == "v27" || "${STEP4E_VERSION}" == "v28" || "${STEP4E_VERSION}" == "v29" || "${STEP4E_VERSION}" == "v30" || "${STEP4E_VERSION}" == "v31" ]]; then
         RUN_LABEL="step4e_seed_normal_loop_${STEP4E_VERSION}"
       else
@@ -624,6 +657,7 @@ run_bridge_for_mode() {
     --max-torque-norm-nm "${MAX_TORQUE_NORM_NM}" \
     --step4e-mode "${STEP4E_MODE}" \
     --step4e-version "${STEP4E_VERSION}" \
+    --step4e-path-shape "${STEP4E_PATH_SHAPE}" \
     --step4e-line-speed-m-s "${STEP4E_LINE_SPEED_M_S}" \
     --step4e-line-settle-s "${STEP4E_LINE_SETTLE_S}" \
     "${stage25_only_args[@]}" \
@@ -729,7 +763,7 @@ Before pressing Play, open this Teach Pendant program:
 
 Motion/control:
   preview = no motion, geo/hold/line setup = ${SEARCH_DESCRIPTION}
-  line XY speed command = ${STEP4E_LINE_SPEED_M_S} m/s, max Cartesian command = 6 mm/s
+  path shape = ${STEP4E_PATH_SHAPE}; line XY speed command = ${STEP4E_LINE_SPEED_M_S} m/s for line shape, max Cartesian command = 6 mm/s
   speedl acceleration = 300 mm/s^2, hold time = 2 ms
   force target = 5 N for hold/line only; geo contact witness triggers around 1-1.5 N
   raw normal guard = ${MAX_NORMAL_FORCE_N} N, force norm guard = ${MAX_FORCE_NORM_N} N, torque guard = ${MAX_TORQUE_NORM_NM} Nm

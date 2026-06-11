@@ -49,6 +49,8 @@ V31_FIRST_CONTACT_BELOW_MARGIN_M = V30_FIRST_CONTACT_BELOW_MARGIN_M
 V31_FIRST_CONTACT_NEAR_MARGIN_M = V30_FIRST_CONTACT_NEAR_MARGIN_M
 V31_FIRST_SEARCH_NEAR_SPEED_M_S = V30_FIRST_SEARCH_NEAR_SPEED_M_S
 V31_RAW_NORMAL_GUARD_N = V30_RAW_NORMAL_GUARD_N
+STEP4FG_PATH_RUNTIME_S = 60.0
+STEP4FG_STAGE25_RUNTIME_LIMIT_S = 65.0
 STEP4E_CURRENT_FORCE_NORM_GUARD_N = 60.0
 STEP4E_CURRENT_TORQUE_NORM_GUARD_NM = 3.0
 
@@ -433,6 +435,34 @@ def validate_package(name: str, script: str, txt: str, urp: bytes, stamp: str, c
                 and "local line_entry_timeout_s = 1.000" in script
                 and "speedl([cmd_vx, cmd_vy, cmd_vz, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)" not in script,
                 "line stage": "write_output_float_register(35, 25.0)" in script,
+            }
+        )
+    if name == "step4f_cycloid_seed_normal_v1":
+        checks.update(
+            {
+                "step4f function names": "codex_step4f_down_search" in script
+                and "codex_step4f_cycloid_seed_normal_v1" in script,
+                "path shape wording": "--step4e-path-shape cycloid" in script,
+                "paper formula": "0.015 * (0.1t - sin(0.1t))" in script
+                and "0.015 * (1 - cos(0.1t))" in script,
+                "stage25 runtime": f"local line_runtime_limit_s = {STEP4FG_STAGE25_RUNTIME_LIMIT_S:.3f}" in script,
+                "stage25 success threshold": f"local line_success_progress_m = {STEP4FG_PATH_RUNTIME_S:.9f}" in script,
+                "v31 scaffold retained": "line-entry gate" in script
+                and "codex_wait_for_stage_linear_zero(25.2, 1.000)" in script,
+            }
+        )
+    if name == "step4g_eight_seed_normal_v1":
+        checks.update(
+            {
+                "step4g function names": "codex_step4g_down_search" in script
+                and "codex_step4g_eight_seed_normal_v1" in script,
+                "path shape wording": "--step4e-path-shape eight" in script,
+                "paper formula": "0.04 * sin(0.1t)" in script
+                and "0.01 * sin(0.2t)" in script,
+                "stage25 runtime": f"local line_runtime_limit_s = {STEP4FG_STAGE25_RUNTIME_LIMIT_S:.3f}" in script,
+                "stage25 success threshold": f"local line_success_progress_m = {STEP4FG_PATH_RUNTIME_S:.9f}" in script,
+                "v31 scaffold retained": "line-entry gate" in script
+                and "codex_wait_for_stage_linear_zero(25.2, 1.000)" in script,
             }
         )
     failed = [label for label, ok in checks.items() if not ok]
@@ -2261,6 +2291,80 @@ def v31_seed_normal_loop_script(stamp: str, gen_at: str, geom: dict[str, float])
     return script
 
 
+def step4fg_seed_normal_loop_script(
+    *,
+    stamp: str,
+    gen_at: str,
+    geom: dict[str, float],
+    name: str,
+    title: str,
+    version_token: str,
+    path_shape: str,
+    path_formula: str,
+    down_search_fn: str,
+) -> str:
+    script = v31_seed_normal_loop_script(stamp, gen_at, geom)
+    base_threshold = f"local line_success_progress_m = {max(0.0, geom['length'] - 0.0005):.9f}"
+    replacements = {
+        "# Step4e v31 simple-alpha-normal-follow 50N-guard 20mm-near-search seed-normal TASE minimal reproduction loop.": (
+            f"# {title}."
+        ),
+        "# PURPOSE: simple-alpha filtered-live-normal attitude reference during line control + line-entry-gate release; keep v30 TP motion/search/25.2/25.3 flow and force/admittance parameters unchanged.": (
+            "# PURPOSE: v31 contact search, first-contact normal latch, lift, 25.2 attitude correction, "
+            f"25.3 line-entry gate, then paper-derived {path_shape} XY reference for 60 s."
+        ),
+        "# FLOW_TABLE: STEP4E_FLOW.md": (
+            "# FLOW_TABLE: STEP4E_FLOW.md\n"
+            "# PAPER_PATH_SOURCE: TASE paper Section VI-A; formula is used directly, not digitized from screenshots.\n"
+            f"# PAPER_PATH_FORMULA: {path_formula}"
+        ),
+        "# CONTROL: bridge step4e-version=v31 step4e-normal-follow-mode=filtered_live step4e-normal-filter-alpha=0.35 step4e-normal-min-force-n=2.0 latches the first contact normal, keeps 25.2 and 25.3 on locked-normal behavior, then uses direct alpha EMA during 25.0 line control; no slew-rate, latch-angle, or candidate-angle gate.": (
+            f"# CONTROL: bridge step4e-version={version_token} --step4e-path-shape {path_shape} "
+            "step4e-normal-follow-mode=filtered_live step4e-normal-filter-alpha=0.35 "
+            "step4e-normal-min-force-n=2.0; 25.0 uses desired_velocity + path_p_gain*(desired-actual) "
+            "before normal projection and force-loop composition."
+        ),
+        "local line_runtime_limit_s = 75.000": f"local line_runtime_limit_s = {STEP4FG_STAGE25_RUNTIME_LIMIT_S:.3f}",
+        base_threshold: f"local line_success_progress_m = {STEP4FG_PATH_RUNTIME_S:.9f}",
+        "codex_v31_down_search": down_search_fn,
+        "step4e_seed_normal_loop_v31": name,
+        "seed_normal_loop_v31": name,
+    }
+    for old, new in replacements.items():
+        if old not in script:
+            raise RuntimeError(f"{name} scaffold replacement failed: {old}")
+        script = script.replace(old, new)
+    return script
+
+
+def step4f_cycloid_seed_normal_script(stamp: str, gen_at: str, geom: dict[str, float]) -> str:
+    return step4fg_seed_normal_loop_script(
+        stamp=stamp,
+        gen_at=gen_at,
+        geom=geom,
+        name="step4f_cycloid_seed_normal_v1",
+        title="Step4f cycloid seed-normal TASE small-surface reproduction v1",
+        version_token="step4f_v1",
+        path_shape="cycloid",
+        path_formula="local-basis x=0.015 * (0.1t - sin(0.1t)), y=0.015 * (1 - cos(0.1t)), duration=60s",
+        down_search_fn="codex_step4f_down_search",
+    )
+
+
+def step4g_eight_seed_normal_script(stamp: str, gen_at: str, geom: dict[str, float]) -> str:
+    return step4fg_seed_normal_loop_script(
+        stamp=stamp,
+        gen_at=gen_at,
+        geom=geom,
+        name="step4g_eight_seed_normal_v1",
+        title="Step4g 8-shaped seed-normal TASE small-surface reproduction v1",
+        version_token="step4g_v1",
+        path_shape="eight",
+        path_formula="local-basis x=0.04 * sin(0.1t), y=0.01 * sin(0.2t), duration=60s",
+        down_search_fn="codex_step4g_down_search",
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--stamp-prefix", default=None)
@@ -2282,6 +2386,8 @@ def main() -> int:
             "step4e_seed_normal_loop_v29",
             "step4e_seed_normal_loop_v30",
             "step4e_seed_normal_loop_v31",
+            "step4f_cycloid_seed_normal_v1",
+            "step4g_eight_seed_normal_v1",
         ),
         default="all",
     )
@@ -2384,6 +2490,18 @@ def main() -> int:
             "simple-alpha filtered-live-normal line-control profile: v30 TP flow unchanged, then bridge follows a direct alpha EMA live normal during 25.0 only",
             v31_seed_normal_loop_script,
         ),
+        (
+            "step4f_cycloid_seed_normal_v1",
+            "STEP4F_CYCLOID_SEED_NORMAL_V1",
+            "Step4f Experiment #1 cycloid: v31 TP scaffold with paper-derived cycloid XY reference for 60 s",
+            step4f_cycloid_seed_normal_script,
+        ),
+        (
+            "step4g_eight_seed_normal_v1",
+            "STEP4G_EIGHT_SEED_NORMAL_V1",
+            "Step4g Experiment #2 8-shaped: v31 TP scaffold with paper-derived 8-shaped XY reference for 60 s",
+            step4g_eight_seed_normal_script,
+        ),
     ]
     if args.program != "all":
         specs = [spec for spec in specs if spec[0] == args.program]
@@ -2393,7 +2511,10 @@ def main() -> int:
         local_program_dir = PROGRAM_DIR / program_subdir if program_subdir else PROGRAM_DIR
         controller_dir = f"{CONTROLLER_BASE_DIR}/{program_subdir}" if program_subdir else CONTROLLER_BASE_DIR
         local_program_dir.mkdir(parents=True, exist_ok=True)
-        stamp = args.stamp_prefix or source_stamp(suffix, now)
+        if name.startswith(("step4f_", "step4g_")):
+            stamp = args.stamp_prefix or now.strftime(f"%Y-%m-%dT%H%MHKT_{suffix}")
+        else:
+            stamp = args.stamp_prefix or source_stamp(suffix, now)
         if name == "step4e_ball_vs_cyl_contact_p0_v1":
             if pose_pair is None:
                 pose_pair = load_json(args.pose_pair or default_pose_pair_path())
@@ -2411,6 +2532,8 @@ def main() -> int:
             "step4e_seed_normal_loop_v29",
             "step4e_seed_normal_loop_v30",
             "step4e_seed_normal_loop_v31",
+            "step4f_cycloid_seed_normal_v1",
+            "step4g_eight_seed_normal_v1",
         }:
             script = script_fn(stamp, generated_at(now), geom)
         else:

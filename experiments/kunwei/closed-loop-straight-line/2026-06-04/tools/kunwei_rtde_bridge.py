@@ -146,6 +146,12 @@ STEP4E_LINE_UNIT_XY = (
     STEP4E_LINE_DX / STEP4E_LINE_LENGTH_M,
     STEP4E_LINE_DY / STEP4E_LINE_LENGTH_M,
 )
+STEP4E_LINE_PERP_XY = (-STEP4E_LINE_UNIT_XY[1], STEP4E_LINE_UNIT_XY[0])
+STEP4E_LINE_MID_XY = (
+    0.5 * (STEP4E_START_XY[0] + STEP4E_END_XY[0]),
+    0.5 * (STEP4E_START_XY[1] + STEP4E_END_XY[1]),
+)
+STEP4FG_PATH_DURATION_S = 60.0
 
 
 def now_stamp() -> str:
@@ -180,6 +186,64 @@ def vec_norm(values: list[float]) -> float:
 
 def clamp(value: float, lo: float, hi: float) -> float:
     return min(max(value, lo), hi)
+
+
+def xy_from_line_basis(anchor_xy: tuple[float, float], along_m: float, lateral_m: float) -> tuple[float, float]:
+    return (
+        anchor_xy[0] + along_m * STEP4E_LINE_UNIT_XY[0] + lateral_m * STEP4E_LINE_PERP_XY[0],
+        anchor_xy[1] + along_m * STEP4E_LINE_UNIT_XY[1] + lateral_m * STEP4E_LINE_PERP_XY[1],
+    )
+
+
+def step4e_path_reference(
+    shape: str,
+    pose_xy: tuple[float, float],
+    elapsed_s: float,
+) -> dict[str, Any]:
+    if shape == "line":
+        path_x = pose_xy[0] - STEP4E_START_XY[0]
+        path_y = pose_xy[1] - STEP4E_START_XY[1]
+        progress = clamp(
+            path_x * STEP4E_LINE_UNIT_XY[0] + path_y * STEP4E_LINE_UNIT_XY[1],
+            0.0,
+            STEP4E_LINE_LENGTH_M,
+        )
+        desired_x, desired_y = xy_from_line_basis(STEP4E_START_XY, progress, 0.0)
+        return {
+            "progress": progress,
+            "desired_xy": (desired_x, desired_y),
+            "desired_velocity_xy": (0.0, 0.0),
+            "path_error_xy": (desired_x - pose_xy[0], desired_y - pose_xy[1]),
+            "path_time_s": "",
+        }
+
+    path_time_s = clamp(elapsed_s, 0.0, STEP4FG_PATH_DURATION_S)
+    if shape == "cycloid":
+        phase = 0.1 * path_time_s
+        along_m = 0.015 * (phase - math.sin(phase))
+        lateral_m = 0.015 * (1.0 - math.cos(phase))
+        along_v = 0.0015 * (1.0 - math.cos(phase))
+        lateral_v = 0.0015 * math.sin(phase)
+        desired_x, desired_y = xy_from_line_basis(STEP4E_START_XY, along_m, lateral_m)
+    elif shape == "eight":
+        phase = 0.1 * path_time_s
+        along_m = 0.04 * math.sin(phase)
+        lateral_m = 0.01 * math.sin(2.0 * phase)
+        along_v = 0.004 * math.cos(phase)
+        lateral_v = 0.002 * math.cos(2.0 * phase)
+        desired_x, desired_y = xy_from_line_basis(STEP4E_LINE_MID_XY, along_m, lateral_m)
+    else:
+        raise ValueError(f"unknown Step4e path shape: {shape}")
+
+    desired_vx = along_v * STEP4E_LINE_UNIT_XY[0] + lateral_v * STEP4E_LINE_PERP_XY[0]
+    desired_vy = along_v * STEP4E_LINE_UNIT_XY[1] + lateral_v * STEP4E_LINE_PERP_XY[1]
+    return {
+        "progress": path_time_s,
+        "desired_xy": (desired_x, desired_y),
+        "desired_velocity_xy": (desired_vx, desired_vy),
+        "path_error_xy": (desired_x - pose_xy[0], desired_y - pose_xy[1]),
+        "path_time_s": path_time_s,
+    }
 
 
 def dot3(a: tuple[float, float, float] | list[float], b: tuple[float, float, float] | list[float]) -> float:
@@ -425,6 +489,8 @@ def compute_step4e_values(
     v29_profile = args.step4e_version == "v29"
     v30_profile = args.step4e_version == "v30"
     v31_profile = args.step4e_version == "v31"
+    step4f_profile = args.step4e_version == "step4f_v1"
+    step4g_profile = args.step4e_version == "step4g_v1"
     angular_speedl_profile = (
         v23_profile
         or v24_profile
@@ -435,6 +501,8 @@ def compute_step4e_values(
         or v29_profile
         or v30_profile
         or v31_profile
+        or step4f_profile
+        or step4g_profile
     )
     detached_profile = v20_profile or v21_profile or v22_profile or angular_speedl_profile
     axis_iso_active = args.step4e_mode == "axis_iso" and 25.18 <= robot_stage <= 25.27
@@ -531,7 +599,7 @@ def compute_step4e_values(
     live_candidate_angle_rad: float | str = ""
     live_candidate_angle_from_latch_rad: float | str = ""
     normal_follow_active = (
-        (v30_profile or v31_profile)
+        (v30_profile or v31_profile or step4f_profile or step4g_profile)
         and args.step4e_normal_follow_mode == "filtered_live"
         and line_stage_active
         and state.normal_acquired
@@ -541,7 +609,7 @@ def compute_step4e_values(
         filtered_current = state.filtered_normal_b if state.filtered_normal_b is not None else state.latched_normal_b
         live_candidate_angle_rad = angle_between_unit(filtered_current, live_candidate_b)
         live_candidate_angle_from_latch_rad = angle_between_unit(state.latched_normal_b, live_candidate_b)
-        if v31_profile:
+        if v31_profile or step4f_profile or step4g_profile:
             if sensor_ok <= 0.5:
                 normal_filter_source = "hold_stale"
                 n_control_b = filtered_current
@@ -585,7 +653,9 @@ def compute_step4e_values(
                 state.filtered_normal_b = rotate_toward_unit(filtered_current, ema_normal_b, max_step_rad)
                 n_control_b = state.filtered_normal_b
                 normal_filter_source = "filtered_live"
-    elif (v30_profile or v31_profile) and args.step4e_normal_follow_mode == "filtered_live":
+    elif (
+        v30_profile or v31_profile or step4f_profile or step4g_profile
+    ) and args.step4e_normal_follow_mode == "filtered_live":
         if line_stage_active:
             normal_filter_source = "locked_no_latch"
         else:
@@ -616,21 +686,32 @@ def compute_step4e_values(
         scale = args.step4e_angular_limit_rad_s / orientation_norm
         orientation_cmd = tuple(value * scale for value in orientation_cmd)
 
-    path_x = float(pose[0]) - STEP4E_START_XY[0]
-    path_y = float(pose[1]) - STEP4E_START_XY[1]
-    progress = clamp(path_x * STEP4E_LINE_UNIT_XY[0] + path_y * STEP4E_LINE_UNIT_XY[1], 0.0, STEP4E_LINE_LENGTH_M)
-    desired_x = STEP4E_START_XY[0] + progress * STEP4E_LINE_UNIT_XY[0]
-    desired_y = STEP4E_START_XY[1] + progress * STEP4E_LINE_UNIT_XY[1]
-    path_error = (desired_x - float(pose[0]), desired_y - float(pose[1]), 0.0)
-    tangent_speed = args.step4e_line_speed_m_s if args.step4e_mode == "line" and line_stage_active else 0.0
+    path_ref = step4e_path_reference(
+        args.step4e_path_shape,
+        (float(pose[0]), float(pose[1])),
+        state.line_stage_s,
+    )
+    progress = float(path_ref["progress"])
+    desired_x, desired_y = path_ref["desired_xy"]
+    path_error = (path_ref["path_error_xy"][0], path_ref["path_error_xy"][1], 0.0)
+    if args.step4e_path_shape == "line":
+        tangent_speed = args.step4e_line_speed_m_s if args.step4e_mode == "line" and line_stage_active else 0.0
+        desired_velocity_xy = (
+            tangent_speed * STEP4E_LINE_UNIT_XY[0],
+            tangent_speed * STEP4E_LINE_UNIT_XY[1],
+        )
+    else:
+        desired_velocity_xy = path_ref["desired_velocity_xy"]
+        if args.step4e_mode != "line" or not line_stage_active:
+            desired_velocity_xy = (0.0, 0.0)
     if line_stage_active and state.line_stage_s <= args.step4e_line_settle_s:
-        tangent_speed = 0.0
+        desired_velocity_xy = (0.0, 0.0)
     if detached_profile and not line_stage_active:
         base_motion = (0.0, 0.0, 0.0)
     else:
         base_motion = (
-            tangent_speed * STEP4E_LINE_UNIT_XY[0] + args.step4e_path_p_gain * path_error[0],
-            tangent_speed * STEP4E_LINE_UNIT_XY[1] + args.step4e_path_p_gain * path_error[1],
+            desired_velocity_xy[0] + args.step4e_path_p_gain * path_error[0],
+            desired_velocity_xy[1] + args.step4e_path_p_gain * path_error[1],
             0.0,
         )
     normal_projection = dot3(base_motion, n_control_b)
@@ -810,6 +891,14 @@ def compute_step4e_values(
     values["_step4e_normal_force_error_n"] = force_error
     values["_step4e_normal_acquired"] = 1.0 if state.normal_acquired else 0.0
     values["_step4e_line_stage_s"] = state.line_stage_s
+    values["_step4e_path_shape"] = args.step4e_path_shape
+    values["_step4e_path_time_s"] = path_ref["path_time_s"]
+    values["_step4e_desired_x_m"] = desired_x
+    values["_step4e_desired_y_m"] = desired_y
+    values["_step4e_desired_vx_m_s"] = desired_velocity_xy[0]
+    values["_step4e_desired_vy_m_s"] = desired_velocity_xy[1]
+    values["_step4e_path_error_x_m"] = path_error[0]
+    values["_step4e_path_error_y_m"] = path_error[1]
     values["_step4e_contact_offset_x_m"] = contact_offset_x
     values["_step4e_contact_offset_y_m"] = contact_offset_y
     if speed and len(speed) >= 6:
@@ -1058,6 +1147,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--rezero-s", type=float, default=1.0)
     parser.add_argument("--step4e-mode", choices=("off", "preview", "hold", "line", "axis_iso"), default="off")
     parser.add_argument("--step4e-version", default="")
+    parser.add_argument("--step4e-path-shape", choices=("line", "cycloid", "eight"), default="line")
     parser.add_argument("--step4e-line-speed-m-s", type=float, default=0.003)
     parser.add_argument("--step4e-line-settle-s", type=float, default=0.0)
     parser.add_argument("--step4e-integrate-stage25-only", action="store_true")
@@ -1123,7 +1213,23 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("duration, baseline, and RTDE rate must be positive")
     if not args.no_start_command and not args.allow_kunwei_stream_command:
         raise SystemExit("Refusing to send Kunwei stream command without --allow-kunwei-stream-command")
-    known_step4e_versions = {"", "v20", "v21", "v22", "v23", "v24", "v25", "v26", "v27", "v28", "v29", "v30", "v31"}
+    known_step4e_versions = {
+        "",
+        "v20",
+        "v21",
+        "v22",
+        "v23",
+        "v24",
+        "v25",
+        "v26",
+        "v27",
+        "v28",
+        "v29",
+        "v30",
+        "v31",
+        "step4f_v1",
+        "step4g_v1",
+    }
     if args.step4e_version not in known_step4e_versions:
         raise SystemExit(
             f"Unknown --step4e-version {args.step4e_version!r}; bridge profiles only cover "
@@ -1198,13 +1304,19 @@ def main(argv: list[str] | None = None) -> int:
             "v29_seed_normal_loop_previous": "Canonical locked-normal flow follows STEP4E_FLOW.md: v28 motion with bridge-profile recognition fixed; one-step entry XY plus target attitude at current Z, first far/near search using v13/v16 first-contact Z evidence with a 20 mm near window and 2.5 mm/s near descent, first-contact latch, 20 mm lift, 25.2 angular speedl after input_double_register_37..39 settle to zero, second search, 25.3 zero-linear line-entry gate, then line control.",
             "v30_seed_normal_loop_previous": "Same TP flow as v29. Bridge defaults to locked normal, but --step4e-normal-follow-mode filtered_live changes only stage 25.0 line control to use a friction-projected, gated, slew-limited live normal estimate; 25.2 and 25.3 continue to use the first locked normal.",
             "v31_seed_normal_loop_current": "Same TP flow as v30. Bridge --step4e-normal-follow-mode filtered_live changes only stage 25.0 line control to use a friction-projected live normal with direct alpha EMA, min-force hold, and same-hemisphere hold against the previous filtered normal; no slew-rate, latch-angle, or candidate-angle gate.",
+            "step4f_cycloid_seed_normal_v1": "Same TP flow and force/normal/orientation loop as v31, but stage 25.0 uses the paper Experiment #1 cycloid XY reference for 60 s.",
+            "step4g_eight_seed_normal_v1": "Same TP flow and force/normal/orientation loop as v31, but stage 25.0 uses the paper Experiment #2 8-shaped XY reference for 60 s.",
         },
         "step4e_path": {
-            "type": "line_from_two_tcp_points",
+            "type": args.step4e_path_shape,
             "start_xy_m": STEP4E_START_XY,
             "end_xy_m": STEP4E_END_XY,
+            "mid_xy_m": STEP4E_LINE_MID_XY,
             "line_length_m": STEP4E_LINE_LENGTH_M,
             "line_unit_xy": STEP4E_LINE_UNIT_XY,
+            "line_perp_xy": STEP4E_LINE_PERP_XY,
+            "curve_duration_s": STEP4FG_PATH_DURATION_S,
+            "curve_source": "TASE paper Section VI-A; Step4f Experiment #1 cycloid and Step4g Experiment #2 8-shaped.",
             "kunwei_to_tcp": "F_T=[Fx_K,Fy_K,Fz_K], M_T=[Mx_K,My_K,Mz_K]",
             "tcp_contact_length_m": 0.1221,
             "line_control_target": "latched contact normal load, not total force norm",
@@ -1325,6 +1437,14 @@ def main(argv: list[str] | None = None) -> int:
             "_step4e_normal_force_error_n",
             "_step4e_normal_acquired",
             "_step4e_line_stage_s",
+            "_step4e_path_shape",
+            "_step4e_path_time_s",
+            "_step4e_desired_x_m",
+            "_step4e_desired_y_m",
+            "_step4e_desired_vx_m_s",
+            "_step4e_desired_vy_m_s",
+            "_step4e_path_error_x_m",
+            "_step4e_path_error_y_m",
             "_step4e_contact_offset_x_m",
             "_step4e_contact_offset_y_m",
             "_step4e_actual_speed_norm_m_s",
