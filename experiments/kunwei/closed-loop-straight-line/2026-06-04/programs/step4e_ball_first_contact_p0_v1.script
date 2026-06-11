@@ -1,8 +1,8 @@
-# Step4e P1-a detached movel minimal-rotation v21.
-# VERSION: 2026-06-11T1601HKT_STEP4E_DETACHED_MOVEL_MINROT_V21
+# Step4e P0-geo ball-first contact witness v1.
+# VERSION: 2026-06-11T1601HKT_STEP4E_BALL_FIRST_CONTACT_P0_V1
 # GENERATED_AT_LOCAL: 2026-06-11T16:01:43+08:00
-# PURPOSE: latch first contact normal, detach along the locked normal, then preview the minimal-rotation target without contact-posture motion.
-# CONTROL: bridge step4e-version=v21 writes 37..39 as +locked-normal detach direction in 25.1 and 40..42 as target rotvec for z_tcp_B ~= -locked_normal_B in 25.2.
+# PURPOSE: verify whether first contact is the KSM-8N ball or surrounding housing/cylindrical face.
+# CONTROL: bridge writes only base force/heartbeat registers; no attitude, no 5N acquire, no line.
 # SAFETY: raw normal guard 35 N, force norm guard 50 N, torque guard 3.0 Nm.
 
 def codex_abs(x):
@@ -134,37 +134,7 @@ def codex_echo_step4e(stop_reason):
 end
 
 
-def codex_wait_for_cmd_valid(stage_code, timeout_s):
-  local t = 0.0
-  local last_heartbeat = read_input_float_register(26)
-  local stale_s = 0.0
-  while t < timeout_s:
-    write_output_float_register(35, stage_code)
-    local heartbeat = read_input_float_register(26)
-    if heartbeat == last_heartbeat:
-      stale_s = stale_s + get_steptime()
-    else:
-      stale_s = 0.0
-      last_heartbeat = heartbeat
-    end
-    codex_echo_step4e(0.0)
-    if stale_s > 0.100:
-      return 2.0
-    end
-    local guard_reason = codex_step4e_guard_stop_reason()
-    if guard_reason != 0.0:
-      return guard_reason
-    end
-    if read_input_float_register(43) >= 0.5:
-      return 0.0
-    end
-    sync()
-    t = t + get_steptime()
-  end
-  return 12.0
-end
-
-def codex_step4e_detached_movel_v21():
+def codex_step4e_ball_first_contact_p0_v1():
   local stop_reason = 0.0
   local home_pose = get_actual_tcp_pose()
   local search_accel_m_s2 = 0.300
@@ -175,8 +145,9 @@ def codex_step4e_detached_movel_v21():
   local max_search_down_m = 0.092
   local search_far_speed_m_s = -0.015
   local search_near_speed_m_s = -0.003
+  local visual_dwell_s = 8.000
   local contact_triggered = 0
-  textmsg("codex step4e version 2026-06-11T1601HKT_STEP4E_DETACHED_MOVEL_MINROT_V21 start detached_movel_v21")
+  textmsg("codex step4e version 2026-06-11T1601HKT_STEP4E_BALL_FIRST_CONTACT_P0_V1 start ball_first_contact_p0_v1")
   write_output_float_register(34, 0.0)
   write_output_float_register(35, 20.0)
   codex_echo_step4e(0.0)
@@ -244,41 +215,34 @@ def codex_step4e_detached_movel_v21():
   end
   if contact_triggered == 1:
     stop_reason = 0.0
-  end
-  if stop_reason == 0.0:
     write_output_float_register(35, 25.05)
-    stop_reason = codex_wait_for_cmd_valid(25.05, 1.000)
-  end
-  if stop_reason == 0.0:
-    write_output_float_register(35, 25.1)
-    stop_reason = codex_wait_for_cmd_valid(25.1, 1.000)
-    local detach_total_m = 0.0
-    while stop_reason == 0.0 and detach_total_m < 0.002 and read_input_float_register(25) > 2.0:
-      local dir_x = read_input_float_register(37)
-      local dir_y = read_input_float_register(38)
-      local dir_z = read_input_float_register(39)
-      local step_m = 0.001
-      local p_detach = get_actual_tcp_pose()
-      local detach_pose = p[p_detach[0] + step_m * dir_x, p_detach[1] + step_m * dir_y, p_detach[2] + step_m * dir_z, p_detach[3], p_detach[4], p_detach[5]]
+    local dwell_t = 0.0
+    local last_heartbeat2 = read_input_float_register(26)
+    local stale_s2 = 0.0
+    while stop_reason == 0.0 and dwell_t < visual_dwell_s:
+      local heartbeat2 = read_input_float_register(26)
+      if heartbeat2 == last_heartbeat2:
+        stale_s2 = stale_s2 + get_steptime()
+      else:
+        stale_s2 = 0.0
+        last_heartbeat2 = heartbeat2
+      end
       codex_echo_step4e(stop_reason)
-      movel(detach_pose, a=0.030, v=0.010, r=0.0)
-      stopl(0.1)
-      detach_total_m = detach_total_m + step_m
-      stop_reason = codex_step4e_guard_stop_reason()
-    end
-  end
-  if stop_reason == 0.0:
-    write_output_float_register(35, 25.2)
-    stop_reason = codex_wait_for_cmd_valid(25.2, 1.000)
-    if stop_reason == 0.0:
-      # 25.2 is target-preview only; no contact-posture movel.
-      codex_echo_step4e(stop_reason)
-      sleep(0.250)
-      if read_input_float_register(46) > 0.030:
-        stop_reason = 15.0
+      if stale_s2 > stale_limit_s:
+        stop_reason = 2.0
       else:
         stop_reason = codex_step4e_guard_stop_reason()
       end
+      sync()
+      dwell_t = dwell_t + get_steptime()
+    end
+    if stop_reason == 0.0:
+      write_output_float_register(35, 25.06)
+      local p_retract = get_actual_tcp_pose()
+      local retract_pose = p[p_retract[0], p_retract[1], p_retract[2] + 0.002, p_retract[3], p_retract[4], p_retract[5]]
+      codex_echo_step4e(stop_reason)
+      movel(retract_pose, a=0.030, v=0.010, r=0.0)
+      stopl(0.1)
     end
   end
   if stop_reason == 15.0 or codex_should_auto_home(stop_reason):
@@ -289,7 +253,7 @@ def codex_step4e_detached_movel_v21():
   end
   write_output_float_register(30, stop_reason)
   write_output_float_register(35, 29.0)
-  textmsg("codex step4e version 2026-06-11T1601HKT_STEP4E_DETACHED_MOVEL_MINROT_V21 stop reason:", stop_reason)
+  textmsg("codex step4e version 2026-06-11T1601HKT_STEP4E_BALL_FIRST_CONTACT_P0_V1 stop reason:", stop_reason)
 end
 
-codex_step4e_detached_movel_v21()
+codex_step4e_ball_first_contact_p0_v1()
