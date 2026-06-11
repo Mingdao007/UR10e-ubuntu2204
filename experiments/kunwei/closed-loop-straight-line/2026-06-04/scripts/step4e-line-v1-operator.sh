@@ -400,7 +400,6 @@ trigger_dashboard_check() {
   set +e
   dashboard_snapshot >/tmp/step4e_dash_snapshot.txt 2>&1
   rc="$?"
-  set -e
   cat /tmp/step4e_dash_snapshot.txt || true
   case "${rc}" in
     10)
