@@ -14,6 +14,7 @@ import argparse
 import csv
 import json
 import math
+import os
 import select
 import signal
 import socket
@@ -284,6 +285,67 @@ def minimal_rotation_between(
     return rotvec_to_matrix(axis[0] * theta, axis[1] * theta, axis[2] * theta)
 
 
+def angle_between_unit(
+    source: tuple[float, float, float],
+    target: tuple[float, float, float],
+) -> float:
+    src = normalize3(source)
+    dst = normalize3(target)
+    return math.acos(clamp(dot3(src, dst), -1.0, 1.0))
+
+
+def slerp_unit(
+    source: tuple[float, float, float],
+    target: tuple[float, float, float],
+    fraction: float,
+) -> tuple[float, float, float]:
+    src = normalize3(source)
+    dst = normalize3(target, src)
+    fraction = clamp(fraction, 0.0, 1.0)
+    angle = angle_between_unit(src, dst)
+    if angle < 1e-9:
+        return dst
+    sin_angle = math.sin(angle)
+    if abs(sin_angle) < 1e-9:
+        blended = tuple((1.0 - fraction) * src[idx] + fraction * dst[idx] for idx in range(3))
+        return normalize3(blended, src)
+    src_weight = math.sin((1.0 - fraction) * angle) / sin_angle
+    dst_weight = math.sin(fraction * angle) / sin_angle
+    blended = tuple(src_weight * src[idx] + dst_weight * dst[idx] for idx in range(3))
+    return normalize3(blended, src)
+
+
+def rotate_toward_unit(
+    source: tuple[float, float, float],
+    target: tuple[float, float, float],
+    max_angle_rad: float,
+) -> tuple[float, float, float]:
+    src = normalize3(source)
+    dst = normalize3(target, src)
+    angle = angle_between_unit(src, dst)
+    if angle <= max(0.0, max_angle_rad):
+        return dst
+    if max_angle_rad <= 0.0:
+        return src
+    return slerp_unit(src, dst, max_angle_rad / angle)
+
+
+def live_normal_candidate(
+    force_b: tuple[float, float, float],
+    *,
+    friction_projection: bool,
+) -> tuple[tuple[float, float, float], tuple[float, float, float], float]:
+    raw_normal_b = normalize3(force_b)
+    candidate_force_b = force_b
+    if friction_projection:
+        tangent_b = (STEP4E_LINE_UNIT_XY[0], STEP4E_LINE_UNIT_XY[1], 0.0)
+        tangent_load = dot3(force_b, tangent_b)
+        candidate_force_b = tuple(force_b[idx] - tangent_load * tangent_b[idx] for idx in range(3))
+    candidate_force_n = norm3(candidate_force_b)
+    candidate_b = normalize3(candidate_force_b, raw_normal_b)
+    return raw_normal_b, candidate_b, candidate_force_n
+
+
 def synthetic_axis_iso_normal(stage: float, tilt_rad: float) -> tuple[float, float, float] | None:
     component = math.sin(tilt_rad) / math.sqrt(2.0)
     z = -math.cos(tilt_rad)
@@ -313,6 +375,7 @@ class Step4EState:
         self.integral_error_n_s = 0.0
         self.normal_velocity_m_s = 0.0
         self.latched_normal_b: tuple[float, float, float] | None = None
+        self.filtered_normal_b: tuple[float, float, float] | None = None
         self.latched_normal_locked = False
         self.normal_acquired = False
         self.line_stage_s = 0.0
@@ -322,6 +385,7 @@ class Step4EState:
         self.integral_error_n_s = 0.0
         self.normal_velocity_m_s = 0.0
         self.latched_normal_b = None
+        self.filtered_normal_b = None
         self.latched_normal_locked = False
         self.normal_acquired = False
         self.line_stage_s = 0.0
@@ -359,8 +423,16 @@ def compute_step4e_values(
     v27_profile = args.step4e_version == "v27"
     v28_profile = args.step4e_version == "v28"
     v29_profile = args.step4e_version == "v29"
+    v30_profile = args.step4e_version == "v30"
     angular_speedl_profile = (
-        v23_profile or v24_profile or v25_profile or v26_profile or v27_profile or v28_profile or v29_profile
+        v23_profile
+        or v24_profile
+        or v25_profile
+        or v26_profile
+        or v27_profile
+        or v28_profile
+        or v29_profile
+        or v30_profile
     )
     detached_profile = v20_profile or v21_profile or v22_profile or angular_speedl_profile
     axis_iso_active = args.step4e_mode == "axis_iso" and 25.18 <= robot_stage <= 25.27
@@ -380,7 +452,7 @@ def compute_step4e_values(
         and (v20_profile or v22_profile or angular_speedl_profile)
         and abs(robot_stage - 25.3) < 0.05
     )
-    line_entry_gate_active = v29_profile and acquire_stage_active
+    line_entry_gate_active = (v29_profile or v30_profile) and acquire_stage_active
     line_stage_active = args.step4e_mode == "line" and abs(robot_stage - 25.0) < 0.05
     control_stage_active = (
         latch_stage_active
@@ -417,6 +489,10 @@ def compute_step4e_values(
     )
     force_b = mat_vec3(rotation, force_t)
     n_reaction_b = synthetic_normal if synthetic_normal is not None else normalize3(force_b)
+    raw_live_normal_b, live_candidate_b, live_candidate_force_n = live_normal_candidate(
+        force_b,
+        friction_projection=args.step4e_normal_friction_projection == "on",
+    )
     if (
         detached_profile
         and (latch_stage_active or first_search_stage_active)
@@ -445,7 +521,54 @@ def compute_step4e_values(
         state.latched_normal_b = synthetic_normal
         state.latched_normal_locked = True
         state.normal_acquired = True
+    if state.latched_normal_b is not None and state.filtered_normal_b is None:
+        state.filtered_normal_b = state.latched_normal_b
+
     n_control_b = state.latched_normal_b if state.latched_normal_b is not None else n_reaction_b
+    normal_filter_source = "locked"
+    live_candidate_angle_rad: float | str = ""
+    live_candidate_angle_from_latch_rad: float | str = ""
+    normal_follow_active = (
+        v30_profile
+        and args.step4e_normal_follow_mode == "filtered_live"
+        and line_stage_active
+        and state.normal_acquired
+        and state.latched_normal_b is not None
+    )
+    if normal_follow_active:
+        filtered_current = state.filtered_normal_b if state.filtered_normal_b is not None else state.latched_normal_b
+        live_candidate_angle_rad = angle_between_unit(filtered_current, live_candidate_b)
+        live_candidate_angle_from_latch_rad = angle_between_unit(state.latched_normal_b, live_candidate_b)
+        max_candidate_angle_rad = math.radians(args.step4e_normal_max_angle_from_latch_deg)
+        if sensor_ok <= 0.5:
+            normal_filter_source = "locked_fallback_stale"
+            n_control_b = state.latched_normal_b
+        elif live_candidate_force_n < args.step4e_normal_min_force_n:
+            normal_filter_source = "freeze_low_force"
+            n_control_b = filtered_current
+        elif dot3(state.latched_normal_b, live_candidate_b) <= 0.0:
+            normal_filter_source = "freeze_opposite_latch"
+            n_control_b = filtered_current
+        elif live_candidate_angle_from_latch_rad > max_candidate_angle_rad:
+            normal_filter_source = "freeze_latch_angle_gate"
+            n_control_b = filtered_current
+        elif live_candidate_angle_rad > max_candidate_angle_rad:
+            normal_filter_source = "freeze_candidate_angle_gate"
+            n_control_b = filtered_current
+        else:
+            alpha = 1.0
+            if args.step4e_normal_filter_tau_s > 0.0:
+                alpha = 1.0 - math.exp(-max(0.0, dt_s) / args.step4e_normal_filter_tau_s)
+            ema_normal_b = slerp_unit(filtered_current, live_candidate_b, alpha)
+            max_step_rad = max(0.0, args.step4e_normal_max_rate_rad_s) * max(0.0, dt_s)
+            state.filtered_normal_b = rotate_toward_unit(filtered_current, ema_normal_b, max_step_rad)
+            n_control_b = state.filtered_normal_b
+            normal_filter_source = "filtered_live"
+    elif v30_profile and args.step4e_normal_follow_mode == "filtered_live":
+        if line_stage_active:
+            normal_filter_source = "locked_no_latch"
+        else:
+            normal_filter_source = "locked_pre_line"
     normal_load_n = max(0.0, dot3(force_b, n_control_b)) if state.normal_acquired else 0.0
     tcp_z_axis_b = (rotation[0][2], rotation[1][2], rotation[2][2])
     orientation_target_axis_b = (
@@ -591,7 +714,7 @@ def compute_step4e_values(
         if angular_speedl_profile and orient_stage_active and (
             abs(cmd[0]) > 1e-12 or abs(cmd[1]) > 1e-12 or abs(cmd[2]) > 1e-12
         ):
-            raise RuntimeError("Step4e v23..v29 stage 25.2 contract violation: linear command registers must be zero")
+            raise RuntimeError("Step4e v23..v30 stage 25.2 contract violation: linear command registers must be zero")
         values.update(
             {
                 "step4e_cmd_vx_m_s": n_control_b[0] if (v21_profile and detach_stage_active) else cmd[0],
@@ -645,6 +768,23 @@ def compute_step4e_values(
     values["_step4e_latched_normal_b_x"] = "" if state.latched_normal_b is None else state.latched_normal_b[0]
     values["_step4e_latched_normal_b_y"] = "" if state.latched_normal_b is None else state.latched_normal_b[1]
     values["_step4e_latched_normal_b_z"] = "" if state.latched_normal_b is None else state.latched_normal_b[2]
+    values["_step4e_live_normal_raw_b_x"] = raw_live_normal_b[0]
+    values["_step4e_live_normal_raw_b_y"] = raw_live_normal_b[1]
+    values["_step4e_live_normal_raw_b_z"] = raw_live_normal_b[2]
+    values["_step4e_live_normal_candidate_b_x"] = live_candidate_b[0]
+    values["_step4e_live_normal_candidate_b_y"] = live_candidate_b[1]
+    values["_step4e_live_normal_candidate_b_z"] = live_candidate_b[2]
+    values["_step4e_filtered_normal_b_x"] = "" if state.filtered_normal_b is None else state.filtered_normal_b[0]
+    values["_step4e_filtered_normal_b_y"] = "" if state.filtered_normal_b is None else state.filtered_normal_b[1]
+    values["_step4e_filtered_normal_b_z"] = "" if state.filtered_normal_b is None else state.filtered_normal_b[2]
+    values["_step4e_control_normal_b_x"] = n_control_b[0]
+    values["_step4e_control_normal_b_y"] = n_control_b[1]
+    values["_step4e_control_normal_b_z"] = n_control_b[2]
+    values["_step4e_live_normal_candidate_force_n"] = live_candidate_force_n
+    values["_step4e_live_normal_candidate_angle_rad"] = live_candidate_angle_rad
+    values["_step4e_live_normal_angle_from_latch_rad"] = live_candidate_angle_from_latch_rad
+    values["_step4e_normal_filter_source"] = normal_filter_source
+    values["_step4e_normal_follow_mode"] = args.step4e_normal_follow_mode
     values["_step4e_normal_load_n"] = normal_load_n
     values["_step4e_normal_force_error_n"] = force_error
     values["_step4e_normal_acquired"] = 1.0 if state.normal_acquired else 0.0
@@ -831,6 +971,23 @@ def normal_component(values_si_zeroed: list[float], axis: str, sign: float) -> f
     return sign * values_si_zeroed[index]
 
 
+def env_choice(name: str, default: str, choices: tuple[str, ...]) -> str:
+    value = os.getenv(name, default)
+    if value not in choices:
+        raise SystemExit(f"{name} must be one of {choices}; got {value!r}")
+    return value
+
+
+def env_float(name: str, default: float) -> float:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except ValueError as exc:
+        raise SystemExit(f"{name} must be a float; got {value!r}") from exc
+
+
 def flatten_output(output: dict[str, Any] | None) -> dict[str, Any]:
     row: dict[str, Any] = {}
     if not output:
@@ -901,6 +1058,36 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--step4e-angular-limit-rad-s", type=float, default=0.015)
     parser.add_argument("--step4e-axis-iso-tilt-deg", type=float, default=10.0)
     parser.add_argument("--step4e-contact-offset-min-fz-n", type=float, default=1.0)
+    parser.add_argument(
+        "--step4e-normal-follow-mode",
+        choices=("locked", "filtered_live"),
+        default=env_choice("STEP4E_NORMAL_FOLLOW_MODE", "locked", ("locked", "filtered_live")),
+    )
+    parser.add_argument(
+        "--step4e-normal-filter-tau-s",
+        type=float,
+        default=env_float("STEP4E_NORMAL_FILTER_TAU_S", 0.35),
+    )
+    parser.add_argument(
+        "--step4e-normal-max-rate-rad-s",
+        type=float,
+        default=env_float("STEP4E_NORMAL_MAX_RATE_RAD_S", 0.010),
+    )
+    parser.add_argument(
+        "--step4e-normal-min-force-n",
+        type=float,
+        default=env_float("STEP4E_NORMAL_MIN_FORCE_N", 2.0),
+    )
+    parser.add_argument(
+        "--step4e-normal-max-angle-from-latch-deg",
+        type=float,
+        default=env_float("STEP4E_NORMAL_MAX_ANGLE_FROM_LATCH_DEG", 20.0),
+    )
+    parser.add_argument(
+        "--step4e-normal-friction-projection",
+        choices=("on", "off"),
+        default=env_choice("STEP4E_NORMAL_FRICTION_PROJECTION", "on", ("on", "off")),
+    )
     return parser.parse_args(argv)
 
 
@@ -910,13 +1097,21 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("duration, baseline, and RTDE rate must be positive")
     if not args.no_start_command and not args.allow_kunwei_stream_command:
         raise SystemExit("Refusing to send Kunwei stream command without --allow-kunwei-stream-command")
-    known_step4e_versions = {"", "v20", "v21", "v22", "v23", "v24", "v25", "v26", "v27", "v28", "v29"}
+    known_step4e_versions = {"", "v20", "v21", "v22", "v23", "v24", "v25", "v26", "v27", "v28", "v29", "v30"}
     if args.step4e_version not in known_step4e_versions:
         raise SystemExit(
             f"Unknown --step4e-version {args.step4e_version!r}; bridge profiles only cover "
             f"{sorted(v for v in known_step4e_versions if v)}. Add the new version to the "
             "profile definitions before running, otherwise cmd_valid is never asserted."
         )
+    if args.step4e_normal_filter_tau_s < 0.0:
+        raise SystemExit("--step4e-normal-filter-tau-s must be non-negative")
+    if args.step4e_normal_max_rate_rad_s < 0.0:
+        raise SystemExit("--step4e-normal-max-rate-rad-s must be non-negative")
+    if args.step4e_normal_min_force_n < 0.0:
+        raise SystemExit("--step4e-normal-min-force-n must be non-negative")
+    if args.step4e_normal_max_angle_from_latch_deg <= 0.0:
+        raise SystemExit("--step4e-normal-max-angle-from-latch-deg must be positive")
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     sensor_csv_path = args.output_dir / "kunwei_sensor_1khz.csv"
@@ -967,7 +1162,8 @@ def main(argv: list[str] | None = None) -> int:
             "v26_seed_normal_loop_failed_archive": "Reference-Z search used the reference path contact-start datum; archived after 2026-06-12 no-contact depth stop.",
             "v27_seed_normal_loop_failed_archive": "Used v13/v16 force-jump first-contact Z evidence; archived after stage 25.05 cmd_valid timeout with the older bridge profile set.",
             "v28_seed_normal_loop_failed_archive": "Reached first contact and stage 25.05, but the runtime bridge did not recognize v28 in the active profile set, so cmd_valid stayed 0.",
-            "v29_seed_normal_loop_current": "Canonical flow follows STEP4E_FLOW.md: v28 motion with bridge-profile recognition fixed; one-step entry XY plus target attitude at current Z, first far/near search using v13/v16 first-contact Z evidence with a 20 mm near window and 2.5 mm/s near descent, first-contact latch, 30 mm lift, 25.2 angular speedl after input_double_register_37..39 settle to zero, second search, 25.3 zero-linear line-entry gate, then line control.",
+            "v29_seed_normal_loop_previous": "Canonical locked-normal flow follows STEP4E_FLOW.md: v28 motion with bridge-profile recognition fixed; one-step entry XY plus target attitude at current Z, first far/near search using v13/v16 first-contact Z evidence with a 20 mm near window and 2.5 mm/s near descent, first-contact latch, 20 mm lift, 25.2 angular speedl after input_double_register_37..39 settle to zero, second search, 25.3 zero-linear line-entry gate, then line control.",
+            "v30_seed_normal_loop_current": "Same TP flow as v29. Bridge defaults to locked normal, but --step4e-normal-follow-mode filtered_live changes only stage 25.0 line control to use a friction-projected, gated, slew-limited live normal estimate; 25.2 and 25.3 continue to use the first locked normal.",
         },
         "step4e_path": {
             "type": "line_from_two_tcp_points",
@@ -1074,6 +1270,23 @@ def main(argv: list[str] | None = None) -> int:
             "_step4e_latched_normal_b_x",
             "_step4e_latched_normal_b_y",
             "_step4e_latched_normal_b_z",
+            "_step4e_live_normal_raw_b_x",
+            "_step4e_live_normal_raw_b_y",
+            "_step4e_live_normal_raw_b_z",
+            "_step4e_live_normal_candidate_b_x",
+            "_step4e_live_normal_candidate_b_y",
+            "_step4e_live_normal_candidate_b_z",
+            "_step4e_filtered_normal_b_x",
+            "_step4e_filtered_normal_b_y",
+            "_step4e_filtered_normal_b_z",
+            "_step4e_control_normal_b_x",
+            "_step4e_control_normal_b_y",
+            "_step4e_control_normal_b_z",
+            "_step4e_live_normal_candidate_force_n",
+            "_step4e_live_normal_candidate_angle_rad",
+            "_step4e_live_normal_angle_from_latch_rad",
+            "_step4e_normal_filter_source",
+            "_step4e_normal_follow_mode",
             "_step4e_normal_load_n",
             "_step4e_normal_force_error_n",
             "_step4e_normal_acquired",

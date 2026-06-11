@@ -130,15 +130,16 @@ def validate_package(
         "controller directory": root.attrib.get("directory") == target_dir,
         "Script-node path": script_node_path == expected_script_path,
         "cachedContents stamp": stamp in cached_script,
-        "cachedContents program": f"def codex_step4e_seed_normal_loop_v29" in cached_script
-        if program == "step4e_seed_normal_loop_v29"
+        "cachedContents program": f"def codex_{program}" in cached_script
+        if program in {"step4e_seed_normal_loop_v29", "step4e_seed_normal_loop_v30"}
         else True,
         "cachedContents exact script": cached_script == script if require_exact_cached_script else True,
     }
-    if program == "step4e_seed_normal_loop_v29":
+    if program in {"step4e_seed_normal_loop_v29", "step4e_seed_normal_loop_v30"}:
+        version = program.rsplit("_", 1)[-1]
         checks.update(
             {
-                "v29 function": "codex_step4e_seed_normal_loop_v29" in script,
+                f"{version} function": f"codex_step4e_seed_normal_loop_{version}" in script,
                 "first contact z": "local first_contact_z_m = 0.008044839" in script,
                 "near threshold margin": "local first_near_start_z_m = first_contact_z_m + 0.020" in script,
                 "near descent speed": "40.000, -0.015, -0.0025)" in script,
@@ -150,7 +151,16 @@ def validate_package(
                 and "speedl([cmd_vx, cmd_vy, cmd_vz, 0.0, 0.0, 0.0]" not in script,
                 "raw normal guard": "codex_abs(normal_force) > 50.0" in script,
                 "force norm guard": "force_norm > 50.0" in script,
-                "URP cached v29 stamp": stamp in xml and "STEP4E_SEED_NORMAL_LOOP_V29" in xml,
+                f"URP cached {version} stamp": stamp in xml
+                and f"STEP4E_SEED_NORMAL_LOOP_{version.upper()}" in xml,
+            }
+        )
+    if program == "step4e_seed_normal_loop_v30":
+        checks.update(
+            {
+                "v30 filtered live normal control": "filtered-live-normal" in script
+                and "step4e-normal-follow-mode=filtered_live" in script
+                and "keeps 25.2 and 25.3 on locked-normal behavior" in script,
             }
         )
     failed = [label for label, ok in checks.items() if not ok]

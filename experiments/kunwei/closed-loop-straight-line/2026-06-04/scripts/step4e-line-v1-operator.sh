@@ -30,6 +30,19 @@ STEP4E_FORCE_DAMPING="${STEP4E_FORCE_DAMPING:-0.35}"
 STEP4E_INTEGRAL_LIMIT_N_S="${STEP4E_INTEGRAL_LIMIT_N_S:-10.0}"
 STEP4E_REACQUIRE_VELOCITY_M_S="${STEP4E_REACQUIRE_VELOCITY_M_S:-0.001}"
 STEP4E_ANGULAR_LIMIT_RAD_S="${STEP4E_ANGULAR_LIMIT_RAD_S:-0.015}"
+STEP4E_NORMAL_FOLLOW_MODE="${STEP4E_NORMAL_FOLLOW_MODE:-}"
+STEP4E_NORMAL_FILTER_TAU_S="${STEP4E_NORMAL_FILTER_TAU_S:-0.35}"
+STEP4E_NORMAL_MAX_RATE_RAD_S="${STEP4E_NORMAL_MAX_RATE_RAD_S:-0.010}"
+STEP4E_NORMAL_MIN_FORCE_N="${STEP4E_NORMAL_MIN_FORCE_N:-2.0}"
+STEP4E_NORMAL_MAX_ANGLE_FROM_LATCH_DEG="${STEP4E_NORMAL_MAX_ANGLE_FROM_LATCH_DEG:-20}"
+STEP4E_NORMAL_FRICTION_PROJECTION="${STEP4E_NORMAL_FRICTION_PROJECTION:-on}"
+if [[ -z "${STEP4E_NORMAL_FOLLOW_MODE}" ]]; then
+  if [[ "${STEP4E_VERSION}" == "v30" ]]; then
+    STEP4E_NORMAL_FOLLOW_MODE="filtered_live"
+  else
+    STEP4E_NORMAL_FOLLOW_MODE="locked"
+  fi
+fi
 
 PROGRAM_PREVIEW="/programs/andyl/kunwei/step4/step4e_preview_line_${STEP4E_VERSION}.urp"
 PROGRAM_HOLD="/programs/andyl/kunwei/step4/step4e_contact_hold_line_${STEP4E_VERSION}.urp"
@@ -64,6 +77,9 @@ fi
 if [[ "${STEP4E_VERSION}" == "v29" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_seed_normal_loop_v29.urp"
 fi
+if [[ "${STEP4E_VERSION}" == "v30" ]]; then
+  PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_seed_normal_loop_v30.urp"
+fi
 if [[ "${STEP4E_VERSION}" == "p0_geo_v1" ]]; then
   SEARCH_DESCRIPTION="P0-geo ball-first contact witness: vertical TCP entry, far 15 mm/s until 80 mm depth, then near 3 mm/s until first 1-1.5 N contact or 92 mm max depth; after contact it holds still for visual confirmation, retracts base-Z 2 mm, and never runs attitude, 5N acquisition, or line motion"
 elif [[ "${STEP4E_VERSION}" == "p0_ball_vs_cyl_v1" ]]; then
@@ -84,6 +100,8 @@ elif [[ "${STEP4E_VERSION}" == "v28" ]]; then
   SEARCH_DESCRIPTION="failed/archive v28 Step4e/TASE flow: v28 reached first contact and stage 25.05, but the active bridge runtime did not recognize v28 as an angular-speedl profile, so cmd_valid stayed 0"
 elif [[ "${STEP4E_VERSION}" == "v29" ]]; then
   SEARCH_DESCRIPTION="current Step4e/TASE flow from STEP4E_FLOW.md: bridge-profile-fix + line-entry-gate release; one-step entry XY plus target attitude at current Z, first far/near search using the v13/v16 force-jump first-contact Z evidence so near starts about 20 mm above first contact, near descent 2.5 mm/s, raw-normal guard 50 N, first-contact latch, lift 20 mm, angular speedl posture correction after 37..39 settle to zero, second search, zero-linear 25.3 gate, then run the XY line"
+elif [[ "${STEP4E_VERSION}" == "v30" ]]; then
+  SEARCH_DESCRIPTION="current Step4e/TASE filtered-live-normal flow: same TP motion/search/25.2/25.3 line-entry gate as v29, but the bridge uses a gated filtered live normal only during 25.0 line control; force/admittance gains and tangential speed remain unchanged"
 elif [[ "${STEP4E_VERSION}" == "v20" ]]; then
   SEARCH_DESCRIPTION="two-stage search: v20 moves directly to entry XY with vertical TCP orientation [pi,0,0], searches far 15 mm/s then near 3 mm/s, latches first-contact normal only, lifts base-Z 2 mm, aligns attitude while detached, reacquires 5 N along the locked normal, then runs the 5 mm/s XY line"
 elif [[ "${STEP4E_VERSION}" == "v21" ]]; then
@@ -151,7 +169,8 @@ Teach Pendant programs:
   /programs/andyl/kunwei/step4/step4e_ball_first_contact_p0_v1.urp
   /programs/andyl/kunwei/step4/step4e_ball_vs_cyl_contact_p0_v1.urp
   /programs/andyl/kunwei/step4/step4e_attitude_axis_iso_v1.urp
-  current v29 line package lives under /programs/andyl/kunwei/step4/
+  current v30 line package lives under /programs/andyl/kunwei/step4/
+  previous v29 line package lives under /programs/andyl/kunwei/step4/
   failed/archive v21/v22/v23/v24/v25/v26/v27 line packages live under /programs/andyl/kunwei/step4/step4e/
   failed/archive v28 line package lives under /programs/andyl/kunwei/step4/; it failed from the old bridge profile mismatch, not motion parameters.
   canonical Step4e/TASE flow table: ${ROOT}/STEP4E_FLOW.md
@@ -195,7 +214,7 @@ select_mode() {
       EXPECTED_PROGRAM="${PROGRAM_LINE}"
       if [[ "${STEP4E_VERSION}" == "v21" ]]; then
         EXPECTED_BASENAME="step4e_detached_movel_minrot_v21.urp"
-      elif [[ "${STEP4E_VERSION}" == "v22" || "${STEP4E_VERSION}" == "v23" || "${STEP4E_VERSION}" == "v24" || "${STEP4E_VERSION}" == "v25" || "${STEP4E_VERSION}" == "v26" || "${STEP4E_VERSION}" == "v27" || "${STEP4E_VERSION}" == "v28" || "${STEP4E_VERSION}" == "v29" ]]; then
+      elif [[ "${STEP4E_VERSION}" == "v22" || "${STEP4E_VERSION}" == "v23" || "${STEP4E_VERSION}" == "v24" || "${STEP4E_VERSION}" == "v25" || "${STEP4E_VERSION}" == "v26" || "${STEP4E_VERSION}" == "v27" || "${STEP4E_VERSION}" == "v28" || "${STEP4E_VERSION}" == "v29" || "${STEP4E_VERSION}" == "v30" ]]; then
         EXPECTED_BASENAME="step4e_seed_normal_loop_${STEP4E_VERSION}.urp"
       else
         EXPECTED_BASENAME="step4e_line_outerloop_${STEP4E_VERSION}.urp"
@@ -203,7 +222,7 @@ select_mode() {
       STEP4E_MODE="line"
       if [[ "${STEP4E_VERSION}" == "v21" ]]; then
         RUN_LABEL="step4e_detached_movel_minrot_v21"
-      elif [[ "${STEP4E_VERSION}" == "v22" || "${STEP4E_VERSION}" == "v23" || "${STEP4E_VERSION}" == "v24" || "${STEP4E_VERSION}" == "v25" || "${STEP4E_VERSION}" == "v26" || "${STEP4E_VERSION}" == "v27" || "${STEP4E_VERSION}" == "v28" || "${STEP4E_VERSION}" == "v29" ]]; then
+      elif [[ "${STEP4E_VERSION}" == "v22" || "${STEP4E_VERSION}" == "v23" || "${STEP4E_VERSION}" == "v24" || "${STEP4E_VERSION}" == "v25" || "${STEP4E_VERSION}" == "v26" || "${STEP4E_VERSION}" == "v27" || "${STEP4E_VERSION}" == "v28" || "${STEP4E_VERSION}" == "v29" || "${STEP4E_VERSION}" == "v30" ]]; then
         RUN_LABEL="step4e_seed_normal_loop_${STEP4E_VERSION}"
       else
         RUN_LABEL="step4e_line_outerloop_${STEP4E_VERSION}"
@@ -618,6 +637,12 @@ run_bridge_for_mode() {
     --step4e-orientation-wy-sign "${STEP4E_ORIENTATION_WY_SIGN}" \
     --step4e-angular-limit-rad-s "${STEP4E_ANGULAR_LIMIT_RAD_S}" \
     --step4e-contact-offset-min-fz-n 1.0 \
+    --step4e-normal-follow-mode "${STEP4E_NORMAL_FOLLOW_MODE}" \
+    --step4e-normal-filter-tau-s "${STEP4E_NORMAL_FILTER_TAU_S}" \
+    --step4e-normal-max-rate-rad-s "${STEP4E_NORMAL_MAX_RATE_RAD_S}" \
+    --step4e-normal-min-force-n "${STEP4E_NORMAL_MIN_FORCE_N}" \
+    --step4e-normal-max-angle-from-latch-deg "${STEP4E_NORMAL_MAX_ANGLE_FROM_LATCH_DEG}" \
+    --step4e-normal-friction-projection "${STEP4E_NORMAL_FRICTION_PROJECTION}" \
     --output-dir "${out_dir}" &
   bridge_pid="$!"
   wait_for_bridge_output_started "${out_dir}" "${bridge_pid}" || true
@@ -701,6 +726,7 @@ Motion/control:
   force target = 5 N for hold/line only; geo contact witness triggers around 1-1.5 N
   raw normal guard = ${MAX_NORMAL_FORCE_N} N, force norm guard = 50 N, torque guard = ${MAX_TORQUE_NORM_NM} Nm
   attitude proxy = bounded wx/wy velocity command, gain = ${STEP4E_ORIENTATION_GAIN}, angular limit = ${STEP4E_ANGULAR_LIMIT_RAD_S} rad/s, wx sign = ${STEP4E_ORIENTATION_WX_SIGN}, wy sign = ${STEP4E_ORIENTATION_WY_SIGN}, yaw frozen
+  normal follow = ${STEP4E_NORMAL_FOLLOW_MODE}, tau = ${STEP4E_NORMAL_FILTER_TAU_S}s, max rate = ${STEP4E_NORMAL_MAX_RATE_RAD_S} rad/s, min force = ${STEP4E_NORMAL_MIN_FORCE_N} N, gate = ${STEP4E_NORMAL_MAX_ANGLE_FROM_LATCH_DEG} deg, friction projection = ${STEP4E_NORMAL_FRICTION_PROJECTION}
 
 Type START_STEP4E_${CONFIRM_TOKEN}_${STEP4E_VERSION^^} to continue:
 WARNING

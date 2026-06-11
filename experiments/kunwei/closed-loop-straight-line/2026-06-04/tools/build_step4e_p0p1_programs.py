@@ -39,6 +39,11 @@ V29_FIRST_CONTACT_BELOW_MARGIN_M = V28_FIRST_CONTACT_BELOW_MARGIN_M
 V29_FIRST_CONTACT_NEAR_MARGIN_M = 0.020
 V29_FIRST_SEARCH_NEAR_SPEED_M_S = V28_FIRST_SEARCH_NEAR_SPEED_M_S
 V29_RAW_NORMAL_GUARD_N = V28_RAW_NORMAL_GUARD_N
+V30_FIRST_CONTACT_Z_M = V29_FIRST_CONTACT_Z_M
+V30_FIRST_CONTACT_BELOW_MARGIN_M = V29_FIRST_CONTACT_BELOW_MARGIN_M
+V30_FIRST_CONTACT_NEAR_MARGIN_M = V29_FIRST_CONTACT_NEAR_MARGIN_M
+V30_FIRST_SEARCH_NEAR_SPEED_M_S = V29_FIRST_SEARCH_NEAR_SPEED_M_S
+V30_RAW_NORMAL_GUARD_N = V29_RAW_NORMAL_GUARD_N
 
 
 def default_pose_pair_path() -> Path:
@@ -347,6 +352,36 @@ def validate_package(name: str, script: str, txt: str, urp: bytes, stamp: str, c
                 "angular speedl orientation": "speedl([0.0, 0.0, 0.0, cmd_wx, cmd_wy, cmd_wz]" in script,
                 "linear command reject": "codex_abs(cmd_vx) > 0.001" in script,
                 "second search": "codex_v29_down_search(24.3, 24.4, 0.070, 0.040, 45.000, -0.005, -0.003)" in script,
+                "line-entry gate stage": "write_output_float_register(35, 25.3)" in script
+                and "local line_entry_required_s = 0.100" in script
+                and "local line_entry_timeout_s = 1.000" in script
+                and "speedl([cmd_vx, cmd_vy, cmd_vz, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)" not in script,
+                "line stage": "write_output_float_register(35, 25.0)" in script,
+            }
+        )
+    if name == "step4e_seed_normal_loop_v30":
+        checks.update(
+            {
+                "v13 first contact z": f"local first_contact_z_m = {V30_FIRST_CONTACT_Z_M:.9f}" in script,
+                "v13 evidence source": V13_FIRST_CONTACT_SOURCE in script,
+                "filtered live normal wording": "filtered-live-normal" in script
+                and "step4e-normal-follow-mode=filtered_live" in script,
+                "line-entry bypass wording": "line-entry-gate release" in script,
+                "v30 function names": "codex_v30_down_search" in script
+                and "codex_step4e_seed_normal_loop_v30" in script,
+                "raw normal guard 50n": f"codex_abs(normal_force) > {V30_RAW_NORMAL_GUARD_N:.1f}" in script,
+                "one-step entry": "entry_xy_pose = p[entry_x, entry_y, p_current[2], target_rx, target_ry, target_rz]" in script,
+                "near threshold from first contact": f"local first_near_start_z_m = first_contact_z_m + {V30_FIRST_CONTACT_NEAR_MARGIN_M:.3f}" in script
+                and "local first_search_near_start_depth_m = first_search_start_pose[2] - first_near_start_z_m" in script,
+                "stage25.2 linear zero settle": "codex_wait_for_stage_linear_zero(25.2, 1.000)" in script
+                and "def codex_wait_for_stage_linear_zero(stage_code, timeout_s):" in script,
+                "max depth from first contact": f"local first_max_end_z_m = first_contact_z_m - {V30_FIRST_CONTACT_BELOW_MARGIN_M:.3f}" in script
+                and "local first_search_max_down_m = first_search_start_pose[2] - first_max_end_z_m" in script,
+                "first search": f"codex_v30_down_search(24.0, 24.2, first_search_max_down_m, first_search_near_start_depth_m, 40.000, -0.015, {V30_FIRST_SEARCH_NEAR_SPEED_M_S:.4f})" in script,
+                "lift 20mm": "p_lift[2] + 0.020" in script,
+                "angular speedl orientation": "speedl([0.0, 0.0, 0.0, cmd_wx, cmd_wy, cmd_wz]" in script,
+                "linear command reject": "codex_abs(cmd_vx) > 0.001" in script,
+                "second search": "codex_v30_down_search(24.3, 24.4, 0.070, 0.040, 45.000, -0.005, -0.003)" in script,
                 "line-entry gate stage": "write_output_float_register(35, 25.3)" in script
                 and "local line_entry_required_s = 0.100" in script
                 and "local line_entry_timeout_s = 1.000" in script
@@ -2144,6 +2179,24 @@ end
     return script
 
 
+def v30_seed_normal_loop_script(stamp: str, gen_at: str, geom: dict[str, float]) -> str:
+    script = v29_seed_normal_loop_script(stamp, gen_at, geom)
+    script = script.replace("v29", "v30").replace("V29", "V30")
+    script = script.replace(
+        "# Step4e v30 bridge-profile-fix 50N-guard 20mm-near-search seed-normal TASE minimal reproduction loop.",
+        "# Step4e v30 filtered-live-normal 50N-guard 20mm-near-search seed-normal TASE minimal reproduction loop.",
+    )
+    script = script.replace(
+        "# PURPOSE: bridge-profile-fix + line-entry-gate release; after posture-adjusted second contact, bypass 5N stable acquire and go directly to line control.",
+        "# PURPOSE: filtered-live-normal attitude reference during line control + line-entry-gate release; keep v29 entry/search/line-entry-gate flow and force/admittance parameters unchanged.",
+    )
+    script = script.replace(
+        "# CONTROL: bridge step4e-version=v30 latches the first contact normal, forces 37..39 zero during 25.2, writes angular speedl commands in 40..42, treats 25.3 as a zero-linear line-entry gate, and runs line control in 25.0.",
+        "# CONTROL: bridge step4e-version=v30 step4e-normal-follow-mode=filtered_live latches the first contact normal, keeps 25.2 and 25.3 on locked-normal behavior, then uses a gated filtered live normal only during 25.0 line control.",
+    )
+    return script
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--stamp-prefix", default=None)
@@ -2163,6 +2216,7 @@ def main() -> int:
             "step4e_seed_normal_loop_v27",
             "step4e_seed_normal_loop_v28",
             "step4e_seed_normal_loop_v29",
+            "step4e_seed_normal_loop_v30",
         ),
         default="all",
     )
@@ -2253,6 +2307,12 @@ def main() -> int:
             "bridge-profile-fix + line-entry-gate release: one-step entry XY plus target attitude at current Z, v13 force-jump first-contact-Z search with 20 mm near window, 2.5 mm/s near descent, 50 N raw-normal guard, first touch, 20 mm lift, angular speedl alignment, second touch, zero-linear 25.3 gate, then line",
             v29_seed_normal_loop_script,
         ),
+        (
+            "step4e_seed_normal_loop_v30",
+            "SEED_NORMAL_LOOP_V30",
+            "filtered-live-normal line-control profile: v29 entry/search/25.2/25.3 flow unchanged, then bridge follows a gated filtered live normal during 25.0 only",
+            v30_seed_normal_loop_script,
+        ),
     ]
     if args.program != "all":
         specs = [spec for spec in specs if spec[0] == args.program]
@@ -2278,6 +2338,7 @@ def main() -> int:
             "step4e_seed_normal_loop_v27",
             "step4e_seed_normal_loop_v28",
             "step4e_seed_normal_loop_v29",
+            "step4e_seed_normal_loop_v30",
         }:
             script = script_fn(stamp, generated_at(now), geom)
         else:
