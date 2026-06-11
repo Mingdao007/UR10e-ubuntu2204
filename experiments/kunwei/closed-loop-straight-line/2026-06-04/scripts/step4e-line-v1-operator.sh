@@ -37,10 +37,15 @@ PROGRAM_AXIS_ISO="/programs/andyl/kunwei/step4/step4e_attitude_axis_iso_v1.urp"
 if [[ "${STEP4E_VERSION}" == "v21" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_detached_movel_minrot_v21.urp"
 fi
+if [[ "${STEP4E_VERSION}" == "v22" ]]; then
+  PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_seed_normal_loop_v22.urp"
+fi
 if [[ "${STEP4E_VERSION}" == "p0_geo_v1" ]]; then
   SEARCH_DESCRIPTION="P0-geo ball-first contact witness: vertical TCP entry, far 15 mm/s until 80 mm depth, then near 3 mm/s until first 1-1.5 N contact or 92 mm max depth; after contact it holds still for visual confirmation, retracts base-Z 2 mm, and never runs attitude, 5N acquisition, or line motion"
 elif [[ "${STEP4E_VERSION}" == "p0_ball_vs_cyl_v1" ]]; then
   SEARCH_DESCRIPTION="P0 witness pair: ball pose first, then KSM-8N housing/cylindrical-face pose; each uses low-threshold 1-1.5 N contact, 8 s visual dwell, and no attitude, 5N acquisition, or line motion"
+elif [[ "${STEP4E_VERSION}" == "v22" ]]; then
+  SEARCH_DESCRIPTION="seed-normal TASE minimal loop: move once to the measured near-normal TCP pose, far/near search at 5/3 mm/s, latch first contact normal, lift 50 mm, optionally apply the bridge target rotvec when orientation error exceeds 10 deg, re-search up to 70 mm, acquire 5 N, then run the XY line"
 elif [[ "${STEP4E_VERSION}" == "v20" ]]; then
   SEARCH_DESCRIPTION="two-stage search: v20 moves directly to entry XY with vertical TCP orientation [pi,0,0], searches far 15 mm/s then near 3 mm/s, latches first-contact normal only, lifts base-Z 2 mm, aligns attitude while detached, reacquires 5 N along the locked normal, then runs the 5 mm/s XY line"
 elif [[ "${STEP4E_VERSION}" == "v21" ]]; then
@@ -143,12 +148,16 @@ select_mode() {
       EXPECTED_PROGRAM="${PROGRAM_LINE}"
       if [[ "${STEP4E_VERSION}" == "v21" ]]; then
         EXPECTED_BASENAME="step4e_detached_movel_minrot_v21.urp"
+      elif [[ "${STEP4E_VERSION}" == "v22" ]]; then
+        EXPECTED_BASENAME="step4e_seed_normal_loop_v22.urp"
       else
         EXPECTED_BASENAME="step4e_line_outerloop_${STEP4E_VERSION}.urp"
       fi
       STEP4E_MODE="line"
       if [[ "${STEP4E_VERSION}" == "v21" ]]; then
         RUN_LABEL="step4e_detached_movel_minrot_v21"
+      elif [[ "${STEP4E_VERSION}" == "v22" ]]; then
+        RUN_LABEL="step4e_seed_normal_loop_v22"
       else
         RUN_LABEL="step4e_line_outerloop_${STEP4E_VERSION}"
       fi
