@@ -32,12 +32,15 @@ PROGRAM_PREVIEW="/programs/andyl/kunwei/step4/step4e_preview_line_${STEP4E_VERSI
 PROGRAM_HOLD="/programs/andyl/kunwei/step4/step4e_contact_hold_line_${STEP4E_VERSION}.urp"
 PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_line_outerloop_${STEP4E_VERSION}.urp"
 PROGRAM_GEO="/programs/andyl/kunwei/step4/step4e_ball_first_contact_p0_v1.urp"
+PROGRAM_WITNESS="/programs/andyl/kunwei/step4/step4e_ball_vs_cyl_contact_p0_v1.urp"
 PROGRAM_AXIS_ISO="/programs/andyl/kunwei/step4/step4e_attitude_axis_iso_v1.urp"
 if [[ "${STEP4E_VERSION}" == "v21" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_detached_movel_minrot_v21.urp"
 fi
 if [[ "${STEP4E_VERSION}" == "p0_geo_v1" ]]; then
   SEARCH_DESCRIPTION="P0-geo ball-first contact witness: vertical TCP entry, far 15 mm/s until 80 mm depth, then near 3 mm/s until first 1-1.5 N contact or 92 mm max depth; after contact it holds still for visual confirmation, retracts base-Z 2 mm, and never runs attitude, 5N acquisition, or line motion"
+elif [[ "${STEP4E_VERSION}" == "p0_ball_vs_cyl_v1" ]]; then
+  SEARCH_DESCRIPTION="P0 witness pair: ball pose first, then KSM-8N housing/cylindrical-face pose; each uses low-threshold 1-1.5 N contact, 8 s visual dwell, and no attitude, 5N acquisition, or line motion"
 elif [[ "${STEP4E_VERSION}" == "v20" ]]; then
   SEARCH_DESCRIPTION="two-stage search: v20 moves directly to entry XY with vertical TCP orientation [pi,0,0], searches far 15 mm/s then near 3 mm/s, latches first-contact normal only, lifts base-Z 2 mm, aligns attitude while detached, reacquires 5 N along the locked normal, then runs the 5 mm/s XY line"
 elif [[ "${STEP4E_VERSION}" == "v21" ]]; then
@@ -88,17 +91,20 @@ Usage:
   step4e-line-v1-operator.sh line-autowatch
   step4e-line-v1-operator.sh axis-autowatch
   step4e-line-v1-operator.sh geo-autowatch
+  step4e-line-v1-operator.sh witness-autowatch
   step4e-line-v1-operator.sh preview-bridge
   step4e-line-v1-operator.sh hold-bridge
   step4e-line-v1-operator.sh line-bridge
   step4e-line-v1-operator.sh axis-bridge
   step4e-line-v1-operator.sh geo-bridge
+  step4e-line-v1-operator.sh witness-bridge
 
 Teach Pendant programs:
   /programs/andyl/kunwei/step4/step4e_preview_line_${STEP4E_VERSION}.urp
   /programs/andyl/kunwei/step4/step4e_contact_hold_line_${STEP4E_VERSION}.urp
   /programs/andyl/kunwei/step4/step4e_line_outerloop_${STEP4E_VERSION}.urp
   /programs/andyl/kunwei/step4/step4e_ball_first_contact_p0_v1.urp
+  /programs/andyl/kunwei/step4/step4e_ball_vs_cyl_contact_p0_v1.urp
   /programs/andyl/kunwei/step4/step4e_attitude_axis_iso_v1.urp
 
 Bridge lifecycle:
@@ -109,6 +115,7 @@ Bridge lifecycle:
 Step4e motion boundary:
   preview: no robot motion, echo Step4e command registers only.
   geo: P0 ball-first witness; touch once at low threshold, visual dwell, then 2 mm base-Z retract.
+  witness: P0 pair witness; ball contact then housing/cylindrical-face contact in one TP program.
   axis: no-contact four-quadrant attitude axis isolation.
   hold: contact search, then 12 s force/orientation hold.
   line: contact search, then straight XY line from the two TP screenshot points.
@@ -159,6 +166,13 @@ select_mode() {
       STEP4E_MODE="off"
       RUN_LABEL="step4e_ball_first_contact_p0_v1"
       CONFIRM_LABEL="geo"
+      ;;
+    witness-autowatch|witness-bridge)
+      EXPECTED_PROGRAM="${PROGRAM_WITNESS}"
+      EXPECTED_BASENAME="step4e_ball_vs_cyl_contact_p0_v1.urp"
+      STEP4E_MODE="off"
+      RUN_LABEL="step4e_ball_vs_cyl_contact_p0_v1"
+      CONFIRM_LABEL="witness"
       ;;
     *)
       usage

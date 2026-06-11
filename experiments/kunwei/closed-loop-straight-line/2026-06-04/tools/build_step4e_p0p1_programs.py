@@ -25,6 +25,19 @@ from build_step4e_line_programs import (
 )
 
 
+def default_pose_pair_path() -> Path:
+    tmp_hint = Path("/tmp/base_y_drag_pose_pair_dir.txt")
+    if tmp_hint.exists():
+        hinted = Path(tmp_hint.read_text(encoding="utf-8").strip()) / "pose_pair_delta.json"
+        if hinted.exists():
+            return hinted
+    runs_dir = PROGRAM_DIR.parent / "runs"
+    candidates = sorted(runs_dir.glob("base_y_drag_pose_pair_*/pose_pair_delta.json"))
+    if not candidates:
+        raise FileNotFoundError("cannot find base_y_drag_pose_pair_*/pose_pair_delta.json")
+    return candidates[-1]
+
+
 def build_urp(script: str, name: str, controller_dir: str) -> bytes:
     controller_script = f"{controller_dir}/{name}.script"
     install_rel = installation_relative_path(controller_dir)
@@ -80,7 +93,7 @@ def validate_package(name: str, script: str, txt: str, urp: bytes, stamp: str, c
         "guard function": "codex_step4e_guard_stop_reason()" in script,
         "fast stop": "stopl(0.1)" in script,
     }
-    if name != "step4e_ball_first_contact_p0_v1":
+    if name not in {"step4e_ball_first_contact_p0_v1", "step4e_ball_vs_cyl_contact_p0_v1"}:
         checks["reads rtde command registers"] = "read_input_float_register(37)" in script
     if name == "step4e_attitude_axis_iso_v1":
         checks.update(
@@ -106,6 +119,20 @@ def validate_package(name: str, script: str, txt: str, urp: bytes, stamp: str, c
                 and "cmd_wy" not in script
                 and "cmd_wz" not in script
                 and "speedl([0.0, 0.0, 0.0, read_input_float_register(40)" not in script,
+                "no force acquire": "write_output_float_register(35, 25.3)" not in script,
+                "no line stage": "write_output_float_register(35, 25.0)" not in script,
+            }
+        )
+    if name == "step4e_ball_vs_cyl_contact_p0_v1":
+        checks.update(
+            {
+                "raw normal guard 35n": "codex_abs(normal_force) > 35.0" in script,
+                "ball stage": "witness ball" in script,
+                "cyl stage": "witness cyl" in script,
+                "visual dwell": "local visual_dwell_s = 8.000" in script,
+                "near search 3mm/s": "local search_near_speed_m_s = -0.003" in script,
+                "ball far search": "local search_far_speed_m_s = -0.015" in script,
+                "no attitude command": "cmd_wx" not in script and "cmd_wy" not in script and "cmd_wz" not in script,
                 "no force acquire": "write_output_float_register(35, 25.3)" not in script,
                 "no line stage": "write_output_float_register(35, 25.0)" not in script,
             }
@@ -395,6 +422,173 @@ codex_step4e_ball_first_contact_p0_v1()
 """
 
 
+def format_pose(values: list[float]) -> str:
+    return ", ".join(f"{value:.9f}" for value in values)
+
+
+def ball_vs_cyl_contact_script(stamp: str, gen_at: str, pair: dict) -> str:
+    p0_pose = [float(value) for value in pair["p0_pose"]]
+    p1_pose = [float(value) for value in pair["p1_pose"]]
+    p1_start = p1_pose.copy()
+    p1_start[2] = p1_start[2] + 0.020
+    source = pair.get("pair_dir", "unknown")
+    return f"""# Step4e P0 witness pair: ball-first vs KSM-8N housing/cylindrical-face contact.
+# VERSION: {stamp}
+# GENERATED_AT_LOCAL: {gen_at}
+# POSE_PAIR_SOURCE: {source}
+# P0_BALL_POSE_M_RAD: [{format_pose(p0_pose)}]
+# P1_CYL_POSE_M_RAD: [{format_pose(p1_pose)}]
+# PURPOSE: compare low-threshold wrench/torque/contact-offset signatures for ball contact vs housing/cylindrical-face contact.
+# CONTROL: bridge writes only base force/heartbeat registers; no attitude, no 5N acquire, no line.
+# SAFETY: raw normal guard 35 N, force norm guard 50 N, torque guard 3.0 Nm.
+{common_functions("35.0", "3.0")}
+
+def codex_wait_and_rezero(stage_code):
+  write_output_float_register(35, stage_code)
+  codex_echo_step4e(0.0)
+  write_output_float_register(34, 1.0)
+  if not codex_wait_for_rezero_complete(5.0):
+    return 14.0
+  end
+  return 0.0
+end
+
+def codex_contact_witness(move_stage, rezero_stage, search_stage, near_stage, dwell_stage, retract_stage, start_pose, max_search_down_m, search_near_start_depth_m):
+  local stop_reason = 0.0
+  local search_accel_m_s2 = 0.300
+  local search_hold_s = 0.002
+  local stale_limit_s = 0.100
+  local search_runtime_limit_s = 45.0
+  local search_far_speed_m_s = -0.015
+  local search_near_speed_m_s = -0.003
+  local visual_dwell_s = 8.000
+  local contact_triggered = 0
+
+  write_output_float_register(35, move_stage)
+  codex_echo_step4e(0.0)
+  movel(start_pose, a=0.030, v=0.020, r=0.0)
+  stopl(0.1)
+
+  stop_reason = codex_wait_and_rezero(rezero_stage)
+  if stop_reason != 0.0:
+    return stop_reason
+  end
+
+  write_output_float_register(35, search_stage)
+  local search_start = get_actual_tcp_pose()
+  local last_heartbeat = read_input_float_register(26)
+  local stale_s = 0.0
+  local t = 0.0
+  while stop_reason == 0.0:
+    local heartbeat = read_input_float_register(26)
+    local normal_force = read_input_float_register(24)
+    local force_norm = read_input_float_register(25)
+    local pose_now = get_actual_tcp_pose()
+    local search_depth_m = search_start[2] - pose_now[2]
+    if heartbeat == last_heartbeat:
+      stale_s = stale_s + get_steptime()
+    else:
+      stale_s = 0.0
+      last_heartbeat = heartbeat
+    end
+    if normal_force <= -1.0 or force_norm > 1.5:
+      contact_triggered = 1
+      stop_reason = 11.0
+    elif stale_s > stale_limit_s:
+      stop_reason = 2.0
+    else:
+      stop_reason = codex_step4e_guard_stop_reason()
+    end
+    if stop_reason == 0.0:
+      if search_depth_m >= max_search_down_m:
+        stop_reason = 8.0
+      elif t >= search_runtime_limit_s:
+        stop_reason = 10.0
+      else:
+        if search_depth_m < search_near_start_depth_m:
+          codex_echo_step4e(stop_reason)
+          speedl([0.0, 0.0, search_far_speed_m_s, 0.0, 0.0, 0.0], search_accel_m_s2, search_hold_s)
+        else:
+          write_output_float_register(35, near_stage)
+          codex_echo_step4e(stop_reason)
+          speedl([0.0, 0.0, search_near_speed_m_s, 0.0, 0.0, 0.0], search_accel_m_s2, search_hold_s)
+        end
+        t = t + get_steptime()
+      end
+    end
+  end
+  stopl(0.1)
+
+  if contact_triggered == 1:
+    stop_reason = 0.0
+    write_output_float_register(35, dwell_stage)
+    local dwell_t = 0.0
+    local last_heartbeat2 = read_input_float_register(26)
+    local stale_s2 = 0.0
+    while stop_reason == 0.0 and dwell_t < visual_dwell_s:
+      local heartbeat2 = read_input_float_register(26)
+      if heartbeat2 == last_heartbeat2:
+        stale_s2 = stale_s2 + get_steptime()
+      else:
+        stale_s2 = 0.0
+        last_heartbeat2 = heartbeat2
+      end
+      codex_echo_step4e(stop_reason)
+      if stale_s2 > stale_limit_s:
+        stop_reason = 2.0
+      else:
+        stop_reason = codex_step4e_guard_stop_reason()
+      end
+      sync()
+      dwell_t = dwell_t + get_steptime()
+    end
+    if stop_reason == 0.0:
+      write_output_float_register(35, retract_stage)
+      local p_retract = get_actual_tcp_pose()
+      local retract_pose = p[p_retract[0], p_retract[1], p_retract[2] + 0.020, p_retract[3], p_retract[4], p_retract[5]]
+      codex_echo_step4e(stop_reason)
+      movel(retract_pose, a=0.030, v=0.010, r=0.0)
+      stopl(0.1)
+    end
+  end
+  return stop_reason
+end
+
+def codex_step4e_ball_vs_cyl_contact_p0_v1():
+  local stop_reason = 0.0
+  local home_pose = get_actual_tcp_pose()
+  local ball_pose = p[{format_pose(p0_pose)}]
+  local cyl_pose = p[{format_pose(p1_start)}]
+  textmsg("codex step4e version {stamp} start ball_vs_cyl_contact_p0_v1")
+  write_output_float_register(34, 0.0)
+  write_output_float_register(35, 20.0)
+  codex_echo_step4e(0.0)
+  if not codex_wait_for_fresh_heartbeat(30.0):
+    stop_reason = 3.0
+  end
+  if stop_reason == 0.0:
+    textmsg("codex step4e version {stamp} witness ball")
+    stop_reason = codex_contact_witness(22.11, 23.11, 24.11, 24.12, 25.11, 25.16, ball_pose, 0.092, 0.080)
+  end
+  if stop_reason == 0.0:
+    textmsg("codex step4e version {stamp} witness cyl")
+    stop_reason = codex_contact_witness(22.21, 23.21, 24.21, 24.22, 25.21, 25.26, cyl_pose, 0.030, 0.000)
+  end
+  if stop_reason == 15.0 or codex_should_auto_home(stop_reason):
+    write_output_float_register(35, 27.0)
+    codex_echo_step4e(stop_reason)
+    movel(home_pose, a=0.030, v=0.020, r=0.0)
+    stopl(0.1)
+  end
+  write_output_float_register(30, stop_reason)
+  write_output_float_register(35, 29.0)
+  textmsg("codex step4e version {stamp} stop reason:", stop_reason)
+end
+
+codex_step4e_ball_vs_cyl_contact_p0_v1()
+"""
+
+
 def v21_detached_movel_script(stamp: str, gen_at: str, geom: dict[str, float]) -> str:
     return f"""# Step4e P1-a detached movel minimal-rotation v21.
 # VERSION: {stamp}
@@ -574,20 +768,29 @@ def main() -> int:
         choices=(
             "all",
             "step4e_ball_first_contact_p0_v1",
+            "step4e_ball_vs_cyl_contact_p0_v1",
             "step4e_attitude_axis_iso_v1",
             "step4e_detached_movel_minrot_v21",
         ),
         default="all",
     )
+    parser.add_argument("--pose-pair", type=Path, default=None)
     args = parser.parse_args()
     now = datetime.now(timezone(timedelta(hours=8)))
     geom = line_cfg(load_json(CONFIG_PATH))
+    pose_pair = None
     specs = [
         (
             "step4e_ball_first_contact_p0_v1",
             "BALL_FIRST_CONTACT_P0_V1",
             "P0-geo ball-first contact witness; no attitude, no 5N acquire, no line",
             ball_first_contact_script,
+        ),
+        (
+            "step4e_ball_vs_cyl_contact_p0_v1",
+            "BALL_VS_CYL_CONTACT_P0_V1",
+            "P0 witness pair: ball contact then housing/cylindrical-face contact",
+            ball_vs_cyl_contact_script,
         ),
         (
             "step4e_attitude_axis_iso_v1",
@@ -607,7 +810,11 @@ def main() -> int:
     generated = {}
     for name, suffix, description, script_fn in specs:
         stamp = args.stamp_prefix or source_stamp(suffix, now)
-        if name in {"step4e_ball_first_contact_p0_v1", "step4e_detached_movel_minrot_v21"}:
+        if name == "step4e_ball_vs_cyl_contact_p0_v1":
+            if pose_pair is None:
+                pose_pair = load_json(args.pose_pair or default_pose_pair_path())
+            script = script_fn(stamp, generated_at(now), pose_pair)
+        elif name in {"step4e_ball_first_contact_p0_v1", "step4e_detached_movel_minrot_v21"}:
             script = script_fn(stamp, generated_at(now), geom)
         else:
             script = script_fn(stamp, generated_at(now))

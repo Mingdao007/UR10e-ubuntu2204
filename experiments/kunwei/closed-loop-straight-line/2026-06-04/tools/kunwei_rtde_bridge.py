@@ -915,6 +915,7 @@ def main(argv: list[str] | None = None) -> int:
         "register_map": dict(zip(INPUT_FIELDS, INPUT_NAMES)),
         "stage_aware_register_notes": {
             "p0_geo_ball_first_contact": "step4e-mode=off; only base force/heartbeat/guard registers are used. No Step4E motion or attitude command registers are consumed.",
+            "p0_ball_vs_cyl_contact": "step4e-mode=off; one TP program runs ball-contact and housing/cylindrical-face witness searches. It uses low-threshold contact only, not 5N force acquisition.",
             "axis_iso_25.21_to_25.24": "input_double_register_40..42 are angular speedl wx/wy/wz; input_double_register_37..39 must remain zero.",
             "v21_line_25.1": "input_double_register_37..39 are the +locked-normal unit detach direction, not Cartesian velocity.",
             "v21_line_25.2": "input_double_register_40..42 are target TCP rotvec rx/ry/rz for a single detached movel; target is z_tcp_B ~= -locked_normal_B.",
