@@ -131,11 +131,11 @@ def validate_package(
         "Script-node path": script_node_path == expected_script_path,
         "cachedContents stamp": stamp in cached_script,
         "cachedContents program": f"def codex_{program}" in cached_script
-        if program in {"step4e_seed_normal_loop_v29", "step4e_seed_normal_loop_v30"}
+        if program in {"step4e_seed_normal_loop_v29", "step4e_seed_normal_loop_v30", "step4e_seed_normal_loop_v31"}
         else True,
         "cachedContents exact script": cached_script == script if require_exact_cached_script else True,
     }
-    if program in {"step4e_seed_normal_loop_v29", "step4e_seed_normal_loop_v30"}:
+    if program in {"step4e_seed_normal_loop_v29", "step4e_seed_normal_loop_v30", "step4e_seed_normal_loop_v31"}:
         version = program.rsplit("_", 1)[-1]
         checks.update(
             {
@@ -160,6 +160,18 @@ def validate_package(
             {
                 "v30 filtered live normal control": "filtered-live-normal" in script
                 and "step4e-normal-follow-mode=filtered_live" in script
+                and "keeps 25.2 and 25.3 on locked-normal behavior" in script,
+            }
+        )
+    if program == "step4e_seed_normal_loop_v31":
+        checks.update(
+            {
+                "v31 simple alpha normal control": "simple-alpha-normal-follow" in script
+                and "step4e-normal-follow-mode=filtered_live" in script
+                and "step4e-normal-filter-alpha=0.35" in script
+                and "step4e-normal-min-force-n=2.0" in script
+                and "direct alpha EMA during 25.0 line control" in script
+                and "no slew-rate, latch-angle, or candidate-angle gate" in script
                 and "keeps 25.2 and 25.3 on locked-normal behavior" in script,
             }
         )

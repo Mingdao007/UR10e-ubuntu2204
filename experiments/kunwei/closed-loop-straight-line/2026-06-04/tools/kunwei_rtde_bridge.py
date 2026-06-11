@@ -424,6 +424,7 @@ def compute_step4e_values(
     v28_profile = args.step4e_version == "v28"
     v29_profile = args.step4e_version == "v29"
     v30_profile = args.step4e_version == "v30"
+    v31_profile = args.step4e_version == "v31"
     angular_speedl_profile = (
         v23_profile
         or v24_profile
@@ -433,6 +434,7 @@ def compute_step4e_values(
         or v28_profile
         or v29_profile
         or v30_profile
+        or v31_profile
     )
     detached_profile = v20_profile or v21_profile or v22_profile or angular_speedl_profile
     axis_iso_active = args.step4e_mode == "axis_iso" and 25.18 <= robot_stage <= 25.27
@@ -452,7 +454,7 @@ def compute_step4e_values(
         and (v20_profile or v22_profile or angular_speedl_profile)
         and abs(robot_stage - 25.3) < 0.05
     )
-    line_entry_gate_active = (v29_profile or v30_profile) and acquire_stage_active
+    line_entry_gate_active = (v29_profile or v30_profile or v31_profile) and acquire_stage_active
     line_stage_active = args.step4e_mode == "line" and abs(robot_stage - 25.0) < 0.05
     control_stage_active = (
         latch_stage_active
@@ -529,7 +531,7 @@ def compute_step4e_values(
     live_candidate_angle_rad: float | str = ""
     live_candidate_angle_from_latch_rad: float | str = ""
     normal_follow_active = (
-        v30_profile
+        (v30_profile or v31_profile)
         and args.step4e_normal_follow_mode == "filtered_live"
         and line_stage_active
         and state.normal_acquired
@@ -539,32 +541,51 @@ def compute_step4e_values(
         filtered_current = state.filtered_normal_b if state.filtered_normal_b is not None else state.latched_normal_b
         live_candidate_angle_rad = angle_between_unit(filtered_current, live_candidate_b)
         live_candidate_angle_from_latch_rad = angle_between_unit(state.latched_normal_b, live_candidate_b)
-        max_candidate_angle_rad = math.radians(args.step4e_normal_max_angle_from_latch_deg)
-        if sensor_ok <= 0.5:
-            normal_filter_source = "locked_fallback_stale"
-            n_control_b = state.latched_normal_b
-        elif live_candidate_force_n < args.step4e_normal_min_force_n:
-            normal_filter_source = "freeze_low_force"
-            n_control_b = filtered_current
-        elif dot3(state.latched_normal_b, live_candidate_b) <= 0.0:
-            normal_filter_source = "freeze_opposite_latch"
-            n_control_b = filtered_current
-        elif live_candidate_angle_from_latch_rad > max_candidate_angle_rad:
-            normal_filter_source = "freeze_latch_angle_gate"
-            n_control_b = filtered_current
-        elif live_candidate_angle_rad > max_candidate_angle_rad:
-            normal_filter_source = "freeze_candidate_angle_gate"
-            n_control_b = filtered_current
+        if v31_profile:
+            if sensor_ok <= 0.5:
+                normal_filter_source = "hold_stale"
+                n_control_b = filtered_current
+            elif live_candidate_force_n < args.step4e_normal_min_force_n:
+                normal_filter_source = "hold_low_force"
+                n_control_b = filtered_current
+            elif dot3(filtered_current, live_candidate_b) < 0.0:
+                normal_filter_source = "hold_reverse"
+                n_control_b = filtered_current
+            else:
+                alpha = clamp(args.step4e_normal_filter_alpha, 0.0, 1.0)
+                state.filtered_normal_b = normalize3(
+                    tuple((1.0 - alpha) * filtered_current[idx] + alpha * live_candidate_b[idx] for idx in range(3)),
+                    filtered_current,
+                )
+                n_control_b = state.filtered_normal_b
+                normal_filter_source = "filtered_live_alpha"
         else:
-            alpha = 1.0
-            if args.step4e_normal_filter_tau_s > 0.0:
-                alpha = 1.0 - math.exp(-max(0.0, dt_s) / args.step4e_normal_filter_tau_s)
-            ema_normal_b = slerp_unit(filtered_current, live_candidate_b, alpha)
-            max_step_rad = max(0.0, args.step4e_normal_max_rate_rad_s) * max(0.0, dt_s)
-            state.filtered_normal_b = rotate_toward_unit(filtered_current, ema_normal_b, max_step_rad)
-            n_control_b = state.filtered_normal_b
-            normal_filter_source = "filtered_live"
-    elif v30_profile and args.step4e_normal_follow_mode == "filtered_live":
+            max_candidate_angle_rad = math.radians(args.step4e_normal_max_angle_from_latch_deg)
+            if sensor_ok <= 0.5:
+                normal_filter_source = "locked_fallback_stale"
+                n_control_b = state.latched_normal_b
+            elif live_candidate_force_n < args.step4e_normal_min_force_n:
+                normal_filter_source = "freeze_low_force"
+                n_control_b = filtered_current
+            elif dot3(state.latched_normal_b, live_candidate_b) <= 0.0:
+                normal_filter_source = "freeze_opposite_latch"
+                n_control_b = filtered_current
+            elif live_candidate_angle_from_latch_rad > max_candidate_angle_rad:
+                normal_filter_source = "freeze_latch_angle_gate"
+                n_control_b = filtered_current
+            elif live_candidate_angle_rad > max_candidate_angle_rad:
+                normal_filter_source = "freeze_candidate_angle_gate"
+                n_control_b = filtered_current
+            else:
+                alpha = 1.0
+                if args.step4e_normal_filter_tau_s > 0.0:
+                    alpha = 1.0 - math.exp(-max(0.0, dt_s) / args.step4e_normal_filter_tau_s)
+                ema_normal_b = slerp_unit(filtered_current, live_candidate_b, alpha)
+                max_step_rad = max(0.0, args.step4e_normal_max_rate_rad_s) * max(0.0, dt_s)
+                state.filtered_normal_b = rotate_toward_unit(filtered_current, ema_normal_b, max_step_rad)
+                n_control_b = state.filtered_normal_b
+                normal_filter_source = "filtered_live"
+    elif (v30_profile or v31_profile) and args.step4e_normal_follow_mode == "filtered_live":
         if line_stage_active:
             normal_filter_source = "locked_no_latch"
         else:
@@ -714,7 +735,7 @@ def compute_step4e_values(
         if angular_speedl_profile and orient_stage_active and (
             abs(cmd[0]) > 1e-12 or abs(cmd[1]) > 1e-12 or abs(cmd[2]) > 1e-12
         ):
-            raise RuntimeError("Step4e v23..v30 stage 25.2 contract violation: linear command registers must be zero")
+            raise RuntimeError("Step4e v23..v31 stage 25.2 contract violation: linear command registers must be zero")
         values.update(
             {
                 "step4e_cmd_vx_m_s": n_control_b[0] if (v21_profile and detach_stage_active) else cmd[0],
@@ -1069,6 +1090,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=env_float("STEP4E_NORMAL_FILTER_TAU_S", 0.35),
     )
     parser.add_argument(
+        "--step4e-normal-filter-alpha",
+        type=float,
+        default=env_float("STEP4E_NORMAL_FILTER_ALPHA", 0.35),
+    )
+    parser.add_argument(
         "--step4e-normal-max-rate-rad-s",
         type=float,
         default=env_float("STEP4E_NORMAL_MAX_RATE_RAD_S", 0.010),
@@ -1097,7 +1123,7 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("duration, baseline, and RTDE rate must be positive")
     if not args.no_start_command and not args.allow_kunwei_stream_command:
         raise SystemExit("Refusing to send Kunwei stream command without --allow-kunwei-stream-command")
-    known_step4e_versions = {"", "v20", "v21", "v22", "v23", "v24", "v25", "v26", "v27", "v28", "v29", "v30"}
+    known_step4e_versions = {"", "v20", "v21", "v22", "v23", "v24", "v25", "v26", "v27", "v28", "v29", "v30", "v31"}
     if args.step4e_version not in known_step4e_versions:
         raise SystemExit(
             f"Unknown --step4e-version {args.step4e_version!r}; bridge profiles only cover "
@@ -1106,6 +1132,8 @@ def main(argv: list[str] | None = None) -> int:
         )
     if args.step4e_normal_filter_tau_s < 0.0:
         raise SystemExit("--step4e-normal-filter-tau-s must be non-negative")
+    if not 0.0 <= args.step4e_normal_filter_alpha <= 1.0:
+        raise SystemExit("--step4e-normal-filter-alpha must be in [0, 1]")
     if args.step4e_normal_max_rate_rad_s < 0.0:
         raise SystemExit("--step4e-normal-max-rate-rad-s must be non-negative")
     if args.step4e_normal_min_force_n < 0.0:
@@ -1163,7 +1191,8 @@ def main(argv: list[str] | None = None) -> int:
             "v27_seed_normal_loop_failed_archive": "Used v13/v16 force-jump first-contact Z evidence; archived after stage 25.05 cmd_valid timeout with the older bridge profile set.",
             "v28_seed_normal_loop_failed_archive": "Reached first contact and stage 25.05, but the runtime bridge did not recognize v28 in the active profile set, so cmd_valid stayed 0.",
             "v29_seed_normal_loop_previous": "Canonical locked-normal flow follows STEP4E_FLOW.md: v28 motion with bridge-profile recognition fixed; one-step entry XY plus target attitude at current Z, first far/near search using v13/v16 first-contact Z evidence with a 20 mm near window and 2.5 mm/s near descent, first-contact latch, 20 mm lift, 25.2 angular speedl after input_double_register_37..39 settle to zero, second search, 25.3 zero-linear line-entry gate, then line control.",
-            "v30_seed_normal_loop_current": "Same TP flow as v29. Bridge defaults to locked normal, but --step4e-normal-follow-mode filtered_live changes only stage 25.0 line control to use a friction-projected, gated, slew-limited live normal estimate; 25.2 and 25.3 continue to use the first locked normal.",
+            "v30_seed_normal_loop_previous": "Same TP flow as v29. Bridge defaults to locked normal, but --step4e-normal-follow-mode filtered_live changes only stage 25.0 line control to use a friction-projected, gated, slew-limited live normal estimate; 25.2 and 25.3 continue to use the first locked normal.",
+            "v31_seed_normal_loop_current": "Same TP flow as v30. Bridge --step4e-normal-follow-mode filtered_live changes only stage 25.0 line control to use a friction-projected live normal with direct alpha EMA, min-force hold, and same-hemisphere hold against the previous filtered normal; no slew-rate, latch-angle, or candidate-angle gate.",
         },
         "step4e_path": {
             "type": "line_from_two_tcp_points",
