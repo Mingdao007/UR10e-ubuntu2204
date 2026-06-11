@@ -143,6 +143,7 @@ def validate_package(
                 "near threshold margin": "local first_near_start_z_m = first_contact_z_m + 0.020" in script,
                 "near descent speed": "40.000, -0.015, -0.0025)" in script,
                 "stage25.2 linear zero settle": "codex_wait_for_stage_linear_zero(25.2, 1.000)" in script,
+                "lift 20mm": "p_lift[2] + 0.020" in script,
                 "stage25.3 line-entry gate": "line-entry-gate release" in script
                 and "local line_entry_required_s = 0.100" in script
                 and "local line_entry_timeout_s = 1.000" in script

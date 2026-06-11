@@ -1,6 +1,6 @@
 # Step4e v29 bridge-profile-fix 50N-guard 20mm-near-search seed-normal TASE minimal reproduction loop.
-# VERSION: 2026-06-12T0400HKT_STEP4E_SEED_NORMAL_LOOP_V29
-# GENERATED_AT_LOCAL: 2026-06-12T04:00:34+08:00
+# VERSION: 2026-06-12T0405HKT_STEP4E_SEED_NORMAL_LOOP_V29
+# GENERATED_AT_LOCAL: 2026-06-12T04:05:08+08:00
 # ENTRY_XY_M: [0.433010000, 0.108020000]
 # TARGET_ROTVEC_RAD: [-3.044172198, -0.130573165, -0.202188631]
 # PURPOSE: bridge-profile-fix + line-entry-gate release; after posture-adjusted second contact, bypass 5N stable acquire and go directly to line control.
@@ -274,7 +274,7 @@ def codex_step4e_seed_normal_loop_v29():
   local home_return_speed_m_s = 0.050
   local final_progress_m = 0.0
 
-  textmsg("codex step4e version 2026-06-12T0400HKT_STEP4E_SEED_NORMAL_LOOP_V29 start seed_normal_loop_v29")
+  textmsg("codex step4e version 2026-06-12T0405HKT_STEP4E_SEED_NORMAL_LOOP_V29 start seed_normal_loop_v29")
   write_output_float_register(34, 0.0)
   write_output_float_register(35, 20.0)
   codex_echo_step4e(0.0)
@@ -332,7 +332,7 @@ def codex_step4e_seed_normal_loop_v29():
   if stop_reason == 0.0:
     write_output_float_register(35, 25.1)
     local p_lift = get_actual_tcp_pose()
-    local lift_pose = p[p_lift[0], p_lift[1], p_lift[2] + 0.030, p_lift[3], p_lift[4], p_lift[5]]
+    local lift_pose = p[p_lift[0], p_lift[1], p_lift[2] + 0.020, p_lift[3], p_lift[4], p_lift[5]]
     codex_echo_step4e(stop_reason)
     movel(lift_pose, a=0.030, v=0.020, r=0.0)
     stopl(0.1)
@@ -570,7 +570,7 @@ def codex_step4e_seed_normal_loop_v29():
   write_output_float_register(30, stop_reason)
   write_output_float_register(31, final_progress_m)
   write_output_float_register(35, 29.0)
-  textmsg("codex step4e version 2026-06-12T0400HKT_STEP4E_SEED_NORMAL_LOOP_V29 stop reason:", stop_reason)
+  textmsg("codex step4e version 2026-06-12T0405HKT_STEP4E_SEED_NORMAL_LOOP_V29 stop reason:", stop_reason)
 end
 
 codex_step4e_seed_normal_loop_v29()

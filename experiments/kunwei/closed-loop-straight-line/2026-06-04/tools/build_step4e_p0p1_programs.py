@@ -343,7 +343,7 @@ def validate_package(name: str, script: str, txt: str, urp: bytes, stamp: str, c
                 "max depth from first contact": f"local first_max_end_z_m = first_contact_z_m - {V29_FIRST_CONTACT_BELOW_MARGIN_M:.3f}" in script
                 and "local first_search_max_down_m = first_search_start_pose[2] - first_max_end_z_m" in script,
                 "first search": f"codex_v29_down_search(24.0, 24.2, first_search_max_down_m, first_search_near_start_depth_m, 40.000, -0.015, {V29_FIRST_SEARCH_NEAR_SPEED_M_S:.4f})" in script,
-                "lift 30mm": "p_lift[2] + 0.030" in script,
+                "lift 20mm": "p_lift[2] + 0.020" in script,
                 "angular speedl orientation": "speedl([0.0, 0.0, 0.0, cmd_wx, cmd_wy, cmd_wz]" in script,
                 "linear command reject": "codex_abs(cmd_vx) > 0.001" in script,
                 "second search": "codex_v29_down_search(24.3, 24.4, 0.070, 0.040, 45.000, -0.005, -0.003)" in script,
@@ -1953,6 +1953,7 @@ def v29_seed_normal_loop_script(stamp: str, gen_at: str, geom: dict[str, float])
         "# CONTROL: bridge step4e-version=v29 latches the first contact normal, forces 37..39 zero during 25.2, writes angular speedl commands in 40..42, reacquires 5 N in 25.3, and runs line control in 25.0.",
         "# CONTROL: bridge step4e-version=v29 latches the first contact normal, forces 37..39 zero during 25.2, writes angular speedl commands in 40..42, treats 25.3 as a zero-linear line-entry gate, and runs line control in 25.0.",
     )
+    script = script.replace("p_lift[2] + 0.030", "p_lift[2] + 0.020")
     script = script.replace(
         f"    local first_near_start_z_m = first_contact_z_m + {V28_FIRST_CONTACT_NEAR_MARGIN_M:.3f}\n",
         f"    local first_near_start_z_m = first_contact_z_m + {V29_FIRST_CONTACT_NEAR_MARGIN_M:.3f}\n",
@@ -2249,7 +2250,7 @@ def main() -> int:
         (
             "step4e_seed_normal_loop_v29",
             "SEED_NORMAL_LOOP_V29",
-            "bridge-profile-fix + line-entry-gate release: one-step entry XY plus target attitude at current Z, v13 force-jump first-contact-Z search with 20 mm near window, 2.5 mm/s near descent, 50 N raw-normal guard, first touch, 30 mm lift, angular speedl alignment, second touch, zero-linear 25.3 gate, then line",
+            "bridge-profile-fix + line-entry-gate release: one-step entry XY plus target attitude at current Z, v13 force-jump first-contact-Z search with 20 mm near window, 2.5 mm/s near descent, 50 N raw-normal guard, first touch, 20 mm lift, angular speedl alignment, second touch, zero-linear 25.3 gate, then line",
             v29_seed_normal_loop_script,
         ),
     ]

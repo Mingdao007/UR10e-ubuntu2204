@@ -83,7 +83,7 @@ elif [[ "${STEP4E_VERSION}" == "v27" ]]; then
 elif [[ "${STEP4E_VERSION}" == "v28" ]]; then
   SEARCH_DESCRIPTION="failed/archive v28 Step4e/TASE flow: v28 reached first contact and stage 25.05, but the active bridge runtime did not recognize v28 as an angular-speedl profile, so cmd_valid stayed 0"
 elif [[ "${STEP4E_VERSION}" == "v29" ]]; then
-  SEARCH_DESCRIPTION="current Step4e/TASE flow from STEP4E_FLOW.md: bridge-profile-fix + line-entry-gate release; one-step entry XY plus target attitude at current Z, first far/near search using the v13/v16 force-jump first-contact Z evidence so near starts about 20 mm above first contact, near descent 2.5 mm/s, raw-normal guard 50 N, first-contact latch, lift 30 mm, angular speedl posture correction after 37..39 settle to zero, second search, zero-linear 25.3 gate, then run the XY line"
+  SEARCH_DESCRIPTION="current Step4e/TASE flow from STEP4E_FLOW.md: bridge-profile-fix + line-entry-gate release; one-step entry XY plus target attitude at current Z, first far/near search using the v13/v16 force-jump first-contact Z evidence so near starts about 20 mm above first contact, near descent 2.5 mm/s, raw-normal guard 50 N, first-contact latch, lift 20 mm, angular speedl posture correction after 37..39 settle to zero, second search, zero-linear 25.3 gate, then run the XY line"
 elif [[ "${STEP4E_VERSION}" == "v20" ]]; then
   SEARCH_DESCRIPTION="two-stage search: v20 moves directly to entry XY with vertical TCP orientation [pi,0,0], searches far 15 mm/s then near 3 mm/s, latches first-contact normal only, lifts base-Z 2 mm, aligns attitude while detached, reacquires 5 N along the locked normal, then runs the 5 mm/s XY line"
 elif [[ "${STEP4E_VERSION}" == "v21" ]]; then
