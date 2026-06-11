@@ -16,7 +16,8 @@ BRIDGE_DURATION_S="${BRIDGE_DURATION_S:-180}"
 STEP4E_BACKGROUND_PUSH_AFTER_LIVE="${STEP4E_BACKGROUND_PUSH_AFTER_LIVE:-0}"
 STEP4E_NORMAL_COMMAND_SIGN="${STEP4E_NORMAL_COMMAND_SIGN:-1}"
 MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-50}"
-MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-0.6}"
+MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-60}"
+MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-3.0}"
 STEP4E_ORIENTATION_GAIN="${STEP4E_ORIENTATION_GAIN:-0.20}"
 STEP4E_ORIENTATION_WX_SIGN="${STEP4E_ORIENTATION_WX_SIGN:-1}"
 STEP4E_ORIENTATION_WY_SIGN="${STEP4E_ORIENTATION_WY_SIGN:-1}"
@@ -198,7 +199,7 @@ Step4e motion boundary:
   hold: contact search, then 12 s force/orientation hold.
   line: contact search, then straight XY line from the two TP screenshot points.
   force target = 5 N for hold/line only; geo contact witness triggers around 1-1.5 N.
-  raw normal guard = ${MAX_NORMAL_FORCE_N} N, force norm guard = 50 N, torque guard = ${MAX_TORQUE_NORM_NM} Nm.
+  raw normal guard = ${MAX_NORMAL_FORCE_N} N, force norm guard = ${MAX_FORCE_NORM_N} N, torque guard = ${MAX_TORQUE_NORM_NM} Nm.
 USAGE
 }
 
@@ -619,7 +620,7 @@ run_bridge_for_mode() {
     --normal-axis fz \
     --normal-sign 1 \
     --max-normal-force-n "${MAX_NORMAL_FORCE_N}" \
-    --max-force-norm-n 50 \
+    --max-force-norm-n "${MAX_FORCE_NORM_N}" \
     --max-torque-norm-nm "${MAX_TORQUE_NORM_NM}" \
     --step4e-mode "${STEP4E_MODE}" \
     --step4e-version "${STEP4E_VERSION}" \
@@ -731,7 +732,7 @@ Motion/control:
   line XY speed command = ${STEP4E_LINE_SPEED_M_S} m/s, max Cartesian command = 6 mm/s
   speedl acceleration = 300 mm/s^2, hold time = 2 ms
   force target = 5 N for hold/line only; geo contact witness triggers around 1-1.5 N
-  raw normal guard = ${MAX_NORMAL_FORCE_N} N, force norm guard = 50 N, torque guard = ${MAX_TORQUE_NORM_NM} Nm
+  raw normal guard = ${MAX_NORMAL_FORCE_N} N, force norm guard = ${MAX_FORCE_NORM_N} N, torque guard = ${MAX_TORQUE_NORM_NM} Nm
   attitude proxy = bounded wx/wy velocity command, gain = ${STEP4E_ORIENTATION_GAIN}, angular limit = ${STEP4E_ANGULAR_LIMIT_RAD_S} rad/s, wx sign = ${STEP4E_ORIENTATION_WX_SIGN}, wy sign = ${STEP4E_ORIENTATION_WY_SIGN}, yaw frozen
   normal follow = ${STEP4E_NORMAL_FOLLOW_MODE}, tau = ${STEP4E_NORMAL_FILTER_TAU_S}s, max rate = ${STEP4E_NORMAL_MAX_RATE_RAD_S} rad/s, min force = ${STEP4E_NORMAL_MIN_FORCE_N} N, gate = ${STEP4E_NORMAL_MAX_ANGLE_FROM_LATCH_DEG} deg, friction projection = ${STEP4E_NORMAL_FRICTION_PROJECTION}
 

@@ -65,8 +65,10 @@ def generated_at(now: datetime) -> str:
 
 def line_cfg(config: dict) -> dict:
     cfg = config["step4e_line"]
+    reference_line = config.get("reference_line", {})
     sx, sy, sz, srx, sry, srz = [float(v) for v in cfg["start_tcp_pose_m_rad"]]
     ex, ey, _ez, _erx, _ery, _erz = [float(v) for v in cfg["end_tcp_pose_m_rad"]]
+    contact_start_xyz = reference_line.get("contact_start_xyz_m", [sx, sy, cfg.get("validated_search_start_z_m", 0.09835)])
     return {
         "start_x": sx,
         "start_y": sy,
@@ -77,6 +79,7 @@ def line_cfg(config: dict) -> dict:
         "ref_ry": sry,
         "ref_rz": srz,
         "validated_search_start_z": float(cfg.get("validated_search_start_z_m", 0.09835)),
+        "target_initial_z": float(contact_start_xyz[2]),
         "ux": float(cfg["xy_unit_vector"][0]),
         "uy": float(cfg["xy_unit_vector"][1]),
         "length": math.hypot(ex - sx, ey - sy),

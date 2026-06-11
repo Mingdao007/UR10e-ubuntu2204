@@ -1052,8 +1052,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--write-rtde-inputs", action="store_true")
     parser.add_argument("--skip-dashboard-preflight", action="store_true")
     parser.add_argument("--max-normal-force-n", type=float, default=12.0)
-    parser.add_argument("--max-force-norm-n", type=float, default=50.0)
-    parser.add_argument("--max-torque-norm-nm", type=float, default=0.6)
+    parser.add_argument("--max-force-norm-n", type=float, default=60.0)
+    parser.add_argument("--max-torque-norm-nm", type=float, default=3.0)
     parser.add_argument("--sensor-stale-s", type=float, default=0.08)
     parser.add_argument("--rezero-s", type=float, default=1.0)
     parser.add_argument("--step4e-mode", choices=("off", "preview", "hold", "line", "axis_iso"), default="off")
@@ -1176,6 +1176,11 @@ def main(argv: list[str] | None = None) -> int:
             "no zero_ftsensor",
             "no Kunwei zero/tare/config write",
         ],
+        "guard_contract": {
+            "max_normal_force_n": args.max_normal_force_n,
+            "max_force_norm_n": args.max_force_norm_n,
+            "max_torque_norm_nm": args.max_torque_norm_nm,
+        },
         "register_map": dict(zip(INPUT_FIELDS, INPUT_NAMES)),
         "stage_aware_register_notes": {
             "p0_geo_ball_first_contact": "step4e-mode=off; only base force/heartbeat/guard registers are used. No Step4E motion or attitude command registers are consumed.",

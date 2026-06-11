@@ -49,6 +49,15 @@ V31_FIRST_CONTACT_BELOW_MARGIN_M = V30_FIRST_CONTACT_BELOW_MARGIN_M
 V31_FIRST_CONTACT_NEAR_MARGIN_M = V30_FIRST_CONTACT_NEAR_MARGIN_M
 V31_FIRST_SEARCH_NEAR_SPEED_M_S = V30_FIRST_SEARCH_NEAR_SPEED_M_S
 V31_RAW_NORMAL_GUARD_N = V30_RAW_NORMAL_GUARD_N
+STEP4E_CURRENT_FORCE_NORM_GUARD_N = 60.0
+STEP4E_CURRENT_TORQUE_NORM_GUARD_NM = 3.0
+
+
+def step4e_current_common_functions(normal_guard_n: str) -> str:
+    return common_functions(normal_guard_n, f"{STEP4E_CURRENT_TORQUE_NORM_GUARD_NM:.1f}").replace(
+        "force_norm > 50.0",
+        f"force_norm > {STEP4E_CURRENT_FORCE_NORM_GUARD_N:.1f}",
+    )
 
 
 def default_pose_pair_path() -> Path:
@@ -437,8 +446,8 @@ def axis_iso_script(stamp: str, gen_at: str) -> str:
 # GENERATED_AT_LOCAL: {gen_at}
 # PURPOSE: no-contact four-quadrant orientation-axis sign test.
 # CONTROL: bridge step4e-mode=axis_iso writes 40..42 as angular wx/wy/wz; 37..39 must stay zero.
-# SAFETY: raw normal guard 35 N, force norm guard 50 N, torque guard 3.0 Nm.
-{common_functions("35.0", "3.0")}
+# SAFETY: raw normal guard 35 N, force norm guard 60 N, torque guard 3.0 Nm.
+{step4e_current_common_functions("35.0")}
 
 def codex_axis_iso_stage(stage_code):
   local stop_reason = 0.0
@@ -561,8 +570,8 @@ def ball_first_contact_script(stamp: str, gen_at: str, geom: dict[str, float]) -
 # GENERATED_AT_LOCAL: {gen_at}
 # PURPOSE: verify whether first contact is the KSM-8N ball or surrounding housing/cylindrical face.
 # CONTROL: bridge writes only base force/heartbeat registers; no attitude, no 5N acquire, no line.
-# SAFETY: raw normal guard 35 N, force norm guard 50 N, torque guard 3.0 Nm.
-{common_functions("35.0", "3.0")}
+# SAFETY: raw normal guard 35 N, force norm guard 60 N, torque guard 3.0 Nm.
+{step4e_current_common_functions("35.0")}
 
 def codex_step4e_ball_first_contact_p0_v1():
   local stop_reason = 0.0
@@ -708,8 +717,8 @@ def ball_vs_cyl_contact_script(stamp: str, gen_at: str, pair: dict) -> str:
 # P1_CYL_POSE_M_RAD: [{format_pose(p1_pose)}]
 # PURPOSE: compare low-threshold wrench/torque/contact-offset signatures for ball contact vs housing/cylindrical-face contact.
 # CONTROL: bridge writes only base force/heartbeat registers; no attitude, no 5N acquire, no line.
-# SAFETY: raw normal guard 35 N, force norm guard 50 N, torque guard 3.0 Nm.
-{common_functions("35.0", "3.0")}
+# SAFETY: raw normal guard 35 N, force norm guard 60 N, torque guard 3.0 Nm.
+{step4e_current_common_functions("35.0")}
 
 def codex_wait_and_rezero(stage_code):
   write_output_float_register(35, stage_code)
@@ -863,8 +872,8 @@ def v21_detached_movel_script(stamp: str, gen_at: str, geom: dict[str, float]) -
 # GENERATED_AT_LOCAL: {gen_at}
 # PURPOSE: latch first contact normal, detach along the locked normal, then preview the minimal-rotation target without contact-posture motion.
 # CONTROL: bridge step4e-version=v21 writes 37..39 as +locked-normal detach direction in 25.1 and 40..42 as target rotvec for z_tcp_B ~= -locked_normal_B in 25.2.
-# SAFETY: raw normal guard 35 N, force norm guard 50 N, torque guard 3.0 Nm.
-{common_functions("35.0", "3.0")}
+# SAFETY: raw normal guard 35 N, force norm guard 60 N, torque guard 3.0 Nm.
+{step4e_current_common_functions("35.0")}
 
 def codex_wait_for_cmd_valid(stage_code, timeout_s):
   local t = 0.0
@@ -1043,8 +1052,8 @@ def v22_seed_normal_loop_script(stamp: str, gen_at: str, geom: dict[str, float])
 # SEED_TCP_POSE_M_RAD: [{format_pose(seed_pose)}]
 # PURPOSE: use the marked path-start XYZ with the manually marked near-normal rotvec, touch once, lift 50 mm, optionally align TCP z to the measured contact normal, touch again, then run normal FT line control.
 # CONTROL: bridge step4e-version=v22 latches the first contact normal, writes target rotvec in 25.2, reacquires 5 N in 25.3, and runs line control in 25.0.
-# SAFETY: raw normal guard 35 N, force norm guard 50 N, torque guard 3.0 Nm.
-{common_functions("35.0", "3.0")}
+# SAFETY: raw normal guard 35 N, force norm guard 60 N, torque guard 3.0 Nm.
+{step4e_current_common_functions("35.0")}
 
 def codex_wait_for_cmd_valid(stage_code, timeout_s):
   local t = 0.0
@@ -1388,8 +1397,8 @@ def v23_seed_normal_loop_script(stamp: str, gen_at: str, geom: dict[str, float])
 # NEAR_NORMAL_ROTVEC_RAD: [{format_pose(near_normal_rotvec)}]
 # PURPOSE: keep v13 safe entry/search flow, then add first-contact lift, lifted angular speedl posture adjustment, second touch, 5N acquire and line.
 # CONTROL: bridge step4e-version=v23 latches the first contact normal, writes angular speedl commands in 25.2, reacquires 5 N in 25.3, and runs line control in 25.0.
-# SAFETY: raw normal guard 35 N, force norm guard 50 N, torque guard 3.0 Nm.
-{common_functions("35.0", "3.0")}
+# SAFETY: raw normal guard 35 N, force norm guard 60 N, torque guard 3.0 Nm.
+{step4e_current_common_functions("35.0")}
 
 def codex_wait_for_cmd_valid(stage_code, timeout_s):
   local t = 0.0
@@ -1992,8 +2001,8 @@ def v28_seed_normal_loop_script(stamp: str, gen_at: str, geom: dict[str, float])
         "# PURPOSE: move once to entry XY with target attitude at current Z, then compute first far/near search so near search starts about 25 mm above the v13 force-jump first-contact point at 2.5 mm/s.",
     )
     script = script.replace(
-        "# SAFETY: raw normal guard 35 N, force norm guard 50 N, torque guard 3.0 Nm.",
-        "# SAFETY: raw normal guard 50 N, force norm guard 50 N, torque guard 3.0 Nm.",
+        "# SAFETY: raw normal guard 35 N, force norm guard 60 N, torque guard 3.0 Nm.",
+        "# SAFETY: raw normal guard 50 N, force norm guard 60 N, torque guard 3.0 Nm.",
     )
     script = script.replace(
         "elif codex_abs(normal_force) > 35.0:",

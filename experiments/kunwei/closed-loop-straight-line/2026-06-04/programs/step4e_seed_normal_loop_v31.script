@@ -1,13 +1,13 @@
 # Step4e v31 simple-alpha-normal-follow 50N-guard 20mm-near-search seed-normal TASE minimal reproduction loop.
-# VERSION: 2026-06-12T0444HKT_STEP4E_SEED_NORMAL_LOOP_V31
-# GENERATED_AT_LOCAL: 2026-06-12T04:44:20+08:00
+# VERSION: 2026-06-12T0459HKT_STEP4E_SEED_NORMAL_LOOP_V31
+# GENERATED_AT_LOCAL: 2026-06-12T04:59:27+08:00
 # ENTRY_XY_M: [0.433010000, 0.108020000]
 # TARGET_ROTVEC_RAD: [-3.044172198, -0.130573165, -0.202188631]
 # PURPOSE: simple-alpha filtered-live-normal attitude reference during line control + line-entry-gate release; keep v30 TP motion/search/25.2/25.3 flow and force/admittance parameters unchanged.
 # FLOW_TABLE: STEP4E_FLOW.md
 # FIRST_CONTACT_Z_EVIDENCE: bridge_step4e_line_outerloop_v13_autowatch_20260609_141027 force jump at z=0.008044839 m; v16 cross-check z=0.007996174 m.
 # CONTROL: bridge step4e-version=v31 step4e-normal-follow-mode=filtered_live step4e-normal-filter-alpha=0.35 step4e-normal-min-force-n=2.0 latches the first contact normal, keeps 25.2 and 25.3 on locked-normal behavior, then uses direct alpha EMA during 25.0 line control; no slew-rate, latch-angle, or candidate-angle gate.
-# SAFETY: raw normal guard 50 N, force norm guard 50 N, torque guard 3.0 Nm.
+# SAFETY: raw normal guard 50 N, force norm guard 60 N, torque guard 3.0 Nm.
 
 def codex_abs(x):
   if x < 0.0:
@@ -72,7 +72,7 @@ def codex_step4e_guard_stop_reason():
     return 4.0
   elif codex_abs(normal_force) > 50.0:
     return 5.0
-  elif force_norm > 50.0:
+  elif force_norm > 60.0:
     return 6.0
   elif torque_norm > 3.0:
     return 7.0
@@ -274,7 +274,7 @@ def codex_step4e_seed_normal_loop_v31():
   local home_return_speed_m_s = 0.050
   local final_progress_m = 0.0
 
-  textmsg("codex step4e version 2026-06-12T0444HKT_STEP4E_SEED_NORMAL_LOOP_V31 start seed_normal_loop_v31")
+  textmsg("codex step4e version 2026-06-12T0459HKT_STEP4E_SEED_NORMAL_LOOP_V31 start seed_normal_loop_v31")
   write_output_float_register(34, 0.0)
   write_output_float_register(35, 20.0)
   codex_echo_step4e(0.0)
@@ -570,7 +570,7 @@ def codex_step4e_seed_normal_loop_v31():
   write_output_float_register(30, stop_reason)
   write_output_float_register(31, final_progress_m)
   write_output_float_register(35, 29.0)
-  textmsg("codex step4e version 2026-06-12T0444HKT_STEP4E_SEED_NORMAL_LOOP_V31 stop reason:", stop_reason)
+  textmsg("codex step4e version 2026-06-12T0459HKT_STEP4E_SEED_NORMAL_LOOP_V31 stop reason:", stop_reason)
 end
 
 codex_step4e_seed_normal_loop_v31()

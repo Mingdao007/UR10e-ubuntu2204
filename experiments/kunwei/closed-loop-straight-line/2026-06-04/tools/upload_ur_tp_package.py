@@ -137,6 +137,7 @@ def validate_package(
     }
     if program in {"step4e_seed_normal_loop_v29", "step4e_seed_normal_loop_v30", "step4e_seed_normal_loop_v31"}:
         version = program.rsplit("_", 1)[-1]
+        force_norm_guard = "60.0" if program == "step4e_seed_normal_loop_v31" else "50.0"
         checks.update(
             {
                 f"{version} function": f"codex_step4e_seed_normal_loop_{version}" in script,
@@ -150,7 +151,8 @@ def validate_package(
                 and "local line_entry_timeout_s = 1.000" in script
                 and "speedl([cmd_vx, cmd_vy, cmd_vz, 0.0, 0.0, 0.0]" not in script,
                 "raw normal guard": "codex_abs(normal_force) > 50.0" in script,
-                "force norm guard": "force_norm > 50.0" in script,
+                "force norm guard": f"force_norm > {force_norm_guard}" in script,
+                "torque norm guard": "torque_norm > 3.0" in script,
                 f"URP cached {version} stamp": stamp in xml
                 and f"STEP4E_SEED_NORMAL_LOOP_{version.upper()}" in xml,
             }
@@ -177,7 +179,7 @@ def validate_package(
         )
     failed = [label for label, ok in checks.items() if not ok]
     if failed:
-        die(f"{program} validation failed: {failed}")
+        die(f"{program} validation failed: bridge contract mismatch: {failed}")
     return {
         "stamp": stamp,
         "program": program,
