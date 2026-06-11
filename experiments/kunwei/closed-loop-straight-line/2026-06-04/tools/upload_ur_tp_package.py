@@ -140,8 +140,13 @@ def validate_package(
             {
                 "v29 function": "codex_step4e_seed_normal_loop_v29" in script,
                 "first contact z": "local first_contact_z_m = 0.008044839" in script,
-                "near threshold margin": "local first_near_start_z_m = first_contact_z_m + 0.025" in script,
+                "near threshold margin": "local first_near_start_z_m = first_contact_z_m + 0.020" in script,
                 "near descent speed": "40.000, -0.015, -0.0025)" in script,
+                "stage25.2 linear zero settle": "codex_wait_for_stage_linear_zero(25.2, 1.000)" in script,
+                "stage25.3 line-entry gate": "line-entry-gate release" in script
+                and "local line_entry_required_s = 0.100" in script
+                and "local line_entry_timeout_s = 1.000" in script
+                and "speedl([cmd_vx, cmd_vy, cmd_vz, 0.0, 0.0, 0.0]" not in script,
                 "raw normal guard": "codex_abs(normal_force) > 50.0" in script,
                 "force norm guard": "force_norm > 50.0" in script,
                 "URP cached v29 stamp": stamp in xml and "STEP4E_SEED_NORMAL_LOOP_V29" in xml,

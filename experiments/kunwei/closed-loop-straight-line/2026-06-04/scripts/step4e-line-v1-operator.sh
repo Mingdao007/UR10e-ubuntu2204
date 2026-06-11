@@ -9,8 +9,11 @@ DASHBOARD_PORT="${DASHBOARD_PORT:-29999}"
 WAIT_FOR_PLAY_S="${WAIT_FOR_PLAY_S:-45}"
 AUTOWATCH_WAIT_FOR_PLAY_S="${AUTOWATCH_WAIT_FOR_PLAY_S:-30}"
 BENCH_GATE="/home/andy/codex-private-skills/skills/ur10e-realsetup/scripts/check_ubuntu_network.py"
+LONG_CHECK_TTL_S="${LONG_CHECK_TTL_S:-1800}"
+LONG_CHECK_CACHE="${LONG_CHECK_CACHE:-${RUN_ROOT}/.step4e_long_checks_cache.json}"
 STEP4E_VERSION="${STEP4E_VERSION:-v1}"
 BRIDGE_DURATION_S="${BRIDGE_DURATION_S:-180}"
+STEP4E_BACKGROUND_PUSH_AFTER_LIVE="${STEP4E_BACKGROUND_PUSH_AFTER_LIVE:-0}"
 STEP4E_NORMAL_COMMAND_SIGN="${STEP4E_NORMAL_COMMAND_SIGN:-1}"
 MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-50}"
 MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-0.6}"
@@ -58,6 +61,9 @@ fi
 if [[ "${STEP4E_VERSION}" == "v28" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_seed_normal_loop_v28.urp"
 fi
+if [[ "${STEP4E_VERSION}" == "v29" ]]; then
+  PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_seed_normal_loop_v29.urp"
+fi
 if [[ "${STEP4E_VERSION}" == "p0_geo_v1" ]]; then
   SEARCH_DESCRIPTION="P0-geo ball-first contact witness: vertical TCP entry, far 15 mm/s until 80 mm depth, then near 3 mm/s until first 1-1.5 N contact or 92 mm max depth; after contact it holds still for visual confirmation, retracts base-Z 2 mm, and never runs attitude, 5N acquisition, or line motion"
 elif [[ "${STEP4E_VERSION}" == "p0_ball_vs_cyl_v1" ]]; then
@@ -75,7 +81,9 @@ elif [[ "${STEP4E_VERSION}" == "v26" ]]; then
 elif [[ "${STEP4E_VERSION}" == "v27" ]]; then
   SEARCH_DESCRIPTION="failed/archive v27 Step4e/TASE flow: one-step entry XY plus target attitude at current Z, first far/near search using the v13/v16 force-jump first-contact Z evidence so near starts about 30 mm above first contact; archived after first-contact latch cmd_valid timeout stop register 12 at stage 25.05"
 elif [[ "${STEP4E_VERSION}" == "v28" ]]; then
-  SEARCH_DESCRIPTION="current Step4e/TASE flow from STEP4E_FLOW.md: one-step entry XY plus target attitude at current Z, first far/near search using the v13/v16 force-jump first-contact Z evidence so near starts about 25 mm above first contact, near descent 2.5 mm/s, raw-normal guard 50 N, first-contact latch, lift 30 mm, angular speedl posture correction with 37..39 forced zero, second search, acquire 5 N, then run the XY line"
+  SEARCH_DESCRIPTION="failed/archive v28 Step4e/TASE flow: v28 reached first contact and stage 25.05, but the active bridge runtime did not recognize v28 as an angular-speedl profile, so cmd_valid stayed 0"
+elif [[ "${STEP4E_VERSION}" == "v29" ]]; then
+  SEARCH_DESCRIPTION="current Step4e/TASE flow from STEP4E_FLOW.md: bridge-profile-fix + line-entry-gate release; one-step entry XY plus target attitude at current Z, first far/near search using the v13/v16 force-jump first-contact Z evidence so near starts about 20 mm above first contact, near descent 2.5 mm/s, raw-normal guard 50 N, first-contact latch, lift 30 mm, angular speedl posture correction after 37..39 settle to zero, second search, zero-linear 25.3 gate, then run the XY line"
 elif [[ "${STEP4E_VERSION}" == "v20" ]]; then
   SEARCH_DESCRIPTION="two-stage search: v20 moves directly to entry XY with vertical TCP orientation [pi,0,0], searches far 15 mm/s then near 3 mm/s, latches first-contact normal only, lifts base-Z 2 mm, aligns attitude while detached, reacquires 5 N along the locked normal, then runs the 5 mm/s XY line"
 elif [[ "${STEP4E_VERSION}" == "v21" ]]; then
@@ -130,9 +138,11 @@ Usage:
   step4e-line-v1-operator.sh preview-bridge
   step4e-line-v1-operator.sh hold-bridge
   step4e-line-v1-operator.sh line-bridge
+  step4e-line-v1-operator.sh line-bridge-fast
   step4e-line-v1-operator.sh axis-bridge
   step4e-line-v1-operator.sh geo-bridge
   step4e-line-v1-operator.sh witness-bridge
+  step4e-line-v1-operator.sh prep-long-checks
 
 Teach Pendant programs:
   /programs/andyl/kunwei/step4/step4e_preview_line_${STEP4E_VERSION}.urp
@@ -141,12 +151,15 @@ Teach Pendant programs:
   /programs/andyl/kunwei/step4/step4e_ball_first_contact_p0_v1.urp
   /programs/andyl/kunwei/step4/step4e_ball_vs_cyl_contact_p0_v1.urp
   /programs/andyl/kunwei/step4/step4e_attitude_axis_iso_v1.urp
-  current v28 line package lives under /programs/andyl/kunwei/step4/
+  current v29 line package lives under /programs/andyl/kunwei/step4/
   failed/archive v21/v22/v23/v24/v25/v26/v27 line packages live under /programs/andyl/kunwei/step4/step4e/
+  failed/archive v28 line package lives under /programs/andyl/kunwei/step4/; it failed from the old bridge profile mismatch, not motion parameters.
   canonical Step4e/TASE flow table: ${ROOT}/STEP4E_FLOW.md
 
 Bridge lifecycle:
   * bridge starts Kunwei/RTDE bridge immediately, then waits up to 45 s for TP Play.
+  * line-bridge-fast requires a fresh long-check cache and only runs short
+    loaded-program/safety/no-old-bridge checks at trigger time.
   * autowatch waits for TP Play before starting the bridge; keep it for manual
     testing only, not for the normal 开bridge trigger.
   * bridge is stopped when TP program stops, safety is not NORMAL, or Dashboard is unreachable.
@@ -178,11 +191,11 @@ select_mode() {
       STEP4E_MODE="hold"
       RUN_LABEL="step4e_contact_hold_line_${STEP4E_VERSION}"
       ;;
-    line-autowatch|line-bridge)
+    line-autowatch|line-bridge|line-bridge-fast)
       EXPECTED_PROGRAM="${PROGRAM_LINE}"
       if [[ "${STEP4E_VERSION}" == "v21" ]]; then
         EXPECTED_BASENAME="step4e_detached_movel_minrot_v21.urp"
-      elif [[ "${STEP4E_VERSION}" == "v22" || "${STEP4E_VERSION}" == "v23" || "${STEP4E_VERSION}" == "v24" || "${STEP4E_VERSION}" == "v25" || "${STEP4E_VERSION}" == "v26" || "${STEP4E_VERSION}" == "v27" || "${STEP4E_VERSION}" == "v28" ]]; then
+      elif [[ "${STEP4E_VERSION}" == "v22" || "${STEP4E_VERSION}" == "v23" || "${STEP4E_VERSION}" == "v24" || "${STEP4E_VERSION}" == "v25" || "${STEP4E_VERSION}" == "v26" || "${STEP4E_VERSION}" == "v27" || "${STEP4E_VERSION}" == "v28" || "${STEP4E_VERSION}" == "v29" ]]; then
         EXPECTED_BASENAME="step4e_seed_normal_loop_${STEP4E_VERSION}.urp"
       else
         EXPECTED_BASENAME="step4e_line_outerloop_${STEP4E_VERSION}.urp"
@@ -190,7 +203,7 @@ select_mode() {
       STEP4E_MODE="line"
       if [[ "${STEP4E_VERSION}" == "v21" ]]; then
         RUN_LABEL="step4e_detached_movel_minrot_v21"
-      elif [[ "${STEP4E_VERSION}" == "v22" || "${STEP4E_VERSION}" == "v23" || "${STEP4E_VERSION}" == "v24" || "${STEP4E_VERSION}" == "v25" || "${STEP4E_VERSION}" == "v26" || "${STEP4E_VERSION}" == "v27" || "${STEP4E_VERSION}" == "v28" ]]; then
+      elif [[ "${STEP4E_VERSION}" == "v22" || "${STEP4E_VERSION}" == "v23" || "${STEP4E_VERSION}" == "v24" || "${STEP4E_VERSION}" == "v25" || "${STEP4E_VERSION}" == "v26" || "${STEP4E_VERSION}" == "v27" || "${STEP4E_VERSION}" == "v28" || "${STEP4E_VERSION}" == "v29" ]]; then
         RUN_LABEL="step4e_seed_normal_loop_${STEP4E_VERSION}"
       else
         RUN_LABEL="step4e_line_outerloop_${STEP4E_VERSION}"
@@ -226,6 +239,83 @@ select_mode() {
 
 run_bench_gate() {
   python3 "${BENCH_GATE}" --include-kunwei --json-only
+}
+
+long_gate_cache_valid() {
+  python3 - "${LONG_CHECK_CACHE}" "${LONG_CHECK_TTL_S}" "${ROBOT_HOST}" <<'PY'
+import json
+import sys
+import time
+from pathlib import Path
+
+cache = Path(sys.argv[1])
+ttl_s = float(sys.argv[2])
+host = sys.argv[3]
+if ttl_s <= 0 or not cache.is_file():
+    raise SystemExit(1)
+try:
+    payload = json.loads(cache.read_text(encoding="utf-8"))
+except Exception:
+    raise SystemExit(1)
+age_s = time.time() - float(payload.get("checked_at_epoch", 0.0))
+if payload.get("ok") is True and payload.get("robot_host") == host and 0.0 <= age_s <= ttl_s:
+    print(f"[operator] long-check cache hit: age={age_s:.1f}s ttl={ttl_s:.1f}s {cache}")
+    raise SystemExit(0)
+raise SystemExit(1)
+PY
+}
+
+refresh_bench_gate_cache() {
+  mkdir -p "$(dirname "${LONG_CHECK_CACHE}")"
+  local tmp
+  tmp="$(mktemp)"
+  if run_bench_gate | tee "${tmp}"; then
+    python3 - "${tmp}" "${LONG_CHECK_CACHE}" "${ROBOT_HOST}" <<'PY'
+import json
+import sys
+import time
+from pathlib import Path
+
+source = Path(sys.argv[1])
+cache = Path(sys.argv[2])
+host = sys.argv[3]
+try:
+    gate = json.loads(source.read_text(encoding="utf-8"))
+except Exception:
+    gate = {"raw": source.read_text(encoding="utf-8", errors="replace")}
+payload = {
+    "ok": True,
+    "checked_at_epoch": time.time(),
+    "robot_host": host,
+    "gate": gate,
+}
+tmp = cache.with_suffix(cache.suffix + ".tmp")
+tmp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+tmp.replace(cache)
+print(f"[operator] long-check cache refreshed: {cache}")
+PY
+    rm -f "${tmp}"
+    return 0
+  fi
+  local rc="$?"
+  rm -f "${tmp}"
+  return "${rc}"
+}
+
+run_bench_gate_cached() {
+  if long_gate_cache_valid; then
+    return 0
+  fi
+  refresh_bench_gate_cache
+}
+
+require_bench_gate_cache() {
+  if long_gate_cache_valid; then
+    return 0
+  fi
+  echo "refusing fast bridge: long-check cache is missing or older than ${LONG_CHECK_TTL_S}s"
+  echo "run: STEP4E_VERSION=${STEP4E_VERSION} ${BASH_SOURCE[0]} prep-long-checks"
+  exit 24
 }
 
 ensure_no_existing_bridge() {
@@ -277,6 +367,37 @@ raise SystemExit(12)
 
 dashboard_snapshot() {
   python3 -c "${dashboard_snapshot_py}" "${EXPECTED_PROGRAM}" "${EXPECTED_BASENAME}" "${ROBOT_HOST}" "${DASHBOARD_PORT}"
+}
+
+trigger_dashboard_check() {
+  local rc
+  set +e
+  dashboard_snapshot >/tmp/step4e_dash_snapshot.txt 2>&1
+  rc="$?"
+  set -e
+  cat /tmp/step4e_dash_snapshot.txt || true
+  case "${rc}" in
+    10)
+      echo "[operator] expected program is already running; starting bridge late with already_running=1"
+      return 10
+      ;;
+    11)
+      echo "[operator] trigger check passed: expected program loaded, safety NORMAL, program not running"
+      return 0
+      ;;
+    20)
+      echo "refusing: safety mode is not NORMAL"
+      return 20
+      ;;
+    21)
+      echo "refusing: loaded program is not expected Step4e ${STEP4E_MODE}"
+      return 21
+      ;;
+    *)
+      echo "refusing: Dashboard state is not ready for fast bridge trigger (rc=${rc})"
+      return "${rc}"
+      ;;
+  esac
 }
 
 stop_bridge_process() {
@@ -410,6 +531,40 @@ postprocess_run() {
   fi
 }
 
+wait_for_bridge_output_started() {
+  local out_dir="$1"
+  local bridge_pid="$2"
+  local bridge_csv="${out_dir}/bridge_rtde_500hz.csv"
+  local metadata="${out_dir}/metadata.json"
+  local i
+  for i in $(seq 1 30); do
+    if ! kill -0 "${bridge_pid}" 2>/dev/null; then
+      echo "[operator] bridge process exited before output-start confirmation"
+      return 1
+    fi
+    if [[ -s "${bridge_csv}" || -s "${metadata}" ]]; then
+      echo "[operator] bridge output started: ${out_dir}"
+      return 0
+    fi
+    sleep 0.1
+  done
+  echo "[operator] bridge output not observed within 3s; continuing monitor"
+  return 1
+}
+
+maybe_start_background_push() {
+  local out_dir="$1"
+  if [[ "${STEP4E_BACKGROUND_PUSH_AFTER_LIVE}" != "1" ]]; then
+    return 0
+  fi
+  local log="${out_dir}/background_git_push.log"
+  (
+    cd /home/andy/ur10e_ros2_ws
+    git push
+  ) >"${log}" 2>&1 &
+  echo "[operator] background git push started: pid=$! log=${log}"
+}
+
 run_bridge_for_mode() {
   local out_dir="$1"
   local already_running="$2"
@@ -465,6 +620,8 @@ run_bridge_for_mode() {
     --step4e-contact-offset-min-fz-n 1.0 \
     --output-dir "${out_dir}" &
   bridge_pid="$!"
+  wait_for_bridge_output_started "${out_dir}" "${bridge_pid}" || true
+  maybe_start_background_push "${out_dir}"
 
   monitor_bridge "${bridge_pid}" "${already_running}" || true
   wait "${bridge_pid}" || true
@@ -482,6 +639,10 @@ run_bridge_for_mode() {
 }
 
 mode="${1:-}"
+if [[ "${mode}" == "prep-long-checks" ]]; then
+  refresh_bench_gate_cache
+  exit 0
+fi
 select_mode "${mode}"
 CONFIRM_TOKEN="${CONFIRM_LABEL:-${STEP4E_MODE}}"
 CONFIRM_TOKEN="${CONFIRM_TOKEN^^}"
@@ -499,10 +660,30 @@ Open this Teach Pendant program first:
 Then run this mode and press Play on the Teach Pendant.
 The bridge will start automatically only after Dashboard reports that exact Step4e program running.
 WARNING
-    run_bench_gate
+    run_bench_gate_cached
     ensure_no_existing_bridge
     wait_for_tp_play_autowatch
     run_bridge_for_mode "${RUN_ROOT}/bridge_${RUN_LABEL}_autowatch_${STAMP}" 1
+    ;;
+  *-bridge-fast)
+    if [[ "${mode}" != "line-bridge-fast" ]]; then
+      echo "fast trigger is currently implemented only for line-bridge-fast"
+      exit 2
+    fi
+    require_bench_gate_cache
+    ensure_no_existing_bridge
+    trigger_rc=0
+    set +e
+    trigger_dashboard_check
+    trigger_rc="$?"
+    set -e
+    if [[ "${trigger_rc}" == "10" ]]; then
+      run_bridge_for_mode "${RUN_ROOT}/bridge_${RUN_LABEL}_${STAMP}" 1
+    elif [[ "${trigger_rc}" == "0" ]]; then
+      run_bridge_for_mode "${RUN_ROOT}/bridge_${RUN_LABEL}_${STAMP}" 0
+    else
+      exit "${trigger_rc}"
+    fi
     ;;
   *-bridge)
     cat <<WARNING
@@ -528,7 +709,7 @@ WARNING
       echo "aborted"
       exit 2
     fi
-    run_bench_gate
+    run_bench_gate_cached
     ensure_no_existing_bridge
     run_bridge_for_mode "${RUN_ROOT}/bridge_${RUN_LABEL}_${STAMP}" 0
     ;;

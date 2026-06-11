@@ -34,6 +34,11 @@ V28_FIRST_CONTACT_BELOW_MARGIN_M = 0.004
 V28_FIRST_CONTACT_NEAR_MARGIN_M = 0.025
 V28_FIRST_SEARCH_NEAR_SPEED_M_S = -0.0025
 V28_RAW_NORMAL_GUARD_N = 50.0
+V29_FIRST_CONTACT_Z_M = V28_FIRST_CONTACT_Z_M
+V29_FIRST_CONTACT_BELOW_MARGIN_M = V28_FIRST_CONTACT_BELOW_MARGIN_M
+V29_FIRST_CONTACT_NEAR_MARGIN_M = 0.020
+V29_FIRST_SEARCH_NEAR_SPEED_M_S = V28_FIRST_SEARCH_NEAR_SPEED_M_S
+V29_RAW_NORMAL_GUARD_N = V28_RAW_NORMAL_GUARD_N
 
 
 def default_pose_pair_path() -> Path:
@@ -317,6 +322,35 @@ def validate_package(name: str, script: str, txt: str, urp: bytes, stamp: str, c
                 "linear command reject": "codex_abs(cmd_vx) > 0.001" in script,
                 "second search": "codex_v28_down_search(24.3, 24.4, 0.070, 0.040, 45.000, -0.005, -0.003)" in script,
                 "acquire stage": "write_output_float_register(35, 25.3)" in script,
+                "line stage": "write_output_float_register(35, 25.0)" in script,
+            }
+        )
+    if name == "step4e_seed_normal_loop_v29":
+        checks.update(
+            {
+                "v13 first contact z": f"local first_contact_z_m = {V29_FIRST_CONTACT_Z_M:.9f}" in script,
+                "v13 evidence source": V13_FIRST_CONTACT_SOURCE in script,
+                "bridge profile fix wording": "bridge-profile-fix" in script,
+                "line-entry bypass wording": "line-entry-gate release" in script,
+                "v29 function names": "codex_v29_down_search" in script
+                and "codex_step4e_seed_normal_loop_v29" in script,
+                "raw normal guard 50n": f"codex_abs(normal_force) > {V29_RAW_NORMAL_GUARD_N:.1f}" in script,
+                "one-step entry": "entry_xy_pose = p[entry_x, entry_y, p_current[2], target_rx, target_ry, target_rz]" in script,
+                "near threshold from first contact": f"local first_near_start_z_m = first_contact_z_m + {V29_FIRST_CONTACT_NEAR_MARGIN_M:.3f}" in script
+                and "local first_search_near_start_depth_m = first_search_start_pose[2] - first_near_start_z_m" in script,
+                "stage25.2 linear zero settle": "codex_wait_for_stage_linear_zero(25.2, 1.000)" in script
+                and "def codex_wait_for_stage_linear_zero(stage_code, timeout_s):" in script,
+                "max depth from first contact": f"local first_max_end_z_m = first_contact_z_m - {V29_FIRST_CONTACT_BELOW_MARGIN_M:.3f}" in script
+                and "local first_search_max_down_m = first_search_start_pose[2] - first_max_end_z_m" in script,
+                "first search": f"codex_v29_down_search(24.0, 24.2, first_search_max_down_m, first_search_near_start_depth_m, 40.000, -0.015, {V29_FIRST_SEARCH_NEAR_SPEED_M_S:.4f})" in script,
+                "lift 30mm": "p_lift[2] + 0.030" in script,
+                "angular speedl orientation": "speedl([0.0, 0.0, 0.0, cmd_wx, cmd_wy, cmd_wz]" in script,
+                "linear command reject": "codex_abs(cmd_vx) > 0.001" in script,
+                "second search": "codex_v29_down_search(24.3, 24.4, 0.070, 0.040, 45.000, -0.005, -0.003)" in script,
+                "line-entry gate stage": "write_output_float_register(35, 25.3)" in script
+                and "local line_entry_required_s = 0.100" in script
+                and "local line_entry_timeout_s = 1.000" in script
+                and "speedl([cmd_vx, cmd_vy, cmd_vz, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)" not in script,
                 "line stage": "write_output_float_register(35, 25.0)" in script,
             }
         )
@@ -1904,6 +1938,211 @@ def v28_seed_normal_loop_script(stamp: str, gen_at: str, geom: dict[str, float])
     return script
 
 
+def v29_seed_normal_loop_script(stamp: str, gen_at: str, geom: dict[str, float]) -> str:
+    script = v28_seed_normal_loop_script(stamp, gen_at, geom)
+    script = script.replace("v28", "v29").replace("V28", "V29")
+    script = script.replace(
+        "# Step4e v29 50N-guard 25mm-near-search seed-normal TASE minimal reproduction loop.",
+        "# Step4e v29 bridge-profile-fix 50N-guard 20mm-near-search seed-normal TASE minimal reproduction loop.",
+    )
+    script = script.replace(
+        "# PURPOSE: move once to entry XY with target attitude at current Z, then compute first far/near search so near search starts about 25 mm above the v13 force-jump first-contact point at 2.5 mm/s.",
+        "# PURPOSE: bridge-profile-fix + line-entry-gate release; after posture-adjusted second contact, bypass 5N stable acquire and go directly to line control.",
+    )
+    script = script.replace(
+        "# CONTROL: bridge step4e-version=v29 latches the first contact normal, forces 37..39 zero during 25.2, writes angular speedl commands in 40..42, reacquires 5 N in 25.3, and runs line control in 25.0.",
+        "# CONTROL: bridge step4e-version=v29 latches the first contact normal, forces 37..39 zero during 25.2, writes angular speedl commands in 40..42, treats 25.3 as a zero-linear line-entry gate, and runs line control in 25.0.",
+    )
+    script = script.replace(
+        f"    local first_near_start_z_m = first_contact_z_m + {V28_FIRST_CONTACT_NEAR_MARGIN_M:.3f}\n",
+        f"    local first_near_start_z_m = first_contact_z_m + {V29_FIRST_CONTACT_NEAR_MARGIN_M:.3f}\n",
+    )
+    linear_zero_helper = """
+def codex_wait_for_stage_linear_zero(stage_code, timeout_s):
+  local t = 0.0
+  local last_heartbeat = read_input_float_register(26)
+  local stale_s = 0.0
+  while t < timeout_s:
+    write_output_float_register(35, stage_code)
+    local heartbeat = read_input_float_register(26)
+    if heartbeat == last_heartbeat:
+      stale_s = stale_s + get_steptime()
+    else:
+      stale_s = 0.0
+      last_heartbeat = heartbeat
+    end
+    codex_echo_step4e(0.0)
+    if stale_s > 0.100:
+      return 2.0
+    end
+    local guard_reason = codex_step4e_guard_stop_reason()
+    if guard_reason != 0.0:
+      return guard_reason
+    end
+    if read_input_float_register(43) >= 0.5 and codex_abs(read_input_float_register(37)) <= 0.000001 and codex_abs(read_input_float_register(38)) <= 0.000001 and codex_abs(read_input_float_register(39)) <= 0.000001:
+      return 0.0
+    end
+    sync()
+    t = t + get_steptime()
+  end
+  return 12.0
+end
+
+"""
+    script = script.replace("\ndef codex_v29_down_search(", "\n" + linear_zero_helper + "def codex_v29_down_search(")
+    script = script.replace(
+        "    stop_reason = codex_wait_for_cmd_valid(25.2, 1.000)\n",
+        "    stop_reason = codex_wait_for_stage_linear_zero(25.2, 1.000)\n",
+    )
+    old_acquire = """  if stop_reason == 0.0:
+    write_output_float_register(35, 25.3)
+    local last_heartbeat_acquire = read_input_float_register(26)
+    local stale_s_acquire = 0.0
+    local t_acquire = 0.0
+    local acquire_stable_s = 0.0
+    local acquire_min_s = 0.200
+    local acquire_runtime_limit_s = 8.000
+    local acquire_force_error_limit_n = 0.750
+    local acquire_stable_required_s = 0.250
+    saw_cmd_valid = 0
+    cmd_invalid_s = 0.0
+    while stop_reason == 0.0:
+      local heartbeat_acquire = read_input_float_register(26)
+      local cmd_valid = read_input_float_register(43)
+      local force_error = read_input_float_register(45)
+      local cmd_vx = read_input_float_register(37)
+      local cmd_vy = read_input_float_register(38)
+      local cmd_vz = read_input_float_register(39)
+      local loop_dt = get_steptime()
+      if cmd_valid >= 0.5:
+        saw_cmd_valid = 1
+        cmd_invalid_s = 0.0
+      else:
+        cmd_invalid_s = cmd_invalid_s + loop_dt
+      end
+      if heartbeat_acquire == last_heartbeat_acquire:
+        stale_s_acquire = stale_s_acquire + loop_dt
+      else:
+        stale_s_acquire = 0.0
+        last_heartbeat_acquire = heartbeat_acquire
+      end
+      t_acquire = t_acquire + loop_dt
+      if t_acquire >= acquire_min_s and codex_abs(force_error) <= acquire_force_error_limit_n:
+        acquire_stable_s = acquire_stable_s + loop_dt
+      else:
+        acquire_stable_s = 0.0
+      end
+      codex_echo_step4e(stop_reason)
+      if stale_s_acquire > 0.100:
+        stop_reason = 2.0
+      else:
+        stop_reason = codex_step4e_guard_stop_reason()
+      end
+      if stop_reason == 0.0:
+        if acquire_stable_s >= acquire_stable_required_s:
+          stop_reason = 16.0
+        elif cmd_valid < 0.5:
+          if saw_cmd_valid == 0 and t_acquire < cmd_valid_grace_s:
+            speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)
+          elif saw_cmd_valid == 1 and cmd_invalid_s <= cmd_valid_loss_limit_s:
+            speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)
+          else:
+            stop_reason = 12.0
+          end
+        elif codex_abs(cmd_vx) > 0.010 or codex_abs(cmd_vy) > 0.010 or codex_abs(cmd_vz) > 0.010:
+          stop_reason = 13.0
+        elif t_acquire >= acquire_runtime_limit_s:
+          stop_reason = 10.0
+        else:
+          speedl([cmd_vx, cmd_vy, cmd_vz, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)
+        end
+      end
+    end
+    stopl(0.1)
+    if stop_reason == 16.0:
+      stop_reason = 0.0
+      saw_cmd_valid = 0
+      cmd_invalid_s = 0.0
+      end_hold_s = 0.0
+    end
+  end
+"""
+    new_line_entry = """  if stop_reason == 0.0:
+    write_output_float_register(35, 25.3)
+    local last_heartbeat_entry = read_input_float_register(26)
+    local stale_s_entry = 0.0
+    local t_entry = 0.0
+    local line_entry_s = 0.0
+    local line_entry_required_s = 0.100
+    local line_entry_timeout_s = 1.000
+    saw_cmd_valid = 0
+    cmd_invalid_s = 0.0
+    while stop_reason == 0.0:
+      local heartbeat_entry = read_input_float_register(26)
+      local cmd_valid = read_input_float_register(43)
+      local cmd_vx = read_input_float_register(37)
+      local cmd_vy = read_input_float_register(38)
+      local cmd_vz = read_input_float_register(39)
+      local loop_dt = get_steptime()
+      if cmd_valid >= 0.5:
+        saw_cmd_valid = 1
+        cmd_invalid_s = 0.0
+      else:
+        cmd_invalid_s = cmd_invalid_s + loop_dt
+      end
+      if heartbeat_entry == last_heartbeat_entry:
+        stale_s_entry = stale_s_entry + loop_dt
+      else:
+        stale_s_entry = 0.0
+        last_heartbeat_entry = heartbeat_entry
+      end
+      t_entry = t_entry + loop_dt
+      if cmd_valid >= 0.5 and codex_abs(cmd_vx) <= 0.000001 and codex_abs(cmd_vy) <= 0.000001 and codex_abs(cmd_vz) <= 0.000001:
+        line_entry_s = line_entry_s + loop_dt
+      else:
+        line_entry_s = 0.0
+      end
+      codex_echo_step4e(stop_reason)
+      if stale_s_entry > 0.100:
+        stop_reason = 2.0
+      else:
+        stop_reason = codex_step4e_guard_stop_reason()
+      end
+      if stop_reason == 0.0:
+        if line_entry_s >= line_entry_required_s:
+          stop_reason = 16.0
+        elif cmd_valid < 0.5:
+          if saw_cmd_valid == 0 and t_entry < cmd_valid_grace_s:
+            sync()
+          elif saw_cmd_valid == 1 and cmd_invalid_s <= cmd_valid_loss_limit_s:
+            sync()
+          else:
+            stop_reason = 12.0
+          end
+        elif codex_abs(cmd_vx) > 0.001 or codex_abs(cmd_vy) > 0.001 or codex_abs(cmd_vz) > 0.001:
+          stop_reason = 13.0
+        elif t_entry >= line_entry_timeout_s:
+          stop_reason = 12.0
+        else:
+          sync()
+        end
+      end
+    end
+    stopl(0.1)
+    if stop_reason == 16.0:
+      stop_reason = 0.0
+      saw_cmd_valid = 0
+      cmd_invalid_s = 0.0
+      end_hold_s = 0.0
+    end
+  end
+"""
+    if old_acquire not in script:
+        raise RuntimeError("v29 line-entry gate replacement failed")
+    script = script.replace(old_acquire, new_line_entry)
+    return script
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--stamp-prefix", default=None)
@@ -1922,6 +2161,7 @@ def main() -> int:
             "step4e_seed_normal_loop_v26",
             "step4e_seed_normal_loop_v27",
             "step4e_seed_normal_loop_v28",
+            "step4e_seed_normal_loop_v29",
         ),
         default="all",
     )
@@ -2006,6 +2246,12 @@ def main() -> int:
             "one-step entry XY plus target attitude at current Z, v13 force-jump first-contact-Z search with 25 mm near window, 2.5 mm/s near descent, 50 N raw-normal guard, first touch, 30 mm lift, angular speedl alignment, second touch, 5N acquire and line",
             v28_seed_normal_loop_script,
         ),
+        (
+            "step4e_seed_normal_loop_v29",
+            "SEED_NORMAL_LOOP_V29",
+            "bridge-profile-fix + line-entry-gate release: one-step entry XY plus target attitude at current Z, v13 force-jump first-contact-Z search with 20 mm near window, 2.5 mm/s near descent, 50 N raw-normal guard, first touch, 30 mm lift, angular speedl alignment, second touch, zero-linear 25.3 gate, then line",
+            v29_seed_normal_loop_script,
+        ),
     ]
     if args.program != "all":
         specs = [spec for spec in specs if spec[0] == args.program]
@@ -2030,6 +2276,7 @@ def main() -> int:
             "step4e_seed_normal_loop_v26",
             "step4e_seed_normal_loop_v27",
             "step4e_seed_normal_loop_v28",
+            "step4e_seed_normal_loop_v29",
         }:
             script = script_fn(stamp, generated_at(now), geom)
         else:

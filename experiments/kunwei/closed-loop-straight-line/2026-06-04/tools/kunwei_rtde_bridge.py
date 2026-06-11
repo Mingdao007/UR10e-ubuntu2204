@@ -353,11 +353,20 @@ def compute_step4e_values(
     v21_profile = args.step4e_version == "v21"
     v22_profile = args.step4e_version == "v22"
     v23_profile = args.step4e_version == "v23"
-    detached_profile = v20_profile or v21_profile or v22_profile or v23_profile
+    v24_profile = args.step4e_version == "v24"
+    v25_profile = args.step4e_version == "v25"
+    v26_profile = args.step4e_version == "v26"
+    v27_profile = args.step4e_version == "v27"
+    v28_profile = args.step4e_version == "v28"
+    v29_profile = args.step4e_version == "v29"
+    angular_speedl_profile = (
+        v23_profile or v24_profile or v25_profile or v26_profile or v27_profile or v28_profile or v29_profile
+    )
+    detached_profile = v20_profile or v21_profile or v22_profile or angular_speedl_profile
     axis_iso_active = args.step4e_mode == "axis_iso" and 25.18 <= robot_stage <= 25.27
     first_search_stage_active = (
         args.step4e_mode == "line"
-        and v23_profile
+        and angular_speedl_profile
         and (abs(robot_stage - 24.0) < 0.05 or abs(robot_stage - 24.2) < 0.05)
     )
     latch_stage_active = args.step4e_mode == "line" and detached_profile and abs(robot_stage - 25.05) < 0.03
@@ -368,9 +377,10 @@ def compute_step4e_values(
     )
     acquire_stage_active = (
         args.step4e_mode == "line"
-        and (v20_profile or v22_profile or v23_profile)
+        and (v20_profile or v22_profile or angular_speedl_profile)
         and abs(robot_stage - 25.3) < 0.05
     )
+    line_entry_gate_active = v29_profile and acquire_stage_active
     line_stage_active = args.step4e_mode == "line" and abs(robot_stage - 25.0) < 0.05
     control_stage_active = (
         latch_stage_active
@@ -440,7 +450,7 @@ def compute_step4e_values(
     tcp_z_axis_b = (rotation[0][2], rotation[1][2], rotation[2][2])
     orientation_target_axis_b = (
         (-n_control_b[0], -n_control_b[1], -n_control_b[2])
-        if (v21_profile or v22_profile or v23_profile)
+        if (v21_profile or v22_profile or angular_speedl_profile)
         else n_control_b
     )
     orientation_axis = cross3(tcp_z_axis_b, orientation_target_axis_b)
@@ -524,12 +534,17 @@ def compute_step4e_values(
         elif (v21_profile or v22_profile) and orient_stage_active:
             cmd = (0.0, 0.0, 0.0)
             orientation_cmd = target_rotvec
-        elif v23_profile and orient_stage_active:
+        elif angular_speedl_profile and orient_stage_active:
             cmd = (0.0, 0.0, 0.0)
         elif detached_profile and orient_stage_active:
             cmd = (0.0, 0.0, 0.0)
         elif axis_iso_active:
             cmd = (0.0, 0.0, 0.0)
+        elif line_entry_gate_active:
+            state.integral_error_n_s = 0.0
+            state.normal_velocity_m_s = 0.0
+            cmd = (0.0, 0.0, 0.0)
+            orientation_cmd = (0.0, 0.0, 0.0)
         else:
             state.integral_error_n_s = clamp(
                 state.integral_error_n_s + force_error * dt_s,
@@ -573,6 +588,10 @@ def compute_step4e_values(
         if cmd_norm > args.step4e_total_linear_limit_m_s:
             scale = args.step4e_total_linear_limit_m_s / cmd_norm
             cmd = tuple(value * scale for value in cmd)
+        if angular_speedl_profile and orient_stage_active and (
+            abs(cmd[0]) > 1e-12 or abs(cmd[1]) > 1e-12 or abs(cmd[2]) > 1e-12
+        ):
+            raise RuntimeError("Step4e v23..v29 stage 25.2 contract violation: linear command registers must be zero")
         values.update(
             {
                 "step4e_cmd_vx_m_s": n_control_b[0] if (v21_profile and detach_stage_active) else cmd[0],
@@ -580,7 +599,7 @@ def compute_step4e_values(
                 "step4e_cmd_vz_m_s": n_control_b[2] if (v21_profile and detach_stage_active) else cmd[2],
                 "step4e_cmd_wx_rad_s": orientation_cmd[0],
                 "step4e_cmd_wy_rad_s": orientation_cmd[1],
-                "step4e_cmd_wz_rad_s": orientation_cmd[2] if (axis_iso_active or v21_profile or v22_profile or v23_profile) else 0.0,
+                "step4e_cmd_wz_rad_s": orientation_cmd[2] if (axis_iso_active or v21_profile or v22_profile or angular_speedl_profile) else 0.0,
                 "step4e_cmd_valid": 0.0 if args.step4e_mode == "preview" else 1.0,
                 "step4e_progress_m": progress,
                 "step4e_force_error_n": force_error,
@@ -593,7 +612,9 @@ def compute_step4e_values(
                     else 31.0
                     if orient_stage_active
                     else 32.0
-                    if acquire_stage_active
+                    if acquire_stage_active and not line_entry_gate_active
+                    else 36.0
+                    if line_entry_gate_active
                     else 34.0
                     if axis_iso_active
                     else {"preview": 10.0, "hold": 20.0, "line": 30.0, "axis_iso": 34.0}[args.step4e_mode]
@@ -889,6 +910,13 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("duration, baseline, and RTDE rate must be positive")
     if not args.no_start_command and not args.allow_kunwei_stream_command:
         raise SystemExit("Refusing to send Kunwei stream command without --allow-kunwei-stream-command")
+    known_step4e_versions = {"", "v20", "v21", "v22", "v23", "v24", "v25", "v26", "v27", "v28", "v29"}
+    if args.step4e_version not in known_step4e_versions:
+        raise SystemExit(
+            f"Unknown --step4e-version {args.step4e_version!r}; bridge profiles only cover "
+            f"{sorted(v for v in known_step4e_versions if v)}. Add the new version to the "
+            "profile definitions before running, otherwise cmd_valid is never asserted."
+        )
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     sensor_csv_path = args.output_dir / "kunwei_sensor_1khz.csv"
@@ -933,7 +961,13 @@ def main(argv: list[str] | None = None) -> int:
             "v21_line_25.1": "input_double_register_37..39 are the +locked-normal unit detach direction, not Cartesian velocity.",
             "v21_line_25.2": "input_double_register_40..42 are target TCP rotvec rx/ry/rz for a single detached movel; target is z_tcp_B ~= -locked_normal_B.",
             "v22_seed_normal_loop": "25.05 latches the first contact normal; 25.2 outputs target TCP rotvec for optional lifted posture correction; 25.3 reacquires 5 N before 25.0 line control.",
-            "v23_seed_normal_loop": "24.0/24.2 latch the first contact normal; 25.2 outputs angular speedl wx/wy/wz for lifted posture correction; 25.3 reacquires 5 N before 25.0 line control.",
+            "v23_seed_normal_loop_failed_archive": "24.0/24.2 latch the first contact normal; 25.2 outputs angular speedl wx/wy/wz for lifted posture correction; 25.3 reacquires 5 N before 25.0 line control. Archived after 2026-06-12 stop_reason=13 at 25.2.",
+            "v24_seed_normal_loop_evidence": "One-step entry scaffold evidence; first search envelope still used a fixed 80 mm far-search transition.",
+            "v25_seed_normal_loop_failed_archive": "Dynamic first search formula but wrong target initial Z datum; archived after 2026-06-12 no-contact depth stop.",
+            "v26_seed_normal_loop_failed_archive": "Reference-Z search used the reference path contact-start datum; archived after 2026-06-12 no-contact depth stop.",
+            "v27_seed_normal_loop_failed_archive": "Used v13/v16 force-jump first-contact Z evidence; archived after stage 25.05 cmd_valid timeout with the older bridge profile set.",
+            "v28_seed_normal_loop_failed_archive": "Reached first contact and stage 25.05, but the runtime bridge did not recognize v28 in the active profile set, so cmd_valid stayed 0.",
+            "v29_seed_normal_loop_current": "Canonical flow follows STEP4E_FLOW.md: v28 motion with bridge-profile recognition fixed; one-step entry XY plus target attitude at current Z, first far/near search using v13/v16 first-contact Z evidence with a 20 mm near window and 2.5 mm/s near descent, first-contact latch, 30 mm lift, 25.2 angular speedl after input_double_register_37..39 settle to zero, second search, 25.3 zero-linear line-entry gate, then line control.",
         },
         "step4e_path": {
             "type": "line_from_two_tcp_points",
