@@ -80,6 +80,13 @@ Control boundary:
 """
 
 
+def program_default_subdir(name: str) -> str:
+    """Return the default Step4 placement subdir for current vs archived packages."""
+    if name in {"step4e_detached_movel_minrot_v21", "step4e_seed_normal_loop_v22"}:
+        return "step4e"
+    return ""
+
+
 def validate_package(name: str, script: str, txt: str, urp: bytes, stamp: str, controller_dir: str) -> None:
     xml = gzip.decompress(urp).decode("utf-8")
     checks = {
@@ -1587,14 +1594,15 @@ def main() -> int:
     )
     parser.add_argument(
         "--program-subdir",
-        default="",
-        help="Optional local/controller subdirectory under the Step4 program directory, such as step4e.",
+        default=None,
+        help=(
+            "Optional local/controller subdirectory under the Step4 program directory. "
+            "When omitted, current packages are generated in the Step4 root and archived "
+            "v21/v22 packages are generated under step4e."
+        ),
     )
     parser.add_argument("--pose-pair", type=Path, default=None)
     args = parser.parse_args()
-    local_program_dir = PROGRAM_DIR / args.program_subdir if args.program_subdir else PROGRAM_DIR
-    controller_dir = f"{CONTROLLER_BASE_DIR}/{args.program_subdir}" if args.program_subdir else CONTROLLER_BASE_DIR
-    local_program_dir.mkdir(parents=True, exist_ok=True)
     now = datetime.now(timezone(timedelta(hours=8)))
     geom = line_cfg(load_json(CONFIG_PATH))
     pose_pair = None
@@ -1640,6 +1648,10 @@ def main() -> int:
         specs = [spec for spec in specs if spec[0] == args.program]
     generated = {}
     for name, suffix, description, script_fn in specs:
+        program_subdir = args.program_subdir if args.program_subdir is not None else program_default_subdir(name)
+        local_program_dir = PROGRAM_DIR / program_subdir if program_subdir else PROGRAM_DIR
+        controller_dir = f"{CONTROLLER_BASE_DIR}/{program_subdir}" if program_subdir else CONTROLLER_BASE_DIR
+        local_program_dir.mkdir(parents=True, exist_ok=True)
         stamp = args.stamp_prefix or source_stamp(suffix, now)
         if name == "step4e_ball_vs_cyl_contact_p0_v1":
             if pose_pair is None:

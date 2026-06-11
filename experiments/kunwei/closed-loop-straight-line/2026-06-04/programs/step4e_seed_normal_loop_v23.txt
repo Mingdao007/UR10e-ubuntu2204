@@ -4,7 +4,7 @@ Program:
   step4e_seed_normal_loop_v23
 
 Version:
-  2026-06-12T0034HKT_STEP4E_SEED_NORMAL_LOOP_V23
+  2026-06-12T0046HKT_STEP4E_SEED_NORMAL_LOOP_V23
 
 Purpose:
   v13-safe entry/search with near-normal rotvec, first touch, 50 mm lift, angular speedl alignment, second touch, 5N acquire and line

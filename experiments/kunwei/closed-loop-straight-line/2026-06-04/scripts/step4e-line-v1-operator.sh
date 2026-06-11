@@ -41,7 +41,7 @@ if [[ "${STEP4E_VERSION}" == "v22" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e/step4e_seed_normal_loop_v22.urp"
 fi
 if [[ "${STEP4E_VERSION}" == "v23" ]]; then
-  PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e/step4e_seed_normal_loop_v23.urp"
+  PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_seed_normal_loop_v23.urp"
 fi
 if [[ "${STEP4E_VERSION}" == "p0_geo_v1" ]]; then
   SEARCH_DESCRIPTION="P0-geo ball-first contact witness: vertical TCP entry, far 15 mm/s until 80 mm depth, then near 3 mm/s until first 1-1.5 N contact or 92 mm max depth; after contact it holds still for visual confirmation, retracts base-Z 2 mm, and never runs attitude, 5N acquisition, or line motion"
