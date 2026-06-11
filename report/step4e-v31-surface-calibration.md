@@ -45,7 +45,7 @@
 ![attitude error time](assets/step4e-v31-surface-calibration/attitude-error-time.png)
 
 图 4 把 force 和 true attitude error 放在同一张散点图里。
-这张图用于判断 force overshoot 是否和局部姿态误差共同出现；它不单独证明因果，只给后续 segment 标注和校正候选提供 evidence。
+这张图用于判断 force overshoot 是否和局部姿态误差共同出现；它不单独证明因果，只给后续 drag-teach 点校正和曲面姿态修正提供 evidence。
 
 ![force vs attitude error](assets/step4e-v31-surface-calibration/force-vs-attitude-error.png)
 
@@ -87,7 +87,21 @@ control normal 和 fitted surface normal 的平均夹角为 `6.861 deg`，说明
 
 交互 review 页在 [calibration_review.html](assets/step4e-v31-surface-calibration/calibration_review.html)。
 它展示 v31 surface fit、Step4f/4g reference preview、supplementary screenshots 和本次视频抽帧。
-页面支持在图上点击打 marker，并导出 `calibration-markers.json`，后续可作为曲线段/视频帧/曲线区域的人工标注输入。
+这个页面现在只作为 evidence review，不再作为人工校正入口，也不要求导出 marker。
+
+## Drag-teach 校正入口
+
+正式校正入口改为 robot-side 示教点：
+
+```bash
+python3 experiments/kunwei/closed-loop-straight-line/2026-06-04/tools/capture_drag_teach_point.py start
+python3 experiments/kunwei/closed-loop-straight-line/2026-06-04/tools/capture_drag_teach_point.py end
+python3 experiments/kunwei/closed-loop-straight-line/2026-06-04/tools/analyze_drag_teach_points.py --shape both
+```
+
+`capture_drag_teach_point.py` 只读 Dashboard/RTDE，不发 URScript、不 load/start program、不 enable freedrive。
+你在 teach pendant/robot 侧把 TCP 放到曲线起点和终点后分别 capture；analyzer 会输出公式点相对示教点的 `base X/Y` 偏差，以及 local `along/lateral` 偏差，单位都是 mm。
+如果 start-only 平移后 end residual 超过阈值，报告会明确要求再 capture `mid`；否则不需要第三点。
 
 ## 结论
 
@@ -98,8 +112,8 @@ control normal 和 fitted surface normal 的平均夹角为 `6.861 deg`，说明
 
 ## 下一步
 
-- 先在 HTML review 中标出 v31 曲面 profile 中最像当前小平台候选段的区间。
-- 如果标注区间和 Step4f/4g 小平台曲线候选不一致，先讨论 anchor，不直接改 TP program。
+- 先由你物理示教 `start`/`end`，必要时补 `mid`。
+- 根据 analyzer 给出的 `base X/Y` 偏差决定 TP anchor 是否只做平移；如果 end/mid residual 说明存在旋转或曲率误差，先讨论 anchor，不直接改 TP program。
 - 下一轮控制侧只改 surface/normal 校正口径，保持 v31/Step4f/Step4g TP scaffold 不变。
 
 ## 附录

@@ -532,7 +532,7 @@ def write_report(metrics: dict[str, object]) -> None:
 ![attitude error time](assets/step4e-v31-surface-calibration/attitude-error-time.png)
 
 图 4 把 force 和 true attitude error 放在同一张散点图里。
-这张图用于判断 force overshoot 是否和局部姿态误差共同出现；它不单独证明因果，只给后续 segment 标注和校正候选提供 evidence。
+这张图用于判断 force overshoot 是否和局部姿态误差共同出现；它不单独证明因果，只给后续 drag-teach 点校正和曲面姿态修正提供 evidence。
 
 ![force vs attitude error](assets/step4e-v31-surface-calibration/force-vs-attitude-error.png)
 
@@ -574,7 +574,21 @@ control normal 和 fitted surface normal 的平均夹角为 `{fmt(attitude["cont
 
 交互 review 页在 [calibration_review.html](assets/step4e-v31-surface-calibration/calibration_review.html)。
 它展示 v31 surface fit、Step4f/4g reference preview、supplementary screenshots 和本次视频抽帧。
-页面支持在图上点击打 marker，并导出 `calibration-markers.json`，后续可作为曲线段/视频帧/曲线区域的人工标注输入。
+这个页面现在只作为 evidence review，不再作为人工校正入口，也不要求导出 marker。
+
+## Drag-teach 校正入口
+
+正式校正入口改为 robot-side 示教点：
+
+```bash
+python3 experiments/kunwei/closed-loop-straight-line/2026-06-04/tools/capture_drag_teach_point.py start
+python3 experiments/kunwei/closed-loop-straight-line/2026-06-04/tools/capture_drag_teach_point.py end
+python3 experiments/kunwei/closed-loop-straight-line/2026-06-04/tools/analyze_drag_teach_points.py --shape both
+```
+
+`capture_drag_teach_point.py` 只读 Dashboard/RTDE，不发 URScript、不 load/start program、不 enable freedrive。
+你在 teach pendant/robot 侧把 TCP 放到曲线起点和终点后分别 capture；analyzer 会输出公式点相对示教点的 `base X/Y` 偏差，以及 local `along/lateral` 偏差，单位都是 mm。
+如果 start-only 平移后 end residual 超过阈值，报告会明确要求再 capture `mid`；否则不需要第三点。
 
 ## 结论
 
@@ -585,8 +599,8 @@ control normal 和 fitted surface normal 的平均夹角为 `{fmt(attitude["cont
 
 ## 下一步
 
-- 先在 HTML review 中标出 v31 曲面 profile 中最像当前小平台候选段的区间。
-- 如果标注区间和 Step4f/4g 小平台曲线候选不一致，先讨论 anchor，不直接改 TP program。
+- 先由你物理示教 `start`/`end`，必要时补 `mid`。
+- 根据 analyzer 给出的 `base X/Y` 偏差决定 TP anchor 是否只做平移；如果 end/mid residual 说明存在旋转或曲率误差，先讨论 anchor，不直接改 TP program。
 - 下一轮控制侧只改 surface/normal 校正口径，保持 v31/Step4f/Step4g TP scaffold 不变。
 
 ## 附录
@@ -656,15 +670,11 @@ def write_html(metrics: dict[str, object]) -> None:
     section, .grid, .card, aside, pre {{ min-width: 0; }}
     .grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }}
     .card {{ margin: 0; padding: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; position: relative; overflow: hidden; }}
-    .card img {{ display: block; width: 100%; max-width: 100%; height: auto; border-radius: 4px; cursor: crosshair; }}
+    .card img {{ display: block; width: 100%; max-width: 100%; height: auto; border-radius: 4px; }}
     figcaption {{ margin-top: 8px; font-size: 13px; color: var(--muted); }}
     aside {{ position: sticky; top: 14px; align-self: start; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; }}
-    button {{ border: 1px solid var(--accent); background: var(--accent); color: white; padding: 8px 10px; border-radius: 6px; cursor: pointer; }}
-    button.secondary {{ background: white; color: var(--accent); }}
-    textarea {{ width: 100%; min-height: 76px; margin: 8px 0; border: 1px solid var(--line); border-radius: 6px; padding: 8px; font: inherit; }}
-    .marker-list {{ padding: 0; margin: 10px 0 0; list-style: none; display: grid; gap: 8px; max-height: 46vh; overflow: auto; }}
-    .marker-list li {{ border: 1px solid var(--line); border-radius: 6px; padding: 8px; font-size: 12px; }}
-    .dot {{ position: absolute; width: 12px; height: 12px; border-radius: 50%; background: #d22f27; border: 2px solid white; transform: translate(-50%, -50%); pointer-events: none; box-shadow: 0 0 0 1px #8f1d18; }}
+    code {{ background: #eef3f6; border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px; }}
+    .step-list {{ margin: 8px 0 0; padding-left: 18px; color: var(--muted); line-height: 1.55; }}
     pre {{ white-space: pre-wrap; overflow: auto; background: #111820; color: #d9e5ee; padding: 12px; border-radius: 8px; font-size: 12px; }}
     @media (max-width: 900px) {{
       main {{ grid-template-columns: 1fr; padding: 14px; }}
@@ -676,7 +686,7 @@ def write_html(metrics: dict[str, object]) -> None:
 <body>
   <header>
     <h1>Step4e v31 Surface Calibration Review</h1>
-    <p>点击任意图像添加 marker；用右侧 note 描述 v31 segment、视频帧或曲线段含义，再导出 JSON 作为下一轮校正输入。</p>
+    <p>只读 evidence review：这里展示 v31 曲面拟合、Step4f/4g reference preview、supplementary screenshots 和视频抽帧。校正入口已改为 robot-side drag-teach start/end 点。</p>
   </header>
   <main>
     <section>
@@ -686,59 +696,16 @@ def write_html(metrics: dict[str, object]) -> None:
       <pre>{metrics_blob}</pre>
     </section>
     <aside>
-      <h2>Markers</h2>
-      <textarea id="note" placeholder="marker note，例如：候选小平台曲面段 / 视频 frame 对应关系 / force spike 区间"></textarea>
-      <div style="display:flex; gap:8px; flex-wrap:wrap">
-        <button id="export">Export JSON</button>
-        <button id="clear" class="secondary">Clear</button>
-      </div>
-      <ul id="markers" class="marker-list"></ul>
+      <h2>Calibration Entry</h2>
+      <p>不要在这个 HTML 上点 marker。正式入口是在 robot/teach pendant 侧把 TCP 放到曲线点位后，用只读 RTDE snapshot capture。</p>
+      <ol class="step-list">
+        <li><code>capture_drag_teach_point.py start</code></li>
+        <li><code>capture_drag_teach_point.py end</code></li>
+        <li><code>analyze_drag_teach_points.py --shape both</code></li>
+      </ol>
+      <p>Analyzer 会输出公式 reference 相对示教点的 base X/Y 偏差；只有 end residual 超阈值时才需要第三个 <code>mid</code> 点。</p>
     </aside>
   </main>
-  <script>
-    const markers = [];
-    const list = document.getElementById('markers');
-    const note = document.getElementById('note');
-    function render() {{
-      list.innerHTML = '';
-      markers.forEach((m, i) => {{
-        const li = document.createElement('li');
-        li.textContent = `${{i + 1}}. ${{m.asset}} @ ${{m.x_pct.toFixed(2)}}%, ${{m.y_pct.toFixed(2)}}% — ${{m.note || 'no note'}}`;
-        list.appendChild(li);
-      }});
-    }}
-    document.querySelectorAll('figure.card img').forEach(img => {{
-      img.addEventListener('click', event => {{
-        const rect = img.getBoundingClientRect();
-        const xPct = (event.clientX - rect.left) / rect.width * 100;
-        const yPct = (event.clientY - rect.top) / rect.height * 100;
-        const figure = img.closest('figure');
-        const marker = {{ asset: figure.dataset.asset, x_pct: xPct, y_pct: yPct, note: note.value.trim(), created_at: new Date().toISOString() }};
-        markers.push(marker);
-        const dot = document.createElement('span');
-        dot.className = 'dot';
-        dot.style.left = `${{xPct}}%`;
-        dot.style.top = `${{yPct}}%`;
-        figure.appendChild(dot);
-        render();
-      }});
-    }});
-    document.getElementById('clear').addEventListener('click', () => {{
-      markers.splice(0, markers.length);
-      document.querySelectorAll('.dot').forEach(dot => dot.remove());
-      render();
-    }});
-    document.getElementById('export').addEventListener('click', () => {{
-      const payload = {{ source: 'step4e-v31-surface-calibration', exported_at: new Date().toISOString(), markers }};
-      const blob = new Blob([JSON.stringify(payload, null, 2)], {{ type: 'application/json' }});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'calibration-markers.json';
-      a.click();
-      URL.revokeObjectURL(url);
-    }});
-  </script>
 </body>
 </html>
 """
