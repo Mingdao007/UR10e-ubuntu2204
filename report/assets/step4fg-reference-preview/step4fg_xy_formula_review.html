@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Step4f/Step4g XY Formula Review</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17202a;
+      --muted: #5f6d78;
+      --line: #d7e0e8;
+      --panel: #ffffff;
+      --bg: #f6f8fb;
+      --arc: #0f766e;
+      --eight: #7c3aed;
+      --warn: #b45309;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+    }
+    header {
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+      padding: 22px 28px 16px;
+    }
+    h1 { margin: 0 0 8px; font-size: 25px; line-height: 1.2; }
+    h2 { margin: 0 0 10px; font-size: 17px; }
+    p { margin: 0; color: var(--muted); line-height: 1.55; max-width: 1120px; }
+    main { padding: 18px 24px 28px; display: grid; gap: 16px; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      min-width: 0;
+    }
+    canvas {
+      width: 100%;
+      height: auto;
+      display: block;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    code {
+      display: inline-block;
+      background: #edf3f7;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 1px 4px;
+      color: #1b3440;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+    }
+    .note {
+      border-left: 4px solid var(--warn);
+      background: #fff8eb;
+      padding: 10px 12px;
+      color: #68400b;
+      border-radius: 4px;
+    }
+    @media (max-width: 900px) {
+      header { padding: 18px 16px 12px; }
+      main { padding: 14px; }
+      .grid, .metrics { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Step4f / Step4g XY Formula Review</h1>
+    <p>来源：论文 Section VI Experimental Verification，A. Force Control on Surfaces of Fixed Material，Experiment #1 cycloid 和 Experiment #2 8-shaped。单位均为 mm，图中 X/Y 是论文公式的 local XY，不是 robot base XY。</p>
+  </header>
+  <main>
+    <section class="card note">
+      关键核对点：Step4f 是 cycloid，不是半圆；下面的等效圆弧角只是一种现场辅助近似。真正应核对的是 start/end chord、最高 lateral 高度、以及曲线形状。
+    </section>
+    <section class="grid">
+      <article class="card">
+        <h2>Experiment #1: Cycloid XY</h2>
+        <canvas id="cycloidXY" width="900" height="620"></canvas>
+        <div id="cycloidMetrics" class="metrics"></div>
+      </article>
+      <article class="card">
+        <h2>Experiment #2: 8-shaped XY</h2>
+        <canvas id="eightXY" width="900" height="620"></canvas>
+        <div id="eightMetrics" class="metrics"></div>
+      </article>
+    </section>
+    <section class="grid">
+      <article class="card">
+        <h2>Cycloid x(t), y(t)</h2>
+        <canvas id="cycloidTime" width="900" height="420"></canvas>
+      </article>
+      <article class="card">
+        <h2>8-shaped x(t), y(t)</h2>
+        <canvas id="eightTime" width="900" height="420"></canvas>
+      </article>
+    </section>
+  </main>
+  <script>
+    const cases = {
+      cycloid: {
+        color: '#0f766e',
+        formula: 'x=0.015(0.1t - sin(0.1t)), y=0.015(1 - cos(0.1t))',
+        xy(t) {
+          return {
+            x: 1000 * 0.015 * (0.1 * t - Math.sin(0.1 * t)),
+            y: 1000 * 0.015 * (1 - Math.cos(0.1 * t)),
+          };
+        },
+      },
+      eight: {
+        color: '#7c3aed',
+        formula: 'x=0.04sin(0.1t), y=0.01sin(0.2t)',
+        xy(t) {
+          return {
+            x: 1000 * 0.04 * Math.sin(0.1 * t),
+            y: 1000 * 0.01 * Math.sin(0.2 * t),
+          };
+        },
+      },
+    };
+
+    function pointsFor(spec) {
+      const pts = [];
+      for (let i = 0; i <= 600; i++) {
+        const t = i / 10;
+        const p = spec.xy(t);
+        pts.push({ t, x: p.x, y: p.y });
+      }
+      return pts;
+    }
+
+    function bounds(pts) {
+      const xs = pts.map(p => p.x);
+      const ys = pts.map(p => p.y);
+      return {
+        minX: Math.min(...xs), maxX: Math.max(...xs),
+        minY: Math.min(...ys), maxY: Math.max(...ys),
+      };
+    }
+
+    function fmt(v, d = 2) { return v.toFixed(d); }
+    function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+
+    function circumcircle(a, b, c) {
+      const d = 2 * (a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y));
+      if (Math.abs(d) < 1e-9) return null;
+      const ux = ((a.x*a.x + a.y*a.y) * (b.y - c.y) + (b.x*b.x + b.y*b.y) * (c.y - a.y) + (c.x*c.x + c.y*c.y) * (a.y - b.y)) / d;
+      const uy = ((a.x*a.x + a.y*a.y) * (c.x - b.x) + (b.x*b.x + b.y*b.y) * (a.x - c.x) + (c.x*c.x + c.y*c.y) * (b.x - a.x)) / d;
+      const r = Math.hypot(a.x - ux, a.y - uy);
+      const chord = dist(a, c);
+      const angle = 2 * Math.asin(Math.min(1, chord / (2 * r))) * 180 / Math.PI;
+      return { x: ux, y: uy, r, angle };
+    }
+
+    function drawXY(canvasId, spec, title) {
+      const canvas = document.getElementById(canvasId);
+      const ctx = canvas.getContext('2d');
+      const pts = pointsFor(spec);
+      const b = bounds(pts);
+      const pad = 58;
+      const rangeX = Math.max(1, b.maxX - b.minX);
+      const rangeY = Math.max(1, b.maxY - b.minY);
+      const scale = Math.min((canvas.width - pad * 2) / rangeX, (canvas.height - pad * 2) / rangeY) * 0.88;
+      const cx = (b.minX + b.maxX) / 2;
+      const cy = (b.minY + b.maxY) / 2;
+      function map(p) {
+        return {
+          x: canvas.width / 2 + (p.x - cx) * scale,
+          y: canvas.height / 2 - (p.y - cy) * scale,
+        };
+      }
+      function line(a, bp, color, width = 1, dash = []) {
+        const pa = map(a), pb = map(bp);
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.setLineDash(dash);
+        ctx.beginPath();
+        ctx.moveTo(pa.x, pa.y);
+        ctx.lineTo(pb.x, pb.y);
+        ctx.stroke();
+        ctx.restore();
+      }
+      function label(p, text, dx = 8, dy = -8) {
+        const q = map(p);
+        ctx.fillStyle = '#17202a';
+        ctx.font = '13px system-ui';
+        ctx.fillText(text, q.x + dx, q.y + dy);
+      }
+      function dot(p, color, text) {
+        const q = map(p);
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(q.x, q.y, 5.5, 0, Math.PI * 2);
+        ctx.fill();
+        label(p, text);
+      }
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const axisMinX = Math.min(b.minX, 0), axisMaxX = Math.max(b.maxX, 0);
+      const axisMinY = Math.min(b.minY, 0), axisMaxY = Math.max(b.maxY, 0);
+      line({ x: axisMinX, y: 0 }, { x: axisMaxX, y: 0 }, '#b8c4ce', 1, [6, 6]);
+      line({ x: 0, y: axisMinY }, { x: 0, y: axisMaxY }, '#b8c4ce', 1, [6, 6]);
+
+      ctx.strokeStyle = spec.color;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      pts.forEach((p, i) => {
+        const q = map(p);
+        if (i === 0) ctx.moveTo(q.x, q.y);
+        else ctx.lineTo(q.x, q.y);
+      });
+      ctx.stroke();
+
+      const p0 = spec.xy(0), p30 = spec.xy(30), p60 = spec.xy(60);
+      line(p0, p60, '#8b97a3', 1.5, [7, 6]);
+      dot(p0, '#111827', 't=0 start');
+      dot(p30, spec.color, 't=30 mid');
+      dot(p60, '#b91c1c', 't=60 end');
+
+      ctx.fillStyle = '#17202a';
+      ctx.font = '15px system-ui';
+      ctx.fillText(title, 20, 28);
+      ctx.fillStyle = '#5f6d78';
+      ctx.font = '13px system-ui';
+      ctx.fillText('equal scale, local X/Y in mm', 20, 48);
+
+      return { pts, bounds: b, p0, p30, p60, circle: circumcircle(p0, p30, p60) };
+    }
+
+    function drawTime(canvasId, spec, title) {
+      const canvas = document.getElementById(canvasId);
+      const ctx = canvas.getContext('2d');
+      const pts = pointsFor(spec);
+      const padL = 54, padR = 18, padT = 28, padB = 44;
+      const minT = 0, maxT = 60;
+      const minY = Math.min(...pts.flatMap(p => [p.x, p.y]));
+      const maxY = Math.max(...pts.flatMap(p => [p.x, p.y]));
+      function map(t, v) {
+        return {
+          x: padL + (t - minT) / (maxT - minT) * (canvas.width - padL - padR),
+          y: canvas.height - padB - (v - minY) / (maxY - minY || 1) * (canvas.height - padT - padB),
+        };
+      }
+      function drawSeries(key, color) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        pts.forEach((p, i) => {
+          const q = map(p.t, p[key]);
+          if (i === 0) ctx.moveTo(q.x, q.y);
+          else ctx.lineTo(q.x, q.y);
+        });
+        ctx.stroke();
+      }
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = '#d7e0e8';
+      ctx.lineWidth = 1;
+      for (let t = 0; t <= 60; t += 10) {
+        const q = map(t, minY);
+        ctx.beginPath(); ctx.moveTo(q.x, padT); ctx.lineTo(q.x, canvas.height - padB); ctx.stroke();
+      }
+      for (let i = 0; i <= 4; i++) {
+        const v = minY + (maxY - minY) * i / 4;
+        const q = map(0, v);
+        ctx.beginPath(); ctx.moveTo(padL, q.y); ctx.lineTo(canvas.width - padR, q.y); ctx.stroke();
+      }
+      drawSeries('x', '#0f766e');
+      drawSeries('y', '#c2410c');
+      ctx.fillStyle = '#17202a';
+      ctx.font = '15px system-ui';
+      ctx.fillText(title, 18, 22);
+      ctx.font = '13px system-ui';
+      ctx.fillStyle = '#0f766e'; ctx.fillText('x(t)', canvas.width - 120, 22);
+      ctx.fillStyle = '#c2410c'; ctx.fillText('y(t)', canvas.width - 70, 22);
+      ctx.fillStyle = '#5f6d78';
+      ctx.fillText('time t (s)', canvas.width / 2 - 30, canvas.height - 12);
+      ctx.save();
+      ctx.translate(17, canvas.height / 2 + 35);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText('local coordinate (mm)', 0, 0);
+      ctx.restore();
+    }
+
+    function metric(containerId, spec, result, label) {
+      const target = document.getElementById(containerId);
+      const b = result.bounds;
+      const chord = dist(result.p0, result.p60);
+      const peak = Math.max(Math.abs(b.minY), Math.abs(b.maxY));
+      const circleText = result.circle
+        ? `辅助圆拟合: R=${fmt(result.circle.r)} mm, 角度=${fmt(result.circle.angle)} deg`
+        : '辅助圆拟合: N/A';
+      target.innerHTML = [
+        `<div class="metric"><strong>公式</strong><br><code>${spec.formula}</code></div>`,
+        `<div class="metric"><strong>包络</strong><br>X ${fmt(b.minX)}..${fmt(b.maxX)} mm<br>Y ${fmt(b.minY)}..${fmt(b.maxY)} mm</div>`,
+        `<div class="metric"><strong>核对尺寸</strong><br>start-end chord=${fmt(chord)} mm<br>max |Y|=${fmt(peak)} mm</div>`,
+        `<div class="metric"><strong>${label}</strong><br>${circleText}</div>`,
+      ].join('');
+    }
+
+    const cycloidResult = drawXY('cycloidXY', cases.cycloid, 'Experiment #1 cycloid');
+    const eightResult = drawXY('eightXY', cases.eight, 'Experiment #2 figure-eight');
+    drawTime('cycloidTime', cases.cycloid, 'Cycloid coordinates over 60 s');
+    drawTime('eightTime', cases.eight, 'Figure-eight coordinates over 60 s');
+    metric('cycloidMetrics', cases.cycloid, cycloidResult, '不是文章给定角度');
+    metric('eightMetrics', cases.eight, eightResult, '8 字三点辅助拟合');
+  </script>
+</body>
+</html>
