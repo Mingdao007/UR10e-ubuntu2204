@@ -65,11 +65,12 @@ def generated_at(now: datetime) -> str:
 
 def line_cfg(config: dict) -> dict:
     cfg = config["step4e_line"]
-    sx, sy, _sz, srx, sry, srz = [float(v) for v in cfg["start_tcp_pose_m_rad"]]
+    sx, sy, sz, srx, sry, srz = [float(v) for v in cfg["start_tcp_pose_m_rad"]]
     ex, ey, _ez, _erx, _ery, _erz = [float(v) for v in cfg["end_tcp_pose_m_rad"]]
     return {
         "start_x": sx,
         "start_y": sy,
+        "start_z": sz,
         "end_x": ex,
         "end_y": ey,
         "ref_rx": srx,

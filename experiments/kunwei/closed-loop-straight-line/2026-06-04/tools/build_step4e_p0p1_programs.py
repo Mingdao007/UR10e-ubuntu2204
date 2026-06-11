@@ -161,7 +161,7 @@ def validate_package(name: str, script: str, txt: str, urp: bytes, stamp: str, c
     if name == "step4e_seed_normal_loop_v22":
         checks.update(
             {
-                "seed pose": "SEED_TCP_POSE_M_RAD: [0.435079163, 0.113238716, 0.008214459" in script,
+                "seed pose": "SEED_TCP_POSE_M_RAD: [0.433010000, 0.108020000, -0.391790000" in script,
                 "raw normal guard 35n": "codex_abs(normal_force) > 35.0" in script,
                 "first search": "codex_v22_down_search(24.0, 24.2, 0.030, 0.010, 25.000)" in script,
                 "lift 50mm": "p_lift[2] + 0.050" in script,
@@ -779,9 +779,9 @@ codex_step4e_detached_movel_v21()
 
 def v22_seed_normal_loop_script(stamp: str, gen_at: str, geom: dict[str, float]) -> str:
     seed_pose = [
-        0.435079163,
-        0.113238716,
-        0.008214459,
+        geom["start_x"],
+        geom["start_y"],
+        geom["start_z"],
         -3.044172198,
         -0.130573165,
         -0.202188631,
@@ -790,7 +790,7 @@ def v22_seed_normal_loop_script(stamp: str, gen_at: str, geom: dict[str, float])
 # VERSION: {stamp}
 # GENERATED_AT_LOCAL: {gen_at}
 # SEED_TCP_POSE_M_RAD: [{format_pose(seed_pose)}]
-# PURPOSE: use the manually placed near-normal seed pose, touch once, lift 50 mm, optionally align TCP z to the measured contact normal, touch again, then run normal FT line control.
+# PURPOSE: use the marked path-start XYZ with the manually marked near-normal rotvec, touch once, lift 50 mm, optionally align TCP z to the measured contact normal, touch again, then run normal FT line control.
 # CONTROL: bridge step4e-version=v22 latches the first contact normal, writes target rotvec in 25.2, reacquires 5 N in 25.3, and runs line control in 25.0.
 # SAFETY: raw normal guard 35 N, force norm guard 50 N, torque guard 3.0 Nm.
 {common_functions("35.0", "3.0")}
@@ -1176,7 +1176,7 @@ def main() -> int:
         (
             "step4e_seed_normal_loop_v22",
             "SEED_NORMAL_LOOP_V22",
-            "manual near-normal seed pose, first touch, 50 mm lift, optional normal alignment, second touch, 5N acquire and line",
+            "marked path-start XYZ with manually marked near-normal rotvec, first touch, 50 mm lift, optional normal alignment, second touch, 5N acquire and line",
             v22_seed_normal_loop_script,
         ),
     ]
