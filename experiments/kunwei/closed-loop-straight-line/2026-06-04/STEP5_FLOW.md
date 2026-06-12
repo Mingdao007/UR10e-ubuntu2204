@@ -36,8 +36,8 @@ Motion contract:
 - entry is `movel` only;
 - cycloid body is `speedl`;
 - fixed base Z is `0.029423891 m`;
-- duration is `15.0 s`;
-- phase law is `phase = 0.4t`, final phase `6.0 rad`;
+- duration is `22.0 s`;
+- phase law is `phase = 0.272727t`, final phase `6.0 rad`;
 - cadence uses `8 ms` hold before `0.100 s`, then `1 ms` hold.
 
 ## Step5 Contact Baseline
