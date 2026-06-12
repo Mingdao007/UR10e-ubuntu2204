@@ -1,6 +1,6 @@
 # Step5c joint-RNN contact quarantine.
-# VERSION: 2026-06-13T0016HKT_STEP5C_JOINT_RNN_CYCLOID_V1
-# GENERATED_AT_LOCAL: 2026-06-13T00:16:18+08:00
+# VERSION: 2026-06-13T0041HKT_STEP5C_JOINT_RNN_CYCLOID_V1
+# GENERATED_AT_LOCAL: 2026-06-13T00:41:36+08:00
 # FLOW_TABLE: STEP5_FLOW.md
 # STEP5_STAGE_ID: step5c_joint_rnn_cycloid_v1
 # STEP5_TABLE_SOURCE: config/step5_stage_table.json
@@ -9,7 +9,7 @@
 # SAFETY: no speedj, no speedl, no force_mode, no zero_ftsensor(), no TCP/payload write.
 
 def codex_step5c_joint_rnn_cycloid_v1():
-  textmsg("codex step5c contact quarantine 2026-06-13T0016HKT_STEP5C_JOINT_RNN_CYCLOID_V1: strict RNN not implemented; refusing motion")
+  textmsg("codex step5c contact quarantine 2026-06-13T0041HKT_STEP5C_JOINT_RNN_CYCLOID_V1: strict RNN not implemented; refusing motion")
   write_output_float_register(30, 91.0)
   write_output_float_register(31, 0.0)
   write_output_float_register(35, 29.0)
