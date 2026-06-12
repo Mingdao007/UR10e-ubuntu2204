@@ -33,6 +33,32 @@ def load_step5c_frame(stage_id: str) -> dict:
 
 
 def dryrun_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -> str:
+    return dryrun_quarantine_script(stamp, gen_at)
+
+
+def dryrun_quarantine_script(stamp: str, gen_at: str) -> str:
+    return f"""# Step5c speedj dry-run quarantine.
+# VERSION: {stamp}
+# GENERATED_AT_LOCAL: {gen_at}
+# FLOW_TABLE: STEP5_FLOW.md
+# STEP5_STAGE_ID: {DRYRUN_STAGE_ID}
+# STEP5_TABLE_SOURCE: config/step5_stage_table.json
+# QUARANTINE_REASON: 2026-06-13 live dry-run moved in the wrong XY/Z direction; DLS/Jacobian mapping is not trusted.
+# TP_ROLE: stop_only_quarantine; no motion command, no contact search, no bridge command consumption.
+# SAFETY: no speedj, no speedl, no force_mode, no zero_ftsensor(), no TCP/payload write.
+
+def codex_step5c_speedj_dryrun_v1():
+  textmsg("codex step5c dry-run quarantine {stamp}: DLS/Jacobian mapping wrong; refusing motion")
+  write_output_float_register(30, 92.0)
+  write_output_float_register(31, 0.0)
+  write_output_float_register(35, 29.0)
+end
+
+codex_step5c_speedj_dryrun_v1()
+"""
+
+
+def _archived_dryrun_motion_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -> str:
     basis = frame["basis"]
     guard = frame["guard"]
     entry_x, entry_y = [float(v) for v in basis["origin_xy_m"]]
@@ -195,8 +221,6 @@ codex_step5c_joint_rnn_cycloid_v1()
 
 
 def dryrun_txt(stamp: str) -> str:
-    stage = step5_stage(DRYRUN_STAGE_ID)
-    qdot_cap = float(stage["guard"]["qdot_cap_rad_s"])
     return f"""Step5c speedj dry-run TP package
 
 Open on Teach Pendant:
@@ -206,10 +230,12 @@ Version:
   {stamp}
 
 Motion boundary:
-  No-contact speedj diagnostic DLS dry-run. This is not strict TASE RNN.
-  Stage25 consumes registers 37..42 as qd0..qd5 rad/s.
-  Bridge profile: --step4e-version {DRYRUN_BRIDGE_VERSION} --step4e-path-shape cycloid --step5c-qdot-limit-rad-s {qdot_cap:.2f}.
-  No contact search, no force control, no UR zero_ftsensor(), no Kunwei tare/zero/config, no TCP/payload write.
+  Stop-only quarantine package. It exists only to overwrite the previous DLS
+  dry-run program on the controller.
+  2026-06-13 live dry-run moved in the wrong XY/Z direction; DLS/Jacobian mapping
+  is not trusted.
+  No speedj, no speedl, no contact search, no force control, no UR zero_ftsensor(),
+  no Kunwei tare/zero/config, no TCP/payload write.
 
 Reference:
   STEP5_FLOW.md
@@ -250,9 +276,9 @@ def validate_package(program: str, script: str, txt: str, urp: bytes, stamp: str
         "cached stamp": stamp in xml,
         "function name": f"def codex_{program}()" in script,
         "step5 flow": "STEP5_FLOW.md" in script and "STEP5_FLOW.md" in txt,
-        "joint register contract": program == CONTACT_PROGRAM
+        "joint register contract": program in {DRYRUN_PROGRAM, CONTACT_PROGRAM}
         or ("37..42=qd0..qd5 rad/s" in script and "37..42 as qd0..qd5" in txt),
-        "speedj active command": program == CONTACT_PROGRAM
+        "speedj active command": program in {DRYRUN_PROGRAM, CONTACT_PROGRAM}
         or "speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]" in script,
         "no cartesian active command": "speedl([cmd_vx" not in script and "speedl([cmd_qd0" not in script,
         "no stale step5b program": "step5b_contact_cycloid_baseline_v1" not in script + txt,
@@ -261,10 +287,12 @@ def validate_package(program: str, script: str, txt: str, urp: bytes, stamp: str
         checks.update(
             {
                 "dry stage id": DRYRUN_STAGE_ID in script and DRYRUN_STAGE_ID in txt,
-                "dry bridge contract": f"step4e-version={DRYRUN_BRIDGE_VERSION}" in script
-                and f"--step4e-version {DRYRUN_BRIDGE_VERSION}" in txt,
-                "dry qdot cap": "local qdot_cap_rad_s = 0.200" in script,
-                "dry no contact search": "down_search" not in script and "contact search" in txt.lower(),
+                "dry quarantine marker": "stop_only_quarantine" in script
+                and "wrong XY/Z direction" in txt,
+                "dry quarantine no motion": "speedj(" not in script
+                and "speedl(" not in script
+                and "force_mode(" not in script
+                and "zero_ftsensor" not in script.replace("no zero_ftsensor()", ""),
             }
         )
     else:

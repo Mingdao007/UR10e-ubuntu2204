@@ -1,7 +1,7 @@
 {
   "version": 1,
   "status": "active",
-  "source_of_truth": "Step5 trajectory/stage table; Step4f/Step4g and Step5b are historical evidence routes. Step5c DLS dry-run is diagnostic only; strict RNN is blocked until PDF truth extraction is complete.",
+  "source_of_truth": "Step5 trajectory/stage table; Step4f/Step4g and Step5b are historical evidence routes. Step5c DLS dry-run and contact are quarantined; strict RNN is blocked until PDF truth extraction is complete.",
   "register_contract": {
     "command_registers": {
       "qd0_rad_s": 37,
@@ -128,7 +128,10 @@
       "id": "step5c_speedj_dryrun_v1",
       "stage": "Step5c-dryrun",
       "owner": "bridge+TP",
-      "active": true,
+      "active": false,
+      "archived": true,
+      "blocked": true,
+      "block_reason": "2026-06-13 live dry-run moved in the wrong XY/Z direction; DLS/MuJoCo Jacobian frame mapping is not trusted.",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": false,
@@ -144,7 +147,7 @@
       },
       "cadence": {
         "reference_clock": "real_time",
-        "motion": "bridge_commanded_speedj",
+        "motion": "quarantine_stop_only",
         "tp_hold_s": 0.002,
         "end_hold_s": 0.1
       },
@@ -172,7 +175,7 @@
       "filter_policy": {
         "normal_filter": "none"
       },
-      "success_condition": "Bridge computes finite diagnostic DLS qdot from actual_q and short Step5 cycloid subset; TP consumes registers 37..44 as qd0..qd5/cmd_valid/path_time and executes speedj without contact. This is not a TASE RNN reproduction."
+      "success_condition": "Blocked/quarantined after 2026-06-13 live dry-run XY/Z divergence. Do not run until joint Jacobian/frame mapping is fixed and revalidated offline."
     },
     {
       "id": "step5c_joint_rnn_cycloid_v1",

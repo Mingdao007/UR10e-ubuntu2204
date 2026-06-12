@@ -1,8 +1,9 @@
 # Step5 Flow
 
-`config/current_stage.json` selects Step5c diagnostic DLS dry-run as the
-current runnable joint-space route. Strict TASE RNN is blocked until the PDF
-truth contract is closed. Step4f, Step4g, and Step5b remain retained evidence
+`config/current_stage.json` currently selects no runnable Step5c joint-space
+route. The diagnostic DLS dry-run is quarantined after the 2026-06-13 live run
+showed wrong XY/Z motion. Strict TASE RNN is blocked until the PDF truth
+contract is closed. Step4f, Step4g, and Step5b remain retained evidence
 packages only. Do not infer global current status from this per-step file
 without reading the current pointer.
 
@@ -13,7 +14,7 @@ The source of truth for Step5 trajectory and stage ownership is
 |---|---|---:|---:|---|---|---|
 | `step5a_cycloid_no_contact_v3` | TP | false | false | TP | none | Complete 22 s fixed-Z cycloid, final phase 6 rad, with the base-X guard clear and shifted taught start/mid/end physical path gate passing. |
 | `step5_contact_cycloid_baseline_v1` | bridge+TP | true | true | bridge | `v31_filtered_live` | Retained Step5b evidence: bridge computes Cartesian twist; TP consumes registers `37..44` as `speedl` command. |
-| `step5c_speedj_dryrun_v1` | bridge+TP | false | true | diagnostic DLS solver | none | Diagnostic plumbing gate: bridge computes finite DLS `qdot` from `actual_q`; TP consumes registers `37..44` as `qd0..qd5/cmd_valid/path_time` and executes no-contact `speedj`. This is not RNN. |
+| `step5c_speedj_dryrun_v1` | bridge+TP | false | true | none | none | Blocked/quarantined: 2026-06-13 live run showed wrong XY/Z motion from DLS/Jacobian mapping. Controller package must be stop-only and operator must refuse bridge. |
 | `step5c_joint_rnn_cycloid_v1` | bridge+TP | true | true | none | `v31_filtered_live` | Blocked/quarantined: the old contact route was misnamed DLS, not RNN. Controller package must be stop-only and operator must refuse contact. |
 | `step5c_strict_rnn_dryrun_v1` | bridge+TP | false | true | strict TASE RNN | none | Blocked until `config/step5c_tase_paper_truth.json` has no `pending_pdf_verify` fields and strict RNN equations are implemented. |
 
@@ -77,11 +78,11 @@ trajectory truth.
 ## Step5c Joint-Space Route
 
 Step5c moves joint-command ownership out of the UR controller's Cartesian
-`speedl` path and into the Ubuntu bridge. The currently runnable package is
-only a no-contact diagnostic DLS dry-run using
-`tools/step5c_dls_joint_solver.py`. It verifies RTDE register plumbing,
-`actual_q` parsing, and TP `speedj` execution; it must not be called a TASE RNN
-reproduction.
+`speedl` path and into the Ubuntu bridge. There is currently no runnable
+Step5c joint-space package. The diagnostic DLS dry-run used
+`tools/step5c_dls_joint_solver.py`, but the 2026-06-13 live run proved its
+MuJoCo Jacobian/frame mapping is not trusted: actual TCP XY/Z diverged from the
+small cycloid reference.
 
 The strict RNN route is blocked:
 
@@ -90,7 +91,7 @@ The strict RNN route is blocked:
 - any `pending_pdf_verify` field means no strict package, no bridge, and no
   contact run.
 
-Diagnostic DLS dry-run defaults:
+Archived diagnostic DLS dry-run values, not active:
 
 - no force term;
 - short `12 s` Step5 cycloid subset;
@@ -102,7 +103,8 @@ Diagnostic DLS dry-run defaults:
 - `speedj` acceleration `0.300 rad/s^2`;
 - command stale/loss watchdog `0.100 s`;
 - no contact search, `zero_ftsensor()`, TCP/payload write, TP program load, or
-  TP Play from the wrapper.
+  TP Play from the wrapper;
+- controller basename is retained only as a stop-only quarantine target.
 
 Archived contact values, not active:
 
@@ -169,14 +171,8 @@ On a valid trigger:
    cache is stale the operator refreshes it itself; do not add manual checks.
 4. Target from user trigger to bridge process start is a few seconds.
 
-Step5c explicit bridge commands:
-
-```bash
-STEP5C_CONFIRM='LIVE STEP5C SPEEDJ DRY RUN' \
-  scripts/step5c-speedj-dryrun-operator.sh joint-bridge
-```
-
-There is no valid Step5c contact bridge command at this time.
-`scripts/step5c-joint-rnn-operator.sh` must refuse all modes until strict RNN
-paper-truth extraction, offline validation, and a separate contact ladder plan
-are complete.
+There is no valid Step5c bridge command at this time. Both
+`scripts/step5c-speedj-dryrun-operator.sh` and
+`scripts/step5c-joint-rnn-operator.sh` must refuse all live modes until the
+joint Jacobian/frame mapping is fixed offline and strict RNN paper-truth
+extraction, offline validation, and a separate live plan are complete.

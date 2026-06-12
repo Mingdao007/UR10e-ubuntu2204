@@ -33,7 +33,7 @@ class Step5cJointTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             solver.solve((0.0, 0.0, float("nan"), 0.0, 0.0, 0.0), (0.0, 0.0, 0.0, 0.0, 0.0, 0.0))
 
-    def test_bridge_accepts_dryrun_and_blocks_contact_profile(self) -> None:
+    def test_bridge_parses_dryrun_and_blocks_step5c_profiles_in_main(self) -> None:
         args = bridge.parse_args(
             [
                 "--no-start-command",
@@ -47,7 +47,7 @@ class Step5cJointTest(unittest.TestCase):
         )
         self.assertEqual(args.step4e_version, "step5c_speedj_dryrun_v1")
         source = inspect.getsource(bridge.main)
-        self.assertIn("STEP5C_DRYRUN_STAGE_ID", source)
+        self.assertIn("Blocked Step5c dry-run", source)
         self.assertIn("Blocked Step5c contact", source)
 
     def test_strict_rnn_refuses_pending_paper_truth(self) -> None:
@@ -71,8 +71,10 @@ class Step5cJointTest(unittest.TestCase):
 
         xml = gzip.decompress(contact_urp).decode("utf-8")
         self.assertIn(f'URProgram name="{step5c.CONTACT_PROGRAM}"', xml)
-        self.assertIn("local qdot_cap_rad_s = 0.200", dry_script)
-        self.assertIn("--step5c-qdot-limit-rad-s 0.20", dry_txt)
+        self.assertIn("stop_only_quarantine", dry_script)
+        self.assertIn("wrong XY/Z direction", dry_txt)
+        self.assertNotIn("speedj(", dry_script)
+        self.assertNotIn("speedl(", dry_script)
         self.assertIn("stop_only_quarantine", contact_script)
         self.assertNotIn("speedj(", contact_script)
         self.assertNotIn("speedl(", contact_script)

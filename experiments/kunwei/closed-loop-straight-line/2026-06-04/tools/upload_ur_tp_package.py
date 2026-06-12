@@ -232,20 +232,12 @@ def validate_package(
         checks.update(
             {
                 "step5c function": f"def codex_{program}()" in script,
-                "step5c bridge contract": (
-                    f"step4e-version={bridge_version}" in script
-                    and f"--step4e-version {bridge_version}" in txt
-                    and "--step4e-path-shape cycloid" in txt
-                )
-                if is_dry
-                else "contact quarantine" in (script + txt).lower(),
+                "step5c bridge contract": "quarantine" in (script + txt).lower(),
                 "step5c table source": "STEP5_FLOW.md" in script
                 and "STEP5_TABLE_SOURCE: config/step5_stage_table.json" in script
                 and stage_id in script + txt,
-                "joint register contract": (not is_dry)
-                or ("37..42=qd0..qd5 rad/s" in script and "37..42 as qd0..qd5" in txt),
-                "speedj active command": (not is_dry)
-                or "speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]" in script,
+                "joint register contract": True,
+                "speedj active command": True,
                 "no cartesian active command": "speedl([cmd_vx" not in script
                 and "speedl([cmd_qd0" not in script,
                 "no stale step5b route": "step5b_contact_cycloid_baseline_v1" not in script + txt,
@@ -254,10 +246,12 @@ def validate_package(
         if is_dry:
             checks.update(
                 {
-                    "step5c dry boundary": "no contact search" in (script + txt).lower()
-                    and "local qdot_cap_rad_s = 0.200" in script
-                    and "--step5c-qdot-limit-rad-s 0.20" in txt,
-                    "step5c dry no search fn": "down_search" not in script,
+                    "step5c dry quarantine": "stop_only_quarantine" in script
+                    and "wrong XY/Z direction" in txt,
+                    "step5c dry no motion": "speedj(" not in script
+                    and "speedl(" not in script
+                    and "force_mode(" not in script
+                    and "zero_ftsensor" not in script.replace("no zero_ftsensor()", ""),
                 }
             )
         else:

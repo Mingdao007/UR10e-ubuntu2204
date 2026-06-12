@@ -1473,10 +1473,15 @@ def main(argv: list[str] | None = None) -> int:
             f"{sorted(v for v in known_step4e_versions if v)}. Add the new version to the "
             "profile definitions before running, otherwise cmd_valid is never asserted."
         )
+    if args.step4e_version == STEP5C_DRYRUN_STAGE_ID:
+        raise SystemExit(
+            "Blocked Step5c dry-run: 2026-06-13 live run showed wrong XY/Z motion from "
+            "the DLS/MuJoCo Jacobian mapping. Do not run until offline mapping validation passes."
+        )
     if args.step4e_version == STEP5C_CONTACT_STAGE_ID:
         raise SystemExit(
             "Blocked Step5c contact: step5c_joint_rnn_cycloid_v1 was a misnamed DLS route, "
-            "not strict TASE RNN. Run only step5c_speedj_dryrun_v1 until paper-truth RNN gates pass."
+            "not strict TASE RNN. No Step5c joint-space bridge profile is runnable."
         )
     if args.step4e_normal_filter_tau_s < 0.0:
         raise SystemExit("--step4e-normal-filter-tau-s must be non-negative")
