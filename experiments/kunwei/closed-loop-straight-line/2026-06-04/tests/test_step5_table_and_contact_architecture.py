@@ -57,12 +57,17 @@ class Step5TableAndContactArchitectureTest(unittest.TestCase):
 
         dry = step5_table.step5_stage("step5c_speedj_dryrun_v1", self.table)
         contact = step5_table.step5_stage("step5c_joint_rnn_cycloid_v1", self.table)
+        strict = step5_table.step5_stage("step5c_strict_rnn_dryrun_v1", self.table)
         self.assertTrue(dry["active"])
-        self.assertTrue(contact["active"])
+        self.assertFalse(contact["active"])
+        self.assertTrue(contact["blocked"])
+        self.assertFalse(strict["active"])
+        self.assertTrue(strict["blocked"])
         self.assertTrue(dry["joint_space"])
         self.assertTrue(contact["joint_space"])
         self.assertEqual(dry["cadence"]["motion"], "bridge_commanded_speedj")
-        self.assertEqual(contact["cadence"]["motion"], "bridge_commanded_speedj")
+        self.assertEqual(contact["cadence"]["motion"], "quarantine_stop_only")
+        self.assertEqual(dry["guard"]["qdot_cap_rad_s"], 0.2)
         self.assertEqual(contact["guard"]["qdot_cap_rad_s"], 0.15)
 
     def test_bridge_step5_contact_reference_is_table_driven(self) -> None:

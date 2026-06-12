@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate Step5c joint-space speedj TP packages."""
+"""Generate Step5c diagnostic speedj and contact-quarantine TP packages."""
 
 from __future__ import annotations
 
@@ -9,11 +9,10 @@ import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-import build_step5b_contact as step5b
 from build_step4e_line_programs import CONFIG_PATH, PROGRAM_DIR, generated_at, line_cfg, load_json
 from build_step4e_p0p1_programs import build_urp, step4e_current_common_functions
 from step5_table import load_stage_frame, step5_stage
-from step5c_joint_rnn import CONTACT_STAGE_ID, DRYRUN_STAGE_ID, numeric_sanity
+from step5c_dls_joint_solver import CONTACT_STAGE_ID, DRYRUN_STAGE_ID, numeric_sanity
 
 
 LOCAL_PROGRAM_DIR = PROGRAM_DIR / "step5"
@@ -50,12 +49,12 @@ def dryrun_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) 
 # STEP5_STAGE_ID: {DRYRUN_STAGE_ID}
 # STEP5_TABLE_SOURCE: config/step5_stage_table.json
 # SAFE_FRAME_SOURCE: config/step5_safe_frame.json from confirmed drag-teach start/mid/end.
-# TP_ROLE: joint_executor_and_guard_only; Step5c trajectory and IK are computed by the bridge.
+# TP_ROLE: joint_executor_and_guard_only; Step5c trajectory and diagnostic DLS qdot are computed by the bridge.
 # REGISTER_CONTRACT: 37..42=qd0..qd5 rad/s, 43=cmd_valid, 44=path_time, 45=force_error, 46=pose_error, 47=solver_status.
 # STEP5_PATH_FORMULA: local-basis x={amplitude:.3f} * ({omega:.1f}t - sin({omega:.1f}t)), y={amplitude:.3f} * (1 - cos({omega:.1f}t)), duration={duration_s:.0f}s dry-run subset.
 # ENTRY_XY_M: [{entry_x:.9f}, {entry_y:.9f}]
 # X_GUARD: guard_line={float(guard['guard_line_x_m']):.9f} m, path_max_x={float(guard['path_max_x_m']):.9f} m.
-# CONTROL: bridge step4e-version={DRYRUN_BRIDGE_VERSION} --step4e-path-shape cycloid; no force term.
+# CONTROL: bridge step4e-version={DRYRUN_BRIDGE_VERSION} --step4e-path-shape cycloid --step5c-qdot-limit-rad-s {qdot_cap:.2f}; no force term; diagnostic DLS, not RNN.
 # SAFETY: no contact search, no UR zero_ftsensor(), no Kunwei tare/config, no TCP/payload write.
 {step4e_current_common_functions("12.0")}
 
@@ -173,83 +172,31 @@ codex_step5c_speedj_dryrun_v1()
 """
 
 
-def contact_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -> str:
-    script = step5b.build_script(stamp, gen_at, geom, frame)
-    stage = step5_stage(CONTACT_STAGE_ID)
-    qdot_cap = float(stage["guard"]["qdot_cap_rad_s"])
-    replacements = {
-        "Step5b contact cycloid baseline v1": "Step5c joint-RNN cycloid v1",
-        "step5b_contact_cycloid_baseline_v1": CONTACT_PROGRAM,
-        "codex_step5b_down_search": "codex_step5c_down_search",
-        "step4e-version=step5b_v1": f"step4e-version={CONTACT_BRIDGE_VERSION}",
-        "step4e-version=step5c_joint_rnn_cycloid_v1 --step4e-path-shape cycloid step4e-normal-follow-mode": "step4e-version=step5c_joint_rnn_cycloid_v1 --step4e-path-shape cycloid --step5c-qdot-limit-rad-s 0.15 step4e-normal-follow-mode",
-        "STEP5_STAGE_ID: step5_contact_cycloid_baseline_v1": f"STEP5_STAGE_ID: {CONTACT_STAGE_ID}",
-        "Step5 table stage step5_contact_cycloid_baseline_v1": f"Step5 table stage {CONTACT_STAGE_ID}",
-        "TP_ROLE: executor_and_guard_only; Step5 trajectory reference is computed by the bridge.": "TP_ROLE: joint_executor_and_guard_only; Step5c trajectory, force feedback, and IK are computed by the bridge.",
-        "Step5 table-driven contact cycloid reference for 60 s": "Step5c joint-space contact cycloid reference for 60 s",
-        "local max_cmd_angular_xy_rad_s = 0.120": f"local max_cmd_qd_rad_s = {qdot_cap:.3f}",
-        "local line_accel_m_s2 = 0.300": "local line_accel_m_s2 = 0.300\n  local joint_accel_rad_s2 = 0.300",
-    }
-    for old, new in replacements.items():
-        if old not in script:
-            raise RuntimeError(f"{CONTACT_PROGRAM} scaffold replacement failed: {old}")
-        script = script.replace(old, new)
+def contact_quarantine_script(stamp: str, gen_at: str) -> str:
+    return f"""# Step5c joint-RNN contact quarantine.
+# VERSION: {stamp}
+# GENERATED_AT_LOCAL: {gen_at}
+# FLOW_TABLE: STEP5_FLOW.md
+# STEP5_STAGE_ID: {CONTACT_STAGE_ID}
+# STEP5_TABLE_SOURCE: config/step5_stage_table.json
+# QUARANTINE_REASON: previous package was bounded DLS/IK, not strict TASE RNN; contact is blocked.
+# TP_ROLE: stop_only_quarantine; no motion command, no contact search, no bridge command consumption.
+# SAFETY: no speedj, no speedl, no force_mode, no zero_ftsensor(), no TCP/payload write.
 
-    for old, new in {
-        "cmd_vx": "cmd_qd0",
-        "cmd_vy": "cmd_qd1",
-        "cmd_vz": "cmd_qd2",
-        "cmd_wx": "cmd_qd3",
-        "cmd_wy": "cmd_qd4",
-        "cmd_wz": "cmd_qd5",
-        "progress_m": "progress_s",
-        "final_progress_m": "final_progress_s",
-        "line_success_progress_m": "line_success_progress_s",
-    }.items():
-        script = script.replace(old, new)
+def codex_step5c_joint_rnn_cycloid_v1():
+  textmsg("codex step5c contact quarantine {stamp}: strict RNN not implemented; refusing motion")
+  write_output_float_register(30, 91.0)
+  write_output_float_register(31, 0.0)
+  write_output_float_register(35, 29.0)
+end
 
-    script = script.replace(
-        "speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)",
-        "speedj([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], joint_accel_rad_s2, line_hold_s)",
-    )
-    script = script.replace(
-        "speedl([0.0, 0.0, 0.0, cmd_qd3, cmd_qd4, cmd_qd5], line_accel_m_s2, line_hold_s)",
-        "speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5], joint_accel_rad_s2, line_hold_s)",
-    )
-    script = script.replace(
-        "speedl([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, 0.0], line_accel_m_s2, line_hold_s)",
-        "speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5], joint_accel_rad_s2, line_hold_s)",
-    )
-    script = script.replace(
-        "codex_abs(cmd_qd0) > 0.010 or codex_abs(cmd_qd1) > 0.010 or codex_abs(cmd_qd2) > 0.010",
-        "codex_abs(cmd_qd0) > max_cmd_qd_rad_s or codex_abs(cmd_qd1) > max_cmd_qd_rad_s or codex_abs(cmd_qd2) > max_cmd_qd_rad_s",
-    )
-    script = script.replace(
-        "codex_abs(cmd_qd0) > 0.001 or codex_abs(cmd_qd1) > 0.001 or codex_abs(cmd_qd2) > 0.001",
-        "codex_abs(cmd_qd0) > max_cmd_qd_rad_s or codex_abs(cmd_qd1) > max_cmd_qd_rad_s or codex_abs(cmd_qd2) > max_cmd_qd_rad_s",
-    )
-    script = script.replace(
-        "codex_abs(cmd_qd3) > max_cmd_angular_xy_rad_s or codex_abs(cmd_qd4) > max_cmd_angular_xy_rad_s or codex_abs(cmd_qd5) > 0.005",
-        "codex_abs(cmd_qd3) > max_cmd_qd_rad_s or codex_abs(cmd_qd4) > max_cmd_qd_rad_s or codex_abs(cmd_qd5) > max_cmd_qd_rad_s",
-    )
-    script = script.replace("max_cmd_angular_xy_rad_s", "max_cmd_qd_rad_s")
-    script = script.replace("stopl(0.1)", "stopj(0.3)")
-    script = script.replace("  stopj(0.3)\n  return stop_reason\nend\n\n\ndef codex_wait_for_cmd_valid", "  stopl(0.1)\n  return stop_reason\nend\n\n\ndef codex_wait_for_cmd_valid")
-    script = script.replace("  stopj(0.3)\n  return stop_reason\nend\n\ndef codex_step5c_joint_rnn_cycloid_v1", "  stopl(0.1)\n  return stop_reason\nend\n\ndef codex_step5c_joint_rnn_cycloid_v1")
-    script = script.replace("movel(entry_xy_pose, a=0.030, v=0.020, r=0.0)\n    stopj(0.3)", "movel(entry_xy_pose, a=0.030, v=0.020, r=0.0)\n    stopl(0.1)")
-    script = script.replace("movel(lift_pose, a=0.030, v=0.020, r=0.0)\n    stopj(0.3)", "movel(lift_pose, a=0.030, v=0.020, r=0.0)\n    stopl(0.1)")
-    script = script.replace("stopj(0.3)\n    write_output_float_register(35, 27.0)", "stopl(0.1)\n    write_output_float_register(35, 27.0)")
-    script = script.replace("movel(home_pose, a=0.030, v=home_return_speed_m_s, r=0.0)\n    stopj(0.3)", "movel(home_pose, a=0.030, v=home_return_speed_m_s, r=0.0)\n    stopl(0.1)")
-    header_insert = (
-        "# REGISTER_CONTRACT: 37..42=qd0..qd5 rad/s, 43=cmd_valid, 44=path_time, "
-        "45=force_error, 46=pose_or_orientation_error, 47=solver_status.\n"
-        "# JOINT_SOLVER: tools/step5c_joint_rnn.py MuJoCo nominal UR10e site Jacobian bounded least-squares.\n"
-    )
-    script = script.replace("# TP_ROLE: joint_executor_and_guard_only;", header_insert + "# TP_ROLE: joint_executor_and_guard_only;", 1)
-    return script
+codex_step5c_joint_rnn_cycloid_v1()
+"""
 
 
 def dryrun_txt(stamp: str) -> str:
+    stage = step5_stage(DRYRUN_STAGE_ID)
+    qdot_cap = float(stage["guard"]["qdot_cap_rad_s"])
     return f"""Step5c speedj dry-run TP package
 
 Open on Teach Pendant:
@@ -259,9 +206,9 @@ Version:
   {stamp}
 
 Motion boundary:
-  No-contact speedj dry-run.
+  No-contact speedj diagnostic DLS dry-run. This is not strict TASE RNN.
   Stage25 consumes registers 37..42 as qd0..qd5 rad/s.
-  Bridge profile: --step4e-version {DRYRUN_BRIDGE_VERSION} --step4e-path-shape cycloid --step5c-qdot-limit-rad-s 0.10.
+  Bridge profile: --step4e-version {DRYRUN_BRIDGE_VERSION} --step4e-path-shape cycloid --step5c-qdot-limit-rad-s {qdot_cap:.2f}.
   No contact search, no force control, no UR zero_ftsensor(), no Kunwei tare/zero/config, no TCP/payload write.
 
 Reference:
@@ -270,8 +217,8 @@ Reference:
 """
 
 
-def contact_txt(stamp: str) -> str:
-    return f"""Step5c joint-RNN contact cycloid TP package
+def contact_quarantine_txt(stamp: str) -> str:
+    return f"""Step5c joint-RNN contact quarantine TP package
 
 Open on Teach Pendant:
   {CONTROLLER_DIR}/{CONTACT_PROGRAM}.urp
@@ -279,15 +226,12 @@ Open on Teach Pendant:
 Version:
   {stamp}
 
-Motion boundary:
-  Contact motion after the separate dry-run is accepted.
-  Reuses the current Step5b/v31 contact search, first-contact normal latch, 20 mm lift,
-  25.2 attitude correction, second contact, and 25.3 line-entry gate.
-  Stage25 joint-control windows consume registers 37..42 as qd0..qd5 rad/s.
-  Bridge profile: --step4e-version {CONTACT_BRIDGE_VERSION} --step4e-path-shape cycloid --step5c-qdot-limit-rad-s 0.15.
-  Force target: --target-force-n 5.0.
-  Raw normal guard: 50 N. Force norm guard: 60 N. Torque guard: 3.0 Nm.
-  No UR zero_ftsensor(), no Kunwei tare/zero/config, no TCP/payload write.
+Boundary:
+  Stop-only quarantine package. It exists only to overwrite the previous misnamed
+  contact program on the controller.
+  No speedj, no speedl, no contact search, no force control, no UR zero_ftsensor(),
+  no Kunwei tare/zero/config, no TCP/payload write.
+  strict TASE RNN is blocked by config/step5c_tase_paper_truth.json.
 
 Reference:
   STEP5_FLOW.md
@@ -306,8 +250,10 @@ def validate_package(program: str, script: str, txt: str, urp: bytes, stamp: str
         "cached stamp": stamp in xml,
         "function name": f"def codex_{program}()" in script,
         "step5 flow": "STEP5_FLOW.md" in script and "STEP5_FLOW.md" in txt,
-        "joint register contract": "37..42=qd0..qd5 rad/s" in script and "37..42 as qd0..qd5" in txt,
-        "speedj active command": "speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]" in script,
+        "joint register contract": program == CONTACT_PROGRAM
+        or ("37..42=qd0..qd5 rad/s" in script and "37..42 as qd0..qd5" in txt),
+        "speedj active command": program == CONTACT_PROGRAM
+        or "speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]" in script,
         "no cartesian active command": "speedl([cmd_vx" not in script and "speedl([cmd_qd0" not in script,
         "no stale step5b program": "step5b_contact_cycloid_baseline_v1" not in script + txt,
     }
@@ -317,7 +263,7 @@ def validate_package(program: str, script: str, txt: str, urp: bytes, stamp: str
                 "dry stage id": DRYRUN_STAGE_ID in script and DRYRUN_STAGE_ID in txt,
                 "dry bridge contract": f"step4e-version={DRYRUN_BRIDGE_VERSION}" in script
                 and f"--step4e-version {DRYRUN_BRIDGE_VERSION}" in txt,
-                "dry qdot cap": "local qdot_cap_rad_s = 0.100" in script,
+                "dry qdot cap": "local qdot_cap_rad_s = 0.200" in script,
                 "dry no contact search": "down_search" not in script and "contact search" in txt.lower(),
             }
         )
@@ -325,15 +271,13 @@ def validate_package(program: str, script: str, txt: str, urp: bytes, stamp: str
         checks.update(
             {
                 "contact stage id": CONTACT_STAGE_ID in script and CONTACT_STAGE_ID in txt,
-                "contact bridge contract": f"step4e-version={CONTACT_BRIDGE_VERSION}" in script
-                and f"--step4e-version {CONTACT_BRIDGE_VERSION}" in txt,
-                "contact qdot cap": "local max_cmd_qd_rad_s = 0.150" in script,
-                "contact scaffold retained": "first-contact normal latch" in script
-                and "25.2 attitude correction" in script
-                and "25.3 line-entry gate" in script,
-                "raw contact guards": "codex_abs(normal_force) > 50.0" in script
-                and "force_norm > 60.0" in script
-                and "torque_norm > 3.0" in script,
+                "contact quarantine marker": "stop_only_quarantine" in script
+                and "contact quarantine" in txt.lower()
+                and "strict TASE RNN is blocked" in txt,
+                "contact quarantine no motion": "speedj(" not in script
+                and "speedl(" not in script
+                and "force_mode(" not in script
+                and "zero_ftsensor" not in script.replace("no zero_ftsensor()", ""),
             }
         )
     failed = [label for label, ok in checks.items() if not ok]
@@ -371,14 +315,13 @@ def write_outputs(stamp_prefix: str | None = None, *, run_sanity: bool = True) -
     gen_at = generated_at(now)
     geom = line_cfg(load_json(CONFIG_PATH))
     dry_frame = load_step5c_frame(DRYRUN_STAGE_ID)
-    contact_frame = load_step5c_frame(CONTACT_STAGE_ID)
     dry_stamp = stamp_prefix or source_stamp(now, DRYRUN_PROGRAM)
     contact_stamp = stamp_prefix or source_stamp(now, CONTACT_PROGRAM)
     dry = write_triplet(DRYRUN_PROGRAM, dryrun_script(dry_stamp, gen_at, geom, dry_frame), dryrun_txt(dry_stamp), dry_stamp)
     contact = write_triplet(
         CONTACT_PROGRAM,
-        contact_script(contact_stamp, gen_at, geom, contact_frame),
-        contact_txt(contact_stamp),
+        contact_quarantine_script(contact_stamp, gen_at),
+        contact_quarantine_txt(contact_stamp),
         contact_stamp,
     )
     return {"sanity": sanity, "generated": {DRYRUN_PROGRAM: dry, CONTACT_PROGRAM: contact}}

@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "strict_rnn_enabled": false,
+  "pdf_source": "/home/andy/Zotero/storage/UZRF97KG/Xu 等 - 2026 - Finite-Time Convergence Neural Network-Based Force-Motion Control for Unknown Surface With Orientati.pdf",
+  "status": "blocked_pending_pdf_truth_extraction",
+  "pending_pdf_verify": [
+    "finite_time_rnn_state_equation",
+    "rnn_gain_matrix",
+    "sigr_exponent_r",
+    "force_motion_task_equations",
+    "orientation_compliance_equations",
+    "constraint_qp_or_kkt_form",
+    "discrete_integration_rule",
+    "paper_section_vi_experimental_parameters"
+  ],
+  "sections": {
+    "step5c_strict_dryrun": {
+      "pending_pdf_verify": [
+        "which paper equations remain active in no-contact dry-run",
+        "mapping from paper task variable to UR10e 6dof qdot"
+      ],
+      "qdot_limit_rad_s": 0.2,
+      "contact": false
+    },
+    "step5c_strict_contact": {
+      "pending_pdf_verify": [
+        "normal force sign convention",
+        "filtered-live normal compatibility",
+        "force ladder parameters"
+      ],
+      "contact": true,
+      "enabled": false
+    }
+  }
+}

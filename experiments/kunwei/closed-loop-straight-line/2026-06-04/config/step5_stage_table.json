@@ -1,7 +1,7 @@
 {
   "version": 1,
   "status": "active",
-  "source_of_truth": "Step5 trajectory/stage table; Step4f/Step4g and Step5b are historical evidence routes. Step5c is the active joint-space route.",
+  "source_of_truth": "Step5 trajectory/stage table; Step4f/Step4g and Step5b are historical evidence routes. Step5c DLS dry-run is diagnostic only; strict RNN is blocked until PDF truth extraction is complete.",
   "register_contract": {
     "command_registers": {
       "qd0_rad_s": 37,
@@ -151,7 +151,7 @@
       "guard": {
         "heartbeat_required": true,
         "cmd_valid_required": true,
-        "qdot_cap_rad_s": 0.1,
+        "qdot_cap_rad_s": 0.2,
         "path_cap_m_s": 0.004,
         "total_linear_cap_m_s": 0.004,
         "normal_velocity_cap_m_s": 0.0,
@@ -172,13 +172,16 @@
       "filter_policy": {
         "normal_filter": "none"
       },
-      "success_condition": "Bridge computes finite qdot from actual_q and short Step5 cycloid subset; TP consumes registers 37..44 as qd0..qd5/cmd_valid/path_time and executes speedj without contact."
+      "success_condition": "Bridge computes finite diagnostic DLS qdot from actual_q and short Step5 cycloid subset; TP consumes registers 37..44 as qd0..qd5/cmd_valid/path_time and executes speedj without contact. This is not a TASE RNN reproduction."
     },
     {
       "id": "step5c_joint_rnn_cycloid_v1",
       "stage": "Step5c-contact",
       "owner": "bridge+TP",
-      "active": true,
+      "active": false,
+      "archived": true,
+      "blocked": true,
+      "block_reason": "Misnamed DLS implementation was exposed as joint-RNN; contact is quarantined until strict paper-truth RNN exists.",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": true,
@@ -194,7 +197,7 @@
       },
       "cadence": {
         "reference_clock": "real_time",
-        "motion": "bridge_commanded_speedj",
+        "motion": "quarantine_stop_only",
         "tp_hold_s": 0.002,
         "end_hold_s": 0.1
       },
@@ -216,7 +219,7 @@
         "bridge_required": true,
         "tp_role": "joint_executor_and_guard_only",
         "reference_owner": "bridge",
-        "joint_solver": "tools/step5c_joint_rnn.py bounded MuJoCo Jacobian least-squares",
+        "joint_solver": "none; previous tools/step5c_joint_rnn.py route was bounded MuJoCo Jacobian least-squares, not RNN",
         "timing_policy": "paper_faithful_real_time_stop_on_fault",
         "virtual_clock_freeze": false
       },
@@ -233,7 +236,59 @@
         "first_contact_latch": true,
         "line_stage_uses_filtered_live_normal": true
       },
-      "success_condition": "Bridge computes desired twist plus force/orientation feedback, solves bounded qdot from actual_q, and TP executes only speedj in Stage25 joint-control windows."
+      "success_condition": "Blocked/quarantined. Do not run contact; the controller package must be stop-only until strict RNN paper-truth gates pass."
+    },
+    {
+      "id": "step5c_strict_rnn_dryrun_v1",
+      "stage": "Step5c-strict-rnn-dryrun",
+      "owner": "bridge+TP",
+      "active": false,
+      "blocked": true,
+      "block_reason": "config/step5c_tase_paper_truth.json still has pending_pdf_verify fields; strict RNN equations are intentionally not implemented with placeholders.",
+      "shape": "cycloid",
+      "frame": "config/step5_safe_frame.json",
+      "contact": false,
+      "bridge": true,
+      "joint_space": true,
+      "fixed_base_z_m": null,
+      "duration_s": 12.0,
+      "amplitude_m": 0.015,
+      "phase_law": {
+        "type": "linear_time",
+        "omega_rad_s": 0.1,
+        "final_phase_rad": 1.2
+      },
+      "cadence": {
+        "reference_clock": "real_time",
+        "motion": "blocked_until_strict_rnn_verified",
+        "tp_hold_s": 0.002,
+        "end_hold_s": 0.1
+      },
+      "guard": {
+        "heartbeat_required": true,
+        "cmd_valid_required": true,
+        "qdot_cap_rad_s": 0.2,
+        "path_cap_m_s": 0.004,
+        "total_linear_cap_m_s": 0.004,
+        "normal_velocity_cap_m_s": 0.0,
+        "attitude_cap_rad_s": 0.0,
+        "runtime_limit_s": 16.0,
+        "progress_end_hold_s": 0.1,
+        "contact_force_guard_n": 12.0
+      },
+      "contact_policy": {
+        "bridge_required": true,
+        "tp_role": "joint_executor_and_guard_only",
+        "reference_owner": "strict_rnn_bridge",
+        "force_control": false,
+        "contact_search": false,
+        "timing_policy": "blocked_until_paper_truth_verified",
+        "virtual_clock_freeze": false
+      },
+      "filter_policy": {
+        "normal_filter": "none"
+      },
+      "success_condition": "Not runnable yet. Strict RNN dry-run can only become active after PDF-sourced equations and parameters are verified and numeric sanity passes."
     }
   ]
 }

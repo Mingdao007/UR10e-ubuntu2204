@@ -45,7 +45,7 @@ from capture_kunwei_kwr75_1khz import (  # noqa: E402
 )
 from _ur_common import RTDEClient, dashboard_exchange  # noqa: E402
 from step5_table import step5_path_reference  # noqa: E402
-from step5c_joint_rnn import JointRnnSolver, JointSolverConfig, STATUS_INVALID  # noqa: E402
+from step5c_dls_joint_solver import JointSolverConfig, STATUS_INVALID, Step5cDlsJointSolver  # noqa: E402
 from step6_eight import (  # noqa: E402
     PATH_DURATION_S as STEP6_PATH_DURATION_S,
     STEP6_SAFE_FRAME_PATH,
@@ -172,7 +172,7 @@ STEP5C_DRYRUN_STAGE_ID = "step5c_speedj_dryrun_v1"
 STEP5C_CONTACT_STAGE_ID = "step5c_joint_rnn_cycloid_v1"
 STEP6_CONTACT_EIGHT_STAGE_ID = "step6_contact_eight_baseline_v1"
 STEP6_CONTACT_EIGHT_STAGE_ID_V2 = "step6_contact_eight_baseline_v2"
-_STEP5C_SOLVERS: dict[tuple[str, str, float, float], JointRnnSolver] = {}
+_STEP5C_SOLVERS: dict[tuple[str, str, float, float], Step5cDlsJointSolver] = {}
 
 
 def load_step4f_safe_frame() -> dict[str, Any]:
@@ -515,7 +515,7 @@ def step5_contact_path_reference(
     return step5_path_reference(stage_id, pose_xy, elapsed_s)
 
 
-def step5c_solver(args: argparse.Namespace) -> JointRnnSolver:
+def step5c_solver(args: argparse.Namespace) -> Step5cDlsJointSolver:
     key = (
         str(args.step5c_joint_model),
         args.step5c_joint_site,
@@ -524,7 +524,7 @@ def step5c_solver(args: argparse.Namespace) -> JointRnnSolver:
     )
     solver = _STEP5C_SOLVERS.get(key)
     if solver is None:
-        solver = JointRnnSolver(
+        solver = Step5cDlsJointSolver(
             JointSolverConfig(
                 model_path=Path(args.step5c_joint_model),
                 site_name=args.step5c_joint_site,
@@ -1473,6 +1473,11 @@ def main(argv: list[str] | None = None) -> int:
             f"{sorted(v for v in known_step4e_versions if v)}. Add the new version to the "
             "profile definitions before running, otherwise cmd_valid is never asserted."
         )
+    if args.step4e_version == STEP5C_CONTACT_STAGE_ID:
+        raise SystemExit(
+            "Blocked Step5c contact: step5c_joint_rnn_cycloid_v1 was a misnamed DLS route, "
+            "not strict TASE RNN. Run only step5c_speedj_dryrun_v1 until paper-truth RNN gates pass."
+        )
     if args.step4e_normal_filter_tau_s < 0.0:
         raise SystemExit("--step4e-normal-filter-tau-s must be non-negative")
     if not 0.0 <= args.step4e_normal_filter_alpha <= 1.0:
@@ -1545,7 +1550,7 @@ def main(argv: list[str] | None = None) -> int:
             "step4g_eight_seed_normal_v1": "Same TP flow and force/normal/orientation loop as v31, but stage 25.0 uses the paper Experiment #2 8-shaped XY reference for 60 s.",
             "step5b_contact_cycloid_baseline_v1": "Same TP contact-search/latch/25.2/25.3 scaffold as v31, but stage 25.0 uses the active Step5 table contact cycloid reference and v31 filtered-live normal policy.",
             "step5c_speedj_dryrun_v1": "No-contact Step5c joint-space dry-run: bridge reads actual_q and writes qd0..qd5 in registers 37..42; TP executes speedj only in the Stage25 dry-run window.",
-            "step5c_joint_rnn_cycloid_v1": "Contact Step5c joint-space route: bridge retains Step5 cycloid, force, and filtered-live normal logic, solves bounded qdot from actual_q, and TP executes speedj in Stage25 joint-control windows.",
+            "step5c_joint_rnn_cycloid_v1": "Blocked/quarantined Step5c contact route: previous implementation was DLS, not strict TASE RNN.",
             "step6b_contact_eight_baseline_v1": "Same TP contact-search/latch/25.2/25.3 scaffold as Step5b/v31, but stage 25.0 uses the active Step6 five-point safe-frame 8-shaped reference for 30 s and v31 filtered-live normal policy.",
             "step6b_contact_eight_baseline_v2": "Same TP contact-search/latch/25.2/25.3 scaffold and Step6 reference as v1, but intended bridge caps are 15 mm/s path, 15 mm/s total linear, 3 mm/s normal reserve, and 0.060 rad/s attitude.",
         },

@@ -26,7 +26,8 @@ case "${STEP4E_VERSION}" in
     STEP4E_VERSION="step5c_speedj_dryrun_v1"
     ;;
   5c|5c-contact|step5c|step5c-contact|step5c_joint_rnn_cycloid_v1|joint-rnn-cycloid|joint_rnn_cycloid)
-    STEP4E_VERSION="step5c_joint_rnn_cycloid_v1"
+    echo "refusing Step5c contact alias: strict RNN is not implemented; use step5c-speedj-dryrun only"
+    exit 40
     ;;
   6b|step6b|step6b_v1|contact-eight|contact_eight)
     STEP4E_VERSION="step6b_v1"
@@ -68,6 +69,10 @@ STEP4E_NORMAL_MIN_FORCE_N="${STEP4E_NORMAL_MIN_FORCE_N:-2.0}"
 STEP4E_NORMAL_MAX_ANGLE_FROM_LATCH_DEG="${STEP4E_NORMAL_MAX_ANGLE_FROM_LATCH_DEG:-20}"
 STEP4E_NORMAL_FRICTION_PROJECTION="${STEP4E_NORMAL_FRICTION_PROJECTION:-on}"
 STEP4E_PATH_SHAPE="${STEP4E_PATH_SHAPE:-line}"
+if [[ "${STEP4E_VERSION}" == "step5c_joint_rnn_cycloid_v1" ]]; then
+  echo "refusing STEP4E_VERSION=step5c_joint_rnn_cycloid_v1: strict RNN is not implemented; contact is quarantined"
+  exit 40
+fi
 if [[ "${STEP4E_VERSION}" == "step4f_v1" ]]; then
   STEP4E_PATH_SHAPE="cycloid"
 elif [[ "${STEP4E_VERSION}" == "step4g_v1" ]]; then

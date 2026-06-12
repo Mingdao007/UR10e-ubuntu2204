@@ -1,37 +1,41 @@
 {
   "version": 1,
-  "updated_at": "2026-06-12T23:44:10+08:00",
+  "updated_at": "2026-06-13T00:05:55+08:00",
   "current_step": "Step5c",
-  "current_stage_id": "step5c_joint_rnn_cycloid_v1",
-  "program": "step5c_joint_rnn_cycloid_v1",
+  "current_stage_id": "step5c_speedj_dryrun_v1",
+  "program": "step5c_speedj_dryrun_v1",
   "flow_path": "STEP5_FLOW.md",
   "stage_table_path": "config/step5_stage_table.json",
-  "controller_target": "/programs/andyl/kunwei/step5/step5c_joint_rnn_cycloid_v1.urp",
-  "local_triplet": "programs/step5/step5c_joint_rnn_cycloid_v1.{script,txt,urp}",
+  "controller_target": "/programs/andyl/kunwei/step5/step5c_speedj_dryrun_v1.urp",
+  "local_triplet": "programs/step5/step5c_speedj_dryrun_v1.{script,txt,urp}",
   "bridge_profile": {
-    "step4e_version": "step5c_joint_rnn_cycloid_v1",
+    "step4e_version": "step5c_speedj_dryrun_v1",
     "step4e_path_shape": "cycloid",
-    "step5c_qdot_limit_rad_s": 0.15,
+    "step5c_qdot_limit_rad_s": 0.2,
     "target_force_n": 5.0
   },
+  "status": "diagnostic_dls_dryrun_only",
+  "strict_rnn_status": {
+    "stage_id": "step5c_strict_rnn_dryrun_v1",
+    "blocked": true,
+    "paper_truth_config": "config/step5c_tase_paper_truth.json",
+    "reason": "Strict RNN equations and parameters are not PDF-verified; no contact route is active."
+  },
+  "quarantined_contact_stage": {
+    "stage_id": "step5c_joint_rnn_cycloid_v1",
+    "program": "step5c_joint_rnn_cycloid_v1",
+    "controller_target": "/programs/andyl/kunwei/step5/step5c_joint_rnn_cycloid_v1.urp",
+    "expected_behavior": "stop-only quarantine package; operator refuses contact bridge"
+  },
   "evidence": {
-    "numeric_sanity_dir": "runs/step5c_numeric_sanity_20260612_234356",
-    "controller_readback_dir": "runs/controller_readback_step5c_joint_rnn_cycloid_v1_20260612_234410",
-    "dryrun_controller_readback_dir": "runs/controller_readback_step5c_speedj_dryrun_v1_20260612_234401",
+    "numeric_sanity_dir": "runs/step5c_numeric_sanity_20260613_000939",
+    "controller_readback_dir": "runs/controller_readback_step5c_speedj_dryrun_v1_20260613_000950",
+    "contact_quarantine_readback_dir": "runs/controller_readback_step5c_joint_rnn_cycloid_v1_20260613_000958",
+    "previous_misnamed_contact_readback_dir": "runs/controller_readback_step5c_joint_rnn_cycloid_v1_20260612_234410",
+    "previous_dryrun_controller_readback_dir": "runs/controller_readback_step5c_speedj_dryrun_v1_20260612_234401",
     "tracked_manifest": "docs/kunwei-local-artifact-manifest-20260612.md"
   },
-  "prerequisite_stage": {
-    "stage_id": "step5c_speedj_dryrun_v1",
-    "program": "step5c_speedj_dryrun_v1",
-    "controller_target": "/programs/andyl/kunwei/step5/step5c_speedj_dryrun_v1.urp",
-    "bridge_profile": {
-      "step4e_version": "step5c_speedj_dryrun_v1",
-      "step4e_path_shape": "cycloid",
-      "step5c_qdot_limit_rad_s": 0.1,
-      "target_force_n": 5.0
-    },
-    "gate": "No-contact speedj dry-run and numeric sanity are the prerequisite evidence for the contact current stage."
-  },
+  "prerequisite_stage": null,
   "retained_steps": [
     {
       "step": "Step4e",
@@ -42,7 +46,7 @@
       "step": "Step5",
       "flow_path": "STEP5_FLOW.md",
       "stage_table_path": "config/step5_stage_table.json",
-      "role": "active_joint_space_route"
+      "role": "diagnostic_dls_dryrun_only_until_strict_rnn_exists"
     },
     {
       "step": "Step6",

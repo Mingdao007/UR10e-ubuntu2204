@@ -1,16 +1,16 @@
 # Step5c speedj dry-run v1.
-# VERSION: 2026-06-12T2343HKT_STEP5C_SPEEDJ_DRYRUN_V1
-# GENERATED_AT_LOCAL: 2026-06-12T23:43:56+08:00
+# VERSION: 2026-06-13T0009HKT_STEP5C_SPEEDJ_DRYRUN_V1
+# GENERATED_AT_LOCAL: 2026-06-13T00:09:39+08:00
 # FLOW_TABLE: STEP5_FLOW.md
 # STEP5_STAGE_ID: step5c_speedj_dryrun_v1
 # STEP5_TABLE_SOURCE: config/step5_stage_table.json
 # SAFE_FRAME_SOURCE: config/step5_safe_frame.json from confirmed drag-teach start/mid/end.
-# TP_ROLE: joint_executor_and_guard_only; Step5c trajectory and IK are computed by the bridge.
+# TP_ROLE: joint_executor_and_guard_only; Step5c trajectory and diagnostic DLS qdot are computed by the bridge.
 # REGISTER_CONTRACT: 37..42=qd0..qd5 rad/s, 43=cmd_valid, 44=path_time, 45=force_error, 46=pose_error, 47=solver_status.
 # STEP5_PATH_FORMULA: local-basis x=0.015 * (0.1t - sin(0.1t)), y=0.015 * (1 - cos(0.1t)), duration=12s dry-run subset.
 # ENTRY_XY_M: [0.487795411, 0.129326793]
 # X_GUARD: guard_line=0.488878434 m, path_max_x=0.487795411 m.
-# CONTROL: bridge step4e-version=step5c_speedj_dryrun_v1 --step4e-path-shape cycloid; no force term.
+# CONTROL: bridge step4e-version=step5c_speedj_dryrun_v1 --step4e-path-shape cycloid --step5c-qdot-limit-rad-s 0.20; no force term; diagnostic DLS, not RNN.
 # SAFETY: no contact search, no UR zero_ftsensor(), no Kunwei tare/config, no TCP/payload write.
 
 def codex_abs(x):
@@ -147,7 +147,7 @@ def codex_step5c_speedj_dryrun_v1():
   local home_pose = get_actual_tcp_pose()
   local line_hold_s = 0.002
   local joint_accel_rad_s2 = 0.300
-  local qdot_cap_rad_s = 0.100
+  local qdot_cap_rad_s = 0.200
   local line_runtime_limit_s = 16.000
   local line_success_progress_s = 12.000000000
   local end_hold_required_s = 0.100
@@ -158,7 +158,7 @@ def codex_step5c_speedj_dryrun_v1():
   local saw_cmd_valid = 0
   local final_progress_s = 0.0
 
-  textmsg("codex step5c version 2026-06-12T2343HKT_STEP5C_SPEEDJ_DRYRUN_V1 start speedj dryrun")
+  textmsg("codex step5c version 2026-06-13T0009HKT_STEP5C_SPEEDJ_DRYRUN_V1 start speedj dryrun")
   write_output_float_register(34, 0.0)
   write_output_float_register(35, 20.0)
   codex_echo_step4e(0.0)
@@ -249,7 +249,7 @@ def codex_step5c_speedj_dryrun_v1():
   write_output_float_register(30, stop_reason)
   write_output_float_register(31, final_progress_s)
   write_output_float_register(35, 29.0)
-  textmsg("codex step5c version 2026-06-12T2343HKT_STEP5C_SPEEDJ_DRYRUN_V1 stop reason:", stop_reason)
+  textmsg("codex step5c version 2026-06-13T0009HKT_STEP5C_SPEEDJ_DRYRUN_V1 stop reason:", stop_reason)
 end
 
 codex_step5c_speedj_dryrun_v1()

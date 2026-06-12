@@ -4,12 +4,12 @@ Open on Teach Pendant:
   /programs/andyl/kunwei/step5/step5c_speedj_dryrun_v1.urp
 
 Version:
-  2026-06-12T2343HKT_STEP5C_SPEEDJ_DRYRUN_V1
+  2026-06-13T0009HKT_STEP5C_SPEEDJ_DRYRUN_V1
 
 Motion boundary:
-  No-contact speedj dry-run.
+  No-contact speedj diagnostic DLS dry-run. This is not strict TASE RNN.
   Stage25 consumes registers 37..42 as qd0..qd5 rad/s.
-  Bridge profile: --step4e-version step5c_speedj_dryrun_v1 --step4e-path-shape cycloid --step5c-qdot-limit-rad-s 0.10.
+  Bridge profile: --step4e-version step5c_speedj_dryrun_v1 --step4e-path-shape cycloid --step5c-qdot-limit-rad-s 0.20.
   No contact search, no force control, no UR zero_ftsensor(), no Kunwei tare/zero/config, no TCP/payload write.
 
 Reference:

@@ -232,15 +232,20 @@ def validate_package(
         checks.update(
             {
                 "step5c function": f"def codex_{program}()" in script,
-                "step5c bridge contract": f"step4e-version={bridge_version}" in script
-                and f"--step4e-version {bridge_version}" in txt
-                and "--step4e-path-shape cycloid" in txt,
+                "step5c bridge contract": (
+                    f"step4e-version={bridge_version}" in script
+                    and f"--step4e-version {bridge_version}" in txt
+                    and "--step4e-path-shape cycloid" in txt
+                )
+                if is_dry
+                else "contact quarantine" in (script + txt).lower(),
                 "step5c table source": "STEP5_FLOW.md" in script
                 and "STEP5_TABLE_SOURCE: config/step5_stage_table.json" in script
                 and stage_id in script + txt,
-                "joint register contract": "37..42=qd0..qd5 rad/s" in script
-                and "37..42 as qd0..qd5" in txt,
-                "speedj active command": "speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]" in script,
+                "joint register contract": (not is_dry)
+                or ("37..42=qd0..qd5 rad/s" in script and "37..42 as qd0..qd5" in txt),
+                "speedj active command": (not is_dry)
+                or "speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]" in script,
                 "no cartesian active command": "speedl([cmd_vx" not in script
                 and "speedl([cmd_qd0" not in script,
                 "no stale step5b route": "step5b_contact_cycloid_baseline_v1" not in script + txt,
@@ -250,23 +255,21 @@ def validate_package(
             checks.update(
                 {
                     "step5c dry boundary": "no contact search" in (script + txt).lower()
-                    and "local qdot_cap_rad_s = 0.100" in script
-                    and "--step5c-qdot-limit-rad-s 0.10" in txt,
+                    and "local qdot_cap_rad_s = 0.200" in script
+                    and "--step5c-qdot-limit-rad-s 0.20" in txt,
                     "step5c dry no search fn": "down_search" not in script,
                 }
             )
         else:
             checks.update(
                 {
-                    "step5c contact scaffold": "codex_step5c_down_search" in script
-                    and "first-contact normal latch" in script
-                    and "25.2 attitude correction" in script
-                    and "25.3 line-entry gate" in script,
-                    "step5c contact guards": "codex_abs(normal_force) > 50.0" in script
-                    and "force_norm > 60.0" in script
-                    and "torque_norm > 3.0" in script,
-                    "step5c contact qdot cap": "local max_cmd_qd_rad_s = 0.150" in script
-                    and "--step5c-qdot-limit-rad-s 0.15" in txt,
+                    "step5c contact quarantine": "stop_only_quarantine" in script
+                    and "strict TASE RNN is blocked" in txt
+                    and "previous misnamed" in txt,
+                    "step5c contact no motion": "speedj(" not in script
+                    and "speedl(" not in script
+                    and "force_mode(" not in script
+                    and "zero_ftsensor" not in script.replace("no zero_ftsensor()", ""),
                 }
             )
     if program == "step6a_eight_no_contact_v1":

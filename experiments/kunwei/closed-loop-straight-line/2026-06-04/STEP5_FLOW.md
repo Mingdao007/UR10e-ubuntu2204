@@ -1,7 +1,8 @@
 # Step5 Flow
 
-`config/current_stage.json` selects Step5c as the current joint-space route for
-cycloid reproduction. Step4f, Step4g, and Step5b remain retained evidence
+`config/current_stage.json` selects Step5c diagnostic DLS dry-run as the
+current runnable joint-space route. Strict TASE RNN is blocked until the PDF
+truth contract is closed. Step4f, Step4g, and Step5b remain retained evidence
 packages only. Do not infer global current status from this per-step file
 without reading the current pointer.
 
@@ -12,8 +13,9 @@ The source of truth for Step5 trajectory and stage ownership is
 |---|---|---:|---:|---|---|---|
 | `step5a_cycloid_no_contact_v3` | TP | false | false | TP | none | Complete 22 s fixed-Z cycloid, final phase 6 rad, with the base-X guard clear and shifted taught start/mid/end physical path gate passing. |
 | `step5_contact_cycloid_baseline_v1` | bridge+TP | true | true | bridge | `v31_filtered_live` | Retained Step5b evidence: bridge computes Cartesian twist; TP consumes registers `37..44` as `speedl` command. |
-| `step5c_speedj_dryrun_v1` | bridge+TP | false | true | bridge joint solver | none | First Step5c live gate: bridge computes finite `qdot` from `actual_q`; TP consumes registers `37..44` as `qd0..qd5/cmd_valid/path_time` and executes no-contact `speedj`. |
-| `step5c_joint_rnn_cycloid_v1` | bridge+TP | true | true | bridge joint solver | `v31_filtered_live` | Contact Step5c route: bridge computes desired twist plus force/orientation feedback, solves bounded `qdot`, and TP executes only `speedj` in Stage25 joint-control windows. |
+| `step5c_speedj_dryrun_v1` | bridge+TP | false | true | diagnostic DLS solver | none | Diagnostic plumbing gate: bridge computes finite DLS `qdot` from `actual_q`; TP consumes registers `37..44` as `qd0..qd5/cmd_valid/path_time` and executes no-contact `speedj`. This is not RNN. |
+| `step5c_joint_rnn_cycloid_v1` | bridge+TP | true | true | none | `v31_filtered_live` | Blocked/quarantined: the old contact route was misnamed DLS, not RNN. Controller package must be stop-only and operator must refuse contact. |
+| `step5c_strict_rnn_dryrun_v1` | bridge+TP | false | true | strict TASE RNN | none | Blocked until `config/step5c_tase_paper_truth.json` has no `pending_pdf_verify` fields and strict RNN equations are implemented. |
 
 Stage25 Step5c command-register semantics are joint mode:
 
@@ -74,35 +76,42 @@ trajectory truth.
 
 ## Step5c Joint-Space Route
 
-Step5c moves IK ownership out of the UR controller's Cartesian `speedl` path
-and into the Ubuntu bridge. The bridge reads RTDE `actual_q`, `actual_qd`, TCP
-pose, Kunwei force, and the Step5 cycloid reference, then solves a bounded
-MuJoCo site-Jacobian least-squares command in `tools/step5c_joint_rnn.py`.
+Step5c moves joint-command ownership out of the UR controller's Cartesian
+`speedl` path and into the Ubuntu bridge. The currently runnable package is
+only a no-contact diagnostic DLS dry-run using
+`tools/step5c_dls_joint_solver.py`. It verifies RTDE register plumbing,
+`actual_q` parsing, and TP `speedj` execution; it must not be called a TASE RNN
+reproduction.
 
-The execution order is fixed:
+The strict RNN route is blocked:
 
-1. `step5c_speedj_dryrun_v1`: no-contact `speedj` register/IK dry-run.
-2. `step5c_joint_rnn_cycloid_v1`: contact cycloid joint-space run.
+- source-of-truth config: `config/step5c_tase_paper_truth.json`;
+- strict solver gate: `tools/step5c_strict_rnn.py`;
+- any `pending_pdf_verify` field means no strict package, no bridge, and no
+  contact run.
 
-Dry-run defaults:
+Diagnostic DLS dry-run defaults:
 
 - no force term;
 - short `12 s` Step5 cycloid subset;
-- `qdot_limit = 0.10 rad/s`;
+- `qdot_limit = 0.20 rad/s`;
+- `path_cap = 0.004 m/s`;
+- `total_linear_cap = 0.004 m/s`;
+- `normal_velocity_cap = 0.0 m/s`;
+- attitude cap `0.0 rad/s`;
+- `speedj` acceleration `0.300 rad/s^2`;
+- command stale/loss watchdog `0.100 s`;
 - no contact search, `zero_ftsensor()`, TCP/payload write, TP program load, or
   TP Play from the wrapper.
 
-Contact defaults:
+Archived contact values, not active:
 
-- Step5 cycloid reference and filtered-live normal policy retained;
-- force target `5 N`;
-- `qdot_limit = 0.15 rad/s`;
-- `path_cap = 0.004 m/s`;
-- `total_linear_cap = 0.006 m/s`;
-- `normal_velocity_cap = 0.003 m/s`;
-- attitude cap `0.060 rad/s`;
-- Fz, force-norm, torque, stale-heartbeat, `cmd_valid`, progress, and abnormal
-  TP stop guards remain active.
+- old `step5c_joint_rnn_cycloid_v1` used `qdot_limit = 0.15 rad/s`,
+  `path_cap = 0.004 m/s`, `total_linear_cap = 0.006 m/s`,
+  `normal_velocity_cap = 0.003 m/s`, and attitude cap `0.060 rad/s`;
+- the implementation was bounded MuJoCo Jacobian least-squares with qdot
+  clipping, not paper RNN;
+- the package basename is retained only as a stop-only quarantine target.
 
 Before a Step5c package is uploaded, run the numeric sanity gate and save its
 artifact under `runs/step5c_numeric_sanity_<timestamp>/`. If the gate fails,
@@ -167,9 +176,7 @@ STEP5C_CONFIRM='LIVE STEP5C SPEEDJ DRY RUN' \
   scripts/step5c-speedj-dryrun-operator.sh joint-bridge
 ```
 
-```bash
-STEP5C_CONFIRM='LIVE STEP5C JOINT RNN CONTACT RUN' \
-  scripts/step5c-joint-rnn-operator.sh contact-bridge
-```
-
-The contact command is only valid after the dry-run report is acceptable.
+There is no valid Step5c contact bridge command at this time.
+`scripts/step5c-joint-rnn-operator.sh` must refuse all modes until strict RNN
+paper-truth extraction, offline validation, and a separate contact ladder plan
+are complete.

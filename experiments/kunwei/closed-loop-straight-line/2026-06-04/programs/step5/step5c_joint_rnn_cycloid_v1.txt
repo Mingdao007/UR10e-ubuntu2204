@@ -1,20 +1,17 @@
-Step5c joint-RNN contact cycloid TP package
+Step5c joint-RNN contact quarantine TP package
 
 Open on Teach Pendant:
   /programs/andyl/kunwei/step5/step5c_joint_rnn_cycloid_v1.urp
 
 Version:
-  2026-06-12T2343HKT_STEP5C_JOINT_RNN_CYCLOID_V1
+  2026-06-13T0009HKT_STEP5C_JOINT_RNN_CYCLOID_V1
 
-Motion boundary:
-  Contact motion after the separate dry-run is accepted.
-  Reuses the current Step5b/v31 contact search, first-contact normal latch, 20 mm lift,
-  25.2 attitude correction, second contact, and 25.3 line-entry gate.
-  Stage25 joint-control windows consume registers 37..42 as qd0..qd5 rad/s.
-  Bridge profile: --step4e-version step5c_joint_rnn_cycloid_v1 --step4e-path-shape cycloid --step5c-qdot-limit-rad-s 0.15.
-  Force target: --target-force-n 5.0.
-  Raw normal guard: 50 N. Force norm guard: 60 N. Torque guard: 3.0 Nm.
-  No UR zero_ftsensor(), no Kunwei tare/zero/config, no TCP/payload write.
+Boundary:
+  Stop-only quarantine package. It exists only to overwrite the previous misnamed
+  contact program on the controller.
+  No speedj, no speedl, no contact search, no force control, no UR zero_ftsensor(),
+  no Kunwei tare/zero/config, no TCP/payload write.
+  strict TASE RNN is blocked by config/step5c_tase_paper_truth.json.
 
 Reference:
   STEP5_FLOW.md
