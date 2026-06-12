@@ -104,7 +104,11 @@ Check classes before live bridge:
 While waiting for bridge, only these user replies trigger live bridge action:
 `开bridge`, `开 bridge`, single-token `开`, or single-token `1`. These tokens
 are not global commands; they only apply after Codex has just stated that it is
-waiting for the Step4e bridge trigger.
+waiting for a bridge trigger. They are step-agnostic: they cover any current
+delivered package (step4*, step5*, future steps), contact or no-contact. Never
+ask the user for an extra confirmation phrase; operator-internal interlocks
+(`STEP5B_CONFIRM=...`, `START_STEP4E_..._V*` stdin prompts) are supplied by
+Codex itself in the same command via env assignment or piped stdin.
 
 On a valid bridge trigger:
 

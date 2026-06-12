@@ -80,3 +80,30 @@ Before any TP play instruction:
    `installationRelativePath`, Script-node path, and `cachedContents` stamp.
 5. Do not load, run, open the bridge, or tell the operator to press Play until
    the read-back gate passes and the live action is explicitly accepted.
+
+## Bridge Trigger
+
+The Step4e trigger vocabulary applies unchanged to Step5, contact stages
+included. After Codex states it is waiting for the bridge trigger, any of
+`开bridge`, `开 bridge`, single-token `开`, or single-token `1` is a complete
+authorization. Codex must not ask the user for any additional confirmation
+phrase for any Step5 stage.
+
+On a valid trigger:
+
+1. The first command of the turn is the prepared operator command. Do not
+   re-read owner docs, re-validate packages, repeat read-back, or run Git
+   checks in the trigger turn.
+2. Operator-internal interlocks are supplied by Codex in the same command,
+   for example:
+
+   ```bash
+   printf 'START_STEP4E_LINE_STEP5B_V1\n' | \
+     STEP5B_CONFIRM='LIVE STEP5B CONTACT RUN' \
+     scripts/step5b-contact-operator.sh contact-bridge
+   ```
+
+3. Long checks (network/Kunwei route) come from the operator's 30-min TTL
+   cache, kept warm by the `prep-long-checks` cron every 20 minutes. If the
+   cache is stale the operator refreshes it itself; do not add manual checks.
+4. Target from user trigger to bridge process start is a few seconds.
