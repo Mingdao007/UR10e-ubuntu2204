@@ -9,8 +9,9 @@ without reading the current pointer.
 
 The source of truth for Step5 trajectory and stage ownership is
 `config/step5_stage_table.json`. Step5c also has a required offline calibrated
-kinematics gate in that table; passing it is evidence only and does not
-authorize bridge start, TP Play, controller upload, or contact motion.
+kinematics gate and an offline qdot register path gate in that table; passing
+either is evidence only and does not authorize bridge start, TP Play,
+controller upload, or contact motion.
 
 | stage id | owner | contact | bridge | reference owner | normal filter | success condition |
 |---|---|---:|---:|---|---|---|
@@ -59,6 +60,37 @@ Stage25 Step5c command-register semantics are joint mode:
 - `47 = controller_state/solver_status`.
 
 Base force, heartbeat, and guard registers `24..36` are unchanged.
+
+## Step5c Qdot Register Path Gate
+
+The qdot register path gate is now an offline code contract, not a live-run
+permission. It proves only the carrier mapping between Ubuntu bridge output and
+the archived moving TP executor fixture:
+
+- `input_double_register_37..42 = qd0..qd5 rad/s` in exact order;
+- `input_double_register_43 = cmd_valid`;
+- `input_double_register_44 = path_time_s`;
+- `input_double_register_45 = force_error_n`;
+- `input_double_register_46 = pose_or_orientation_error`;
+- `input_double_register_47 = solver_status`.
+
+The bridge may still use the existing RTDE recipe field names
+`step4e_cmd_*` as carriers, but Step5c metadata and CSV debug columns must
+label them as qdot carriers. `_step5c_cmd_qd0..5` must match the carrier values
+that would be written to registers `37..42`.
+
+The offline proof is:
+
+- `tests.test_step5c_joint.Step5cJointTest.test_step5c_qdot_register_helper_matches_tp_executor_contract`;
+- `tests.test_step5c_joint.Step5cJointTest.test_step5c_metadata_marks_step4e_fields_as_qdot_carriers`;
+- `tests.test_step5_table_and_contact_architecture.Step5TableAndContactArchitectureTest.test_step5_table_separates_no_contact_and_contact_owners`.
+
+Passing this gate does not make `step5c_speedj_dryrun_v1` or
+`step5c_joint_rnn_cycloid_v1` runnable. Both remain stop-only quarantine
+programs, and `tools/kunwei_rtde_bridge.py` must still reject those
+`--step4e-version` values in `main()`. A future live dry-run needs a separate
+calibrated solver integration, fresh numeric sanity artifact, new non-quarantine
+package, controller read-back, and explicit live plan.
 
 ## Step5a No-Contact Handoff
 

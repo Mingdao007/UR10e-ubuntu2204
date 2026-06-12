@@ -53,6 +53,37 @@
     ],
     "notes": "The calibrated gate is offline only. Passing it does not authorize bridge start, TP play, controller upload, or contact motion."
   },
+  "qdot_register_path_gate": {
+    "status": "offline_contract_fixed",
+    "scope": "Step5c joint-space command carrier path only; no live bridge, no controller upload, no TP Play authorization.",
+    "command_registers": {
+      "37": "qd0_rad_s",
+      "38": "qd1_rad_s",
+      "39": "qd2_rad_s",
+      "40": "qd3_rad_s",
+      "41": "qd4_rad_s",
+      "42": "qd5_rad_s",
+      "43": "cmd_valid",
+      "44": "path_time_s"
+    },
+    "diagnostic_registers": {
+      "45": "force_error_n",
+      "46": "pose_or_orientation_error",
+      "47": "solver_status"
+    },
+    "proof_tests": [
+      "tests.test_step5c_joint.Step5cJointTest.test_step5c_qdot_register_helper_matches_tp_executor_contract",
+      "tests.test_step5c_joint.Step5cJointTest.test_step5c_metadata_marks_step4e_fields_as_qdot_carriers"
+    ],
+    "pass_conditions": [
+      "bridge helper writes qd0..qd5 to register carriers 37..42 in exact order",
+      "register 43 remains cmd_valid, 44 remains path_time_s, and 47 remains solver_status in Step5c mode",
+      "archived moving TP executor fixture reads read_input_float_register(37..42) in order and passes cmd_qd0..cmd_qd5 to speedj",
+      "CSV debug columns _step5c_cmd_qd0..5 match the Step4e carrier register values",
+      "quarantine packages remain stop-only and contain no speedj, speedl, or force_mode command",
+      "bridge main still hard-blocks step5c_speedj_dryrun_v1 and step5c_joint_rnn_cycloid_v1 live profiles"
+    ]
+  },
   "stages": [
     {
       "id": "step5a_cycloid_no_contact_v3",

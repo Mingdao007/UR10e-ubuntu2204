@@ -114,6 +114,41 @@ STEP4E_INPUT_NAMES = [
     "step4e_orientation_error_rad",
     "step4e_controller_state",
 ]
+STEP5C_JOINT_REGISTER_CONTRACT = [
+    ("input_double_register_37", "step4e_cmd_vx_m_s", "_step5c_cmd_qd0_rad_s", "qd0_rad_s"),
+    ("input_double_register_38", "step4e_cmd_vy_m_s", "_step5c_cmd_qd1_rad_s", "qd1_rad_s"),
+    ("input_double_register_39", "step4e_cmd_vz_m_s", "_step5c_cmd_qd2_rad_s", "qd2_rad_s"),
+    ("input_double_register_40", "step4e_cmd_wx_rad_s", "_step5c_cmd_qd3_rad_s", "qd3_rad_s"),
+    ("input_double_register_41", "step4e_cmd_wy_rad_s", "_step5c_cmd_qd4_rad_s", "qd4_rad_s"),
+    ("input_double_register_42", "step4e_cmd_wz_rad_s", "_step5c_cmd_qd5_rad_s", "qd5_rad_s"),
+]
+STEP5C_INPUT_REGISTER_SEMANTICS = {
+    "input_double_register_37": "qd0_rad_s",
+    "input_double_register_38": "qd1_rad_s",
+    "input_double_register_39": "qd2_rad_s",
+    "input_double_register_40": "qd3_rad_s",
+    "input_double_register_41": "qd4_rad_s",
+    "input_double_register_42": "qd5_rad_s",
+    "input_double_register_43": "cmd_valid",
+    "input_double_register_44": "path_time_s",
+    "input_double_register_45": "force_error_n",
+    "input_double_register_46": "pose_or_orientation_error",
+    "input_double_register_47": "solver_status",
+}
+STEP5C_DIAG_FIELDS = [
+    "_step5c_cmd_qd0_rad_s",
+    "_step5c_cmd_qd1_rad_s",
+    "_step5c_cmd_qd2_rad_s",
+    "_step5c_cmd_qd3_rad_s",
+    "_step5c_cmd_qd4_rad_s",
+    "_step5c_cmd_qd5_rad_s",
+    "_step5c_solver_status",
+    "_step5c_qdot_max_abs_rad_s",
+    "_step5c_qdot_clipped",
+    "_step5c_qdot_projected",
+    "_step5c_solver_residual_norm",
+    "_step5c_solver_error",
+]
 INPUT_FIELDS = BASE_INPUT_FIELDS + STEP4E_INPUT_FIELDS
 INPUT_NAMES = BASE_INPUT_NAMES + STEP4E_INPUT_NAMES
 OUTPUT_FIELDS = [
@@ -584,6 +619,75 @@ def step4e_zero_values() -> dict[str, float]:
     return {name: 0.0 for name in STEP4E_INPUT_NAMES}
 
 
+def step5c_register_metadata() -> dict[str, Any]:
+    return {
+        "contract": STEP5C_INPUT_REGISTER_SEMANTICS,
+        "carrier_warning": (
+            "In Step5c joint mode the existing Step4e RTDE recipe field names are "
+            "carriers only; registers 37..42 are qd0..qd5 rad/s, not Cartesian "
+            "TCP velocity or angular speed."
+        ),
+        "carriers": {
+            register: {
+                "step4e_carrier_name": carrier_name,
+                "step5c_debug_column": debug_name,
+                "step5c_semantic": semantic,
+            }
+            for register, carrier_name, debug_name, semantic in STEP5C_JOINT_REGISTER_CONTRACT
+        },
+        "register_43": {
+            "step4e_carrier_name": "step4e_cmd_valid",
+            "step5c_semantic": "cmd_valid",
+        },
+        "register_44": {
+            "step4e_carrier_name": "step4e_progress_m",
+            "step5c_semantic": "path_time_s",
+        },
+        "register_47": {
+            "step4e_carrier_name": "step4e_controller_state",
+            "step5c_semantic": "solver_status",
+        },
+        "legacy_mujoco_model_role": "failure_contrast_only_not_live_authorized",
+    }
+
+
+def step5c_joint_register_values(
+    qdot: tuple[float, float, float, float, float, float] | list[float],
+    *,
+    cmd_valid: float,
+    path_time_s: float,
+    force_error_n: float,
+    pose_or_orientation_error: float,
+    solver_status: float,
+) -> dict[str, float]:
+    if len(qdot) != 6:
+        raise ValueError(f"Step5c qdot must have 6 joints, got {len(qdot)}")
+    qdot_values = tuple(float(value) for value in qdot)
+    scalar_values = {
+        "cmd_valid": float(cmd_valid),
+        "path_time_s": float(path_time_s),
+        "force_error_n": float(force_error_n),
+        "pose_or_orientation_error": float(pose_or_orientation_error),
+        "solver_status": float(solver_status),
+    }
+    for label, value in [*zip([f"qd{idx}_rad_s" for idx in range(6)], qdot_values), *scalar_values.items()]:
+        if not math.isfinite(value):
+            raise ValueError(f"Step5c register value must be finite: {label}={value!r}")
+
+    values = {
+        "step4e_cmd_valid": scalar_values["cmd_valid"],
+        "step4e_progress_m": scalar_values["path_time_s"],
+        "step4e_force_error_n": scalar_values["force_error_n"],
+        "step4e_orientation_error_rad": scalar_values["pose_or_orientation_error"],
+        "step4e_controller_state": scalar_values["solver_status"],
+        "_step5c_solver_status": scalar_values["solver_status"],
+    }
+    for idx, (_register, carrier_name, debug_name, _semantic) in enumerate(STEP5C_JOINT_REGISTER_CONTRACT):
+        values[carrier_name] = qdot_values[idx]
+        values[debug_name] = qdot_values[idx]
+    return values
+
+
 class Step4EState:
     def __init__(self) -> None:
         self.integral_error_n_s = 0.0
@@ -1021,49 +1125,48 @@ def compute_step4e_values(
                 cmd = (0.0, 0.0, 0.0)
                 orientation_cmd = (0.0, 0.0, 0.0)
                 joint_result = None
-        values.update(
-            {
-                "step4e_cmd_vx_m_s": n_control_b[0] if (v21_profile and detach_stage_active) else cmd[0],
-                "step4e_cmd_vy_m_s": n_control_b[1] if (v21_profile and detach_stage_active) else cmd[1],
-                "step4e_cmd_vz_m_s": n_control_b[2] if (v21_profile and detach_stage_active) else cmd[2],
-                "step4e_cmd_wx_rad_s": orientation_cmd[0],
-                "step4e_cmd_wy_rad_s": orientation_cmd[1],
-                "step4e_cmd_wz_rad_s": orientation_cmd[2] if (axis_iso_active or v21_profile or v22_profile or angular_speedl_profile) else 0.0,
-                "step4e_cmd_valid": 0.0 if args.step4e_mode == "preview" or (step5c_joint_profile and joint_result is None) else 1.0,
-                "step4e_progress_m": progress,
-                "step4e_force_error_n": force_error,
-                "step4e_orientation_error_rad": orientation_error,
-                "step4e_controller_state": (
-                    joint_result.solver_status
-                    if step5c_joint_profile and joint_result is not None
-                    else STATUS_INVALID
-                    if step5c_joint_profile and joint_result is None
-                    else (
-                    33.0
-                    if latch_stage_active
-                    else 35.0
-                    if detach_stage_active
-                    else 31.0
-                    if orient_stage_active
-                    else 32.0
-                    if acquire_stage_active and not line_entry_gate_active
-                    else 36.0
-                    if line_entry_gate_active
-                    else 34.0
-                    if axis_iso_active
-                    else {"preview": 10.0, "hold": 20.0, "line": 30.0, "axis_iso": 34.0}[args.step4e_mode]
-                    )
-                ),
-            }
-        )
+        if step5c_joint_profile:
+            values.update(
+                step5c_joint_register_values(
+                    joint_result.qdot if joint_result is not None else (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+                    cmd_valid=0.0 if args.step4e_mode == "preview" or joint_result is None else 1.0,
+                    path_time_s=progress,
+                    force_error_n=force_error,
+                    pose_or_orientation_error=orientation_error,
+                    solver_status=joint_result.solver_status if joint_result is not None else STATUS_INVALID,
+                )
+            )
+        else:
+            values.update(
+                {
+                    "step4e_cmd_vx_m_s": n_control_b[0] if (v21_profile and detach_stage_active) else cmd[0],
+                    "step4e_cmd_vy_m_s": n_control_b[1] if (v21_profile and detach_stage_active) else cmd[1],
+                    "step4e_cmd_vz_m_s": n_control_b[2] if (v21_profile and detach_stage_active) else cmd[2],
+                    "step4e_cmd_wx_rad_s": orientation_cmd[0],
+                    "step4e_cmd_wy_rad_s": orientation_cmd[1],
+                    "step4e_cmd_wz_rad_s": orientation_cmd[2] if (axis_iso_active or v21_profile or v22_profile or angular_speedl_profile) else 0.0,
+                    "step4e_cmd_valid": 0.0 if args.step4e_mode == "preview" else 1.0,
+                    "step4e_progress_m": progress,
+                    "step4e_force_error_n": force_error,
+                    "step4e_orientation_error_rad": orientation_error,
+                    "step4e_controller_state": (
+                        33.0
+                        if latch_stage_active
+                        else 35.0
+                        if detach_stage_active
+                        else 31.0
+                        if orient_stage_active
+                        else 32.0
+                        if acquire_stage_active and not line_entry_gate_active
+                        else 36.0
+                        if line_entry_gate_active
+                        else 34.0
+                        if axis_iso_active
+                        else {"preview": 10.0, "hold": 20.0, "line": 30.0, "axis_iso": 34.0}[args.step4e_mode]
+                    ),
+                }
+            )
         if step5c_joint_profile and joint_result is not None:
-            values["_step5c_cmd_qd0_rad_s"] = joint_result.qdot[0]
-            values["_step5c_cmd_qd1_rad_s"] = joint_result.qdot[1]
-            values["_step5c_cmd_qd2_rad_s"] = joint_result.qdot[2]
-            values["_step5c_cmd_qd3_rad_s"] = joint_result.qdot[3]
-            values["_step5c_cmd_qd4_rad_s"] = joint_result.qdot[4]
-            values["_step5c_cmd_qd5_rad_s"] = joint_result.qdot[5]
-            values["_step5c_solver_status"] = joint_result.solver_status
             values["_step5c_qdot_max_abs_rad_s"] = joint_result.max_abs_qdot_rad_s
             values["_step5c_qdot_clipped"] = 1.0 if joint_result.clipped else 0.0
             values["_step5c_qdot_projected"] = 1.0 if joint_result.projected else 0.0
@@ -1535,6 +1638,7 @@ def main(argv: list[str] | None = None) -> int:
             "max_torque_norm_nm": args.max_torque_norm_nm,
         },
         "register_map": dict(zip(INPUT_FIELDS, INPUT_NAMES)),
+        "step5c_joint_register_contract": step5c_register_metadata(),
         "stage_aware_register_notes": {
             "p0_geo_ball_first_contact": "step4e-mode=off; only base force/heartbeat/guard registers are used. No Step4E motion or attitude command registers are consumed.",
             "p0_ball_vs_cyl_contact": "step4e-mode=off; one TP program runs ball-contact and housing/cylindrical-face witness searches. It uses low-threshold contact only, not 5N force acquisition.",
@@ -1554,7 +1658,7 @@ def main(argv: list[str] | None = None) -> int:
             "step4f_cycloid_seed_normal_v1": "Same TP flow and force/normal/orientation loop as v31, but stage 25.0 uses the paper Experiment #1 cycloid XY reference for 60 s.",
             "step4g_eight_seed_normal_v1": "Same TP flow and force/normal/orientation loop as v31, but stage 25.0 uses the paper Experiment #2 8-shaped XY reference for 60 s.",
             "step5b_contact_cycloid_baseline_v1": "Same TP contact-search/latch/25.2/25.3 scaffold as v31, but stage 25.0 uses the active Step5 table contact cycloid reference and v31 filtered-live normal policy.",
-            "step5c_speedj_dryrun_v1": "No-contact Step5c joint-space dry-run: bridge reads actual_q and writes qd0..qd5 in registers 37..42; TP executes speedj only in the Stage25 dry-run window.",
+            "step5c_speedj_dryrun_v1": "No-contact Step5c joint-space dry-run: bridge reads actual_q and writes qd0..qd5 in registers 37..42 through the explicit Step5c qdot helper; TP executes speedj only in the archived Stage25 dry-run fixture. Live profile remains blocked.",
             "step5c_joint_rnn_cycloid_v1": "Blocked/quarantined Step5c contact route: previous implementation was DLS, not strict TASE RNN.",
             "step6b_contact_eight_baseline_v1": "Same TP contact-search/latch/25.2/25.3 scaffold as Step5b/v31, but stage 25.0 uses the active Step6 five-point safe-frame 8-shaped reference for 30 s and v31 filtered-live normal policy.",
             "step6b_contact_eight_baseline_v2": "Same TP contact-search/latch/25.2/25.3 scaffold and Step6 reference as v1, but intended bridge caps are 15 mm/s path, 15 mm/s total linear, 3 mm/s normal reserve, and 0.060 rad/s attitude.",
@@ -1581,7 +1685,7 @@ def main(argv: list[str] | None = None) -> int:
             "step5c_stage_id": args.step4e_version
             if args.step4e_version in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID}
             else None,
-            "step5c_register_contract": "37..42=qd0..qd5 rad/s, 43=cmd_valid, 44=path_time, 45=force_error, 46=pose/orientation_error, 47=solver_status"
+            "step5c_register_contract": "37..42=qd0..qd5 rad/s, 43=cmd_valid, 44=path_time, 45=force_error, 46=pose/orientation_error, 47=solver_status; Step4e field names are carrier names only in Step5c mode."
             if args.step4e_version in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID}
             else None,
             "step5c_joint_model": str(args.step5c_joint_model)
@@ -1737,18 +1841,7 @@ def main(argv: list[str] | None = None) -> int:
             "_step4e_contact_offset_x_m",
             "_step4e_contact_offset_y_m",
             "_step4e_actual_speed_norm_m_s",
-            "_step5c_cmd_qd0_rad_s",
-            "_step5c_cmd_qd1_rad_s",
-            "_step5c_cmd_qd2_rad_s",
-            "_step5c_cmd_qd3_rad_s",
-            "_step5c_cmd_qd4_rad_s",
-            "_step5c_cmd_qd5_rad_s",
-            "_step5c_solver_status",
-            "_step5c_qdot_max_abs_rad_s",
-            "_step5c_qdot_clipped",
-            "_step5c_qdot_projected",
-            "_step5c_solver_residual_norm",
-            "_step5c_solver_error",
+            *STEP5C_DIAG_FIELDS,
         ]
         bridge_output_fields = [
             f"ur_{field}_{idx}"

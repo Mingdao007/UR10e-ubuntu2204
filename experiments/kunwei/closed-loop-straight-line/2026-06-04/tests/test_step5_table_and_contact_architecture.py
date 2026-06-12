@@ -80,6 +80,25 @@ class Step5TableAndContactArchitectureTest(unittest.TestCase):
             any("ur10e_nominal.xml" in banned for banned in kin_gate["banned_for_live_step5c"])
         )
 
+        qdot_gate = self.table["qdot_register_path_gate"]
+        self.assertEqual(qdot_gate["status"], "offline_contract_fixed")
+        self.assertIn("no live bridge", qdot_gate["scope"])
+        self.assertEqual(
+            [qdot_gate["command_registers"][str(idx)] for idx in range(37, 45)],
+            [
+                "qd0_rad_s",
+                "qd1_rad_s",
+                "qd2_rad_s",
+                "qd3_rad_s",
+                "qd4_rad_s",
+                "qd5_rad_s",
+                "cmd_valid",
+                "path_time_s",
+            ],
+        )
+        self.assertEqual(qdot_gate["diagnostic_registers"]["47"], "solver_status")
+        self.assertTrue(any("hard-blocks" in condition for condition in qdot_gate["pass_conditions"]))
+
     def test_bridge_step5_contact_reference_is_table_driven(self) -> None:
         origin, u_along, p_lateral = step5_table.basis_xy(self.frame)
         ref = bridge.step5_contact_path_reference(origin, 60.0)
