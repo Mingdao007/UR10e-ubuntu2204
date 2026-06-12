@@ -104,6 +104,6 @@ On a valid trigger:
    ```
 
 3. Long checks (network/Kunwei route) come from the operator's 30-min TTL
-   cache, kept warm by the `prep-long-checks` cron every 20 minutes. If the
+   cache. Warm it with `prep-long-checks` once at bench-session start. If the
    cache is stale the operator refreshes it itself; do not add manual checks.
 4. Target from user trigger to bridge process start is a few seconds.
