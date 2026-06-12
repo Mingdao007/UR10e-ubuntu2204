@@ -2,10 +2,11 @@
 
 `config/current_stage.json` currently selects no runnable Step5c joint-space
 route. The diagnostic DLS dry-run is quarantined after the 2026-06-13 live run
-showed wrong XY/Z motion. Strict TASE RNN is blocked until the PDF truth
-contract is closed. Step4f, Step4g, and Step5b remain retained evidence
-packages only. Do not infer global current status from this per-step file
-without reading the current pointer.
+showed wrong XY/Z motion. Step5d is now the named completion target for the
+complete strict TASE RNN reproduction, but it is blocked until the PDF truth
+contract is closed and the strict RNN implementation exists. Step4f, Step4g,
+and Step5b remain retained evidence packages only. Do not infer global current
+status from this per-step file without reading the current pointer.
 
 The source of truth for Step5 trajectory and stage ownership is
 `config/step5_stage_table.json`. Step5c also has a required offline calibrated
@@ -20,6 +21,7 @@ controller upload, or contact motion.
 | `step5c_speedj_dryrun_v1` | bridge+TP | false | true | none | none | Blocked/quarantined: 2026-06-13 live run showed wrong XY/Z motion from DLS/Jacobian mapping. Controller package must be stop-only and operator must refuse bridge. |
 | `step5c_joint_rnn_cycloid_v1` | bridge+TP | true | true | none | `v31_filtered_live` | Blocked/quarantined: the old contact route was misnamed DLS, not RNN. Controller package must be stop-only and operator must refuse contact. |
 | `step5c_strict_rnn_dryrun_v1` | bridge+TP | false | true | strict TASE RNN | none | Blocked until `config/step5c_tase_paper_truth.json` has no `pending_pdf_verify` fields and strict RNN equations are implemented. |
+| `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |
 
 ## Step5c Calibrated Kinematics Gate
 
@@ -199,6 +201,36 @@ The default contact timing policy is paper-faithful real time: the reference
 clock advances with elapsed time and faults stop the run. A virtual-clock or
 freeze-on-fault variant must be separately named and recorded before use.
 
+## Step5d Complete RNN Reproduction Route
+
+`step5d_strict_rnn_reproduction_v1` is the completion line for the full
+paper-faithful RNN reproduction. It is not a rename of the old
+`step5c_joint_rnn_cycloid_v1`; that route is quarantined because it was DLS/IK,
+not RNN.
+
+Step5d is complete only if all of the following are true:
+
+1. `config/step5c_tase_paper_truth.json` has no `pending_pdf_verify` fields and
+   `strict_rnn_enabled=true`.
+2. `tools/step5c_strict_rnn.py` implements the finite-time TASE RNN equations
+   with no `NotImplementedError`, no DLS fallback, and no IK fallback.
+3. The solver exposes audit diagnostics for RNN state, `lambda`,
+   projection/saturation, `sigr` exponent, gain matrix, force-motion task, and
+   orientation compliance.
+4. The solver uses calibrated Pinocchio `base -> tool0` `FK/J(q)`; the old
+   nominal MuJoCo model is allowed only as a failure contrast.
+5. The qdot register path proof passes for registers `37..47`.
+6. A fresh Step5d numeric sanity artifact passes for the exact route.
+7. A new non-quarantine Step5d TP package validates locally and is generated
+   only after the solver gates pass.
+8. Controller upload and read-back SHA/`cachedContents` verification pass.
+9. A separate Step5d live dry-run/contact plan is explicitly accepted before
+   opening the bridge or pressing TP Play.
+
+Do not mark Step5d complete from calibrated-only, DLS, IK, register-path-only,
+or stop-only quarantine evidence. Those can be prerequisites or diagnostics,
+but they are not the RNN reproduction.
+
 ## Handoff Gate
 
 Before any TP play instruction:
@@ -245,3 +277,6 @@ joint Jacobian/frame mapping is fixed offline through the calibrated kinematics
 gate, the qdot register path is repaired, strict RNN paper-truth extraction is
 closed where applicable, numeric sanity passes, and a separate live plan is
 explicitly accepted.
+
+There is also no valid Step5d bridge command yet. Step5d is the full RNN
+completion target, not a live authorization.

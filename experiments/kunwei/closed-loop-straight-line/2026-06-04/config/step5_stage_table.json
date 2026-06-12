@@ -1,7 +1,7 @@
 {
   "version": 1,
   "status": "active",
-  "source_of_truth": "Step5 trajectory/stage table; Step4f/Step4g and Step5b are historical evidence routes. Step5c DLS dry-run and contact are quarantined; strict RNN is blocked until PDF truth extraction is complete. Any future Step5c joint-space route must first pass the calibrated kinematics gate.",
+  "source_of_truth": "Step5 trajectory/stage table; Step4f/Step4g and Step5b are historical evidence routes. Step5c DLS dry-run and contact are quarantined. Step5d is the complete strict TASE RNN reproduction route and completion target, blocked until PDF truth extraction, strict RNN implementation, calibrated kinematics, qdot register path, numeric sanity, package read-back, and live-plan gates pass.",
   "register_contract": {
     "command_registers": {
       "qd0_rad_s": 37,
@@ -348,6 +348,80 @@
         "normal_filter": "none"
       },
       "success_condition": "Not runnable yet. Strict RNN dry-run can only become active after PDF-sourced equations and parameters are verified and numeric sanity passes."
+    },
+    {
+      "id": "step5d_strict_rnn_reproduction_v1",
+      "stage": "Step5d",
+      "owner": "bridge+TP",
+      "active": false,
+      "blocked": true,
+      "complete": false,
+      "completion_target": true,
+      "block_reason": "Step5d is defined as the complete paper-faithful strict TASE RNN reproduction route. It is not runnable until paper-truth extraction is closed, strict RNN equations are implemented without DLS/IK fallback, calibrated Pinocchio FK/Jacobian is integrated, qdot register path and numeric sanity pass, a new non-quarantine package is generated, controller read-back is verified, and a separate live plan is accepted.",
+      "shape": "cycloid",
+      "frame": "config/step5_safe_frame.json",
+      "contact": true,
+      "bridge": true,
+      "joint_space": true,
+      "strict_rnn": true,
+      "fixed_base_z_m": null,
+      "duration_s": 60.0,
+      "amplitude_m": 0.015,
+      "phase_law": {
+        "type": "linear_time",
+        "omega_rad_s": 0.1,
+        "final_phase_rad": 6.0
+      },
+      "cadence": {
+        "reference_clock": "real_time",
+        "motion": "blocked_until_strict_rnn_reproduction_verified",
+        "tp_hold_s": 0.002,
+        "end_hold_s": 0.1
+      },
+      "guard": {
+        "heartbeat_required": true,
+        "cmd_valid_required": true,
+        "qdot_cap_rad_s": 0.15,
+        "path_cap_m_s": 0.004,
+        "total_linear_cap_m_s": 0.006,
+        "normal_velocity_cap_m_s": 0.003,
+        "attitude_cap_rad_s": 0.06,
+        "runtime_limit_s": 65.0,
+        "progress_end_hold_s": 0.1,
+        "raw_normal_guard_n": 50.0,
+        "force_norm_guard_n": 60.0,
+        "torque_norm_guard_nm": 3.0
+      },
+      "contact_policy": {
+        "bridge_required": true,
+        "tp_role": "joint_executor_and_guard_only",
+        "reference_owner": "strict_rnn_bridge",
+        "joint_solver": "strict_tase_rnn_only",
+        "dls_fallback_allowed": false,
+        "ik_fallback_allowed": false,
+        "calibrated_kinematics_backend": "Pinocchio base->tool0 FK/J(q)",
+        "force_control": true,
+        "contact_search": true,
+        "timing_policy": "paper_faithful_real_time_stop_on_fault",
+        "virtual_clock_freeze": false
+      },
+      "rnn_completion_gates": [
+        "config/step5c_tase_paper_truth.json has no pending_pdf_verify fields and strict_rnn_enabled=true",
+        "tools/step5c_strict_rnn.py implements finite-time TASE RNN equations without NotImplementedError",
+        "strict solver has no DLS fallback and no IK fallback",
+        "strict solver exposes state, lambda, projection/saturation, sigr exponent, gain matrix, force-motion task, and orientation compliance diagnostics",
+        "solver uses calibrated Pinocchio FK/J(q), not experiments/.../ur10e_nominal.xml",
+        "offline qdot register path proof passes for registers 37..47",
+        "fresh Step5d numeric sanity artifact passes for the exact route",
+        "new non-quarantine Step5d TP package validates locally and contains speedj executor only after the above gates",
+        "controller upload and read-back SHA/cachedContents verification pass",
+        "separate Step5d live dry-run plan is explicitly accepted before bridge or TP Play"
+      ],
+      "filter_policy": {
+        "normal_filter": "paper_truth_required",
+        "compatibility_gate": "Decide from PDF truth whether filtered-live normal is allowed; do not inherit v31 filtering silently."
+      },
+      "success_condition": "Complete Step5d only when the strict TASE RNN paper equations drive calibrated UR10e qdot commands through registers 37..42, force-motion and orientation-compliance diagnostics match the paper-defined task contract, controller package read-back is verified, and a separately accepted live dry-run/contact evidence artifact passes. Do not mark complete from DLS, IK, calibrated-only, or register-path-only evidence."
     }
   ]
 }
