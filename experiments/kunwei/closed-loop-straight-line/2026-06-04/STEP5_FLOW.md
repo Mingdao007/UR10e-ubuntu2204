@@ -8,7 +8,9 @@ packages only. Do not infer global current status from this per-step file
 without reading the current pointer.
 
 The source of truth for Step5 trajectory and stage ownership is
-`config/step5_stage_table.json`.
+`config/step5_stage_table.json`. Step5c also has a required offline calibrated
+kinematics gate in that table; passing it is evidence only and does not
+authorize bridge start, TP Play, controller upload, or contact motion.
 
 | stage id | owner | contact | bridge | reference owner | normal filter | success condition |
 |---|---|---:|---:|---|---|---|
@@ -17,6 +19,35 @@ The source of truth for Step5 trajectory and stage ownership is
 | `step5c_speedj_dryrun_v1` | bridge+TP | false | true | none | none | Blocked/quarantined: 2026-06-13 live run showed wrong XY/Z motion from DLS/Jacobian mapping. Controller package must be stop-only and operator must refuse bridge. |
 | `step5c_joint_rnn_cycloid_v1` | bridge+TP | true | true | none | `v31_filtered_live` | Blocked/quarantined: the old contact route was misnamed DLS, not RNN. Controller package must be stop-only and operator must refuse contact. |
 | `step5c_strict_rnn_dryrun_v1` | bridge+TP | false | true | strict TASE RNN | none | Blocked until `config/step5c_tase_paper_truth.json` has no `pending_pdf_verify` fields and strict RNN equations are implemented. |
+
+## Step5c Calibrated Kinematics Gate
+
+Step5c is still quarantined. The offline kinematics baseline is now:
+
+- calibration YAML: `/home/andy/ur10e_ros2_ws/src/ur10e_bringup/config/ur10e_calibration.yaml`;
+- expected calibration hash: `calib_7367377276742883610`;
+- URDF source: `/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro`;
+- kinematics backend: Pinocchio `base -> tool0` FK and frame Jacobian;
+- audit tool: `tools/step5c_calibrated_kinematics_audit.py`;
+- reference failed run:
+  `runs/bridge_step4e_line_outerloop_step5c_speedj_dryrun_v1_20260613_001228/bridge_rtde_500hz.csv`.
+
+The gate must prove all of these before any Step5c route can be re-enabled:
+
+1. `FK(actual_q)` to RTDE `actual_TCP_pose` differs by a constant active TCP
+   offset, inferred as `tool0 +Z ~= 0.122099 m`, with offset std `<0.25 mm`.
+2. Active TCP speed from calibrated `J(actual_q) * actual_qd`, including that
+   TCP offset, matches RTDE `actual_TCP_speed` with linear/vector RMS `<1e-5`
+   and angular/vector RMS `<1e-5`.
+3. The qdot register path is repaired and verified end-to-end for registers
+   `37..42` before any controller package can consume live joint commands.
+4. A fresh `runs/step5c_numeric_sanity_<timestamp>/` artifact passes for the
+   exact future route.
+
+The old nominal MuJoCo model
+`experiments/20260523_tase_finite_time_ur10e_mujoco_reproduction/assets/mjcf/ur10e_nominal.xml`
+is banned for real Step5c IK/Jacobian. It is retained only as a failure
+contrast for the quarantined 2026-06-13 dry-run.
 
 Stage25 Step5c command-register semantics are joint mode:
 
@@ -82,7 +113,9 @@ Step5c moves joint-command ownership out of the UR controller's Cartesian
 Step5c joint-space package. The diagnostic DLS dry-run used
 `tools/step5c_dls_joint_solver.py`, but the 2026-06-13 live run proved its
 MuJoCo Jacobian/frame mapping is not trusted: actual TCP XY/Z diverged from the
-small cycloid reference.
+small cycloid reference. Do not revive this solver path for a real Step5c run;
+the next Step5c joint-space implementation must use the calibrated
+URDF/Pinocchio baseline or a separately audited equivalent.
 
 The strict RNN route is blocked:
 
@@ -117,7 +150,9 @@ Archived contact values, not active:
 
 Before a Step5c package is uploaded, run the numeric sanity gate and save its
 artifact under `runs/step5c_numeric_sanity_<timestamp>/`. If the gate fails,
-do not upload and do not start a bridge.
+do not upload and do not start a bridge. Numeric sanity is necessary but not
+sufficient: the calibrated kinematics gate and qdot register path gate must
+also pass first.
 
 Normal filtering follows the v31 policy:
 
@@ -174,5 +209,7 @@ On a valid trigger:
 There is no valid Step5c bridge command at this time. Both
 `scripts/step5c-speedj-dryrun-operator.sh` and
 `scripts/step5c-joint-rnn-operator.sh` must refuse all live modes until the
-joint Jacobian/frame mapping is fixed offline and strict RNN paper-truth
-extraction, offline validation, and a separate live plan are complete.
+joint Jacobian/frame mapping is fixed offline through the calibrated kinematics
+gate, the qdot register path is repaired, strict RNN paper-truth extraction is
+closed where applicable, numeric sanity passes, and a separate live plan is
+explicitly accepted.

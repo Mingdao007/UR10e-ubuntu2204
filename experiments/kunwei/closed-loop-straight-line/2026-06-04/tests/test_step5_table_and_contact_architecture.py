@@ -71,6 +71,15 @@ class Step5TableAndContactArchitectureTest(unittest.TestCase):
         self.assertEqual(dry["guard"]["qdot_cap_rad_s"], 0.2)
         self.assertEqual(contact["guard"]["qdot_cap_rad_s"], 0.15)
 
+        kin_gate = self.table["calibrated_kinematics_gate"]
+        self.assertEqual(kin_gate["calibration_hash"], "calib_7367377276742883610")
+        self.assertEqual(kin_gate["audit_tool"], "tools/step5c_calibrated_kinematics_audit.py")
+        self.assertIn("tool0", kin_gate["pinocchio_frames"])
+        self.assertTrue(kin_gate["required_evidence"]["qdot_register_path_fixed"])
+        self.assertTrue(
+            any("ur10e_nominal.xml" in banned for banned in kin_gate["banned_for_live_step5c"])
+        )
+
     def test_bridge_step5_contact_reference_is_table_driven(self) -> None:
         origin, u_along, p_lateral = step5_table.basis_xy(self.frame)
         ref = bridge.step5_contact_path_reference(origin, 60.0)

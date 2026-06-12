@@ -1,7 +1,7 @@
 {
   "version": 1,
   "status": "active",
-  "source_of_truth": "Step5 trajectory/stage table; Step4f/Step4g and Step5b are historical evidence routes. Step5c DLS dry-run and contact are quarantined; strict RNN is blocked until PDF truth extraction is complete.",
+  "source_of_truth": "Step5 trajectory/stage table; Step4f/Step4g and Step5b are historical evidence routes. Step5c DLS dry-run and contact are quarantined; strict RNN is blocked until PDF truth extraction is complete. Any future Step5c joint-space route must first pass the calibrated kinematics gate.",
   "register_contract": {
     "command_registers": {
       "qd0_rad_s": 37,
@@ -27,6 +27,31 @@
       "target_force_n": 29,
       "torque_norm_nm": 30
     }
+  },
+  "calibrated_kinematics_gate": {
+    "status": "required_before_any_step5c_reenable",
+    "calibration_yaml": "/home/andy/ur10e_ros2_ws/src/ur10e_bringup/config/ur10e_calibration.yaml",
+    "calibration_hash": "calib_7367377276742883610",
+    "urdf_source": "/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro",
+    "pinocchio_frames": [
+      "base",
+      "tool0",
+      "flange"
+    ],
+    "audit_tool": "tools/step5c_calibrated_kinematics_audit.py",
+    "reference_failed_run": "runs/bridge_step4e_line_outerloop_step5c_speedj_dryrun_v1_20260613_001228/bridge_rtde_500hz.csv",
+    "required_evidence": {
+      "fk_tcp_offset_constant_std_max_m": 0.00025,
+      "inferred_tcp_offset_norm_expected_m": 0.1221,
+      "jacobian_linear_vector_rms_max_m_s": 0.00001,
+      "jacobian_angular_vector_rms_max_rad_s": 0.00001,
+      "qdot_register_path_fixed": true,
+      "numeric_sanity_artifact_required": true
+    },
+    "banned_for_live_step5c": [
+      "experiments/20260523_tase_finite_time_ur10e_mujoco_reproduction/assets/mjcf/ur10e_nominal.xml"
+    ],
+    "notes": "The calibrated gate is offline only. Passing it does not authorize bridge start, TP play, controller upload, or contact motion."
   },
   "stages": [
     {
@@ -131,7 +156,7 @@
       "active": false,
       "archived": true,
       "blocked": true,
-      "block_reason": "2026-06-13 live dry-run moved in the wrong XY/Z direction; DLS/MuJoCo Jacobian frame mapping is not trusted.",
+      "block_reason": "2026-06-13 live dry-run moved in the wrong XY/Z direction; DLS/MuJoCo Jacobian frame mapping is not trusted. Re-enable only after calibrated FK/Jacobian audit passes, qdot register path is fixed, and numeric sanity is saved.",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": false,
@@ -175,7 +200,7 @@
       "filter_policy": {
         "normal_filter": "none"
       },
-      "success_condition": "Blocked/quarantined after 2026-06-13 live dry-run XY/Z divergence. Do not run until joint Jacobian/frame mapping is fixed and revalidated offline."
+      "success_condition": "Blocked/quarantined after 2026-06-13 live dry-run XY/Z divergence. Do not run until calibrated FK/Jacobian mapping is fixed and revalidated offline, qdot register path is fixed, and a new numeric sanity artifact passes."
     },
     {
       "id": "step5c_joint_rnn_cycloid_v1",
@@ -184,7 +209,7 @@
       "active": false,
       "archived": true,
       "blocked": true,
-      "block_reason": "Misnamed DLS implementation was exposed as joint-RNN; contact is quarantined until strict paper-truth RNN exists.",
+      "block_reason": "Misnamed DLS implementation was exposed as joint-RNN; contact is quarantined until strict paper-truth RNN exists and the calibrated FK/Jacobian audit, qdot register path, and numeric sanity gates pass.",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": true,
@@ -239,7 +264,7 @@
         "first_contact_latch": true,
         "line_stage_uses_filtered_live_normal": true
       },
-      "success_condition": "Blocked/quarantined. Do not run contact; the controller package must be stop-only until strict RNN paper-truth gates pass."
+      "success_condition": "Blocked/quarantined. Do not run contact; the controller package must be stop-only until strict RNN paper-truth, calibrated FK/Jacobian, qdot register path, and numeric sanity gates pass."
     },
     {
       "id": "step5c_strict_rnn_dryrun_v1",
