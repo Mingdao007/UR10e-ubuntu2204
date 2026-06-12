@@ -199,6 +199,110 @@ def validate_package(
                 and ("paper-derived cycloid XY reference" in script + txt if path_shape == "cycloid" else "paper-derived 8-shaped XY reference" in script + txt),
             }
         )
+    if program == "step5b_contact_cycloid_baseline_v1":
+        checks.update(
+            {
+                "step5b function": f"def codex_{program}()" in script
+                and "codex_step5b_down_search" in script,
+                "step5b bridge contract": "step4e-version=step5b_v1" in script
+                and "--step4e-version step5b_v1" in txt
+                and "--step4e-path-shape cycloid" in txt,
+                "step5 table source": "STEP5_FLOW.md" in script
+                and "STEP5_TABLE_SOURCE: config/step5_stage_table.json" in script
+                and "step5_contact_cycloid_baseline_v1" in script + txt,
+                "executor and guard only": "TP_ROLE: executor_and_guard_only" in script
+                and "Stage 25.0 consumes bridge command registers 37..44 only" in txt,
+                "60s contact runtime": "local line_runtime_limit_s = 65.000" in script
+                and "local line_success_progress_m = 60.000000000" in script,
+                "v31 contact scaffold": "first-contact normal latch" in script
+                and "25.2 attitude correction" in script
+                and "25.3 line-entry gate" in script
+                and "normal projection and force-loop composition" in script,
+                "raw contact guards": "codex_abs(normal_force) > 50.0" in script
+                and "force_norm > 60.0" in script
+                and "torque_norm > 3.0" in script,
+                "no stale step4 route": "step4f_cycloid_seed_normal_v1" not in script
+                and "step4g_eight_seed_normal_v1" not in script,
+            }
+        )
+    if program == "step6a_eight_no_contact_v1":
+        checks.update(
+            {
+                "step6a function": f"def codex_{program}()" in script,
+                "step6 flow": "STEP6_FLOW.md" in script
+                and "STEP6_FLOW.md" in txt
+                and "STEP6_STAGE_ID: step6a_eight_no_contact_v1" in script,
+                "step6 table and safe frame": "STEP6_TABLE_SOURCE: config/step6_stage_table.json" in script
+                and "STEP6_SAFE_FRAME_SOURCE: config/step6_eight_safe_frame.json" in script,
+                "step6 waypoint calibration": "STEP6_WAYPOINTS: five-point read-only RTDE calibration" in script,
+                "step6 no-contact policy": "no force control" in script
+                and "no contact search" in script
+                and "no Kunwei/bridge requirement" in script,
+                "step6 fixed-z and runtime": "local fixed_base_z_m =" in script
+                and "local path_duration_s = 30.000" in script,
+                "step6 elapsed timing": "STEP6_TIMING" in script
+                and "t = t + get_steptime()" in script,
+                "step6 8-shaped formula": "along=0.04*sin(0.2t)" in script
+                and "lateral=0.01*sin(0.4t)" in script
+                and "local along_amplitude_m = 0.040000000" in script
+                and "local lateral_amplitude_m = 0.010000000" in script,
+                "step6 speedl no input-register dependency": "speedl([cmd_vx, cmd_vy, cmd_vz, 0.0, 0.0, 0.0]" in script
+                and "read_input_float_register" not in script,
+                "step6 no live force/tcp writes": "force_mode" not in script
+                and "zero_ftsensor" not in script.replace("no zero_ftsensor()", "")
+                and "set_tcp" not in script
+                and "set_payload" not in script,
+                "step6 no stale step4 route": "step4g_eight_seed_normal_v1" not in script
+                and "/programs/andyl/kunwei/step4" not in script + txt,
+            }
+        )
+    if program in {"step6b_contact_eight_baseline_v1", "step6b_contact_eight_baseline_v2"}:
+        is_v2 = program.endswith("_v2")
+        bridge_version = "step6b_v2" if is_v2 else "step6b_v1"
+        stage_id = "step6_contact_eight_baseline_v2" if is_v2 else "step6_contact_eight_baseline_v1"
+        checks.update(
+            {
+                "step6b function": f"def codex_{program}()" in script
+                and "codex_step6b_down_search" in script,
+                "step6b bridge contract": f"step4e-version={bridge_version}" in script
+                and f"--step4e-version {bridge_version}" in txt
+                and "--step4e-path-shape eight" in txt,
+                "step6b force contract": "--target-force-n 5.0" in script
+                and "--target-force-n 5.0" in txt,
+                "step6 flow": "STEP6_FLOW.md" in script
+                and "STEP6_FLOW.md" in txt
+                and f"STEP6_STAGE_ID: {stage_id}" in script,
+                "step6 table and safe frame": "STEP6_TABLE_SOURCE: config/step6_stage_table.json" in script
+                and "STEP6_SAFE_FRAME_SOURCE: config/step6_eight_safe_frame.json" in script,
+                "executor and guard only": "TP_ROLE: executor_and_guard_only" in script
+                and "Stage 25.0 consumes bridge command registers 37..44 only" in txt,
+                "step6b v2 speed contract": (not is_v2)
+                or (
+                    "step4e-motion-limit-m-s=0.015" in script
+                    and "step4e-total-linear-limit-m-s=0.015" in script
+                    and "step4e-angular-limit-rad-s=0.060" in script
+                    and "motion 15.0 mm/s" in txt
+                    and "25.2 angular 0.060 rad/s" in txt
+                    and "Offline feasibility:" in txt
+                ),
+                "30s contact runtime": "local line_runtime_limit_s = 35.000" in script
+                and "local line_success_progress_m = 30.000000000" in script,
+                "step6 8-shaped formula": "along=0.04*sin(0.2t)" in script + txt
+                and "lateral=0.01*sin(0.4t)" in script + txt,
+                "v31 contact scaffold": "first-contact normal latch" in script
+                and "25.2 attitude correction" in script
+                and "25.3 line-entry gate" in script
+                and "normal projection and force-loop composition" in script,
+                "raw contact guards": "codex_abs(normal_force) > 50.0" in script
+                and "force_norm > 60.0" in script
+                and "torque_norm > 3.0" in script,
+                "no stale step4 step5 route": "step4f_cycloid_seed_normal_v1" not in script
+                and "step4g_eight_seed_normal_v1" not in script
+                and "step5b_contact_cycloid_baseline_v1" not in script
+                and "/programs/andyl/kunwei/step4" not in script + txt
+                and "/programs/andyl/kunwei/step5" not in script + txt,
+            }
+        )
     failed = [label for label, ok in checks.items() if not ok]
     if failed:
         die(f"{program} validation failed: bridge contract mismatch: {failed}")

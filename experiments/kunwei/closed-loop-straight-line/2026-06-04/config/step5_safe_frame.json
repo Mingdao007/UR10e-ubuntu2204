@@ -140,5 +140,5 @@
   "version": 1,
   "active_stage": "Step5",
   "active_variant": "Step5a no-contact cycloid",
-  "source_config_note": "Promoted from the confirmed safe-frame data produced during Step4f naming; Step5a is the active route."
+  "source_config_note": "Promoted from the confirmed safe-frame data produced during Step4f naming; Step5a is retained no-contact evidence. Global current route is declared by config/current_stage.json."
 }

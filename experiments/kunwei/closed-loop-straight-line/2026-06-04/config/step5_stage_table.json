@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "status": "active",
-  "source_of_truth": "Step5 trajectory/stage table; Step4f/Step4g are historical and not active routes.",
+  "status": "retained_evidence",
+  "source_of_truth": "Step5 trajectory/stage table. Global current route is declared by config/current_stage.json.",
   "register_contract": {
     "command_registers": {
       "vx_m_s": 37,

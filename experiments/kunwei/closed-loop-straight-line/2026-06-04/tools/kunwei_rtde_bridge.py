@@ -28,8 +28,9 @@ from typing import Any
 
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
+STEP4F_SAFE_FRAME_PATH = EXPERIMENT_ROOT / "config" / "step4f_safe_frame.json"
 KUNWEI_TOOLS = Path("/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/tools")
-UR_REALSETUP_SCRIPTS = Path("/home/andy/codex-private-skills/skills/ur10e-realsetup/scripts")
+UR_REALSETUP_SCRIPTS = Path("/home/andy/codex-private-skills-shared-main/skills/ur10e-realsetup/scripts")
 sys.path.insert(0, str(KUNWEI_TOOLS))
 sys.path.insert(0, str(UR_REALSETUP_SCRIPTS))
 
@@ -43,6 +44,17 @@ from capture_kunwei_kwr75_1khz import (  # noqa: E402
     pop_frames,
 )
 from _ur_common import RTDEClient, dashboard_exchange  # noqa: E402
+from step5_table import step5_path_reference  # noqa: E402
+from step6_eight import (  # noqa: E402
+    PATH_DURATION_S as STEP6_PATH_DURATION_S,
+    STEP6_SAFE_FRAME_PATH,
+    STEP6_TABLE_PATH,
+    eight_local,
+    load_safe_frame as load_step6_safe_frame,
+    step6_stage,
+    transform_local as step6_transform_local,
+    transform_velocity as step6_transform_velocity,
+)
 
 
 BASE_INPUT_FIELDS = [
@@ -152,6 +164,41 @@ STEP4E_LINE_MID_XY = (
     0.5 * (STEP4E_START_XY[1] + STEP4E_END_XY[1]),
 )
 STEP4FG_PATH_DURATION_S = 60.0
+STEP5_CONTACT_CYCLOID_STAGE_ID = "step5_contact_cycloid_baseline_v1"
+STEP6_CONTACT_EIGHT_STAGE_ID = "step6_contact_eight_baseline_v1"
+STEP6_CONTACT_EIGHT_STAGE_ID_V2 = "step6_contact_eight_baseline_v2"
+
+
+def load_step4f_safe_frame() -> dict[str, Any]:
+    fallback = {
+        "basis": {
+            "origin_xy_m": STEP4E_START_XY,
+            "u_along_xy": STEP4E_LINE_UNIT_XY,
+            "p_lateral_xy": STEP4E_LINE_PERP_XY,
+            "x_minus_shift_m": 0.0,
+        },
+        "guard": {
+            "passed": False,
+            "guard_line_x_m": None,
+            "path_max_x_m": None,
+        },
+        "policy": {
+            "no_scale": True,
+            "fallback": True,
+        },
+    }
+    if not STEP4F_SAFE_FRAME_PATH.is_file():
+        return fallback
+    try:
+        return json.loads(STEP4F_SAFE_FRAME_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return fallback
+
+
+STEP4F_SAFE_FRAME = load_step4f_safe_frame()
+STEP4F_ORIGIN_XY = tuple(float(v) for v in STEP4F_SAFE_FRAME["basis"]["origin_xy_m"])
+STEP4F_ALONG_UNIT_XY = tuple(float(v) for v in STEP4F_SAFE_FRAME["basis"]["u_along_xy"])
+STEP4F_LATERAL_UNIT_XY = tuple(float(v) for v in STEP4F_SAFE_FRAME["basis"]["p_lateral_xy"])
 
 
 def now_stamp() -> str:
@@ -189,9 +236,19 @@ def clamp(value: float, lo: float, hi: float) -> float:
 
 
 def xy_from_line_basis(anchor_xy: tuple[float, float], along_m: float, lateral_m: float) -> tuple[float, float]:
+    return xy_from_basis(anchor_xy, STEP4E_LINE_UNIT_XY, STEP4E_LINE_PERP_XY, along_m, lateral_m)
+
+
+def xy_from_basis(
+    anchor_xy: tuple[float, float],
+    u_along_xy: tuple[float, float],
+    p_lateral_xy: tuple[float, float],
+    along_m: float,
+    lateral_m: float,
+) -> tuple[float, float]:
     return (
-        anchor_xy[0] + along_m * STEP4E_LINE_UNIT_XY[0] + lateral_m * STEP4E_LINE_PERP_XY[0],
-        anchor_xy[1] + along_m * STEP4E_LINE_UNIT_XY[1] + lateral_m * STEP4E_LINE_PERP_XY[1],
+        anchor_xy[0] + along_m * u_along_xy[0] + lateral_m * p_lateral_xy[0],
+        anchor_xy[1] + along_m * u_along_xy[1] + lateral_m * p_lateral_xy[1],
     )
 
 
@@ -224,19 +281,25 @@ def step4e_path_reference(
         lateral_m = 0.015 * (1.0 - math.cos(phase))
         along_v = 0.0015 * (1.0 - math.cos(phase))
         lateral_v = 0.0015 * math.sin(phase)
-        desired_x, desired_y = xy_from_line_basis(STEP4E_START_XY, along_m, lateral_m)
+        anchor_xy = STEP4F_ORIGIN_XY
+        u_along_xy = STEP4F_ALONG_UNIT_XY
+        p_lateral_xy = STEP4F_LATERAL_UNIT_XY
+        desired_x, desired_y = xy_from_basis(anchor_xy, u_along_xy, p_lateral_xy, along_m, lateral_m)
     elif shape == "eight":
         phase = 0.1 * path_time_s
         along_m = 0.04 * math.sin(phase)
         lateral_m = 0.01 * math.sin(2.0 * phase)
         along_v = 0.004 * math.cos(phase)
         lateral_v = 0.002 * math.cos(2.0 * phase)
-        desired_x, desired_y = xy_from_line_basis(STEP4E_LINE_MID_XY, along_m, lateral_m)
+        anchor_xy = STEP4E_LINE_MID_XY
+        u_along_xy = STEP4E_LINE_UNIT_XY
+        p_lateral_xy = STEP4E_LINE_PERP_XY
+        desired_x, desired_y = xy_from_basis(anchor_xy, u_along_xy, p_lateral_xy, along_m, lateral_m)
     else:
         raise ValueError(f"unknown Step4e path shape: {shape}")
 
-    desired_vx = along_v * STEP4E_LINE_UNIT_XY[0] + lateral_v * STEP4E_LINE_PERP_XY[0]
-    desired_vy = along_v * STEP4E_LINE_UNIT_XY[1] + lateral_v * STEP4E_LINE_PERP_XY[1]
+    desired_vx = along_v * u_along_xy[0] + lateral_v * p_lateral_xy[0]
+    desired_vy = along_v * u_along_xy[1] + lateral_v * p_lateral_xy[1]
     return {
         "progress": path_time_s,
         "desired_xy": (desired_x, desired_y),
@@ -410,6 +473,66 @@ def live_normal_candidate(
     return raw_normal_b, candidate_b, candidate_force_n
 
 
+def v31_filtered_live_normal(
+    filtered_current_b: tuple[float, float, float],
+    live_candidate_b: tuple[float, float, float],
+    live_candidate_force_n: float,
+    *,
+    sensor_ok: float,
+    alpha: float = 0.35,
+    min_force_n: float = 2.0,
+) -> tuple[tuple[float, float, float], str]:
+    if sensor_ok <= 0.5:
+        return filtered_current_b, "hold_stale"
+    if live_candidate_force_n < min_force_n:
+        return filtered_current_b, "hold_low_force"
+    if dot3(filtered_current_b, live_candidate_b) < 0.0:
+        return filtered_current_b, "hold_reverse"
+    alpha = clamp(alpha, 0.0, 1.0)
+    return (
+        normalize3(
+            tuple(
+                (1.0 - alpha) * filtered_current_b[idx] + alpha * live_candidate_b[idx]
+                for idx in range(3)
+            ),
+            filtered_current_b,
+        ),
+        "filtered_live_alpha",
+    )
+
+
+def step5_contact_path_reference(
+    pose_xy: tuple[float, float],
+    elapsed_s: float,
+    stage_id: str = STEP5_CONTACT_CYCLOID_STAGE_ID,
+) -> dict[str, Any]:
+    return step5_path_reference(stage_id, pose_xy, elapsed_s)
+
+
+def step6_contact_path_reference(
+    pose_xy: tuple[float, float],
+    elapsed_s: float,
+    stage_id: str = STEP6_CONTACT_EIGHT_STAGE_ID,
+) -> dict[str, Any]:
+    stage = step6_stage(stage_id)
+    if stage.get("shape") != "eight":
+        raise ValueError(f"unsupported Step6 shape: {stage.get('shape')}")
+    frame = load_step6_safe_frame()
+    local = eight_local(elapsed_s)
+    desired_xy = step6_transform_local(frame, local["local_x_m"], local["local_y_m"])
+    desired_vxy = step6_transform_velocity(frame, local["local_vx_m_s"], local["local_vy_m_s"])
+    return {
+        "stage_id": stage_id,
+        "progress": local["t_s"],
+        "path_time_s": local["t_s"],
+        "phase_rad": local["phase_rad"],
+        "desired_xy": desired_xy,
+        "desired_velocity_xy": desired_vxy,
+        "path_error_xy": (desired_xy[0] - pose_xy[0], desired_xy[1] - pose_xy[1]),
+        "local": local,
+    }
+
+
 def synthetic_axis_iso_normal(stage: float, tilt_rad: float) -> tuple[float, float, float] | None:
     component = math.sin(tilt_rad) / math.sqrt(2.0)
     z = -math.cos(tilt_rad)
@@ -491,6 +614,9 @@ def compute_step4e_values(
     v31_profile = args.step4e_version == "v31"
     step4f_profile = args.step4e_version == "step4f_v1"
     step4g_profile = args.step4e_version == "step4g_v1"
+    step5b_profile = args.step4e_version == "step5b_v1"
+    step6b_profile = args.step4e_version in {"step6b_v1", "step6b_v2"}
+    step6_stage_id = STEP6_CONTACT_EIGHT_STAGE_ID_V2 if args.step4e_version == "step6b_v2" else STEP6_CONTACT_EIGHT_STAGE_ID
     angular_speedl_profile = (
         v23_profile
         or v24_profile
@@ -503,6 +629,8 @@ def compute_step4e_values(
         or v31_profile
         or step4f_profile
         or step4g_profile
+        or step5b_profile
+        or step6b_profile
     )
     detached_profile = v20_profile or v21_profile or v22_profile or angular_speedl_profile
     axis_iso_active = args.step4e_mode == "axis_iso" and 25.18 <= robot_stage <= 25.27
@@ -522,7 +650,7 @@ def compute_step4e_values(
         and (v20_profile or v22_profile or angular_speedl_profile)
         and abs(robot_stage - 25.3) < 0.05
     )
-    line_entry_gate_active = (v29_profile or v30_profile or v31_profile) and acquire_stage_active
+    line_entry_gate_active = (v29_profile or v30_profile or v31_profile or step5b_profile or step6b_profile) and acquire_stage_active
     line_stage_active = args.step4e_mode == "line" and abs(robot_stage - 25.0) < 0.05
     control_stage_active = (
         latch_stage_active
@@ -599,7 +727,7 @@ def compute_step4e_values(
     live_candidate_angle_rad: float | str = ""
     live_candidate_angle_from_latch_rad: float | str = ""
     normal_follow_active = (
-        (v30_profile or v31_profile or step4f_profile or step4g_profile)
+        (v30_profile or v31_profile or step4f_profile or step4g_profile or step5b_profile or step6b_profile)
         and args.step4e_normal_follow_mode == "filtered_live"
         and line_stage_active
         and state.normal_acquired
@@ -609,24 +737,16 @@ def compute_step4e_values(
         filtered_current = state.filtered_normal_b if state.filtered_normal_b is not None else state.latched_normal_b
         live_candidate_angle_rad = angle_between_unit(filtered_current, live_candidate_b)
         live_candidate_angle_from_latch_rad = angle_between_unit(state.latched_normal_b, live_candidate_b)
-        if v31_profile or step4f_profile or step4g_profile:
-            if sensor_ok <= 0.5:
-                normal_filter_source = "hold_stale"
-                n_control_b = filtered_current
-            elif live_candidate_force_n < args.step4e_normal_min_force_n:
-                normal_filter_source = "hold_low_force"
-                n_control_b = filtered_current
-            elif dot3(filtered_current, live_candidate_b) < 0.0:
-                normal_filter_source = "hold_reverse"
-                n_control_b = filtered_current
-            else:
-                alpha = clamp(args.step4e_normal_filter_alpha, 0.0, 1.0)
-                state.filtered_normal_b = normalize3(
-                    tuple((1.0 - alpha) * filtered_current[idx] + alpha * live_candidate_b[idx] for idx in range(3)),
-                    filtered_current,
-                )
-                n_control_b = state.filtered_normal_b
-                normal_filter_source = "filtered_live_alpha"
+        if v31_profile or step4f_profile or step4g_profile or step5b_profile or step6b_profile:
+            state.filtered_normal_b, normal_filter_source = v31_filtered_live_normal(
+                filtered_current,
+                live_candidate_b,
+                live_candidate_force_n,
+                sensor_ok=sensor_ok,
+                alpha=args.step4e_normal_filter_alpha,
+                min_force_n=args.step4e_normal_min_force_n,
+            )
+            n_control_b = state.filtered_normal_b
         else:
             max_candidate_angle_rad = math.radians(args.step4e_normal_max_angle_from_latch_deg)
             if sensor_ok <= 0.5:
@@ -654,7 +774,7 @@ def compute_step4e_values(
                 n_control_b = state.filtered_normal_b
                 normal_filter_source = "filtered_live"
     elif (
-        v30_profile or v31_profile or step4f_profile or step4g_profile
+        v30_profile or v31_profile or step4f_profile or step4g_profile or step5b_profile or step6b_profile
     ) and args.step4e_normal_follow_mode == "filtered_live":
         if line_stage_active:
             normal_filter_source = "locked_no_latch"
@@ -686,11 +806,23 @@ def compute_step4e_values(
         scale = args.step4e_angular_limit_rad_s / orientation_norm
         orientation_cmd = tuple(value * scale for value in orientation_cmd)
 
-    path_ref = step4e_path_reference(
-        args.step4e_path_shape,
-        (float(pose[0]), float(pose[1])),
-        state.line_stage_s,
-    )
+    if step5b_profile:
+        path_ref = step5_contact_path_reference(
+            (float(pose[0]), float(pose[1])),
+            state.line_stage_s,
+        )
+    elif step6b_profile:
+        path_ref = step6_contact_path_reference(
+            (float(pose[0]), float(pose[1])),
+            state.line_stage_s,
+            stage_id=step6_stage_id,
+        )
+    else:
+        path_ref = step4e_path_reference(
+            args.step4e_path_shape,
+            (float(pose[0]), float(pose[1])),
+            state.line_stage_s,
+        )
     progress = float(path_ref["progress"])
     desired_x, desired_y = path_ref["desired_xy"]
     path_error = (path_ref["path_error_xy"][0], path_ref["path_error_xy"][1], 0.0)
@@ -1129,7 +1261,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--duration-s", type=float, default=30.0)
     parser.add_argument("--baseline-s", type=float, default=5.0)
     parser.add_argument("--rtde-hz", type=float, default=125.0)
-    parser.add_argument("--target-force-n", type=float, default=3.0)
+    parser.add_argument("--target-force-n", type=float, default=5.0)
     parser.add_argument("--normal-axis", choices=("fx", "fy", "fz"), default="fz")
     parser.add_argument("--normal-sign", type=float, choices=(-1.0, 1.0), default=1.0)
     parser.add_argument("--output-dir", type=Path, default=default_output_dir())
@@ -1229,6 +1361,9 @@ def main(argv: list[str] | None = None) -> int:
         "v31",
         "step4f_v1",
         "step4g_v1",
+        "step5b_v1",
+        "step6b_v1",
+        "step6b_v2",
     }
     if args.step4e_version not in known_step4e_versions:
         raise SystemExit(
@@ -1306,6 +1441,9 @@ def main(argv: list[str] | None = None) -> int:
             "v31_seed_normal_loop_current": "Same TP flow as v30. Bridge --step4e-normal-follow-mode filtered_live changes only stage 25.0 line control to use a friction-projected live normal with direct alpha EMA, min-force hold, and same-hemisphere hold against the previous filtered normal; no slew-rate, latch-angle, or candidate-angle gate.",
             "step4f_cycloid_seed_normal_v1": "Same TP flow and force/normal/orientation loop as v31, but stage 25.0 uses the paper Experiment #1 cycloid XY reference for 60 s.",
             "step4g_eight_seed_normal_v1": "Same TP flow and force/normal/orientation loop as v31, but stage 25.0 uses the paper Experiment #2 8-shaped XY reference for 60 s.",
+            "step5b_contact_cycloid_baseline_v1": "Same TP contact-search/latch/25.2/25.3 scaffold as v31, but stage 25.0 uses the active Step5 table contact cycloid reference and v31 filtered-live normal policy.",
+            "step6b_contact_eight_baseline_v1": "Same TP contact-search/latch/25.2/25.3 scaffold as Step5b/v31, but stage 25.0 uses the active Step6 five-point safe-frame 8-shaped reference for 30 s and v31 filtered-live normal policy.",
+            "step6b_contact_eight_baseline_v2": "Same TP contact-search/latch/25.2/25.3 scaffold and Step6 reference as v1, but intended bridge caps are 15 mm/s path, 15 mm/s total linear, 3 mm/s normal reserve, and 0.060 rad/s attitude.",
         },
         "step4e_path": {
             "type": args.step4e_path_shape,
@@ -1320,6 +1458,31 @@ def main(argv: list[str] | None = None) -> int:
             "kunwei_to_tcp": "F_T=[Fx_K,Fy_K,Fz_K], M_T=[Mx_K,My_K,Mz_K]",
             "tcp_contact_length_m": 0.1221,
             "line_control_target": "latched contact normal load, not total force norm",
+            "step4f_safe_frame": (
+                STEP4F_SAFE_FRAME
+                if args.step4e_path_shape == "cycloid" and args.step4e_version != "step5b_v1"
+                else None
+            ),
+            "step5_stage_id": STEP5_CONTACT_CYCLOID_STAGE_ID if args.step4e_version == "step5b_v1" else None,
+            "step6_stage_id": (
+                STEP6_CONTACT_EIGHT_STAGE_ID_V2
+                if args.step4e_version == "step6b_v2"
+                else STEP6_CONTACT_EIGHT_STAGE_ID
+                if args.step4e_version == "step6b_v1"
+                else None
+            ),
+            "step6_curve_duration_s": STEP6_PATH_DURATION_S if args.step4e_version in {"step6b_v1", "step6b_v2"} else None,
+            "step6_table_source": str(STEP6_TABLE_PATH.relative_to(EXPERIMENT_ROOT))
+            if args.step4e_version in {"step6b_v1", "step6b_v2"}
+            else None,
+            "step6_safe_frame_source": str(STEP6_SAFE_FRAME_PATH.relative_to(EXPERIMENT_ROOT))
+            if args.step4e_version in {"step6b_v1", "step6b_v2"}
+            else None,
+            "step6_safe_frame": load_step6_safe_frame() if args.step4e_version in {"step6b_v1", "step6b_v2"} else None,
+            "step4e_motion_limit_m_s": args.step4e_motion_limit_m_s,
+            "step4e_total_linear_limit_m_s": args.step4e_total_linear_limit_m_s,
+            "step4e_normal_velocity_limit_m_s": args.step4e_normal_velocity_limit_m_s,
+            "step4e_angular_limit_rad_s": args.step4e_angular_limit_rad_s,
         },
     }
     write_json(metadata_path, metadata)

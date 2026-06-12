@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "updated_at": "2026-06-12T22:56:51+08:00",
+  "current_step": "Step6",
+  "current_stage_id": "step6_contact_eight_baseline_v2",
+  "program": "step6b_contact_eight_baseline_v2",
+  "flow_path": "STEP6_FLOW.md",
+  "stage_table_path": "config/step6_stage_table.json",
+  "controller_target": "/programs/andyl/kunwei/step6/step6b_contact_eight_baseline_v2.urp",
+  "local_triplet": "programs/step6/step6b_contact_eight_baseline_v2.{script,txt,urp}",
+  "bridge_profile": {
+    "step4e_version": "step6b_v2",
+    "step4e_path_shape": "eight",
+    "target_force_n": 5.0
+  },
+  "evidence": {
+    "controller_readback_dir": "runs/controller_readback_step6b_contact_eight_baseline_v2_20260612_225651",
+    "bridge_run_dir": "runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841",
+    "report": "report/step6b-contact-eight-baseline.md"
+  },
+  "retained_steps": [
+    {
+      "step": "Step4e",
+      "flow_path": "STEP4E_FLOW.md",
+      "role": "historical_line_reproduction_evidence"
+    },
+    {
+      "step": "Step5",
+      "flow_path": "STEP5_FLOW.md",
+      "stage_table_path": "config/step5_stage_table.json",
+      "role": "retained_cycloid_evidence"
+    }
+  ],
+  "notes": [
+    "This file is the single current pointer for UR/Kunwei package and bridge handoffs.",
+    "Per-step flow files describe their own evidence and stages; they do not declare the global active route."
+  ]
+}

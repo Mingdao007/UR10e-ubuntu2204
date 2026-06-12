@@ -1,7 +1,8 @@
 # Step5 Flow
 
-Step5 is the active route for trajectory work after Step4f/Step4g. Step4f and
-Step4g remain historical evidence packages only.
+Step5 is retained cycloid trajectory evidence. The global current route is
+declared by `config/current_stage.json`; do not infer current status from this
+per-step flow file. Step4f and Step4g remain historical evidence packages only.
 
 The source of truth for Step5 trajectory and stage ownership is
 `config/step5_stage_table.json`.

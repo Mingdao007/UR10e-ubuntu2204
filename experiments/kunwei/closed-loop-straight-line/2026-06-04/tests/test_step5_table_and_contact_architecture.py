@@ -69,6 +69,10 @@ class Step5TableAndContactArchitectureTest(unittest.TestCase):
         self.assertAlmostEqual(offset_ref["path_error_xy"][0], -0.002, places=12)
         self.assertAlmostEqual(offset_ref["path_error_xy"][1], 0.001, places=12)
 
+    def test_bridge_default_target_force_is_contact_baseline(self) -> None:
+        args = bridge.parse_args(["--no-start-command"])
+        self.assertEqual(args.target_force_n, 5.0)
+
     def test_v31_filtered_live_normal_alpha_and_holds(self) -> None:
         current = (0.0, 0.0, 1.0)
         candidate = (0.0, 1.0, 0.0)

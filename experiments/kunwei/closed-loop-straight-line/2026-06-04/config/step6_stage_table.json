@@ -1,0 +1,165 @@
+{
+  "version": 1,
+  "status": "active",
+  "source_of_truth": "STEP6_FLOW.md",
+  "stages": [
+    {
+      "id": "step6a_eight_no_contact_v1",
+      "stage": "Step6a",
+      "owner": "TP",
+      "active": false,
+      "retained_evidence": true,
+      "shape": "eight",
+      "frame": "config/step6_eight_safe_frame.json",
+      "contact": false,
+      "bridge": false,
+      "fixed_base_z_m": 0.029423891,
+      "duration_s": 30.0,
+      "path": {
+        "along_amplitude_m": 0.04,
+        "lateral_amplitude_m": 0.01,
+        "omega_rad_s": 0.2,
+        "formula": "along=0.04*sin(0.2t), lateral=0.01*sin(0.4t)"
+      },
+      "cadence": {
+        "motion": "speedl",
+        "warmup_hold_s": 0.008,
+        "fast_hold_s": 0.001,
+        "path_clock": "get_steptime",
+        "fast_after_s": 0.1,
+        "entry": "movel_only"
+      },
+      "guard": {
+        "x_guard_source": "config/step6_eight_safe_frame.json",
+        "base_x_guard_required": true,
+        "velocity_cap_m_s": 0.009
+      },
+      "contact_policy": {
+        "force_control": false,
+        "contact_search": false,
+        "kunwei_bridge_required": false,
+        "zero_ftsensor": false,
+        "tcp_payload_write": false
+      },
+      "filter_policy": {
+        "normal_filter": "none"
+      },
+      "success_condition": "Complete 30.0 s no-contact fixed-Z 8-shaped path after the five-waypoint safe-frame and X guard pass."
+    },
+    {
+      "id": "step6_contact_eight_baseline_v1",
+      "program": "step6b_contact_eight_baseline_v1",
+      "stage": "Step6b",
+      "owner": "TP + bridge",
+      "active": false,
+      "retained_evidence": true,
+      "shape": "eight",
+      "frame": "config/step6_eight_safe_frame.json",
+      "contact": true,
+      "bridge": true,
+      "bridge_profile": {
+        "step4e_version": "step6b_v1",
+        "step4e_path_shape": "eight",
+        "target_force_n": 5.0
+      },
+      "duration_s": 30.0,
+      "path": {
+        "along_amplitude_m": 0.04,
+        "lateral_amplitude_m": 0.01,
+        "omega_rad_s": 0.2,
+        "formula": "along=0.04*sin(0.2t), lateral=0.01*sin(0.4t)"
+      },
+      "cadence": {
+        "motion": "speedl",
+        "hold_s": 0.002,
+        "path_clock": "bridge_elapsed_stage_time"
+      },
+      "guard": {
+        "x_guard_source": "config/step6_eight_safe_frame.json",
+        "base_x_guard_required": true,
+        "velocity_cap_m_s": 0.009,
+        "normal_force_guard_n": 50.0,
+        "force_norm_guard_n": 60.0,
+        "torque_norm_guard_nm": 3.0
+      },
+      "contact_policy": {
+        "force_control": true,
+        "target_force_n": 5.0,
+        "contact_search": true,
+        "kunwei_bridge_required": true,
+        "zero_ftsensor": false,
+        "tcp_payload_write": false,
+        "scaffold": "Step5b/v31 contact search, first-contact normal latch, 20mm lift, 25.2 attitude correction, second contact, 25.3 line-entry gate"
+      },
+      "filter_policy": {
+        "normal_filter": "filtered_live_alpha",
+        "alpha": 0.35,
+        "min_force_n": 2.0
+      },
+      "success_condition": "Complete 30.0 s contact 8-shaped path in the Step6 five-waypoint safe frame with 5 N target force."
+    },
+    {
+      "id": "step6_contact_eight_baseline_v2",
+      "program": "step6b_contact_eight_baseline_v2",
+      "stage": "Step6b",
+      "owner": "TP + bridge",
+      "active": true,
+      "shape": "eight",
+      "frame": "config/step6_eight_safe_frame.json",
+      "contact": true,
+      "bridge": true,
+      "bridge_profile": {
+        "step4e_version": "step6b_v2",
+        "step4e_path_shape": "eight",
+        "target_force_n": 5.0
+      },
+      "duration_s": 30.0,
+      "path": {
+        "along_amplitude_m": 0.04,
+        "lateral_amplitude_m": 0.01,
+        "omega_rad_s": 0.2,
+        "formula": "along=0.04*sin(0.2t), lateral=0.01*sin(0.4t)"
+      },
+      "cadence": {
+        "motion": "speedl",
+        "hold_s": 0.002,
+        "path_clock": "bridge_elapsed_stage_time"
+      },
+      "bridge_limits": {
+        "motion_limit_m_s": 0.015,
+        "total_linear_limit_m_s": 0.015,
+        "normal_velocity_limit_m_s": 0.003,
+        "angular_limit_rad_s": 0.06
+      },
+      "offline_feasibility": {
+        "reference_speed_max_m_s": 0.00894427191,
+        "required_total_with_normal_reserve_m_s": 0.00943398113,
+        "orientation_capacity_rad": 0.48,
+        "orientation_required_rad": 0.471239
+      },
+      "guard": {
+        "x_guard_source": "config/step6_eight_safe_frame.json",
+        "base_x_guard_required": true,
+        "velocity_cap_m_s": 0.015,
+        "normal_force_guard_n": 50.0,
+        "force_norm_guard_n": 60.0,
+        "torque_norm_guard_nm": 3.0
+      },
+      "contact_policy": {
+        "force_control": true,
+        "target_force_n": 5.0,
+        "contact_search": true,
+        "kunwei_bridge_required": true,
+        "zero_ftsensor": false,
+        "tcp_payload_write": false,
+        "scaffold": "Step5b/v31 contact search, first-contact normal latch, 20mm lift, 25.2 attitude correction, second contact, 25.3 line-entry gate"
+      },
+      "filter_policy": {
+        "normal_filter": "filtered_live_alpha",
+        "alpha": 0.35,
+        "min_force_n": 2.0
+      },
+      "success_condition": "Complete 30.0 s contact 8-shaped path in the Step6 five-waypoint safe frame with 5 N target force under the v2 15 mm/s linear and 0.060 rad/s attitude caps."
+    }
+  ]
+}

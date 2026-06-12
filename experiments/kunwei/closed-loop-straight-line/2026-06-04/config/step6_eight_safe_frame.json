@@ -1,0 +1,212 @@
+{
+  "basis": {
+    "origin_xy_m": [
+      0.4620551816200707,
+      0.17788259636165896
+    ],
+    "p_lateral_xy": [
+      -0.9999878295072636,
+      0.004933643415566022
+    ],
+    "rotation_deg": 89.71732190788741,
+    "rotation_matrix": [
+      [
+        0.004933643415566022,
+        -0.9999878295072636
+      ],
+      [
+        0.9999878295072636,
+        0.004933643415566022
+      ]
+    ],
+    "u_along_xy": [
+      0.004933643415566022,
+      0.9999878295072636
+    ]
+  },
+  "envelope": {
+    "base_x_m": {
+      "max": 0.4721937827434244,
+      "min": 0.45191733986027677
+    },
+    "base_y_m": {
+      "max": 0.21788084360127216,
+      "min": 0.13788349074193326
+    },
+    "local_x_m": {
+      "max": 0.0399983058599496,
+      "min": -0.03999884145320098
+    },
+    "local_y_m": {
+      "max": 0.009999417202299663,
+      "min": -0.009999902065507035
+    },
+    "max_reference_speed_m_s": 0.00894427190999916
+  },
+  "fixed_z": {
+    "captured_waypoint_z_m": {
+      "center_start": 0.019571758352151553,
+      "left_lower": 0.018813342241471423,
+      "left_upper": 0.016259157070988267,
+      "right_lower": 0.02031107916254392,
+      "right_upper": 0.01956288450046366
+    },
+    "clearance_above_highest_waypoint_m": 0.01,
+    "fixed_base_z_m": 0.03031107916254392,
+    "highest_waypoint_z_m": 0.02031107916254392,
+    "lowest_waypoint_z_m": 0.016259157070988267,
+    "source": "highest captured waypoint z plus clearance",
+    "z_span_m": 0.004051922091555651
+  },
+  "generated_at": "2026-06-12T21:52:03",
+  "guard": {
+    "guard_line_x_m": 0.4888784335298146,
+    "guard_margin_after_m": 0.0166846507863902,
+    "passed": true,
+    "path_max_x_m": 0.4721937827434244
+  },
+  "max_residual_mm": 5.919813095790345,
+  "policy": {
+    "auto_shift_to_pass_guard": false,
+    "fit": "XY rigid rotation+translation over five manually captured XYZ waypoints",
+    "no_scale": true,
+    "paper_formula": "along=0.04*sin(0.2t), lateral=0.01*sin(0.4t), duration=30s",
+    "residual_threshold_mm": 6.5,
+    "shape": "step6_eight_no_contact",
+    "xyz_policy": "TCP x/y/z are geometry inputs; force and rx/ry/rz are logged only and ignored by the fit"
+  },
+  "program": "step6a_eight_no_contact_v1",
+  "residual_gate_passed": true,
+  "residuals": {
+    "center_start": {
+      "captured_base_xy_m": [
+        0.46198101784142837,
+        0.17667972202585017
+      ],
+      "local_xy_m": [
+        0.0,
+        0.0
+      ],
+      "predicted_base_xy_m": [
+        0.4620551816200707,
+        0.17788259636165896
+      ],
+      "residual_base_x_mm": -0.07416377864233326,
+      "residual_base_xy_norm_mm": 1.2051584683393082,
+      "residual_base_y_mm": -1.20287433580879,
+      "t_s": 0.0
+    },
+    "left_lower": {
+      "captured_base_xy_m": [
+        0.4758569087444237,
+        0.1514962266925126
+      ],
+      "local_xy_m": [
+        -0.02828427124746191,
+        -0.01
+      ],
+      "predicted_base_xy_m": [
+        0.4719155154065392,
+        0.14954933291355915
+      ],
+      "residual_base_x_mm": 3.9413933378845134,
+      "residual_base_xy_norm_mm": 4.396018292779047,
+      "residual_base_y_mm": 1.9468937789534346,
+      "t_s": 27.48893571891069
+    },
+    "left_upper": {
+      "captured_base_xy_m": [
+        0.4477879631903098,
+        0.15175025278049398
+      ],
+      "local_xy_m": [
+        -0.028284271247461884,
+        0.01
+      ],
+      "predicted_base_xy_m": [
+        0.4519157588163939,
+        0.1496480057818705
+      ],
+      "residual_base_x_mm": -4.127795626084119,
+      "residual_base_xy_norm_mm": 4.632293079452178,
+      "residual_base_y_mm": 2.102246998623464,
+      "t_s": 19.634954084936204
+    },
+    "right_lower": {
+      "captured_base_xy_m": [
+        0.4779772611886163,
+        0.20540415780758922
+      ],
+      "local_xy_m": [
+        0.028284271247461905,
+        -0.01
+      ],
+      "predicted_base_xy_m": [
+        0.4721946044237475,
+        0.20611718694144743
+      ],
+      "residual_base_x_mm": 5.7826567648687766,
+      "residual_base_xy_norm_mm": 5.826450875620012,
+      "residual_base_y_mm": -0.7130291338582062,
+      "t_s": 11.780972450961723
+    },
+    "right_upper": {
+      "captured_base_xy_m": [
+        0.44667275713557564,
+        0.2040826225018487
+      ],
+      "local_xy_m": [
+        0.028284271247461898,
+        0.01
+      ],
+      "predicted_base_xy_m": [
+        0.4521948478336022,
+        0.20621585980975876
+      ],
+      "residual_base_x_mm": -5.5220906980265605,
+      "residual_base_xy_norm_mm": 5.919813095790345,
+      "residual_base_y_mm": -2.1332373079100684,
+      "t_s": 3.9269908169872414
+    }
+  },
+  "source_points_json": "runs/step6_eight_waypoints_20260612_213627/points.json",
+  "status": "ok",
+  "version": 1,
+  "waypoints": [
+    {
+      "label": "center_start",
+      "local_x_m": 0.0,
+      "local_y_m": 0.0,
+      "phase_rad": 0.0,
+      "t_s": 0.0
+    },
+    {
+      "label": "right_upper",
+      "local_x_m": 0.028284271247461898,
+      "local_y_m": 0.01,
+      "phase_rad": 0.7853981633974483,
+      "t_s": 3.9269908169872414
+    },
+    {
+      "label": "right_lower",
+      "local_x_m": 0.028284271247461905,
+      "local_y_m": -0.01,
+      "phase_rad": 2.356194490192345,
+      "t_s": 11.780972450961723
+    },
+    {
+      "label": "left_upper",
+      "local_x_m": -0.028284271247461884,
+      "local_y_m": 0.01,
+      "phase_rad": 3.9269908169872414,
+      "t_s": 19.634954084936204
+    },
+    {
+      "label": "left_lower",
+      "local_x_m": -0.02828427124746191,
+      "local_y_m": -0.01,
+      "phase_rad": 5.497787143782138,
+      "t_s": 27.48893571891069
+    }
+  ]
+}
