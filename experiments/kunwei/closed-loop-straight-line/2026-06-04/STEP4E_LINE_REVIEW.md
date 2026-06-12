@@ -162,3 +162,56 @@ version stamp.
 preview → hold (read CSV, confirm the 3 things in §2) → line. Optional code follow-ups: §3,§4,§5.
 
 # >>> END CLAUDE AUDIT <<<
+
+---
+
+# >>> CLAUDE v13 AUDIT (2026-06-09) — READ THIS FOR THE LATEST RUN <<<
+
+Audit of v13 (code + the real run `bridge_step4e_line_outerloop_v13_autowatch_20260609_141027`).
+Full report: `STEP4E_V13_AUDIT_CLAUDE.md` (same folder). No code changed, no robot moved.
+
+Verdict: **v13 is a good program-flow + path-completion baseline with UNACCEPTABLE force
+regulation.** Line completes (UR stop reason 1), XY tracking excellent (0.05 mm mean), but the
+normal loop overshoots to **−36 N vs the 5 N target** (stage25 MAE 8.54 N, p95 22.3 N).
+**Do NOT re-run v13 as-is** — the raw normal guard is at 100 N, too little margin over 36 N.
+
+## v1 audit items — now resolved
+- #1 baseline-at-wrong-orientation: **RESOLVED** by the entry-pose re-zero. Proof: start-pose
+  baseline carried `fz` offset 2.97 N and stage-20 norm peaked 9.86 N; after re-zero, free-space
+  stage-24.0 norm is ~0.54 N. The v1 concern was real and is now fixed.
+- #2 force sign: **RESOLVED empirically** (sign correct, it loads in; magnitude wrong).
+- #3 duration 180 s: **RESOLVED** (240 s). #5 dead re-zero: **RESOLVED** (wired).
+- #4 loop-budget timers: unchanged (C3). #6 dirty tree: still dirty (H1).
+
+## New v13 findings
+- **F1 (HIGH, root cause):** the bridge controller integrates during stage 24.2 (~3.4 s of
+  near-search/contact) before URScript consumes its output at stage 25 — `control_allowed` is
+  true once force≥1 N and `reset_line_contact()` only fires for stage<24 or ≥26
+  (`kunwei_rtde_bridge.py:284-287,302-392`). So line control starts PRE-SATURATED and slams in.
+  Fix: gate integrator/normal-velocity on stage 25, or reset at the 24→25 transition.
+- **F2 (HIGH, root cause):** velocity-command admittance (±3 mm/s clamp, tiny Kp, slow integral)
+  vs a stiff surface → saturation/windup overshoot. Lower normal-velocity limit (~0.5–1 mm/s),
+  cut Ki / tighten integral clamp, add a settle stage. Target p95 |error| < 3–5 N.
+- **S1 (SAFETY HIGH):** raw normal guard = 100 N in both bridge and URScript
+  (`step4e_line_outerloop_v13.script:76`). Lower to 30–50 N before any rerun; confirm KWR75B
+  overload spec.
+- **S2 (SAFETY MED):** 15 mm/s far-search trusts the hardcoded 80 mm free-space margin +
+  `fixed_search_start_z=0.09835`. If the workpiece height drifts, contact can land in the fast
+  phase. Verify surface-height repeatability.
+- **C1:** internal servo ~250 Hz (bridge/RTDE 500 Hz); don't claim 500 Hz closed loop. (Author
+  already documents this.)
+- **C2:** no `preview_line_v13` exists — `preview-v13-autowatch` would fail. **C3:** timers are
+  loop-iteration budgets, not seconds.
+
+## Confirmed OK
+Boundary intact (Python only writes registers). Entry re-zero works. Latched-normal + 0.95/0.05
+blend is a real improvement. Two-stage + fixed search-start z fixes v12's no-contact miss. XY
+tracking 0.05 mm mean / 0.31 mm max. Endpoint success + retract/home work; safety stayed NORMAL.
+`.urp` verified to embed the v13 stamp + 0.09835.
+
+## Next steps for codex
+1. Lower guard to 30–50 N (S1) before rerun. 2. Fix F1 (clean stage-25 start). 3. Fix F2
+(softer normal loop + settle). 4. Keep XY speed / search-start z / latched-normal / endpoint
+logic. 5. Optional: add preview_v13, clean the tree.
+
+# >>> END CLAUDE v13 AUDIT <<<

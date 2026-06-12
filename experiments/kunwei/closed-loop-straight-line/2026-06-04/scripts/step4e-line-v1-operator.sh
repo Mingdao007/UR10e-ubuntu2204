@@ -22,6 +22,12 @@ case "${STEP4E_VERSION}" in
   5b|step5b|step5b_v1|contact-cycloid|contact_cycloid)
     STEP4E_VERSION="step5b_v1"
     ;;
+  5c-dry|5c-dryrun|step5c-dryrun|step5c_speedj_dryrun_v1|speedj-dryrun|speedj_dryrun)
+    STEP4E_VERSION="step5c_speedj_dryrun_v1"
+    ;;
+  5c|5c-contact|step5c|step5c-contact|step5c_joint_rnn_cycloid_v1|joint-rnn-cycloid|joint_rnn_cycloid)
+    STEP4E_VERSION="step5c_joint_rnn_cycloid_v1"
+    ;;
   6b|step6b|step6b_v1|contact-eight|contact_eight)
     STEP4E_VERSION="step6b_v1"
     ;;
@@ -50,6 +56,10 @@ STEP4E_FORCE_DAMPING="${STEP4E_FORCE_DAMPING:-0.35}"
 STEP4E_INTEGRAL_LIMIT_N_S="${STEP4E_INTEGRAL_LIMIT_N_S:-10.0}"
 STEP4E_REACQUIRE_VELOCITY_M_S="${STEP4E_REACQUIRE_VELOCITY_M_S:-0.001}"
 STEP4E_ANGULAR_LIMIT_RAD_S="${STEP4E_ANGULAR_LIMIT_RAD_S:-0.015}"
+STEP5C_QDOT_LIMIT_RAD_S="${STEP5C_QDOT_LIMIT_RAD_S:-0.15}"
+STEP5C_JOINT_DAMPING="${STEP5C_JOINT_DAMPING:-0.0001}"
+STEP5C_JOINT_MODEL="${STEP5C_JOINT_MODEL:-/home/andy/ur10e_ros2_ws/experiments/20260523_tase_finite_time_ur10e_mujoco_reproduction/assets/mjcf/ur10e_nominal.xml}"
+STEP5C_JOINT_SITE="${STEP5C_JOINT_SITE:-tcp_site_unverified_85mm}"
 STEP4E_NORMAL_FOLLOW_MODE="${STEP4E_NORMAL_FOLLOW_MODE:-}"
 STEP4E_NORMAL_FILTER_TAU_S="${STEP4E_NORMAL_FILTER_TAU_S:-0.35}"
 STEP4E_NORMAL_FILTER_ALPHA="${STEP4E_NORMAL_FILTER_ALPHA:-0.35}"
@@ -64,11 +74,13 @@ elif [[ "${STEP4E_VERSION}" == "step4g_v1" ]]; then
   STEP4E_PATH_SHAPE="eight"
 elif [[ "${STEP4E_VERSION}" == "step5b_v1" ]]; then
   STEP4E_PATH_SHAPE="cycloid"
+elif [[ "${STEP4E_VERSION}" == "step5c_speedj_dryrun_v1" || "${STEP4E_VERSION}" == "step5c_joint_rnn_cycloid_v1" ]]; then
+  STEP4E_PATH_SHAPE="cycloid"
 elif [[ "${STEP4E_VERSION}" == "step6b_v1" || "${STEP4E_VERSION}" == "step6b_v2" ]]; then
   STEP4E_PATH_SHAPE="eight"
 fi
 if [[ -z "${STEP4E_NORMAL_FOLLOW_MODE}" ]]; then
-  if [[ "${STEP4E_VERSION}" == "v30" || "${STEP4E_VERSION}" == "v31" || "${STEP4E_VERSION}" == "step4f_v1" || "${STEP4E_VERSION}" == "step4g_v1" || "${STEP4E_VERSION}" == "step5b_v1" || "${STEP4E_VERSION}" == "step6b_v1" || "${STEP4E_VERSION}" == "step6b_v2" ]]; then
+  if [[ "${STEP4E_VERSION}" == "v30" || "${STEP4E_VERSION}" == "v31" || "${STEP4E_VERSION}" == "step4f_v1" || "${STEP4E_VERSION}" == "step4g_v1" || "${STEP4E_VERSION}" == "step5b_v1" || "${STEP4E_VERSION}" == "step5c_joint_rnn_cycloid_v1" || "${STEP4E_VERSION}" == "step6b_v1" || "${STEP4E_VERSION}" == "step6b_v2" ]]; then
     STEP4E_NORMAL_FOLLOW_MODE="filtered_live"
   else
     STEP4E_NORMAL_FOLLOW_MODE="locked"
@@ -123,6 +135,12 @@ fi
 if [[ "${STEP4E_VERSION}" == "step5b_v1" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step5/step5b_contact_cycloid_baseline_v1.urp"
 fi
+if [[ "${STEP4E_VERSION}" == "step5c_speedj_dryrun_v1" ]]; then
+  PROGRAM_LINE="/programs/andyl/kunwei/step5/step5c_speedj_dryrun_v1.urp"
+fi
+if [[ "${STEP4E_VERSION}" == "step5c_joint_rnn_cycloid_v1" ]]; then
+  PROGRAM_LINE="/programs/andyl/kunwei/step5/step5c_joint_rnn_cycloid_v1.urp"
+fi
 if [[ "${STEP4E_VERSION}" == "step6b_v1" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step6/step6b_contact_eight_baseline_v1.urp"
 fi
@@ -159,6 +177,10 @@ elif [[ "${STEP4E_VERSION}" == "step4g_v1" ]]; then
   SEARCH_DESCRIPTION="Step4g/TASE Experiment #2 8-shaped small-surface reproduction: same v31 TP motion/search/25.2/25.3 line-entry gate and filtered-live normal loop, but stage 25.0 follows the paper 8-shaped XY reference for 60 s"
 elif [[ "${STEP4E_VERSION}" == "step5b_v1" ]]; then
   SEARCH_DESCRIPTION="Step5b contact cycloid baseline: same v31 contact search, first-contact normal latch, 20 mm lift, 25.2 attitude correction, second contact, and 25.3 line-entry gate; stage 25.0 follows the active Step5 table contact cycloid reference for 60 s with filtered-live normal"
+elif [[ "${STEP4E_VERSION}" == "step5c_speedj_dryrun_v1" ]]; then
+  SEARCH_DESCRIPTION="Step5c speedj dry-run: no-contact short Step5 cycloid subset; bridge reads actual_q and writes qd0..qd5 in registers 37..42; TP executes speedj and no contact search"
+elif [[ "${STEP4E_VERSION}" == "step5c_joint_rnn_cycloid_v1" ]]; then
+  SEARCH_DESCRIPTION="Step5c joint-space contact cycloid: same Step5b contact scaffold and filtered-live normal, but bridge solves bounded qdot from actual_q and TP executes speedj in Stage25 joint-control windows"
 elif [[ "${STEP4E_VERSION}" == "step6b_v1" ]]; then
   SEARCH_DESCRIPTION="Step6b contact 8-shaped baseline: same v31/Step5b contact search, first-contact normal latch, 20 mm lift, 25.2 attitude correction, second contact, and 25.3 line-entry gate; stage 25.0 follows the Step6 five-point safe-frame 8-shaped reference for 30 s with filtered-live normal"
 elif [[ "${STEP4E_VERSION}" == "step6b_v2" ]]; then
@@ -237,6 +259,7 @@ Teach Pendant programs:
   failed/archive v28 line package lives under /programs/andyl/kunwei/step4/; it failed from the old bridge profile mismatch, not motion parameters.
   Step4f/Step4g current packages live under /programs/andyl/kunwei/step4/
   Step5b current contact package lives under /programs/andyl/kunwei/step5/
+  Step5c current joint-space packages live under /programs/andyl/kunwei/step5/
   Step6b current contact package lives under /programs/andyl/kunwei/step6/
   canonical Step4e/TASE flow table: ${ROOT}/STEP4E_FLOW.md
   canonical Step5 flow table: ${ROOT}/STEP5_FLOW.md
@@ -731,6 +754,10 @@ run_bridge_for_mode() {
     --step4e-normal-min-force-n "${STEP4E_NORMAL_MIN_FORCE_N}" \
     --step4e-normal-max-angle-from-latch-deg "${STEP4E_NORMAL_MAX_ANGLE_FROM_LATCH_DEG}" \
     --step4e-normal-friction-projection "${STEP4E_NORMAL_FRICTION_PROJECTION}" \
+    --step5c-qdot-limit-rad-s "${STEP5C_QDOT_LIMIT_RAD_S}" \
+    --step5c-joint-damping "${STEP5C_JOINT_DAMPING}" \
+    --step5c-joint-model "${STEP5C_JOINT_MODEL}" \
+    --step5c-joint-site "${STEP5C_JOINT_SITE}" \
     --output-dir "${out_dir}" &
   bridge_pid="$!"
   wait_for_bridge_output_started "${out_dir}" "${bridge_pid}" || true

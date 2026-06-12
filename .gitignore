@@ -23,6 +23,20 @@ experiments/**/artifacts/**/*.tar.gz
 experiments/**/worktree/
 ft_sensor/onrobot/hex_e_v2_3010007655/vendor_usb_backups/**/Compute_Box_update/*.osu
 
+# Controller filesystem backups are local recovery bundles. Track their
+# manifest in docs, not the tarballs/JAR snapshots themselves.
+controller_backups/
+
+# Kunwei KWR75B local archive policy. Track docs, scripts, reports, metadata,
+# and small summaries intentionally; keep raw captures and vendor software
+# local unless Git LFS is explicitly configured.
+ft_sensor/kunwei/kwr75b/measurements/**/*.csv
+ft_sensor/kunwei/kwr75b/measurements/**/*.bin
+ft_sensor/kunwei/kwr75b/measurements/**/*.log
+ft_sensor/kunwei/kwr75b/measurements/**/capture.pid
+ft_sensor/kunwei/kwr75b/measurements/**/logs/
+ft_sensor/kunwei/kwr75b/software/
+
 # OnRobot HEX device-root data policy.
 # Track small docs/tools/manifests intentionally, but keep raw photos and
 # measurement outputs out of git.

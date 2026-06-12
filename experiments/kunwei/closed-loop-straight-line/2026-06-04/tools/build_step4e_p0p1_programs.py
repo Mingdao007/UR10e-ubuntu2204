@@ -53,6 +53,7 @@ STEP4FG_PATH_RUNTIME_S = 60.0
 STEP4FG_STAGE25_RUNTIME_LIMIT_S = 65.0
 STEP4E_CURRENT_FORCE_NORM_GUARD_N = 60.0
 STEP4E_CURRENT_TORQUE_NORM_GUARD_NM = 3.0
+STEP4F_SAFE_FRAME_PATH = CONFIG_PATH.with_name("step4f_safe_frame.json")
 
 
 def step4e_current_common_functions(normal_guard_n: str) -> str:
@@ -118,6 +119,18 @@ Control boundary:
 Canonical flow:
   STEP4E_FLOW.md
 """
+
+
+def load_step4f_safe_frame() -> dict[str, object]:
+    if not STEP4F_SAFE_FRAME_PATH.is_file():
+        raise FileNotFoundError(
+            f"missing Step4f safe-frame config: {STEP4F_SAFE_FRAME_PATH}. "
+            "Run tools/build_step4f_safe_frame.py first."
+        )
+    payload = load_json(STEP4F_SAFE_FRAME_PATH)
+    if payload.get("status") != "ok" or not payload.get("guard", {}).get("passed"):
+        raise RuntimeError(f"Step4f safe-frame config is not TP-ready: {STEP4F_SAFE_FRAME_PATH}")
+    return payload
 
 
 def program_default_subdir(name: str) -> str:
@@ -443,6 +456,8 @@ def validate_package(name: str, script: str, txt: str, urp: bytes, stamp: str, c
                 "step4f function names": "codex_step4f_down_search" in script
                 and "codex_step4f_cycloid_seed_normal_v1" in script,
                 "path shape wording": "--step4e-path-shape cycloid" in script,
+                "safe frame no scale": "NO_SCALE_POLICY: paper cycloid preserved exactly; frame uses rotation+translation only." in script,
+                "safe frame x guard": "X_GUARD:" in script and "max_base_x <= guard_line" in script,
                 "paper formula": "0.015 * (0.1t - sin(0.1t))" in script
                 and "0.015 * (1 - cos(0.1t))" in script,
                 "stage25 runtime": f"local line_runtime_limit_s = {STEP4FG_STAGE25_RUNTIME_LIMIT_S:.3f}" in script,
@@ -2338,7 +2353,11 @@ def step4fg_seed_normal_loop_script(
 
 
 def step4f_cycloid_seed_normal_script(stamp: str, gen_at: str, geom: dict[str, float]) -> str:
-    return step4fg_seed_normal_loop_script(
+    frame = load_step4f_safe_frame()
+    basis = frame["basis"]
+    guard = frame["guard"]
+    entry_x, entry_y = [float(v) for v in basis["origin_xy_m"]]
+    script = step4fg_seed_normal_loop_script(
         stamp=stamp,
         gen_at=gen_at,
         geom=geom,
@@ -2349,6 +2368,24 @@ def step4f_cycloid_seed_normal_script(stamp: str, gen_at: str, geom: dict[str, f
         path_formula="local-basis x=0.015 * (0.1t - sin(0.1t)), y=0.015 * (1 - cos(0.1t)), duration=60s",
         down_search_fn="codex_step4f_down_search",
     )
+    old_entry_header = f"# ENTRY_XY_M: [{geom['start_x']:.9f}, {geom['start_y']:.9f}]"
+    new_entry_header = (
+        f"# ENTRY_XY_M: [{entry_x:.9f}, {entry_y:.9f}]\n"
+        "# SAFE_FRAME_SOURCE: config/step4f_safe_frame.json from drag-teach start/mid/end hints.\n"
+        "# NO_SCALE_POLICY: paper cycloid preserved exactly; frame uses rotation+translation only.\n"
+        f"# X_GUARD: max_base_x <= guard_line with 2mm margin; guard_line={float(guard['guard_line_x_m']):.9f} m, "
+        f"path_max_x={float(guard['path_max_x_m']):.9f} m, x_minus_shift={float(basis['x_minus_shift_m']):.9f} m."
+    )
+    replacements = {
+        old_entry_header: new_entry_header,
+        f"local entry_x = {geom['start_x']:.9f}": f"local entry_x = {entry_x:.9f}",
+        f"local entry_y = {geom['start_y']:.9f}": f"local entry_y = {entry_y:.9f}",
+    }
+    for old, new in replacements.items():
+        if old not in script:
+            raise RuntimeError(f"Step4f safe-frame replacement failed: {old}")
+        script = script.replace(old, new, 1)
+    return script
 
 
 def step4g_eight_seed_normal_script(stamp: str, gen_at: str, geom: dict[str, float]) -> str:

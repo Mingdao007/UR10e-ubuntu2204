@@ -1,0 +1,90 @@
+{
+  "checkpoint_interval_s": 2.0,
+  "paths": {
+    "checkpoint": "/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/measurements/tcp5152_probe/checkpoint.json",
+    "csv": "/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/measurements/tcp5152_probe/data.csv",
+    "metadata": "/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/measurements/tcp5152_probe/metadata.json",
+    "raw_frames": "/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/measurements/tcp5152_probe/raw_frames.bin",
+    "summary": "/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/measurements/tcp5152_probe/summary.json"
+  },
+  "summary_so_far": {
+    "axis_stats_manual_units": {
+      "Fx_kg_manual": {
+        "first": 0.0,
+        "last": 0.2461925894021988,
+        "last_minus_first": 0.2461925894021988,
+        "max": 0.25103020668029785,
+        "mean": 0.24683617884170692,
+        "min": 0.0,
+        "samples": 7985,
+        "std": 0.003016399575586366
+      },
+      "Fy_kg_manual": {
+        "first": 0.0,
+        "last": -0.11106199026107788,
+        "last_minus_first": -0.11106199026107788,
+        "max": 0.0,
+        "mean": -0.11264400049885435,
+        "min": -0.11809830367565155,
+        "samples": 7985,
+        "std": 0.0016994872268306623
+      },
+      "Fz_kg_manual": {
+        "first": 0.0,
+        "last": -0.09329411387443542,
+        "last_minus_first": -0.09329411387443542,
+        "max": 0.0,
+        "mean": -0.09464363891610361,
+        "min": -0.09840213507413864,
+        "samples": 7985,
+        "std": 0.0014825768713832913
+      },
+      "Mx_kg_m_manual": {
+        "first": 0.0,
+        "last": 0.005276799667626619,
+        "last_minus_first": 0.005276799667626619,
+        "max": 0.005450618918985128,
+        "mean": 0.005286930564793275,
+        "min": 0.0,
+        "samples": 7985,
+        "std": 6.739930295643079e-05
+      },
+      "My_kg_m_manual": {
+        "first": 0.0,
+        "last": -0.006416750140488148,
+        "last_minus_first": -0.006416750140488148,
+        "max": 0.0,
+        "mean": -0.006475476431499992,
+        "min": -0.0065904404036700726,
+        "samples": 7985,
+        "std": 7.922848234549965e-05
+      },
+      "Mz_kg_m_manual": {
+        "first": 0.0,
+        "last": 0.00622680364176631,
+        "last_minus_first": 0.00622680364176631,
+        "max": 0.006360610015690327,
+        "mean": 0.006245640748802699,
+        "min": 0.0,
+        "samples": 7985,
+        "std": 7.686195819062771e-05
+      }
+    },
+    "bytes_received": 223600,
+    "command_counts": {
+      "0x48": 7985
+    },
+    "dropped_sync_bytes": 0,
+    "duration_first_last_s": 7.950445752008818,
+    "elapsed_wall_s": 8.002865244983695,
+    "max_dt_ms": 49.621683021541685,
+    "mean_dt_ms": 0.9957973136283584,
+    "min_dt_ms": 0.006210990250110626,
+    "packets_received": 368,
+    "parse_errors": 0,
+    "rate_hz_by_first_last": 1004.2204234879163,
+    "samples": 7985,
+    "stop_reason": "duration"
+  },
+  "updated_at": "2026-06-02T19:56:11"
+}

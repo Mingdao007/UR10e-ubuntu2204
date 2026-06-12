@@ -45,6 +45,7 @@ from capture_kunwei_kwr75_1khz import (  # noqa: E402
 )
 from _ur_common import RTDEClient, dashboard_exchange  # noqa: E402
 from step5_table import step5_path_reference  # noqa: E402
+from step5c_joint_rnn import JointRnnSolver, JointSolverConfig, STATUS_INVALID  # noqa: E402
 from step6_eight import (  # noqa: E402
     PATH_DURATION_S as STEP6_PATH_DURATION_S,
     STEP6_SAFE_FRAME_PATH,
@@ -118,6 +119,8 @@ INPUT_NAMES = BASE_INPUT_NAMES + STEP4E_INPUT_NAMES
 OUTPUT_FIELDS = [
     "actual_TCP_pose",
     "actual_TCP_speed",
+    "actual_q",
+    "actual_qd",
     "runtime_state",
     "robot_mode",
     "safety_mode",
@@ -165,8 +168,11 @@ STEP4E_LINE_MID_XY = (
 )
 STEP4FG_PATH_DURATION_S = 60.0
 STEP5_CONTACT_CYCLOID_STAGE_ID = "step5_contact_cycloid_baseline_v1"
+STEP5C_DRYRUN_STAGE_ID = "step5c_speedj_dryrun_v1"
+STEP5C_CONTACT_STAGE_ID = "step5c_joint_rnn_cycloid_v1"
 STEP6_CONTACT_EIGHT_STAGE_ID = "step6_contact_eight_baseline_v1"
 STEP6_CONTACT_EIGHT_STAGE_ID_V2 = "step6_contact_eight_baseline_v2"
+_STEP5C_SOLVERS: dict[tuple[str, str, float, float], JointRnnSolver] = {}
 
 
 def load_step4f_safe_frame() -> dict[str, Any]:
@@ -509,6 +515,27 @@ def step5_contact_path_reference(
     return step5_path_reference(stage_id, pose_xy, elapsed_s)
 
 
+def step5c_solver(args: argparse.Namespace) -> JointRnnSolver:
+    key = (
+        str(args.step5c_joint_model),
+        args.step5c_joint_site,
+        float(args.step5c_qdot_limit_rad_s),
+        float(args.step5c_joint_damping),
+    )
+    solver = _STEP5C_SOLVERS.get(key)
+    if solver is None:
+        solver = JointRnnSolver(
+            JointSolverConfig(
+                model_path=Path(args.step5c_joint_model),
+                site_name=args.step5c_joint_site,
+                qdot_limit_rad_s=args.step5c_qdot_limit_rad_s,
+                damping=args.step5c_joint_damping,
+            )
+        )
+        _STEP5C_SOLVERS[key] = solver
+    return solver
+
+
 def step6_contact_path_reference(
     pose_xy: tuple[float, float],
     elapsed_s: float,
@@ -615,6 +642,9 @@ def compute_step4e_values(
     step4f_profile = args.step4e_version == "step4f_v1"
     step4g_profile = args.step4e_version == "step4g_v1"
     step5b_profile = args.step4e_version == "step5b_v1"
+    step5c_dryrun_profile = args.step4e_version == STEP5C_DRYRUN_STAGE_ID
+    step5c_contact_profile = args.step4e_version == STEP5C_CONTACT_STAGE_ID
+    step5c_joint_profile = step5c_dryrun_profile or step5c_contact_profile
     step6b_profile = args.step4e_version in {"step6b_v1", "step6b_v2"}
     step6_stage_id = STEP6_CONTACT_EIGHT_STAGE_ID_V2 if args.step4e_version == "step6b_v2" else STEP6_CONTACT_EIGHT_STAGE_ID
     angular_speedl_profile = (
@@ -630,6 +660,7 @@ def compute_step4e_values(
         or step4f_profile
         or step4g_profile
         or step5b_profile
+        or step5c_contact_profile
         or step6b_profile
     )
     detached_profile = v20_profile or v21_profile or v22_profile or angular_speedl_profile
@@ -650,7 +681,9 @@ def compute_step4e_values(
         and (v20_profile or v22_profile or angular_speedl_profile)
         and abs(robot_stage - 25.3) < 0.05
     )
-    line_entry_gate_active = (v29_profile or v30_profile or v31_profile or step5b_profile or step6b_profile) and acquire_stage_active
+    line_entry_gate_active = (
+        v29_profile or v30_profile or v31_profile or step5b_profile or step5c_contact_profile or step6b_profile
+    ) and acquire_stage_active
     line_stage_active = args.step4e_mode == "line" and abs(robot_stage - 25.0) < 0.05
     control_stage_active = (
         latch_stage_active
@@ -727,7 +760,7 @@ def compute_step4e_values(
     live_candidate_angle_rad: float | str = ""
     live_candidate_angle_from_latch_rad: float | str = ""
     normal_follow_active = (
-        (v30_profile or v31_profile or step4f_profile or step4g_profile or step5b_profile or step6b_profile)
+        (v30_profile or v31_profile or step4f_profile or step4g_profile or step5b_profile or step5c_contact_profile or step6b_profile)
         and args.step4e_normal_follow_mode == "filtered_live"
         and line_stage_active
         and state.normal_acquired
@@ -737,7 +770,7 @@ def compute_step4e_values(
         filtered_current = state.filtered_normal_b if state.filtered_normal_b is not None else state.latched_normal_b
         live_candidate_angle_rad = angle_between_unit(filtered_current, live_candidate_b)
         live_candidate_angle_from_latch_rad = angle_between_unit(state.latched_normal_b, live_candidate_b)
-        if v31_profile or step4f_profile or step4g_profile or step5b_profile or step6b_profile:
+        if v31_profile or step4f_profile or step4g_profile or step5b_profile or step5c_contact_profile or step6b_profile:
             state.filtered_normal_b, normal_filter_source = v31_filtered_live_normal(
                 filtered_current,
                 live_candidate_b,
@@ -774,7 +807,7 @@ def compute_step4e_values(
                 n_control_b = state.filtered_normal_b
                 normal_filter_source = "filtered_live"
     elif (
-        v30_profile or v31_profile or step4f_profile or step4g_profile or step5b_profile or step6b_profile
+        v30_profile or v31_profile or step4f_profile or step4g_profile or step5b_profile or step5c_contact_profile or step6b_profile
     ) and args.step4e_normal_follow_mode == "filtered_live":
         if line_stage_active:
             normal_filter_source = "locked_no_latch"
@@ -811,6 +844,18 @@ def compute_step4e_values(
             (float(pose[0]), float(pose[1])),
             state.line_stage_s,
         )
+    elif step5c_dryrun_profile:
+        path_ref = step5_contact_path_reference(
+            (float(pose[0]), float(pose[1])),
+            state.line_stage_s,
+            stage_id=STEP5C_DRYRUN_STAGE_ID,
+        )
+    elif step5c_contact_profile:
+        path_ref = step5_contact_path_reference(
+            (float(pose[0]), float(pose[1])),
+            state.line_stage_s,
+            stage_id=STEP5C_CONTACT_STAGE_ID,
+        )
     elif step6b_profile:
         path_ref = step6_contact_path_reference(
             (float(pose[0]), float(pose[1])),
@@ -846,14 +891,17 @@ def compute_step4e_values(
             desired_velocity_xy[1] + args.step4e_path_p_gain * path_error[1],
             0.0,
         )
-    normal_projection = dot3(base_motion, n_control_b)
-    motion_cmd = tuple(base_motion[idx] - normal_projection * n_control_b[idx] for idx in range(3))
+    if step5c_dryrun_profile:
+        motion_cmd = base_motion
+    else:
+        normal_projection = dot3(base_motion, n_control_b)
+        motion_cmd = tuple(base_motion[idx] - normal_projection * n_control_b[idx] for idx in range(3))
     motion_norm = norm3(motion_cmd)
     if motion_norm > args.step4e_motion_limit_m_s:
         scale = args.step4e_motion_limit_m_s / motion_norm
         motion_cmd = tuple(value * scale for value in motion_cmd)
 
-    controlled_force_n = normal_load_n if args.step4e_mode == "line" else force_abs
+    controlled_force_n = 0.0 if step5c_dryrun_profile else normal_load_n if args.step4e_mode == "line" else force_abs
     force_error = args.target_force_n - controlled_force_n
     line_grace_valid = (
         args.step4e_mode == "line"
@@ -862,7 +910,9 @@ def compute_step4e_values(
         and not state.normal_acquired
         and state.line_stage_s <= args.step4e_acquire_grace_s
     )
-    if axis_iso_active:
+    if step5c_dryrun_profile:
+        control_allowed = args.step4e_mode == "line" and line_stage_active
+    elif axis_iso_active:
         control_allowed = sensor_ok > 0.5 and state.normal_acquired
     elif detached_profile:
         control_allowed = sensor_ok > 0.5 and (
@@ -879,7 +929,7 @@ def compute_step4e_values(
     if args.step4e_integrate_stage25_only and args.step4e_mode == "line" and not control_stage_active:
         control_allowed = False
     if control_allowed:
-        if args.step4e_mode == "line" and not state.normal_acquired:
+        if args.step4e_mode == "line" and not step5c_dryrun_profile and not state.normal_acquired:
             cmd = (0.0, 0.0, 0.0)
             orientation_cmd = (0.0, 0.0, 0.0)
         elif detached_profile and latch_stage_active:
@@ -903,44 +953,49 @@ def compute_step4e_values(
             cmd = (0.0, 0.0, 0.0)
             orientation_cmd = (0.0, 0.0, 0.0)
         else:
-            state.integral_error_n_s = clamp(
+            if step5c_dryrun_profile:
+                cmd = motion_cmd
+                orientation_cmd = (0.0, 0.0, 0.0)
+                state.normal_velocity_m_s = 0.0
+            else:
+                state.integral_error_n_s = clamp(
                 state.integral_error_n_s + force_error * dt_s,
                 -args.step4e_integral_limit_n_s,
                 args.step4e_integral_limit_n_s,
-            )
-            accel_like = (
-                args.step4e_force_p_gain * force_error
-                + args.step4e_force_i_gain * state.integral_error_n_s
-                - args.step4e_force_damping * state.normal_velocity_m_s
-            )
-            state.normal_velocity_m_s = clamp(
-                state.normal_velocity_m_s + accel_like * dt_s,
-                -args.step4e_normal_velocity_limit_m_s,
-                args.step4e_normal_velocity_limit_m_s,
-            )
-            if v20_profile and acquire_stage_active and force_error < -0.25:
-                unload_speed = min(
+                )
+                accel_like = (
+                    args.step4e_force_p_gain * force_error
+                    + args.step4e_force_i_gain * state.integral_error_n_s
+                    - args.step4e_force_damping * state.normal_velocity_m_s
+                )
+                state.normal_velocity_m_s = clamp(
+                    state.normal_velocity_m_s + accel_like * dt_s,
+                    -args.step4e_normal_velocity_limit_m_s,
                     args.step4e_normal_velocity_limit_m_s,
-                    max(args.step4e_reacquire_velocity_m_s, 0.003),
                 )
-                state.normal_velocity_m_s = min(state.normal_velocity_m_s, -unload_speed)
-            if (
-                args.step4e_mode == "line"
-                and state.normal_acquired
-                and normal_load_n < args.step4e_min_force_for_control_n
-                and force_error > 0.0
-            ):
-                state.normal_velocity_m_s = max(
-                    state.normal_velocity_m_s,
-                    min(args.step4e_reacquire_velocity_m_s, args.step4e_normal_velocity_limit_m_s),
+                if v20_profile and acquire_stage_active and force_error < -0.25:
+                    unload_speed = min(
+                        args.step4e_normal_velocity_limit_m_s,
+                        max(args.step4e_reacquire_velocity_m_s, 0.003),
+                    )
+                    state.normal_velocity_m_s = min(state.normal_velocity_m_s, -unload_speed)
+                if (
+                    args.step4e_mode == "line"
+                    and state.normal_acquired
+                    and normal_load_n < args.step4e_min_force_for_control_n
+                    and force_error > 0.0
+                ):
+                    state.normal_velocity_m_s = max(
+                        state.normal_velocity_m_s,
+                        min(args.step4e_reacquire_velocity_m_s, args.step4e_normal_velocity_limit_m_s),
+                    )
+                force_cmd = tuple(
+                    -args.step4e_normal_command_sign * n_control_b[idx] * state.normal_velocity_m_s
+                    for idx in range(3)
                 )
-            force_cmd = tuple(
-                -args.step4e_normal_command_sign * n_control_b[idx] * state.normal_velocity_m_s
-                for idx in range(3)
-            )
-            cmd = tuple(motion_cmd[idx] + force_cmd[idx] for idx in range(3))
-            if detached_profile and acquire_stage_active:
-                orientation_cmd = (0.0, 0.0, 0.0)
+                cmd = tuple(motion_cmd[idx] + force_cmd[idx] for idx in range(3))
+                if detached_profile and acquire_stage_active:
+                    orientation_cmd = (0.0, 0.0, 0.0)
         cmd_norm = norm3(cmd)
         if cmd_norm > args.step4e_total_linear_limit_m_s:
             scale = args.step4e_total_linear_limit_m_s / cmd_norm
@@ -949,6 +1004,23 @@ def compute_step4e_values(
             abs(cmd[0]) > 1e-12 or abs(cmd[1]) > 1e-12 or abs(cmd[2]) > 1e-12
         ):
             raise RuntimeError("Step4e v23..v31 stage 25.2 contract violation: linear command registers must be zero")
+        joint_result = None
+        if step5c_joint_profile:
+            try:
+                actual_q = latest_output.get("actual_q")
+                if not actual_q or len(actual_q) < 6:
+                    raise ValueError("missing RTDE actual_q")
+                joint_result = step5c_solver(args).solve(
+                    actual_q[:6],
+                    (cmd[0], cmd[1], cmd[2], orientation_cmd[0], orientation_cmd[1], orientation_cmd[2]),
+                )
+                cmd = (joint_result.qdot[0], joint_result.qdot[1], joint_result.qdot[2])
+                orientation_cmd = (joint_result.qdot[3], joint_result.qdot[4], joint_result.qdot[5])
+            except (ValueError, RuntimeError) as exc:
+                values["_step5c_solver_error"] = str(exc)
+                cmd = (0.0, 0.0, 0.0)
+                orientation_cmd = (0.0, 0.0, 0.0)
+                joint_result = None
         values.update(
             {
                 "step4e_cmd_vx_m_s": n_control_b[0] if (v21_profile and detach_stage_active) else cmd[0],
@@ -957,11 +1029,16 @@ def compute_step4e_values(
                 "step4e_cmd_wx_rad_s": orientation_cmd[0],
                 "step4e_cmd_wy_rad_s": orientation_cmd[1],
                 "step4e_cmd_wz_rad_s": orientation_cmd[2] if (axis_iso_active or v21_profile or v22_profile or angular_speedl_profile) else 0.0,
-                "step4e_cmd_valid": 0.0 if args.step4e_mode == "preview" else 1.0,
+                "step4e_cmd_valid": 0.0 if args.step4e_mode == "preview" or (step5c_joint_profile and joint_result is None) else 1.0,
                 "step4e_progress_m": progress,
                 "step4e_force_error_n": force_error,
                 "step4e_orientation_error_rad": orientation_error,
                 "step4e_controller_state": (
+                    joint_result.solver_status
+                    if step5c_joint_profile and joint_result is not None
+                    else STATUS_INVALID
+                    if step5c_joint_profile and joint_result is None
+                    else (
                     33.0
                     if latch_stage_active
                     else 35.0
@@ -975,9 +1052,22 @@ def compute_step4e_values(
                     else 34.0
                     if axis_iso_active
                     else {"preview": 10.0, "hold": 20.0, "line": 30.0, "axis_iso": 34.0}[args.step4e_mode]
+                    )
                 ),
             }
         )
+        if step5c_joint_profile and joint_result is not None:
+            values["_step5c_cmd_qd0_rad_s"] = joint_result.qdot[0]
+            values["_step5c_cmd_qd1_rad_s"] = joint_result.qdot[1]
+            values["_step5c_cmd_qd2_rad_s"] = joint_result.qdot[2]
+            values["_step5c_cmd_qd3_rad_s"] = joint_result.qdot[3]
+            values["_step5c_cmd_qd4_rad_s"] = joint_result.qdot[4]
+            values["_step5c_cmd_qd5_rad_s"] = joint_result.qdot[5]
+            values["_step5c_solver_status"] = joint_result.solver_status
+            values["_step5c_qdot_max_abs_rad_s"] = joint_result.max_abs_qdot_rad_s
+            values["_step5c_qdot_clipped"] = 1.0 if joint_result.clipped else 0.0
+            values["_step5c_qdot_projected"] = 1.0 if joint_result.projected else 0.0
+            values["_step5c_solver_residual_norm"] = joint_result.residual_norm
     else:
         state.integral_error_n_s = 0.0
         state.normal_velocity_m_s = 0.0
@@ -1336,6 +1426,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         choices=("on", "off"),
         default=env_choice("STEP4E_NORMAL_FRICTION_PROJECTION", "on", ("on", "off")),
     )
+    parser.add_argument("--step5c-qdot-limit-rad-s", type=float, default=0.15)
+    parser.add_argument("--step5c-joint-damping", type=float, default=1e-4)
+    parser.add_argument(
+        "--step5c-joint-model",
+        type=Path,
+        default=Path(
+            "/home/andy/ur10e_ros2_ws/experiments/20260523_tase_finite_time_ur10e_mujoco_reproduction/assets/mjcf/ur10e_nominal.xml"
+        ),
+    )
+    parser.add_argument("--step5c-joint-site", default="tcp_site_unverified_85mm")
     return parser.parse_args(argv)
 
 
@@ -1362,6 +1462,8 @@ def main(argv: list[str] | None = None) -> int:
         "step4f_v1",
         "step4g_v1",
         "step5b_v1",
+        STEP5C_DRYRUN_STAGE_ID,
+        STEP5C_CONTACT_STAGE_ID,
         "step6b_v1",
         "step6b_v2",
     }
@@ -1442,6 +1544,8 @@ def main(argv: list[str] | None = None) -> int:
             "step4f_cycloid_seed_normal_v1": "Same TP flow and force/normal/orientation loop as v31, but stage 25.0 uses the paper Experiment #1 cycloid XY reference for 60 s.",
             "step4g_eight_seed_normal_v1": "Same TP flow and force/normal/orientation loop as v31, but stage 25.0 uses the paper Experiment #2 8-shaped XY reference for 60 s.",
             "step5b_contact_cycloid_baseline_v1": "Same TP contact-search/latch/25.2/25.3 scaffold as v31, but stage 25.0 uses the active Step5 table contact cycloid reference and v31 filtered-live normal policy.",
+            "step5c_speedj_dryrun_v1": "No-contact Step5c joint-space dry-run: bridge reads actual_q and writes qd0..qd5 in registers 37..42; TP executes speedj only in the Stage25 dry-run window.",
+            "step5c_joint_rnn_cycloid_v1": "Contact Step5c joint-space route: bridge retains Step5 cycloid, force, and filtered-live normal logic, solves bounded qdot from actual_q, and TP executes speedj in Stage25 joint-control windows.",
             "step6b_contact_eight_baseline_v1": "Same TP contact-search/latch/25.2/25.3 scaffold as Step5b/v31, but stage 25.0 uses the active Step6 five-point safe-frame 8-shaped reference for 30 s and v31 filtered-live normal policy.",
             "step6b_contact_eight_baseline_v2": "Same TP contact-search/latch/25.2/25.3 scaffold and Step6 reference as v1, but intended bridge caps are 15 mm/s path, 15 mm/s total linear, 3 mm/s normal reserve, and 0.060 rad/s attitude.",
         },
@@ -1464,6 +1568,18 @@ def main(argv: list[str] | None = None) -> int:
                 else None
             ),
             "step5_stage_id": STEP5_CONTACT_CYCLOID_STAGE_ID if args.step4e_version == "step5b_v1" else None,
+            "step5c_stage_id": args.step4e_version
+            if args.step4e_version in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID}
+            else None,
+            "step5c_register_contract": "37..42=qd0..qd5 rad/s, 43=cmd_valid, 44=path_time, 45=force_error, 46=pose/orientation_error, 47=solver_status"
+            if args.step4e_version in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID}
+            else None,
+            "step5c_joint_model": str(args.step5c_joint_model)
+            if args.step4e_version in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID}
+            else None,
+            "step5c_qdot_limit_rad_s": args.step5c_qdot_limit_rad_s
+            if args.step4e_version in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID}
+            else None,
             "step6_stage_id": (
                 STEP6_CONTACT_EIGHT_STAGE_ID_V2
                 if args.step4e_version == "step6b_v2"
@@ -1611,8 +1727,24 @@ def main(argv: list[str] | None = None) -> int:
             "_step4e_contact_offset_x_m",
             "_step4e_contact_offset_y_m",
             "_step4e_actual_speed_norm_m_s",
+            "_step5c_cmd_qd0_rad_s",
+            "_step5c_cmd_qd1_rad_s",
+            "_step5c_cmd_qd2_rad_s",
+            "_step5c_cmd_qd3_rad_s",
+            "_step5c_cmd_qd4_rad_s",
+            "_step5c_cmd_qd5_rad_s",
+            "_step5c_solver_status",
+            "_step5c_qdot_max_abs_rad_s",
+            "_step5c_qdot_clipped",
+            "_step5c_qdot_projected",
+            "_step5c_solver_residual_norm",
+            "_step5c_solver_error",
         ]
-        bridge_output_fields = [f"ur_{field}_{idx}" for field in ["actual_TCP_pose", "actual_TCP_speed"] for idx in range(6)]
+        bridge_output_fields = [
+            f"ur_{field}_{idx}"
+            for field in ["actual_TCP_pose", "actual_TCP_speed", "actual_q", "actual_qd"]
+            for idx in range(6)
+        ]
         bridge_output_fields += ["ur_runtime_state", "ur_robot_mode", "ur_safety_mode", "ur_speed_scaling"]
         bridge_output_fields += [f"ur_output_double_register_{idx}" for idx in range(24, 48)]
 

@@ -50,7 +50,20 @@ class Step5TableAndContactArchitectureTest(unittest.TestCase):
         self.assertEqual(self.contact["filter_policy"]["min_force_n"], 2.0)
 
         regs = self.table["register_contract"]["command_registers"]
-        self.assertEqual([regs[name] for name in ("vx_m_s", "vy_m_s", "vz_m_s", "wx_rad_s", "wy_rad_s", "wz_rad_s", "cmd_valid", "progress")], list(range(37, 45)))
+        self.assertEqual(
+            [regs[name] for name in ("qd0_rad_s", "qd1_rad_s", "qd2_rad_s", "qd3_rad_s", "qd4_rad_s", "qd5_rad_s", "cmd_valid", "path_time_s")],
+            list(range(37, 45)),
+        )
+
+        dry = step5_table.step5_stage("step5c_speedj_dryrun_v1", self.table)
+        contact = step5_table.step5_stage("step5c_joint_rnn_cycloid_v1", self.table)
+        self.assertTrue(dry["active"])
+        self.assertTrue(contact["active"])
+        self.assertTrue(dry["joint_space"])
+        self.assertTrue(contact["joint_space"])
+        self.assertEqual(dry["cadence"]["motion"], "bridge_commanded_speedj")
+        self.assertEqual(contact["cadence"]["motion"], "bridge_commanded_speedj")
+        self.assertEqual(contact["guard"]["qdot_cap_rad_s"], 0.15)
 
     def test_bridge_step5_contact_reference_is_table_driven(self) -> None:
         origin, u_along, p_lateral = step5_table.basis_xy(self.frame)

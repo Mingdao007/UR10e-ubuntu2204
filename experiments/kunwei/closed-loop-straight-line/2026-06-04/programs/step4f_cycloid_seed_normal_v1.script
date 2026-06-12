@@ -1,7 +1,10 @@
 # Step4f cycloid seed-normal TASE small-surface reproduction v1.
-# VERSION: 2026-06-12T0536HKT_STEP4F_CYCLOID_SEED_NORMAL_V1
-# GENERATED_AT_LOCAL: 2026-06-12T05:36:58+08:00
-# ENTRY_XY_M: [0.433010000, 0.108020000]
+# VERSION: 2026-06-12T0645HKT_STEP4F_CYCLOID_SEED_NORMAL_V1
+# GENERATED_AT_LOCAL: 2026-06-12T06:45:35+08:00
+# ENTRY_XY_M: [0.487795411, 0.129326793]
+# SAFE_FRAME_SOURCE: config/step4f_safe_frame.json from drag-teach start/mid/end hints.
+# NO_SCALE_POLICY: paper cycloid preserved exactly; frame uses rotation+translation only.
+# X_GUARD: max_base_x <= guard_line with 2mm margin; guard_line=0.488878434 m, path_max_x=0.487795411 m, x_minus_shift=0.000000000 m.
 # TARGET_ROTVEC_RAD: [-3.044172198, -0.130573165, -0.202188631]
 # PURPOSE: v31 contact search, first-contact normal latch, lift, 25.2 attitude correction, 25.3 line-entry gate, then paper-derived cycloid XY reference for 60 s.
 # FLOW_TABLE: STEP4E_FLOW.md
@@ -255,8 +258,8 @@ end
 def codex_step4f_cycloid_seed_normal_v1():
   local stop_reason = 0.0
   local home_pose = get_actual_tcp_pose()
-  local entry_x = 0.433010000
-  local entry_y = 0.108020000
+  local entry_x = 0.487795411
+  local entry_y = 0.129326793
   local target_rx = -3.044172198
   local target_ry = -0.130573165
   local target_rz = -0.202188631
@@ -276,7 +279,7 @@ def codex_step4f_cycloid_seed_normal_v1():
   local home_return_speed_m_s = 0.050
   local final_progress_m = 0.0
 
-  textmsg("codex step4e version 2026-06-12T0536HKT_STEP4F_CYCLOID_SEED_NORMAL_V1 start step4f_cycloid_seed_normal_v1")
+  textmsg("codex step4e version 2026-06-12T0645HKT_STEP4F_CYCLOID_SEED_NORMAL_V1 start step4f_cycloid_seed_normal_v1")
   write_output_float_register(34, 0.0)
   write_output_float_register(35, 20.0)
   codex_echo_step4e(0.0)
@@ -572,7 +575,7 @@ def codex_step4f_cycloid_seed_normal_v1():
   write_output_float_register(30, stop_reason)
   write_output_float_register(31, final_progress_m)
   write_output_float_register(35, 29.0)
-  textmsg("codex step4e version 2026-06-12T0536HKT_STEP4F_CYCLOID_SEED_NORMAL_V1 stop reason:", stop_reason)
+  textmsg("codex step4e version 2026-06-12T0645HKT_STEP4F_CYCLOID_SEED_NORMAL_V1 stop reason:", stop_reason)
 end
 
 codex_step4f_cycloid_seed_normal_v1()

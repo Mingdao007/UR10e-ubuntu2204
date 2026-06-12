@@ -23,6 +23,19 @@ def local_coordinates(xy: tuple[float, float], anchor: tuple[float, float]) -> t
     return along, lateral
 
 
+def coordinates_in_basis(
+    xy: tuple[float, float],
+    anchor: tuple[float, float],
+    u_along: tuple[float, float],
+    p_lateral: tuple[float, float],
+) -> tuple[float, float]:
+    dx = xy[0] - anchor[0]
+    dy = xy[1] - anchor[1]
+    along = dx * u_along[0] + dy * u_along[1]
+    lateral = dx * p_lateral[0] + dy * p_lateral[1]
+    return along, lateral
+
+
 class Step4FGPathReferenceTest(unittest.TestCase):
     def test_line_reference_matches_existing_projection(self) -> None:
         pose_xy = (
@@ -35,17 +48,30 @@ class Step4FGPathReferenceTest(unittest.TestCase):
         self.assertAlmostEqual(ref["path_error_xy"][1], -0.003 * bridge.STEP4E_LINE_PERP_XY[1], places=9)
 
     def test_cycloid_formula_and_envelope(self) -> None:
-        end_ref = bridge.step4e_path_reference("cycloid", bridge.STEP4E_START_XY, 60.0)
-        along, lateral = local_coordinates(end_ref["desired_xy"], bridge.STEP4E_START_XY)
+        end_ref = bridge.step4e_path_reference("cycloid", bridge.STEP4F_ORIGIN_XY, 60.0)
+        along, lateral = coordinates_in_basis(
+            end_ref["desired_xy"],
+            bridge.STEP4F_ORIGIN_XY,
+            bridge.STEP4F_ALONG_UNIT_XY,
+            bridge.STEP4F_LATERAL_UNIT_XY,
+        )
         self.assertAlmostEqual(along, 0.015 * (6.0 - math.sin(6.0)), places=9)
         self.assertAlmostEqual(lateral, 0.015 * (1.0 - math.cos(6.0)), places=9)
         self.assertAlmostEqual(end_ref["progress"], 60.0, places=9)
 
         samples = [
-            bridge.step4e_path_reference("cycloid", bridge.STEP4E_START_XY, idx * 0.1)
+            bridge.step4e_path_reference("cycloid", bridge.STEP4F_ORIGIN_XY, idx * 0.1)
             for idx in range(601)
         ]
-        local = [local_coordinates(sample["desired_xy"], bridge.STEP4E_START_XY) for sample in samples]
+        local = [
+            coordinates_in_basis(
+                sample["desired_xy"],
+                bridge.STEP4F_ORIGIN_XY,
+                bridge.STEP4F_ALONG_UNIT_XY,
+                bridge.STEP4F_LATERAL_UNIT_XY,
+            )
+            for sample in samples
+        ]
         speeds = [
             math.hypot(sample["desired_velocity_xy"][0], sample["desired_velocity_xy"][1])
             for sample in samples
@@ -53,6 +79,12 @@ class Step4FGPathReferenceTest(unittest.TestCase):
         self.assertAlmostEqual(max(along for along, _ in local), 0.094191232, places=6)
         self.assertAlmostEqual(max(lateral for _, lateral in local), 0.030, places=5)
         self.assertAlmostEqual(max(speeds), 0.003, places=5)
+        self.assertTrue(bridge.STEP4F_SAFE_FRAME["policy"]["no_scale"])
+        self.assertTrue(bridge.STEP4F_SAFE_FRAME["guard"]["passed"])
+        self.assertLessEqual(
+            max(sample["desired_xy"][0] for sample in samples),
+            bridge.STEP4F_SAFE_FRAME["guard"]["guard_line_x_m"] + 1e-12,
+        )
 
     def test_eight_formula_and_envelope(self) -> None:
         start_ref = bridge.step4e_path_reference("eight", bridge.STEP4E_LINE_MID_XY, 0.0)

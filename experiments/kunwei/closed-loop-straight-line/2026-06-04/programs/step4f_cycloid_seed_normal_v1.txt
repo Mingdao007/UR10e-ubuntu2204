@@ -4,7 +4,7 @@ Program:
   step4f_cycloid_seed_normal_v1
 
 Version:
-  2026-06-12T0536HKT_STEP4F_CYCLOID_SEED_NORMAL_V1
+  2026-06-12T0645HKT_STEP4F_CYCLOID_SEED_NORMAL_V1
 
 Purpose:
   Step4f Experiment #1 cycloid: v31 TP scaffold with paper-derived cycloid XY reference for 60 s

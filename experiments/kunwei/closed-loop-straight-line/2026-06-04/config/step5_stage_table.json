@@ -1,22 +1,22 @@
 {
   "version": 1,
-  "status": "retained_evidence",
-  "source_of_truth": "Step5 trajectory/stage table. Global current route is declared by config/current_stage.json.",
+  "status": "active",
+  "source_of_truth": "Step5 trajectory/stage table; Step4f/Step4g and Step5b are historical evidence routes. Step5c is the active joint-space route.",
   "register_contract": {
     "command_registers": {
-      "vx_m_s": 37,
-      "vy_m_s": 38,
-      "vz_m_s": 39,
-      "wx_rad_s": 40,
-      "wy_rad_s": 41,
-      "wz_rad_s": 42,
+      "qd0_rad_s": 37,
+      "qd1_rad_s": 38,
+      "qd2_rad_s": 39,
+      "qd3_rad_s": 40,
+      "qd4_rad_s": 41,
+      "qd5_rad_s": 42,
       "cmd_valid": 43,
-      "progress": 44
+      "path_time_s": 44
     },
     "diagnostic_registers": {
       "force_error_n": 45,
-      "orientation_error_rad": 46,
-      "controller_state": 47
+      "pose_or_orientation_error": 46,
+      "controller_state_or_solver_status": 47
     },
     "base_registers": {
       "normal_force_n": 24,
@@ -75,6 +75,7 @@
       "stage": "Step5-contact",
       "owner": "bridge+TP",
       "active": false,
+      "evidence": true,
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": true,
@@ -122,6 +123,117 @@
         "line_stage_uses_filtered_live_normal": true
       },
       "success_condition": "Bridge computes desired_xy, desired_vxy, path_error, progress, and feedback command; TP consumes registers 37..44 only and stops on stale/invalid/over-cap/end/runtime faults."
+    },
+    {
+      "id": "step5c_speedj_dryrun_v1",
+      "stage": "Step5c-dryrun",
+      "owner": "bridge+TP",
+      "active": true,
+      "shape": "cycloid",
+      "frame": "config/step5_safe_frame.json",
+      "contact": false,
+      "bridge": true,
+      "joint_space": true,
+      "fixed_base_z_m": null,
+      "duration_s": 12.0,
+      "amplitude_m": 0.015,
+      "phase_law": {
+        "type": "linear_time",
+        "omega_rad_s": 0.1,
+        "final_phase_rad": 1.2
+      },
+      "cadence": {
+        "reference_clock": "real_time",
+        "motion": "bridge_commanded_speedj",
+        "tp_hold_s": 0.002,
+        "end_hold_s": 0.1
+      },
+      "guard": {
+        "heartbeat_required": true,
+        "cmd_valid_required": true,
+        "qdot_cap_rad_s": 0.1,
+        "path_cap_m_s": 0.004,
+        "total_linear_cap_m_s": 0.004,
+        "normal_velocity_cap_m_s": 0.0,
+        "attitude_cap_rad_s": 0.0,
+        "runtime_limit_s": 16.0,
+        "progress_end_hold_s": 0.1,
+        "contact_force_guard_n": 12.0
+      },
+      "contact_policy": {
+        "bridge_required": true,
+        "tp_role": "joint_executor_and_guard_only",
+        "reference_owner": "bridge",
+        "force_control": false,
+        "contact_search": false,
+        "timing_policy": "short_no_contact_speedj_dry_run",
+        "virtual_clock_freeze": false
+      },
+      "filter_policy": {
+        "normal_filter": "none"
+      },
+      "success_condition": "Bridge computes finite qdot from actual_q and short Step5 cycloid subset; TP consumes registers 37..44 as qd0..qd5/cmd_valid/path_time and executes speedj without contact."
+    },
+    {
+      "id": "step5c_joint_rnn_cycloid_v1",
+      "stage": "Step5c-contact",
+      "owner": "bridge+TP",
+      "active": true,
+      "shape": "cycloid",
+      "frame": "config/step5_safe_frame.json",
+      "contact": true,
+      "bridge": true,
+      "joint_space": true,
+      "fixed_base_z_m": null,
+      "duration_s": 60.0,
+      "amplitude_m": 0.015,
+      "phase_law": {
+        "type": "linear_time",
+        "omega_rad_s": 0.1,
+        "final_phase_rad": 6.0
+      },
+      "cadence": {
+        "reference_clock": "real_time",
+        "motion": "bridge_commanded_speedj",
+        "tp_hold_s": 0.002,
+        "end_hold_s": 0.1
+      },
+      "guard": {
+        "heartbeat_required": true,
+        "cmd_valid_required": true,
+        "qdot_cap_rad_s": 0.15,
+        "path_cap_m_s": 0.004,
+        "total_linear_cap_m_s": 0.006,
+        "normal_velocity_cap_m_s": 0.003,
+        "attitude_cap_rad_s": 0.06,
+        "runtime_limit_s": 65.0,
+        "progress_end_hold_s": 0.1,
+        "raw_normal_guard_n": 50.0,
+        "force_norm_guard_n": 60.0,
+        "torque_norm_guard_nm": 3.0
+      },
+      "contact_policy": {
+        "bridge_required": true,
+        "tp_role": "joint_executor_and_guard_only",
+        "reference_owner": "bridge",
+        "joint_solver": "tools/step5c_joint_rnn.py bounded MuJoCo Jacobian least-squares",
+        "timing_policy": "paper_faithful_real_time_stop_on_fault",
+        "virtual_clock_freeze": false
+      },
+      "filter_policy": {
+        "normal_filter": "v31_filtered_live",
+        "follow_mode": "filtered_live",
+        "alpha": 0.35,
+        "min_force_n": 2.0,
+        "hold_on": [
+          "stale",
+          "low_force",
+          "reverse_normal"
+        ],
+        "first_contact_latch": true,
+        "line_stage_uses_filtered_live_normal": true
+      },
+      "success_condition": "Bridge computes desired twist plus force/orientation feedback, solves bounded qdot from actual_q, and TP executes only speedj in Stage25 joint-control windows."
     }
   ]
 }

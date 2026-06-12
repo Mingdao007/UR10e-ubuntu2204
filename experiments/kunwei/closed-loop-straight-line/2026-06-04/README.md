@@ -53,6 +53,12 @@ Step1 operator command wrapper:
 /home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/scripts/step1-operator.sh bridge
 ```
 
+Step2 operator command wrapper:
+
+```bash
+/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/scripts/step2-operator.sh bridge-search
+```
+
 Step2D circular-contact package:
 
 ```bash
@@ -259,6 +265,15 @@ Practical decision for this bench:
 - `step1_full_no_contact_pipeline.script`: full no-contact pipeline dry run
   with Kunwei bridge, software zero, guard, reference XY start, full XY line,
   and retract, but no contact search or force-control.
+- `step2a_contact_search.script`: corrects to the old reference TCP orientation,
+  moves to the old contact-start XY at current Z, then down to old contact Z +
+  `15 mm`, then uses interruptible `speedl` base-Z descent until raw signed
+  `Fz/normal_force <= -2 N` or `20 mm` search travel is exhausted. `force_norm`
+  is a `50 N` guard, not the contact trigger.
+- `step2b_closed_loop_pilot.script`: integrated contact search plus full-line
+  closed-loop pilot. Ubuntu bridge target is `3 N`; tangent speed is `5 mm/s`.
+- `step2c_closed_loop_full.script`: integrated contact search plus full-line
+  final run. Ubuntu bridge target is `5 N`; tangent speed is `10 mm/s`.
 - `step0_full_no_contact_pipeline.script`: older 10 mm no-contact pipeline
   source retained for comparison.
 - `kunwei_register_echo.script`: older name for Step0 register echo, retained
@@ -277,18 +292,22 @@ Practical decision for this bench:
 
 The minimal scripts start from the current TCP pose and follow this XY
 direction. Step1 moves to the reference XY start at the current TCP Z, then
-follows the full reference XY line. None of these programs move to the old
-absolute contact Z.
+follows the full reference XY line. Step2 is the first current script family
+that uses the old contact-start Z, but only as an approach height offset:
+`entry_z = 0.020279919 + 0.015 = 0.035279919 m`. Step2 first corrects to the
+old reference TCP orientation `[rx, ry, rz] = [3.141572714, -0.000026465,
+-0.000024158]`. Step2 does not `movel` straight to the old contact Z; it
+reaches contact only through the low-speed interruptible search.
 
 ## Zero Policy
 
-For Kunwei Step1, use software zero in the Ubuntu bridge:
+For Kunwei Step1 and Step2, use software zero in the Ubuntu bridge:
 
 - Initial zero: `kunwei_rtde_bridge.py --baseline-s 5` averages the first
   no-motion window and subtracts it from all six axes.
-- Path-start zero: `step1_full_no_contact_pipeline.script` writes
-  `output_double_register_34` with a request counter; the bridge then collects
-  `--rezero-s` seconds of no-contact data and updates the software baseline.
+- The current Step1/Step2 teach-pendant scripts do not write
+  `output_double_register_34`. That avoids stale request counters and repeated
+  in-run re-zero events.
 
 Do not use these for Step1 unless a separate safety gate explicitly approves
 them:
@@ -378,6 +397,87 @@ Stop here if guard trips, direction is wrong, `sensor_ok` drops, or the
 path-start move is not the expected safe no-contact move. Before pressing Play,
 confirm the path-start area has at least `50 mm` safe downward clearance and
 the final retract has at least `50 mm` upward clearance.
+
+## Step2: Contact Search And Closed Loop
+
+Step2 is split into three teach-pendant scripts so the contact evidence can
+gate the force-control run.
+
+First run Step2A only:
+
+```bash
+/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/scripts/step2-operator.sh bridge-search
+```
+
+Teach pendant program:
+
+```text
+/programs/andyl/kunwei/step2a_contact_search.script
+```
+
+What Step2A does:
+
+- waits for `sensor_ok`;
+- `movel`s the current TCP pose to the old reference orientation
+  `[3.141572714, -0.000026465, -0.000024158]`;
+- `movel`s to `[0.446585764, 0.226717001, current_z]` with that reference
+  orientation;
+- then `movel`s vertically to `[0.446585764, 0.226717001, 0.035279919]`;
+- descends in base Z at `25 mm/s`, using `speedl`;
+- stops with code `11` when signed `Fz/normal_force <= -2 N`;
+- stops with code `8` and retracts back to the entry Z if `20 mm` search
+  travel is exhausted with no contact;
+- retracts upward to the search entry height when contact is found.
+
+After Step2A identifies the axis/sign, start the pilot bridge with explicit
+mapping:
+
+```bash
+NORMAL_AXIS=fz NORMAL_SIGN=-1 \
+/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/scripts/step2-operator.sh bridge-pilot
+```
+
+Change `NORMAL_AXIS` and `NORMAL_SIGN` only if a newer Step2A result contradicts
+the current sign evidence. The current manual upward-press evidence showed
+zeroed Fz becomes negative, so the closed-loop bridge maps contact compression
+with `NORMAL_SIGN=-1`. The pilot teach-pendant program is:
+
+```text
+/programs/andyl/kunwei/step2b_closed_loop_pilot.script
+```
+
+Step2B repeats the same approach and contact search, then runs the full
+`63.58 mm` line at `5 mm/s` with target force from the bridge, normally `3 N`.
+Normal Z correction is controller-side `speedl`; approach and final retract are
+`movel`.
+
+Current Step2 approach moves use `movel` at `80 mm/s`. The Step2A contact-search
+`speedl` uses `25 mm/s` with acceleration `500 mm/s^2`; contact trigger is
+single-axis signed `Fz <= -2 N`, with `force_norm > 50 N` as the total-force guard.
+On contact trigger, Step2A retracts upward to the search entry height using
+`speedl` instead of staying at the contact point.
+
+Current Step2B/Step2C integrated search uses `15 mm/s` with search acceleration
+`300 mm/s^2`. The closed-loop line keeps tangent speed `10 mm/s` for Step2C,
+line acceleration `500 mm/s^2`, URScript `dt = 0.002`, `speedl_hold_s = 0.002`,
+and Ubuntu bridge RTDE input writes at `125 Hz` by default. The URScript
+normal-force controller is PI with light filtering:
+`filtered = 0.25 * raw + 0.75 * previous`, `Kp = 0.0004`, `Ki = 0.00008`,
+and integral clamp `[-10, 10] N*s`. Contact triggers and force guards still use
+raw unfiltered register values.
+
+Only after Step2B is accepted, run the final bridge and script:
+
+```bash
+NORMAL_AXIS=fz NORMAL_SIGN=-1 \
+/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/scripts/step2-operator.sh bridge-final
+```
+
+```text
+/programs/andyl/kunwei/step2c_closed_loop_full.script
+```
+
+Step2C uses target force `5 N` from the bridge and tangent speed `10 mm/s`.
 
 ## Legacy Roadmap
 
@@ -485,7 +585,8 @@ python3 /home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/20
   --duration-s 25 \
   --target-force-n 3 \
   --normal-axis fz \
-  --normal-sign 1
+  --normal-sign -1 \
+  --rtde-hz 125
 ```
 
 For final repeats, set `--target-force-n 5` and update/deploy
@@ -516,7 +617,8 @@ Any of these must stop the current stage:
 - Sensor heartbeat stale over `80 ms`.
 - `sensor_ok != 1` after baseline.
 - `abs(normal_force) > 12 N`.
-- `force_norm > 15 N`.
+- `force_norm > 50 N` for Step2 contact search; older Step0/Step1 guards used
+  `15 N`.
 - `torque_norm > 0.6 Nm`.
 - Normal correction travel over `8 mm`.
 - Path progress outside the configured range.

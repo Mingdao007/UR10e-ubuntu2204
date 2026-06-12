@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>Step4f Safe Frame Preview</title>
+<style>body{font-family:system-ui,sans-serif;margin:24px;color:#17202a} img{max-width:100%;border:1px solid #d8e0e7;border-radius:8px} table{border-collapse:collapse} td,th{border-bottom:1px solid #d8e0e7;padding:6px 10px;text-align:right} td:first-child,th:first-child{text-align:left}</style>
+</head>
+<body>
+<h1>Step4f Safe Frame Preview</h1>
+<p>论文 cycloid 只做 rotation + translation；三点是 hint，不是路径约束；不缩放。</p>
+<p>rotation: 90.617984 deg; x_minus_shift: 0.000 mm; max(base_x): 0.487795411 m; guard: 0.488878434 m.</p>
+<img src="step4f_safe_frame_preview.png" alt="Step4f safe frame preview">
+<h2>Three-point residuals</h2>
+<table><tr><th>point</th><th>residual X mm</th><th>residual Y mm</th><th>norm mm</th></tr><tr><td>start</td><td>3.083</td><td>0.007</td><td>3.083</td></tr>
+<tr><td>mid</td><td>-7.210</td><td>-2.851</td><td>7.754</td></tr>
+<tr><td>end</td><td>4.127</td><td>2.845</td><td>5.013</td></tr></table>
+</body></html>

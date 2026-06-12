@@ -1,0 +1,141 @@
+{
+  "basis": {
+    "origin_xy_m": [
+      0.487795411149049,
+      0.12932679270060748
+    ],
+    "p_lateral_xy": [
+      -0.9999418332648239,
+      -0.010785642631908406
+    ],
+    "rotation_deg": 90.61798378422422,
+    "rotation_matrix": [
+      [
+        -0.010785642631908187,
+        -0.9999418332648239
+      ],
+      [
+        0.9999418332648238,
+        -0.010785642631908406
+      ]
+    ],
+    "translation_pre_shift_xy_m": [
+      0.487795411149049,
+      0.12932679270060748
+    ],
+    "u_along_xy": [
+      -0.010785642631908187,
+      0.9999418332648238
+    ],
+    "x_minus_shift_m": 0.0
+  },
+  "envelope": {
+    "base_x_m": {
+      "max": 0.487795411149049,
+      "min": 0.4572854798410708
+    },
+    "base_y_m": {
+      "max": 0.22350610254130138,
+      "min": 0.12932678034319484
+    },
+    "local_x_m": {
+      "max": 0.09419123247298389,
+      "min": 0.0
+    },
+    "local_y_m": {
+      "max": 0.029999980975913092,
+      "min": 0.0
+    }
+  },
+  "generated_at": "2026-06-12T06:45:29",
+  "guard": {
+    "guard_line_x_m": 0.4888784335298146,
+    "guard_margin_after_m": 0.0010830223807655748,
+    "passed": true,
+    "path_max_x_m": 0.487795411149049,
+    "required_margin_m": 0.002,
+    "taught_x_plus_boundary_m": 0.4908784335298146
+  },
+  "no_scale_check": {
+    "local_chord_m": 0.0941931272235105,
+    "scale_ratio": 0.9999999999999999,
+    "transformed_chord_m": 0.09419312722351049
+  },
+  "points": {
+    "end": {
+      "paper_local_xy_m": [
+        0.09419123247298389,
+        0.0005974457002445104
+      ],
+      "predicted_base_xy_m": [
+        0.48618208722775774,
+        0.22350610254130138
+      ],
+      "residual_taught_minus_predicted_mm": {
+        "base_x": 4.127194839201598,
+        "base_xy_norm": 5.012513962401445,
+        "base_y": 2.8445665719995237
+      },
+      "t_s": 60.0,
+      "taught_base_xyz_m": [
+        0.49030928206695934,
+        0.2263506691133009,
+        0.019423891372941468
+      ]
+    },
+    "mid": {
+      "paper_local_xy_m": [
+        0.04288319987910199,
+        0.02984988744900668
+      ],
+      "predicted_base_xy_m": [
+        0.45748473710173193,
+        0.17188554798535094
+      ],
+      "residual_taught_minus_predicted_mm": {
+        "base_x": -7.210217219967008,
+        "base_xy_norm": 7.753559486594994,
+        "base_y": -2.8513948083452867
+      },
+      "t_s": 30.0,
+      "taught_base_xyz_m": [
+        0.4502745198817649,
+        0.16903415317700565,
+        0.018024039341072384
+      ]
+    },
+    "start": {
+      "paper_local_xy_m": [
+        0.0,
+        0.0
+      ],
+      "predicted_base_xy_m": [
+        0.487795411149049,
+        0.12932679270060748
+      ],
+      "residual_taught_minus_predicted_mm": {
+        "base_x": 3.0830223807655766,
+        "base_xy_norm": 3.08302994229914,
+        "base_y": 0.00682823634579055
+      },
+      "t_s": 0.0,
+      "taught_base_xyz_m": [
+        0.4908784335298146,
+        0.12933362093695328,
+        0.01864373664583356
+      ]
+    }
+  },
+  "policy": {
+    "fit": "2D rigid rotation+translation least-squares over start/mid/end hints",
+    "hint_points_are_not_path_constraints": true,
+    "max_x_minus_shift_m": 0.01,
+    "no_scale": true,
+    "paper_formula": "x=0.015(0.1t-sin(0.1t)), y=0.015(1-cos(0.1t)), duration=60s",
+    "shape": "step4f_cycloid",
+    "x_guard_margin_m": 0.002
+  },
+  "source_points_json": "experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/drag_teach_points_20260612_063134/points.json",
+  "status": "ok",
+  "version": 1
+}

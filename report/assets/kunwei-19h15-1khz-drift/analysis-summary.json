@@ -1,6 +1,6 @@
 {
-  "source_csv": "/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b_trial_unit_current/measurements/20260602_kunwei_kwr75_1khz_24h/run_20260602_195727_tmux/kunwei_kwr75_1khz_20260602_195727.csv",
-  "source_summary": "/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b_trial_unit_current/measurements/20260602_kunwei_kwr75_1khz_24h/run_20260602_195727_tmux/kunwei_kwr75_1khz_20260602_195727_summary.json",
+  "source_csv": "/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/data.csv",
+  "source_summary": "/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/summary.json",
   "analysis_window": {
     "rule": "all valid 0x48 frames from first logged frame to user-requested stop; no robot motion/contact phases in this no-motion sensor-only run",
     "start_elapsed_s": 0.0,

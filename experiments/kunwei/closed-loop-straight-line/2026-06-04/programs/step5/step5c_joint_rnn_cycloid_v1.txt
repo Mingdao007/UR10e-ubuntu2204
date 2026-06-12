@@ -1,0 +1,21 @@
+Step5c joint-RNN contact cycloid TP package
+
+Open on Teach Pendant:
+  /programs/andyl/kunwei/step5/step5c_joint_rnn_cycloid_v1.urp
+
+Version:
+  2026-06-12T2343HKT_STEP5C_JOINT_RNN_CYCLOID_V1
+
+Motion boundary:
+  Contact motion after the separate dry-run is accepted.
+  Reuses the current Step5b/v31 contact search, first-contact normal latch, 20 mm lift,
+  25.2 attitude correction, second contact, and 25.3 line-entry gate.
+  Stage25 joint-control windows consume registers 37..42 as qd0..qd5 rad/s.
+  Bridge profile: --step4e-version step5c_joint_rnn_cycloid_v1 --step4e-path-shape cycloid --step5c-qdot-limit-rad-s 0.15.
+  Force target: --target-force-n 5.0.
+  Raw normal guard: 50 N. Force norm guard: 60 N. Torque guard: 3.0 Nm.
+  No UR zero_ftsensor(), no Kunwei tare/zero/config, no TCP/payload write.
+
+Reference:
+  STEP5_FLOW.md
+  config/step5_stage_table.json stage step5c_joint_rnn_cycloid_v1
