@@ -266,7 +266,10 @@ def validate_package(
                     and "zero_ftsensor" not in script.replace("no zero_ftsensor()", ""),
                 }
             )
-    if program in {"step5d_strict_rnn_liveprep_v1", "step5d_strict_rnn_liveprep_v2"}:
+    if program in {"step5d_strict_rnn_liveprep_v1", "step5d_strict_rnn_liveprep_v2", "step5d_strict_rnn_liveprep_v3"}:
+        is_v3 = program.endswith("_v3")
+        raw_guard = "100.0" if is_v3 else "50.0"
+        force_guard = "100.0" if is_v3 else "60.0"
         checks.update(
             {
                 "step5d function": f"def codex_{program}()" in script
@@ -288,12 +291,18 @@ def validate_package(
                     and "local orientation_skip_error_rad = 0.052360" in script
                     and "skip_lift_attitude == 0" in script
                 ),
-                "line no cartesian speedl": "speedl([cmd_vx, cmd_vy, cmd_vz" not in script,
+                "force-settle entry gate": (not is_v3)
+                or (
+                    "local line_entry_force_error_abs_n = 3.000" in script
+                    and "local line_entry_force_norm_max_n = 12.000" in script
+                    and "speedl([cmd_vx, cmd_vy, cmd_vz, 0.0, 0.0, 0.0]" in script
+                ),
+                "line no cartesian speedl": "speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy" not in script,
                 "v31 contact scaffold": "first-contact normal latch" in script
                 and "25.2 attitude correction" in script
-                and "25.3 line-entry gate" in script,
-                "raw contact guards": "codex_abs(normal_force) > 50.0" in script
-                and "force_norm > 60.0" in script
+                and ("25.3 force-settle line-entry gate" in script if is_v3 else "25.3 line-entry gate" in script),
+                "raw contact guards": f"codex_abs(normal_force) > {raw_guard}" in script
+                and f"force_norm > {force_guard}" in script
                 and "torque_norm > 3.0" in script,
                 "not quarantine": "stop_only_quarantine" not in script + txt,
                 "no stale step5bc route": "step5b_contact_cycloid_baseline_v1" not in script + txt
@@ -302,6 +311,8 @@ def validate_package(
         )
         if program.endswith("_v2"):
             checks["no stale step5d v1 route"] = "step5d_strict_rnn_liveprep_v1" not in script + txt
+        if program.endswith("_v3"):
+            checks["no stale step5d v1/v2 route"] = "step5d_strict_rnn_liveprep_v1" not in script + txt and "step5d_strict_rnn_liveprep_v2" not in script + txt
     if program == "step6a_eight_no_contact_v1":
         checks.update(
             {

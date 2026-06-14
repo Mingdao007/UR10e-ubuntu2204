@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04"
 BASE_OPERATOR="${ROOT}/scripts/step4e-line-v1-operator.sh"
-STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v2}"
+STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v3}"
 EXPECTED_PROGRAM="/programs/andyl/kunwei/step5/${STEP5D_VERSION}.urp"
 
 usage() {
@@ -21,7 +21,8 @@ Boundary:
   - Force target: 5.0 N, Step5/Step6 positive normal-load convention.
   - Stage 25.0: registers 37..42 are qd0..qd5 rad/s; TP executes speedj.
   - qdot cap: 0.30 rad/s.
-  - Raw normal guard: 50 N, force norm guard: 60 N, torque guard: 3.0 Nm.
+  - Raw normal guard: 100 N, force norm guard: 100 N, torque guard: 3.0 Nm.
+  - Stage 25.3 must settle near 5 N before Stage 25.0 speedj starts.
   - No UR zero_ftsensor(), no Kunwei tare/zero/config, no TCP/payload write.
   - This wrapper never loads a program or presses Play.
 EOF
@@ -43,8 +44,8 @@ case "$1" in
     fi
     STEP4E_VERSION="${STEP5D_VERSION}" \
     BRIDGE_DURATION_S="${BRIDGE_DURATION_S:-180}" \
-    MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-50}" \
-    MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-60}" \
+    MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-100}" \
+    MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-100}" \
     MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-3.0}" \
     STEP4E_NORMAL_FOLLOW_MODE="${STEP4E_NORMAL_FOLLOW_MODE:-filtered_live}" \
     STEP4E_NORMAL_FILTER_ALPHA="${STEP4E_NORMAL_FILTER_ALPHA:-0.35}" \
