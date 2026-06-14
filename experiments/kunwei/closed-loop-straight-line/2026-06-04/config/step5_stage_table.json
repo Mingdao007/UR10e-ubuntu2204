@@ -411,6 +411,7 @@
         "strict solver has no DLS fallback and no IK fallback",
         "strict solver uses Eq.(23a) projection_input = J.T @ lambda_state and never theta_dot_state - J.T @ lambda_state",
         "strict solver exposes state, lambda, projection/saturation, sigr exponent, gain matrix, force-motion task, and orientation compliance diagnostics",
+        "tools/step5d_paper_outer_loop.py implements paper-form xdot_c from Eq.(7)/(8)/(13)/(14)/(16)/(17) without the old cross-product orientation shortcut",
         "solver uses calibrated Pinocchio FK/J(q), not experiments/.../ur10e_nominal.xml",
         "offline qdot register path proof passes for registers 37..47",
         "fresh Step5d numeric sanity artifact passes for the exact route",

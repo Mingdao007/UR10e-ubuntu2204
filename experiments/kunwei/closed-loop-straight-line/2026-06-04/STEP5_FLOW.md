@@ -220,14 +220,17 @@ Step5d is complete only if all of the following are true:
 4. The solver exposes audit diagnostics for RNN state, `lambda`,
    projection/saturation, `sigr` exponent, gain matrix, force-motion task, and
    orientation compliance.
-5. The solver uses calibrated Pinocchio `base -> tool0` `FK/J(q)`; the old
+5. `tools/step5d_paper_outer_loop.py` implements the paper-form outer loop:
+   Eq.(7)/(8)/(16)/(17) force-motion `xdot_p`, Eq.(13)/(14) quaternion
+   orientation `xdot_o`, and explicit `xdot_c=[xdot_p; xdot_o]` diagnostics.
+6. The solver uses calibrated Pinocchio `base -> tool0` `FK/J(q)`; the old
    nominal MuJoCo model is allowed only as a failure contrast.
-6. The qdot register path proof passes for registers `37..47`.
-7. A fresh Step5d numeric sanity artifact passes for the exact route.
-8. A new non-quarantine Step5d TP package validates locally and is generated
+7. The qdot register path proof passes for registers `37..47`.
+8. A fresh Step5d numeric sanity artifact passes for the exact route.
+9. A new non-quarantine Step5d TP package validates locally and is generated
    only after the solver gates pass.
-9. Controller upload and read-back SHA/`cachedContents` verification pass.
-10. A separate Step5d live dry-run/contact plan is explicitly accepted before
+10. Controller upload and read-back SHA/`cachedContents` verification pass.
+11. A separate Step5d live dry-run/contact plan is explicitly accepted before
    opening the bridge or pressing TP Play.
 
 Do not mark Step5d complete from calibrated-only, DLS, IK, register-path-only,
