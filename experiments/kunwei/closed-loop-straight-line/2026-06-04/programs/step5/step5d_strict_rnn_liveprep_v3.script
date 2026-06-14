@@ -1,12 +1,12 @@
 # Step5d strict RNN liveprep v3.
-# VERSION: 2026-06-14T2325HKT_STEP5D_STRICT_RNN_LIVEPREP_V3
-# GENERATED_AT_LOCAL: 2026-06-14T23:29:22+08:00
+# VERSION: 2026-06-14T2337HKT_STEP5D_STRICT_RNN_LIVEPREP_V3
+# GENERATED_AT_LOCAL: 2026-06-14T23:37:31+08:00
 # ENTRY_XY_M: [0.487795411, 0.129326793]
 # SAFE_FRAME_SOURCE: config/step5_safe_frame.json from confirmed drag-teach start/mid/end.
 # NO_SCALE_POLICY: Step5 table frame uses rotation+translation only.
 # X_GUARD: guard_line=0.488878434 m, path_max_x=0.487795411 m.
 # TARGET_ROTVEC_RAD: [-3.044172198, -0.130573165, -0.202188631]
-# PURPOSE: v31 contact search, first-contact normal latch, optional lift/25.2 attitude correction when orientation error is >3 deg, 25.3 force-settle line-entry gate, then Step5d strict RNN qdot cycloid reference for 60 s.
+# PURPOSE: v31 contact search, first-contact normal latch, optional lift/25.2 attitude correction when orientation error is >4 deg, 25.3 force-settle line-entry gate, then Step5d strict RNN qdot cycloid reference for 60 s.
 # FLOW_TABLE: STEP5_FLOW.md
 # STEP5_STAGE_ID: step5d_strict_rnn_liveprep_v3
 # STEP5_TABLE_SOURCE: config/step5_stage_table.json
@@ -282,7 +282,7 @@ def codex_step5d_strict_rnn_liveprep_v3():
   local home_return_speed_m_s = 0.050
   local final_progress_m = 0.0
 
-  textmsg("codex step4e version 2026-06-14T2325HKT_STEP5D_STRICT_RNN_LIVEPREP_V3 start step5d_strict_rnn_liveprep_v3")
+  textmsg("codex step4e version 2026-06-14T2337HKT_STEP5D_STRICT_RNN_LIVEPREP_V3 start step5d_strict_rnn_liveprep_v3")
   write_output_float_register(34, 0.0)
   write_output_float_register(35, 20.0)
   codex_echo_step4e(0.0)
@@ -340,7 +340,7 @@ def codex_step5d_strict_rnn_liveprep_v3():
   local skip_lift_attitude = 0
   if stop_reason == 0.0:
     write_output_float_register(35, 25.15)
-    local orientation_skip_error_rad = 0.052360
+    local orientation_skip_error_rad = 0.069813
     local t_skip = 0.0
     local skip_timeout_s = 1.000
     local last_heartbeat_skip = read_input_float_register(26)
@@ -622,7 +622,7 @@ def codex_step5d_strict_rnn_liveprep_v3():
   write_output_float_register(30, stop_reason)
   write_output_float_register(31, final_progress_m)
   write_output_float_register(35, 29.0)
-  textmsg("codex step4e version 2026-06-14T2325HKT_STEP5D_STRICT_RNN_LIVEPREP_V3 stop reason:", stop_reason)
+  textmsg("codex step4e version 2026-06-14T2337HKT_STEP5D_STRICT_RNN_LIVEPREP_V3 stop reason:", stop_reason)
 end
 
 codex_step5d_strict_rnn_liveprep_v3()

@@ -95,7 +95,7 @@ class Step5TableAndContactArchitectureTest(unittest.TestCase):
         self.assertEqual(liveprep["guard"]["force_norm_guard_n"], 100.0)
         self.assertEqual(liveprep["guard"]["line_entry_force_error_abs_n"], 3.0)
         self.assertEqual(liveprep["guard"]["line_entry_force_norm_max_n"], 12.0)
-        self.assertEqual(liveprep["guard"]["orientation_skip_lift_error_rad"], 0.05236)
+        self.assertEqual(liveprep["guard"]["orientation_skip_lift_error_rad"], 0.069813)
         self.assertEqual(liveprep["contact_policy"]["tp_role"], "joint_executor_and_guard_only")
         self.assertTrue(any("warms calibrated Pinocchio" in gate for gate in liveprep["liveprep_gates"]))
         self.assertTrue(any("watchdog" in gate for gate in liveprep["liveprep_gates"]))

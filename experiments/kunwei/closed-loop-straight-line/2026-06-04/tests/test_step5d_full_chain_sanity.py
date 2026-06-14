@@ -72,7 +72,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn("speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]", script)
         self.assertIn("local qdot_cap_rad_s = 0.300", script)
         self.assertIn("local skip_lift_attitude = 0", script)
-        self.assertIn("local orientation_skip_error_rad = 0.052360", script)
+        self.assertIn("local orientation_skip_error_rad = 0.069813", script)
         self.assertIn("if stop_reason == 0.0 and skip_lift_attitude == 0:", script)
         self.assertIn("local line_entry_force_error_abs_n = 3.000", script)
         self.assertIn("local line_entry_force_norm_max_n = 12.000", script)

@@ -23,7 +23,7 @@ LOCAL_PROGRAM_DIR = PROGRAM_DIR / "step5"
 CONTROLLER_DIR = "/programs/andyl/kunwei/step5"
 QDOT_CAP_RAD_S = 0.300
 JOINT_ACCEL_RAD_S2 = 0.300
-ORIENTATION_SKIP_ERROR_RAD = 0.052360
+ORIENTATION_SKIP_ERROR_RAD = 0.069813
 RAW_NORMAL_GUARD_N = 100.0
 FORCE_NORM_GUARD_N = 100.0
 TORQUE_NORM_GUARD_NM = 3.0
@@ -276,7 +276,7 @@ def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -
     script = script.replace("force_norm > 60.0", f"force_norm > {FORCE_NORM_GUARD_N:.1f}")
     script = script.replace(
         "PURPOSE: v31 contact search, first-contact normal latch, lift, 25.2 attitude correction, 25.3 line-entry gate, then Step5 table-driven contact cycloid reference for 60 s.",
-        "PURPOSE: v31 contact search, first-contact normal latch, optional lift/25.2 attitude correction when orientation error is >3 deg, 25.3 force-settle line-entry gate, then Step5d strict RNN qdot cycloid reference for 60 s.",
+        "PURPOSE: v31 contact search, first-contact normal latch, optional lift/25.2 attitude correction when orientation error is >4 deg, 25.3 force-settle line-entry gate, then Step5d strict RNN qdot cycloid reference for 60 s.",
     )
     script = script.replace(
         "25.0 uses desired_velocity + path_p_gain*(desired-actual) before normal projection and force-loop composition.",

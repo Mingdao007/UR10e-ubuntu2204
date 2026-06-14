@@ -4,12 +4,12 @@ Open on Teach Pendant after controller read-back is verified:
   /programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v3.urp
 
 Version:
-  2026-06-14T2325HKT_STEP5D_STRICT_RNN_LIVEPREP_V3
+  2026-06-14T2337HKT_STEP5D_STRICT_RNN_LIVEPREP_V3
 
 Boundary:
   Contact-capable live-prep package; not a completed reproduction claim.
   Reuses the Step5b contact-search/latch/25.3 scaffold.
-  If first-contact orientation error is <= 0.052360 rad,
+  If first-contact orientation error is <= 0.069813 rad,
   it skips the 20 mm lift and 25.2 attitude correction.
   Otherwise it keeps the original lift + 25.2 attitude correction path.
   Stage 25.3 is a force-settle entry gate: bridge may command small linear

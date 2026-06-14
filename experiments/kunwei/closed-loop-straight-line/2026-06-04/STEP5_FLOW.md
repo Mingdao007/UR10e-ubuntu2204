@@ -275,7 +275,7 @@ qdot to the `0.30 rad/s` cap while TCP speed continued into the contact normal.
 `step5d_strict_rnn_liveprep_v3` is the current live-prep package route. It
 keeps the Step5b contact-search/latch scaffold, warms the calibrated
 Pinocchio/RNN runtime before Stage 25.0, skips the 20 mm lift and 25.2 attitude
-correction when the first-contact orientation error is already `<= 0.05236 rad`,
+correction when the first-contact orientation error is already `<= 0.069813 rad`,
 adds a 25.3 force-settle entry gate, and switches Stage 25.0 from Cartesian
 `speedl` registers to joint `speedj` qdot registers:
 
@@ -328,11 +328,11 @@ Current v3 delivery status:
 - controller triplet:
   `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v3.{script,txt,urp}`;
 - read-back artifact:
-  `runs/controller_readback_step5d_strict_rnn_liveprep_v3_20260614_232941/manifest.json`;
+  `runs/controller_readback_step5d_strict_rnn_liveprep_v3_20260614_233759/manifest.json`;
 - SHA state: local, controller, and fetched-back triplet matched
-  (`.script` `650d7f5327193f1a07c9c93d38b205acce388b038b7b416fd8abe28fe4904cc3`,
-  `.txt` `22e656b43d4165e317ab21eec385284782ebe2962cb283dbfdabe4f7b9583e3a`,
-  `.urp` `f76fa744a9b53f10f0019c2dae812fc15af20d3fae1930dc02a2f74d53d2a3c5`);
+  (`.script` `8917213bdfcf0fe089e65d147d10e597f62b0541cccdbe948677b0da6d65ceee`,
+  `.txt` `1b84c2d22d161f48cb4656d7b16e59162ef9581524fb316337b2f5f3de25c33e`,
+  `.urp` `d2ba301d350dd096e388feec205b3dd2861846da9ad354f992ac49c1e169bacb`);
 - next bridge trigger must use `scripts/step5d-liveprep-operator.sh
   contact-bridge`, not a bare `tools/kunwei_rtde_bridge.py` invocation.
 

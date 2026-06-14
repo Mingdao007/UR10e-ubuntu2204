@@ -288,7 +288,10 @@ def validate_package(
                 "orientation skip gate": (program.endswith("_v1"))
                 or (
                     "local skip_lift_attitude = 0" in script
-                    and "local orientation_skip_error_rad = 0.052360" in script
+                    and (
+                        "local orientation_skip_error_rad = 0.052360" in script
+                        or "local orientation_skip_error_rad = 0.069813" in script
+                    )
                     and "skip_lift_attitude == 0" in script
                 ),
                 "force-settle entry gate": (not is_v3)
