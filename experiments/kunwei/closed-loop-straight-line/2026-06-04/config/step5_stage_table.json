@@ -414,6 +414,7 @@
         "tools/step5d_paper_outer_loop.py implements paper-form xdot_c from Eq.(7)/(8)/(13)/(14)/(16)/(17) without the old cross-product orientation shortcut",
         "solver uses calibrated Pinocchio FK/J(q), not experiments/.../ur10e_nominal.xml",
         "offline qdot register path proof passes for registers 37..47",
+        "tools/step5d_full_chain_sanity.py structural offline chain passes with explicit no-contact assumptions",
         "fresh Step5d numeric sanity artifact passes for the exact route",
         "new non-quarantine Step5d TP package validates locally and contains speedj executor only after the above gates",
         "controller upload and read-back SHA/cachedContents verification pass",

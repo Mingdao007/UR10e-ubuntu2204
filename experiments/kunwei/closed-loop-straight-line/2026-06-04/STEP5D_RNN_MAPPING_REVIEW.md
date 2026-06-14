@@ -398,9 +398,11 @@ I. Output（registers 37..47）:
 | StrictTaseRnnSolver 有状态实现 | ✓ | offline Eq.(23) body 已实现；live entrypoint 仍 blocked |
 | 四元数定向误差路径 | ✓ | offline `step5d_paper_outer_loop.py` 实现 Eq.(13)/(14)；bridge live 未接入 |
 | 完整 Phi_O 外环 | ✓ | offline `step5d_paper_outer_loop.py` 实现 Eq.(7)/(8)/(16)/(17)；force sign/T 仍需关闭 |
-| calibrated Pinocchio Jacobian audit pass | ? | 需运行 audit tool |
+| calibrated Pinocchio Jacobian audit pass | ✓ | `runs/step5c_calibrated_kinematics_audit_20260613_003314` 已通过 |
 | qdot register path proof 37..47 | ✓ | 已有 offline 测试 |
-| T1-T10 测试全通过 | ✗ | strict RNN core 与 outer-loop offline tests 已有；Jacobian audit/numeric sanity 尚未完成 |
+| structural full-chain sanity | ✓ | `runs/step5d_numeric_sanity_20260614_214203`；非 contact evidence |
+| production/live numeric sanity | ✗ | force sign、nominal qdot bound、contact route 尚未关闭 |
+| T1-T10 测试全通过 | ✗ | strict RNN core、outer-loop、structural chain 已有；live/contact gates 尚未完成 |
 | 新 non-quarantine Step5d TP package | ✗ | 依赖上面所有 gate |
 | controller read-back SHA 验证 | ✗ | 依赖 package |
 | 独立 live dry-run plan 明确接受 | ✗ | 最后 gate |

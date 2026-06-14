@@ -205,6 +205,7 @@ STEP4FG_PATH_DURATION_S = 60.0
 STEP5_CONTACT_CYCLOID_STAGE_ID = "step5_contact_cycloid_baseline_v1"
 STEP5C_DRYRUN_STAGE_ID = "step5c_speedj_dryrun_v1"
 STEP5C_CONTACT_STAGE_ID = "step5c_joint_rnn_cycloid_v1"
+STEP5D_REPRODUCTION_STAGE_ID = "step5d_strict_rnn_reproduction_v1"
 STEP6_CONTACT_EIGHT_STAGE_ID = "step6_contact_eight_baseline_v1"
 STEP6_CONTACT_EIGHT_STAGE_ID_V2 = "step6_contact_eight_baseline_v2"
 _STEP5C_SOLVERS: dict[tuple[str, str, float, float], Step5cDlsJointSolver] = {}
@@ -1567,6 +1568,7 @@ def main(argv: list[str] | None = None) -> int:
         "step5b_v1",
         STEP5C_DRYRUN_STAGE_ID,
         STEP5C_CONTACT_STAGE_ID,
+        STEP5D_REPRODUCTION_STAGE_ID,
         "step6b_v1",
         "step6b_v2",
     }
@@ -1585,6 +1587,12 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit(
             "Blocked Step5c contact: step5c_joint_rnn_cycloid_v1 was a misnamed DLS route, "
             "not strict TASE RNN. No Step5c joint-space bridge profile is runnable."
+        )
+    if args.step4e_version == STEP5D_REPRODUCTION_STAGE_ID:
+        raise SystemExit(
+            "Blocked Step5d reproduction: offline paper outer-loop, strict RNN, calibrated "
+            "Jacobian audit, numeric sanity, TP package read-back, and a separately accepted "
+            "live plan must all pass before bridge start."
         )
     if args.step4e_normal_filter_tau_s < 0.0:
         raise SystemExit("--step4e-normal-filter-tau-s must be non-negative")

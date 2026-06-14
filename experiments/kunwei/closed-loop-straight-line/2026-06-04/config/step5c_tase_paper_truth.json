@@ -102,6 +102,26 @@
     "communication_delay_T_mapping",
     "Eq23 nonzero-command stability from zero initial lambda under printed-sign dynamics"
   ],
+  "implementation_assumptions": {
+    "alpha_escape_velocity_gain_default_s_inv": {
+      "value": 1.0,
+      "status": "ur10e_default_until_pdf_value_found",
+      "used_by": "offline structural full-chain sanity only"
+    },
+    "communication_delay_T_default_s": {
+      "value": "dt_s",
+      "status": "discrete_time_assumption_until_pdf_mapping_found",
+      "used_by": "step5d_paper_outer_loop offline sanity"
+    },
+    "force_sign_convention": {
+      "value": "unverified",
+      "status": "must be closed by prior evidence or separate live preflight before contact reproduction"
+    },
+    "structural_sanity_force_input": {
+      "value": "synthetic_no_contact_unit_normal",
+      "status": "not contact evidence"
+    }
+  },
   "pending_pdf_verify": [
     "finite_time_rnn_state_equation",
     "rnn_gain_matrix",

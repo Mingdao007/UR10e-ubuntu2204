@@ -226,7 +226,9 @@ Step5d is complete only if all of the following are true:
 6. The solver uses calibrated Pinocchio `base -> tool0` `FK/J(q)`; the old
    nominal MuJoCo model is allowed only as a failure contrast.
 7. The qdot register path proof passes for registers `37..47`.
-8. A fresh Step5d numeric sanity artifact passes for the exact route.
+8. A fresh Step5d structural numeric sanity artifact passes for the offline
+   chain `outer loop -> calibrated J(q) -> RNN -> registers 37..47`.
+   Contact/live numeric sanity remains separate until force sign is closed.
 9. A new non-quarantine Step5d TP package validates locally and is generated
    only after the solver gates pass.
 10. Controller upload and read-back SHA/`cachedContents` verification pass.
@@ -236,6 +238,15 @@ Step5d is complete only if all of the following are true:
 Do not mark Step5d complete from calibrated-only, DLS, IK, register-path-only,
 or stop-only quarantine evidence. Those can be prerequisites or diagnostics,
 but they are not the RNN reproduction.
+
+Current structural sanity scope: `tools/step5d_full_chain_sanity.py` uses the
+recorded Step5c dry-run `actual_q/pose`, calibrated Pinocchio `J(q)`, the
+paper outer loop, and the strict RNN to prove finite qdot and register ordering.
+It uses a synthetic no-contact unit normal and zeroed position error, so it is
+not contact evidence and does not close the live force-sign gate.
+
+Latest structural artifact:
+`runs/step5d_numeric_sanity_20260614_214203/step5d_numeric_sanity.json`.
 
 ## Handoff Gate
 

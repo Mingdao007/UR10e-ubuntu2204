@@ -84,6 +84,7 @@ class Step5TableAndContactArchitectureTest(unittest.TestCase):
         self.assertIn("Pinocchio", step5d["contact_policy"]["calibrated_kinematics_backend"])
         self.assertTrue(any("strict_rnn_enabled=true" in gate for gate in step5d["rnn_completion_gates"]))
         self.assertTrue(any("DLS" in gate and "fallback" in gate for gate in step5d["rnn_completion_gates"]))
+        self.assertTrue(any("step5d_full_chain_sanity.py" in gate for gate in step5d["rnn_completion_gates"]))
         self.assertIn("Do not mark complete", step5d["success_condition"])
 
         kin_gate = self.table["calibrated_kinematics_gate"]
