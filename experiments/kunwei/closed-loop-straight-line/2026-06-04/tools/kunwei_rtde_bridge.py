@@ -26,6 +26,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+import pinocchio as pin
+
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
 STEP4F_SAFE_FRAME_PATH = EXPERIMENT_ROOT / "config" / "step4f_safe_frame.json"
@@ -44,8 +47,17 @@ from capture_kunwei_kwr75_1khz import (  # noqa: E402
     pop_frames,
 )
 from _ur_common import RTDEClient, dashboard_exchange  # noqa: E402
+import step5c_calibrated_kinematics_audit as step5d_kin  # noqa: E402
 from step5_table import step5_path_reference  # noqa: E402
 from step5c_dls_joint_solver import JointSolverConfig, STATUS_INVALID, Step5cDlsJointSolver  # noqa: E402
+from step5c_strict_rnn import StrictRnnConfig, StrictTaseRnnSolver  # noqa: E402
+from step5d_paper_outer_loop import (  # noqa: E402
+    Step5dOuterLoopConfig,
+    Step5dOuterLoopInputs,
+    Step5dOuterLoopState,
+    compute_step5d_outer_loop,
+    rnn_target_state_from_outer_loop,
+)
 from step6_eight import (  # noqa: E402
     PATH_DURATION_S as STEP6_PATH_DURATION_S,
     STEP6_SAFE_FRAME_PATH,
@@ -149,6 +161,16 @@ STEP5C_DIAG_FIELDS = [
     "_step5c_solver_residual_norm",
     "_step5c_solver_error",
 ]
+STEP5D_DIAG_FIELDS = [
+    "_step5d_solver_status",
+    "_step5d_qdot_max_abs_rad_s",
+    "_step5d_constraint_residual_norm",
+    "_step5d_outer_xdot_norm",
+    "_step5d_force_sign_convention",
+    "_step5d_proj_input_form",
+    "_step5d_active_bounds_count",
+    "_step5d_solver_error",
+]
 INPUT_FIELDS = BASE_INPUT_FIELDS + STEP4E_INPUT_FIELDS
 INPUT_NAMES = BASE_INPUT_NAMES + STEP4E_INPUT_NAMES
 OUTPUT_FIELDS = [
@@ -206,6 +228,8 @@ STEP5_CONTACT_CYCLOID_STAGE_ID = "step5_contact_cycloid_baseline_v1"
 STEP5C_DRYRUN_STAGE_ID = "step5c_speedj_dryrun_v1"
 STEP5C_CONTACT_STAGE_ID = "step5c_joint_rnn_cycloid_v1"
 STEP5D_REPRODUCTION_STAGE_ID = "step5d_strict_rnn_reproduction_v1"
+STEP5D_LIVEPREP_STAGE_ID = "step5d_strict_rnn_liveprep_v1"
+STEP5D_LIVEPREP_TRUTH_PATH = EXPERIMENT_ROOT / "config" / "step5d_liveprep_solver_gate.json"
 STEP6_CONTACT_EIGHT_STAGE_ID = "step6_contact_eight_baseline_v1"
 STEP6_CONTACT_EIGHT_STAGE_ID_V2 = "step6_contact_eight_baseline_v2"
 _STEP5C_SOLVERS: dict[tuple[str, str, float, float], Step5cDlsJointSolver] = {}
@@ -572,6 +596,67 @@ def step5c_solver(args: argparse.Namespace) -> Step5cDlsJointSolver:
     return solver
 
 
+def skew3_np(vector: np.ndarray) -> np.ndarray:
+    x, y, z = vector
+    return np.array([[0.0, -z, y], [z, 0.0, -x], [-y, x, 0.0]], dtype=float)
+
+
+def step5d_tcp_jacobian_base(
+    model_bundle: step5d_kin.CalibratedModel,
+    q: np.ndarray,
+    tcp_offset_tool0: np.ndarray,
+) -> np.ndarray:
+    model = model_bundle.model
+    data = model_bundle.data
+    pin.forwardKinematics(model, data, q)
+    pin.computeJointJacobians(model, data, q)
+    pin.updateFramePlacements(model, data)
+    tool_jac_world_aligned = pin.getFrameJacobian(
+        model,
+        data,
+        model_bundle.tool0_frame_id,
+        pin.ReferenceFrame.LOCAL_WORLD_ALIGNED,
+    )
+    base_world_rotation = data.oMf[model_bundle.base_frame_id].rotation.T
+    tool_linear_base_jac = base_world_rotation @ tool_jac_world_aligned[:3, :]
+    tool_angular_base_jac = base_world_rotation @ tool_jac_world_aligned[3:, :]
+    tool0_base = data.oMf[model_bundle.base_frame_id].inverse() * data.oMf[model_bundle.tool0_frame_id]
+    tcp_lever_base = tool0_base.rotation @ tcp_offset_tool0
+    tcp_linear_base_jac = tool_linear_base_jac - skew3_np(tcp_lever_base) @ tool_angular_base_jac
+    return np.vstack((tcp_linear_base_jac, tool_angular_base_jac))
+
+
+def step5d_omega_bounds(
+    q: np.ndarray,
+    q_min: np.ndarray,
+    q_max: np.ndarray,
+    *,
+    alpha_s_inv: float,
+    qdot_limit_rad_s: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    lower = np.maximum(alpha_s_inv * (q_min - q), -qdot_limit_rad_s)
+    upper = np.minimum(qdot_limit_rad_s, alpha_s_inv * (q_max - q))
+    if np.any(lower > upper):
+        raise ValueError("Step5d omega bounds are inverted")
+    return lower, upper
+
+
+def ensure_step5d_liveprep_runtime(state: "Step4EState", args: argparse.Namespace) -> None:
+    if state.step5d_model_bundle is None:
+        state.step5d_model_bundle = step5d_kin.build_calibrated_model()
+        audit_rows = step5d_kin.finite_run_rows(step5d_kin.DEFAULT_BRIDGE_CSV)
+        state.step5d_tcp_offset_tool0 = step5d_kin.infer_tcp_offset(state.step5d_model_bundle, audit_rows)["mean"]
+    if state.step5d_solver is None:
+        state.step5d_solver = StrictTaseRnnSolver(
+            StrictRnnConfig(
+                paper_truth_path=STEP5D_LIVEPREP_TRUTH_PATH,
+                qdot_limit_rad_s=float(args.step5d_qdot_limit_rad_s),
+                epsilon=float(args.step5d_epsilon),
+                sigr_exponent_r=float(args.step5d_sigr_exponent_r),
+            )
+        )
+
+
 def step6_contact_path_reference(
     pose_xy: tuple[float, float],
     elapsed_s: float,
@@ -699,6 +784,10 @@ class Step4EState:
         self.normal_acquired = False
         self.line_stage_s = 0.0
         self.last_robot_stage: float | None = None
+        self.step5d_model_bundle: step5d_kin.CalibratedModel | None = None
+        self.step5d_tcp_offset_tool0: np.ndarray | None = None
+        self.step5d_solver: StrictTaseRnnSolver | None = None
+        self.step5d_outer_state = Step5dOuterLoopState()
 
     def reset_line_contact(self) -> None:
         self.integral_error_n_s = 0.0
@@ -709,6 +798,7 @@ class Step4EState:
         self.normal_acquired = False
         self.line_stage_s = 0.0
         self.last_robot_stage = None
+        self.step5d_outer_state = Step5dOuterLoopState()
 
 
 def compute_step4e_values(
@@ -750,6 +840,7 @@ def compute_step4e_values(
     step5c_dryrun_profile = args.step4e_version == STEP5C_DRYRUN_STAGE_ID
     step5c_contact_profile = args.step4e_version == STEP5C_CONTACT_STAGE_ID
     step5c_joint_profile = step5c_dryrun_profile or step5c_contact_profile
+    step5d_liveprep_profile = args.step4e_version == STEP5D_LIVEPREP_STAGE_ID
     step6b_profile = args.step4e_version in {"step6b_v1", "step6b_v2"}
     step6_stage_id = STEP6_CONTACT_EIGHT_STAGE_ID_V2 if args.step4e_version == "step6b_v2" else STEP6_CONTACT_EIGHT_STAGE_ID
     angular_speedl_profile = (
@@ -766,6 +857,7 @@ def compute_step4e_values(
         or step4g_profile
         or step5b_profile
         or step5c_contact_profile
+        or step5d_liveprep_profile
         or step6b_profile
     )
     detached_profile = v20_profile or v21_profile or v22_profile or angular_speedl_profile
@@ -787,9 +879,10 @@ def compute_step4e_values(
         and abs(robot_stage - 25.3) < 0.05
     )
     line_entry_gate_active = (
-        v29_profile or v30_profile or v31_profile or step5b_profile or step5c_contact_profile or step6b_profile
+        v29_profile or v30_profile or v31_profile or step5b_profile or step5c_contact_profile or step5d_liveprep_profile or step6b_profile
     ) and acquire_stage_active
     line_stage_active = args.step4e_mode == "line" and abs(robot_stage - 25.0) < 0.05
+    step5d_joint_line_profile = step5d_liveprep_profile and line_stage_active
     control_stage_active = (
         latch_stage_active
         or detach_stage_active
@@ -865,7 +958,7 @@ def compute_step4e_values(
     live_candidate_angle_rad: float | str = ""
     live_candidate_angle_from_latch_rad: float | str = ""
     normal_follow_active = (
-        (v30_profile or v31_profile or step4f_profile or step4g_profile or step5b_profile or step5c_contact_profile or step6b_profile)
+        (v30_profile or v31_profile or step4f_profile or step4g_profile or step5b_profile or step5c_contact_profile or step5d_liveprep_profile or step6b_profile)
         and args.step4e_normal_follow_mode == "filtered_live"
         and line_stage_active
         and state.normal_acquired
@@ -875,7 +968,7 @@ def compute_step4e_values(
         filtered_current = state.filtered_normal_b if state.filtered_normal_b is not None else state.latched_normal_b
         live_candidate_angle_rad = angle_between_unit(filtered_current, live_candidate_b)
         live_candidate_angle_from_latch_rad = angle_between_unit(state.latched_normal_b, live_candidate_b)
-        if v31_profile or step4f_profile or step4g_profile or step5b_profile or step5c_contact_profile or step6b_profile:
+        if v31_profile or step4f_profile or step4g_profile or step5b_profile or step5c_contact_profile or step5d_liveprep_profile or step6b_profile:
             state.filtered_normal_b, normal_filter_source = v31_filtered_live_normal(
                 filtered_current,
                 live_candidate_b,
@@ -912,7 +1005,7 @@ def compute_step4e_values(
                 n_control_b = state.filtered_normal_b
                 normal_filter_source = "filtered_live"
     elif (
-        v30_profile or v31_profile or step4f_profile or step4g_profile or step5b_profile or step5c_contact_profile or step6b_profile
+        v30_profile or v31_profile or step4f_profile or step4g_profile or step5b_profile or step5c_contact_profile or step5d_liveprep_profile or step6b_profile
     ) and args.step4e_normal_follow_mode == "filtered_live":
         if line_stage_active:
             normal_filter_source = "locked_no_latch"
@@ -960,6 +1053,12 @@ def compute_step4e_values(
             (float(pose[0]), float(pose[1])),
             state.line_stage_s,
             stage_id=STEP5C_CONTACT_STAGE_ID,
+        )
+    elif step5d_liveprep_profile:
+        path_ref = step5_contact_path_reference(
+            (float(pose[0]), float(pose[1])),
+            state.line_stage_s,
+            stage_id=STEP5D_LIVEPREP_STAGE_ID,
         )
     elif step6b_profile:
         path_ref = step6_contact_path_reference(
@@ -1110,7 +1209,78 @@ def compute_step4e_values(
         ):
             raise RuntimeError("Step4e v23..v31 stage 25.2 contract violation: linear command registers must be zero")
         joint_result = None
-        if step5c_joint_profile:
+        step5d_result = None
+        step5d_outer_output = None
+        if step5d_joint_line_profile:
+            try:
+                actual_q = latest_output.get("actual_q")
+                actual_qd = latest_output.get("actual_qd")
+                if not actual_q or len(actual_q) < 6:
+                    raise ValueError("missing RTDE actual_q")
+                if not actual_qd or len(actual_qd) < 6:
+                    raise ValueError("missing RTDE actual_qd")
+                if not speed or len(speed) < 6:
+                    raise ValueError("missing RTDE actual_TCP_speed")
+                ensure_step5d_liveprep_runtime(state, args)
+                if (
+                    state.step5d_model_bundle is None
+                    or state.step5d_tcp_offset_tool0 is None
+                    or state.step5d_solver is None
+                ):
+                    raise RuntimeError("Step5d liveprep runtime did not initialize")
+                q = np.asarray(actual_q[:6], dtype=float)
+                qd = np.asarray(actual_qd[:6], dtype=float)
+                jacobian = step5d_tcp_jacobian_base(state.step5d_model_bundle, q, state.step5d_tcp_offset_tool0)
+                omega_minus, omega_plus = step5d_omega_bounds(
+                    q,
+                    state.step5d_model_bundle.model.lowerPositionLimit,
+                    state.step5d_model_bundle.model.upperPositionLimit,
+                    alpha_s_inv=float(args.step5d_alpha_s_inv),
+                    qdot_limit_rad_s=float(args.step5d_qdot_limit_rad_s),
+                )
+                step5d_outer_output = compute_step5d_outer_loop(
+                    Step5dOuterLoopConfig(
+                        kp=4.0,
+                        ko=5.0,
+                        kf=1.0,
+                        Md_scalar=12.0,
+                        Bd_scalar=550.0,
+                        force_target_n=float(args.target_force_n),
+                        delay_T_s=dt_s,
+                        force_sign_convention="step5_step6_positive_normal_load",
+                    ),
+                    state.step5d_outer_state,
+                    Step5dOuterLoopInputs(
+                        tcp_pose_base=tuple(float(value) for value in pose[:6]),  # type: ignore[arg-type]
+                        tcp_speed_base=tuple(float(value) for value in speed[:6]),  # type: ignore[arg-type]
+                        force_tcp_n=force_t,
+                        x_pd_base=(float(desired_x), float(desired_y), float(pose[2])),
+                        xdot_pd_base=(float(desired_velocity_xy[0]), float(desired_velocity_xy[1]), 0.0),
+                        dt_s=dt_s,
+                        cmd_valid=True,
+                    ),
+                )
+                state.step5d_outer_state = step5d_outer_output.next_state
+                target_state = rnn_target_state_from_outer_loop(
+                    step5d_outer_output,
+                    J=jacobian,
+                    omega_minus=omega_minus,
+                    omega_plus=omega_plus,
+                    dt_s=dt_s,
+                    epsilon=float(args.step5d_epsilon),
+                    r=float(args.step5d_sigr_exponent_r),
+                )
+                step5d_result = state.step5d_solver.solve(actual_q=q, actual_qd=qd, target_state=target_state)
+                cmd = (step5d_result.qdot[0], step5d_result.qdot[1], step5d_result.qdot[2])
+                orientation_cmd = (step5d_result.qdot[3], step5d_result.qdot[4], step5d_result.qdot[5])
+            except (ValueError, RuntimeError) as exc:
+                values["_step5d_solver_error"] = str(exc)
+                state.step5d_outer_state = Step5dOuterLoopState()
+                cmd = (0.0, 0.0, 0.0)
+                orientation_cmd = (0.0, 0.0, 0.0)
+                step5d_result = None
+                step5d_outer_output = None
+        elif step5c_joint_profile:
             try:
                 actual_q = latest_output.get("actual_q")
                 if not actual_q or len(actual_q) < 6:
@@ -1126,15 +1296,31 @@ def compute_step4e_values(
                 cmd = (0.0, 0.0, 0.0)
                 orientation_cmd = (0.0, 0.0, 0.0)
                 joint_result = None
-        if step5c_joint_profile:
+        if step5c_joint_profile or step5d_joint_line_profile:
+            if step5d_joint_line_profile and step5d_outer_output is not None:
+                register_force_error = float(step5d_outer_output.diagnostics.get("e_f", force_error))
+                register_pose_error = float(np.linalg.norm(step5d_outer_output.diagnostics.get("e_o", (0.0, 0.0, 0.0))))
+                register_status = step5d_result.solver_status if step5d_result is not None else STATUS_INVALID
+            else:
+                register_force_error = force_error
+                register_pose_error = orientation_error
+                register_status = joint_result.solver_status if joint_result is not None else STATUS_INVALID
             values.update(
                 step5c_joint_register_values(
-                    joint_result.qdot if joint_result is not None else (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
-                    cmd_valid=0.0 if args.step4e_mode == "preview" or joint_result is None else 1.0,
+                    (
+                        step5d_result.qdot
+                        if step5d_joint_line_profile and step5d_result is not None
+                        else joint_result.qdot
+                        if joint_result is not None
+                        else (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+                    ),
+                    cmd_valid=0.0
+                    if args.step4e_mode == "preview" or (joint_result is None and step5d_result is None)
+                    else 1.0,
                     path_time_s=progress,
-                    force_error_n=force_error,
-                    pose_or_orientation_error=orientation_error,
-                    solver_status=joint_result.solver_status if joint_result is not None else STATUS_INVALID,
+                    force_error_n=register_force_error,
+                    pose_or_orientation_error=register_pose_error,
+                    solver_status=register_status,
                 )
             )
         else:
@@ -1167,6 +1353,15 @@ def compute_step4e_values(
                     ),
                 }
             )
+        if step5d_joint_line_profile and step5d_result is not None and step5d_outer_output is not None:
+            qdot_abs = [abs(float(value)) for value in step5d_result.qdot]
+            values["_step5d_solver_status"] = step5d_result.solver_status
+            values["_step5d_qdot_max_abs_rad_s"] = max(qdot_abs)
+            values["_step5d_constraint_residual_norm"] = step5d_result.residual_norm
+            values["_step5d_outer_xdot_norm"] = float(np.linalg.norm(np.asarray(step5d_outer_output.xdot_c, dtype=float)))
+            values["_step5d_force_sign_convention"] = step5d_outer_output.diagnostics["force_sign_convention"]
+            values["_step5d_proj_input_form"] = step5d_result.diagnostics["proj_input_form"]
+            values["_step5d_active_bounds_count"] = float(sum(bool(value) for value in step5d_result.diagnostics["active_bounds_mask"]))
         if step5c_joint_profile and joint_result is not None:
             values["_step5c_qdot_max_abs_rad_s"] = joint_result.max_abs_qdot_rad_s
             values["_step5c_qdot_clipped"] = 1.0 if joint_result.clipped else 0.0
@@ -1540,6 +1735,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument("--step5c-joint-site", default="tcp_site_unverified_85mm")
+    parser.add_argument("--step5d-qdot-limit-rad-s", type=float, default=0.30)
+    parser.add_argument("--step5d-alpha-s-inv", type=float, default=1.0)
+    parser.add_argument("--step5d-epsilon", type=float, default=0.022)
+    parser.add_argument("--step5d-sigr-exponent-r", type=float, default=0.2)
     return parser.parse_args(argv)
 
 
@@ -1568,6 +1767,7 @@ def main(argv: list[str] | None = None) -> int:
         "step5b_v1",
         STEP5C_DRYRUN_STAGE_ID,
         STEP5C_CONTACT_STAGE_ID,
+        STEP5D_LIVEPREP_STAGE_ID,
         STEP5D_REPRODUCTION_STAGE_ID,
         "step6b_v1",
         "step6b_v2",
@@ -1604,6 +1804,14 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("--step4e-normal-min-force-n must be non-negative")
     if args.step4e_normal_max_angle_from_latch_deg <= 0.0:
         raise SystemExit("--step4e-normal-max-angle-from-latch-deg must be positive")
+    if args.step5d_qdot_limit_rad_s <= 0.0:
+        raise SystemExit("--step5d-qdot-limit-rad-s must be positive")
+    if args.step5d_alpha_s_inv <= 0.0:
+        raise SystemExit("--step5d-alpha-s-inv must be positive")
+    if args.step5d_epsilon <= 0.0:
+        raise SystemExit("--step5d-epsilon must be positive")
+    if not 0.0 < args.step5d_sigr_exponent_r <= 1.0:
+        raise SystemExit("--step5d-sigr-exponent-r must be in (0, 1]")
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     sensor_csv_path = args.output_dir / "kunwei_sensor_1khz.csv"
@@ -1668,6 +1876,7 @@ def main(argv: list[str] | None = None) -> int:
             "step5b_contact_cycloid_baseline_v1": "Same TP contact-search/latch/25.2/25.3 scaffold as v31, but stage 25.0 uses the active Step5 table contact cycloid reference and v31 filtered-live normal policy.",
             "step5c_speedj_dryrun_v1": "No-contact Step5c joint-space dry-run: bridge reads actual_q and writes qd0..qd5 in registers 37..42 through the explicit Step5c qdot helper; TP executes speedj only in the archived Stage25 dry-run fixture. Live profile remains blocked.",
             "step5c_joint_rnn_cycloid_v1": "Blocked/quarantined Step5c contact route: previous implementation was DLS, not strict TASE RNN.",
+            "step5d_strict_rnn_liveprep_v1": "Live-prep strict RNN qdot route: TP reuses Step5b contact scaffold, then Stage 25.0 consumes registers 37..42 as qd0..qd5 rad/s and executes speedj. Not a completed reproduction claim.",
             "step6b_contact_eight_baseline_v1": "Same TP contact-search/latch/25.2/25.3 scaffold as Step5b/v31, but stage 25.0 uses the active Step6 five-point safe-frame 8-shaped reference for 30 s and v31 filtered-live normal policy.",
             "step6b_contact_eight_baseline_v2": "Same TP contact-search/latch/25.2/25.3 scaffold and Step6 reference as v1, but intended bridge caps are 15 mm/s path, 15 mm/s total linear, 3 mm/s normal reserve, and 0.060 rad/s attitude.",
         },
@@ -1689,12 +1898,18 @@ def main(argv: list[str] | None = None) -> int:
                 if args.step4e_path_shape == "cycloid" and args.step4e_version != "step5b_v1"
                 else None
             ),
-            "step5_stage_id": STEP5_CONTACT_CYCLOID_STAGE_ID if args.step4e_version == "step5b_v1" else None,
+            "step5_stage_id": (
+                STEP5_CONTACT_CYCLOID_STAGE_ID
+                if args.step4e_version == "step5b_v1"
+                else STEP5D_LIVEPREP_STAGE_ID
+                if args.step4e_version == STEP5D_LIVEPREP_STAGE_ID
+                else None
+            ),
             "step5c_stage_id": args.step4e_version
             if args.step4e_version in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID}
             else None,
             "step5c_register_contract": "37..42=qd0..qd5 rad/s, 43=cmd_valid, 44=path_time, 45=force_error, 46=pose/orientation_error, 47=solver_status; Step4e field names are carrier names only in Step5c mode."
-            if args.step4e_version in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID}
+            if args.step4e_version in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID, STEP5D_LIVEPREP_STAGE_ID}
             else None,
             "step5c_joint_model": str(args.step5c_joint_model)
             if args.step4e_version in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID}
@@ -1850,6 +2065,7 @@ def main(argv: list[str] | None = None) -> int:
             "_step4e_contact_offset_y_m",
             "_step4e_actual_speed_norm_m_s",
             *STEP5C_DIAG_FIELDS,
+            *STEP5D_DIAG_FIELDS,
         ]
         bridge_output_fields = [
             f"ur_{field}_{idx}"

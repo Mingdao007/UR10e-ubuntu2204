@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "strict_rnn_enabled": true,
+  "scope": "step5d_strict_rnn_liveprep_v1",
+  "status": "liveprep_assumptions_locked_not_full_reproduction_claim",
+  "pending_pdf_verify": [],
+  "assumptions": {
+    "alpha_escape_velocity_gain_default_s_inv": 1.0,
+    "communication_delay_T_default_s": "dt_s",
+    "force_sign_convention": "step5_step6_positive_normal_load",
+    "qdot_limit_rad_s": 0.3,
+    "sigr_exponent_r": 0.2
+  },
+  "safety_boundary": [
+    "enables strict RNN live-prep profile only",
+    "does not mark step5d_strict_rnn_reproduction_v1 complete",
+    "does not authorize bridge start without separate operator trigger",
+    "does not authorize TP Play or robot motion"
+  ]
+}

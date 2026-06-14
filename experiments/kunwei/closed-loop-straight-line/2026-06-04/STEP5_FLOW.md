@@ -21,6 +21,7 @@ controller upload, or contact motion.
 | `step5c_speedj_dryrun_v1` | bridge+TP | false | true | none | none | Blocked/quarantined: 2026-06-13 live run showed wrong XY/Z motion from DLS/Jacobian mapping. Controller package must be stop-only and operator must refuse bridge. |
 | `step5c_joint_rnn_cycloid_v1` | bridge+TP | true | true | none | `v31_filtered_live` | Blocked/quarantined: the old contact route was misnamed DLS, not RNN. Controller package must be stop-only and operator must refuse contact. |
 | `step5c_strict_rnn_dryrun_v1` | bridge+TP | false | true | strict TASE RNN | none | Blocked until `config/step5c_tase_paper_truth.json` has no `pending_pdf_verify` fields and strict RNN equations are implemented. |
+| `step5d_strict_rnn_liveprep_v1` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Live-prep route: reuses Step5b contact scaffold, but Stage 25.0 consumes qdot registers `37..42` and executes `speedj`. Requires controller read-back and explicit bridge trigger; not a completed reproduction claim. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |
 
 ## Step5c Calibrated Kinematics Gate
@@ -250,6 +251,38 @@ positive normal-load convention (`target_force_n=5.0`, `normal_sign=1.0`).
 
 Latest structural artifact:
 `runs/step5d_numeric_sanity_20260614_215555/step5d_numeric_sanity.json`.
+
+## Step5d Live-Prep Package
+
+`step5d_strict_rnn_liveprep_v1` is the first non-quarantine Step5d package
+route. It intentionally repeats the Step5b contact-search/latch/lift/25.2/25.3
+flow, then switches only Stage 25.0 from Cartesian `speedl` registers to joint
+`speedj` qdot registers:
+
+- Teach Pendant target:
+  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v1.urp`;
+- local generator: `tools/build_step5d_liveprep.py`;
+- operator wrapper: `scripts/step5d-liveprep-operator.sh`;
+- bridge profile: `--step4e-version step5d_strict_rnn_liveprep_v1`;
+- register contract: `37..42 = qd0..qd5 rad/s`, `43 = cmd_valid`,
+  `44 = path_time_s`, `45 = force_error_n`, `46 = orientation_error`,
+  `47 = solver_status`;
+- qdot cap: `0.30 rad/s`, `speedj` acceleration `0.300 rad/s^2`;
+- force sign convention: retained Step5/Step6 positive normal-load convention.
+
+This live-prep route may be delivered to the controller by upload/read-back
+verification. It still does not authorize bridge start, TP program load, TP
+Play, `zero_ftsensor()`, or robot motion. Those require the explicit operator
+trigger and bench state checks.
+
+Delivery status:
+
+- local triplet: `programs/step5/step5d_strict_rnn_liveprep_v1.{script,txt,urp}`;
+- controller triplet:
+  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v1.{script,txt,urp}`;
+- read-back artifact:
+  `runs/controller_readback_step5d_strict_rnn_liveprep_v1_20260614_225433/manifest.json`;
+- SHA state: local, controller, and fetched-back triplet matched.
 
 ## Handoff Gate
 

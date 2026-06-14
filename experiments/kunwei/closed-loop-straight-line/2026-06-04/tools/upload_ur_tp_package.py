@@ -266,6 +266,34 @@ def validate_package(
                     and "zero_ftsensor" not in script.replace("no zero_ftsensor()", ""),
                 }
             )
+    if program == "step5d_strict_rnn_liveprep_v1":
+        checks.update(
+            {
+                "step5d function": f"def codex_{program}()" in script
+                and "codex_step5d_down_search" in script,
+                "step5d bridge contract": "step4e-version=step5d_strict_rnn_liveprep_v1" in script
+                and "--step4e-version step5d_strict_rnn_liveprep_v1" in txt
+                and "--step4e-path-shape cycloid" in txt,
+                "step5d force contract": "--target-force-n 5.0" in txt,
+                "step5 table source": "STEP5_FLOW.md" in script
+                and "STEP5_TABLE_SOURCE: config/step5_stage_table.json" in script
+                and "step5d_strict_rnn_liveprep_v1" in script + txt,
+                "joint executor and guard only": "joint_executor_and_guard_only" in script
+                and "37..42 as qd0..qd5 rad/s" in txt,
+                "speedj line control": "speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]" in script
+                and "local qdot_cap_rad_s = 0.300" in script,
+                "line no cartesian speedl": "speedl([cmd_vx, cmd_vy, cmd_vz" not in script,
+                "v31 contact scaffold": "first-contact normal latch" in script
+                and "25.2 attitude correction" in script
+                and "25.3 line-entry gate" in script,
+                "raw contact guards": "codex_abs(normal_force) > 50.0" in script
+                and "force_norm > 60.0" in script
+                and "torque_norm > 3.0" in script,
+                "not quarantine": "stop_only_quarantine" not in script + txt,
+                "no stale step5bc route": "step5b_contact_cycloid_baseline_v1" not in script + txt
+                and "step5c_joint_rnn_cycloid_v1" not in script + txt,
+            }
+        )
     if program == "step6a_eight_no_contact_v1":
         checks.update(
             {

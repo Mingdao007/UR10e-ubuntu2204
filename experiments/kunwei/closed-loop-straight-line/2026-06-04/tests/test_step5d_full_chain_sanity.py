@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import inspect
+import gzip
 import sys
 import tempfile
 import unittest
@@ -14,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 import kunwei_rtde_bridge as bridge  # noqa: E402
+import build_step5d_liveprep as liveprep  # noqa: E402
 import step5d_full_chain_sanity as sanity  # noqa: E402
 
 
@@ -44,6 +46,48 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             ]
         )
         self.assertEqual(args.step4e_version, "step5d_strict_rnn_reproduction_v1")
+        with self.assertRaisesRegex(SystemExit, "Blocked Step5d reproduction"):
+            bridge.main(
+                [
+                    "--no-start-command",
+                    "--skip-dashboard-preflight",
+                    "--step4e-mode",
+                    "line",
+                    "--step4e-version",
+                    "step5d_strict_rnn_reproduction_v1",
+                ]
+            )
+
+    def test_step5d_liveprep_package_is_non_quarantine_speedj_executor(self) -> None:
+        stamp = "2026-06-14T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V1"
+        geom = liveprep.line_cfg(liveprep.load_json(liveprep.CONFIG_PATH))
+        frame = liveprep.load_safe_frame()
+        script = liveprep.build_script(stamp, "2026-06-14T12:00:00+08:00", geom, frame)
+        txt = liveprep.build_txt(stamp)
+        urp = liveprep.build_urp(script, liveprep.PROGRAM_NAME, liveprep.CONTROLLER_DIR)
+        liveprep.validate_package(script, txt, urp, stamp)
+        xml = gzip.decompress(urp).decode("utf-8")
+        self.assertIn(f'URProgram name="{liveprep.PROGRAM_NAME}"', xml)
+        self.assertIn("joint_executor_and_guard_only", script)
+        self.assertIn("speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]", script)
+        self.assertIn("local qdot_cap_rad_s = 0.300", script)
+        self.assertNotIn("speedl([cmd_vx, cmd_vy, cmd_vz", script)
+        self.assertNotIn("stop_only_quarantine", script + txt)
+
+    def test_bridge_allows_liveprep_profile_but_keeps_full_reproduction_blocked(self) -> None:
+        args = bridge.parse_args(
+            [
+                "--no-start-command",
+                "--step4e-mode",
+                "line",
+                "--step4e-version",
+                "step5d_strict_rnn_liveprep_v1",
+                "--step4e-path-shape",
+                "cycloid",
+            ]
+        )
+        self.assertEqual(args.step4e_version, "step5d_strict_rnn_liveprep_v1")
+        self.assertEqual(args.step5d_qdot_limit_rad_s, 0.30)
         with self.assertRaisesRegex(SystemExit, "Blocked Step5d reproduction"):
             bridge.main(
                 [
