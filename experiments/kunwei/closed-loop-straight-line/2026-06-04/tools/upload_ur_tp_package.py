@@ -266,11 +266,19 @@ def validate_package(
                     and "zero_ftsensor" not in script.replace("no zero_ftsensor()", ""),
                 }
             )
-    if program in {"step5d_strict_rnn_liveprep_v1", "step5d_strict_rnn_liveprep_v2", "step5d_strict_rnn_liveprep_v3", "step5d_strict_rnn_liveprep_v4"}:
+    if program in {
+        "step5d_strict_rnn_liveprep_v1",
+        "step5d_strict_rnn_liveprep_v2",
+        "step5d_strict_rnn_liveprep_v3",
+        "step5d_strict_rnn_liveprep_v4",
+        "step5d_strict_rnn_liveprep_v5",
+    }:
         is_v3 = program.endswith("_v3")
         is_v4 = program.endswith("_v4")
-        raw_guard = "100.0" if (is_v3 or is_v4) else "50.0"
-        force_guard = "100.0" if (is_v3 or is_v4) else "60.0"
+        is_v5 = program.endswith("_v5")
+        tolerant_contact_window = is_v4 or is_v5
+        raw_guard = "100.0" if (is_v3 or tolerant_contact_window) else "50.0"
+        force_guard = "100.0" if (is_v3 or tolerant_contact_window) else "60.0"
         checks.update(
             {
                 "step5d function": f"def codex_{program}()" in script
@@ -295,7 +303,7 @@ def validate_package(
                     )
                     and "skip_lift_attitude == 0" in script
                 ),
-                "force-settle entry gate": (not (is_v3 or is_v4))
+                "force-settle entry gate": (not (is_v3 or tolerant_contact_window))
                 or (
                     (
                         (
@@ -304,7 +312,7 @@ def validate_package(
                             and "local line_entry_force_norm_max_n = 12.000" in script
                         )
                         or (
-                            is_v4
+                            tolerant_contact_window
                             and "local line_entry_normal_load_min_n = 2.000" in script
                             and "local line_entry_normal_load_max_n = 15.000" in script
                             and "local line_entry_force_norm_max_n = 25.000" in script
@@ -317,7 +325,13 @@ def validate_package(
                 "line no cartesian speedl": "speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy" not in script,
                 "v31 contact scaffold": "first-contact normal latch" in script
                 and "25.2 attitude correction" in script
-                and ("25.3 force-settle line-entry gate" in script if is_v3 else "25.3 tolerant contact-window line-entry gate" in script if is_v4 else "25.3 line-entry gate" in script),
+                and (
+                    "25.3 force-settle line-entry gate" in script
+                    if is_v3
+                    else "25.3 tolerant contact-window line-entry gate" in script
+                    if tolerant_contact_window
+                    else "25.3 line-entry gate" in script
+                ),
                 "raw contact guards": f"codex_abs(normal_force) > {raw_guard}" in script
                 and f"force_norm > {force_guard}" in script
                 and "torque_norm > 3.0" in script,
@@ -335,6 +349,18 @@ def validate_package(
                 "step5d_strict_rnn_liveprep_v1" not in script + txt
                 and "step5d_strict_rnn_liveprep_v2" not in script + txt
                 and "step5d_strict_rnn_liveprep_v3" not in script + txt
+            )
+        if program.endswith("_v5"):
+            checks["force-frame semantic contract"] = (
+                "UR_FORCE_FRAME_CONTRACT.md" in script + txt
+                and "reaction normal for load" in script + txt
+                and "approach normal for posture" in script + txt
+            )
+            checks["no stale step5d v1/v2/v3/v4 route"] = (
+                "step5d_strict_rnn_liveprep_v1" not in script + txt
+                and "step5d_strict_rnn_liveprep_v2" not in script + txt
+                and "step5d_strict_rnn_liveprep_v3" not in script + txt
+                and "step5d_strict_rnn_liveprep_v4" not in script + txt
             )
     if program == "step6a_eight_no_contact_v1":
         checks.update(

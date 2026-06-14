@@ -27,7 +27,8 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertTrue(summary["overall_pass"])
         self.assertEqual(summary["assumptions"]["contact_evidence"], "not_claimed")
         self.assertEqual(summary["assumptions"]["position_error_mode"], "zeroed_for_structural_sanity")
-        self.assertEqual(summary["assumptions"]["force_input"], "synthetic_no_contact_unit_normal")
+        self.assertEqual(summary["assumptions"]["force_input"], "synthetic_environment_on_tool_force_along_reaction_normal")
+        self.assertEqual(summary["assumptions"]["orientation_target_axis"], "approach_normal_base = -control_reaction_normal_base")
         self.assertEqual(summary["assumptions"]["force_target_n"], 5.0)
         self.assertEqual(summary["assumptions"]["force_sign_convention"], "step5_step6_positive_normal_load")
         self.assertEqual(summary["assumptions"]["qdot_limit_rad_s"], 0.30)
@@ -93,12 +94,12 @@ class Step5dFullChainSanityTest(unittest.TestCase):
                 "--step4e-mode",
                 "line",
                 "--step4e-version",
-                "step5d_strict_rnn_liveprep_v4",
+                "step5d_strict_rnn_liveprep_v5",
                 "--step4e-path-shape",
                 "cycloid",
             ]
         )
-        self.assertEqual(args.step4e_version, "step5d_strict_rnn_liveprep_v4")
+        self.assertEqual(args.step4e_version, "step5d_strict_rnn_liveprep_v5")
         self.assertEqual(args.step5d_qdot_limit_rad_s, 0.30)
         self.assertFalse(args.disable_dashboard_program_watch)
         with self.assertRaisesRegex(SystemExit, "Blocked Step5d reproduction"):
@@ -113,14 +114,14 @@ class Step5dFullChainSanityTest(unittest.TestCase):
                 ]
             )
 
-    def test_step5d_operator_points_to_v4_controller_package(self) -> None:
+    def test_step5d_operator_points_to_v5_controller_package(self) -> None:
         operator = (ROOT / "scripts" / "step5d-liveprep-operator.sh").read_text(encoding="utf-8")
         base = (ROOT / "scripts" / "step4e-line-v1-operator.sh").read_text(encoding="utf-8")
-        self.assertIn('STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v4}"', operator)
+        self.assertIn('STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v5}"', operator)
         self.assertIn('/programs/andyl/kunwei/step5/${STEP5D_VERSION}.urp', operator)
         self.assertIn('MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-100}"', operator)
         self.assertIn('MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-100}"', operator)
-        self.assertIn('STEP4E_VERSION="step5d_strict_rnn_liveprep_v4"', base)
+        self.assertIn('STEP4E_VERSION="step5d_strict_rnn_liveprep_v5"', base)
         self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/${STEP4E_VERSION}.urp"', base)
         self.assertIn('EXPECTED_BASENAME="${STEP4E_VERSION}.urp"', base)
         self.assertIn('RUN_LABEL="${STEP4E_VERSION}"', base)

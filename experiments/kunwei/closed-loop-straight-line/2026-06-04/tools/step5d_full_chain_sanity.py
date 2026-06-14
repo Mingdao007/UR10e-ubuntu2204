@@ -42,7 +42,8 @@ DEFAULT_BRIDGE_CSV = kin.DEFAULT_BRIDGE_CSV
 DEFAULT_ALPHA_S_INV = 1.0
 DEFAULT_QDOT_LIMIT_RAD_S = 0.30
 DEFAULT_SAMPLE_LIMIT = 400
-SYNTHETIC_FORCE_TCP_N = (0.0, 0.0, 1.0)
+SYNTHETIC_FORCE_TCP_N = (0.0, 0.0, -1.0)
+SYNTHETIC_REACTION_NORMAL_BASE = (0.0, 0.0, -1.0)
 STEP5_STEP6_FORCE_SIGN_CONVENTION = "step5_step6_positive_normal_load"
 
 
@@ -227,6 +228,7 @@ def run_sanity(
                     tcp_pose_base=tuple(float(v) for v in pose),  # type: ignore[arg-type]
                     tcp_speed_base=tuple(float(v) for v in speed),  # type: ignore[arg-type]
                     force_tcp_n=SYNTHETIC_FORCE_TCP_N,
+                    control_reaction_normal_base=SYNTHETIC_REACTION_NORMAL_BASE,
                     x_pd_base=x_pd,
                     xdot_pd_base=xdot_pd,
                     dt_s=dt_s,
@@ -324,7 +326,9 @@ def run_sanity(
             "epsilon": epsilon,
             "sigr_exponent_r": r,
             "T_s": dt_s,
-            "force_input": "synthetic_no_contact_unit_normal",
+            "force_input": "synthetic_environment_on_tool_force_along_reaction_normal",
+            "control_reaction_normal_base": SYNTHETIC_REACTION_NORMAL_BASE,
+            "orientation_target_axis": "approach_normal_base = -control_reaction_normal_base",
             "force_target_n": 5.0,
             "force_sign_convention": STEP5_STEP6_FORCE_SIGN_CONVENTION,
             "force_sign_evidence": "retained Step5/Step6 bridge convention: target_force_n=5.0, normal_axis=fz, normal_sign=1.0, step4e_normal_command_sign=1.0",

@@ -4,8 +4,8 @@
 route. The diagnostic DLS dry-run is quarantined after the 2026-06-13 live run
 showed wrong XY/Z motion. Step5d is the named completion target for the
 complete strict TASE RNN reproduction; the strict-RNN live-prep path is now
-`step5d_strict_rnn_liveprep_v4`, while the full reproduction target remains
-separate and not complete. Step4f, Step4g, Step5b, Step5d v1, Step5d v2, and Step5d v3
+`step5d_strict_rnn_liveprep_v5`, while the full reproduction target remains
+separate and not complete. Step4f, Step4g, Step5b, Step5d v1, Step5d v2, Step5d v3, and Step5d v4
 remain retained evidence packages only. Do not infer global current status
 from this per-step file without reading the current pointer.
 
@@ -25,7 +25,8 @@ controller upload, or contact motion.
 | `step5d_strict_rnn_liveprep_v1` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Evidence route: reached Stage 25.0 and exercised qdot/speedj briefly on 2026-06-14, but stopped after about 0.106 s from TP heartbeat stale. Superseded by v2. |
 | `step5d_strict_rnn_liveprep_v2` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Evidence route: reached Stage 25.0 with qdot/speedj, then stopped by force guard after v2 entered 25.0 already preloaded and drove qdot to the 0.30 rad/s cap. Superseded by v3. |
 | `step5d_strict_rnn_liveprep_v3` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Evidence route: kept qdot registers `37..42` with TP `speedj`, but the strict 25.3 force-settle gate was too narrow to enter Stage 25.0. Superseded by v4. |
-| `step5d_strict_rnn_liveprep_v4` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Current live-prep route: keeps qdot registers `37..42` with TP `speedj`, uses a tolerant 25.3 contact-window gate before Stage 25.0, limits live Step5d `xdot_c` before the RNN, and uses 100 N hard force guards. |
+| `step5d_strict_rnn_liveprep_v4` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained failure evidence: entered Stage 25.0 but exposed the Step5d outer-loop force/frame semantic bug. Superseded by v5. |
+| `step5d_strict_rnn_liveprep_v5` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Current semantic-fix live-prep target: keeps qdot registers `37..42` with TP `speedj`, uses the Step5b/Step6b reaction-normal contract, and hard-fails 25.0 if contact-search and outer-loop orientation semantics disagree. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |
 
 ## Step5c Calibrated Kinematics Gate
@@ -250,8 +251,10 @@ Current structural sanity scope: `tools/step5d_full_chain_sanity.py` uses the
 recorded Step5c dry-run `actual_q/pose`, calibrated Pinocchio `J(q)`, the
 paper outer loop, and the strict RNN to prove finite qdot and register ordering.
 It uses a synthetic no-contact unit normal and zeroed position error, so it is
-not contact evidence. Its force sign convention is the retained Step5/Step6
-positive normal-load convention (`target_force_n=5.0`, `normal_sign=1.0`).
+not contact evidence. Its force/frame semantics follow
+`UR_FORCE_FRAME_CONTRACT.md`: measured force is environment-on-tool reaction;
+positive load is `dot(force_base, reaction_normal)`, and posture/press direction
+uses `approach_normal = -reaction_normal`.
 
 Latest structural artifact:
 `runs/step5d_numeric_sanity_20260614_215555/step5d_numeric_sanity.json`.
@@ -279,21 +282,35 @@ Stage 25.0 because the strict 5N-centered 25.3 force-settle gate never became
 ready. Its maximum force stayed below the 100N hard guard, but the gate was too
 narrow for the observed contact transient.
 
-`step5d_strict_rnn_liveprep_v4` is the current live-prep package route. It
-keeps the Step5b contact-search/latch scaffold, warms the calibrated
+`step5d_strict_rnn_liveprep_v4` is retained as failure evidence. It reached
+Stage 25.0 through the tolerant contact window, but the Step5d outer loop
+rebuilt `R_d.z` from the raw force reaction direction. That inverted the
+orientation target relative to the Step5b/Step6b contact-search convention:
+25.15 saw about `2.1 deg`, while 25.0 computed about `178 deg`.
+See `STEP5D_HOLISTIC_ROOTCAUSE_AUDIT.md`.
+
+`step5d_strict_rnn_liveprep_v5` is the current semantic-fix live-prep package
+route. It keeps the Step5b contact-search/latch scaffold, warms the calibrated
 Pinocchio/RNN runtime before Stage 25.0, skips the 20 mm lift and 25.2 attitude
 correction when the first-contact orientation error is already `<= 0.069813 rad`,
-adds a more tolerant 25.3 contact-window entry gate, and switches Stage 25.0 from Cartesian
-`speedl` registers to joint `speedj` qdot registers:
+adds the v4 tolerant 25.3 contact-window entry gate, switches Stage 25.0 from
+Cartesian `speedl` registers to joint `speedj` qdot registers, and adds a
+runtime semantic gate before RNN/qdot output:
 
 - Teach Pendant target:
-  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v4.urp`;
+  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v5.urp`;
 - local generator: `tools/build_step5d_liveprep.py`;
 - operator wrapper: `scripts/step5d-liveprep-operator.sh`;
-- bridge profile: `--step4e-version step5d_strict_rnn_liveprep_v4`;
+- bridge profile: `--step4e-version step5d_strict_rnn_liveprep_v5`;
 - register contract: `37..42 = qd0..qd5 rad/s`, `43 = cmd_valid`,
   `44 = path_time_s`, `45 = force_error_n`, `46 = orientation_error`,
   `47 = solver_status`;
+- force/frame contract: `UR_FORCE_FRAME_CONTRACT.md`; use reaction normal for
+  positive load, use approach normal `-reaction_normal` for posture and press
+  direction, and never normalize raw live force to construct `R_d.z`;
+- semantic 25.0 gate: contact-search orientation error and Step5d outer-loop
+  orientation angle must agree within `5 deg`, otherwise bridge sets
+  `cmd_valid=0` and hard-fails before the strict RNN can emit qdot;
 - qdot cap: `0.30 rad/s`, `speedj` acceleration `0.300 rad/s^2`;
 - Stage 25.3 contact-window gate: `2 N <= normal_load <= 15 N` and
   `force_norm <= 25 N` for `0.050 s` before entering Stage 25.0;
@@ -358,6 +375,21 @@ Current v4 delivery status:
   `.urp` `3e249041e3abb7289b85f43ff4035e78c1706ab1fcfe1b5af45feff04ccaa803`);
 - next bridge trigger must use `scripts/step5d-liveprep-operator.sh
   contact-bridge`, not a bare `tools/kunwei_rtde_bridge.py` invocation.
+
+Current v5 delivery status:
+
+- local triplet: generated and locally validated
+  `programs/step5/step5d_strict_rnn_liveprep_v5.{script,txt,urp}`;
+- controller triplet:
+  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v5.{script,txt,urp}`;
+- source stamp: `2026-06-15T0150HKT_STEP5D_STRICT_RNN_LIVEPREP_V5`;
+- semantic gate artifact:
+  `runs/ur_contact_semantic_gate_20260615_015018/ur_contact_semantic_gate_summary.json`
+  passed for v2/v4 Stage 25.0 replay;
+- controller upload/read-back: blocked on 2026-06-15 because
+  `192.168.1.18:22` returned `No route to host`;
+- bridge/TP Play remain blocked until controller read-back verifies the exact
+  v5 triplet and a separate live plan is accepted.
 
 ## Handoff Gate
 

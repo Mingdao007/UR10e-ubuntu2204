@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04"
 BASE_OPERATOR="${ROOT}/scripts/step4e-line-v1-operator.sh"
-STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v4}"
+STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v5}"
 EXPECTED_PROGRAM="/programs/andyl/kunwei/step5/${STEP5D_VERSION}.urp"
 
 usage() {

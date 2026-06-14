@@ -682,7 +682,7 @@
       "liveprep_gates": [
         "fresh Step5d structural numeric sanity artifact passes with qdot cap 0.30 rad/s",
         "non-quarantine Step5d v4 TP package validates locally and contains speedj qdot executor for Stage 25.0",
-        "25.3 entry gate requires normal_load between 2N and 15N plus force_norm <=25N for 0.050s before Stage 25.0",
+        "25.3 contact window entry gate requires normal_load between 2N and 15N plus force_norm <=25N for 0.050s before Stage 25.0",
         "25.3 timeout is 10s; Stage 25.0 is still blocked until the contact window passes",
         "bridge limits live Step5d xdot_c before strict RNN while preserving raw xdot diagnostics",
         "raw normal and force-norm hard guards are 100 N; 50 N remains an analysis warning threshold only",
@@ -696,7 +696,118 @@
         "min_force_n": 2.0,
         "force_sign_convention": "step5_step6_positive_normal_load"
       },
-      "success_condition": "Current v4 live-prep gate is complete only after local package validation, controller read-back verification, operator path mapping, bridge watchdog readiness, 25.3 tolerant contact-window behavior, and live xdot limiter diagnostics. It does not mark the full Step5d reproduction target complete."
+      "semantic_failure": {
+        "audit": "STEP5D_HOLISTIC_ROOTCAUSE_AUDIT.md",
+        "artifact": "runs/bridge_step5d_strict_rnn_liveprep_v4_20260614_234951",
+        "root_cause": "Step5d outer loop rebuilt R_d.z from the raw reaction force direction instead of the Step5b/Step6b approach-axis contract, producing a 25.15-to-25.0 orientation jump of about 180 degrees."
+      },
+      "success_condition": "Retained v4 live-prep evidence only. Superseded by v5 because v4 entered Stage 25.0 but exposed the Step5d outer-loop force/frame semantic bug. It does not mark the full Step5d reproduction target complete."
+    },
+    {
+      "id": "step5d_strict_rnn_liveprep_v5",
+      "stage": "Step5d",
+      "owner": "bridge+TP",
+      "active": false,
+      "blocked": true,
+      "complete": false,
+      "completion_target": false,
+      "block_reason": "Current semantic-fix live-prep target. The UR force/frame semantic gate and local v5 TP package validation pass, but controller upload/read-back is blocked by no route to 192.168.1.18:22. Bridge/TP Play remain blocked until controller read-back is verified and a separate live plan is accepted.",
+      "local_delivery_evidence": {
+        "local_program_dir": "programs/step5",
+        "program_basename": "step5d_strict_rnn_liveprep_v5",
+        "stamp": "2026-06-15T0150HKT_STEP5D_STRICT_RNN_LIVEPREP_V5",
+        "semantic_gate": "runs/ur_contact_semantic_gate_20260615_015018/ur_contact_semantic_gate_summary.json",
+        "semantic_gate_pass": true,
+        "local_package_validated": true,
+        "controller_readback_verified": false,
+        "upload_blocked_reason": "No route to host 192.168.1.18:22"
+      },
+      "shape": "cycloid",
+      "frame": "config/step5_safe_frame.json",
+      "contact": true,
+      "bridge": true,
+      "joint_space": true,
+      "strict_rnn": true,
+      "fixed_base_z_m": null,
+      "duration_s": 60.0,
+      "amplitude_m": 0.015,
+      "phase_law": {
+        "type": "linear_time",
+        "omega_rad_s": 0.1,
+        "final_phase_rad": 6.0
+      },
+      "cadence": {
+        "reference_clock": "real_time",
+        "motion": "blocked_until_semantic_gate_and_readback",
+        "tp_hold_s": 0.002,
+        "end_hold_s": 0.1
+      },
+      "guard": {
+        "heartbeat_required": true,
+        "cmd_valid_required": true,
+        "qdot_cap_rad_s": 0.3,
+        "path_cap_m_s": 0.004,
+        "total_linear_cap_m_s": 0.006,
+        "normal_velocity_cap_m_s": 0.003,
+        "attitude_cap_rad_s": 0.06,
+        "semantic_orientation_tolerance_rad": 0.08726646259971647,
+        "orientation_skip_lift_error_rad": 0.069813,
+        "line_entry_normal_load_min_n": 2.0,
+        "line_entry_normal_load_max_n": 15.0,
+        "line_entry_force_norm_max_n": 25.0,
+        "line_entry_required_s": 0.05,
+        "line_entry_timeout_s": 10.0,
+        "runtime_limit_s": 65.0,
+        "progress_end_hold_s": 0.1,
+        "raw_normal_guard_n": 100.0,
+        "force_norm_guard_n": 100.0,
+        "torque_norm_guard_nm": 3.0
+      },
+      "contact_policy": {
+        "bridge_required": true,
+        "tp_role": "joint_executor_and_guard_only",
+        "reference_owner": "strict_rnn_bridge",
+        "joint_solver": "strict_tase_rnn_only",
+        "dls_fallback_allowed": false,
+        "ik_fallback_allowed": false,
+        "calibrated_kinematics_backend": "Pinocchio calibrated base->tool0+active-TCP FK/J(q)",
+        "force_control": true,
+        "contact_search": true,
+        "timing_policy": "step5b_scaffold_with_step5d_qdot_line_control_and_force_frame_semantic_gate",
+        "virtual_clock_freeze": false
+      },
+      "semantic_control_gate": {
+        "contract": "UR_FORCE_FRAME_CONTRACT.md",
+        "reaction_normal_source": "Step5b/Step6b contact-search latched/filtered n_control_b",
+        "approach_normal": "-reaction_normal",
+        "normal_load_n": "dot(force_base, reaction_normal)",
+        "force_error_n": "target_load_n - normal_load_n",
+        "orientation_target_axis": "approach_normal",
+        "forbidden": "Do not normalize raw live force to construct R_d.z or orientation_target_axis",
+        "required_replay_inputs": [
+          "runs/bridge_step5d_strict_rnn_liveprep_v4_20260614_234951/bridge_rtde_500hz.csv",
+          "runs/bridge_step5d_strict_rnn_liveprep_v2_20260614_231720/bridge_rtde_500hz.csv"
+        ],
+        "runtime_assertion": "contact-search orientation error and Step5d outer-loop orientation angle must agree within 5 deg before cmd_valid can remain true"
+      },
+      "liveprep_gates": [
+        "UR force/frame semantic gate passes v2/v4 Stage 25.0 replay",
+        "fresh Step5d structural numeric sanity artifact passes with qdot cap 0.30 rad/s",
+        "non-quarantine Step5d v5 TP package validates locally and contains speedj qdot executor for Stage 25.0",
+        "25.3 contact window entry gate requires normal_load between 2N and 15N plus force_norm <=25N for 0.050s before Stage 25.0",
+        "bridge limits live Step5d xdot_c before strict RNN while preserving raw xdot diagnostics",
+        "bridge hard-fails the Step5d semantic gate before RNN/qdot if orientation semantics disagree",
+        "controller upload and read-back SHA/cachedContents verification pass",
+        "separate live dry-run/contact SOP is accepted before bridge or TP Play"
+      ],
+      "filter_policy": {
+        "normal_filter": "v31_filtered_live",
+        "alpha": 0.35,
+        "min_force_n": 2.0,
+        "force_sign_convention": "step5_step6_positive_normal_load",
+        "semantic_contract": "reaction normal for load, approach normal for posture/press direction"
+      },
+      "success_condition": "Current v5 semantic-fix live-prep target. It is not complete until semantic replay, package validation, controller read-back, and a separately accepted live plan pass."
     },
     {
       "id": "step5d_strict_rnn_reproduction_v1",

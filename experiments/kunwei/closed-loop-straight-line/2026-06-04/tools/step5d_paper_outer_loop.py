@@ -14,6 +14,15 @@ from typing import Any
 
 import numpy as np
 
+from contact_semantics import (
+    approach_normal_from_reaction,
+    desired_rotation_preserving_roll,
+    force_error_n,
+    force_motion_acceleration_base,
+    orientation_axis_angle_error,
+    signed_normal_load_n,
+)
+
 
 def _finite_array(values: Any, shape: tuple[int, ...], name: str) -> np.ndarray:
     array = np.asarray(values, dtype=float)
@@ -55,7 +64,7 @@ class Step5dOuterLoopConfig:
     force_target_n: float = 5.0
     force_integral_limit_n_s: float = 5.0
     min_force_norm_n: float = 1e-9
-    force_normal_fallback_base: tuple[float, float, float] = (0.0, 0.0, 1.0)
+    control_reaction_normal_fallback_base: tuple[float, float, float] = (0.0, 0.0, -1.0)
     delay_T_s: float | None = None
     force_sign_convention: str = "step5_step6_positive_normal_load"
 
@@ -75,6 +84,7 @@ class Step5dOuterLoopInputs:
     xdot_pd_base: tuple[float, float, float]
     dt_s: float
     cmd_valid: bool = True
+    control_reaction_normal_base: tuple[float, float, float] = (0.0, 0.0, -1.0)
 
 
 @dataclass(frozen=True)
@@ -119,18 +129,6 @@ def rotvec_to_matrix(rotvec: Any) -> np.ndarray:
         dtype=float,
     )
     return np.eye(3) + math.sin(theta) * K + (1.0 - math.cos(theta)) * (K @ K)
-
-
-def rotation_matrix_from_z_axis(z_axis_base: Any) -> np.ndarray:
-    z_axis, _valid, _norm = normalize_vector(z_axis_base, (0.0, 0.0, 1.0))
-    reference = np.array([1.0, 0.0, 0.0], dtype=float)
-    if abs(float(np.dot(reference, z_axis))) > 0.9:
-        reference = np.array([0.0, 1.0, 0.0], dtype=float)
-    x_axis = reference - float(np.dot(reference, z_axis)) * z_axis
-    x_axis = x_axis / float(np.linalg.norm(x_axis))
-    y_axis = np.cross(z_axis, x_axis)
-    y_axis = y_axis / float(np.linalg.norm(y_axis))
-    return np.column_stack((x_axis, y_axis, z_axis))
 
 
 def rotation_matrix_to_quaternion(matrix: Any) -> np.ndarray:
@@ -224,12 +222,14 @@ def compute_step5d_outer_loop(
     x_p = tcp_pose[:3]
     R_cur = rotvec_to_matrix(tcp_pose[3:6])
     force_base = R_cur @ force_tcp
-    u_force_base, force_normal_valid, force_norm_n = normalize_vector(
-        force_base,
-        config.force_normal_fallback_base,
+    force_norm_n = float(np.linalg.norm(force_base))
+    control_reaction_normal_base, control_normal_valid, control_normal_input_norm = normalize_vector(
+        inputs.control_reaction_normal_base,
+        config.control_reaction_normal_fallback_base,
         config.min_force_norm_n,
     )
-    effective_cmd_valid = bool(inputs.cmd_valid and force_normal_valid)
+    approach_normal_base = approach_normal_from_reaction(control_reaction_normal_base)
+    effective_cmd_valid = bool(inputs.cmd_valid and control_normal_valid)
 
     if not effective_cmd_valid:
         xdot_zero = np.zeros(3, dtype=float)
@@ -241,29 +241,38 @@ def compute_step5d_outer_loop(
             next_state=state,
             diagnostics={
                 "cmd_valid": False,
-                "freeze_reason": "invalid_command_or_force_normal",
-                "force_normal_valid": force_normal_valid,
+                "freeze_reason": "invalid_command_or_control_normal",
+                "control_normal_valid": control_normal_valid,
                 "force_norm_n": force_norm_n,
+                "control_normal_input_norm": control_normal_input_norm,
                 "force_sign_convention": config.force_sign_convention,
             },
         )
 
-    R_d = rotation_matrix_from_z_axis(u_force_base)
+    R_d = desired_rotation_preserving_roll(R_cur, approach_normal_base)
     Phi_E = np.diag([1.0, 1.0, 0.0])
     Phi_bar_E = np.eye(3) - Phi_E
     Phi_O = R_d.T @ Phi_E
     Phi_bar_O = R_d.T @ Phi_bar_E
 
     e_p = x_pd - x_p
-    force_along_normal_n = float(np.dot(force_base, u_force_base))
-    e_f = float(config.force_target_n - force_along_normal_n)
+    normal_load_n = signed_normal_load_n(force_base, control_reaction_normal_base)
+    e_f = force_error_n(target_load_n=float(config.force_target_n), normal_load_n=normal_load_n)
     force_integral = clamp(
         state.force_integral_n_s + e_f * dt_s,
         -abs(float(config.force_integral_limit_n_s)),
         abs(float(config.force_integral_limit_n_s)),
     )
     xdot_p_prev = _finite_array(state.xdot_p_prev_m_s, (3,), "xdot_p_prev_m_s")
-    xddot_p = ((e_f + float(config.kf) * force_integral) / Md) * u_force_base - (Bd / Md) * xdot_p_prev
+    xddot_p = force_motion_acceleration_base(
+        force_error=e_f,
+        force_integral=force_integral,
+        kf=float(config.kf),
+        Md=Md,
+        Bd=Bd,
+        xdot_p_prev_base=xdot_p_prev,
+        reaction_normal=control_reaction_normal_base,
+    )
     xdot_force_candidate = xdot_p_prev + xddot_p * T_s
     motion_component = Phi_O @ (xdot_pd + float(config.kp) * e_p)
     force_component = Phi_bar_O @ xdot_force_candidate
@@ -272,6 +281,7 @@ def compute_step5d_outer_loop(
     Q_d = rotation_matrix_to_quaternion(R_d)
     Q_cur = rotation_matrix_to_quaternion(R_cur)
     e_qua, e_o = quaternion_orientation_error(Q_d, Q_cur)
+    outer_orientation_angle_rad = orientation_axis_angle_error(R_cur, approach_normal_base)
     xdot_o = float(config.ko) * e_o
     xdot_c = np.concatenate((xdot_p, xdot_o))
     next_state = Step5dOuterLoopState(
@@ -281,21 +291,27 @@ def compute_step5d_outer_loop(
     diagnostics = {
         "cmd_valid": True,
         "force_sign_convention": config.force_sign_convention,
-        "force_normal_valid": force_normal_valid,
+        "control_normal_valid": control_normal_valid,
         "force_norm_n": force_norm_n,
+        "control_normal_input_norm": control_normal_input_norm,
         "x_p": _tuple3(x_p),
         "x_pd": _tuple3(x_pd),
         "xdot_pd": _tuple3(xdot_pd),
         "e_p": _tuple3(e_p),
         "force_tcp": _tuple3(force_tcp),
         "force_base": _tuple3(force_base),
-        "u_force_base": _tuple3(u_force_base),
+        "control_reaction_normal_base": _tuple3(control_reaction_normal_base),
+        "approach_normal_base": _tuple3(approach_normal_base),
+        "orientation_target_axis_base": _tuple3(approach_normal_base),
+        "R_d_z_dot_R_cur_z": float(np.dot(R_d[:, 2], R_cur[:, 2])),
+        "outer_orientation_angle_rad": outer_orientation_angle_rad,
         "R_d": _matrix_tuple(R_d),
         "Phi_E": _matrix_tuple(Phi_E),
         "Phi_bar_E": _matrix_tuple(Phi_bar_E),
         "Phi_O": _matrix_tuple(Phi_O),
         "Phi_bar_O": _matrix_tuple(Phi_bar_O),
-        "force_along_normal_n": force_along_normal_n,
+        "normal_load_n": normal_load_n,
+        "force_load_n": normal_load_n,
         "e_f": e_f,
         "force_integral_n_s": float(force_integral),
         "xddot_p": _tuple3(xddot_p),
