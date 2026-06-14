@@ -32,8 +32,11 @@ DEFAULT_REPLAY_CSVS = [
     EXPERIMENT_ROOT / "runs" / "bridge_step5d_strict_rnn_liveprep_v4_20260614_234951" / "bridge_rtde_500hz.csv",
     EXPERIMENT_ROOT / "runs" / "bridge_step5d_strict_rnn_liveprep_v2_20260614_231720" / "bridge_rtde_500hz.csv",
 ]
+DEFAULT_FAILURE_CONTRAST_CSVS = {DEFAULT_REPLAY_CSVS[0].resolve()}
 DEFAULT_TOLERANCE_RAD = math.radians(5.0)
 DEFAULT_MAX_OUTER_XDOT_NORM = 1.0
+DEFAULT_BAD_LOGGED_ORIENTATION_RAD = 0.9
+DEFAULT_FIXED_OUTER_ORIENTATION_RAD = 0.1
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -98,6 +101,9 @@ def replay_csv(
     *,
     tolerance_rad: float = DEFAULT_TOLERANCE_RAD,
     max_outer_xdot_norm: float = DEFAULT_MAX_OUTER_XDOT_NORM,
+    require_failure_contrast: bool = False,
+    bad_logged_orientation_rad: float = DEFAULT_BAD_LOGGED_ORIENTATION_RAD,
+    fixed_outer_orientation_rad: float = DEFAULT_FIXED_OUTER_ORIENTATION_RAD,
     max_rows: int | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     state = Step5dOuterLoopState()
@@ -134,11 +140,21 @@ def replay_csv(
         )
         state = output.next_state
         outer_orientation_error = float(output.diagnostics["outer_orientation_angle_rad"])
+        logged_orientation_error = (
+            float(row["step4e_orientation_error_rad"])
+            if row.get("step4e_orientation_error_rad")
+            else float("nan")
+        )
         xdot_norm = float(np.linalg.norm(np.asarray(output.xdot_c, dtype=float)))
         consistent = semantic_boundary_is_consistent(
             contact_orientation_error_rad=contact_orientation_error,
             outer_orientation_error_rad=outer_orientation_error,
             tolerance_rad=tolerance_rad,
+        )
+        logged_bad_fixed_good = (
+            math.isfinite(logged_orientation_error)
+            and logged_orientation_error >= bad_logged_orientation_rad
+            and outer_orientation_error <= fixed_outer_orientation_rad
         )
         record = {
             "row_index": idx,
@@ -146,7 +162,8 @@ def replay_csv(
             "contact_orientation_error_rad": contact_orientation_error,
             "outer_orientation_error_rad": outer_orientation_error,
             "orientation_error_abs_diff_rad": abs(contact_orientation_error - outer_orientation_error),
-            "logged_step4e_orientation_error_rad": row.get("step4e_orientation_error_rad", ""),
+            "logged_step4e_orientation_error_rad": logged_orientation_error if math.isfinite(logged_orientation_error) else "",
+            "logged_bad_fixed_good": logged_bad_fixed_good,
             "R_d_z_dot_R_cur_z": float(output.diagnostics["R_d_z_dot_R_cur_z"]),
             "normal_load_n": float(output.diagnostics["normal_load_n"]),
             "force_error_n": float(output.diagnostics["e_f"]),
@@ -159,16 +176,33 @@ def replay_csv(
     max_diff = max(float(record["orientation_error_abs_diff_rad"]) for record in records)
     min_dot = min(float(record["R_d_z_dot_R_cur_z"]) for record in records)
     max_xdot = max(float(record["outer_xdot_norm"]) for record in records)
+    logged_values = [
+        float(record["logged_step4e_orientation_error_rad"])
+        for record in records
+        if record["logged_step4e_orientation_error_rad"] != ""
+    ]
+    max_logged_orientation = max(logged_values) if logged_values else None
+    logged_bad_fixed_good_rows = sum(bool(record["logged_bad_fixed_good"]) for record in records)
+    failure_contrast_pass = (not require_failure_contrast) or logged_bad_fixed_good_rows > 0
     summary = {
         "csv": str(csv_path),
         "rows": len(records),
         "max_orientation_error_abs_diff_rad": max_diff,
         "min_R_d_z_dot_R_cur_z": min_dot,
         "max_outer_xdot_norm": max_xdot,
+        "failure_contrast_required": require_failure_contrast,
+        "failure_contrast_pass": failure_contrast_pass,
+        "failure_contrast_thresholds": {
+            "bad_logged_orientation_rad": bad_logged_orientation_rad,
+            "fixed_outer_orientation_rad": fixed_outer_orientation_rad,
+        },
+        "max_logged_step4e_orientation_error_rad": max_logged_orientation,
+        "logged_bad_fixed_good_rows": logged_bad_fixed_good_rows,
         "pass": (
             all(bool(record["orientation_consistent"]) for record in records)
             and all(bool(record["xdot_norm_ok"]) for record in records)
             and min_dot > 0.0
+            and failure_contrast_pass
         ),
     }
     return summary, records
@@ -181,6 +215,7 @@ def run_gate(
     max_rows: int | None = None,
     tolerance_rad: float = DEFAULT_TOLERANCE_RAD,
     max_outer_xdot_norm: float = DEFAULT_MAX_OUTER_XDOT_NORM,
+    require_failure_contrast: bool = False,
 ) -> dict[str, Any]:
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_dir = output_dir or EXPERIMENT_ROOT / "runs" / f"ur_contact_semantic_gate_{stamp}"
@@ -189,10 +224,12 @@ def run_gate(
     static_scan = static_scan_step5d_outer_loop()
     replay_summaries = []
     for csv_path in csv_paths:
+        failure_contrast = require_failure_contrast or csv_path.resolve() in DEFAULT_FAILURE_CONTRAST_CSVS
         summary, records = replay_csv(
             csv_path,
             tolerance_rad=tolerance_rad,
             max_outer_xdot_norm=max_outer_xdot_norm,
+            require_failure_contrast=failure_contrast,
             max_rows=max_rows,
         )
         replay_summaries.append(summary)
@@ -229,6 +266,11 @@ def main() -> int:
     parser.add_argument("--max-rows", type=int, default=None)
     parser.add_argument("--tolerance-deg", type=float, default=5.0)
     parser.add_argument("--max-outer-xdot-norm", type=float, default=DEFAULT_MAX_OUTER_XDOT_NORM)
+    parser.add_argument(
+        "--require-failure-contrast",
+        action="store_true",
+        help="Require each replay CSV to contain rows where the old logged orientation was bad and the fixed outer-loop orientation is good.",
+    )
     args = parser.parse_args()
     csv_paths = args.csv_paths or DEFAULT_REPLAY_CSVS
     payload = run_gate(
@@ -237,6 +279,7 @@ def main() -> int:
         max_rows=args.max_rows,
         tolerance_rad=math.radians(float(args.tolerance_deg)),
         max_outer_xdot_norm=float(args.max_outer_xdot_norm),
+        require_failure_contrast=bool(args.require_failure_contrast),
     )
     print(json.dumps(payload, indent=2, sort_keys=True))
     return 0 if payload["overall_pass"] else 1

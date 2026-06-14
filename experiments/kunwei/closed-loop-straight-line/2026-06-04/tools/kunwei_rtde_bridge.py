@@ -953,6 +953,8 @@ def compute_step4e_values(
         or step4g_profile
         or step5b_profile
         or step5c_contact_profile
+        # Step5d must stay in this group so contact-search orientation uses
+        # the approach axis (-n_control_b), matching the Step5d outer loop.
         or step5d_liveprep_profile
         or step6b_profile
     )
@@ -1110,6 +1112,8 @@ def compute_step4e_values(
     normal_load_n = max(0.0, dot3(force_b, n_control_b)) if state.normal_acquired else 0.0
     tcp_z_axis_b = (rotation[0][2], rotation[1][2], rotation[2][2])
     orientation_target_axis_b = (
+        # For contact routes in angular_speedl_profile, n_control_b is the
+        # reaction normal. TCP z must target the approach axis -n_control_b.
         (-n_control_b[0], -n_control_b[1], -n_control_b[2])
         if (v21_profile or v22_profile or angular_speedl_profile)
         else n_control_b

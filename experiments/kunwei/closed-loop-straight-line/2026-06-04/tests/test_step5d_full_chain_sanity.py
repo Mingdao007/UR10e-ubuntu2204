@@ -61,7 +61,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             )
 
     def test_step5d_liveprep_package_is_non_quarantine_speedj_executor(self) -> None:
-        stamp = "2026-06-14T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V4"
+        stamp = "2026-06-15T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V5"
         geom = liveprep.line_cfg(liveprep.load_json(liveprep.CONFIG_PATH))
         frame = liveprep.load_safe_frame()
         script = liveprep.build_script(stamp, "2026-06-14T12:00:00+08:00", geom, frame)
@@ -113,6 +113,16 @@ class Step5dFullChainSanityTest(unittest.TestCase):
                     "step5d_strict_rnn_reproduction_v1",
                 ]
             )
+
+    def test_step5d_contact_search_orientation_uses_approach_axis_branch(self) -> None:
+        source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(encoding="utf-8")
+        self.assertIn("Step5d must stay in this group", source)
+        self.assertIn("or step5d_liveprep_profile\n        or step6b_profile", source)
+        self.assertIn("TCP z must target the approach axis -n_control_b", source)
+        self.assertIn(
+            "if (v21_profile or v22_profile or angular_speedl_profile)\n        else n_control_b",
+            source,
+        )
 
     def test_step5d_operator_points_to_v5_controller_package(self) -> None:
         operator = (ROOT / "scripts" / "step5d-liveprep-operator.sh").read_text(encoding="utf-8")

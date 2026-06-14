@@ -311,6 +311,10 @@ runtime semantic gate before RNN/qdot output:
 - semantic 25.0 gate: contact-search orientation error and Step5d outer-loop
   orientation angle must agree within `5 deg`, otherwise bridge sets
   `cmd_valid=0` and hard-fails before the strict RNN can emit qdot;
+- semantic gate scope: this is a replay/regression gate, not a closed-loop
+  stability proof. The v4 failure-contrast check must show at least one Stage
+  25.0 row where the old logged orientation error is `>=0.9 rad` while the
+  fixed outer-loop orientation is `<=0.1 rad`;
 - qdot cap: `0.30 rad/s`, `speedj` acceleration `0.300 rad/s^2`;
 - Stage 25.3 contact-window gate: `2 N <= normal_load <= 15 N` and
   `force_norm <= 25 N` for `0.050 s` before entering Stage 25.0;
@@ -384,10 +388,12 @@ Current v5 delivery status:
   `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v5.{script,txt,urp}`;
 - source stamp: `2026-06-15T0150HKT_STEP5D_STRICT_RNN_LIVEPREP_V5`;
 - semantic gate artifact:
-  `runs/ur_contact_semantic_gate_20260615_015018/ur_contact_semantic_gate_summary.json`
-  passed for v2/v4 Stage 25.0 replay;
-- controller upload/read-back: blocked on 2026-06-15 because
-  `192.168.1.18:22` returned `No route to host`;
+  `runs/ur_contact_semantic_gate_20260615_023201/ur_contact_semantic_gate_summary.json`
+  passed for v2/v4 Stage 25.0 replay and includes the v4 failure-contrast
+  fields (`logged_bad_fixed_good_rows=2`);
+- controller upload/read-back: blocked on 2026-06-15. The Ubuntu route is
+  configured on `enp3s0` (`192.168.1.10/24 -> 192.168.1.18`), but ARP remains
+  `INCOMPLETE` and SSH to `192.168.1.18:22` reports `No route to host`;
 - bridge/TP Play remain blocked until controller read-back verifies the exact
   v5 triplet and a separate live plan is accepted.
 

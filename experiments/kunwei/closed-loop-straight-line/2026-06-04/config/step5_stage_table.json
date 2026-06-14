@@ -711,16 +711,16 @@
       "blocked": true,
       "complete": false,
       "completion_target": false,
-      "block_reason": "Current semantic-fix live-prep target. The UR force/frame semantic gate and local v5 TP package validation pass, but controller upload/read-back is blocked by no route to 192.168.1.18:22. Bridge/TP Play remain blocked until controller read-back is verified and a separate live plan is accepted.",
+      "block_reason": "Current semantic-fix live-prep target. The UR force/frame semantic gate and local v5 TP package validation pass, but controller upload/read-back is blocked: route to 192.168.1.18 is configured on enp3s0, ARP remains INCOMPLETE, and SSH reports No route to host. Bridge/TP Play remain blocked until controller read-back is verified and a separate live plan is accepted.",
       "local_delivery_evidence": {
         "local_program_dir": "programs/step5",
         "program_basename": "step5d_strict_rnn_liveprep_v5",
         "stamp": "2026-06-15T0150HKT_STEP5D_STRICT_RNN_LIVEPREP_V5",
-        "semantic_gate": "runs/ur_contact_semantic_gate_20260615_015018/ur_contact_semantic_gate_summary.json",
+        "semantic_gate": "runs/ur_contact_semantic_gate_20260615_023201/ur_contact_semantic_gate_summary.json",
         "semantic_gate_pass": true,
         "local_package_validated": true,
         "controller_readback_verified": false,
-        "upload_blocked_reason": "No route to host 192.168.1.18:22"
+        "upload_blocked_reason": "Route configured via enp3s0, but ARP to 192.168.1.18 is INCOMPLETE and SSH reports No route to host on port 22"
       },
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
@@ -784,6 +784,8 @@
         "force_error_n": "target_load_n - normal_load_n",
         "orientation_target_axis": "approach_normal",
         "forbidden": "Do not normalize raw live force to construct R_d.z or orientation_target_axis",
+        "gate_scope": "offline replay and runtime regression guard; not an independent closed-loop stability proof",
+        "failure_contrast": "v4 replay must show old logged orientation error >=0.9 rad while fixed outer-loop orientation <=0.1 rad for at least one Stage 25.0 row",
         "required_replay_inputs": [
           "runs/bridge_step5d_strict_rnn_liveprep_v4_20260614_234951/bridge_rtde_500hz.csv",
           "runs/bridge_step5d_strict_rnn_liveprep_v2_20260614_231720/bridge_rtde_500hz.csv"
@@ -792,6 +794,7 @@
       },
       "liveprep_gates": [
         "UR force/frame semantic gate passes v2/v4 Stage 25.0 replay",
+        "v4 failure-contrast gate proves the old logged orientation was bad while the fixed outer-loop orientation is good",
         "fresh Step5d structural numeric sanity artifact passes with qdot cap 0.30 rad/s",
         "non-quarantine Step5d v5 TP package validates locally and contains speedj qdot executor for Stage 25.0",
         "25.3 contact window entry gate requires normal_load between 2N and 15N plus force_norm <=25N for 0.050s before Stage 25.0",
