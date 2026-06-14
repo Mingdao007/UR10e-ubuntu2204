@@ -70,6 +70,24 @@ class Step5dStrictRnnSolverTest(unittest.TestCase):
         np.testing.assert_allclose(diag.proj_input, expected)
         self.assertFalse(np.allclose(diag.proj_input, old_bad_form))
 
+    def test_finite_time_update_does_not_overshoot_projection_bound(self) -> None:
+        solver = self.make_solver()
+        solver.lambda_state = np.array([10.0, -10.0, 10.0, -10.0, 10.0, -10.0])
+        lower = np.full(6, -0.30)
+        upper = np.full(6, 0.30)
+        diag = solver.step(
+            J=np.eye(6),
+            xdot_c=np.zeros(6),
+            omega_minus=lower,
+            omega_plus=upper,
+            dt=0.020,
+            epsilon=0.022,
+            r=0.2,
+        )
+        self.assertLessEqual(max(abs(value) for value in diag.theta_dot_state), 0.30)
+        np.testing.assert_allclose(diag.theta_dot_state, diag.projected)
+        self.assertTrue(any(diag.theta_dot_update_limited_mask))
+
     def test_lambda_state_persists_across_ticks(self) -> None:
         solver = self.make_solver()
         jacobian = np.eye(6)

@@ -43,8 +43,8 @@ k_p = 4, k_o = 5, k_f = 1
 M_d = Diag(12, …, 12)
 B_d = Diag(550, …, 550)
 θ_i^± = ±3.0 rad
-θ̇_i^± = ±0.15 rad/s   ← 与 step5d table qdot_cap=0.15 一致
-f_d = −5 N
+θ̇_i^± = ±0.15 rad/s   ← 论文 Franka 参数；UR10e Step5d 当前实现 cap = ±0.30 rad/s
+f_d = −5 N（论文符号）；UR10e Step5d 沿用 Step5/Step6 正 normal-load 约定 `target_force_n=5.0`
 ```
 
 ---
@@ -193,7 +193,7 @@ Eq.(18-19)(20c)：
 omega_minus = np.maximum(alpha * (q_min - q), qdot_min)   # Eq.(19)
 omega_plus  = np.minimum(qdot_max, alpha * (q_max - q))   # Eq.(18)
 
-# qdot_max = qdot_min = ±0.15 rad/s（论文参数，与 step5d table 一致）
+# qdot_max = qdot_min = ±0.30 rad/s（UR10e Step5d 当前实现上限；论文 Franka 参数为 ±0.15 rad/s）
 # q_min/q_max = UR10e 关节限位（需从 URDF 读取）
 # alpha = ??? 见 Open Questions
 ```
@@ -233,25 +233,27 @@ def sigr(x: np.ndarray, r: float) -> np.ndarray:
 
 ## 七、Open Questions（不能脑补，必须从 PDF 或实验坐标核实）
 
-### OQ-1：Force sign convention（最高优先级，阻断接触段）
+### 已关闭：Force sign convention
 
 - Kunwei 传感器在 TCP 坐标输出，零漂后旋转至 base frame 得到 `F_b`
-- 当 TCP 向下压表面时，`F_b[z]` 是正还是负？
-- `u = F_b/‖F_b‖` 的方向（指向表面内法向 vs. 外法向）需与论文 R_d 期望方向一致
-- **必须在有实际接触状态下测量，核实后才能开启接触段**
+- UR10e Step5d 沿用此前 Step5/Step6 的 bench convention：
+  `target_force_n=5.0`, `normal_axis=fz`, `normal_sign=1.0`,
+  `step4e_normal_command_sign=1.0`
+- 这关闭的是本机实现符号约定，不把 synthetic structural sanity 重标为
+  live contact evidence
 
-### OQ-2：α 逃逸速度增益（Eq.18-19）
+### OQ-1：α 逃逸速度增益（Eq.18-19）
 
 - 论文说 "α > 0 is a constant"，但仿真和实验节均未列出具体数值
 - 需从论文 Section V 仿真参数或 Appendix 查找
 - 不能估填，alpha 直接影响边界约束的安全性
 
-### OQ-3：r 参数（sigr 指数）
+### OQ-2：r 参数（sigr 指数）
 
 - 论文 Fig.5 显示 r=0.2 收敛最快但初期有振荡，r=0.8 稳定但慢
 - Section VI 实验参数表是否有明确 r 值？需核实
 
-### OQ-4：Eq.(17) 中的通信延迟 T
+### OQ-3：Eq.(17) 中的通信延迟 T
 
 - 离散化时 T 是否等于 RTDE dt（=0.002s at 500Hz）？
 - 论文提到 "system communication of robot controller"，需确认含义
@@ -270,6 +272,7 @@ def sigr(x: np.ndarray, r: float) -> np.ndarray:
     "proj_input":          np.ndarray(6),   # J^T λ，clip 前
     "sigr_arg":            np.ndarray(6),   # sig^r 的输入
     "sigr_val":            np.ndarray(6),   # sig^r 的输出
+    "theta_dot_update_limited_mask": np.ndarray(6),  # 离散 finite-time no-crossing guard
     "projected":           np.ndarray(6),   # P_Omega clip 后结果
     "omega_minus":         np.ndarray(6),   # 实时下界
     "omega_plus":          np.ndarray(6),   # 实时上界
@@ -287,19 +290,23 @@ def sigr(x: np.ndarray, r: float) -> np.ndarray:
 
 ## 九、Discrete Integration 规则
 
-论文给连续时间 ODE（Eq.23），paper-faithful 离散化用 **Explicit Euler**：
+论文给连续时间 ODE（Eq.23）。当前实现用 **Explicit Euler + finite-time no-crossing guard**：
 
 ```python
 # ε = 0.022（论文），dt = 0.002s（500Hz），dt/ε ≈ 0.091
-# 每步系数约 9%；稳定性必须用离线数值 sanity 单独证明
+# 每步系数约 9%；r<1 时 raw Euler 会在接近投影点时 overshoot
 
-theta_dot_state += -(dt / epsilon) * sigr_val      # Eq.(23a)
+theta_delta = -(dt / epsilon) * sigr_val           # Eq.(23a)
+if abs(theta_delta[i]) > abs(theta_dot_state[i] - projected[i]):
+    theta_dot_state[i] = projected[i]              # 连续 finite-time 到达后停住，不越过 P_Ω
+else:
+    theta_dot_state[i] += theta_delta
 lambda_state    += (dt / epsilon) * constraint_res  # Eq.(23b)，constraint_res = J@θ̇_c − ẋ_c
 ```
 
-当前实现按 printed Eq.(23) 使用显式 Euler；非零命令/非零初值的收敛不能由
-单元测试脑补，必须作为后续 numeric sanity gate 单独关闭。若切换
-semi-implicit 或其他积分器，必须标注为 deviation。
+这个 guard 不引入 IK/DLS/求逆；它只防止离散 tick 越过 `P_Ω(J.T@lambda)`，
+让输出命令保持在 Eq.(18-19) 的 Ω 内。非零命令/非零初值的收敛不能由
+单元测试脑补，必须作为后续 numeric sanity gate 单独关闭。
 
 ---
 
@@ -339,7 +346,7 @@ B. Kinematics backend:
 C. Force normal（论文优先）:
    F_t  = kunwei zeroed force in TCP frame
    F_b  = R_tcp2base @ F_t
-   u    = F_b / ||F_b||              Eq.(9)，sign 待实测核实（OQ-1）
+   u    = F_b / ||F_b||              Eq.(9)，sign 用 Step5/Step6 positive normal-load convention
    R_d  = I + sin(u)S + (1−cos(u))S²  Eq.(10)
 
 D. Outer loop xdot_p（Eq.16/17）:
@@ -363,16 +370,17 @@ F. RNN input:
    xdot_c = [xdot_p (3D); xdot_o (3D)]   6D
 
 G. Bounds（Eq.18-19）:
-   omega_minus[i] = max(alpha*(q_min[i]−q[i]), −0.15)
-   omega_plus[i]  = min(0.15, alpha*(q_max[i]−q[i]))
-   [alpha 待 PDF 核实（OQ-2）]
+   omega_minus[i] = max(alpha*(q_min[i]−q[i]), −0.30)
+   omega_plus[i]  = min(0.30, alpha*(q_max[i]−q[i]))
+   [0.30 rad/s 为 UR10e Step5d 当前实现上限；alpha 待 PDF 核实（OQ-1）]
 
 H. RNN inner loop（Eq.23，stateful，ε=0.022）:
    # 每 tick（dt=0.002s）：
    proj_input = J.T @ λ_state
    proj    = clip(proj_input, ω⁻, ω⁺)
    sigr_v  = |θ̇_state − proj|^r * sign(θ̇_state − proj)
-   θ̇_state += −(dt/ε) * sigr_v            # Eq.(23a)
+   Δθ̇      = −(dt/ε) * sigr_v             # Eq.(23a)
+   θ̇_state = proj if |Δθ̇| would cross proj else θ̇_state + Δθ̇
    λ_state  += (dt/ε) * (J@θ̇_state − xdot_c)  # Eq.(23b)
    # cmd_valid=0 时两个状态均冻结
    # [禁止] proj_input = θ̇_state − J.T @ λ_state
@@ -394,14 +402,14 @@ I. Output（registers 37..47）:
 
 | Gate | 状态 | 阻断原因 |
 |---|---|---|
-| paper_truth JSON 无 pending_pdf_verify | ✗ | OQ-1/2/3/4 未核实 |
+| paper_truth JSON 无 pending_pdf_verify | ✗ | alpha/r/T/Eq23 stability 仍未核实 |
 | StrictTaseRnnSolver 有状态实现 | ✓ | offline Eq.(23) body 已实现；live entrypoint 仍 blocked |
 | 四元数定向误差路径 | ✓ | offline `step5d_paper_outer_loop.py` 实现 Eq.(13)/(14)；bridge live 未接入 |
-| 完整 Phi_O 外环 | ✓ | offline `step5d_paper_outer_loop.py` 实现 Eq.(7)/(8)/(16)/(17)；force sign/T 仍需关闭 |
+| 完整 Phi_O 外环 | ✓ | offline `step5d_paper_outer_loop.py` 实现 Eq.(7)/(8)/(16)/(17)；force sign 已按 Step5/Step6 约定关闭，T 仍需关闭 |
 | calibrated Pinocchio Jacobian audit pass | ✓ | `runs/step5c_calibrated_kinematics_audit_20260613_003314` 已通过 |
 | qdot register path proof 37..47 | ✓ | 已有 offline 测试 |
-| structural full-chain sanity | ✓ | `runs/step5d_numeric_sanity_20260614_214203`；非 contact evidence |
-| production/live numeric sanity | ✗ | force sign、nominal qdot bound、contact route 尚未关闭 |
+| structural full-chain sanity | ✓ | `runs/step5d_numeric_sanity_20260614_215555`；非 contact evidence，qdot cap `0.30 rad/s` |
+| production/live numeric sanity | ✗ | alpha/r/T、contact route、controller/live gates 尚未关闭 |
 | T1-T10 测试全通过 | ✗ | strict RNN core、outer-loop、structural chain 已有；live/contact gates 尚未完成 |
 | 新 non-quarantine Step5d TP package | ✗ | 依赖上面所有 gate |
 | controller read-back SHA 验证 | ✗ | 依赖 package |

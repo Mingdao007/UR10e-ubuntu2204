@@ -25,9 +25,12 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertEqual(summary["assumptions"]["contact_evidence"], "not_claimed")
         self.assertEqual(summary["assumptions"]["position_error_mode"], "zeroed_for_structural_sanity")
         self.assertEqual(summary["assumptions"]["force_input"], "synthetic_no_contact_unit_normal")
+        self.assertEqual(summary["assumptions"]["force_target_n"], 5.0)
+        self.assertEqual(summary["assumptions"]["force_sign_convention"], "step5_step6_positive_normal_load")
+        self.assertEqual(summary["assumptions"]["qdot_limit_rad_s"], 0.30)
         self.assertTrue(summary["gates"]["register_order_pass"])
-        self.assertTrue(summary["gates"]["qdot_no_explosion_pass"])
-        self.assertIn("qdot_within_nominal_limit", summary["metrics"])
+        self.assertTrue(summary["gates"]["qdot_within_nominal_limit_pass"])
+        self.assertTrue(summary["metrics"]["qdot_within_nominal_limit"])
         self.assertIn("constraint_residual_norm_rms", summary["metrics"])
 
     def test_bridge_knows_step5d_but_hard_blocks_live_start(self) -> None:

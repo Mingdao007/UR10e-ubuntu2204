@@ -30,7 +30,7 @@ class PaperTruthPendingError(RuntimeError):
 @dataclass(frozen=True)
 class StrictRnnConfig:
     paper_truth_path: Path = PAPER_TRUTH_PATH
-    qdot_limit_rad_s: float = 0.20
+    qdot_limit_rad_s: float = 0.30
     epsilon: float = 0.022
     sigr_exponent_r: float = 0.2
 
@@ -52,6 +52,7 @@ class StrictRnnStepDiagnostics:
     projected: tuple[float, float, float, float, float, float]
     sigr_arg: tuple[float, float, float, float, float, float]
     sigr_val: tuple[float, float, float, float, float, float]
+    theta_dot_update_limited_mask: tuple[bool, bool, bool, bool, bool, bool]
     omega_minus: tuple[float, float, float, float, float, float]
     omega_plus: tuple[float, float, float, float, float, float]
     active_bounds_mask: tuple[bool, bool, bool, bool, bool, bool]
@@ -183,7 +184,13 @@ class StrictTaseRnnSolver:
             projected = np.clip(proj_input, lower, upper)
             sigr_arg = self.theta_dot_state - projected
             sigr_val = np.asarray(sigr(sigr_arg, exponent), dtype=float)
-            self.theta_dot_state = self.theta_dot_state - (step_s / eps) * sigr_val
+            theta_delta = -(step_s / eps) * sigr_val
+            crosses_projection = np.abs(theta_delta) > np.abs(sigr_arg)
+            self.theta_dot_state = np.where(
+                crosses_projection,
+                projected,
+                self.theta_dot_state + theta_delta,
+            )
             constraint_residual = jacobian @ self.theta_dot_state - xdot
             self.lambda_state = self.lambda_state + (step_s / eps) * constraint_residual
         else:
@@ -191,6 +198,7 @@ class StrictTaseRnnSolver:
             projected = np.clip(proj_input, lower, upper)
             sigr_arg = self.theta_dot_state - projected
             sigr_val = np.zeros(6, dtype=float)
+            crosses_projection = np.zeros(6, dtype=bool)
             constraint_residual = jacobian @ self.theta_dot_state - xdot
 
         active_bounds = np.isclose(projected, lower) | np.isclose(projected, upper)
@@ -202,6 +210,7 @@ class StrictTaseRnnSolver:
             projected=_tuple6(projected),
             sigr_arg=_tuple6(sigr_arg),
             sigr_val=_tuple6(sigr_val),
+            theta_dot_update_limited_mask=tuple(bool(value) for value in crosses_projection.reshape(6)),  # type: ignore[return-value]
             omega_minus=_tuple6(lower),
             omega_plus=_tuple6(upper),
             active_bounds_mask=tuple(bool(value) for value in active_bounds.reshape(6)),  # type: ignore[return-value]

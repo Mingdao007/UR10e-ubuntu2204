@@ -228,7 +228,9 @@ Step5d is complete only if all of the following are true:
 7. The qdot register path proof passes for registers `37..47`.
 8. A fresh Step5d structural numeric sanity artifact passes for the offline
    chain `outer loop -> calibrated J(q) -> RNN -> registers 37..47`.
-   Contact/live numeric sanity remains separate until force sign is closed.
+   The Step5d implementation qdot cap is `0.30 rad/s`. Force sign convention
+   follows the retained Step5/Step6 positive normal-load route, but contact/live
+   numeric sanity remains separate.
 9. A new non-quarantine Step5d TP package validates locally and is generated
    only after the solver gates pass.
 10. Controller upload and read-back SHA/`cachedContents` verification pass.
@@ -243,10 +245,11 @@ Current structural sanity scope: `tools/step5d_full_chain_sanity.py` uses the
 recorded Step5c dry-run `actual_q/pose`, calibrated Pinocchio `J(q)`, the
 paper outer loop, and the strict RNN to prove finite qdot and register ordering.
 It uses a synthetic no-contact unit normal and zeroed position error, so it is
-not contact evidence and does not close the live force-sign gate.
+not contact evidence. Its force sign convention is the retained Step5/Step6
+positive normal-load convention (`target_force_n=5.0`, `normal_sign=1.0`).
 
 Latest structural artifact:
-`runs/step5d_numeric_sanity_20260614_214203/step5d_numeric_sanity.json`.
+`runs/step5d_numeric_sanity_20260614_215555/step5d_numeric_sanity.json`.
 
 ## Handoff Gate
 

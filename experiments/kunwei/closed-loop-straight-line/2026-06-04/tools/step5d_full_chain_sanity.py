@@ -40,9 +40,10 @@ from step5d_paper_outer_loop import (
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_BRIDGE_CSV = kin.DEFAULT_BRIDGE_CSV
 DEFAULT_ALPHA_S_INV = 1.0
-DEFAULT_QDOT_LIMIT_RAD_S = 0.15
+DEFAULT_QDOT_LIMIT_RAD_S = 0.30
 DEFAULT_SAMPLE_LIMIT = 400
 SYNTHETIC_FORCE_TCP_N = (0.0, 0.0, 1.0)
+STEP5_STEP6_FORCE_SIGN_CONVENTION = "step5_step6_positive_normal_load"
 
 
 @dataclass(frozen=True)
@@ -185,9 +186,9 @@ def run_sanity(
             kf=1.0,
             Md_scalar=12.0,
             Bd_scalar=550.0,
-            force_target_n=1.0,
+            force_target_n=5.0,
             delay_T_s=dt_s,
-            force_sign_convention="synthetic_no_contact_unit_normal",
+            force_sign_convention=STEP5_STEP6_FORCE_SIGN_CONVENTION,
         )
         outer_state = Step5dOuterLoopState()
         records: list[dict[str, float]] = []
@@ -298,7 +299,7 @@ def run_sanity(
                 register_order_pass = False
     gates = {
         "finite_outputs_pass": bool(np.all(np.isfinite(residual_norms)) and np.all(np.isfinite(qdot_max))),
-        "qdot_no_explosion_pass": bool(float(np.max(qdot_max)) <= max(1.0, 2.0 * qdot_limit_rad_s)),
+        "qdot_within_nominal_limit_pass": bool(float(np.max(qdot_max)) <= qdot_limit_rad_s + 1e-9),
         "register_order_pass": register_order_pass,
         "nonzero_outer_xdot_seen": bool(float(np.max(xdot_norms)) > 0.0),
     }
@@ -324,7 +325,9 @@ def run_sanity(
             "sigr_exponent_r": r,
             "T_s": dt_s,
             "force_input": "synthetic_no_contact_unit_normal",
-            "force_target_n": 1.0,
+            "force_target_n": 5.0,
+            "force_sign_convention": STEP5_STEP6_FORCE_SIGN_CONVENTION,
+            "force_sign_evidence": "retained Step5/Step6 bridge convention: target_force_n=5.0, normal_axis=fz, normal_sign=1.0, step4e_normal_command_sign=1.0",
             "contact_evidence": "not_claimed",
             "position_error_mode": "recorded" if use_recorded_position_error else "zeroed_for_structural_sanity",
         },

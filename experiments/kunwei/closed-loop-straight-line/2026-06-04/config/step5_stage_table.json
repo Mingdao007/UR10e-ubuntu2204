@@ -381,7 +381,7 @@
       "guard": {
         "heartbeat_required": true,
         "cmd_valid_required": true,
-        "qdot_cap_rad_s": 0.15,
+        "qdot_cap_rad_s": 0.3,
         "path_cap_m_s": 0.004,
         "total_linear_cap_m_s": 0.006,
         "normal_velocity_cap_m_s": 0.003,

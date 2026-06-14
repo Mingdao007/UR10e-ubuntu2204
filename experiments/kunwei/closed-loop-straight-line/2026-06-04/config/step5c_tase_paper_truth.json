@@ -64,8 +64,8 @@
     "kf": 1.0,
     "Md_scalar": 12.0,
     "Bd_scalar": 550.0,
-    "qdot_bound_rad_s": 0.15,
-    "force_target_n": -5.0,
+    "qdot_bound_rad_s": 0.3,
+    "force_target_n": 5.0,
     "r_default_for_offline_tests": 0.2
   },
   "implementation_contract": {
@@ -97,7 +97,6 @@
   },
   "open_questions": [
     "alpha_escape_velocity_gain",
-    "force_sign_convention",
     "production_sigr_exponent_r",
     "communication_delay_T_mapping",
     "Eq23 nonzero-command stability from zero initial lambda under printed-sign dynamics"
@@ -114,8 +113,16 @@
       "used_by": "step5d_paper_outer_loop offline sanity"
     },
     "force_sign_convention": {
-      "value": "unverified",
-      "status": "must be closed by prior evidence or separate live preflight before contact reproduction"
+      "value": "step5_step6_positive_normal_load",
+      "status": "resolved_from_retained_step5_step6_bench_convention",
+      "evidence": {
+        "step5b_metadata": "runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/metadata.json",
+        "step6b_metadata": "runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841/metadata.json",
+        "target_force_n": 5.0,
+        "normal_axis": "fz",
+        "normal_sign": 1.0,
+        "step4e_normal_command_sign": 1.0
+      }
     },
     "structural_sanity_force_input": {
       "value": "synthetic_no_contact_unit_normal",
@@ -131,7 +138,6 @@
     "constraint_qp_or_kkt_form",
     "paper_section_vi_experimental_parameters",
     "alpha_escape_velocity_gain",
-    "force_sign_convention",
     "production_sigr_exponent_r",
     "communication_delay_T_mapping",
     "Eq23_nonzero_command_stability"
@@ -147,7 +153,6 @@
     },
     "step5c_strict_contact": {
       "pending_pdf_verify": [
-        "normal force sign convention",
         "filtered-live normal compatibility",
         "force ladder parameters"
       ],

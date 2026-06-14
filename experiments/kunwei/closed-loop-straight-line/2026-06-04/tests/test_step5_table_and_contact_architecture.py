@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import math
 import sys
 import unittest
@@ -71,6 +72,7 @@ class Step5TableAndContactArchitectureTest(unittest.TestCase):
         self.assertEqual(contact["cadence"]["motion"], "quarantine_stop_only")
         self.assertEqual(dry["guard"]["qdot_cap_rad_s"], 0.2)
         self.assertEqual(contact["guard"]["qdot_cap_rad_s"], 0.15)
+        self.assertEqual(step5d["guard"]["qdot_cap_rad_s"], 0.30)
         self.assertFalse(step5d["active"])
         self.assertTrue(step5d["blocked"])
         self.assertFalse(step5d["complete"])
@@ -114,6 +116,18 @@ class Step5TableAndContactArchitectureTest(unittest.TestCase):
         )
         self.assertEqual(qdot_gate["diagnostic_registers"]["47"], "solver_status")
         self.assertTrue(any("hard-blocks" in condition for condition in qdot_gate["pass_conditions"]))
+
+    def test_step5d_truth_resolves_force_sign_but_keeps_live_blockers(self) -> None:
+        truth = json.loads((ROOT / "config" / "step5c_tase_paper_truth.json").read_text(encoding="utf-8"))
+        self.assertEqual(truth["parameters"]["qdot_bound_rad_s"], 0.30)
+        self.assertEqual(truth["parameters"]["force_target_n"], 5.0)
+        self.assertNotIn("force_sign_convention", truth["open_questions"])
+        self.assertNotIn("force_sign_convention", truth["pending_pdf_verify"])
+        self.assertEqual(
+            truth["implementation_assumptions"]["force_sign_convention"]["value"],
+            "step5_step6_positive_normal_load",
+        )
+        self.assertIn("alpha_escape_velocity_gain", truth["pending_pdf_verify"])
 
     def test_bridge_step5_contact_reference_is_table_driven(self) -> None:
         origin, u_along, p_lateral = step5_table.basis_xy(self.frame)

@@ -52,12 +52,12 @@ class Step5dOuterLoopConfig:
     kf: float = 1.0
     Md_scalar: float = 12.0
     Bd_scalar: float = 550.0
-    force_target_n: float = -5.0
+    force_target_n: float = 5.0
     force_integral_limit_n_s: float = 5.0
     min_force_norm_n: float = 1e-9
     force_normal_fallback_base: tuple[float, float, float] = (0.0, 0.0, 1.0)
     delay_T_s: float | None = None
-    force_sign_convention: str = "unverified"
+    force_sign_convention: str = "step5_step6_positive_normal_load"
 
 
 @dataclass(frozen=True)

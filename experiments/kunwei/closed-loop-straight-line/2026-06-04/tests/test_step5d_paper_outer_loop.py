@@ -86,7 +86,7 @@ class Step5dPaperOuterLoopTest(unittest.TestCase):
         np.testing.assert_allclose(output.xdot_o, [0.0, 0.0, 0.0], atol=1e-12)
         np.testing.assert_allclose(output.xdot_c, [0.41, -0.38, 0.0, 0.0, 0.0, 0.0], atol=1e-12)
         self.assertTrue(output.cmd_valid)
-        self.assertEqual(output.diagnostics["force_sign_convention"], "unverified")
+        self.assertEqual(output.diagnostics["force_sign_convention"], "step5_step6_positive_normal_load")
         for key in ["R_d", "Phi_O", "Phi_bar_O", "e_qua", "e_o", "xdot_c"]:
             self.assertIn(key, output.diagnostics)
 
