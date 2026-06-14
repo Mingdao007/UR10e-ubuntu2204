@@ -3,7 +3,8 @@ set -euo pipefail
 
 ROOT="/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04"
 BASE_OPERATOR="${ROOT}/scripts/step4e-line-v1-operator.sh"
-EXPECTED_PROGRAM="/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v1.urp"
+STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v2}"
+EXPECTED_PROGRAM="/programs/andyl/kunwei/step5/${STEP5D_VERSION}.urp"
 
 usage() {
   cat <<EOF
@@ -16,7 +17,7 @@ Teach Pendant target:
 
 Boundary:
   - Contact-capable live-prep package, not a completed reproduction claim.
-  - Bridge profile: step5d_strict_rnn_liveprep_v1.
+  - Bridge profile: ${STEP5D_VERSION}.
   - Force target: 5.0 N, Step5/Step6 positive normal-load convention.
   - Stage 25.0: registers 37..42 are qd0..qd5 rad/s; TP executes speedj.
   - qdot cap: 0.30 rad/s.
@@ -33,14 +34,14 @@ fi
 
 case "$1" in
   prep-long-checks)
-    STEP4E_VERSION=step5d_strict_rnn_liveprep_v1 "${BASE_OPERATOR}" prep-long-checks
+    STEP4E_VERSION="${STEP5D_VERSION}" "${BASE_OPERATOR}" prep-long-checks
     ;;
   contact-bridge)
     if [[ "${STEP5D_CONFIRM:-}" != "LIVE STEP5D STRICT RNN LIVEPREP" ]]; then
       echo "refusing live Step5d bridge start: set STEP5D_CONFIRM='LIVE STEP5D STRICT RNN LIVEPREP'"
       exit 40
     fi
-    STEP4E_VERSION=step5d_strict_rnn_liveprep_v1 \
+    STEP4E_VERSION="${STEP5D_VERSION}" \
     BRIDGE_DURATION_S="${BRIDGE_DURATION_S:-180}" \
     MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-50}" \
     MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-60}" \

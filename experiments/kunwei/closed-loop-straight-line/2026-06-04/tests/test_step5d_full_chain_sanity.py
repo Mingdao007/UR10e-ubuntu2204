@@ -59,7 +59,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             )
 
     def test_step5d_liveprep_package_is_non_quarantine_speedj_executor(self) -> None:
-        stamp = "2026-06-14T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V1"
+        stamp = "2026-06-14T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V2"
         geom = liveprep.line_cfg(liveprep.load_json(liveprep.CONFIG_PATH))
         frame = liveprep.load_safe_frame()
         script = liveprep.build_script(stamp, "2026-06-14T12:00:00+08:00", geom, frame)
@@ -71,6 +71,9 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn("joint_executor_and_guard_only", script)
         self.assertIn("speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]", script)
         self.assertIn("local qdot_cap_rad_s = 0.300", script)
+        self.assertIn("local skip_lift_attitude = 0", script)
+        self.assertIn("local orientation_skip_error_rad = 0.052360", script)
+        self.assertIn("if stop_reason == 0.0 and skip_lift_attitude == 0:", script)
         self.assertNotIn("speedl([cmd_vx, cmd_vy, cmd_vz", script)
         self.assertNotIn("stop_only_quarantine", script + txt)
 
@@ -81,13 +84,14 @@ class Step5dFullChainSanityTest(unittest.TestCase):
                 "--step4e-mode",
                 "line",
                 "--step4e-version",
-                "step5d_strict_rnn_liveprep_v1",
+                "step5d_strict_rnn_liveprep_v2",
                 "--step4e-path-shape",
                 "cycloid",
             ]
         )
-        self.assertEqual(args.step4e_version, "step5d_strict_rnn_liveprep_v1")
+        self.assertEqual(args.step4e_version, "step5d_strict_rnn_liveprep_v2")
         self.assertEqual(args.step5d_qdot_limit_rad_s, 0.30)
+        self.assertFalse(args.disable_dashboard_program_watch)
         with self.assertRaisesRegex(SystemExit, "Blocked Step5d reproduction"):
             bridge.main(
                 [
@@ -99,6 +103,15 @@ class Step5dFullChainSanityTest(unittest.TestCase):
                     "step5d_strict_rnn_reproduction_v1",
                 ]
             )
+
+    def test_step5d_operator_points_to_v2_controller_package(self) -> None:
+        operator = (ROOT / "scripts" / "step5d-liveprep-operator.sh").read_text(encoding="utf-8")
+        base = (ROOT / "scripts" / "step4e-line-v1-operator.sh").read_text(encoding="utf-8")
+        self.assertIn('STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v2}"', operator)
+        self.assertIn('/programs/andyl/kunwei/step5/${STEP5D_VERSION}.urp', operator)
+        self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/${STEP4E_VERSION}.urp"', base)
+        self.assertIn('EXPECTED_BASENAME="${STEP4E_VERSION}.urp"', base)
+        self.assertIn('RUN_LABEL="${STEP4E_VERSION}"', base)
 
     def test_full_chain_sanity_has_no_dls_or_live_side_effect_path(self) -> None:
         source = inspect.getsource(sanity).lower()

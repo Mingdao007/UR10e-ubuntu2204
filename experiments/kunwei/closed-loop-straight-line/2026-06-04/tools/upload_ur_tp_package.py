@@ -266,22 +266,28 @@ def validate_package(
                     and "zero_ftsensor" not in script.replace("no zero_ftsensor()", ""),
                 }
             )
-    if program == "step5d_strict_rnn_liveprep_v1":
+    if program in {"step5d_strict_rnn_liveprep_v1", "step5d_strict_rnn_liveprep_v2"}:
         checks.update(
             {
                 "step5d function": f"def codex_{program}()" in script
                 and "codex_step5d_down_search" in script,
-                "step5d bridge contract": "step4e-version=step5d_strict_rnn_liveprep_v1" in script
-                and "--step4e-version step5d_strict_rnn_liveprep_v1" in txt
+                "step5d bridge contract": f"step4e-version={program}" in script
+                and f"--step4e-version {program}" in txt
                 and "--step4e-path-shape cycloid" in txt,
                 "step5d force contract": "--target-force-n 5.0" in txt,
                 "step5 table source": "STEP5_FLOW.md" in script
                 and "STEP5_TABLE_SOURCE: config/step5_stage_table.json" in script
-                and "step5d_strict_rnn_liveprep_v1" in script + txt,
+                and program in script + txt,
                 "joint executor and guard only": "joint_executor_and_guard_only" in script
                 and "37..42 as qd0..qd5 rad/s" in txt,
                 "speedj line control": "speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]" in script
                 and "local qdot_cap_rad_s = 0.300" in script,
+                "orientation skip gate": (program.endswith("_v1"))
+                or (
+                    "local skip_lift_attitude = 0" in script
+                    and "local orientation_skip_error_rad = 0.052360" in script
+                    and "skip_lift_attitude == 0" in script
+                ),
                 "line no cartesian speedl": "speedl([cmd_vx, cmd_vy, cmd_vz" not in script,
                 "v31 contact scaffold": "first-contact normal latch" in script
                 and "25.2 attitude correction" in script
@@ -294,6 +300,8 @@ def validate_package(
                 and "step5c_joint_rnn_cycloid_v1" not in script + txt,
             }
         )
+        if program.endswith("_v2"):
+            checks["no stale step5d v1 route"] = "step5d_strict_rnn_liveprep_v1" not in script + txt
     if program == "step6a_eight_no_contact_v1":
         checks.update(
             {

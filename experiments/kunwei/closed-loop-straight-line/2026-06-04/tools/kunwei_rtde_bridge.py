@@ -228,7 +228,8 @@ STEP5_CONTACT_CYCLOID_STAGE_ID = "step5_contact_cycloid_baseline_v1"
 STEP5C_DRYRUN_STAGE_ID = "step5c_speedj_dryrun_v1"
 STEP5C_CONTACT_STAGE_ID = "step5c_joint_rnn_cycloid_v1"
 STEP5D_REPRODUCTION_STAGE_ID = "step5d_strict_rnn_reproduction_v1"
-STEP5D_LIVEPREP_STAGE_ID = "step5d_strict_rnn_liveprep_v1"
+STEP5D_LIVEPREP_STAGE_ID = "step5d_strict_rnn_liveprep_v2"
+STEP5D_LIVEPREP_STAGE_IDS = {"step5d_strict_rnn_liveprep_v1", STEP5D_LIVEPREP_STAGE_ID}
 STEP5D_LIVEPREP_TRUTH_PATH = EXPERIMENT_ROOT / "config" / "step5d_liveprep_solver_gate.json"
 STEP6_CONTACT_EIGHT_STAGE_ID = "step6_contact_eight_baseline_v1"
 STEP6_CONTACT_EIGHT_STAGE_ID_V2 = "step6_contact_eight_baseline_v2"
@@ -840,7 +841,12 @@ def compute_step4e_values(
     step5c_dryrun_profile = args.step4e_version == STEP5C_DRYRUN_STAGE_ID
     step5c_contact_profile = args.step4e_version == STEP5C_CONTACT_STAGE_ID
     step5c_joint_profile = step5c_dryrun_profile or step5c_contact_profile
-    step5d_liveprep_profile = args.step4e_version == STEP5D_LIVEPREP_STAGE_ID
+    step5d_liveprep_profile = args.step4e_version in STEP5D_LIVEPREP_STAGE_IDS
+    if step5d_liveprep_profile:
+        try:
+            ensure_step5d_liveprep_runtime(state, args)
+        except (ValueError, RuntimeError) as exc:
+            values["_step5d_solver_error"] = f"warmup: {exc}"
     step6b_profile = args.step4e_version in {"step6b_v1", "step6b_v2"}
     step6_stage_id = STEP6_CONTACT_EIGHT_STAGE_ID_V2 if args.step4e_version == "step6b_v2" else STEP6_CONTACT_EIGHT_STAGE_ID
     angular_speedl_profile = (
@@ -1058,7 +1064,7 @@ def compute_step4e_values(
         path_ref = step5_contact_path_reference(
             (float(pose[0]), float(pose[1])),
             state.line_stage_s,
-            stage_id=STEP5D_LIVEPREP_STAGE_ID,
+            stage_id=args.step4e_version,
         )
     elif step6b_profile:
         path_ref = step6_contact_path_reference(
@@ -1739,6 +1745,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--step5d-alpha-s-inv", type=float, default=1.0)
     parser.add_argument("--step5d-epsilon", type=float, default=0.022)
     parser.add_argument("--step5d-sigr-exponent-r", type=float, default=0.2)
+    parser.add_argument(
+        "--disable-dashboard-program-watch",
+        action="store_true",
+        help="disable Step5d live-prep Dashboard watchdog that exits after TP stop/play timeout",
+    )
+    parser.add_argument("--dashboard-program-watch-timeout-s", type=float, default=45.0)
     return parser.parse_args(argv)
 
 
@@ -1767,7 +1779,7 @@ def main(argv: list[str] | None = None) -> int:
         "step5b_v1",
         STEP5C_DRYRUN_STAGE_ID,
         STEP5C_CONTACT_STAGE_ID,
-        STEP5D_LIVEPREP_STAGE_ID,
+        *STEP5D_LIVEPREP_STAGE_IDS,
         STEP5D_REPRODUCTION_STAGE_ID,
         "step6b_v1",
         "step6b_v2",
@@ -1812,6 +1824,8 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("--step5d-epsilon must be positive")
     if not 0.0 < args.step5d_sigr_exponent_r <= 1.0:
         raise SystemExit("--step5d-sigr-exponent-r must be in (0, 1]")
+    if args.dashboard_program_watch_timeout_s <= 0.0:
+        raise SystemExit("--dashboard-program-watch-timeout-s must be positive")
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     sensor_csv_path = args.output_dir / "kunwei_sensor_1khz.csv"
@@ -1853,6 +1867,13 @@ def main(argv: list[str] | None = None) -> int:
             "max_force_norm_n": args.max_force_norm_n,
             "max_torque_norm_nm": args.max_torque_norm_nm,
         },
+        "dashboard_program_watch": {
+            "enabled": args.step4e_version in STEP5D_LIVEPREP_STAGE_IDS
+            and not args.skip_dashboard_preflight
+            and not args.disable_dashboard_program_watch,
+            "timeout_s": args.dashboard_program_watch_timeout_s,
+            "scope": "Step5d live-prep bridge exits after TP program stop or Play timeout",
+        },
         "register_map": dict(zip(INPUT_FIELDS, INPUT_NAMES)),
         "step5c_joint_register_contract": step5c_register_metadata(),
         "stage_aware_register_notes": {
@@ -1877,6 +1898,7 @@ def main(argv: list[str] | None = None) -> int:
             "step5c_speedj_dryrun_v1": "No-contact Step5c joint-space dry-run: bridge reads actual_q and writes qd0..qd5 in registers 37..42 through the explicit Step5c qdot helper; TP executes speedj only in the archived Stage25 dry-run fixture. Live profile remains blocked.",
             "step5c_joint_rnn_cycloid_v1": "Blocked/quarantined Step5c contact route: previous implementation was DLS, not strict TASE RNN.",
             "step5d_strict_rnn_liveprep_v1": "Live-prep strict RNN qdot route: TP reuses Step5b contact scaffold, then Stage 25.0 consumes registers 37..42 as qd0..qd5 rad/s and executes speedj. Not a completed reproduction claim.",
+            "step5d_strict_rnn_liveprep_v2": "Current live-prep strict RNN qdot route: warms calibrated Pinocchio/RNN before Stage 25.0, skips lift/25.2 when first-contact orientation error is small, then Stage 25.0 consumes registers 37..42 as qd0..qd5 rad/s and executes speedj.",
             "step6b_contact_eight_baseline_v1": "Same TP contact-search/latch/25.2/25.3 scaffold as Step5b/v31, but stage 25.0 uses the active Step6 five-point safe-frame 8-shaped reference for 30 s and v31 filtered-live normal policy.",
             "step6b_contact_eight_baseline_v2": "Same TP contact-search/latch/25.2/25.3 scaffold and Step6 reference as v1, but intended bridge caps are 15 mm/s path, 15 mm/s total linear, 3 mm/s normal reserve, and 0.060 rad/s attitude.",
         },
@@ -1901,15 +1923,15 @@ def main(argv: list[str] | None = None) -> int:
             "step5_stage_id": (
                 STEP5_CONTACT_CYCLOID_STAGE_ID
                 if args.step4e_version == "step5b_v1"
-                else STEP5D_LIVEPREP_STAGE_ID
-                if args.step4e_version == STEP5D_LIVEPREP_STAGE_ID
+                else args.step4e_version
+                if args.step4e_version in STEP5D_LIVEPREP_STAGE_IDS
                 else None
             ),
             "step5c_stage_id": args.step4e_version
             if args.step4e_version in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID}
             else None,
             "step5c_register_contract": "37..42=qd0..qd5 rad/s, 43=cmd_valid, 44=path_time, 45=force_error, 46=pose/orientation_error, 47=solver_status; Step4e field names are carrier names only in Step5c mode."
-            if args.step4e_version in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID, STEP5D_LIVEPREP_STAGE_ID}
+            if args.step4e_version in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID, *STEP5D_LIVEPREP_STAGE_IDS}
             else None,
             "step5c_joint_model": str(args.step5c_joint_model)
             if args.step4e_version in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID}
@@ -1980,6 +2002,13 @@ def main(argv: list[str] | None = None) -> int:
 
     next_write = start_mono
     write_period = 1.0 / args.rtde_hz
+    dashboard_watch_enabled = (
+        args.step4e_version in STEP5D_LIVEPREP_STAGE_IDS
+        and not args.skip_dashboard_preflight
+        and not args.disable_dashboard_program_watch
+    )
+    dashboard_watch_saw_running = False
+    next_dashboard_watch = start_mono
 
     try:
         sock = socket.create_connection((args.sensor_ip, args.sensor_port), timeout=args.connect_timeout_s)
@@ -2096,6 +2125,22 @@ def main(argv: list[str] | None = None) -> int:
                 if now - start_mono >= args.duration_s:
                     stop_reason = "duration"
                     break
+                if dashboard_watch_enabled and now >= next_dashboard_watch:
+                    dash = dashboard_exchange(args.robot_host, ["running", "programState", "safetymode"])
+                    if "NORMAL" not in dash.get("safetymode", ""):
+                        stop_reason = "dashboard_safety_not_normal"
+                        break
+                    running = "true" in dash.get("running", "").lower()
+                    stopped = "STOPPED" in dash.get("programState", "").upper()
+                    if running:
+                        dashboard_watch_saw_running = True
+                    elif dashboard_watch_saw_running and stopped:
+                        stop_reason = "dashboard_program_stopped"
+                        break
+                    elif not dashboard_watch_saw_running and stopped and now - start_mono >= args.dashboard_program_watch_timeout_s:
+                        stop_reason = "dashboard_play_timeout"
+                        break
+                    next_dashboard_watch = now + 0.25
 
                 try:
                     chunk = sock.recv(8192)

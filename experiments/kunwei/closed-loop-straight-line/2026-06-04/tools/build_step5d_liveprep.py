@@ -16,17 +16,18 @@ from build_step5b_contact import build_script as build_step5b_script
 from step5_table import load_stage_frame, step5_stage
 
 
-PROGRAM_NAME = "step5d_strict_rnn_liveprep_v1"
-STEP5_STAGE_ID = "step5d_strict_rnn_liveprep_v1"
+PROGRAM_NAME = "step5d_strict_rnn_liveprep_v2"
+STEP5_STAGE_ID = "step5d_strict_rnn_liveprep_v2"
 BRIDGE_VERSION = STEP5_STAGE_ID
 LOCAL_PROGRAM_DIR = PROGRAM_DIR / "step5"
 CONTROLLER_DIR = "/programs/andyl/kunwei/step5"
 QDOT_CAP_RAD_S = 0.300
 JOINT_ACCEL_RAD_S2 = 0.300
+ORIENTATION_SKIP_ERROR_RAD = 0.052360
 
 
 def source_stamp(now: datetime) -> str:
-    return now.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_LIVEPREP_V1")
+    return now.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_LIVEPREP_V2")
 
 
 def load_safe_frame() -> dict:
@@ -110,13 +111,83 @@ def _replace_line_stage_with_speedj(script: str) -> str:
     return script[:start] + block + script[end:]
 
 
+def _add_orientation_skip_gate(script: str) -> str:
+    start_marker = """  if stop_reason == 0.0:
+    write_output_float_register(35, 25.1)
+    local p_lift = get_actual_tcp_pose()
+    local lift_pose = p[p_lift[0], p_lift[1], p_lift[2] + 0.020, p_lift[3], p_lift[4], p_lift[5]]
+    codex_echo_step4e(stop_reason)
+    movel(lift_pose, a=0.030, v=0.020, r=0.0)
+    stopl(0.1)
+  end
+
+  if stop_reason == 0.0:
+    write_output_float_register(35, 25.2)"""
+    if start_marker not in script:
+        raise RuntimeError("Step5d v2 orientation gate insertion point not found")
+    replacement = f"""  local skip_lift_attitude = 0
+  if stop_reason == 0.0:
+    write_output_float_register(35, 25.15)
+    local orientation_skip_error_rad = {ORIENTATION_SKIP_ERROR_RAD:.6f}
+    local t_skip = 0.0
+    local skip_timeout_s = 1.000
+    local last_heartbeat_skip = read_input_float_register(26)
+    local stale_s_skip = 0.0
+    while stop_reason == 0.0 and skip_lift_attitude == 0 and t_skip < skip_timeout_s:
+      local heartbeat_skip = read_input_float_register(26)
+      local cmd_valid = read_input_float_register(43)
+      local orientation_error = read_input_float_register(46)
+      local loop_dt = get_steptime()
+      if heartbeat_skip == last_heartbeat_skip:
+        stale_s_skip = stale_s_skip + loop_dt
+      else:
+        stale_s_skip = 0.0
+        last_heartbeat_skip = heartbeat_skip
+      end
+      t_skip = t_skip + loop_dt
+      codex_echo_step4e(stop_reason)
+      if stale_s_skip > 0.100:
+        stop_reason = 2.0
+      else:
+        stop_reason = codex_step4e_guard_stop_reason()
+      end
+      if stop_reason == 0.0:
+        if cmd_valid >= 0.5 and orientation_error <= orientation_skip_error_rad:
+          skip_lift_attitude = 1
+        elif cmd_valid >= 0.5:
+          t_skip = skip_timeout_s
+        else:
+          sync()
+        end
+      end
+    end
+  end
+
+  if stop_reason == 0.0 and skip_lift_attitude == 0:
+    write_output_float_register(35, 25.1)
+    local p_lift = get_actual_tcp_pose()
+    local lift_pose = p[p_lift[0], p_lift[1], p_lift[2] + 0.020, p_lift[3], p_lift[4], p_lift[5]]
+    codex_echo_step4e(stop_reason)
+    movel(lift_pose, a=0.030, v=0.020, r=0.0)
+    stopl(0.1)
+  end
+
+  if stop_reason == 0.0 and skip_lift_attitude == 0:
+    write_output_float_register(35, 25.2)"""
+    return script.replace(start_marker, replacement, 1)
+
+
 def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -> str:
     script = build_step5b_script(stamp, gen_at, geom, frame)
     script = script.replace("step5b_contact_cycloid_baseline_v1", PROGRAM_NAME)
-    script = script.replace("Step5b contact cycloid baseline v1", "Step5d strict RNN liveprep v1")
-    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V1", "STEP5D_STRICT_RNN_LIVEPREP_V1")
+    script = script.replace("Step5b contact cycloid baseline v1", "Step5d strict RNN liveprep v2")
+    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V1", "STEP5D_STRICT_RNN_LIVEPREP_V2")
     script = script.replace("codex_step5b_down_search", "codex_step5d_down_search")
     script = script.replace("step4e-version=step5b_v1", f"step4e-version={BRIDGE_VERSION}")
+    script = script.replace(
+        "PURPOSE: v31 contact search, first-contact normal latch, lift, 25.2 attitude correction, 25.3 line-entry gate, then Step5 table-driven contact cycloid reference for 60 s.",
+        "PURPOSE: v31 contact search, first-contact normal latch, optional lift/25.2 attitude correction when orientation error is >3 deg, 25.3 line-entry gate, then Step5d strict RNN qdot cycloid reference for 60 s.",
+    )
     script = script.replace(
         "25.0 uses desired_velocity + path_p_gain*(desired-actual) before normal projection and force-loop composition.",
         "25.0 uses strict RNN qdot registers 37..42 and TP speedj execution; bridge owns calibrated Pinocchio/J(q) and paper outer-loop computation.",
@@ -129,10 +200,11 @@ def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -
         ),
     )
     script = _replace_exact(script, "STEP5_STAGE_ID: step5_contact_cycloid_baseline_v1", f"STEP5_STAGE_ID: {STEP5_STAGE_ID}")
+    script = _add_orientation_skip_gate(script)
     script = _replace_line_stage_with_speedj(script)
     if "speedl([cmd_vx, cmd_vy, cmd_vz" in script:
         raise RuntimeError("line-control speedl command survived Step5d liveprep rewrite")
-    if "def codex_step5d_strict_rnn_liveprep_v1()" not in script:
+    if "def codex_step5d_strict_rnn_liveprep_v2()" not in script:
         raise RuntimeError("Step5d liveprep function rename failed")
     return script
 
@@ -148,7 +220,10 @@ Version:
 
 Boundary:
   Contact-capable live-prep package; not a completed reproduction claim.
-  Reuses the Step5b contact-search/latch/lift/25.2/25.3 scaffold.
+  Reuses the Step5b contact-search/latch/25.3 scaffold.
+  If first-contact orientation error is <= {ORIENTATION_SKIP_ERROR_RAD:.6f} rad,
+  it skips the 20 mm lift and 25.2 attitude correction.
+  Otherwise it keeps the original lift + 25.2 attitude correction path.
   Stage 25.0 is different from Step5b: it consumes 37..42 as qd0..qd5 rad/s
   and executes speedj, not Cartesian speedl.
 
@@ -192,6 +267,9 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str) -> None:
         "speedj line control": "speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]" in script,
         "line no cartesian speedl": "speedl([cmd_vx, cmd_vy, cmd_vz" not in script,
         "qdot cap": f"local qdot_cap_rad_s = {QDOT_CAP_RAD_S:.3f}" in script,
+        "orientation skip gate": "local skip_lift_attitude = 0" in script
+        and f"local orientation_skip_error_rad = {ORIENTATION_SKIP_ERROR_RAD:.6f}" in script
+        and "if stop_reason == 0.0 and skip_lift_attitude == 0:" in script,
         "v31 scaffold retained": "first-contact normal latch" in script
         and "25.2 attitude correction" in script
         and "25.3 line-entry gate" in script,

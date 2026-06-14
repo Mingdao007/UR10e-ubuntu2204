@@ -365,6 +365,12 @@
         "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v1_20260614_225433",
         "local_controller_readback_sha_match": true
       },
+      "live_run_evidence": {
+        "artifact": "runs/step5d_strict_rnn_liveprep_v1_live_20260614_230100",
+        "result": "entered Stage 25.0 and exercised strict RNN qdot/speedj path for about 0.106 s, then TP stopped with final stop_reason 2.0 from heartbeat stale",
+        "root_cause": "Step5d calibrated Pinocchio/RNN runtime was first initialized at Stage 25.0, causing a first-tick bridge stall longer than the TP stale heartbeat limit",
+        "followup": "superseded by step5d_strict_rnn_liveprep_v2"
+      },
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": true,
@@ -426,6 +432,86 @@
         "force_sign_convention": "step5_step6_positive_normal_load"
       },
       "success_condition": "Live-prep gate is complete only after local package validation, controller read-back verification, and bridge profile readiness. It does not mark the full Step5d reproduction target complete."
+    },
+    {
+      "id": "step5d_strict_rnn_liveprep_v2",
+      "stage": "Step5d",
+      "owner": "bridge+TP",
+      "active": false,
+      "blocked": false,
+      "complete": true,
+      "completion_target": false,
+      "block_reason": null,
+      "delivery_evidence": {
+        "local_program_dir": "programs/step5",
+        "controller_dir": "/programs/andyl/kunwei/step5",
+        "program_basename": "step5d_strict_rnn_liveprep_v2",
+        "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v2_20260614_231314",
+        "local_controller_readback_sha_match": true
+      },
+      "shape": "cycloid",
+      "frame": "config/step5_safe_frame.json",
+      "contact": true,
+      "bridge": true,
+      "joint_space": true,
+      "strict_rnn": true,
+      "fixed_base_z_m": null,
+      "duration_s": 60.0,
+      "amplitude_m": 0.015,
+      "phase_law": {
+        "type": "linear_time",
+        "omega_rad_s": 0.1,
+        "final_phase_rad": 6.0
+      },
+      "cadence": {
+        "reference_clock": "real_time",
+        "motion": "liveprep_speedj_after_readback_and_explicit_bridge_trigger",
+        "tp_hold_s": 0.002,
+        "end_hold_s": 0.1
+      },
+      "guard": {
+        "heartbeat_required": true,
+        "cmd_valid_required": true,
+        "qdot_cap_rad_s": 0.3,
+        "path_cap_m_s": 0.004,
+        "total_linear_cap_m_s": 0.006,
+        "normal_velocity_cap_m_s": 0.003,
+        "attitude_cap_rad_s": 0.06,
+        "orientation_skip_lift_error_rad": 0.05236,
+        "runtime_limit_s": 65.0,
+        "progress_end_hold_s": 0.1,
+        "raw_normal_guard_n": 50.0,
+        "force_norm_guard_n": 60.0,
+        "torque_norm_guard_nm": 3.0
+      },
+      "contact_policy": {
+        "bridge_required": true,
+        "tp_role": "joint_executor_and_guard_only",
+        "reference_owner": "strict_rnn_bridge",
+        "joint_solver": "strict_tase_rnn_only",
+        "dls_fallback_allowed": false,
+        "ik_fallback_allowed": false,
+        "calibrated_kinematics_backend": "Pinocchio calibrated base->tool0+active-TCP FK/J(q)",
+        "force_control": true,
+        "contact_search": true,
+        "timing_policy": "step5b_scaffold_with_step5d_qdot_line_control_and_small-orientation skip",
+        "virtual_clock_freeze": false
+      },
+      "liveprep_gates": [
+        "fresh Step5d structural numeric sanity artifact passes with qdot cap 0.30 rad/s",
+        "non-quarantine Step5d TP package validates locally and contains speedj qdot executor for Stage 25.0",
+        "controller upload and read-back SHA/cachedContents verification pass",
+        "bridge accepts step5d_strict_rnn_liveprep_v2 and warms calibrated Pinocchio/RNN runtime before Stage 25.0",
+        "operator wrapper maps Step5d to the real /programs/andyl/kunwei/step5 package so TP-stopped watcher can close bridge",
+        "bridge Dashboard watchdog exits on TP program stopped or Play timeout even if operator is bypassed"
+      ],
+      "filter_policy": {
+        "normal_filter": "v31_filtered_live",
+        "alpha": 0.35,
+        "min_force_n": 2.0,
+        "force_sign_convention": "step5_step6_positive_normal_load"
+      },
+      "success_condition": "Current live-prep gate is complete only after v2 local package validation, controller read-back verification, operator path mapping, and bridge watchdog readiness. It does not mark the full Step5d reproduction target complete."
     },
     {
       "id": "step5d_strict_rnn_reproduction_v1",
