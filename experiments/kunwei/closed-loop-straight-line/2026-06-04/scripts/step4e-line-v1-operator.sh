@@ -23,7 +23,7 @@ case "${STEP4E_VERSION}" in
     STEP4E_VERSION="step5b_v1"
     ;;
   5d|step5d|step5d-liveprep|step5d_liveprep)
-    STEP4E_VERSION="step5d_strict_rnn_liveprep_v3"
+    STEP4E_VERSION="step5d_strict_rnn_liveprep_v4"
     ;;
   5c-dry|5c-dryrun|step5c-dryrun|step5c_speedj_dryrun_v1|speedj-dryrun|speedj_dryrun)
     echo "refusing Step5c dry-run alias: DLS/Jacobian mapping is quarantined after wrong XY/Z live motion"
@@ -87,13 +87,13 @@ elif [[ "${STEP4E_VERSION}" == "step4g_v1" ]]; then
   STEP4E_PATH_SHAPE="eight"
 elif [[ "${STEP4E_VERSION}" == "step5b_v1" ]]; then
   STEP4E_PATH_SHAPE="cycloid"
-elif [[ "${STEP4E_VERSION}" == "step5c_speedj_dryrun_v1" || "${STEP4E_VERSION}" == "step5c_joint_rnn_cycloid_v1" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v1" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v2" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v3" ]]; then
+elif [[ "${STEP4E_VERSION}" == "step5c_speedj_dryrun_v1" || "${STEP4E_VERSION}" == "step5c_joint_rnn_cycloid_v1" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v1" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v2" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v3" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v4" ]]; then
   STEP4E_PATH_SHAPE="cycloid"
 elif [[ "${STEP4E_VERSION}" == "step6b_v1" || "${STEP4E_VERSION}" == "step6b_v2" ]]; then
   STEP4E_PATH_SHAPE="eight"
 fi
 if [[ -z "${STEP4E_NORMAL_FOLLOW_MODE}" ]]; then
-  if [[ "${STEP4E_VERSION}" == "v30" || "${STEP4E_VERSION}" == "v31" || "${STEP4E_VERSION}" == "step4f_v1" || "${STEP4E_VERSION}" == "step4g_v1" || "${STEP4E_VERSION}" == "step5b_v1" || "${STEP4E_VERSION}" == "step5c_joint_rnn_cycloid_v1" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v1" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v2" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v3" || "${STEP4E_VERSION}" == "step6b_v1" || "${STEP4E_VERSION}" == "step6b_v2" ]]; then
+  if [[ "${STEP4E_VERSION}" == "v30" || "${STEP4E_VERSION}" == "v31" || "${STEP4E_VERSION}" == "step4f_v1" || "${STEP4E_VERSION}" == "step4g_v1" || "${STEP4E_VERSION}" == "step5b_v1" || "${STEP4E_VERSION}" == "step5c_joint_rnn_cycloid_v1" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v1" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v2" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v3" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v4" || "${STEP4E_VERSION}" == "step6b_v1" || "${STEP4E_VERSION}" == "step6b_v2" ]]; then
     STEP4E_NORMAL_FOLLOW_MODE="filtered_live"
   else
     STEP4E_NORMAL_FOLLOW_MODE="locked"
@@ -154,7 +154,7 @@ fi
 if [[ "${STEP4E_VERSION}" == "step5c_joint_rnn_cycloid_v1" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step5/step5c_joint_rnn_cycloid_v1.urp"
 fi
-if [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v1" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v2" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v3" ]]; then
+if [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v1" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v2" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v3" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v4" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step5/${STEP4E_VERSION}.urp"
 fi
 if [[ "${STEP4E_VERSION}" == "step6b_v1" ]]; then
@@ -203,6 +203,8 @@ elif [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v2" ]]; then
   SEARCH_DESCRIPTION="Step5d v2 live-prep evidence route: same Step5b contact scaffold, skips lift/25.2 when first-contact orientation error is <=3 deg, warms strict RNN/Pinocchio before Stage25, then TP executes speedj qdot registers 37..42; superseded by v3 after v2 over-contact evidence"
 elif [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v3" ]]; then
   SEARCH_DESCRIPTION="Step5d v3 live-prep route: same strict RNN speedj path, but 25.3 must settle near 5N before Stage25, bridge limits live xdot_c before the RNN, and raw/force-norm hard guards are 100N"
+elif [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v4" ]]; then
+  SEARCH_DESCRIPTION="Step5d v4 live-prep route: same strict RNN speedj path and 4deg lift skip as v3, but 25.3 uses a tolerant 2-15N normal-load contact window for 50ms, waits up to 10s, and keeps 100N hard guards"
 elif [[ "${STEP4E_VERSION}" == "step6b_v1" ]]; then
   SEARCH_DESCRIPTION="Step6b contact 8-shaped baseline: same v31/Step5b contact search, first-contact normal latch, 20 mm lift, 25.2 attitude correction, second contact, and 25.3 line-entry gate; stage 25.0 follows the Step6 five-point safe-frame 8-shaped reference for 30 s with filtered-live normal"
 elif [[ "${STEP4E_VERSION}" == "step6b_v2" ]]; then
@@ -332,7 +334,7 @@ select_mode() {
         EXPECTED_BASENAME="step4g_eight_seed_normal_v1.urp"
       elif [[ "${STEP4E_VERSION}" == "step5b_v1" ]]; then
         EXPECTED_BASENAME="step5b_contact_cycloid_baseline_v1.urp"
-      elif [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v1" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v2" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v3" ]]; then
+      elif [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v1" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v2" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v3" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v4" ]]; then
         EXPECTED_BASENAME="${STEP4E_VERSION}.urp"
       elif [[ "${STEP4E_VERSION}" == "step6b_v1" ]]; then
         EXPECTED_BASENAME="step6b_contact_eight_baseline_v1.urp"
@@ -352,7 +354,7 @@ select_mode() {
         RUN_LABEL="step4g_eight_seed_normal_v1"
       elif [[ "${STEP4E_VERSION}" == "step5b_v1" ]]; then
         RUN_LABEL="step5b_contact_cycloid_baseline_v1"
-      elif [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v1" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v2" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v3" ]]; then
+      elif [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v1" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v2" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v3" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v4" ]]; then
         RUN_LABEL="${STEP4E_VERSION}"
       elif [[ "${STEP4E_VERSION}" == "step6b_v1" ]]; then
         RUN_LABEL="step6b_contact_eight_baseline_v1"

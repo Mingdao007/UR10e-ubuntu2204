@@ -16,8 +16,8 @@ from build_step5b_contact import build_script as build_step5b_script
 from step5_table import load_stage_frame, step5_stage
 
 
-PROGRAM_NAME = "step5d_strict_rnn_liveprep_v3"
-STEP5_STAGE_ID = "step5d_strict_rnn_liveprep_v3"
+PROGRAM_NAME = "step5d_strict_rnn_liveprep_v4"
+STEP5_STAGE_ID = "step5d_strict_rnn_liveprep_v4"
 BRIDGE_VERSION = STEP5_STAGE_ID
 LOCAL_PROGRAM_DIR = PROGRAM_DIR / "step5"
 CONTROLLER_DIR = "/programs/andyl/kunwei/step5"
@@ -27,14 +27,16 @@ ORIENTATION_SKIP_ERROR_RAD = 0.069813
 RAW_NORMAL_GUARD_N = 100.0
 FORCE_NORM_GUARD_N = 100.0
 TORQUE_NORM_GUARD_NM = 3.0
-LINE_ENTRY_FORCE_ERROR_ABS_N = 3.0
-LINE_ENTRY_FORCE_NORM_MAX_N = 12.0
+LINE_ENTRY_NORMAL_LOAD_MIN_N = 2.0
+LINE_ENTRY_NORMAL_LOAD_MAX_N = 15.0
+LINE_ENTRY_FORCE_NORM_MAX_N = 25.0
+LINE_ENTRY_REQUIRED_S = 0.050
 LINE_ENTRY_CMD_LIMIT_M_S = 0.003
-LINE_ENTRY_TIMEOUT_S = 2.000
+LINE_ENTRY_TIMEOUT_S = 10.000
 
 
 def source_stamp(now: datetime) -> str:
-    return now.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_LIVEPREP_V3")
+    return now.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_LIVEPREP_V4")
 
 
 def load_safe_frame() -> dict:
@@ -193,9 +195,10 @@ def _replace_line_entry_with_force_settle(script: str) -> str:
     local stale_s_entry = 0.0
     local t_entry = 0.0
     local line_entry_s = 0.0
-    local line_entry_required_s = 0.100
+    local line_entry_required_s = {LINE_ENTRY_REQUIRED_S:.3f}
     local line_entry_timeout_s = {LINE_ENTRY_TIMEOUT_S:.3f}
-    local line_entry_force_error_abs_n = {LINE_ENTRY_FORCE_ERROR_ABS_N:.3f}
+    local line_entry_normal_load_min_n = {LINE_ENTRY_NORMAL_LOAD_MIN_N:.3f}
+    local line_entry_normal_load_max_n = {LINE_ENTRY_NORMAL_LOAD_MAX_N:.3f}
     local line_entry_force_norm_max_n = {LINE_ENTRY_FORCE_NORM_MAX_N:.3f}
     local line_entry_cmd_limit_m_s = {LINE_ENTRY_CMD_LIMIT_M_S:.3f}
     saw_cmd_valid = 0
@@ -206,8 +209,8 @@ def _replace_line_entry_with_force_settle(script: str) -> str:
       local cmd_vx = read_input_float_register(37)
       local cmd_vy = read_input_float_register(38)
       local cmd_vz = read_input_float_register(39)
-      local force_error = read_input_float_register(45)
       local normal_force = read_input_float_register(24)
+      local normal_load = codex_abs(normal_force)
       local force_norm = read_input_float_register(25)
       local loop_dt = get_steptime()
       if cmd_valid >= 0.5:
@@ -223,7 +226,7 @@ def _replace_line_entry_with_force_settle(script: str) -> str:
         last_heartbeat_entry = heartbeat_entry
       end
       t_entry = t_entry + loop_dt
-      if cmd_valid >= 0.5 and codex_abs(force_error) <= line_entry_force_error_abs_n and force_norm <= line_entry_force_norm_max_n and codex_abs(normal_force) <= line_entry_force_norm_max_n:
+      if cmd_valid >= 0.5 and normal_load >= line_entry_normal_load_min_n and normal_load <= line_entry_normal_load_max_n and force_norm <= line_entry_force_norm_max_n:
         line_entry_s = line_entry_s + loop_dt
       else:
         line_entry_s = 0.0
@@ -268,15 +271,15 @@ def _replace_line_entry_with_force_settle(script: str) -> str:
 def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -> str:
     script = build_step5b_script(stamp, gen_at, geom, frame)
     script = script.replace("step5b_contact_cycloid_baseline_v1", PROGRAM_NAME)
-    script = script.replace("Step5b contact cycloid baseline v1", "Step5d strict RNN liveprep v3")
-    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V1", "STEP5D_STRICT_RNN_LIVEPREP_V3")
+    script = script.replace("Step5b contact cycloid baseline v1", "Step5d strict RNN liveprep v4")
+    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V1", "STEP5D_STRICT_RNN_LIVEPREP_V4")
     script = script.replace("codex_step5b_down_search", "codex_step5d_down_search")
     script = script.replace("step4e-version=step5b_v1", f"step4e-version={BRIDGE_VERSION}")
     script = script.replace("codex_abs(normal_force) > 50.0", f"codex_abs(normal_force) > {RAW_NORMAL_GUARD_N:.1f}")
     script = script.replace("force_norm > 60.0", f"force_norm > {FORCE_NORM_GUARD_N:.1f}")
     script = script.replace(
         "PURPOSE: v31 contact search, first-contact normal latch, lift, 25.2 attitude correction, 25.3 line-entry gate, then Step5 table-driven contact cycloid reference for 60 s.",
-        "PURPOSE: v31 contact search, first-contact normal latch, optional lift/25.2 attitude correction when orientation error is >4 deg, 25.3 force-settle line-entry gate, then Step5d strict RNN qdot cycloid reference for 60 s.",
+        "PURPOSE: v31 contact search, first-contact normal latch, optional lift/25.2 attitude correction when orientation error is >4 deg, 25.3 tolerant contact-window line-entry gate, then Step5d strict RNN qdot cycloid reference for 60 s.",
     )
     script = script.replace(
         "25.0 uses desired_velocity + path_p_gain*(desired-actual) before normal projection and force-loop composition.",
@@ -315,9 +318,10 @@ Boundary:
   If first-contact orientation error is <= {ORIENTATION_SKIP_ERROR_RAD:.6f} rad,
   it skips the 20 mm lift and 25.2 attitude correction.
   Otherwise it keeps the original lift + 25.2 attitude correction path.
-  Stage 25.3 is a force-settle entry gate: bridge may command small linear
-  unload/load speed only, and TP enters 25.0 only after force_error <=
-  {LINE_ENTRY_FORCE_ERROR_ABS_N:.1f} N and force_norm <= {LINE_ENTRY_FORCE_NORM_MAX_N:.1f} N for 0.100 s.
+  Stage 25.3 is a tolerant contact-window entry gate: bridge may command small
+  linear unload/load speed only, and TP enters 25.0 only after normal_load is
+  between {LINE_ENTRY_NORMAL_LOAD_MIN_N:.1f} N and {LINE_ENTRY_NORMAL_LOAD_MAX_N:.1f} N,
+  with force_norm <= {LINE_ENTRY_FORCE_NORM_MAX_N:.1f} N, for {LINE_ENTRY_REQUIRED_S:.3f} s.
   Stage 25.0 is different from Step5b: it consumes 37..42 as qd0..qd5 rad/s
   and executes speedj, not Cartesian speedl.
 
@@ -365,12 +369,15 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str) -> None:
         "orientation skip gate": "local skip_lift_attitude = 0" in script
         and f"local orientation_skip_error_rad = {ORIENTATION_SKIP_ERROR_RAD:.6f}" in script
         and "if stop_reason == 0.0 and skip_lift_attitude == 0:" in script,
-        "force-settle entry gate": f"local line_entry_force_error_abs_n = {LINE_ENTRY_FORCE_ERROR_ABS_N:.3f}" in script
+        "force-settle entry gate": f"local line_entry_normal_load_min_n = {LINE_ENTRY_NORMAL_LOAD_MIN_N:.3f}" in script
+        and f"local line_entry_normal_load_max_n = {LINE_ENTRY_NORMAL_LOAD_MAX_N:.3f}" in script
         and f"local line_entry_force_norm_max_n = {LINE_ENTRY_FORCE_NORM_MAX_N:.3f}" in script
+        and f"local line_entry_required_s = {LINE_ENTRY_REQUIRED_S:.3f}" in script
+        and f"local line_entry_timeout_s = {LINE_ENTRY_TIMEOUT_S:.3f}" in script
         and "speedl([cmd_vx, cmd_vy, cmd_vz, 0.0, 0.0, 0.0]" in script,
         "v31 scaffold retained": "first-contact normal latch" in script
         and "25.2 attitude correction" in script
-        and "25.3 force-settle line-entry gate" in script,
+        and "25.3 tolerant contact-window line-entry gate" in script,
         "raw contact guards": f"codex_abs(normal_force) > {RAW_NORMAL_GUARD_N:.1f}" in script
         and f"force_norm > {FORCE_NORM_GUARD_N:.1f}" in script
         and f"torque_norm > {TORQUE_NORM_GUARD_NM:.1f}" in script,

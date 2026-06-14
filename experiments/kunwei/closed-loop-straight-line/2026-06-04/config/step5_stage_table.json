@@ -536,6 +536,12 @@
         "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v3_20260614_233759",
         "local_controller_readback_sha_match": true
       },
+      "live_run_evidence": {
+        "artifact": "runs/bridge_step5d_strict_rnn_liveprep_v3_20260614_233207",
+        "result": "did not enter Stage 25.0 because the strict 5N-centered 25.3 force-settle gate never became ready; max force remained below the 100N hard guard",
+        "root_cause": "25.3 required approximately 5N with abs(force_error)<=3N and force_norm<=12N for 0.100s, which was too narrow for the observed contact transient",
+        "followup": "superseded by step5d_strict_rnn_liveprep_v4"
+      },
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": true,
@@ -602,7 +608,95 @@
         "min_force_n": 2.0,
         "force_sign_convention": "step5_step6_positive_normal_load"
       },
-      "success_condition": "Current v3 live-prep gate is complete only after local package validation, controller read-back verification, operator path mapping, bridge watchdog readiness, 25.3 force-settle entry behavior, and live xdot limiter diagnostics. It does not mark the full Step5d reproduction target complete."
+      "success_condition": "Retained v3 live-prep evidence only. Superseded by v4 because 25.3 was too strict to enter Stage 25.0. It does not mark the full Step5d reproduction target complete."
+    },
+    {
+      "id": "step5d_strict_rnn_liveprep_v4",
+      "stage": "Step5d",
+      "owner": "bridge+TP",
+      "active": false,
+      "blocked": false,
+      "complete": true,
+      "completion_target": false,
+      "block_reason": null,
+      "delivery_evidence": {
+        "local_program_dir": "programs/step5",
+        "controller_dir": "/programs/andyl/kunwei/step5",
+        "program_basename": "step5d_strict_rnn_liveprep_v4",
+        "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v4_20260614_234749",
+        "local_controller_readback_sha_match": true
+      },
+      "shape": "cycloid",
+      "frame": "config/step5_safe_frame.json",
+      "contact": true,
+      "bridge": true,
+      "joint_space": true,
+      "strict_rnn": true,
+      "fixed_base_z_m": null,
+      "duration_s": 60.0,
+      "amplitude_m": 0.015,
+      "phase_law": {
+        "type": "linear_time",
+        "omega_rad_s": 0.1,
+        "final_phase_rad": 6.0
+      },
+      "cadence": {
+        "reference_clock": "real_time",
+        "motion": "liveprep_speedj_after_readback_and_explicit_bridge_trigger",
+        "tp_hold_s": 0.002,
+        "end_hold_s": 0.1
+      },
+      "guard": {
+        "heartbeat_required": true,
+        "cmd_valid_required": true,
+        "qdot_cap_rad_s": 0.3,
+        "path_cap_m_s": 0.004,
+        "total_linear_cap_m_s": 0.006,
+        "normal_velocity_cap_m_s": 0.003,
+        "attitude_cap_rad_s": 0.06,
+        "orientation_skip_lift_error_rad": 0.069813,
+        "line_entry_normal_load_min_n": 2.0,
+        "line_entry_normal_load_max_n": 15.0,
+        "line_entry_force_norm_max_n": 25.0,
+        "line_entry_required_s": 0.05,
+        "line_entry_timeout_s": 10.0,
+        "runtime_limit_s": 65.0,
+        "progress_end_hold_s": 0.1,
+        "raw_normal_guard_n": 100.0,
+        "force_norm_guard_n": 100.0,
+        "torque_norm_guard_nm": 3.0
+      },
+      "contact_policy": {
+        "bridge_required": true,
+        "tp_role": "joint_executor_and_guard_only",
+        "reference_owner": "strict_rnn_bridge",
+        "joint_solver": "strict_tase_rnn_only",
+        "dls_fallback_allowed": false,
+        "ik_fallback_allowed": false,
+        "calibrated_kinematics_backend": "Pinocchio calibrated base->tool0+active-TCP FK/J(q)",
+        "force_control": true,
+        "contact_search": true,
+        "timing_policy": "step5b_scaffold_with_step5d_qdot_line_control_and_v4_tolerant_contact_window",
+        "virtual_clock_freeze": false
+      },
+      "liveprep_gates": [
+        "fresh Step5d structural numeric sanity artifact passes with qdot cap 0.30 rad/s",
+        "non-quarantine Step5d v4 TP package validates locally and contains speedj qdot executor for Stage 25.0",
+        "25.3 entry gate requires normal_load between 2N and 15N plus force_norm <=25N for 0.050s before Stage 25.0",
+        "25.3 timeout is 10s; Stage 25.0 is still blocked until the contact window passes",
+        "bridge limits live Step5d xdot_c before strict RNN while preserving raw xdot diagnostics",
+        "raw normal and force-norm hard guards are 100 N; 50 N remains an analysis warning threshold only",
+        "controller upload and read-back SHA/cachedContents verification pass",
+        "bridge accepts step5d_strict_rnn_liveprep_v4 and warms calibrated Pinocchio/RNN runtime before Stage 25.0",
+        "bridge Dashboard watchdog exits on TP program stopped or Play timeout even if operator is bypassed"
+      ],
+      "filter_policy": {
+        "normal_filter": "v31_filtered_live",
+        "alpha": 0.35,
+        "min_force_n": 2.0,
+        "force_sign_convention": "step5_step6_positive_normal_load"
+      },
+      "success_condition": "Current v4 live-prep gate is complete only after local package validation, controller read-back verification, operator path mapping, bridge watchdog readiness, 25.3 tolerant contact-window behavior, and live xdot limiter diagnostics. It does not mark the full Step5d reproduction target complete."
     },
     {
       "id": "step5d_strict_rnn_reproduction_v1",

@@ -234,11 +234,20 @@ STEP5C_CONTACT_STAGE_ID = "step5c_joint_rnn_cycloid_v1"
 STEP5D_REPRODUCTION_STAGE_ID = "step5d_strict_rnn_reproduction_v1"
 STEP5D_LIVEPREP_V1_STAGE_ID = "step5d_strict_rnn_liveprep_v1"
 STEP5D_LIVEPREP_V2_STAGE_ID = "step5d_strict_rnn_liveprep_v2"
-STEP5D_LIVEPREP_STAGE_ID = "step5d_strict_rnn_liveprep_v3"
-STEP5D_LIVEPREP_STAGE_IDS = {STEP5D_LIVEPREP_V1_STAGE_ID, STEP5D_LIVEPREP_V2_STAGE_ID, STEP5D_LIVEPREP_STAGE_ID}
+STEP5D_LIVEPREP_V3_STAGE_ID = "step5d_strict_rnn_liveprep_v3"
+STEP5D_LIVEPREP_STAGE_ID = "step5d_strict_rnn_liveprep_v4"
+STEP5D_LIVEPREP_STAGE_IDS = {
+    STEP5D_LIVEPREP_V1_STAGE_ID,
+    STEP5D_LIVEPREP_V2_STAGE_ID,
+    STEP5D_LIVEPREP_V3_STAGE_ID,
+    STEP5D_LIVEPREP_STAGE_ID,
+}
 STEP5D_LIVEPREP_TRUTH_PATH = EXPERIMENT_ROOT / "config" / "step5d_liveprep_solver_gate.json"
 STEP5D_V3_FORCE_SETTLE_TOLERANCE_N = 3.0
 STEP5D_V3_FORCE_SETTLE_MAX_N = 12.0
+STEP5D_V4_NORMAL_LOAD_MIN_N = 2.0
+STEP5D_V4_NORMAL_LOAD_MAX_N = 15.0
+STEP5D_V4_FORCE_NORM_MAX_N = 25.0
 STEP6_CONTACT_EIGHT_STAGE_ID = "step6_contact_eight_baseline_v1"
 STEP6_CONTACT_EIGHT_STAGE_ID_V2 = "step6_contact_eight_baseline_v2"
 _STEP5C_SOLVERS: dict[tuple[str, str, float, float], Step5cDlsJointSolver] = {}
@@ -666,6 +675,23 @@ def step5d_force_settle_ready(
     return abs(float(normal_load_n) - float(target_force_n)) <= float(tolerance_n) and float(force_norm_n) <= float(max_force_norm_n)
 
 
+def step5d_contact_window_ready(
+    *,
+    normal_load_n: float,
+    force_norm_n: float,
+    min_normal_load_n: float = STEP5D_V4_NORMAL_LOAD_MIN_N,
+    max_normal_load_n: float = STEP5D_V4_NORMAL_LOAD_MAX_N,
+    max_force_norm_n: float = STEP5D_V4_FORCE_NORM_MAX_N,
+) -> bool:
+    values = [normal_load_n, force_norm_n, min_normal_load_n, max_normal_load_n, max_force_norm_n]
+    if any(not math.isfinite(float(value)) for value in values):
+        return False
+    if min_normal_load_n < 0.0 or max_normal_load_n < min_normal_load_n or max_force_norm_n <= 0.0:
+        return False
+    load = float(normal_load_n)
+    return float(min_normal_load_n) <= load <= float(max_normal_load_n) and float(force_norm_n) <= float(max_force_norm_n)
+
+
 def limit_step5d_live_xdot(
     xdot_c: Any,
     *,
@@ -894,7 +920,9 @@ def compute_step4e_values(
     step5c_contact_profile = args.step4e_version == STEP5C_CONTACT_STAGE_ID
     step5c_joint_profile = step5c_dryrun_profile or step5c_contact_profile
     step5d_liveprep_profile = args.step4e_version in STEP5D_LIVEPREP_STAGE_IDS
-    step5d_liveprep_v3_profile = args.step4e_version == STEP5D_LIVEPREP_STAGE_ID
+    step5d_liveprep_v3_profile = args.step4e_version == STEP5D_LIVEPREP_V3_STAGE_ID
+    step5d_liveprep_v4_profile = args.step4e_version == STEP5D_LIVEPREP_STAGE_ID
+    step5d_liveprep_guarded_profile = step5d_liveprep_v3_profile or step5d_liveprep_v4_profile
     if step5d_liveprep_profile:
         try:
             ensure_step5d_liveprep_runtime(state, args)
@@ -1211,7 +1239,7 @@ def compute_step4e_values(
         elif axis_iso_active:
             cmd = (0.0, 0.0, 0.0)
         elif line_entry_gate_active:
-            if step5d_liveprep_v3_profile:
+            if step5d_liveprep_guarded_profile:
                 state.integral_error_n_s = clamp(
                     state.integral_error_n_s + force_error * dt_s,
                     -args.step4e_integral_limit_n_s,
@@ -1321,6 +1349,12 @@ def compute_step4e_values(
                 ):
                     step5d_engage_gate_ok = False
                     raise ValueError("Step5d v3 engage gate blocked: force/load outside 5N entry window")
+                if step5d_liveprep_v4_profile and not step5d_contact_window_ready(
+                    normal_load_n=normal_load_n,
+                    force_norm_n=force_abs,
+                ):
+                    step5d_engage_gate_ok = False
+                    raise ValueError("Step5d v4 engage gate blocked: force/load outside 2-15N contact window")
                 jacobian = step5d_tcp_jacobian_base(state.step5d_model_bundle, q, state.step5d_tcp_offset_tool0)
                 omega_minus, omega_plus = step5d_omega_bounds(
                     q,
@@ -1362,7 +1396,7 @@ def compute_step4e_values(
                     r=float(args.step5d_sigr_exponent_r),
                 )
                 step5d_outer_xdot_limited = np.asarray(step5d_outer_output.xdot_c, dtype=float)
-                if step5d_liveprep_v3_profile:
+                if step5d_liveprep_guarded_profile:
                     step5d_outer_xdot_limited, step5d_outer_xdot_limiter_active = limit_step5d_live_xdot(
                         step5d_outer_xdot_limited,
                         max_linear_m_s=float(args.step4e_total_linear_limit_m_s),
@@ -1518,11 +1552,17 @@ def compute_step4e_values(
     values["_step4e_normal_force_error_n"] = force_error
     values["_step4e_normal_acquired"] = 1.0 if state.normal_acquired else 0.0
     if step5d_liveprep_profile:
-        values["_step5d_force_settle_ready"] = 1.0 if step5d_force_settle_ready(
-            normal_load_n=normal_load_n,
-            force_norm_n=force_abs,
-            target_force_n=float(args.target_force_n),
-        ) else 0.0
+        if args.step4e_version == STEP5D_LIVEPREP_STAGE_ID:
+            values["_step5d_force_settle_ready"] = 1.0 if step5d_contact_window_ready(
+                normal_load_n=normal_load_n,
+                force_norm_n=force_abs,
+            ) else 0.0
+        else:
+            values["_step5d_force_settle_ready"] = 1.0 if step5d_force_settle_ready(
+                normal_load_n=normal_load_n,
+                force_norm_n=force_abs,
+                target_force_n=float(args.target_force_n),
+            ) else 0.0
     values["_step4e_line_stage_s"] = state.line_stage_s
     values["_step4e_path_shape"] = args.step4e_path_shape
     values["_step4e_path_time_s"] = path_ref["path_time_s"]
@@ -2005,7 +2045,8 @@ def main(argv: list[str] | None = None) -> int:
             "step5c_joint_rnn_cycloid_v1": "Blocked/quarantined Step5c contact route: previous implementation was DLS, not strict TASE RNN.",
             "step5d_strict_rnn_liveprep_v1": "Live-prep strict RNN qdot route: TP reuses Step5b contact scaffold, then Stage 25.0 consumes registers 37..42 as qd0..qd5 rad/s and executes speedj. Not a completed reproduction claim.",
             "step5d_strict_rnn_liveprep_v2": "Evidence live-prep strict RNN qdot route: warmed calibrated Pinocchio/RNN before Stage 25.0 and skipped lift/25.2 when first-contact orientation error was small; archived after v2 showed over-contact from high 25.3 preload plus unbounded Step5d task velocity.",
-            "step5d_strict_rnn_liveprep_v3": "Current live-prep strict RNN qdot route: raises raw/force-norm hard guards to 100 N, uses a 25.3 force-settle entry gate before Stage 25.0, limits live Step5d xdot_c before the RNN while preserving raw diagnostics, and executes speedj qdot registers 37..42.",
+            "step5d_strict_rnn_liveprep_v3": "Previous live-prep strict RNN qdot route: raises raw/force-norm hard guards to 100 N, uses a strict 5N-centered 25.3 force-settle entry gate before Stage 25.0, limits live Step5d xdot_c before the RNN, and executes speedj qdot registers 37..42.",
+            "step5d_strict_rnn_liveprep_v4": "Current live-prep strict RNN qdot route: keeps the v3 qdot/speedj and xdot limiter path, but 25.3 enters Stage 25.0 after a tolerant 2-15N normal-load contact window for 50 ms with force_norm <= 25N.",
             "step6b_contact_eight_baseline_v1": "Same TP contact-search/latch/25.2/25.3 scaffold as Step5b/v31, but stage 25.0 uses the active Step6 five-point safe-frame 8-shaped reference for 30 s and v31 filtered-live normal policy.",
             "step6b_contact_eight_baseline_v2": "Same TP contact-search/latch/25.2/25.3 scaffold and Step6 reference as v1, but intended bridge caps are 15 mm/s path, 15 mm/s total linear, 3 mm/s normal reserve, and 0.060 rad/s attitude.",
         },

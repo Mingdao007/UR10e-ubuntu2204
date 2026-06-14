@@ -4,8 +4,8 @@
 route. The diagnostic DLS dry-run is quarantined after the 2026-06-13 live run
 showed wrong XY/Z motion. Step5d is the named completion target for the
 complete strict TASE RNN reproduction; the strict-RNN live-prep path is now
-`step5d_strict_rnn_liveprep_v3`, while the full reproduction target remains
-separate and not complete. Step4f, Step4g, Step5b, Step5d v1, and Step5d v2
+`step5d_strict_rnn_liveprep_v4`, while the full reproduction target remains
+separate and not complete. Step4f, Step4g, Step5b, Step5d v1, Step5d v2, and Step5d v3
 remain retained evidence packages only. Do not infer global current status
 from this per-step file without reading the current pointer.
 
@@ -24,7 +24,8 @@ controller upload, or contact motion.
 | `step5c_strict_rnn_dryrun_v1` | bridge+TP | false | true | strict TASE RNN | none | Blocked until `config/step5c_tase_paper_truth.json` has no `pending_pdf_verify` fields and strict RNN equations are implemented. |
 | `step5d_strict_rnn_liveprep_v1` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Evidence route: reached Stage 25.0 and exercised qdot/speedj briefly on 2026-06-14, but stopped after about 0.106 s from TP heartbeat stale. Superseded by v2. |
 | `step5d_strict_rnn_liveprep_v2` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Evidence route: reached Stage 25.0 with qdot/speedj, then stopped by force guard after v2 entered 25.0 already preloaded and drove qdot to the 0.30 rad/s cap. Superseded by v3. |
-| `step5d_strict_rnn_liveprep_v3` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Current live-prep route: keeps qdot registers `37..42` with TP `speedj`, adds a 25.3 force-settle gate before Stage 25.0, limits live Step5d `xdot_c` before the RNN, and uses 100 N hard force guards. |
+| `step5d_strict_rnn_liveprep_v3` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Evidence route: kept qdot registers `37..42` with TP `speedj`, but the strict 25.3 force-settle gate was too narrow to enter Stage 25.0. Superseded by v4. |
+| `step5d_strict_rnn_liveprep_v4` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Current live-prep route: keeps qdot registers `37..42` with TP `speedj`, uses a tolerant 25.3 contact-window gate before Stage 25.0, limits live Step5d `xdot_c` before the RNN, and uses 100 N hard force guards. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |
 
 ## Step5c Calibrated Kinematics Gate
@@ -272,24 +273,32 @@ then stopped on `normal_force_guard` after raw normal force reached about
 already preloaded at about `18 N`, and the unbounded Step5d task velocity drove
 qdot to the `0.30 rad/s` cap while TCP speed continued into the contact normal.
 
-`step5d_strict_rnn_liveprep_v3` is the current live-prep package route. It
+`step5d_strict_rnn_liveprep_v3` is retained as evidence. The 2026-06-14 run
+`runs/bridge_step5d_strict_rnn_liveprep_v3_20260614_233207` did not enter
+Stage 25.0 because the strict 5N-centered 25.3 force-settle gate never became
+ready. Its maximum force stayed below the 100N hard guard, but the gate was too
+narrow for the observed contact transient.
+
+`step5d_strict_rnn_liveprep_v4` is the current live-prep package route. It
 keeps the Step5b contact-search/latch scaffold, warms the calibrated
 Pinocchio/RNN runtime before Stage 25.0, skips the 20 mm lift and 25.2 attitude
 correction when the first-contact orientation error is already `<= 0.069813 rad`,
-adds a 25.3 force-settle entry gate, and switches Stage 25.0 from Cartesian
+adds a more tolerant 25.3 contact-window entry gate, and switches Stage 25.0 from Cartesian
 `speedl` registers to joint `speedj` qdot registers:
 
 - Teach Pendant target:
-  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v3.urp`;
+  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v4.urp`;
 - local generator: `tools/build_step5d_liveprep.py`;
 - operator wrapper: `scripts/step5d-liveprep-operator.sh`;
-- bridge profile: `--step4e-version step5d_strict_rnn_liveprep_v3`;
+- bridge profile: `--step4e-version step5d_strict_rnn_liveprep_v4`;
 - register contract: `37..42 = qd0..qd5 rad/s`, `43 = cmd_valid`,
   `44 = path_time_s`, `45 = force_error_n`, `46 = orientation_error`,
   `47 = solver_status`;
 - qdot cap: `0.30 rad/s`, `speedj` acceleration `0.300 rad/s^2`;
-- Stage 25.3 force-settle gate: `abs(force_error) <= 3 N` and
-  `force_norm <= 12 N` for `0.100 s` before entering Stage 25.0;
+- Stage 25.3 contact-window gate: `2 N <= normal_load <= 15 N` and
+  `force_norm <= 25 N` for `0.050 s` before entering Stage 25.0;
+- Stage 25.3 timeout: `10.000 s`; Stage 25.0 remains blocked until the contact
+  window passes;
 - live bridge limiter: raw Step5d `xdot_c` remains in diagnostics, but the
   value sent to the strict RNN is limited to the existing live caps
   (`step4e_total_linear_limit_m_s` and `step4e_angular_limit_rad_s`);
@@ -333,6 +342,20 @@ Current v3 delivery status:
   (`.script` `8917213bdfcf0fe089e65d147d10e597f62b0541cccdbe948677b0da6d65ceee`,
   `.txt` `1b84c2d22d161f48cb4656d7b16e59162ef9581524fb316337b2f5f3de25c33e`,
   `.urp` `d2ba301d350dd096e388feec205b3dd2861846da9ad354f992ac49c1e169bacb`);
+- next bridge trigger must use `scripts/step5d-liveprep-operator.sh
+  contact-bridge`, not a bare `tools/kunwei_rtde_bridge.py` invocation.
+
+Current v4 delivery status:
+
+- local triplet: `programs/step5/step5d_strict_rnn_liveprep_v4.{script,txt,urp}`;
+- controller triplet:
+  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v4.{script,txt,urp}`;
+- read-back artifact:
+  `runs/controller_readback_step5d_strict_rnn_liveprep_v4_20260614_234749/manifest.json`;
+- SHA state: local, controller, and fetched-back triplet matched
+  (`.script` `ad5df2927da70978315000cc138dda9d258bbfcf4ead0c0eaa7924c61304748e`,
+  `.txt` `bb76131cab9b12191e5b9b155601781846de48c7b2abb20e430ead1ad02f405f`,
+  `.urp` `3e249041e3abb7289b85f43ff4035e78c1706ab1fcfe1b5af45feff04ccaa803`);
 - next bridge trigger must use `scripts/step5d-liveprep-operator.sh
   contact-bridge`, not a bare `tools/kunwei_rtde_bridge.py` invocation.
 
