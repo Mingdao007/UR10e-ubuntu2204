@@ -409,6 +409,7 @@
         "config/step5c_tase_paper_truth.json has no pending_pdf_verify fields and strict_rnn_enabled=true",
         "tools/step5c_strict_rnn.py implements finite-time TASE RNN equations without NotImplementedError",
         "strict solver has no DLS fallback and no IK fallback",
+        "strict solver uses Eq.(23a) projection_input = J.T @ lambda_state and never theta_dot_state - J.T @ lambda_state",
         "strict solver exposes state, lambda, projection/saturation, sigr exponent, gain matrix, force-motion task, and orientation compliance diagnostics",
         "solver uses calibrated Pinocchio FK/J(q), not experiments/.../ur10e_nominal.xml",
         "offline qdot register path proof passes for registers 37..47",

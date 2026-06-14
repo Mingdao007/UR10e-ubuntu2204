@@ -3,6 +3,96 @@
   "strict_rnn_enabled": false,
   "pdf_source": "/home/andy/Zotero/storage/UZRF97KG/Xu 等 - 2026 - Finite-Time Convergence Neural Network-Based Force-Motion Control for Unknown Surface With Orientati.pdf",
   "status": "blocked_pending_pdf_truth_extraction",
+  "equations": {
+    "motion_control": {
+      "paper_eq": "Eq.8",
+      "form": "xdot_t = Phi_O * (xdot_pd + kp * e_p)"
+    },
+    "orientation_error": {
+      "paper_eq": "Eq.13",
+      "form": "e_qua = Q_d^-1 * Q"
+    },
+    "orientation_control": {
+      "paper_eq": "Eq.14",
+      "form": "xdot_o = xdot_od + ko * e_o",
+      "assumption": "Remark 1 sets xdot_od = 0 during operation"
+    },
+    "force_error": {
+      "paper_eq": "Eq.15",
+      "form": "e_p = x_pd - x_p; e_f = F_d - F"
+    },
+    "force_motion_impedance_velocity": {
+      "paper_eq": "Eq.16",
+      "form": "xddot_p = (e_f + kf * integral(e_f) - Bd * xdot_p) / Md"
+    },
+    "force_motion_velocity": {
+      "paper_eq": "Eq.17",
+      "form": "xdot_p(t) = Phi_O * (xdot_pd + kp * e_p) + Phi_bar_O * (xdot_p(t-T) + xddot_p(t) * T)"
+    },
+    "optimization_problem": {
+      "paper_eq": "Eq.20",
+      "objective": "min 0.5 * qdot.T * qdot",
+      "constraint": "J(q) * qdot = xdot_c",
+      "bounds": "omega_minus <= qdot <= omega_plus"
+    },
+    "lagrangian": {
+      "paper_eq": "Eq.21",
+      "form": "L = 0.5 * qdot.T * qdot + lambda.T * (J(q) * qdot - xdot_c)"
+    },
+    "kkt_projection": {
+      "paper_eq": "Eq.22",
+      "form": "qdot = P_Omega(qdot - dL/dqdot); J(q) * qdot = xdot_c"
+    },
+    "rnn_dynamics": {
+      "paper_eq": "Eq.23",
+      "theta_dot_equation_printed": "epsilon * qdot_state_dot = -sigr(qdot_state - P_Omega(qdot_state - (qdot_state - J(q).T * lambda_state)))",
+      "theta_dot_equation_simplified": "epsilon * qdot_state_dot = -sigr(qdot_state - P_Omega(J(q).T * lambda_state))",
+      "lambda_equation": "epsilon * lambda_state_dot = J(q) * qdot_state - xdot_c",
+      "projection_input_form": "J.T @ lambda_state",
+      "lambda_sign_note": "The Eq.23 lambda_state has the opposite sign of the standard Lagrange multiplier obtained directly from Eq.21/Eq.22."
+    },
+    "sigr": {
+      "paper_ref": "Remark 5 / Fig.5",
+      "form": "sigr(x, r) = abs(x)^r * sign(x)",
+      "domain": "0 < r <= 1"
+    }
+  },
+  "parameters": {
+    "epsilon": 0.022,
+    "kp": 4.0,
+    "ko": 5.0,
+    "kf": 1.0,
+    "Md_scalar": 12.0,
+    "Bd_scalar": 550.0,
+    "qdot_bound_rad_s": 0.15,
+    "force_target_n": -5.0,
+    "r_default_for_offline_tests": 0.2
+  },
+  "implementation_contract": {
+    "kinematics_backend": "Pinocchio calibrated base->tool0/active-TCP FK/J(q) only",
+    "solver": "stateful finite-time RNN; no DLS, no pseudo-inverse, no IK fallback",
+    "state": [
+      "theta_dot_state",
+      "lambda_state"
+    ],
+    "diagnostics_required": [
+      "proj_input",
+      "projected",
+      "sigr_arg",
+      "sigr_val",
+      "theta_dot_state",
+      "lambda_state",
+      "constraint_residual_norm"
+    ],
+    "live_authorization": "blocked until every pending/open question is closed and Step5d gates pass"
+  },
+  "open_questions": [
+    "alpha_escape_velocity_gain",
+    "force_sign_convention",
+    "production_sigr_exponent_r",
+    "communication_delay_T_mapping",
+    "Eq23 nonzero-command stability from zero initial lambda under printed-sign dynamics"
+  ],
   "pending_pdf_verify": [
     "finite_time_rnn_state_equation",
     "rnn_gain_matrix",
@@ -10,8 +100,12 @@
     "force_motion_task_equations",
     "orientation_compliance_equations",
     "constraint_qp_or_kkt_form",
-    "discrete_integration_rule",
-    "paper_section_vi_experimental_parameters"
+    "paper_section_vi_experimental_parameters",
+    "alpha_escape_velocity_gain",
+    "force_sign_convention",
+    "production_sigr_exponent_r",
+    "communication_delay_T_mapping",
+    "Eq23_nonzero_command_stability"
   ],
   "sections": {
     "step5c_strict_dryrun": {

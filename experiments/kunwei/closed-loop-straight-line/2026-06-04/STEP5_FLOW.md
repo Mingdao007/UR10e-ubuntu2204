@@ -214,17 +214,20 @@ Step5d is complete only if all of the following are true:
    `strict_rnn_enabled=true`.
 2. `tools/step5c_strict_rnn.py` implements the finite-time TASE RNN equations
    with no `NotImplementedError`, no DLS fallback, and no IK fallback.
-3. The solver exposes audit diagnostics for RNN state, `lambda`,
+3. Eq.(23a) is implemented from the visually checked PDF form:
+   `projection_input = J.T @ lambda_state`; the old
+   `theta_dot_state - J.T @ lambda_state` form is forbidden.
+4. The solver exposes audit diagnostics for RNN state, `lambda`,
    projection/saturation, `sigr` exponent, gain matrix, force-motion task, and
    orientation compliance.
-4. The solver uses calibrated Pinocchio `base -> tool0` `FK/J(q)`; the old
+5. The solver uses calibrated Pinocchio `base -> tool0` `FK/J(q)`; the old
    nominal MuJoCo model is allowed only as a failure contrast.
-5. The qdot register path proof passes for registers `37..47`.
-6. A fresh Step5d numeric sanity artifact passes for the exact route.
-7. A new non-quarantine Step5d TP package validates locally and is generated
+6. The qdot register path proof passes for registers `37..47`.
+7. A fresh Step5d numeric sanity artifact passes for the exact route.
+8. A new non-quarantine Step5d TP package validates locally and is generated
    only after the solver gates pass.
-8. Controller upload and read-back SHA/`cachedContents` verification pass.
-9. A separate Step5d live dry-run/contact plan is explicitly accepted before
+9. Controller upload and read-back SHA/`cachedContents` verification pass.
+10. A separate Step5d live dry-run/contact plan is explicitly accepted before
    opening the bridge or pressing TP Play.
 
 Do not mark Step5d complete from calibrated-only, DLS, IK, register-path-only,
