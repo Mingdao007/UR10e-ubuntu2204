@@ -243,7 +243,8 @@ STEP5D_LIVEPREP_V3_STAGE_ID = "step5d_strict_rnn_liveprep_v3"
 STEP5D_LIVEPREP_V4_STAGE_ID = "step5d_strict_rnn_liveprep_v4"
 STEP5D_LIVEPREP_V5_STAGE_ID = "step5d_strict_rnn_liveprep_v5"
 STEP5D_LIVEPREP_V6_STAGE_ID = "step5d_strict_rnn_liveprep_v6"
-STEP5D_LIVEPREP_STAGE_ID = "step5d_strict_rnn_liveprep_v7"
+STEP5D_LIVEPREP_V7_STAGE_ID = "step5d_strict_rnn_liveprep_v7"
+STEP5D_LIVEPREP_STAGE_ID = "step5d_strict_rnn_liveprep_v8"
 STEP5D_LIVEPREP_STAGE_IDS = {
     STEP5D_LIVEPREP_V1_STAGE_ID,
     STEP5D_LIVEPREP_V2_STAGE_ID,
@@ -251,6 +252,7 @@ STEP5D_LIVEPREP_STAGE_IDS = {
     STEP5D_LIVEPREP_V4_STAGE_ID,
     STEP5D_LIVEPREP_V5_STAGE_ID,
     STEP5D_LIVEPREP_V6_STAGE_ID,
+    STEP5D_LIVEPREP_V7_STAGE_ID,
     STEP5D_LIVEPREP_STAGE_ID,
 }
 STEP5D_SEMANTIC_ORIENTATION_TOLERANCE_RAD = math.radians(5.0)
@@ -263,6 +265,12 @@ STEP5D_V4_FORCE_NORM_MAX_N = 25.0
 STEP5D_V6_NORMAL_LOAD_MIN_N = 2.0
 STEP5D_V6_NORMAL_LOAD_MAX_N = 40.0
 STEP5D_V6_FORCE_NORM_MAX_N = 45.0
+STEP5D_V8_SETTLED_NORMAL_LOAD_MIN_N = 3.0
+STEP5D_V8_SETTLED_NORMAL_LOAD_MAX_N = 8.0
+STEP5D_V8_FORCE_NORM_MAX_N = 25.0
+STEP5D_V8_RECOVERY_NORMAL_LOAD_MIN_N = 0.5
+STEP5D_V8_RECOVERY_NORMAL_LOAD_MAX_N = 40.0
+STEP5D_V8_RECOVERY_FORCE_NORM_STOP_N = 100.0
 STEP6_CONTACT_EIGHT_STAGE_ID = "step6_contact_eight_baseline_v1"
 STEP6_CONTACT_EIGHT_STAGE_ID_V2 = "step6_contact_eight_baseline_v2"
 _STEP5C_SOLVERS: dict[tuple[str, str, float, float], Step5cDlsJointSolver] = {}
@@ -707,9 +715,86 @@ def step5d_contact_window_ready(
     return float(min_normal_load_n) <= load <= float(max_normal_load_n) and float(force_norm_n) <= float(max_force_norm_n)
 
 
+def step5d_v8_recovery_window_ok(
+    *,
+    normal_load_n: float,
+    force_norm_n: float,
+    min_normal_load_n: float = STEP5D_V8_RECOVERY_NORMAL_LOAD_MIN_N,
+    max_normal_load_n: float = STEP5D_V8_RECOVERY_NORMAL_LOAD_MAX_N,
+    hard_force_norm_n: float = STEP5D_V8_RECOVERY_FORCE_NORM_STOP_N,
+) -> bool:
+    values = [normal_load_n, force_norm_n, min_normal_load_n, max_normal_load_n, hard_force_norm_n]
+    if any(not math.isfinite(float(value)) for value in values):
+        return False
+    if min_normal_load_n < 0.0 or max_normal_load_n < min_normal_load_n or hard_force_norm_n <= 0.0:
+        return False
+    load = float(normal_load_n)
+    return (
+        float(min_normal_load_n) <= load <= float(max_normal_load_n)
+        and float(force_norm_n) <= float(hard_force_norm_n)
+    )
+
+
+def step5d_v8_force_pid_settle_velocity(
+    *,
+    normal_load_n: float,
+    target_force_n: float,
+    integral_error_n_s: float,
+    dt_s: float,
+    reaction_normal_b: tuple[float, float, float],
+    normal_velocity_m_s: float,
+    kp_m_s_per_n: float,
+    ki_m_s_per_n_s: float,
+    damping: float,
+    integral_limit_n_s: float,
+    v_press_max_m_s: float,
+    v_unload_max_m_s: float,
+) -> tuple[tuple[float, float, float], float, float]:
+    values = [
+        normal_load_n,
+        target_force_n,
+        integral_error_n_s,
+        dt_s,
+        normal_velocity_m_s,
+        kp_m_s_per_n,
+        ki_m_s_per_n_s,
+        damping,
+        integral_limit_n_s,
+        v_press_max_m_s,
+        v_unload_max_m_s,
+        *reaction_normal_b,
+    ]
+    if any(not math.isfinite(float(value)) for value in values):
+        raise ValueError("Step5d v8 PID settle inputs must be finite")
+    if dt_s < 0.0 or integral_limit_n_s < 0.0 or v_press_max_m_s <= 0.0 or v_unload_max_m_s <= 0.0:
+        raise ValueError("Step5d v8 PID settle limits must be positive")
+    reaction = normalize3(reaction_normal_b)
+    approach = (-reaction[0], -reaction[1], -reaction[2])
+    error_n = float(target_force_n) - float(normal_load_n)
+    integral = clamp(
+        float(integral_error_n_s) + error_n * max(0.0, float(dt_s)),
+        -float(integral_limit_n_s),
+        float(integral_limit_n_s),
+    )
+    v_normal = (
+        float(kp_m_s_per_n) * error_n
+        + float(ki_m_s_per_n_s) * integral
+        - float(damping) * float(normal_velocity_m_s)
+    )
+    v_normal = clamp(v_normal, -float(v_unload_max_m_s), float(v_press_max_m_s))
+    cmd = tuple(approach[idx] * v_normal for idx in range(3))
+    return cmd, integral, v_normal
+
+
 def step5d_liveprep_contact_window_limits(step4e_version: str) -> tuple[float, float, float]:
     if step4e_version == STEP5D_LIVEPREP_V6_STAGE_ID:
         return (STEP5D_V6_NORMAL_LOAD_MIN_N, STEP5D_V6_NORMAL_LOAD_MAX_N, STEP5D_V6_FORCE_NORM_MAX_N)
+    if step4e_version == STEP5D_LIVEPREP_STAGE_ID:
+        return (
+            STEP5D_V8_SETTLED_NORMAL_LOAD_MIN_N,
+            STEP5D_V8_SETTLED_NORMAL_LOAD_MAX_N,
+            STEP5D_V8_FORCE_NORM_MAX_N,
+        )
     return (STEP5D_V4_NORMAL_LOAD_MIN_N, STEP5D_V4_NORMAL_LOAD_MAX_N, STEP5D_V4_FORCE_NORM_MAX_N)
 
 
@@ -945,13 +1030,15 @@ def compute_step4e_values(
     step5d_liveprep_v4_profile = args.step4e_version == STEP5D_LIVEPREP_V4_STAGE_ID
     step5d_liveprep_v5_profile = args.step4e_version == STEP5D_LIVEPREP_V5_STAGE_ID
     step5d_liveprep_v6_profile = args.step4e_version == STEP5D_LIVEPREP_V6_STAGE_ID
-    step5d_liveprep_v7_profile = args.step4e_version == STEP5D_LIVEPREP_STAGE_ID
+    step5d_liveprep_v7_profile = args.step4e_version == STEP5D_LIVEPREP_V7_STAGE_ID
+    step5d_liveprep_v8_profile = args.step4e_version == STEP5D_LIVEPREP_STAGE_ID
     step5d_liveprep_guarded_profile = (
         step5d_liveprep_v3_profile
         or step5d_liveprep_v4_profile
         or step5d_liveprep_v5_profile
         or step5d_liveprep_v6_profile
         or step5d_liveprep_v7_profile
+        or step5d_liveprep_v8_profile
     )
     if step5d_liveprep_profile:
         try:
@@ -1253,6 +1340,7 @@ def compute_step4e_values(
         )
     if args.step4e_integrate_stage25_only and args.step4e_mode == "line" and not control_stage_active:
         control_allowed = False
+    step5d_v8_pid_recovery_ok = True
     if control_allowed:
         if args.step4e_mode == "line" and not step5c_dryrun_profile and not state.normal_acquired:
             cmd = (0.0, 0.0, 0.0)
@@ -1273,7 +1361,36 @@ def compute_step4e_values(
         elif axis_iso_active:
             cmd = (0.0, 0.0, 0.0)
         elif line_entry_gate_active:
-            if step5d_liveprep_guarded_profile:
+            if step5d_liveprep_v8_profile:
+                if step5d_v8_recovery_window_ok(normal_load_n=normal_load_n, force_norm_n=force_abs):
+                    approach_normal_b = (-n_control_b[0], -n_control_b[1], -n_control_b[2])
+                    measured_normal_velocity_m_s = (
+                        dot3((float(speed[0]), float(speed[1]), float(speed[2])), approach_normal_b)
+                        if speed and len(speed) >= 3
+                        else state.normal_velocity_m_s
+                    )
+                    cmd, state.integral_error_n_s, state.normal_velocity_m_s = step5d_v8_force_pid_settle_velocity(
+                        normal_load_n=normal_load_n,
+                        target_force_n=float(args.target_force_n),
+                        integral_error_n_s=state.integral_error_n_s,
+                        dt_s=dt_s,
+                        reaction_normal_b=tuple(float(value) for value in n_control_b),  # type: ignore[arg-type]
+                        normal_velocity_m_s=measured_normal_velocity_m_s,
+                        kp_m_s_per_n=float(args.step4e_force_p_gain),
+                        ki_m_s_per_n_s=float(args.step4e_force_i_gain),
+                        damping=float(args.step4e_force_damping),
+                        integral_limit_n_s=float(args.step4e_integral_limit_n_s),
+                        v_press_max_m_s=float(args.step4e_normal_velocity_limit_m_s),
+                        v_unload_max_m_s=float(args.step4e_normal_velocity_limit_m_s),
+                    )
+                    orientation_cmd = (0.0, 0.0, 0.0)
+                else:
+                    step5d_v8_pid_recovery_ok = False
+                    state.integral_error_n_s = 0.0
+                    state.normal_velocity_m_s = 0.0
+                    cmd = (0.0, 0.0, 0.0)
+                    orientation_cmd = (0.0, 0.0, 0.0)
+            elif step5d_liveprep_guarded_profile:
                 state.integral_error_n_s = clamp(
                     state.integral_error_n_s + force_error * dt_s,
                     -args.step4e_integral_limit_n_s,
@@ -1383,7 +1500,13 @@ def compute_step4e_values(
                 ):
                     step5d_engage_gate_ok = False
                     raise ValueError("Step5d v3 engage gate blocked: force/load outside 5N entry window")
-                if step5d_liveprep_v4_profile or step5d_liveprep_v5_profile or step5d_liveprep_v6_profile or step5d_liveprep_v7_profile:
+                if (
+                    step5d_liveprep_v4_profile
+                    or step5d_liveprep_v5_profile
+                    or step5d_liveprep_v6_profile
+                    or step5d_liveprep_v7_profile
+                    or step5d_liveprep_v8_profile
+                ):
                     contact_min_n, contact_max_n, contact_force_norm_max_n = step5d_liveprep_contact_window_limits(args.step4e_version)
                     if not step5d_contact_window_ready(
                         normal_load_n=normal_load_n,
@@ -1520,7 +1643,10 @@ def compute_step4e_values(
                     "step4e_cmd_wx_rad_s": orientation_cmd[0],
                     "step4e_cmd_wy_rad_s": orientation_cmd[1],
                     "step4e_cmd_wz_rad_s": orientation_cmd[2] if (axis_iso_active or v21_profile or v22_profile or angular_speedl_profile) else 0.0,
-                    "step4e_cmd_valid": 0.0 if args.step4e_mode == "preview" else 1.0,
+                    "step4e_cmd_valid": 0.0
+                    if args.step4e_mode == "preview"
+                    or (step5d_liveprep_v8_profile and line_entry_gate_active and not step5d_v8_pid_recovery_ok)
+                    else 1.0,
                     "step4e_progress_m": progress,
                     "step4e_force_error_n": force_error,
                     "step4e_orientation_error_rad": orientation_error,
@@ -1613,7 +1739,13 @@ def compute_step4e_values(
     values["_step4e_normal_force_error_n"] = force_error
     values["_step4e_normal_acquired"] = 1.0 if state.normal_acquired else 0.0
     if step5d_liveprep_profile:
-        if args.step4e_version in {STEP5D_LIVEPREP_V4_STAGE_ID, STEP5D_LIVEPREP_V5_STAGE_ID, STEP5D_LIVEPREP_V6_STAGE_ID, STEP5D_LIVEPREP_STAGE_ID}:
+        if args.step4e_version in {
+            STEP5D_LIVEPREP_V4_STAGE_ID,
+            STEP5D_LIVEPREP_V5_STAGE_ID,
+            STEP5D_LIVEPREP_V6_STAGE_ID,
+            STEP5D_LIVEPREP_V7_STAGE_ID,
+            STEP5D_LIVEPREP_STAGE_ID,
+        }:
             contact_min_n, contact_max_n, contact_force_norm_max_n = step5d_liveprep_contact_window_limits(args.step4e_version)
             values["_step5d_force_settle_ready"] = 1.0 if step5d_contact_window_ready(
                 normal_load_n=normal_load_n,
@@ -2114,7 +2246,8 @@ def main(argv: list[str] | None = None) -> int:
             "step5d_strict_rnn_liveprep_v4": "Archived live-prep strict RNN route: entered Stage 25.0 through the tolerant contact window but exposed the Step5d force/frame semantic bug where the outer loop inverted the orientation target.",
             "step5d_strict_rnn_liveprep_v5": "Retained semantic-fix live-prep route: Step5d outer loop consumes the Step5b/Step6b reaction-normal contract and hard-fails 25.0 if contact-search and outer-loop orientation semantics disagree. Live v5 entered 25.0 but the 2-15N engage window blocked qdot at about 17-21N.",
             "step5d_strict_rnn_liveprep_v6": "Retained live-prep strict RNN route: widened the contact/recovery window to 2-40N normal_load with force_norm <=45N, proving the v5 semantic gate could enter 25.0 but exposing the 24.3 re-contact overpressure failure.",
-            "step5d_strict_rnn_liveprep_v7": "Current live-prep strict RNN route: inherits the v5/v6 semantic gate and speedj qdot path, restores the 2-15N contact window, and changes 24.3/24.4 re-contact to a slow-only search before Stage 25.0.",
+            "step5d_strict_rnn_liveprep_v7": "Retained live-prep strict RNN route: inherits the v5/v6 semantic gate and speedj qdot path, restores the 2-15N contact window, and changes 24.3/24.4 re-contact to a slow-only search before Stage 25.0.",
+            "step5d_strict_rnn_liveprep_v8": "Current live-prep strict RNN route: Stage 25.3 consumes registers 37..39 as locked-normal Cartesian force-PID settle velocity, admits PID recovery from 0.5-40N normal_load, requires 3-8N and force_norm <=25N for 0.200s, then Stage 25.0 consumes registers 37..42 as qd0..qd5 rad/s for strict RNN speedj.",
             "step6b_contact_eight_baseline_v1": "Same TP contact-search/latch/25.2/25.3 scaffold as Step5b/v31, but stage 25.0 uses the active Step6 five-point safe-frame 8-shaped reference for 30 s and v31 filtered-live normal policy.",
             "step6b_contact_eight_baseline_v2": "Same TP contact-search/latch/25.2/25.3 scaffold and Step6 reference as v1, but intended bridge caps are 15 mm/s path, 15 mm/s total linear, 3 mm/s normal reserve, and 0.060 rad/s attitude.",
         },
@@ -2146,7 +2279,7 @@ def main(argv: list[str] | None = None) -> int:
             "step5c_stage_id": args.step4e_version
             if args.step4e_version in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID}
             else None,
-            "step5c_register_contract": "37..42=qd0..qd5 rad/s, 43=cmd_valid, 44=path_time, 45=force_error, 46=pose/orientation_error, 47=solver_status; Step4e field names are carrier names only in Step5c mode."
+            "step5c_register_contract": "Step5c/Step5d Stage 25.0: 37..42=qd0..qd5 rad/s, 43=cmd_valid, 44=path_time, 45=force_error, 46=pose/orientation_error, 47=solver_status. Step5d v8 Stage 25.3: 37..39=Cartesian force-PID settle vx/vy/vz only. Step4e field names are carrier names only in joint mode."
             if args.step4e_version in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID, *STEP5D_LIVEPREP_STAGE_IDS}
             else None,
             "step5c_joint_model": str(args.step5c_joint_model)
