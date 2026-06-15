@@ -6,7 +6,7 @@ knowledge vault.
 ```text
 UR10e Lab
 |-- Execution Workspace: /home/andy/ur10e_ros2_ws
-|   |-- src/                  # live ROS2 packages
+|   |-- src/                  # live ROS2 package source only
 |   |-- experiments/          # experiment bundles and bench evidence
 |   |-- controller_backups/   # controller snapshots and read-back evidence
 |   |-- report/               # polished reports and report assets
@@ -61,10 +61,30 @@ Mixed-support TASE/demo folders can remain active when their primary context is
 not OnRobot.
 
 The current main campaign target is
-`experiments/tase-contact-reproduction/`; the current physical Kunwei path
-remains in place until a later approved mapping batch. The former `ft_sensor/`
-root has no tracked files; sensor material now lives under
-`experiments/sensor-integration/`.
+`experiments/tase-contact-reproduction/`. The former hardware/date route has
+been physically moved there. The former `ft_sensor/` root has no tracked files;
+sensor material now lives under `experiments/sensor-integration/`.
+
+## ROS Source Boundary
+
+Franka is a useful reference only at the source-repo/package boundary. The
+verified comparison target is `/home/andy/franka_ws/src/franka_ros2`, whose
+packages are split by function/domain, including `franka_bringup/`,
+`franka_hardware/`, `franka_msgs/`, `franka_example_controllers/`,
+`franka_gazebo/`, and related support packages.
+
+UR10e should follow that principle without mirroring a whole Franka workspace:
+
+- Keep `src/` for ROS package/source code only. The current UR10e package is
+  `src/ur10e_bringup/`.
+- Add future UR10e hardware, controller, message, description, or simulation
+  packages by real function/domain need, not by moving experiment scripts into
+  `src/`.
+- Keep active campaigns, raw runs, controller `.urp`/`.script`/`.txt`
+  packages, readbacks, CSV/log evidence, and local experiment tools under
+  `experiments/`.
+- Treat `build/`, `install/`, and `log/` as generated ROS artifacts, not as
+  architecture examples.
 
 ## Knowledge Vault
 

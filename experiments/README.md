@@ -25,6 +25,9 @@ step-centric map for the current TASE contact reproduction campaign.
 - Dense leaves should first get a local README or dashboard before file moves
   are proposed.
 - ROS build artifacts stay out of git through the repository `.gitignore`.
+- Do not turn experiment campaigns into ROS packages. Franka-style source
+  organization applies to `src/` package/domain boundaries, while experiment
+  evidence remains under `experiments/`.
 
 ## Leaf Layout
 

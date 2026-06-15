@@ -20,7 +20,7 @@ implemented by `/home/andy/ur10e_lab_vault/scripts/sync_from_ur10e_workspace.sh`
 ## Architecture Rules
 
 - Treat organization as information architecture, not cosmetic filename work.
-- Keep live code package/function-first.
+- Keep live ROS code package/function-first.
 - Keep experiment outputs artifact/evidence-first.
 - Use dates, people, and sensor names as leaf-level context or metadata, not
   as the main workspace taxonomy.
@@ -28,6 +28,37 @@ implemented by `/home/andy/ur10e_lab_vault/scripts/sync_from_ur10e_workspace.sh`
   be active lifecycle contexts; OnRobot is historical evidence.
 - Parent directories should carry domain, date, or run context instead of
   forcing all metadata into long basenames.
+
+## Franka Reference Rule
+
+Use Franka as a source/package boundary reference, not as a whole-workspace
+directory template. The useful comparison target is
+`/home/andy/franka_ws/src/franka_ros2`, where ROS packages are separated by
+domain, for example `franka_bringup/`, `franka_hardware/`, `franka_msgs/`,
+`franka_example_controllers/`, and `franka_gazebo/`.
+
+Do not mirror `/home/andy/franka_ros2_ws` or other local Franka workspace roots
+as organization examples. Those roots can contain local CSV, PDF, log, and
+experiment artifacts; the reusable principle is the official source repo's
+package/domain boundary.
+
+For UR10e, apply that principle as follows:
+
+- `src/` is only for ROS package/source code. The current package boundary is
+  `src/ur10e_bringup/`; future hardware, controller, message, description, or
+  simulation code should become function-domain ROS packages only when that
+  split is real.
+- `experiments/` is for experiment campaigns, runs, controller packages, raw
+  evidence, local experiment scripts/tools/tests, and controller readbacks.
+- `docs/` is for workspace contracts, indexes, migration maps, SOPs, and
+  organization decisions.
+- `report/` is for human-facing report exports and paired report assets.
+- `build/`, `install/`, and `log/` are generated ROS workspace artifacts and
+  must not be used as organization templates.
+
+Do not turn `experiments/tase-contact-reproduction/` into a ROS package, and do
+not move CSV/log data, `.urp`/`.script`/`.txt` controller packages, or readback
+evidence into `src/`.
 
 ## Move And Rename Gates
 
@@ -73,6 +104,17 @@ experiments/<domain>/<experiment-family>/<condition>/<yyyy-mm-dd>/
   tests/
   tools/
 ```
+
+The active campaign root is currently:
+
+```text
+experiments/tase-contact-reproduction/
+```
+
+Future cleanup inside that campaign should be mapped as campaign/step/evidence
+work, for example `steps/`, `runs/`, `shared/`, and `archive/`. Step-level moves
+must have their own mapping and commit boundary; do not mix them with ROS
+package cleanup.
 
 Examples:
 
