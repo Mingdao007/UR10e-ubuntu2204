@@ -465,6 +465,14 @@ On a valid trigger:
    cache is stale the operator refreshes it itself; do not add manual checks.
 4. Target from user trigger to bridge process start is a few seconds.
 
+Commit hygiene for Step5d live-prep work:
+
+- A live-prep behavior fix, an archive move, and an SOP/documentation guard are
+  separate commits. Do not combine them just because the user asked for the
+  follow-up while the first change is still in progress.
+- If one part needs rollback, the other parts must remain independently
+  revertible.
+
 There is no valid Step5c bridge command at this time. Both
 `scripts/step5c-speedj-dryrun-operator.sh` and
 `scripts/step5c-joint-rnn-operator.sh` must refuse all live modes until the

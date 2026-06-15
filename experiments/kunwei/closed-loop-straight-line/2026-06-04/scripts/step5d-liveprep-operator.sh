@@ -13,7 +13,7 @@ fi
 usage() {
   cat <<EOF
 Usage:
-  step5d-liveprep-operator.sh prep-long-checks
+  step5d-liveprep-operator.sh prep-long-checks  # manual diagnostics only
   STEP5D_CONFIRM='LIVE STEP5D STRICT RNN LIVEPREP' step5d-liveprep-operator.sh contact-bridge
 
 Teach Pendant target:
@@ -31,6 +31,8 @@ Boundary:
   - Stage 25.3 must hold filtered 3-8 N with settle speed <=0.001 m/s for 0.300 s before Stage 25.0 speedj starts.
   - No UR zero_ftsensor(), no Kunwei tare/zero/config, no TCP/payload write.
   - This wrapper never loads a program or presses Play.
+  - contact-bridge owns cached long checks; do not run prep-long-checks as a
+    separate bridge-start step.
 EOF
 }
 
