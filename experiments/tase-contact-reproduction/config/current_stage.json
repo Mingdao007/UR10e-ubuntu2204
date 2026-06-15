@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "updated_at": "2026-06-15T22:51:00+08:00",
+  "updated_at": "2026-06-15T22:56:29+08:00",
   "current_step": "Step5d",
   "current_stage_id": "step5d_strict_rnn_liveprep_v13",
   "program": "step5d_strict_rnn_liveprep_v13",
@@ -16,7 +16,7 @@
     "target_force_n": 5.0,
     "normal_follow_mode": "filtered_live"
   },
-  "status": "step5d_v13_local_package_verified_controller_readback_pending",
+  "status": "step5d_v13_controller_readback_verified_bridge_trigger_not_enabled",
   "strict_rnn_status": {
     "stage_id": "step5d_strict_rnn_liveprep_v13",
     "blocked": false,
@@ -27,9 +27,11 @@
     "v11_escape_replay_summary": "runs/step5d_v11_escape_replay_20260615/summary.json",
     "v12_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_liveprep_v12_20260615_212614",
     "v12_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v12_20260615_212614/manifest.json",
+    "v13_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_liveprep_v13_20260615_225629",
+    "v13_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v13_20260615_225629/manifest.json",
     "v13_stamp": "2026-06-15T2251HKT_STEP5D_STRICT_RNN_LIVEPREP_V13",
     "v13_local_package_validated": true,
-    "v13_controller_readback_verified": false,
+    "v13_controller_readback_verified": true,
     "sha256": {
       ".script": "0c9c7c32ed0ee8cd4a66a8100724c7b733dccca410318a128ab03e8d47293ad6",
       ".txt": "bd8dc3e2f0db8292be26aaa7cfaaf138b61e5b9dc68d68953588631a57c0d5e3",
@@ -41,7 +43,7 @@
     "bridge_has_started": false,
     "live_motion_authorized": false,
     "zero_ftsensor_authorized": false,
-    "blocked_reason": "v13 controller upload/read-back is pending explicit authorization in the v13 handoff; live bridge trigger is not enabled."
+    "blocked_reason": "v13 TP package is controller read-back verified; live bridge trigger, TP Play, robot motion, and zero_ftsensor remain separate explicit gates."
   },
   "retained_steps": [
     {
@@ -53,7 +55,7 @@
       "step": "Step5",
       "flow_path": "STEP5_FLOW.md",
       "stage_table_path": "config/step5_stage_table.json",
-      "role": "current v13 local contact-safety package plus retained Step5c/Step5d evidence"
+      "role": "current v13 controller-readback-verified contact-safety package plus retained Step5c/Step5d evidence"
     },
     {
       "step": "Step6",
@@ -64,7 +66,7 @@
   ],
   "notes": [
     "This file is the single current pointer for UR/Kunwei package and bridge handoffs.",
-    "The current v13 TP-openable package is locally validated only; controller upload/read-back is pending by this handoff's safety boundary.",
+    "The current v13 TP-openable package is controller read-back verified.",
     "Bridge, TP Play, robot motion, and zero_ftsensor remain explicit live gates and are not authorized here.",
     "This contact-safety live-prep package does not mark the full Step5d TASE reproduction complete."
   ]

@@ -1826,7 +1826,7 @@
       "blocked": false,
       "complete": false,
       "completion_target": false,
-      "block_reason": "Current planned contact-safety live-prep package. Local package generation/validation is authorized by the 2026-06-15 v13 handoff; controller upload/read-back and live bridge/run evidence are pending explicit authorization.",
+      "block_reason": "Current contact-safety live-prep package. Controller upload/read-back is verified; live bridge/run evidence is pending explicit authorization.",
       "local_delivery_evidence": {
         "local_program_dir": "programs/step5",
         "program_basename": "step5d_strict_rnn_liveprep_v13",
@@ -1834,8 +1834,8 @@
         "semantic_gate": "runs/ur_contact_semantic_gate_20260615_201109/ur_contact_semantic_gate_summary.json",
         "semantic_gate_pass": true,
         "local_package_validated": true,
-        "controller_readback": null,
-        "controller_readback_verified": false,
+        "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v13_20260615_225629/manifest.json",
+        "controller_readback_verified": true,
         "sha256": {
           ".script": "0c9c7c32ed0ee8cd4a66a8100724c7b733dccca410318a128ab03e8d47293ad6",
           ".txt": "bd8dc3e2f0db8292be26aaa7cfaaf138b61e5b9dc68d68953588631a57c0d5e3",
@@ -1861,7 +1861,7 @@
       },
       "cadence": {
         "reference_clock": "bridge_path_time_freezes_during_contact_uncertain_hold",
-        "motion": "local_contact_safety_package_pending_controller_delivery",
+        "motion": "controller_readback_verified_contact_safety_package_pending_live_bridge_trigger",
         "tp_hold_s": 0.002,
         "end_hold_s": 0.1
       },
@@ -1959,7 +1959,7 @@
         "actual TCP speed >0.050m/s stops through stop_request after 0.004s dwell",
         "low-load hold beyond 0.300s stops through stop_request",
         "normal_load is dot(force_base, reaction_normal), not TCP Fz or world-Z force",
-        "generated v13 local package validates; controller read-back is pending explicit authorization"
+        "generated v13 package validates locally and after controller read-back; live bridge trigger remains separate explicit authorization"
       ],
       "filter_policy": {
         "normal_filter": "v31_filtered_live",
@@ -1968,7 +1968,7 @@
         "force_sign_convention": "step5_step6_positive_normal_load",
         "semantic_contract": "reaction normal for load, approach normal for posture/press direction"
       },
-      "success_condition": "Local v13 implementation is complete only after no-motion tests and local TP package validation pass. It is not a current runnable bridge target until controller upload/read-back is explicitly authorized and verified."
+      "success_condition": "v13 package controller upload/read-back verified. TP Open Program, bridge start, TP Play, robot motion, zero_ftsensor, and full Step5d reproduction completion all remain separate explicit gates."
     },
     {
       "id": "step5d_strict_rnn_reproduction_v1",

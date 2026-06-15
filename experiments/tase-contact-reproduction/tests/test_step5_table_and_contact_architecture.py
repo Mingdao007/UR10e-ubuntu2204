@@ -165,8 +165,11 @@ class Step5TableAndContactArchitectureTest(unittest.TestCase):
         self.assertEqual(liveprep["local_delivery_evidence"]["program_basename"], "step5d_strict_rnn_liveprep_v13")
         self.assertTrue(liveprep["local_delivery_evidence"]["semantic_gate_pass"])
         self.assertTrue(liveprep["local_delivery_evidence"]["local_package_validated"])
-        self.assertFalse(liveprep["local_delivery_evidence"]["controller_readback_verified"])
-        self.assertIsNone(liveprep["local_delivery_evidence"]["controller_readback"])
+        self.assertTrue(liveprep["local_delivery_evidence"]["controller_readback_verified"])
+        self.assertEqual(
+            liveprep["local_delivery_evidence"]["controller_readback"],
+            "runs/controller_readback_step5d_strict_rnn_liveprep_v13_20260615_225629/manifest.json",
+        )
         self.assertEqual(liveprep["local_delivery_evidence"]["numeric_sanity"], "runs/step5d_v11_escape_replay_20260615/summary.json")
         self.assertTrue(liveprep["strict_rnn"])
         self.assertEqual(liveprep["guard"]["qdot_cap_rad_s"], 0.05)
