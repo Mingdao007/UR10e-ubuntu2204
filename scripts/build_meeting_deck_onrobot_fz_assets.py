@@ -379,8 +379,8 @@ def main() -> None:
     parser.add_argument("--output-dir", type=Path, default=Path("/home/andy/ur10e_ros2_ws/report/assets/demo_01_02_meeting_deck_20260528"))
     args = parser.parse_args()
 
-    run600 = Path("/home/andy/ur10e_ros2_ws/experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100")
-    run90 = Path("/home/andy/ur10e_ros2_ws/experiments/20260528_onrobot_three_stream_coldstart_drift/run_20260528_141149")
+    run600 = Path("/home/andy/ur10e_ros2_ws/experiments/archive/onrobot/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100")
+    run90 = Path("/home/andy/ur10e_ros2_ws/experiments/archive/onrobot/20260528_onrobot_three_stream_coldstart_drift/run_20260528_141149")
     output_dir = args.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
 

@@ -21,7 +21,7 @@ experiments/**/run_*/**/*.csv
 experiments/**/onrobot_tcpdaq/*.csv
 experiments/**/artifacts/**/*.tar.gz
 experiments/**/worktree/
-ft_sensor/onrobot/hex_e_v2_3010007655/vendor_usb_backups/**/Compute_Box_update/*.osu
+ft_sensor/archive/onrobot/hex_e_v2_3010007655/vendor_usb_backups/**/Compute_Box_update/*.osu
 
 # Controller filesystem backups are local recovery bundles. Track their
 # manifest in docs, not the tarballs/JAR snapshots themselves.
@@ -40,14 +40,14 @@ ft_sensor/kunwei/kwr75b/software/
 # OnRobot HEX device-root data policy.
 # Track small docs/tools/manifests intentionally, but keep raw photos and
 # measurement outputs out of git.
-ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/
-ft_sensor/onrobot/hex_e_v2_3010007655/latest_connection_photos/
-ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/
-ft_sensor/onrobot/hex_e_v2_3010007655/assets/contact_sheets/
-ft_sensor/onrobot/hex_e_v2_3010007655/measurements/**/*.csv
-ft_sensor/onrobot/hex_e_v2_3010007655/measurements/**/*.jsonl
-ft_sensor/onrobot/hex_e_v2_3010007655/measurements/**/*.png
-ft_sensor/onrobot/hex_e_v2_3010007655/measurements/**/*.log
+ft_sensor/archive/onrobot/hex_e_v2_3010007655/photos_raw/
+ft_sensor/archive/onrobot/hex_e_v2_3010007655/latest_connection_photos/
+ft_sensor/archive/onrobot/hex_e_v2_3010007655/assets/thumbnails/
+ft_sensor/archive/onrobot/hex_e_v2_3010007655/assets/contact_sheets/
+ft_sensor/archive/onrobot/hex_e_v2_3010007655/measurements/**/*.csv
+ft_sensor/archive/onrobot/hex_e_v2_3010007655/measurements/**/*.jsonl
+ft_sensor/archive/onrobot/hex_e_v2_3010007655/measurements/**/*.png
+ft_sensor/archive/onrobot/hex_e_v2_3010007655/measurements/**/*.log
 
 # Local editor/cache files
 .vscode/

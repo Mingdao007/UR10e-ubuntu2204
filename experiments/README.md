@@ -49,6 +49,7 @@ experiments/kunwei/closed-loop-straight-line/2026-06-04/
 ## Lifecycle Notes
 
 - OnRobot material is historical evidence.
+- Retired OnRobot experiment bundles live under `archive/onrobot/`.
 - Kunwei and zero_ftsensor are lifecycle contexts for active or recent work,
   not global workspace taxonomy.
 - Dates, people, and sensor names belong at leaves or in metadata, not as the

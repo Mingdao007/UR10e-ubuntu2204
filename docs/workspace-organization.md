@@ -101,13 +101,13 @@ Only Batch 0 is authorized by this document.
 
 | Batch | Status | Surface | Policy |
 |---|---|---|---|
-| 0 | Current | Audit, index, naming policy, taxonomy | Document only; no file moves. |
-| 1 | Future | Isolated Markdown/report entry cleanup | Requires `old -> new` mapping and approval. |
+| 0 | Completed | Audit, index, naming policy, taxonomy | Document only; no file moves. |
+| 1 | Active | Retired OnRobot evidence archive | Approved by `docs/onrobot-archive-migration-20260615.md`; keep original basenames. |
 | 2 | Future | Report and assets relationship cleanup | Move paired reports/assets only after reference search. |
 | 3 | Future | Experiment family README/index cleanup | Add local indexes; do not migrate raw runs. |
 | 4 | Future | Active scripts/package paths | Requires mapping approval, import/glob/reference search, and smoke tests. |
 
-Do not execute Batch 1 or later from this document alone.
+Do not execute Batch 2 or later from this document alone.
 
 ## Verification Per Batch
 

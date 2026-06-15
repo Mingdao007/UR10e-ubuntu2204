@@ -65,13 +65,13 @@ STEP4E_RESULT_LABEL = "Step4E v13 outer-loop line"
 STEP4E_RESULT_FILE_PREFIX = "step4e_v13_line"
 STEP4E_RESULT_VIDEO_PREVIEW = Path("/home/andy/.cache/codex/phone-photo-intake/previews/IMG_1748_step4e_v13.mov")
 
-ONROBOT_600_DIR = ROOT / "experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100"
+ONROBOT_600_DIR = ROOT / "experiments/archive/onrobot/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100"
 ONROBOT_UDP_CSV = ONROBOT_600_DIR / "three_stream_600s_20260528_043052_onrobot_udp500_raw.csv"
 ONROBOT_RTDE_CSV = ONROBOT_600_DIR / "three_stream_600s_20260528_043052_rtde_ur500_urcap125.csv"
 ONROBOT_SUMMARY = ONROBOT_600_DIR / "three_stream_600s_20260528_043052_summary.json"
 ONROBOT_ALIGNMENT = ONROBOT_600_DIR / "three_stream_600s_20260528_043052_urcap_udp_alignment_stats.json"
 
-ONROBOT_LONG_DIR = ROOT / "experiments/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217"
+ONROBOT_LONG_DIR = ROOT / "experiments/archive/onrobot/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217"
 ONROBOT_LONG_UDP_CSV = ONROBOT_LONG_DIR / "three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv"
 ONROBOT_LONG_SUMMARY = ONROBOT_LONG_DIR / "three_stream_24h_20260530_20260530_175220_summary.json"
 
@@ -1703,8 +1703,8 @@ def build_markdown(
 | Step4D demo video | {f'[{step4d_video}]({step4d_video})' if step4d_video else 'N/A'} |
 | Step4E v13 run | [../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step4e_result['run_name']}](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step4e_result['run_name']}) |
 | Step4E v13 demo video | {f'[{step4e_video}]({step4e_video})' if step4e_video else 'N/A'} |
-| OnRobot 600s UDP raw CSV | [../experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv](../experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv) |
-| OnRobot 6h UDP raw CSV | [../experiments/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217/three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv](../experiments/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217/three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv) |
+| OnRobot 600s UDP raw CSV | [../experiments/archive/onrobot/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv](../experiments/archive/onrobot/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv) |
+| OnRobot 6h UDP raw CSV | [../experiments/archive/onrobot/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217/three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv](../experiments/archive/onrobot/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217/three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv) |
 
 图 1 是本报告最主要的 OnRobot/Kunwei 前 `600 s` 对比图。两条曲线都先减去各自窗口前 `1 s` 均值，因此显示的是本窗口内的相对变化。这个 zero 是软件分析口径，不是 device-side zero/tare。阴影是每个时间 bin 内的 min/max envelope，实线是 bin mean；统计表仍使用窗口内所有样本。
 

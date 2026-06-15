@@ -14,7 +14,7 @@ import pandas as pd
 ROOT = Path("/home/andy/ur10e_ros2_ws")
 RUN_DIR = (
     ROOT
-    / "experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100"
+    / "experiments/archive/onrobot/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100"
 )
 SUMMARY_PATH = RUN_DIR / "three_stream_600s_20260528_043052_summary.json"
 RTDE_CSV = RUN_DIR / "three_stream_600s_20260528_043052_rtde_ur500_urcap125.csv"

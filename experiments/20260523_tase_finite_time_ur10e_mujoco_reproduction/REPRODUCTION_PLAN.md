@@ -191,10 +191,10 @@ URDF → MJCF 当前默认选**手工 MJCF + `<include>` UR mesh**（**defensibl
 
 #### A3.1. OnRobot HEX / EOAT 几何
 
-当前 `experiments/onrobot_hex_e_v2_3010007655/eoat_design/` 没有公开 STL/STEP。落地路径选择**(b) 用 primitive 近似 + 单一接触点**：
+当前 `experiments/archive/onrobot/onrobot_hex_e_v2_3010007655/eoat_design/` 没有公开 STL/STEP。落地路径选择**(b) 用 primitive 近似 + 单一接触点**：
 
 - HEX-E v2：用 `<geom type="cylinder">` 近似机身（质量、质心从 OnRobot datasheet 取，注释来源）；
-- EOAT v13：用 `<geom type="cylinder">` 加 `<geom type="sphere">` 近似 receiver + 接触头，质量来源在 `experiments/onrobot_hex_e_v2_3010007655/eoat_design/EOAT_TCP_NOTE.md`；
+- EOAT v13：用 `<geom type="cylinder">` 加 `<geom type="sphere">` 近似 receiver + 接触头，质量来源在 `experiments/archive/onrobot/onrobot_hex_e_v2_3010007655/eoat_design/EOAT_TCP_NOTE.md`；
 - 接触点：单个 `<site>` 放在 85 mm TCP guess 位置，所有接触力闭环只用这一个 site；
 - 不建可视 mesh，等实机阶段拿到实测尺寸再细化。
 
@@ -526,7 +526,7 @@ python scripts/run_ur10e_mujoco_adaptation.py --smoke
 
 参考已有只读成果：
 
-- `/home/andy/ur10e_ros2_ws/experiments/20260520_ur10e_poweron_readonly`
+- `/home/andy/ur10e_ros2_ws/experiments/archive/onrobot/20260520_ur10e_poweron_readonly`
 - `/home/andy/ur10e_ros2_ws/experiments/20260520_ur10e_builtin_force_maxfreq_60s`
 
 实机前必须补齐：

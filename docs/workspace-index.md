@@ -30,9 +30,12 @@ UR10e Lab
 |---|---|---|---|---|---|
 | `/home/andy/ur10e_ros2_ws/src/` | Live ROS2 package source | active-code | Bringup, hardware, controllers, interfaces, descriptions, MoveIt config, examples, tests | do-not-move | Package READMEs and source manifests |
 | `/home/andy/ur10e_ros2_ws/experiments/` | Experiment bundles and bench evidence | active-experiment, historical-evidence, raw-data | Runs, configs, local programs, scripts, tests, tools, reports | index-only | `experiments/README.md` |
+| `/home/andy/ur10e_ros2_ws/experiments/archive/onrobot/` | Retired OnRobot experiment evidence | historical-evidence, raw-data | OnRobot-era experiment bundles, raw runs, reports, summaries | do-not-move | `docs/onrobot-archive-migration-20260615.md` |
 | `/home/andy/ur10e_ros2_ws/controller_backups/` | Controller snapshots and read-back evidence | controller-readback | Controller files copied from or verified against the robot | do-not-move | Local README or manifest when present |
 | `/home/andy/ur10e_ros2_ws/ft_sensor/` | Sensor references and adapter material | active-experiment, historical-evidence | Sensor notes, references, adapter files, parser context | mapping-required | Local sensor README files |
+| `/home/andy/ur10e_ros2_ws/ft_sensor/archive/onrobot/` | Retired OnRobot sensor/reference material | historical-evidence | HEX-E docs, tools, manifests, measurements, vendor backups | do-not-move | `docs/onrobot-archive-migration-20260615.md` |
 | `/home/andy/ur10e_ros2_ws/report/` | Polished reports and assets | report-export | Human-facing reports, plots, exported assets | low-risk-doc-rename | Report index or report README when present |
+| `/home/andy/ur10e_ros2_ws/report/archive/onrobot/` | Retired OnRobot report exports | historical-evidence, report-export | OnRobot reports and paired assets | do-not-move | `docs/onrobot-archive-migration-20260615.md` |
 | `/home/andy/ur10e_ros2_ws/weekly_meeting/` | Meeting-facing outputs | report-export | Weekly report material, generated plots, deck inputs | mapping-required | Meeting generator or README when present |
 | `/home/andy/ur10e_ros2_ws/docs/` | Workspace contracts and indexes | active-code | Atlas, SOP, organization rules, archive notes | low-risk-doc-rename | `docs/workspace-organization.md` |
 | `/home/andy/ur10e_ros2_ws/scripts/` | Repo-level utilities | active-code | Analysis wrappers, sync helpers, validation scripts | mapping-required | Script `--help`, README, or caller references |
@@ -51,6 +54,10 @@ role is controller state preservation rather than a single experiment artifact.
 
 Raw runs are stable evidence by default. Dense leaves should get a local README
 or dashboard before any migration is considered.
+
+Retired OnRobot experiment material lives under `experiments/archive/onrobot/`.
+Mixed-support TASE/demo folders can remain active when their primary context is
+not OnRobot.
 
 ## Knowledge Vault
 

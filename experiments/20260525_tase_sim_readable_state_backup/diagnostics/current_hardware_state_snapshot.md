@@ -56,14 +56,14 @@ backups, or local installer directories.
   assume those controls exist or instruct the user to press them unless later
   photo/manual evidence identifies the exact control.
 - Read-only Ubuntu-to-Compute-Box TCP DAQ after the URCap variable check:
-  `/home/andy/ur10e_ros2_ws/experiments/20260523_payload_tcp_static_validation/onrobot_tcpdaq_after_urcap_variables`.
+  `/home/andy/ur10e_ros2_ws/experiments/archive/onrobot/20260523_payload_tcp_static_validation/onrobot_tcpdaq_after_urcap_variables`.
   The 5 s run sent only `READCALIBRATIONINFO` and `READFT` to
   `192.168.1.1:49151`, had no errors, row throughput about `5193 Hz`, and raw
   tuple consecutive-change rate about `250.5 Hz`. Treat this as a short direct
   Ethernet read confirmation, not yet as a stable long-run sensor update rate.
 - Follow-up read-only Ubuntu-to-Compute-Box TCP DAQ in the same
   post-URCap/toolbar state:
-  `/home/andy/ur10e_ros2_ws/experiments/20260523_onrobot_tcpdaq_post_urcap_10min`.
+  `/home/andy/ur10e_ros2_ws/experiments/archive/onrobot/20260523_onrobot_tcpdaq_post_urcap_10min`.
   The 600 s run sent only `READCALIBRATIONINFO` and `READFT` to
   `192.168.1.1:49151`, had no errors, returned `status=0` throughout, produced
   `3453086` PC request-response rows over `599.997556 s`, and measured raw
@@ -79,7 +79,7 @@ backups, or local installer directories.
 - Force-value caveat from `2026-05-24`: the user observed PolyScope
   `Variables` `Fz` around `0.04 N`, while a same-state 5 s read-only TCP DAQ
   check at
-  `/home/andy/ur10e_ros2_ws/experiments/20260524_onrobot_tcp_vs_polyscope_variables/onrobot_tcpdaq_current`
+  `/home/andy/ur10e_ros2_ws/experiments/archive/onrobot/20260524_onrobot_tcp_vs_polyscope_variables/onrobot_tcpdaq_current`
   still returned `Fz mean = -32.7114 N`, raw tuple transition rate
   `249.9168 Hz`, and Dashboard `Program running: false` /
   `programState: STOPPED <unnamed>`. Treat TCP DAQ `READFT` force values and
@@ -91,7 +91,7 @@ backups, or local installer directories.
   true` and `programState: PLAYING <unnamed>`. RTDE `actual_TCP_force` was near
   zero (`Fz` observed around `0.30 N` in one read), but a simultaneous 5 s
   direct TCP DAQ check at
-  `/home/andy/ur10e_ros2_ws/experiments/20260524_onrobot_tcp_vs_polyscope_variables/onrobot_tcpdaq_program_running`
+  `/home/andy/ur10e_ros2_ws/experiments/archive/onrobot/20260524_onrobot_tcp_vs_polyscope_variables/onrobot_tcpdaq_program_running`
   still returned `Fz mean = -32.6699 N` and raw tuple transition rate
   `250.5219 Hz`. Running the no-motion wait program therefore did not make TCP
   DAQ `READFT` force values match RTDE/PolyScope-variable force values.
@@ -104,9 +104,9 @@ backups, or local installer directories.
   Variables to Ubuntu, but it still requires a manual no-motion PolyScope
   program edit to write the registers.
 - Official OnRobot USB backup from `2026-05-24`:
-  `/home/andy/ur10e_ros2_ws/ft_sensor/onrobot/hex_e_v2_3010007655/vendor_usb_backups/onrobot_usb_20260524`
+  `/home/andy/ur10e_ros2_ws/ft_sensor/archive/onrobot/hex_e_v2_3010007655/vendor_usb_backups/onrobot_usb_20260524`
   with manifest
-  `/home/andy/ur10e_ros2_ws/ft_sensor/onrobot/hex_e_v2_3010007655/vendor_usb_backups/onrobot_usb_20260524_file_manifest.tsv`.
+  `/home/andy/ur10e_ros2_ws/ft_sensor/archive/onrobot/hex_e_v2_3010007655/vendor_usb_backups/onrobot_usb_20260524_file_manifest.tsv`.
   The backup contains `483` regular files and occupies about `414M`. Offline
   inspection of the official `FT-OnRobot-4.1.7.1754.urcap` confirms
   `Fx/Fy/Fz/Tx/Ty/Tz/F3D/T3D/bFT/tFT` are URScript variables, with
