@@ -2466,7 +2466,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--step5c-joint-model",
         type=Path,
         default=Path(
-            "/home/andy/ur10e_ros2_ws/experiments/20260523_tase_finite_time_ur10e_mujoco_reproduction/assets/mjcf/ur10e_nominal.xml"
+            "/home/andy/ur10e_ros2_ws/experiments/archive/legacy/tase-mujoco-reproduction-2026-05-23/assets/mjcf/ur10e_nominal.xml"
         ),
     )
     parser.add_argument("--step5c-joint-site", default="tcp_site_unverified_85mm")

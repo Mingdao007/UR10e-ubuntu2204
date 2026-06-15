@@ -26,7 +26,7 @@ python3 /home/andy/codex-private-skills/skills/ur10e-realsetup/scripts/sample_tc
   --hz 500 \
   --plot all \
   --prefix ur10e_builtin_actual_tcp_force_500hz_60s \
-  --output-dir /home/andy/ur10e_ros2_ws/experiments/20260520_ur10e_builtin_force_maxfreq_60s \
+  --output-dir /home/andy/ur10e_ros2_ws/experiments/archive/legacy/ur10e-built-in-force-maxfreq-2026-05-20 \
   --json-only
 ```
 

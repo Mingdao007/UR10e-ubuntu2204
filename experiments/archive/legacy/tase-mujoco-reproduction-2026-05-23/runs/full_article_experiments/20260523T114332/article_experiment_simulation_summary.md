@@ -1,7 +1,7 @@
 # Full Article Experiment Simulation Summary
 
 Run id: `20260523T114332`
-Config: `/home/andy/ur10e_ros2_ws/experiments/20260523_tase_finite_time_ur10e_mujoco_reproduction/configs/full_article_experiments.yaml`
+Config: `/home/andy/ur10e_ros2_ws/experiments/archive/legacy/tase-mujoco-reproduction-2026-05-23/configs/full_article_experiments.yaml`
 
 Scope: simulated reproduction of paper Section VI trajectory families, not hardware validation.
 Section V Fig.5/Fig.6 parity is provided by the MATLAB run folder, while this run covers experiment #1-#4 trajectory/force/position/orientation behavior.

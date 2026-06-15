@@ -62,7 +62,7 @@ The gate must prove all of these before any Step5c route can be re-enabled:
    exact future route.
 
 The old nominal MuJoCo model
-`experiments/20260523_tase_finite_time_ur10e_mujoco_reproduction/assets/mjcf/ur10e_nominal.xml`
+`experiments/archive/legacy/tase-mujoco-reproduction-2026-05-23/assets/mjcf/ur10e_nominal.xml`
 is banned for real Step5c IK/Jacobian. It is retained only as a failure
 contrast for the quarantined 2026-06-13 dry-run.
 

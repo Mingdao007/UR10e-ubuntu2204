@@ -8,9 +8,9 @@ logical layout for `experiments/`.
 - `experiments/tase-contact-reproduction/` is the current
   physical home for the active TASE contact reproduction work.
 - `experiments/archive/onrobot/` contains retired OnRobot experiment evidence.
-- `experiments/zero_drift/` contains UR force zero-drift evidence.
-- Date-prefixed experiment folders remain stable historical evidence unless a
-  specific old -> new mapping is approved.
+- `experiments/archive/legacy/zero-drift/` contains UR force zero-drift evidence.
+- Former top-level date-prefixed experiment folders now live under
+  `experiments/archive/legacy/`.
 
 ## Target Logical Layout
 

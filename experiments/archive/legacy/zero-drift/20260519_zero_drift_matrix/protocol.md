@@ -24,7 +24,7 @@ python3 /home/andy/codex-private-skills/skills/ur10e-realsetup/scripts/run_zero_
   --confirm-no-contact \
   --confirm-fresh-unzeroed \
   --seconds 700 --hz 20 \
-  --output-dir /home/andy/ur10e_ros2_ws/experiments/zero_drift/20260519_zero_drift_matrix \
+  --output-dir /home/andy/ur10e_ros2_ws/experiments/archive/legacy/zero-drift/20260519_zero_drift_matrix \
   --preflight-only
 ```
 
@@ -35,14 +35,14 @@ python3 /home/andy/codex-private-skills/skills/ur10e-realsetup/scripts/run_zero_
   --confirm-no-contact \
   --confirm-fresh-unzeroed \
   --seconds 700 --hz 20 \
-  --output-dir /home/andy/ur10e_ros2_ws/experiments/zero_drift/20260519_zero_drift_matrix
+  --output-dir /home/andy/ur10e_ros2_ws/experiments/archive/legacy/zero-drift/20260519_zero_drift_matrix
 ```
 
 采集完成后分析：
 
 ```bash
 python3 /home/andy/codex-private-skills/skills/ur10e-realsetup/scripts/analyze_zero_drift_matrix.py \
-  --experiment-dir /home/andy/ur10e_ros2_ws/experiments/zero_drift/20260519_zero_drift_matrix
+  --experiment-dir /home/andy/ur10e_ros2_ws/experiments/archive/legacy/zero-drift/20260519_zero_drift_matrix
 ```
 
 ## 报告规则

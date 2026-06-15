@@ -39,22 +39,22 @@ Columns:
 | old_path | proposed_path | object_type | lifecycle | move_policy | risk | reference_impact | batch | notes |
 |---|---|---|---|---|---|---|---|---|
 | `experiments/archive/onrobot/` | `experiments/archive/onrobot/` | retired experiment archive | historical-evidence | do-not-move | low | low | none | Already archived by OnRobot archive migration. |
-| `experiments/zero_drift/` | `experiments/zero_drift/` | UR force evidence | historical-evidence | index-only | medium | medium | future-review | Leave stable until a separate zero-drift mapping exists. |
-| `experiments/20260523_tase_finite_time_ur10e_mujoco_reproduction/` | `experiments/tase-contact-reproduction/archive/mujoco-reproduction-20260523/` | simulation reproduction evidence | historical-evidence | approval-required | medium | medium | later-git-mv | Candidate archive under the campaign after review. |
+| `experiments/zero_drift/` | `experiments/archive/legacy/zero-drift/` | UR force evidence | historical-evidence | completed | medium | medium | 2026-06-15-physical-migration | Top-level legacy folder archived. |
+| `experiments/20260523_tase_finite_time_ur10e_mujoco_reproduction/` | `experiments/archive/legacy/tase-mujoco-reproduction-2026-05-23/` | simulation reproduction evidence | historical-evidence | completed | medium | medium | 2026-06-15-physical-migration | Archived under legacy instead of the active campaign root. |
 
 ## Preserve / index-only evidence
 
 | old_path | proposed_path | object_type | lifecycle | move_policy | risk | reference_impact | batch | notes |
 |---|---|---|---|---|---|---|---|---|
-| `experiments/20260525_tase_sim_readable_state_backup/` | `experiments/20260525_tase_sim_readable_state_backup/` | mixed support evidence | historical-evidence | index-only | medium | medium | none | Mixed TASE/OnRobot-era evidence; do not move in this campaign batch. |
-| `experiments/20260527_ur10e_demo_1_1_local_planar_patch/` | `experiments/20260527_ur10e_demo_1_1_local_planar_patch/` | demo evidence | historical-evidence | index-only | medium | medium | none | Keep demo history stable. |
-| `experiments/20260520_ur10e_builtin_force_maxfreq_60s/` | `experiments/20260520_ur10e_builtin_force_maxfreq_60s/` | UR force capture | historical-evidence | index-only | low | low | none | Not part of current TASE step migration. |
-| `experiments/20260525_rotation_plane_visualization/` | `experiments/20260525_rotation_plane_visualization/` | visualization evidence | historical-evidence | index-only | low | low | none | Not part of current TASE step migration. |
+| `experiments/20260525_tase_sim_readable_state_backup/` | `experiments/archive/legacy/tase-readable-state-backup-2026-05-25/` | mixed support evidence | historical-evidence | completed | medium | medium | 2026-06-15-physical-migration | Mixed TASE/OnRobot-era evidence archived as legacy. |
+| `experiments/20260527_ur10e_demo_1_1_local_planar_patch/` | `experiments/archive/legacy/ur10e-demo-local-planar-patch-2026-05-27/` | demo evidence | historical-evidence | completed | medium | medium | 2026-06-15-physical-migration | Demo history archived as legacy. |
+| `experiments/20260520_ur10e_builtin_force_maxfreq_60s/` | `experiments/archive/legacy/ur10e-built-in-force-maxfreq-2026-05-20/` | UR force capture | historical-evidence | completed | low | low | 2026-06-15-physical-migration | Top-level date folder archived as legacy. |
+| `experiments/20260525_rotation_plane_visualization/` | `experiments/archive/legacy/rotation-plane-visualization-2026-05-25/` | visualization evidence | historical-evidence | completed | low | low | 2026-06-15-physical-migration | Top-level date folder archived as legacy. |
 
 ## Questions for later step split approval
 
-- Confirm whether later physical migration should move the campaign root in
-  one commit or split docs/config/programs/runs into separate commits.
+- Confirm whether the active campaign should be deep-split by step after the
+  root migration has settled.
 - Confirm whether `programs/step3_*` should live under
   `step4-contact-scaffold/` as scaffold evidence or under campaign `archive/`.
 - Confirm whether `scripts/`, `tools/`, and `tests/` should remain shared or

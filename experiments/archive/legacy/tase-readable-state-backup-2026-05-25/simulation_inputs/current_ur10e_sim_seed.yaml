@@ -1,5 +1,5 @@
 artifact: ur10e_current_readable_state_for_tase_sim
-source_backup_root: /home/andy/ur10e_ros2_ws/experiments/20260525_tase_sim_readable_state_backup
+source_backup_root: /home/andy/ur10e_ros2_ws/experiments/archive/legacy/tase-readable-state-backup-2026-05-25
 captured_wall: '2026-05-25T16:41:25'
 scope: read_only_current_state_backup_for_simulation_seed_not_approved_calibration_evidence
 safety_boundary:
@@ -169,11 +169,11 @@ current_payload_tcp_once:
     Tz: -0.024576074191754994
 force_trace_artifacts:
   ur_rtde_actual_tcp_force_10s:
-    csv: /home/andy/ur10e_ros2_ws/experiments/20260525_tase_sim_readable_state_backup/ur_rtde_force/ur10e_actual_tcp_force_readonly_10s_20260525_164226.csv
+    csv: /home/andy/ur10e_ros2_ws/experiments/archive/legacy/tase-readable-state-backup-2026-05-25/ur_rtde_force/ur10e_actual_tcp_force_readonly_10s_20260525_164226.csv
     plots:
-    - /home/andy/ur10e_ros2_ws/experiments/20260525_tase_sim_readable_state_backup/ur_rtde_force/ur10e_actual_tcp_force_readonly_10s_20260525_164226.png
-    - /home/andy/ur10e_ros2_ws/experiments/20260525_tase_sim_readable_state_backup/ur_rtde_force/ur10e_actual_tcp_force_readonly_10s_20260525_164226_fz.png
-    - /home/andy/ur10e_ros2_ws/experiments/20260525_tase_sim_readable_state_backup/ur_rtde_force/ur10e_actual_tcp_force_readonly_10s_20260525_164226_fxy.png
+    - /home/andy/ur10e_ros2_ws/experiments/archive/legacy/tase-readable-state-backup-2026-05-25/ur_rtde_force/ur10e_actual_tcp_force_readonly_10s_20260525_164226.png
+    - /home/andy/ur10e_ros2_ws/experiments/archive/legacy/tase-readable-state-backup-2026-05-25/ur_rtde_force/ur10e_actual_tcp_force_readonly_10s_20260525_164226_fz.png
+    - /home/andy/ur10e_ros2_ws/experiments/archive/legacy/tase-readable-state-backup-2026-05-25/ur_rtde_force/ur10e_actual_tcp_force_readonly_10s_20260525_164226_fxy.png
     seconds: 10.0
     hz: 100.0
     samples: 1001
@@ -203,7 +203,7 @@ force_trace_artifacts:
         range: 1.1896528852303847
         std: 0.19871691093192315
   onrobot_tcpdaq_readonly_5s:
-    csv: /home/andy/ur10e_ros2_ws/experiments/20260525_tase_sim_readable_state_backup/onrobot_tcpdaq/onrobot_tcpdaq_readonly_5s_20260525_164241.csv
+    csv: /home/andy/ur10e_ros2_ws/experiments/archive/legacy/tase-readable-state-backup-2026-05-25/onrobot_tcpdaq/onrobot_tcpdaq_readonly_5s_20260525_164241.csv
     samples: 27369
     request_response_hz: 5476.945522638729
     raw_tuple_change_rate_hz: 249.74343279817072
@@ -237,7 +237,7 @@ force_trace_artifacts:
     caveat: direct TCP DAQ READFT values are not treated as equivalent to PolyScope
       OnRobot Variables or UR actual_TCP_force
   urcap_rtde_output_registers_24_29_5s:
-    csv: /home/andy/ur10e_ros2_ws/experiments/20260525_tase_sim_readable_state_backup/urcap_registers/urcap_ft_rtde_registers_readonly_5s_20260525_164308.csv
+    csv: /home/andy/ur10e_ros2_ws/experiments/archive/legacy/tase-readable-state-backup-2026-05-25/urcap_registers/urcap_ft_rtde_registers_readonly_5s_20260525_164308.csv
     samples: 555
     sample_rate_hz: 125.00494254639325
     force_norm_n:

@@ -1,5 +1,5 @@
 run_id: 20260523T114332
-config: /home/andy/ur10e_ros2_ws/experiments/20260523_tase_finite_time_ur10e_mujoco_reproduction/configs/full_article_experiments.yaml
+config: /home/andy/ur10e_ros2_ws/experiments/archive/legacy/tase-mujoco-reproduction-2026-05-23/configs/full_article_experiments.yaml
 experiments:
 - experiment: E1
   paper_label: 'Experiment #1'

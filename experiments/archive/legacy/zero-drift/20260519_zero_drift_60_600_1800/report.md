@@ -30,7 +30,7 @@ S00 清零前 60 秒基线：
 ```bash
 python3 /home/andy/codex-private-skills/skills/ur10e-realsetup/scripts/sample_tcp_force.py \
   --seconds 60 --hz 20 --plot both \
-  --output-dir /home/andy/ur10e_ros2_ws/experiments/zero_drift/20260519_zero_drift_60_600_1800/artifacts \
+  --output-dir /home/andy/ur10e_ros2_ws/experiments/archive/legacy/zero-drift/20260519_zero_drift_60_600_1800/artifacts \
   --prefix S00_prezero_60s
 ```
 
@@ -41,7 +41,7 @@ python3 /home/andy/codex-private-skills/skills/ur10e-realsetup/scripts/zero_ftse
 sleep 2
 python3 /home/andy/codex-private-skills/skills/ur10e-realsetup/scripts/sample_tcp_force.py \
   --seconds <60|600|1800> --hz 20 --plot both \
-  --output-dir /home/andy/ur10e_ros2_ws/experiments/zero_drift/20260519_zero_drift_60_600_1800/artifacts \
+  --output-dir /home/andy/ur10e_ros2_ws/experiments/archive/legacy/zero-drift/20260519_zero_drift_60_600_1800/artifacts \
   --prefix <S01_rezero_60s|S02_rezero_600s|S03_rezero_1800s>
 ```
 

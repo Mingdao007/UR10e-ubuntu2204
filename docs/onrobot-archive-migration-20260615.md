@@ -44,5 +44,5 @@ rename raw files.
 
 | Path | Reason |
 |---|---|
-| `experiments/20260525_tase_sim_readable_state_backup` | TASE reproduction context with OnRobot-era evidence. |
-| `experiments/20260527_ur10e_demo_1_1_local_planar_patch` | Demo context with OnRobot-era validation evidence. |
+| `experiments/archive/legacy/tase-readable-state-backup-2026-05-25` | TASE reproduction context with OnRobot-era evidence. |
+| `experiments/archive/legacy/ur10e-demo-local-planar-patch-2026-05-27` | Demo context with OnRobot-era validation evidence. |

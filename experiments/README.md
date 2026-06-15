@@ -20,8 +20,8 @@ step-centric map for the current TASE contact reproduction campaign.
   organization.
 - `kunwei/` is historical/current physical context only, not the target
   taxonomy.
-- Raw runs and controller readbacks are not moved until an old -> new mapping
-  is approved.
+- Raw runs and controller readbacks are moved only with an approved old -> new
+  mapping and remain preserve-first evidence after relocation.
 - Dense leaves should first get a local README or dashboard before file moves
   are proposed.
 - ROS build artifacts stay out of git through the repository `.gitignore`.
@@ -62,10 +62,12 @@ experiments/sensor-integration/kunwei-kwr75b/
 - Retired OnRobot experiment bundles live under `archive/onrobot/`.
 - Kunwei and zero_ftsensor are lifecycle contexts for active or recent work,
   not global workspace taxonomy.
-- The current physical Kunwei path remains valid until a later approved
-  migration batch; do not move Step5/v12 code or readbacks as part of indexing.
+- The current active TASE work lives under
+  `experiments/tase-contact-reproduction/`; do not use a top-level `kunwei/`
+  taxonomy for new experiment material.
 - Dates, people, and sensor names belong at leaves or in metadata, not as the
   main navigation structure.
 
-Historical experiment folders may keep their existing names until a specific
-`old -> new` mapping is approved. Do not move raw runs only to normalize names.
+Historical experiment folders are archived under `experiments/archive/legacy/`
+when they leave the active workspace view. Do not move raw runs only to
+normalize names.

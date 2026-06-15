@@ -68,7 +68,7 @@ UR10e 本地事实：
 本复现新开目录：
 
 ```text
-/home/andy/ur10e_ros2_ws/experiments/20260523_tase_finite_time_ur10e_mujoco_reproduction/
+/home/andy/ur10e_ros2_ws/experiments/archive/legacy/tase-mujoco-reproduction-2026-05-23/
   REPRODUCTION_PLAN.md
   configs/
     paper_truth.yaml
@@ -113,7 +113,7 @@ UR10e 本地事实：
 建议使用实验目录内 venv，避免污染 ROS 2 系统 Python：
 
 ```bash
-cd /home/andy/ur10e_ros2_ws/experiments/20260523_tase_finite_time_ur10e_mujoco_reproduction
+cd /home/andy/ur10e_ros2_ws/experiments/archive/legacy/tase-mujoco-reproduction-2026-05-23
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
@@ -527,7 +527,7 @@ python scripts/run_ur10e_mujoco_adaptation.py --smoke
 参考已有只读成果：
 
 - `/home/andy/ur10e_ros2_ws/experiments/archive/onrobot/20260520_ur10e_poweron_readonly`
-- `/home/andy/ur10e_ros2_ws/experiments/20260520_ur10e_builtin_force_maxfreq_60s`
+- `/home/andy/ur10e_ros2_ws/experiments/archive/legacy/ur10e-built-in-force-maxfreq-2026-05-20`
 
 实机前必须补齐：
 

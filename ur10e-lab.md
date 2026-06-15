@@ -4,8 +4,8 @@ This vault tracks UR10e bring-up, experiments, reports, and robot-side notes.
 
 ## Current Experiment
 
-- [[experiments/zero_drift/20260518_initial_s00_s01/report|UR10e Zero Drift Initial S00/S01 Report]]
-- [[experiments/zero_drift/20260518_initial_s00_s01/protocol|First Drift Protocol]]
+- [[experiments/archive/legacy/zero-drift/20260518_initial_s00_s01/report|UR10e Zero Drift Initial S00/S01 Report]]
+- [[experiments/archive/legacy/zero-drift/20260518_initial_s00_s01/protocol|First Drift Protocol]]
 
 ## Rules
 
@@ -17,5 +17,5 @@ This vault tracks UR10e bring-up, experiments, reports, and robot-side notes.
 ## Important Paths
 
 - Experiments: [[experiments/README]]
-- Zero drift records: [[experiments/zero_drift/README]]
+- Zero drift records: [[experiments/archive/legacy/zero-drift/README]]
 - ROS wrapper: `src/ur10e_bringup`
