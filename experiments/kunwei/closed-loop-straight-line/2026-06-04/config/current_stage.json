@@ -1,50 +1,50 @@
 {
-  "version": 1,
-  "updated_at": "2026-06-13T00:05:55+08:00",
-  "current_step": "Step5c",
-  "current_stage_id": null,
-  "program": null,
+  "version": 2,
+  "updated_at": "2026-06-15T21:26:14+08:00",
+  "current_step": "Step5d",
+  "current_stage_id": "step5d_strict_rnn_liveprep_v12",
+  "program": "step5d_strict_rnn_liveprep_v12",
   "flow_path": "STEP5_FLOW.md",
   "stage_table_path": "config/step5_stage_table.json",
-  "controller_target": null,
-  "local_triplet": null,
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v12.urp",
+  "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v12.script",
+  "local_triplet": "programs/step5/step5d_strict_rnn_liveprep_v12.{script,txt,urp}",
   "bridge_profile": {
-    "step4e_version": null,
+    "step4e_version": "step5d_strict_rnn_liveprep_v12",
     "step4e_path_shape": "cycloid",
-    "step5c_qdot_limit_rad_s": null,
-    "target_force_n": 5.0
+    "step5d_qdot_limit_rad_s": 0.05,
+    "target_force_n": 5.0,
+    "normal_follow_mode": "filtered_live"
   },
-  "status": "step5c_all_joint_space_live_routes_quarantined",
+  "status": "step5d_v12_controller_readback_verified_waiting_bridge_trigger",
   "strict_rnn_status": {
-    "stage_id": "step5c_strict_rnn_dryrun_v1",
-    "blocked": true,
-    "paper_truth_config": "config/step5c_tase_paper_truth.json",
-    "reason": "Strict RNN equations and parameters are not PDF-verified; no contact route is active."
-  },
-  "quarantined_contact_stage": {
-    "stage_id": "step5c_joint_rnn_cycloid_v1",
-    "program": "step5c_joint_rnn_cycloid_v1",
-    "controller_target": "/programs/andyl/kunwei/step5/step5c_joint_rnn_cycloid_v1.urp",
-    "expected_behavior": "stop-only quarantine package; operator refuses contact bridge"
-  },
-  "quarantined_dryrun_stage": {
-    "stage_id": "step5c_speedj_dryrun_v1",
-    "program": "step5c_speedj_dryrun_v1",
-    "controller_target": "/programs/andyl/kunwei/step5/step5c_speedj_dryrun_v1.urp",
-    "expected_behavior": "stop-only quarantine package; operator refuses dry-run bridge",
-    "reason": "2026-06-13 live dry-run showed wrong XY/Z motion from DLS/Jacobian mapping"
+    "stage_id": "step5d_strict_rnn_liveprep_v12",
+    "blocked": false,
+    "paper_truth_config": "config/step5d_liveprep_solver_gate.json",
+    "reason": "Guarded live-prep package only; full Step5d strict TASE reproduction remains separate and incomplete."
   },
   "evidence": {
-    "numeric_sanity_dir": "runs/step5c_numeric_sanity_20260613_000939",
-    "dryrun_quarantine_readback_dir": "runs/controller_readback_step5c_speedj_dryrun_v1_20260613_001626",
-    "contact_quarantine_readback_dir": "runs/controller_readback_step5c_joint_rnn_cycloid_v1_20260613_001634",
-    "previous_dryrun_controller_readback_dir": "runs/controller_readback_step5c_speedj_dryrun_v1_20260613_000950",
-    "previous_contact_quarantine_readback_dir": "runs/controller_readback_step5c_joint_rnn_cycloid_v1_20260613_000958",
-    "previous_misnamed_contact_readback_dir": "runs/controller_readback_step5c_joint_rnn_cycloid_v1_20260612_234410",
-    "previous_moving_dryrun_controller_readback_dir": "runs/controller_readback_step5c_speedj_dryrun_v1_20260612_234401",
-    "tracked_manifest": "docs/kunwei-local-artifact-manifest-20260612.md"
+    "v11_escape_replay_summary": "runs/step5d_v11_escape_replay_20260615/summary.json",
+    "v12_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_liveprep_v12_20260615_212614",
+    "v12_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v12_20260615_212614/manifest.json",
+    "v12_stamp": "2026-06-15T2125HKT_STEP5D_STRICT_RNN_LIVEPREP_V12",
+    "sha256": {
+      ".script": "087ac3a40b9bdb1d216f03ffd77e3812a96d10c8207e7a2047fcba7f9046f318",
+      ".txt": "2af1d1150b054b76fa48cb7bd11858d5d36678e7f7a3bf63876e87cdf5349584",
+      ".urp": "ca5c75f17f709fc7ad42da92b017ac3bbb5941a73583a4a95fb414a1eabb7596"
+    }
   },
-  "prerequisite_stage": null,
+  "bridge_trigger": {
+    "allowed_tokens": [
+      "开bridge",
+      "开 bridge",
+      "开",
+      "1"
+    ],
+    "bridge_has_started": false,
+    "live_motion_authorized": false,
+    "zero_ftsensor_authorized": false
+  },
   "retained_steps": [
     {
       "step": "Step4e",
@@ -55,7 +55,7 @@
       "step": "Step5",
       "flow_path": "STEP5_FLOW.md",
       "stage_table_path": "config/step5_stage_table.json",
-      "role": "diagnostic_dls_dryrun_only_until_strict_rnn_exists"
+      "role": "current guarded Step5d live-prep handoff plus retained Step5c/Step5d evidence"
     },
     {
       "step": "Step6",
@@ -66,6 +66,7 @@
   ],
   "notes": [
     "This file is the single current pointer for UR/Kunwei package and bridge handoffs.",
-    "Per-step flow files describe their own evidence and stages; they do not declare the global active route."
+    "The current TP-openable package is controller read-back verified, but bridge, TP Play, robot motion, and zero_ftsensor remain explicit live gates.",
+    "This guarded live-prep package does not mark the full Step5d TASE reproduction complete."
   ]
 }
