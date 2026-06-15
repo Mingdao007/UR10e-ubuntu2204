@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04"
 BASE_OPERATOR="${ROOT}/scripts/step4e-line-v1-operator.sh"
-STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v5}"
+STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v6}"
 EXPECTED_PROGRAM="/programs/andyl/kunwei/step5/${STEP5D_VERSION}.urp"
 
 usage() {
@@ -22,7 +22,7 @@ Boundary:
   - Stage 25.0: registers 37..42 are qd0..qd5 rad/s; TP executes speedj.
   - qdot cap: 0.30 rad/s.
   - Raw normal guard: 100 N, force norm guard: 100 N, torque guard: 3.0 Nm.
-  - Stage 25.3 must hold a 2-15 N normal-load contact window before Stage 25.0 speedj starts.
+  - Stage 25.3 must hold a 2-40 N normal-load contact/recovery window before Stage 25.0 speedj starts.
   - No UR zero_ftsensor(), no Kunwei tare/zero/config, no TCP/payload write.
   - This wrapper never loads a program or presses Play.
 EOF

@@ -16,8 +16,8 @@ from build_step5b_contact import build_script as build_step5b_script
 from step5_table import load_stage_frame, step5_stage
 
 
-PROGRAM_NAME = "step5d_strict_rnn_liveprep_v5"
-STEP5_STAGE_ID = "step5d_strict_rnn_liveprep_v5"
+PROGRAM_NAME = "step5d_strict_rnn_liveprep_v6"
+STEP5_STAGE_ID = "step5d_strict_rnn_liveprep_v6"
 BRIDGE_VERSION = STEP5_STAGE_ID
 LOCAL_PROGRAM_DIR = PROGRAM_DIR / "step5"
 CONTROLLER_DIR = "/programs/andyl/kunwei/step5"
@@ -28,15 +28,15 @@ RAW_NORMAL_GUARD_N = 100.0
 FORCE_NORM_GUARD_N = 100.0
 TORQUE_NORM_GUARD_NM = 3.0
 LINE_ENTRY_NORMAL_LOAD_MIN_N = 2.0
-LINE_ENTRY_NORMAL_LOAD_MAX_N = 15.0
-LINE_ENTRY_FORCE_NORM_MAX_N = 25.0
+LINE_ENTRY_NORMAL_LOAD_MAX_N = 40.0
+LINE_ENTRY_FORCE_NORM_MAX_N = 45.0
 LINE_ENTRY_REQUIRED_S = 0.050
 LINE_ENTRY_CMD_LIMIT_M_S = 0.003
 LINE_ENTRY_TIMEOUT_S = 10.000
 
 
 def source_stamp(now: datetime) -> str:
-    return now.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_LIVEPREP_V5")
+    return now.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_LIVEPREP_V6")
 
 
 def load_safe_frame() -> dict:
@@ -271,8 +271,8 @@ def _replace_line_entry_with_force_settle(script: str) -> str:
 def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -> str:
     script = build_step5b_script(stamp, gen_at, geom, frame)
     script = script.replace("step5b_contact_cycloid_baseline_v1", PROGRAM_NAME)
-    script = script.replace("Step5b contact cycloid baseline v1", "Step5d strict RNN liveprep v5")
-    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V1", "STEP5D_STRICT_RNN_LIVEPREP_V5")
+    script = script.replace("Step5b contact cycloid baseline v1", "Step5d strict RNN liveprep v6")
+    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V1", "STEP5D_STRICT_RNN_LIVEPREP_V6")
     script = script.replace("codex_step5b_down_search", "codex_step5d_down_search")
     script = script.replace("step4e-version=step5b_v1", f"step4e-version={BRIDGE_VERSION}")
     script = script.replace("codex_abs(normal_force) > 50.0", f"codex_abs(normal_force) > {RAW_NORMAL_GUARD_N:.1f}")

@@ -61,7 +61,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             )
 
     def test_step5d_liveprep_package_is_non_quarantine_speedj_executor(self) -> None:
-        stamp = "2026-06-15T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V5"
+        stamp = "2026-06-15T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V6"
         geom = liveprep.line_cfg(liveprep.load_json(liveprep.CONFIG_PATH))
         frame = liveprep.load_safe_frame()
         script = liveprep.build_script(stamp, "2026-06-14T12:00:00+08:00", geom, frame)
@@ -77,8 +77,8 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn("local orientation_skip_error_rad = 0.069813", script)
         self.assertIn("if stop_reason == 0.0 and skip_lift_attitude == 0:", script)
         self.assertIn("local line_entry_normal_load_min_n = 2.000", script)
-        self.assertIn("local line_entry_normal_load_max_n = 15.000", script)
-        self.assertIn("local line_entry_force_norm_max_n = 25.000", script)
+        self.assertIn("local line_entry_normal_load_max_n = 40.000", script)
+        self.assertIn("local line_entry_force_norm_max_n = 45.000", script)
         self.assertIn("local line_entry_required_s = 0.050", script)
         self.assertIn("local line_entry_timeout_s = 10.000", script)
         self.assertIn("speedl([cmd_vx, cmd_vy, cmd_vz, 0.0, 0.0, 0.0]", script)
@@ -94,12 +94,12 @@ class Step5dFullChainSanityTest(unittest.TestCase):
                 "--step4e-mode",
                 "line",
                 "--step4e-version",
-                "step5d_strict_rnn_liveprep_v5",
+                "step5d_strict_rnn_liveprep_v6",
                 "--step4e-path-shape",
                 "cycloid",
             ]
         )
-        self.assertEqual(args.step4e_version, "step5d_strict_rnn_liveprep_v5")
+        self.assertEqual(args.step4e_version, "step5d_strict_rnn_liveprep_v6")
         self.assertEqual(args.step5d_qdot_limit_rad_s, 0.30)
         self.assertFalse(args.disable_dashboard_program_watch)
         with self.assertRaisesRegex(SystemExit, "Blocked Step5d reproduction"):
@@ -124,19 +124,19 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             source,
         )
 
-    def test_step5d_operator_points_to_v5_controller_package(self) -> None:
+    def test_step5d_operator_points_to_v6_controller_package(self) -> None:
         operator = (ROOT / "scripts" / "step5d-liveprep-operator.sh").read_text(encoding="utf-8")
         base = (ROOT / "scripts" / "step4e-line-v1-operator.sh").read_text(encoding="utf-8")
-        self.assertIn('STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v5}"', operator)
+        self.assertIn('STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v6}"', operator)
         self.assertIn('/programs/andyl/kunwei/step5/${STEP5D_VERSION}.urp', operator)
         self.assertIn('MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-100}"', operator)
         self.assertIn('MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-100}"', operator)
-        self.assertIn('STEP4E_VERSION="step5d_strict_rnn_liveprep_v5"', base)
+        self.assertIn('STEP4E_VERSION="step5d_strict_rnn_liveprep_v6"', base)
         self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/${STEP4E_VERSION}.urp"', base)
         self.assertIn('EXPECTED_BASENAME="${STEP4E_VERSION}.urp"', base)
         self.assertIn('RUN_LABEL="${STEP4E_VERSION}"', base)
 
-    def test_step5d_v4_live_limiter_and_contact_window_gate(self) -> None:
+    def test_step5d_v6_live_limiter_and_contact_window_gate(self) -> None:
         limited, active = bridge.limit_step5d_live_xdot(
             [3.0, 4.0, 0.0, 0.2, 0.0, 0.0],
             max_linear_m_s=0.006,
@@ -149,9 +149,12 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertFalse(bridge.step5d_force_settle_ready(normal_load_n=18.0, force_norm_n=18.3, target_force_n=5.0))
         self.assertFalse(bridge.step5d_contact_window_ready(normal_load_n=1.9, force_norm_n=6.0))
         self.assertTrue(bridge.step5d_contact_window_ready(normal_load_n=2.0, force_norm_n=6.0))
-        self.assertTrue(bridge.step5d_contact_window_ready(normal_load_n=15.0, force_norm_n=24.9))
-        self.assertFalse(bridge.step5d_contact_window_ready(normal_load_n=15.1, force_norm_n=6.0))
-        self.assertFalse(bridge.step5d_contact_window_ready(normal_load_n=5.0, force_norm_n=25.1))
+        v6_min, v6_max, v6_force_max = bridge.step5d_liveprep_contact_window_limits("step5d_strict_rnn_liveprep_v6")
+        self.assertEqual((v6_min, v6_max, v6_force_max), (2.0, 40.0, 45.0))
+        self.assertTrue(bridge.step5d_contact_window_ready(normal_load_n=15.1, force_norm_n=6.0, min_normal_load_n=v6_min, max_normal_load_n=v6_max, max_force_norm_n=v6_force_max))
+        self.assertTrue(bridge.step5d_contact_window_ready(normal_load_n=40.0, force_norm_n=44.9, min_normal_load_n=v6_min, max_normal_load_n=v6_max, max_force_norm_n=v6_force_max))
+        self.assertFalse(bridge.step5d_contact_window_ready(normal_load_n=40.1, force_norm_n=6.0, min_normal_load_n=v6_min, max_normal_load_n=v6_max, max_force_norm_n=v6_force_max))
+        self.assertFalse(bridge.step5d_contact_window_ready(normal_load_n=5.0, force_norm_n=45.1, min_normal_load_n=v6_min, max_normal_load_n=v6_max, max_force_norm_n=v6_force_max))
 
     def test_step5d_v4_contact_window_replays_v3_25_3_data(self) -> None:
         csv_path = (
@@ -186,6 +189,40 @@ class Step5dFullChainSanityTest(unittest.TestCase):
 
         self.assertEqual(best_v3_rows, 0)
         self.assertGreaterEqual(best_v4_rows, 25)  # 50 ms at 500 Hz.
+
+    def test_step5d_v6_contact_window_replays_v5_25_0_blocked_rows(self) -> None:
+        csv_path = (
+            ROOT
+            / "runs"
+            / "bridge_step5d_strict_rnn_liveprep_v5_20260615_171934"
+            / "bridge_rtde_500hz.csv"
+        )
+        with csv_path.open(encoding="utf-8") as handle:
+            rows = list(csv.DictReader(handle))
+
+        v6_min, v6_max, v6_force_max = bridge.step5d_liveprep_contact_window_limits("step5d_strict_rnn_liveprep_v6")
+        stage25_rows = []
+        for row in rows:
+            stage_value = row["ur_output_double_register_35"]
+            if not stage_value or abs(float(stage_value) - 25.0) >= 0.05:
+                continue
+            normal_load = float(row["_step4e_normal_load_n"])
+            force_norm = float(row["force_norm_n"])
+            stage25_rows.append((normal_load, force_norm))
+            self.assertFalse(bridge.step5d_contact_window_ready(normal_load_n=normal_load, force_norm_n=force_norm))
+            self.assertTrue(
+                bridge.step5d_contact_window_ready(
+                    normal_load_n=normal_load,
+                    force_norm_n=force_norm,
+                    min_normal_load_n=v6_min,
+                    max_normal_load_n=v6_max,
+                    max_force_norm_n=v6_force_max,
+                )
+            )
+
+        self.assertEqual(len(stage25_rows), 53)
+        self.assertGreater(min(load for load, _ in stage25_rows), 16.0)
+        self.assertLess(max(load for load, _ in stage25_rows), 22.0)
 
     def test_full_chain_sanity_has_no_dls_or_live_side_effect_path(self) -> None:
         source = inspect.getsource(sanity).lower()
