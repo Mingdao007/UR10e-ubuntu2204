@@ -29,10 +29,10 @@ UR10e Lab
 | Path | Role | Lifecycle | Contents | Move policy | Entry point / owner doc |
 |---|---|---|---|---|---|
 | `/home/andy/ur10e_ros2_ws/src/` | Live ROS2 package source | active-code | Bringup, hardware, controllers, interfaces, descriptions, MoveIt config, examples, tests | do-not-move | Package READMEs and source manifests |
-| `/home/andy/ur10e_ros2_ws/experiments/` | Experiment bundles and bench evidence | active-experiment, historical-evidence, raw-data | Runs, configs, local programs, scripts, tests, tools, reports | index-only | `experiments/README.md` |
+| `/home/andy/ur10e_ros2_ws/experiments/` | Experiment bundles and bench evidence | active-experiment, historical-evidence, raw-data | Runs, configs, local programs, scripts, tests, tools, reports | index-only | `experiments/index.md` |
 | `/home/andy/ur10e_ros2_ws/experiments/archive/onrobot/` | Retired OnRobot experiment evidence | historical-evidence, raw-data | OnRobot-era experiment bundles, raw runs, reports, summaries | do-not-move | `docs/onrobot-archive-migration-20260615.md` |
 | `/home/andy/ur10e_ros2_ws/controller_backups/` | Controller snapshots and read-back evidence | controller-readback | Controller files copied from or verified against the robot | do-not-move | Local README or manifest when present |
-| `/home/andy/ur10e_ros2_ws/ft_sensor/` | Sensor references and adapter material | active-experiment, historical-evidence | Sensor notes, references, adapter files, parser context | mapping-required | Local sensor README files |
+| `/home/andy/ur10e_ros2_ws/ft_sensor/` | Deprecated root evidence zone for sensor references and adapter material | active-experiment, historical-evidence | Sensor notes, references, adapter files, parser context; target taxonomy maps this material to `/home/andy/ur10e_ros2_ws/experiments/sensor-integration/` | mapping-required | `docs/experiments-step-reorganization.md` |
 | `/home/andy/ur10e_ros2_ws/ft_sensor/archive/onrobot/` | Retired OnRobot sensor/reference material | historical-evidence | HEX-E docs, tools, manifests, measurements, vendor backups | do-not-move | `docs/onrobot-archive-migration-20260615.md` |
 | `/home/andy/ur10e_ros2_ws/ft_sensor/archive/robotiq/` | Borrowed UR10e Robotiq sensor evidence | historical-evidence | FT300-S notes, manifests, and photo evidence from the borrowed robot context | do-not-move | Local README and goal prompt |
 | `/home/andy/ur10e_ros2_ws/report/` | Polished reports and assets | report-export | Human-facing reports, plots, exported assets | low-risk-doc-rename | Report index or report README when present |
@@ -45,8 +45,9 @@ UR10e Lab
 
 ## Experiment Bundles
 
-`experiments/` is the evidence zone for bench work. A leaf directory may contain
-`config/`, `programs/`, `runs/`, `scripts/`, `tests/`, `tools/`, and
+`experiments/` is the evidence zone for bench work. New logical organization is
+task/campaign -> step -> artifact kind -> timestamped run. A leaf directory may
+contain `config/`, `programs/`, `runs/`, `scripts/`, `tests/`, `tools/`, and
 `report.md`.
 
 Use experiment-leaf `programs/` for packages that belong to one run or family.
@@ -59,6 +60,12 @@ or dashboard before any migration is considered.
 Retired OnRobot experiment material lives under `experiments/archive/onrobot/`.
 Mixed-support TASE/demo folders can remain active when their primary context is
 not OnRobot.
+
+The current main campaign target is
+`experiments/tase-contact-reproduction/`; the current physical Kunwei path
+remains in place until a later approved mapping batch. `ft_sensor/` remains a
+deprecated root evidence zone until sensor material is approved for
+`experiments/sensor-integration/`.
 
 ## Knowledge Vault
 

@@ -3,6 +3,9 @@
 This folder is the experiment bundle and bench evidence zone for the UR10e
 execution workspace. It is not a cosmetic filename cleanup area.
 
+See `index.md` for the current physical layout, target logical layout, and the
+step-centric map for the current TASE contact reproduction campaign.
+
 ## Rules
 
 - Every new experiment starts on a new git branch when it changes tracked
@@ -12,6 +15,13 @@ execution workspace. It is not a cosmetic filename cleanup area.
   that explains the evidence.
 - Raw runs are stable by default. Do not move raw CSV, logs, plots, controller
   packages, or readbacks only to make names prettier.
+- New work uses task/campaign -> step -> artifact kind -> timestamped run.
+- Date, sensor, and person names do not define top-level experiment
+  organization.
+- `kunwei/` is historical/current physical context only, not the target
+  taxonomy.
+- Raw runs and controller readbacks are not moved until an old -> new mapping
+  is approved.
 - Dense leaves should first get a local README or dashboard before file moves
   are proposed.
 - ROS build artifacts stay out of git through the repository `.gitignore`.
@@ -41,9 +51,9 @@ state.
 Examples:
 
 ```text
-experiments/onrobot/three-stream/coldstart-drift/2026-05-30/
-experiments/ur10e/poweron-readonly/2026-05-20/
-experiments/kunwei/closed-loop-straight-line/2026-06-04/
+experiments/tase-contact-reproduction/steps/step5-cycloid-rnn/
+experiments/tase-contact-reproduction/runs/step5/<timestamped-run>/
+experiments/sensor-integration/kunwei-kwr75b/
 ```
 
 ## Lifecycle Notes
@@ -52,6 +62,8 @@ experiments/kunwei/closed-loop-straight-line/2026-06-04/
 - Retired OnRobot experiment bundles live under `archive/onrobot/`.
 - Kunwei and zero_ftsensor are lifecycle contexts for active or recent work,
   not global workspace taxonomy.
+- The current physical Kunwei path remains valid until a later approved
+  migration batch; do not move Step5/v12 code or readbacks as part of indexing.
 - Dates, people, and sensor names belong at leaves or in metadata, not as the
   main navigation structure.
 
