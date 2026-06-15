@@ -171,6 +171,8 @@ STEP5D_DIAG_FIELDS = [
     "_step5d_outer_xdot_limiter_active",
     "_step5d_engage_gate_ok",
     "_step5d_force_settle_ready",
+    "_step5d_force_settle_filtered_normal_load_n",
+    "_step5d_force_settle_velocity_m_s",
     "_step5d_force_sign_convention",
     "_step5d_proj_input_form",
     "_step5d_active_bounds_count",
@@ -245,7 +247,8 @@ STEP5D_LIVEPREP_V5_STAGE_ID = "step5d_strict_rnn_liveprep_v5"
 STEP5D_LIVEPREP_V6_STAGE_ID = "step5d_strict_rnn_liveprep_v6"
 STEP5D_LIVEPREP_V7_STAGE_ID = "step5d_strict_rnn_liveprep_v7"
 STEP5D_LIVEPREP_V8_STAGE_ID = "step5d_strict_rnn_liveprep_v8"
-STEP5D_LIVEPREP_STAGE_ID = "step5d_strict_rnn_liveprep_v9"
+STEP5D_LIVEPREP_V9_STAGE_ID = "step5d_strict_rnn_liveprep_v9"
+STEP5D_LIVEPREP_STAGE_ID = "step5d_strict_rnn_liveprep_v10"
 STEP5D_LIVEPREP_STAGE_IDS = {
     STEP5D_LIVEPREP_V1_STAGE_ID,
     STEP5D_LIVEPREP_V2_STAGE_ID,
@@ -255,6 +258,7 @@ STEP5D_LIVEPREP_STAGE_IDS = {
     STEP5D_LIVEPREP_V6_STAGE_ID,
     STEP5D_LIVEPREP_V7_STAGE_ID,
     STEP5D_LIVEPREP_V8_STAGE_ID,
+    STEP5D_LIVEPREP_V9_STAGE_ID,
     STEP5D_LIVEPREP_STAGE_ID,
 }
 STEP5D_SEMANTIC_ORIENTATION_TOLERANCE_RAD = math.radians(5.0)
@@ -273,6 +277,10 @@ STEP5D_V8_FORCE_NORM_MAX_N = 25.0
 STEP5D_V8_RECOVERY_NORMAL_LOAD_MIN_N = 0.5
 STEP5D_V8_RECOVERY_NORMAL_LOAD_MAX_N = 40.0
 STEP5D_V8_RECOVERY_FORCE_NORM_STOP_N = 100.0
+STEP5D_V10_SETTLE_FILTER_ALPHA = 0.15
+STEP5D_V10_ADMITTANCE_MASS = 12.0
+STEP5D_V10_ADMITTANCE_DAMPING = 300.0
+STEP5D_V10_SETTLE_VELOCITY_READY_M_S = 0.001
 STEP6_CONTACT_EIGHT_STAGE_ID = "step6_contact_eight_baseline_v1"
 STEP6_CONTACT_EIGHT_STAGE_ID_V2 = "step6_contact_eight_baseline_v2"
 _STEP5C_SOLVERS: dict[tuple[str, str, float, float], Step5cDlsJointSolver] = {}
@@ -803,10 +811,56 @@ def step5d_v8_force_pid_settle_velocity(
     return cmd, integral, v_normal
 
 
+def step5d_v10_admittance_settle_velocity(
+    *,
+    normal_load_n: float,
+    filtered_normal_load_n: float | None,
+    target_force_n: float,
+    settle_velocity_m_s: float,
+    dt_s: float,
+    reaction_normal_b: tuple[float, float, float],
+    alpha: float = STEP5D_V10_SETTLE_FILTER_ALPHA,
+    mass: float = STEP5D_V10_ADMITTANCE_MASS,
+    damping: float = STEP5D_V10_ADMITTANCE_DAMPING,
+    v_max_m_s: float = 0.003,
+) -> tuple[tuple[float, float, float], float, float]:
+    values = [
+        normal_load_n,
+        target_force_n,
+        settle_velocity_m_s,
+        dt_s,
+        alpha,
+        mass,
+        damping,
+        v_max_m_s,
+        *reaction_normal_b,
+    ]
+    if filtered_normal_load_n is not None:
+        values.append(filtered_normal_load_n)
+    if any(not math.isfinite(float(value)) for value in values):
+        raise ValueError("Step5d v10 admittance settle inputs must be finite")
+    if dt_s < 0.0 or mass <= 0.0 or damping < 0.0 or v_max_m_s <= 0.0:
+        raise ValueError("Step5d v10 admittance settle limits must be positive")
+    reaction = normalize3(reaction_normal_b)
+    approach = (-reaction[0], -reaction[1], -reaction[2])
+    alpha = clamp(float(alpha), 0.0, 1.0)
+    load = float(normal_load_n)
+    filtered_load = load if filtered_normal_load_n is None else (1.0 - alpha) * float(filtered_normal_load_n) + alpha * load
+    error_n = float(target_force_n) - filtered_load
+    accel_m_s2 = (error_n - float(damping) * float(settle_velocity_m_s)) / float(mass)
+    v_next = clamp(
+        float(settle_velocity_m_s) + accel_m_s2 * max(0.0, float(dt_s)),
+        -float(v_max_m_s),
+        float(v_max_m_s),
+    )
+    cmd = tuple(approach[idx] * v_next for idx in range(3))
+    return cmd, filtered_load, v_next
+
+
 def step5d_liveprep_contact_window_limits(step4e_version: str) -> tuple[float, float, float]:
     if step4e_version == STEP5D_LIVEPREP_V6_STAGE_ID:
         return (STEP5D_V6_NORMAL_LOAD_MIN_N, STEP5D_V6_NORMAL_LOAD_MAX_N, STEP5D_V6_FORCE_NORM_MAX_N)
-    if step4e_version in {STEP5D_LIVEPREP_V8_STAGE_ID, STEP5D_LIVEPREP_STAGE_ID}:
+    if step4e_version in {STEP5D_LIVEPREP_V8_STAGE_ID, STEP5D_LIVEPREP_V9_STAGE_ID, STEP5D_LIVEPREP_STAGE_ID}:
         return (
             STEP5D_V8_SETTLED_NORMAL_LOAD_MIN_N,
             STEP5D_V8_SETTLED_NORMAL_LOAD_MAX_N,
@@ -990,6 +1044,7 @@ class Step4EState:
         self.step5d_tcp_offset_tool0: np.ndarray | None = None
         self.step5d_solver: StrictTaseRnnSolver | None = None
         self.step5d_outer_state = Step5dOuterLoopState()
+        self.step5d_settle_filtered_normal_load_n: float | None = None
 
     def reset_line_contact(self) -> None:
         self.integral_error_n_s = 0.0
@@ -1001,6 +1056,7 @@ class Step4EState:
         self.line_stage_s = 0.0
         self.last_robot_stage = None
         self.step5d_outer_state = Step5dOuterLoopState()
+        self.step5d_settle_filtered_normal_load_n = None
 
 
 def compute_step4e_values(
@@ -1049,7 +1105,8 @@ def compute_step4e_values(
     step5d_liveprep_v6_profile = args.step4e_version == STEP5D_LIVEPREP_V6_STAGE_ID
     step5d_liveprep_v7_profile = args.step4e_version == STEP5D_LIVEPREP_V7_STAGE_ID
     step5d_liveprep_v8_profile = args.step4e_version == STEP5D_LIVEPREP_V8_STAGE_ID
-    step5d_liveprep_v9_profile = args.step4e_version == STEP5D_LIVEPREP_STAGE_ID
+    step5d_liveprep_v9_profile = args.step4e_version == STEP5D_LIVEPREP_V9_STAGE_ID
+    step5d_liveprep_v10_profile = args.step4e_version == STEP5D_LIVEPREP_STAGE_ID
     step5d_liveprep_guarded_profile = (
         step5d_liveprep_v3_profile
         or step5d_liveprep_v4_profile
@@ -1058,6 +1115,7 @@ def compute_step4e_values(
         or step5d_liveprep_v7_profile
         or step5d_liveprep_v8_profile
         or step5d_liveprep_v9_profile
+        or step5d_liveprep_v10_profile
     )
     if step5d_liveprep_profile:
         try:
@@ -1380,7 +1438,28 @@ def compute_step4e_values(
         elif axis_iso_active:
             cmd = (0.0, 0.0, 0.0)
         elif line_entry_gate_active:
-            if step5d_liveprep_v8_profile or step5d_liveprep_v9_profile:
+            if step5d_liveprep_v10_profile:
+                recovery_window_ok = step5d_v9_recovery_window_ok(normal_load_n=normal_load_n, force_norm_n=force_abs)
+                if recovery_window_ok:
+                    cmd, state.step5d_settle_filtered_normal_load_n, state.normal_velocity_m_s = (
+                        step5d_v10_admittance_settle_velocity(
+                            normal_load_n=normal_load_n,
+                            filtered_normal_load_n=state.step5d_settle_filtered_normal_load_n,
+                            target_force_n=float(args.target_force_n),
+                            settle_velocity_m_s=state.normal_velocity_m_s,
+                            dt_s=dt_s,
+                            reaction_normal_b=tuple(float(value) for value in n_control_b),  # type: ignore[arg-type]
+                            v_max_m_s=float(args.step4e_normal_velocity_limit_m_s),
+                        )
+                    )
+                    orientation_cmd = (0.0, 0.0, 0.0)
+                else:
+                    step5d_v8_pid_recovery_ok = False
+                    state.step5d_settle_filtered_normal_load_n = None
+                    state.normal_velocity_m_s = 0.0
+                    cmd = (0.0, 0.0, 0.0)
+                    orientation_cmd = (0.0, 0.0, 0.0)
+            elif step5d_liveprep_v8_profile or step5d_liveprep_v9_profile:
                 recovery_window_ok = (
                     step5d_v9_recovery_window_ok(normal_load_n=normal_load_n, force_norm_n=force_abs)
                     if step5d_liveprep_v9_profile
@@ -1666,6 +1745,13 @@ def compute_step4e_values(
                 )
             )
         else:
+            register_force_error = force_error
+            if (
+                step5d_liveprep_v10_profile
+                and line_entry_gate_active
+                and state.step5d_settle_filtered_normal_load_n is not None
+            ):
+                register_force_error = float(args.target_force_n) - state.step5d_settle_filtered_normal_load_n
             values.update(
                 {
                     "step4e_cmd_vx_m_s": n_control_b[0] if (v21_profile and detach_stage_active) else cmd[0],
@@ -1677,13 +1763,13 @@ def compute_step4e_values(
                     "step4e_cmd_valid": 0.0
                     if args.step4e_mode == "preview"
                     or (
-                        (step5d_liveprep_v8_profile or step5d_liveprep_v9_profile)
+                        (step5d_liveprep_v8_profile or step5d_liveprep_v9_profile or step5d_liveprep_v10_profile)
                         and line_entry_gate_active
                         and not step5d_v8_pid_recovery_ok
                     )
                     else 1.0,
                     "step4e_progress_m": progress,
-                    "step4e_force_error_n": force_error,
+                    "step4e_force_error_n": register_force_error,
                     "step4e_orientation_error_rad": orientation_error,
                     "step4e_controller_state": (
                         33.0
@@ -1774,12 +1860,32 @@ def compute_step4e_values(
     values["_step4e_normal_force_error_n"] = force_error
     values["_step4e_normal_acquired"] = 1.0 if state.normal_acquired else 0.0
     if step5d_liveprep_profile:
-        if args.step4e_version in {
+        values["_step5d_force_settle_filtered_normal_load_n"] = (
+            state.step5d_settle_filtered_normal_load_n
+            if state.step5d_settle_filtered_normal_load_n is not None
+            else float("nan")
+        )
+        values["_step5d_force_settle_velocity_m_s"] = state.normal_velocity_m_s
+        if step5d_liveprep_v10_profile:
+            filtered_load = state.step5d_settle_filtered_normal_load_n
+            values["_step5d_force_settle_ready"] = 1.0 if (
+                filtered_load is not None
+                and step5d_contact_window_ready(
+                    normal_load_n=filtered_load,
+                    force_norm_n=force_abs,
+                    min_normal_load_n=STEP5D_V8_SETTLED_NORMAL_LOAD_MIN_N,
+                    max_normal_load_n=STEP5D_V8_SETTLED_NORMAL_LOAD_MAX_N,
+                    max_force_norm_n=STEP5D_V8_FORCE_NORM_MAX_N,
+                )
+                and abs(state.normal_velocity_m_s) <= STEP5D_V10_SETTLE_VELOCITY_READY_M_S
+            ) else 0.0
+        elif args.step4e_version in {
             STEP5D_LIVEPREP_V4_STAGE_ID,
             STEP5D_LIVEPREP_V5_STAGE_ID,
             STEP5D_LIVEPREP_V6_STAGE_ID,
             STEP5D_LIVEPREP_V7_STAGE_ID,
             STEP5D_LIVEPREP_V8_STAGE_ID,
+            STEP5D_LIVEPREP_V9_STAGE_ID,
             STEP5D_LIVEPREP_STAGE_ID,
         }:
             contact_min_n, contact_max_n, contact_force_norm_max_n = step5d_liveprep_contact_window_limits(args.step4e_version)
@@ -2284,7 +2390,8 @@ def main(argv: list[str] | None = None) -> int:
             "step5d_strict_rnn_liveprep_v6": "Retained live-prep strict RNN route: widened the contact/recovery window to 2-40N normal_load with force_norm <=45N, proving the v5 semantic gate could enter 25.0 but exposing the 24.3 re-contact overpressure failure.",
             "step5d_strict_rnn_liveprep_v7": "Retained live-prep strict RNN route: inherits the v5/v6 semantic gate and speedj qdot path, restores the 2-15N contact window, and changes 24.3/24.4 re-contact to a slow-only search before Stage 25.0.",
             "step5d_strict_rnn_liveprep_v8": "Retained failure evidence: Stage 25.3 consumed registers 37..39 as locked-normal Cartesian force-PID settle velocity, but low-load dropout below 0.5N cleared cmd_valid and TP stopped with reason 17 before Stage 25.0.",
-            "step5d_strict_rnn_liveprep_v9": "Current live-prep strict RNN route: Stage 25.3 consumes registers 37..39 as locked-normal Cartesian force-PID settle velocity, admits low-load press recovery up to the 40N normal-load / 100N force-norm hard envelope, requires 3-8N and force_norm <=25N for 0.200s, then Stage 25.0 consumes registers 37..42 as qd0..qd5 rad/s for strict RNN speedj.",
+            "step5d_strict_rnn_liveprep_v9": "Retained failure evidence: Stage 25.3 direct force-PID settle fixed low-load dropout but hunted under point contact and timed out before Stage 25.0.",
+            "step5d_strict_rnn_liveprep_v10": "Current live-prep strict RNN route: Stage 25.3 consumes registers 37..39 as locked-normal Cartesian admittance settle velocity, admits low-load press recovery up to the 40N normal-load / 100N force-norm hard envelope, requires filtered 3-8N, force_norm <=25N, and settle speed <=0.001m/s for 0.300s, then Stage 25.0 consumes registers 37..42 as qd0..qd5 rad/s for strict RNN speedj.",
             "step6b_contact_eight_baseline_v1": "Same TP contact-search/latch/25.2/25.3 scaffold as Step5b/v31, but stage 25.0 uses the active Step6 five-point safe-frame 8-shaped reference for 30 s and v31 filtered-live normal policy.",
             "step6b_contact_eight_baseline_v2": "Same TP contact-search/latch/25.2/25.3 scaffold and Step6 reference as v1, but intended bridge caps are 15 mm/s path, 15 mm/s total linear, 3 mm/s normal reserve, and 0.060 rad/s attitude.",
         },
@@ -2316,7 +2423,7 @@ def main(argv: list[str] | None = None) -> int:
             "step5c_stage_id": args.step4e_version
             if args.step4e_version in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID}
             else None,
-            "step5c_register_contract": "Step5c/Step5d Stage 25.0: 37..42=qd0..qd5 rad/s, 43=cmd_valid, 44=path_time, 45=force_error, 46=pose/orientation_error, 47=solver_status. Step5d v8/v9 Stage 25.3: 37..39=Cartesian force-PID settle vx/vy/vz only. Step4e field names are carrier names only in joint mode."
+            "step5c_register_contract": "Step5c/Step5d Stage 25.0: 37..42=qd0..qd5 rad/s, 43=cmd_valid, 44=path_time, 45=force_error, 46=pose/orientation_error, 47=solver_status. Step5d v8/v9 Stage 25.3: 37..39=Cartesian force-PID settle vx/vy/vz only. Step5d v10 Stage 25.3: 37..39=Cartesian admittance settle vx/vy/vz only and 45 carries filtered force_error. Step4e field names are carrier names only in joint mode."
             if args.step4e_version in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID, *STEP5D_LIVEPREP_STAGE_IDS}
             else None,
             "step5c_joint_model": str(args.step5c_joint_model)

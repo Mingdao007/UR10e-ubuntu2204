@@ -387,9 +387,16 @@ def validate_package(
                 and "step5d_strict_rnn_liveprep_v5" not in script + txt
                 and "step5d_strict_rnn_liveprep_v6" not in script + txt
             )
-    if program in {"step5d_strict_rnn_liveprep_v8", "step5d_strict_rnn_liveprep_v9"}:
+    if program in {"step5d_strict_rnn_liveprep_v8", "step5d_strict_rnn_liveprep_v9", "step5d_strict_rnn_liveprep_v10"}:
         is_v9 = program.endswith("_v9")
-        recovery_min = "0.000" if is_v9 else "0.500"
+        is_v10 = program.endswith("_v10")
+        recovery_min = "0.000" if (is_v9 or is_v10) else "0.500"
+        settle_label = (
+            "Stage 25.3 consumes 37..39 as Cartesian admittance settle vx/vy/vz"
+            if is_v10
+            else "Stage 25.3 consumes 37..39 as Cartesian force-PID settle vx/vy/vz"
+        )
+        required_s = "0.300" if is_v10 else "0.200"
         checks.update(
             {
                 "step5d function": f"def codex_{program}()" in script
@@ -403,16 +410,16 @@ def validate_package(
                 and program in script + txt,
                 "joint executor and guard only": "joint_executor_and_guard_only" in script
                 and "37..42 as qd0..qd5 rad/s" in txt,
-                "stage split register contract": "Stage 25.3 consumes 37..39 as Cartesian force-PID settle vx/vy/vz" in script,
+                "stage split register contract": settle_label in script,
                 "speedj line control": "speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]" in script
                 and "local qdot_cap_rad_s = 0.300" in script,
                 "orientation skip gate": "local skip_lift_attitude = 0" in script
                 and "local orientation_skip_error_rad = 0.069813" in script
                 and "skip_lift_attitude == 0" in script,
-                "force-pid settle gate": "local line_entry_normal_load_min_n = 3.000" in script
+                "force settle gate": "local line_entry_normal_load_min_n = 3.000" in script
                 and "local line_entry_normal_load_max_n = 8.000" in script
                 and "local line_entry_force_norm_max_n = 25.000" in script
-                and "local line_entry_required_s = 0.200" in script
+                and f"local line_entry_required_s = {required_s}" in script
                 and "local line_entry_timeout_s = 10.000" in script
                 and f"local line_entry_recovery_normal_load_min_n = {recovery_min}" in script
                 and "local line_entry_recovery_normal_load_max_n = 40.000" in script
@@ -432,12 +439,19 @@ def validate_package(
                 and "step5c_joint_rnn_cycloid_v1" not in script + txt,
             }
         )
-        if is_v9:
-            checks["v9 low-load does not stop"] = "or normal_load < line_entry_recovery_normal_load_min_n" not in script
-            checks["v9 force envelope auto-home"] = "elif stop_reason == 17.0:\n    return True" in script
-            checks["no stale step5d v1-v8 route"] = all(
-                f"step5d_strict_rnn_liveprep_v{idx}" not in script + txt for idx in range(1, 9)
+        if is_v9 or is_v10:
+            checks["low-load does not stop"] = "or normal_load < line_entry_recovery_normal_load_min_n" not in script
+            checks["force envelope auto-home"] = "elif stop_reason == 17.0:\n    return True" in script
+            checks["no stale older step5d route"] = all(
+                re.search(rf"step5d_strict_rnn_liveprep_v{idx}(?!\d)", script + txt) is None
+                for idx in range(1, 10 if is_v10 else 9)
             )
+            if is_v10:
+                checks["v10 settle velocity release gate"] = (
+                    "local line_entry_settle_cmd_max_m_s = 0.001" in script
+                    and "codex_abs(cmd_vx) <= line_entry_settle_cmd_max_m_s" in script
+                    and "scalar admittance settle" in txt
+                )
         else:
             checks["no stale step5d v1-v7 route"] = all(
                 f"step5d_strict_rnn_liveprep_v{idx}" not in script + txt for idx in range(1, 8)

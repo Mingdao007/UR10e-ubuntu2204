@@ -321,23 +321,30 @@ recovery floor, the bridge cleared `cmd_valid`, and TP wrote stop reason `17`
 while Dashboard stayed `Safetymode: NORMAL`. It is superseded by
 `step5d_strict_rnn_liveprep_v9`.
 
-`step5d_strict_rnn_liveprep_v9` is the current live-prep package route. It keeps
+`step5d_strict_rnn_liveprep_v9` is retained failure evidence. It fixed the
+v8 low-load dropout by keeping low/zero load as a press-recovery condition, but
+the 2026-06-15 live run `runs/bridge_step5d_strict_rnn_liveprep_v9_20260615_193715`
+showed that direct force-PID velocity mapping in Stage 25.3 can hunt under point
+contact and time out before Stage 25.0. It is superseded by
+`step5d_strict_rnn_liveprep_v10`.
+
+`step5d_strict_rnn_liveprep_v10` is the current live-prep package route. It keeps
 the Step5b contact-search/latch scaffold, warms the calibrated
 Pinocchio/RNN runtime before Stage 25.0, skips the 20 mm lift and 25.2 attitude
 correction when the first-contact orientation error is already `<= 0.069813 rad`,
 inherits the v5/v6 force/frame semantic gate, changes the second contact search
-after lift/orientation to slow-only 24.3/24.4 re-contact, makes 25.3 an active
-force PID settle stage around `5N`, keeps low-load press recovery instead of
+after lift/orientation to slow-only 24.3/24.4 re-contact, makes 25.3 a scalar
+admittance settle stage around `5N`, keeps low-load press recovery instead of
 stopping below `0.5N`, switches Stage 25.0 from Cartesian `speedl`
 registers to joint `speedj` qdot registers, and keeps the runtime semantic gate
 before RNN/qdot output:
 
 - Teach Pendant target:
-  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v9.urp`;
+  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v10.urp`;
 - local generator: `tools/build_step5d_liveprep.py`;
 - operator wrapper: `scripts/step5d-liveprep-operator.sh`;
-- bridge profile: `--step4e-version step5d_strict_rnn_liveprep_v9`;
-- register contract: Stage 25.3 uses `37..39 = vx/vy/vz m/s` for force PID
+- bridge profile: `--step4e-version step5d_strict_rnn_liveprep_v10`;
+- register contract: Stage 25.3 uses `37..39 = vx/vy/vz m/s` for admittance
   settle only; Stage 25.0 uses `37..42 = qd0..qd5 rad/s`, `43 = cmd_valid`,
   `44 = path_time_s`, `45 = force_error_n`, `46 = orientation_error`,
   `47 = solver_status`;
@@ -355,16 +362,17 @@ before RNN/qdot output:
 - second contact search after lift/orientation: `24.3/24.4` uses
   `near_start_depth = 0.000 m`, `max_down = 0.035 m`, and both far/near
   speeds are `2.5 mm/s`; it only re-touches the surface and does not tune force;
-- Stage 25.3 force PID settle: `F_target = 5 N`, `F_n = dot(force_base,
-  reaction_normal)`, `e = F_target - F_n`, `v = Kp*e + Ki*I - B*v_normal`,
-  clamped to the configured press/unload velocity caps, and
-  `cmd = approach_normal * v`;
-- Stage 25.3 recovery policy: PID continues press recovery at low/zero load and
-  stops only if `normal_load > 40 N` or `force_norm > 100 N`; the TP does not
-  enter Stage 25.0 from that hard envelope stop;
-- Stage 25.3 settled release: `3 N <= normal_load <= 8 N`,
-  `force_norm <= 25 N`, and bridge `cmd_valid >= 0.5` for `0.200 s` before
-  entering Stage 25.0;
+- Stage 25.3 admittance settle: `F_target = 5 N`, raw `F_n = dot(force_base,
+  reaction_normal)`, `F_filtered = EMA(F_n, alpha=0.15)`,
+  `a = (F_target - F_filtered - 300*v_settle) / 12`,
+  `v_settle = clamp(v_settle + a*dt, -0.003, 0.003)`, and
+  `cmd = approach_normal * v_settle`;
+- Stage 25.3 recovery policy: admittance continues press recovery at low/zero
+  load and stops only if raw `normal_load > 40 N` or `force_norm > 100 N`; the
+  TP does not enter Stage 25.0 from that hard envelope stop;
+- Stage 25.3 settled release: filtered `3 N <= normal_load <= 8 N`,
+  `force_norm <= 25 N`, `abs(v_settle) <= 0.001 m/s`, and bridge
+  `cmd_valid >= 0.5` for `0.300 s` before entering Stage 25.0;
 - Stage 25.3 timeout: `10.000 s`; Stage 25.0 remains blocked until the contact
   window passes;
 - live bridge limiter: raw Step5d `xdot_c` remains in diagnostics, but the
@@ -379,21 +387,21 @@ verification. It still does not authorize bridge start, TP program load, TP
 Play, `zero_ftsensor()`, or robot motion. Those require the explicit operator
 trigger and bench state checks.
 
-Current v9 delivery status:
+Current v10 delivery status:
 
 - local triplet: generated and locally validated
-  `programs/step5/step5d_strict_rnn_liveprep_v9.{script,txt,urp}`;
+  `programs/step5/step5d_strict_rnn_liveprep_v10.{script,txt,urp}`;
 - controller triplet:
-  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v9.{script,txt,urp}`;
-- source stamp: `2026-06-15T1926HKT_STEP5D_STRICT_RNN_LIVEPREP_V9`;
+  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v10.{script,txt,urp}`;
+- source stamp: `2026-06-15T2010HKT_STEP5D_STRICT_RNN_LIVEPREP_V10`;
 - semantic gate artifact:
-  `runs/ur_contact_semantic_gate_20260615_192656/ur_contact_semantic_gate_summary.json`;
+  `runs/ur_contact_semantic_gate_20260615_201109/ur_contact_semantic_gate_summary.json`;
 - read-back artifact:
-  `runs/controller_readback_step5d_strict_rnn_liveprep_v9_20260615_192702/manifest.json`;
+  `runs/controller_readback_step5d_strict_rnn_liveprep_v10_20260615_201109/manifest.json`;
 - SHA state: local, controller, and fetched-back triplet matched
-  (`.script` `c3439ae2b4d4728dc591e4d10aadcd758e08410976f9c4fa6b35902f6a9ca4f3`,
-  `.txt` `afcb3a25e128a97fa047ba704980875e2a4544078cbf3402c838d06e2f727ac5`,
-  `.urp` `e1f66806f19bbb1794226a8b1c900f559cde9c348c3fede7b5f6ea23061206de`).
+  (`.script` `4709ec3309cd8186c1d73c368dee438e85e154bd34f05c7b2931493d80a8576f`,
+  `.txt` `37f7cde68d4d10c89c90a817dc0d5088e316e8e67508d6c0d1f53215f211fbdc`,
+  `.urp` `0506a8cadcfa4cf08893e8a6c17ba0e44cc3ed6d836132fb54c2210724aae5f3`).
 
 Archived v1-v8 delivery status:
 
@@ -411,7 +419,7 @@ Archived v1-v8 delivery status:
   `runs/controller_readback_step5d_strict_rnn_liveprep_v7_20260615_193037`,
   and `runs/controller_readback_step5d_strict_rnn_liveprep_v8_20260615_193040`;
 - controller root cleanup: old root v1-v8 triplets were removed after archive
-  read-back verification; root keeps only current v9.
+  read-back verification; root keeps retained v9 plus current v10.
 - bridge/TP Play remain separate explicit operator actions. These read-backs
   verify package delivery only; they do not mark the full reproduction target
   complete.

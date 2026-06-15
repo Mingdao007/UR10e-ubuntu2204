@@ -61,7 +61,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             )
 
     def test_step5d_liveprep_package_is_non_quarantine_speedj_executor(self) -> None:
-        stamp = "2026-06-15T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V9"
+        stamp = "2026-06-15T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V10"
         geom = liveprep.line_cfg(liveprep.load_json(liveprep.CONFIG_PATH))
         frame = liveprep.load_safe_frame()
         script = liveprep.build_script(stamp, "2026-06-14T12:00:00+08:00", geom, frame)
@@ -77,11 +77,13 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn("local orientation_skip_error_rad = 0.069813", script)
         self.assertIn("if stop_reason == 0.0 and skip_lift_attitude == 0:", script)
         self.assertIn("codex_step5d_down_search(24.3, 24.4, 0.035, 0.000, 45.000, -0.0025, -0.0025)", script)
-        self.assertIn("Stage 25.3 consumes 37..39 as Cartesian force-PID settle vx/vy/vz", script)
+        self.assertIn("Stage 25.3 consumes 37..39 as Cartesian admittance settle vx/vy/vz", script)
         self.assertIn("local line_entry_normal_load_min_n = 3.000", script)
         self.assertIn("local line_entry_normal_load_max_n = 8.000", script)
         self.assertIn("local line_entry_force_norm_max_n = 25.000", script)
-        self.assertIn("local line_entry_required_s = 0.200", script)
+        self.assertIn("local line_entry_required_s = 0.300", script)
+        self.assertIn("local line_entry_settle_cmd_max_m_s = 0.001", script)
+        self.assertIn("codex_abs(cmd_vx) <= line_entry_settle_cmd_max_m_s", script)
         self.assertIn("local line_entry_recovery_normal_load_min_n = 0.000", script)
         self.assertIn("local line_entry_recovery_normal_load_max_n = 40.000", script)
         self.assertIn("local line_entry_force_norm_stop_n = 100.000", script)
@@ -102,12 +104,12 @@ class Step5dFullChainSanityTest(unittest.TestCase):
                 "--step4e-mode",
                 "line",
                 "--step4e-version",
-                "step5d_strict_rnn_liveprep_v9",
+                "step5d_strict_rnn_liveprep_v10",
                 "--step4e-path-shape",
                 "cycloid",
             ]
         )
-        self.assertEqual(args.step4e_version, "step5d_strict_rnn_liveprep_v9")
+        self.assertEqual(args.step4e_version, "step5d_strict_rnn_liveprep_v10")
         self.assertEqual(args.step5d_qdot_limit_rad_s, 0.30)
         self.assertFalse(args.disable_dashboard_program_watch)
         with self.assertRaisesRegex(SystemExit, "Blocked Step5d reproduction"):
@@ -135,12 +137,12 @@ class Step5dFullChainSanityTest(unittest.TestCase):
     def test_step5d_operator_points_to_current_controller_package(self) -> None:
         operator = (ROOT / "scripts" / "step5d-liveprep-operator.sh").read_text(encoding="utf-8")
         base = (ROOT / "scripts" / "step4e-line-v1-operator.sh").read_text(encoding="utf-8")
-        self.assertIn('STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v9}"', operator)
+        self.assertIn('STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v10}"', operator)
         self.assertIn('/programs/andyl/kunwei/step5/step5d/${STEP5D_VERSION}.urp', operator)
         self.assertIn('/programs/andyl/kunwei/step5/${STEP5D_VERSION}.urp', operator)
         self.assertIn('MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-100}"', operator)
         self.assertIn('MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-100}"', operator)
-        self.assertIn('STEP4E_VERSION="step5d_strict_rnn_liveprep_v9"', base)
+        self.assertIn('STEP4E_VERSION="step5d_strict_rnn_liveprep_v10"', base)
         self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/step5d/${STEP4E_VERSION}.urp"', base)
         self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/${STEP4E_VERSION}.urp"', base)
         self.assertIn('EXPECTED_BASENAME="${STEP4E_VERSION}.urp"', base)
@@ -207,6 +209,29 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         )
         self.assertLess(unload_v, 0.0)
         self.assertGreater(unload_cmd[2], 0.0)
+        v10_press_cmd, v10_filtered, v10_press_v = bridge.step5d_v10_admittance_settle_velocity(
+            normal_load_n=2.0,
+            filtered_normal_load_n=None,
+            target_force_n=5.0,
+            settle_velocity_m_s=0.0,
+            dt_s=0.002,
+            reaction_normal_b=(0.0, 0.0, 1.0),
+            v_max_m_s=0.003,
+        )
+        self.assertEqual(v10_filtered, 2.0)
+        self.assertGreater(v10_press_v, 0.0)
+        self.assertLess(v10_press_cmd[2], 0.0)
+        _, _, v10_unload_v = bridge.step5d_v10_admittance_settle_velocity(
+            normal_load_n=20.0,
+            filtered_normal_load_n=20.0,
+            target_force_n=5.0,
+            settle_velocity_m_s=0.003,
+            dt_s=0.002,
+            reaction_normal_b=(0.0, 0.0, 1.0),
+            v_max_m_s=0.003,
+        )
+        self.assertGreater(v10_unload_v, -0.003)
+        self.assertLess(v10_unload_v, 0.003)
 
         v6_min, v6_max, v6_force_max = bridge.step5d_liveprep_contact_window_limits("step5d_strict_rnn_liveprep_v6")
         self.assertEqual((v6_min, v6_max, v6_force_max), (2.0, 40.0, 45.0))
