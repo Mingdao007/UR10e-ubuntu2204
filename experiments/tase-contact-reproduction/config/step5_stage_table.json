@@ -1822,11 +1822,11 @@
       "id": "step5d_strict_rnn_liveprep_v13",
       "stage": "Step5d",
       "owner": "bridge+TP",
-      "active": true,
+      "active": false,
       "blocked": false,
       "complete": false,
       "completion_target": false,
-      "block_reason": "Current contact-safety live-prep package. Controller upload/read-back is verified; live bridge/run evidence is pending explicit authorization.",
+      "block_reason": "Retained controller-readback evidence with known P1 safety gap: first-sample actual TCP speed dwell could pass solver before v14.",
       "local_delivery_evidence": {
         "local_program_dir": "programs/step5",
         "program_basename": "step5d_strict_rnn_liveprep_v13",
@@ -1861,7 +1861,7 @@
       },
       "cadence": {
         "reference_clock": "bridge_path_time_freezes_during_contact_uncertain_hold",
-        "motion": "controller_readback_verified_contact_safety_package_pending_live_bridge_trigger",
+        "motion": "retained_controller_readback_evidence_known_p1_gap",
         "tp_hold_s": 0.002,
         "end_hold_s": 0.1
       },
@@ -1959,7 +1959,7 @@
         "actual TCP speed >0.050m/s stops through stop_request after 0.004s dwell",
         "low-load hold beyond 0.300s stops through stop_request",
         "normal_load is dot(force_base, reaction_normal), not TCP Fz or world-Z force",
-        "generated v13 package validates locally and after controller read-back; live bridge trigger remains separate explicit authorization"
+        "retained evidence only: v13 has known actual-speed dwell first-sample pass_solver gap"
       ],
       "filter_policy": {
         "normal_filter": "v31_filtered_live",
@@ -1968,7 +1968,162 @@
         "force_sign_convention": "step5_step6_positive_normal_load",
         "semantic_contract": "reaction normal for load, approach normal for posture/press direction"
       },
-      "success_condition": "v13 package controller upload/read-back verified. TP Open Program, bridge start, TP Play, robot motion, zero_ftsensor, and full Step5d reproduction completion all remain separate explicit gates."
+      "success_condition": "Retained v13 read-back evidence only. Do not open v13 bridge as current; v14 supersedes it with actual-speed dwell hold and lower force guards."
+    },
+    {
+      "id": "step5d_strict_rnn_liveprep_v14",
+      "stage": "Step5d",
+      "owner": "bridge+TP",
+      "active": true,
+      "blocked": false,
+      "complete": false,
+      "completion_target": false,
+      "block_reason": "Current contact-safety live-prep package. Controller upload/read-back is verified; live bridge/run evidence is pending explicit authorization.",
+      "local_delivery_evidence": {
+        "local_program_dir": "programs/step5",
+        "program_basename": "step5d_strict_rnn_liveprep_v14",
+        "stamp": "2026-06-15T2310HKT_STEP5D_STRICT_RNN_LIVEPREP_V14",
+        "semantic_gate": "runs/ur_contact_semantic_gate_20260615_201109/ur_contact_semantic_gate_summary.json",
+        "semantic_gate_pass": true,
+        "local_package_validated": true,
+        "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v14_20260615_231304/manifest.json",
+        "controller_readback_verified": true,
+        "sha256": {
+          ".script": "0b7345c532aeebd8035cf2530a6ae78b0b924f68208f0b0a0f3cb88346cf3881",
+          ".txt": "c4f86f76aa8468e874e415761dfced7b9d4bc5d6b4a82d2f373887f7dcb685a7",
+          ".urp": "bf81806fb34cf3c2dc55eb2a062d510fc348c3ca5ecdf2d28f878e1d58712523"
+        },
+        "numeric_sanity": "runs/step5d_v11_escape_replay_20260615/summary.json",
+        "controller_dir": "/programs/andyl/kunwei/step5",
+        "archived_to_step5d_dir": false,
+        "local_controller_readback_sha_match": true,
+        "fetched_back_urp_internal_gate_pass": true
+      },
+      "shape": "cycloid",
+      "frame": "config/step5_safe_frame.json",
+      "contact": true,
+      "bridge": true,
+      "joint_space": true,
+      "strict_rnn": true,
+      "fixed_base_z_m": null,
+      "duration_s": 60.0,
+      "amplitude_m": 0.015,
+      "phase_law": {
+        "type": "linear_time",
+        "omega_rad_s": 0.1,
+        "final_phase_rad": 6.0
+      },
+      "cadence": {
+        "reference_clock": "bridge_path_time_freezes_during_contact_uncertain_hold",
+        "motion": "controller_readback_verified_contact_safety_package_pending_live_bridge_trigger",
+        "tp_hold_s": 0.002,
+        "end_hold_s": 0.1
+      },
+      "guard": {
+        "heartbeat_required": true,
+        "cmd_valid_required": true,
+        "qdot_cap_rad_s": 0.05,
+        "qdot_slew_rad_s2": 0.2,
+        "hard_low_load_n": 0.25,
+        "soft_low_load_n": 0.5,
+        "valid_contact_min_n": 0.5,
+        "valid_contact_max_n": 15.0,
+        "force_norm_valid_max_n": 25.0,
+        "low_load_speed_load_n": 1.0,
+        "low_load_speed_stop_m_s": 0.025,
+        "absolute_speed_stop_m_s": 0.05,
+        "actual_speed_dwell_stop_s": 0.004,
+        "low_load_hold_timeout_s": 0.3,
+        "high_window_dwell_stop_s": 0.03,
+        "path_cap_m_s": 0.004,
+        "total_linear_cap_m_s": 0.006,
+        "normal_velocity_cap_m_s": 0.003,
+        "attitude_cap_rad_s": 0.06,
+        "semantic_orientation_tolerance_rad": 0.08726646259971647,
+        "orientation_skip_lift_error_rad": 0.069813,
+        "second_contact_max_down_m": 0.035,
+        "second_contact_near_start_depth_m": 0.0,
+        "second_contact_far_speed_m_s": -0.0025,
+        "second_contact_near_speed_m_s": -0.0025,
+        "line_entry_normal_load_min_n": 2.0,
+        "line_entry_normal_load_max_n": 15.0,
+        "line_entry_force_norm_max_n": 25.0,
+        "line_entry_required_s": 0.15,
+        "line_entry_timeout_s": 10.0,
+        "runtime_limit_s": 65.0,
+        "progress_end_hold_s": 0.1,
+        "raw_normal_guard_n": 50.0,
+        "force_norm_guard_n": 60.0,
+        "torque_norm_guard_nm": 3.0,
+        "line_entry_recovery_normal_load_min_n": 0.0,
+        "line_entry_recovery_normal_load_max_n": 40.0,
+        "line_entry_force_norm_stop_n": 25.0,
+        "normal_load_filter_alpha": 0.15,
+        "deadband_acquire_v_max_m_s": 0.0012,
+        "deadband_acquire_slew_m_s2": 0.012
+      },
+      "contact_policy": {
+        "bridge_required": true,
+        "tp_role": "stage_split_executor_and_guard_only",
+        "reference_owner": "strict_rnn_bridge",
+        "joint_solver": "strict_tase_rnn_only",
+        "dls_fallback_allowed": false,
+        "ik_fallback_allowed": false,
+        "calibrated_kinematics_backend": "Pinocchio calibrated base->tool0+active-TCP FK/J(q)",
+        "force_control": true,
+        "contact_search": true,
+        "timing_policy": "step5b_scaffold_with_v14_contact_safety_first_actual_speed_sample_hold_and_stop_request_backstop",
+        "virtual_clock_freeze": true,
+        "deadband_acquire_stage": "25.3",
+        "stage25_contact_policy": "low load holds cmd_valid=1 with zero qdot; predicted TCP speed stops immediately; first actual TCP speed violation sample holds zero qdot; second sample or 0.004s dwell stops; long hold timeout or high-window dwell sets stop_request=1 with zero qdot"
+      },
+      "semantic_control_gate": {
+        "contract": "UR_FORCE_FRAME_CONTRACT.md",
+        "reaction_normal_source": "Step5b/Step6b contact-search latched/filtered n_control_b",
+        "approach_normal": "-reaction_normal",
+        "normal_load_n": "dot(force_base, reaction_normal)",
+        "force_error_n": "target_load_n - normal_load_n",
+        "orientation_target_axis": "approach_normal",
+        "forbidden": "Do not normalize raw live force to construct R_d.z or orientation_target_axis",
+        "gate_scope": "offline replay and runtime regression guard; not an independent closed-loop stability proof",
+        "failure_contrast": "v11 escape replay shows Stage 25.0 lost contact while cmd_valid remained true and qdot saturated; v13 fixed that runaway path but allowed first-sample actual TCP speed dwell to pass solver; v14 converts that first sample to cmd_valid=1 zero-qdot hold before a 0.004s dwell stop.",
+        "runtime_assertion": "contact-search orientation error and Step5d outer-loop orientation angle must agree within 5 deg before nonzero qdot can be accepted",
+        "stage25_contact_safety": {
+          "low_load_action": "cmd_valid=1_zero_qdot_hold",
+          "hold_subreasons": [
+            "hard_lost_contact_hold",
+            "soft_low_contact_hold"
+          ],
+          "predicted_speed_backstop": "immediate_predicted_tcp_speed",
+          "actual_speed_backstop": "first_sample_hold_then_actual_tcp_speed_after_0.004s_dwell_stop",
+          "danger_action": "stop_request=1_zero_qdot",
+          "diagnostic_angles": [
+            "control_normal_vs_world_z_angle_rad",
+            "control_normal_vs_tcp_z_angle_rad",
+            "approach_normal_vs_tcp_z_angle_rad"
+          ]
+        }
+      },
+      "liveprep_gates": [
+        "v11 escape replay first low-load row enters zero-qdot hold instead of nonzero qdot or immediate success",
+        "first actual TCP speed violation sample holds zero qdot and freezes path time instead of passing solver",
+        "second consecutive actual TCP speed violation sample or 0.004s dwell stops through stop_request",
+        "actual speed violation count is logged and resets on recovery",
+        "predicted TCP speed >0.025m/s under low load or >0.050m/s absolute stops immediately through stop_request",
+        "0.050 rad/s qdot cap and 0.20 rad/s^2 qdot slew are retained from v12",
+        "TP global hard guards are raw normal 50N, force norm 60N, torque norm 3Nm",
+        "Stage 25.3 recovery force_norm stop is 25N",
+        "normal_load is dot(force_base, reaction_normal), not TCP Fz or world-Z force",
+        "generated v14 package validates locally and after controller read-back; bridge trigger remains separate explicit authorization"
+      ],
+      "filter_policy": {
+        "normal_filter": "v31_filtered_live",
+        "alpha": 0.35,
+        "min_force_n": 2.0,
+        "force_sign_convention": "step5_step6_positive_normal_load",
+        "semantic_contract": "reaction normal for load, approach normal for posture/press direction"
+      },
+      "success_condition": "v14 package controller upload/read-back verified with matching local/controller/read-back SHA and fetched-back URP internal gate. TP Open Program, bridge start, TP Play, robot motion, zero_ftsensor, and full Step5d reproduction completion remain separate explicit gates."
     },
     {
       "id": "step5d_strict_rnn_reproduction_v1",

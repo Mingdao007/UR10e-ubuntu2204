@@ -3,11 +3,11 @@
 `config/current_stage.json` currently selects no runnable Step5c joint-space
 route. The diagnostic DLS dry-run is quarantined after the 2026-06-13 live run
 showed wrong XY/Z motion. Step5d is the named completion target for the
-complete strict TASE RNN reproduction; `step5d_strict_rnn_liveprep_v13` is the
-current contact-safety live-prep package after controller read-back verification.
-Live bridge evidence is pending explicit authorization. The full reproduction
-target remains separate and not complete.
-Step4f, Step4g, Step5b, and Step5d v1-v12 remain retained evidence packages
+complete strict TASE RNN reproduction; `step5d_strict_rnn_liveprep_v14` is the
+current controller-readback-verified contact-safety live-prep package. Live
+bridge evidence is pending explicit authorization. The full reproduction target
+remains separate and not complete.
+Step4f, Step4g, Step5b, and Step5d v1-v13 remain retained evidence packages
 only. Do not infer global current status from this per-step file without
 reading the current pointer.
 
@@ -36,7 +36,8 @@ controller upload, or contact motion.
 | `step5d_strict_rnn_liveprep_v10` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained failure evidence: 25.3 scalar admittance softened v9 direct PID, but still saturated, flipped sign, and never satisfied the `3-8N` plus settle-speed release window. Superseded by v11. |
 | `step5d_strict_rnn_liveprep_v11` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained incomplete evidence: 25.3 deadband acquire released into Stage 25.0, but the live run ended incomplete with Dashboard `PAUSED` and `Safetymode: ROBOT_EMERGENCY_STOP`. Superseded by v12 planning. |
 | `step5d_strict_rnn_liveprep_v12` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained read-back evidence: keeps v11 deadband acquire and adds Stage 25.0 low-load/contact-window/TCP-speed guard, `0.050 rad/s` qdot cap, and qdot slew limiting. Superseded by v13 planning before any bridge trigger. |
-| `step5d_strict_rnn_liveprep_v13` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Current controller-readback-verified contact-safety live-prep package: low load holds `cmd_valid=1` with zero qdot and frozen path time; predicted TCP speed stops immediately, actual TCP speed stops after a `0.004 s` dwell, and low-load timeout or high-window dwell sets `stop_request=1` with zero qdot. Live evidence pending. |
+| `step5d_strict_rnn_liveprep_v13` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained read-back evidence with known P1 gap: actual TCP speed dwell first sample could pass solver before v14. Do not run live. |
+| `step5d_strict_rnn_liveprep_v14` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Current controller-readback-verified contact-safety live-prep package: first actual TCP speed violation sample holds zero qdot and freezes path time; second sample/`0.004 s` dwell stops; predicted TCP speed stops immediately; TP hard guards are `50/60 N` and 25.3 recovery force stop is `25 N`. Live bridge trigger remains a separate explicit gate. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |
 
 ## Step5c Calibrated Kinematics Gate
@@ -450,54 +451,66 @@ v12 delivery is controller read-back verified:
 - `config/current_stage.json` no longer points to v12; v12 is retained
   read-back evidence only.
 
-`step5d_strict_rnn_liveprep_v13` is the current controller-readback-verified
+`step5d_strict_rnn_liveprep_v13` is retained controller-readback evidence only.
+It is not a live-current package because actual TCP speed dwell could hold the
+first violating sample in the timer while still allowing solver/RNN output.
+
+`step5d_strict_rnn_liveprep_v14` is the current controller-readback-verified
 contact-safety package.
 It keeps the v11/v12 contact-search scaffold, v11 deadband acquire at Stage
 25.3, and the v12 `0.050 rad/s` qdot cap plus `0.20 rad/s^2` qdot slew limit.
 Stage 25.0 changes the bridge safety contract:
 
 - local generated triplet:
-  `programs/step5/step5d_strict_rnn_liveprep_v13.{script,txt,urp}`;
+  `programs/step5/step5d_strict_rnn_liveprep_v14.{script,txt,urp}`;
 - controller target after upload/read-back verification:
-  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v13.urp`;
+  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v14.urp`;
 - bridge profile:
-  `--step4e-version step5d_strict_rnn_liveprep_v13`;
+  `--step4e-version step5d_strict_rnn_liveprep_v14`;
 - low load does not immediately stop: when `normal_load <0.5 N`, the bridge
   holds `cmd_valid=1`, writes qdot registers `37..42 = 0`, freezes
   `path_time_s/register 44`, and reports `hard_lost_contact_hold` below
   `0.25 N` or `soft_low_contact_hold` from `0.25-0.5 N`;
-- true danger stop uses input register 28 `stop_request=1` with zero qdot when
-  predicted TCP speed immediately exceeds `0.050 m/s`, low-load predicted speed
-  immediately exceeds `0.025 m/s`, actual TCP speed violates those same speed
-  limits for a `0.004 s` dwell, low-load hold exceeds `0.300 s`, or
+- actual TCP speed violation does not pass solver: the first violating sample
+  holds zero qdot and freezes path time; the second consecutive sample or
+  `0.004 s` accumulated dwell sets `stop_request=1` with zero qdot;
+- true danger stop also uses input register 28 `stop_request=1` with zero qdot
+  when predicted TCP speed immediately exceeds `0.050 m/s`, low-load predicted
+  speed immediately exceeds `0.025 m/s`, low-load hold exceeds `0.300 s`, or
   high-window dwell exceeds `0.030 s`;
+- TP/global hard guards are raw normal `50 N`, force norm `60 N`, and torque
+  `3.0 Nm`; Stage 25.3 recovery force-norm stop is `25 N`;
 - force/load semantics remain bound to `UR_FORCE_FRAME_CONTRACT.md`:
   `normal_load_n = dot(force_base, reaction_normal)`, and approach/posture use
   `approach_normal = -reaction_normal`;
 - diagnostics include contact-safety state/action/reason, hold/high-window
-  timers, actual TCP speed, predicted TCP speed, actual speed dwell time, and
-  control-normal angle audits against world-Z and TCP-Z.
+  timers, actual TCP speed, predicted TCP speed, actual speed dwell time,
+  actual speed dwell count, and control-normal angle audits against world-Z and
+  TCP-Z.
 
-v13 delivery status:
+v14 delivery status:
 
-- source stamp: `2026-06-15T2251HKT_STEP5D_STRICT_RNN_LIVEPREP_V13`;
+- source stamp: `2026-06-15T2310HKT_STEP5D_STRICT_RNN_LIVEPREP_V14`;
 - local package validation passed with the URP internal gate for program name,
   controller directory, installation path, Script-node path, cached stamp,
   `STAGE25_CONTACT_SAFETY`, `local qdot_cap_rad_s = 0.050`, `speedj([cmd_qd0`,
-  `cmd_valid=1 zero-qdot hold`, `predicted TCP speed`, `actual speed dwell`,
-  and `stop_request`;
+  `cmd_valid=1 zero-qdot hold`, `first-sample actual speed dwell`,
+  `predicted TCP speed`, `actual speed dwell`, and `stop_request`;
+- local SHA:
+  `.script` `0b7345c532aeebd8035cf2530a6ae78b0b924f68208f0b0a0f3cb88346cf3881`,
+  `.txt` `c4f86f76aa8468e874e415761dfced7b9d4bc5d6b4a82d2f373887f7dcb685a7`,
+  `.urp` `bf81806fb34cf3c2dc55eb2a062d510fc348c3ca5ecdf2d28f878e1d58712523`;
 - controller read-back artifact:
-  `runs/controller_readback_step5d_strict_rnn_liveprep_v13_20260615_225629/manifest.json`;
-- local/controller/read-back SHA match:
-  `.script` `0c9c7c32ed0ee8cd4a66a8100724c7b733dccca410318a128ab03e8d47293ad6`,
-  `.txt` `bd8dc3e2f0db8292be26aaa7cfaaf138b61e5b9dc68d68953588631a57c0d5e3`,
-  `.urp` `26199268efe704d9f3db11f763af8edacfbbc9ef14c2d0a1c7ad272927e0471a`;
+  `runs/controller_readback_step5d_strict_rnn_liveprep_v14_20260615_231304/manifest.json`;
+- local/controller/read-back SHA match the local SHA above;
 - fetched-back `.urp` internal gate passed: `URProgram name`,
   `directory=/programs/andyl/kunwei/step5`, `installationRelativePath`,
   Script-node path, `cachedContents` stamp, `STAGE25_CONTACT_SAFETY`,
   `local qdot_cap_rad_s = 0.050`, `speedj([cmd_qd0`,
-  `cmd_valid=1 zero-qdot hold`, `predicted TCP speed`, `actual speed dwell`,
-  and `stop_request` all matched;
+  `cmd_valid=1 zero-qdot hold`, `first-sample actual speed dwell`,
+  `predicted TCP speed`, `actual speed dwell`, raw normal `50 N`,
+  force norm `60 N`, 25.3 recovery force norm `25 N`, and `stop_request`
+  all matched;
 - there is no live bridge/run evidence and no bridge trigger is enabled.
 
 Retained v10-v11 archive delivery status:

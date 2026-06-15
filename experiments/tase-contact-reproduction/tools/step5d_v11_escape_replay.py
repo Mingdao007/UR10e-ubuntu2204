@@ -127,6 +127,7 @@ def replay_v13_contact_safety(rows: list[dict[str, str]]) -> dict[str, Any]:
     hold_s = 0.0
     high_window_s = 0.0
     actual_speed_violation_s = 0.0
+    actual_speed_violation_count = 0
     previous_t: float | None = None
     first_hold: dict[str, Any] | None = None
     for index, row in enumerate(rows):
@@ -141,11 +142,13 @@ def replay_v13_contact_safety(rows: list[dict[str, str]]) -> dict[str, Any]:
             prior_hold_s=hold_s,
             prior_high_window_s=high_window_s,
             prior_actual_speed_violation_s=actual_speed_violation_s,
+            prior_actual_speed_violation_count=actual_speed_violation_count,
             dt_s=dt_s,
         )
         hold_s = float(result["hold_s"])
         high_window_s = float(result["high_window_s"])
         actual_speed_violation_s = float(result["actual_speed_violation_s"])
+        actual_speed_violation_count = int(result["actual_speed_violation_count"])
         if first_hold is None and result["action"] == "hold_zero_qdot":
             first_hold = {
                 "stage25_index": index,
@@ -168,6 +171,7 @@ def replay_v13_contact_safety(rows: list[dict[str, str]]) -> dict[str, Any]:
                 "hold_s": hold_s,
                 "high_window_s": high_window_s,
                 "actual_speed_violation_s": actual_speed_violation_s,
+                "actual_speed_violation_count": actual_speed_violation_count,
                 "normal_load_n": finite_float(row, "_step4e_normal_load_n"),
                 "force_norm_n": finite_float(row, "force_norm_n"),
                 "tcp_linear_speed_m_s": linear_speed(row),
@@ -289,6 +293,7 @@ def analyze(csv_path: Path = DEFAULT_CSV) -> dict[str, Any]:
             "low_load_speed_stop_m_s": bridge.STEP5D_V13_LOW_LOAD_SPEED_STOP_M_S,
             "absolute_speed_stop_m_s": bridge.STEP5D_V13_ABSOLUTE_SPEED_STOP_M_S,
             "actual_speed_dwell_stop_s": bridge.STEP5D_V13_ACTUAL_SPEED_DWELL_STOP_S,
+            "actual_speed_dwell_stop_count": 2,
             "low_load_hold_timeout_s": bridge.STEP5D_V13_LOW_LOAD_HOLD_TIMEOUT_S,
             "high_window_dwell_stop_s": bridge.STEP5D_V13_HIGH_WINDOW_DWELL_STOP_S,
         },

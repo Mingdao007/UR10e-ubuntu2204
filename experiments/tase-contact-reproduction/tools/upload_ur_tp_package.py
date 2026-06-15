@@ -394,24 +394,27 @@ def validate_package(
         "step5d_strict_rnn_liveprep_v11",
         "step5d_strict_rnn_liveprep_v12",
         "step5d_strict_rnn_liveprep_v13",
+        "step5d_strict_rnn_liveprep_v14",
     }:
         is_v9 = program.endswith("_v9")
         is_v10 = program.endswith("_v10")
         is_v11 = program.endswith("_v11")
         is_v12 = program.endswith("_v12")
         is_v13 = program.endswith("_v13")
-        recovery_min = "0.000" if (is_v9 or is_v10 or is_v11 or is_v12 or is_v13) else "0.500"
+        is_v14 = program.endswith("_v14")
+        recovery_min = "0.000" if (is_v9 or is_v10 or is_v11 or is_v12 or is_v13 or is_v14) else "0.500"
+        recovery_force_stop = "25.000" if is_v14 else "100.000"
         settle_label = (
             "Stage 25.3 consumes 37..39 as Cartesian admittance settle vx/vy/vz"
             if is_v10
             else "Stage 25.3 consumes 37..39 as Cartesian deadband-acquire vx/vy/vz"
-            if is_v11 or is_v12 or is_v13
+            if is_v11 or is_v12 or is_v13 or is_v14
             else "Stage 25.3 consumes 37..39 as Cartesian force-PID settle vx/vy/vz"
         )
-        qdot_cap = "0.050" if is_v12 or is_v13 else "0.300"
-        min_load = "2.000" if is_v11 or is_v12 or is_v13 else "3.000"
-        max_load = "15.000" if is_v11 or is_v12 or is_v13 else "8.000"
-        required_s = "0.150" if is_v11 or is_v12 or is_v13 else "0.300" if is_v10 else "0.200"
+        qdot_cap = "0.050" if is_v12 or is_v13 or is_v14 else "0.300"
+        min_load = "2.000" if is_v11 or is_v12 or is_v13 or is_v14 else "3.000"
+        max_load = "15.000" if is_v11 or is_v12 or is_v13 or is_v14 else "8.000"
+        required_s = "0.150" if is_v11 or is_v12 or is_v13 or is_v14 else "0.300" if is_v10 else "0.200"
         checks.update(
             {
                 "step5d function": f"def codex_{program}()" in script
@@ -438,7 +441,7 @@ def validate_package(
                 and "local line_entry_timeout_s = 10.000" in script
                 and f"local line_entry_recovery_normal_load_min_n = {recovery_min}" in script
                 and "local line_entry_recovery_normal_load_max_n = 40.000" in script
-                and "local line_entry_force_norm_stop_n = 100.000" in script
+                and f"local line_entry_force_norm_stop_n = {recovery_force_stop}" in script
                 and "local normal_load = target_force - force_error" in script
                 and "speedl([cmd_vx, cmd_vy, cmd_vz, 0.0, 0.0, 0.0]" in script,
                 "second contact slow search": "codex_step5d_down_search(24.3, 24.4, 0.035, 0.000, 45.000, -0.0025, -0.0025)" in script,
@@ -446,20 +449,25 @@ def validate_package(
                 "force-frame semantic contract": "UR_FORCE_FRAME_CONTRACT.md" in script + txt
                 and "reaction normal for load" in script + txt
                 and "approach normal for posture" in script + txt,
-                "raw contact guards": "codex_abs(normal_force) > 100.0" in script
-                and "force_norm > 100.0" in script
+                "raw contact guards": (
+                    "codex_abs(normal_force) > 50.0" in script
+                    and "force_norm > 60.0" in script
+                    if is_v14
+                    else "codex_abs(normal_force) > 100.0" in script
+                    and "force_norm > 100.0" in script
+                )
                 and "torque_norm > 3.0" in script,
                 "not quarantine": "stop_only_quarantine" not in script + txt,
                 "no stale step5bc route": "step5b_contact_cycloid_baseline_v1" not in script + txt
                 and "step5c_joint_rnn_cycloid_v1" not in script + txt,
             }
         )
-        if is_v9 or is_v10 or is_v11 or is_v12 or is_v13:
+        if is_v9 or is_v10 or is_v11 or is_v12 or is_v13 or is_v14:
             checks["low-load does not stop"] = "or normal_load < line_entry_recovery_normal_load_min_n" not in script
             checks["force envelope auto-home"] = "elif stop_reason == 17.0:\n    return True" in script
             checks["no stale older step5d route"] = all(
                 re.search(rf"step5d_strict_rnn_liveprep_v{idx}(?!\d)", script + txt) is None
-                for idx in range(1, 13 if is_v13 else 12 if is_v12 else 11 if is_v11 else 10 if is_v10 else 9)
+                for idx in range(1, 14 if is_v14 else 13 if is_v13 else 12 if is_v12 else 11 if is_v11 else 10 if is_v10 else 9)
             )
             if is_v10:
                 checks["v10 settle velocity release gate"] = (
@@ -467,8 +475,8 @@ def validate_package(
                     and "codex_abs(cmd_vx) <= line_entry_settle_cmd_max_m_s" in script
                     and "scalar admittance settle" in txt
                 )
-            if is_v11 or is_v12 or is_v13:
-                checks["v11/v12/v13 deadband acquire release gate"] = (
+            if is_v11 or is_v12 or is_v13 or is_v14:
+                checks["v11/v12/v13/v14 deadband acquire release gate"] = (
                     "local line_entry_settle_cmd_max_m_s" not in script
                     and "codex_abs(cmd_vx) <= line_entry_settle_cmd_max_m_s" not in script
                     and "deadband contact acquire" in txt
@@ -485,6 +493,15 @@ def validate_package(
                 checks["v13 contact safety hold/stop note"] = (
                     "STAGE25_CONTACT_SAFETY" in script
                     and "cmd_valid=1 zero-qdot hold" in script + txt
+                    and "predicted TCP speed" in script + txt
+                    and "actual speed dwell" in script + txt
+                    and "stop_request" in script + txt
+                )
+            if is_v14:
+                checks["v14 contact safety hold/stop note"] = (
+                    "STAGE25_CONTACT_SAFETY" in script
+                    and "cmd_valid=1 zero-qdot hold" in script + txt
+                    and "first-sample actual speed dwell" in script + txt
                     and "predicted TCP speed" in script + txt
                     and "actual speed dwell" in script + txt
                     and "stop_request" in script + txt

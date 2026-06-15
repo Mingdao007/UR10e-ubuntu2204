@@ -63,7 +63,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             )
 
     def test_step5d_liveprep_package_is_non_quarantine_speedj_executor(self) -> None:
-        stamp = "2026-06-15T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V13"
+        stamp = "2026-06-15T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V14"
         geom = liveprep.line_cfg(liveprep.load_json(liveprep.CONFIG_PATH))
         frame = liveprep.load_safe_frame()
         script = liveprep.build_script(stamp, "2026-06-14T12:00:00+08:00", geom, frame)
@@ -91,14 +91,14 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertNotIn("codex_abs(cmd_vx) <= line_entry_settle_cmd_max_m_s", script)
         self.assertIn("local line_entry_recovery_normal_load_min_n = 0.000", script)
         self.assertIn("local line_entry_recovery_normal_load_max_n = 40.000", script)
-        self.assertIn("local line_entry_force_norm_stop_n = 100.000", script)
+        self.assertIn("local line_entry_force_norm_stop_n = 25.000", script)
         self.assertNotIn("or normal_load < line_entry_recovery_normal_load_min_n", script)
         self.assertIn("elif stop_reason == 17.0:\n    return True", script)
         self.assertIn("local normal_load = target_force - force_error", script)
         self.assertIn("local line_entry_timeout_s = 10.000", script)
         self.assertIn("speedl([cmd_vx, cmd_vy, cmd_vz, 0.0, 0.0, 0.0]", script)
-        self.assertIn("codex_abs(normal_force) > 100.0", script)
-        self.assertIn("force_norm > 100.0", script)
+        self.assertIn("codex_abs(normal_force) > 50.0", script)
+        self.assertIn("force_norm > 60.0", script)
         self.assertIn("deadband contact acquire", txt)
         self.assertIn("predicted TCP speed", txt)
         self.assertIn("2.0 N", txt)
@@ -106,6 +106,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertNotIn("speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy", script)
         self.assertNotIn("stop_only_quarantine", script + txt)
         self.assertNotIn("STEP5D_STRICT_RNN_LIVEPREP_V12", script + txt)
+        self.assertNotIn("STEP5D_STRICT_RNN_LIVEPREP_V13", script + txt)
 
     def test_bridge_allows_liveprep_profile_but_keeps_full_reproduction_blocked(self) -> None:
         args = bridge.parse_args(
@@ -146,6 +147,18 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             ]
         )
         self.assertEqual(v13_args.step5d_qdot_limit_rad_s, 0.05)
+        v14_args = bridge.parse_args(
+            [
+                "--no-start-command",
+                "--step4e-mode",
+                "line",
+                "--step4e-version",
+                "step5d_strict_rnn_liveprep_v14",
+                "--step4e-path-shape",
+                "cycloid",
+            ]
+        )
+        self.assertEqual(v14_args.step5d_qdot_limit_rad_s, 0.05)
         with self.assertRaisesRegex(SystemExit, "Blocked Step5d reproduction"):
             bridge.main(
                 [
@@ -171,15 +184,16 @@ class Step5dFullChainSanityTest(unittest.TestCase):
     def test_step5d_operator_points_to_current_controller_package(self) -> None:
         operator = (ROOT / "scripts" / "step5d-liveprep-operator.sh").read_text(encoding="utf-8")
         base = (ROOT / "scripts" / "step4e-line-v1-operator.sh").read_text(encoding="utf-8")
-        self.assertIn('STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v13}"', operator)
+        self.assertIn('STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v14}"', operator)
         self.assertIn('Bridge profile: ${STEP5D_VERSION}', operator)
         self.assertIn('STEP5D_CONFIRM', operator)
-        self.assertIn('MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-100}"', operator)
-        self.assertIn('MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-100}"', operator)
+        self.assertIn('require_current_stage_readback_gate', operator)
+        self.assertIn('MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-50}"', operator)
+        self.assertIn('MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-60}"', operator)
         self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/${STEP4E_VERSION}.urp"', base)
         self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/step5d/${STEP4E_VERSION}.urp"', base)
         self.assertIn('"step5d_strict_rnn_liveprep_v10" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v11"', base)
-        self.assertIn('"step5d_strict_rnn_liveprep_v12" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v13"', base)
+        self.assertIn('"step5d_strict_rnn_liveprep_v12" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v13" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v14"', base)
         self.assertNotIn('if [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v9" ]]; then\n  PROGRAM_LINE="/programs/andyl/kunwei/step5/${STEP4E_VERSION}.urp"', base)
         self.assertIn('EXPECTED_BASENAME="${STEP4E_VERSION}.urp"', base)
         self.assertIn('RUN_LABEL="${STEP4E_VERSION}"', base)
@@ -293,8 +307,10 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             prior_actual_speed_violation_s=0.0,
             dt_s=0.002,
         )
-        self.assertEqual(low_load_speed_first["action"], "pass_solver")
+        self.assertEqual(low_load_speed_first["action"], "hold_zero_qdot")
+        self.assertEqual(low_load_speed_first["reason"], "low_load_actual_tcp_speed_watchdog_dwell_hold")
         self.assertAlmostEqual(float(low_load_speed_first["actual_speed_violation_s"]), 0.002)
+        self.assertEqual(low_load_speed_first["actual_speed_violation_count"], 1)
 
         low_load_speed_second = bridge.step5d_v13_contact_safety_guard(
             normal_load_n=0.8,
@@ -304,10 +320,12 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             prior_hold_s=0.0,
             prior_high_window_s=0.0,
             prior_actual_speed_violation_s=float(low_load_speed_first["actual_speed_violation_s"]),
+            prior_actual_speed_violation_count=int(low_load_speed_first["actual_speed_violation_count"]),
             dt_s=0.002,
         )
         self.assertEqual(low_load_speed_second["action"], "stop_zero_qdot")
         self.assertEqual(low_load_speed_second["reason"], "low_load_actual_tcp_speed_watchdog_dwell")
+        self.assertEqual(low_load_speed_second["actual_speed_violation_count"], 2)
 
         actual_spike = bridge.step5d_v13_contact_safety_guard(
             normal_load_n=5.0,
@@ -319,7 +337,9 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             prior_actual_speed_violation_s=0.0,
             dt_s=0.002,
         )
-        self.assertEqual(actual_spike["action"], "pass_solver")
+        self.assertEqual(actual_spike["action"], "hold_zero_qdot")
+        self.assertEqual(actual_spike["reason"], "actual_tcp_speed_watchdog_dwell_hold")
+        self.assertEqual(actual_spike["actual_speed_violation_count"], 1)
 
         predicted = bridge.step5d_v13_contact_safety_guard(
             normal_load_n=5.0,
@@ -333,6 +353,20 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         )
         self.assertEqual(predicted["action"], "stop_zero_qdot")
         self.assertEqual(predicted["reason"], "predicted_tcp_speed_watchdog")
+
+        predicted_overrides_actual_dwell = bridge.step5d_v13_contact_safety_guard(
+            normal_load_n=5.0,
+            force_norm_n=5.0,
+            actual_tcp_speed_m_s=0.051,
+            predicted_tcp_speed_m_s=0.051,
+            prior_hold_s=0.0,
+            prior_high_window_s=0.0,
+            prior_actual_speed_violation_s=0.0,
+            dt_s=0.002,
+        )
+        self.assertEqual(predicted_overrides_actual_dwell["action"], "stop_zero_qdot")
+        self.assertEqual(predicted_overrides_actual_dwell["reason"], "predicted_tcp_speed_watchdog")
+        self.assertEqual(predicted_overrides_actual_dwell["actual_speed_violation_count"], 1)
 
         timeout = bridge.step5d_v13_contact_safety_guard(
             normal_load_n=0.0,
@@ -366,12 +400,22 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             prior_hold_s=0.2,
             prior_high_window_s=0.02,
             prior_actual_speed_violation_s=0.002,
+            prior_actual_speed_violation_count=1,
             dt_s=0.002,
         )
         self.assertEqual(recovered["action"], "pass_solver")
         self.assertEqual(recovered["hold_s"], 0.0)
         self.assertEqual(recovered["high_window_s"], 0.0)
         self.assertEqual(recovered["actual_speed_violation_s"], 0.0)
+        self.assertEqual(recovered["actual_speed_violation_count"], 0)
+
+    def test_step5d_v13_actual_speed_hold_skips_solver_path(self) -> None:
+        source = inspect.getsource(bridge.compute_step4e_values)
+        hold_gate = 'step5d_contact_safety["action"] in {"hold_zero_qdot", "stop_zero_qdot"}'
+        solver_entry = "jacobian = step5d_tcp_jacobian_base"
+        self.assertIn(hold_gate, source)
+        self.assertIn("state.line_stage_s = state.step5d_contact_hold_path_time_s", source)
+        self.assertLess(source.index(hold_gate), source.index(solver_entry))
 
     def test_step5d_v13_replays_v11_low_load_as_hold_then_speed_stop(self) -> None:
         with escape_replay.DEFAULT_CSV.open(encoding="utf-8") as handle:
@@ -397,6 +441,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
 
         hold_s = float(hold["hold_s"])
         actual_speed_violation_s = 0.0
+        actual_speed_violation_count = 0
         stop = None
         for row in stage25:
             result = bridge.step5d_v13_contact_safety_guard(
@@ -407,10 +452,12 @@ class Step5dFullChainSanityTest(unittest.TestCase):
                 prior_hold_s=hold_s,
                 prior_high_window_s=0.0,
                 prior_actual_speed_violation_s=actual_speed_violation_s,
+                prior_actual_speed_violation_count=actual_speed_violation_count,
                 dt_s=0.002,
             )
             hold_s = float(result["hold_s"])
             actual_speed_violation_s = float(result["actual_speed_violation_s"])
+            actual_speed_violation_count = int(result["actual_speed_violation_count"])
             if result["action"] == "stop_zero_qdot":
                 stop = result
                 break
