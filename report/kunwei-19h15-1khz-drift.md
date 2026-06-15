@@ -35,9 +35,9 @@
 
 | artifact | 路径 |
 |---|---|
-| final summary | [../ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/summary.json](../ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/summary.json) |
-| raw CSV | [../ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/data.csv](../ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/data.csv) |
-| raw frames | [../ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/raw_frames.bin](../ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/raw_frames.bin) |
+| final summary | [../experiments/sensor-integration/kunwei-kwr75b/measurements/19h15min/capture/summary.json](../experiments/sensor-integration/kunwei-kwr75b/measurements/19h15min/capture/summary.json) |
+| raw CSV | [../experiments/sensor-integration/kunwei-kwr75b/measurements/19h15min/capture/data.csv](../experiments/sensor-integration/kunwei-kwr75b/measurements/19h15min/capture/data.csv) |
+| raw frames | [../experiments/sensor-integration/kunwei-kwr75b/measurements/19h15min/capture/raw_frames.bin](../experiments/sensor-integration/kunwei-kwr75b/measurements/19h15min/capture/raw_frames.bin) |
 | analysis summary | [assets/kunwei-19h15-1khz-drift/analysis-summary.json](assets/kunwei-19h15-1khz-drift/analysis-summary.json) |
 | 900 s checkpoint CSV | [assets/kunwei-19h15-1khz-drift/checkpoint-summary-900s.csv](assets/kunwei-19h15-1khz-drift/checkpoint-summary-900s.csv) |
 | downsampled plot points | [assets/kunwei-19h15-1khz-drift/downsampled-plot-points.csv](assets/kunwei-19h15-1khz-drift/downsampled-plot-points.csv) |
@@ -209,14 +209,14 @@
 ### 原始采集命令
 
 ```bash
-/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/tools/capture_kunwei_kwr75_1khz.py \
+/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/tools/capture_kunwei_kwr75_1khz.py \
   --transport tcp-client \
   --sensor-ip 192.168.50.25 \
   --sensor-port 5152 \
   --duration-s 86400 \
   --checkpoint-interval-s 900 \
   --connect-timeout-s 5 \
-  --output-dir /home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/measurements/19h15min/capture
+  --output-dir /home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/19h15min/capture
 ```
 
 ### 用户主动停止命令

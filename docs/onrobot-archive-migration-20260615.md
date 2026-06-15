@@ -30,7 +30,7 @@ rename raw files.
 | `experiments/20260528_static_three_stream_capture` | `experiments/archive/onrobot/20260528_static_three_stream_capture` |
 | `experiments/20260530_onrobot_three_stream_coldstart_drift` | `experiments/archive/onrobot/20260530_onrobot_three_stream_coldstart_drift` |
 | `experiments/onrobot_hex_e_v2_3010007655` | `experiments/archive/onrobot/onrobot_hex_e_v2_3010007655` |
-| `ft_sensor/onrobot` | `ft_sensor/archive/onrobot` |
+| `ft_sensor/onrobot` | `experiments/sensor-integration/archive/onrobot-hex-e-v2-3010007655` |
 | `report/onrobot_three_stream_90min_20260528.md` | `report/archive/onrobot/onrobot_three_stream_90min_20260528.md` |
 | `report/onrobot_three_stream_coldstart_drift_20260528.md` | `report/archive/onrobot/onrobot_three_stream_coldstart_drift_20260528.md` |
 | `report/onrobot_three_stream_half_hour_20260528.md` | `report/archive/onrobot/onrobot_three_stream_half_hour_20260528.md` |

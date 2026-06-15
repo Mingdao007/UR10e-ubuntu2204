@@ -133,7 +133,7 @@ procedurally forces hold-before-line except operator discipline.
 
 - The Step4e commit `2aa45bd` is clean and pushed, but the **working tree is not clean
   overall**: unrelated modified files (`docs/...`, `report/...`, `ft_sensor/...` reorg) and
-  untracked dirs (`controller_backups/...`, `ft_sensor/kunwei/kwr75b/`, etc.) are present.
+  untracked dirs (`controller_backups/...`, `experiments/sensor-integration/kunwei-kwr75b/`, etc.) are present.
   Before any future commit, stage selectively so unrelated changes are not swept in.
 - `report`/handoff describe search accel as 300 mm/s²; script uses `search_accel_m_s2 = 0.300`
   m/s² — consistent. (Cross-checked: 3 mm/s search, 5 N target, 20/50/0.6 guards all match

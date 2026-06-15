@@ -9,7 +9,6 @@ UR10e Lab
 |   |-- src/                  # live ROS2 packages
 |   |-- experiments/          # experiment bundles and bench evidence
 |   |-- controller_backups/   # controller snapshots and read-back evidence
-|   |-- ft_sensor/            # sensor references and adapter material
 |   |-- report/               # polished reports and report assets
 |   |-- weekly_meeting/       # meeting-facing outputs
 |   |-- docs/                 # atlas, contracts, SOP, workspace index
@@ -31,10 +30,10 @@ UR10e Lab
 | `/home/andy/ur10e_ros2_ws/src/` | Live ROS2 package source | active-code | Bringup, hardware, controllers, interfaces, descriptions, MoveIt config, examples, tests | do-not-move | Package READMEs and source manifests |
 | `/home/andy/ur10e_ros2_ws/experiments/` | Experiment bundles and bench evidence | active-experiment, historical-evidence, raw-data | Runs, configs, local programs, scripts, tests, tools, reports | index-only | `experiments/index.md` |
 | `/home/andy/ur10e_ros2_ws/experiments/archive/onrobot/` | Retired OnRobot experiment evidence | historical-evidence, raw-data | OnRobot-era experiment bundles, raw runs, reports, summaries | do-not-move | `docs/onrobot-archive-migration-20260615.md` |
+| `/home/andy/ur10e_ros2_ws/experiments/sensor-integration/` | Sensor integration evidence | active-experiment, historical-evidence | Kunwei sensor material and retired OnRobot/Robotiq sensor evidence formerly under the deprecated `ft_sensor/` root | index-only | `docs/experiments-step-reorganization.md` |
 | `/home/andy/ur10e_ros2_ws/controller_backups/` | Controller snapshots and read-back evidence | controller-readback | Controller files copied from or verified against the robot | do-not-move | Local README or manifest when present |
-| `/home/andy/ur10e_ros2_ws/ft_sensor/` | Deprecated root evidence zone for sensor references and adapter material | active-experiment, historical-evidence | Sensor notes, references, adapter files, parser context; target taxonomy maps this material to `/home/andy/ur10e_ros2_ws/experiments/sensor-integration/` | mapping-required | `docs/experiments-step-reorganization.md` |
-| `/home/andy/ur10e_ros2_ws/ft_sensor/archive/onrobot/` | Retired OnRobot sensor/reference material | historical-evidence | HEX-E docs, tools, manifests, measurements, vendor backups | do-not-move | `docs/onrobot-archive-migration-20260615.md` |
-| `/home/andy/ur10e_ros2_ws/ft_sensor/archive/robotiq/` | Borrowed UR10e Robotiq sensor evidence | historical-evidence | FT300-S notes, manifests, and photo evidence from the borrowed robot context | do-not-move | Local README and goal prompt |
+| `/home/andy/ur10e_ros2_ws/experiments/sensor-integration/archive/onrobot-hex-e-v2-3010007655/` | Retired OnRobot sensor/reference material | historical-evidence | HEX-E docs, tools, manifests, measurements, vendor backups | do-not-move | `docs/onrobot-archive-migration-20260615.md` |
+| `/home/andy/ur10e_ros2_ws/experiments/sensor-integration/archive/robotiq-ft300s-borrowed-ur10e/` | Borrowed UR10e Robotiq sensor evidence | historical-evidence | FT300-S notes, manifests, and photo evidence from the borrowed robot context | do-not-move | Local README and goal prompt |
 | `/home/andy/ur10e_ros2_ws/report/` | Polished reports and assets | report-export | Human-facing reports, plots, exported assets | low-risk-doc-rename | Report index or report README when present |
 | `/home/andy/ur10e_ros2_ws/report/archive/onrobot/` | Retired OnRobot report exports | historical-evidence, report-export | OnRobot reports and paired assets | do-not-move | `docs/onrobot-archive-migration-20260615.md` |
 | `/home/andy/ur10e_ros2_ws/weekly_meeting/` | Meeting-facing outputs | report-export | Weekly report material, generated plots, deck inputs | mapping-required | Meeting generator or README when present |
@@ -63,8 +62,8 @@ not OnRobot.
 
 The current main campaign target is
 `experiments/tase-contact-reproduction/`; the current physical Kunwei path
-remains in place until a later approved mapping batch. `ft_sensor/` remains a
-deprecated root evidence zone until sensor material is approved for
+remains in place until a later approved mapping batch. The former `ft_sensor/`
+root has no tracked files; sensor material now lives under
 `experiments/sensor-integration/`.
 
 ## Knowledge Vault

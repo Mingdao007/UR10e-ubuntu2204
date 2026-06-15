@@ -34,7 +34,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 UR_REALSETUP_SCRIPTS = Path("/home/andy/codex-private-skills/skills/ur10e-realsetup/scripts")
 ONROBOT_TOOLS = Path(
-    "/home/andy/ur10e_ros2_ws/ft_sensor/archive/onrobot/hex_e_v2_3010007655/tools"
+    "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/archive/onrobot-hex-e-v2-3010007655/hex_e_v2_3010007655/tools"
 )
 sys.path.insert(0, str(UR_REALSETUP_SCRIPTS))
 sys.path.insert(0, str(ONROBOT_TOOLS))

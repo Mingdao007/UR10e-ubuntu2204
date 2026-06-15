@@ -104,9 +104,9 @@ backups, or local installer directories.
   Variables to Ubuntu, but it still requires a manual no-motion PolyScope
   program edit to write the registers.
 - Official OnRobot USB backup from `2026-05-24`:
-  `/home/andy/ur10e_ros2_ws/ft_sensor/archive/onrobot/hex_e_v2_3010007655/vendor_usb_backups/onrobot_usb_20260524`
+  `/home/andy/ur10e_ros2_ws/experiments/sensor-integration/archive/onrobot-hex-e-v2-3010007655/hex_e_v2_3010007655/vendor_usb_backups/onrobot_usb_20260524`
   with manifest
-  `/home/andy/ur10e_ros2_ws/ft_sensor/archive/onrobot/hex_e_v2_3010007655/vendor_usb_backups/onrobot_usb_20260524_file_manifest.tsv`.
+  `/home/andy/ur10e_ros2_ws/experiments/sensor-integration/archive/onrobot-hex-e-v2-3010007655/hex_e_v2_3010007655/vendor_usb_backups/onrobot_usb_20260524_file_manifest.tsv`.
   The backup contains `483` regular files and occupies about `414M`. Offline
   inspection of the official `FT-OnRobot-4.1.7.1754.urcap` confirms
   `Fx/Fy/Fz/Tx/Ty/Tz/F3D/T3D/bFT/tFT` are URScript variables, with

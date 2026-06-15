@@ -29,8 +29,8 @@ WEEKLY_ASSETS = WEEKLY_DIR / "assets" / "kunwei_kwr75_20260608"
 REPORT_MD = REPORT_DIR / f"{REPORT_STEM}.md"
 REPORT_HTML = WEEKLY_DIR / f"{DECK_STEM}.html"
 
-KUNWEI_LONG_CSV = ROOT / "ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/data.csv"
-KUNWEI_LONG_SUMMARY = ROOT / "ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/summary.json"
+KUNWEI_LONG_CSV = ROOT / "experiments/sensor-integration/kunwei-kwr75b/measurements/19h15min/capture/data.csv"
+KUNWEI_LONG_SUMMARY = ROOT / "experiments/sensor-integration/kunwei-kwr75b/measurements/19h15min/capture/summary.json"
 KUNWEI_LONG_REPORT_SUMMARY = REPORT_DIR / "assets/kunwei-19h15-1khz-drift/analysis-summary.json"
 STEP2C_METRICS = REPORT_DIR / "assets/step2c-kunwei-search5-guard20-line2ms/analysis-metrics.json"
 STEP2C_V4_RUN_DIR = (
@@ -1693,8 +1693,8 @@ def build_markdown(
 | artifact | 路径 |
 |---|---|
 | 本报告 summary | [{rel_from_report(summary_json)}]({rel_from_report(summary_json)}) |
-| Kunwei 19h15min raw CSV | [../ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/data.csv](../ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/data.csv) |
-| Kunwei 19h15min logger summary | [../ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/summary.json](../ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/summary.json) |
+| Kunwei 19h15min raw CSV | [../experiments/sensor-integration/kunwei-kwr75b/measurements/19h15min/capture/data.csv](../experiments/sensor-integration/kunwei-kwr75b/measurements/19h15min/capture/data.csv) |
+| Kunwei 19h15min logger summary | [../experiments/sensor-integration/kunwei-kwr75b/measurements/19h15min/capture/summary.json](../experiments/sensor-integration/kunwei-kwr75b/measurements/19h15min/capture/summary.json) |
 | Step2C metrics | [assets/step2c-kunwei-search5-guard20-line2ms/analysis-metrics.json](assets/step2c-kunwei-search5-guard20-line2ms/analysis-metrics.json) |
 | Step2C V4 comparison run | [../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step2c_v4['run_name']}](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step2c_v4['run_name']}) |
 | Step2C final run | [../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step2c_result['run_name']}](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step2c_result['run_name']}) |

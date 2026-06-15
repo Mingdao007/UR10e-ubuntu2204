@@ -34,8 +34,8 @@
 | artifact | 路径 |
 |---|---|
 | 本报告 summary | [assets/kunwei-kwr75-progress-20260608/analysis-summary.json](assets/kunwei-kwr75-progress-20260608/analysis-summary.json) |
-| Kunwei 19h15min raw CSV | [../ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/data.csv](../ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/data.csv) |
-| Kunwei 19h15min logger summary | [../ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/summary.json](../ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/summary.json) |
+| Kunwei 19h15min raw CSV | [../experiments/sensor-integration/kunwei-kwr75b/measurements/19h15min/capture/data.csv](../experiments/sensor-integration/kunwei-kwr75b/measurements/19h15min/capture/data.csv) |
+| Kunwei 19h15min logger summary | [../experiments/sensor-integration/kunwei-kwr75b/measurements/19h15min/capture/summary.json](../experiments/sensor-integration/kunwei-kwr75b/measurements/19h15min/capture/summary.json) |
 | Step2C metrics | [assets/step2c-kunwei-search5-guard20-line2ms/analysis-metrics.json](assets/step2c-kunwei-search5-guard20-line2ms/analysis-metrics.json) |
 | Step2C V4 comparison run | [../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_admittance_search30_v4_search2ms_line1ms_alpha70_20260608_135945](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_admittance_search30_v4_search2ms_line1ms_alpha70_20260608_135945) |
 | Step2C final run | [../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_final_autowatch_search2ms_line1ms_alpha70_20260608_154123](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_final_autowatch_search2ms_line1ms_alpha70_20260608_154123) |

@@ -22,14 +22,14 @@ HTML_PATH = WEEKLY_DIR / "demo_01_02_meeting_deck.html"
 
 RUN_DIR = (
     ROOT
-    / "ft_sensor/archive/onrobot/hex_e_v2_3010007655/measurements/"
+    / "experiments/sensor-integration/archive/onrobot-hex-e-v2-3010007655/hex_e_v2_3010007655/measurements/"
     "demo_1_2_final_success_20260528_022654"
 )
 ANALYSIS_SCRIPT = RUN_DIR / "analysis/analyze_demo_1_2_final_success.py"
 FINAL_CSV = RUN_DIR / "demo_1_2_final_success_onrobot_vars_20260528_022724.csv"
 REFERENCE_CSV = (
     ROOT
-    / "ft_sensor/archive/onrobot/hex_e_v2_3010007655/measurements/"
+    / "experiments/sensor-integration/archive/onrobot-hex-e-v2-3010007655/hex_e_v2_3010007655/measurements/"
     "demo_1_2_path_straight_line_urcap_20260528_012054/demo_1_2_rtde_20260528_012054.csv"
 )
 
@@ -49,7 +49,7 @@ LOCAL_VIDEO_ASSETS = {
 
 PHOTO_ASSETS = {
     "bench_overview": BENCH_OVERVIEW_PHOTO,
-    "hex_sensor": ROOT / "ft_sensor/archive/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1181.jpg",
+    "hex_sensor": ROOT / "experiments/sensor-integration/archive/onrobot-hex-e-v2-3010007655/hex_e_v2_3010007655/assets/thumbnails/IMG_1181.jpg",
     "small_switch": SMALL_SWITCH_PHOTO,
     "compute_box": COMPUTE_BOX_FT_PHOTO,
 }

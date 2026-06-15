@@ -26,16 +26,16 @@ bundles remain local.
 Ignored in Git:
 
 - `controller_backups/`
-- `ft_sensor/kunwei/kwr75b/measurements/**/*.csv`
-- `ft_sensor/kunwei/kwr75b/measurements/**/*.bin`
-- `ft_sensor/kunwei/kwr75b/measurements/**/*.log`
-- `ft_sensor/kunwei/kwr75b/measurements/**/capture.pid`
-- `ft_sensor/kunwei/kwr75b/measurements/**/logs/`
-- `ft_sensor/kunwei/kwr75b/software/`
+- `experiments/sensor-integration/kunwei-kwr75b/measurements/**/*.csv`
+- `experiments/sensor-integration/kunwei-kwr75b/measurements/**/*.bin`
+- `experiments/sensor-integration/kunwei-kwr75b/measurements/**/*.log`
+- `experiments/sensor-integration/kunwei-kwr75b/measurements/**/capture.pid`
+- `experiments/sensor-integration/kunwei-kwr75b/measurements/**/logs/`
+- `experiments/sensor-integration/kunwei-kwr75b/software/`
 
 Tracked intentionally:
 
-- Kunwei device notes and current state under `ft_sensor/kunwei/kwr75b/`.
+- Kunwei device notes and current state under `experiments/sensor-integration/kunwei-kwr75b/`.
 - Kunwei evidence README files.
 - Kunwei capture tools.
 - Small measurement metadata, summaries, and reports.
@@ -43,8 +43,8 @@ Tracked intentionally:
 
 ## Local Artifact Sizes
 
-- `ft_sensor/kunwei/kwr75b/measurements`: about `20G`.
-- `ft_sensor/kunwei/kwr75b/software`: about `323M`.
+- `experiments/sensor-integration/kunwei-kwr75b/measurements`: about `20G`.
+- `experiments/sensor-integration/kunwei-kwr75b/software`: about `323M`.
 - `controller_backups`: about `56M`.
 
 These paths are local recovery/evidence stores. Do not add them to Git unless a

@@ -27,7 +27,7 @@ from typing import Any
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
 TOOLS_DIR = EXPERIMENT_ROOT / "tools"
-KUNWEI_TOOLS = Path("/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/tools")
+KUNWEI_TOOLS = Path("/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/tools")
 UR_REALSETUP_SCRIPTS = Path("/home/andy/codex-private-skills/skills/ur10e-realsetup/scripts")
 sys.path.insert(0, str(TOOLS_DIR))
 sys.path.insert(0, str(KUNWEI_TOOLS))

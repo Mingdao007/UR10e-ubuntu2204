@@ -30,9 +30,9 @@ Columns:
 
 | old_path | proposed_path | object_type | lifecycle | move_policy | risk | reference_impact | batch | notes |
 |---|---|---|---|---|---|---|---|---|
-| `ft_sensor/kunwei/kwr75b/` | `experiments/sensor-integration/kunwei-kwr75b/` | sensor integration root | active-evidence | approval-required | high | high | later-git-mv | `ft_sensor/` is a deprecated root evidence zone. |
-| `ft_sensor/archive/onrobot/` | `experiments/sensor-integration/archive/onrobot-hex-e-v2-3010007655/` | retired sensor evidence | historical-evidence | approval-required | medium | high | later-git-mv | Keep existing archive stable until reference audit. |
-| `ft_sensor/archive/robotiq/` | `experiments/sensor-integration/archive/robotiq-ft300s-borrowed-ur10e/` | borrowed sensor evidence | historical-evidence | approval-required | medium | medium | later-git-mv | Preserve borrowed UR10e context in target basename. |
+| `ft_sensor/kunwei/kwr75b/` | `experiments/sensor-integration/kunwei-kwr75b/` | sensor integration root | active-evidence | completed | high | high | 2026-06-15-physical-migration | `ft_sensor/` is a deprecated root evidence zone. |
+| `ft_sensor/archive/onrobot/` | `experiments/sensor-integration/archive/onrobot-hex-e-v2-3010007655/` | retired sensor evidence | historical-evidence | completed | medium | high | 2026-06-15-physical-migration | Exact workspace navigation has been remapped; raw provenance may retain old strings. |
+| `ft_sensor/archive/robotiq/` | `experiments/sensor-integration/archive/robotiq-ft300s-borrowed-ur10e/` | borrowed sensor evidence | historical-evidence | completed | medium | medium | 2026-06-15-physical-migration | Preserves borrowed UR10e context in target basename. |
 
 ## Archived/historical experiment material
 

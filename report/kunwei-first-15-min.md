@@ -34,10 +34,10 @@
 
 | 文件 | 作用 |
 |---|---|
-| [CSV](../ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/data.csv) | 六轴数据、时间戳、命令字、原始帧十六进制 |
-| [checkpoint](../ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/checkpoint.json) | 第一个 900 s checkpoint 的统计量 |
-| [metadata](../ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/metadata.json) | 采集配置与运行元数据 |
-| [raw frames](../ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/raw_frames.bin) | 原始二进制帧归档 |
+| [CSV](../experiments/sensor-integration/kunwei-kwr75b/measurements/19h15min/capture/data.csv) | 六轴数据、时间戳、命令字、原始帧十六进制 |
+| [checkpoint](../experiments/sensor-integration/kunwei-kwr75b/measurements/19h15min/capture/checkpoint.json) | 第一个 900 s checkpoint 的统计量 |
+| [metadata](../experiments/sensor-integration/kunwei-kwr75b/measurements/19h15min/capture/metadata.json) | 采集配置与运行元数据 |
+| [raw frames](../experiments/sensor-integration/kunwei-kwr75b/measurements/19h15min/capture/raw_frames.bin) | 原始二进制帧归档 |
 
 图表总览先把本报告使用的五张时序图放在同一页，便于快速检查每个通道和采样间隔是否有明显异常。
 
@@ -120,14 +120,14 @@
 完整采集命令：
 
 ```bash
-python3 /home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/tools/capture_kunwei_kwr75_1khz.py \
+python3 /home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/tools/capture_kunwei_kwr75_1khz.py \
   --transport tcp-client \
   --sensor-ip 192.168.50.25 \
   --sensor-port 5152 \
   --duration-s 86400 \
   --checkpoint-interval-s 900 \
   --connect-timeout-s 5 \
-  --output-dir /home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/measurements/19h15min/capture
+  --output-dir /home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/19h15min/capture
 ```
 
 图表生成说明：本报告只读取 CSV 前 900,022 行，对应第一个 checkpoint，不包含后续仍在写入的样本。

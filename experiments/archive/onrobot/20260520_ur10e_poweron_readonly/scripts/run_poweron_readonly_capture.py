@@ -22,7 +22,7 @@ from typing import Any
 
 EXP_ROOT = Path("/home/andy/ur10e_ros2_ws/experiments/archive/onrobot/20260520_ur10e_poweron_readonly")
 UR_SKILL_ROOT = Path("/home/andy/codex-private-skills/skills/ur10e-realsetup")
-ONROBOT_ROOT = Path("/home/andy/ur10e_ros2_ws/ft_sensor/archive/onrobot/hex_e_v2_3010007655")
+ONROBOT_ROOT = Path("/home/andy/ur10e_ros2_ws/experiments/sensor-integration/archive/onrobot-hex-e-v2-3010007655/hex_e_v2_3010007655")
 
 
 def now_stamp() -> str:

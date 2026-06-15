@@ -100,7 +100,7 @@ Representative runs:
 
 Fast-poll artifact:
 
-- `/home/andy/ur10e_ros2_ws/ft_sensor/archive/onrobot/hex_e_v2_3010007655/measurements/direct_onrobot_fastpoll_check_20260520_154155/summary.json`
+- `/home/andy/ur10e_ros2_ws/experiments/sensor-integration/archive/onrobot-hex-e-v2-3010007655/hex_e_v2_3010007655/measurements/direct_onrobot_fastpoll_check_20260520_154155/summary.json`
 
 Interpretation:
 

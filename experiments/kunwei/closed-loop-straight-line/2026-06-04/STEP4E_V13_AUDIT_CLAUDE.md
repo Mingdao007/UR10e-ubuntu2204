@@ -149,7 +149,7 @@ just don't read those limits as seconds.
 
 ### H1 — Housekeeping
 Working tree is dirty: unrelated modified `docs/`, `report/`, `ft_sensor/`, `weekly_meeting/`
-files plus untracked `controller_backups/`, `ft_sensor/kunwei/kwr75b/`, etc. The v13 commits
+files plus untracked `controller_backups/`, `experiments/sensor-integration/kunwei-kwr75b/`, etc. The v13 commits
 (`09c49ff`, `ba50d6a`) are clean and pushed, but stage selectively before the next commit so
 unrelated changes aren't swept in.
 

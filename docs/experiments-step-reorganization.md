@@ -21,9 +21,9 @@ They should not define the top-level experiment information architecture.
 current hardware and data-source context, not the experiment task.
 
 `ft_sensor/` is a deprecated root evidence zone in the target taxonomy. Sensor
-integration material target-maps into `experiments/sensor-integration/`, while
-the current physical `ft_sensor/` paths remain in place until a later approved
-migration batch.
+integration material has been physically moved into
+`experiments/sensor-integration/`; future work should not add tracked files
+back under `ft_sensor/`.
 
 ## Target Tree
 
