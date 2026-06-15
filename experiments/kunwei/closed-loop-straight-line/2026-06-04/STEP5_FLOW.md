@@ -4,8 +4,8 @@
 route. The diagnostic DLS dry-run is quarantined after the 2026-06-13 live run
 showed wrong XY/Z motion. Step5d is the named completion target for the
 complete strict TASE RNN reproduction; the strict-RNN live-prep path is now
-`step5d_strict_rnn_liveprep_v9`, while the full reproduction target remains
-separate and not complete. Step4f, Step4g, Step5b, and Step5d v1-v8
+`step5d_strict_rnn_liveprep_v10`, while the full reproduction target remains
+separate and not complete. Step4f, Step4g, Step5b, and Step5d v1-v9
 remain retained evidence packages only. Do not infer global current status
 from this per-step file without reading the current pointer.
 
@@ -30,7 +30,8 @@ controller upload, or contact motion.
 | `step5d_strict_rnn_liveprep_v6` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained failure evidence: widened the entry window to `2-40N`, entered 25.0, then exposed 24.3 re-contact overpressure at about `20-22N`. Superseded by v7. |
 | `step5d_strict_rnn_liveprep_v7` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained transition evidence: keeps v5/v6 semantic gate and qdot `speedj` path, restores the `2-15N` entry window, and makes 24.3/24.4 re-contact slow-only before 25.0. Superseded by v8. |
 | `step5d_strict_rnn_liveprep_v8` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained failure evidence: v8 made 25.3 an active force-PID settle stage, but low-load dropout below `0.5N` cleared `cmd_valid` and TP stopped with reason `17` before Stage 25.0. Superseded by v9. |
-| `step5d_strict_rnn_liveprep_v9` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Current live-prep target: 25.3 keeps low-load press recovery and stops only outside the `40N` normal-load / `100N` force-norm hard envelope; 25.0 starts strict RNN qdot `speedj` only after `3-8N` is stable for `0.200s`. |
+| `step5d_strict_rnn_liveprep_v9` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained failure evidence: 25.3 low-load press recovery fixed the v8 dropout stop, but direct force-PID settle hunted under point contact and timed out before Stage 25.0. Superseded by v10. |
+| `step5d_strict_rnn_liveprep_v10` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Current live-prep target: 25.3 uses scalar admittance settle and releases only after filtered `3-8N`, `force_norm <=25N`, and settle speed `<=0.001m/s` hold for `0.300s`; 25.0 then starts strict RNN qdot `speedj`. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |
 
 ## Step5c Calibrated Kinematics Gate
@@ -403,12 +404,12 @@ Current v10 delivery status:
   `.txt` `37f7cde68d4d10c89c90a817dc0d5088e316e8e67508d6c0d1f53215f211fbdc`,
   `.urp` `0506a8cadcfa4cf08893e8a6c17ba0e44cc3ed6d836132fb54c2210724aae5f3`).
 
-Archived v1-v8 delivery status:
+Archived v1-v9 delivery status:
 
 - local archive directory: `programs/step5/step5d`;
 - controller archive directory: `/programs/andyl/kunwei/step5/step5d`;
 - retained versions: `step5d_strict_rnn_liveprep_v1` through
-  `step5d_strict_rnn_liveprep_v8`;
+  `step5d_strict_rnn_liveprep_v9`;
 - archive read-back artifacts:
   `runs/controller_readback_step5d_strict_rnn_liveprep_v1_20260615_193017`,
   `runs/controller_readback_step5d_strict_rnn_liveprep_v2_20260615_193020`,
@@ -417,9 +418,10 @@ Archived v1-v8 delivery status:
   `runs/controller_readback_step5d_strict_rnn_liveprep_v5_20260615_193030`,
   `runs/controller_readback_step5d_strict_rnn_liveprep_v6_20260615_193034`,
   `runs/controller_readback_step5d_strict_rnn_liveprep_v7_20260615_193037`,
-  and `runs/controller_readback_step5d_strict_rnn_liveprep_v8_20260615_193040`;
-- controller root cleanup: old root v1-v8 triplets were removed after archive
-  read-back verification; root keeps retained v9 plus current v10.
+  `runs/controller_readback_step5d_strict_rnn_liveprep_v8_20260615_193040`,
+  and `runs/controller_readback_step5d_strict_rnn_liveprep_v9_20260615_202010`;
+- controller root cleanup: old root v1-v9 triplets were removed after archive
+  read-back verification; root keeps current v10.
 - bridge/TP Play remain separate explicit operator actions. These read-backs
   verify package delivery only; they do not mark the full reproduction target
   complete.

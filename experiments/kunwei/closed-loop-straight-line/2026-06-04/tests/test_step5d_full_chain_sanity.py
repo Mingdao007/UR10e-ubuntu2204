@@ -140,11 +140,13 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn('STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v10}"', operator)
         self.assertIn('/programs/andyl/kunwei/step5/step5d/${STEP5D_VERSION}.urp', operator)
         self.assertIn('/programs/andyl/kunwei/step5/${STEP5D_VERSION}.urp', operator)
+        self.assertIn('"step5d_strict_rnn_liveprep_v9" ]]; then', operator)
         self.assertIn('MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-100}"', operator)
         self.assertIn('MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-100}"', operator)
         self.assertIn('STEP4E_VERSION="step5d_strict_rnn_liveprep_v10"', base)
         self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/step5d/${STEP4E_VERSION}.urp"', base)
         self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/${STEP4E_VERSION}.urp"', base)
+        self.assertNotIn('if [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v9" ]]; then\n  PROGRAM_LINE="/programs/andyl/kunwei/step5/${STEP4E_VERSION}.urp"', base)
         self.assertIn('EXPECTED_BASENAME="${STEP4E_VERSION}.urp"', base)
         self.assertIn('RUN_LABEL="${STEP4E_VERSION}"', base)
 

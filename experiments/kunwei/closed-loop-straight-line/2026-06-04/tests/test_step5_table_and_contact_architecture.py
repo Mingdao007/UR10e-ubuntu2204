@@ -130,6 +130,7 @@ class Step5TableAndContactArchitectureTest(unittest.TestCase):
             liveprep_v6,
             liveprep_v7,
             liveprep_v8,
+            liveprep_v9,
         ):
             evidence = archived_stage.get("local_delivery_evidence") or archived_stage["delivery_evidence"]
             self.assertEqual(evidence["local_program_dir"], "programs/step5/step5d")

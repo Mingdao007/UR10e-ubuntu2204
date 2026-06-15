@@ -1244,19 +1244,21 @@
       "completion_target": false,
       "block_reason": "Retained v9 failure evidence. It fixed v8 low-load dropout, but the 2026-06-15 live run showed Stage 25.3 direct force-PID settle hunted under point contact and timed out before Stage 25.0. Superseded by step5d_strict_rnn_liveprep_v10.",
       "local_delivery_evidence": {
-        "local_program_dir": "programs/step5",
+        "local_program_dir": "programs/step5/step5d",
         "program_basename": "step5d_strict_rnn_liveprep_v9",
         "stamp": "2026-06-15T1926HKT_STEP5D_STRICT_RNN_LIVEPREP_V9",
         "semantic_gate": "runs/ur_contact_semantic_gate_20260615_192656/ur_contact_semantic_gate_summary.json",
         "semantic_gate_pass": true,
         "local_package_validated": true,
-        "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v9_20260615_192702",
+        "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v9_20260615_202010",
         "controller_readback_verified": true,
         "sha256": {
           ".script": "c3439ae2b4d4728dc591e4d10aadcd758e08410976f9c4fa6b35902f6a9ca4f3",
-          ".txt": "afcb3a25e128a97fa047ba704980875e2a4544078cbf3402c838d06e2f727ac5",
-          ".urp": "e1f66806f19bbb1794226a8b1c900f559cde9c348c3fede7b5f6ea23061206de"
-        }
+          ".txt": "a70920db289555746df8944861a94d65a92a3a8252b865f5d90efa82fecafed4",
+          ".urp": "834c428a51f3581ee20d0e639079c78dbfcfaf93d5134a3133806ab5222c8067"
+        },
+        "controller_dir": "/programs/andyl/kunwei/step5/step5d",
+        "archived_to_step5d_dir": true
       },
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
