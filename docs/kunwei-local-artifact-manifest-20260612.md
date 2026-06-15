@@ -8,9 +8,9 @@ bundles remain local.
 ## Current Pointer Evidence
 
 - Current stage: `step5c_joint_rnn_cycloid_v1`.
-- Current pointer: `experiments/kunwei/closed-loop-straight-line/2026-06-04/config/current_stage.json`.
+- Current pointer: `experiments/tase-contact-reproduction/config/current_stage.json`.
 - Numeric sanity artifact, local only:
-  `experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/step5c_numeric_sanity_20260612_234356/step5c_numeric_sanity.json`.
+  `experiments/tase-contact-reproduction/runs/step5c_numeric_sanity_20260612_234356/step5c_numeric_sanity.json`.
 - Numeric sanity result: overall pass.
 - Dry-run case: max `|qdot| = 0.005994541828760564 rad/s`, limit `0.10 rad/s`, no clipping/projection.
 - Contact case: max `|qdot| = 0.07485740629384106 rad/s`, limit `0.15 rad/s`, no clipping/projection.

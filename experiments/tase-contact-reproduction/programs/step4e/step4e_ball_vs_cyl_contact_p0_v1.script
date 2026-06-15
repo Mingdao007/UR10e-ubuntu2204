@@ -1,0 +1,282 @@
+# Step4e P0 witness pair: ball-first vs KSM-8N housing/cylindrical-face contact.
+# VERSION: 2026-06-11T1647HKT_STEP4E_BALL_VS_CYL_CONTACT_P0_V1
+# GENERATED_AT_LOCAL: 2026-06-11T16:47:21+08:00
+# POSE_PAIR_SOURCE: /home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/base_y_drag_pose_pair_20260611_163557
+# P0_BALL_POSE_M_RAD: [0.487947174, 0.016865857, 0.104221916, -3.033481444, -0.085733395, -0.617007078]
+# P1_CYL_POSE_M_RAD: [0.320673066, -0.065727866, 0.010264082, 2.821123783, 0.149091390, -0.429241830]
+# PURPOSE: compare low-threshold wrench/torque/contact-offset signatures for ball contact vs housing/cylindrical-face contact.
+# CONTROL: bridge writes only base force/heartbeat registers; no attitude, no 5N acquire, no line.
+# SAFETY: raw normal guard 35 N, force norm guard 50 N, torque guard 3.0 Nm.
+
+def codex_abs(x):
+  if x < 0.0:
+    return -x
+  end
+  return x
+end
+
+def codex_clamp(x, lo, hi):
+  if x < lo:
+    return lo
+  elif x > hi:
+    return hi
+  end
+  return x
+end
+
+def codex_wait_for_fresh_heartbeat(timeout_s):
+  local t = 0.0
+  local initial_heartbeat = read_input_float_register(26)
+  local current_heartbeat = initial_heartbeat
+  while t < timeout_s:
+    current_heartbeat = read_input_float_register(26)
+    write_output_float_register(26, current_heartbeat)
+    if read_input_float_register(27) > 0.5 and current_heartbeat != initial_heartbeat:
+      return True
+    end
+    sync()
+    t = t + get_steptime()
+  end
+  return False
+end
+
+def codex_wait_for_rezero_complete(timeout_s):
+  local t = 0.0
+  local initial_heartbeat = read_input_float_register(26)
+  local current_heartbeat = initial_heartbeat
+  local saw_sensor_not_ready = False
+  while t < timeout_s:
+    current_heartbeat = read_input_float_register(26)
+    write_output_float_register(26, current_heartbeat)
+    if read_input_float_register(27) < 0.5:
+      saw_sensor_not_ready = True
+    elif saw_sensor_not_ready and read_input_float_register(27) > 0.5 and current_heartbeat != initial_heartbeat:
+      return True
+    end
+    sync()
+    t = t + get_steptime()
+  end
+  return False
+end
+
+def codex_step4e_guard_stop_reason():
+  local normal_force = read_input_float_register(24)
+  local force_norm = read_input_float_register(25)
+  local sensor_ok = read_input_float_register(27)
+  local stop_request = read_input_float_register(28)
+  local torque_norm = read_input_float_register(30)
+  if sensor_ok < 0.5:
+    return 3.0
+  elif stop_request > 0.5:
+    return 4.0
+  elif codex_abs(normal_force) > 35.0:
+    return 5.0
+  elif force_norm > 50.0:
+    return 6.0
+  elif torque_norm > 3.0:
+    return 7.0
+  end
+  return 0.0
+end
+
+def codex_should_auto_home(stop_reason):
+  if stop_reason == 1.0:
+    return True
+  elif stop_reason == 2.0:
+    return True
+  elif stop_reason == 4.0:
+    return True
+  elif stop_reason == 5.0:
+    return True
+  elif stop_reason == 6.0:
+    return True
+  elif stop_reason == 7.0:
+    return True
+  elif stop_reason == 8.0:
+    return True
+  elif stop_reason == 9.0:
+    return True
+  elif stop_reason == 10.0:
+    return True
+  elif stop_reason == 12.0:
+    return True
+  elif stop_reason == 13.0:
+    return True
+  elif stop_reason == 14.0:
+    return True
+  end
+  return False
+end
+
+def codex_echo_basic(stop_reason):
+  write_output_float_register(24, read_input_float_register(24))
+  write_output_float_register(25, read_input_float_register(25))
+  write_output_float_register(26, read_input_float_register(26))
+  write_output_float_register(27, read_input_float_register(27))
+  write_output_float_register(28, read_input_float_register(28))
+  write_output_float_register(29, read_input_float_register(29))
+  write_output_float_register(30, stop_reason)
+end
+
+def codex_echo_step4e(stop_reason):
+  codex_echo_basic(stop_reason)
+  write_output_float_register(31, read_input_float_register(44))
+  write_output_float_register(32, read_input_float_register(45))
+  write_output_float_register(33, read_input_float_register(39))
+  write_output_float_register(36, read_input_float_register(37))
+  write_output_float_register(37, read_input_float_register(38))
+  write_output_float_register(38, read_input_float_register(39))
+  write_output_float_register(39, read_input_float_register(40))
+  write_output_float_register(40, read_input_float_register(41))
+  write_output_float_register(41, read_input_float_register(42))
+  write_output_float_register(42, read_input_float_register(43))
+  write_output_float_register(43, read_input_float_register(44))
+  write_output_float_register(44, read_input_float_register(45))
+  write_output_float_register(45, read_input_float_register(46))
+  write_output_float_register(46, read_input_float_register(47))
+end
+
+
+def codex_wait_and_rezero(stage_code):
+  write_output_float_register(35, stage_code)
+  codex_echo_step4e(0.0)
+  write_output_float_register(34, 1.0)
+  if not codex_wait_for_rezero_complete(5.0):
+    return 14.0
+  end
+  return 0.0
+end
+
+def codex_contact_witness(move_stage, rezero_stage, search_stage, near_stage, dwell_stage, retract_stage, start_pose, max_search_down_m, search_near_start_depth_m):
+  local stop_reason = 0.0
+  local search_accel_m_s2 = 0.300
+  local search_hold_s = 0.002
+  local stale_limit_s = 0.100
+  local search_runtime_limit_s = 45.0
+  local search_far_speed_m_s = -0.015
+  local search_near_speed_m_s = -0.003
+  local visual_dwell_s = 8.000
+  local contact_triggered = 0
+
+  write_output_float_register(35, move_stage)
+  codex_echo_step4e(0.0)
+  movel(start_pose, a=0.030, v=0.020, r=0.0)
+  stopl(0.1)
+
+  stop_reason = codex_wait_and_rezero(rezero_stage)
+  if stop_reason != 0.0:
+    return stop_reason
+  end
+
+  write_output_float_register(35, search_stage)
+  local search_start = get_actual_tcp_pose()
+  local last_heartbeat = read_input_float_register(26)
+  local stale_s = 0.0
+  local t = 0.0
+  while stop_reason == 0.0:
+    local heartbeat = read_input_float_register(26)
+    local normal_force = read_input_float_register(24)
+    local force_norm = read_input_float_register(25)
+    local pose_now = get_actual_tcp_pose()
+    local search_depth_m = search_start[2] - pose_now[2]
+    if heartbeat == last_heartbeat:
+      stale_s = stale_s + get_steptime()
+    else:
+      stale_s = 0.0
+      last_heartbeat = heartbeat
+    end
+    if normal_force <= -1.0 or force_norm > 1.5:
+      contact_triggered = 1
+      stop_reason = 11.0
+    elif stale_s > stale_limit_s:
+      stop_reason = 2.0
+    else:
+      stop_reason = codex_step4e_guard_stop_reason()
+    end
+    if stop_reason == 0.0:
+      if search_depth_m >= max_search_down_m:
+        stop_reason = 8.0
+      elif t >= search_runtime_limit_s:
+        stop_reason = 10.0
+      else:
+        if search_depth_m < search_near_start_depth_m:
+          codex_echo_step4e(stop_reason)
+          speedl([0.0, 0.0, search_far_speed_m_s, 0.0, 0.0, 0.0], search_accel_m_s2, search_hold_s)
+        else:
+          write_output_float_register(35, near_stage)
+          codex_echo_step4e(stop_reason)
+          speedl([0.0, 0.0, search_near_speed_m_s, 0.0, 0.0, 0.0], search_accel_m_s2, search_hold_s)
+        end
+        t = t + get_steptime()
+      end
+    end
+  end
+  stopl(0.1)
+
+  if contact_triggered == 1:
+    stop_reason = 0.0
+    write_output_float_register(35, dwell_stage)
+    local dwell_t = 0.0
+    local last_heartbeat2 = read_input_float_register(26)
+    local stale_s2 = 0.0
+    while stop_reason == 0.0 and dwell_t < visual_dwell_s:
+      local heartbeat2 = read_input_float_register(26)
+      if heartbeat2 == last_heartbeat2:
+        stale_s2 = stale_s2 + get_steptime()
+      else:
+        stale_s2 = 0.0
+        last_heartbeat2 = heartbeat2
+      end
+      codex_echo_step4e(stop_reason)
+      if stale_s2 > stale_limit_s:
+        stop_reason = 2.0
+      else:
+        stop_reason = codex_step4e_guard_stop_reason()
+      end
+      sync()
+      dwell_t = dwell_t + get_steptime()
+    end
+    if stop_reason == 0.0:
+      write_output_float_register(35, retract_stage)
+      local p_retract = get_actual_tcp_pose()
+      local retract_pose = p[p_retract[0], p_retract[1], p_retract[2] + 0.020, p_retract[3], p_retract[4], p_retract[5]]
+      codex_echo_step4e(stop_reason)
+      movel(retract_pose, a=0.030, v=0.010, r=0.0)
+      stopl(0.1)
+    end
+  end
+  return stop_reason
+end
+
+def codex_step4e_ball_vs_cyl_contact_p0_v1():
+  local stop_reason = 0.0
+  local home_pose = get_actual_tcp_pose()
+  local ball_pose = p[0.487947174, 0.016865857, 0.104221916, -3.033481444, -0.085733395, -0.617007078]
+  local cyl_pose = p[0.320673066, -0.065727866, 0.030264082, 2.821123783, 0.149091390, -0.429241830]
+  textmsg("codex step4e version 2026-06-11T1647HKT_STEP4E_BALL_VS_CYL_CONTACT_P0_V1 start ball_vs_cyl_contact_p0_v1")
+  write_output_float_register(34, 0.0)
+  write_output_float_register(35, 20.0)
+  codex_echo_step4e(0.0)
+  if not codex_wait_for_fresh_heartbeat(30.0):
+    stop_reason = 3.0
+  end
+  if stop_reason == 0.0:
+    textmsg("codex step4e version 2026-06-11T1647HKT_STEP4E_BALL_VS_CYL_CONTACT_P0_V1 witness ball")
+    stop_reason = codex_contact_witness(22.11, 23.11, 24.11, 24.12, 25.11, 25.16, ball_pose, 0.092, 0.080)
+  end
+  if stop_reason == 0.0:
+    textmsg("codex step4e version 2026-06-11T1647HKT_STEP4E_BALL_VS_CYL_CONTACT_P0_V1 witness cyl")
+    stop_reason = codex_contact_witness(22.21, 23.21, 24.21, 24.22, 25.21, 25.26, cyl_pose, 0.030, 0.000)
+  end
+  if stop_reason == 15.0 or codex_should_auto_home(stop_reason):
+    write_output_float_register(35, 27.0)
+    codex_echo_step4e(stop_reason)
+    movel(home_pose, a=0.030, v=0.020, r=0.0)
+    stopl(0.1)
+  end
+  write_output_float_register(30, stop_reason)
+  write_output_float_register(35, 29.0)
+  textmsg("codex step4e version 2026-06-11T1647HKT_STEP4E_BALL_VS_CYL_CONTACT_P0_V1 stop reason:", stop_reason)
+end
+
+codex_step4e_ball_vs_cyl_contact_p0_v1()

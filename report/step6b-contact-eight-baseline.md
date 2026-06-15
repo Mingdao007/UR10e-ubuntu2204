@@ -21,7 +21,7 @@ IK/joint 相关 error 暂不纳入本报告，因为当前 run 没有定义 join
 |---|---|---|
 | TP program | `/programs/andyl/kunwei/step6/step6b_contact_eight_baseline_v1.urp` | `/programs/andyl/kunwei/step6/step6b_contact_eight_baseline_v2.urp` |
 | run id | `bridge_step6b_contact_eight_baseline_v1_20260612_223047` | `bridge_step6b_contact_eight_baseline_v2_20260612_225841` |
-| run 目录 | [v1 run](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step6b_contact_eight_baseline_v1_20260612_223047) | [v2 run](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841) |
+| run 目录 | [v1 run](../experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v1_20260612_223047) | [v2 run](../experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841) |
 | bridge profile | `step6b_v1` | `step6b_v2` |
 | Step6 reference | `along=0.04*sin(0.2t)`, `lateral=0.01*sin(0.4t)`, duration `30 s` | same |
 | reference speed max | `8.944 mm/s` | `8.944 mm/s` |
@@ -41,14 +41,14 @@ IK/joint 相关 error 暂不纳入本报告，因为当前 run 没有定义 join
 v1:
 
 ```bash
-cd /home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04
+cd /home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction
 STEP6B_CONFIRM='LIVE STEP6B CONTACT RUN' scripts/step6b-contact-operator.sh contact-bridge
 ```
 
 v2:
 
 ```bash
-cd /home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04
+cd /home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction
 STEP6B_CONFIRM='LIVE STEP6B CONTACT RUN' scripts/step6b-v2-contact-operator.sh contact-bridge
 ```
 
@@ -190,7 +190,7 @@ v2 package 和 operator 已经落地：
 
 - local triplet: `programs/step6/step6b_contact_eight_baseline_v2.{script,txt,urp}`
 - controller target: `/programs/andyl/kunwei/step6/step6b_contact_eight_baseline_v2.urp`
-- controller read-back verified: [read-back dir](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/controller_readback_step6b_contact_eight_baseline_v2_20260612_225651)
+- controller read-back verified: [read-back dir](../experiments/tase-contact-reproduction/runs/controller_readback_step6b_contact_eight_baseline_v2_20260612_225651)
 - operator: `scripts/step6b-v2-contact-operator.sh`
 - offline feasibility gate: package generation前检查 reference speed、total-with-normal reserve、25.2 attitude capacity。
 
@@ -232,11 +232,11 @@ hard stop 0.523599 rad - success threshold 0.052360 rad = 0.471239 rad
 
 | artifact | v1 | v2 |
 |---|---|---|
-| summary | [v1 summary](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step6b_contact_eight_baseline_v1_20260612_223047/summary.json) | [v2 summary](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841/summary.json) |
-| metadata | [v1 metadata](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step6b_contact_eight_baseline_v1_20260612_223047/metadata.json) | [v2 metadata](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841/metadata.json) |
-| stage frequency | [v1 stage frequency](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step6b_contact_eight_baseline_v1_20260612_223047/stage_frequency_summary.json) | [v2 stage frequency](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841/stage_frequency_summary.json) |
-| bridge RTDE CSV | [v1 bridge CSV](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step6b_contact_eight_baseline_v1_20260612_223047/bridge_rtde_500hz.csv) | [v2 bridge CSV](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841/bridge_rtde_500hz.csv) |
-| Kunwei quiet stream | [v1 quiet](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step6b_contact_eight_baseline_v1_20260612_223047/kunwei_quiet_stream.json) | [v2 quiet](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841/kunwei_quiet_stream.json) |
+| summary | [v1 summary](../experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v1_20260612_223047/summary.json) | [v2 summary](../experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841/summary.json) |
+| metadata | [v1 metadata](../experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v1_20260612_223047/metadata.json) | [v2 metadata](../experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841/metadata.json) |
+| stage frequency | [v1 stage frequency](../experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v1_20260612_223047/stage_frequency_summary.json) | [v2 stage frequency](../experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841/stage_frequency_summary.json) |
+| bridge RTDE CSV | [v1 bridge CSV](../experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v1_20260612_223047/bridge_rtde_500hz.csv) | [v2 bridge CSV](../experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841/bridge_rtde_500hz.csv) |
+| Kunwei quiet stream | [v1 quiet](../experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v1_20260612_223047/kunwei_quiet_stream.json) | [v2 quiet](../experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841/kunwei_quiet_stream.json) |
 | derived metrics | [metrics.json](assets/step6b-contact-eight-baseline/metrics.json) | same |
 
 ### 生成命令

@@ -10,7 +10,7 @@ import pandas as pd
 
 
 REPO = Path("/home/andy/ur10e_ros2_ws")
-RUN = REPO / "experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155"
+RUN = REPO / "experiments/tase-contact-reproduction/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155"
 ASSETS = REPO / "report/assets/step4e-v31-outer-loop-reproduction-success"
 
 

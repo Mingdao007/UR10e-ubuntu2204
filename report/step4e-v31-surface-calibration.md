@@ -94,9 +94,9 @@ control normal 和 fitted surface normal 的平均夹角为 `6.861 deg`，说明
 正式校正入口改为 robot-side 示教点：
 
 ```bash
-python3 experiments/kunwei/closed-loop-straight-line/2026-06-04/tools/capture_drag_teach_point.py start
-python3 experiments/kunwei/closed-loop-straight-line/2026-06-04/tools/capture_drag_teach_point.py end
-python3 experiments/kunwei/closed-loop-straight-line/2026-06-04/tools/analyze_drag_teach_points.py --shape both
+python3 experiments/tase-contact-reproduction/tools/capture_drag_teach_point.py start
+python3 experiments/tase-contact-reproduction/tools/capture_drag_teach_point.py end
+python3 experiments/tase-contact-reproduction/tools/analyze_drag_teach_points.py --shape both
 ```
 
 `capture_drag_teach_point.py` 只读 Dashboard/RTDE，不发 URScript、不 load/start program、不 enable freedrive。

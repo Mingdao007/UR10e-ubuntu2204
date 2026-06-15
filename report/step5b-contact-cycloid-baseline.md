@@ -11,10 +11,10 @@
 | 字段 | 本次设置 |
 |---|---|
 | TP program | `/programs/andyl/kunwei/step5/step5b_contact_cycloid_baseline_v1.urp` |
-| local triplet | `experiments/kunwei/closed-loop-straight-line/2026-06-04/programs/step5/step5b_contact_cycloid_baseline_v1.{script,txt,urp}` |
+| local triplet | `experiments/tase-contact-reproduction/programs/step5/step5b_contact_cycloid_baseline_v1.{script,txt,urp}` |
 | program stamp | `2026-06-12T0821HKT_STEP5B_CONTACT_CYCLOID_BASELINE_V1` |
 | run id | `bridge_step5b_contact_cycloid_baseline_v1_20260612_082352` |
-| run 目录 | [bridge_step5b_contact_cycloid_baseline_v1_20260612_082352](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352) |
+| run 目录 | [bridge_step5b_contact_cycloid_baseline_v1_20260612_082352](../experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352) |
 | bridge profile | `--step4e-version step5b_v1`，`--step4e-mode line`，`--step4e-path-shape cycloid`，`--rtde-hz 500` |
 | Step5 stage id | `step5_contact_cycloid_baseline_v1` |
 | reference owner | bridge computes `desired_xy`、`desired_vxy`、`path_error`、`progress/path_time`；TP 只执行 register command 和 guard |
@@ -33,7 +33,7 @@
 
 ## 实验命令
 
-本次由 Step5b operator/bridge 流程启动，关键 runtime 参数保存在 [metadata.json](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/metadata.json)。报告图表和指标由 [generate_assets.py](assets/step5b-contact-cycloid-baseline/generate_assets.py) 从原始 CSV/JSON 重新生成，输出 [metrics.json](assets/step5b-contact-cycloid-baseline/metrics.json)。
+本次由 Step5b operator/bridge 流程启动，关键 runtime 参数保存在 [metadata.json](../experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/metadata.json)。报告图表和指标由 [generate_assets.py](assets/step5b-contact-cycloid-baseline/generate_assets.py) 从原始 CSV/JSON 重新生成，输出 [metrics.json](assets/step5b-contact-cycloid-baseline/metrics.json)。
 
 ## 数据与图片
 
@@ -175,12 +175,12 @@
 
 | artifact | 路径 |
 |---|---|
-| summary | [summary.json](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/summary.json) |
-| metadata | [metadata.json](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/metadata.json) |
-| stage frequency summary | [stage_frequency_summary.json](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/stage_frequency_summary.json) |
-| bridge RTDE CSV | [bridge_rtde_500hz.csv](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/bridge_rtde_500hz.csv) |
-| Kunwei sensor CSV | [kunwei_sensor_1khz.csv](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/kunwei_sensor_1khz.csv) |
-| Kunwei quiet stream | [kunwei_quiet_stream.json](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/kunwei_quiet_stream.json) |
+| summary | [summary.json](../experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/summary.json) |
+| metadata | [metadata.json](../experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/metadata.json) |
+| stage frequency summary | [stage_frequency_summary.json](../experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/stage_frequency_summary.json) |
+| bridge RTDE CSV | [bridge_rtde_500hz.csv](../experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/bridge_rtde_500hz.csv) |
+| Kunwei sensor CSV | [kunwei_sensor_1khz.csv](../experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/kunwei_sensor_1khz.csv) |
+| Kunwei quiet stream | [kunwei_quiet_stream.json](../experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/kunwei_quiet_stream.json) |
 | derived metrics | [metrics.json](assets/step5b-contact-cycloid-baseline/metrics.json) |
 
 ### 生成命令

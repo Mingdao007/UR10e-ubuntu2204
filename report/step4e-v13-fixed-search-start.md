@@ -15,10 +15,10 @@ v13 的改动是把 search 起点固定到已验证的 no-contact 高度 `z=0.09
 | TP program | `/programs/andyl/kunwei/step4/step4e_line_outerloop_v13.urp` |
 | program stamp | `2026-06-09T1409HKT_STEP4E_LINE_OUTERLOOP_V13` |
 | source commit | `09c49ff Add Step4e v13 fixed search start` |
-| run dir | [bridge_step4e_line_outerloop_v13_autowatch_20260609_141027](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_line_outerloop_v13_autowatch_20260609_141027) |
-| bridge summary | [summary.json](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_line_outerloop_v13_autowatch_20260609_141027/summary.json) |
-| bridge CSV | [bridge_rtde_500hz.csv](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_line_outerloop_v13_autowatch_20260609_141027/bridge_rtde_500hz.csv) |
-| Kunwei raw CSV | [kunwei_sensor_1khz.csv](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_line_outerloop_v13_autowatch_20260609_141027/kunwei_sensor_1khz.csv) |
+| run dir | [bridge_step4e_line_outerloop_v13_autowatch_20260609_141027](../experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_v13_autowatch_20260609_141027) |
+| bridge summary | [summary.json](../experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_v13_autowatch_20260609_141027/summary.json) |
+| bridge CSV | [bridge_rtde_500hz.csv](../experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_v13_autowatch_20260609_141027/bridge_rtde_500hz.csv) |
+| Kunwei raw CSV | [kunwei_sensor_1khz.csv](../experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_v13_autowatch_20260609_141027/kunwei_sensor_1khz.csv) |
 | derived metrics | [metrics.json](assets/step4e-v13-fixed-search-start/metrics.json) |
 
 Controller delivery was verified before the run: local and controller SHA matched for the v13 `.script/.txt/.urp` package, and fetched-back `.urp` cache contained the v13 stamp, `fixed_search_start_z_m = 0.09835`, stage `22.5`, the same-named script reference, and `installationRelativePath="../../../default"`.

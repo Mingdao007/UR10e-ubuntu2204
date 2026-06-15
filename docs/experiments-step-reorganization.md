@@ -80,11 +80,11 @@ experiments/
 
 - New experiment planning should use task/campaign -> step -> artifact kind ->
   timestamped run.
-- `experiments/tase-contact-reproduction/` is the target campaign root for the
-  current Step0/1/2/4/5/6 line.
-- The current physical path
-  `experiments/kunwei/closed-loop-straight-line/2026-06-04/` remains the live
-  source of truth until an approved migration batch moves it.
+- `experiments/tase-contact-reproduction/` is the canonical campaign root for
+  the current Step0/1/2/4/5/6 line.
+- The previous hardware/date route was physically moved into this canonical
+  root during the 2026-06-15 migration; step-level deep splitting remains
+  deferred.
 - Step5 uses `step5-cycloid-rnn/`; the active implementation phase is Step5d
   v12 liveprep, and v1-v12 history remains evidence rather than taxonomy.
 - Raw CSV/JSON, bridge runs, controller readbacks, and generated reports are

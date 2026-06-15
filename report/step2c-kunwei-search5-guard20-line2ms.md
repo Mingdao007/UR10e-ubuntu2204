@@ -15,7 +15,7 @@
 | --- | --- |
 | TP 程序 | `step2c_aggressive_search5_guard20_line2ms_alpha70_vlim5_v1.urp` |
 | 程序 stamp | `2026-06-06T2206HKT_STEP2C_AGGRESSIVE_SEARCH5_GUARD20_LINE2MS_ALPHA70_VLIM5_V1` |
-| bridge run | [bridge_step2c_search5_guard20_line2ms_alpha70_vlim5_20260606_220817](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_search5_guard20_line2ms_alpha70_vlim5_20260606_220817) |
+| bridge run | [bridge_step2c_search5_guard20_line2ms_alpha70_vlim5_20260606_220817](../experiments/tase-contact-reproduction/runs/bridge_step2c_search5_guard20_line2ms_alpha70_vlim5_20260606_220817) |
 | Kunwei zero | bridge 软件 baseline，`baseline_s=5`；未调用 Kunwei 硬件 tare，未调用 UR `zero_ftsensor()` |
 | Kunwei route | TCP `192.168.50.25:5152`，Ubuntu `enp3s0` 上 `192.168.50.26/24` |
 | bridge 参数 | `--rtde-hz 500 --socket-timeout-s 0.0 --sensor-stale-s 0.10 --target-force-n 5 --normal-axis fz --normal-sign 1 --max-normal-force-n 20` |
@@ -24,7 +24,7 @@
 | line 切向速度/加速度 | `10 mm/s`、`500 mm/s²`；前 `0.10 s` 用 `10 ms` hold，之后切到 `2 ms` hold |
 | force control | target signed Fz `-5 N`；`alpha=0.70`；`Kp=0.0006 m/s/N`；`Ki=0.00008 m/s/N/s`；normal velocity limit `±5 mm/s` |
 | raw guards | `|normal_force| > 20 N`，`force_norm > 50 N`，`torque_norm > 0.6 Nm`，sensor stale `>100 ms` |
-| reference line | [straight_line_reference.json](../experiments/kunwei/closed-loop-straight-line/2026-06-04/config/straight_line_reference.json)，长度 `63.58 mm`，XY unit `[0.679764156, -0.733430768]` |
+| reference line | [straight_line_reference.json](../experiments/tase-contact-reproduction/config/straight_line_reference.json)，长度 `63.58 mm`，XY unit `[0.679764156, -0.733430768]` |
 
 本报告把 bridge 开始后、TP 真正进入 stage21 前的 `16646` 行 output register 残留排除。它们是上一轮 output register 的旧 stage 值，不代表本次程序正在运动。
 
@@ -150,16 +150,16 @@
 
 ### 原始文件
 
-- [summary.json](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_search5_guard20_line2ms_alpha70_vlim5_20260606_220817/summary.json)
-- [metadata.json](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_search5_guard20_line2ms_alpha70_vlim5_20260606_220817/metadata.json)
-- [bridge_rtde_500hz.csv](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_search5_guard20_line2ms_alpha70_vlim5_20260606_220817/bridge_rtde_500hz.csv)
-- [kunwei_sensor_1khz.csv](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_search5_guard20_line2ms_alpha70_vlim5_20260606_220817/kunwei_sensor_1khz.csv)
+- [summary.json](../experiments/tase-contact-reproduction/runs/bridge_step2c_search5_guard20_line2ms_alpha70_vlim5_20260606_220817/summary.json)
+- [metadata.json](../experiments/tase-contact-reproduction/runs/bridge_step2c_search5_guard20_line2ms_alpha70_vlim5_20260606_220817/metadata.json)
+- [bridge_rtde_500hz.csv](../experiments/tase-contact-reproduction/runs/bridge_step2c_search5_guard20_line2ms_alpha70_vlim5_20260606_220817/bridge_rtde_500hz.csv)
+- [kunwei_sensor_1khz.csv](../experiments/tase-contact-reproduction/runs/bridge_step2c_search5_guard20_line2ms_alpha70_vlim5_20260606_220817/kunwei_sensor_1khz.csv)
 - [analysis-metrics.json](assets/step2c-kunwei-search5-guard20-line2ms/analysis-metrics.json)
 
 ### 失败对照文件
 
-- [failed summary.json](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_aggressive_line2ms_alpha70_vlim5_20260606_220312/summary.json)
-- [failed metadata.json](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2c_aggressive_line2ms_alpha70_vlim5_20260606_220312/metadata.json)
+- [failed summary.json](../experiments/tase-contact-reproduction/runs/bridge_step2c_aggressive_line2ms_alpha70_vlim5_20260606_220312/summary.json)
+- [failed metadata.json](../experiments/tase-contact-reproduction/runs/bridge_step2c_aggressive_line2ms_alpha70_vlim5_20260606_220312/metadata.json)
 
 ### Bridge 命令口径
 

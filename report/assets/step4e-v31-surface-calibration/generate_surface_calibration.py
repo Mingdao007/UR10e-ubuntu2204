@@ -18,7 +18,7 @@ import pandas as pd
 
 
 REPO = Path("/home/andy/ur10e_ros2_ws")
-EXP = REPO / "experiments/kunwei/closed-loop-straight-line/2026-06-04"
+EXP = REPO / "experiments/tase-contact-reproduction"
 RUN = EXP / "runs/bridge_step4e_seed_normal_loop_v31_20260612_050155"
 ASSETS = REPO / "report/assets/step4e-v31-surface-calibration"
 REPORT = REPO / "report/step4e-v31-surface-calibration.md"
@@ -581,9 +581,9 @@ control normal 和 fitted surface normal 的平均夹角为 `{fmt(attitude["cont
 正式校正入口改为 robot-side 示教点：
 
 ```bash
-python3 experiments/kunwei/closed-loop-straight-line/2026-06-04/tools/capture_drag_teach_point.py start
-python3 experiments/kunwei/closed-loop-straight-line/2026-06-04/tools/capture_drag_teach_point.py end
-python3 experiments/kunwei/closed-loop-straight-line/2026-06-04/tools/analyze_drag_teach_points.py --shape both
+python3 experiments/tase-contact-reproduction/tools/capture_drag_teach_point.py start
+python3 experiments/tase-contact-reproduction/tools/capture_drag_teach_point.py end
+python3 experiments/tase-contact-reproduction/tools/analyze_drag_teach_points.py --shape both
 ```
 
 `capture_drag_teach_point.py` 只读 Dashboard/RTDE，不发 URScript、不 load/start program、不 enable freedrive。

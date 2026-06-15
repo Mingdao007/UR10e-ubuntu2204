@@ -1,12 +1,11 @@
 # Experiments Index
 
-This index describes the current physical layout and the target logical layout
-for `experiments/`. It is an index only: current physical paths remain valid
-until a later approved migration batch performs `git mv`.
+This index describes the current physical layout and the remaining target
+logical layout for `experiments/`.
 
 ## Current Physical Layout
 
-- `experiments/kunwei/closed-loop-straight-line/2026-06-04/` is the current
+- `experiments/tase-contact-reproduction/` is the current
   physical home for the active TASE contact reproduction work.
 - `experiments/archive/onrobot/` contains retired OnRobot experiment evidence.
 - `experiments/zero_drift/` contains UR force zero-drift evidence.
@@ -40,10 +39,10 @@ Design documents:
 
 ## Physical Path Reminder
 
-Do not rewrite references blindly. Until the migration batch is approved, use:
+Do not rewrite references blindly. Use:
 
 ```text
-experiments/kunwei/closed-loop-straight-line/2026-06-04/
+experiments/tase-contact-reproduction/
 ```
 
 as the active physical path for current Step5/v12 code, TP packages, bridge

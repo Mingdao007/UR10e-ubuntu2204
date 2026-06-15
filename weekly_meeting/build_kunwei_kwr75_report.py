@@ -35,21 +35,21 @@ KUNWEI_LONG_REPORT_SUMMARY = REPORT_DIR / "assets/kunwei-19h15-1khz-drift/analys
 STEP2C_METRICS = REPORT_DIR / "assets/step2c-kunwei-search5-guard20-line2ms/analysis-metrics.json"
 STEP2C_V4_RUN_DIR = (
     ROOT
-    / "experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/"
+    / "experiments/tase-contact-reproduction/runs/"
     "bridge_step2c_admittance_search30_v4_search2ms_line1ms_alpha70_20260608_135945"
 )
 STEP2C_RESULT_RUN_DIR = (
     ROOT
-    / "experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/"
+    / "experiments/tase-contact-reproduction/runs/"
     "bridge_step2c_final_autowatch_search2ms_line1ms_alpha70_20260608_154123"
 )
 STEP2C_RESULT_LABEL = "Step2C final"
 STEP2C_RESULT_FILE_PREFIX = "step2c_final"
-STEP2C_REFERENCE = ROOT / "experiments/kunwei/closed-loop-straight-line/2026-06-04/config/straight_line_reference.json"
+STEP2C_REFERENCE = ROOT / "experiments/tase-contact-reproduction/config/straight_line_reference.json"
 STEP2C_RESULT_VIDEO_PREVIEW = Path("/home/andy/.cache/codex/phone-photo-intake/previews/IMG_1735_step2c_final.mov")
 STEP4D_RUN_DIR = (
     ROOT
-    / "experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/"
+    / "experiments/tase-contact-reproduction/runs/"
     "bridge_step4d_circle_v1_autowatch_detsearch_attitude_20260608_165457"
 )
 STEP4D_RESULT_LABEL = "Step4D circle"
@@ -57,10 +57,10 @@ STEP4D_RESULT_FILE_PREFIX = "step4d_circle"
 STEP4D_RESULT_VIDEO_PREVIEW = Path("/home/andy/.cache/codex/phone-photo-intake/previews/IMG_1742_step4d_demo.mov")
 STEP4E_RUN_DIR = (
     ROOT
-    / "experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/"
+    / "experiments/tase-contact-reproduction/runs/"
     "bridge_step4e_line_outerloop_v13_autowatch_20260609_141027"
 )
-STEP4E_SCRIPT = ROOT / "experiments/kunwei/closed-loop-straight-line/2026-06-04/programs/step4e_line_outerloop_v13.script"
+STEP4E_SCRIPT = ROOT / "experiments/tase-contact-reproduction/programs/step4e_line_outerloop_v13.script"
 STEP4E_RESULT_LABEL = "Step4E v13 outer-loop line"
 STEP4E_RESULT_FILE_PREFIX = "step4e_v13_line"
 STEP4E_RESULT_VIDEO_PREVIEW = Path("/home/andy/.cache/codex/phone-photo-intake/previews/IMG_1748_step4e_v13.mov")
@@ -1696,12 +1696,12 @@ def build_markdown(
 | Kunwei 19h15min raw CSV | [../experiments/sensor-integration/kunwei-kwr75b/measurements/19h15min/capture/data.csv](../experiments/sensor-integration/kunwei-kwr75b/measurements/19h15min/capture/data.csv) |
 | Kunwei 19h15min logger summary | [../experiments/sensor-integration/kunwei-kwr75b/measurements/19h15min/capture/summary.json](../experiments/sensor-integration/kunwei-kwr75b/measurements/19h15min/capture/summary.json) |
 | Step2C metrics | [assets/step2c-kunwei-search5-guard20-line2ms/analysis-metrics.json](assets/step2c-kunwei-search5-guard20-line2ms/analysis-metrics.json) |
-| Step2C V4 comparison run | [../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step2c_v4['run_name']}](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step2c_v4['run_name']}) |
-| Step2C final run | [../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step2c_result['run_name']}](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step2c_result['run_name']}) |
+| Step2C V4 comparison run | [../experiments/tase-contact-reproduction/runs/{step2c_v4['run_name']}](../experiments/tase-contact-reproduction/runs/{step2c_v4['run_name']}) |
+| Step2C final run | [../experiments/tase-contact-reproduction/runs/{step2c_result['run_name']}](../experiments/tase-contact-reproduction/runs/{step2c_result['run_name']}) |
 | Step2C final video | {f'[{result_video}]({result_video})' if result_video else 'N/A'} |
-| Step4D circle run | [../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step4d_result['run_name']}](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step4d_result['run_name']}) |
+| Step4D circle run | [../experiments/tase-contact-reproduction/runs/{step4d_result['run_name']}](../experiments/tase-contact-reproduction/runs/{step4d_result['run_name']}) |
 | Step4D demo video | {f'[{step4d_video}]({step4d_video})' if step4d_video else 'N/A'} |
-| Step4E v13 run | [../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step4e_result['run_name']}](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/{step4e_result['run_name']}) |
+| Step4E v13 run | [../experiments/tase-contact-reproduction/runs/{step4e_result['run_name']}](../experiments/tase-contact-reproduction/runs/{step4e_result['run_name']}) |
 | Step4E v13 demo video | {f'[{step4e_video}]({step4e_video})' if step4e_video else 'N/A'} |
 | OnRobot 600s UDP raw CSV | [../experiments/archive/onrobot/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv](../experiments/archive/onrobot/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv) |
 | OnRobot 6h UDP raw CSV | [../experiments/archive/onrobot/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217/three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv](../experiments/archive/onrobot/20260530_onrobot_three_stream_coldstart_drift/run_20260530_175217/three_stream_24h_20260530_20260530_175220_onrobot_udp500_raw.csv) |

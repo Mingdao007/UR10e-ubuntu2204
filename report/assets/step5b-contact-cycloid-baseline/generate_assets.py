@@ -12,7 +12,7 @@ import pandas as pd
 REPO = Path("/home/andy/ur10e_ros2_ws")
 RUN = (
     REPO
-    / "experiments/kunwei/closed-loop-straight-line/2026-06-04"
+    / "experiments/tase-contact-reproduction"
     / "runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352"
 )
 ASSETS = REPO / "report/assets/step5b-contact-cycloid-baseline"
@@ -263,7 +263,7 @@ def main() -> None:
         },
         "protocol": {
             "tp_program": "/programs/andyl/kunwei/step5/step5b_contact_cycloid_baseline_v1.urp",
-            "local_triplet": "experiments/kunwei/closed-loop-straight-line/2026-06-04/programs/step5/step5b_contact_cycloid_baseline_v1.{script,txt,urp}",
+            "local_triplet": "experiments/tase-contact-reproduction/programs/step5/step5b_contact_cycloid_baseline_v1.{script,txt,urp}",
             "program_stamp": "2026-06-12T0821HKT_STEP5B_CONTACT_CYCLOID_BASELINE_V1",
             "bridge_args": metadata["args"],
             "dashboard_preflight": metadata["dashboard_preflight"],

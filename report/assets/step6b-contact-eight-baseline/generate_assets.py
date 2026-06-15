@@ -12,12 +12,12 @@ import pandas as pd
 REPO = Path("/home/andy/ur10e_ros2_ws")
 RUN_V1 = (
     REPO
-    / "experiments/kunwei/closed-loop-straight-line/2026-06-04"
+    / "experiments/tase-contact-reproduction"
     / "runs/bridge_step6b_contact_eight_baseline_v1_20260612_223047"
 )
 RUN_V2 = (
     REPO
-    / "experiments/kunwei/closed-loop-straight-line/2026-06-04"
+    / "experiments/tase-contact-reproduction"
     / "runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841"
 )
 RUN = RUN_V1
@@ -456,7 +456,7 @@ def main() -> None:
         },
         "protocol": {
             "tp_program": "/programs/andyl/kunwei/step6/step6b_contact_eight_baseline_v1.urp",
-            "local_triplet": "experiments/kunwei/closed-loop-straight-line/2026-06-04/programs/step6/step6b_contact_eight_baseline_v1.{script,txt,urp}",
+            "local_triplet": "experiments/tase-contact-reproduction/programs/step6/step6b_contact_eight_baseline_v1.{script,txt,urp}",
             "program_stamp": "2026-06-12T2217HKT_STEP6B_CONTACT_EIGHT_BASELINE_V1",
             "bridge_args": metadata["args"],
             "dashboard_preflight": metadata["dashboard_preflight"],
@@ -505,7 +505,7 @@ def main() -> None:
             "run_id": v2_payload["run_id"],
             "protocol": {
                 "tp_program": "/programs/andyl/kunwei/step6/step6b_contact_eight_baseline_v2.urp",
-                "local_triplet": "experiments/kunwei/closed-loop-straight-line/2026-06-04/programs/step6/step6b_contact_eight_baseline_v2.{script,txt,urp}",
+                "local_triplet": "experiments/tase-contact-reproduction/programs/step6/step6b_contact_eight_baseline_v2.{script,txt,urp}",
                 "program_stamp": "2026-06-12T2256HKT_STEP6B_CONTACT_EIGHT_BASELINE_V2",
                 "bridge_args": v2_payload["metadata"]["args"],
                 "guard_contract": v2_payload["metadata"]["guard_contract"],

@@ -17,9 +17,9 @@
 | contact trigger | signed normal/Fz `<= -2 N` |
 | hard guards | `|normal_force| > 12 N`, `force_norm > 50 N`, `torque_norm > 0.6 Nm`, stale `>100 ms` |
 | Kunwei zero | bridge 软件 baseline，`baseline_s=5`；无 Kunwei 硬件 tare，未调用 UR `zero_ftsensor()` |
-| bridge run | [bridge_step2a_500hz_nonblocking_stale100_z100_v10_acc500_t10ms_20260605_232736](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2a_500hz_nonblocking_stale100_z100_v10_acc500_t10ms_20260605_232736) |
-| bridge CSV | [bridge_rtde_500hz.csv](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2a_500hz_nonblocking_stale100_z100_v10_acc500_t10ms_20260605_232736/bridge_rtde_500hz.csv) |
-| Kunwei raw CSV | [kunwei_sensor_1khz.csv](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2a_500hz_nonblocking_stale100_z100_v10_acc500_t10ms_20260605_232736/kunwei_sensor_1khz.csv) |
+| bridge run | [bridge_step2a_500hz_nonblocking_stale100_z100_v10_acc500_t10ms_20260605_232736](../experiments/tase-contact-reproduction/runs/bridge_step2a_500hz_nonblocking_stale100_z100_v10_acc500_t10ms_20260605_232736) |
+| bridge CSV | [bridge_rtde_500hz.csv](../experiments/tase-contact-reproduction/runs/bridge_step2a_500hz_nonblocking_stale100_z100_v10_acc500_t10ms_20260605_232736/bridge_rtde_500hz.csv) |
+| Kunwei raw CSV | [kunwei_sensor_1khz.csv](../experiments/tase-contact-reproduction/runs/bridge_step2a_500hz_nonblocking_stale100_z100_v10_acc500_t10ms_20260605_232736/kunwei_sensor_1khz.csv) |
 
 频率口径分开写：Kunwei raw sensor 是传感器到 Ubuntu 的记录频率；RTDE 是 Ubuntu 和 UR 控制器的数据 handoff；URScript motion gate 是 `speedl` 主循环实际执行节奏。这三个不能合并成一个“控制频率”。
 
@@ -126,7 +126,7 @@ bridge 参数为 `--rtde-hz 500 --socket-timeout-s 0.0 --sensor-stale-s 0.10 --t
 
 ### 主要原始文件
 
-- [summary.json](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2a_500hz_nonblocking_stale100_z100_v10_acc500_t10ms_20260605_232736/summary.json)
-- [bridge_rtde_500hz.csv](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2a_500hz_nonblocking_stale100_z100_v10_acc500_t10ms_20260605_232736/bridge_rtde_500hz.csv)
-- [kunwei_sensor_1khz.csv](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2a_500hz_nonblocking_stale100_z100_v10_acc500_t10ms_20260605_232736/kunwei_sensor_1khz.csv)
-- [raw_frames.bin](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step2a_500hz_nonblocking_stale100_z100_v10_acc500_t10ms_20260605_232736/raw_frames.bin)
+- [summary.json](../experiments/tase-contact-reproduction/runs/bridge_step2a_500hz_nonblocking_stale100_z100_v10_acc500_t10ms_20260605_232736/summary.json)
+- [bridge_rtde_500hz.csv](../experiments/tase-contact-reproduction/runs/bridge_step2a_500hz_nonblocking_stale100_z100_v10_acc500_t10ms_20260605_232736/bridge_rtde_500hz.csv)
+- [kunwei_sensor_1khz.csv](../experiments/tase-contact-reproduction/runs/bridge_step2a_500hz_nonblocking_stale100_z100_v10_acc500_t10ms_20260605_232736/kunwei_sensor_1khz.csv)
+- [raw_frames.bin](../experiments/tase-contact-reproduction/runs/bridge_step2a_500hz_nonblocking_stale100_z100_v10_acc500_t10ms_20260605_232736/raw_frames.bin)

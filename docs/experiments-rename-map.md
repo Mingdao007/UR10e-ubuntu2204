@@ -1,8 +1,8 @@
 # Experiments Rename Map
 
-This is a review map for a later approved migration batch. It is not approval
-to run `git mv`. The current physical paths continue to work until a separate
-physical migration commit is approved.
+This is the migration map for completed root moves and deferred deep
+reorganizations. Completed rows record old -> new physical moves; deferred rows
+describe later step-level splits that still require a separate approved batch.
 
 Columns:
 `old_path | proposed_path | object_type | lifecycle | move_policy | risk | reference_impact | batch | notes`
@@ -11,20 +11,20 @@ Columns:
 
 | old_path | proposed_path | object_type | lifecycle | move_policy | risk | reference_impact | batch | notes |
 |---|---|---|---|---|---|---|---|---|
-| `experiments/kunwei/closed-loop-straight-line/2026-06-04/` | `experiments/tase-contact-reproduction/` | campaign root | active | approval-required | high | high | later-git-mv | Target root only; do not move in this docs batch. |
-| `experiments/kunwei/closed-loop-straight-line/2026-06-04/README.md` | `experiments/tase-contact-reproduction/README.md` | campaign index | active | approval-required | medium | medium | later-git-mv | Should become campaign landing page. |
-| `experiments/kunwei/closed-loop-straight-line/2026-06-04/STEP4E_FLOW.md` | `experiments/tase-contact-reproduction/steps/step4-contact-scaffold/STEP4E_FLOW.md` | step doc | active-evidence | approval-required | medium | high | later-git-mv | Step4 contact scaffold entry point. |
-| `experiments/kunwei/closed-loop-straight-line/2026-06-04/STEP5_FLOW.md` | `experiments/tase-contact-reproduction/steps/step5-cycloid-rnn/STEP5_FLOW.md` | step doc | active | approval-required | medium | high | later-git-mv | Step5d v12 liveprep is implementation phase, not directory name. |
-| `experiments/kunwei/closed-loop-straight-line/2026-06-04/STEP6_FLOW.md` | `experiments/tase-contact-reproduction/steps/step6-eight-shape/STEP6_FLOW.md` | step doc | active-planned | approval-required | medium | high | later-git-mv | Eight-shape reference route. |
-| `experiments/kunwei/closed-loop-straight-line/2026-06-04/config/current_stage.json` | `experiments/tase-contact-reproduction/shared/config/current_stage.json` | active config | active | approval-required | high | high | later-git-mv | Must not be moved before Step5/v12 references are updated. |
-| `experiments/kunwei/closed-loop-straight-line/2026-06-04/config/step5_stage_table.json` | `experiments/tase-contact-reproduction/steps/step5-cycloid-rnn/config/step5_stage_table.json` | step config | active | approval-required | high | high | later-git-mv | Preserve content exactly. |
-| `experiments/kunwei/closed-loop-straight-line/2026-06-04/config/step6_stage_table.json` | `experiments/tase-contact-reproduction/steps/step6-eight-shape/config/step6_stage_table.json` | step config | active-planned | approval-required | medium | medium | later-git-mv | Preserve content exactly. |
-| `experiments/kunwei/closed-loop-straight-line/2026-06-04/programs/` | `experiments/tase-contact-reproduction/steps/<matching-step>/programs/` | TP packages | active-evidence | preserve-first | high | high | later-git-mv | Split by filename step prefix only after reference audit. |
-| `experiments/kunwei/closed-loop-straight-line/2026-06-04/scripts/` | `experiments/tase-contact-reproduction/shared/scripts/` | experiment scripts | active | approval-required | high | high | later-git-mv | Move only after import/caller audit. |
-| `experiments/kunwei/closed-loop-straight-line/2026-06-04/tools/` | `experiments/tase-contact-reproduction/shared/tools/` | experiment tools | active | approval-required | high | high | later-git-mv | Move only after import/caller audit. |
-| `experiments/kunwei/closed-loop-straight-line/2026-06-04/tests/` | `experiments/tase-contact-reproduction/shared/tests/` | experiment tests | active | approval-required | medium | medium | later-git-mv | Keep test expectations stable before moving. |
-| `experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/controller_readback_*` | `experiments/tase-contact-reproduction/runs/<step>/controller_readback_*` | controller readback evidence | evidence | preserve-first | high | high | later-git-mv | Do not rewrite readback payloads; classify by embedded step token later. |
-| `experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_*` | `experiments/tase-contact-reproduction/runs/<step>/bridge_*` | bridge run evidence | evidence | preserve-first | high | high | later-git-mv | Preserve raw run basenames; classify by embedded step token later. |
+| `experiments/kunwei/closed-loop-straight-line/2026-06-04/` | `experiments/tase-contact-reproduction/` | campaign root | active | completed | high | high | 2026-06-15-physical-migration | Root move only; internal layout preserved. |
+| `experiments/kunwei/closed-loop-straight-line/2026-06-04/README.md` | `experiments/tase-contact-reproduction/README.md` | campaign index | active | completed | medium | medium | 2026-06-15-physical-migration | Campaign landing page moved with root. |
+| `experiments/tase-contact-reproduction/STEP4E_FLOW.md` | `experiments/tase-contact-reproduction/steps/step4-contact-scaffold/STEP4E_FLOW.md` | step doc | active-evidence | deferred | medium | high | future-step-split | Step4 contact scaffold entry point. |
+| `experiments/tase-contact-reproduction/STEP5_FLOW.md` | `experiments/tase-contact-reproduction/steps/step5-cycloid-rnn/STEP5_FLOW.md` | step doc | active | deferred | medium | high | future-step-split | Step5d v12 liveprep is implementation phase, not directory name. |
+| `experiments/tase-contact-reproduction/STEP6_FLOW.md` | `experiments/tase-contact-reproduction/steps/step6-eight-shape/STEP6_FLOW.md` | step doc | active-planned | deferred | medium | high | future-step-split | Eight-shape reference route. |
+| `experiments/tase-contact-reproduction/config/current_stage.json` | `experiments/tase-contact-reproduction/shared/config/current_stage.json` | active config | active | deferred | high | high | future-step-split | Preserve content exactly until import/caller audit. |
+| `experiments/tase-contact-reproduction/config/step5_stage_table.json` | `experiments/tase-contact-reproduction/steps/step5-cycloid-rnn/config/step5_stage_table.json` | step config | active | deferred | high | high | future-step-split | Preserve content exactly. |
+| `experiments/tase-contact-reproduction/config/step6_stage_table.json` | `experiments/tase-contact-reproduction/steps/step6-eight-shape/config/step6_stage_table.json` | step config | active-planned | deferred | medium | medium | future-step-split | Preserve content exactly. |
+| `experiments/tase-contact-reproduction/programs/` | `experiments/tase-contact-reproduction/steps/<matching-step>/programs/` | TP packages | active-evidence | deferred | high | high | future-step-split | Split by filename step prefix only after reference audit. |
+| `experiments/tase-contact-reproduction/scripts/` | `experiments/tase-contact-reproduction/shared/scripts/` | experiment scripts | active | deferred | high | high | future-step-split | Move only after import/caller audit. |
+| `experiments/tase-contact-reproduction/tools/` | `experiments/tase-contact-reproduction/shared/tools/` | experiment tools | active | deferred | high | high | future-step-split | Move only after import/caller audit. |
+| `experiments/tase-contact-reproduction/tests/` | `experiments/tase-contact-reproduction/shared/tests/` | experiment tests | active | deferred | medium | medium | future-step-split | Keep test expectations stable before moving. |
+| `experiments/tase-contact-reproduction/runs/controller_readback_*` | `experiments/tase-contact-reproduction/runs/<step>/controller_readback_*` | controller readback evidence | evidence | deferred | high | high | future-step-split | Do not rewrite readback payloads; classify by embedded step token later. |
+| `experiments/tase-contact-reproduction/runs/bridge_*` | `experiments/tase-contact-reproduction/runs/<step>/bridge_*` | bridge run evidence | evidence | deferred | high | high | future-step-split | Preserve raw run basenames; classify by embedded step token later. |
 
 ## Sensor integration
 
@@ -51,7 +51,7 @@ Columns:
 | `experiments/20260520_ur10e_builtin_force_maxfreq_60s/` | `experiments/20260520_ur10e_builtin_force_maxfreq_60s/` | UR force capture | historical-evidence | index-only | low | low | none | Not part of current TASE step migration. |
 | `experiments/20260525_rotation_plane_visualization/` | `experiments/20260525_rotation_plane_visualization/` | visualization evidence | historical-evidence | index-only | low | low | none | Not part of current TASE step migration. |
 
-## Questions for user approval before git mv
+## Questions for later step split approval
 
 - Confirm whether later physical migration should move the campaign root in
   one commit or split docs/config/programs/runs into separate commits.

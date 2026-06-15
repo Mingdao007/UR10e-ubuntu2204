@@ -14,7 +14,7 @@
 | local triplet | `programs/step4e_seed_normal_loop_v31.{script,txt,urp}` |
 | program stamp | `2026-06-12T0459HKT_STEP4E_SEED_NORMAL_LOOP_V31` |
 | run id | `bridge_step4e_seed_normal_loop_v31_20260612_050155` |
-| run 目录 | [bridge_step4e_seed_normal_loop_v31_20260612_050155](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155) |
+| run 目录 | [bridge_step4e_seed_normal_loop_v31_20260612_050155](../experiments/tase-contact-reproduction/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155) |
 | bridge profile | `--step4e-version v31`，`--step4e-mode line`，`--rtde-hz 500` |
 | normal follow mode | `filtered_live`；`normal_filter_alpha=0.35`，`normal_min_force=2.0 N`，`normal_friction_projection=on` |
 | target force | `5.0 N` normal load；报告中 signed target 按 `-5 N` 解释 |
@@ -29,7 +29,7 @@
 
 ## 实验命令
 
-本次由 Step4e operator/bridge 流程启动，关键 runtime 参数保存在 [metadata.json](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155/metadata.json)。报告图表和指标由 [generate_assets.py](assets/step4e-v31-outer-loop-reproduction-success/generate_assets.py) 从原始 CSV/JSON 重新生成，输出 [metrics.json](assets/step4e-v31-outer-loop-reproduction-success/metrics.json)。
+本次由 Step4e operator/bridge 流程启动，关键 runtime 参数保存在 [metadata.json](../experiments/tase-contact-reproduction/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155/metadata.json)。报告图表和指标由 [generate_assets.py](assets/step4e-v31-outer-loop-reproduction-success/generate_assets.py) 从原始 CSV/JSON 重新生成，输出 [metrics.json](assets/step4e-v31-outer-loop-reproduction-success/metrics.json)。
 
 ## 数据与图片
 
@@ -168,12 +168,12 @@
 
 | artifact | 路径 |
 |---|---|
-| summary | [summary.json](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155/summary.json) |
-| metadata | [metadata.json](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155/metadata.json) |
-| stage frequency summary | [stage_frequency_summary.json](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155/stage_frequency_summary.json) |
-| bridge RTDE CSV | [bridge_rtde_500hz.csv](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155/bridge_rtde_500hz.csv) |
-| Kunwei sensor CSV | [kunwei_sensor_1khz.csv](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155/kunwei_sensor_1khz.csv) |
-| Kunwei quiet stream | [kunwei_quiet_stream.json](../experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155/kunwei_quiet_stream.json) |
+| summary | [summary.json](../experiments/tase-contact-reproduction/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155/summary.json) |
+| metadata | [metadata.json](../experiments/tase-contact-reproduction/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155/metadata.json) |
+| stage frequency summary | [stage_frequency_summary.json](../experiments/tase-contact-reproduction/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155/stage_frequency_summary.json) |
+| bridge RTDE CSV | [bridge_rtde_500hz.csv](../experiments/tase-contact-reproduction/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155/bridge_rtde_500hz.csv) |
+| Kunwei sensor CSV | [kunwei_sensor_1khz.csv](../experiments/tase-contact-reproduction/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155/kunwei_sensor_1khz.csv) |
+| Kunwei quiet stream | [kunwei_quiet_stream.json](../experiments/tase-contact-reproduction/runs/bridge_step4e_seed_normal_loop_v31_20260612_050155/kunwei_quiet_stream.json) |
 | derived metrics | [metrics.json](assets/step4e-v31-outer-loop-reproduction-success/metrics.json) |
 
 ### 生成命令
