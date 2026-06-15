@@ -1374,11 +1374,11 @@
       "id": "step5d_strict_rnn_liveprep_v10",
       "stage": "Step5d",
       "owner": "bridge+TP",
-      "active": true,
+      "active": false,
       "blocked": false,
       "complete": true,
       "completion_target": false,
-      "block_reason": "Current v10 live-prep target: Stage 25.3 replaces v9 direct force-PID velocity mapping with scalar admittance settle on filtered normal_load; qdot cap remains 0.300 rad/s. This is not a full reproduction claim; bridge/TP Play require explicit operator trigger.",
+      "block_reason": "Retained v10 failure evidence. It replaced v9 direct force-PID with scalar admittance, but the 2026-06-15 live run showed Stage 25.3 still saturated and flipped sign under point contact, never satisfying the 3-8N plus settle-speed window before Stage 25.0. Superseded by step5d_strict_rnn_liveprep_v11.",
       "local_delivery_evidence": {
         "local_program_dir": "programs/step5",
         "program_basename": "step5d_strict_rnn_liveprep_v10",
@@ -1505,7 +1505,151 @@
         "force_sign_convention": "step5_step6_positive_normal_load",
         "semantic_contract": "reaction normal for load, approach normal for posture/press direction"
       },
-      "success_condition": "Current v10 admittance-settle live-prep target. It is not a full reproduction claim; it is ready for an explicitly triggered short live bridge only after package generation, validation, controller read-back, and operator acceptance pass."
+      "success_condition": "Retained v10 failure evidence only. Superseded by v11 because 25.3 must use uneven-surface deadband acquire rather than 5N-centered admittance settle.",
+      "live_run_evidence": {
+        "run_dir": "runs/bridge_step5d_strict_rnn_liveprep_v10_20260615_201707",
+        "result": "Did not enter Stage 25.0. Stage 25.3 ran for about 20.018s, but _step5d_force_settle_ready stayed 0; force_norm <=25N held, while the 3-8N load window and abs(v_settle)<=0.001m/s never held together for the required 0.300s.",
+        "root_cause": "The scalar admittance softened v9 direct PID but still saturated at +/-0.003m/s and flipped sign 133 times under point contact on the uneven plane.",
+        "followup": "superseded by step5d_strict_rnn_liveprep_v11"
+      }
+    },
+    {
+      "id": "step5d_strict_rnn_liveprep_v11",
+      "stage": "Step5d",
+      "owner": "bridge+TP",
+      "active": true,
+      "blocked": false,
+      "complete": true,
+      "completion_target": false,
+      "block_reason": "Current v11 live-prep target: Stage 25.3 replaces v10 5N-centered admittance settle with deadband contact acquire for the uneven surface; release requires filtered 2-15N and force_norm <=25N for 0.150s. This is not a full reproduction claim; bridge/TP Play require explicit operator trigger.",
+      "local_delivery_evidence": {
+        "local_program_dir": "programs/step5",
+        "program_basename": "step5d_strict_rnn_liveprep_v11",
+        "stamp": "2026-06-15T2039HKT_STEP5D_STRICT_RNN_LIVEPREP_V11",
+        "semantic_gate": "runs/ur_contact_semantic_gate_20260615_201109/ur_contact_semantic_gate_summary.json",
+        "semantic_gate_pass": true,
+        "local_package_validated": true,
+        "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v11_20260615_203926",
+        "controller_readback_verified": true,
+        "sha256": {
+          ".script": "028b501d2b7249747f3ad314523b1b087c40609ca83942052a22ae1f941d593d",
+          ".txt": "2cf95b1701198bed59813b9e1c81485c99f7d41f875f32d970770fe9ba9b12ad",
+          ".urp": "067de8f55fecdd244c845f3f55c86552513d9128dad809797442de946b02fe2b"
+        },
+        "numeric_sanity": "runs/step5d_v11_entry_gate_replay_20260615_204005/summary.json"
+      },
+      "shape": "cycloid",
+      "frame": "config/step5_safe_frame.json",
+      "contact": true,
+      "bridge": true,
+      "joint_space": true,
+      "strict_rnn": true,
+      "fixed_base_z_m": null,
+      "duration_s": 60.0,
+      "amplitude_m": 0.015,
+      "phase_law": {
+        "type": "linear_time",
+        "omega_rad_s": 0.1,
+        "final_phase_rad": 6.0
+      },
+      "cadence": {
+        "reference_clock": "real_time",
+        "motion": "current_liveprep_package_ready_after_readback",
+        "tp_hold_s": 0.002,
+        "end_hold_s": 0.1
+      },
+      "guard": {
+        "heartbeat_required": true,
+        "cmd_valid_required": true,
+        "qdot_cap_rad_s": 0.3,
+        "path_cap_m_s": 0.004,
+        "total_linear_cap_m_s": 0.006,
+        "normal_velocity_cap_m_s": 0.003,
+        "attitude_cap_rad_s": 0.06,
+        "semantic_orientation_tolerance_rad": 0.08726646259971647,
+        "orientation_skip_lift_error_rad": 0.069813,
+        "second_contact_max_down_m": 0.035,
+        "second_contact_near_start_depth_m": 0.0,
+        "second_contact_far_speed_m_s": -0.0025,
+        "second_contact_near_speed_m_s": -0.0025,
+        "line_entry_normal_load_min_n": 2.0,
+        "line_entry_normal_load_max_n": 15.0,
+        "line_entry_force_norm_max_n": 25.0,
+        "line_entry_required_s": 0.15,
+        "line_entry_timeout_s": 10.0,
+        "runtime_limit_s": 65.0,
+        "progress_end_hold_s": 0.1,
+        "raw_normal_guard_n": 100.0,
+        "force_norm_guard_n": 100.0,
+        "torque_norm_guard_nm": 3.0,
+        "line_entry_recovery_normal_load_min_n": 0.0,
+        "line_entry_recovery_normal_load_max_n": 40.0,
+        "line_entry_force_norm_stop_n": 100.0,
+        "normal_load_filter_alpha": 0.15,
+        "deadband_acquire_v_max_m_s": 0.0012,
+        "deadband_acquire_slew_m_s2": 0.012
+      },
+      "contact_policy": {
+        "bridge_required": true,
+        "tp_role": "stage_split_executor_and_guard_only",
+        "reference_owner": "strict_rnn_bridge",
+        "joint_solver": "strict_tase_rnn_only",
+        "dls_fallback_allowed": false,
+        "ik_fallback_allowed": false,
+        "calibrated_kinematics_backend": "Pinocchio calibrated base->tool0+active-TCP FK/J(q)",
+        "force_control": true,
+        "contact_search": true,
+        "timing_policy": "step5b_scaffold_with_step5d_qdot_line_control_and_v11_deadband_acquire_25_3",
+        "virtual_clock_freeze": false,
+        "deadband_acquire_stage": "25.3"
+      },
+      "semantic_control_gate": {
+        "contract": "UR_FORCE_FRAME_CONTRACT.md",
+        "reaction_normal_source": "Step5b/Step6b contact-search latched/filtered n_control_b",
+        "approach_normal": "-reaction_normal",
+        "normal_load_n": "dot(force_base, reaction_normal)",
+        "force_error_n": "target_load_n - normal_load_n",
+        "orientation_target_axis": "approach_normal",
+        "forbidden": "Do not normalize raw live force to construct R_d.z or orientation_target_axis",
+        "gate_scope": "offline replay and runtime regression guard; not an independent closed-loop stability proof",
+        "failure_contrast": "v10 live run showed Stage 25.3 scalar admittance softened v9 direct PID but still saturated at +/-0.003m/s and flipped sign 133 times; v11 uses a 2-15N deadband acquire with lower speed and slew-limited ramp-to-zero before Stage 25.0.",
+        "runtime_assertion": "contact-search orientation error and Step5d outer-loop orientation angle must agree within 5 deg before cmd_valid can remain true",
+        "deadband_acquire": {
+          "stage": "25.3",
+          "normal_load_n": "EMA(dot(force_base, reaction_normal), alpha=0.15)",
+          "release_window_n": [
+            2.0,
+            15.0
+          ],
+          "release_required_s": 0.15,
+          "force_norm_max_n": 25.0,
+          "v_max_m_s": 0.0012,
+          "slew_m_s2": 0.012,
+          "command_direction": "approach_normal * v_acquire",
+          "approach_normal": "-reaction_normal",
+          "recovery_policy": "low_load_press_recovery_until_40N_normal_load_or_100N_force_norm_hard_envelope"
+        }
+      },
+      "liveprep_gates": [
+        "UR force/frame semantic gate passes v2/v4 Stage 25.0 replay",
+        "v10 failure-contrast evidence shows scalar admittance can still saturate and flip sign under point contact; v11 uses deadband acquire",
+        "non-quarantine Step5d v11 TP package validates locally and splits registers: 25.3 uses 37..39 Cartesian deadband-acquire velocity, 25.0 uses 37..42 qdot",
+        "24.3/24.4 second contact search remains slow-only with near_start_depth=0mm and 2.5mm/s down speed",
+        "25.3 deadband acquire may recover low-load contact and stops only at normal_load >40N or force_norm >100N",
+        "25.3 release requires filtered 2N <= normal_load <= 15N, force_norm <=25N, and cmd_valid for 0.150s",
+        "25.0 qdot cap remains 0.300 rad/s for this deadband-acquire fix",
+        "bridge limits live Step5d xdot_c before strict RNN while preserving raw xdot diagnostics",
+        "controller upload and read-back SHA/cachedContents verification pass",
+        "strict RNN qdot path remains behind semantic orientation gate before speedj execution"
+      ],
+      "filter_policy": {
+        "normal_filter": "v31_filtered_live",
+        "alpha": 0.35,
+        "min_force_n": 2.0,
+        "force_sign_convention": "step5_step6_positive_normal_load",
+        "semantic_contract": "reaction normal for load, approach normal for posture/press direction"
+      },
+      "success_condition": "Current v11 deadband-acquire live-prep target. It is not a full reproduction claim; it is ready for an explicitly triggered short live bridge only after package generation, validation, controller read-back, and operator acceptance pass."
     },
     {
       "id": "step5d_strict_rnn_reproduction_v1",

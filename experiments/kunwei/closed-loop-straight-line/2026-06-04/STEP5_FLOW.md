@@ -4,8 +4,8 @@
 route. The diagnostic DLS dry-run is quarantined after the 2026-06-13 live run
 showed wrong XY/Z motion. Step5d is the named completion target for the
 complete strict TASE RNN reproduction; the strict-RNN live-prep path is now
-`step5d_strict_rnn_liveprep_v10`, while the full reproduction target remains
-separate and not complete. Step4f, Step4g, Step5b, and Step5d v1-v9
+`step5d_strict_rnn_liveprep_v11`, while the full reproduction target remains
+separate and not complete. Step4f, Step4g, Step5b, and Step5d v1-v10
 remain retained evidence packages only. Do not infer global current status
 from this per-step file without reading the current pointer.
 
@@ -31,7 +31,8 @@ controller upload, or contact motion.
 | `step5d_strict_rnn_liveprep_v7` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained transition evidence: keeps v5/v6 semantic gate and qdot `speedj` path, restores the `2-15N` entry window, and makes 24.3/24.4 re-contact slow-only before 25.0. Superseded by v8. |
 | `step5d_strict_rnn_liveprep_v8` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained failure evidence: v8 made 25.3 an active force-PID settle stage, but low-load dropout below `0.5N` cleared `cmd_valid` and TP stopped with reason `17` before Stage 25.0. Superseded by v9. |
 | `step5d_strict_rnn_liveprep_v9` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained failure evidence: 25.3 low-load press recovery fixed the v8 dropout stop, but direct force-PID settle hunted under point contact and timed out before Stage 25.0. Superseded by v10. |
-| `step5d_strict_rnn_liveprep_v10` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Current live-prep target: 25.3 uses scalar admittance settle and releases only after filtered `3-8N`, `force_norm <=25N`, and settle speed `<=0.001m/s` hold for `0.300s`; 25.0 then starts strict RNN qdot `speedj`. |
+| `step5d_strict_rnn_liveprep_v10` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained failure evidence: 25.3 scalar admittance softened v9 direct PID, but still saturated, flipped sign, and never satisfied the `3-8N` plus settle-speed release window. Superseded by v11. |
+| `step5d_strict_rnn_liveprep_v11` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Current live-prep target: 25.3 uses slew-limited deadband acquire and releases after filtered `2-15N`, `force_norm <=25N`, and `cmd_valid` hold for `0.150s`; 25.0 then starts strict RNN qdot `speedj`. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |
 
 ## Step5c Calibrated Kinematics Gate
@@ -329,24 +330,32 @@ showed that direct force-PID velocity mapping in Stage 25.3 can hunt under point
 contact and time out before Stage 25.0. It is superseded by
 `step5d_strict_rnn_liveprep_v10`.
 
-`step5d_strict_rnn_liveprep_v10` is the current live-prep package route. It keeps
+`step5d_strict_rnn_liveprep_v10` is retained failure evidence. It replaced v9
+direct force-PID with scalar admittance, but the 2026-06-15 live run
+`runs/bridge_step5d_strict_rnn_liveprep_v10_20260615_201707` showed Stage 25.3
+still saturated at `+/-0.003m/s`, flipped sign 133 times under point contact,
+and never satisfied the `3-8N` plus settle-speed window before Stage 25.0. It
+is superseded by `step5d_strict_rnn_liveprep_v11`.
+
+`step5d_strict_rnn_liveprep_v11` is the current live-prep package route. It keeps
 the Step5b contact-search/latch scaffold, warms the calibrated
 Pinocchio/RNN runtime before Stage 25.0, skips the 20 mm lift and 25.2 attitude
 correction when the first-contact orientation error is already `<= 0.069813 rad`,
 inherits the v5/v6 force/frame semantic gate, changes the second contact search
-after lift/orientation to slow-only 24.3/24.4 re-contact, makes 25.3 a scalar
-admittance settle stage around `5N`, keeps low-load press recovery instead of
+after lift/orientation to slow-only 24.3/24.4 re-contact, makes 25.3 a
+slew-limited deadband acquire stage for the uneven surface, keeps low-load press
+recovery instead of
 stopping below `0.5N`, switches Stage 25.0 from Cartesian `speedl`
 registers to joint `speedj` qdot registers, and keeps the runtime semantic gate
 before RNN/qdot output:
 
 - Teach Pendant target:
-  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v10.urp`;
+  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v11.urp`;
 - local generator: `tools/build_step5d_liveprep.py`;
 - operator wrapper: `scripts/step5d-liveprep-operator.sh`;
-- bridge profile: `--step4e-version step5d_strict_rnn_liveprep_v10`;
-- register contract: Stage 25.3 uses `37..39 = vx/vy/vz m/s` for admittance
-  settle only; Stage 25.0 uses `37..42 = qd0..qd5 rad/s`, `43 = cmd_valid`,
+- bridge profile: `--step4e-version step5d_strict_rnn_liveprep_v11`;
+- register contract: Stage 25.3 uses `37..39 = vx/vy/vz m/s` for deadband
+  acquire only; Stage 25.0 uses `37..42 = qd0..qd5 rad/s`, `43 = cmd_valid`,
   `44 = path_time_s`, `45 = force_error_n`, `46 = orientation_error`,
   `47 = solver_status`;
 - force/frame contract: `UR_FORCE_FRAME_CONTRACT.md`; use reaction normal for
@@ -363,17 +372,17 @@ before RNN/qdot output:
 - second contact search after lift/orientation: `24.3/24.4` uses
   `near_start_depth = 0.000 m`, `max_down = 0.035 m`, and both far/near
   speeds are `2.5 mm/s`; it only re-touches the surface and does not tune force;
-- Stage 25.3 admittance settle: `F_target = 5 N`, raw `F_n = dot(force_base,
-  reaction_normal)`, `F_filtered = EMA(F_n, alpha=0.15)`,
-  `a = (F_target - F_filtered - 300*v_settle) / 12`,
-  `v_settle = clamp(v_settle + a*dt, -0.003, 0.003)`, and
-  `cmd = approach_normal * v_settle`;
-- Stage 25.3 recovery policy: admittance continues press recovery at low/zero
+- Stage 25.3 deadband acquire: raw `F_n = dot(force_base, reaction_normal)`,
+  `F_filtered = EMA(F_n, alpha=0.15)`; if filtered load is `<2N`, command
+  press along `approach_normal`; if it is `>15N`, command unload; inside
+  `2-15N`, ramp the normal velocity toward zero. The command is capped at
+  `0.0012m/s` with `0.012m/s^2` slew limiting;
+- Stage 25.3 recovery policy: deadband acquire continues press recovery at low/zero
   load and stops only if raw `normal_load > 40 N` or `force_norm > 100 N`; the
   TP does not enter Stage 25.0 from that hard envelope stop;
-- Stage 25.3 settled release: filtered `3 N <= normal_load <= 8 N`,
-  `force_norm <= 25 N`, `abs(v_settle) <= 0.001 m/s`, and bridge
-  `cmd_valid >= 0.5` for `0.300 s` before entering Stage 25.0;
+- Stage 25.3 release: filtered `2 N <= normal_load <= 15 N`,
+  `force_norm <= 25 N`, and bridge `cmd_valid >= 0.5` for `0.150 s` before
+  entering Stage 25.0; there is no settle-velocity release gate in v11;
 - Stage 25.3 timeout: `10.000 s`; Stage 25.0 remains blocked until the contact
   window passes;
 - live bridge limiter: raw Step5d `xdot_c` remains in diagnostics, but the
@@ -388,21 +397,23 @@ verification. It still does not authorize bridge start, TP program load, TP
 Play, `zero_ftsensor()`, or robot motion. Those require the explicit operator
 trigger and bench state checks.
 
-Current v10 delivery status:
+Current v11 delivery status:
 
 - local triplet: generated and locally validated
-  `programs/step5/step5d_strict_rnn_liveprep_v10.{script,txt,urp}`;
+  `programs/step5/step5d_strict_rnn_liveprep_v11.{script,txt,urp}`;
 - controller triplet:
-  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v10.{script,txt,urp}`;
-- source stamp: `2026-06-15T2010HKT_STEP5D_STRICT_RNN_LIVEPREP_V10`;
+  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v11.{script,txt,urp}`;
+- source stamp: `2026-06-15T2039HKT_STEP5D_STRICT_RNN_LIVEPREP_V11`;
 - semantic gate artifact:
   `runs/ur_contact_semantic_gate_20260615_201109/ur_contact_semantic_gate_summary.json`;
 - read-back artifact:
-  `runs/controller_readback_step5d_strict_rnn_liveprep_v10_20260615_201109/manifest.json`;
+  `runs/controller_readback_step5d_strict_rnn_liveprep_v11_20260615_203926/manifest.json`;
+- v11 entry-gate replay artifact:
+  `runs/step5d_v11_entry_gate_replay_20260615_204005/summary.json`;
 - SHA state: local, controller, and fetched-back triplet matched
-  (`.script` `4709ec3309cd8186c1d73c368dee438e85e154bd34f05c7b2931493d80a8576f`,
-  `.txt` `37f7cde68d4d10c89c90a817dc0d5088e316e8e67508d6c0d1f53215f211fbdc`,
-  `.urp` `0506a8cadcfa4cf08893e8a6c17ba0e44cc3ed6d836132fb54c2210724aae5f3`).
+  (`.script` `028b501d2b7249747f3ad314523b1b087c40609ca83942052a22ae1f941d593d`,
+  `.txt` `2cf95b1701198bed59813b9e1c81485c99f7d41f875f32d970770fe9ba9b12ad`,
+  `.urp` `067de8f55fecdd244c845f3f55c86552513d9128dad809797442de946b02fe2b`).
 
 Archived v1-v9 delivery status:
 
@@ -421,7 +432,7 @@ Archived v1-v9 delivery status:
   `runs/controller_readback_step5d_strict_rnn_liveprep_v8_20260615_193040`,
   and `runs/controller_readback_step5d_strict_rnn_liveprep_v9_20260615_202010`;
 - controller root cleanup: old root v1-v9 triplets were removed after archive
-  read-back verification; root keeps current v10.
+  read-back verification; root keeps retained v10 and current v11.
 - bridge/TP Play remain separate explicit operator actions. These read-backs
   verify package delivery only; they do not mark the full reproduction target
   complete.
@@ -481,5 +492,7 @@ gate, the qdot register path is repaired, strict RNN paper-truth extraction is
 closed where applicable, numeric sanity passes, and a separate live plan is
 explicitly accepted.
 
-There is also no valid Step5d bridge command yet. Step5d is the full RNN
-completion target, not a live authorization.
+There is no valid full Step5d reproduction bridge command yet. Step5d remains
+the full RNN completion target. `scripts/step5d-liveprep-operator.sh
+contact-bridge` is only the explicitly accepted live-prep bridge route after
+package read-back; it is not a full reproduction authorization.
