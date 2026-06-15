@@ -16,8 +16,8 @@ from build_step5b_contact import build_script as build_step5b_script
 from step5_table import load_stage_frame, step5_stage
 
 
-PROGRAM_NAME = "step5d_strict_rnn_liveprep_v8"
-STEP5_STAGE_ID = "step5d_strict_rnn_liveprep_v8"
+PROGRAM_NAME = "step5d_strict_rnn_liveprep_v9"
+STEP5_STAGE_ID = "step5d_strict_rnn_liveprep_v9"
 BRIDGE_VERSION = STEP5_STAGE_ID
 LOCAL_PROGRAM_DIR = PROGRAM_DIR / "step5"
 CONTROLLER_DIR = "/programs/andyl/kunwei/step5"
@@ -33,7 +33,7 @@ LINE_ENTRY_FORCE_NORM_MAX_N = 25.0
 LINE_ENTRY_REQUIRED_S = 0.200
 LINE_ENTRY_CMD_LIMIT_M_S = 0.003
 LINE_ENTRY_TIMEOUT_S = 10.000
-LINE_ENTRY_RECOVERY_NORMAL_LOAD_MIN_N = 0.5
+LINE_ENTRY_RECOVERY_NORMAL_LOAD_MIN_N = 0.0
 LINE_ENTRY_RECOVERY_NORMAL_LOAD_MAX_N = 40.0
 LINE_ENTRY_FORCE_NORM_STOP_N = 100.0
 SECOND_SEARCH_MAX_DOWN_M = 0.035
@@ -44,7 +44,7 @@ SECOND_SEARCH_NEAR_SPEED_M_S = -0.0025
 
 
 def source_stamp(now: datetime) -> str:
-    return now.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_LIVEPREP_V8")
+    return now.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_LIVEPREP_V9")
 
 
 def load_safe_frame() -> dict:
@@ -252,7 +252,7 @@ def _replace_line_entry_with_force_settle(script: str) -> str:
       if stop_reason == 0.0:
         if line_entry_s >= line_entry_required_s:
           stop_reason = 16.0
-        elif force_norm > line_entry_force_norm_stop_n or normal_load < line_entry_recovery_normal_load_min_n or normal_load > line_entry_recovery_normal_load_max_n:
+        elif force_norm > line_entry_force_norm_stop_n or normal_load > line_entry_recovery_normal_load_max_n:
           stop_reason = 17.0
         elif cmd_valid < 0.5:
           if saw_cmd_valid == 0 and t_entry < cmd_valid_grace_s:
@@ -292,6 +292,18 @@ def _replace_second_contact_search(script: str) -> str:
     return _replace_exact(script, old, new)
 
 
+def _add_force_envelope_auto_home(script: str) -> str:
+    old = """  elif stop_reason == 14.0:
+    return True
+  end"""
+    new = """  elif stop_reason == 14.0:
+    return True
+  elif stop_reason == 17.0:
+    return True
+  end"""
+    return _replace_exact(script, old, new)
+
+
 def _add_down_search_force_trigger_echo(script: str) -> str:
     old = """    if normal_force <= -1.0 or force_norm > 1.5:
       stop_reason = 11.0"""
@@ -309,8 +321,8 @@ def _add_down_search_force_trigger_echo(script: str) -> str:
 def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -> str:
     script = build_step5b_script(stamp, gen_at, geom, frame)
     script = script.replace("step5b_contact_cycloid_baseline_v1", PROGRAM_NAME)
-    script = script.replace("Step5b contact cycloid baseline v1", "Step5d strict RNN liveprep v8")
-    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V1", "STEP5D_STRICT_RNN_LIVEPREP_V8")
+    script = script.replace("Step5b contact cycloid baseline v1", "Step5d strict RNN liveprep v9")
+    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V1", "STEP5D_STRICT_RNN_LIVEPREP_V9")
     script = script.replace("codex_step5b_down_search", "codex_step5d_down_search")
     script = script.replace("step4e-version=step5b_v1", f"step4e-version={BRIDGE_VERSION}")
     script = script.replace("codex_abs(normal_force) > 50.0", f"codex_abs(normal_force) > {RAW_NORMAL_GUARD_N:.1f}")
@@ -335,6 +347,7 @@ def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -
     script = _add_orientation_skip_gate(script)
     script = _add_down_search_force_trigger_echo(script)
     script = _replace_second_contact_search(script)
+    script = _add_force_envelope_auto_home(script)
     script = _replace_line_entry_with_force_settle(script)
     script = _replace_line_stage_with_speedj(script)
     if "speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy" in script:
@@ -432,6 +445,7 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str) -> None:
             "codex_step5d_down_search(24.3, 24.4, 0.035, 0.000, 45.000, -0.0025, -0.0025)" in script
             and "codex_echo_step4e(stop_reason)" in script
         ),
+        "force envelope auto-home": "elif stop_reason == 17.0:\n    return True" in script,
         "v31 scaffold retained": "first-contact normal latch" in script
         and "25.2 attitude correction" in script
         and "25.3 bridge force-PID settle to 5N" in script,
@@ -440,8 +454,9 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str) -> None:
         and f"torque_norm > {TORQUE_NORM_GUARD_NM:.1f}" in script,
         "not quarantine": "stop_only_quarantine" not in script + txt,
         "no stale package": "step5b_contact_cycloid_baseline_v1" not in script + txt,
-        "no stale v7 identity": "STEP5D_STRICT_RNN_LIVEPREP_V7" not in script + txt
-        and "step5d_strict_rnn_liveprep_v7" not in script + txt,
+        "no stale v8 identity": "STEP5D_STRICT_RNN_LIVEPREP_V8" not in script + txt
+        and "step5d_strict_rnn_liveprep_v8" not in script + txt,
+        "low-load recovery does not stop": "or normal_load < line_entry_recovery_normal_load_min_n" not in script,
     }
     failed = [label for label, ok in checks.items() if not ok]
     if failed:

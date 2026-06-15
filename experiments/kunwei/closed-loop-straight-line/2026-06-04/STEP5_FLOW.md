@@ -4,8 +4,8 @@
 route. The diagnostic DLS dry-run is quarantined after the 2026-06-13 live run
 showed wrong XY/Z motion. Step5d is the named completion target for the
 complete strict TASE RNN reproduction; the strict-RNN live-prep path is now
-`step5d_strict_rnn_liveprep_v8`, while the full reproduction target remains
-separate and not complete. Step4f, Step4g, Step5b, Step5d v1, Step5d v2, Step5d v3, Step5d v4, Step5d v5, Step5d v6, and Step5d v7
+`step5d_strict_rnn_liveprep_v9`, while the full reproduction target remains
+separate and not complete. Step4f, Step4g, Step5b, and Step5d v1-v8
 remain retained evidence packages only. Do not infer global current status
 from this per-step file without reading the current pointer.
 
@@ -29,7 +29,8 @@ controller upload, or contact motion.
 | `step5d_strict_rnn_liveprep_v5` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained semantic-fix evidence: kept qdot registers `37..42` with TP `speedj`, but reached 25.0 at about 17-21N and was blocked by the v5 2-15N engage gate. Superseded by v6. |
 | `step5d_strict_rnn_liveprep_v6` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained failure evidence: widened the entry window to `2-40N`, entered 25.0, then exposed 24.3 re-contact overpressure at about `20-22N`. Superseded by v7. |
 | `step5d_strict_rnn_liveprep_v7` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained transition evidence: keeps v5/v6 semantic gate and qdot `speedj` path, restores the `2-15N` entry window, and makes 24.3/24.4 re-contact slow-only before 25.0. Superseded by v8. |
-| `step5d_strict_rnn_liveprep_v8` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Current live-prep target: 24.3 only re-touches the surface, 25.3 actively force-PID settles near `5N` with Cartesian registers `37..39`, and 25.0 starts strict RNN qdot `speedj` only after `3-8N` is stable for `0.200s`. |
+| `step5d_strict_rnn_liveprep_v8` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained failure evidence: v8 made 25.3 an active force-PID settle stage, but low-load dropout below `0.5N` cleared `cmd_valid` and TP stopped with reason `17` before Stage 25.0. Superseded by v9. |
+| `step5d_strict_rnn_liveprep_v9` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Current live-prep target: 25.3 keeps low-load press recovery and stops only outside the `40N` normal-load / `100N` force-norm hard envelope; 25.0 starts strict RNN qdot `speedj` only after `3-8N` is stable for `0.200s`. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |
 
 ## Step5c Calibrated Kinematics Gate
@@ -312,21 +313,30 @@ the qdot `speedj` path, and a slow-only second contact search, but 25.3 was
 still a passive contact-window gate. It is superseded by
 `step5d_strict_rnn_liveprep_v8`.
 
-`step5d_strict_rnn_liveprep_v8` is the current live-prep package route. It keeps
+`step5d_strict_rnn_liveprep_v8` is retained failure evidence. It made 25.3 an
+active force-PID settle stage, but the 2026-06-15 live run
+`runs/bridge_step5d_strict_rnn_liveprep_v8_20260615_183351` stopped before
+Stage 25.0: low-load dropout to about `0.23N` fell below the v8 `0.5N`
+recovery floor, the bridge cleared `cmd_valid`, and TP wrote stop reason `17`
+while Dashboard stayed `Safetymode: NORMAL`. It is superseded by
+`step5d_strict_rnn_liveprep_v9`.
+
+`step5d_strict_rnn_liveprep_v9` is the current live-prep package route. It keeps
 the Step5b contact-search/latch scaffold, warms the calibrated
 Pinocchio/RNN runtime before Stage 25.0, skips the 20 mm lift and 25.2 attitude
 correction when the first-contact orientation error is already `<= 0.069813 rad`,
 inherits the v5/v6 force/frame semantic gate, changes the second contact search
 after lift/orientation to slow-only 24.3/24.4 re-contact, makes 25.3 an active
-force PID settle stage around `5N`, switches Stage 25.0 from Cartesian `speedl`
+force PID settle stage around `5N`, keeps low-load press recovery instead of
+stopping below `0.5N`, switches Stage 25.0 from Cartesian `speedl`
 registers to joint `speedj` qdot registers, and keeps the runtime semantic gate
 before RNN/qdot output:
 
 - Teach Pendant target:
-  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v8.urp`;
+  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v9.urp`;
 - local generator: `tools/build_step5d_liveprep.py`;
 - operator wrapper: `scripts/step5d-liveprep-operator.sh`;
-- bridge profile: `--step4e-version step5d_strict_rnn_liveprep_v8`;
+- bridge profile: `--step4e-version step5d_strict_rnn_liveprep_v9`;
 - register contract: Stage 25.3 uses `37..39 = vx/vy/vz m/s` for force PID
   settle only; Stage 25.0 uses `37..42 = qd0..qd5 rad/s`, `43 = cmd_valid`,
   `44 = path_time_s`, `45 = force_error_n`, `46 = orientation_error`,
@@ -349,9 +359,9 @@ before RNN/qdot output:
   reaction_normal)`, `e = F_target - F_n`, `v = Kp*e + Ki*I - B*v_normal`,
   clamped to the configured press/unload velocity caps, and
   `cmd = approach_normal * v`;
-- Stage 25.3 recovery window: PID may actively recover only when
-  `0.5 N <= normal_load <= 40 N` and `force_norm <= 100 N`; outside this range
-  the TP stops and does not enter Stage 25.0;
+- Stage 25.3 recovery policy: PID continues press recovery at low/zero load and
+  stops only if `normal_load > 40 N` or `force_norm > 100 N`; the TP does not
+  enter Stage 25.0 from that hard envelope stop;
 - Stage 25.3 settled release: `3 N <= normal_load <= 8 N`,
   `force_norm <= 25 N`, and bridge `cmd_valid >= 0.5` for `0.200 s` before
   entering Stage 25.0;
@@ -369,127 +379,41 @@ verification. It still does not authorize bridge start, TP program load, TP
 Play, `zero_ftsensor()`, or robot motion. Those require the explicit operator
 trigger and bench state checks.
 
-Delivery status:
-
-- local triplet: `programs/step5/step5d_strict_rnn_liveprep_v1.{script,txt,urp}`;
-- controller triplet:
-  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v1.{script,txt,urp}`;
-- read-back artifact:
-  `runs/controller_readback_step5d_strict_rnn_liveprep_v1_20260614_225433/manifest.json`;
-- SHA state: local, controller, and fetched-back triplet matched.
-
-Current v2 delivery status:
-
-- local triplet: `programs/step5/step5d_strict_rnn_liveprep_v2.{script,txt,urp}`;
-- controller triplet:
-  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v2.{script,txt,urp}`;
-- read-back artifact:
-  `runs/controller_readback_step5d_strict_rnn_liveprep_v2_20260614_231314/manifest.json`;
-- SHA state: local, controller, and fetched-back triplet matched;
-- next bridge trigger must use `scripts/step5d-liveprep-operator.sh
-  contact-bridge`, not a bare `tools/kunwei_rtde_bridge.py` invocation.
-
-Current v3 delivery status:
-
-- local triplet: `programs/step5/step5d_strict_rnn_liveprep_v3.{script,txt,urp}`;
-- controller triplet:
-  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v3.{script,txt,urp}`;
-- read-back artifact:
-  `runs/controller_readback_step5d_strict_rnn_liveprep_v3_20260614_233759/manifest.json`;
-- SHA state: local, controller, and fetched-back triplet matched
-  (`.script` `8917213bdfcf0fe089e65d147d10e597f62b0541cccdbe948677b0da6d65ceee`,
-  `.txt` `1b84c2d22d161f48cb4656d7b16e59162ef9581524fb316337b2f5f3de25c33e`,
-  `.urp` `d2ba301d350dd096e388feec205b3dd2861846da9ad354f992ac49c1e169bacb`);
-- next bridge trigger must use `scripts/step5d-liveprep-operator.sh
-  contact-bridge`, not a bare `tools/kunwei_rtde_bridge.py` invocation.
-
-Current v4 delivery status:
-
-- local triplet: `programs/step5/step5d_strict_rnn_liveprep_v4.{script,txt,urp}`;
-- controller triplet:
-  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v4.{script,txt,urp}`;
-- read-back artifact:
-  `runs/controller_readback_step5d_strict_rnn_liveprep_v4_20260614_234749/manifest.json`;
-- SHA state: local, controller, and fetched-back triplet matched
-  (`.script` `ad5df2927da70978315000cc138dda9d258bbfcf4ead0c0eaa7924c61304748e`,
-  `.txt` `bb76131cab9b12191e5b9b155601781846de48c7b2abb20e430ead1ad02f405f`,
-  `.urp` `3e249041e3abb7289b85f43ff4035e78c1706ab1fcfe1b5af45feff04ccaa803`);
-- next bridge trigger must use `scripts/step5d-liveprep-operator.sh
-  contact-bridge`, not a bare `tools/kunwei_rtde_bridge.py` invocation.
-
-Retained v5 delivery/live status:
+Current v9 delivery status:
 
 - local triplet: generated and locally validated
-  `programs/step5/step5d_strict_rnn_liveprep_v5.{script,txt,urp}`;
+  `programs/step5/step5d_strict_rnn_liveprep_v9.{script,txt,urp}`;
 - controller triplet:
-  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v5.{script,txt,urp}`;
-- source stamp: `2026-06-15T0150HKT_STEP5D_STRICT_RNN_LIVEPREP_V5`;
+  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v9.{script,txt,urp}`;
+- source stamp: `2026-06-15T1926HKT_STEP5D_STRICT_RNN_LIVEPREP_V9`;
 - semantic gate artifact:
-  `runs/ur_contact_semantic_gate_20260615_023201/ur_contact_semantic_gate_summary.json`
-  passed for v2/v4 Stage 25.0 replay and includes the v4 failure-contrast
-  fields (`logged_bad_fixed_good_rows=2`);
+  `runs/ur_contact_semantic_gate_20260615_192656/ur_contact_semantic_gate_summary.json`;
 - read-back artifact:
-  `runs/controller_readback_step5d_strict_rnn_liveprep_v5_20260615_171822/manifest.json`;
+  `runs/controller_readback_step5d_strict_rnn_liveprep_v9_20260615_192702/manifest.json`;
 - SHA state: local, controller, and fetched-back triplet matched
-  (`.script` `8eb36d4c0a3121127b012c3f3e9b6699c879d3ff6faaf30c1bda77a429d91a4a`,
-  `.txt` `de546979f2f856426868db93d3f011cff17f00dea7bd73fe4671d651393ae3a7`,
-  `.urp` `dcd823324749af64c1b3faf9ac4ab8bd82a166b79f4ae83e62b6c56dc8ec1061`);
-- live artifact: `runs/bridge_step5d_strict_rnn_liveprep_v5_20260615_171934`;
-  it entered Stage 25.0 for 53 rows, but `cmd_valid` stayed `0` because the
-  v5 `2-15N` engage gate blocked the observed `17-21N` normal load. No RNN qdot
-  command executed. This evidence is superseded by v6.
+  (`.script` `c3439ae2b4d4728dc591e4d10aadcd758e08410976f9c4fa6b35902f6a9ca4f3`,
+  `.txt` `afcb3a25e128a97fa047ba704980875e2a4544078cbf3402c838d06e2f727ac5`,
+  `.urp` `e1f66806f19bbb1794226a8b1c900f559cde9c348c3fede7b5f6ea23061206de`).
 
-Retained v6 delivery/live status:
+Archived v1-v8 delivery status:
 
-- local triplet: generated and locally validated
-  `programs/step5/step5d_strict_rnn_liveprep_v6.{script,txt,urp}`;
-- controller triplet:
-  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v6.{script,txt,urp}`;
-- source stamp: `2026-06-15T1731HKT_STEP5D_STRICT_RNN_LIVEPREP_V6`;
-- read-back artifact:
-  `runs/controller_readback_step5d_strict_rnn_liveprep_v6_20260615_173122/manifest.json`;
-- SHA state: local, controller, and fetched-back triplet matched
-  (`.script` `e33706232834f5458611896bda41b5c2261ea64a50ca3a6da1b7ba6772f66740`,
-  `.txt` `b47607b64839a01d2e1d44a5f9484510dca8aa732a4c5be5d8047944d46aed9c`,
-  `.urp` `a771efca461544eeb5a6f3089467d7fb86123f73cca6e33a3814147087eb5307`);
-- live artifact: `runs/bridge_step5d_strict_rnn_liveprep_v6_20260615_173634`;
-  it entered Stage 25.0 for 93 rows, but Stage 24.3 had never reached 24.4 and
-  had already pressed the tool to about `20-22N`. Stage 25.0 then unloaded to
-  near `0N`, qdot hit the `0.30 rad/s` cap, and final stop reason register 30
-  was `12`. This evidence is superseded by v7.
-
-Retained v7 delivery status:
-
-- local triplet: generated and locally validated
-  `programs/step5/step5d_strict_rnn_liveprep_v7.{script,txt,urp}`;
-- controller triplet:
-  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v7.{script,txt,urp}`;
-- source stamp: `2026-06-15T1809HKT_STEP5D_STRICT_RNN_LIVEPREP_V7`;
-- read-back artifact:
-  `runs/controller_readback_step5d_strict_rnn_liveprep_v7_20260615_181026/manifest.json`;
-- SHA state: local, controller, and fetched-back triplet matched
-  (`.script` `15d25c5ca656d5231bd5e7dae4c2344d5df1817cda62bc387fdd8bc15c888b96`,
-  `.txt` `21fcfb1c001b2fe6b34b19c5262bfcf13d5555b6846f14100da44c46988d5f6e`,
-  `.urp` `b994e04895eb8a1b8219c47450bcc744315e4dd15d15666fb544506d6785c233`);
-- bridge/TP Play remain separate explicit operator actions. This read-back
-  verifies package delivery only; it does not mark the full reproduction target
-  complete.
-
-Current v8 delivery status:
-
-- local triplet: generated and locally validated
-  `programs/step5/step5d_strict_rnn_liveprep_v8.{script,txt,urp}`;
-- controller triplet:
-  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v8.{script,txt,urp}`;
-- source stamp: `2026-06-15T1828HKT_STEP5D_STRICT_RNN_LIVEPREP_V8`;
-- read-back artifact:
-  `runs/controller_readback_step5d_strict_rnn_liveprep_v8_20260615_182826/manifest.json`;
-- SHA state: local, controller, and fetched-back triplet matched
-  (`.script` `34004f8ec98259f6926f76340f17689e92fa73c1aeec5d863608e563f14717ea`,
-  `.txt` `084c1ba66a8ef3dc99ef78200fd3a155496801a7bfc3676e7b6c6e16779068fb`,
-  `.urp` `fdadeff61ada61fbc3119639f658cda10dd2e088161f2b0b9ae608b70ee272a6`);
-- bridge/TP Play remain separate explicit operator actions. This read-back
-  verifies package delivery only; it does not mark the full reproduction target
+- local archive directory: `programs/step5/step5d`;
+- controller archive directory: `/programs/andyl/kunwei/step5/step5d`;
+- retained versions: `step5d_strict_rnn_liveprep_v1` through
+  `step5d_strict_rnn_liveprep_v8`;
+- archive read-back artifacts:
+  `runs/controller_readback_step5d_strict_rnn_liveprep_v1_20260615_193017`,
+  `runs/controller_readback_step5d_strict_rnn_liveprep_v2_20260615_193020`,
+  `runs/controller_readback_step5d_strict_rnn_liveprep_v3_20260615_193024`,
+  `runs/controller_readback_step5d_strict_rnn_liveprep_v4_20260615_193027`,
+  `runs/controller_readback_step5d_strict_rnn_liveprep_v5_20260615_193030`,
+  `runs/controller_readback_step5d_strict_rnn_liveprep_v6_20260615_193034`,
+  `runs/controller_readback_step5d_strict_rnn_liveprep_v7_20260615_193037`,
+  and `runs/controller_readback_step5d_strict_rnn_liveprep_v8_20260615_193040`;
+- controller root cleanup: old root v1-v8 triplets were removed after archive
+  read-back verification; root keeps only current v9.
+- bridge/TP Play remain separate explicit operator actions. These read-backs
+  verify package delivery only; they do not mark the full reproduction target
   complete.
 
 ## Handoff Gate

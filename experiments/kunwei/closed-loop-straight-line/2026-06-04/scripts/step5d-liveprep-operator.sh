@@ -3,8 +3,12 @@ set -euo pipefail
 
 ROOT="/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04"
 BASE_OPERATOR="${ROOT}/scripts/step4e-line-v1-operator.sh"
-STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v8}"
-EXPECTED_PROGRAM="/programs/andyl/kunwei/step5/${STEP5D_VERSION}.urp"
+STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v9}"
+if [[ "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v1" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v2" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v3" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v4" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v5" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v6" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v7" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v8" ]]; then
+  EXPECTED_PROGRAM="/programs/andyl/kunwei/step5/step5d/${STEP5D_VERSION}.urp"
+else
+  EXPECTED_PROGRAM="/programs/andyl/kunwei/step5/${STEP5D_VERSION}.urp"
+fi
 
 usage() {
   cat <<EOF
@@ -23,7 +27,8 @@ Boundary:
   - qdot cap: 0.30 rad/s.
   - Raw normal guard: 100 N, force norm guard: 100 N, torque guard: 3.0 Nm.
   - Stage 25.3 runs bridge force PID settle with Cartesian registers 37..39.
-  - Stage 25.3 may recover inside 0.5-40 N and must hold 3-8 N for 0.200 s before Stage 25.0 speedj starts.
+  - Stage 25.3 keeps press recovery on low load and stops only outside the 40 N normal-load / 100 N force-norm hard envelope.
+  - Stage 25.3 must hold 3-8 N for 0.200 s before Stage 25.0 speedj starts.
   - No UR zero_ftsensor(), no Kunwei tare/zero/config, no TCP/payload write.
   - This wrapper never loads a program or presses Play.
 EOF

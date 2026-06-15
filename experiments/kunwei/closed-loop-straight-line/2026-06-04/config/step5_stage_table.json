@@ -43,8 +43,8 @@
     "required_evidence": {
       "fk_tcp_offset_constant_std_max_m": 0.00025,
       "inferred_tcp_offset_norm_expected_m": 0.1221,
-      "jacobian_linear_vector_rms_max_m_s": 0.00001,
-      "jacobian_angular_vector_rms_max_rad_s": 0.00001,
+      "jacobian_linear_vector_rms_max_m_s": 1e-05,
+      "jacobian_angular_vector_rms_max_rad_s": 1e-05,
       "qdot_register_path_fixed": true,
       "numeric_sanity_artifact_required": true
     },
@@ -359,11 +359,20 @@
       "completion_target": false,
       "block_reason": null,
       "delivery_evidence": {
-        "local_program_dir": "programs/step5",
-        "controller_dir": "/programs/andyl/kunwei/step5",
+        "local_program_dir": "programs/step5/step5d",
+        "controller_dir": "/programs/andyl/kunwei/step5/step5d",
         "program_basename": "step5d_strict_rnn_liveprep_v1",
-        "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v1_20260614_225433",
-        "local_controller_readback_sha_match": true
+        "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v1_20260615_193017",
+        "local_controller_readback_sha_match": true,
+        "stamp": "2026-06-14T2254HKT_STEP5D_STRICT_RNN_LIVEPREP_V1",
+        "local_package_validated": true,
+        "controller_readback_verified": true,
+        "sha256": {
+          ".script": "238bde489ffff70198a3db0395917e423365668a4bfcf899ffd1f6b8eba59da9",
+          ".txt": "ab0fe81ffd9776c520138e47484e6cf942e988d1f1ee272d8f8791183d9fa034",
+          ".urp": "a31bec68116b4e232a99d6b422df7597e777f82bb04b00b81a9a5445036b79e5"
+        },
+        "archived_to_step5d_dir": true
       },
       "live_run_evidence": {
         "artifact": "runs/step5d_strict_rnn_liveprep_v1_live_20260614_230100",
@@ -443,11 +452,20 @@
       "completion_target": false,
       "block_reason": null,
       "delivery_evidence": {
-        "local_program_dir": "programs/step5",
-        "controller_dir": "/programs/andyl/kunwei/step5",
+        "local_program_dir": "programs/step5/step5d",
+        "controller_dir": "/programs/andyl/kunwei/step5/step5d",
         "program_basename": "step5d_strict_rnn_liveprep_v2",
-        "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v2_20260614_231314",
-        "local_controller_readback_sha_match": true
+        "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v2_20260615_193020",
+        "local_controller_readback_sha_match": true,
+        "stamp": "2026-06-14T2313HKT_STEP5D_STRICT_RNN_LIVEPREP_V2",
+        "local_package_validated": true,
+        "controller_readback_verified": true,
+        "sha256": {
+          ".script": "8cd0d19d9d2a1112fa2628da2cbed8785fbc699b55e117dd9acda6aa03ba699e",
+          ".txt": "dc0b44afa640a7b67b349de9c98493fa9028d07669c693e03fec28f3582e73c5",
+          ".urp": "ff4394b173d087a2c4cb084f1affdefd2defdbbdd8642b1214746ef9a79b2cfd"
+        },
+        "archived_to_step5d_dir": true
       },
       "live_run_evidence": {
         "artifact": "runs/bridge_step5d_strict_rnn_liveprep_v2_20260614_231720",
@@ -530,11 +548,20 @@
       "completion_target": false,
       "block_reason": null,
       "delivery_evidence": {
-        "local_program_dir": "programs/step5",
-        "controller_dir": "/programs/andyl/kunwei/step5",
+        "local_program_dir": "programs/step5/step5d",
+        "controller_dir": "/programs/andyl/kunwei/step5/step5d",
         "program_basename": "step5d_strict_rnn_liveprep_v3",
-        "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v3_20260614_233759",
-        "local_controller_readback_sha_match": true
+        "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v3_20260615_193024",
+        "local_controller_readback_sha_match": true,
+        "stamp": "2026-06-14T2337HKT_STEP5D_STRICT_RNN_LIVEPREP_V3",
+        "local_package_validated": true,
+        "controller_readback_verified": true,
+        "sha256": {
+          ".script": "8917213bdfcf0fe089e65d147d10e597f62b0541cccdbe948677b0da6d65ceee",
+          ".txt": "07d05b7904e84b68d1d8c0d24f1aa518b1b462aca741bd7d09d2153f51d78ca5",
+          ".urp": "98183fef849ef0a2b8621ba1715ddfaa2222dc5a4b5d9ede1e4466718864db2a"
+        },
+        "archived_to_step5d_dir": true
       },
       "live_run_evidence": {
         "artifact": "runs/bridge_step5d_strict_rnn_liveprep_v3_20260614_233207",
@@ -620,11 +647,20 @@
       "completion_target": false,
       "block_reason": null,
       "delivery_evidence": {
-        "local_program_dir": "programs/step5",
-        "controller_dir": "/programs/andyl/kunwei/step5",
+        "local_program_dir": "programs/step5/step5d",
+        "controller_dir": "/programs/andyl/kunwei/step5/step5d",
         "program_basename": "step5d_strict_rnn_liveprep_v4",
-        "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v4_20260614_234749",
-        "local_controller_readback_sha_match": true
+        "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v4_20260615_193027",
+        "local_controller_readback_sha_match": true,
+        "stamp": "2026-06-14T2346HKT_STEP5D_STRICT_RNN_LIVEPREP_V4",
+        "local_package_validated": true,
+        "controller_readback_verified": true,
+        "sha256": {
+          ".script": "ad5df2927da70978315000cc138dda9d258bbfcf4ead0c0eaa7924c61304748e",
+          ".txt": "de090932ef246b2a982d7b5b223d18fa78e4d37587c2853fae0d69ff82e787fa",
+          ".urp": "af0f800421985e2d1ec373deeca7697ca00f70f8b9e31ad87bfff9d88c45efd6"
+        },
+        "archived_to_step5d_dir": true
       },
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
@@ -713,19 +749,22 @@
       "completion_target": false,
       "block_reason": "Retained semantic-fix live-prep evidence. Superseded by step5d_strict_rnn_liveprep_v6 because v5 reached Stage 25.0 but the 2-15N engage window blocked qdot while actual load was about 17-21N.",
       "delivery_evidence": {
-        "local_program_dir": "programs/step5",
+        "local_program_dir": "programs/step5/step5d",
         "program_basename": "step5d_strict_rnn_liveprep_v5",
         "stamp": "2026-06-15T0150HKT_STEP5D_STRICT_RNN_LIVEPREP_V5",
         "semantic_gate": "runs/ur_contact_semantic_gate_20260615_023201/ur_contact_semantic_gate_summary.json",
         "semantic_gate_pass": true,
         "local_package_validated": true,
-        "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v5_20260615_171822",
+        "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v5_20260615_193030",
         "controller_readback_verified": true,
         "sha256": {
           ".script": "8eb36d4c0a3121127b012c3f3e9b6699c879d3ff6faaf30c1bda77a429d91a4a",
-          ".txt": "de546979f2f856426868db93d3f011cff17f00dea7bd73fe4671d651393ae3a7",
-          ".urp": "dcd823324749af64c1b3faf9ac4ab8bd82a166b79f4ae83e62b6c56dc8ec1061"
-        }
+          ".txt": "a9eaf8afb9df541233e6d6395d3f050fbb1dfd025431b33207e31b9a857e81b8",
+          ".urp": "51bec98fc4ea2208052b42f165eb3eee9eb26f385b2a9299c9af5e583b318e45"
+        },
+        "controller_dir": "/programs/andyl/kunwei/step5/step5d",
+        "local_controller_readback_sha_match": true,
+        "archived_to_step5d_dir": true
       },
       "live_run_evidence": {
         "artifact": "runs/bridge_step5d_strict_rnn_liveprep_v5_20260615_171934",
@@ -832,19 +871,22 @@
       "completion_target": false,
       "block_reason": "Retained v6 live-prep evidence. Superseded by step5d_strict_rnn_liveprep_v7 because v6 proved the force/frame semantic gate could enter Stage 25.0, but the widened 2-40N gate admitted a 20-22N re-contact caused by the 24.3 far-speed search.",
       "local_delivery_evidence": {
-        "local_program_dir": "programs/step5",
+        "local_program_dir": "programs/step5/step5d",
         "program_basename": "step5d_strict_rnn_liveprep_v6",
         "stamp": "2026-06-15T1731HKT_STEP5D_STRICT_RNN_LIVEPREP_V6",
         "semantic_gate": "runs/ur_contact_semantic_gate_20260615_023201/ur_contact_semantic_gate_summary.json",
         "semantic_gate_pass": true,
         "local_package_validated": true,
-        "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v6_20260615_173122",
+        "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v6_20260615_193034",
         "controller_readback_verified": true,
         "sha256": {
           ".script": "e33706232834f5458611896bda41b5c2261ea64a50ca3a6da1b7ba6772f66740",
-          ".txt": "b47607b64839a01d2e1d44a5f9484510dca8aa732a4c5be5d8047944d46aed9c",
-          ".urp": "a771efca461544eeb5a6f3089467d7fb86123f73cca6e33a3814147087eb5307"
-        }
+          ".txt": "4fb9354da713634c4d6f6e09548d3f11178ae57123cecdd0db1e2fe7d7fcd8b0",
+          ".urp": "2512cd7086083eb8cc12ad3a402d0e68cfb56f9947046e12ab87c694277d319a"
+        },
+        "controller_dir": "/programs/andyl/kunwei/step5/step5d",
+        "local_controller_readback_sha_match": true,
+        "archived_to_step5d_dir": true
       },
       "live_run_evidence": {
         "artifact": "runs/bridge_step5d_strict_rnn_liveprep_v6_20260615_173634",
@@ -949,19 +991,22 @@
       "completion_target": false,
       "block_reason": "Retained v7 transition evidence. Superseded by step5d_strict_rnn_liveprep_v8 because v7 still relied on slow-only 24.3 re-contact plus a passive contact window, while v8 makes 25.3 an active force PID settle stage before strict RNN qdot.",
       "local_delivery_evidence": {
-        "local_program_dir": "programs/step5",
+        "local_program_dir": "programs/step5/step5d",
         "program_basename": "step5d_strict_rnn_liveprep_v7",
         "stamp": "2026-06-15T1809HKT_STEP5D_STRICT_RNN_LIVEPREP_V7",
         "semantic_gate": "runs/ur_contact_semantic_gate_20260615_023201/ur_contact_semantic_gate_summary.json",
         "semantic_gate_pass": true,
         "local_package_validated": true,
-        "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v7_20260615_181026",
+        "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v7_20260615_193037",
         "controller_readback_verified": true,
         "sha256": {
           ".script": "15d25c5ca656d5231bd5e7dae4c2344d5df1817cda62bc387fdd8bc15c888b96",
-          ".txt": "21fcfb1c001b2fe6b34b19c5262bfcf13d5555b6846f14100da44c46988d5f6e",
-          ".urp": "b994e04895eb8a1b8219c47450bcc744315e4dd15d15666fb544506d6785c233"
-        }
+          ".txt": "24945879aa0ad0dc7d4c993c63f20e80e98fb9b6e5525e415c393cb37c9c11a3",
+          ".urp": "73205e1c76e110d3b82030c656195ee1d2ed4d464d417e5dab5b70d3d6b93d09"
+        },
+        "controller_dir": "/programs/andyl/kunwei/step5/step5d",
+        "local_controller_readback_sha_match": true,
+        "archived_to_step5d_dir": true
       },
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
@@ -1061,21 +1106,24 @@
       "blocked": false,
       "complete": true,
       "completion_target": false,
-      "block_reason": "Current v8 live-prep target delivered to the controller with read-back verified. 24.3 only re-touches the surface; 25.3 actively force-PID settles near 5N using Cartesian registers 37..39; 25.0 starts strict RNN qdot only after the settled window passes. This still does not mark the full reproduction target complete; bridge/TP Play require explicit operator trigger.",
+      "block_reason": "Retained v8 failure evidence. Delivered and read-back verified, but 2026-06-15 live run stopped before Stage 25.0 because Stage 25.3 treated low-load dropout below 0.5N as recovery-window violation stop_reason=17. Superseded by step5d_strict_rnn_liveprep_v9.",
       "local_delivery_evidence": {
-        "local_program_dir": "programs/step5",
+        "local_program_dir": "programs/step5/step5d",
         "program_basename": "step5d_strict_rnn_liveprep_v8",
         "stamp": "2026-06-15T1828HKT_STEP5D_STRICT_RNN_LIVEPREP_V8",
         "semantic_gate": "runs/ur_contact_semantic_gate_20260615_183044/ur_contact_semantic_gate_summary.json",
         "semantic_gate_pass": true,
         "local_package_validated": true,
-        "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v8_20260615_182826",
+        "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v8_20260615_193040",
         "controller_readback_verified": true,
         "sha256": {
           ".script": "34004f8ec98259f6926f76340f17689e92fa73c1aeec5d863608e563f14717ea",
-          ".txt": "084c1ba66a8ef3dc99ef78200fd3a155496801a7bfc3676e7b6c6e16779068fb",
-          ".urp": "fdadeff61ada61fbc3119639f658cda10dd2e088161f2b0b9ae608b70ee272a6"
-        }
+          ".txt": "b6a97fbe3f351c7c6fbb820e6cf40d61a52260a4d6f9621a5d00f82e22be1425",
+          ".urp": "861dc1b3effc01e3dfd8c840775ac88bd7c158267e6a64293b3928207bc58d15"
+        },
+        "controller_dir": "/programs/andyl/kunwei/step5/step5d",
+        "local_controller_readback_sha_match": true,
+        "archived_to_step5d_dir": true
       },
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
@@ -1161,7 +1209,7 @@
       "liveprep_gates": [
         "UR force/frame semantic gate passes v2/v4 Stage 25.0 replay",
         "v6/v7 failure-contrast gate proves 20N+ must not enter Stage 25.0 directly",
-        "non-quarantine Step5d v8 TP package validates locally and splits registers: 25.3 uses 37..39 Cartesian settle velocity, 25.0 uses 37..42 qdot",
+        "retained Step5d v8 TP package validates locally and splits registers: 25.3 uses 37..39 Cartesian settle velocity, 25.0 uses 37..42 qdot",
         "24.3/24.4 second contact search remains slow-only with near_start_depth=0m and 2.5mm/s command speed",
         "25.3 force PID settle may recover only inside 0.5N <= normal_load <= 40N and force_norm <=100N",
         "25.3 settled release requires 3N <= normal_load <= 8N plus force_norm <=25N for 0.200s and bridge cmd_valid true",
@@ -1177,7 +1225,141 @@
         "force_sign_convention": "step5_step6_positive_normal_load",
         "semantic_contract": "reaction normal for load, approach normal for posture/press direction"
       },
-      "success_condition": "Current v8 force-PID-settle live-prep target. It is not a full reproduction claim; it is ready for an explicitly triggered short live bridge only after v8 package generation, validation, controller read-back, and operator acceptance pass."
+      "success_condition": "Retained v8 failure evidence only. Superseded by v9 because low-load Stage 25.3 dropout must continue press recovery instead of stopping with reason 17.",
+      "failure_evidence": "runs/bridge_step5d_strict_rnn_liveprep_v8_20260615_183351",
+      "live_run_evidence": {
+        "run_dir": "runs/bridge_step5d_strict_rnn_liveprep_v8_20260615_183351",
+        "result": "Did not enter Stage 25.0. Stage 25.3 force-PID settle was active for about 0.368s, then low-load dropout to about 0.23N cleared bridge cmd_valid and TP stopped with reason 17. Dashboard remained Safetymode NORMAL.",
+        "root_cause": "Both bridge and TP used the 0.5N recovery lower bound as a hard stop instead of a press-recovery condition.",
+        "followup": "superseded by step5d_strict_rnn_liveprep_v9"
+      }
+    },
+    {
+      "id": "step5d_strict_rnn_liveprep_v9",
+      "stage": "Step5d",
+      "owner": "bridge+TP",
+      "active": true,
+      "blocked": false,
+      "complete": true,
+      "completion_target": false,
+      "block_reason": "Current v9 live-prep target: Stage 25.3 keeps low-load press recovery instead of stopping below 0.5N; stop_reason=17 is reserved for the 40N normal-load / 100N force-norm hard envelope. This is not a full reproduction claim; bridge/TP Play require explicit operator trigger.",
+      "local_delivery_evidence": {
+        "local_program_dir": "programs/step5",
+        "program_basename": "step5d_strict_rnn_liveprep_v9",
+        "stamp": "2026-06-15T1926HKT_STEP5D_STRICT_RNN_LIVEPREP_V9",
+        "semantic_gate": "runs/ur_contact_semantic_gate_20260615_192656/ur_contact_semantic_gate_summary.json",
+        "semantic_gate_pass": true,
+        "local_package_validated": true,
+        "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v9_20260615_192702",
+        "controller_readback_verified": true,
+        "sha256": {
+          ".script": "c3439ae2b4d4728dc591e4d10aadcd758e08410976f9c4fa6b35902f6a9ca4f3",
+          ".txt": "afcb3a25e128a97fa047ba704980875e2a4544078cbf3402c838d06e2f727ac5",
+          ".urp": "e1f66806f19bbb1794226a8b1c900f559cde9c348c3fede7b5f6ea23061206de"
+        }
+      },
+      "shape": "cycloid",
+      "frame": "config/step5_safe_frame.json",
+      "contact": true,
+      "bridge": true,
+      "joint_space": true,
+      "strict_rnn": true,
+      "fixed_base_z_m": null,
+      "duration_s": 60.0,
+      "amplitude_m": 0.015,
+      "phase_law": {
+        "type": "linear_time",
+        "omega_rad_s": 0.1,
+        "final_phase_rad": 6.0
+      },
+      "cadence": {
+        "reference_clock": "real_time",
+        "motion": "current_liveprep_package_ready_after_readback",
+        "tp_hold_s": 0.002,
+        "end_hold_s": 0.1
+      },
+      "guard": {
+        "heartbeat_required": true,
+        "cmd_valid_required": true,
+        "qdot_cap_rad_s": 0.3,
+        "path_cap_m_s": 0.004,
+        "total_linear_cap_m_s": 0.006,
+        "normal_velocity_cap_m_s": 0.003,
+        "attitude_cap_rad_s": 0.06,
+        "semantic_orientation_tolerance_rad": 0.08726646259971647,
+        "orientation_skip_lift_error_rad": 0.069813,
+        "second_contact_max_down_m": 0.035,
+        "second_contact_near_start_depth_m": 0.0,
+        "second_contact_far_speed_m_s": -0.0025,
+        "second_contact_near_speed_m_s": -0.0025,
+        "line_entry_normal_load_min_n": 3.0,
+        "line_entry_normal_load_max_n": 8.0,
+        "line_entry_force_norm_max_n": 25.0,
+        "line_entry_required_s": 0.2,
+        "line_entry_timeout_s": 10.0,
+        "runtime_limit_s": 65.0,
+        "progress_end_hold_s": 0.1,
+        "raw_normal_guard_n": 100.0,
+        "force_norm_guard_n": 100.0,
+        "torque_norm_guard_nm": 3.0,
+        "line_entry_recovery_normal_load_min_n": 0.0,
+        "line_entry_recovery_normal_load_max_n": 40.0,
+        "line_entry_force_norm_stop_n": 100.0
+      },
+      "contact_policy": {
+        "bridge_required": true,
+        "tp_role": "stage_split_executor_and_guard_only",
+        "reference_owner": "strict_rnn_bridge",
+        "joint_solver": "strict_tase_rnn_only",
+        "dls_fallback_allowed": false,
+        "ik_fallback_allowed": false,
+        "calibrated_kinematics_backend": "Pinocchio calibrated base->tool0+active-TCP FK/J(q)",
+        "force_control": true,
+        "contact_search": true,
+        "timing_policy": "step5b_scaffold_with_step5d_qdot_line_control_and_v9_low_load_press_recovery_25_3",
+        "virtual_clock_freeze": false,
+        "force_pid_settle_stage": "25.3"
+      },
+      "semantic_control_gate": {
+        "contract": "UR_FORCE_FRAME_CONTRACT.md",
+        "reaction_normal_source": "Step5b/Step6b contact-search latched/filtered n_control_b",
+        "approach_normal": "-reaction_normal",
+        "normal_load_n": "dot(force_base, reaction_normal)",
+        "force_error_n": "target_load_n - normal_load_n",
+        "orientation_target_axis": "approach_normal",
+        "forbidden": "Do not normalize raw live force to construct R_d.z or orientation_target_axis",
+        "gate_scope": "offline replay and runtime regression guard; not an independent closed-loop stability proof",
+        "failure_contrast": "v8 live run showed Stage 25.3 after 24.3 re-contact can see low-load dropout below 0.5N; that must not stop Stage 25.3, and v9 continues press recovery until settled or high-force hard envelope is exceeded.",
+        "runtime_assertion": "contact-search orientation error and Step5d outer-loop orientation angle must agree within 5 deg before cmd_valid can remain true",
+        "pid_settle": {
+          "stage": "25.3",
+          "target_load_n": 5.0,
+          "normal_load_n": "dot(force_base, reaction_normal)",
+          "command_direction": "approach_normal * clamp(Kp*e + Ki*I - B*v_normal)",
+          "approach_normal": "-reaction_normal",
+          "recovery_policy": "low_load_press_recovery_until_40N_normal_load_or_100N_force_norm_hard_envelope"
+        }
+      },
+      "liveprep_gates": [
+        "UR force/frame semantic gate passes v2/v4 Stage 25.0 replay",
+        "v8 failure-contrast replay proves low-load dropout below 0.5N must continue press recovery instead of stop_reason=17",
+        "non-quarantine Step5d v9 TP package validates locally and splits registers: 25.3 uses 37..39 Cartesian settle velocity, 25.0 uses 37..42 qdot",
+        "24.3/24.4 second contact search remains slow-only with near_start_depth=0mm and 2.5mm/s down speed",
+        "25.3 force PID settle may recover low load and stops only at normal_load >40N or force_norm >100N",
+        "25.3 settled release requires 3N <= normal_load <= 8N plus force_norm <=25N for 0.200s and bridge cmd_valid true",
+        "25.0 qdot cap remains 0.300 rad/s for this low-load recovery fix",
+        "bridge limits live Step5d xdot_c before strict RNN while preserving raw xdot diagnostics",
+        "controller upload and read-back SHA/cachedContents verification pass",
+        "strict RNN qdot path remains behind semantic orientation gate before speedj execution"
+      ],
+      "filter_policy": {
+        "normal_filter": "v31_filtered_live",
+        "alpha": 0.35,
+        "min_force_n": 2.0,
+        "force_sign_convention": "step5_step6_positive_normal_load",
+        "semantic_contract": "reaction normal for load, approach normal for posture/press direction"
+      },
+      "success_condition": "Current v9 low-load-recovery live-prep target. It is not a full reproduction claim; it is ready for an explicitly triggered short live bridge only after package generation, validation, controller read-back, and operator acceptance pass."
     },
     {
       "id": "step5d_strict_rnn_reproduction_v1",

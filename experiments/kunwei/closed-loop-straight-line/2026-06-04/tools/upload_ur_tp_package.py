@@ -387,6 +387,61 @@ def validate_package(
                 and "step5d_strict_rnn_liveprep_v5" not in script + txt
                 and "step5d_strict_rnn_liveprep_v6" not in script + txt
             )
+    if program in {"step5d_strict_rnn_liveprep_v8", "step5d_strict_rnn_liveprep_v9"}:
+        is_v9 = program.endswith("_v9")
+        recovery_min = "0.000" if is_v9 else "0.500"
+        checks.update(
+            {
+                "step5d function": f"def codex_{program}()" in script
+                and "codex_step5d_down_search" in script,
+                "step5d bridge contract": f"step4e-version={program}" in script
+                and f"--step4e-version {program}" in txt
+                and "--step4e-path-shape cycloid" in txt,
+                "step5d force contract": "--target-force-n 5.0" in txt,
+                "step5 table source": "STEP5_FLOW.md" in script
+                and "STEP5_TABLE_SOURCE: config/step5_stage_table.json" in script
+                and program in script + txt,
+                "joint executor and guard only": "joint_executor_and_guard_only" in script
+                and "37..42 as qd0..qd5 rad/s" in txt,
+                "stage split register contract": "Stage 25.3 consumes 37..39 as Cartesian force-PID settle vx/vy/vz" in script,
+                "speedj line control": "speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]" in script
+                and "local qdot_cap_rad_s = 0.300" in script,
+                "orientation skip gate": "local skip_lift_attitude = 0" in script
+                and "local orientation_skip_error_rad = 0.069813" in script
+                and "skip_lift_attitude == 0" in script,
+                "force-pid settle gate": "local line_entry_normal_load_min_n = 3.000" in script
+                and "local line_entry_normal_load_max_n = 8.000" in script
+                and "local line_entry_force_norm_max_n = 25.000" in script
+                and "local line_entry_required_s = 0.200" in script
+                and "local line_entry_timeout_s = 10.000" in script
+                and f"local line_entry_recovery_normal_load_min_n = {recovery_min}" in script
+                and "local line_entry_recovery_normal_load_max_n = 40.000" in script
+                and "local line_entry_force_norm_stop_n = 100.000" in script
+                and "local normal_load = target_force - force_error" in script
+                and "speedl([cmd_vx, cmd_vy, cmd_vz, 0.0, 0.0, 0.0]" in script,
+                "second contact slow search": "codex_step5d_down_search(24.3, 24.4, 0.035, 0.000, 45.000, -0.0025, -0.0025)" in script,
+                "line no cartesian speedl": "speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy" not in script,
+                "force-frame semantic contract": "UR_FORCE_FRAME_CONTRACT.md" in script + txt
+                and "reaction normal for load" in script + txt
+                and "approach normal for posture" in script + txt,
+                "raw contact guards": "codex_abs(normal_force) > 100.0" in script
+                and "force_norm > 100.0" in script
+                and "torque_norm > 3.0" in script,
+                "not quarantine": "stop_only_quarantine" not in script + txt,
+                "no stale step5bc route": "step5b_contact_cycloid_baseline_v1" not in script + txt
+                and "step5c_joint_rnn_cycloid_v1" not in script + txt,
+            }
+        )
+        if is_v9:
+            checks["v9 low-load does not stop"] = "or normal_load < line_entry_recovery_normal_load_min_n" not in script
+            checks["v9 force envelope auto-home"] = "elif stop_reason == 17.0:\n    return True" in script
+            checks["no stale step5d v1-v8 route"] = all(
+                f"step5d_strict_rnn_liveprep_v{idx}" not in script + txt for idx in range(1, 9)
+            )
+        else:
+            checks["no stale step5d v1-v7 route"] = all(
+                f"step5d_strict_rnn_liveprep_v{idx}" not in script + txt for idx in range(1, 8)
+            )
     if program == "step6a_eight_no_contact_v1":
         checks.update(
             {

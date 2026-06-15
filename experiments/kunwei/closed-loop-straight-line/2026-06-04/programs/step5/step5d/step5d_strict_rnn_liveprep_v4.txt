@@ -1,10 +1,10 @@
 Step5d strict RNN live-prep TP package
 
 Open on Teach Pendant after controller read-back is verified:
-  /programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v5.urp
+  /programs/andyl/kunwei/step5/step5d/step5d_strict_rnn_liveprep_v4.urp
 
 Version:
-  2026-06-15T0150HKT_STEP5D_STRICT_RNN_LIVEPREP_V5
+  2026-06-14T2346HKT_STEP5D_STRICT_RNN_LIVEPREP_V4
 
 Boundary:
   Contact-capable live-prep package; not a completed reproduction claim.
@@ -20,7 +20,7 @@ Boundary:
   and executes speedj, not Cartesian speedl.
 
 Bridge profile:
-  --step4e-version step5d_strict_rnn_liveprep_v5 --step4e-path-shape cycloid
+  --step4e-version step5d_strict_rnn_liveprep_v4 --step4e-path-shape cycloid
   --target-force-n 5.0
   --step4e-normal-follow-mode filtered_live
   --step4e-normal-filter-alpha 0.35
@@ -36,6 +36,5 @@ Safety:
 
 Reference:
   STEP5_FLOW.md
-  config/step5_stage_table.json stage step5d_strict_rnn_liveprep_v5
-  UR_FORCE_FRAME_CONTRACT.md
+  config/step5_stage_table.json stage step5d_strict_rnn_liveprep_v4
   config/step5d_liveprep_solver_gate.json
