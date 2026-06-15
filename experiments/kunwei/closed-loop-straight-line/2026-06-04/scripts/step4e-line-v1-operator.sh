@@ -23,7 +23,8 @@ case "${STEP4E_VERSION}" in
     STEP4E_VERSION="step5b_v1"
     ;;
   5d|step5d|step5d-liveprep|step5d_liveprep)
-    STEP4E_VERSION="step5d_strict_rnn_liveprep_v11"
+    echo "refusing Step5d liveprep alias: no current package after step5d_strict_rnn_liveprep_v11 incomplete run; make a v12/root-cause plan or set an explicit retained STEP4E_VERSION only for evidence replay"
+    exit 40
     ;;
   5c-dry|5c-dryrun|step5c-dryrun|step5c_speedj_dryrun_v1|speedj-dryrun|speedj_dryrun)
     echo "refusing Step5c dry-run alias: DLS/Jacobian mapping is quarantined after wrong XY/Z live motion"
@@ -157,11 +158,8 @@ fi
 if [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v1" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v2" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v3" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v4" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v5" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v6" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v7" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v8" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v9" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step5/step5d/${STEP4E_VERSION}.urp"
 fi
-if [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v10" ]]; then
-  PROGRAM_LINE="/programs/andyl/kunwei/step5/${STEP4E_VERSION}.urp"
-fi
-if [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v11" ]]; then
-  PROGRAM_LINE="/programs/andyl/kunwei/step5/${STEP4E_VERSION}.urp"
+if [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v10" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v11" ]]; then
+  PROGRAM_LINE="/programs/andyl/kunwei/step5/step5d/${STEP4E_VERSION}.urp"
 fi
 if [[ "${STEP4E_VERSION}" == "step6b_v1" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step6/step6b_contact_eight_baseline_v1.urp"
@@ -218,9 +216,9 @@ elif [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v7" ]]; then
 elif [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v9" ]]; then
   SEARCH_DESCRIPTION="Retained Step5d v9 failure evidence: Stage 25.3 bridge force-PID settle fixed low-load dropout but hunted under point contact and timed out before Stage 25.0"
 elif [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v10" ]]; then
-  SEARCH_DESCRIPTION="Current Step5d v10 live-prep route: Stage 25.3 bridge admittance settle uses filtered normal_load and Cartesian registers 37..39 with low-load press recovery and a 40N normal-load / 100N force-norm hard envelope; Stage 25.0 then uses strict RNN qdot registers 37..42 with speedj"
+  SEARCH_DESCRIPTION="Retained Step5d v10 failure evidence: Stage 25.3 bridge admittance settle softened v9 direct PID but still saturated/flipped under point contact and did not satisfy the 3-8N plus settle-speed release gate"
 elif [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v11" ]]; then
-  SEARCH_DESCRIPTION="Current Step5d v11 live-prep route: Stage 25.3 bridge deadband acquire uses filtered normal_load and Cartesian registers 37..39 with low-load press recovery, 2-15N release for 0.150s, and a 40N normal-load / 100N force-norm hard envelope; Stage 25.0 then uses strict RNN qdot registers 37..42 with speedj"
+  SEARCH_DESCRIPTION="Retained Step5d v11 incomplete evidence: Stage 25.3 deadband acquire released into Stage 25.0, but the live run ended incomplete with Dashboard PAUSED and Safetymode ROBOT_EMERGENCY_STOP"
 elif [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v8" ]]; then
   SEARCH_DESCRIPTION="Retained Step5d v8 failure evidence: Stage 25.3 bridge force-PID settle used Cartesian registers 37..39 but low-load dropout below 0.5N could stop with reason 17 before Stage 25.0"
 elif [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v4" ]]; then

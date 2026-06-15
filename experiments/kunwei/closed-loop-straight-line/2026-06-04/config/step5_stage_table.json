@@ -1380,19 +1380,21 @@
       "completion_target": false,
       "block_reason": "Retained v10 failure evidence. It replaced v9 direct force-PID with scalar admittance, but the 2026-06-15 live run showed Stage 25.3 still saturated and flipped sign under point contact, never satisfying the 3-8N plus settle-speed window before Stage 25.0. Superseded by step5d_strict_rnn_liveprep_v11.",
       "local_delivery_evidence": {
-        "local_program_dir": "programs/step5",
+        "local_program_dir": "programs/step5/step5d",
         "program_basename": "step5d_strict_rnn_liveprep_v10",
         "stamp": "2026-06-15T2010HKT_STEP5D_STRICT_RNN_LIVEPREP_V10",
         "semantic_gate": "runs/ur_contact_semantic_gate_20260615_201109/ur_contact_semantic_gate_summary.json",
         "semantic_gate_pass": true,
         "local_package_validated": true,
-        "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v10_20260615_201109",
+        "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v10_20260615_204852",
         "controller_readback_verified": true,
         "sha256": {
           ".script": "4709ec3309cd8186c1d73c368dee438e85e154bd34f05c7b2931493d80a8576f",
-          ".txt": "37f7cde68d4d10c89c90a817dc0d5088e316e8e67508d6c0d1f53215f211fbdc",
-          ".urp": "0506a8cadcfa4cf08893e8a6c17ba0e44cc3ed6d836132fb54c2210724aae5f3"
-        }
+          ".txt": "53c6ce16775472bfad5f01255c07ae00602fd77d8314268af41dbc629f019f9f",
+          ".urp": "c1d03ea779bad81f808824153b4043662317eae580652a438faaca30a140215b"
+        },
+        "controller_dir": "/programs/andyl/kunwei/step5/step5d",
+        "archived_to_step5d_dir": true
       },
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
@@ -1517,26 +1519,28 @@
       "id": "step5d_strict_rnn_liveprep_v11",
       "stage": "Step5d",
       "owner": "bridge+TP",
-      "active": true,
+      "active": false,
       "blocked": false,
       "complete": true,
       "completion_target": false,
-      "block_reason": "Current v11 live-prep target: Stage 25.3 replaces v10 5N-centered admittance settle with deadband contact acquire for the uneven surface; release requires filtered 2-15N and force_norm <=25N for 0.150s. This is not a full reproduction claim; bridge/TP Play require explicit operator trigger.",
+      "block_reason": "Retained v11 incomplete live evidence. It entered Stage 25.0 after the 25.3 deadband acquire gate, but the 2026-06-15 live run ended incomplete when Dashboard changed to PAUSED and Safetymode became ROBOT_EMERGENCY_STOP after about 1.752s in Stage 25.0. No full Step5d live-prep target is current until a v12/root-cause plan is made.",
       "local_delivery_evidence": {
-        "local_program_dir": "programs/step5",
+        "local_program_dir": "programs/step5/step5d",
         "program_basename": "step5d_strict_rnn_liveprep_v11",
         "stamp": "2026-06-15T2039HKT_STEP5D_STRICT_RNN_LIVEPREP_V11",
         "semantic_gate": "runs/ur_contact_semantic_gate_20260615_201109/ur_contact_semantic_gate_summary.json",
         "semantic_gate_pass": true,
         "local_package_validated": true,
-        "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v11_20260615_203926",
+        "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v11_20260615_204855",
         "controller_readback_verified": true,
         "sha256": {
           ".script": "028b501d2b7249747f3ad314523b1b087c40609ca83942052a22ae1f941d593d",
-          ".txt": "2cf95b1701198bed59813b9e1c81485c99f7d41f875f32d970770fe9ba9b12ad",
-          ".urp": "067de8f55fecdd244c845f3f55c86552513d9128dad809797442de946b02fe2b"
+          ".txt": "b0882152ba0313060043f060c744d0aa74c86736bad1c03ad5a97658d3f45cd7",
+          ".urp": "27b039030b88841be92837a57f8c0d83eebe2832c80e41a7fdf95262e6431243"
         },
-        "numeric_sanity": "runs/step5d_v11_entry_gate_replay_20260615_204005/summary.json"
+        "numeric_sanity": "runs/step5d_v11_entry_gate_replay_20260615_204005/summary.json",
+        "controller_dir": "/programs/andyl/kunwei/step5/step5d",
+        "archived_to_step5d_dir": true
       },
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
@@ -1649,7 +1653,16 @@
         "force_sign_convention": "step5_step6_positive_normal_load",
         "semantic_contract": "reaction normal for load, approach normal for posture/press direction"
       },
-      "success_condition": "Current v11 deadband-acquire live-prep target. It is not a full reproduction claim; it is ready for an explicitly triggered short live bridge only after package generation, validation, controller read-back, and operator acceptance pass."
+      "success_condition": "Retained v11 incomplete evidence only. It proved the widened deadband acquire can release into Stage 25.0, but the run did not complete and ended with ROBOT_EMERGENCY_STOP; supersede with a separately planned v12 or root-cause fix before any new current live-prep package.",
+      "live_run_evidence": {
+        "run_dir": "runs/bridge_step5d_strict_rnn_liveprep_v11_20260615_204601",
+        "result": "Incomplete live run. Stage 25.3 ready became true and Stage 25.0 ran for about 1.752s (877 RTDE rows at 500Hz), but the program then paused with Safetymode ROBOT_EMERGENCY_STOP; bridge stopped and performed Kunwei quiet stop.",
+        "stage25_3_duration_s": 0.3620005080010742,
+        "stage25_0_duration_s": 1.7519988989224657,
+        "stop_reason": "Dashboard PAUSED / Safetymode ROBOT_EMERGENCY_STOP; bridge summary stop_reason=signal_sigint after operator safety stop",
+        "force_observation": "Run-level force_norm max 9.2208N; normal_load range -6.9065N to 3.4359N. Final Stage 25.0 rows had cmd_valid/path_time about 1.704s and _step5d_force_settle_ready=1.",
+        "followup": "archive v11 as retained incomplete evidence; no current Step5d live-prep package until v12/root-cause plan"
+      }
     },
     {
       "id": "step5d_strict_rnn_reproduction_v1",

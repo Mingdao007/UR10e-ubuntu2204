@@ -3,9 +3,10 @@
 `config/current_stage.json` currently selects no runnable Step5c joint-space
 route. The diagnostic DLS dry-run is quarantined after the 2026-06-13 live run
 showed wrong XY/Z motion. Step5d is the named completion target for the
-complete strict TASE RNN reproduction; the strict-RNN live-prep path is now
-`step5d_strict_rnn_liveprep_v11`, while the full reproduction target remains
-separate and not complete. Step4f, Step4g, Step5b, and Step5d v1-v10
+complete strict TASE RNN reproduction; there is currently no current
+strict-RNN live-prep package after the incomplete
+`step5d_strict_rnn_liveprep_v11` live run. The full reproduction target remains
+separate and not complete. Step4f, Step4g, Step5b, and Step5d v1-v11
 remain retained evidence packages only. Do not infer global current status
 from this per-step file without reading the current pointer.
 
@@ -32,7 +33,7 @@ controller upload, or contact motion.
 | `step5d_strict_rnn_liveprep_v8` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained failure evidence: v8 made 25.3 an active force-PID settle stage, but low-load dropout below `0.5N` cleared `cmd_valid` and TP stopped with reason `17` before Stage 25.0. Superseded by v9. |
 | `step5d_strict_rnn_liveprep_v9` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained failure evidence: 25.3 low-load press recovery fixed the v8 dropout stop, but direct force-PID settle hunted under point contact and timed out before Stage 25.0. Superseded by v10. |
 | `step5d_strict_rnn_liveprep_v10` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained failure evidence: 25.3 scalar admittance softened v9 direct PID, but still saturated, flipped sign, and never satisfied the `3-8N` plus settle-speed release window. Superseded by v11. |
-| `step5d_strict_rnn_liveprep_v11` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Current live-prep target: 25.3 uses slew-limited deadband acquire and releases after filtered `2-15N`, `force_norm <=25N`, and `cmd_valid` hold for `0.150s`; 25.0 then starts strict RNN qdot `speedj`. |
+| `step5d_strict_rnn_liveprep_v11` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained incomplete evidence: 25.3 deadband acquire released into Stage 25.0, but the live run ended incomplete with Dashboard `PAUSED` and `Safetymode: ROBOT_EMERGENCY_STOP`. No current live-prep target exists until v12/root-cause planning. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |
 
 ## Step5c Calibrated Kinematics Gate
@@ -337,7 +338,7 @@ still saturated at `+/-0.003m/s`, flipped sign 133 times under point contact,
 and never satisfied the `3-8N` plus settle-speed window before Stage 25.0. It
 is superseded by `step5d_strict_rnn_liveprep_v11`.
 
-`step5d_strict_rnn_liveprep_v11` is the current live-prep package route. It keeps
+`step5d_strict_rnn_liveprep_v11` is retained incomplete evidence. It kept
 the Step5b contact-search/latch scaffold, warms the calibrated
 Pinocchio/RNN runtime before Stage 25.0, skips the 20 mm lift and 25.2 attitude
 correction when the first-contact orientation error is already `<= 0.069813 rad`,
@@ -347,13 +348,15 @@ slew-limited deadband acquire stage for the uneven surface, keeps low-load press
 recovery instead of
 stopping below `0.5N`, switches Stage 25.0 from Cartesian `speedl`
 registers to joint `speedj` qdot registers, and keeps the runtime semantic gate
-before RNN/qdot output:
+before RNN/qdot output. The package is no longer current after the
+2026-06-15 live run:
 
-- Teach Pendant target:
-  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v11.urp`;
+- Teach Pendant archive target:
+  `/programs/andyl/kunwei/step5/step5d/step5d_strict_rnn_liveprep_v11.urp`;
 - local generator: `tools/build_step5d_liveprep.py`;
 - operator wrapper: `scripts/step5d-liveprep-operator.sh`;
-- bridge profile: `--step4e-version step5d_strict_rnn_liveprep_v11`;
+- bridge profile for evidence replay only:
+  `--step4e-version step5d_strict_rnn_liveprep_v11`;
 - register contract: Stage 25.3 uses `37..39 = vx/vy/vz m/s` for deadband
   acquire only; Stage 25.0 uses `37..42 = qd0..qd5 rad/s`, `43 = cmd_valid`,
   `44 = path_time_s`, `45 = force_error_n`, `46 = orientation_error`,
@@ -390,37 +393,51 @@ before RNN/qdot output:
   (`step4e_total_linear_limit_m_s` and `step4e_angular_limit_rad_s`);
 - hard guards: raw normal `100 N`, force norm `100 N`, torque `3.0 Nm`; `50 N`
   is retained only as an analysis warning threshold;
-- force sign convention: retained Step5/Step6 positive normal-load convention.
+- force sign convention: retained Step5/Step6 positive normal-load convention;
+- live result:
+  `runs/bridge_step5d_strict_rnn_liveprep_v11_20260615_204601` entered
+  Stage 25.0 for about `1.752 s` after Stage 25.3 ready became true, then the
+  program paused with `Safetymode: ROBOT_EMERGENCY_STOP`; bridge summary
+  recorded `stop_reason=signal_sigint` after operator safety stop and Kunwei
+  quiet stop.
 
 This live-prep route may be delivered to the controller by upload/read-back
-verification. It still does not authorize bridge start, TP program load, TP
-Play, `zero_ftsensor()`, or robot motion. Those require the explicit operator
-trigger and bench state checks.
+verification as retained evidence only. It does not authorize bridge start, TP
+program load, TP Play, `zero_ftsensor()`, or robot motion. A new v12/root-cause
+plan is required before any new current Step5d live-prep package.
 
-Current v11 delivery status:
+Retained v10-v11 archive delivery status:
 
-- local triplet: generated and locally validated
-  `programs/step5/step5d_strict_rnn_liveprep_v11.{script,txt,urp}`;
-- controller triplet:
-  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v11.{script,txt,urp}`;
-- source stamp: `2026-06-15T2039HKT_STEP5D_STRICT_RNN_LIVEPREP_V11`;
-- semantic gate artifact:
+- local archive triplets:
+  `programs/step5/step5d/step5d_strict_rnn_liveprep_v10.{script,txt,urp}`
+  and
+  `programs/step5/step5d/step5d_strict_rnn_liveprep_v11.{script,txt,urp}`;
+- controller archive triplets:
+  `/programs/andyl/kunwei/step5/step5d/step5d_strict_rnn_liveprep_v10.{script,txt,urp}`
+  and
+  `/programs/andyl/kunwei/step5/step5d/step5d_strict_rnn_liveprep_v11.{script,txt,urp}`;
+- v11 source stamp: `2026-06-15T2039HKT_STEP5D_STRICT_RNN_LIVEPREP_V11`;
+- v11 semantic gate artifact:
   `runs/ur_contact_semantic_gate_20260615_201109/ur_contact_semantic_gate_summary.json`;
-- read-back artifact:
-  `runs/controller_readback_step5d_strict_rnn_liveprep_v11_20260615_203926/manifest.json`;
+- archive read-back artifacts:
+  `runs/controller_readback_step5d_strict_rnn_liveprep_v10_20260615_204852/manifest.json`
+  and
+  `runs/controller_readback_step5d_strict_rnn_liveprep_v11_20260615_204855/manifest.json`;
 - v11 entry-gate replay artifact:
   `runs/step5d_v11_entry_gate_replay_20260615_204005/summary.json`;
-- SHA state: local, controller, and fetched-back triplet matched
+- v11 SHA state: local, controller, and fetched-back archive triplet matched
   (`.script` `028b501d2b7249747f3ad314523b1b087c40609ca83942052a22ae1f941d593d`,
-  `.txt` `2cf95b1701198bed59813b9e1c81485c99f7d41f875f32d970770fe9ba9b12ad`,
-  `.urp` `067de8f55fecdd244c845f3f55c86552513d9128dad809797442de946b02fe2b`).
+  `.txt` `b0882152ba0313060043f060c744d0aa74c86736bad1c03ad5a97658d3f45cd7`,
+  `.urp` `27b039030b88841be92837a57f8c0d83eebe2832c80e41a7fdf95262e6431243`);
+- controller root cleanup: root v10/v11 triplets were removed after archive
+  read-back verification.
 
-Archived v1-v9 delivery status:
+Archived v1-v11 delivery status:
 
 - local archive directory: `programs/step5/step5d`;
 - controller archive directory: `/programs/andyl/kunwei/step5/step5d`;
 - retained versions: `step5d_strict_rnn_liveprep_v1` through
-  `step5d_strict_rnn_liveprep_v9`;
+  `step5d_strict_rnn_liveprep_v11`;
 - archive read-back artifacts:
   `runs/controller_readback_step5d_strict_rnn_liveprep_v1_20260615_193017`,
   `runs/controller_readback_step5d_strict_rnn_liveprep_v2_20260615_193020`,
@@ -431,8 +448,8 @@ Archived v1-v9 delivery status:
   `runs/controller_readback_step5d_strict_rnn_liveprep_v7_20260615_193037`,
   `runs/controller_readback_step5d_strict_rnn_liveprep_v8_20260615_193040`,
   and `runs/controller_readback_step5d_strict_rnn_liveprep_v9_20260615_202010`;
-- controller root cleanup: old root v1-v9 triplets were removed after archive
-  read-back verification; root keeps retained v10 and current v11.
+- controller root cleanup: old root v1-v11 triplets were removed after archive
+  read-back verification; no current Step5d live-prep package remains in root.
 - bridge/TP Play remain separate explicit operator actions. These read-backs
   verify package delivery only; they do not mark the full reproduction target
   complete.

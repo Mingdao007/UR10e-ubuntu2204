@@ -1,7 +1,7 @@
 Step5d strict RNN live-prep TP package
 
 Open on Teach Pendant after controller read-back is verified:
-  /programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v10.urp
+  /programs/andyl/kunwei/step5/step5d/step5d_strict_rnn_liveprep_v10.urp
 
 Version:
   2026-06-15T2010HKT_STEP5D_STRICT_RNN_LIVEPREP_V10

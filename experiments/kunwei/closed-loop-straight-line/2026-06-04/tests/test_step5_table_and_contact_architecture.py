@@ -69,7 +69,8 @@ class Step5TableAndContactArchitectureTest(unittest.TestCase):
         liveprep_v8 = step5_table.step5_stage("step5d_strict_rnn_liveprep_v8", self.table)
         liveprep_v9 = step5_table.step5_stage("step5d_strict_rnn_liveprep_v9", self.table)
         liveprep_v10 = step5_table.step5_stage("step5d_strict_rnn_liveprep_v10", self.table)
-        liveprep = step5_table.step5_stage("step5d_strict_rnn_liveprep_v11", self.table)
+        liveprep_v11 = step5_table.step5_stage("step5d_strict_rnn_liveprep_v11", self.table)
+        liveprep = liveprep_v11
         step5d = step5_table.step5_stage("step5d_strict_rnn_reproduction_v1", self.table)
         self.assertFalse(dry["active"])
         self.assertTrue(dry["blocked"])
@@ -127,6 +128,11 @@ class Step5TableAndContactArchitectureTest(unittest.TestCase):
         self.assertIn("scalar admittance", liveprep_v10["block_reason"])
         self.assertIn("flipped sign", liveprep_v10["live_run_evidence"]["root_cause"])
         self.assertEqual(liveprep_v10["live_run_evidence"]["followup"], "superseded by step5d_strict_rnn_liveprep_v11")
+        self.assertFalse(liveprep_v11["active"])
+        self.assertTrue(liveprep_v11["complete"])
+        self.assertIn("ROBOT_EMERGENCY_STOP", liveprep_v11["block_reason"])
+        self.assertEqual(liveprep_v11["live_run_evidence"]["run_dir"], "runs/bridge_step5d_strict_rnn_liveprep_v11_20260615_204601")
+        self.assertIn("Stage 25.0 ran", liveprep_v11["live_run_evidence"]["result"])
         for archived_stage in (
             liveprep_v1,
             liveprep_v2,
@@ -137,21 +143,25 @@ class Step5TableAndContactArchitectureTest(unittest.TestCase):
             liveprep_v7,
             liveprep_v8,
             liveprep_v9,
+            liveprep_v10,
+            liveprep_v11,
         ):
             evidence = archived_stage.get("local_delivery_evidence") or archived_stage["delivery_evidence"]
             self.assertEqual(evidence["local_program_dir"], "programs/step5/step5d")
             self.assertEqual(evidence["controller_dir"], "/programs/andyl/kunwei/step5/step5d")
             self.assertTrue(evidence["archived_to_step5d_dir"])
-        self.assertTrue(liveprep["active"])
+        self.assertFalse(liveprep["active"])
         self.assertFalse(liveprep["blocked"])
         self.assertTrue(liveprep["complete"])
         self.assertFalse(liveprep["completion_target"])
-        self.assertEqual(liveprep["local_delivery_evidence"]["local_program_dir"], "programs/step5")
+        self.assertEqual(liveprep["local_delivery_evidence"]["local_program_dir"], "programs/step5/step5d")
+        self.assertEqual(liveprep["local_delivery_evidence"]["controller_dir"], "/programs/andyl/kunwei/step5/step5d")
+        self.assertTrue(liveprep["local_delivery_evidence"]["archived_to_step5d_dir"])
         self.assertEqual(liveprep["local_delivery_evidence"]["program_basename"], "step5d_strict_rnn_liveprep_v11")
         self.assertTrue(liveprep["local_delivery_evidence"]["semantic_gate_pass"])
         self.assertTrue(liveprep["local_delivery_evidence"]["local_package_validated"])
         self.assertTrue(liveprep["local_delivery_evidence"]["controller_readback_verified"])
-        self.assertIn("runs/controller_readback_step5d_strict_rnn_liveprep_v11_", liveprep["local_delivery_evidence"]["controller_readback"])
+        self.assertEqual(liveprep["local_delivery_evidence"]["controller_readback"], "runs/controller_readback_step5d_strict_rnn_liveprep_v11_20260615_204855")
         self.assertIn("runs/step5d_v11_entry_gate_replay_", liveprep["local_delivery_evidence"]["numeric_sanity"])
         self.assertTrue(liveprep["strict_rnn"])
         self.assertEqual(liveprep["guard"]["qdot_cap_rad_s"], 0.30)
