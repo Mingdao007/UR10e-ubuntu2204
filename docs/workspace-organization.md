@@ -1,31 +1,63 @@
-# UR10e Workspace Organization Plan
+# UR10e Workspace Organization Contract
 
-This plan starts the filename cleanup from low-risk areas and future structure
-only. It does not authorize a whole-workspace rename.
+This document is the organization contract for `/home/andy/ur10e_ros2_ws`.
+It governs future cleanup work, but it does not authorize a whole-tree rename
+or any cosmetic movement of existing evidence.
 
-## Current State
+The workspace model is:
 
-- `/home/andy/ur10e_ros2_ws` is dirty and contains many untracked experiment,
-  report, backup, and sensor folders.
-- A naming audit reports many findings, but many are in vendor backups,
-  controller backups, archives, generated files, and raw measurement runs.
-- Those findings are not all actionable. Many paths should stay stable because
-  reports, scripts, manifests, tools, or hardware programs may reference them.
+```text
+UR10e Lab = Execution Workspace + Knowledge Vault
+```
 
-## Guardrails
+- Execution Workspace: `/home/andy/ur10e_ros2_ws`
+- Knowledge Vault: `/home/andy/ur10e_lab_vault`
+
+The vault is indexed as an external knowledge layer. It is not merged into the
+ROS2 execution workspace. The normal sync direction is workspace -> vault, as
+implemented by `/home/andy/ur10e_lab_vault/scripts/sync_from_ur10e_workspace.sh`.
+
+## Architecture Rules
+
+- Treat organization as information architecture, not cosmetic filename work.
+- Keep live code package/function-first.
+- Keep experiment outputs artifact/evidence-first.
+- Use dates, people, and sensor names as leaf-level context or metadata, not
+  as the main workspace taxonomy.
+- Do not make `kunwei` a special global category. Kunwei and zero_ftsensor may
+  be active lifecycle contexts; OnRobot is historical evidence.
+- Parent directories should carry domain, date, or run context instead of
+  forcing all metadata into long basenames.
+
+## Move And Rename Gates
 
 - Do not rename the whole tree in one pass.
-- Do not move ROS package directories, launch/config/calibration paths,
-  Python modules used by imports, URScript/URP controller programs, raw
-  measurement runs, vendor backups, archives, generated documentation, `build/`,
-  `install/`, or `log/` as part of cosmetic cleanup.
-- For any batch rename, produce an `old -> new` mapping first and update links
-  by exact path replacement.
-- After each batch, run targeted `rg` searches for old paths and old basenames.
-- Historical run folders can keep older names. New structure should govern new
-  experiments first.
+- Do not move ROS package paths, launch/config/calibration paths, Python import
+  paths, raw runs, controller backups, URP/script/txt controller packages,
+  vendor backups, archives, generated documentation, `build/`, `install/`, or
+  `log/` for cosmetic cleanup.
+- Every migration requires an explicit `old -> new` mapping before any file is
+  moved or renamed.
+- A migration that changes paths must update README files, indexes, Markdown
+  links, scripts, tests, skills, context docs, and other exact references in
+  the same batch.
+- After each migration batch, search for both old and new path tokens to catch
+  content-blind partial edits.
+- Dense evidence directories should first receive a local README or dashboard;
+  do not move raw evidence just to make names prettier.
 
-## Future Experiment Layout
+## Naming Policy
+
+- New user-readable files should generally use lowercase, hyphen-separated,
+  concise semantic names.
+- Keep role names short when the parent directory already carries context, for
+  example `report.md`, `protocol.md`, `summary.json`, and `run-notes.md`.
+- Existing historical run folders may keep older names until a specific
+  migration is approved.
+- Controller-openable packages, readbacks, raw logs, and generated artifacts
+  may keep tool-native names when stability matters more than readability.
+
+## Experiment Layout
 
 Use folders to carry repeated context and keep filenames short.
 
@@ -34,9 +66,12 @@ experiments/<domain>/<experiment-family>/<condition>/<yyyy-mm-dd>/
   README.md
   report.md
   protocol.md
-  data/
-  plots/
-  diagnostics/
+  config/
+  programs/
+  runs/
+  scripts/
+  tests/
+  tools/
 ```
 
 Examples:
@@ -60,37 +95,26 @@ plots/fz-overlay.png
 diagnostics/dashboard-state.json
 ```
 
-Avoid repeating all context in every filename once the directory already says
-the domain, experiment family, condition, and date.
+## Batch Policy
 
-## Low-Risk First Batches
+Only Batch 0 is authorized by this document.
 
-These are candidates for review before any move happens.
-
-| Batch | Surface | Action | Risk |
+| Batch | Status | Surface | Policy |
 |---|---|---|---|
-| 1 | New experiments | Use the future layout above for new runs. | Low |
-| 2 | Standalone docs | Normalize root/vault docs after link search. First batch completed for `ur10e-lab.md`. | Low |
-| 3 | Human reports | Normalize report filenames and matching `report/assets/<report>/` folders together. | Low to medium |
-| 4 | Weekly meeting artifacts | Normalize generated meeting report/deck names only if the generator paths are updated. | Medium |
-| 5 | Active scripts | Rename only with import/glob/reference search and a smoke command. | Medium |
+| 0 | Current | Audit, index, naming policy, taxonomy | Document only; no file moves. |
+| 1 | Future | Isolated Markdown/report entry cleanup | Requires `old -> new` mapping and approval. |
+| 2 | Future | Report and assets relationship cleanup | Move paired reports/assets only after reference search. |
+| 3 | Future | Experiment family README/index cleanup | Add local indexes; do not migrate raw runs. |
+| 4 | Future | Active scripts/package paths | Requires mapping approval, import/glob/reference search, and smoke tests. |
 
-## Candidate Mapping To Review Later
-
-Do not execute this table without a separate confirmation.
-
-| Current path | Proposed path | Notes |
-|---|---|---|
-| `UR10e_Lab.md` | `ur10e-lab.md` | Completed in first low-risk batch. |
-| `report/onrobot_three_stream_coldstart_drift_20260528.md` | `report/onrobot-three-stream-coldstart-drift-2026-05-28.md` | Move paired assets folder in the same batch. |
-| `report/onrobot_three_stream_static_capture_20260528.md` | `report/onrobot-three-stream-static-capture-2026-05-28.md` | Move paired assets folder in the same batch. |
-| `weekly_meeting/demo_01_02_weekly.md` | `weekly_meeting/demo-01-02-weekly.md` | Check deck generator references first. |
+Do not execute Batch 1 or later from this document alone.
 
 ## Verification Per Batch
 
 For each approved batch:
 
 ```bash
+git -C /home/andy/ur10e_ros2_ws status --short --branch
 rg -n "OLD_PATH|OLD_BASENAME" /home/andy/ur10e_ros2_ws
 python3 /home/andy/codex-private-skills/skills/file-naming-governor/scripts/audit_names.py /home/andy/ur10e_ros2_ws --format markdown --limit 80
 ```
