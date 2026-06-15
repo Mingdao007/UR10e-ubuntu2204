@@ -1,27 +1,27 @@
 {
   "version": 2,
-  "updated_at": "2026-06-15T23:13:04+08:00",
+  "updated_at": "2026-06-15T23:19:22+08:00",
   "current_step": "Step5d",
-  "current_stage_id": "step5d_strict_rnn_liveprep_v14",
-  "program": "step5d_strict_rnn_liveprep_v14",
+  "current_stage_id": "",
+  "program": "",
   "flow_path": "STEP5_FLOW.md",
   "stage_table_path": "config/step5_stage_table.json",
-  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v14.urp",
-  "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v14.script",
-  "local_triplet": "programs/step5/step5d_strict_rnn_liveprep_v14.{script,txt,urp}",
+  "controller_target": "",
+  "controller_script": "",
+  "local_triplet": "",
   "bridge_profile": {
-    "step4e_version": "step5d_strict_rnn_liveprep_v14",
+    "step4e_version": "",
     "step4e_path_shape": "cycloid",
     "step5d_qdot_limit_rad_s": 0.05,
     "target_force_n": 5.0,
     "normal_follow_mode": "filtered_live"
   },
-  "status": "step5d_v14_controller_readback_verified_bridge_trigger_not_enabled",
+  "status": "no_current_step5d_liveprep_after_v14_predicted_tcp_speed_watchdog",
   "strict_rnn_status": {
-    "stage_id": "step5d_strict_rnn_liveprep_v14",
-    "blocked": false,
+    "stage_id": "step5d_strict_rnn_reproduction_v1",
+    "blocked": true,
     "paper_truth_config": "config/step5d_liveprep_solver_gate.json",
-    "reason": "Contact-safety live-prep package only; full Step5d strict TASE reproduction remains separate and incomplete."
+    "reason": "v14 live-prep run stopped by predicted TCP speed watchdog; no current Step5d live-prep package is authorized."
   },
   "evidence": {
     "v11_escape_replay_summary": "runs/step5d_v11_escape_replay_20260615/summary.json",
@@ -41,14 +41,18 @@
     "v14_local_package_validated": true,
     "v14_controller_readback_verified": true,
     "v14_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_liveprep_v14_20260615_231304",
-    "v14_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v14_20260615_231304/manifest.json"
+    "v14_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v14_20260615_231304/manifest.json",
+    "v14_live_run_dir": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v14_20260615_231805",
+    "v14_live_run_summary": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v14_20260615_231805/summary.json",
+    "v14_live_stop_reason": "step5d_contact_safety:predicted_tcp_speed_watchdog",
+    "v14_live_result": "Entered TP PLAYING with Safetymode NORMAL, then v14 command-side predicted TCP speed watchdog set stop_request with zero qdot."
   },
   "bridge_trigger": {
     "allowed_tokens": [],
-    "bridge_has_started": false,
+    "bridge_has_started": true,
     "live_motion_authorized": false,
     "zero_ftsensor_authorized": false,
-    "blocked_reason": "v14 TP package is controller read-back verified; live bridge trigger, TP Play, robot motion, and zero_ftsensor remain separate explicit gates."
+    "blocked_reason": "v14 live run stopped by predicted TCP speed watchdog; no current live-prep package is authorized for contact-bridge retry without a new explicit current version or explicit same-version retry decision."
   },
   "retained_steps": [
     {
@@ -60,7 +64,7 @@
       "step": "Step5",
       "flow_path": "STEP5_FLOW.md",
       "stage_table_path": "config/step5_stage_table.json",
-      "role": "current v14 controller-readback-verified contact-safety package plus retained Step5c/Step5d evidence"
+      "role": "no current Step5d live-prep package; v14 retained predicted-speed-watchdog evidence plus retained Step5c/Step5d evidence"
     },
     {
       "step": "Step6",
@@ -71,7 +75,8 @@
   ],
   "notes": [
     "This file is the single current pointer for UR/Kunwei package and bridge handoffs.",
-    "The current v14 TP-openable package is controller read-back verified.",
+    "There is no current Step5d live-prep package after the v14 predicted TCP speed watchdog stop.",
+    "v14 remains retained controller-readback and live-run evidence only.",
     "Bridge, TP Play, robot motion, and zero_ftsensor remain explicit live gates and are not authorized here.",
     "This contact-safety live-prep package does not mark the full Step5d TASE reproduction complete."
   ]

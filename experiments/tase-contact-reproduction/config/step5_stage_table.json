@@ -1974,11 +1974,11 @@
       "id": "step5d_strict_rnn_liveprep_v14",
       "stage": "Step5d",
       "owner": "bridge+TP",
-      "active": true,
+      "active": false,
       "blocked": false,
       "complete": false,
       "completion_target": false,
-      "block_reason": "Current contact-safety live-prep package. Controller upload/read-back is verified; live bridge/run evidence is pending explicit authorization.",
+      "block_reason": "Retained v14 live-run evidence only. The 2026-06-15 bridge/run entered TP PLAYING with Safetymode NORMAL, then stopped by the command-side predicted TCP speed watchdog before completion. Do not treat v14 as current without an explicit same-version retry decision.",
       "local_delivery_evidence": {
         "local_program_dir": "programs/step5",
         "program_basename": "step5d_strict_rnn_liveprep_v14",
@@ -2015,7 +2015,7 @@
       },
       "cadence": {
         "reference_clock": "bridge_path_time_freezes_during_contact_uncertain_hold",
-        "motion": "controller_readback_verified_contact_safety_package_pending_live_bridge_trigger",
+        "motion": "retained_live_run_evidence_predicted_tcp_speed_watchdog",
         "tp_hold_s": 0.002,
         "end_hold_s": 0.1
       },
@@ -2114,7 +2114,8 @@
         "TP global hard guards are raw normal 50N, force norm 60N, torque norm 3Nm",
         "Stage 25.3 recovery force_norm stop is 25N",
         "normal_load is dot(force_base, reaction_normal), not TCP Fz or world-Z force",
-        "generated v14 package validates locally and after controller read-back; bridge trigger remains separate explicit authorization"
+        "generated v14 package validates locally and after controller read-back; bridge trigger remains separate explicit authorization",
+        "2026-06-15 live run stopped by predicted_tcp_speed_watchdog; v14 is retained evidence only, not current"
       ],
       "filter_policy": {
         "normal_filter": "v31_filtered_live",
@@ -2123,7 +2124,20 @@
         "force_sign_convention": "step5_step6_positive_normal_load",
         "semantic_contract": "reaction normal for load, approach normal for posture/press direction"
       },
-      "success_condition": "v14 package controller upload/read-back verified with matching local/controller/read-back SHA and fetched-back URP internal gate. TP Open Program, bridge start, TP Play, robot motion, zero_ftsensor, and full Step5d reproduction completion remain separate explicit gates."
+      "success_condition": "Retained v14 read-back and live-run evidence only. The live run stopped by predicted TCP speed watchdog, so v14 is not current. A future bridge attempt needs either an explicit same-version retry decision or a new current package after analysis.",
+      "live_run_evidence": {
+        "run_dir": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v14_20260615_231805",
+        "summary": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v14_20260615_231805/summary.json",
+        "result": "Entered TP PLAYING with Safetymode NORMAL; bridge ran about 41.416 s and stopped with stop_request from predicted TCP speed watchdog.",
+        "stop_reason": "step5d_contact_safety:predicted_tcp_speed_watchdog",
+        "force_norm_max_n": 12.720870561576136,
+        "normal_force_min_n": -12.692247847047469,
+        "normal_force_max_n": 3.3403155128046866,
+        "torque_norm_max_nm": 0.3690698199418701,
+        "rtde_output_rate_hz": 499.9936613302998,
+        "bridge_write_rate_hz": 503.1367882947453,
+        "followup": "superseded by next Step5d live-prep planning; no current package after this stop"
+      }
     },
     {
       "id": "step5d_strict_rnn_reproduction_v1",

@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction"
 BASE_OPERATOR="${ROOT}/scripts/step4e-line-v1-operator.sh"
-STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v14}"
+STEP5D_VERSION="${STEP5D_VERSION:-}"
 if [[ -z "${STEP5D_VERSION}" ]]; then
   EXPECTED_PROGRAM="<no current Step5d live-prep package>"
 elif [[ "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v1" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v2" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v3" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v4" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v5" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v6" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v7" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v8" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v9" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v10" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v11" ]]; then
@@ -106,14 +106,14 @@ fi
 case "$1" in
   prep-long-checks)
     if [[ -z "${STEP5D_VERSION}" ]]; then
-      echo "refusing Step5d prep: no current live-prep package after v11 incomplete run; set STEP5D_VERSION explicitly only for retained evidence replay"
+      echo "refusing Step5d prep: no current live-prep package after v14 predicted TCP speed watchdog stop; set STEP5D_VERSION explicitly only for retained evidence diagnostics"
       exit 40
     fi
     STEP4E_VERSION="${STEP5D_VERSION}" "${BASE_OPERATOR}" prep-long-checks
     ;;
   contact-bridge)
     if [[ -z "${STEP5D_VERSION}" ]]; then
-      echo "refusing live Step5d bridge start: no current uploaded/read-back live-prep package after v11 incomplete run; generate and verify current package before making it current"
+      echo "refusing live Step5d bridge start: no current live-prep package after v14 predicted TCP speed watchdog stop; analyze the v14 run and make a new current package or explicitly choose same-version retry first"
       exit 40
     fi
     require_current_stage_readback_gate

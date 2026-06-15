@@ -159,10 +159,11 @@ class Step5TableAndContactArchitectureTest(unittest.TestCase):
         self.assertFalse(liveprep_v13["active"])
         self.assertTrue(liveprep_v13["local_delivery_evidence"]["controller_readback_verified"])
         self.assertIn("known P1", liveprep_v13["block_reason"])
-        self.assertTrue(liveprep["active"])
+        self.assertFalse(liveprep["active"])
         self.assertFalse(liveprep["blocked"])
         self.assertFalse(liveprep["complete"])
         self.assertFalse(liveprep["completion_target"])
+        self.assertIn("predicted TCP speed watchdog", liveprep["block_reason"])
         self.assertEqual(liveprep["local_delivery_evidence"]["local_program_dir"], "programs/step5")
         self.assertEqual(liveprep["local_delivery_evidence"]["controller_dir"], "/programs/andyl/kunwei/step5")
         self.assertFalse(liveprep["local_delivery_evidence"]["archived_to_step5d_dir"])
@@ -193,6 +194,16 @@ class Step5TableAndContactArchitectureTest(unittest.TestCase):
             "bf81806fb34cf3c2dc55eb2a062d510fc348c3ca5ecdf2d28f878e1d58712523",
         )
         self.assertEqual(liveprep["local_delivery_evidence"]["numeric_sanity"], "runs/step5d_v11_escape_replay_20260615/summary.json")
+        self.assertEqual(
+            liveprep["live_run_evidence"]["run_dir"],
+            "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v14_20260615_231805",
+        )
+        self.assertEqual(
+            liveprep["live_run_evidence"]["stop_reason"],
+            "step5d_contact_safety:predicted_tcp_speed_watchdog",
+        )
+        self.assertIn("Safetymode NORMAL", liveprep["live_run_evidence"]["result"])
+        self.assertIn("not current", liveprep["success_condition"])
         self.assertTrue(liveprep["strict_rnn"])
         self.assertEqual(liveprep["guard"]["qdot_cap_rad_s"], 0.05)
         self.assertEqual(liveprep["guard"]["qdot_slew_rad_s2"], 0.2)

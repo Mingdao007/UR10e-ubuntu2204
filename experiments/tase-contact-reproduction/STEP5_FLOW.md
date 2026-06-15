@@ -3,10 +3,10 @@
 `config/current_stage.json` currently selects no runnable Step5c joint-space
 route. The diagnostic DLS dry-run is quarantined after the 2026-06-13 live run
 showed wrong XY/Z motion. Step5d is the named completion target for the
-complete strict TASE RNN reproduction; `step5d_strict_rnn_liveprep_v14` is the
-current controller-readback-verified contact-safety live-prep package. Live
-bridge evidence is pending explicit authorization. The full reproduction target
-remains separate and not complete.
+complete strict TASE RNN reproduction. There is currently no runnable Step5d
+live-prep package after `step5d_strict_rnn_liveprep_v14` stopped by the
+command-side predicted TCP speed watchdog on 2026-06-15. The full reproduction
+target remains separate and not complete.
 Step4f, Step4g, Step5b, and Step5d v1-v13 remain retained evidence packages
 only. Do not infer global current status from this per-step file without
 reading the current pointer.
@@ -37,7 +37,7 @@ controller upload, or contact motion.
 | `step5d_strict_rnn_liveprep_v11` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained incomplete evidence: 25.3 deadband acquire released into Stage 25.0, but the live run ended incomplete with Dashboard `PAUSED` and `Safetymode: ROBOT_EMERGENCY_STOP`. Superseded by v12 planning. |
 | `step5d_strict_rnn_liveprep_v12` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained read-back evidence: keeps v11 deadband acquire and adds Stage 25.0 low-load/contact-window/TCP-speed guard, `0.050 rad/s` qdot cap, and qdot slew limiting. Superseded by v13 planning before any bridge trigger. |
 | `step5d_strict_rnn_liveprep_v13` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained read-back evidence with known P1 gap: actual TCP speed dwell first sample could pass solver before v14. Do not run live. |
-| `step5d_strict_rnn_liveprep_v14` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Current controller-readback-verified contact-safety live-prep package: first actual TCP speed violation sample holds zero qdot and freezes path time; second sample/`0.004 s` dwell stops; predicted TCP speed stops immediately; TP hard guards are `50/60 N` and 25.3 recovery force stop is `25 N`. Live bridge trigger remains a separate explicit gate. |
+| `step5d_strict_rnn_liveprep_v14` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained live-run evidence: first actual TCP speed violation sample holds zero qdot and freezes path time; second sample/`0.004 s` dwell stops; predicted TCP speed stops immediately; TP hard guards are `50/60 N` and 25.3 recovery force stop is `25 N`. 2026-06-15 run stopped by `predicted_tcp_speed_watchdog`; v14 is not current. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |
 
 ## Step5c Calibrated Kinematics Gate
@@ -455,8 +455,9 @@ v12 delivery is controller read-back verified:
 It is not a live-current package because actual TCP speed dwell could hold the
 first violating sample in the timer while still allowing solver/RNN output.
 
-`step5d_strict_rnn_liveprep_v14` is the current controller-readback-verified
-contact-safety package.
+`step5d_strict_rnn_liveprep_v14` is retained controller-readback and live-run
+evidence only. It is not the current live-prep package after the 2026-06-15 run
+stopped by the command-side predicted TCP speed watchdog.
 It keeps the v11/v12 contact-search scaffold, v11 deadband acquire at Stage
 25.3, and the v12 `0.050 rad/s` qdot cap plus `0.20 rad/s^2` qdot slew limit.
 Stage 25.0 changes the bridge safety contract:
@@ -511,7 +512,17 @@ v14 delivery status:
   `predicted TCP speed`, `actual speed dwell`, raw normal `50 N`,
   force norm `60 N`, 25.3 recovery force norm `25 N`, and `stop_request`
   all matched;
-- there is no live bridge/run evidence and no bridge trigger is enabled.
+- live run artifact:
+  `runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v14_20260615_231805/summary.json`;
+- live result: TP entered PLAYING with `Safetymode: NORMAL`; bridge ran about
+  `41.416 s` and stopped with
+  `stop_reason=step5d_contact_safety:predicted_tcp_speed_watchdog`;
+- the run stayed below hard force/torque guards: max force norm about
+  `12.721 N`, normal force range about `-12.692..3.340 N`, and max torque norm
+  about `0.369 Nm`;
+- v14 is retained evidence only. There is no current Step5d live-prep package,
+  and the default `step5d-liveprep-operator.sh contact-bridge` path refuses
+  until a new current package or an explicit same-version retry decision exists.
 
 Retained v10-v11 archive delivery status:
 

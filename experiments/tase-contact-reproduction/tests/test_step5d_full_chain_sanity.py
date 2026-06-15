@@ -184,10 +184,11 @@ class Step5dFullChainSanityTest(unittest.TestCase):
     def test_step5d_operator_points_to_current_controller_package(self) -> None:
         operator = (ROOT / "scripts" / "step5d-liveprep-operator.sh").read_text(encoding="utf-8")
         base = (ROOT / "scripts" / "step4e-line-v1-operator.sh").read_text(encoding="utf-8")
-        self.assertIn('STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v14}"', operator)
+        self.assertIn('STEP5D_VERSION="${STEP5D_VERSION:-}"', operator)
         self.assertIn('Bridge profile: ${STEP5D_VERSION}', operator)
         self.assertIn('STEP5D_CONFIRM', operator)
         self.assertIn('require_current_stage_readback_gate', operator)
+        self.assertIn('no current live-prep package after v14 predicted TCP speed watchdog stop', operator)
         self.assertIn('MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-50}"', operator)
         self.assertIn('MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-60}"', operator)
         self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/${STEP4E_VERSION}.urp"', base)
