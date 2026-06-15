@@ -16,8 +16,8 @@ from build_step5b_contact import build_script as build_step5b_script
 from step5_table import load_stage_frame, step5_stage
 
 
-PROGRAM_NAME = "step5d_strict_rnn_liveprep_v6"
-STEP5_STAGE_ID = "step5d_strict_rnn_liveprep_v6"
+PROGRAM_NAME = "step5d_strict_rnn_liveprep_v7"
+STEP5_STAGE_ID = "step5d_strict_rnn_liveprep_v7"
 BRIDGE_VERSION = STEP5_STAGE_ID
 LOCAL_PROGRAM_DIR = PROGRAM_DIR / "step5"
 CONTROLLER_DIR = "/programs/andyl/kunwei/step5"
@@ -28,15 +28,20 @@ RAW_NORMAL_GUARD_N = 100.0
 FORCE_NORM_GUARD_N = 100.0
 TORQUE_NORM_GUARD_NM = 3.0
 LINE_ENTRY_NORMAL_LOAD_MIN_N = 2.0
-LINE_ENTRY_NORMAL_LOAD_MAX_N = 40.0
-LINE_ENTRY_FORCE_NORM_MAX_N = 45.0
+LINE_ENTRY_NORMAL_LOAD_MAX_N = 15.0
+LINE_ENTRY_FORCE_NORM_MAX_N = 25.0
 LINE_ENTRY_REQUIRED_S = 0.050
 LINE_ENTRY_CMD_LIMIT_M_S = 0.003
 LINE_ENTRY_TIMEOUT_S = 10.000
+SECOND_SEARCH_MAX_DOWN_M = 0.035
+SECOND_SEARCH_NEAR_START_DEPTH_M = 0.000
+SECOND_SEARCH_RUNTIME_LIMIT_S = 45.000
+SECOND_SEARCH_FAR_SPEED_M_S = -0.0025
+SECOND_SEARCH_NEAR_SPEED_M_S = -0.0025
 
 
 def source_stamp(now: datetime) -> str:
-    return now.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_LIVEPREP_V6")
+    return now.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_LIVEPREP_V7")
 
 
 def load_safe_frame() -> dict:
@@ -268,11 +273,35 @@ def _replace_line_entry_with_force_settle(script: str) -> str:
     return script[:start] + block + script[end:]
 
 
+def _replace_second_contact_search(script: str) -> str:
+    old = "stop_reason = codex_step5d_down_search(24.3, 24.4, 0.070, 0.040, 45.000, -0.005, -0.003)"
+    new = (
+        "stop_reason = codex_step5d_down_search("
+        f"24.3, 24.4, {SECOND_SEARCH_MAX_DOWN_M:.3f}, {SECOND_SEARCH_NEAR_START_DEPTH_M:.3f}, "
+        f"{SECOND_SEARCH_RUNTIME_LIMIT_S:.3f}, {SECOND_SEARCH_FAR_SPEED_M_S:.4f}, {SECOND_SEARCH_NEAR_SPEED_M_S:.4f})"
+    )
+    return _replace_exact(script, old, new)
+
+
+def _add_down_search_force_trigger_echo(script: str) -> str:
+    old = """    if normal_force <= -1.0 or force_norm > 1.5:
+      stop_reason = 11.0"""
+    new = """    if normal_force <= -1.0 or force_norm > 1.5:
+      stop_reason = 11.0
+      if search_depth_m < search_near_start_depth_m:
+        write_output_float_register(35, search_stage)
+      else:
+        write_output_float_register(35, near_stage)
+      end
+      codex_echo_step4e(stop_reason)"""
+    return _replace_exact(script, old, new)
+
+
 def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -> str:
     script = build_step5b_script(stamp, gen_at, geom, frame)
     script = script.replace("step5b_contact_cycloid_baseline_v1", PROGRAM_NAME)
-    script = script.replace("Step5b contact cycloid baseline v1", "Step5d strict RNN liveprep v6")
-    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V1", "STEP5D_STRICT_RNN_LIVEPREP_V6")
+    script = script.replace("Step5b contact cycloid baseline v1", "Step5d strict RNN liveprep v7")
+    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V1", "STEP5D_STRICT_RNN_LIVEPREP_V7")
     script = script.replace("codex_step5b_down_search", "codex_step5d_down_search")
     script = script.replace("step4e-version=step5b_v1", f"step4e-version={BRIDGE_VERSION}")
     script = script.replace("codex_abs(normal_force) > 50.0", f"codex_abs(normal_force) > {RAW_NORMAL_GUARD_N:.1f}")
@@ -295,6 +324,8 @@ def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -
     )
     script = _replace_exact(script, "STEP5_STAGE_ID: step5_contact_cycloid_baseline_v1", f"STEP5_STAGE_ID: {STEP5_STAGE_ID}")
     script = _add_orientation_skip_gate(script)
+    script = _add_down_search_force_trigger_echo(script)
+    script = _replace_second_contact_search(script)
     script = _replace_line_entry_with_force_settle(script)
     script = _replace_line_stage_with_speedj(script)
     if "speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy" in script:
@@ -319,6 +350,9 @@ Boundary:
   If first-contact orientation error is <= {ORIENTATION_SKIP_ERROR_RAD:.6f} rad,
   it skips the 20 mm lift and 25.2 attitude correction.
   Otherwise it keeps the original lift + 25.2 attitude correction path.
+  Stage 24.3/24.4 second contact search is slow-only: near_start_depth is
+  {SECOND_SEARCH_NEAR_START_DEPTH_M:.3f} m, max_down is {SECOND_SEARCH_MAX_DOWN_M:.3f} m,
+  and both far/near speeds are {abs(SECOND_SEARCH_NEAR_SPEED_M_S) * 1000.0:.1f} mm/s.
   Stage 25.3 is a tolerant contact-window entry gate: bridge may command small
   linear unload/load speed only, and TP enters 25.0 only after normal_load is
   between {LINE_ENTRY_NORMAL_LOAD_MIN_N:.1f} N and {LINE_ENTRY_NORMAL_LOAD_MAX_N:.1f} N,
@@ -377,6 +411,10 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str) -> None:
         and f"local line_entry_required_s = {LINE_ENTRY_REQUIRED_S:.3f}" in script
         and f"local line_entry_timeout_s = {LINE_ENTRY_TIMEOUT_S:.3f}" in script
         and "speedl([cmd_vx, cmd_vy, cmd_vz, 0.0, 0.0, 0.0]" in script,
+        "second contact slow search": (
+            "codex_step5d_down_search(24.3, 24.4, 0.035, 0.000, 45.000, -0.0025, -0.0025)" in script
+            and "codex_echo_step4e(stop_reason)" in script
+        ),
         "v31 scaffold retained": "first-contact normal latch" in script
         and "25.2 attitude correction" in script
         and "25.3 tolerant contact-window line-entry gate" in script,

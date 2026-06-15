@@ -273,12 +273,14 @@ def validate_package(
         "step5d_strict_rnn_liveprep_v4",
         "step5d_strict_rnn_liveprep_v5",
         "step5d_strict_rnn_liveprep_v6",
+        "step5d_strict_rnn_liveprep_v7",
     }:
         is_v3 = program.endswith("_v3")
         is_v4 = program.endswith("_v4")
         is_v5 = program.endswith("_v5")
         is_v6 = program.endswith("_v6")
-        tolerant_contact_window = is_v4 or is_v5 or is_v6
+        is_v7 = program.endswith("_v7")
+        tolerant_contact_window = is_v4 or is_v5 or is_v6 or is_v7
         window_max_load = "40.000" if is_v6 else "15.000"
         window_max_force_norm = "45.000" if is_v6 else "25.000"
         raw_guard = "100.0" if (is_v3 or tolerant_contact_window) else "50.0"
@@ -354,7 +356,7 @@ def validate_package(
                 and "step5d_strict_rnn_liveprep_v2" not in script + txt
                 and "step5d_strict_rnn_liveprep_v3" not in script + txt
             )
-        if program.endswith("_v5") or program.endswith("_v6"):
+        if program.endswith("_v5") or program.endswith("_v6") or program.endswith("_v7"):
             checks["force-frame semantic contract"] = (
                 "UR_FORCE_FRAME_CONTRACT.md" in script + txt
                 and "reaction normal for load" in script + txt
@@ -374,6 +376,16 @@ def validate_package(
                 and "step5d_strict_rnn_liveprep_v3" not in script + txt
                 and "step5d_strict_rnn_liveprep_v4" not in script + txt
                 and "step5d_strict_rnn_liveprep_v5" not in script + txt
+            )
+        if program.endswith("_v7"):
+            checks["second contact slow search"] = "codex_step5d_down_search(24.3, 24.4, 0.035, 0.000, 45.000, -0.0025, -0.0025)" in script
+            checks["no stale step5d v1/v2/v3/v4/v5/v6 route"] = (
+                "step5d_strict_rnn_liveprep_v1" not in script + txt
+                and "step5d_strict_rnn_liveprep_v2" not in script + txt
+                and "step5d_strict_rnn_liveprep_v3" not in script + txt
+                and "step5d_strict_rnn_liveprep_v4" not in script + txt
+                and "step5d_strict_rnn_liveprep_v5" not in script + txt
+                and "step5d_strict_rnn_liveprep_v6" not in script + txt
             )
     if program == "step6a_eight_no_contact_v1":
         checks.update(

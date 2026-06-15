@@ -4,8 +4,8 @@
 route. The diagnostic DLS dry-run is quarantined after the 2026-06-13 live run
 showed wrong XY/Z motion. Step5d is the named completion target for the
 complete strict TASE RNN reproduction; the strict-RNN live-prep path is now
-`step5d_strict_rnn_liveprep_v6`, while the full reproduction target remains
-separate and not complete. Step4f, Step4g, Step5b, Step5d v1, Step5d v2, Step5d v3, Step5d v4, and Step5d v5
+`step5d_strict_rnn_liveprep_v7`, while the full reproduction target remains
+separate and not complete. Step4f, Step4g, Step5b, Step5d v1, Step5d v2, Step5d v3, Step5d v4, Step5d v5, and Step5d v6
 remain retained evidence packages only. Do not infer global current status
 from this per-step file without reading the current pointer.
 
@@ -27,7 +27,8 @@ controller upload, or contact motion.
 | `step5d_strict_rnn_liveprep_v3` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Evidence route: kept qdot registers `37..42` with TP `speedj`, but the strict 25.3 force-settle gate was too narrow to enter Stage 25.0. Superseded by v4. |
 | `step5d_strict_rnn_liveprep_v4` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained failure evidence: entered Stage 25.0 but exposed the Step5d outer-loop force/frame semantic bug. Superseded by v5. |
 | `step5d_strict_rnn_liveprep_v5` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained semantic-fix evidence: kept qdot registers `37..42` with TP `speedj`, but reached 25.0 at about 17-21N and was blocked by the v5 2-15N engage gate. Superseded by v6. |
-| `step5d_strict_rnn_liveprep_v6` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Current live-prep target: keeps v5 force/frame semantic gate and qdot `speedj` path, but widens the 25.3/25.0 contact/recovery window to `2-40N` load with `force_norm <=45N`; target force remains `5N`. |
+| `step5d_strict_rnn_liveprep_v6` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained failure evidence: widened the entry window to `2-40N`, entered 25.0, then exposed 24.3 re-contact overpressure at about `20-22N`. Superseded by v7. |
+| `step5d_strict_rnn_liveprep_v7` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Current live-prep target: keeps v5/v6 semantic gate and qdot `speedj` path, restores the `2-15N` entry window, and makes 24.3/24.4 re-contact slow-only before 25.0. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |
 
 ## Step5c Calibrated Kinematics Gate
@@ -296,20 +297,29 @@ the live bridge, then reached Stage 25.0 on 2026-06-15 but kept `cmd_valid=0`
 because the v5 `2-15N` engage gate rejected the observed `17-21N` normal load.
 It is superseded by `step5d_strict_rnn_liveprep_v6`.
 
-`step5d_strict_rnn_liveprep_v6` is the current live-prep package route. It keeps
+`step5d_strict_rnn_liveprep_v6` is retained failure evidence. It kept the v5
+force/frame semantic gate and entered Stage 25.0, but the widened `2-40N`
+entry window admitted the 24.3 re-contact overpressure: 24.3 never reached
+24.4 because the 40 mm near-start was deeper than the about 20 mm re-contact
+travel, Stage 25.0 began at about `22N`, qdot hit the `0.30 rad/s` cap, and
+contact unloaded to near `0N`. It is superseded by
+`step5d_strict_rnn_liveprep_v7`.
+
+`step5d_strict_rnn_liveprep_v7` is the current live-prep package route. It keeps
 the Step5b contact-search/latch scaffold, warms the calibrated
 Pinocchio/RNN runtime before Stage 25.0, skips the 20 mm lift and 25.2 attitude
 correction when the first-contact orientation error is already `<= 0.069813 rad`,
-inherits the v5 force/frame semantic gate, widens the 25.3/25.0
-contact/recovery window to accept `2-40N` normal load with `force_norm <=45N`,
-switches Stage 25.0 from Cartesian `speedl` registers to joint `speedj` qdot
-registers, and keeps the runtime semantic gate before RNN/qdot output:
+inherits the v5/v6 force/frame semantic gate, changes the second contact search
+after lift/orientation to slow-only 24.3/24.4 re-contact, restores the 25.3/25.0
+entry window to `2-15N` normal load with `force_norm <=25N`, switches Stage
+25.0 from Cartesian `speedl` registers to joint `speedj` qdot registers, and
+keeps the runtime semantic gate before RNN/qdot output:
 
 - Teach Pendant target:
-  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v6.urp`;
+  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v7.urp`;
 - local generator: `tools/build_step5d_liveprep.py`;
 - operator wrapper: `scripts/step5d-liveprep-operator.sh`;
-- bridge profile: `--step4e-version step5d_strict_rnn_liveprep_v6`;
+- bridge profile: `--step4e-version step5d_strict_rnn_liveprep_v7`;
 - register contract: `37..42 = qd0..qd5 rad/s`, `43 = cmd_valid`,
   `44 = path_time_s`, `45 = force_error_n`, `46 = orientation_error`,
   `47 = solver_status`;
@@ -324,10 +334,12 @@ registers, and keeps the runtime semantic gate before RNN/qdot output:
   25.0 row where the old logged orientation error is `>=0.9 rad` while the
   fixed outer-loop orientation is `<=0.1 rad`;
 - qdot cap: `0.30 rad/s`, `speedj` acceleration `0.300 rad/s^2`;
-- Stage 25.3 contact/recovery gate: `2 N <= normal_load <= 40 N` and
-  `force_norm <= 45 N` for `0.050 s` before entering Stage 25.0. This is an
-  entry/recovery window, not the controller target; the target load remains
-  `5 N`;
+- second contact search after lift/orientation: `24.3/24.4` uses
+  `near_start_depth = 0.000 m`, `max_down = 0.035 m`, and both far/near
+  speeds are `2.5 mm/s`, so any re-contact should occur in the slow near phase;
+- Stage 25.3 contact gate: `2 N <= normal_load <= 15 N` and
+  `force_norm <= 25 N` for `0.050 s` before entering Stage 25.0. This is an
+  entry window, not the controller target; the target load remains `5 N`;
 - Stage 25.3 timeout: `10.000 s`; Stage 25.0 remains blocked until the contact
   window passes;
 - live bridge limiter: raw Step5d `xdot_c` remains in diagnostics, but the
@@ -412,7 +424,7 @@ Retained v5 delivery/live status:
   v5 `2-15N` engage gate blocked the observed `17-21N` normal load. No RNN qdot
   command executed. This evidence is superseded by v6.
 
-Current v6 delivery status:
+Retained v6 delivery/live status:
 
 - local triplet: generated and locally validated
   `programs/step5/step5d_strict_rnn_liveprep_v6.{script,txt,urp}`;
@@ -425,6 +437,25 @@ Current v6 delivery status:
   (`.script` `e33706232834f5458611896bda41b5c2261ea64a50ca3a6da1b7ba6772f66740`,
   `.txt` `b47607b64839a01d2e1d44a5f9484510dca8aa732a4c5be5d8047944d46aed9c`,
   `.urp` `a771efca461544eeb5a6f3089467d7fb86123f73cca6e33a3814147087eb5307`);
+- live artifact: `runs/bridge_step5d_strict_rnn_liveprep_v6_20260615_173634`;
+  it entered Stage 25.0 for 93 rows, but Stage 24.3 had never reached 24.4 and
+  had already pressed the tool to about `20-22N`. Stage 25.0 then unloaded to
+  near `0N`, qdot hit the `0.30 rad/s` cap, and final stop reason register 30
+  was `12`. This evidence is superseded by v7.
+
+Current v7 delivery status:
+
+- local triplet: generated and locally validated
+  `programs/step5/step5d_strict_rnn_liveprep_v7.{script,txt,urp}`;
+- controller triplet:
+  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v7.{script,txt,urp}`;
+- source stamp: `2026-06-15T1809HKT_STEP5D_STRICT_RNN_LIVEPREP_V7`;
+- read-back artifact:
+  `runs/controller_readback_step5d_strict_rnn_liveprep_v7_20260615_181026/manifest.json`;
+- SHA state: local, controller, and fetched-back triplet matched
+  (`.script` `15d25c5ca656d5231bd5e7dae4c2344d5df1817cda62bc387fdd8bc15c888b96`,
+  `.txt` `21fcfb1c001b2fe6b34b19c5262bfcf13d5555b6846f14100da44c46988d5f6e`,
+  `.urp` `b994e04895eb8a1b8219c47450bcc744315e4dd15d15666fb544506d6785c233`);
 - bridge/TP Play remain separate explicit operator actions. This read-back
   verifies package delivery only; it does not mark the full reproduction target
   complete.

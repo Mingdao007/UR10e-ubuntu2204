@@ -242,13 +242,15 @@ STEP5D_LIVEPREP_V2_STAGE_ID = "step5d_strict_rnn_liveprep_v2"
 STEP5D_LIVEPREP_V3_STAGE_ID = "step5d_strict_rnn_liveprep_v3"
 STEP5D_LIVEPREP_V4_STAGE_ID = "step5d_strict_rnn_liveprep_v4"
 STEP5D_LIVEPREP_V5_STAGE_ID = "step5d_strict_rnn_liveprep_v5"
-STEP5D_LIVEPREP_STAGE_ID = "step5d_strict_rnn_liveprep_v6"
+STEP5D_LIVEPREP_V6_STAGE_ID = "step5d_strict_rnn_liveprep_v6"
+STEP5D_LIVEPREP_STAGE_ID = "step5d_strict_rnn_liveprep_v7"
 STEP5D_LIVEPREP_STAGE_IDS = {
     STEP5D_LIVEPREP_V1_STAGE_ID,
     STEP5D_LIVEPREP_V2_STAGE_ID,
     STEP5D_LIVEPREP_V3_STAGE_ID,
     STEP5D_LIVEPREP_V4_STAGE_ID,
     STEP5D_LIVEPREP_V5_STAGE_ID,
+    STEP5D_LIVEPREP_V6_STAGE_ID,
     STEP5D_LIVEPREP_STAGE_ID,
 }
 STEP5D_SEMANTIC_ORIENTATION_TOLERANCE_RAD = math.radians(5.0)
@@ -706,7 +708,7 @@ def step5d_contact_window_ready(
 
 
 def step5d_liveprep_contact_window_limits(step4e_version: str) -> tuple[float, float, float]:
-    if step4e_version == STEP5D_LIVEPREP_STAGE_ID:
+    if step4e_version == STEP5D_LIVEPREP_V6_STAGE_ID:
         return (STEP5D_V6_NORMAL_LOAD_MIN_N, STEP5D_V6_NORMAL_LOAD_MAX_N, STEP5D_V6_FORCE_NORM_MAX_N)
     return (STEP5D_V4_NORMAL_LOAD_MIN_N, STEP5D_V4_NORMAL_LOAD_MAX_N, STEP5D_V4_FORCE_NORM_MAX_N)
 
@@ -942,12 +944,14 @@ def compute_step4e_values(
     step5d_liveprep_v3_profile = args.step4e_version == STEP5D_LIVEPREP_V3_STAGE_ID
     step5d_liveprep_v4_profile = args.step4e_version == STEP5D_LIVEPREP_V4_STAGE_ID
     step5d_liveprep_v5_profile = args.step4e_version == STEP5D_LIVEPREP_V5_STAGE_ID
-    step5d_liveprep_v6_profile = args.step4e_version == STEP5D_LIVEPREP_STAGE_ID
+    step5d_liveprep_v6_profile = args.step4e_version == STEP5D_LIVEPREP_V6_STAGE_ID
+    step5d_liveprep_v7_profile = args.step4e_version == STEP5D_LIVEPREP_STAGE_ID
     step5d_liveprep_guarded_profile = (
         step5d_liveprep_v3_profile
         or step5d_liveprep_v4_profile
         or step5d_liveprep_v5_profile
         or step5d_liveprep_v6_profile
+        or step5d_liveprep_v7_profile
     )
     if step5d_liveprep_profile:
         try:
@@ -1379,7 +1383,7 @@ def compute_step4e_values(
                 ):
                     step5d_engage_gate_ok = False
                     raise ValueError("Step5d v3 engage gate blocked: force/load outside 5N entry window")
-                if step5d_liveprep_v4_profile or step5d_liveprep_v5_profile or step5d_liveprep_v6_profile:
+                if step5d_liveprep_v4_profile or step5d_liveprep_v5_profile or step5d_liveprep_v6_profile or step5d_liveprep_v7_profile:
                     contact_min_n, contact_max_n, contact_force_norm_max_n = step5d_liveprep_contact_window_limits(args.step4e_version)
                     if not step5d_contact_window_ready(
                         normal_load_n=normal_load_n,
@@ -1609,7 +1613,7 @@ def compute_step4e_values(
     values["_step4e_normal_force_error_n"] = force_error
     values["_step4e_normal_acquired"] = 1.0 if state.normal_acquired else 0.0
     if step5d_liveprep_profile:
-        if args.step4e_version in {STEP5D_LIVEPREP_V4_STAGE_ID, STEP5D_LIVEPREP_V5_STAGE_ID, STEP5D_LIVEPREP_STAGE_ID}:
+        if args.step4e_version in {STEP5D_LIVEPREP_V4_STAGE_ID, STEP5D_LIVEPREP_V5_STAGE_ID, STEP5D_LIVEPREP_V6_STAGE_ID, STEP5D_LIVEPREP_STAGE_ID}:
             contact_min_n, contact_max_n, contact_force_norm_max_n = step5d_liveprep_contact_window_limits(args.step4e_version)
             values["_step5d_force_settle_ready"] = 1.0 if step5d_contact_window_ready(
                 normal_load_n=normal_load_n,
@@ -2109,7 +2113,8 @@ def main(argv: list[str] | None = None) -> int:
             "step5d_strict_rnn_liveprep_v3": "Previous live-prep strict RNN qdot route: raises raw/force-norm hard guards to 100 N, uses a strict 5N-centered 25.3 force-settle entry gate before Stage 25.0, limits live Step5d xdot_c before the RNN, and executes speedj qdot registers 37..42.",
             "step5d_strict_rnn_liveprep_v4": "Archived live-prep strict RNN route: entered Stage 25.0 through the tolerant contact window but exposed the Step5d force/frame semantic bug where the outer loop inverted the orientation target.",
             "step5d_strict_rnn_liveprep_v5": "Retained semantic-fix live-prep route: Step5d outer loop consumes the Step5b/Step6b reaction-normal contract and hard-fails 25.0 if contact-search and outer-loop orientation semantics disagree. Live v5 entered 25.0 but the 2-15N engage window blocked qdot at about 17-21N.",
-            "step5d_strict_rnn_liveprep_v6": "Current live-prep strict RNN route: inherits the v5 semantic gate and speedj qdot path, but widens the contact/recovery window to 2-40N normal_load with force_norm <=45N before Stage 25.0 qdot output.",
+            "step5d_strict_rnn_liveprep_v6": "Retained live-prep strict RNN route: widened the contact/recovery window to 2-40N normal_load with force_norm <=45N, proving the v5 semantic gate could enter 25.0 but exposing the 24.3 re-contact overpressure failure.",
+            "step5d_strict_rnn_liveprep_v7": "Current live-prep strict RNN route: inherits the v5/v6 semantic gate and speedj qdot path, restores the 2-15N contact window, and changes 24.3/24.4 re-contact to a slow-only search before Stage 25.0.",
             "step6b_contact_eight_baseline_v1": "Same TP contact-search/latch/25.2/25.3 scaffold as Step5b/v31, but stage 25.0 uses the active Step6 five-point safe-frame 8-shaped reference for 30 s and v31 filtered-live normal policy.",
             "step6b_contact_eight_baseline_v2": "Same TP contact-search/latch/25.2/25.3 scaffold and Step6 reference as v1, but intended bridge caps are 15 mm/s path, 15 mm/s total linear, 3 mm/s normal reserve, and 0.060 rad/s attitude.",
         },
