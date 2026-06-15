@@ -387,21 +387,29 @@ def validate_package(
                 and "step5d_strict_rnn_liveprep_v5" not in script + txt
                 and "step5d_strict_rnn_liveprep_v6" not in script + txt
             )
-    if program in {"step5d_strict_rnn_liveprep_v8", "step5d_strict_rnn_liveprep_v9", "step5d_strict_rnn_liveprep_v10", "step5d_strict_rnn_liveprep_v11"}:
+    if program in {
+        "step5d_strict_rnn_liveprep_v8",
+        "step5d_strict_rnn_liveprep_v9",
+        "step5d_strict_rnn_liveprep_v10",
+        "step5d_strict_rnn_liveprep_v11",
+        "step5d_strict_rnn_liveprep_v12",
+    }:
         is_v9 = program.endswith("_v9")
         is_v10 = program.endswith("_v10")
         is_v11 = program.endswith("_v11")
-        recovery_min = "0.000" if (is_v9 or is_v10 or is_v11) else "0.500"
+        is_v12 = program.endswith("_v12")
+        recovery_min = "0.000" if (is_v9 or is_v10 or is_v11 or is_v12) else "0.500"
         settle_label = (
             "Stage 25.3 consumes 37..39 as Cartesian admittance settle vx/vy/vz"
             if is_v10
             else "Stage 25.3 consumes 37..39 as Cartesian deadband-acquire vx/vy/vz"
-            if is_v11
+            if is_v11 or is_v12
             else "Stage 25.3 consumes 37..39 as Cartesian force-PID settle vx/vy/vz"
         )
-        min_load = "2.000" if is_v11 else "3.000"
-        max_load = "15.000" if is_v11 else "8.000"
-        required_s = "0.150" if is_v11 else "0.300" if is_v10 else "0.200"
+        qdot_cap = "0.050" if is_v12 else "0.300"
+        min_load = "2.000" if is_v11 or is_v12 else "3.000"
+        max_load = "15.000" if is_v11 or is_v12 else "8.000"
+        required_s = "0.150" if is_v11 or is_v12 else "0.300" if is_v10 else "0.200"
         checks.update(
             {
                 "step5d function": f"def codex_{program}()" in script
@@ -417,7 +425,7 @@ def validate_package(
                 and "37..42 as qd0..qd5 rad/s" in txt,
                 "stage split register contract": settle_label in script,
                 "speedj line control": "speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]" in script
-                and "local qdot_cap_rad_s = 0.300" in script,
+                and f"local qdot_cap_rad_s = {qdot_cap}" in script,
                 "orientation skip gate": "local skip_lift_attitude = 0" in script
                 and "local orientation_skip_error_rad = 0.069813" in script
                 and "skip_lift_attitude == 0" in script,
@@ -444,12 +452,12 @@ def validate_package(
                 and "step5c_joint_rnn_cycloid_v1" not in script + txt,
             }
         )
-        if is_v9 or is_v10 or is_v11:
+        if is_v9 or is_v10 or is_v11 or is_v12:
             checks["low-load does not stop"] = "or normal_load < line_entry_recovery_normal_load_min_n" not in script
             checks["force envelope auto-home"] = "elif stop_reason == 17.0:\n    return True" in script
             checks["no stale older step5d route"] = all(
                 re.search(rf"step5d_strict_rnn_liveprep_v{idx}(?!\d)", script + txt) is None
-                for idx in range(1, 11 if is_v11 else 10 if is_v10 else 9)
+                for idx in range(1, 12 if is_v12 else 11 if is_v11 else 10 if is_v10 else 9)
             )
             if is_v10:
                 checks["v10 settle velocity release gate"] = (
@@ -457,13 +465,19 @@ def validate_package(
                     and "codex_abs(cmd_vx) <= line_entry_settle_cmd_max_m_s" in script
                     and "scalar admittance settle" in txt
                 )
-            if is_v11:
-                checks["v11 deadband acquire release gate"] = (
+            if is_v11 or is_v12:
+                checks["v11/v12 deadband acquire release gate"] = (
                     "local line_entry_settle_cmd_max_m_s" not in script
                     and "codex_abs(cmd_vx) <= line_entry_settle_cmd_max_m_s" not in script
                     and "deadband contact acquire" in txt
                     and "2.0 N" in txt
                     and "15.0 N" in txt
+                )
+            if is_v12:
+                checks["v12 Stage25 guard note"] = (
+                    "STAGE25_GUARD" in script
+                    and "clears cmd_valid on lost contact" in script
+                    and "actual TCP speed exceeds 0.050 m/s" in txt
                 )
         else:
             checks["no stale step5d v1-v7 route"] = all(

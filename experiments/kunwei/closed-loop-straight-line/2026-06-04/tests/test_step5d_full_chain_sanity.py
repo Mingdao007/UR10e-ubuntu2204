@@ -61,7 +61,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             )
 
     def test_step5d_liveprep_package_is_non_quarantine_speedj_executor(self) -> None:
-        stamp = "2026-06-15T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V11"
+        stamp = "2026-06-15T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V12"
         geom = liveprep.line_cfg(liveprep.load_json(liveprep.CONFIG_PATH))
         frame = liveprep.load_safe_frame()
         script = liveprep.build_script(stamp, "2026-06-14T12:00:00+08:00", geom, frame)
@@ -72,7 +72,9 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn(f'URProgram name="{liveprep.PROGRAM_NAME}"', xml)
         self.assertIn("joint_executor_and_guard_only", script)
         self.assertIn("speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]", script)
-        self.assertIn("local qdot_cap_rad_s = 0.300", script)
+        self.assertIn("local qdot_cap_rad_s = 0.050", script)
+        self.assertIn("STAGE25_GUARD", script)
+        self.assertIn("clears cmd_valid on lost contact", script)
         self.assertIn("local skip_lift_attitude = 0", script)
         self.assertIn("local orientation_skip_error_rad = 0.069813", script)
         self.assertIn("if stop_reason == 0.0 and skip_lift_attitude == 0:", script)
@@ -95,6 +97,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn("codex_abs(normal_force) > 100.0", script)
         self.assertIn("force_norm > 100.0", script)
         self.assertIn("deadband contact acquire", txt)
+        self.assertIn("actual TCP speed exceeds 0.050 m/s", txt)
         self.assertIn("2.0 N", txt)
         self.assertIn("15.0 N", txt)
         self.assertNotIn("speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy", script)
@@ -115,6 +118,18 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertEqual(args.step4e_version, "step5d_strict_rnn_liveprep_v11")
         self.assertEqual(args.step5d_qdot_limit_rad_s, 0.30)
         self.assertFalse(args.disable_dashboard_program_watch)
+        v12_args = bridge.parse_args(
+            [
+                "--no-start-command",
+                "--step4e-mode",
+                "line",
+                "--step4e-version",
+                "step5d_strict_rnn_liveprep_v12",
+                "--step4e-path-shape",
+                "cycloid",
+            ]
+        )
+        self.assertEqual(v12_args.step5d_qdot_limit_rad_s, 0.05)
         with self.assertRaisesRegex(SystemExit, "Blocked Step5d reproduction"):
             bridge.main(
                 [
@@ -140,17 +155,15 @@ class Step5dFullChainSanityTest(unittest.TestCase):
     def test_step5d_operator_points_to_current_controller_package(self) -> None:
         operator = (ROOT / "scripts" / "step5d-liveprep-operator.sh").read_text(encoding="utf-8")
         base = (ROOT / "scripts" / "step4e-line-v1-operator.sh").read_text(encoding="utf-8")
-        self.assertIn('STEP5D_VERSION="${STEP5D_VERSION:-}"', operator)
-        self.assertIn('no current live-prep package after v11 incomplete run', operator)
-        self.assertIn('/programs/andyl/kunwei/step5/step5d/${STEP5D_VERSION}.urp', operator)
-        self.assertIn('/programs/andyl/kunwei/step5/${STEP5D_VERSION}.urp', operator)
-        self.assertIn('"step5d_strict_rnn_liveprep_v11" ]]; then', operator)
+        self.assertIn('STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v12}"', operator)
+        self.assertIn('Bridge profile: ${STEP5D_VERSION}', operator)
+        self.assertIn('STEP5D_CONFIRM', operator)
         self.assertIn('MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-100}"', operator)
         self.assertIn('MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-100}"', operator)
-        self.assertIn('refusing Step5d liveprep alias: no current package after step5d_strict_rnn_liveprep_v11 incomplete run', base)
+        self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/${STEP4E_VERSION}.urp"', base)
         self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/step5d/${STEP4E_VERSION}.urp"', base)
         self.assertIn('"step5d_strict_rnn_liveprep_v10" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v11"', base)
-        self.assertNotIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/${STEP4E_VERSION}.urp"', base)
+        self.assertIn('if [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v12" ]]; then', base)
         self.assertNotIn('if [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v9" ]]; then\n  PROGRAM_LINE="/programs/andyl/kunwei/step5/${STEP4E_VERSION}.urp"', base)
         self.assertIn('EXPECTED_BASENAME="${STEP4E_VERSION}.urp"', base)
         self.assertIn('RUN_LABEL="${STEP4E_VERSION}"', base)
@@ -174,6 +187,45 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertEqual((v8_min, v8_max, v8_force_max), (3.0, 8.0, 25.0))
         v11_min, v11_max, v11_force_max = bridge.step5d_liveprep_contact_window_limits("step5d_strict_rnn_liveprep_v11")
         self.assertEqual((v11_min, v11_max, v11_force_max), (2.0, 15.0, 25.0))
+        v12_min, v12_max, v12_force_max = bridge.step5d_liveprep_contact_window_limits("step5d_strict_rnn_liveprep_v12")
+        self.assertEqual((v12_min, v12_max, v12_force_max), (2.0, 15.0, 25.0))
+        self.assertEqual(
+            bridge.step5d_v12_line_guard(
+                normal_load_n=0.4,
+                force_norm_n=1.0,
+                tcp_linear_speed_m_s=0.01,
+                prior_loss_s=0.0,
+                dt_s=0.002,
+            ),
+            (False, 0.0, "lost_contact_low_load"),
+        )
+        self.assertEqual(
+            bridge.step5d_v12_line_guard(
+                normal_load_n=5.0,
+                force_norm_n=1.0,
+                tcp_linear_speed_m_s=0.051,
+                prior_loss_s=0.0,
+                dt_s=0.002,
+            ),
+            (False, 0.0, "tcp_speed_watchdog"),
+        )
+        ok, loss_s, reason = bridge.step5d_v12_line_guard(
+            normal_load_n=16.0,
+            force_norm_n=16.0,
+            tcp_linear_speed_m_s=0.01,
+            prior_loss_s=0.028,
+            dt_s=0.100,
+        )
+        self.assertFalse(ok)
+        self.assertAlmostEqual(loss_s, 0.038)
+        self.assertEqual(reason, "contact_window_timeout")
+        qdot_limited, qdot_active = bridge.limit_step5d_qdot_slew(
+            [0.05, -0.05, 0.02, 0.0, 0.03, -0.03],
+            None,
+            dt_s=0.100,
+        )
+        self.assertTrue(qdot_active)
+        self.assertLessEqual(max(abs(float(value)) for value in qdot_limited), 0.002 + 1e-12)
         self.assertTrue(bridge.step5d_contact_window_ready(normal_load_n=8.0, force_norm_n=24.9, min_normal_load_n=v8_min, max_normal_load_n=v8_max, max_force_norm_n=v8_force_max))
         self.assertFalse(bridge.step5d_contact_window_ready(normal_load_n=20.0, force_norm_n=20.0, min_normal_load_n=v8_min, max_normal_load_n=v8_max, max_force_norm_n=v8_force_max))
         self.assertFalse(bridge.step5d_contact_window_ready(normal_load_n=30.0, force_norm_n=30.0, min_normal_load_n=v8_min, max_normal_load_n=v8_max, max_force_norm_n=v8_force_max))

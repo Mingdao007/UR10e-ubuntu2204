@@ -169,7 +169,12 @@ STEP5D_DIAG_FIELDS = [
     "_step5d_outer_xdot_norm",
     "_step5d_outer_xdot_limited_norm",
     "_step5d_outer_xdot_limiter_active",
+    "_step5d_qdot_slew_limiter_active",
     "_step5d_engage_gate_ok",
+    "_step5d_line_guard_ok",
+    "_step5d_line_guard_loss_s",
+    "_step5d_line_guard_reason",
+    "_step5d_line_tcp_speed_m_s",
     "_step5d_force_settle_ready",
     "_step5d_force_settle_filtered_normal_load_n",
     "_step5d_force_settle_velocity_m_s",
@@ -249,7 +254,8 @@ STEP5D_LIVEPREP_V7_STAGE_ID = "step5d_strict_rnn_liveprep_v7"
 STEP5D_LIVEPREP_V8_STAGE_ID = "step5d_strict_rnn_liveprep_v8"
 STEP5D_LIVEPREP_V9_STAGE_ID = "step5d_strict_rnn_liveprep_v9"
 STEP5D_LIVEPREP_V10_STAGE_ID = "step5d_strict_rnn_liveprep_v10"
-STEP5D_LIVEPREP_STAGE_ID = "step5d_strict_rnn_liveprep_v11"
+STEP5D_LIVEPREP_V11_STAGE_ID = "step5d_strict_rnn_liveprep_v11"
+STEP5D_LIVEPREP_STAGE_ID = "step5d_strict_rnn_liveprep_v12"
 STEP5D_LIVEPREP_STAGE_IDS = {
     STEP5D_LIVEPREP_V1_STAGE_ID,
     STEP5D_LIVEPREP_V2_STAGE_ID,
@@ -261,6 +267,7 @@ STEP5D_LIVEPREP_STAGE_IDS = {
     STEP5D_LIVEPREP_V8_STAGE_ID,
     STEP5D_LIVEPREP_V9_STAGE_ID,
     STEP5D_LIVEPREP_V10_STAGE_ID,
+    STEP5D_LIVEPREP_V11_STAGE_ID,
     STEP5D_LIVEPREP_STAGE_ID,
 }
 STEP5D_SEMANTIC_ORIENTATION_TOLERANCE_RAD = math.radians(5.0)
@@ -289,6 +296,15 @@ STEP5D_V11_ENTRY_REQUIRED_S = 0.150
 STEP5D_V11_ACQUIRE_FILTER_ALPHA = 0.15
 STEP5D_V11_ACQUIRE_V_MAX_M_S = 0.0012
 STEP5D_V11_ACQUIRE_SLEW_M_S2 = 0.012
+STEP5D_V12_QDOT_LIMIT_RAD_S = 0.05
+STEP5D_V12_QDOT_SLEW_RAD_S2 = 0.20
+STEP5D_V12_GUARD_DT_MAX_S = 0.010
+STEP5D_V12_LINE_CONTACT_LOW_STOP_N = 0.5
+STEP5D_V12_LINE_CONTACT_MIN_N = 1.0
+STEP5D_V12_LINE_CONTACT_MAX_N = 15.0
+STEP5D_V12_LINE_FORCE_NORM_MAX_N = 25.0
+STEP5D_V12_LINE_CONTACT_LOSS_LIMIT_S = 0.030
+STEP5D_V12_LINE_TCP_SPEED_MAX_M_S = 0.050
 STEP6_CONTACT_EIGHT_STAGE_ID = "step6_contact_eight_baseline_v1"
 STEP6_CONTACT_EIGHT_STAGE_ID_V2 = "step6_contact_eight_baseline_v2"
 _STEP5C_SOLVERS: dict[tuple[str, str, float, float], Step5cDlsJointSolver] = {}
@@ -931,6 +947,12 @@ def step5d_liveprep_contact_window_limits(step4e_version: str) -> tuple[float, f
             STEP5D_V11_ENTRY_NORMAL_LOAD_MAX_N,
             STEP5D_V8_FORCE_NORM_MAX_N,
         )
+    if step4e_version == STEP5D_LIVEPREP_V11_STAGE_ID:
+        return (
+            STEP5D_V11_ENTRY_NORMAL_LOAD_MIN_N,
+            STEP5D_V11_ENTRY_NORMAL_LOAD_MAX_N,
+            STEP5D_V8_FORCE_NORM_MAX_N,
+        )
     if step4e_version in {STEP5D_LIVEPREP_V8_STAGE_ID, STEP5D_LIVEPREP_V9_STAGE_ID, STEP5D_LIVEPREP_V10_STAGE_ID}:
         return (
             STEP5D_V8_SETTLED_NORMAL_LOAD_MIN_N,
@@ -938,6 +960,64 @@ def step5d_liveprep_contact_window_limits(step4e_version: str) -> tuple[float, f
             STEP5D_V8_FORCE_NORM_MAX_N,
         )
     return (STEP5D_V4_NORMAL_LOAD_MIN_N, STEP5D_V4_NORMAL_LOAD_MAX_N, STEP5D_V4_FORCE_NORM_MAX_N)
+
+
+def step5d_v12_line_guard(
+    *,
+    normal_load_n: float,
+    force_norm_n: float,
+    tcp_linear_speed_m_s: float,
+    prior_loss_s: float,
+    dt_s: float,
+    low_stop_n: float = STEP5D_V12_LINE_CONTACT_LOW_STOP_N,
+    min_normal_load_n: float = STEP5D_V12_LINE_CONTACT_MIN_N,
+    max_normal_load_n: float = STEP5D_V12_LINE_CONTACT_MAX_N,
+    max_force_norm_n: float = STEP5D_V12_LINE_FORCE_NORM_MAX_N,
+    loss_limit_s: float = STEP5D_V12_LINE_CONTACT_LOSS_LIMIT_S,
+    max_tcp_speed_m_s: float = STEP5D_V12_LINE_TCP_SPEED_MAX_M_S,
+    dt_max_s: float = STEP5D_V12_GUARD_DT_MAX_S,
+) -> tuple[bool, float, str]:
+    values = [
+        normal_load_n,
+        force_norm_n,
+        tcp_linear_speed_m_s,
+        prior_loss_s,
+        dt_s,
+        low_stop_n,
+        min_normal_load_n,
+        max_normal_load_n,
+        max_force_norm_n,
+        loss_limit_s,
+        max_tcp_speed_m_s,
+        dt_max_s,
+    ]
+    if any(not math.isfinite(float(value)) for value in values):
+        return False, float(prior_loss_s), "nonfinite_line_guard_input"
+    if (
+        low_stop_n < 0.0
+        or min_normal_load_n < low_stop_n
+        or max_normal_load_n < min_normal_load_n
+        or max_force_norm_n <= 0.0
+        or loss_limit_s < 0.0
+        or max_tcp_speed_m_s <= 0.0
+        or dt_max_s <= 0.0
+    ):
+        raise ValueError("Step5d v12 line guard limits are inconsistent")
+    if float(tcp_linear_speed_m_s) > float(max_tcp_speed_m_s):
+        return False, float(prior_loss_s), "tcp_speed_watchdog"
+    if float(normal_load_n) < float(low_stop_n):
+        return False, float(prior_loss_s), "lost_contact_low_load"
+    in_window = (
+        float(min_normal_load_n) <= float(normal_load_n) <= float(max_normal_load_n)
+        and float(force_norm_n) <= float(max_force_norm_n)
+    )
+    if in_window:
+        return True, 0.0, "ok"
+    safe_dt_s = min(max(0.0, float(dt_s)), float(dt_max_s))
+    loss_s = max(0.0, float(prior_loss_s)) + safe_dt_s
+    if loss_s >= float(loss_limit_s):
+        return False, loss_s, "contact_window_timeout"
+    return True, loss_s, "contact_window_dwell"
 
 
 def limit_step5d_live_xdot(
@@ -966,6 +1046,30 @@ def limit_step5d_live_xdot(
         limited[3:] *= max_angular / angular_norm
         limiter_active = True
     return limited, limiter_active
+
+
+def limit_step5d_qdot_slew(
+    qdot: Any,
+    previous_qdot: np.ndarray | None,
+    *,
+    dt_s: float,
+    max_slew_rad_s2: float = STEP5D_V12_QDOT_SLEW_RAD_S2,
+    dt_max_s: float = STEP5D_V12_GUARD_DT_MAX_S,
+) -> tuple[np.ndarray, bool]:
+    qdot_values = np.asarray(qdot, dtype=float)
+    if qdot_values.shape != (6,) or not np.all(np.isfinite(qdot_values)):
+        raise ValueError("Step5d qdot must be a finite 6-vector")
+    if previous_qdot is None:
+        previous = np.zeros(6, dtype=float)
+    else:
+        previous = np.asarray(previous_qdot, dtype=float)
+    if previous.shape != (6,) or not np.all(np.isfinite(previous)):
+        raise ValueError("previous Step5d qdot must be a finite 6-vector")
+    if not math.isfinite(float(dt_s)) or dt_s < 0.0 or max_slew_rad_s2 <= 0.0 or dt_max_s <= 0.0:
+        raise ValueError("Step5d qdot slew limits must be positive")
+    delta_limit = float(max_slew_rad_s2) * min(max(0.0, float(dt_s)), float(dt_max_s))
+    limited = previous + np.clip(qdot_values - previous, -delta_limit, delta_limit)
+    return limited, bool(np.any(np.abs(limited - qdot_values) > 1e-12))
 
 
 def ensure_step5d_liveprep_runtime(state: "Step4EState", args: argparse.Namespace) -> None:
@@ -1116,6 +1220,8 @@ class Step4EState:
         self.step5d_solver: StrictTaseRnnSolver | None = None
         self.step5d_outer_state = Step5dOuterLoopState()
         self.step5d_settle_filtered_normal_load_n: float | None = None
+        self.step5d_line_guard_loss_s = 0.0
+        self.step5d_last_qdot: np.ndarray | None = None
 
     def reset_line_contact(self) -> None:
         self.integral_error_n_s = 0.0
@@ -1128,6 +1234,8 @@ class Step4EState:
         self.last_robot_stage = None
         self.step5d_outer_state = Step5dOuterLoopState()
         self.step5d_settle_filtered_normal_load_n = None
+        self.step5d_line_guard_loss_s = 0.0
+        self.step5d_last_qdot = None
 
 
 def compute_step4e_values(
@@ -1178,7 +1286,8 @@ def compute_step4e_values(
     step5d_liveprep_v8_profile = args.step4e_version == STEP5D_LIVEPREP_V8_STAGE_ID
     step5d_liveprep_v9_profile = args.step4e_version == STEP5D_LIVEPREP_V9_STAGE_ID
     step5d_liveprep_v10_profile = args.step4e_version == STEP5D_LIVEPREP_V10_STAGE_ID
-    step5d_liveprep_v11_profile = args.step4e_version == STEP5D_LIVEPREP_STAGE_ID
+    step5d_liveprep_v11_profile = args.step4e_version == STEP5D_LIVEPREP_V11_STAGE_ID
+    step5d_liveprep_v12_profile = args.step4e_version == STEP5D_LIVEPREP_STAGE_ID
     step5d_liveprep_guarded_profile = (
         step5d_liveprep_v3_profile
         or step5d_liveprep_v4_profile
@@ -1189,6 +1298,7 @@ def compute_step4e_values(
         or step5d_liveprep_v9_profile
         or step5d_liveprep_v10_profile
         or step5d_liveprep_v11_profile
+        or step5d_liveprep_v12_profile
     )
     if step5d_liveprep_profile:
         try:
@@ -1239,6 +1349,9 @@ def compute_step4e_values(
     ) and acquire_stage_active
     line_stage_active = args.step4e_mode == "line" and abs(robot_stage - 25.0) < 0.05
     step5d_joint_line_profile = step5d_liveprep_profile and line_stage_active
+    if not step5d_joint_line_profile:
+        state.step5d_line_guard_loss_s = 0.0
+        state.step5d_last_qdot = None
     control_stage_active = (
         latch_stage_active
         or detach_stage_active
@@ -1511,10 +1624,10 @@ def compute_step4e_values(
         elif axis_iso_active:
             cmd = (0.0, 0.0, 0.0)
         elif line_entry_gate_active:
-            if step5d_liveprep_v10_profile or step5d_liveprep_v11_profile:
+            if step5d_liveprep_v10_profile or step5d_liveprep_v11_profile or step5d_liveprep_v12_profile:
                 recovery_window_ok = step5d_v9_recovery_window_ok(normal_load_n=normal_load_n, force_norm_n=force_abs)
                 if recovery_window_ok:
-                    if step5d_liveprep_v11_profile:
+                    if step5d_liveprep_v11_profile or step5d_liveprep_v12_profile:
                         cmd, state.step5d_settle_filtered_normal_load_n, state.normal_velocity_m_s = (
                             step5d_v11_deadband_acquire_velocity(
                                 normal_load_n=normal_load_n,
@@ -1663,10 +1776,19 @@ def compute_step4e_values(
             raise RuntimeError("Step4e v23..v31 stage 25.2 contract violation: linear command registers must be zero")
         joint_result = None
         step5d_result = None
+        step5d_qdot_command = None
         step5d_outer_output = None
         step5d_outer_xdot_limited: np.ndarray | None = None
         step5d_outer_xdot_limiter_active = False
+        step5d_qdot_slew_limiter_active = False
         step5d_engage_gate_ok = True
+        step5d_line_guard_ok = True
+        step5d_line_guard_reason = "not_active"
+        step5d_line_tcp_speed_m_s = (
+            norm3([float(speed[0]), float(speed[1]), float(speed[2])])
+            if speed and len(speed) >= 3
+            else 0.0
+        )
         if step5d_joint_line_profile:
             try:
                 actual_q = latest_output.get("actual_q")
@@ -1700,6 +1822,7 @@ def compute_step4e_values(
                     or step5d_liveprep_v7_profile
                     or step5d_liveprep_v8_profile
                     or step5d_liveprep_v9_profile
+                    or step5d_liveprep_v11_profile
                 ):
                     contact_min_n, contact_max_n, contact_force_norm_max_n = step5d_liveprep_contact_window_limits(args.step4e_version)
                     if not step5d_contact_window_ready(
@@ -1715,6 +1838,17 @@ def compute_step4e_values(
                             f"force/load outside {contact_min_n:g}-{contact_max_n:g}N load "
                             f"and <= {contact_force_norm_max_n:g}N force_norm window"
                         )
+                if step5d_liveprep_v12_profile:
+                    step5d_line_guard_ok, state.step5d_line_guard_loss_s, step5d_line_guard_reason = step5d_v12_line_guard(
+                        normal_load_n=normal_load_n,
+                        force_norm_n=force_abs,
+                        tcp_linear_speed_m_s=step5d_line_tcp_speed_m_s,
+                        prior_loss_s=state.step5d_line_guard_loss_s,
+                        dt_s=dt_s,
+                    )
+                    if not step5d_line_guard_ok:
+                        step5d_engage_gate_ok = False
+                        raise ValueError(f"Step5d v12 Stage25 line guard blocked: {step5d_line_guard_reason}")
                 jacobian = step5d_tcp_jacobian_base(state.step5d_model_bundle, q, state.step5d_tcp_offset_tool0)
                 omega_minus, omega_plus = step5d_omega_bounds(
                     q,
@@ -1776,11 +1910,21 @@ def compute_step4e_values(
                     )
                     target_state["xdot_c"] = step5d_outer_xdot_limited
                 step5d_result = state.step5d_solver.solve(actual_q=q, actual_qd=qd, target_state=target_state)
-                cmd = (step5d_result.qdot[0], step5d_result.qdot[1], step5d_result.qdot[2])
-                orientation_cmd = (step5d_result.qdot[3], step5d_result.qdot[4], step5d_result.qdot[5])
+                step5d_qdot_command = step5d_result.qdot
+                if step5d_liveprep_v12_profile:
+                    qdot_limited, step5d_qdot_slew_limiter_active = limit_step5d_qdot_slew(
+                        step5d_result.qdot,
+                        state.step5d_last_qdot,
+                        dt_s=dt_s,
+                    )
+                    step5d_qdot_command = tuple(float(value) for value in qdot_limited.tolist())
+                    state.step5d_last_qdot = qdot_limited
+                cmd = (step5d_qdot_command[0], step5d_qdot_command[1], step5d_qdot_command[2])
+                orientation_cmd = (step5d_qdot_command[3], step5d_qdot_command[4], step5d_qdot_command[5])
             except (ValueError, RuntimeError) as exc:
                 values["_step5d_solver_error"] = str(exc)
                 state.step5d_outer_state = Step5dOuterLoopState()
+                state.step5d_last_qdot = None
                 cmd = (0.0, 0.0, 0.0)
                 orientation_cmd = (0.0, 0.0, 0.0)
                 step5d_result = None
@@ -1814,7 +1958,9 @@ def compute_step4e_values(
                 step5c_joint_register_values(
                     (
                         step5d_result.qdot
-                        if step5d_joint_line_profile and step5d_result is not None
+                        if step5d_joint_line_profile and step5d_result is not None and step5d_qdot_command is None
+                        else step5d_qdot_command
+                        if step5d_joint_line_profile and step5d_qdot_command is not None
                         else joint_result.qdot
                         if joint_result is not None
                         else (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
@@ -1831,7 +1977,7 @@ def compute_step4e_values(
         else:
             register_force_error = force_error
             if (
-                (step5d_liveprep_v10_profile or step5d_liveprep_v11_profile)
+                (step5d_liveprep_v10_profile or step5d_liveprep_v11_profile or step5d_liveprep_v12_profile)
                 and line_entry_gate_active
                 and state.step5d_settle_filtered_normal_load_n is not None
             ):
@@ -1873,7 +2019,7 @@ def compute_step4e_values(
                 }
             )
         if step5d_joint_line_profile and step5d_result is not None and step5d_outer_output is not None:
-            qdot_abs = [abs(float(value)) for value in step5d_result.qdot]
+            qdot_abs = [abs(float(value)) for value in (step5d_qdot_command or step5d_result.qdot)]
             values["_step5d_solver_status"] = step5d_result.solver_status
             values["_step5d_qdot_max_abs_rad_s"] = max(qdot_abs)
             values["_step5d_constraint_residual_norm"] = step5d_result.residual_norm
@@ -1882,7 +2028,12 @@ def compute_step4e_values(
                 float(np.linalg.norm(step5d_outer_xdot_limited)) if step5d_outer_xdot_limited is not None else values["_step5d_outer_xdot_norm"]
             )
             values["_step5d_outer_xdot_limiter_active"] = 1.0 if step5d_outer_xdot_limiter_active else 0.0
+            values["_step5d_qdot_slew_limiter_active"] = 1.0 if step5d_qdot_slew_limiter_active else 0.0
             values["_step5d_engage_gate_ok"] = 1.0 if step5d_engage_gate_ok else 0.0
+            values["_step5d_line_guard_ok"] = 1.0 if step5d_line_guard_ok else 0.0
+            values["_step5d_line_guard_loss_s"] = state.step5d_line_guard_loss_s
+            values["_step5d_line_guard_reason"] = step5d_line_guard_reason
+            values["_step5d_line_tcp_speed_m_s"] = step5d_line_tcp_speed_m_s
             values["_step5d_force_sign_convention"] = step5d_outer_output.diagnostics["force_sign_convention"]
             values["_step5d_proj_input_form"] = step5d_result.diagnostics["proj_input_form"]
             values["_step5d_active_bounds_count"] = float(sum(bool(value) for value in step5d_result.diagnostics["active_bounds_mask"]))
@@ -1892,6 +2043,10 @@ def compute_step4e_values(
             values["_step5d_semantic_gate_ok"] = 1.0
         elif step5d_joint_line_profile:
             values["_step5d_engage_gate_ok"] = 1.0 if step5d_engage_gate_ok else 0.0
+            values["_step5d_line_guard_ok"] = 1.0 if step5d_line_guard_ok else 0.0
+            values["_step5d_line_guard_loss_s"] = state.step5d_line_guard_loss_s
+            values["_step5d_line_guard_reason"] = step5d_line_guard_reason
+            values["_step5d_line_tcp_speed_m_s"] = step5d_line_tcp_speed_m_s
             values["_step5d_contact_orientation_error_rad"] = orientation_error
             values["_step5d_semantic_gate_ok"] = 1.0 if step5d_engage_gate_ok else 0.0
         if step5c_joint_profile and joint_result is not None:
@@ -1950,7 +2105,7 @@ def compute_step4e_values(
             else float("nan")
         )
         values["_step5d_force_settle_velocity_m_s"] = state.normal_velocity_m_s
-        if step5d_liveprep_v10_profile or step5d_liveprep_v11_profile:
+        if step5d_liveprep_v10_profile or step5d_liveprep_v11_profile or step5d_liveprep_v12_profile:
             filtered_load = state.step5d_settle_filtered_normal_load_n
             min_load, max_load, max_force = step5d_liveprep_contact_window_limits(args.step4e_version)
             values["_step5d_force_settle_ready"] = 1.0 if (
@@ -1964,6 +2119,7 @@ def compute_step4e_values(
                 )
                 and (
                     step5d_liveprep_v11_profile
+                    or step5d_liveprep_v12_profile
                     or abs(state.normal_velocity_m_s) <= STEP5D_V10_SETTLE_VELOCITY_READY_M_S
                 )
             ) else 0.0
@@ -2314,7 +2470,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument("--step5c-joint-site", default="tcp_site_unverified_85mm")
-    parser.add_argument("--step5d-qdot-limit-rad-s", type=float, default=0.30)
+    parser.add_argument("--step5d-qdot-limit-rad-s", type=float, default=None)
     parser.add_argument("--step5d-alpha-s-inv", type=float, default=1.0)
     parser.add_argument("--step5d-epsilon", type=float, default=0.022)
     parser.add_argument("--step5d-sigr-exponent-r", type=float, default=0.2)
@@ -2324,7 +2480,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="disable Step5d live-prep Dashboard watchdog that exits after TP stop/play timeout",
     )
     parser.add_argument("--dashboard-program-watch-timeout-s", type=float, default=45.0)
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.step5d_qdot_limit_rad_s is None:
+        args.step5d_qdot_limit_rad_s = (
+            STEP5D_V12_QDOT_LIMIT_RAD_S
+            if args.step4e_version == STEP5D_LIVEPREP_STAGE_ID
+            else 0.30
+        )
+    return args
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -2480,7 +2643,8 @@ def main(argv: list[str] | None = None) -> int:
             "step5d_strict_rnn_liveprep_v8": "Retained failure evidence: Stage 25.3 consumed registers 37..39 as locked-normal Cartesian force-PID settle velocity, but low-load dropout below 0.5N cleared cmd_valid and TP stopped with reason 17 before Stage 25.0.",
             "step5d_strict_rnn_liveprep_v9": "Retained failure evidence: Stage 25.3 direct force-PID settle fixed low-load dropout but hunted under point contact and timed out before Stage 25.0.",
             "step5d_strict_rnn_liveprep_v10": "Retained failure evidence: Stage 25.3 scalar admittance settle softened v9 direct PID but still saturated and flipped sign under point contact, never satisfying the 3-8N plus settle-speed window before Stage 25.0.",
-            "step5d_strict_rnn_liveprep_v11": "Current live-prep strict RNN route: Stage 25.3 consumes registers 37..39 as locked-normal Cartesian deadband-acquire velocity, admits low-load press recovery up to the 40N normal-load / 100N force-norm hard envelope, requires filtered 2-15N and force_norm <=25N for 0.150s, then Stage 25.0 consumes registers 37..42 as qd0..qd5 rad/s for strict RNN speedj.",
+            "step5d_strict_rnn_liveprep_v11": "Retained incomplete evidence: Stage 25.3 deadband acquire released into Stage 25.0, but Stage 25.0 lost contact and the strict RNN speedj path accelerated until operator E-stop.",
+            "step5d_strict_rnn_liveprep_v12": "Current guarded live-prep strict RNN route: keeps v11 Stage 25.3 deadband acquire, then Stage 25.0 adds low-load/contact-retention, TCP speed watchdog, 0.05 rad/s qdot cap, and qdot slew limiting before TP speedj.",
             "step6b_contact_eight_baseline_v1": "Same TP contact-search/latch/25.2/25.3 scaffold as Step5b/v31, but stage 25.0 uses the active Step6 five-point safe-frame 8-shaped reference for 30 s and v31 filtered-live normal policy.",
             "step6b_contact_eight_baseline_v2": "Same TP contact-search/latch/25.2/25.3 scaffold and Step6 reference as v1, but intended bridge caps are 15 mm/s path, 15 mm/s total linear, 3 mm/s normal reserve, and 0.060 rad/s attitude.",
         },
@@ -2512,7 +2676,7 @@ def main(argv: list[str] | None = None) -> int:
             "step5c_stage_id": args.step4e_version
             if args.step4e_version in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID}
             else None,
-            "step5c_register_contract": "Step5c/Step5d Stage 25.0: 37..42=qd0..qd5 rad/s, 43=cmd_valid, 44=path_time, 45=force_error, 46=pose/orientation_error, 47=solver_status. Step5d v8/v9 Stage 25.3: 37..39=Cartesian force-PID settle vx/vy/vz only. Step5d v10 Stage 25.3: 37..39=Cartesian admittance settle vx/vy/vz only and 45 carries filtered force_error. Step5d v11 Stage 25.3: 37..39=Cartesian deadband-acquire vx/vy/vz only and 45 carries filtered force_error. Step4e field names are carrier names only in joint mode."
+            "step5c_register_contract": "Step5c/Step5d Stage 25.0: 37..42=qd0..qd5 rad/s, 43=cmd_valid, 44=path_time, 45=force_error, 46=pose/orientation_error, 47=solver_status. Step5d v8/v9 Stage 25.3: 37..39=Cartesian force-PID settle vx/vy/vz only. Step5d v10 Stage 25.3: 37..39=Cartesian admittance settle vx/vy/vz only and 45 carries filtered force_error. Step5d v11/v12 Stage 25.3: 37..39=Cartesian deadband-acquire vx/vy/vz only and 45 carries filtered force_error. Step5d v12 Stage 25.0 additionally gates loss-of-contact and TCP speed before cmd_valid. Step4e field names are carrier names only in joint mode."
             if args.step4e_version in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID, *STEP5D_LIVEPREP_STAGE_IDS}
             else None,
             "step5c_joint_model": str(args.step5c_joint_model)

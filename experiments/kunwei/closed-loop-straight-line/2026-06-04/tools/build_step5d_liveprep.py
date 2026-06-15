@@ -16,13 +16,13 @@ from build_step5b_contact import build_script as build_step5b_script
 from step5_table import load_stage_frame, step5_stage
 
 
-PROGRAM_NAME = "step5d_strict_rnn_liveprep_v11"
-STEP5_STAGE_ID = "step5d_strict_rnn_liveprep_v11"
+PROGRAM_NAME = "step5d_strict_rnn_liveprep_v12"
+STEP5_STAGE_ID = "step5d_strict_rnn_liveprep_v12"
 BRIDGE_VERSION = STEP5_STAGE_ID
 LOCAL_PROGRAM_DIR = PROGRAM_DIR / "step5"
 CONTROLLER_DIR = "/programs/andyl/kunwei/step5"
-QDOT_CAP_RAD_S = 0.300
-JOINT_ACCEL_RAD_S2 = 0.300
+QDOT_CAP_RAD_S = 0.050
+JOINT_ACCEL_RAD_S2 = 0.050
 ORIENTATION_SKIP_ERROR_RAD = 0.069813
 RAW_NORMAL_GUARD_N = 100.0
 FORCE_NORM_GUARD_N = 100.0
@@ -44,7 +44,7 @@ SECOND_SEARCH_NEAR_SPEED_M_S = -0.0025
 
 
 def source_stamp(now: datetime) -> str:
-    return now.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_LIVEPREP_V11")
+    return now.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_LIVEPREP_V12")
 
 
 def load_safe_frame() -> dict:
@@ -321,15 +321,15 @@ def _add_down_search_force_trigger_echo(script: str) -> str:
 def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -> str:
     script = build_step5b_script(stamp, gen_at, geom, frame)
     script = script.replace("step5b_contact_cycloid_baseline_v1", PROGRAM_NAME)
-    script = script.replace("Step5b contact cycloid baseline v1", "Step5d strict RNN liveprep v11")
-    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V1", "STEP5D_STRICT_RNN_LIVEPREP_V11")
+    script = script.replace("Step5b contact cycloid baseline v1", "Step5d strict RNN liveprep v12")
+    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V1", "STEP5D_STRICT_RNN_LIVEPREP_V12")
     script = script.replace("codex_step5b_down_search", "codex_step5d_down_search")
     script = script.replace("step4e-version=step5b_v1", f"step4e-version={BRIDGE_VERSION}")
     script = script.replace("codex_abs(normal_force) > 50.0", f"codex_abs(normal_force) > {RAW_NORMAL_GUARD_N:.1f}")
     script = script.replace("force_norm > 60.0", f"force_norm > {FORCE_NORM_GUARD_N:.1f}")
     script = script.replace(
         "PURPOSE: v31 contact search, first-contact normal latch, lift, 25.2 attitude correction, 25.3 line-entry gate, then Step5 table-driven contact cycloid reference for 60 s.",
-        "PURPOSE: v31 contact search, first-contact normal latch, optional lift/25.2 attitude correction when orientation error is >4 deg, 25.3 bridge deadband acquire into the 2-15N contact window, then Step5d strict RNN qdot cycloid reference for 60 s.",
+            "PURPOSE: v31 contact search, first-contact normal latch, optional lift/25.2 attitude correction when orientation error is >4 deg, 25.3 bridge deadband acquire into the 2-15N contact window, then guarded Step5d strict RNN qdot cycloid reference for 60 s.",
     )
     script = script.replace(
         "25.0 uses desired_velocity + path_p_gain*(desired-actual) before normal projection and force-loop composition.",
@@ -340,6 +340,7 @@ def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -
         (
             "TP_ROLE: joint_executor_and_guard_only; Step5d strict RNN qdot is computed by the bridge.\n"
             "# REGISTER_CONTRACT: Stage 25.3 consumes 37..39 as Cartesian deadband-acquire vx/vy/vz; Stage 25.0 consumes 37..42 as qd0..qd5 rad/s, 43 cmd_valid, 44 path_time_s.\n"
+            "# STAGE25_GUARD: v12 bridge clears cmd_valid on lost contact, contact-window timeout, or TCP speed watchdog before speedj execution.\n"
             "# FORCE_FRAME_CONTRACT: UR_FORCE_FRAME_CONTRACT.md; reaction normal for load, approach normal for posture."
         ),
     )
@@ -367,7 +368,7 @@ Version:
   {stamp}
 
 Boundary:
-  Contact-capable live-prep package; not a completed reproduction claim.
+  Contact-capable v12 live-prep package; not a completed reproduction claim.
   Reuses the Step5b contact-search/latch/25.3 scaffold.
   If first-contact orientation error is <= {ORIENTATION_SKIP_ERROR_RAD:.6f} rad,
   it skips the 20 mm lift and 25.2 attitude correction.
@@ -383,7 +384,9 @@ Boundary:
   and {LINE_ENTRY_NORMAL_LOAD_MAX_N:.1f} N, with force_norm <= {LINE_ENTRY_FORCE_NORM_MAX_N:.1f} N,
   and bridge cmd_valid is true for {LINE_ENTRY_REQUIRED_S:.3f} s.
   Stage 25.0 is different from Step5b: it consumes 37..42 as qd0..qd5 rad/s
-  and executes speedj, not Cartesian speedl.
+  and executes speedj, not Cartesian speedl. v12 bridge must clear cmd_valid
+  before speedj when normal_load drops below 0.5 N, contact window is lost, or
+  actual TCP speed exceeds 0.050 m/s.
 
 Bridge profile:
   --step4e-version {BRIDGE_VERSION} --step4e-path-shape cycloid
@@ -427,6 +430,8 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str) -> None:
         "speedj line control": "speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]" in script,
         "line no cartesian speedl": "speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy" not in script,
         "qdot cap": f"local qdot_cap_rad_s = {QDOT_CAP_RAD_S:.3f}" in script,
+        "v12 Stage25 guard note": "STAGE25_GUARD" in script
+        and "clears cmd_valid on lost contact" in script,
         "orientation skip gate": "local skip_lift_attitude = 0" in script
         and f"local orientation_skip_error_rad = {ORIENTATION_SKIP_ERROR_RAD:.6f}" in script
         and "if stop_reason == 0.0 and skip_lift_attitude == 0:" in script,
@@ -454,10 +459,12 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str) -> None:
         and f"torque_norm > {TORQUE_NORM_GUARD_NM:.1f}" in script,
         "not quarantine": "stop_only_quarantine" not in script + txt,
         "no stale package": "step5b_contact_cycloid_baseline_v1" not in script + txt,
-        "no stale v9/v10 identity": "STEP5D_STRICT_RNN_LIVEPREP_V9" not in script + txt
+        "no stale v9/v10/v11 identity": "STEP5D_STRICT_RNN_LIVEPREP_V9" not in script + txt
         and "step5d_strict_rnn_liveprep_v9" not in script + txt
         and "STEP5D_STRICT_RNN_LIVEPREP_V10" not in script + txt
         and "step5d_strict_rnn_liveprep_v10" not in script + txt,
+        "no stale v11 identity": "STEP5D_STRICT_RNN_LIVEPREP_V11" not in script + txt
+        and "step5d_strict_rnn_liveprep_v11" not in script + txt,
         "low-load recovery does not stop": "or normal_load < line_entry_recovery_normal_load_min_n" not in script,
     }
     failed = [label for label, ok in checks.items() if not ok]
