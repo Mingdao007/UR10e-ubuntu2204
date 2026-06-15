@@ -175,6 +175,17 @@ STEP5D_DIAG_FIELDS = [
     "_step5d_line_guard_loss_s",
     "_step5d_line_guard_reason",
     "_step5d_line_tcp_speed_m_s",
+    "_step5d_contact_safety_state",
+    "_step5d_contact_safety_action",
+    "_step5d_contact_hold_s",
+    "_step5d_contact_high_window_s",
+    "_step5d_actual_speed_violation_s",
+    "_step5d_actual_tcp_speed_m_s",
+    "_step5d_predicted_tcp_speed_m_s",
+    "_step5d_contact_safety_reason",
+    "_step5d_control_normal_vs_world_z_angle_rad",
+    "_step5d_control_normal_vs_tcp_z_angle_rad",
+    "_step5d_approach_normal_vs_tcp_z_angle_rad",
     "_step5d_force_settle_ready",
     "_step5d_force_settle_filtered_normal_load_n",
     "_step5d_force_settle_velocity_m_s",
@@ -255,7 +266,8 @@ STEP5D_LIVEPREP_V8_STAGE_ID = "step5d_strict_rnn_liveprep_v8"
 STEP5D_LIVEPREP_V9_STAGE_ID = "step5d_strict_rnn_liveprep_v9"
 STEP5D_LIVEPREP_V10_STAGE_ID = "step5d_strict_rnn_liveprep_v10"
 STEP5D_LIVEPREP_V11_STAGE_ID = "step5d_strict_rnn_liveprep_v11"
-STEP5D_LIVEPREP_STAGE_ID = "step5d_strict_rnn_liveprep_v12"
+STEP5D_LIVEPREP_V12_STAGE_ID = "step5d_strict_rnn_liveprep_v12"
+STEP5D_LIVEPREP_STAGE_ID = "step5d_strict_rnn_liveprep_v13"
 STEP5D_LIVEPREP_STAGE_IDS = {
     STEP5D_LIVEPREP_V1_STAGE_ID,
     STEP5D_LIVEPREP_V2_STAGE_ID,
@@ -268,6 +280,7 @@ STEP5D_LIVEPREP_STAGE_IDS = {
     STEP5D_LIVEPREP_V9_STAGE_ID,
     STEP5D_LIVEPREP_V10_STAGE_ID,
     STEP5D_LIVEPREP_V11_STAGE_ID,
+    STEP5D_LIVEPREP_V12_STAGE_ID,
     STEP5D_LIVEPREP_STAGE_ID,
 }
 STEP5D_SEMANTIC_ORIENTATION_TOLERANCE_RAD = math.radians(5.0)
@@ -305,6 +318,29 @@ STEP5D_V12_LINE_CONTACT_MAX_N = 15.0
 STEP5D_V12_LINE_FORCE_NORM_MAX_N = 25.0
 STEP5D_V12_LINE_CONTACT_LOSS_LIMIT_S = 0.030
 STEP5D_V12_LINE_TCP_SPEED_MAX_M_S = 0.050
+STEP5D_V13_HARD_LOW_LOAD_N = 0.25
+STEP5D_V13_SOFT_LOW_LOAD_N = 0.50
+STEP5D_V13_VALID_CONTACT_MIN_N = 0.50
+STEP5D_V13_VALID_CONTACT_MAX_N = 15.0
+STEP5D_V13_FORCE_NORM_VALID_MAX_N = 25.0
+STEP5D_V13_LOW_LOAD_SPEED_LOAD_N = 1.0
+STEP5D_V13_LOW_LOAD_SPEED_STOP_M_S = 0.025
+STEP5D_V13_ABSOLUTE_SPEED_STOP_M_S = 0.050
+STEP5D_V13_ACTUAL_SPEED_DWELL_STOP_S = 0.004
+STEP5D_V13_LOW_LOAD_HOLD_TIMEOUT_S = 0.300
+STEP5D_V13_HIGH_WINDOW_DWELL_STOP_S = 0.030
+STEP5D_V13_CONTACT_SAFETY_STATES = {
+    "inactive": 0.0,
+    "valid_contact": 1.0,
+    "contact_uncertain_hold": 2.0,
+    "danger_stop": 3.0,
+}
+STEP5D_V13_CONTACT_SAFETY_ACTIONS = {
+    "inactive": 0.0,
+    "pass_solver": 1.0,
+    "hold_zero_qdot": 2.0,
+    "stop_zero_qdot": 3.0,
+}
 STEP6_CONTACT_EIGHT_STAGE_ID = "step6_contact_eight_baseline_v1"
 STEP6_CONTACT_EIGHT_STAGE_ID_V2 = "step6_contact_eight_baseline_v2"
 _STEP5C_SOLVERS: dict[tuple[str, str, float, float], Step5cDlsJointSolver] = {}
@@ -941,7 +977,7 @@ def step5d_v11_deadband_acquire_velocity(
 def step5d_liveprep_contact_window_limits(step4e_version: str) -> tuple[float, float, float]:
     if step4e_version == STEP5D_LIVEPREP_V6_STAGE_ID:
         return (STEP5D_V6_NORMAL_LOAD_MIN_N, STEP5D_V6_NORMAL_LOAD_MAX_N, STEP5D_V6_FORCE_NORM_MAX_N)
-    if step4e_version == STEP5D_LIVEPREP_STAGE_ID:
+    if step4e_version in {STEP5D_LIVEPREP_V12_STAGE_ID, STEP5D_LIVEPREP_STAGE_ID}:
         return (
             STEP5D_V11_ENTRY_NORMAL_LOAD_MIN_N,
             STEP5D_V11_ENTRY_NORMAL_LOAD_MAX_N,
@@ -1018,6 +1054,187 @@ def step5d_v12_line_guard(
     if loss_s >= float(loss_limit_s):
         return False, loss_s, "contact_window_timeout"
     return True, loss_s, "contact_window_dwell"
+
+
+def step5d_v13_contact_safety_guard(
+    *,
+    normal_load_n: float,
+    force_norm_n: float,
+    actual_tcp_speed_m_s: float,
+    predicted_tcp_speed_m_s: float | None,
+    prior_hold_s: float,
+    prior_high_window_s: float,
+    prior_actual_speed_violation_s: float,
+    dt_s: float,
+    hard_low_load_n: float = STEP5D_V13_HARD_LOW_LOAD_N,
+    soft_low_load_n: float = STEP5D_V13_SOFT_LOW_LOAD_N,
+    valid_contact_min_n: float = STEP5D_V13_VALID_CONTACT_MIN_N,
+    valid_contact_max_n: float = STEP5D_V13_VALID_CONTACT_MAX_N,
+    force_norm_valid_max_n: float = STEP5D_V13_FORCE_NORM_VALID_MAX_N,
+    low_load_speed_load_n: float = STEP5D_V13_LOW_LOAD_SPEED_LOAD_N,
+    low_load_speed_stop_m_s: float = STEP5D_V13_LOW_LOAD_SPEED_STOP_M_S,
+    absolute_speed_stop_m_s: float = STEP5D_V13_ABSOLUTE_SPEED_STOP_M_S,
+    actual_speed_dwell_stop_s: float = STEP5D_V13_ACTUAL_SPEED_DWELL_STOP_S,
+    hold_timeout_s: float = STEP5D_V13_LOW_LOAD_HOLD_TIMEOUT_S,
+    high_window_dwell_stop_s: float = STEP5D_V13_HIGH_WINDOW_DWELL_STOP_S,
+    dt_max_s: float = STEP5D_V12_GUARD_DT_MAX_S,
+    advance_actual_speed_dwell: bool = True,
+) -> dict[str, float | str]:
+    values = [
+        normal_load_n,
+        force_norm_n,
+        actual_tcp_speed_m_s,
+        prior_hold_s,
+        prior_high_window_s,
+        prior_actual_speed_violation_s,
+        dt_s,
+        hard_low_load_n,
+        soft_low_load_n,
+        valid_contact_min_n,
+        valid_contact_max_n,
+        force_norm_valid_max_n,
+        low_load_speed_load_n,
+        low_load_speed_stop_m_s,
+        absolute_speed_stop_m_s,
+        actual_speed_dwell_stop_s,
+        hold_timeout_s,
+        high_window_dwell_stop_s,
+        dt_max_s,
+    ]
+    if any(not math.isfinite(float(value)) for value in values):
+        return {
+            "state": "danger_stop",
+            "action": "stop_zero_qdot",
+            "reason": "nonfinite_contact_safety_input",
+            "hold_s": float(prior_hold_s),
+            "high_window_s": float(prior_high_window_s),
+            "actual_speed_violation_s": float(prior_actual_speed_violation_s),
+        }
+    if predicted_tcp_speed_m_s is not None and not math.isfinite(float(predicted_tcp_speed_m_s)):
+        return {
+            "state": "danger_stop",
+            "action": "stop_zero_qdot",
+            "reason": "nonfinite_predicted_tcp_speed",
+            "hold_s": float(prior_hold_s),
+            "high_window_s": float(prior_high_window_s),
+            "actual_speed_violation_s": float(prior_actual_speed_violation_s),
+        }
+    if (
+        hard_low_load_n < 0.0
+        or soft_low_load_n < hard_low_load_n
+        or valid_contact_min_n < soft_low_load_n
+        or valid_contact_max_n < valid_contact_min_n
+        or force_norm_valid_max_n <= 0.0
+        or low_load_speed_load_n < valid_contact_min_n
+        or low_load_speed_stop_m_s <= 0.0
+        or absolute_speed_stop_m_s < low_load_speed_stop_m_s
+        or actual_speed_dwell_stop_s <= 0.0
+        or hold_timeout_s < 0.0
+        or high_window_dwell_stop_s < 0.0
+        or dt_max_s <= 0.0
+    ):
+        raise ValueError("Step5d v13 contact-safety limits are inconsistent")
+
+    safe_dt_s = min(max(0.0, float(dt_s)), float(dt_max_s))
+    actual_violation = (
+        float(actual_tcp_speed_m_s) > float(absolute_speed_stop_m_s)
+        or (
+            float(normal_load_n) < float(low_load_speed_load_n)
+            and float(actual_tcp_speed_m_s) > float(low_load_speed_stop_m_s)
+        )
+    )
+    actual_speed_violation_s = (
+        max(0.0, float(prior_actual_speed_violation_s)) + safe_dt_s
+        if actual_violation and advance_actual_speed_dwell
+        else max(0.0, float(prior_actual_speed_violation_s))
+        if actual_violation
+        else 0.0
+    )
+    if actual_violation and actual_speed_violation_s >= float(actual_speed_dwell_stop_s):
+        reason = (
+            "actual_tcp_speed_watchdog_dwell"
+            if float(actual_tcp_speed_m_s) > float(absolute_speed_stop_m_s)
+            else "low_load_actual_tcp_speed_watchdog_dwell"
+        )
+        return {
+            "state": "danger_stop",
+            "action": "stop_zero_qdot",
+            "reason": reason,
+            "hold_s": float(prior_hold_s),
+            "high_window_s": float(prior_high_window_s),
+            "actual_speed_violation_s": actual_speed_violation_s,
+        }
+
+    if predicted_tcp_speed_m_s is not None:
+        predicted_speed_m_s = float(predicted_tcp_speed_m_s)
+        if predicted_speed_m_s > float(absolute_speed_stop_m_s):
+            return {
+                "state": "danger_stop",
+                "action": "stop_zero_qdot",
+                "reason": "predicted_tcp_speed_watchdog",
+                "hold_s": float(prior_hold_s),
+                "high_window_s": float(prior_high_window_s),
+                "actual_speed_violation_s": actual_speed_violation_s,
+            }
+        if float(normal_load_n) < float(low_load_speed_load_n) and predicted_speed_m_s > float(low_load_speed_stop_m_s):
+            return {
+                "state": "danger_stop",
+                "action": "stop_zero_qdot",
+                "reason": "low_load_predicted_tcp_speed_watchdog",
+                "hold_s": float(prior_hold_s),
+                "high_window_s": float(prior_high_window_s),
+                "actual_speed_violation_s": actual_speed_violation_s,
+            }
+
+    if float(normal_load_n) < float(soft_low_load_n):
+        hold_s = max(0.0, float(prior_hold_s)) + safe_dt_s
+        if hold_s >= float(hold_timeout_s):
+            return {
+                "state": "danger_stop",
+                "action": "stop_zero_qdot",
+                "reason": "low_load_hold_timeout",
+                "hold_s": hold_s,
+                "high_window_s": 0.0,
+                "actual_speed_violation_s": actual_speed_violation_s,
+            }
+        reason = "hard_lost_contact_hold" if float(normal_load_n) < float(hard_low_load_n) else "soft_low_contact_hold"
+        return {
+            "state": "contact_uncertain_hold",
+            "action": "hold_zero_qdot",
+            "reason": reason,
+            "hold_s": hold_s,
+            "high_window_s": 0.0,
+            "actual_speed_violation_s": actual_speed_violation_s,
+        }
+
+    if float(normal_load_n) > float(valid_contact_max_n) or float(force_norm_n) > float(force_norm_valid_max_n):
+        high_window_s = max(0.0, float(prior_high_window_s)) + safe_dt_s
+        if high_window_s >= float(high_window_dwell_stop_s):
+            return {
+                "state": "danger_stop",
+                "action": "stop_zero_qdot",
+                "reason": "high_contact_window_dwell_stop",
+                "hold_s": 0.0,
+                "high_window_s": high_window_s,
+                "actual_speed_violation_s": actual_speed_violation_s,
+            }
+        return {
+            "state": "contact_uncertain_hold",
+            "action": "hold_zero_qdot",
+            "reason": "high_contact_window_dwell",
+            "hold_s": 0.0,
+            "high_window_s": high_window_s,
+            "actual_speed_violation_s": actual_speed_violation_s,
+        }
+
+    return {
+        "state": "valid_contact",
+        "action": "pass_solver",
+        "reason": "ok",
+        "hold_s": 0.0,
+        "high_window_s": 0.0,
+        "actual_speed_violation_s": actual_speed_violation_s,
+    }
 
 
 def limit_step5d_live_xdot(
@@ -1222,6 +1439,10 @@ class Step4EState:
         self.step5d_settle_filtered_normal_load_n: float | None = None
         self.step5d_line_guard_loss_s = 0.0
         self.step5d_last_qdot: np.ndarray | None = None
+        self.step5d_contact_hold_s = 0.0
+        self.step5d_contact_high_window_s = 0.0
+        self.step5d_actual_speed_violation_s = 0.0
+        self.step5d_contact_hold_path_time_s: float | None = None
 
     def reset_line_contact(self) -> None:
         self.integral_error_n_s = 0.0
@@ -1236,6 +1457,10 @@ class Step4EState:
         self.step5d_settle_filtered_normal_load_n = None
         self.step5d_line_guard_loss_s = 0.0
         self.step5d_last_qdot = None
+        self.step5d_contact_hold_s = 0.0
+        self.step5d_contact_high_window_s = 0.0
+        self.step5d_actual_speed_violation_s = 0.0
+        self.step5d_contact_hold_path_time_s = None
 
 
 def compute_step4e_values(
@@ -1287,7 +1512,8 @@ def compute_step4e_values(
     step5d_liveprep_v9_profile = args.step4e_version == STEP5D_LIVEPREP_V9_STAGE_ID
     step5d_liveprep_v10_profile = args.step4e_version == STEP5D_LIVEPREP_V10_STAGE_ID
     step5d_liveprep_v11_profile = args.step4e_version == STEP5D_LIVEPREP_V11_STAGE_ID
-    step5d_liveprep_v12_profile = args.step4e_version == STEP5D_LIVEPREP_STAGE_ID
+    step5d_liveprep_v12_profile = args.step4e_version == STEP5D_LIVEPREP_V12_STAGE_ID
+    step5d_liveprep_v13_profile = args.step4e_version == STEP5D_LIVEPREP_STAGE_ID
     step5d_liveprep_guarded_profile = (
         step5d_liveprep_v3_profile
         or step5d_liveprep_v4_profile
@@ -1299,6 +1525,7 @@ def compute_step4e_values(
         or step5d_liveprep_v10_profile
         or step5d_liveprep_v11_profile
         or step5d_liveprep_v12_profile
+        or step5d_liveprep_v13_profile
     )
     if step5d_liveprep_profile:
         try:
@@ -1352,6 +1579,10 @@ def compute_step4e_values(
     if not step5d_joint_line_profile:
         state.step5d_line_guard_loss_s = 0.0
         state.step5d_last_qdot = None
+        state.step5d_contact_hold_s = 0.0
+        state.step5d_contact_high_window_s = 0.0
+        state.step5d_actual_speed_violation_s = 0.0
+        state.step5d_contact_hold_path_time_s = None
     control_stage_active = (
         latch_stage_active
         or detach_stage_active
@@ -1482,6 +1713,47 @@ def compute_step4e_values(
             normal_filter_source = "locked_pre_line"
     normal_load_n = max(0.0, dot3(force_b, n_control_b)) if state.normal_acquired else 0.0
     tcp_z_axis_b = (rotation[0][2], rotation[1][2], rotation[2][2])
+    step5d_line_tcp_speed_m_s = (
+        norm3([float(speed[0]), float(speed[1]), float(speed[2])])
+        if speed and len(speed) >= 3
+        else 0.0
+    )
+    step5d_contact_safety = {
+        "state": "inactive",
+        "action": "inactive",
+        "reason": "not_active",
+        "hold_s": state.step5d_contact_hold_s,
+        "high_window_s": state.step5d_contact_high_window_s,
+    }
+    step5d_contact_safety_stop = False
+    step5d_predicted_tcp_speed_m_s = math.nan
+    if step5d_liveprep_v13_profile and step5d_joint_line_profile:
+        step5d_contact_safety = step5d_v13_contact_safety_guard(
+            normal_load_n=normal_load_n,
+            force_norm_n=force_abs,
+            actual_tcp_speed_m_s=step5d_line_tcp_speed_m_s,
+            predicted_tcp_speed_m_s=None,
+            prior_hold_s=state.step5d_contact_hold_s,
+            prior_high_window_s=state.step5d_contact_high_window_s,
+            prior_actual_speed_violation_s=state.step5d_actual_speed_violation_s,
+            dt_s=dt_s,
+        )
+        state.step5d_contact_hold_s = float(step5d_contact_safety["hold_s"])
+        state.step5d_contact_high_window_s = float(step5d_contact_safety["high_window_s"])
+        state.step5d_actual_speed_violation_s = float(step5d_contact_safety["actual_speed_violation_s"])
+        if step5d_contact_safety["action"] == "hold_zero_qdot":
+            if state.step5d_contact_hold_path_time_s is None:
+                state.step5d_contact_hold_path_time_s = max(0.0, state.line_stage_s - max(0.0, dt_s))
+            state.line_stage_s = state.step5d_contact_hold_path_time_s
+        elif step5d_contact_safety["action"] == "pass_solver":
+            if state.step5d_contact_hold_path_time_s is not None:
+                state.step5d_outer_state = Step5dOuterLoopState()
+                state.step5d_last_qdot = None
+            state.step5d_contact_hold_path_time_s = None
+        elif step5d_contact_safety["action"] == "stop_zero_qdot":
+            step5d_contact_safety_stop = True
+            state.step5d_outer_state = Step5dOuterLoopState()
+            state.step5d_last_qdot = None
     orientation_target_axis_b = (
         # For contact routes in angular_speedl_profile, n_control_b is the
         # reaction normal. TCP z must target the approach axis -n_control_b.
@@ -1624,10 +1896,10 @@ def compute_step4e_values(
         elif axis_iso_active:
             cmd = (0.0, 0.0, 0.0)
         elif line_entry_gate_active:
-            if step5d_liveprep_v10_profile or step5d_liveprep_v11_profile or step5d_liveprep_v12_profile:
+            if step5d_liveprep_v10_profile or step5d_liveprep_v11_profile or step5d_liveprep_v12_profile or step5d_liveprep_v13_profile:
                 recovery_window_ok = step5d_v9_recovery_window_ok(normal_load_n=normal_load_n, force_norm_n=force_abs)
                 if recovery_window_ok:
-                    if step5d_liveprep_v11_profile or step5d_liveprep_v12_profile:
+                    if step5d_liveprep_v11_profile or step5d_liveprep_v12_profile or step5d_liveprep_v13_profile:
                         cmd, state.step5d_settle_filtered_normal_load_n, state.normal_velocity_m_s = (
                             step5d_v11_deadband_acquire_velocity(
                                 normal_load_n=normal_load_n,
@@ -1784,11 +2056,6 @@ def compute_step4e_values(
         step5d_engage_gate_ok = True
         step5d_line_guard_ok = True
         step5d_line_guard_reason = "not_active"
-        step5d_line_tcp_speed_m_s = (
-            norm3([float(speed[0]), float(speed[1]), float(speed[2])])
-            if speed and len(speed) >= 3
-            else 0.0
-        )
         if step5d_joint_line_profile:
             try:
                 actual_q = latest_output.get("actual_q")
@@ -1808,6 +2075,13 @@ def compute_step4e_values(
                     raise RuntimeError("Step5d liveprep runtime did not initialize")
                 q = np.asarray(actual_q[:6], dtype=float)
                 qd = np.asarray(actual_qd[:6], dtype=float)
+                if step5d_liveprep_v13_profile and step5d_contact_safety["action"] in {"hold_zero_qdot", "stop_zero_qdot"}:
+                    if step5d_contact_safety["action"] == "stop_zero_qdot":
+                        step5d_engage_gate_ok = False
+                    raise RuntimeError(
+                        "Step5d v13 contact safety "
+                        f"{step5d_contact_safety['action']}: {step5d_contact_safety['reason']}"
+                    )
                 if step5d_liveprep_v3_profile and not step5d_force_settle_ready(
                     normal_load_n=normal_load_n,
                     force_norm_n=force_abs,
@@ -1911,7 +2185,7 @@ def compute_step4e_values(
                     target_state["xdot_c"] = step5d_outer_xdot_limited
                 step5d_result = state.step5d_solver.solve(actual_q=q, actual_qd=qd, target_state=target_state)
                 step5d_qdot_command = step5d_result.qdot
-                if step5d_liveprep_v12_profile:
+                if step5d_liveprep_v12_profile or step5d_liveprep_v13_profile:
                     qdot_limited, step5d_qdot_slew_limiter_active = limit_step5d_qdot_slew(
                         step5d_result.qdot,
                         state.step5d_last_qdot,
@@ -1919,10 +2193,35 @@ def compute_step4e_values(
                     )
                     step5d_qdot_command = tuple(float(value) for value in qdot_limited.tolist())
                     state.step5d_last_qdot = qdot_limited
+                if step5d_liveprep_v13_profile:
+                    predicted_twist = jacobian @ np.asarray(step5d_qdot_command, dtype=float)
+                    step5d_predicted_tcp_speed_m_s = float(np.linalg.norm(predicted_twist[:3]))
+                    step5d_contact_safety = step5d_v13_contact_safety_guard(
+                        normal_load_n=normal_load_n,
+                        force_norm_n=force_abs,
+                        actual_tcp_speed_m_s=step5d_line_tcp_speed_m_s,
+                        predicted_tcp_speed_m_s=step5d_predicted_tcp_speed_m_s,
+                        prior_hold_s=state.step5d_contact_hold_s,
+                        prior_high_window_s=state.step5d_contact_high_window_s,
+                        prior_actual_speed_violation_s=state.step5d_actual_speed_violation_s,
+                        dt_s=dt_s,
+                        advance_actual_speed_dwell=False,
+                    )
+                    state.step5d_contact_hold_s = float(step5d_contact_safety["hold_s"])
+                    state.step5d_contact_high_window_s = float(step5d_contact_safety["high_window_s"])
+                    state.step5d_actual_speed_violation_s = float(step5d_contact_safety["actual_speed_violation_s"])
+                    if step5d_contact_safety["action"] == "stop_zero_qdot":
+                        step5d_contact_safety_stop = True
+                        step5d_engage_gate_ok = False
+                        zero_qdot = np.zeros(6, dtype=float)
+                        step5d_qdot_command = tuple(float(value) for value in zero_qdot.tolist())
+                        state.step5d_outer_state = Step5dOuterLoopState()
+                        state.step5d_last_qdot = None
                 cmd = (step5d_qdot_command[0], step5d_qdot_command[1], step5d_qdot_command[2])
                 orientation_cmd = (step5d_qdot_command[3], step5d_qdot_command[4], step5d_qdot_command[5])
             except (ValueError, RuntimeError) as exc:
-                values["_step5d_solver_error"] = str(exc)
+                if not str(exc).startswith("Step5d v13 contact safety"):
+                    values["_step5d_solver_error"] = str(exc)
                 state.step5d_outer_state = Step5dOuterLoopState()
                 state.step5d_last_qdot = None
                 cmd = (0.0, 0.0, 0.0)
@@ -1966,7 +2265,15 @@ def compute_step4e_values(
                         else (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
                     ),
                     cmd_valid=0.0
-                    if args.step4e_mode == "preview" or (joint_result is None and step5d_result is None)
+                    if args.step4e_mode == "preview"
+                    or (
+                        joint_result is None
+                        and step5d_result is None
+                        and not (
+                            step5d_liveprep_v13_profile
+                            and step5d_contact_safety["action"] in {"hold_zero_qdot", "stop_zero_qdot"}
+                        )
+                    )
                     else 1.0,
                     path_time_s=progress,
                     force_error_n=register_force_error,
@@ -1977,7 +2284,7 @@ def compute_step4e_values(
         else:
             register_force_error = force_error
             if (
-                (step5d_liveprep_v10_profile or step5d_liveprep_v11_profile or step5d_liveprep_v12_profile)
+                (step5d_liveprep_v10_profile or step5d_liveprep_v11_profile or step5d_liveprep_v12_profile or step5d_liveprep_v13_profile)
                 and line_entry_gate_active
                 and state.step5d_settle_filtered_normal_load_n is not None
             ):
@@ -2049,6 +2356,25 @@ def compute_step4e_values(
             values["_step5d_line_tcp_speed_m_s"] = step5d_line_tcp_speed_m_s
             values["_step5d_contact_orientation_error_rad"] = orientation_error
             values["_step5d_semantic_gate_ok"] = 1.0 if step5d_engage_gate_ok else 0.0
+        if step5d_joint_line_profile:
+            contact_state = str(step5d_contact_safety["state"])
+            contact_action = str(step5d_contact_safety["action"])
+            values["_step5d_contact_safety_state"] = STEP5D_V13_CONTACT_SAFETY_STATES.get(contact_state, 0.0)
+            values["_step5d_contact_safety_action"] = STEP5D_V13_CONTACT_SAFETY_ACTIONS.get(contact_action, 0.0)
+            values["_step5d_contact_hold_s"] = state.step5d_contact_hold_s
+            values["_step5d_contact_high_window_s"] = state.step5d_contact_high_window_s
+            values["_step5d_actual_speed_violation_s"] = state.step5d_actual_speed_violation_s
+            values["_step5d_actual_tcp_speed_m_s"] = step5d_line_tcp_speed_m_s
+            values["_step5d_predicted_tcp_speed_m_s"] = step5d_predicted_tcp_speed_m_s
+            values["_step5d_contact_safety_reason"] = step5d_contact_safety["reason"]
+            values["_step5d_control_normal_vs_world_z_angle_rad"] = angle_between_unit(n_control_b, (0.0, 0.0, 1.0))
+            values["_step5d_control_normal_vs_tcp_z_angle_rad"] = angle_between_unit(n_control_b, tcp_z_axis_b)
+            values["_step5d_approach_normal_vs_tcp_z_angle_rad"] = angle_between_unit(
+                (-n_control_b[0], -n_control_b[1], -n_control_b[2]),
+                tcp_z_axis_b,
+            )
+            if step5d_contact_safety_stop:
+                values["stop_request"] = 1.0
         if step5c_joint_profile and joint_result is not None:
             values["_step5c_qdot_max_abs_rad_s"] = joint_result.max_abs_qdot_rad_s
             values["_step5c_qdot_clipped"] = 1.0 if joint_result.clipped else 0.0
@@ -2120,6 +2446,7 @@ def compute_step4e_values(
                 and (
                     step5d_liveprep_v11_profile
                     or step5d_liveprep_v12_profile
+                    or step5d_liveprep_v13_profile
                     or abs(state.normal_velocity_m_s) <= STEP5D_V10_SETTLE_VELOCITY_READY_M_S
                 )
             ) else 0.0
@@ -2130,6 +2457,7 @@ def compute_step4e_values(
             STEP5D_LIVEPREP_V7_STAGE_ID,
             STEP5D_LIVEPREP_V8_STAGE_ID,
             STEP5D_LIVEPREP_V9_STAGE_ID,
+            STEP5D_LIVEPREP_V12_STAGE_ID,
             STEP5D_LIVEPREP_STAGE_ID,
         }:
             contact_min_n, contact_max_n, contact_force_norm_max_n = step5d_liveprep_contact_window_limits(args.step4e_version)
@@ -2484,7 +2812,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     if args.step5d_qdot_limit_rad_s is None:
         args.step5d_qdot_limit_rad_s = (
             STEP5D_V12_QDOT_LIMIT_RAD_S
-            if args.step4e_version == STEP5D_LIVEPREP_STAGE_ID
+            if args.step4e_version in {STEP5D_LIVEPREP_V12_STAGE_ID, STEP5D_LIVEPREP_STAGE_ID}
             else 0.30
         )
     return args
@@ -2644,7 +2972,8 @@ def main(argv: list[str] | None = None) -> int:
             "step5d_strict_rnn_liveprep_v9": "Retained failure evidence: Stage 25.3 direct force-PID settle fixed low-load dropout but hunted under point contact and timed out before Stage 25.0.",
             "step5d_strict_rnn_liveprep_v10": "Retained failure evidence: Stage 25.3 scalar admittance settle softened v9 direct PID but still saturated and flipped sign under point contact, never satisfying the 3-8N plus settle-speed window before Stage 25.0.",
             "step5d_strict_rnn_liveprep_v11": "Retained incomplete evidence: Stage 25.3 deadband acquire released into Stage 25.0, but Stage 25.0 lost contact and the strict RNN speedj path accelerated until operator E-stop.",
-            "step5d_strict_rnn_liveprep_v12": "Current guarded live-prep strict RNN route: keeps v11 Stage 25.3 deadband acquire, then Stage 25.0 adds low-load/contact-retention, TCP speed watchdog, 0.05 rad/s qdot cap, and qdot slew limiting before TP speedj.",
+            "step5d_strict_rnn_liveprep_v12": "Retained read-back guarded live-prep strict RNN route: keeps v11 Stage 25.3 deadband acquire, then Stage 25.0 adds low-load/contact-retention, TCP speed watchdog, 0.05 rad/s qdot cap, and qdot slew limiting before TP speedj.",
+            "step5d_strict_rnn_liveprep_v13": "Current planned contact-safety live-prep strict RNN route: low load holds cmd_valid=1 with zero qdot and frozen path time; predicted TCP speed stops immediately, actual TCP speed stops after 0.004s dwell, and long hold timeout or high-window dwell sets stop_request with zero qdot.",
             "step6b_contact_eight_baseline_v1": "Same TP contact-search/latch/25.2/25.3 scaffold as Step5b/v31, but stage 25.0 uses the active Step6 five-point safe-frame 8-shaped reference for 30 s and v31 filtered-live normal policy.",
             "step6b_contact_eight_baseline_v2": "Same TP contact-search/latch/25.2/25.3 scaffold and Step6 reference as v1, but intended bridge caps are 15 mm/s path, 15 mm/s total linear, 3 mm/s normal reserve, and 0.060 rad/s attitude.",
         },
@@ -3059,12 +3388,22 @@ def main(argv: list[str] | None = None) -> int:
                     )
                     for name in STEP4E_INPUT_NAMES:
                         bridge_values[name] = float(step4e_values.get(name, 0.0))
+                    guard_reason = None
+                    step4e_stop_request = float(step4e_values.get("stop_request", 0.0)) > 0.5
+                    if step4e_stop_request:
+                        bridge_values["stop_request"] = 1.0
+                        stop_request = 1.0
+                        guard_reason = "step5d_contact_safety:" + str(
+                            step4e_values.get("_step5d_contact_safety_reason", "stop_request")
+                        )
+                        stop_reason = guard_reason
                     if sensor_ok:
-                        guard_reason = guard_stop_reason(args, bridge_values)
-                        if guard_reason is not None:
+                        hard_guard_reason = guard_stop_reason(args, bridge_values)
+                        if hard_guard_reason is not None:
                             bridge_values["stop_request"] = 1.0
                             stop_request = 1.0
-                            stop_reason = guard_reason
+                            guard_reason = hard_guard_reason
+                            stop_reason = hard_guard_reason
                     rtde_connected = rtde is not None
                     if rtde is not None:
                         try:

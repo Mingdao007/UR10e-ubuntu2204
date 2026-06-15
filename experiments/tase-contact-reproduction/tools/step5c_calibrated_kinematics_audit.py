@@ -21,7 +21,16 @@ import yaml
 
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
-WS_ROOT = EXPERIMENT_ROOT.parents[3]
+
+
+def find_workspace_root(start: Path) -> Path:
+    for candidate in [start, *start.parents]:
+        if (candidate / "src" / "ur10e_bringup" / "config" / "ur10e_calibration.yaml").exists():
+            return candidate
+    return start.parents[3]
+
+
+WS_ROOT = find_workspace_root(EXPERIMENT_ROOT)
 DEFAULT_CALIBRATION_YAML = WS_ROOT / "src" / "ur10e_bringup" / "config" / "ur10e_calibration.yaml"
 DEFAULT_XACRO_PATH = Path("/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro")
 DEFAULT_BRIDGE_CSV = (

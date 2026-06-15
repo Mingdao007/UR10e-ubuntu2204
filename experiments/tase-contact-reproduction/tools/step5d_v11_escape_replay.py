@@ -123,6 +123,65 @@ def replay_v12_guard(rows: list[dict[str, str]]) -> dict[str, Any]:
     return {"triggered": False, "reason": "no_v12_guard_trigger"}
 
 
+def replay_v13_contact_safety(rows: list[dict[str, str]]) -> dict[str, Any]:
+    hold_s = 0.0
+    high_window_s = 0.0
+    actual_speed_violation_s = 0.0
+    previous_t: float | None = None
+    first_hold: dict[str, Any] | None = None
+    for index, row in enumerate(rows):
+        t_rel_s = finite_float(row, "t_rel_s")
+        dt_s = 0.002 if previous_t is None else max(0.0, t_rel_s - previous_t)
+        previous_t = t_rel_s
+        result = bridge.step5d_v13_contact_safety_guard(
+            normal_load_n=finite_float(row, "_step4e_normal_load_n"),
+            force_norm_n=finite_float(row, "force_norm_n"),
+            actual_tcp_speed_m_s=linear_speed(row),
+            predicted_tcp_speed_m_s=0.0,
+            prior_hold_s=hold_s,
+            prior_high_window_s=high_window_s,
+            prior_actual_speed_violation_s=actual_speed_violation_s,
+            dt_s=dt_s,
+        )
+        hold_s = float(result["hold_s"])
+        high_window_s = float(result["high_window_s"])
+        actual_speed_violation_s = float(result["actual_speed_violation_s"])
+        if first_hold is None and result["action"] == "hold_zero_qdot":
+            first_hold = {
+                "stage25_index": index,
+                "t_rel_s": t_rel_s,
+                "dt_s": dt_s,
+                "reason": result["reason"],
+                "normal_load_n": finite_float(row, "_step4e_normal_load_n"),
+                "force_norm_n": finite_float(row, "force_norm_n"),
+                "tcp_linear_speed_m_s": linear_speed(row),
+                "cmd_valid_expected": 1.0,
+                "qdot_expected_rad_s": [0.0] * 6,
+            }
+        if result["action"] == "stop_zero_qdot":
+            return {
+                "triggered": True,
+                "reason": result["reason"],
+                "stage25_index": index,
+                "t_rel_s": t_rel_s,
+                "dt_s": dt_s,
+                "hold_s": hold_s,
+                "high_window_s": high_window_s,
+                "actual_speed_violation_s": actual_speed_violation_s,
+                "normal_load_n": finite_float(row, "_step4e_normal_load_n"),
+                "force_norm_n": finite_float(row, "force_norm_n"),
+                "tcp_linear_speed_m_s": linear_speed(row),
+                "stop_request_expected": 1.0,
+                "qdot_expected_rad_s": [0.0] * 6,
+                "first_hold": first_hold,
+            }
+    return {
+        "triggered": False,
+        "reason": "no_v13_contact_safety_stop",
+        "first_hold": first_hold,
+    }
+
+
 def analyze(csv_path: Path = DEFAULT_CSV) -> dict[str, Any]:
     with csv_path.open(encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
@@ -132,6 +191,7 @@ def analyze(csv_path: Path = DEFAULT_CSV) -> dict[str, Any]:
     if not stage25_0:
         raise RuntimeError(f"No Stage 25.0 rows in {csv_path}")
     guard_trigger = replay_v12_guard(stage25_0)
+    v13_trigger = replay_v13_contact_safety(stage25_0)
     first_0_02 = first_speed_crossing(stage25_0, 0.02)
     first_0_05 = first_speed_crossing(stage25_0, 0.05)
     peak_row = max(stage25_0, key=linear_speed)
@@ -206,6 +266,31 @@ def analyze(csv_path: Path = DEFAULT_CSV) -> dict[str, Any]:
             "line_force_norm_max_n": bridge.STEP5D_V12_LINE_FORCE_NORM_MAX_N,
             "line_contact_loss_limit_s": bridge.STEP5D_V12_LINE_CONTACT_LOSS_LIMIT_S,
             "line_tcp_speed_max_m_s": bridge.STEP5D_V12_LINE_TCP_SPEED_MAX_M_S,
+        },
+        "v13_contact_safety_replay": {
+            **v13_trigger,
+            "trigger_before_speed_gt_0_05_m_s": (
+                bool(v13_trigger.get("triggered"))
+                and first_0_05 is not None
+                and float(v13_trigger["t_rel_s"]) < float(first_0_05["t_rel_s"])
+            ),
+            "first_hold_before_speed_gt_0_02_m_s": (
+                v13_trigger.get("first_hold") is not None
+                and first_0_02 is not None
+                and float(v13_trigger["first_hold"]["t_rel_s"]) < float(first_0_02["t_rel_s"])
+            ),
+        },
+        "v13_contact_safety_parameters": {
+            "hard_low_load_n": bridge.STEP5D_V13_HARD_LOW_LOAD_N,
+            "soft_low_load_n": bridge.STEP5D_V13_SOFT_LOW_LOAD_N,
+            "valid_contact_min_n": bridge.STEP5D_V13_VALID_CONTACT_MIN_N,
+            "valid_contact_max_n": bridge.STEP5D_V13_VALID_CONTACT_MAX_N,
+            "force_norm_valid_max_n": bridge.STEP5D_V13_FORCE_NORM_VALID_MAX_N,
+            "low_load_speed_stop_m_s": bridge.STEP5D_V13_LOW_LOAD_SPEED_STOP_M_S,
+            "absolute_speed_stop_m_s": bridge.STEP5D_V13_ABSOLUTE_SPEED_STOP_M_S,
+            "actual_speed_dwell_stop_s": bridge.STEP5D_V13_ACTUAL_SPEED_DWELL_STOP_S,
+            "low_load_hold_timeout_s": bridge.STEP5D_V13_LOW_LOAD_HOLD_TIMEOUT_S,
+            "high_window_dwell_stop_s": bridge.STEP5D_V13_HIGH_WINDOW_DWELL_STOP_S,
         },
     }
 

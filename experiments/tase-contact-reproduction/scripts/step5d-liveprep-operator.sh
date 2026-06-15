@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction"
 BASE_OPERATOR="${ROOT}/scripts/step4e-line-v1-operator.sh"
-STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v12}"
+STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v13}"
 if [[ -z "${STEP5D_VERSION}" ]]; then
   EXPECTED_PROGRAM="<no current Step5d live-prep package>"
 elif [[ "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v1" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v2" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v3" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v4" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v5" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v6" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v7" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v8" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v9" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v10" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v11" ]]; then
@@ -26,7 +26,7 @@ Boundary:
   - Bridge profile: ${STEP5D_VERSION}.
   - Force target: 5.0 N, Step5/Step6 positive normal-load convention.
   - Stage 25.0: registers 37..42 are qd0..qd5 rad/s; TP executes speedj.
-  - qdot cap: v12 defaults to 0.05 rad/s; retained evidence packages may differ.
+  - qdot cap: v12/v13 default to 0.05 rad/s; retained evidence packages may differ.
   - Raw normal guard: 100 N, force norm guard: 100 N, torque guard: 3.0 Nm.
   - Stage 25.3 runs bridge deadband acquire with Cartesian registers 37..39.
   - Stage 25.3 keeps press recovery on low load and stops only outside the 40 N normal-load / 100 N force-norm hard envelope.
@@ -53,7 +53,7 @@ case "$1" in
     ;;
   contact-bridge)
     if [[ -z "${STEP5D_VERSION}" ]]; then
-      echo "refusing live Step5d bridge start: no current uploaded/read-back live-prep package after v11 incomplete run; generate and verify v12 before making it current"
+      echo "refusing live Step5d bridge start: no current uploaded/read-back live-prep package after v11 incomplete run; generate and verify current package before making it current"
       exit 40
     fi
     if [[ "${STEP5D_CONFIRM:-}" != "LIVE STEP5D STRICT RNN LIVEPREP" ]]; then

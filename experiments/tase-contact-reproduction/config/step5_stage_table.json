@@ -1668,11 +1668,11 @@
       "id": "step5d_strict_rnn_liveprep_v12",
       "stage": "Step5d",
       "owner": "bridge+TP",
-      "active": true,
+      "active": false,
       "blocked": false,
       "complete": false,
       "completion_target": false,
-      "block_reason": "Guarded v12 live-prep package is controller read-back verified and waiting for an explicit bridge trigger. No live bridge/run evidence exists yet.",
+      "block_reason": "Retained v12 read-back evidence only. Superseded by step5d_strict_rnn_liveprep_v13 contact-safety planning before any live bridge trigger.",
       "local_delivery_evidence": {
         "local_program_dir": "programs/step5",
         "program_basename": "step5d_strict_rnn_liveprep_v12",
@@ -1707,7 +1707,7 @@
       },
       "cadence": {
         "reference_clock": "real_time",
-        "motion": "current_liveprep_package_ready_after_readback",
+        "motion": "retained_controller_readback_evidence",
         "tp_hold_s": 0.002,
         "end_hold_s": 0.1
       },
@@ -1772,7 +1772,7 @@
         "orientation_target_axis": "approach_normal",
         "forbidden": "Do not normalize raw live force to construct R_d.z or orientation_target_axis",
         "gate_scope": "offline replay and runtime regression guard; not an independent closed-loop stability proof",
-        "failure_contrast": "v11 escape replay shows Stage 25.0 lost contact about 0.046s after entry while cmd_valid remained true; v12 clears cmd_valid on low-load/contact-window/TCP-speed guard before TP speedj execution.",
+        "failure_contrast": "v11 escape replay shows Stage 25.0 lost contact about 0.046s after entry while cmd_valid remained true; v12 clears cmd_valid on low-load/contact-window/TCP-speed guard before TP speedj execution, but is retained evidence after v13 contact-safety planning.",
         "runtime_assertion": "contact-search orientation error and Step5d outer-loop orientation angle must agree within 5 deg before cmd_valid can remain true",
         "deadband_acquire": {
           "stage": "25.3",
@@ -1816,7 +1816,159 @@
         "force_sign_convention": "step5_step6_positive_normal_load",
         "semantic_contract": "reaction normal for load, approach normal for posture/press direction"
       },
-      "success_condition": "Guarded v12 live-prep package is ready for bridge trigger only after local validation, exact controller upload, fetched-back SHA match, fetched-back URP internal gate, and current pointer update. It does not mark the full Step5d reproduction target complete."
+      "success_condition": "Retained v12 read-back evidence. Do not open v12 bridge as current; use v13 planning/package after local validation and an explicit later controller-delivery decision."
+    },
+    {
+      "id": "step5d_strict_rnn_liveprep_v13",
+      "stage": "Step5d",
+      "owner": "bridge+TP",
+      "active": true,
+      "blocked": false,
+      "complete": false,
+      "completion_target": false,
+      "block_reason": "Current planned contact-safety live-prep package. Local package generation/validation is authorized by the 2026-06-15 v13 handoff; controller upload/read-back and live bridge/run evidence are pending explicit authorization.",
+      "local_delivery_evidence": {
+        "local_program_dir": "programs/step5",
+        "program_basename": "step5d_strict_rnn_liveprep_v13",
+        "stamp": "2026-06-15T2251HKT_STEP5D_STRICT_RNN_LIVEPREP_V13",
+        "semantic_gate": "runs/ur_contact_semantic_gate_20260615_201109/ur_contact_semantic_gate_summary.json",
+        "semantic_gate_pass": true,
+        "local_package_validated": true,
+        "controller_readback": null,
+        "controller_readback_verified": false,
+        "sha256": {
+          ".script": "0c9c7c32ed0ee8cd4a66a8100724c7b733dccca410318a128ab03e8d47293ad6",
+          ".txt": "bd8dc3e2f0db8292be26aaa7cfaaf138b61e5b9dc68d68953588631a57c0d5e3",
+          ".urp": "26199268efe704d9f3db11f763af8edacfbbc9ef14c2d0a1c7ad272927e0471a"
+        },
+        "numeric_sanity": "runs/step5d_v11_escape_replay_20260615/summary.json",
+        "controller_dir": "/programs/andyl/kunwei/step5",
+        "archived_to_step5d_dir": false
+      },
+      "shape": "cycloid",
+      "frame": "config/step5_safe_frame.json",
+      "contact": true,
+      "bridge": true,
+      "joint_space": true,
+      "strict_rnn": true,
+      "fixed_base_z_m": null,
+      "duration_s": 60.0,
+      "amplitude_m": 0.015,
+      "phase_law": {
+        "type": "linear_time",
+        "omega_rad_s": 0.1,
+        "final_phase_rad": 6.0
+      },
+      "cadence": {
+        "reference_clock": "bridge_path_time_freezes_during_contact_uncertain_hold",
+        "motion": "local_contact_safety_package_pending_controller_delivery",
+        "tp_hold_s": 0.002,
+        "end_hold_s": 0.1
+      },
+      "guard": {
+        "heartbeat_required": true,
+        "cmd_valid_required": true,
+        "qdot_cap_rad_s": 0.05,
+        "qdot_slew_rad_s2": 0.2,
+        "hard_low_load_n": 0.25,
+        "soft_low_load_n": 0.5,
+        "valid_contact_min_n": 0.5,
+        "valid_contact_max_n": 15.0,
+        "force_norm_valid_max_n": 25.0,
+        "low_load_speed_load_n": 1.0,
+        "low_load_speed_stop_m_s": 0.025,
+        "absolute_speed_stop_m_s": 0.05,
+        "actual_speed_dwell_stop_s": 0.004,
+        "low_load_hold_timeout_s": 0.3,
+        "high_window_dwell_stop_s": 0.03,
+        "path_cap_m_s": 0.004,
+        "total_linear_cap_m_s": 0.006,
+        "normal_velocity_cap_m_s": 0.003,
+        "attitude_cap_rad_s": 0.06,
+        "semantic_orientation_tolerance_rad": 0.08726646259971647,
+        "orientation_skip_lift_error_rad": 0.069813,
+        "second_contact_max_down_m": 0.035,
+        "second_contact_near_start_depth_m": 0.0,
+        "second_contact_far_speed_m_s": -0.0025,
+        "second_contact_near_speed_m_s": -0.0025,
+        "line_entry_normal_load_min_n": 2.0,
+        "line_entry_normal_load_max_n": 15.0,
+        "line_entry_force_norm_max_n": 25.0,
+        "line_entry_required_s": 0.15,
+        "line_entry_timeout_s": 10.0,
+        "runtime_limit_s": 65.0,
+        "progress_end_hold_s": 0.1,
+        "raw_normal_guard_n": 100.0,
+        "force_norm_guard_n": 100.0,
+        "torque_norm_guard_nm": 3.0,
+        "line_entry_recovery_normal_load_min_n": 0.0,
+        "line_entry_recovery_normal_load_max_n": 40.0,
+        "line_entry_force_norm_stop_n": 100.0,
+        "normal_load_filter_alpha": 0.15,
+        "deadband_acquire_v_max_m_s": 0.0012,
+        "deadband_acquire_slew_m_s2": 0.012
+      },
+      "contact_policy": {
+        "bridge_required": true,
+        "tp_role": "stage_split_executor_and_guard_only",
+        "reference_owner": "strict_rnn_bridge",
+        "joint_solver": "strict_tase_rnn_only",
+        "dls_fallback_allowed": false,
+        "ik_fallback_allowed": false,
+        "calibrated_kinematics_backend": "Pinocchio calibrated base->tool0+active-TCP FK/J(q)",
+        "force_control": true,
+        "contact_search": true,
+        "timing_policy": "step5b_scaffold_with_v13_contact_safety_zero_qdot_hold_and_stop_request_backstop",
+        "virtual_clock_freeze": true,
+        "deadband_acquire_stage": "25.3",
+        "stage25_contact_policy": "low load holds cmd_valid=1 with zero qdot; predicted TCP speed stops immediately; actual TCP speed stops after 0.004s dwell; long hold timeout or high-window dwell sets stop_request=1 with zero qdot"
+      },
+      "semantic_control_gate": {
+        "contract": "UR_FORCE_FRAME_CONTRACT.md",
+        "reaction_normal_source": "Step5b/Step6b contact-search latched/filtered n_control_b",
+        "approach_normal": "-reaction_normal",
+        "normal_load_n": "dot(force_base, reaction_normal)",
+        "force_error_n": "target_load_n - normal_load_n",
+        "orientation_target_axis": "approach_normal",
+        "forbidden": "Do not normalize raw live force to construct R_d.z or orientation_target_axis",
+        "gate_scope": "offline replay and runtime regression guard; not an independent closed-loop stability proof",
+        "failure_contrast": "v11 escape replay shows Stage 25.0 lost contact while cmd_valid remained true and qdot saturated; v13 converts benign low load to cmd_valid=1 zero-qdot hold and true danger to stop_request=1.",
+        "runtime_assertion": "contact-search orientation error and Step5d outer-loop orientation angle must agree within 5 deg before nonzero qdot can be accepted",
+        "stage25_contact_safety": {
+          "low_load_action": "cmd_valid=1_zero_qdot_hold",
+          "hold_subreasons": [
+            "hard_lost_contact_hold",
+            "soft_low_contact_hold"
+          ],
+          "predicted_speed_backstop": "immediate_predicted_tcp_speed",
+          "actual_speed_backstop": "actual_tcp_speed_after_0.004s_dwell",
+          "danger_action": "stop_request=1_zero_qdot",
+          "diagnostic_angles": [
+            "control_normal_vs_world_z_angle_rad",
+            "control_normal_vs_tcp_z_angle_rad",
+            "approach_normal_vs_tcp_z_angle_rad"
+          ]
+        }
+      },
+      "liveprep_gates": [
+        "v11 escape replay first low-load row enters zero-qdot hold instead of nonzero qdot or immediate success",
+        "0.050 rad/s qdot cap and 0.20 rad/s^2 qdot slew are retained from v12",
+        "low load plus predicted TCP speed >0.025m/s stops immediately through stop_request",
+        "low load plus actual TCP speed >0.025m/s stops through stop_request after 0.004s dwell",
+        "predicted TCP speed >0.050m/s stops immediately through stop_request",
+        "actual TCP speed >0.050m/s stops through stop_request after 0.004s dwell",
+        "low-load hold beyond 0.300s stops through stop_request",
+        "normal_load is dot(force_base, reaction_normal), not TCP Fz or world-Z force",
+        "generated v13 local package validates; controller read-back is pending explicit authorization"
+      ],
+      "filter_policy": {
+        "normal_filter": "v31_filtered_live",
+        "alpha": 0.35,
+        "min_force_n": 2.0,
+        "force_sign_convention": "step5_step6_positive_normal_load",
+        "semantic_contract": "reaction normal for load, approach normal for posture/press direction"
+      },
+      "success_condition": "Local v13 implementation is complete only after no-motion tests and local TP package validation pass. It is not a current runnable bridge target until controller upload/read-back is explicitly authorized and verified."
     },
     {
       "id": "step5d_strict_rnn_reproduction_v1",

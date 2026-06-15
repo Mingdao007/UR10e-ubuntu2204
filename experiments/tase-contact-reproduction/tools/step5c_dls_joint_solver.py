@@ -19,9 +19,10 @@ from step5_table import cycloid_reference_local, load_step5_table, step5_stage
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MODEL_PATH = (
-    EXPERIMENT_ROOT.parents[3]
-    / "experiments"
-    / "20260523_tase_finite_time_ur10e_mujoco_reproduction"
+    EXPERIMENT_ROOT.parent
+    / "archive"
+    / "legacy"
+    / "tase-mujoco-reproduction-2026-05-23"
     / "assets"
     / "mjcf"
     / "ur10e_nominal.xml"

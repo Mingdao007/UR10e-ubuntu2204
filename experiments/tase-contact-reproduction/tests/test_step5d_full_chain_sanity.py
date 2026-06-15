@@ -17,6 +17,8 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 import kunwei_rtde_bridge as bridge  # noqa: E402
 import build_step5d_liveprep as liveprep  # noqa: E402
+import contact_semantics  # noqa: E402
+import step5d_v11_escape_replay as escape_replay  # noqa: E402
 import step5d_full_chain_sanity as sanity  # noqa: E402
 
 
@@ -61,7 +63,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             )
 
     def test_step5d_liveprep_package_is_non_quarantine_speedj_executor(self) -> None:
-        stamp = "2026-06-15T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V12"
+        stamp = "2026-06-15T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V13"
         geom = liveprep.line_cfg(liveprep.load_json(liveprep.CONFIG_PATH))
         frame = liveprep.load_safe_frame()
         script = liveprep.build_script(stamp, "2026-06-14T12:00:00+08:00", geom, frame)
@@ -73,8 +75,9 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn("joint_executor_and_guard_only", script)
         self.assertIn("speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]", script)
         self.assertIn("local qdot_cap_rad_s = 0.050", script)
-        self.assertIn("STAGE25_GUARD", script)
-        self.assertIn("clears cmd_valid on lost contact", script)
+        self.assertIn("STAGE25_CONTACT_SAFETY", script)
+        self.assertIn("cmd_valid=1 zero-qdot hold", script)
+        self.assertIn("stop_request", script)
         self.assertIn("local skip_lift_attitude = 0", script)
         self.assertIn("local orientation_skip_error_rad = 0.069813", script)
         self.assertIn("if stop_reason == 0.0 and skip_lift_attitude == 0:", script)
@@ -97,11 +100,12 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn("codex_abs(normal_force) > 100.0", script)
         self.assertIn("force_norm > 100.0", script)
         self.assertIn("deadband contact acquire", txt)
-        self.assertIn("actual TCP speed exceeds 0.050 m/s", txt)
+        self.assertIn("predicted TCP speed", txt)
         self.assertIn("2.0 N", txt)
         self.assertIn("15.0 N", txt)
         self.assertNotIn("speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy", script)
         self.assertNotIn("stop_only_quarantine", script + txt)
+        self.assertNotIn("STEP5D_STRICT_RNN_LIVEPREP_V12", script + txt)
 
     def test_bridge_allows_liveprep_profile_but_keeps_full_reproduction_blocked(self) -> None:
         args = bridge.parse_args(
@@ -130,6 +134,18 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             ]
         )
         self.assertEqual(v12_args.step5d_qdot_limit_rad_s, 0.05)
+        v13_args = bridge.parse_args(
+            [
+                "--no-start-command",
+                "--step4e-mode",
+                "line",
+                "--step4e-version",
+                "step5d_strict_rnn_liveprep_v13",
+                "--step4e-path-shape",
+                "cycloid",
+            ]
+        )
+        self.assertEqual(v13_args.step5d_qdot_limit_rad_s, 0.05)
         with self.assertRaisesRegex(SystemExit, "Blocked Step5d reproduction"):
             bridge.main(
                 [
@@ -155,7 +171,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
     def test_step5d_operator_points_to_current_controller_package(self) -> None:
         operator = (ROOT / "scripts" / "step5d-liveprep-operator.sh").read_text(encoding="utf-8")
         base = (ROOT / "scripts" / "step4e-line-v1-operator.sh").read_text(encoding="utf-8")
-        self.assertIn('STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v12}"', operator)
+        self.assertIn('STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v13}"', operator)
         self.assertIn('Bridge profile: ${STEP5D_VERSION}', operator)
         self.assertIn('STEP5D_CONFIRM', operator)
         self.assertIn('MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-100}"', operator)
@@ -163,7 +179,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/${STEP4E_VERSION}.urp"', base)
         self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/step5d/${STEP4E_VERSION}.urp"', base)
         self.assertIn('"step5d_strict_rnn_liveprep_v10" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v11"', base)
-        self.assertIn('if [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v12" ]]; then', base)
+        self.assertIn('"step5d_strict_rnn_liveprep_v12" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v13"', base)
         self.assertNotIn('if [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v9" ]]; then\n  PROGRAM_LINE="/programs/andyl/kunwei/step5/${STEP4E_VERSION}.urp"', base)
         self.assertIn('EXPECTED_BASENAME="${STEP4E_VERSION}.urp"', base)
         self.assertIn('RUN_LABEL="${STEP4E_VERSION}"', base)
@@ -189,6 +205,8 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertEqual((v11_min, v11_max, v11_force_max), (2.0, 15.0, 25.0))
         v12_min, v12_max, v12_force_max = bridge.step5d_liveprep_contact_window_limits("step5d_strict_rnn_liveprep_v12")
         self.assertEqual((v12_min, v12_max, v12_force_max), (2.0, 15.0, 25.0))
+        v13_min, v13_max, v13_force_max = bridge.step5d_liveprep_contact_window_limits("step5d_strict_rnn_liveprep_v13")
+        self.assertEqual((v13_min, v13_max, v13_force_max), (2.0, 15.0, 25.0))
         self.assertEqual(
             bridge.step5d_v12_line_guard(
                 normal_load_n=0.4,
@@ -238,6 +256,173 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertFalse(bridge.step5d_v9_recovery_window_ok(normal_load_n=40.1, force_norm_n=40.1))
         self.assertFalse(bridge.step5d_v8_recovery_window_ok(normal_load_n=5.0, force_norm_n=100.1))
         self.assertFalse(bridge.step5d_v9_recovery_window_ok(normal_load_n=5.0, force_norm_n=100.1))
+
+    def test_step5d_v13_contact_safety_hold_and_stop_policy(self) -> None:
+        hold = bridge.step5d_v13_contact_safety_guard(
+            normal_load_n=0.0,
+            force_norm_n=0.1,
+            actual_tcp_speed_m_s=0.010,
+            predicted_tcp_speed_m_s=0.0,
+            prior_hold_s=0.0,
+            prior_high_window_s=0.0,
+            prior_actual_speed_violation_s=0.0,
+            dt_s=0.002,
+        )
+        self.assertEqual(hold["action"], "hold_zero_qdot")
+        self.assertEqual(hold["reason"], "hard_lost_contact_hold")
+
+        soft_hold = bridge.step5d_v13_contact_safety_guard(
+            normal_load_n=0.30,
+            force_norm_n=0.4,
+            actual_tcp_speed_m_s=0.010,
+            predicted_tcp_speed_m_s=0.0,
+            prior_hold_s=0.0,
+            prior_high_window_s=0.0,
+            prior_actual_speed_violation_s=0.0,
+            dt_s=0.002,
+        )
+        self.assertEqual(soft_hold["reason"], "soft_low_contact_hold")
+
+        low_load_speed_first = bridge.step5d_v13_contact_safety_guard(
+            normal_load_n=0.8,
+            force_norm_n=0.9,
+            actual_tcp_speed_m_s=0.026,
+            predicted_tcp_speed_m_s=0.0,
+            prior_hold_s=0.0,
+            prior_high_window_s=0.0,
+            prior_actual_speed_violation_s=0.0,
+            dt_s=0.002,
+        )
+        self.assertEqual(low_load_speed_first["action"], "pass_solver")
+        self.assertAlmostEqual(float(low_load_speed_first["actual_speed_violation_s"]), 0.002)
+
+        low_load_speed_second = bridge.step5d_v13_contact_safety_guard(
+            normal_load_n=0.8,
+            force_norm_n=0.9,
+            actual_tcp_speed_m_s=0.026,
+            predicted_tcp_speed_m_s=0.0,
+            prior_hold_s=0.0,
+            prior_high_window_s=0.0,
+            prior_actual_speed_violation_s=float(low_load_speed_first["actual_speed_violation_s"]),
+            dt_s=0.002,
+        )
+        self.assertEqual(low_load_speed_second["action"], "stop_zero_qdot")
+        self.assertEqual(low_load_speed_second["reason"], "low_load_actual_tcp_speed_watchdog_dwell")
+
+        actual_spike = bridge.step5d_v13_contact_safety_guard(
+            normal_load_n=5.0,
+            force_norm_n=5.0,
+            actual_tcp_speed_m_s=0.051,
+            predicted_tcp_speed_m_s=0.0,
+            prior_hold_s=0.0,
+            prior_high_window_s=0.0,
+            prior_actual_speed_violation_s=0.0,
+            dt_s=0.002,
+        )
+        self.assertEqual(actual_spike["action"], "pass_solver")
+
+        predicted = bridge.step5d_v13_contact_safety_guard(
+            normal_load_n=5.0,
+            force_norm_n=5.0,
+            actual_tcp_speed_m_s=0.001,
+            predicted_tcp_speed_m_s=0.051,
+            prior_hold_s=0.0,
+            prior_high_window_s=0.0,
+            prior_actual_speed_violation_s=0.0,
+            dt_s=0.002,
+        )
+        self.assertEqual(predicted["action"], "stop_zero_qdot")
+        self.assertEqual(predicted["reason"], "predicted_tcp_speed_watchdog")
+
+        timeout = bridge.step5d_v13_contact_safety_guard(
+            normal_load_n=0.0,
+            force_norm_n=0.1,
+            actual_tcp_speed_m_s=0.001,
+            predicted_tcp_speed_m_s=0.0,
+            prior_hold_s=0.299,
+            prior_high_window_s=0.0,
+            prior_actual_speed_violation_s=0.0,
+            dt_s=0.002,
+        )
+        self.assertEqual(timeout["reason"], "low_load_hold_timeout")
+
+        high = bridge.step5d_v13_contact_safety_guard(
+            normal_load_n=16.0,
+            force_norm_n=16.0,
+            actual_tcp_speed_m_s=0.001,
+            predicted_tcp_speed_m_s=0.0,
+            prior_hold_s=0.0,
+            prior_high_window_s=0.029,
+            prior_actual_speed_violation_s=0.0,
+            dt_s=0.002,
+        )
+        self.assertEqual(high["reason"], "high_contact_window_dwell_stop")
+
+        recovered = bridge.step5d_v13_contact_safety_guard(
+            normal_load_n=5.0,
+            force_norm_n=5.0,
+            actual_tcp_speed_m_s=0.001,
+            predicted_tcp_speed_m_s=0.0,
+            prior_hold_s=0.2,
+            prior_high_window_s=0.02,
+            prior_actual_speed_violation_s=0.002,
+            dt_s=0.002,
+        )
+        self.assertEqual(recovered["action"], "pass_solver")
+        self.assertEqual(recovered["hold_s"], 0.0)
+        self.assertEqual(recovered["high_window_s"], 0.0)
+        self.assertEqual(recovered["actual_speed_violation_s"], 0.0)
+
+    def test_step5d_v13_replays_v11_low_load_as_hold_then_speed_stop(self) -> None:
+        with escape_replay.DEFAULT_CSV.open(encoding="utf-8") as handle:
+            rows = list(csv.DictReader(handle))
+        escape_replay.annotate_relative_times(rows)
+        stage25 = escape_replay.stage_rows(rows, 25.0)
+        first_low = next(
+            row for row in stage25
+            if escape_replay.finite_float(row, "_step4e_normal_load_n") < bridge.STEP5D_V13_SOFT_LOW_LOAD_N
+        )
+        hold = bridge.step5d_v13_contact_safety_guard(
+            normal_load_n=escape_replay.finite_float(first_low, "_step4e_normal_load_n"),
+            force_norm_n=escape_replay.finite_float(first_low, "force_norm_n"),
+            actual_tcp_speed_m_s=escape_replay.linear_speed(first_low),
+            predicted_tcp_speed_m_s=0.0,
+            prior_hold_s=0.0,
+            prior_high_window_s=0.0,
+            prior_actual_speed_violation_s=0.0,
+            dt_s=0.002,
+        )
+        self.assertEqual(hold["action"], "hold_zero_qdot")
+        self.assertEqual(hold["reason"], "hard_lost_contact_hold")
+
+        hold_s = float(hold["hold_s"])
+        actual_speed_violation_s = 0.0
+        stop = None
+        for row in stage25:
+            result = bridge.step5d_v13_contact_safety_guard(
+                normal_load_n=escape_replay.finite_float(row, "_step4e_normal_load_n"),
+                force_norm_n=escape_replay.finite_float(row, "force_norm_n"),
+                actual_tcp_speed_m_s=escape_replay.linear_speed(row),
+                predicted_tcp_speed_m_s=0.0,
+                prior_hold_s=hold_s,
+                prior_high_window_s=0.0,
+                prior_actual_speed_violation_s=actual_speed_violation_s,
+                dt_s=0.002,
+            )
+            hold_s = float(result["hold_s"])
+            actual_speed_violation_s = float(result["actual_speed_violation_s"])
+            if result["action"] == "stop_zero_qdot":
+                stop = result
+                break
+        self.assertIsNotNone(stop)
+        self.assertEqual(stop["action"], "stop_zero_qdot")
+        self.assertEqual(stop["reason"], "low_load_actual_tcp_speed_watchdog_dwell")
+
+    def test_step5d_force_frame_load_uses_reaction_normal_dot_product(self) -> None:
+        force_base = (0.0, 3.0, 4.0)
+        reaction_normal = (0.0, 0.6, 0.8)
+        self.assertAlmostEqual(contact_semantics.signed_normal_load_n(force_base, reaction_normal), 5.0)
+        self.assertNotEqual(contact_semantics.signed_normal_load_n(force_base, reaction_normal), force_base[2])
         press_cmd, _, press_v = bridge.step5d_v8_force_pid_settle_velocity(
             normal_load_n=2.0,
             target_force_n=5.0,

@@ -1,49 +1,47 @@
 {
   "version": 2,
-  "updated_at": "2026-06-15T21:26:14+08:00",
+  "updated_at": "2026-06-15T22:51:00+08:00",
   "current_step": "Step5d",
-  "current_stage_id": "step5d_strict_rnn_liveprep_v12",
-  "program": "step5d_strict_rnn_liveprep_v12",
+  "current_stage_id": "step5d_strict_rnn_liveprep_v13",
+  "program": "step5d_strict_rnn_liveprep_v13",
   "flow_path": "STEP5_FLOW.md",
   "stage_table_path": "config/step5_stage_table.json",
-  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v12.urp",
-  "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v12.script",
-  "local_triplet": "programs/step5/step5d_strict_rnn_liveprep_v12.{script,txt,urp}",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v13.urp",
+  "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v13.script",
+  "local_triplet": "programs/step5/step5d_strict_rnn_liveprep_v13.{script,txt,urp}",
   "bridge_profile": {
-    "step4e_version": "step5d_strict_rnn_liveprep_v12",
+    "step4e_version": "step5d_strict_rnn_liveprep_v13",
     "step4e_path_shape": "cycloid",
     "step5d_qdot_limit_rad_s": 0.05,
     "target_force_n": 5.0,
     "normal_follow_mode": "filtered_live"
   },
-  "status": "step5d_v12_controller_readback_verified_waiting_bridge_trigger",
+  "status": "step5d_v13_local_package_verified_controller_readback_pending",
   "strict_rnn_status": {
-    "stage_id": "step5d_strict_rnn_liveprep_v12",
+    "stage_id": "step5d_strict_rnn_liveprep_v13",
     "blocked": false,
     "paper_truth_config": "config/step5d_liveprep_solver_gate.json",
-    "reason": "Guarded live-prep package only; full Step5d strict TASE reproduction remains separate and incomplete."
+    "reason": "Contact-safety live-prep package only; full Step5d strict TASE reproduction remains separate and incomplete."
   },
   "evidence": {
     "v11_escape_replay_summary": "runs/step5d_v11_escape_replay_20260615/summary.json",
     "v12_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_liveprep_v12_20260615_212614",
     "v12_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v12_20260615_212614/manifest.json",
-    "v12_stamp": "2026-06-15T2125HKT_STEP5D_STRICT_RNN_LIVEPREP_V12",
+    "v13_stamp": "2026-06-15T2251HKT_STEP5D_STRICT_RNN_LIVEPREP_V13",
+    "v13_local_package_validated": true,
+    "v13_controller_readback_verified": false,
     "sha256": {
-      ".script": "087ac3a40b9bdb1d216f03ffd77e3812a96d10c8207e7a2047fcba7f9046f318",
-      ".txt": "2af1d1150b054b76fa48cb7bd11858d5d36678e7f7a3bf63876e87cdf5349584",
-      ".urp": "ca5c75f17f709fc7ad42da92b017ac3bbb5941a73583a4a95fb414a1eabb7596"
+      ".script": "0c9c7c32ed0ee8cd4a66a8100724c7b733dccca410318a128ab03e8d47293ad6",
+      ".txt": "bd8dc3e2f0db8292be26aaa7cfaaf138b61e5b9dc68d68953588631a57c0d5e3",
+      ".urp": "26199268efe704d9f3db11f763af8edacfbbc9ef14c2d0a1c7ad272927e0471a"
     }
   },
   "bridge_trigger": {
-    "allowed_tokens": [
-      "开bridge",
-      "开 bridge",
-      "开",
-      "1"
-    ],
+    "allowed_tokens": [],
     "bridge_has_started": false,
     "live_motion_authorized": false,
-    "zero_ftsensor_authorized": false
+    "zero_ftsensor_authorized": false,
+    "blocked_reason": "v13 controller upload/read-back is pending explicit authorization in the v13 handoff; live bridge trigger is not enabled."
   },
   "retained_steps": [
     {
@@ -55,7 +53,7 @@
       "step": "Step5",
       "flow_path": "STEP5_FLOW.md",
       "stage_table_path": "config/step5_stage_table.json",
-      "role": "current guarded Step5d live-prep handoff plus retained Step5c/Step5d evidence"
+      "role": "current v13 local contact-safety package plus retained Step5c/Step5d evidence"
     },
     {
       "step": "Step6",
@@ -66,7 +64,8 @@
   ],
   "notes": [
     "This file is the single current pointer for UR/Kunwei package and bridge handoffs.",
-    "The current TP-openable package is controller read-back verified, but bridge, TP Play, robot motion, and zero_ftsensor remain explicit live gates.",
-    "This guarded live-prep package does not mark the full Step5d TASE reproduction complete."
+    "The current v13 TP-openable package is locally validated only; controller upload/read-back is pending by this handoff's safety boundary.",
+    "Bridge, TP Play, robot motion, and zero_ftsensor remain explicit live gates and are not authorized here.",
+    "This contact-safety live-prep package does not mark the full Step5d TASE reproduction complete."
   ]
 }
