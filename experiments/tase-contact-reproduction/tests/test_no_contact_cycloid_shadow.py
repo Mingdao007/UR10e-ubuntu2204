@@ -105,6 +105,10 @@ class NoContactCycloidShadowTest(unittest.TestCase):
         self.assertIn("Could not get configuration package", script)
         self.assertIn("no motion was attempted", script)
         self.assertIn("no_contact_motion_probe", script)
+        self.assertIn("ros2 topic echo --once /joint_states", script)
+        self.assertIn("ros2 control list_controllers", script)
+        self.assertIn("joint_state_broadcaster.*active", script)
+        self.assertIn("--max-force-delta-n 8.0", script)
         self.assertLess(script.find("Could not get configuration package"), script.find("no_contact_motion_probe"))
 
         probe = (
@@ -115,7 +119,10 @@ class NoContactCycloidShadowTest(unittest.TestCase):
             / "no_contact_motion_probe.py"
         ).read_text(encoding="utf-8")
         self.assertIn("/force_torque_sensor_broadcaster/ft_data", probe)
-        self.assertIn("Force gate blocked motion", probe)
+        self.assertIn("baseline_force_n", probe)
+        self.assertIn("Force delta gate blocked motion", probe)
+        self.assertIn("--max-force-delta-n", probe)
+        self.assertIn("Compatibility alias for --max-force-delta-n", probe)
         self.assertIn('"Program running: true"', probe)
         self.assertNotIn('responses.get("running") != "Program running: false"', probe)
 

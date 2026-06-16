@@ -45,6 +45,7 @@ class NoContactMotionProbe(Node):
         self.args = args
         self.joint_state: JointState | None = None
         self.wrench: WrenchStamped | None = None
+        self.force_samples: list[tuple[float, float, float]] = []
         self.create_subscription(JointState, args.joint_state_topic, self._on_joint_state, 10)
         if not args.skip_force_check:
             self.create_subscription(WrenchStamped, args.force_topic, self._on_wrench, 10)
@@ -55,6 +56,8 @@ class NoContactMotionProbe(Node):
 
     def _on_wrench(self, msg: WrenchStamped) -> None:
         self.wrench = msg
+        self.force_samples.append(_force_vector(msg))
+        self.force_samples = self.force_samples[-1000:]
 
     def wait_for_joint_state(self) -> JointState:
         deadline = time.monotonic() + self.args.wait_s
@@ -64,32 +67,47 @@ class NoContactMotionProbe(Node):
                 return self.joint_state
         raise RuntimeError(f"Timed out waiting for joint state on {self.args.joint_state_topic}")
 
-    def wait_for_force_gate(self) -> dict[str, Any] | None:
+    def collect_force_baseline(self) -> dict[str, Any] | None:
         if self.args.skip_force_check:
             return None
         deadline = time.monotonic() + self.args.wait_s
+        baseline_until: float | None = None
+        self.force_samples.clear()
         while rclpy.ok() and time.monotonic() < deadline:
             rclpy.spin_once(self, timeout_sec=0.1)
-            if self.wrench is not None:
-                force = self.wrench.wrench.force
-                force_norm = math.sqrt(force.x * force.x + force.y * force.y + force.z * force.z)
-                if force_norm > self.args.max_force_n:
-                    raise RuntimeError(
-                        f"Force gate blocked motion: {force_norm:.3f} N > {self.args.max_force_n:.3f} N"
-                    )
+            sample_count = len(self.force_samples)
+            if sample_count > 0 and baseline_until is None:
+                baseline_until = time.monotonic() + self.args.force_baseline_s
+            if (
+                baseline_until is not None
+                and time.monotonic() >= baseline_until
+                and sample_count >= self.args.min_force_samples
+            ):
+                baseline = _mean_vector(self.force_samples)
+                force_norm = _norm(baseline)
                 return {
                     "topic": self.args.force_topic,
-                    "force_n": {"x": force.x, "y": force.y, "z": force.z},
-                    "force_norm_n": force_norm,
-                    "max_force_n": self.args.max_force_n,
+                    "baseline_force_n": _vector_payload(baseline),
+                    "baseline_force_norm_n": force_norm,
+                    "baseline_sample_count": sample_count,
+                    "baseline_s": self.args.force_baseline_s,
+                    "max_force_delta_n": self.args.max_force_delta_n,
+                    "max_observed_force_delta_n": 0.0,
+                    "blocked": False,
                 }
         raise RuntimeError(f"Timed out waiting for force sample on {self.args.force_topic}")
+
+    def force_delta(self, force_gate: dict[str, Any] | None) -> float:
+        if self.args.skip_force_check or force_gate is None or self.wrench is None:
+            return 0.0
+        baseline = _payload_vector(force_gate["baseline_force_n"])
+        return _norm(_vector_sub(_force_vector(self.wrench), baseline))
 
     def run(self) -> dict[str, Any]:
         dashboard = dashboard_exchange(self.args.robot_ip, ["is in remote control", "safetymode", "robotmode", "running"])
         _validate_dashboard(dashboard)
         joint_state = self.wait_for_joint_state()
-        force_gate = self.wait_for_force_gate()
+        force_gate = self.collect_force_baseline()
         positions = _ordered_positions(joint_state)
         if not self.action_client.wait_for_server(timeout_sec=self.args.wait_s):
             raise RuntimeError(f"Action server unavailable: {self.args.action_name}")
@@ -125,7 +143,24 @@ class NoContactMotionProbe(Node):
         if not goal_handle.accepted:
             raise RuntimeError("FollowJointTrajectory goal was rejected")
         result_future = goal_handle.get_result_async()
-        rclpy.spin_until_future_complete(self, result_future, timeout_sec=self.args.duration_s + self.args.wait_s)
+        deadline = time.monotonic() + self.args.duration_s + self.args.wait_s
+        while rclpy.ok() and time.monotonic() < deadline and not result_future.done():
+            rclpy.spin_once(self, timeout_sec=0.05)
+            force_delta = self.force_delta(force_gate)
+            if force_gate is not None:
+                force_gate["max_observed_force_delta_n"] = max(
+                    force_gate["max_observed_force_delta_n"],
+                    force_delta,
+                )
+            if force_delta > self.args.max_force_delta_n:
+                if force_gate is not None:
+                    force_gate["blocked"] = True
+                    force_gate["block_force_delta_n"] = force_delta
+                cancel_future = goal_handle.cancel_goal_async()
+                rclpy.spin_until_future_complete(self, cancel_future, timeout_sec=1.0)
+                raise RuntimeError(
+                    f"Force delta gate blocked motion: {force_delta:.3f} N > {self.args.max_force_delta_n:.3f} N"
+                )
         result = result_future.result()
         if result is None:
             raise RuntimeError("Timed out waiting for FollowJointTrajectory result")
@@ -148,10 +183,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--duration-s", type=float, default=6.0)
     parser.add_argument("--wait-s", type=float, default=15.0)
     parser.add_argument("--force-topic", default="/force_torque_sensor_broadcaster/ft_data")
-    parser.add_argument("--max-force-n", type=float, default=10.0)
+    parser.add_argument("--force-baseline-s", type=float, default=1.0)
+    parser.add_argument("--min-force-samples", type=int, default=5)
+    parser.add_argument("--max-force-delta-n", type=float, default=8.0)
+    parser.add_argument("--max-force-n", type=float, default=None, help="Compatibility alias for --max-force-delta-n.")
     parser.add_argument("--skip-force-check", action="store_true")
     parser.add_argument("--summary", type=Path, default=None)
     args = parser.parse_args(argv)
+    if args.max_force_n is not None:
+        args.max_force_delta_n = args.max_force_n
 
     rclpy.init(args=None)
     node = NoContactMotionProbe(args)
@@ -191,6 +231,36 @@ def _validate_dashboard(responses: dict[str, str]) -> None:
 def _ordered_positions(joint_state: JointState) -> list[float]:
     by_name = {name: joint_state.position[index] for index, name in enumerate(joint_state.name)}
     return [float(by_name[name]) for name in JOINT_NAMES]
+
+
+def _force_vector(msg: WrenchStamped) -> tuple[float, float, float]:
+    force = msg.wrench.force
+    return (float(force.x), float(force.y), float(force.z))
+
+
+def _mean_vector(samples: list[tuple[float, float, float]]) -> tuple[float, float, float]:
+    width = float(len(samples))
+    return (
+        sum(sample[0] for sample in samples) / width,
+        sum(sample[1] for sample in samples) / width,
+        sum(sample[2] for sample in samples) / width,
+    )
+
+
+def _vector_sub(a: tuple[float, float, float], b: tuple[float, float, float]) -> tuple[float, float, float]:
+    return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
+
+
+def _norm(vector: tuple[float, float, float]) -> float:
+    return math.sqrt(vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2])
+
+
+def _vector_payload(vector: tuple[float, float, float]) -> dict[str, float]:
+    return {"x": vector[0], "y": vector[1], "z": vector[2]}
+
+
+def _payload_vector(payload: dict[str, float]) -> tuple[float, float, float]:
+    return (float(payload["x"]), float(payload["y"]), float(payload["z"]))
 
 
 def _trajectory_points(start: list[float], joint_name: str, delta_rad: float, duration_s: float) -> list[JointTrajectoryPoint]:

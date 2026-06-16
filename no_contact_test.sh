@@ -8,6 +8,7 @@ STAMP="$(date +%Y%m%d_%H%M%S)"
 RUN_DIR="${RUN_ROOT}/no_contact_test_${STAMP}"
 ROBOT_IP="${ROBOT_IP:-192.168.1.18}"
 REVERSE_IP="${REVERSE_IP:-192.168.1.10}"
+READINESS_WAIT_S="${READINESS_WAIT_S:-30}"
 
 mkdir -p "${RUN_DIR}"
 echo "run_dir=${RUN_DIR}"
@@ -32,26 +33,60 @@ ros2 run ur10e_example_controllers no_contact_cycloid_shadow \
   --output-dir "${RUN_DIR}/no_contact_shadow" \
   | tee "${RUN_DIR}/no_contact_shadow.log"
 
-set +e
-timeout --signal=INT 20s ros2 launch ur10e_bringup ur10e_control.launch.py \
+readiness_failed() {
+  rg -n "Could not get configuration package|FATAL|Failed to set the initial state|process has died" \
+    "${RUN_DIR}/driver_readiness.log" >/dev/null
+}
+
+stop_launch() {
+  local pid="$1"
+  if kill -0 "${pid}" >/dev/null 2>&1; then
+    kill -INT "${pid}" >/dev/null 2>&1 || true
+  fi
+  wait "${pid}" >/dev/null 2>&1 || true
+}
+
+ros2 launch ur10e_bringup ur10e_control.launch.py \
   robot_ip:="${ROBOT_IP}" \
   reverse_ip:="${REVERSE_IP}" \
   headless_mode:=true \
   activate_joint_controller:=false \
   launch_rviz:=false \
-  >"${RUN_DIR}/driver_readiness.log" 2>&1
-READINESS_RC=$?
-set -e
+  >"${RUN_DIR}/driver_readiness.log" 2>&1 &
+READINESS_PID=$!
 
-if rg -n "Could not get configuration package|FATAL|Failed to set the initial state|process has died" "${RUN_DIR}/driver_readiness.log" >/dev/null; then
+READINESS_OK=false
+READINESS_DEADLINE=$((SECONDS + READINESS_WAIT_S))
+while (( SECONDS < READINESS_DEADLINE )); do
+  if readiness_failed; then
+    break
+  fi
+  if ! kill -0 "${READINESS_PID}" >/dev/null 2>&1; then
+    break
+  fi
+  if timeout 2s ros2 topic echo --once /joint_states >"${RUN_DIR}/joint_states_once.log" 2>&1; then
+    if timeout 2s ros2 control list_controllers --controller-manager /controller_manager \
+      >"${RUN_DIR}/controllers_readiness.log" 2>&1; then
+      if rg -n "joint_state_broadcaster.*active" "${RUN_DIR}/controllers_readiness.log" >/dev/null; then
+        READINESS_OK=true
+        break
+      fi
+    fi
+  fi
+  sleep 1
+done
+
+stop_launch "${READINESS_PID}"
+if [[ "${READINESS_OK}" != "true" ]]; then
   echo "5a0 failed; no motion was attempted."
   echo "log=${RUN_DIR}/driver_readiness.log"
+  if [[ -f "${RUN_DIR}/controllers_readiness.log" ]]; then
+    echo "controllers=${RUN_DIR}/controllers_readiness.log"
+  fi
+  if [[ -f "${RUN_DIR}/joint_states_once.log" ]]; then
+    echo "joint_states=${RUN_DIR}/joint_states_once.log"
+  fi
   exit 2
-fi
-if [[ "${READINESS_RC}" != "0" && "${READINESS_RC}" != "124" ]]; then
-  echo "5a0 launch exited unexpectedly: rc=${READINESS_RC}"
-  echo "log=${RUN_DIR}/driver_readiness.log"
-  exit "${READINESS_RC}"
 fi
 
 ros2 launch ur10e_bringup ur10e_control.launch.py \
@@ -65,14 +100,15 @@ LAUNCH_PID=$!
 cleanup() {
   if kill -0 "${LAUNCH_PID}" >/dev/null 2>&1; then
     kill -INT "${LAUNCH_PID}" >/dev/null 2>&1 || true
-    wait "${LAUNCH_PID}" >/dev/null 2>&1 || true
   fi
+  wait "${LAUNCH_PID}" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
 ros2 run ur10e_example_controllers no_contact_motion_probe \
   --execute \
   --robot-ip "${ROBOT_IP}" \
+  --max-force-delta-n 8.0 \
   --summary "${RUN_DIR}/no_contact_motion_probe.json" \
   | tee "${RUN_DIR}/no_contact_motion_probe.log"
 
