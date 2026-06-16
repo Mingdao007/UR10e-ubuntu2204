@@ -73,7 +73,8 @@ class Step5TableAndContactArchitectureTest(unittest.TestCase):
         liveprep_v12 = step5_table.step5_stage("step5d_strict_rnn_liveprep_v12", self.table)
         liveprep_v13 = step5_table.step5_stage("step5d_strict_rnn_liveprep_v13", self.table)
         liveprep_v14 = step5_table.step5_stage("step5d_strict_rnn_liveprep_v14", self.table)
-        liveprep = liveprep_v14
+        liveprep_v15 = step5_table.step5_stage("step5d_strict_rnn_liveprep_v15", self.table)
+        liveprep = liveprep_v15
         step5d = step5_table.step5_stage("step5d_strict_rnn_reproduction_v1", self.table)
         self.assertFalse(dry["active"])
         self.assertTrue(dry["blocked"])
@@ -159,51 +160,49 @@ class Step5TableAndContactArchitectureTest(unittest.TestCase):
         self.assertFalse(liveprep_v13["active"])
         self.assertTrue(liveprep_v13["local_delivery_evidence"]["controller_readback_verified"])
         self.assertIn("known P1", liveprep_v13["block_reason"])
-        self.assertFalse(liveprep["active"])
+        self.assertFalse(liveprep_v14["active"])
+        self.assertTrue(liveprep_v14["local_delivery_evidence"]["controller_readback_verified"])
+        self.assertEqual(
+            liveprep_v14["live_run_evidence"]["stop_reason"],
+            "step5d_contact_safety:predicted_tcp_speed_watchdog",
+        )
+        self.assertTrue(liveprep["active"])
         self.assertFalse(liveprep["blocked"])
         self.assertFalse(liveprep["complete"])
         self.assertFalse(liveprep["completion_target"])
-        self.assertIn("predicted TCP speed watchdog", liveprep["block_reason"])
+        self.assertIn("Controller read-back verified", liveprep["block_reason"])
         self.assertEqual(liveprep["local_delivery_evidence"]["local_program_dir"], "programs/step5")
         self.assertEqual(liveprep["local_delivery_evidence"]["controller_dir"], "/programs/andyl/kunwei/step5")
         self.assertFalse(liveprep["local_delivery_evidence"]["archived_to_step5d_dir"])
         self.assertTrue(liveprep["local_delivery_evidence"]["semantic_gate_pass"])
-        self.assertEqual(liveprep["local_delivery_evidence"]["program_basename"], "step5d_strict_rnn_liveprep_v14")
+        self.assertEqual(liveprep["local_delivery_evidence"]["program_basename"], "step5d_strict_rnn_liveprep_v15")
         self.assertEqual(
             liveprep["local_delivery_evidence"]["stamp"],
-            "2026-06-15T2310HKT_STEP5D_STRICT_RNN_LIVEPREP_V14",
+            "2026-06-16T1517HKT_STEP5D_STRICT_RNN_LIVEPREP_V15",
         )
         self.assertTrue(liveprep["local_delivery_evidence"]["local_package_validated"])
         self.assertTrue(liveprep["local_delivery_evidence"]["controller_readback_verified"])
         self.assertEqual(
             liveprep["local_delivery_evidence"]["controller_readback"],
-            "runs/controller_readback_step5d_strict_rnn_liveprep_v14_20260615_231304/manifest.json",
+            "runs/controller_readback_step5d_strict_rnn_liveprep_v15_20260616_151843/manifest.json",
         )
         self.assertTrue(liveprep["local_delivery_evidence"]["local_controller_readback_sha_match"])
         self.assertTrue(liveprep["local_delivery_evidence"]["fetched_back_urp_internal_gate_pass"])
         self.assertEqual(
             liveprep["local_delivery_evidence"]["sha256"][".script"],
-            "0b7345c532aeebd8035cf2530a6ae78b0b924f68208f0b0a0f3cb88346cf3881",
+            "09e10425efee2e1ed097ae8f2c402b29c1edc1fb720b05463255e6102b564a56",
         )
         self.assertEqual(
             liveprep["local_delivery_evidence"]["sha256"][".txt"],
-            "c4f86f76aa8468e874e415761dfced7b9d4bc5d6b4a82d2f373887f7dcb685a7",
+            "c4b9503b77828769d18b20c09ed9af9894779442a05617fdd26142e1725a2e0a",
         )
         self.assertEqual(
             liveprep["local_delivery_evidence"]["sha256"][".urp"],
-            "bf81806fb34cf3c2dc55eb2a062d510fc348c3ca5ecdf2d28f878e1d58712523",
+            "53e8ad0726e030c90add8eaeb0855ff948245392b6ddb15b3986cbb265fb279c",
         )
-        self.assertEqual(liveprep["local_delivery_evidence"]["numeric_sanity"], "runs/step5d_v11_escape_replay_20260615/summary.json")
-        self.assertEqual(
-            liveprep["live_run_evidence"]["run_dir"],
-            "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v14_20260615_231805",
-        )
-        self.assertEqual(
-            liveprep["live_run_evidence"]["stop_reason"],
-            "step5d_contact_safety:predicted_tcp_speed_watchdog",
-        )
-        self.assertIn("Safetymode NORMAL", liveprep["live_run_evidence"]["result"])
-        self.assertIn("not current", liveprep["success_condition"])
+        self.assertEqual(liveprep["local_delivery_evidence"]["offline_replay_summary"], "runs/step5d_v15_permissive_recovery_offline_20260616/summary.json")
+        self.assertNotIn("live_run_evidence", liveprep)
+        self.assertIn("does not authorize bridge start", liveprep["success_condition"])
         self.assertTrue(liveprep["strict_rnn"])
         self.assertEqual(liveprep["guard"]["qdot_cap_rad_s"], 0.05)
         self.assertEqual(liveprep["guard"]["qdot_slew_rad_s2"], 0.2)
@@ -243,18 +242,20 @@ class Step5TableAndContactArchitectureTest(unittest.TestCase):
         self.assertEqual(liveprep["semantic_control_gate"]["contract"], "UR_FORCE_FRAME_CONTRACT.md")
         self.assertEqual(liveprep["semantic_control_gate"]["approach_normal"], "-reaction_normal")
         self.assertEqual(liveprep["semantic_control_gate"]["normal_load_n"], "dot(force_base, reaction_normal)")
-        self.assertEqual(
-            liveprep["semantic_control_gate"]["stage25_contact_safety"]["actual_speed_backstop"],
-            "first_sample_hold_then_actual_tcp_speed_after_0.004s_dwell_stop",
-        )
+        contact_safety = liveprep["semantic_control_gate"]["stage25_contact_safety"]
+        self.assertIn("predicted_tcp_speed_recoverable_hold", contact_safety["recoverable_hold_reasons"])
+        self.assertIn("low_load_reacquire_hold_timeout_deferred", contact_safety["recoverable_hold_reasons"])
+        self.assertIn("tcp_cage_braking_margin_exhausted", contact_safety["hard_stop_reasons"])
+        self.assertIn("actual_tcp_speed_watchdog_dwell", contact_safety["hard_stop_reasons"])
         self.assertIn("Do not normalize raw live force", liveprep["semantic_control_gate"]["forbidden"])
         self.assertIn("not an independent closed-loop stability proof", liveprep["semantic_control_gate"]["gate_scope"])
-        self.assertIn("v11 escape replay", liveprep["semantic_control_gate"]["failure_contrast"])
+        self.assertIn("v11 escape", liveprep["semantic_control_gate"]["failure_contrast"])
+        self.assertIn("hard-stops", liveprep["semantic_control_gate"]["failure_contrast"])
         self.assertIn("zero-qdot hold", liveprep["semantic_control_gate"]["failure_contrast"])
-        self.assertTrue(any("v11 escape replay" in gate for gate in liveprep["liveprep_gates"]))
+        self.assertTrue(any("v11" in gate and "replay" in gate and "hard-stop" in gate for gate in liveprep["liveprep_gates"]))
         self.assertTrue(any("0.050 rad/s" in gate for gate in liveprep["liveprep_gates"]))
-        self.assertTrue(any("stop_request" in gate for gate in liveprep["liveprep_gates"]))
-        self.assertEqual(liveprep["semantic_control_gate"]["stage25_contact_safety"]["low_load_action"], "cmd_valid=1_zero_qdot_hold")
+        self.assertTrue(any("controller upload/read-back verification" in gate for gate in liveprep["liveprep_gates"]))
+        self.assertEqual(contact_safety["danger_action"], "stop_request=1_zero_qdot_for_hard_stops_only")
         self.assertEqual(liveprep["filter_policy"]["force_sign_convention"], "step5_step6_positive_normal_load")
         self.assertEqual(liveprep["filter_policy"]["semantic_contract"], "reaction normal for load, approach normal for posture/press direction")
         self.assertEqual(step5d["guard"]["qdot_cap_rad_s"], 0.30)

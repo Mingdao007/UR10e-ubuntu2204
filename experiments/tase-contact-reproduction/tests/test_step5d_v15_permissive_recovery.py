@@ -101,14 +101,18 @@ class Step5dV15PermissiveRecoveryTest(unittest.TestCase):
         self.assertIn("state.line_stage_s = state.step5d_contact_hold_path_time_s", source)
         self.assertIn("step5d_qdot_command = tuple(float(value) for value in zero_qdot.tolist())", source)
 
-    def test_stage_table_marks_v15_offline_only(self) -> None:
+    def test_stage_table_marks_v15_readback_verified_without_live_authorization(self) -> None:
         table = json.loads((ROOT / "config" / "step5_stage_table.json").read_text(encoding="utf-8"))
         stage = next(item for item in table["stages"] if item["id"] == "step5d_strict_rnn_liveprep_v15")
-        self.assertFalse(stage["active"])
+        self.assertTrue(stage["active"])
         self.assertFalse(stage["complete"])
-        self.assertNotIn("local_delivery_evidence", stage)
         self.assertNotIn("live_run_evidence", stage)
-        self.assertEqual(stage["contact_policy"]["live_authorization"], "none_offline_candidate_only")
+        self.assertEqual(stage["contact_policy"]["live_authorization"], "controller_readback_verified_but_live_bridge_not_authorized")
+        self.assertTrue(stage["local_delivery_evidence"]["controller_readback_verified"])
+        self.assertEqual(
+            stage["local_delivery_evidence"]["controller_readback"],
+            "runs/controller_readback_step5d_strict_rnn_liveprep_v15_20260616_151843/manifest.json",
+        )
         self.assertEqual(stage["local_analysis_evidence"]["acceptance"]["v14_enters_hold_before_hard_stop"], True)
         self.assertEqual(stage["local_analysis_evidence"]["tcp_cage_margin_distribution_status"], "unavailable_in_source_csvs")
 

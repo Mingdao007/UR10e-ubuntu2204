@@ -63,7 +63,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             )
 
     def test_step5d_liveprep_package_is_non_quarantine_speedj_executor(self) -> None:
-        stamp = "2026-06-15T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V14"
+        stamp = "2026-06-16T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V15"
         geom = liveprep.line_cfg(liveprep.load_json(liveprep.CONFIG_PATH))
         frame = liveprep.load_safe_frame()
         script = liveprep.build_script(stamp, "2026-06-14T12:00:00+08:00", geom, frame)
@@ -77,6 +77,8 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn("local qdot_cap_rad_s = 0.050", script)
         self.assertIn("STAGE25_CONTACT_SAFETY", script)
         self.assertIn("cmd_valid=1 zero-qdot hold", script)
+        self.assertIn("recoverable predicted-speed/contact uncertainty", script)
+        self.assertIn("cage margin exhaustion", script)
         self.assertIn("stop_request", script)
         self.assertIn("local skip_lift_attitude = 0", script)
         self.assertIn("local orientation_skip_error_rad = 0.069813", script)
@@ -100,13 +102,14 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn("codex_abs(normal_force) > 50.0", script)
         self.assertIn("force_norm > 60.0", script)
         self.assertIn("deadband contact acquire", txt)
-        self.assertIn("predicted TCP speed", txt)
+        self.assertIn("recoverable predicted-speed/contact uncertainty", txt)
         self.assertIn("2.0 N", txt)
         self.assertIn("15.0 N", txt)
         self.assertNotIn("speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy", script)
         self.assertNotIn("stop_only_quarantine", script + txt)
         self.assertNotIn("STEP5D_STRICT_RNN_LIVEPREP_V12", script + txt)
         self.assertNotIn("STEP5D_STRICT_RNN_LIVEPREP_V13", script + txt)
+        self.assertNotIn("STEP5D_STRICT_RNN_LIVEPREP_V14", script + txt)
 
     def test_bridge_allows_liveprep_profile_but_keeps_full_reproduction_blocked(self) -> None:
         args = bridge.parse_args(
@@ -175,6 +178,18 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             ]
         )
         self.assertEqual(v14_args.step5d_qdot_limit_rad_s, 0.05)
+        v15_args = bridge.parse_args(
+            [
+                "--no-start-command",
+                "--step4e-mode",
+                "line",
+                "--step4e-version",
+                "step5d_strict_rnn_liveprep_v15",
+                "--step4e-path-shape",
+                "cycloid",
+            ]
+        )
+        self.assertEqual(v15_args.step5d_qdot_limit_rad_s, 0.05)
         with self.assertRaisesRegex(SystemExit, "Blocked Step5d reproduction"):
             bridge.main(
                 [
@@ -206,7 +221,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn('Bridge profile: ${STEP5D_VERSION}', operator)
         self.assertIn('STEP5D_CONFIRM', operator)
         self.assertIn('require_current_stage_readback_gate', operator)
-        self.assertIn('no current live-prep package after v14 predicted TCP speed watchdog stop', operator)
+        self.assertIn('set STEP5D_VERSION to the controller-readback-verified live-prep package', operator)
         self.assertIn('MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-50}"', operator)
         self.assertIn('MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-60}"', operator)
         self.assertIn('BRIDGE_PROFILE="${STEP5D_VERSION}"', operator)
@@ -217,7 +232,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/${STEP4E_VERSION}.urp"', base)
         self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/step5d/${STEP4E_VERSION}.urp"', base)
         self.assertIn('"step5d_strict_rnn_liveprep_v10" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v11"', base)
-        self.assertIn('"step5d_strict_rnn_liveprep_v12" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v13" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v14"', base)
+        self.assertIn('"step5d_strict_rnn_liveprep_v12" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v13" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v14" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v15"', base)
         self.assertNotIn('if [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v9" ]]; then\n  PROGRAM_LINE="/programs/andyl/kunwei/step5/${STEP4E_VERSION}.urp"', base)
         self.assertIn('EXPECTED_BASENAME="${STEP4E_VERSION}.urp"', base)
         self.assertIn('RUN_LABEL="${STEP4E_VERSION}"', base)

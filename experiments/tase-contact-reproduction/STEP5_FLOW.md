@@ -3,13 +3,13 @@
 `config/current_stage.json` currently selects no runnable Step5c joint-space
 route. The diagnostic DLS dry-run is quarantined after the 2026-06-13 live run
 showed wrong XY/Z motion. Step5d is the named completion target for the
-complete strict TASE RNN reproduction. There is currently no runnable Step5d
-live-prep package after `step5d_strict_rnn_liveprep_v14` stopped by the
-command-side predicted TCP speed watchdog on 2026-06-15.
-`step5d_strict_rnn_liveprep_v15` is an offline analysis/replay candidate only:
-it has no generated TP package, no controller upload/read-back, no bridge run,
-and no current live authorization. The full reproduction target remains
-separate and not complete.
+complete strict TASE RNN reproduction. `step5d_strict_rnn_liveprep_v15` is the
+current controller-readback-verified live-prep package after
+`step5d_strict_rnn_liveprep_v14` stopped by the command-side predicted TCP
+speed watchdog on 2026-06-15. v15 has no bridge run and no live authorization:
+bridge start, TP program load/Play, robot motion, and `zero_ftsensor()` remain
+separate explicit live gates. The full reproduction target remains separate
+and not complete.
 Step4f, Step4g, Step5b, and Step5d v1-v14 remain retained evidence packages
 only. Do not infer global current status from this per-step file without
 reading the current pointer.
@@ -41,7 +41,7 @@ controller upload, or contact motion.
 | `step5d_strict_rnn_liveprep_v12` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained read-back evidence: keeps v11 deadband acquire and adds Stage 25.0 low-load/contact-window/TCP-speed guard, `0.050 rad/s` qdot cap, and qdot slew limiting. Superseded by v13 planning before any bridge trigger. |
 | `step5d_strict_rnn_liveprep_v13` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained read-back evidence with known P1 gap: actual TCP speed dwell first sample could pass solver before v14. Do not run live. |
 | `step5d_strict_rnn_liveprep_v14` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained live-run evidence: first actual TCP speed violation sample holds zero qdot and freezes path time; second sample/`0.004 s` dwell stops; predicted TCP speed stops immediately; TP hard guards are `50/60 N` and 25.3 recovery force stop is `25 N`. 2026-06-15 run stopped by `predicted_tcp_speed_watchdog`; v14 is not current. |
-| `step5d_strict_rnn_liveprep_v15` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Offline candidate only: analyzer/replay passes with predicted-speed uncertainty routed to zero-qdot hold/reacquire, v11 replay hard-stopping before escape, and braking-aware TCP cage margin preserving a hard stop. No local TP package, no controller upload/read-back, no bridge run, and not current. |
+| `step5d_strict_rnn_liveprep_v15` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Current live-prep package with controller read-back verified: analyzer/replay passes with predicted-speed uncertainty routed to zero-qdot hold/reacquire, v11 replay hard-stopping before escape, and braking-aware TCP cage margin preserving a hard stop. No bridge run yet; TP Play/program load, bridge start, robot motion, and `zero_ftsensor()` remain separate explicit live gates. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |
 
 ## Step5c Calibrated Kinematics Gate

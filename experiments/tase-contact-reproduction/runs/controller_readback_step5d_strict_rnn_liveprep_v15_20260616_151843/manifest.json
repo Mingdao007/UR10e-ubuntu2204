@@ -1,0 +1,40 @@
+{
+  "status": "controller read-back verified",
+  "controller": "root@192.168.1.18",
+  "target_dir": "/programs/andyl/kunwei/step5",
+  "local_dir": "programs/step5",
+  "validation": {
+    "stamp": "2026-06-16T1517HKT_STEP5D_STRICT_RNN_LIVEPREP_V15",
+    "program": "step5d_strict_rnn_liveprep_v15",
+    "target_dir": "/programs/andyl/kunwei/step5",
+    "script_node_path": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v15.script",
+    "urp_sha256": "53e8ad0726e030c90add8eaeb0855ff948245392b6ddb15b3986cbb265fb279c",
+    "script_sha256": "09e10425efee2e1ed097ae8f2c402b29c1edc1fb720b05463255e6102b564a56",
+    "txt_sha256": "c4b9503b77828769d18b20c09ed9af9894779442a05617fdd26142e1725a2e0a"
+  },
+  "sha256": {
+    "local": {
+      ".script": "09e10425efee2e1ed097ae8f2c402b29c1edc1fb720b05463255e6102b564a56",
+      ".txt": "c4b9503b77828769d18b20c09ed9af9894779442a05617fdd26142e1725a2e0a",
+      ".urp": "53e8ad0726e030c90add8eaeb0855ff948245392b6ddb15b3986cbb265fb279c"
+    },
+    "controller": {
+      ".script": "09e10425efee2e1ed097ae8f2c402b29c1edc1fb720b05463255e6102b564a56",
+      ".txt": "c4b9503b77828769d18b20c09ed9af9894779442a05617fdd26142e1725a2e0a",
+      ".urp": "53e8ad0726e030c90add8eaeb0855ff948245392b6ddb15b3986cbb265fb279c"
+    },
+    "readback": {
+      ".script": "09e10425efee2e1ed097ae8f2c402b29c1edc1fb720b05463255e6102b564a56",
+      ".txt": "c4b9503b77828769d18b20c09ed9af9894779442a05617fdd26142e1725a2e0a",
+      ".urp": "53e8ad0726e030c90add8eaeb0855ff948245392b6ddb15b3986cbb265fb279c"
+    }
+  },
+  "safety_boundary": [
+    "ssh/scp file deploy only",
+    "no URScript send",
+    "no program load",
+    "no program start",
+    "no live bridge",
+    "no robot motion command"
+  ]
+}

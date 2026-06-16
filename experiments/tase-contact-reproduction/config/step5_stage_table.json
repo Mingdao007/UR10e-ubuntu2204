@@ -2143,11 +2143,11 @@
       "id": "step5d_strict_rnn_liveprep_v15",
       "stage": "Step5d",
       "owner": "bridge+TP",
-      "active": false,
+      "active": true,
       "blocked": false,
       "complete": false,
       "completion_target": false,
-      "block_reason": "Offline analysis/replay candidate only after the v14 predicted TCP speed watchdog. No TP package, controller upload/read-back, bridge start, or live authorization exists for v15.",
+      "block_reason": "Controller read-back verified v15 live-prep package. Bridge start, TP Play, robot motion, zero_ftsensor, and program load remain separate explicit live gates.",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": true,
@@ -2164,7 +2164,7 @@
       },
       "cadence": {
         "reference_clock": "bridge_path_time_freezes_during_recoverable_hold",
-        "motion": "offline_candidate_only_no_tp_package_no_controller_readback_no_bridge_start",
+        "motion": "controller_readback_verified_package_no_live_bridge_authorization",
         "tp_hold_s": 0.002,
         "end_hold_s": 0.1
       },
@@ -2234,9 +2234,9 @@
         "virtual_clock_freeze": true,
         "deadband_acquire_stage": "25.3",
         "stage25_contact_policy": "Recoverable predicted-speed/contact uncertainty holds cmd_valid=1 with zero qdot and freezes path time; semantic gate failure, force hard stop, braking margin exhaustion, repeated hold exhaustion, and original TP/global hard guards remain hard stops.",
-        "live_authorization": "none_offline_candidate_only",
-        "tp_package_status": "not_generated",
-        "controller_readback_status": "not_done"
+        "live_authorization": "controller_readback_verified_but_live_bridge_not_authorized",
+        "tp_package_status": "generated_local_and_uploaded",
+        "controller_readback_status": "verified"
       },
       "semantic_control_gate": {
         "contract": "UR_FORCE_FRAME_CONTRACT.md",
@@ -2278,7 +2278,8 @@
         "synthetic braking-aware TCP cage replay holds inside the margin and hard-stops when the margin is exhausted",
         "0.050 rad/s qdot cap and 0.20 rad/s^2 qdot slew are retained from v12-v14",
         "TP/global hard guards remain raw normal 50N, force norm 60N, torque norm 3Nm, with Stage 25.3 force_norm stop 25N",
-        "future live package must add active reacquire/repeated-hold exhaustion gates, local package validation, controller upload/read-back verification, and a separate live authorization before bridge start"
+        "future live package must add active reacquire/repeated-hold exhaustion gates, local package validation, controller upload/read-back verification, and a separate live authorization before bridge start",
+        "local TP package generated, controller uploaded, controller triplet fetched back, SHA matched, and fetched-back URP internal gate passed"
       ],
       "filter_policy": {
         "normal_filter": "v31_filtered_live",
@@ -2288,7 +2289,7 @@
         "semantic_contract": "reaction normal for load, approach normal for posture/press direction",
         "v15_status": "offline_candidate_only"
       },
-      "success_condition": "Offline analyzer/replay evidence only: success references avoid hard stop, v14 predicted-speed failure becomes recoverable hold, v11 escape remains a hard stop, and braking-aware TCP cage margin preserves hard-stop behavior. This is not TP-ready and does not authorize bridge start.",
+      "success_condition": "v15 TP package delivery is complete through controller read-back verification. This still does not authorize bridge start, TP Play, robot motion, or mark the Step5d reproduction complete; a separate live trigger and resulting bridge/run artifact are required.",
       "local_analysis_evidence": {
         "analyzer": "tools/step5d_v15_permissive_recovery.py",
         "summary": "runs/step5d_v15_permissive_recovery_offline_20260616/summary.json",
@@ -2323,6 +2324,26 @@
         },
         "generated_local_artifact": true,
         "tcp_cage_margin_distribution_status": "unavailable_in_source_csvs"
+      },
+      "local_delivery_evidence": {
+        "local_program_dir": "programs/step5",
+        "program_basename": "step5d_strict_rnn_liveprep_v15",
+        "stamp": "2026-06-16T1517HKT_STEP5D_STRICT_RNN_LIVEPREP_V15",
+        "semantic_gate": "runs/ur_contact_semantic_gate_20260615_201109/ur_contact_semantic_gate_summary.json",
+        "semantic_gate_pass": true,
+        "local_package_validated": true,
+        "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v15_20260616_151843/manifest.json",
+        "controller_readback_verified": true,
+        "sha256": {
+          ".script": "09e10425efee2e1ed097ae8f2c402b29c1edc1fb720b05463255e6102b564a56",
+          ".txt": "c4b9503b77828769d18b20c09ed9af9894779442a05617fdd26142e1725a2e0a",
+          ".urp": "53e8ad0726e030c90add8eaeb0855ff948245392b6ddb15b3986cbb265fb279c"
+        },
+        "controller_dir": "/programs/andyl/kunwei/step5",
+        "archived_to_step5d_dir": false,
+        "local_controller_readback_sha_match": true,
+        "fetched_back_urp_internal_gate_pass": true,
+        "offline_replay_summary": "runs/step5d_v15_permissive_recovery_offline_20260616/summary.json"
       }
     },
     {

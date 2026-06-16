@@ -106,14 +106,14 @@ fi
 case "$1" in
   prep-long-checks)
     if [[ -z "${STEP5D_VERSION}" ]]; then
-      echo "refusing Step5d prep: no current live-prep package after v14 predicted TCP speed watchdog stop; set STEP5D_VERSION explicitly only for retained evidence diagnostics"
+      echo "refusing Step5d prep: set STEP5D_VERSION to the controller-readback-verified live-prep package before running diagnostics"
       exit 40
     fi
     BRIDGE_PROFILE="${STEP5D_VERSION}" "${BRIDGE_OPERATOR}" prep-long-checks
     ;;
   contact-bridge)
     if [[ -z "${STEP5D_VERSION}" ]]; then
-      echo "refusing live Step5d bridge start: no current live-prep package after v14 predicted TCP speed watchdog stop; analyze the v14 run and make a new current package or explicitly choose same-version retry first"
+      echo "refusing live Step5d bridge start: set STEP5D_VERSION to the controller-readback-verified live-prep package and provide explicit live confirmation"
       exit 40
     fi
     require_current_stage_readback_gate
