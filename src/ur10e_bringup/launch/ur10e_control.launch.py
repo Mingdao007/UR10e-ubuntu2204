@@ -48,7 +48,7 @@ def generate_launch_description():
             DeclareLaunchArgument("launch_rviz", default_value="false"),
             DeclareLaunchArgument("headless_mode", default_value="true"),
             DeclareLaunchArgument("reverse_ip", default_value="192.168.1.10"),
-            DeclareLaunchArgument("launch_dashboard_client", default_value="true"),
+            DeclareLaunchArgument("launch_dashboard_client", default_value="false"),
             DeclareLaunchArgument("controller_spawner_timeout", default_value="20"),
             DeclareLaunchArgument("initial_joint_controller", default_value="scaled_joint_trajectory_controller"),
             DeclareLaunchArgument("activate_joint_controller", default_value="false"),

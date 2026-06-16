@@ -11,6 +11,8 @@ REVERSE_IP="${REVERSE_IP:-192.168.1.10}"
 READINESS_WAIT_S="${READINESS_WAIT_S:-30}"
 READINESS_PROBE_TIMEOUT_S="${READINESS_PROBE_TIMEOUT_S:-2}"
 READINESS_PROBE_KILL_AFTER_S="${READINESS_PROBE_KILL_AFTER_S:-1}"
+READINESS_USE_ROS_CLI_PROBES="${READINESS_USE_ROS_CLI_PROBES:-false}"
+NO_CONTACT_READINESS_ONLY="${NO_CONTACT_READINESS_ONLY:-false}"
 
 mkdir -p "${RUN_DIR}"
 echo "run_dir=${RUN_DIR}"
@@ -36,8 +38,20 @@ ros2 run ur10e_example_controllers no_contact_cycloid_shadow \
   | tee "${RUN_DIR}/no_contact_shadow.log"
 
 readiness_failed() {
-  rg -n "Could not get configuration package|FATAL|Failed to set the initial state|process has died" \
+  rg -n "Could not get configuration package|\\[ur_ros2_control_node-[0-9]+\\].*\\[FATAL\\]|Failed to set the initial state|\\[ERROR\\] \\[ur_ros2_control_node-[0-9]+\\]: process has died" \
     "${RUN_DIR}/driver_readiness.log" >/dev/null
+}
+
+readiness_log_passed() {
+  rg -n "Successful 'activate' of hardware 'ur10e'" "${RUN_DIR}/driver_readiness.log" >/dev/null \
+    && rg -n "Configured and activated .*joint_state_broadcaster" "${RUN_DIR}/driver_readiness.log" >/dev/null
+}
+
+write_log_readiness_artifacts() {
+  {
+    rg -n "Successful 'activate' of hardware 'ur10e'" "${RUN_DIR}/driver_readiness.log" || true
+    rg -n "Configured and activated .*joint_state_broadcaster" "${RUN_DIR}/driver_readiness.log" || true
+  } >"${RUN_DIR}/controllers_readiness.log"
 }
 
 print_readiness_failure() {
@@ -45,7 +59,7 @@ print_readiness_failure() {
   echo "log=${RUN_DIR}/driver_readiness.log"
   if readiness_failed; then
     echo "driver_failure:"
-    rg -n "Could not get configuration package|FATAL|Failed to set the initial state|process has died" \
+    rg -n "Could not get configuration package|\\[ur_ros2_control_node-[0-9]+\\].*\\[FATAL\\]|Failed to set the initial state|\\[ERROR\\] \\[ur_ros2_control_node-[0-9]+\\]: process has died" \
       "${RUN_DIR}/driver_readiness.log" | tail -n 8 || true
   fi
   if [[ -f "${RUN_DIR}/controllers_readiness.log" ]]; then
@@ -79,6 +93,7 @@ setsid ros2 launch ur10e_bringup ur10e_control.launch.py \
   robot_ip:="${ROBOT_IP}" \
   reverse_ip:="${REVERSE_IP}" \
   headless_mode:=true \
+  launch_dashboard_client:=false \
   activate_joint_controller:=false \
   launch_rviz:=false \
   >"${RUN_DIR}/driver_readiness.log" 2>&1 &
@@ -95,6 +110,11 @@ while (( SECONDS < READINESS_DEADLINE )); do
     break
   fi
   if ! kill -0 "${READINESS_PID}" >/dev/null 2>&1; then
+    break
+  fi
+  if readiness_log_passed; then
+    write_log_readiness_artifacts
+    READINESS_OK=true
     break
   fi
 
@@ -122,10 +142,10 @@ while (( SECONDS < READINESS_DEADLINE )); do
     fi
   fi
 
-  if [[ -z "${ACTIVE_PROBE_PID}" ]]; then
+  if [[ "${READINESS_USE_ROS_CLI_PROBES}" == "true" && -z "${ACTIVE_PROBE_PID}" ]]; then
     if [[ "${JOINT_STATES_OK}" != "true" ]]; then
       setsid timeout --kill-after="${READINESS_PROBE_KILL_AFTER_S}s" "${READINESS_PROBE_TIMEOUT_S}s" \
-        ros2 topic echo --once /joint_states >"${RUN_DIR}/joint_states_once.log" 2>&1 &
+        ros2 topic echo --no-daemon --once /joint_states >"${RUN_DIR}/joint_states_once.log" 2>&1 &
       ACTIVE_PROBE_PID=$!
       ACTIVE_PROBE_KIND="joint_states"
     else
@@ -136,6 +156,8 @@ while (( SECONDS < READINESS_DEADLINE )); do
       ACTIVE_PROBE_KIND="controllers"
     fi
     ACTIVE_PROBE_DEADLINE=$((SECONDS + READINESS_PROBE_TIMEOUT_S + READINESS_PROBE_KILL_AFTER_S + 1))
+  else
+    sleep 0.2
   fi
 done
 
@@ -147,11 +169,24 @@ if [[ "${READINESS_OK}" != "true" ]]; then
   print_readiness_failure
   exit 2
 fi
+echo "5a0 passed: ${RUN_DIR}"
+echo "log=${RUN_DIR}/driver_readiness.log"
+if [[ -f "${RUN_DIR}/controllers_readiness.log" ]]; then
+  echo "controllers=${RUN_DIR}/controllers_readiness.log"
+fi
+if [[ -f "${RUN_DIR}/joint_states_once.log" ]]; then
+  echo "joint_states=${RUN_DIR}/joint_states_once.log"
+fi
+if [[ "${NO_CONTACT_READINESS_ONLY}" == "true" ]]; then
+  echo "readiness-only stop; no live motion was attempted."
+  exit 0
+fi
 
 setsid ros2 launch ur10e_bringup ur10e_control.launch.py \
   robot_ip:="${ROBOT_IP}" \
   reverse_ip:="${REVERSE_IP}" \
   headless_mode:=true \
+  launch_dashboard_client:=false \
   activate_joint_controller:=true \
   launch_rviz:=false \
   >"${RUN_DIR}/air_motion_launch.log" 2>&1 &
