@@ -76,6 +76,7 @@ def main(argv: list[str] | None = None) -> int:
     result = _base_result(args)
     raw_handle = None
     sock: socket.socket | None = None
+    return_code = 1
     try:
         if args.raw_frames is not None:
             raw_handle = args.raw_frames.open("wb")
@@ -119,21 +120,17 @@ def main(argv: list[str] | None = None) -> int:
             result["ok"] = False
             result["status"] = "insufficient_samples"
             result["failure_reason"] = result.get("failure_reason") or "no_or_insufficient_kunwei_samples"
-            _write_json(args.summary, result)
-            return 3
-        result["ok"] = True
-        result["status"] = "kunwei_ready"
-        result["failure_reason"] = None
-        _write_json(args.summary, result)
-        print(json.dumps(result, indent=2, sort_keys=True))
-        return 0
+            return_code = 3
+        else:
+            result["ok"] = True
+            result["status"] = "kunwei_ready"
+            result["failure_reason"] = None
+            return_code = 0
     except OSError as exc:
         result["ok"] = False
         result["status"] = "connect_or_socket_error"
         result["failure_reason"] = f"{type(exc).__name__}: {exc}"
-        _write_json(args.summary, result)
-        print(json.dumps(result, indent=2, sort_keys=True))
-        return 2
+        return_code = 2
     finally:
         if raw_handle is not None:
             raw_handle.close()
@@ -146,6 +143,9 @@ def main(argv: list[str] | None = None) -> int:
                 except OSError:
                     pass
             sock.close()
+        _write_json(args.summary, result)
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return return_code
 
 
 def _base_result(args: argparse.Namespace) -> dict[str, Any]:
