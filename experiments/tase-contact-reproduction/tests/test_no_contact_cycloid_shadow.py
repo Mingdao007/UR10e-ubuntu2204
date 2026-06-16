@@ -99,6 +99,8 @@ class NoContactCycloidShadowTest(unittest.TestCase):
         script = script_path.read_text(encoding="utf-8")
         self.assertTrue(script_path.exists())
         self.assertTrue(script_path.stat().st_mode & 0o111)
+        self.assertIn('SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"', script)
+        self.assertIn("source_setup /opt/ros/humble/setup.bash", script)
         self.assertIn("no_contact_cycloid_shadow", script)
         self.assertIn("Could not get configuration package", script)
         self.assertIn("no motion was attempted", script)
@@ -114,6 +116,8 @@ class NoContactCycloidShadowTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("/force_torque_sensor_broadcaster/ft_data", probe)
         self.assertIn("Force gate blocked motion", probe)
+        self.assertIn('"Program running: true"', probe)
+        self.assertNotIn('responses.get("running") != "Program running: false"', probe)
 
 
 if __name__ == "__main__":

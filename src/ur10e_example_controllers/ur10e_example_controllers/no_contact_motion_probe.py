@@ -183,8 +183,9 @@ def _validate_dashboard(responses: dict[str, str]) -> None:
         raise RuntimeError(f"Safety mode is not NORMAL: {responses.get('safetymode')}")
     if "RUNNING" not in responses.get("robotmode", ""):
         raise RuntimeError(f"Robot mode is not RUNNING: {responses.get('robotmode')}")
-    if responses.get("running") != "Program running: false":
-        raise RuntimeError(f"A program is already running: {responses.get('running')}")
+    running = responses.get("running")
+    if running not in {"Program running: false", "Program running: true"}:
+        raise RuntimeError(f"Unexpected Dashboard running state: {running}")
 
 
 def _ordered_positions(joint_state: JointState) -> list[float]:

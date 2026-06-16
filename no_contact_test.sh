@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+ROOT="$(cd "$(dirname "${SCRIPT_PATH}")" && pwd)"
 RUN_ROOT="${ROOT}/experiments/tase-contact-reproduction/runs"
 STAMP="$(date +%Y%m%d_%H%M%S)"
 RUN_DIR="${RUN_ROOT}/no_contact_test_${STAMP}"
@@ -11,14 +12,20 @@ REVERSE_IP="${REVERSE_IP:-192.168.1.10}"
 mkdir -p "${RUN_DIR}"
 echo "run_dir=${RUN_DIR}"
 
-source /opt/ros/humble/setup.bash
+source_setup() {
+  set +u
+  source "$1"
+  set -u
+}
+
+source_setup /opt/ros/humble/setup.bash
 if [[ ! -f "${ROOT}/install/setup.bash" ]]; then
   colcon build --packages-select ur10e_bringup ur10e_example_controllers --symlink-install
 fi
-source "${ROOT}/install/setup.bash"
+source_setup "${ROOT}/install/setup.bash"
 if ! ros2 pkg prefix ur10e_example_controllers >/dev/null 2>&1; then
   colcon build --packages-select ur10e_bringup ur10e_example_controllers --symlink-install
-  source "${ROOT}/install/setup.bash"
+  source_setup "${ROOT}/install/setup.bash"
 fi
 
 ros2 run ur10e_example_controllers no_contact_cycloid_shadow \
