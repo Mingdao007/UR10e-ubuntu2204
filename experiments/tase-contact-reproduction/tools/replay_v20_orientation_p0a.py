@@ -17,8 +17,8 @@ from typing import Iterable
 
 
 DEFAULT_CSV = Path(
-    "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/"
-    "2026-06-04/runs/bridge_step4e_line_outerloop_v20_autowatch_20260609_174428/"
+    "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/"
+    "runs/bridge_step4e_line_outerloop_v20_autowatch_20260609_174428/"
     "bridge_rtde_500hz.csv"
 )
 

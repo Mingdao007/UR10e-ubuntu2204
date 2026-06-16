@@ -60,7 +60,7 @@ STEP4E_RUN_DIR = (
     / "experiments/tase-contact-reproduction/runs/"
     "bridge_step4e_line_outerloop_v13_autowatch_20260609_141027"
 )
-STEP4E_SCRIPT = ROOT / "experiments/tase-contact-reproduction/programs/step4e_line_outerloop_v13.script"
+STEP4E_SCRIPT = ROOT / "experiments/tase-contact-reproduction/programs/step4e/step4e_line_outerloop_v13.script"
 STEP4E_RESULT_LABEL = "Step4E v13 outer-loop line"
 STEP4E_RESULT_FILE_PREFIX = "step4e_v13_line"
 STEP4E_RESULT_VIDEO_PREVIEW = Path("/home/andy/.cache/codex/phone-photo-intake/previews/IMG_1748_step4e_v13.mov")
