@@ -13,6 +13,11 @@ READINESS_PROBE_TIMEOUT_S="${READINESS_PROBE_TIMEOUT_S:-2}"
 READINESS_PROBE_KILL_AFTER_S="${READINESS_PROBE_KILL_AFTER_S:-1}"
 READINESS_USE_ROS_CLI_PROBES="${READINESS_USE_ROS_CLI_PROBES:-false}"
 NO_CONTACT_READINESS_ONLY="${NO_CONTACT_READINESS_ONLY:-false}"
+KUNWEI_FORCE_GATE_REQUIRED="${KUNWEI_FORCE_GATE_REQUIRED:-true}"
+KUNWEI_SENSOR_IP="${KUNWEI_SENSOR_IP:-192.168.50.25}"
+KUNWEI_SENSOR_PORT="${KUNWEI_SENSOR_PORT:-5152}"
+KUNWEI_GATE_DURATION_S="${KUNWEI_GATE_DURATION_S:-1.0}"
+KUNWEI_GATE_MIN_SAMPLES="${KUNWEI_GATE_MIN_SAMPLES:-20}"
 
 mkdir -p "${RUN_DIR}"
 echo "run_dir=${RUN_DIR}"
@@ -182,6 +187,26 @@ if [[ "${NO_CONTACT_READINESS_ONLY}" == "true" ]]; then
   exit 0
 fi
 
+if [[ "${KUNWEI_FORCE_GATE_REQUIRED}" == "true" ]]; then
+  if ! ros2 run ur10e_example_controllers kunwei_force_gate \
+    --sensor-ip "${KUNWEI_SENSOR_IP}" \
+    --sensor-port "${KUNWEI_SENSOR_PORT}" \
+    --duration-s "${KUNWEI_GATE_DURATION_S}" \
+    --min-samples "${KUNWEI_GATE_MIN_SAMPLES}" \
+    --summary "${RUN_DIR}/kunwei_force_gate.json" \
+    --raw-frames "${RUN_DIR}/kunwei_force_gate_raw_frames.bin" \
+    | tee "${RUN_DIR}/kunwei_force_gate.log"; then
+    echo "kunwei force gate failed; no air motion was attempted."
+    echo "kunwei=${RUN_DIR}/kunwei_force_gate.json"
+    exit 3
+  fi
+  echo "kunwei force gate passed: ${RUN_DIR}/kunwei_force_gate.json"
+else
+  echo "KUNWEI_FORCE_GATE_REQUIRED=false; no air motion was attempted."
+  echo "refusing to treat UR internal force as Kunwei evidence."
+  exit 3
+fi
+
 setsid ros2 launch ur10e_bringup ur10e_control.launch.py \
   robot_ip:="${ROBOT_IP}" \
   reverse_ip:="${REVERSE_IP}" \
@@ -199,8 +224,8 @@ trap cleanup EXIT
 ros2 run ur10e_example_controllers no_contact_motion_probe \
   --execute \
   --robot-ip "${ROBOT_IP}" \
-  --max-force-delta-n 8.0 \
-  --force-readiness-log "${RUN_DIR}/force_topic_readiness.log" \
+  --ur-internal-max-force-delta-n 8.0 \
+  --ur-internal-force-readiness-log "${RUN_DIR}/ur_internal_force_readiness.log" \
   --summary "${RUN_DIR}/no_contact_motion_probe.json" \
   | tee "${RUN_DIR}/no_contact_motion_probe.log"
 

@@ -3,6 +3,9 @@ live_air_motion_authorized: false
 stage_id: step5a_ros2_remote_no_contact_v1
 role: no_contact_air_motion_gate_before_step5b_contact
 requires_5a0_driver_readiness: true
+force_source: kunwei_kwr75b_tcp_pre_motion_data_gate
+kunwei_data_gate_required: true
+ur_internal_force_delta_gate: true
 robot_ip: 192.168.1.18
 reverse_ip: 192.168.1.10
 duration_s: 22.0
@@ -18,7 +21,9 @@ fast_after_s: 0.1
 contact_policy:
   force_control: false
   contact_search: false
-  kunwei_bridge_required: false
+  kunwei_bridge_required: true
+  kunwei_data_gate_required: true
+  ur_internal_force_delta_gate: true
   zero_ftsensor: false
   tcp_payload_write: false
   external_control_urcap: false

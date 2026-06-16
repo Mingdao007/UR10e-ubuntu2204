@@ -83,7 +83,6 @@ def run_no_contact_shadow(
     no_contact_policy = (
         contact_policy.get("force_control") is False
         and contact_policy.get("contact_search") is False
-        and contact_policy.get("kunwei_bridge_required") is False
         and contact_policy.get("zero_ftsensor") is False
         and contact_policy.get("tcp_payload_write") is False
         and contact_policy.get("external_control_urcap") is False
@@ -103,6 +102,10 @@ def run_no_contact_shadow(
         "tp_action_required": "none_no_tp_play_no_program_load",
         "external_control_urcap_required": False,
         "requires_5a0_driver_readiness": bool(raw_config.get("requires_5a0_driver_readiness", True)),
+        "force_source": raw_config.get("force_source", "kunwei_kwr75b_tcp_pre_motion_data_gate"),
+        "kunwei_data_gate_required": bool(raw_config.get("kunwei_data_gate_required", True)),
+        "kunwei_bridge_mode": "direct_tcp_no_legacy_bridge",
+        "ur_internal_force_delta_gate": bool(raw_config.get("ur_internal_force_delta_gate", True)),
         "rows_replayed": len(rows),
         "cmd_valid_shadow_rows": len(cmd_valid_rows),
         "cmd_enabled_any": bool(enabled_rows),

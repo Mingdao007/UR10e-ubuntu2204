@@ -19,7 +19,7 @@ from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectoryPoint
 
 
-FORCE_TOPIC_TYPE = "geometry_msgs/msg/WrenchStamped"
+UR_INTERNAL_FORCE_TOPIC_TYPE = "geometry_msgs/msg/WrenchStamped"
 JOINT_NAMES = [
     "shoulder_pan_joint",
     "shoulder_lift_joint",
@@ -47,11 +47,16 @@ class NoContactMotionProbe(Node):
         self.args = args
         self.joint_state: JointState | None = None
         self.wrench: WrenchStamped | None = None
-        self.force_samples: list[tuple[float, float, float]] = []
-        self.force_readiness: dict[str, Any] | None = None
+        self.ur_internal_force_samples: list[tuple[float, float, float]] = []
+        self.ur_internal_force_readiness: dict[str, Any] | None = None
         self.create_subscription(JointState, args.joint_state_topic, self._on_joint_state, 10)
-        if not args.skip_force_check:
-            self.create_subscription(WrenchStamped, args.force_topic, self._on_wrench, _force_qos_profile(args.force_qos))
+        if not args.skip_ur_internal_force_check:
+            self.create_subscription(
+                WrenchStamped,
+                args.ur_internal_force_topic,
+                self._on_wrench,
+                _ur_internal_force_qos_profile(args.ur_internal_force_qos),
+            )
         self.action_client = ActionClient(self, FollowJointTrajectory, args.action_name)
 
     def _on_joint_state(self, msg: JointState) -> None:
@@ -59,8 +64,8 @@ class NoContactMotionProbe(Node):
 
     def _on_wrench(self, msg: WrenchStamped) -> None:
         self.wrench = msg
-        self.force_samples.append(_force_vector(msg))
-        self.force_samples = self.force_samples[-1000:]
+        self.ur_internal_force_samples.append(_force_vector(msg))
+        self.ur_internal_force_samples = self.ur_internal_force_samples[-1000:]
 
     def wait_for_joint_state(self) -> JointState:
         deadline = time.monotonic() + self.args.wait_s
@@ -70,60 +75,69 @@ class NoContactMotionProbe(Node):
                 return self.joint_state
         raise RuntimeError(f"Timed out waiting for joint state on {self.args.joint_state_topic}")
 
-    def collect_force_baseline(self) -> dict[str, Any] | None:
-        if self.args.skip_force_check:
+    def collect_ur_internal_force_baseline(self) -> dict[str, Any] | None:
+        if self.args.skip_ur_internal_force_check:
             return None
         deadline = time.monotonic() + self.args.wait_s
         baseline_until: float | None = None
-        self.force_samples.clear()
+        self.ur_internal_force_samples.clear()
         while rclpy.ok() and time.monotonic() < deadline:
             rclpy.spin_once(self, timeout_sec=0.1)
-            sample_count = len(self.force_samples)
+            sample_count = len(self.ur_internal_force_samples)
             if sample_count > 0 and baseline_until is None:
-                baseline_until = time.monotonic() + self.args.force_baseline_s
+                baseline_until = time.monotonic() + self.args.ur_internal_force_baseline_s
             if (
                 baseline_until is not None
                 and time.monotonic() >= baseline_until
-                and sample_count >= self.args.min_force_samples
+                and sample_count >= self.args.ur_internal_min_force_samples
             ):
-                baseline = _mean_vector(self.force_samples)
+                baseline = _mean_vector(self.ur_internal_force_samples)
                 force_norm = _norm(baseline)
                 return {
-                    "topic": self.args.force_topic,
+                    "source": "ur_internal_force_torque_sensor_broadcaster",
+                    "role": "secondary_safety_delta_gate_not_kunwei",
+                    "topic": self.args.ur_internal_force_topic,
                     "baseline_force_n": _vector_payload(baseline),
                     "baseline_force_norm_n": force_norm,
                     "baseline_sample_count": sample_count,
-                    "baseline_s": self.args.force_baseline_s,
-                    "max_force_delta_n": self.args.max_force_delta_n,
+                    "baseline_s": self.args.ur_internal_force_baseline_s,
+                    "max_force_delta_n": self.args.ur_internal_max_force_delta_n,
                     "max_observed_force_delta_n": 0.0,
                     "blocked": False,
                 }
-        self.force_readiness = self.force_readiness or self.force_topic_readiness_snapshot()
-        self.force_readiness["status"] = "publisher_exists_but_no_samples"
-        self.force_readiness["sample_count"] = len(self.force_samples)
-        self._write_force_readiness()
-        raise RuntimeError(f"Publisher exists but no force samples received on {self.args.force_topic}")
+        self.ur_internal_force_readiness = self.ur_internal_force_readiness or self.ur_internal_force_readiness_snapshot()
+        self.ur_internal_force_readiness["status"] = "publisher_exists_but_no_samples"
+        self.ur_internal_force_readiness["sample_count"] = len(self.ur_internal_force_samples)
+        self._write_ur_internal_force_readiness()
+        raise RuntimeError(
+            f"UR internal force publisher exists but no samples were received on {self.args.ur_internal_force_topic}"
+        )
 
-    def force_delta(self, force_gate: dict[str, Any] | None) -> float:
-        if self.args.skip_force_check or force_gate is None or self.wrench is None:
+    def ur_internal_force_delta(self, gate: dict[str, Any] | None) -> float:
+        if self.args.skip_ur_internal_force_check or gate is None or self.wrench is None:
             return 0.0
-        baseline = _payload_vector(force_gate["baseline_force_n"])
+        baseline = _payload_vector(gate["baseline_force_n"])
         return _norm(_vector_sub(_force_vector(self.wrench), baseline))
 
     def run(self) -> dict[str, Any]:
         dashboard = dashboard_exchange(self.args.robot_ip, ["is in remote control", "safetymode", "robotmode", "running"])
         _validate_dashboard(dashboard)
         joint_state = self.wait_for_joint_state()
-        self.force_readiness = self.wait_for_force_topic_readiness()
-        self._write_force_readiness()
-        force_gate = self.collect_force_baseline()
+        self.ur_internal_force_readiness = self.wait_for_ur_internal_force_readiness()
+        self._write_ur_internal_force_readiness()
+        ur_internal_force_delta_gate = self.collect_ur_internal_force_baseline()
         positions = _ordered_positions(joint_state)
         if not self.action_client.wait_for_server(timeout_sec=self.args.wait_s):
             raise RuntimeError(f"Action server unavailable: {self.args.action_name}")
 
         goal = FollowJointTrajectory.Goal()
         goal.trajectory.joint_names = JOINT_NAMES
-        goal.trajectory.points = _trajectory_points(positions, self.args.joint_name, self.args.delta_rad, self.args.duration_s)
+        goal.trajectory.points = _trajectory_points(
+            positions,
+            self.args.joint_name,
+            self.args.delta_rad,
+            self.args.duration_s,
+        )
 
         summary = {
             "execute": bool(self.args.execute),
@@ -133,8 +147,9 @@ class NoContactMotionProbe(Node):
             "delta_rad": self.args.delta_rad,
             "duration_s": self.args.duration_s,
             "dashboard": dashboard,
-            "force_gate": force_gate,
-            "force_topic_readiness": self.force_readiness,
+            "kunwei_force_gate_required_before_this_probe": True,
+            "ur_internal_force_delta_gate": ur_internal_force_delta_gate,
+            "ur_internal_force_readiness": self.ur_internal_force_readiness,
             "start_positions": dict(zip(JOINT_NAMES, positions)),
             "sent_goal": False,
             "accepted": False,
@@ -156,20 +171,21 @@ class NoContactMotionProbe(Node):
         deadline = time.monotonic() + self.args.duration_s + self.args.wait_s
         while rclpy.ok() and time.monotonic() < deadline and not result_future.done():
             rclpy.spin_once(self, timeout_sec=0.05)
-            force_delta = self.force_delta(force_gate)
-            if force_gate is not None:
-                force_gate["max_observed_force_delta_n"] = max(
-                    force_gate["max_observed_force_delta_n"],
+            force_delta = self.ur_internal_force_delta(ur_internal_force_delta_gate)
+            if ur_internal_force_delta_gate is not None:
+                ur_internal_force_delta_gate["max_observed_force_delta_n"] = max(
+                    ur_internal_force_delta_gate["max_observed_force_delta_n"],
                     force_delta,
                 )
-            if force_delta > self.args.max_force_delta_n:
-                if force_gate is not None:
-                    force_gate["blocked"] = True
-                    force_gate["block_force_delta_n"] = force_delta
+            if force_delta > self.args.ur_internal_max_force_delta_n:
+                if ur_internal_force_delta_gate is not None:
+                    ur_internal_force_delta_gate["blocked"] = True
+                    ur_internal_force_delta_gate["block_force_delta_n"] = force_delta
                 cancel_future = goal_handle.cancel_goal_async()
                 rclpy.spin_until_future_complete(self, cancel_future, timeout_sec=1.0)
                 raise RuntimeError(
-                    f"Force delta gate blocked motion: {force_delta:.3f} N > {self.args.max_force_delta_n:.3f} N"
+                    "UR internal force delta gate blocked motion: "
+                    f"{force_delta:.3f} N > {self.args.ur_internal_max_force_delta_n:.3f} N"
                 )
         result = result_future.result()
         if result is None:
@@ -181,58 +197,60 @@ class NoContactMotionProbe(Node):
             raise RuntimeError(f"Trajectory failed: {result.result.error_code} {result.result.error_string}")
         return summary
 
-    def wait_for_force_topic_readiness(self) -> dict[str, Any] | None:
-        if self.args.skip_force_check:
+    def wait_for_ur_internal_force_readiness(self) -> dict[str, Any] | None:
+        if self.args.skip_ur_internal_force_check:
             return {
                 "enabled": False,
                 "status": "skipped",
-                "topic": self.args.force_topic,
+                "topic": self.args.ur_internal_force_topic,
             }
         deadline = time.monotonic() + self.args.wait_s
-        latest = self.force_topic_readiness_snapshot()
+        latest = self.ur_internal_force_readiness_snapshot()
         while rclpy.ok() and time.monotonic() < deadline:
-            latest = self.force_topic_readiness_snapshot()
-            if latest["publisher_count"] > 0 and FORCE_TOPIC_TYPE in latest["observed_types"]:
+            latest = self.ur_internal_force_readiness_snapshot()
+            if latest["publisher_count"] > 0 and UR_INTERNAL_FORCE_TOPIC_TYPE in latest["observed_types"]:
                 latest["status"] = "publisher_ready"
                 return latest
             rclpy.spin_once(self, timeout_sec=0.1)
         if latest["publisher_count"] == 0:
-            latest["status"] = "force_topic_missing"
-            self.force_readiness = latest
-            self._write_force_readiness()
-            raise RuntimeError(f"Force topic missing or has no publisher: {self.args.force_topic}")
+            latest["status"] = "ur_internal_force_topic_missing"
+            self.ur_internal_force_readiness = latest
+            self._write_ur_internal_force_readiness()
+            raise RuntimeError(f"UR internal force topic missing or has no publisher: {self.args.ur_internal_force_topic}")
         latest["status"] = "wrong_topic_type"
-        self.force_readiness = latest
-        self._write_force_readiness()
+        self.ur_internal_force_readiness = latest
+        self._write_ur_internal_force_readiness()
         raise RuntimeError(
-            f"Force topic has wrong type on {self.args.force_topic}: "
-            f"{latest['observed_types']} != {FORCE_TOPIC_TYPE}"
+            f"UR internal force topic has wrong type on {self.args.ur_internal_force_topic}: "
+            f"{latest['observed_types']} != {UR_INTERNAL_FORCE_TOPIC_TYPE}"
         )
 
-    def force_topic_readiness_snapshot(self) -> dict[str, Any]:
-        publishers = self.get_publishers_info_by_topic(self.args.force_topic)
+    def ur_internal_force_readiness_snapshot(self) -> dict[str, Any]:
+        publishers = self.get_publishers_info_by_topic(self.args.ur_internal_force_topic)
         observed_types = sorted({info.topic_type for info in publishers})
         publisher_qos = [_qos_payload(info.qos_profile) for info in publishers]
-        subscription_qos = _qos_payload(_force_qos_profile(self.args.force_qos))
+        subscription_qos = _qos_payload(_ur_internal_force_qos_profile(self.args.ur_internal_force_qos))
         return {
-            "enabled": not self.args.skip_force_check,
+            "enabled": not self.args.skip_ur_internal_force_check,
+            "source": "ur_internal_force_torque_sensor_broadcaster",
+            "role": "secondary_safety_delta_gate_not_kunwei",
             "status": "checking",
-            "topic": self.args.force_topic,
-            "expected_type": FORCE_TOPIC_TYPE,
+            "topic": self.args.ur_internal_force_topic,
+            "expected_type": UR_INTERNAL_FORCE_TOPIC_TYPE,
             "observed_types": observed_types,
             "publisher_count": len(publishers),
             "publisher_qos": publisher_qos,
             "subscription_qos": subscription_qos,
-            "force_qos": self.args.force_qos,
-            "sample_count": len(self.force_samples),
+            "qos": self.args.ur_internal_force_qos,
+            "sample_count": len(self.ur_internal_force_samples),
         }
 
-    def _write_force_readiness(self) -> None:
-        if self.args.force_readiness_log is None or self.force_readiness is None:
+    def _write_ur_internal_force_readiness(self) -> None:
+        if self.args.ur_internal_force_readiness_log is None or self.ur_internal_force_readiness is None:
             return
-        self.args.force_readiness_log.parent.mkdir(parents=True, exist_ok=True)
-        self.args.force_readiness_log.write_text(
-            json.dumps(self.force_readiness, indent=2, sort_keys=True) + "\n",
+        self.args.ur_internal_force_readiness_log.parent.mkdir(parents=True, exist_ok=True)
+        self.args.ur_internal_force_readiness_log.write_text(
+            json.dumps(self.ur_internal_force_readiness, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
 
@@ -247,18 +265,29 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--delta-rad", type=float, default=0.01)
     parser.add_argument("--duration-s", type=float, default=6.0)
     parser.add_argument("--wait-s", type=float, default=15.0)
-    parser.add_argument("--force-topic", default="/force_torque_sensor_broadcaster/ft_data")
-    parser.add_argument("--force-qos", choices=["sensor_data", "default", "reliable"], default="sensor_data")
-    parser.add_argument("--force-readiness-log", type=Path, default=None)
-    parser.add_argument("--force-baseline-s", type=float, default=1.0)
-    parser.add_argument("--min-force-samples", type=int, default=5)
-    parser.add_argument("--max-force-delta-n", type=float, default=8.0)
-    parser.add_argument("--max-force-n", type=float, default=None, help="Compatibility alias for --max-force-delta-n.")
-    parser.add_argument("--skip-force-check", action="store_true")
+    parser.add_argument(
+        "--ur-internal-force-topic",
+        dest="ur_internal_force_topic",
+        default="/force_torque_sensor_broadcaster/ft_data",
+    )
+    parser.add_argument(
+        "--ur-internal-force-qos",
+        dest="ur_internal_force_qos",
+        choices=["sensor_data", "default", "reliable"],
+        default="sensor_data",
+    )
+    parser.add_argument(
+        "--ur-internal-force-readiness-log",
+        dest="ur_internal_force_readiness_log",
+        type=Path,
+        default=None,
+    )
+    parser.add_argument("--ur-internal-force-baseline-s", type=float, default=1.0)
+    parser.add_argument("--ur-internal-min-force-samples", type=int, default=5)
+    parser.add_argument("--ur-internal-max-force-delta-n", type=float, default=8.0)
+    parser.add_argument("--skip-ur-internal-force-check", action="store_true")
     parser.add_argument("--summary", type=Path, default=None)
     args = parser.parse_args(argv)
-    if args.max_force_n is not None:
-        args.max_force_delta_n = args.max_force_n
 
     rclpy.init(args=None)
     node = NoContactMotionProbe(args)
@@ -274,7 +303,7 @@ def main(argv: list[str] | None = None) -> int:
         payload = {
             "ok": False,
             "error": f"{type(exc).__name__}: {exc}",
-            "force_topic_readiness": node.force_readiness,
+            "ur_internal_force_readiness": node.ur_internal_force_readiness,
         }
         text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
         if args.summary is not None:
@@ -299,7 +328,7 @@ def _validate_dashboard(responses: dict[str, str]) -> None:
         raise RuntimeError(f"Unexpected Dashboard running state: {running}")
 
 
-def _force_qos_profile(mode: str) -> QoSProfile:
+def _ur_internal_force_qos_profile(mode: str) -> QoSProfile:
     if mode == "sensor_data":
         return qos_profile_sensor_data
     if mode == "reliable":

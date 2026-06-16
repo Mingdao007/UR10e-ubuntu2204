@@ -31,12 +31,17 @@ class NoContactCycloidShadowTest(unittest.TestCase):
         self.assertFalse(config["enable_motion"])
         self.assertFalse(config["live_air_motion_authorized"])
         self.assertTrue(config["requires_5a0_driver_readiness"])
+        self.assertEqual(config["force_source"], "kunwei_kwr75b_tcp_pre_motion_data_gate")
+        self.assertTrue(config["kunwei_data_gate_required"])
+        self.assertTrue(config["ur_internal_force_delta_gate"])
         self.assertEqual(config["robot_ip"], "192.168.1.18")
         self.assertEqual(config["reverse_ip"], "192.168.1.10")
         policy = config["contact_policy"]
         self.assertFalse(policy["force_control"])
         self.assertFalse(policy["contact_search"])
-        self.assertFalse(policy["kunwei_bridge_required"])
+        self.assertTrue(policy["kunwei_bridge_required"])
+        self.assertTrue(policy["kunwei_data_gate_required"])
+        self.assertTrue(policy["ur_internal_force_delta_gate"])
         self.assertFalse(policy["zero_ftsensor"])
         self.assertFalse(policy["tcp_payload_write"])
         self.assertFalse(policy["external_control_urcap"])
@@ -59,6 +64,10 @@ class NoContactCycloidShadowTest(unittest.TestCase):
         self.assertFalse(summary["cmd_enabled_any"])
         self.assertEqual(summary["normal_load_n"]["max"], 0.0)
         self.assertEqual(summary["force_norm_n"]["max"], 0.0)
+        self.assertEqual(summary["force_source"], "kunwei_kwr75b_tcp_pre_motion_data_gate")
+        self.assertTrue(summary["kunwei_data_gate_required"])
+        self.assertEqual(summary["kunwei_bridge_mode"], "direct_tcp_no_legacy_bridge")
+        self.assertTrue(summary["ur_internal_force_delta_gate"])
         self.assertLessEqual(summary["max_reference_speed_m_s"], summary["velocity_cap_m_s"])
         self.assertTrue(all(summary["acceptance"].values()))
         for field in TRACE_FIELDS:
@@ -116,12 +125,17 @@ class NoContactCycloidShadowTest(unittest.TestCase):
         self.assertIn("stop_process_group", script)
         self.assertIn("launch_dashboard_client:=false", script)
         self.assertIn("NO_CONTACT_READINESS_ONLY", script)
+        self.assertIn("KUNWEI_FORCE_GATE_REQUIRED", script)
+        self.assertIn("kunwei_force_gate", script)
+        self.assertIn("kunwei_force_gate.json", script)
+        self.assertIn("kunwei force gate failed; no air motion was attempted.", script)
+        self.assertIn("refusing to treat UR internal force as Kunwei evidence", script)
         self.assertIn("readiness-only stop; no live motion was attempted.", script)
         self.assertIn("readiness_log_passed", script)
         self.assertIn("Successful 'activate' of hardware 'ur10e'", script)
         self.assertIn("Configured and activated .*joint_state_broadcaster", script)
-        self.assertIn("--max-force-delta-n 8.0", script)
-        self.assertIn('--force-readiness-log "${RUN_DIR}/force_topic_readiness.log"', script)
+        self.assertIn("--ur-internal-max-force-delta-n 8.0", script)
+        self.assertIn('--ur-internal-force-readiness-log "${RUN_DIR}/ur_internal_force_readiness.log"', script)
         self.assertLess(script.find("Could not get configuration package"), script.find("no_contact_motion_probe"))
 
         probe = (
@@ -131,20 +145,42 @@ class NoContactCycloidShadowTest(unittest.TestCase):
             / "ur10e_example_controllers"
             / "no_contact_motion_probe.py"
         ).read_text(encoding="utf-8")
-        self.assertIn("/force_torque_sensor_broadcaster/ft_data", probe)
+        self.assertIn("ur_internal_force_torque_sensor_broadcaster", probe)
+        self.assertIn("secondary_safety_delta_gate_not_kunwei", probe)
         self.assertIn("baseline_force_n", probe)
-        self.assertIn("Force delta gate blocked motion", probe)
-        self.assertIn("--max-force-delta-n", probe)
-        self.assertIn("--force-readiness-log", probe)
+        self.assertIn("UR internal force delta gate blocked motion", probe)
+        self.assertIn("--ur-internal-max-force-delta-n", probe)
+        self.assertIn("--ur-internal-force-readiness-log", probe)
         self.assertIn("qos_profile_sensor_data", probe)
         self.assertIn('"sensor_data"', probe)
         self.assertIn("publisher_exists_but_no_samples", probe)
-        self.assertIn("force_topic_readiness", probe)
-        self.assertIn("Force topic missing or has no publisher", probe)
+        self.assertIn("ur_internal_force_readiness", probe)
+        self.assertIn("UR internal force topic missing or has no publisher", probe)
         self.assertIn("wrong_topic_type", probe)
-        self.assertIn("Compatibility alias for --max-force-delta-n", probe)
+        self.assertNotIn("--force-readiness-log", probe)
+        self.assertNotIn("--force-topic", probe)
+        self.assertNotIn("--max-force-delta-n", probe)
         self.assertIn('"Program running: true"', probe)
         self.assertNotIn('responses.get("running") != "Program running: false"', probe)
+
+        kunwei_gate = (
+            WORKSPACE
+            / "src"
+            / "ur10e_example_controllers"
+            / "ur10e_example_controllers"
+            / "kunwei_force_gate.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("kunwei_kwr75b_tcp_pre_motion_data_gate", kunwei_gate)
+        self.assertIn("primary_step5a_force_source_evidence", kunwei_gate)
+        self.assertIn("direct_tcp_no_bridge_process", kunwei_gate)
+        self.assertIn("START_STREAM", kunwei_gate)
+        self.assertIn("STOP_STREAM", kunwei_gate)
+        self.assertIn("configuration_write_not_used", kunwei_gate)
+
+        kunwei_script = (WORKSPACE / "kunwei_force_check.sh").read_text(encoding="utf-8")
+        self.assertIn("kunwei_force_gate", kunwei_script)
+        self.assertIn("kunwei_force_gate.json", kunwei_script)
+        self.assertNotIn("no_contact_motion_probe", kunwei_script)
 
 
 if __name__ == "__main__":
