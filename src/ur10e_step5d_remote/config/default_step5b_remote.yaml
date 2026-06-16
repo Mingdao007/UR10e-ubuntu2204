@@ -1,0 +1,8 @@
+enable_motion: false
+force_target_n: 5.0
+target_stage_id: step5_contact_cycloid_baseline_v1
+role: remote_control_plumbing_validation_before_step5d
+step5b_replay_csvs:
+  - experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/bridge_rtde_500hz.csv
+  - experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260614_222058/bridge_rtde_500hz.csv
+  - experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260614_222309/bridge_rtde_500hz.csv

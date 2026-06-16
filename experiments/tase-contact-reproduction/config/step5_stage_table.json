@@ -181,6 +181,82 @@
       "success_condition": "Bridge computes desired_xy, desired_vxy, path_error, progress, and feedback command; TP consumes registers 37..44 only and stops on stale/invalid/over-cap/end/runtime faults."
     },
     {
+      "id": "step5b_ros2_remote_shadow_v1",
+      "stage": "Step5b",
+      "owner": "ROS2 offline",
+      "active": false,
+      "blocked": false,
+      "complete": false,
+      "completion_target": false,
+      "block_reason": "No-motion ROS2 shadow candidate for remote-control plumbing validation before any Step5d live candidate. It does not authorize TP program load, TP Play, bridge start, URScript, controller writes, zero_ftsensor, or robot motion.",
+      "shape": "cycloid",
+      "frame": "config/step5_safe_frame.json",
+      "contact": true,
+      "bridge": false,
+      "fixed_base_z_m": null,
+      "duration_s": 60.0,
+      "amplitude_m": 0.015,
+      "phase_law": {
+        "type": "historical_csv_replay",
+        "omega_rad_s": 0.1,
+        "final_phase_rad": 6.0
+      },
+      "cadence": {
+        "reference_clock": "historical_csv_t_monotonic_s",
+        "motion": "no_motion_shadow_only",
+        "tp_hold_s": null,
+        "end_hold_s": null
+      },
+      "guard": {
+        "enable_motion_default": false,
+        "cmd_enabled_default": false,
+        "target_force_n": 5.0,
+        "required_trace": [
+          "desired_xy",
+          "desired_vxy",
+          "path_error_m",
+          "cmd_valid_shadow",
+          "would_command_twist",
+          "progress_or_path_time"
+        ]
+      },
+      "contact_policy": {
+        "role": "remote_control_plumbing_validation_before_step5d",
+        "bridge_required": false,
+        "tp_role": "none_no_tp_program_load_no_tp_play",
+        "reference_owner": "ROS2 shadow replay of retained Step5b bridge-owned commands",
+        "force_control": false,
+        "contact_search": false,
+        "timing_policy": "offline_replay_only",
+        "virtual_clock_freeze": false,
+        "live_authorization": "none"
+      },
+      "filter_policy": {
+        "normal_filter": "v31_filtered_live_input_logs",
+        "follow_mode": "filtered_live",
+        "alpha": 0.35,
+        "min_force_n": 2.0,
+        "force_sign_convention": "step5_step6_positive_normal_load"
+      },
+      "local_analysis_evidence": {
+        "package": "src/ur10e_step5d_remote",
+        "default_config": "src/ur10e_step5d_remote/config/default_step5b_remote.yaml",
+        "launch": "src/ur10e_step5d_remote/launch/step5b_remote_shadow.launch.py",
+        "report": "report/step5b-ros2-remote-shadow.md",
+        "artifact_pattern": "runs/step5b_ros2_remote_shadow_YYYYMMDD_HHMMSS",
+        "source_replays": [
+          "runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/bridge_rtde_500hz.csv",
+          "runs/bridge_step5b_contact_cycloid_baseline_v1_20260614_222058/bridge_rtde_500hz.csv",
+          "runs/bridge_step5b_contact_cycloid_baseline_v1_20260614_222309/bridge_rtde_500hz.csv"
+        ],
+        "required_outputs": [
+          "summary.json",
+          "shadow_trace.csv"
+        ]
+      },
+      "success_condition": "Full Step5b replay covers retained evidence CSVs, is not mostly fail-fast, reports command/reference plumbing metrics, keeps cmd_enabled=false, and records that no live motion or TP action was authorized."
+    },
+    {
       "id": "step5c_speedj_dryrun_v1",
       "stage": "Step5c-dryrun",
       "owner": "bridge+TP",
@@ -2682,7 +2758,7 @@
       "blocked": false,
       "complete": false,
       "completion_target": false,
-      "block_reason": "No-motion ROS2 shadow candidate only. It validates the remote-control policy offline from historical CSVs and does not authorize TP program load, TP Play, bridge start, URScript, payload/TCP writes, zero_ftsensor, or live robot motion.",
+      "block_reason": "No-motion ROS2 diagnostic shadow candidate only. It validates Step5d policy offline from historical CSVs and does not authorize TP program load, TP Play, bridge start, URScript, payload/TCP writes, zero_ftsensor, or live robot motion. Step5b ROS2 remote plumbing validation must come before any Step5d live candidate.",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": true,

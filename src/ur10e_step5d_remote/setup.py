@@ -9,17 +9,24 @@ setup(
     data_files=[
         ("share/ament_index/resource_index/packages", [f"resource/{package_name}"]),
         (f"share/{package_name}", ["package.xml"]),
-        (f"share/{package_name}/config", ["config/default_step5d_remote.yaml"]),
-        (f"share/{package_name}/launch", ["launch/step5d_remote_shadow.launch.py"]),
+        (
+            f"share/{package_name}/config",
+            ["config/default_step5b_remote.yaml", "config/default_step5d_remote.yaml"],
+        ),
+        (
+            f"share/{package_name}/launch",
+            ["launch/step5b_remote_shadow.launch.py", "launch/step5d_remote_shadow.launch.py"],
+        ),
     ],
     install_requires=["setuptools"],
     zip_safe=True,
     maintainer="andy",
     maintainer_email="andy@example.com",
-    description="Offline Step5d ROS2 remote-control shadow replay for the UR10e bench.",
+    description="Offline Step5b/Step5d ROS2 remote-control shadow replay for the UR10e bench.",
     license="Apache-2.0",
     entry_points={
         "console_scripts": [
+            "replay_step5b_shadow = ur10e_step5d_remote.replay_step5b_shadow:main",
             "replay_shadow = ur10e_step5d_remote.replay_shadow:main",
             "step5d_remote_control_node = ur10e_step5d_remote.step5d_remote_control_node:main",
         ],

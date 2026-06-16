@@ -16,6 +16,12 @@ to `ACTIVE_REACQUIRE` along `approach_normal = -reaction_normal` while cage and
 semantic gates allow it, or to `FAIL_FAST_STOP_REQUEST` when a hard boundary is
 hit.
 
+Follow-up note, added after the Step5b baseline-first handoff: this Step5d
+shadow is diagnostic only and is not a live gate. Step5b ROS2 remote-control
+plumbing validation is the required next route before any Step5d live candidate,
+because Step5b has retained successful contact baseline evidence and isolates
+remote-route plumbing from Step5d RNN/reacquire policy risks.
+
 ## Replay Artifact
 
 Exact artifact path:
