@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction"
-BASE_OPERATOR="${ROOT}/scripts/step4e-line-v1-operator.sh"
+BRIDGE_OPERATOR="${ROOT}/scripts/bridge-line-operator.sh"
 STEP5D_VERSION="${STEP5D_VERSION:-}"
 if [[ -z "${STEP5D_VERSION}" ]]; then
   EXPECTED_PROGRAM="<no current Step5d live-prep package>"
@@ -109,7 +109,7 @@ case "$1" in
       echo "refusing Step5d prep: no current live-prep package after v14 predicted TCP speed watchdog stop; set STEP5D_VERSION explicitly only for retained evidence diagnostics"
       exit 40
     fi
-    STEP4E_VERSION="${STEP5D_VERSION}" "${BASE_OPERATOR}" prep-long-checks
+    BRIDGE_PROFILE="${STEP5D_VERSION}" "${BRIDGE_OPERATOR}" prep-long-checks
     ;;
   contact-bridge)
     if [[ -z "${STEP5D_VERSION}" ]]; then
@@ -121,15 +121,15 @@ case "$1" in
       echo "refusing live Step5d bridge start: set STEP5D_CONFIRM='LIVE STEP5D STRICT RNN LIVEPREP'"
       exit 40
     fi
-    STEP4E_VERSION="${STEP5D_VERSION}" \
+    BRIDGE_PROFILE="${STEP5D_VERSION}" \
     BRIDGE_DURATION_S="${BRIDGE_DURATION_S:-180}" \
     MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-50}" \
     MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-60}" \
     MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-3.0}" \
-    STEP4E_NORMAL_FOLLOW_MODE="${STEP4E_NORMAL_FOLLOW_MODE:-filtered_live}" \
-    STEP4E_NORMAL_FILTER_ALPHA="${STEP4E_NORMAL_FILTER_ALPHA:-0.35}" \
-    STEP4E_NORMAL_MIN_FORCE_N="${STEP4E_NORMAL_MIN_FORCE_N:-2.0}" \
-      "${BASE_OPERATOR}" line-bridge
+    BRIDGE_NORMAL_FOLLOW_MODE="${BRIDGE_NORMAL_FOLLOW_MODE:-${STEP4E_NORMAL_FOLLOW_MODE:-filtered_live}}" \
+    BRIDGE_NORMAL_FILTER_ALPHA="${BRIDGE_NORMAL_FILTER_ALPHA:-${STEP4E_NORMAL_FILTER_ALPHA:-0.35}}" \
+    BRIDGE_NORMAL_MIN_FORCE_N="${BRIDGE_NORMAL_MIN_FORCE_N:-${STEP4E_NORMAL_MIN_FORCE_N:-2.0}}" \
+      "${BRIDGE_OPERATOR}" line-bridge
     ;;
   *)
     usage

@@ -101,7 +101,7 @@ BASE_INPUT_NAMES = [
     "my_nm_zeroed",
     "mz_nm_zeroed",
 ]
-STEP4E_INPUT_FIELDS = [
+BRIDGE_INPUT_FIELDS = [
     "input_double_register_37",
     "input_double_register_38",
     "input_double_register_39",
@@ -114,7 +114,7 @@ STEP4E_INPUT_FIELDS = [
     "input_double_register_46",
     "input_double_register_47",
 ]
-STEP4E_INPUT_NAMES = [
+BRIDGE_INPUT_NAMES = [
     "step4e_cmd_vx_m_s",
     "step4e_cmd_vy_m_s",
     "step4e_cmd_vz_m_s",
@@ -127,6 +127,8 @@ STEP4E_INPUT_NAMES = [
     "step4e_orientation_error_rad",
     "step4e_controller_state",
 ]
+STEP4E_INPUT_FIELDS = BRIDGE_INPUT_FIELDS
+STEP4E_INPUT_NAMES = BRIDGE_INPUT_NAMES
 STEP5C_JOINT_REGISTER_CONTRACT = [
     ("input_double_register_37", "step4e_cmd_vx_m_s", "_step5c_cmd_qd0_rad_s", "qd0_rad_s"),
     ("input_double_register_38", "step4e_cmd_vy_m_s", "_step5c_cmd_qd1_rad_s", "qd1_rad_s"),
@@ -199,8 +201,8 @@ STEP5D_DIAG_FIELDS = [
     "_step5d_semantic_gate_ok",
     "_step5d_solver_error",
 ]
-INPUT_FIELDS = BASE_INPUT_FIELDS + STEP4E_INPUT_FIELDS
-INPUT_NAMES = BASE_INPUT_NAMES + STEP4E_INPUT_NAMES
+INPUT_FIELDS = BASE_INPUT_FIELDS + BRIDGE_INPUT_FIELDS
+INPUT_NAMES = BASE_INPUT_NAMES + BRIDGE_INPUT_NAMES
 OUTPUT_FIELDS = [
     "actual_TCP_pose",
     "actual_TCP_speed",
@@ -977,22 +979,22 @@ def step5d_v11_deadband_acquire_velocity(
     return cmd, filtered_load, v_next
 
 
-def step5d_liveprep_contact_window_limits(step4e_version: str) -> tuple[float, float, float]:
-    if step4e_version == STEP5D_LIVEPREP_V6_STAGE_ID:
+def step5d_liveprep_contact_window_limits(bridge_profile: str) -> tuple[float, float, float]:
+    if bridge_profile == STEP5D_LIVEPREP_V6_STAGE_ID:
         return (STEP5D_V6_NORMAL_LOAD_MIN_N, STEP5D_V6_NORMAL_LOAD_MAX_N, STEP5D_V6_FORCE_NORM_MAX_N)
-    if step4e_version in {STEP5D_LIVEPREP_V12_STAGE_ID, STEP5D_LIVEPREP_V13_STAGE_ID, STEP5D_LIVEPREP_STAGE_ID}:
+    if bridge_profile in {STEP5D_LIVEPREP_V12_STAGE_ID, STEP5D_LIVEPREP_V13_STAGE_ID, STEP5D_LIVEPREP_STAGE_ID}:
         return (
             STEP5D_V11_ENTRY_NORMAL_LOAD_MIN_N,
             STEP5D_V11_ENTRY_NORMAL_LOAD_MAX_N,
             STEP5D_V8_FORCE_NORM_MAX_N,
         )
-    if step4e_version == STEP5D_LIVEPREP_V11_STAGE_ID:
+    if bridge_profile == STEP5D_LIVEPREP_V11_STAGE_ID:
         return (
             STEP5D_V11_ENTRY_NORMAL_LOAD_MIN_N,
             STEP5D_V11_ENTRY_NORMAL_LOAD_MAX_N,
             STEP5D_V8_FORCE_NORM_MAX_N,
         )
-    if step4e_version in {STEP5D_LIVEPREP_V8_STAGE_ID, STEP5D_LIVEPREP_V9_STAGE_ID, STEP5D_LIVEPREP_V10_STAGE_ID}:
+    if bridge_profile in {STEP5D_LIVEPREP_V8_STAGE_ID, STEP5D_LIVEPREP_V9_STAGE_ID, STEP5D_LIVEPREP_V10_STAGE_ID}:
         return (
             STEP5D_V8_SETTLED_NORMAL_LOAD_MIN_N,
             STEP5D_V8_SETTLED_NORMAL_LOAD_MAX_N,
@@ -1326,7 +1328,7 @@ def limit_step5d_qdot_slew(
     return limited, bool(np.any(np.abs(limited - qdot_values) > 1e-12))
 
 
-def ensure_step5d_liveprep_runtime(state: "Step4EState", args: argparse.Namespace) -> None:
+def ensure_step5d_liveprep_runtime(state: "BridgeState", args: argparse.Namespace) -> None:
     if state.step5d_model_bundle is None:
         state.step5d_model_bundle = step5d_kin.build_calibrated_model()
         audit_rows = step5d_kin.finite_run_rows(step5d_kin.DEFAULT_BRIDGE_CSV)
@@ -1386,8 +1388,11 @@ def kunwei_to_tcp_wrench(values_si_zeroed: list[float]) -> tuple[tuple[float, fl
     return force_t, torque_t
 
 
-def step4e_zero_values() -> dict[str, float]:
-    return {name: 0.0 for name in STEP4E_INPUT_NAMES}
+def bridge_zero_values() -> dict[str, float]:
+    return {name: 0.0 for name in BRIDGE_INPUT_NAMES}
+
+
+step4e_zero_values = bridge_zero_values
 
 
 def step5c_register_metadata() -> dict[str, Any]:
@@ -1459,7 +1464,7 @@ def step5c_joint_register_values(
     return values
 
 
-class Step4EState:
+class BridgeState:
     def __init__(self) -> None:
         self.integral_error_n_s = 0.0
         self.normal_velocity_m_s = 0.0
@@ -1502,16 +1507,19 @@ class Step4EState:
         self.step5d_contact_hold_path_time_s = None
 
 
-def compute_step4e_values(
+Step4EState = BridgeState
+
+
+def compute_bridge_values(
     args: argparse.Namespace,
     latest_zeroed: list[float],
     latest_output: dict[str, Any] | None,
     sensor_ok: float,
-    state: Step4EState,
+    state: BridgeState,
     dt_s: float,
 ) -> dict[str, float]:
-    values = step4e_zero_values()
-    if args.step4e_mode == "off" or latest_output is None:
+    values = bridge_zero_values()
+    if args.bridge_mode == "off" or latest_output is None:
         return values
 
     pose = latest_output.get("actual_TCP_pose")
@@ -1523,37 +1531,37 @@ def compute_step4e_values(
         robot_stage = float(latest_output.get("output_double_register_35", math.nan))
     except (TypeError, ValueError):
         robot_stage = math.nan
-    v20_profile = args.step4e_version == "v20"
-    v21_profile = args.step4e_version == "v21"
-    v22_profile = args.step4e_version == "v22"
-    v23_profile = args.step4e_version == "v23"
-    v24_profile = args.step4e_version == "v24"
-    v25_profile = args.step4e_version == "v25"
-    v26_profile = args.step4e_version == "v26"
-    v27_profile = args.step4e_version == "v27"
-    v28_profile = args.step4e_version == "v28"
-    v29_profile = args.step4e_version == "v29"
-    v30_profile = args.step4e_version == "v30"
-    v31_profile = args.step4e_version == "v31"
-    step4f_profile = args.step4e_version == "step4f_v1"
-    step4g_profile = args.step4e_version == "step4g_v1"
-    step5b_profile = args.step4e_version == "step5b_v1"
-    step5c_dryrun_profile = args.step4e_version == STEP5C_DRYRUN_STAGE_ID
-    step5c_contact_profile = args.step4e_version == STEP5C_CONTACT_STAGE_ID
+    v20_profile = args.bridge_profile == "v20"
+    v21_profile = args.bridge_profile == "v21"
+    v22_profile = args.bridge_profile == "v22"
+    v23_profile = args.bridge_profile == "v23"
+    v24_profile = args.bridge_profile == "v24"
+    v25_profile = args.bridge_profile == "v25"
+    v26_profile = args.bridge_profile == "v26"
+    v27_profile = args.bridge_profile == "v27"
+    v28_profile = args.bridge_profile == "v28"
+    v29_profile = args.bridge_profile == "v29"
+    v30_profile = args.bridge_profile == "v30"
+    v31_profile = args.bridge_profile == "v31"
+    step4f_profile = args.bridge_profile == "step4f_v1"
+    step4g_profile = args.bridge_profile == "step4g_v1"
+    step5b_profile = args.bridge_profile == "step5b_v1"
+    step5c_dryrun_profile = args.bridge_profile == STEP5C_DRYRUN_STAGE_ID
+    step5c_contact_profile = args.bridge_profile == STEP5C_CONTACT_STAGE_ID
     step5c_joint_profile = step5c_dryrun_profile or step5c_contact_profile
-    step5d_liveprep_profile = args.step4e_version in STEP5D_LIVEPREP_STAGE_IDS
-    step5d_liveprep_v3_profile = args.step4e_version == STEP5D_LIVEPREP_V3_STAGE_ID
-    step5d_liveprep_v4_profile = args.step4e_version == STEP5D_LIVEPREP_V4_STAGE_ID
-    step5d_liveprep_v5_profile = args.step4e_version == STEP5D_LIVEPREP_V5_STAGE_ID
-    step5d_liveprep_v6_profile = args.step4e_version == STEP5D_LIVEPREP_V6_STAGE_ID
-    step5d_liveprep_v7_profile = args.step4e_version == STEP5D_LIVEPREP_V7_STAGE_ID
-    step5d_liveprep_v8_profile = args.step4e_version == STEP5D_LIVEPREP_V8_STAGE_ID
-    step5d_liveprep_v9_profile = args.step4e_version == STEP5D_LIVEPREP_V9_STAGE_ID
-    step5d_liveprep_v10_profile = args.step4e_version == STEP5D_LIVEPREP_V10_STAGE_ID
-    step5d_liveprep_v11_profile = args.step4e_version == STEP5D_LIVEPREP_V11_STAGE_ID
-    step5d_liveprep_v12_profile = args.step4e_version == STEP5D_LIVEPREP_V12_STAGE_ID
-    step5d_liveprep_v13_profile = args.step4e_version == STEP5D_LIVEPREP_V13_STAGE_ID
-    step5d_liveprep_v14_profile = args.step4e_version == STEP5D_LIVEPREP_STAGE_ID
+    step5d_liveprep_profile = args.bridge_profile in STEP5D_LIVEPREP_STAGE_IDS
+    step5d_liveprep_v3_profile = args.bridge_profile == STEP5D_LIVEPREP_V3_STAGE_ID
+    step5d_liveprep_v4_profile = args.bridge_profile == STEP5D_LIVEPREP_V4_STAGE_ID
+    step5d_liveprep_v5_profile = args.bridge_profile == STEP5D_LIVEPREP_V5_STAGE_ID
+    step5d_liveprep_v6_profile = args.bridge_profile == STEP5D_LIVEPREP_V6_STAGE_ID
+    step5d_liveprep_v7_profile = args.bridge_profile == STEP5D_LIVEPREP_V7_STAGE_ID
+    step5d_liveprep_v8_profile = args.bridge_profile == STEP5D_LIVEPREP_V8_STAGE_ID
+    step5d_liveprep_v9_profile = args.bridge_profile == STEP5D_LIVEPREP_V9_STAGE_ID
+    step5d_liveprep_v10_profile = args.bridge_profile == STEP5D_LIVEPREP_V10_STAGE_ID
+    step5d_liveprep_v11_profile = args.bridge_profile == STEP5D_LIVEPREP_V11_STAGE_ID
+    step5d_liveprep_v12_profile = args.bridge_profile == STEP5D_LIVEPREP_V12_STAGE_ID
+    step5d_liveprep_v13_profile = args.bridge_profile == STEP5D_LIVEPREP_V13_STAGE_ID
+    step5d_liveprep_v14_profile = args.bridge_profile == STEP5D_LIVEPREP_STAGE_ID
     step5d_liveprep_guarded_profile = (
         step5d_liveprep_v3_profile
         or step5d_liveprep_v4_profile
@@ -1573,8 +1581,8 @@ def compute_step4e_values(
             ensure_step5d_liveprep_runtime(state, args)
         except (ValueError, RuntimeError) as exc:
             values["_step5d_solver_error"] = f"warmup: {exc}"
-    step6b_profile = args.step4e_version in {"step6b_v1", "step6b_v2"}
-    step6_stage_id = STEP6_CONTACT_EIGHT_STAGE_ID_V2 if args.step4e_version == "step6b_v2" else STEP6_CONTACT_EIGHT_STAGE_ID
+    step6b_profile = args.bridge_profile in {"step6b_v1", "step6b_v2"}
+    step6_stage_id = STEP6_CONTACT_EIGHT_STAGE_ID_V2 if args.bridge_profile == "step6b_v2" else STEP6_CONTACT_EIGHT_STAGE_ID
     angular_speedl_profile = (
         v23_profile
         or v24_profile
@@ -1595,27 +1603,27 @@ def compute_step4e_values(
         or step6b_profile
     )
     detached_profile = v20_profile or v21_profile or v22_profile or angular_speedl_profile
-    axis_iso_active = args.step4e_mode == "axis_iso" and 25.18 <= robot_stage <= 25.27
+    axis_iso_active = args.bridge_mode == "axis_iso" and 25.18 <= robot_stage <= 25.27
     first_search_stage_active = (
-        args.step4e_mode == "line"
+        args.bridge_mode == "line"
         and angular_speedl_profile
         and (abs(robot_stage - 24.0) < 0.05 or abs(robot_stage - 24.2) < 0.05)
     )
-    latch_stage_active = args.step4e_mode == "line" and detached_profile and abs(robot_stage - 25.05) < 0.03
-    detach_stage_active = args.step4e_mode == "line" and detached_profile and abs(robot_stage - 25.1) < 0.03
-    orient_stage_active = args.step4e_mode == "line" and (
+    latch_stage_active = args.bridge_mode == "line" and detached_profile and abs(robot_stage - 25.05) < 0.03
+    detach_stage_active = args.bridge_mode == "line" and detached_profile and abs(robot_stage - 25.1) < 0.03
+    orient_stage_active = args.bridge_mode == "line" and (
         (detached_profile and abs(robot_stage - 25.2) < 0.05)
         or (not detached_profile and abs(robot_stage - 25.1) < 0.05)
     )
     acquire_stage_active = (
-        args.step4e_mode == "line"
+        args.bridge_mode == "line"
         and (v20_profile or v22_profile or angular_speedl_profile)
         and abs(robot_stage - 25.3) < 0.05
     )
     line_entry_gate_active = (
         v29_profile or v30_profile or v31_profile or step5b_profile or step5c_contact_profile or step5d_liveprep_profile or step6b_profile
     ) and acquire_stage_active
-    line_stage_active = args.step4e_mode == "line" and abs(robot_stage - 25.0) < 0.05
+    line_stage_active = args.bridge_mode == "line" and abs(robot_stage - 25.0) < 0.05
     step5d_joint_line_profile = step5d_liveprep_profile and line_stage_active
     if not step5d_joint_line_profile:
         state.step5d_line_guard_loss_s = 0.0
@@ -1633,7 +1641,7 @@ def compute_step4e_values(
         or line_stage_active
         or axis_iso_active
     )
-    if args.step4e_mode not in {"line", "axis_iso"} or (
+    if args.bridge_mode not in {"line", "axis_iso"} or (
         math.isfinite(robot_stage) and (robot_stage < 24.0 or robot_stage >= 26.0)
     ):
         state.reset_line_contact()
@@ -1648,13 +1656,13 @@ def compute_step4e_values(
     force_abs = norm3(force_t)
     contact_offset_x = ""
     contact_offset_y = ""
-    if abs(force_t[2]) > args.step4e_contact_offset_min_fz_n:
+    if abs(force_t[2]) > args.bridge_contact_offset_min_fz_n:
         contact_offset_x = -torque_t[1] / force_t[2]
         contact_offset_y = torque_t[0] / force_t[2]
 
     rotation = rotvec_to_matrix(float(pose[3]), float(pose[4]), float(pose[5]))
     synthetic_normal = (
-        synthetic_axis_iso_normal(robot_stage, math.radians(args.step4e_axis_iso_tilt_deg))
+        synthetic_axis_iso_normal(robot_stage, math.radians(args.bridge_axis_iso_tilt_deg))
         if axis_iso_active
         else None
     )
@@ -1662,13 +1670,13 @@ def compute_step4e_values(
     n_reaction_b = synthetic_normal if synthetic_normal is not None else normalize3(force_b)
     raw_live_normal_b, live_candidate_b, live_candidate_force_n = live_normal_candidate(
         force_b,
-        friction_projection=args.step4e_normal_friction_projection == "on",
+        friction_projection=args.bridge_normal_friction_projection == "on",
     )
     if (
         detached_profile
         and (latch_stage_active or first_search_stage_active)
         and sensor_ok > 0.5
-        and force_abs >= args.step4e_min_force_for_control_n
+        and force_abs >= args.bridge_min_force_for_control_n
         and not state.latched_normal_locked
     ):
         state.latched_normal_b = n_reaction_b
@@ -1677,7 +1685,7 @@ def compute_step4e_values(
     elif (
         not detached_profile
         and sensor_ok > 0.5
-        and force_abs >= args.step4e_min_force_for_control_n
+        and force_abs >= args.bridge_min_force_for_control_n
     ):
         if state.latched_normal_b is None:
             state.latched_normal_b = n_reaction_b
@@ -1701,7 +1709,7 @@ def compute_step4e_values(
     live_candidate_angle_from_latch_rad: float | str = ""
     normal_follow_active = (
         (v30_profile or v31_profile or step4f_profile or step4g_profile or step5b_profile or step5c_contact_profile or step5d_liveprep_profile or step6b_profile)
-        and args.step4e_normal_follow_mode == "filtered_live"
+        and args.bridge_normal_follow_mode == "filtered_live"
         and line_stage_active
         and state.normal_acquired
         and state.latched_normal_b is not None
@@ -1716,16 +1724,16 @@ def compute_step4e_values(
                 live_candidate_b,
                 live_candidate_force_n,
                 sensor_ok=sensor_ok,
-                alpha=args.step4e_normal_filter_alpha,
-                min_force_n=args.step4e_normal_min_force_n,
+                alpha=args.bridge_normal_filter_alpha,
+                min_force_n=args.bridge_normal_min_force_n,
             )
             n_control_b = state.filtered_normal_b
         else:
-            max_candidate_angle_rad = math.radians(args.step4e_normal_max_angle_from_latch_deg)
+            max_candidate_angle_rad = math.radians(args.bridge_normal_max_angle_from_latch_deg)
             if sensor_ok <= 0.5:
                 normal_filter_source = "locked_fallback_stale"
                 n_control_b = state.latched_normal_b
-            elif live_candidate_force_n < args.step4e_normal_min_force_n:
+            elif live_candidate_force_n < args.bridge_normal_min_force_n:
                 normal_filter_source = "freeze_low_force"
                 n_control_b = filtered_current
             elif dot3(state.latched_normal_b, live_candidate_b) <= 0.0:
@@ -1739,16 +1747,16 @@ def compute_step4e_values(
                 n_control_b = filtered_current
             else:
                 alpha = 1.0
-                if args.step4e_normal_filter_tau_s > 0.0:
-                    alpha = 1.0 - math.exp(-max(0.0, dt_s) / args.step4e_normal_filter_tau_s)
+                if args.bridge_normal_filter_tau_s > 0.0:
+                    alpha = 1.0 - math.exp(-max(0.0, dt_s) / args.bridge_normal_filter_tau_s)
                 ema_normal_b = slerp_unit(filtered_current, live_candidate_b, alpha)
-                max_step_rad = max(0.0, args.step4e_normal_max_rate_rad_s) * max(0.0, dt_s)
+                max_step_rad = max(0.0, args.bridge_normal_max_rate_rad_s) * max(0.0, dt_s)
                 state.filtered_normal_b = rotate_toward_unit(filtered_current, ema_normal_b, max_step_rad)
                 n_control_b = state.filtered_normal_b
                 normal_filter_source = "filtered_live"
     elif (
         v30_profile or v31_profile or step4f_profile or step4g_profile or step5b_profile or step5c_contact_profile or step5d_liveprep_profile or step6b_profile
-    ) and args.step4e_normal_follow_mode == "filtered_live":
+    ) and args.bridge_normal_follow_mode == "filtered_live":
         if line_stage_active:
             normal_filter_source = "locked_no_latch"
         else:
@@ -1815,13 +1823,13 @@ def compute_step4e_values(
         delta_r = minimal_rotation_between(tcp_z_axis_b, orientation_target_axis_b)
         target_rotvec = matrix_to_rotvec(mat_mul3(delta_r, rotation))
     orientation_cmd = (
-        args.step4e_orientation_gain * args.step4e_orientation_wx_sign * orientation_axis[0],
-        args.step4e_orientation_gain * args.step4e_orientation_wy_sign * orientation_axis[1],
-        args.step4e_orientation_gain * orientation_axis[2],
+        args.bridge_orientation_gain * args.bridge_orientation_wx_sign * orientation_axis[0],
+        args.bridge_orientation_gain * args.bridge_orientation_wy_sign * orientation_axis[1],
+        args.bridge_orientation_gain * orientation_axis[2],
     )
     orientation_norm = norm3(orientation_cmd)
-    if orientation_norm > args.step4e_angular_limit_rad_s:
-        scale = args.step4e_angular_limit_rad_s / orientation_norm
+    if orientation_norm > args.bridge_angular_limit_rad_s:
+        scale = args.bridge_angular_limit_rad_s / orientation_norm
         orientation_cmd = tuple(value * scale for value in orientation_cmd)
 
     if step5b_profile:
@@ -1845,7 +1853,7 @@ def compute_step4e_values(
         path_ref = step5_contact_path_reference(
             (float(pose[0]), float(pose[1])),
             state.line_stage_s,
-            stage_id=args.step4e_version,
+            stage_id=args.bridge_profile,
         )
     elif step6b_profile:
         path_ref = step6_contact_path_reference(
@@ -1855,31 +1863,31 @@ def compute_step4e_values(
         )
     else:
         path_ref = step4e_path_reference(
-            args.step4e_path_shape,
+            args.bridge_path_shape,
             (float(pose[0]), float(pose[1])),
             state.line_stage_s,
         )
     progress = float(path_ref["progress"])
     desired_x, desired_y = path_ref["desired_xy"]
     path_error = (path_ref["path_error_xy"][0], path_ref["path_error_xy"][1], 0.0)
-    if args.step4e_path_shape == "line":
-        tangent_speed = args.step4e_line_speed_m_s if args.step4e_mode == "line" and line_stage_active else 0.0
+    if args.bridge_path_shape == "line":
+        tangent_speed = args.bridge_line_speed_m_s if args.bridge_mode == "line" and line_stage_active else 0.0
         desired_velocity_xy = (
             tangent_speed * STEP4E_LINE_UNIT_XY[0],
             tangent_speed * STEP4E_LINE_UNIT_XY[1],
         )
     else:
         desired_velocity_xy = path_ref["desired_velocity_xy"]
-        if args.step4e_mode != "line" or not line_stage_active:
+        if args.bridge_mode != "line" or not line_stage_active:
             desired_velocity_xy = (0.0, 0.0)
-    if line_stage_active and state.line_stage_s <= args.step4e_line_settle_s:
+    if line_stage_active and state.line_stage_s <= args.bridge_line_settle_s:
         desired_velocity_xy = (0.0, 0.0)
     if detached_profile and not line_stage_active:
         base_motion = (0.0, 0.0, 0.0)
     else:
         base_motion = (
-            desired_velocity_xy[0] + args.step4e_path_p_gain * path_error[0],
-            desired_velocity_xy[1] + args.step4e_path_p_gain * path_error[1],
+            desired_velocity_xy[0] + args.bridge_path_p_gain * path_error[0],
+            desired_velocity_xy[1] + args.bridge_path_p_gain * path_error[1],
             0.0,
         )
     if step5c_dryrun_profile:
@@ -1888,21 +1896,21 @@ def compute_step4e_values(
         normal_projection = dot3(base_motion, n_control_b)
         motion_cmd = tuple(base_motion[idx] - normal_projection * n_control_b[idx] for idx in range(3))
     motion_norm = norm3(motion_cmd)
-    if motion_norm > args.step4e_motion_limit_m_s:
-        scale = args.step4e_motion_limit_m_s / motion_norm
+    if motion_norm > args.bridge_motion_limit_m_s:
+        scale = args.bridge_motion_limit_m_s / motion_norm
         motion_cmd = tuple(value * scale for value in motion_cmd)
 
-    controlled_force_n = 0.0 if step5c_dryrun_profile else normal_load_n if args.step4e_mode == "line" else force_abs
+    controlled_force_n = 0.0 if step5c_dryrun_profile else normal_load_n if args.bridge_mode == "line" else force_abs
     force_error = args.target_force_n - controlled_force_n
     line_grace_valid = (
-        args.step4e_mode == "line"
+        args.bridge_mode == "line"
         and not detached_profile
         and control_stage_active
         and not state.normal_acquired
-        and state.line_stage_s <= args.step4e_acquire_grace_s
+        and state.line_stage_s <= args.bridge_acquire_grace_s
     )
     if step5c_dryrun_profile:
-        control_allowed = args.step4e_mode == "line" and line_stage_active
+        control_allowed = args.bridge_mode == "line" and line_stage_active
     elif axis_iso_active:
         control_allowed = sensor_ok > 0.5 and state.normal_acquired
     elif detached_profile:
@@ -1913,15 +1921,15 @@ def compute_step4e_values(
         )
     else:
         control_allowed = sensor_ok > 0.5 and (
-            force_abs >= args.step4e_min_force_for_control_n
-            or (args.step4e_mode == "line" and state.normal_acquired)
+            force_abs >= args.bridge_min_force_for_control_n
+            or (args.bridge_mode == "line" and state.normal_acquired)
             or line_grace_valid
         )
-    if args.step4e_integrate_stage25_only and args.step4e_mode == "line" and not control_stage_active:
+    if args.bridge_integrate_stage25_only and args.bridge_mode == "line" and not control_stage_active:
         control_allowed = False
     step5d_v8_pid_recovery_ok = True
     if control_allowed:
-        if args.step4e_mode == "line" and not step5c_dryrun_profile and not state.normal_acquired:
+        if args.bridge_mode == "line" and not step5c_dryrun_profile and not state.normal_acquired:
             cmd = (0.0, 0.0, 0.0)
             orientation_cmd = (0.0, 0.0, 0.0)
         elif detached_profile and latch_stage_active:
@@ -1962,7 +1970,7 @@ def compute_step4e_values(
                             settle_velocity_m_s=state.normal_velocity_m_s,
                             dt_s=dt_s,
                             reaction_normal_b=tuple(float(value) for value in n_control_b),  # type: ignore[arg-type]
-                            v_max_m_s=float(args.step4e_normal_velocity_limit_m_s),
+                            v_max_m_s=float(args.bridge_normal_velocity_limit_m_s),
                             )
                         )
                     orientation_cmd = (0.0, 0.0, 0.0)
@@ -1986,9 +1994,9 @@ def compute_step4e_values(
                         else state.normal_velocity_m_s
                     )
                     v_press_limit_m_s = (
-                        min(0.0029, float(args.step4e_normal_velocity_limit_m_s))
+                        min(0.0029, float(args.bridge_normal_velocity_limit_m_s))
                         if step5d_liveprep_v9_profile
-                        else float(args.step4e_normal_velocity_limit_m_s)
+                        else float(args.bridge_normal_velocity_limit_m_s)
                     )
                     cmd, state.integral_error_n_s, state.normal_velocity_m_s = step5d_v8_force_pid_settle_velocity(
                         normal_load_n=normal_load_n,
@@ -1997,10 +2005,10 @@ def compute_step4e_values(
                         dt_s=dt_s,
                         reaction_normal_b=tuple(float(value) for value in n_control_b),  # type: ignore[arg-type]
                         normal_velocity_m_s=measured_normal_velocity_m_s,
-                        kp_m_s_per_n=float(args.step4e_force_p_gain),
-                        ki_m_s_per_n_s=float(args.step4e_force_i_gain),
-                        damping=float(args.step4e_force_damping),
-                        integral_limit_n_s=float(args.step4e_integral_limit_n_s),
+                        kp_m_s_per_n=float(args.bridge_force_p_gain),
+                        ki_m_s_per_n_s=float(args.bridge_force_i_gain),
+                        damping=float(args.bridge_force_damping),
+                        integral_limit_n_s=float(args.bridge_integral_limit_n_s),
                         v_press_max_m_s=v_press_limit_m_s,
                         v_unload_max_m_s=v_press_limit_m_s,
                     )
@@ -2015,21 +2023,21 @@ def compute_step4e_values(
             elif step5d_liveprep_guarded_profile:
                 state.integral_error_n_s = clamp(
                     state.integral_error_n_s + force_error * dt_s,
-                    -args.step4e_integral_limit_n_s,
-                    args.step4e_integral_limit_n_s,
+                    -args.bridge_integral_limit_n_s,
+                    args.bridge_integral_limit_n_s,
                 )
                 accel_like = (
-                    args.step4e_force_p_gain * force_error
-                    + args.step4e_force_i_gain * state.integral_error_n_s
-                    - args.step4e_force_damping * state.normal_velocity_m_s
+                    args.bridge_force_p_gain * force_error
+                    + args.bridge_force_i_gain * state.integral_error_n_s
+                    - args.bridge_force_damping * state.normal_velocity_m_s
                 )
                 state.normal_velocity_m_s = clamp(
                     state.normal_velocity_m_s + accel_like * dt_s,
-                    -args.step4e_normal_velocity_limit_m_s,
-                    args.step4e_normal_velocity_limit_m_s,
+                    -args.bridge_normal_velocity_limit_m_s,
+                    args.bridge_normal_velocity_limit_m_s,
                 )
                 cmd = tuple(
-                    -args.step4e_normal_command_sign * n_control_b[idx] * state.normal_velocity_m_s
+                    -args.bridge_normal_command_sign * n_control_b[idx] * state.normal_velocity_m_s
                     for idx in range(3)
                 )
                 orientation_cmd = (0.0, 0.0, 0.0)
@@ -2046,45 +2054,45 @@ def compute_step4e_values(
             else:
                 state.integral_error_n_s = clamp(
                 state.integral_error_n_s + force_error * dt_s,
-                -args.step4e_integral_limit_n_s,
-                args.step4e_integral_limit_n_s,
+                -args.bridge_integral_limit_n_s,
+                args.bridge_integral_limit_n_s,
                 )
                 accel_like = (
-                    args.step4e_force_p_gain * force_error
-                    + args.step4e_force_i_gain * state.integral_error_n_s
-                    - args.step4e_force_damping * state.normal_velocity_m_s
+                    args.bridge_force_p_gain * force_error
+                    + args.bridge_force_i_gain * state.integral_error_n_s
+                    - args.bridge_force_damping * state.normal_velocity_m_s
                 )
                 state.normal_velocity_m_s = clamp(
                     state.normal_velocity_m_s + accel_like * dt_s,
-                    -args.step4e_normal_velocity_limit_m_s,
-                    args.step4e_normal_velocity_limit_m_s,
+                    -args.bridge_normal_velocity_limit_m_s,
+                    args.bridge_normal_velocity_limit_m_s,
                 )
                 if v20_profile and acquire_stage_active and force_error < -0.25:
                     unload_speed = min(
-                        args.step4e_normal_velocity_limit_m_s,
-                        max(args.step4e_reacquire_velocity_m_s, 0.003),
+                        args.bridge_normal_velocity_limit_m_s,
+                        max(args.bridge_reacquire_velocity_m_s, 0.003),
                     )
                     state.normal_velocity_m_s = min(state.normal_velocity_m_s, -unload_speed)
                 if (
-                    args.step4e_mode == "line"
+                    args.bridge_mode == "line"
                     and state.normal_acquired
-                    and normal_load_n < args.step4e_min_force_for_control_n
+                    and normal_load_n < args.bridge_min_force_for_control_n
                     and force_error > 0.0
                 ):
                     state.normal_velocity_m_s = max(
                         state.normal_velocity_m_s,
-                        min(args.step4e_reacquire_velocity_m_s, args.step4e_normal_velocity_limit_m_s),
+                        min(args.bridge_reacquire_velocity_m_s, args.bridge_normal_velocity_limit_m_s),
                     )
                 force_cmd = tuple(
-                    -args.step4e_normal_command_sign * n_control_b[idx] * state.normal_velocity_m_s
+                    -args.bridge_normal_command_sign * n_control_b[idx] * state.normal_velocity_m_s
                     for idx in range(3)
                 )
                 cmd = tuple(motion_cmd[idx] + force_cmd[idx] for idx in range(3))
                 if detached_profile and acquire_stage_active:
                     orientation_cmd = (0.0, 0.0, 0.0)
         cmd_norm = norm3(cmd)
-        if cmd_norm > args.step4e_total_linear_limit_m_s:
-            scale = args.step4e_total_linear_limit_m_s / cmd_norm
+        if cmd_norm > args.bridge_total_linear_limit_m_s:
+            scale = args.bridge_total_linear_limit_m_s / cmd_norm
             cmd = tuple(value * scale for value in cmd)
         if angular_speedl_profile and orient_stage_active and (
             abs(cmd[0]) > 1e-12 or abs(cmd[1]) > 1e-12 or abs(cmd[2]) > 1e-12
@@ -2142,7 +2150,7 @@ def compute_step4e_values(
                     or step5d_liveprep_v9_profile
                     or step5d_liveprep_v11_profile
                 ):
-                    contact_min_n, contact_max_n, contact_force_norm_max_n = step5d_liveprep_contact_window_limits(args.step4e_version)
+                    contact_min_n, contact_max_n, contact_force_norm_max_n = step5d_liveprep_contact_window_limits(args.bridge_profile)
                     if not step5d_contact_window_ready(
                         normal_load_n=normal_load_n,
                         force_norm_n=force_abs,
@@ -2223,8 +2231,8 @@ def compute_step4e_values(
                 if step5d_liveprep_guarded_profile:
                     step5d_outer_xdot_limited, step5d_outer_xdot_limiter_active = limit_step5d_live_xdot(
                         step5d_outer_xdot_limited,
-                        max_linear_m_s=float(args.step4e_total_linear_limit_m_s),
-                        max_angular_rad_s=float(args.step4e_angular_limit_rad_s),
+                        max_linear_m_s=float(args.bridge_total_linear_limit_m_s),
+                        max_angular_rad_s=float(args.bridge_angular_limit_rad_s),
                     )
                     target_state["xdot_c"] = step5d_outer_xdot_limited
                 step5d_result = state.step5d_solver.solve(actual_q=q, actual_qd=qd, target_state=target_state)
@@ -2311,7 +2319,7 @@ def compute_step4e_values(
                         else (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
                     ),
                     cmd_valid=0.0
-                    if args.step4e_mode == "preview"
+                    if args.bridge_mode == "preview"
                     or (
                         joint_result is None
                         and step5d_result is None
@@ -2344,7 +2352,7 @@ def compute_step4e_values(
                     "step4e_cmd_wy_rad_s": orientation_cmd[1],
                     "step4e_cmd_wz_rad_s": orientation_cmd[2] if (axis_iso_active or v21_profile or v22_profile or angular_speedl_profile) else 0.0,
                     "step4e_cmd_valid": 0.0
-                    if args.step4e_mode == "preview"
+                    if args.bridge_mode == "preview"
                     or (
                         (step5d_liveprep_v8_profile or step5d_liveprep_v9_profile or step5d_liveprep_v10_profile or step5d_liveprep_v11_profile)
                         and line_entry_gate_active
@@ -2367,7 +2375,7 @@ def compute_step4e_values(
                         if line_entry_gate_active
                         else 34.0
                         if axis_iso_active
-                        else {"preview": 10.0, "hold": 20.0, "line": 30.0, "axis_iso": 34.0}[args.step4e_mode]
+                        else {"preview": 10.0, "hold": 20.0, "line": 30.0, "axis_iso": 34.0}[args.bridge_mode]
                     ),
                 }
             )
@@ -2467,7 +2475,7 @@ def compute_step4e_values(
     values["_step4e_live_normal_candidate_angle_rad"] = live_candidate_angle_rad
     values["_step4e_live_normal_angle_from_latch_rad"] = live_candidate_angle_from_latch_rad
     values["_step4e_normal_filter_source"] = normal_filter_source
-    values["_step4e_normal_follow_mode"] = args.step4e_normal_follow_mode
+    values["_step4e_normal_follow_mode"] = args.bridge_normal_follow_mode
     values["_step4e_normal_load_n"] = normal_load_n
     values["_step4e_normal_force_error_n"] = force_error
     values["_step4e_normal_acquired"] = 1.0 if state.normal_acquired else 0.0
@@ -2480,7 +2488,7 @@ def compute_step4e_values(
         values["_step5d_force_settle_velocity_m_s"] = state.normal_velocity_m_s
         if step5d_liveprep_v10_profile or step5d_liveprep_v11_profile or step5d_liveprep_v12_profile:
             filtered_load = state.step5d_settle_filtered_normal_load_n
-            min_load, max_load, max_force = step5d_liveprep_contact_window_limits(args.step4e_version)
+            min_load, max_load, max_force = step5d_liveprep_contact_window_limits(args.bridge_profile)
             values["_step5d_force_settle_ready"] = 1.0 if (
                 filtered_load is not None
                 and step5d_contact_window_ready(
@@ -2498,7 +2506,7 @@ def compute_step4e_values(
                     or abs(state.normal_velocity_m_s) <= STEP5D_V10_SETTLE_VELOCITY_READY_M_S
                 )
             ) else 0.0
-        elif args.step4e_version in {
+        elif args.bridge_profile in {
             STEP5D_LIVEPREP_V4_STAGE_ID,
             STEP5D_LIVEPREP_V5_STAGE_ID,
             STEP5D_LIVEPREP_V6_STAGE_ID,
@@ -2509,7 +2517,7 @@ def compute_step4e_values(
             STEP5D_LIVEPREP_V13_STAGE_ID,
             STEP5D_LIVEPREP_STAGE_ID,
         }:
-            contact_min_n, contact_max_n, contact_force_norm_max_n = step5d_liveprep_contact_window_limits(args.step4e_version)
+            contact_min_n, contact_max_n, contact_force_norm_max_n = step5d_liveprep_contact_window_limits(args.bridge_profile)
             values["_step5d_force_settle_ready"] = 1.0 if step5d_contact_window_ready(
                 normal_load_n=normal_load_n,
                 force_norm_n=force_abs,
@@ -2524,7 +2532,7 @@ def compute_step4e_values(
                 target_force_n=float(args.target_force_n),
             ) else 0.0
     values["_step4e_line_stage_s"] = state.line_stage_s
-    values["_step4e_path_shape"] = args.step4e_path_shape
+    values["_step4e_path_shape"] = args.bridge_path_shape
     values["_step4e_path_time_s"] = path_ref["path_time_s"]
     values["_step4e_desired_x_m"] = desired_x
     values["_step4e_desired_y_m"] = desired_y
@@ -2537,6 +2545,9 @@ def compute_step4e_values(
     if speed and len(speed) >= 6:
         values["_step4e_actual_speed_norm_m_s"] = norm3([float(speed[0]), float(speed[1]), float(speed[2])])
     return values
+
+
+compute_step4e_values = compute_bridge_values
 
 
 def stats(values: list[float]) -> dict[str, Any]:
@@ -2721,6 +2732,13 @@ def env_choice(name: str, default: str, choices: tuple[str, ...]) -> str:
     return value
 
 
+def env_choice_alias(primary: str, legacy: str, default: str, choices: tuple[str, ...]) -> str:
+    value = os.getenv(primary, os.getenv(legacy, default))
+    if value not in choices:
+        raise SystemExit(f"{primary}/{legacy} must be one of {choices}; got {value!r}")
+    return value
+
+
 def env_float(name: str, default: float) -> float:
     value = os.getenv(name)
     if value is None:
@@ -2729,6 +2747,16 @@ def env_float(name: str, default: float) -> float:
         return float(value)
     except ValueError as exc:
         raise SystemExit(f"{name} must be a float; got {value!r}") from exc
+
+
+def env_float_alias(primary: str, legacy: str, default: float) -> float:
+    value = os.getenv(primary, os.getenv(legacy))
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except ValueError as exc:
+        raise SystemExit(f"{primary}/{legacy} must be a float; got {value!r}") from exc
 
 
 def flatten_output(output: dict[str, Any] | None) -> dict[str, Any]:
@@ -2805,38 +2833,69 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--step4e-normal-follow-mode",
         choices=("locked", "filtered_live"),
-        default=env_choice("STEP4E_NORMAL_FOLLOW_MODE", "locked", ("locked", "filtered_live")),
+        default=env_choice_alias("BRIDGE_NORMAL_FOLLOW_MODE", "STEP4E_NORMAL_FOLLOW_MODE", "locked", ("locked", "filtered_live")),
     )
     parser.add_argument(
         "--step4e-normal-filter-tau-s",
         type=float,
-        default=env_float("STEP4E_NORMAL_FILTER_TAU_S", 0.35),
+        default=env_float_alias("BRIDGE_NORMAL_FILTER_TAU_S", "STEP4E_NORMAL_FILTER_TAU_S", 0.35),
     )
     parser.add_argument(
         "--step4e-normal-filter-alpha",
         type=float,
-        default=env_float("STEP4E_NORMAL_FILTER_ALPHA", 0.35),
+        default=env_float_alias("BRIDGE_NORMAL_FILTER_ALPHA", "STEP4E_NORMAL_FILTER_ALPHA", 0.35),
     )
     parser.add_argument(
         "--step4e-normal-max-rate-rad-s",
         type=float,
-        default=env_float("STEP4E_NORMAL_MAX_RATE_RAD_S", 0.010),
+        default=env_float_alias("BRIDGE_NORMAL_MAX_RATE_RAD_S", "STEP4E_NORMAL_MAX_RATE_RAD_S", 0.010),
     )
     parser.add_argument(
         "--step4e-normal-min-force-n",
         type=float,
-        default=env_float("STEP4E_NORMAL_MIN_FORCE_N", 2.0),
+        default=env_float_alias("BRIDGE_NORMAL_MIN_FORCE_N", "STEP4E_NORMAL_MIN_FORCE_N", 2.0),
     )
     parser.add_argument(
         "--step4e-normal-max-angle-from-latch-deg",
         type=float,
-        default=env_float("STEP4E_NORMAL_MAX_ANGLE_FROM_LATCH_DEG", 20.0),
+        default=env_float_alias("BRIDGE_NORMAL_MAX_ANGLE_FROM_LATCH_DEG", "STEP4E_NORMAL_MAX_ANGLE_FROM_LATCH_DEG", 20.0),
     )
     parser.add_argument(
         "--step4e-normal-friction-projection",
         choices=("on", "off"),
-        default=env_choice("STEP4E_NORMAL_FRICTION_PROJECTION", "on", ("on", "off")),
+        default=env_choice_alias("BRIDGE_NORMAL_FRICTION_PROJECTION", "STEP4E_NORMAL_FRICTION_PROJECTION", "on", ("on", "off")),
     )
+    parser.add_argument("--bridge-mode", dest="step4e_mode", choices=("off", "preview", "hold", "line", "axis_iso"), default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-profile", dest="step4e_version", default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-path-shape", dest="step4e_path_shape", choices=("line", "cycloid", "eight"), default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-line-speed-m-s", dest="step4e_line_speed_m_s", type=float, default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-line-settle-s", dest="step4e_line_settle_s", type=float, default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-integrate-stage25-only", dest="step4e_integrate_stage25_only", action="store_true", default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-path-p-gain", dest="step4e_path_p_gain", type=float, default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-motion-limit-m-s", dest="step4e_motion_limit_m_s", type=float, default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-total-linear-limit-m-s", dest="step4e_total_linear_limit_m_s", type=float, default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-normal-velocity-limit-m-s", dest="step4e_normal_velocity_limit_m_s", type=float, default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-force-p-gain", dest="step4e_force_p_gain", type=float, default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-force-i-gain", dest="step4e_force_i_gain", type=float, default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-force-damping", dest="step4e_force_damping", type=float, default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-normal-command-sign", dest="step4e_normal_command_sign", type=float, choices=(-1.0, 1.0), default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-integral-limit-n-s", dest="step4e_integral_limit_n_s", type=float, default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-min-force-for-control-n", dest="step4e_min_force_for_control_n", type=float, default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-acquire-grace-s", dest="step4e_acquire_grace_s", type=float, default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-reacquire-velocity-m-s", dest="step4e_reacquire_velocity_m_s", type=float, default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-orientation-gain", dest="step4e_orientation_gain", type=float, default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-orientation-wx-sign", dest="step4e_orientation_wx_sign", type=float, choices=(-1.0, 1.0), default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-orientation-wy-sign", dest="step4e_orientation_wy_sign", type=float, choices=(-1.0, 1.0), default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-angular-limit-rad-s", dest="step4e_angular_limit_rad_s", type=float, default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-axis-iso-tilt-deg", dest="step4e_axis_iso_tilt_deg", type=float, default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-contact-offset-min-fz-n", dest="step4e_contact_offset_min_fz_n", type=float, default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-normal-follow-mode", dest="step4e_normal_follow_mode", choices=("locked", "filtered_live"), default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-normal-filter-tau-s", dest="step4e_normal_filter_tau_s", type=float, default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-normal-filter-alpha", dest="step4e_normal_filter_alpha", type=float, default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-normal-max-rate-rad-s", dest="step4e_normal_max_rate_rad_s", type=float, default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-normal-min-force-n", dest="step4e_normal_min_force_n", type=float, default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-normal-max-angle-from-latch-deg", dest="step4e_normal_max_angle_from_latch_deg", type=float, default=argparse.SUPPRESS)
+    parser.add_argument("--bridge-normal-friction-projection", dest="step4e_normal_friction_projection", choices=("on", "off"), default=argparse.SUPPRESS)
     parser.add_argument("--step5c-qdot-limit-rad-s", type=float, default=0.15)
     parser.add_argument("--step5c-joint-damping", type=float, default=1e-4)
     parser.add_argument(
@@ -2858,10 +2917,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--dashboard-program-watch-timeout-s", type=float, default=45.0)
     args = parser.parse_args(argv)
+    for key, value in list(vars(args).items()):
+        if key.startswith("step4e_"):
+            setattr(args, f"bridge_{key.removeprefix('step4e_')}", value)
+    args.bridge_profile = args.step4e_version
     if args.step5d_qdot_limit_rad_s is None:
         args.step5d_qdot_limit_rad_s = (
             STEP5D_V12_QDOT_LIMIT_RAD_S
-            if args.step4e_version in {STEP5D_LIVEPREP_V12_STAGE_ID, STEP5D_LIVEPREP_V13_STAGE_ID, STEP5D_LIVEPREP_STAGE_ID}
+            if args.bridge_profile in {STEP5D_LIVEPREP_V12_STAGE_ID, STEP5D_LIVEPREP_V13_STAGE_ID, STEP5D_LIVEPREP_STAGE_ID}
             else 0.30
         )
     return args
@@ -2873,7 +2936,7 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("duration, baseline, and RTDE rate must be positive")
     if not args.no_start_command and not args.allow_kunwei_stream_command:
         raise SystemExit("Refusing to send Kunwei stream command without --allow-kunwei-stream-command")
-    known_step4e_versions = {
+    known_bridge_profiles = {
         "",
         "v20",
         "v21",
@@ -2897,37 +2960,37 @@ def main(argv: list[str] | None = None) -> int:
         "step6b_v1",
         "step6b_v2",
     }
-    if args.step4e_version not in known_step4e_versions:
+    if args.bridge_profile not in known_bridge_profiles:
         raise SystemExit(
-            f"Unknown --step4e-version {args.step4e_version!r}; bridge profiles only cover "
-            f"{sorted(v for v in known_step4e_versions if v)}. Add the new version to the "
+            f"Unknown --step4e-version {args.bridge_profile!r}; bridge profiles only cover "
+            f"{sorted(v for v in known_bridge_profiles if v)}. Add the new version to the "
             "profile definitions before running, otherwise cmd_valid is never asserted."
         )
-    if args.step4e_version == STEP5C_DRYRUN_STAGE_ID:
+    if args.bridge_profile == STEP5C_DRYRUN_STAGE_ID:
         raise SystemExit(
             "Blocked Step5c dry-run: 2026-06-13 live run showed wrong XY/Z motion from "
             "the DLS/MuJoCo Jacobian mapping. Do not run until offline mapping validation passes."
         )
-    if args.step4e_version == STEP5C_CONTACT_STAGE_ID:
+    if args.bridge_profile == STEP5C_CONTACT_STAGE_ID:
         raise SystemExit(
             "Blocked Step5c contact: step5c_joint_rnn_cycloid_v1 was a misnamed DLS route, "
             "not strict TASE RNN. No Step5c joint-space bridge profile is runnable."
         )
-    if args.step4e_version == STEP5D_REPRODUCTION_STAGE_ID:
+    if args.bridge_profile == STEP5D_REPRODUCTION_STAGE_ID:
         raise SystemExit(
             "Blocked Step5d reproduction: offline paper outer-loop, strict RNN, calibrated "
             "Jacobian audit, numeric sanity, TP package read-back, and a separately accepted "
             "live plan must all pass before bridge start."
         )
-    if args.step4e_normal_filter_tau_s < 0.0:
+    if args.bridge_normal_filter_tau_s < 0.0:
         raise SystemExit("--step4e-normal-filter-tau-s must be non-negative")
-    if not 0.0 <= args.step4e_normal_filter_alpha <= 1.0:
+    if not 0.0 <= args.bridge_normal_filter_alpha <= 1.0:
         raise SystemExit("--step4e-normal-filter-alpha must be in [0, 1]")
-    if args.step4e_normal_max_rate_rad_s < 0.0:
+    if args.bridge_normal_max_rate_rad_s < 0.0:
         raise SystemExit("--step4e-normal-max-rate-rad-s must be non-negative")
-    if args.step4e_normal_min_force_n < 0.0:
+    if args.bridge_normal_min_force_n < 0.0:
         raise SystemExit("--step4e-normal-min-force-n must be non-negative")
-    if args.step4e_normal_max_angle_from_latch_deg <= 0.0:
+    if args.bridge_normal_max_angle_from_latch_deg <= 0.0:
         raise SystemExit("--step4e-normal-max-angle-from-latch-deg must be positive")
     if args.step5d_qdot_limit_rad_s <= 0.0:
         raise SystemExit("--step5d-qdot-limit-rad-s must be positive")
@@ -2981,13 +3044,19 @@ def main(argv: list[str] | None = None) -> int:
             "max_torque_norm_nm": args.max_torque_norm_nm,
         },
         "dashboard_program_watch": {
-            "enabled": args.step4e_version in STEP5D_LIVEPREP_STAGE_IDS
+            "enabled": args.bridge_profile in STEP5D_LIVEPREP_STAGE_IDS
             and not args.skip_dashboard_preflight
             and not args.disable_dashboard_program_watch,
             "timeout_s": args.dashboard_program_watch_timeout_s,
             "scope": "Step5d live-prep bridge exits after TP program stop or Play timeout",
         },
         "register_map": dict(zip(INPUT_FIELDS, INPUT_NAMES)),
+        "bridge_register_contract": {
+            "physical_fields": BRIDGE_INPUT_FIELDS,
+            "legacy_step4e_carrier_names": BRIDGE_INPUT_NAMES,
+            "note": "Step4e carrier names are retained for RTDE recipe and CSV compatibility; bridge profiles own the active semantics.",
+            "step5_joint_semantics": STEP5C_INPUT_REGISTER_SEMANTICS,
+        },
         "step5c_joint_register_contract": step5c_register_metadata(),
         "stage_aware_register_notes": {
             "p0_geo_ball_first_contact": "step4e-mode=off; only base force/heartbeat/guard registers are used. No Step4E motion or attitude command registers are consumed.",
@@ -3023,12 +3092,12 @@ def main(argv: list[str] | None = None) -> int:
             "step5d_strict_rnn_liveprep_v11": "Retained incomplete evidence: Stage 25.3 deadband acquire released into Stage 25.0, but Stage 25.0 lost contact and the strict RNN speedj path accelerated until operator E-stop.",
             "step5d_strict_rnn_liveprep_v12": "Retained read-back guarded live-prep strict RNN route: keeps v11 Stage 25.3 deadband acquire, then Stage 25.0 adds low-load/contact-retention, TCP speed watchdog, 0.05 rad/s qdot cap, and qdot slew limiting before TP speedj.",
             "step5d_strict_rnn_liveprep_v13": "Retained read-back evidence with known P1 gap: actual TCP speed dwell first sample could pass solver before v14.",
-            "step5d_strict_rnn_liveprep_v14": "Current contact-safety live-prep strict RNN route: actual TCP speed dwell first sample holds zero qdot and freezes path time; predicted TCP speed stops immediately; 0.004s actual dwell or other danger sets stop_request with zero qdot.",
+            "step5d_strict_rnn_liveprep_v14": "Retained contact-safety live-prep strict RNN evidence: actual TCP speed dwell first sample holds zero qdot and freezes path time; predicted TCP speed stops immediately; 0.004s actual dwell or other danger sets stop_request with zero qdot. Not current after the 2026-06-15 predicted TCP speed watchdog stop.",
             "step6b_contact_eight_baseline_v1": "Same TP contact-search/latch/25.2/25.3 scaffold as Step5b/v31, but stage 25.0 uses the active Step6 five-point safe-frame 8-shaped reference for 30 s and v31 filtered-live normal policy.",
             "step6b_contact_eight_baseline_v2": "Same TP contact-search/latch/25.2/25.3 scaffold and Step6 reference as v1, but intended bridge caps are 15 mm/s path, 15 mm/s total linear, 3 mm/s normal reserve, and 0.060 rad/s attitude.",
         },
         "step4e_path": {
-            "type": args.step4e_path_shape,
+            "type": args.bridge_path_shape,
             "start_xy_m": STEP4E_START_XY,
             "end_xy_m": STEP4E_END_XY,
             "mid_xy_m": STEP4E_LINE_MID_XY,
@@ -3042,47 +3111,47 @@ def main(argv: list[str] | None = None) -> int:
             "line_control_target": "latched contact normal load, not total force norm",
             "step4f_safe_frame": (
                 STEP4F_SAFE_FRAME
-                if args.step4e_path_shape == "cycloid" and args.step4e_version != "step5b_v1"
+                if args.bridge_path_shape == "cycloid" and args.bridge_profile != "step5b_v1"
                 else None
             ),
             "step5_stage_id": (
                 STEP5_CONTACT_CYCLOID_STAGE_ID
-                if args.step4e_version == "step5b_v1"
-                else args.step4e_version
-                if args.step4e_version in STEP5D_LIVEPREP_STAGE_IDS
+                if args.bridge_profile == "step5b_v1"
+                else args.bridge_profile
+                if args.bridge_profile in STEP5D_LIVEPREP_STAGE_IDS
                 else None
             ),
-            "step5c_stage_id": args.step4e_version
-            if args.step4e_version in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID}
+            "step5c_stage_id": args.bridge_profile
+            if args.bridge_profile in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID}
             else None,
             "step5c_register_contract": "Step5c/Step5d Stage 25.0: 37..42=qd0..qd5 rad/s, 43=cmd_valid, 44=path_time, 45=force_error, 46=pose/orientation_error, 47=solver_status. Step5d v8/v9 Stage 25.3: 37..39=Cartesian force-PID settle vx/vy/vz only. Step5d v10 Stage 25.3: 37..39=Cartesian admittance settle vx/vy/vz only and 45 carries filtered force_error. Step5d v11/v12 Stage 25.3: 37..39=Cartesian deadband-acquire vx/vy/vz only and 45 carries filtered force_error. Step5d v12 Stage 25.0 additionally gates loss-of-contact and TCP speed before cmd_valid. Step4e field names are carrier names only in joint mode."
-            if args.step4e_version in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID, *STEP5D_LIVEPREP_STAGE_IDS}
+            if args.bridge_profile in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID, *STEP5D_LIVEPREP_STAGE_IDS}
             else None,
             "step5c_joint_model": str(args.step5c_joint_model)
-            if args.step4e_version in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID}
+            if args.bridge_profile in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID}
             else None,
             "step5c_qdot_limit_rad_s": args.step5c_qdot_limit_rad_s
-            if args.step4e_version in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID}
+            if args.bridge_profile in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID}
             else None,
             "step6_stage_id": (
                 STEP6_CONTACT_EIGHT_STAGE_ID_V2
-                if args.step4e_version == "step6b_v2"
+                if args.bridge_profile == "step6b_v2"
                 else STEP6_CONTACT_EIGHT_STAGE_ID
-                if args.step4e_version == "step6b_v1"
+                if args.bridge_profile == "step6b_v1"
                 else None
             ),
-            "step6_curve_duration_s": STEP6_PATH_DURATION_S if args.step4e_version in {"step6b_v1", "step6b_v2"} else None,
+            "step6_curve_duration_s": STEP6_PATH_DURATION_S if args.bridge_profile in {"step6b_v1", "step6b_v2"} else None,
             "step6_table_source": str(STEP6_TABLE_PATH.relative_to(EXPERIMENT_ROOT))
-            if args.step4e_version in {"step6b_v1", "step6b_v2"}
+            if args.bridge_profile in {"step6b_v1", "step6b_v2"}
             else None,
             "step6_safe_frame_source": str(STEP6_SAFE_FRAME_PATH.relative_to(EXPERIMENT_ROOT))
-            if args.step4e_version in {"step6b_v1", "step6b_v2"}
+            if args.bridge_profile in {"step6b_v1", "step6b_v2"}
             else None,
-            "step6_safe_frame": load_step6_safe_frame() if args.step4e_version in {"step6b_v1", "step6b_v2"} else None,
-            "step4e_motion_limit_m_s": args.step4e_motion_limit_m_s,
-            "step4e_total_linear_limit_m_s": args.step4e_total_linear_limit_m_s,
-            "step4e_normal_velocity_limit_m_s": args.step4e_normal_velocity_limit_m_s,
-            "step4e_angular_limit_rad_s": args.step4e_angular_limit_rad_s,
+            "step6_safe_frame": load_step6_safe_frame() if args.bridge_profile in {"step6b_v1", "step6b_v2"} else None,
+            "step4e_motion_limit_m_s": args.bridge_motion_limit_m_s,
+            "step4e_total_linear_limit_m_s": args.bridge_total_linear_limit_m_s,
+            "step4e_normal_velocity_limit_m_s": args.bridge_normal_velocity_limit_m_s,
+            "step4e_angular_limit_rad_s": args.bridge_angular_limit_rad_s,
         },
     }
     write_json(metadata_path, metadata)
@@ -3123,12 +3192,12 @@ def main(argv: list[str] | None = None) -> int:
     torque_norms: list[float] = []
     zero_events: list[dict[str, Any]] = []
     buffer = bytearray()
-    step4e_state = Step4EState()
+    step4e_state = BridgeState()
 
     next_write = start_mono
     write_period = 1.0 / args.rtde_hz
     dashboard_watch_enabled = (
-        args.step4e_version in STEP5D_LIVEPREP_STAGE_IDS
+        args.bridge_profile in STEP5D_LIVEPREP_STAGE_IDS
         and not args.skip_dashboard_preflight
         and not args.disable_dashboard_program_watch
     )
@@ -3392,7 +3461,7 @@ def main(argv: list[str] | None = None) -> int:
                             previous_zero_request = last_zero_request
                             last_zero_request = zero_request
                             if (
-                                args.step4e_mode in {"hold", "line"}
+                                args.bridge_mode in {"hold", "line"}
                                 and zero_request > previous_zero_request
                                 and zero_request > 0.5
                             ):
@@ -3428,7 +3497,7 @@ def main(argv: list[str] | None = None) -> int:
                         "my_nm_zeroed": latest_zeroed[4],
                         "mz_nm_zeroed": latest_zeroed[5],
                     }
-                    step4e_values = compute_step4e_values(
+                    step4e_values = compute_bridge_values(
                         args,
                         latest_zeroed,
                         latest_output,
@@ -3436,7 +3505,7 @@ def main(argv: list[str] | None = None) -> int:
                         step4e_state,
                         write_period,
                     )
-                    for name in STEP4E_INPUT_NAMES:
+                    for name in BRIDGE_INPUT_NAMES:
                         bridge_values[name] = float(step4e_values.get(name, 0.0))
                     guard_reason = None
                     step4e_stop_request = float(step4e_values.get("stop_request", 0.0)) > 0.5

@@ -121,8 +121,24 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             ]
         )
         self.assertEqual(args.step4e_version, "step5d_strict_rnn_liveprep_v11")
+        self.assertEqual(args.bridge_profile, "step5d_strict_rnn_liveprep_v11")
+        self.assertEqual(args.bridge_mode, "line")
         self.assertEqual(args.step5d_qdot_limit_rad_s, 0.30)
         self.assertFalse(args.disable_dashboard_program_watch)
+        bridge_args = bridge.parse_args(
+            [
+                "--no-start-command",
+                "--bridge-mode",
+                "line",
+                "--bridge-profile",
+                "step5d_strict_rnn_liveprep_v14",
+                "--bridge-path-shape",
+                "cycloid",
+            ]
+        )
+        self.assertEqual(bridge_args.bridge_profile, "step5d_strict_rnn_liveprep_v14")
+        self.assertEqual(bridge_args.step4e_version, "step5d_strict_rnn_liveprep_v14")
+        self.assertEqual(bridge_args.bridge_path_shape, "cycloid")
         v12_args = bridge.parse_args(
             [
                 "--no-start-command",
@@ -184,13 +200,20 @@ class Step5dFullChainSanityTest(unittest.TestCase):
     def test_step5d_operator_points_to_current_controller_package(self) -> None:
         operator = (ROOT / "scripts" / "step5d-liveprep-operator.sh").read_text(encoding="utf-8")
         base = (ROOT / "scripts" / "step4e-line-v1-operator.sh").read_text(encoding="utf-8")
+        bridge_operator = (ROOT / "scripts" / "bridge-line-operator.sh").read_text(encoding="utf-8")
         self.assertIn('STEP5D_VERSION="${STEP5D_VERSION:-}"', operator)
+        self.assertIn('BRIDGE_OPERATOR="${ROOT}/scripts/bridge-line-operator.sh"', operator)
         self.assertIn('Bridge profile: ${STEP5D_VERSION}', operator)
         self.assertIn('STEP5D_CONFIRM', operator)
         self.assertIn('require_current_stage_readback_gate', operator)
         self.assertIn('no current live-prep package after v14 predicted TCP speed watchdog stop', operator)
         self.assertIn('MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-50}"', operator)
         self.assertIn('MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-60}"', operator)
+        self.assertIn('BRIDGE_PROFILE="${STEP5D_VERSION}"', operator)
+        self.assertNotIn('STEP4E_VERSION="${STEP5D_VERSION}"', operator)
+        self.assertIn('--bridge-profile "${BRIDGE_PROFILE}"', bridge_operator)
+        self.assertIn('--bridge-mode "${BRIDGE_MODE}"', bridge_operator)
+        self.assertIn('Type START_BRIDGE_${CONFIRM_TOKEN}_${BRIDGE_PROFILE^^} to continue:', bridge_operator)
         self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/${STEP4E_VERSION}.urp"', base)
         self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/step5d/${STEP4E_VERSION}.urp"', base)
         self.assertIn('"step5d_strict_rnn_liveprep_v10" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v11"', base)
