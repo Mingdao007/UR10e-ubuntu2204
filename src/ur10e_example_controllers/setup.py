@@ -39,6 +39,8 @@ setup(
             "guarded_contact_recovery_shadow = ur10e_example_controllers.guarded_contact_recovery_shadow:main",
             "no_contact_motion_probe = ur10e_example_controllers.no_contact_motion_probe:main",
             "kunwei_force_gate = ur10e_example_controllers.kunwei_force_gate:main",
+            "kunwei_persistent_gate = ur10e_example_controllers.kunwei_persistent_monitor:main",
+            "step5a_joint_proxy_motion_probe = ur10e_example_controllers.step5a_joint_proxy_motion_probe:main",
             "guarded_contact_recovery_node = ur10e_example_controllers.guarded_contact_recovery_node:main",
         ],
     },

@@ -13,11 +13,18 @@ READINESS_PROBE_TIMEOUT_S="${READINESS_PROBE_TIMEOUT_S:-2}"
 READINESS_PROBE_KILL_AFTER_S="${READINESS_PROBE_KILL_AFTER_S:-1}"
 READINESS_USE_ROS_CLI_PROBES="${READINESS_USE_ROS_CLI_PROBES:-false}"
 NO_CONTACT_READINESS_ONLY="${NO_CONTACT_READINESS_ONLY:-false}"
+NO_CONTACT_LIVE_MOTION="${NO_CONTACT_LIVE_MOTION:-false}"
 KUNWEI_FORCE_GATE_REQUIRED="${KUNWEI_FORCE_GATE_REQUIRED:-true}"
 KUNWEI_SENSOR_IP="${KUNWEI_SENSOR_IP:-192.168.50.25}"
 KUNWEI_SENSOR_PORT="${KUNWEI_SENSOR_PORT:-5152}"
-KUNWEI_GATE_DURATION_S="${KUNWEI_GATE_DURATION_S:-1.0}"
-KUNWEI_GATE_MIN_SAMPLES="${KUNWEI_GATE_MIN_SAMPLES:-20}"
+KUNWEI_MONITOR_DURATION_S="${KUNWEI_MONITOR_DURATION_S:-2.0}"
+KUNWEI_MONITOR_READY_TIMEOUT_S="${KUNWEI_MONITOR_READY_TIMEOUT_S:-3.0}"
+KUNWEI_MONITOR_MIN_RECENT_SAMPLES="${KUNWEI_MONITOR_MIN_RECENT_SAMPLES:-20}"
+KUNWEI_MONITOR_LATEST_MAX_AGE_S="${KUNWEI_MONITOR_LATEST_MAX_AGE_S:-0.25}"
+KUNWEI_MONITOR_WINDOW_S="${KUNWEI_MONITOR_WINDOW_S:-0.5}"
+KUNWEI_MAX_FORCE_DELTA_N="${KUNWEI_MAX_FORCE_DELTA_N:-8.0}"
+STEP5A_JOINT_NAME="${STEP5A_JOINT_NAME:-wrist_3_joint}"
+STEP5A_JOINT_DELTA_RAD="${STEP5A_JOINT_DELTA_RAD:-0.04}"
 
 mkdir -p "${RUN_DIR}"
 echo "run_dir=${RUN_DIR}"
@@ -188,22 +195,31 @@ if [[ "${NO_CONTACT_READINESS_ONLY}" == "true" ]]; then
 fi
 
 if [[ "${KUNWEI_FORCE_GATE_REQUIRED}" == "true" ]]; then
-  if ! ros2 run ur10e_example_controllers kunwei_force_gate \
-    --sensor-ip "${KUNWEI_SENSOR_IP}" \
-    --sensor-port "${KUNWEI_SENSOR_PORT}" \
-    --duration-s "${KUNWEI_GATE_DURATION_S}" \
-    --min-samples "${KUNWEI_GATE_MIN_SAMPLES}" \
-    --summary "${RUN_DIR}/kunwei_force_gate.json" \
-    --raw-frames "${RUN_DIR}/kunwei_force_gate_raw_frames.bin" \
-    | tee "${RUN_DIR}/kunwei_force_gate.log"; then
-    echo "kunwei force gate failed; no air motion was attempted."
-    echo "kunwei=${RUN_DIR}/kunwei_force_gate.json"
-    exit 3
+  if [[ "${NO_CONTACT_LIVE_MOTION}" != "true" ]]; then
+    if ! ros2 run ur10e_example_controllers kunwei_persistent_gate \
+      --sensor-ip "${KUNWEI_SENSOR_IP}" \
+      --sensor-port "${KUNWEI_SENSOR_PORT}" \
+      --duration-s "${KUNWEI_MONITOR_DURATION_S}" \
+      --ready-timeout-s "${KUNWEI_MONITOR_READY_TIMEOUT_S}" \
+      --window-s "${KUNWEI_MONITOR_WINDOW_S}" \
+      --latest-max-age-s "${KUNWEI_MONITOR_LATEST_MAX_AGE_S}" \
+      --min-recent-samples "${KUNWEI_MONITOR_MIN_RECENT_SAMPLES}" \
+      --max-force-delta-n "${KUNWEI_MAX_FORCE_DELTA_N}" \
+      --summary "${RUN_DIR}/kunwei_persistent_monitor.json" \
+      --raw-frames "${RUN_DIR}/kunwei_persistent_monitor_raw_frames.bin" \
+      | tee "${RUN_DIR}/kunwei_persistent_monitor.log"; then
+      echo "persistent Kunwei monitor failed; no air motion was attempted."
+      echo "kunwei=${RUN_DIR}/kunwei_persistent_monitor.json"
+      exit 3
+    fi
+    echo "persistent Kunwei monitor passed; default no-motion stop."
+    echo "kunwei=${RUN_DIR}/kunwei_persistent_monitor.json"
+    echo "To move the robot in no-contact mode, run: step5a_live_no_contact_test.sh"
+    exit 0
   fi
-  echo "kunwei force gate passed: ${RUN_DIR}/kunwei_force_gate.json"
 else
   echo "KUNWEI_FORCE_GATE_REQUIRED=false; no air motion was attempted."
-  echo "refusing to treat UR internal force as Kunwei evidence."
+  echo "refusing to move without Kunwei persistent monitor."
   exit 3
 fi
 
@@ -221,12 +237,24 @@ cleanup() {
 }
 trap cleanup EXIT
 
-ros2 run ur10e_example_controllers no_contact_motion_probe \
-  --execute \
-  --robot-ip "${ROBOT_IP}" \
-  --ur-internal-max-force-delta-n 8.0 \
-  --ur-internal-force-readiness-log "${RUN_DIR}/ur_internal_force_readiness.log" \
-  --summary "${RUN_DIR}/no_contact_motion_probe.json" \
-  | tee "${RUN_DIR}/no_contact_motion_probe.log"
+if [[ "${KUNWEI_FORCE_GATE_REQUIRED}" == "true" ]]; then
+  ros2 run ur10e_example_controllers step5a_joint_proxy_motion_probe \
+    --execute \
+    --robot-ip "${ROBOT_IP}" \
+    --joint-name "${STEP5A_JOINT_NAME}" \
+    --joint-delta-rad "${STEP5A_JOINT_DELTA_RAD}" \
+    --kunwei-sensor-ip "${KUNWEI_SENSOR_IP}" \
+    --kunwei-sensor-port "${KUNWEI_SENSOR_PORT}" \
+    --kunwei-ready-timeout-s "${KUNWEI_MONITOR_READY_TIMEOUT_S}" \
+    --kunwei-window-s "${KUNWEI_MONITOR_WINDOW_S}" \
+    --kunwei-latest-max-age-s "${KUNWEI_MONITOR_LATEST_MAX_AGE_S}" \
+    --kunwei-min-recent-samples "${KUNWEI_MONITOR_MIN_RECENT_SAMPLES}" \
+    --kunwei-max-force-delta-n "${KUNWEI_MAX_FORCE_DELTA_N}" \
+    --kunwei-summary "${RUN_DIR}/kunwei_persistent_monitor.json" \
+    --kunwei-raw-frames "${RUN_DIR}/kunwei_persistent_monitor_raw_frames.bin" \
+    --trace "${RUN_DIR}/step5a_joint_proxy_motion_trace.csv" \
+    --summary "${RUN_DIR}/step5a_joint_proxy_motion.json" \
+    | tee "${RUN_DIR}/step5a_joint_proxy_motion.log"
+fi
 
 echo "no_contact_test complete: ${RUN_DIR}"

@@ -114,7 +114,7 @@ class NoContactCycloidShadowTest(unittest.TestCase):
         self.assertIn("no_contact_cycloid_shadow", script)
         self.assertIn("Could not get configuration package", script)
         self.assertIn("no motion was attempted", script)
-        self.assertIn("no_contact_motion_probe", script)
+        self.assertIn("step5a_joint_proxy_motion_probe", script)
         self.assertIn("READINESS_USE_ROS_CLI_PROBES", script)
         self.assertIn("ros2 topic echo --no-daemon --once /joint_states", script)
         self.assertIn("ros2 control list_controllers", script)
@@ -125,43 +125,53 @@ class NoContactCycloidShadowTest(unittest.TestCase):
         self.assertIn("stop_process_group", script)
         self.assertIn("launch_dashboard_client:=false", script)
         self.assertIn("NO_CONTACT_READINESS_ONLY", script)
+        self.assertIn("NO_CONTACT_LIVE_MOTION", script)
         self.assertIn("KUNWEI_FORCE_GATE_REQUIRED", script)
-        self.assertIn("kunwei_force_gate", script)
-        self.assertIn("kunwei_force_gate.json", script)
-        self.assertIn("kunwei force gate failed; no air motion was attempted.", script)
-        self.assertIn("refusing to treat UR internal force as Kunwei evidence", script)
+        self.assertIn("kunwei_persistent_gate", script)
+        self.assertIn("kunwei_persistent_monitor.json", script)
+        self.assertIn("persistent Kunwei monitor failed; no air motion was attempted.", script)
+        self.assertIn("refusing to move without Kunwei persistent monitor", script)
         self.assertIn("readiness-only stop; no live motion was attempted.", script)
+        self.assertIn("To move the robot in no-contact mode, run: step5a_live_no_contact_test.sh", script)
         self.assertIn("readiness_log_passed", script)
         self.assertIn("Successful 'activate' of hardware 'ur10e'", script)
         self.assertIn("Configured and activated .*joint_state_broadcaster", script)
-        self.assertIn("--ur-internal-max-force-delta-n 8.0", script)
-        self.assertIn('--ur-internal-force-readiness-log "${RUN_DIR}/ur_internal_force_readiness.log"', script)
-        self.assertLess(script.find("Could not get configuration package"), script.find("no_contact_motion_probe"))
+        self.assertIn("--kunwei-max-force-delta-n", script)
+        self.assertIn("step5a_joint_proxy_motion_trace.csv", script)
+        self.assertLess(script.find("Could not get configuration package"), script.find("step5a_joint_proxy_motion_probe"))
 
-        probe = (
+        live_probe = (
             WORKSPACE
             / "src"
             / "ur10e_example_controllers"
             / "ur10e_example_controllers"
-            / "no_contact_motion_probe.py"
+            / "step5a_joint_proxy_motion_probe.py"
         ).read_text(encoding="utf-8")
-        self.assertIn("ur_internal_force_torque_sensor_broadcaster", probe)
-        self.assertIn("secondary_safety_delta_gate_not_kunwei", probe)
-        self.assertIn("baseline_force_n", probe)
-        self.assertIn("UR internal force delta gate blocked motion", probe)
-        self.assertIn("--ur-internal-max-force-delta-n", probe)
-        self.assertIn("--ur-internal-force-readiness-log", probe)
-        self.assertIn("qos_profile_sensor_data", probe)
-        self.assertIn('"sensor_data"', probe)
-        self.assertIn("publisher_exists_but_no_samples", probe)
-        self.assertIn("ur_internal_force_readiness", probe)
-        self.assertIn("UR internal force topic missing or has no publisher", probe)
-        self.assertIn("wrong_topic_type", probe)
-        self.assertNotIn("--force-readiness-log", probe)
-        self.assertNotIn("--force-topic", probe)
-        self.assertNotIn("--max-force-delta-n", probe)
-        self.assertIn('"Program running: true"', probe)
-        self.assertNotIn('responses.get("running") != "Program running: false"', probe)
+        self.assertIn("KunweiPersistentMonitor", live_probe)
+        self.assertIn("joint_proxy_cycloid_timing_not_cartesian_cycloid", live_probe)
+        self.assertIn("ur_internal_force_delta_advisory", live_probe)
+        self.assertIn("not_required_for_step5a_force_source", live_probe)
+        self.assertIn("step5a_reference_parameters", live_probe)
+        self.assertIn("LIVE_TRACE_FIELDS", live_probe)
+        self.assertIn("send_goal_async", live_probe)
+        self.assertIn("cancel_goal_async", live_probe)
+        self.assertIn('"Program running: true"', live_probe)
+        self.assertNotIn('responses.get("running") != "Program running: false"', live_probe)
+
+        persistent_monitor = (
+            WORKSPACE
+            / "src"
+            / "ur10e_example_controllers"
+            / "ur10e_example_controllers"
+            / "kunwei_persistent_monitor.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("kunwei_kwr75b_tcp_persistent_force_monitor", persistent_monitor)
+        self.assertIn("primary_step5a_force_source_persistent_monitor", persistent_monitor)
+        self.assertIn("latest_max_age_s", persistent_monitor)
+        self.assertIn("recent_sample_count", persistent_monitor)
+        self.assertIn("max_observed_force_delta_n", persistent_monitor)
+        self.assertIn("START_STREAM", persistent_monitor)
+        self.assertIn("STOP_STREAM", persistent_monitor)
 
         kunwei_gate = (
             WORKSPACE
@@ -181,6 +191,21 @@ class NoContactCycloidShadowTest(unittest.TestCase):
         self.assertIn("kunwei_force_gate", kunwei_script)
         self.assertIn("kunwei_force_gate.json", kunwei_script)
         self.assertNotIn("no_contact_motion_probe", kunwei_script)
+
+        live_script_path = WORKSPACE / "step5a_live_no_contact_test.sh"
+        live_script = live_script_path.read_text(encoding="utf-8")
+        self.assertTrue(live_script_path.exists())
+        self.assertTrue(live_script_path.stat().st_mode & 0o111)
+        self.assertIn("NO_CONTACT_LIVE_MOTION=true", live_script)
+        self.assertIn("KUNWEI_FORCE_GATE_REQUIRED=true", live_script)
+        self.assertIn('exec "${ROOT}/no_contact_test.sh"', live_script)
+
+        setup_py = (WORKSPACE / "src" / "ur10e_example_controllers" / "setup.py").read_text(encoding="utf-8")
+        self.assertIn("kunwei_persistent_gate = ur10e_example_controllers.kunwei_persistent_monitor:main", setup_py)
+        self.assertIn(
+            "step5a_joint_proxy_motion_probe = ur10e_example_controllers.step5a_joint_proxy_motion_probe:main",
+            setup_py,
+        )
 
 
 if __name__ == "__main__":
