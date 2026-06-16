@@ -108,6 +108,10 @@ class NoContactCycloidShadowTest(unittest.TestCase):
         self.assertIn("ros2 topic echo --once /joint_states", script)
         self.assertIn("ros2 control list_controllers", script)
         self.assertIn("joint_state_broadcaster.*active", script)
+        self.assertIn("READINESS_PROBE_KILL_AFTER_S", script)
+        self.assertIn("setsid timeout --kill-after", script)
+        self.assertIn("driver_failure:", script)
+        self.assertIn("stop_process_group", script)
         self.assertIn("--max-force-delta-n 8.0", script)
         self.assertLess(script.find("Could not get configuration package"), script.find("no_contact_motion_probe"))
 

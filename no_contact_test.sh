@@ -9,6 +9,8 @@ RUN_DIR="${RUN_ROOT}/no_contact_test_${STAMP}"
 ROBOT_IP="${ROBOT_IP:-192.168.1.18}"
 REVERSE_IP="${REVERSE_IP:-192.168.1.10}"
 READINESS_WAIT_S="${READINESS_WAIT_S:-30}"
+READINESS_PROBE_TIMEOUT_S="${READINESS_PROBE_TIMEOUT_S:-2}"
+READINESS_PROBE_KILL_AFTER_S="${READINESS_PROBE_KILL_AFTER_S:-1}"
 
 mkdir -p "${RUN_DIR}"
 echo "run_dir=${RUN_DIR}"
@@ -38,15 +40,42 @@ readiness_failed() {
     "${RUN_DIR}/driver_readiness.log" >/dev/null
 }
 
-stop_launch() {
+print_readiness_failure() {
+  echo "5a0 failed; no motion was attempted."
+  echo "log=${RUN_DIR}/driver_readiness.log"
+  if readiness_failed; then
+    echo "driver_failure:"
+    rg -n "Could not get configuration package|FATAL|Failed to set the initial state|process has died" \
+      "${RUN_DIR}/driver_readiness.log" | tail -n 8 || true
+  fi
+  if [[ -f "${RUN_DIR}/controllers_readiness.log" ]]; then
+    echo "controllers=${RUN_DIR}/controllers_readiness.log"
+  fi
+  if [[ -f "${RUN_DIR}/joint_states_once.log" ]]; then
+    echo "joint_states=${RUN_DIR}/joint_states_once.log"
+  fi
+}
+
+stop_process_group() {
   local pid="$1"
   if kill -0 "${pid}" >/dev/null 2>&1; then
-    kill -INT "${pid}" >/dev/null 2>&1 || true
+    kill -INT "-${pid}" >/dev/null 2>&1 || kill -INT "${pid}" >/dev/null 2>&1 || true
+    local deadline=$((SECONDS + 3))
+    while kill -0 "${pid}" >/dev/null 2>&1 && (( SECONDS < deadline )); do
+      sleep 0.1
+    done
+    if kill -0 "${pid}" >/dev/null 2>&1; then
+      kill -TERM "-${pid}" >/dev/null 2>&1 || kill -TERM "${pid}" >/dev/null 2>&1 || true
+      sleep 0.2
+    fi
+    if kill -0 "${pid}" >/dev/null 2>&1; then
+      kill -KILL "-${pid}" >/dev/null 2>&1 || kill -KILL "${pid}" >/dev/null 2>&1 || true
+    fi
   fi
   wait "${pid}" >/dev/null 2>&1 || true
 }
 
-ros2 launch ur10e_bringup ur10e_control.launch.py \
+setsid ros2 launch ur10e_bringup ur10e_control.launch.py \
   robot_ip:="${ROBOT_IP}" \
   reverse_ip:="${REVERSE_IP}" \
   headless_mode:=true \
@@ -56,6 +85,10 @@ ros2 launch ur10e_bringup ur10e_control.launch.py \
 READINESS_PID=$!
 
 READINESS_OK=false
+JOINT_STATES_OK=false
+ACTIVE_PROBE_PID=""
+ACTIVE_PROBE_KIND=""
+ACTIVE_PROBE_DEADLINE=0
 READINESS_DEADLINE=$((SECONDS + READINESS_WAIT_S))
 while (( SECONDS < READINESS_DEADLINE )); do
   if readiness_failed; then
@@ -64,32 +97,58 @@ while (( SECONDS < READINESS_DEADLINE )); do
   if ! kill -0 "${READINESS_PID}" >/dev/null 2>&1; then
     break
   fi
-  if timeout 2s ros2 topic echo --once /joint_states >"${RUN_DIR}/joint_states_once.log" 2>&1; then
-    if timeout 2s ros2 control list_controllers --controller-manager /controller_manager \
-      >"${RUN_DIR}/controllers_readiness.log" 2>&1; then
-      if rg -n "joint_state_broadcaster.*active" "${RUN_DIR}/controllers_readiness.log" >/dev/null; then
-        READINESS_OK=true
-        break
+
+  if [[ -n "${ACTIVE_PROBE_PID}" ]]; then
+    if kill -0 "${ACTIVE_PROBE_PID}" >/dev/null 2>&1; then
+      if (( SECONDS >= ACTIVE_PROBE_DEADLINE )); then
+        stop_process_group "${ACTIVE_PROBE_PID}"
+      else
+        sleep 0.2
+        continue
       fi
+    else
+      PROBE_RC=0
+      wait "${ACTIVE_PROBE_PID}" >/dev/null 2>&1 || PROBE_RC=$?
+      if [[ "${ACTIVE_PROBE_KIND}" == "joint_states" && "${PROBE_RC}" == "0" ]]; then
+        JOINT_STATES_OK=true
+      elif [[ "${ACTIVE_PROBE_KIND}" == "controllers" && "${PROBE_RC}" == "0" ]]; then
+        if rg -n "joint_state_broadcaster.*active" "${RUN_DIR}/controllers_readiness.log" >/dev/null; then
+          READINESS_OK=true
+          break
+        fi
+      fi
+      ACTIVE_PROBE_PID=""
+      ACTIVE_PROBE_KIND=""
     fi
   fi
-  sleep 1
+
+  if [[ -z "${ACTIVE_PROBE_PID}" ]]; then
+    if [[ "${JOINT_STATES_OK}" != "true" ]]; then
+      setsid timeout --kill-after="${READINESS_PROBE_KILL_AFTER_S}s" "${READINESS_PROBE_TIMEOUT_S}s" \
+        ros2 topic echo --once /joint_states >"${RUN_DIR}/joint_states_once.log" 2>&1 &
+      ACTIVE_PROBE_PID=$!
+      ACTIVE_PROBE_KIND="joint_states"
+    else
+      setsid timeout --kill-after="${READINESS_PROBE_KILL_AFTER_S}s" "${READINESS_PROBE_TIMEOUT_S}s" \
+        ros2 control list_controllers --controller-manager /controller_manager \
+        >"${RUN_DIR}/controllers_readiness.log" 2>&1 &
+      ACTIVE_PROBE_PID=$!
+      ACTIVE_PROBE_KIND="controllers"
+    fi
+    ACTIVE_PROBE_DEADLINE=$((SECONDS + READINESS_PROBE_TIMEOUT_S + READINESS_PROBE_KILL_AFTER_S + 1))
+  fi
 done
 
-stop_launch "${READINESS_PID}"
+if [[ -n "${ACTIVE_PROBE_PID}" ]] && kill -0 "${ACTIVE_PROBE_PID}" >/dev/null 2>&1; then
+  stop_process_group "${ACTIVE_PROBE_PID}"
+fi
+stop_process_group "${READINESS_PID}"
 if [[ "${READINESS_OK}" != "true" ]]; then
-  echo "5a0 failed; no motion was attempted."
-  echo "log=${RUN_DIR}/driver_readiness.log"
-  if [[ -f "${RUN_DIR}/controllers_readiness.log" ]]; then
-    echo "controllers=${RUN_DIR}/controllers_readiness.log"
-  fi
-  if [[ -f "${RUN_DIR}/joint_states_once.log" ]]; then
-    echo "joint_states=${RUN_DIR}/joint_states_once.log"
-  fi
+  print_readiness_failure
   exit 2
 fi
 
-ros2 launch ur10e_bringup ur10e_control.launch.py \
+setsid ros2 launch ur10e_bringup ur10e_control.launch.py \
   robot_ip:="${ROBOT_IP}" \
   reverse_ip:="${REVERSE_IP}" \
   headless_mode:=true \
@@ -98,10 +157,7 @@ ros2 launch ur10e_bringup ur10e_control.launch.py \
   >"${RUN_DIR}/air_motion_launch.log" 2>&1 &
 LAUNCH_PID=$!
 cleanup() {
-  if kill -0 "${LAUNCH_PID}" >/dev/null 2>&1; then
-    kill -INT "${LAUNCH_PID}" >/dev/null 2>&1 || true
-  fi
-  wait "${LAUNCH_PID}" >/dev/null 2>&1 || true
+  stop_process_group "${LAUNCH_PID}"
 }
 trap cleanup EXIT
 
