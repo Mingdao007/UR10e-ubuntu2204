@@ -1,27 +1,29 @@
 {
   "version": 2,
-  "updated_at": "2026-06-16T15:19:24+08:00",
+  "updated_at": "2026-06-16T15:53:47+08:00",
   "current_step": "Step5d",
-  "current_stage_id": "step5d_strict_rnn_liveprep_v15",
-  "program": "step5d_strict_rnn_liveprep_v15",
+  "current_stage_id": "step5d_strict_rnn_liveprep_v15a",
+  "program": "step5d_strict_rnn_liveprep_v15a",
   "flow_path": "STEP5_FLOW.md",
   "stage_table_path": "config/step5_stage_table.json",
-  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v15.urp",
-  "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v15.script",
-  "local_triplet": "programs/step5/step5d_strict_rnn_liveprep_v15",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v15a.urp",
+  "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v15a.script",
+  "local_triplet": "programs/step5/step5d_strict_rnn_liveprep_v15a",
   "bridge_profile": {
-    "step4e_version": "step5d_strict_rnn_liveprep_v15",
+    "step4e_version": "step5d_strict_rnn_liveprep_v15a",
     "step4e_path_shape": "cycloid",
     "step5d_qdot_limit_rad_s": 0.05,
     "target_force_n": 5.0,
-    "normal_follow_mode": "filtered_live"
+    "normal_follow_mode": "filtered_live",
+    "online_tcp_cage": "broad_stagewise_aabb_from_success_step5b_step6b",
+    "bounded_hold_policy": "finite event/consecutive/duty/repeated limits from offline success replay"
   },
-  "status": "step5d_v15_controller_readback_verified_no_live_bridge_authorization",
+  "status": "step5d_v15a_controller_readback_verified_no_live_bridge_authorization",
   "strict_rnn_status": {
     "stage_id": "step5d_strict_rnn_reproduction_v1",
     "blocked": true,
     "paper_truth_config": "config/step5d_liveprep_solver_gate.json",
-    "reason": "v15 is a controller-readback-verified live-prep package only; full Step5d reproduction remains separate and incomplete."
+    "reason": "v15a is a controller-readback-verified live-prep package only; full Step5d reproduction remains separate and incomplete."
   },
   "evidence": {
     "v11_escape_replay_summary": "runs/step5d_v11_escape_replay_20260615/summary.json",
@@ -33,9 +35,9 @@
     "v13_local_package_validated": true,
     "v13_controller_readback_verified": true,
     "sha256": {
-      ".script": "09e10425efee2e1ed097ae8f2c402b29c1edc1fb720b05463255e6102b564a56",
-      ".txt": "c4b9503b77828769d18b20c09ed9af9894779442a05617fdd26142e1725a2e0a",
-      ".urp": "53e8ad0726e030c90add8eaeb0855ff948245392b6ddb15b3986cbb265fb279c"
+      ".script": "cbad5c358dd99617b48a21e16e7b65d971e07c3038c582ae91e2bfcd9306f249",
+      ".txt": "aa3f7192e22a893fe5aed603097f21f6eb5583064bbae3ba289338c967751bc7",
+      ".urp": "8dd90a7fba50d6d2e7b4d9bef2d933881a5523b63a9c91ad42dd2123f7ed4640"
     },
     "v14_stamp": "2026-06-15T2310HKT_STEP5D_STRICT_RNN_LIVEPREP_V14",
     "v14_local_package_validated": true,
@@ -52,14 +54,32 @@
     "v15_controller_readback_verified": true,
     "v15_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_liveprep_v15_20260616_151843",
     "v15_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v15_20260616_151843/manifest.json",
-    "v15_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v15.urp"
+    "v15_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v15.urp",
+    "v15a_offline_replay_summary": "runs/step5d_v15a_permissive_recovery_offline_20260616/summary.json",
+    "v15a_stamp": "2026-06-16T1553HKT_STEP5D_STRICT_RNN_LIVEPREP_V15A",
+    "v15a_local_package_validated": true,
+    "v15a_controller_readback_verified": true,
+    "v15a_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_liveprep_v15a_20260616_155322",
+    "v15a_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v15a_20260616_155322/manifest.json",
+    "v15a_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v15a.urp",
+    "v15a_online_tcp_cage": "broad_stagewise_aabb_from_success_step5b_step6b",
+    "v15a_bounded_hold_policy": {
+      "hold_consecutive_max_s": 1.2,
+      "hold_duty_limit": 0.4,
+      "hold_event_limit": 360,
+      "repeated_hold_limit": 120,
+      "source": "success replay hold-burden maxima with finite headroom",
+      "success_hold_duty_max_observed": 0.3163918060112362,
+      "success_hold_event_count_max_observed": 309,
+      "success_max_consecutive_hold_s_observed": 0.29999989800000293
+    }
   },
   "bridge_trigger": {
     "allowed_tokens": [],
     "bridge_has_started": false,
     "live_motion_authorized": false,
     "zero_ftsensor_authorized": false,
-    "blocked_reason": "v15 package is controller read-back verified, but bridge start, TP Play/program load, robot motion, and zero_ftsensor remain separate explicit live gates."
+    "blocked_reason": "v15a package is controller read-back verified, but bridge start, TP Play/program load, robot motion, payload/TCP writes, and zero_ftsensor remain separate explicit live gates."
   },
   "retained_steps": [
     {
@@ -71,7 +91,7 @@
       "step": "Step5",
       "flow_path": "STEP5_FLOW.md",
       "stage_table_path": "config/step5_stage_table.json",
-      "role": "current Step5d v15 package is controller-readback verified; v14 and earlier retained as evidence; live bridge still not authorized"
+      "role": "current Step5d v15a package is controller-readback verified; v15 and earlier retained as evidence; live bridge still not authorized"
     },
     {
       "step": "Step6",
@@ -82,9 +102,9 @@
   ],
   "notes": [
     "This file is the single current pointer for UR/Kunwei package and bridge handoffs.",
-    "step5d_strict_rnn_liveprep_v15 is controller read-back verified on the UR controller.",
-    "v15 is a live-prep package only and does not mark the full Step5d TASE reproduction complete.",
-    "Bridge, TP program load/Play, robot motion, and zero_ftsensor remain explicit live gates and are not authorized here.",
-    "v14 remains retained controller-readback and live-run evidence for the predicted TCP speed watchdog stop."
+    "step5d_strict_rnn_liveprep_v15a is controller read-back verified on the UR controller.",
+    "v15a is a live-prep package only and does not mark the full Step5d TASE reproduction complete.",
+    "Bridge, TP program load/Play, robot motion, payload/TCP writes, and zero_ftsensor remain explicit live gates and are not authorized here.",
+    "v15 remains retained controller-readback evidence with audit gaps; v14 remains retained live-run evidence for the predicted TCP speed watchdog stop."
   ]
 }

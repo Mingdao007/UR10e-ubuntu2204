@@ -396,6 +396,7 @@ def validate_package(
         "step5d_strict_rnn_liveprep_v13",
         "step5d_strict_rnn_liveprep_v14",
         "step5d_strict_rnn_liveprep_v15",
+        "step5d_strict_rnn_liveprep_v15a",
     }:
         is_v9 = program.endswith("_v9")
         is_v10 = program.endswith("_v10")
@@ -404,19 +405,21 @@ def validate_package(
         is_v13 = program.endswith("_v13")
         is_v14 = program.endswith("_v14")
         is_v15 = program.endswith("_v15")
-        recovery_min = "0.000" if (is_v9 or is_v10 or is_v11 or is_v12 or is_v13 or is_v14 or is_v15) else "0.500"
-        recovery_force_stop = "25.000" if is_v14 or is_v15 else "100.000"
+        is_v15a = program.endswith("_v15a")
+        guarded_v9_plus = is_v9 or is_v10 or is_v11 or is_v12 or is_v13 or is_v14 or is_v15 or is_v15a
+        recovery_min = "0.000" if guarded_v9_plus else "0.500"
+        recovery_force_stop = "25.000" if is_v14 or is_v15 or is_v15a else "100.000"
         settle_label = (
             "Stage 25.3 consumes 37..39 as Cartesian admittance settle vx/vy/vz"
             if is_v10
             else "Stage 25.3 consumes 37..39 as Cartesian deadband-acquire vx/vy/vz"
-            if is_v11 or is_v12 or is_v13 or is_v14 or is_v15
+            if is_v11 or is_v12 or is_v13 or is_v14 or is_v15 or is_v15a
             else "Stage 25.3 consumes 37..39 as Cartesian force-PID settle vx/vy/vz"
         )
-        qdot_cap = "0.050" if is_v12 or is_v13 or is_v14 or is_v15 else "0.300"
-        min_load = "2.000" if is_v11 or is_v12 or is_v13 or is_v14 or is_v15 else "3.000"
-        max_load = "15.000" if is_v11 or is_v12 or is_v13 or is_v14 or is_v15 else "8.000"
-        required_s = "0.150" if is_v11 or is_v12 or is_v13 or is_v14 or is_v15 else "0.300" if is_v10 else "0.200"
+        qdot_cap = "0.050" if is_v12 or is_v13 or is_v14 or is_v15 or is_v15a else "0.300"
+        min_load = "2.000" if is_v11 or is_v12 or is_v13 or is_v14 or is_v15 or is_v15a else "3.000"
+        max_load = "15.000" if is_v11 or is_v12 or is_v13 or is_v14 or is_v15 or is_v15a else "8.000"
+        required_s = "0.150" if is_v11 or is_v12 or is_v13 or is_v14 or is_v15 or is_v15a else "0.300" if is_v10 else "0.200"
         checks.update(
             {
                 "step5d function": f"def codex_{program}()" in script
@@ -454,7 +457,7 @@ def validate_package(
                 "raw contact guards": (
                     "codex_abs(normal_force) > 50.0" in script
                     and "force_norm > 60.0" in script
-                    if is_v14 or is_v15
+                    if is_v14 or is_v15 or is_v15a
                     else "codex_abs(normal_force) > 100.0" in script
                     and "force_norm > 100.0" in script
                 )
@@ -464,27 +467,29 @@ def validate_package(
                 and "step5c_joint_rnn_cycloid_v1" not in script + txt,
             }
         )
-        if is_v9 or is_v10 or is_v11 or is_v12 or is_v13 or is_v14 or is_v15:
+        if guarded_v9_plus:
             checks["low-load does not stop"] = "or normal_load < line_entry_recovery_normal_load_min_n" not in script
             checks["force envelope auto-home"] = "elif stop_reason == 17.0:\n    return True" in script
+            stale_range_end = (
+                16
+                if is_v15a
+                else 15
+                if is_v15
+                else 14
+                if is_v14
+                else 13
+                if is_v13
+                else 12
+                if is_v12
+                else 11
+                if is_v11
+                else 10
+                if is_v10
+                else 9
+            )
             checks["no stale older step5d route"] = all(
-                re.search(rf"step5d_strict_rnn_liveprep_v{idx}(?!\d)", script + txt) is None
-                for idx in range(
-                    1,
-                    15
-                    if is_v15
-                    else 14
-                    if is_v14
-                    else 13
-                    if is_v13
-                    else 12
-                    if is_v12
-                    else 11
-                    if is_v11
-                    else 10
-                    if is_v10
-                    else 9,
-                )
+                re.search(rf"step5d_strict_rnn_liveprep_v{idx}(?![A-Za-z0-9])", script + txt) is None
+                for idx in range(1, stale_range_end)
             )
             if is_v10:
                 checks["v10 settle velocity release gate"] = (
@@ -492,8 +497,8 @@ def validate_package(
                     and "codex_abs(cmd_vx) <= line_entry_settle_cmd_max_m_s" in script
                     and "scalar admittance settle" in txt
                 )
-            if is_v11 or is_v12 or is_v13 or is_v14 or is_v15:
-                checks["v11/v12/v13/v14/v15 deadband acquire release gate"] = (
+            if is_v11 or is_v12 or is_v13 or is_v14 or is_v15 or is_v15a:
+                checks["v11/v12/v13/v14/v15/v15a deadband acquire release gate"] = (
                     "local line_entry_settle_cmd_max_m_s" not in script
                     and "codex_abs(cmd_vx) <= line_entry_settle_cmd_max_m_s" not in script
                     and "deadband contact acquire" in txt
@@ -530,6 +535,16 @@ def validate_package(
                     and "recoverable predicted-speed/contact uncertainty" in script + txt
                     and "cage margin" in script + txt
                     and "actual speed dwell" in script + txt
+                    and "stop_request" in script + txt
+                )
+            if is_v15a:
+                checks["v15a online cage bounded recovery note"] = (
+                    "STAGE25_CONTACT_SAFETY" in script
+                    and "cmd_valid=1 zero-qdot hold" in script + txt
+                    and "online broad AABB TCP cage" in script + txt
+                    and "_step5d_tcp_cage_*" in txt
+                    and "bounded" in script + txt
+                    and "hold duty/event/consecutive exhaustion" in script + txt
                     and "stop_request" in script + txt
                 )
         else:

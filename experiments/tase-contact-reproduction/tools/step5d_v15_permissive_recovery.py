@@ -29,6 +29,8 @@ TCP_CAGE_COLUMNS = (
     "_step5d_tcp_cage_distance_m",
     "_step5d_tcp_cage_braking_margin_m",
     "_step5d_tcp_cage_signed_distance_m",
+    "_step5d_tcp_cage_cell_index",
+    "_step5d_tcp_cage_reason",
 )
 
 
@@ -105,9 +107,9 @@ def stage25_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
     return selected if selected else [row for row in rows if finite_float(row, "step4e_cmd_valid", 0.0) > 0.5]
 
 
-def main_tracking_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+def main_tracking_rows(rows: list[dict[str, str]], *, trim_entry_exit: bool = True) -> list[dict[str, str]]:
     selected = stage25_rows(rows)
-    if len(selected) < 3:
+    if not trim_entry_exit or len(selected) < 3:
         return selected
     start = finite_float(selected[0], "_t_rel_s")
     end = finite_float(selected[-1], "_t_rel_s")
@@ -118,6 +120,12 @@ def main_tracking_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
         if finite_float(row, "_t_rel_s") >= start + 0.5 and finite_float(row, "_t_rel_s") <= end - 0.5
     ]
     return trimmed or selected
+
+
+def predicted_active_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    selected = stage25_rows(rows)
+    active = [row for row in selected if math.isfinite(predicted_speed(row))]
+    return active if active else selected
 
 
 def percentile(values: list[float], q: float) -> float:
@@ -189,6 +197,10 @@ def summarize_csv(csv_path: Path, *, kind: str) -> dict[str, Any]:
     }
 
 
+def tcp_pose(row: dict[str, str]) -> list[float]:
+    return [finite_float(row, f"ur_actual_TCP_pose_{idx}") for idx in range(3)]
+
+
 def summarize_tcp_cage_availability(paths: list[Path]) -> dict[str, Any]:
     availability = {}
     any_available = False
@@ -209,19 +221,35 @@ def summarize_tcp_cage_availability(paths: list[Path]) -> dict[str, Any]:
         "status": "available" if any_available else "unavailable_in_source_csvs",
         "expected_columns": list(TCP_CAGE_COLUMNS),
         "availability_by_csv": availability,
-        "note": "Historical CSVs do not contain TCP cage distance or braking-margin fields; v15 keeps cage behavior covered by synthetic hard-boundary replay until a future bridge logs these columns.",
+        "note": "Historical CSVs do not contain TCP cage distance or braking-margin fields; v15a constructs an online broad stage-wise AABB cage from successful Step5b/Step6b source traces and logs these fields during future Stage25 runtime.",
     }
 
 
-def replay_v15_guard(csv_path: Path) -> dict[str, Any]:
+def replay_rows_for_kind(csv_path: Path, kind: str) -> list[dict[str, str]]:
     all_rows = read_rows(csv_path)
-    stage_rows = stage25_rows(all_rows)
-    predicted_active = [row for row in stage_rows if math.isfinite(predicted_speed(row))]
-    rows = predicted_active if predicted_active else main_tracking_rows(all_rows)
+    if kind == "success":
+        return main_tracking_rows(all_rows, trim_entry_exit=True)
+    if kind == "v14":
+        return predicted_active_rows(all_rows)
+    if kind == "v11":
+        return stage25_rows(all_rows)
+    return main_tracking_rows(all_rows, trim_entry_exit=True)
+
+
+def replay_v15_guard(csv_path: Path, *, kind: str, cage: bridge.Step5dTcpCage | None = None) -> dict[str, Any]:
+    rows = replay_rows_for_kind(csv_path, kind)
     hold_s = 0.0
     high_window_s = 0.0
     actual_speed_violation_s = 0.0
     actual_speed_violation_count = 0
+    consecutive_hold_s = 0.0
+    total_hold_s = 0.0
+    hold_event_count = 0
+    repeated_hold_count = 0
+    last_hold_reason = ""
+    hold_actual_tcp_speed_m_s: float | None = None
+    active_stage25_s = 0.0
+    max_consecutive_hold_s = 0.0
     previous_t: float | None = None
     first_hold: dict[str, Any] | None = None
     first_stop: dict[str, Any] | None = None
@@ -230,16 +258,32 @@ def replay_v15_guard(csv_path: Path) -> dict[str, Any]:
         t_rel_s = finite_float(row, "_t_rel_s")
         dt_s = 0.002 if previous_t is None else max(0.0, t_rel_s - previous_t)
         previous_t = t_rel_s
+        active_stage25_s += dt_s
         pred = predicted_speed(row)
+        cage_eval: dict[str, Any] = {}
+        if cage is not None:
+            cage_eval = cage.evaluate(
+                tcp_pose(row),
+                actual_tcp_speed_m_s=linear_speed(row),
+                predicted_tcp_speed_m_s=pred if math.isfinite(pred) else None,
+            )
         result = bridge.step5d_v15_permissive_recovery_guard(
             normal_load_n=normal_load(row),
             force_norm_n=force_norm(row),
             actual_tcp_speed_m_s=linear_speed(row),
             predicted_tcp_speed_m_s=pred if math.isfinite(pred) else None,
+            braking_margin_m=cage_eval.get("braking_margin_m") if cage is not None else None,
+            require_braking_margin=cage is not None,
             prior_hold_s=hold_s,
             prior_high_window_s=high_window_s,
             prior_actual_speed_violation_s=actual_speed_violation_s,
             prior_actual_speed_violation_count=actual_speed_violation_count,
+            prior_consecutive_hold_s=consecutive_hold_s,
+            prior_total_hold_s=total_hold_s,
+            prior_hold_event_count=hold_event_count,
+            prior_last_hold_reason=last_hold_reason,
+            prior_hold_actual_tcp_speed_m_s=hold_actual_tcp_speed_m_s,
+            active_stage25_s=active_stage25_s,
             dt_s=dt_s,
         )
         action = str(result["action"])
@@ -248,6 +292,14 @@ def replay_v15_guard(csv_path: Path) -> dict[str, Any]:
         high_window_s = float(result["high_window_s"])
         actual_speed_violation_s = float(result["actual_speed_violation_s"])
         actual_speed_violation_count = int(result["actual_speed_violation_count"])
+        consecutive_hold_s = float(result.get("consecutive_hold_s", 0.0))
+        total_hold_s = float(result.get("total_hold_s", total_hold_s))
+        hold_event_count = int(float(result.get("hold_event_count", hold_event_count)))
+        repeated_hold_count = int(float(result.get("repeated_hold_count", repeated_hold_count)))
+        last_hold_reason = str(result.get("last_hold_reason", last_hold_reason))
+        hold_speed = float(result.get("hold_actual_tcp_speed_m_s", math.nan))
+        hold_actual_tcp_speed_m_s = hold_speed if math.isfinite(hold_speed) else None
+        max_consecutive_hold_s = max(max_consecutive_hold_s, consecutive_hold_s)
         event = {
             "index": index,
             "t_rel_s": t_rel_s,
@@ -256,18 +308,32 @@ def replay_v15_guard(csv_path: Path) -> dict[str, Any]:
             "actual_tcp_speed_m_s": linear_speed(row),
             "predicted_tcp_speed_m_s": pred,
             "hold_s": hold_s,
+            "qdot_max_abs_rad_s": qdot_max_abs(row),
+            "tcp_cage_braking_margin_m": cage_eval.get("braking_margin_m"),
+            "tcp_cage_reason": cage_eval.get("reason"),
         }
         if first_hold is None and action == "hold_zero_qdot":
             first_hold = event
         if action == "stop_zero_qdot":
             first_stop = event
             break
+    hold_duty = total_hold_s / active_stage25_s if active_stage25_s > 0.0 else 0.0
     return {
         "csv": str(csv_path),
+        "window_kind": kind,
         "rows": len(rows),
         "action_counts": action_counts,
         "first_hold": first_hold,
         "first_stop": first_stop,
+        "hold_burden": {
+            "active_stage25_s": active_stage25_s,
+            "total_hold_s": total_hold_s,
+            "hold_duty": hold_duty,
+            "max_consecutive_hold_s": max_consecutive_hold_s,
+            "hold_event_count": hold_event_count,
+            "last_repeated_hold_count": repeated_hold_count,
+            "first_hold_reason": first_hold["reason"] if first_hold else None,
+        },
     }
 
 
@@ -302,15 +368,36 @@ def synthetic_cage_replay() -> dict[str, Any]:
     }
 
 
+def derive_hold_thresholds(success_replays: list[dict[str, Any]]) -> dict[str, Any]:
+    duties = [float(item["hold_burden"]["hold_duty"]) for item in success_replays]
+    consecutive = [float(item["hold_burden"]["max_consecutive_hold_s"]) for item in success_replays]
+    events = [int(item["hold_burden"]["hold_event_count"]) for item in success_replays]
+    max_duty = max(duties, default=0.0)
+    max_consecutive = max(consecutive, default=0.0)
+    max_events = max(events, default=0)
+    return {
+        "source": "success replay hold-burden maxima with finite headroom",
+        "success_hold_duty_max_observed": max_duty,
+        "success_max_consecutive_hold_s_observed": max_consecutive,
+        "success_hold_event_count_max_observed": max_events,
+        "hold_duty_limit": max(bridge.STEP5D_V15A_HOLD_DUTY_MAX, max_duty + 0.05),
+        "hold_consecutive_max_s": max(bridge.STEP5D_V15A_HOLD_CONSECUTIVE_MAX_S, max_consecutive + 0.20),
+        "hold_event_limit": max(bridge.STEP5D_V15A_HOLD_EVENT_LIMIT, max_events + 25),
+        "repeated_hold_limit": bridge.STEP5D_V15A_REPEATED_HOLD_LIMIT,
+    }
+
+
 def analyze() -> dict[str, Any]:
     all_csvs = SUCCESS_CSVS + [V11_CSV, V14_CSV]
+    tcp_cage = bridge.build_step5d_v15a_tcp_cage(SUCCESS_CSVS)
     success = [summarize_csv(path, kind="success") for path in SUCCESS_CSVS]
     negative = [summarize_csv(path, kind="negative") for path in (V11_CSV, V14_CSV)]
     success_speed_p999 = max(item["actual_speed_m_s"]["p999"] for item in success)
     success_speed_max = max(item["actual_speed_m_s"]["max"] for item in success)
-    v11_replay = replay_v15_guard(V11_CSV)
-    v14_replay = replay_v15_guard(V14_CSV)
-    success_replays = [replay_v15_guard(path) for path in SUCCESS_CSVS]
+    v11_replay = replay_v15_guard(V11_CSV, kind="v11", cage=tcp_cage)
+    v14_replay = replay_v15_guard(V14_CSV, kind="v14", cage=tcp_cage)
+    success_replays = [replay_v15_guard(path, kind="success", cage=tcp_cage) for path in SUCCESS_CSVS]
+    hold_thresholds = derive_hold_thresholds(success_replays)
     cage = synthetic_cage_replay()
     return {
         "analysis_created_at": datetime.now().isoformat(timespec="seconds"),
@@ -323,12 +410,28 @@ def analyze() -> dict[str, Any]:
             "success": success,
             "negative": negative,
             "tcp_cage_margin": summarize_tcp_cage_availability(all_csvs),
+            "tcp_cage_v15a": {
+                "status": "online_broad_stagewise_aabb_ready",
+                "mode": tcp_cage.mode,
+                "source_rows": tcp_cage.source_rows,
+                "source_csvs": tcp_cage.source_csvs,
+                "padding_m": tcp_cage.padding_m,
+                "min_xyz": list(tcp_cage.min_xyz),
+                "max_xyz": list(tcp_cage.max_xyz),
+                "braking_policy": {
+                    "tau_stop_s": bridge.STEP5D_V15A_TCP_CAGE_TAU_STOP_S,
+                    "a_stop_m_s2": bridge.STEP5D_V15A_TCP_CAGE_A_STOP_M_S2,
+                    "model_margin_m": bridge.STEP5D_V15A_TCP_CAGE_MODEL_MARGIN_M,
+                    "contact_margin_m": bridge.STEP5D_V15A_TCP_CAGE_CONTACT_MARGIN_M,
+                },
+            },
         },
         "candidate_parameters": {
             "actual_speed_hold_source": "max success main-tracking p99.9 and max; do not use load jump alone",
             "actual_speed_hold_floor_m_s": success_speed_p999,
             "actual_speed_success_max_m_s": success_speed_max,
             "predicted_speed_policy": "predicted speed above the v14 0.050 m/s intervention threshold is recoverable hold unless a hard boundary is already violated",
+            "bounded_hold_policy": hold_thresholds,
             "hard_stop_boundaries": [
                 "tcp_cage_distance_or_braking_margin_exhausted",
                 "semantic_gate_failed",
@@ -344,18 +447,42 @@ def analyze() -> dict[str, Any]:
             "v14": v14_replay,
             "cage": cage,
         },
+        "success_hold_duty_by_csv": {item["csv"]: item["hold_burden"]["hold_duty"] for item in success_replays},
+        "success_max_consecutive_hold_s_by_csv": {
+            item["csv"]: item["hold_burden"]["max_consecutive_hold_s"] for item in success_replays
+        },
+        "success_hold_event_count_by_csv": {
+            item["csv"]: item["hold_burden"]["hold_event_count"] for item in success_replays
+        },
+        "success_first_hold_reason_by_csv": {
+            item["csv"]: item["hold_burden"]["first_hold_reason"] for item in success_replays
+        },
         "acceptance": {
             "success_no_hard_stop": all(item["first_stop"] is None for item in success_replays),
+            "success_hold_burden_reported": all(
+                "hold_duty" in item["hold_burden"] and "max_consecutive_hold_s" in item["hold_burden"]
+                for item in success_replays
+            ),
             "v14_enters_hold_before_hard_stop": v14_replay["first_hold"] is not None
             and v14_replay["first_hold"]["reason"] in {
+                "early_tcp_escape_recoverable_hold",
                 "predicted_tcp_speed_recoverable_hold",
                 "low_load_predicted_tcp_speed_recoverable_hold",
                 "actual_tcp_speed_watchdog_dwell_hold",
                 "low_load_actual_tcp_speed_watchdog_dwell_hold",
             },
-            "v11_hard_stops_before_escape_pass": v11_replay["first_stop"] is not None,
+            "v11_intervenes_before_qdot_rail_or_large_escape": (
+                v11_replay["first_hold"] is not None
+                and v11_replay["first_hold"]["index"] <= 20
+                and (
+                    not math.isfinite(float(v11_replay["first_hold"].get("qdot_max_abs_rad_s", math.nan)))
+                    or float(v11_replay["first_hold"].get("qdot_max_abs_rad_s", 0.0)) < 0.30
+                )
+                and float(v11_replay["first_hold"]["actual_tcp_speed_m_s"]) < 0.050
+            ),
             "cage_margin_hard_stop": cage["inside_margin_action"] == "hold_zero_qdot"
             and cage["exhausted_margin_action"] == "stop_zero_qdot",
+            "online_tcp_cage_ready": tcp_cage.source_rows > 0,
         },
     }
 

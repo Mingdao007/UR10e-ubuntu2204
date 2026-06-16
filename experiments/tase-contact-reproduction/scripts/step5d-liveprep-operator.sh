@@ -26,7 +26,7 @@ Boundary:
   - Bridge profile: ${STEP5D_VERSION}.
   - Force target: 5.0 N, Step5/Step6 positive normal-load convention.
   - Stage 25.0: registers 37..42 are qd0..qd5 rad/s; TP executes speedj.
-  - qdot cap: v12/v13/v14/v15 default to 0.05 rad/s; retained evidence packages may differ.
+  - qdot cap: v12/v13/v14/v15/v15a default to 0.05 rad/s; retained evidence packages may differ.
   - Raw normal guard: 50 N, force norm guard: 60 N, torque guard: 3.0 Nm.
   - Stage 25.3 runs bridge deadband acquire with Cartesian registers 37..39.
   - Stage 25.3 keeps press recovery on low load and stops outside the 40 N normal-load / 25 N force-norm recovery envelope.
