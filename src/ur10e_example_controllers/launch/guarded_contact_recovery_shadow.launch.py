@@ -10,12 +10,12 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument("enable_motion", default_value="false"),
             DeclareLaunchArgument(
                 "config",
-                default_value="src/ur10e_step5d_remote/config/default_step5d_remote.yaml",
+                default_value="src/ur10e_example_controllers/config/guarded_contact_recovery_shadow.yaml",
             ),
             Node(
-                package="ur10e_step5d_remote",
-                executable="step5d_remote_control_node",
-                name="step5d_remote_shadow",
+                package="ur10e_example_controllers",
+                executable="guarded_contact_recovery_node",
+                name="guarded_contact_recovery_shadow",
                 output="screen",
                 parameters=[
                     {

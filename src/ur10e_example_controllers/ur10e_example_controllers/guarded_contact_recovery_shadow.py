@@ -23,7 +23,7 @@ def find_workspace_root() -> Path:
 
 WORKSPACE_ROOT = find_workspace_root()
 RUNS_ROOT = WORKSPACE_ROOT / "experiments" / "tase-contact-reproduction" / "runs"
-DEFAULT_CONFIG = WORKSPACE_ROOT / "src" / "ur10e_step5d_remote" / "config" / "default_step5d_remote.yaml"
+DEFAULT_CONFIG = WORKSPACE_ROOT / "src" / "ur10e_example_controllers" / "config" / "guarded_contact_recovery_shadow.yaml"
 
 TRACE_FIELDS = [
     "source_csv",
@@ -68,7 +68,7 @@ def load_config(path: Path = DEFAULT_CONFIG) -> tuple[Step5dRemoteConfig, dict[s
     return Step5dRemoteConfig.from_mapping(raw), raw
 
 
-def run_shadow_replay(
+def run_guarded_contact_recovery_shadow(
     *,
     config_path: Path = DEFAULT_CONFIG,
     output_dir: Path | None = None,
@@ -132,7 +132,7 @@ def run_shadow_replay(
 
     summary = {
         "analysis_created_at": datetime.now().isoformat(timespec="seconds"),
-        "mode": "offline_ros2_remote_shadow_no_live_robot_action",
+        "mode": "guarded_contact_recovery_shadow_no_live_robot_action",
         "config_path": str(config_path),
         "artifact_dir": str(out_dir),
         "trace_path": str(trace_path),
@@ -254,13 +254,13 @@ def finite_float(row: dict[str, str], key: str, default: float = math.nan) -> fl
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run Step5d ROS2 remote-control shadow replay.")
+    parser = argparse.ArgumentParser(description="Run the UR10e guarded contact recovery shadow.")
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--output-dir", type=Path, default=None)
     parser.add_argument("--csv", action="append", type=Path, default=None)
     parser.add_argument("--max-rows-per-csv", type=int, default=None)
     args = parser.parse_args()
-    summary = run_shadow_replay(
+    summary = run_guarded_contact_recovery_shadow(
         config_path=args.config,
         output_dir=args.output_dir,
         replay_csvs=args.csv,

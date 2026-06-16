@@ -9,10 +9,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .replay_shadow import RUNS_ROOT, WORKSPACE_ROOT, _json_safe, _simple_yaml, finite_float
+from .guarded_contact_recovery_shadow import RUNS_ROOT, WORKSPACE_ROOT, _json_safe, _simple_yaml, finite_float
 
 
-DEFAULT_CONFIG = WORKSPACE_ROOT / "src" / "ur10e_step5d_remote" / "config" / "default_step5b_remote.yaml"
+DEFAULT_CONFIG = WORKSPACE_ROOT / "src" / "ur10e_example_controllers" / "config" / "contact_cycloid_shadow.yaml"
 
 TRACE_FIELDS = [
     "source_csv",
@@ -52,7 +52,7 @@ DESIRED_FIELDS = [
 ]
 
 
-def load_step5b_config(path: Path = DEFAULT_CONFIG) -> dict[str, Any]:
+def load_contact_cycloid_config(path: Path = DEFAULT_CONFIG) -> dict[str, Any]:
     if not path.is_absolute():
         path = WORKSPACE_ROOT / path
     try:
@@ -64,7 +64,7 @@ def load_step5b_config(path: Path = DEFAULT_CONFIG) -> dict[str, Any]:
     return raw
 
 
-def run_step5b_shadow_replay(
+def run_contact_cycloid_shadow(
     *,
     config_path: Path = DEFAULT_CONFIG,
     output_dir: Path | None = None,
@@ -73,7 +73,7 @@ def run_step5b_shadow_replay(
 ) -> dict[str, Any]:
     if not config_path.is_absolute():
         config_path = WORKSPACE_ROOT / config_path
-    raw_config = load_step5b_config(config_path)
+    raw_config = load_contact_cycloid_config(config_path)
     if bool(raw_config.get("enable_motion", False)):
         raise RuntimeError("Step5b remote shadow refuses enable_motion=true; live motion is not implemented")
 
@@ -144,7 +144,7 @@ def run_step5b_shadow_replay(
     command_valid_ratio = total_active_rows / total_rows if total_rows else 0.0
     summary = {
         "analysis_created_at": datetime.now().isoformat(timespec="seconds"),
-        "mode": "step5b_remote_control_plumbing_shadow_no_live_robot_action",
+        "mode": "contact_cycloid_shadow_no_live_robot_action",
         "role": "remote_control_plumbing_validation_before_step5d",
         "config_path": str(config_path),
         "artifact_dir": str(out_dir),
@@ -187,13 +187,13 @@ def run_step5b_shadow_replay(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run Step5b ROS2 remote-control plumbing shadow replay.")
+    parser = argparse.ArgumentParser(description="Run the UR10e contact cycloid shadow.")
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--output-dir", type=Path, default=None)
     parser.add_argument("--csv", action="append", type=Path, default=None)
     parser.add_argument("--max-rows-per-csv", type=int, default=None)
     args = parser.parse_args()
-    summary = run_step5b_shadow_replay(
+    summary = run_contact_cycloid_shadow(
         config_path=args.config,
         output_dir=args.output_dir,
         replay_csvs=args.csv,

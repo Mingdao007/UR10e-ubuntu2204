@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>ur10e_step5d_remote</name>
+  <name>ur10e_example_controllers</name>
   <version>0.1.0</version>
-  <description>Offline Step5b/Step5d ROS2 remote-control shadow replay for the UR10e bench.</description>
+  <description>UR10e example controller probes and offline shadows for the current bench.</description>
   <maintainer email="andy@example.com">andy</maintainer>
   <license>Apache-2.0</license>
 
@@ -13,6 +13,10 @@
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
   <exec_depend>rclpy</exec_depend>
+  <exec_depend>control_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>trajectory_msgs</exec_depend>
 
   <test_depend>ament_pytest</test_depend>
 

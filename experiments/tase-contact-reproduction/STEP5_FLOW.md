@@ -12,15 +12,18 @@ TP program load/Play, robot motion, payload/TCP writes, and `zero_ftsensor()`
 remain separate explicit live gates.
 The full reproduction target remains separate and not complete.
 Step4f, Step4g, Step5b, and Step5d v1-v15a remain retained evidence packages
-only. The ROS2 Remote Control migration now gates Step5b behind 5a0 headless
-driver readiness and `step5a_ros2_remote_no_contact_v1`. The Step5a remote
-candidate is no-contact/no-motion by default and only defines the later
-explicit air-motion gate. `step5b_ros2_remote_shadow_v1` remains a no-motion
-remote-control plumbing candidate and must follow 5a0/5a before any Step5d
-candidate. `step5d_ros2_remote_shadow_v1` remains diagnostic only for Step5d
-policy analysis; it is not a live gate. Neither shadow route is a TP package,
-live bridge profile, or current pointer change. Do not infer global current
-status from this per-step file without reading the current pointer.
+only. The ROS2 source package for the current route is now
+`src/ur10e_example_controllers`; stage ids such as
+`step5a_ros2_remote_no_contact_v1` remain historical/experimental mapping
+labels, not the primary source-code organization. The user-facing short entry
+is `./no_contact_test.sh` from the workspace root. The ROS2 Remote Control
+migration gates Step5b behind 5a0 headless driver readiness and the
+no-contact cycloid shadow/live gate. `step5b_ros2_remote_shadow_v1` remains a
+no-motion remote-control plumbing candidate and must follow 5a0/5a before any
+Step5d candidate. `step5d_ros2_remote_shadow_v1` remains diagnostic only for
+Step5d policy analysis; it is not a live gate. Neither shadow route is a TP
+package, live bridge profile, or current pointer change. Do not infer global
+current status from this per-step file without reading the current pointer.
 
 The source of truth for Step5 trajectory and stage ownership is
 `config/step5_stage_table.json`. Step5c also has a required offline calibrated

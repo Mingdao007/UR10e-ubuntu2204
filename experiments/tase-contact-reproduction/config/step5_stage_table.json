@@ -298,9 +298,9 @@
         "force_sign_convention": "step5_step6_positive_normal_load"
       },
       "local_analysis_evidence": {
-        "package": "src/ur10e_step5d_remote",
-        "default_config": "src/ur10e_step5d_remote/config/default_step5b_remote.yaml",
-        "launch": "src/ur10e_step5d_remote/launch/step5b_remote_shadow.launch.py",
+        "package": "src/ur10e_example_controllers",
+        "default_config": "src/ur10e_example_controllers/config/contact_cycloid_shadow.yaml",
+        "launch": "src/ur10e_example_controllers/launch/contact_cycloid_shadow.launch.py",
         "report": "report/step5b-ros2-remote-shadow.md",
         "artifact_pattern": "runs/step5b_ros2_remote_shadow_YYYYMMDD_HHMMSS",
         "source_replays": [
@@ -2892,9 +2892,9 @@
         "semantic_contract": "reaction normal for load, approach normal for posture/press direction"
       },
       "local_analysis_evidence": {
-        "package": "src/ur10e_step5d_remote",
-        "default_config": "src/ur10e_step5d_remote/config/default_step5d_remote.yaml",
-        "launch": "src/ur10e_step5d_remote/launch/step5d_remote_shadow.launch.py",
+        "package": "src/ur10e_example_controllers",
+        "default_config": "src/ur10e_example_controllers/config/guarded_contact_recovery_shadow.yaml",
+        "launch": "src/ur10e_example_controllers/launch/guarded_contact_recovery_shadow.launch.py",
         "report": "report/step5d-ros2-remote-shadow.md",
         "artifact_pattern": "runs/step5d_ros2_remote_shadow_YYYYMMDD_HHMMSS",
         "source_replays": [

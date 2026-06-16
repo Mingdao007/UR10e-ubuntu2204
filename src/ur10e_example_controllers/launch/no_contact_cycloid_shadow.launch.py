@@ -10,12 +10,12 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument("enable_motion", default_value="false"),
             DeclareLaunchArgument(
                 "config",
-                default_value="src/ur10e_step5d_remote/config/default_step5b_remote.yaml",
+                default_value="src/ur10e_example_controllers/config/no_contact_cycloid.yaml",
             ),
             Node(
-                package="ur10e_step5d_remote",
-                executable="replay_step5b_shadow",
-                name="step5b_remote_shadow",
+                package="ur10e_example_controllers",
+                executable="no_contact_cycloid_shadow",
+                name="no_contact_cycloid_shadow",
                 output="screen",
                 arguments=["--config", LaunchConfiguration("config")],
                 parameters=[

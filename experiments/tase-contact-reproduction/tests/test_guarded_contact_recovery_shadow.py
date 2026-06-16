@@ -14,17 +14,17 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKSPACE = ROOT.parents[1]
-sys.path.insert(0, str(WORKSPACE / "src" / "ur10e_step5d_remote"))
+sys.path.insert(0, str(WORKSPACE / "src" / "ur10e_example_controllers"))
 
-from ur10e_step5d_remote import state_machine  # noqa: E402
-from ur10e_step5d_remote.replay_shadow import (  # noqa: E402
+from ur10e_example_controllers import state_machine  # noqa: E402
+from ur10e_example_controllers.guarded_contact_recovery_shadow import (  # noqa: E402
     DEFAULT_CONFIG,
     TRACE_FIELDS,
     build_cage,
     load_config,
-    run_shadow_replay,
+    run_guarded_contact_recovery_shadow,
 )
-from ur10e_step5d_remote.state_machine import (  # noqa: E402
+from ur10e_example_controllers.state_machine import (  # noqa: E402
     CageBounds,
     ShadowSample,
     Step5dRemoteConfig,
@@ -48,14 +48,14 @@ class Step5dRos2RemoteShadowTest(unittest.TestCase):
         config, raw = load_config(DEFAULT_CONFIG)
         self.assertFalse(config.enable_motion)
         self.assertFalse(raw["enable_motion"])
-        launch = (WORKSPACE / "src" / "ur10e_step5d_remote" / "launch" / "step5d_remote_shadow.launch.py").read_text(
+        launch = (WORKSPACE / "src" / "ur10e_example_controllers" / "launch" / "guarded_contact_recovery_shadow.launch.py").read_text(
             encoding="utf-8"
         )
         self.assertIn('DeclareLaunchArgument("enable_motion", default_value="false")', launch)
 
     def test_v15a_low_load_does_not_become_long_zero_qdot_hold(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            summary = run_shadow_replay(
+            summary = run_guarded_contact_recovery_shadow(
                 config_path=DEFAULT_CONFIG,
                 output_dir=Path(tmp),
                 replay_csvs=[V15A],
@@ -130,7 +130,7 @@ class Step5dRos2RemoteShadowTest(unittest.TestCase):
 
     def test_step5b_step6b_baselines_do_not_immediately_hard_stop(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            summary = run_shadow_replay(
+            summary = run_guarded_contact_recovery_shadow(
                 config_path=DEFAULT_CONFIG,
                 output_dir=Path(tmp),
                 replay_csvs=[STEP5B, STEP6B],
@@ -156,7 +156,7 @@ class Step5dRos2RemoteShadowTest(unittest.TestCase):
     def test_artifact_schema_contains_required_summary_and_trace_fields(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
-            summary = run_shadow_replay(
+            summary = run_guarded_contact_recovery_shadow(
                 config_path=DEFAULT_CONFIG,
                 output_dir=out,
                 replay_csvs=[V15A],

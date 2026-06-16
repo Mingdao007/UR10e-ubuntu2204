@@ -98,3 +98,17 @@ timeout --signal=INT 20s ros2 launch ur10e_bringup ur10e_control.launch.py \
 
 Passing this smoke is the 5a0 gate. Step5a no-contact air motion and Step5b
 contact remain separate live-gated stages.
+
+## No-Contact Test
+
+Use the short wrapper from the workspace root:
+
+```bash
+./no_contact_test.sh
+```
+
+The wrapper follows the current ROS2 Remote Control route. It runs the
+no-contact cycloid shadow, checks the 5a0 headless driver readiness gate, and
+only attempts the minimal no-contact motion probe if readiness passes. With the
+current configuration-package timeout blocker, it stops before motion and writes
+the logs under `experiments/tase-contact-reproduction/runs/no_contact_test_*`.

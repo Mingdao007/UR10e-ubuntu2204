@@ -8,10 +8,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .replay_shadow import RUNS_ROOT, WORKSPACE_ROOT, _json_safe, _simple_yaml
+from .guarded_contact_recovery_shadow import RUNS_ROOT, WORKSPACE_ROOT, _json_safe, _simple_yaml
 
 
-DEFAULT_CONFIG = WORKSPACE_ROOT / "src" / "ur10e_step5d_remote" / "config" / "default_step5a_remote.yaml"
+DEFAULT_CONFIG = WORKSPACE_ROOT / "src" / "ur10e_example_controllers" / "config" / "no_contact_cycloid.yaml"
 
 TRACE_FIELDS = [
     "row_index",
@@ -38,7 +38,7 @@ TRACE_FIELDS = [
 ]
 
 
-def load_step5a_config(path: Path = DEFAULT_CONFIG) -> dict[str, Any]:
+def load_no_contact_config(path: Path = DEFAULT_CONFIG) -> dict[str, Any]:
     if not path.is_absolute():
         path = WORKSPACE_ROOT / path
     try:
@@ -50,14 +50,14 @@ def load_step5a_config(path: Path = DEFAULT_CONFIG) -> dict[str, Any]:
     return raw
 
 
-def run_step5a_no_contact_replay(
+def run_no_contact_shadow(
     *,
     config_path: Path = DEFAULT_CONFIG,
     output_dir: Path | None = None,
 ) -> dict[str, Any]:
     if not config_path.is_absolute():
         config_path = WORKSPACE_ROOT / config_path
-    raw_config = load_step5a_config(config_path)
+    raw_config = load_no_contact_config(config_path)
     if bool(raw_config.get("enable_motion", False)):
         raise RuntimeError("Step5a remote shadow refuses enable_motion=true; live air motion needs the live gate")
     if bool(raw_config.get("live_air_motion_authorized", False)):
@@ -91,7 +91,7 @@ def run_step5a_no_contact_replay(
     velocity_cap = float(raw_config["velocity_cap_m_s"])
     summary = {
         "analysis_created_at": datetime.now().isoformat(timespec="seconds"),
-        "mode": "step5a_ros2_remote_no_contact_shadow_no_live_robot_action",
+        "mode": "no_contact_cycloid_shadow_no_live_robot_action",
         "role": raw_config.get("role", "no_contact_air_motion_gate_before_step5b_contact"),
         "stage_id": raw_config.get("stage_id", "step5a_ros2_remote_no_contact_v1"),
         "config_path": str(config_path),
@@ -114,7 +114,7 @@ def run_step5a_no_contact_replay(
         "max_reference_speed_m_s": max(speeds) if speeds else math.nan,
         "velocity_cap_m_s": velocity_cap,
         "trace_fields": TRACE_FIELDS,
-        "next_live_gate": "explicit_step5a_remote_air_motion_gate_required_before_any_trajectory_publication",
+        "next_live_gate": "explicit_no_contact_air_motion_gate_required_before_any_trajectory_publication",
         "step5b_status": "blocked_until_5a0_driver_readiness_and_step5a_no_contact_pass",
         "contact_policy": contact_policy,
         "acceptance": {
@@ -133,11 +133,11 @@ def run_step5a_no_contact_replay(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run Step5a ROS2 remote no-contact shadow replay.")
+    parser = argparse.ArgumentParser(description="Run the UR10e no-contact cycloid shadow.")
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--output-dir", type=Path, default=None)
     args = parser.parse_args()
-    summary = run_step5a_no_contact_replay(config_path=args.config, output_dir=args.output_dir)
+    summary = run_no_contact_shadow(config_path=args.config, output_dir=args.output_dir)
     print(json.dumps(_json_safe(summary), indent=2, sort_keys=True))
     return 0 if all(summary["acceptance"].values()) else 2
 

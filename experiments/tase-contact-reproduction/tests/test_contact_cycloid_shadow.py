@@ -13,13 +13,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKSPACE = ROOT.parents[1]
-sys.path.insert(0, str(WORKSPACE / "src" / "ur10e_step5d_remote"))
+sys.path.insert(0, str(WORKSPACE / "src" / "ur10e_example_controllers"))
 
-from ur10e_step5d_remote.replay_step5b_shadow import (  # noqa: E402
+from ur10e_example_controllers.contact_cycloid_shadow import (  # noqa: E402
     DEFAULT_CONFIG,
     TRACE_FIELDS,
-    load_step5b_config,
-    run_step5b_shadow_replay,
+    load_contact_cycloid_config,
+    run_contact_cycloid_shadow,
 )
 
 
@@ -33,13 +33,13 @@ STEP5B_CSVS = [
 
 class Step5bRos2RemoteShadowTest(unittest.TestCase):
     def test_default_config_launch_and_cli_are_no_motion(self) -> None:
-        config = load_step5b_config(DEFAULT_CONFIG)
+        config = load_contact_cycloid_config(DEFAULT_CONFIG)
         self.assertFalse(config["enable_motion"])
-        launch = (WORKSPACE / "src" / "ur10e_step5d_remote" / "launch" / "step5b_remote_shadow.launch.py").read_text(
+        launch = (WORKSPACE / "src" / "ur10e_example_controllers" / "launch" / "contact_cycloid_shadow.launch.py").read_text(
             encoding="utf-8"
         )
         self.assertIn('DeclareLaunchArgument("enable_motion", default_value="false")', launch)
-        source = (WORKSPACE / "src" / "ur10e_step5d_remote" / "ur10e_step5d_remote" / "replay_step5b_shadow.py").read_text(
+        source = (WORKSPACE / "src" / "ur10e_example_controllers" / "ur10e_example_controllers" / "contact_cycloid_shadow.py").read_text(
             encoding="utf-8"
         )
         self.assertIn("refuses enable_motion=true", source)
@@ -50,7 +50,7 @@ class Step5bRos2RemoteShadowTest(unittest.TestCase):
 
     def test_full_step5b_replay_not_mostly_fail_fast_and_no_motion(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            summary = run_step5b_shadow_replay(config_path=DEFAULT_CONFIG, output_dir=Path(tmp))
+            summary = run_contact_cycloid_shadow(config_path=DEFAULT_CONFIG, output_dir=Path(tmp))
         self.assertTrue(summary["acceptance"]["not_mostly_fail_fast"])
         self.assertEqual(summary["fail_fast_ratio"], 0.0)
         self.assertFalse(summary["cmd_enabled_any"])
@@ -63,7 +63,7 @@ class Step5bRos2RemoteShadowTest(unittest.TestCase):
     def test_replay_emits_required_summary_and_trace_schema(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
-            summary = run_step5b_shadow_replay(
+            summary = run_contact_cycloid_shadow(
                 config_path=DEFAULT_CONFIG,
                 output_dir=out,
                 replay_csvs=[STEP5B_CSVS[0]],
@@ -81,7 +81,7 @@ class Step5bRos2RemoteShadowTest(unittest.TestCase):
 
     def test_trace_includes_desired_reference_fields_when_source_has_them(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            summary = run_step5b_shadow_replay(config_path=DEFAULT_CONFIG, output_dir=Path(tmp))
+            summary = run_contact_cycloid_shadow(config_path=DEFAULT_CONFIG, output_dir=Path(tmp))
         coverage = summary["desired_reference_field_coverage"]
         for field in (
             "_step4e_desired_x_m",
