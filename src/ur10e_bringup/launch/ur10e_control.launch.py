@@ -10,6 +10,9 @@ def generate_launch_description():
     robot_ip = LaunchConfiguration("robot_ip")
     launch_rviz = LaunchConfiguration("launch_rviz")
     kinematics_params_file = LaunchConfiguration("kinematics_params_file")
+    headless_mode = LaunchConfiguration("headless_mode")
+    reverse_ip = LaunchConfiguration("reverse_ip")
+    launch_dashboard_client = LaunchConfiguration("launch_dashboard_client")
 
     ur_control = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -26,6 +29,9 @@ def generate_launch_description():
             "robot_ip": robot_ip,
             "launch_rviz": launch_rviz,
             "kinematics_params_file": kinematics_params_file,
+            "headless_mode": headless_mode,
+            "reverse_ip": reverse_ip,
+            "launch_dashboard_client": launch_dashboard_client,
         }.items(),
     )
 
@@ -34,6 +40,9 @@ def generate_launch_description():
             DeclareLaunchArgument("ur_type", default_value="ur10e"),
             DeclareLaunchArgument("robot_ip", default_value="192.168.1.18"),
             DeclareLaunchArgument("launch_rviz", default_value="true"),
+            DeclareLaunchArgument("headless_mode", default_value="false"),
+            DeclareLaunchArgument("reverse_ip", default_value="0.0.0.0"),
+            DeclareLaunchArgument("launch_dashboard_client", default_value="true"),
             DeclareLaunchArgument(
                 "kinematics_params_file",
                 default_value=PathJoinSubstitution(
