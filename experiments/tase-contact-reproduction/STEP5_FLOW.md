@@ -12,8 +12,10 @@ TP program load/Play, robot motion, payload/TCP writes, and `zero_ftsensor()`
 remain separate explicit live gates.
 The full reproduction target remains separate and not complete.
 Step4f, Step4g, Step5b, and Step5d v1-v15a remain retained evidence packages
-only. Do not infer global current status from this per-step file without
-reading the current pointer.
+only. `step5d_ros2_remote_shadow_v1` is a no-motion ROS2 shadow candidate for
+offline replay and policy validation; it is not a TP package, not a live bridge
+profile, and does not change the current pointer. Do not infer global current
+status from this per-step file without reading the current pointer.
 
 The source of truth for Step5 trajectory and stage ownership is
 `config/step5_stage_table.json`. Step5c also has a required offline calibrated
@@ -44,6 +46,7 @@ controller upload, or contact motion.
 | `step5d_strict_rnn_liveprep_v14` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained live-run evidence: first actual TCP speed violation sample holds zero qdot and freezes path time; second sample/`0.004 s` dwell stops; predicted TCP speed stops immediately; TP hard guards are `50/60 N` and 25.3 recovery force stop is `25 N`. 2026-06-15 run stopped by `predicted_tcp_speed_watchdog`; v14 is not current. |
 | `step5d_strict_rnn_liveprep_v15` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained controller-readback evidence only: audit found the cage hook was not truly online and bounded hold burden/counters were incomplete. Superseded by v15a before any bridge run. |
 | `step5d_strict_rnn_liveprep_v15a` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained live-run evidence: online broad AABB TCP cage/braking margin and bounded zero-qdot hold/reacquire were active. The 2026-06-16 bridge entered Stage25 for about `0.998 s` and stopped by `hold_duty_limit`; v15a is not current. |
+| `step5d_ros2_remote_shadow_v1` | ROS2 offline | true | false | ROS2 shadow replay | `v31_filtered_live` input logs | No-motion shadow candidate: replays v15a/v14/v11 and Step5b/Step6b CSVs, removes long zero-qdot hold recovery, uses short dwell then active reacquire or fail-fast, and keeps `cmd_enabled=false` by default. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |
 
 ## Step5c Calibrated Kinematics Gate

@@ -2675,6 +2675,111 @@
       }
     },
     {
+      "id": "step5d_ros2_remote_shadow_v1",
+      "stage": "Step5d",
+      "owner": "ROS2 offline",
+      "active": false,
+      "blocked": false,
+      "complete": false,
+      "completion_target": false,
+      "block_reason": "No-motion ROS2 shadow candidate only. It validates the remote-control policy offline from historical CSVs and does not authorize TP program load, TP Play, bridge start, URScript, payload/TCP writes, zero_ftsensor, or live robot motion.",
+      "shape": "cycloid",
+      "frame": "config/step5_safe_frame.json",
+      "contact": true,
+      "bridge": false,
+      "joint_space": true,
+      "strict_rnn": false,
+      "fixed_base_z_m": null,
+      "duration_s": null,
+      "amplitude_m": 0.015,
+      "phase_law": {
+        "type": "historical_csv_replay",
+        "omega_rad_s": null,
+        "final_phase_rad": null
+      },
+      "cadence": {
+        "reference_clock": "historical_csv_t_monotonic_s",
+        "motion": "no_motion_shadow_only",
+        "tp_hold_s": null,
+        "end_hold_s": null
+      },
+      "guard": {
+        "enable_motion_default": false,
+        "cmd_enabled_default": false,
+        "short_dwell_cycles": 2,
+        "reacquire_speed_m_s": 0.0012,
+        "reacquire_duration_limit_s": 0.3,
+        "reacquire_distance_limit_m": 0.0005,
+        "braking_aware_tcp_cage": true,
+        "tcp_cage_mode": "broad_stagewise_aabb_from_success_step5b_step6b",
+        "tcp_cage_padding_m": 0.02,
+        "tcp_cage_tau_s": 0.1,
+        "tcp_cage_a_stop_m_s2": 1.0,
+        "tcp_cage_model_margin_m": 0.003,
+        "tcp_cage_contact_margin_m": 0.002,
+        "cage_margin_formula": "s = d - (v*tau + v^2/(2a) + model_margin + contact_margin)",
+        "cage_margin_hard_stop_reason": "tcp_cage_braking_margin_exhausted",
+        "hard_low_load_n": 0.25,
+        "soft_low_load_n": 0.5,
+        "low_load_speed_load_n": 1.0,
+        "low_load_speed_stop_m_s": 0.025,
+        "absolute_speed_stop_m_s": 0.05,
+        "force_norm_hard_stop_n": 60.0,
+        "torque_norm_hard_stop_nm": 2.0
+      },
+      "contact_policy": {
+        "bridge_required": false,
+        "tp_role": "none_no_tp_program_load_no_tp_play",
+        "reference_owner": "ROS2 shadow replay",
+        "force_control": false,
+        "contact_search": false,
+        "timing_policy": "offline_replay_only",
+        "virtual_clock_freeze": false,
+        "long_zero_qdot_hold_recovery": "removed",
+        "stage25_shadow_policy": "short dwell debounce for 1-2 control cycles, then active reacquire along approach_normal if gates pass, otherwise fail-fast stop request",
+        "live_authorization": "none"
+      },
+      "semantic_control_gate": {
+        "contract": "UR_FORCE_FRAME_CONTRACT.md",
+        "reaction_normal_source": "historical _step4e_control_normal_b_* CSV fields",
+        "approach_normal": "-reaction_normal",
+        "normal_load_n": "dot(force_base, reaction_normal)",
+        "force_error_n": "target_load_n - normal_load_n",
+        "orientation_target_axis": "approach_normal",
+        "forbidden": "Do not normalize raw live force to construct posture, press, or reacquire direction",
+        "gate_scope": "offline replay, static scan, and artifact schema validation"
+      },
+      "filter_policy": {
+        "normal_filter": "v31_filtered_live_input_logs",
+        "alpha": 0.35,
+        "min_force_n": 2.0,
+        "force_sign_convention": "step5_step6_positive_normal_load",
+        "semantic_contract": "reaction normal for load, approach normal for posture/press direction"
+      },
+      "local_analysis_evidence": {
+        "package": "src/ur10e_step5d_remote",
+        "default_config": "src/ur10e_step5d_remote/config/default_step5d_remote.yaml",
+        "launch": "src/ur10e_step5d_remote/launch/step5d_remote_shadow.launch.py",
+        "report": "report/step5d-ros2-remote-shadow.md",
+        "artifact_pattern": "runs/step5d_ros2_remote_shadow_YYYYMMDD_HHMMSS",
+        "source_replays": [
+          "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v15a_20260616_160355/bridge_rtde_500hz.csv",
+          "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v14_20260615_231805/bridge_rtde_500hz.csv",
+          "runs/bridge_step5d_strict_rnn_liveprep_v11_20260615_204601/bridge_rtde_500hz.csv",
+          "runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/bridge_rtde_500hz.csv",
+          "runs/bridge_step5b_contact_cycloid_baseline_v1_20260614_222309/bridge_rtde_500hz.csv",
+          "runs/bridge_step6b_contact_eight_baseline_v1_20260612_223047/bridge_rtde_500hz.csv",
+          "runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841/bridge_rtde_500hz.csv",
+          "runs/bridge_step6b_contact_eight_baseline_v2_20260614_223106/bridge_rtde_500hz.csv"
+        ],
+        "required_outputs": [
+          "summary.json",
+          "shadow_trace.csv"
+        ]
+      },
+      "success_condition": "Focused tests pass, colcon builds the new package, full shadow replay writes summary.json and shadow_trace.csv, cmd_enabled remains false, and the report records that no live motion or TP action was authorized."
+    },
+    {
       "id": "step5d_strict_rnn_reproduction_v1",
       "stage": "Step5d",
       "owner": "bridge+TP",
