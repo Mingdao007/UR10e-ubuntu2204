@@ -23,7 +23,7 @@ case "${BRIDGE_PROFILE}" in
     BRIDGE_PROFILE="step5b_v1"
     ;;
   5d|step5d|step5d-liveprep|step5d_liveprep)
-    echo "refusing Step5d liveprep alias: no current package after step5d_strict_rnn_liveprep_v14 predicted TCP speed watchdog stop; analyze v14 and make a new current package or set an explicit retained BRIDGE_PROFILE only for evidence replay"
+    echo "refusing Step5d liveprep alias: no current package after step5d_strict_rnn_liveprep_v15a hold_duty_limit stop; analyze v15a and make a new current package or set an explicit retained BRIDGE_PROFILE only for evidence replay"
     exit 40
     ;;
   5c-dry|5c-dryrun|step5c-dryrun|step5c_speedj_dryrun_v1|speedj-dryrun|speedj_dryrun)
@@ -231,7 +231,7 @@ elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v14" ]]; then
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v15" ]]; then
   SEARCH_DESCRIPTION="Retained Step5d v15 controller-readback evidence with audit gaps: online cage and bounded hold counters were incomplete; superseded by v15a before any bridge run"
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v15a" ]]; then
-  SEARCH_DESCRIPTION="Step5d v15a live-prep: online broad AABB TCP cage/braking margin, bounded zero-qdot hold/reacquire, hold-burden diagnostics, and no live authorization without explicit bridge trigger"
+  SEARCH_DESCRIPTION="Retained Step5d v15a live-run evidence: online broad AABB TCP cage/braking margin and bounded zero-qdot hold/reacquire stopped by hold_duty_limit on 2026-06-16; no current retry authorization"
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v8" ]]; then
   SEARCH_DESCRIPTION="Retained Step5d v8 failure evidence: Stage 25.3 bridge force-PID settle used Cartesian registers 37..39 but low-load dropout below 0.5N could stop with reason 17 before Stage 25.0"
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v4" ]]; then

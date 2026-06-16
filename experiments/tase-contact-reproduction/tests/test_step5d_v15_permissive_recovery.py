@@ -164,25 +164,38 @@ class Step5dV15PermissiveRecoveryTest(unittest.TestCase):
         ):
             self.assertIn(field, source)
 
-    def test_stage_table_marks_v15a_readback_verified_without_live_authorization(self) -> None:
+    def test_stage_table_marks_v15a_retained_after_hold_duty_live_stop(self) -> None:
         table = json.loads((ROOT / "config" / "step5_stage_table.json").read_text(encoding="utf-8"))
         retained = next(item for item in table["stages"] if item["id"] == "step5d_strict_rnn_liveprep_v15")
         self.assertFalse(retained["active"])
         self.assertIn("audit gaps", retained["block_reason"])
         stage = next(item for item in table["stages"] if item["id"] == "step5d_strict_rnn_liveprep_v15a")
-        self.assertTrue(stage["active"])
-        self.assertFalse(stage["complete"])
-        self.assertNotIn("live_run_evidence", stage)
-        self.assertEqual(stage["contact_policy"]["live_authorization"], "controller_readback_verified_but_live_bridge_not_authorized")
+        self.assertFalse(stage["active"])
+        self.assertTrue(stage["complete"])
+        self.assertIn("hold_duty_limit", stage["block_reason"])
+        self.assertEqual(stage["contact_policy"]["live_authorization"], "retained_live_run_evidence_no_current_retry_authorization")
         self.assertTrue(stage["local_delivery_evidence"]["controller_readback_verified"])
         self.assertEqual(
             stage["local_delivery_evidence"]["controller_readback"],
             "runs/controller_readback_step5d_strict_rnn_liveprep_v15a_20260616_155322/manifest.json",
         )
+        self.assertEqual(stage["live_run_evidence"]["stop_reason"], "step5d_contact_safety:hold_duty_limit")
+        self.assertEqual(
+            stage["live_run_evidence"]["run_dir"],
+            "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v15a_20260616_160355",
+        )
+        self.assertGreater(stage["live_run_evidence"]["hold_duty"], stage["guard"]["hold_duty_limit"])
+        self.assertEqual(stage["live_run_evidence"]["tcp_cage_reason"], "inside_broad_tcp_cage")
         self.assertEqual(stage["local_analysis_evidence"]["acceptance"]["v14_enters_hold_before_hard_stop"], True)
         self.assertEqual(stage["local_analysis_evidence"]["acceptance"]["success_hold_burden_reported"], True)
         self.assertEqual(stage["local_analysis_evidence"]["acceptance"]["online_tcp_cage_ready"], True)
         self.assertIn("success_hold_duty_by_csv", stage["local_analysis_evidence"])
+        current = json.loads((ROOT / "config" / "current_stage.json").read_text(encoding="utf-8"))
+        self.assertEqual(current["current_stage_id"], "no_current_step5d_liveprep_after_v15a")
+        self.assertIsNone(current["program"])
+        self.assertEqual(current["evidence"]["v15a_live_stop_reason"], "step5d_contact_safety:hold_duty_limit")
+        self.assertTrue(current["bridge_trigger"]["bridge_has_started"])
+        self.assertFalse(current["bridge_trigger"]["live_motion_authorized"])
 
     def test_offline_replay_acceptance(self) -> None:
         summary = v15.analyze()

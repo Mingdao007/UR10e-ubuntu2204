@@ -2350,11 +2350,11 @@
       "id": "step5d_strict_rnn_liveprep_v15a",
       "stage": "Step5d",
       "owner": "bridge+TP",
-      "active": true,
+      "active": false,
       "blocked": false,
-      "complete": false,
+      "complete": true,
       "completion_target": false,
-      "block_reason": "Controller read-back verified v15a live-prep package. Bridge start, TP Play/program load, robot motion, payload/TCP writes, and zero_ftsensor remain separate explicit live gates.",
+      "block_reason": "Retained v15a live-run evidence. The 2026-06-16 bridge run entered TP PLAYING with Safetymode NORMAL and Stage25, then stopped by step5d_contact_safety:hold_duty_limit; no current Step5d live-prep package remains without a new package or explicit same-version retry decision.",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": true,
@@ -2371,7 +2371,7 @@
       },
       "cadence": {
         "reference_clock": "bridge_path_time_freezes_during_bounded_recoverable_hold",
-        "motion": "controller_readback_verified_package_no_live_bridge_authorization",
+        "motion": "retained_live_run_evidence_hold_duty_limit",
         "tp_hold_s": 0.002,
         "end_hold_s": 0.1
       },
@@ -2465,7 +2465,7 @@
         "virtual_clock_freeze": true,
         "deadband_acquire_stage": "25.3",
         "stage25_contact_policy": "Online broad AABB TCP cage signed distance and braking margin are computed at Stage25; recoverable predicted-speed/contact uncertainty holds cmd_valid=1 with zero qdot and frozen path time only within finite hold event/consecutive/duty/repeated limits.",
-        "live_authorization": "controller_readback_verified_but_live_bridge_not_authorized",
+        "live_authorization": "retained_live_run_evidence_no_current_retry_authorization",
         "tp_package_status": "generated_local_and_uploaded",
         "controller_readback_status": "verified"
       },
@@ -2526,9 +2526,9 @@
         "force_sign_convention": "step5_step6_positive_normal_load",
         "semantic_contract": "reaction normal for load, approach normal for posture/press direction",
         "v15_status": "superseded_by_v15a",
-        "v15a_status": "controller_readback_verified_no_live_bridge_authorization"
+        "v15a_status": "retained_live_run_evidence_hold_duty_limit"
       },
-      "success_condition": "v15a is a live-prep package only. Even after controller read-back verification, it does not authorize bridge start, TP Play/program load, robot motion, zero_ftsensor, or mark the full Step5d reproduction complete; a separate live trigger and bridge/run artifact are required.",
+      "success_condition": "Retained v15a read-back and live-run evidence only. The 2026-06-16 live run stopped by hold_duty_limit after about 0.998 s of Stage25, so v15a is not current. A future bridge attempt needs either an explicit same-version retry decision or a new current package after analysis.",
       "local_analysis_evidence": {
         "analyzer": "tools/step5d_v15_permissive_recovery.py",
         "summary": "runs/step5d_v15a_permissive_recovery_offline_20260616/summary.json",
@@ -2651,6 +2651,27 @@
         },
         "local_controller_readback_sha_match": true,
         "fetched_back_urp_internal_gate_pass": true
+      },
+      "live_run_evidence": {
+        "run_dir": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v15a_20260616_160355",
+        "summary": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v15a_20260616_160355/summary.json",
+        "result": "Entered TP PLAYING with Safetymode NORMAL; bridge ran about 25.620 s, Stage25 line control lasted about 0.998 s, and v15a stopped through the bounded hold-duty hard stop.",
+        "stop_reason": "step5d_contact_safety:hold_duty_limit",
+        "stage25_duration_s": 0.9979995499597862,
+        "hold_duty": 0.858,
+        "hold_event_count": 10,
+        "consecutive_hold_s": 0.546,
+        "total_hold_s": 0.858,
+        "tcp_cage_braking_margin_m": 0.0143498989,
+        "tcp_cage_reason": "inside_broad_tcp_cage",
+        "force_norm_max_n": 13.992231661536401,
+        "normal_force_min_n": -13.966508303189434,
+        "normal_force_max_n": 3.5726030504614115,
+        "torque_norm_max_nm": 0.3704129725119421,
+        "rtde_output_rate_hz": 437.73243210582484,
+        "bridge_write_rate_hz": 508.2309788886176,
+        "rtde_reconnect_event_count": 2,
+        "followup": "archive v15a as retained live-run evidence; no current Step5d live-prep package until a new package or explicit same-version retry decision"
       }
     },
     {
