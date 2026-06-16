@@ -8,6 +8,7 @@
 
 结论先行：`v15a` 不是 cage 边界失败，也不是 force/torque hard guard 失败。
 它在 Stage25 低载荷/失接触后进入 `hold_zero_qdot`，名义上是 reacquire，实际命令为 0，不能重新压回接触面，最终 `hold_duty_limit` 停止。
+因此这次数据支持一个更明确的设计判断：`hold` 只能作为短周期 debounce / emergency pause，不能作为 contact recovery 策略。
 
 ## 设备与实验条件
 
@@ -56,6 +57,7 @@
 
 图 2 显示恢复动作的真正问题：进入低载荷 hold 后，`path_time_s` 和 `line_stage_s` 冻结在约 `0.142 s`，命令变为 zero qdot。
 这能降低 runaway 风险，但没有主动压回接触面，所以不能恢复 5N contact。
+长时间依赖 hold 只是在等待接触自己回来；在这次 run 中它没有回来。
 
 ![Step5d version failure chain](assets/step5d-v1-v15-failure-analysis/step5d-version-timeline.png)
 
@@ -134,13 +136,18 @@
    `low_load_reacquire_hold_timeout_deferred` 只是延后 hard stop，runtime action 仍是 `hold_zero_qdot`。
    在 hold rows 中，command 全为 0；因此系统降低了风险，但没有向接触面重新施加受限 press/reacquire motion。
 
-3. offline replay 对 v15a 给出通过，是因为它是 guard replay，不是闭环物理 replay。
+3. `hold` 这条逻辑本身不应再被当作 recovery。
+   它适合覆盖 1-2 个控制周期的 measurement jitter、contact patch 瞬时跳变或 emergency pause。
+   一旦低载荷/失接触持续超过短 dwell，系统应退出 Stage25 并进入显式 active reacquire，或者 fail fast。
+   把长时间 `hold_zero_qdot` 称为 reacquire 会误导设计，因为它不改变 TCP 位置、姿态、法向或接触载荷。
+
+4. offline replay 对 v15a 给出通过，是因为它是 guard replay，不是闭环物理 replay。
    历史 success CSV 中低载荷片段来自旧控制策略的结果；把新 guard 套到旧轨迹上只能证明“不 hard stop”，不能证明新 zero-qdot hold 会自己恢复接触。
 
-4. Step5d 的主瓶颈不再是 strict RNN solver 是否能算出 qdot。
+5. Step5d 的主瓶颈不再是 strict RNN solver 是否能算出 qdot。
    真正瓶颈是 contact acquisition、contact retention、lost-contact recovery，以及安全策略如何在不 runaway 的情况下允许主动 reacquire。
 
-5. TP+bridge 路线已经产生足够证据，但每轮迭代成本太高。
+6. TP+bridge 路线已经产生足够证据，但每轮迭代成本太高。
    下一版应直接切到已有成功 pure outer-loop 的 ROS2 remote-control 路线，把 contact recovery / cage / watchdog 放在 ROS2 node 中快速迭代。
 
 ## 下一步
@@ -154,7 +161,8 @@
 | 起点 | 找回并跑通旧 successful pure outer-loop ROS2 experiment |
 | 第一阶段 | no-motion / replay / shadow command |
 | 第二阶段 | 把 Step5d cage、bounded recovery、watchdog diagnostics 移植进去 |
-| recovery policy | 低载荷不能只 zero-qdot hold；必须有 bounded active reacquire action |
+| hold policy | `hold` 只保留为短 dwell/debounce 或 emergency pause，不再作为 recovery |
+| recovery policy | 低载荷不能只 zero-qdot hold；必须退出 Stage25 做 bounded active reacquire，或 fail fast |
 | hard stop | cage margin exhausted、semantic failure、force/torque/joint/sensor hard failure、bounded recovery exhausted |
 | metrics | hold duty、hold event、active reacquire duration、normal_load tracking、actual-vs-reference path、Fz/force evidence |
 
