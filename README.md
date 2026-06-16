@@ -82,3 +82,19 @@ source /opt/ros/humble/setup.bash
 source /home/andy/ur10e_ros2_ws/install/setup.bash
 timeout --signal=INT 20s ros2 launch ur10e_bringup ur10e_control.launch.py launch_rviz:=false
 ```
+
+The current Remote Control smoke default is headless and direct-link explicit:
+
+```bash
+source /opt/ros/humble/setup.bash
+source /home/andy/ur10e_ros2_ws/install/setup.bash
+timeout --signal=INT 20s ros2 launch ur10e_bringup ur10e_control.launch.py \
+  robot_ip:=192.168.1.18 \
+  reverse_ip:=192.168.1.10 \
+  headless_mode:=true \
+  activate_joint_controller:=false \
+  launch_rviz:=false
+```
+
+Passing this smoke is the 5a0 gate. Step5a no-contact air motion and Step5b
+contact remain separate live-gated stages.

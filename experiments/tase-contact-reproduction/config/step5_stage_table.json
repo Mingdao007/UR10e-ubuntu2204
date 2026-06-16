@@ -127,6 +127,61 @@
       "success_condition": "Complete 22.0 s no-contact fixed-Z cycloid, final phase 6.0 rad, with base-X guard clear and shifted taught start/mid/end physical path gate passing."
     },
     {
+      "id": "step5a_ros2_remote_no_contact_v1",
+      "stage": "Step5a",
+      "owner": "ROS2 remote shadow",
+      "active": false,
+      "blocked": false,
+      "complete": false,
+      "completion_target": false,
+      "block_reason": "Remote-control migration gate after 5a0 headless driver readiness. It is no-contact and no-motion by default; live air motion requires a separate explicit live gate.",
+      "shape": "cycloid",
+      "frame": "config/step5_safe_frame.json",
+      "contact": false,
+      "bridge": false,
+      "fixed_base_z_m": 0.029423891,
+      "duration_s": 22.0,
+      "amplitude_m": 0.015,
+      "phase_law": {
+        "type": "linear_time",
+        "omega_rad_s": 0.2727272727272727,
+        "final_phase_rad": 6.0
+      },
+      "cadence": {
+        "reference_clock": "generated_ros2_reference",
+        "motion": "no_motion_shadow_then_explicit_live_air_motion_gate",
+        "sample_period_s": 0.02,
+        "warmup_hold_s": 0.008,
+        "fast_hold_s": 0.001,
+        "fast_after_s": 0.1
+      },
+      "guard": {
+        "requires_5a0_driver_readiness": true,
+        "enable_motion_default": false,
+        "cmd_enabled_default": false,
+        "velocity_cap_m_s": 0.009,
+        "required_trace": [
+          "desired_xyz",
+          "desired_vxyz",
+          "reference_speed_m_s",
+          "cmd_valid_shadow"
+        ]
+      },
+      "contact_policy": {
+        "force_control": false,
+        "contact_search": false,
+        "kunwei_bridge_required": false,
+        "zero_ftsensor": false,
+        "tcp_payload_write": false,
+        "external_control_urcap": false,
+        "live_authorization": "none_until_explicit_step5a_remote_air_motion_gate"
+      },
+      "filter_policy": {
+        "normal_filter": "none"
+      },
+      "success_condition": "First pass 5a0 ROS2 headless driver readiness, then pass no-contact Step5a remote shadow; only a separate explicit live gate may run low-speed free-space air motion."
+    },
+    {
       "id": "step5_contact_cycloid_baseline_v1",
       "stage": "Step5-contact",
       "owner": "bridge+TP",
@@ -210,6 +265,10 @@
       "guard": {
         "enable_motion_default": false,
         "cmd_enabled_default": false,
+        "prerequisites": [
+          "step5a0_ros2_headless_driver_readiness_pass",
+          "step5a_ros2_remote_no_contact_v1_pass"
+        ],
         "target_force_n": 5.0,
         "required_trace": [
           "desired_xy",

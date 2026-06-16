@@ -12,12 +12,15 @@ TP program load/Play, robot motion, payload/TCP writes, and `zero_ftsensor()`
 remain separate explicit live gates.
 The full reproduction target remains separate and not complete.
 Step4f, Step4g, Step5b, and Step5d v1-v15a remain retained evidence packages
-only. `step5b_ros2_remote_shadow_v1` is the baseline-first no-motion ROS2
-remote-control plumbing candidate and must precede any Step5d live candidate.
-`step5d_ros2_remote_shadow_v1` remains diagnostic only for Step5d policy
-analysis; it is not a live gate. Neither shadow route is a TP package, live
-bridge profile, or current pointer change. Do not infer global current status
-from this per-step file without reading the current pointer.
+only. The ROS2 Remote Control migration now gates Step5b behind 5a0 headless
+driver readiness and `step5a_ros2_remote_no_contact_v1`. The Step5a remote
+candidate is no-contact/no-motion by default and only defines the later
+explicit air-motion gate. `step5b_ros2_remote_shadow_v1` remains a no-motion
+remote-control plumbing candidate and must follow 5a0/5a before any Step5d
+candidate. `step5d_ros2_remote_shadow_v1` remains diagnostic only for Step5d
+policy analysis; it is not a live gate. Neither shadow route is a TP package,
+live bridge profile, or current pointer change. Do not infer global current
+status from this per-step file without reading the current pointer.
 
 The source of truth for Step5 trajectory and stage ownership is
 `config/step5_stage_table.json`. Step5c also has a required offline calibrated
@@ -28,8 +31,9 @@ controller upload, or contact motion.
 | stage id | owner | contact | bridge | reference owner | normal filter | success condition |
 |---|---|---:|---:|---|---|---|
 | `step5a_cycloid_no_contact_v3` | TP | false | false | TP | none | Complete 22 s fixed-Z cycloid, final phase 6 rad, with the base-X guard clear and shifted taught start/mid/end physical path gate passing. |
+| `step5a_ros2_remote_no_contact_v1` | ROS2 remote shadow | false | false | ROS2 generated reference | none | No-contact remote migration gate: requires 5a0 headless driver readiness first, keeps `cmd_enabled=false` by default, and only then permits a separate explicit low-speed air-motion live gate. |
 | `step5_contact_cycloid_baseline_v1` | bridge+TP | true | true | bridge | `v31_filtered_live` | Retained Step5b evidence: bridge computes Cartesian twist; TP consumes registers `37..44` as `speedl` command. |
-| `step5b_ros2_remote_shadow_v1` | ROS2 offline | true | false | ROS2 shadow replay | `v31_filtered_live` input logs | No-motion remote-control plumbing validation before Step5d: replays retained Step5b CSVs, preserves bridge-owned command/reference trace contract, and keeps `cmd_enabled=false`. |
+| `step5b_ros2_remote_shadow_v1` | ROS2 offline | true | false | ROS2 shadow replay | `v31_filtered_live` input logs | No-motion remote-control plumbing validation before Step5d: may only follow 5a0 and Step5a remote no-contact evidence, replays retained Step5b CSVs, preserves bridge-owned command/reference trace contract, and keeps `cmd_enabled=false`. |
 | `step5c_speedj_dryrun_v1` | bridge+TP | false | true | none | none | Blocked/quarantined: 2026-06-13 live run showed wrong XY/Z motion from DLS/Jacobian mapping. Controller package must be stop-only and operator must refuse bridge. |
 | `step5c_joint_rnn_cycloid_v1` | bridge+TP | true | true | none | `v31_filtered_live` | Blocked/quarantined: the old contact route was misnamed DLS, not RNN. Controller package must be stop-only and operator must refuse contact. |
 | `step5c_strict_rnn_dryrun_v1` | bridge+TP | false | true | strict TASE RNN | none | Blocked until `config/step5c_tase_paper_truth.json` has no `pending_pdf_verify` fields and strict RNN equations are implemented. |

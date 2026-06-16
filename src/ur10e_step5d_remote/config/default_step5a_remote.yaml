@@ -1,0 +1,24 @@
+enable_motion: false
+live_air_motion_authorized: false
+stage_id: step5a_ros2_remote_no_contact_v1
+role: no_contact_air_motion_gate_before_step5b_contact
+requires_5a0_driver_readiness: true
+robot_ip: 192.168.1.18
+reverse_ip: 192.168.1.10
+duration_s: 22.0
+sample_period_s: 0.02
+amplitude_m: 0.015
+omega_rad_s: 0.2727272727272727
+final_phase_rad: 6.0
+fixed_base_z_m: 0.029423891
+velocity_cap_m_s: 0.009
+warmup_hold_s: 0.008
+fast_hold_s: 0.001
+fast_after_s: 0.1
+contact_policy:
+  force_control: false
+  contact_search: false
+  kunwei_bridge_required: false
+  zero_ftsensor: false
+  tcp_payload_write: false
+  external_control_urcap: false

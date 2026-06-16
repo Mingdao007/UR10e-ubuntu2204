@@ -101,6 +101,13 @@ class Step5bRos2RemoteShadowTest(unittest.TestCase):
         self.assertFalse(step5b["active"])
         self.assertEqual(step5b["contact_policy"]["live_authorization"], "none")
         self.assertEqual(step5b["contact_policy"]["role"], "remote_control_plumbing_validation_before_step5d")
+        self.assertEqual(
+            step5b["guard"]["prerequisites"],
+            [
+                "step5a0_ros2_headless_driver_readiness_pass",
+                "step5a_ros2_remote_no_contact_v1_pass",
+            ],
+        )
         self.assertFalse(step5d["active"])
         self.assertEqual(step5d["contact_policy"]["live_authorization"], "none")
         self.assertIn("diagnostic", step5d["block_reason"])

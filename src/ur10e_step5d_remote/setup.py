@@ -11,11 +11,19 @@ setup(
         (f"share/{package_name}", ["package.xml"]),
         (
             f"share/{package_name}/config",
-            ["config/default_step5b_remote.yaml", "config/default_step5d_remote.yaml"],
+            [
+                "config/default_step5a_remote.yaml",
+                "config/default_step5b_remote.yaml",
+                "config/default_step5d_remote.yaml",
+            ],
         ),
         (
             f"share/{package_name}/launch",
-            ["launch/step5b_remote_shadow.launch.py", "launch/step5d_remote_shadow.launch.py"],
+            [
+                "launch/step5a_remote_shadow.launch.py",
+                "launch/step5b_remote_shadow.launch.py",
+                "launch/step5d_remote_shadow.launch.py",
+            ],
         ),
     ],
     install_requires=["setuptools"],
@@ -26,6 +34,7 @@ setup(
     license="Apache-2.0",
     entry_points={
         "console_scripts": [
+            "replay_step5a_no_contact = ur10e_step5d_remote.replay_step5a_no_contact:main",
             "replay_step5b_shadow = ur10e_step5d_remote.replay_step5b_shadow:main",
             "replay_shadow = ur10e_step5d_remote.replay_shadow:main",
             "step5d_remote_control_node = ur10e_step5d_remote.step5d_remote_control_node:main",

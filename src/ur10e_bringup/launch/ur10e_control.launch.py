@@ -13,6 +13,9 @@ def generate_launch_description():
     headless_mode = LaunchConfiguration("headless_mode")
     reverse_ip = LaunchConfiguration("reverse_ip")
     launch_dashboard_client = LaunchConfiguration("launch_dashboard_client")
+    controller_spawner_timeout = LaunchConfiguration("controller_spawner_timeout")
+    initial_joint_controller = LaunchConfiguration("initial_joint_controller")
+    activate_joint_controller = LaunchConfiguration("activate_joint_controller")
 
     ur_control = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -32,6 +35,9 @@ def generate_launch_description():
             "headless_mode": headless_mode,
             "reverse_ip": reverse_ip,
             "launch_dashboard_client": launch_dashboard_client,
+            "controller_spawner_timeout": controller_spawner_timeout,
+            "initial_joint_controller": initial_joint_controller,
+            "activate_joint_controller": activate_joint_controller,
         }.items(),
     )
 
@@ -39,10 +45,13 @@ def generate_launch_description():
         [
             DeclareLaunchArgument("ur_type", default_value="ur10e"),
             DeclareLaunchArgument("robot_ip", default_value="192.168.1.18"),
-            DeclareLaunchArgument("launch_rviz", default_value="true"),
-            DeclareLaunchArgument("headless_mode", default_value="false"),
-            DeclareLaunchArgument("reverse_ip", default_value="0.0.0.0"),
+            DeclareLaunchArgument("launch_rviz", default_value="false"),
+            DeclareLaunchArgument("headless_mode", default_value="true"),
+            DeclareLaunchArgument("reverse_ip", default_value="192.168.1.10"),
             DeclareLaunchArgument("launch_dashboard_client", default_value="true"),
+            DeclareLaunchArgument("controller_spawner_timeout", default_value="20"),
+            DeclareLaunchArgument("initial_joint_controller", default_value="scaled_joint_trajectory_controller"),
+            DeclareLaunchArgument("activate_joint_controller", default_value="false"),
             DeclareLaunchArgument(
                 "kinematics_params_file",
                 default_value=PathJoinSubstitution(
