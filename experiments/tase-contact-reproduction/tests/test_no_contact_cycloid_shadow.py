@@ -121,6 +121,7 @@ class NoContactCycloidShadowTest(unittest.TestCase):
         self.assertIn("Successful 'activate' of hardware 'ur10e'", script)
         self.assertIn("Configured and activated .*joint_state_broadcaster", script)
         self.assertIn("--max-force-delta-n 8.0", script)
+        self.assertIn('--force-readiness-log "${RUN_DIR}/force_topic_readiness.log"', script)
         self.assertLess(script.find("Could not get configuration package"), script.find("no_contact_motion_probe"))
 
         probe = (
@@ -134,6 +135,13 @@ class NoContactCycloidShadowTest(unittest.TestCase):
         self.assertIn("baseline_force_n", probe)
         self.assertIn("Force delta gate blocked motion", probe)
         self.assertIn("--max-force-delta-n", probe)
+        self.assertIn("--force-readiness-log", probe)
+        self.assertIn("qos_profile_sensor_data", probe)
+        self.assertIn('"sensor_data"', probe)
+        self.assertIn("publisher_exists_but_no_samples", probe)
+        self.assertIn("force_topic_readiness", probe)
+        self.assertIn("Force topic missing or has no publisher", probe)
+        self.assertIn("wrong_topic_type", probe)
         self.assertIn("Compatibility alias for --max-force-delta-n", probe)
         self.assertIn('"Program running: true"', probe)
         self.assertNotIn('responses.get("running") != "Program running: false"', probe)

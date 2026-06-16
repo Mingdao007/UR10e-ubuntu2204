@@ -14,10 +14,12 @@ from control_msgs.action import FollowJointTrajectory
 from geometry_msgs.msg import WrenchStamped
 from rclpy.action import ActionClient
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
 from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectoryPoint
 
 
+FORCE_TOPIC_TYPE = "geometry_msgs/msg/WrenchStamped"
 JOINT_NAMES = [
     "shoulder_pan_joint",
     "shoulder_lift_joint",
@@ -46,9 +48,10 @@ class NoContactMotionProbe(Node):
         self.joint_state: JointState | None = None
         self.wrench: WrenchStamped | None = None
         self.force_samples: list[tuple[float, float, float]] = []
+        self.force_readiness: dict[str, Any] | None = None
         self.create_subscription(JointState, args.joint_state_topic, self._on_joint_state, 10)
         if not args.skip_force_check:
-            self.create_subscription(WrenchStamped, args.force_topic, self._on_wrench, 10)
+            self.create_subscription(WrenchStamped, args.force_topic, self._on_wrench, _force_qos_profile(args.force_qos))
         self.action_client = ActionClient(self, FollowJointTrajectory, args.action_name)
 
     def _on_joint_state(self, msg: JointState) -> None:
@@ -95,7 +98,11 @@ class NoContactMotionProbe(Node):
                     "max_observed_force_delta_n": 0.0,
                     "blocked": False,
                 }
-        raise RuntimeError(f"Timed out waiting for force sample on {self.args.force_topic}")
+        self.force_readiness = self.force_readiness or self.force_topic_readiness_snapshot()
+        self.force_readiness["status"] = "publisher_exists_but_no_samples"
+        self.force_readiness["sample_count"] = len(self.force_samples)
+        self._write_force_readiness()
+        raise RuntimeError(f"Publisher exists but no force samples received on {self.args.force_topic}")
 
     def force_delta(self, force_gate: dict[str, Any] | None) -> float:
         if self.args.skip_force_check or force_gate is None or self.wrench is None:
@@ -107,6 +114,8 @@ class NoContactMotionProbe(Node):
         dashboard = dashboard_exchange(self.args.robot_ip, ["is in remote control", "safetymode", "robotmode", "running"])
         _validate_dashboard(dashboard)
         joint_state = self.wait_for_joint_state()
+        self.force_readiness = self.wait_for_force_topic_readiness()
+        self._write_force_readiness()
         force_gate = self.collect_force_baseline()
         positions = _ordered_positions(joint_state)
         if not self.action_client.wait_for_server(timeout_sec=self.args.wait_s):
@@ -125,6 +134,7 @@ class NoContactMotionProbe(Node):
             "duration_s": self.args.duration_s,
             "dashboard": dashboard,
             "force_gate": force_gate,
+            "force_topic_readiness": self.force_readiness,
             "start_positions": dict(zip(JOINT_NAMES, positions)),
             "sent_goal": False,
             "accepted": False,
@@ -171,6 +181,61 @@ class NoContactMotionProbe(Node):
             raise RuntimeError(f"Trajectory failed: {result.result.error_code} {result.result.error_string}")
         return summary
 
+    def wait_for_force_topic_readiness(self) -> dict[str, Any] | None:
+        if self.args.skip_force_check:
+            return {
+                "enabled": False,
+                "status": "skipped",
+                "topic": self.args.force_topic,
+            }
+        deadline = time.monotonic() + self.args.wait_s
+        latest = self.force_topic_readiness_snapshot()
+        while rclpy.ok() and time.monotonic() < deadline:
+            latest = self.force_topic_readiness_snapshot()
+            if latest["publisher_count"] > 0 and FORCE_TOPIC_TYPE in latest["observed_types"]:
+                latest["status"] = "publisher_ready"
+                return latest
+            rclpy.spin_once(self, timeout_sec=0.1)
+        if latest["publisher_count"] == 0:
+            latest["status"] = "force_topic_missing"
+            self.force_readiness = latest
+            self._write_force_readiness()
+            raise RuntimeError(f"Force topic missing or has no publisher: {self.args.force_topic}")
+        latest["status"] = "wrong_topic_type"
+        self.force_readiness = latest
+        self._write_force_readiness()
+        raise RuntimeError(
+            f"Force topic has wrong type on {self.args.force_topic}: "
+            f"{latest['observed_types']} != {FORCE_TOPIC_TYPE}"
+        )
+
+    def force_topic_readiness_snapshot(self) -> dict[str, Any]:
+        publishers = self.get_publishers_info_by_topic(self.args.force_topic)
+        observed_types = sorted({info.topic_type for info in publishers})
+        publisher_qos = [_qos_payload(info.qos_profile) for info in publishers]
+        subscription_qos = _qos_payload(_force_qos_profile(self.args.force_qos))
+        return {
+            "enabled": not self.args.skip_force_check,
+            "status": "checking",
+            "topic": self.args.force_topic,
+            "expected_type": FORCE_TOPIC_TYPE,
+            "observed_types": observed_types,
+            "publisher_count": len(publishers),
+            "publisher_qos": publisher_qos,
+            "subscription_qos": subscription_qos,
+            "force_qos": self.args.force_qos,
+            "sample_count": len(self.force_samples),
+        }
+
+    def _write_force_readiness(self) -> None:
+        if self.args.force_readiness_log is None or self.force_readiness is None:
+            return
+        self.args.force_readiness_log.parent.mkdir(parents=True, exist_ok=True)
+        self.args.force_readiness_log.write_text(
+            json.dumps(self.force_readiness, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run a minimal UR10e no-contact joint trajectory probe.")
@@ -183,6 +248,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--duration-s", type=float, default=6.0)
     parser.add_argument("--wait-s", type=float, default=15.0)
     parser.add_argument("--force-topic", default="/force_torque_sensor_broadcaster/ft_data")
+    parser.add_argument("--force-qos", choices=["sensor_data", "default", "reliable"], default="sensor_data")
+    parser.add_argument("--force-readiness-log", type=Path, default=None)
     parser.add_argument("--force-baseline-s", type=float, default=1.0)
     parser.add_argument("--min-force-samples", type=int, default=5)
     parser.add_argument("--max-force-delta-n", type=float, default=8.0)
@@ -204,7 +271,11 @@ def main(argv: list[str] | None = None) -> int:
         print(payload, end="")
         return 0
     except Exception as exc:
-        payload = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+        payload = {
+            "ok": False,
+            "error": f"{type(exc).__name__}: {exc}",
+            "force_topic_readiness": node.force_readiness,
+        }
         text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
         if args.summary is not None:
             args.summary.parent.mkdir(parents=True, exist_ok=True)
@@ -226,6 +297,23 @@ def _validate_dashboard(responses: dict[str, str]) -> None:
     running = responses.get("running")
     if running not in {"Program running: false", "Program running: true"}:
         raise RuntimeError(f"Unexpected Dashboard running state: {running}")
+
+
+def _force_qos_profile(mode: str) -> QoSProfile:
+    if mode == "sensor_data":
+        return qos_profile_sensor_data
+    if mode == "reliable":
+        return QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
+    return QoSProfile(depth=10)
+
+
+def _qos_payload(profile: QoSProfile) -> dict[str, Any]:
+    return {
+        "depth": int(profile.depth),
+        "reliability": str(profile.reliability).split(".")[-1],
+        "durability": str(profile.durability).split(".")[-1],
+        "history": str(profile.history).split(".")[-1],
+    }
 
 
 def _ordered_positions(joint_state: JointState) -> list[float]:

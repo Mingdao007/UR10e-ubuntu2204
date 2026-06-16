@@ -200,6 +200,7 @@ ros2 run ur10e_example_controllers no_contact_motion_probe \
   --execute \
   --robot-ip "${ROBOT_IP}" \
   --max-force-delta-n 8.0 \
+  --force-readiness-log "${RUN_DIR}/force_topic_readiness.log" \
   --summary "${RUN_DIR}/no_contact_motion_probe.json" \
   | tee "${RUN_DIR}/no_contact_motion_probe.log"
 
