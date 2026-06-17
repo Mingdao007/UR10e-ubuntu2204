@@ -43,6 +43,7 @@ DEFAULT_CALIBRATION_YAML = WORKSPACE_ROOT / "src" / "ur10e_bringup" / "config" /
 DEFAULT_XACRO_PATH = Path("/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro")
 DEFAULT_GATE_A_POSITION_ERROR_LIMIT_M = 0.005
 DEFAULT_TRACE_MAX_SAMPLE_GAP_S = 0.08
+DEFAULT_JOINT_HISTORY_MAX_SAMPLES = 50000
 
 COMMAND_FIELDS = [f"command_{name}_rad" for name in JOINT_NAMES]
 COMMAND_FK_FIELDS = ["commanded_fk_x_m", "commanded_fk_y_m", "commanded_fk_z_m"]
@@ -170,7 +171,9 @@ class Step5aCartesianCycloidMotion(Node):
                     positions=_ordered_positions(msg),
                 )
             )
-            self.joint_history = self.joint_history[-5000:]
+            history_limit = int(getattr(self.args, "joint_history_max_samples", DEFAULT_JOINT_HISTORY_MAX_SAMPLES))
+            if history_limit > 0 and len(self.joint_history) > history_limit:
+                self.joint_history = self.joint_history[-history_limit:]
 
     def wait_for_joint_state(self) -> JointState:
         deadline = time.monotonic() + self.args.wait_s
@@ -371,6 +374,10 @@ class Step5aCartesianCycloidMotion(Node):
             "trace_rows": rows,
             "trace_fields": LIVE_TRACE_FIELDS,
             "trace_alignment": trace_alignment,
+            "joint_state_history": {
+                "retained_samples": len(self.joint_history),
+                "max_samples": int(getattr(self.args, "joint_history_max_samples", DEFAULT_JOINT_HISTORY_MAX_SAMPLES)),
+            },
             "gate_a_thresholds": {
                 "velocity_cap_m_s": float(self.config["velocity_cap_m_s"]),
                 "cartesian_position_error_limit_m": self.args.gate_a_position_error_limit_m,
@@ -859,6 +866,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--speed-cap-tolerance-m-s", type=float, default=0.0005)
     parser.add_argument("--gate-a-position-error-limit-m", type=float, default=DEFAULT_GATE_A_POSITION_ERROR_LIMIT_M)
     parser.add_argument("--trace-max-sample-gap-s", type=float, default=DEFAULT_TRACE_MAX_SAMPLE_GAP_S)
+    parser.add_argument("--joint-history-max-samples", type=int, default=DEFAULT_JOINT_HISTORY_MAX_SAMPLES)
     parser.add_argument("--kunwei-sensor-ip", default="192.168.50.25")
     parser.add_argument("--kunwei-sensor-port", type=int, default=5152)
     parser.add_argument("--kunwei-ready-timeout-s", type=float, default=3.0)

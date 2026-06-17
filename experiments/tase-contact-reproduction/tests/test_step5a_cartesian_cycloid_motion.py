@@ -8,7 +8,9 @@ import sys
 import unittest
 from copy import deepcopy
 from pathlib import Path
+from types import SimpleNamespace
 
+from sensor_msgs.msg import JointState
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKSPACE = ROOT.parents[1]
@@ -18,9 +20,11 @@ from ur10e_example_controllers.no_contact_cycloid_shadow import DEFAULT_CONFIG, 
 from ur10e_example_controllers.step5a_gate_a_audit import audit_gate_a_run  # noqa: E402
 from ur10e_example_controllers.step5a_cartesian_cycloid_motion import (  # noqa: E402
     DEFAULT_GATE_A_POSITION_ERROR_LIMIT_M,
+    DEFAULT_JOINT_HISTORY_MAX_SAMPLES,
     EXPECTED_CALIBRATION_HASH,
     JOINT_NAMES,
     ObservedJointSample,
+    Step5aCartesianCycloidMotion,
     augment_trace_with_observed_fk,
     build_calibrated_model,
     build_cartesian_cycloid_trajectory,
@@ -149,6 +153,35 @@ class Step5aCartesianCycloidMotionTest(unittest.TestCase):
         self.assertEqual(float(trace_rows[0]["cartesian_error_m"]), 0.0)
         self.assertIn("observed_sample_t_rel_s", trace_rows[0])
         self.assertIn("observed_shoulder_pan_joint_rad", trace_rows[0])
+
+    def test_joint_state_history_default_retains_full_step5a_window(self) -> None:
+        self.assertGreaterEqual(DEFAULT_JOINT_HISTORY_MAX_SAMPLES, 50000)
+        node = Step5aCartesianCycloidMotion.__new__(Step5aCartesianCycloidMotion)
+        node.args = SimpleNamespace(joint_history_max_samples=DEFAULT_JOINT_HISTORY_MAX_SAMPLES)
+        node.joint_history = []
+        node.joint_state = None
+        msg = JointState()
+        msg.name = list(JOINT_NAMES)
+        msg.position = [0.1 * index for index, _ in enumerate(JOINT_NAMES)]
+
+        for _ in range(6001):
+            Step5aCartesianCycloidMotion._on_joint_state(node, msg)
+
+        self.assertEqual(len(node.joint_history), 6001)
+
+    def test_joint_state_history_respects_explicit_limit(self) -> None:
+        node = Step5aCartesianCycloidMotion.__new__(Step5aCartesianCycloidMotion)
+        node.args = SimpleNamespace(joint_history_max_samples=3)
+        node.joint_history = []
+        node.joint_state = None
+        msg = JointState()
+        msg.name = list(JOINT_NAMES)
+        msg.position = [0.1 * index for index, _ in enumerate(JOINT_NAMES)]
+
+        for _ in range(5):
+            Step5aCartesianCycloidMotion._on_joint_state(node, msg)
+
+        self.assertEqual(len(node.joint_history), 3)
 
     def test_current_failed_evidence_run_audits_as_gate_a_failed(self) -> None:
         run_dir = WORKSPACE / "experiments" / "tase-contact-reproduction" / "runs" / "no_contact_test_20260617_143540"

@@ -33,6 +33,12 @@ Gate A failed because achieved FK speed exceeded `0.009 m/s` and Cartesian
 equivalence exceeded the `5 mm` error limit. Step5b/contact remains blocked
 until a fresh Step5a Gate A artifact passes all acceptance fields.
 
+The follow-up live run `runs/no_contact_test_20260617_150437` also executed but
+failed Gate A. Its row0 anchor error was fixed to `0.0`, but the live trace
+retained only the last `5000` `/joint_states` samples, creating a `12.09 s`
+alignment gap across the 22 s trajectory. The current implementation must
+retain full-trajectory joint-state history before the next live Gate A attempt.
+
 The source of truth for Step5 trajectory and stage ownership is
 `config/step5_stage_table.json`. Step5c also has a required offline calibrated
 kinematics gate and an offline qdot register path gate in that table; passing
