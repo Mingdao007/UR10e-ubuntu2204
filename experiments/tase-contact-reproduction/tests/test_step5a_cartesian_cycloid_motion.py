@@ -31,6 +31,10 @@ from ur10e_example_controllers.step5a_cartesian_cycloid_motion import (  # noqa:
     step5a_acceptance,
     validate_cartesian_acceptance_summary,
 )
+from ur10e_example_controllers.step5a_return_to_anchor_motion import (  # noqa: E402
+    build_return_trajectory,
+    source_start_positions,
+)
 
 
 class Step5aCartesianCycloidMotionTest(unittest.TestCase):
@@ -196,6 +200,32 @@ class Step5aCartesianCycloidMotionTest(unittest.TestCase):
             Step5aCartesianCycloidMotion._on_joint_state(node, msg)
 
         self.assertEqual(len(node.joint_history), 3)
+
+    def test_return_to_anchor_trajectory_is_separate_low_speed_joint_return(self) -> None:
+        model = build_calibrated_model()
+        source = {
+            "start_positions": {
+                name: value
+                for name, value in zip(JOINT_NAMES, [0.1, -1.2, 1.3, -0.8, 1.5, -1.4])
+            }
+        }
+        target = source_start_positions(source)
+        current = [value + 0.03 for value in target]
+        points, trace_rows, metrics = build_return_trajectory(
+            model,
+            current,
+            target,
+            dt=0.02,
+            min_duration_s=2.0,
+            max_joint_speed_rad_s=0.05,
+            max_cartesian_speed_m_s=0.004,
+        )
+
+        self.assertEqual(list(points[0].positions), current)
+        self.assertEqual(list(points[-1].positions), target)
+        self.assertGreaterEqual(metrics["duration_s"], 2.0)
+        self.assertLessEqual(metrics["max_commanded_fk_speed_m_s"], 0.004 + 1e-12)
+        self.assertEqual(len(points), len(trace_rows))
 
     def test_current_failed_evidence_run_audits_as_gate_a_failed(self) -> None:
         run_dir = WORKSPACE / "experiments" / "tase-contact-reproduction" / "runs" / "no_contact_test_20260617_143540"

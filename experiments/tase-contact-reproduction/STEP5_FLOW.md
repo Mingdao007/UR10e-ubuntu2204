@@ -47,6 +47,14 @@ reference amplitude is therefore reduced from `0.015 m` to `0.010 m` while
 keeping 1101 rows, 22 s duration, and final phase 6.0, to give the live
 controller enough speed margin without relaxing Gate A.
 
+Return-to-anchor is a separate live utility, not Step5a acceptance:
+`step5a_live_return_to_anchor.sh <source_run_dir>` reads the source run's
+recorded `start_positions`, starts the same headless driver readiness and
+Kunwei persistent force gates, and sends a low-speed joint trajectory back to
+those recorded joints. Its artifact role is
+`step5a_live_return_to_anchor_not_gate_a_acceptance`; it must not be counted as
+a Step5a pass or used to authorize Step5b/contact.
+
 The source of truth for Step5 trajectory and stage ownership is
 `config/step5_stage_table.json`. Step5c also has a required offline calibrated
 kinematics gate and an offline qdot register path gate in that table; passing

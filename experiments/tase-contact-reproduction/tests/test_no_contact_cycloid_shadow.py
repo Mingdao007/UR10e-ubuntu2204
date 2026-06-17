@@ -214,6 +214,16 @@ class NoContactCycloidShadowTest(unittest.TestCase):
         self.assertIn("5a0 driver startup failed before any motion; retrying", no_contact_script)
         self.assertIn("sent_goal=false", no_contact_script)
 
+        return_script_path = WORKSPACE / "step5a_live_return_to_anchor.sh"
+        return_script = return_script_path.read_text(encoding="utf-8")
+        self.assertTrue(return_script_path.exists())
+        self.assertTrue(return_script_path.stat().st_mode & 0o111)
+        self.assertIn("step5a_return_to_anchor_motion", return_script)
+        self.assertIn("source_run_dir", return_script)
+        self.assertIn("return driver launch attempt", return_script)
+        self.assertIn("sent_goal=false", return_script)
+        self.assertNotIn("step5a_gate_a_audit", return_script)
+
         gate_d_script_path = WORKSPACE / "step5a_driver_lifecycle_check.sh"
         gate_d_script = gate_d_script_path.read_text(encoding="utf-8")
         self.assertTrue(gate_d_script_path.exists())
@@ -241,6 +251,10 @@ class NoContactCycloidShadowTest(unittest.TestCase):
         )
         self.assertIn(
             "step5a_cartesian_cycloid_motion = ur10e_example_controllers.step5a_cartesian_cycloid_motion:main",
+            setup_py,
+        )
+        self.assertIn(
+            "step5a_return_to_anchor_motion = ur10e_example_controllers.step5a_return_to_anchor_motion:main",
             setup_py,
         )
         self.assertIn("step5a_gate_a_audit = ur10e_example_controllers.step5a_gate_a_audit:main", setup_py)

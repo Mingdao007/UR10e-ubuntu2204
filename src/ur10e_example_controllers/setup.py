@@ -42,6 +42,7 @@ setup(
             "kunwei_persistent_gate = ur10e_example_controllers.kunwei_persistent_monitor:main",
             "step5a_driver_readiness_check = ur10e_example_controllers.step5a_driver_readiness_check:main",
             "step5a_cartesian_cycloid_motion = ur10e_example_controllers.step5a_cartesian_cycloid_motion:main",
+            "step5a_return_to_anchor_motion = ur10e_example_controllers.step5a_return_to_anchor_motion:main",
             "step5a_gate_a_audit = ur10e_example_controllers.step5a_gate_a_audit:main",
             "step5a_joint_proxy_motion_probe = ur10e_example_controllers.step5a_joint_proxy_motion_probe:main",
             "guarded_contact_recovery_node = ur10e_example_controllers.guarded_contact_recovery_node:main",
