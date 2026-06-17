@@ -54,6 +54,7 @@ from .step5a_cartesian_cycloid_motion import (
 
 
 DEFAULT_CONFIG = WORKSPACE_ROOT / "src" / "ur10e_example_controllers" / "config" / "historical_5a_fixed_z.yaml"
+DEFAULT_LOCAL_CONTROL_SPEC = WORKSPACE_ROOT / "experiments" / "tase-contact-reproduction" / "config" / "step5a_local_control_spec.json"
 DEFAULT_POSITION_SPEED_M_S = 0.020
 DEFAULT_POSITION_TOLERANCE_M = 0.003
 DEFAULT_TCP_OFFSET_TOOL0_M = np.array(
@@ -340,11 +341,14 @@ class Step5aHistoricalFixedZMotion(Node):
                 and achieved_speed_gate_ok
                 and trace_alignment.get("trace_alignment_ok") is True
             )
+        task_space_spec = cartesian_task_space_spec(self.config, metrics)
+        validate_cartesian_task_space_spec(task_space_spec)
         return {
             "ok": bool(ok),
             "created_at": datetime.now().isoformat(timespec="seconds"),
             "stage_id": self.config.get("stage_id", "step5a_historical_fixed_z_no_contact_v1"),
             "stage_revision": self.config.get("stage_revision", "unknown"),
+            "local_control_spec_source": task_space_spec["local_control_spec_source"],
             "role": role,
             "motion_kind": motion_kind,
             "execute": bool(self.args.execute),
@@ -379,7 +383,7 @@ class Step5aHistoricalFixedZMotion(Node):
             "position_entry_speed_m_s": metrics.get("position_entry_speed_m_s"),
             "position_entry_speed_source": metrics.get("position_entry_speed_source"),
             "acceleration_bound_m_s2": float(self.config.get("acceleration_bound_m_s2", 0.300)),
-            "cartesian_task_space_spec": cartesian_task_space_spec(self.config, metrics),
+            "cartesian_task_space_spec": task_space_spec,
             "max_reference_speed_m_s": metrics.get("max_reference_speed_m_s"),
             "max_commanded_fk_speed_m_s": metrics["max_commanded_fk_speed_m_s"],
             "max_achieved_speed_m_s": max_achieved_speed,
@@ -815,9 +819,34 @@ def fixed_z_clearance_estimate(fixed_z: float) -> dict[str, Any]:
     }
 
 
+def workspace_path(path_value: Any) -> Path:
+    path = Path(path_value)
+    if path.is_absolute():
+        return path
+    return WORKSPACE_ROOT / path
+
+
 def cartesian_task_space_spec(config: dict[str, Any], metrics: dict[str, Any]) -> dict[str, Any]:
     frame = metrics["cartesian_reference_frame"]
+    spec_path = workspace_path(config.get("local_control_spec_path", DEFAULT_LOCAL_CONTROL_SPEC))
     return {
+        "local_control_spec_source": {
+            "spec_path": str(spec_path),
+            "active_baseline": "step5a_cycloid_no_contact_v3",
+            "status": "required_textbook_for_step5a_ros2_migration",
+            "source_scripts": {
+                "active_baseline": "experiments/tase-contact-reproduction/programs/step5/step5a_cycloid_no_contact_v3.script",
+                "retired_provenance": [
+                    "experiments/tase-contact-reproduction/programs/step5/step5a/step5a_cycloid_no_contact_v1.script",
+                    "experiments/tase-contact-reproduction/programs/step5/step5a/step5a_cycloid_no_contact_v2.script",
+                ],
+            },
+            "auditor_reports": [
+                "/home/andy/codex_handoffs/ur10e-step5a-gate-a-final-audit-report-20260617-1655.md",
+                "/home/andy/codex_handoffs/ur10e-step5a-historical-fixed-z-auditor-report-20260617-1815.md",
+                "/home/andy/codex_handoffs/ur10e-step5a-15s-achieved-speed-gate-auditor-report-20260617-2321.md",
+            ],
+        },
         "reference_frame": {
             "mode": frame["mode"],
             "safe_frame_path": frame["safe_frame_path"],
@@ -843,12 +872,19 @@ def cartesian_task_space_spec(config: dict[str, Any], metrics: dict[str, Any]) -
         "sample_period_s": float(config["sample_period_s"]),
         "caps": {
             "legacy_v3_command_clamp_m_s": legacy_v3_command_clamp_m_s(config),
+            "legacy_v3_command_clamp_role": "tp_v3_command_clamp_provenance_not_ros2_achieved_speed_hard_gate",
             "visual_gate_expected_reference_speed_peak_m_s": visual_gate_expected_reference_speed_peak_m_s(config),
             "achieved_speed_hard_cap_m_s": achieved_speed_hard_cap_m_s(config),
             "achieved_speed_policy": achieved_speed_policy(config),
             "kunwei_max_force_delta_n_default": 2.0,
         },
         "endpoint_semantics": config.get("endpoint_semantics", "non_returning_historical_step5a_endpoint"),
+        "return_semantics": {
+            "historical_task_returns_to_start": False,
+            "recovery_surface": "operator_recovery_not_original_task_spec",
+            "combo_return_target_source": "step5a_historical_fixed_z_position.json:start_positions_pre_cycle",
+            "forbidden_silent_source": "path_summary_start_positions_or_unrelated_no_contact_test_run",
+        },
         "bench_proven_corrections": {
             "safe_frame_xy_remapping": True,
             "calibration_hash": EXPECTED_CALIBRATION_HASH,
@@ -861,7 +897,88 @@ def cartesian_task_space_spec(config: dict[str, Any], metrics: dict[str, Any]) -
             "ik_warm_start": "previous_row_solution",
             "driver_lifecycle_workaround": "single_sustained_launch_with_activate_joint_controller_true_and_retry",
         },
+        "local_control_textbook_alignment": {
+            "amplitude_m": {
+                "status": "preserved",
+                "local_control_value": 0.015,
+                "ros2_value": float(config["amplitude_m"]),
+            },
+            "phase_final_rad": {
+                "status": "preserved",
+                "local_control_value": 6.0,
+                "ros2_value": float(config["final_phase_rad"]),
+            },
+            "frame_map_choice": {
+                "status": "changed_with_reason",
+                "tp_v3_choice": "affine_map_exact_to_shifted_drag_teach_start_mid_end",
+                "ros2_choice": frame["mode"],
+                "reason": (
+                    "The historical ROS2 visual gate anchors the safe-frame local-XY axes at the current "
+                    "live start pose and active TCP target; it records this as a deliberate deviation "
+                    "from the absolute TP v3 affine replay instead of silently substituting the map."
+                ),
+            },
+            "timing_cadence": {
+                "status": "changed_with_reason",
+                "tp_v3_duration_s": 22.0,
+                "ros2_duration_s": float(config["duration_s"]),
+                "tp_v3_fast_hold_s": 0.001,
+                "ros2_sample_period_s": float(config["sample_period_s"]),
+                "reason": "Historical fixed-Z visual gate uses the accepted 15 s visual lineage and ROS2 trajectory-action sampling.",
+            },
+            "tp_v3_command_clamp": {
+                "status": "changed_with_reason",
+                "tp_v3_command_clamp_m_s": 0.009,
+                "ros2_achieved_speed_hard_cap_m_s": achieved_speed_hard_cap_m_s(config),
+                "reason": "The TP v3 clamp is command-clamp provenance; this ROS2 visual route uses a separate achieved-speed hard cap.",
+            },
+            "endpoint_semantics": {
+                "status": "preserved",
+                "value": config.get("endpoint_semantics", "non_returning_historical_step5a_endpoint"),
+            },
+            "combo_return": {
+                "status": "out_of_scope",
+                "reason": "Return-to-anchor is operator recovery after the non-returning path, not part of the original Step5a task specification.",
+            },
+        },
     }
+
+
+def validate_cartesian_task_space_spec(spec: dict[str, Any]) -> bool:
+    source = spec.get("local_control_spec_source")
+    if not isinstance(source, dict) or not str(source.get("spec_path", "")).endswith("step5a_local_control_spec.json"):
+        raise ValueError("cartesian_task_space_spec missing local_control_spec_source.spec_path")
+    scripts = source.get("source_scripts")
+    if not isinstance(scripts, dict) or not str(scripts.get("active_baseline", "")).endswith("step5a_cycloid_no_contact_v3.script"):
+        raise ValueError("cartesian_task_space_spec missing active Local Control source script")
+
+    alignment = spec.get("local_control_textbook_alignment")
+    if not isinstance(alignment, dict):
+        raise ValueError("cartesian_task_space_spec missing local_control_textbook_alignment")
+    frame_choice = alignment.get("frame_map_choice")
+    if not isinstance(frame_choice, dict):
+        raise ValueError("cartesian_task_space_spec missing frame_map_choice alignment")
+    tp_choice = str(frame_choice.get("tp_v3_choice", ""))
+    ros2_choice = str(frame_choice.get("ros2_choice", ""))
+    if tp_choice != ros2_choice and (
+        frame_choice.get("status") != "changed_with_reason" or not str(frame_choice.get("reason", "")).strip()
+    ):
+        raise ValueError("ROS2 frame map differs from TP v3 without changed_with_reason")
+
+    caps = spec.get("caps")
+    if not isinstance(caps, dict):
+        raise ValueError("cartesian_task_space_spec missing caps")
+    if caps.get("legacy_v3_command_clamp_role") != "tp_v3_command_clamp_provenance_not_ros2_achieved_speed_hard_gate":
+        raise ValueError("legacy TP v3 command clamp role is not explicit")
+    if caps.get("achieved_speed_policy") != "hard_gate_for_historical_15s_visual_gate":
+        raise ValueError("historical visual achieved-speed policy is not explicit")
+
+    returns = spec.get("return_semantics")
+    if not isinstance(returns, dict):
+        raise ValueError("cartesian_task_space_spec missing return_semantics")
+    if returns.get("combo_return_target_source") != "step5a_historical_fixed_z_position.json:start_positions_pre_cycle":
+        raise ValueError("combo return target source must be the pre-cycle positioning summary start_positions")
+    return True
 
 
 def commanded_speeds(xyz_values: list[np.ndarray], times: list[float]) -> list[float]:

@@ -45,6 +45,7 @@ from ur10e_example_controllers.step5a_historical_fixed_z_motion import (  # noqa
     fixed_z_start_precheck,
     fixed_z_target_active_tcp_z_m,
     historical_visual_achieved_speed_gate_ok,
+    validate_cartesian_task_space_spec,
 )
 from ur10e_example_controllers.step5a_return_to_anchor_motion import (  # noqa: E402
     build_return_trajectory,
@@ -286,6 +287,12 @@ class Step5aCartesianCycloidMotionTest(unittest.TestCase):
         points, trace_rows, metrics = build_historical_fixed_z_trajectory(config, model, start)
         spec = cartesian_task_space_spec(config, metrics)
 
+        self.assertEqual(
+            spec["local_control_spec_source"]["spec_path"],
+            str(WORKSPACE / "experiments/tase-contact-reproduction/config/step5a_local_control_spec.json"),
+        )
+        self.assertEqual(spec["local_control_spec_source"]["active_baseline"], "step5a_cycloid_no_contact_v3")
+        self.assertTrue(spec["local_control_spec_source"]["source_scripts"]["active_baseline"].endswith("step5a_cycloid_no_contact_v3.script"))
         self.assertEqual(len(points), 751)
         self.assertEqual(len(trace_rows), 751)
         self.assertEqual(spec["reference_frame"]["mode"], "step5_safe_frame_local_xy_to_base_xy_offset")
@@ -321,13 +328,64 @@ class Step5aCartesianCycloidMotionTest(unittest.TestCase):
         self.assertEqual(spec["timing_law"], "linear_time_phase")
         self.assertEqual(spec["acceleration_profile_or_bound"]["acceleration_bound_m_s2"], 0.300)
         self.assertEqual(spec["caps"]["legacy_v3_command_clamp_m_s"], 0.009)
+        self.assertEqual(
+            spec["caps"]["legacy_v3_command_clamp_role"],
+            "tp_v3_command_clamp_provenance_not_ros2_achieved_speed_hard_gate",
+        )
         self.assertEqual(spec["caps"]["achieved_speed_hard_cap_m_s"], 0.015)
         self.assertEqual(spec["caps"]["achieved_speed_policy"], "hard_gate_for_historical_15s_visual_gate")
+        self.assertEqual(
+            spec["return_semantics"]["combo_return_target_source"],
+            "step5a_historical_fixed_z_position.json:start_positions_pre_cycle",
+        )
         self.assertEqual(spec["control_frame"], "active_tcp")
         self.assertTrue(spec["bench_proven_corrections"]["safe_frame_xy_remapping"])
         self.assertEqual(spec["bench_proven_corrections"]["calibration_hash"], EXPECTED_CALIBRATION_HASH)
         self.assertEqual(spec["bench_proven_corrections"]["fixed_base_z_frame"], "historical_ur_actual_tcp_pose")
         self.assertAlmostEqual(spec["bench_proven_corrections"]["visual_air_gap_above_fixed_z_m"], 0.010, places=12)
+        alignment = spec["local_control_textbook_alignment"]
+        self.assertEqual(alignment["amplitude_m"]["status"], "preserved")
+        self.assertEqual(alignment["frame_map_choice"]["status"], "changed_with_reason")
+        self.assertEqual(alignment["frame_map_choice"]["tp_v3_choice"], "affine_map_exact_to_shifted_drag_teach_start_mid_end")
+        self.assertEqual(alignment["frame_map_choice"]["ros2_choice"], "step5_safe_frame_local_xy_to_base_xy_offset")
+        self.assertEqual(alignment["tp_v3_command_clamp"]["status"], "changed_with_reason")
+        self.assertEqual(alignment["endpoint_semantics"]["status"], "preserved")
+        self.assertEqual(alignment["combo_return"]["status"], "out_of_scope")
+        self.assertTrue(validate_cartesian_task_space_spec(spec))
+
+    def test_cartesian_task_space_spec_rejects_silent_textbook_drift(self) -> None:
+        model = build_calibrated_model()
+        config = load_no_contact_config(HISTORICAL_FIXED_Z_CONFIG)
+        start = [
+            0.5743721127510071,
+            -1.1999615293792267,
+            -2.6663639545440674,
+            -0.8600547474673768,
+            1.5672391653060913,
+            -1.3829334417926233,
+        ]
+        _, _, metrics = build_historical_fixed_z_trajectory(config, model, start)
+        spec = cartesian_task_space_spec(config, metrics)
+
+        missing_source = deepcopy(spec)
+        del missing_source["local_control_spec_source"]
+        with self.assertRaisesRegex(ValueError, "local_control_spec_source"):
+            validate_cartesian_task_space_spec(missing_source)
+
+        silent_frame_swap = deepcopy(spec)
+        silent_frame_swap["local_control_textbook_alignment"]["frame_map_choice"]["status"] = "preserved"
+        with self.assertRaisesRegex(ValueError, "frame map differs"):
+            validate_cartesian_task_space_spec(silent_frame_swap)
+
+        bad_speed_policy = deepcopy(spec)
+        bad_speed_policy["caps"]["achieved_speed_policy"] = "hard_gate_at_tp_v3_command_clamp"
+        with self.assertRaisesRegex(ValueError, "achieved-speed policy"):
+            validate_cartesian_task_space_spec(bad_speed_policy)
+
+        bad_return_source = deepcopy(spec)
+        bad_return_source["return_semantics"]["combo_return_target_source"] = "step5a_historical_fixed_z.json:start_positions"
+        with self.assertRaisesRegex(ValueError, "combo return target source"):
+            validate_cartesian_task_space_spec(bad_return_source)
 
     def test_historical_fixed_z_positioning_and_path_precheck_are_separate(self) -> None:
         model = build_calibrated_model()

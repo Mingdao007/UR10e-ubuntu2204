@@ -103,6 +103,20 @@ kinematics gate and an offline qdot register path gate in that table; passing
 either is evidence only and does not authorize bridge start, TP Play,
 controller upload, or contact motion.
 
+For Step5a ROS2 migration and historical fixed-Z gates, the authoritative Local
+Control textbook is the combination of
+`config/step5a_local_control_spec.json`, the TP v3 script
+`programs/step5/step5a_cycloid_no_contact_v3.script`, the safe-frame artifact
+`config/step5_safe_frame.json`, the stage table `config/step5_stage_table.json`,
+and the relevant Auditor provenance reports under `/home/andy/codex_handoffs/`.
+Implementor handoffs and completion reports must first list these textbook
+sources under `Textbook Sources Inspected`, then include a
+`Local Control Textbook Alignment` table that marks each field as preserved,
+changed with reason, or out of scope. In particular, ROS2 safe-frame rotation
+instead of the TP v3 affine map, 15 s visual timing instead of TP v3 22 s
+timing, and return-to-anchor recovery must be explicit decisions, not silent
+substitutions.
+
 For Step5a cycloid stages, `phase_rad` is the cycloid parameter `theta` in
 `x=A(theta-sin(theta)), y=A(1-cos(theta))`. It is not TCP orientation and not a
 circular path angle. `theta=2*pi` would trace one cycloid arch in the formula;

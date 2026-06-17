@@ -2,6 +2,7 @@ enable_motion: false
 live_air_motion_authorized: false
 stage_id: step5a_ros2_remote_no_contact_v1
 role: no_contact_air_motion_gate_before_step5b_contact
+local_control_spec_path: experiments/tase-contact-reproduction/config/step5a_local_control_spec.json
 requires_5a0_driver_readiness: true
 force_source: kunwei_kwr75b_tcp_pre_motion_data_gate
 kunwei_data_gate_required: true
@@ -18,6 +19,14 @@ velocity_cap_m_s: 0.009
 warmup_hold_s: 0.008
 fast_hold_s: 0.001
 fast_after_s: 0.1
+local_control_textbook_alignment:
+  active_baseline: step5a_cycloid_no_contact_v3
+  amplitude_m: changed_with_reason
+  amplitude_reason: live Gate A achieved-speed margin after full-amplitude ROS2 run exceeded the 0.009 m/s Gate A cap
+  frame_map_choice: changed_with_reason
+  frame_map_reason: ROS2 anchors the safe-frame rotation at the current live start pose instead of replaying the TP v3 absolute affine map
+  tp_v3_command_clamp_m_s: preserved_as_gate_a_route_policy
+  endpoint_semantics: preserved_non_returning_path
 contact_policy:
   force_control: false
   contact_search: false
