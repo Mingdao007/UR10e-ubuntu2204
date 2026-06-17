@@ -54,6 +54,27 @@ paper/local Step5 coordinates; the live IK path must transform them through
 base-frame offset from the current anchor. Directly applying local x/y as
 base x/y was wrong and made local-x motion appear as the wrong base axis.
 
+The fresh ROS2 Remote Control Step5a Gate A run
+`runs/no_contact_test_20260617_164509` passed Auditor review with
+`accept_step5a_gate_a`. This accepts only the no-contact live air-motion gate:
+no Step5b/contact, contact search, force control, `zero_ftsensor()`, payload/TCP
+write, TP play, or External Control URCap is authorized by that result.
+
+A separate historical fixed-Z Step5a visual gate now exists for operator
+confirmation of the original Step5 task-space geometry before any Step5b
+contact planning:
+
+- `step5a_live_historical_5a_position.sh` moves to the Step5 safe-frame start
+  XY at historical `fixed_base_z_m=0.029423891` for visual inspection.
+- `step5a_live_historical_5a_test.sh` runs the historical full-amplitude
+  no-contact cycloid only if the current TCP is already within `3 mm` of that
+  fixed-Z start pose.
+
+Both fixed-Z commands use calibrated Pinocchio `base -> tool0`, preserve
+`config/step5_safe_frame.json` local-XY remapping, keep Kunwei persistent force
+evidence, and default to a tighter `2 N` Kunwei force-delta gate. They are not
+Step5b/contact acceptance.
+
 Return-to-anchor is a separate live utility, not Step5a acceptance:
 `step5a_live_return_to_anchor.sh <source_run_dir>` reads the source run's
 recorded `start_positions`, starts the same headless driver readiness and

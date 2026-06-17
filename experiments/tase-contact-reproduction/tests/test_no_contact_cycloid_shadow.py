@@ -265,11 +265,30 @@ class NoContactCycloidShadowTest(unittest.TestCase):
             "step5a_return_to_anchor_motion = ur10e_example_controllers.step5a_return_to_anchor_motion:main",
             setup_py,
         )
+        self.assertIn(
+            "step5a_historical_fixed_z_motion = ur10e_example_controllers.step5a_historical_fixed_z_motion:main",
+            setup_py,
+        )
         self.assertIn("step5a_gate_a_audit = ur10e_example_controllers.step5a_gate_a_audit:main", setup_py)
         self.assertIn(
             "step5a_joint_proxy_motion_probe = ur10e_example_controllers.step5a_joint_proxy_motion_probe:main",
             setup_py,
         )
+
+    def test_historical_fixed_z_step5a_entrypoints_are_user_runnable(self) -> None:
+        for name, expected_mode in [
+            ("step5a_live_historical_5a_position.sh", "--mode position"),
+            ("step5a_live_historical_5a_test.sh", "--mode path"),
+        ]:
+            script_path = WORKSPACE / name
+            script = script_path.read_text(encoding="utf-8")
+            self.assertTrue(script_path.exists())
+            self.assertTrue(script_path.stat().st_mode & 0o111)
+            self.assertIn("step5a_historical_fixed_z_motion", script)
+            self.assertIn(expected_mode, script)
+            self.assertIn("KUNWEI_MAX_FORCE_DELTA_N", script)
+            self.assertIn("2.0", script)
+            self.assertIn("activate_joint_controller:=true", script)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,23 @@
+stage_id: step5a_historical_fixed_z_no_contact_v1
+role: historical_step5a_fixed_z_visual_gate_before_step5b
+duration_s: 22.0
+sample_period_s: 0.02
+amplitude_m: 0.015
+omega_rad_s: 0.2727272727272727
+final_phase_rad: 6.0
+fixed_base_z_m: 0.029423891
+velocity_cap_m_s: 0.009
+acceleration_bound_m_s2: 0.300
+safe_frame_path: experiments/tase-contact-reproduction/config/step5_safe_frame.json
+position_tolerance_m: 0.003
+timing_law: linear_time_phase
+endpoint_semantics: non_returning_historical_step5a_endpoint
+contact_policy:
+  force_control: false
+  contact_search: false
+  kunwei_bridge_required: true
+  kunwei_data_gate_required: true
+  zero_ftsensor: false
+  tcp_payload_write: false
+  external_control_urcap: false
+  live_authorization: explicit_step5a_historical_fixed_z_no_contact_visual_gate_only
