@@ -65,15 +65,19 @@ confirmation of the original Step5 task-space geometry before any Step5b
 contact planning:
 
 - `step5a_live_historical_5a_position.sh` moves to the Step5 safe-frame start
-  XY at historical `fixed_base_z_m=0.029423891` for visual inspection.
+  XY for visual inspection using the UR active TCP frame. Its Z target is the
+  historical `fixed_base_z_m=0.029423891` plus an explicit `0.010 m` air-gap
+  offset, so the target active TCP Z is `0.039423891 m`.
 - `step5a_live_historical_5a_test.sh` runs the historical full-amplitude
-  no-contact cycloid only if the current TCP is already within `3 mm` of that
-  fixed-Z start pose.
+  no-contact cycloid only if the latest corrected position run is `ok=true`
+  and the current active TCP is already within `3 mm` of that fixed-Z-plus-gap
+  start pose.
 
-Both fixed-Z commands use calibrated Pinocchio `base -> tool0`, preserve
-`config/step5_safe_frame.json` local-XY remapping, keep Kunwei persistent force
-evidence, and default to a tighter `2 N` Kunwei force-delta gate. They are not
-Step5b/contact acceptance.
+Both fixed-Z commands use calibrated Pinocchio `base -> tool0` with the audited
+active TCP offset from `runs/step5c_calibrated_kinematics_audit_20260613_003314`
+(`tool0 +Z ~= 0.122099 m`), preserve `config/step5_safe_frame.json` local-XY
+remapping, keep Kunwei persistent force evidence, and default to a tighter
+`2 N` Kunwei force-delta gate. They are not Step5b/contact acceptance.
 
 Return-to-anchor is a separate live utility, not Step5a acceptance:
 `step5a_live_return_to_anchor.sh <source_run_dir>` reads the source run's

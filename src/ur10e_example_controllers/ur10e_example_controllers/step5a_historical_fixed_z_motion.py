@@ -39,10 +39,11 @@ from .step5a_cartesian_cycloid_motion import (
     CalibratedModel,
     ObservedJointSample,
     _joint_state_header_stamp_s,
+    _dedupe_observed_samples,
+    _interpolate_observed_sample,
     _kunwei_artifact_ok,
     _load_json_or_snapshot,
     _validate_dashboard,
-    augment_trace_with_observed_fk,
     build_calibrated_model,
     dashboard_exchange,
     fk_tool0_base,
@@ -53,8 +54,12 @@ from .step5a_cartesian_cycloid_motion import (
 
 
 DEFAULT_CONFIG = WORKSPACE_ROOT / "src" / "ur10e_example_controllers" / "config" / "historical_5a_fixed_z.yaml"
-DEFAULT_POSITION_SPEED_M_S = 0.004
+DEFAULT_POSITION_SPEED_M_S = 0.020
 DEFAULT_POSITION_TOLERANCE_M = 0.003
+DEFAULT_TCP_OFFSET_TOOL0_M = np.array(
+    [1.8186503701174852e-06, 2.2293003722353485e-07, 0.12209917288991741],
+    dtype=float,
+)
 
 REFERENCE_BASE_FIELDS = ["reference_base_x_m", "reference_base_y_m", "reference_base_z_m"]
 HISTORICAL_TRACE_FIELDS = (
@@ -93,6 +98,9 @@ class Step5aHistoricalFixedZMotion(Node):
         self.result_error_string: str | None = None
         self.failure_stage = "not_started"
         self.trajectory_authority_entered = False
+        self.latest_trace_rows: list[dict[str, Any]] = []
+        self.latest_trace_fields: list[str] = []
+        self.latest_metrics: dict[str, Any] = {}
         self.create_subscription(JointState, args.joint_state_topic, self._on_joint_state, 50)
         self.action_client = ActionClient(self, FollowJointTrajectory, args.action_name)
 
@@ -181,6 +189,9 @@ class Step5aHistoricalFixedZMotion(Node):
                     ik_tolerance_m=self.args.ik_tolerance_m,
                 )
                 trace_fields = HISTORICAL_TRACE_FIELDS
+            self.latest_trace_rows = trace_rows
+            self.latest_trace_fields = trace_fields
+            self.latest_metrics = metrics
 
             if metrics["max_commanded_fk_speed_m_s"] > float(self.config["velocity_cap_m_s"]) + self.args.speed_cap_tolerance_m_s:
                 raise RuntimeError(
@@ -246,12 +257,13 @@ class Step5aHistoricalFixedZMotion(Node):
             for _ in range(50):
                 rclpy.spin_once(self, timeout_sec=0.02)
             if self.args.mode == "path":
-                trace_alignment = augment_trace_with_observed_fk(
+                trace_alignment = augment_trace_with_observed_active_tcp(
                     trace_rows,
                     self.model_bundle,
                     self.joint_history,
                     send_start,
                     start_positions,
+                    tcp_offset_tool0(config=self.config),
                     max_sample_gap_s=self.args.trace_max_sample_gap_s,
                 )
             else:
@@ -259,6 +271,7 @@ class Step5aHistoricalFixedZMotion(Node):
                     self.model_bundle,
                     self.joint_state,
                     np.array(metrics["target_pose_base"]["position_xyz_m"], dtype=float),
+                    tcp_offset_tool0(config=self.config),
                 )
             write_trace(self.args.trace, trace_rows, trace_fields)
             monitor.stop()
@@ -336,6 +349,7 @@ class Step5aHistoricalFixedZMotion(Node):
             "ok": bool(ok),
             "created_at": datetime.now().isoformat(timespec="seconds"),
             "stage_id": self.config.get("stage_id", "step5a_historical_fixed_z_no_contact_v1"),
+            "stage_revision": self.config.get("stage_revision", "unknown"),
             "role": role,
             "motion_kind": motion_kind,
             "execute": bool(self.args.execute),
@@ -354,6 +368,9 @@ class Step5aHistoricalFixedZMotion(Node):
             "duration_s": metrics["duration_s"],
             "sample_period_s": self.args.sample_period_s,
             "fixed_base_z_m": float(self.config["fixed_base_z_m"]),
+            "fixed_base_z_frame": self.config.get("fixed_base_z_frame", "historical_ur_actual_tcp_pose"),
+            "visual_air_gap_above_fixed_z_m": fixed_z_visual_air_gap_m(self.config),
+            "target_active_tcp_z_m": fixed_z_target_active_tcp_z_m(self.config),
             "velocity_cap_m_s": float(self.config["velocity_cap_m_s"]),
             "acceleration_bound_m_s2": float(self.config.get("acceleration_bound_m_s2", 0.300)),
             "cartesian_task_space_spec": cartesian_task_space_spec(self.config, metrics),
@@ -363,7 +380,9 @@ class Step5aHistoricalFixedZMotion(Node):
             "max_cartesian_position_error_m": max(cartesian_errors) if cartesian_errors else metrics.get("max_commanded_position_error_m"),
             "cartesian_reference_frame": metrics["cartesian_reference_frame"],
             "target_pose_base": metrics.get("target_pose_base"),
+            "target_tool0_pose_base": metrics.get("target_tool0_pose_base"),
             "start_pose_base": metrics.get("start_pose_base"),
+            "start_active_tcp_pose_base": metrics.get("start_active_tcp_pose_base"),
             "reference_local_final_offset_xy_m": metrics.get("reference_local_final_offset_xy_m"),
             "reference_final_base_xyz_m": metrics.get("reference_final_base_xyz_m"),
             "commanded_net_displacement_xyz_m": metrics.get("commanded_net_displacement_xyz_m"),
@@ -377,8 +396,10 @@ class Step5aHistoricalFixedZMotion(Node):
                 "expected_calibration_hash": EXPECTED_CALIBRATION_HASH,
                 "base_frame": "base",
                 "tool_frame": "tool0",
+                "control_frame": "active_tcp",
+                "tcp_offset_tool0_m": [float(value) for value in tcp_offset_tool0(config=self.config)],
                 "orientation": "fixed_from_first_joint_state_fk",
-                "z_policy": "absolute_fixed_base_z_m",
+                "z_policy": "historical_fixed_base_z_m_plus_explicit_10mm_active_tcp_air_gap",
             },
             "start_positions": dict(zip(JOINT_NAMES, start_positions)),
             "sent_goal": self.sent_goal,
@@ -419,16 +440,19 @@ def build_positioning_trajectory(
 ) -> tuple[list[JointTrajectoryPoint], list[dict[str, Any]], dict[str, Any]]:
     q = np.array(start_positions, dtype=float)
     start_pose = fk_tool0_base(model_bundle, q)
+    offset_tool0 = tcp_offset_tool0(config)
+    start_active_tcp = active_tcp_from_tool0_pose(start_pose, offset_tool0)
     reference_frame = load_historical_reference_frame(config)
-    target_xyz = fixed_z_start_xyz(reference_frame, float(config["fixed_base_z_m"]))
-    via_xyz = np.array([target_xyz[0], target_xyz[1], float(start_pose.translation[2])], dtype=float)
+    target_xyz = fixed_z_start_xyz(reference_frame, fixed_z_target_active_tcp_z_m(config))
+    via_xyz = np.array([target_xyz[0], target_xyz[1], float(start_active_tcp.translation[2])], dtype=float)
     targets = [
-        ("xy_at_current_z", via_xyz),
-        ("fixed_z_descent", target_xyz),
+        ("active_tcp_xy_at_current_z", via_xyz),
+        ("active_tcp_fixed_z_clearance", target_xyz),
     ]
     points: list[JointTrajectoryPoint] = []
     trace_rows: list[dict[str, Any]] = []
-    commanded_xyz = [start_pose.translation.copy()]
+    commanded_xyz = [start_active_tcp.translation.copy()]
+    commanded_tool0_xyz = [start_pose.translation.copy()]
     elapsed = 0.0
     row_index = 0
     previous_q = q.copy()
@@ -441,7 +465,7 @@ def build_positioning_trajectory(
         for step in range(1, steps + 1):
             blend = step / steps
             target_translation = start_xyz + blend * (xyz - start_xyz)
-            target_pose = pin.SE3(start_pose.rotation, target_translation)
+            target_pose = tool0_pose_for_active_tcp_target(start_pose.rotation, target_translation, offset_tool0)
             previous_q, _ = solve_tool0_ik(
                 model_bundle,
                 previous_q,
@@ -452,6 +476,7 @@ def build_positioning_trajectory(
             )
             t_rel_s = elapsed + duration * blend
             placement = fk_tool0_base(model_bundle, previous_q)
+            active_tcp = active_tcp_from_tool0_pose(placement, offset_tool0)
             point = make_point(previous_q, t_rel_s)
             points.append(point)
             row = {
@@ -464,12 +489,13 @@ def build_positioning_trajectory(
             }
             for name, value in zip(COMMAND_FIELDS, previous_q):
                 row[name] = float(value)
-            row["commanded_fk_x_m"] = float(placement.translation[0])
-            row["commanded_fk_y_m"] = float(placement.translation[1])
-            row["commanded_fk_z_m"] = float(placement.translation[2])
+            row["commanded_fk_x_m"] = float(active_tcp.translation[0])
+            row["commanded_fk_y_m"] = float(active_tcp.translation[1])
+            row["commanded_fk_z_m"] = float(active_tcp.translation[2])
             trace_rows.append(row)
             row_index += 1
-            commanded_xyz.append(placement.translation.copy())
+            commanded_xyz.append(active_tcp.translation.copy())
+            commanded_tool0_xyz.append(placement.translation.copy())
         elapsed += duration
         previous_q = segment_start_q if False else previous_q
     set_point_velocities(points, sample_period_s)
@@ -487,10 +513,16 @@ def build_positioning_trajectory(
         else 0.0,
         "cartesian_reference_frame": reference_frame,
         "start_pose_base": pose_payload(start_pose),
-        "target_pose_base": {"frame": "base_to_tool0", "position_xyz_m": [float(value) for value in target_xyz]},
+        "start_active_tcp_pose_base": pose_payload(start_active_tcp, frame="base_to_active_tcp"),
+        "target_pose_base": {"frame": "base_to_active_tcp", "position_xyz_m": [float(value) for value in target_xyz]},
+        "target_tool0_pose_base": pose_payload(
+            tool0_pose_for_active_tcp_target(start_pose.rotation, target_xyz, offset_tool0),
+            frame="base_to_tool0",
+        ),
         "reference_final_base_xyz_m": [float(value) for value in target_xyz],
         "commanded_net_displacement_xyz_m": [float(value) for value in (commanded_xyz[-1] - commanded_xyz[0])],
         "commanded_net_displacement_norm_m": float(np.linalg.norm(commanded_xyz[-1] - commanded_xyz[0])),
+        "commanded_tool0_net_displacement_xyz_m": [float(value) for value in (commanded_tool0_xyz[-1] - commanded_tool0_xyz[0])],
     }
 
 
@@ -509,7 +541,9 @@ def build_historical_fixed_z_trajectory(
     origin_xy = np.array(reference_frame["origin_xy_m"], dtype=float)
     q = np.array(start_positions, dtype=float)
     start_pose = fk_tool0_base(model_bundle, q)
-    fixed_z = float(config["fixed_base_z_m"])
+    offset_tool0 = tcp_offset_tool0(config)
+    start_active_tcp = active_tcp_from_tool0_pose(start_pose, offset_tool0)
+    fixed_z = fixed_z_target_active_tcp_z_m(config)
     points: list[JointTrajectoryPoint] = []
     trace_rows: list[dict[str, Any]] = []
     commanded_xyz: list[np.ndarray] = []
@@ -519,7 +553,7 @@ def build_historical_fixed_z_trajectory(
     for row in rows:
         base_offset = step5_local_offset_to_base(reference_frame, float(row["desired_x_m"]), float(row["desired_y_m"]))
         reference_xyz = np.array([origin_xy[0] + base_offset[0], origin_xy[1] + base_offset[1], fixed_z], dtype=float)
-        target = pin.SE3(start_pose.rotation, reference_xyz)
+        target = tool0_pose_for_active_tcp_target(start_pose.rotation, reference_xyz, offset_tool0)
         q, error_norm = solve_tool0_ik(
             model_bundle,
             q,
@@ -530,8 +564,9 @@ def build_historical_fixed_z_trajectory(
         )
         max_commanded_error = max(max_commanded_error, error_norm)
         placement = fk_tool0_base(model_bundle, q)
+        active_tcp = active_tcp_from_tool0_pose(placement, offset_tool0)
         commanded_positions.append(q.copy())
-        commanded_xyz.append(placement.translation.copy())
+        commanded_xyz.append(active_tcp.translation.copy())
         reference_xyz_values.append(reference_xyz.copy())
         t_rel_s = int(row["row_index"]) * dt
         points.append(make_point(q, t_rel_s))
@@ -546,9 +581,9 @@ def build_historical_fixed_z_trajectory(
         trace_row["reference_base_z_m"] = float(reference_xyz[2])
         for name, value in zip(COMMAND_FIELDS, q):
             trace_row[name] = float(value)
-        trace_row["commanded_fk_x_m"] = float(placement.translation[0])
-        trace_row["commanded_fk_y_m"] = float(placement.translation[1])
-        trace_row["commanded_fk_z_m"] = float(placement.translation[2])
+        trace_row["commanded_fk_x_m"] = float(active_tcp.translation[0])
+        trace_row["commanded_fk_y_m"] = float(active_tcp.translation[1])
+        trace_row["commanded_fk_z_m"] = float(active_tcp.translation[2])
         for field in OBSERVED_FK_FIELDS + OBSERVED_JOINT_FIELDS + TRACE_ALIGNMENT_FIELDS:
             trace_row[field] = ""
         trace_row["cartesian_error_m"] = ""
@@ -576,7 +611,12 @@ def build_historical_fixed_z_trajectory(
         "max_commanded_position_error_m": max_commanded_error,
         "cartesian_reference_frame": reference_frame,
         "start_pose_base": pose_payload(start_pose),
-        "target_pose_base": {"frame": "base_to_tool0", "position_xyz_m": [float(value) for value in reference_xyz_values[0]]},
+        "start_active_tcp_pose_base": pose_payload(start_active_tcp, frame="base_to_active_tcp"),
+        "target_pose_base": {"frame": "base_to_active_tcp", "position_xyz_m": [float(value) for value in reference_xyz_values[0]]},
+        "target_tool0_pose_base": pose_payload(
+            tool0_pose_for_active_tcp_target(start_pose.rotation, reference_xyz_values[0], offset_tool0),
+            frame="base_to_tool0",
+        ),
         "reference_local_final_offset_xy_m": final_local_offset,
         "reference_final_base_xyz_m": [float(value) for value in reference_xyz_values[-1]],
         "commanded_net_displacement_xyz_m": [float(value) for value in net],
@@ -598,22 +638,156 @@ def fixed_z_start_xyz(reference_frame: dict[str, Any], fixed_z: float) -> np.nda
 
 def fixed_z_start_precheck(config: dict[str, Any], current_pose: pin.SE3, tolerance_m: float) -> dict[str, Any]:
     reference_frame = load_historical_reference_frame(config)
-    target_xyz = fixed_z_start_xyz(reference_frame, float(config["fixed_base_z_m"]))
-    error = float(np.linalg.norm(current_pose.translation - target_xyz))
+    offset_tool0 = tcp_offset_tool0(config)
+    current_active_tcp = active_tcp_from_tool0_pose(current_pose, offset_tool0)
+    target_xyz = fixed_z_start_xyz(reference_frame, fixed_z_target_active_tcp_z_m(config))
+    error = float(np.linalg.norm(current_active_tcp.translation - target_xyz))
     return {
         "ok": error <= tolerance_m,
         "position_error_m": error,
         "tolerance_m": tolerance_m,
-        "current_xyz_m": [float(value) for value in current_pose.translation],
+        "current_frame": "base_to_active_tcp",
+        "target_frame": "base_to_active_tcp",
+        "current_xyz_m": [float(value) for value in current_active_tcp.translation],
         "target_xyz_m": [float(value) for value in target_xyz],
     }
 
 
-def final_position_error(model_bundle: CalibratedModel, joint_state: JointState | None, target_xyz: np.ndarray) -> float | None:
+def final_position_error(
+    model_bundle: CalibratedModel,
+    joint_state: JointState | None,
+    target_xyz: np.ndarray,
+    offset_tool0: np.ndarray,
+) -> float | None:
     if joint_state is None or not all(name in joint_state.name for name in JOINT_NAMES):
         return None
     placement = fk_tool0_base(model_bundle, np.array(ordered_positions(joint_state), dtype=float))
-    return float(np.linalg.norm(placement.translation - target_xyz))
+    active_tcp = active_tcp_from_tool0_pose(placement, offset_tool0)
+    return float(np.linalg.norm(active_tcp.translation - target_xyz))
+
+
+def augment_trace_with_observed_active_tcp(
+    trace_rows: list[dict[str, Any]],
+    model_bundle: CalibratedModel,
+    joint_history: list[ObservedJointSample],
+    send_start: float,
+    anchor_positions: list[float],
+    offset_tool0: np.ndarray,
+    *,
+    max_sample_gap_s: float = DEFAULT_TRACE_MAX_SAMPLE_GAP_S,
+) -> dict[str, Any]:
+    observed = [
+        {
+            "t_rel_s": 0.0,
+            "header_stamp_s": None,
+            "positions": np.array(anchor_positions, dtype=float),
+            "source": "anchor",
+        }
+    ]
+    for sample in joint_history:
+        if sample.receive_monotonic_s < send_start:
+            continue
+        observed.append(
+            {
+                "t_rel_s": sample.receive_monotonic_s - send_start,
+                "header_stamp_s": sample.header_stamp_s,
+                "positions": np.array(sample.positions, dtype=float),
+                "source": "joint_state",
+            }
+        )
+    observed = _dedupe_observed_samples(sorted(observed, key=lambda sample: float(sample["t_rel_s"])))
+    if not observed:
+        return empty_trace_alignment("no_observed_samples")
+
+    previous_xyz: np.ndarray | None = None
+    previous_t: float | None = None
+    max_gap_s = 0.0
+    max_dt_to_row_s = 0.0
+    extrapolated_rows = 0
+    interpolated_rows = 0
+    exact_rows = 0
+    row0_anchor_error = math.nan
+    for row in trace_rows:
+        target_t = float(row["t_rel_s"])
+        sample = _interpolate_observed_sample(observed, target_t)
+        positions = sample["positions"]
+        placement = fk_tool0_base(model_bundle, positions)
+        active_tcp = active_tcp_from_tool0_pose(placement, offset_tool0)
+        xyz = active_tcp.translation.copy()
+        max_gap_s = max(max_gap_s, float(sample["gap_s"]))
+        max_dt_to_row_s = max(max_dt_to_row_s, float(sample["dt_to_row_s"]))
+        if str(sample["alignment_status"]).startswith("extrapolated"):
+            extrapolated_rows += 1
+        elif sample["alignment_status"] == "interpolated":
+            interpolated_rows += 1
+        elif sample["alignment_status"] in {"exact", "anchor"}:
+            exact_rows += 1
+        row["observed_fk_x_m"] = float(xyz[0])
+        row["observed_fk_y_m"] = float(xyz[1])
+        row["observed_fk_z_m"] = float(xyz[2])
+        for field, value in zip(OBSERVED_JOINT_FIELDS, positions):
+            row[field] = float(value)
+        row["observed_sample_t_rel_s"] = float(sample["t_rel_s"])
+        row["observed_sample_dt_to_row_s"] = float(sample["dt_to_row_s"])
+        row["observed_sample_gap_s"] = float(sample["gap_s"])
+        row["alignment_status"] = str(sample["alignment_status"])
+        commanded = np.array([float(row["commanded_fk_x_m"]), float(row["commanded_fk_y_m"]), float(row["commanded_fk_z_m"])])
+        row["cartesian_error_m"] = float(np.linalg.norm(xyz - commanded))
+        if int(row["row_index"]) == 0:
+            row0_anchor_error = float(row["cartesian_error_m"])
+        if previous_xyz is None or previous_t is None or target_t <= previous_t:
+            row["achieved_speed_m_s"] = 0.0
+        else:
+            row["achieved_speed_m_s"] = float(np.linalg.norm(xyz - previous_xyz) / (target_t - previous_t))
+        previous_xyz = xyz
+        previous_t = target_t
+    raw_after_send = max(0, len(observed) - 1)
+    trace_alignment_ok = (
+        raw_after_send >= 2
+        and extrapolated_rows == 0
+        and max_gap_s <= max_sample_gap_s
+        and math.isfinite(row0_anchor_error)
+        and row0_anchor_error <= 1e-9
+    )
+    return {
+        "trace_alignment_ok": trace_alignment_ok,
+        "observed_sample_count_raw": raw_after_send,
+        "observed_sample_count_with_anchor": len(observed),
+        "resampled_rows": len(trace_rows),
+        "exact_rows": exact_rows,
+        "interpolated_rows": interpolated_rows,
+        "extrapolated_rows": extrapolated_rows,
+        "max_interpolation_gap_s": max_gap_s,
+        "max_observed_dt_to_row_s": max_dt_to_row_s,
+        "row0_anchor_error_m": row0_anchor_error,
+        "trace_max_sample_gap_s": max_sample_gap_s,
+    }
+
+
+def tcp_offset_tool0(config: dict[str, Any] | None = None) -> np.ndarray:
+    if config is not None and "tcp_offset_tool0_m" in config:
+        values = np.array(config["tcp_offset_tool0_m"], dtype=float)
+        if values.shape == (3,):
+            return values
+    return DEFAULT_TCP_OFFSET_TOOL0_M.copy()
+
+
+def fixed_z_visual_air_gap_m(config: dict[str, Any]) -> float:
+    return float(config.get("visual_air_gap_above_fixed_z_m", 0.010))
+
+
+def fixed_z_target_active_tcp_z_m(config: dict[str, Any]) -> float:
+    if "target_active_tcp_z_m" in config:
+        return float(config["target_active_tcp_z_m"])
+    return float(config["fixed_base_z_m"]) + fixed_z_visual_air_gap_m(config)
+
+
+def active_tcp_from_tool0_pose(tool0_pose: pin.SE3, offset_tool0: np.ndarray) -> pin.SE3:
+    return pin.SE3(tool0_pose.rotation, tool0_pose.translation + tool0_pose.rotation @ offset_tool0)
+
+
+def tool0_pose_for_active_tcp_target(rotation_base_tool0: np.ndarray, active_tcp_xyz_base: np.ndarray, offset_tool0: np.ndarray) -> pin.SE3:
+    return pin.SE3(rotation_base_tool0, active_tcp_xyz_base - rotation_base_tool0 @ offset_tool0)
 
 
 def fixed_z_clearance_estimate(fixed_z: float) -> dict[str, Any]:
@@ -645,7 +819,8 @@ def cartesian_task_space_spec(config: dict[str, Any], metrics: dict[str, Any]) -
             "p_lateral_xy": frame["p_lateral_xy"],
             "origin_xy_m": frame["origin_xy_m"],
         },
-        "position_trajectory": "historical_step5a_cycloid_local_xy_mapped_to_base_xy_with_absolute_fixed_base_z",
+        "control_frame": "active_tcp",
+        "position_trajectory": "historical_step5a_cycloid_local_xy_mapped_to_base_xy_with_active_tcp_fixed_z_plus_10mm_air_gap",
         "velocity_profile": "cycloid_analytic_vxy_sampled_at_fixed_sample_period",
         "acceleration_profile_or_bound": {
             "mode": "bounded_by_legacy_trajectory_action_and_historical_tp_acceleration_limit",
@@ -667,6 +842,11 @@ def cartesian_task_space_spec(config: dict[str, Any], metrics: dict[str, Any]) -
             "safe_frame_xy_remapping": True,
             "calibration_hash": EXPECTED_CALIBRATION_HASH,
             "fixed_base_z_m": float(config["fixed_base_z_m"]),
+            "fixed_base_z_frame": config.get("fixed_base_z_frame", "historical_ur_actual_tcp_pose"),
+            "visual_air_gap_above_fixed_z_m": fixed_z_visual_air_gap_m(config),
+            "target_active_tcp_z_m": fixed_z_target_active_tcp_z_m(config),
+            "tcp_offset_tool0_m": [float(value) for value in tcp_offset_tool0(config)],
+            "tcp_offset_source": config.get("tcp_offset_source", "step5c_calibrated_kinematics_audit_20260613_003314"),
             "ik_warm_start": "previous_row_solution",
             "driver_lifecycle_workaround": "single_sustained_launch_with_activate_joint_controller_true_and_retry",
         },
@@ -709,9 +889,9 @@ def make_point(q: np.ndarray, t_rel_s: float) -> JointTrajectoryPoint:
     return point
 
 
-def pose_payload(pose: pin.SE3) -> dict[str, Any]:
+def pose_payload(pose: pin.SE3, *, frame: str = "base_to_tool0") -> dict[str, Any]:
     return {
-        "frame": "base_to_tool0",
+        "frame": frame,
         "position_xyz_m": [float(value) for value in pose.translation],
         "rotation_matrix_row_major": [float(value) for value in pose.rotation.reshape(-1)],
     }
@@ -798,10 +978,16 @@ def main(argv: list[str] | None = None) -> int:
         print(text, end="")
         return 0 if summary["ok"] else 2
     except Exception as exc:
+        trace_rows = getattr(node, "latest_trace_rows", [])
+        trace_fields = getattr(node, "latest_trace_fields", [])
+        if trace_rows and trace_fields:
+            write_trace(args.trace, trace_rows, trace_fields)
+        metrics = getattr(node, "latest_metrics", {})
         payload = {
             "ok": False,
             "error": f"{type(exc).__name__}: {exc}",
             "stage_id": config.get("stage_id", "step5a_historical_fixed_z_no_contact_v1"),
+            "stage_revision": config.get("stage_revision", "unknown"),
             "role": (
                 "step5a_live_fixed_z_historical_positioning_not_contact"
                 if args.mode == "position"
@@ -816,6 +1002,14 @@ def main(argv: list[str] | None = None) -> int:
             "failure_stage": getattr(node, "failure_stage", "unknown"),
             "trajectory_authority_entered": bool(getattr(node, "trajectory_authority_entered", False)),
             "force_source": "kunwei_force_monitor",
+            "fixed_base_z_m": float(config["fixed_base_z_m"]),
+            "fixed_base_z_frame": config.get("fixed_base_z_frame", "historical_ur_actual_tcp_pose"),
+            "visual_air_gap_above_fixed_z_m": fixed_z_visual_air_gap_m(config),
+            "target_active_tcp_z_m": fixed_z_target_active_tcp_z_m(config),
+            "target_pose_base": metrics.get("target_pose_base"),
+            "target_tool0_pose_base": metrics.get("target_tool0_pose_base"),
+            "trace_path": str(args.trace) if trace_rows else None,
+            "trace_rows": len(trace_rows),
         }
         text = json.dumps(_json_safe(payload), indent=2, sort_keys=True) + "\n"
         args.summary.parent.mkdir(parents=True, exist_ok=True)

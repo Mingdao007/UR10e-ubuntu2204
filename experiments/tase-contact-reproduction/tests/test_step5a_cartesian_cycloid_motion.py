@@ -39,6 +39,7 @@ from ur10e_example_controllers.step5a_historical_fixed_z_motion import (  # noqa
     build_positioning_trajectory,
     cartesian_task_space_spec,
     fixed_z_start_precheck,
+    fixed_z_target_active_tcp_z_m,
 )
 from ur10e_example_controllers.step5a_return_to_anchor_motion import (  # noqa: E402
     build_return_trajectory,
@@ -259,19 +260,32 @@ class Step5aCartesianCycloidMotionTest(unittest.TestCase):
         self.assertEqual(spec["reference_frame"]["local_x_axis"], "u_along_xy")
         self.assertEqual(spec["reference_frame"]["local_y_axis"], "p_lateral_xy")
         self.assertAlmostEqual(float(config["fixed_base_z_m"]), 0.029423891, places=12)
+        self.assertEqual(config["fixed_base_z_frame"], "historical_ur_actual_tcp_pose")
+        self.assertAlmostEqual(float(config["visual_air_gap_above_fixed_z_m"]), 0.010, places=12)
+        self.assertAlmostEqual(fixed_z_target_active_tcp_z_m(config), 0.039423891, places=12)
         self.assertAlmostEqual(float(config["amplitude_m"]), 0.015, places=12)
         self.assertAlmostEqual(float(config["final_phase_rad"]), 6.0, places=12)
         self.assertAlmostEqual(float(config["sample_period_s"]), 0.02, places=12)
         self.assertLessEqual(metrics["max_reference_speed_m_s"], float(config["velocity_cap_m_s"]))
         self.assertIn("reference_base_offset_x_m", trace_rows[0])
         self.assertIn("reference_base_x_m", trace_rows[0])
-        self.assertAlmostEqual(float(trace_rows[0]["reference_base_z_m"]), 0.029423891, places=12)
+        self.assertAlmostEqual(float(trace_rows[0]["reference_base_z_m"]), 0.039423891, places=12)
+        self.assertEqual(metrics["target_pose_base"]["frame"], "base_to_active_tcp")
+        self.assertEqual(metrics["target_tool0_pose_base"]["frame"], "base_to_tool0")
+        self.assertNotAlmostEqual(
+            metrics["target_tool0_pose_base"]["position_xyz_m"][2],
+            float(config["fixed_base_z_m"]),
+            places=3,
+        )
         self.assertAlmostEqual(metrics["reference_local_final_offset_xy_m"][0], 0.09419123247298389, places=12)
         self.assertEqual(spec["endpoint_semantics"], "non_returning_historical_step5a_endpoint")
         self.assertEqual(spec["timing_law"], "linear_time_phase")
         self.assertEqual(spec["acceleration_profile_or_bound"]["acceleration_bound_m_s2"], 0.300)
+        self.assertEqual(spec["control_frame"], "active_tcp")
         self.assertTrue(spec["bench_proven_corrections"]["safe_frame_xy_remapping"])
         self.assertEqual(spec["bench_proven_corrections"]["calibration_hash"], EXPECTED_CALIBRATION_HASH)
+        self.assertEqual(spec["bench_proven_corrections"]["fixed_base_z_frame"], "historical_ur_actual_tcp_pose")
+        self.assertAlmostEqual(spec["bench_proven_corrections"]["visual_air_gap_above_fixed_z_m"], 0.010, places=12)
 
     def test_historical_fixed_z_positioning_and_path_precheck_are_separate(self) -> None:
         model = build_calibrated_model()
@@ -291,14 +305,15 @@ class Step5aCartesianCycloidMotionTest(unittest.TestCase):
             config,
             model,
             high_start,
-            max_cartesian_speed_m_s=0.004,
+            max_cartesian_speed_m_s=0.020,
             sample_period_s=0.02,
             min_segment_duration_s=2.0,
         )
         self.assertGreater(len(points), 2)
-        self.assertEqual(trace_rows[-1]["segment"], "fixed_z_descent")
-        self.assertAlmostEqual(metrics["target_pose_base"]["position_xyz_m"][2], 0.029423891, places=12)
-        self.assertLessEqual(metrics["max_commanded_fk_speed_m_s"], 0.004 + 1e-12)
+        self.assertEqual(trace_rows[-1]["segment"], "active_tcp_fixed_z_clearance")
+        self.assertEqual(metrics["target_pose_base"]["frame"], "base_to_active_tcp")
+        self.assertAlmostEqual(metrics["target_pose_base"]["position_xyz_m"][2], 0.039423891, places=12)
+        self.assertLessEqual(metrics["max_commanded_fk_speed_m_s"], 0.020 + 1e-12)
 
     def test_current_failed_evidence_run_audits_as_gate_a_failed(self) -> None:
         run_dir = WORKSPACE / "experiments" / "tase-contact-reproduction" / "runs" / "no_contact_test_20260617_143540"

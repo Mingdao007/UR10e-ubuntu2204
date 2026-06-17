@@ -23,6 +23,47 @@ STEP5A_POSITION_TOLERANCE_M="${STEP5A_POSITION_TOLERANCE_M:-0.003}"
 mkdir -p "${RUN_DIR}"
 echo "run_dir=${RUN_DIR}"
 
+POSITION_GATE_MESSAGE="$(python3 - "${RUN_ROOT}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+run_root = Path(sys.argv[1])
+runs = sorted(run_root.glob("step5a_historical_fixed_z_position_*"))
+if not runs:
+    print("NO_POSITION_RUN")
+    raise SystemExit(2)
+latest = runs[-1]
+summary_path = latest / "step5a_historical_fixed_z_position.json"
+try:
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+except Exception as exc:
+    print(f"BAD_POSITION_SUMMARY {summary_path}: {exc}")
+    raise SystemExit(2)
+if (
+    summary.get("ok") is True
+    and summary.get("stage_revision") == "active_tcp_10mm_clearance_v2"
+    and summary.get("motion_kind") == "fixed_z_start_positioning"
+):
+    print(f"POSITION_READY {latest}")
+    raise SystemExit(0)
+print(
+    "POSITION_NOT_READY "
+    f"{latest} ok={summary.get('ok')} "
+    f"stage_revision={summary.get('stage_revision')} "
+    f"error={summary.get('error')}"
+)
+raise SystemExit(2)
+PY
+)" || {
+  echo "historical fixed-Z path is disabled until a corrected position run succeeds."
+  echo "${POSITION_GATE_MESSAGE}"
+  echo "Run first: step5a_live_historical_5a_position.sh"
+  echo "Only continue to this test after you visually confirm about 10 mm air gap and the position summary has ok=true."
+  exit 2
+}
+echo "${POSITION_GATE_MESSAGE}"
+
 source_setup() {
   set +u
   source "$1"
