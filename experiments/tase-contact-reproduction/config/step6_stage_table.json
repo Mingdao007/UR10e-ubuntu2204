@@ -13,7 +13,7 @@
       "frame": "config/step6_eight_safe_frame.json",
       "contact": false,
       "bridge": false,
-      "fixed_base_z_m": 0.029423891,
+      "fixed_base_z_m": 0.03031107916254392,
       "duration_s": 30.0,
       "path": {
         "along_amplitude_m": 0.04,

@@ -15,6 +15,23 @@ retained contact evidence: it completed the runtime/state-machine contract, but
 its 4 mm/s path cap and 6 mm/s total cap were infeasible for the Step6 8-shaped
 reference.
 
+For Step6a and Step6b ROS2 migration, historical replay, and live-gated refactor
+work, the authoritative Local Control textbook is
+`config/local_control_textbook_spec.json` plus `config/step6_stage_table.json`,
+`config/step6_eight_safe_frame.json`,
+`programs/step6/step6a_eight_no_contact_v1.script`,
+`programs/step6/step6b_contact_eight_baseline_v2.script`, retained Step6b v1
+provenance, and relevant Auditor reports under `/home/andy/codex_handoffs/`.
+Implementor handoffs and completion reports must first list these textbook
+sources under `Textbook Sources Inspected`, then include a
+`Local Control Textbook Alignment` table that marks each field as preserved,
+changed with reason, or out of scope. Step6a no-contact fixed-Z/cadence/caps and
+Step6b contact scaffold, 5 N target, filtered-live normal correction, bridge
+limits, feasibility correction, guards, and operator-only recovery surfaces must
+be explicit classifications. This textbook gate is offline evidence only; it does
+not authorize bridge start, TP Play, upload, live motion, contact, payload/TCP
+writes, safety writes, or `zero_ftsensor()`.
+
 ## Waypoint Calibration
 
 Step6 starts with five manually positioned, read-only RTDE snapshots:

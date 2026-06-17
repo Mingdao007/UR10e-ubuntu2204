@@ -1,0 +1,344 @@
+{
+  "schema_version": 1,
+  "status": "authoritative_local_control_textbook_index_for_step5_step6_migration",
+  "scope": [
+    "Step5a no-contact cycloid",
+    "Step5b contact cycloid",
+    "Step6a no-contact 8-shaped path",
+    "Step6b contact 8-shaped path"
+  ],
+  "user_correction": "local control \u65f6\u671f\u7684 specification \u4ee5\u53ca correction \u662f\u6700\u91cd\u8981\u7684\u6559\u79d1\u4e66",
+  "global_boundaries": {
+    "offline_only_for_this_gate": true,
+    "live_robot_command_authorized": false,
+    "contact_motion_authorized": false,
+    "zero_ftsensor_authorized": false,
+    "payload_tcp_safety_writes_authorized": false,
+    "allowed_alignment_labels": [
+      "preserved",
+      "changed_with_reason",
+      "out_of_scope"
+    ]
+  },
+  "handoff_requirements": {
+    "before_implementation": [
+      "List Textbook Sources Inspected before changing any UR10e migration/refactor/live-gated script in this scope.",
+      "Include source scripts, stage table, safe-frame/correction artifacts, stage-specific spec artifacts, and relevant Auditor reports."
+    ],
+    "completion": [
+      "Include a Local Control Textbook Alignment table.",
+      "Classify every material field as preserved, changed_with_reason, or out_of_scope.",
+      "State no-live/contact authorization status."
+    ]
+  },
+  "stage_specs": {
+    "step5a_cycloid_no_contact_v3": {
+      "stage": "Step5a",
+      "status": "active_local_control_baseline",
+      "contact": false,
+      "bridge": false,
+      "specific_spec_path": "experiments/tase-contact-reproduction/config/step5a_local_control_spec.json",
+      "source_scripts": {
+        "active_baseline": {
+          "path": "experiments/tase-contact-reproduction/programs/step5/step5a_cycloid_no_contact_v3.script",
+          "version_stamp": "STEP5A_CYCLOID_NO_CONTACT_V3"
+        },
+        "retired_provenance": [
+          {
+            "path": "experiments/tase-contact-reproduction/programs/step5/step5a_cycloid_no_contact_v1.script",
+            "status": "retired_provenance"
+          },
+          {
+            "path": "experiments/tase-contact-reproduction/programs/step5/step5a_cycloid_no_contact_v2.script",
+            "status": "retired_provenance"
+          }
+        ]
+      },
+      "stage_table": "experiments/tase-contact-reproduction/config/step5_stage_table.json",
+      "safe_frame": "experiments/tase-contact-reproduction/config/step5_safe_frame.json",
+      "flow_doc": "experiments/tase-contact-reproduction/STEP5_FLOW.md",
+      "task_space": {
+        "shape": "cycloid",
+        "formula": "x=A*(theta-sin(theta)); y=A*(1-cos(theta))",
+        "amplitude_m": 0.015,
+        "theta_final_rad": 6.0,
+        "duration_s_active_v3": 22.0,
+        "frame_policy": "TP v3 affine taught-frame map is the active Local Control baseline; ROS2 safe-frame rotation is allowed only as a deliberate deviation with reason.",
+        "fixed_z_policy": "clearance/fixed-Z policy must be preserved or explicitly deviated."
+      },
+      "cadence_and_caps": {
+        "entry": "movel",
+        "loop": "speedl",
+        "warmup_hold_s": 0.008,
+        "fast_hold_s": 0.001,
+        "command_velocity_clamp_m_s": 0.009,
+        "clamp_semantics": "0.009 m/s is TP v3 command clamp provenance, not a ROS2 achieved-speed hard gate."
+      },
+      "endpoint_and_return": {
+        "tp_v3_return_semantics": "non_returning",
+        "ros2_combo_return_semantics": "operator_recovery_only",
+        "ros2_return_target_source": "step5a_historical_fixed_z_position.json pre-cycle start_positions"
+      },
+      "required_textbook_sources": [
+        "experiments/tase-contact-reproduction/config/local_control_textbook_spec.json",
+        "experiments/tase-contact-reproduction/config/step5a_local_control_spec.json",
+        "experiments/tase-contact-reproduction/programs/step5/step5a_cycloid_no_contact_v3.script",
+        "experiments/tase-contact-reproduction/config/step5_safe_frame.json",
+        "experiments/tase-contact-reproduction/config/step5_stage_table.json",
+        "/home/andy/codex_handoffs/"
+      ]
+    },
+    "step5_contact_cycloid_baseline_v1": {
+      "stage": "Step5b",
+      "status": "retained_contact_baseline_and_textbook_for_migration",
+      "contact": true,
+      "bridge": true,
+      "source_scripts": {
+        "active_baseline": {
+          "path": "experiments/tase-contact-reproduction/programs/step5/step5b_contact_cycloid_baseline_v1.script",
+          "package_text_path": "experiments/tase-contact-reproduction/programs/step5/step5b_contact_cycloid_baseline_v1.txt",
+          "controller_path": "/programs/andyl/kunwei/step5/step5b_contact_cycloid_baseline_v1.urp",
+          "version_stamp": "2026-06-12T0821HKT_STEP5B_CONTACT_CYCLOID_BASELINE_V1"
+        }
+      },
+      "stage_table": "experiments/tase-contact-reproduction/config/step5_stage_table.json",
+      "safe_frame": "experiments/tase-contact-reproduction/config/step5_safe_frame.json",
+      "flow_doc": "experiments/tase-contact-reproduction/STEP5_FLOW.md",
+      "task_space": {
+        "shape": "cycloid",
+        "formula": "x=0.015*(0.1t-sin(0.1t)); y=0.015*(1-cos(0.1t))",
+        "amplitude_m": 0.015,
+        "omega_rad_s": 0.1,
+        "duration_s": 60.0,
+        "entry_xy_m": [
+          0.487795411,
+          0.129326793
+        ],
+        "safe_frame_policy": "NO_SCALE rotation+translation from config/step5_safe_frame.json",
+        "x_guard": {
+          "guard_line_m": 0.488878434,
+          "path_max_x_m": 0.487795411
+        },
+        "target_rotvec": [
+          -3.044172198,
+          -0.130573165,
+          -0.202188631
+        ]
+      },
+      "contact_policy": {
+        "scaffold": [
+          "v31 contact search",
+          "first-contact normal latch",
+          "20 mm lift",
+          "25.2 attitude correction",
+          "25.3 line-entry gate",
+          "25.0 bridge-owned contact cycloid"
+        ],
+        "target_force_n": 5.0,
+        "first_contact_z_evidence": {
+          "v13_jump_z_m": 0.008044839,
+          "v16_cross_check_z_m": 0.007996174
+        },
+        "normal_filter": "filtered_live",
+        "normal_filter_alpha": 0.35,
+        "normal_filter_min_force_n": 2.0
+      },
+      "bridge_contract": {
+        "profile": "step5b_v1",
+        "path_shape": "cycloid",
+        "tp_role": "executor_and_guard_only",
+        "reference_owner": "bridge",
+        "register_contract": "TP consumes bridge registers 37..44 as speedl command.",
+        "velocity_composition": "desired_velocity + path_p_gain*(desired-actual), then normal projection and force-loop composition"
+      },
+      "guards": {
+        "raw_normal_guard_n": 50.0,
+        "force_norm_guard_n": 60.0,
+        "torque_guard_nm": 3.0
+      },
+      "operator_boundaries": {
+        "no_zero_ftsensor": true,
+        "no_tcp_payload_write": true,
+        "no_safety_write": true
+      },
+      "required_textbook_sources": [
+        "experiments/tase-contact-reproduction/config/local_control_textbook_spec.json",
+        "experiments/tase-contact-reproduction/programs/step5/step5b_contact_cycloid_baseline_v1.script",
+        "experiments/tase-contact-reproduction/programs/step5/step5b_contact_cycloid_baseline_v1.txt",
+        "experiments/tase-contact-reproduction/config/step5_safe_frame.json",
+        "experiments/tase-contact-reproduction/config/step5_stage_table.json",
+        "/home/andy/codex_handoffs/"
+      ]
+    },
+    "step6a_eight_no_contact_v1": {
+      "stage": "Step6a",
+      "status": "retained_no_contact_rehearsal_textbook",
+      "contact": false,
+      "bridge": false,
+      "source_scripts": {
+        "active_baseline": {
+          "path": "experiments/tase-contact-reproduction/programs/step6/step6a_eight_no_contact_v1.script",
+          "controller_path": "/programs/andyl/kunwei/step6/step6a_eight_no_contact_v1.urp",
+          "version_stamp": "2026-06-12T2204HKT_STEP6A_EIGHT_NO_CONTACT_V1"
+        }
+      },
+      "stage_table": "experiments/tase-contact-reproduction/config/step6_stage_table.json",
+      "safe_frame": "experiments/tase-contact-reproduction/config/step6_eight_safe_frame.json",
+      "flow_doc": "experiments/tase-contact-reproduction/STEP6_FLOW.md",
+      "task_space": {
+        "shape": "eight",
+        "formula": "along=0.04*sin(0.2t); lateral=0.01*sin(0.4t)",
+        "along_amplitude_m": 0.04,
+        "lateral_amplitude_m": 0.01,
+        "omega_rad_s": 0.2,
+        "duration_s": 30.0,
+        "entry_xy_m": [
+          0.462055182,
+          0.177882596
+        ],
+        "fixed_base_z_m": 0.03031107916254392,
+        "safe_frame_policy": "five-point safe frame, no-scale rigid rotation+translation",
+        "max_residual_mm": 5.919813095790345,
+        "x_guard": {
+          "guard_line_m": 0.488878434,
+          "path_max_x_m": 0.472193783
+        }
+      },
+      "cadence_and_caps": {
+        "entry": "movel",
+        "loop": "speedl",
+        "path_clock": "get_steptime()",
+        "warmup_hold_s": 0.008,
+        "fast_hold_s": 0.001,
+        "fast_after_s": 0.1,
+        "entry_accel_m_s2": 0.03,
+        "entry_speed_m_s": 0.02,
+        "speedl_accel_m_s2": 0.3,
+        "xy_gain": 2.0,
+        "z_gain": 2.0,
+        "correction_cap_m": 0.003,
+        "velocity_cap_m_s": 0.009
+      },
+      "operator_boundaries": {
+        "no_contact": true,
+        "no_force": true,
+        "no_search": true,
+        "no_bridge": true,
+        "no_zero_ftsensor": true,
+        "no_tcp_payload_write": true
+      },
+      "required_textbook_sources": [
+        "experiments/tase-contact-reproduction/config/local_control_textbook_spec.json",
+        "experiments/tase-contact-reproduction/programs/step6/step6a_eight_no_contact_v1.script",
+        "experiments/tase-contact-reproduction/config/step6_eight_safe_frame.json",
+        "experiments/tase-contact-reproduction/config/step6_stage_table.json",
+        "/home/andy/codex_handoffs/"
+      ]
+    },
+    "step6_contact_eight_baseline_v2": {
+      "stage": "Step6b",
+      "status": "active_contact_baseline",
+      "contact": true,
+      "bridge": true,
+      "source_scripts": {
+        "active_baseline": {
+          "path": "experiments/tase-contact-reproduction/programs/step6/step6b_contact_eight_baseline_v2.script",
+          "package_text_path": "experiments/tase-contact-reproduction/programs/step6/step6b_contact_eight_baseline_v2.txt",
+          "controller_path": "/programs/andyl/kunwei/step6/step6b_contact_eight_baseline_v2.urp",
+          "version_stamp": "2026-06-12T2256HKT_STEP6B_CONTACT_EIGHT_BASELINE_V2"
+        },
+        "retired_provenance": [
+          {
+            "path": "experiments/tase-contact-reproduction/programs/step6/step6b_contact_eight_baseline_v1.script",
+            "status": "retained_contact_evidence",
+            "reason": "Completed runtime/state-machine contract but failed Step6 path feasibility with 4/6 mm/s caps."
+          }
+        ]
+      },
+      "stage_table": "experiments/tase-contact-reproduction/config/step6_stage_table.json",
+      "safe_frame": "experiments/tase-contact-reproduction/config/step6_eight_safe_frame.json",
+      "flow_doc": "experiments/tase-contact-reproduction/STEP6_FLOW.md",
+      "task_space": {
+        "shape": "eight",
+        "formula": "along=0.04*sin(0.2t); lateral=0.01*sin(0.4t)",
+        "along_amplitude_m": 0.04,
+        "lateral_amplitude_m": 0.01,
+        "omega_rad_s": 0.2,
+        "duration_s": 30.0,
+        "entry_xy_m": [
+          0.462055182,
+          0.177882596
+        ],
+        "safe_frame_policy": "five-point safe frame, no-scale rigid rotation+translation",
+        "max_residual_mm": 5.919813095790345,
+        "x_guard": {
+          "guard_line_m": 0.488878434,
+          "path_max_x_m": 0.472193783
+        },
+        "target_rotvec": [
+          -3.044172198,
+          -0.130573165,
+          -0.202188631
+        ]
+      },
+      "contact_policy": {
+        "scaffold": [
+          "v31 contact search",
+          "first-contact normal latch",
+          "20 mm lift",
+          "25.2 attitude correction",
+          "25.3 line-entry gate",
+          "25.0 bridge-owned contact eight path"
+        ],
+        "target_force_n": 5.0,
+        "first_contact_z_evidence": {
+          "v13_jump_z_m": 0.008044839,
+          "v16_cross_check_z_m": 0.007996174
+        },
+        "normal_filter": "filtered_live",
+        "normal_filter_alpha": 0.35,
+        "normal_filter_min_force_n": 2.0
+      },
+      "bridge_contract": {
+        "profile": "step6b_v2",
+        "path_shape": "eight",
+        "tp_role": "executor_and_guard_only",
+        "reference_owner": "bridge",
+        "velocity_composition": "desired_velocity + path_p_gain*(desired-actual), then normal projection and force-loop composition",
+        "motion_limit_m_s": 0.015,
+        "total_linear_limit_m_s": 0.015,
+        "normal_velocity_limit_m_s": 0.003,
+        "angular_limit_rad_s": 0.06
+      },
+      "offline_feasibility": {
+        "reference_max_speed_m_s": 0.00894427191,
+        "total_with_3mm_normal_m_s": 0.00943398113,
+        "xy_span_mm": [
+          20.279,
+          79.999
+        ],
+        "angular_capacity_rad": 0.48,
+        "angular_required_rad": 0.471239
+      },
+      "guards": {
+        "raw_normal_guard_n": 50.0,
+        "force_norm_guard_n": 60.0,
+        "torque_guard_nm": 3.0
+      },
+      "operator_boundaries": {
+        "no_zero_ftsensor": true,
+        "no_tcp_payload_write": true,
+        "no_safety_write": true
+      },
+      "required_textbook_sources": [
+        "experiments/tase-contact-reproduction/config/local_control_textbook_spec.json",
+        "experiments/tase-contact-reproduction/programs/step6/step6a_eight_no_contact_v1.script",
+        "experiments/tase-contact-reproduction/programs/step6/step6b_contact_eight_baseline_v2.script",
+        "experiments/tase-contact-reproduction/programs/step6/step6b_contact_eight_baseline_v2.txt",
+        "experiments/tase-contact-reproduction/config/step6_eight_safe_frame.json",
+        "experiments/tase-contact-reproduction/config/step6_stage_table.json",
+        "/home/andy/codex_handoffs/"
+      ]
+    }
+  }
+}
