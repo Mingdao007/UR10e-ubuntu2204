@@ -47,6 +47,13 @@ reference amplitude is therefore reduced from `0.015 m` to `0.010 m` while
 keeping 1101 rows, 22 s duration, and final phase 6.0, to give the live
 controller enough speed margin without relaxing Gate A.
 
+Operator observation after `151339` correctly flagged the ROS2 live Cartesian
+path as using the wrong XY frame. The shadow `desired_x_m/desired_y_m` are
+paper/local Step5 coordinates; the live IK path must transform them through
+`config/step5_safe_frame.json` (`u_along_xy`, `p_lateral_xy`) before applying a
+base-frame offset from the current anchor. Directly applying local x/y as
+base x/y was wrong and made local-x motion appear as the wrong base axis.
+
 Return-to-anchor is a separate live utility, not Step5a acceptance:
 `step5a_live_return_to_anchor.sh <source_run_dir>` reads the source run's
 recorded `start_positions`, starts the same headless driver readiness and

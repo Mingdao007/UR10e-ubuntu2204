@@ -41,11 +41,13 @@ JOINT_NAMES = [
 EXPECTED_CALIBRATION_HASH = "calib_7367377276742883610"
 DEFAULT_CALIBRATION_YAML = WORKSPACE_ROOT / "src" / "ur10e_bringup" / "config" / "ur10e_calibration.yaml"
 DEFAULT_XACRO_PATH = Path("/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro")
+DEFAULT_STEP5_SAFE_FRAME = WORKSPACE_ROOT / "experiments" / "tase-contact-reproduction" / "config" / "step5_safe_frame.json"
 DEFAULT_GATE_A_POSITION_ERROR_LIMIT_M = 0.005
 DEFAULT_TRACE_MAX_SAMPLE_GAP_S = 0.08
 DEFAULT_JOINT_HISTORY_MAX_SAMPLES = 50000
 
 COMMAND_FIELDS = [f"command_{name}_rad" for name in JOINT_NAMES]
+BASE_OFFSET_FIELDS = ["reference_base_offset_x_m", "reference_base_offset_y_m", "reference_base_offset_z_m"]
 COMMAND_FK_FIELDS = ["commanded_fk_x_m", "commanded_fk_y_m", "commanded_fk_z_m"]
 OBSERVED_FK_FIELDS = ["observed_fk_x_m", "observed_fk_y_m", "observed_fk_z_m"]
 OBSERVED_JOINT_FIELDS = [f"observed_{name}_rad" for name in JOINT_NAMES]
@@ -57,6 +59,7 @@ TRACE_ALIGNMENT_FIELDS = [
 ]
 LIVE_TRACE_FIELDS = (
     TRACE_FIELDS
+    + BASE_OFFSET_FIELDS
     + COMMAND_FIELDS
     + COMMAND_FK_FIELDS
     + OBSERVED_FK_FIELDS
@@ -350,6 +353,8 @@ class Step5aCartesianCycloidMotion(Node):
             "max_commanded_fk_speed_m_s": metrics["max_commanded_fk_speed_m_s"],
             "max_achieved_speed_m_s": max(achieved_speeds) if achieved_speeds else math.nan,
             "max_cartesian_position_error_m": max(observed_errors) if observed_errors else metrics["max_commanded_position_error_m"],
+            "cartesian_reference_frame": metrics["cartesian_reference_frame"],
+            "reference_local_final_offset_xy_m": metrics["reference_local_final_offset_xy_m"],
             "reference_final_offset_xyz_m": metrics["reference_final_offset_xyz_m"],
             "reference_returns_to_anchor": metrics["reference_returns_to_anchor"],
             "commanded_net_displacement_xyz_m": metrics["commanded_net_displacement_xyz_m"],
@@ -406,15 +411,22 @@ def build_cartesian_cycloid_trajectory(
 ) -> tuple[list[JointTrajectoryPoint], list[dict[str, Any]], dict[str, Any]]:
     rows = _iter_reference_rows(config)
     dt = float(config["sample_period_s"])
+    reference_frame = load_step5_safe_frame_reference(Path(config.get("safe_frame_path", DEFAULT_STEP5_SAFE_FRAME)))
     q = np.array(start_positions, dtype=float)
     anchor = fk_tool0_base(model_bundle, q)
     points: list[JointTrajectoryPoint] = []
     trace_rows: list[dict[str, Any]] = []
     commanded_positions: list[np.ndarray] = []
     commanded_xyz: list[np.ndarray] = []
+    reference_base_offsets: list[np.ndarray] = []
     max_commanded_error = 0.0
     for row in rows:
-        target = pin.SE3(anchor.rotation, anchor.translation + np.array([float(row["desired_x_m"]), float(row["desired_y_m"]), 0.0]))
+        base_offset = step5_local_offset_to_base(
+            reference_frame,
+            float(row["desired_x_m"]),
+            float(row["desired_y_m"]),
+        )
+        target = pin.SE3(anchor.rotation, anchor.translation + base_offset)
         q, error_norm = solve_tool0_ik(
             model_bundle,
             q,
@@ -427,6 +439,7 @@ def build_cartesian_cycloid_trajectory(
         commanded_positions.append(q.copy())
         placement = fk_tool0_base(model_bundle, q)
         commanded_xyz.append(placement.translation.copy())
+        reference_base_offsets.append(base_offset.copy())
 
         point = JointTrajectoryPoint()
         point.positions = [float(value) for value in q]
@@ -440,6 +453,9 @@ def build_cartesian_cycloid_trajectory(
 
         trace_row = dict(row)
         trace_row["cmd_enabled"] = True
+        trace_row["reference_base_offset_x_m"] = float(base_offset[0])
+        trace_row["reference_base_offset_y_m"] = float(base_offset[1])
+        trace_row["reference_base_offset_z_m"] = float(base_offset[2])
         for name, value in zip(COMMAND_FIELDS, q):
             trace_row[name] = float(value)
         trace_row["commanded_fk_x_m"] = float(placement.translation[0])
@@ -462,18 +478,17 @@ def build_cartesian_cycloid_trajectory(
     commanded_speeds = [
         float(np.linalg.norm(commanded_xyz[index] - commanded_xyz[index - 1]) / dt) for index in range(1, len(commanded_xyz))
     ]
-    final_reference_offset = np.array(
-        [
-            float(rows[-1]["desired_x_m"]) if rows else 0.0,
-            float(rows[-1]["desired_y_m"]) if rows else 0.0,
-            0.0,
-        ],
-        dtype=float,
-    )
+    final_reference_offset = reference_base_offsets[-1] if reference_base_offsets else np.zeros(3)
+    final_local_offset = [
+        float(rows[-1]["desired_x_m"]) if rows else 0.0,
+        float(rows[-1]["desired_y_m"]) if rows else 0.0,
+    ]
     commanded_net_displacement = commanded_xyz[-1] - commanded_xyz[0] if len(commanded_xyz) >= 2 else np.zeros(3)
     metrics = {
         "max_commanded_fk_speed_m_s": max(commanded_speeds) if commanded_speeds else 0.0,
         "max_commanded_position_error_m": max_commanded_error,
+        "cartesian_reference_frame": reference_frame,
+        "reference_local_final_offset_xy_m": final_local_offset,
         "reference_final_offset_xyz_m": [float(value) for value in final_reference_offset],
         "reference_returns_to_anchor": bool(np.linalg.norm(final_reference_offset) <= 1e-6),
         "commanded_net_displacement_xyz_m": [float(value) for value in commanded_net_displacement],
@@ -526,6 +541,36 @@ def fk_tool0_base(model_bundle: CalibratedModel, q: np.ndarray) -> pin.SE3:
     base = model_bundle.data.oMf[model_bundle.base_frame_id]
     tool0 = model_bundle.data.oMf[model_bundle.tool0_frame_id]
     return base.inverse() * tool0
+
+
+def load_step5_safe_frame_reference(path: Path) -> dict[str, Any]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    basis = payload["basis"]
+    u_along = [float(value) for value in basis["u_along_xy"]]
+    p_lateral = [float(value) for value in basis["p_lateral_xy"]]
+    return {
+        "mode": "step5_safe_frame_local_xy_to_base_xy_offset",
+        "safe_frame_path": str(path),
+        "local_x_axis": "u_along_xy",
+        "local_y_axis": "p_lateral_xy",
+        "u_along_xy": u_along,
+        "p_lateral_xy": p_lateral,
+        "origin_xy_m": [float(value) for value in basis["origin_xy_m"]],
+        "rotation_deg": float(basis.get("rotation_deg", math.degrees(math.atan2(u_along[1], u_along[0])))),
+    }
+
+
+def step5_local_offset_to_base(reference_frame: dict[str, Any], local_x_m: float, local_y_m: float) -> np.ndarray:
+    u_along = reference_frame["u_along_xy"]
+    p_lateral = reference_frame["p_lateral_xy"]
+    return np.array(
+        [
+            local_x_m * float(u_along[0]) + local_y_m * float(p_lateral[0]),
+            local_x_m * float(u_along[1]) + local_y_m * float(p_lateral[1]),
+            0.0,
+        ],
+        dtype=float,
+    )
 
 
 def augment_trace_with_observed_fk(

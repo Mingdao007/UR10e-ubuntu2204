@@ -167,8 +167,11 @@ class Step5aCartesianCycloidMotionTest(unittest.TestCase):
         _, _, metrics = build_cartesian_cycloid_trajectory(config, model, start)
 
         self.assertFalse(metrics["reference_returns_to_anchor"])
-        self.assertAlmostEqual(metrics["reference_final_offset_xyz_m"][0], 0.06279415498198926, places=12)
-        self.assertAlmostEqual(metrics["reference_final_offset_xyz_m"][1], 0.00039829713349634025, places=12)
+        self.assertEqual(metrics["cartesian_reference_frame"]["mode"], "step5_safe_frame_local_xy_to_base_xy_offset")
+        self.assertAlmostEqual(metrics["reference_local_final_offset_xy_m"][0], 0.06279415498198926, places=12)
+        self.assertAlmostEqual(metrics["reference_local_final_offset_xy_m"][1], 0.00039829713349634025, places=12)
+        self.assertAlmostEqual(metrics["reference_final_offset_xyz_m"][0], -0.0010755492808608481, places=12)
+        self.assertAlmostEqual(metrics["reference_final_offset_xyz_m"][1], 0.06278620656046259, places=12)
         self.assertGreater(metrics["commanded_net_displacement_norm_m"], 0.06)
         self.assertLess(metrics["commanded_net_displacement_norm_m"], 0.07)
 
