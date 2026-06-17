@@ -21,11 +21,12 @@ KUNWEI_MONITOR_WINDOW_S="${KUNWEI_MONITOR_WINDOW_S:-0.5}"
 KUNWEI_MAX_FORCE_DELTA_N="${KUNWEI_MAX_FORCE_DELTA_N:-8.0}"
 
 if [[ -z "${SOURCE_RUN_DIR}" ]]; then
-  echo "usage: step5a_live_return_to_anchor.sh /path/to/no_contact_test_run_dir" >&2
+  echo "usage: step5a_live_return_to_anchor.sh /path/to/step5a_source_run_dir" >&2
   exit 64
 fi
-if [[ ! -f "${SOURCE_RUN_DIR}/step5a_cartesian_cycloid_motion.json" ]]; then
-  echo "source run is missing step5a_cartesian_cycloid_motion.json: ${SOURCE_RUN_DIR}" >&2
+if [[ ! -f "${SOURCE_RUN_DIR}/step5a_cartesian_cycloid_motion.json" && ! -f "${SOURCE_RUN_DIR}/step5a_historical_fixed_z.json" ]]; then
+  echo "source run is missing a supported Step5a summary: ${SOURCE_RUN_DIR}" >&2
+  echo "expected one of: step5a_cartesian_cycloid_motion.json, step5a_historical_fixed_z.json" >&2
   exit 64
 fi
 

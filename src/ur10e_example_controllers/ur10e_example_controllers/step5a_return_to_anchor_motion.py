@@ -32,6 +32,10 @@ from .step5a_cartesian_cycloid_motion import (
 
 
 DEFAULT_SOURCE_SUMMARY = "step5a_cartesian_cycloid_motion.json"
+SOURCE_SUMMARY_CANDIDATES = (
+    DEFAULT_SOURCE_SUMMARY,
+    "step5a_historical_fixed_z.json",
+)
 
 
 class Step5aReturnToAnchorMotion(Node):
@@ -210,7 +214,7 @@ class Step5aReturnToAnchorMotion(Node):
             "role": "step5a_live_return_to_anchor_not_gate_a_acceptance",
             "motion_kind": "joint_return_to_recorded_start_positions",
             "source_run_dir": str(self.args.source_run_dir),
-            "source_summary_path": str((self.args.source_run_dir / DEFAULT_SOURCE_SUMMARY).resolve()),
+            "source_summary_path": source.get("_source_summary_path", str((self.args.source_run_dir / DEFAULT_SOURCE_SUMMARY).resolve())),
             "source_stage_id": source.get("stage_id"),
             "source_role": source.get("role"),
             "source_motion_kind": source.get("motion_kind"),
@@ -337,10 +341,14 @@ def _sample_return(
 
 def load_source_summary(source_run_dir: Path) -> dict[str, Any]:
     source_run_dir = source_run_dir.expanduser().resolve()
-    path = source_run_dir / DEFAULT_SOURCE_SUMMARY
-    if not path.exists():
-        raise FileNotFoundError(f"source Step5a summary is missing: {path}")
-    return json.loads(path.read_text(encoding="utf-8"))
+    for name in SOURCE_SUMMARY_CANDIDATES:
+        path = source_run_dir / name
+        if path.exists():
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload["_source_summary_path"] = str(path)
+            return payload
+    expected = ", ".join(SOURCE_SUMMARY_CANDIDATES)
+    raise FileNotFoundError(f"source Step5a summary is missing under {source_run_dir}; expected one of: {expected}")
 
 
 def source_start_positions(source: dict[str, Any]) -> list[float]:

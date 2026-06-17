@@ -4,10 +4,12 @@
 from __future__ import annotations
 
 import math
+import json
 import sys
 import unittest
 from copy import deepcopy
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 
 import numpy as np
@@ -46,6 +48,7 @@ from ur10e_example_controllers.step5a_historical_fixed_z_motion import (  # noqa
 )
 from ur10e_example_controllers.step5a_return_to_anchor_motion import (  # noqa: E402
     build_return_trajectory,
+    load_source_summary,
     source_start_positions,
 )
 
@@ -242,6 +245,25 @@ class Step5aCartesianCycloidMotionTest(unittest.TestCase):
         self.assertGreaterEqual(metrics["duration_s"], 2.0)
         self.assertLessEqual(metrics["max_commanded_fk_speed_m_s"], 0.004 + 1e-12)
         self.assertEqual(len(points), len(trace_rows))
+
+    def test_return_to_anchor_accepts_historical_fixed_z_source_summary(self) -> None:
+        source = {
+            "motion_kind": "historical_fixed_z_cartesian_cycloid",
+            "start_positions": {
+                name: value
+                for name, value in zip(JOINT_NAMES, [0.1, -1.2, 1.3, -0.8, 1.5, -1.4])
+            },
+        }
+        with TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            summary_path = run_dir / "step5a_historical_fixed_z.json"
+            summary_path.write_text(json.dumps(source), encoding="utf-8")
+
+            loaded = load_source_summary(run_dir)
+
+        self.assertEqual(loaded["motion_kind"], "historical_fixed_z_cartesian_cycloid")
+        self.assertTrue(loaded["_source_summary_path"].endswith("step5a_historical_fixed_z.json"))
+        self.assertEqual(source_start_positions(loaded), [0.1, -1.2, 1.3, -0.8, 1.5, -1.4])
 
     def test_historical_fixed_z_path_preserves_full_cartesian_task_spec(self) -> None:
         model = build_calibrated_model()
