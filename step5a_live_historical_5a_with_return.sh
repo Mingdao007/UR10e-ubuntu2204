@@ -25,7 +25,7 @@ RETURN_KUNWEI_MAX_FORCE_DELTA_N="${RETURN_KUNWEI_MAX_FORCE_DELTA_N:-8.0}"
 mkdir -p "${RUN_DIR}"
 echo "run_dir=${RUN_DIR}"
 echo "step5a historical cycle: one driver launch, position -> path -> return"
-echo "return_target=joint positions recorded at historical path start"
+echo "return_target=joint positions recorded before any cycle motion"
 
 source_setup() {
   set +u
@@ -216,7 +216,7 @@ payload = {
     "role": "step5a_live_historical_fixed_z_cycle_with_return",
     "motion_kind": "historical_fixed_z_position_path_return_cycle",
     "driver_lifecycle": "single_sustained_launch",
-    "return_target": "start_positions recorded in step5a_historical_fixed_z.json before path execution",
+    "return_target": "start_positions recorded in step5a_historical_fixed_z_position.json before any cycle motion",
     "position_summary_path": str(run_dir / "step5a_historical_fixed_z_position.json"),
     "path_summary_path": str(run_dir / "step5a_historical_fixed_z.json"),
     "return_summary_path": str(run_dir / "step5a_return_to_anchor.json"),

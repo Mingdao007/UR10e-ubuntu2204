@@ -33,8 +33,9 @@ from .step5a_cartesian_cycloid_motion import (
 
 DEFAULT_SOURCE_SUMMARY = "step5a_cartesian_cycloid_motion.json"
 SOURCE_SUMMARY_CANDIDATES = (
-    DEFAULT_SOURCE_SUMMARY,
+    "step5a_historical_fixed_z_position.json",
     "step5a_historical_fixed_z.json",
+    DEFAULT_SOURCE_SUMMARY,
 )
 
 

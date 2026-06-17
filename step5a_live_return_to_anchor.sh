@@ -24,9 +24,9 @@ if [[ -z "${SOURCE_RUN_DIR}" ]]; then
   echo "usage: step5a_live_return_to_anchor.sh /path/to/step5a_source_run_dir" >&2
   exit 64
 fi
-if [[ ! -f "${SOURCE_RUN_DIR}/step5a_cartesian_cycloid_motion.json" && ! -f "${SOURCE_RUN_DIR}/step5a_historical_fixed_z.json" ]]; then
+if [[ ! -f "${SOURCE_RUN_DIR}/step5a_historical_fixed_z_position.json" && ! -f "${SOURCE_RUN_DIR}/step5a_historical_fixed_z.json" && ! -f "${SOURCE_RUN_DIR}/step5a_cartesian_cycloid_motion.json" ]]; then
   echo "source run is missing a supported Step5a summary: ${SOURCE_RUN_DIR}" >&2
-  echo "expected one of: step5a_cartesian_cycloid_motion.json, step5a_historical_fixed_z.json" >&2
+  echo "expected one of: step5a_historical_fixed_z_position.json, step5a_historical_fixed_z.json, step5a_cartesian_cycloid_motion.json" >&2
   exit 64
 fi
 
