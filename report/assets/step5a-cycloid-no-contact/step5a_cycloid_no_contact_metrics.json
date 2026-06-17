@@ -63,7 +63,34 @@
     "formula": "x=0.015(0.272727t-sin(0.272727t)), y=0.015(1-cos(0.272727t))",
     "geometry_map": "affine_map_exact_to_shifted_drag_teach_start_mid_end",
     "max_reference_speed_m_s": 0.008650239600446842,
-    "omega_rad_s": 0.2727272727272727
+    "omega_rad_s": 0.2727272727272727,
+    "phase_semantics": {
+      "final_phase_meaning": "6.0 rad is about 95.5 percent of one cycloid arch.",
+      "not_circular_arc_angle": true,
+      "not_tcp_orientation": true,
+      "one_arch_meaning": "2*pi rad traces one cycloid arch in x=A(theta-sin(theta)), y=A(1-cos(theta)); it is not a circular TCP path.",
+      "one_arch_rad": 6.283185307179586,
+      "theta_role": "cycloid_parameter"
+    },
+    "phase_variable": "theta",
+    "provenance": {
+      "amplitude_m": {
+        "classification": "paper_local_control_geometry_lineage",
+        "direct_user_authored_primitive": false
+      },
+      "duration_s": {
+        "classification": "active_v3_implementation_timing_assistant_selected_in_inspected_session_evidence",
+        "direct_user_authored_primitive": false
+      },
+      "final_phase_rad": {
+        "classification": "previous_agent_plan_carried_and_paper_lineage_derived",
+        "direct_user_authored_primitive": false
+      },
+      "velocity_cap_m_s": {
+        "classification": "assistant_code_originated_conservative_guard_in_inspected_session_evidence",
+        "direct_user_authored_primitive": false
+      }
+    }
   },
   "physical_path_gate": {
     "affine_map": {

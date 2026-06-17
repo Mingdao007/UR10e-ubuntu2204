@@ -27,6 +27,8 @@ PATH_DURATION_S = float(STEP5_STAGE["duration_s"])
 AMPLITUDE_M = float(STEP5_STAGE["amplitude_m"])
 OMEGA_RAD_S = float(STEP5_STAGE["phase_law"]["omega_rad_s"])
 FINAL_PHASE_RAD = float(STEP5_STAGE["phase_law"]["final_phase_rad"])
+PHASE_SEMANTICS = STEP5_STAGE["phase_law"].get("phase_semantics", {})
+PROVENANCE = STEP5_STAGE.get("provenance", {})
 WARMUP_HOLD_S = float(STEP5_STAGE["cadence"]["warmup_hold_s"])
 FAST_HOLD_S = float(STEP5_STAGE["cadence"]["fast_hold_s"])
 FAST_AFTER_S = float(STEP5_STAGE["cadence"]["fast_after_s"])
@@ -199,6 +201,9 @@ def build_metrics(frame: dict) -> dict:
             "amplitude_m": AMPLITUDE_M,
             "omega_rad_s": OMEGA_RAD_S,
             "final_phase_rad": OMEGA_RAD_S * PATH_DURATION_S,
+            "phase_variable": STEP5_STAGE["phase_law"].get("phase_variable", "theta"),
+            "phase_semantics": PHASE_SEMANTICS,
+            "provenance": PROVENANCE,
             "geometry_map": "affine_map_exact_to_shifted_drag_teach_start_mid_end",
             "max_reference_speed_m_s": max(math.hypot(row["base_vx_m_s"], row["base_vy_m_s"]) for row in rows),
         },
@@ -256,6 +261,9 @@ def build_script(stamp: str, gen_at: str, geom: dict[str, float], metrics: dict)
 # PHYSICAL_PATH_GATE: affine map exactly matches shifted drag-teach start/mid/end; max target residual {metrics['physical_path_gate']['max_target_residual_mm']:.6f} mm.
 # X_GUARD: max_base_x <= 0.4888784335 m; generated path max_base_x={metrics['envelope']['base_x_max_m']:.10f} m.
 # PAPER_PATH_FORMULA: x=0.015({OMEGA_RAD_S:.6f}t-sin({OMEGA_RAD_S:.6f}t)), y=0.015(1-cos({OMEGA_RAD_S:.6f}t)), duration={PATH_DURATION_S:.1f} s, final phase 6 rad.
+# PHASE_SEMANTICS: theta is the cycloid parameter; 2*pi is one cycloid arch in the formula, not a circular TCP path.
+# FINAL_PHASE_PROVENANCE: 6 rad is previous-agent-plan/paper-lineage carried, not proven direct user primitive.
+# TIMING_CAP_PROVENANCE: 22 s and 0.009 m/s are active-v3 implementation values, not proven direct user primitives.
 # NO_CONTACT_POLICY: fixed base Z, no force control, no contact search, no Kunwei/bridge requirement, no zero_ftsensor(), no TCP/payload write.
 
 def codex_abs(x):
@@ -372,6 +380,9 @@ Motion boundary:
 
 Path:
   x=0.015({OMEGA_RAD_S:.6f}t-sin({OMEGA_RAD_S:.6f}t)), y=0.015(1-cos({OMEGA_RAD_S:.6f}t))
+  phase semantics: theta is the cycloid parameter; 2*pi is one cycloid arch in the formula, not a circular TCP path
+  final phase provenance: 6 rad is previous-agent-plan/paper-lineage carried, not proven direct user primitive
+  timing/cap provenance: 22 s and 0.009 m/s are active-v3 implementation values, not proven direct user primitives
   physical path gate: shifted drag-teach start/mid/end max residual {metrics['physical_path_gate']['max_target_residual_mm']:.6f} mm
   max base X: {metrics['envelope']['base_x_max_m']:.10f} m
   X guard: {metrics['guard']['guard_line_x_m']:.10f} m
@@ -598,6 +609,8 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str, metrics: dic
         "fast hold": f"local fast_hold_s = {FAST_HOLD_S:.3f}" in script,
         "cadence switch": f"local fast_after_s = {FAST_AFTER_S:.3f}" in script and "if t >= fast_after_s:" in script,
         "fast cycloid formula": f"x=0.015({OMEGA_RAD_S:.6f}t-sin({OMEGA_RAD_S:.6f}t))" in script and f"y=0.015(1-cos({OMEGA_RAD_S:.6f}t))" in script,
+        "phase semantics": "PHASE_SEMANTICS: theta is the cycloid parameter" in script,
+        "final phase provenance": "FINAL_PHASE_PROVENANCE" in script and "not proven direct user primitive" in script,
         "physical path gate": "PHYSICAL_PATH_GATE" in script and metrics["physical_path_gate"]["max_target_residual_mm"] <= 1e-6,
         "no contact": "no force control" in script and "no contact search" in script,
         "no bridge": "no Kunwei/bridge requirement" in script,

@@ -100,7 +100,34 @@
       "phase_law": {
         "type": "linear_time",
         "omega_rad_s": 0.2727272727272727,
-        "final_phase_rad": 6.0
+        "final_phase_rad": 6.0,
+        "phase_variable": "theta",
+        "phase_semantics": {
+          "theta_role": "cycloid_parameter",
+          "not_tcp_orientation": true,
+          "not_circular_arc_angle": true,
+          "one_arch_rad": 6.283185307179586,
+          "one_arch_meaning": "2*pi rad traces one cycloid arch in x=A(theta-sin(theta)), y=A(1-cos(theta)); it is not a circular TCP path.",
+          "final_phase_meaning": "6.0 rad is about 95.5 percent of one cycloid arch."
+        }
+      },
+      "provenance": {
+        "amplitude_m": {
+          "classification": "paper_local_control_geometry_lineage",
+          "direct_user_authored_primitive": false
+        },
+        "final_phase_rad": {
+          "classification": "previous_agent_plan_carried_and_paper_lineage_derived",
+          "direct_user_authored_primitive": false
+        },
+        "duration_s": {
+          "classification": "active_v3_implementation_timing_assistant_selected_in_inspected_session_evidence",
+          "direct_user_authored_primitive": false
+        },
+        "velocity_cap_m_s": {
+          "classification": "assistant_code_originated_conservative_guard_in_inspected_session_evidence",
+          "direct_user_authored_primitive": false
+        }
       },
       "cadence": {
         "motion": "speedl",
@@ -124,7 +151,7 @@
       "filter_policy": {
         "normal_filter": "none"
       },
-      "success_condition": "Complete 22.0 s no-contact fixed-Z cycloid, final phase 6.0 rad, with base-X guard clear and shifted taught start/mid/end physical path gate passing."
+      "success_condition": "Complete 22.0 s no-contact fixed-Z cycloid, final cycloid-parameter theta 6.0 rad, with base-X guard clear and shifted taught start/mid/end physical path gate passing."
     },
     {
       "id": "step5a_ros2_remote_no_contact_v1",

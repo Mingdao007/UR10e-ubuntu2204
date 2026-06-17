@@ -1,6 +1,6 @@
 # Step5a cycloid no-contact fixed-Z rehearsal v3.
-# VERSION: 2026-06-12T0749HKT_STEP5A_CYCLOID_NO_CONTACT_V3
-# GENERATED_AT_LOCAL: 2026-06-12T07:49:29+08:00
+# VERSION: 2026-06-17T1856HKT_STEP5A_CYCLOID_NO_CONTACT_V3
+# GENERATED_AT_LOCAL: 2026-06-17T18:56:42+08:00
 # CONTROLLER_TARGET: /programs/andyl/kunwei/step5/step5a_cycloid_no_contact_v3.urp
 # ENTRY_XY_M: [0.487795411, 0.129326793]
 # FIXED_BASE_Z_M: 0.029423891
@@ -9,6 +9,9 @@
 # PHYSICAL_PATH_GATE: affine map exactly matches shifted drag-teach start/mid/end; max target residual 0.000000 mm.
 # X_GUARD: max_base_x <= 0.4888784335 m; generated path max_base_x=0.4877954111 m.
 # PAPER_PATH_FORMULA: x=0.015(0.272727t-sin(0.272727t)), y=0.015(1-cos(0.272727t)), duration=22.0 s, final phase 6 rad.
+# PHASE_SEMANTICS: theta is the cycloid parameter; 2*pi is one cycloid arch in the formula, not a circular TCP path.
+# FINAL_PHASE_PROVENANCE: 6 rad is previous-agent-plan/paper-lineage carried, not proven direct user primitive.
+# TIMING_CAP_PROVENANCE: 22 s and 0.009 m/s are active-v3 implementation values, not proven direct user primitives.
 # NO_CONTACT_POLICY: fixed base Z, no force control, no contact search, no Kunwei/bridge requirement, no zero_ftsensor(), no TCP/payload write.
 
 def codex_abs(x):
@@ -54,7 +57,7 @@ def codex_step5a_cycloid_no_contact_v3():
   local stop_reason = 0.0
   local t = 0.0
 
-  textmsg("codex Step5a no-contact cycloid start 2026-06-12T0749HKT_STEP5A_CYCLOID_NO_CONTACT_V3")
+  textmsg("codex Step5a no-contact cycloid start 2026-06-17T1856HKT_STEP5A_CYCLOID_NO_CONTACT_V3")
   local entry_pose = p[origin_x, origin_y, fixed_base_z_m, ref_rx, ref_ry, ref_rz]
   movel(entry_pose, a=0.030, v=0.020, r=0.0)
   stopl(0.5)

@@ -97,9 +97,20 @@ kinematics gate and an offline qdot register path gate in that table; passing
 either is evidence only and does not authorize bridge start, TP Play,
 controller upload, or contact motion.
 
+For Step5a cycloid stages, `phase_rad` is the cycloid parameter `theta` in
+`x=A(theta-sin(theta)), y=A(1-cos(theta))`. It is not TCP orientation and not a
+circular path angle. `theta=2*pi` would trace one cycloid arch in the formula;
+the active v3 endpoint `theta=6.0 rad` is about 95.5 percent of that arch. With
+`A=0.015 m`, the local endpoint is approximately `x=94.191 mm`,
+`y=0.597 mm`; the local envelope is a shallow cycloid arch about `94 mm` long
+and `30 mm` high. The current provenance classification is: `0.015 m` is
+paper/local-control geometry lineage; `6 rad` is previous-agent-plan-carried
+and paper-lineage-derived; `22 s` and `0.009 m/s` are active-v3 implementation
+values, not proven direct user-authored primitives in inspected histories.
+
 | stage id | owner | contact | bridge | reference owner | normal filter | success condition |
 |---|---|---:|---:|---|---|---|
-| `step5a_cycloid_no_contact_v3` | TP | false | false | TP | none | Complete 22 s fixed-Z cycloid, final phase 6 rad, with the base-X guard clear and shifted taught start/mid/end physical path gate passing. |
+| `step5a_cycloid_no_contact_v3` | TP | false | false | TP | none | Complete 22 s fixed-Z cycloid, final cycloid-parameter theta 6 rad, with the base-X guard clear and shifted taught start/mid/end physical path gate passing. |
 | `step5a_ros2_remote_no_contact_v1` | ROS2 remote shadow/live gate | false | false | ROS2 generated reference | none | No-contact remote migration gate: requires 5a0 headless driver readiness first, default no-motion shadow, then explicit low-speed air-motion Gate A. Latest live run executed but failed Gate A; Step5b remains blocked. |
 | `step5_contact_cycloid_baseline_v1` | bridge+TP | true | true | bridge | `v31_filtered_live` | Retained Step5b evidence: bridge computes Cartesian twist; TP consumes registers `37..44` as `speedl` command. |
 | `step5b_ros2_remote_shadow_v1` | ROS2 offline | true | false | ROS2 shadow replay | `v31_filtered_live` input logs | No-motion remote-control plumbing validation before Step5d: may only follow 5a0 and Step5a remote no-contact evidence, replays retained Step5b CSVs, preserves bridge-owned command/reference trace contract, and keeps `cmd_enabled=false`. |
