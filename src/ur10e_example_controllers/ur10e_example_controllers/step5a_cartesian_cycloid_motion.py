@@ -8,6 +8,7 @@ import socket
 import sys
 import tempfile
 import time
+from bisect import bisect_left
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -40,15 +41,26 @@ JOINT_NAMES = [
 EXPECTED_CALIBRATION_HASH = "calib_7367377276742883610"
 DEFAULT_CALIBRATION_YAML = WORKSPACE_ROOT / "src" / "ur10e_bringup" / "config" / "ur10e_calibration.yaml"
 DEFAULT_XACRO_PATH = Path("/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro")
+DEFAULT_GATE_A_POSITION_ERROR_LIMIT_M = 0.005
+DEFAULT_TRACE_MAX_SAMPLE_GAP_S = 0.08
 
 COMMAND_FIELDS = [f"command_{name}_rad" for name in JOINT_NAMES]
 COMMAND_FK_FIELDS = ["commanded_fk_x_m", "commanded_fk_y_m", "commanded_fk_z_m"]
 OBSERVED_FK_FIELDS = ["observed_fk_x_m", "observed_fk_y_m", "observed_fk_z_m"]
+OBSERVED_JOINT_FIELDS = [f"observed_{name}_rad" for name in JOINT_NAMES]
+TRACE_ALIGNMENT_FIELDS = [
+    "observed_sample_t_rel_s",
+    "observed_sample_dt_to_row_s",
+    "observed_sample_gap_s",
+    "alignment_status",
+]
 LIVE_TRACE_FIELDS = (
     TRACE_FIELDS
     + COMMAND_FIELDS
     + COMMAND_FK_FIELDS
     + OBSERVED_FK_FIELDS
+    + OBSERVED_JOINT_FIELDS
+    + TRACE_ALIGNMENT_FIELDS
     + [
         "cartesian_error_m",
         "achieved_speed_m_s",
@@ -65,6 +77,13 @@ class CalibratedModel:
     calibration_hash: str
     base_frame_id: int
     tool0_frame_id: int
+
+
+@dataclass(frozen=True)
+class ObservedJointSample:
+    receive_monotonic_s: float
+    header_stamp_s: float | None
+    positions: list[float]
 
 
 def load_calibration_hash(path: Path) -> str:
@@ -130,7 +149,7 @@ class Step5aCartesianCycloidMotion(Node):
         self.config = config
         self.model_bundle = model_bundle
         self.joint_state: JointState | None = None
-        self.joint_history: list[tuple[float, list[float]]] = []
+        self.joint_history: list[ObservedJointSample] = []
         self.sent_goal = False
         self.accepted = False
         self.result_status: int | None = None
@@ -144,7 +163,13 @@ class Step5aCartesianCycloidMotion(Node):
     def _on_joint_state(self, msg: JointState) -> None:
         self.joint_state = msg
         if all(name in msg.name for name in JOINT_NAMES):
-            self.joint_history.append((time.monotonic(), _ordered_positions(msg)))
+            self.joint_history.append(
+                ObservedJointSample(
+                    receive_monotonic_s=time.monotonic(),
+                    header_stamp_s=_joint_state_header_stamp_s(msg),
+                    positions=_ordered_positions(msg),
+                )
+            )
             self.joint_history = self.joint_history[-5000:]
 
     def wait_for_joint_state(self) -> JointState:
@@ -168,6 +193,7 @@ class Step5aCartesianCycloidMotion(Node):
             )
         )
         monitor_ready_ok = False
+        monitor_finalized = False
         trace_rows: list[dict[str, Any]] = []
         start_positions: list[float] = []
         dashboard: dict[str, str] = {}
@@ -210,7 +236,17 @@ class Step5aCartesianCycloidMotion(Node):
 
             if not self.args.execute:
                 _write_trace(self.args.trace, trace_rows)
-                return self._summary(dashboard, monitor, monitor_ready_ok, start_positions, trace_rows, metrics)
+                monitor.stop()
+                monitor_finalized = True
+                monitor.write_summary(self.args.kunwei_summary, _kunwei_extra(False, self))
+                return self._summary(
+                    dashboard,
+                    _load_json_or_snapshot(self.args.kunwei_summary, monitor),
+                    start_positions,
+                    trace_rows,
+                    metrics,
+                    _empty_trace_alignment("not_executed"),
+                )
 
             self.failure_stage = "pre_send_kunwei_gate"
             monitor.assert_fresh_and_within_force_delta()
@@ -245,35 +281,43 @@ class Step5aCartesianCycloidMotion(Node):
             self.result_status = int(result.status)
             self.result_error_code = int(result.result.error_code)
             self.result_error_string = str(result.result.error_string)
-            augment_trace_with_observed_fk(trace_rows, self.model_bundle, self.joint_history, send_start)
+            for _ in range(20):
+                rclpy.spin_once(self, timeout_sec=0.01)
+            trace_alignment = augment_trace_with_observed_fk(
+                trace_rows,
+                self.model_bundle,
+                self.joint_history,
+                send_start,
+                start_positions,
+                max_sample_gap_s=self.args.trace_max_sample_gap_s,
+            )
             _write_trace(self.args.trace, trace_rows)
+            monitor.stop()
+            monitor_finalized = True
+            monitor.write_summary(self.args.kunwei_summary, _kunwei_extra(True, self))
             if result.result.error_code != FollowJointTrajectory.Result.SUCCESSFUL:
                 raise RuntimeError(f"Trajectory failed: {result.result.error_code} {result.result.error_string}")
-            return self._summary(dashboard, monitor, monitor_ready_ok, start_positions, trace_rows, metrics)
-        finally:
-            monitor.stop()
-            monitor.write_summary(
-                self.args.kunwei_summary,
-                {
-                    "live_motion": bool(self.args.execute),
-                    "failure_stage": self.failure_stage,
-                    "sent_goal": self.sent_goal,
-                    "accepted": self.accepted,
-                    "result_status": self.result_status,
-                    "result_error_code": self.result_error_code,
-                    "result_error_string": self.result_error_string,
-                    "trajectory_authority_entered": self.trajectory_authority_entered,
-                },
+            return self._summary(
+                dashboard,
+                _load_json_or_snapshot(self.args.kunwei_summary, monitor),
+                start_positions,
+                trace_rows,
+                metrics,
+                trace_alignment,
             )
+        finally:
+            if not monitor_finalized:
+                monitor.stop()
+                monitor.write_summary(self.args.kunwei_summary, _kunwei_extra(bool(self.args.execute), self))
 
     def _summary(
         self,
         dashboard: dict[str, str],
-        monitor: KunweiPersistentMonitor,
-        monitor_ready_ok: bool,
+        kunwei_snapshot: dict[str, Any],
         start_positions: list[float],
         trace_rows: list[dict[str, Any]],
         metrics: dict[str, Any],
+        trace_alignment: dict[str, Any],
     ) -> dict[str, Any]:
         observed_errors = [float(row["cartesian_error_m"]) for row in trace_rows if row.get("cartesian_error_m") not in {"", None}]
         achieved_speeds = [float(row["achieved_speed_m_s"]) for row in trace_rows if row.get("achieved_speed_m_s") not in {"", None}]
@@ -281,7 +325,7 @@ class Step5aCartesianCycloidMotion(Node):
         phase_final = float(trace_rows[-1]["phase_rad"]) if trace_rows else math.nan
         max_reference_speed = max(float(row["reference_speed_m_s"]) for row in trace_rows) if trace_rows else math.nan
         summary = {
-            "ok": bool((not self.args.execute) or (self.sent_goal and self.accepted and self.result_error_code == 0)),
+            "ok": False,
             "created_at": datetime.now().isoformat(timespec="seconds"),
             "stage_id": self.config.get("stage_id", "step5a_ros2_remote_no_contact_v1"),
             "role": "step5a_live_no_contact_cartesian_cycloid",
@@ -290,8 +334,8 @@ class Step5aCartesianCycloidMotion(Node):
             "live_air_motion_authorized": bool(self.args.execute),
             "contact_policy": dict(self.config.get("contact_policy", {})),
             "force_source": "kunwei_force_monitor",
-            "kunwei_monitor": monitor.snapshot(),
-            "kunwei_artifact_ok": bool(monitor_ready_ok),
+            "kunwei_monitor": kunwei_snapshot,
+            "kunwei_artifact_ok": _kunwei_artifact_ok(kunwei_snapshot),
             "ur_internal_force_delta_advisory": {"enabled": False, "status": "not_required_for_step5a_force_source"},
             "robot_ip": self.args.robot_ip,
             "action_name": self.args.action_name,
@@ -326,7 +370,16 @@ class Step5aCartesianCycloidMotion(Node):
             "trace_path": str(self.args.trace),
             "trace_rows": rows,
             "trace_fields": LIVE_TRACE_FIELDS,
+            "trace_alignment": trace_alignment,
+            "gate_a_thresholds": {
+                "velocity_cap_m_s": float(self.config["velocity_cap_m_s"]),
+                "cartesian_position_error_limit_m": self.args.gate_a_position_error_limit_m,
+                "trace_max_sample_gap_s": self.args.trace_max_sample_gap_s,
+            },
         }
+        summary["acceptance"] = step5a_acceptance(summary)
+        summary["gate_a_pass"] = bool(summary["acceptance"]["gate_a_pass"])
+        summary["ok"] = bool(summary["gate_a_pass"])
         validate_cartesian_acceptance_summary(summary)
         return summary
 
@@ -454,35 +507,266 @@ def fk_tool0_base(model_bundle: CalibratedModel, q: np.ndarray) -> pin.SE3:
 def augment_trace_with_observed_fk(
     trace_rows: list[dict[str, Any]],
     model_bundle: CalibratedModel,
-    joint_history: list[tuple[float, list[float]]],
+    joint_history: list[ObservedJointSample],
     send_start: float,
-) -> None:
-    if not joint_history:
-        return
-    observed: list[tuple[float, np.ndarray]] = []
-    for stamp, positions in joint_history:
-        if stamp < send_start:
+    anchor_positions: list[float],
+    *,
+    max_sample_gap_s: float = DEFAULT_TRACE_MAX_SAMPLE_GAP_S,
+) -> dict[str, Any]:
+    observed = [
+        {
+            "t_rel_s": 0.0,
+            "header_stamp_s": None,
+            "positions": np.array(anchor_positions, dtype=float),
+            "source": "anchor",
+        }
+    ]
+    for sample in joint_history:
+        if sample.receive_monotonic_s < send_start:
             continue
-        placement = fk_tool0_base(model_bundle, np.array(positions, dtype=float))
-        observed.append((stamp - send_start, placement.translation.copy()))
+        observed.append(
+            {
+                "t_rel_s": sample.receive_monotonic_s - send_start,
+                "header_stamp_s": sample.header_stamp_s,
+                "positions": np.array(sample.positions, dtype=float),
+                "source": "joint_state",
+            }
+        )
+    observed = _dedupe_observed_samples(sorted(observed, key=lambda sample: float(sample["t_rel_s"])))
     if not observed:
-        return
+        return _empty_trace_alignment("no_observed_samples")
+
     previous_xyz: np.ndarray | None = None
     previous_t: float | None = None
+    max_gap_s = 0.0
+    max_dt_to_row_s = 0.0
+    extrapolated_rows = 0
+    interpolated_rows = 0
+    exact_rows = 0
+    row0_anchor_error = math.nan
     for row in trace_rows:
         target_t = float(row["t_rel_s"])
-        _, xyz = min(observed, key=lambda item: abs(item[0] - target_t))
+        sample = _interpolate_observed_sample(observed, target_t)
+        positions = sample["positions"]
+        placement = fk_tool0_base(model_bundle, positions)
+        xyz = placement.translation.copy()
+        max_gap_s = max(max_gap_s, float(sample["gap_s"]))
+        max_dt_to_row_s = max(max_dt_to_row_s, float(sample["dt_to_row_s"]))
+        if str(sample["alignment_status"]).startswith("extrapolated"):
+            extrapolated_rows += 1
+        elif sample["alignment_status"] == "interpolated":
+            interpolated_rows += 1
+        elif sample["alignment_status"] in {"exact", "anchor"}:
+            exact_rows += 1
         row["observed_fk_x_m"] = float(xyz[0])
         row["observed_fk_y_m"] = float(xyz[1])
         row["observed_fk_z_m"] = float(xyz[2])
+        for field, value in zip(OBSERVED_JOINT_FIELDS, positions):
+            row[field] = float(value)
+        row["observed_sample_t_rel_s"] = float(sample["t_rel_s"])
+        row["observed_sample_dt_to_row_s"] = float(sample["dt_to_row_s"])
+        row["observed_sample_gap_s"] = float(sample["gap_s"])
+        row["alignment_status"] = str(sample["alignment_status"])
         commanded = np.array([float(row["commanded_fk_x_m"]), float(row["commanded_fk_y_m"]), float(row["commanded_fk_z_m"])])
         row["cartesian_error_m"] = float(np.linalg.norm(xyz - commanded))
+        if int(row["row_index"]) == 0:
+            row0_anchor_error = float(row["cartesian_error_m"])
         if previous_xyz is None or previous_t is None or target_t <= previous_t:
             row["achieved_speed_m_s"] = 0.0
         else:
             row["achieved_speed_m_s"] = float(np.linalg.norm(xyz - previous_xyz) / (target_t - previous_t))
         previous_xyz = xyz
         previous_t = target_t
+    raw_after_send = max(0, len(observed) - 1)
+    trace_alignment_ok = (
+        raw_after_send >= 2
+        and extrapolated_rows == 0
+        and max_gap_s <= max_sample_gap_s
+        and math.isfinite(row0_anchor_error)
+        and row0_anchor_error <= 1e-9
+    )
+    return {
+        "trace_alignment_ok": trace_alignment_ok,
+        "observed_sample_count_raw": raw_after_send,
+        "observed_sample_count_with_anchor": len(observed),
+        "resampled_rows": len(trace_rows),
+        "exact_rows": exact_rows,
+        "interpolated_rows": interpolated_rows,
+        "extrapolated_rows": extrapolated_rows,
+        "max_interpolation_gap_s": max_gap_s,
+        "max_observed_dt_to_row_s": max_dt_to_row_s,
+        "row0_anchor_error_m": row0_anchor_error,
+        "trace_max_sample_gap_s": max_sample_gap_s,
+    }
+
+
+def _dedupe_observed_samples(samples: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for sample in samples:
+        if out and math.isclose(float(sample["t_rel_s"]), float(out[-1]["t_rel_s"]), rel_tol=0.0, abs_tol=1e-9):
+            out[-1] = sample
+        else:
+            out.append(sample)
+    return out
+
+
+def _interpolate_observed_sample(samples: list[dict[str, Any]], target_t: float) -> dict[str, Any]:
+    times = [float(sample["t_rel_s"]) for sample in samples]
+    index = bisect_left(times, target_t)
+    if index < len(samples) and math.isclose(times[index], target_t, rel_tol=0.0, abs_tol=1e-9):
+        status = "anchor" if target_t == 0.0 else "exact"
+        return {
+            "t_rel_s": times[index],
+            "positions": samples[index]["positions"],
+            "gap_s": 0.0,
+            "dt_to_row_s": 0.0,
+            "alignment_status": status,
+        }
+    if index == 0:
+        return {
+            "t_rel_s": times[0],
+            "positions": samples[0]["positions"],
+            "gap_s": math.inf,
+            "dt_to_row_s": abs(times[0] - target_t),
+            "alignment_status": "extrapolated_before_first",
+        }
+    if index >= len(samples):
+        return {
+            "t_rel_s": times[-1],
+            "positions": samples[-1]["positions"],
+            "gap_s": math.inf,
+            "dt_to_row_s": abs(times[-1] - target_t),
+            "alignment_status": "extrapolated_after_last",
+        }
+    before = samples[index - 1]
+    after = samples[index]
+    t0 = times[index - 1]
+    t1 = times[index]
+    gap = t1 - t0
+    if gap <= 0.0:
+        weight = 0.0
+    else:
+        weight = (target_t - t0) / gap
+    positions = before["positions"] + weight * (after["positions"] - before["positions"])
+    return {
+        "t_rel_s": target_t,
+        "positions": positions,
+        "gap_s": gap,
+        "dt_to_row_s": min(abs(target_t - t0), abs(t1 - target_t)),
+        "alignment_status": "interpolated",
+    }
+
+
+def _empty_trace_alignment(status: str) -> dict[str, Any]:
+    return {
+        "trace_alignment_ok": False,
+        "status": status,
+        "observed_sample_count_raw": 0,
+        "observed_sample_count_with_anchor": 0,
+        "resampled_rows": 0,
+        "exact_rows": 0,
+        "interpolated_rows": 0,
+        "extrapolated_rows": 0,
+        "max_interpolation_gap_s": None,
+        "max_observed_dt_to_row_s": None,
+        "row0_anchor_error_m": None,
+        "trace_max_sample_gap_s": DEFAULT_TRACE_MAX_SAMPLE_GAP_S,
+    }
+
+
+def step5a_acceptance(payload: dict[str, Any]) -> dict[str, Any]:
+    thresholds = payload.get("gate_a_thresholds", {})
+    velocity_cap = float(payload.get("velocity_cap_m_s", thresholds.get("velocity_cap_m_s", 0.009)))
+    error_limit = float(thresholds.get("cartesian_position_error_limit_m", DEFAULT_GATE_A_POSITION_ERROR_LIMIT_M))
+    trace_alignment = payload.get("trace_alignment", {})
+    checks = {
+        "cartesian_shape": (
+            payload.get("role") == "step5a_live_no_contact_cartesian_cycloid"
+            and payload.get("motion_kind") == "cartesian_cycloid"
+            and _int_eq(payload.get("rows"), 1101)
+            and _float_close(payload.get("phase_final"), 6.0, abs_tol=1e-9)
+        ),
+        "trajectory_result": (
+            payload.get("sent_goal") is True
+            and payload.get("accepted") is True
+            and _int_eq(payload.get("result_error_code"), 0)
+        ),
+        "kunwei_evidence": _kunwei_artifact_ok(payload.get("kunwei_monitor", {})),
+        "speed_cap": (
+            _finite_leq(payload.get("max_reference_speed_m_s"), velocity_cap)
+            and _finite_leq(payload.get("max_commanded_fk_speed_m_s"), velocity_cap)
+            and _finite_leq(payload.get("max_achieved_speed_m_s"), velocity_cap)
+        ),
+        "cartesian_equivalence": (
+            _finite_leq(payload.get("max_cartesian_position_error_m"), error_limit)
+            and trace_alignment.get("trace_alignment_ok") is True
+        ),
+    }
+    failed = [name for name, ok in checks.items() if not ok]
+    return {
+        **checks,
+        "gate_a_pass": not failed,
+        "failed_conditions": failed,
+        "thresholds": {
+            "velocity_cap_m_s": velocity_cap,
+            "cartesian_position_error_limit_m": error_limit,
+            "trace_max_sample_gap_s": thresholds.get("trace_max_sample_gap_s", DEFAULT_TRACE_MAX_SAMPLE_GAP_S),
+        },
+    }
+
+
+def _finite_leq(value: Any, limit: float) -> bool:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return False
+    return math.isfinite(number) and number <= limit + 1e-12
+
+
+def _int_eq(value: Any, expected: int) -> bool:
+    try:
+        return int(value) == expected
+    except (TypeError, ValueError):
+        return False
+
+
+def _float_close(value: Any, expected: float, *, abs_tol: float) -> bool:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return False
+    return math.isfinite(number) and math.isclose(number, expected, rel_tol=0.0, abs_tol=abs_tol)
+
+
+def _kunwei_artifact_ok(payload: Any) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    return (
+        payload.get("ok") is True
+        and payload.get("stream_start_command_sent") is True
+        and payload.get("stream_stop_command_sent") is True
+        and payload.get("failure_reason") is None
+    )
+
+
+def _kunwei_extra(live_motion: bool, node: Step5aCartesianCycloidMotion) -> dict[str, Any]:
+    return {
+        "live_motion": live_motion,
+        "failure_stage": node.failure_stage,
+        "sent_goal": node.sent_goal,
+        "accepted": node.accepted,
+        "result_status": node.result_status,
+        "result_error_code": node.result_error_code,
+        "result_error_string": node.result_error_string,
+        "trajectory_authority_entered": node.trajectory_authority_entered,
+    }
+
+
+def _load_json_or_snapshot(path: Path, monitor: KunweiPersistentMonitor) -> dict[str, Any]:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return monitor.snapshot()
 
 
 def validate_cartesian_acceptance_summary(payload: dict[str, Any]) -> bool:
@@ -503,23 +787,16 @@ def validate_cartesian_acceptance_summary(payload: dict[str, Any]) -> bool:
         "anchor_pose_base",
         "ik_source",
         "contact_policy",
+        "trace_alignment",
     ]
     missing = [field for field in required if field not in payload]
     if missing:
         raise RuntimeError(f"Step5a Cartesian summary missing fields: {missing}")
-    if payload["role"] != "step5a_live_no_contact_cartesian_cycloid":
-        raise RuntimeError(f"wrong Step5a role: {payload['role']}")
-    if payload["motion_kind"] != "cartesian_cycloid":
-        raise RuntimeError(f"wrong motion kind: {payload['motion_kind']}")
-    if int(payload["rows"]) != 1101:
-        raise RuntimeError(f"wrong row count: {payload['rows']}")
-    if not math.isclose(float(payload["phase_final"]), 6.0, rel_tol=0.0, abs_tol=1e-9):
-        raise RuntimeError(f"wrong final phase: {payload['phase_final']}")
-    if float(payload["max_reference_speed_m_s"]) > float(payload["velocity_cap_m_s"]) + 1e-12:
-        raise RuntimeError("reference speed violates velocity cap")
-    if payload.get("kunwei_artifact_ok") is not True:
-        raise RuntimeError("Kunwei artifact is missing or failed")
-    return True
+    if "acceptance" not in payload:
+        payload["acceptance"] = step5a_acceptance(payload)
+    if "gate_a_pass" not in payload:
+        payload["gate_a_pass"] = bool(payload["acceptance"]["gate_a_pass"])
+    return bool(payload["gate_a_pass"])
 
 
 def dashboard_exchange(host: str, commands: list[str], *, port: int = 29999, timeout_s: float = 2.0) -> dict[str, str]:
@@ -536,6 +813,13 @@ def dashboard_exchange(host: str, commands: list[str], *, port: int = 29999, tim
 def _ordered_positions(joint_state: JointState) -> list[float]:
     by_name = {name: joint_state.position[index] for index, name in enumerate(joint_state.name)}
     return [float(by_name[name]) for name in JOINT_NAMES]
+
+
+def _joint_state_header_stamp_s(joint_state: JointState) -> float | None:
+    stamp = joint_state.header.stamp
+    if stamp.sec == 0 and stamp.nanosec == 0:
+        return None
+    return float(stamp.sec) + float(stamp.nanosec) * 1e-9
 
 
 def _validate_dashboard(responses: dict[str, str]) -> None:
@@ -573,6 +857,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--ik-max-iters", type=int, default=80)
     parser.add_argument("--ik-tolerance-m", type=float, default=5e-5)
     parser.add_argument("--speed-cap-tolerance-m-s", type=float, default=0.0005)
+    parser.add_argument("--gate-a-position-error-limit-m", type=float, default=DEFAULT_GATE_A_POSITION_ERROR_LIMIT_M)
+    parser.add_argument("--trace-max-sample-gap-s", type=float, default=DEFAULT_TRACE_MAX_SAMPLE_GAP_S)
     parser.add_argument("--kunwei-sensor-ip", default="192.168.50.25")
     parser.add_argument("--kunwei-sensor-port", type=int, default=5152)
     parser.add_argument("--kunwei-ready-timeout-s", type=float, default=3.0)

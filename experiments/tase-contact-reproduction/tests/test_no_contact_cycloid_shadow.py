@@ -219,6 +219,14 @@ class NoContactCycloidShadowTest(unittest.TestCase):
         self.assertNotIn("step5a_cartesian_cycloid_motion", gate_d_script)
         self.assertNotIn("send_goal_async", gate_d_script)
 
+        gate_a_audit_script_path = WORKSPACE / "step5a_gate_a_audit.sh"
+        gate_a_audit_script = gate_a_audit_script_path.read_text(encoding="utf-8")
+        self.assertTrue(gate_a_audit_script_path.exists())
+        self.assertTrue(gate_a_audit_script_path.stat().st_mode & 0o111)
+        self.assertIn("step5a_gate_a_audit", gate_a_audit_script)
+        self.assertNotIn("step5a_live_no_contact_test", gate_a_audit_script)
+        self.assertNotIn("send_goal_async", gate_a_audit_script)
+
         setup_py = (WORKSPACE / "src" / "ur10e_example_controllers" / "setup.py").read_text(encoding="utf-8")
         self.assertIn("kunwei_persistent_gate = ur10e_example_controllers.kunwei_persistent_monitor:main", setup_py)
         self.assertIn(
@@ -229,6 +237,7 @@ class NoContactCycloidShadowTest(unittest.TestCase):
             "step5a_cartesian_cycloid_motion = ur10e_example_controllers.step5a_cartesian_cycloid_motion:main",
             setup_py,
         )
+        self.assertIn("step5a_gate_a_audit = ur10e_example_controllers.step5a_gate_a_audit:main", setup_py)
         self.assertIn(
             "step5a_joint_proxy_motion_probe = ur10e_example_controllers.step5a_joint_proxy_motion_probe:main",
             setup_py,

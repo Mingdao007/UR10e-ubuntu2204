@@ -15,11 +15,16 @@ WORKSPACE = ROOT.parents[1]
 sys.path.insert(0, str(WORKSPACE / "src" / "ur10e_example_controllers"))
 
 from ur10e_example_controllers.no_contact_cycloid_shadow import DEFAULT_CONFIG, _iter_reference_rows, load_no_contact_config  # noqa: E402
+from ur10e_example_controllers.step5a_gate_a_audit import audit_gate_a_run  # noqa: E402
 from ur10e_example_controllers.step5a_cartesian_cycloid_motion import (  # noqa: E402
+    DEFAULT_GATE_A_POSITION_ERROR_LIMIT_M,
     EXPECTED_CALIBRATION_HASH,
     JOINT_NAMES,
+    ObservedJointSample,
+    augment_trace_with_observed_fk,
     build_calibrated_model,
     build_cartesian_cycloid_trajectory,
+    step5a_acceptance,
     validate_cartesian_acceptance_summary,
 )
 
@@ -55,7 +60,7 @@ class Step5aCartesianCycloidMotionTest(unittest.TestCase):
             self.assertIn(field, trace_rows[0])
         self.assertIn("commanded_fk_x_m", trace_rows[0])
 
-    def test_acceptance_summary_rejects_wrong_kind_rows_speed_and_kunwei(self) -> None:
+    def test_acceptance_summary_requires_all_gate_a_conditions(self) -> None:
         payload = {
             "role": "step5a_live_no_contact_cartesian_cycloid",
             "motion_kind": "cartesian_cycloid",
@@ -73,28 +78,89 @@ class Step5aCartesianCycloidMotionTest(unittest.TestCase):
             "anchor_pose_base": {"frame": "base_to_tool0"},
             "ik_source": {"solver": "pinocchio_calibrated_tool0_warm_start_deterministic_dls"},
             "contact_policy": {"force_control": False, "contact_search": False},
+            "kunwei_monitor": {
+                "ok": True,
+                "stream_start_command_sent": True,
+                "stream_stop_command_sent": True,
+                "failure_reason": None,
+            },
+            "trace_alignment": {"trace_alignment_ok": True},
+            "gate_a_thresholds": {
+                "velocity_cap_m_s": 0.009,
+                "cartesian_position_error_limit_m": DEFAULT_GATE_A_POSITION_ERROR_LIMIT_M,
+                "trace_max_sample_gap_s": 0.08,
+            },
         }
         self.assertTrue(validate_cartesian_acceptance_summary(dict(payload)))
+        self.assertTrue(step5a_acceptance(dict(payload))["gate_a_pass"])
 
         bad = dict(payload)
         bad["motion_kind"] = "joint_proxy_cycloid_timing_not_cartesian_cycloid"
-        with self.assertRaisesRegex(RuntimeError, "wrong motion kind"):
-            validate_cartesian_acceptance_summary(bad)
+        self.assertFalse(validate_cartesian_acceptance_summary(bad))
+        self.assertIn("cartesian_shape", bad["acceptance"]["failed_conditions"])
 
         bad = dict(payload)
         bad["rows"] = 1100
-        with self.assertRaisesRegex(RuntimeError, "wrong row count"):
-            validate_cartesian_acceptance_summary(bad)
+        self.assertFalse(validate_cartesian_acceptance_summary(bad))
+        self.assertIn("cartesian_shape", bad["acceptance"]["failed_conditions"])
 
         bad = dict(payload)
         bad["max_reference_speed_m_s"] = 0.010
-        with self.assertRaisesRegex(RuntimeError, "velocity cap"):
-            validate_cartesian_acceptance_summary(bad)
+        self.assertFalse(validate_cartesian_acceptance_summary(bad))
+        self.assertIn("speed_cap", bad["acceptance"]["failed_conditions"])
 
         bad = dict(payload)
         bad["kunwei_artifact_ok"] = False
-        with self.assertRaisesRegex(RuntimeError, "Kunwei artifact"):
-            validate_cartesian_acceptance_summary(bad)
+        bad["kunwei_monitor"] = {"ok": False}
+        self.assertFalse(validate_cartesian_acceptance_summary(bad))
+        self.assertIn("kunwei_evidence", bad["acceptance"]["failed_conditions"])
+
+        bad = dict(payload)
+        bad["max_cartesian_position_error_m"] = 0.059225
+        self.assertFalse(validate_cartesian_acceptance_summary(bad))
+        self.assertIn("cartesian_equivalence", bad["acceptance"]["failed_conditions"])
+
+    def test_trace_alignment_anchors_row0_and_interpolates_observed_fk(self) -> None:
+        model = build_calibrated_model()
+        config = load_no_contact_config(DEFAULT_CONFIG)
+        short_config = deepcopy(config)
+        short_config["duration_s"] = 0.2
+        short_config["final_phase_rad"] = float(config["omega_rad_s"]) * 0.2
+        start = [0.0, -1.57, 1.57, -1.57, -1.57, 0.0]
+        _, trace_rows, _ = build_cartesian_cycloid_trajectory(short_config, model, start)
+        send_start = 100.0
+        samples = []
+        for row in trace_rows[::2]:
+            positions = [float(row[f"command_{name}_rad"]) for name in JOINT_NAMES]
+            samples.append(ObservedJointSample(send_start + float(row["t_rel_s"]), None, positions))
+        positions = [float(trace_rows[-1][f"command_{name}_rad"]) for name in JOINT_NAMES]
+        samples.append(ObservedJointSample(send_start + float(trace_rows[-1]["t_rel_s"]), None, positions))
+
+        alignment = augment_trace_with_observed_fk(
+            trace_rows,
+            model,
+            samples,
+            send_start,
+            start,
+            max_sample_gap_s=0.08,
+        )
+        self.assertTrue(alignment["trace_alignment_ok"])
+        self.assertLessEqual(alignment["row0_anchor_error_m"], 1e-9)
+        self.assertEqual(float(trace_rows[0]["cartesian_error_m"]), 0.0)
+        self.assertIn("observed_sample_t_rel_s", trace_rows[0])
+        self.assertIn("observed_shoulder_pan_joint_rad", trace_rows[0])
+
+    def test_current_failed_evidence_run_audits_as_gate_a_failed(self) -> None:
+        run_dir = WORKSPACE / "experiments" / "tase-contact-reproduction" / "runs" / "no_contact_test_20260617_143540"
+        if not run_dir.exists():
+            self.skipTest(f"local evidence run is unavailable: {run_dir}")
+        audit = audit_gate_a_run(run_dir)
+        self.assertFalse(audit["gate_a_pass"])
+        self.assertEqual(audit["judgement"], "Step5a live motion executed, but Gate A failed")
+        self.assertIn("speed_cap", audit["acceptance"]["failed_conditions"])
+        self.assertIn("cartesian_equivalence", audit["acceptance"]["failed_conditions"])
+        self.assertEqual(audit["trace_diagnostics"]["achieved_speed_over_cap_rows"], 21)
+        self.assertEqual(audit["trace_diagnostics"]["cartesian_error_over_5mm_rows"], 571)
 
 
 if __name__ == "__main__":
