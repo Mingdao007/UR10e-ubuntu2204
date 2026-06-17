@@ -193,7 +193,10 @@ class Step5aHistoricalFixedZMotion(Node):
             self.latest_trace_fields = trace_fields
             self.latest_metrics = metrics
 
-            if metrics["max_commanded_fk_speed_m_s"] > float(self.config["velocity_cap_m_s"]) + self.args.speed_cap_tolerance_m_s:
+            if (
+                self.args.mode == "path"
+                and metrics["max_commanded_fk_speed_m_s"] > float(self.config["velocity_cap_m_s"]) + self.args.speed_cap_tolerance_m_s
+            ):
                 raise RuntimeError(
                     "Commanded FK speed exceeds fixed-Z Step5a cap: "
                     f"{metrics['max_commanded_fk_speed_m_s']:.6f} > {float(self.config['velocity_cap_m_s']):.6f}"
@@ -372,6 +375,8 @@ class Step5aHistoricalFixedZMotion(Node):
             "visual_air_gap_above_fixed_z_m": fixed_z_visual_air_gap_m(self.config),
             "target_active_tcp_z_m": fixed_z_target_active_tcp_z_m(self.config),
             "velocity_cap_m_s": float(self.config["velocity_cap_m_s"]),
+            "position_entry_speed_m_s": metrics.get("position_entry_speed_m_s"),
+            "position_entry_speed_source": metrics.get("position_entry_speed_source"),
             "acceleration_bound_m_s2": float(self.config.get("acceleration_bound_m_s2", 0.300)),
             "cartesian_task_space_spec": cartesian_task_space_spec(self.config, metrics),
             "max_reference_speed_m_s": metrics.get("max_reference_speed_m_s"),
@@ -504,6 +509,8 @@ def build_positioning_trajectory(
         "duration_s": elapsed,
         "max_commanded_fk_speed_m_s": max(speeds) if speeds else 0.0,
         "max_reference_speed_m_s": max_cartesian_speed_m_s,
+        "position_entry_speed_m_s": max_cartesian_speed_m_s,
+        "position_entry_speed_source": "historical_step5a_tp_movel_v_0.020_a_0.030",
         "max_commanded_position_error_m": max(
             float(np.linalg.norm(np.array([row["reference_base_x_m"], row["reference_base_y_m"], row["reference_base_z_m"]])
                                  - np.array([row["commanded_fk_x_m"], row["commanded_fk_y_m"], row["commanded_fk_z_m"]])))
@@ -1008,6 +1015,8 @@ def main(argv: list[str] | None = None) -> int:
             "target_active_tcp_z_m": fixed_z_target_active_tcp_z_m(config),
             "target_pose_base": metrics.get("target_pose_base"),
             "target_tool0_pose_base": metrics.get("target_tool0_pose_base"),
+            "position_entry_speed_m_s": metrics.get("position_entry_speed_m_s"),
+            "position_entry_speed_source": metrics.get("position_entry_speed_source"),
             "trace_path": str(args.trace) if trace_rows else None,
             "trace_rows": len(trace_rows),
         }

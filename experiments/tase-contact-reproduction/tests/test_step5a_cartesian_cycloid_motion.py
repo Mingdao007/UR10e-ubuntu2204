@@ -313,6 +313,9 @@ class Step5aCartesianCycloidMotionTest(unittest.TestCase):
         self.assertEqual(trace_rows[-1]["segment"], "active_tcp_fixed_z_clearance")
         self.assertEqual(metrics["target_pose_base"]["frame"], "base_to_active_tcp")
         self.assertAlmostEqual(metrics["target_pose_base"]["position_xyz_m"][2], 0.039423891, places=12)
+        self.assertAlmostEqual(metrics["position_entry_speed_m_s"], 0.020, places=12)
+        self.assertEqual(metrics["position_entry_speed_source"], "historical_step5a_tp_movel_v_0.020_a_0.030")
+        self.assertGreater(metrics["max_commanded_fk_speed_m_s"], float(config["velocity_cap_m_s"]))
         self.assertLessEqual(metrics["max_commanded_fk_speed_m_s"], 0.020 + 1e-12)
 
     def test_current_failed_evidence_run_audits_as_gate_a_failed(self) -> None:
