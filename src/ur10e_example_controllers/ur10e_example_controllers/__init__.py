@@ -10,6 +10,8 @@ __all__ = [
     "kunwei_persistent_monitor",
     "no_contact_cycloid_shadow",
     "no_contact_motion_probe",
+    "step5a_cartesian_cycloid_motion",
+    "step5a_driver_readiness_check",
     "step5a_joint_proxy_motion_probe",
     "state_machine",
 ]

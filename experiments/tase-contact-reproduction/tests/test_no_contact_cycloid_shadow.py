@@ -114,7 +114,9 @@ class NoContactCycloidShadowTest(unittest.TestCase):
         self.assertIn("no_contact_cycloid_shadow", script)
         self.assertIn("Could not get configuration package", script)
         self.assertIn("no motion was attempted", script)
-        self.assertIn("step5a_joint_proxy_motion_probe", script)
+        self.assertIn("step5a_driver_readiness_check", script)
+        self.assertIn("step5a_cartesian_cycloid_motion", script)
+        self.assertNotIn("step5a_joint_proxy_motion_probe", script)
         self.assertIn("READINESS_USE_ROS_CLI_PROBES", script)
         self.assertIn("ros2 topic echo --no-daemon --once /joint_states", script)
         self.assertIn("ros2 control list_controllers", script)
@@ -137,26 +139,32 @@ class NoContactCycloidShadowTest(unittest.TestCase):
         self.assertIn("Successful 'activate' of hardware 'ur10e'", script)
         self.assertIn("Configured and activated .*joint_state_broadcaster", script)
         self.assertIn("--kunwei-max-force-delta-n", script)
-        self.assertIn("step5a_joint_proxy_motion_trace.csv", script)
-        self.assertLess(script.find("Could not get configuration package"), script.find("step5a_joint_proxy_motion_probe"))
+        self.assertIn("step5a_cartesian_cycloid_motion_trace.csv", script)
+        self.assertLess(script.find("step5a_driver_readiness_check"), script.find("step5a_cartesian_cycloid_motion"))
+        self.assertLess(script.find("Could not get configuration package"), script.find("step5a_cartesian_cycloid_motion"))
 
         live_probe = (
             WORKSPACE
             / "src"
             / "ur10e_example_controllers"
             / "ur10e_example_controllers"
-            / "step5a_joint_proxy_motion_probe.py"
+            / "step5a_cartesian_cycloid_motion.py"
         ).read_text(encoding="utf-8")
         self.assertIn("KunweiPersistentMonitor", live_probe)
-        self.assertIn("joint_proxy_cycloid_timing_not_cartesian_cycloid", live_probe)
+        self.assertIn("step5a_live_no_contact_cartesian_cycloid", live_probe)
+        self.assertIn("motion_kind", live_probe)
+        self.assertIn("cartesian_cycloid", live_probe)
         self.assertIn("ur_internal_force_delta_advisory", live_probe)
         self.assertIn("not_required_for_step5a_force_source", live_probe)
-        self.assertIn("step5a_reference_parameters", live_probe)
         self.assertIn("LIVE_TRACE_FIELDS", live_probe)
         self.assertIn("send_goal_async", live_probe)
         self.assertIn("cancel_goal_async", live_probe)
         self.assertIn('"Program running: true"', live_probe)
         self.assertNotIn('responses.get("running") != "Program running: false"', live_probe)
+        self.assertIn("build_calibrated_model", live_probe)
+        self.assertIn("validate_cartesian_acceptance_summary", live_probe)
+        self.assertIn("pinocchio_calibrated_tool0_warm_start_deterministic_dls", live_probe)
+        self.assertIn("trajectory_authority_entered", live_probe)
 
         persistent_monitor = (
             WORKSPACE
@@ -200,8 +208,27 @@ class NoContactCycloidShadowTest(unittest.TestCase):
         self.assertIn("KUNWEI_FORCE_GATE_REQUIRED=true", live_script)
         self.assertIn('exec "${ROOT}/no_contact_test.sh"', live_script)
 
+        gate_d_script_path = WORKSPACE / "step5a_driver_lifecycle_check.sh"
+        gate_d_script = gate_d_script_path.read_text(encoding="utf-8")
+        self.assertTrue(gate_d_script_path.exists())
+        self.assertTrue(gate_d_script_path.stat().st_mode & 0o111)
+        self.assertIn("activate_joint_controller:=true", gate_d_script)
+        self.assertIn("step5a_driver_readiness_check", gate_d_script)
+        self.assertIn("driver_lifecycle_diagnostic_not_step5a_acceptance", gate_d_script)
+        self.assertIn("sent_goal=false", gate_d_script)
+        self.assertNotIn("step5a_cartesian_cycloid_motion", gate_d_script)
+        self.assertNotIn("send_goal_async", gate_d_script)
+
         setup_py = (WORKSPACE / "src" / "ur10e_example_controllers" / "setup.py").read_text(encoding="utf-8")
         self.assertIn("kunwei_persistent_gate = ur10e_example_controllers.kunwei_persistent_monitor:main", setup_py)
+        self.assertIn(
+            "step5a_driver_readiness_check = ur10e_example_controllers.step5a_driver_readiness_check:main",
+            setup_py,
+        )
+        self.assertIn(
+            "step5a_cartesian_cycloid_motion = ur10e_example_controllers.step5a_cartesian_cycloid_motion:main",
+            setup_py,
+        )
         self.assertIn(
             "step5a_joint_proxy_motion_probe = ur10e_example_controllers.step5a_joint_proxy_motion_probe:main",
             setup_py,

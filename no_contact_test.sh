@@ -23,8 +23,6 @@ KUNWEI_MONITOR_MIN_RECENT_SAMPLES="${KUNWEI_MONITOR_MIN_RECENT_SAMPLES:-20}"
 KUNWEI_MONITOR_LATEST_MAX_AGE_S="${KUNWEI_MONITOR_LATEST_MAX_AGE_S:-0.25}"
 KUNWEI_MONITOR_WINDOW_S="${KUNWEI_MONITOR_WINDOW_S:-0.5}"
 KUNWEI_MAX_FORCE_DELTA_N="${KUNWEI_MAX_FORCE_DELTA_N:-8.0}"
-STEP5A_JOINT_NAME="${STEP5A_JOINT_NAME:-wrist_3_joint}"
-STEP5A_JOINT_DELTA_RAD="${STEP5A_JOINT_DELTA_RAD:-0.04}"
 
 mkdir -p "${RUN_DIR}"
 echo "run_dir=${RUN_DIR}"
@@ -51,28 +49,30 @@ ros2 run ur10e_example_controllers no_contact_cycloid_shadow \
 
 readiness_failed() {
   rg -n "Could not get configuration package|\\[ur_ros2_control_node-[0-9]+\\].*\\[FATAL\\]|Failed to set the initial state|\\[ERROR\\] \\[ur_ros2_control_node-[0-9]+\\]: process has died" \
-    "${RUN_DIR}/driver_readiness.log" >/dev/null
+    "${LAUNCH_LOG:-${RUN_DIR}/driver_readiness.log}" >/dev/null
 }
 
 readiness_log_passed() {
-  rg -n "Successful 'activate' of hardware 'ur10e'" "${RUN_DIR}/driver_readiness.log" >/dev/null \
-    && rg -n "Configured and activated .*joint_state_broadcaster" "${RUN_DIR}/driver_readiness.log" >/dev/null
+  rg -n "Successful 'activate' of hardware 'ur10e'" "${LAUNCH_LOG:-${RUN_DIR}/driver_readiness.log}" >/dev/null \
+    && rg -n "Configured and activated .*joint_state_broadcaster" "${LAUNCH_LOG:-${RUN_DIR}/driver_readiness.log}" >/dev/null
 }
 
 write_log_readiness_artifacts() {
   {
-    rg -n "Successful 'activate' of hardware 'ur10e'" "${RUN_DIR}/driver_readiness.log" || true
-    rg -n "Configured and activated .*joint_state_broadcaster" "${RUN_DIR}/driver_readiness.log" || true
+    rg -n "Successful 'activate' of hardware 'ur10e'" "${LAUNCH_LOG:-${RUN_DIR}/driver_readiness.log}" || true
+    rg -n "Configured and activated .*joint_state_broadcaster" "${LAUNCH_LOG:-${RUN_DIR}/driver_readiness.log}" || true
   } >"${RUN_DIR}/controllers_readiness.log"
 }
 
 print_readiness_failure() {
   echo "5a0 failed; no motion was attempted."
-  echo "log=${RUN_DIR}/driver_readiness.log"
+  echo "run_dir=${RUN_DIR}"
+  echo "sent_goal=false"
+  echo "log=${LAUNCH_LOG:-${RUN_DIR}/driver_readiness.log}"
   if readiness_failed; then
     echo "driver_failure:"
     rg -n "Could not get configuration package|\\[ur_ros2_control_node-[0-9]+\\].*\\[FATAL\\]|Failed to set the initial state|\\[ERROR\\] \\[ur_ros2_control_node-[0-9]+\\]: process has died" \
-      "${RUN_DIR}/driver_readiness.log" | tail -n 8 || true
+      "${LAUNCH_LOG:-${RUN_DIR}/driver_readiness.log}" | tail -n 8 || true
   fi
   if [[ -f "${RUN_DIR}/controllers_readiness.log" ]]; then
     echo "controllers=${RUN_DIR}/controllers_readiness.log"
@@ -101,93 +101,127 @@ stop_process_group() {
   wait "${pid}" >/dev/null 2>&1 || true
 }
 
-setsid ros2 launch ur10e_bringup ur10e_control.launch.py \
-  robot_ip:="${ROBOT_IP}" \
-  reverse_ip:="${REVERSE_IP}" \
-  headless_mode:=true \
-  launch_dashboard_client:=false \
-  activate_joint_controller:=false \
-  launch_rviz:=false \
-  >"${RUN_DIR}/driver_readiness.log" 2>&1 &
-READINESS_PID=$!
+if [[ "${NO_CONTACT_LIVE_MOTION}" == "true" ]]; then
+  LAUNCH_LOG="${RUN_DIR}/air_motion_launch.log"
+  setsid ros2 launch ur10e_bringup ur10e_control.launch.py \
+    robot_ip:="${ROBOT_IP}" \
+    reverse_ip:="${REVERSE_IP}" \
+    headless_mode:=true \
+    launch_dashboard_client:=false \
+    activate_joint_controller:=true \
+    launch_rviz:=false \
+    >"${LAUNCH_LOG}" 2>&1 &
+  LAUNCH_PID=$!
+  cleanup() {
+    stop_process_group "${LAUNCH_PID}"
+  }
+  trap cleanup EXIT
 
-READINESS_OK=false
-JOINT_STATES_OK=false
-ACTIVE_PROBE_PID=""
-ACTIVE_PROBE_KIND=""
-ACTIVE_PROBE_DEADLINE=0
-READINESS_DEADLINE=$((SECONDS + READINESS_WAIT_S))
-while (( SECONDS < READINESS_DEADLINE )); do
-  if readiness_failed; then
-    break
+  if ! ros2 run ur10e_example_controllers step5a_driver_readiness_check \
+    --launch-log "${LAUNCH_LOG}" \
+    --summary "${RUN_DIR}/driver_lifecycle_readiness.json" \
+    --controllers-log "${RUN_DIR}/controllers_readiness.log" \
+    --joint-states-log "${RUN_DIR}/joint_states_once.log" \
+    --run-dir "${RUN_DIR}" \
+    --timeout-s "${READINESS_WAIT_S}" \
+    | tee "${RUN_DIR}/driver_lifecycle_readiness.log"; then
+    print_readiness_failure
+    exit 2
   fi
-  if ! kill -0 "${READINESS_PID}" >/dev/null 2>&1; then
-    break
-  fi
-  if readiness_log_passed; then
-    write_log_readiness_artifacts
-    READINESS_OK=true
-    break
-  fi
-
-  if [[ -n "${ACTIVE_PROBE_PID}" ]]; then
-    if kill -0 "${ACTIVE_PROBE_PID}" >/dev/null 2>&1; then
-      if (( SECONDS >= ACTIVE_PROBE_DEADLINE )); then
-        stop_process_group "${ACTIVE_PROBE_PID}"
-      else
-        sleep 0.2
-        continue
-      fi
-    else
-      PROBE_RC=0
-      wait "${ACTIVE_PROBE_PID}" >/dev/null 2>&1 || PROBE_RC=$?
-      if [[ "${ACTIVE_PROBE_KIND}" == "joint_states" && "${PROBE_RC}" == "0" ]]; then
-        JOINT_STATES_OK=true
-      elif [[ "${ACTIVE_PROBE_KIND}" == "controllers" && "${PROBE_RC}" == "0" ]]; then
-        if rg -n "joint_state_broadcaster.*active" "${RUN_DIR}/controllers_readiness.log" >/dev/null; then
-          READINESS_OK=true
-          break
-        fi
-      fi
-      ACTIVE_PROBE_PID=""
-      ACTIVE_PROBE_KIND=""
-    fi
-  fi
-
-  if [[ "${READINESS_USE_ROS_CLI_PROBES}" == "true" && -z "${ACTIVE_PROBE_PID}" ]]; then
-    if [[ "${JOINT_STATES_OK}" != "true" ]]; then
-      setsid timeout --kill-after="${READINESS_PROBE_KILL_AFTER_S}s" "${READINESS_PROBE_TIMEOUT_S}s" \
-        ros2 topic echo --no-daemon --once /joint_states >"${RUN_DIR}/joint_states_once.log" 2>&1 &
-      ACTIVE_PROBE_PID=$!
-      ACTIVE_PROBE_KIND="joint_states"
-    else
-      setsid timeout --kill-after="${READINESS_PROBE_KILL_AFTER_S}s" "${READINESS_PROBE_TIMEOUT_S}s" \
-        ros2 control list_controllers --controller-manager /controller_manager \
-        >"${RUN_DIR}/controllers_readiness.log" 2>&1 &
-      ACTIVE_PROBE_PID=$!
-      ACTIVE_PROBE_KIND="controllers"
-    fi
-    ACTIVE_PROBE_DEADLINE=$((SECONDS + READINESS_PROBE_TIMEOUT_S + READINESS_PROBE_KILL_AFTER_S + 1))
-  else
-    sleep 0.2
-  fi
-done
-
-if [[ -n "${ACTIVE_PROBE_PID}" ]] && kill -0 "${ACTIVE_PROBE_PID}" >/dev/null 2>&1; then
-  stop_process_group "${ACTIVE_PROBE_PID}"
-fi
-stop_process_group "${READINESS_PID}"
-if [[ "${READINESS_OK}" != "true" ]]; then
-  print_readiness_failure
-  exit 2
-fi
-echo "5a0 passed: ${RUN_DIR}"
-echo "log=${RUN_DIR}/driver_readiness.log"
-if [[ -f "${RUN_DIR}/controllers_readiness.log" ]]; then
+  echo "5a0 passed: ${RUN_DIR}"
+  echo "log=${LAUNCH_LOG}"
   echo "controllers=${RUN_DIR}/controllers_readiness.log"
-fi
-if [[ -f "${RUN_DIR}/joint_states_once.log" ]]; then
   echo "joint_states=${RUN_DIR}/joint_states_once.log"
+else
+  LAUNCH_LOG="${RUN_DIR}/driver_readiness.log"
+  setsid ros2 launch ur10e_bringup ur10e_control.launch.py \
+    robot_ip:="${ROBOT_IP}" \
+    reverse_ip:="${REVERSE_IP}" \
+    headless_mode:=true \
+    launch_dashboard_client:=false \
+    activate_joint_controller:=false \
+    launch_rviz:=false \
+    >"${LAUNCH_LOG}" 2>&1 &
+  READINESS_PID=$!
+
+  READINESS_OK=false
+  JOINT_STATES_OK=false
+  ACTIVE_PROBE_PID=""
+  ACTIVE_PROBE_KIND=""
+  ACTIVE_PROBE_DEADLINE=0
+  READINESS_DEADLINE=$((SECONDS + READINESS_WAIT_S))
+  while (( SECONDS < READINESS_DEADLINE )); do
+    if readiness_failed; then
+      break
+    fi
+    if ! kill -0 "${READINESS_PID}" >/dev/null 2>&1; then
+      break
+    fi
+    if readiness_log_passed; then
+      write_log_readiness_artifacts
+      READINESS_OK=true
+      break
+    fi
+
+    if [[ -n "${ACTIVE_PROBE_PID}" ]]; then
+      if kill -0 "${ACTIVE_PROBE_PID}" >/dev/null 2>&1; then
+        if (( SECONDS >= ACTIVE_PROBE_DEADLINE )); then
+          stop_process_group "${ACTIVE_PROBE_PID}"
+        else
+          sleep 0.2
+          continue
+        fi
+      else
+        PROBE_RC=0
+        wait "${ACTIVE_PROBE_PID}" >/dev/null 2>&1 || PROBE_RC=$?
+        if [[ "${ACTIVE_PROBE_KIND}" == "joint_states" && "${PROBE_RC}" == "0" ]]; then
+          JOINT_STATES_OK=true
+        elif [[ "${ACTIVE_PROBE_KIND}" == "controllers" && "${PROBE_RC}" == "0" ]]; then
+          if rg -n "joint_state_broadcaster.*active" "${RUN_DIR}/controllers_readiness.log" >/dev/null; then
+            READINESS_OK=true
+            break
+          fi
+        fi
+        ACTIVE_PROBE_PID=""
+        ACTIVE_PROBE_KIND=""
+      fi
+    fi
+
+    if [[ "${READINESS_USE_ROS_CLI_PROBES}" == "true" && -z "${ACTIVE_PROBE_PID}" ]]; then
+      if [[ "${JOINT_STATES_OK}" != "true" ]]; then
+        setsid timeout --kill-after="${READINESS_PROBE_KILL_AFTER_S}s" "${READINESS_PROBE_TIMEOUT_S}s" \
+          ros2 topic echo --no-daemon --once /joint_states >"${RUN_DIR}/joint_states_once.log" 2>&1 &
+        ACTIVE_PROBE_PID=$!
+        ACTIVE_PROBE_KIND="joint_states"
+      else
+        setsid timeout --kill-after="${READINESS_PROBE_KILL_AFTER_S}s" "${READINESS_PROBE_TIMEOUT_S}s" \
+          ros2 control list_controllers --controller-manager /controller_manager \
+          >"${RUN_DIR}/controllers_readiness.log" 2>&1 &
+        ACTIVE_PROBE_PID=$!
+        ACTIVE_PROBE_KIND="controllers"
+      fi
+      ACTIVE_PROBE_DEADLINE=$((SECONDS + READINESS_PROBE_TIMEOUT_S + READINESS_PROBE_KILL_AFTER_S + 1))
+    else
+      sleep 0.2
+    fi
+  done
+
+  if [[ -n "${ACTIVE_PROBE_PID}" ]] && kill -0 "${ACTIVE_PROBE_PID}" >/dev/null 2>&1; then
+    stop_process_group "${ACTIVE_PROBE_PID}"
+  fi
+  stop_process_group "${READINESS_PID}"
+  if [[ "${READINESS_OK}" != "true" ]]; then
+    print_readiness_failure
+    exit 2
+  fi
+  echo "5a0 passed: ${RUN_DIR}"
+  echo "log=${LAUNCH_LOG}"
+  if [[ -f "${RUN_DIR}/controllers_readiness.log" ]]; then
+    echo "controllers=${RUN_DIR}/controllers_readiness.log"
+  fi
+  if [[ -f "${RUN_DIR}/joint_states_once.log" ]]; then
+    echo "joint_states=${RUN_DIR}/joint_states_once.log"
+  fi
 fi
 if [[ "${NO_CONTACT_READINESS_ONLY}" == "true" ]]; then
   echo "readiness-only stop; no live motion was attempted."
@@ -223,26 +257,10 @@ else
   exit 3
 fi
 
-setsid ros2 launch ur10e_bringup ur10e_control.launch.py \
-  robot_ip:="${ROBOT_IP}" \
-  reverse_ip:="${REVERSE_IP}" \
-  headless_mode:=true \
-  launch_dashboard_client:=false \
-  activate_joint_controller:=true \
-  launch_rviz:=false \
-  >"${RUN_DIR}/air_motion_launch.log" 2>&1 &
-LAUNCH_PID=$!
-cleanup() {
-  stop_process_group "${LAUNCH_PID}"
-}
-trap cleanup EXIT
-
 if [[ "${KUNWEI_FORCE_GATE_REQUIRED}" == "true" ]]; then
-  ros2 run ur10e_example_controllers step5a_joint_proxy_motion_probe \
+  ros2 run ur10e_example_controllers step5a_cartesian_cycloid_motion \
     --execute \
     --robot-ip "${ROBOT_IP}" \
-    --joint-name "${STEP5A_JOINT_NAME}" \
-    --joint-delta-rad "${STEP5A_JOINT_DELTA_RAD}" \
     --kunwei-sensor-ip "${KUNWEI_SENSOR_IP}" \
     --kunwei-sensor-port "${KUNWEI_SENSOR_PORT}" \
     --kunwei-ready-timeout-s "${KUNWEI_MONITOR_READY_TIMEOUT_S}" \
@@ -252,9 +270,9 @@ if [[ "${KUNWEI_FORCE_GATE_REQUIRED}" == "true" ]]; then
     --kunwei-max-force-delta-n "${KUNWEI_MAX_FORCE_DELTA_N}" \
     --kunwei-summary "${RUN_DIR}/kunwei_persistent_monitor.json" \
     --kunwei-raw-frames "${RUN_DIR}/kunwei_persistent_monitor_raw_frames.bin" \
-    --trace "${RUN_DIR}/step5a_joint_proxy_motion_trace.csv" \
-    --summary "${RUN_DIR}/step5a_joint_proxy_motion.json" \
-    | tee "${RUN_DIR}/step5a_joint_proxy_motion.log"
+    --trace "${RUN_DIR}/step5a_cartesian_cycloid_motion_trace.csv" \
+    --summary "${RUN_DIR}/step5a_cartesian_cycloid_motion.json" \
+    | tee "${RUN_DIR}/step5a_cartesian_cycloid_motion.log"
 fi
 
 echo "no_contact_test complete: ${RUN_DIR}"
