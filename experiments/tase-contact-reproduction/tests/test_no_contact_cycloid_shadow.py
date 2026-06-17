@@ -208,6 +208,12 @@ class NoContactCycloidShadowTest(unittest.TestCase):
         self.assertIn("KUNWEI_FORCE_GATE_REQUIRED=true", live_script)
         self.assertIn('exec "${ROOT}/no_contact_test.sh"', live_script)
 
+        no_contact_script = (WORKSPACE / "no_contact_test.sh").read_text(encoding="utf-8")
+        self.assertIn("STEP5A_DRIVER_LAUNCH_ATTEMPTS", no_contact_script)
+        self.assertIn("air_motion_launch_attempt_", no_contact_script)
+        self.assertIn("5a0 driver startup failed before any motion; retrying", no_contact_script)
+        self.assertIn("sent_goal=false", no_contact_script)
+
         gate_d_script_path = WORKSPACE / "step5a_driver_lifecycle_check.sh"
         gate_d_script = gate_d_script_path.read_text(encoding="utf-8")
         self.assertTrue(gate_d_script_path.exists())

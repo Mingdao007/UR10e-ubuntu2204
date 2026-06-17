@@ -10,7 +10,7 @@ robot_ip: 192.168.1.18
 reverse_ip: 192.168.1.10
 duration_s: 22.0
 sample_period_s: 0.02
-amplitude_m: 0.015
+amplitude_m: 0.010
 omega_rad_s: 0.2727272727272727
 final_phase_rad: 6.0
 fixed_base_z_m: 0.029423891

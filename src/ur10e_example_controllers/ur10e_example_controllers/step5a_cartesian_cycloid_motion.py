@@ -350,6 +350,10 @@ class Step5aCartesianCycloidMotion(Node):
             "max_commanded_fk_speed_m_s": metrics["max_commanded_fk_speed_m_s"],
             "max_achieved_speed_m_s": max(achieved_speeds) if achieved_speeds else math.nan,
             "max_cartesian_position_error_m": max(observed_errors) if observed_errors else metrics["max_commanded_position_error_m"],
+            "reference_final_offset_xyz_m": metrics["reference_final_offset_xyz_m"],
+            "reference_returns_to_anchor": metrics["reference_returns_to_anchor"],
+            "commanded_net_displacement_xyz_m": metrics["commanded_net_displacement_xyz_m"],
+            "commanded_net_displacement_norm_m": metrics["commanded_net_displacement_norm_m"],
             "anchor_pose_base": metrics["anchor_pose_base"],
             "ik_source": {
                 "solver": "pinocchio_calibrated_tool0_warm_start_deterministic_dls",
@@ -458,9 +462,22 @@ def build_cartesian_cycloid_trajectory(
     commanded_speeds = [
         float(np.linalg.norm(commanded_xyz[index] - commanded_xyz[index - 1]) / dt) for index in range(1, len(commanded_xyz))
     ]
+    final_reference_offset = np.array(
+        [
+            float(rows[-1]["desired_x_m"]) if rows else 0.0,
+            float(rows[-1]["desired_y_m"]) if rows else 0.0,
+            0.0,
+        ],
+        dtype=float,
+    )
+    commanded_net_displacement = commanded_xyz[-1] - commanded_xyz[0] if len(commanded_xyz) >= 2 else np.zeros(3)
     metrics = {
         "max_commanded_fk_speed_m_s": max(commanded_speeds) if commanded_speeds else 0.0,
         "max_commanded_position_error_m": max_commanded_error,
+        "reference_final_offset_xyz_m": [float(value) for value in final_reference_offset],
+        "reference_returns_to_anchor": bool(np.linalg.norm(final_reference_offset) <= 1e-6),
+        "commanded_net_displacement_xyz_m": [float(value) for value in commanded_net_displacement],
+        "commanded_net_displacement_norm_m": float(np.linalg.norm(commanded_net_displacement)),
         "anchor_pose_base": {
             "frame": "base_to_tool0",
             "position_xyz_m": [float(value) for value in anchor.translation],

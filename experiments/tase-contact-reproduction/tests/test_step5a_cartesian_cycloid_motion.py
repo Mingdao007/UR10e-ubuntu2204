@@ -57,6 +57,8 @@ class Step5aCartesianCycloidMotionTest(unittest.TestCase):
         self.assertEqual(len(trace_rows), 11)
         self.assertLess(metrics["max_commanded_position_error_m"], 5e-4)
         self.assertTrue(math.isfinite(metrics["max_commanded_fk_speed_m_s"]))
+        self.assertIn("reference_final_offset_xyz_m", metrics)
+        self.assertIn("commanded_net_displacement_norm_m", metrics)
         for previous, current in zip(points, points[1:]):
             jump = max(abs(a - b) for a, b in zip(previous.positions, current.positions))
             self.assertLess(jump, 0.02)
@@ -153,6 +155,18 @@ class Step5aCartesianCycloidMotionTest(unittest.TestCase):
         self.assertEqual(float(trace_rows[0]["cartesian_error_m"]), 0.0)
         self.assertIn("observed_sample_t_rel_s", trace_rows[0])
         self.assertIn("observed_shoulder_pan_joint_rad", trace_rows[0])
+
+    def test_full_step5a_reference_endpoint_displacement_is_explicit(self) -> None:
+        model = build_calibrated_model()
+        config = load_no_contact_config(DEFAULT_CONFIG)
+        start = [0.0, -1.57, 1.57, -1.57, -1.57, 0.0]
+        _, _, metrics = build_cartesian_cycloid_trajectory(config, model, start)
+
+        self.assertFalse(metrics["reference_returns_to_anchor"])
+        self.assertAlmostEqual(metrics["reference_final_offset_xyz_m"][0], 0.06279415498198926, places=12)
+        self.assertAlmostEqual(metrics["reference_final_offset_xyz_m"][1], 0.00039829713349634025, places=12)
+        self.assertGreater(metrics["commanded_net_displacement_norm_m"], 0.06)
+        self.assertLess(metrics["commanded_net_displacement_norm_m"], 0.07)
 
     def test_joint_state_history_default_retains_full_step5a_window(self) -> None:
         self.assertGreaterEqual(DEFAULT_JOINT_HISTORY_MAX_SAMPLES, 50000)

@@ -23,6 +23,8 @@ KUNWEI_MONITOR_MIN_RECENT_SAMPLES="${KUNWEI_MONITOR_MIN_RECENT_SAMPLES:-20}"
 KUNWEI_MONITOR_LATEST_MAX_AGE_S="${KUNWEI_MONITOR_LATEST_MAX_AGE_S:-0.25}"
 KUNWEI_MONITOR_WINDOW_S="${KUNWEI_MONITOR_WINDOW_S:-0.5}"
 KUNWEI_MAX_FORCE_DELTA_N="${KUNWEI_MAX_FORCE_DELTA_N:-8.0}"
+STEP5A_DRIVER_LAUNCH_ATTEMPTS="${STEP5A_DRIVER_LAUNCH_ATTEMPTS:-3}"
+STEP5A_DRIVER_RETRY_SLEEP_S="${STEP5A_DRIVER_RETRY_SLEEP_S:-2}"
 
 mkdir -p "${RUN_DIR}"
 echo "run_dir=${RUN_DIR}"
@@ -102,29 +104,62 @@ stop_process_group() {
 }
 
 if [[ "${NO_CONTACT_LIVE_MOTION}" == "true" ]]; then
-  LAUNCH_LOG="${RUN_DIR}/air_motion_launch.log"
-  setsid ros2 launch ur10e_bringup ur10e_control.launch.py \
-    robot_ip:="${ROBOT_IP}" \
-    reverse_ip:="${REVERSE_IP}" \
-    headless_mode:=true \
-    launch_dashboard_client:=false \
-    activate_joint_controller:=true \
-    launch_rviz:=false \
-    >"${LAUNCH_LOG}" 2>&1 &
-  LAUNCH_PID=$!
+  LAUNCH_PID=""
   cleanup() {
-    stop_process_group "${LAUNCH_PID}"
+    if [[ -n "${LAUNCH_PID}" ]]; then
+      stop_process_group "${LAUNCH_PID}"
+    fi
   }
   trap cleanup EXIT
 
-  if ! ros2 run ur10e_example_controllers step5a_driver_readiness_check \
-    --launch-log "${LAUNCH_LOG}" \
-    --summary "${RUN_DIR}/driver_lifecycle_readiness.json" \
-    --controllers-log "${RUN_DIR}/controllers_readiness.log" \
-    --joint-states-log "${RUN_DIR}/joint_states_once.log" \
-    --run-dir "${RUN_DIR}" \
-    --timeout-s "${READINESS_WAIT_S}" \
-    | tee "${RUN_DIR}/driver_lifecycle_readiness.log"; then
+  DRIVER_READY=false
+  for attempt in $(seq 1 "${STEP5A_DRIVER_LAUNCH_ATTEMPTS}"); do
+    LAUNCH_LOG="${RUN_DIR}/air_motion_launch_attempt_${attempt}.log"
+    READINESS_JSON="${RUN_DIR}/driver_lifecycle_readiness_attempt_${attempt}.json"
+    READINESS_LOG="${RUN_DIR}/driver_lifecycle_readiness_attempt_${attempt}.log"
+    CONTROLLERS_LOG="${RUN_DIR}/controllers_readiness_attempt_${attempt}.log"
+    JOINT_STATES_LOG="${RUN_DIR}/joint_states_once_attempt_${attempt}.log"
+    ln -sfn "$(basename "${LAUNCH_LOG}")" "${RUN_DIR}/air_motion_launch.log"
+    ln -sfn "$(basename "${READINESS_JSON}")" "${RUN_DIR}/driver_lifecycle_readiness.json"
+    ln -sfn "$(basename "${READINESS_LOG}")" "${RUN_DIR}/driver_lifecycle_readiness.log"
+    ln -sfn "$(basename "${CONTROLLERS_LOG}")" "${RUN_DIR}/controllers_readiness.log"
+    ln -sfn "$(basename "${JOINT_STATES_LOG}")" "${RUN_DIR}/joint_states_once.log"
+
+    echo "5a0 driver launch attempt ${attempt}/${STEP5A_DRIVER_LAUNCH_ATTEMPTS}"
+    setsid ros2 launch ur10e_bringup ur10e_control.launch.py \
+      robot_ip:="${ROBOT_IP}" \
+      reverse_ip:="${REVERSE_IP}" \
+      headless_mode:=true \
+      launch_dashboard_client:=false \
+      activate_joint_controller:=true \
+      launch_rviz:=false \
+      >"${LAUNCH_LOG}" 2>&1 &
+    LAUNCH_PID=$!
+
+    if ros2 run ur10e_example_controllers step5a_driver_readiness_check \
+      --launch-log "${LAUNCH_LOG}" \
+      --summary "${READINESS_JSON}" \
+      --controllers-log "${CONTROLLERS_LOG}" \
+      --joint-states-log "${JOINT_STATES_LOG}" \
+      --run-dir "${RUN_DIR}" \
+      --timeout-s "${READINESS_WAIT_S}" \
+      | tee "${READINESS_LOG}"; then
+      DRIVER_READY=true
+      break
+    fi
+
+    stop_process_group "${LAUNCH_PID}"
+    LAUNCH_PID=""
+    if (( attempt < STEP5A_DRIVER_LAUNCH_ATTEMPTS )) && readiness_failed; then
+      echo "5a0 driver startup failed before any motion; retrying after ${STEP5A_DRIVER_RETRY_SLEEP_S}s."
+      sleep "${STEP5A_DRIVER_RETRY_SLEEP_S}"
+      continue
+    fi
+    print_readiness_failure
+    exit 2
+  done
+
+  if [[ "${DRIVER_READY}" != "true" ]]; then
     print_readiness_failure
     exit 2
   fi

@@ -39,6 +39,14 @@ retained only the last `5000` `/joint_states` samples, creating a `12.09 s`
 alignment gap across the 22 s trajectory. The current implementation must
 retain full-trajectory joint-state history before the next live Gate A attempt.
 
+The next live run `runs/no_contact_test_20260617_151339` proved that the
+full-history trace fix worked: `trace_alignment_ok=true` and Cartesian
+equivalence passed with max error below `0.4 mm`. Gate A still failed on
+achieved speed only (`0.01155 m/s > 0.009 m/s`). The ROS2 remote no-contact
+reference amplitude is therefore reduced from `0.015 m` to `0.010 m` while
+keeping 1101 rows, 22 s duration, and final phase 6.0, to give the live
+controller enough speed margin without relaxing Gate A.
+
 The source of truth for Step5 trajectory and stage ownership is
 `config/step5_stage_table.json`. Step5c also has a required offline calibrated
 kinematics gate and an offline qdot register path gate in that table; passing
