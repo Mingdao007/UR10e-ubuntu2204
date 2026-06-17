@@ -17,7 +17,8 @@ tcp_offset_tool0_m:
 tcp_offset_source: step5c_calibrated_kinematics_audit_20260613_003314
 legacy_v3_command_clamp_m_s: 0.009
 visual_gate_expected_reference_speed_peak_m_s: 0.012
-achieved_speed_policy: advisory_not_gate_for_historical_15s_visual_gate
+achieved_speed_hard_cap_m_s: 0.015
+achieved_speed_policy: hard_gate_for_historical_15s_visual_gate
 acceleration_bound_m_s2: 0.300
 safe_frame_path: experiments/tase-contact-reproduction/config/step5_safe_frame.json
 position_tolerance_m: 0.003

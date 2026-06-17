@@ -323,18 +323,21 @@ class Step5aHistoricalFixedZMotion(Node):
             role = "step5a_live_fixed_z_historical_positioning_not_contact"
             motion_kind = "fixed_z_start_positioning"
             max_achieved_speed = None
+            achieved_speed_gate_ok = None
             position_ok = metrics.get("final_position_error_m") is None or float(metrics["final_position_error_m"]) <= self.args.position_tolerance_m
             ok = result_ok and bool(position_ok) and _kunwei_artifact_ok(kunwei_snapshot)
         else:
             role = "step5a_live_fixed_z_historical_no_contact_visual_gate"
             motion_kind = "historical_fixed_z_cartesian_cycloid"
             max_achieved_speed = max(achieved_speeds) if achieved_speeds else math.nan
+            achieved_speed_gate_ok = historical_visual_achieved_speed_gate_ok(max_achieved_speed, self.config)
             ok = (
                 result_ok
                 and _kunwei_artifact_ok(kunwei_snapshot)
                 and len(trace_rows) == expected_reference_row_count(self.config)
                 and math.isclose(float(metrics["duration_s"]), float(self.config["duration_s"]), rel_tol=0.0, abs_tol=1e-9)
                 and (not cartesian_errors or max(cartesian_errors) <= self.args.cartesian_position_error_limit_m)
+                and achieved_speed_gate_ok
                 and trace_alignment.get("trace_alignment_ok") is True
             )
         return {
@@ -365,9 +368,11 @@ class Step5aHistoricalFixedZMotion(Node):
             "target_active_tcp_z_m": fixed_z_target_active_tcp_z_m(self.config),
             "legacy_v3_command_clamp_m_s": legacy_v3_command_clamp_m_s(self.config),
             "visual_gate_expected_reference_speed_peak_m_s": visual_gate_expected_reference_speed_peak_m_s(self.config),
+            "achieved_speed_hard_cap_m_s": achieved_speed_hard_cap_m_s(self.config),
+            "achieved_speed_gate_ok": achieved_speed_gate_ok,
             "achieved_speed_policy": achieved_speed_policy(self.config),
             "speed_gate_status": (
-                "advisory_only_for_historical_15s_visual_gate"
+                "achieved_speed_hard_gate_reference_and_commanded_fk_advisory"
                 if self.args.mode == "path"
                 else "not_applicable_fixed_z_positioning"
             ),
@@ -839,6 +844,7 @@ def cartesian_task_space_spec(config: dict[str, Any], metrics: dict[str, Any]) -
         "caps": {
             "legacy_v3_command_clamp_m_s": legacy_v3_command_clamp_m_s(config),
             "visual_gate_expected_reference_speed_peak_m_s": visual_gate_expected_reference_speed_peak_m_s(config),
+            "achieved_speed_hard_cap_m_s": achieved_speed_hard_cap_m_s(config),
             "achieved_speed_policy": achieved_speed_policy(config),
             "kunwei_max_force_delta_n_default": 2.0,
         },
@@ -876,8 +882,18 @@ def visual_gate_expected_reference_speed_peak_m_s(config: dict[str, Any]) -> flo
     return 2.0 * float(config["amplitude_m"]) * float(config["omega_rad_s"])
 
 
+def achieved_speed_hard_cap_m_s(config: dict[str, Any]) -> float:
+    return float(config.get("achieved_speed_hard_cap_m_s", 0.015))
+
+
 def achieved_speed_policy(config: dict[str, Any]) -> str:
-    return str(config.get("achieved_speed_policy", "advisory_not_gate_for_historical_15s_visual_gate"))
+    return str(config.get("achieved_speed_policy", "hard_gate_for_historical_15s_visual_gate"))
+
+
+def historical_visual_achieved_speed_gate_ok(max_achieved_speed_m_s: float | None, config: dict[str, Any]) -> bool:
+    if max_achieved_speed_m_s is None or not math.isfinite(float(max_achieved_speed_m_s)):
+        return False
+    return float(max_achieved_speed_m_s) <= achieved_speed_hard_cap_m_s(config)
 
 
 def expected_reference_row_count(config: dict[str, Any]) -> int:
@@ -1035,8 +1051,10 @@ def main(argv: list[str] | None = None) -> int:
             "position_entry_speed_source": metrics.get("position_entry_speed_source"),
             "legacy_v3_command_clamp_m_s": legacy_v3_command_clamp_m_s(config),
             "visual_gate_expected_reference_speed_peak_m_s": visual_gate_expected_reference_speed_peak_m_s(config),
+            "achieved_speed_hard_cap_m_s": achieved_speed_hard_cap_m_s(config),
+            "achieved_speed_gate_ok": None,
             "achieved_speed_policy": achieved_speed_policy(config),
-            "speed_gate_status": "not_evaluated_failure_summary",
+            "speed_gate_status": "not_evaluated_failure_summary_achieved_speed_hard_gate_reference_and_commanded_fk_advisory",
             "trace_path": str(args.trace) if trace_rows else None,
             "trace_rows": len(trace_rows),
         }

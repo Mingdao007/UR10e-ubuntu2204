@@ -35,11 +35,14 @@ from ur10e_example_controllers.step5a_cartesian_cycloid_motion import (  # noqa:
 )
 from ur10e_example_controllers.step5a_historical_fixed_z_motion import (  # noqa: E402
     DEFAULT_CONFIG as HISTORICAL_FIXED_Z_CONFIG,
+    Step5aHistoricalFixedZMotion,
+    achieved_speed_hard_cap_m_s,
     build_historical_fixed_z_trajectory,
     build_positioning_trajectory,
     cartesian_task_space_spec,
     fixed_z_start_precheck,
     fixed_z_target_active_tcp_z_m,
+    historical_visual_achieved_speed_gate_ok,
 )
 from ur10e_example_controllers.step5a_return_to_anchor_motion import (  # noqa: E402
     build_return_trajectory,
@@ -270,7 +273,8 @@ class Step5aCartesianCycloidMotionTest(unittest.TestCase):
         self.assertAlmostEqual(float(config["sample_period_s"]), 0.02, places=12)
         self.assertAlmostEqual(float(config["legacy_v3_command_clamp_m_s"]), 0.009, places=12)
         self.assertAlmostEqual(float(config["visual_gate_expected_reference_speed_peak_m_s"]), 0.012, places=12)
-        self.assertEqual(config["achieved_speed_policy"], "advisory_not_gate_for_historical_15s_visual_gate")
+        self.assertAlmostEqual(achieved_speed_hard_cap_m_s(config), 0.015, places=12)
+        self.assertEqual(config["achieved_speed_policy"], "hard_gate_for_historical_15s_visual_gate")
         self.assertAlmostEqual(metrics["max_reference_speed_m_s"], 0.012, places=5)
         self.assertGreater(metrics["max_reference_speed_m_s"], float(config["legacy_v3_command_clamp_m_s"]))
         self.assertIn("reference_base_offset_x_m", trace_rows[0])
@@ -288,7 +292,8 @@ class Step5aCartesianCycloidMotionTest(unittest.TestCase):
         self.assertEqual(spec["timing_law"], "linear_time_phase")
         self.assertEqual(spec["acceleration_profile_or_bound"]["acceleration_bound_m_s2"], 0.300)
         self.assertEqual(spec["caps"]["legacy_v3_command_clamp_m_s"], 0.009)
-        self.assertEqual(spec["caps"]["achieved_speed_policy"], "advisory_not_gate_for_historical_15s_visual_gate")
+        self.assertEqual(spec["caps"]["achieved_speed_hard_cap_m_s"], 0.015)
+        self.assertEqual(spec["caps"]["achieved_speed_policy"], "hard_gate_for_historical_15s_visual_gate")
         self.assertEqual(spec["control_frame"], "active_tcp")
         self.assertTrue(spec["bench_proven_corrections"]["safe_frame_xy_remapping"])
         self.assertEqual(spec["bench_proven_corrections"]["calibration_hash"], EXPECTED_CALIBRATION_HASH)
@@ -325,6 +330,101 @@ class Step5aCartesianCycloidMotionTest(unittest.TestCase):
         self.assertEqual(metrics["position_entry_speed_source"], "historical_step5a_tp_movel_v_0.020_a_0.030")
         self.assertGreater(metrics["max_commanded_fk_speed_m_s"], float(config["legacy_v3_command_clamp_m_s"]))
         self.assertLessEqual(metrics["max_commanded_fk_speed_m_s"], 0.020 + 1e-12)
+
+    def test_historical_visual_achieved_speed_hard_gate(self) -> None:
+        config = load_no_contact_config(HISTORICAL_FIXED_Z_CONFIG)
+
+        self.assertFalse(historical_visual_achieved_speed_gate_ok(0.0150001, config))
+        self.assertTrue(historical_visual_achieved_speed_gate_ok(0.015, config))
+        self.assertTrue(historical_visual_achieved_speed_gate_ok(0.014999, config))
+        self.assertFalse(historical_visual_achieved_speed_gate_ok(float("nan"), config))
+
+    def test_historical_visual_summary_ok_requires_achieved_speed_hard_gate(self) -> None:
+        config = load_no_contact_config(HISTORICAL_FIXED_Z_CONFIG)
+
+        def make_summary(max_achieved_speed_m_s: float) -> dict:
+            node = Step5aHistoricalFixedZMotion.__new__(Step5aHistoricalFixedZMotion)
+            node.args = SimpleNamespace(
+                execute=True,
+                mode="path",
+                robot_ip="192.168.1.18",
+                action_name="/scaled_joint_trajectory_controller/follow_joint_trajectory",
+                sample_period_s=0.02,
+                trace=Path("/tmp/offline_step5a_historical_trace.csv"),
+                position_tolerance_m=0.003,
+                cartesian_position_error_limit_m=0.005,
+                trace_max_sample_gap_s=0.08,
+                kunwei_max_force_delta_n=2.0,
+                joint_history_max_samples=50000,
+                calibration_yaml=Path("/home/andy/ur10e_ros2_ws/src/ur10e_bringup/config/ur10e_calibration.yaml"),
+                xacro_path=Path("/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro"),
+            )
+            node.config = config
+            node.model_bundle = SimpleNamespace(calibration_hash=EXPECTED_CALIBRATION_HASH)
+            node.joint_history = []
+            node.sent_goal = True
+            node.accepted = True
+            node.result_status = 4
+            node.result_error_code = 0
+            node.result_error_string = "Goal successfully reached!"
+            node.failure_stage = "trajectory_execution"
+            node.trajectory_authority_entered = True
+            trace_rows = [
+                {"achieved_speed_m_s": 0.0 if index == 0 else max_achieved_speed_m_s, "cartesian_error_m": 0.0003}
+                for index in range(751)
+            ]
+            metrics = {
+                "duration_s": 15.0,
+                "max_reference_speed_m_s": 0.012,
+                "max_commanded_fk_speed_m_s": 0.012,
+                "max_commanded_position_error_m": 0.0003,
+                "cartesian_reference_frame": {
+                    "mode": "step5_safe_frame_local_xy_to_base_xy_offset",
+                    "safe_frame_path": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/config/step5_safe_frame.json",
+                    "local_x_axis": "u_along_xy",
+                    "local_y_axis": "p_lateral_xy",
+                    "u_along_xy": [-0.010785642631908187, 0.9999418332648238],
+                    "p_lateral_xy": [-0.9999418332648239, -0.010785642631908406],
+                    "origin_xy_m": [0.487795411149049, 0.12932679270060748],
+                },
+                "target_pose_base": {"frame": "base_to_active_tcp"},
+                "target_tool0_pose_base": {"frame": "base_to_tool0"},
+                "start_pose_base": {"frame": "base_to_tool0"},
+                "start_active_tcp_pose_base": {"frame": "base_to_active_tcp"},
+                "reference_local_final_offset_xy_m": [0.09419123247298389, 0.0005974457002445104],
+                "reference_final_base_xyz_m": [0.0, 0.0, 0.039423891],
+                "commanded_net_displacement_xyz_m": [0.0, 0.094, 0.0],
+                "commanded_net_displacement_norm_m": 0.094,
+            }
+            return Step5aHistoricalFixedZMotion._summary(
+                node,
+                {},
+                {
+                    "ok": True,
+                    "stream_start_command_sent": True,
+                    "stream_stop_command_sent": True,
+                    "failure_reason": None,
+                },
+                [0.0] * 6,
+                trace_rows,
+                metrics,
+                {"trace_alignment_ok": True},
+                [],
+            )
+
+        passing = make_summary(0.015)
+        self.assertTrue(passing["ok"])
+        self.assertTrue(passing["achieved_speed_gate_ok"])
+        self.assertEqual(passing["achieved_speed_hard_cap_m_s"], 0.015)
+        self.assertEqual(
+            passing["speed_gate_status"],
+            "achieved_speed_hard_gate_reference_and_commanded_fk_advisory",
+        )
+
+        failing = make_summary(0.0150001)
+        self.assertFalse(failing["ok"])
+        self.assertFalse(failing["achieved_speed_gate_ok"])
+        self.assertEqual(failing["max_achieved_speed_m_s"], 0.0150001)
 
     def test_current_failed_evidence_run_audits_as_gate_a_failed(self) -> None:
         run_dir = WORKSPACE / "experiments" / "tase-contact-reproduction" / "runs" / "no_contact_test_20260617_143540"

@@ -75,8 +75,9 @@ contact planning:
   (`omega_rad_s=0.4`, final cycloid parameter `theta=6.0`) and the full
   `A=0.015 m` geometry, so its theoretical reference-speed peak is `0.012 m/s`.
   The TP v3 `0.009 m/s` command clamp is recorded only as legacy provenance for
-  this visual gate; `max_achieved_speed_m_s <= 0.009` is not a hard pass/fail
-  condition here.
+  this visual gate. The path artifact uses a separate hard gate:
+  `max_achieved_speed_m_s <= 0.015`; reference and commanded-FK speeds are
+  advisory for this visual gate.
 
 Both fixed-Z commands use calibrated Pinocchio `base -> tool0` with the audited
 active TCP offset from `runs/step5c_calibrated_kinematics_audit_20260613_003314`
