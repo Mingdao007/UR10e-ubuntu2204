@@ -55,6 +55,10 @@ those recorded joints. Its artifact role is
 `step5a_live_return_to_anchor_not_gate_a_acceptance`; it must not be counted as
 a Step5a pass or used to authorize Step5b/contact.
 
+For operator use, prefer the no-argument short entrypoint:
+`step5a_return_last.sh`. It selects the latest `no_contact_test_*` run that has
+`step5a_cartesian_cycloid_motion.json` and delegates to the return utility.
+
 The source of truth for Step5 trajectory and stage ownership is
 `config/step5_stage_table.json`. Step5c also has a required offline calibrated
 kinematics gate and an offline qdot register path gate in that table; passing

@@ -224,6 +224,14 @@ class NoContactCycloidShadowTest(unittest.TestCase):
         self.assertIn("sent_goal=false", return_script)
         self.assertNotIn("step5a_gate_a_audit", return_script)
 
+        return_last_script_path = WORKSPACE / "step5a_return_last.sh"
+        return_last_script = return_last_script_path.read_text(encoding="utf-8")
+        self.assertTrue(return_last_script_path.exists())
+        self.assertTrue(return_last_script_path.stat().st_mode & 0o111)
+        self.assertIn('find "${RUN_ROOT}" -maxdepth 1 -type d -name "no_contact_test_*" | sort -r', return_last_script)
+        self.assertIn("step5a_cartesian_cycloid_motion.json", return_last_script)
+        self.assertIn('exec "${ROOT}/step5a_live_return_to_anchor.sh" "${SOURCE_RUN_DIR}"', return_last_script)
+
         gate_d_script_path = WORKSPACE / "step5a_driver_lifecycle_check.sh"
         gate_d_script = gate_d_script_path.read_text(encoding="utf-8")
         self.assertTrue(gate_d_script_path.exists())
