@@ -40,9 +40,13 @@ try:
 except Exception as exc:
     print(f"BAD_POSITION_SUMMARY {summary_path}: {exc}")
     raise SystemExit(2)
+allowed_revisions = {
+    "active_tcp_10mm_clearance_v2",
+    "active_tcp_10mm_clearance_15s_visual_v3",
+}
 if (
     summary.get("ok") is True
-    and summary.get("stage_revision") == "active_tcp_10mm_clearance_v2"
+    and summary.get("stage_revision") in allowed_revisions
     and summary.get("motion_kind") == "fixed_z_start_positioning"
 ):
     print(f"POSITION_READY {latest}")

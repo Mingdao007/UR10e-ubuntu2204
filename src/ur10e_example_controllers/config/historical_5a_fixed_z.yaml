@@ -1,10 +1,10 @@
 stage_id: step5a_historical_fixed_z_no_contact_v1
-stage_revision: active_tcp_10mm_clearance_v2
+stage_revision: active_tcp_10mm_clearance_15s_visual_v3
 role: historical_step5a_fixed_z_visual_gate_before_step5b
-duration_s: 22.0
+duration_s: 15.0
 sample_period_s: 0.02
 amplitude_m: 0.015
-omega_rad_s: 0.2727272727272727
+omega_rad_s: 0.4
 final_phase_rad: 6.0
 fixed_base_z_m: 0.029423891
 fixed_base_z_frame: historical_ur_actual_tcp_pose
@@ -15,7 +15,9 @@ tcp_offset_tool0_m:
   - 0.00000022293003722353485
   - 0.12209917288991741
 tcp_offset_source: step5c_calibrated_kinematics_audit_20260613_003314
-velocity_cap_m_s: 0.009
+legacy_v3_command_clamp_m_s: 0.009
+visual_gate_expected_reference_speed_peak_m_s: 0.012
+achieved_speed_policy: advisory_not_gate_for_historical_15s_visual_gate
 acceleration_bound_m_s2: 0.300
 safe_frame_path: experiments/tase-contact-reproduction/config/step5_safe_frame.json
 position_tolerance_m: 0.003

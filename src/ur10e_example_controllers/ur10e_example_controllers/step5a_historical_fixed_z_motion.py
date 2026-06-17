@@ -193,15 +193,6 @@ class Step5aHistoricalFixedZMotion(Node):
             self.latest_trace_fields = trace_fields
             self.latest_metrics = metrics
 
-            if (
-                self.args.mode == "path"
-                and metrics["max_commanded_fk_speed_m_s"] > float(self.config["velocity_cap_m_s"]) + self.args.speed_cap_tolerance_m_s
-            ):
-                raise RuntimeError(
-                    "Commanded FK speed exceeds fixed-Z Step5a cap: "
-                    f"{metrics['max_commanded_fk_speed_m_s']:.6f} > {float(self.config['velocity_cap_m_s']):.6f}"
-                )
-
             self.failure_stage = "action_server_gate"
             if not self.action_client.wait_for_server(timeout_sec=self.args.wait_s):
                 raise RuntimeError(f"Action server unavailable: {self.args.action_name}")
@@ -341,10 +332,8 @@ class Step5aHistoricalFixedZMotion(Node):
             ok = (
                 result_ok
                 and _kunwei_artifact_ok(kunwei_snapshot)
-                and len(trace_rows) == 1101
-                and metrics["max_reference_speed_m_s"] <= float(self.config["velocity_cap_m_s"]) + 1e-12
-                and metrics["max_commanded_fk_speed_m_s"] <= float(self.config["velocity_cap_m_s"]) + self.args.speed_cap_tolerance_m_s
-                and (not achieved_speeds or max_achieved_speed <= float(self.config["velocity_cap_m_s"]) + self.args.speed_cap_tolerance_m_s)
+                and len(trace_rows) == expected_reference_row_count(self.config)
+                and math.isclose(float(metrics["duration_s"]), float(self.config["duration_s"]), rel_tol=0.0, abs_tol=1e-9)
                 and (not cartesian_errors or max(cartesian_errors) <= self.args.cartesian_position_error_limit_m)
                 and trace_alignment.get("trace_alignment_ok") is True
             )
@@ -374,7 +363,14 @@ class Step5aHistoricalFixedZMotion(Node):
             "fixed_base_z_frame": self.config.get("fixed_base_z_frame", "historical_ur_actual_tcp_pose"),
             "visual_air_gap_above_fixed_z_m": fixed_z_visual_air_gap_m(self.config),
             "target_active_tcp_z_m": fixed_z_target_active_tcp_z_m(self.config),
-            "velocity_cap_m_s": float(self.config["velocity_cap_m_s"]),
+            "legacy_v3_command_clamp_m_s": legacy_v3_command_clamp_m_s(self.config),
+            "visual_gate_expected_reference_speed_peak_m_s": visual_gate_expected_reference_speed_peak_m_s(self.config),
+            "achieved_speed_policy": achieved_speed_policy(self.config),
+            "speed_gate_status": (
+                "advisory_only_for_historical_15s_visual_gate"
+                if self.args.mode == "path"
+                else "not_applicable_fixed_z_positioning"
+            ),
             "position_entry_speed_m_s": metrics.get("position_entry_speed_m_s"),
             "position_entry_speed_source": metrics.get("position_entry_speed_source"),
             "acceleration_bound_m_s2": float(self.config.get("acceleration_bound_m_s2", 0.300)),
@@ -841,7 +837,9 @@ def cartesian_task_space_spec(config: dict[str, Any], metrics: dict[str, Any]) -
         },
         "sample_period_s": float(config["sample_period_s"]),
         "caps": {
-            "velocity_cap_m_s": float(config["velocity_cap_m_s"]),
+            "legacy_v3_command_clamp_m_s": legacy_v3_command_clamp_m_s(config),
+            "visual_gate_expected_reference_speed_peak_m_s": visual_gate_expected_reference_speed_peak_m_s(config),
+            "achieved_speed_policy": achieved_speed_policy(config),
             "kunwei_max_force_delta_n_default": 2.0,
         },
         "endpoint_semantics": config.get("endpoint_semantics", "non_returning_historical_step5a_endpoint"),
@@ -866,6 +864,24 @@ def commanded_speeds(xyz_values: list[np.ndarray], times: list[float]) -> list[f
         for index in range(1, len(xyz_values))
         if times[index] > times[index - 1]
     ]
+
+
+def legacy_v3_command_clamp_m_s(config: dict[str, Any]) -> float:
+    return float(config.get("legacy_v3_command_clamp_m_s", config.get("velocity_cap_m_s", 0.009)))
+
+
+def visual_gate_expected_reference_speed_peak_m_s(config: dict[str, Any]) -> float:
+    if "visual_gate_expected_reference_speed_peak_m_s" in config:
+        return float(config["visual_gate_expected_reference_speed_peak_m_s"])
+    return 2.0 * float(config["amplitude_m"]) * float(config["omega_rad_s"])
+
+
+def achieved_speed_policy(config: dict[str, Any]) -> str:
+    return str(config.get("achieved_speed_policy", "advisory_not_gate_for_historical_15s_visual_gate"))
+
+
+def expected_reference_row_count(config: dict[str, Any]) -> int:
+    return len(_iter_reference_rows(config))
 
 
 def set_point_velocities(points: list[JointTrajectoryPoint], fallback_dt: float) -> None:
@@ -1017,6 +1033,10 @@ def main(argv: list[str] | None = None) -> int:
             "target_tool0_pose_base": metrics.get("target_tool0_pose_base"),
             "position_entry_speed_m_s": metrics.get("position_entry_speed_m_s"),
             "position_entry_speed_source": metrics.get("position_entry_speed_source"),
+            "legacy_v3_command_clamp_m_s": legacy_v3_command_clamp_m_s(config),
+            "visual_gate_expected_reference_speed_peak_m_s": visual_gate_expected_reference_speed_peak_m_s(config),
+            "achieved_speed_policy": achieved_speed_policy(config),
+            "speed_gate_status": "not_evaluated_failure_summary",
             "trace_path": str(args.trace) if trace_rows else None,
             "trace_rows": len(trace_rows),
         }

@@ -71,7 +71,12 @@ contact planning:
 - `step5a_live_historical_5a_test.sh` runs the historical full-amplitude
   no-contact cycloid only if the latest corrected position run is `ok=true`
   and the current active TCP is already within `3 mm` of that fixed-Z-plus-gap
-  start pose.
+  start pose. This visual gate uses the historical 15 s timing
+  (`omega_rad_s=0.4`, final cycloid parameter `theta=6.0`) and the full
+  `A=0.015 m` geometry, so its theoretical reference-speed peak is `0.012 m/s`.
+  The TP v3 `0.009 m/s` command clamp is recorded only as legacy provenance for
+  this visual gate; `max_achieved_speed_m_s <= 0.009` is not a hard pass/fail
+  condition here.
 
 Both fixed-Z commands use calibrated Pinocchio `base -> tool0` with the audited
 active TCP offset from `runs/step5c_calibrated_kinematics_audit_20260613_003314`
@@ -106,7 +111,9 @@ the active v3 endpoint `theta=6.0 rad` is about 95.5 percent of that arch. With
 and `30 mm` high. The current provenance classification is: `0.015 m` is
 paper/local-control geometry lineage; `6 rad` is previous-agent-plan-carried
 and paper-lineage-derived; `22 s` and `0.009 m/s` are active-v3 implementation
-values, not proven direct user-authored primitives in inspected histories.
+values, not proven direct user-authored primitives in inspected histories. The
+historical fixed-Z visual gate now intentionally uses the 15 s timing lineage
+instead of preserving the later 22 s TP v3 timing.
 
 | stage id | owner | contact | bridge | reference owner | normal filter | success condition |
 |---|---|---:|---:|---|---|---|
