@@ -6,6 +6,7 @@ import py_compile
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
 from pathlib import Path
 
 
@@ -21,6 +22,13 @@ import step5b_authorization_status as auth_gate  # noqa: E402
 
 
 class Step5bContactLiveRunnerTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self._spin_until_future_complete = runner.rclpy.spin_until_future_complete
+        runner.rclpy.spin_until_future_complete = lambda *args, **kwargs: None
+
+    def tearDown(self) -> None:
+        runner.rclpy.spin_until_future_complete = self._spin_until_future_complete
+
     def test_acceptance_contract_uses_locked_ros2_headless_route(self) -> None:
         contract = runner.acceptance_contract()
         self.assertEqual(contract["live_runner_route"], "ros2_remote_control_headless")
@@ -115,6 +123,151 @@ class Step5bContactLiveRunnerTest(unittest.TestCase):
         ]
         for token in forbidden:
             self.assertNotIn(token, text)
+
+    def test_send_goal_waits_for_success_result(self) -> None:
+        node = fake_action_node(result_error_code=runner.FollowJointTrajectory.Result.SUCCESSFUL)
+        outcome = runner.send_goal(node, [0.0] * 6, fake_q_next(), 0.05)
+        self.assertTrue(outcome.accepted)
+        self.assertTrue(node.sent_goal)
+        self.assertTrue(node.accepted)
+        self.assertEqual(node.action_terminal_status, 4)
+        self.assertEqual(node.action_result_error_code, runner.FollowJointTrajectory.Result.SUCCESSFUL)
+        self.assertEqual(node.action_result_error_string, "ok")
+
+    def test_send_goal_aborted_result_fails_closed(self) -> None:
+        node = fake_action_node(result_error_code=-4, result_status=6, error_string="aborted")
+        with self.assertRaisesRegex(RuntimeError, "result failed"):
+            runner.send_goal(node, [0.0] * 6, fake_q_next(), 0.05)
+        self.assertTrue(node.sent_goal)
+        self.assertTrue(node.accepted)
+        self.assertEqual(node.action_terminal_status, 6)
+        self.assertEqual(node.action_result_error_code, -4)
+        self.assertEqual(node.action_result_error_string, "aborted")
+
+    def test_send_goal_result_timeout_fails_closed(self) -> None:
+        node = fake_action_node(result_error_code=runner.FollowJointTrajectory.Result.SUCCESSFUL, result_done=False)
+        with self.assertRaisesRegex(RuntimeError, "result timed out"):
+            runner.send_goal(node, [0.0] * 6, fake_q_next(), 0.05)
+        self.assertTrue(node.sent_goal)
+        self.assertTrue(node.accepted)
+        self.assertGreater(node.action_result_timeout_s, 0.0)
+
+    def test_send_goal_rejected_fails_before_result(self) -> None:
+        node = fake_action_node(accepted=False, result_error_code=runner.FollowJointTrajectory.Result.SUCCESSFUL)
+        with self.assertRaisesRegex(RuntimeError, "rejected"):
+            runner.send_goal(node, [0.0] * 6, fake_q_next(), 0.05)
+        self.assertTrue(node.sent_goal)
+        self.assertFalse(node.accepted)
+        self.assertIsNone(node.action_terminal_status)
+
+    def test_partial_failure_trace_records_action_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            trace = Path(tmp) / "trace.csv"
+            node = SimpleNamespace(
+                args=SimpleNamespace(trace=trace),
+                sent_goal=True,
+                accepted=True,
+                action_terminal_status=6,
+                action_result_error_code=-4,
+                action_result_error_string="aborted",
+                action_result_timeout_s=None,
+                trace_rows=[
+                    {
+                        "t_rel_s": 0.1,
+                        "stage": 25.0,
+                        "cmd_valid": 1.0,
+                        "cmd_vx_m_s": 0.0,
+                        "cmd_vy_m_s": 0.0,
+                        "cmd_vz_m_s": 0.0,
+                        "cmd_wx_rad_s": 0.0,
+                        "cmd_wy_rad_s": 0.0,
+                        "cmd_wz_rad_s": 0.0,
+                        "normal_load_n": 0.0,
+                        "force_norm_n": 0.0,
+                        "force_error_n": 5.0,
+                        "orientation_error_rad": 0.0,
+                        "hold_reason": "",
+                        "normal_filter_source": "locked",
+                    }
+                ],
+            )
+            runner.persist_partial_failure_trace(node, RuntimeError("injected"))
+            rows = list(csv_dict_rows(trace))
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["sent_goal"], "True")
+        self.assertEqual(rows[0]["accepted"], "True")
+        self.assertEqual(rows[0]["action_terminal_status"], "6")
+        self.assertEqual(rows[0]["action_result_error_code"], "-4")
+        self.assertEqual(rows[0]["action_result_error_string"], "aborted")
+        self.assertIn("RuntimeError: injected", rows[0]["failure_reason"])
+
+
+class FakeFuture:
+    def __init__(self, value: object, *, done: bool = True) -> None:
+        self._value = value
+        self._done = done
+
+    def result(self) -> object:
+        return self._value
+
+    def done(self) -> bool:
+        return self._done
+
+
+class FakeGoalHandle:
+    def __init__(self, *, accepted: bool, result_future: FakeFuture) -> None:
+        self.accepted = accepted
+        self._result_future = result_future
+
+    def get_result_async(self) -> FakeFuture:
+        return self._result_future
+
+
+class FakeActionClient:
+    def __init__(self, handle: FakeGoalHandle) -> None:
+        self.handle = handle
+        self.sent_goals = []
+
+    def send_goal_async(self, goal: object) -> FakeFuture:
+        self.sent_goals.append(goal)
+        return FakeFuture(self.handle)
+
+
+def fake_action_node(
+    *,
+    accepted: bool = True,
+    result_error_code: int,
+    result_status: int = 4,
+    error_string: str = "ok",
+    result_done: bool = True,
+) -> SimpleNamespace:
+    result_payload = SimpleNamespace(
+        status=result_status,
+        result=SimpleNamespace(error_code=result_error_code, error_string=error_string),
+    )
+    result_future = FakeFuture(result_payload, done=result_done)
+    handle = FakeGoalHandle(accepted=accepted, result_future=result_future)
+    return SimpleNamespace(
+        args=SimpleNamespace(wait_s=0.1),
+        action_client=FakeActionClient(handle),
+        sent_goal=False,
+        accepted=False,
+        action_terminal_status=None,
+        action_result_error_code=None,
+        action_result_error_string=None,
+        action_result_timeout_s=None,
+    )
+
+
+def fake_q_next() -> object:
+    return [0.01] * 6
+
+
+def csv_dict_rows(path: Path) -> list[dict[str, str]]:
+    import csv
+
+    with path.open(newline="", encoding="utf-8") as handle:
+        return list(csv.DictReader(handle))
 
 
 if __name__ == "__main__":

@@ -64,6 +64,10 @@ DEFAULT_TRACE_FIELDS = [
     "normal_filter_source",
     "sent_goal",
     "accepted",
+    "action_terminal_status",
+    "action_result_error_code",
+    "action_result_error_string",
+    "action_result_timeout_s",
     "failure_reason",
 ]
 
@@ -75,6 +79,15 @@ class LiveRunnerCommand:
     next_state: core.Step5bContactState
     search_active: bool
     command_twist_base: tuple[float, float, float, float, float, float]
+
+
+@dataclass(frozen=True)
+class ActionGoalOutcome:
+    accepted: bool
+    terminal_status: int | None = None
+    result_error_code: int | None = None
+    result_error_string: str | None = None
+    result_timeout_s: float | None = None
 
 
 def acceptance_contract(entrypoint: Path | None = None) -> dict[str, Any]:
@@ -212,8 +225,14 @@ class Step5bContactLiveRunner(Node):
         self.joint_state: JointState | None = None
         self.sent_goal = False
         self.accepted = False
+        self.action_terminal_status: int | None = None
+        self.action_result_error_code: int | None = None
+        self.action_result_error_string: str | None = None
+        self.action_result_timeout_s: float | None = None
         self.failure_stage = "not_started"
         self.contact_motion_entered = False
+        self.trace_rows: list[dict[str, Any]] = []
+        self.kunwei_monitor_snapshot: dict[str, Any] | None = None
         self.create_subscription(JointState, args.joint_state_topic, self._on_joint_state, 50)
         self.action_client = ActionClient(self, FollowJointTrajectory, args.action_name)
 
@@ -263,7 +282,7 @@ class Step5bContactLiveRunner(Node):
         )
         params, basis = load_params_and_basis(self.args.stage_table, self.args.safe_frame)
         state = core.Step5bContactState()
-        trace_rows: list[dict[str, Any]] = []
+        self.trace_rows = []
         start = time.monotonic()
         last_tick = start
         monitor_finalized = False
@@ -298,7 +317,7 @@ class Step5bContactLiveRunner(Node):
                     search_speed_m_s=self.args.search_speed_m_s,
                 )
                 state = command.next_state
-                trace_rows.append(_trace_row(now - start, command, sent_goal=False, accepted=False))
+                self.trace_rows.append(_trace_row(now - start, command, sent_goal=False, accepted=False))
                 if not any(abs(value) > 1e-12 for value in command.command_twist_base):
                     time.sleep(self.args.command_period_s)
                     continue
@@ -310,14 +329,14 @@ class Step5bContactLiveRunner(Node):
                     max_joint_step_rad=self.args.max_joint_step_rad,
                 )
                 self.contact_motion_entered = True
-                send_goal(self, positions, q_next, self.args.command_period_s)
-                trace_rows[-1]["sent_goal"] = True
-                trace_rows[-1]["accepted"] = self.accepted
+                outcome = send_goal(self, positions, q_next, self.args.command_period_s)
+                self.trace_rows[-1].update(_action_outcome_fields(outcome))
                 if state.normal_acquired and command.result.path_time_s >= params.duration_s:
                     break
             monitor.stop()
             monitor_finalized = True
-            write_trace(self.args.trace, trace_rows)
+            self.kunwei_monitor_snapshot = monitor.snapshot()
+            write_trace(self.args.trace, self.trace_rows)
             return {
                 "ok": True,
                 "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -334,10 +353,18 @@ class Step5bContactLiveRunner(Node):
                 "readiness_summary_path": str(readiness_path),
                 "readiness_ok": bool(readiness_payload.get("ok")),
                 "authorization_status": auth,
-                "kunwei_monitor": monitor.snapshot(),
+                "action_terminal_status": self.action_terminal_status,
+                "action_result_error_code": self.action_result_error_code,
+                "action_result_error_string": self.action_result_error_string,
+                "action_result_timeout_s": self.action_result_timeout_s,
+                "kunwei_monitor": self.kunwei_monitor_snapshot,
                 "trace_path": str(self.args.trace),
-                "trace_rows": len(trace_rows),
+                "trace_rows": len(self.trace_rows),
             }
+        except Exception as exc:
+            self.kunwei_monitor_snapshot = monitor.snapshot()
+            persist_partial_failure_trace(self, exc)
+            raise
         finally:
             if not monitor_finalized:
                 monitor.stop()
@@ -428,7 +455,7 @@ def integrate_twist_to_joint_position(
     return pin.integrate(model_bundle.model, q, step)
 
 
-def send_goal(node: Step5bContactLiveRunner, current: list[float], q_next: np.ndarray, duration_s: float) -> None:
+def send_goal(node: Step5bContactLiveRunner, current: list[float], q_next: np.ndarray, duration_s: float) -> ActionGoalOutcome:
     goal = FollowJointTrajectory.Goal()
     goal.trajectory.joint_names = JOINT_NAMES
     goal.trajectory.points = [_point(current, 0.0), _point([float(v) for v in q_next], duration_s)]
@@ -441,6 +468,62 @@ def send_goal(node: Step5bContactLiveRunner, current: list[float], q_next: np.nd
     node.accepted = bool(goal_handle.accepted)
     if not goal_handle.accepted:
         raise RuntimeError("FollowJointTrajectory goal was rejected")
+    result_future = goal_handle.get_result_async()
+    result_timeout_s = float(duration_s) + float(node.args.wait_s)
+    rclpy.spin_until_future_complete(node, result_future, timeout_sec=result_timeout_s)
+    if not result_future.done():
+        node.action_result_timeout_s = result_timeout_s
+        raise RuntimeError(f"FollowJointTrajectory result timed out after {result_timeout_s:.3f}s")
+    wrapped_result = result_future.result()
+    if wrapped_result is None:
+        raise RuntimeError("FollowJointTrajectory result future returned None")
+    node.action_terminal_status = int(wrapped_result.status)
+    node.action_result_error_code = int(wrapped_result.result.error_code)
+    node.action_result_error_string = str(wrapped_result.result.error_string)
+    outcome = ActionGoalOutcome(
+        accepted=True,
+        terminal_status=node.action_terminal_status,
+        result_error_code=node.action_result_error_code,
+        result_error_string=node.action_result_error_string,
+    )
+    if wrapped_result.result.error_code != FollowJointTrajectory.Result.SUCCESSFUL:
+        raise RuntimeError(
+            "FollowJointTrajectory result failed: "
+            f"status={node.action_terminal_status} "
+            f"error_code={node.action_result_error_code} "
+            f"error_string={node.action_result_error_string}"
+        )
+    return outcome
+
+
+def _action_outcome_fields(outcome: ActionGoalOutcome) -> dict[str, Any]:
+    return {
+        "sent_goal": True,
+        "accepted": outcome.accepted,
+        "action_terminal_status": "" if outcome.terminal_status is None else outcome.terminal_status,
+        "action_result_error_code": "" if outcome.result_error_code is None else outcome.result_error_code,
+        "action_result_error_string": "" if outcome.result_error_string is None else outcome.result_error_string,
+        "action_result_timeout_s": "" if outcome.result_timeout_s is None else outcome.result_timeout_s,
+    }
+
+
+def _node_action_fields(node: Step5bContactLiveRunner) -> dict[str, Any]:
+    return {
+        "sent_goal": node.sent_goal,
+        "accepted": node.accepted,
+        "action_terminal_status": "" if node.action_terminal_status is None else node.action_terminal_status,
+        "action_result_error_code": "" if node.action_result_error_code is None else node.action_result_error_code,
+        "action_result_error_string": "" if node.action_result_error_string is None else node.action_result_error_string,
+        "action_result_timeout_s": "" if node.action_result_timeout_s is None else node.action_result_timeout_s,
+    }
+
+
+def persist_partial_failure_trace(node: Step5bContactLiveRunner, exc: Exception) -> None:
+    if not node.trace_rows:
+        return
+    node.trace_rows[-1].update(_node_action_fields(node))
+    node.trace_rows[-1]["failure_reason"] = f"{type(exc).__name__}: {exc}"
+    write_trace(node.args.trace, node.trace_rows)
 
 
 def zeroed_tcp_wrench(snapshot: dict[str, Any]) -> tuple[float, float, float, float, float, float]:
@@ -542,6 +625,10 @@ def _trace_row(t_rel_s: float, command: LiveRunnerCommand, *, sent_goal: bool, a
         "normal_filter_source": result.normal_filter_source,
         "sent_goal": sent_goal,
         "accepted": accepted,
+        "action_terminal_status": "",
+        "action_result_error_code": "",
+        "action_result_error_string": "",
+        "action_result_timeout_s": "",
         "failure_reason": failure_reason,
     }
 
@@ -616,9 +703,16 @@ def main(argv: list[str] | None = None) -> int:
             "contact_motion_entered": bool(getattr(node, "contact_motion_entered", False)),
             "sent_goal": bool(getattr(node, "sent_goal", False)),
             "accepted": bool(getattr(node, "accepted", False)),
+            "action_terminal_status": getattr(node, "action_terminal_status", None),
+            "action_result_error_code": getattr(node, "action_result_error_code", None),
+            "action_result_error_string": getattr(node, "action_result_error_string", None),
+            "action_result_timeout_s": getattr(node, "action_result_timeout_s", None),
             "failure_stage": getattr(node, "failure_stage", "unknown"),
             "error": f"{type(exc).__name__}: {exc}",
             "live_runner_route": LOCKED_ROUTE,
+            "trace_path": str(args.trace),
+            "trace_rows": len(getattr(node, "trace_rows", [])),
+            "kunwei_monitor": getattr(node, "kunwei_monitor_snapshot", None),
         }
         args.summary.parent.mkdir(parents=True, exist_ok=True)
         args.summary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
