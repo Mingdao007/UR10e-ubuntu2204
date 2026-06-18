@@ -27,9 +27,10 @@ def args(**overrides: object) -> argparse.Namespace:
         "min_samples": 1000,
         "recent_rate_hz_min": 200.0,
         "latest_sample_max_age_s": 0.25,
-        "force_norm_zeroed_mean_max_n": 0.75,
+        "force_norm_zeroed_mean_max_n": readiness.STEP5B_CONTACT_FORCE_NORM_LATCH_N,
         "force_norm_zeroed_max_n": 1.5,
-        "normal_load_zeroed_abs_max_n": 0.75,
+        "normal_load_zeroed_negative_min_n": readiness.STEP5B_CONTACT_NORMAL_NEGATIVE_LATCH_N,
+        "normal_load_zeroed_abs_max_n": abs(readiness.STEP5B_CONTACT_NORMAL_NEGATIVE_LATCH_N),
         "normal_axis": "fz",
         "normal_sign": 1.0,
     }
@@ -74,9 +75,18 @@ class Step5bZeroPolicyReadinessTest(unittest.TestCase):
         self.assertFalse(summary["bridge_start_authorized"])
         self.assertFalse(summary["tp_play_authorized"])
         self.assertEqual(summary["force_source"], "kunwei_software_baselined_stream")
+        self.assertEqual(summary["thresholds"]["force_norm_zeroed_mean_max_n"], 1.5)
+        self.assertEqual(summary["thresholds"]["force_norm_zeroed_max_n"], 1.5)
+        self.assertEqual(summary["thresholds"]["normal_load_zeroed_negative_min_n"], -1.0)
+        self.assertEqual(summary["thresholds"]["normal_load_zeroed_abs_max_n"], 1.0)
+        self.assertEqual(summary["step5b_textbook_parameters"]["target_force_n"], 5.0)
+        self.assertEqual(summary["step5b_textbook_parameters"]["contact_latch"]["force_norm_gt_n"], 1.5)
+        self.assertEqual(summary["step5b_textbook_parameters"]["contact_latch"]["normal_force_lte_n"], -1.0)
+        self.assertEqual(summary["step5b_textbook_parameters"]["normal_filter"]["min_force_n"], 2.0)
         self.assertFalse(summary["zero_policy"]["ur_zero_ftsensor_called"])
         self.assertFalse(summary["zero_policy"]["kunwei_hardware_tare_or_config_written"])
         self.assertTrue(summary["zero_policy"]["software_baseline_subtraction"])
+        self.assertFalse(summary["normal_axis_policy"]["pre_contact_reaction_normal_latched"])
         self.assertEqual(summary["textbook_alignment"]["zero_policy_classification"], "preserved")
         self.assertTrue(summary["contact_force_frame_contract"]["reaction_normal_for_load"])
         self.assertGreater(len(rows), 1000)
@@ -105,10 +115,60 @@ class Step5bZeroPolicyReadinessTest(unittest.TestCase):
         self.assertIn("normal_load_zeroed_abs_threshold", summary["failure_reason"])
         self.assertFalse(summary["motion_authorized"])
 
+    def test_negative_step5b_latch_threshold_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            samples = synthetic_samples(spike_n=-1.2)
+            summary, _ = readiness.build_summary(
+                samples=samples,
+                stream_metrics={
+                    "sensor_endpoint": "192.168.50.25:5152",
+                    "stream_start_command_sent": True,
+                    "stream_stop_command_sent": True,
+                    "bytes_received": 28028,
+                    "packets_received": 20,
+                    "dropped_sync_bytes": 0,
+                    "parse_errors": 0,
+                    "collection_elapsed_s": 2.0,
+                },
+                output_dir=out,
+                raw_frames_path=out / "raw.bin",
+                samples_csv_path=out / "samples.csv",
+                args=args(),
+            )
+        self.assertFalse(summary["ok"])
+        self.assertIn("normal_load_zeroed_negative_latch_threshold", summary["failure_reason"])
+        self.assertIn("normal_load_zeroed_abs_threshold", summary["failure_reason"])
+
+    def test_latest_age_uses_collection_elapsed_not_connection_offset(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            summary, _ = readiness.build_summary(
+                samples=synthetic_samples(),
+                stream_metrics={
+                    "sensor_endpoint": "192.168.50.25:5152",
+                    "stream_start_command_sent": True,
+                    "stream_stop_command_sent": True,
+                    "bytes_received": 28028,
+                    "packets_received": 20,
+                    "dropped_sync_bytes": 0,
+                    "parse_errors": 0,
+                    "collection_elapsed_s": 2.02,
+                },
+                output_dir=out,
+                raw_frames_path=out / "raw.bin",
+                samples_csv_path=out / "samples.csv",
+                args=args(),
+            )
+        self.assertTrue(summary["ok"], summary["failure_reason"])
+        self.assertLess(summary["kunwei_stream"]["latest_sample_age_s"], 0.05)
+
     def test_wrapper_is_readiness_only(self) -> None:
         script = (WORKSPACE / "step5b_zero_policy_check.sh").read_text(encoding="utf-8")
         self.assertIn("step5b_zero_policy_readiness", script)
         self.assertIn("STEP5B_ZERO_POLICY_SAMPLE_DURATION_S", script)
+        self.assertIn("STEP5B_ZERO_POLICY_FORCE_NORM_MAX_N", script)
+        self.assertIn("STEP5B_ZERO_POLICY_NORMAL_ABS_MAX_N", script)
         self.assertIn("summary=${RUN_DIR}/summary.json", script)
         self.assertNotIn("zero_ftsensor", script)
         self.assertNotIn("ros2 launch", script)

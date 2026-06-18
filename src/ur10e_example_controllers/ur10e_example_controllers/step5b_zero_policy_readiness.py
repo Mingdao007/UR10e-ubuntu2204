@@ -20,6 +20,13 @@ RUN_ROOT = EXPERIMENT / "runs"
 TEXTBOOK_SPEC = EXPERIMENT / "config" / "local_control_textbook_spec.json"
 CONTACT_CONTRACT = EXPERIMENT / "UR_FORCE_FRAME_CONTRACT.md"
 FIELDS = ("fx", "fy", "fz", "mx", "my", "mz")
+STEP5B_TARGET_FORCE_N = 5.0
+STEP5B_CONTACT_FORCE_NORM_LATCH_N = 1.5
+STEP5B_CONTACT_NORMAL_NEGATIVE_LATCH_N = -1.0
+STEP5B_NORMAL_FILTER_MIN_FORCE_N = 2.0
+STEP5B_RAW_NORMAL_GUARD_N = 50.0
+STEP5B_FORCE_NORM_GUARD_N = 60.0
+STEP5B_TORQUE_GUARD_NM = 3.0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -32,9 +39,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--min-samples", type=int, default=1000)
     parser.add_argument("--recent-rate-hz-min", type=float, default=200.0)
     parser.add_argument("--latest-sample-max-age-s", type=float, default=0.25)
-    parser.add_argument("--force-norm-zeroed-mean-max-n", type=float, default=0.75)
-    parser.add_argument("--force-norm-zeroed-max-n", type=float, default=1.5)
-    parser.add_argument("--normal-load-zeroed-abs-max-n", type=float, default=0.75)
+    parser.add_argument("--force-norm-zeroed-mean-max-n", type=float, default=STEP5B_CONTACT_FORCE_NORM_LATCH_N)
+    parser.add_argument("--force-norm-zeroed-max-n", type=float, default=STEP5B_CONTACT_FORCE_NORM_LATCH_N)
+    parser.add_argument(
+        "--normal-load-zeroed-negative-min-n",
+        type=float,
+        default=STEP5B_CONTACT_NORMAL_NEGATIVE_LATCH_N,
+    )
+    parser.add_argument(
+        "--normal-load-zeroed-abs-max-n",
+        type=float,
+        default=abs(STEP5B_CONTACT_NORMAL_NEGATIVE_LATCH_N),
+    )
     parser.add_argument("--normal-axis", choices=("fx", "fy", "fz"), default="fz")
     parser.add_argument("--normal-sign", choices=(-1.0, 1.0), type=float, default=1.0)
     parser.add_argument("--connect-timeout-s", type=float, default=3.0)
@@ -112,14 +128,14 @@ def collect_kunwei_samples(
     buffer = bytearray()
     sock: socket.socket | None = None
     raw_handle = raw_frames_path.open("wb")
-    start_mono = time.monotonic()
     try:
         sock = socket.create_connection((sensor_ip, sensor_port), timeout=connect_timeout_s)
         sock.settimeout(recv_timeout_s)
         if send_start_command:
             sock.sendall(START_STREAM)
             metrics["stream_start_command_sent"] = True
-        deadline = time.monotonic() + duration_s
+        collection_start_mono = time.monotonic()
+        deadline = collection_start_mono + duration_s
         while time.monotonic() < deadline:
             try:
                 chunk = sock.recv(8192)
@@ -140,7 +156,8 @@ def collect_kunwei_samples(
                     metrics["parse_errors"] += 1
                     continue
                 raw_handle.write(frame)
-                samples.append((time.monotonic() - start_mono, values))
+                samples.append((time.monotonic() - collection_start_mono, values))
+        metrics["collection_elapsed_s"] = time.monotonic() - collection_start_mono
     finally:
         raw_handle.close()
         if sock is not None:
@@ -167,6 +184,7 @@ def base_stream_metrics(args: argparse.Namespace, raw_frames_path: Path) -> dict
         "dropped_sync_bytes": 0,
         "parse_errors": 0,
         "raw_frames_path": str(raw_frames_path),
+        "collection_elapsed_s": 0.0,
     }
 
 
@@ -183,6 +201,7 @@ def build_summary(
     thresholds = {
         "force_norm_zeroed_mean_max_n": float(args.force_norm_zeroed_mean_max_n),
         "force_norm_zeroed_max_n": float(args.force_norm_zeroed_max_n),
+        "normal_load_zeroed_negative_min_n": float(args.normal_load_zeroed_negative_min_n),
         "normal_load_zeroed_abs_max_n": float(args.normal_load_zeroed_abs_max_n),
     }
     rows: list[dict[str, float]] = []
@@ -190,10 +209,11 @@ def build_summary(
     latest_age_s = None
     sample_window_s = 0.0
     recent_rate_hz = None
+    collection_elapsed_s = float(stream_metrics.get("collection_elapsed_s") or args.sample_duration_s)
     if sample_times:
         sample_window_s = sample_times[-1] - sample_times[0] if len(sample_times) > 1 else 0.0
         recent_rate_hz = (len(sample_times) - 1) / sample_window_s if sample_window_s > 0.0 and len(sample_times) > 1 else None
-        latest_age_s = max(0.0, float(args.sample_duration_s) - sample_times[-1])
+        latest_age_s = max(0.0, collection_elapsed_s - sample_times[-1])
 
     baseline_samples = [sample for stamp, sample in samples if stamp <= args.baseline_window_s]
     validation_start = max(0.0, float(args.sample_duration_s) - float(args.validation_window_s))
@@ -236,6 +256,7 @@ def build_summary(
 
     force_norm_zeroed_mean = statistics.fmean(zeroed_force_norms) if zeroed_force_norms else None
     force_norm_zeroed_max = max(zeroed_force_norms) if zeroed_force_norms else None
+    normal_load_min = min(zeroed_normal_loads) if zeroed_normal_loads else None
     normal_load_abs_max = max((abs(value) for value in zeroed_normal_loads), default=None)
     failures = readiness_failures(
         collection_failure=collection_failure,
@@ -251,6 +272,7 @@ def build_summary(
         validation_samples=len(validation_samples),
         force_norm_zeroed_mean=force_norm_zeroed_mean,
         force_norm_zeroed_max=force_norm_zeroed_max,
+        normal_load_min=normal_load_min,
         normal_load_abs_max=normal_load_abs_max,
         thresholds=thresholds,
     )
@@ -274,6 +296,7 @@ def build_summary(
         "kunwei_stream": {
             "sensor_endpoint": stream_metrics.get("sensor_endpoint"),
             "sample_duration_s": float(args.sample_duration_s),
+            "collection_elapsed_s": collection_elapsed_s,
             "min_samples": int(args.min_samples),
             "samples": len(samples),
             "recent_rate_hz": recent_rate_hz,
@@ -298,9 +321,46 @@ def build_summary(
             "samples": len(validation_samples),
             "force_norm_zeroed_mean_n": force_norm_zeroed_mean,
             "force_norm_zeroed_max_n": force_norm_zeroed_max,
+            "normal_load_zeroed_min_n": normal_load_min,
             "normal_load_zeroed_abs_max_n": normal_load_abs_max,
         },
         "thresholds": thresholds,
+        "step5b_textbook_parameters": {
+            "stage_id": "step5_contact_cycloid_baseline_v1",
+            "target_force_n": STEP5B_TARGET_FORCE_N,
+            "contact_latch": {
+                "force_norm_gt_n": STEP5B_CONTACT_FORCE_NORM_LATCH_N,
+                "normal_force_lte_n": STEP5B_CONTACT_NORMAL_NEGATIVE_LATCH_N,
+            },
+            "normal_filter": {
+                "mode": "filtered_live",
+                "min_force_n": STEP5B_NORMAL_FILTER_MIN_FORCE_N,
+            },
+            "hard_guards": {
+                "raw_normal_guard_n": STEP5B_RAW_NORMAL_GUARD_N,
+                "force_norm_guard_n": STEP5B_FORCE_NORM_GUARD_N,
+                "torque_guard_nm": STEP5B_TORQUE_GUARD_NM,
+            },
+            "sources": [
+                str(TEXTBOOK_SPEC),
+                str(EXPERIMENT / "programs" / "step5" / "step5b_contact_cycloid_baseline_v1.script"),
+                str(EXPERIMENT / "programs" / "step5" / "step5b_contact_cycloid_baseline_v1.txt"),
+                str(EXPERIMENT / "config" / "step5_stage_table.json"),
+            ],
+        },
+        "threshold_provenance": {
+            "force_norm_zeroed_mean_max_n": "readiness-only bound using Step5b contact latch force_norm_gt_n=1.5",
+            "force_norm_zeroed_max_n": "Step5b contact latch force_norm_gt_n=1.5",
+            "normal_load_zeroed_negative_min_n": "Step5b contact latch normal_force_lte_n=-1.0",
+            "normal_load_zeroed_abs_max_n": "symmetric no-preload proxy derived from abs(Step5b normal_force_lte_n=-1.0)",
+            "normal_filter_min_force_n": "Step5b filtered-live normal activation parameter, recorded but not used as zero-baseline pass threshold",
+        },
+        "normal_axis_policy": {
+            "pre_contact_reaction_normal_latched": False,
+            "normal_load_zeroed_n": "configured_axis_no_preload_proxy_before_contact_search",
+            "normal_axis": args.normal_axis,
+            "normal_sign": args.normal_sign,
+        },
         "contact_force_frame_contract": {
             "contract_path": str(CONTACT_CONTRACT),
             "reaction_normal_for_load": True,
@@ -337,6 +397,7 @@ def readiness_failures(
     validation_samples: int,
     force_norm_zeroed_mean: float | None,
     force_norm_zeroed_max: float | None,
+    normal_load_min: float | None,
     normal_load_abs_max: float | None,
     thresholds: dict[str, float],
 ) -> list[str]:
@@ -361,6 +422,8 @@ def readiness_failures(
         failures.append("force_norm_zeroed_mean_threshold")
     if force_norm_zeroed_max is None or force_norm_zeroed_max > thresholds["force_norm_zeroed_max_n"]:
         failures.append("force_norm_zeroed_max_threshold")
+    if normal_load_min is None or normal_load_min <= thresholds["normal_load_zeroed_negative_min_n"]:
+        failures.append("normal_load_zeroed_negative_latch_threshold")
     if normal_load_abs_max is None or normal_load_abs_max > thresholds["normal_load_zeroed_abs_max_n"]:
         failures.append("normal_load_zeroed_abs_threshold")
     return failures
