@@ -14,14 +14,16 @@ usage() {
 Usage:
   step5b_ros2_headless_live.sh status
   step5b_ros2_headless_live.sh dry-run
-  STEP5B_FINAL_TRIGGER='${FINAL_TRIGGER_TEXT}' step5b_ros2_headless_live.sh
+  step5b_ros2_headless_live.sh
 
 Boundary:
   - Current route only: ROS2 Remote Control/headless.
   - Uses the locked Step5b specification defaults from the runner/stage table.
   - Does not override target force, path speed, path parameters, force source, or zero policy.
   - No TP/bridge fallback, no URScript send, no zero_ftsensor(), no Kunwei tare/config.
-  - Live run requires the exact STEP5B_FINAL_TRIGGER value above.
+  - Live run prompts for the exact final trigger phrase:
+    ${FINAL_TRIGGER_TEXT}
+  - Non-interactive live run may set STEP5B_FINAL_TRIGGER to that exact phrase.
   - The per-run operator_final_trigger_received gate is set true only during this script run and restored on exit.
 EOF
 }
@@ -107,6 +109,25 @@ raise SystemExit(43)
 PY
 }
 
+confirm_live_run() {
+  if [[ "${STEP5B_FINAL_TRIGGER:-}" == "${FINAL_TRIGGER_TEXT}" ]]; then
+    return 0
+  fi
+  if [[ ! -t 0 ]]; then
+    usage
+    echo
+    echo "Refusing live Step5b run: no interactive terminal and STEP5B_FINAL_TRIGGER is not exact."
+    return 40
+  fi
+  echo "Type the exact phrase to run live Step5b:"
+  echo "  ${FINAL_TRIGGER_TEXT}"
+  read -r -p "> " typed
+  if [[ "${typed}" != "${FINAL_TRIGGER_TEXT}" ]]; then
+    echo "Refusing live Step5b run: confirmation phrase did not match."
+    return 40
+  fi
+}
+
 mode="${1:-run}"
 case "${mode}" in
   -h|--help|help)
@@ -121,12 +142,7 @@ case "${mode}" in
     ros2 run ur10e_example_controllers "${RUNNER}"
     ;;
   run)
-    if [[ "${STEP5B_FINAL_TRIGGER:-}" != "${FINAL_TRIGGER_TEXT}" ]]; then
-      usage
-      echo
-      echo "Refusing live Step5b run: STEP5B_FINAL_TRIGGER is not exact."
-      exit 40
-    fi
+    confirm_live_run
 
     run_dir="$(make_run_dir)"
     mkdir -p "${run_dir}"
