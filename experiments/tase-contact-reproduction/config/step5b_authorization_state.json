@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "role": "step5b_live_contact_authorization_ledger",
+  "purpose": "Single authoritative source for Step5b live-contact LOCKED defaults and OPEN authorization gates. LOCKED values MUST NOT be re-asked of the user; reopen one only on explicit user instruction. Read by tools/step5b_authorization_status.py.",
+  "source_of_truth_handoff": "/home/andy/codex_handoffs/ur10e-step5b-live-contact-zero-policy-planner-report-20260618-0021.md",
+  "locked": {
+    "note": "Settled Step5b live-contact defaults. Do not re-ask the user. These are data the agent must hold, not open questions.",
+    "force_source": "kunwei_software_baselined_stream",
+    "zero_policy": {
+      "ur_zero_ftsensor_called": false,
+      "kunwei_hardware_tare_or_config_written": false,
+      "software_baseline_subtraction": true
+    },
+    "route": "ros2_remote_control_headless",
+    "route_policy": "The Step5b live-contact route is LOCKED to ros2_remote_control_headless. TP/bridge (tp_bridge_step5b_v1) is archive/reference evidence only and is NOT a selectable Step5b live route. If no ROS2 Remote Control/headless live runner exists yet, the correct outcome is no live Step5b run (build the ROS2 runner), NOT a TP/bridge fallback. Reopening this route requires explicit user instruction.",
+    "params_source": [
+      "config/step5_stage_table.json#step5_contact_cycloid_baseline_v1",
+      "config/local_control_textbook_spec.json"
+    ],
+    "params_note": "Step5b textbook parameters (target_force_n, contact latch, guards) are authoritative in the files above and echoed by the readiness summary's step5b_textbook_parameters. Do not copy the numbers here.",
+    "user_step5b_contact_authorization": true,
+    "user_step5b_contact_authorization_provenance": "/home/andy/codex_handoffs/ur10e-step5b-live-contact-planner-to-implementor-handoff-20260618-1245.md (user_live_contact_authorization: true)",
+    "user_step5b_contact_authorization_note": "User has authorized ENTERING Step5b contact in principle. Do not re-ask whether to do Step5b. This is not a per-run final trigger (see open_gates.operator_final_trigger_received) and does not by itself authorize motion.",
+    "legacy_note": "Legacy bridge+TP Step5b is retained reference/textbook, not the active execution route. Do not silently revive it as the live route."
+  },
+  "open_gates": {
+    "note": "The only items still open before Step5b live contact. Discuss these with the user; do not re-ask the LOCKED defaults (including the already-given user_step5b_contact_authorization).",
+    "readiness_artifact_pass": {
+      "derived_from": "latest runs/step5b_zero_policy_readiness_*/summary.json .ok",
+      "evaluation": "runtime"
+    },
+    "live_runner_auditor_accepted": {
+      "derived_from": "config/step5b_live_runner_acceptance.json (accepted==true AND a live_runner_entrypoint that exists and compiles AND live_runner_route == locked.route)",
+      "evaluation": "runtime"
+    },
+    "operator_final_trigger_received": false
+  }
+}
