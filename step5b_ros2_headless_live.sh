@@ -7,6 +7,10 @@ EXPERIMENT="${ROOT}/experiments/tase-contact-reproduction"
 LEDGER="${EXPERIMENT}/config/step5b_authorization_state.json"
 AUTH_STATUS="${EXPERIMENT}/tools/step5b_authorization_status.py"
 RUNNER="step5b_contact_live_runner"
+ROBOT_IP="${ROBOT_IP:-192.168.1.18}"
+REVERSE_IP="${REVERSE_IP:-192.168.1.10}"
+ACTION_NAME="/scaled_joint_trajectory_controller/follow_joint_trajectory"
+DRIVER_READINESS_WAIT_S="${DRIVER_READINESS_WAIT_S:-45}"
 
 usage() {
   cat <<EOF
@@ -17,6 +21,7 @@ Usage:
 
 Boundary:
   - Current route only: ROS2 Remote Control/headless.
+  - Starts the ROS2 UR driver if the trajectory action server is not already present.
   - Uses the locked Step5b specification defaults from the runner/stage table.
   - Does not override target force, path speed, path parameters, force source, or zero policy.
   - No TP/bridge fallback, no URScript send, no zero_ftsensor(), no Kunwei tare/config.
@@ -42,6 +47,83 @@ make_run_dir() {
   local stamp
   stamp="$(date +%Y%m%d_%H%M%S)"
   printf '%s\n' "${EXPERIMENT}/runs/step5b_ros2_headless_live_${stamp}"
+}
+
+stop_process_group() {
+  local pid="$1"
+  if [[ -z "${pid}" ]]; then
+    return 0
+  fi
+  if kill -0 "${pid}" >/dev/null 2>&1; then
+    kill -INT "-${pid}" >/dev/null 2>&1 || kill -INT "${pid}" >/dev/null 2>&1 || true
+    sleep 1
+  fi
+  if kill -0 "${pid}" >/dev/null 2>&1; then
+    kill -TERM "-${pid}" >/dev/null 2>&1 || kill -TERM "${pid}" >/dev/null 2>&1 || true
+    sleep 1
+  fi
+  if kill -0 "${pid}" >/dev/null 2>&1; then
+    kill -KILL "-${pid}" >/dev/null 2>&1 || kill -KILL "${pid}" >/dev/null 2>&1 || true
+  fi
+  wait "${pid}" >/dev/null 2>&1 || true
+}
+
+action_server_available() {
+  timeout 5 ros2 action list 2>/dev/null | grep -Fxq "${ACTION_NAME}"
+}
+
+print_driver_failure() {
+  local run_dir="$1"
+  echo "UR ROS2 driver did not become ready." >&2
+  for path in \
+    "${run_dir}/driver_lifecycle_readiness.log" \
+    "${run_dir}/controllers_readiness.log" \
+    "${run_dir}/joint_states_once.log" \
+    "${run_dir}/ur_driver_launch.log"; do
+    if [[ -s "${path}" ]]; then
+      echo "--- ${path} (tail) ---" >&2
+      tail -80 "${path}" >&2 || true
+    fi
+  done
+}
+
+ensure_driver_ready() {
+  local run_dir="$1"
+  if action_server_available; then
+    echo "ROS2 action server already available: ${ACTION_NAME}"
+    return 0
+  fi
+
+  echo "Starting UR ROS2 driver: robot_ip=${ROBOT_IP} reverse_ip=${REVERSE_IP}"
+  setsid ros2 launch ur10e_bringup ur10e_control.launch.py \
+    robot_ip:="${ROBOT_IP}" \
+    reverse_ip:="${REVERSE_IP}" \
+    headless_mode:=true \
+    launch_dashboard_client:=false \
+    activate_joint_controller:=true \
+    launch_rviz:=false \
+    >"${run_dir}/ur_driver_launch.log" 2>&1 &
+  DRIVER_LAUNCH_PID=$!
+
+  echo "Waiting for controller/action readiness..."
+  if ! ros2 run ur10e_example_controllers step5a_driver_readiness_check \
+    --launch-log "${run_dir}/ur_driver_launch.log" \
+    --summary "${run_dir}/driver_lifecycle_readiness.json" \
+    --controllers-log "${run_dir}/controllers_readiness.log" \
+    --joint-states-log "${run_dir}/joint_states_once.log" \
+    --run-dir "${run_dir}" \
+    --timeout-s "${DRIVER_READINESS_WAIT_S}" \
+    | tee "${run_dir}/driver_lifecycle_readiness.log"; then
+    print_driver_failure "${run_dir}"
+    return 2
+  fi
+
+  if ! action_server_available; then
+    echo "Driver readiness passed but action server is still absent: ${ACTION_NAME}" >&2
+    print_driver_failure "${run_dir}"
+    return 2
+  fi
+  echo "ROS2 action server ready: ${ACTION_NAME}"
 }
 
 write_operator_trigger() {
@@ -125,9 +207,11 @@ case "${mode}" in
     before_status="${run_dir}/authorization_before_trigger.json"
     after_status="${run_dir}/authorization_after_trigger.json"
     previous_trigger="$(read_operator_trigger)"
+    DRIVER_LAUNCH_PID=""
 
     restore_trigger() {
       write_operator_trigger "${previous_trigger}"
+      stop_process_group "${DRIVER_LAUNCH_PID}"
     }
     trap restore_trigger EXIT
 
@@ -146,6 +230,7 @@ case "${mode}" in
     require_authorized_after_trigger "${after_status}"
 
     source_ros
+    ensure_driver_ready "${run_dir}"
     ros2 run ur10e_example_controllers "${RUNNER}" \
       --execute-live-contact \
       --run-dir "${run_dir}"
