@@ -97,5 +97,63 @@
         </visual>
       </link>
     </model>
+
+    <!-- Step6 contact surface: shared offline marker for the Step6 safe frame. -->
+    <model name="step6_contact_surface">
+      <static>true</static>
+      <pose>0.4620551816200707 0.17788259636165896 0.0040224195 0 0 0</pose>
+      <link name="surface">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.14 0.11 0.008044839</size>
+            </box>
+          </geometry>
+          <surface>
+            <contact>
+              <ode>
+                <kp>1000000</kp>
+                <kd>100</kd>
+              </ode>
+            </contact>
+            <friction>
+              <ode>
+                <mu>1.0</mu>
+                <mu2>1.0</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.14 0.11 0.008044839</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.16 0.28 0.58 1</ambient>
+            <diffuse>0.16 0.34 0.72 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="step6_safe_frame_origin_marker">
+      <static>true</static>
+      <pose>0.4620551816200707 0.17788259636165896 0.022 0 0 0</pose>
+      <link name="marker">
+        <visual name="visual">
+          <geometry>
+            <sphere>
+              <radius>0.008</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.1 0.2 0.8 1</ambient>
+            <diffuse>0.1 0.3 1.0 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
   </world>
 </sdf>

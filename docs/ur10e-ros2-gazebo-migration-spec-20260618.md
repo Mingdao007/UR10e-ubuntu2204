@@ -65,20 +65,41 @@ Every new simulation artifact must name:
 Dense raw traces can be stored under `runs/`; durable summaries and decisions
 belong in `docs/` or `/home/andy/codex_handoffs/`.
 
-## Current MVP
+## Current Full-Matrix MVP
 
 Implemented MVP surfaces:
 
 - `ur10e_example_controllers.step5b_simulation_mvp`
 - `step5b_simulation_mvp` console script
+- `ur10e_example_controllers.step56_simulation_matrix`
+- `step56_simulation_matrix` console script
 - `launch/step5b_simulation_mvp.launch.py`
 - `worlds/step5_table_world.sdf`
 - `experiments/tase-contact-reproduction/tests/test_step5b_simulation_mvp.py`
+- `experiments/tase-contact-reproduction/tests/test_step56_simulation_matrix.py`
 
 The MVP intentionally does not depend on `gz_ros2_control` or
 `gazebo_ros2_control`, because those packages were not present during discovery.
 It uses the installed `ros_gz_sim` stack for a headless world/URDF launch
-skeleton and pure Python for the first preposition and force-evidence artifact.
+skeleton and pure Python for offline Step5/Step6 artifact generation.
+
+Full-matrix artifact generation is:
+
+- `step5a`: active TP v3 Local Control no-contact cycloid, preserving the
+  affine taught-frame map from `step5a_local_control_spec.json`;
+- `step5b`: retained contact cycloid baseline, reusing the low-vibration
+  Step5b offline MVP with `goal_count=1`;
+- `step5c`: quarantined offline-only schematic artifact;
+- `step5d`: retained-evidence offline shadow only, no strict-RNN completion
+  claim;
+- `step6a`: retained no-contact eight path using `step6_eight_safe_frame.json`;
+- `step6b`: active contact eight baseline v2 using
+  `step6_eight_safe_frame.json`.
+
+Reference audit:
+
+- `docs/ur10e-full-step5-step6-simulation-matrix-audit-20260618.md`
+- `experiments/tase-contact-reproduction/runs/step56_simulation_matrix_20260618_194316/matrix_summary.json`
 
 Discovery on 2026-06-18 found:
 
@@ -103,6 +124,10 @@ Simulation artifacts must explicitly record:
 - expected contact geometry: surface name, center, top Z, size, safe-frame
   origin, `reaction_normal`, and `approach_normal`;
 - sanitized URDF usage and source-path provenance.
+
+The full-matrix artifact must additionally record per-stage `runner_status`,
+`artifact_status`, `gazebo_status`, and `known_blocker`. Step5c and Step5d
+artifacts must not claim physics closed-loop completion.
 
 Known environment blocker:
 
@@ -135,6 +160,7 @@ Minimum validation before claiming completion:
 
 - repo doctor before mutation;
 - unit tests for simulation MVP;
+- unit tests for the full Step5/Step6 simulation matrix;
 - local-control textbook alignment gate;
 - contact semantic gate;
 - Step5b authorization status gate when Step5b runner/authorization surfaces

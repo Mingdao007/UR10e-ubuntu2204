@@ -58,6 +58,7 @@ setup(
             "step5a_joint_proxy_motion_probe = ur10e_example_controllers.step5a_joint_proxy_motion_probe:main",
             "guarded_contact_recovery_node = ur10e_example_controllers.guarded_contact_recovery_node:main",
             "step5b_simulation_mvp = ur10e_example_controllers.step5b_simulation_mvp:main",
+            "step56_simulation_matrix = ur10e_example_controllers.step56_simulation_matrix:main",
         ],
     },
 )
