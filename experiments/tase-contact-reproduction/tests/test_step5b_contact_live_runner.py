@@ -222,6 +222,48 @@ class Step5bContactLiveRunnerTest(unittest.TestCase):
         self.assertEqual(rows[0]["action_result_error_string"], "aborted")
         self.assertIn("RuntimeError: injected", rows[0]["failure_reason"])
 
+    def test_live_loop_incomplete_fails_when_search_never_latches(self) -> None:
+        stage = runner.live_loop_incomplete_stage(
+            state=core.Step5bContactState(normal_acquired=False),
+            last_command=SimpleNamespace(result=SimpleNamespace(path_time_s=0.0)),
+            params=core.Step5bContactParams(duration_s=12.0),
+        )
+        self.assertEqual(stage, "contact_search_timeout")
+        message = runner.live_loop_incomplete_message(
+            stage,
+            last_command=SimpleNamespace(result=SimpleNamespace(path_time_s=0.0)),
+            params=core.Step5bContactParams(duration_s=12.0),
+            max_runtime_s=70.0,
+            trace_rows=701,
+        )
+        self.assertIn("without normal acquisition", message)
+        self.assertIn("trace_rows=701", message)
+
+    def test_live_loop_incomplete_fails_when_path_never_completes(self) -> None:
+        stage = runner.live_loop_incomplete_stage(
+            state=core.Step5bContactState(normal_acquired=True),
+            last_command=SimpleNamespace(result=SimpleNamespace(path_time_s=3.0)),
+            params=core.Step5bContactParams(duration_s=12.0),
+        )
+        self.assertEqual(stage, "contact_path_timeout")
+        message = runner.live_loop_incomplete_message(
+            stage,
+            last_command=SimpleNamespace(result=SimpleNamespace(path_time_s=3.0)),
+            params=core.Step5bContactParams(duration_s=12.0),
+            max_runtime_s=70.0,
+            trace_rows=701,
+        )
+        self.assertIn("path_time_s=3.000", message)
+        self.assertIn("duration_s=12.000", message)
+
+    def test_live_loop_complete_returns_no_timeout_stage(self) -> None:
+        stage = runner.live_loop_incomplete_stage(
+            state=core.Step5bContactState(normal_acquired=True),
+            last_command=SimpleNamespace(result=SimpleNamespace(path_time_s=12.0)),
+            params=core.Step5bContactParams(duration_s=12.0),
+        )
+        self.assertIsNone(stage)
+
 
 class FakeFuture:
     def __init__(self, value: object, *, done: bool = True) -> None:

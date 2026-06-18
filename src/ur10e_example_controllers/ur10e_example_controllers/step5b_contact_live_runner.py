@@ -297,6 +297,7 @@ class Step5bContactLiveRunner(Node):
                 raise RuntimeError(f"Kunwei monitor did not become ready: {monitor.snapshot()['status']}")
 
             self.failure_stage = "live_contact_loop"
+            last_command: LiveRunnerCommand | None = None
             while rclpy.ok() and time.monotonic() - start < self.args.max_runtime_s:
                 now = time.monotonic()
                 dt_s = max(1e-3, min(self.args.command_period_s, now - last_tick))
@@ -320,6 +321,7 @@ class Step5bContactLiveRunner(Node):
                     basis=basis,
                     search_speed_m_s=self.args.search_speed_m_s,
                 )
+                last_command = command
                 state = command.next_state
                 self.trace_rows.append(_trace_row(now - start, command, sent_goal=False, accepted=False))
                 if not any(abs(value) > 1e-12 for value in command.command_twist_base):
@@ -337,6 +339,22 @@ class Step5bContactLiveRunner(Node):
                 self.trace_rows[-1].update(_action_outcome_fields(outcome))
                 if state.normal_acquired and command.result.path_time_s >= params.duration_s:
                     break
+            incomplete_stage = live_loop_incomplete_stage(
+                state=state,
+                last_command=last_command,
+                params=params,
+            )
+            if incomplete_stage is not None:
+                self.failure_stage = incomplete_stage
+                raise RuntimeError(
+                    live_loop_incomplete_message(
+                        incomplete_stage,
+                        last_command=last_command,
+                        params=params,
+                        max_runtime_s=self.args.max_runtime_s,
+                        trace_rows=len(self.trace_rows),
+                    )
+                )
             monitor.stop()
             monitor_finalized = True
             self.kunwei_monitor_snapshot = monitor.snapshot()
@@ -384,6 +402,41 @@ def stage_for_elapsed(elapsed_s: float, state: core.Step5bContactState) -> float
     if elapsed_s < 2.5:
         return 25.3
     return 25.0
+
+
+def live_loop_incomplete_stage(
+    *,
+    state: core.Step5bContactState,
+    last_command: LiveRunnerCommand | None,
+    params: core.Step5bContactParams,
+) -> str | None:
+    if not state.normal_acquired:
+        return "contact_search_timeout"
+    if last_command is None or last_command.result.path_time_s < params.duration_s:
+        return "contact_path_timeout"
+    return None
+
+
+def live_loop_incomplete_message(
+    stage: str,
+    *,
+    last_command: LiveRunnerCommand | None,
+    params: core.Step5bContactParams,
+    max_runtime_s: float,
+    trace_rows: int,
+) -> str:
+    if stage == "contact_search_timeout":
+        return (
+            "Step5b contact search timed out without normal acquisition: "
+            f"max_runtime_s={max_runtime_s:.3f} trace_rows={trace_rows}"
+        )
+    if stage == "contact_path_timeout":
+        path_time_s = 0.0 if last_command is None else last_command.result.path_time_s
+        return (
+            "Step5b contact path timed out before completion: "
+            f"path_time_s={path_time_s:.3f} duration_s={params.duration_s:.3f} trace_rows={trace_rows}"
+        )
+    raise ValueError(f"unknown live loop incomplete stage: {stage}")
 
 
 def compute_live_command(
