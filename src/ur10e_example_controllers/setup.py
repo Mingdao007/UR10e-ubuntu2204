@@ -24,6 +24,13 @@ setup(
                 "launch/no_contact_cycloid_shadow.launch.py",
                 "launch/contact_cycloid_shadow.launch.py",
                 "launch/guarded_contact_recovery_shadow.launch.py",
+                "launch/step5b_simulation_mvp.launch.py",
+            ],
+        ),
+        (
+            f"share/{package_name}/worlds",
+            [
+                "worlds/step5_table_world.sdf",
             ],
         ),
     ],
@@ -50,6 +57,7 @@ setup(
             "step5a_gate_a_audit = ur10e_example_controllers.step5a_gate_a_audit:main",
             "step5a_joint_proxy_motion_probe = ur10e_example_controllers.step5a_joint_proxy_motion_probe:main",
             "guarded_contact_recovery_node = ur10e_example_controllers.guarded_contact_recovery_node:main",
+            "step5b_simulation_mvp = ur10e_example_controllers.step5b_simulation_mvp:main",
         ],
     },
 )

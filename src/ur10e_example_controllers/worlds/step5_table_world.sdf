@@ -1,0 +1,101 @@
+<?xml version="1.0" ?>
+<sdf version="1.7">
+  <world name="ur10e_step5_table_world">
+    <gravity>0 0 -9.81</gravity>
+
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 6 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.4 0.2 -0.9</direction>
+    </light>
+
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>4 4</size>
+            </plane>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>4 4</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.78 0.78 0.74 1</ambient>
+            <diffuse>0.78 0.78 0.74 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Step5 contact surface: top z equals retained first-contact evidence z. -->
+    <model name="step5_contact_surface">
+      <static>true</static>
+      <pose>0.487795411149049 0.12932679270060748 0.0040224195 0 0 0</pose>
+      <link name="surface">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.18 0.10 0.008044839</size>
+            </box>
+          </geometry>
+          <surface>
+            <contact>
+              <ode>
+                <kp>1000000</kp>
+                <kd>100</kd>
+              </ode>
+            </contact>
+            <friction>
+              <ode>
+                <mu>1.0</mu>
+                <mu2>1.0</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.18 0.10 0.008044839</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.1 0.34 0.35 1</ambient>
+            <diffuse>0.1 0.50 0.54 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="step5_safe_frame_origin_marker">
+      <static>true</static>
+      <pose>0.487795411149049 0.12932679270060748 0.020 0 0 0</pose>
+      <link name="marker">
+        <visual name="visual">
+          <geometry>
+            <sphere>
+              <radius>0.008</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.8 0.1 0.1 1</ambient>
+            <diffuse>1.0 0.1 0.1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+  </world>
+</sdf>
