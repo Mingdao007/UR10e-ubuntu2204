@@ -7,7 +7,6 @@ EXPERIMENT="${ROOT}/experiments/tase-contact-reproduction"
 LEDGER="${EXPERIMENT}/config/step5b_authorization_state.json"
 AUTH_STATUS="${EXPERIMENT}/tools/step5b_authorization_status.py"
 RUNNER="step5b_contact_live_runner"
-FINAL_TRIGGER_TEXT="RUN STEP5B ROS2 HEADLESS LIVE"
 
 usage() {
   cat <<EOF
@@ -21,9 +20,7 @@ Boundary:
   - Uses the locked Step5b specification defaults from the runner/stage table.
   - Does not override target force, path speed, path parameters, force source, or zero policy.
   - No TP/bridge fallback, no URScript send, no zero_ftsensor(), no Kunwei tare/config.
-  - Live run prompts for the exact final trigger phrase:
-    ${FINAL_TRIGGER_TEXT}
-  - Non-interactive live run may set STEP5B_FINAL_TRIGGER to that exact phrase.
+  - Running step5b_ros2_headless_live.sh is the per-run operator final trigger.
   - The per-run operator_final_trigger_received gate is set true only during this script run and restored on exit.
 EOF
 }
@@ -109,25 +106,6 @@ raise SystemExit(43)
 PY
 }
 
-confirm_live_run() {
-  if [[ "${STEP5B_FINAL_TRIGGER:-}" == "${FINAL_TRIGGER_TEXT}" ]]; then
-    return 0
-  fi
-  if [[ ! -t 0 ]]; then
-    usage
-    echo
-    echo "Refusing live Step5b run: no interactive terminal and STEP5B_FINAL_TRIGGER is not exact."
-    return 40
-  fi
-  echo "Type the exact phrase to run live Step5b:"
-  echo "  ${FINAL_TRIGGER_TEXT}"
-  read -r -p "> " typed
-  if [[ "${typed}" != "${FINAL_TRIGGER_TEXT}" ]]; then
-    echo "Refusing live Step5b run: confirmation phrase did not match."
-    return 40
-  fi
-}
-
 mode="${1:-run}"
 case "${mode}" in
   -h|--help|help)
@@ -142,8 +120,6 @@ case "${mode}" in
     ros2 run ur10e_example_controllers "${RUNNER}"
     ;;
   run)
-    confirm_live_run
-
     run_dir="$(make_run_dir)"
     mkdir -p "${run_dir}"
     before_status="${run_dir}/authorization_before_trigger.json"
