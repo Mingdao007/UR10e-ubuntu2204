@@ -124,23 +124,44 @@ class Step5bContactLiveRunnerTest(unittest.TestCase):
         for token in forbidden:
             self.assertNotIn(token, text)
 
-    def test_send_goal_waits_for_success_result(self) -> None:
-        node = fake_action_node(result_error_code=runner.FollowJointTrajectory.Result.SUCCESSFUL)
+    def test_send_goal_waits_for_succeeded_status_and_success_result(self) -> None:
+        node = fake_action_node(
+            result_status=runner.GoalStatus.STATUS_SUCCEEDED,
+            result_error_code=runner.FollowJointTrajectory.Result.SUCCESSFUL,
+        )
         outcome = runner.send_goal(node, [0.0] * 6, fake_q_next(), 0.05)
         self.assertTrue(outcome.accepted)
         self.assertTrue(node.sent_goal)
         self.assertTrue(node.accepted)
-        self.assertEqual(node.action_terminal_status, 4)
+        self.assertEqual(node.action_terminal_status, runner.GoalStatus.STATUS_SUCCEEDED)
         self.assertEqual(node.action_result_error_code, runner.FollowJointTrajectory.Result.SUCCESSFUL)
         self.assertEqual(node.action_result_error_string, "ok")
 
+    def test_send_goal_aborted_status_with_success_error_code_fails_closed(self) -> None:
+        node = fake_action_node(
+            result_status=runner.GoalStatus.STATUS_ABORTED,
+            result_error_code=runner.FollowJointTrajectory.Result.SUCCESSFUL,
+            error_string="controller reported success after aborted action",
+        )
+        with self.assertRaisesRegex(RuntimeError, "status=.*error_code=.*error_string="):
+            runner.send_goal(node, [0.0] * 6, fake_q_next(), 0.05)
+        self.assertTrue(node.sent_goal)
+        self.assertTrue(node.accepted)
+        self.assertEqual(node.action_terminal_status, runner.GoalStatus.STATUS_ABORTED)
+        self.assertEqual(node.action_result_error_code, runner.FollowJointTrajectory.Result.SUCCESSFUL)
+        self.assertEqual(node.action_result_error_string, "controller reported success after aborted action")
+
     def test_send_goal_aborted_result_fails_closed(self) -> None:
-        node = fake_action_node(result_error_code=-4, result_status=6, error_string="aborted")
+        node = fake_action_node(
+            result_error_code=-4,
+            result_status=runner.GoalStatus.STATUS_ABORTED,
+            error_string="aborted",
+        )
         with self.assertRaisesRegex(RuntimeError, "result failed"):
             runner.send_goal(node, [0.0] * 6, fake_q_next(), 0.05)
         self.assertTrue(node.sent_goal)
         self.assertTrue(node.accepted)
-        self.assertEqual(node.action_terminal_status, 6)
+        self.assertEqual(node.action_terminal_status, runner.GoalStatus.STATUS_ABORTED)
         self.assertEqual(node.action_result_error_code, -4)
         self.assertEqual(node.action_result_error_string, "aborted")
 
@@ -237,7 +258,7 @@ def fake_action_node(
     *,
     accepted: bool = True,
     result_error_code: int,
-    result_status: int = 4,
+    result_status: int = runner.GoalStatus.STATUS_SUCCEEDED,
     error_string: str = "ok",
     result_done: bool = True,
 ) -> SimpleNamespace:

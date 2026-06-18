@@ -15,6 +15,7 @@ from typing import Any
 import numpy as np
 import pinocchio as pin
 import rclpy
+from action_msgs.msg import GoalStatus
 from control_msgs.action import FollowJointTrajectory
 from rclpy.action import ActionClient
 from rclpy.node import Node
@@ -486,7 +487,10 @@ def send_goal(node: Step5bContactLiveRunner, current: list[float], q_next: np.nd
         result_error_code=node.action_result_error_code,
         result_error_string=node.action_result_error_string,
     )
-    if wrapped_result.result.error_code != FollowJointTrajectory.Result.SUCCESSFUL:
+    if (
+        wrapped_result.status != GoalStatus.STATUS_SUCCEEDED
+        or wrapped_result.result.error_code != FollowJointTrajectory.Result.SUCCESSFUL
+    ):
         raise RuntimeError(
             "FollowJointTrajectory result failed: "
             f"status={node.action_terminal_status} "
