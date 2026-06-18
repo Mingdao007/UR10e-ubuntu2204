@@ -198,6 +198,8 @@ def dry_run_summary(args: argparse.Namespace) -> dict[str, Any]:
     readiness_payload: dict[str, Any] | None = None
     if readiness_path is not None and readiness_path.is_file():
         readiness_pass, readiness_payload = readiness_ok(readiness_path)
+    auth = run_authorization_status()
+    live_runner_accepted = bool(auth.get("open_gates", {}).get("live_runner_auditor_accepted", {}).get("met"))
     return {
         "ok": True,
         "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -207,14 +209,15 @@ def dry_run_summary(args: argparse.Namespace) -> dict[str, Any]:
         "motion_authorized": False,
         "contact_motion_entered": False,
         "sent_goal": False,
-        "accepted": False,
+        "accepted": live_runner_accepted,
         "live_runner_route": LOCKED_ROUTE,
         "action_name": args.action_name,
         "readiness_summary_path": None if readiness_path is None else str(readiness_path),
         "readiness_pass": readiness_pass,
         "readiness_ok": None if readiness_payload is None else bool(readiness_payload.get("ok")),
+        "authorization_status": auth,
         "acceptance_contract": acceptance_contract(),
-        "next_gate": "auditor_acceptance_required_before_operator_final_trigger",
+        "next_gate": auth.get("next_action"),
     }
 
 
