@@ -50,6 +50,12 @@ DEFAULT_ACTION_NAME = "/scaled_joint_trajectory_controller/follow_joint_trajecto
 DEFAULT_TRACE_FIELDS = [
     "t_rel_s",
     "stage",
+    "tcp_x_m",
+    "tcp_y_m",
+    "tcp_z_m",
+    "tcp_rx_rad",
+    "tcp_ry_rad",
+    "tcp_rz_rad",
     "cmd_valid",
     "cmd_vx_m_s",
     "cmd_vy_m_s",
@@ -76,6 +82,7 @@ DEFAULT_TRACE_FIELDS = [
 @dataclass(frozen=True)
 class LiveRunnerCommand:
     stage: float
+    tcp_pose: tuple[float, float, float, float, float, float]
     result: core.Step5bContactResult
     next_state: core.Step5bContactState
     search_active: bool
@@ -234,9 +241,11 @@ class Step5bContactLiveRunner(Node):
         self.action_result_error_string: str | None = None
         self.action_result_timeout_s: float | None = None
         self.failure_stage = "not_started"
+        self.motion_authorized = False
         self.contact_motion_entered = False
         self.trace_rows: list[dict[str, Any]] = []
         self.kunwei_monitor_snapshot: dict[str, Any] | None = None
+        self.goal_count = 0
         self.create_subscription(JointState, args.joint_state_topic, self._on_joint_state, 50)
         self.action_client = ActionClient(self, FollowJointTrajectory, args.action_name)
 
@@ -289,6 +298,8 @@ class Step5bContactLiveRunner(Node):
         self.trace_rows = []
         start = time.monotonic()
         last_tick = start
+        next_progress = start
+        first_pose: tuple[float, float, float, float, float, float] | None = None
         monitor_finalized = False
         try:
             self.failure_stage = "kunwei_monitor_start"
@@ -296,6 +307,7 @@ class Step5bContactLiveRunner(Node):
             if not monitor.wait_ready(self.args.kunwei_ready_timeout_s):
                 raise RuntimeError(f"Kunwei monitor did not become ready: {monitor.snapshot()['status']}")
 
+            self.motion_authorized = True
             self.failure_stage = "live_contact_loop"
             last_command: LiveRunnerCommand | None = None
             while rclpy.ok() and time.monotonic() - start < self.args.max_runtime_s:
@@ -306,6 +318,8 @@ class Step5bContactLiveRunner(Node):
                 positions = _ordered_positions(joint_state)
                 placement = fk_tool0_base(self.model_bundle, np.array(positions, dtype=float))
                 pose = _pose_from_placement(placement)
+                if first_pose is None:
+                    first_pose = pose
                 snapshot = monitor.snapshot()
                 tcp_wrench = zeroed_tcp_wrench(snapshot)
                 _hard_guard_wrench(tcp_wrench, self.args.force_norm_hard_stop_n, self.args.torque_norm_hard_stop_nm)
@@ -325,6 +339,15 @@ class Step5bContactLiveRunner(Node):
                 state = command.next_state
                 self.trace_rows.append(_trace_row(now - start, command, sent_goal=False, accepted=False))
                 if not any(abs(value) > 1e-12 for value in command.command_twist_base):
+                    if now >= next_progress:
+                        print_live_progress(
+                            t_rel_s=now - start,
+                            command=command,
+                            first_pose=first_pose,
+                            goal_count=self.goal_count,
+                            sent=False,
+                        )
+                        next_progress = now + self.args.progress_period_s
                     time.sleep(self.args.command_period_s)
                     continue
                 q_next = integrate_twist_to_joint_position(
@@ -336,7 +359,17 @@ class Step5bContactLiveRunner(Node):
                 )
                 self.contact_motion_entered = True
                 outcome = send_goal(self, positions, q_next, self.args.command_period_s)
+                self.goal_count += 1
                 self.trace_rows[-1].update(_action_outcome_fields(outcome))
+                if now >= next_progress:
+                    print_live_progress(
+                        t_rel_s=now - start,
+                        command=command,
+                        first_pose=first_pose,
+                        goal_count=self.goal_count,
+                        sent=True,
+                    )
+                    next_progress = now + self.args.progress_period_s
                 if state.normal_acquired and command.result.path_time_s >= params.duration_s:
                     break
             incomplete_stage = live_loop_incomplete_stage(
@@ -365,7 +398,7 @@ class Step5bContactLiveRunner(Node):
                 "role": "step5b_ros2_remote_contact_live_runner",
                 "dry_run": False,
                 "execute_live_contact": True,
-                "motion_authorized": True,
+                "motion_authorized": self.motion_authorized,
                 "contact_motion_entered": self.contact_motion_entered,
                 "sent_goal": self.sent_goal,
                 "accepted": self.accepted,
@@ -379,9 +412,11 @@ class Step5bContactLiveRunner(Node):
                 "action_result_error_code": self.action_result_error_code,
                 "action_result_error_string": self.action_result_error_string,
                 "action_result_timeout_s": self.action_result_timeout_s,
+                "goal_count": self.goal_count,
                 "kunwei_monitor": self.kunwei_monitor_snapshot,
                 "trace_path": str(self.args.trace),
                 "trace_rows": len(self.trace_rows),
+                "diagnostic_summary": live_trace_diagnostics(self.trace_rows),
             }
         except Exception as exc:
             self.kunwei_monitor_snapshot = monitor.snapshot()
@@ -480,10 +515,41 @@ def compute_live_command(
         twist = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     return LiveRunnerCommand(
         stage=robot_stage,
+        tcp_pose=pose,
         result=result,
         next_state=next_state,
         search_active=search_active,
         command_twist_base=twist,
+    )
+
+
+def print_live_progress(
+    *,
+    t_rel_s: float,
+    command: LiveRunnerCommand,
+    first_pose: tuple[float, float, float, float, float, float] | None,
+    goal_count: int,
+    sent: bool,
+) -> None:
+    pose = command.tcp_pose
+    dz = 0.0 if first_pose is None else pose[2] - first_pose[2]
+    result = command.result
+    twist = command.command_twist_base
+    print(
+        "step5b_live "
+        f"t={t_rel_s:6.2f}s "
+        f"stage={command.stage:5.2f} "
+        f"tcp=({pose[0]:+.4f},{pose[1]:+.4f},{pose[2]:+.4f})m "
+        f"dz={dz:+.4f}m "
+        f"cmd=({twist[0]:+.5f},{twist[1]:+.5f},{twist[2]:+.5f})m/s "
+        f"force={result.force_norm_n:.3f}N "
+        f"load={result.normal_load_n:.3f}N "
+        f"valid={result.cmd_valid:.0f} "
+        f"latch={str(command.next_state.normal_acquired).lower()} "
+        f"goals={goal_count} "
+        f"sent={str(sent).lower()} "
+        f"hold={result.hold_reason}",
+        flush=True,
     )
 
 
@@ -665,11 +731,86 @@ def write_trace(path: Path, rows: list[dict[str, Any]]) -> None:
             writer.writerow({field: row.get(field, "") for field in DEFAULT_TRACE_FIELDS})
 
 
+def _row_float(row: dict[str, Any], key: str, default: float = 0.0) -> float:
+    value = row.get(key, default)
+    if value == "":
+        return default
+    return float(value)
+
+
+def _row_bool(row: dict[str, Any], key: str) -> bool:
+    value = row.get(key)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() in {"1", "true", "yes"}
+    return bool(value)
+
+
+def live_trace_diagnostics(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    if not rows:
+        return {
+            "trace_rows": 0,
+            "sent_goal_rows": 0,
+            "accepted_goal_rows": 0,
+        }
+    first = rows[0]
+    last = rows[-1]
+    first_tcp = [_row_float(first, key) for key in ("tcp_x_m", "tcp_y_m", "tcp_z_m")]
+    last_tcp = [_row_float(last, key) for key in ("tcp_x_m", "tcp_y_m", "tcp_z_m")]
+    tcp_delta = [last_tcp[index] - first_tcp[index] for index in range(3)]
+    stage_counts: dict[str, int] = {}
+    for row in rows:
+        stage_key = f"{_row_float(row, 'stage'):.2f}"
+        stage_counts[stage_key] = stage_counts.get(stage_key, 0) + 1
+    return {
+        "trace_rows": len(rows),
+        "first_t_rel_s": _row_float(first, "t_rel_s"),
+        "last_t_rel_s": _row_float(last, "t_rel_s"),
+        "stage_counts": stage_counts,
+        "last_stage": _row_float(last, "stage"),
+        "first_tcp_xyz_m": first_tcp,
+        "last_tcp_xyz_m": last_tcp,
+        "tcp_delta_xyz_m": tcp_delta,
+        "tcp_delta_norm_m": math.sqrt(sum(value * value for value in tcp_delta)),
+        "sent_goal_rows": sum(1 for row in rows if _row_bool(row, "sent_goal")),
+        "accepted_goal_rows": sum(1 for row in rows if _row_bool(row, "accepted")),
+        "max_abs_cmd_linear_m_s": max(
+            math.sqrt(
+                _row_float(row, "cmd_vx_m_s") ** 2
+                + _row_float(row, "cmd_vy_m_s") ** 2
+                + _row_float(row, "cmd_vz_m_s") ** 2
+            )
+            for row in rows
+        ),
+        "max_abs_cmd_angular_rad_s": max(
+            math.sqrt(
+                _row_float(row, "cmd_wx_rad_s") ** 2
+                + _row_float(row, "cmd_wy_rad_s") ** 2
+                + _row_float(row, "cmd_wz_rad_s") ** 2
+            )
+            for row in rows
+        ),
+        "max_force_norm_n": max(_row_float(row, "force_norm_n") for row in rows),
+        "max_normal_load_n": max(_row_float(row, "normal_load_n") for row in rows),
+        "last_cmd_valid": _row_float(last, "cmd_valid"),
+        "last_hold_reason": str(last.get("hold_reason", "")),
+        "last_failure_reason": str(last.get("failure_reason", "")),
+    }
+
+
 def _trace_row(t_rel_s: float, command: LiveRunnerCommand, *, sent_goal: bool, accepted: bool, failure_reason: str = "") -> dict[str, Any]:
     result = command.result
+    pose = command.tcp_pose
     return {
         "t_rel_s": t_rel_s,
         "stage": command.stage,
+        "tcp_x_m": pose[0],
+        "tcp_y_m": pose[1],
+        "tcp_z_m": pose[2],
+        "tcp_rx_rad": pose[3],
+        "tcp_ry_rad": pose[4],
+        "tcp_rz_rad": pose[5],
         "cmd_valid": result.cmd_valid,
         "cmd_vx_m_s": command.command_twist_base[0],
         "cmd_vy_m_s": command.command_twist_base[1],
@@ -703,6 +844,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--wait-s", type=float, default=15.0)
     parser.add_argument("--max-runtime-s", type=float, default=70.0)
     parser.add_argument("--command-period-s", type=float, default=0.05)
+    parser.add_argument("--progress-period-s", type=float, default=1.0)
     parser.add_argument("--max-joint-step-rad", type=float, default=0.002)
     parser.add_argument("--search-speed-m-s", type=float, default=0.001)
     parser.add_argument("--force-norm-hard-stop-n", type=float, default=60.0)
@@ -759,7 +901,7 @@ def main(argv: list[str] | None = None) -> int:
             "role": "step5b_ros2_remote_contact_live_runner",
             "dry_run": False,
             "execute_live_contact": True,
-            "motion_authorized": False,
+            "motion_authorized": bool(getattr(node, "motion_authorized", False)),
             "contact_motion_entered": bool(getattr(node, "contact_motion_entered", False)),
             "sent_goal": bool(getattr(node, "sent_goal", False)),
             "accepted": bool(getattr(node, "accepted", False)),
@@ -767,11 +909,13 @@ def main(argv: list[str] | None = None) -> int:
             "action_result_error_code": getattr(node, "action_result_error_code", None),
             "action_result_error_string": getattr(node, "action_result_error_string", None),
             "action_result_timeout_s": getattr(node, "action_result_timeout_s", None),
+            "goal_count": int(getattr(node, "goal_count", 0)),
             "failure_stage": getattr(node, "failure_stage", "unknown"),
             "error": f"{type(exc).__name__}: {exc}",
             "live_runner_route": LOCKED_ROUTE,
             "trace_path": str(args.trace),
             "trace_rows": len(getattr(node, "trace_rows", [])),
+            "diagnostic_summary": live_trace_diagnostics(getattr(node, "trace_rows", [])),
             "kunwei_monitor": getattr(node, "kunwei_monitor_snapshot", None),
         }
         args.summary.parent.mkdir(parents=True, exist_ok=True)

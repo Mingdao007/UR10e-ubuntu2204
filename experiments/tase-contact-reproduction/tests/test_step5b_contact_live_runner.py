@@ -222,6 +222,85 @@ class Step5bContactLiveRunnerTest(unittest.TestCase):
         self.assertEqual(rows[0]["action_result_error_string"], "aborted")
         self.assertIn("RuntimeError: injected", rows[0]["failure_reason"])
 
+    def test_trace_row_records_tcp_pose_for_postmortem_diagnostics(self) -> None:
+        command = SimpleNamespace(
+            stage=24.2,
+            tcp_pose=(0.401, -0.122, 0.315, 0.01, 0.02, -0.03),
+            command_twist_base=(0.0, 0.0, 0.001, 0.0, 0.0, 0.0),
+            result=SimpleNamespace(
+                cmd_valid=0.0,
+                normal_load_n=0.0,
+                force_norm_n=0.5,
+                force_error_n=5.0,
+                orientation_error_rad=0.0,
+                hold_reason="control_not_allowed",
+                normal_filter_source="hold",
+            ),
+        )
+        row = runner._trace_row(1.25, command, sent_goal=True, accepted=True)
+        self.assertEqual(row["tcp_x_m"], 0.401)
+        self.assertEqual(row["tcp_y_m"], -0.122)
+        self.assertEqual(row["tcp_z_m"], 0.315)
+        self.assertEqual(row["tcp_rx_rad"], 0.01)
+        self.assertEqual(row["tcp_ry_rad"], 0.02)
+        self.assertEqual(row["tcp_rz_rad"], -0.03)
+        for field in ("tcp_x_m", "tcp_y_m", "tcp_z_m", "tcp_rx_rad", "tcp_ry_rad", "tcp_rz_rad"):
+            self.assertIn(field, runner.DEFAULT_TRACE_FIELDS)
+
+    def test_live_trace_diagnostics_summarizes_motion_and_commands(self) -> None:
+        rows = [
+            {
+                "t_rel_s": 0.1,
+                "stage": 24.2,
+                "tcp_x_m": 0.4,
+                "tcp_y_m": -0.1,
+                "tcp_z_m": 0.3,
+                "cmd_vx_m_s": 0.0,
+                "cmd_vy_m_s": 0.0,
+                "cmd_vz_m_s": 0.001,
+                "cmd_wx_rad_s": 0.0,
+                "cmd_wy_rad_s": 0.0,
+                "cmd_wz_rad_s": 0.0,
+                "force_norm_n": 0.2,
+                "normal_load_n": 0.0,
+                "cmd_valid": 0.0,
+                "hold_reason": "control_not_allowed",
+                "sent_goal": False,
+                "accepted": False,
+            },
+            {
+                "t_rel_s": 1.1,
+                "stage": 24.2,
+                "tcp_x_m": 0.401,
+                "tcp_y_m": -0.102,
+                "tcp_z_m": 0.304,
+                "cmd_vx_m_s": 0.0,
+                "cmd_vy_m_s": 0.0,
+                "cmd_vz_m_s": 0.001,
+                "cmd_wx_rad_s": 0.0,
+                "cmd_wy_rad_s": 0.0,
+                "cmd_wz_rad_s": 0.0,
+                "force_norm_n": 0.5,
+                "normal_load_n": 0.1,
+                "cmd_valid": 0.0,
+                "hold_reason": "control_not_allowed",
+                "failure_reason": "RuntimeError: contact_search_timeout",
+                "sent_goal": "True",
+                "accepted": "True",
+            },
+        ]
+        diagnostics = runner.live_trace_diagnostics(rows)
+        self.assertEqual(diagnostics["trace_rows"], 2)
+        self.assertEqual(diagnostics["stage_counts"], {"24.20": 2})
+        self.assertEqual(diagnostics["sent_goal_rows"], 1)
+        self.assertEqual(diagnostics["accepted_goal_rows"], 1)
+        self.assertAlmostEqual(diagnostics["tcp_delta_xyz_m"][0], 0.001)
+        self.assertAlmostEqual(diagnostics["tcp_delta_xyz_m"][1], -0.002)
+        self.assertAlmostEqual(diagnostics["tcp_delta_xyz_m"][2], 0.004)
+        self.assertAlmostEqual(diagnostics["max_abs_cmd_linear_m_s"], 0.001)
+        self.assertEqual(diagnostics["last_hold_reason"], "control_not_allowed")
+        self.assertIn("contact_search_timeout", diagnostics["last_failure_reason"])
+
     def test_live_loop_incomplete_fails_when_search_never_latches(self) -> None:
         stage = runner.live_loop_incomplete_stage(
             state=core.Step5bContactState(normal_acquired=False),
