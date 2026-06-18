@@ -81,10 +81,16 @@ class Step5bContactCoreReplayTest(unittest.TestCase):
             writer.writerow({field: row[field] for field in fields})
 
     def test_default_retained_csv_paths_exist(self) -> None:
-        self.assertEqual(len(replay.DEFAULT_CSVS), 3)
+        self.assertGreaterEqual(len(replay.DEFAULT_CSVS), len(replay.REQUIRED_STEP5B_CSVS))
+        self.assertLessEqual(set(replay.REQUIRED_STEP5B_CSVS), set(replay.DEFAULT_CSVS))
+        self.assertLessEqual(set(replay.ADDITIONAL_STEP5B_CSVS), set(replay.DEFAULT_CSVS))
         for path in replay.DEFAULT_CSVS:
             self.assertTrue(path.is_file(), path)
             self.assertTrue(path.with_name("metadata.json").is_file(), path)
+        self.assertIn(
+            ROOT / "runs" / "bridge_step5b_contact_cycloid_baseline_v1_20260614_222058" / "bridge_rtde_500hz.csv",
+            replay.REQUIRED_STEP5B_CSVS,
+        )
 
     def test_limited_replay_emits_required_summary_and_trace_schema(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -92,7 +98,7 @@ class Step5bContactCoreReplayTest(unittest.TestCase):
             rc = replay.main(
                 [
                     "--csv",
-                    str(replay.DEFAULT_CSVS[1]),
+                    str(replay.REQUIRED_STEP5B_CSVS[2]),
                     "--output-dir",
                     str(output_dir),
                     "--max-rows-per-csv",
@@ -105,7 +111,11 @@ class Step5bContactCoreReplayTest(unittest.TestCase):
             self.assertEqual(summary["row_counts"]["mismatch_rows"], 0)
             self.assertGreater(summary["row_counts"]["replayable_rows"], 0)
             self.assertIn("offline analysis only", summary["offline_safety_boundary"])
-            self.assertIn(str(replay.DEFAULT_CSVS[1].resolve()), summary["parameter_source"])
+            self.assertIn(str(replay.REQUIRED_STEP5B_CSVS[2].resolve()), summary["parameter_source"])
+            self.assertLessEqual(
+                {str(path.resolve()) for path in replay.REQUIRED_STEP5B_CSVS},
+                set(summary["required_step5b_csvs"]),
+            )
             with (output_dir / "replay_trace.csv").open(newline="", encoding="utf-8") as handle:
                 reader = csv.DictReader(handle)
                 self.assertEqual(reader.fieldnames, replay.TRACE_FIELDS)

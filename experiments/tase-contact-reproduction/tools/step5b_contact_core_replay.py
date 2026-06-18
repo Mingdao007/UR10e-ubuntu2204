@@ -27,11 +27,15 @@ sys.path.insert(0, str(WORKSPACE / "src" / "ur10e_example_controllers"))
 from ur10e_example_controllers import step5b_contact_control_core as core  # noqa: E402
 
 
-DEFAULT_CSVS = [
+REQUIRED_STEP5B_CSVS = [
     EXPERIMENT_ROOT / "runs" / "bridge_step5b_contact_cycloid_baseline_v1_20260612_082352" / "bridge_rtde_500hz.csv",
+    EXPERIMENT_ROOT / "runs" / "bridge_step5b_contact_cycloid_baseline_v1_20260614_222058" / "bridge_rtde_500hz.csv",
     EXPERIMENT_ROOT / "runs" / "bridge_step5b_contact_cycloid_baseline_v1_20260614_222309" / "bridge_rtde_500hz.csv",
+]
+ADDITIONAL_STEP5B_CSVS = [
     EXPERIMENT_ROOT / "runs" / "bridge_step5b_contact_cycloid_baseline_v1_20260616_164129" / "bridge_rtde_500hz.csv",
 ]
+DEFAULT_CSVS = [*REQUIRED_STEP5B_CSVS, *ADDITIONAL_STEP5B_CSVS]
 STAGE_TABLE_PATH = EXPERIMENT_ROOT / "config" / "step5_stage_table.json"
 SAFE_FRAME_PATH = EXPERIMENT_ROOT / "config" / "step5_safe_frame.json"
 STAGE_ID = "step5_contact_cycloid_baseline_v1"
@@ -413,6 +417,9 @@ def main(argv: list[str] | None = None) -> int:
         "ok": ok,
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "source_csvs": [str(path) for path in csv_paths],
+        "required_step5b_csvs": [str(path.resolve()) for path in REQUIRED_STEP5B_CSVS],
+        "additional_step5b_csvs": [str(path.resolve()) for path in ADDITIONAL_STEP5B_CSVS],
+        "default_csvs": [str(path.resolve()) for path in DEFAULT_CSVS],
         "output_dir": str(output_dir),
         "trace_csv": str(trace_path),
         "summary_json": str(summary_path),
