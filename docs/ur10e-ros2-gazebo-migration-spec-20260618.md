@@ -80,11 +80,29 @@ The MVP intentionally does not depend on `gz_ros2_control` or
 It uses the installed `ros_gz_sim` stack for a headless world/URDF launch
 skeleton and pure Python for the first preposition and force-evidence artifact.
 
+Discovery on 2026-06-18 found:
+
+- present: `ros_gz`, `ros_gz_bridge`, `ros_gz_sim`, `ur_description`,
+  `ur_robot_driver`, `controller_manager`, `robot_state_publisher`;
+- missing: `gz_ros2_control`, `ign_ros2_control`, `gazebo_ros`,
+  `gazebo_ros2_control`;
+- `gz sim --versions` reported `8.12.0`.
+
 The launch must run Gazebo server-only when `headless:=true` by passing `-s
 --headless-rendering`. It must also sanitize the calibrated URDF before
 publishing `/robot_description`: the source URDF is retained evidence, but the
 simulation description strips the real `ros2_control` block containing
 `ur_robot_driver/URPositionHardwareInterface`.
+
+Simulation artifacts must explicitly record:
+
+- frames: `gazebo_world=world`, `robot_base=base`, `robot_base_link=base_link`,
+  `tool=tool0`, `safe_frame_basis=step5_safe_frame_base_xy`, and force vectors
+  in `base`;
+- units: `m`, `m/s`, `m/s^2`, `m/s^3`, `N`, `Nm`, `s`, and `rad`;
+- expected contact geometry: surface name, center, top Z, size, safe-frame
+  origin, `reaction_normal`, and `approach_normal`;
+- sanitized URDF usage and source-path provenance.
 
 Known environment blocker:
 
