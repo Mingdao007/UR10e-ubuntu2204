@@ -94,6 +94,45 @@ class Step5bContactLiveRunnerTest(unittest.TestCase):
         self.assertFalse(command.search_active)
         self.assertLess(core.dot3(command.result.approach_normal_b, command.result.control_normal_b), -0.999)
 
+    def test_entry_target_pose_uses_step5_safe_frame_origin_xy(self) -> None:
+        basis = core.Step5bPathBasis(
+            origin_xy_m=(0.487795411149049, 0.12932679270060748),
+            u_along_xy=(-0.010785642631908187, 0.9999418332648238),
+            p_lateral_xy=(-0.9999418332648239, -0.010785642631908406),
+        )
+        target = runner.entry_target_pose((0.3622, -0.0135, 0.2273, 0.0, 0.0, 0.0), basis)
+        self.assertAlmostEqual(target[0], 0.487795411149049)
+        self.assertAlmostEqual(target[1], 0.12932679270060748)
+        self.assertAlmostEqual(target[2], 0.2273)
+        self.assertEqual(target[3:], runner.TARGET_ROTVEC_RAD)
+
+    def test_first_search_profile_matches_retained_step5b_tp_depths_and_speeds(self) -> None:
+        profile = runner.first_search_profile_from_pose((0.0, 0.0, 0.2273, 0.0, 0.0, 0.0))
+        self.assertAlmostEqual(profile.near_start_depth_m, 0.2273 - (runner.FIRST_CONTACT_Z_M + 0.020))
+        self.assertAlmostEqual(profile.max_down_m, 0.2273 - (runner.FIRST_CONTACT_Z_M - 0.004))
+        stage, speed, exhausted = runner.first_search_stage_and_speed((0.0, 0.0, 0.2273, 0.0, 0.0, 0.0), profile)
+        self.assertEqual(stage, 24.0)
+        self.assertAlmostEqual(speed, 0.015)
+        self.assertFalse(exhausted)
+        near_z = profile.start_z_m - profile.near_start_depth_m - 0.001
+        stage, speed, exhausted = runner.first_search_stage_and_speed((0.0, 0.0, near_z, 0.0, 0.0, 0.0), profile)
+        self.assertEqual(stage, 24.2)
+        self.assertAlmostEqual(speed, 0.0025)
+        self.assertFalse(exhausted)
+        exhausted_z = profile.start_z_m - profile.max_down_m - 0.001
+        stage, speed, exhausted = runner.first_search_stage_and_speed((0.0, 0.0, exhausted_z, 0.0, 0.0, 0.0), profile)
+        self.assertEqual(stage, 24.2)
+        self.assertEqual(speed, 0.0)
+        self.assertTrue(exhausted)
+
+    def test_post_latch_stage_sequence_includes_detach_before_orient(self) -> None:
+        state = core.Step5bContactState(normal_acquired=True)
+        self.assertEqual(runner.stage_for_elapsed(0.5, state), 25.05)
+        self.assertEqual(runner.stage_for_elapsed(1.2, state), 25.1)
+        self.assertEqual(runner.stage_for_elapsed(2.0, state), 25.2)
+        self.assertEqual(runner.stage_for_elapsed(3.0, state), 25.3)
+        self.assertEqual(runner.stage_for_elapsed(4.0, state), 25.0)
+
     def test_search_latch_fails_if_approach_opposes_tcp_search_axis(self) -> None:
         params = core.Step5bContactParams(bridge_min_force_for_control_n=1.0)
         basis = core.Step5bPathBasis(origin_xy_m=(0.0, 0.0), u_along_xy=(1.0, 0.0), p_lateral_xy=(0.0, 1.0))

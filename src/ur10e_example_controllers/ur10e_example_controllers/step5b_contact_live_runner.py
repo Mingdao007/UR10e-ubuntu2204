@@ -33,6 +33,7 @@ from .step5a_cartesian_cycloid_motion import (
     CalibratedModel,
     build_calibrated_model,
     fk_tool0_base,
+    solve_tool0_ik,
 )
 
 
@@ -47,6 +48,14 @@ TEXTBOOK_SPEC = CONFIG / "local_control_textbook_spec.json"
 LOCKED_ROUTE = "ros2_remote_control_headless"
 ENTRYPOINT_NAME = "step5b_contact_live_runner"
 DEFAULT_ACTION_NAME = "/scaled_joint_trajectory_controller/follow_joint_trajectory"
+TARGET_ROTVEC_RAD = (-3.044172198, -0.130573165, -0.202188631)
+FIRST_CONTACT_Z_M = 0.008044839
+FIRST_NEAR_ABOVE_CONTACT_M = 0.020
+FIRST_BELOW_CONTACT_MARGIN_M = 0.004
+FIRST_SEARCH_FAR_SPEED_M_S = -0.015
+FIRST_SEARCH_NEAR_SPEED_M_S = -0.0025
+SECOND_SEARCH_FAR_SPEED_M_S = -0.005
+SECOND_SEARCH_NEAR_SPEED_M_S = -0.003
 DEFAULT_TRACE_FIELDS = [
     "t_rel_s",
     "stage",
@@ -96,6 +105,26 @@ class ActionGoalOutcome:
     result_error_code: int | None = None
     result_error_string: str | None = None
     result_timeout_s: float | None = None
+
+
+@dataclass(frozen=True)
+class PrepositionPlan:
+    stage: float
+    target_pose: tuple[float, float, float, float, float, float]
+    start_pose: tuple[float, float, float, float, float, float]
+    target_q: tuple[float, ...]
+    ik_position_error_m: float
+    planned_duration_s: float
+    steps: int
+
+
+@dataclass(frozen=True)
+class FirstSearchProfile:
+    start_z_m: float
+    near_start_depth_m: float
+    max_down_m: float
+    far_speed_m_s: float
+    near_speed_m_s: float
 
 
 def acceptance_contract(entrypoint: Path | None = None) -> dict[str, Any]:
@@ -243,6 +272,8 @@ class Step5bContactLiveRunner(Node):
         self.failure_stage = "not_started"
         self.motion_authorized = False
         self.contact_motion_entered = False
+        self.preposition_motion_entered = False
+        self.preposition_summary: dict[str, Any] | None = None
         self.trace_rows: list[dict[str, Any]] = []
         self.kunwei_monitor_snapshot: dict[str, Any] | None = None
         self.goal_count = 0
@@ -308,6 +339,26 @@ class Step5bContactLiveRunner(Node):
                 raise RuntimeError(f"Kunwei monitor did not become ready: {monitor.snapshot()['status']}")
 
             self.motion_authorized = True
+            self.failure_stage = "stage22_preposition_to_step5_start"
+            self.preposition_summary = execute_preposition_to_entry(self, monitor, basis)
+
+            self.failure_stage = "stage23_software_baseline_reset"
+            time.sleep(self.args.post_preposition_settle_s)
+            monitor.reset_baseline_from_recent()
+            baseline_snapshot = monitor.snapshot()
+            self.preposition_summary["software_baseline_reset"] = {
+                "stage": 23.0,
+                "ok": True,
+                "baseline_si_units": baseline_snapshot.get("baseline_si_units"),
+                "ur_zero_ftsensor_called": False,
+                "kunwei_hardware_tare_or_config_written": False,
+            }
+
+            start = time.monotonic()
+            last_tick = start
+            next_progress = start
+            first_search_profile: FirstSearchProfile | None = None
+            latch_start: float | None = None
             self.failure_stage = "live_contact_loop"
             last_command: LiveRunnerCommand | None = None
             while rclpy.ok() and time.monotonic() - start < self.args.max_runtime_s:
@@ -323,7 +374,22 @@ class Step5bContactLiveRunner(Node):
                 snapshot = monitor.snapshot()
                 tcp_wrench = zeroed_tcp_wrench(snapshot)
                 _hard_guard_wrench(tcp_wrench, self.args.force_norm_hard_stop_n, self.args.torque_norm_hard_stop_nm)
-                stage = stage_for_elapsed(now - start, state)
+                if not state.normal_acquired:
+                    if first_search_profile is None:
+                        first_search_profile = first_search_profile_from_pose(pose)
+                    stage, search_speed_m_s, exhausted = first_search_stage_and_speed(pose, first_search_profile)
+                    if exhausted:
+                        self.failure_stage = "contact_search_depth_exhausted"
+                        raise RuntimeError(
+                            "Step5b first search exhausted retained TP depth before latch: "
+                            f"start_z_m={first_search_profile.start_z_m:.6f} "
+                            f"current_z_m={pose[2]:.6f} max_down_m={first_search_profile.max_down_m:.6f}"
+                        )
+                else:
+                    if latch_start is None:
+                        latch_start = now
+                    stage = stage_for_elapsed(now - latch_start, state)
+                    search_speed_m_s = self.args.search_speed_m_s
                 command = compute_live_command(
                     pose=pose,
                     tcp_wrench=tcp_wrench,
@@ -333,10 +399,12 @@ class Step5bContactLiveRunner(Node):
                     state=state,
                     params=params,
                     basis=basis,
-                    search_speed_m_s=self.args.search_speed_m_s,
+                    search_speed_m_s=search_speed_m_s,
                 )
                 last_command = command
                 state = command.next_state
+                if latch_start is None and state.normal_acquired:
+                    latch_start = now
                 self.trace_rows.append(_trace_row(now - start, command, sent_goal=False, accepted=False))
                 if not any(abs(value) > 1e-12 for value in command.command_twist_base):
                     if now >= next_progress:
@@ -400,6 +468,7 @@ class Step5bContactLiveRunner(Node):
                 "execute_live_contact": True,
                 "motion_authorized": self.motion_authorized,
                 "contact_motion_entered": self.contact_motion_entered,
+                "preposition_motion_entered": self.preposition_motion_entered,
                 "sent_goal": self.sent_goal,
                 "accepted": self.accepted,
                 "failure_stage": self.failure_stage,
@@ -413,6 +482,7 @@ class Step5bContactLiveRunner(Node):
                 "action_result_error_string": self.action_result_error_string,
                 "action_result_timeout_s": self.action_result_timeout_s,
                 "goal_count": self.goal_count,
+                "preposition": self.preposition_summary,
                 "kunwei_monitor": self.kunwei_monitor_snapshot,
                 "trace_path": str(self.args.trace),
                 "trace_rows": len(self.trace_rows),
@@ -432,11 +502,173 @@ def stage_for_elapsed(elapsed_s: float, state: core.Step5bContactState) -> float
         return 24.2
     if elapsed_s < 1.0:
         return 25.05
-    if elapsed_s < 2.0:
-        return 25.2
+    if elapsed_s < 1.5:
+        return 25.1
     if elapsed_s < 2.5:
+        return 25.2
+    if elapsed_s < 3.5:
         return 25.3
     return 25.0
+
+
+def entry_target_pose(
+    current_pose: tuple[float, float, float, float, float, float],
+    basis: core.Step5bPathBasis,
+) -> tuple[float, float, float, float, float, float]:
+    return (
+        basis.origin_xy_m[0],
+        basis.origin_xy_m[1],
+        current_pose[2],
+        TARGET_ROTVEC_RAD[0],
+        TARGET_ROTVEC_RAD[1],
+        TARGET_ROTVEC_RAD[2],
+    )
+
+
+def pose_to_se3(pose: tuple[float, float, float, float, float, float]) -> pin.SE3:
+    return pin.SE3(
+        np.array(core.rotvec_to_matrix(pose[3], pose[4], pose[5]), dtype=float),
+        np.array(pose[:3], dtype=float),
+    )
+
+
+def plan_preposition_to_entry(
+    model_bundle: CalibratedModel,
+    start_positions: list[float],
+    basis: core.Step5bPathBasis,
+    *,
+    speed_m_s: float,
+    command_period_s: float,
+    min_duration_s: float,
+    ik_damping: float,
+    ik_max_iters: int,
+    ik_tolerance_m: float,
+) -> PrepositionPlan:
+    q_start = np.array(start_positions, dtype=float)
+    start_pose = _pose_from_placement(fk_tool0_base(model_bundle, q_start))
+    target_pose = entry_target_pose(start_pose, basis)
+    q_target, ik_error = solve_tool0_ik(
+        model_bundle,
+        q_start,
+        pose_to_se3(target_pose),
+        damping=ik_damping,
+        max_iters=ik_max_iters,
+        tolerance_m=ik_tolerance_m,
+    )
+    if ik_error > ik_tolerance_m:
+        raise RuntimeError(f"Step5b entry preposition IK error too large: {ik_error:.6f} m > {ik_tolerance_m:.6f} m")
+    xy_distance = math.hypot(target_pose[0] - start_pose[0], target_pose[1] - start_pose[1])
+    duration_s = max(min_duration_s, xy_distance / max(speed_m_s, 1e-6))
+    steps = max(1, int(math.ceil(duration_s / command_period_s)))
+    return PrepositionPlan(
+        stage=22.0,
+        target_pose=target_pose,
+        start_pose=start_pose,
+        target_q=tuple(float(value) for value in q_target),
+        ik_position_error_m=float(ik_error),
+        planned_duration_s=float(steps * command_period_s),
+        steps=steps,
+    )
+
+
+def execute_preposition_to_entry(
+    node: Step5bContactLiveRunner,
+    monitor: KunweiPersistentMonitor,
+    basis: core.Step5bPathBasis,
+) -> dict[str, Any]:
+    joint_state = node.wait_for_joint_state()
+    start_positions = _ordered_positions(joint_state)
+    plan = plan_preposition_to_entry(
+        node.model_bundle,
+        start_positions,
+        basis,
+        speed_m_s=node.args.preposition_speed_m_s,
+        command_period_s=node.args.preposition_command_period_s,
+        min_duration_s=node.args.preposition_min_duration_s,
+        ik_damping=node.args.preposition_ik_damping,
+        ik_max_iters=node.args.preposition_ik_max_iters,
+        ik_tolerance_m=node.args.preposition_ik_tolerance_m,
+    )
+    q_start = np.array(start_positions, dtype=float)
+    q_target = np.array(plan.target_q, dtype=float)
+    next_progress = time.monotonic()
+    for step_index in range(1, plan.steps + 1):
+        monitor.assert_fresh_and_within_force_delta()
+        alpha = step_index / plan.steps
+        q_next = q_start + alpha * (q_target - q_start)
+        outcome = send_goal(node, _ordered_positions(node.wait_for_joint_state()), q_next, node.args.preposition_command_period_s)
+        node.goal_count += 1
+        node.preposition_motion_entered = True
+        now = time.monotonic()
+        if now >= next_progress:
+            current_pose = _pose_from_placement(
+                fk_tool0_base(node.model_bundle, np.array(_ordered_positions(node.wait_for_joint_state()), dtype=float))
+            )
+            print(
+                "step5b_live_preposition "
+                f"stage=22.00 step={step_index}/{plan.steps} "
+                f"tcp=({current_pose[0]:+.4f},{current_pose[1]:+.4f},{current_pose[2]:+.4f})m "
+                f"target=({plan.target_pose[0]:+.4f},{plan.target_pose[1]:+.4f},{plan.target_pose[2]:+.4f})m "
+                f"goals={node.goal_count}",
+                flush=True,
+            )
+            next_progress = now + node.args.progress_period_s
+        if not outcome.accepted:
+            raise RuntimeError("Step5b entry preposition goal was not accepted")
+    final_pose = _pose_from_placement(
+        fk_tool0_base(node.model_bundle, np.array(_ordered_positions(node.wait_for_joint_state()), dtype=float))
+    )
+    target_xyz = plan.target_pose[:3]
+    final_xyz = final_pose[:3]
+    position_error_m = math.sqrt(sum((final_xyz[index] - target_xyz[index]) ** 2 for index in range(3)))
+    if position_error_m > node.args.preposition_position_tolerance_m:
+        raise RuntimeError(
+            "Step5b entry preposition final error too large: "
+            f"{position_error_m:.6f} m > {node.args.preposition_position_tolerance_m:.6f} m"
+        )
+    return {
+        "stage": plan.stage,
+        "target_pose": list(plan.target_pose),
+        "start_pose": list(plan.start_pose),
+        "final_pose": list(final_pose),
+        "target_q": list(plan.target_q),
+        "ik_position_error_m": plan.ik_position_error_m,
+        "final_position_error_m": position_error_m,
+        "planned_duration_s": plan.planned_duration_s,
+        "steps": plan.steps,
+        "entry_xy_source": "config/step5_safe_frame.json:basis.origin_xy_m",
+        "target_rotvec_source": "programs/step5/step5b_contact_cycloid_baseline_v1.script TARGET_ROTVEC_RAD",
+    }
+
+
+def first_search_profile_from_pose(pose: tuple[float, float, float, float, float, float]) -> FirstSearchProfile:
+    near_start_z_m = FIRST_CONTACT_Z_M + FIRST_NEAR_ABOVE_CONTACT_M
+    max_end_z_m = FIRST_CONTACT_Z_M - FIRST_BELOW_CONTACT_MARGIN_M
+    near_start_depth_m = max(0.0, pose[2] - near_start_z_m)
+    max_down_m = pose[2] - max_end_z_m
+    if max_down_m < 0.020:
+        max_down_m = 0.020
+    if max_down_m < near_start_depth_m + 0.010:
+        max_down_m = near_start_depth_m + 0.010
+    return FirstSearchProfile(
+        start_z_m=pose[2],
+        near_start_depth_m=near_start_depth_m,
+        max_down_m=max_down_m,
+        far_speed_m_s=abs(FIRST_SEARCH_FAR_SPEED_M_S),
+        near_speed_m_s=abs(FIRST_SEARCH_NEAR_SPEED_M_S),
+    )
+
+
+def first_search_stage_and_speed(
+    pose: tuple[float, float, float, float, float, float],
+    profile: FirstSearchProfile,
+) -> tuple[float, float, bool]:
+    search_depth_m = profile.start_z_m - pose[2]
+    if search_depth_m >= profile.max_down_m:
+        return 24.2, 0.0, True
+    if search_depth_m < profile.near_start_depth_m:
+        return 24.0, profile.far_speed_m_s, False
+    return 24.2, profile.near_speed_m_s, False
 
 
 def live_loop_incomplete_stage(
@@ -842,11 +1074,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--action-name", default=DEFAULT_ACTION_NAME)
     parser.add_argument("--joint-state-topic", default="/joint_states")
     parser.add_argument("--wait-s", type=float, default=15.0)
-    parser.add_argument("--max-runtime-s", type=float, default=70.0)
+    parser.add_argument("--max-runtime-s", type=float, default=120.0)
     parser.add_argument("--command-period-s", type=float, default=0.05)
     parser.add_argument("--progress-period-s", type=float, default=1.0)
     parser.add_argument("--max-joint-step-rad", type=float, default=0.002)
     parser.add_argument("--search-speed-m-s", type=float, default=0.001)
+    parser.add_argument("--preposition-speed-m-s", type=float, default=0.020)
+    parser.add_argument("--preposition-command-period-s", type=float, default=0.10)
+    parser.add_argument("--preposition-min-duration-s", type=float, default=1.0)
+    parser.add_argument("--preposition-position-tolerance-m", type=float, default=0.003)
+    parser.add_argument("--preposition-ik-damping", type=float, default=1e-4)
+    parser.add_argument("--preposition-ik-max-iters", type=int, default=120)
+    parser.add_argument("--preposition-ik-tolerance-m", type=float, default=5e-5)
+    parser.add_argument("--post-preposition-settle-s", type=float, default=0.20)
     parser.add_argument("--force-norm-hard-stop-n", type=float, default=60.0)
     parser.add_argument("--torque-norm-hard-stop-nm", type=float, default=3.0)
     parser.add_argument("--kunwei-sensor-ip", default="192.168.50.25")
@@ -903,6 +1143,7 @@ def main(argv: list[str] | None = None) -> int:
             "execute_live_contact": True,
             "motion_authorized": bool(getattr(node, "motion_authorized", False)),
             "contact_motion_entered": bool(getattr(node, "contact_motion_entered", False)),
+            "preposition_motion_entered": bool(getattr(node, "preposition_motion_entered", False)),
             "sent_goal": bool(getattr(node, "sent_goal", False)),
             "accepted": bool(getattr(node, "accepted", False)),
             "action_terminal_status": getattr(node, "action_terminal_status", None),
@@ -910,6 +1151,7 @@ def main(argv: list[str] | None = None) -> int:
             "action_result_error_string": getattr(node, "action_result_error_string", None),
             "action_result_timeout_s": getattr(node, "action_result_timeout_s", None),
             "goal_count": int(getattr(node, "goal_count", 0)),
+            "preposition": getattr(node, "preposition_summary", None),
             "failure_stage": getattr(node, "failure_stage", "unknown"),
             "error": f"{type(exc).__name__}: {exc}",
             "live_runner_route": LOCKED_ROUTE,

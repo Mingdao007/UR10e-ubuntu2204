@@ -79,6 +79,14 @@ class KunweiPersistentMonitor:
             if recent:
                 self._baseline = _mean_tuple([sample for _, sample in recent])
 
+    def reset_baseline_from_recent(self) -> None:
+        with self._lock:
+            recent = self._recent_locked(time.monotonic())
+            if not recent:
+                raise RuntimeError("Kunwei monitor has no recent samples for software baseline reset")
+            self._baseline = _mean_tuple([sample for _, sample in recent])
+            self._max_force_delta_n = 0.0
+
     def force_delta_n(self) -> float:
         with self._lock:
             if self._baseline is None or not self._samples:
