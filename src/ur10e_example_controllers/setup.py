@@ -16,6 +16,8 @@ setup(
                 "config/historical_5a_fixed_z.yaml",
                 "config/contact_cycloid_shadow.yaml",
                 "config/guarded_contact_recovery_shadow.yaml",
+                "config/gazebo_matrix_controllers.yaml",
+                "config/gazebo_matrix_initial_positions.yaml",
             ],
         ),
         (
@@ -25,6 +27,7 @@ setup(
                 "launch/contact_cycloid_shadow.launch.py",
                 "launch/guarded_contact_recovery_shadow.launch.py",
                 "launch/step5b_simulation_mvp.launch.py",
+                "launch/ur10e_gazebo_matrix.launch.py",
             ],
         ),
         (
@@ -59,6 +62,7 @@ setup(
             "guarded_contact_recovery_node = ur10e_example_controllers.guarded_contact_recovery_node:main",
             "step5b_simulation_mvp = ur10e_example_controllers.step5b_simulation_mvp:main",
             "step56_simulation_matrix = ur10e_example_controllers.step56_simulation_matrix:main",
+            "ur10e_gazebo_matrix_runner = ur10e_example_controllers.ur10e_gazebo_matrix_runner:main",
         ],
     },
 )
