@@ -20,6 +20,8 @@ Usage:
   step5b_ros2_headless_live.sh
 
 Boundary:
+  - TEMPORARY LIVE LOCK: default run is disabled after 2026-06-18 table-vibration feedback.
+  - Use status/dry-run only until a low-vibration continuous preposition implementation is audited.
   - Current route only: ROS2 Remote Control/headless.
   - Starts the ROS2 UR driver if the trajectory action server is not already present.
   - Uses the locked Step5b specification defaults from the runner/stage table.
@@ -202,6 +204,11 @@ case "${mode}" in
     ros2 run ur10e_example_controllers "${RUNNER}"
     ;;
   run)
+    echo "Step5b ROS2 headless live is temporarily locked after table-vibration feedback." >&2
+    echo "Use 'step5b_ros2_headless_live.sh status' or 'step5b_ros2_headless_live.sh dry-run' only." >&2
+    echo "Live re-enable requires a new audited low-vibration preposition implementation." >&2
+    exit 44
+
     run_dir="$(make_run_dir)"
     mkdir -p "${run_dir}"
     before_status="${run_dir}/authorization_before_trigger.json"
