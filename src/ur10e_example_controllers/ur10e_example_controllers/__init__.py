@@ -16,5 +16,6 @@ __all__ = [
     "step5a_historical_fixed_z_motion",
     "step5a_joint_proxy_motion_probe",
     "step5a_return_to_anchor_motion",
+    "step5b_contact_live_runner",
     "state_machine",
 ]
