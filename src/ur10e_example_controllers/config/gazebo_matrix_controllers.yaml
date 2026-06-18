@@ -34,20 +34,20 @@ joint_trajectory_controller:
       stopped_velocity_tolerance: 0.2
       goal_time: 2.0
       shoulder_pan_joint:
-        trajectory: 0.2
-        goal: 0.1
+        trajectory: 2.0
+        goal: 0.5
       shoulder_lift_joint:
-        trajectory: 0.2
-        goal: 0.1
+        trajectory: 2.0
+        goal: 0.5
       elbow_joint:
-        trajectory: 0.2
-        goal: 0.1
+        trajectory: 2.0
+        goal: 0.5
       wrist_1_joint:
-        trajectory: 0.2
-        goal: 0.1
+        trajectory: 2.0
+        goal: 0.5
       wrist_2_joint:
-        trajectory: 0.2
-        goal: 0.1
+        trajectory: 2.0
+        goal: 0.5
       wrist_3_joint:
-        trajectory: 0.2
-        goal: 0.1
+        trajectory: 2.0
+        goal: 0.5

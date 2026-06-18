@@ -249,6 +249,7 @@ def execute_joint_trajectory(
     duration_s: float,
     action_name: str = ACTION_NAME,
     joint_state_topic: str = "/joint_states",
+    entry_duration_s: float = 4.0,
     server_timeout_s: float = 10.0,
     result_timeout_s: float | None = None,
 ) -> dict[str, Any]:
@@ -291,14 +292,27 @@ def execute_joint_trajectory(
                     "blocker": "action_server_unavailable",
                     "action_name": action_name,
                 }
+        sample_deadline = time.monotonic() + 2.0
+        while not node.samples and time.monotonic() < sample_deadline:
+            rclpy.spin_once(node, timeout_sec=0.05)
 
         goal = FollowJointTrajectory.Goal()
         goal.trajectory.joint_names = JOINT_NAMES
+        goal_points = list(joint_points)
+        current_positions = node.samples[-1] if node.samples else None
+        if current_positions is not None:
+            goal_points.insert(0, current_positions)
         count = len(joint_points)
-        for index, positions in enumerate(joint_points):
+        for index, positions in enumerate(goal_points):
             point = JointTrajectoryPoint()
             point.positions = positions
-            t_s = duration_s * index / max(count - 1, 1)
+            if current_positions is not None:
+                if index == 0:
+                    t_s = 0.0
+                else:
+                    t_s = entry_duration_s + duration_s * (index - 1) / max(count - 1, 1)
+            else:
+                t_s = duration_s * index / max(count - 1, 1)
             point.time_from_start = Duration(sec=int(t_s), nanosec=int((t_s % 1.0) * 1_000_000_000))
             goal.trajectory.points.append(point)
 
@@ -317,7 +331,7 @@ def execute_joint_trajectory(
                 "action_name": action_name,
             }
         result_future = handle.get_result_async()
-        timeout = result_timeout_s if result_timeout_s is not None else max(duration_s + 10.0, 30.0)
+        timeout = result_timeout_s if result_timeout_s is not None else max(duration_s + entry_duration_s + 10.0, 30.0)
         rclpy.spin_until_future_complete(node, result_future, timeout_sec=timeout)
         if not result_future.done():
             return {
@@ -335,6 +349,8 @@ def execute_joint_trajectory(
         return {
             "ok": error_code == FollowJointTrajectory.Result.SUCCESSFUL,
             "action_accepted": True,
+            "entry_point_from_joint_states": current_positions is not None,
+            "entry_duration_s": entry_duration_s if current_positions is not None else 0.0,
             "result_status": int(wrapped.status),
             "result_error_code": error_code,
             "result_error_string": str(wrapped.result.error_string),

@@ -25,6 +25,7 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
         self.assertIn('"headless"', source)
         self.assertIn('default_value="false"', source)
         self.assertNotIn('DeclareLaunchArgument("headless", default_value="true"', source)
+        self.assertIn('name="robot_state_publisher"', source)
 
     def test_controller_yaml_has_expected_controllers_and_joints(self) -> None:
         payload = yaml.safe_load(gazebo.CONTROLLERS_YAML.read_text(encoding="utf-8"))
@@ -37,6 +38,12 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
         controller = payload["joint_trajectory_controller"]["ros__parameters"]
         self.assertEqual(controller["joints"], gazebo.JOINT_NAMES)
         self.assertEqual(controller["command_interfaces"], ["position"])
+
+    def test_world_loads_user_commands_for_robot_spawn(self) -> None:
+        world_path = WORKSPACE / "src" / "ur10e_example_controllers" / "worlds" / "step5_table_world.sdf"
+        source = world_path.read_text(encoding="utf-8")
+        self.assertIn("gz-sim-user-commands-system", source)
+        self.assertIn("gz::sim::systems::UserCommands", source)
 
     def test_generated_robot_description_uses_sim_hardware_not_real_driver(self) -> None:
         robot_description = gazebo.generate_sim_robot_description()

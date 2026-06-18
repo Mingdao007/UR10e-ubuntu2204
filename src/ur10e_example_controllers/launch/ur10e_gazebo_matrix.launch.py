@@ -34,7 +34,7 @@ def _gazebo_actions(context: LaunchContext, run_gazebo: LaunchConfiguration, hea
         return []
     share = get_package_share_directory("ur10e_example_controllers")
     world = Path(share) / "worlds" / "step5_table_world.sdf"
-    command = ["gz", "sim", str(world), "-r"]
+    command = ["ign", "gazebo", str(world), "-r"]
     if _as_bool(context, headless):
         command.extend(["-s", "--headless-rendering"])
     return [
@@ -70,7 +70,7 @@ def _robot_actions(
         Node(
             package="robot_state_publisher",
             executable="robot_state_publisher",
-            name="ur10e_gazebo_matrix_robot_state_publisher",
+            name="robot_state_publisher",
             output="screen",
             parameters=[{"robot_description": robot_description, "use_sim_time": True}],
         ),
