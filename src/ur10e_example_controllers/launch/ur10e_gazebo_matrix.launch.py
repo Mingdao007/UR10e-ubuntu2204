@@ -29,12 +29,22 @@ def _build_gz_args(world: Path, headless_enabled: bool) -> str:
     return gz_args
 
 
-def _gazebo_actions(context: LaunchContext, run_gazebo: LaunchConfiguration, headless: LaunchConfiguration):
+def _gazebo_actions(
+    context: LaunchContext,
+    run_gazebo: LaunchConfiguration,
+    headless: LaunchConfiguration,
+    world_path: LaunchConfiguration,
+    gui_config_path: LaunchConfiguration,
+):
     if not _as_bool(context, run_gazebo):
         return []
     share = get_package_share_directory("ur10e_example_controllers")
-    world = Path(share) / "worlds" / "step5_table_world.sdf"
-    command = ["ign", "gazebo", str(world), "-r"]
+    world = Path(context.perform_substitution(world_path) or str(Path(share) / "worlds" / "step5_table_world.sdf"))
+    command = ["ign", "gazebo"]
+    gui_config = context.perform_substitution(gui_config_path)
+    if gui_config:
+        command.extend(["--gui-config", gui_config])
+    command.extend([str(world), "-r"])
     if _as_bool(context, headless):
         command.extend(["-s", "--headless-rendering"])
     return [
@@ -127,6 +137,8 @@ def generate_launch_description() -> LaunchDescription:
     start_controllers = LaunchConfiguration("start_controllers")
     calibration_yaml = LaunchConfiguration("calibration_yaml")
     xacro_path = LaunchConfiguration("xacro_path")
+    world_path = LaunchConfiguration("world_path")
+    gui_config_path = LaunchConfiguration("gui_config_path")
 
     own_share_parent = str(Path(get_package_share_directory("ur10e_example_controllers")).parent)
     ur_description_parent = str(Path(get_package_share_directory("ur_description")).parent)
@@ -157,8 +169,18 @@ def generate_launch_description() -> LaunchDescription:
                 default_value="/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro",
                 description="ur_description UR xacro.",
             ),
+            DeclareLaunchArgument(
+                "world_path",
+                default_value=str(Path(own_share_parent) / "ur10e_example_controllers" / "worlds" / "step5_table_world.sdf"),
+                description="Gazebo SDF world path. Visual audits may pass a stage-specific generated world.",
+            ),
+            DeclareLaunchArgument(
+                "gui_config_path",
+                default_value="",
+                description="Optional Gazebo GUI config path for deterministic close camera evidence.",
+            ),
             SetEnvironmentVariable("GZ_SIM_RESOURCE_PATH", gz_resource_path),
-            OpaqueFunction(function=_gazebo_actions, args=[run_gazebo, headless]),
+            OpaqueFunction(function=_gazebo_actions, args=[run_gazebo, headless, world_path, gui_config_path]),
             OpaqueFunction(
                 function=_robot_actions,
                 args=[spawn_robot, start_controllers, calibration_yaml, xacro_path],

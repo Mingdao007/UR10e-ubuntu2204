@@ -5,6 +5,7 @@ import csv
 import json
 import math
 import time
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -44,6 +45,8 @@ CONTACT_STAGE_IDS = frozenset({"step5b", "step5d", "step6b", "step7", "step8"})
 CONTACT_SURFACE_Z_M = 0.008044839
 DEFAULT_TARGET_LOAD_N = 5.0
 DEFAULT_CONTACT_STIFFNESS_N_M = 2500.0
+TCP_VISUAL_LINK = "tool0_tcp_visual_marker"
+TCP_VISUAL_JOINT = "tool0_tcp_visual_marker_joint"
 
 
 @dataclass(frozen=True)
@@ -93,7 +96,64 @@ def generate_sim_robot_description(
         raise RuntimeError("generated URDF still contains real URPositionHardwareInterface")
     if "libign_ros2_control-system.so" not in robot_description:
         raise RuntimeError("generated URDF is missing libign_ros2_control-system.so plugin")
-    return robot_description
+    return add_tcp_visual_marker(robot_description)
+
+
+def add_tcp_visual_marker(robot_description: str) -> str:
+    """Attach a non-colliding visual marker to tool0 so GUI evidence shows TCP."""
+
+    root = ET.fromstring(robot_description)
+    if root.find(f"./link[@name='{TCP_VISUAL_LINK}']") is not None:
+        return robot_description
+    tool0 = root.find("./link[@name='tool0']")
+    if tool0 is None:
+        raise RuntimeError("generated URDF is missing tool0 link for TCP visual marker")
+
+    _append_tcp_visuals(tool0, "tool0_direct")
+    wrist_3 = root.find("./link[@name='wrist_3_link']")
+    if wrist_3 is not None:
+        # UR's wrist_3_link, flange, and tool0 share xyz=0 fixed origins; only orientation changes.
+        _append_tcp_visuals(wrist_3, "wrist_3_tcp_position")
+    link = ET.Element("link", {"name": TCP_VISUAL_LINK})
+    _append_tcp_visuals(link, "tool0_child")
+
+    joint = ET.Element("joint", {"name": TCP_VISUAL_JOINT, "type": "fixed"})
+    ET.SubElement(joint, "parent", {"link": "tool0"})
+    ET.SubElement(joint, "child", {"link": TCP_VISUAL_LINK})
+    ET.SubElement(joint, "origin", {"xyz": "0 0 0", "rpy": "0 0 0"})
+
+    root.append(link)
+    root.append(joint)
+    return ET.tostring(root, encoding="unicode")
+
+
+def _append_tcp_visuals(link: ET.Element, prefix: str) -> None:
+    visual = ET.SubElement(link, "visual")
+    ET.SubElement(visual, "origin", {"xyz": "0 0 0", "rpy": "0 0 0"})
+    geometry = ET.SubElement(visual, "geometry")
+    ET.SubElement(geometry, "sphere", {"radius": "0.025"})
+    material = ET.SubElement(visual, "material", {"name": f"{prefix}_tcp_visual_magenta"})
+    ET.SubElement(material, "color", {"rgba": "1.0 0.0 1.0 1.0"})
+
+    visual = ET.SubElement(link, "visual", {"name": f"{prefix}_tcp_visual_upright_mast"})
+    ET.SubElement(visual, "origin", {"xyz": "0 0 0.055", "rpy": "0 0 0"})
+    geometry = ET.SubElement(visual, "geometry")
+    ET.SubElement(geometry, "cylinder", {"radius": "0.006", "length": "0.110"})
+    material = ET.SubElement(visual, "material", {"name": f"{prefix}_tcp_visual_upright_mast_mat"})
+    ET.SubElement(material, "color", {"rgba": "1.0 0.0 1.0 1.0"})
+
+    axis_specs = [
+        ("tcp_visual_x_axis", "0.035 0 0", "0 1.57079632679 0", "1.0 0.0 0.0 1.0"),
+        ("tcp_visual_y_axis", "0 0.035 0", "1.57079632679 0 0", "0.0 0.2 1.0 1.0"),
+        ("tcp_visual_z_axis", "0 0 0.035", "0 0 0", "1.0 1.0 1.0 1.0"),
+    ]
+    for name, xyz, rpy, rgba in axis_specs:
+        visual = ET.SubElement(link, "visual", {"name": f"{prefix}_{name}"})
+        ET.SubElement(visual, "origin", {"xyz": xyz, "rpy": rpy})
+        geometry = ET.SubElement(visual, "geometry")
+        ET.SubElement(geometry, "cylinder", {"radius": "0.004", "length": "0.070"})
+        material = ET.SubElement(visual, "material", {"name": f"{prefix}_{name}_mat"})
+        ET.SubElement(material, "color", {"rgba": rgba})
 
 
 def load_initial_positions(initial_positions_yaml: Path = INITIAL_POSITIONS_YAML) -> list[float]:
