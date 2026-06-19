@@ -40,7 +40,7 @@ PACKAGE_ROOT = _package_root()
 CONTROLLERS_YAML = PACKAGE_ROOT / "config" / "gazebo_matrix_controllers.yaml"
 INITIAL_POSITIONS_YAML = PACKAGE_ROOT / "config" / "gazebo_matrix_initial_positions.yaml"
 ACTION_NAME = "/joint_trajectory_controller/follow_joint_trajectory"
-CONTACT_STAGE_IDS = frozenset({"step5b", "step5d", "step6b"})
+CONTACT_STAGE_IDS = frozenset({"step5b", "step5d", "step6b", "step7", "step8"})
 CONTACT_SURFACE_Z_M = 0.008044839
 DEFAULT_TARGET_LOAD_N = 5.0
 DEFAULT_CONTACT_STIFFNESS_N_M = 2500.0
@@ -745,9 +745,9 @@ def run_matrix(
     screenshot_path: Path | None = None,
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
-    stage_ids = list(offline.STAGE_REGISTRY) if stage == "all" else [stage]
-    if stage != "all" and stage not in offline.STAGE_REGISTRY:
-        raise SystemExit(f"unknown stage {stage!r}; expected all or one of {', '.join(offline.STAGE_REGISTRY)}")
+    stage_ids = ["step7", "step8"] if stage == "step7_8" else list(offline.STAGE_REGISTRY) if stage == "all" else [stage]
+    if stage not in {"all", "step7_8"} and stage not in offline.STAGE_REGISTRY:
+        raise SystemExit(f"unknown stage {stage!r}; expected all, step7_8, or one of {', '.join(offline.STAGE_REGISTRY)}")
     summaries = [write_stage_summary(stage_id, output_dir, execute=execute, screenshot_path=screenshot_path) for stage_id in stage_ids]
     payload = {
         "schema": "ur10e_gazebo_matrix_result_v1",
@@ -768,7 +768,7 @@ def run_matrix(
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run or dry-plan UR10e Step5/Step6 Gazebo ros2_control matrix.")
-    parser.add_argument("--stage", default="all", choices=["all", *offline.STAGE_REGISTRY.keys()])
+    parser.add_argument("--stage", default="all", choices=["all", "step7_8", *offline.STAGE_REGISTRY.keys()])
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--execute", action="store_true", help="Send trajectories to the Gazebo joint trajectory action.")
     parser.add_argument("--screenshot-path", type=Path)

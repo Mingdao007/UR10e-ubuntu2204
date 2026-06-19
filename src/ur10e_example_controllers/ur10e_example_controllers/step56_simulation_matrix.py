@@ -38,6 +38,7 @@ STEP5A_SPEC = CONFIG / "step5a_local_control_spec.json"
 STEP5B_AUTHORIZATION = CONFIG / "step5b_authorization_state.json"
 STEP6_SAFE_FRAME = CONFIG / "step6_eight_safe_frame.json"
 STEP6_STAGE_TABLE = CONFIG / "step6_stage_table.json"
+STEP4F_SAFE_FRAME = CONFIG / "step4f_safe_frame.json"
 TEXTBOOK_SPEC = CONFIG / "local_control_textbook_spec.json"
 CALIBRATED_URDF = step5b_mvp.CALIBRATED_URDF
 PACKAGE_ROOT = _package_root()
@@ -46,6 +47,20 @@ LAUNCH_PATH = PACKAGE_ROOT / "launch" / "step5b_simulation_mvp.launch.py"
 
 
 Vec2 = tuple[float, float]
+STEP4E_START_XY = (0.43301, 0.10802)
+STEP4E_END_XY = (0.49274, 0.23877)
+STEP4E_LINE_DX = STEP4E_END_XY[0] - STEP4E_START_XY[0]
+STEP4E_LINE_DY = STEP4E_END_XY[1] - STEP4E_START_XY[1]
+STEP4E_LINE_LENGTH_M = math.hypot(STEP4E_LINE_DX, STEP4E_LINE_DY)
+STEP4E_LINE_UNIT_XY = (
+    STEP4E_LINE_DX / STEP4E_LINE_LENGTH_M,
+    STEP4E_LINE_DY / STEP4E_LINE_LENGTH_M,
+)
+STEP4E_LINE_PERP_XY = (-STEP4E_LINE_UNIT_XY[1], STEP4E_LINE_UNIT_XY[0])
+STEP4E_LINE_MID_XY = (
+    0.5 * (STEP4E_START_XY[0] + STEP4E_END_XY[0]),
+    0.5 * (STEP4E_START_XY[1] + STEP4E_END_XY[1]),
+)
 
 
 @dataclass(frozen=True)
@@ -175,6 +190,42 @@ STAGE_REGISTRY: "OrderedDict[str, StageSpec]" = OrderedDict(
                 "Contact path is represented as offline simulated force evidence only; no live bridge/TP fallback.",
             ),
         ),
+        (
+            "step7",
+            StageSpec(
+                "step7",
+                "Step7 large-platform contact cycloid",
+                "step4f_cycloid_seed_normal_v1",
+                "offline_no_motion",
+                False,
+                STEP4F_SAFE_FRAME,
+                STEP5_STAGE_TABLE,
+                "step7_cycloid_large_platform",
+                True,
+                "gazebo_force_loop_only",
+                "full_matrix_artifact",
+                "shared_world_contact_surface",
+                "Gazebo-only promotion of retained Step4f paper cycloid path; no live robot authorization.",
+            ),
+        ),
+        (
+            "step8",
+            StageSpec(
+                "step8",
+                "Step8 large-platform contact eight",
+                "step4g_eight_seed_normal_v1",
+                "offline_no_motion",
+                False,
+                STEP4F_SAFE_FRAME,
+                STEP5_STAGE_TABLE,
+                "step8_eight_large_platform",
+                True,
+                "gazebo_force_loop_only",
+                "full_matrix_artifact",
+                "shared_world_contact_surface",
+                "Gazebo-only promotion of retained Step4g paper eight-shaped path; no live robot authorization.",
+            ),
+        ),
     )
 )
 
@@ -184,6 +235,42 @@ def load_json(path: Path) -> dict[str, Any]:
 
 
 def _stage_from_table(table_path: Path, source_stage_id: str) -> dict[str, Any]:
+    if source_stage_id == "step4f_cycloid_seed_normal_v1":
+        return {
+            "id": source_stage_id,
+            "stage": "Step7",
+            "owner": "ROS2 Gazebo",
+            "shape": "cycloid",
+            "contact": True,
+            "bridge": False,
+            "duration_s": 60.0,
+            "fixed_base_z_m": None,
+            "amplitude_m": 0.015,
+            "phase_law": {
+                "type": "linear_time",
+                "omega_rad_s": 0.1,
+                "final_phase_rad": 6.0,
+            },
+            "source": "programs/step4f_cycloid_seed_normal_v1.script",
+        }
+    if source_stage_id == "step4g_eight_seed_normal_v1":
+        return {
+            "id": source_stage_id,
+            "stage": "Step8",
+            "owner": "ROS2 Gazebo",
+            "shape": "eight",
+            "contact": True,
+            "bridge": False,
+            "duration_s": 60.0,
+            "fixed_base_z_m": None,
+            "path": {
+                "along_amplitude_m": 0.04,
+                "lateral_amplitude_m": 0.01,
+                "omega_rad_s": 0.1,
+                "formula": "along=0.04*sin(0.1t), lateral=0.01*sin(0.2t)",
+            },
+            "source": "programs/step4g_eight_seed_normal_v1.script",
+        }
     table = load_json(table_path)
     for stage in table["stages"]:
         if stage.get("id") == source_stage_id:
@@ -203,6 +290,17 @@ def _rotation_map(frame: dict[str, Any], local_xy_m: Vec2) -> Vec2:
     return (
         float(origin[0]) + local_xy_m[0] * float(u_along[0]) + local_xy_m[1] * float(p_lateral[0]),
         float(origin[1]) + local_xy_m[0] * float(u_along[1]) + local_xy_m[1] * float(p_lateral[1]),
+    )
+
+
+def _line_basis_map(local_xy_m: Vec2) -> Vec2:
+    return (
+        STEP4E_LINE_MID_XY[0]
+        + local_xy_m[0] * STEP4E_LINE_UNIT_XY[0]
+        + local_xy_m[1] * STEP4E_LINE_PERP_XY[0],
+        STEP4E_LINE_MID_XY[1]
+        + local_xy_m[0] * STEP4E_LINE_UNIT_XY[1]
+        + local_xy_m[1] * STEP4E_LINE_PERP_XY[1],
     )
 
 
@@ -503,6 +601,56 @@ def build_stage_artifact(stage_id: str) -> dict[str, Any]:
         }
         return artifact
 
+    if stage_id in {"step7", "step8"}:
+        if stage_id == "step7":
+            trajectory = _trajectory_payload(
+                shape="cycloid",
+                rows=_sample_cycloid(stage),
+                mapper=lambda local_xy: _rotation_map(safe_frame, local_xy),
+                fixed_z_m=None,
+            )
+            frame_map = {
+                "mode": "step4f_safe_frame_rotation",
+                "alignment_label": "preserved",
+                "policy": safe_frame["policy"]["fit"],
+                "source_program": "programs/step4f_cycloid_seed_normal_v1.script",
+            }
+            origin_xy_m = safe_frame["basis"]["origin_xy_m"]
+        else:
+            trajectory = _trajectory_payload(
+                shape="eight",
+                rows=_sample_eight(stage),
+                mapper=_line_basis_map,
+                fixed_z_m=None,
+            )
+            frame_map = {
+                "mode": "step4g_line_mid_basis",
+                "alignment_label": "preserved",
+                "source_program": "programs/step4g_eight_seed_normal_v1.script",
+                "line_start_xy_m": list(STEP4E_START_XY),
+                "line_end_xy_m": list(STEP4E_END_XY),
+            }
+            origin_xy_m = list(STEP4E_LINE_MID_XY)
+        artifact["source_paths"]["step4f_safe_frame"] = str(STEP4F_SAFE_FRAME)
+        artifact["source_paths"]["step4f_program"] = str(EXPERIMENT / "programs" / "step4f_cycloid_seed_normal_v1.script")
+        artifact["source_paths"]["step4g_program"] = str(EXPERIMENT / "programs" / "step4g_eight_seed_normal_v1.script")
+        artifact["safe_frame"] = {
+            "source": str(STEP4F_SAFE_FRAME) if stage_id == "step7" else "Step4e line basis constants",
+            "origin_xy_m": origin_xy_m,
+            "frame_map": frame_map,
+        }
+        artifact["trajectory"] = trajectory
+        artifact["simulated_force_evidence"] = _simulated_force(
+            trajectory["rows"],
+            contact_surface_z_m=step5b_mvp.CONTACT_SURFACE_Z_M,
+        )
+        artifact["acceptance"] = {
+            "artifact_complete": True,
+            "physics_closed_loop_claimed": False,
+            "live_authorization_ok": not artifact["live_robot_command_authorized"],
+        }
+        return artifact
+
     raise AssertionError(stage_id)
 
 
@@ -516,11 +664,11 @@ def write_stage_artifact(stage_id: str, output_dir: Path) -> Path:
 
 def run_matrix(stage: str, output_dir: Path) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
-    stage_ids = list(STAGE_REGISTRY) if stage == "all" else [stage]
-    if stage != "all" and stage not in STAGE_REGISTRY:
-        raise SystemExit(f"unknown stage {stage!r}; expected all or one of {', '.join(STAGE_REGISTRY)}")
+    stage_ids = ["step7", "step8"] if stage == "step7_8" else list(STAGE_REGISTRY) if stage == "all" else [stage]
+    if stage not in {"all", "step7_8"} and stage not in STAGE_REGISTRY:
+        raise SystemExit(f"unknown stage {stage!r}; expected all, step7_8, or one of {', '.join(STAGE_REGISTRY)}")
     stage_paths = {stage_id: write_stage_artifact(stage_id, output_dir) for stage_id in stage_ids}
-    if stage != "all":
+    if stage not in {"all", "step7_8"}:
         return stage_paths[stage]
 
     summary = {
@@ -535,6 +683,7 @@ def run_matrix(stage: str, output_dir: Path) -> Path:
             "step6_stage_table": str(STEP6_STAGE_TABLE),
             "step5_safe_frame": str(STEP5_SAFE_FRAME),
             "step6_eight_safe_frame": str(STEP6_SAFE_FRAME),
+            "step4f_safe_frame": str(STEP4F_SAFE_FRAME),
         },
         "stages": [
             {
@@ -554,7 +703,7 @@ def run_matrix(stage: str, output_dir: Path) -> Path:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate offline UR10e Step5/Step6 simulation matrix artifacts.")
-    parser.add_argument("--stage", default="all", choices=["all", *STAGE_REGISTRY.keys()])
+    parser.add_argument("--stage", default="all", choices=["all", "step7_8", *STAGE_REGISTRY.keys()])
     parser.add_argument("--output-dir", type=Path, required=True)
     return parser.parse_args(argv)
 
