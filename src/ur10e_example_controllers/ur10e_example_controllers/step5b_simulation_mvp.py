@@ -9,10 +9,26 @@ from pathlib import Path
 from typing import Any
 import xml.etree.ElementTree as ET
 
+from ament_index_python.packages import PackageNotFoundError, get_package_share_directory
+
 from . import step5b_contact_control_core as core
 
 
-WORKSPACE = Path(__file__).resolve().parents[3]
+def _workspace_root() -> Path:
+    for parent in Path(__file__).resolve().parents:
+        if parent.name == "ur10e_ros2_ws":
+            return parent
+    return Path(__file__).resolve().parents[3]
+
+
+def _package_root() -> Path:
+    try:
+        return Path(get_package_share_directory("ur10e_example_controllers"))
+    except PackageNotFoundError:
+        return Path(__file__).resolve().parents[1]
+
+
+WORKSPACE = _workspace_root()
 EXPERIMENT = WORKSPACE / "experiments" / "tase-contact-reproduction"
 CONFIG = EXPERIMENT / "config"
 SAFE_FRAME = CONFIG / "step5_safe_frame.json"
@@ -23,7 +39,7 @@ CALIBRATED_URDF = (
     / "step5c_calibrated_kinematics_audit_20260613_003314"
     / "calibrated_ur10e.urdf"
 )
-PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+PACKAGE_ROOT = _package_root()
 WORLD_PATH = PACKAGE_ROOT / "worlds" / "step5_table_world.sdf"
 LAUNCH_PATH = PACKAGE_ROOT / "launch" / "step5b_simulation_mvp.launch.py"
 

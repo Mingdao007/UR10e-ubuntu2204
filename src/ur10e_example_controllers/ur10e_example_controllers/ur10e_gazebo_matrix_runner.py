@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from ament_index_python.packages import PackageNotFoundError, get_package_share_directory
 
 from . import step56_simulation_matrix as offline
 from .step5a_cartesian_cycloid_motion import (
@@ -20,11 +21,29 @@ from .step5a_cartesian_cycloid_motion import (
 )
 
 
-WORKSPACE = Path(__file__).resolve().parents[3]
-PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+def _workspace_root() -> Path:
+    for parent in Path(__file__).resolve().parents:
+        if parent.name == "ur10e_ros2_ws":
+            return parent
+    return Path(__file__).resolve().parents[3]
+
+
+def _package_root() -> Path:
+    try:
+        return Path(get_package_share_directory("ur10e_example_controllers"))
+    except PackageNotFoundError:
+        return Path(__file__).resolve().parents[1]
+
+
+WORKSPACE = _workspace_root()
+PACKAGE_ROOT = _package_root()
 CONTROLLERS_YAML = PACKAGE_ROOT / "config" / "gazebo_matrix_controllers.yaml"
 INITIAL_POSITIONS_YAML = PACKAGE_ROOT / "config" / "gazebo_matrix_initial_positions.yaml"
 ACTION_NAME = "/joint_trajectory_controller/follow_joint_trajectory"
+CONTACT_STAGE_IDS = frozenset({"step5b", "step5d", "step6b"})
+CONTACT_SURFACE_Z_M = 0.008044839
+DEFAULT_TARGET_LOAD_N = 5.0
+DEFAULT_CONTACT_STIFFNESS_N_M = 2500.0
 
 
 @dataclass(frozen=True)
@@ -364,6 +383,291 @@ def execute_joint_trajectory(
         rclpy.shutdown()
 
 
+def execute_force_closed_loop(
+    stage_id: str,
+    references: list[ReferencePoint],
+    output_dir: Path,
+    *,
+    action_name: str = ACTION_NAME,
+    joint_state_topic: str = "/joint_states",
+    server_timeout_s: float = 10.0,
+    target_load_n: float = DEFAULT_TARGET_LOAD_N,
+    contact_surface_z_m: float = CONTACT_SURFACE_Z_M,
+    stiffness_n_m: float = DEFAULT_CONTACT_STIFFNESS_N_M,
+    force_tolerance_n: float = 0.75,
+) -> dict[str, Any]:
+    import numpy as np
+    import pinocchio as pin
+    import rclpy
+    from builtin_interfaces.msg import Duration
+    from control_msgs.action import FollowJointTrajectory
+    from rclpy.action import ActionClient
+    from rclpy.node import Node
+    from sensor_msgs.msg import JointState
+    from trajectory_msgs.msg import JointTrajectoryPoint
+
+    from .step5a_cartesian_cycloid_motion import build_calibrated_model, fk_tool0_base, solve_tool0_ik
+
+    class ForceLoopNode(Node):
+        def __init__(self) -> None:
+            super().__init__("ur10e_gazebo_force_closed_loop_runner")
+            self.samples: list[list[float]] = []
+            self.client = ActionClient(self, FollowJointTrajectory, action_name)
+            self.create_subscription(JointState, joint_state_topic, self._on_joint_state, 10)
+
+        def _on_joint_state(self, msg: JointState) -> None:
+            by_name = dict(zip(msg.name, msg.position))
+            if all(name in by_name for name in JOINT_NAMES):
+                self.samples.append([float(by_name[name]) for name in JOINT_NAMES])
+
+        def wait_for_joint_sample(self, timeout_s: float) -> list[float] | None:
+            deadline = time.monotonic() + timeout_s
+            while time.monotonic() < deadline:
+                rclpy.spin_once(self, timeout_sec=0.05)
+                if self.samples:
+                    return self.samples[-1]
+            return None
+
+        def send_short_goal(self, start_q: list[float], target_q: list[float], duration_s: float) -> dict[str, Any]:
+            goal = FollowJointTrajectory.Goal()
+            goal.trajectory.joint_names = JOINT_NAMES
+            for t_s, positions in ((0.0, start_q), (max(duration_s, 0.05), target_q)):
+                point = JointTrajectoryPoint()
+                point.positions = positions
+                point.time_from_start = Duration(sec=int(t_s), nanosec=int((t_s % 1.0) * 1_000_000_000))
+                goal.trajectory.points.append(point)
+
+            send_future = self.client.send_goal_async(goal)
+            rclpy.spin_until_future_complete(self, send_future, timeout_sec=server_timeout_s)
+            handle = send_future.result()
+            if handle is None or not handle.accepted:
+                return {"ok": False, "accepted": bool(handle and handle.accepted), "error_code": None, "blocker": "action_goal_rejected"}
+            result_future = handle.get_result_async()
+            rclpy.spin_until_future_complete(self, result_future, timeout_sec=max(duration_s + 5.0, 10.0))
+            if not result_future.done():
+                return {"ok": False, "accepted": True, "error_code": None, "blocker": "action_result_timeout"}
+            wrapped = result_future.result()
+            error_code = int(wrapped.result.error_code)
+            return {
+                "ok": error_code == FollowJointTrajectory.Result.SUCCESSFUL,
+                "accepted": True,
+                "error_code": error_code,
+                "error_string": str(wrapped.result.error_string),
+                "status": int(wrapped.status),
+                "blocker": None if error_code == FollowJointTrajectory.Result.SUCCESSFUL else "action_result_error",
+            }
+
+    if not references:
+        raise RuntimeError("force closed-loop execution has no reference points")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    trace_path = output_dir / "force_closed_loop_trace.csv"
+    model_bundle = build_calibrated_model()
+
+    rclpy.init()
+    node = ForceLoopNode()
+    rows: list[dict[str, Any]] = []
+    joint_samples_before = 0
+    goal_failures: list[dict[str, Any]] = []
+    try:
+        deadline = time.monotonic() + server_timeout_s
+        while not node.client.wait_for_server(timeout_sec=0.25):
+            rclpy.spin_once(node, timeout_sec=0.05)
+            if time.monotonic() > deadline:
+                return {
+                    "ok": False,
+                    "action_accepted": False,
+                    "result_status": None,
+                    "result_error_code": None,
+                    "observed_joint_state_samples": len(node.samples),
+                    "observed_motion": False,
+                    "blocker": "action_server_unavailable",
+                    "action_name": action_name,
+                    "force_closed_loop": False,
+                    "force_loop_trace_path": str(trace_path),
+                }
+
+        current_q = node.wait_for_joint_sample(timeout_s=2.0)
+        if current_q is None:
+            return {
+                "ok": False,
+                "action_accepted": False,
+                "result_status": None,
+                "result_error_code": None,
+                "observed_joint_state_samples": len(node.samples),
+                "observed_motion": False,
+                "blocker": "joint_state_unavailable",
+                "action_name": action_name,
+                "force_closed_loop": False,
+                "force_loop_trace_path": str(trace_path),
+            }
+        joint_samples_before = len(node.samples)
+        anchor_rotation = fk_tool0_base(model_bundle, np.array(current_q, dtype=float)).rotation.copy()
+        equilibrium_z_m = contact_surface_z_m - target_load_n / stiffness_n_m
+        normal_gain_m_per_n = 0.00025
+        max_approach_step_m = 0.006
+        max_retract_step_m = 0.003
+        max_abs_force_error_n = 0.0
+        settled_errors: list[float] = []
+        contact_sample_count = 0
+        accepted_count = 0
+        prev_z_m: float | None = None
+        prev_t_s: float | None = None
+        initial_samples = list(node.samples)
+
+        for index, ref in enumerate(references):
+            current_q = node.wait_for_joint_sample(timeout_s=1.0) or current_q
+            fk = fk_tool0_base(model_bundle, np.array(current_q, dtype=float))
+            measured_z_m = float(fk.translation[2])
+            if prev_z_m is None or prev_t_s is None:
+                normal_velocity_m_s = 0.0
+            else:
+                dt_prev = max(ref.t_s - prev_t_s, 1e-6)
+                normal_velocity_m_s = (measured_z_m - prev_z_m) / dt_prev
+            penetration_m = max(0.0, contact_surface_z_m - measured_z_m)
+            normal_load_n = stiffness_n_m * penetration_m
+            force_error_n = target_load_n - normal_load_n
+            max_abs_force_error_n = max(max_abs_force_error_n, abs(force_error_n))
+            if normal_load_n > 0.25:
+                contact_sample_count += 1
+
+            if normal_load_n < 0.25:
+                next_z_m = max(equilibrium_z_m, measured_z_m - max_approach_step_m)
+            else:
+                z_delta_m = -normal_gain_m_per_n * force_error_n
+                z_delta_m = max(-max_approach_step_m, min(max_retract_step_m, z_delta_m))
+                next_z_m = measured_z_m + z_delta_m
+            next_z_m = max(contact_surface_z_m - 0.006, min(0.240, next_z_m))
+
+            target = pin.SE3(anchor_rotation, np.array([ref.x_m, ref.y_m, next_z_m], dtype=float))
+            solved_q, ik_error_m = solve_tool0_ik(
+                model_bundle,
+                np.array(current_q, dtype=float),
+                target,
+                damping=1e-4,
+                max_iters=300,
+                tolerance_m=1e-5,
+            )
+            target_q = [float(value) for value in solved_q.tolist()]
+            next_t_s = references[index + 1].t_s if index + 1 < len(references) else ref.t_s + 0.2
+            goal_duration_s = max(0.05, min(0.75, next_t_s - ref.t_s))
+            goal_result = node.send_short_goal(current_q, target_q, goal_duration_s)
+            accepted_count += 1 if goal_result.get("accepted") else 0
+            if not goal_result.get("ok"):
+                goal_failures.append({"index": index, "t_s": ref.t_s, **goal_result})
+                break
+
+            if contact_sample_count > 3:
+                settled_errors.append(abs(force_error_n))
+            rows.append(
+                {
+                    "stage_id": stage_id,
+                    "index": index,
+                    "t_s": ref.t_s,
+                    "segment": ref.segment,
+                    "reference_x_m": ref.x_m,
+                    "reference_y_m": ref.y_m,
+                    "measured_z_m": measured_z_m,
+                    "commanded_z_m": next_z_m,
+                    "surface_z_m": contact_surface_z_m,
+                    "penetration_m": penetration_m,
+                    "normal_velocity_m_s": normal_velocity_m_s,
+                    "normal_load_n": normal_load_n,
+                    "target_load_n": target_load_n,
+                    "force_error_n": force_error_n,
+                    "ik_error_m": float(ik_error_m),
+                    "goal_duration_s": goal_duration_s,
+                    "goal_error_code": goal_result.get("error_code"),
+                    "goal_ok": bool(goal_result.get("ok")),
+                }
+            )
+            current_q = target_q
+            prev_z_m = measured_z_m
+            prev_t_s = ref.t_s
+
+        fieldnames = [
+            "stage_id",
+            "index",
+            "t_s",
+            "segment",
+            "reference_x_m",
+            "reference_y_m",
+            "measured_z_m",
+            "commanded_z_m",
+            "surface_z_m",
+            "penetration_m",
+            "normal_velocity_m_s",
+            "normal_load_n",
+            "target_load_n",
+            "force_error_n",
+            "ik_error_m",
+            "goal_duration_s",
+            "goal_error_code",
+            "goal_ok",
+        ]
+        with trace_path.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+
+        settled_within = [err <= force_tolerance_n for err in settled_errors]
+        settled_fraction = (
+            sum(1 for value in settled_within if value) / len(settled_within)
+            if settled_within
+            else 0.0
+        )
+        mean_abs_settled_error_n = (
+            sum(settled_errors) / len(settled_errors)
+            if settled_errors
+            else None
+        )
+        ok = (
+            not goal_failures
+            and trace_path.is_file()
+            and contact_sample_count >= 5
+            and bool(settled_errors)
+            and settled_fraction >= 0.85
+        )
+        first_error = goal_failures[0] if goal_failures else None
+        return {
+            "ok": ok,
+            "action_accepted": accepted_count > 0 and not goal_failures,
+            "entry_point_from_joint_states": True,
+            "entry_duration_s": 0.0,
+            "result_status": 4 if ok else (first_error or {}).get("status"),
+            "result_error_code": 0 if ok else (first_error or {}).get("error_code"),
+            "result_error_string": "Gazebo force closed-loop completed" if ok else str((first_error or {}).get("blocker")),
+            "observed_joint_state_samples": len(node.samples),
+            "observed_motion": _observed_motion(initial_samples + node.samples),
+            "blocker": None if ok else ((first_error or {}).get("blocker") or "force_closed_loop_acceptance_failed"),
+            "action_name": action_name,
+            "force_closed_loop": ok,
+            "force_loop_trace_path": str(trace_path),
+            "force_loop": {
+                "schema": "ur10e_gazebo_force_closed_loop_v1",
+                "force_source": "gazebo_joint_state_fk_virtual_contact_model",
+                "runtime_feedback": "joint_states_to_fk_to_normal_load_to_next_joint_goal",
+                "contact_surface_z_m": contact_surface_z_m,
+                "target_load_n": target_load_n,
+                "stiffness_n_m": stiffness_n_m,
+                "reaction_normal": [0.0, 0.0, 1.0],
+                "approach_normal": [0.0, 0.0, -1.0],
+                "normal_load_definition": "dot(force_base, reaction_normal)",
+                "sample_count": len(rows),
+                "contact_sample_count": contact_sample_count,
+                "accepted_goal_count": accepted_count,
+                "goal_failure_count": len(goal_failures),
+                "max_abs_force_error_n": max_abs_force_error_n,
+                "mean_abs_settled_force_error_n": mean_abs_settled_error_n,
+                "settled_within_tolerance_fraction": settled_fraction,
+                "force_tolerance_n": force_tolerance_n,
+                "trace_path": str(trace_path),
+            },
+        }
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
 def _observed_motion(samples: list[list[float]], threshold_rad: float = 1e-4) -> bool:
     if len(samples) < 2:
         return False
@@ -382,8 +686,13 @@ def write_stage_summary(
     trace_path, metrics, joint_points = build_command_trace(stage_id, stage_dir)
     execution = None
     if execute:
-        execution = execute_joint_trajectory(joint_points, duration_s=float(metrics["duration_s"]))
+        if stage_id in CONTACT_STAGE_IDS:
+            execution = execute_force_closed_loop(stage_id, build_reference_rows(stage_id), stage_dir)
+        else:
+            execution = execute_joint_trajectory(joint_points, duration_s=float(metrics["duration_s"]))
     artifact = offline.build_stage_artifact(stage_id)
+    force_closed_loop = bool(execution and execution.get("force_closed_loop"))
+    force_loop = execution.get("force_loop") if execution else None
     summary = {
         "schema": "ur10e_gazebo_matrix_stage_result_v1",
         "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -391,7 +700,7 @@ def write_stage_summary(
         "mode": "gazebo_ros2_control",
         "gazebo_only": True,
         "live_robot_command_authorized": False,
-        "force_physics_closed_loop": False,
+        "force_physics_closed_loop": force_closed_loop,
         "controller_required": True,
         "action_name": ACTION_NAME,
         "execute_requested": execute,
@@ -403,6 +712,7 @@ def write_stage_summary(
         "frames": artifact.get("frames", {}),
         "units": artifact.get("units", {}),
         "known_limit": artifact.get("known_blocker"),
+        "force_loop": force_loop,
         "acceptance": {
             "trajectory_duration_nonzero": float(metrics["duration_s"]) > 0.0,
             "trace_written": trace_path.is_file(),
@@ -413,6 +723,13 @@ def write_stage_summary(
             "action_success": bool(execution and execution.get("ok")) if execute else None,
             "observed_motion": bool(execution and execution.get("observed_motion")) if execute else None,
             "gui_evidence_captured": bool(screenshot_path and screenshot_path.exists()),
+            "force_closed_loop": force_closed_loop if stage_id in CONTACT_STAGE_IDS and execute else None,
+            "force_loop_trace_written": bool(force_loop and Path(str(force_loop.get("trace_path"))).is_file())
+            if force_loop
+            else None,
+            "settled_force_within_tolerance_fraction": force_loop.get("settled_within_tolerance_fraction")
+            if force_loop
+            else None,
         },
     }
     summary_path = stage_dir / "summary.json"

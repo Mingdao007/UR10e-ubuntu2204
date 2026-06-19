@@ -9,11 +9,27 @@ import math
 from pathlib import Path
 from typing import Any
 
+from ament_index_python.packages import PackageNotFoundError, get_package_share_directory
+
 from . import step5b_simulation_mvp as step5b_mvp
 from .step5b_simulation_mvp import strip_ros2_control_blocks
 
 
-WORKSPACE = Path(__file__).resolve().parents[3]
+def _workspace_root() -> Path:
+    for parent in Path(__file__).resolve().parents:
+        if parent.name == "ur10e_ros2_ws":
+            return parent
+    return Path(__file__).resolve().parents[3]
+
+
+def _package_root() -> Path:
+    try:
+        return Path(get_package_share_directory("ur10e_example_controllers"))
+    except PackageNotFoundError:
+        return Path(__file__).resolve().parents[1]
+
+
+WORKSPACE = _workspace_root()
 EXPERIMENT = WORKSPACE / "experiments" / "tase-contact-reproduction"
 CONFIG = EXPERIMENT / "config"
 STEP5_SAFE_FRAME = CONFIG / "step5_safe_frame.json"
@@ -24,7 +40,7 @@ STEP6_SAFE_FRAME = CONFIG / "step6_eight_safe_frame.json"
 STEP6_STAGE_TABLE = CONFIG / "step6_stage_table.json"
 TEXTBOOK_SPEC = CONFIG / "local_control_textbook_spec.json"
 CALIBRATED_URDF = step5b_mvp.CALIBRATED_URDF
-PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+PACKAGE_ROOT = _package_root()
 WORLD_PATH = PACKAGE_ROOT / "worlds" / "step5_table_world.sdf"
 LAUNCH_PATH = PACKAGE_ROOT / "launch" / "step5b_simulation_mvp.launch.py"
 
