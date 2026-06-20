@@ -605,25 +605,34 @@ def build_action_timing_evidence(
         evidence_status = "action_result_error_timing_recorded"
 
     if ratio is None:
-        root_cause_status = "root_cause_open_missing_actual_vs_commanded_timing"
+        root_cause_status = "root_cause_open_missing_wall_clock_action_timing"
     elif ratio > 1.05:
         root_cause_status = (
-            "actual_vs_commanded_slowdown_recorded_controller_speed_scaling_unmeasured"
+            "wall_clock_action_elapsed_slowdown_recorded_rtf_or_controller_speed_unresolved"
         )
     else:
         root_cause_status = (
-            "actual_vs_commanded_near_nominal_controller_speed_scaling_unmeasured"
+            "wall_clock_action_elapsed_near_nominal_rtf_or_controller_speed_unresolved"
         )
 
     return {
-        "schema": "ur10e_gazebo_action_timing_evidence_v1",
+        "schema": "ur10e_gazebo_action_timing_evidence_v2",
         "timing_evidence_source": "follow_joint_trajectory_result_elapsed_vs_goal_time_from_start",
+        "elapsed_clock_domain": "wall_clock_monotonic",
+        "commanded_duration_clock_domain": "trajectory_time_from_start",
+        "duration_ratio_clock_domain": "wall_clock_monotonic_vs_commanded_trajectory_time_from_start",
         "planned_trajectory_duration_s": planned_s,
         "entry_duration_s": entry_s,
         "commanded_goal_duration_s": commanded_goal_duration_s,
         "action_result_elapsed_s": elapsed_s,
         "actual_vs_commanded_duration_ratio": ratio,
         "inferred_speed_scale_from_action_result": inferred_scale,
+        "inferred_speed_scale_interpretation": (
+            "Wall-clock elapsed ratio only; may reflect Gazebo real-time factor, "
+            "controller speed scaling, action overhead, or settling."
+        ),
+        "sim_time_real_time_factor_confound": True,
+        "rtf_or_controller_speed_unresolved": True,
         "observed_joint_state_samples": int(observed_joint_state_samples),
         "action_success": bool(action_success),
         "timed_out": bool(timed_out),
@@ -633,7 +642,8 @@ def build_action_timing_evidence(
         "evidence_status": evidence_status,
         "timing_root_cause_status": root_cause_status,
         "claim_limit": (
-            "Actual-vs-commanded action timing is recorded; controller speed_scaling was not measured."
+            "Wall-clock action elapsed versus commanded trajectory duration is recorded; "
+            "controller speed_scaling was not measured, and Gazebo real-time factor may explain the ratio."
         ),
     }
 

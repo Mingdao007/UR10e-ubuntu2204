@@ -310,16 +310,23 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             observed_joint_state_samples=512,
             action_success=True,
         )
-        self.assertEqual(evidence["schema"], "ur10e_gazebo_action_timing_evidence_v1")
+        self.assertEqual(evidence["schema"], "ur10e_gazebo_action_timing_evidence_v2")
         self.assertAlmostEqual(evidence["commanded_goal_duration_s"], 64.0)
         self.assertAlmostEqual(evidence["actual_vs_commanded_duration_ratio"], 1.6)
         self.assertAlmostEqual(evidence["inferred_speed_scale_from_action_result"], 0.625)
+        self.assertEqual(
+            evidence["duration_ratio_clock_domain"],
+            "wall_clock_monotonic_vs_commanded_trajectory_time_from_start",
+        )
+        self.assertTrue(evidence["sim_time_real_time_factor_confound"])
+        self.assertTrue(evidence["rtf_or_controller_speed_unresolved"])
         self.assertFalse(evidence["controller_speed_scaling_measured"])
         self.assertEqual(evidence["evidence_status"], "action_result_timing_recorded")
         self.assertEqual(
             evidence["timing_root_cause_status"],
-            "actual_vs_commanded_slowdown_recorded_controller_speed_scaling_unmeasured",
+            "wall_clock_action_elapsed_slowdown_recorded_rtf_or_controller_speed_unresolved",
         )
+        self.assertIn("Gazebo real-time factor may explain the ratio", evidence["claim_limit"])
 
     def test_runner_dry_plan_writes_all_stage_traces_and_matrix_summary(self) -> None:
         with tempfile.TemporaryDirectory(prefix="ur10e_gazebo_matrix_test_") as tmp:
@@ -442,10 +449,16 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             self.assertEqual(row["surface_tcp_sanity"]["approach_normal_base"], [0.0, 0.0, -1.0])
             self.assertAlmostEqual(row["actual_vs_commanded_duration_ratio"], 1.6)
             self.assertAlmostEqual(row["inferred_speed_scale_from_action_result"], 0.625)
+            self.assertEqual(
+                row["duration_ratio_clock_domain"],
+                "wall_clock_monotonic_vs_commanded_trajectory_time_from_start",
+            )
+            self.assertTrue(row["sim_time_real_time_factor_confound"])
+            self.assertTrue(row["rtf_or_controller_speed_unresolved"])
             self.assertFalse(row["controller_speed_scaling_measured"])
             self.assertEqual(
                 row["timing_root_cause_status"],
-                "actual_vs_commanded_slowdown_recorded_controller_speed_scaling_unmeasured",
+                "wall_clock_action_elapsed_slowdown_recorded_rtf_or_controller_speed_unresolved",
             )
 
     def test_visual_audit_summary_uses_per_row_observer_pass_counts(self) -> None:
@@ -479,6 +492,7 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
                 summary["representative_timing_rows"][0]["actual_vs_commanded_duration_ratio"],
                 1.6,
             )
+            self.assertTrue(summary["representative_timing_rows"][0]["sim_time_real_time_factor_confound"])
 
     def test_repo_gui_configs_are_clean_and_cover_three_view_roles(self) -> None:
         expected = {
