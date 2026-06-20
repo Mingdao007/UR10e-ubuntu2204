@@ -47,6 +47,16 @@ DEFAULT_TARGET_LOAD_N = 5.0
 DEFAULT_CONTACT_STIFFNESS_N_M = 2500.0
 TCP_VISUAL_LINK = "tool0_tcp_visual_marker"
 TCP_VISUAL_JOINT = "tool0_tcp_visual_marker_joint"
+EOAT_VISUAL_LINK = "real_aligned_eoat_visual_stack"
+EOAT_VISUAL_JOINT = "real_aligned_eoat_visual_stack_joint"
+ACTIVE_TCP_OFFSET_TOOL0_M = (
+    0.0000018186503701174852,
+    0.00000022293003722353485,
+    0.12209917288991741,
+)
+ACTION_RESULT_TIMEOUT_MIN_S = 60.0
+ACTION_RESULT_TIMEOUT_SLOWDOWN_FACTOR = 2.0
+ACTION_RESULT_TIMEOUT_EXTRA_S = 10.0
 
 
 @dataclass(frozen=True)
@@ -96,7 +106,96 @@ def generate_sim_robot_description(
         raise RuntimeError("generated URDF still contains real URPositionHardwareInterface")
     if "libign_ros2_control-system.so" not in robot_description:
         raise RuntimeError("generated URDF is missing libign_ros2_control-system.so plugin")
-    return add_tcp_visual_marker(robot_description)
+    return add_tcp_visual_marker(add_real_aligned_eoat_visual_stack(robot_description))
+
+
+def add_real_aligned_eoat_visual_stack(robot_description: str) -> str:
+    """Attach a non-colliding visual proxy for the real end-of-arm tooling stack."""
+
+    root = ET.fromstring(robot_description)
+    if root.find(f"./link[@name='{EOAT_VISUAL_LINK}']") is not None:
+        return robot_description
+    tool0 = root.find("./link[@name='tool0']")
+    if tool0 is None:
+        raise RuntimeError("generated URDF is missing tool0 link for EOAT visual stack")
+
+    link = ET.Element("link", {"name": EOAT_VISUAL_LINK})
+    _append_eoat_visual(
+        link,
+        name="eoat_flange_adapter_visual",
+        xyz=(0.0, 0.0, 0.010),
+        rpy="0 0 0",
+        geometry_kind="cylinder",
+        geometry_attrs={"radius": "0.048", "length": "0.020"},
+        rgba="0.40 0.42 0.44 1.0",
+    )
+    _append_eoat_visual(
+        link,
+        name="eoat_kunwei_sensor_body_visual",
+        xyz=(0.0, 0.0, 0.044),
+        rpy="0 0 0",
+        geometry_kind="cylinder",
+        geometry_attrs={"radius": "0.034", "length": "0.048"},
+        rgba="0.05 0.22 0.30 1.0",
+    )
+    _append_eoat_visual(
+        link,
+        name="eoat_tool_plate_visual",
+        xyz=(0.0, 0.0, 0.075),
+        rpy="0 0 0",
+        geometry_kind="box",
+        geometry_attrs={"size": "0.076 0.046 0.012"},
+        rgba="0.72 0.72 0.68 1.0",
+    )
+    _append_eoat_visual(
+        link,
+        name="eoat_contact_tip_visual",
+        xyz=(0.0, 0.0, 0.100),
+        rpy="0 0 0",
+        geometry_kind="cylinder",
+        geometry_attrs={"radius": "0.007", "length": "0.044"},
+        rgba="0.95 0.76 0.18 1.0",
+    )
+    _append_eoat_visual(
+        link,
+        name="eoat_active_tcp_marker_visual",
+        xyz=ACTIVE_TCP_OFFSET_TOOL0_M,
+        rpy="0 0 0",
+        geometry_kind="sphere",
+        geometry_attrs={"radius": "0.012"},
+        rgba="1.0 0.0 1.0 1.0",
+    )
+
+    joint = ET.Element("joint", {"name": EOAT_VISUAL_JOINT, "type": "fixed"})
+    ET.SubElement(joint, "parent", {"link": "tool0"})
+    ET.SubElement(joint, "child", {"link": EOAT_VISUAL_LINK})
+    ET.SubElement(joint, "origin", {"xyz": "0 0 0", "rpy": "0 0 0"})
+
+    root.append(link)
+    root.append(joint)
+    return ET.tostring(root, encoding="unicode")
+
+
+def _append_eoat_visual(
+    link: ET.Element,
+    *,
+    name: str,
+    xyz: tuple[float, float, float],
+    rpy: str,
+    geometry_kind: str,
+    geometry_attrs: dict[str, str],
+    rgba: str,
+) -> None:
+    visual = ET.SubElement(link, "visual", {"name": name})
+    ET.SubElement(visual, "origin", {"xyz": _xyz(xyz), "rpy": rpy})
+    geometry = ET.SubElement(visual, "geometry")
+    ET.SubElement(geometry, geometry_kind, geometry_attrs)
+    material = ET.SubElement(visual, "material", {"name": f"{name}_mat"})
+    ET.SubElement(material, "color", {"rgba": rgba})
+
+
+def _xyz(values: tuple[float, float, float]) -> str:
+    return " ".join(f"{value:.12g}" for value in values)
 
 
 def add_tcp_visual_marker(robot_description: str) -> str:
@@ -322,6 +421,14 @@ def build_command_trace(
     return trace_path, metrics, joint_points
 
 
+def default_action_result_timeout_s(*, duration_s: float, entry_duration_s: float) -> float:
+    nominal_s = max(0.0, float(duration_s)) + max(0.0, float(entry_duration_s))
+    return max(
+        ACTION_RESULT_TIMEOUT_MIN_S,
+        nominal_s * ACTION_RESULT_TIMEOUT_SLOWDOWN_FACTOR + ACTION_RESULT_TIMEOUT_EXTRA_S,
+    )
+
+
 def execute_joint_trajectory(
     joint_points: list[list[float]],
     *,
@@ -410,14 +517,22 @@ def execute_joint_trajectory(
                 "action_name": action_name,
             }
         result_future = handle.get_result_async()
-        timeout = result_timeout_s if result_timeout_s is not None else max(duration_s + entry_duration_s + 10.0, 30.0)
+        timeout = (
+            float(result_timeout_s)
+            if result_timeout_s is not None
+            else default_action_result_timeout_s(duration_s=duration_s, entry_duration_s=entry_duration_s)
+        )
+        result_wait_started_s = time.monotonic()
         rclpy.spin_until_future_complete(node, result_future, timeout_sec=timeout)
+        result_wait_elapsed_s = time.monotonic() - result_wait_started_s
         if not result_future.done():
             return {
                 "ok": False,
                 "action_accepted": True,
                 "result_status": None,
                 "result_error_code": None,
+                "result_timeout_s": timeout,
+                "result_wait_elapsed_s": result_wait_elapsed_s,
                 "observed_joint_state_samples": len(node.samples),
                 "observed_motion": _observed_motion(node.samples),
                 "blocker": "action_result_timeout",
@@ -433,6 +548,8 @@ def execute_joint_trajectory(
             "result_status": int(wrapped.status),
             "result_error_code": error_code,
             "result_error_string": str(wrapped.result.error_string),
+            "result_timeout_s": timeout,
+            "result_wait_elapsed_s": result_wait_elapsed_s,
             "observed_joint_state_samples": len(node.samples),
             "observed_motion": _observed_motion(node.samples),
             "blocker": None if error_code == FollowJointTrajectory.Result.SUCCESSFUL else "action_result_error",

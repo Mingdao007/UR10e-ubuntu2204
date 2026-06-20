@@ -65,6 +65,35 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
         self.assertIsNotNone(root.find(f"./link[@name='{gazebo.TCP_VISUAL_LINK}']"))
         self.assertIsNotNone(root.find(f"./joint[@name='{gazebo.TCP_VISUAL_JOINT}']"))
 
+    def test_generated_robot_description_includes_real_aligned_eoat_visual_stack(self) -> None:
+        robot_description = gazebo.generate_sim_robot_description()
+        root = ET.fromstring(robot_description)
+        stack = root.find(f"./link[@name='{gazebo.EOAT_VISUAL_LINK}']")
+        self.assertIsNotNone(stack)
+        joint = root.find(f"./joint[@name='{gazebo.EOAT_VISUAL_JOINT}']")
+        self.assertIsNotNone(joint)
+        self.assertEqual(joint.find("parent").attrib["link"], "tool0")
+        self.assertEqual(joint.find("child").attrib["link"], gazebo.EOAT_VISUAL_LINK)
+        self.assertEqual(joint.find("origin").attrib["xyz"], "0 0 0")
+
+        visual_names = {visual.attrib.get("name") for visual in stack.findall("visual")}
+        self.assertTrue(
+            {
+                "eoat_flange_adapter_visual",
+                "eoat_kunwei_sensor_body_visual",
+                "eoat_tool_plate_visual",
+                "eoat_contact_tip_visual",
+                "eoat_active_tcp_marker_visual",
+            }.issubset(visual_names)
+        )
+        active_tcp = stack.find("./visual[@name='eoat_active_tcp_marker_visual']/origin")
+        self.assertIsNotNone(active_tcp)
+        active_tcp_xyz = [float(value) for value in active_tcp.attrib["xyz"].split()]
+        self.assertAlmostEqual(active_tcp_xyz[0], gazebo.ACTIVE_TCP_OFFSET_TOOL0_M[0], places=9)
+        self.assertAlmostEqual(active_tcp_xyz[1], gazebo.ACTIVE_TCP_OFFSET_TOOL0_M[1], places=9)
+        self.assertAlmostEqual(active_tcp_xyz[2], gazebo.ACTIVE_TCP_OFFSET_TOOL0_M[2], places=9)
+        self.assertIsNone(stack.find("collision"))
+
     def test_stage_visual_world_keeps_only_relevant_surface_and_path_markers(self) -> None:
         with tempfile.TemporaryDirectory(prefix="ur10e_gazebo_visual_world_test_") as tmp:
             output = Path(tmp) / "step5b_visual.sdf"
@@ -196,6 +225,22 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             self.assertIn(f'sdf_filename: "{marker_sdf}"', request)
             self.assertIn('name: "active_tcp_marker"', request)
             self.assertNotIn("sdf:", request)
+
+    def test_non_contact_default_action_timeout_covers_gui_load_evidence(self) -> None:
+        prior_gui_evidence = {
+            "step5a": (22.0, 45.2),
+            "step5c": (60.0, 82.8),
+            "step6a": (30.0, 52.8),
+        }
+        for stage_id, (duration_s, prior_video_duration_s) in prior_gui_evidence.items():
+            with self.subTest(stage=stage_id):
+                timeout_s = gazebo.default_action_result_timeout_s(
+                    duration_s=duration_s,
+                    entry_duration_s=4.0,
+                )
+                old_timeout_s = max(duration_s + 4.0 + 10.0, 30.0)
+                self.assertGreater(timeout_s, old_timeout_s)
+                self.assertGreaterEqual(timeout_s, prior_video_duration_s + 5.0)
 
     def test_runner_dry_plan_writes_all_stage_traces_and_matrix_summary(self) -> None:
         with tempfile.TemporaryDirectory(prefix="ur10e_gazebo_matrix_test_") as tmp:
