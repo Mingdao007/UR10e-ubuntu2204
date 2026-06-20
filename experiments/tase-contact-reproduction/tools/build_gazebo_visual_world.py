@@ -167,8 +167,11 @@ def _build_manifest(
 ) -> dict[str, object]:
     path_bounds = _path_bounds(rows)
     surface = _surface_footprint(world, stage_id)
+    first_reference_pose = _reference_pose_payload(rows[0]) if rows else None
+    final_reference_pose = _reference_pose_payload(rows[-1]) if rows else None
+    contact_target_pose = _contact_target_pose(surface, rows[-1]) if rows and matrix.STAGE_REGISTRY[stage_id].contact else None
     return {
-        "schema": "ur10e_gazebo_stage_visual_world_manifest_v1",
+        "schema": "ur10e_gazebo_stage_visual_world_manifest_v2",
         "stage_id": stage_id,
         "base_world": str(base_world),
         "output_world": str(output),
@@ -179,8 +182,16 @@ def _build_manifest(
         "reference_row_count": len(rows),
         "reference_marker_count": marker_count,
         "path_bounds_xy_m": path_bounds,
+        "surface_frame": "world_base_projection",
+        "active_tcp_reference_frame": runner.ACTIVE_TCP_FRAME,
+        "tool_frame": runner.TOOL0_FRAME,
+        "active_tcp_offset_tool0_m": list(runner.ACTIVE_TCP_OFFSET_TOOL0_M),
+        "first_reference_pose_base": first_reference_pose,
+        "final_reference_pose_base": final_reference_pose,
+        "contact_target_pose_base": contact_target_pose,
         "surface": surface,
         "path_inside_surface_xy": _bounds_inside_surface(path_bounds, surface),
+        "surface_tcp_sanity": _surface_tcp_sanity(surface, rows, contact_target_pose),
         "contact_stage": bool(matrix.STAGE_REGISTRY[stage_id].contact),
         "force_loop_expected": stage_id in runner.CONTACT_STAGE_IDS,
     }
@@ -210,6 +221,7 @@ def _surface_footprint(world: ET.Element, stage_id: str) -> dict[str, float | No
             "size_x_m": None,
             "size_y_m": None,
             "size_z_m": None,
+            "top_z_m": None,
             "min_x_m": None,
             "max_x_m": None,
             "min_y_m": None,
@@ -229,6 +241,7 @@ def _surface_footprint(world: ET.Element, stage_id: str) -> dict[str, float | No
         "size_x_m": size_x,
         "size_y_m": size_y,
         "size_z_m": size_values[2],
+        "top_z_m": pose_values[2] + 0.5 * size_values[2],
         "min_x_m": center_x - 0.5 * size_x,
         "max_x_m": center_x + 0.5 * size_x,
         "min_y_m": center_y - 0.5 * size_y,
@@ -246,6 +259,77 @@ def _bounds_inside_surface(path_bounds: dict[str, float | None], surface: dict[s
         and surface["min_y_m"] <= path_bounds["min_y_m"]
         and surface["max_y_m"] >= path_bounds["max_y_m"]
     )
+
+
+def _reference_pose_payload(row: runner.ReferencePoint) -> dict[str, float | str]:
+    return {
+        "frame": runner.ACTIVE_TCP_FRAME,
+        "x_m": float(row.x_m),
+        "y_m": float(row.y_m),
+        "z_m": float(row.z_m),
+        "t_s": float(row.t_s),
+        "segment": row.segment,
+    }
+
+
+def _contact_target_pose(
+    surface: dict[str, float | None],
+    final_reference: runner.ReferencePoint,
+) -> dict[str, float | str] | None:
+    top_z = surface.get("top_z_m")
+    if top_z is None:
+        return None
+    return {
+        "frame": runner.ACTIVE_TCP_FRAME,
+        "x_m": float(final_reference.x_m),
+        "y_m": float(final_reference.y_m),
+        "z_m": float(top_z),
+        "surface_top_z_m": float(top_z),
+    }
+
+
+def _point_inside_surface(x_m: float, y_m: float, surface: dict[str, float | None]) -> bool:
+    required = ("min_x_m", "max_x_m", "min_y_m", "max_y_m")
+    if any(surface[key] is None for key in required):
+        return False
+    return bool(
+        surface["min_x_m"] <= x_m <= surface["max_x_m"]
+        and surface["min_y_m"] <= y_m <= surface["max_y_m"]
+    )
+
+
+def _surface_tcp_sanity(
+    surface: dict[str, float | None],
+    rows: list[runner.ReferencePoint],
+    contact_target_pose: dict[str, float | str] | None,
+) -> dict[str, object]:
+    top_z = surface.get("top_z_m")
+    final_reference = rows[-1] if rows else None
+    final_inside = (
+        _point_inside_surface(float(final_reference.x_m), float(final_reference.y_m), surface)
+        if final_reference is not None
+        else False
+    )
+    contact_inside = (
+        _point_inside_surface(float(contact_target_pose["x_m"]), float(contact_target_pose["y_m"]), surface)
+        if contact_target_pose is not None
+        else None
+    )
+    return {
+        "same_frame": runner.ACTIVE_TCP_FRAME,
+        "final_reference_xy_inside_surface": final_inside,
+        "contact_target_xy_inside_surface": contact_inside,
+        "reference_final_z_minus_surface_top_m": float(final_reference.z_m - top_z)
+        if final_reference is not None and top_z is not None
+        else None,
+        "contact_target_z_minus_surface_top_m": float(contact_target_pose["z_m"] - top_z)
+        if contact_target_pose is not None and top_z is not None
+        else None,
+        "reaction_normal_base": [0.0, 0.0, 1.0],
+        "approach_normal_base": [0.0, 0.0, -1.0],
+        "approach_dot_reaction": -1.0,
+        "force_frame_contract": "reaction_normal_for_load_approach_normal_for_posture_and_press",
+    }
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

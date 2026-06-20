@@ -31,6 +31,7 @@ DEFAULT_WORLD_NAME = "ur10e_step5_table_world"
 DEFAULT_MODEL_NAME = "active_tcp_marker"
 DEFAULT_UPDATE_PERIOD_S = 0.10
 DEFAULT_SERVICE_TIMEOUT_MS = 1000
+POSE_SOURCE_ACTIVE_TCP = "joint_states_to_runner_fk_active_tcp_base"
 
 
 @dataclass(frozen=True)
@@ -144,11 +145,12 @@ def marker_pose_from_joint_positions(
         raise ValueError(f"expected {len(JOINT_NAMES)} joint positions, got {len(joint_positions)}")
     bundle = model_bundle if model_bundle is not None else _model_bundle()
     fk = fk_tool0_base(bundle, np.array([float(value) for value in joint_positions], dtype=float))
+    active_tcp_xyz = runner.active_tcp_xyz_from_tool0_pose(fk)
     return MarkerPose(
         t_s=float(t_s),
-        x_m=float(fk.translation[0]),
-        y_m=float(fk.translation[1]),
-        z_m=float(fk.translation[2]),
+        x_m=float(active_tcp_xyz[0]),
+        y_m=float(active_tcp_xyz[1]),
+        z_m=float(active_tcp_xyz[2]),
     )
 
 
@@ -181,11 +183,14 @@ def write_marker_artifacts(
             )
 
     manifest = {
-        "schema": "ur10e_gazebo_tcp_marker_manifest_v1",
+        "schema": "ur10e_gazebo_tcp_marker_manifest_v2",
         "stage_id": stage_id,
         "world_name": world_name,
         "model_name": model_name,
         "pose_source": pose_source,
+        "pose_frame": runner.ACTIVE_TCP_FRAME,
+        "tool_frame": runner.TOOL0_FRAME,
+        "active_tcp_offset_tool0_m": list(runner.ACTIVE_TCP_OFFSET_TOOL0_M),
         "pose_count": len(pose_records),
         "trace_path": str(trace_path),
         "marker_sdf_path": str(marker_sdf_path) if marker_sdf_path is not None else None,
@@ -479,7 +484,7 @@ def run_follower(args: argparse.Namespace) -> MarkerArtifacts:
             world_name=args.world_name,
             model_name=args.model_name,
             pose_records=node.pose_records,
-            pose_source="joint_states_to_runner_fk_tool0_base",
+            pose_source=POSE_SOURCE_ACTIVE_TCP,
             spawned=node.spawned,
             create_service=_service(args.world_name, "create"),
             set_pose_service=_service(args.world_name, "set_pose"),
@@ -492,7 +497,7 @@ def run_follower(args: argparse.Namespace) -> MarkerArtifacts:
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Follow UR10e tool0 in Gazebo with a visible TCP marker model.")
+    parser = argparse.ArgumentParser(description="Follow the UR10e active TCP in Gazebo with a visible marker model.")
     parser.add_argument("--stage", required=True, choices=sorted(runner.offline.STAGE_REGISTRY))
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--world-name", default=DEFAULT_WORLD_NAME)

@@ -49,11 +49,28 @@ TCP_VISUAL_LINK = "tool0_tcp_visual_marker"
 TCP_VISUAL_JOINT = "tool0_tcp_visual_marker_joint"
 EOAT_VISUAL_LINK = "real_aligned_eoat_visual_stack"
 EOAT_VISUAL_JOINT = "real_aligned_eoat_visual_stack_joint"
+ACTIVE_TCP_FRAME = "base_to_active_tcp"
+TOOL0_FRAME = "base_to_tool0"
 ACTIVE_TCP_OFFSET_TOOL0_M = (
     0.0000018186503701174852,
     0.00000022293003722353485,
     0.12209917288991741,
 )
+EOAT_REQUIRED_VISUAL_NAMES = frozenset(
+    {
+        "eoat_flange_adapter_visual",
+        "eoat_kunwei_sensor_body_visual",
+        "eoat_sensor_status_band_visual",
+        "eoat_left_bracket_visual",
+        "eoat_right_bracket_visual",
+        "eoat_tool_plate_visual",
+        "eoat_contact_probe_visual",
+        "eoat_contact_pad_visual",
+        "eoat_active_tcp_marker_visual",
+    }
+)
+FORCE_CONTACT_SOURCE = "gazebo_joint_state_fk_virtual_surface_model"
+FORCE_CONTACT_PHYSICS_PROVEN = False
 ACTION_RESULT_TIMEOUT_MIN_S = 60.0
 ACTION_RESULT_TIMEOUT_SLOWDOWN_FACTOR = 2.0
 ACTION_RESULT_TIMEOUT_EXTRA_S = 10.0
@@ -106,7 +123,7 @@ def generate_sim_robot_description(
         raise RuntimeError("generated URDF still contains real URPositionHardwareInterface")
     if "libign_ros2_control-system.so" not in robot_description:
         raise RuntimeError("generated URDF is missing libign_ros2_control-system.so plugin")
-    return add_tcp_visual_marker(add_real_aligned_eoat_visual_stack(robot_description))
+    return add_real_aligned_eoat_visual_stack(robot_description)
 
 
 def add_real_aligned_eoat_visual_stack(robot_description: str) -> str:
@@ -123,38 +140,74 @@ def add_real_aligned_eoat_visual_stack(robot_description: str) -> str:
     _append_eoat_visual(
         link,
         name="eoat_flange_adapter_visual",
-        xyz=(0.0, 0.0, 0.010),
+        xyz=(0.0, 0.0, 0.012),
         rpy="0 0 0",
         geometry_kind="cylinder",
-        geometry_attrs={"radius": "0.048", "length": "0.020"},
+        geometry_attrs={"radius": "0.058", "length": "0.024"},
         rgba="0.40 0.42 0.44 1.0",
     )
     _append_eoat_visual(
         link,
         name="eoat_kunwei_sensor_body_visual",
-        xyz=(0.0, 0.0, 0.044),
+        xyz=(0.0, 0.0, 0.052),
         rpy="0 0 0",
         geometry_kind="cylinder",
-        geometry_attrs={"radius": "0.034", "length": "0.048"},
+        geometry_attrs={"radius": "0.043", "length": "0.060"},
         rgba="0.05 0.22 0.30 1.0",
     )
     _append_eoat_visual(
         link,
-        name="eoat_tool_plate_visual",
-        xyz=(0.0, 0.0, 0.075),
+        name="eoat_sensor_status_band_visual",
+        xyz=(0.0, 0.0, 0.056),
         rpy="0 0 0",
         geometry_kind="box",
-        geometry_attrs={"size": "0.076 0.046 0.012"},
+        geometry_attrs={"size": "0.096 0.014 0.014"},
+        rgba="0.00 0.95 0.85 1.0",
+    )
+    _append_eoat_visual(
+        link,
+        name="eoat_left_bracket_visual",
+        xyz=(0.0, 0.046, 0.086),
+        rpy="0 0 0",
+        geometry_kind="box",
+        geometry_attrs={"size": "0.100 0.014 0.040"},
+        rgba="0.18 0.18 0.18 1.0",
+    )
+    _append_eoat_visual(
+        link,
+        name="eoat_right_bracket_visual",
+        xyz=(0.0, -0.046, 0.086),
+        rpy="0 0 0",
+        geometry_kind="box",
+        geometry_attrs={"size": "0.100 0.014 0.040"},
+        rgba="0.18 0.18 0.18 1.0",
+    )
+    _append_eoat_visual(
+        link,
+        name="eoat_tool_plate_visual",
+        xyz=(0.0, 0.0, 0.092),
+        rpy="0 0 0",
+        geometry_kind="box",
+        geometry_attrs={"size": "0.118 0.074 0.016"},
         rgba="0.72 0.72 0.68 1.0",
     )
     _append_eoat_visual(
         link,
-        name="eoat_contact_tip_visual",
-        xyz=(0.0, 0.0, 0.100),
+        name="eoat_contact_probe_visual",
+        xyz=(0.0, 0.0, 0.106),
         rpy="0 0 0",
         geometry_kind="cylinder",
-        geometry_attrs={"radius": "0.007", "length": "0.044"},
+        geometry_attrs={"radius": "0.010", "length": "0.032"},
         rgba="0.95 0.76 0.18 1.0",
+    )
+    _append_eoat_visual(
+        link,
+        name="eoat_contact_pad_visual",
+        xyz=(0.0, 0.0, 0.122),
+        rpy="0 0 0",
+        geometry_kind="box",
+        geometry_attrs={"size": "0.034 0.034 0.006"},
+        rgba="1.0 0.50 0.05 1.0",
     )
     _append_eoat_visual(
         link,
@@ -196,6 +249,67 @@ def _append_eoat_visual(
 
 def _xyz(values: tuple[float, float, float]) -> str:
     return " ".join(f"{value:.12g}" for value in values)
+
+
+def active_tcp_xyz_from_tool0_pose(tool0_pose: Any) -> Any:
+    import numpy as np
+
+    return tool0_pose.translation + tool0_pose.rotation @ np.array(ACTIVE_TCP_OFFSET_TOOL0_M, dtype=float)
+
+
+def tool0_pose_for_active_tcp_target(rotation: Any, active_tcp_xyz_m: Any) -> Any:
+    import numpy as np
+    import pinocchio as pin
+
+    active_tcp_xyz = np.array(active_tcp_xyz_m, dtype=float)
+    offset_base = rotation @ np.array(ACTIVE_TCP_OFFSET_TOOL0_M, dtype=float)
+    return pin.SE3(rotation, active_tcp_xyz - offset_base)
+
+
+def build_model_composition_audit(robot_description: str | None = None) -> dict[str, Any]:
+    text = robot_description if robot_description is not None else generate_sim_robot_description()
+    root = ET.fromstring(text)
+    link_names = ["base_link", "wrist_3_link", "flange", "tool0", EOAT_VISUAL_LINK, TCP_VISUAL_LINK]
+    links = []
+    for name in link_names:
+        link = root.find(f"./link[@name='{name}']")
+        if link is None:
+            links.append({"name": name, "present": False})
+            continue
+        visual_names = [visual.attrib.get("name", "") for visual in link.findall("visual")]
+        links.append(
+            {
+                "name": name,
+                "present": True,
+                "visual_count": len(link.findall("visual")),
+                "collision_count": len(link.findall("collision")),
+                "visual_names": visual_names,
+            }
+        )
+    eoat = root.find(f"./link[@name='{EOAT_VISUAL_LINK}']")
+    eoat_visual_names = {visual.attrib.get("name", "") for visual in eoat.findall("visual")} if eoat is not None else set()
+    joint = root.find(f"./joint[@name='{EOAT_VISUAL_JOINT}']")
+    tcp_visual_link_present = root.find(f"./link[@name='{TCP_VISUAL_LINK}']") is not None
+    return {
+        "schema": "ur10e_gazebo_model_composition_audit_v2",
+        "eoat_visual_link": EOAT_VISUAL_LINK,
+        "eoat_visual_joint": EOAT_VISUAL_JOINT,
+        "eoat_joint_parent": joint.find("parent").attrib.get("link") if joint is not None and joint.find("parent") is not None else None,
+        "eoat_joint_child": joint.find("child").attrib.get("link") if joint is not None and joint.find("child") is not None else None,
+        "eoat_joint_origin": joint.find("origin").attrib if joint is not None and joint.find("origin") is not None else None,
+        "required_eoat_visuals": sorted(EOAT_REQUIRED_VISUAL_NAMES),
+        "present_eoat_visuals": sorted(eoat_visual_names),
+        "missing_eoat_visuals": sorted(EOAT_REQUIRED_VISUAL_NAMES - eoat_visual_names),
+        "eoat_visual_count": len(eoat_visual_names),
+        "eoat_collision_count": len(eoat.findall("collision")) if eoat is not None else None,
+        "tcp_visual_link_present": tcp_visual_link_present,
+        "redundant_tcp_marker_policy": "removed_from_generated_robot_description; active TCP marker is part of EOAT visual stack and optional external marker follows base_T_active_tcp",
+        "active_tcp_offset_tool0_m": list(ACTIVE_TCP_OFFSET_TOOL0_M),
+        "force_contact_source": FORCE_CONTACT_SOURCE,
+        "force_contact_physics_proven": FORCE_CONTACT_PHYSICS_PROVEN,
+        "links": links,
+        "plugin_count": len(root.findall(".//plugin")),
+    }
 
 
 def add_tcp_visual_marker(robot_description: str) -> str:
@@ -328,7 +442,6 @@ def build_command_trace(
     initial_positions_yaml: Path = INITIAL_POSITIONS_YAML,
 ) -> tuple[Path, dict[str, Any], list[list[float]]]:
     import numpy as np
-    import pinocchio as pin
 
     from .step5a_cartesian_cycloid_motion import build_calibrated_model, fk_tool0_base, solve_tool0_ik
 
@@ -343,7 +456,8 @@ def build_command_trace(
     max_reference_speed = 0.0
 
     for ref in references:
-        target = pin.SE3(anchor_rotation, np.array([ref.x_m, ref.y_m, ref.z_m], dtype=float))
+        active_target_xyz = np.array([ref.x_m, ref.y_m, ref.z_m], dtype=float)
+        target = tool0_pose_for_active_tcp_target(anchor_rotation, active_target_xyz)
         q, ik_error_m = solve_tool0_ik(
             model_bundle,
             q,
@@ -353,8 +467,10 @@ def build_command_trace(
             tolerance_m=1e-5,
         )
         fk = fk_tool0_base(model_bundle, q)
-        fk_xyz = [float(value) for value in fk.translation]
-        cartesian_error_m = float(np.linalg.norm(fk.translation - target.translation))
+        tool0_xyz = [float(value) for value in fk.translation]
+        active_tcp_xyz = active_tcp_xyz_from_tool0_pose(fk)
+        active_tcp_values = [float(value) for value in active_tcp_xyz]
+        cartesian_error_m = float(np.linalg.norm(active_tcp_xyz - active_target_xyz))
         max_error_m = max(max_error_m, cartesian_error_m, float(ik_error_m))
         max_reference_speed = max(max_reference_speed, ref.reference_speed_m_s)
         joint_values = [float(value) for value in q.tolist()]
@@ -366,10 +482,18 @@ def build_command_trace(
             "reference_x_m": ref.x_m,
             "reference_y_m": ref.y_m,
             "reference_z_m": ref.z_m,
+            "reference_frame": ACTIVE_TCP_FRAME,
             "reference_speed_m_s": ref.reference_speed_m_s,
-            "commanded_fk_x_m": fk_xyz[0],
-            "commanded_fk_y_m": fk_xyz[1],
-            "commanded_fk_z_m": fk_xyz[2],
+            "commanded_fk_frame": ACTIVE_TCP_FRAME,
+            "commanded_fk_x_m": active_tcp_values[0],
+            "commanded_fk_y_m": active_tcp_values[1],
+            "commanded_fk_z_m": active_tcp_values[2],
+            "commanded_active_tcp_x_m": active_tcp_values[0],
+            "commanded_active_tcp_y_m": active_tcp_values[1],
+            "commanded_active_tcp_z_m": active_tcp_values[2],
+            "commanded_tool0_x_m": tool0_xyz[0],
+            "commanded_tool0_y_m": tool0_xyz[1],
+            "commanded_tool0_z_m": tool0_xyz[2],
             "cartesian_error_m": cartesian_error_m,
         }
         for name, value in zip(JOINT_NAMES, joint_values):
@@ -384,10 +508,18 @@ def build_command_trace(
         "reference_x_m",
         "reference_y_m",
         "reference_z_m",
+        "reference_frame",
         "reference_speed_m_s",
+        "commanded_fk_frame",
         "commanded_fk_x_m",
         "commanded_fk_y_m",
         "commanded_fk_z_m",
+        "commanded_active_tcp_x_m",
+        "commanded_active_tcp_y_m",
+        "commanded_active_tcp_z_m",
+        "commanded_tool0_x_m",
+        "commanded_tool0_y_m",
+        "commanded_tool0_z_m",
         "cartesian_error_m",
         *[f"command_{name}_rad" for name in JOINT_NAMES],
     ]
@@ -417,6 +549,9 @@ def build_command_trace(
         ]
         if command_rows
         else None,
+        "reference_frame": ACTIVE_TCP_FRAME,
+        "tool0_frame": TOOL0_FRAME,
+        "active_tcp_offset_tool0_m": list(ACTIVE_TCP_OFFSET_TOOL0_M),
     }
     return trace_path, metrics, joint_points
 
@@ -574,7 +709,6 @@ def execute_force_closed_loop(
     force_tolerance_n: float = 0.75,
 ) -> dict[str, Any]:
     import numpy as np
-    import pinocchio as pin
     import rclpy
     from builtin_interfaces.msg import Duration
     from control_msgs.action import FollowJointTrajectory
@@ -694,7 +828,8 @@ def execute_force_closed_loop(
         for index, ref in enumerate(references):
             current_q = node.wait_for_joint_sample(timeout_s=1.0) or current_q
             fk = fk_tool0_base(model_bundle, np.array(current_q, dtype=float))
-            measured_z_m = float(fk.translation[2])
+            active_tcp_xyz = active_tcp_xyz_from_tool0_pose(fk)
+            measured_z_m = float(active_tcp_xyz[2])
             if prev_z_m is None or prev_t_s is None:
                 normal_velocity_m_s = 0.0
             else:
@@ -715,7 +850,8 @@ def execute_force_closed_loop(
                 next_z_m = measured_z_m + z_delta_m
             next_z_m = max(contact_surface_z_m - 0.006, min(0.240, next_z_m))
 
-            target = pin.SE3(anchor_rotation, np.array([ref.x_m, ref.y_m, next_z_m], dtype=float))
+            target_active_tcp_xyz = np.array([ref.x_m, ref.y_m, next_z_m], dtype=float)
+            target = tool0_pose_for_active_tcp_target(anchor_rotation, target_active_tcp_xyz)
             solved_q, ik_error_m = solve_tool0_ik(
                 model_bundle,
                 np.array(current_q, dtype=float),
@@ -743,8 +879,14 @@ def execute_force_closed_loop(
                     "segment": ref.segment,
                     "reference_x_m": ref.x_m,
                     "reference_y_m": ref.y_m,
+                    "active_tcp_x_m": float(active_tcp_xyz[0]),
+                    "active_tcp_y_m": float(active_tcp_xyz[1]),
+                    "active_tcp_z_m": measured_z_m,
+                    "tool0_x_m": float(fk.translation[0]),
+                    "tool0_y_m": float(fk.translation[1]),
+                    "tool0_z_m": float(fk.translation[2]),
                     "measured_z_m": measured_z_m,
-                    "commanded_z_m": next_z_m,
+                    "commanded_active_tcp_z_m": next_z_m,
                     "surface_z_m": contact_surface_z_m,
                     "penetration_m": penetration_m,
                     "normal_velocity_m_s": normal_velocity_m_s,
@@ -768,8 +910,14 @@ def execute_force_closed_loop(
             "segment",
             "reference_x_m",
             "reference_y_m",
+            "active_tcp_x_m",
+            "active_tcp_y_m",
+            "active_tcp_z_m",
+            "tool0_x_m",
+            "tool0_y_m",
+            "tool0_z_m",
             "measured_z_m",
-            "commanded_z_m",
+            "commanded_active_tcp_z_m",
             "surface_z_m",
             "penetration_m",
             "normal_velocity_m_s",
@@ -818,12 +966,19 @@ def execute_force_closed_loop(
             "blocker": None if ok else ((first_error or {}).get("blocker") or "force_closed_loop_acceptance_failed"),
             "action_name": action_name,
             "force_closed_loop": ok,
+            "force_contact_source": FORCE_CONTACT_SOURCE,
+            "force_contact_physics_proven": FORCE_CONTACT_PHYSICS_PROVEN,
             "force_loop_trace_path": str(trace_path),
             "force_loop": {
                 "schema": "ur10e_gazebo_force_closed_loop_v1",
-                "force_source": "gazebo_joint_state_fk_virtual_contact_model",
+                "force_source": FORCE_CONTACT_SOURCE,
                 "runtime_feedback": "joint_states_to_fk_to_normal_load_to_next_joint_goal",
+                "control_frame": ACTIVE_TCP_FRAME,
+                "tool_frame": TOOL0_FRAME,
+                "active_tcp_offset_tool0_m": list(ACTIVE_TCP_OFFSET_TOOL0_M),
                 "contact_surface_z_m": contact_surface_z_m,
+                "contact_physics_proven": FORCE_CONTACT_PHYSICS_PROVEN,
+                "contact_physics_status": "software_virtual_surface_model_not_gazebo_collision_physics",
                 "target_load_n": target_load_n,
                 "stiffness_n_m": stiffness_n_m,
                 "reaction_normal": [0.0, 0.0, 1.0],
@@ -868,7 +1023,8 @@ def write_stage_summary(
         else:
             execution = execute_joint_trajectory(joint_points, duration_s=float(metrics["duration_s"]))
     artifact = offline.build_stage_artifact(stage_id)
-    force_closed_loop = bool(execution and execution.get("force_closed_loop"))
+    software_force_loop_success = bool(execution and execution.get("force_closed_loop"))
+    force_physics_closed_loop = bool(execution and execution.get("force_contact_physics_proven"))
     force_loop = execution.get("force_loop") if execution else None
     summary = {
         "schema": "ur10e_gazebo_matrix_stage_result_v1",
@@ -877,7 +1033,10 @@ def write_stage_summary(
         "mode": "gazebo_ros2_control",
         "gazebo_only": True,
         "live_robot_command_authorized": False,
-        "force_physics_closed_loop": force_closed_loop,
+        "force_physics_closed_loop": force_physics_closed_loop,
+        "software_force_loop_success": software_force_loop_success,
+        "force_contact_source": execution.get("force_contact_source") if execution else None,
+        "force_contact_physics_proven": force_physics_closed_loop,
         "controller_required": True,
         "action_name": ACTION_NAME,
         "execute_requested": execute,
@@ -900,7 +1059,8 @@ def write_stage_summary(
             "action_success": bool(execution and execution.get("ok")) if execute else None,
             "observed_motion": bool(execution and execution.get("observed_motion")) if execute else None,
             "gui_evidence_captured": bool(screenshot_path and screenshot_path.exists()),
-            "force_closed_loop": force_closed_loop if stage_id in CONTACT_STAGE_IDS and execute else None,
+            "force_closed_loop": software_force_loop_success if stage_id in CONTACT_STAGE_IDS and execute else None,
+            "force_contact_physics_proven": force_physics_closed_loop if stage_id in CONTACT_STAGE_IDS and execute else None,
             "force_loop_trace_written": bool(force_loop and Path(str(force_loop.get("trace_path"))).is_file())
             if force_loop
             else None,
@@ -912,6 +1072,36 @@ def write_stage_summary(
     summary_path = stage_dir / "summary.json"
     summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return summary_path
+
+
+def observer_visual_criteria(row: dict[str, Any]) -> dict[str, bool]:
+    marker_source = str(row.get("marker_pose_source") or row.get("pose_source") or "")
+    clean_capture = bool(row.get("clean_scene_capture") or row.get("obstructive_ui_panels_absent"))
+    criteria = {
+        "gui_evidence_captured": bool(row.get("gui_evidence_captured")),
+        "robot_arm_visible": bool(row.get("robot_posture_visible")),
+        "eoat_tooling_visible": bool(row.get("eoat_tooling_visible")),
+        "active_tcp_marker_visible": bool(row.get("tcp_marker_visible")),
+        "surface_path_visible": bool(row.get("surface_path_visible")),
+        "robot_tool_surface_relation_visible": bool(row.get("robot_tool_surface_relation_visible")),
+        "active_tcp_pose_source_valid": marker_source == "joint_states_to_runner_fk_active_tcp_base",
+        "clean_scene_capture": clean_capture,
+    }
+    if row.get("view") == "context_overview":
+        # Context evidence may include UI if a clean interaction/detail pair is also recorded separately.
+        criteria["clean_scene_capture"] = bool(row.get("clean_scene_capture") or row.get("obstructive_ui_panels_absent") or row.get("context_ui_allowed"))
+    return criteria
+
+
+def populate_observer_visual_pass(row: dict[str, Any]) -> dict[str, Any]:
+    payload = dict(row)
+    criteria = observer_visual_criteria(payload)
+    failures = [name for name, ok in criteria.items() if not ok]
+    payload["observer_visual_criteria"] = criteria
+    payload["observer_visual_pass"] = not failures
+    payload["observer_visual_failure_reasons"] = failures
+    payload["observer_visual_gate_version"] = "observer_visual_gate_v2_active_tcp_eoat_clean_relation"
+    return payload
 
 
 def run_matrix(
@@ -926,6 +1116,9 @@ def run_matrix(
     if stage not in {"all", "step7_8"} and stage not in offline.STAGE_REGISTRY:
         raise SystemExit(f"unknown stage {stage!r}; expected all, step7_8, or one of {', '.join(offline.STAGE_REGISTRY)}")
     summaries = [write_stage_summary(stage_id, output_dir, execute=execute, screenshot_path=screenshot_path) for stage_id in stage_ids]
+    model_composition_audit = build_model_composition_audit()
+    model_audit_path = output_dir / "model_composition_audit.json"
+    model_audit_path.write_text(json.dumps(model_composition_audit, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     payload = {
         "schema": "ur10e_gazebo_matrix_result_v1",
         "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -936,6 +1129,8 @@ def run_matrix(
         "stage_count": len(summaries),
         "controller_required": True,
         "action_name": ACTION_NAME,
+        "model_composition_audit_path": str(model_audit_path),
+        "model_composition_audit": model_composition_audit,
         "stages": [json.loads(path.read_text(encoding="utf-8")) for path in summaries],
     }
     path = output_dir / "matrix_summary.json"
