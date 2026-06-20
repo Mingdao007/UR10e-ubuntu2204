@@ -34,6 +34,7 @@ DEFAULT_P1_SIMULATED_FT = (
     / "ur10e_gazebo_17h_sim_ft_rnn_20260621_0146"
     / "p1_auditor_installed_runtime_observed_ros2_simulated_ft.json"
 )
+RVIZ_MANIFEST_SCHEMA = "ur10e_p3_rviz_debug_evidence_pack_v1"
 
 CLAIM_TIERS = [
     "visual_only",
@@ -152,12 +153,45 @@ def find_rviz_artifacts(search_root: Path = WORKSPACE) -> dict[str, Any]:
         for path in search_root.rglob(pattern)
         if path.name != "p3_visual_rviz_evidence_audit.json"
     )
+    valid_manifests = [(path, payload) for path in manifests if (payload := load_rviz_manifest(path)) is not None]
+    if valid_manifests:
+        manifest_path, manifest_payload = valid_manifests[-1]
+        evidenced_items = {
+            item: bool((manifest_payload.get("evidenced_items", {}).get(item) or {}).get("evidenced"))
+            for item in RVIZ_REQUIRED_ITEMS
+        }
+        all_required_items_evidenced = all(evidenced_items.values())
+        rendered = bool((manifest_payload.get("rendered_screenshot_evidence") or {}).get("present"))
+        rviz_config_path = manifest_path.parent / str(manifest_payload.get("rviz_config_path", ""))
+        config_paths = sorted({*configs, rviz_config_path} if rviz_config_path.is_file() else set(configs))
+        return {
+            "claim_tier": "visual_only",
+            "status": (
+                "rviz_config_manifest_evidence_present_not_rendered"
+                if all_required_items_evidenced and not rendered
+                else "blocked_incomplete_rviz_evidence"
+            ),
+            "all_required_items_evidenced": all_required_items_evidenced,
+            "rendered_screenshot_evidence_present": rendered,
+            "full_rviz_render_acceptance_allowed": bool(rendered and all_required_items_evidenced),
+            "required_items": RVIZ_REQUIRED_ITEMS,
+            "evidenced_items": evidenced_items,
+            "config_paths": [rel(path) for path in config_paths],
+            "screenshot_paths": [rel(path) for path in screenshots],
+            "manifest_paths": [rel(path) for path, _payload in valid_manifests],
+            "valid_manifest_schema": RVIZ_MANIFEST_SCHEMA,
+            "evidence_mode": manifest_payload.get("evidence_mode"),
+            "source_manifest": rel(manifest_path),
+            "forbidden_claim": "physical Gazebo collision/contact physics; simulated_ft; real bench/live contact",
+        }
     has_shallow_artifacts = bool(configs or screenshots or manifests)
     evidenced_items = {item: False for item in RVIZ_REQUIRED_ITEMS}
     return {
         "claim_tier": "visual_only",
         "status": "blocked_incomplete_rviz_evidence" if has_shallow_artifacts else "blocked_missing_current_rviz_evidence",
         "all_required_items_evidenced": False,
+        "rendered_screenshot_evidence_present": False,
+        "full_rviz_render_acceptance_allowed": False,
         "required_items": RVIZ_REQUIRED_ITEMS,
         "evidenced_items": evidenced_items,
         "config_paths": [rel(path) for path in configs],
@@ -165,6 +199,16 @@ def find_rviz_artifacts(search_root: Path = WORKSPACE) -> dict[str, Any]:
         "manifest_paths": [rel(path) for path in manifests],
         "forbidden_claim": "RViz debug acceptance; physical Gazebo collision/contact physics; real bench/live contact",
     }
+
+
+def load_rviz_manifest(path: Path) -> dict[str, Any] | None:
+    try:
+        payload = load_json(path)
+    except (OSError, json.JSONDecodeError):
+        return None
+    if payload.get("schema") != RVIZ_MANIFEST_SCHEMA:
+        return None
+    return payload
 
 
 def p2_physical_status(path: Path = DEFAULT_P2_CORRELATION_AUDIT) -> dict[str, Any]:
@@ -239,7 +283,11 @@ def current_claim_tier_table(
         },
         {
             "evidence_surface": "RViz debug evidence",
-            "current_status": "missing current RViz evidence artifact" if not rviz["all_required_items_evidenced"] else "present",
+            "current_status": (
+                "config+manifest evidence present; rendered RViz screenshot not observed"
+                if rviz["all_required_items_evidenced"]
+                else "missing current RViz evidence artifact"
+            ),
             "claim_tier": "visual_only",
         },
         {
@@ -274,9 +322,10 @@ def build_audit(
     observer_manifest_path: Path = DEFAULT_OBSERVER_MANIFEST,
     p2_correlation_path: Path = DEFAULT_P2_CORRELATION_AUDIT,
     p1_simulated_ft_path: Path = DEFAULT_P1_SIMULATED_FT,
+    rviz_search_root: Path = WORKSPACE,
 ) -> dict[str, Any]:
     gazebo = summarize_gazebo_observer(summary_path=observer_summary_path, manifest_path=observer_manifest_path)
-    rviz = find_rviz_artifacts()
+    rviz = find_rviz_artifacts(rviz_search_root)
     p2 = p2_physical_status(p2_correlation_path)
     p1 = p1_simulated_ft_reference(p1_simulated_ft_path)
     return {
@@ -299,6 +348,7 @@ def build_audit(
             "gazebo_observer_manifest": rel(observer_manifest_path),
             "p2_contact_correlation_audit": rel(p2_correlation_path),
             "p1_simulated_ft": rel(p1_simulated_ft_path),
+            "rviz_search_root": rel(rviz_search_root),
         },
         "gazebo_observer_evidence": gazebo,
         "p1_simulated_ft_reference": p1,
@@ -309,9 +359,10 @@ def build_audit(
             "gazebo_rows": gazebo["row_count"],
             "gazebo_observer_visual_pass_count": gazebo["observer_visual_pass_count"],
             "rviz_all_required_items_evidenced": rviz["all_required_items_evidenced"],
+            "rviz_rendered_screenshot_evidence_present": rviz["rendered_screenshot_evidence_present"],
             "physical_contact_claim_allowed": False,
             "full_p3_acceptance_allowed": False,
-            "full_p3_acceptance_blocker": "RViz debug evidence is missing and physical Gazebo contact physics remains blocked/not proven.",
+            "full_p3_acceptance_blocker": "RViz rendered screenshot evidence is missing and physical Gazebo contact physics remains blocked/not proven.",
         },
     }
 
@@ -324,6 +375,7 @@ def write_audit(
     observer_manifest_path: Path = DEFAULT_OBSERVER_MANIFEST,
     p2_correlation_path: Path = DEFAULT_P2_CORRELATION_AUDIT,
     p1_simulated_ft_path: Path = DEFAULT_P1_SIMULATED_FT,
+    rviz_search_root: Path = WORKSPACE,
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     path = output_dir / "p3_visual_rviz_evidence_audit.json"
@@ -333,6 +385,7 @@ def write_audit(
         observer_manifest_path=observer_manifest_path,
         p2_correlation_path=p2_correlation_path,
         p1_simulated_ft_path=p1_simulated_ft_path,
+        rviz_search_root=rviz_search_root,
     )
     payload["artifact_path"] = str(path)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -347,6 +400,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--observer-manifest-path", type=Path, default=DEFAULT_OBSERVER_MANIFEST)
     parser.add_argument("--p2-correlation-path", type=Path, default=DEFAULT_P2_CORRELATION_AUDIT)
     parser.add_argument("--p1-simulated-ft-path", type=Path, default=DEFAULT_P1_SIMULATED_FT)
+    parser.add_argument("--rviz-search-root", type=Path, default=WORKSPACE)
     return parser.parse_args(argv)
 
 
@@ -359,6 +413,7 @@ def main(argv: list[str] | None = None) -> int:
         observer_manifest_path=args.observer_manifest_path,
         p2_correlation_path=args.p2_correlation_path,
         p1_simulated_ft_path=args.p1_simulated_ft_path,
+        rviz_search_root=args.rviz_search_root,
     )
     print(path)
     return 0

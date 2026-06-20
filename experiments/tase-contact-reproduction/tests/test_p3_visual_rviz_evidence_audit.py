@@ -40,7 +40,8 @@ def import_audit_module():
 class P3VisualRvizEvidenceAuditTest(unittest.TestCase):
     def test_build_audit_keeps_gazebo_observer_visual_only(self) -> None:
         audit = import_audit_module()
-        payload = audit.build_audit(generated_at="2026-06-21T04:05:00+08:00")
+        with tempfile.TemporaryDirectory(prefix="rviz_missing_evidence_") as tmp:
+            payload = audit.build_audit(generated_at="2026-06-21T04:05:00+08:00", rviz_search_root=Path(tmp))
 
         self.assertEqual(payload["schema"], "ur10e_p3_visual_rviz_evidence_audit_v1")
         self.assertEqual(payload["claim_boundary_gate"]["tiers"], EXPECTED_TIERS)
@@ -70,7 +71,8 @@ class P3VisualRvizEvidenceAuditTest(unittest.TestCase):
 
     def test_current_claim_table_has_exact_tiers_and_no_physical_upgrade(self) -> None:
         audit = import_audit_module()
-        payload = audit.build_audit(generated_at="2026-06-21T04:05:00+08:00")
+        with tempfile.TemporaryDirectory(prefix="rviz_missing_evidence_") as tmp:
+            payload = audit.build_audit(generated_at="2026-06-21T04:05:00+08:00", rviz_search_root=Path(tmp))
 
         rows = payload["current_claim_tier_table"]
         self.assertGreaterEqual(len(rows), 4)
@@ -117,6 +119,28 @@ class P3VisualRvizEvidenceAuditTest(unittest.TestCase):
         self.assertTrue(rviz["config_paths"])
         self.assertTrue(rviz["screenshot_paths"])
         self.assertTrue(all(value is False for value in rviz["evidenced_items"].values()))
+
+    def test_valid_rviz_manifest_unlocks_config_manifest_evidence_only(self) -> None:
+        audit = import_audit_module()
+        rviz_pack_path = TOOLS / "build_p3_rviz_debug_evidence_pack.py"
+        spec = importlib.util.spec_from_file_location("build_p3_rviz_debug_evidence_pack", rviz_pack_path)
+        if spec is None or spec.loader is None:
+            raise AssertionError(f"cannot load spec for {rviz_pack_path}")
+        rviz_pack = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(rviz_pack)
+
+        with tempfile.TemporaryDirectory(prefix="rviz_valid_evidence_") as tmp:
+            root = Path(tmp)
+            manifest = rviz_pack.write_pack(root, generated_at="2026-06-21T04:20:00+08:00")
+            rviz = audit.find_rviz_artifacts(root)
+
+        self.assertEqual(rviz["claim_tier"], "visual_only")
+        self.assertEqual(rviz["status"], "rviz_config_manifest_evidence_present_not_rendered")
+        self.assertTrue(rviz["all_required_items_evidenced"])
+        self.assertFalse(rviz["rendered_screenshot_evidence_present"])
+        self.assertFalse(rviz["full_rviz_render_acceptance_allowed"])
+        self.assertEqual(rviz["manifest_paths"], [audit.rel(manifest)])
+        self.assertTrue(all(rviz["evidenced_items"].values()))
 
     def test_write_audit_creates_json_artifact(self) -> None:
         audit = import_audit_module()
