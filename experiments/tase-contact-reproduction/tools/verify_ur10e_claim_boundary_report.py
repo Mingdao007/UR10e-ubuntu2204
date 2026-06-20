@@ -177,15 +177,20 @@ def evaluate(report_path: Path) -> list[dict[str, Any]]:
     )
 
     physical_positive = has_positive_claim(text, "physical Gazebo collision/contact physics")
-    physical_blocker_seen = any(token in full_norm for token in PHYSICAL_BLOCKERS)
+    physical_evidence_row = has_source_backed_physical_gazebo_claim_row(sections)
+    physical_contact_ok = not physical_positive or physical_evidence_row
     findings.append(
         _finding(
             report_path,
             "physical_contact_claim_boundary",
-            not (physical_blocker_seen and physical_positive),
-            "blocked/not proven"
-            if not (physical_blocker_seen and physical_positive)
-            else "positive physical Gazebo contact claim appears with blocker evidence",
+            physical_contact_ok,
+            "no positive physical Gazebo contact claim"
+            if not physical_positive
+            else (
+                "source-backed physical Gazebo evidence row present"
+                if physical_evidence_row
+                else "positive physical Gazebo contact claim appears without an unblocked evidence row"
+            ),
         )
     )
 
@@ -401,6 +406,31 @@ def has_simulated_ft_source(row_norm: str) -> bool:
 
 def has_blocked_or_not_proven(row_norm: str) -> bool:
     return "blocked" in row_norm or "not proven" in row_norm
+
+
+def has_source_backed_physical_gazebo_claim_row(sections: list[tuple[str, str]]) -> bool:
+    for heading, body in sections:
+        if normalize(heading) == "claim boundary gate":
+            continue
+        for table in markdown_tables(body):
+            if not claim_tier_table_is_valid(table):
+                continue
+            claim_index = claim_tier_column_index(table[0])
+            if claim_index is None:
+                continue
+            for row in table[2:]:
+                if claim_index >= len(row):
+                    continue
+                tier = recognized_claim_tier(normalize(row[claim_index]))
+                if tier != "physical Gazebo collision/contact physics":
+                    continue
+                row_norm = normalize(" | ".join(row))
+                if has_blocked_or_not_proven(row_norm) or any(token in row_norm for token in PHYSICAL_BLOCKERS):
+                    continue
+                missing = [field for field in PHYSICAL_GAZEBO_REQUIRED_FIELDS if field.lower() not in row_norm]
+                if not missing:
+                    return True
+    return False
 
 
 def has_positive_claim(text: str, tier: str) -> bool:

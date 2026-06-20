@@ -160,6 +160,28 @@ class Ur10eClaimBoundaryReportVerifierTest(unittest.TestCase):
         )
         self.assertFailsWith(text, "physical_contact_claim_boundary")
 
+    def test_positive_physical_gazebo_prose_without_evidence_row_fails_closed(self) -> None:
+        weak_gate = GOOD_CLAIM_GATE.replace(
+            "blocked/not proven unless EOAT",
+            "requires EOAT",
+        ).replace(
+            "  all exist. If `eoat_collision_count=0` or\n"
+            "  `force_contact_physics_proven=false`, this tier is blocked/not proven.",
+            "  all exist.",
+        )
+        table = """## Current Claim Tier Table
+
+| Evidence surface | Current status | Claim tier |
+|---|---|---|
+| Gazebo observer matrix | screenshots and EOAT visibility only | visual_only |
+| P1 canonical simulated FT artifact | stamp, frame_id, source, status, baseline, and log evidence present | simulated_ft |
+"""
+        text = _base_report(
+            weak_gate,
+            extra_body=table + "\nPhysical Gazebo collision/contact physics is verified.",
+        )
+        self.assertFailsWith(text, "physical_contact_claim_boundary")
+
     def test_real_bench_claim_without_explicit_authorization_fails_closed(self) -> None:
         text = _base_report(
             GOOD_CLAIM_GATE,

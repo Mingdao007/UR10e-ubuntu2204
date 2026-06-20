@@ -164,9 +164,12 @@ def stage_status_row(stage_id: str, p2_gate: dict[str, Any]) -> dict[str, Any]:
     contact = bool(spec.contact)
 
     if has_simulated_ft:
-        claim_tier = "simulated_ft"
-        simulated_ft_status = "metadata_complete"
-        allowed_claim = "simulated_ft synthetic force-log/path status only with stamp/frame_id/source/status/baseline/log evidence"
+        claim_tier = "virtual/software force-loop"
+        simulated_ft_status = "not_per_stage_canonical_log_evidence"
+        allowed_claim = (
+            "virtual/software force-loop path status only; global P1 simulated_ft evidence is separate "
+            "and per-stage canonical simulated FT logs are not attached"
+        )
     else:
         claim_tier = "visual_only"
         simulated_ft_status = "not_applicable"
@@ -194,6 +197,7 @@ def stage_status_row(stage_id: str, p2_gate: dict[str, Any]) -> dict[str, Any]:
         "inner_rnn_status": inner_rnn_status(stage_id),
         "outer_loop_status": outer_loop_status(stage_id),
         "simulated_ft_status": simulated_ft_status,
+        "per_stage_simulated_ft_log_evidence": False,
         "gazebo_contact_physics_status": gazebo_status,
         "evidence_artifact": "generated_from_step56_simulation_matrix",
         "current_blocker": blocker,
@@ -284,6 +288,7 @@ def current_goal_lineage_rows() -> list[dict[str, Any]]:
                 "source_name": source_name,
                 "canonical_allowed_claim_tier": row.get("allowed_claim_tier"),
                 "current_report_claim_tier": current_tier,
+                "target_claim_tier": target_report_tier_for_source(source_name),
                 "input_topic_or_file": row.get("input_topic_or_file"),
                 "output_topic": row.get("output_topic"),
                 "frame_id": row.get("frame_id"),
@@ -300,9 +305,21 @@ def current_report_tier_for_source(source_name: str) -> str:
     if source_name in {wrench_contract.SOURCE_SOFTWARE_REPLAY, wrench_contract.SOURCE_SIMULATED_FT}:
         return "simulated_ft"
     if source_name == wrench_contract.SOURCE_GAZEBO_CONTACT:
-        return "physical Gazebo collision/contact physics"
+        return "visual_only"
     if source_name == wrench_contract.SOURCE_REAL_KUNWEI_READ_ONLY:
         return "visual_only"
+    return "visual_only"
+
+
+def target_report_tier_for_source(source_name: str) -> str:
+    if source_name == wrench_contract.SOURCE_VIRTUAL_SOFTWARE:
+        return "virtual/software force-loop"
+    if source_name in {wrench_contract.SOURCE_SOFTWARE_REPLAY, wrench_contract.SOURCE_SIMULATED_FT}:
+        return "simulated_ft"
+    if source_name == wrench_contract.SOURCE_GAZEBO_CONTACT:
+        return "physical Gazebo collision/contact physics"
+    if source_name == wrench_contract.SOURCE_REAL_KUNWEI_READ_ONLY:
+        return "real bench/live contact"
     return "visual_only"
 
 
