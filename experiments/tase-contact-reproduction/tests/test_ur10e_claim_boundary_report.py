@@ -52,6 +52,8 @@ evidence using these tiers:
   collision evidence, contact pair/log evidence, and wrench/contact correlation
   all exist. If `eoat_collision_count=0` or
   `force_contact_physics_proven=false`, this tier is blocked/not proven.
+- real Kunwei read-only: retained logs or explicitly read-only Kunwei evidence
+  only; no live contact, no device zero/tare/config writes.
 - real bench/live contact: not authorized in this goal; no claim may upgrade
   simulated_ft or Gazebo evidence into real bench/live contact.
 """
@@ -99,6 +101,11 @@ class Ur10eClaimBoundaryReportVerifierTest(unittest.TestCase):
         gate = GOOD_CLAIM_GATE.replace("- simulated_ft:", "- simulated sensor:")
         text = _base_report(gate)
         self.assertFailsWith(text, "required_tier:simulated_ft")
+
+    def test_missing_real_kunwei_read_only_tier_fails_closed(self) -> None:
+        gate = GOOD_CLAIM_GATE.replace("- real Kunwei read-only:", "- retained sensor replay:")
+        text = _base_report(gate)
+        self.assertFailsWith(text, "required_tier:real Kunwei read-only")
 
     def test_simulated_ft_claim_without_required_fields_fails_closed(self) -> None:
         gate = GOOD_CLAIM_GATE.replace(

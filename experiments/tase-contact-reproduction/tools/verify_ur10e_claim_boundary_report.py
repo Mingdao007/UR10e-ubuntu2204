@@ -22,6 +22,7 @@ REQUIRED_TIERS = (
     "virtual/software force-loop",
     "simulated_ft",
     "physical Gazebo collision/contact physics",
+    "real Kunwei read-only",
     "real bench/live contact",
 )
 
