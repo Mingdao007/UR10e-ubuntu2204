@@ -61,6 +61,11 @@ SCRIPTED_CAMERA_PROFILES = {
         "image_size": (1280, 900),
     },
 }
+CONTACT_SYSTEM_PLUGIN_NAME = "gz::sim::systems::Contact"
+CONTACT_SYSTEM_PLUGIN_FILENAME = "ignition-gazebo-contact-system"
+CONTACT_SENSOR_UPDATE_RATE_HZ = 250
+CONTACT_TOPIC_PREFIX = "/ur10e/contact/gazebo"
+CONTACT_PAIR_LOGGING_CLAIM_TIER = "visual_only"
 
 
 def _material(parent: ET.Element, rgba: str) -> None:
@@ -316,6 +321,73 @@ def _ensure_sensors_system(world: ET.Element) -> None:
     ET.SubElement(plugin, "render_engine").text = "ogre2"
 
 
+def _ensure_contact_system(world: ET.Element) -> None:
+    for plugin in world.findall("plugin"):
+        if plugin.get("name") == CONTACT_SYSTEM_PLUGIN_NAME:
+            return
+    ET.SubElement(
+        world,
+        "plugin",
+        {"filename": CONTACT_SYSTEM_PLUGIN_FILENAME, "name": CONTACT_SYSTEM_PLUGIN_NAME},
+    )
+
+
+def _add_contact_pair_logging(world: ET.Element, stage_id: str) -> dict[str, object]:
+    if not matrix.STAGE_REGISTRY[stage_id].contact:
+        return {
+            "enabled": False,
+            "claim_tier": CONTACT_PAIR_LOGGING_CLAIM_TIER,
+            "contact_pair_log_evidence": False,
+            "force_contact_physics_proven": False,
+            "status": "disabled_for_non_contact_stage",
+            "topic": None,
+        }
+
+    surface_model = SURFACE_MODELS_BY_STAGE[stage_id][0]
+    surface = world.find(f"./model[@name='{surface_model}']")
+    surface_link = surface.find("./link[@name='surface']") if surface is not None else None
+    if surface_link is None:
+        return {
+            "enabled": False,
+            "claim_tier": CONTACT_PAIR_LOGGING_CLAIM_TIER,
+            "contact_pair_log_evidence": False,
+            "force_contact_physics_proven": False,
+            "status": "blocked_surface_link_missing",
+            "surface_model": surface_model,
+            "surface_link": "surface",
+            "topic": None,
+        }
+
+    _ensure_contact_system(world)
+    sensor_name = f"{stage_id}_surface_contact_sensor"
+    for sensor in list(surface_link.findall(f"./sensor[@name='{sensor_name}']")):
+        surface_link.remove(sensor)
+    topic = f"{CONTACT_TOPIC_PREFIX}/{stage_id}/contacts"
+    sensor = ET.SubElement(surface_link, "sensor", {"name": sensor_name, "type": "contact"})
+    contact = ET.SubElement(sensor, "contact")
+    ET.SubElement(contact, "collision").text = "collision"
+    ET.SubElement(contact, "topic").text = topic
+    ET.SubElement(sensor, "always_on").text = "1"
+    ET.SubElement(sensor, "update_rate").text = str(CONTACT_SENSOR_UPDATE_RATE_HZ)
+    return {
+        "enabled": True,
+        "claim_tier": CONTACT_PAIR_LOGGING_CLAIM_TIER,
+        "contact_pair_log_evidence": False,
+        "force_contact_physics_proven": False,
+        "status": "instrumented_not_captured",
+        "system_plugin": CONTACT_SYSTEM_PLUGIN_NAME,
+        "system_plugin_filename": CONTACT_SYSTEM_PLUGIN_FILENAME,
+        "surface_model": surface_model,
+        "surface_link": "surface",
+        "collision_name": "collision",
+        "sensor_name": sensor_name,
+        "topic": topic,
+        "message_type": "ignition.msgs.Contacts",
+        "future_artifact_schema": "ur10e_gazebo_contact_pair_log_v1",
+        "claim_boundary": "instrumentation_only_no_contact_pair_log_or_wrench_correlation_captured",
+    }
+
+
 def _scripted_camera_target(
     stage_id: str,
     rows: list[runner.ReferencePoint],
@@ -392,6 +464,7 @@ def build_visual_world(stage_id: str, base_world: Path, output: Path) -> Path:
     rows = _reference_rows(stage_id)
     _retarget_surface_to_path(world, stage_id, rows)
     surface_viewer_affordance = _add_surface_viewer_affordances(world, stage_id, rows)
+    contact_pair_logging = _add_contact_pair_logging(world, stage_id)
     marker_count = _add_reference_path(world, stage_id, rows)
     scripted_cameras = _add_scripted_cameras(world, stage_id, rows)
     manifest = _build_manifest(
@@ -404,6 +477,7 @@ def build_visual_world(stage_id: str, base_world: Path, output: Path) -> Path:
         removed_models=removed_models,
         scripted_cameras=scripted_cameras,
         surface_viewer_affordance=surface_viewer_affordance,
+        contact_pair_logging=contact_pair_logging,
     )
     ET.indent(tree, space="  ")
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -426,6 +500,7 @@ def _build_manifest(
     removed_models: list[str],
     scripted_cameras: dict[str, dict[str, object]],
     surface_viewer_affordance: dict[str, object],
+    contact_pair_logging: dict[str, object],
 ) -> dict[str, object]:
     path_bounds_base = _path_bounds(rows)
     path_bounds_world = _path_bounds_world(rows)
@@ -453,6 +528,7 @@ def _build_manifest(
         "reference_marker_count": marker_count,
         "scripted_cameras": scripted_cameras,
         "surface_viewer_affordance": surface_viewer_affordance,
+        "contact_pair_logging": contact_pair_logging,
         "path_bounds_base_xy_m": path_bounds_base,
         "path_bounds_xy_m": path_bounds_world,
         "surface_frame": runner.GAZEBO_WORLD_FRAME,

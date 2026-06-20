@@ -141,10 +141,19 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             self.assertIn("contact_target_cross_x", source)
             self.assertIn("contact_target_vertical_witness", source)
             self.assertIn("gz-sim-sensors-system", source)
+            self.assertIn("gz::sim::systems::Contact", source)
+            self.assertIn("step5b_surface_contact_sensor", source)
+            self.assertIn("/ur10e/contact/gazebo/step5b/contacts", source)
             self.assertIn("step5b_close_detail_scripted_camera", source)
             self.assertIn("/ur10e_visual_audit/step5b/close_detail/image", source)
             self.assertNotIn("step6_contact_surface", source)
             manifest = json.loads(output.with_suffix(".manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(
+                manifest["contact_pair_logging"]["topic"],
+                "/ur10e/contact/gazebo/step5b/contacts",
+            )
+            self.assertEqual(manifest["contact_pair_logging"]["claim_tier"], "visual_only")
+            self.assertFalse(manifest["contact_pair_logging"]["contact_pair_log_evidence"])
             self.assertEqual(
                 sorted(manifest["scripted_cameras"]),
                 ["close_detail", "context_overview", "interaction_view"],
@@ -230,10 +239,14 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
                         self.assertTrue(sanity["contact_target_xy_inside_surface"])
                         self.assertTrue(sanity["contact_target_world_xy_inside_surface"])
                         self.assertAlmostEqual(sanity["contact_target_z_minus_surface_top_m"], 0.0)
+                        self.assertTrue(manifest["contact_pair_logging"]["enabled"])
+                        self.assertEqual(manifest["contact_pair_logging"]["surface_model"], keep_models[0])
+                        self.assertIn(manifest["contact_pair_logging"]["topic"], source)
                     else:
                         self.assertIsNone(manifest["contact_target_pose_base"])
                         self.assertIsNone(manifest["contact_target_pose_world"])
                         self.assertIsNone(sanity["contact_target_xy_inside_surface"])
+                        self.assertFalse(manifest["contact_pair_logging"]["enabled"])
 
     def test_tcp_marker_model_sdf_is_non_colliding_and_high_contrast(self) -> None:
         source = tcp_marker.build_marker_model_sdf("active_tcp_marker")
