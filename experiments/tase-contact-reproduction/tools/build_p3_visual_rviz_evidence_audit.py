@@ -167,8 +167,10 @@ def find_rviz_artifacts(search_root: Path = WORKSPACE) -> dict[str, Any]:
         return {
             "claim_tier": "visual_only",
             "status": (
-                "rviz_config_manifest_evidence_present_not_rendered"
-                if all_required_items_evidenced and not rendered
+                "rviz_rendered_evidence_present"
+                if all_required_items_evidenced and rendered
+                else "rviz_config_manifest_evidence_present_not_rendered"
+                if all_required_items_evidenced
                 else "blocked_incomplete_rviz_evidence"
             ),
             "all_required_items_evidenced": all_required_items_evidenced,
@@ -284,7 +286,9 @@ def current_claim_tier_table(
         {
             "evidence_surface": "RViz debug evidence",
             "current_status": (
-                "config+manifest evidence present; rendered RViz screenshot not observed"
+                "config+manifest evidence present; rendered RViz screenshot present"
+                if rviz.get("rendered_screenshot_evidence_present")
+                else "config+manifest evidence present; rendered RViz screenshot not observed"
                 if rviz["all_required_items_evidenced"]
                 else "missing current RViz evidence artifact"
             ),

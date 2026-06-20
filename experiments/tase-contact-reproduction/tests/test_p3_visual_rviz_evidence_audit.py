@@ -142,6 +142,42 @@ class P3VisualRvizEvidenceAuditTest(unittest.TestCase):
         self.assertEqual(rviz["manifest_paths"], [audit.rel(manifest)])
         self.assertTrue(all(rviz["evidenced_items"].values()))
 
+    def test_rendered_rviz_manifest_unlocks_render_evidence(self) -> None:
+        audit = import_audit_module()
+        rviz_pack_path = TOOLS / "build_p3_rviz_debug_evidence_pack.py"
+        spec = importlib.util.spec_from_file_location("build_p3_rviz_debug_evidence_pack", rviz_pack_path)
+        if spec is None or spec.loader is None:
+            raise AssertionError(f"cannot load spec for {rviz_pack_path}")
+        rviz_pack = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(rviz_pack)
+
+        with tempfile.TemporaryDirectory(prefix="rviz_rendered_evidence_") as tmp:
+            root = Path(tmp)
+            manifest = rviz_pack.write_pack(root, generated_at="2026-06-21T04:25:00+08:00")
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+            screenshot = root / "rviz_debug_render.png"
+            screenshot.write_bytes(b"fake-png-bytes-for-parser-test")
+            payload["rendered_screenshot_evidence"] = {
+                "present": True,
+                "status": "rendered_screenshot_captured",
+                "path": screenshot.name,
+                "claim_tier": "visual_only",
+            }
+            manifest.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            rviz = audit.find_rviz_artifacts(root)
+            built = audit.build_audit(
+                generated_at="2026-06-21T04:25:00+08:00",
+                rviz_search_root=root,
+            )
+
+        self.assertEqual(rviz["status"], "rviz_rendered_evidence_present")
+        self.assertTrue(rviz["all_required_items_evidenced"])
+        self.assertTrue(rviz["rendered_screenshot_evidence_present"])
+        self.assertTrue(rviz["full_rviz_render_acceptance_allowed"])
+        rviz_row = next(row for row in built["current_claim_tier_table"] if row["evidence_surface"] == "RViz debug evidence")
+        self.assertEqual(rviz_row["claim_tier"], "visual_only")
+        self.assertIn("rendered RViz screenshot present", rviz_row["current_status"])
+
     def test_write_audit_creates_json_artifact(self) -> None:
         audit = import_audit_module()
         with tempfile.TemporaryDirectory(prefix="p3_visual_rviz_audit_test_") as tmp:
