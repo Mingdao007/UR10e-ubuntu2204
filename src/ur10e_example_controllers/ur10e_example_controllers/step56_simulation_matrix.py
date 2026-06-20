@@ -11,6 +11,7 @@ from typing import Any
 
 from ament_index_python.packages import PackageNotFoundError, get_package_share_directory
 
+from . import canonical_wrench_contract as wrench_contract
 from . import step5b_simulation_mvp as step5b_mvp
 from .step5b_simulation_mvp import strip_ros2_control_blocks
 
@@ -338,16 +339,25 @@ def _stage_common(spec: StageSpec, stage: dict[str, Any]) -> dict[str, Any]:
             "calibrated_urdf": str(CALIBRATED_URDF),
             "world": str(WORLD_PATH),
             "launch": str(LAUNCH_PATH),
+            "canonical_wrench_contract_module": str(Path(wrench_contract.__file__).resolve()),
         },
         "frames": {
             "gazebo_world": "world",
             "robot_base": "base",
             "robot_base_link": "base_link",
             "tool": "tool0",
+            "flange": "flange",
+            "ft_sensor": "ft_sensor",
+            "tcp": "tcp",
+            "contact_tip": "contact_tip",
+            "contact_surface": "contact_surface",
+            "surface_normal": "surface_normal",
             "force_vector": "base",
             "reaction_normal": "base",
             "approach_normal": "base",
         },
+        "canonical_wrench_contract": wrench_contract.canonical_contract_spec(),
+        "force_source_lineage": wrench_contract.force_source_lineage_table(),
         "units": {
             "time": "s",
             "position": "m",
@@ -437,41 +447,11 @@ def _trajectory_payload(
 
 
 def _simulated_force(rows: list[dict[str, Any]], *, contact_surface_z_m: float) -> dict[str, Any]:
-    force_rows = []
-    max_force = 0.0
-    for row in rows:
-        t_s = float(row["t_s"])
-        z_m = float(row["base_z_m"] if row["base_z_m"] is not None else contact_surface_z_m)
-        penetration = max(0.0, contact_surface_z_m - z_m)
-        load = max(0.0, 5.0 + 0.25 * math.sin(0.7 * t_s) + penetration * 500.0)
-        max_force = max(max_force, load)
-        force_rows.append(
-            {
-                "t_s": t_s,
-                "Fx_N": 0.0,
-                "Fy_N": 0.0,
-                "Fz_N": load,
-                "Mx_Nm": 0.0,
-                "My_Nm": 0.0,
-                "Mz_Nm": 0.0,
-                "reaction_normal": [0.0, 0.0, 1.0],
-                "approach_normal": [0.0, 0.0, -1.0],
-                "normal_load_n": load,
-                "force_norm_n": load,
-            }
-        )
-    return {
-        "schema": "simulated_kunwei_wrench_v1",
-        "force_source": "simulated_kunwei_offline_trace",
-        "contact_surface_z_m": contact_surface_z_m,
-        "reaction_normal": [0.0, 0.0, 1.0],
-        "approach_normal": [0.0, 0.0, -1.0],
-        "normal_load_definition": "dot(force_base, reaction_normal)",
-        "max_force_norm_n": max_force,
-        "max_normal_load_n": max_force,
-        "sample_count": len(force_rows),
-        "rows": force_rows,
-    }
+    return wrench_contract.simulated_ft_trace_from_rows(
+        rows,
+        contact_surface_z_m=contact_surface_z_m,
+        nominal_contact_load_n=5.0,
+    )
 
 
 def build_stage_artifact(stage_id: str) -> dict[str, Any]:
@@ -511,6 +491,8 @@ def build_stage_artifact(stage_id: str) -> dict[str, Any]:
             "artifact_complete": True,
             "physics_closed_loop_claimed": False,
             "live_authorization_ok": not artifact["live_robot_command_authorized"],
+            "canonical_wrench_schema_ok": artifact["simulated_force_evidence"] is None
+            or not artifact["simulated_force_evidence"]["schema_issues"],
         }
         return artifact
 
@@ -598,6 +580,8 @@ def build_stage_artifact(stage_id: str) -> dict[str, Any]:
             "artifact_complete": True,
             "physics_closed_loop_claimed": False,
             "live_authorization_ok": not artifact["live_robot_command_authorized"],
+            "canonical_wrench_schema_ok": artifact["simulated_force_evidence"] is None
+            or not artifact["simulated_force_evidence"]["schema_issues"],
         }
         return artifact
 
@@ -648,6 +632,7 @@ def build_stage_artifact(stage_id: str) -> dict[str, Any]:
             "artifact_complete": True,
             "physics_closed_loop_claimed": False,
             "live_authorization_ok": not artifact["live_robot_command_authorized"],
+            "canonical_wrench_schema_ok": not artifact["simulated_force_evidence"]["schema_issues"],
         }
         return artifact
 

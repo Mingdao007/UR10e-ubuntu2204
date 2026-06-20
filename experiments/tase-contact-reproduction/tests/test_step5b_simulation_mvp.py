@@ -39,10 +39,15 @@ class Step5bSimulationMvpTest(unittest.TestCase):
     def test_force_trace_uses_reaction_and_approach_contract(self) -> None:
         artifact = sim.build_artifact()
         force = artifact["simulated_force_evidence"]
+        self.assertEqual(force["schema"], "ur10e_canonical_wrench_trace_v1")
+        self.assertEqual(force["force_source"], "simulated_ft")
+        self.assertEqual(force["claim_tier"], "simulated_ft")
         self.assertEqual(force["reaction_normal"], [0.0, 0.0, 1.0])
         self.assertEqual(force["approach_normal"], [0.0, 0.0, -1.0])
         self.assertEqual(force["normal_load_definition"], "dot(force_base, reaction_normal)")
         self.assertEqual(force["sample_count"], artifact["preposition"]["sample_count"])
+        self.assertFalse(force["schema_issues"])
+        self.assertEqual(force["max_normal_load_n"], 0.0)
 
     def test_artifact_schema_and_source_paths(self) -> None:
         artifact = sim.build_artifact()
@@ -52,6 +57,7 @@ class Step5bSimulationMvpTest(unittest.TestCase):
         self.assertTrue(artifact["step5b_live_locked"])
         self.assertTrue(artifact["calibrated_urdf_exists"])
         self.assertEqual(artifact["acceptance"]["goal_count_max"], 1)
+        self.assertTrue(artifact["acceptance"]["canonical_wrench_schema_ok"])
         json.dumps(artifact)
 
     def test_artifact_records_frames_units_and_contact_geometry(self) -> None:
@@ -59,9 +65,15 @@ class Step5bSimulationMvpTest(unittest.TestCase):
         self.assertEqual(artifact["frames"]["gazebo_world"], "world")
         self.assertEqual(artifact["frames"]["robot_base"], "base")
         self.assertEqual(artifact["frames"]["tool"], "tool0")
+        self.assertEqual(artifact["frames"]["ft_sensor"], "ft_sensor")
+        self.assertEqual(artifact["frames"]["contact_tip"], "contact_tip")
         self.assertEqual(artifact["frames"]["force_vector"], "base")
         self.assertEqual(artifact["units"]["position"], "m")
         self.assertEqual(artifact["units"]["force"], "N")
+        self.assertEqual(
+            artifact["canonical_wrench_contract"]["source_switching_policy"],
+            "launch_config_or_remap_only_no_controller_logic",
+        )
         self.assertEqual(
             artifact["expected_contact_geometry"]["surface_top_z_m"],
             sim.CONTACT_SURFACE_Z_M,

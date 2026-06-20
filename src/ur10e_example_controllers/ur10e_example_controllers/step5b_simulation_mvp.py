@@ -11,6 +11,7 @@ import xml.etree.ElementTree as ET
 
 from ament_index_python.packages import PackageNotFoundError, get_package_share_directory
 
+from . import canonical_wrench_contract as wrench_contract
 from . import step5b_contact_control_core as core
 
 
@@ -189,45 +190,12 @@ def plan_continuous_preposition(
     }
 
 
-def simulate_kunwei_force_evidence(preposition: dict[str, Any]) -> dict[str, Any]:
-    rows = []
-    max_force = 0.0
-    max_load = 0.0
-    for row in preposition["rows"]:
-        penetration_m = max(0.0, CONTACT_SURFACE_Z_M - float(row["tcp_z_m"]))
-        normal_load_n = penetration_m * 750.0
-        noise_n = 0.015 * math.sin(17.0 * float(row["t_s"]))
-        force_z_n = normal_load_n + noise_n
-        force_norm_n = abs(force_z_n)
-        max_force = max(max_force, force_norm_n)
-        max_load = max(max_load, normal_load_n)
-        rows.append(
-            {
-                "t_s": row["t_s"],
-                "Fx_N": 0.0,
-                "Fy_N": 0.0,
-                "Fz_N": force_z_n,
-                "Mx_Nm": 0.0,
-                "My_Nm": 0.0,
-                "Mz_Nm": 0.0,
-                "reaction_normal": [0.0, 0.0, 1.0],
-                "approach_normal": [0.0, 0.0, -1.0],
-                "normal_load_n": normal_load_n,
-                "force_norm_n": force_norm_n,
-            }
-        )
-    return {
-        "schema": "simulated_kunwei_wrench_v1",
-        "force_source": "simulated_kunwei_offline_trace",
-        "contact_surface_z_m": CONTACT_SURFACE_Z_M,
-        "reaction_normal": [0.0, 0.0, 1.0],
-        "approach_normal": [0.0, 0.0, -1.0],
-        "normal_load_definition": "dot(force_base, reaction_normal)",
-        "max_force_norm_n": max_force,
-        "max_normal_load_n": max_load,
-        "sample_count": len(rows),
-        "rows": rows,
-    }
+def simulate_canonical_ft_force_evidence(preposition: dict[str, Any]) -> dict[str, Any]:
+    return wrench_contract.simulated_ft_trace_from_rows(
+        preposition["rows"],
+        contact_surface_z_m=CONTACT_SURFACE_Z_M,
+        nominal_contact_load_n=0.0,
+    )
 
 
 def build_artifact(
@@ -247,7 +215,7 @@ def build_artifact(
         sample_period_s=sample_period_s,
         min_duration_s=min_duration_s,
     )
-    force_evidence = simulate_kunwei_force_evidence(preposition)
+    force_evidence = simulate_canonical_ft_force_evidence(preposition)
     return {
         "schema": "ur10e_step5b_simulation_mvp_v1",
         "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -260,6 +228,7 @@ def build_artifact(
             "calibrated_urdf": str(CALIBRATED_URDF),
             "world": str(WORLD_PATH),
             "launch": str(LAUNCH_PATH),
+            "canonical_wrench_contract_module": str(Path(wrench_contract.__file__).resolve()),
         },
         "calibrated_urdf_exists": CALIBRATED_URDF.is_file(),
         "frames": {
@@ -269,9 +238,17 @@ def build_artifact(
             "tool": "tool0",
             "safe_frame_basis": "step5_safe_frame_base_xy",
             "force_vector": "base",
+            "flange": "flange",
+            "ft_sensor": "ft_sensor",
+            "tcp": "tcp",
+            "contact_tip": "contact_tip",
+            "contact_surface": "contact_surface",
+            "surface_normal": "surface_normal",
             "reaction_normal": "base",
             "approach_normal": "base",
         },
+        "canonical_wrench_contract": wrench_contract.canonical_contract_spec(),
+        "force_source_lineage": wrench_contract.force_source_lineage_table(),
         "units": {
             "time": "s",
             "position": "m",
@@ -314,6 +291,9 @@ def build_artifact(
             "preposition_goal_count_ok": preposition["goal_count"] == 1,
             "velocity_limit_ok": preposition["max_velocity_m_s"] <= max_speed_m_s + 1e-9,
             "force_contract_ok": force_evidence["approach_normal"] == [0.0, 0.0, -1.0],
+            "canonical_wrench_schema_ok": not force_evidence["schema_issues"],
+            "controller_private_gazebo_topic_dependency_allowed": False,
+            "source_switching_policy": "launch_config_or_remap_only_no_controller_logic",
         },
     }
 

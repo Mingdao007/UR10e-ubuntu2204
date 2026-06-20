@@ -5,6 +5,7 @@ robot motion, bridge startup, URScript output, or TP program execution.
 """
 
 __all__ = [
+    "canonical_wrench_contract",
     "contact_cycloid_shadow",
     "guarded_contact_recovery_shadow",
     "kunwei_persistent_monitor",
