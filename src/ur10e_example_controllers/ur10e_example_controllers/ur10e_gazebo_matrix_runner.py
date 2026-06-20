@@ -1089,7 +1089,14 @@ def observer_visual_criteria(row: dict[str, Any]) -> dict[str, bool]:
     marker_source = str(row.get("marker_pose_source") or row.get("pose_source") or "")
     pose_frame = str(row.get("pose_frame") or row.get("marker_pose_frame") or "")
     clean_capture = bool(row.get("clean_scene_capture") or row.get("obstructive_ui_panels_absent"))
+    review_source = str(row.get("observer_visual_review_source") or "")
+    observer_review_present = bool(row.get("observer_review_present")) and review_source not in {
+        "",
+        "pending_observer_review",
+        "runtime_artifact_prerequisites_v1",
+    }
     criteria = {
+        "observer_review_present": observer_review_present,
         "gui_evidence_captured": bool(row.get("gui_evidence_captured")),
         "robot_arm_visible": bool(row.get("robot_posture_visible")),
         "eoat_tooling_visible": bool(row.get("eoat_tooling_visible")),

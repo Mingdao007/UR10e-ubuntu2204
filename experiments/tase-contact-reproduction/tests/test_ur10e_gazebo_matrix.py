@@ -24,6 +24,7 @@ TOOLS = WORKSPACE / "experiments" / "tase-contact-reproduction" / "tools"
 sys.path.insert(0, str(TOOLS))
 import build_gazebo_visual_world as visual_world  # noqa: E402
 import gazebo_tcp_marker_follower as tcp_marker  # noqa: E402
+import run_gazebo_gui_matrix_row as gui_row  # noqa: E402
 
 
 class Ur10eGazeboMatrixTest(unittest.TestCase):
@@ -339,6 +340,7 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
         }
         payload = gazebo.populate_observer_visual_pass(old_row)
         self.assertFalse(payload["observer_visual_pass"])
+        self.assertIn("observer_review_present", payload["observer_visual_failure_reasons"])
         self.assertIn("robot_tool_surface_relation_visible", payload["observer_visual_failure_reasons"])
         self.assertIn("active_tcp_pose_source_valid", payload["observer_visual_failure_reasons"])
         self.assertIn("active_tcp_pose_frame_valid", payload["observer_visual_failure_reasons"])
@@ -346,6 +348,8 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
 
     def test_observer_visual_gate_rejects_missing_pose_frame(self) -> None:
         row = {
+            "observer_review_present": True,
+            "observer_visual_review_source": "human_observer_row_review_v1",
             "gui_evidence_captured": True,
             "robot_posture_visible": True,
             "eoat_tooling_visible": True,
@@ -361,6 +365,8 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
 
     def test_observer_visual_gate_accepts_active_tcp_eoat_clean_relation_row(self) -> None:
         row = {
+            "observer_review_present": True,
+            "observer_visual_review_source": "human_observer_row_review_v1",
             "gui_evidence_captured": True,
             "robot_posture_visible": True,
             "eoat_tooling_visible": True,
@@ -374,6 +380,185 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
         payload = gazebo.populate_observer_visual_pass(row)
         self.assertTrue(payload["observer_visual_pass"])
         self.assertEqual(payload["observer_visual_failure_reasons"], [])
+
+    def test_gui_row_summary_requires_explicit_observer_review(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="ur10e_gui_row_no_review_test_") as tmp:
+            run_dir = Path(tmp)
+            case_dir = self._write_gui_row_fixture(run_dir, observer_review=False)
+            row = gui_row.build_row_summary(
+                stage="step5b",
+                view="close_detail",
+                case_dir=case_dir,
+                run_dir=run_dir,
+                runner_rc=0,
+                video_duration_s=12.0,
+                gui_config_path=gui_row.DEFAULT_GUI_CONFIG_DIR / "close_detail.config",
+            )
+            self.assertFalse(row["observer_visual_pass"])
+            self.assertFalse(row["observer_review_present"])
+            self.assertIn("observer_review_present", row["observer_visual_failure_reasons"])
+            self.assertIn("robot_arm_visible", row["observer_visual_failure_reasons"])
+            self.assertEqual(row["pose_frame"], gazebo.GAZEBO_WORLD_FRAME)
+            self.assertEqual(row["pose_source"], tcp_marker.POSE_SOURCE_ACTIVE_TCP)
+
+    def test_gui_row_summary_populates_observer_visual_pass_from_review_and_marker_manifest(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="ur10e_gui_row_review_test_") as tmp:
+            run_dir = Path(tmp)
+            case_dir = self._write_gui_row_fixture(run_dir, observer_review=True)
+            row = gui_row.build_row_summary(
+                stage="step5b",
+                view="close_detail",
+                case_dir=case_dir,
+                run_dir=run_dir,
+                runner_rc=0,
+                video_duration_s=12.0,
+                gui_config_path=gui_row.DEFAULT_GUI_CONFIG_DIR / "close_detail.config",
+            )
+            self.assertTrue(row["observer_visual_pass"], row["observer_visual_failure_reasons"])
+            self.assertTrue(row["observer_review_present"])
+            self.assertEqual(row["observer_visual_review_source"], "human_observer_row_review_v1")
+            self.assertEqual(row["observer_visual_criteria"]["active_tcp_pose_source_valid"], True)
+            self.assertEqual(row["observer_visual_criteria"]["active_tcp_pose_frame_valid"], True)
+            self.assertEqual(row["surface_frame"], gazebo.GAZEBO_WORLD_FRAME)
+            self.assertEqual(row["surface_tcp_sanity"]["approach_normal_base"], [0.0, 0.0, -1.0])
+
+    def test_visual_audit_summary_uses_per_row_observer_pass_counts(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="ur10e_gui_summary_test_") as tmp:
+            run_dir = Path(tmp)
+            case_dir = self._write_gui_row_fixture(run_dir, observer_review=True)
+            row = gui_row.build_row_summary(
+                stage="step5b",
+                view="close_detail",
+                case_dir=case_dir,
+                run_dir=run_dir,
+                runner_rc=0,
+                video_duration_s=12.0,
+                gui_config_path=gui_row.DEFAULT_GUI_CONFIG_DIR / "close_detail.config",
+            )
+            gui_row.write_row_summary(row, case_dir / "row_summary.json")
+            summary = gui_row.build_visual_audit_summary(
+                run_dir,
+                stages=("step5b",),
+                views=("close_detail",),
+            )
+            self.assertEqual(summary["schema"], "ur10e_gazebo_real_aligned_visual_audit_summary_v2")
+            self.assertEqual(summary["expected_rows"], 1)
+            self.assertEqual(summary["observer_visual_pass_count"], 1)
+            self.assertEqual(summary["observer_visual_fail_count"], 0)
+            self.assertTrue(summary["all_rows_observer_visual_pass"])
+            self.assertEqual(summary["visual_review_status"], "per_row_observer_visual_pass")
+
+    def test_repo_gui_configs_are_clean_and_cover_three_view_roles(self) -> None:
+        expected = {
+            "context_overview.config": "context_overview",
+            "interaction_view.config": "interaction_view",
+            "close_detail.config": "close_detail",
+        }
+        for filename, view in expected.items():
+            with self.subTest(view=view):
+                path = gui_row.DEFAULT_GUI_CONFIG_DIR / filename
+                self.assertTrue(path.is_file())
+                source = path.read_text(encoding="utf-8")
+                self.assertIn("<camera_pose>", source)
+                self.assertNotIn("ComponentInspector", source)
+                self.assertNotIn("EntityTree", source)
+                self.assertTrue(gui_row.gui_config_is_clean(path))
+
+    def _write_gui_row_fixture(self, run_dir: Path, *, observer_review: bool) -> Path:
+        case_dir = gui_row.row_case_dir(run_dir, "step5b", "close_detail")
+        (case_dir / "runner").mkdir(parents=True)
+        (case_dir / "marker").mkdir(parents=True)
+        (run_dir / "_visual_worlds").mkdir(parents=True)
+        for name in ("start_root.png", "mid_root.png", "final_root.png", "gui_recording.mp4"):
+            (case_dir / name).write_bytes(b"fixture")
+        matrix_summary = {
+            "schema": "ur10e_gazebo_matrix_result_v1",
+            "stages": [
+                {
+                    "stage_id": "step5b",
+                    "trace_path": str(case_dir / "runner" / "step5b" / "command_trace.csv"),
+                    "force_contact_source": gazebo.FORCE_CONTACT_SOURCE,
+                    "force_contact_physics_proven": False,
+                    "execution": {
+                        "action_accepted": True,
+                        "result_status": 4,
+                        "result_error_code": 0,
+                        "result_error_string": "Goal successfully reached!",
+                        "ok": True,
+                        "observed_motion": True,
+                        "blocker": None,
+                        "result_timeout_s": 78.0,
+                        "result_wait_elapsed_s": 54.0,
+                        "force_closed_loop": True,
+                    },
+                    "acceptance": {
+                        "force_loop_trace_written": True,
+                        "force_contact_physics_proven": False,
+                    },
+                    "force_loop": {
+                        "settled_within_tolerance_fraction": 0.91,
+                    },
+                }
+            ],
+        }
+        (case_dir / "runner" / "matrix_summary.json").write_text(
+            json.dumps(matrix_summary, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        marker_manifest = {
+            "schema": "ur10e_gazebo_tcp_marker_manifest_v2",
+            "stage_id": "step5b",
+            "spawned": True,
+            "pose_count": 3,
+            "pose_source": tcp_marker.POSE_SOURCE_ACTIVE_TCP,
+            "pose_frame": gazebo.GAZEBO_WORLD_FRAME,
+            "source_frame": gazebo.ACTIVE_TCP_FRAME,
+            "tool_frame": gazebo.TOOL0_FRAME,
+            "final_pose": {"x_m": -0.48, "y_m": 0.02, "z_m": 0.008044839},
+        }
+        (case_dir / "marker" / "tcp_marker_manifest.json").write_text(
+            json.dumps(marker_manifest, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        visual_manifest = {
+            "schema": "ur10e_gazebo_stage_visual_world_manifest_v2",
+            "stage_id": "step5b",
+            "surface_frame": gazebo.GAZEBO_WORLD_FRAME,
+            "surface": {"top_z_m": 0.008044839},
+            "final_visual_pose_world": {"frame": gazebo.GAZEBO_WORLD_FRAME, "x_m": -0.48, "y_m": 0.02, "z_m": 0.008044839},
+            "contact_target_pose_world": {"frame": gazebo.GAZEBO_WORLD_FRAME, "x_m": -0.48, "y_m": 0.02, "z_m": 0.008044839},
+            "surface_tcp_sanity": {
+                "same_frame": gazebo.GAZEBO_WORLD_FRAME,
+                "final_reference_xy_inside_surface": True,
+                "contact_target_world_xy_inside_surface": True,
+                "contact_target_z_minus_surface_top_m": 0.0,
+                "reaction_normal_base": [0.0, 0.0, 1.0],
+                "approach_normal_base": [0.0, 0.0, -1.0],
+                "approach_dot_reaction": -1.0,
+            },
+        }
+        (run_dir / "_visual_worlds" / "step5b_visual.manifest.json").write_text(
+            json.dumps(visual_manifest, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        if observer_review:
+            review = {
+                "observer_visual_review_source": "human_observer_row_review_v1",
+                "reviewed_at": "2026-06-20T17:55:24+08:00",
+                "robot_posture_visible": True,
+                "eoat_tooling_visible": True,
+                "tcp_marker_visible": True,
+                "surface_path_visible": True,
+                "robot_tool_surface_relation_visible": True,
+                "clean_scene_capture": True,
+                "obstructive_ui_panels_absent": True,
+                "notes": "Fixture review confirms coherent close-detail relation.",
+            }
+            (case_dir / "observer_review.json").write_text(
+                json.dumps(review, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        return case_dir
 
 
 if __name__ == "__main__":
