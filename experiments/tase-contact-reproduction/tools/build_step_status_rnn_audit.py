@@ -115,6 +115,8 @@ def p1_simulated_ft_summary(path: Path = P1_SIMULATED_FT) -> dict[str, Any]:
 def p2_physical_gate_summary(path: Path = P2_CONTACT_CORRELATION_AUDIT) -> dict[str, Any]:
     payload = load_json(path)
     gate = dict(payload.get("physical_gazebo_contact_gate", {}))
+    claim_boundary = payload.get("claim_boundary_gate") if isinstance(payload.get("claim_boundary_gate"), dict) else {}
+    allowed_claim = str(payload.get("allowed_claim") or "")
     force_contact_proven = bool(gate.get("force_contact_physics_proven"))
     eoat_count = int(gate.get("eoat_collision_count") or 0)
     blocker_tokens: list[str] = []
@@ -132,10 +134,28 @@ def p2_physical_gate_summary(path: Path = P2_CONTACT_CORRELATION_AUDIT) -> dict[
         "adapter_verified_gazebo_contact_wrench": bool(gate.get("adapter_verified_gazebo_contact_wrench")),
         "wrench_contact_correlation": bool(gate.get("wrench_contact_correlation")),
         "force_contact_physics_proven": force_contact_proven,
+        "scope": (
+            "standalone_p2_witness_single_contact_point_wrench"
+            if force_contact_proven and "single contact-point wrench" in allowed_claim
+            else "stage_specific_or_unqualified"
+        ),
+        "stage_specific_contact_physics_proven": False,
+        "total_contact_wrench_proven": bool(claim_boundary.get("total_contact_wrench_proven")),
+        "same_run_concurrent_dual_sensor_observation": not bool(
+            claim_boundary.get("surface_eoat_cross_check_may_be_cross_run_repeatability_not_concurrent_observation")
+        )
+        if force_contact_proven
+        else False,
         "blocker_tokens": blocker_tokens,
         "known_blockers": payload.get("known_blockers", []),
         "inputs": payload.get("inputs", {}),
-        "forbidden_claim": "real bench/live contact; physical Gazebo collision/contact physics unless all gate booleans are true",
+        "allowed_claim": allowed_claim,
+        "forbidden_claim": str(
+            payload.get(
+                "forbidden_claim",
+                "real bench/live contact; physical Gazebo collision/contact physics unless all gate booleans are true",
+            )
+        ),
     }
 
 
@@ -387,12 +407,19 @@ def stage_status_row(
         allowed_claim = "visual_only/offline path or observer status only; no force/contact physics claim"
 
     if contact:
-        gazebo_status = p2_gate["status"]
+        gazebo_status = (
+            "standalone_p2_witness_proven_not_stage_specific"
+            if p2_gate["force_contact_physics_proven"]
+            else p2_gate["status"]
+        )
         blocker = (
             f"{spec.known_blocker}; force_contact_physics_proven=false; "
             "wrench/contact correlation missing or not proven"
             if not p2_gate["force_contact_physics_proven"]
-            else spec.known_blocker
+            else (
+                f"{spec.known_blocker}; per-stage Gazebo contact physics not proven; "
+                "current physical Gazebo evidence is standalone P2 witness only"
+            )
         )
     else:
         gazebo_status = "not_claimed"
@@ -431,7 +458,8 @@ def stage_status_row(
         "allowed_claim": allowed_claim,
         "forbidden_claim": (
             "physical Gazebo collision/contact physics unless EOAT collision evidence, contact pair/log evidence, "
-            "and wrench/contact correlation are all present; real bench/live contact; live bridge/TP/URScript/motion"
+            "and wrench/contact correlation are all present for this stage; real bench/live contact; "
+            "live bridge/TP/URScript/motion"
         ),
         "claim_tier": claim_tier,
         "source_paths": artifact.get("source_paths", {}),
@@ -505,11 +533,11 @@ def rnn_interface_table() -> list[dict[str, Any]]:
     ]
 
 
-def current_goal_lineage_rows() -> list[dict[str, Any]]:
+def current_goal_lineage_rows(p2_gate: dict[str, Any]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for row in wrench_contract.force_source_lineage_table():
         source_name = row["source_name"]
-        current_tier = current_report_tier_for_source(source_name)
+        current_tier = current_report_tier_for_source(source_name, p2_gate=p2_gate)
         rows.append(
             {
                 "source_name": source_name,
@@ -520,18 +548,20 @@ def current_goal_lineage_rows() -> list[dict[str, Any]]:
                 "output_topic": row.get("output_topic"),
                 "frame_id": row.get("frame_id"),
                 "zero_baseline_policy": row.get("zero_baseline_policy"),
-                "current_goal_status": current_goal_status_for_source(source_name),
+                "current_goal_status": current_goal_status_for_source(source_name, p2_gate=p2_gate),
             }
         )
     return rows
 
 
-def current_report_tier_for_source(source_name: str) -> str:
+def current_report_tier_for_source(source_name: str, *, p2_gate: dict[str, Any] | None = None) -> str:
     if source_name == wrench_contract.SOURCE_VIRTUAL_SOFTWARE:
         return "virtual/software force-loop"
     if source_name in {wrench_contract.SOURCE_SOFTWARE_REPLAY, wrench_contract.SOURCE_SIMULATED_FT}:
         return "simulated_ft"
     if source_name == wrench_contract.SOURCE_GAZEBO_CONTACT:
+        if p2_gate and p2_gate.get("force_contact_physics_proven"):
+            return "physical Gazebo collision/contact physics"
         return "visual_only"
     if source_name == wrench_contract.SOURCE_REAL_KUNWEI_READ_ONLY:
         return "visual_only"
@@ -550,8 +580,13 @@ def target_report_tier_for_source(source_name: str) -> str:
     return "visual_only"
 
 
-def current_goal_status_for_source(source_name: str) -> str:
+def current_goal_status_for_source(source_name: str, *, p2_gate: dict[str, Any] | None = None) -> str:
     if source_name == wrench_contract.SOURCE_GAZEBO_CONTACT:
+        if p2_gate and p2_gate.get("force_contact_physics_proven"):
+            return (
+                "standalone P2 witness physical Gazebo contact physics is proven with one native contact-point "
+                "wrench correlation; per-stage Gazebo contact physics and total contact wrench remain not proven"
+            )
         return "requires EOAT collision evidence, contact pair/log evidence, and wrench/contact correlation; current P2 is blocked/not proven"
     if source_name == wrench_contract.SOURCE_REAL_KUNWEI_READ_ONLY:
         return "not authorized for real bench/live contact in this goal; retained logs do not authorize live contact"
@@ -619,18 +654,24 @@ def build_audit(
         },
         "step_status_matrix": rows,
         "rnn_interface_table": rnn_interface_table(),
-        "force_source_lineage_current_goal": current_goal_lineage_rows(),
+        "force_source_lineage_current_goal": current_goal_lineage_rows(p2),
         "audit_coverage": {
             "stage_rows": len(rows),
             "rnn_interfaces": 4,
             "p1_claim_tier": p1["claim_tier"],
             "p2_claim_tier": p2["claim_tier"],
+            "p2_scope": p2["scope"],
+            "stage_specific_contact_physics_proven": p2["stage_specific_contact_physics_proven"],
             "stage_simulated_ft_manifest_status": stage_sim_ft_manifest["status"],
             "per_stage_simulated_ft_attached_count": sum(
                 1 for row in rows if row["per_stage_simulated_ft_log_evidence"]
             ),
             "full_acceptance_allowed": False,
-            "full_acceptance_blocker": "P2 physical Gazebo collision/contact physics is blocked/not proven and real bench/live contact is not authorized.",
+            "full_acceptance_blocker": (
+                "Full reproduction is not accepted: current physical Gazebo evidence is standalone P2 witness "
+                "only; per-stage Gazebo contact physics, strict RNN final acceptance, integrated demo, and real "
+                "bench/live contact remain unaccepted or unauthorized."
+            ),
         },
     }
 
