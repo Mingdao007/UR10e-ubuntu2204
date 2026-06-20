@@ -68,6 +68,7 @@ class P3VisualRvizEvidenceAuditTest(unittest.TestCase):
         self.assertEqual(required["rviz_debug_evidence"]["status"], "blocked_missing_current_rviz_evidence")
         self.assertEqual(required["rviz_debug_evidence"]["claim_tier"], "visual_only")
         self.assertFalse(required["rviz_debug_evidence"]["all_required_items_evidenced"])
+        self.assertIn("RViz rendered screenshot evidence is missing", payload["audit_coverage"]["full_p3_acceptance_blocker"])
 
     def test_current_claim_table_has_exact_tiers_and_no_physical_upgrade(self) -> None:
         audit = import_audit_module()
@@ -177,6 +178,10 @@ class P3VisualRvizEvidenceAuditTest(unittest.TestCase):
         rviz_row = next(row for row in built["current_claim_tier_table"] if row["evidence_surface"] == "RViz debug evidence")
         self.assertEqual(rviz_row["claim_tier"], "visual_only")
         self.assertIn("rendered RViz screenshot present", rviz_row["current_status"])
+        blocker = built["audit_coverage"]["full_p3_acceptance_blocker"]
+        self.assertNotIn("RViz rendered screenshot evidence is missing", blocker)
+        self.assertIn("explicit Gazebo side-view label is missing", blocker)
+        self.assertIn("P2 contact-physics target is blocked/not proven", blocker)
 
     def test_write_audit_creates_json_artifact(self) -> None:
         audit = import_audit_module()

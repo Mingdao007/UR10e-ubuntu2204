@@ -319,6 +319,17 @@ def current_claim_tier_table(
     ]
 
 
+def full_p3_acceptance_blocker(gazebo: dict[str, Any], rviz: dict[str, Any], p2: dict[str, Any]) -> str:
+    blockers: list[str] = []
+    if not rviz["rendered_screenshot_evidence_present"]:
+        blockers.append("RViz rendered screenshot evidence is missing")
+    if "side_view" not in gazebo["views"]:
+        blockers.append("explicit Gazebo side-view label is missing")
+    if not p2["force_contact_physics_proven"]:
+        blockers.append("P2 contact-physics target is blocked/not proven")
+    return "; ".join(blockers) if blockers else "full P3 acceptance is not allowed by this audit"
+
+
 def build_audit(
     *,
     generated_at: str | None = None,
@@ -366,7 +377,7 @@ def build_audit(
             "rviz_rendered_screenshot_evidence_present": rviz["rendered_screenshot_evidence_present"],
             "physical_contact_claim_allowed": False,
             "full_p3_acceptance_allowed": False,
-            "full_p3_acceptance_blocker": "RViz rendered screenshot evidence is missing and physical Gazebo contact physics remains blocked/not proven.",
+            "full_p3_acceptance_blocker": full_p3_acceptance_blocker(gazebo, rviz, p2),
         },
     }
 
