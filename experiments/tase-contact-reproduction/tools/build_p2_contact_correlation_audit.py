@@ -66,9 +66,12 @@ def _wrench_trace(payload: dict[str, Any] | None) -> dict[str, Any]:
             "evidence_fields_present": _trace_evidence_fields(trace),
             "adapter_verified_gazebo_contact_wrench": _adapter_verified_gazebo_contact_wrench(payload, trace),
         }
+    source = payload.get("force_source")
+    if payload.get("schema") == "ur10e_gazebo_contact_wrench_adapter_report_v1":
+        source = source or payload.get("native_wrench_source_class")
     return {
         "present": True,
-        "source": payload.get("force_source"),
+        "source": source,
         "claim_tier": payload.get("claim_tier"),
         "rows": [],
         "evidence_fields_present": payload.get("evidence_fields_present") or {},

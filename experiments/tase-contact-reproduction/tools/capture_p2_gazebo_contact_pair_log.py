@@ -110,6 +110,7 @@ def contact_pair_log_from_json_lines(
     topic: str,
     world_path: str,
     raw_jsonl_path: str,
+    transport: str = "ignition",
     generated_at: str | None = None,
 ) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
@@ -138,6 +139,7 @@ def contact_pair_log_from_json_lines(
         "generated_at": generated_at or _now_iso(),
         "mode": "offline_gazebo_contact_topic_capture",
         "source": "gazebo_contact_sensor_topic",
+        "sim_transport": transport,
         "claim_tier": "visual_only",
         "target_claim_tier": "physical Gazebo collision/contact physics",
         "allowed_claim": "contact_pair_log_evidence_only_no_force_or_wrench_contact_correlation",
@@ -191,6 +193,7 @@ def _contact_to_row(
         contact,
         collision1=collision1,
         collision2=collision2,
+        normal=normal,
     )
     if native_wrench is not None:
         row["native_gazebo_contact_wrench"] = native_wrench
@@ -240,6 +243,10 @@ def _vec3_from_object(value: Any, *, default: tuple[float, float, float]) -> lis
     return [float(default[0]), float(default[1]), float(default[2])]
 
 
+def _dot3(left: list[float], right: list[float]) -> float:
+    return left[0] * right[0] + left[1] * right[1] + left[2] * right[2]
+
+
 def _first_normal(values: list[Any]) -> tuple[list[float], str]:
     if values:
         return _first_vec3(values, default=STATIC_SURFACE_NORMAL), "gazebo_contact_message_normal"
@@ -251,6 +258,7 @@ def _first_native_gazebo_contact_wrench(
     *,
     collision1: str,
     collision2: str,
+    normal: list[float],
 ) -> dict[str, Any] | None:
     wrenches = contact.get("wrench") if isinstance(contact.get("wrench"), list) else []
     if not wrenches:
@@ -261,28 +269,47 @@ def _first_native_gazebo_contact_wrench(
     for wrench_index, wrench in enumerate(wrenches):
         if not isinstance(wrench, dict):
             continue
-        selected = wrench.get(selected_body)
+        selected, selected_field = _wrench_body_payload(wrench, selected_body)
         if not isinstance(selected, dict):
             continue
         force = _vec3_from_object(selected.get("force"), default=(0.0, 0.0, 0.0))
         torque = _vec3_from_object(selected.get("torque"), default=(0.0, 0.0, 0.0))
         body_index = "1" if selected_body == "body_1_wrench" else "2"
         other_index = "2" if body_index == "1" else "1"
+        other_body = "body_2_wrench" if selected_body == "body_1_wrench" else "body_1_wrench"
+        other_payload, other_field = _wrench_body_payload(wrench, other_body)
+        other_force = (
+            _vec3_from_object(other_payload.get("force"), default=(0.0, 0.0, 0.0))
+            if isinstance(other_payload, dict)
+            else None
+        )
+        other_torque = (
+            _vec3_from_object(other_payload.get("torque"), default=(0.0, 0.0, 0.0))
+            if isinstance(other_payload, dict)
+            else None
+        )
         return {
             "source": "gazebo_contact_message_wrench",
-            "source_schema": "ignition.msgs.Contact.contact.wrench",
+            "source_schema": _wrench_source_schema(wrench),
             "force_source_class": "gazebo_contact",
             "selected_body": selected_body,
+            "selected_body_field": selected_field,
             "selected_body_collision": selected_collision,
             "selected_body_role": selected_role,
-            "selected_body_name": str(wrench.get(f"body_{body_index}_name") or ""),
-            "other_body_name": str(wrench.get(f"body_{other_index}_name") or ""),
+            "selected_body_name": _wrench_body_name(wrench, body_index),
+            "other_body": other_body,
+            "other_body_field": other_field,
+            "other_body_name": _wrench_body_name(wrench, other_index),
             "raw_wrench_index": wrench_index,
             "raw_wrench_count": len(wrenches),
             "measured_contact_wrench": True,
             "commanded_force": False,
             "force_n": force,
             "torque_nm": torque,
+            "selected_force_dot_contact_normal_n": _dot3(force, normal),
+            "other_force_n": other_force,
+            "other_torque_nm": other_torque,
+            "other_force_dot_contact_normal_n": _dot3(other_force, normal) if other_force is not None else None,
             "wrench_stamp_s": _stamp_s(wrench, contact),
             "wrench_stamp_evidence": _has_stamp(wrench) or _has_stamp(contact),
             "frame_id": "gazebo_contact_message_native_frame",
@@ -292,6 +319,33 @@ def _first_native_gazebo_contact_wrench(
             "baseline_policy": "gazebo_contact_zero_no_contact_baseline_unverified",
         }
     return None
+
+
+def _wrench_body_payload(wrench: dict[str, Any], body: str) -> tuple[dict[str, Any] | None, str | None]:
+    aliases = {
+        "body_1_wrench": ("body_1_wrench", "body1Wrench"),
+        "body_2_wrench": ("body_2_wrench", "body2Wrench"),
+    }[body]
+    for field in aliases:
+        payload = wrench.get(field)
+        if isinstance(payload, dict):
+            return payload, field
+    return None, None
+
+
+def _wrench_body_name(wrench: dict[str, Any], body_index: str) -> str:
+    for field in (f"body_{body_index}_name", f"body{body_index}Name"):
+        value = wrench.get(field)
+        if value:
+            return str(value)
+    return ""
+
+
+def _wrench_source_schema(wrench: dict[str, Any]) -> str:
+    gz_fields = ("body1Wrench", "body2Wrench", "body1Name", "body2Name")
+    if any(field in wrench for field in gz_fields):
+        return "gz.msgs.Contact.contact.wrench"
+    return "ignition.msgs.Contact.contact.wrench"
 
 
 def _selected_eoat_body_side(collision1: str, collision2: str) -> tuple[str | None, str | None, str | None]:
@@ -316,6 +370,7 @@ def capture_contact_pair_log(
     topic: str = DEFAULT_CONTACT_TOPIC,
     timeout_s: float = 15.0,
     max_messages: int = 1,
+    transport: str = "ignition",
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     world_path = write_contact_witness_world(output_dir / "p2_contact_witness.sdf", topic=topic)
@@ -324,8 +379,12 @@ def capture_contact_pair_log(
     gazebo_stdout_path = output_dir / "gazebo_stdout.log"
     gazebo_stderr_path = output_dir / "gazebo_stderr.log"
 
-    gazebo_cmd = ["ign", "gazebo", "-r", "-s", str(world_path)]
-    topic_cmd = ["ign", "topic", "-e", "-t", topic, "-n", str(max_messages), "--json-output"]
+    gazebo_cmd, topic_cmd = _transport_commands(
+        world_path,
+        topic=topic,
+        max_messages=max_messages,
+        transport=transport,
+    )
     server = subprocess.Popen(
         gazebo_cmd,
         stdout=subprocess.PIPE,
@@ -352,9 +411,11 @@ def capture_contact_pair_log(
         topic=topic,
         world_path=str(world_path),
         raw_jsonl_path=str(raw_jsonl_path),
+        transport=transport,
     )
     payload["capture"] = {
         "schema": CONTACT_CAPTURE_SCHEMA,
+        "sim_transport": transport,
         "gazebo_command": gazebo_cmd,
         "topic_command": topic_cmd,
         "topic_returncode": topic_result.returncode if topic_result is not None else None,
@@ -367,6 +428,26 @@ def capture_contact_pair_log(
     path = output_dir / "p2_gazebo_contact_pair_log.json"
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return path
+
+
+def _transport_commands(
+    world_path: Path,
+    *,
+    topic: str,
+    max_messages: int,
+    transport: str,
+) -> tuple[list[str], list[str]]:
+    if transport == "ignition":
+        return (
+            ["ign", "gazebo", "-r", "-s", str(world_path)],
+            ["ign", "topic", "-e", "-t", topic, "-n", str(max_messages), "--json-output"],
+        )
+    if transport == "gz":
+        return (
+            ["gz", "sim", "-r", "-s", str(world_path)],
+            ["gz", "topic", "-e", "-t", topic, "-n", str(max_messages), "--json-output"],
+        )
+    raise ValueError(f"unsupported transport: {transport}")
 
 
 def _terminate_process_group(process: subprocess.Popen[str]) -> None:
@@ -386,6 +467,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--topic", default=DEFAULT_CONTACT_TOPIC)
     parser.add_argument("--timeout-s", type=float, default=15.0)
     parser.add_argument("--max-messages", type=int, default=1)
+    parser.add_argument("--transport", choices=("ignition", "gz"), default="ignition")
     return parser.parse_args(argv)
 
 
@@ -396,6 +478,7 @@ def main(argv: list[str] | None = None) -> int:
         topic=args.topic,
         timeout_s=args.timeout_s,
         max_messages=args.max_messages,
+        transport=args.transport,
     )
     print(path)
     return 0

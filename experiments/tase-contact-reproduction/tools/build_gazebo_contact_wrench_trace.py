@@ -25,11 +25,14 @@ DEFAULT_SOURCE_TOPIC = "/ur10e/contact/gazebo/p2_contact_witness/wrench"
 BLOCKED_CLAIM_TIER = "visual_only"
 PHYSICAL_GAZEBO_CLAIM_TIER = "physical Gazebo collision/contact physics"
 ALLOWED_NATIVE_WRENCH_SOURCE = "gazebo_contact_message_wrench"
-ALLOWED_NATIVE_WRENCH_SCHEMA = "ignition.msgs.Contact.contact.wrench"
+ALLOWED_NATIVE_WRENCH_SCHEMAS = {
+    "ignition.msgs.Contact.contact.wrench",
+    "gz.msgs.Contact.contact.wrench",
+}
 REQUIRED_NATIVE_FIELDS = (
     "native_gazebo_contact_wrench.force_n",
     "native_gazebo_contact_wrench.source=gazebo_contact_message_wrench",
-    "native_gazebo_contact_wrench.source_schema=ignition.msgs.Contact.contact.wrench",
+    "native_gazebo_contact_wrench.source_schema in ignition.msgs.Contact.contact.wrench,gz.msgs.Contact.contact.wrench",
     "native_gazebo_contact_wrench.force_source_class=gazebo_contact",
     "native_gazebo_contact_wrench.measured_contact_wrench=true",
     "native_gazebo_contact_wrench.commanded_force=false",
@@ -110,7 +113,7 @@ def _native_wrench_blockers(row: dict[str, Any]) -> list[str]:
         return _dedupe(blockers)
     if (
         native.get("source") != ALLOWED_NATIVE_WRENCH_SOURCE
-        or native.get("source_schema") != ALLOWED_NATIVE_WRENCH_SCHEMA
+        or native.get("source_schema") not in ALLOWED_NATIVE_WRENCH_SCHEMAS
         or native.get("force_source_class") != contract.SOURCE_GAZEBO_CONTACT
     ):
         blockers.append("missing_verified_gazebo_contact_wrench_provenance")
@@ -280,6 +283,7 @@ def build_wrench_trace_or_report(
             "real bench/live contact; simulated_ft; inferred force from contact position/normal/depth"
         ),
         "force_source": contract.SOURCE_GAZEBO_CONTACT if trace else None,
+        "native_wrench_source_class": contract.SOURCE_GAZEBO_CONTACT if native_wrench_row_count > 0 else None,
         "source_topic": source_topic,
         "source_contact_pair_log_schema": contact_pair_payload.get("schema"),
         "source_contact_pair_row_count": len(rows),
