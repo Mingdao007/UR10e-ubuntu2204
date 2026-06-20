@@ -62,6 +62,7 @@ REQUIRED_PLOTS = [
     "latency_staleness",
     "gravity_residual",
 ]
+OPTIONAL_UNSUPPORTED_PLOTS = {"gravity_residual"}
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -277,6 +278,8 @@ def validate_demo_manifest(path: Path | None) -> dict[str, Any]:
         issues.append("schema:not_ur10e_p6_integrated_demo_manifest_v1")
     if payload.get("goal_lineage") != GOAL_LINEAGE:
         issues.append("goal_lineage:mismatch_or_missing")
+    if payload.get("fail_closed") is not True:
+        issues.append("fail_closed:not_true")
     for field in ("platform_trajectory_evidence", "eoat_tooling_evidence", "contact_surface_evidence", "step_rnn_pipeline_artifact"):
         if not payload.get(field):
             issues.append(f"{field}:missing")
@@ -302,6 +305,10 @@ def validate_demo_manifest(path: Path | None) -> dict[str, Any]:
             issues.append(f"plots.{plot_name}.claim_tier:missing")
         elif plot.get("claim_tier") not in CLAIM_TIERS:
             issues.append(f"plots.{plot_name}.claim_tier:unsupported")
+        if plot.get("supported") is not True and plot_name not in OPTIONAL_UNSUPPORTED_PLOTS:
+            issues.append(f"plots.{plot_name}:unsupported")
+        if plot.get("supported") is not True and plot_name in OPTIONAL_UNSUPPORTED_PLOTS and not plot.get("unsupported_reason"):
+            issues.append(f"plots.{plot_name}.unsupported_reason:missing")
 
     return {
         "manifest_path": rel(path),
@@ -311,7 +318,13 @@ def validate_demo_manifest(path: Path | None) -> dict[str, Any]:
         "required_fields": REQUIRED_DEMO_FIELDS,
         "required_plots": REQUIRED_PLOTS,
         "plot_status": {
-            plot_name: "present" if isinstance(plots.get(plot_name), dict) else "missing"
+            plot_name: (
+                "supported"
+                if isinstance(plots.get(plot_name), dict) and plots[plot_name].get("supported") is True
+                else "unsupported"
+                if isinstance(plots.get(plot_name), dict)
+                else "missing"
+            )
             for plot_name in REQUIRED_PLOTS
         },
         "validation_issues": issues,

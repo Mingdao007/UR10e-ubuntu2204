@@ -1,0 +1,587 @@
+#!/usr/bin/env python3
+"""Build an honest P6 integrated-demo evidence bundle scaffold.
+
+This tool is offline only. It bundles retained visual/RViz evidence,
+per-stage simulated FT logs, the Step/RNN status audit, and the standalone P2
+physical Gazebo witness into one manifest. It also writes source-backed SVG/CSV
+plots where data exists and explicit unsupported plot artifacts where data is
+missing. It never claims same-run integrated contact physics.
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+from datetime import datetime
+import hashlib
+import json
+from pathlib import Path
+from typing import Any
+
+
+EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
+WORKSPACE = EXPERIMENT_ROOT.parents[1]
+RUNS = EXPERIMENT_ROOT / "runs"
+GOAL_LINEAGE = "/home/andy/codex_handoffs/ur10e-gazebo-17h-sim-ft-rnn-goal-prompt-20260621-0056.md"
+
+DEFAULT_STAGE_SIM_FT_MANIFEST = (
+    RUNS
+    / "ur10e_gazebo_17h_sim_ft_rnn_20260621_051618_step_simulated_ft_evidence_pack_v4"
+    / "step_simulated_ft_evidence_manifest.json"
+)
+DEFAULT_P3_AUDIT = (
+    RUNS
+    / "ur10e_gazebo_17h_sim_ft_rnn_20260621_055357_p3_merged_32row_visual_rviz_audit"
+    / "p3_visual_rviz_evidence_audit.json"
+)
+DEFAULT_P2_AUDIT = (
+    RUNS
+    / "ur10e_gazebo_17h_sim_ft_rnn_20260621_0708_p2_gz_sim8_physical_contact_gate"
+    / "p2_contact_correlation_audit.json"
+)
+DEFAULT_STEP_STATUS_AUDIT = (
+    RUNS
+    / "ur10e_gazebo_17h_sim_ft_rnn_20260621_0732_step_status_rnn_audit_p2_physical_v8"
+    / "step_status_rnn_audit.json"
+)
+
+CLAIM_TIERS = [
+    "visual_only",
+    "virtual/software force-loop",
+    "simulated_ft",
+    "physical Gazebo collision/contact physics",
+    "real bench/live contact",
+]
+CONTACT_STAGE_IDS = ["step5b", "step5d", "step6b", "step7", "step8"]
+
+
+def load_json(path: Path) -> dict[str, Any]:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def rel(path: Path | str | None) -> str | None:
+    if path is None:
+        return None
+    candidate = Path(path)
+    try:
+        return str(candidate.resolve().relative_to(WORKSPACE.resolve()))
+    except (OSError, ValueError):
+        return str(path)
+
+
+def workspace_path(path: str | None) -> Path | None:
+    if not path:
+        return None
+    candidate = Path(path)
+    if candidate.is_absolute():
+        return candidate
+    return WORKSPACE / candidate
+
+
+def sha256_file(path: Path | str | None) -> str | None:
+    candidate = path if isinstance(path, Path) else workspace_path(path)
+    if candidate is None or not candidate.is_file():
+        return None
+    digest = hashlib.sha256()
+    with candidate.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def rows_for_stage(log_path: Path) -> list[dict[str, Any]]:
+    payload = load_json(log_path)
+    trace = payload.get("trace") if isinstance(payload.get("trace"), dict) else {}
+    rows = trace.get("rows") if isinstance(trace.get("rows"), list) else []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def load_stage_rows(stage_manifest: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    stages = stage_manifest.get("stages") if isinstance(stage_manifest.get("stages"), dict) else {}
+    stage_rows: dict[str, list[dict[str, Any]]] = {}
+    for stage_id in CONTACT_STAGE_IDS:
+        summary = stages.get(stage_id)
+        if not isinstance(summary, dict):
+            stage_rows[stage_id] = []
+            continue
+        path = workspace_path(str(summary.get("log_path") or ""))
+        stage_rows[stage_id] = rows_for_stage(path) if path and path.is_file() else []
+    return stage_rows
+
+
+def write_combined_csv(path: Path, stage_rows: dict[str, list[dict[str, Any]]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fields = [
+        "stage_id",
+        "t_s",
+        "frame_id",
+        "source",
+        "status",
+        "claim_tier",
+        "contact_state",
+        "force_norm_n",
+        "normal_load_n",
+        "latency_s",
+        "stale_after_s",
+        "baseline_policy",
+    ]
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer.writeheader()
+        for stage_id, rows in stage_rows.items():
+            for row in rows:
+                header = row.get("header") if isinstance(row.get("header"), dict) else {}
+                writer.writerow(
+                    {
+                        "stage_id": stage_id,
+                        "t_s": row.get("t_s", header.get("stamp_s")),
+                        "frame_id": header.get("frame_id"),
+                        "source": row.get("source"),
+                        "status": row.get("status"),
+                        "claim_tier": row.get("claim_tier"),
+                        "contact_state": row.get("contact_state"),
+                        "force_norm_n": row.get("force_norm_n"),
+                        "normal_load_n": row.get("normal_load_n"),
+                        "latency_s": row.get("latency_s"),
+                        "stale_after_s": row.get("stale_after_s"),
+                        "baseline_policy": row.get("baseline_policy"),
+                    }
+                )
+
+
+def stage_metric_series(stage_rows: dict[str, list[dict[str, Any]]], field: str) -> dict[str, list[tuple[float, float]]]:
+    series: dict[str, list[tuple[float, float]]] = {}
+    for stage_id, rows in stage_rows.items():
+        points: list[tuple[float, float]] = []
+        for row in rows:
+            header = row.get("header") if isinstance(row.get("header"), dict) else {}
+            if row.get(field) is None:
+                continue
+            points.append((float(row.get("t_s", header.get("stamp_s", 0.0))), float(row[field])))
+        series[stage_id] = points
+    return series
+
+
+def contact_state_series(stage_rows: dict[str, list[dict[str, Any]]]) -> dict[str, list[tuple[float, float]]]:
+    series: dict[str, list[tuple[float, float]]] = {}
+    for stage_id, rows in stage_rows.items():
+        points: list[tuple[float, float]] = []
+        for row in rows:
+            header = row.get("header") if isinstance(row.get("header"), dict) else {}
+            value = 1.0 if row.get("contact_state") == "contact" else 0.0
+            points.append((float(row.get("t_s", header.get("stamp_s", 0.0))), value))
+        series[stage_id] = points
+    return series
+
+
+def threshold_crossing_series(stage_rows: dict[str, list[dict[str, Any]]], *, threshold_n: float = 1.0) -> dict[str, list[tuple[float, float]]]:
+    normal_load = stage_metric_series(stage_rows, "normal_load_n")
+    return {
+        stage_id: [(t, 1.0 if load >= threshold_n else 0.0) for t, load in points]
+        for stage_id, points in normal_load.items()
+    }
+
+
+def latency_margin_series(stage_rows: dict[str, list[dict[str, Any]]]) -> dict[str, list[tuple[float, float]]]:
+    series: dict[str, list[tuple[float, float]]] = {}
+    for stage_id, rows in stage_rows.items():
+        points: list[tuple[float, float]] = []
+        for row in rows:
+            header = row.get("header") if isinstance(row.get("header"), dict) else {}
+            latency = float(row.get("latency_s") or 0.0)
+            stale_after = float(row.get("stale_after_s") or 0.0)
+            points.append((float(row.get("t_s", header.get("stamp_s", 0.0))), stale_after - latency))
+        series[stage_id] = points
+    return series
+
+
+def downsample(points: list[tuple[float, float]], *, max_points: int = 240) -> list[tuple[float, float]]:
+    if len(points) <= max_points:
+        return points
+    step = max(1, len(points) // max_points)
+    return points[::step]
+
+
+def write_svg_plot(
+    path: Path,
+    *,
+    title: str,
+    y_label: str,
+    frame_label: str,
+    claim_tier: str,
+    series: dict[str, list[tuple[float, float]]],
+    y_min: float | None = None,
+    y_max: float | None = None,
+) -> dict[str, Any]:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    width, height = 960, 540
+    left, right, top, bottom = 78, 24, 64, 72
+    all_points = [point for points in series.values() for point in points]
+    x_values = [point[0] for point in all_points] or [0.0, 1.0]
+    y_values = [point[1] for point in all_points] or [0.0, 1.0]
+    x0, x1 = min(x_values), max(x_values)
+    if abs(x1 - x0) < 1e-9:
+        x1 = x0 + 1.0
+    if y_min is None:
+        y_min = min(y_values)
+    if y_max is None:
+        y_max = max(y_values)
+    if abs(y_max - y_min) < 1e-9:
+        y_max = y_min + 1.0
+    colors = ["#1f77b4", "#2ca02c", "#d62728", "#9467bd", "#ff7f0e"]
+
+    def sx(x: float) -> float:
+        return left + (x - x0) / (x1 - x0) * (width - left - right)
+
+    def sy(y: float) -> float:
+        return height - bottom - (y - y_min) / (y_max - y_min) * (height - top - bottom)
+
+    lines: list[str] = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
+        '<rect width="100%" height="100%" fill="#ffffff"/>',
+        f'<text x="{left}" y="32" font-family="monospace" font-size="18" fill="#111">{title}</text>',
+        f'<text x="{left}" y="52" font-family="monospace" font-size="12" fill="#444">frame={frame_label} | claim_tier={claim_tier}</text>',
+        f'<line x1="{left}" y1="{height-bottom}" x2="{width-right}" y2="{height-bottom}" stroke="#222"/>',
+        f'<line x1="{left}" y1="{top}" x2="{left}" y2="{height-bottom}" stroke="#222"/>',
+        f'<text x="{width/2-60:.1f}" y="{height-24}" font-family="monospace" font-size="12">time (s)</text>',
+        f'<text x="14" y="{height/2:.1f}" font-family="monospace" font-size="12" transform="rotate(-90 14 {height/2:.1f})">{y_label}</text>',
+        f'<text x="{left}" y="{height-bottom+18}" font-family="monospace" font-size="11" fill="#444">{x0:.2f}</text>',
+        f'<text x="{width-right-44}" y="{height-bottom+18}" font-family="monospace" font-size="11" fill="#444">{x1:.2f}</text>',
+        f'<text x="24" y="{sy(y_max)+4:.1f}" font-family="monospace" font-size="11" fill="#444">{y_max:.2f}</text>',
+        f'<text x="24" y="{sy(y_min)+4:.1f}" font-family="monospace" font-size="11" fill="#444">{y_min:.2f}</text>',
+    ]
+    for index, (stage_id, points) in enumerate(series.items()):
+        sampled = downsample(points)
+        if not sampled:
+            continue
+        color = colors[index % len(colors)]
+        coords = " ".join(f"{sx(x):.2f},{sy(y):.2f}" for x, y in sampled)
+        lines.append(f'<polyline fill="none" stroke="{color}" stroke-width="2" points="{coords}"/>')
+        legend_y = 82 + index * 18
+        lines.append(f'<rect x="{width-190}" y="{legend_y-10}" width="14" height="3" fill="{color}"/>')
+        lines.append(f'<text x="{width-170}" y="{legend_y-6}" font-family="monospace" font-size="11" fill="#222">{stage_id}</text>')
+    lines.append("</svg>")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return {
+        "path": rel(path),
+        "unit_labels": ["s", y_label],
+        "frame_label": frame_label,
+        "claim_tier": claim_tier,
+        "supported": True,
+        "format": "svg",
+    }
+
+
+def write_unsupported_svg(
+    path: Path,
+    *,
+    title: str,
+    y_label: str,
+    frame_label: str,
+    claim_tier: str,
+    reason: str,
+) -> dict[str, Any]:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    width, height = 960, 300
+    path.write_text(
+        "\n".join(
+            [
+                f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
+                '<rect width="100%" height="100%" fill="#ffffff"/>',
+                f'<text x="40" y="48" font-family="monospace" font-size="18" fill="#111">{title}</text>',
+                f'<text x="40" y="82" font-family="monospace" font-size="13" fill="#444">frame={frame_label} | claim_tier={claim_tier}</text>',
+                f'<text x="40" y="128" font-family="monospace" font-size="14" fill="#9a3412">unsupported: {reason}</text>',
+                f'<text x="40" y="166" font-family="monospace" font-size="12" fill="#444">unit labels: s, {y_label}</text>',
+                "</svg>",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return {
+        "path": rel(path),
+        "unit_labels": ["s", y_label],
+        "frame_label": frame_label,
+        "claim_tier": claim_tier,
+        "supported": False,
+        "unsupported_reason": reason,
+        "format": "svg",
+    }
+
+
+def write_source_evidence(
+    output_dir: Path,
+    *,
+    p3_payload: dict[str, Any],
+    p2_payload: dict[str, Any],
+    step_payload: dict[str, Any],
+    stage_manifest: dict[str, Any],
+) -> dict[str, str]:
+    evidence_dir = output_dir / "evidence"
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+
+    platform_path = evidence_dir / "platform_trajectory_evidence.json"
+    platform_path.write_text(
+        json.dumps(
+            {
+                "claim_tier": "visual_only",
+                "source": "Step/RNN status matrix and P3 observer rows",
+                "stage_ids": step_payload.get("audit_coverage", {}).get("stage_rows"),
+                "step_status_matrix": step_payload.get("step_status_matrix", []),
+                "forbidden_claim": "strict RNN final acceptance; physical Gazebo collision/contact physics; real bench/live contact",
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    eoat_path = evidence_dir / "eoat_tooling_evidence.json"
+    eoat_path.write_text(
+        json.dumps(
+            {
+                "claim_tier": "visual_only",
+                "gazebo_observer_criteria_counts": p3_payload.get("gazebo_observer_evidence", {}).get("criteria_counts", {}),
+                "rviz_required_items": p3_payload.get("p3_requirement_status", {}).get("rviz_debug_evidence", {}).get("evidenced_items", {}),
+                "forbidden_claim": "physical Gazebo collision/contact physics; real bench/live contact",
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    surface_path = evidence_dir / "contact_surface_evidence.json"
+    surface_path.write_text(
+        json.dumps(
+            {
+                "claim_tier": "visual_only",
+                "p3_surface_path_visible": p3_payload.get("gazebo_observer_evidence", {}).get("criteria_counts", {}).get("surface_path_visible", {}),
+                "standalone_p2_physical_gate": p2_payload.get("physical_gazebo_contact_gate", {}),
+                "p2_scope": "standalone P2 witness only; not per-stage integrated contact surface proof",
+                "forbidden_claim": "per-stage physical Gazebo collision/contact physics; total contact wrench; real bench/live contact",
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    sim_summary_path = evidence_dir / "simulated_ft_bundle_summary.json"
+    sim_summary_path.write_text(
+        json.dumps(
+            {
+                "claim_tier": stage_manifest.get("claim_tier"),
+                "stage_count": stage_manifest.get("stage_count"),
+                "valid_stage_count": stage_manifest.get("valid_stage_count"),
+                "stages": stage_manifest.get("stages", {}),
+                "forbidden_claim": "physical Gazebo collision/contact physics; real bench/live contact",
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    return {
+        "platform_trajectory_evidence": rel(platform_path),
+        "eoat_tooling_evidence": rel(eoat_path),
+        "contact_surface_evidence": rel(surface_path),
+        "simulated_ft_summary": rel(sim_summary_path),
+    }
+
+
+def write_bundle(
+    output_dir: Path,
+    *,
+    generated_at: str | None = None,
+    stage_sim_ft_manifest_path: Path = DEFAULT_STAGE_SIM_FT_MANIFEST,
+    p3_audit_path: Path = DEFAULT_P3_AUDIT,
+    p2_audit_path: Path = DEFAULT_P2_AUDIT,
+    step_status_audit_path: Path = DEFAULT_STEP_STATUS_AUDIT,
+) -> Path:
+    generated = generated_at or datetime.now().isoformat(timespec="seconds")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    plots_dir = output_dir / "plots"
+    data_dir = output_dir / "data"
+
+    stage_manifest = load_json(stage_sim_ft_manifest_path)
+    p3_payload = load_json(p3_audit_path)
+    p2_payload = load_json(p2_audit_path)
+    step_payload = load_json(step_status_audit_path)
+    stage_rows = load_stage_rows(stage_manifest)
+
+    combined_csv = data_dir / "p6_per_stage_simulated_ft_combined.csv"
+    write_combined_csv(combined_csv, stage_rows)
+    source_evidence = write_source_evidence(
+        output_dir,
+        p3_payload=p3_payload,
+        p2_payload=p2_payload,
+        step_payload=step_payload,
+        stage_manifest=stage_manifest,
+    )
+
+    plots = {
+        "wrench_vs_time": write_svg_plot(
+            plots_dir / "wrench_vs_time.svg",
+            title="P6 per-stage simulated_ft normal load vs time",
+            y_label="normal_load_n (N)",
+            frame_label="base",
+            claim_tier="simulated_ft",
+            series=stage_metric_series(stage_rows, "normal_load_n"),
+            y_min=0.0,
+            y_max=6.0,
+        ),
+        "contact_state_vs_time": write_svg_plot(
+            plots_dir / "contact_state_vs_time.svg",
+            title="P6 per-stage simulated_ft contact state vs time",
+            y_label="contact_state (0/1)",
+            frame_label="base",
+            claim_tier="simulated_ft",
+            series=contact_state_series(stage_rows),
+            y_min=0.0,
+            y_max=1.2,
+        ),
+        "force_threshold_crossing": write_svg_plot(
+            plots_dir / "force_threshold_crossing.svg",
+            title="P6 per-stage simulated_ft force threshold crossing",
+            y_label="normal_load >= 1N (0/1)",
+            frame_label="base",
+            claim_tier="simulated_ft",
+            series=threshold_crossing_series(stage_rows),
+            y_min=0.0,
+            y_max=1.2,
+        ),
+        "latency_staleness": write_svg_plot(
+            plots_dir / "latency_staleness.svg",
+            title="P6 per-stage simulated_ft staleness margin vs time",
+            y_label="stale_after_s - latency_s (s)",
+            frame_label="base",
+            claim_tier="simulated_ft",
+            series=latency_margin_series(stage_rows),
+            y_min=0.0,
+            y_max=0.12,
+        ),
+        "tcp_distance_to_surface_vs_time": write_unsupported_svg(
+            plots_dir / "tcp_distance_to_surface_vs_time.unsupported.svg",
+            title="P6 TCP distance to surface vs time",
+            y_label="distance_to_surface_m",
+            frame_label="base",
+            claim_tier="visual_only",
+            reason="no same-run TCP distance-to-surface samples exist in the retained P6 evidence inputs",
+        ),
+        "gravity_residual": write_unsupported_svg(
+            plots_dir / "gravity_residual.unsupported.svg",
+            title="P6 gravity residual vs time",
+            y_label="gravity_residual_n",
+            frame_label="base",
+            claim_tier="visual_only",
+            reason="no gravity residual source exists in the retained P6 evidence inputs",
+        ),
+    }
+
+    gazebo = p3_payload.get("gazebo_observer_evidence", {}) if isinstance(p3_payload.get("gazebo_observer_evidence"), dict) else {}
+    rviz = (
+        p3_payload.get("p3_requirement_status", {}).get("rviz_debug_evidence", {})
+        if isinstance(p3_payload.get("p3_requirement_status"), dict)
+        else {}
+    )
+    simulated_ft_artifacts = [
+        str(summary.get("log_path"))
+        for stage_id, summary in sorted((stage_manifest.get("stages") or {}).items())
+        if stage_id in CONTACT_STAGE_IDS and isinstance(summary, dict) and summary.get("log_path")
+    ]
+    source_artifacts = {
+        "stage_simulated_ft_manifest": rel(stage_sim_ft_manifest_path),
+        "p3_visual_rviz_audit": rel(p3_audit_path),
+        "p2_contact_correlation_audit": rel(p2_audit_path),
+        "step_status_rnn_audit": rel(step_status_audit_path),
+        "combined_simulated_ft_csv": rel(combined_csv),
+        **source_evidence,
+    }
+    manifest = {
+        "schema": "ur10e_p6_integrated_demo_manifest_v1",
+        "generated_at": generated,
+        "goal_lineage": GOAL_LINEAGE,
+        "run_root": str(output_dir),
+        "fail_closed": True,
+        "mode": "offline_cross_run_p6_evidence_bundle_not_full_acceptance",
+        "claim_tier": "visual_only",
+        "status": "partial_cross_run_bundle_required_tcp_distance_plot_unsupported",
+        "same_run_integrated_demo_proven": False,
+        "same_run_binding": {
+            "visual_rviz_simulated_ft_same_run": False,
+            "visual_rviz_physical_gazebo_contact_same_run": False,
+            "step_rnn_physical_gazebo_contact_same_run": False,
+            "binding_status": "cross_run_evidence_only",
+        },
+        "platform_trajectory_evidence": source_evidence["platform_trajectory_evidence"],
+        "eoat_tooling_evidence": source_evidence["eoat_tooling_evidence"],
+        "contact_surface_evidence": source_evidence["contact_surface_evidence"],
+        "simulated_ft_artifacts": simulated_ft_artifacts,
+        "step_rnn_pipeline_artifact": rel(step_status_audit_path),
+        "gazebo_gui_evidence_paths": [gazebo.get("contact_sheet_path")] if gazebo.get("contact_sheet_path") else [],
+        "rviz_evidence_paths": rviz.get("screenshot_paths", []),
+        "plots": plots,
+        "source_artifacts": source_artifacts,
+        "source_artifact_sha256": {key: sha256_file(value) for key, value in source_artifacts.items()},
+        "current_claim_tier_table": [
+            {
+                "evidence_surface": "P6 bundle",
+                "current_status": "cross-run evidence bundle; not same-run integrated demo",
+                "claim_tier": "visual_only",
+            },
+            {
+                "evidence_surface": "Per-stage simulated FT plots",
+                "current_status": "supported by canonical simulated_ft logs with stamp, frame_id, source, status, baseline, and log evidence",
+                "claim_tier": "simulated_ft",
+            },
+            {
+                "evidence_surface": "Standalone P2 physical witness",
+                "current_status": "standalone only; not stage-specific integrated contact physics",
+                "claim_tier": "physical Gazebo collision/contact physics",
+            },
+            {
+                "evidence_surface": "Real bench/live contact",
+                "current_status": "not authorized",
+                "claim_tier": "visual_only",
+            },
+        ],
+        "forbidden_claim": "P6 integrated demo readiness; full UR10e reproduction acceptance; per-stage physical Gazebo contact; total contact wrench; real bench/live contact",
+    }
+    manifest_path = output_dir / "p6_integrated_demo_manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return manifest_path
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--generated-at", default=None)
+    parser.add_argument("--stage-sim-ft-manifest", type=Path, default=DEFAULT_STAGE_SIM_FT_MANIFEST)
+    parser.add_argument("--p3-audit-path", type=Path, default=DEFAULT_P3_AUDIT)
+    parser.add_argument("--p2-audit-path", type=Path, default=DEFAULT_P2_AUDIT)
+    parser.add_argument("--step-status-audit-path", type=Path, default=DEFAULT_STEP_STATUS_AUDIT)
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    path = write_bundle(
+        args.output_dir,
+        generated_at=args.generated_at,
+        stage_sim_ft_manifest_path=args.stage_sim_ft_manifest,
+        p3_audit_path=args.p3_audit_path,
+        p2_audit_path=args.p2_audit_path,
+        step_status_audit_path=args.step_status_audit_path,
+    )
+    print(path)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

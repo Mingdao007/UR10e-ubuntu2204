@@ -101,6 +101,7 @@ def _demo_manifest_payload() -> dict[str, object]:
     return {
         "schema": "ur10e_p6_integrated_demo_manifest_v1",
         "goal_lineage": GOAL_LINEAGE,
+        "fail_closed": True,
         "platform_trajectory_evidence": "platform_trajectory.json",
         "eoat_tooling_evidence": "eoat_tooling.json",
         "contact_surface_evidence": "contact_surface.json",
@@ -114,6 +115,7 @@ def _demo_manifest_payload() -> dict[str, object]:
                 "unit_labels": ["s", "N"],
                 "frame_label": "base",
                 "claim_tier": "simulated_ft",
+                "supported": True,
             }
             for name in [
                 "wrench_vs_time",
@@ -209,6 +211,23 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
         self.assertEqual(result["claim_tier"], "visual_only")
         self.assertIn("plots.gravity_residual.frame_label:missing", result["validation_issues"])
         self.assertIn("plots.latency_staleness:missing", result["validation_issues"])
+
+    def test_demo_manifest_rejects_unsupported_required_plot_but_allows_gravity_gap(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="p6_unsupported_plot_fixture_") as tmp:
+            manifest_path = Path(tmp) / "manifest.json"
+            manifest = _demo_manifest_payload()
+            manifest["plots"]["tcp_distance_to_surface_vs_time"]["supported"] = False
+            manifest["plots"]["tcp_distance_to_surface_vs_time"]["unsupported_reason"] = "no same-run TCP distance samples"
+            manifest["plots"]["gravity_residual"]["supported"] = False
+            manifest["plots"]["gravity_residual"]["unsupported_reason"] = "no gravity residual source"
+            manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+            result = audit.validate_demo_manifest(manifest_path)
+
+        self.assertFalse(result["valid"])
+        self.assertIn("plots.tcp_distance_to_surface_vs_time:unsupported", result["validation_issues"])
+        self.assertNotIn("plots.gravity_residual:unsupported", result["validation_issues"])
+        self.assertEqual(result["plot_status"]["gravity_residual"], "unsupported")
 
     def test_manifest_requires_current_goal_lineage(self) -> None:
         audit = import_audit_module()
