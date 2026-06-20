@@ -34,6 +34,20 @@ SIMULATED_FT_REQUIRED_FIELDS = (
     "log evidence",
 )
 
+VISUAL_ONLY_REQUIRED_SOURCES = (
+    "Gazebo/RViz screenshots",
+    "EOAT visibility",
+    "TCP marker",
+    "model pose",
+    "observer-view evidence",
+)
+
+SIMULATED_FT_REQUIRED_SOURCES = (
+    "simulated wrench/FT topics",
+    "Gazebo FT plugin output",
+    "synthetic force logs",
+)
+
 PHYSICAL_GAZEBO_REQUIRED_FIELDS = (
     "EOAT collision evidence",
     "contact pair/log evidence",
@@ -99,6 +113,26 @@ def evaluate(report_path: Path) -> list[dict[str, Any]]:
         check = f"required_tier:{tier}"
         ok = tier_line_present(gate, tier)
         findings.append(_finding(report_path, check, ok, "present" if ok else "missing from Claim Boundary Gate"))
+
+    missing_visual_sources = [source for source in VISUAL_ONLY_REQUIRED_SOURCES if normalize(source) not in gate_norm]
+    findings.append(
+        _finding(
+            report_path,
+            "visual_only_source_boundaries",
+            not missing_visual_sources,
+            "present" if not missing_visual_sources else "missing: " + ", ".join(missing_visual_sources),
+        )
+    )
+
+    missing_sim_sources = [source for source in SIMULATED_FT_REQUIRED_SOURCES if normalize(source) not in gate_norm]
+    findings.append(
+        _finding(
+            report_path,
+            "simulated_ft_source_boundaries",
+            not missing_sim_sources,
+            "present" if not missing_sim_sources else "missing: " + ", ".join(missing_sim_sources),
+        )
+    )
 
     missing_sim_fields = [field for field in SIMULATED_FT_REQUIRED_FIELDS if field.lower() not in gate_norm]
     findings.append(

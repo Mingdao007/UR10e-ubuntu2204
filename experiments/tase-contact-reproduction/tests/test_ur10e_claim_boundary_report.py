@@ -46,8 +46,9 @@ evidence using these tiers:
   and observer-view evidence only.
 - virtual/software force-loop: `gazebo_joint_state_fk_virtual_surface_model`
   and other software-only force-loop artifacts only.
-- simulated_ft: simulated wrench/FT topics or synthetic force logs only when
-  stamp, frame_id, source, status, baseline, and log evidence are present.
+- simulated_ft: simulated wrench/FT topics, Gazebo FT plugin output, or
+  synthetic force logs only when stamp, frame_id, source, status, baseline, and
+  log evidence are present.
 - physical Gazebo collision/contact physics: blocked/not proven unless EOAT
   collision evidence, contact pair/log evidence, and wrench/contact correlation
   all exist. If `eoat_collision_count=0` or
@@ -134,7 +135,8 @@ class Ur10eClaimBoundaryReportVerifierTest(unittest.TestCase):
 
     def test_simulated_ft_claim_without_required_fields_fails_closed(self) -> None:
         gate = GOOD_CLAIM_GATE.replace(
-            "stamp, frame_id, source, status, baseline, and log evidence",
+            "stamp, frame_id, source, status, baseline, and\n"
+            "  log evidence",
             "complete synthetic samples",
         )
         text = _base_report(gate, extra_body="simulated_ft topic evidence is accepted.")
@@ -196,6 +198,20 @@ class Ur10eClaimBoundaryReportVerifierTest(unittest.TestCase):
         gate = GOOD_CLAIM_GATE.replace("- visual_only:", "- visual observer:")
         text = _base_report(gate, extra_body="Gazebo/RViz screenshot and TCP marker evidence.")
         self.assertFailsWith(text, "required_tier:visual_only")
+
+    def test_visual_only_gate_must_name_required_visual_sources(self) -> None:
+        gate = GOOD_CLAIM_GATE.replace(
+            "Gazebo/RViz screenshots, EOAT visibility, TCP marker, model pose,\n"
+            "  and observer-view evidence only.",
+            "observer artifacts only.",
+        )
+        text = _base_report(gate, extra_body=GOOD_CLAIM_TIER_TABLE)
+        self.assertFailsWith(text, "visual_only_source_boundaries")
+
+    def test_simulated_ft_gate_must_include_gazebo_ft_plugin_output(self) -> None:
+        gate = GOOD_CLAIM_GATE.replace(", Gazebo FT plugin output,", "")
+        text = _base_report(gate, extra_body=GOOD_CLAIM_TIER_TABLE)
+        self.assertFailsWith(text, "simulated_ft_source_boundaries")
 
     def test_visual_only_sources_cannot_be_upgraded_in_claim_table(self) -> None:
         table = """## Current Claim Tier Table
