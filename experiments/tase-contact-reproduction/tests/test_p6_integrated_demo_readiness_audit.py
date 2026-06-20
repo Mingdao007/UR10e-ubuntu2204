@@ -97,7 +97,26 @@ def _step_payload(*, strict_ready: bool = False) -> dict[str, object]:
     }
 
 
-def _demo_manifest_payload() -> dict[str, object]:
+def _write_tcp_distance_evidence(root: Path, *, supported: bool = True) -> Path:
+    path = root / "tcp_distance_evidence.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema": "ur10e_p6_tcp_distance_evidence_audit_v1",
+                "claim_tier": "simulated_ft" if supported else "visual_only",
+                "status": "supported" if supported else "not_supported_missing_same_run_tcp_distance_time_series",
+                "tcp_distance_time_series_supported": supported,
+                "candidate_source_audit": [],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def _demo_manifest_payload(root: Path, *, tcp_distance_supported: bool = True) -> dict[str, object]:
+    tcp_distance_evidence = _write_tcp_distance_evidence(root, supported=tcp_distance_supported)
     return {
         "schema": "ur10e_p6_integrated_demo_manifest_v1",
         "goal_lineage": GOAL_LINEAGE,
@@ -105,6 +124,7 @@ def _demo_manifest_payload() -> dict[str, object]:
         "platform_trajectory_evidence": "platform_trajectory.json",
         "eoat_tooling_evidence": "eoat_tooling.json",
         "contact_surface_evidence": "contact_surface.json",
+        "tcp_distance_evidence": str(tcp_distance_evidence),
         "simulated_ft_artifacts": ["sim_ft.json"],
         "step_rnn_pipeline_artifact": "step_status.json",
         "gazebo_gui_evidence_paths": ["gazebo.png"],
@@ -170,7 +190,7 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
             manifest_path = root / "manifest.json"
             p3_path.write_text(json.dumps(_p3_payload(), indent=2), encoding="utf-8")
             step_path.write_text(json.dumps(_step_payload(strict_ready=True), indent=2), encoding="utf-8")
-            manifest_path.write_text(json.dumps(_demo_manifest_payload(), indent=2), encoding="utf-8")
+            manifest_path.write_text(json.dumps(_demo_manifest_payload(root), indent=2), encoding="utf-8")
             payload = audit.build_audit(
                 generated_at="2026-06-21T07:20:00+08:00",
                 p3_audit_path=p3_path,
@@ -200,8 +220,9 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
     def test_demo_manifest_requires_all_plots_with_units_frame_and_claim_labels(self) -> None:
         audit = import_audit_module()
         with tempfile.TemporaryDirectory(prefix="p6_plot_gate_fixture_") as tmp:
-            manifest_path = Path(tmp) / "manifest.json"
-            manifest = _demo_manifest_payload()
+            root = Path(tmp)
+            manifest_path = root / "manifest.json"
+            manifest = _demo_manifest_payload(root)
             manifest["plots"]["gravity_residual"].pop("frame_label")
             manifest["plots"].pop("latency_staleness")
             manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
@@ -215,8 +236,9 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
     def test_demo_manifest_rejects_unsupported_required_plot_but_allows_gravity_gap(self) -> None:
         audit = import_audit_module()
         with tempfile.TemporaryDirectory(prefix="p6_unsupported_plot_fixture_") as tmp:
-            manifest_path = Path(tmp) / "manifest.json"
-            manifest = _demo_manifest_payload()
+            root = Path(tmp)
+            manifest_path = root / "manifest.json"
+            manifest = _demo_manifest_payload(root, tcp_distance_supported=False)
             manifest["plots"]["tcp_distance_to_surface_vs_time"]["supported"] = False
             manifest["plots"]["tcp_distance_to_surface_vs_time"]["unsupported_reason"] = "no same-run TCP distance samples"
             manifest["plots"]["gravity_residual"]["supported"] = False
@@ -232,14 +254,28 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
     def test_manifest_requires_current_goal_lineage(self) -> None:
         audit = import_audit_module()
         with tempfile.TemporaryDirectory(prefix="p6_lineage_gate_fixture_") as tmp:
-            manifest_path = Path(tmp) / "manifest.json"
-            manifest = _demo_manifest_payload()
+            root = Path(tmp)
+            manifest_path = root / "manifest.json"
+            manifest = _demo_manifest_payload(root)
             manifest["goal_lineage"] = "/tmp/other-goal.md"
             manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
             result = audit.validate_demo_manifest(manifest_path)
 
         self.assertFalse(result["valid"])
         self.assertIn("goal_lineage:mismatch_or_missing", result["validation_issues"])
+
+    def test_supported_tcp_distance_plot_requires_supporting_evidence(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="p6_tcp_evidence_gate_fixture_") as tmp:
+            root = Path(tmp)
+            manifest_path = root / "manifest.json"
+            manifest = _demo_manifest_payload(root, tcp_distance_supported=False)
+            manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+            result = audit.validate_demo_manifest(manifest_path)
+
+        self.assertFalse(result["valid"])
+        self.assertIn("tcp_distance_evidence:not_supporting_supported_plot", result["validation_issues"])
+        self.assertEqual(result["tcp_distance_evidence"]["claim_tier"], "visual_only")
 
     def test_claim_tier_table_never_upgrades_stage_specific_contact_physics(self) -> None:
         audit = import_audit_module()

@@ -49,6 +49,7 @@ REQUIRED_DEMO_FIELDS = [
     "platform_trajectory_evidence",
     "eoat_tooling_evidence",
     "contact_surface_evidence",
+    "tcp_distance_evidence",
     "simulated_ft_artifacts",
     "step_rnn_pipeline_artifact",
     "gazebo_gui_evidence_paths",
@@ -239,6 +240,54 @@ def validate_path_list(payload: dict[str, Any], field: str, issues: list[str]) -
             issues.append(f"{field}[{index}]:empty")
 
 
+def validate_tcp_distance_evidence(payload: dict[str, Any], issues: list[str]) -> dict[str, Any]:
+    path_value = payload.get("tcp_distance_evidence")
+    result: dict[str, Any] = {
+        "path": path_value,
+        "status": "missing",
+        "claim_tier": "visual_only",
+        "tcp_distance_time_series_supported": False,
+        "validation_issues": [],
+    }
+    if not path_value:
+        issues.append("tcp_distance_evidence:missing")
+        result["validation_issues"].append("tcp_distance_evidence:missing")
+        return result
+
+    path = workspace_path(str(path_value))
+    if path is None or not path.is_file():
+        issues.append("tcp_distance_evidence:missing_or_unreadable")
+        result["status"] = "missing_or_unreadable"
+        result["validation_issues"].append("tcp_distance_evidence:missing_or_unreadable")
+        return result
+
+    try:
+        evidence = load_json(path)
+    except (OSError, json.JSONDecodeError) as exc:
+        issues.append(f"tcp_distance_evidence:unreadable:{type(exc).__name__}")
+        result["status"] = "unreadable"
+        result["validation_issues"].append(f"tcp_distance_evidence:unreadable:{type(exc).__name__}")
+        return result
+
+    result.update(
+        {
+            "path": rel(path),
+            "schema": evidence.get("schema"),
+            "status": evidence.get("status"),
+            "claim_tier": evidence.get("claim_tier") or "visual_only",
+            "tcp_distance_time_series_supported": evidence.get("tcp_distance_time_series_supported") is True,
+            "candidate_source_audit": evidence.get("candidate_source_audit", []),
+        }
+    )
+    if evidence.get("schema") != "ur10e_p6_tcp_distance_evidence_audit_v1":
+        issues.append("tcp_distance_evidence.schema:unsupported")
+        result["validation_issues"].append("tcp_distance_evidence.schema:unsupported")
+    if result["claim_tier"] not in CLAIM_TIERS:
+        issues.append("tcp_distance_evidence.claim_tier:unsupported")
+        result["validation_issues"].append("tcp_distance_evidence.claim_tier:unsupported")
+    return result
+
+
 def validate_demo_manifest(path: Path | None) -> dict[str, Any]:
     if path is None:
         return {
@@ -280,11 +329,17 @@ def validate_demo_manifest(path: Path | None) -> dict[str, Any]:
         issues.append("goal_lineage:mismatch_or_missing")
     if payload.get("fail_closed") is not True:
         issues.append("fail_closed:not_true")
-    for field in ("platform_trajectory_evidence", "eoat_tooling_evidence", "contact_surface_evidence", "step_rnn_pipeline_artifact"):
+    for field in (
+        "platform_trajectory_evidence",
+        "eoat_tooling_evidence",
+        "contact_surface_evidence",
+        "step_rnn_pipeline_artifact",
+    ):
         if not payload.get(field):
             issues.append(f"{field}:missing")
     for field in ("simulated_ft_artifacts", "gazebo_gui_evidence_paths", "rviz_evidence_paths"):
         validate_path_list(payload, field, issues)
+    tcp_distance_evidence = validate_tcp_distance_evidence(payload, issues)
 
     plots = payload.get("plots")
     if not isinstance(plots, dict):
@@ -309,6 +364,12 @@ def validate_demo_manifest(path: Path | None) -> dict[str, Any]:
             issues.append(f"plots.{plot_name}:unsupported")
         if plot.get("supported") is not True and plot_name in OPTIONAL_UNSUPPORTED_PLOTS and not plot.get("unsupported_reason"):
             issues.append(f"plots.{plot_name}.unsupported_reason:missing")
+        if (
+            plot_name == "tcp_distance_to_surface_vs_time"
+            and plot.get("supported") is True
+            and not tcp_distance_evidence["tcp_distance_time_series_supported"]
+        ):
+            issues.append("tcp_distance_evidence:not_supporting_supported_plot")
 
     return {
         "manifest_path": rel(path),
@@ -327,6 +388,7 @@ def validate_demo_manifest(path: Path | None) -> dict[str, Any]:
             )
             for plot_name in REQUIRED_PLOTS
         },
+        "tcp_distance_evidence": tcp_distance_evidence,
         "validation_issues": issues,
     }
 
@@ -408,6 +470,11 @@ def current_claim_tier_table(
             "claim_tier": "simulated_ft" if demo_manifest["valid"] else "visual_only",
         },
         {
+            "evidence_surface": "P6 TCP distance evidence",
+            "current_status": demo_manifest.get("tcp_distance_evidence", {}).get("status", "missing"),
+            "claim_tier": demo_manifest.get("tcp_distance_evidence", {}).get("claim_tier", "visual_only"),
+        },
+        {
             "evidence_surface": "Real bench/live contact",
             "current_status": "not authorized; no live robot action, bridge, TP Play, URScript, or device write occurred",
             "claim_tier": "visual_only",
@@ -434,6 +501,7 @@ def build_audit(
         "p3_visual_rviz_audit": rel(p3_audit_path),
         "step_status_rnn_audit": rel(step_status_audit_path),
         "integrated_demo_manifest": demo_manifest["manifest_path"],
+        "tcp_distance_evidence": demo_manifest.get("tcp_distance_evidence", {}).get("path"),
         "p1_simulated_ft_manifest": (
             step_payload.get("source_artifacts", {}).get("stage_simulated_ft_manifest")
             if isinstance(step_payload.get("source_artifacts"), dict)

@@ -309,6 +309,89 @@ def write_unsupported_svg(
     }
 
 
+def build_tcp_distance_evidence(
+    *,
+    stage_rows: dict[str, list[dict[str, Any]]],
+    p3_payload: dict[str, Any],
+    p2_payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Audit whether current retained inputs can support TCP distance over time."""
+
+    required_time_series_fields = [
+        "t_s",
+        "tcp_position_base_m",
+        "contact_surface_position_base_m",
+        "surface_normal_base",
+        "distance_to_surface_m",
+        "frame_id",
+        "source",
+    ]
+    stage_checks: list[dict[str, Any]] = []
+    for stage_id, rows in stage_rows.items():
+        rows_with_distance = 0
+        rows_with_tcp_position = 0
+        rows_with_surface_geometry = 0
+        for row in rows:
+            if row.get("distance_to_surface_m") is not None:
+                rows_with_distance += 1
+            if row.get("tcp_position_base_m") is not None:
+                rows_with_tcp_position += 1
+            if row.get("contact_surface_position_base_m") is not None and row.get("surface_normal_base") is not None:
+                rows_with_surface_geometry += 1
+        stage_checks.append(
+            {
+                "stage_id": stage_id,
+                "row_count": len(rows),
+                "rows_with_distance_to_surface_m": rows_with_distance,
+                "rows_with_tcp_position_base_m": rows_with_tcp_position,
+                "rows_with_contact_surface_geometry": rows_with_surface_geometry,
+                "supports_tcp_distance_time_series": bool(
+                    rows
+                    and rows_with_distance == len(rows)
+                    and rows_with_tcp_position == len(rows)
+                    and rows_with_surface_geometry == len(rows)
+                ),
+            }
+        )
+
+    rviz_manifest = p3_payload.get("p3_requirement_status", {}).get("rviz_debug_evidence", {})
+    p2_gate = p2_payload.get("physical_gazebo_contact_gate", {}) if isinstance(p2_payload.get("physical_gazebo_contact_gate"), dict) else {}
+    p2_contact = p2_payload.get("contact_pair_log_evidence", {}) if isinstance(p2_payload.get("contact_pair_log_evidence"), dict) else {}
+    return {
+        "schema": "ur10e_p6_tcp_distance_evidence_audit_v1",
+        "claim_tier": "visual_only",
+        "tcp_distance_time_series_supported": False,
+        "status": "not_supported_missing_same_run_tcp_distance_time_series",
+        "required_time_series_fields": required_time_series_fields,
+        "candidate_source_audit": [
+            {
+                "source": "per_stage_simulated_ft_logs",
+                "claim_tier": "simulated_ft",
+                "stage_checks": stage_checks,
+                "supports_p6_tcp_distance": False,
+                "reason": "canonical simulated_ft rows provide wrench/contact/status fields but no TCP position and contact-surface geometry time series",
+            },
+            {
+                "source": "p3_static_rviz_debug_scene",
+                "claim_tier": "visual_only",
+                "frames_evidenced": bool(rviz_manifest.get("all_required_items_evidenced")),
+                "supports_p6_tcp_distance": False,
+                "reason": "static RViz frames and markers are observer evidence only, not a time series of TCP distance to surface",
+            },
+            {
+                "source": "standalone_p2_gazebo_contact_witness",
+                "claim_tier": "physical Gazebo collision/contact physics" if p2_gate.get("force_contact_physics_proven") else "visual_only",
+                "contact_pair_log_evidence": bool(p2_contact.get("present")),
+                "force_contact_physics_proven": bool(p2_gate.get("force_contact_physics_proven")),
+                "supports_p6_tcp_distance": False,
+                "reason": "standalone P2 contact pair/wrench evidence has contact position/depth but no per-stage P6 TCP pose time series",
+            },
+        ],
+        "blocked_claim": "P6 TCP distance-to-surface plot supported; same-run integrated demo readiness; per-stage physical Gazebo contact physics",
+        "downgrade_rule": "Do not infer TCP distance from screenshots, static RViz markers, normal_load, contact_state, or standalone contact depth.",
+    }
+
+
 def write_source_evidence(
     output_dir: Path,
     *,
@@ -316,6 +399,7 @@ def write_source_evidence(
     p2_payload: dict[str, Any],
     step_payload: dict[str, Any],
     stage_manifest: dict[str, Any],
+    stage_rows: dict[str, list[dict[str, Any]]],
 ) -> dict[str, str]:
     evidence_dir = output_dir / "evidence"
     evidence_dir.mkdir(parents=True, exist_ok=True)
@@ -387,11 +471,27 @@ def write_source_evidence(
         encoding="utf-8",
     )
 
+    tcp_distance_path = evidence_dir / "tcp_distance_evidence.json"
+    tcp_distance_path.write_text(
+        json.dumps(
+            build_tcp_distance_evidence(
+                stage_rows=stage_rows,
+                p3_payload=p3_payload,
+                p2_payload=p2_payload,
+            ),
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
     return {
         "platform_trajectory_evidence": rel(platform_path),
         "eoat_tooling_evidence": rel(eoat_path),
         "contact_surface_evidence": rel(surface_path),
         "simulated_ft_summary": rel(sim_summary_path),
+        "tcp_distance_evidence": rel(tcp_distance_path),
     }
 
 
@@ -423,6 +523,7 @@ def write_bundle(
         p2_payload=p2_payload,
         step_payload=step_payload,
         stage_manifest=stage_manifest,
+        stage_rows=stage_rows,
     )
 
     plots = {
@@ -472,7 +573,7 @@ def write_bundle(
             y_label="distance_to_surface_m",
             frame_label="base",
             claim_tier="visual_only",
-            reason="no same-run TCP distance-to-surface samples exist in the retained P6 evidence inputs",
+            reason="no same-run TCP distance-to-surface samples exist in the retained P6 evidence inputs; see tcp_distance_evidence.json",
         ),
         "gravity_residual": write_unsupported_svg(
             plots_dir / "gravity_residual.unsupported.svg",
@@ -522,6 +623,7 @@ def write_bundle(
         "platform_trajectory_evidence": source_evidence["platform_trajectory_evidence"],
         "eoat_tooling_evidence": source_evidence["eoat_tooling_evidence"],
         "contact_surface_evidence": source_evidence["contact_surface_evidence"],
+        "tcp_distance_evidence": source_evidence["tcp_distance_evidence"],
         "simulated_ft_artifacts": simulated_ft_artifacts,
         "step_rnn_pipeline_artifact": rel(step_status_audit_path),
         "gazebo_gui_evidence_paths": [gazebo.get("contact_sheet_path")] if gazebo.get("contact_sheet_path") else [],

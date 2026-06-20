@@ -42,10 +42,17 @@ class P6IntegratedDemoBundleTest(unittest.TestCase):
             self.assertTrue(manifest["simulated_ft_artifacts"])
             self.assertTrue(manifest["gazebo_gui_evidence_paths"])
             self.assertTrue(manifest["rviz_evidence_paths"])
+            self.assertIn("tcp_distance_evidence", manifest)
 
             combined_csv = WORKSPACE / manifest["source_artifacts"]["combined_simulated_ft_csv"]
             self.assertTrue(combined_csv.is_file())
             self.assertIn("stage_id,t_s,frame_id,source,status,claim_tier", combined_csv.read_text(encoding="utf-8").splitlines()[0])
+            tcp_distance_evidence = WORKSPACE / manifest["source_artifacts"]["tcp_distance_evidence"]
+            self.assertTrue(tcp_distance_evidence.is_file())
+            tcp_payload = json.loads(tcp_distance_evidence.read_text(encoding="utf-8"))
+            self.assertEqual(tcp_payload["schema"], "ur10e_p6_tcp_distance_evidence_audit_v1")
+            self.assertFalse(tcp_payload["tcp_distance_time_series_supported"])
+            self.assertIn("normal_load", tcp_payload["downgrade_rule"])
 
             plots = manifest["plots"]
             for plot_name in ["wrench_vs_time", "contact_state_vs_time", "force_threshold_crossing", "latency_staleness"]:
@@ -60,6 +67,7 @@ class P6IntegratedDemoBundleTest(unittest.TestCase):
             self.assertFalse(tcp_plot["supported"])
             self.assertEqual(tcp_plot["claim_tier"], "visual_only")
             self.assertIn("no same-run TCP distance", tcp_plot["unsupported_reason"])
+            self.assertIn("tcp_distance_evidence.json", tcp_plot["unsupported_reason"])
             self.assertTrue((WORKSPACE / tcp_plot["path"]).is_file())
 
             gravity_plot = plots["gravity_residual"]
@@ -80,6 +88,8 @@ class P6IntegratedDemoBundleTest(unittest.TestCase):
         self.assertEqual(manifest_summary["manifest_path"], readiness.rel(manifest_path))
         self.assertFalse(manifest_summary["valid"])
         self.assertIn("plots.tcp_distance_to_surface_vs_time:unsupported", manifest_summary["validation_issues"])
+        self.assertNotIn("tcp_distance_evidence:missing_or_unreadable", manifest_summary["validation_issues"])
+        self.assertFalse(manifest_summary["tcp_distance_evidence"]["tcp_distance_time_series_supported"])
         self.assertEqual(manifest_summary["plot_status"]["gravity_residual"], "unsupported")
         self.assertFalse(payload["readiness_gates"]["p6_integrated_demo_readiness_allowed"])
         self.assertIn("integrated_demo_manifest:not_valid", payload["readiness_gates"]["p6_integrated_demo_blockers"])
