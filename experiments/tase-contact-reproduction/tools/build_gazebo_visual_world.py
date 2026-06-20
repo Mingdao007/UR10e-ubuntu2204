@@ -40,6 +40,9 @@ ALL_STAGE_VISUAL_MODELS = {
 }
 CONTACT_SURFACE_Z_M = 0.008044839
 SURFACE_MARGIN_M = 0.04
+SURFACE_AFFORDANCE_Z_OFFSET_M = 0.020
+SURFACE_AFFORDANCE_THICKNESS_M = 0.010
+CONTACT_TARGET_AFFORDANCE_Z_OFFSET_M = 0.070
 SCRIPTED_CAMERA_PROFILES = {
     "context_overview": {
         "offset_xyz_m": (1.05, -1.20, 0.80),
@@ -72,6 +75,45 @@ def _sphere_link(parent: ET.Element, name: str, xyz: tuple[float, float, float],
     geometry = ET.SubElement(visual, "geometry")
     sphere = ET.SubElement(geometry, "sphere")
     ET.SubElement(sphere, "radius").text = f"{radius:.6f}"
+    _material(visual, rgba)
+
+
+def _box_link(
+    parent: ET.Element,
+    name: str,
+    xyz: tuple[float, float, float],
+    size_xyz: tuple[float, float, float],
+    rgba: str,
+) -> None:
+    link = ET.SubElement(parent, "link", {"name": name})
+    ET.SubElement(link, "pose").text = f"{xyz[0]:.6f} {xyz[1]:.6f} {xyz[2]:.6f} 0 0 0"
+    visual = ET.SubElement(link, "visual", {"name": "visual"})
+    geometry = ET.SubElement(visual, "geometry")
+    box = ET.SubElement(geometry, "box")
+    ET.SubElement(box, "size").text = f"{size_xyz[0]:.6f} {size_xyz[1]:.6f} {size_xyz[2]:.6f}"
+    _material(visual, rgba)
+
+
+def _cylinder_link(
+    parent: ET.Element,
+    name: str,
+    xyz: tuple[float, float, float],
+    radius: float,
+    length: float,
+    rgba: str,
+    *,
+    rpy: tuple[float, float, float] = (0.0, 0.0, 0.0),
+) -> None:
+    link = ET.SubElement(parent, "link", {"name": name})
+    ET.SubElement(link, "pose").text = (
+        f"{xyz[0]:.6f} {xyz[1]:.6f} {xyz[2]:.6f} "
+        f"{rpy[0]:.9f} {rpy[1]:.9f} {rpy[2]:.9f}"
+    )
+    visual = ET.SubElement(link, "visual", {"name": "visual"})
+    geometry = ET.SubElement(visual, "geometry")
+    cylinder = ET.SubElement(geometry, "cylinder")
+    ET.SubElement(cylinder, "radius").text = f"{radius:.6f}"
+    ET.SubElement(cylinder, "length").text = f"{length:.6f}"
     _material(visual, rgba)
 
 
@@ -121,17 +163,94 @@ def _add_reference_path(world: ET.Element, stage_id: str, rows: list[runner.Refe
 
     for index, row in enumerate(sampled):
         x_m, y_m, _ = _visual_xyz_from_reference(row)
-        z_m = CONTACT_SURFACE_Z_M + 0.018 if matrix.STAGE_REGISTRY[stage_id].contact else row.z_m
+        z_m = CONTACT_SURFACE_Z_M + 0.060 if matrix.STAGE_REGISTRY[stage_id].contact else row.z_m
         rgba = "1.0 0.85 0.0 1.0"
-        radius = 0.006
+        radius = 0.010 if matrix.STAGE_REGISTRY[stage_id].contact else 0.006
         if index == 0:
             rgba = "0.0 1.0 0.0 1.0"
-            radius = 0.010
+            radius = 0.014
         elif index == len(sampled) - 1:
             rgba = "1.0 0.0 0.0 1.0"
-            radius = 0.010
+            radius = 0.014
         _sphere_link(model, f"path_{index:03d}", (float(x_m), float(y_m), z_m), radius, rgba)
     return len(sampled)
+
+
+def _add_surface_viewer_affordances(
+    world: ET.Element,
+    stage_id: str,
+    rows: list[runner.ReferencePoint],
+) -> dict[str, object]:
+    surface = _surface_footprint(world, stage_id)
+    if not rows or surface["center_x_m"] is None or surface["top_z_m"] is None:
+        return {"model": None, "added": False}
+
+    model_name = f"{stage_id}_surface_viewer_affordance"
+    model = ET.SubElement(world, "model", {"name": model_name})
+    ET.SubElement(model, "static").text = "true"
+    ET.SubElement(model, "pose").text = "0 0 0 0 0 0"
+
+    center_x = float(surface["center_x_m"])
+    center_y = float(surface["center_y_m"])
+    size_x = float(surface["size_x_m"])
+    size_y = float(surface["size_y_m"])
+    top_z = float(surface["top_z_m"])
+    z = top_z + SURFACE_AFFORDANCE_Z_OFFSET_M
+    thickness = SURFACE_AFFORDANCE_THICKNESS_M
+    height = 0.010
+    rim_color = "1.0 0.85 0.0 1.0"
+    target_color = "1.0 0.0 1.0 1.0"
+    path_color = "0.0 1.0 1.0 1.0"
+
+    _box_link(model, "surface_front_rim", (center_x, center_y - 0.5 * size_y, z), (size_x, thickness, height), rim_color)
+    _box_link(model, "surface_back_rim", (center_x, center_y + 0.5 * size_y, z), (size_x, thickness, height), rim_color)
+    _box_link(model, "surface_left_rim", (center_x - 0.5 * size_x, center_y, z), (thickness, size_y, height), rim_color)
+    _box_link(model, "surface_right_rim", (center_x + 0.5 * size_x, center_y, z), (thickness, size_y, height), rim_color)
+    post_z = top_z + 0.055
+    post_length = 0.110
+    for name, x_m, y_m, color in (
+        ("surface_front_left_witness_post", center_x - 0.5 * size_x, center_y - 0.5 * size_y, "1.0 0.0 1.0 1.0"),
+        ("surface_front_right_witness_post", center_x + 0.5 * size_x, center_y - 0.5 * size_y, "0.0 1.0 1.0 1.0"),
+        ("surface_back_left_witness_post", center_x - 0.5 * size_x, center_y + 0.5 * size_y, "1.0 1.0 1.0 1.0"),
+        ("surface_back_right_witness_post", center_x + 0.5 * size_x, center_y + 0.5 * size_y, "1.0 0.85 0.0 1.0"),
+    ):
+        _cylinder_link(model, name, (x_m, y_m, post_z), 0.0055, post_length, color)
+
+    target_xyz = _contact_target_pose_world(surface, rows[-1]) if matrix.STAGE_REGISTRY[stage_id].contact else None
+    if target_xyz is not None:
+        tx = float(target_xyz["x_m"])
+        ty = float(target_xyz["y_m"])
+        tz = top_z + CONTACT_TARGET_AFFORDANCE_Z_OFFSET_M
+        _sphere_link(model, "contact_target_center_marker", (tx, ty, tz), 0.012, target_color)
+        _cylinder_link(
+            model,
+            "contact_target_cross_x",
+            (tx, ty, tz),
+            0.004,
+            min(max(size_x * 0.85, 0.055), 0.120),
+            target_color,
+            rpy=(0.0, math.pi / 2.0, 0.0),
+        )
+        _cylinder_link(
+            model,
+            "contact_target_cross_y",
+            (tx, ty, tz),
+            0.004,
+            min(max(size_y * 0.65, 0.055), 0.120),
+            path_color,
+            rpy=(math.pi / 2.0, 0.0, 0.0),
+        )
+        _cylinder_link(model, "contact_target_vertical_witness", (tx, ty, top_z + 0.065), 0.0045, 0.130, "1.0 1.0 1.0 1.0")
+
+    return {
+        "model": model_name,
+        "added": True,
+        "policy": "non_colliding_viewer_affordance_surface_outline_and_contact_target_marker",
+        "surface_rim_z_m": z,
+        "contact_target_marker_z_m": top_z + CONTACT_TARGET_AFFORDANCE_Z_OFFSET_M
+        if target_xyz is not None
+        else None,
+    }
 
 
 def _add_scripted_cameras(
@@ -263,6 +382,7 @@ def build_visual_world(stage_id: str, base_world: Path, output: Path) -> Path:
 
     rows = _reference_rows(stage_id)
     _retarget_surface_to_path(world, stage_id, rows)
+    surface_viewer_affordance = _add_surface_viewer_affordances(world, stage_id, rows)
     marker_count = _add_reference_path(world, stage_id, rows)
     scripted_cameras = _add_scripted_cameras(world, stage_id, rows)
     manifest = _build_manifest(
@@ -274,6 +394,7 @@ def build_visual_world(stage_id: str, base_world: Path, output: Path) -> Path:
         marker_count=marker_count,
         removed_models=removed_models,
         scripted_cameras=scripted_cameras,
+        surface_viewer_affordance=surface_viewer_affordance,
     )
     ET.indent(tree, space="  ")
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -295,6 +416,7 @@ def _build_manifest(
     marker_count: int,
     removed_models: list[str],
     scripted_cameras: dict[str, dict[str, object]],
+    surface_viewer_affordance: dict[str, object],
 ) -> dict[str, object]:
     path_bounds_base = _path_bounds(rows)
     path_bounds_world = _path_bounds_world(rows)
@@ -321,6 +443,7 @@ def _build_manifest(
         "reference_row_count": len(rows),
         "reference_marker_count": marker_count,
         "scripted_cameras": scripted_cameras,
+        "surface_viewer_affordance": surface_viewer_affordance,
         "path_bounds_base_xy_m": path_bounds_base,
         "path_bounds_xy_m": path_bounds_world,
         "surface_frame": runner.GAZEBO_WORLD_FRAME,

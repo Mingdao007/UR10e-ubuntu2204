@@ -491,7 +491,7 @@ def summarize_live_scene_content(scene_introspection_dir: Path) -> dict[str, obj
 
 
 def _load_pose_info_names(path: Path) -> tuple[list[str], dict[str, dict[str, object]]]:
-    payload = _read_json(path, default={}) if path.exists() else {}
+    payload = _read_pose_info_payload(path) if path.exists() else {}
     names: list[str] = []
     pose_by_name: dict[str, dict[str, object]] = {}
     for pose in payload.get("pose", []) if isinstance(payload, dict) else []:
@@ -507,6 +507,24 @@ def _load_pose_info_names(path: Path) -> tuple[list[str], dict[str, dict[str, ob
             "orientation": pose.get("orientation"),
         }
     return names, pose_by_name
+
+
+def _read_pose_info_payload(path: Path) -> dict[str, Any]:
+    text = path.read_text(encoding="utf-8")
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        payload = {}
+        for line in text.splitlines():
+            if not line.strip():
+                continue
+            try:
+                candidate = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(candidate, dict) and isinstance(candidate.get("pose"), list):
+                payload = candidate
+    return payload if isinstance(payload, dict) else {}
 
 
 def _present_name_fragments(pose_names: list[str], required: frozenset[str]) -> list[str]:

@@ -127,6 +127,12 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             source = output.read_text(encoding="utf-8")
             self.assertIn("step5_contact_surface", source)
             self.assertIn("step5b_reference_path_visual", source)
+            self.assertIn("step5b_surface_viewer_affordance", source)
+            self.assertIn("surface_front_rim", source)
+            self.assertIn("surface_front_left_witness_post", source)
+            self.assertIn("contact_target_center_marker", source)
+            self.assertIn("contact_target_cross_x", source)
+            self.assertIn("contact_target_vertical_witness", source)
             self.assertIn("gz-sim-sensors-system", source)
             self.assertIn("step5b_close_detail_scripted_camera", source)
             self.assertIn("/ur10e_visual_audit/step5b/close_detail/image", source)
@@ -139,6 +145,10 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             self.assertEqual(
                 manifest["scripted_cameras"]["close_detail"]["capture_policy"],
                 "scripted_gazebo_camera_clean_no_gui_panels_observer_review_still_required",
+            )
+            self.assertEqual(
+                manifest["surface_viewer_affordance"]["policy"],
+                "non_colliding_viewer_affordance_surface_outline_and_contact_target_marker",
             )
             self.assertNotIn("step7_large_platform_contact_surface", source)
             self.assertNotIn("step8_large_platform_contact_surface", source)
@@ -177,6 +187,8 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
 
                     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
                     self.assertEqual(manifest["stage_id"], stage_id)
+                    self.assertTrue(manifest["surface_viewer_affordance"]["added"])
+                    self.assertIn("non_colliding_viewer_affordance", manifest["surface_viewer_affordance"]["policy"])
                     self.assertTrue(manifest["path_inside_surface_xy"])
                     self.assertEqual(manifest["force_loop_expected"], stage_id in contact_stage_ids)
                     self.assertEqual(manifest["active_tcp_reference_frame"], gazebo.ACTIVE_TCP_FRAME)
@@ -304,6 +316,41 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             self.assertEqual(payload["active_tcp_offset_tool0_m"], list(gazebo.ACTIVE_TCP_OFFSET_TOOL0_M))
             self.assertEqual(payload["model_name"], "active_tcp_marker")
             self.assertEqual(payload["pose_count"], 1)
+
+    def test_pose_info_reader_accepts_multiple_json_messages(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="ur10e_pose_info_multi_json_test_") as tmp:
+            pose_info = Path(tmp) / "pose_info.json"
+            first = {
+                "pose": [
+                    {
+                        "name": "active_tcp_marker",
+                        "id": 1,
+                        "position": {"x": 0.1},
+                        "orientation": {"w": 1.0},
+                    }
+                ]
+            }
+            second = {
+                "pose": [
+                    {
+                        "name": "active_tcp_marker",
+                        "id": 2,
+                        "position": {"x": 0.2},
+                        "orientation": {"w": 1.0},
+                    },
+                    {
+                        "name": "wrist_3_link",
+                        "id": 3,
+                        "position": {"z": 0.3},
+                        "orientation": {"w": 1.0},
+                    },
+                ]
+            }
+            pose_info.write_text(json.dumps(first) + "\n" + json.dumps(second) + "\n", encoding="utf-8")
+            names, pose_by_name = gui_row._load_pose_info_names(pose_info)
+            self.assertIn("active_tcp_marker", names)
+            self.assertIn("wrist_3_link", names)
+            self.assertEqual(pose_by_name["active_tcp_marker"]["id"], 2)
 
     def test_tcp_marker_create_request_uses_sdf_filename_for_gazebo_create(self) -> None:
         with tempfile.TemporaryDirectory(prefix="ur10e_gazebo_tcp_marker_spawn_test_") as tmp:
