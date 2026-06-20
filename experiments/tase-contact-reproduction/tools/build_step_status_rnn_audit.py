@@ -53,6 +53,7 @@ STEP5D_PAPER_TRUTH = EXPERIMENT_ROOT / "config" / "step5c_tase_paper_truth.json"
 STEP5D_NUMERIC_SANITY = RUNS / "step5d_numeric_sanity_20260614_215555" / "step5d_numeric_sanity.json"
 STAGE_SIM_FT_PACK_SCHEMA = "ur10e_step_simulated_ft_evidence_pack_v1"
 STAGE_SIM_FT_LOG_SCHEMA = "ur10e_stage_canonical_simulated_ft_log_v1"
+EPS = 1e-9
 
 CLAIM_TIERS = [
     "visual_only",
@@ -171,12 +172,50 @@ def stage_trace_evidence_fields(trace: dict[str, Any], *, log_path: Path | None 
     }
 
 
+def stage_trace_contact_summary(trace: dict[str, Any]) -> dict[str, Any]:
+    rows = trace.get("rows") or []
+    contact_state_values = sorted({str(row.get("contact_state")) for row in rows})
+    max_force_norm_n = float(trace.get("max_force_norm_n") or 0.0)
+    max_normal_load_n = float(trace.get("max_normal_load_n") or 0.0)
+    return {
+        "contact_state_values": contact_state_values,
+        "has_contact_state": "contact" in contact_state_values,
+        "max_force_norm_n": max_force_norm_n,
+        "max_normal_load_n": max_normal_load_n,
+        "has_nonzero_load": max_force_norm_n > EPS and max_normal_load_n > EPS,
+    }
+
+
+def stage_trace_freshness_summary(trace: dict[str, Any]) -> dict[str, Any]:
+    rows = trace.get("rows") or []
+    stamps = [
+        float(row.get("header", {}).get("stamp_s"))
+        for row in rows
+        if isinstance(row, dict) and isinstance(row.get("header"), dict) and "stamp_s" in row["header"]
+    ]
+    stale_after_values = [
+        float(row.get("stale_after_s"))
+        for row in rows
+        if isinstance(row, dict) and row.get("stale_after_s") is not None
+    ]
+    intervals = [b - a for a, b in zip(stamps, stamps[1:])]
+    max_interval_s = max(intervals, default=0.0)
+    min_stale_after_s = min(stale_after_values, default=0.0)
+    return {
+        "max_sample_interval_s": max_interval_s,
+        "min_stale_after_s": min_stale_after_s,
+        "freshness_ok": bool(stamps) and (not intervals or max_interval_s <= min_stale_after_s + EPS),
+    }
+
+
 def validate_stage_simulated_ft_log(log_path: Path) -> dict[str, Any]:
     result: dict[str, Any] = {
         "log_path": rel(log_path),
         "valid": False,
         "claim_tier": "visual_only",
         "sample_count": 0,
+        "contact_semantics": {},
+        "freshness": {},
         "evidence_fields_present": {
             "stamp": False,
             "frame_id": False,
@@ -219,6 +258,16 @@ def validate_stage_simulated_ft_log(log_path: Path) -> dict[str, Any]:
     fields = stage_trace_evidence_fields(trace, log_path=log_path)
     missing_fields = [field for field, present in fields.items() if not present]
     issues.extend(f"missing:{field}" for field in missing_fields)
+    contact_semantics = stage_trace_contact_summary(trace)
+    if not contact_semantics["has_contact_state"]:
+        issues.append("contact_state:no_contact_only")
+    if not contact_semantics["has_nonzero_load"]:
+        issues.append("normal_load:not_positive")
+    freshness = stage_trace_freshness_summary(trace)
+    if not freshness["freshness_ok"]:
+        issues.append(
+            f"freshness:max_interval_{freshness['max_sample_interval_s']:.6f}_gt_stale_after_{freshness['min_stale_after_s']:.6f}"
+        )
 
     for index, row in enumerate(rows):
         sample_issues = wrench_contract.validate_canonical_sample_row(row)
@@ -234,6 +283,8 @@ def validate_stage_simulated_ft_log(log_path: Path) -> dict[str, Any]:
             "valid": not issues,
             "claim_tier": "simulated_ft" if not issues else "visual_only",
             "sample_count": int(trace.get("sample_count") or len(rows)),
+            "contact_semantics": contact_semantics,
+            "freshness": freshness,
             "evidence_fields_present": fields,
             "validation_issues": issues,
         }
@@ -277,7 +328,11 @@ def load_stage_simulated_ft_manifest(manifest_path: Path | None) -> dict[str, An
             continue
         log_ref = summary.get("log_path")
         log_path = WORKSPACE / log_ref if isinstance(log_ref, str) and not Path(log_ref).is_absolute() else Path(str(log_ref))
-        stages[stage_id] = validate_stage_simulated_ft_log(log_path)
+        stage_validation = validate_stage_simulated_ft_log(log_path)
+        stages[stage_id] = stage_validation
+        if not stage_validation.get("valid"):
+            for issue in stage_validation.get("validation_issues", []):
+                issues.append(f"stage:{stage_id}:{issue}")
 
     return {
         "manifest_path": rel(manifest_path),
@@ -298,6 +353,7 @@ def stage_status_row(
     trace = artifact.get("simulated_force_evidence")
     has_simulated_ft = trace_has_simulated_ft_metadata(trace)
     attached = stage_sim_ft_evidence or {}
+    attached_present = bool(attached)
     attached_valid = bool(attached.get("valid")) and attached.get("claim_tier") == "simulated_ft"
     contact = bool(spec.contact)
 
@@ -308,6 +364,13 @@ def stage_status_row(
         allowed_claim = (
             "simulated_ft per-stage canonical wrench log evidence only; not physical Gazebo collision/contact "
             "physics and not real bench/live contact"
+        )
+    elif has_simulated_ft and attached_present:
+        claim_tier = "virtual/software force-loop"
+        simulated_ft_status = "per_stage_canonical_log_invalid_or_baseline_only"
+        per_stage_log_evidence = False
+        allowed_claim = (
+            "baseline-only or invalid per-stage canonical log evidence; not accepted as contact-stage simulated_ft"
         )
     elif has_simulated_ft:
         claim_tier = "virtual/software force-loop"
@@ -359,6 +422,8 @@ def stage_status_row(
                 "log_evidence": False,
             },
         ),
+        "per_stage_simulated_ft_contact_semantics": attached.get("contact_semantics", {}),
+        "per_stage_simulated_ft_freshness": attached.get("freshness", {}),
         "per_stage_simulated_ft_validation_issues": attached.get("validation_issues", []),
         "gazebo_contact_physics_status": gazebo_status,
         "evidence_artifact": "generated_from_step56_simulation_matrix",
@@ -481,7 +546,7 @@ def target_report_tier_for_source(source_name: str) -> str:
     if source_name == wrench_contract.SOURCE_GAZEBO_CONTACT:
         return "physical Gazebo collision/contact physics"
     if source_name == wrench_contract.SOURCE_REAL_KUNWEI_READ_ONLY:
-        return "real bench/live contact"
+        return "not authorized in current goal"
     return "visual_only"
 
 

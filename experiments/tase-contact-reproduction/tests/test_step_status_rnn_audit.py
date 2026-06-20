@@ -121,14 +121,32 @@ class StepStatusRnnAuditTest(unittest.TestCase):
                 stage_sim_ft_manifest_path=manifest_path,
             )
 
-        self.assertEqual(payload["stage_simulated_ft_evidence"]["status"], "valid")
-        self.assertEqual(payload["stage_simulated_ft_evidence"]["claim_tier"], "simulated_ft")
-        self.assertEqual(payload["audit_coverage"]["per_stage_simulated_ft_attached_count"], 5)
+        self.assertEqual(payload["stage_simulated_ft_evidence"]["status"], "invalid_or_partial")
+        self.assertEqual(payload["stage_simulated_ft_evidence"]["claim_tier"], "visual_only")
+        self.assertIn(
+            "stage:step5b:contact_state:no_contact_only",
+            payload["stage_simulated_ft_evidence"]["validation_issues"],
+        )
+        self.assertIn(
+            "stage:step5b:normal_load:not_positive",
+            payload["stage_simulated_ft_evidence"]["validation_issues"],
+        )
+        self.assertEqual(payload["audit_coverage"]["per_stage_simulated_ft_attached_count"], 4)
         self.assertEqual(payload["p2_physical_gazebo_contact"]["claim_tier"], "visual_only")
         self.assertFalse(payload["p2_physical_gazebo_contact"]["force_contact_physics_proven"])
 
         by_stage = {row["stage_id"]: row for row in payload["step_status_matrix"]}
-        for stage_id in ["step5b", "step5d", "step6b", "step7", "step8"]:
+        step5b = by_stage["step5b"]
+        self.assertEqual(step5b["claim_tier"], "virtual/software force-loop")
+        self.assertEqual(step5b["simulated_ft_status"], "per_stage_canonical_log_invalid_or_baseline_only")
+        self.assertFalse(step5b["per_stage_simulated_ft_log_evidence"])
+        self.assertIn("contact_state:no_contact_only", step5b["per_stage_simulated_ft_validation_issues"])
+        self.assertIn("normal_load:not_positive", step5b["per_stage_simulated_ft_validation_issues"])
+        self.assertFalse(step5b["per_stage_simulated_ft_contact_semantics"]["has_contact_state"])
+        self.assertFalse(step5b["per_stage_simulated_ft_contact_semantics"]["has_nonzero_load"])
+        self.assertTrue(step5b["per_stage_simulated_ft_freshness"]["freshness_ok"])
+
+        for stage_id in ["step5d", "step6b", "step7", "step8"]:
             with self.subTest(stage_id=stage_id):
                 row = by_stage[stage_id]
                 self.assertEqual(row["claim_tier"], "simulated_ft")
@@ -136,6 +154,9 @@ class StepStatusRnnAuditTest(unittest.TestCase):
                 self.assertTrue(row["per_stage_simulated_ft_log_evidence"])
                 self.assertGreater(row["per_stage_simulated_ft_sample_count"], 0)
                 self.assertTrue(all(row["per_stage_simulated_ft_evidence_fields_present"].values()))
+                self.assertTrue(row["per_stage_simulated_ft_contact_semantics"]["has_contact_state"])
+                self.assertTrue(row["per_stage_simulated_ft_contact_semantics"]["has_nonzero_load"])
+                self.assertTrue(row["per_stage_simulated_ft_freshness"]["freshness_ok"])
                 self.assertFalse(row["per_stage_simulated_ft_validation_issues"])
                 self.assertEqual(row["gazebo_contact_physics_status"], "blocked_not_proven")
                 self.assertIn("not physical Gazebo", row["allowed_claim"])
@@ -163,6 +184,7 @@ class StepStatusRnnAuditTest(unittest.TestCase):
         self.assertEqual(lineage["gazebo_contact"]["current_report_claim_tier"], "visual_only")
         self.assertEqual(lineage["gazebo_contact"]["target_claim_tier"], "physical Gazebo collision/contact physics")
         self.assertEqual(lineage["real_kunwei_read_only"]["current_report_claim_tier"], "visual_only")
+        self.assertEqual(lineage["real_kunwei_read_only"]["target_claim_tier"], "not authorized in current goal")
         self.assertIn("not authorized", lineage["real_kunwei_read_only"]["current_goal_status"])
 
     def test_write_audit_creates_machine_readable_json_artifact(self) -> None:
