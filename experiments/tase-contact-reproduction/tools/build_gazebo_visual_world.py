@@ -55,8 +55,9 @@ SCRIPTED_CAMERA_PROFILES = {
         "image_size": (1280, 900),
     },
     "close_detail": {
-        "offset_xyz_m": (0.42, -0.48, 0.32),
-        "horizontal_fov_rad": 0.70,
+        "offset_xyz_m": (0.70, -0.82, 0.30),
+        "target_offset_xyz_m": (0.0, 0.0, -0.095),
+        "horizontal_fov_rad": 1.05,
         "image_size": (1280, 900),
     },
 }
@@ -262,10 +263,16 @@ def _add_scripted_cameras(
         return {}
     _ensure_sensors_system(world)
     surface = _surface_footprint(world, stage_id)
-    target = _scripted_camera_target(stage_id, rows, surface)
+    base_target = _scripted_camera_target(stage_id, rows, surface)
     cameras: dict[str, dict[str, object]] = {}
     for view, profile in SCRIPTED_CAMERA_PROFILES.items():
         offset = profile["offset_xyz_m"]
+        target_offset = profile.get("target_offset_xyz_m", (0.0, 0.0, 0.0))
+        target = (
+            base_target[0] + float(target_offset[0]),
+            base_target[1] + float(target_offset[1]),
+            base_target[2] + float(target_offset[2]),
+        )
         camera_xyz = (
             target[0] + float(offset[0]),
             target[1] + float(offset[1]),
@@ -290,7 +297,9 @@ def _add_scripted_cameras(
             "frame": runner.GAZEBO_WORLD_FRAME,
             "pose_xyz_rpy": list(pose),
             "target_xyz_m": list(target),
+            "base_target_xyz_m": list(base_target),
             "offset_xyz_m": list(offset),
+            "target_offset_xyz_m": list(target_offset),
             "horizontal_fov_rad": float(profile["horizontal_fov_rad"]),
             "image_width": int(width),
             "image_height": int(height),

@@ -146,6 +146,11 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
                 manifest["scripted_cameras"]["close_detail"]["capture_policy"],
                 "scripted_gazebo_camera_clean_no_gui_panels_observer_review_still_required",
             )
+            close_camera = manifest["scripted_cameras"]["close_detail"]
+            interaction_camera = manifest["scripted_cameras"]["interaction_view"]
+            self.assertLess(close_camera["target_xyz_m"][2], close_camera["base_target_xyz_m"][2])
+            self.assertEqual(close_camera["target_offset_xyz_m"], [0.0, 0.0, -0.095])
+            self.assertGreater(close_camera["horizontal_fov_rad"], interaction_camera["horizontal_fov_rad"])
             self.assertEqual(
                 manifest["surface_viewer_affordance"]["policy"],
                 "non_colliding_viewer_affordance_surface_outline_and_contact_target_marker",
