@@ -198,6 +198,63 @@ def simulate_canonical_ft_force_evidence(preposition: dict[str, Any]) -> dict[st
     )
 
 
+def plan_contact_cycloid_phase(
+    context: Step5bSimulationContext,
+    *,
+    sample_period_s: float = 0.050,
+) -> dict[str, Any]:
+    duration_s = float(context.params.duration_s)
+    sample_count = int(math.ceil(duration_s / sample_period_s)) + 1
+    rows: list[dict[str, Any]] = []
+    max_reference_speed = 0.0
+    for index in range(sample_count):
+        t_s = min(index * sample_period_s, duration_s)
+        ref = core.step5b_path_reference(
+            context.basis.origin_xy_m,
+            t_s,
+            context.params,
+            context.basis,
+        )
+        local = ref["local"]
+        desired_xy = ref["desired_xy"]
+        desired_velocity_xy = ref["desired_velocity_xy"]
+        reference_speed = math.hypot(float(desired_velocity_xy[0]), float(desired_velocity_xy[1]))
+        max_reference_speed = max(max_reference_speed, reference_speed)
+        rows.append(
+            {
+                "t_s": t_s,
+                "tcp_x_m": float(desired_xy[0]),
+                "tcp_y_m": float(desired_xy[1]),
+                "tcp_z_m": CONTACT_SURFACE_Z_M,
+                "local_xy_m": [float(local["local_x_m"]), float(local["local_y_m"])],
+                "base_xy_m": [float(desired_xy[0]), float(desired_xy[1])],
+                "local_vxy_m_s": [float(local["local_vx_m_s"]), float(local["local_vy_m_s"])],
+                "base_vxy_m_s": [float(desired_velocity_xy[0]), float(desired_velocity_xy[1])],
+                "reference_speed_m_s": reference_speed,
+            }
+        )
+    return {
+        "strategy": "offline_step5b_contact_cycloid_simulated_ft_phase",
+        "stage": 25.0,
+        "source_stage_id": context.stage["id"],
+        "duration_s": duration_s,
+        "sample_period_s": sample_period_s,
+        "sample_count": len(rows),
+        "target_load_n": context.params.target_force_n,
+        "contact_surface_z_m": CONTACT_SURFACE_Z_M,
+        "max_reference_speed_m_s": max_reference_speed,
+        "rows": rows,
+    }
+
+
+def simulate_contact_phase_force_evidence(contact_phase: dict[str, Any]) -> dict[str, Any]:
+    return wrench_contract.simulated_ft_trace_from_rows(
+        contact_phase["rows"],
+        contact_surface_z_m=CONTACT_SURFACE_Z_M,
+        nominal_contact_load_n=float(contact_phase["target_load_n"]),
+    )
+
+
 def build_artifact(
     *,
     start_xyz: Vec3 | None = None,
@@ -215,7 +272,9 @@ def build_artifact(
         sample_period_s=sample_period_s,
         min_duration_s=min_duration_s,
     )
-    force_evidence = simulate_canonical_ft_force_evidence(preposition)
+    preposition_force_evidence = simulate_canonical_ft_force_evidence(preposition)
+    contact_phase = plan_contact_cycloid_phase(context)
+    force_evidence = simulate_contact_phase_force_evidence(contact_phase)
     return {
         "schema": "ur10e_step5b_simulation_mvp_v1",
         "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -280,10 +339,14 @@ def build_artifact(
             "surface_size_m": list(CONTACT_SURFACE_SIZE_M),
             "safe_frame_origin_xy_m": list(context.basis.origin_xy_m),
             "preposition_target_xyz_m": list(target),
+            "contact_phase_target_load_n": context.params.target_force_n,
+            "contact_phase_tcp_z_m": CONTACT_SURFACE_Z_M,
             "reaction_normal": [0.0, 0.0, 1.0],
             "approach_normal": [0.0, 0.0, -1.0],
         },
         "preposition": preposition,
+        "preposition_simulated_force_evidence": preposition_force_evidence,
+        "contact_phase": contact_phase,
         "simulated_force_evidence": force_evidence,
         "acceptance": {
             "goal_count_max": 1,
@@ -291,6 +354,8 @@ def build_artifact(
             "preposition_goal_count_ok": preposition["goal_count"] == 1,
             "velocity_limit_ok": preposition["max_velocity_m_s"] <= max_speed_m_s + 1e-9,
             "force_contract_ok": force_evidence["approach_normal"] == [0.0, 0.0, -1.0],
+            "preposition_baseline_no_contact_ok": preposition_force_evidence["max_normal_load_n"] == 0.0,
+            "contact_phase_simulated_ft_ok": force_evidence["max_normal_load_n"] > 0.0,
             "canonical_wrench_schema_ok": not force_evidence["schema_issues"],
             "controller_private_gazebo_topic_dependency_allowed": False,
             "source_switching_policy": "launch_config_or_remap_only_no_controller_logic",

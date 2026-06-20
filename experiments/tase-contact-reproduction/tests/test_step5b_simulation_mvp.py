@@ -39,15 +39,22 @@ class Step5bSimulationMvpTest(unittest.TestCase):
     def test_force_trace_uses_reaction_and_approach_contract(self) -> None:
         artifact = sim.build_artifact()
         force = artifact["simulated_force_evidence"]
+        baseline = artifact["preposition_simulated_force_evidence"]
         self.assertEqual(force["schema"], "ur10e_canonical_wrench_trace_v1")
         self.assertEqual(force["force_source"], "simulated_ft")
         self.assertEqual(force["claim_tier"], "simulated_ft")
         self.assertEqual(force["reaction_normal"], [0.0, 0.0, 1.0])
         self.assertEqual(force["approach_normal"], [0.0, 0.0, -1.0])
         self.assertEqual(force["normal_load_definition"], "dot(force_base, reaction_normal)")
-        self.assertEqual(force["sample_count"], artifact["preposition"]["sample_count"])
+        self.assertEqual(baseline["sample_count"], artifact["preposition"]["sample_count"])
+        self.assertEqual(force["sample_count"], artifact["contact_phase"]["sample_count"])
         self.assertFalse(force["schema_issues"])
-        self.assertEqual(force["max_normal_load_n"], 0.0)
+        self.assertEqual(baseline["max_normal_load_n"], 0.0)
+        self.assertEqual({row["contact_state"] for row in baseline["rows"]}, {"no_contact"})
+        self.assertAlmostEqual(force["max_normal_load_n"], artifact["contact_phase"]["target_load_n"])
+        self.assertEqual({row["contact_state"] for row in force["rows"]}, {"contact"})
+        self.assertTrue(artifact["acceptance"]["preposition_baseline_no_contact_ok"])
+        self.assertTrue(artifact["acceptance"]["contact_phase_simulated_ft_ok"])
 
     def test_artifact_schema_and_source_paths(self) -> None:
         artifact = sim.build_artifact()
@@ -81,6 +88,10 @@ class Step5bSimulationMvpTest(unittest.TestCase):
         self.assertEqual(
             artifact["expected_contact_geometry"]["safe_frame_origin_xy_m"],
             artifact["safe_frame"]["origin_xy_m"],
+        )
+        self.assertEqual(
+            artifact["expected_contact_geometry"]["contact_phase_target_load_n"],
+            artifact["stage"]["target_force_n"],
         )
 
     def test_world_sdf_has_contact_surface_and_origin_marker(self) -> None:

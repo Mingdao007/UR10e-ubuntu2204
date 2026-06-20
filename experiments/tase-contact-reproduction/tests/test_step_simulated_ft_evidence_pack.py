@@ -37,9 +37,9 @@ class StepSimulatedFtEvidencePackTest(unittest.TestCase):
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
             self.assertEqual(manifest["schema"], "ur10e_step_simulated_ft_evidence_pack_v1")
-            self.assertEqual(manifest["claim_tier"], "visual_only")
-            self.assertFalse(manifest["all_contact_stages_valid"])
-            self.assertEqual(manifest["valid_stage_count"], 4)
+            self.assertEqual(manifest["claim_tier"], "simulated_ft")
+            self.assertTrue(manifest["all_contact_stages_valid"])
+            self.assertEqual(manifest["valid_stage_count"], 5)
             self.assertFalse(manifest["live_authorization"]["real_bench_live_contact_authorized"])
             self.assertEqual(
                 manifest["contact_stage_ids"],
@@ -62,20 +62,12 @@ class StepSimulatedFtEvidencePackTest(unittest.TestCase):
                     self.assertEqual(first["status"], "valid")
                     self.assertEqual(first["baseline_policy"], "simulated_zero_no_contact_baseline")
                     self.assertTrue(payload["freshness"]["freshness_ok"])
-                    if stage_id == "step5b":
-                        self.assertEqual(payload["claim_tier"], "visual_only")
-                        self.assertFalse(summary["valid"])
-                        self.assertIn("contact_state:no_contact_only", summary["validation_issues"])
-                        self.assertIn("normal_load:not_positive", summary["validation_issues"])
-                        self.assertFalse(payload["contact_semantics"]["has_contact_state"])
-                        self.assertFalse(payload["contact_semantics"]["has_nonzero_load"])
-                    else:
-                        self.assertEqual(payload["claim_tier"], "simulated_ft")
-                        self.assertEqual(payload["trace"]["claim_tier"], "simulated_ft")
-                        self.assertFalse(payload["trace_validation_issues"])
-                        self.assertTrue(summary["valid"])
-                        self.assertTrue(payload["contact_semantics"]["has_contact_state"])
-                        self.assertTrue(payload["contact_semantics"]["has_nonzero_load"])
+                    self.assertEqual(payload["claim_tier"], "simulated_ft")
+                    self.assertEqual(payload["trace"]["claim_tier"], "simulated_ft")
+                    self.assertFalse(payload["trace_validation_issues"])
+                    self.assertTrue(summary["valid"])
+                    self.assertTrue(payload["contact_semantics"]["has_contact_state"])
+                    self.assertTrue(payload["contact_semantics"]["has_nonzero_load"])
 
 
 if __name__ == "__main__":
