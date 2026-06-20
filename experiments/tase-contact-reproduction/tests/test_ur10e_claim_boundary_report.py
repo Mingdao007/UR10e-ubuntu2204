@@ -63,8 +63,8 @@ GOOD_CLAIM_TIER_TABLE = """## Current Claim Tier Table
 |---|---|---|
 | P2 EOAT inventory artifact | EOAT collision bodies present; contact pair/log evidence and wrench/contact correlation missing | visual_only |
 | P1 canonical simulated FT artifact | stamp, frame_id, source, status, baseline, and log evidence present | simulated_ft |
-| Physical Gazebo contact | `force_contact_physics_proven=false`; blocked/not proven | physical Gazebo collision/contact physics blocked/not proven |
-| Real bench/live contact | not authorized | real bench/live contact not authorized |
+| Physical Gazebo contact | `force_contact_physics_proven=false`; target tier blocked/not proven | visual_only |
+| Real bench/live contact | not authorized; no live bench evidence may be claimed | visual_only |
 """
 
 
@@ -211,6 +211,27 @@ class Ur10eClaimBoundaryReportVerifierTest(unittest.TestCase):
 | Evidence surface | Current status | Claim tier |
 |---|---|---|
 | Physical Gazebo contact | `eoat_collision_count=0`; `force_contact_physics_proven=false` | physical Gazebo collision/contact physics |
+"""
+        text = _base_report(GOOD_CLAIM_GATE, extra_body=table)
+        self.assertFailsWith(text, "claim_tier_table_source_boundaries")
+
+    def test_generic_blocked_physical_gazebo_row_must_downgrade_to_visual_only(self) -> None:
+        table = """## Current Claim Tier Table
+
+| Evidence surface | Current status | Claim tier |
+|---|---|---|
+| Physical Gazebo contact | blocked/not proven pending wrench/contact correlation | physical Gazebo collision/contact physics |
+"""
+        text = _base_report(GOOD_CLAIM_GATE, extra_body=table)
+        self.assertFailsWith(text, "claim_tier_table_source_boundaries")
+
+    def test_hybrid_blocked_claim_tier_cells_fail_closed(self) -> None:
+        table = """## Current Claim Tier Table
+
+| Evidence surface | Current status | Claim tier |
+|---|---|---|
+| Physical Gazebo contact | `force_contact_physics_proven=false`; blocked/not proven | physical Gazebo collision/contact physics blocked/not proven |
+| Real bench/live contact | not authorized | real bench/live contact not authorized |
 """
         text = _base_report(GOOD_CLAIM_GATE, extra_body=table)
         self.assertFailsWith(text, "claim_tier_table_source_boundaries")

@@ -84,6 +84,26 @@ def _gazebo_contact_wrench_trace() -> dict[str, object]:
     return contract.trace_payload(samples, source_topic="/ur10e/contact/gazebo_contact/wrench")
 
 
+def _adapter_verified_gazebo_contact_wrench_report() -> dict[str, object]:
+    return {
+        "schema": "ur10e_gazebo_contact_wrench_adapter_report_v1",
+        "claim_tier": "physical Gazebo collision/contact physics",
+        "target_claim_tier": "physical Gazebo collision/contact physics",
+        "trace_written": True,
+        "force_source": contract.SOURCE_GAZEBO_CONTACT,
+        "source_contact_pair_row_count": 1,
+        "native_wrench_row_count": 1,
+        "verified_native_wrench_row_count": 1,
+        "blockers": [],
+        "claim_boundary_gate": {
+            "contact_pair_only_does_not_prove_wrench": True,
+            "simulated_ft_is_not_physical_gazebo_contact": True,
+            "real_bench_live_contact_authorized": False,
+        },
+        "wrench_trace": _gazebo_contact_wrench_trace(),
+    }
+
+
 class P2ContactCorrelationAuditTest(unittest.TestCase):
     def test_current_p2_collision_and_p1_simulated_ft_stay_blocked_without_contact_log(self) -> None:
         audit = contact_audit.build_audit(
@@ -118,10 +138,23 @@ class P2ContactCorrelationAuditTest(unittest.TestCase):
         self.assertFalse(audit["physical_gazebo_contact_gate"]["force_contact_physics_proven"])
         self.assertIn("wrench_source_not_gazebo_contact", audit["known_blockers"])
 
-    def test_gazebo_contact_wrench_with_contact_pair_log_can_close_physical_gate(self) -> None:
+    def test_raw_gazebo_contact_wrench_trace_without_adapter_provenance_stays_blocked(self) -> None:
         audit = contact_audit.build_audit(
             p2_inventory_payload=p2_inventory.build_inventory(generated_at="2026-06-21T02:30:00+08:00"),
             wrench_payload=_gazebo_contact_wrench_trace(),
+            contact_pair_payload=_contact_pair_log(),
+            generated_at="2026-06-21T02:30:00+08:00",
+        )
+
+        self.assertEqual(audit["claim_tier"], "visual_only")
+        self.assertFalse(audit["physical_gazebo_contact_gate"]["wrench_contact_correlation"])
+        self.assertFalse(audit["physical_gazebo_contact_gate"]["force_contact_physics_proven"])
+        self.assertIn("wrench_not_adapter_verified_gazebo_contact", audit["known_blockers"])
+
+    def test_adapter_verified_gazebo_contact_wrench_with_contact_pair_log_can_close_physical_gate(self) -> None:
+        audit = contact_audit.build_audit(
+            p2_inventory_payload=p2_inventory.build_inventory(generated_at="2026-06-21T02:30:00+08:00"),
+            wrench_payload=_adapter_verified_gazebo_contact_wrench_report(),
             contact_pair_payload=_contact_pair_log(),
             generated_at="2026-06-21T02:30:00+08:00",
         )

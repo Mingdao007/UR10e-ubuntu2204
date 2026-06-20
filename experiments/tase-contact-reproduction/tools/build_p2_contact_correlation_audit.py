@@ -39,7 +39,14 @@ def _load_json(path: Path | None) -> dict[str, Any] | None:
 
 def _wrench_trace(payload: dict[str, Any] | None) -> dict[str, Any]:
     if not payload:
-        return {"present": False, "source": None, "claim_tier": None, "rows": [], "evidence_fields_present": {}}
+        return {
+            "present": False,
+            "source": None,
+            "claim_tier": None,
+            "rows": [],
+            "evidence_fields_present": {},
+            "adapter_verified_gazebo_contact_wrench": False,
+        }
     if payload.get("schema") == contract.TRACE_SCHEMA:
         return {
             "present": True,
@@ -47,6 +54,7 @@ def _wrench_trace(payload: dict[str, Any] | None) -> dict[str, Any]:
             "claim_tier": payload.get("claim_tier"),
             "rows": payload.get("rows") or [],
             "evidence_fields_present": _trace_evidence_fields(payload),
+            "adapter_verified_gazebo_contact_wrench": False,
         }
     if isinstance(payload.get("wrench_trace"), dict):
         trace = payload["wrench_trace"]
@@ -56,6 +64,7 @@ def _wrench_trace(payload: dict[str, Any] | None) -> dict[str, Any]:
             "claim_tier": trace.get("claim_tier"),
             "rows": trace.get("rows") or [],
             "evidence_fields_present": _trace_evidence_fields(trace),
+            "adapter_verified_gazebo_contact_wrench": _adapter_verified_gazebo_contact_wrench(payload, trace),
         }
     return {
         "present": True,
@@ -64,7 +73,23 @@ def _wrench_trace(payload: dict[str, Any] | None) -> dict[str, Any]:
         "rows": [],
         "evidence_fields_present": payload.get("evidence_fields_present") or {},
         "observed_counts": payload.get("observed_counts") or {},
+        "adapter_verified_gazebo_contact_wrench": False,
     }
+
+
+def _adapter_verified_gazebo_contact_wrench(payload: dict[str, Any], trace: dict[str, Any]) -> bool:
+    return (
+        payload.get("schema") == "ur10e_gazebo_contact_wrench_adapter_report_v1"
+        and payload.get("trace_written") is True
+        and payload.get("claim_tier") == "physical Gazebo collision/contact physics"
+        and payload.get("force_source") == contract.SOURCE_GAZEBO_CONTACT
+        and int(payload.get("native_wrench_row_count") or 0) > 0
+        and int(payload.get("verified_native_wrench_row_count") or 0) > 0
+        and not payload.get("blockers")
+        and trace.get("force_source") == contract.SOURCE_GAZEBO_CONTACT
+        and trace.get("claim_tier") == "physical Gazebo collision/contact physics"
+        and bool(trace.get("rows"))
+    )
 
 
 def _trace_evidence_fields(trace: dict[str, Any]) -> dict[str, bool]:
@@ -153,6 +178,13 @@ def _correlate_wrench_to_contact(wrench: dict[str, Any], contact_pair: dict[str,
             "matched_row_count": 0,
             "max_time_delta_s": None,
         }
+    if not wrench.get("adapter_verified_gazebo_contact_wrench"):
+        return {
+            "evidence": False,
+            "status": "blocked_wrench_not_adapter_verified_gazebo_contact",
+            "matched_row_count": 0,
+            "max_time_delta_s": None,
+        }
     if not contact_pair.get("evidence"):
         return {
             "evidence": False,
@@ -217,12 +249,14 @@ def build_audit(
         and contact_pair_evidence
         and wrench_contact_correlation
         and wrench.get("source") == contract.SOURCE_GAZEBO_CONTACT
+        and wrench.get("adapter_verified_gazebo_contact_wrench")
     )
     blockers = _known_blockers(
         eoat_collision_body_audit_passed=eoat_collision_body_audit_passed,
         contact_pair_evidence=contact_pair_evidence,
         wrench_contact_correlation=wrench_contact_correlation,
         wrench_source=wrench.get("source"),
+        adapter_verified_gazebo_contact_wrench=bool(wrench.get("adapter_verified_gazebo_contact_wrench")),
     )
     return {
         "schema": "ur10e_gazebo_p2_contact_correlation_audit_v1",
@@ -268,6 +302,7 @@ def build_audit(
             "contact_pair_log_evidence": contact_pair_evidence,
             "wrench_contact_correlation": wrench_contact_correlation,
             "wrench_source_is_gazebo_contact": wrench.get("source") == contract.SOURCE_GAZEBO_CONTACT,
+            "adapter_verified_gazebo_contact_wrench": bool(wrench.get("adapter_verified_gazebo_contact_wrench")),
             "force_contact_physics_proven": force_contact_physics_proven,
             "status": "proven" if force_contact_physics_proven else "blocked_not_proven",
         },
@@ -287,6 +322,7 @@ def _known_blockers(
     contact_pair_evidence: bool,
     wrench_contact_correlation: bool,
     wrench_source: Any,
+    adapter_verified_gazebo_contact_wrench: bool,
 ) -> list[str]:
     blockers: list[str] = []
     if not eoat_collision_body_audit_passed:
@@ -297,6 +333,8 @@ def _known_blockers(
         blockers.append("no_wrench_contact_correlation")
     if wrench_source != contract.SOURCE_GAZEBO_CONTACT:
         blockers.append("wrench_source_not_gazebo_contact")
+    elif not adapter_verified_gazebo_contact_wrench:
+        blockers.append("wrench_not_adapter_verified_gazebo_contact")
     if blockers:
         blockers.append("force_contact_physics_proven=false")
     return blockers

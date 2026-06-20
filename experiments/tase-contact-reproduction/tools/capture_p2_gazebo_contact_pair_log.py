@@ -138,8 +138,9 @@ def contact_pair_log_from_json_lines(
         "generated_at": generated_at or _now_iso(),
         "mode": "offline_gazebo_contact_topic_capture",
         "source": "gazebo_contact_sensor_topic",
-        "claim_tier": "physical Gazebo collision/contact physics blocked/not_proven_contact_pair_only",
-        "allowed_claim": "contact_pair_log_evidence_only",
+        "claim_tier": "visual_only",
+        "target_claim_tier": "physical Gazebo collision/contact physics",
+        "allowed_claim": "contact_pair_log_evidence_only_no_force_or_wrench_contact_correlation",
         "forbidden_claim": "wrench_contact_correlation; force_contact_physics_proven; real bench/live contact",
         "topic": topic,
         "world_path": world_path,
@@ -168,20 +169,35 @@ def _contact_to_row(
     positions = contact.get("position") if isinstance(contact.get("position"), list) else []
     normals = contact.get("normal") if isinstance(contact.get("normal"), list) else []
     depths = contact.get("depth") if isinstance(contact.get("depth"), list) else []
+    wrenches = contact.get("wrench") if isinstance(contact.get("wrench"), list) else []
     normal, normal_source = _first_normal(normals)
-    return {
+    collision1 = _collision_name(contact.get("collision1"))
+    collision2 = _collision_name(contact.get("collision2"))
+    row = {
         "stamp_s": _stamp_s(contact, message),
-        "collision1": _collision_name(contact.get("collision1")),
-        "collision2": _collision_name(contact.get("collision2")),
+        "stamp_evidence": _has_stamp(contact) or _has_stamp(message),
+        "collision1": collision1,
+        "collision2": collision2,
         "position_m": _first_vec3(positions, default=(0.0, 0.0, 0.0)),
         "normal": normal,
         "normal_source": normal_source,
-        "contact_count": max(len(positions), len(normals), len(depths), 1),
+        "contact_count": max(len(positions), len(normals), len(depths), len(wrenches), 1),
         "depth_m": float(depths[0]) if depths else None,
         "raw_line_index": line_index,
         "raw_contact_index": contact_index,
         "topic": topic,
     }
+    native_wrench = _first_native_gazebo_contact_wrench(
+        contact,
+        collision1=collision1,
+        collision2=collision2,
+    )
+    if native_wrench is not None:
+        row["native_gazebo_contact_wrench"] = native_wrench
+    if wrenches:
+        row["raw_gazebo_contact_wrench_count"] = len(wrenches)
+        row["raw_gazebo_contact_wrenches"] = wrenches
+    return row
 
 
 def _stamp_s(contact: dict[str, Any], message: dict[str, Any]) -> float:
@@ -201,6 +217,10 @@ def _nested_stamp(payload: dict[str, Any]) -> dict[str, Any] | None:
     return stamp if isinstance(stamp, dict) else None
 
 
+def _has_stamp(payload: dict[str, Any]) -> bool:
+    return _nested_stamp(payload) is not None
+
+
 def _collision_name(value: Any) -> str:
     if isinstance(value, dict):
         return str(value.get("name") or "")
@@ -214,10 +234,80 @@ def _first_vec3(values: list[Any], *, default: tuple[float, float, float]) -> li
     return [float(default[0]), float(default[1]), float(default[2])]
 
 
+def _vec3_from_object(value: Any, *, default: tuple[float, float, float]) -> list[float]:
+    if isinstance(value, dict):
+        return [float(value.get(axis) or 0.0) for axis in ("x", "y", "z")]
+    return [float(default[0]), float(default[1]), float(default[2])]
+
+
 def _first_normal(values: list[Any]) -> tuple[list[float], str]:
     if values:
         return _first_vec3(values, default=STATIC_SURFACE_NORMAL), "gazebo_contact_message_normal"
     return [float(v) for v in STATIC_SURFACE_NORMAL], "derived_from_static_contact_surface_normal"
+
+
+def _first_native_gazebo_contact_wrench(
+    contact: dict[str, Any],
+    *,
+    collision1: str,
+    collision2: str,
+) -> dict[str, Any] | None:
+    wrenches = contact.get("wrench") if isinstance(contact.get("wrench"), list) else []
+    if not wrenches:
+        return None
+    selected_body, selected_collision, selected_role = _selected_eoat_body_side(collision1, collision2)
+    if selected_body is None:
+        return None
+    for wrench_index, wrench in enumerate(wrenches):
+        if not isinstance(wrench, dict):
+            continue
+        selected = wrench.get(selected_body)
+        if not isinstance(selected, dict):
+            continue
+        force = _vec3_from_object(selected.get("force"), default=(0.0, 0.0, 0.0))
+        torque = _vec3_from_object(selected.get("torque"), default=(0.0, 0.0, 0.0))
+        body_index = "1" if selected_body == "body_1_wrench" else "2"
+        other_index = "2" if body_index == "1" else "1"
+        return {
+            "source": "gazebo_contact_message_wrench",
+            "source_schema": "ignition.msgs.Contact.contact.wrench",
+            "force_source_class": "gazebo_contact",
+            "selected_body": selected_body,
+            "selected_body_collision": selected_collision,
+            "selected_body_role": selected_role,
+            "selected_body_name": str(wrench.get(f"body_{body_index}_name") or ""),
+            "other_body_name": str(wrench.get(f"body_{other_index}_name") or ""),
+            "raw_wrench_index": wrench_index,
+            "raw_wrench_count": len(wrenches),
+            "measured_contact_wrench": True,
+            "commanded_force": False,
+            "force_n": force,
+            "torque_nm": torque,
+            "wrench_stamp_s": _stamp_s(wrench, contact),
+            "wrench_stamp_evidence": _has_stamp(wrench) or _has_stamp(contact),
+            "frame_id": "gazebo_contact_message_native_frame",
+            "frame_policy": "native_gazebo_contact_frame_untransformed",
+            "frame_transform_evidence": False,
+            "status": "raw_untransformed",
+            "baseline_policy": "gazebo_contact_zero_no_contact_baseline_unverified",
+        }
+    return None
+
+
+def _selected_eoat_body_side(collision1: str, collision2: str) -> tuple[str | None, str | None, str | None]:
+    if _is_eoat_collision(collision1) and _is_surface_collision(collision2):
+        return "body_1_wrench", "collision1", "eoat"
+    if _is_eoat_collision(collision2) and _is_surface_collision(collision1):
+        return "body_2_wrench", "collision2", "eoat"
+    return None, None, None
+
+
+def _is_eoat_collision(name: str) -> bool:
+    return "eoat" in name and "collision" in name
+
+
+def _is_surface_collision(name: str) -> bool:
+    return "contact_surface" in name or "surface::collision" in name
 
 
 def capture_contact_pair_log(

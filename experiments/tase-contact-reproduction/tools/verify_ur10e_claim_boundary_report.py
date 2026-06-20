@@ -313,6 +313,9 @@ def validate_claim_tier_table_rows(table: list[list[str]], heading: str) -> list
         if tier is None:
             issues.append(f"{heading} row {row_number}: unsupported claim tier")
             continue
+        if tier_cell != tier.lower():
+            issues.append(f"{heading} row {row_number}: claim tier cell must be exact tier label")
+            continue
 
         if has_visual_only_source(row_norm) and tier != "visual_only":
             issues.append(f"{heading} row {row_number}: visual evidence must stay visual_only")
@@ -329,19 +332,20 @@ def validate_claim_tier_table_rows(table: list[list[str]], heading: str) -> list
                 )
 
         if tier == "physical Gazebo collision/contact physics":
-            if any(token in row_norm for token in PHYSICAL_BLOCKERS):
-                if not has_blocked_or_not_proven(row_norm):
-                    issues.append(
-                        f"{heading} row {row_number}: blocked physical Gazebo evidence must be labelled blocked/not proven"
-                    )
-            elif not has_blocked_or_not_proven(row_norm):
+            if has_blocked_or_not_proven(row_norm) or any(token in row_norm for token in PHYSICAL_BLOCKERS):
+                issues.append(
+                    f"{heading} row {row_number}: blocked physical Gazebo evidence must downgrade to visual_only"
+                )
+            else:
                 missing = [field for field in PHYSICAL_GAZEBO_REQUIRED_FIELDS if field.lower() not in row_norm]
                 if missing:
                     issues.append(
                         f"{heading} row {row_number}: physical Gazebo claim missing " + ", ".join(missing)
                     )
 
-        if tier == "real bench/live contact" and "not authorized" not in row_norm:
+        if tier == "real bench/live contact" and "not authorized" in row_norm:
+            issues.append(f"{heading} row {row_number}: unauthorized real bench/live contact must downgrade to visual_only")
+        elif tier == "real bench/live contact":
             issues.append(f"{heading} row {row_number}: real bench/live contact is not authorized")
 
     return issues
@@ -357,7 +361,7 @@ def claim_tier_column_index(header: list[str]) -> int | None:
 
 def recognized_claim_tier(tier_cell: str) -> str | None:
     for tier in REQUIRED_TIERS:
-        if tier_cell.startswith(tier.lower()):
+        if tier_cell == tier.lower():
             return tier
     return None
 
