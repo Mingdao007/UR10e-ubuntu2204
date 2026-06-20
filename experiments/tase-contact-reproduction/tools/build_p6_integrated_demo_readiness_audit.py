@@ -329,6 +329,10 @@ def validate_demo_manifest(path: Path | None) -> dict[str, Any]:
         issues.append("goal_lineage:mismatch_or_missing")
     if payload.get("fail_closed") is not True:
         issues.append("fail_closed:not_true")
+    manifest_claim_tier = payload.get("claim_tier") or "visual_only"
+    if manifest_claim_tier not in CLAIM_TIERS:
+        issues.append("claim_tier:unsupported")
+        manifest_claim_tier = "visual_only"
     for field in (
         "platform_trajectory_evidence",
         "eoat_tooling_evidence",
@@ -374,7 +378,7 @@ def validate_demo_manifest(path: Path | None) -> dict[str, Any]:
     return {
         "manifest_path": rel(path),
         "status": "valid" if not issues else "invalid",
-        "claim_tier": "simulated_ft" if not issues else "visual_only",
+        "claim_tier": str(manifest_claim_tier) if not issues else "visual_only",
         "valid": not issues,
         "required_fields": REQUIRED_DEMO_FIELDS,
         "required_plots": REQUIRED_PLOTS,
@@ -467,7 +471,7 @@ def current_claim_tier_table(
         {
             "evidence_surface": "P6 integrated demo manifest",
             "current_status": demo_manifest["status"],
-            "claim_tier": "simulated_ft" if demo_manifest["valid"] else "visual_only",
+            "claim_tier": demo_manifest["claim_tier"] if demo_manifest["valid"] else "visual_only",
         },
         {
             "evidence_surface": "P6 TCP distance evidence",

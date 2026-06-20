@@ -121,6 +121,7 @@ def _demo_manifest_payload(root: Path, *, tcp_distance_supported: bool = True) -
         "schema": "ur10e_p6_integrated_demo_manifest_v1",
         "goal_lineage": GOAL_LINEAGE,
         "fail_closed": True,
+        "claim_tier": "visual_only",
         "platform_trajectory_evidence": "platform_trajectory.json",
         "eoat_tooling_evidence": "eoat_tooling.json",
         "contact_surface_evidence": "contact_surface.json",
@@ -199,7 +200,7 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
             )
 
         self.assertTrue(payload["integrated_demo_manifest"]["valid"])
-        self.assertEqual(payload["integrated_demo_manifest"]["claim_tier"], "simulated_ft")
+        self.assertEqual(payload["integrated_demo_manifest"]["claim_tier"], "visual_only")
         self.assertFalse(payload["readiness_gates"]["p6_integrated_demo_readiness_allowed"])
         self.assertIn(
             "step_status_full_acceptance:not_allowed",
@@ -276,6 +277,18 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
         self.assertFalse(result["valid"])
         self.assertIn("tcp_distance_evidence:not_supporting_supported_plot", result["validation_issues"])
         self.assertEqual(result["tcp_distance_evidence"]["claim_tier"], "visual_only")
+
+    def test_valid_manifest_keeps_declared_visual_only_tier(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="p6_visual_tier_fixture_") as tmp:
+            root = Path(tmp)
+            manifest_path = root / "manifest.json"
+            manifest = _demo_manifest_payload(root)
+            manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+            result = audit.validate_demo_manifest(manifest_path)
+
+        self.assertTrue(result["valid"])
+        self.assertEqual(result["claim_tier"], "visual_only")
 
     def test_claim_tier_table_never_upgrades_stage_specific_contact_physics(self) -> None:
         audit = import_audit_module()

@@ -15,12 +15,20 @@ import csv
 from datetime import datetime
 import hashlib
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
 WORKSPACE = EXPERIMENT_ROOT.parents[1]
+PACKAGE_ROOT = WORKSPACE / "src" / "ur10e_example_controllers"
+if str(PACKAGE_ROOT) not in sys.path:
+    sys.path.insert(0, str(PACKAGE_ROOT))
+
+from ur10e_example_controllers import step56_simulation_matrix as step56  # noqa: E402
+from ur10e_example_controllers import step5b_simulation_mvp as step5b_mvp  # noqa: E402
+
 RUNS = EXPERIMENT_ROOT / "runs"
 GOAL_LINEAGE = "/home/andy/codex_handoffs/ur10e-gazebo-17h-sim-ft-rnn-goal-prompt-20260621-0056.md"
 
@@ -53,6 +61,8 @@ CLAIM_TIERS = [
     "real bench/live contact",
 ]
 CONTACT_STAGE_IDS = ["step5b", "step5d", "step6b", "step7", "step8"]
+SURFACE_NORMAL_BASE = [0.0, 0.0, 1.0]
+CONTACT_SURFACE_TOP_Z_M = float(step5b_mvp.CONTACT_SURFACE_Z_M)
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -195,6 +205,138 @@ def latency_margin_series(stage_rows: dict[str, list[dict[str, Any]]]) -> dict[s
     return series
 
 
+def _planned_source_rows(artifact: dict[str, Any], stage_id: str) -> tuple[str, list[dict[str, Any]]]:
+    if stage_id == "step5b":
+        contact_phase = artifact.get("contact_phase") if isinstance(artifact.get("contact_phase"), dict) else {}
+        rows = contact_phase.get("rows") if isinstance(contact_phase.get("rows"), list) else []
+        return "step5b.contact_phase.rows", [row for row in rows if isinstance(row, dict)]
+    trajectory = artifact.get("trajectory") if isinstance(artifact.get("trajectory"), dict) else {}
+    rows = trajectory.get("rows") if isinstance(trajectory.get("rows"), list) else []
+    return "trajectory.rows", [row for row in rows if isinstance(row, dict)]
+
+
+def planned_tcp_distance_rows() -> dict[str, list[dict[str, Any]]]:
+    planned: dict[str, list[dict[str, Any]]] = {}
+    for stage_id in CONTACT_STAGE_IDS:
+        artifact = step56.build_stage_artifact(stage_id)
+        source_field, rows = _planned_source_rows(artifact, stage_id)
+        stage = artifact.get("stage") if isinstance(artifact.get("stage"), dict) else {}
+        stage_rows: list[dict[str, Any]] = []
+        for sequence, row in enumerate(rows):
+            if stage_id == "step5b":
+                tcp_x = float(row["tcp_x_m"])
+                tcp_y = float(row["tcp_y_m"])
+                tcp_z = float(row["tcp_z_m"])
+                z_source = "step5b_contact_phase_tcp_z_m"
+            else:
+                base_xy = row.get("base_xy_m")
+                if not isinstance(base_xy, list) or len(base_xy) != 2:
+                    continue
+                tcp_x = float(base_xy[0])
+                tcp_y = float(base_xy[1])
+                raw_z = row.get("base_z_m")
+                if raw_z is None:
+                    tcp_z = CONTACT_SURFACE_TOP_Z_M
+                    z_source = "nominal_contact_plane_assumption_for_contact_stage_without_vertical_trajectory"
+                else:
+                    tcp_z = float(raw_z)
+                    z_source = "trajectory.base_z_m"
+            surface_point = [tcp_x, tcp_y, CONTACT_SURFACE_TOP_Z_M]
+            distance_m = tcp_z - CONTACT_SURFACE_TOP_Z_M
+            stage_rows.append(
+                {
+                    "stage_id": stage_id,
+                    "sequence": sequence,
+                    "t_s": float(row["t_s"]),
+                    "frame_id": "base",
+                    "source": "step56.build_stage_artifact_planned_path_geometry",
+                    "source_field": source_field,
+                    "source_stage_id": stage.get("source_stage_id"),
+                    "claim_tier": "visual_only",
+                    "support_scope": "planned_path_geometry_only_not_observed_tcp_pose_not_physical_contact",
+                    "tcp_position_base_m": [tcp_x, tcp_y, tcp_z],
+                    "contact_surface_position_base_m": surface_point,
+                    "surface_normal_base": list(SURFACE_NORMAL_BASE),
+                    "distance_to_surface_m": distance_m,
+                    "abs_distance_to_surface_m": abs(distance_m),
+                    "tcp_z_source": z_source,
+                    "forbidden_claim": "same-run integrated demo; physical Gazebo collision/contact physics; real bench/live contact",
+                }
+            )
+        planned[stage_id] = stage_rows
+    return planned
+
+
+def write_tcp_distance_csv(path: Path, planned_rows: dict[str, list[dict[str, Any]]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fields = [
+        "stage_id",
+        "sequence",
+        "t_s",
+        "frame_id",
+        "source",
+        "source_field",
+        "source_stage_id",
+        "claim_tier",
+        "support_scope",
+        "tcp_x_m",
+        "tcp_y_m",
+        "tcp_z_m",
+        "surface_x_m",
+        "surface_y_m",
+        "surface_z_m",
+        "surface_normal_x",
+        "surface_normal_y",
+        "surface_normal_z",
+        "distance_to_surface_m",
+        "abs_distance_to_surface_m",
+        "tcp_z_source",
+    ]
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer.writeheader()
+        for rows in planned_rows.values():
+            for row in rows:
+                tcp = row["tcp_position_base_m"]
+                surface = row["contact_surface_position_base_m"]
+                normal = row["surface_normal_base"]
+                writer.writerow(
+                    {
+                        "stage_id": row["stage_id"],
+                        "sequence": row["sequence"],
+                        "t_s": row["t_s"],
+                        "frame_id": row["frame_id"],
+                        "source": row["source"],
+                        "source_field": row["source_field"],
+                        "source_stage_id": row["source_stage_id"],
+                        "claim_tier": row["claim_tier"],
+                        "support_scope": row["support_scope"],
+                        "tcp_x_m": tcp[0],
+                        "tcp_y_m": tcp[1],
+                        "tcp_z_m": tcp[2],
+                        "surface_x_m": surface[0],
+                        "surface_y_m": surface[1],
+                        "surface_z_m": surface[2],
+                        "surface_normal_x": normal[0],
+                        "surface_normal_y": normal[1],
+                        "surface_normal_z": normal[2],
+                        "distance_to_surface_m": row["distance_to_surface_m"],
+                        "abs_distance_to_surface_m": row["abs_distance_to_surface_m"],
+                        "tcp_z_source": row["tcp_z_source"],
+                    }
+                )
+
+
+def planned_tcp_distance_series(planned_rows: dict[str, list[dict[str, Any]]]) -> dict[str, list[tuple[float, float]]]:
+    return {
+        stage_id: [
+            (float(row["t_s"]), float(row["distance_to_surface_m"]))
+            for row in rows
+        ]
+        for stage_id, rows in planned_rows.items()
+    }
+
+
 def downsample(points: list[tuple[float, float]], *, max_points: int = 240) -> list[tuple[float, float]]:
     if len(points) <= max_points:
         return points
@@ -312,6 +454,8 @@ def write_unsupported_svg(
 def build_tcp_distance_evidence(
     *,
     stage_rows: dict[str, list[dict[str, Any]]],
+    planned_rows: dict[str, list[dict[str, Any]]],
+    planned_csv_path: Path,
     p3_payload: dict[str, Any],
     p2_payload: dict[str, Any],
 ) -> dict[str, Any]:
@@ -354,16 +498,57 @@ def build_tcp_distance_evidence(
             }
         )
 
+    planned_stage_checks: list[dict[str, Any]] = []
+    planned_row_count = 0
+    for stage_id, rows in planned_rows.items():
+        rows_with_distance = sum(1 for row in rows if row.get("distance_to_surface_m") is not None)
+        rows_with_tcp_position = sum(1 for row in rows if row.get("tcp_position_base_m") is not None)
+        rows_with_surface_geometry = sum(
+            1
+            for row in rows
+            if row.get("contact_surface_position_base_m") is not None
+            and row.get("surface_normal_base") is not None
+        )
+        planned_row_count += len(rows)
+        planned_stage_checks.append(
+            {
+                "stage_id": stage_id,
+                "row_count": len(rows),
+                "rows_with_distance_to_surface_m": rows_with_distance,
+                "rows_with_tcp_position_base_m": rows_with_tcp_position,
+                "rows_with_contact_surface_geometry": rows_with_surface_geometry,
+                "supports_tcp_distance_time_series": bool(
+                    rows
+                    and rows_with_distance == len(rows)
+                    and rows_with_tcp_position == len(rows)
+                    and rows_with_surface_geometry == len(rows)
+                ),
+            }
+        )
+    planned_support = bool(planned_stage_checks) and all(
+        check["supports_tcp_distance_time_series"] for check in planned_stage_checks
+    )
+
     rviz_manifest = p3_payload.get("p3_requirement_status", {}).get("rviz_debug_evidence", {})
     p2_gate = p2_payload.get("physical_gazebo_contact_gate", {}) if isinstance(p2_payload.get("physical_gazebo_contact_gate"), dict) else {}
     p2_contact = p2_payload.get("contact_pair_log_evidence", {}) if isinstance(p2_payload.get("contact_pair_log_evidence"), dict) else {}
     return {
         "schema": "ur10e_p6_tcp_distance_evidence_audit_v1",
         "claim_tier": "visual_only",
-        "tcp_distance_time_series_supported": False,
-        "status": "not_supported_missing_same_run_tcp_distance_time_series",
+        "tcp_distance_time_series_supported": planned_support,
+        "status": "supported_planned_path_geometry_only_not_same_run" if planned_support else "not_supported_missing_same_run_tcp_distance_time_series",
+        "support_scope": "planned_path_geometry_only_not_observed_tcp_pose_not_physical_contact",
+        "planned_tcp_distance_csv": rel(planned_csv_path),
+        "planned_tcp_distance_row_count": planned_row_count,
         "required_time_series_fields": required_time_series_fields,
         "candidate_source_audit": [
+            {
+                "source": "step56.build_stage_artifact planned trajectory/contact_phase",
+                "claim_tier": "visual_only",
+                "stage_checks": planned_stage_checks,
+                "supports_p6_tcp_distance": planned_support,
+                "reason": "source-backed planned path geometry provides t_s, base-frame TCP position, contact-surface projection, surface normal, and distance fields; not observed TCP pose or Gazebo contact physics",
+            },
             {
                 "source": "per_stage_simulated_ft_logs",
                 "claim_tier": "simulated_ft",
@@ -387,8 +572,8 @@ def build_tcp_distance_evidence(
                 "reason": "standalone P2 contact pair/wrench evidence has contact position/depth but no per-stage P6 TCP pose time series",
             },
         ],
-        "blocked_claim": "P6 TCP distance-to-surface plot supported; same-run integrated demo readiness; per-stage physical Gazebo contact physics",
-        "downgrade_rule": "Do not infer TCP distance from screenshots, static RViz markers, normal_load, contact_state, or standalone contact depth.",
+        "blocked_claim": "same-run integrated demo readiness; per-stage physical Gazebo contact physics; observed TCP pose; real bench/live contact",
+        "downgrade_rule": "Do not infer observed TCP distance from screenshots, static RViz markers, normal_load, contact_state, standalone contact depth, or planned path geometry.",
     }
 
 
@@ -400,6 +585,8 @@ def write_source_evidence(
     step_payload: dict[str, Any],
     stage_manifest: dict[str, Any],
     stage_rows: dict[str, list[dict[str, Any]]],
+    planned_rows: dict[str, list[dict[str, Any]]],
+    planned_tcp_distance_csv: Path,
 ) -> dict[str, str]:
     evidence_dir = output_dir / "evidence"
     evidence_dir.mkdir(parents=True, exist_ok=True)
@@ -476,6 +663,8 @@ def write_source_evidence(
         json.dumps(
             build_tcp_distance_evidence(
                 stage_rows=stage_rows,
+                planned_rows=planned_rows,
+                planned_csv_path=planned_tcp_distance_csv,
                 p3_payload=p3_payload,
                 p2_payload=p2_payload,
             ),
@@ -514,9 +703,12 @@ def write_bundle(
     p2_payload = load_json(p2_audit_path)
     step_payload = load_json(step_status_audit_path)
     stage_rows = load_stage_rows(stage_manifest)
+    planned_rows = planned_tcp_distance_rows()
 
     combined_csv = data_dir / "p6_per_stage_simulated_ft_combined.csv"
     write_combined_csv(combined_csv, stage_rows)
+    planned_tcp_distance_csv = data_dir / "p6_planned_tcp_distance_to_surface.csv"
+    write_tcp_distance_csv(planned_tcp_distance_csv, planned_rows)
     source_evidence = write_source_evidence(
         output_dir,
         p3_payload=p3_payload,
@@ -524,6 +716,8 @@ def write_bundle(
         step_payload=step_payload,
         stage_manifest=stage_manifest,
         stage_rows=stage_rows,
+        planned_rows=planned_rows,
+        planned_tcp_distance_csv=planned_tcp_distance_csv,
     )
 
     plots = {
@@ -567,13 +761,15 @@ def write_bundle(
             y_min=0.0,
             y_max=0.12,
         ),
-        "tcp_distance_to_surface_vs_time": write_unsupported_svg(
-            plots_dir / "tcp_distance_to_surface_vs_time.unsupported.svg",
-            title="P6 TCP distance to surface vs time",
+        "tcp_distance_to_surface_vs_time": write_svg_plot(
+            plots_dir / "tcp_distance_to_surface_vs_time.svg",
+            title="P6 planned TCP distance to surface vs time",
             y_label="distance_to_surface_m",
             frame_label="base",
             claim_tier="visual_only",
-            reason="no same-run TCP distance-to-surface samples exist in the retained P6 evidence inputs; see tcp_distance_evidence.json",
+            series=planned_tcp_distance_series(planned_rows),
+            y_min=-0.002,
+            y_max=0.02,
         ),
         "gravity_residual": write_unsupported_svg(
             plots_dir / "gravity_residual.unsupported.svg",
@@ -602,6 +798,7 @@ def write_bundle(
         "p2_contact_correlation_audit": rel(p2_audit_path),
         "step_status_rnn_audit": rel(step_status_audit_path),
         "combined_simulated_ft_csv": rel(combined_csv),
+        "planned_tcp_distance_csv": rel(planned_tcp_distance_csv),
         **source_evidence,
     }
     manifest = {
@@ -612,7 +809,7 @@ def write_bundle(
         "fail_closed": True,
         "mode": "offline_cross_run_p6_evidence_bundle_not_full_acceptance",
         "claim_tier": "visual_only",
-        "status": "partial_cross_run_bundle_required_tcp_distance_plot_unsupported",
+        "status": "partial_cross_run_bundle_planned_tcp_distance_supported_not_full_acceptance",
         "same_run_integrated_demo_proven": False,
         "same_run_binding": {
             "visual_rviz_simulated_ft_same_run": False,
