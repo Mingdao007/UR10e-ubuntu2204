@@ -51,6 +51,8 @@ EOAT_VISUAL_LINK = "real_aligned_eoat_visual_stack"
 EOAT_VISUAL_JOINT = "real_aligned_eoat_visual_stack_joint"
 ACTIVE_TCP_FRAME = "base_to_active_tcp"
 TOOL0_FRAME = "base_to_tool0"
+GAZEBO_WORLD_FRAME = "gazebo_world"
+BASE_TO_GAZEBO_WORLD_RPY = (0.0, 0.0, math.pi)
 ACTIVE_TCP_OFFSET_TOOL0_M = (
     0.0000018186503701174852,
     0.00000022293003722353485,
@@ -266,6 +268,13 @@ def tool0_pose_for_active_tcp_target(rotation: Any, active_tcp_xyz_m: Any) -> An
     return pin.SE3(rotation, active_tcp_xyz - offset_base)
 
 
+def gazebo_world_xyz_from_base_xyz(base_xyz_m: Any) -> tuple[float, float, float]:
+    values = [float(value) for value in base_xyz_m]
+    if len(values) != 3:
+        raise ValueError(f"expected xyz vector with 3 values, got {len(values)}")
+    return (-values[0], -values[1], values[2])
+
+
 def build_model_composition_audit(robot_description: str | None = None) -> dict[str, Any]:
     text = robot_description if robot_description is not None else generate_sim_robot_description()
     root = ET.fromstring(text)
@@ -305,6 +314,8 @@ def build_model_composition_audit(robot_description: str | None = None) -> dict[
         "tcp_visual_link_present": tcp_visual_link_present,
         "redundant_tcp_marker_policy": "removed_from_generated_robot_description; active TCP marker is part of EOAT visual stack and optional external marker follows base_T_active_tcp",
         "active_tcp_offset_tool0_m": list(ACTIVE_TCP_OFFSET_TOOL0_M),
+        "gazebo_world_frame": GAZEBO_WORLD_FRAME,
+        "base_to_gazebo_world_rpy": list(BASE_TO_GAZEBO_WORLD_RPY),
         "force_contact_source": FORCE_CONTACT_SOURCE,
         "force_contact_physics_proven": FORCE_CONTACT_PHYSICS_PROVEN,
         "links": links,
@@ -1076,6 +1087,7 @@ def write_stage_summary(
 
 def observer_visual_criteria(row: dict[str, Any]) -> dict[str, bool]:
     marker_source = str(row.get("marker_pose_source") or row.get("pose_source") or "")
+    pose_frame = str(row.get("pose_frame") or row.get("marker_pose_frame") or "")
     clean_capture = bool(row.get("clean_scene_capture") or row.get("obstructive_ui_panels_absent"))
     criteria = {
         "gui_evidence_captured": bool(row.get("gui_evidence_captured")),
@@ -1084,7 +1096,8 @@ def observer_visual_criteria(row: dict[str, Any]) -> dict[str, bool]:
         "active_tcp_marker_visible": bool(row.get("tcp_marker_visible")),
         "surface_path_visible": bool(row.get("surface_path_visible")),
         "robot_tool_surface_relation_visible": bool(row.get("robot_tool_surface_relation_visible")),
-        "active_tcp_pose_source_valid": marker_source == "joint_states_to_runner_fk_active_tcp_base",
+        "active_tcp_pose_source_valid": marker_source == "joint_states_to_runner_fk_active_tcp_base_to_gazebo_world",
+        "active_tcp_pose_frame_valid": pose_frame == GAZEBO_WORLD_FRAME,
         "clean_scene_capture": clean_capture,
     }
     if row.get("view") == "context_overview":

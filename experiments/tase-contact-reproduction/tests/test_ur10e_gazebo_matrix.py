@@ -122,8 +122,9 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
                 for value in surface.findtext("./link/collision/geometry/box/size").split()
             ]
             last = gazebo.build_reference_rows("step5b")[-1]
-            self.assertLessEqual(abs(last.x_m - pose[0]), 0.5 * size[0])
-            self.assertLessEqual(abs(last.y_m - pose[1]), 0.5 * size[1])
+            last_world = gazebo.gazebo_world_xyz_from_base_xyz((last.x_m, last.y_m, last.z_m))
+            self.assertLessEqual(abs(last_world[0] - pose[0]), 0.5 * size[0])
+            self.assertLessEqual(abs(last_world[1] - pose[1]), 0.5 * size[1])
 
     def test_stage_visual_world_manifest_and_sdf_for_all_stages(self) -> None:
         base_world = WORKSPACE / "src" / "ur10e_example_controllers" / "worlds" / "step5_table_world.sdf"
@@ -150,8 +151,16 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
                     self.assertTrue(manifest["path_inside_surface_xy"])
                     self.assertEqual(manifest["force_loop_expected"], stage_id in contact_stage_ids)
                     self.assertEqual(manifest["active_tcp_reference_frame"], gazebo.ACTIVE_TCP_FRAME)
+                    self.assertEqual(manifest["surface_frame"], gazebo.GAZEBO_WORLD_FRAME)
                     self.assertEqual(manifest["tool_frame"], gazebo.TOOL0_FRAME)
+                    self.assertEqual(manifest["base_to_gazebo_world_rpy"], list(gazebo.BASE_TO_GAZEBO_WORLD_RPY))
+                    self.assertEqual(manifest["final_visual_pose_world"]["frame"], gazebo.GAZEBO_WORLD_FRAME)
                     bounds = manifest["path_bounds_xy_m"]
+                    base_bounds = manifest["path_bounds_base_xy_m"]
+                    self.assertAlmostEqual(bounds["min_x_m"], -base_bounds["max_x_m"])
+                    self.assertAlmostEqual(bounds["max_x_m"], -base_bounds["min_x_m"])
+                    self.assertAlmostEqual(bounds["min_y_m"], -base_bounds["max_y_m"])
+                    self.assertAlmostEqual(bounds["max_y_m"], -base_bounds["min_y_m"])
                     surface = manifest["surface"]
                     self.assertAlmostEqual(surface["top_z_m"], surface["z_m"] + 0.5 * surface["size_z_m"])
                     self.assertLessEqual(bounds["min_x_m"], surface["max_x_m"])
@@ -163,10 +172,14 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
                     self.assertEqual(sanity["approach_dot_reaction"], -1.0)
                     if stage_id in contact_stage_ids:
                         self.assertIsNotNone(manifest["contact_target_pose_base"])
+                        self.assertIsNotNone(manifest["contact_target_pose_world"])
+                        self.assertEqual(manifest["contact_target_pose_world"]["frame"], gazebo.GAZEBO_WORLD_FRAME)
                         self.assertTrue(sanity["contact_target_xy_inside_surface"])
+                        self.assertTrue(sanity["contact_target_world_xy_inside_surface"])
                         self.assertAlmostEqual(sanity["contact_target_z_minus_surface_top_m"], 0.0)
                     else:
                         self.assertIsNone(manifest["contact_target_pose_base"])
+                        self.assertIsNone(manifest["contact_target_pose_world"])
                         self.assertIsNone(sanity["contact_target_xy_inside_surface"])
 
     def test_tcp_marker_model_sdf_is_non_colliding_and_high_contrast(self) -> None:
@@ -185,9 +198,16 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             joint_positions = [float(final[f"command_{name}_rad"]) for name in gazebo.JOINT_NAMES]
             marker_pose = tcp_marker.marker_pose_from_joint_positions(joint_positions)
             self.assertEqual(final["commanded_fk_frame"], gazebo.ACTIVE_TCP_FRAME)
-            self.assertAlmostEqual(marker_pose.x_m, float(final["commanded_active_tcp_x_m"]), places=6)
-            self.assertAlmostEqual(marker_pose.y_m, float(final["commanded_active_tcp_y_m"]), places=6)
-            self.assertAlmostEqual(marker_pose.z_m, float(final["commanded_active_tcp_z_m"]), places=6)
+            expected_world = gazebo.gazebo_world_xyz_from_base_xyz(
+                (
+                    float(final["commanded_active_tcp_x_m"]),
+                    float(final["commanded_active_tcp_y_m"]),
+                    float(final["commanded_active_tcp_z_m"]),
+                )
+            )
+            self.assertAlmostEqual(marker_pose.x_m, expected_world[0], places=6)
+            self.assertAlmostEqual(marker_pose.y_m, expected_world[1], places=6)
+            self.assertAlmostEqual(marker_pose.z_m, expected_world[2], places=6)
             active_minus_tool0_m = (
                 sum(
                     (
@@ -244,8 +264,10 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             self.assertEqual(payload["schema"], "ur10e_gazebo_tcp_marker_manifest_v2")
             self.assertEqual(payload["stage_id"], "step5b")
             self.assertEqual(payload["pose_source"], "unit_test_fk")
-            self.assertEqual(payload["pose_frame"], gazebo.ACTIVE_TCP_FRAME)
+            self.assertEqual(payload["pose_frame"], gazebo.GAZEBO_WORLD_FRAME)
+            self.assertEqual(payload["source_frame"], gazebo.ACTIVE_TCP_FRAME)
             self.assertEqual(payload["tool_frame"], gazebo.TOOL0_FRAME)
+            self.assertEqual(payload["base_to_gazebo_world_rpy"], list(gazebo.BASE_TO_GAZEBO_WORLD_RPY))
             self.assertEqual(payload["active_tcp_offset_tool0_m"], list(gazebo.ACTIVE_TCP_OFFSET_TOOL0_M))
             self.assertEqual(payload["model_name"], "active_tcp_marker")
             self.assertEqual(payload["pose_count"], 1)
@@ -319,7 +341,23 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
         self.assertFalse(payload["observer_visual_pass"])
         self.assertIn("robot_tool_surface_relation_visible", payload["observer_visual_failure_reasons"])
         self.assertIn("active_tcp_pose_source_valid", payload["observer_visual_failure_reasons"])
+        self.assertIn("active_tcp_pose_frame_valid", payload["observer_visual_failure_reasons"])
         self.assertIn("clean_scene_capture", payload["observer_visual_failure_reasons"])
+
+    def test_observer_visual_gate_rejects_missing_pose_frame(self) -> None:
+        row = {
+            "gui_evidence_captured": True,
+            "robot_posture_visible": True,
+            "eoat_tooling_visible": True,
+            "tcp_marker_visible": True,
+            "surface_path_visible": True,
+            "robot_tool_surface_relation_visible": True,
+            "pose_source": tcp_marker.POSE_SOURCE_ACTIVE_TCP,
+            "clean_scene_capture": True,
+        }
+        payload = gazebo.populate_observer_visual_pass(row)
+        self.assertFalse(payload["observer_visual_pass"])
+        self.assertIn("active_tcp_pose_frame_valid", payload["observer_visual_failure_reasons"])
 
     def test_observer_visual_gate_accepts_active_tcp_eoat_clean_relation_row(self) -> None:
         row = {
@@ -330,6 +368,7 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             "surface_path_visible": True,
             "robot_tool_surface_relation_visible": True,
             "pose_source": tcp_marker.POSE_SOURCE_ACTIVE_TCP,
+            "pose_frame": gazebo.GAZEBO_WORLD_FRAME,
             "clean_scene_capture": True,
         }
         payload = gazebo.populate_observer_visual_pass(row)

@@ -31,7 +31,7 @@ DEFAULT_WORLD_NAME = "ur10e_step5_table_world"
 DEFAULT_MODEL_NAME = "active_tcp_marker"
 DEFAULT_UPDATE_PERIOD_S = 0.10
 DEFAULT_SERVICE_TIMEOUT_MS = 1000
-POSE_SOURCE_ACTIVE_TCP = "joint_states_to_runner_fk_active_tcp_base"
+POSE_SOURCE_ACTIVE_TCP = "joint_states_to_runner_fk_active_tcp_base_to_gazebo_world"
 
 
 @dataclass(frozen=True)
@@ -145,7 +145,7 @@ def marker_pose_from_joint_positions(
         raise ValueError(f"expected {len(JOINT_NAMES)} joint positions, got {len(joint_positions)}")
     bundle = model_bundle if model_bundle is not None else _model_bundle()
     fk = fk_tool0_base(bundle, np.array([float(value) for value in joint_positions], dtype=float))
-    active_tcp_xyz = runner.active_tcp_xyz_from_tool0_pose(fk)
+    active_tcp_xyz = runner.gazebo_world_xyz_from_base_xyz(runner.active_tcp_xyz_from_tool0_pose(fk))
     return MarkerPose(
         t_s=float(t_s),
         x_m=float(active_tcp_xyz[0]),
@@ -188,8 +188,10 @@ def write_marker_artifacts(
         "world_name": world_name,
         "model_name": model_name,
         "pose_source": pose_source,
-        "pose_frame": runner.ACTIVE_TCP_FRAME,
+        "pose_frame": runner.GAZEBO_WORLD_FRAME,
+        "source_frame": runner.ACTIVE_TCP_FRAME,
         "tool_frame": runner.TOOL0_FRAME,
+        "base_to_gazebo_world_rpy": list(runner.BASE_TO_GAZEBO_WORLD_RPY),
         "active_tcp_offset_tool0_m": list(runner.ACTIVE_TCP_OFFSET_TOOL0_M),
         "pose_count": len(pose_records),
         "trace_path": str(trace_path),
