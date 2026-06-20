@@ -208,13 +208,19 @@ def _sample_from_row(row: dict[str, Any], *, sequence: int) -> contract.Canonica
     reaction_normal = _vec3(row.get("normal") or [0.0, 0.0, 1.0], label="normal")
     if _dot3(force, reaction_normal) <= 0.0:
         return None
-    flags = (
+    flags = [
         "gazebo_contact_wrench_adapter",
         str(native_payload["source"]),
         str(native_payload["source_schema"]),
         "frame_transform_evidence_provided",
         str(row.get("normal_source") or "normal_source_unspecified"),
-    )
+        "single_contact_point_wrench_sample",
+        "total_contact_wrench_not_proven",
+    ]
+    if native_payload.get("raw_wrench_count") is not None:
+        flags.append(f"raw_gazebo_contact_wrench_count={native_payload['raw_wrench_count']}")
+    if native_payload.get("raw_wrench_index") is not None:
+        flags.append(f"raw_gazebo_contact_wrench_index={native_payload['raw_wrench_index']}")
     return contract.CanonicalWrenchSample(
         stamp_s=float(native_payload["wrench_stamp_s"]),
         frame_id="base",
@@ -227,7 +233,7 @@ def _sample_from_row(row: dict[str, Any], *, sequence: int) -> contract.Canonica
         baseline_policy=str(native_payload["baseline_policy"]),
         latency_s=0.0,
         stale_after_s=0.1,
-        diagnostic_flags=flags,
+        diagnostic_flags=tuple(flags),
         sequence=sequence,
         contact_state="contact",
         reaction_normal=reaction_normal,
@@ -275,13 +281,16 @@ def build_wrench_trace_or_report(
         "claim_tier": PHYSICAL_GAZEBO_CLAIM_TIER if trace else BLOCKED_CLAIM_TIER,
         "target_claim_tier": PHYSICAL_GAZEBO_CLAIM_TIER,
         "allowed_claim": (
-            "physical Gazebo collision/contact physics with native gazebo_contact wrench correlation"
+            "physical Gazebo collision/contact physics with native gazebo_contact single contact-point wrench correlation"
             if trace
             else "visual_only blocked/not_proven; contact pair evidence cannot be upgraded into force evidence"
         ),
         "forbidden_claim": (
-            "real bench/live contact; simulated_ft; inferred force from contact position/normal/depth"
+            "real bench/live contact; simulated_ft; inferred force from contact position/normal/depth; "
+            "total contact wrench across all Gazebo contact points"
         ),
+        "wrench_aggregation_policy": "single_native_contact_point_wrench_sample_no_total_contact_wrench_claim",
+        "total_contact_wrench_proven": False,
         "force_source": contract.SOURCE_GAZEBO_CONTACT if trace else None,
         "native_wrench_source_class": contract.SOURCE_GAZEBO_CONTACT if native_wrench_row_count > 0 else None,
         "source_topic": source_topic,

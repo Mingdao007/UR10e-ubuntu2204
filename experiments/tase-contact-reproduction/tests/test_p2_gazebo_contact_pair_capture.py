@@ -20,6 +20,7 @@ import build_p2_contact_correlation_audit as contact_audit  # noqa: E402
 import build_p2_eoat_collision_inventory as p2_inventory  # noqa: E402
 import build_gazebo_contact_wrench_trace as wrench_adapter  # noqa: E402
 import capture_p2_gazebo_contact_pair_log as capture  # noqa: E402
+import verify_p2_gz_contact_wrench_evidence as gz_wrench_verifier  # noqa: E402
 from ur10e_example_controllers import canonical_wrench_contract as contract  # noqa: E402
 
 
@@ -98,6 +99,102 @@ def _raw_gz_contacts_json_line_with_native_wrench() -> str:
                             },
                             "body2Wrench": {
                                 "force": {"x": 0.0, "y": 0.0, "z": -0.4905},
+                                "torque": {"x": 0.0, "y": 0.0, "z": 0.0},
+                            },
+                        }
+                    ],
+                }
+            ],
+        }
+    )
+
+
+def _raw_gz_eoat_sensor_contacts_json_line_with_native_wrench() -> str:
+    return json.dumps(
+        {
+            "header": {"stamp": {"sec": "5", "nsec": 250000000}},
+            "contact": [
+                {
+                    "header": {"stamp": {"sec": "5", "nsec": 250000000}},
+                    "collision1": {
+                        "name": "real_aligned_eoat_visual_stack::eoat_contact_pad_link::eoat_contact_pad_collision"
+                    },
+                    "collision2": {"name": "step5_contact_surface::surface::collision"},
+                    "position": [{"x": 0.0, "y": 0.0, "z": 0.01}],
+                    "normal": [{"x": 0.0, "y": 0.0, "z": 1.0}],
+                    "depth": [1.57e-08],
+                    "wrench": [
+                        {
+                            "body1Wrench": {
+                                "force": {"x": 0.0, "y": 0.0, "z": 0.4905},
+                                "torque": {"x": 0.0, "y": 0.0, "z": 0.0},
+                            },
+                            "body2Wrench": {
+                                "force": {"x": 0.0, "y": 0.0, "z": -0.4905},
+                                "torque": {"x": 0.0, "y": 0.0, "z": 0.0},
+                            },
+                        }
+                    ],
+                }
+            ],
+        }
+    )
+
+
+def _raw_gz_eoat_sensor_contacts_json_line_with_strong_native_wrench() -> str:
+    return json.dumps(
+        {
+            "header": {"stamp": {"sec": "5", "nsec": 250000000}},
+            "contact": [
+                {
+                    "header": {"stamp": {"sec": "5", "nsec": 250000000}},
+                    "collision1": {
+                        "name": "real_aligned_eoat_visual_stack::eoat_contact_pad_link::eoat_contact_pad_collision"
+                    },
+                    "collision2": {"name": "step5_contact_surface::surface::collision"},
+                    "position": [{"x": 0.0, "y": 0.0, "z": 0.01}],
+                    "normal": [{"x": 0.0, "y": 0.0, "z": 1.0}],
+                    "depth": [0.001],
+                    "wrench": [
+                        {
+                            "body1Wrench": {
+                                "force": {"x": 0.0, "y": 0.0, "z": 2.1},
+                                "torque": {"x": 0.0, "y": 0.0, "z": 0.0},
+                            },
+                            "body2Wrench": {
+                                "force": {"x": 0.0, "y": 0.0, "z": -2.1},
+                                "torque": {"x": 0.0, "y": 0.0, "z": 0.0},
+                            },
+                        }
+                    ],
+                }
+            ],
+        }
+    )
+
+
+def _raw_gz_surface_sensor_contacts_json_line_with_strong_native_wrench() -> str:
+    return json.dumps(
+        {
+            "header": {"stamp": {"sec": "5", "nsec": 250000000}},
+            "contact": [
+                {
+                    "header": {"stamp": {"sec": "5", "nsec": 250000000}},
+                    "collision1": {"name": "step5_contact_surface::surface::collision"},
+                    "collision2": {
+                        "name": "real_aligned_eoat_visual_stack::eoat_contact_pad_link::eoat_contact_pad_collision"
+                    },
+                    "position": [{"x": 0.0, "y": 0.0, "z": 0.01}],
+                    "normal": [{"x": 0.0, "y": 0.0, "z": 1.0}],
+                    "depth": [0.001],
+                    "wrench": [
+                        {
+                            "body1Wrench": {
+                                "force": {"x": 0.0, "y": 0.0, "z": 2.1},
+                                "torque": {"x": 0.0, "y": 0.0, "z": 0.0},
+                            },
+                            "body2Wrench": {
+                                "force": {"x": 0.0, "y": 0.0, "z": -2.1},
                                 "torque": {"x": 0.0, "y": 0.0, "z": 0.0},
                             },
                         }
@@ -194,6 +291,67 @@ def _simulated_ft_force_embedded_in_contact_pair_log() -> dict[str, object]:
     return payload
 
 
+def _write_json(path: Path, payload: dict[str, object]) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return path
+
+
+def _gz_contact_payloads_for_verifier(tmp_path: Path, *, include_base_frame: bool = True) -> tuple[Path, Path, Path]:
+    contact_world = tmp_path / "contact" / "p2_contact_witness.sdf"
+    surface_world = tmp_path / "surface" / "p2_contact_witness.sdf"
+    baseline_world = tmp_path / "baseline" / "p2_contact_witness.sdf"
+    capture.write_contact_witness_world(contact_world, sensor_collision_role="eoat", include_base_frame=include_base_frame)
+    capture.write_contact_witness_world(surface_world, sensor_collision_role="surface", include_base_frame=include_base_frame)
+    capture.write_contact_witness_world(
+        baseline_world,
+        sensor_collision_role="eoat",
+        eoat_static=True,
+        eoat_pose_z=0.2,
+        include_base_frame=include_base_frame,
+    )
+
+    eoat_payload = capture.contact_pair_log_from_json_lines(
+        [_raw_gz_eoat_sensor_contacts_json_line_with_strong_native_wrench()],
+        topic=capture.DEFAULT_CONTACT_TOPIC,
+        world_path=str(contact_world),
+        raw_jsonl_path=str(tmp_path / "contact" / "contact_topic_stdout.jsonl"),
+        transport="gz",
+        sensor_collision_role="eoat",
+    )
+    surface_payload = capture.contact_pair_log_from_json_lines(
+        [_raw_gz_surface_sensor_contacts_json_line_with_strong_native_wrench()],
+        topic=capture.DEFAULT_CONTACT_TOPIC,
+        world_path=str(surface_world),
+        raw_jsonl_path=str(tmp_path / "surface" / "contact_topic_stdout.jsonl"),
+        transport="gz",
+        sensor_collision_role="surface",
+    )
+    baseline_raw = tmp_path / "baseline" / "contact_topic_stdout.jsonl"
+    baseline_raw.parent.mkdir(parents=True, exist_ok=True)
+    baseline_raw.write_text("", encoding="utf-8")
+    baseline_payload = capture.contact_pair_log_from_json_lines(
+        [],
+        topic=capture.DEFAULT_CONTACT_TOPIC,
+        world_path=str(baseline_world),
+        raw_jsonl_path=str(baseline_raw),
+        transport="gz",
+        sensor_collision_role="eoat",
+        baseline_mode="no_contact_static_elevated_eoat",
+    )
+    baseline_payload["capture"] = {
+        "allow_no_messages": True,
+        "topic_timeout_expired": True,
+        "eoat_static": True,
+        "eoat_pose_z": 0.2,
+    }
+
+    eoat_path = _write_json(tmp_path / "contact" / "p2_gazebo_contact_pair_log.json", eoat_payload)
+    surface_path = _write_json(tmp_path / "surface" / "p2_gazebo_contact_pair_log.json", surface_payload)
+    baseline_path = _write_json(tmp_path / "baseline" / "p2_gazebo_contact_pair_log.json", baseline_payload)
+    return eoat_path, surface_path, baseline_path
+
+
 class P2GazeboContactPairCaptureTest(unittest.TestCase):
     def test_contact_witness_world_contains_expected_collision_sensor_names(self) -> None:
         with tempfile.TemporaryDirectory(prefix="p2_contact_world_test_") as tmp:
@@ -207,6 +365,15 @@ class P2GazeboContactPairCaptureTest(unittest.TestCase):
         self.assertIn("step5_contact_surface", source)
         self.assertIn("p2_contact_pair_sensor", source)
         self.assertIn(capture.DEFAULT_CONTACT_TOPIC, source)
+
+    def test_contact_witness_world_can_place_sensor_on_eoat_collision(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="p2_contact_world_test_") as tmp:
+            world = Path(tmp) / "p2_contact_witness.sdf"
+            capture.write_contact_witness_world(world, sensor_collision_role="eoat")
+            source = world.read_text(encoding="utf-8")
+
+        self.assertIn("<collision>eoat_contact_pad_collision</collision>", source)
+        self.assertNotIn("<collision>collision</collision>", source)
 
     def test_contact_witness_world_validates_with_ign_sdf(self) -> None:
         with tempfile.TemporaryDirectory(prefix="p2_contact_world_test_") as tmp:
@@ -238,6 +405,7 @@ class P2GazeboContactPairCaptureTest(unittest.TestCase):
 
         self.assertEqual(payload["schema"], "ur10e_gazebo_contact_pair_log_v1")
         self.assertEqual(payload["source"], "gazebo_contact_sensor_topic")
+        self.assertEqual(payload["sensor_collision_role"], "surface")
         self.assertEqual(payload["claim_tier"], "visual_only")
         self.assertEqual(payload["topic"], capture.DEFAULT_CONTACT_TOPIC)
         self.assertEqual(payload["row_count"], 1)
@@ -281,11 +449,13 @@ class P2GazeboContactPairCaptureTest(unittest.TestCase):
             world_path="/tmp/p2_contact_witness.sdf",
             raw_jsonl_path="/tmp/topic_stdout.jsonl",
             transport="gz",
+            sensor_collision_role="eoat",
         )
 
         row = payload["rows"][0]
         native = row["native_gazebo_contact_wrench"]
         self.assertEqual(payload["sim_transport"], "gz")
+        self.assertEqual(payload["sensor_collision_role"], "eoat")
         self.assertEqual(row["normal_source"], "gazebo_contact_message_normal")
         self.assertEqual(row["depth_m"], 1.57e-08)
         self.assertEqual(native["source_schema"], "gz.msgs.Contact.contact.wrench")
@@ -300,6 +470,25 @@ class P2GazeboContactPairCaptureTest(unittest.TestCase):
         self.assertTrue(native["wrench_stamp_evidence"])
         self.assertEqual(native["frame_id"], "gazebo_contact_message_native_frame")
         self.assertEqual(native["status"], "raw_untransformed")
+
+    def test_gz_eoat_sensor_contacts_select_body1_positive_normal_wrench(self) -> None:
+        payload = capture.contact_pair_log_from_json_lines(
+            [_raw_gz_eoat_sensor_contacts_json_line_with_native_wrench()],
+            topic=capture.DEFAULT_CONTACT_TOPIC,
+            world_path="/tmp/p2_contact_witness.sdf",
+            raw_jsonl_path="/tmp/topic_stdout.jsonl",
+            transport="gz",
+            sensor_collision_role="eoat",
+        )
+
+        row = payload["rows"][0]
+        native = row["native_gazebo_contact_wrench"]
+        self.assertEqual(row["collision1"], "real_aligned_eoat_visual_stack::eoat_contact_pad_link::eoat_contact_pad_collision")
+        self.assertEqual(native["selected_body"], "body_1_wrench")
+        self.assertEqual(native["selected_body_field"], "body1Wrench")
+        self.assertEqual(native["selected_body_collision"], "collision1")
+        self.assertEqual(native["force_n"], [0.0, 0.0, 0.4905])
+        self.assertGreater(native["selected_force_dot_contact_normal_n"], 0.0)
 
     def test_contact_pair_log_feeds_p2_audit_but_does_not_close_wrench_gate(self) -> None:
         contact_payload = capture.contact_pair_log_from_json_lines(
@@ -473,6 +662,13 @@ class P2GazeboContactPairCaptureTest(unittest.TestCase):
         self.assertEqual(trace["rows"][0]["status"], "valid")
         self.assertEqual(trace["rows"][0]["contact_state"], "contact")
         self.assertEqual(trace["rows"][0]["normal_load_n"], 2.1)
+        self.assertFalse(payload["total_contact_wrench_proven"])
+        self.assertEqual(
+            payload["wrench_aggregation_policy"],
+            "single_native_contact_point_wrench_sample_no_total_contact_wrench_claim",
+        )
+        self.assertIn("single_contact_point_wrench_sample", trace["rows"][0]["diagnostic_flags"])
+        self.assertIn("total_contact_wrench_not_proven", trace["rows"][0]["diagnostic_flags"])
 
     def test_verified_gazebo_wrench_trace_can_close_correlation_gate(self) -> None:
         adapter_payload = wrench_adapter.build_wrench_trace_or_report(
@@ -489,6 +685,169 @@ class P2GazeboContactPairCaptureTest(unittest.TestCase):
         self.assertTrue(audit["physical_gazebo_contact_gate"]["contact_pair_log_evidence"])
         self.assertTrue(audit["physical_gazebo_contact_gate"]["wrench_contact_correlation"])
         self.assertTrue(audit["physical_gazebo_contact_gate"]["force_contact_physics_proven"])
+
+    def test_gz_eoat_wrench_verifier_builds_adapter_ready_physical_trace(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="p2_gz_wrench_verifier_test_") as tmp:
+            tmp_path = Path(tmp)
+            eoat_path, surface_path, baseline_path = _gz_contact_payloads_for_verifier(tmp_path)
+            report_path = gz_wrench_verifier.write_verified_contact_pair_or_report(
+                tmp_path / "verified",
+                eoat_contact_pair_path=eoat_path,
+                surface_contact_pair_path=surface_path,
+                baseline_contact_pair_path=baseline_path,
+                generated_at="2026-06-21T07:05:00+08:00",
+            )
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            verified_path = Path(report["outputs"]["verified_contact_pair_path"])
+            cross_check = json.loads(Path(report["outputs"]["cross_check_path"]).read_text(encoding="utf-8"))
+            verified_payload = json.loads(verified_path.read_text(encoding="utf-8"))
+            adapter_payload = wrench_adapter.build_wrench_trace_or_report(
+                verified_payload,
+                generated_at="2026-06-21T07:05:00+08:00",
+            )
+            audit = contact_audit.build_audit(
+                p2_inventory_payload=p2_inventory.build_inventory(generated_at="2026-06-21T07:05:00+08:00"),
+                wrench_payload=adapter_payload,
+                contact_pair_payload=verified_payload,
+                generated_at="2026-06-21T07:05:00+08:00",
+            )
+
+        self.assertEqual(report["claim_tier"], "physical Gazebo collision/contact physics")
+        self.assertEqual(report["verified_row_count"], 1)
+        self.assertEqual(report["blockers"], [])
+        self.assertTrue(
+            report["claim_boundary_gate"][
+                "surface_eoat_cross_check_is_cross_run_repeatability_not_concurrent_observation"
+            ]
+        )
+        self.assertFalse(report["claim_boundary_gate"]["total_contact_wrench_proven"])
+        self.assertEqual(cross_check["comparison_scope"], "cross_run_deterministic_repeatability")
+        self.assertFalse(cross_check["same_run_concurrent_observation"])
+        self.assertEqual(verified_payload["rows"][0]["native_gazebo_contact_wrench"]["frame_id"], "base")
+        self.assertEqual(
+            verified_payload["rows"][0]["native_gazebo_contact_wrench"]["baseline_policy"],
+            "gazebo_contact_zero_no_contact_baseline",
+        )
+        self.assertEqual(
+            verified_payload["rows"][0]["native_gazebo_contact_wrench"]["wrench_aggregation_policy"],
+            "single_contact_point_wrench_no_total_contact_wrench_claim",
+        )
+        self.assertTrue(adapter_payload["trace_written"])
+        self.assertEqual(adapter_payload["claim_tier"], "physical Gazebo collision/contact physics")
+        self.assertFalse(adapter_payload["total_contact_wrench_proven"])
+        self.assertTrue(audit["physical_gazebo_contact_gate"]["force_contact_physics_proven"])
+
+    def test_gz_eoat_wrench_verifier_blocks_when_base_frame_is_not_geometric(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="p2_gz_wrench_verifier_test_") as tmp:
+            tmp_path = Path(tmp)
+            eoat_path, surface_path, baseline_path = _gz_contact_payloads_for_verifier(
+                tmp_path,
+                include_base_frame=False,
+            )
+            report_path = gz_wrench_verifier.write_verified_contact_pair_or_report(
+                tmp_path / "verified",
+                eoat_contact_pair_path=eoat_path,
+                surface_contact_pair_path=surface_path,
+                baseline_contact_pair_path=baseline_path,
+                generated_at="2026-06-21T07:05:00+08:00",
+            )
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(report["claim_tier"], "visual_only")
+        self.assertIsNone(report["outputs"]["verified_contact_pair_path"])
+        self.assertIn("missing_ur10e_base_frame_model", report["blockers"])
+
+    def test_gz_eoat_wrench_verifier_blocks_without_independent_baseline(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="p2_gz_wrench_verifier_test_") as tmp:
+            tmp_path = Path(tmp)
+            eoat_path, surface_path, baseline_path = _gz_contact_payloads_for_verifier(tmp_path)
+            baseline_payload = json.loads(baseline_path.read_text(encoding="utf-8"))
+            baseline_payload["baseline_mode"] = None
+            baseline_path.write_text(json.dumps(baseline_payload, indent=2), encoding="utf-8")
+            report_path = gz_wrench_verifier.write_verified_contact_pair_or_report(
+                tmp_path / "verified",
+                eoat_contact_pair_path=eoat_path,
+                surface_contact_pair_path=surface_path,
+                baseline_contact_pair_path=baseline_path,
+                generated_at="2026-06-21T07:05:00+08:00",
+            )
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(report["claim_tier"], "visual_only")
+        self.assertIsNone(report["outputs"]["verified_contact_pair_path"])
+        self.assertIn("baseline_mode_not_no_contact_static_elevated_eoat", report["blockers"])
+
+    def test_gz_eoat_wrench_verifier_blocks_missing_baseline_raw_log_without_crashing(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="p2_gz_wrench_verifier_test_") as tmp:
+            tmp_path = Path(tmp)
+            eoat_path, surface_path, baseline_path = _gz_contact_payloads_for_verifier(tmp_path)
+            baseline_payload = json.loads(baseline_path.read_text(encoding="utf-8"))
+            baseline_payload["raw_jsonl_path"] = str(tmp_path / "baseline" / "missing_raw.jsonl")
+            baseline_path.write_text(json.dumps(baseline_payload, indent=2), encoding="utf-8")
+            report_path = gz_wrench_verifier.write_verified_contact_pair_or_report(
+                tmp_path / "verified",
+                eoat_contact_pair_path=eoat_path,
+                surface_contact_pair_path=surface_path,
+                baseline_contact_pair_path=baseline_path,
+                generated_at="2026-06-21T07:05:00+08:00",
+            )
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(report["claim_tier"], "visual_only")
+        self.assertIsNone(report["outputs"]["verified_contact_pair_path"])
+        self.assertIn("baseline_raw_topic_log_not_empty", report["blockers"])
+
+    def test_gz_eoat_wrench_verifier_blocks_surface_eoat_cross_check_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="p2_gz_wrench_verifier_test_") as tmp:
+            tmp_path = Path(tmp)
+            eoat_path, surface_path, baseline_path = _gz_contact_payloads_for_verifier(tmp_path)
+            surface_payload = json.loads(surface_path.read_text(encoding="utf-8"))
+            surface_payload["rows"][0]["native_gazebo_contact_wrench"]["other_force_n"] = [0.0, 0.0, 99.0]
+            surface_path.write_text(json.dumps(surface_payload, indent=2), encoding="utf-8")
+            report_path = gz_wrench_verifier.write_verified_contact_pair_or_report(
+                tmp_path / "verified",
+                eoat_contact_pair_path=eoat_path,
+                surface_contact_pair_path=surface_path,
+                baseline_contact_pair_path=baseline_path,
+                generated_at="2026-06-21T07:05:00+08:00",
+            )
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(report["claim_tier"], "visual_only")
+        self.assertIsNone(report["outputs"]["verified_contact_pair_path"])
+        self.assertIn("no_verified_eoat_contact_wrench_rows", report["blockers"])
+        self.assertIn("eoat_body1_not_matching_surface_body1", report["rejected_rows"][0]["blockers"])
+
+    def test_gz_eoat_wrench_verifier_filters_below_floor_rows_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="p2_gz_wrench_verifier_test_") as tmp:
+            tmp_path = Path(tmp)
+            eoat_path, surface_path, baseline_path = _gz_contact_payloads_for_verifier(tmp_path)
+            eoat_payload = json.loads(eoat_path.read_text(encoding="utf-8"))
+            weak_payload = capture.contact_pair_log_from_json_lines(
+                [_raw_gz_eoat_sensor_contacts_json_line_with_native_wrench()],
+                topic=capture.DEFAULT_CONTACT_TOPIC,
+                world_path=eoat_payload["world_path"],
+                raw_jsonl_path=eoat_payload["raw_jsonl_path"],
+                transport="gz",
+                sensor_collision_role="eoat",
+            )
+            eoat_payload["rows"].extend(weak_payload["rows"])
+            eoat_payload["row_count"] = len(eoat_payload["rows"])
+            eoat_path.write_text(json.dumps(eoat_payload, indent=2), encoding="utf-8")
+            report_path = gz_wrench_verifier.write_verified_contact_pair_or_report(
+                tmp_path / "verified",
+                eoat_contact_pair_path=eoat_path,
+                surface_contact_pair_path=surface_path,
+                baseline_contact_pair_path=baseline_path,
+                generated_at="2026-06-21T07:05:00+08:00",
+            )
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            verified_payload = json.loads(Path(report["outputs"]["verified_contact_pair_path"]).read_text(encoding="utf-8"))
+
+        self.assertEqual(report["claim_tier"], "physical Gazebo collision/contact physics")
+        self.assertEqual(report["verified_row_count"], 1)
+        self.assertEqual(verified_payload["row_count"], 1)
+        self.assertIn("normal_load_below_floor", report["rejected_rows"][0]["blockers"])
 
 
 if __name__ == "__main__":

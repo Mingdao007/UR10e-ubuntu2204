@@ -64,6 +64,9 @@ def _wrench_trace(payload: dict[str, Any] | None) -> dict[str, Any]:
             "claim_tier": trace.get("claim_tier"),
             "rows": trace.get("rows") or [],
             "evidence_fields_present": _trace_evidence_fields(trace),
+            "wrench_aggregation_policy": payload.get("wrench_aggregation_policy"),
+            "total_contact_wrench_proven": bool(payload.get("total_contact_wrench_proven")),
+            "forbidden_claim": payload.get("forbidden_claim"),
             "adapter_verified_gazebo_contact_wrench": _adapter_verified_gazebo_contact_wrench(payload, trace),
         }
     source = payload.get("force_source")
@@ -271,12 +274,13 @@ def build_audit(
         ),
         "referenced_wrench_claim_tier": wrench.get("claim_tier"),
         "allowed_claim": (
-            "physical Gazebo collision/contact physics"
+            "physical Gazebo collision/contact physics with adapter-verified single contact-point wrench correlation"
             if force_contact_physics_proven
             else "visual_only contact-correlation readiness audit only"
         ),
         "forbidden_claim": (
-            "real bench/live contact; physical Gazebo contact physics unless all gate booleans are true"
+            "real bench/live contact; physical Gazebo contact physics unless all gate booleans are true; "
+            "total contact wrench unless total_contact_wrench_proven=true"
         ),
         "live_robot_command_authorized": False,
         "bridge_start_authorized": False,
@@ -296,6 +300,11 @@ def build_audit(
             "force_contact_physics_proven": bool(p2_inventory_payload.get("force_contact_physics_proven")),
         },
         "wrench_evidence": wrench,
+        "claim_boundary_gate": {
+            "surface_eoat_cross_check_may_be_cross_run_repeatability_not_concurrent_observation": True,
+            "total_contact_wrench_proven": bool(wrench.get("total_contact_wrench_proven")),
+            "real_bench_live_contact_authorized": False,
+        },
         "contact_pair_log_evidence": contact_pair,
         "wrench_contact_correlation": correlation,
         "physical_gazebo_contact_gate": {

@@ -29,7 +29,55 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def write_contact_witness_world(path: Path, *, topic: str = DEFAULT_CONTACT_TOPIC) -> Path:
+def _contact_sensor_block(*, topic: str, collision_name: str) -> str:
+    return f"""        <sensor name="p2_contact_pair_sensor" type="contact">
+          <contact>
+            <collision>{collision_name}</collision>
+            <topic>{topic}</topic>
+          </contact>
+          <always_on>1</always_on>
+          <update_rate>250</update_rate>
+        </sensor>
+"""
+
+
+def write_contact_witness_world(
+    path: Path,
+    *,
+    topic: str = DEFAULT_CONTACT_TOPIC,
+    sensor_collision_role: str = "surface",
+    eoat_pose_z: float = 0.09,
+    eoat_static: bool = False,
+    include_base_frame: bool = True,
+) -> Path:
+    if sensor_collision_role not in {"surface", "eoat"}:
+        raise ValueError(f"unsupported sensor collision role: {sensor_collision_role}")
+    surface_sensor = _contact_sensor_block(topic=topic, collision_name="collision") if sensor_collision_role == "surface" else ""
+    eoat_sensor = (
+        _contact_sensor_block(topic=topic, collision_name="eoat_contact_pad_collision")
+        if sensor_collision_role == "eoat"
+        else ""
+    )
+    base_frame_model = (
+        """    <model name="ur10e_base_frame">
+      <static>true</static>
+      <pose>0 0 0 0 0 0</pose>
+      <link name="base_link">
+        <pose>0 0 0 0 0 0</pose>
+        <visual name="base_frame_marker">
+          <geometry>
+            <box>
+              <size>0.010000 0.010000 0.010000</size>
+            </box>
+          </geometry>
+        </visual>
+      </link>
+    </model>
+"""
+        if include_base_frame
+        else ""
+    )
+    eoat_static_block = "      <static>true</static>\n" if eoat_static else ""
     source = f"""<?xml version="1.0" ?>
 <sdf version="1.7">
   <world name="ur10e_p2_contact_pair_witness">
@@ -38,6 +86,7 @@ def write_contact_witness_world(path: Path, *, topic: str = DEFAULT_CONTACT_TOPI
     <plugin filename="ignition-gazebo-contact-system" name="gz::sim::systems::Contact" />
     <plugin filename="ignition-gazebo-user-commands-system" name="gz::sim::systems::UserCommands" />
     <plugin filename="ignition-gazebo-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster" />
+{base_frame_model.rstrip()}
     <model name="step5_contact_surface">
       <static>true</static>
       <pose>0 0 0 0 0 0</pose>
@@ -56,18 +105,12 @@ def write_contact_witness_world(path: Path, *, topic: str = DEFAULT_CONTACT_TOPI
             </box>
           </geometry>
         </visual>
-        <sensor name="p2_contact_pair_sensor" type="contact">
-          <contact>
-            <collision>collision</collision>
-            <topic>{topic}</topic>
-          </contact>
-          <always_on>1</always_on>
-          <update_rate>250</update_rate>
-        </sensor>
+{surface_sensor.rstrip()}
       </link>
     </model>
     <model name="real_aligned_eoat_visual_stack">
-      <pose>0 0 0.090000 0 0 0</pose>
+{eoat_static_block.rstrip()}
+      <pose>0 0 {eoat_pose_z:.6f} 0 0 0</pose>
       <link name="eoat_contact_pad_link">
         <inertial>
           <mass>0.2</mass>
@@ -94,6 +137,7 @@ def write_contact_witness_world(path: Path, *, topic: str = DEFAULT_CONTACT_TOPI
             </box>
           </geometry>
         </visual>
+{eoat_sensor.rstrip()}
       </link>
     </model>
   </world>
@@ -111,6 +155,8 @@ def contact_pair_log_from_json_lines(
     world_path: str,
     raw_jsonl_path: str,
     transport: str = "ignition",
+    sensor_collision_role: str = "surface",
+    baseline_mode: str | None = None,
     generated_at: str | None = None,
 ) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
@@ -140,6 +186,7 @@ def contact_pair_log_from_json_lines(
         "mode": "offline_gazebo_contact_topic_capture",
         "source": "gazebo_contact_sensor_topic",
         "sim_transport": transport,
+        "sensor_collision_role": sensor_collision_role,
         "claim_tier": "visual_only",
         "target_claim_tier": "physical Gazebo collision/contact physics",
         "allowed_claim": "contact_pair_log_evidence_only_no_force_or_wrench_contact_correlation",
@@ -147,6 +194,7 @@ def contact_pair_log_from_json_lines(
         "topic": topic,
         "world_path": world_path,
         "raw_jsonl_path": raw_jsonl_path,
+        "baseline_mode": baseline_mode,
         "row_count": len(rows),
         "parse_issues": parse_issues,
         "normal_policy": "Gazebo contact normal when present; otherwise static contact-surface normal +Z with normal_source marker",
@@ -371,9 +419,20 @@ def capture_contact_pair_log(
     timeout_s: float = 15.0,
     max_messages: int = 1,
     transport: str = "ignition",
+    sensor_collision_role: str = "surface",
+    eoat_pose_z: float = 0.09,
+    eoat_static: bool = False,
+    allow_no_messages: bool = False,
+    baseline_mode: str | None = None,
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
-    world_path = write_contact_witness_world(output_dir / "p2_contact_witness.sdf", topic=topic)
+    world_path = write_contact_witness_world(
+        output_dir / "p2_contact_witness.sdf",
+        topic=topic,
+        sensor_collision_role=sensor_collision_role,
+        eoat_pose_z=eoat_pose_z,
+        eoat_static=eoat_static,
+    )
     raw_jsonl_path = output_dir / "contact_topic_stdout.jsonl"
     topic_stderr_path = output_dir / "contact_topic_stderr.log"
     gazebo_stdout_path = output_dir / "gazebo_stdout.log"
@@ -393,17 +452,27 @@ def capture_contact_pair_log(
         start_new_session=True,
     )
     topic_result: subprocess.CompletedProcess[str] | None = None
+    topic_timeout_expired = False
+    topic_timeout_stdout = ""
+    topic_timeout_stderr = ""
     try:
         time.sleep(0.5)
-        topic_result = subprocess.run(topic_cmd, check=False, capture_output=True, text=True, timeout=timeout_s)
+        try:
+            topic_result = subprocess.run(topic_cmd, check=False, capture_output=True, text=True, timeout=timeout_s)
+        except subprocess.TimeoutExpired as exc:
+            topic_timeout_expired = True
+            topic_timeout_stdout = exc.stdout if isinstance(exc.stdout, str) else ""
+            topic_timeout_stderr = exc.stderr if isinstance(exc.stderr, str) else ""
+            if not allow_no_messages:
+                raise
     finally:
         _terminate_process_group(server)
         server_stdout, server_stderr = server.communicate(timeout=5.0)
         gazebo_stdout_path.write_text(server_stdout, encoding="utf-8")
         gazebo_stderr_path.write_text(server_stderr, encoding="utf-8")
 
-    topic_stdout = topic_result.stdout if topic_result is not None else ""
-    topic_stderr = topic_result.stderr if topic_result is not None else ""
+    topic_stdout = topic_result.stdout if topic_result is not None else topic_timeout_stdout
+    topic_stderr = topic_result.stderr if topic_result is not None else topic_timeout_stderr
     raw_jsonl_path.write_text(topic_stdout, encoding="utf-8")
     topic_stderr_path.write_text(topic_stderr, encoding="utf-8")
     payload = contact_pair_log_from_json_lines(
@@ -412,13 +481,21 @@ def capture_contact_pair_log(
         world_path=str(world_path),
         raw_jsonl_path=str(raw_jsonl_path),
         transport=transport,
+        sensor_collision_role=sensor_collision_role,
+        baseline_mode=baseline_mode,
     )
     payload["capture"] = {
         "schema": CONTACT_CAPTURE_SCHEMA,
         "sim_transport": transport,
+        "sensor_collision_role": sensor_collision_role,
+        "eoat_pose_z": eoat_pose_z,
+        "eoat_static": eoat_static,
+        "allow_no_messages": allow_no_messages,
+        "baseline_mode": baseline_mode,
         "gazebo_command": gazebo_cmd,
         "topic_command": topic_cmd,
         "topic_returncode": topic_result.returncode if topic_result is not None else None,
+        "topic_timeout_expired": topic_timeout_expired,
         "timeout_s": timeout_s,
         "max_messages": max_messages,
         "gazebo_stdout_path": str(gazebo_stdout_path),
@@ -468,6 +545,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--timeout-s", type=float, default=15.0)
     parser.add_argument("--max-messages", type=int, default=1)
     parser.add_argument("--transport", choices=("ignition", "gz"), default="ignition")
+    parser.add_argument("--sensor-collision-role", choices=("surface", "eoat"), default="surface")
+    parser.add_argument("--eoat-pose-z", type=float, default=0.09)
+    parser.add_argument("--eoat-static", action="store_true")
+    parser.add_argument("--allow-no-messages", action="store_true")
+    parser.add_argument("--baseline-mode", default=None)
     return parser.parse_args(argv)
 
 
@@ -479,6 +561,11 @@ def main(argv: list[str] | None = None) -> int:
         timeout_s=args.timeout_s,
         max_messages=args.max_messages,
         transport=args.transport,
+        sensor_collision_role=args.sensor_collision_role,
+        eoat_pose_z=args.eoat_pose_z,
+        eoat_static=args.eoat_static,
+        allow_no_messages=args.allow_no_messages,
+        baseline_mode=args.baseline_mode,
     )
     print(path)
     return 0

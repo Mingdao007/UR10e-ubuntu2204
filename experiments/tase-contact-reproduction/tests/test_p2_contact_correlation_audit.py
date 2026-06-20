@@ -94,6 +94,8 @@ def _adapter_verified_gazebo_contact_wrench_report() -> dict[str, object]:
         "source_contact_pair_row_count": 1,
         "native_wrench_row_count": 1,
         "verified_native_wrench_row_count": 1,
+        "wrench_aggregation_policy": "single_native_contact_point_wrench_sample_no_total_contact_wrench_claim",
+        "total_contact_wrench_proven": False,
         "blockers": [],
         "claim_boundary_gate": {
             "contact_pair_only_does_not_prove_wrench": True,
@@ -199,6 +201,8 @@ class P2ContactCorrelationAuditTest(unittest.TestCase):
         self.assertTrue(audit["physical_gazebo_contact_gate"]["force_contact_physics_proven"])
         self.assertEqual(audit["physical_gazebo_contact_gate"]["status"], "proven")
         self.assertEqual(audit["known_blockers"], [])
+        self.assertIn("single contact-point wrench", audit["allowed_claim"])
+        self.assertFalse(audit["claim_boundary_gate"]["total_contact_wrench_proven"])
 
     def test_write_audit_creates_machine_readable_artifact(self) -> None:
         with tempfile.TemporaryDirectory(prefix="p2_contact_correlation_test_") as tmp:
