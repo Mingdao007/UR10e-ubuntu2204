@@ -54,6 +54,11 @@ SCRIPTED_CAMERA_PROFILES = {
         "horizontal_fov_rad": 0.85,
         "image_size": (1280, 900),
     },
+    "side_view": {
+        "offset_xyz_m": (0.00, -1.05, 0.42),
+        "horizontal_fov_rad": 0.82,
+        "image_size": (1280, 900),
+    },
     "close_detail": {
         "offset_xyz_m": (0.70, -0.82, 0.30),
         "target_offset_xyz_m": (0.0, 0.0, -0.095),

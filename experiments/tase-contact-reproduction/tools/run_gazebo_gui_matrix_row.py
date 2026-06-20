@@ -23,7 +23,7 @@ from ur10e_example_controllers import ur10e_gazebo_matrix_runner as gazebo  # no
 
 
 STAGES = ("step5a", "step5b", "step5c", "step5d", "step6a", "step6b", "step7", "step8")
-VIEWS = ("context_overview", "interaction_view", "close_detail")
+VIEWS = ("context_overview", "interaction_view", "side_view", "close_detail")
 CONTACT_STAGES = set(gazebo.CONTACT_STAGE_IDS)
 TRACE_STATUS = {
     "step5a": "matched",
@@ -813,6 +813,8 @@ def _view_role(view: str) -> str:
         return "context"
     if view == "interaction_view":
         return "interaction"
+    if view == "side_view":
+        return "side_view"
     if view == "close_detail":
         return "close_detail"
     return "unknown"

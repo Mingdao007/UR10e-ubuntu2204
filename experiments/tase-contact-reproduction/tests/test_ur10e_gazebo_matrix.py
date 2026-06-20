@@ -146,6 +146,8 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             self.assertIn("/ur10e/contact/gazebo/step5b/contacts", source)
             self.assertIn("step5b_close_detail_scripted_camera", source)
             self.assertIn("/ur10e_visual_audit/step5b/close_detail/image", source)
+            self.assertIn("step5b_side_view_scripted_camera", source)
+            self.assertIn("/ur10e_visual_audit/step5b/side_view/image", source)
             self.assertNotIn("step6_contact_surface", source)
             manifest = json.loads(output.with_suffix(".manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(
@@ -156,7 +158,7 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             self.assertFalse(manifest["contact_pair_logging"]["contact_pair_log_evidence"])
             self.assertEqual(
                 sorted(manifest["scripted_cameras"]),
-                ["close_detail", "context_overview", "interaction_view"],
+                ["close_detail", "context_overview", "interaction_view", "side_view"],
             )
             self.assertEqual(
                 manifest["scripted_cameras"]["close_detail"]["capture_policy"],
@@ -164,9 +166,11 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             )
             close_camera = manifest["scripted_cameras"]["close_detail"]
             interaction_camera = manifest["scripted_cameras"]["interaction_view"]
+            side_camera = manifest["scripted_cameras"]["side_view"]
             self.assertLess(close_camera["target_xyz_m"][2], close_camera["base_target_xyz_m"][2])
             self.assertEqual(close_camera["target_offset_xyz_m"], [0.0, 0.0, -0.095])
             self.assertGreater(close_camera["horizontal_fov_rad"], interaction_camera["horizontal_fov_rad"])
+            self.assertEqual(side_camera["target_offset_xyz_m"], [0.0, 0.0, 0.0])
             self.assertEqual(
                 manifest["surface_viewer_affordance"]["policy"],
                 "non_colliding_viewer_affordance_surface_outline_and_contact_target_marker",
@@ -610,10 +614,11 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             )
             self.assertTrue(summary["representative_timing_rows"][0]["sim_time_real_time_factor_confound"])
 
-    def test_repo_gui_configs_are_clean_and_cover_three_view_roles(self) -> None:
+    def test_repo_gui_configs_are_clean_and_cover_required_view_roles(self) -> None:
         expected = {
             "context_overview.config": "context_overview",
             "interaction_view.config": "interaction_view",
+            "side_view.config": "side_view",
             "close_detail.config": "close_detail",
         }
         for filename, view in expected.items():

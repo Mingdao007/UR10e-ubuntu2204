@@ -106,6 +106,66 @@ class P3VisualRvizEvidenceAuditTest(unittest.TestCase):
             ["stamp", "frame_id", "source", "status", "baseline", "log_evidence"],
         )
 
+    def test_observer_summary_with_explicit_side_view_satisfies_side_label_gate(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="p3_side_view_summary_") as tmp:
+            root = Path(tmp)
+            summary_path = root / "summary.json"
+            manifest_path = root / "observer_manifest.json"
+            rows = [
+                {
+                    "stage": "step5b",
+                    "view": view,
+                    "observer_visual_pass": True,
+                    "observer_visual_review_status": "row_review_present",
+                    "observer_review_present": True,
+                    "eoat_tooling_visible": True,
+                    "tcp_marker_visible": True,
+                    "surface_path_visible": True,
+                    "robot_tool_surface_relation_visible": True,
+                    "clean_scene_capture": True,
+                    "obstructive_ui_panels_absent": True,
+                    "force_contact_source": "gazebo_joint_state_fk_virtual_surface_model",
+                    "force_contact_physics_proven": False,
+                }
+                for view in ("context_overview", "interaction_view", "side_view", "close_detail")
+            ]
+            summary_path.write_text(
+                json.dumps(
+                    {
+                        "schema": "fixture",
+                        "run_dir": str(root),
+                        "row_count": len(rows),
+                        "observer_visual_pass_count": len(rows),
+                        "observer_visual_fail_count": 0,
+                        "all_expected_rows_present": True,
+                        "all_rows_observer_visual_pass": True,
+                        "all_rows_gui_evidence_captured": True,
+                        "rows": rows,
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            manifest_path.write_text(
+                json.dumps({"reviewed_row_count": len(rows), "contact_sheet": str(root / "contact_sheet.png")})
+                + "\n",
+                encoding="utf-8",
+            )
+            payload = audit.build_audit(
+                generated_at="2026-06-21T04:05:00+08:00",
+                observer_summary_path=summary_path,
+                observer_manifest_path=manifest_path,
+                rviz_search_root=root,
+            )
+
+        gazebo = payload["p3_requirement_status"]["gazebo_gui_observer"]
+        self.assertIn("side_view", gazebo["covered_view_roles"])
+        self.assertEqual(gazebo["explicit_side_view_status"], "present")
+        self.assertEqual(gazebo["claim_tier"], "visual_only")
+
     def test_shallow_rviz_files_do_not_unlock_debug_acceptance(self) -> None:
         audit = import_audit_module()
         with tempfile.TemporaryDirectory(prefix="rviz_shallow_evidence_") as tmp:
