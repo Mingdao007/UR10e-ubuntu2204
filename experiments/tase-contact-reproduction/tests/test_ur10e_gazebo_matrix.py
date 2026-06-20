@@ -98,7 +98,11 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
         self.assertGreaterEqual(float(sleeve.attrib["radius"]), 0.020)
         self.assertIsNotNone(stack.find("./visual[@name='eoat_active_tcp_crossbar_x_visual']"))
         self.assertIsNotNone(stack.find("./visual[@name='eoat_active_tcp_crossbar_y_visual']"))
-        self.assertIsNone(stack.find("collision"))
+        collision_names = {collision.attrib.get("name") for collision in stack.findall("collision")}
+        self.assertTrue(gazebo.EOAT_REQUIRED_COLLISION_NAMES.issubset(collision_names))
+        contact_pad = stack.find("./collision[@name='eoat_contact_pad_collision']/geometry/box")
+        self.assertIsNotNone(contact_pad)
+        self.assertEqual(contact_pad.attrib["size"], "0.052 0.052 0.010")
 
     def test_model_composition_audit_reports_proxy_and_removed_redundant_tcp_marker(self) -> None:
         robot_description = gazebo.generate_sim_robot_description()
@@ -109,8 +113,11 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
         self.assertEqual(audit["missing_tool0_viewer_affordance_visuals"], [])
         self.assertTrue(audit["eoat_inertial_present"])
         self.assertEqual(audit["viewer_affordance_eoat_visuals"], sorted(gazebo.EOAT_VIEWER_AFFORDANCE_VISUAL_NAMES))
-        self.assertIn("parameterized_non_colliding_viewer_proxy", audit["eoat_visual_proxy_policy"])
-        self.assertEqual(audit["eoat_collision_count"], 0)
+        self.assertIn("parameterized_viewer_and_collision_proxy", audit["eoat_visual_proxy_policy"])
+        self.assertEqual(audit["missing_eoat_collisions"], [])
+        self.assertEqual(audit["present_eoat_collisions"], sorted(gazebo.EOAT_REQUIRED_COLLISION_NAMES))
+        self.assertEqual(audit["eoat_collision_count"], len(gazebo.EOAT_REQUIRED_COLLISION_NAMES))
+        self.assertIn("contact_pair_log_missing", audit["eoat_collision_policy"])
         self.assertFalse(audit["tcp_visual_link_present"])
         self.assertIn("removed_from_generated_robot_description", audit["redundant_tcp_marker_policy"])
         self.assertEqual(audit["force_contact_source"], gazebo.FORCE_CONTACT_SOURCE)

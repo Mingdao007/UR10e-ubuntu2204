@@ -96,6 +96,22 @@ TOOL0_EOAT_VIEWER_VISUAL_NAMES = frozenset(
         "tool0_eoat_visible_right_probe_rail_visual",
     }
 )
+EOAT_VISUAL_COLLISION_NAME_BY_VISUAL = {
+    "eoat_flange_adapter_visual": "eoat_flange_adapter_collision",
+    "eoat_kunwei_sensor_body_visual": "eoat_kunwei_sensor_body_collision",
+    "eoat_left_bracket_visual": "eoat_left_bracket_collision",
+    "eoat_right_bracket_visual": "eoat_right_bracket_collision",
+    "eoat_tool_plate_visual": "eoat_tool_plate_collision",
+    "eoat_contact_probe_visual": "eoat_contact_probe_collision",
+    "eoat_contact_pad_visual": "eoat_contact_pad_collision",
+}
+EOAT_REQUIRED_COLLISION_NAMES = frozenset(EOAT_VISUAL_COLLISION_NAME_BY_VISUAL.values())
+EOAT_CONTACT_COLLISION_NAMES = frozenset(
+    {
+        "eoat_contact_probe_collision",
+        "eoat_contact_pad_collision",
+    }
+)
 FORCE_CONTACT_SOURCE = "gazebo_joint_state_fk_virtual_surface_model"
 FORCE_CONTACT_PHYSICS_PROVEN = False
 ACTION_RESULT_TIMEOUT_MIN_S = 60.0
@@ -282,6 +298,62 @@ def add_real_aligned_eoat_visual_stack(robot_description: str) -> str:
         geometry_attrs={"radius": "0.006", "length": "0.110"},
         rgba="0.0 1.0 1.0 1.0",
     )
+    _append_eoat_collision(
+        link,
+        name="eoat_flange_adapter_collision",
+        xyz=(0.0, 0.0, 0.012),
+        rpy="0 0 0",
+        geometry_kind="cylinder",
+        geometry_attrs={"radius": "0.058", "length": "0.024"},
+    )
+    _append_eoat_collision(
+        link,
+        name="eoat_kunwei_sensor_body_collision",
+        xyz=(0.0, 0.0, 0.052),
+        rpy="0 0 0",
+        geometry_kind="cylinder",
+        geometry_attrs={"radius": "0.043", "length": "0.060"},
+    )
+    _append_eoat_collision(
+        link,
+        name="eoat_left_bracket_collision",
+        xyz=(0.0, 0.046, 0.086),
+        rpy="0 0 0",
+        geometry_kind="box",
+        geometry_attrs={"size": "0.100 0.014 0.040"},
+    )
+    _append_eoat_collision(
+        link,
+        name="eoat_right_bracket_collision",
+        xyz=(0.0, -0.046, 0.086),
+        rpy="0 0 0",
+        geometry_kind="box",
+        geometry_attrs={"size": "0.100 0.014 0.040"},
+    )
+    _append_eoat_collision(
+        link,
+        name="eoat_tool_plate_collision",
+        xyz=(0.0, 0.0, 0.092),
+        rpy="0 0 0",
+        geometry_kind="box",
+        geometry_attrs={"size": "0.118 0.074 0.016"},
+    )
+    _append_eoat_collision(
+        link,
+        name="eoat_contact_probe_collision",
+        xyz=(0.0, 0.0, 0.106),
+        rpy="0 0 0",
+        geometry_kind="cylinder",
+        geometry_attrs={"radius": "0.014", "length": "0.052"},
+    )
+    _append_eoat_collision(
+        link,
+        name="eoat_contact_pad_collision",
+        xyz=(0.0, 0.0, 0.122),
+        rpy="0 0 0",
+        geometry_kind="box",
+        geometry_attrs={"size": "0.052 0.052 0.010"},
+    )
 
     joint = ET.Element("joint", {"name": EOAT_VISUAL_JOINT, "type": "fixed"})
     ET.SubElement(joint, "parent", {"link": "tool0"})
@@ -399,6 +471,21 @@ def _append_eoat_visual(
     ET.SubElement(material, "color", {"rgba": rgba})
 
 
+def _append_eoat_collision(
+    link: ET.Element,
+    *,
+    name: str,
+    xyz: tuple[float, float, float],
+    rpy: str,
+    geometry_kind: str,
+    geometry_attrs: dict[str, str],
+) -> None:
+    collision = ET.SubElement(link, "collision", {"name": name})
+    ET.SubElement(collision, "origin", {"xyz": _xyz(xyz), "rpy": rpy})
+    geometry = ET.SubElement(collision, "geometry")
+    ET.SubElement(geometry, geometry_kind, geometry_attrs)
+
+
 def _xyz(values: tuple[float, float, float]) -> str:
     return " ".join(f"{value:.12g}" for value in values)
 
@@ -436,6 +523,7 @@ def build_model_composition_audit(robot_description: str | None = None) -> dict[
             links.append({"name": name, "present": False})
             continue
         visual_names = [visual.attrib.get("name", "") for visual in link.findall("visual")]
+        collision_names = [collision.attrib.get("name", "") for collision in link.findall("collision")]
         links.append(
             {
                 "name": name,
@@ -443,10 +531,14 @@ def build_model_composition_audit(robot_description: str | None = None) -> dict[
                 "visual_count": len(link.findall("visual")),
                 "collision_count": len(link.findall("collision")),
                 "visual_names": visual_names,
+                "collision_names": collision_names,
             }
         )
     eoat = root.find(f"./link[@name='{EOAT_VISUAL_LINK}']")
     eoat_visual_names = {visual.attrib.get("name", "") for visual in eoat.findall("visual")} if eoat is not None else set()
+    eoat_collision_names = (
+        {collision.attrib.get("name", "") for collision in eoat.findall("collision")} if eoat is not None else set()
+    )
     tool0 = root.find("./link[@name='tool0']")
     tool0_visual_names = {visual.attrib.get("name", "") for visual in tool0.findall("visual")} if tool0 is not None else set()
     joint = root.find(f"./joint[@name='{EOAT_VISUAL_JOINT}']")
@@ -466,9 +558,18 @@ def build_model_composition_audit(robot_description: str | None = None) -> dict[
         "present_eoat_visuals": sorted(eoat_visual_names),
         "missing_eoat_visuals": sorted(EOAT_REQUIRED_VISUAL_NAMES - eoat_visual_names),
         "eoat_visual_count": len(eoat_visual_names),
+        "required_eoat_collisions": sorted(EOAT_REQUIRED_COLLISION_NAMES),
+        "present_eoat_collisions": sorted(eoat_collision_names),
+        "missing_eoat_collisions": sorted(EOAT_REQUIRED_COLLISION_NAMES - eoat_collision_names),
+        "present_eoat_contact_collisions": sorted(EOAT_CONTACT_COLLISION_NAMES & eoat_collision_names),
         "eoat_collision_count": len(eoat.findall("collision")) if eoat is not None else None,
         "eoat_inertial_present": eoat.find("inertial") is not None if eoat is not None else None,
-        "eoat_visual_proxy_policy": "parameterized_non_colliding_viewer_proxy_not_exact_cad_not_contact_physics",
+        "eoat_visual_proxy_policy": "parameterized_viewer_and_collision_proxy_not_exact_cad_not_contact_physics",
+        "eoat_collision_policy": (
+            "eoat_collision_bodies_instantiated_for_inventory_only;"
+            "contact_pair_log_missing;wrench_contact_correlation_missing;"
+            "not_physical_gazebo_contact_physics_proven"
+        ),
         "tcp_visual_link_present": tcp_visual_link_present,
         "redundant_tcp_marker_policy": "removed_from_generated_robot_description; active TCP marker is part of EOAT visual stack and optional external marker follows base_T_active_tcp",
         "active_tcp_offset_tool0_m": list(ACTIVE_TCP_OFFSET_TOOL0_M),

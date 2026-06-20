@@ -52,8 +52,6 @@ evidence using these tiers:
   collision evidence, contact pair/log evidence, and wrench/contact correlation
   all exist. If `eoat_collision_count=0` or
   `force_contact_physics_proven=false`, this tier is blocked/not proven.
-- real Kunwei read-only: retained logs or explicitly read-only Kunwei evidence
-  only; no live contact, no device zero/tare/config writes.
 - real bench/live contact: not authorized in this goal; no claim may upgrade
   simulated_ft or Gazebo evidence into real bench/live contact.
 """
@@ -63,7 +61,7 @@ GOOD_CLAIM_TIER_TABLE = """## Current Claim Tier Table
 
 | Evidence surface | Current status | Claim tier |
 |---|---|---|
-| P2 EOAT inventory artifact | current EOAT collision body missing; `eoat_collision_count=0` | visual_only |
+| P2 EOAT inventory artifact | EOAT collision bodies present; contact pair/log evidence and wrench/contact correlation missing | visual_only |
 | P1 canonical simulated FT artifact | stamp, frame_id, source, status, baseline, and log evidence present | simulated_ft |
 | Physical Gazebo contact | `force_contact_physics_proven=false`; blocked/not proven | physical Gazebo collision/contact physics blocked/not proven |
 | Real bench/live contact | not authorized | real bench/live contact not authorized |
@@ -97,7 +95,6 @@ class Ur10eClaimBoundaryReportVerifierTest(unittest.TestCase):
                 GOOD_CLAIM_TIER_TABLE
                 + "\n"
                 "`force_contact_physics_proven=false` remains blocked/not proven. "
-                "`eoat_collision_count=0` remains blocked/not proven. "
                 "The simulated_ft artifact includes stamp, frame_id, source, "
                 "status, baseline, and log evidence."
             ),
@@ -134,11 +131,6 @@ class Ur10eClaimBoundaryReportVerifierTest(unittest.TestCase):
         gate = GOOD_CLAIM_GATE.replace("- simulated_ft:", "- simulated sensor:")
         text = _base_report(gate)
         self.assertFailsWith(text, "required_tier:simulated_ft")
-
-    def test_missing_real_kunwei_read_only_tier_fails_closed(self) -> None:
-        gate = GOOD_CLAIM_GATE.replace("- real Kunwei read-only:", "- retained sensor replay:")
-        text = _base_report(gate)
-        self.assertFailsWith(text, "required_tier:real Kunwei read-only")
 
     def test_simulated_ft_claim_without_required_fields_fails_closed(self) -> None:
         gate = GOOD_CLAIM_GATE.replace(
@@ -182,6 +174,46 @@ class Ur10eClaimBoundaryReportVerifierTest(unittest.TestCase):
         gate = GOOD_CLAIM_GATE.replace("- visual_only:", "- visual observer:")
         text = _base_report(gate, extra_body="Gazebo/RViz screenshot and TCP marker evidence.")
         self.assertFailsWith(text, "required_tier:visual_only")
+
+    def test_visual_only_sources_cannot_be_upgraded_in_claim_table(self) -> None:
+        table = """## Current Claim Tier Table
+
+| Evidence surface | Current status | Claim tier |
+|---|---|---|
+| Gazebo/RViz screenshot and TCP marker | EOAT visibility only | simulated_ft |
+"""
+        text = _base_report(GOOD_CLAIM_GATE, extra_body=table)
+        self.assertFailsWith(text, "claim_tier_table_source_boundaries")
+
+    def test_virtual_force_loop_source_cannot_be_upgraded_in_claim_table(self) -> None:
+        table = """## Current Claim Tier Table
+
+| Evidence surface | Current status | Claim tier |
+|---|---|---|
+| `gazebo_joint_state_fk_virtual_surface_model` | software-only force source | physical Gazebo collision/contact physics |
+"""
+        text = _base_report(GOOD_CLAIM_GATE, extra_body=table)
+        self.assertFailsWith(text, "claim_tier_table_source_boundaries")
+
+    def test_simulated_ft_row_without_required_metadata_fails_closed(self) -> None:
+        table = """## Current Claim Tier Table
+
+| Evidence surface | Current status | Claim tier |
+|---|---|---|
+| Simulated wrench topic | source and log evidence present, status unknown | simulated_ft |
+"""
+        text = _base_report(GOOD_CLAIM_GATE, extra_body=table)
+        self.assertFailsWith(text, "claim_tier_table_source_boundaries")
+
+    def test_physical_gazebo_contact_row_requires_blocked_label_when_blocked(self) -> None:
+        table = """## Current Claim Tier Table
+
+| Evidence surface | Current status | Claim tier |
+|---|---|---|
+| Physical Gazebo contact | `eoat_collision_count=0`; `force_contact_physics_proven=false` | physical Gazebo collision/contact physics |
+"""
+        text = _base_report(GOOD_CLAIM_GATE, extra_body=table)
+        self.assertFailsWith(text, "claim_tier_table_source_boundaries")
 
 
 if __name__ == "__main__":

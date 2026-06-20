@@ -94,10 +94,13 @@ def _visual_proxy_parts(robot_description: str, audit: dict[str, Any]) -> list[d
     if eoat is None:
         return []
 
+    collision_names = set(audit.get("present_eoat_collisions") or [])
     parts: list[dict[str, Any]] = []
     for visual in eoat.findall("visual"):
         name = visual.attrib.get("name", "")
         origin = visual.find("origin")
+        collision_name = gazebo.EOAT_VISUAL_COLLISION_NAME_BY_VISUAL.get(name)
+        collision_body_instantiated = bool(collision_name and collision_name in collision_names)
         parts.append(
             {
                 "id": name,
@@ -115,11 +118,20 @@ def _visual_proxy_parts(robot_description: str, audit: dict[str, Any]) -> list[d
                     "status": "generated_visual_proxy_transform_only",
                 },
                 "geometry": _geometry_payload(visual.find("geometry")),
-                "approximation_status": "parameterized_non_colliding_viewer_proxy_not_exact_cad",
+                "approximation_status": (
+                    "parameterized_visual_proxy_with_collision_proxy_not_exact_cad"
+                    if collision_body_instantiated
+                    else "parameterized_visual_affordance_no_collision_proxy"
+                ),
                 "claim_tier": "visual_only",
-                "collision_body_instantiated": False,
+                "collision_body_instantiated": collision_body_instantiated,
+                "collision_name": collision_name,
                 "physics_relevant_candidate": name in {"eoat_contact_probe_visual", "eoat_contact_pad_visual"},
-                "known_limit": "No collision element is attached to current EOAT visual stack.",
+                "known_limit": (
+                    "Collision proxy exists for inventory only; no contact-pair log or wrench/contact correlation exists."
+                    if collision_body_instantiated
+                    else "Viewer affordance only; no collision element is intended for this visual marker."
+                ),
             }
         )
 
@@ -137,8 +149,10 @@ def _visual_proxy_parts(robot_description: str, audit: dict[str, Any]) -> list[d
             "approximation_status": audit.get("eoat_visual_proxy_policy"),
             "claim_tier": "visual_only",
             "collision_body_instantiated": bool(audit.get("eoat_collision_count")),
+            "collision_count": audit.get("eoat_collision_count"),
+            "collision_names": audit.get("present_eoat_collisions"),
             "physics_relevant_candidate": False,
-            "known_limit": "Summary row; not a collision body.",
+            "known_limit": "Summary row; collision bodies alone do not prove Gazebo contact physics.",
         }
     )
     return parts
@@ -263,8 +277,14 @@ def _collision_candidates(surfaces: list[dict[str, Any]], audit: dict[str, Any])
             "claim_tier": "visual_only",
             "collision_body_instantiated": bool(audit.get("eoat_collision_count")),
             "collision_count": int(audit.get("eoat_collision_count") or 0),
+            "collision_names": audit.get("present_eoat_collisions"),
+            "contact_collision_names": audit.get("present_eoat_contact_collisions"),
             "physics_relevant_candidate": True,
-            "status": "blocked_currently_visual_only_no_collision",
+            "status": (
+                "eoat_collision_body_present_contact_pair_unproven"
+                if audit.get("eoat_collision_count")
+                else "blocked_currently_visual_only_no_collision"
+            ),
             "future_required_log": "EOAT contact body name, timestamp, contact position, normal, and count.",
         }
     ]
@@ -334,6 +354,15 @@ def build_inventory(*, generated_at: str | None = None) -> dict[str, Any]:
     surfaces = _contact_surface_candidates()
     eoat_collision_count = int(model_audit.get("eoat_collision_count") or 0)
     force_contact_physics_proven = bool(model_audit.get("force_contact_physics_proven"))
+    known_blockers = [
+        "force_contact_physics_proven=false",
+        "no_eoat_contact_pair_log_evidence",
+        "no_wrench_contact_correlation",
+        "v13_cad_candidate_not_installed_in_gazebo_urdf",
+        "mass_cog_inertia_exact_provenance_missing",
+    ]
+    if eoat_collision_count == 0:
+        known_blockers.insert(0, "eoat_collision_count=0")
     return {
         "schema": "ur10e_gazebo_p2_eoat_collision_inventory_v1",
         "generated_at": generated_at or _now_iso(),
@@ -359,7 +388,6 @@ def build_inventory(*, generated_at: str | None = None) -> dict[str, Any]:
             "virtual/software force-loop": "Not upgraded by this artifact.",
             "simulated_ft": "P1 evidence is separate; this P2 inventory does not add simulated_ft evidence.",
             "physical Gazebo collision/contact physics": "blocked/not proven until EOAT collision body, contact pair logs, and wrench/contact correlation exist.",
-            "real Kunwei read-only": "Not produced by this artifact.",
             "real bench/live contact": "not authorized.",
         },
         "eoat_parts": _visual_proxy_parts(robot_description, model_audit) + _cad_archive_parts(),
@@ -368,7 +396,8 @@ def build_inventory(*, generated_at: str | None = None) -> dict[str, Any]:
         "contact_surface_candidates": surfaces,
         "physical_gazebo_contact_gate": {
             "eoat_collision_count": eoat_collision_count,
-            "collision_count_proven": eoat_collision_count > 0,
+            "eoat_collision_body_audit_passed": eoat_collision_count > 0,
+            "collision_count_proven": False,
             "contact_pair_log_evidence": False,
             "wrench_contact_correlation": False,
             "force_contact_physics_proven": force_contact_physics_proven,
@@ -383,14 +412,7 @@ def build_inventory(*, generated_at: str | None = None) -> dict[str, Any]:
                 "canonical wrench/contact-state correlation evidence",
             ],
         },
-        "known_blockers": [
-            "eoat_collision_count=0",
-            "force_contact_physics_proven=false",
-            "no_eoat_contact_pair_log_evidence",
-            "no_wrench_contact_correlation",
-            "v13_cad_candidate_not_installed_in_gazebo_urdf",
-            "mass_cog_inertia_exact_provenance_missing",
-        ],
+        "known_blockers": known_blockers,
     }
 
 

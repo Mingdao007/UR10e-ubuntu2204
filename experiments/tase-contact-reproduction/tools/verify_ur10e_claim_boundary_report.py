@@ -22,7 +22,6 @@ REQUIRED_TIERS = (
     "virtual/software force-loop",
     "simulated_ft",
     "physical Gazebo collision/contact physics",
-    "real Kunwei read-only",
     "real bench/live contact",
 )
 
@@ -157,6 +156,15 @@ def evaluate(report_path: Path) -> list[dict[str, Any]]:
             claim_table_detail,
         )
     )
+    row_boundary_ok, row_boundary_detail = claim_tier_table_source_boundaries(sections)
+    findings.append(
+        _finding(
+            report_path,
+            "claim_tier_table_source_boundaries",
+            row_boundary_ok,
+            row_boundary_detail,
+        )
+    )
 
     findings.append(
         _finding(
@@ -268,6 +276,127 @@ def claim_tier_table_is_valid(table: list[list[str]]) -> bool:
         return False
     body_text = normalize("\n".join("|".join(row) for row in table[2:]))
     return any(tier.lower() in body_text for tier in REQUIRED_TIERS)
+
+
+def claim_tier_table_source_boundaries(sections: list[tuple[str, str]]) -> tuple[bool, str]:
+    issues: list[str] = []
+    table_count = 0
+    for heading, body in sections:
+        if normalize(heading) == "claim boundary gate":
+            continue
+        for table in markdown_tables(body):
+            if not claim_tier_table_is_valid(table):
+                continue
+            table_count += 1
+            issues.extend(validate_claim_tier_table_rows(table, heading))
+
+    if table_count == 0:
+        return False, "no valid claim tier table found"
+    if issues:
+        return False, "; ".join(issues[:5])
+    return True, f"{table_count} claim tier table(s) checked"
+
+
+def validate_claim_tier_table_rows(table: list[list[str]], heading: str) -> list[str]:
+    claim_index = claim_tier_column_index(table[0])
+    if claim_index is None:
+        return [f"{heading}: claim tier column missing"]
+
+    issues: list[str] = []
+    for row_number, row in enumerate(table[2:], start=3):
+        if claim_index >= len(row):
+            issues.append(f"{heading} row {row_number}: claim tier cell missing")
+            continue
+        tier_cell = normalize(row[claim_index])
+        row_norm = normalize(" | ".join(row))
+        tier = recognized_claim_tier(tier_cell)
+        if tier is None:
+            issues.append(f"{heading} row {row_number}: unsupported claim tier")
+            continue
+
+        if has_visual_only_source(row_norm) and tier != "visual_only":
+            issues.append(f"{heading} row {row_number}: visual evidence must stay visual_only")
+
+        if "gazebo_joint_state_fk_virtual_surface_model" in row_norm and tier != "virtual/software force-loop":
+            issues.append(f"{heading} row {row_number}: virtual force source must stay virtual/software force-loop")
+
+        simulated_source = has_simulated_ft_source(row_norm) or tier == "simulated_ft"
+        if simulated_source and tier == "simulated_ft":
+            missing = [field for field in SIMULATED_FT_REQUIRED_FIELDS if field.lower() not in row_norm]
+            if missing:
+                issues.append(
+                    f"{heading} row {row_number}: simulated_ft missing " + ", ".join(missing)
+                )
+
+        if tier == "physical Gazebo collision/contact physics":
+            if any(token in row_norm for token in PHYSICAL_BLOCKERS):
+                if not has_blocked_or_not_proven(row_norm):
+                    issues.append(
+                        f"{heading} row {row_number}: blocked physical Gazebo evidence must be labelled blocked/not proven"
+                    )
+            elif not has_blocked_or_not_proven(row_norm):
+                missing = [field for field in PHYSICAL_GAZEBO_REQUIRED_FIELDS if field.lower() not in row_norm]
+                if missing:
+                    issues.append(
+                        f"{heading} row {row_number}: physical Gazebo claim missing " + ", ".join(missing)
+                    )
+
+        if tier == "real bench/live contact" and "not authorized" not in row_norm:
+            issues.append(f"{heading} row {row_number}: real bench/live contact is not authorized")
+
+    return issues
+
+
+def claim_tier_column_index(header: list[str]) -> int | None:
+    for index, cell in enumerate(header):
+        cell_norm = normalize(cell)
+        if cell_norm == "claim tier" or cell_norm.endswith(" claim tier"):
+            return index
+    return None
+
+
+def recognized_claim_tier(tier_cell: str) -> str | None:
+    for tier in REQUIRED_TIERS:
+        if tier_cell.startswith(tier.lower()):
+            return tier
+    return None
+
+
+def has_visual_only_source(row_norm: str) -> bool:
+    return any(
+        token in row_norm
+        for token in (
+            "gazebo/rviz screenshot",
+            "gazebo screenshot",
+            "rviz screenshot",
+            "eoat visibility",
+            "tcp marker",
+            "model pose",
+            "observer-view",
+            "observer view",
+            "visual proxy",
+        )
+    )
+
+
+def has_simulated_ft_source(row_norm: str) -> bool:
+    return any(
+        token in row_norm
+        for token in (
+            "simulated wrench",
+            "simulated ft",
+            "simulated f/t",
+            "ft topic",
+            "f/t topic",
+            "wrench/ft",
+            "gazebo ft plugin",
+            "synthetic force log",
+        )
+    )
+
+
+def has_blocked_or_not_proven(row_norm: str) -> bool:
+    return "blocked" in row_norm or "not proven" in row_norm
 
 
 def has_positive_claim(text: str, tier: str) -> bool:

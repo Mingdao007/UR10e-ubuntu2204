@@ -25,12 +25,13 @@ class P2EoatCollisionInventoryTest(unittest.TestCase):
         self.assertFalse(artifact["live_robot_command_authorized"])
         self.assertFalse(artifact["bridge_start_authorized"])
         self.assertFalse(artifact["payload_tcp_safety_writes_authorized"])
-        self.assertEqual(artifact["current_eoat_collision_count"], 0)
+        self.assertGreater(artifact["current_eoat_collision_count"], 0)
         self.assertFalse(artifact["force_contact_physics_proven"])
         self.assertIn("visual_only", artifact["allowed_claim"])
         self.assertIn("physical Gazebo collision/contact physics", artifact["forbidden_claim"])
         self.assertIn("real bench/live contact", artifact["forbidden_claim"])
-        self.assertIn("eoat_collision_count=0", artifact["known_blockers"])
+        self.assertNotIn("eoat_collision_count=0", artifact["known_blockers"])
+        self.assertIn("no_eoat_contact_pair_log_evidence", artifact["known_blockers"])
         self.assertIn("force_contact_physics_proven=false", artifact["known_blockers"])
 
         for key in (
@@ -61,7 +62,16 @@ class P2EoatCollisionInventoryTest(unittest.TestCase):
             self.assertEqual(parts_by_id[required]["source_type"], "generated_urdf_visual_proxy")
             self.assertEqual(parts_by_id[required]["unit"], "m")
             self.assertEqual(parts_by_id[required]["claim_tier"], "visual_only")
-            self.assertFalse(parts_by_id[required]["collision_body_instantiated"])
+
+        for required in (
+            "eoat_flange_adapter_visual",
+            "eoat_kunwei_sensor_body_visual",
+            "eoat_tool_plate_visual",
+            "eoat_contact_probe_visual",
+            "eoat_contact_pad_visual",
+        ):
+            self.assertTrue(parts_by_id[required]["collision_body_instantiated"])
+        self.assertFalse(parts_by_id["eoat_active_tcp_marker_visual"]["collision_body_instantiated"])
 
         contact_pad = parts_by_id["eoat_contact_pad_visual"]
         self.assertEqual(contact_pad["role"], "contact_pad")
@@ -114,11 +124,13 @@ class P2EoatCollisionInventoryTest(unittest.TestCase):
         candidates = {candidate["id"]: candidate for candidate in artifact["collision_candidates"]}
 
         self.assertIn("current_eoat_visual_stack", candidates)
-        self.assertFalse(candidates["current_eoat_visual_stack"]["collision_body_instantiated"])
+        self.assertTrue(candidates["current_eoat_visual_stack"]["collision_body_instantiated"])
+        self.assertGreater(candidates["current_eoat_visual_stack"]["collision_count"], 0)
         self.assertEqual(candidates["current_eoat_visual_stack"]["claim_tier"], "visual_only")
         self.assertIn("step5_contact_surface_collision", candidates)
         self.assertTrue(candidates["step5_contact_surface_collision"]["collision_body_instantiated"])
         self.assertEqual(candidates["step5_contact_surface_collision"]["claim_tier"], "visual_only")
+        self.assertTrue(artifact["physical_gazebo_contact_gate"]["eoat_collision_body_audit_passed"])
         self.assertFalse(artifact["physical_gazebo_contact_gate"]["collision_count_proven"])
         self.assertFalse(artifact["physical_gazebo_contact_gate"]["contact_pair_log_evidence"])
         self.assertFalse(artifact["physical_gazebo_contact_gate"]["wrench_contact_correlation"])
