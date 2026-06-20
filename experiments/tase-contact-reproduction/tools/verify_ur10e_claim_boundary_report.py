@@ -46,6 +46,16 @@ PHYSICAL_BLOCKERS = (
     "force_contact_physics_proven=false",
 )
 
+CLAIM_TIER_TABLE_EVIDENCE_HEADERS = (
+    "evidence",
+    "surface",
+    "artifact",
+    "requirement",
+    "gate",
+    "path",
+    "file",
+)
+
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
@@ -138,6 +148,16 @@ def evaluate(report_path: Path) -> list[dict[str, Any]]:
         )
     )
 
+    claim_table_ok, claim_table_detail = has_current_claim_tier_table(sections)
+    findings.append(
+        _finding(
+            report_path,
+            "current_claim_tier_table",
+            claim_table_ok,
+            claim_table_detail,
+        )
+    )
+
     findings.append(
         _finding(
             report_path,
@@ -211,6 +231,43 @@ def tier_line_present(section: str, tier: str) -> bool:
         if raw_line.strip().startswith("|") and re.search(rf"\|\s*{re.escape(tier_norm)}\s*\|", normalize(raw_line)):
             return True
     return False
+
+
+def has_current_claim_tier_table(sections: list[tuple[str, str]]) -> tuple[bool, str]:
+    for heading, body in sections:
+        if normalize(heading) == "claim boundary gate":
+            continue
+        for table in markdown_tables(body):
+            if claim_tier_table_is_valid(table):
+                return True, f"present in section: {heading}"
+    return False, "missing current evidence table with evidence/surface/artifact and claim tier columns"
+
+
+def markdown_tables(section: str) -> list[list[list[str]]]:
+    tables: list[list[list[str]]] = []
+    current: list[list[str]] = []
+    for raw_line in section.splitlines():
+        line = raw_line.strip()
+        if line.startswith("|") and line.endswith("|"):
+            cells = [cell.strip() for cell in line.strip("|").split("|")]
+            current.append(cells)
+            continue
+        if current:
+            tables.append(current)
+            current = []
+    if current:
+        tables.append(current)
+    return [table for table in tables if len(table) >= 3]
+
+
+def claim_tier_table_is_valid(table: list[list[str]]) -> bool:
+    header = [normalize(cell) for cell in table[0]]
+    if not any(cell == "claim tier" or cell.endswith(" claim tier") for cell in header):
+        return False
+    if not any(any(token in cell for token in CLAIM_TIER_TABLE_EVIDENCE_HEADERS) for cell in header):
+        return False
+    body_text = normalize("\n".join("|".join(row) for row in table[2:]))
+    return any(tier.lower() in body_text for tier in REQUIRED_TIERS)
 
 
 def has_positive_claim(text: str, tier: str) -> bool:

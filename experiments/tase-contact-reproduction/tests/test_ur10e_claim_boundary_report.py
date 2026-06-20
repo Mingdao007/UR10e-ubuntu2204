@@ -59,6 +59,17 @@ evidence using these tiers:
 """
 
 
+GOOD_CLAIM_TIER_TABLE = """## Current Claim Tier Table
+
+| Evidence surface | Current status | Claim tier |
+|---|---|---|
+| P2 EOAT inventory artifact | current EOAT collision body missing; `eoat_collision_count=0` | visual_only |
+| P1 canonical simulated FT artifact | stamp, frame_id, source, status, baseline, and log evidence present | simulated_ft |
+| Physical Gazebo contact | `force_contact_physics_proven=false`; blocked/not proven | physical Gazebo collision/contact physics blocked/not proven |
+| Real bench/live contact | not authorized | real bench/live contact not authorized |
+"""
+
+
 class Ur10eClaimBoundaryReportVerifierTest(unittest.TestCase):
     def run_verifier(self, text: str) -> tuple[int, dict[str, object]]:
         with tempfile.TemporaryDirectory() as tmp:
@@ -83,6 +94,8 @@ class Ur10eClaimBoundaryReportVerifierTest(unittest.TestCase):
         text = _base_report(
             GOOD_CLAIM_GATE,
             extra_body=(
+                GOOD_CLAIM_TIER_TABLE
+                + "\n"
                 "`force_contact_physics_proven=false` remains blocked/not proven. "
                 "`eoat_collision_count=0` remains blocked/not proven. "
                 "The simulated_ft artifact includes stamp, frame_id, source, "
@@ -92,6 +105,26 @@ class Ur10eClaimBoundaryReportVerifierTest(unittest.TestCase):
         returncode, payload = self.run_verifier(text)
         self.assertEqual(returncode, 0, payload)
         self.assertTrue(payload["ok"])
+
+    def test_missing_current_claim_tier_table_fails_closed(self) -> None:
+        text = _base_report(
+            GOOD_CLAIM_GATE,
+            extra_body=(
+                "`force_contact_physics_proven=false` remains blocked/not proven. "
+                "`eoat_collision_count=0` remains blocked/not proven."
+            ),
+        )
+        self.assertFailsWith(text, "current_claim_tier_table")
+
+    def test_claim_tier_table_without_evidence_surface_column_fails_closed(self) -> None:
+        table = """## Current Claim Tier Table
+
+| Claim | Status | Claim tier |
+|---|---|---|
+| P2 | blocked | visual_only |
+"""
+        text = _base_report(GOOD_CLAIM_GATE, extra_body=table)
+        self.assertFailsWith(text, "current_claim_tier_table")
 
     def test_missing_claim_boundary_section_fails_closed(self) -> None:
         text = _base_report("", extra_body="No claim boundary section.")
