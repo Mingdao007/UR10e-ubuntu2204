@@ -243,6 +243,7 @@ def build_row_summary(
     force_success = execution.get("force_closed_loop")
     if stage not in CONTACT_STAGES:
         force_success = None
+    timing_evidence = execution.get("timing_evidence") or stage_payload.get("timing_evidence") or {}
     settled_fraction = force_loop.get("settled_within_tolerance_fraction")
     state_settled_success = _state_settled_success(stage, execution, settled_fraction)
 
@@ -283,6 +284,11 @@ def build_row_summary(
         "blocker": execution.get("blocker"),
         "result_timeout_s": execution.get("result_timeout_s"),
         "result_wait_elapsed_s": execution.get("result_wait_elapsed_s"),
+        "timing_evidence": timing_evidence or None,
+        "actual_vs_commanded_duration_ratio": timing_evidence.get("actual_vs_commanded_duration_ratio"),
+        "inferred_speed_scale_from_action_result": timing_evidence.get("inferred_speed_scale_from_action_result"),
+        "timing_root_cause_status": timing_evidence.get("timing_root_cause_status"),
+        "controller_speed_scaling_measured": timing_evidence.get("controller_speed_scaling_measured"),
         "state_settled_success": state_settled_success,
         "force_loop_success": force_success,
         "force_contact_source": stage_payload.get("force_contact_source") or gazebo.FORCE_CONTACT_SOURCE,
@@ -372,6 +378,8 @@ def build_visual_audit_summary(
     observer_fail_rows = [row for row in rows if row.get("observer_visual_pass") is not True]
     action_success_rows = [row for row in rows if row.get("action_success") is True]
     gui_evidence_rows = [row for row in rows if row.get("gui_evidence_captured") is True]
+    timing_rows = [row for row in rows if row.get("timing_evidence")]
+    actual_timing_rows = [row for row in rows if row.get("actual_vs_commanded_duration_ratio") is not None]
     contact_rows = [row for row in rows if row.get("contact_stage") is True]
     contact_force_success_rows = [row for row in contact_rows if row.get("force_loop_success") is True]
     all_expected_rows_present = not missing_rows and len(rows) == expected
@@ -391,6 +399,9 @@ def build_visual_audit_summary(
         "all_rows_observer_visual_pass": all_observer_pass,
         "all_rows_action_success": all_expected_rows_present and len(action_success_rows) == expected,
         "all_rows_gui_evidence_captured": all_expected_rows_present and len(gui_evidence_rows) == expected,
+        "timing_evidence_row_count": len(timing_rows),
+        "actual_vs_commanded_timing_row_count": len(actual_timing_rows),
+        "representative_timing_rows": _representative_timing_rows(actual_timing_rows),
         "contact_row_count": len(contact_rows),
         "contact_rows_force_loop_success_count": len(contact_force_success_rows),
         "all_contact_rows_force_loop_success": bool(contact_rows) and len(contact_force_success_rows) == len(contact_rows),
@@ -463,6 +474,20 @@ def _representative_failing_images(rows: list[dict[str, object]], limit: int = 8
             }
         )
     return images
+
+
+def _representative_timing_rows(rows: list[dict[str, object]], limit: int = 8) -> list[dict[str, object]]:
+    return [
+        {
+            "stage": row.get("stage"),
+            "view": row.get("view"),
+            "actual_vs_commanded_duration_ratio": row.get("actual_vs_commanded_duration_ratio"),
+            "inferred_speed_scale_from_action_result": row.get("inferred_speed_scale_from_action_result"),
+            "timing_root_cause_status": row.get("timing_root_cause_status"),
+            "controller_speed_scaling_measured": row.get("controller_speed_scaling_measured"),
+        }
+        for row in rows[:limit]
+    ]
 
 
 def _read_json(path: Path | None, *, default: Any | None = None) -> Any:

@@ -302,6 +302,25 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
                 self.assertGreater(timeout_s, old_timeout_s)
                 self.assertGreaterEqual(timeout_s, prior_video_duration_s + 5.0)
 
+    def test_action_timing_evidence_records_actual_vs_commanded_ratio(self) -> None:
+        evidence = gazebo.build_action_timing_evidence(
+            planned_trajectory_duration_s=60.0,
+            entry_duration_s=4.0,
+            result_wait_elapsed_s=102.4,
+            observed_joint_state_samples=512,
+            action_success=True,
+        )
+        self.assertEqual(evidence["schema"], "ur10e_gazebo_action_timing_evidence_v1")
+        self.assertAlmostEqual(evidence["commanded_goal_duration_s"], 64.0)
+        self.assertAlmostEqual(evidence["actual_vs_commanded_duration_ratio"], 1.6)
+        self.assertAlmostEqual(evidence["inferred_speed_scale_from_action_result"], 0.625)
+        self.assertFalse(evidence["controller_speed_scaling_measured"])
+        self.assertEqual(evidence["evidence_status"], "action_result_timing_recorded")
+        self.assertEqual(
+            evidence["timing_root_cause_status"],
+            "actual_vs_commanded_slowdown_recorded_controller_speed_scaling_unmeasured",
+        )
+
     def test_runner_dry_plan_writes_all_stage_traces_and_matrix_summary(self) -> None:
         with tempfile.TemporaryDirectory(prefix="ur10e_gazebo_matrix_test_") as tmp:
             out = Path(tmp)
@@ -421,6 +440,13 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             self.assertEqual(row["observer_visual_criteria"]["active_tcp_pose_frame_valid"], True)
             self.assertEqual(row["surface_frame"], gazebo.GAZEBO_WORLD_FRAME)
             self.assertEqual(row["surface_tcp_sanity"]["approach_normal_base"], [0.0, 0.0, -1.0])
+            self.assertAlmostEqual(row["actual_vs_commanded_duration_ratio"], 1.6)
+            self.assertAlmostEqual(row["inferred_speed_scale_from_action_result"], 0.625)
+            self.assertFalse(row["controller_speed_scaling_measured"])
+            self.assertEqual(
+                row["timing_root_cause_status"],
+                "actual_vs_commanded_slowdown_recorded_controller_speed_scaling_unmeasured",
+            )
 
     def test_visual_audit_summary_uses_per_row_observer_pass_counts(self) -> None:
         with tempfile.TemporaryDirectory(prefix="ur10e_gui_summary_test_") as tmp:
@@ -447,6 +473,12 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             self.assertEqual(summary["observer_visual_fail_count"], 0)
             self.assertTrue(summary["all_rows_observer_visual_pass"])
             self.assertEqual(summary["visual_review_status"], "per_row_observer_visual_pass")
+            self.assertEqual(summary["timing_evidence_row_count"], 1)
+            self.assertEqual(summary["actual_vs_commanded_timing_row_count"], 1)
+            self.assertAlmostEqual(
+                summary["representative_timing_rows"][0]["actual_vs_commanded_duration_ratio"],
+                1.6,
+            )
 
     def test_repo_gui_configs_are_clean_and_cover_three_view_roles(self) -> None:
         expected = {
@@ -471,6 +503,13 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
         (run_dir / "_visual_worlds").mkdir(parents=True)
         for name in ("start_root.png", "mid_root.png", "final_root.png", "gui_recording.mp4"):
             (case_dir / name).write_bytes(b"fixture")
+        timing_evidence = gazebo.build_action_timing_evidence(
+            planned_trajectory_duration_s=60.0,
+            entry_duration_s=4.0,
+            result_wait_elapsed_s=102.4,
+            observed_joint_state_samples=512,
+            action_success=True,
+        )
         matrix_summary = {
             "schema": "ur10e_gazebo_matrix_result_v1",
             "stages": [
@@ -487,8 +526,9 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
                         "ok": True,
                         "observed_motion": True,
                         "blocker": None,
-                        "result_timeout_s": 78.0,
-                        "result_wait_elapsed_s": 54.0,
+                        "result_timeout_s": 138.0,
+                        "result_wait_elapsed_s": 102.4,
+                        "timing_evidence": timing_evidence,
                         "force_closed_loop": True,
                     },
                     "acceptance": {

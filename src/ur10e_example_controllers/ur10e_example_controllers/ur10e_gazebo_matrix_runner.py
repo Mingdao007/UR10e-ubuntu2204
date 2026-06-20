@@ -575,6 +575,69 @@ def default_action_result_timeout_s(*, duration_s: float, entry_duration_s: floa
     )
 
 
+def build_action_timing_evidence(
+    *,
+    planned_trajectory_duration_s: float,
+    entry_duration_s: float,
+    result_wait_elapsed_s: float | None,
+    observed_joint_state_samples: int,
+    action_success: bool,
+    timed_out: bool = False,
+) -> dict[str, Any]:
+    planned_s = max(0.0, float(planned_trajectory_duration_s))
+    entry_s = max(0.0, float(entry_duration_s))
+    commanded_goal_duration_s = planned_s + entry_s
+    elapsed_s = None if result_wait_elapsed_s is None else max(0.0, float(result_wait_elapsed_s))
+    ratio = None
+    inferred_scale = None
+    if elapsed_s is not None and commanded_goal_duration_s > 0.0:
+        ratio = elapsed_s / commanded_goal_duration_s
+        if elapsed_s > 0.0:
+            inferred_scale = commanded_goal_duration_s / elapsed_s
+
+    if elapsed_s is None:
+        evidence_status = "missing_action_result_timing"
+    elif timed_out:
+        evidence_status = "action_result_timeout_timing_recorded"
+    elif action_success:
+        evidence_status = "action_result_timing_recorded"
+    else:
+        evidence_status = "action_result_error_timing_recorded"
+
+    if ratio is None:
+        root_cause_status = "root_cause_open_missing_actual_vs_commanded_timing"
+    elif ratio > 1.05:
+        root_cause_status = (
+            "actual_vs_commanded_slowdown_recorded_controller_speed_scaling_unmeasured"
+        )
+    else:
+        root_cause_status = (
+            "actual_vs_commanded_near_nominal_controller_speed_scaling_unmeasured"
+        )
+
+    return {
+        "schema": "ur10e_gazebo_action_timing_evidence_v1",
+        "timing_evidence_source": "follow_joint_trajectory_result_elapsed_vs_goal_time_from_start",
+        "planned_trajectory_duration_s": planned_s,
+        "entry_duration_s": entry_s,
+        "commanded_goal_duration_s": commanded_goal_duration_s,
+        "action_result_elapsed_s": elapsed_s,
+        "actual_vs_commanded_duration_ratio": ratio,
+        "inferred_speed_scale_from_action_result": inferred_scale,
+        "observed_joint_state_samples": int(observed_joint_state_samples),
+        "action_success": bool(action_success),
+        "timed_out": bool(timed_out),
+        "controller_speed_scaling_measured": False,
+        "controller_speed_scaling_value": None,
+        "controller_speed_scaling_source": None,
+        "evidence_status": evidence_status,
+        "timing_root_cause_status": root_cause_status,
+        "claim_limit": (
+            "Actual-vs-commanded action timing is recorded; controller speed_scaling was not measured."
+        ),
+    }
+
+
 def execute_joint_trajectory(
     joint_points: list[list[float]],
     *,
@@ -597,6 +660,7 @@ def execute_joint_trajectory(
         def __init__(self) -> None:
             super().__init__("ur10e_gazebo_matrix_runner")
             self.samples: list[list[float]] = []
+            self.sample_times_s: list[float] = []
             self.client = ActionClient(self, FollowJointTrajectory, action_name)
             self.create_subscription(JointState, joint_state_topic, self._on_joint_state, 10)
 
@@ -604,6 +668,7 @@ def execute_joint_trajectory(
             by_name = dict(zip(msg.name, msg.position))
             if all(name in by_name for name in JOINT_NAMES):
                 self.samples.append([float(by_name[name]) for name in JOINT_NAMES])
+                self.sample_times_s.append(time.monotonic())
 
     if not joint_points:
         raise RuntimeError("joint trajectory has no points")
@@ -632,6 +697,8 @@ def execute_joint_trajectory(
         goal.trajectory.joint_names = JOINT_NAMES
         goal_points = list(joint_points)
         current_positions = node.samples[-1] if node.samples else None
+        applied_entry_duration_s = entry_duration_s if current_positions is not None else 0.0
+        commanded_goal_duration_s = max(0.0, float(duration_s)) + max(0.0, float(applied_entry_duration_s))
         if current_positions is not None:
             goal_points.insert(0, current_positions)
         count = len(joint_points)
@@ -666,39 +733,68 @@ def execute_joint_trajectory(
         timeout = (
             float(result_timeout_s)
             if result_timeout_s is not None
-            else default_action_result_timeout_s(duration_s=duration_s, entry_duration_s=entry_duration_s)
+            else default_action_result_timeout_s(duration_s=duration_s, entry_duration_s=applied_entry_duration_s)
         )
         result_wait_started_s = time.monotonic()
         rclpy.spin_until_future_complete(node, result_future, timeout_sec=timeout)
         result_wait_elapsed_s = time.monotonic() - result_wait_started_s
+        joint_state_sample_span_s = (
+            node.sample_times_s[-1] - node.sample_times_s[0] if len(node.sample_times_s) >= 2 else None
+        )
         if not result_future.done():
+            timing_evidence = build_action_timing_evidence(
+                planned_trajectory_duration_s=duration_s,
+                entry_duration_s=applied_entry_duration_s,
+                result_wait_elapsed_s=result_wait_elapsed_s,
+                observed_joint_state_samples=len(node.samples),
+                action_success=False,
+                timed_out=True,
+            )
             return {
                 "ok": False,
                 "action_accepted": True,
+                "entry_point_from_joint_states": current_positions is not None,
+                "entry_duration_s": applied_entry_duration_s,
+                "planned_trajectory_duration_s": duration_s,
+                "commanded_goal_duration_s": commanded_goal_duration_s,
                 "result_status": None,
                 "result_error_code": None,
                 "result_timeout_s": timeout,
                 "result_wait_elapsed_s": result_wait_elapsed_s,
+                "joint_state_sample_span_s": joint_state_sample_span_s,
                 "observed_joint_state_samples": len(node.samples),
                 "observed_motion": _observed_motion(node.samples),
+                "timing_evidence": timing_evidence,
                 "blocker": "action_result_timeout",
                 "action_name": action_name,
             }
         wrapped = result_future.result()
         error_code = int(wrapped.result.error_code)
+        action_success = error_code == FollowJointTrajectory.Result.SUCCESSFUL
+        timing_evidence = build_action_timing_evidence(
+            planned_trajectory_duration_s=duration_s,
+            entry_duration_s=applied_entry_duration_s,
+            result_wait_elapsed_s=result_wait_elapsed_s,
+            observed_joint_state_samples=len(node.samples),
+            action_success=action_success,
+        )
         return {
-            "ok": error_code == FollowJointTrajectory.Result.SUCCESSFUL,
+            "ok": action_success,
             "action_accepted": True,
             "entry_point_from_joint_states": current_positions is not None,
-            "entry_duration_s": entry_duration_s if current_positions is not None else 0.0,
+            "entry_duration_s": applied_entry_duration_s,
+            "planned_trajectory_duration_s": duration_s,
+            "commanded_goal_duration_s": commanded_goal_duration_s,
             "result_status": int(wrapped.status),
             "result_error_code": error_code,
             "result_error_string": str(wrapped.result.error_string),
             "result_timeout_s": timeout,
             "result_wait_elapsed_s": result_wait_elapsed_s,
+            "joint_state_sample_span_s": joint_state_sample_span_s,
             "observed_joint_state_samples": len(node.samples),
             "observed_motion": _observed_motion(node.samples),
-            "blocker": None if error_code == FollowJointTrajectory.Result.SUCCESSFUL else "action_result_error",
+            "timing_evidence": timing_evidence,
+            "blocker": None if action_success else "action_result_error",
             "action_name": action_name,
         }
     finally:
@@ -1037,6 +1133,7 @@ def write_stage_summary(
     software_force_loop_success = bool(execution and execution.get("force_closed_loop"))
     force_physics_closed_loop = bool(execution and execution.get("force_contact_physics_proven"))
     force_loop = execution.get("force_loop") if execution else None
+    timing_evidence = execution.get("timing_evidence") if execution else None
     summary = {
         "schema": "ur10e_gazebo_matrix_stage_result_v1",
         "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -1060,6 +1157,7 @@ def write_stage_summary(
         "units": artifact.get("units", {}),
         "known_limit": artifact.get("known_blocker"),
         "force_loop": force_loop,
+        "timing_evidence": timing_evidence,
         "acceptance": {
             "trajectory_duration_nonzero": float(metrics["duration_s"]) > 0.0,
             "trace_written": trace_path.is_file(),
@@ -1072,6 +1170,19 @@ def write_stage_summary(
             "gui_evidence_captured": bool(screenshot_path and screenshot_path.exists()),
             "force_closed_loop": software_force_loop_success if stage_id in CONTACT_STAGE_IDS and execute else None,
             "force_contact_physics_proven": force_physics_closed_loop if stage_id in CONTACT_STAGE_IDS and execute else None,
+            "actual_vs_commanded_timing_recorded": bool(
+                timing_evidence and timing_evidence.get("actual_vs_commanded_duration_ratio") is not None
+            )
+            if execute and stage_id not in CONTACT_STAGE_IDS
+            else None,
+            "controller_speed_scaling_measured": bool(
+                timing_evidence and timing_evidence.get("controller_speed_scaling_measured")
+            )
+            if execute and stage_id not in CONTACT_STAGE_IDS
+            else None,
+            "timing_root_cause_status": timing_evidence.get("timing_root_cause_status")
+            if timing_evidence
+            else None,
             "force_loop_trace_written": bool(force_loop and Path(str(force_loop.get("trace_path"))).is_file())
             if force_loop
             else None,
