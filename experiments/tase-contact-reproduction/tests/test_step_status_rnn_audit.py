@@ -14,6 +14,7 @@ WORKSPACE = ROOT.parents[1]
 TOOLS = ROOT / "tools"
 PACKAGE = WORKSPACE / "src" / "ur10e_example_controllers"
 MODULE_PATH = TOOLS / "build_step_status_rnn_audit.py"
+PACK_MODULE_PATH = TOOLS / "build_step_simulated_ft_evidence_pack.py"
 sys.path.insert(0, str(TOOLS))
 sys.path.insert(0, str(PACKAGE))
 
@@ -50,6 +51,17 @@ def import_audit_module():
     spec = importlib.util.spec_from_file_location("build_step_status_rnn_audit", MODULE_PATH)
     if spec is None or spec.loader is None:
         raise AssertionError(f"cannot load spec for {MODULE_PATH}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def import_pack_module():
+    if not PACK_MODULE_PATH.is_file():
+        raise AssertionError(f"missing generator: {PACK_MODULE_PATH}")
+    spec = importlib.util.spec_from_file_location("build_step_simulated_ft_evidence_pack", PACK_MODULE_PATH)
+    if spec is None or spec.loader is None:
+        raise AssertionError(f"cannot load spec for {PACK_MODULE_PATH}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -95,6 +107,39 @@ class StepStatusRnnAuditTest(unittest.TestCase):
                 self.assertEqual(row["gazebo_contact_physics_status"], "blocked_not_proven")
                 self.assertIn("force_contact_physics_proven=false", row["current_blocker"])
                 self.assertNotIn("physical Gazebo collision/contact physics", row["claim_tier"])
+
+        self.assertEqual(by_stage["step5a"]["claim_tier"], "visual_only")
+        self.assertEqual(by_stage["step6a"]["claim_tier"], "visual_only")
+
+    def test_explicit_per_stage_simulated_ft_manifest_upgrades_only_simulated_ft_claims(self) -> None:
+        audit = import_audit_module()
+        pack = import_pack_module()
+        with tempfile.TemporaryDirectory(prefix="step_status_sim_ft_manifest_test_") as tmp:
+            manifest_path = pack.write_pack(Path(tmp), generated_at="2026-06-21T05:00:00+08:00")
+            payload = audit.build_audit(
+                generated_at="2026-06-21T05:00:00+08:00",
+                stage_sim_ft_manifest_path=manifest_path,
+            )
+
+        self.assertEqual(payload["stage_simulated_ft_evidence"]["status"], "valid")
+        self.assertEqual(payload["stage_simulated_ft_evidence"]["claim_tier"], "simulated_ft")
+        self.assertEqual(payload["audit_coverage"]["per_stage_simulated_ft_attached_count"], 5)
+        self.assertEqual(payload["p2_physical_gazebo_contact"]["claim_tier"], "visual_only")
+        self.assertFalse(payload["p2_physical_gazebo_contact"]["force_contact_physics_proven"])
+
+        by_stage = {row["stage_id"]: row for row in payload["step_status_matrix"]}
+        for stage_id in ["step5b", "step5d", "step6b", "step7", "step8"]:
+            with self.subTest(stage_id=stage_id):
+                row = by_stage[stage_id]
+                self.assertEqual(row["claim_tier"], "simulated_ft")
+                self.assertEqual(row["simulated_ft_status"], "per_stage_canonical_log_evidence_attached")
+                self.assertTrue(row["per_stage_simulated_ft_log_evidence"])
+                self.assertGreater(row["per_stage_simulated_ft_sample_count"], 0)
+                self.assertTrue(all(row["per_stage_simulated_ft_evidence_fields_present"].values()))
+                self.assertFalse(row["per_stage_simulated_ft_validation_issues"])
+                self.assertEqual(row["gazebo_contact_physics_status"], "blocked_not_proven")
+                self.assertIn("not physical Gazebo", row["allowed_claim"])
+                self.assertIn("real bench/live contact", row["forbidden_claim"])
 
         self.assertEqual(by_stage["step5a"]["claim_tier"], "visual_only")
         self.assertEqual(by_stage["step6a"]["claim_tier"], "visual_only")

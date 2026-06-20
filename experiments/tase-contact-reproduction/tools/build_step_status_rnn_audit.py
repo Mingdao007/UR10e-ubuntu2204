@@ -51,6 +51,8 @@ P2_CONTACT_CORRELATION_AUDIT = (
 )
 STEP5D_PAPER_TRUTH = EXPERIMENT_ROOT / "config" / "step5c_tase_paper_truth.json"
 STEP5D_NUMERIC_SANITY = RUNS / "step5d_numeric_sanity_20260614_215555" / "step5d_numeric_sanity.json"
+STAGE_SIM_FT_PACK_SCHEMA = "ur10e_step_simulated_ft_evidence_pack_v1"
+STAGE_SIM_FT_LOG_SCHEMA = "ur10e_stage_canonical_simulated_ft_log_v1"
 
 CLAIM_TIERS = [
     "visual_only",
@@ -155,17 +157,162 @@ def trace_has_simulated_ft_metadata(trace: dict[str, Any] | None) -> bool:
     )
 
 
-def stage_status_row(stage_id: str, p2_gate: dict[str, Any]) -> dict[str, Any]:
+def stage_trace_evidence_fields(trace: dict[str, Any], *, log_path: Path | None = None) -> dict[str, bool]:
+    rows = trace.get("rows") or []
+    first = rows[0] if rows else {}
+    header = first.get("header") if isinstance(first, dict) else {}
+    return {
+        "stamp": isinstance(header, dict) and "stamp_s" in header,
+        "frame_id": isinstance(header, dict) and bool(header.get("frame_id")),
+        "source": bool(first.get("source")),
+        "status": bool(first.get("status")),
+        "baseline": bool(first.get("baseline_policy")),
+        "log_evidence": bool(log_path is None or log_path.is_file()) and len(rows) > 0,
+    }
+
+
+def validate_stage_simulated_ft_log(log_path: Path) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "log_path": rel(log_path),
+        "valid": False,
+        "claim_tier": "visual_only",
+        "sample_count": 0,
+        "evidence_fields_present": {
+            "stamp": False,
+            "frame_id": False,
+            "source": False,
+            "status": False,
+            "baseline": False,
+            "log_evidence": False,
+        },
+        "validation_issues": [],
+    }
+    if not log_path.is_file():
+        result["validation_issues"] = ["log_path:missing"]
+        return result
+
+    try:
+        payload = load_json(log_path)
+    except (OSError, json.JSONDecodeError) as exc:
+        result["validation_issues"] = [f"log_path:unreadable:{type(exc).__name__}"]
+        return result
+
+    issues: list[str] = []
+    if payload.get("schema") != STAGE_SIM_FT_LOG_SCHEMA:
+        issues.append("schema:not_stage_canonical_simulated_ft_log")
+    trace = payload.get("trace")
+    if not isinstance(trace, dict):
+        issues.append("trace:missing")
+        result["validation_issues"] = issues
+        return result
+
+    if trace.get("schema") != wrench_contract.TRACE_SCHEMA:
+        issues.append("trace_schema:not_canonical_wrench_trace")
+    if trace.get("force_source") != wrench_contract.SOURCE_SIMULATED_FT:
+        issues.append("force_source:not_simulated_ft")
+    if trace.get("claim_tier") != "simulated_ft":
+        issues.append("claim_tier:not_simulated_ft")
+    if trace.get("schema_issues"):
+        issues.append("trace_schema_issues:not_empty")
+
+    rows = trace.get("rows") or []
+    fields = stage_trace_evidence_fields(trace, log_path=log_path)
+    missing_fields = [field for field, present in fields.items() if not present]
+    issues.extend(f"missing:{field}" for field in missing_fields)
+
+    for index, row in enumerate(rows):
+        sample_issues = wrench_contract.validate_canonical_sample_row(row)
+        if sample_issues:
+            issues.append(f"row_{index}:" + ",".join(sample_issues))
+        if row.get("source") != wrench_contract.SOURCE_SIMULATED_FT:
+            issues.append(f"row_{index}:source:not_simulated_ft")
+        if row.get("claim_tier") != "simulated_ft":
+            issues.append(f"row_{index}:claim_tier:not_simulated_ft")
+
+    result.update(
+        {
+            "valid": not issues,
+            "claim_tier": "simulated_ft" if not issues else "visual_only",
+            "sample_count": int(trace.get("sample_count") or len(rows)),
+            "evidence_fields_present": fields,
+            "validation_issues": issues,
+        }
+    )
+    return result
+
+
+def load_stage_simulated_ft_manifest(manifest_path: Path | None) -> dict[str, Any]:
+    if manifest_path is None:
+        return {
+            "manifest_path": None,
+            "status": "not_attached",
+            "stages": {},
+            "validation_issues": [],
+        }
+    if not manifest_path.is_file():
+        return {
+            "manifest_path": str(manifest_path),
+            "status": "missing",
+            "stages": {},
+            "validation_issues": ["manifest_path:missing"],
+        }
+
+    payload = load_json(manifest_path)
+    issues: list[str] = []
+    if payload.get("schema") != STAGE_SIM_FT_PACK_SCHEMA:
+        issues.append("schema:not_step_simulated_ft_evidence_pack")
+    raw_stages = payload.get("stages")
+    if not isinstance(raw_stages, dict):
+        issues.append("stages:not_object")
+        raw_stages = {}
+
+    stages: dict[str, Any] = {}
+    for stage_id, summary in raw_stages.items():
+        if not isinstance(summary, dict):
+            stages[stage_id] = {
+                "valid": False,
+                "claim_tier": "visual_only",
+                "validation_issues": ["stage_summary:not_object"],
+            }
+            continue
+        log_ref = summary.get("log_path")
+        log_path = WORKSPACE / log_ref if isinstance(log_ref, str) and not Path(log_ref).is_absolute() else Path(str(log_ref))
+        stages[stage_id] = validate_stage_simulated_ft_log(log_path)
+
+    return {
+        "manifest_path": rel(manifest_path),
+        "status": "valid" if not issues and all(stage.get("valid") for stage in stages.values()) else "invalid_or_partial",
+        "stages": stages,
+        "validation_issues": issues,
+    }
+
+
+def stage_status_row(
+    stage_id: str,
+    p2_gate: dict[str, Any],
+    stage_sim_ft_evidence: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     spec = step56.STAGE_REGISTRY[stage_id]
     artifact = step56.build_stage_artifact(stage_id)
     stage = artifact["stage"]
     trace = artifact.get("simulated_force_evidence")
     has_simulated_ft = trace_has_simulated_ft_metadata(trace)
+    attached = stage_sim_ft_evidence or {}
+    attached_valid = bool(attached.get("valid")) and attached.get("claim_tier") == "simulated_ft"
     contact = bool(spec.contact)
 
-    if has_simulated_ft:
+    if has_simulated_ft and attached_valid:
+        claim_tier = "simulated_ft"
+        simulated_ft_status = "per_stage_canonical_log_evidence_attached"
+        per_stage_log_evidence = True
+        allowed_claim = (
+            "simulated_ft per-stage canonical wrench log evidence only; not physical Gazebo collision/contact "
+            "physics and not real bench/live contact"
+        )
+    elif has_simulated_ft:
         claim_tier = "virtual/software force-loop"
         simulated_ft_status = "not_per_stage_canonical_log_evidence"
+        per_stage_log_evidence = False
         allowed_claim = (
             "virtual/software force-loop path status only; global P1 simulated_ft evidence is separate "
             "and per-stage canonical simulated FT logs are not attached"
@@ -173,6 +320,7 @@ def stage_status_row(stage_id: str, p2_gate: dict[str, Any]) -> dict[str, Any]:
     else:
         claim_tier = "visual_only"
         simulated_ft_status = "not_applicable"
+        per_stage_log_evidence = False
         allowed_claim = "visual_only/offline path or observer status only; no force/contact physics claim"
 
     if contact:
@@ -197,7 +345,21 @@ def stage_status_row(stage_id: str, p2_gate: dict[str, Any]) -> dict[str, Any]:
         "inner_rnn_status": inner_rnn_status(stage_id),
         "outer_loop_status": outer_loop_status(stage_id),
         "simulated_ft_status": simulated_ft_status,
-        "per_stage_simulated_ft_log_evidence": False,
+        "per_stage_simulated_ft_log_evidence": per_stage_log_evidence,
+        "per_stage_simulated_ft_log_artifact": attached.get("log_path"),
+        "per_stage_simulated_ft_sample_count": attached.get("sample_count", 0),
+        "per_stage_simulated_ft_evidence_fields_present": attached.get(
+            "evidence_fields_present",
+            {
+                "stamp": False,
+                "frame_id": False,
+                "source": False,
+                "status": False,
+                "baseline": False,
+                "log_evidence": False,
+            },
+        ),
+        "per_stage_simulated_ft_validation_issues": attached.get("validation_issues", []),
         "gazebo_contact_physics_status": gazebo_status,
         "evidence_artifact": "generated_from_step56_simulation_matrix",
         "current_blocker": blocker,
@@ -340,11 +502,14 @@ def build_audit(
     generated_at: str | None = None,
     p1_path: Path = P1_SIMULATED_FT,
     p2_correlation_path: Path = P2_CONTACT_CORRELATION_AUDIT,
+    stage_sim_ft_manifest_path: Path | None = None,
 ) -> dict[str, Any]:
     generated = generated_at or datetime.now().isoformat(timespec="seconds")
     p1 = p1_simulated_ft_summary(p1_path)
     p2 = p2_physical_gate_summary(p2_correlation_path)
-    rows = [stage_status_row(stage_id, p2) for stage_id in step56.STAGE_REGISTRY]
+    stage_sim_ft_manifest = load_stage_simulated_ft_manifest(stage_sim_ft_manifest_path)
+    stage_sim_ft_rows = stage_sim_ft_manifest["stages"]
+    rows = [stage_status_row(stage_id, p2, stage_sim_ft_rows.get(stage_id)) for stage_id in step56.STAGE_REGISTRY]
     return {
         "schema": "ur10e_step_status_rnn_audit_v1",
         "generated_at": generated,
@@ -371,12 +536,22 @@ def build_audit(
             "p2_contact_pair_log": rel(P2_CONTACT_PAIR_LOG),
             "p2_wrench_adapter_report": rel(P2_WRENCH_ADAPTER_REPORT),
             "p2_contact_correlation_audit": rel(p2_correlation_path),
+            "stage_simulated_ft_manifest": stage_sim_ft_manifest["manifest_path"],
             "step56_simulation_matrix": rel(Path(step56.__file__)),
             "step5d_paper_truth": rel(STEP5D_PAPER_TRUTH),
             "step5d_numeric_sanity": rel(STEP5D_NUMERIC_SANITY),
         },
         "p1_simulated_ft": p1,
         "p2_physical_gazebo_contact": p2,
+        "stage_simulated_ft_evidence": {
+            "claim_tier": "simulated_ft" if stage_sim_ft_manifest["status"] == "valid" else "visual_only",
+            "manifest_path": stage_sim_ft_manifest["manifest_path"],
+            "status": stage_sim_ft_manifest["status"],
+            "validation_issues": stage_sim_ft_manifest["validation_issues"],
+            "attached_stage_count": len(stage_sim_ft_rows),
+            "valid_stage_count": sum(1 for stage in stage_sim_ft_rows.values() if stage.get("valid")),
+            "forbidden_claim": "physical Gazebo collision/contact physics; real bench/live contact",
+        },
         "step_status_matrix": rows,
         "rnn_interface_table": rnn_interface_table(),
         "force_source_lineage_current_goal": current_goal_lineage_rows(),
@@ -385,6 +560,10 @@ def build_audit(
             "rnn_interfaces": 4,
             "p1_claim_tier": p1["claim_tier"],
             "p2_claim_tier": p2["claim_tier"],
+            "stage_simulated_ft_manifest_status": stage_sim_ft_manifest["status"],
+            "per_stage_simulated_ft_attached_count": sum(
+                1 for row in rows if row["per_stage_simulated_ft_log_evidence"]
+            ),
             "full_acceptance_allowed": False,
             "full_acceptance_blocker": "P2 physical Gazebo collision/contact physics is blocked/not proven and real bench/live contact is not authorized.",
         },
@@ -397,10 +576,16 @@ def write_audit(
     generated_at: str | None = None,
     p1_path: Path = P1_SIMULATED_FT,
     p2_correlation_path: Path = P2_CONTACT_CORRELATION_AUDIT,
+    stage_sim_ft_manifest_path: Path | None = None,
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     path = output_dir / "step_status_rnn_audit.json"
-    payload = build_audit(generated_at=generated_at, p1_path=p1_path, p2_correlation_path=p2_correlation_path)
+    payload = build_audit(
+        generated_at=generated_at,
+        p1_path=p1_path,
+        p2_correlation_path=p2_correlation_path,
+        stage_sim_ft_manifest_path=stage_sim_ft_manifest_path,
+    )
     payload["artifact_path"] = str(path)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return path
@@ -412,6 +597,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--generated-at", default=None)
     parser.add_argument("--p1-path", type=Path, default=P1_SIMULATED_FT)
     parser.add_argument("--p2-correlation-path", type=Path, default=P2_CONTACT_CORRELATION_AUDIT)
+    parser.add_argument("--stage-sim-ft-manifest", type=Path, default=None)
     return parser.parse_args(argv)
 
 
@@ -422,6 +608,7 @@ def main(argv: list[str] | None = None) -> int:
         generated_at=args.generated_at,
         p1_path=args.p1_path,
         p2_correlation_path=args.p2_correlation_path,
+        stage_sim_ft_manifest_path=args.stage_sim_ft_manifest,
     )
     print(path)
     return 0
