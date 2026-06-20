@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -37,6 +39,7 @@ class CanonicalSimulatedFtRuntimeTest(unittest.TestCase):
             "controller_status_topic",
             "run_metadata_topic",
             "dry_run_summary",
+            "runtime_observation_summary",
             "publish_hz",
             "max_samples",
         ]:
@@ -89,6 +92,65 @@ class CanonicalSimulatedFtRuntimeTest(unittest.TestCase):
         args = runtime.parse_args(["--dry-run-summary", ""])
         config = runtime._config_from_args(args)
         self.assertIsNone(config.dry_run_summary)
+
+    def test_runtime_observation_summary_argument_is_optional(self) -> None:
+        from ur10e_example_controllers import canonical_simulated_ft_runtime as runtime
+
+        args = runtime.parse_args(["--runtime-observation-summary", ""])
+        config = runtime._config_from_args(args)
+        self.assertIsNone(config.runtime_observation_summary)
+        self.assertFalse(args.observe_runtime_only)
+
+    def test_observed_ros_runtime_records_topic_evidence(self) -> None:
+        from ur10e_example_controllers import canonical_simulated_ft_runtime as runtime
+        from ur10e_example_controllers import canonical_wrench_contract as contract
+
+        prefix = f"/ur10e/test/canonical_runtime_{os.getpid()}"
+        with tempfile.TemporaryDirectory() as tmp:
+            summary = Path(tmp) / "runtime_observation.json"
+            config = runtime.build_runtime_config(
+                {
+                    "canonical_wrench_topic": f"{prefix}/canonical_wrench",
+                    "simulated_ft_wrench_topic": f"{prefix}/simulated_ft/wrench",
+                    "simulated_ft_status_topic": f"{prefix}/simulated_ft/status",
+                    "contact_state_topic": f"{prefix}/contact_state",
+                    "controller_status_topic": f"{prefix}/controller_status",
+                    "run_metadata_topic": f"{prefix}/run_metadata",
+                    "publish_hz": "100.0",
+                    "max_samples": "3",
+                    "runtime_observation_summary": str(summary),
+                }
+            )
+            payload = runtime.run_observed_ros(config)
+            saved = json.loads(summary.read_text(encoding="utf-8"))
+
+        self.assertEqual(payload, saved)
+        self.assertEqual(payload["schema"], "ur10e_canonical_simulated_ft_runtime_observation_v1")
+        self.assertEqual(payload["mode"], "offline_ros2_runtime_observation")
+        self.assertEqual(payload["claim_tier"], "simulated_ft")
+        self.assertEqual(payload["force_source"], contract.SOURCE_SIMULATED_FT)
+        self.assertFalse(payload["live_robot_command_authorized"])
+        self.assertFalse(payload["bridge_start_authorized"])
+        self.assertEqual(payload["published_sample_count"], 3)
+        for topic_key in [
+            "canonical_wrench",
+            "simulated_ft_wrench",
+            "simulated_ft_status",
+            "contact_state",
+            "controller_status",
+        ]:
+            self.assertEqual(payload["observed_counts"][topic_key], 3)
+        self.assertEqual(payload["observed_counts"]["run_metadata"], 1)
+        self.assertEqual(payload["first_wrench"]["header"]["frame_id"], "base")
+        self.assertEqual(payload["first_canonical_row"]["source"], contract.SOURCE_SIMULATED_FT)
+        self.assertEqual(payload["first_canonical_row"]["status"], "valid")
+        self.assertEqual(payload["first_canonical_row"]["baseline_policy"], "simulated_zero_no_contact_baseline")
+        self.assertTrue(payload["evidence_fields_present"]["stamp"])
+        self.assertTrue(payload["evidence_fields_present"]["frame_id"])
+        self.assertTrue(payload["evidence_fields_present"]["source"])
+        self.assertTrue(payload["evidence_fields_present"]["status"])
+        self.assertTrue(payload["evidence_fields_present"]["baseline"])
+        self.assertTrue(payload["evidence_fields_present"]["log_evidence"])
 
     def test_runtime_source_has_no_live_or_private_gazebo_dependency(self) -> None:
         module_path = PACKAGE / "ur10e_example_controllers" / "canonical_simulated_ft_runtime.py"

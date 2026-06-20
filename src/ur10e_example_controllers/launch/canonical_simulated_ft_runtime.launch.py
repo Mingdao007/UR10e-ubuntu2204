@@ -14,6 +14,7 @@ def generate_launch_description() -> LaunchDescription:
     controller_status_topic = LaunchConfiguration("controller_status_topic")
     run_metadata_topic = LaunchConfiguration("run_metadata_topic")
     dry_run_summary = LaunchConfiguration("dry_run_summary")
+    runtime_observation_summary = LaunchConfiguration("runtime_observation_summary")
     publish_hz = LaunchConfiguration("publish_hz")
     max_samples = LaunchConfiguration("max_samples")
 
@@ -26,6 +27,7 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument("controller_status_topic", default_value=contract.CONTROLLER_STATUS_TOPIC),
             DeclareLaunchArgument("run_metadata_topic", default_value=contract.RUN_METADATA_TOPIC),
             DeclareLaunchArgument("dry_run_summary", default_value=""),
+            DeclareLaunchArgument("runtime_observation_summary", default_value=""),
             DeclareLaunchArgument("publish_hz", default_value="50.0"),
             DeclareLaunchArgument("max_samples", default_value="100"),
             Node(
@@ -48,6 +50,8 @@ def generate_launch_description() -> LaunchDescription:
                     run_metadata_topic,
                     "--dry-run-summary",
                     dry_run_summary,
+                    "--runtime-observation-summary",
+                    runtime_observation_summary,
                     "--publish-hz",
                     publish_hz,
                     "--max-samples",

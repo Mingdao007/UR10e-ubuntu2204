@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 import json
 from pathlib import Path
+import time
 from typing import Any
 
 from . import canonical_wrench_contract as contract
@@ -24,6 +25,7 @@ class RuntimeConfig:
     nominal_contact_load_n: float = 5.0
     stale_after_s: float = 0.1
     dry_run_summary: Path | None = None
+    runtime_observation_summary: Path | None = None
     source_switching_policy: str = "launch_config_or_remap_only_no_controller_logic"
     live_robot_command_authorized: bool = False
     bridge_start_authorized: bool = False
@@ -40,6 +42,8 @@ def _value(overrides: dict[str, Any], name: str, default: Any) -> Any:
 def build_runtime_config(overrides: dict[str, Any]) -> RuntimeConfig:
     dry_run_raw = _value(overrides, "dry_run_summary", None)
     dry_run_summary = Path(str(dry_run_raw)) if dry_run_raw not in {None, ""} else None
+    observation_raw = _value(overrides, "runtime_observation_summary", None)
+    runtime_observation_summary = Path(str(observation_raw)) if observation_raw not in {None, ""} else None
     return RuntimeConfig(
         canonical_wrench_topic=str(_value(overrides, "canonical_wrench_topic", contract.CANONICAL_WRENCH_TOPIC)),
         simulated_ft_wrench_topic=str(
@@ -57,6 +61,7 @@ def build_runtime_config(overrides: dict[str, Any]) -> RuntimeConfig:
         nominal_contact_load_n=float(_value(overrides, "nominal_contact_load_n", 5.0)),
         stale_after_s=float(_value(overrides, "stale_after_s", 0.1)),
         dry_run_summary=dry_run_summary,
+        runtime_observation_summary=runtime_observation_summary,
     )
 
 
@@ -182,6 +187,202 @@ def _wrench_msg(row: dict[str, Any]) -> Any:
     return msg
 
 
+def _wrench_to_row(msg: Any) -> dict[str, Any]:
+    stamp_s = float(msg.header.stamp.sec) + (float(msg.header.stamp.nanosec) / 1_000_000_000.0)
+    return {
+        "header": {
+            "stamp_s": stamp_s,
+            "frame_id": str(msg.header.frame_id),
+        },
+        "force_n": [
+            float(msg.wrench.force.x),
+            float(msg.wrench.force.y),
+            float(msg.wrench.force.z),
+        ],
+        "torque_nm": [
+            float(msg.wrench.torque.x),
+            float(msg.wrench.torque.y),
+            float(msg.wrench.torque.z),
+        ],
+    }
+
+
+def _first(values: list[Any]) -> Any:
+    return values[0] if values else {}
+
+
+def _observed_counts(observed: dict[str, list[Any]]) -> dict[str, int]:
+    return {key: len(value) for key, value in observed.items()}
+
+
+def run_observed_ros(config: RuntimeConfig) -> dict[str, Any]:
+    import rclpy
+    from geometry_msgs.msg import WrenchStamped
+    from rclpy.context import Context
+    from rclpy.executors import SingleThreadedExecutor
+    from rclpy.node import Node
+    from std_msgs.msg import String
+
+    dry_run_payload = write_dry_run_summary(config)
+    rows = dry_run_payload["wrench_trace"]["rows"]
+    expected_counts = {
+        "canonical_wrench": len(rows),
+        "simulated_ft_wrench": len(rows),
+        "simulated_ft_status": len(rows),
+        "contact_state": len(rows),
+        "controller_status": len(rows),
+        "run_metadata": 1,
+    }
+    observed: dict[str, list[Any]] = {key: [] for key in expected_counts}
+
+    context = Context()
+    rclpy.init(context=context)
+    publisher_node: Node | None = None
+    observer_node: Node | None = None
+    executor: SingleThreadedExecutor | None = None
+    discovery_ready = False
+    try:
+        publisher_node = Node("canonical_simulated_ft_runtime_observed_publisher", context=context)
+        observer_node = Node("canonical_simulated_ft_runtime_observer", context=context)
+        executor = SingleThreadedExecutor(context=context)
+        executor.add_node(publisher_node)
+        executor.add_node(observer_node)
+
+        wrench_pub = publisher_node.create_publisher(WrenchStamped, config.simulated_ft_wrench_topic, 10)
+        canonical_pub = publisher_node.create_publisher(String, config.canonical_wrench_topic, 10)
+        status_pub = publisher_node.create_publisher(String, config.simulated_ft_status_topic, 10)
+        contact_pub = publisher_node.create_publisher(String, config.contact_state_topic, 10)
+        controller_pub = publisher_node.create_publisher(String, config.controller_status_topic, 10)
+        metadata_pub = publisher_node.create_publisher(String, config.run_metadata_topic, 10)
+        publishers = [wrench_pub, canonical_pub, status_pub, contact_pub, controller_pub, metadata_pub]
+
+        observer_node.create_subscription(
+            WrenchStamped,
+            config.simulated_ft_wrench_topic,
+            lambda msg: observed["simulated_ft_wrench"].append(_wrench_to_row(msg)),
+            10,
+        )
+        observer_node.create_subscription(
+            String,
+            config.canonical_wrench_topic,
+            lambda msg: observed["canonical_wrench"].append(json.loads(msg.data)),
+            10,
+        )
+        observer_node.create_subscription(
+            String,
+            config.simulated_ft_status_topic,
+            lambda msg: observed["simulated_ft_status"].append(json.loads(msg.data)),
+            10,
+        )
+        observer_node.create_subscription(
+            String,
+            config.contact_state_topic,
+            lambda msg: observed["contact_state"].append(json.loads(msg.data)),
+            10,
+        )
+        observer_node.create_subscription(
+            String,
+            config.controller_status_topic,
+            lambda msg: observed["controller_status"].append(json.loads(msg.data)),
+            10,
+        )
+        observer_node.create_subscription(
+            String,
+            config.run_metadata_topic,
+            lambda msg: observed["run_metadata"].append(json.loads(msg.data)),
+            10,
+        )
+
+        discovery_deadline = time.monotonic() + 2.0
+        while time.monotonic() < discovery_deadline:
+            executor.spin_once(timeout_sec=0.05)
+            if all(publisher.get_subscription_count() > 0 for publisher in publishers):
+                discovery_ready = True
+                break
+
+        state = {"index": 0, "publishing_done": False}
+
+        def tick() -> None:
+            index = state["index"]
+            if index == 0:
+                metadata_pub.publish(_json_msg(dry_run_payload["run_metadata"]))
+            if index >= len(rows):
+                state["publishing_done"] = True
+                publisher_node.destroy_timer(timer)
+                return
+            row = rows[index]
+            wrench_pub.publish(_wrench_msg(row))
+            canonical_pub.publish(_json_msg(row))
+            status_pub.publish(_json_msg(dry_run_payload["status_rows"][index]))
+            contact_pub.publish(_json_msg(dry_run_payload["contact_state_rows"][index]))
+            controller_pub.publish(_json_msg(dry_run_payload["controller_status_rows"][index]))
+            state["index"] = index + 1
+
+        timer = publisher_node.create_timer(1.0 / max(config.publish_hz, 1e-9), tick)
+        deadline = time.monotonic() + max(3.0, (len(rows) / max(config.publish_hz, 1e-9)) + 2.0)
+        while time.monotonic() < deadline:
+            executor.spin_once(timeout_sec=0.05)
+            counts = _observed_counts(observed)
+            if state["publishing_done"] and all(counts[key] >= value for key, value in expected_counts.items()):
+                break
+    finally:
+        if executor is not None:
+            if publisher_node is not None:
+                executor.remove_node(publisher_node)
+            if observer_node is not None:
+                executor.remove_node(observer_node)
+        if publisher_node is not None:
+            publisher_node.destroy_node()
+        if observer_node is not None:
+            observer_node.destroy_node()
+        if context.ok():
+            rclpy.shutdown(context=context)
+
+    counts = _observed_counts(observed)
+    first_wrench = _first(observed["simulated_ft_wrench"])
+    first_canonical = _first(observed["canonical_wrench"])
+    observed_complete = all(counts[key] >= value for key, value in expected_counts.items())
+    artifact = {
+        "schema": "ur10e_canonical_simulated_ft_runtime_observation_v1",
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "mode": "offline_ros2_runtime_observation",
+        "claim_tier": "simulated_ft",
+        "force_source": contract.SOURCE_SIMULATED_FT,
+        "live_robot_command_authorized": config.live_robot_command_authorized,
+        "bridge_start_authorized": config.bridge_start_authorized,
+        "payload_tcp_safety_writes_authorized": config.payload_tcp_safety_writes_authorized,
+        "source_switching_policy": config.source_switching_policy,
+        "topics": dry_run_payload["topics"],
+        "published_sample_count": len(rows),
+        "expected_counts": expected_counts,
+        "observed_counts": counts,
+        "observed_complete": observed_complete,
+        "discovery_ready": discovery_ready,
+        "first_wrench": first_wrench,
+        "first_canonical_row": first_canonical,
+        "first_status_row": _first(observed["simulated_ft_status"]),
+        "first_contact_state_row": _first(observed["contact_state"]),
+        "first_controller_status_row": _first(observed["controller_status"]),
+        "run_metadata": _first(observed["run_metadata"]),
+        "summary_path": str(config.runtime_observation_summary) if config.runtime_observation_summary else "",
+        "evidence_fields_present": {
+            "stamp": bool(first_wrench.get("header", {}).get("stamp_s") is not None),
+            "frame_id": bool(first_wrench.get("header", {}).get("frame_id")),
+            "source": bool(first_canonical.get("source")),
+            "status": bool(first_canonical.get("status")),
+            "baseline": bool(first_canonical.get("baseline_policy")),
+            "log_evidence": config.runtime_observation_summary is not None,
+        },
+    }
+    if config.runtime_observation_summary is not None:
+        config.runtime_observation_summary.parent.mkdir(parents=True, exist_ok=True)
+        config.runtime_observation_summary.write_text(
+            json.dumps(artifact, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    return artifact
+
+
 def run_ros(config: RuntimeConfig) -> int:
     import rclpy
     from rclpy.node import Node
@@ -242,7 +443,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--nominal-contact-load-n", type=float, default=5.0)
     parser.add_argument("--stale-after-s", type=float, default=0.1)
     parser.add_argument("--dry-run-summary", default="")
+    parser.add_argument("--runtime-observation-summary", default="")
     parser.add_argument("--dry-run-only", action="store_true")
+    parser.add_argument("--observe-runtime-only", action="store_true")
     return parser.parse_args(argv)
 
 
@@ -261,6 +464,7 @@ def _config_from_args(args: argparse.Namespace) -> RuntimeConfig:
             "nominal_contact_load_n": args.nominal_contact_load_n,
             "stale_after_s": args.stale_after_s,
             "dry_run_summary": args.dry_run_summary,
+            "runtime_observation_summary": args.runtime_observation_summary,
         }
     )
 
@@ -273,6 +477,11 @@ def main(argv: list[str] | None = None) -> int:
         if config.dry_run_summary is None:
             print(json.dumps(payload, indent=2, sort_keys=True))
         return 0
+    if args.observe_runtime_only or config.runtime_observation_summary is not None:
+        payload = run_observed_ros(config)
+        if config.runtime_observation_summary is None:
+            print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0 if payload["observed_complete"] else 2
     return run_ros(config)
 
 
