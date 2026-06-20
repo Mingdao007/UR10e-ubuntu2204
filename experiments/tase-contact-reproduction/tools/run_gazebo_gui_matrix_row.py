@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import signal
@@ -36,6 +37,19 @@ TRACE_STATUS = {
 }
 DEFAULT_GUI_CONFIG_DIR = EXPERIMENT / "config" / "gazebo_gui_real_aligned_views"
 POSE_SOURCE_ACTIVE_TCP = "joint_states_to_runner_fk_active_tcp_base_to_gazebo_world"
+DEFAULT_WORLD_NAME = "ur10e_step5_table_world"
+ENHANCED_MARKER_VISUAL_NAMES = frozenset(
+    {
+        "tcp_contact_pad_orange",
+        "tcp_magenta_sphere",
+        "tcp_probe_sleeve_yellow",
+        "tcp_white_mast",
+        "tcp_tool_plate_silver",
+        "tcp_sensor_body_teal",
+        "tcp_cyan_crossbar_x",
+        "tcp_magenta_crossbar_y",
+    }
+)
 
 
 def run_row(args: argparse.Namespace) -> int:
@@ -51,6 +65,7 @@ def run_row(args: argparse.Namespace) -> int:
 
     env = os.environ.copy()
     env["DISPLAY"] = args.display
+    env["PYTHONPATH"] = _prepend(str(SRC_PACKAGE), env.get("PYTHONPATH"))
     if args.local_ros_prefix:
         prefix = str(args.local_ros_prefix.resolve())
         env["AMENT_PREFIX_PATH"] = _prepend(prefix, env.get("AMENT_PREFIX_PATH"))
@@ -174,6 +189,15 @@ def run_row(args: argparse.Namespace) -> int:
             env=env,
         )
         _write_trace(trace_path, {"runner_rc": runner_rc})
+        camera_capture = capture_scripted_camera_image(
+            case_dir,
+            stage=args.stage,
+            view=args.view,
+            env=env,
+            timeout_s=args.scripted_camera_timeout_s,
+        )
+        _write_trace(trace_path, {"scripted_camera_capture": camera_capture})
+        capture_scene_introspection(case_dir, env=env, world_name=DEFAULT_WORLD_NAME, robot_model_name="ur10e_gazebo_matrix")
     finally:
         _terminate_process(marker)
         _terminate_process(ffmpeg)
@@ -238,6 +262,12 @@ def build_row_summary(
     visual_manifest = _read_json(visual_manifest_path, default={}) if visual_manifest_path else {}
     observer_review_path = case_dir / "observer_review.json"
     observer_review = _read_json(observer_review_path, default={}) if observer_review_path.exists() else {}
+    scene_introspection_dir = case_dir / "scene_introspection"
+    scene_info_path = scene_introspection_dir / "scene_info.json"
+    model_list_path = scene_introspection_dir / "model_list.txt"
+    introspection_summary_path = scene_introspection_dir / "introspection_summary.json"
+    introspection_summary = _read_json(introspection_summary_path, default={})
+    live_scene_content = summarize_live_scene_content(scene_introspection_dir)
 
     force_loop = execution.get("force_loop") or stage_payload.get("force_loop") or {}
     force_success = execution.get("force_closed_loop")
@@ -250,8 +280,17 @@ def build_row_summary(
     start_png = case_dir / "start_root.png"
     mid_png = case_dir / "mid_root.png"
     final_png = case_dir / "final_root.png"
+    scripted_camera_png = case_dir / "scripted_camera_final.png"
+    scripted_camera_capture_path = case_dir / "scripted_camera_capture.json"
+    scripted_camera_capture = _read_json(scripted_camera_capture_path, default={})
     video_path = case_dir / "gui_recording.mp4"
     gui_evidence = all(path.is_file() and path.stat().st_size > 0 for path in (start_png, mid_png, final_png, video_path))
+    scripted_camera_evidence = bool(
+        scripted_camera_capture.get("captured")
+        and scripted_camera_png.is_file()
+        and scripted_camera_png.stat().st_size > 0
+    )
+    visual_evidence = gui_evidence or scripted_camera_evidence
     marker_pose_count = _int_or_none(marker_payload.get("pose_count"))
     marker_pose_valid = bool(
         marker_payload.get("spawned")
@@ -301,6 +340,13 @@ def build_row_summary(
         "settled_force_within_tolerance_fraction": settled_fraction,
         "real_machine_traceability_status": TRACE_STATUS[stage],
         "gui_evidence_captured": gui_evidence,
+        "scripted_camera_evidence_captured": scripted_camera_evidence,
+        "visual_evidence_captured": visual_evidence,
+        "scripted_camera_final_png": str(scripted_camera_png),
+        "scripted_camera_capture_path": str(scripted_camera_capture_path),
+        "scripted_camera_capture": scripted_camera_capture or None,
+        "scripted_camera_topic": scripted_camera_capture.get("topic"),
+        "scripted_camera_sha256": scripted_camera_capture.get("sha256"),
         "video_duration_s": video_duration_s,
         "video_path": str(video_path),
         "start_png": str(start_png),
@@ -319,6 +365,7 @@ def build_row_summary(
         "marker_final_y_m": (marker_payload.get("final_pose") or {}).get("y_m"),
         "marker_final_z_m": (marker_payload.get("final_pose") or {}).get("z_m"),
         "matrix_summary": str(matrix_summary),
+        "git_provenance": payload.get("git_provenance"),
         "trace_path": stage_payload.get("trace_path"),
         "visual_world_manifest": str(visual_manifest_path) if visual_manifest_path else None,
         "surface_frame": visual_manifest.get("surface_frame"),
@@ -328,22 +375,38 @@ def build_row_summary(
         "surface_tcp_sanity": visual_manifest.get("surface_tcp_sanity"),
         "observer_review_present": review_present,
         "observer_review_path": str(observer_review_path),
+        "scene_introspection_dir": str(scene_introspection_dir),
+        "scene_introspection_summary_path": str(introspection_summary_path),
+        "scene_info_path": str(scene_info_path),
+        "scene_info_captured": _introspection_output_captured(introspection_summary, "scene_info.json"),
+        "scene_model_list_path": str(model_list_path),
+        "scene_model_list_captured": _introspection_output_captured(introspection_summary, "model_list.txt"),
+        "live_scene_content": live_scene_content,
+        "live_scene_content_branch": live_scene_content["branch"],
+        "live_scene_enhanced_marker_visuals_present": live_scene_content["enhanced_marker_visuals_present"],
+        "live_scene_tool0_eoat_visuals_present": live_scene_content["tool0_eoat_visuals_present"],
+        "live_scene_eoat_affordance_visuals_present": live_scene_content["eoat_affordance_visuals_present"],
         "observer_visual_review_source": review_source,
         "observer_visual_notes": observer_review.get("notes"),
         "observer_visual_reviewed_at": observer_review.get("reviewed_at"),
         "observer_visual_review_status": "row_review_present" if review_present else "pending_observer_review",
-        "robot_posture_visible": bool(gui_evidence and _review_flag(observer_review, "robot_posture_visible")),
-        "eoat_tooling_visible": bool(gui_evidence and _review_flag(observer_review, "eoat_tooling_visible")),
-        "tcp_marker_visible": bool(gui_evidence and marker_pose_valid and _review_flag(observer_review, "tcp_marker_visible")),
-        "surface_path_visible": bool(gui_evidence and _review_flag(observer_review, "surface_path_visible")),
+        "robot_posture_visible": bool(visual_evidence and _review_flag(observer_review, "robot_posture_visible")),
+        "eoat_tooling_visible": bool(visual_evidence and _review_flag(observer_review, "eoat_tooling_visible")),
+        "tcp_marker_visible": bool(visual_evidence and marker_pose_valid and _review_flag(observer_review, "tcp_marker_visible")),
+        "surface_path_visible": bool(visual_evidence and _review_flag(observer_review, "surface_path_visible")),
         "robot_tool_surface_relation_visible": bool(
-            gui_evidence and marker_pose_valid and _review_flag(observer_review, "robot_tool_surface_relation_visible")
+            visual_evidence and marker_pose_valid and _review_flag(observer_review, "robot_tool_surface_relation_visible")
         ),
-        "obstructive_ui_panels_absent": bool(config_clean or _review_flag(observer_review, "obstructive_ui_panels_absent")),
-        "clean_scene_capture": bool(config_clean or _review_flag(observer_review, "clean_scene_capture")),
+        "obstructive_ui_panels_absent": bool(
+            scripted_camera_evidence or config_clean or _review_flag(observer_review, "obstructive_ui_panels_absent")
+        ),
+        "clean_scene_capture": bool(scripted_camera_evidence or config_clean or _review_flag(observer_review, "clean_scene_capture")),
         "context_ui_allowed": bool(view == "context_overview" and _review_flag(observer_review, "context_ui_allowed")),
         "machine_visual_prerequisites": {
             "gui_evidence_captured": gui_evidence,
+            "scripted_camera_evidence_captured": scripted_camera_evidence,
+            "visual_evidence_captured": visual_evidence,
+            "scripted_camera_topic": scripted_camera_capture.get("topic"),
             "marker_pose_valid": marker_pose_valid,
             "marker_pose_count": marker_pose_count,
             "marker_pose_source": marker_payload.get("pose_source"),
@@ -353,6 +416,108 @@ def build_row_summary(
         },
     }
     return gazebo.populate_observer_visual_pass(row)
+
+
+def summarize_live_scene_content(scene_introspection_dir: Path) -> dict[str, object]:
+    pose_info_path = scene_introspection_dir / "pose_info.json"
+    pose_names, pose_by_name = _load_pose_info_names(pose_info_path)
+    if not pose_names:
+        return {
+            "schema": "ur10e_gazebo_live_scene_content_v1",
+            "pose_info_path": str(pose_info_path),
+            "pose_info_captured": False,
+            "branch": "pose_info_missing_or_empty",
+            "does_not_override_observer_visual_gate": True,
+            "required_enhanced_marker_visuals": sorted(ENHANCED_MARKER_VISUAL_NAMES),
+            "present_enhanced_marker_visuals": [],
+            "missing_enhanced_marker_visuals": sorted(ENHANCED_MARKER_VISUAL_NAMES),
+            "enhanced_marker_visuals_present": False,
+            "required_tool0_eoat_visuals": sorted(gazebo.TOOL0_EOAT_VIEWER_VISUAL_NAMES),
+            "present_tool0_eoat_visuals": [],
+            "missing_tool0_eoat_visuals": sorted(gazebo.TOOL0_EOAT_VIEWER_VISUAL_NAMES),
+            "tool0_eoat_visuals_present": False,
+            "required_eoat_affordance_visuals": sorted(gazebo.EOAT_VIEWER_AFFORDANCE_VISUAL_NAMES),
+            "present_eoat_affordance_visuals": [],
+            "missing_eoat_affordance_visuals": sorted(gazebo.EOAT_VIEWER_AFFORDANCE_VISUAL_NAMES),
+            "eoat_affordance_visuals_present": False,
+            "active_tcp_marker_model_present": False,
+            "wrist_3_link_present": False,
+            "active_tcp_marker_pose": None,
+            "wrist_3_link_pose": None,
+        }
+
+    present_marker = _present_name_fragments(pose_names, ENHANCED_MARKER_VISUAL_NAMES)
+    present_tool0 = _present_name_fragments(pose_names, gazebo.TOOL0_EOAT_VIEWER_VISUAL_NAMES)
+    present_eoat = _present_name_fragments(pose_names, gazebo.EOAT_VIEWER_AFFORDANCE_VISUAL_NAMES)
+    missing_marker = sorted(ENHANCED_MARKER_VISUAL_NAMES - set(present_marker))
+    missing_tool0 = sorted(gazebo.TOOL0_EOAT_VIEWER_VISUAL_NAMES - set(present_tool0))
+    missing_eoat = sorted(gazebo.EOAT_VIEWER_AFFORDANCE_VISUAL_NAMES - set(present_eoat))
+    enhanced_marker_present = not missing_marker
+    tool0_present = not missing_tool0
+    eoat_present = not missing_eoat
+    if enhanced_marker_present and tool0_present and eoat_present:
+        branch = "enhanced_geometry_present_in_live_ecm_render_not_viewer_visible"
+    elif enhanced_marker_present and not (tool0_present and eoat_present):
+        branch = "enhanced_marker_present_but_robot_eoat_visuals_incomplete_in_live_ecm"
+    elif tool0_present or eoat_present:
+        branch = "robot_eoat_visuals_present_but_enhanced_marker_incomplete_in_live_ecm"
+    else:
+        branch = "enhanced_geometry_missing_from_live_ecm"
+
+    return {
+        "schema": "ur10e_gazebo_live_scene_content_v1",
+        "pose_info_path": str(pose_info_path),
+        "pose_info_captured": True,
+        "branch": branch,
+        "does_not_override_observer_visual_gate": True,
+        "required_enhanced_marker_visuals": sorted(ENHANCED_MARKER_VISUAL_NAMES),
+        "present_enhanced_marker_visuals": present_marker,
+        "missing_enhanced_marker_visuals": missing_marker,
+        "enhanced_marker_visuals_present": enhanced_marker_present,
+        "required_tool0_eoat_visuals": sorted(gazebo.TOOL0_EOAT_VIEWER_VISUAL_NAMES),
+        "present_tool0_eoat_visuals": present_tool0,
+        "missing_tool0_eoat_visuals": missing_tool0,
+        "tool0_eoat_visuals_present": tool0_present,
+        "required_eoat_affordance_visuals": sorted(gazebo.EOAT_VIEWER_AFFORDANCE_VISUAL_NAMES),
+        "present_eoat_affordance_visuals": present_eoat,
+        "missing_eoat_affordance_visuals": missing_eoat,
+        "eoat_affordance_visuals_present": eoat_present,
+        "active_tcp_marker_model_present": "active_tcp_marker" in pose_by_name,
+        "wrist_3_link_present": "wrist_3_link" in pose_by_name,
+        "active_tcp_marker_pose": pose_by_name.get("active_tcp_marker"),
+        "wrist_3_link_pose": pose_by_name.get("wrist_3_link"),
+        "note": "Entity names and poses prove live ECM content only; observer_visual_pass still requires human-visible coherent render evidence.",
+    }
+
+
+def _load_pose_info_names(path: Path) -> tuple[list[str], dict[str, dict[str, object]]]:
+    payload = _read_json(path, default={}) if path.exists() else {}
+    names: list[str] = []
+    pose_by_name: dict[str, dict[str, object]] = {}
+    for pose in payload.get("pose", []) if isinstance(payload, dict) else []:
+        if not isinstance(pose, dict):
+            continue
+        name = str(pose.get("name") or "")
+        if not name:
+            continue
+        names.append(name)
+        pose_by_name[name] = {
+            "id": pose.get("id"),
+            "position": pose.get("position"),
+            "orientation": pose.get("orientation"),
+        }
+    return names, pose_by_name
+
+
+def _present_name_fragments(pose_names: list[str], required: frozenset[str]) -> list[str]:
+    return sorted(fragment for fragment in required if any(fragment in name for name in pose_names))
+
+
+def _introspection_output_captured(summary: dict[str, object], key: str) -> bool:
+    item = summary.get(key) if isinstance(summary, dict) else None
+    if not isinstance(item, dict):
+        return False
+    return bool(item.get("returncode") == 0 and not item.get("timed_out") and int(item.get("bytes") or 0) > 0)
 
 
 def write_row_summary(row: dict[str, object], output: Path) -> Path:
@@ -420,6 +585,179 @@ def write_visual_audit_summary(summary: dict[str, object], output: Path) -> Path
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return output
+
+
+def capture_scripted_camera_image(
+    case_dir: Path,
+    *,
+    stage: str,
+    view: str,
+    env: dict[str, str],
+    timeout_s: float,
+) -> dict[str, object]:
+    topic = f"/ur10e_visual_audit/{stage}/{view}/image"
+    output = case_dir / "scripted_camera_final.png"
+    metadata_path = case_dir / "scripted_camera_capture.json"
+    payload: dict[str, object] = {
+        "schema": "ur10e_gazebo_scripted_camera_capture_v1",
+        "topic": topic,
+        "output": str(output),
+        "captured": False,
+        "clean_scene_capture": True,
+        "observer_review_still_required": True,
+    }
+    bridge = None
+    try:
+        bridge = _popen(
+            ["ros2", "run", "ros_gz_image", "image_bridge", topic],
+            case_dir / "scripted_camera_bridge.log",
+            cwd=WORKSPACE,
+            env=env,
+            new_session=True,
+        )
+        time.sleep(1.0)
+        payload.update(_save_ros_image(topic, output, timeout_s=timeout_s))
+    except Exception as exc:  # noqa: BLE001 - evidence capture must downgrade, not crash the row.
+        payload.update({"ok": False, "error": f"{type(exc).__name__}: {exc}"})
+    finally:
+        _terminate_process_group(bridge)
+        time.sleep(0.2)
+        _kill_process_group(bridge)
+    payload["captured"] = bool(payload.get("ok") and output.is_file() and output.stat().st_size > 0)
+    if payload["captured"]:
+        payload["sha256"] = _sha256_file(output)
+    metadata_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return payload
+
+
+def _save_ros_image(topic: str, output: Path, *, timeout_s: float) -> dict[str, object]:
+    from cv_bridge import CvBridge  # noqa: PLC0415
+    from PIL import Image  # noqa: PLC0415
+    import rclpy  # noqa: PLC0415
+    from rclpy.qos import qos_profile_sensor_data  # noqa: PLC0415
+    from sensor_msgs.msg import Image as ImageMsg  # noqa: PLC0415
+
+    result: dict[str, object] = {}
+    bridge = CvBridge()
+    rclpy.init(args=None)
+    node = rclpy.create_node("ur10e_visual_audit_image_saver")
+
+    def callback(msg: ImageMsg) -> None:
+        try:
+            array = bridge.imgmsg_to_cv2(msg, desired_encoding="rgb8")
+            Image.fromarray(array).save(output)
+            result.update(
+                {
+                    "ok": True,
+                    "height": int(msg.height),
+                    "width": int(msg.width),
+                    "encoding": str(msg.encoding),
+                    "frame_id": str(msg.header.frame_id),
+                }
+            )
+        except Exception as exc:  # noqa: BLE001
+            result.update({"ok": False, "error": f"{type(exc).__name__}: {exc}"})
+
+    subscription = node.create_subscription(ImageMsg, topic, callback, qos_profile_sensor_data)
+    deadline = time.monotonic() + timeout_s
+    try:
+        while "ok" not in result and time.monotonic() < deadline:
+            rclpy.spin_once(node, timeout_sec=0.1)
+    finally:
+        node.destroy_subscription(subscription)
+        node.destroy_node()
+        rclpy.shutdown()
+    if "ok" not in result:
+        result.update({"ok": False, "error": f"timeout waiting for {topic}", "timeout_s": timeout_s})
+    return result
+
+
+def capture_scene_introspection(
+    case_dir: Path,
+    *,
+    env: dict[str, str],
+    world_name: str,
+    robot_model_name: str,
+) -> Path:
+    output_dir = case_dir / "scene_introspection"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    commands = {
+        "topic_list.txt": ["ign", "topic", "-l"],
+        "scene_info.json": [
+            "ign",
+            "topic",
+            "-e",
+            "--json-output",
+            "-n",
+            "1",
+            "-t",
+            f"/world/{world_name}/scene/info",
+        ],
+        "pose_info.json": [
+            "ign",
+            "topic",
+            "-e",
+            "--json-output",
+            "-n",
+            "1",
+            "-t",
+            f"/world/{world_name}/pose/info",
+        ],
+        "model_list.txt": ["ign", "model", "--list"],
+        "active_tcp_marker_model.txt": ["ign", "model", "-m", "active_tcp_marker"],
+        "active_tcp_marker_links.txt": ["ign", "model", "-m", "active_tcp_marker", "-l"],
+        "robot_model.txt": ["ign", "model", "-m", robot_model_name],
+        "robot_links.txt": ["ign", "model", "-m", robot_model_name, "-l"],
+    }
+    summary: dict[str, object] = {}
+    for name, command in commands.items():
+        output = output_dir / name
+        summary[name] = _run_introspection_logged(command, output, env=env)
+    (output_dir / "introspection_summary.json").write_text(
+        json.dumps(summary, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return output_dir
+
+
+def _run_introspection_logged(command: list[str], output: Path, *, env: dict[str, str]) -> dict[str, object]:
+    started = time.monotonic()
+    try:
+        completed = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            check=False,
+            env=env,
+            timeout=6.0,
+        )
+        text = completed.stdout
+        returncode = completed.returncode
+        timed_out = False
+    except subprocess.TimeoutExpired as exc:
+        text = (exc.stdout or "") if isinstance(exc.stdout, str) else ""
+        if exc.stderr:
+            text += exc.stderr if isinstance(exc.stderr, str) else exc.stderr.decode(errors="replace")
+        returncode = None
+        timed_out = True
+    output.write_text(text, encoding="utf-8")
+    return {
+        "command": command,
+        "output": str(output),
+        "returncode": returncode,
+        "timed_out": timed_out,
+        "elapsed_s": round(time.monotonic() - started, 3),
+        "bytes": len(text.encode("utf-8")),
+    }
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def gui_config_is_clean(path: Path | None) -> bool:
@@ -629,6 +967,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     row.add_argument("--capture-size", default="1280x900")
     row.add_argument("--action-ready-timeout-s", type=int, default=75)
     row.add_argument("--max-record-s", type=float, default=240.0)
+    row.add_argument("--scripted-camera-timeout-s", type=float, default=8.0)
     row.add_argument("--update-summary", action="store_true")
     row.set_defaults(func=run_row)
 

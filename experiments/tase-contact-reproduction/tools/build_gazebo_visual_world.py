@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -39,6 +40,23 @@ ALL_STAGE_VISUAL_MODELS = {
 }
 CONTACT_SURFACE_Z_M = 0.008044839
 SURFACE_MARGIN_M = 0.04
+SCRIPTED_CAMERA_PROFILES = {
+    "context_overview": {
+        "offset_xyz_m": (1.05, -1.20, 0.80),
+        "horizontal_fov_rad": 1.05,
+        "image_size": (1280, 900),
+    },
+    "interaction_view": {
+        "offset_xyz_m": (0.70, -0.82, 0.52),
+        "horizontal_fov_rad": 0.85,
+        "image_size": (1280, 900),
+    },
+    "close_detail": {
+        "offset_xyz_m": (0.42, -0.48, 0.32),
+        "horizontal_fov_rad": 0.70,
+        "image_size": (1280, 900),
+    },
+}
 
 
 def _material(parent: ET.Element, rgba: str) -> None:
@@ -116,6 +134,115 @@ def _add_reference_path(world: ET.Element, stage_id: str, rows: list[runner.Refe
     return len(sampled)
 
 
+def _add_scripted_cameras(
+    world: ET.Element,
+    stage_id: str,
+    rows: list[runner.ReferencePoint],
+) -> dict[str, dict[str, object]]:
+    if not rows:
+        return {}
+    _ensure_sensors_system(world)
+    surface = _surface_footprint(world, stage_id)
+    target = _scripted_camera_target(stage_id, rows, surface)
+    cameras: dict[str, dict[str, object]] = {}
+    for view, profile in SCRIPTED_CAMERA_PROFILES.items():
+        offset = profile["offset_xyz_m"]
+        camera_xyz = (
+            target[0] + float(offset[0]),
+            target[1] + float(offset[1]),
+            target[2] + float(offset[2]),
+        )
+        pose = _look_at_pose(camera_xyz, target)
+        topic = f"/ur10e_visual_audit/{stage_id}/{view}/image"
+        width, height = profile["image_size"]
+        model_name = f"{stage_id}_{view}_scripted_camera"
+        _camera_model(
+            world,
+            name=model_name,
+            pose=pose,
+            topic=topic,
+            width=int(width),
+            height=int(height),
+            horizontal_fov_rad=float(profile["horizontal_fov_rad"]),
+        )
+        cameras[view] = {
+            "model": model_name,
+            "topic": topic,
+            "frame": runner.GAZEBO_WORLD_FRAME,
+            "pose_xyz_rpy": list(pose),
+            "target_xyz_m": list(target),
+            "offset_xyz_m": list(offset),
+            "horizontal_fov_rad": float(profile["horizontal_fov_rad"]),
+            "image_width": int(width),
+            "image_height": int(height),
+            "capture_policy": "scripted_gazebo_camera_clean_no_gui_panels_observer_review_still_required",
+        }
+    return cameras
+
+
+def _ensure_sensors_system(world: ET.Element) -> None:
+    for plugin in world.findall("plugin"):
+        if plugin.get("name") == "gz::sim::systems::Sensors":
+            return
+    plugin = ET.SubElement(world, "plugin", {"filename": "gz-sim-sensors-system", "name": "gz::sim::systems::Sensors"})
+    ET.SubElement(plugin, "render_engine").text = "ogre2"
+
+
+def _scripted_camera_target(
+    stage_id: str,
+    rows: list[runner.ReferencePoint],
+    surface: dict[str, float | None],
+) -> tuple[float, float, float]:
+    final_xyz = _visual_xyz_from_reference(rows[-1])
+    top_z = surface.get("top_z_m")
+    if matrix.STAGE_REGISTRY[stage_id].contact and top_z is not None:
+        target_z = float(top_z) + 0.13
+    else:
+        target_z = float(final_xyz[2]) + 0.10
+    return float(final_xyz[0]), float(final_xyz[1]), target_z
+
+
+def _look_at_pose(
+    camera_xyz: tuple[float, float, float],
+    target_xyz: tuple[float, float, float],
+) -> tuple[float, float, float, float, float, float]:
+    dx = target_xyz[0] - camera_xyz[0]
+    dy = target_xyz[1] - camera_xyz[1]
+    dz = target_xyz[2] - camera_xyz[2]
+    yaw = math.atan2(dy, dx)
+    pitch = math.atan2(-dz, math.hypot(dx, dy))
+    return camera_xyz[0], camera_xyz[1], camera_xyz[2], 0.0, pitch, yaw
+
+
+def _camera_model(
+    world: ET.Element,
+    *,
+    name: str,
+    pose: tuple[float, float, float, float, float, float],
+    topic: str,
+    width: int,
+    height: int,
+    horizontal_fov_rad: float,
+) -> None:
+    model = ET.SubElement(world, "model", {"name": name})
+    ET.SubElement(model, "static").text = "true"
+    ET.SubElement(model, "pose").text = " ".join(f"{value:.9f}" for value in pose)
+    link = ET.SubElement(model, "link", {"name": "camera_link"})
+    sensor = ET.SubElement(link, "sensor", {"name": "camera", "type": "camera"})
+    ET.SubElement(sensor, "always_on").text = "1"
+    ET.SubElement(sensor, "update_rate").text = "10"
+    ET.SubElement(sensor, "topic").text = topic
+    camera = ET.SubElement(sensor, "camera")
+    ET.SubElement(camera, "horizontal_fov").text = f"{horizontal_fov_rad:.9f}"
+    image = ET.SubElement(camera, "image")
+    ET.SubElement(image, "width").text = str(width)
+    ET.SubElement(image, "height").text = str(height)
+    ET.SubElement(image, "format").text = "R8G8B8"
+    clip = ET.SubElement(camera, "clip")
+    ET.SubElement(clip, "near").text = "0.02"
+    ET.SubElement(clip, "far").text = "8.0"
+
+
 def build_visual_world(stage_id: str, base_world: Path, output: Path) -> Path:
     if stage_id not in SURFACE_MODELS_BY_STAGE:
         raise SystemExit(f"unknown stage {stage_id!r}")
@@ -137,6 +264,7 @@ def build_visual_world(stage_id: str, base_world: Path, output: Path) -> Path:
     rows = _reference_rows(stage_id)
     _retarget_surface_to_path(world, stage_id, rows)
     marker_count = _add_reference_path(world, stage_id, rows)
+    scripted_cameras = _add_scripted_cameras(world, stage_id, rows)
     manifest = _build_manifest(
         world,
         stage_id=stage_id,
@@ -145,6 +273,7 @@ def build_visual_world(stage_id: str, base_world: Path, output: Path) -> Path:
         rows=rows,
         marker_count=marker_count,
         removed_models=removed_models,
+        scripted_cameras=scripted_cameras,
     )
     ET.indent(tree, space="  ")
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -165,6 +294,7 @@ def _build_manifest(
     rows: list[runner.ReferencePoint],
     marker_count: int,
     removed_models: list[str],
+    scripted_cameras: dict[str, dict[str, object]],
 ) -> dict[str, object]:
     path_bounds_base = _path_bounds(rows)
     path_bounds_world = _path_bounds_world(rows)
@@ -190,6 +320,7 @@ def _build_manifest(
         "reference_path_model": f"{stage_id}_reference_path_visual",
         "reference_row_count": len(rows),
         "reference_marker_count": marker_count,
+        "scripted_cameras": scripted_cameras,
         "path_bounds_base_xy_m": path_bounds_base,
         "path_bounds_xy_m": path_bounds_world,
         "surface_frame": runner.GAZEBO_WORLD_FRAME,

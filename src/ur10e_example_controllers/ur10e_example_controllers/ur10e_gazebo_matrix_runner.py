@@ -4,6 +4,7 @@ import argparse
 import csv
 import json
 import math
+import subprocess
 import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
@@ -69,6 +70,30 @@ EOAT_REQUIRED_VISUAL_NAMES = frozenset(
         "eoat_contact_probe_visual",
         "eoat_contact_pad_visual",
         "eoat_active_tcp_marker_visual",
+        "eoat_tool0_to_active_tcp_centerline_visual",
+        "eoat_contact_probe_high_contrast_sleeve_visual",
+        "eoat_active_tcp_crossbar_x_visual",
+        "eoat_active_tcp_crossbar_y_visual",
+    }
+)
+EOAT_VIEWER_AFFORDANCE_VISUAL_NAMES = frozenset(
+    {
+        "eoat_tool0_to_active_tcp_centerline_visual",
+        "eoat_contact_probe_high_contrast_sleeve_visual",
+        "eoat_active_tcp_marker_visual",
+        "eoat_active_tcp_crossbar_x_visual",
+        "eoat_active_tcp_crossbar_y_visual",
+    }
+)
+TOOL0_EOAT_VIEWER_VISUAL_NAMES = frozenset(
+    {
+        "tool0_eoat_visible_centerline_visual",
+        "tool0_eoat_visible_probe_sleeve_visual",
+        "tool0_eoat_visible_tcp_marker_visual",
+        "tool0_eoat_visible_crossbar_x_visual",
+        "tool0_eoat_visible_crossbar_y_visual",
+        "tool0_eoat_visible_left_probe_rail_visual",
+        "tool0_eoat_visible_right_probe_rail_visual",
     }
 )
 FORCE_CONTACT_SOURCE = "gazebo_joint_state_fk_virtual_surface_model"
@@ -139,6 +164,7 @@ def add_real_aligned_eoat_visual_stack(robot_description: str) -> str:
         raise RuntimeError("generated URDF is missing tool0 link for EOAT visual stack")
 
     link = ET.Element("link", {"name": EOAT_VISUAL_LINK})
+    _append_visual_proxy_inertial(link)
     _append_eoat_visual(
         link,
         name="eoat_flange_adapter_visual",
@@ -199,8 +225,26 @@ def add_real_aligned_eoat_visual_stack(robot_description: str) -> str:
         xyz=(0.0, 0.0, 0.106),
         rpy="0 0 0",
         geometry_kind="cylinder",
-        geometry_attrs={"radius": "0.010", "length": "0.032"},
+        geometry_attrs={"radius": "0.014", "length": "0.052"},
         rgba="0.95 0.76 0.18 1.0",
+    )
+    _append_eoat_visual(
+        link,
+        name="eoat_tool0_to_active_tcp_centerline_visual",
+        xyz=(0.0, 0.0, ACTIVE_TCP_OFFSET_TOOL0_M[2] / 2.0),
+        rpy="0 0 0",
+        geometry_kind="cylinder",
+        geometry_attrs={"radius": "0.006", "length": f"{ACTIVE_TCP_OFFSET_TOOL0_M[2]:.12g}"},
+        rgba="0.0 1.0 1.0 1.0",
+    )
+    _append_eoat_visual(
+        link,
+        name="eoat_contact_probe_high_contrast_sleeve_visual",
+        xyz=(0.0, 0.0, 0.106),
+        rpy="0 0 0",
+        geometry_kind="cylinder",
+        geometry_attrs={"radius": "0.020", "length": "0.068"},
+        rgba="1.0 0.88 0.0 1.0",
     )
     _append_eoat_visual(
         link,
@@ -208,7 +252,7 @@ def add_real_aligned_eoat_visual_stack(robot_description: str) -> str:
         xyz=(0.0, 0.0, 0.122),
         rpy="0 0 0",
         geometry_kind="box",
-        geometry_attrs={"size": "0.034 0.034 0.006"},
+        geometry_attrs={"size": "0.052 0.052 0.010"},
         rgba="1.0 0.50 0.05 1.0",
     )
     _append_eoat_visual(
@@ -217,8 +261,26 @@ def add_real_aligned_eoat_visual_stack(robot_description: str) -> str:
         xyz=ACTIVE_TCP_OFFSET_TOOL0_M,
         rpy="0 0 0",
         geometry_kind="sphere",
-        geometry_attrs={"radius": "0.012"},
+        geometry_attrs={"radius": "0.022"},
         rgba="1.0 0.0 1.0 1.0",
+    )
+    _append_eoat_visual(
+        link,
+        name="eoat_active_tcp_crossbar_x_visual",
+        xyz=ACTIVE_TCP_OFFSET_TOOL0_M,
+        rpy="0 1.57079632679 0",
+        geometry_kind="cylinder",
+        geometry_attrs={"radius": "0.006", "length": "0.110"},
+        rgba="1.0 1.0 1.0 1.0",
+    )
+    _append_eoat_visual(
+        link,
+        name="eoat_active_tcp_crossbar_y_visual",
+        xyz=ACTIVE_TCP_OFFSET_TOOL0_M,
+        rpy="1.57079632679 0 0",
+        geometry_kind="cylinder",
+        geometry_attrs={"radius": "0.006", "length": "0.110"},
+        rgba="0.0 1.0 1.0 1.0",
     )
 
     joint = ET.Element("joint", {"name": EOAT_VISUAL_JOINT, "type": "fixed"})
@@ -228,7 +290,95 @@ def add_real_aligned_eoat_visual_stack(robot_description: str) -> str:
 
     root.append(link)
     root.append(joint)
+    _append_tool0_viewer_affordance_visuals(tool0)
     return ET.tostring(root, encoding="unicode")
+
+
+def _append_visual_proxy_inertial(link: ET.Element) -> None:
+    inertial = ET.SubElement(link, "inertial")
+    ET.SubElement(inertial, "origin", {"xyz": "0 0 0.061", "rpy": "0 0 0"})
+    ET.SubElement(inertial, "mass", {"value": "0.05"})
+    ET.SubElement(
+        inertial,
+        "inertia",
+        {
+            "ixx": "1e-05",
+            "ixy": "0",
+            "ixz": "0",
+            "iyy": "1e-05",
+            "iyz": "0",
+            "izz": "1e-05",
+        },
+    )
+
+
+def _append_tool0_viewer_affordance_visuals(tool0: ET.Element) -> None:
+    existing = {visual.attrib.get("name", "") for visual in tool0.findall("visual")}
+    if TOOL0_EOAT_VIEWER_VISUAL_NAMES.issubset(existing):
+        return
+    _append_eoat_visual(
+        tool0,
+        name="tool0_eoat_visible_centerline_visual",
+        xyz=(0.0, 0.0, ACTIVE_TCP_OFFSET_TOOL0_M[2] / 2.0),
+        rpy="0 0 0",
+        geometry_kind="cylinder",
+        geometry_attrs={"radius": "0.009", "length": f"{ACTIVE_TCP_OFFSET_TOOL0_M[2]:.12g}"},
+        rgba="1.0 1.0 1.0 1.0",
+    )
+    _append_eoat_visual(
+        tool0,
+        name="tool0_eoat_visible_probe_sleeve_visual",
+        xyz=(0.0, 0.0, 0.106),
+        rpy="0 0 0",
+        geometry_kind="cylinder",
+        geometry_attrs={"radius": "0.026", "length": "0.080"},
+        rgba="1.0 0.90 0.0 1.0",
+    )
+    _append_eoat_visual(
+        tool0,
+        name="tool0_eoat_visible_tcp_marker_visual",
+        xyz=ACTIVE_TCP_OFFSET_TOOL0_M,
+        rpy="0 0 0",
+        geometry_kind="sphere",
+        geometry_attrs={"radius": "0.030"},
+        rgba="1.0 0.0 1.0 1.0",
+    )
+    _append_eoat_visual(
+        tool0,
+        name="tool0_eoat_visible_crossbar_x_visual",
+        xyz=ACTIVE_TCP_OFFSET_TOOL0_M,
+        rpy="0 1.57079632679 0",
+        geometry_kind="cylinder",
+        geometry_attrs={"radius": "0.008", "length": "0.140"},
+        rgba="1.0 1.0 1.0 1.0",
+    )
+    _append_eoat_visual(
+        tool0,
+        name="tool0_eoat_visible_crossbar_y_visual",
+        xyz=ACTIVE_TCP_OFFSET_TOOL0_M,
+        rpy="1.57079632679 0 0",
+        geometry_kind="cylinder",
+        geometry_attrs={"radius": "0.008", "length": "0.140"},
+        rgba="0.0 1.0 1.0 1.0",
+    )
+    _append_eoat_visual(
+        tool0,
+        name="tool0_eoat_visible_left_probe_rail_visual",
+        xyz=(0.070, 0.0, 0.0675),
+        rpy="0 0 0",
+        geometry_kind="box",
+        geometry_attrs={"size": "0.012 0.012 0.135"},
+        rgba="1.0 1.0 1.0 1.0",
+    )
+    _append_eoat_visual(
+        tool0,
+        name="tool0_eoat_visible_right_probe_rail_visual",
+        xyz=(-0.070, 0.0, 0.0675),
+        rpy="0 0 0",
+        geometry_kind="box",
+        geometry_attrs={"size": "0.012 0.012 0.135"},
+        rgba="0.0 1.0 1.0 1.0",
+    )
 
 
 def _append_eoat_visual(
@@ -297,6 +447,8 @@ def build_model_composition_audit(robot_description: str | None = None) -> dict[
         )
     eoat = root.find(f"./link[@name='{EOAT_VISUAL_LINK}']")
     eoat_visual_names = {visual.attrib.get("name", "") for visual in eoat.findall("visual")} if eoat is not None else set()
+    tool0 = root.find("./link[@name='tool0']")
+    tool0_visual_names = {visual.attrib.get("name", "") for visual in tool0.findall("visual")} if tool0 is not None else set()
     joint = root.find(f"./joint[@name='{EOAT_VISUAL_JOINT}']")
     tcp_visual_link_present = root.find(f"./link[@name='{TCP_VISUAL_LINK}']") is not None
     return {
@@ -307,10 +459,16 @@ def build_model_composition_audit(robot_description: str | None = None) -> dict[
         "eoat_joint_child": joint.find("child").attrib.get("link") if joint is not None and joint.find("child") is not None else None,
         "eoat_joint_origin": joint.find("origin").attrib if joint is not None and joint.find("origin") is not None else None,
         "required_eoat_visuals": sorted(EOAT_REQUIRED_VISUAL_NAMES),
+        "viewer_affordance_eoat_visuals": sorted(EOAT_VIEWER_AFFORDANCE_VISUAL_NAMES),
+        "required_tool0_viewer_affordance_visuals": sorted(TOOL0_EOAT_VIEWER_VISUAL_NAMES),
+        "present_tool0_viewer_affordance_visuals": sorted(TOOL0_EOAT_VIEWER_VISUAL_NAMES & tool0_visual_names),
+        "missing_tool0_viewer_affordance_visuals": sorted(TOOL0_EOAT_VIEWER_VISUAL_NAMES - tool0_visual_names),
         "present_eoat_visuals": sorted(eoat_visual_names),
         "missing_eoat_visuals": sorted(EOAT_REQUIRED_VISUAL_NAMES - eoat_visual_names),
         "eoat_visual_count": len(eoat_visual_names),
         "eoat_collision_count": len(eoat.findall("collision")) if eoat is not None else None,
+        "eoat_inertial_present": eoat.find("inertial") is not None if eoat is not None else None,
+        "eoat_visual_proxy_policy": "parameterized_non_colliding_viewer_proxy_not_exact_cad_not_contact_physics",
         "tcp_visual_link_present": tcp_visual_link_present,
         "redundant_tcp_marker_policy": "removed_from_generated_robot_description; active TCP marker is part of EOAT visual stack and optional external marker follows base_T_active_tcp",
         "active_tcp_offset_tool0_m": list(ACTIVE_TCP_OFFSET_TOOL0_M),
@@ -1273,10 +1431,52 @@ def run_matrix(
         "model_composition_audit_path": str(model_audit_path),
         "model_composition_audit": model_composition_audit,
         "stages": [json.loads(path.read_text(encoding="utf-8")) for path in summaries],
+        "git_provenance": build_git_provenance(WORKSPACE),
     }
     path = output_dir / "matrix_summary.json"
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return path
+
+
+def build_git_provenance(repo: Path = WORKSPACE) -> dict[str, Any]:
+    """Best-effort source provenance for generated Gazebo run artifacts."""
+
+    def git(args: list[str]) -> str | None:
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(repo), *args],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=5.0,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        if result.returncode != 0:
+            return None
+        return result.stdout.strip()
+
+    branch = git(["rev-parse", "--abbrev-ref", "HEAD"])
+    commit = git(["rev-parse", "HEAD"])
+    upstream = git(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"])
+    dirty_entries = git(["status", "--short"])
+    ahead = behind = None
+    if upstream:
+        counts = git(["rev-list", "--left-right", "--count", f"{upstream}...HEAD"])
+        if counts:
+            parts = counts.split()
+            if len(parts) == 2:
+                behind, ahead = int(parts[0]), int(parts[1])
+    return {
+        "repo": str(repo),
+        "branch": branch,
+        "commit": commit,
+        "upstream": upstream,
+        "dirty": bool(dirty_entries),
+        "dirty_entries": dirty_entries.splitlines() if dirty_entries else [],
+        "ahead": ahead,
+        "behind": behind,
+    }
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

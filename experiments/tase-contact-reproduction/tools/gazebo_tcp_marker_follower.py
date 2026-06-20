@@ -62,11 +62,24 @@ def build_marker_model_sdf(model_name: str = DEFAULT_MODEL_NAME) -> str:
           <model name="{model_name}">
             <static>true</static>
             <link name="tcp_marker_link">
+              <visual name="tcp_contact_pad_orange">
+                <pose>0 0 0.008 0 0 0</pose>
+                <geometry>
+                  <box>
+                    <size>0.090 0.090 0.016</size>
+                  </box>
+                </geometry>
+                <material>
+                  <ambient>1 0.45 0 1</ambient>
+                  <diffuse>1 0.45 0 1</diffuse>
+                  <emissive>0.8 0.25 0 1</emissive>
+                </material>
+              </visual>
               <visual name="tcp_magenta_sphere">
-                <pose>0 0 0.022 0 0 0</pose>
+                <pose>0 0 0.038 0 0 0</pose>
                 <geometry>
                   <sphere>
-                    <radius>0.026</radius>
+                    <radius>0.045</radius>
                   </sphere>
                 </geometry>
                 <material>
@@ -75,12 +88,26 @@ def build_marker_model_sdf(model_name: str = DEFAULT_MODEL_NAME) -> str:
                   <emissive>0.7 0 0.7 1</emissive>
                 </material>
               </visual>
-              <visual name="tcp_white_mast">
-                <pose>0 0 0.085 0 0 0</pose>
+              <visual name="tcp_probe_sleeve_yellow">
+                <pose>0 0 0.095 0 0 0</pose>
                 <geometry>
                   <cylinder>
-                    <radius>0.006</radius>
-                    <length>0.170</length>
+                    <radius>0.026</radius>
+                    <length>0.190</length>
+                  </cylinder>
+                </geometry>
+                <material>
+                  <ambient>1 0.9 0 1</ambient>
+                  <diffuse>1 0.9 0 1</diffuse>
+                  <emissive>0.7 0.6 0 1</emissive>
+                </material>
+              </visual>
+              <visual name="tcp_white_mast">
+                <pose>0 0 0.165 0 0 0</pose>
+                <geometry>
+                  <cylinder>
+                    <radius>0.014</radius>
+                    <length>0.330</length>
                   </cylinder>
                 </geometry>
                 <material>
@@ -89,12 +116,39 @@ def build_marker_model_sdf(model_name: str = DEFAULT_MODEL_NAME) -> str:
                   <emissive>0.8 0.8 0.8 1</emissive>
                 </material>
               </visual>
-              <visual name="tcp_cyan_crossbar_x">
-                <pose>0 0 0.060 0 1.57079632679 0</pose>
+              <visual name="tcp_tool_plate_silver">
+                <pose>0 0 0.165 0 0 0</pose>
+                <geometry>
+                  <box>
+                    <size>0.150 0.110 0.024</size>
+                  </box>
+                </geometry>
+                <material>
+                  <ambient>0.75 0.75 0.68 1</ambient>
+                  <diffuse>0.75 0.75 0.68 1</diffuse>
+                  <emissive>0.25 0.25 0.20 1</emissive>
+                </material>
+              </visual>
+              <visual name="tcp_sensor_body_teal">
+                <pose>0 0 0.245 0 0 0</pose>
                 <geometry>
                   <cylinder>
-                    <radius>0.005</radius>
-                    <length>0.100</length>
+                    <radius>0.055</radius>
+                    <length>0.105</length>
+                  </cylinder>
+                </geometry>
+                <material>
+                  <ambient>0 0.35 0.42 1</ambient>
+                  <diffuse>0 0.35 0.42 1</diffuse>
+                  <emissive>0 0.15 0.18 1</emissive>
+                </material>
+              </visual>
+              <visual name="tcp_cyan_crossbar_x">
+                <pose>0 0 0.120 0 1.57079632679 0</pose>
+                <geometry>
+                  <cylinder>
+                    <radius>0.009</radius>
+                    <length>0.190</length>
                   </cylinder>
                 </geometry>
                 <material>
@@ -104,11 +158,11 @@ def build_marker_model_sdf(model_name: str = DEFAULT_MODEL_NAME) -> str:
                 </material>
               </visual>
               <visual name="tcp_magenta_crossbar_y">
-                <pose>0 0 0.060 1.57079632679 0 0</pose>
+                <pose>0 0 0.120 1.57079632679 0 0</pose>
                 <geometry>
                   <cylinder>
-                    <radius>0.005</radius>
-                    <length>0.100</length>
+                    <radius>0.009</radius>
+                    <length>0.190</length>
                   </cylinder>
                 </geometry>
                 <material>

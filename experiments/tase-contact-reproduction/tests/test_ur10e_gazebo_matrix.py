@@ -80,12 +80,24 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
 
         visual_names = {visual.attrib.get("name") for visual in stack.findall("visual")}
         self.assertTrue(gazebo.EOAT_REQUIRED_VISUAL_NAMES.issubset(visual_names))
+        self.assertTrue(gazebo.EOAT_VIEWER_AFFORDANCE_VISUAL_NAMES.issubset(visual_names))
+        self.assertIsNotNone(stack.find("inertial"))
+        tool0 = root.find("./link[@name='tool0']")
+        tool0_visual_names = {visual.attrib.get("name") for visual in tool0.findall("visual")}
+        self.assertTrue(gazebo.TOOL0_EOAT_VIEWER_VISUAL_NAMES.issubset(tool0_visual_names))
         active_tcp = stack.find("./visual[@name='eoat_active_tcp_marker_visual']/origin")
         self.assertIsNotNone(active_tcp)
         active_tcp_xyz = [float(value) for value in active_tcp.attrib["xyz"].split()]
         self.assertAlmostEqual(active_tcp_xyz[0], gazebo.ACTIVE_TCP_OFFSET_TOOL0_M[0], places=9)
         self.assertAlmostEqual(active_tcp_xyz[1], gazebo.ACTIVE_TCP_OFFSET_TOOL0_M[1], places=9)
         self.assertAlmostEqual(active_tcp_xyz[2], gazebo.ACTIVE_TCP_OFFSET_TOOL0_M[2], places=9)
+        marker_radius = stack.find("./visual[@name='eoat_active_tcp_marker_visual']/geometry/sphere")
+        self.assertGreaterEqual(float(marker_radius.attrib["radius"]), 0.022)
+        sleeve = stack.find("./visual[@name='eoat_contact_probe_high_contrast_sleeve_visual']/geometry/cylinder")
+        self.assertIsNotNone(sleeve)
+        self.assertGreaterEqual(float(sleeve.attrib["radius"]), 0.020)
+        self.assertIsNotNone(stack.find("./visual[@name='eoat_active_tcp_crossbar_x_visual']"))
+        self.assertIsNotNone(stack.find("./visual[@name='eoat_active_tcp_crossbar_y_visual']"))
         self.assertIsNone(stack.find("collision"))
 
     def test_model_composition_audit_reports_proxy_and_removed_redundant_tcp_marker(self) -> None:
@@ -94,6 +106,10 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
         self.assertEqual(audit["schema"], "ur10e_gazebo_model_composition_audit_v2")
         self.assertEqual(audit["eoat_joint_parent"], "tool0")
         self.assertEqual(audit["missing_eoat_visuals"], [])
+        self.assertEqual(audit["missing_tool0_viewer_affordance_visuals"], [])
+        self.assertTrue(audit["eoat_inertial_present"])
+        self.assertEqual(audit["viewer_affordance_eoat_visuals"], sorted(gazebo.EOAT_VIEWER_AFFORDANCE_VISUAL_NAMES))
+        self.assertIn("parameterized_non_colliding_viewer_proxy", audit["eoat_visual_proxy_policy"])
         self.assertEqual(audit["eoat_collision_count"], 0)
         self.assertFalse(audit["tcp_visual_link_present"])
         self.assertIn("removed_from_generated_robot_description", audit["redundant_tcp_marker_policy"])
@@ -111,7 +127,19 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             source = output.read_text(encoding="utf-8")
             self.assertIn("step5_contact_surface", source)
             self.assertIn("step5b_reference_path_visual", source)
+            self.assertIn("gz-sim-sensors-system", source)
+            self.assertIn("step5b_close_detail_scripted_camera", source)
+            self.assertIn("/ur10e_visual_audit/step5b/close_detail/image", source)
             self.assertNotIn("step6_contact_surface", source)
+            manifest = json.loads(output.with_suffix(".manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(
+                sorted(manifest["scripted_cameras"]),
+                ["close_detail", "context_overview", "interaction_view"],
+            )
+            self.assertEqual(
+                manifest["scripted_cameras"]["close_detail"]["capture_policy"],
+                "scripted_gazebo_camera_clean_no_gui_panels_observer_review_still_required",
+            )
             self.assertNotIn("step7_large_platform_contact_surface", source)
             self.assertNotIn("step8_large_platform_contact_surface", source)
             root = ET.parse(output).getroot()
@@ -187,6 +215,10 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
         source = tcp_marker.build_marker_model_sdf("active_tcp_marker")
         self.assertIn('model name="active_tcp_marker"', source)
         self.assertIn("tcp_magenta_sphere", source)
+        self.assertIn("tcp_contact_pad_orange", source)
+        self.assertIn("tcp_probe_sleeve_yellow", source)
+        self.assertIn("tcp_tool_plate_silver", source)
+        self.assertIn("tcp_sensor_body_teal", source)
         self.assertIn("tcp_white_mast", source)
         self.assertIn("1 0 1 1", source)
         self.assertNotIn("<collision", source)
@@ -445,6 +477,18 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             self.assertEqual(row["observer_visual_review_source"], "human_observer_row_review_v1")
             self.assertEqual(row["observer_visual_criteria"]["active_tcp_pose_source_valid"], True)
             self.assertEqual(row["observer_visual_criteria"]["active_tcp_pose_frame_valid"], True)
+            self.assertEqual(
+                row["live_scene_content_branch"],
+                "enhanced_geometry_present_in_live_ecm_render_not_viewer_visible",
+            )
+            self.assertTrue(row["live_scene_enhanced_marker_visuals_present"])
+            self.assertTrue(row["live_scene_tool0_eoat_visuals_present"])
+            self.assertTrue(row["live_scene_eoat_affordance_visuals_present"])
+            self.assertTrue(row["live_scene_content"]["does_not_override_observer_visual_gate"])
+            self.assertTrue(row["scene_model_list_captured"])
+            self.assertTrue(row["scene_info_captured"])
+            self.assertEqual(row["scripted_camera_sha256"], "fixture-sha256")
+            self.assertEqual(row["git_provenance"]["commit"], "fixture-commit")
             self.assertEqual(row["surface_frame"], gazebo.GAZEBO_WORLD_FRAME)
             self.assertEqual(row["surface_tcp_sanity"]["approach_normal_base"], [0.0, 0.0, -1.0])
             self.assertAlmostEqual(row["actual_vs_commanded_duration_ratio"], 1.6)
@@ -555,6 +599,16 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
                 }
             ],
         }
+        matrix_summary["git_provenance"] = {
+            "repo": "/tmp/fixture",
+            "branch": "fixture-branch",
+            "commit": "fixture-commit",
+            "upstream": "origin/fixture-branch",
+            "dirty": False,
+            "dirty_entries": [],
+            "ahead": 0,
+            "behind": 0,
+        }
         (case_dir / "runner" / "matrix_summary.json").write_text(
             json.dumps(matrix_summary, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
@@ -572,6 +626,57 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
         }
         (case_dir / "marker" / "tcp_marker_manifest.json").write_text(
             json.dumps(marker_manifest, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        scene_dir = case_dir / "scene_introspection"
+        scene_dir.mkdir(parents=True)
+        pose_names = [
+            "active_tcp_marker",
+            "wrist_3_link",
+            *[f"active_tcp_marker::tcp_marker_link::{name}" for name in sorted(gui_row.ENHANCED_MARKER_VISUAL_NAMES)],
+            *[
+                f"wrist_3_link_fixed_joint_lump__{name}_visual_1"
+                for name in sorted(gazebo.TOOL0_EOAT_VIEWER_VISUAL_NAMES)
+            ],
+            *[
+                f"wrist_3_link_fixed_joint_lump__{name}_visual_2"
+                for name in sorted(gazebo.EOAT_VIEWER_AFFORDANCE_VISUAL_NAMES)
+            ],
+        ]
+        pose_info = {
+            "pose": [
+                {
+                    "name": name,
+                    "id": index,
+                    "position": {"x": 0.0, "y": 0.0, "z": 0.01 * index},
+                    "orientation": {"w": 1.0},
+                }
+                for index, name in enumerate(pose_names, start=1)
+            ]
+        }
+        (scene_dir / "pose_info.json").write_text(json.dumps(pose_info, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        (scene_dir / "model_list.txt").write_text("active_tcp_marker\nur10e_gazebo_matrix\n", encoding="utf-8")
+        introspection_summary = {
+            "scene_info.json": {"returncode": 0, "timed_out": False, "bytes": 8},
+            "model_list.txt": {"returncode": 0, "timed_out": False, "bytes": 36},
+        }
+        (scene_dir / "introspection_summary.json").write_text(
+            json.dumps(introspection_summary, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        scripted_camera_capture = {
+            "schema": "ur10e_gazebo_scripted_camera_capture_v1",
+            "topic": "/ur10e_visual_audit/step5b/close_detail/image",
+            "output": str(case_dir / "scripted_camera_final.png"),
+            "captured": True,
+            "ok": True,
+            "sha256": "fixture-sha256",
+            "observer_review_still_required": True,
+            "clean_scene_capture": True,
+        }
+        (case_dir / "scripted_camera_final.png").write_bytes(b"fixture")
+        (case_dir / "scripted_camera_capture.json").write_text(
+            json.dumps(scripted_camera_capture, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
         visual_manifest = {
