@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import json
 import os
@@ -44,6 +45,9 @@ MARKER_STYLES = ("debug", "observer_subtle")
 CONTACT_CAPTURE_SCHEMA = "ur10e_gazebo_row_contact_topic_capture_v1"
 VISIBLE_GAZEBO_OVERLAP_SCHEMA = "ur10e_visible_gazebo_overlap_preflight_v1"
 VISIBLE_GAZEBO_OVERLAP_RC = 43
+VISIBLE_GAZEBO_LOCK_SCHEMA = "ur10e_visible_gazebo_row_lock_preflight_v1"
+VISIBLE_GAZEBO_LOCK_RC = 44
+DEFAULT_VISIBLE_GAZEBO_LOCK_PATH = Path("/tmp/ur10e_gazebo_visible_gui_row.lock")
 ENHANCED_MARKER_VISUAL_NAMES = frozenset(
     {
         "tcp_contact_pad_orange",
@@ -95,6 +99,35 @@ def run_row(args: argparse.Namespace) -> int:
         },
         mode="w",
     )
+    visible_lock_handle = acquire_visible_gazebo_row_lock(args.visible_gazebo_lock_path)
+    if visible_lock_handle is None:
+        payload = write_visible_gazebo_lock_preflight(
+            case_dir,
+            stage=args.stage,
+            view=args.view,
+            run_dir=run_dir,
+            display=args.display,
+            lock_path=args.visible_gazebo_lock_path,
+        )
+        _write_trace(
+            trace_path,
+            {
+                "visible_gazebo_lock_preflight": "failed",
+                "visible_gazebo_lock_artifact": payload["path"],
+                "visible_gazebo_lock_path": str(args.visible_gazebo_lock_path),
+                "blocker": payload["blocker"],
+                "finished_at": _now(),
+            },
+        )
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return VISIBLE_GAZEBO_LOCK_RC
+    _write_trace(
+        trace_path,
+        {
+            "visible_gazebo_lock_acquired": 1,
+            "visible_gazebo_lock_path": str(args.visible_gazebo_lock_path),
+        },
+    )
     if not args.allow_existing_gazebo:
         overlapping_gazebo = existing_visible_gazebo_processes()
         if overlapping_gazebo:
@@ -117,6 +150,7 @@ def run_row(args: argparse.Namespace) -> int:
                 },
             )
             print(json.dumps(payload, indent=2, sort_keys=True))
+            release_visible_gazebo_row_lock(visible_lock_handle)
             return VISIBLE_GAZEBO_OVERLAP_RC
 
     build_log = case_dir / "build_visual_world.log"
@@ -289,6 +323,7 @@ def run_row(args: argparse.Namespace) -> int:
             "blocker": row["blocker"],
         },
     )
+    release_visible_gazebo_row_lock(visible_lock_handle)
     print(json.dumps(row, indent=2, sort_keys=True))
     return int(runner_rc or 0)
 
@@ -646,6 +681,43 @@ def gazebo_system_plugin_lib_dirs(local_ros_prefix: Path | None) -> list[Path]:
     return deduped
 
 
+def acquire_visible_gazebo_row_lock(lock_path: Path) -> Any | None:
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    handle = lock_path.open("a+", encoding="utf-8")
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        handle.close()
+        return None
+    handle.seek(0)
+    handle.truncate()
+    handle.write(
+        json.dumps(
+            {
+                "schema": "ur10e_visible_gazebo_row_lock_owner_v1",
+                "pid": os.getpid(),
+                "started_at": _now(),
+                "lock_path": str(lock_path),
+                "claim_tier": "visual_only",
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    )
+    handle.flush()
+    return handle
+
+
+def release_visible_gazebo_row_lock(handle: Any | None) -> None:
+    if handle is None:
+        return
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    finally:
+        handle.close()
+
+
 def existing_visible_gazebo_processes() -> list[dict[str, object]]:
     completed = subprocess.run(
         ["ps", "-eo", "pid=,ppid=,etimes=,stat=,args="],
@@ -749,6 +821,43 @@ def write_visible_gazebo_overlap_preflight(
     return payload
 
 
+def write_visible_gazebo_lock_preflight(
+    case_dir: Path,
+    *,
+    stage: str,
+    view: str,
+    run_dir: Path,
+    display: str,
+    lock_path: Path,
+) -> dict[str, object]:
+    path = case_dir / "visible_gazebo_lock_preflight.json"
+    payload: dict[str, object] = {
+        "schema": VISIBLE_GAZEBO_LOCK_SCHEMA,
+        "generated_at": _now(),
+        "stage": stage,
+        "view": view,
+        "run_dir": str(run_dir),
+        "display": display,
+        "lock_path": str(lock_path),
+        "pid": os.getpid(),
+        "blocker": "visible_gazebo_row_lock_held",
+        "action": "refused_to_start_new_visible_gazebo_row",
+        "claim_tier": "visual_only",
+        "target_claim_tier": "post-checkpoint visible Gazebo GUI row",
+        "allowed_claim": "lock_preflight_blocker_evidence_only",
+        "forbidden_claim": "observer-level visual demo success; simulated_ft; physical Gazebo collision/contact physics; real bench/live contact",
+        "live_robot_command_authorized": False,
+        "bridge_start_authorized": False,
+        "urscript_send_authorized": False,
+        "tp_load_play_authorized": False,
+        "zero_ftsensor_authorized": False,
+        "payload_tcp_safety_writes_authorized": False,
+        "path": str(path),
+    }
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return payload
+
+
 def visible_gazebo_overlap_preflight_for_row(run_dir: Path, stage: str, view: str) -> dict[str, object] | None:
     path = row_case_dir(run_dir, stage, view) / "visible_gazebo_overlap_preflight.json"
     if not path.is_file():
@@ -763,6 +872,24 @@ def visible_gazebo_overlap_preflight_for_row(run_dir: Path, stage: str, view: st
             "claim_tier": "visual_only",
             "action": "row_summary_missing_preflight_unreadable",
             "process_count": 0,
+        }
+    return payload if isinstance(payload, dict) else None
+
+
+def visible_gazebo_lock_preflight_for_row(run_dir: Path, stage: str, view: str) -> dict[str, object] | None:
+    path = row_case_dir(run_dir, stage, view) / "visible_gazebo_lock_preflight.json"
+    if not path.is_file():
+        return None
+    try:
+        payload = _read_json(path)
+    except (OSError, json.JSONDecodeError):
+        return {
+            "schema": VISIBLE_GAZEBO_LOCK_SCHEMA,
+            "path": str(path),
+            "blocker": "visible_gazebo_lock_preflight_unreadable",
+            "claim_tier": "visual_only",
+            "action": "row_summary_missing_lock_preflight_unreadable",
+            "lock_path": "",
         }
     return payload if isinstance(payload, dict) else None
 
@@ -804,6 +931,15 @@ def build_visual_audit_summary(
                     missing["claim_tier"] = str(preflight.get("claim_tier") or "")
                     missing["action"] = str(preflight.get("action") or "")
                     missing["process_count"] = str(preflight.get("process_count") or 0)
+                lock_preflight = visible_gazebo_lock_preflight_for_row(run_dir, stage, view)
+                if lock_preflight is not None:
+                    missing["visible_gazebo_lock_preflight"] = str(
+                        row_case_dir(run_dir, stage, view) / "visible_gazebo_lock_preflight.json"
+                    )
+                    missing["blocker"] = str(lock_preflight.get("blocker") or "")
+                    missing["claim_tier"] = str(lock_preflight.get("claim_tier") or "")
+                    missing["action"] = str(lock_preflight.get("action") or "")
+                    missing["lock_path"] = str(lock_preflight.get("lock_path") or "")
                 missing_rows.append(missing)
 
     expected = len(stages) * len(views)
@@ -820,6 +956,7 @@ def build_visual_audit_summary(
         row for row in contact_rows if int(row.get("gazebo_contact_native_wrench_row_count") or 0) > 0
     ]
     overlap_preflight_rows = [row for row in missing_rows if row.get("visible_gazebo_overlap_preflight")]
+    lock_preflight_rows = [row for row in missing_rows if row.get("visible_gazebo_lock_preflight")]
     all_expected_rows_present = not missing_rows and len(rows) == expected
     all_observer_pass = all_expected_rows_present and len(observer_pass_rows) == expected
     payload = {
@@ -833,6 +970,8 @@ def build_visual_audit_summary(
         "missing_rows": missing_rows,
         "visible_gazebo_overlap_preflight_count": len(overlap_preflight_rows),
         "visible_gazebo_overlap_preflight_rows": overlap_preflight_rows,
+        "visible_gazebo_lock_preflight_count": len(lock_preflight_rows),
+        "visible_gazebo_lock_preflight_rows": lock_preflight_rows,
         "all_expected_rows_present": all_expected_rows_present,
         "observer_visual_pass_count": len(observer_pass_rows),
         "observer_visual_fail_count": len(observer_fail_rows) + len(missing_rows),
@@ -1421,6 +1560,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     row.add_argument("--contact-capture-max-messages", type=int, default=20)
     row.add_argument("--disable-contact-capture", action="store_true")
     row.add_argument("--allow-existing-gazebo", action="store_true")
+    row.add_argument("--visible-gazebo-lock-path", type=Path, default=DEFAULT_VISIBLE_GAZEBO_LOCK_PATH)
     row.add_argument("--update-summary", action="store_true")
     row.set_defaults(func=run_row)
 

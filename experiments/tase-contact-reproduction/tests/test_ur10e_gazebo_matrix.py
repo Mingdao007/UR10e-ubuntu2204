@@ -312,6 +312,7 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
         )
         self.assertEqual(args.marker_style, "observer_subtle")
         self.assertFalse(args.allow_existing_gazebo)
+        self.assertEqual(args.visible_gazebo_lock_path, gui_row.DEFAULT_VISIBLE_GAZEBO_LOCK_PATH)
 
     def test_gui_row_can_only_allow_existing_gazebo_by_explicit_flag(self) -> None:
         args = gui_row.parse_args(
@@ -379,6 +380,44 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             self.assertIn("simulated_ft", saved["forbidden_claim"])
             self.assertIn("physical Gazebo collision/contact physics", saved["forbidden_claim"])
 
+    def test_visible_gazebo_row_lock_is_nonblocking_and_exclusive(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="ur10e_visible_row_lock_test_") as tmp:
+            lock_path = Path(tmp) / "visible_row.lock"
+            first = gui_row.acquire_visible_gazebo_row_lock(lock_path)
+            self.assertIsNotNone(first)
+            second = gui_row.acquire_visible_gazebo_row_lock(lock_path)
+            self.assertIsNone(second)
+            gui_row.release_visible_gazebo_row_lock(first)
+            third = gui_row.acquire_visible_gazebo_row_lock(lock_path)
+            self.assertIsNotNone(third)
+            gui_row.release_visible_gazebo_row_lock(third)
+
+    def test_visible_gazebo_lock_preflight_artifact_is_visual_only_blocker(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="ur10e_visible_lock_preflight_test_") as tmp:
+            run_dir = Path(tmp)
+            case_dir = gui_row.row_case_dir(run_dir, "step5b", "close_detail")
+            case_dir.mkdir(parents=True)
+            lock_path = Path(tmp) / "visible_row.lock"
+            payload = gui_row.write_visible_gazebo_lock_preflight(
+                case_dir,
+                stage="step5b",
+                view="close_detail",
+                run_dir=run_dir,
+                display=":0",
+                lock_path=lock_path,
+            )
+            path = Path(payload["path"])
+            self.assertTrue(path.is_file())
+            saved = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(saved["schema"], gui_row.VISIBLE_GAZEBO_LOCK_SCHEMA)
+            self.assertEqual(saved["claim_tier"], "visual_only")
+            self.assertEqual(saved["blocker"], "visible_gazebo_row_lock_held")
+            self.assertEqual(saved["action"], "refused_to_start_new_visible_gazebo_row")
+            self.assertEqual(saved["lock_path"], str(lock_path))
+            self.assertFalse(saved["live_robot_command_authorized"])
+            self.assertIn("simulated_ft", saved["forbidden_claim"])
+            self.assertIn("physical Gazebo collision/contact physics", saved["forbidden_claim"])
+
     def test_visual_summary_carries_visible_gazebo_overlap_preflight_for_missing_row(self) -> None:
         with tempfile.TemporaryDirectory(prefix="ur10e_visible_overlap_summary_test_") as tmp:
             run_dir = Path(tmp)
@@ -415,6 +454,35 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             self.assertEqual(missing["claim_tier"], "visual_only")
             self.assertEqual(missing["action"], "refused_to_start_new_visible_gazebo_row")
             self.assertEqual(missing["process_count"], "1")
+
+    def test_visual_summary_carries_visible_gazebo_lock_preflight_for_missing_row(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="ur10e_visible_lock_summary_test_") as tmp:
+            run_dir = Path(tmp)
+            case_dir = gui_row.row_case_dir(run_dir, "step5b", "close_detail")
+            case_dir.mkdir(parents=True)
+            lock_path = Path(tmp) / "visible_row.lock"
+            payload = gui_row.write_visible_gazebo_lock_preflight(
+                case_dir,
+                stage="step5b",
+                view="close_detail",
+                run_dir=run_dir,
+                display=":0",
+                lock_path=lock_path,
+            )
+            summary = gui_row.build_visual_audit_summary(
+                run_dir,
+                stages=("step5b",),
+                views=("close_detail",),
+            )
+            self.assertEqual(summary["row_count"], 0)
+            self.assertEqual(summary["missing_row_count"], 1)
+            self.assertEqual(summary["visible_gazebo_lock_preflight_count"], 1)
+            missing = summary["missing_rows"][0]
+            self.assertEqual(missing["visible_gazebo_lock_preflight"], payload["path"])
+            self.assertEqual(missing["blocker"], "visible_gazebo_row_lock_held")
+            self.assertEqual(missing["claim_tier"], "visual_only")
+            self.assertEqual(missing["action"], "refused_to_start_new_visible_gazebo_row")
+            self.assertEqual(missing["lock_path"], str(lock_path))
 
     def test_tcp_marker_follower_defaults_to_debug_marker_style(self) -> None:
         args = tcp_marker.parse_args(
