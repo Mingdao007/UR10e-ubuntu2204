@@ -308,6 +308,51 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
         self.assertEqual(summary["missing_subagent_triplet_sequence_hours"], [5, 6])
         self.assertIn("hourly subagent triplet sequence has gaps", summary["unresolved_p0_p1_findings"])
 
+    def test_readiness_can_bind_external_timed_audit_artifact(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="p6_external_timed_audit_fixture_") as tmp:
+            root = Path(tmp)
+            p3_path = root / "p3.json"
+            step_path = root / "step.json"
+            manifest_path = root / "manifest.json"
+            timed_path = root / "timed_audit_coverage_audit.json"
+            p3_path.write_text(json.dumps(_p3_payload(), indent=2), encoding="utf-8")
+            step_path.write_text(json.dumps(_step_payload(strict_ready=True), indent=2), encoding="utf-8")
+            manifest_path.write_text(json.dumps(_demo_manifest_payload(root), indent=2), encoding="utf-8")
+            timed_path.write_text(
+                json.dumps(
+                    {
+                        "schema": "ur10e_timed_audit_coverage_audit_v1",
+                        "timed_audit_coverage": {
+                            "full_acceptance_timed_audit_ready": True,
+                            "claim_tier": "visual_only",
+                            "latest_opus_record": {"status": "complete"},
+                            "hourly_subagent_triplets": [],
+                            "complete_subagent_triplet_count": 2,
+                            "incomplete_subagent_triplet_hours": [],
+                            "missing_subagent_triplet_sequence_hours": [],
+                            "prompt_only_subagent_triplet_hours": [],
+                            "unresolved_p0_p1_findings": [],
+                            "blocker": "",
+                        },
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            payload = audit.build_audit(
+                generated_at="2026-06-21T07:20:00+08:00",
+                p3_audit_path=p3_path,
+                step_status_audit_path=step_path,
+                integrated_demo_manifest_path=manifest_path,
+                timed_audit_coverage_path=timed_path,
+                handoff_root=root / "ignored_handoffs",
+            )
+
+        self.assertTrue(payload["timed_audit_coverage"]["full_acceptance_timed_audit_ready"])
+        self.assertEqual(payload["source_artifacts"]["timed_audit_coverage"], str(timed_path))
+        self.assertNotIn("timed_audit_coverage:not_verified", payload["full_goal_acceptance_gate"]["full_goal_acceptance_blockers"])
+
     def test_demo_manifest_requires_all_plots_with_units_frame_and_claim_labels(self) -> None:
         audit = import_audit_module()
         with tempfile.TemporaryDirectory(prefix="p6_plot_gate_fixture_") as tmp:
