@@ -1332,6 +1332,176 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
         )
         self.assertIn("per_stage_physical_gazebo_contact:not_proven", audit_payload["blockers"])
 
+    def test_action_ready_failure_backfill_writes_fail_closed_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="ur10e_gui_row_failure_backfill_test_") as tmp:
+            run_dir = Path(tmp) / "run"
+            case_dir = gui_row.row_case_dir(run_dir, "step5b", "close_detail")
+            contact_dir = case_dir / "contact_capture"
+            contact_dir.mkdir(parents=True)
+            (run_dir / "_visual_worlds").mkdir(parents=True)
+            (run_dir / "_visual_worlds" / "step5b_visual.manifest.json").write_text(
+                json.dumps(
+                    {
+                        "schema": "ur10e_gazebo_stage_visual_world_manifest_v2",
+                        "stage_id": "step5b",
+                        "surface_mesh_visual": {"primary_visual_uses_real_mesh": True},
+                        "surface_frame": "contact_surface",
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            trace = case_dir / "command_trace.txt"
+            trace.write_text(
+                "\n".join(
+                    [
+                        "started_at=2026-06-21T20:28:42+0800",
+                        "row_started_at=2026-06-21T20:28:42+0800",
+                        "stage=step5b",
+                        "view=close_detail",
+                        "action_ready=0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (case_dir / "ros2_launch.log").write_text(
+                "Failed to load system plugin [libign_ros2_control-system.so] : couldn't find shared library.\n",
+                encoding="utf-8",
+            )
+            observation_id = "step5b-close_detail-2026-06-21T20:28:42+0800"
+            time_window = {
+                "start": "2026-06-21T20:28:42+0800",
+                "end": "2026-06-21T20:29:53+0800",
+                "clock_source": "ignition_transport_contact_topic_capture",
+            }
+            (contact_dir / "gazebo_contact_pair_log.json").write_text(
+                json.dumps(
+                    {
+                        "schema": "ur10e_gazebo_contact_pair_log_v1",
+                        "claim_tier": "visual_only",
+                        "stage_id": "step5b",
+                        "observation_id": observation_id,
+                        "observation_scope": gui_row.SAME_RUN_STAGE_OBSERVATION_SCOPE,
+                        "time_window": time_window,
+                        "row_count": 0,
+                        "rows": [],
+                        "parse_issues": [],
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (contact_dir / gui_row.STAGE_CONTACT_WRENCH_ADAPTER_FILENAME).write_text(
+                json.dumps(
+                    {
+                        "schema": "ur10e_gazebo_contact_wrench_adapter_report_v1",
+                        "claim_tier": "visual_only",
+                        "stage_id": "step5b",
+                        "observation_id": observation_id,
+                        "observation_scope": gui_row.SAME_RUN_STAGE_OBSERVATION_SCOPE,
+                        "time_window": time_window,
+                        "force_source": "gazebo_contact",
+                        "trace_written": True,
+                        "total_contact_wrench_proven": False,
+                        "total_contact_wrench_row_count": 0,
+                        "verified_native_wrench_row_count": 0,
+                        "native_wrench_row_count": 0,
+                        "wrench_aggregation_policy": "total_contact_wrench",
+                        "blockers": ["missing_contact_pair_rows"],
+                        "total_contact_wrench_blockers": ["missing_contact_pair_rows"],
+                        "wrench_trace_path": str(contact_dir / "stage_contact_wrench_trace.json"),
+                        "wrench_trace": {"rows": []},
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            stage_manifest = run_dir / "simulated_ft_pack" / "step_simulated_ft_evidence_manifest.json"
+            stage_manifest.parent.mkdir(parents=True)
+            stage_manifest.write_text(
+                json.dumps(
+                    {
+                        "schema": "ur10e_step_simulated_ft_evidence_pack_v1",
+                        "claim_tier": "simulated_ft",
+                        "stages": {
+                            "step5b": {
+                                "claim_tier": "simulated_ft",
+                                "valid": True,
+                                "evidence_fields_present": {
+                                    "stamp": True,
+                                    "frame_id": True,
+                                    "source": True,
+                                    "status": True,
+                                    "baseline": True,
+                                    "log_evidence": True,
+                                },
+                            }
+                        },
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            step_status = run_dir / "step_status" / "step_status_rnn_audit.json"
+            step_status.parent.mkdir(parents=True)
+            step_status.write_text(
+                json.dumps(
+                    {
+                        "schema": "ur10e_step_status_rnn_audit_v1",
+                        "step_status_matrix": [{"stage_id": "step5b", "claim_tier": "simulated_ft"}],
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            args = gui_row.parse_args(
+                [
+                    "action-ready-failure-backfill",
+                    "--run-dir",
+                    str(run_dir),
+                    "--stage",
+                    "step5b",
+                    "--view",
+                    "close_detail",
+                ]
+            )
+            with mock.patch.object(sys, "stdout", io.StringIO()):
+                self.assertEqual(gui_row.run_action_ready_failure_backfill(args), 0)
+
+            row_summary = json.loads((case_dir / "row_summary.json").read_text(encoding="utf-8"))
+            observation_path = case_dir / "stage_dual_sensor_observation" / (
+                "step5b_same_run_stage_dual_sensor_observation_manifest.json"
+            )
+            audit_path = case_dir / "per_stage_dual_sensor_contact" / (
+                "step5b_per_stage_dual_sensor_contact_audit.json"
+            )
+            observation_payload = json.loads(observation_path.read_text(encoding="utf-8"))
+            audit_payload = json.loads(audit_path.read_text(encoding="utf-8"))
+
+        self.assertTrue(row_summary["row_failure_backfilled"])
+        self.assertEqual(row_summary["trace_path"], str(trace))
+        self.assertEqual(row_summary["blocker"], "action_ready_timeout_ros2_control_plugin_load_failure")
+        self.assertEqual(row_summary["row_failure_claim_tier"], "visual_only")
+        self.assertFalse(row_summary["stage_total_contact_wrench_proven"])
+        self.assertEqual(observation_payload["observation_id"], observation_id)
+        self.assertFalse(observation_payload["same_run_stage_dual_sensor_observation_proven"])
+        self.assertIn("visual_evidence", observation_payload["missing_surfaces"])
+        self.assertFalse(
+            audit_payload["per_stage_physical_gazebo_contact"]["per_stage_physical_gazebo_contact_proven"]
+        )
+        self.assertIn("stage_total_contact_wrench:not_proven", audit_payload["blockers"])
+
     def test_stage_observation_manifest_writer_blocks_unproven_stage_adapter(self) -> None:
         with tempfile.TemporaryDirectory(prefix="ur10e_gui_stage_observation_test_") as tmp:
             run_dir = Path(tmp)

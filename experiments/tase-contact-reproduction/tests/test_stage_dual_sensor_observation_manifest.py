@@ -279,6 +279,15 @@ class StageDualSensorObservationManifestTest(unittest.TestCase):
         self.assertFalse(payload["same_run_stage_dual_sensor_observation_proven"])
         self.assertIn("time_window.order:invalid", payload["validation_issues"])
 
+    def test_accepts_compact_timezone_offset_for_time_window_order(self) -> None:
+        manifest = import_manifest_module()
+        self.assertTrue(
+            manifest.time_window_order_valid(
+                "2026-06-21T20:28:42+0800",
+                "2026-06-21T20:29:53+0800",
+            )
+        )
+
     def test_blocks_standalone_contact_witness_scope(self) -> None:
         manifest = import_manifest_module()
         with tempfile.TemporaryDirectory(prefix="stage_observation_standalone_scope_", dir=RUNS) as tmp:

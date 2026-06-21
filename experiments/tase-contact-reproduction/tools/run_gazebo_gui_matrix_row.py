@@ -347,6 +347,7 @@ def run_row(args: argparse.Namespace) -> int:
             time_start=row_started_at,
             time_end=row_finished_at,
             clock_source=args.stage_observation_clock_source,
+            trace_path=trace_path,
             include_observation_manifest=not args.disable_stage_observation_manifest,
             include_per_stage_audit=not args.disable_per_stage_contact_audit,
             correlation_tolerance_s=args.per_stage_contact_correlation_tolerance_s,
@@ -806,6 +807,8 @@ def write_action_ready_failure_artifacts(
     time_start: str,
     time_end: str,
     clock_source: str,
+    trace_path: Path | None = None,
+    row_failure_metadata: dict[str, object] | None = None,
     include_observation_manifest: bool,
     include_per_stage_audit: bool,
     correlation_tolerance_s: float,
@@ -818,6 +821,8 @@ def write_action_ready_failure_artifacts(
         view=view,
         runner_rc=runner_rc,
         blocker=blocker,
+        trace_path=trace_path,
+        row_failure_metadata=row_failure_metadata,
     )
     row = annotate_contact_stage_evidence_paths(
         row,
@@ -861,6 +866,153 @@ def write_action_ready_failure_artifacts(
     }
 
 
+def run_action_ready_failure_backfill(args: argparse.Namespace) -> int:
+    run_dir = args.run_dir.resolve()
+    case_dir = row_case_dir(run_dir, args.stage, args.view)
+    if not case_dir.is_dir():
+        raise FileNotFoundError(f"row case directory not found: {case_dir}")
+    trace_path = args.trace_path or (case_dir / "command_trace.txt")
+    trace_values = read_key_value_trace(trace_path)
+    contact_pair_path = case_dir / "contact_capture" / "gazebo_contact_pair_log.json"
+    stage_wrench_adapter_path = case_dir / "contact_capture" / STAGE_CONTACT_WRENCH_ADAPTER_FILENAME
+    contact_pair_payload = _read_json(contact_pair_path, default={}) if contact_pair_path.is_file() else {}
+    stage_wrench_payload = _read_json(stage_wrench_adapter_path, default={}) if stage_wrench_adapter_path.is_file() else {}
+    time_window = first_time_window(contact_pair_payload, stage_wrench_payload)
+    time_start = args.time_start or trace_values.get("row_started_at") or trace_values.get("started_at") or time_window.get("start") or _now()
+    time_end = (
+        args.time_end
+        or trace_values.get("finished_at")
+        or time_window.get("end")
+        or newest_mtime_iso(
+            [
+                case_dir / "ros2_launch.log",
+                contact_pair_path,
+                stage_wrench_adapter_path,
+                trace_path,
+            ]
+        )
+        or _now()
+    )
+    clock_source = args.clock_source or time_window.get("clock_source") or args.stage_observation_clock_source
+    observation_id = (
+        args.observation_id
+        or str(contact_pair_payload.get("observation_id") or "")
+        or str(stage_wrench_payload.get("observation_id") or "")
+        or f"{args.stage}-{args.view}-{time_start}"
+    )
+    blocker = args.blocker or trace_values.get("blocker") or infer_action_ready_failure_blocker(case_dir)
+    stage_simulated_ft_manifest_path = args.stage_simulated_ft_manifest or first_existing_path(
+        [
+            run_dir / "simulated_ft_pack" / "step_simulated_ft_evidence_manifest.json",
+            run_dir / "simulated_ft_runtime" / "canonical_simulated_ft_runtime_observation.json",
+        ]
+    )
+    step_status_audit_path = args.step_status_audit or first_existing_path(
+        [
+            run_dir / "step_status" / "step_status_rnn_audit.json",
+        ]
+    )
+    metadata = {
+        "row_failure_backfilled": True,
+        "row_failure_backfill_generated_at": _now(),
+        "row_failure_backfill_source": "existing_allowed_offline_gazebo_row_artifacts",
+        "row_failure_backfill_inputs": {
+            "command_trace": str(trace_path),
+            "contact_pair_log": str(contact_pair_path),
+            "stage_contact_wrench_adapter": str(stage_wrench_adapter_path),
+            "stage_simulated_ft_manifest": str(stage_simulated_ft_manifest_path)
+            if stage_simulated_ft_manifest_path
+            else None,
+            "step_status_audit": str(step_status_audit_path) if step_status_audit_path else None,
+        },
+        "row_failure_backfill_forbidden_claim": (
+            "new Gazebo evidence run; Gazebo action readiness; row-local physical contact success; "
+            "same-run dual-sensor binding; real bench/live contact"
+        ),
+    }
+    failure_paths = write_action_ready_failure_artifacts(
+        case_dir,
+        run_dir=run_dir,
+        stage=args.stage,
+        view=args.view,
+        runner_rc=args.runner_rc,
+        blocker=blocker,
+        stage_simulated_ft_manifest_path=stage_simulated_ft_manifest_path,
+        step_status_audit_path=step_status_audit_path,
+        observation_id=observation_id,
+        time_start=time_start,
+        time_end=time_end,
+        clock_source=clock_source,
+        trace_path=trace_path,
+        row_failure_metadata=metadata,
+        include_observation_manifest=not args.disable_stage_observation_manifest,
+        include_per_stage_audit=not args.disable_per_stage_contact_audit,
+        correlation_tolerance_s=args.per_stage_contact_correlation_tolerance_s,
+    )
+    if trace_path:
+        _write_trace(
+            trace_path,
+            {
+                "backfilled_at": metadata["row_failure_backfill_generated_at"],
+                "backfill_row_summary": str(failure_paths["row_summary_path"]),
+                "backfill_same_run_stage_dual_sensor_observation_manifest": failure_paths.get(
+                    "same_run_stage_dual_sensor_observation_manifest_path"
+                ),
+                "backfill_per_stage_dual_sensor_contact_audit": failure_paths.get(
+                    "per_stage_dual_sensor_contact_audit_path"
+                ),
+                "backfill_blocker": blocker,
+            },
+        )
+    print(json.dumps(failure_paths, indent=2, sort_keys=True, default=str))
+    return 0
+
+
+def read_key_value_trace(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    if not path.is_file():
+        return values
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        values[key.strip()] = value.strip()
+    return values
+
+
+def first_time_window(*payloads: dict[str, object]) -> dict[str, str]:
+    for payload in payloads:
+        time_window = payload.get("time_window") if isinstance(payload.get("time_window"), dict) else {}
+        start = str(time_window.get("start") or "")
+        end = str(time_window.get("end") or "")
+        clock_source = str(time_window.get("clock_source") or "")
+        if start or end or clock_source:
+            return {"start": start, "end": end, "clock_source": clock_source}
+    return {}
+
+
+def newest_mtime_iso(paths: list[Path]) -> str | None:
+    mtimes = [path.stat().st_mtime for path in paths if path.is_file()]
+    if not mtimes:
+        return None
+    return time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime(max(mtimes)))
+
+
+def first_existing_path(paths: list[Path]) -> Path | None:
+    return next((path for path in paths if path.is_file()), None)
+
+
+def infer_action_ready_failure_blocker(case_dir: Path) -> str:
+    launch_log = case_dir / "ros2_launch.log"
+    if launch_log.is_file():
+        source = launch_log.read_text(encoding="utf-8", errors="replace")
+        if "Failed to load system plugin" in source and "libign_ros2_control-system.so" in source:
+            return "action_ready_timeout_ros2_control_plugin_load_failure"
+        if "/controller_manager/list_controllers" in source and "Could not contact service" in source:
+            return "action_ready_timeout_controller_manager_unavailable"
+    return "action_ready_timeout"
+
+
 def build_action_ready_failure_row(
     case_dir: Path,
     *,
@@ -869,6 +1021,8 @@ def build_action_ready_failure_row(
     view: str,
     runner_rc: int,
     blocker: str,
+    trace_path: Path | None = None,
+    row_failure_metadata: dict[str, object] | None = None,
 ) -> dict[str, object]:
     contact_pair_log_path = case_dir / "contact_capture" / "gazebo_contact_pair_log.json"
     contact_pair_summary = summarize_contact_pair_log(contact_pair_log_path)
@@ -881,7 +1035,7 @@ def build_action_ready_failure_row(
         if isinstance(visual_manifest.get("surface_mesh_visual"), dict)
         else {}
     )
-    return {
+    row = {
         "schema": "ur10e_gazebo_real_aligned_gui_matrix_row_v2",
         "stage": stage,
         "view": view,
@@ -942,7 +1096,7 @@ def build_action_ready_failure_row(
         "pose_source": None,
         "pose_frame": None,
         "matrix_summary": str(case_dir / "runner" / "matrix_summary.json"),
-        "trace_path": None,
+        "trace_path": str(trace_path) if trace_path else None,
         "visual_world_manifest": str(visual_manifest_path) if visual_manifest_path else None,
         "surface_frame": visual_manifest.get("surface_frame"),
         "surface": visual_manifest.get("surface"),
@@ -977,6 +1131,9 @@ def build_action_ready_failure_row(
             "same-run dual-sensor binding; real bench/live contact"
         ),
     }
+    if row_failure_metadata:
+        row.update(row_failure_metadata)
+    return row
 
 
 def build_row_summary(
@@ -2666,6 +2823,28 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     action_preflight.add_argument("--local-ros-prefix", type=Path)
     action_preflight.add_argument("--display", default=":0")
     action_preflight.set_defaults(func=run_action_readiness_preflight)
+
+    failure_backfill = subparsers.add_parser(
+        "action-ready-failure-backfill",
+        help="write fail-closed row artifacts from an existing action_ready=0 Gazebo row without launching Gazebo",
+    )
+    failure_backfill.add_argument("--run-dir", type=Path, required=True)
+    failure_backfill.add_argument("--stage", choices=STAGES, required=True)
+    failure_backfill.add_argument("--view", choices=VIEWS, required=True)
+    failure_backfill.add_argument("--trace-path", type=Path)
+    failure_backfill.add_argument("--runner-rc", type=int, default=41)
+    failure_backfill.add_argument("--blocker")
+    failure_backfill.add_argument("--stage-simulated-ft-manifest", type=Path)
+    failure_backfill.add_argument("--step-status-audit", type=Path)
+    failure_backfill.add_argument("--observation-id")
+    failure_backfill.add_argument("--time-start")
+    failure_backfill.add_argument("--time-end")
+    failure_backfill.add_argument("--clock-source")
+    failure_backfill.add_argument("--stage-observation-clock-source", default="/clock")
+    failure_backfill.add_argument("--per-stage-contact-correlation-tolerance-s", type=float, default=0.02)
+    failure_backfill.add_argument("--disable-stage-observation-manifest", action="store_true")
+    failure_backfill.add_argument("--disable-per-stage-contact-audit", action="store_true")
+    failure_backfill.set_defaults(func=run_action_ready_failure_backfill)
     return parser.parse_args(argv)
 
 

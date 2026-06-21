@@ -378,11 +378,20 @@ def time_window_issues(
 
 def time_window_order_valid(start: str, end: str) -> bool:
     try:
-        start_dt = datetime.fromisoformat(start)
-        end_dt = datetime.fromisoformat(end)
+        start_dt = parse_iso_timestamp(start)
+        end_dt = parse_iso_timestamp(end)
     except ValueError:
         return False
     return start_dt < end_dt
+
+
+def parse_iso_timestamp(value: str) -> datetime:
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        if len(value) >= 5 and value[-5] in "+-" and value[-4:].isdigit():
+            return datetime.fromisoformat(f"{value[:-5]}{value[-5:-2]}:{value[-2:]}")
+        raise
 
 
 def _valid_gazebo_contact_wrench_row(row: dict[str, Any]) -> bool:
