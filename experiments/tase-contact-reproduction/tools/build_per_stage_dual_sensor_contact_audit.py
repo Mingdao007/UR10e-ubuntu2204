@@ -199,6 +199,8 @@ def contact_pair_summary(payload: dict[str, Any], *, stage_id: str) -> dict[str,
     issues: list[str] = []
     if payload.get("schema") != "ur10e_gazebo_contact_pair_log_v1":
         issues.append("stage_contact_pair_log.schema:unsupported_or_missing")
+    if _is_standalone_p2_witness_payload(payload):
+        issues.append("stage_contact_pair_log.world_scope:p2_contact_witness_not_stage_row")
     if parse_issues:
         issues.append("stage_contact_pair_log.parse_issues")
     if not rows:
@@ -215,6 +217,7 @@ def contact_pair_summary(payload: dict[str, Any], *, stage_id: str) -> dict[str,
         and valid_matching_rows
         and not parse_issues
         and payload.get("schema") == "ur10e_gazebo_contact_pair_log_v1"
+        and not _is_standalone_p2_witness_payload(payload)
     )
     return {
         "stage_id": stage_id,
@@ -233,6 +236,11 @@ def contact_pair_summary(payload: dict[str, Any], *, stage_id: str) -> dict[str,
         "evidence": evidence,
         "validation_issues": issues,
     }
+
+
+def _is_standalone_p2_witness_payload(payload: dict[str, Any]) -> bool:
+    world_path = str(payload.get("world_path") or "")
+    return Path(world_path).name == "p2_contact_witness.sdf"
 
 
 def _row_has_eoat_surface_contact_pair(row: dict[str, Any]) -> bool:

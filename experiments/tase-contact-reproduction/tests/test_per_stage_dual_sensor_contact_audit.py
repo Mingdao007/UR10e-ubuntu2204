@@ -343,6 +343,31 @@ class PerStageDualSensorContactAuditTest(unittest.TestCase):
             payload["validation_issues"],
         )
 
+    def test_blocks_p2_witness_world_even_when_scope_is_rewritten(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="stage_dual_sensor_p2_scope_rewrite_", dir=RUNS) as tmp:
+            paths = write_fixture(Path(tmp), include_adapter=True, include_observation=True)
+            contact = json.loads(paths["contact"].read_text(encoding="utf-8"))
+            contact["world_path"] = str(Path(tmp) / "p2_contact_witness.sdf")
+            write_json(paths["contact"], contact)
+            payload = audit.build_audit(
+                generated_at="2026-06-21T16:56:05+08:00",
+                stage_row_summary_path=paths["row"],
+                stage_contact_pair_log_path=paths["contact"],
+                stage_simulated_ft_manifest_path=paths["manifest"],
+                step_status_audit_path=paths["step"],
+                stage_contact_wrench_adapter_path=paths["adapter"],
+                same_run_observation_manifest_path=paths["observation"],
+            )
+
+        self.assertEqual(payload["claim_tier"], "simulated_ft")
+        self.assertFalse(payload["stage_contact_pair_log"]["evidence"])
+        self.assertFalse(payload["per_stage_physical_gazebo_contact"]["per_stage_physical_gazebo_contact_proven"])
+        self.assertIn(
+            "stage_contact_pair_log.world_scope:p2_contact_witness_not_stage_row",
+            payload["validation_issues"],
+        )
+
     def test_blocks_contact_pair_without_gazebo_message_normal(self) -> None:
         audit = import_audit_module()
         with tempfile.TemporaryDirectory(prefix="stage_dual_sensor_bad_normal_", dir=RUNS) as tmp:
