@@ -820,7 +820,7 @@ def build_audit(
     same_run_binding_path: Path | None = None,
     dual_sensor_total_wrench_path: Path | None = None,
 ) -> dict[str, Any]:
-    generated = generated_at or datetime.now().isoformat(timespec="seconds")
+    generated = generated_at or datetime.now().astimezone().isoformat(timespec="seconds")
     p3_payload = load_json(p3_audit_path)
     step_payload = load_json(step_status_audit_path)
     p3 = p3_visual_rviz_summary(p3_payload, path=p3_audit_path)

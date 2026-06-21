@@ -142,6 +142,21 @@ class TimedAuditCoverageAuditTest(unittest.TestCase):
         self.assertIn("hourly subagent triplet sequence has gaps", summary["unresolved_p0_p1_findings"])
         self.assertIn("Opus advisory checkpoint coverage missing, stale, or nonzero", summary["unresolved_p0_p1_findings"])
 
+    def test_naive_generated_at_is_comparable_with_aware_goal_start(self) -> None:
+        audit = import_audit_module()
+
+        expected_hours = audit.expected_subagent_hours(
+            goal_start_at="2026-06-21T00:00:00+08:00",
+            generated_at="2026-06-21T02:30:00",
+        )
+        expected_opus_hours = audit.expected_opus_checkpoint_hours(
+            goal_start_at="2026-06-21T00:00:00+08:00",
+            generated_at="2026-06-21T02:30:00",
+        )
+
+        self.assertEqual(expected_hours, [1, 2])
+        self.assertEqual(expected_opus_hours, [0, 2])
+
     def test_write_audit_creates_machine_readable_artifact(self) -> None:
         audit = import_audit_module()
         with tempfile.TemporaryDirectory(prefix="timed_audit_write_fixture_") as tmp:

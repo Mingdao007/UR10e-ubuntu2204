@@ -31,7 +31,10 @@ def normalize_iso_datetime(value: str) -> datetime:
     if text.endswith("Z"):
         text = text[:-1] + "+00:00"
     text = re.sub(r"([+-]\d{2})(\d{2})$", r"\1:\2", text)
-    return datetime.fromisoformat(text)
+    parsed = datetime.fromisoformat(text)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=datetime.now().astimezone().tzinfo)
+    return parsed
 
 
 def rel(path: Path | None) -> str | None:
@@ -460,7 +463,7 @@ def build_audit(
     goal_start_at: str = GOAL_START_AT,
     handoff_root: Path = HANDOFF_ROOT,
 ) -> dict[str, Any]:
-    generated = generated_at or datetime.now().isoformat(timespec="seconds")
+    generated = generated_at or datetime.now().astimezone().isoformat(timespec="seconds")
     return {
         "schema": "ur10e_timed_audit_coverage_audit_v1",
         "generated_at": generated,
