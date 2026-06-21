@@ -749,6 +749,24 @@ def write_visible_gazebo_overlap_preflight(
     return payload
 
 
+def visible_gazebo_overlap_preflight_for_row(run_dir: Path, stage: str, view: str) -> dict[str, object] | None:
+    path = row_case_dir(run_dir, stage, view) / "visible_gazebo_overlap_preflight.json"
+    if not path.is_file():
+        return None
+    try:
+        payload = _read_json(path)
+    except (OSError, json.JSONDecodeError):
+        return {
+            "schema": VISIBLE_GAZEBO_OVERLAP_SCHEMA,
+            "path": str(path),
+            "blocker": "visible_gazebo_overlap_preflight_unreadable",
+            "claim_tier": "visual_only",
+            "action": "row_summary_missing_preflight_unreadable",
+            "process_count": 0,
+        }
+    return payload if isinstance(payload, dict) else None
+
+
 def _introspection_output_captured(summary: dict[str, object], key: str) -> bool:
     item = summary.get(key) if isinstance(summary, dict) else None
     if not isinstance(item, dict):
@@ -776,7 +794,17 @@ def build_visual_audit_summary(
             if row_path.exists():
                 rows.append(_read_json(row_path))
             else:
-                missing_rows.append({"stage": stage, "view": view, "row_summary": str(row_path)})
+                missing = {"stage": stage, "view": view, "row_summary": str(row_path)}
+                preflight = visible_gazebo_overlap_preflight_for_row(run_dir, stage, view)
+                if preflight is not None:
+                    missing["visible_gazebo_overlap_preflight"] = str(
+                        row_case_dir(run_dir, stage, view) / "visible_gazebo_overlap_preflight.json"
+                    )
+                    missing["blocker"] = str(preflight.get("blocker") or "")
+                    missing["claim_tier"] = str(preflight.get("claim_tier") or "")
+                    missing["action"] = str(preflight.get("action") or "")
+                    missing["process_count"] = str(preflight.get("process_count") or 0)
+                missing_rows.append(missing)
 
     expected = len(stages) * len(views)
     observer_pass_rows = [row for row in rows if row.get("observer_visual_pass") is True]
@@ -791,6 +819,7 @@ def build_visual_audit_summary(
     native_wrench_component_rows = [
         row for row in contact_rows if int(row.get("gazebo_contact_native_wrench_row_count") or 0) > 0
     ]
+    overlap_preflight_rows = [row for row in missing_rows if row.get("visible_gazebo_overlap_preflight")]
     all_expected_rows_present = not missing_rows and len(rows) == expected
     all_observer_pass = all_expected_rows_present and len(observer_pass_rows) == expected
     payload = {
@@ -802,6 +831,8 @@ def build_visual_audit_summary(
         "row_count": len(rows),
         "missing_row_count": len(missing_rows),
         "missing_rows": missing_rows,
+        "visible_gazebo_overlap_preflight_count": len(overlap_preflight_rows),
+        "visible_gazebo_overlap_preflight_rows": overlap_preflight_rows,
         "all_expected_rows_present": all_expected_rows_present,
         "observer_visual_pass_count": len(observer_pass_rows),
         "observer_visual_fail_count": len(observer_fail_rows) + len(missing_rows),

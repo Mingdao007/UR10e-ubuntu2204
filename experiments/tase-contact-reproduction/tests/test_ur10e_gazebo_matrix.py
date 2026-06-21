@@ -379,6 +379,43 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             self.assertIn("simulated_ft", saved["forbidden_claim"])
             self.assertIn("physical Gazebo collision/contact physics", saved["forbidden_claim"])
 
+    def test_visual_summary_carries_visible_gazebo_overlap_preflight_for_missing_row(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="ur10e_visible_overlap_summary_test_") as tmp:
+            run_dir = Path(tmp)
+            case_dir = gui_row.row_case_dir(run_dir, "step5b", "close_detail")
+            case_dir.mkdir(parents=True)
+            payload = gui_row.write_visible_gazebo_overlap_preflight(
+                case_dir,
+                stage="step5b",
+                view="close_detail",
+                run_dir=run_dir,
+                display=":0",
+                processes=[
+                    {
+                        "pid": 100,
+                        "ppid": 1,
+                        "elapsed_s": 3600,
+                        "stat": "SNsl",
+                        "role": "ros2_visible_gazebo_launch",
+                        "cmd": "ros2 launch ... headless:=false",
+                    }
+                ],
+            )
+            summary = gui_row.build_visual_audit_summary(
+                run_dir,
+                stages=("step5b",),
+                views=("close_detail",),
+            )
+            self.assertEqual(summary["row_count"], 0)
+            self.assertEqual(summary["missing_row_count"], 1)
+            self.assertEqual(summary["visible_gazebo_overlap_preflight_count"], 1)
+            missing = summary["missing_rows"][0]
+            self.assertEqual(missing["visible_gazebo_overlap_preflight"], payload["path"])
+            self.assertEqual(missing["blocker"], "existing_visible_gazebo_processes_present")
+            self.assertEqual(missing["claim_tier"], "visual_only")
+            self.assertEqual(missing["action"], "refused_to_start_new_visible_gazebo_row")
+            self.assertEqual(missing["process_count"], "1")
+
     def test_tcp_marker_follower_defaults_to_debug_marker_style(self) -> None:
         args = tcp_marker.parse_args(
             [
