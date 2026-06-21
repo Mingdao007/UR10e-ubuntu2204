@@ -253,13 +253,17 @@ def field_rows(
         if qdot_matches_pdf_anchor
         else "current local full-chain sanity uses 0.30 rad/s while PDF Section VI anchor is +/-0.15 rad/s"
     )
+    pdf_sign_consistency = pdf_audit.get("eq23_sign_consistency", {})
     return [
         {
             "field": "Eq23_nonzero_command_stability",
             "claim_tier": "virtual/software force-loop",
             "status": nonzero_probe["status"],
             "supports_strict_rnn_final_acceptance": False,
-            "evidence": nonzero_probe,
+            "evidence": {
+                **nonzero_probe,
+                "paper_pdf_sign_consistency": pdf_sign_consistency,
+            },
             "blocker": "local discrete zero-initial-lambda nonzero-command probe does not prove stable convergence",
         },
         {

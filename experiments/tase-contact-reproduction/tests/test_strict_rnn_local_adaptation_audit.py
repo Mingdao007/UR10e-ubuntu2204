@@ -67,6 +67,12 @@ class StrictRnnLocalAdaptationAuditTest(unittest.TestCase):
         self.assertGreaterEqual(evidence["final_residual_norm"], evidence["initial_residual_norm"])
         self.assertEqual(len(evidence["final_theta_dot_state"]), 6)
         self.assertEqual(len(evidence["final_lambda_state"]), 6)
+        pdf_sign = evidence["paper_pdf_sign_consistency"]
+        self.assertEqual(pdf_sign["claim_tier"], "virtual/software force-loop")
+        self.assertEqual(pdf_sign["status"], "blocked_pdf_printed_sign_requires_local_discrete_gate")
+        self.assertTrue(pdf_sign["printed_eq23_sign_anchors_present"])
+        self.assertTrue(pdf_sign["kkt_sign_tension_from_eq21_and_printed_eq23"])
+        self.assertTrue(pdf_sign["local_discrete_gate_required"])
         sign = evidence["sign_sensitivity"]
         self.assertEqual(sign["claim_tier"], "virtual/software force-loop")
         self.assertEqual(sign["status"], "blocked_current_sign_unstable_shadow_variants_not_acceptance")

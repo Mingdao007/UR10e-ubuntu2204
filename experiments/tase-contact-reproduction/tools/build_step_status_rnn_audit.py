@@ -638,10 +638,18 @@ def strict_local_adaptation_summary(path: Path | None) -> dict[str, Any]:
         }
     payload = load_json(path)
     qdot_row = {}
+    eq23_row = {}
     for row in payload.get("field_rows", []):
         if isinstance(row, dict) and row.get("field") == "local_qdot_bound_rad_s":
             qdot_row = row
-            break
+        if isinstance(row, dict) and row.get("field") == "Eq23_nonzero_command_stability":
+            eq23_row = row
+    eq23_evidence = eq23_row.get("evidence", {}) if isinstance(eq23_row.get("evidence"), dict) else {}
+    pdf_sign_consistency = (
+        eq23_evidence.get("paper_pdf_sign_consistency", {})
+        if isinstance(eq23_evidence.get("paper_pdf_sign_consistency"), dict)
+        else {}
+    )
     return {
         "artifact": rel(path),
         "present": True,
@@ -655,6 +663,9 @@ def strict_local_adaptation_summary(path: Path | None) -> dict[str, Any]:
         "blockers": payload.get("blockers", []),
         "qdot_bound_status": qdot_row.get("status"),
         "qdot_bound_evidence": qdot_row.get("evidence", {}),
+        "eq23_nonzero_command_status": eq23_row.get("status"),
+        "eq23_pdf_sign_consistency_status": pdf_sign_consistency.get("status"),
+        "eq23_pdf_sign_consistency": pdf_sign_consistency,
     }
 
 

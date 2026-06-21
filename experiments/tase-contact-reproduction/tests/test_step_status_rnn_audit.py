@@ -293,6 +293,16 @@ class StepStatusRnnAuditTest(unittest.TestCase):
                         ],
                         "field_rows": [
                             {
+                                "field": "Eq23_nonzero_command_stability",
+                                "status": "blocked_discrete_printed_sign_nonzero_command_not_stable",
+                                "evidence": {
+                                    "paper_pdf_sign_consistency": {
+                                        "status": "blocked_pdf_printed_sign_requires_local_discrete_gate",
+                                        "claim_tier": "virtual/software force-loop",
+                                    }
+                                },
+                            },
+                            {
                                 "field": "local_qdot_bound_rad_s",
                                 "status": "local_pdf_anchor_bound_sanity_passed_not_final_acceptance",
                                 "evidence": {
@@ -317,6 +327,11 @@ class StepStatusRnnAuditTest(unittest.TestCase):
         self.assertEqual(local["claim_tier"], "virtual/software force-loop")
         self.assertEqual(local["qdot_bound_status"], "local_pdf_anchor_bound_sanity_passed_not_final_acceptance")
         self.assertEqual(local["qdot_bound_evidence"]["local_numeric_sanity_bound_rad_s"], 0.15)
+        self.assertEqual(local["eq23_nonzero_command_status"], "blocked_discrete_printed_sign_nonzero_command_not_stable")
+        self.assertEqual(
+            local["eq23_pdf_sign_consistency_status"],
+            "blocked_pdf_printed_sign_requires_local_discrete_gate",
+        )
         self.assertIn("local_adaptation:not_final_acceptance", strict_gate["blockers"])
         self.assertIn("eq23_nonzero_command_stability:not_proven", strict_gate["blockers"])
         self.assertFalse(strict_gate["strict_rnn_final_acceptance_allowed"])
