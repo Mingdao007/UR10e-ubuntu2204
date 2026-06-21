@@ -92,6 +92,18 @@ REQUIRED_PLOTS = [
 ]
 OPTIONAL_UNSUPPORTED_PLOTS = {"gravity_residual"}
 MESH_VISUAL_SUFFIXES = {".dae", ".mesh", ".obj", ".stl", ".stp", ".step"}
+PER_STAGE_DUAL_SENSOR_AUDIT_SCHEMA = "ur10e_per_stage_dual_sensor_contact_audit_v1"
+PER_STAGE_DUAL_SENSOR_AUDIT_SUFFIX = "_per_stage_dual_sensor_contact_audit.json"
+PER_STAGE_PHYSICAL_REQUIRED_SURFACES = {
+    "stage_row_summary",
+    "stage_contact_pair_log",
+    "stage_contact_wrench_adapter",
+}
+PER_STAGE_SAME_RUN_REQUIRED_SURFACES = PER_STAGE_PHYSICAL_REQUIRED_SURFACES | {
+    "stage_simulated_ft_manifest",
+    "step_status_rnn_audit",
+    "same_run_observation_manifest",
+}
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -361,6 +373,269 @@ def external_dual_sensor_total_wrench_content_issues(payload: dict[str, Any]) ->
     if step_status.get("schema") != "ur10e_step_status_rnn_audit_v1":
         issues.append("artifact_content.step_status_rnn_audit.schema:unsupported_or_missing")
     return issues
+
+
+def per_stage_dual_sensor_contact_summary(root: Path | None) -> dict[str, Any]:
+    root_path = root.resolve() if root is not None else None
+    stage_summaries = {
+        stage_id: per_stage_dual_sensor_contact_stage_summary(root_path, stage_id)
+        for stage_id in CONTACT_STAGE_IDS
+    }
+    missing_stages = sorted(
+        stage_id
+        for stage_id, summary in stage_summaries.items()
+        if not summary["artifact_row"]["exists"]
+    )
+    ambiguous_stages = sorted(
+        stage_id
+        for stage_id, summary in stage_summaries.items()
+        if summary["status"] == "ambiguous"
+    )
+    physical_blocked_stages = sorted(
+        stage_id
+        for stage_id, summary in stage_summaries.items()
+        if not summary["per_stage_physical_gazebo_contact_proven"]
+    )
+    same_run_blocked_stages = sorted(
+        stage_id
+        for stage_id, summary in stage_summaries.items()
+        if not summary["same_run_stage_dual_sensor_observation_proven"]
+    )
+    validation_issues: list[str] = []
+    if root_path is None:
+        validation_issues.append("per_stage_dual_sensor_contact_audit_root:missing")
+    elif not root_path.is_dir():
+        validation_issues.append("per_stage_dual_sensor_contact_audit_root:missing_or_not_directory")
+    for stage_id, summary in stage_summaries.items():
+        validation_issues.extend(
+            f"{stage_id}:{issue}"
+            for issue in summary["validation_issues"]
+        )
+    all_physical = not physical_blocked_stages
+    all_same_run = not same_run_blocked_stages
+    blockers: list[str] = []
+    if not all_physical:
+        blockers.append("per_stage_physical_gazebo_contact:not_proven")
+    if not all_same_run:
+        blockers.append("same_run_stage_dual_sensor_observation:not_proven")
+    return {
+        "artifact_root": rel(root_path),
+        "claim_tier": "physical Gazebo collision/contact physics" if all_physical else "simulated_ft",
+        "stage_ids": CONTACT_STAGE_IDS,
+        "stages": stage_summaries,
+        "missing_stages": missing_stages,
+        "ambiguous_stages": ambiguous_stages,
+        "physical_blocked_stages": physical_blocked_stages,
+        "same_run_blocked_stages": same_run_blocked_stages,
+        "all_contact_stages_physical_gazebo_contact_proven": all_physical,
+        "all_contact_stages_same_run_dual_sensor_observation_proven": all_same_run,
+        "validation_issues": validation_issues,
+        "blockers": blockers,
+        "forbidden_claim": (
+            "per-stage physical Gazebo contact unless every contact stage has a row-local "
+            "per-stage dual-sensor contact audit with contact pair/log, total contact wrench, "
+            "frame/normal evidence, and wrench/contact correlation"
+        ),
+    }
+
+
+def per_stage_dual_sensor_contact_stage_summary(root: Path | None, stage_id: str) -> dict[str, Any]:
+    path, discovery_issues, candidate_count = find_per_stage_dual_sensor_contact_audit(root, stage_id)
+    artifact = artifact_row_for_path("per_stage_dual_sensor_contact_audit", path)
+    if path is None:
+        return {
+            "stage_id": stage_id,
+            "status": "ambiguous" if candidate_count > 1 else "missing",
+            "artifact_row": artifact,
+            "candidate_count": candidate_count,
+            "claim_tier": "visual_only",
+            "per_stage_physical_gazebo_contact_proven": False,
+            "same_run_stage_dual_sensor_observation_proven": False,
+            "physical_validation_issues": discovery_issues,
+            "same_run_validation_issues": discovery_issues,
+            "validation_issues": discovery_issues,
+            "blockers": [
+                "per_stage_physical_gazebo_contact:not_proven",
+                "same_run_stage_dual_sensor_observation:not_proven",
+            ],
+        }
+    try:
+        payload = load_json(path)
+    except (OSError, json.JSONDecodeError) as exc:
+        issues = discovery_issues + [f"artifact:unreadable:{type(exc).__name__}"]
+        return {
+            "stage_id": stage_id,
+            "status": "unreadable",
+            "artifact_row": artifact,
+            "candidate_count": candidate_count,
+            "claim_tier": "visual_only",
+            "per_stage_physical_gazebo_contact_proven": False,
+            "same_run_stage_dual_sensor_observation_proven": False,
+            "physical_validation_issues": issues,
+            "same_run_validation_issues": issues,
+            "validation_issues": issues,
+            "blockers": [
+                "per_stage_physical_gazebo_contact:not_proven",
+                "same_run_stage_dual_sensor_observation:not_proven",
+            ],
+        }
+
+    general_issues = external_gate_validation_issues(
+        payload,
+        expected_schema=PER_STAGE_DUAL_SENSOR_AUDIT_SCHEMA,
+    )
+    if payload.get("stage_id") != stage_id:
+        general_issues.append("stage_id:mismatch")
+    if payload.get("claim_tier") not in CLAIM_TIERS:
+        general_issues.append("claim_tier:unsupported_or_missing")
+    live = payload.get("live_authorization") if isinstance(payload.get("live_authorization"), dict) else {}
+    if live.get("real_bench_live_contact_authorized") is not False:
+        general_issues.append("live_authorization.real_bench_live_contact_authorized:not_false")
+
+    physical_issues = (
+        discovery_issues
+        + general_issues
+        + artifact_row_content_issues(
+            payload,
+            required_surfaces=PER_STAGE_PHYSICAL_REQUIRED_SURFACES,
+            require_same_run=True,
+        )
+        + [
+            issue
+            for issue in list_value(payload, "blockers") + list_value(payload, "validation_issues")
+            if issue_affects_per_stage_physical_contact(str(issue))
+        ]
+    )
+    same_run_issues = (
+        discovery_issues
+        + general_issues
+        + artifact_row_content_issues(
+            payload,
+            required_surfaces=PER_STAGE_SAME_RUN_REQUIRED_SURFACES,
+            require_same_run=True,
+        )
+        + list(map(str, list_value(payload, "blockers")))
+        + list(map(str, list_value(payload, "validation_issues")))
+    )
+    physical = payload.get("per_stage_physical_gazebo_contact")
+    if not isinstance(physical, dict):
+        physical_issues.append("per_stage_physical_gazebo_contact:missing")
+        physical_proven = False
+    else:
+        physical_proven = physical.get("per_stage_physical_gazebo_contact_proven") is True
+        if not physical_proven:
+            physical_issues.append("per_stage_physical_gazebo_contact.proven:not_true")
+    same_run = payload.get("same_run_stage_dual_sensor_observation")
+    if not isinstance(same_run, dict):
+        same_run_issues.append("same_run_stage_dual_sensor_observation:missing")
+        same_run_proven = False
+    else:
+        same_run_proven = same_run.get("same_run_stage_dual_sensor_observation_proven") is True
+        if not same_run_proven:
+            same_run_issues.append("same_run_stage_dual_sensor_observation.proven:not_true")
+
+    physical_proven = physical_proven and not physical_issues
+    same_run_proven = same_run_proven and not same_run_issues
+    blockers = list(map(str, list_value(payload, "blockers")))
+    if not physical_proven and "per_stage_physical_gazebo_contact:not_proven" not in blockers:
+        blockers.append("per_stage_physical_gazebo_contact:not_proven")
+    if not same_run_proven and "same_run_stage_dual_sensor_observation:not_proven" not in blockers:
+        blockers.append("same_run_stage_dual_sensor_observation:not_proven")
+    return {
+        "stage_id": stage_id,
+        "status": "proven" if physical_proven and same_run_proven else "blocked",
+        "artifact_row": artifact,
+        "candidate_count": candidate_count,
+        "claim_tier": payload.get("claim_tier", "visual_only"),
+        "per_stage_physical_gazebo_contact_proven": physical_proven,
+        "same_run_stage_dual_sensor_observation_proven": same_run_proven,
+        "physical_validation_issues": sorted(set(physical_issues)),
+        "same_run_validation_issues": sorted(set(same_run_issues)),
+        "validation_issues": sorted(set(physical_issues + same_run_issues)),
+        "blockers": sorted(set(blockers)),
+    }
+
+
+def find_per_stage_dual_sensor_contact_audit(root: Path | None, stage_id: str) -> tuple[Path | None, list[str], int]:
+    if root is None:
+        return None, [f"per_stage_dual_sensor_contact_audit:{stage_id}:missing_root"], 0
+    if not root.is_dir():
+        return None, [f"per_stage_dual_sensor_contact_audit:{stage_id}:root_missing_or_not_directory"], 0
+    filename = f"{stage_id}{PER_STAGE_DUAL_SENSOR_AUDIT_SUFFIX}"
+    direct = root / filename
+    if direct.is_file():
+        return direct, [], 1
+    candidates = sorted(root.rglob(filename))
+    if len(candidates) == 1:
+        return candidates[0], [], 1
+    if not candidates:
+        return None, [f"per_stage_dual_sensor_contact_audit:{stage_id}:missing"], 0
+    return None, [f"per_stage_dual_sensor_contact_audit:{stage_id}:ambiguous:{len(candidates)}"], len(candidates)
+
+
+def artifact_row_for_path(surface: str, path: Path | None) -> dict[str, Any]:
+    exists = bool(path and path.is_file())
+    return {
+        "surface": surface,
+        "path": rel(path),
+        "exists": exists,
+        "run_id": run_id_for_path(str(path)) if exists else None,
+        "sha256": sha256_file(str(path)) if exists else None,
+    }
+
+
+def artifact_row_content_issues(
+    payload: dict[str, Any],
+    *,
+    required_surfaces: set[str],
+    require_same_run: bool,
+) -> list[str]:
+    issues: list[str] = []
+    rows = payload.get("artifact_rows")
+    if not isinstance(rows, list):
+        return ["artifact_rows:missing"]
+    rows_by_surface = {
+        str(row.get("surface")): row
+        for row in rows
+        if isinstance(row, dict)
+    }
+    missing = sorted(surface for surface in required_surfaces if surface not in rows_by_surface)
+    if missing:
+        issues.append("artifact_rows:missing_surfaces:" + ",".join(missing))
+    run_ids: dict[str, str] = {}
+    for surface in sorted(required_surfaces - set(missing)):
+        row = rows_by_surface[surface]
+        if row.get("exists") is not True:
+            issues.append(f"artifact_rows.{surface}.exists:not_true")
+        path_value = row.get("path")
+        if not path_value:
+            issues.append(f"artifact_rows.{surface}.path:missing")
+            continue
+        path = workspace_path(str(path_value))
+        if path is None or not path.is_file():
+            issues.append(f"artifact_rows.{surface}.path:missing_or_unreadable")
+            continue
+        expected_sha = row.get("sha256")
+        if not expected_sha:
+            issues.append(f"artifact_rows.{surface}.sha256:missing")
+        elif sha256_file(str(path_value)) != expected_sha:
+            issues.append(f"artifact_rows.{surface}.sha256:mismatch")
+        run_id = run_id_for_path(str(path_value))
+        if run_id:
+            run_ids[surface] = run_id
+    if require_same_run and len(set(run_ids.values())) > 1:
+        issues.append("artifact_rows:cross_run_surfaces:" + ",".join(sorted(run_ids)))
+    return issues
+
+
+def issue_affects_per_stage_physical_contact(issue: str) -> bool:
+    if issue.startswith("same_run_stage_dual_sensor_observation"):
+        return False
+    if issue.startswith("required_stage_surfaces:cross_run"):
+        return False
+    if issue.startswith("stage_simulated_ft"):
+        return False
+    return True
 
 
 def external_artifact_row_paths(payload: dict[str, Any], *, required_surfaces: set[str]) -> dict[str, Path]:
@@ -853,6 +1128,7 @@ def build_blockers(
     p3: dict[str, Any],
     post_gate_visual: dict[str, Any],
     step: dict[str, Any],
+    per_stage_contact: dict[str, Any],
     demo_manifest: dict[str, Any],
 ) -> list[str]:
     blockers: list[str] = []
@@ -874,6 +1150,10 @@ def build_blockers(
         blockers.append("stage_simulated_ft_manifest:not_valid")
     if not step["contact_stages_simulated_ft"] or not step["contact_stages_have_log_evidence"]:
         blockers.append("contact_stage_simulated_ft:not_all_verified")
+    if not per_stage_contact["all_contact_stages_physical_gazebo_contact_proven"]:
+        blockers.append("per_stage_physical_gazebo_contact:not_proven")
+    if not per_stage_contact["all_contact_stages_same_run_dual_sensor_observation_proven"]:
+        blockers.append("same_run_stage_dual_sensor_observation:not_proven")
     if not demo_manifest["valid"]:
         blockers.append("integrated_demo_manifest:not_valid")
     return blockers
@@ -882,6 +1162,7 @@ def build_blockers(
 def full_goal_blockers(
     *,
     step: dict[str, Any],
+    per_stage_contact: dict[str, Any],
     p6_blockers: list[str],
     timed_audit_coverage: dict[str, Any],
     same_run_binding: dict[str, Any],
@@ -889,8 +1170,10 @@ def full_goal_blockers(
     claim_boundary_validation_issues: list[str],
 ) -> list[str]:
     blockers = [f"p6:{blocker}" for blocker in p6_blockers]
-    if not step["stage_specific_contact_physics_proven"]:
+    if not per_stage_contact["all_contact_stages_physical_gazebo_contact_proven"]:
         blockers.append("per_stage_physical_gazebo_contact:not_proven")
+    if not per_stage_contact["all_contact_stages_same_run_dual_sensor_observation_proven"]:
+        blockers.append("same_run_stage_dual_sensor_observation:not_proven")
     if claim_boundary_validation_issues:
         blockers.append("claim_boundary:not_verified")
     if not dual_sensor_total_wrench["total_contact_wrench_proven"]:
@@ -912,6 +1195,7 @@ def current_claim_tier_table(
     p3: dict[str, Any],
     post_gate_visual: dict[str, Any],
     step: dict[str, Any],
+    per_stage_contact: dict[str, Any],
     demo_manifest: dict[str, Any],
 ) -> list[dict[str, str]]:
     return [
@@ -947,8 +1231,18 @@ def current_claim_tier_table(
         },
         {
             "evidence_surface": "Step5b/Step5d/Step6b/Step7/Step8 per-stage Gazebo contact",
-            "current_status": "per-stage evidence remains simulated_ft with stamp, frame_id, source, status, baseline, and log evidence; standalone P2 is not stage-specific",
-            "claim_tier": "simulated_ft" if step["contact_stages_simulated_ft"] else "visual_only",
+            "current_status": (
+                "all contact stages have row-local per-stage contact audits with physical Gazebo collision/contact physics evidence"
+                if per_stage_contact["all_contact_stages_physical_gazebo_contact_proven"]
+                else "per-stage evidence remains simulated_ft with stamp, frame_id, source, status, baseline, and log evidence; standalone P2 is not stage-specific and row-local per-stage physical audits are missing or blocked"
+            ),
+            "claim_tier": (
+                "physical Gazebo collision/contact physics"
+                if per_stage_contact["all_contact_stages_physical_gazebo_contact_proven"]
+                else "simulated_ft"
+                if step["contact_stages_simulated_ft"]
+                else "visual_only"
+            ),
         },
         {
             "evidence_surface": "P6 integrated demo manifest",
@@ -995,6 +1289,7 @@ def build_audit(
     timed_audit_coverage_path: Path | None = None,
     same_run_binding_path: Path | None = None,
     dual_sensor_total_wrench_path: Path | None = None,
+    per_stage_dual_sensor_contact_audit_root: Path | None = None,
 ) -> dict[str, Any]:
     generated = generated_at or datetime.now().astimezone().isoformat(timespec="seconds")
     p3_payload = load_json(p3_audit_path)
@@ -1002,6 +1297,12 @@ def build_audit(
     p3 = p3_visual_rviz_summary(p3_payload, path=p3_audit_path)
     post_gate_visual = post_gate_visual_foundation_summary(post_gate_visual_foundation_row_path)
     step = step_status_summary(step_payload, path=step_status_audit_path)
+    step_source_artifacts = step_payload.get("source_artifacts") if isinstance(step_payload.get("source_artifacts"), dict) else {}
+    if per_stage_dual_sensor_contact_audit_root is None:
+        per_stage_dual_sensor_contact_audit_root = workspace_path(
+            step_source_artifacts.get("per_stage_dual_sensor_contact_audit_root")
+        )
+    per_stage_contact = per_stage_dual_sensor_contact_summary(per_stage_dual_sensor_contact_audit_root)
     demo_manifest = validate_demo_manifest(integrated_demo_manifest_path)
     if timed_audit_coverage_path is not None:
         timed_audit_payload = load_json(timed_audit_coverage_path)
@@ -1174,12 +1475,14 @@ def build_audit(
         p3=p3,
         post_gate_visual=post_gate_visual,
         step=step,
+        per_stage_contact=per_stage_contact,
         demo_manifest=demo_manifest,
     )
     current_tier_table = current_claim_tier_table(
         p3=p3,
         post_gate_visual=post_gate_visual,
         step=step,
+        per_stage_contact=per_stage_contact,
         demo_manifest=demo_manifest,
     )
     claim_boundary_issues = claim_boundary_validation_issues(
@@ -1188,6 +1491,7 @@ def build_audit(
     )
     final_blockers = full_goal_blockers(
         step=step,
+        per_stage_contact=per_stage_contact,
         p6_blockers=p6_blockers,
         timed_audit_coverage=timed_audit_coverage,
         same_run_binding=same_run_binding,
@@ -1203,15 +1507,12 @@ def build_audit(
         "timed_audit_coverage": rel(timed_audit_coverage_path),
         "same_run_integrated_binding": rel(same_run_binding_path),
         "dual_sensor_total_wrench": rel(dual_sensor_total_wrench_path),
+        "per_stage_dual_sensor_contact_audit_root": rel(per_stage_dual_sensor_contact_audit_root),
         "p1_simulated_ft_manifest": (
-            step_payload.get("source_artifacts", {}).get("stage_simulated_ft_manifest")
-            if isinstance(step_payload.get("source_artifacts"), dict)
-            else None
+            step_source_artifacts.get("stage_simulated_ft_manifest")
         ),
         "p2_contact_correlation_audit": (
-            step_payload.get("source_artifacts", {}).get("p2_contact_correlation_audit")
-            if isinstance(step_payload.get("source_artifacts"), dict)
-            else None
+            step_source_artifacts.get("p2_contact_correlation_audit")
         ),
     }
     return {
@@ -1242,6 +1543,7 @@ def build_audit(
         },
         "same_run_binding": same_run_binding,
         "dual_sensor_total_wrench": dual_sensor_total_wrench,
+        "per_stage_dual_sensor_contact": per_stage_contact,
         "timed_audit_coverage": timed_audit_coverage,
         "p3_visual_rviz": p3,
         "post_gate_visual_foundation": post_gate_visual,
@@ -1265,6 +1567,12 @@ def build_audit(
                 and step["contact_stages_simulated_ft"]
                 and step["contact_stages_have_log_evidence"]
             ),
+            "per_stage_physical_gazebo_contact_ready": per_stage_contact[
+                "all_contact_stages_physical_gazebo_contact_proven"
+            ],
+            "same_run_stage_dual_sensor_observation_ready": per_stage_contact[
+                "all_contact_stages_same_run_dual_sensor_observation_proven"
+            ],
             "integrated_demo_manifest_valid": demo_manifest["valid"],
             "p6_integrated_demo_readiness_allowed": not p6_blockers,
             "p6_integrated_demo_blockers": p6_blockers,
@@ -1291,6 +1599,7 @@ def write_audit(
     timed_audit_coverage_path: Path | None = None,
     same_run_binding_path: Path | None = None,
     dual_sensor_total_wrench_path: Path | None = None,
+    per_stage_dual_sensor_contact_audit_root: Path | None = None,
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     path = output_dir / "p6_integrated_demo_readiness_audit.json"
@@ -1304,6 +1613,7 @@ def write_audit(
         timed_audit_coverage_path=timed_audit_coverage_path,
         same_run_binding_path=same_run_binding_path,
         dual_sensor_total_wrench_path=dual_sensor_total_wrench_path,
+        per_stage_dual_sensor_contact_audit_root=per_stage_dual_sensor_contact_audit_root,
     )
     payload["artifact_path"] = str(path)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -1322,6 +1632,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--timed-audit-coverage", type=Path, default=None)
     parser.add_argument("--same-run-binding", type=Path, default=None)
     parser.add_argument("--dual-sensor-total-wrench", type=Path, default=None)
+    parser.add_argument("--per-stage-dual-sensor-contact-audit-root", type=Path, default=None)
     return parser.parse_args(argv)
 
 
@@ -1338,6 +1649,7 @@ def main(argv: list[str] | None = None) -> int:
         timed_audit_coverage_path=args.timed_audit_coverage,
         same_run_binding_path=args.same_run_binding,
         dual_sensor_total_wrench_path=args.dual_sensor_total_wrench,
+        per_stage_dual_sensor_contact_audit_root=args.per_stage_dual_sensor_contact_audit_root,
     )
     print(path)
     return 0

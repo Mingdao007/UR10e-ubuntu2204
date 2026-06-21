@@ -255,6 +255,70 @@ def _valid_dual_sensor_artifact_rows(root: Path) -> list[dict[str, object]]:
     ]
 
 
+def _per_stage_audit_artifact_row(stage_root: Path, stage_id: str, surface: str) -> dict[str, object]:
+    path = stage_root / f"{surface}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"stage_id": stage_id, "surface": surface}, indent=2), encoding="utf-8")
+    return {
+        "surface": surface,
+        "path": str(path),
+        "exists": True,
+        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+    }
+
+
+def _write_per_stage_dual_sensor_audit(root: Path, stage_id: str, *, proven: bool = True) -> Path:
+    stage_root = root / stage_id / "source_rows"
+    artifact_rows = [
+        _per_stage_audit_artifact_row(stage_root, stage_id, surface)
+        for surface in [
+            "stage_row_summary",
+            "stage_contact_pair_log",
+            "stage_contact_wrench_adapter",
+            "stage_simulated_ft_manifest",
+            "step_status_rnn_audit",
+            "same_run_observation_manifest",
+        ]
+    ]
+    blockers = [] if proven else ["per_stage_physical_gazebo_contact:not_proven"]
+    payload = {
+        "schema": "ur10e_per_stage_dual_sensor_contact_audit_v1",
+        "goal_lineage": GOAL_LINEAGE,
+        "generated_at": "2026-06-21T18:30:00+08:00",
+        "stage_id": stage_id,
+        "claim_tier": "physical Gazebo collision/contact physics" if proven else "simulated_ft",
+        "live_authorization": {
+            "robot_motion_authorized": False,
+            "bridge_start_authorized": False,
+            "tp_play_authorized": False,
+            "urscript_authorized": False,
+            "zero_ftsensor_authorized": False,
+            "payload_tcp_safety_writes_authorized": False,
+            "real_bench_live_contact_authorized": False,
+        },
+        "artifact_rows": artifact_rows,
+        "missing_surfaces": [],
+        "cross_run_surfaces": [],
+        "validation_issues": [],
+        "blockers": blockers,
+        "per_stage_physical_gazebo_contact": {
+            "claim_tier": "physical Gazebo collision/contact physics" if proven else "visual_only",
+            "per_stage_physical_gazebo_contact_proven": proven,
+        },
+        "same_run_stage_dual_sensor_observation": {
+            "same_run_stage_dual_sensor_observation_proven": proven,
+        },
+    }
+    path = root / f"{stage_id}_per_stage_dual_sensor_contact_audit.json"
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return path
+
+
+def _write_all_per_stage_dual_sensor_audits(root: Path, *, proven: bool = True) -> None:
+    for stage_id in ["step5b", "step5d", "step6b", "step7", "step8"]:
+        _write_per_stage_dual_sensor_audit(root, stage_id, proven=proven)
+
+
 def _concurrent_observation() -> dict[str, object]:
     return {
         "observation_id": "fixture-concurrent-observation-001",
@@ -455,6 +519,158 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
         self.assertIn("total_contact_wrench:not_proven", payload["full_goal_acceptance_gate"]["full_goal_acceptance_blockers"])
         self.assertIn("same_run_integrated_binding:not_proven", payload["full_goal_acceptance_gate"]["full_goal_acceptance_blockers"])
         self.assertIn("timed_audit_coverage:not_verified", payload["full_goal_acceptance_gate"]["full_goal_acceptance_blockers"])
+
+    def test_stage_specific_contact_bool_cannot_bypass_missing_per_stage_audits(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="p6_stage_specific_bool_fixture_") as tmp:
+            root = Path(tmp)
+            p3_path = root / "p3.json"
+            step_path = root / "step.json"
+            manifest_path = root / "manifest.json"
+            p3_path.write_text(json.dumps(_p3_payload(), indent=2), encoding="utf-8")
+            visual_path = _write_post_gate_visual_foundation_row(root)
+            step = _step_payload(strict_ready=True)
+            step["audit_coverage"]["stage_specific_contact_physics_proven"] = True
+            step["p2_physical_gazebo_contact"]["stage_specific_contact_physics_proven"] = True
+            step_path.write_text(json.dumps(step, indent=2), encoding="utf-8")
+            manifest_path.write_text(json.dumps(_demo_manifest_payload(root), indent=2), encoding="utf-8")
+            payload = audit.build_audit(
+                generated_at="2026-06-21T18:30:00+08:00",
+                p3_audit_path=p3_path,
+                post_gate_visual_foundation_row_path=visual_path,
+                step_status_audit_path=step_path,
+                integrated_demo_manifest_path=manifest_path,
+                handoff_root=root / "missing_handoffs",
+            )
+
+        self.assertTrue(payload["step_status_rnn"]["stage_specific_contact_physics_proven"])
+        self.assertFalse(
+            payload["per_stage_dual_sensor_contact"]["all_contact_stages_physical_gazebo_contact_proven"]
+        )
+        self.assertEqual(
+            payload["per_stage_dual_sensor_contact"]["missing_stages"],
+            ["step5b", "step5d", "step6b", "step7", "step8"],
+        )
+        self.assertFalse(payload["readiness_gates"]["per_stage_physical_gazebo_contact_ready"])
+        self.assertIn(
+            "per_stage_physical_gazebo_contact:not_proven",
+            payload["readiness_gates"]["p6_integrated_demo_blockers"],
+        )
+        self.assertIn(
+            "per_stage_physical_gazebo_contact:not_proven",
+            payload["full_goal_acceptance_gate"]["full_goal_acceptance_blockers"],
+        )
+
+    def test_per_stage_contact_audit_gate_requires_every_contact_stage_artifact(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="p6_partial_per_stage_contact_fixture_") as tmp:
+            root = Path(tmp)
+            p3_path = root / "p3.json"
+            step_path = root / "step.json"
+            manifest_path = root / "manifest.json"
+            per_stage_root = root / "per_stage_dual_sensor_contact"
+            per_stage_root.mkdir()
+            _write_per_stage_dual_sensor_audit(per_stage_root, "step5b", proven=True)
+            p3_path.write_text(json.dumps(_p3_payload(), indent=2), encoding="utf-8")
+            visual_path = _write_post_gate_visual_foundation_row(root)
+            step_path.write_text(json.dumps(_step_payload(strict_ready=True), indent=2), encoding="utf-8")
+            manifest_path.write_text(json.dumps(_demo_manifest_payload(root), indent=2), encoding="utf-8")
+            payload = audit.build_audit(
+                generated_at="2026-06-21T18:31:00+08:00",
+                p3_audit_path=p3_path,
+                post_gate_visual_foundation_row_path=visual_path,
+                step_status_audit_path=step_path,
+                integrated_demo_manifest_path=manifest_path,
+                per_stage_dual_sensor_contact_audit_root=per_stage_root,
+                handoff_root=root / "missing_handoffs",
+            )
+
+        self.assertFalse(
+            payload["per_stage_dual_sensor_contact"]["all_contact_stages_physical_gazebo_contact_proven"]
+        )
+        self.assertEqual(payload["per_stage_dual_sensor_contact"]["physical_blocked_stages"], ["step5d", "step6b", "step7", "step8"])
+        self.assertIn("step5d", payload["per_stage_dual_sensor_contact"]["missing_stages"])
+        self.assertIn(
+            "per_stage_physical_gazebo_contact:not_proven",
+            payload["readiness_gates"]["p6_integrated_demo_blockers"],
+        )
+
+    def test_per_stage_contact_audit_gate_passes_only_when_every_stage_artifact_is_proven(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="p6_full_per_stage_contact_fixture_") as tmp:
+            root = Path(tmp)
+            p3_path = root / "p3.json"
+            step_path = root / "step.json"
+            manifest_path = root / "manifest.json"
+            per_stage_root = root / "per_stage_dual_sensor_contact"
+            per_stage_root.mkdir()
+            _write_all_per_stage_dual_sensor_audits(per_stage_root, proven=True)
+            p3_path.write_text(json.dumps(_p3_payload(), indent=2), encoding="utf-8")
+            visual_path = _write_post_gate_visual_foundation_row(root)
+            step_path.write_text(json.dumps(_step_payload(strict_ready=True), indent=2), encoding="utf-8")
+            manifest_path.write_text(json.dumps(_demo_manifest_payload(root), indent=2), encoding="utf-8")
+            payload = audit.build_audit(
+                generated_at="2026-06-21T18:32:00+08:00",
+                p3_audit_path=p3_path,
+                post_gate_visual_foundation_row_path=visual_path,
+                step_status_audit_path=step_path,
+                integrated_demo_manifest_path=manifest_path,
+                per_stage_dual_sensor_contact_audit_root=per_stage_root,
+                handoff_root=root / "missing_handoffs",
+            )
+
+        self.assertTrue(
+            payload["per_stage_dual_sensor_contact"]["all_contact_stages_physical_gazebo_contact_proven"]
+        )
+        self.assertTrue(
+            payload["per_stage_dual_sensor_contact"]["all_contact_stages_same_run_dual_sensor_observation_proven"]
+        )
+        self.assertEqual(payload["per_stage_dual_sensor_contact"]["physical_blocked_stages"], [])
+        self.assertTrue(payload["readiness_gates"]["per_stage_physical_gazebo_contact_ready"])
+        self.assertNotIn(
+            "per_stage_physical_gazebo_contact:not_proven",
+            payload["readiness_gates"]["p6_integrated_demo_blockers"],
+        )
+        self.assertNotIn(
+            "per_stage_physical_gazebo_contact:not_proven",
+            payload["full_goal_acceptance_gate"]["full_goal_acceptance_blockers"],
+        )
+
+    def test_per_stage_contact_audit_gate_rejects_stale_source_row_hash(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="p6_stale_per_stage_contact_fixture_") as tmp:
+            root = Path(tmp)
+            p3_path = root / "p3.json"
+            step_path = root / "step.json"
+            manifest_path = root / "manifest.json"
+            per_stage_root = root / "per_stage_dual_sensor_contact"
+            per_stage_root.mkdir()
+            _write_all_per_stage_dual_sensor_audits(per_stage_root, proven=True)
+            stale_payload = json.loads((per_stage_root / "step7_per_stage_dual_sensor_contact_audit.json").read_text(encoding="utf-8"))
+            stale_source = Path(stale_payload["artifact_rows"][0]["path"])
+            stale_source.write_text(json.dumps({"changed_after_audit": True}, indent=2), encoding="utf-8")
+            p3_path.write_text(json.dumps(_p3_payload(), indent=2), encoding="utf-8")
+            visual_path = _write_post_gate_visual_foundation_row(root)
+            step_path.write_text(json.dumps(_step_payload(strict_ready=True), indent=2), encoding="utf-8")
+            manifest_path.write_text(json.dumps(_demo_manifest_payload(root), indent=2), encoding="utf-8")
+            payload = audit.build_audit(
+                generated_at="2026-06-21T18:33:00+08:00",
+                p3_audit_path=p3_path,
+                post_gate_visual_foundation_row_path=visual_path,
+                step_status_audit_path=step_path,
+                integrated_demo_manifest_path=manifest_path,
+                per_stage_dual_sensor_contact_audit_root=per_stage_root,
+                handoff_root=root / "missing_handoffs",
+            )
+
+        step7 = payload["per_stage_dual_sensor_contact"]["stages"]["step7"]
+        self.assertFalse(step7["per_stage_physical_gazebo_contact_proven"])
+        self.assertIn("artifact_rows.stage_row_summary.sha256:mismatch", step7["physical_validation_issues"])
+        self.assertIn("step7", payload["per_stage_dual_sensor_contact"]["physical_blocked_stages"])
+        self.assertIn(
+            "per_stage_physical_gazebo_contact:not_proven",
+            payload["readiness_gates"]["p6_integrated_demo_blockers"],
+        )
 
     def test_post_gate_visual_foundation_missing_blocks_p6_readiness(self) -> None:
         audit = import_audit_module()
