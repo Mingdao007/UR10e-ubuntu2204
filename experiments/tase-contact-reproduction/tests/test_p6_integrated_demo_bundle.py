@@ -145,6 +145,40 @@ class P6IntegratedDemoBundleTest(unittest.TestCase):
             same_run_payload["validation_issues"],
         )
 
+    def test_bundle_downgrades_blocked_p2_contact_claim_tier(self) -> None:
+        bundle = import_module(BUNDLE_MODULE_PATH, "build_p6_integrated_demo_bundle")
+        with tempfile.TemporaryDirectory(prefix="p6_integrated_demo_bundle_p2_downgrade_test_") as tmp:
+            root = Path(tmp)
+            p2_path = root / "p2_contact_correlation_audit.json"
+            p2_path.write_text(
+                json.dumps(
+                    {
+                        "schema": "ur10e_gazebo_p2_contact_correlation_audit_v1",
+                        "claim_tier": "visual_only",
+                        "physical_gazebo_contact_gate": {
+                            "force_contact_physics_proven": False,
+                            "wrench_contact_correlation": False,
+                        },
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            manifest_path = bundle.write_bundle(
+                root / "bundle",
+                generated_at="2026-06-21T13:56:13+08:00",
+                p2_audit_path=p2_path,
+            )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+        p2_row = next(
+            row
+            for row in manifest["current_claim_tier_table"]
+            if row["evidence_surface"] == "P2 contact-correlation audit"
+        )
+        self.assertEqual(p2_row["claim_tier"], "visual_only")
+        self.assertIn("not proven", p2_row["current_status"])
+
     def test_bundle_can_embed_positive_ready_concurrent_observation_input(self) -> None:
         bundle = import_module(BUNDLE_MODULE_PATH, "build_p6_integrated_demo_bundle")
         same_run = import_module(SAME_RUN_MODULE_PATH, "build_same_run_integrated_binding_audit")

@@ -107,6 +107,30 @@ def sha256_file(path: Path | str | None) -> str | None:
     return digest.hexdigest()
 
 
+def p2_claim_tier_row(p2_payload: dict[str, Any]) -> dict[str, str]:
+    gate = (
+        p2_payload.get("physical_gazebo_contact_gate")
+        if isinstance(p2_payload.get("physical_gazebo_contact_gate"), dict)
+        else {}
+    )
+    force_contact_physics_proven = bool(gate.get("force_contact_physics_proven"))
+    p2_claim_tier = str(p2_payload.get("claim_tier") or "visual_only")
+    if p2_claim_tier != "physical Gazebo collision/contact physics" or not force_contact_physics_proven:
+        return {
+            "evidence_surface": "P2 contact-correlation audit",
+            "current_status": (
+                "downgraded; physical Gazebo contact physics not proven "
+                "because force_contact_physics_proven=false or wrench/contact correlation is missing"
+            ),
+            "claim_tier": "visual_only",
+        }
+    return {
+        "evidence_surface": "Standalone P2 physical witness",
+        "current_status": "standalone only; not stage-specific integrated contact physics",
+        "claim_tier": "physical Gazebo collision/contact physics",
+    }
+
+
 def rows_for_stage(log_path: Path) -> list[dict[str, Any]]:
     payload = load_json(log_path)
     trace = payload.get("trace") if isinstance(payload.get("trace"), dict) else {}
@@ -895,11 +919,7 @@ def write_bundle(
                 "current_status": "supported by canonical simulated_ft logs with stamp, frame_id, source, status, baseline, and log evidence",
                 "claim_tier": "simulated_ft",
             },
-            {
-                "evidence_surface": "Standalone P2 physical witness",
-                "current_status": "standalone only; not stage-specific integrated contact physics",
-                "claim_tier": "physical Gazebo collision/contact physics",
-            },
+            p2_claim_tier_row(p2_payload),
             {
                 "evidence_surface": "Real bench/live contact",
                 "current_status": "not authorized",
