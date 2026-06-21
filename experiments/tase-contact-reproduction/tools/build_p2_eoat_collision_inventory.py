@@ -390,6 +390,18 @@ def build_inventory(*, generated_at: str | None = None) -> dict[str, Any]:
         "goal_lineage": "/home/andy/codex_handoffs/ur10e-gazebo-17h-sim-ft-rnn-goal-prompt-20260621-0056.md",
         "mode": "offline_gazebo_rviz_no_live_inventory",
         "claim_tier": "visual_only",
+        "evidence_scope": {
+            "scope": "collision_inventory_only",
+            "collision_inventory_evaluated": True,
+            "runtime_contact_pair_log_evidence_evaluated": False,
+            "wrench_contact_correlation_evaluated": False,
+            "contact_pair_log_evidence_authority": "build_p2_contact_correlation_audit.py",
+            "force_contact_physics_authority": "build_p2_contact_correlation_audit.py",
+            "scope_note": (
+                "This artifact proves intended EOAT/surface collision bodies and mesh/source provenance only; "
+                "it does not consume runtime Gazebo contact logs or wrench traces."
+            ),
+        },
         "allowed_claim": "visual_only EOAT/CAD/collision/contact-surface inventory and provenance only",
         "forbidden_claim": (
             "physical Gazebo collision/contact physics, simulated_ft from this P2 artifact alone, "
@@ -416,10 +428,14 @@ def build_inventory(*, generated_at: str | None = None) -> dict[str, Any]:
         "inertial_provenance": _inertial_provenance(root),
         "contact_surface_candidates": surfaces,
         "physical_gazebo_contact_gate": {
+            "gate_scope": "inventory_only_no_runtime_contact_log",
             "eoat_collision_count": eoat_collision_count,
             "eoat_collision_body_audit_passed": eoat_collision_count > 0,
+            "collision_count_proven_scope": "model_inventory_only_not_runtime_contact",
             "collision_count_proven": False,
+            "contact_pair_log_evidence_scope": "not_evaluated_by_inventory",
             "contact_pair_log_evidence": False,
+            "wrench_contact_correlation_scope": "not_evaluated_by_inventory",
             "wrench_contact_correlation": False,
             "force_contact_physics_proven": force_contact_physics_proven,
             "status": "blocked_not_proven",

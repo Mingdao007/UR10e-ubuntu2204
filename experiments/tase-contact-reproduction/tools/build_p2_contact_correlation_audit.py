@@ -313,9 +313,16 @@ def build_audit(
         },
         "p2_collision_inventory": {
             "claim_tier": p2_inventory_payload.get("claim_tier"),
+            "evidence_scope": p2_inventory_payload.get("evidence_scope"),
             "current_eoat_collision_count": eoat_collision_count,
             "contact_collision_names": sorted(_contact_collision_names(p2_inventory_payload)),
             "force_contact_physics_proven": bool(p2_inventory_payload.get("force_contact_physics_proven")),
+            "runtime_contact_pair_log_evidence_evaluated_by_inventory": bool(
+                ((p2_inventory_payload.get("evidence_scope") or {}).get("runtime_contact_pair_log_evidence_evaluated"))
+            ),
+            "wrench_contact_correlation_evaluated_by_inventory": bool(
+                ((p2_inventory_payload.get("evidence_scope") or {}).get("wrench_contact_correlation_evaluated"))
+            ),
         },
         "wrench_evidence": wrench,
         "claim_boundary_gate": {

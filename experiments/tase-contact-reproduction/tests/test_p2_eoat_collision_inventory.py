@@ -22,6 +22,14 @@ class P2EoatCollisionInventoryTest(unittest.TestCase):
 
         self.assertEqual(artifact["schema"], "ur10e_gazebo_p2_eoat_collision_inventory_v1")
         self.assertEqual(artifact["claim_tier"], "visual_only")
+        self.assertEqual(artifact["evidence_scope"]["scope"], "collision_inventory_only")
+        self.assertTrue(artifact["evidence_scope"]["collision_inventory_evaluated"])
+        self.assertFalse(artifact["evidence_scope"]["runtime_contact_pair_log_evidence_evaluated"])
+        self.assertFalse(artifact["evidence_scope"]["wrench_contact_correlation_evaluated"])
+        self.assertEqual(
+            artifact["evidence_scope"]["contact_pair_log_evidence_authority"],
+            "build_p2_contact_correlation_audit.py",
+        )
         self.assertFalse(artifact["live_robot_command_authorized"])
         self.assertFalse(artifact["bridge_start_authorized"])
         self.assertFalse(artifact["payload_tcp_safety_writes_authorized"])
@@ -121,6 +129,22 @@ class P2EoatCollisionInventoryTest(unittest.TestCase):
         self.assertTrue(candidates["step5_contact_surface_collision"]["collision_body_instantiated"])
         self.assertEqual(candidates["step5_contact_surface_collision"]["claim_tier"], "visual_only")
         self.assertTrue(artifact["physical_gazebo_contact_gate"]["eoat_collision_body_audit_passed"])
+        self.assertEqual(
+            artifact["physical_gazebo_contact_gate"]["gate_scope"],
+            "inventory_only_no_runtime_contact_log",
+        )
+        self.assertEqual(
+            artifact["physical_gazebo_contact_gate"]["collision_count_proven_scope"],
+            "model_inventory_only_not_runtime_contact",
+        )
+        self.assertEqual(
+            artifact["physical_gazebo_contact_gate"]["contact_pair_log_evidence_scope"],
+            "not_evaluated_by_inventory",
+        )
+        self.assertEqual(
+            artifact["physical_gazebo_contact_gate"]["wrench_contact_correlation_scope"],
+            "not_evaluated_by_inventory",
+        )
         self.assertFalse(artifact["physical_gazebo_contact_gate"]["collision_count_proven"])
         self.assertFalse(artifact["physical_gazebo_contact_gate"]["contact_pair_log_evidence"])
         self.assertFalse(artifact["physical_gazebo_contact_gate"]["wrench_contact_correlation"])
