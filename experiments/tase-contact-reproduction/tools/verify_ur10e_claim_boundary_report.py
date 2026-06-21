@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import re
 from pathlib import Path
 from typing import Any
@@ -86,7 +87,11 @@ PHYSICAL_HASH_TOKENS = (
 JSON_PATH_RE = re.compile(r"`?(/[^`|\s]+\.json)`?")
 SHA256_RE = re.compile(r"\b(?:sha256|hash)\s*[=:]\s*([a-fA-F0-9]{64})\b")
 FULL_ACCEPTANCE_RE = re.compile(
-    r"\b(full reproduction|full acceptance|integrated demo|same-run integrated|same run integrated)\b"
+    r"\b("
+    r"full reproduction|full acceptance|integrated demo|same-run integrated|same run integrated|"
+    r"end-to-end(?: reproduction| demo| acceptance)?|end to end(?: reproduction| demo| acceptance)?|"
+    r"demo ready|bench-ready|bench ready|p6(?: readiness)?"
+    r")\b"
 )
 
 
@@ -580,17 +585,83 @@ def standalone_physical_artifact_proven(payload: dict[str, Any]) -> bool:
 def per_stage_physical_artifact_proven(payload: dict[str, Any]) -> bool:
     correlation = payload.get("stage_wrench_contact_correlation")
     per_stage = payload.get("per_stage_physical_gazebo_contact")
+    contact_pair = payload.get("stage_contact_pair_log")
+    adapter = payload.get("stage_contact_wrench_adapter")
     return bool(
         payload.get("schema") == "ur10e_per_stage_dual_sensor_contact_audit_v1"
         and payload.get("claim_tier") == "physical Gazebo collision/contact physics"
         and isinstance(correlation, dict)
         and isinstance(per_stage, dict)
+        and isinstance(contact_pair, dict)
+        and isinstance(adapter, dict)
         and correlation.get("evidence") is True
         and correlation.get("status") == "correlated"
         and per_stage.get("per_stage_physical_gazebo_contact_proven") is True
+        and per_stage_contact_pair_content_proven(contact_pair)
+        and per_stage_wrench_adapter_content_proven(adapter)
         and not payload.get("blockers")
         and not payload.get("validation_issues")
     )
+
+
+def per_stage_contact_pair_content_proven(contact_pair: dict[str, Any]) -> bool:
+    row = contact_pair.get("first_matching_row")
+    return bool(
+        contact_pair.get("evidence") is True
+        and contact_pair.get("same_run_stage_scope_proven") is True
+        and _int(contact_pair.get("valid_matching_row_count")) > 0
+        and isinstance(row, dict)
+        and _float(row.get("stamp_s")) is not None
+        and _valid_vec3(row.get("position_m"))
+        and _valid_unit_vec3(row.get("normal"))
+        and row.get("normal_source") == "gazebo_contact_message_normal"
+        and _int(row.get("contact_count")) > 0
+    )
+
+
+def per_stage_wrench_adapter_content_proven(adapter: dict[str, Any]) -> bool:
+    return bool(
+        adapter.get("same_run_stage_scope_proven") is True
+        and adapter.get("force_source") == "gazebo_contact"
+        and adapter.get("trace_written") is True
+        and adapter.get("total_contact_wrench_proven") is True
+        and adapter.get("wrench_aggregation_policy") == "total_contact_wrench"
+        and _int(adapter.get("verified_native_wrench_row_count")) > 0
+        and _int(adapter.get("total_contact_wrench_row_count")) > 0
+        and _int(adapter.get("valid_total_contact_wrench_row_count")) > 0
+    )
+
+
+def _int(value: Any) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _float(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _valid_vec3(value: Any) -> bool:
+    if not isinstance(value, list) or len(value) != 3:
+        return False
+    try:
+        values = [float(item) for item in value]
+    except (TypeError, ValueError):
+        return False
+    return all(math.isfinite(item) for item in values)
+
+
+def _valid_unit_vec3(value: Any, *, tolerance: float = 1e-3) -> bool:
+    if not _valid_vec3(value):
+        return False
+    values = [float(item) for item in value]
+    norm = math.sqrt(sum(item * item for item in values))
+    return abs(norm - 1.0) <= tolerance
 
 
 def has_standalone_scope(row_norm: str) -> bool:
@@ -643,6 +714,8 @@ def has_full_acceptance_positive_claim(text: str) -> bool:
         sentence_norm = normalize(sentence)
         if not FULL_ACCEPTANCE_RE.search(sentence_norm):
             continue
+        if full_acceptance_meta_context(sentence_norm):
+            continue
         sanitized = sentence_norm
         for allowed_negative in (
             "blocked/not proven",
@@ -658,6 +731,20 @@ def has_full_acceptance_positive_claim(text: str) -> bool:
         if re.search(r"\b(accepted|complete|success|verified|validated|pass(?:ed)?|proven|ready)\b", sanitized):
             return True
     return False
+
+
+def full_acceptance_meta_context(sentence_norm: str) -> bool:
+    return any(
+        token in sentence_norm
+        for token in (
+            "verifier tests passed",
+            "tests passed",
+            "test passed",
+            "phrase coverage",
+            "claim-language",
+            "variants",
+        )
+    )
 
 
 def has_source_backed_same_run_integrated_claim(text: str) -> bool:

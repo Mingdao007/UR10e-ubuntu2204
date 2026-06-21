@@ -92,6 +92,44 @@ def _per_stage_contact_artifact() -> dict[str, object]:
     return {
         "schema": "ur10e_per_stage_dual_sensor_contact_audit_v1",
         "claim_tier": "physical Gazebo collision/contact physics",
+        "stage_contact_pair_log": {
+            "evidence": True,
+            "same_run_stage_scope_proven": True,
+            "valid_matching_row_count": 1,
+            "first_matching_row": {
+                "stamp_s": 0.125,
+                "position_m": [0.0, 0.0, 0.01],
+                "normal": [0.0, 0.0, 1.0],
+                "normal_source": "gazebo_contact_message_normal",
+                "contact_count": 4,
+            },
+        },
+        "stage_contact_wrench_adapter": {
+            "same_run_stage_scope_proven": True,
+            "force_source": "gazebo_contact",
+            "trace_written": True,
+            "total_contact_wrench_proven": True,
+            "wrench_aggregation_policy": "total_contact_wrench",
+            "verified_native_wrench_row_count": 1,
+            "total_contact_wrench_row_count": 1,
+            "valid_total_contact_wrench_row_count": 1,
+        },
+        "stage_wrench_contact_correlation": {
+            "evidence": True,
+            "status": "correlated",
+        },
+        "per_stage_physical_gazebo_contact": {
+            "per_stage_physical_gazebo_contact_proven": True,
+        },
+        "blockers": [],
+        "validation_issues": [],
+    }
+
+
+def _shallow_per_stage_contact_artifact() -> dict[str, object]:
+    return {
+        "schema": "ur10e_per_stage_dual_sensor_contact_audit_v1",
+        "claim_tier": "physical Gazebo collision/contact physics",
         "stage_wrench_contact_correlation": {
             "evidence": True,
             "status": "correlated",
@@ -409,6 +447,19 @@ class Ur10eClaimBoundaryReportVerifierTest(unittest.TestCase):
         self.assertEqual(returncode, 0, payload)
         self.assertTrue(payload["ok"])
 
+    def test_per_stage_physical_gazebo_row_rejects_shallow_summary_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            artifact = Path(tmp) / "step5b_per_stage_dual_sensor_contact_audit.json"
+            sha256 = _write_json_artifact(artifact, _shallow_per_stage_contact_artifact())
+            table = f"""## Current Claim Tier Table
+
+| Evidence surface | Current status | Claim tier |
+|---|---|---|
+| Step5b per-stage dual-sensor contact audit artifact `{artifact}` sha256={sha256} | per-stage audit artifact; EOAT collision evidence, contact pair/log evidence, contact normal/surface relation, total contact wrench, and wrench/contact correlation are present | physical Gazebo collision/contact physics |
+"""
+            text = _base_report(GOOD_CLAIM_GATE, extra_body=table)
+            self.assertFailsWith(text, "claim_tier_table_source_boundaries")
+
     def test_hybrid_blocked_claim_tier_cells_fail_closed(self) -> None:
         table = """## Current Claim Tier Table
 
@@ -446,6 +497,39 @@ The full reproduction is accepted using same-run integrated artifact `{artifact}
 """
             text = _base_report(GOOD_CLAIM_GATE, extra_body=body)
             self.assertFailsWith(text, "same_run_full_acceptance_claim_boundary")
+
+    def test_acceptance_synonyms_require_source_backed_same_run_artifact(self) -> None:
+        body = """## Current Claim Tier Table
+
+| Evidence surface | Current status | Claim tier |
+|---|---|---|
+| P6 readiness | blocked/not proven | visual_only |
+
+## Acceptance
+
+The end-to-end demo is ready.
+P6 accepted for observer handoff.
+The reproduction is bench-ready.
+"""
+        text = _base_report(GOOD_CLAIM_GATE, extra_body=body)
+        self.assertFailsWith(text, "same_run_full_acceptance_claim_boundary")
+
+    def test_acceptance_synonym_meta_context_does_not_trigger_full_claim(self) -> None:
+        body = """## Current Claim Tier Table
+
+| Evidence surface | Current status | Claim tier |
+|---|---|---|
+| P6 readiness | blocked/not proven | visual_only |
+
+## Validation
+
+Same-run/P6/report verifier tests passed.
+Claim-language phrase coverage includes end-to-end/demo-ready/P6-accepted variants.
+"""
+        text = _base_report(GOOD_CLAIM_GATE, extra_body=body)
+        returncode, payload = self.run_verifier(text)
+        self.assertEqual(returncode, 0, payload)
+        self.assertTrue(payload["ok"])
 
     def test_source_backed_same_run_artifact_allows_integrated_demo_claim(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
