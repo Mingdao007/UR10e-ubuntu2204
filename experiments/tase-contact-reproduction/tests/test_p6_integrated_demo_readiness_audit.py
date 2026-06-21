@@ -294,6 +294,8 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
 
         final_gate = payload["full_goal_acceptance_gate"]
         self.assertFalse(final_gate["full_goal_acceptance_allowed"])
+        self.assertTrue(final_gate["claim_boundary_schema_valid"])
+        self.assertNotIn("claim_boundary_ready_for_full_acceptance_claim", final_gate)
         self.assertIn("p6:integrated_demo_manifest:not_valid", final_gate["full_goal_acceptance_blockers"])
         self.assertIn("per_stage_physical_gazebo_contact:not_proven", final_gate["full_goal_acceptance_blockers"])
         self.assertIn("strict_rnn_final_acceptance:not_proven", final_gate["full_goal_acceptance_blockers"])
@@ -303,6 +305,9 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
         self.assertFalse(payload["same_run_binding"]["same_run_integrated_demo_proven"])
         self.assertFalse(payload["timed_audit_coverage"]["full_acceptance_timed_audit_ready"])
         self.assertEqual(payload["timed_audit_coverage"]["latest_opus_record"]["status"], "missing")
+        self.assertTrue(payload["claim_boundary_validation"]["claim_boundary_schema_valid"])
+        self.assertFalse(payload["claim_boundary_validation"]["full_acceptance_claim_allowed"])
+        self.assertNotIn("ready_for_full_acceptance_claim", payload["claim_boundary_validation"])
         self.assertEqual(len(payload["stage_status_matrix"]), 8)
 
     def test_fixture_with_valid_manifest_still_requires_upstream_step_acceptance(self) -> None:
@@ -1095,6 +1100,38 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
         self.assertIn("standalone P2 is not stage-specific", rows["Step5b/Step5d/Step6b/Step7/Step8 per-stage Gazebo contact"]["current_status"])
         for row in payload["current_claim_tier_table"]:
             self.assertIn(row["claim_tier"], EXPECTED_TIERS)
+
+    def test_claim_tier_table_downgrades_blocked_standalone_p2_witness(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="p6_claim_table_blocked_p2_fixture_") as tmp:
+            root = Path(tmp)
+            p3_path = root / "p3.json"
+            step_path = root / "step.json"
+            p3_path.write_text(json.dumps(_p3_payload(), indent=2), encoding="utf-8")
+            visual_path = _write_post_gate_visual_foundation_row(root)
+            step = _step_payload()
+            step["audit_coverage"]["p2_claim_tier"] = "visual_only"
+            step["p2_physical_gazebo_contact"].update(
+                {
+                    "claim_tier": "visual_only",
+                    "adapter_verified_gazebo_contact_wrench": False,
+                    "wrench_contact_correlation": False,
+                    "force_contact_physics_proven": False,
+                }
+            )
+            step_path.write_text(json.dumps(step, indent=2), encoding="utf-8")
+            payload = audit.build_audit(
+                generated_at="2026-06-21T14:58:00+08:00",
+                p3_audit_path=p3_path,
+                post_gate_visual_foundation_row_path=visual_path,
+                step_status_audit_path=step_path,
+            )
+
+        rows = {row["evidence_surface"]: row for row in payload["current_claim_tier_table"]}
+        p2_row = rows["0708 standalone P2 Gazebo contact witness"]
+        self.assertEqual(p2_row["claim_tier"], "visual_only")
+        self.assertIn("native wrench/contact correlation is not proven", p2_row["current_status"])
+        self.assertNotIn("correlation all exist", p2_row["current_status"])
 
     def test_stage_set_must_be_exact(self) -> None:
         audit = import_audit_module()

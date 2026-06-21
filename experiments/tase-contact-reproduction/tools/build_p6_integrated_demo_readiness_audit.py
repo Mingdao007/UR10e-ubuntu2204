@@ -827,7 +827,11 @@ def current_claim_tier_table(
         },
         {
             "evidence_surface": "0708 standalone P2 Gazebo contact witness",
-            "current_status": "EOAT collision evidence, contact pair/log evidence, and wrench/contact correlation all exist for the standalone P2 witness",
+            "current_status": (
+                "EOAT collision evidence, contact pair/log evidence, and adapter-verified wrench/contact correlation exist for the standalone P2 witness"
+                if step["standalone_p2_physical_witness"]
+                else "EOAT collision and contact-pair/log evidence exist, but native wrench/contact correlation is not proven for the standalone P2 witness"
+            ),
             "claim_tier": "physical Gazebo collision/contact physics" if step["standalone_p2_physical_witness"] else "visual_only",
         },
         {
@@ -1141,7 +1145,8 @@ def build_audit(
         "claim_boundary_validation": {
             "fail_closed": True,
             "validation_issues": claim_boundary_issues,
-            "ready_for_full_acceptance_claim": not claim_boundary_issues,
+            "claim_boundary_schema_valid": not claim_boundary_issues,
+            "full_acceptance_claim_allowed": False,
             "acceptance_gate_changed_by_steering_note": True,
         },
         "readiness_gates": {
@@ -1159,7 +1164,7 @@ def build_audit(
         },
         "full_goal_acceptance_gate": {
             "full_goal_acceptance_allowed": False,
-            "claim_boundary_ready_for_full_acceptance_claim": not claim_boundary_issues,
+            "claim_boundary_schema_valid": not claim_boundary_issues,
             "claim_boundary_validation_issues": claim_boundary_issues,
             "full_goal_acceptance_blockers": final_blockers,
             "forbidden_claim": "full UR10e reproduction acceptance; real bench/live contact; per-stage physical Gazebo contact unless proven by stage-specific evidence",
