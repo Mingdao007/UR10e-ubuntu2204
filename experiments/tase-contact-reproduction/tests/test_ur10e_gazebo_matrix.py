@@ -946,6 +946,164 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
         self.assertFalse(payload["total_contact_wrench_proven"])
         self.assertIn("missing_verified_gazebo_contact_wrench_provenance", payload["blockers"])
 
+    def test_stage_contact_wrench_adapter_summary_blocks_fake_positive_adapter(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="ur10e_gui_fake_adapter_test_") as tmp:
+            path = Path(tmp) / gui_row.STAGE_CONTACT_WRENCH_ADAPTER_FILENAME
+            path.write_text(
+                json.dumps(
+                    {
+                        "schema": gui_row.wrench_adapter.REPORT_SCHEMA,
+                        "claim_tier": "physical Gazebo collision/contact physics",
+                        "trace_written": True,
+                        "total_contact_wrench_proven": True,
+                        "wrench_aggregation_policy": "total_contact_wrench",
+                        "force_source": "scripted_constant",
+                        "verified_native_wrench_row_count": 0,
+                        "total_contact_wrench_row_count": 1,
+                        "wrench_trace_path": None,
+                        "blockers": [],
+                        "total_contact_wrench_blockers": [],
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            summary = gui_row.summarize_stage_contact_wrench_adapter(path)
+
+        self.assertFalse(summary["total_contact_wrench_proven"])
+        self.assertIn("stage_contact_wrench_adapter.force_source:not_gazebo_contact", summary["validation_issues"])
+        self.assertIn("stage_contact_wrench_adapter.trace_rows:missing", summary["validation_issues"])
+
+    def test_stage_contact_wrench_adapter_summary_blocks_zero_load_trace_row(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="ur10e_gui_zero_load_adapter_test_") as tmp:
+            root = Path(tmp)
+            trace_path = root / gui_row.STAGE_CONTACT_WRENCH_TRACE_FILENAME
+            trace_path.write_text("{}\n", encoding="utf-8")
+            path = root / gui_row.STAGE_CONTACT_WRENCH_ADAPTER_FILENAME
+            path.write_text(
+                json.dumps(
+                    {
+                        "schema": gui_row.wrench_adapter.REPORT_SCHEMA,
+                        "claim_tier": "physical Gazebo collision/contact physics",
+                        "trace_written": True,
+                        "total_contact_wrench_proven": True,
+                        "wrench_aggregation_policy": "total_contact_wrench",
+                        "force_source": "gazebo_contact",
+                        "verified_native_wrench_row_count": 1,
+                        "total_contact_wrench_row_count": 1,
+                        "wrench_trace_path": str(trace_path),
+                        "blockers": [],
+                        "total_contact_wrench_blockers": [],
+                        "wrench_trace": {
+                            "rows": [
+                                {
+                                    "header": {"stamp_s": 0.1, "frame_id": "base"},
+                                    "source": "gazebo_contact",
+                                    "status": "valid",
+                                    "contact_state": "contact",
+                                    "normal_load_n": 0.0,
+                                    "baseline_policy": "gazebo_contact_zero_no_contact_baseline",
+                                    "diagnostic_flags": ["total_contact_wrench"],
+                                }
+                            ]
+                        },
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            summary = gui_row.summarize_stage_contact_wrench_adapter(path)
+
+        self.assertFalse(summary["total_contact_wrench_proven"])
+        self.assertIn(
+            "stage_contact_wrench_adapter.trace_rows:no_valid_total_contact_wrench_row",
+            summary["validation_issues"],
+        )
+
+    def test_stage_observation_manifest_writer_blocks_unproven_stage_adapter(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="ur10e_gui_stage_observation_test_") as tmp:
+            run_dir = Path(tmp)
+            case_dir = self._write_gui_row_fixture(run_dir, observer_review=True)
+            command_trace = case_dir / "runner" / "step5b" / "command_trace.csv"
+            command_trace.parent.mkdir(parents=True, exist_ok=True)
+            command_trace.write_text("t,x,y,z\n0,0,0,0\n", encoding="utf-8")
+            stage_manifest = case_dir / "step_simulated_ft_evidence_manifest.json"
+            stage_manifest.write_text(
+                json.dumps(
+                    {
+                        "schema": "ur10e_step_simulated_ft_evidence_pack_v1",
+                        "claim_tier": "simulated_ft",
+                        "stages": {
+                            "step5b": {
+                                "claim_tier": "simulated_ft",
+                                "valid": True,
+                                "evidence_fields_present": {
+                                    "stamp": True,
+                                    "frame_id": True,
+                                    "source": True,
+                                    "status": True,
+                                    "baseline": True,
+                                    "log_evidence": True,
+                                },
+                            }
+                        },
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            step_status = case_dir / "step_status_rnn_audit.json"
+            step_status.write_text(
+                json.dumps(
+                    {
+                        "schema": "ur10e_step_status_rnn_audit_v1",
+                        "step_status_matrix": [{"stage_id": "step5b", "claim_tier": "simulated_ft"}],
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            row = gui_row.build_row_summary(
+                stage="step5b",
+                view="close_detail",
+                case_dir=case_dir,
+                run_dir=run_dir,
+                runner_rc=0,
+                video_duration_s=12.0,
+                gui_config_path=gui_row.DEFAULT_GUI_CONFIG_DIR / "close_detail.config",
+            )
+            row_path = case_dir / "row_summary.json"
+            gui_row.write_row_summary(row, row_path)
+            manifest_path = gui_row.write_stage_dual_sensor_observation_manifest(
+                case_dir,
+                stage="step5b",
+                row=row,
+                row_summary_path=row_path,
+                stage_simulated_ft_manifest_path=stage_manifest,
+                step_status_audit_path=step_status,
+                observation_id="stage-step5b-row-fixture-001",
+                time_start="2026-06-21T17:20:00+08:00",
+                time_end="2026-06-21T17:20:10+08:00",
+                clock_source="/clock",
+            )
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(manifest_path.name, "step5b_same_run_stage_dual_sensor_observation_manifest.json")
+        self.assertFalse(payload["same_run_stage_dual_sensor_observation_proven"])
+        self.assertIn("same_run_stage_dual_sensor_observation:not_proven", payload["blockers"])
+        self.assertIn(
+            "stage_contact_wrench_adapter.total_contact_wrench_proven:not_true",
+            payload["validation_issues"],
+        )
+
     def test_repo_gui_configs_are_clean_and_cover_required_view_roles(self) -> None:
         expected = {
             "context_overview.config": "context_overview",

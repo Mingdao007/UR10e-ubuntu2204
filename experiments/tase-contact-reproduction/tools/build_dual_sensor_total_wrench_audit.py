@@ -92,6 +92,20 @@ def sha256_file(path: Path | str | None) -> str | None:
     return digest.hexdigest()
 
 
+def _int(value: Any) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _float(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def artifact_row(surface: str, path: Path | None) -> dict[str, Any]:
     exists = bool(path and path.is_file())
     return {
@@ -152,8 +166,37 @@ def total_contact_wrench_proven(p2_audit: dict[str, Any], step_p2: dict[str, Any
         and bool(wrench.get("total_contact_wrench_proven"))
         and policy == "total_contact_wrench"
         and bool(rows)
+        and total_contact_wrench_adapter_evidence_valid(wrench)
+        and all(isinstance(row, dict) and total_contact_wrench_row_valid(row) for row in rows)
     )
     return bool(p2_total)
+
+
+def total_contact_wrench_adapter_evidence_valid(wrench: dict[str, Any]) -> bool:
+    return bool(
+        wrench.get("adapter_report_schema") == "ur10e_gazebo_contact_wrench_adapter_report_v1"
+        and wrench.get("source") == "gazebo_contact"
+        and wrench.get("trace_written") is True
+        and _int(wrench.get("verified_native_wrench_row_count")) > 0
+        and _int(wrench.get("total_contact_wrench_row_count")) > 0
+        and not wrench.get("adapter_report_blockers")
+        and not wrench.get("total_contact_wrench_blockers")
+    )
+
+
+def total_contact_wrench_row_valid(row: dict[str, Any]) -> bool:
+    header = row.get("header") if isinstance(row.get("header"), dict) else {}
+    flags = row.get("diagnostic_flags") if isinstance(row.get("diagnostic_flags"), list) else []
+    return bool(
+        _float(header.get("stamp_s")) is not None
+        and header.get("frame_id")
+        and row.get("source") == "gazebo_contact"
+        and row.get("status") == "valid"
+        and row.get("contact_state") == "contact"
+        and row.get("baseline_policy")
+        and (_float(row.get("normal_load_n")) or 0.0) > 0.0
+        and "total_contact_wrench" in {str(flag) for flag in flags}
+    )
 
 
 def dual_sensor_observation_summary(p2_audit: dict[str, Any], step_p2: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:

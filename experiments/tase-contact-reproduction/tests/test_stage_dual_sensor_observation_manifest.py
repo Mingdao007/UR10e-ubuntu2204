@@ -33,7 +33,109 @@ def write_file(path: Path, content: str = "{}\n") -> Path:
     return path
 
 
+def write_json(path: Path, payload: dict[str, object]) -> Path:
+    return write_file(path, json.dumps(payload, indent=2) + "\n")
+
+
+def row_summary_payload(stage_id: str = "step5b") -> dict[str, object]:
+    return {
+        "schema": "ur10e_gazebo_real_aligned_gui_matrix_row_v2",
+        "stage": stage_id,
+        "visual_evidence_captured": True,
+        "scripted_camera_evidence_captured": True,
+        "trace_path": "command_trace.csv",
+        "model_composition_audit": {"eoat_collision_count": 2},
+    }
+
+
+def contact_pair_payload() -> dict[str, object]:
+    return {
+        "schema": "ur10e_gazebo_contact_pair_log_v1",
+        "parse_issues": [],
+        "rows": [
+            {
+                "stamp_s": 1.25,
+                "collision1": "step5_contact_surface::surface::collision",
+                "collision2": "real_aligned_eoat_visual_stack::eoat_contact_pad_link::eoat_contact_pad_collision",
+                "position_m": [0.0, 0.0, 0.01],
+                "normal": [0.0, 0.0, 1.0],
+                "normal_source": "gazebo_contact_message_normal",
+                "contact_count": 3,
+            }
+        ],
+    }
+
+
+def wrench_adapter_payload() -> dict[str, object]:
+    return {
+        "schema": "ur10e_gazebo_contact_wrench_adapter_report_v1",
+        "claim_tier": "physical Gazebo collision/contact physics",
+        "force_source": "gazebo_contact",
+        "trace_written": True,
+        "total_contact_wrench_proven": True,
+        "wrench_aggregation_policy": "total_contact_wrench",
+        "verified_native_wrench_row_count": 1,
+        "total_contact_wrench_row_count": 1,
+        "blockers": [],
+        "wrench_trace": {
+            "rows": [
+                {
+                    "header": {"stamp_s": 1.25, "frame_id": "base"},
+                    "source": "gazebo_contact",
+                    "status": "valid",
+                    "contact_state": "contact",
+                    "normal_load_n": 12.5,
+                    "baseline_policy": "gazebo_contact_zero_no_contact_baseline",
+                }
+            ]
+        },
+    }
+
+
+def simulated_ft_manifest_payload(stage_id: str = "step5b") -> dict[str, object]:
+    return {
+        "schema": "ur10e_step_simulated_ft_evidence_pack_v1",
+        "claim_tier": "simulated_ft",
+        "stages": {
+            stage_id: {
+                "claim_tier": "simulated_ft",
+                "valid": True,
+                "evidence_fields_present": {
+                    "stamp": True,
+                    "frame_id": True,
+                    "source": True,
+                    "status": True,
+                    "baseline": True,
+                    "log_evidence": True,
+                },
+            }
+        },
+    }
+
+
+def step_status_payload(stage_id: str = "step5b") -> dict[str, object]:
+    return {
+        "schema": "ur10e_step_status_rnn_audit_v1",
+        "step_status_matrix": [{"stage_id": stage_id, "claim_tier": "simulated_ft"}],
+    }
+
+
 def surface_paths(root: Path) -> dict[str, Path]:
+    return {
+        "stage_row_summary": write_json(root / "row_summary.json", row_summary_payload()),
+        "stage_contact_pair_log": write_json(root / "gazebo_contact_pair_log.json", contact_pair_payload()),
+        "stage_contact_wrench_adapter": write_json(root / "stage_contact_wrench_adapter.json", wrench_adapter_payload()),
+        "stage_simulated_ft_manifest": write_json(
+            root / "step_simulated_ft_evidence_manifest.json",
+            simulated_ft_manifest_payload(),
+        ),
+        "step_status_rnn_audit": write_json(root / "step_status_rnn_audit.json", step_status_payload()),
+        "visual_evidence": write_file(root / "scripted_camera_final.png", "png-placeholder\n"),
+        "tcp_path_evidence": write_file(root / "command_trace.csv", "t,x,y,z\n"),
+    }
+
+
+def placeholder_surface_paths(root: Path) -> dict[str, Path]:
     return {
         "stage_row_summary": write_file(root / "row_summary.json"),
         "stage_contact_pair_log": write_file(root / "gazebo_contact_pair_log.json"),
@@ -66,7 +168,29 @@ class StageDualSensorObservationManifestTest(unittest.TestCase):
         self.assertEqual(payload["missing_surfaces"], [])
         self.assertEqual(payload["cross_run_surfaces"], [])
         self.assertEqual(set(payload["surfaces"]), set(manifest.REQUIRED_SURFACES))
+        self.assertTrue(payload["content_validation"]["surface_content_proven"])
         self.assertFalse(payload["live_authorization"]["real_bench_live_contact_authorized"])
+
+    def test_blocks_placeholder_surfaces_without_content_evidence(self) -> None:
+        manifest = import_manifest_module()
+        with tempfile.TemporaryDirectory(prefix="stage_observation_placeholder_", dir=RUNS) as tmp:
+            payload = manifest.build_manifest(
+                stage_id="step5b",
+                observation_id="stage-step5b-placeholder-001",
+                time_start="2026-06-21T17:12:00+08:00",
+                time_end="2026-06-21T17:12:10+08:00",
+                clock_source="/clock",
+                surfaces=placeholder_surface_paths(Path(tmp)),
+                generated_at="2026-06-21T17:12:20+08:00",
+            )
+
+        self.assertFalse(payload["same_run_stage_dual_sensor_observation_proven"])
+        self.assertIn("same_run_stage_dual_sensor_observation:not_proven", payload["blockers"])
+        self.assertFalse(payload["content_validation"]["surface_content_proven"])
+        self.assertIn(
+            "stage_contact_wrench_adapter.total_contact_wrench_proven:not_true",
+            payload["validation_issues"],
+        )
 
     def test_blocks_missing_adapter_and_cross_run_surfaces(self) -> None:
         manifest = import_manifest_module()

@@ -77,6 +77,23 @@ def dual_sensor_observation_payload() -> dict[str, object]:
     }
 
 
+def total_wrench_row_payload() -> dict[str, object]:
+    return {
+        "header": {"stamp_s": 0.1, "frame_id": "base"},
+        "source": "gazebo_contact",
+        "status": "valid",
+        "contact_state": "contact",
+        "normal_load_n": 12.5,
+        "baseline_policy": "gazebo_contact_zero_no_contact_baseline",
+        "diagnostic_flags": [
+            "gazebo_contact_wrench_adapter",
+            "gazebo_contact_message_wrench",
+            "total_contact_wrench",
+            "total_contact_wrench_component_count=4",
+        ],
+    }
+
+
 def p2_payload(*, total_wrench: bool, same_run_dual: bool) -> dict[str, object]:
     wrench_policy = "total_contact_wrench" if total_wrench else "single_native_contact_point_wrench_sample_no_total_contact_wrench_claim"
     return {
@@ -95,9 +112,16 @@ def p2_payload(*, total_wrench: bool, same_run_dual: bool) -> dict[str, object]:
         if same_run_dual
         else False,
         "wrench_evidence": {
+            "adapter_report_schema": "ur10e_gazebo_contact_wrench_adapter_report_v1",
+            "source": "gazebo_contact" if total_wrench else None,
+            "trace_written": total_wrench,
+            "verified_native_wrench_row_count": 1 if total_wrench else 0,
+            "total_contact_wrench_row_count": 1 if total_wrench else 0,
+            "adapter_report_blockers": [],
+            "total_contact_wrench_blockers": [],
             "wrench_aggregation_policy": wrench_policy,
             "total_contact_wrench_proven": total_wrench,
-            "rows": [{"header": {"stamp_s": 0.1, "frame_id": "base"}}] if total_wrench else [],
+            "rows": [total_wrench_row_payload()] if total_wrench else [],
         },
     }
 
@@ -189,6 +213,30 @@ class DualSensorTotalWrenchAuditTest(unittest.TestCase):
             "same_run_concurrent_dual_sensor_observation:legacy_true_flag_only",
             payload["validation_issues"],
         )
+
+    def test_blocks_header_only_total_wrench_rows(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="dual_sensor_header_only_", dir=RUNS) as tmp:
+            root = Path(tmp)
+            stage_path = root / "stage_simulated_ft_manifest.json"
+            p2_path = root / "p2_contact_correlation_audit.json"
+            step_path = root / "step_status_rnn_audit.json"
+            write_json(stage_path, stage_manifest_payload())
+            p2 = p2_payload(total_wrench=True, same_run_dual=True)
+            p2["wrench_evidence"]["rows"] = [{"header": {"stamp_s": 0.1, "frame_id": "base"}}]
+            write_json(p2_path, p2)
+            write_json(step_path, step_payload(total_wrench=True, same_run_dual=True))
+            payload = audit.build_audit(
+                generated_at="2026-06-21T09:56:45+08:00",
+                stage_simulated_ft_manifest_path=stage_path,
+                p2_contact_correlation_audit_path=p2_path,
+                step_status_audit_path=step_path,
+            )
+
+        self.assertFalse(payload["total_contact_wrench_proven"])
+        self.assertFalse(payload["same_run_dual_sensor_observation_proven"])
+        self.assertIn("total_contact_wrench:not_proven", payload["blockers"])
+        self.assertIn("total_contact_wrench_evidence:not_proven", payload["validation_issues"])
 
     def test_blocks_cross_run_fixture_even_with_positive_flags(self) -> None:
         audit = import_audit_module()

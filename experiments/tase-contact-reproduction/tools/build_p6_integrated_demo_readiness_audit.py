@@ -28,7 +28,11 @@ from build_same_run_integrated_binding_audit import (
     build_audit as build_same_run_integrated_binding_audit,
 )
 from build_dual_sensor_total_wrench_audit import (
+    all_stage_simulated_ft_valid,
     build_audit as build_dual_sensor_total_wrench_audit,
+    p2_physical_contact_proven,
+    p2_step_summary,
+    total_contact_wrench_proven,
 )
 
 
@@ -64,6 +68,7 @@ CLAIM_TIERS = [
     "physical Gazebo collision/contact physics",
     "real bench/live contact",
 ]
+NO_LIVE_DEMO_CLAIM_TIERS = [tier for tier in CLAIM_TIERS if tier != "real bench/live contact"]
 
 CONTACT_STAGE_IDS = ["step5b", "step5d", "step6b", "step7", "step8"]
 EXPECTED_STAGE_IDS = ["step5a", "step5b", "step5c", "step5d", "step6a", "step6b", "step7", "step8"]
@@ -128,6 +133,17 @@ def sha256_file(path: str | None) -> str | None:
         for chunk in iter(lambda: fh.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def run_id_for_path(path: str | None) -> str | None:
+    candidate = workspace_path(path)
+    if candidate is None:
+        return None
+    try:
+        relative = candidate.resolve().relative_to(RUNS.resolve())
+    except (OSError, ValueError):
+        return None
+    return relative.parts[0] if relative.parts else None
 
 
 def external_gate_validation_issues(payload: dict[str, Any], *, expected_schema: str) -> list[str]:
@@ -230,6 +246,7 @@ def external_gate_internal_issues(payload: dict[str, Any], *, required_surfaces:
         missing = sorted(required_surfaces - observed)
         if missing:
             issues.append("artifact_rows:missing_surfaces:" + ",".join(missing))
+        actual_run_ids: dict[str, str] = {}
         for surface in sorted(required_surfaces & observed):
             row = rows_by_surface[surface]
             path_value = row.get("path")
@@ -247,6 +264,11 @@ def external_gate_internal_issues(payload: dict[str, Any], *, required_surfaces:
             actual_sha = sha256_file(str(path_value))
             if actual_sha != expected_sha:
                 issues.append(f"artifact_rows.{surface}.sha256:mismatch")
+            actual_run_id = run_id_for_path(str(path_value))
+            if actual_run_id:
+                actual_run_ids[surface] = actual_run_id
+        if len(set(actual_run_ids.values())) > 1:
+            issues.append("artifact_rows:cross_run_surfaces:" + ",".join(sorted(actual_run_ids)))
     return issues
 
 
@@ -314,6 +336,59 @@ def external_dual_sensor_concurrent_observation_issues(payload: dict[str, Any]) 
     if missing:
         issues.append("same_run_concurrent_dual_sensor_observation.surfaces:missing:" + ",".join(missing))
     return issues
+
+
+def external_dual_sensor_total_wrench_content_issues(payload: dict[str, Any]) -> list[str]:
+    paths = external_artifact_row_paths(
+        payload,
+        required_surfaces={
+            "stage_simulated_ft_manifest",
+            "p2_contact_correlation_audit",
+            "step_status_rnn_audit",
+        },
+    )
+    issues: list[str] = []
+    stage_manifest = load_external_artifact_json(paths.get("stage_simulated_ft_manifest"))
+    p2_audit = load_external_artifact_json(paths.get("p2_contact_correlation_audit"))
+    step_status = load_external_artifact_json(paths.get("step_status_rnn_audit"))
+    step_p2 = p2_step_summary(step_status)
+    if not all_stage_simulated_ft_valid(stage_manifest):
+        issues.append("artifact_content.stage_simulated_ft_manifest:not_all_valid")
+    if not p2_physical_contact_proven(p2_audit, step_p2):
+        issues.append("artifact_content.p2_physical_gazebo_contact:not_proven")
+    if not total_contact_wrench_proven(p2_audit, step_p2):
+        issues.append("artifact_content.total_contact_wrench:not_proven")
+    if step_status.get("schema") != "ur10e_step_status_rnn_audit_v1":
+        issues.append("artifact_content.step_status_rnn_audit.schema:unsupported_or_missing")
+    return issues
+
+
+def external_artifact_row_paths(payload: dict[str, Any], *, required_surfaces: set[str]) -> dict[str, Path]:
+    rows = payload.get("artifact_rows")
+    if not isinstance(rows, list):
+        return {}
+    paths: dict[str, Path] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        surface = str(row.get("surface") or "")
+        path_value = row.get("path")
+        if surface not in required_surfaces or not path_value:
+            continue
+        path = workspace_path(str(path_value))
+        if path and path.is_file():
+            paths[surface] = path
+    return paths
+
+
+def load_external_artifact_json(path: Path | None) -> dict[str, Any]:
+    if path is None:
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
 
 
 def physical_gazebo_contact_claim_boundary(step_p2: dict[str, Any]) -> dict[str, Any]:
@@ -658,7 +733,7 @@ def validate_tcp_distance_evidence(payload: dict[str, Any], issues: list[str]) -
     if evidence.get("schema") != "ur10e_p6_tcp_distance_evidence_audit_v1":
         issues.append("tcp_distance_evidence.schema:unsupported")
         result["validation_issues"].append("tcp_distance_evidence.schema:unsupported")
-    if result["claim_tier"] not in CLAIM_TIERS:
+    if result["claim_tier"] not in NO_LIVE_DEMO_CLAIM_TIERS:
         issues.append("tcp_distance_evidence.claim_tier:unsupported")
         result["validation_issues"].append("tcp_distance_evidence.claim_tier:unsupported")
     return result
@@ -706,7 +781,7 @@ def validate_demo_manifest(path: Path | None) -> dict[str, Any]:
     if payload.get("fail_closed") is not True:
         issues.append("fail_closed:not_true")
     manifest_claim_tier = payload.get("claim_tier") or "visual_only"
-    if manifest_claim_tier not in CLAIM_TIERS:
+    if manifest_claim_tier not in NO_LIVE_DEMO_CLAIM_TIERS:
         issues.append("claim_tier:unsupported")
         manifest_claim_tier = "visual_only"
     for field in (
@@ -738,7 +813,7 @@ def validate_demo_manifest(path: Path | None) -> dict[str, Any]:
             issues.append(f"plots.{plot_name}.frame_label:missing")
         if not plot.get("claim_tier"):
             issues.append(f"plots.{plot_name}.claim_tier:missing")
-        elif plot.get("claim_tier") not in CLAIM_TIERS:
+        elif plot.get("claim_tier") not in NO_LIVE_DEMO_CLAIM_TIERS:
             issues.append(f"plots.{plot_name}.claim_tier:unsupported")
         if plot.get("supported") is not True and plot_name not in OPTIONAL_UNSUPPORTED_PLOTS:
             issues.append(f"plots.{plot_name}:unsupported")
@@ -1054,6 +1129,7 @@ def build_audit(
             )
         )
         dual_sensor_issues.extend(external_dual_sensor_concurrent_observation_issues(dual_sensor_payload))
+        dual_sensor_issues.extend(external_dual_sensor_total_wrench_content_issues(dual_sensor_payload))
         if dual_sensor_issues:
             dual_sensor_payload = invalid_dual_sensor_total_wrench(dual_sensor_payload, dual_sensor_issues)
     else:

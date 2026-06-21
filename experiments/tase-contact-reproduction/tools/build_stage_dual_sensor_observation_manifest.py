@@ -76,6 +76,36 @@ def sha256_file(path: Path | str | None) -> str | None:
     return digest.hexdigest()
 
 
+def load_json_if_file(path: Path | str | None) -> dict[str, Any]:
+    candidate = workspace_path(path)
+    if candidate is None or not candidate.is_file():
+        return {}
+    try:
+        payload = json.loads(candidate.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return {"_load_error": f"{type(exc).__name__}: {exc}"}
+    return payload if isinstance(payload, dict) else {"_load_error": "json_root:not_object"}
+
+
+def _int(value: Any) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _float(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _file_nonempty(path: Path | str | None) -> bool:
+    candidate = workspace_path(path)
+    return bool(candidate and candidate.is_file() and candidate.stat().st_size > 0)
+
+
 def _now_iso() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
@@ -117,6 +147,9 @@ def build_manifest(
     if not target_run_id:
         validation_issues.append("target_run_id:missing")
 
+    content_validation = validate_surface_content(stage_id=stage_id, surfaces=surfaces)
+    validation_issues.extend(content_validation["validation_issues"])
+
     proven = not validation_issues
     return {
         "schema": "ur10e_stage_dual_sensor_observation_manifest_v1",
@@ -138,6 +171,7 @@ def build_manifest(
         "artifact_rows": artifact_rows,
         "missing_surfaces": sorted(missing_surfaces),
         "cross_run_surfaces": sorted(cross_run_surfaces),
+        "content_validation": content_validation,
         "same_run_stage_dual_sensor_observation_proven": proven,
         "validation_issues": validation_issues,
         "blockers": [] if proven else ["same_run_stage_dual_sensor_observation:not_proven"],
@@ -155,6 +189,181 @@ def build_manifest(
             "contact pair/log, total contact wrench, frame/normal evidence, and wrench/contact correlation"
         ),
     }
+
+
+def validate_surface_content(*, stage_id: str, surfaces: dict[str, Path | None]) -> dict[str, Any]:
+    checks = {
+        "stage_row_summary": stage_row_summary_issues(stage_id, load_json_if_file(surfaces.get("stage_row_summary"))),
+        "stage_contact_pair_log": contact_pair_log_issues(load_json_if_file(surfaces.get("stage_contact_pair_log"))),
+        "stage_contact_wrench_adapter": contact_wrench_adapter_issues(
+            load_json_if_file(surfaces.get("stage_contact_wrench_adapter"))
+        ),
+        "stage_simulated_ft_manifest": stage_simulated_ft_manifest_issues(
+            stage_id,
+            load_json_if_file(surfaces.get("stage_simulated_ft_manifest")),
+        ),
+        "step_status_rnn_audit": step_status_issues(stage_id, load_json_if_file(surfaces.get("step_status_rnn_audit"))),
+        "visual_evidence": file_surface_issues("visual_evidence", surfaces.get("visual_evidence")),
+        "tcp_path_evidence": file_surface_issues("tcp_path_evidence", surfaces.get("tcp_path_evidence")),
+    }
+    validation_issues = [issue for issues in checks.values() for issue in issues]
+    return {
+        "surface_content_proven": not validation_issues,
+        "checks": {surface: {"ok": not issues, "issues": issues} for surface, issues in checks.items()},
+        "validation_issues": validation_issues,
+    }
+
+
+def stage_row_summary_issues(stage_id: str, payload: dict[str, Any]) -> list[str]:
+    issues: list[str] = []
+    if payload.get("_load_error"):
+        return [f"stage_row_summary.unreadable:{payload['_load_error']}"]
+    if payload.get("schema") != "ur10e_gazebo_real_aligned_gui_matrix_row_v2":
+        issues.append("stage_row_summary.schema:unsupported_or_missing")
+    if str(payload.get("stage") or "") != stage_id:
+        issues.append("stage_row_summary.stage:mismatch")
+    if not (payload.get("visual_evidence_captured") or payload.get("scripted_camera_evidence_captured")):
+        issues.append("stage_row_summary.visual_evidence:missing")
+    if not (payload.get("trace_path") or payload.get("final_visual_pose_world")):
+        issues.append("stage_row_summary.tcp_path_evidence:missing")
+    model = payload.get("model_composition_audit") if isinstance(payload.get("model_composition_audit"), dict) else {}
+    eoat_collision_count = _int(model.get("eoat_collision_count") or payload.get("eoat_collision_count"))
+    if eoat_collision_count <= 0:
+        issues.append("stage_row_summary.eoat_collision_count:zero")
+    return issues
+
+
+def contact_pair_log_issues(payload: dict[str, Any]) -> list[str]:
+    issues: list[str] = []
+    if payload.get("_load_error"):
+        return [f"stage_contact_pair_log.unreadable:{payload['_load_error']}"]
+    if payload.get("schema") != "ur10e_gazebo_contact_pair_log_v1":
+        issues.append("stage_contact_pair_log.schema:unsupported_or_missing")
+    if payload.get("parse_issues"):
+        issues.append("stage_contact_pair_log.parse_issues:not_empty")
+    rows = payload.get("rows") if isinstance(payload.get("rows"), list) else []
+    matching_rows = [row for row in rows if isinstance(row, dict) and _row_has_eoat_surface_contact_pair(row)]
+    if not rows:
+        issues.append("stage_contact_pair_log.rows:missing")
+    if not matching_rows:
+        issues.append("stage_contact_pair_log.eoat_surface_pair:missing")
+        return issues
+    first = matching_rows[0]
+    if _float(first.get("stamp_s")) is None:
+        issues.append("stage_contact_pair_log.matching_row.stamp_s:missing")
+    if not first.get("position_m"):
+        issues.append("stage_contact_pair_log.matching_row.position_m:missing")
+    if not first.get("normal"):
+        issues.append("stage_contact_pair_log.matching_row.normal:missing")
+    if not first.get("normal_source"):
+        issues.append("stage_contact_pair_log.matching_row.normal_source:missing")
+    if _int(first.get("contact_count")) <= 0:
+        issues.append("stage_contact_pair_log.matching_row.contact_count:zero")
+    return issues
+
+
+def contact_wrench_adapter_issues(payload: dict[str, Any]) -> list[str]:
+    issues: list[str] = []
+    if payload.get("_load_error"):
+        return [f"stage_contact_wrench_adapter.unreadable:{payload['_load_error']}"]
+    if payload.get("schema") != "ur10e_gazebo_contact_wrench_adapter_report_v1":
+        issues.append("stage_contact_wrench_adapter.schema:unsupported_or_missing")
+    if payload.get("claim_tier") != "physical Gazebo collision/contact physics":
+        issues.append("stage_contact_wrench_adapter.claim_tier:not_physical_gazebo_contact")
+    if payload.get("force_source") != "gazebo_contact":
+        issues.append("stage_contact_wrench_adapter.force_source:not_gazebo_contact")
+    if payload.get("trace_written") is not True:
+        issues.append("stage_contact_wrench_adapter.trace_written:not_true")
+    if payload.get("total_contact_wrench_proven") is not True:
+        issues.append("stage_contact_wrench_adapter.total_contact_wrench_proven:not_true")
+    if payload.get("wrench_aggregation_policy") != "total_contact_wrench":
+        issues.append("stage_contact_wrench_adapter.wrench_aggregation_policy:not_total_contact_wrench")
+    if _int(payload.get("verified_native_wrench_row_count")) <= 0:
+        issues.append("stage_contact_wrench_adapter.verified_native_wrench_row_count:zero")
+    if _int(payload.get("total_contact_wrench_row_count")) <= 0:
+        issues.append("stage_contact_wrench_adapter.total_contact_wrench_row_count:zero")
+    if payload.get("blockers"):
+        issues.append("stage_contact_wrench_adapter.blockers:not_empty")
+    trace = payload.get("wrench_trace") if isinstance(payload.get("wrench_trace"), dict) else {}
+    rows = trace.get("rows") if isinstance(trace.get("rows"), list) else []
+    if not rows:
+        issues.append("stage_contact_wrench_adapter.wrench_trace.rows:missing")
+        return issues
+    valid_rows = [row for row in rows if isinstance(row, dict) and _valid_gazebo_contact_wrench_row(row)]
+    if not valid_rows:
+        issues.append("stage_contact_wrench_adapter.wrench_trace.valid_contact_row:missing")
+    return issues
+
+
+def _valid_gazebo_contact_wrench_row(row: dict[str, Any]) -> bool:
+    header = row.get("header") if isinstance(row.get("header"), dict) else {}
+    return bool(
+        _float(header.get("stamp_s")) is not None
+        and header.get("frame_id")
+        and row.get("source") == "gazebo_contact"
+        and row.get("status") == "valid"
+        and row.get("contact_state") == "contact"
+        and row.get("baseline_policy")
+        and (_float(row.get("normal_load_n")) or 0.0) > 0.0
+    )
+
+
+def stage_simulated_ft_manifest_issues(stage_id: str, payload: dict[str, Any]) -> list[str]:
+    issues: list[str] = []
+    if payload.get("_load_error"):
+        return [f"stage_simulated_ft_manifest.unreadable:{payload['_load_error']}"]
+    if payload.get("schema") != "ur10e_step_simulated_ft_evidence_pack_v1":
+        issues.append("stage_simulated_ft_manifest.schema:unsupported_or_missing")
+    if payload.get("claim_tier") != "simulated_ft":
+        issues.append("stage_simulated_ft_manifest.claim_tier:not_simulated_ft")
+    stages = payload.get("stages") if isinstance(payload.get("stages"), dict) else {}
+    stage = stages.get(stage_id) if isinstance(stages.get(stage_id), dict) else {}
+    if not stage:
+        issues.append(f"stage_simulated_ft_manifest.stage:{stage_id}:missing")
+        return issues
+    if stage.get("claim_tier") != "simulated_ft":
+        issues.append("stage_simulated_ft_manifest.stage.claim_tier:not_simulated_ft")
+    if stage.get("valid") is not True:
+        issues.append("stage_simulated_ft_manifest.stage.valid:not_true")
+    fields = stage.get("evidence_fields_present") if isinstance(stage.get("evidence_fields_present"), dict) else {}
+    required = ("stamp", "frame_id", "source", "status", "baseline", "log_evidence")
+    missing = [field for field in required if fields.get(field) is not True]
+    if missing:
+        issues.append("stage_simulated_ft_manifest.stage.evidence_fields:missing:" + ",".join(missing))
+    return issues
+
+
+def step_status_issues(stage_id: str, payload: dict[str, Any]) -> list[str]:
+    issues: list[str] = []
+    if payload.get("_load_error"):
+        return [f"step_status_rnn_audit.unreadable:{payload['_load_error']}"]
+    if payload.get("schema") != "ur10e_step_status_rnn_audit_v1":
+        issues.append("step_status_rnn_audit.schema:unsupported_or_missing")
+    rows = payload.get("step_status_matrix") if isinstance(payload.get("step_status_matrix"), list) else []
+    stage_row = next((row for row in rows if isinstance(row, dict) and row.get("stage_id") == stage_id), None)
+    if not stage_row:
+        issues.append(f"step_status_rnn_audit.stage:{stage_id}:missing")
+    return issues
+
+
+def file_surface_issues(surface: str, path: Path | None) -> list[str]:
+    return [] if _file_nonempty(path) else [f"{surface}.file:missing_or_empty"]
+
+
+def _row_has_eoat_surface_contact_pair(row: dict[str, Any]) -> bool:
+    collision1 = str(row.get("collision1") or "")
+    collision2 = str(row.get("collision2") or "")
+    return (_is_eoat_collision(collision1) and _is_surface_collision(collision2)) or (
+        _is_eoat_collision(collision2) and _is_surface_collision(collision1)
+    )
+
+
+def _is_eoat_collision(name: str) -> bool:
+    return "eoat" in name and "collision" in name
+
+
+def _is_surface_collision(name: str) -> bool:
+    return "contact_surface" in name or "surface::collision" in name
 
 
 def first_existing_run_id(surfaces: dict[str, Path | None]) -> str | None:

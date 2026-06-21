@@ -22,6 +22,7 @@ if str(SRC_PACKAGE) not in sys.path:
 
 from ur10e_example_controllers import ur10e_gazebo_matrix_runner as gazebo  # noqa: E402
 import build_gazebo_contact_wrench_trace as wrench_adapter  # noqa: E402
+import build_stage_dual_sensor_observation_manifest as stage_observation  # noqa: E402
 import capture_p2_gazebo_contact_pair_log as contact_capture  # noqa: E402
 
 
@@ -46,6 +47,7 @@ MARKER_STYLES = ("debug", "observer_subtle", "minimal_tcp_dot")
 CONTACT_CAPTURE_SCHEMA = "ur10e_gazebo_row_contact_topic_capture_v1"
 STAGE_CONTACT_WRENCH_ADAPTER_FILENAME = "stage_contact_wrench_adapter.json"
 STAGE_CONTACT_WRENCH_TRACE_FILENAME = "stage_contact_wrench_trace.json"
+STAGE_DUAL_SENSOR_OBSERVATION_DIRNAME = "stage_dual_sensor_observation"
 VISIBLE_GAZEBO_OVERLAP_SCHEMA = "ur10e_visible_gazebo_overlap_preflight_v1"
 VISIBLE_GAZEBO_OVERLAP_RC = 43
 VISIBLE_GAZEBO_LOCK_SCHEMA = "ur10e_visible_gazebo_row_lock_preflight_v1"
@@ -75,6 +77,7 @@ def run_row(args: argparse.Namespace) -> int:
     world = world_dir / f"{args.stage}_visual.sdf"
     gui_config = (args.gui_config_dir or DEFAULT_GUI_CONFIG_DIR) / f"{args.view}.config"
     trace_path = case_dir / "command_trace.txt"
+    row_started_at = _now()
     case_dir.mkdir(parents=True, exist_ok=True)
     world_dir.mkdir(parents=True, exist_ok=True)
 
@@ -93,6 +96,7 @@ def run_row(args: argparse.Namespace) -> int:
         trace_path,
         {
             "started_at": _now(),
+            "row_started_at": row_started_at,
             "stage": args.stage,
             "view": args.view,
             "world": str(world),
@@ -306,6 +310,7 @@ def run_row(args: argparse.Namespace) -> int:
     video = case_dir / "gui_recording.mp4"
     duration_s = _video_duration(video)
     _extract_frames(video, duration_s, case_dir)
+    row_finished_at = _now()
     row = build_row_summary(
         stage=args.stage,
         view=args.view,
@@ -315,7 +320,36 @@ def run_row(args: argparse.Namespace) -> int:
         video_duration_s=duration_s,
         gui_config_path=gui_config,
     )
-    write_row_summary(row, case_dir / "row_summary.json")
+    row_summary_path = case_dir / "row_summary.json"
+    if args.stage in CONTACT_STAGES and not args.disable_stage_observation_manifest:
+        row["same_run_stage_dual_sensor_observation_manifest_path"] = str(
+            stage_dual_sensor_observation_manifest_path(case_dir, args.stage)
+        )
+        row["same_run_stage_dual_sensor_observation_target_claim_tier"] = "physical Gazebo collision/contact physics"
+        row["same_run_stage_dual_sensor_observation_forbidden_claim"] = (
+            "real bench/live contact; per-stage physical Gazebo contact unless manifest content validation, "
+            "stage total contact wrench, and wrench/contact correlation gates pass"
+        )
+    write_row_summary(row, row_summary_path)
+    if args.stage in CONTACT_STAGES and not args.disable_stage_observation_manifest:
+        observation_path = write_stage_dual_sensor_observation_manifest(
+            case_dir,
+            stage=args.stage,
+            row=row,
+            row_summary_path=row_summary_path,
+            stage_simulated_ft_manifest_path=args.stage_simulated_ft_manifest,
+            step_status_audit_path=args.step_status_audit,
+            observation_id=f"{args.stage}-{args.view}-{row_started_at}",
+            time_start=row_started_at,
+            time_end=row_finished_at,
+            clock_source=args.stage_observation_clock_source,
+        )
+        _write_trace(
+            trace_path,
+            {
+                "same_run_stage_dual_sensor_observation_manifest": str(observation_path),
+            },
+        )
     if args.update_summary:
         write_visual_audit_summary(build_visual_audit_summary(run_dir), run_dir / "visual_audit_summary.json")
     _write_trace(
@@ -1146,6 +1180,11 @@ def summarize_stage_contact_wrench_adapter(path: Path) -> dict[str, object]:
     total_blockers = payload.get("total_contact_wrench_blockers")
     if not isinstance(total_blockers, list):
         total_blockers = []
+    trace = payload.get("wrench_trace") if isinstance(payload.get("wrench_trace"), dict) else {}
+    trace_rows = trace.get("rows") if isinstance(trace.get("rows"), list) else []
+    trace_path = payload.get("wrench_trace_path")
+    total_contact_wrench_row_count = int(payload.get("total_contact_wrench_row_count") or 0)
+    verified_native_wrench_row_count = int(payload.get("verified_native_wrench_row_count") or 0)
     validation_issues: list[str] = []
     if payload.get("schema") != wrench_adapter.REPORT_SCHEMA:
         validation_issues.append("stage_contact_wrench_adapter.schema:unsupported_or_missing")
@@ -1153,19 +1192,64 @@ def summarize_stage_contact_wrench_adapter(path: Path) -> dict[str, object]:
         validation_issues.append("stage_contact_wrench_adapter.trace:not_written")
     if payload.get("total_contact_wrench_proven") is not True:
         validation_issues.append("stage_total_contact_wrench:not_proven")
+    if payload.get("force_source") != "gazebo_contact":
+        validation_issues.append("stage_contact_wrench_adapter.force_source:not_gazebo_contact")
+    if not trace_path:
+        validation_issues.append("stage_contact_wrench_adapter.trace_path:missing")
+    if verified_native_wrench_row_count <= 0:
+        validation_issues.append("stage_contact_wrench_adapter.verified_native_wrench_row_count:zero")
+    if total_contact_wrench_row_count <= 0:
+        validation_issues.append("stage_contact_wrench_adapter.total_contact_wrench_row_count:zero")
+    if not trace_rows:
+        validation_issues.append("stage_contact_wrench_adapter.trace_rows:missing")
+    valid_trace_rows = [row for row in trace_rows if isinstance(row, dict) and _valid_stage_adapter_trace_row(row)]
+    if trace_rows and not valid_trace_rows:
+        validation_issues.append("stage_contact_wrench_adapter.trace_rows:no_valid_total_contact_wrench_row")
     validation_issues.extend(str(item) for item in blockers)
     validation_issues.extend(str(item) for item in total_blockers)
+    total_contact_wrench_proven = bool(
+        payload.get("schema") == wrench_adapter.REPORT_SCHEMA
+        and payload.get("trace_written") is True
+        and payload.get("total_contact_wrench_proven") is True
+        and payload.get("wrench_aggregation_policy") == "total_contact_wrench"
+        and payload.get("force_source") == "gazebo_contact"
+        and trace_path
+        and verified_native_wrench_row_count > 0
+        and total_contact_wrench_row_count > 0
+        and valid_trace_rows
+        and not blockers
+        and not total_blockers
+    )
     return {
         **base,
         "present": True,
         "claim_tier": payload.get("claim_tier") or "visual_only",
         "trace_written": bool(payload.get("trace_written")),
-        "trace_path": payload.get("wrench_trace_path"),
+        "trace_path": trace_path,
         "force_source": payload.get("force_source"),
-        "total_contact_wrench_proven": bool(payload.get("total_contact_wrench_proven")),
-        "total_contact_wrench_row_count": int(payload.get("total_contact_wrench_row_count") or 0),
+        "total_contact_wrench_proven": total_contact_wrench_proven,
+        "total_contact_wrench_row_count": total_contact_wrench_row_count,
         "validation_issues": validation_issues,
     }
+
+
+def _valid_stage_adapter_trace_row(row: dict[str, object]) -> bool:
+    header = row.get("header") if isinstance(row.get("header"), dict) else {}
+    try:
+        normal_load_n = float(row.get("normal_load_n") or 0.0)
+    except (TypeError, ValueError):
+        normal_load_n = 0.0
+    flags = row.get("diagnostic_flags") if isinstance(row.get("diagnostic_flags"), list) else []
+    return bool(
+        header.get("stamp_s") is not None
+        and header.get("frame_id")
+        and row.get("source") == "gazebo_contact"
+        and row.get("status") == "valid"
+        and row.get("contact_state") == "contact"
+        and row.get("baseline_policy")
+        and normal_load_n > 0.0
+        and "total_contact_wrench" in {str(flag) for flag in flags}
+    )
 
 
 def _row_has_eoat_surface_contact_pair(row: object) -> bool:
@@ -1329,6 +1413,91 @@ def write_stage_contact_wrench_adapter(output_dir: Path, *, contact_pair_path: P
         }
         path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         return path
+
+
+def stage_dual_sensor_observation_manifest_path(case_dir: Path, stage: str) -> Path:
+    return (
+        case_dir
+        / STAGE_DUAL_SENSOR_OBSERVATION_DIRNAME
+        / stage_observation.DEFAULT_FILENAME_TEMPLATE.format(stage_id=stage)
+    )
+
+
+def write_stage_dual_sensor_observation_manifest(
+    case_dir: Path,
+    *,
+    stage: str,
+    row: dict[str, object],
+    row_summary_path: Path,
+    stage_simulated_ft_manifest_path: Path | None,
+    step_status_audit_path: Path | None,
+    observation_id: str,
+    time_start: str,
+    time_end: str,
+    clock_source: str,
+) -> Path:
+    output_dir = case_dir / STAGE_DUAL_SENSOR_OBSERVATION_DIRNAME
+    output_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        return stage_observation.write_manifest(
+            output_dir,
+            stage_id=stage,
+            observation_id=observation_id,
+            time_start=time_start,
+            time_end=time_end,
+            clock_source=clock_source,
+            surfaces={
+                "stage_row_summary": row_summary_path,
+                "stage_contact_pair_log": _path_from_row(row, "gazebo_contact_pair_log_path"),
+                "stage_contact_wrench_adapter": _path_from_row(row, "stage_contact_wrench_adapter_path"),
+                "stage_simulated_ft_manifest": stage_simulated_ft_manifest_path,
+                "step_status_rnn_audit": step_status_audit_path,
+                "visual_evidence": _path_from_row(row, "scripted_camera_final_png", "final_png"),
+                "tcp_path_evidence": _path_from_row(row, "trace_path"),
+            },
+            generated_at=_now(),
+        )
+    except Exception as exc:  # noqa: BLE001 - observation binding must fail closed without hiding row evidence.
+        path = stage_dual_sensor_observation_manifest_path(case_dir, stage)
+        payload = {
+            "schema": "ur10e_stage_dual_sensor_observation_manifest_v1",
+            "generated_at": _now(),
+            "goal_lineage": stage_observation.GOAL_LINEAGE,
+            "mode": "offline_report_level_stage_dual_sensor_observation_binder",
+            "stage_id": stage,
+            "claim_tier": "visual_only",
+            "observation_id": observation_id,
+            "explicit": True,
+            "time_window": {
+                "start": time_start,
+                "end": time_end,
+                "clock_source": clock_source,
+            },
+            "same_run_stage_dual_sensor_observation_proven": False,
+            "validation_issues": [f"stage_dual_sensor_observation_manifest_generation_error:{type(exc).__name__}"],
+            "blockers": ["same_run_stage_dual_sensor_observation:not_proven"],
+            "error": str(exc),
+            "live_authorization": {
+                "robot_motion_authorized": False,
+                "bridge_start_authorized": False,
+                "tp_play_authorized": False,
+                "urscript_authorized": False,
+                "zero_ftsensor_authorized": False,
+                "payload_tcp_safety_writes_authorized": False,
+                "real_bench_live_contact_authorized": False,
+            },
+            "forbidden_claim": "real bench/live contact; per-stage physical Gazebo contact",
+        }
+        path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        return path
+
+
+def _path_from_row(row: dict[str, object], *keys: str) -> Path | None:
+    for key in keys:
+        value = row.get(key)
+        if value:
+            return Path(str(value))
+    return None
 
 
 def capture_scripted_camera_image(
@@ -1717,6 +1886,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     row.add_argument("--marker-style", choices=MARKER_STYLES, default=DEFAULT_OBSERVER_MARKER_STYLE)
     row.add_argument("--contact-capture-max-messages", type=int, default=20)
     row.add_argument("--disable-contact-capture", action="store_true")
+    row.add_argument("--stage-simulated-ft-manifest", type=Path)
+    row.add_argument("--step-status-audit", type=Path)
+    row.add_argument("--stage-observation-clock-source", default="/clock")
+    row.add_argument("--disable-stage-observation-manifest", action="store_true")
     row.add_argument("--allow-existing-gazebo", action="store_true")
     row.add_argument("--visible-gazebo-lock-path", type=Path, default=DEFAULT_VISIBLE_GAZEBO_LOCK_PATH)
     row.add_argument("--update-summary", action="store_true")

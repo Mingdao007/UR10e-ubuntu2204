@@ -164,6 +164,97 @@ def _artifact_row(root: Path, surface: str) -> dict[str, object]:
     }
 
 
+def _artifact_row_with_payload(root: Path, surface: str, payload: dict[str, object]) -> dict[str, object]:
+    path = root / f"{surface}.json"
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return {
+        "surface": surface,
+        "path": str(path),
+        "exists": True,
+        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+    }
+
+
+def _stage_simulated_ft_manifest_payload() -> dict[str, object]:
+    stages = {
+        stage_id: {
+            "stage_id": stage_id,
+            "claim_tier": "simulated_ft",
+            "valid": True,
+            "evidence_fields_present": {
+                "stamp": True,
+                "frame_id": True,
+                "source": True,
+                "status": True,
+                "baseline": True,
+                "log_evidence": True,
+            },
+        }
+        for stage_id in ["step5b", "step5d", "step6b", "step7", "step8"]
+    }
+    return {
+        "schema": "ur10e_step_simulated_ft_evidence_pack_v1",
+        "claim_tier": "simulated_ft",
+        "stage_count": 5,
+        "valid_stage_count": 5,
+        "all_contact_stages_valid": True,
+        "stages": stages,
+    }
+
+
+def _total_wrench_row_payload() -> dict[str, object]:
+    return {
+        "header": {"stamp_s": 0.125, "frame_id": "base"},
+        "source": "gazebo_contact",
+        "status": "valid",
+        "contact_state": "contact",
+        "normal_load_n": 245.4,
+        "baseline_policy": "gazebo_contact_zero_no_contact_baseline",
+        "diagnostic_flags": [
+            "gazebo_contact_wrench_adapter",
+            "gazebo_contact_message_wrench",
+            "total_contact_wrench",
+            "total_contact_wrench_component_count=4",
+        ],
+    }
+
+
+def _p2_total_contact_payload() -> dict[str, object]:
+    return {
+        "schema": "ur10e_gazebo_p2_contact_correlation_audit_v1",
+        "claim_tier": "physical Gazebo collision/contact physics",
+        "physical_gazebo_contact_gate": {
+            "force_contact_physics_proven": True,
+            "contact_pair_log_evidence": True,
+            "wrench_contact_correlation": True,
+        },
+        "claim_boundary_gate": {
+            "total_contact_wrench_proven": True,
+            "real_bench_live_contact_authorized": False,
+        },
+        "wrench_evidence": {
+            "adapter_report_schema": "ur10e_gazebo_contact_wrench_adapter_report_v1",
+            "source": "gazebo_contact",
+            "trace_written": True,
+            "verified_native_wrench_row_count": 1,
+            "total_contact_wrench_row_count": 1,
+            "adapter_report_blockers": [],
+            "total_contact_wrench_blockers": [],
+            "wrench_aggregation_policy": "total_contact_wrench",
+            "total_contact_wrench_proven": True,
+            "rows": [_total_wrench_row_payload()],
+        },
+    }
+
+
+def _valid_dual_sensor_artifact_rows(root: Path) -> list[dict[str, object]]:
+    return [
+        _artifact_row_with_payload(root, "stage_simulated_ft_manifest", _stage_simulated_ft_manifest_payload()),
+        _artifact_row_with_payload(root, "p2_contact_correlation_audit", _p2_total_contact_payload()),
+        _artifact_row_with_payload(root, "step_status_rnn_audit", _step_payload(strict_ready=True)),
+    ]
+
+
 def _concurrent_observation() -> dict[str, object]:
     return {
         "observation_id": "fixture-concurrent-observation-001",
@@ -888,11 +979,7 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
                         "cross_run_surfaces": [],
                         "validation_issues": [],
                         "blockers": [],
-                        "artifact_rows": [
-                            _artifact_row(root, "stage_simulated_ft_manifest"),
-                            _artifact_row(root, "p2_contact_correlation_audit"),
-                            _artifact_row(root, "step_status_rnn_audit"),
-                        ],
+                        "artifact_rows": _valid_dual_sensor_artifact_rows(root),
                         "same_run_dual_sensor_observation": _dual_sensor_observation(),
                     },
                     indent=2,
@@ -940,11 +1027,7 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
                         "cross_run_surfaces": [],
                         "validation_issues": [],
                         "blockers": [],
-                        "artifact_rows": [
-                            _artifact_row(root, "stage_simulated_ft_manifest"),
-                            _artifact_row(root, "p2_contact_correlation_audit"),
-                            _artifact_row(root, "step_status_rnn_audit"),
-                        ],
+                        "artifact_rows": _valid_dual_sensor_artifact_rows(root),
                     },
                     indent=2,
                 ),
@@ -968,6 +1051,60 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
             payload["dual_sensor_total_wrench"]["validation_issues"],
         )
         self.assertIn("same_run_dual_sensor_observation:not_proven", payload["full_goal_acceptance_gate"]["full_goal_acceptance_blockers"])
+
+    def test_readiness_rejects_external_dual_sensor_artifact_with_hollow_row_files(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="p6_hollow_external_dual_sensor_fixture_") as tmp:
+            root = Path(tmp)
+            p3_path = root / "p3.json"
+            step_path = root / "step.json"
+            manifest_path = root / "manifest.json"
+            dual_path = root / "dual_sensor_total_wrench_audit.json"
+            p3_path.write_text(json.dumps(_p3_payload(), indent=2), encoding="utf-8")
+            visual_path = _write_post_gate_visual_foundation_row(root)
+            step_path.write_text(json.dumps(_step_payload(strict_ready=True), indent=2), encoding="utf-8")
+            manifest_path.write_text(json.dumps(_demo_manifest_payload(root), indent=2), encoding="utf-8")
+            dual_path.write_text(
+                json.dumps(
+                    {
+                        "schema": "ur10e_dual_sensor_total_wrench_audit_v1",
+                        "goal_lineage": GOAL_LINEAGE,
+                        "generated_at": "2026-06-21T07:22:00+08:00",
+                        "claim_tier": "visual_only",
+                        "total_contact_wrench_proven": True,
+                        "same_run_dual_sensor_observation_proven": True,
+                        "missing_surfaces": [],
+                        "cross_run_surfaces": [],
+                        "validation_issues": [],
+                        "blockers": [],
+                        "artifact_rows": [
+                            _artifact_row(root, "stage_simulated_ft_manifest"),
+                            _artifact_row(root, "p2_contact_correlation_audit"),
+                            _artifact_row(root, "step_status_rnn_audit"),
+                        ],
+                        "same_run_dual_sensor_observation": _dual_sensor_observation(),
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            payload = audit.build_audit(
+                generated_at="2026-06-21T07:22:00+08:00",
+                p3_audit_path=p3_path,
+                post_gate_visual_foundation_row_path=visual_path,
+                step_status_audit_path=step_path,
+                integrated_demo_manifest_path=manifest_path,
+                dual_sensor_total_wrench_path=dual_path,
+                handoff_root=root / "missing_handoffs",
+            )
+
+        self.assertFalse(payload["dual_sensor_total_wrench"]["total_contact_wrench_proven"])
+        self.assertFalse(payload["dual_sensor_total_wrench"]["same_run_dual_sensor_observation_proven"])
+        self.assertIn(
+            "artifact_content.total_contact_wrench:not_proven",
+            payload["dual_sensor_total_wrench"]["validation_issues"],
+        )
+        self.assertIn("total_contact_wrench:not_proven", payload["full_goal_acceptance_gate"]["full_goal_acceptance_blockers"])
 
     def test_readiness_rejects_external_dual_sensor_artifact_without_internal_evidence_rows(self) -> None:
         audit = import_audit_module()
@@ -1047,6 +1184,22 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
         self.assertIn("plots.tcp_distance_to_surface_vs_time:unsupported", result["validation_issues"])
         self.assertNotIn("plots.gravity_residual:unsupported", result["validation_issues"])
         self.assertEqual(result["plot_status"]["gravity_residual"], "unsupported")
+
+    def test_demo_manifest_rejects_real_bench_live_contact_claim_tier(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="p6_real_bench_tier_fixture_") as tmp:
+            root = Path(tmp)
+            manifest_path = root / "manifest.json"
+            manifest = _demo_manifest_payload(root)
+            manifest["claim_tier"] = "real bench/live contact"
+            manifest["plots"]["wrench_vs_time"]["claim_tier"] = "real bench/live contact"
+            manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+            result = audit.validate_demo_manifest(manifest_path)
+
+        self.assertFalse(result["valid"])
+        self.assertEqual(result["claim_tier"], "visual_only")
+        self.assertIn("claim_tier:unsupported", result["validation_issues"])
+        self.assertIn("plots.wrench_vs_time.claim_tier:unsupported", result["validation_issues"])
 
     def test_manifest_requires_current_goal_lineage(self) -> None:
         audit = import_audit_module()
