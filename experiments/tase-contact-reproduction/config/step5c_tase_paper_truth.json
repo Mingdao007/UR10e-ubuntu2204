@@ -111,11 +111,12 @@
       "force_motion_task_equations",
       "orientation_compliance_equations",
       "constraint_qp_or_kkt_form",
-      "paper_section_vi_experimental_parameters"
+      "paper_section_vi_experimental_parameter_anchors"
     ],
     "partial_or_unresolved_fields": [
       "alpha_escape_velocity_gain_numeric_value",
       "production_sigr_exponent_r_selection",
+      "local_qdot_bound_rad_s",
       "communication_delay_T_to_dt_mapping",
       "Eq23_nonzero_command_stability_from_zero_initial_lambda",
       "step5c_strict_dryrun_equation_subset",
@@ -123,7 +124,7 @@
       "filtered_live_normal_compatibility",
       "force_ladder_parameters"
     ],
-    "acceptance_effect": "PDF text now supports the core equation/parameter extraction, but strict_rnn_enabled remains false until unresolved local adaptation and stability gates close."
+    "acceptance_effect": "PDF text now supports the core equation and Section VI parameter anchors, but strict_rnn_enabled remains false until unresolved local adaptation and stability gates close."
   },
   "implementation_assumptions": {
     "alpha_escape_velocity_gain_default_s_inv": {
@@ -156,6 +157,7 @@
   "pending_pdf_verify": [
     "alpha_escape_velocity_gain",
     "production_sigr_exponent_r",
+    "local_qdot_bound_rad_s",
     "communication_delay_T_mapping",
     "Eq23_nonzero_command_stability"
   ],

@@ -175,7 +175,7 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
         self.assertFalse(strict_gate["strict_rnn_final_acceptance_allowed"])
         self.assertIn("paper_truth:pending_pdf_verify", strict_gate["blockers"])
         self.assertTrue(strict_gate["evidence"]["paper_truth_pdf_audit_ok"])
-        self.assertEqual(strict_gate["evidence"]["paper_truth_pdf_remaining_pending_count"], 8)
+        self.assertEqual(strict_gate["evidence"]["paper_truth_pdf_remaining_pending_count"], 9)
 
         gates = payload["readiness_gates"]
         self.assertTrue(gates["p3_visual_rviz_ready"])

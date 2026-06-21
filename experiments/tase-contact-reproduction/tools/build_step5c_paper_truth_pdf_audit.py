@@ -57,17 +57,18 @@ VERIFIED_FIELD_RULES: dict[str, tuple[tuple[str, str], ...]] = {
         ("KKT conditions", r"Karush-Kuhn-Tucker"),
         ("projection Eq.22", r"PΩ"),
     ),
-    "paper_section_vi_experimental_parameters": (
+    "paper_section_vi_experimental_parameter_anchors": (
         ("Section VI parameters", r"parameters in the controller are set"),
         ("Md/Bd values", r"Md\s*=\s*Diag\(12.*Bd\s*=\s*Diag\(550"),
         ("epsilon and gains", r"0\.022.*k\s*p\s*=\s*4.*ko\s*=\s*5.*k\s*f\s*=\s*1"),
-        ("experimental qdot bounds", r"0\.15\s*rad/s"),
+        ("paper experimental qdot bounds", r"0\.15\s*rad/s"),
     ),
 }
 
 PARTIAL_OR_UNRESOLVED_FIELDS = {
     "alpha_escape_velocity_gain": "PDF states alpha > 0 and Eq.18/Eq.19 bounds, but no UR10e numeric alpha is specified.",
     "production_sigr_exponent_r": "PDF gives r domain and simulation examples; no single production r is selected for UR10e.",
+    "local_qdot_bound_rad_s": "PDF Section VI uses +/-0.15 rad/s; the repo's 0.30 rad/s value is a local offline/live-prep adaptation until separately justified.",
     "communication_delay_T_mapping": "PDF defines T as robot-controller communication delay, but does not map it to this repo's dt_s assumption.",
     "Eq23_nonzero_command_stability": "PDF provides continuous finite-time proof, but the local discrete zero-initial-lambda nonzero-command gate remains separate.",
     "step5c_strict_dryrun.which paper equations remain active in no-contact dry-run": "No-contact dry-run is a repo adaptation, not a direct paper mode.",
@@ -153,7 +154,9 @@ def build_audit(
     current_pending = pending_fields(truth)
     unresolved = sorted(field for field in current_pending if field in PARTIAL_OR_UNRESOLVED_FIELDS)
     unexpected_pending = sorted(field for field in current_pending if field not in PARTIAL_OR_UNRESOLVED_FIELDS)
-    audit_ok = not unverified and not unexpected_pending and bool(unresolved)
+    expected_pending = sorted(PARTIAL_OR_UNRESOLVED_FIELDS)
+    missing_expected_pending = sorted(field for field in expected_pending if field not in current_pending)
+    audit_ok = not unverified and not unexpected_pending and not missing_expected_pending and unresolved == expected_pending
     return {
         "schema": "ur10e_step5c_paper_truth_pdf_audit_v1",
         "generated_at": generated,
@@ -168,12 +171,14 @@ def build_audit(
         "unverified_expected_fields": unverified,
         "remaining_pending_fields": current_pending,
         "remaining_pending_count": len(current_pending),
+        "expected_remaining_pending_fields": expected_pending,
+        "missing_expected_pending_fields": missing_expected_pending,
         "unexpected_pending_fields": unexpected_pending,
         "partial_or_unresolved_evidence": {field: PARTIAL_OR_UNRESOLVED_FIELDS[field] for field in unresolved},
         "field_evidence": field_evidence,
         "acceptance_effect": (
-            "Core paper equations and paper parameters are text-verified, but strict RNN final acceptance remains "
-            "blocked by local adaptation/stability fields and strict_rnn_enabled=false."
+            "Core paper equations and Section VI parameter anchors are text-verified, but strict RNN final acceptance "
+            "remains blocked by local adaptation/stability fields and strict_rnn_enabled=false."
         ),
         "forbidden_claim": (
             "simulated_ft; physical Gazebo collision/contact physics; real bench/live contact; live bridge/TP/URScript/motion"

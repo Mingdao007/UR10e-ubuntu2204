@@ -62,13 +62,12 @@ class Step5cPaperTruthPdfAuditTest(unittest.TestCase):
         self.assertEqual(payload["claim_tier"], "virtual/software force-loop")
         self.assertIn("finite_time_rnn_state_equation", payload["verified_fields"])
         self.assertIn("rnn_gain_scalar_not_matrix", payload["verified_fields"])
-        self.assertIn("paper_section_vi_experimental_parameters", payload["verified_fields"])
+        self.assertIn("paper_section_vi_experimental_parameter_anchors", payload["verified_fields"])
         self.assertEqual(payload["unverified_expected_fields"], [])
-        self.assertIn("alpha_escape_velocity_gain", payload["remaining_pending_fields"])
-        self.assertIn(
-            "step5c_strict_dryrun.mapping from paper task variable to UR10e 6dof qdot",
-            payload["remaining_pending_fields"],
-        )
+        self.assertEqual(payload["remaining_pending_fields"], payload["expected_remaining_pending_fields"])
+        self.assertEqual(payload["remaining_pending_count"], 9)
+        self.assertEqual(payload["missing_expected_pending_fields"], [])
+        self.assertIn("local_qdot_bound_rad_s", payload["remaining_pending_fields"])
         self.assertFalse(payload["strict_rnn_enabled"])
         self.assertIn("simulated_ft", payload["forbidden_claim"])
 
@@ -81,6 +80,8 @@ class Step5cPaperTruthPdfAuditTest(unittest.TestCase):
         self.assertIn("constraint_qp_or_kkt_form", verified)
         self.assertNotIn("finite_time_rnn_state_equation", pending)
         self.assertIn("alpha_escape_velocity_gain", pending)
+        self.assertIn("local_qdot_bound_rad_s", pending)
+        self.assertEqual(truth["pdf_text_audit"]["claim_tier"], "virtual/software force-loop")
         self.assertFalse(truth["strict_rnn_enabled"])
 
     def test_write_audit_creates_machine_readable_artifact(self) -> None:

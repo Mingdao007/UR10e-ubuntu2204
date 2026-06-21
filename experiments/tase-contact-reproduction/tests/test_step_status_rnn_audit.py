@@ -257,7 +257,7 @@ class StepStatusRnnAuditTest(unittest.TestCase):
             "finite_time_rnn_state_equation",
             strict_gate["evidence"]["paper_truth_pdf_verified_fields"],
         )
-        self.assertEqual(strict_gate["evidence"]["paper_truth_pdf_remaining_pending_count"], 8)
+        self.assertEqual(strict_gate["evidence"]["paper_truth_pdf_remaining_pending_count"], 9)
         self.assertTrue(strict_gate["evidence"]["numeric_sanity_overall_pass"])
         self.assertEqual(strict_gate["evidence"]["numeric_sanity_contact_evidence"], "not_claimed")
         self.assertIn("simulated_ft", strict_gate["forbidden_claim"])
