@@ -334,7 +334,7 @@ def correlate_wrench_to_contact(adapter: dict[str, Any], contact_pair: dict[str,
     else:
         status = "correlated"
     return {
-        "evidence": bool(matches),
+        "evidence": status == "correlated",
         "status": status,
         "matched_row_count": len(matches),
         "tolerance_s": tolerance_s,

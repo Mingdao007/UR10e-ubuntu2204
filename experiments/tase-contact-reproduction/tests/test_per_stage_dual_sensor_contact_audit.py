@@ -337,6 +337,32 @@ class PerStageDualSensorContactAuditTest(unittest.TestCase):
             payload["validation_issues"],
         )
 
+    def test_correlation_evidence_blocks_when_total_contact_wrench_is_not_proven(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="stage_dual_sensor_single_point_wrench_", dir=RUNS) as tmp:
+            paths = write_fixture(Path(tmp), include_adapter=True, include_observation=False)
+            adapter = json.loads(paths["adapter"].read_text(encoding="utf-8"))
+            adapter["total_contact_wrench_proven"] = False
+            adapter["total_contact_wrench_row_count"] = 0
+            adapter["wrench_aggregation_policy"] = "single_native_contact_point_wrench_sample_no_total_contact_wrench_claim"
+            write_json(paths["adapter"], adapter)
+            payload = audit.build_audit(
+                generated_at="2026-06-21T16:56:07+08:00",
+                stage_row_summary_path=paths["row"],
+                stage_contact_pair_log_path=paths["contact"],
+                stage_simulated_ft_manifest_path=paths["manifest"],
+                step_status_audit_path=paths["step"],
+                stage_contact_wrench_adapter_path=paths["adapter"],
+            )
+
+        self.assertEqual(payload["stage_wrench_contact_correlation"]["matched_row_count"], 1)
+        self.assertEqual(
+            payload["stage_wrench_contact_correlation"]["status"],
+            "blocked_total_contact_wrench_not_proven",
+        )
+        self.assertFalse(payload["stage_wrench_contact_correlation"]["evidence"])
+        self.assertIn("stage_wrench_contact_correlation:not_proven", payload["blockers"])
+
     def test_blocks_observation_manifest_that_declares_itself_not_proven(self) -> None:
         audit = import_audit_module()
         with tempfile.TemporaryDirectory(prefix="stage_dual_sensor_blocked_manifest_", dir=RUNS) as tmp:

@@ -52,6 +52,7 @@ TOTAL_CONTACT_FRAME_POLICIES = {
     "pretransformed_to_base",
     "verified_world_to_base_identity_from_p2_witness_sdf",
 }
+STANDALONE_P2_OBSERVATION_SCOPE = "standalone_p2_contact_witness"
 EPS = 1e-9
 
 
@@ -450,6 +451,24 @@ def _evidence_contract() -> dict[str, Any]:
     }
 
 
+def _forbidden_claim(total_contact_wrench_proven: bool, observation_scope: str | None) -> str:
+    claims = [
+        "real bench/live contact",
+        "simulated_ft",
+        "inferred force from contact position/normal/depth",
+    ]
+    if not total_contact_wrench_proven:
+        claims.append("total contact wrench across all Gazebo contact points")
+    if observation_scope == STANDALONE_P2_OBSERVATION_SCOPE:
+        claims.extend(
+            [
+                "per-stage physical Gazebo contact upgrade",
+                "same-run dual-sensor/integrated binding upgrade",
+            ]
+        )
+    return "; ".join(claims)
+
+
 def _sample_from_row(
     row: dict[str, Any],
     *,
@@ -590,14 +609,7 @@ def build_wrench_trace_or_report(
             if trace
             else "visual_only blocked/not_proven; contact pair evidence cannot be upgraded into force evidence"
         ),
-        "forbidden_claim": (
-            "real bench/live contact; simulated_ft; inferred force from contact position/normal/depth"
-            if total_contact_wrench_proven
-            else (
-                "real bench/live contact; simulated_ft; inferred force from contact position/normal/depth; "
-                "total contact wrench across all Gazebo contact points"
-            )
-        ),
+        "forbidden_claim": _forbidden_claim(total_contact_wrench_proven, effective_observation_scope),
         "wrench_aggregation_policy": wrench_policy,
         "total_contact_wrench_proven": total_contact_wrench_proven,
         "total_contact_wrench_row_count": total_contact_wrench_row_count,

@@ -9,6 +9,7 @@ language fails rather than being upgraded by prose.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -81,6 +82,9 @@ PHYSICAL_HASH_TOKENS = (
     "sha256",
     "hash",
 )
+
+JSON_PATH_RE = re.compile(r"`?(/[^`|\s]+\.json)`?")
+SHA256_RE = re.compile(r"\b(?:sha256|hash)\s*[=:]\s*([a-fA-F0-9]{64})\b")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -389,7 +393,7 @@ def validate_claim_tier_table_rows(table: list[list[str]], heading: str) -> list
                     f"{heading} row {row_number}: blocked physical Gazebo evidence must downgrade to visual_only"
                 )
             else:
-                row_issues = physical_gazebo_row_issues(row_norm)
+                row_issues = physical_gazebo_row_issues(" | ".join(row))
                 issues.extend(
                     f"{heading} row {row_number}: {issue}"
                     for issue in row_issues
@@ -455,7 +459,8 @@ def has_blocked_or_not_proven(row_norm: str) -> bool:
     return "blocked" in row_norm or "not proven" in row_norm
 
 
-def physical_gazebo_row_issues(row_norm: str) -> list[str]:
+def physical_gazebo_row_issues(row_text: str) -> list[str]:
+    row_norm = normalize(row_text)
     issues: list[str] = []
     missing = [field for field in PHYSICAL_GAZEBO_REQUIRED_FIELDS if field.lower() not in row_norm]
     if missing:
@@ -472,7 +477,100 @@ def physical_gazebo_row_issues(row_norm: str) -> list[str]:
         issues.append("physical Gazebo claim missing source artifact/path")
     if not any(token in row_norm for token in PHYSICAL_HASH_TOKENS):
         issues.append("physical Gazebo claim missing artifact hash/sha256 freshness evidence")
+    artifact_issues = physical_artifact_content_issues(row_text, standalone_scope=standalone_scope, per_stage_scope=per_stage_scope)
+    issues.extend(artifact_issues)
     return issues
+
+
+def physical_artifact_content_issues(
+    row_text: str,
+    *,
+    standalone_scope: bool,
+    per_stage_scope: bool,
+) -> list[str]:
+    path_match = JSON_PATH_RE.search(row_text)
+    if not path_match:
+        return ["physical Gazebo claim missing parseable JSON artifact path"]
+    artifact_path = Path(path_match.group(1))
+    if not artifact_path.is_file():
+        return [f"physical Gazebo artifact missing or unreadable: {artifact_path}"]
+
+    hash_match = SHA256_RE.search(row_text)
+    if not hash_match:
+        return ["physical Gazebo claim missing parseable sha256=<64 hex> artifact hash"]
+    expected_sha = hash_match.group(1).lower()
+    actual_sha = sha256_file(artifact_path)
+    if actual_sha != expected_sha:
+        return [f"physical Gazebo artifact sha256 mismatch: {artifact_path}"]
+
+    try:
+        payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return [f"physical Gazebo artifact content unreadable: {type(exc).__name__}"]
+    if not isinstance(payload, dict):
+        return ["physical Gazebo artifact content must be a JSON object"]
+
+    if standalone_scope and not standalone_physical_artifact_proven(payload):
+        return ["standalone P2 physical Gazebo artifact content does not prove total contact wrench/contact correlation"]
+    if per_stage_scope and not per_stage_physical_artifact_proven(payload):
+        return ["per-stage physical Gazebo artifact content does not prove row-local stage contact/wrench correlation"]
+    return []
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def standalone_physical_artifact_proven(payload: dict[str, Any]) -> bool:
+    if payload.get("schema") == "ur10e_gazebo_contact_wrench_adapter_report_v1":
+        return bool(
+            payload.get("claim_tier") == "physical Gazebo collision/contact physics"
+            and payload.get("observation_scope") == "standalone_p2_contact_witness"
+            and payload.get("force_source") == "gazebo_contact"
+            and payload.get("trace_written") is True
+            and payload.get("total_contact_wrench_proven") is True
+            and payload.get("wrench_aggregation_policy") == "total_contact_wrench"
+            and not payload.get("total_contact_wrench_blockers")
+        )
+    if payload.get("schema") == "ur10e_gazebo_p2_contact_correlation_audit_v1":
+        physical_gate = payload.get("physical_gazebo_contact_gate")
+        boundary_gate = payload.get("claim_boundary_gate")
+        wrench = payload.get("wrench_evidence")
+        return bool(
+            isinstance(physical_gate, dict)
+            and isinstance(boundary_gate, dict)
+            and isinstance(wrench, dict)
+            and physical_gate.get("force_contact_physics_proven") is True
+            and physical_gate.get("contact_pair_log_evidence") is True
+            and physical_gate.get("wrench_contact_correlation") is True
+            and boundary_gate.get("total_contact_wrench_proven") is True
+            and wrench.get("source") == "gazebo_contact"
+            and wrench.get("total_contact_wrench_proven") is True
+            and wrench.get("wrench_aggregation_policy") == "total_contact_wrench"
+            and not wrench.get("adapter_report_blockers")
+            and not wrench.get("total_contact_wrench_blockers")
+        )
+    return False
+
+
+def per_stage_physical_artifact_proven(payload: dict[str, Any]) -> bool:
+    correlation = payload.get("stage_wrench_contact_correlation")
+    per_stage = payload.get("per_stage_physical_gazebo_contact")
+    return bool(
+        payload.get("schema") == "ur10e_per_stage_dual_sensor_contact_audit_v1"
+        and payload.get("claim_tier") == "physical Gazebo collision/contact physics"
+        and isinstance(correlation, dict)
+        and isinstance(per_stage, dict)
+        and correlation.get("evidence") is True
+        and correlation.get("status") == "correlated"
+        and per_stage.get("per_stage_physical_gazebo_contact_proven") is True
+        and not payload.get("blockers")
+        and not payload.get("validation_issues")
+    )
 
 
 def has_standalone_scope(row_norm: str) -> bool:
@@ -515,7 +613,7 @@ def has_source_backed_physical_gazebo_claim_row(sections: list[tuple[str, str]])
                 row_norm = normalize(" | ".join(row))
                 if has_blocked_or_not_proven(row_norm) or any(token in row_norm for token in PHYSICAL_BLOCKERS):
                     continue
-                if not physical_gazebo_row_issues(row_norm):
+                if not physical_gazebo_row_issues(" | ".join(row)):
                     return True
     return False
 

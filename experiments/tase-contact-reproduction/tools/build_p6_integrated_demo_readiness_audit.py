@@ -30,6 +30,7 @@ from build_same_run_integrated_binding_audit import (
 from build_dual_sensor_total_wrench_audit import (
     all_stage_simulated_ft_valid,
     build_audit as build_dual_sensor_total_wrench_audit,
+    dual_sensor_observation_summary,
     p2_physical_contact_proven,
     p2_step_summary,
     total_contact_wrench_proven,
@@ -350,6 +351,61 @@ def external_dual_sensor_concurrent_observation_issues(payload: dict[str, Any]) 
     return issues
 
 
+def schema_lineage_issues(payload: dict[str, Any], *, surface: str, expected_schema: str) -> list[str]:
+    issues: list[str] = []
+    if payload.get("schema") != expected_schema:
+        issues.append(f"artifact_content.{surface}.schema:unsupported_or_missing")
+    if payload.get("goal_lineage") != GOAL_LINEAGE:
+        issues.append(f"artifact_content.{surface}.goal_lineage:mismatch_or_missing")
+    return issues
+
+
+def external_dual_sensor_source_observation_issues(
+    payload: dict[str, Any],
+    *,
+    paths: dict[str, Path],
+    p2_audit: dict[str, Any],
+    step_p2: dict[str, Any],
+) -> list[str]:
+    issues: list[str] = []
+    source_observation, source_issues = dual_sensor_observation_summary(p2_audit, step_p2)
+    if source_issues:
+        issues.extend(f"artifact_content.{issue}" for issue in source_issues)
+    if source_observation.get("same_run_concurrent_dual_sensor_observation_proven") is not True:
+        issues.append("artifact_content.same_run_concurrent_dual_sensor_observation:not_proven")
+
+    container = payload.get("same_run_dual_sensor_observation")
+    wrapper = (
+        container.get("same_run_concurrent_dual_sensor_observation")
+        if isinstance(container, dict)
+        and isinstance(container.get("same_run_concurrent_dual_sensor_observation"), dict)
+        else {}
+    )
+    wrapper_time = wrapper.get("time_window") if isinstance(wrapper.get("time_window"), dict) else {}
+    source_time = source_observation.get("time_window") if isinstance(source_observation.get("time_window"), dict) else {}
+    for field in ("start", "end", "clock_source"):
+        if wrapper_time.get(field) != source_time.get(field):
+            issues.append(f"same_run_concurrent_dual_sensor_observation.time_window.{field}:source_mismatch")
+
+    if wrapper.get("observation_id") != source_observation.get("observation_id"):
+        issues.append("same_run_concurrent_dual_sensor_observation.observation_id:source_mismatch")
+
+    wrapper_surfaces = wrapper.get("surfaces") if isinstance(wrapper.get("surfaces"), dict) else {}
+    source_surfaces = source_observation.get("surfaces") if isinstance(source_observation.get("surfaces"), dict) else {}
+    for surface in ("stage_simulated_ft_manifest", "p2_contact_correlation_audit", "step_status_rnn_audit"):
+        artifact_path = paths.get(surface)
+        wrapper_value = wrapper_surfaces.get(surface)
+        source_value = source_surfaces.get(surface)
+        if artifact_path is None:
+            continue
+        artifact_name = artifact_path.name
+        if wrapper_value and Path(str(wrapper_value)).name != artifact_name:
+            issues.append(f"same_run_concurrent_dual_sensor_observation.surfaces.{surface}:artifact_row_mismatch")
+        if source_value and Path(str(source_value)).name != artifact_name:
+            issues.append(f"artifact_content.same_run_concurrent_dual_sensor_observation.surfaces.{surface}:artifact_row_mismatch")
+    return issues
+
+
 def external_dual_sensor_total_wrench_content_issues(payload: dict[str, Any]) -> list[str]:
     paths = external_artifact_row_paths(
         payload,
@@ -364,6 +420,21 @@ def external_dual_sensor_total_wrench_content_issues(payload: dict[str, Any]) ->
     p2_audit = load_external_artifact_json(paths.get("p2_contact_correlation_audit"))
     step_status = load_external_artifact_json(paths.get("step_status_rnn_audit"))
     step_p2 = p2_step_summary(step_status)
+    issues.extend(
+        schema_lineage_issues(
+            stage_manifest,
+            surface="stage_simulated_ft_manifest",
+            expected_schema="ur10e_step_simulated_ft_evidence_pack_v1",
+        )
+    )
+    p2_schema_lineage = schema_lineage_issues(
+        p2_audit,
+        surface="p2_contact_correlation_audit",
+        expected_schema="ur10e_gazebo_p2_contact_correlation_audit_v1",
+    )
+    if p2_schema_lineage:
+        issues.extend(p2_schema_lineage)
+        issues.append("artifact_content.total_contact_wrench:not_proven")
     if not all_stage_simulated_ft_valid(stage_manifest):
         issues.append("artifact_content.stage_simulated_ft_manifest:not_all_valid")
     if not p2_physical_contact_proven(p2_audit, step_p2):
@@ -372,6 +443,94 @@ def external_dual_sensor_total_wrench_content_issues(payload: dict[str, Any]) ->
         issues.append("artifact_content.total_contact_wrench:not_proven")
     if step_status.get("schema") != "ur10e_step_status_rnn_audit_v1":
         issues.append("artifact_content.step_status_rnn_audit.schema:unsupported_or_missing")
+    if step_status.get("goal_lineage") != GOAL_LINEAGE:
+        issues.append("artifact_content.step_status_rnn_audit.goal_lineage:mismatch_or_missing")
+    issues.extend(
+        external_dual_sensor_source_observation_issues(
+            payload,
+            paths=paths,
+            p2_audit=p2_audit,
+            step_p2=step_p2,
+        )
+    )
+    return issues
+
+
+def external_same_run_artifact_content_issues(payload: dict[str, Any]) -> list[str]:
+    paths = external_artifact_row_paths(
+        payload,
+        required_surfaces={
+            "p6_manifest",
+            "p3_visual_rviz_audit",
+            "stage_simulated_ft_manifest",
+            "step_status_rnn_audit",
+            "p2_contact_correlation_audit",
+            "tcp_distance_evidence",
+        },
+    )
+    issues: list[str] = []
+    p6_manifest_path = paths.get("p6_manifest")
+    p3_path = paths.get("p3_visual_rviz_audit")
+    stage_manifest = load_external_artifact_json(paths.get("stage_simulated_ft_manifest"))
+    p2_audit = load_external_artifact_json(paths.get("p2_contact_correlation_audit"))
+    step_path = paths.get("step_status_rnn_audit")
+    step_status = load_external_artifact_json(step_path)
+    step_p2 = p2_step_summary(step_status)
+
+    if p6_manifest_path is None:
+        issues.append("artifact_content.p6_manifest:missing")
+    else:
+        manifest_summary = validate_demo_manifest(p6_manifest_path)
+        if not manifest_summary.get("valid"):
+            issues.append("artifact_content.p6_manifest:not_valid")
+
+    if p3_path is None:
+        issues.append("artifact_content.p3_visual_rviz_audit:missing")
+    else:
+        p3_summary = p3_visual_rviz_summary(load_external_artifact_json(p3_path), path=p3_path)
+        if not p3_summary.get("goal_lineage_matches"):
+            issues.append("artifact_content.p3_visual_rviz_audit.goal_lineage:mismatch_or_missing")
+        if not p3_summary.get("p3_visual_rviz_ready"):
+            issues.append("artifact_content.p3_visual_rviz_audit:not_ready")
+
+    issues.extend(
+        schema_lineage_issues(
+            stage_manifest,
+            surface="stage_simulated_ft_manifest",
+            expected_schema="ur10e_step_simulated_ft_evidence_pack_v1",
+        )
+    )
+    p2_schema_lineage = schema_lineage_issues(
+        p2_audit,
+        surface="p2_contact_correlation_audit",
+        expected_schema="ur10e_gazebo_p2_contact_correlation_audit_v1",
+    )
+    if p2_schema_lineage:
+        issues.extend(p2_schema_lineage)
+        issues.append("artifact_content.total_contact_wrench:not_proven")
+    if not all_stage_simulated_ft_valid(stage_manifest):
+        issues.append("artifact_content.stage_simulated_ft_manifest:not_all_valid")
+    if step_status.get("schema") != "ur10e_step_status_rnn_audit_v1":
+        issues.append("artifact_content.step_status_rnn_audit.schema:unsupported_or_missing")
+    if step_status.get("goal_lineage") != GOAL_LINEAGE:
+        issues.append("artifact_content.step_status_rnn_audit.goal_lineage:mismatch_or_missing")
+    elif step_path is not None:
+        step_summary = step_status_summary(step_status, path=step_path)
+        if not step_summary.get("goal_lineage_matches"):
+            issues.append("artifact_content.step_status_rnn_audit.goal_lineage:mismatch_or_missing")
+        if not step_summary.get("stage_set_exact"):
+            issues.append("artifact_content.step_status_rnn_audit.stage_set:not_exact")
+    if not p2_physical_contact_proven(p2_audit, step_p2):
+        issues.append("artifact_content.p2_physical_gazebo_contact:not_proven")
+    if not total_contact_wrench_proven(p2_audit, step_p2):
+        issues.append("artifact_content.total_contact_wrench:not_proven")
+
+    tcp_distance = validate_tcp_distance_evidence(
+        {"tcp_distance_evidence": str(paths.get("tcp_distance_evidence")) if paths.get("tcp_distance_evidence") else None},
+        issues=[],
+    )
+    if not tcp_distance.get("tcp_distance_time_series_supported"):
+        issues.append("artifact_content.tcp_distance_evidence:not_supported")
     return issues
 
 
@@ -1269,6 +1428,11 @@ def claim_boundary_validation_issues(
             issues.append(f"current_claim_tier_table[{index}].claim_tier:unsupported")
         if tier == "real bench/live contact":
             issues.append(f"current_claim_tier_table[{index}].claim_tier:real_bench_live_contact_not_authorized")
+        if tier == "physical Gazebo collision/contact physics":
+            if not row.get("artifact_path"):
+                issues.append(f"current_claim_tier_table[{index}].physical_gazebo_artifact_path:missing")
+            if not row.get("artifact_sha256"):
+                issues.append(f"current_claim_tier_table[{index}].physical_gazebo_artifact_sha256:missing")
     p2_boundary = step.get("p2_physical_gazebo_contact_claim_boundary", {})
     if (
         step.get("p2_reported_claim_tier") == "physical Gazebo collision/contact physics"
@@ -1371,6 +1535,7 @@ def build_audit(
                 },
             )
         )
+        same_run_issues.extend(external_same_run_artifact_content_issues(same_run_binding_payload))
         if same_run_issues:
             same_run_binding_payload = invalid_same_run_binding(same_run_binding_payload, same_run_issues)
     else:

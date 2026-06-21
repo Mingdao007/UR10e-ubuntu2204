@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
@@ -67,6 +68,40 @@ GOOD_CLAIM_TIER_TABLE = """## Current Claim Tier Table
 | P1 canonical simulated FT artifact | stamp, frame_id, source, status, baseline, and log evidence present | simulated_ft |
 | Physical Gazebo contact | `force_contact_physics_proven=false`; target tier blocked/not proven | visual_only |
 """
+
+
+def _write_json_artifact(path: Path, payload: dict[str, object]) -> str:
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _standalone_total_contact_wrench_artifact() -> dict[str, object]:
+    return {
+        "schema": "ur10e_gazebo_contact_wrench_adapter_report_v1",
+        "claim_tier": "physical Gazebo collision/contact physics",
+        "observation_scope": "standalone_p2_contact_witness",
+        "force_source": "gazebo_contact",
+        "trace_written": True,
+        "total_contact_wrench_proven": True,
+        "wrench_aggregation_policy": "total_contact_wrench",
+        "total_contact_wrench_blockers": [],
+    }
+
+
+def _per_stage_contact_artifact() -> dict[str, object]:
+    return {
+        "schema": "ur10e_per_stage_dual_sensor_contact_audit_v1",
+        "claim_tier": "physical Gazebo collision/contact physics",
+        "stage_wrench_contact_correlation": {
+            "evidence": True,
+            "status": "correlated",
+        },
+        "per_stage_physical_gazebo_contact": {
+            "per_stage_physical_gazebo_contact_proven": True,
+        },
+        "blockers": [],
+        "validation_issues": [],
+    }
 
 
 class Ur10eClaimBoundaryReportVerifierTest(unittest.TestCase):
@@ -294,26 +329,32 @@ class Ur10eClaimBoundaryReportVerifierTest(unittest.TestCase):
         self.assertFailsWith(text, "claim_tier_table_source_boundaries")
 
     def test_source_backed_standalone_physical_gazebo_row_passes(self) -> None:
-        table = """## Current Claim Tier Table
+        with tempfile.TemporaryDirectory() as tmp:
+            artifact = Path(tmp) / "p2_total_contact_wrench.json"
+            sha256 = _write_json_artifact(artifact, _standalone_total_contact_wrench_artifact())
+            table = f"""## Current Claim Tier Table
 
 | Evidence surface | Current status | Claim tier |
 |---|---|---|
-| Standalone P2 total-contact-wrench witness artifact `/tmp/p2_total_contact_wrench.json` sha256=abc123 | standalone P2 witness only; EOAT collision evidence, contact pair/log evidence, contact normal/surface relation, total contact wrench, and wrench/contact correlation are present | physical Gazebo collision/contact physics |
+| Standalone P2 total-contact-wrench witness artifact `{artifact}` sha256={sha256} | standalone P2 witness only; EOAT collision evidence, contact pair/log evidence, contact normal/surface relation, total contact wrench, and wrench/contact correlation are present | physical Gazebo collision/contact physics |
 """
-        text = _base_report(GOOD_CLAIM_GATE, extra_body=table)
-        returncode, payload = self.run_verifier(text)
+            text = _base_report(GOOD_CLAIM_GATE, extra_body=table)
+            returncode, payload = self.run_verifier(text)
         self.assertEqual(returncode, 0, payload)
         self.assertTrue(payload["ok"])
 
     def test_source_backed_per_stage_physical_gazebo_row_passes(self) -> None:
-        table = """## Current Claim Tier Table
+        with tempfile.TemporaryDirectory() as tmp:
+            artifact = Path(tmp) / "step5b_per_stage_dual_sensor_contact_audit.json"
+            sha256 = _write_json_artifact(artifact, _per_stage_contact_artifact())
+            table = f"""## Current Claim Tier Table
 
 | Evidence surface | Current status | Claim tier |
 |---|---|---|
-| Step5b per-stage dual-sensor contact audit artifact `/tmp/step5b_per_stage_dual_sensor_contact_audit.json` sha256=abc123 | per-stage audit artifact; EOAT collision evidence, contact pair/log evidence, contact normal/surface relation, total contact wrench, and wrench/contact correlation are present | physical Gazebo collision/contact physics |
+| Step5b per-stage dual-sensor contact audit artifact `{artifact}` sha256={sha256} | per-stage audit artifact; EOAT collision evidence, contact pair/log evidence, contact normal/surface relation, total contact wrench, and wrench/contact correlation are present | physical Gazebo collision/contact physics |
 """
-        text = _base_report(GOOD_CLAIM_GATE, extra_body=table)
-        returncode, payload = self.run_verifier(text)
+            text = _base_report(GOOD_CLAIM_GATE, extra_body=table)
+            returncode, payload = self.run_verifier(text)
         self.assertEqual(returncode, 0, payload)
         self.assertTrue(payload["ok"])
 

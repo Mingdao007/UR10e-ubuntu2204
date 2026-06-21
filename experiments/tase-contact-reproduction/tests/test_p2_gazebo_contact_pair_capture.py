@@ -761,6 +761,18 @@ class P2GazeboContactPairCaptureTest(unittest.TestCase):
         self.assertIn("total_contact_wrench", trace["rows"][0]["diagnostic_flags"])
         self.assertIn("total_contact_wrench_component_count=2", trace["rows"][0]["diagnostic_flags"])
 
+    def test_standalone_total_wrench_trace_forbids_stage_or_same_run_upgrade(self) -> None:
+        payload = wrench_adapter.build_wrench_trace_or_report(
+            _verified_base_frame_gazebo_total_contact_wrench_pair_log(),
+            generated_at="2026-06-21T03:10:00+08:00",
+            observation_scope=capture.STANDALONE_P2_OBSERVATION_SCOPE,
+        )
+
+        self.assertTrue(payload["total_contact_wrench_proven"])
+        self.assertEqual(payload["observation_scope"], "standalone_p2_contact_witness")
+        self.assertIn("per-stage physical Gazebo contact upgrade", payload["forbidden_claim"])
+        self.assertIn("same-run dual-sensor/integrated binding upgrade", payload["forbidden_claim"])
+
     def test_stage_scoped_wrench_adapter_write_uses_custom_filenames_and_metadata(self) -> None:
         with tempfile.TemporaryDirectory(prefix="stage_wrench_adapter_test_") as tmp:
             tmp_path = Path(tmp)
