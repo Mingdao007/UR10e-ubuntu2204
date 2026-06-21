@@ -14,6 +14,7 @@ WORKSPACE = ROOT.parents[1]
 TOOLS = ROOT / "tools"
 BUNDLE_MODULE_PATH = TOOLS / "build_p6_integrated_demo_bundle.py"
 READINESS_MODULE_PATH = TOOLS / "build_p6_integrated_demo_readiness_audit.py"
+SAME_RUN_MODULE_PATH = TOOLS / "build_same_run_integrated_binding_audit.py"
 sys.path.insert(0, str(TOOLS))
 
 
@@ -39,6 +40,11 @@ class P6IntegratedDemoBundleTest(unittest.TestCase):
             self.assertFalse(manifest["same_run_integrated_demo_proven"])
             self.assertEqual(manifest["claim_tier"], "visual_only")
             self.assertIn("not same-run integrated demo", manifest["current_claim_tier_table"][0]["current_status"])
+            observation = manifest["concurrent_observation"]
+            self.assertFalse(observation["concurrent_observation_proven"])
+            self.assertFalse(observation["same_run_concurrent_observation_explicit"])
+            self.assertIn("same_run_observation_id:missing", observation["blockers"])
+            self.assertIn("p3_visual_rviz_audit", observation["missing_surfaces"])
             self.assertTrue(manifest["simulated_ft_artifacts"])
             self.assertTrue(manifest["gazebo_gui_evidence_paths"])
             self.assertTrue(manifest["rviz_evidence_paths"])
@@ -82,9 +88,14 @@ class P6IntegratedDemoBundleTest(unittest.TestCase):
     def test_bundle_manifest_is_present_but_readiness_gate_stays_fail_closed(self) -> None:
         bundle = import_module(BUNDLE_MODULE_PATH, "build_p6_integrated_demo_bundle")
         readiness = import_module(READINESS_MODULE_PATH, "build_p6_integrated_demo_readiness_audit")
+        same_run = import_module(SAME_RUN_MODULE_PATH, "build_same_run_integrated_binding_audit")
         with tempfile.TemporaryDirectory(prefix="p6_integrated_demo_bundle_readiness_test_") as tmp:
             manifest_path = bundle.write_bundle(Path(tmp), generated_at="2026-06-21T07:45:00+08:00")
             payload = readiness.build_audit(
+                generated_at="2026-06-21T07:46:00+08:00",
+                integrated_demo_manifest_path=manifest_path,
+            )
+            same_run_payload = same_run.build_audit(
                 generated_at="2026-06-21T07:46:00+08:00",
                 integrated_demo_manifest_path=manifest_path,
             )
@@ -99,6 +110,12 @@ class P6IntegratedDemoBundleTest(unittest.TestCase):
         self.assertFalse(payload["readiness_gates"]["p6_integrated_demo_readiness_allowed"])
         self.assertNotIn("integrated_demo_manifest:not_valid", payload["readiness_gates"]["p6_integrated_demo_blockers"])
         self.assertIn("strict_rnn_final_acceptance:not_proven", payload["readiness_gates"]["p6_integrated_demo_blockers"])
+        self.assertFalse(same_run_payload["same_run_integrated_demo_proven"])
+        self.assertNotIn("manifest.concurrent_observation:missing", same_run_payload["validation_issues"])
+        self.assertIn(
+            "manifest.concurrent_observation.same_run_concurrent_observation_explicit:not_true",
+            same_run_payload["validation_issues"],
+        )
 
 
 if __name__ == "__main__":

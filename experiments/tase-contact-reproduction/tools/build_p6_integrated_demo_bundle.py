@@ -62,6 +62,13 @@ CLAIM_TIERS = [
     "real bench/live contact",
 ]
 CONTACT_STAGE_IDS = ["step5b", "step5d", "step6b", "step7", "step8"]
+CONCURRENT_OBSERVATION_REQUIRED_SURFACES = [
+    "p3_visual_rviz_audit",
+    "stage_simulated_ft_manifest",
+    "step_status_rnn_audit",
+    "p2_contact_correlation_audit",
+    "tcp_distance_evidence",
+]
 SURFACE_NORMAL_BASE = [0.0, 0.0, 1.0]
 CONTACT_SURFACE_TOP_Z_M = float(step5b_mvp.CONTACT_SURFACE_Z_M)
 
@@ -685,6 +692,28 @@ def write_source_evidence(
     }
 
 
+def negative_concurrent_observation() -> dict[str, Any]:
+    return {
+        "observation_id": None,
+        "same_run_concurrent_observation_explicit": False,
+        "concurrent_observation_proven": False,
+        "time_window": {
+            "start": None,
+            "end": None,
+            "clock_source": None,
+        },
+        "surfaces": [],
+        "missing_surfaces": CONCURRENT_OBSERVATION_REQUIRED_SURFACES,
+        "required_surfaces": CONCURRENT_OBSERVATION_REQUIRED_SURFACES,
+        "blockers": [
+            "cross_run_retained_evidence_bundle:not_concurrent_observation",
+            "same_run_observation_id:missing",
+            "same_run_time_window:missing",
+        ],
+        "forbidden_claim": "same-run integrated demo; same-run dual-sensor observation; full UR10e reproduction acceptance",
+    }
+
+
 def write_bundle(
     output_dir: Path,
     *,
@@ -694,7 +723,7 @@ def write_bundle(
     p2_audit_path: Path = DEFAULT_P2_AUDIT,
     step_status_audit_path: Path = DEFAULT_STEP_STATUS_AUDIT,
 ) -> Path:
-    generated = generated_at or datetime.now().isoformat(timespec="seconds")
+    generated = generated_at or datetime.now().astimezone().isoformat(timespec="seconds")
     output_dir.mkdir(parents=True, exist_ok=True)
     plots_dir = output_dir / "plots"
     data_dir = output_dir / "data"
@@ -818,6 +847,7 @@ def write_bundle(
             "step_rnn_physical_gazebo_contact_same_run": False,
             "binding_status": "cross_run_evidence_only",
         },
+        "concurrent_observation": negative_concurrent_observation(),
         "platform_trajectory_evidence": source_evidence["platform_trajectory_evidence"],
         "eoat_tooling_evidence": source_evidence["eoat_tooling_evidence"],
         "contact_surface_evidence": source_evidence["contact_surface_evidence"],
