@@ -353,6 +353,52 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
         self.assertEqual(payload["source_artifacts"]["timed_audit_coverage"], str(timed_path))
         self.assertNotIn("timed_audit_coverage:not_verified", payload["full_goal_acceptance_gate"]["full_goal_acceptance_blockers"])
 
+    def test_readiness_can_bind_external_same_run_artifact(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="p6_external_same_run_fixture_") as tmp:
+            root = Path(tmp)
+            p3_path = root / "p3.json"
+            step_path = root / "step.json"
+            manifest_path = root / "manifest.json"
+            same_run_path = root / "same_run_integrated_binding_audit.json"
+            p3_path.write_text(json.dumps(_p3_payload(), indent=2), encoding="utf-8")
+            step_path.write_text(json.dumps(_step_payload(strict_ready=True), indent=2), encoding="utf-8")
+            manifest_path.write_text(json.dumps(_demo_manifest_payload(root), indent=2), encoding="utf-8")
+            same_run_path.write_text(
+                json.dumps(
+                    {
+                        "schema": "ur10e_same_run_integrated_binding_audit_v1",
+                        "same_run_integrated_demo_proven": True,
+                        "binding_status": "same_run_integrated_demo_proven",
+                        "target_run_id": "fixture",
+                        "missing_surfaces": [],
+                        "cross_run_surfaces": [],
+                        "validation_issues": [],
+                        "artifact_rows": [],
+                        "manifest_same_run_binding": {
+                            "visual_rviz_simulated_ft_same_run": True,
+                            "visual_rviz_physical_gazebo_contact_same_run": True,
+                            "step_rnn_physical_gazebo_contact_same_run": True,
+                        },
+                        "blocker": None,
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            payload = audit.build_audit(
+                generated_at="2026-06-21T07:21:00+08:00",
+                p3_audit_path=p3_path,
+                step_status_audit_path=step_path,
+                integrated_demo_manifest_path=manifest_path,
+                same_run_binding_path=same_run_path,
+                handoff_root=root / "missing_handoffs",
+            )
+
+        self.assertTrue(payload["same_run_binding"]["same_run_integrated_demo_proven"])
+        self.assertEqual(payload["source_artifacts"]["same_run_integrated_binding"], str(same_run_path))
+        self.assertNotIn("same_run_integrated_binding:not_proven", payload["full_goal_acceptance_gate"]["full_goal_acceptance_blockers"])
+
     def test_demo_manifest_requires_all_plots_with_units_frame_and_claim_labels(self) -> None:
         audit = import_audit_module()
         with tempfile.TemporaryDirectory(prefix="p6_plot_gate_fixture_") as tmp:

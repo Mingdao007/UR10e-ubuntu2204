@@ -22,6 +22,9 @@ from build_timed_audit_coverage_audit import (
     GOAL_START_AT as TIMED_AUDIT_GOAL_START_AT,
     timed_audit_coverage_summary as build_timed_audit_coverage_summary,
 )
+from build_same_run_integrated_binding_audit import (
+    build_audit as build_same_run_integrated_binding_audit,
+)
 
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
@@ -472,6 +475,7 @@ def full_goal_blockers(
     step: dict[str, Any],
     p6_blockers: list[str],
     timed_audit_coverage: dict[str, Any],
+    same_run_binding: dict[str, Any],
 ) -> list[str]:
     blockers = [f"p6:{blocker}" for blocker in p6_blockers]
     if step["standalone_p2_physical_witness"] and not step["stage_specific_contact_physics_proven"]:
@@ -482,7 +486,8 @@ def full_goal_blockers(
         blockers.append("same_run_dual_sensor_observation:not_proven")
     if not step["strict_rnn_final_acceptance"]:
         blockers.append("strict_rnn_final_acceptance:not_proven")
-    blockers.append("same_run_integrated_binding:not_proven")
+    if not same_run_binding["same_run_integrated_demo_proven"]:
+        blockers.append("same_run_integrated_binding:not_proven")
     if not timed_audit_coverage["full_acceptance_timed_audit_ready"]:
         blockers.append("timed_audit_coverage:not_verified")
     blockers.append("real_bench_live_contact:not_authorized")
@@ -542,6 +547,7 @@ def build_audit(
     integrated_demo_manifest_path: Path | None = None,
     handoff_root: Path = HANDOFF_ROOT,
     timed_audit_coverage_path: Path | None = None,
+    same_run_binding_path: Path | None = None,
 ) -> dict[str, Any]:
     generated = generated_at or datetime.now().isoformat(timespec="seconds")
     p3_payload = load_json(p3_audit_path)
@@ -558,11 +564,53 @@ def build_audit(
             generated_at=generated,
             goal_start_at=TIMED_AUDIT_GOAL_START_AT,
         )
+    if same_run_binding_path is not None:
+        same_run_binding_payload = load_json(same_run_binding_path)
+    else:
+        same_run_binding_payload = build_same_run_integrated_binding_audit(
+            generated_at=generated,
+            integrated_demo_manifest_path=integrated_demo_manifest_path,
+        )
+    same_run_binding = {
+        "same_run_integrated_demo_proven": bool(
+            same_run_binding_payload.get("same_run_integrated_demo_proven")
+        ),
+        "visual_rviz_simulated_ft_same_run": bool(
+            same_run_binding_payload
+            .get("manifest_same_run_binding", {})
+            .get("visual_rviz_simulated_ft_same_run")
+        ),
+        "visual_rviz_physical_gazebo_contact_same_run": bool(
+            same_run_binding_payload
+            .get("manifest_same_run_binding", {})
+            .get("visual_rviz_physical_gazebo_contact_same_run")
+        ),
+        "step_rnn_physical_gazebo_contact_same_run": bool(
+            same_run_binding_payload
+            .get("manifest_same_run_binding", {})
+            .get("step_rnn_physical_gazebo_contact_same_run")
+        ),
+        "binding_status": same_run_binding_payload.get("binding_status", "cross_run_evidence_only"),
+        "artifact": rel(same_run_binding_path),
+        "target_run_id": same_run_binding_payload.get("target_run_id"),
+        "missing_surfaces": same_run_binding_payload.get("missing_surfaces", []),
+        "cross_run_surfaces": same_run_binding_payload.get("cross_run_surfaces", []),
+        "validation_issues": same_run_binding_payload.get("validation_issues", []),
+        "artifact_rows": same_run_binding_payload.get("artifact_rows", []),
+        "blocker": same_run_binding_payload.get("blocker"),
+        "cross_run_evidence": [
+            "P3 visual/RViz audit is a retained visual_only evidence run.",
+            "P1 per-stage simulated FT pack is a retained simulated_ft evidence pack.",
+            "0708 P2 physical Gazebo contact is a standalone witness.",
+            "Step/RNN status is a report-level matrix that binds evidence scopes but is not an integrated run.",
+        ],
+    }
     p6_blockers = build_blockers(p3=p3, step=step, demo_manifest=demo_manifest)
     final_blockers = full_goal_blockers(
         step=step,
         p6_blockers=p6_blockers,
         timed_audit_coverage=timed_audit_coverage,
+        same_run_binding=same_run_binding,
     )
     source_artifacts = {
         "p3_visual_rviz_audit": rel(p3_audit_path),
@@ -570,6 +618,7 @@ def build_audit(
         "integrated_demo_manifest": demo_manifest["manifest_path"],
         "tcp_distance_evidence": demo_manifest.get("tcp_distance_evidence", {}).get("path"),
         "timed_audit_coverage": rel(timed_audit_coverage_path),
+        "same_run_integrated_binding": rel(same_run_binding_path),
         "p1_simulated_ft_manifest": (
             step_payload.get("source_artifacts", {}).get("stage_simulated_ft_manifest")
             if isinstance(step_payload.get("source_artifacts"), dict)
@@ -607,20 +656,7 @@ def build_audit(
             key: sha256_file(value)
             for key, value in source_artifacts.items()
         },
-        "same_run_binding": {
-            "same_run_integrated_demo_proven": False,
-            "visual_rviz_simulated_ft_same_run": False,
-            "visual_rviz_physical_gazebo_contact_same_run": False,
-            "step_rnn_physical_gazebo_contact_same_run": False,
-            "binding_status": "cross_run_evidence_only",
-            "cross_run_evidence": [
-                "P3 visual/RViz audit is a retained visual_only evidence run.",
-                "P1 per-stage simulated FT pack is a retained simulated_ft evidence pack.",
-                "0708 P2 physical Gazebo contact is a standalone witness.",
-                "Step/RNN v8 is a report-level matrix that binds evidence scopes but is not an integrated run.",
-            ],
-            "blocker": "No same-run P6 manifest binds visual, RViz, simulated FT, Step/RNN, and Gazebo contact physics evidence.",
-        },
+        "same_run_binding": same_run_binding,
         "timed_audit_coverage": timed_audit_coverage,
         "p3_visual_rviz": p3,
         "step_status_rnn": step,
@@ -656,6 +692,7 @@ def write_audit(
     integrated_demo_manifest_path: Path | None = None,
     handoff_root: Path = HANDOFF_ROOT,
     timed_audit_coverage_path: Path | None = None,
+    same_run_binding_path: Path | None = None,
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     path = output_dir / "p6_integrated_demo_readiness_audit.json"
@@ -666,6 +703,7 @@ def write_audit(
         integrated_demo_manifest_path=integrated_demo_manifest_path,
         handoff_root=handoff_root,
         timed_audit_coverage_path=timed_audit_coverage_path,
+        same_run_binding_path=same_run_binding_path,
     )
     payload["artifact_path"] = str(path)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -681,6 +719,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--integrated-demo-manifest", type=Path, default=None)
     parser.add_argument("--handoff-root", type=Path, default=HANDOFF_ROOT)
     parser.add_argument("--timed-audit-coverage", type=Path, default=None)
+    parser.add_argument("--same-run-binding", type=Path, default=None)
     return parser.parse_args(argv)
 
 
@@ -694,6 +733,7 @@ def main(argv: list[str] | None = None) -> int:
         integrated_demo_manifest_path=args.integrated_demo_manifest,
         handoff_root=args.handoff_root,
         timed_audit_coverage_path=args.timed_audit_coverage,
+        same_run_binding_path=args.same_run_binding,
     )
     print(path)
     return 0
