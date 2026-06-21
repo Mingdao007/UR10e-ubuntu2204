@@ -1365,6 +1365,34 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             self.assertIn("/opt/ros/humble/lib", env["IGN_GAZEBO_SYSTEM_PLUGIN_PATH"].split(":"))
             self.assertIn("/opt/ros/humble/lib", env["GZ_SIM_SYSTEM_PLUGIN_PATH"].split(":"))
 
+    def test_plugin_path_preflight_payload_is_offline_visual_only(self) -> None:
+        with mock.patch.dict(gui_row.os.environ, {}, clear=True):
+            payload = gui_row.build_plugin_path_preflight(display=":97", local_ros_prefix=None)
+
+        self.assertEqual(payload["schema"], gui_row.PLUGIN_PATH_PREFLIGHT_SCHEMA)
+        self.assertEqual(payload["claim_tier"], "visual_only")
+        self.assertFalse(payload["starts_gazebo"])
+        self.assertFalse(payload["starts_bridge"])
+        self.assertFalse(payload["live_robot_command_authorized"])
+        if Path("/opt/ros/humble/lib/libign_ros2_control-system.so").is_file():
+            self.assertTrue(payload["ready_for_row_plugin_load"])
+            self.assertIsNone(payload["blocker"])
+            self.assertIn("/opt/ros/humble/lib", payload["env"]["IGN_GAZEBO_SYSTEM_PLUGIN_PATH"].split(":"))
+
+    def test_plugin_path_preflight_command_writes_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "plugin_path_preflight.json"
+            args = gui_row.parse_args(["plugin-path-preflight", "--output", str(output), "--display", ":97"])
+            with mock.patch.dict(gui_row.os.environ, {}, clear=True):
+                rc = gui_row.run_plugin_path_preflight(args)
+
+            payload = json.loads(output.read_text(encoding="utf-8"))
+            if Path("/opt/ros/humble/lib/libign_ros2_control-system.so").is_file():
+                self.assertEqual(rc, 0)
+                self.assertTrue(payload["ready_for_row_plugin_load"])
+            self.assertEqual(payload["mode"], "offline_no_gazebo_plugin_path_preflight")
+            self.assertFalse(payload["starts_gazebo"])
+
     def _write_gui_row_fixture(self, run_dir: Path, *, observer_review: bool) -> Path:
         case_dir = gui_row.row_case_dir(run_dir, "step5b", "close_detail")
         (case_dir / "runner").mkdir(parents=True)

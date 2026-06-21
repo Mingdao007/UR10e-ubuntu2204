@@ -55,6 +55,9 @@ VISIBLE_GAZEBO_OVERLAP_SCHEMA = "ur10e_visible_gazebo_overlap_preflight_v1"
 VISIBLE_GAZEBO_OVERLAP_RC = 43
 VISIBLE_GAZEBO_LOCK_SCHEMA = "ur10e_visible_gazebo_row_lock_preflight_v1"
 VISIBLE_GAZEBO_LOCK_RC = 44
+PLUGIN_PATH_PREFLIGHT_SCHEMA = "ur10e_gazebo_row_plugin_path_preflight_v1"
+PLUGIN_PATH_PREFLIGHT_RC = 45
+ROS_CONTROL_SYSTEM_PLUGIN_FILENAMES = ("libign_ros2_control-system.so", "libgz_ros2_control-system.so")
 DEFAULT_VISIBLE_GAZEBO_LOCK_PATH = Path("/tmp/ur10e_gazebo_visible_gui_row.lock")
 ENHANCED_MARKER_VISUAL_NAMES = frozenset(
     {
@@ -398,6 +401,70 @@ def build_row_environment(*, display: str, local_ros_prefix: Path | None) -> dic
         env["IGN_GAZEBO_SYSTEM_PLUGIN_PATH"] = _prepend(str(plugin_dir), env.get("IGN_GAZEBO_SYSTEM_PLUGIN_PATH"))
         env["GZ_SIM_SYSTEM_PLUGIN_PATH"] = _prepend(str(plugin_dir), env.get("GZ_SIM_SYSTEM_PLUGIN_PATH"))
     return env
+
+
+def run_plugin_path_preflight(args: argparse.Namespace) -> int:
+    payload = build_plugin_path_preflight(display=args.display, local_ros_prefix=args.local_ros_prefix)
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(json.dumps(payload, indent=2, sort_keys=True))
+    return 0 if payload["ready_for_row_plugin_load"] else PLUGIN_PATH_PREFLIGHT_RC
+
+
+def build_plugin_path_preflight(*, display: str, local_ros_prefix: Path | None) -> dict[str, object]:
+    env = build_row_environment(display=display, local_ros_prefix=local_ros_prefix)
+    ign_entries = _env_path_entries(env.get("IGN_GAZEBO_SYSTEM_PLUGIN_PATH"))
+    gz_entries = _env_path_entries(env.get("GZ_SIM_SYSTEM_PLUGIN_PATH"))
+    required_plugins = {
+        filename: {
+            "ign_matches": _plugin_matches(ign_entries, filename),
+            "gz_matches": _plugin_matches(gz_entries, filename),
+        }
+        for filename in ROS_CONTROL_SYSTEM_PLUGIN_FILENAMES
+    }
+    available = any(
+        details["ign_matches"] or details["gz_matches"]
+        for details in required_plugins.values()
+    )
+    return {
+        "schema": PLUGIN_PATH_PREFLIGHT_SCHEMA,
+        "generated_at": _now(),
+        "mode": "offline_no_gazebo_plugin_path_preflight",
+        "claim_tier": "visual_only",
+        "target": "isolated_gazebo_row_controller_plugin_load_readiness",
+        "ready_for_row_plugin_load": available,
+        "blocker": None if available else "ros2_control_system_plugin_not_found_in_env_path",
+        "display": display,
+        "local_ros_prefix": str(local_ros_prefix.resolve()) if local_ros_prefix else "",
+        "plugin_dirs": [str(path) for path in gazebo_system_plugin_lib_dirs(local_ros_prefix)],
+        "env": {
+            "IGN_GAZEBO_SYSTEM_PLUGIN_PATH": env.get("IGN_GAZEBO_SYSTEM_PLUGIN_PATH", ""),
+            "GZ_SIM_SYSTEM_PLUGIN_PATH": env.get("GZ_SIM_SYSTEM_PLUGIN_PATH", ""),
+        },
+        "required_plugins": required_plugins,
+        "starts_gazebo": False,
+        "starts_xvfb": False,
+        "starts_bridge": False,
+        "live_robot_command_authorized": False,
+        "tp_load_play_authorized": False,
+        "urscript_send_authorized": False,
+        "zero_ftsensor_authorized": False,
+        "payload_tcp_safety_writes_authorized": False,
+        "forbidden_claim": (
+            "Gazebo action readiness; row-local contact pair/log; native plus total Gazebo contact wrench; "
+            "same-run dual-sensor binding; real bench/live contact"
+        ),
+    }
+
+
+def _env_path_entries(value: str | None) -> list[str]:
+    if not value:
+        return []
+    return [entry for entry in value.split(os.pathsep) if entry]
+
+
+def _plugin_matches(entries: list[str], filename: str) -> list[str]:
+    return [str(Path(entry) / filename) for entry in entries if (Path(entry) / filename).is_file()]
 
 
 def build_row_summary(
@@ -2069,6 +2136,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     summary.add_argument("--run-dir", type=Path, required=True)
     summary.add_argument("--output", type=Path)
     summary.set_defaults(func=run_summary)
+
+    plugin_preflight = subparsers.add_parser(
+        "plugin-path-preflight",
+        help="write an offline Gazebo row plugin-path readiness artifact without launching Gazebo",
+    )
+    plugin_preflight.add_argument("--output", type=Path, required=True)
+    plugin_preflight.add_argument("--local-ros-prefix", type=Path)
+    plugin_preflight.add_argument("--display", default=":0")
+    plugin_preflight.set_defaults(func=run_plugin_path_preflight)
     return parser.parse_args(argv)
 
 
