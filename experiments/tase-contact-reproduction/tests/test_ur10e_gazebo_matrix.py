@@ -1350,6 +1350,21 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
         if Path("/opt/ros/humble/lib/libign_ros2_control-system.so").is_file():
             self.assertIn(Path("/opt/ros/humble/lib"), plugin_dirs)
 
+    def test_gui_row_plugin_path_includes_ros_control_plugin_dirs_without_local_prefix(self) -> None:
+        plugin_dirs = gui_row.gazebo_system_plugin_lib_dirs(None)
+
+        if Path("/opt/ros/humble/lib/libign_ros2_control-system.so").is_file():
+            self.assertIn(Path("/opt/ros/humble/lib"), plugin_dirs)
+
+    def test_gui_row_environment_sets_ros_control_plugin_path_without_local_prefix(self) -> None:
+        with mock.patch.dict(gui_row.os.environ, {}, clear=True):
+            env = gui_row.build_row_environment(display=":97", local_ros_prefix=None)
+
+        self.assertEqual(env["DISPLAY"], ":97")
+        if Path("/opt/ros/humble/lib/libign_ros2_control-system.so").is_file():
+            self.assertIn("/opt/ros/humble/lib", env["IGN_GAZEBO_SYSTEM_PLUGIN_PATH"].split(":"))
+            self.assertIn("/opt/ros/humble/lib", env["GZ_SIM_SYSTEM_PLUGIN_PATH"].split(":"))
+
     def _write_gui_row_fixture(self, run_dir: Path, *, observer_review: bool) -> Path:
         case_dir = gui_row.row_case_dir(run_dir, "step5b", "close_detail")
         (case_dir / "runner").mkdir(parents=True)

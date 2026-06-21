@@ -85,16 +85,7 @@ def run_row(args: argparse.Namespace) -> int:
     case_dir.mkdir(parents=True, exist_ok=True)
     world_dir.mkdir(parents=True, exist_ok=True)
 
-    env = os.environ.copy()
-    env["DISPLAY"] = args.display
-    env["PYTHONPATH"] = _prepend(str(SRC_PACKAGE), env.get("PYTHONPATH"))
-    if args.local_ros_prefix:
-        prefix = str(args.local_ros_prefix.resolve())
-        env["AMENT_PREFIX_PATH"] = _prepend(prefix, env.get("AMENT_PREFIX_PATH"))
-        env["LD_LIBRARY_PATH"] = _prepend(str(Path(prefix) / "lib"), env.get("LD_LIBRARY_PATH"))
-        for plugin_dir in gazebo_system_plugin_lib_dirs(args.local_ros_prefix):
-            env["IGN_GAZEBO_SYSTEM_PLUGIN_PATH"] = _prepend(str(plugin_dir), env.get("IGN_GAZEBO_SYSTEM_PLUGIN_PATH"))
-            env["GZ_SIM_SYSTEM_PLUGIN_PATH"] = _prepend(str(plugin_dir), env.get("GZ_SIM_SYSTEM_PLUGIN_PATH"))
+    env = build_row_environment(display=args.display, local_ros_prefix=args.local_ros_prefix)
 
     _write_trace(
         trace_path,
@@ -393,6 +384,20 @@ def run_row(args: argparse.Namespace) -> int:
 
 def row_case_dir(run_dir: Path, stage: str, view: str) -> Path:
     return run_dir / "matrix_gui_real_aligned" / stage / view
+
+
+def build_row_environment(*, display: str, local_ros_prefix: Path | None) -> dict[str, str]:
+    env = os.environ.copy()
+    env["DISPLAY"] = display
+    env["PYTHONPATH"] = _prepend(str(SRC_PACKAGE), env.get("PYTHONPATH"))
+    if local_ros_prefix:
+        prefix = str(local_ros_prefix.resolve())
+        env["AMENT_PREFIX_PATH"] = _prepend(prefix, env.get("AMENT_PREFIX_PATH"))
+        env["LD_LIBRARY_PATH"] = _prepend(str(Path(prefix) / "lib"), env.get("LD_LIBRARY_PATH"))
+    for plugin_dir in gazebo_system_plugin_lib_dirs(local_ros_prefix):
+        env["IGN_GAZEBO_SYSTEM_PLUGIN_PATH"] = _prepend(str(plugin_dir), env.get("IGN_GAZEBO_SYSTEM_PLUGIN_PATH"))
+        env["GZ_SIM_SYSTEM_PLUGIN_PATH"] = _prepend(str(plugin_dir), env.get("GZ_SIM_SYSTEM_PLUGIN_PATH"))
+    return env
 
 
 def build_row_summary(
