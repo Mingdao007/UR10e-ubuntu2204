@@ -12,6 +12,7 @@ import argparse
 from datetime import datetime
 import hashlib
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -192,6 +193,7 @@ def contact_pair_summary(payload: dict[str, Any], *, stage_id: str) -> dict[str,
     rows = payload.get("rows") if isinstance(payload.get("rows"), list) else []
     parse_issues = payload.get("parse_issues") if isinstance(payload.get("parse_issues"), list) else []
     matching_rows = [row for row in rows if isinstance(row, dict) and _row_has_eoat_surface_contact_pair(row)]
+    valid_matching_rows = [row for row in matching_rows if _valid_contact_pair_row(row)]
     native_rows = [row for row in matching_rows if isinstance(row.get("native_gazebo_contact_wrench"), dict)]
     raw_wrench_rows = [row for row in matching_rows if _int(row.get("raw_gazebo_contact_wrench_count")) > 0]
     issues: list[str] = []
@@ -203,10 +205,17 @@ def contact_pair_summary(payload: dict[str, Any], *, stage_id: str) -> dict[str,
         issues.append("stage_contact_pair_log:no_rows")
     if not matching_rows:
         issues.append("stage_contact_pair_log:no_stage_eoat_surface_pair")
+    elif not valid_matching_rows:
+        issues.extend(f"stage_contact_pair_log.matching_row.{issue}" for issue in contact_pair_row_issues(matching_rows[0]))
     same_run_scope = payload.get("observation_scope") == SAME_RUN_STAGE_OBSERVATION_SCOPE
     if not same_run_scope:
         issues.append("stage_contact_pair_log.observation_scope:not_same_run_stage_gazebo_row")
-    evidence = bool(rows and matching_rows and not parse_issues and payload.get("schema") == "ur10e_gazebo_contact_pair_log_v1")
+    evidence = bool(
+        rows
+        and valid_matching_rows
+        and not parse_issues
+        and payload.get("schema") == "ur10e_gazebo_contact_pair_log_v1"
+    )
     return {
         "stage_id": stage_id,
         "present": bool(payload),
@@ -217,9 +226,10 @@ def contact_pair_summary(payload: dict[str, Any], *, stage_id: str) -> dict[str,
         "claim_tier": payload.get("claim_tier", "visual_only"),
         "row_count": len(rows),
         "matching_row_count": len(matching_rows),
+        "valid_matching_row_count": len(valid_matching_rows),
         "native_wrench_row_count": len(native_rows),
         "raw_wrench_row_count": len(raw_wrench_rows),
-        "first_matching_row": matching_rows[0] if matching_rows else None,
+        "first_matching_row": valid_matching_rows[0] if valid_matching_rows else (matching_rows[0] if matching_rows else None),
         "evidence": evidence,
         "validation_issues": issues,
     }
@@ -241,9 +251,47 @@ def _is_surface_collision(name: str) -> bool:
     return "contact_surface" in name or "surface::collision" in name
 
 
+def _valid_contact_pair_row(row: dict[str, Any]) -> bool:
+    return not contact_pair_row_issues(row)
+
+
+def contact_pair_row_issues(row: dict[str, Any]) -> list[str]:
+    issues: list[str] = []
+    if _float(row.get("stamp_s")) is None:
+        issues.append("stamp_s:missing")
+    if not _valid_vec3(row.get("position_m")):
+        issues.append("position_m:invalid")
+    if not _valid_unit_vec3(row.get("normal")):
+        issues.append("normal:not_unit_vec3")
+    if row.get("normal_source") != "gazebo_contact_message_normal":
+        issues.append("normal_source:not_gazebo_contact_message_normal")
+    if _int(row.get("contact_count")) <= 0:
+        issues.append("contact_count:zero")
+    return issues
+
+
+def _valid_vec3(value: Any) -> bool:
+    if not isinstance(value, list) or len(value) != 3:
+        return False
+    try:
+        values = [float(item) for item in value]
+    except (TypeError, ValueError):
+        return False
+    return all(math.isfinite(item) for item in values)
+
+
+def _valid_unit_vec3(value: Any, *, tolerance: float = 1e-3) -> bool:
+    if not _valid_vec3(value):
+        return False
+    values = [float(item) for item in value]
+    norm = math.sqrt(sum(item * item for item in values))
+    return abs(norm - 1.0) <= tolerance
+
+
 def contact_wrench_adapter_summary(payload: dict[str, Any]) -> dict[str, Any]:
     trace = payload.get("wrench_trace") if isinstance(payload.get("wrench_trace"), dict) else {}
     rows = trace.get("rows") if isinstance(trace.get("rows"), list) else []
+    valid_total_contact_rows = [row for row in rows if isinstance(row, dict) and total_contact_wrench_row_valid(row)]
     present = bool(payload)
     same_run_scope = payload.get("observation_scope") == SAME_RUN_STAGE_OBSERVATION_SCOPE
     proven = bool(
@@ -259,6 +307,7 @@ def contact_wrench_adapter_summary(payload: dict[str, Any]) -> dict[str, Any]:
         and _int(payload.get("total_contact_wrench_row_count")) > 0
         and not payload.get("blockers")
         and bool(rows)
+        and bool(valid_total_contact_rows)
     )
     issues: list[str] = []
     if not present:
@@ -277,6 +326,8 @@ def contact_wrench_adapter_summary(payload: dict[str, Any]) -> dict[str, Any]:
         issues.append("stage_contact_wrench_adapter.verified_native_wrench_row_count:zero")
     if present and not rows:
         issues.append("stage_contact_wrench_adapter.trace_rows:missing")
+    if present and rows and not valid_total_contact_rows:
+        issues.append("stage_contact_wrench_adapter.trace_rows.total_contact_wrench_row:missing")
     if present and payload.get("blockers"):
         issues.append("stage_contact_wrench_adapter.blockers:not_empty")
     return {
@@ -290,11 +341,27 @@ def contact_wrench_adapter_summary(payload: dict[str, Any]) -> dict[str, Any]:
         "native_wrench_row_count": _int(payload.get("native_wrench_row_count")),
         "verified_native_wrench_row_count": _int(payload.get("verified_native_wrench_row_count")),
         "total_contact_wrench_row_count": _int(payload.get("total_contact_wrench_row_count")),
+        "valid_total_contact_wrench_row_count": len(valid_total_contact_rows),
         "total_contact_wrench_proven": proven,
         "wrench_aggregation_policy": payload.get("wrench_aggregation_policy"),
         "rows": rows,
         "validation_issues": issues,
     }
+
+
+def total_contact_wrench_row_valid(row: dict[str, Any]) -> bool:
+    header = row.get("header") if isinstance(row.get("header"), dict) else {}
+    flags = row.get("diagnostic_flags") if isinstance(row.get("diagnostic_flags"), list) else []
+    return bool(
+        _float(header.get("stamp_s")) is not None
+        and header.get("frame_id") == "base"
+        and row.get("source") == "gazebo_contact"
+        and row.get("status") == "valid"
+        and row.get("contact_state") == "contact"
+        and row.get("baseline_policy") == "gazebo_contact_zero_no_contact_baseline"
+        and (_float(row.get("normal_load_n")) or 0.0) > 0.0
+        and "total_contact_wrench" in {str(flag) for flag in flags}
+    )
 
 
 def correlate_wrench_to_contact(adapter: dict[str, Any], contact_pair: dict[str, Any], *, tolerance_s: float) -> dict[str, Any]:

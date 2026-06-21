@@ -156,6 +156,7 @@ def adapter_payload() -> dict[str, object]:
                     "contact_state": "contact",
                     "normal_load_n": 12.5,
                     "baseline_policy": "gazebo_contact_zero_no_contact_baseline",
+                    "diagnostic_flags": ["gazebo_contact_wrench_adapter", "total_contact_wrench"],
                 }
             ],
         },
@@ -265,10 +266,15 @@ class PerStageDualSensorContactAuditTest(unittest.TestCase):
         self.assertEqual(payload["stage_id"], "step5b")
         self.assertEqual(payload["claim_tier"], "simulated_ft")
         self.assertTrue(payload["stage_simulated_ft"]["valid"])
-        self.assertTrue(payload["stage_contact_pair_log"]["evidence"])
+        self.assertFalse(payload["stage_contact_pair_log"]["evidence"])
+        self.assertEqual(payload["stage_contact_pair_log"]["valid_matching_row_count"], 0)
         self.assertEqual(payload["stage_contact_pair_log"]["native_wrench_row_count"], 0)
         self.assertFalse(payload["per_stage_physical_gazebo_contact"]["per_stage_physical_gazebo_contact_proven"])
         self.assertFalse(payload["same_run_stage_dual_sensor_observation"]["same_run_stage_dual_sensor_observation_proven"])
+        self.assertIn(
+            "stage_contact_pair_log.matching_row.normal_source:not_gazebo_contact_message_normal",
+            payload["validation_issues"],
+        )
         self.assertIn("stage_total_contact_wrench:not_proven", payload["blockers"])
 
     def test_accepts_complete_stage_specific_same_run_fixture(self) -> None:
@@ -334,6 +340,52 @@ class PerStageDualSensorContactAuditTest(unittest.TestCase):
         self.assertIn("stage_contact_pair_log.observation_scope:not_same_run_stage_gazebo_row", payload["validation_issues"])
         self.assertIn(
             "stage_contact_wrench_adapter.observation_scope:not_same_run_stage_gazebo_row",
+            payload["validation_issues"],
+        )
+
+    def test_blocks_contact_pair_without_gazebo_message_normal(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="stage_dual_sensor_bad_normal_", dir=RUNS) as tmp:
+            paths = write_fixture(Path(tmp), include_adapter=True, include_observation=False)
+            contact = json.loads(paths["contact"].read_text(encoding="utf-8"))
+            contact["rows"][0]["normal_source"] = "derived_from_static_contact_surface_normal"
+            write_json(paths["contact"], contact)
+            payload = audit.build_audit(
+                generated_at="2026-06-21T16:56:06+08:00",
+                stage_row_summary_path=paths["row"],
+                stage_contact_pair_log_path=paths["contact"],
+                stage_simulated_ft_manifest_path=paths["manifest"],
+                step_status_audit_path=paths["step"],
+                stage_contact_wrench_adapter_path=paths["adapter"],
+            )
+
+        self.assertFalse(payload["stage_contact_pair_log"]["evidence"])
+        self.assertFalse(payload["per_stage_physical_gazebo_contact"]["per_stage_physical_gazebo_contact_proven"])
+        self.assertIn(
+            "stage_contact_pair_log.matching_row.normal_source:not_gazebo_contact_message_normal",
+            payload["validation_issues"],
+        )
+
+    def test_blocks_adapter_trace_row_without_total_wrench_diagnostic_flag(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="stage_dual_sensor_missing_total_flag_", dir=RUNS) as tmp:
+            paths = write_fixture(Path(tmp), include_adapter=True, include_observation=False)
+            adapter = json.loads(paths["adapter"].read_text(encoding="utf-8"))
+            adapter["wrench_trace"]["rows"][0]["diagnostic_flags"] = ["gazebo_contact_wrench_adapter"]
+            write_json(paths["adapter"], adapter)
+            payload = audit.build_audit(
+                generated_at="2026-06-21T16:56:06+08:00",
+                stage_row_summary_path=paths["row"],
+                stage_contact_pair_log_path=paths["contact"],
+                stage_simulated_ft_manifest_path=paths["manifest"],
+                step_status_audit_path=paths["step"],
+                stage_contact_wrench_adapter_path=paths["adapter"],
+            )
+
+        self.assertFalse(payload["stage_contact_wrench_adapter"]["total_contact_wrench_proven"])
+        self.assertFalse(payload["per_stage_physical_gazebo_contact"]["per_stage_physical_gazebo_contact_proven"])
+        self.assertIn(
+            "stage_contact_wrench_adapter.trace_rows.total_contact_wrench_row:missing",
             payload["validation_issues"],
         )
 

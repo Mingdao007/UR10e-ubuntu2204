@@ -141,6 +141,8 @@ def build_manifest(
         validation_issues.append("time_window.end:missing")
     if not clock_source.strip():
         validation_issues.append("time_window.clock_source:missing")
+    if time_start.strip() and time_end.strip() and not time_window_order_valid(time_start.strip(), time_end.strip()):
+        validation_issues.append("time_window.order:invalid")
     if missing_surfaces:
         validation_issues.append("required_stage_surfaces:missing:" + ",".join(sorted(missing_surfaces)))
     if cross_run_surfaces:
@@ -151,6 +153,9 @@ def build_manifest(
     content_validation = validate_surface_content(
         stage_id=stage_id,
         observation_id=observation_id.strip(),
+        time_start=time_start,
+        time_end=time_end,
+        clock_source=clock_source,
         surfaces=surfaces,
     )
     validation_issues.extend(content_validation["validation_issues"])
@@ -201,19 +206,29 @@ def validate_surface_content(
     *,
     stage_id: str,
     observation_id: str,
+    time_start: str,
+    time_end: str,
+    clock_source: str,
     surfaces: dict[str, Path | None],
 ) -> dict[str, Any]:
+    expected_time_window = {
+        "start": time_start.strip(),
+        "end": time_end.strip(),
+        "clock_source": clock_source.strip(),
+    }
     checks = {
         "stage_row_summary": stage_row_summary_issues(stage_id, load_json_if_file(surfaces.get("stage_row_summary"))),
         "stage_contact_pair_log": contact_pair_log_issues(
             load_json_if_file(surfaces.get("stage_contact_pair_log")),
             stage_id=stage_id,
             observation_id=observation_id,
+            expected_time_window=expected_time_window,
         ),
         "stage_contact_wrench_adapter": contact_wrench_adapter_issues(
             load_json_if_file(surfaces.get("stage_contact_wrench_adapter")),
             stage_id=stage_id,
             observation_id=observation_id,
+            expected_time_window=expected_time_window,
         ),
         "stage_simulated_ft_manifest": stage_simulated_ft_manifest_issues(
             stage_id,
@@ -250,7 +265,13 @@ def stage_row_summary_issues(stage_id: str, payload: dict[str, Any]) -> list[str
     return issues
 
 
-def contact_pair_log_issues(payload: dict[str, Any], *, stage_id: str, observation_id: str) -> list[str]:
+def contact_pair_log_issues(
+    payload: dict[str, Any],
+    *,
+    stage_id: str,
+    observation_id: str,
+    expected_time_window: dict[str, str],
+) -> list[str]:
     issues: list[str] = []
     if payload.get("_load_error"):
         return [f"stage_contact_pair_log.unreadable:{payload['_load_error']}"]
@@ -262,7 +283,7 @@ def contact_pair_log_issues(payload: dict[str, Any], *, stage_id: str, observati
         issues.append("stage_contact_pair_log.observation_id:mismatch_or_missing")
     if payload.get("observation_scope") != SAME_RUN_STAGE_OBSERVATION_SCOPE:
         issues.append("stage_contact_pair_log.observation_scope:not_same_run_stage_gazebo_row")
-    issues.extend(time_window_issues("stage_contact_pair_log", payload))
+    issues.extend(time_window_issues("stage_contact_pair_log", payload, expected_time_window=expected_time_window))
     if payload.get("parse_issues"):
         issues.append("stage_contact_pair_log.parse_issues:not_empty")
     rows = payload.get("rows") if isinstance(payload.get("rows"), list) else []
@@ -286,7 +307,13 @@ def contact_pair_log_issues(payload: dict[str, Any], *, stage_id: str, observati
     return issues
 
 
-def contact_wrench_adapter_issues(payload: dict[str, Any], *, stage_id: str, observation_id: str) -> list[str]:
+def contact_wrench_adapter_issues(
+    payload: dict[str, Any],
+    *,
+    stage_id: str,
+    observation_id: str,
+    expected_time_window: dict[str, str],
+) -> list[str]:
     issues: list[str] = []
     if payload.get("_load_error"):
         return [f"stage_contact_wrench_adapter.unreadable:{payload['_load_error']}"]
@@ -298,7 +325,7 @@ def contact_wrench_adapter_issues(payload: dict[str, Any], *, stage_id: str, obs
         issues.append("stage_contact_wrench_adapter.observation_id:mismatch_or_missing")
     if payload.get("observation_scope") != SAME_RUN_STAGE_OBSERVATION_SCOPE:
         issues.append("stage_contact_wrench_adapter.observation_scope:not_same_run_stage_gazebo_row")
-    issues.extend(time_window_issues("stage_contact_wrench_adapter", payload))
+    issues.extend(time_window_issues("stage_contact_wrench_adapter", payload, expected_time_window=expected_time_window))
     if payload.get("claim_tier") != "physical Gazebo collision/contact physics":
         issues.append("stage_contact_wrench_adapter.claim_tier:not_physical_gazebo_contact")
     if payload.get("force_source") != "gazebo_contact":
@@ -326,16 +353,36 @@ def contact_wrench_adapter_issues(payload: dict[str, Any], *, stage_id: str, obs
     return issues
 
 
-def time_window_issues(surface: str, payload: dict[str, Any]) -> list[str]:
+def time_window_issues(
+    surface: str,
+    payload: dict[str, Any],
+    *,
+    expected_time_window: dict[str, str],
+) -> list[str]:
     window = payload.get("time_window") if isinstance(payload.get("time_window"), dict) else {}
     issues: list[str] = []
     if not window.get("start"):
         issues.append(f"{surface}.time_window.start:missing")
+    elif window.get("start") != expected_time_window.get("start"):
+        issues.append(f"{surface}.time_window.start:mismatch")
     if not window.get("end"):
         issues.append(f"{surface}.time_window.end:missing")
+    elif window.get("end") != expected_time_window.get("end"):
+        issues.append(f"{surface}.time_window.end:mismatch")
     if not window.get("clock_source"):
         issues.append(f"{surface}.time_window.clock_source:missing")
+    elif window.get("clock_source") != expected_time_window.get("clock_source"):
+        issues.append(f"{surface}.time_window.clock_source:mismatch")
     return issues
+
+
+def time_window_order_valid(start: str, end: str) -> bool:
+    try:
+        start_dt = datetime.fromisoformat(start)
+        end_dt = datetime.fromisoformat(end)
+    except ValueError:
+        return False
+    return start_dt < end_dt
 
 
 def _valid_gazebo_contact_wrench_row(row: dict[str, Any]) -> bool:
