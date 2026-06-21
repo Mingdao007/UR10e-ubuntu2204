@@ -83,6 +83,42 @@ class StrictRnnLocalAdaptationAuditTest(unittest.TestCase):
         self.assertEqual(dryrun["evidence"]["contact_evidence"], "not_claimed")
         self.assertEqual(dryrun["evidence"]["numeric_sanity_force_input"], "synthetic_no_contact_unit_normal")
 
+    def test_pdf_anchor_qdot_sanity_reduces_bound_mismatch_without_final_acceptance(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="strict_rnn_qdot_anchor_test_") as tmp:
+            numeric_path = Path(tmp) / "step5d_numeric_sanity.json"
+            numeric_path.write_text(
+                json.dumps(
+                    {
+                        "overall_pass": True,
+                        "assumptions": {
+                            "alpha_s_inv": 1.0,
+                            "T_s": 0.002,
+                            "qdot_limit_rad_s": 0.15,
+                            "sigr_exponent_r": 0.2,
+                            "force_input": "synthetic_environment_on_tool_force_along_reaction_normal",
+                            "contact_evidence": "not_claimed",
+                        },
+                        "gates": {"qdot_within_nominal_limit_pass": True},
+                        "metrics": {"qdot_max_abs_rad_s": 0.15},
+                        "outputs": {"summary_json": str(numeric_path)},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            payload = audit.build_audit(
+                generated_at="2026-06-21T14:20:00+08:00",
+                numeric_sanity_path=numeric_path,
+            )
+
+        rows = {row["field"]: row for row in payload["field_rows"]}
+        qdot = rows["local_qdot_bound_rad_s"]
+        self.assertEqual(qdot["status"], "local_pdf_anchor_bound_sanity_passed_not_final_acceptance")
+        self.assertEqual(qdot["evidence"]["local_numeric_sanity_bound_rad_s"], 0.15)
+        self.assertEqual(qdot["evidence"]["numeric_qdot_max_abs_rad_s"], 0.15)
+        self.assertTrue(qdot["evidence"]["qdot_within_nominal_limit_pass"])
+        self.assertFalse(qdot["supports_strict_rnn_final_acceptance"])
+        self.assertFalse(payload["strict_rnn_final_acceptance_allowed"])
+
     def test_write_audit_creates_json_artifact(self) -> None:
         with tempfile.TemporaryDirectory(prefix="strict_rnn_local_adaptation_test_") as tmp:
             path = audit.write_audit(Path(tmp), generated_at="2026-06-21T10:42:00+08:00")

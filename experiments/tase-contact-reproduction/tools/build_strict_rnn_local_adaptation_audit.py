@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime
 import json
+import math
 from pathlib import Path
 import tempfile
 from typing import Any
@@ -135,6 +136,24 @@ def field_rows(
     assumptions = numeric_sanity.get("assumptions", {}) if isinstance(numeric_sanity.get("assumptions"), dict) else {}
     gates = numeric_sanity.get("gates", {}) if isinstance(numeric_sanity.get("gates"), dict) else {}
     metrics = numeric_sanity.get("metrics", {}) if isinstance(numeric_sanity.get("metrics"), dict) else {}
+    local_qdot_bound = assumptions.get("qdot_limit_rad_s")
+    qdot_matches_pdf_anchor = (
+        isinstance(local_qdot_bound, (int, float))
+        and math.isclose(float(local_qdot_bound), 0.15, rel_tol=0.0, abs_tol=1e-9)
+        and bool(gates.get("qdot_within_nominal_limit_pass"))
+        and bool(numeric_sanity.get("overall_pass"))
+    )
+    qdot_status = (
+        "local_pdf_anchor_bound_sanity_passed_not_final_acceptance"
+        if qdot_matches_pdf_anchor
+        else "blocked_local_bound_differs_from_pdf_anchor"
+    )
+    qdot_blocker = (
+        "PDF Section VI +/-0.15 rad/s bound is matched by offline no-contact structural sanity, "
+        "but strict RNN final acceptance remains blocked by paper-truth/local-adaptation gates"
+        if qdot_matches_pdf_anchor
+        else "current local full-chain sanity uses 0.30 rad/s while PDF Section VI anchor is +/-0.15 rad/s"
+    )
     return [
         {
             "field": "Eq23_nonzero_command_stability",
@@ -169,15 +188,17 @@ def field_rows(
         {
             "field": "local_qdot_bound_rad_s",
             "claim_tier": "virtual/software force-loop",
-            "status": "blocked_local_bound_differs_from_pdf_anchor",
+            "status": qdot_status,
             "supports_strict_rnn_final_acceptance": False,
             "evidence": {
                 "pdf_section_vi_bound_rad_s": 0.15,
-                "local_numeric_sanity_bound_rad_s": assumptions.get("qdot_limit_rad_s"),
+                "local_numeric_sanity_bound_rad_s": local_qdot_bound,
                 "numeric_qdot_max_abs_rad_s": metrics.get("qdot_max_abs_rad_s"),
                 "qdot_within_nominal_limit_pass": gates.get("qdot_within_nominal_limit_pass"),
+                "numeric_sanity_overall_pass": numeric_sanity.get("overall_pass"),
+                "outputs": numeric_sanity.get("outputs", {}),
             },
-            "blocker": "current local full-chain sanity uses 0.30 rad/s while PDF Section VI anchor is +/-0.15 rad/s",
+            "blocker": qdot_blocker,
         },
         {
             "field": "production_sigr_exponent_r",
@@ -252,11 +273,15 @@ def pending_fields(payload: dict[str, Any]) -> list[str]:
     return sorted(pending)
 
 
-def build_audit(*, generated_at: str | None = None) -> dict[str, Any]:
+def build_audit(
+    *,
+    generated_at: str | None = None,
+    numeric_sanity_path: Path = NUMERIC_SANITY,
+) -> dict[str, Any]:
     generated = generated_at or datetime.now().isoformat(timespec="seconds")
     paper_truth = load_json(PAPER_TRUTH)
     pdf_audit = load_json(PDF_AUDIT) if PDF_AUDIT.exists() else {}
-    numeric_sanity = load_json(NUMERIC_SANITY) if NUMERIC_SANITY.exists() else {}
+    numeric_sanity = load_json(numeric_sanity_path) if numeric_sanity_path.exists() else {}
     nonzero_probe = nonzero_command_stability_probe()
     rows = field_rows(
         paper_truth=paper_truth,
@@ -298,7 +323,7 @@ def build_audit(*, generated_at: str | None = None) -> dict[str, Any]:
         "paper_truth_pending_fields": pending,
         "pdf_audit": rel(PDF_AUDIT) if PDF_AUDIT.exists() else None,
         "pdf_audit_ok": bool(pdf_audit.get("audit_ok")),
-        "numeric_sanity": rel(NUMERIC_SANITY) if NUMERIC_SANITY.exists() else None,
+        "numeric_sanity": rel(numeric_sanity_path) if numeric_sanity_path.exists() else None,
         "numeric_sanity_overall_pass": bool(numeric_sanity.get("overall_pass")),
         "field_rows": rows,
         "supports_final_acceptance_count": supports_final_count,
@@ -318,10 +343,15 @@ def build_audit(*, generated_at: str | None = None) -> dict[str, Any]:
     }
 
 
-def write_audit(output_dir: Path, *, generated_at: str | None = None) -> Path:
+def write_audit(
+    output_dir: Path,
+    *,
+    generated_at: str | None = None,
+    numeric_sanity_path: Path = NUMERIC_SANITY,
+) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     path = output_dir / "strict_rnn_local_adaptation_audit.json"
-    payload = build_audit(generated_at=generated_at)
+    payload = build_audit(generated_at=generated_at, numeric_sanity_path=numeric_sanity_path)
     payload["artifact_path"] = str(path)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return path
@@ -331,12 +361,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--generated-at", default=None)
+    parser.add_argument("--numeric-sanity", type=Path, default=NUMERIC_SANITY)
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    print(write_audit(args.output_dir, generated_at=args.generated_at))
+    print(
+        write_audit(
+            args.output_dir,
+            generated_at=args.generated_at,
+            numeric_sanity_path=args.numeric_sanity,
+        )
+    )
     return 0
 
 
