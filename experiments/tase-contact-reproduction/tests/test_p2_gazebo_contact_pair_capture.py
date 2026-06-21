@@ -526,6 +526,16 @@ class P2GazeboContactPairCaptureTest(unittest.TestCase):
         self.assertEqual(payload["claim_tier"], "visual_only")
         self.assertEqual(payload["target_claim_tier"], "physical Gazebo collision/contact physics")
         self.assertIn("missing_native_gazebo_wrench_or_force_vector", payload["blockers"])
+        self.assertEqual(payload["blocker_summary"]["missing_native_gazebo_wrench_or_force_vector"], 1)
+        self.assertEqual(payload["evidence_contract"]["accepted_frame_id"], "base")
+        self.assertIn(
+            "inferred force from contact position/normal/depth",
+            payload["evidence_contract"]["forbidden_force_sources"],
+        )
+        self.assertEqual(len(payload["row_diagnostics"]), 1)
+        self.assertFalse(payload["row_diagnostics"][0]["native_wrench_present"])
+        self.assertFalse(payload["row_diagnostics"][0]["verified_native_wrench"])
+        self.assertIn("missing_native_gazebo_wrench_or_force_vector", payload["row_diagnostics"][0]["blockers"])
         self.assertIsNone(payload["wrench_trace"])
 
     def test_untransformed_native_gazebo_wrench_log_refuses_physical_trace(self) -> None:
@@ -545,6 +555,11 @@ class P2GazeboContactPairCaptureTest(unittest.TestCase):
         self.assertEqual(payload["native_wrench_row_count"], 1)
         self.assertEqual(payload["verified_native_wrench_row_count"], 0)
         self.assertIn("missing_base_frame_transform_evidence", payload["blockers"])
+        self.assertTrue(payload["row_diagnostics"][0]["native_wrench_present"])
+        self.assertEqual(payload["row_diagnostics"][0]["native_wrench_frame_id"], "gazebo_contact_message_native_frame")
+        self.assertEqual(payload["row_diagnostics"][0]["native_wrench_status"], "raw_untransformed")
+        self.assertFalse(payload["row_diagnostics"][0]["verified_native_wrench"])
+        self.assertIn("missing_base_frame_transform_evidence", payload["row_diagnostics"][0]["blockers"])
 
     def test_untransformed_gz_native_wrench_log_refuses_physical_trace(self) -> None:
         contact_payload = capture.contact_pair_log_from_json_lines(
@@ -567,6 +582,9 @@ class P2GazeboContactPairCaptureTest(unittest.TestCase):
         self.assertIn("missing_base_frame_transform_evidence", payload["blockers"])
         self.assertIn("native_wrench_status_not_valid", payload["blockers"])
         self.assertIn("no_positive_normal_load_from_native_gazebo_wrench", payload["blockers"])
+        self.assertEqual(payload["row_diagnostics"][0]["native_wrench_source_schema"], "gz.msgs.Contact.contact.wrench")
+        self.assertEqual(payload["row_diagnostics"][0]["native_wrench_force_source_class"], contract.SOURCE_GAZEBO_CONTACT)
+        self.assertEqual(payload["row_diagnostics"][0]["native_wrench_baseline_policy"], "gazebo_contact_zero_no_contact_baseline_unverified")
 
     def test_simulated_ft_or_commanded_force_inside_contact_log_is_refused(self) -> None:
         payload = wrench_adapter.build_wrench_trace_or_report(

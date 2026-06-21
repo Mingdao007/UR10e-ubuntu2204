@@ -200,6 +200,89 @@ def _dedupe(values: list[str]) -> list[str]:
     return list(dict.fromkeys(values))
 
 
+def _blocker_summary(blockers: list[str]) -> dict[str, int]:
+    summary: dict[str, int] = {}
+    for blocker in blockers:
+        summary[blocker] = summary.get(blocker, 0) + 1
+    return dict(sorted(summary.items()))
+
+
+def _row_diagnostic(row: dict[str, Any], *, sequence: int) -> dict[str, Any]:
+    native = _raw_native_wrench(row)
+    blockers = _native_wrench_blockers(row)
+    expected_body, expected_collision = _expected_eoat_wrench_side(row)
+    return {
+        "sequence": sequence,
+        "claim_tier": PHYSICAL_GAZEBO_CLAIM_TIER if not blockers else BLOCKED_CLAIM_TIER,
+        "stamp_s": row.get("stamp_s"),
+        "stamp_evidence": row.get("stamp_evidence") is True,
+        "collision1": row.get("collision1"),
+        "collision2": row.get("collision2"),
+        "expected_eoat_wrench_body": expected_body,
+        "expected_eoat_wrench_collision": expected_collision,
+        "contact_count": _contact_count(row),
+        "normal_source": row.get("normal_source"),
+        "has_depth_m": row.get("depth_m") is not None,
+        "legacy_force_field_present": "native_wrench" in row or "force_n" in row,
+        "native_wrench_present": native is not None,
+        "native_wrench_source": native.get("source") if native else None,
+        "native_wrench_source_schema": native.get("source_schema") if native else None,
+        "native_wrench_force_source_class": native.get("force_source_class") if native else None,
+        "native_wrench_frame_id": native.get("frame_id") if native else None,
+        "native_wrench_status": native.get("status") if native else None,
+        "native_wrench_baseline_policy": native.get("baseline_policy") if native else None,
+        "native_wrench_stamp_s": native.get("wrench_stamp_s") if native else None,
+        "native_wrench_stamp_evidence": native.get("wrench_stamp_evidence") is True if native else False,
+        "frame_transform_evidence_type": type(native.get("frame_transform_evidence")).__name__ if native else None,
+        "verified_native_wrench": _verified_native_wrench(row) is not None,
+        "blockers": blockers,
+    }
+
+
+def _malformed_row_diagnostic(row: Any, *, sequence: int) -> dict[str, Any]:
+    return {
+        "sequence": sequence,
+        "claim_tier": BLOCKED_CLAIM_TIER,
+        "native_wrench_present": False,
+        "verified_native_wrench": False,
+        "blockers": ["malformed_contact_pair_row"],
+        "row_type": type(row).__name__,
+    }
+
+
+def _evidence_contract() -> dict[str, Any]:
+    return {
+        "required_native_fields": list(REQUIRED_NATIVE_FIELDS),
+        "accepted_native_wrench_source": ALLOWED_NATIVE_WRENCH_SOURCE,
+        "accepted_native_wrench_schemas": sorted(ALLOWED_NATIVE_WRENCH_SCHEMAS),
+        "accepted_force_source_class": contract.SOURCE_GAZEBO_CONTACT,
+        "accepted_frame_id": "base",
+        "accepted_status": "valid",
+        "accepted_baseline_policy": "gazebo_contact_zero_no_contact_baseline",
+        "required_transform_evidence_fields": [
+            "source",
+            "from_frame=gazebo_contact_message_native_frame",
+            "to_frame=base",
+            "stamp_s",
+            "artifact_path",
+        ],
+        "forbidden_force_sources": [
+            "simulated_ft",
+            "virtual/software force-loop",
+            "inferred force from contact position/normal/depth",
+            "legacy row-level force_n/native_wrench fields without Gazebo provenance",
+            "real bench/live contact",
+        ],
+        "next_capture_requirements": [
+            "Gazebo contact row contains native_gazebo_contact_wrench",
+            "native wrench selected body is the EOAT collision side of the EOAT/surface pair",
+            "native wrench is transformed to base with timestamped transform evidence",
+            "native wrench status is valid and baseline policy is gazebo_contact_zero_no_contact_baseline",
+            "normal_load_n = dot(force_base, reaction_normal) is positive",
+        ],
+    }
+
+
 def _sample_from_row(row: dict[str, Any], *, sequence: int) -> contract.CanonicalWrenchSample | None:
     native = _verified_native_wrench(row)
     if native is None or _contact_count(row) <= 0:
@@ -253,13 +336,16 @@ def build_wrench_trace_or_report(
         1 for row in rows if isinstance(row, dict) and _verified_native_wrench(row) is not None
     )
     blockers: list[str] = []
+    row_diagnostics: list[dict[str, Any]] = []
     samples: list[contract.CanonicalWrenchSample] = []
     if contact_pair_payload.get("parse_issues"):
         blockers.append("contact_pair_parse_issues_present")
     for sequence, row in enumerate(rows):
         if not isinstance(row, dict):
             blockers.append("malformed_contact_pair_row")
+            row_diagnostics.append(_malformed_row_diagnostic(row, sequence=sequence))
             continue
+        row_diagnostics.append(_row_diagnostic(row, sequence=sequence))
         row_blockers = _native_wrench_blockers(row)
         blockers.extend(row_blockers)
         if not row_blockers:
@@ -268,9 +354,11 @@ def build_wrench_trace_or_report(
                 blockers.append("verified_native_wrench_sample_build_failed")
             else:
                 samples.append(sample)
+    blocker_summary = _blocker_summary(blockers)
     blockers = _dedupe(blockers)
     if not rows:
         blockers = ["missing_contact_pair_rows"]
+        blocker_summary = _blocker_summary(blockers)
     trace = contract.trace_payload(samples, source_topic=source_topic) if samples and not blockers else None
     return {
         "schema": REPORT_SCHEMA,
@@ -299,6 +387,9 @@ def build_wrench_trace_or_report(
         "native_wrench_row_count": native_wrench_row_count,
         "verified_native_wrench_row_count": verified_native_wrench_row_count,
         "required_native_fields": list(REQUIRED_NATIVE_FIELDS),
+        "evidence_contract": _evidence_contract(),
+        "row_diagnostics": row_diagnostics,
+        "blocker_summary": blocker_summary,
         "blockers": blockers,
         "claim_boundary_gate": {
             "visual_only_inputs_do_not_prove_force": True,
