@@ -153,7 +153,11 @@ def _demo_manifest_payload(root: Path, *, tcp_distance_supported: bool = True) -
 class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
     def test_default_current_artifacts_block_p6_without_demo_manifest(self) -> None:
         audit = import_audit_module()
-        payload = audit.build_audit(generated_at="2026-06-21T07:15:00+08:00")
+        with tempfile.TemporaryDirectory(prefix="p6_empty_timed_audit_fixture_") as tmp:
+            payload = audit.build_audit(
+                generated_at="2026-06-21T07:15:00+08:00",
+                handoff_root=Path(tmp),
+            )
 
         self.assertEqual(payload["schema"], "ur10e_p6_integrated_demo_readiness_audit_v1")
         self.assertEqual(payload["claim_boundary_gate"]["tiers"], EXPECTED_TIERS)
@@ -180,6 +184,7 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
         self.assertIn("real_bench_live_contact:not_authorized", final_gate["full_goal_acceptance_blockers"])
         self.assertFalse(payload["same_run_binding"]["same_run_integrated_demo_proven"])
         self.assertFalse(payload["timed_audit_coverage"]["full_acceptance_timed_audit_ready"])
+        self.assertEqual(payload["timed_audit_coverage"]["latest_opus_record"]["status"], "missing")
         self.assertEqual(len(payload["stage_status_matrix"]), 8)
 
     def test_fixture_with_valid_manifest_still_requires_upstream_step_acceptance(self) -> None:
@@ -197,6 +202,7 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
                 p3_audit_path=p3_path,
                 step_status_audit_path=step_path,
                 integrated_demo_manifest_path=manifest_path,
+                handoff_root=root / "missing_handoffs",
             )
 
         self.assertTrue(payload["integrated_demo_manifest"]["valid"])
@@ -217,6 +223,77 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
         )
         self.assertIn("total_contact_wrench:not_proven", payload["full_goal_acceptance_gate"]["full_goal_acceptance_blockers"])
         self.assertIn("same_run_integrated_binding:not_proven", payload["full_goal_acceptance_gate"]["full_goal_acceptance_blockers"])
+        self.assertIn("timed_audit_coverage:not_verified", payload["full_goal_acceptance_gate"]["full_goal_acceptance_blockers"])
+
+    def test_timed_audit_coverage_summarizes_prompt_only_triplet(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="p6_timed_prompt_only_fixture_") as tmp:
+            root = Path(tmp)
+            for lens in ["visual-observer", "geometry-frame", "report-claim"]:
+                (root / f"ur10e-gazebo-hour7-{lens}-subagent-prompt-20260621-075742.md").write_text(
+                    "prompt\n",
+                    encoding="utf-8",
+                )
+            summary = audit.timed_audit_coverage_summary(root)
+
+        self.assertFalse(summary["full_acceptance_timed_audit_ready"])
+        self.assertEqual(summary["latest_opus_record"]["status"], "missing")
+        self.assertEqual(summary["prompt_only_subagent_triplet_hours"], [7])
+        self.assertEqual(summary["incomplete_subagent_triplet_hours"], [7])
+        self.assertEqual(summary["hourly_subagent_triplets"][0]["missing_result_lenses"], [
+            "geometry-frame",
+            "report-claim",
+            "visual-observer",
+        ])
+
+    def test_timed_audit_coverage_accepts_complete_triplet_and_opus_zero(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="p6_timed_complete_fixture_") as tmp:
+            root = Path(tmp)
+            for lens in ["visual-observer", "geometry-frame", "report-claim"]:
+                (root / f"ur10e-gazebo-hour7-{lens}-subagent-prompt-20260621-075742.md").write_text(
+                    "prompt\n",
+                    encoding="utf-8",
+                )
+                (root / f"ur10e-gazebo-hour7-{lens}-subagent-result-20260621-075742.md").write_text(
+                    "result\n",
+                    encoding="utf-8",
+                )
+            base = root / "ur10e-gazebo-hour7-opus-advisory-response-20260621-075742"
+            base.with_suffix(".stdout.txt").write_text("advice\n", encoding="utf-8")
+            base.with_suffix(".stderr.txt").write_text("", encoding="utf-8")
+            base.with_suffix(".exitcode.txt").write_text("0\n", encoding="utf-8")
+            summary = audit.timed_audit_coverage_summary(root)
+
+        self.assertTrue(summary["full_acceptance_timed_audit_ready"])
+        self.assertEqual(summary["latest_opus_record"]["status"], "complete")
+        self.assertEqual(summary["complete_subagent_triplet_count"], 1)
+        self.assertEqual(summary["incomplete_subagent_triplet_hours"], [])
+        self.assertEqual(summary["missing_subagent_triplet_sequence_hours"], [])
+
+    def test_timed_audit_coverage_blocks_numbered_hour_gaps(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="p6_timed_gap_fixture_") as tmp:
+            root = Path(tmp)
+            for hour in [4, 7]:
+                for lens in ["visual-observer", "geometry-frame", "report-claim"]:
+                    (root / f"ur10e-gazebo-hour{hour}-{lens}-subagent-prompt-20260621-075742.md").write_text(
+                        "prompt\n",
+                        encoding="utf-8",
+                    )
+                    (root / f"ur10e-gazebo-hour{hour}-{lens}-subagent-result-20260621-075742.md").write_text(
+                        "result\n",
+                        encoding="utf-8",
+                    )
+            base = root / "ur10e-gazebo-hour7-opus-advisory-response-20260621-075742"
+            base.with_suffix(".stdout.txt").write_text("advice\n", encoding="utf-8")
+            base.with_suffix(".stderr.txt").write_text("", encoding="utf-8")
+            base.with_suffix(".exitcode.txt").write_text("0\n", encoding="utf-8")
+            summary = audit.timed_audit_coverage_summary(root)
+
+        self.assertFalse(summary["full_acceptance_timed_audit_ready"])
+        self.assertEqual(summary["missing_subagent_triplet_sequence_hours"], [5, 6])
+        self.assertIn("hourly subagent triplet sequence has gaps", summary["unresolved_p0_p1_findings"])
 
     def test_demo_manifest_requires_all_plots_with_units_frame_and_claim_labels(self) -> None:
         audit = import_audit_module()

@@ -16,6 +16,7 @@ from datetime import datetime
 import hashlib
 import json
 from pathlib import Path
+import re
 from typing import Any
 
 
@@ -23,6 +24,7 @@ EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
 WORKSPACE = EXPERIMENT_ROOT.parents[1]
 RUNS = EXPERIMENT_ROOT / "runs"
 GOAL_LINEAGE = "/home/andy/codex_handoffs/ur10e-gazebo-17h-sim-ft-rnn-goal-prompt-20260621-0056.md"
+HANDOFF_ROOT = Path("/home/andy/codex_handoffs")
 
 DEFAULT_P3_AUDIT = (
     RUNS
@@ -64,6 +66,9 @@ REQUIRED_PLOTS = [
     "gravity_residual",
 ]
 OPTIONAL_UNSUPPORTED_PLOTS = {"gravity_residual"}
+SUBAGENT_RECORD_RE = re.compile(
+    r"ur10e-gazebo-hour(?P<hour>\d+)-(?P<lens>visual-observer|geometry-frame|report-claim)-subagent-(?P<kind>prompt|result)-"
+)
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -98,6 +103,136 @@ def sha256_file(path: str | None) -> str | None:
         for chunk in iter(lambda: fh.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _sorted_files(root: Path, pattern: str) -> list[Path]:
+    if not root.is_dir():
+        return []
+    return sorted(root.glob(pattern), key=lambda path: path.name)
+
+
+def _rel_handoff(path: Path | None) -> str | None:
+    if path is None:
+        return None
+    try:
+        return str(path.resolve())
+    except OSError:
+        return str(path)
+
+
+def timed_audit_coverage_summary(handoff_root: Path = HANDOFF_ROOT) -> dict[str, Any]:
+    """Summarize timed Opus/subagent records without upgrading acceptance."""
+    expected_lenses = {"visual-observer", "geometry-frame", "report-claim"}
+    hours: dict[str, dict[str, Any]] = {}
+    for path in _sorted_files(handoff_root, "ur10e-gazebo-hour*-subagent-*.md"):
+        match = SUBAGENT_RECORD_RE.search(path.name)
+        if not match:
+            continue
+        hour = match.group("hour")
+        lens = match.group("lens")
+        kind = match.group("kind")
+        item = hours.setdefault(
+            hour,
+            {
+                "hour": int(hour),
+                "prompt_lenses": [],
+                "result_lenses": [],
+                "prompt_paths": {},
+                "result_paths": {},
+            },
+        )
+        if kind == "prompt":
+            item["prompt_paths"][lens] = _rel_handoff(path)
+            if lens not in item["prompt_lenses"]:
+                item["prompt_lenses"].append(lens)
+        else:
+            item["result_paths"][lens] = _rel_handoff(path)
+            if lens not in item["result_lenses"]:
+                item["result_lenses"].append(lens)
+
+    triplets: list[dict[str, Any]] = []
+    for hour in sorted(hours, key=lambda value: int(value)):
+        item = hours[hour]
+        prompt_lenses = set(item["prompt_lenses"])
+        result_lenses = set(item["result_lenses"])
+        item["prompt_lenses"] = sorted(prompt_lenses)
+        item["result_lenses"] = sorted(result_lenses)
+        item["missing_prompt_lenses"] = sorted(expected_lenses - prompt_lenses)
+        item["missing_result_lenses"] = sorted(expected_lenses - result_lenses)
+        item["triplet_prompt_complete"] = not item["missing_prompt_lenses"]
+        item["triplet_result_complete"] = not item["missing_result_lenses"]
+        item["status"] = "complete" if item["triplet_result_complete"] else "incomplete"
+        triplets.append(item)
+
+    opus_exitcodes = _sorted_files(handoff_root, "ur10e-gazebo-hour*-opus-*response-*.exitcode.txt")
+    latest_opus_exitcode = opus_exitcodes[-1] if opus_exitcodes else None
+    latest_opus_record: dict[str, Any] = {
+        "status": "missing",
+        "exit_code": None,
+        "exitcode_path": None,
+        "stdout_path": None,
+        "stderr_path": None,
+    }
+    if latest_opus_exitcode is not None:
+        try:
+            exit_code_text = latest_opus_exitcode.read_text(encoding="utf-8").strip()
+        except OSError:
+            exit_code_text = "unreadable"
+        stem = latest_opus_exitcode.name.removesuffix(".exitcode.txt")
+        stdout_path = latest_opus_exitcode.with_name(stem + ".stdout.txt")
+        stderr_path = latest_opus_exitcode.with_name(stem + ".stderr.txt")
+        latest_opus_record = {
+            "status": "complete" if exit_code_text == "0" and stdout_path.is_file() else "failed_or_incomplete",
+            "exit_code": exit_code_text,
+            "exitcode_path": _rel_handoff(latest_opus_exitcode),
+            "stdout_path": _rel_handoff(stdout_path) if stdout_path.is_file() else None,
+            "stderr_path": _rel_handoff(stderr_path) if stderr_path.is_file() else None,
+        }
+
+    prompt_only_hours = [item["hour"] for item in triplets if item["triplet_prompt_complete"] and not item["triplet_result_complete"]]
+    incomplete_hours = [item["hour"] for item in triplets if not item["triplet_result_complete"]]
+    observed_hours = [item["hour"] for item in triplets]
+    missing_sequence_hours: list[int] = []
+    if observed_hours:
+        observed_set = set(observed_hours)
+        missing_sequence_hours = [
+            hour
+            for hour in range(min(observed_hours), max(observed_hours) + 1)
+            if hour not in observed_set
+        ]
+    full_ready = bool(
+        triplets
+        and not incomplete_hours
+        and not missing_sequence_hours
+        and latest_opus_record["status"] == "complete"
+    )
+    unresolved: list[str] = []
+    if latest_opus_record["status"] != "complete":
+        unresolved.append("latest Opus advisory checkpoint missing or nonzero")
+    if incomplete_hours:
+        unresolved.append("hourly subagent triplet results incomplete")
+    if missing_sequence_hours:
+        unresolved.append("hourly subagent triplet sequence has gaps")
+    unresolved.extend(
+        [
+            "P6 integrated demo run/report missing",
+            "strict RNN final acceptance not proven",
+            "standalone P2 witness is not per-stage contact physics",
+        ]
+    )
+    return {
+        "full_acceptance_timed_audit_ready": full_ready,
+        "claim_tier": "visual_only",
+        "handoff_root": _rel_handoff(handoff_root),
+        "latest_opus_record": latest_opus_record,
+        "hourly_subagent_triplets": triplets,
+        "complete_subagent_triplet_count": sum(1 for item in triplets if item["triplet_result_complete"]),
+        "incomplete_subagent_triplet_hours": incomplete_hours,
+        "missing_subagent_triplet_sequence_hours": missing_sequence_hours,
+        "prompt_only_subagent_triplet_hours": prompt_only_hours,
+        "unresolved_p0_p1_findings": unresolved,
+        "blocker": "Timed Opus and hourly subagent coverage must be verified before any full acceptance claim.",
+    }
 
 
 def claim_boundary_gate() -> dict[str, Any]:
@@ -425,7 +560,12 @@ def build_blockers(
     return blockers
 
 
-def full_goal_blockers(*, step: dict[str, Any], p6_blockers: list[str]) -> list[str]:
+def full_goal_blockers(
+    *,
+    step: dict[str, Any],
+    p6_blockers: list[str],
+    timed_audit_coverage: dict[str, Any],
+) -> list[str]:
     blockers = [f"p6:{blocker}" for blocker in p6_blockers]
     if step["standalone_p2_physical_witness"] and not step["stage_specific_contact_physics_proven"]:
         blockers.append("per_stage_physical_gazebo_contact:not_proven")
@@ -436,7 +576,8 @@ def full_goal_blockers(*, step: dict[str, Any], p6_blockers: list[str]) -> list[
     if not step["strict_rnn_final_acceptance"]:
         blockers.append("strict_rnn_final_acceptance:not_proven")
     blockers.append("same_run_integrated_binding:not_proven")
-    blockers.append("timed_audit_coverage:not_verified")
+    if not timed_audit_coverage["full_acceptance_timed_audit_ready"]:
+        blockers.append("timed_audit_coverage:not_verified")
     blockers.append("real_bench_live_contact:not_authorized")
     return blockers
 
@@ -492,6 +633,7 @@ def build_audit(
     p3_audit_path: Path = DEFAULT_P3_AUDIT,
     step_status_audit_path: Path = DEFAULT_STEP_STATUS_AUDIT,
     integrated_demo_manifest_path: Path | None = None,
+    handoff_root: Path = HANDOFF_ROOT,
 ) -> dict[str, Any]:
     generated = generated_at or datetime.now().isoformat(timespec="seconds")
     p3_payload = load_json(p3_audit_path)
@@ -499,8 +641,13 @@ def build_audit(
     p3 = p3_visual_rviz_summary(p3_payload, path=p3_audit_path)
     step = step_status_summary(step_payload, path=step_status_audit_path)
     demo_manifest = validate_demo_manifest(integrated_demo_manifest_path)
+    timed_audit_coverage = timed_audit_coverage_summary(handoff_root)
     p6_blockers = build_blockers(p3=p3, step=step, demo_manifest=demo_manifest)
-    final_blockers = full_goal_blockers(step=step, p6_blockers=p6_blockers)
+    final_blockers = full_goal_blockers(
+        step=step,
+        p6_blockers=p6_blockers,
+        timed_audit_coverage=timed_audit_coverage,
+    )
     source_artifacts = {
         "p3_visual_rviz_audit": rel(p3_audit_path),
         "step_status_rnn_audit": rel(step_status_audit_path),
@@ -557,17 +704,7 @@ def build_audit(
             ],
             "blocker": "No same-run P6 manifest binds visual, RViz, simulated FT, Step/RNN, and Gazebo contact physics evidence.",
         },
-        "timed_audit_coverage": {
-            "full_acceptance_timed_audit_ready": False,
-            "latest_opus_record": "not_verified_by_p6_json_gate",
-            "hourly_subagent_triplets": "not_verified_by_p6_json_gate",
-            "unresolved_p0_p1_findings": [
-                "P6 integrated demo run/report missing",
-                "strict RNN final acceptance not proven",
-                "standalone P2 witness is not per-stage contact physics",
-            ],
-            "blocker": "Timed Opus and hourly subagent coverage must be verified before any full acceptance claim.",
-        },
+        "timed_audit_coverage": timed_audit_coverage,
         "p3_visual_rviz": p3,
         "step_status_rnn": step,
         "integrated_demo_manifest": demo_manifest,
@@ -600,6 +737,7 @@ def write_audit(
     p3_audit_path: Path = DEFAULT_P3_AUDIT,
     step_status_audit_path: Path = DEFAULT_STEP_STATUS_AUDIT,
     integrated_demo_manifest_path: Path | None = None,
+    handoff_root: Path = HANDOFF_ROOT,
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     path = output_dir / "p6_integrated_demo_readiness_audit.json"
@@ -608,6 +746,7 @@ def write_audit(
         p3_audit_path=p3_audit_path,
         step_status_audit_path=step_status_audit_path,
         integrated_demo_manifest_path=integrated_demo_manifest_path,
+        handoff_root=handoff_root,
     )
     payload["artifact_path"] = str(path)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -621,6 +760,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--p3-audit-path", type=Path, default=DEFAULT_P3_AUDIT)
     parser.add_argument("--step-status-audit-path", type=Path, default=DEFAULT_STEP_STATUS_AUDIT)
     parser.add_argument("--integrated-demo-manifest", type=Path, default=None)
+    parser.add_argument("--handoff-root", type=Path, default=HANDOFF_ROOT)
     return parser.parse_args(argv)
 
 
@@ -632,6 +772,7 @@ def main(argv: list[str] | None = None) -> int:
         p3_audit_path=args.p3_audit_path,
         step_status_audit_path=args.step_status_audit_path,
         integrated_demo_manifest_path=args.integrated_demo_manifest,
+        handoff_root=args.handoff_root,
     )
     print(path)
     return 0
