@@ -31,22 +31,22 @@ RUNS = EXPERIMENT_ROOT / "runs"
 GOAL_LINEAGE = "/home/andy/codex_handoffs/ur10e-gazebo-17h-sim-ft-rnn-goal-prompt-20260621-0056.md"
 P1_SIMULATED_FT = (
     RUNS
-    / "ur10e_gazebo_17h_sim_ft_rnn_20260621_0146"
-    / "p1_auditor_installed_runtime_observed_ros2_simulated_ft.json"
+    / "ur10e_gazebo_17h_sim_ft_rnn_20260621_0818_p1_sim_ft_hard_floor"
+    / "p1_simulated_ft_hard_floor_audit.json"
 )
 P2_CONTACT_PAIR_LOG = (
     RUNS
-    / "ur10e_gazebo_17h_sim_ft_rnn_20260621_0320_p2_contact_pair_capture_strict_v2"
-    / "p2_gazebo_contact_pair_log.json"
+    / "ur10e_gazebo_17h_sim_ft_rnn_20260621_0708_p2_gz_sim8_physical_contact_gate"
+    / "p2_gazebo_contact_pair_log_verified.json"
 )
 P2_WRENCH_ADAPTER_REPORT = (
     RUNS
-    / "ur10e_gazebo_17h_sim_ft_rnn_20260621_0320_p2_gazebo_contact_wrench_adapter_strict_v2"
+    / "ur10e_gazebo_17h_sim_ft_rnn_20260621_0708_p2_gz_sim8_physical_contact_gate"
     / "p2_gazebo_contact_wrench_adapter_report.json"
 )
 P2_CONTACT_CORRELATION_AUDIT = (
     RUNS
-    / "ur10e_gazebo_17h_sim_ft_rnn_20260621_0326_p2_gazebo_contact_wrench_adapter_strict_v2_correlation_audit"
+    / "ur10e_gazebo_17h_sim_ft_rnn_20260621_0708_p2_gz_sim8_physical_contact_gate"
     / "p2_contact_correlation_audit.json"
 )
 STEP5D_PAPER_TRUTH = EXPERIMENT_ROOT / "config" / "step5c_tase_paper_truth.json"
@@ -92,14 +92,56 @@ def claim_boundary_gate() -> dict[str, Any]:
 
 def p1_simulated_ft_summary(path: Path = P1_SIMULATED_FT) -> dict[str, Any]:
     payload = load_json(path)
+    if payload.get("schema") == "ur10e_p1_simulated_ft_hard_floor_audit_v1":
+        runtime_evidence = (
+            payload.get("checks", {})
+            .get("runtime_dry_run", {})
+            .get("evidence", {})
+        )
+        fields = dict(runtime_evidence.get("evidence_fields_present", {}))
+        per_stage_manifest = (
+            payload.get("checks", {})
+            .get("per_stage_pack", {})
+            .get("evidence", {})
+            .get("manifest_path")
+        )
+        return {
+            "artifact": rel(path),
+            "schema": payload.get("schema"),
+            "claim_tier": payload.get("claim_tier", "visual_only"),
+            "force_source": runtime_evidence.get("force_source"),
+            "mode": payload.get("mode"),
+            "hard_floor_ready": bool(payload.get("p1_simulated_ft_hard_floor_ready")),
+            "observed_complete": False,
+            "observed_counts": {
+                "runtime_dry_run_sample_count": runtime_evidence.get("sample_count", 0),
+                "passing_check_count": sum(
+                    1 for check in payload.get("checks", {}).values() if check.get("pass")
+                ),
+            },
+            "per_stage_simulated_ft_manifest": per_stage_manifest,
+            "evidence_fields_present": {
+                "stamp": bool(fields.get("stamp")),
+                "frame_id": bool(fields.get("frame_id")),
+                "source": bool(fields.get("source")),
+                "status": bool(fields.get("status")),
+                "baseline": bool(fields.get("baseline")),
+                "log_evidence": bool(fields.get("log_evidence")),
+            },
+            "forbidden_claim": "physical Gazebo collision/contact physics; real bench/live contact",
+        }
+
     fields = dict(payload.get("evidence_fields_present", {}))
     return {
         "artifact": rel(path),
+        "schema": payload.get("schema"),
         "claim_tier": payload.get("claim_tier", "visual_only"),
         "force_source": payload.get("force_source"),
         "mode": payload.get("mode"),
+        "hard_floor_ready": False,
         "observed_complete": bool(payload.get("observed_complete")),
         "observed_counts": payload.get("observed_counts", {}),
+        "per_stage_simulated_ft_manifest": None,
         "evidence_fields_present": {
             "stamp": bool(fields.get("stamp")),
             "frame_id": bool(fields.get("frame_id")),
@@ -110,6 +152,34 @@ def p1_simulated_ft_summary(path: Path = P1_SIMULATED_FT) -> dict[str, Any]:
         },
         "forbidden_claim": "physical Gazebo collision/contact physics; real bench/live contact",
     }
+
+
+def default_stage_sim_ft_manifest_from_p1(path: Path = P1_SIMULATED_FT) -> Path | None:
+    payload = load_json(path)
+    manifest_ref = (
+        payload.get("checks", {})
+        .get("per_stage_pack", {})
+        .get("evidence", {})
+        .get("manifest_path")
+    )
+    if not isinstance(manifest_ref, str) or not manifest_ref:
+        return None
+    manifest_path = Path(manifest_ref)
+    if not manifest_path.is_absolute():
+        manifest_path = WORKSPACE / manifest_path
+    return manifest_path
+
+
+def normalize_input_paths(inputs: Any) -> dict[str, Any]:
+    if not isinstance(inputs, dict):
+        return {}
+    normalized: dict[str, Any] = {}
+    for key, value in inputs.items():
+        if isinstance(value, str) and value:
+            normalized[key] = rel(Path(value))
+        else:
+            normalized[key] = value
+    return normalized
 
 
 def p2_physical_gate_summary(path: Path = P2_CONTACT_CORRELATION_AUDIT) -> dict[str, Any]:
@@ -148,7 +218,7 @@ def p2_physical_gate_summary(path: Path = P2_CONTACT_CORRELATION_AUDIT) -> dict[
         else False,
         "blocker_tokens": blocker_tokens,
         "known_blockers": payload.get("known_blockers", []),
-        "inputs": payload.get("inputs", {}),
+        "inputs": normalize_input_paths(payload.get("inputs", {})),
         "allowed_claim": allowed_claim,
         "forbidden_claim": str(
             payload.get(
@@ -607,9 +677,11 @@ def build_audit(
     generated = generated_at or datetime.now().isoformat(timespec="seconds")
     p1 = p1_simulated_ft_summary(p1_path)
     p2 = p2_physical_gate_summary(p2_correlation_path)
-    stage_sim_ft_manifest = load_stage_simulated_ft_manifest(stage_sim_ft_manifest_path)
+    resolved_stage_sim_ft_manifest_path = stage_sim_ft_manifest_path or default_stage_sim_ft_manifest_from_p1(p1_path)
+    stage_sim_ft_manifest = load_stage_simulated_ft_manifest(resolved_stage_sim_ft_manifest_path)
     stage_sim_ft_rows = stage_sim_ft_manifest["stages"]
     rows = [stage_status_row(stage_id, p2, stage_sim_ft_rows.get(stage_id)) for stage_id in step56.STAGE_REGISTRY]
+    p2_inputs = p2.get("inputs", {})
     return {
         "schema": "ur10e_step_status_rnn_audit_v1",
         "generated_at": generated,
@@ -633,8 +705,8 @@ def build_audit(
         },
         "source_artifacts": {
             "p1_simulated_ft": rel(p1_path),
-            "p2_contact_pair_log": rel(P2_CONTACT_PAIR_LOG),
-            "p2_wrench_adapter_report": rel(P2_WRENCH_ADAPTER_REPORT),
+            "p2_contact_pair_log": p2_inputs.get("contact_pair_path") or rel(P2_CONTACT_PAIR_LOG),
+            "p2_wrench_adapter_report": p2_inputs.get("wrench_path") or rel(P2_WRENCH_ADAPTER_REPORT),
             "p2_contact_correlation_audit": rel(p2_correlation_path),
             "stage_simulated_ft_manifest": stage_sim_ft_manifest["manifest_path"],
             "step56_simulation_matrix": rel(Path(step56.__file__)),
