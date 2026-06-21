@@ -714,6 +714,30 @@ def negative_concurrent_observation() -> dict[str, Any]:
     }
 
 
+def concurrent_observation_from_path(path: Path | None) -> dict[str, Any]:
+    if path is None:
+        return negative_concurrent_observation()
+    try:
+        payload = load_json(path)
+    except (OSError, json.JSONDecodeError) as exc:
+        observation = negative_concurrent_observation()
+        observation["source_path"] = rel(path)
+        observation["blockers"] = [
+            *observation["blockers"],
+            f"concurrent_observation_source:unreadable:{type(exc).__name__}",
+        ]
+        return observation
+    observation = dict(payload)
+    observation["source_path"] = rel(path)
+    observation.setdefault("concurrent_observation_proven", False)
+    observation.setdefault("required_surfaces", CONCURRENT_OBSERVATION_REQUIRED_SURFACES)
+    observation.setdefault(
+        "forbidden_claim",
+        "same-run integrated demo unless same-run audit validates this observation and all source artifacts",
+    )
+    return observation
+
+
 def write_bundle(
     output_dir: Path,
     *,
@@ -722,6 +746,7 @@ def write_bundle(
     p3_audit_path: Path = DEFAULT_P3_AUDIT,
     p2_audit_path: Path = DEFAULT_P2_AUDIT,
     step_status_audit_path: Path = DEFAULT_STEP_STATUS_AUDIT,
+    concurrent_observation_path: Path | None = None,
 ) -> Path:
     generated = generated_at or datetime.now().astimezone().isoformat(timespec="seconds")
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -847,7 +872,7 @@ def write_bundle(
             "step_rnn_physical_gazebo_contact_same_run": False,
             "binding_status": "cross_run_evidence_only",
         },
-        "concurrent_observation": negative_concurrent_observation(),
+        "concurrent_observation": concurrent_observation_from_path(concurrent_observation_path),
         "platform_trajectory_evidence": source_evidence["platform_trajectory_evidence"],
         "eoat_tooling_evidence": source_evidence["eoat_tooling_evidence"],
         "contact_surface_evidence": source_evidence["contact_surface_evidence"],
@@ -896,6 +921,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--p3-audit-path", type=Path, default=DEFAULT_P3_AUDIT)
     parser.add_argument("--p2-audit-path", type=Path, default=DEFAULT_P2_AUDIT)
     parser.add_argument("--step-status-audit-path", type=Path, default=DEFAULT_STEP_STATUS_AUDIT)
+    parser.add_argument("--concurrent-observation", type=Path, default=None)
     return parser.parse_args(argv)
 
 
@@ -908,6 +934,7 @@ def main(argv: list[str] | None = None) -> int:
         p3_audit_path=args.p3_audit_path,
         p2_audit_path=args.p2_audit_path,
         step_status_audit_path=args.step_status_audit_path,
+        concurrent_observation_path=args.concurrent_observation,
     )
     print(path)
     return 0

@@ -29,6 +29,34 @@ def import_module(path: Path, name: str):
     return module
 
 
+def write_concurrent_observation_fixture(root: Path) -> Path:
+    path = root / "concurrent_observation.json"
+    path.write_text(
+        json.dumps(
+            {
+                "observation_id": "fixture-concurrent-observation-001",
+                "same_run_concurrent_observation_explicit": True,
+                "concurrent_observation_proven": True,
+                "time_window": {
+                    "start": "2026-06-21T07:45:00+08:00",
+                    "end": "2026-06-21T07:45:30+08:00",
+                    "clock_source": "/clock",
+                },
+                "surfaces": [
+                    "p3_visual_rviz_audit",
+                    "stage_simulated_ft_manifest",
+                    "step_status_rnn_audit",
+                    "p2_contact_correlation_audit",
+                    "tcp_distance_evidence",
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
 class P6IntegratedDemoBundleTest(unittest.TestCase):
     def test_write_bundle_creates_manifest_csv_and_plots_without_full_acceptance(self) -> None:
         bundle = import_module(BUNDLE_MODULE_PATH, "build_p6_integrated_demo_bundle")
@@ -115,6 +143,39 @@ class P6IntegratedDemoBundleTest(unittest.TestCase):
         self.assertIn(
             "manifest.concurrent_observation.same_run_concurrent_observation_explicit:not_true",
             same_run_payload["validation_issues"],
+        )
+
+    def test_bundle_can_embed_positive_ready_concurrent_observation_input(self) -> None:
+        bundle = import_module(BUNDLE_MODULE_PATH, "build_p6_integrated_demo_bundle")
+        same_run = import_module(SAME_RUN_MODULE_PATH, "build_same_run_integrated_binding_audit")
+        with tempfile.TemporaryDirectory(prefix="p6_integrated_demo_bundle_observation_test_") as tmp:
+            root = Path(tmp)
+            observation_path = write_concurrent_observation_fixture(root)
+            manifest_path = bundle.write_bundle(
+                root / "bundle",
+                generated_at="2026-06-21T07:45:00+08:00",
+                concurrent_observation_path=observation_path,
+            )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            same_run_payload = same_run.build_audit(
+                generated_at="2026-06-21T07:46:00+08:00",
+                integrated_demo_manifest_path=manifest_path,
+            )
+
+        observation = manifest["concurrent_observation"]
+        self.assertEqual(observation["observation_id"], "fixture-concurrent-observation-001")
+        self.assertTrue(observation["same_run_concurrent_observation_explicit"])
+        self.assertTrue(observation["concurrent_observation_proven"])
+        self.assertEqual(observation["source_path"], str(observation_path))
+        self.assertFalse(same_run_payload["same_run_integrated_demo_proven"])
+        self.assertIn("required_source_artifacts:cross_run:", " ".join(same_run_payload["validation_issues"]))
+        self.assertIn("manifest.same_run_binding:not_all_true", same_run_payload["validation_issues"])
+        self.assertFalse(
+            any(
+                issue.startswith("manifest.concurrent_observation.")
+                or issue == "manifest.concurrent_observation:missing"
+                for issue in same_run_payload["validation_issues"]
+            )
         )
 
 
