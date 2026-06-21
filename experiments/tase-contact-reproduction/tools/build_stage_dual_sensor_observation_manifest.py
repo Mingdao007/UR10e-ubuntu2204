@@ -23,6 +23,7 @@ RUNS = EXPERIMENT_ROOT / "runs"
 GOAL_LINEAGE = "/home/andy/codex_handoffs/ur10e-gazebo-17h-sim-ft-rnn-goal-prompt-20260621-0056.md"
 DEFAULT_STAGE_ID = "step5b"
 DEFAULT_FILENAME_TEMPLATE = "{stage_id}_same_run_stage_dual_sensor_observation_manifest.json"
+SAME_RUN_STAGE_OBSERVATION_SCOPE = "same_run_stage_gazebo_row"
 
 REQUIRED_SURFACES = (
     "stage_row_summary",
@@ -177,6 +178,7 @@ def build_manifest(
         "cross_run_surfaces": sorted(cross_run_surfaces),
         "content_validation": content_validation,
         "same_run_stage_dual_sensor_observation_proven": proven,
+        "required_observation_scope": SAME_RUN_STAGE_OBSERVATION_SCOPE,
         "validation_issues": validation_issues,
         "blockers": [] if proven else ["same_run_stage_dual_sensor_observation:not_proven"],
         "live_authorization": {
@@ -258,6 +260,8 @@ def contact_pair_log_issues(payload: dict[str, Any], *, stage_id: str, observati
         issues.append("stage_contact_pair_log.stage_id:mismatch_or_missing")
     if payload.get("observation_id") != observation_id:
         issues.append("stage_contact_pair_log.observation_id:mismatch_or_missing")
+    if payload.get("observation_scope") != SAME_RUN_STAGE_OBSERVATION_SCOPE:
+        issues.append("stage_contact_pair_log.observation_scope:not_same_run_stage_gazebo_row")
     issues.extend(time_window_issues("stage_contact_pair_log", payload))
     if payload.get("parse_issues"):
         issues.append("stage_contact_pair_log.parse_issues:not_empty")
@@ -292,6 +296,8 @@ def contact_wrench_adapter_issues(payload: dict[str, Any], *, stage_id: str, obs
         issues.append("stage_contact_wrench_adapter.stage_id:mismatch_or_missing")
     if payload.get("observation_id") != observation_id:
         issues.append("stage_contact_wrench_adapter.observation_id:mismatch_or_missing")
+    if payload.get("observation_scope") != SAME_RUN_STAGE_OBSERVATION_SCOPE:
+        issues.append("stage_contact_wrench_adapter.observation_scope:not_same_run_stage_gazebo_row")
     issues.extend(time_window_issues("stage_contact_wrench_adapter", payload))
     if payload.get("claim_tier") != "physical Gazebo collision/contact physics":
         issues.append("stage_contact_wrench_adapter.claim_tier:not_physical_gazebo_contact")

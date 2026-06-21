@@ -23,6 +23,7 @@ DEFAULT_CONTACT_TOPIC = "/ur10e/contact/gazebo/p2_contact_witness/contacts"
 CONTACT_LOG_SCHEMA = "ur10e_gazebo_contact_pair_log_v1"
 CONTACT_CAPTURE_SCHEMA = "ur10e_gazebo_contact_pair_capture_v1"
 STATIC_SURFACE_NORMAL = (0.0, 0.0, 1.0)
+STANDALONE_P2_OBSERVATION_SCOPE = "standalone_p2_contact_witness"
 
 
 def _now_iso() -> str:
@@ -158,6 +159,10 @@ def contact_pair_log_from_json_lines(
     sensor_collision_role: str = "surface",
     baseline_mode: str | None = None,
     generated_at: str | None = None,
+    stage_id: str | None = None,
+    observation_id: str | None = None,
+    time_window: dict[str, Any] | None = None,
+    observation_scope: str | None = None,
 ) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     parse_issues: list[str] = []
@@ -180,7 +185,7 @@ def contact_pair_log_from_json_lines(
                 continue
             rows.append(_contact_to_row(message, contact, line_index=line_index, contact_index=contact_index, topic=topic))
 
-    return {
+    payload = {
         "schema": CONTACT_LOG_SCHEMA,
         "generated_at": generated_at or _now_iso(),
         "mode": "offline_gazebo_contact_topic_capture",
@@ -206,6 +211,15 @@ def contact_pair_log_from_json_lines(
         "payload_tcp_safety_writes_authorized": False,
         "rows": rows,
     }
+    if stage_id is not None:
+        payload["stage_id"] = stage_id
+    if observation_id is not None:
+        payload["observation_id"] = observation_id
+    if time_window is not None:
+        payload["time_window"] = time_window
+    if observation_scope is not None:
+        payload["observation_scope"] = observation_scope
+    return payload
 
 
 def _contact_to_row(
@@ -424,6 +438,12 @@ def capture_contact_pair_log(
     eoat_static: bool = False,
     allow_no_messages: bool = False,
     baseline_mode: str | None = None,
+    stage_id: str | None = None,
+    observation_id: str | None = None,
+    time_window_start: str | None = None,
+    time_window_end: str | None = None,
+    clock_source: str | None = None,
+    observation_scope: str | None = STANDALONE_P2_OBSERVATION_SCOPE,
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     world_path = write_contact_witness_world(
@@ -475,6 +495,14 @@ def capture_contact_pair_log(
     topic_stderr = topic_result.stderr if topic_result is not None else topic_timeout_stderr
     raw_jsonl_path.write_text(topic_stdout, encoding="utf-8")
     topic_stderr_path.write_text(topic_stderr, encoding="utf-8")
+    generated_at = _now_iso()
+    time_window = None
+    if time_window_start or time_window_end or clock_source:
+        time_window = {
+            "start": time_window_start,
+            "end": time_window_end or generated_at,
+            "clock_source": clock_source,
+        }
     payload = contact_pair_log_from_json_lines(
         topic_stdout.splitlines(),
         topic=topic,
@@ -483,11 +511,20 @@ def capture_contact_pair_log(
         transport=transport,
         sensor_collision_role=sensor_collision_role,
         baseline_mode=baseline_mode,
+        generated_at=generated_at,
+        stage_id=stage_id,
+        observation_id=observation_id,
+        time_window=time_window,
+        observation_scope=observation_scope,
     )
     payload["capture"] = {
         "schema": CONTACT_CAPTURE_SCHEMA,
         "sim_transport": transport,
         "sensor_collision_role": sensor_collision_role,
+        "stage_id": stage_id,
+        "observation_id": observation_id,
+        "observation_scope": observation_scope,
+        "time_window": time_window,
         "eoat_pose_z": eoat_pose_z,
         "eoat_static": eoat_static,
         "allow_no_messages": allow_no_messages,
@@ -550,6 +587,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--eoat-static", action="store_true")
     parser.add_argument("--allow-no-messages", action="store_true")
     parser.add_argument("--baseline-mode", default=None)
+    parser.add_argument("--stage-id", default=None)
+    parser.add_argument("--observation-id", default=None)
+    parser.add_argument("--time-window-start", default=None)
+    parser.add_argument("--time-window-end", default=None)
+    parser.add_argument("--clock-source", default=None)
+    parser.add_argument("--observation-scope", default=STANDALONE_P2_OBSERVATION_SCOPE)
     return parser.parse_args(argv)
 
 
@@ -566,6 +609,12 @@ def main(argv: list[str] | None = None) -> int:
         eoat_static=args.eoat_static,
         allow_no_messages=args.allow_no_messages,
         baseline_mode=args.baseline_mode,
+        stage_id=args.stage_id,
+        observation_id=args.observation_id,
+        time_window_start=args.time_window_start,
+        time_window_end=args.time_window_end,
+        clock_source=args.clock_source,
+        observation_scope=args.observation_scope,
     )
     print(path)
     return 0

@@ -48,6 +48,7 @@ MARKER_STYLES = ("debug", "observer_subtle", "minimal_tcp_dot")
 CONTACT_CAPTURE_SCHEMA = "ur10e_gazebo_row_contact_topic_capture_v1"
 STAGE_CONTACT_WRENCH_ADAPTER_FILENAME = "stage_contact_wrench_adapter.json"
 STAGE_CONTACT_WRENCH_TRACE_FILENAME = "stage_contact_wrench_trace.json"
+SAME_RUN_STAGE_OBSERVATION_SCOPE = "same_run_stage_gazebo_row"
 STAGE_DUAL_SENSOR_OBSERVATION_DIRNAME = "stage_dual_sensor_observation"
 PER_STAGE_DUAL_SENSOR_CONTACT_AUDIT_DIRNAME = "per_stage_dual_sensor_contact"
 VISIBLE_GAZEBO_OVERLAP_SCHEMA = "ur10e_visible_gazebo_overlap_preflight_v1"
@@ -1386,6 +1387,7 @@ def finish_contact_topic_capture(
     )
     payload["stage_id"] = stage
     payload["observation_id"] = observation_id
+    payload["observation_scope"] = SAME_RUN_STAGE_OBSERVATION_SCOPE
     time_window = {
         "start": time_start,
         "end": finished_at,
@@ -1397,6 +1399,7 @@ def finish_contact_topic_capture(
         "topic": topic,
         "stage_id": stage,
         "observation_id": observation_id,
+        "observation_scope": SAME_RUN_STAGE_OBSERVATION_SCOPE,
         "command": ["ign", "topic", "-e", "-t", topic, "-n", str(max_messages), "--json-output"],
         "returncode": returncode,
         "timed_out_during_shutdown": timed_out,
@@ -1416,6 +1419,7 @@ def finish_contact_topic_capture(
         stage=stage,
         observation_id=observation_id,
         time_window=time_window,
+        observation_scope=SAME_RUN_STAGE_OBSERVATION_SCOPE,
     )
     return payload
 
@@ -1427,6 +1431,7 @@ def write_stage_contact_wrench_adapter(
     stage: str,
     observation_id: str | None = None,
     time_window: dict[str, object] | None = None,
+    observation_scope: str | None = SAME_RUN_STAGE_OBSERVATION_SCOPE,
 ) -> Path | None:
     try:
         return wrench_adapter.write_wrench_trace_or_report(
@@ -1439,6 +1444,7 @@ def write_stage_contact_wrench_adapter(
             stage_id=stage,
             observation_id=observation_id,
             time_window=time_window,
+            observation_scope=observation_scope,
         )
     except Exception as exc:  # noqa: BLE001 - artifact generation must downgrade, not crash row cleanup.
         path = output_dir / STAGE_CONTACT_WRENCH_ADAPTER_FILENAME
@@ -1449,6 +1455,7 @@ def write_stage_contact_wrench_adapter(
             "stage_id": stage,
             "observation_id": observation_id,
             "time_window": time_window,
+            "observation_scope": observation_scope,
             "trace_written": False,
             "claim_tier": "visual_only",
             "target_claim_tier": "physical Gazebo collision/contact physics",

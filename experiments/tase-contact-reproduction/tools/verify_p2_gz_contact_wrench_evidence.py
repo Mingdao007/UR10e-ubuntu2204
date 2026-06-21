@@ -620,6 +620,10 @@ def build_verified_contact_pair_or_report(
         "goal_lineage": "/home/andy/codex_handoffs/ur10e-gazebo-17h-sim-ft-rnn-goal-prompt-20260621-0056.md",
         "claim_tier": PHYSICAL_GAZEBO_CLAIM_TIER if verified_path else BLOCKED_CLAIM_TIER,
         "target_claim_tier": PHYSICAL_GAZEBO_CLAIM_TIER,
+        "stage_id": eoat_payload.get("stage_id"),
+        "observation_id": eoat_payload.get("observation_id"),
+        "time_window": eoat_payload.get("time_window"),
+        "observation_scope": eoat_payload.get("observation_scope"),
         "allowed_claim": (
             "standalone P2 witness physical Gazebo collision/contact physics with one native contact-point wrench"
             if verified_path

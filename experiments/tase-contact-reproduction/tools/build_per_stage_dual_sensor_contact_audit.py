@@ -47,6 +47,7 @@ DEFAULT_STEP_STATUS_AUDIT = (
 )
 
 REQUIRED_SIMULATED_FT_FIELDS = ("stamp", "frame_id", "source", "status", "baseline", "log_evidence")
+SAME_RUN_STAGE_OBSERVATION_SCOPE = "same_run_stage_gazebo_row"
 REQUIRED_OBSERVATION_SURFACES = (
     "stage_row_summary",
     "stage_contact_pair_log",
@@ -202,12 +203,17 @@ def contact_pair_summary(payload: dict[str, Any], *, stage_id: str) -> dict[str,
         issues.append("stage_contact_pair_log:no_rows")
     if not matching_rows:
         issues.append("stage_contact_pair_log:no_stage_eoat_surface_pair")
+    same_run_scope = payload.get("observation_scope") == SAME_RUN_STAGE_OBSERVATION_SCOPE
+    if not same_run_scope:
+        issues.append("stage_contact_pair_log.observation_scope:not_same_run_stage_gazebo_row")
     evidence = bool(rows and matching_rows and not parse_issues and payload.get("schema") == "ur10e_gazebo_contact_pair_log_v1")
     return {
         "stage_id": stage_id,
         "present": bool(payload),
         "schema": payload.get("schema"),
         "topic": payload.get("topic"),
+        "observation_scope": payload.get("observation_scope"),
+        "same_run_stage_scope_proven": same_run_scope,
         "claim_tier": payload.get("claim_tier", "visual_only"),
         "row_count": len(rows),
         "matching_row_count": len(matching_rows),
@@ -239,9 +245,11 @@ def contact_wrench_adapter_summary(payload: dict[str, Any]) -> dict[str, Any]:
     trace = payload.get("wrench_trace") if isinstance(payload.get("wrench_trace"), dict) else {}
     rows = trace.get("rows") if isinstance(trace.get("rows"), list) else []
     present = bool(payload)
+    same_run_scope = payload.get("observation_scope") == SAME_RUN_STAGE_OBSERVATION_SCOPE
     proven = bool(
         present
         and payload.get("schema") == "ur10e_gazebo_contact_wrench_adapter_report_v1"
+        and same_run_scope
         and payload.get("claim_tier") == "physical Gazebo collision/contact physics"
         and payload.get("force_source") == "gazebo_contact"
         and payload.get("trace_written") is True
@@ -259,6 +267,8 @@ def contact_wrench_adapter_summary(payload: dict[str, Any]) -> dict[str, Any]:
         issues.append("stage_contact_wrench_adapter.schema:unsupported_or_missing")
     if present and payload.get("force_source") != "gazebo_contact":
         issues.append("stage_contact_wrench_adapter.force_source:not_gazebo_contact")
+    if present and not same_run_scope:
+        issues.append("stage_contact_wrench_adapter.observation_scope:not_same_run_stage_gazebo_row")
     if present and payload.get("total_contact_wrench_proven") is not True:
         issues.append("stage_total_contact_wrench:not_proven")
     if present and payload.get("wrench_aggregation_policy") != "total_contact_wrench":
@@ -272,6 +282,8 @@ def contact_wrench_adapter_summary(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "present": present,
         "schema": payload.get("schema"),
+        "observation_scope": payload.get("observation_scope"),
+        "same_run_stage_scope_proven": same_run_scope,
         "claim_tier": payload.get("claim_tier"),
         "force_source": payload.get("force_source"),
         "trace_written": bool(payload.get("trace_written")),
@@ -477,6 +489,8 @@ def build_audit(
         row_stage_matches
         and eoat_collision_count > 0
         and contact_pair["evidence"]
+        and contact_pair["same_run_stage_scope_proven"]
+        and adapter["same_run_stage_scope_proven"]
         and adapter["total_contact_wrench_proven"]
         and correlation["evidence"]
     )

@@ -517,6 +517,7 @@ def build_wrench_trace_or_report(
     stage_id: str | None = None,
     observation_id: str | None = None,
     time_window: dict[str, Any] | None = None,
+    observation_scope: str | None = None,
 ) -> dict[str, Any]:
     rows = contact_pair_payload.get("rows") or []
     native_wrench_row_count = sum(1 for row in rows if isinstance(row, dict) and _raw_native_wrench(row) is not None)
@@ -567,6 +568,9 @@ def build_wrench_trace_or_report(
         and not _dedupe(total_contact_wrench_blockers)
     )
     wrench_policy = TOTAL_CONTACT_WRENCH_POLICY if total_contact_wrench_proven else SINGLE_POINT_WRENCH_POLICY
+    effective_observation_scope = (
+        observation_scope if observation_scope is not None else contact_pair_payload.get("observation_scope")
+    )
     return {
         "schema": REPORT_SCHEMA,
         "generated_at": generated_at or _now_iso(),
@@ -575,6 +579,7 @@ def build_wrench_trace_or_report(
         "stage_id": stage_id,
         "observation_id": observation_id,
         "time_window": time_window,
+        "observation_scope": effective_observation_scope,
         "trace_written": bool(trace),
         "claim_tier": PHYSICAL_GAZEBO_CLAIM_TIER if trace else BLOCKED_CLAIM_TIER,
         "target_claim_tier": PHYSICAL_GAZEBO_CLAIM_TIER,
@@ -637,6 +642,7 @@ def write_wrench_trace_or_report(
     stage_id: str | None = None,
     observation_id: str | None = None,
     time_window: dict[str, Any] | None = None,
+    observation_scope: str | None = None,
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     contact_pair_payload = _load_json(contact_pair_path)
@@ -647,6 +653,7 @@ def write_wrench_trace_or_report(
         stage_id=stage_id,
         observation_id=observation_id,
         time_window=time_window,
+        observation_scope=observation_scope,
     )
     report["inputs"] = {"contact_pair_path": str(contact_pair_path)}
     if isinstance(report.get("wrench_trace"), dict):
@@ -680,6 +687,7 @@ def main() -> int:
     parser.add_argument("--time-window-start", default=None)
     parser.add_argument("--time-window-end", default=None)
     parser.add_argument("--clock-source", default=None)
+    parser.add_argument("--observation-scope", default=None)
     args = parser.parse_args()
     time_window = None
     if args.time_window_start or args.time_window_end or args.clock_source:
@@ -699,6 +707,7 @@ def main() -> int:
         stage_id=args.stage_id,
         observation_id=args.observation_id,
         time_window=time_window,
+        observation_scope=args.observation_scope,
     )
     print(report_path)
     return 0

@@ -452,6 +452,27 @@ class P2GazeboContactPairCaptureTest(unittest.TestCase):
         self.assertEqual(payload["rows"][0]["contact_count"], 1)
         self.assertTrue(payload["rows"][0]["stamp_evidence"])
 
+    def test_contact_pair_log_preserves_stage_observation_metadata(self) -> None:
+        payload = capture.contact_pair_log_from_json_lines(
+            [_raw_contacts_json_line()],
+            topic="/ur10e/contact/gazebo/step5b/contacts",
+            world_path="/tmp/p2_contact_witness.sdf",
+            raw_jsonl_path="/tmp/topic_stdout.jsonl",
+            stage_id="step5b",
+            observation_id="stage-step5b-witness-001",
+            time_window={
+                "start": "2026-06-21T19:05:00+08:00",
+                "end": "2026-06-21T19:05:10+08:00",
+                "clock_source": "/clock",
+            },
+            observation_scope=capture.STANDALONE_P2_OBSERVATION_SCOPE,
+        )
+
+        self.assertEqual(payload["stage_id"], "step5b")
+        self.assertEqual(payload["observation_id"], "stage-step5b-witness-001")
+        self.assertEqual(payload["time_window"]["clock_source"], "/clock")
+        self.assertEqual(payload["observation_scope"], "standalone_p2_contact_witness")
+
     def test_raw_contacts_json_lines_preserve_gazebo_contact_wrench_as_untransformed_evidence(self) -> None:
         payload = capture.contact_pair_log_from_json_lines(
             [_raw_contacts_json_line_with_native_wrench()],

@@ -54,6 +54,7 @@ def contact_pair_payload() -> dict[str, object]:
         "schema": "ur10e_gazebo_contact_pair_log_v1",
         "stage_id": "step5b",
         "observation_id": OBSERVATION_ID,
+        "observation_scope": "same_run_stage_gazebo_row",
         "time_window": {
             "start": "2026-06-21T17:12:00+08:00",
             "end": "2026-06-21T17:12:10+08:00",
@@ -79,6 +80,7 @@ def wrench_adapter_payload() -> dict[str, object]:
         "schema": "ur10e_gazebo_contact_wrench_adapter_report_v1",
         "stage_id": "step5b",
         "observation_id": OBSERVATION_ID,
+        "observation_scope": "same_run_stage_gazebo_row",
         "time_window": {
             "start": "2026-06-21T17:12:00+08:00",
             "end": "2026-06-21T17:12:10+08:00",
@@ -235,6 +237,34 @@ class StageDualSensorObservationManifestTest(unittest.TestCase):
         self.assertFalse(payload["same_run_stage_dual_sensor_observation_proven"])
         self.assertIn("stage_contact_pair_log.observation_id:mismatch_or_missing", payload["validation_issues"])
         self.assertIn("stage_contact_wrench_adapter.observation_id:mismatch_or_missing", payload["validation_issues"])
+
+    def test_blocks_standalone_contact_witness_scope(self) -> None:
+        manifest = import_manifest_module()
+        with tempfile.TemporaryDirectory(prefix="stage_observation_standalone_scope_", dir=RUNS) as tmp:
+            root = Path(tmp)
+            surfaces = surface_paths(root)
+            contact = json.loads(surfaces["stage_contact_pair_log"].read_text(encoding="utf-8"))
+            contact["observation_scope"] = "standalone_p2_contact_witness"
+            write_json(surfaces["stage_contact_pair_log"], contact)
+            adapter = json.loads(surfaces["stage_contact_wrench_adapter"].read_text(encoding="utf-8"))
+            adapter["observation_scope"] = "standalone_p2_contact_witness"
+            write_json(surfaces["stage_contact_wrench_adapter"], adapter)
+            payload = manifest.build_manifest(
+                stage_id="step5b",
+                observation_id=OBSERVATION_ID,
+                time_start="2026-06-21T17:12:00+08:00",
+                time_end="2026-06-21T17:12:10+08:00",
+                clock_source="/clock",
+                surfaces=surfaces,
+                generated_at="2026-06-21T17:12:20+08:00",
+            )
+
+        self.assertFalse(payload["same_run_stage_dual_sensor_observation_proven"])
+        self.assertIn("stage_contact_pair_log.observation_scope:not_same_run_stage_gazebo_row", payload["validation_issues"])
+        self.assertIn(
+            "stage_contact_wrench_adapter.observation_scope:not_same_run_stage_gazebo_row",
+            payload["validation_issues"],
+        )
 
     def test_blocks_missing_adapter_and_cross_run_surfaces(self) -> None:
         manifest = import_manifest_module()
