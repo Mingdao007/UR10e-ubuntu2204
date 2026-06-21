@@ -1356,6 +1356,8 @@ def observer_visual_criteria(row: dict[str, Any]) -> dict[str, bool]:
         "actual_eoat_mesh_visual_present": bool(row.get("actual_eoat_mesh_visual_present")),
         "actual_contact_surface_mesh_visual_present": bool(row.get("actual_contact_surface_mesh_visual_present")),
         "primitive_proxy_not_primary_visual": bool(row.get("primitive_proxy_not_primary_visual")),
+        "primitive_proxy_not_main_visual_cue": bool(row.get("primitive_proxy_not_main_visual_cue")),
+        "observer_level_demo_realism": bool(row.get("observer_level_demo_realism")),
         "active_tcp_marker_visible": bool(row.get("tcp_marker_visible")),
         "surface_path_visible": bool(row.get("surface_path_visible")),
         "robot_tool_surface_relation_visible": bool(row.get("robot_tool_surface_relation_visible")),

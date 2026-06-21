@@ -505,6 +505,8 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             "actual_eoat_mesh_visual_present": True,
             "actual_contact_surface_mesh_visual_present": True,
             "primitive_proxy_not_primary_visual": True,
+            "primitive_proxy_not_main_visual_cue": True,
+            "observer_level_demo_realism": True,
             "tcp_marker_visible": True,
             "surface_path_visible": True,
             "robot_tool_surface_relation_visible": True,
@@ -515,6 +517,30 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
         payload = gazebo.populate_observer_visual_pass(row)
         self.assertTrue(payload["observer_visual_pass"])
         self.assertEqual(payload["observer_visual_failure_reasons"], [])
+
+    def test_observer_visual_gate_rejects_proxy_main_visual_cue_even_with_meshes(self) -> None:
+        row = {
+            "observer_review_present": True,
+            "observer_visual_review_source": "human_observer_row_review_v1",
+            "gui_evidence_captured": True,
+            "robot_posture_visible": True,
+            "eoat_tooling_visible": True,
+            "actual_eoat_mesh_visual_present": True,
+            "actual_contact_surface_mesh_visual_present": True,
+            "primitive_proxy_not_primary_visual": True,
+            "primitive_proxy_not_main_visual_cue": False,
+            "observer_level_demo_realism": False,
+            "tcp_marker_visible": True,
+            "surface_path_visible": True,
+            "robot_tool_surface_relation_visible": True,
+            "pose_source": tcp_marker.POSE_SOURCE_ACTIVE_TCP,
+            "pose_frame": gazebo.GAZEBO_WORLD_FRAME,
+            "clean_scene_capture": True,
+        }
+        payload = gazebo.populate_observer_visual_pass(row)
+        self.assertFalse(payload["observer_visual_pass"])
+        self.assertIn("primitive_proxy_not_main_visual_cue", payload["observer_visual_failure_reasons"])
+        self.assertIn("observer_level_demo_realism", payload["observer_visual_failure_reasons"])
 
     def test_gui_row_summary_requires_explicit_observer_review(self) -> None:
         with tempfile.TemporaryDirectory(prefix="ur10e_gui_row_no_review_test_") as tmp:
@@ -567,6 +593,8 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             self.assertTrue(row["actual_contact_surface_mesh_visual_present"])
             self.assertEqual(row["actual_contact_surface_mesh_uri"], gazebo.CONTACT_SURFACE_REAL_MESH_URI)
             self.assertTrue(row["primitive_proxy_not_primary_visual"])
+            self.assertTrue(row["primitive_proxy_not_main_visual_cue"])
+            self.assertTrue(row["observer_level_demo_realism"])
             self.assertTrue(row["scene_model_list_captured"])
             self.assertTrue(row["scene_info_captured"])
             self.assertEqual(row["scripted_camera_sha256"], "fixture-sha256")
@@ -816,6 +844,8 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
                 "tcp_marker_visible": True,
                 "surface_path_visible": True,
                 "robot_tool_surface_relation_visible": True,
+                "primitive_proxy_not_main_visual_cue": True,
+                "observer_level_demo_realism": True,
                 "clean_scene_capture": True,
                 "obstructive_ui_panels_absent": True,
                 "notes": "Fixture review confirms coherent close-detail relation.",

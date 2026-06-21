@@ -406,6 +406,12 @@ def build_row_summary(
         "primitive_proxy_not_primary_visual": bool(
             actual_eoat_mesh_visual_present and actual_contact_surface_mesh_visual_present
         ),
+        "primitive_proxy_not_main_visual_cue": bool(
+            visual_evidence and _review_flag(observer_review, "primitive_proxy_not_main_visual_cue")
+        ),
+        "observer_level_demo_realism": bool(
+            visual_evidence and _review_flag(observer_review, "observer_level_demo_realism")
+        ),
         "observer_visual_review_source": review_source,
         "observer_visual_notes": observer_review.get("notes"),
         "observer_visual_reviewed_at": observer_review.get("reviewed_at"),
