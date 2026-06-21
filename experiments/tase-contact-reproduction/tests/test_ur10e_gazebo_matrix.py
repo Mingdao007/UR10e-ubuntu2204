@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+import io
 import json
 import subprocess
 import sys
@@ -9,6 +10,7 @@ import tempfile
 import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from unittest import mock
 
 import yaml
 
@@ -1024,6 +1026,151 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             summary["validation_issues"],
         )
 
+    def test_contact_stage_annotation_adds_observation_and_audit_paths(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="ur10e_gui_contact_annotation_test_") as tmp:
+            case_dir = Path(tmp)
+            row = gui_row.annotate_contact_stage_evidence_paths(
+                {"stage": "step5b"},
+                case_dir=case_dir,
+                stage="step5b",
+                include_observation_manifest=True,
+                include_per_stage_audit=True,
+            )
+
+        self.assertTrue(
+            str(row["same_run_stage_dual_sensor_observation_manifest_path"]).endswith(
+                "stage_dual_sensor_observation/step5b_same_run_stage_dual_sensor_observation_manifest.json"
+            )
+        )
+        self.assertTrue(
+            str(row["per_stage_dual_sensor_contact_audit_path"]).endswith(
+                "per_stage_dual_sensor_contact/step5b_per_stage_dual_sensor_contact_audit.json"
+            )
+        )
+        self.assertIn("real bench/live contact", row["per_stage_dual_sensor_contact_audit_forbidden_claim"])
+
+    def test_run_row_writes_row_local_per_stage_contact_audit(self) -> None:
+        class DummyProcess:
+            pid = 4242
+
+            def poll(self) -> int | None:
+                return 0
+
+            def send_signal(self, _signal: int) -> None:
+                return None
+
+            def terminate(self) -> None:
+                return None
+
+        with tempfile.TemporaryDirectory(prefix="ur10e_gui_row_contact_audit_test_") as tmp:
+            run_dir = Path(tmp) / "run"
+            stage_manifest = Path(tmp) / "step_simulated_ft_evidence_manifest.json"
+            stage_manifest.write_text(
+                json.dumps(
+                    {
+                        "schema": "ur10e_step_simulated_ft_evidence_pack_v1",
+                        "claim_tier": "simulated_ft",
+                        "stages": {
+                            "step5b": {
+                                "claim_tier": "simulated_ft",
+                                "valid": True,
+                                "evidence_fields_present": {
+                                    "stamp": True,
+                                    "frame_id": True,
+                                    "source": True,
+                                    "status": True,
+                                    "baseline": True,
+                                    "log_evidence": True,
+                                },
+                            }
+                        },
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            step_status = Path(tmp) / "step_status_rnn_audit.json"
+            step_status.write_text(
+                json.dumps(
+                    {
+                        "schema": "ur10e_step_status_rnn_audit_v1",
+                        "step_status_matrix": [{"stage_id": "step5b", "claim_tier": "simulated_ft"}],
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            args = gui_row.parse_args(
+                [
+                    "row",
+                    "--workspace",
+                    str(WORKSPACE),
+                    "--run-dir",
+                    str(run_dir),
+                    "--stage",
+                    "step5b",
+                    "--view",
+                    "close_detail",
+                    "--stage-simulated-ft-manifest",
+                    str(stage_manifest),
+                    "--step-status-audit",
+                    str(step_status),
+                    "--disable-contact-capture",
+                    "--visible-gazebo-lock-path",
+                    str(Path(tmp) / "visible.lock"),
+                ]
+            )
+
+            def write_fixture(*_args: object, **_kwargs: object) -> int:
+                self._write_gui_row_fixture(run_dir, observer_review=True)
+                return 0
+
+            with (
+                mock.patch.object(gui_row.subprocess, "run") as subprocess_run,
+                mock.patch.object(gui_row, "_wait_for_action", return_value=1),
+                mock.patch.object(gui_row, "_popen", return_value=DummyProcess()),
+                mock.patch.object(gui_row, "_run_logged", side_effect=write_fixture),
+                mock.patch.object(gui_row, "capture_scripted_camera_image", return_value={"ok": True}),
+                mock.patch.object(gui_row, "capture_scene_introspection", return_value=None),
+                mock.patch.object(gui_row, "_video_duration", return_value=12.0),
+                mock.patch.object(gui_row, "_extract_frames", return_value=None),
+                mock.patch.object(gui_row.time, "sleep", return_value=None),
+                mock.patch.object(sys, "stdout", io.StringIO()),
+            ):
+                subprocess_run.return_value.returncode = 0
+                subprocess_run.return_value.stdout = ""
+                self.assertEqual(gui_row.run_row(args), 0)
+
+            case_dir = gui_row.row_case_dir(run_dir, "step5b", "close_detail")
+            row_summary = json.loads((case_dir / "row_summary.json").read_text(encoding="utf-8"))
+            observation_path = case_dir / "stage_dual_sensor_observation" / (
+                "step5b_same_run_stage_dual_sensor_observation_manifest.json"
+            )
+            audit_path = case_dir / "per_stage_dual_sensor_contact" / (
+                "step5b_per_stage_dual_sensor_contact_audit.json"
+            )
+            observation_exists = observation_path.is_file()
+            audit_payload = json.loads(audit_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(row_summary["per_stage_dual_sensor_contact_audit_path"], str(audit_path))
+        self.assertEqual(row_summary["same_run_stage_dual_sensor_observation_manifest_path"], str(observation_path))
+        self.assertTrue(observation_exists)
+        self.assertEqual(audit_payload["claim_tier"], "simulated_ft")
+        self.assertFalse(
+            audit_payload["per_stage_physical_gazebo_contact"]["per_stage_physical_gazebo_contact_proven"]
+        )
+        self.assertFalse(
+            audit_payload["same_run_stage_dual_sensor_observation"][
+                "same_run_stage_dual_sensor_observation_proven"
+            ]
+        )
+        self.assertIn("stage_total_contact_wrench:not_proven", audit_payload["blockers"])
+        self.assertIn("same_run_stage_dual_sensor_observation:not_proven", audit_payload["blockers"])
+
     def test_stage_observation_manifest_writer_blocks_unproven_stage_adapter(self) -> None:
         with tempfile.TemporaryDirectory(prefix="ur10e_gui_stage_observation_test_") as tmp:
             run_dir = Path(tmp)
@@ -1095,6 +1242,17 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
                 clock_source="/clock",
             )
             payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+            audit_path = gui_row.write_per_stage_dual_sensor_contact_audit(
+                case_dir,
+                stage="step5b",
+                row=row,
+                row_summary_path=row_path,
+                stage_simulated_ft_manifest_path=stage_manifest,
+                step_status_audit_path=step_status,
+                same_run_observation_manifest_path=manifest_path,
+                correlation_tolerance_s=0.02,
+            )
+            audit_payload = json.loads(audit_path.read_text(encoding="utf-8"))
 
         self.assertEqual(manifest_path.name, "step5b_same_run_stage_dual_sensor_observation_manifest.json")
         self.assertFalse(payload["same_run_stage_dual_sensor_observation_proven"])
@@ -1103,6 +1261,18 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             "stage_contact_wrench_adapter.total_contact_wrench_proven:not_true",
             payload["validation_issues"],
         )
+        self.assertEqual(audit_path.name, "step5b_per_stage_dual_sensor_contact_audit.json")
+        self.assertEqual(audit_payload["claim_tier"], "simulated_ft")
+        self.assertFalse(
+            audit_payload["per_stage_physical_gazebo_contact"]["per_stage_physical_gazebo_contact_proven"]
+        )
+        self.assertFalse(
+            audit_payload["same_run_stage_dual_sensor_observation"][
+                "same_run_stage_dual_sensor_observation_proven"
+            ]
+        )
+        self.assertIn("stage_total_contact_wrench:not_proven", audit_payload["blockers"])
+        self.assertIn("same_run_stage_dual_sensor_observation:not_proven", audit_payload["blockers"])
 
     def test_repo_gui_configs_are_clean_and_cover_required_view_roles(self) -> None:
         expected = {
@@ -1133,7 +1303,7 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
         case_dir = gui_row.row_case_dir(run_dir, "step5b", "close_detail")
         (case_dir / "runner").mkdir(parents=True)
         (case_dir / "marker").mkdir(parents=True)
-        (run_dir / "_visual_worlds").mkdir(parents=True)
+        (run_dir / "_visual_worlds").mkdir(parents=True, exist_ok=True)
         for name in ("start_root.png", "mid_root.png", "final_root.png", "gui_recording.mp4"):
             (case_dir / name).write_bytes(b"fixture")
         timing_evidence = gazebo.build_action_timing_evidence(

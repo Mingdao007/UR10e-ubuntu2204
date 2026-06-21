@@ -22,6 +22,7 @@ if str(SRC_PACKAGE) not in sys.path:
 
 from ur10e_example_controllers import ur10e_gazebo_matrix_runner as gazebo  # noqa: E402
 import build_gazebo_contact_wrench_trace as wrench_adapter  # noqa: E402
+import build_per_stage_dual_sensor_contact_audit as per_stage_contact_audit  # noqa: E402
 import build_stage_dual_sensor_observation_manifest as stage_observation  # noqa: E402
 import capture_p2_gazebo_contact_pair_log as contact_capture  # noqa: E402
 
@@ -48,6 +49,7 @@ CONTACT_CAPTURE_SCHEMA = "ur10e_gazebo_row_contact_topic_capture_v1"
 STAGE_CONTACT_WRENCH_ADAPTER_FILENAME = "stage_contact_wrench_adapter.json"
 STAGE_CONTACT_WRENCH_TRACE_FILENAME = "stage_contact_wrench_trace.json"
 STAGE_DUAL_SENSOR_OBSERVATION_DIRNAME = "stage_dual_sensor_observation"
+PER_STAGE_DUAL_SENSOR_CONTACT_AUDIT_DIRNAME = "per_stage_dual_sensor_contact"
 VISIBLE_GAZEBO_OVERLAP_SCHEMA = "ur10e_visible_gazebo_overlap_preflight_v1"
 VISIBLE_GAZEBO_OVERLAP_RC = 43
 VISIBLE_GAZEBO_LOCK_SCHEMA = "ur10e_visible_gazebo_row_lock_preflight_v1"
@@ -321,16 +323,15 @@ def run_row(args: argparse.Namespace) -> int:
         gui_config_path=gui_config,
     )
     row_summary_path = case_dir / "row_summary.json"
-    if args.stage in CONTACT_STAGES and not args.disable_stage_observation_manifest:
-        row["same_run_stage_dual_sensor_observation_manifest_path"] = str(
-            stage_dual_sensor_observation_manifest_path(case_dir, args.stage)
-        )
-        row["same_run_stage_dual_sensor_observation_target_claim_tier"] = "physical Gazebo collision/contact physics"
-        row["same_run_stage_dual_sensor_observation_forbidden_claim"] = (
-            "real bench/live contact; per-stage physical Gazebo contact unless manifest content validation, "
-            "stage total contact wrench, and wrench/contact correlation gates pass"
-        )
+    row = annotate_contact_stage_evidence_paths(
+        row,
+        case_dir=case_dir,
+        stage=args.stage,
+        include_observation_manifest=not args.disable_stage_observation_manifest,
+        include_per_stage_audit=not args.disable_per_stage_contact_audit,
+    )
     write_row_summary(row, row_summary_path)
+    observation_path = None
     if args.stage in CONTACT_STAGES and not args.disable_stage_observation_manifest:
         observation_path = write_stage_dual_sensor_observation_manifest(
             case_dir,
@@ -348,6 +349,23 @@ def run_row(args: argparse.Namespace) -> int:
             trace_path,
             {
                 "same_run_stage_dual_sensor_observation_manifest": str(observation_path),
+            },
+        )
+    if args.stage in CONTACT_STAGES and not args.disable_per_stage_contact_audit:
+        audit_path = write_per_stage_dual_sensor_contact_audit(
+            case_dir,
+            stage=args.stage,
+            row=row,
+            row_summary_path=row_summary_path,
+            stage_simulated_ft_manifest_path=args.stage_simulated_ft_manifest,
+            step_status_audit_path=args.step_status_audit,
+            same_run_observation_manifest_path=observation_path,
+            correlation_tolerance_s=args.per_stage_contact_correlation_tolerance_s,
+        )
+        _write_trace(
+            trace_path,
+            {
+                "per_stage_dual_sensor_contact_audit": str(audit_path),
             },
         )
     if args.update_summary:
@@ -1423,6 +1441,45 @@ def stage_dual_sensor_observation_manifest_path(case_dir: Path, stage: str) -> P
     )
 
 
+def per_stage_dual_sensor_contact_audit_path(case_dir: Path, stage: str) -> Path:
+    return (
+        case_dir
+        / PER_STAGE_DUAL_SENSOR_CONTACT_AUDIT_DIRNAME
+        / f"{stage}_per_stage_dual_sensor_contact_audit.json"
+    )
+
+
+def annotate_contact_stage_evidence_paths(
+    row: dict[str, object],
+    *,
+    case_dir: Path,
+    stage: str,
+    include_observation_manifest: bool,
+    include_per_stage_audit: bool,
+) -> dict[str, object]:
+    if stage not in CONTACT_STAGES:
+        return row
+    if include_observation_manifest:
+        row["same_run_stage_dual_sensor_observation_manifest_path"] = str(
+            stage_dual_sensor_observation_manifest_path(case_dir, stage)
+        )
+        row["same_run_stage_dual_sensor_observation_target_claim_tier"] = "physical Gazebo collision/contact physics"
+        row["same_run_stage_dual_sensor_observation_forbidden_claim"] = (
+            "real bench/live contact; per-stage physical Gazebo contact unless manifest content validation, "
+            "stage total contact wrench, and wrench/contact correlation gates pass"
+        )
+    if include_per_stage_audit:
+        row["per_stage_dual_sensor_contact_audit_path"] = str(
+            per_stage_dual_sensor_contact_audit_path(case_dir, stage)
+        )
+        row["per_stage_dual_sensor_contact_audit_target_claim_tier"] = "physical Gazebo collision/contact physics"
+        row["per_stage_dual_sensor_contact_audit_forbidden_claim"] = (
+            "real bench/live contact; per-stage physical Gazebo contact unless contact pair/log, "
+            "total contact wrench, frame/normal evidence, and wrench/contact correlation are proven"
+        )
+    return row
+
+
 def write_stage_dual_sensor_observation_manifest(
     case_dir: Path,
     *,
@@ -1476,6 +1533,69 @@ def write_stage_dual_sensor_observation_manifest(
             "same_run_stage_dual_sensor_observation_proven": False,
             "validation_issues": [f"stage_dual_sensor_observation_manifest_generation_error:{type(exc).__name__}"],
             "blockers": ["same_run_stage_dual_sensor_observation:not_proven"],
+            "error": str(exc),
+            "live_authorization": {
+                "robot_motion_authorized": False,
+                "bridge_start_authorized": False,
+                "tp_play_authorized": False,
+                "urscript_authorized": False,
+                "zero_ftsensor_authorized": False,
+                "payload_tcp_safety_writes_authorized": False,
+                "real_bench_live_contact_authorized": False,
+            },
+            "forbidden_claim": "real bench/live contact; per-stage physical Gazebo contact",
+        }
+        path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        return path
+
+
+def write_per_stage_dual_sensor_contact_audit(
+    case_dir: Path,
+    *,
+    stage: str,
+    row: dict[str, object],
+    row_summary_path: Path,
+    stage_simulated_ft_manifest_path: Path | None,
+    step_status_audit_path: Path | None,
+    same_run_observation_manifest_path: Path | None,
+    correlation_tolerance_s: float,
+) -> Path:
+    output_dir = case_dir / PER_STAGE_DUAL_SENSOR_CONTACT_AUDIT_DIRNAME
+    output_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        return per_stage_contact_audit.write_audit(
+            output_dir,
+            stage_id=stage,
+            generated_at=_now(),
+            stage_row_summary_path=row_summary_path,
+            stage_simulated_ft_manifest_path=stage_simulated_ft_manifest_path,
+            step_status_audit_path=step_status_audit_path,
+            stage_contact_pair_log_path=_path_from_row(row, "gazebo_contact_pair_log_path"),
+            stage_contact_wrench_adapter_path=_path_from_row(row, "stage_contact_wrench_adapter_path"),
+            same_run_observation_manifest_path=same_run_observation_manifest_path,
+            correlation_tolerance_s=correlation_tolerance_s,
+        )
+    except Exception as exc:  # noqa: BLE001 - per-stage audit generation must fail closed.
+        path = per_stage_dual_sensor_contact_audit_path(case_dir, stage)
+        payload = {
+            "schema": "ur10e_per_stage_dual_sensor_contact_audit_v1",
+            "generated_at": _now(),
+            "goal_lineage": per_stage_contact_audit.GOAL_LINEAGE,
+            "mode": "offline_report_level_per_stage_dual_sensor_contact_gate",
+            "stage_id": stage,
+            "claim_tier": "visual_only",
+            "per_stage_physical_gazebo_contact": {
+                "claim_tier": "visual_only",
+                "per_stage_physical_gazebo_contact_proven": False,
+            },
+            "same_run_stage_dual_sensor_observation": {
+                "same_run_stage_dual_sensor_observation_proven": False,
+            },
+            "validation_issues": [f"per_stage_dual_sensor_contact_audit_generation_error:{type(exc).__name__}"],
+            "blockers": [
+                "per_stage_physical_gazebo_contact:not_proven",
+                "same_run_stage_dual_sensor_observation:not_proven",
+            ],
             "error": str(exc),
             "live_authorization": {
                 "robot_motion_authorized": False,
@@ -1890,6 +2010,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     row.add_argument("--step-status-audit", type=Path)
     row.add_argument("--stage-observation-clock-source", default="/clock")
     row.add_argument("--disable-stage-observation-manifest", action="store_true")
+    row.add_argument("--per-stage-contact-correlation-tolerance-s", type=float, default=0.02)
+    row.add_argument("--disable-per-stage-contact-audit", action="store_true")
     row.add_argument("--allow-existing-gazebo", action="store_true")
     row.add_argument("--visible-gazebo-lock-path", type=Path, default=DEFAULT_VISIBLE_GAZEBO_LOCK_PATH)
     row.add_argument("--update-summary", action="store_true")
