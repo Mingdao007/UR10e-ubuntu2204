@@ -13,6 +13,7 @@ import argparse
 import csv
 from datetime import datetime
 import json
+import os
 from pathlib import Path
 import sys
 from typing import Any
@@ -39,6 +40,7 @@ import ur_contact_semantic_gate as semantic_gate  # noqa: E402
 
 SCHEMA = "ur10e_p1_simulated_ft_hard_floor_audit_v1"
 GOAL_LINEAGE = "/home/andy/codex_handoffs/ur10e-gazebo-17h-sim-ft-rnn-goal-prompt-20260621-0056.md"
+MIDRUN_GATE_FREEZE_AT = "2026-06-21T10:33:50+08:00"
 RETAINED_KUNWEI_CSV = (
     EXPERIMENT_ROOT
     / "runs"
@@ -321,6 +323,86 @@ def runtime_dry_run_check() -> dict[str, Any]:
     )
 
 
+def runtime_observation_check(output_dir: Path) -> dict[str, Any]:
+    topic_prefix = f"/ur10e/p1_post_gate_{os.getpid()}_{abs(hash(str(output_dir))) % 100000}"
+    summary = output_dir / "runtime_observation" / "canonical_simulated_ft_runtime_observation.json"
+    dry_run_summary = output_dir / "runtime_observation" / "canonical_simulated_ft_runtime_dry_run.json"
+    config = runtime.build_runtime_config(
+        {
+            "canonical_wrench_topic": f"{topic_prefix}/canonical_wrench",
+            "simulated_ft_wrench_topic": f"{topic_prefix}/simulated_ft/wrench",
+            "simulated_ft_status_topic": f"{topic_prefix}/simulated_ft/status",
+            "contact_state_topic": f"{topic_prefix}/contact_state",
+            "controller_status_topic": f"{topic_prefix}/controller_status",
+            "run_metadata_topic": f"{topic_prefix}/run_metadata",
+            "publish_hz": "100.0",
+            "max_samples": "4",
+            "dry_run_summary": str(dry_run_summary),
+            "runtime_observation_summary": str(summary),
+        }
+    )
+    payload = runtime.run_observed_ros(config)
+    required_observed_topics = [
+        "canonical_wrench",
+        "simulated_ft_wrench",
+        "simulated_ft_status",
+        "contact_state",
+        "controller_status",
+        "run_metadata",
+    ]
+    counts = payload.get("observed_counts", {})
+    expected = payload.get("expected_counts", {})
+    fields_present = payload.get("evidence_fields_present", {})
+    first_wrench = payload.get("first_wrench", {})
+    first_canonical = payload.get("first_canonical_row", {})
+    passed = bool(
+        payload.get("schema") == "ur10e_canonical_simulated_ft_runtime_observation_v1"
+        and payload.get("mode") == "offline_ros2_runtime_observation"
+        and payload.get("claim_tier") == "simulated_ft"
+        and payload.get("force_source") == contract.SOURCE_SIMULATED_FT
+        and payload.get("observed_complete") is True
+        and payload.get("discovery_ready") is True
+        and all(counts.get(topic, 0) >= expected.get(topic, 0) for topic in required_observed_topics)
+        and all(fields_present.get(field) is True for field in ("stamp", "frame_id", "source", "status", "baseline", "log_evidence"))
+        and first_wrench.get("header", {}).get("frame_id") == "base"
+        and first_canonical.get("source") == contract.SOURCE_SIMULATED_FT
+        and first_canonical.get("status") == "valid"
+        and first_canonical.get("baseline_policy") == "simulated_zero_no_contact_baseline"
+        and payload.get("live_robot_command_authorized") is False
+        and payload.get("bridge_start_authorized") is False
+        and payload.get("payload_tcp_safety_writes_authorized") is False
+    )
+    return _check_result(
+        passed=passed,
+        claim_tier="simulated_ft" if passed else "visual_only",
+        evidence={
+            "schema": payload.get("schema"),
+            "mode": payload.get("mode"),
+            "observation_summary": rel(summary),
+            "dry_run_summary": rel(dry_run_summary),
+            "topics": payload.get("topics"),
+            "force_source": payload.get("force_source"),
+            "published_sample_count": payload.get("published_sample_count"),
+            "expected_counts": expected,
+            "observed_counts": counts,
+            "observed_complete": payload.get("observed_complete"),
+            "discovery_ready": payload.get("discovery_ready"),
+            "first_wrench_stamp_s": first_wrench.get("header", {}).get("stamp_s"),
+            "first_wrench_frame_id": first_wrench.get("header", {}).get("frame_id"),
+            "first_canonical_source": first_canonical.get("source"),
+            "first_canonical_status": first_canonical.get("status"),
+            "first_canonical_baseline_policy": first_canonical.get("baseline_policy"),
+            "evidence_fields_present": fields_present,
+            "live_authorization": {
+                "live_robot_command_authorized": payload.get("live_robot_command_authorized"),
+                "bridge_start_authorized": payload.get("bridge_start_authorized"),
+                "payload_tcp_safety_writes_authorized": payload.get("payload_tcp_safety_writes_authorized"),
+            },
+        },
+        blocker="canonical simulated FT runtime observation did not produce complete topic-level evidence",
+    )
+
+
 def per_stage_pack_check(output_dir: Path, *, generated_at: str) -> dict[str, Any]:
     manifest_path = sim_ft_pack.write_pack(output_dir / "per_stage_simulated_ft_pack", generated_at=generated_at)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -387,6 +469,7 @@ def build_audit(output_dir: Path, *, generated_at: str | None = None, semantic_m
         "contract_schema": contract_schema_check(),
         "source_isolation": source_isolation_check(),
         "runtime_dry_run": runtime_dry_run_check(),
+        "runtime_observation": runtime_observation_check(output_dir),
         "no_contact_static": no_contact_static_check(),
         "sign_frame": sign_frame_check(),
         "staleness_dropout": staleness_dropout_check(),
@@ -401,6 +484,12 @@ def build_audit(output_dir: Path, *, generated_at: str | None = None, semantic_m
         "generated_at": generated,
         "goal_lineage": GOAL_LINEAGE,
         "mode": "offline_no_live_p1_simulated_ft_hard_floor_audit",
+        "evidence_window": "post-checkpoint gated simulated_ft source audit",
+        "checkpoint_boundary": {
+            "freeze_at": MIDRUN_GATE_FREEZE_AT,
+            "audit_artifact_evidence_window": "post-checkpoint gated evidence",
+            "pre_gate_inputs_preserved_as_history": True,
+        },
         "claim_tier": "simulated_ft" if all_pass else "visual_only",
         "p1_simulated_ft_hard_floor_ready": all_pass,
         "p1_blockers": blockers,

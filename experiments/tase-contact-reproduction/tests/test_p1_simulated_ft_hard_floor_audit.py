@@ -54,6 +54,7 @@ class P1SimulatedFtHardFloorAuditTest(unittest.TestCase):
                 "contract_schema",
                 "source_isolation",
                 "runtime_dry_run",
+                "runtime_observation",
                 "no_contact_static",
                 "sign_frame",
                 "staleness_dropout",
@@ -82,6 +83,22 @@ class P1SimulatedFtHardFloorAuditTest(unittest.TestCase):
             self.assertTrue(all(runtime["evidence_fields_present"].values()))
             self.assertEqual(runtime["force_source"], "simulated_ft")
             self.assertFalse(runtime["live_authorization"]["bridge_start_authorized"])
+
+            observed = payload["checks"]["runtime_observation"]["evidence"]
+            self.assertEqual(observed["schema"], "ur10e_canonical_simulated_ft_runtime_observation_v1")
+            self.assertEqual(observed["mode"], "offline_ros2_runtime_observation")
+            self.assertEqual(observed["force_source"], "simulated_ft")
+            self.assertTrue(observed["observed_complete"])
+            self.assertTrue(observed["discovery_ready"])
+            self.assertEqual(observed["first_wrench_frame_id"], "base")
+            self.assertEqual(observed["first_canonical_source"], "simulated_ft")
+            self.assertEqual(observed["first_canonical_status"], "valid")
+            self.assertEqual(observed["first_canonical_baseline_policy"], "simulated_zero_no_contact_baseline")
+            self.assertTrue(all(observed["evidence_fields_present"].values()))
+            for topic_key, expected_count in observed["expected_counts"].items():
+                self.assertGreaterEqual(observed["observed_counts"][topic_key], expected_count)
+            observation_path = WORKSPACE / observed["observation_summary"]
+            self.assertTrue(observation_path.is_file())
 
             pack = payload["checks"]["per_stage_pack"]["evidence"]
             pack_path = WORKSPACE / pack["manifest_path"]
