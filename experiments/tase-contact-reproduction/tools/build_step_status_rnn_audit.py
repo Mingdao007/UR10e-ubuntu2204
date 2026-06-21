@@ -619,10 +619,53 @@ def pending_paper_truth_fields(payload: dict[str, Any]) -> list[str]:
     return sorted(pending)
 
 
-def strict_rnn_final_acceptance_gate() -> dict[str, Any]:
+def strict_local_adaptation_summary(path: Path | None) -> dict[str, Any]:
+    if path is None:
+        return {
+            "artifact": None,
+            "present": False,
+            "status": "not_supplied",
+            "audit_ok": False,
+            "blockers": [],
+        }
+    if not path.exists():
+        return {
+            "artifact": rel(path),
+            "present": False,
+            "status": "missing",
+            "audit_ok": False,
+            "blockers": ["strict_rnn_local_adaptation_audit:missing"],
+        }
+    payload = load_json(path)
+    qdot_row = {}
+    for row in payload.get("field_rows", []):
+        if isinstance(row, dict) and row.get("field") == "local_qdot_bound_rad_s":
+            qdot_row = row
+            break
+    return {
+        "artifact": rel(path),
+        "present": True,
+        "schema": payload.get("schema"),
+        "status": payload.get("status"),
+        "claim_tier": payload.get("claim_tier"),
+        "audit_ok": bool(payload.get("audit_ok")),
+        "strict_rnn_final_acceptance_allowed": bool(payload.get("strict_rnn_final_acceptance_allowed")),
+        "supports_final_acceptance_count": payload.get("supports_final_acceptance_count"),
+        "blocked_or_local_only_count": payload.get("blocked_or_local_only_count"),
+        "blockers": payload.get("blockers", []),
+        "qdot_bound_status": qdot_row.get("status"),
+        "qdot_bound_evidence": qdot_row.get("evidence", {}),
+    }
+
+
+def strict_rnn_final_acceptance_gate(
+    *,
+    strict_local_adaptation_path: Path | None = None,
+) -> dict[str, Any]:
     paper_truth = load_json(STEP5D_PAPER_TRUTH)
     numeric_sanity = load_json(STEP5D_NUMERIC_SANITY) if STEP5D_NUMERIC_SANITY.exists() else {}
     pdf_audit = load_json(STEP5C_PAPER_TRUTH_PDF_AUDIT) if STEP5C_PAPER_TRUTH_PDF_AUDIT.exists() else {}
+    local_adaptation = strict_local_adaptation_summary(strict_local_adaptation_path)
     pending = pending_paper_truth_fields(paper_truth)
     strict_rnn_enabled = bool(paper_truth.get("strict_rnn_enabled"))
     numeric_sanity_pass = bool(numeric_sanity.get("overall_pass"))
@@ -639,6 +682,10 @@ def strict_rnn_final_acceptance_gate() -> dict[str, Any]:
         blockers.append("paper_truth:pending_pdf_verify")
     if not numeric_sanity_pass:
         blockers.append("numeric_sanity:not_passed_or_missing")
+    if strict_local_adaptation_path is not None:
+        for blocker in local_adaptation.get("blockers", []):
+            if blocker not in blockers:
+                blockers.append(str(blocker))
     allowed = not blockers
     status = "accepted_offline_solver_contract"
     if not allowed:
@@ -678,6 +725,7 @@ def strict_rnn_final_acceptance_gate() -> dict[str, Any]:
             "numeric_sanity_overall_pass": numeric_sanity_pass,
             "numeric_sanity_force_input": numeric_sanity.get("assumptions", {}).get("force_input"),
             "numeric_sanity_contact_evidence": numeric_sanity.get("assumptions", {}).get("contact_evidence"),
+            "strict_rnn_local_adaptation": local_adaptation,
         },
         "allowed_claim": (
             "offline strict RNN solver/source and numeric structural sanity only when paper-truth config is enabled "
@@ -759,6 +807,7 @@ def build_audit(
     p1_path: Path = P1_SIMULATED_FT,
     p2_correlation_path: Path = P2_CONTACT_CORRELATION_AUDIT,
     stage_sim_ft_manifest_path: Path | None = None,
+    strict_local_adaptation_path: Path | None = None,
 ) -> dict[str, Any]:
     generated = generated_at or datetime.now().isoformat(timespec="seconds")
     p1 = p1_simulated_ft_summary(p1_path)
@@ -767,8 +816,9 @@ def build_audit(
     stage_sim_ft_manifest = load_stage_simulated_ft_manifest(resolved_stage_sim_ft_manifest_path)
     stage_sim_ft_rows = stage_sim_ft_manifest["stages"]
     rows = [stage_status_row(stage_id, p2, stage_sim_ft_rows.get(stage_id)) for stage_id in step56.STAGE_REGISTRY]
-    strict_gate = strict_rnn_final_acceptance_gate()
+    strict_gate = strict_rnn_final_acceptance_gate(strict_local_adaptation_path=strict_local_adaptation_path)
     p2_inputs = p2.get("inputs", {})
+    strict_local_adaptation = strict_gate["evidence"]["strict_rnn_local_adaptation"]
     return {
         "schema": "ur10e_step_status_rnn_audit_v1",
         "generated_at": generated,
@@ -800,6 +850,7 @@ def build_audit(
             "step5d_paper_truth": rel(STEP5D_PAPER_TRUTH),
             "step5c_paper_truth_pdf_audit": rel(STEP5C_PAPER_TRUTH_PDF_AUDIT),
             "step5d_numeric_sanity": rel(STEP5D_NUMERIC_SANITY),
+            "strict_rnn_local_adaptation_audit": strict_local_adaptation.get("artifact"),
         },
         "p1_simulated_ft": p1,
         "p2_physical_gazebo_contact": p2,
@@ -847,6 +898,7 @@ def write_audit(
     p1_path: Path = P1_SIMULATED_FT,
     p2_correlation_path: Path = P2_CONTACT_CORRELATION_AUDIT,
     stage_sim_ft_manifest_path: Path | None = None,
+    strict_local_adaptation_path: Path | None = None,
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     path = output_dir / "step_status_rnn_audit.json"
@@ -855,6 +907,7 @@ def write_audit(
         p1_path=p1_path,
         p2_correlation_path=p2_correlation_path,
         stage_sim_ft_manifest_path=stage_sim_ft_manifest_path,
+        strict_local_adaptation_path=strict_local_adaptation_path,
     )
     payload["artifact_path"] = str(path)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -868,6 +921,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--p1-path", type=Path, default=P1_SIMULATED_FT)
     parser.add_argument("--p2-correlation-path", type=Path, default=P2_CONTACT_CORRELATION_AUDIT)
     parser.add_argument("--stage-sim-ft-manifest", type=Path, default=None)
+    parser.add_argument("--strict-local-adaptation-audit", type=Path, default=None)
     return parser.parse_args(argv)
 
 
@@ -879,6 +933,7 @@ def main(argv: list[str] | None = None) -> int:
         p1_path=args.p1_path,
         p2_correlation_path=args.p2_correlation_path,
         stage_sim_ft_manifest_path=args.stage_sim_ft_manifest,
+        strict_local_adaptation_path=args.strict_local_adaptation_audit,
     )
     print(path)
     return 0

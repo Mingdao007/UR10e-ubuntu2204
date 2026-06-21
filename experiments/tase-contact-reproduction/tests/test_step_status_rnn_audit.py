@@ -273,6 +273,55 @@ class StepStatusRnnAuditTest(unittest.TestCase):
         self.assertEqual(lineage["real_kunwei_read_only"]["target_claim_tier"], "not authorized in current goal")
         self.assertIn("not authorized", lineage["real_kunwei_read_only"]["current_goal_status"])
 
+    def test_build_audit_can_bind_strict_local_adaptation_artifact(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="step_status_strict_local_test_") as tmp:
+            strict_path = Path(tmp) / "strict_rnn_local_adaptation_audit.json"
+            strict_path.write_text(
+                json.dumps(
+                    {
+                        "schema": "ur10e_strict_rnn_local_adaptation_audit_v1",
+                        "status": "blocked_local_adaptation_fields_not_final_acceptance",
+                        "claim_tier": "virtual/software force-loop",
+                        "audit_ok": True,
+                        "strict_rnn_final_acceptance_allowed": False,
+                        "supports_final_acceptance_count": 0,
+                        "blocked_or_local_only_count": 9,
+                        "blockers": [
+                            "local_adaptation:not_final_acceptance",
+                            "eq23_nonzero_command_stability:not_proven",
+                        ],
+                        "field_rows": [
+                            {
+                                "field": "local_qdot_bound_rad_s",
+                                "status": "local_pdf_anchor_bound_sanity_passed_not_final_acceptance",
+                                "evidence": {
+                                    "local_numeric_sanity_bound_rad_s": 0.15,
+                                    "numeric_qdot_max_abs_rad_s": 0.15,
+                                },
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            payload = audit.build_audit(
+                generated_at="2026-06-21T14:25:00+08:00",
+                strict_local_adaptation_path=strict_path,
+            )
+
+        strict_gate = payload["strict_rnn_final_acceptance_gate"]
+        local = strict_gate["evidence"]["strict_rnn_local_adaptation"]
+        self.assertTrue(local["present"])
+        self.assertTrue(local["audit_ok"])
+        self.assertEqual(local["claim_tier"], "virtual/software force-loop")
+        self.assertEqual(local["qdot_bound_status"], "local_pdf_anchor_bound_sanity_passed_not_final_acceptance")
+        self.assertEqual(local["qdot_bound_evidence"]["local_numeric_sanity_bound_rad_s"], 0.15)
+        self.assertIn("local_adaptation:not_final_acceptance", strict_gate["blockers"])
+        self.assertIn("eq23_nonzero_command_stability:not_proven", strict_gate["blockers"])
+        self.assertFalse(strict_gate["strict_rnn_final_acceptance_allowed"])
+        self.assertEqual(payload["source_artifacts"]["strict_rnn_local_adaptation_audit"], str(strict_path))
+
     def test_write_audit_creates_machine_readable_json_artifact(self) -> None:
         audit = import_audit_module()
         with tempfile.TemporaryDirectory(prefix="step_status_rnn_audit_test_") as tmp:
