@@ -677,6 +677,14 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
                 row["timing_root_cause_status"],
                 "wall_clock_action_elapsed_slowdown_recorded_rtf_or_controller_speed_unresolved",
             )
+            self.assertTrue(row["gazebo_contact_pair_log_captured"])
+            self.assertTrue(row["gazebo_contact_pair_log_evidence"])
+            self.assertEqual(row["gazebo_contact_pair_log_row_count"], 1)
+            self.assertEqual(row["gazebo_contact_pair_matching_row_count"], 1)
+            self.assertEqual(row["gazebo_contact_native_wrench_row_count"], 1)
+            self.assertEqual(row["gazebo_contact_pair_log_claim_tier"], "visual_only")
+            self.assertFalse(row["gazebo_contact_wrench_contact_correlation_proven"])
+            self.assertFalse(row["force_contact_physics_proven"])
 
     def test_visual_audit_summary_uses_per_row_observer_pass_counts(self) -> None:
         with tempfile.TemporaryDirectory(prefix="ur10e_gui_summary_test_") as tmp:
@@ -710,6 +718,9 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
                 1.6,
             )
             self.assertTrue(summary["representative_timing_rows"][0]["sim_time_real_time_factor_confound"])
+            self.assertEqual(summary["contact_rows_contact_pair_log_evidence_count"], 1)
+            self.assertTrue(summary["all_contact_rows_contact_pair_log_evidence"])
+            self.assertEqual(summary["contact_rows_native_wrench_component_count"], 1)
 
     def test_repo_gui_configs_are_clean_and_cover_required_view_roles(self) -> None:
         expected = {
@@ -816,6 +827,34 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
         }
         (case_dir / "marker" / "tcp_marker_manifest.json").write_text(
             json.dumps(marker_manifest, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        contact_dir = case_dir / "contact_capture"
+        contact_dir.mkdir(parents=True)
+        contact_pair_log = {
+            "schema": "ur10e_gazebo_contact_pair_log_v1",
+            "claim_tier": "visual_only",
+            "target_claim_tier": "physical Gazebo collision/contact physics",
+            "parse_issues": [],
+            "rows": [
+                {
+                    "stamp_s": 1.25,
+                    "stamp_evidence": True,
+                    "collision1": "real_aligned_eoat_visual_stack::eoat_contact_pad_link::eoat_contact_pad_collision",
+                    "collision2": "step5_contact_surface::surface::collision",
+                    "position_m": [0.0, 0.0, 0.008],
+                    "normal": [0.0, 0.0, 1.0],
+                    "contact_count": 1,
+                    "native_gazebo_contact_wrench": {
+                        "source": "gazebo_contact_message_wrench",
+                        "status": "raw_untransformed",
+                        "force_n": [0.0, 0.0, 5.0],
+                    },
+                }
+            ],
+        }
+        (contact_dir / "gazebo_contact_pair_log.json").write_text(
+            json.dumps(contact_pair_log, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
         scene_dir = case_dir / "scene_introspection"

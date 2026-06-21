@@ -20,6 +20,7 @@ if str(SRC_PACKAGE) not in sys.path:
     sys.path.insert(0, str(SRC_PACKAGE))
 
 from ur10e_example_controllers import ur10e_gazebo_matrix_runner as gazebo  # noqa: E402
+import capture_p2_gazebo_contact_pair_log as contact_capture  # noqa: E402
 
 
 STAGES = ("step5a", "step5b", "step5c", "step5d", "step6a", "step6b", "step7", "step8")
@@ -40,6 +41,7 @@ POSE_SOURCE_ACTIVE_TCP = "joint_states_to_runner_fk_active_tcp_base_to_gazebo_wo
 DEFAULT_WORLD_NAME = "ur10e_step5_table_world"
 DEFAULT_OBSERVER_MARKER_STYLE = "observer_subtle"
 MARKER_STYLES = ("debug", "observer_subtle")
+CONTACT_CAPTURE_SCHEMA = "ur10e_gazebo_row_contact_topic_capture_v1"
 ENHANCED_MARKER_VISUAL_NAMES = frozenset(
     {
         "tcp_contact_pad_orange",
@@ -111,8 +113,9 @@ def run_row(args: argparse.Namespace) -> int:
             text=True,
         )
 
-    launch = marker = ffmpeg = None
+    launch = marker = ffmpeg = contact_capture_proc = None
     runner_rc = None
+    contact_topic = gazebo_visual_contact_topic(args.stage)
     try:
         launch = _popen(
             [
@@ -135,6 +138,20 @@ def run_row(args: argparse.Namespace) -> int:
             _write_trace(trace_path, {"action_ready": 0})
             return 41
         _write_trace(trace_path, {"action_ready": 1, "action_ready_after_s": ready_after})
+        if args.stage in CONTACT_STAGES and not args.disable_contact_capture:
+            contact_capture_proc = start_contact_topic_capture(
+                case_dir,
+                topic=contact_topic,
+                env=env,
+                max_messages=args.contact_capture_max_messages,
+            )
+            _write_trace(
+                trace_path,
+                {
+                    "contact_capture_pid": contact_capture_proc.pid if contact_capture_proc is not None else None,
+                    "contact_capture_topic": contact_topic,
+                },
+            )
 
         marker = _popen(
             [
@@ -205,6 +222,14 @@ def run_row(args: argparse.Namespace) -> int:
         _write_trace(trace_path, {"scripted_camera_capture": camera_capture})
         capture_scene_introspection(case_dir, env=env, world_name=DEFAULT_WORLD_NAME, robot_model_name="ur10e_gazebo_matrix")
     finally:
+        if args.stage in CONTACT_STAGES and not args.disable_contact_capture:
+            finish_contact_topic_capture(
+                contact_capture_proc,
+                case_dir,
+                topic=contact_topic,
+                world_path=world,
+                max_messages=args.contact_capture_max_messages,
+            )
         _terminate_process(marker)
         _terminate_process(ffmpeg)
         _terminate_process_group(launch)
@@ -264,6 +289,8 @@ def build_row_summary(
     acceptance = stage_payload.get("acceptance") or {}
     marker_manifest = case_dir / "marker" / "tcp_marker_manifest.json"
     marker_payload = _read_json(marker_manifest, default={})
+    contact_pair_log_path = case_dir / "contact_capture" / "gazebo_contact_pair_log.json"
+    contact_pair_summary = summarize_contact_pair_log(contact_pair_log_path)
     visual_manifest_path = _visual_manifest_path(run_dir, stage) if run_dir is not None else None
     visual_manifest = _read_json(visual_manifest_path, default={}) if visual_manifest_path else {}
     observer_review_path = case_dir / "observer_review.json"
@@ -350,6 +377,18 @@ def build_row_summary(
         "force_loop_success": force_success,
         "force_contact_source": stage_payload.get("force_contact_source") or gazebo.FORCE_CONTACT_SOURCE,
         "force_contact_physics_proven": bool(stage_payload.get("force_contact_physics_proven") or acceptance.get("force_contact_physics_proven")),
+        "gazebo_contact_pair_log_path": str(contact_pair_log_path),
+        "gazebo_contact_pair_log_captured": contact_pair_summary["captured"],
+        "gazebo_contact_pair_log_evidence": contact_pair_summary["contact_pair_log_evidence"],
+        "gazebo_contact_pair_log_row_count": contact_pair_summary["row_count"],
+        "gazebo_contact_pair_matching_row_count": contact_pair_summary["matching_row_count"],
+        "gazebo_contact_native_wrench_row_count": contact_pair_summary["native_wrench_row_count"],
+        "gazebo_contact_pair_log_claim_tier": contact_pair_summary["claim_tier"],
+        "gazebo_contact_pair_log_target_claim_tier": contact_pair_summary["target_claim_tier"],
+        "gazebo_contact_pair_log_status": contact_pair_summary["status"],
+        "gazebo_contact_pair_log_validation_issues": contact_pair_summary["validation_issues"],
+        "gazebo_contact_wrench_contact_correlation_proven": False,
+        "gazebo_contact_pair_log_forbidden_claim": "force_contact_physics_proven; total contact wrench; real bench/live contact",
         "force_loop_trace_written": acceptance.get("force_loop_trace_written"),
         "settled_force_within_tolerance_fraction": settled_fraction,
         "real_machine_traceability_status": TRACE_STATUS[stage],
@@ -620,6 +659,10 @@ def build_visual_audit_summary(
     actual_timing_rows = [row for row in rows if row.get("actual_vs_commanded_duration_ratio") is not None]
     contact_rows = [row for row in rows if row.get("contact_stage") is True]
     contact_force_success_rows = [row for row in contact_rows if row.get("force_loop_success") is True]
+    contact_pair_evidence_rows = [row for row in contact_rows if row.get("gazebo_contact_pair_log_evidence") is True]
+    native_wrench_component_rows = [
+        row for row in contact_rows if int(row.get("gazebo_contact_native_wrench_row_count") or 0) > 0
+    ]
     all_expected_rows_present = not missing_rows and len(rows) == expected
     all_observer_pass = all_expected_rows_present and len(observer_pass_rows) == expected
     payload = {
@@ -643,6 +686,9 @@ def build_visual_audit_summary(
         "contact_row_count": len(contact_rows),
         "contact_rows_force_loop_success_count": len(contact_force_success_rows),
         "all_contact_rows_force_loop_success": bool(contact_rows) and len(contact_force_success_rows) == len(contact_rows),
+        "contact_rows_contact_pair_log_evidence_count": len(contact_pair_evidence_rows),
+        "all_contact_rows_contact_pair_log_evidence": bool(contact_rows) and len(contact_pair_evidence_rows) == len(contact_rows),
+        "contact_rows_native_wrench_component_count": len(native_wrench_component_rows),
         "visual_review_status": "per_row_observer_visual_pass" if all_observer_pass else "per_row_observer_visual_failed_or_missing",
         "representative_failing_images": _representative_failing_images(observer_fail_rows),
         "rows": rows,
@@ -654,6 +700,179 @@ def write_visual_audit_summary(summary: dict[str, object], output: Path) -> Path
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return output
+
+
+def summarize_contact_pair_log(path: Path) -> dict[str, object]:
+    base: dict[str, object] = {
+        "path": str(path),
+        "captured": False,
+        "contact_pair_log_evidence": False,
+        "row_count": 0,
+        "matching_row_count": 0,
+        "native_wrench_row_count": 0,
+        "claim_tier": "visual_only",
+        "target_claim_tier": "physical Gazebo collision/contact physics",
+        "status": "missing",
+        "validation_issues": ["contact_pair_log:missing"],
+    }
+    if not path.is_file():
+        return base
+    try:
+        payload = _read_json(path)
+    except (OSError, json.JSONDecodeError) as exc:
+        return {
+            **base,
+            "captured": True,
+            "status": "unreadable",
+            "validation_issues": [f"contact_pair_log:unreadable:{type(exc).__name__}"],
+        }
+
+    rows = payload.get("rows") if isinstance(payload.get("rows"), list) else []
+    parse_issues = payload.get("parse_issues") if isinstance(payload.get("parse_issues"), list) else []
+    matching_rows = [row for row in rows if _row_has_eoat_surface_contact_pair(row)]
+    native_wrench_rows = [row for row in matching_rows if isinstance(row.get("native_gazebo_contact_wrench"), dict)]
+    validation_issues: list[str] = []
+    if parse_issues:
+        validation_issues.append("contact_pair_log:parse_issues")
+    if not rows:
+        validation_issues.append("contact_pair_log:no_rows")
+    if not matching_rows:
+        validation_issues.append("contact_pair_log:no_eoat_surface_pair")
+    return {
+        **base,
+        "captured": True,
+        "contact_pair_log_evidence": bool(rows and matching_rows and not parse_issues),
+        "row_count": len(rows),
+        "matching_row_count": len(matching_rows),
+        "native_wrench_row_count": len(native_wrench_rows),
+        "claim_tier": payload.get("claim_tier") or "visual_only",
+        "target_claim_tier": payload.get("target_claim_tier") or "physical Gazebo collision/contact physics",
+        "status": "component_evidence_present" if rows and matching_rows and not parse_issues else "not_ready",
+        "validation_issues": validation_issues,
+    }
+
+
+def _row_has_eoat_surface_contact_pair(row: object) -> bool:
+    if not isinstance(row, dict):
+        return False
+    collision1 = str(row.get("collision1") or "")
+    collision2 = str(row.get("collision2") or "")
+    return (_is_eoat_collision(collision1) and _is_surface_collision(collision2)) or (
+        _is_eoat_collision(collision2) and _is_surface_collision(collision1)
+    )
+
+
+def _is_eoat_collision(name: str) -> bool:
+    return "eoat" in name and "collision" in name
+
+
+def _is_surface_collision(name: str) -> bool:
+    return "contact_surface" in name or "surface::collision" in name
+
+
+def gazebo_visual_contact_topic(stage: str) -> str:
+    return f"/ur10e/contact/gazebo/{stage}/contacts"
+
+
+def start_contact_topic_capture(
+    case_dir: Path,
+    *,
+    topic: str,
+    env: dict[str, str],
+    max_messages: int,
+) -> subprocess.Popen[str] | None:
+    output_dir = case_dir / "contact_capture"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    command = ["ign", "topic", "-e", "-t", topic, "-n", str(max_messages), "--json-output"]
+    metadata = {
+        "schema": CONTACT_CAPTURE_SCHEMA,
+        "topic": topic,
+        "command": command,
+        "max_messages": max_messages,
+        "started_at": _now(),
+        "claim_tier": "visual_only",
+        "target_claim_tier": "physical Gazebo collision/contact physics",
+        "allowed_claim": "contact_pair_log_component_only_until_wrench_contact_correlation_gate_passes",
+        "forbidden_claim": "force_contact_physics_proven; total contact wrench; real bench/live contact",
+    }
+    (output_dir / "contact_capture_start.json").write_text(
+        json.dumps(metadata, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    try:
+        return subprocess.Popen(
+            command,
+            cwd=WORKSPACE,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            preexec_fn=os.setsid,
+        )
+    except OSError as exc:
+        metadata.update({"start_error": f"{type(exc).__name__}: {exc}", "finished_at": _now()})
+        (output_dir / "contact_capture_start.json").write_text(
+            json.dumps(metadata, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        return None
+
+
+def finish_contact_topic_capture(
+    process: subprocess.Popen[str] | None,
+    case_dir: Path,
+    *,
+    topic: str,
+    world_path: Path,
+    max_messages: int,
+) -> dict[str, object]:
+    output_dir = case_dir / "contact_capture"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    raw_jsonl = output_dir / "contact_topic_stdout.jsonl"
+    stderr_log = output_dir / "contact_topic_stderr.log"
+    if process is None:
+        stdout = ""
+        stderr = "contact capture process was not started\n"
+        returncode = None
+        timed_out = False
+    else:
+        if process.poll() is None:
+            _terminate_process_group(process)
+        try:
+            stdout, stderr = process.communicate(timeout=5.0)
+            timed_out = False
+        except subprocess.TimeoutExpired:
+            _kill_process_group(process)
+            stdout, stderr = process.communicate(timeout=5.0)
+            timed_out = True
+        returncode = process.returncode
+    raw_jsonl.write_text(stdout or "", encoding="utf-8")
+    stderr_log.write_text(stderr or "", encoding="utf-8")
+    payload = contact_capture.contact_pair_log_from_json_lines(
+        (stdout or "").splitlines(),
+        topic=topic,
+        world_path=str(world_path),
+        raw_jsonl_path=str(raw_jsonl),
+        sensor_collision_role="surface",
+        generated_at=_now(),
+    )
+    payload["capture"] = {
+        "schema": CONTACT_CAPTURE_SCHEMA,
+        "topic": topic,
+        "command": ["ign", "topic", "-e", "-t", topic, "-n", str(max_messages), "--json-output"],
+        "returncode": returncode,
+        "timed_out_during_shutdown": timed_out,
+        "max_messages": max_messages,
+        "stdout_path": str(raw_jsonl),
+        "stderr_path": str(stderr_log),
+        "claim_tier": "visual_only",
+        "target_claim_tier": "physical Gazebo collision/contact physics",
+        "forbidden_claim": "force_contact_physics_proven; total contact wrench; real bench/live contact",
+        "finished_at": _now(),
+    }
+    path = output_dir / "gazebo_contact_pair_log.json"
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return payload
 
 
 def capture_scripted_camera_image(
@@ -1040,6 +1259,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     row.add_argument("--max-record-s", type=float, default=240.0)
     row.add_argument("--scripted-camera-timeout-s", type=float, default=8.0)
     row.add_argument("--marker-style", choices=MARKER_STYLES, default=DEFAULT_OBSERVER_MARKER_STYLE)
+    row.add_argument("--contact-capture-max-messages", type=int, default=20)
+    row.add_argument("--disable-contact-capture", action="store_true")
     row.add_argument("--update-summary", action="store_true")
     row.set_defaults(func=run_row)
 
