@@ -44,7 +44,7 @@ class P6IntegratedDemoBundleTest(unittest.TestCase):
             self.assertTrue(manifest["rviz_evidence_paths"])
             self.assertIn("tcp_distance_evidence", manifest)
             self.assertIn("0818_p1_sim_ft_hard_floor", manifest["source_artifacts"]["stage_simulated_ft_manifest"])
-            self.assertIn("0828_step_status_latest_binding", manifest["source_artifacts"]["step_status_rnn_audit"])
+            self.assertIn("0846_step_status_strict_rnn_gate", manifest["source_artifacts"]["step_status_rnn_audit"])
 
             combined_csv = WORKSPACE / manifest["source_artifacts"]["combined_simulated_ft_csv"]
             self.assertTrue(combined_csv.is_file())

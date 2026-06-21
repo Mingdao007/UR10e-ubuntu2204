@@ -33,7 +33,7 @@ DEFAULT_P3_AUDIT = (
 )
 DEFAULT_STEP_STATUS_AUDIT = (
     RUNS
-    / "ur10e_gazebo_17h_sim_ft_rnn_20260621_0828_step_status_latest_binding"
+    / "ur10e_gazebo_17h_sim_ft_rnn_20260621_0846_step_status_strict_rnn_gate"
     / "step_status_rnn_audit.json"
 )
 
@@ -301,7 +301,18 @@ def step_status_summary(step: dict[str, Any], *, path: Path) -> dict[str, Any]:
     rnn_by_name = {str(row.get("interface")): row for row in rnn if isinstance(row, dict)}
     inner = rnn_by_name.get("inner_strict_rnn_solver", {})
     inner_status = str(inner.get("status") or "missing")
-    strict_rnn_final_acceptance = inner_status not in {"blocked_pending_pdf_truth_extraction", "missing"} and not inner_status.startswith("blocked")
+    strict_gate = (
+        step.get("strict_rnn_final_acceptance_gate")
+        if isinstance(step.get("strict_rnn_final_acceptance_gate"), dict)
+        else {}
+    )
+    if strict_gate:
+        strict_rnn_final_acceptance = bool(strict_gate.get("strict_rnn_final_acceptance_allowed"))
+    else:
+        strict_rnn_final_acceptance = (
+            inner_status not in {"blocked_pending_pdf_truth_extraction", "missing"}
+            and not inner_status.startswith("blocked")
+        )
     lineage = step.get("goal_lineage")
     stage_status_matrix = [
         {
@@ -360,6 +371,18 @@ def step_status_summary(step: dict[str, Any], *, path: Path) -> dict[str, Any]:
         "rnn_interfaces": len(rnn),
         "inner_strict_rnn_status": inner_status,
         "strict_rnn_final_acceptance": strict_rnn_final_acceptance,
+        "strict_rnn_final_acceptance_gate": {
+            "status": strict_gate.get("status", "missing") if strict_gate else "missing",
+            "claim_tier": strict_gate.get("claim_tier") if strict_gate else None,
+            "strict_rnn_final_acceptance_allowed": bool(
+                strict_gate.get("strict_rnn_final_acceptance_allowed")
+            )
+            if strict_gate
+            else strict_rnn_final_acceptance,
+            "blockers": strict_gate.get("blockers", []) if strict_gate else [],
+            "evidence": strict_gate.get("evidence", {}) if strict_gate else {},
+            "forbidden_claim": strict_gate.get("forbidden_claim") if strict_gate else None,
+        },
         "full_acceptance_allowed_by_step_audit": bool(coverage.get("full_acceptance_allowed")),
         "full_acceptance_blocker": coverage.get("full_acceptance_blocker"),
     }

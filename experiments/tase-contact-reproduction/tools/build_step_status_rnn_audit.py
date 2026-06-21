@@ -556,7 +556,7 @@ def rnn_interface_table() -> list[dict[str, Any]]:
     paper_truth = load_json(STEP5D_PAPER_TRUTH)
     numeric_sanity = load_json(STEP5D_NUMERIC_SANITY) if STEP5D_NUMERIC_SANITY.exists() else {}
     numeric_gate = "overall_pass=true" if numeric_sanity.get("overall_pass") else "not_current_or_missing"
-    pending = paper_truth.get("pending_pdf_verify", [])
+    pending = pending_paper_truth_fields(paper_truth)
     return [
         {
             "interface": "path_provider",
@@ -587,6 +587,7 @@ def rnn_interface_table() -> list[dict[str, Any]]:
                 "paper_truth": rel(STEP5D_PAPER_TRUTH),
                 "strict_rnn_enabled": bool(paper_truth.get("strict_rnn_enabled")),
                 "pending_pdf_verify_count": len(pending),
+                "pending_pdf_verify_fields": pending,
             },
             "forbidden_claim": "no live bridge; no controller upload; no robot motion; no real bench/live contact",
         },
@@ -601,6 +602,75 @@ def rnn_interface_table() -> list[dict[str, Any]]:
             "forbidden_claim": "no live bridge; no TP play; no controller upload; no real bench/live contact",
         },
     ]
+
+
+def pending_paper_truth_fields(payload: dict[str, Any]) -> list[str]:
+    pending = [str(field) for field in payload.get("pending_pdf_verify", [])]
+    for section_name, section in payload.get("sections", {}).items():
+        if not isinstance(section, dict):
+            continue
+        for field in section.get("pending_pdf_verify", []):
+            pending.append(f"{section_name}.{field}")
+    return sorted(pending)
+
+
+def strict_rnn_final_acceptance_gate() -> dict[str, Any]:
+    paper_truth = load_json(STEP5D_PAPER_TRUTH)
+    numeric_sanity = load_json(STEP5D_NUMERIC_SANITY) if STEP5D_NUMERIC_SANITY.exists() else {}
+    pending = pending_paper_truth_fields(paper_truth)
+    strict_rnn_enabled = bool(paper_truth.get("strict_rnn_enabled"))
+    numeric_sanity_pass = bool(numeric_sanity.get("overall_pass"))
+    solver_source_present = (EXPERIMENT_ROOT / "tools" / "step5c_strict_rnn.py").exists()
+    solver_tests_present = (EXPERIMENT_ROOT / "tests" / "test_step5d_strict_rnn_solver.py").exists()
+    blockers: list[str] = []
+    if not solver_source_present:
+        blockers.append("solver_source:missing")
+    if not solver_tests_present:
+        blockers.append("solver_tests:missing")
+    if not strict_rnn_enabled:
+        blockers.append("paper_truth:strict_rnn_disabled")
+    if pending:
+        blockers.append("paper_truth:pending_pdf_verify")
+    if not numeric_sanity_pass:
+        blockers.append("numeric_sanity:not_passed_or_missing")
+    allowed = not blockers
+    status = "accepted_offline_solver_contract"
+    if not allowed:
+        status = (
+            "blocked_pending_pdf_truth_extraction"
+            if (not strict_rnn_enabled or pending)
+            else "blocked_missing_required_evidence"
+        )
+    return {
+        "gate": "strict_rnn_final_acceptance",
+        "fail_closed": True,
+        "strict_rnn_final_acceptance_allowed": allowed,
+        "status": status,
+        "claim_tier": "virtual/software force-loop",
+        "target_claim_tier": "virtual/software force-loop",
+        "blockers": blockers,
+        "evidence": {
+            "solver_source": rel(EXPERIMENT_ROOT / "tools" / "step5c_strict_rnn.py"),
+            "solver_source_present": solver_source_present,
+            "solver_tests": rel(EXPERIMENT_ROOT / "tests" / "test_step5d_strict_rnn_solver.py"),
+            "solver_tests_present": solver_tests_present,
+            "paper_truth": rel(STEP5D_PAPER_TRUTH),
+            "strict_rnn_enabled": strict_rnn_enabled,
+            "pending_pdf_verify_count": len(pending),
+            "pending_pdf_verify_fields": pending,
+            "numeric_sanity": rel(STEP5D_NUMERIC_SANITY),
+            "numeric_sanity_overall_pass": numeric_sanity_pass,
+            "numeric_sanity_force_input": numeric_sanity.get("assumptions", {}).get("force_input"),
+            "numeric_sanity_contact_evidence": numeric_sanity.get("assumptions", {}).get("contact_evidence"),
+        },
+        "allowed_claim": (
+            "offline strict RNN solver/source and numeric structural sanity only when paper-truth config is enabled "
+            "and all PDF verification fields are closed"
+        ),
+        "forbidden_claim": (
+            "simulated_ft; physical Gazebo collision/contact physics; real bench/live contact; live bridge/TP/URScript/motion"
+        ),
+    }
 
 
 def current_goal_lineage_rows(p2_gate: dict[str, Any]) -> list[dict[str, Any]]:
@@ -681,6 +751,7 @@ def build_audit(
     stage_sim_ft_manifest = load_stage_simulated_ft_manifest(resolved_stage_sim_ft_manifest_path)
     stage_sim_ft_rows = stage_sim_ft_manifest["stages"]
     rows = [stage_status_row(stage_id, p2, stage_sim_ft_rows.get(stage_id)) for stage_id in step56.STAGE_REGISTRY]
+    strict_gate = strict_rnn_final_acceptance_gate()
     p2_inputs = p2.get("inputs", {})
     return {
         "schema": "ur10e_step_status_rnn_audit_v1",
@@ -726,10 +797,14 @@ def build_audit(
         },
         "step_status_matrix": rows,
         "rnn_interface_table": rnn_interface_table(),
+        "strict_rnn_final_acceptance_gate": strict_gate,
         "force_source_lineage_current_goal": current_goal_lineage_rows(p2),
         "audit_coverage": {
             "stage_rows": len(rows),
             "rnn_interfaces": 4,
+            "strict_rnn_final_acceptance_allowed": strict_gate["strict_rnn_final_acceptance_allowed"],
+            "strict_rnn_final_acceptance_status": strict_gate["status"],
+            "strict_rnn_claim_tier": strict_gate["claim_tier"],
             "p1_claim_tier": p1["claim_tier"],
             "p2_claim_tier": p2["claim_tier"],
             "p2_scope": p2["scope"],

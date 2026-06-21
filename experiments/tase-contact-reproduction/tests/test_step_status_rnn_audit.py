@@ -240,7 +240,21 @@ class StepStatusRnnAuditTest(unittest.TestCase):
         )
         self.assertEqual(interfaces["inner_strict_rnn_solver"]["status"], "blocked_pending_pdf_truth_extraction")
         self.assertEqual(interfaces["inner_strict_rnn_solver"]["claim_tier"], "virtual/software force-loop")
+        self.assertGreater(
+            interfaces["inner_strict_rnn_solver"]["evidence"]["pending_pdf_verify_count"],
+            0,
+        )
         self.assertIn("no live bridge", interfaces["carrier_registers_ros2_runner"]["forbidden_claim"])
+
+        strict_gate = payload["strict_rnn_final_acceptance_gate"]
+        self.assertTrue(strict_gate["fail_closed"])
+        self.assertFalse(strict_gate["strict_rnn_final_acceptance_allowed"])
+        self.assertEqual(strict_gate["claim_tier"], "virtual/software force-loop")
+        self.assertIn("paper_truth:strict_rnn_disabled", strict_gate["blockers"])
+        self.assertIn("paper_truth:pending_pdf_verify", strict_gate["blockers"])
+        self.assertTrue(strict_gate["evidence"]["numeric_sanity_overall_pass"])
+        self.assertEqual(strict_gate["evidence"]["numeric_sanity_contact_evidence"], "not_claimed")
+        self.assertIn("simulated_ft", strict_gate["forbidden_claim"])
 
         lineage = {row["source_name"]: row for row in payload["force_source_lineage_current_goal"]}
         self.assertEqual(lineage["virtual/software force-loop"]["current_report_claim_tier"], "virtual/software force-loop")
