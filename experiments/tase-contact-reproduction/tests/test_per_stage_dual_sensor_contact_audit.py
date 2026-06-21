@@ -147,8 +147,10 @@ def adapter_payload() -> dict[str, object]:
 
 def observation_payload() -> dict[str, object]:
     return {
+        "schema": "ur10e_stage_dual_sensor_observation_manifest_v1",
         "observation_id": "stage-step5b-dual-sensor-fixture-001",
         "explicit": True,
+        "same_run_stage_dual_sensor_observation_proven": True,
         "time_window": {
             "start": "2026-06-21T16:55:00+08:00",
             "end": "2026-06-21T16:55:10+08:00",
@@ -258,6 +260,31 @@ class PerStageDualSensorContactAuditTest(unittest.TestCase):
         self.assertFalse(payload["same_run_stage_dual_sensor_observation"]["same_run_stage_dual_sensor_observation_proven"])
         self.assertIn("same_run_stage_dual_sensor_observation:not_proven", payload["blockers"])
         self.assertIn("same_run_stage_dual_sensor_observation:missing", payload["validation_issues"])
+
+    def test_blocks_observation_manifest_that_declares_itself_not_proven(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="stage_dual_sensor_blocked_manifest_", dir=RUNS) as tmp:
+            paths = write_fixture(Path(tmp), include_adapter=True, include_observation=True)
+            observation = json.loads(paths["observation"].read_text(encoding="utf-8"))
+            observation["same_run_stage_dual_sensor_observation_proven"] = False
+            write_json(paths["observation"], observation)
+            payload = audit.build_audit(
+                generated_at="2026-06-21T16:56:10+08:00",
+                stage_row_summary_path=paths["row"],
+                stage_contact_pair_log_path=paths["contact"],
+                stage_simulated_ft_manifest_path=paths["manifest"],
+                step_status_audit_path=paths["step"],
+                stage_contact_wrench_adapter_path=paths["adapter"],
+                same_run_observation_manifest_path=paths["observation"],
+            )
+
+        self.assertTrue(payload["per_stage_physical_gazebo_contact"]["per_stage_physical_gazebo_contact_proven"])
+        self.assertFalse(payload["same_run_stage_dual_sensor_observation"]["same_run_stage_dual_sensor_observation_proven"])
+        self.assertIn("same_run_stage_dual_sensor_observation:not_proven", payload["blockers"])
+        self.assertIn(
+            "same_run_stage_dual_sensor_observation.manifest:not_proven",
+            payload["validation_issues"],
+        )
 
     def test_write_audit_creates_stage_scoped_artifact(self) -> None:
         audit = import_audit_module()

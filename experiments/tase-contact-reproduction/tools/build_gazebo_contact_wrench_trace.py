@@ -514,6 +514,8 @@ def build_wrench_trace_or_report(
     *,
     generated_at: str | None = None,
     source_topic: str = DEFAULT_SOURCE_TOPIC,
+    stage_id: str | None = None,
+    observation_id: str | None = None,
 ) -> dict[str, Any]:
     rows = contact_pair_payload.get("rows") or []
     native_wrench_row_count = sum(1 for row in rows if isinstance(row, dict) and _raw_native_wrench(row) is not None)
@@ -569,6 +571,8 @@ def build_wrench_trace_or_report(
         "generated_at": generated_at or _now_iso(),
         "mode": "offline_no_live_gazebo_contact_wrench_adapter",
         "goal_lineage": "/home/andy/codex_handoffs/ur10e-gazebo-17h-sim-ft-rnn-goal-prompt-20260621-0056.md",
+        "stage_id": stage_id,
+        "observation_id": observation_id,
         "trace_written": bool(trace),
         "claim_tier": PHYSICAL_GAZEBO_CLAIM_TIER if trace else BLOCKED_CLAIM_TIER,
         "target_claim_tier": PHYSICAL_GAZEBO_CLAIM_TIER,
@@ -626,6 +630,10 @@ def write_wrench_trace_or_report(
     contact_pair_path: Path,
     generated_at: str | None = None,
     source_topic: str = DEFAULT_SOURCE_TOPIC,
+    report_filename: str = REPORT_FILENAME,
+    trace_filename: str = TRACE_FILENAME,
+    stage_id: str | None = None,
+    observation_id: str | None = None,
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     contact_pair_payload = _load_json(contact_pair_path)
@@ -633,17 +641,26 @@ def write_wrench_trace_or_report(
         contact_pair_payload,
         generated_at=generated_at,
         source_topic=source_topic,
+        stage_id=stage_id,
+        observation_id=observation_id,
     )
     report["inputs"] = {"contact_pair_path": str(contact_pair_path)}
     if isinstance(report.get("wrench_trace"), dict):
-        trace_path = output_dir / TRACE_FILENAME
+        trace_path = _output_child(output_dir, trace_filename)
         trace_path.write_text(json.dumps(report["wrench_trace"], indent=2, sort_keys=True) + "\n", encoding="utf-8")
         report["wrench_trace_path"] = str(trace_path)
     else:
         report["wrench_trace_path"] = None
-    report_path = output_dir / REPORT_FILENAME
+    report_path = _output_child(output_dir, report_filename)
     report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return report_path
+
+
+def _output_child(output_dir: Path, filename: str) -> Path:
+    child = Path(filename)
+    if child.is_absolute() or len(child.parts) != 1:
+        raise ValueError(f"output filename must be a simple filename: {filename}")
+    return output_dir / child
 
 
 def main() -> int:
@@ -651,12 +668,22 @@ def main() -> int:
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--contact-pair", required=True, type=Path)
     parser.add_argument("--source-topic", default=DEFAULT_SOURCE_TOPIC)
+    parser.add_argument("--generated-at", default=None)
+    parser.add_argument("--report-filename", default=REPORT_FILENAME)
+    parser.add_argument("--trace-filename", default=TRACE_FILENAME)
+    parser.add_argument("--stage-id", default=None)
+    parser.add_argument("--observation-id", default=None)
     args = parser.parse_args()
 
     report_path = write_wrench_trace_or_report(
         args.output_dir,
         contact_pair_path=args.contact_pair,
+        generated_at=args.generated_at,
         source_topic=args.source_topic,
+        report_filename=args.report_filename,
+        trace_filename=args.trace_filename,
+        stage_id=args.stage_id,
+        observation_id=args.observation_id,
     )
     print(report_path)
     return 0

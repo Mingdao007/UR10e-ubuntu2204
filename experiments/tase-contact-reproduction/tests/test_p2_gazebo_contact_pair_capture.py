@@ -740,6 +740,32 @@ class P2GazeboContactPairCaptureTest(unittest.TestCase):
         self.assertIn("total_contact_wrench", trace["rows"][0]["diagnostic_flags"])
         self.assertIn("total_contact_wrench_component_count=2", trace["rows"][0]["diagnostic_flags"])
 
+    def test_stage_scoped_wrench_adapter_write_uses_custom_filenames_and_metadata(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="stage_wrench_adapter_test_") as tmp:
+            tmp_path = Path(tmp)
+            contact_path = _write_json(
+                tmp_path / "stage_contact_pair_log.json",
+                _verified_base_frame_gazebo_total_contact_wrench_pair_log(),
+            )
+            report_path = wrench_adapter.write_wrench_trace_or_report(
+                tmp_path / "adapter",
+                contact_pair_path=contact_path,
+                generated_at="2026-06-21T17:12:00+08:00",
+                source_topic="/ur10e/contact/gazebo/step5b/wrench",
+                report_filename="stage_contact_wrench_adapter.json",
+                trace_filename="stage_contact_wrench_trace.json",
+                stage_id="step5b",
+                observation_id="stage-step5b-dual-sensor-fixture-001",
+            )
+            payload = json.loads(report_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(report_path.name, "stage_contact_wrench_adapter.json")
+        self.assertEqual(payload["stage_id"], "step5b")
+        self.assertEqual(payload["observation_id"], "stage-step5b-dual-sensor-fixture-001")
+        self.assertEqual(payload["source_topic"], "/ur10e/contact/gazebo/step5b/wrench")
+        self.assertTrue(payload["total_contact_wrench_proven"])
+        self.assertEqual(Path(payload["wrench_trace_path"]).name, "stage_contact_wrench_trace.json")
+
     def test_verified_gazebo_wrench_trace_can_close_correlation_gate(self) -> None:
         adapter_payload = wrench_adapter.build_wrench_trace_or_report(
             _verified_base_frame_gazebo_contact_wrench_pair_log(),

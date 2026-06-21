@@ -352,6 +352,7 @@ def observation_summary(payload: dict[str, Any]) -> tuple[dict[str, Any], list[s
     missing_surfaces = [surface for surface in REQUIRED_OBSERVATION_SURFACES if surface not in surfaces]
     explicit = payload.get("explicit") is True or payload.get("same_run_concurrent_observation_explicit") is True
     summary = {
+        "schema": payload.get("schema"),
         "observation_id": str(payload.get("observation_id") or "").strip() or None,
         "same_run_concurrent_observation_explicit": explicit,
         "time_window": {
@@ -365,6 +366,10 @@ def observation_summary(payload: dict[str, Any]) -> tuple[dict[str, Any], list[s
     issues: list[str] = []
     if not payload:
         issues.append("same_run_stage_dual_sensor_observation:missing")
+    if payload.get("schema") and payload.get("schema") != "ur10e_stage_dual_sensor_observation_manifest_v1":
+        issues.append("same_run_stage_dual_sensor_observation.schema:unsupported")
+    if payload.get("same_run_stage_dual_sensor_observation_proven") is False:
+        issues.append("same_run_stage_dual_sensor_observation.manifest:not_proven")
     if not summary["observation_id"]:
         issues.append("same_run_stage_dual_sensor_observation.observation_id:missing")
     if not explicit:
