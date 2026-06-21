@@ -21,6 +21,7 @@ if str(SRC_PACKAGE) not in sys.path:
     sys.path.insert(0, str(SRC_PACKAGE))
 
 from ur10e_example_controllers import ur10e_gazebo_matrix_runner as gazebo  # noqa: E402
+import build_gazebo_contact_wrench_trace as wrench_adapter  # noqa: E402
 import capture_p2_gazebo_contact_pair_log as contact_capture  # noqa: E402
 
 
@@ -43,6 +44,8 @@ DEFAULT_WORLD_NAME = "ur10e_step5_table_world"
 DEFAULT_OBSERVER_MARKER_STYLE = "minimal_tcp_dot"
 MARKER_STYLES = ("debug", "observer_subtle", "minimal_tcp_dot")
 CONTACT_CAPTURE_SCHEMA = "ur10e_gazebo_row_contact_topic_capture_v1"
+STAGE_CONTACT_WRENCH_ADAPTER_FILENAME = "stage_contact_wrench_adapter.json"
+STAGE_CONTACT_WRENCH_TRACE_FILENAME = "stage_contact_wrench_trace.json"
 VISIBLE_GAZEBO_OVERLAP_SCHEMA = "ur10e_visible_gazebo_overlap_preflight_v1"
 VISIBLE_GAZEBO_OVERLAP_RC = 43
 VISIBLE_GAZEBO_LOCK_SCHEMA = "ur10e_visible_gazebo_row_lock_preflight_v1"
@@ -287,6 +290,7 @@ def run_row(args: argparse.Namespace) -> int:
             finish_contact_topic_capture(
                 contact_capture_proc,
                 case_dir,
+                stage=args.stage,
                 topic=contact_topic,
                 world_path=world,
                 max_messages=args.contact_capture_max_messages,
@@ -353,6 +357,8 @@ def build_row_summary(
     marker_payload = _read_json(marker_manifest, default={})
     contact_pair_log_path = case_dir / "contact_capture" / "gazebo_contact_pair_log.json"
     contact_pair_summary = summarize_contact_pair_log(contact_pair_log_path)
+    stage_wrench_adapter_path = case_dir / "contact_capture" / STAGE_CONTACT_WRENCH_ADAPTER_FILENAME
+    stage_wrench_adapter_summary = summarize_stage_contact_wrench_adapter(stage_wrench_adapter_path)
     visual_manifest_path = _visual_manifest_path(run_dir, stage) if run_dir is not None else None
     visual_manifest = _read_json(visual_manifest_path, default={}) if visual_manifest_path else {}
     observer_review_path = case_dir / "observer_review.json"
@@ -451,6 +457,16 @@ def build_row_summary(
         "gazebo_contact_pair_log_status": contact_pair_summary["status"],
         "gazebo_contact_pair_log_validation_issues": contact_pair_summary["validation_issues"],
         "gazebo_contact_wrench_contact_correlation_proven": False,
+        "stage_contact_wrench_adapter_path": str(stage_wrench_adapter_path),
+        "stage_contact_wrench_adapter_present": stage_wrench_adapter_summary["present"],
+        "stage_contact_wrench_adapter_claim_tier": stage_wrench_adapter_summary["claim_tier"],
+        "stage_contact_wrench_trace_written": stage_wrench_adapter_summary["trace_written"],
+        "stage_contact_wrench_trace_path": stage_wrench_adapter_summary["trace_path"],
+        "stage_contact_wrench_force_source": stage_wrench_adapter_summary["force_source"],
+        "stage_total_contact_wrench_proven": stage_wrench_adapter_summary["total_contact_wrench_proven"],
+        "stage_total_contact_wrench_row_count": stage_wrench_adapter_summary["total_contact_wrench_row_count"],
+        "stage_contact_wrench_validation_issues": stage_wrench_adapter_summary["validation_issues"],
+        "stage_contact_wrench_forbidden_claim": "real bench/live contact; simulated_ft; per-stage physical Gazebo contact unless total contact wrench and correlation gates pass",
         "gazebo_contact_pair_log_forbidden_claim": "force_contact_physics_proven; total contact wrench; real bench/live contact",
         "force_loop_trace_written": acceptance.get("force_loop_trace_written"),
         "settled_force_within_tolerance_fraction": settled_fraction,
@@ -1006,6 +1022,7 @@ def build_visual_audit_summary(
     native_wrench_component_rows = [
         row for row in contact_rows if int(row.get("gazebo_contact_native_wrench_row_count") or 0) > 0
     ]
+    stage_total_wrench_rows = [row for row in contact_rows if row.get("stage_total_contact_wrench_proven") is True]
     overlap_preflight_rows = [row for row in missing_rows if row.get("visible_gazebo_overlap_preflight")]
     lock_preflight_rows = [row for row in missing_rows if row.get("visible_gazebo_lock_preflight")]
     all_expected_rows_present = not missing_rows and len(rows) == expected
@@ -1038,6 +1055,7 @@ def build_visual_audit_summary(
         "contact_rows_contact_pair_log_evidence_count": len(contact_pair_evidence_rows),
         "all_contact_rows_contact_pair_log_evidence": bool(contact_rows) and len(contact_pair_evidence_rows) == len(contact_rows),
         "contact_rows_native_wrench_component_count": len(native_wrench_component_rows),
+        "contact_rows_stage_total_wrench_proven_count": len(stage_total_wrench_rows),
         "visual_review_status": "per_row_observer_visual_pass" if all_observer_pass else "per_row_observer_visual_failed_or_missing",
         "representative_failing_images": _representative_failing_images(observer_fail_rows),
         "rows": rows,
@@ -1097,6 +1115,55 @@ def summarize_contact_pair_log(path: Path) -> dict[str, object]:
         "claim_tier": payload.get("claim_tier") or "visual_only",
         "target_claim_tier": payload.get("target_claim_tier") or "physical Gazebo collision/contact physics",
         "status": "component_evidence_present" if rows and matching_rows and not parse_issues else "not_ready",
+        "validation_issues": validation_issues,
+    }
+
+
+def summarize_stage_contact_wrench_adapter(path: Path) -> dict[str, object]:
+    base: dict[str, object] = {
+        "path": str(path),
+        "present": False,
+        "claim_tier": "visual_only",
+        "trace_written": False,
+        "trace_path": None,
+        "force_source": None,
+        "total_contact_wrench_proven": False,
+        "total_contact_wrench_row_count": 0,
+        "validation_issues": ["stage_contact_wrench_adapter:missing"],
+    }
+    if not path.is_file():
+        return base
+    try:
+        payload = _read_json(path)
+    except (OSError, json.JSONDecodeError) as exc:
+        return {
+            **base,
+            "present": True,
+            "validation_issues": [f"stage_contact_wrench_adapter:unreadable:{type(exc).__name__}"],
+        }
+
+    blockers = payload.get("blockers") if isinstance(payload.get("blockers"), list) else []
+    total_blockers = payload.get("total_contact_wrench_blockers")
+    if not isinstance(total_blockers, list):
+        total_blockers = []
+    validation_issues: list[str] = []
+    if payload.get("schema") != wrench_adapter.REPORT_SCHEMA:
+        validation_issues.append("stage_contact_wrench_adapter.schema:unsupported_or_missing")
+    if payload.get("trace_written") is not True:
+        validation_issues.append("stage_contact_wrench_adapter.trace:not_written")
+    if payload.get("total_contact_wrench_proven") is not True:
+        validation_issues.append("stage_total_contact_wrench:not_proven")
+    validation_issues.extend(str(item) for item in blockers)
+    validation_issues.extend(str(item) for item in total_blockers)
+    return {
+        **base,
+        "present": True,
+        "claim_tier": payload.get("claim_tier") or "visual_only",
+        "trace_written": bool(payload.get("trace_written")),
+        "trace_path": payload.get("wrench_trace_path"),
+        "force_source": payload.get("force_source"),
+        "total_contact_wrench_proven": bool(payload.get("total_contact_wrench_proven")),
+        "total_contact_wrench_row_count": int(payload.get("total_contact_wrench_row_count") or 0),
         "validation_issues": validation_issues,
     }
 
@@ -1171,6 +1238,7 @@ def finish_contact_topic_capture(
     process: subprocess.Popen[str] | None,
     case_dir: Path,
     *,
+    stage: str,
     topic: str,
     world_path: Path,
     max_messages: int,
@@ -1221,7 +1289,46 @@ def finish_contact_topic_capture(
     }
     path = output_dir / "gazebo_contact_pair_log.json"
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_stage_contact_wrench_adapter(output_dir, contact_pair_path=path, stage=stage)
     return payload
+
+
+def write_stage_contact_wrench_adapter(output_dir: Path, *, contact_pair_path: Path, stage: str) -> Path | None:
+    try:
+        return wrench_adapter.write_wrench_trace_or_report(
+            output_dir,
+            contact_pair_path=contact_pair_path,
+            generated_at=_now(),
+            source_topic=f"/ur10e/contact/gazebo/{stage}/wrench",
+            report_filename=STAGE_CONTACT_WRENCH_ADAPTER_FILENAME,
+            trace_filename=STAGE_CONTACT_WRENCH_TRACE_FILENAME,
+            stage_id=stage,
+        )
+    except Exception as exc:  # noqa: BLE001 - artifact generation must downgrade, not crash row cleanup.
+        path = output_dir / STAGE_CONTACT_WRENCH_ADAPTER_FILENAME
+        payload = {
+            "schema": wrench_adapter.REPORT_SCHEMA,
+            "generated_at": _now(),
+            "mode": "offline_no_live_gazebo_contact_wrench_adapter",
+            "stage_id": stage,
+            "trace_written": False,
+            "claim_tier": "visual_only",
+            "target_claim_tier": "physical Gazebo collision/contact physics",
+            "total_contact_wrench_proven": False,
+            "total_contact_wrench_row_count": 0,
+            "force_source": None,
+            "wrench_trace_path": None,
+            "blockers": [f"stage_contact_wrench_adapter_generation_error:{type(exc).__name__}"],
+            "error": str(exc),
+            "live_robot_command_authorized": False,
+            "bridge_start_authorized": False,
+            "urscript_send_authorized": False,
+            "tp_load_play_authorized": False,
+            "zero_ftsensor_authorized": False,
+            "payload_tcp_safety_writes_authorized": False,
+        }
+        path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        return path
 
 
 def capture_scripted_camera_image(

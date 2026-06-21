@@ -882,6 +882,11 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             self.assertEqual(row["gazebo_contact_native_wrench_row_count"], 1)
             self.assertEqual(row["gazebo_contact_pair_log_claim_tier"], "visual_only")
             self.assertFalse(row["gazebo_contact_wrench_contact_correlation_proven"])
+            self.assertTrue(row["stage_contact_wrench_adapter_present"])
+            self.assertEqual(row["stage_contact_wrench_adapter_claim_tier"], "visual_only")
+            self.assertFalse(row["stage_contact_wrench_trace_written"])
+            self.assertFalse(row["stage_total_contact_wrench_proven"])
+            self.assertIn("stage_total_contact_wrench:not_proven", row["stage_contact_wrench_validation_issues"])
             self.assertFalse(row["force_contact_physics_proven"])
 
     def test_visual_audit_summary_uses_per_row_observer_pass_counts(self) -> None:
@@ -919,6 +924,27 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             self.assertEqual(summary["contact_rows_contact_pair_log_evidence_count"], 1)
             self.assertTrue(summary["all_contact_rows_contact_pair_log_evidence"])
             self.assertEqual(summary["contact_rows_native_wrench_component_count"], 1)
+            self.assertEqual(summary["contact_rows_stage_total_wrench_proven_count"], 0)
+
+    def test_stage_contact_wrench_adapter_writer_keeps_unverified_log_visual_only(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="ur10e_gui_stage_adapter_test_") as tmp:
+            run_dir = Path(tmp)
+            case_dir = self._write_gui_row_fixture(run_dir, observer_review=True)
+            contact_dir = case_dir / "contact_capture"
+            report_path = gui_row.write_stage_contact_wrench_adapter(
+                contact_dir,
+                contact_pair_path=contact_dir / "gazebo_contact_pair_log.json",
+                stage="step5b",
+            )
+            payload = json.loads(report_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(report_path.name, gui_row.STAGE_CONTACT_WRENCH_ADAPTER_FILENAME)
+        self.assertEqual(payload["schema"], gui_row.wrench_adapter.REPORT_SCHEMA)
+        self.assertEqual(payload["stage_id"], "step5b")
+        self.assertEqual(payload["claim_tier"], "visual_only")
+        self.assertFalse(payload["trace_written"])
+        self.assertFalse(payload["total_contact_wrench_proven"])
+        self.assertIn("missing_verified_gazebo_contact_wrench_provenance", payload["blockers"])
 
     def test_repo_gui_configs_are_clean_and_cover_required_view_roles(self) -> None:
         expected = {
@@ -1053,6 +1079,21 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
         }
         (contact_dir / "gazebo_contact_pair_log.json").write_text(
             json.dumps(contact_pair_log, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        stage_wrench_adapter = {
+            "schema": gui_row.wrench_adapter.REPORT_SCHEMA,
+            "stage_id": "step5b",
+            "claim_tier": "visual_only",
+            "trace_written": False,
+            "total_contact_wrench_proven": False,
+            "total_contact_wrench_row_count": 0,
+            "force_source": None,
+            "wrench_trace_path": None,
+            "blockers": ["missing_verified_gazebo_contact_wrench_provenance"],
+        }
+        (contact_dir / gui_row.STAGE_CONTACT_WRENCH_ADAPTER_FILENAME).write_text(
+            json.dumps(stage_wrench_adapter, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
         scene_dir = case_dir / "scene_introspection"
