@@ -57,12 +57,16 @@ def _post_gate_visual_foundation_row() -> dict[str, object]:
         "view": "close_detail",
         "observer_visual_pass": True,
         "observer_visual_failure_reasons": [],
-        "observer_visual_gate_version": "observer_visual_gate_v3_actual_mesh_foundation",
+        "observer_visual_gate_version": "observer_visual_gate_v4_live_mesh_foundation",
         "observer_visual_reviewed_at": "2026-06-21T11:58:50+08:00",
         "actual_eoat_mesh_visual_present": True,
         "actual_contact_surface_mesh_visual_present": True,
         "actual_eoat_mesh_visual_uri": "package://ur10e_example_controllers/meshes/eoat/ur5e_ksm8n_ball_transfer_tool_v13_assembly.stl",
         "actual_contact_surface_mesh_uri": "package://ur10e_example_controllers/meshes/contact_surface/two_piece_surface_smooth_v11_3mm_thick.stl",
+        "live_scene_actual_eoat_mesh_visuals_present": True,
+        "live_scene_actual_contact_surface_mesh_visuals_present": True,
+        "live_scene_content_branch": "actual_meshes_present_with_auxiliary_tcp_dot",
+        "live_scene_marker_visual_role": "auxiliary_tcp_pose_reference_only",
         "primitive_proxy_not_primary_visual": True,
         "primitive_proxy_not_main_visual_cue": True,
         "observer_level_demo_realism": True,
@@ -71,7 +75,7 @@ def _post_gate_visual_foundation_row() -> dict[str, object]:
         "scripted_camera_final_png": "scripted_camera_final.png",
         "scripted_camera_sha256": "fixture-sha256",
         "video_path": "gui_recording.mp4",
-        "marker_style": "observer_subtle",
+        "marker_style": "minimal_tcp_dot",
         "force_loop_success": False,
         "force_contact_physics_proven": False,
         "git_provenance": {
@@ -82,6 +86,9 @@ def _post_gate_visual_foundation_row() -> dict[str, object]:
         "observer_visual_criteria": {
             "actual_eoat_mesh_visual_present": True,
             "actual_contact_surface_mesh_visual_present": True,
+            "live_actual_eoat_mesh_visual_present": True,
+            "live_actual_contact_surface_mesh_visual_present": True,
+            "marker_style_auxiliary_only": True,
             "primitive_proxy_not_main_visual_cue": True,
             "observer_level_demo_realism": True,
         },
@@ -268,7 +275,11 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
         self.assertIn("0910_step_status_pdf_truth_binding", payload["source_artifacts"]["step_status_rnn_audit"])
         self.assertIn("0818_p1_sim_ft_hard_floor", payload["source_artifacts"]["p1_simulated_ft_manifest"])
         self.assertIn("115619_subtle_affordance_gui", payload["source_artifacts"]["post_gate_visual_foundation_row"])
-        self.assertTrue(payload["post_gate_visual_foundation"]["post_gate_visual_foundation_ready"])
+        self.assertFalse(payload["post_gate_visual_foundation"]["post_gate_visual_foundation_ready"])
+        self.assertIn(
+            "marker_style_auxiliary_only:not_true",
+            payload["post_gate_visual_foundation"]["validation_issues"],
+        )
         self.assertEqual(payload["step_status_rnn"]["p2_claim_tier"], "physical Gazebo collision/contact physics")
         self.assertEqual(payload["step_status_rnn"]["p2_scope"], "standalone_p2_witness_single_contact_point_wrench")
         self.assertEqual(payload["step_status_rnn"]["stage_simulated_ft_manifest_status"], "valid")
@@ -283,12 +294,13 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
 
         gates = payload["readiness_gates"]
         self.assertTrue(gates["p3_visual_rviz_ready"])
-        self.assertTrue(gates["post_gate_visual_foundation_ready"])
+        self.assertFalse(gates["post_gate_visual_foundation_ready"])
         self.assertTrue(gates["stage_matrix_present"])
         self.assertTrue(gates["contact_stage_simulated_ft_ready"])
         self.assertFalse(gates["integrated_demo_manifest_valid"])
         self.assertFalse(gates["p6_integrated_demo_readiness_allowed"])
         self.assertIn("integrated_demo_manifest:not_valid", gates["p6_integrated_demo_blockers"])
+        self.assertIn("post_gate_visual_foundation:not_ready", gates["p6_integrated_demo_blockers"])
         self.assertIn("step_status_full_acceptance:not_allowed", gates["p6_integrated_demo_blockers"])
         self.assertIn("strict_rnn_final_acceptance:not_proven", gates["p6_integrated_demo_blockers"])
 
@@ -297,6 +309,7 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
         self.assertTrue(final_gate["claim_boundary_schema_valid"])
         self.assertNotIn("claim_boundary_ready_for_full_acceptance_claim", final_gate)
         self.assertIn("p6:integrated_demo_manifest:not_valid", final_gate["full_goal_acceptance_blockers"])
+        self.assertIn("p6:post_gate_visual_foundation:not_ready", final_gate["full_goal_acceptance_blockers"])
         self.assertIn("per_stage_physical_gazebo_contact:not_proven", final_gate["full_goal_acceptance_blockers"])
         self.assertIn("strict_rnn_final_acceptance:not_proven", final_gate["full_goal_acceptance_blockers"])
         self.assertIn("same_run_integrated_binding:not_proven", final_gate["full_goal_acceptance_blockers"])

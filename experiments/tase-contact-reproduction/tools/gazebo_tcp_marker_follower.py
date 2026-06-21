@@ -29,8 +29,8 @@ from ur10e_example_controllers.step5a_cartesian_cycloid_motion import JOINT_NAME
 
 DEFAULT_WORLD_NAME = "ur10e_step5_table_world"
 DEFAULT_MODEL_NAME = "active_tcp_marker"
-DEFAULT_MARKER_STYLE = "debug"
-MARKER_STYLES = ("debug", "observer_subtle")
+DEFAULT_MARKER_STYLE = "minimal_tcp_dot"
+MARKER_STYLES = ("debug", "observer_subtle", "minimal_tcp_dot")
 DEFAULT_UPDATE_PERIOD_S = 0.10
 DEFAULT_SERVICE_TIMEOUT_MS = 1000
 POSE_SOURCE_ACTIVE_TCP = "joint_states_to_runner_fk_active_tcp_base_to_gazebo_world"
@@ -62,6 +62,8 @@ def build_marker_model_sdf(model_name: str = DEFAULT_MODEL_NAME, *, marker_style
         return _build_debug_marker_model_sdf(model_name)
     if marker_style == "observer_subtle":
         return _build_observer_subtle_marker_model_sdf(model_name)
+    if marker_style == "minimal_tcp_dot":
+        return _build_minimal_tcp_dot_marker_model_sdf(model_name)
     raise ValueError(f"unsupported marker_style {marker_style!r}")
 
 
@@ -311,6 +313,61 @@ def _build_observer_subtle_marker_model_sdf(model_name: str) -> str:
     )
 
 
+def _build_minimal_tcp_dot_marker_model_sdf(model_name: str) -> str:
+    return dedent(
+        f"""\
+        <sdf version="1.7">
+          <model name="{model_name}">
+            <static>true</static>
+            <link name="tcp_marker_link">
+              <visual name="tcp_reference_dot">
+                <pose>0 0 0 0 0 0</pose>
+                <geometry>
+                  <sphere>
+                    <radius>0.004</radius>
+                  </sphere>
+                </geometry>
+                <material>
+                  <ambient>0.08 0.08 0.08 1</ambient>
+                  <diffuse>0.08 0.08 0.08 1</diffuse>
+                  <emissive>0 0 0 1</emissive>
+                </material>
+              </visual>
+              <visual name="tcp_reference_tick_x">
+                <pose>0 0 0 0 1.57079632679 0</pose>
+                <geometry>
+                  <cylinder>
+                    <radius>0.0008</radius>
+                    <length>0.018</length>
+                  </cylinder>
+                </geometry>
+                <material>
+                  <ambient>0.12 0.12 0.12 1</ambient>
+                  <diffuse>0.12 0.12 0.12 1</diffuse>
+                  <emissive>0 0 0 1</emissive>
+                </material>
+              </visual>
+              <visual name="tcp_reference_tick_y">
+                <pose>0 0 0 1.57079632679 0 0</pose>
+                <geometry>
+                  <cylinder>
+                    <radius>0.0008</radius>
+                    <length>0.018</length>
+                  </cylinder>
+                </geometry>
+                <material>
+                  <ambient>0.12 0.12 0.12 1</ambient>
+                  <diffuse>0.12 0.12 0.12 1</diffuse>
+                  <emissive>0 0 0 1</emissive>
+                </material>
+              </visual>
+            </link>
+          </model>
+        </sdf>
+        """
+    )
+
+
 def write_marker_model_sdf(
     output_dir: Path,
     model_name: str = DEFAULT_MODEL_NAME,
@@ -387,6 +444,11 @@ def write_marker_artifacts(
         "tool_frame": runner.TOOL0_FRAME,
         "base_to_gazebo_world_rpy": list(runner.BASE_TO_GAZEBO_WORLD_RPY),
         "active_tcp_offset_tool0_m": list(runner.ACTIVE_TCP_OFFSET_TOOL0_M),
+        "marker_visual_role": (
+            "auxiliary_tcp_pose_reference_only"
+            if marker_style == "minimal_tcp_dot"
+            else "primitive_proxy_debug_or_low_dominance_marker_not_acceptance_evidence"
+        ),
         "pose_count": len(pose_records),
         "trace_path": str(trace_path),
         "marker_sdf_path": str(marker_sdf_path) if marker_sdf_path is not None else None,

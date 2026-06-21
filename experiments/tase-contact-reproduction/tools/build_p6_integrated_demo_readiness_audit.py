@@ -419,12 +419,16 @@ def post_gate_visual_foundation_summary(path: Path) -> dict[str, Any]:
         "actual_eoat_mesh_visual_uri_mesh_like": mesh_visual_uri_present(eoat_mesh_uri),
         "actual_contact_surface_mesh_visual_present": row.get("actual_contact_surface_mesh_visual_present") is True,
         "actual_contact_surface_mesh_visual_uri_mesh_like": mesh_visual_uri_present(contact_surface_mesh_uri),
+        "live_scene_actual_eoat_mesh_visuals_present": row.get("live_scene_actual_eoat_mesh_visuals_present") is True,
+        "live_scene_actual_contact_surface_mesh_visuals_present": (
+            row.get("live_scene_actual_contact_surface_mesh_visuals_present") is True
+        ),
         "primitive_proxy_not_primary_visual": row.get("primitive_proxy_not_primary_visual") is True,
         "primitive_proxy_not_main_visual_cue": row.get("primitive_proxy_not_main_visual_cue") is True,
         "observer_level_demo_realism": row.get("observer_level_demo_realism") is True,
         "visual_evidence_captured": row.get("visual_evidence_captured") is True,
         "scripted_camera_evidence_captured": row.get("scripted_camera_evidence_captured") is True,
-        "marker_style_observer_subtle": row.get("marker_style") == "observer_subtle",
+        "marker_style_auxiliary_only": row.get("marker_style") == "minimal_tcp_dot",
         "clean_git_provenance": git.get("dirty") is False,
         "force_contact_physics_not_inferred": row.get("force_contact_physics_proven") is False,
     }
@@ -444,6 +448,12 @@ def post_gate_visual_foundation_summary(path: Path) -> dict[str, Any]:
         "scripted_camera_sha256": row.get("scripted_camera_sha256"),
         "video_path": row.get("video_path"),
         "marker_style": row.get("marker_style"),
+        "live_scene_content_branch": row.get("live_scene_content_branch"),
+        "live_scene_marker_visual_role": row.get("live_scene_marker_visual_role"),
+        "live_scene_actual_eoat_mesh_visuals_present": row.get("live_scene_actual_eoat_mesh_visuals_present"),
+        "live_scene_actual_contact_surface_mesh_visuals_present": row.get(
+            "live_scene_actual_contact_surface_mesh_visuals_present"
+        ),
         "actual_eoat_mesh_visual_uri": eoat_mesh_uri,
         "actual_contact_surface_mesh_visual_uri": contact_surface_mesh_uri,
         "primitive_proxy_not_main_visual_cue": row.get("primitive_proxy_not_main_visual_cue"),

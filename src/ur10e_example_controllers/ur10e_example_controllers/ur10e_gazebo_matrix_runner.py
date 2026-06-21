@@ -1355,6 +1355,11 @@ def observer_visual_criteria(row: dict[str, Any]) -> dict[str, bool]:
         "eoat_tooling_visible": bool(row.get("eoat_tooling_visible")),
         "actual_eoat_mesh_visual_present": bool(row.get("actual_eoat_mesh_visual_present")),
         "actual_contact_surface_mesh_visual_present": bool(row.get("actual_contact_surface_mesh_visual_present")),
+        "live_actual_eoat_mesh_visual_present": bool(row.get("live_scene_actual_eoat_mesh_visuals_present")),
+        "live_actual_contact_surface_mesh_visual_present": bool(
+            row.get("live_scene_actual_contact_surface_mesh_visuals_present")
+        ),
+        "marker_style_auxiliary_only": row.get("marker_style") == "minimal_tcp_dot",
         "primitive_proxy_not_primary_visual": bool(row.get("primitive_proxy_not_primary_visual")),
         "primitive_proxy_not_main_visual_cue": bool(row.get("primitive_proxy_not_main_visual_cue")),
         "observer_level_demo_realism": bool(row.get("observer_level_demo_realism")),
@@ -1378,7 +1383,7 @@ def populate_observer_visual_pass(row: dict[str, Any]) -> dict[str, Any]:
     payload["observer_visual_criteria"] = criteria
     payload["observer_visual_pass"] = not failures
     payload["observer_visual_failure_reasons"] = failures
-    payload["observer_visual_gate_version"] = "observer_visual_gate_v3_actual_mesh_foundation"
+    payload["observer_visual_gate_version"] = "observer_visual_gate_v4_live_mesh_foundation"
     return payload
 
 

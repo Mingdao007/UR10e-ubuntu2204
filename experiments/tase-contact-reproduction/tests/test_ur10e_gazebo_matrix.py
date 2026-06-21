@@ -269,8 +269,24 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
                         self.assertIsNone(sanity["contact_target_xy_inside_surface"])
                         self.assertFalse(manifest["contact_pair_logging"]["enabled"])
 
-    def test_tcp_marker_model_sdf_default_is_non_colliding_debug_high_contrast(self) -> None:
+    def test_tcp_marker_model_sdf_default_is_minimal_auxiliary_dot(self) -> None:
         source = tcp_marker.build_marker_model_sdf("active_tcp_marker")
+        self.assertIn('model name="active_tcp_marker"', source)
+        self.assertIn("tcp_reference_dot", source)
+        self.assertIn("tcp_reference_tick_x", source)
+        self.assertIn("tcp_reference_tick_y", source)
+        self.assertIn("<radius>0.004</radius>", source)
+        self.assertNotIn("tcp_magenta_sphere", source)
+        self.assertNotIn("tcp_contact_pad_orange", source)
+        self.assertNotIn("tcp_probe_sleeve_yellow", source)
+        self.assertNotIn("tcp_tool_plate_silver", source)
+        self.assertNotIn("tcp_sensor_body_teal", source)
+        self.assertNotIn("tcp_white_mast", source)
+        self.assertNotIn("1 0 1 1", source)
+        self.assertNotIn("<collision", source)
+
+    def test_tcp_marker_model_sdf_debug_is_non_colliding_high_contrast(self) -> None:
+        source = tcp_marker.build_marker_model_sdf("active_tcp_marker", marker_style="debug")
         self.assertIn('model name="active_tcp_marker"', source)
         self.assertIn("tcp_magenta_sphere", source)
         self.assertIn("tcp_contact_pad_orange", source)
@@ -298,7 +314,7 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
         self.assertNotIn("0 1 1 1", source)
         self.assertNotIn("<collision", source)
 
-    def test_gui_row_defaults_to_observer_subtle_marker_style(self) -> None:
+    def test_gui_row_defaults_to_minimal_tcp_dot_marker_style(self) -> None:
         args = gui_row.parse_args(
             [
                 "row",
@@ -310,7 +326,7 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
                 "close_detail",
             ]
         )
-        self.assertEqual(args.marker_style, "observer_subtle")
+        self.assertEqual(args.marker_style, "minimal_tcp_dot")
         self.assertFalse(args.allow_existing_gazebo)
         self.assertEqual(args.visible_gazebo_lock_path, gui_row.DEFAULT_VISIBLE_GAZEBO_LOCK_PATH)
 
@@ -484,7 +500,7 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             self.assertEqual(missing["action"], "refused_to_start_new_visible_gazebo_row")
             self.assertEqual(missing["lock_path"], str(lock_path))
 
-    def test_tcp_marker_follower_defaults_to_debug_marker_style(self) -> None:
+    def test_tcp_marker_follower_defaults_to_minimal_tcp_dot_marker_style(self) -> None:
         args = tcp_marker.parse_args(
             [
                 "--stage",
@@ -493,7 +509,7 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
                 "/tmp/ur10e_marker_style_parse_fixture",
             ]
         )
-        self.assertEqual(args.marker_style, "debug")
+        self.assertEqual(args.marker_style, "minimal_tcp_dot")
 
     def test_tcp_marker_pose_uses_runner_fk_for_step5b_final_command(self) -> None:
         with tempfile.TemporaryDirectory(prefix="ur10e_gazebo_tcp_marker_test_") as tmp:
@@ -575,7 +591,8 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             self.assertEqual(payload["base_to_gazebo_world_rpy"], list(gazebo.BASE_TO_GAZEBO_WORLD_RPY))
             self.assertEqual(payload["active_tcp_offset_tool0_m"], list(gazebo.ACTIVE_TCP_OFFSET_TOOL0_M))
             self.assertEqual(payload["model_name"], "active_tcp_marker")
-            self.assertEqual(payload["marker_style"], "debug")
+            self.assertEqual(payload["marker_style"], "minimal_tcp_dot")
+            self.assertEqual(payload["marker_visual_role"], "auxiliary_tcp_pose_reference_only")
             self.assertEqual(payload["pose_count"], 1)
 
     def test_pose_info_reader_accepts_multiple_json_messages(self) -> None:
@@ -738,6 +755,9 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             "eoat_tooling_visible": True,
             "actual_eoat_mesh_visual_present": True,
             "actual_contact_surface_mesh_visual_present": True,
+            "live_scene_actual_eoat_mesh_visuals_present": True,
+            "live_scene_actual_contact_surface_mesh_visuals_present": True,
+            "marker_style": "minimal_tcp_dot",
             "primitive_proxy_not_primary_visual": True,
             "primitive_proxy_not_main_visual_cue": True,
             "observer_level_demo_realism": True,
@@ -761,6 +781,9 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             "eoat_tooling_visible": True,
             "actual_eoat_mesh_visual_present": True,
             "actual_contact_surface_mesh_visual_present": True,
+            "live_scene_actual_eoat_mesh_visuals_present": True,
+            "live_scene_actual_contact_surface_mesh_visuals_present": True,
+            "marker_style": "minimal_tcp_dot",
             "primitive_proxy_not_primary_visual": True,
             "primitive_proxy_not_main_visual_cue": False,
             "observer_level_demo_realism": False,
@@ -812,16 +835,19 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             self.assertTrue(row["observer_visual_pass"], row["observer_visual_failure_reasons"])
             self.assertTrue(row["observer_review_present"])
             self.assertEqual(row["observer_visual_review_source"], "human_observer_row_review_v1")
-            self.assertEqual(row["marker_style"], "observer_subtle")
+            self.assertEqual(row["marker_style"], "minimal_tcp_dot")
             self.assertEqual(row["observer_visual_criteria"]["active_tcp_pose_source_valid"], True)
             self.assertEqual(row["observer_visual_criteria"]["active_tcp_pose_frame_valid"], True)
             self.assertEqual(
                 row["live_scene_content_branch"],
-                "enhanced_marker_present_but_robot_eoat_visuals_incomplete_in_live_ecm",
+                "actual_meshes_present_with_auxiliary_tcp_dot",
             )
-            self.assertTrue(row["live_scene_enhanced_marker_visuals_present"])
+            self.assertFalse(row["live_scene_enhanced_marker_visuals_present"])
             self.assertFalse(row["live_scene_tool0_eoat_visuals_present"])
             self.assertFalse(row["live_scene_eoat_affordance_visuals_present"])
+            self.assertTrue(row["live_scene_actual_eoat_mesh_visuals_present"])
+            self.assertTrue(row["live_scene_actual_contact_surface_mesh_visuals_present"])
+            self.assertEqual(row["live_scene_marker_visual_role"], "auxiliary_tcp_pose_reference_only")
             self.assertTrue(row["live_scene_content"]["does_not_override_observer_visual_gate"])
             self.assertTrue(row["actual_eoat_mesh_visual_present"])
             self.assertEqual(row["actual_eoat_mesh_visual_uri"], gazebo.EOAT_REAL_MESH_URI)
@@ -989,7 +1015,7 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             "schema": "ur10e_gazebo_tcp_marker_manifest_v2",
             "stage_id": "step5b",
             "spawned": True,
-            "marker_style": "observer_subtle",
+            "marker_style": "minimal_tcp_dot",
             "pose_count": 3,
             "pose_source": tcp_marker.POSE_SOURCE_ACTIVE_TCP,
             "pose_frame": gazebo.GAZEBO_WORLD_FRAME,
@@ -1034,7 +1060,11 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
         pose_names = [
             "active_tcp_marker",
             "wrist_3_link",
-            *[f"active_tcp_marker::tcp_marker_link::{name}" for name in sorted(gui_row.ENHANCED_MARKER_VISUAL_NAMES)],
+            "active_tcp_marker::tcp_marker_link::tcp_reference_dot",
+            "active_tcp_marker::tcp_marker_link::tcp_reference_tick_x",
+            "active_tcp_marker::tcp_marker_link::tcp_reference_tick_y",
+            "real_surface_mesh_visual",
+            f"wrist_3_link_fixed_joint_lump__{gazebo.EOAT_REAL_MESH_VISUAL_NAME}_visual_1",
             *[
                 f"wrist_3_link_fixed_joint_lump__{name}_visual_1"
                 for name in sorted(gazebo.TOOL0_EOAT_VIEWER_VISUAL_NAMES)

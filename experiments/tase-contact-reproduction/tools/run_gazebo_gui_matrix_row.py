@@ -40,8 +40,8 @@ TRACE_STATUS = {
 DEFAULT_GUI_CONFIG_DIR = EXPERIMENT / "config" / "gazebo_gui_real_aligned_views"
 POSE_SOURCE_ACTIVE_TCP = "joint_states_to_runner_fk_active_tcp_base_to_gazebo_world"
 DEFAULT_WORLD_NAME = "ur10e_step5_table_world"
-DEFAULT_OBSERVER_MARKER_STYLE = "observer_subtle"
-MARKER_STYLES = ("debug", "observer_subtle")
+DEFAULT_OBSERVER_MARKER_STYLE = "minimal_tcp_dot"
+MARKER_STYLES = ("debug", "observer_subtle", "minimal_tcp_dot")
 CONTACT_CAPTURE_SCHEMA = "ur10e_gazebo_row_contact_topic_capture_v1"
 VISIBLE_GAZEBO_OVERLAP_SCHEMA = "ur10e_visible_gazebo_overlap_preflight_v1"
 VISIBLE_GAZEBO_OVERLAP_RC = 43
@@ -60,6 +60,8 @@ ENHANCED_MARKER_VISUAL_NAMES = frozenset(
         "tcp_magenta_crossbar_y",
     }
 )
+ACTUAL_EOAT_MESH_VISUAL_NAMES = frozenset({gazebo.EOAT_REAL_MESH_VISUAL_NAME})
+ACTUAL_CONTACT_SURFACE_MESH_VISUAL_NAMES = frozenset({gazebo.CONTACT_SURFACE_REAL_MESH_VISUAL_NAME})
 
 
 def run_row(args: argparse.Namespace) -> int:
@@ -360,7 +362,8 @@ def build_row_summary(
     model_list_path = scene_introspection_dir / "model_list.txt"
     introspection_summary_path = scene_introspection_dir / "introspection_summary.json"
     introspection_summary = _read_json(introspection_summary_path, default={})
-    live_scene_content = summarize_live_scene_content(scene_introspection_dir)
+    marker_style = str(marker_payload.get("marker_style") or "")
+    live_scene_content = summarize_live_scene_content(scene_introspection_dir, marker_style=marker_style)
     model_composition_audit = payload.get("model_composition_audit") if isinstance(payload.get("model_composition_audit"), dict) else {}
     surface_mesh_visual = (
         visual_manifest.get("surface_mesh_visual")
@@ -466,7 +469,7 @@ def build_row_summary(
         "mid_png": str(mid_png),
         "final_png": str(final_png),
         "marker_manifest": str(marker_manifest),
-        "marker_style": marker_payload.get("marker_style"),
+        "marker_style": marker_style,
         "marker_pose_count": marker_pose_count,
         "marker_spawned": marker_payload.get("spawned"),
         "marker_pose_source": marker_payload.get("pose_source"),
@@ -500,6 +503,13 @@ def build_row_summary(
         "live_scene_enhanced_marker_visuals_present": live_scene_content["enhanced_marker_visuals_present"],
         "live_scene_tool0_eoat_visuals_present": live_scene_content["tool0_eoat_visuals_present"],
         "live_scene_eoat_affordance_visuals_present": live_scene_content["eoat_affordance_visuals_present"],
+        "live_scene_actual_eoat_mesh_visuals_present": live_scene_content[
+            "actual_eoat_mesh_visuals_present"
+        ],
+        "live_scene_actual_contact_surface_mesh_visuals_present": live_scene_content[
+            "actual_contact_surface_mesh_visuals_present"
+        ],
+        "live_scene_marker_visual_role": live_scene_content["marker_visual_role"],
         "model_composition_audit": model_composition_audit or None,
         "actual_eoat_mesh_visual_present": actual_eoat_mesh_visual_present,
         "actual_eoat_mesh_visual_name": model_composition_audit.get("eoat_primary_visual_mesh_name"),
@@ -509,10 +519,17 @@ def build_row_summary(
         "actual_contact_surface_mesh_visual_present": actual_contact_surface_mesh_visual_present,
         "actual_contact_surface_mesh_uri": surface_mesh_visual.get("mesh_uri"),
         "primitive_proxy_not_primary_visual": bool(
-            actual_eoat_mesh_visual_present and actual_contact_surface_mesh_visual_present
+            actual_eoat_mesh_visual_present
+            and actual_contact_surface_mesh_visual_present
+            and live_scene_content["actual_eoat_mesh_visuals_present"]
+            and live_scene_content["actual_contact_surface_mesh_visuals_present"]
         ),
         "primitive_proxy_not_main_visual_cue": bool(
-            visual_evidence and _review_flag(observer_review, "primitive_proxy_not_main_visual_cue")
+            visual_evidence
+            and _review_flag(observer_review, "primitive_proxy_not_main_visual_cue")
+            and marker_style == "minimal_tcp_dot"
+            and live_scene_content["actual_eoat_mesh_visuals_present"]
+            and live_scene_content["actual_contact_surface_mesh_visuals_present"]
         ),
         "observer_level_demo_realism": bool(
             visual_evidence and _review_flag(observer_review, "observer_level_demo_realism")
@@ -549,7 +566,7 @@ def build_row_summary(
     return gazebo.populate_observer_visual_pass(row)
 
 
-def summarize_live_scene_content(scene_introspection_dir: Path) -> dict[str, object]:
+def summarize_live_scene_content(scene_introspection_dir: Path, *, marker_style: str = "") -> dict[str, object]:
     pose_info_path = scene_introspection_dir / "pose_info.json"
     pose_names, pose_by_name = _load_pose_info_names(pose_info_path)
     if not pose_names:
@@ -563,6 +580,15 @@ def summarize_live_scene_content(scene_introspection_dir: Path) -> dict[str, obj
             "present_enhanced_marker_visuals": [],
             "missing_enhanced_marker_visuals": sorted(ENHANCED_MARKER_VISUAL_NAMES),
             "enhanced_marker_visuals_present": False,
+            "required_actual_eoat_mesh_visuals": sorted(ACTUAL_EOAT_MESH_VISUAL_NAMES),
+            "present_actual_eoat_mesh_visuals": [],
+            "missing_actual_eoat_mesh_visuals": sorted(ACTUAL_EOAT_MESH_VISUAL_NAMES),
+            "actual_eoat_mesh_visuals_present": False,
+            "required_actual_contact_surface_mesh_visuals": sorted(ACTUAL_CONTACT_SURFACE_MESH_VISUAL_NAMES),
+            "present_actual_contact_surface_mesh_visuals": [],
+            "missing_actual_contact_surface_mesh_visuals": sorted(ACTUAL_CONTACT_SURFACE_MESH_VISUAL_NAMES),
+            "actual_contact_surface_mesh_visuals_present": False,
+            "marker_visual_role": _marker_visual_role(marker_style),
             "required_tool0_eoat_visuals": sorted(gazebo.TOOL0_EOAT_VIEWER_VISUAL_NAMES),
             "present_tool0_eoat_visuals": [],
             "missing_tool0_eoat_visuals": sorted(gazebo.TOOL0_EOAT_VIEWER_VISUAL_NAMES),
@@ -578,22 +604,30 @@ def summarize_live_scene_content(scene_introspection_dir: Path) -> dict[str, obj
         }
 
     present_marker = _present_name_fragments(pose_names, ENHANCED_MARKER_VISUAL_NAMES)
+    present_actual_eoat_mesh = _present_name_fragments(pose_names, ACTUAL_EOAT_MESH_VISUAL_NAMES)
+    present_actual_surface_mesh = _present_name_fragments(pose_names, ACTUAL_CONTACT_SURFACE_MESH_VISUAL_NAMES)
     present_tool0 = _present_name_fragments(pose_names, gazebo.TOOL0_EOAT_VIEWER_VISUAL_NAMES)
     present_eoat = _present_name_fragments(pose_names, gazebo.EOAT_VIEWER_AFFORDANCE_VISUAL_NAMES)
     missing_marker = sorted(ENHANCED_MARKER_VISUAL_NAMES - set(present_marker))
+    missing_actual_eoat_mesh = sorted(ACTUAL_EOAT_MESH_VISUAL_NAMES - set(present_actual_eoat_mesh))
+    missing_actual_surface_mesh = sorted(ACTUAL_CONTACT_SURFACE_MESH_VISUAL_NAMES - set(present_actual_surface_mesh))
     missing_tool0 = sorted(gazebo.TOOL0_EOAT_VIEWER_VISUAL_NAMES - set(present_tool0))
     missing_eoat = sorted(gazebo.EOAT_VIEWER_AFFORDANCE_VISUAL_NAMES - set(present_eoat))
     enhanced_marker_present = bool(ENHANCED_MARKER_VISUAL_NAMES) and not missing_marker
+    actual_eoat_mesh_present = bool(ACTUAL_EOAT_MESH_VISUAL_NAMES) and not missing_actual_eoat_mesh
+    actual_surface_mesh_present = bool(ACTUAL_CONTACT_SURFACE_MESH_VISUAL_NAMES) and not missing_actual_surface_mesh
     tool0_present = bool(gazebo.TOOL0_EOAT_VIEWER_VISUAL_NAMES) and not missing_tool0
     eoat_present = bool(gazebo.EOAT_VIEWER_AFFORDANCE_VISUAL_NAMES) and not missing_eoat
-    if enhanced_marker_present and tool0_present and eoat_present:
-        branch = "enhanced_geometry_present_in_live_ecm_render_not_viewer_visible"
-    elif enhanced_marker_present and not (tool0_present and eoat_present):
-        branch = "enhanced_marker_present_but_robot_eoat_visuals_incomplete_in_live_ecm"
-    elif tool0_present or eoat_present:
-        branch = "robot_eoat_visuals_present_but_enhanced_marker_incomplete_in_live_ecm"
+    if actual_eoat_mesh_present and actual_surface_mesh_present and marker_style == "minimal_tcp_dot":
+        branch = "actual_meshes_present_with_auxiliary_tcp_dot"
+    elif actual_eoat_mesh_present and actual_surface_mesh_present and enhanced_marker_present:
+        branch = "actual_meshes_present_but_enhanced_marker_proxy_requires_observer_downgrade"
+    elif enhanced_marker_present and not (actual_eoat_mesh_present and actual_surface_mesh_present):
+        branch = "enhanced_marker_present_but_actual_meshes_incomplete_in_live_ecm"
+    elif actual_eoat_mesh_present or actual_surface_mesh_present or tool0_present or eoat_present:
+        branch = "partial_actual_mesh_live_ecm"
     else:
-        branch = "enhanced_geometry_missing_from_live_ecm"
+        branch = "actual_meshes_missing_from_live_ecm"
 
     return {
         "schema": "ur10e_gazebo_live_scene_content_v1",
@@ -605,6 +639,15 @@ def summarize_live_scene_content(scene_introspection_dir: Path) -> dict[str, obj
         "present_enhanced_marker_visuals": present_marker,
         "missing_enhanced_marker_visuals": missing_marker,
         "enhanced_marker_visuals_present": enhanced_marker_present,
+        "required_actual_eoat_mesh_visuals": sorted(ACTUAL_EOAT_MESH_VISUAL_NAMES),
+        "present_actual_eoat_mesh_visuals": present_actual_eoat_mesh,
+        "missing_actual_eoat_mesh_visuals": missing_actual_eoat_mesh,
+        "actual_eoat_mesh_visuals_present": actual_eoat_mesh_present,
+        "required_actual_contact_surface_mesh_visuals": sorted(ACTUAL_CONTACT_SURFACE_MESH_VISUAL_NAMES),
+        "present_actual_contact_surface_mesh_visuals": present_actual_surface_mesh,
+        "missing_actual_contact_surface_mesh_visuals": missing_actual_surface_mesh,
+        "actual_contact_surface_mesh_visuals_present": actual_surface_mesh_present,
+        "marker_visual_role": _marker_visual_role(marker_style),
         "required_tool0_eoat_visuals": sorted(gazebo.TOOL0_EOAT_VIEWER_VISUAL_NAMES),
         "present_tool0_eoat_visuals": present_tool0,
         "missing_tool0_eoat_visuals": missing_tool0,
@@ -619,6 +662,14 @@ def summarize_live_scene_content(scene_introspection_dir: Path) -> dict[str, obj
         "wrist_3_link_pose": pose_by_name.get("wrist_3_link"),
         "note": "Entity names and poses prove live ECM content only; observer_visual_pass still requires human-visible coherent render evidence.",
     }
+
+
+def _marker_visual_role(marker_style: str) -> str:
+    if marker_style == "minimal_tcp_dot":
+        return "auxiliary_tcp_pose_reference_only"
+    if marker_style in {"debug", "observer_subtle"}:
+        return "primitive_proxy_marker_not_acceptance_evidence"
+    return "unknown_marker_style_not_acceptance_evidence"
 
 
 def _load_pose_info_names(path: Path) -> tuple[list[str], dict[str, dict[str, object]]]:
