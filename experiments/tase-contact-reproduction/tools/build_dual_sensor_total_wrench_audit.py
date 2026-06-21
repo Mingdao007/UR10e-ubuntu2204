@@ -323,7 +323,10 @@ def build_audit(
         },
         "total_contact_wrench_proven": total_wrench,
         "same_run_dual_sensor_observation_proven": dual_sensor,
-        "forbidden_claim": "total Gazebo contact wrench; same-run dual-sensor observation; real bench/live contact",
+        "forbidden_claim": (
+            "same-run dual-sensor observation unless explicit concurrent evidence exists; "
+            "full-goal total Gazebo contact wrench unless same-run binding is proven; real bench/live contact"
+        ),
     }
 
 

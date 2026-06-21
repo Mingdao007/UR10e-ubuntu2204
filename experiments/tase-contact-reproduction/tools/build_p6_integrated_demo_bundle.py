@@ -126,7 +126,10 @@ def p2_claim_tier_row(p2_payload: dict[str, Any]) -> dict[str, str]:
         }
     return {
         "evidence_surface": "Standalone P2 physical witness",
-        "current_status": "standalone only; not stage-specific integrated contact physics",
+        "current_status": (
+            "EOAT collision evidence, contact pair/log evidence, contact normal/surface relation, "
+            "and wrench/contact correlation exist for the standalone P2 witness only; not stage-specific integrated contact physics"
+        ),
         "claim_tier": "physical Gazebo collision/contact physics",
     }
 
@@ -664,7 +667,7 @@ def write_source_evidence(
                 "p3_surface_path_visible": p3_payload.get("gazebo_observer_evidence", {}).get("criteria_counts", {}).get("surface_path_visible", {}),
                 "standalone_p2_physical_gate": p2_payload.get("physical_gazebo_contact_gate", {}),
                 "p2_scope": "standalone P2 witness only; not per-stage integrated contact surface proof",
-                "forbidden_claim": "per-stage physical Gazebo collision/contact physics; total contact wrench; real bench/live contact",
+                "forbidden_claim": "per-stage physical Gazebo collision/contact physics; per-stage total contact wrench; real bench/live contact",
             },
             indent=2,
             sort_keys=True,
@@ -920,13 +923,11 @@ def write_bundle(
                 "claim_tier": "simulated_ft",
             },
             p2_claim_tier_row(p2_payload),
-            {
-                "evidence_surface": "Real bench/live contact",
-                "current_status": "not authorized",
-                "claim_tier": "visual_only",
-            },
         ],
-        "forbidden_claim": "P6 integrated demo readiness; full UR10e reproduction acceptance; per-stage physical Gazebo contact; total contact wrench; real bench/live contact",
+        "forbidden_claim": (
+            "P6 integrated demo readiness; full UR10e reproduction acceptance; per-stage physical Gazebo contact; "
+            "per-stage/full-goal total contact wrench unless same-run stage-specific evidence exists; real bench/live contact"
+        ),
     }
     manifest_path = output_dir / "p6_integrated_demo_manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")

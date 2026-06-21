@@ -65,7 +65,6 @@ GOOD_CLAIM_TIER_TABLE = """## Current Claim Tier Table
 | P2 EOAT inventory artifact | EOAT collision bodies present; contact pair/log evidence and wrench/contact correlation missing | visual_only |
 | P1 canonical simulated FT artifact | stamp, frame_id, source, status, baseline, and log evidence present | simulated_ft |
 | Physical Gazebo contact | `force_contact_physics_proven=false`; target tier blocked/not proven | visual_only |
-| Real bench/live contact | not authorized; no live bench evidence may be claimed | visual_only |
 """
 
 
@@ -270,6 +269,16 @@ class Ur10eClaimBoundaryReportVerifierTest(unittest.TestCase):
 |---|---|---|
 | Physical Gazebo contact | `force_contact_physics_proven=false`; blocked/not proven | physical Gazebo collision/contact physics blocked/not proven |
 | Real bench/live contact | not authorized | real bench/live contact not authorized |
+"""
+        text = _base_report(GOOD_CLAIM_GATE, extra_body=table)
+        self.assertFailsWith(text, "claim_tier_table_source_boundaries")
+
+    def test_real_bench_authorization_status_is_not_visual_only_evidence_row(self) -> None:
+        table = """## Current Claim Tier Table
+
+| Evidence surface | Current status | Claim tier |
+|---|---|---|
+| Real bench/live contact | not authorized; no live bench evidence may be claimed | visual_only |
 """
         text = _base_report(GOOD_CLAIM_GATE, extra_body=table)
         self.assertFailsWith(text, "claim_tier_table_source_boundaries")

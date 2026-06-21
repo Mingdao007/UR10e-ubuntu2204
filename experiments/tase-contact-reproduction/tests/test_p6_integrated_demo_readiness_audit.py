@@ -1104,10 +1104,10 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
 
         rows = {row["evidence_surface"]: row for row in payload["current_claim_tier_table"]}
         self.assertEqual(
-            rows["0708 standalone P2 Gazebo contact witness"]["claim_tier"],
+            rows["Standalone P2 native Gazebo contact witness"]["claim_tier"],
             "physical Gazebo collision/contact physics",
         )
-        self.assertIn("EOAT collision evidence", rows["0708 standalone P2 Gazebo contact witness"]["current_status"])
+        self.assertIn("EOAT collision evidence", rows["Standalone P2 native Gazebo contact witness"]["current_status"])
         self.assertEqual(
             rows["Step5b/Step5d/Step6b/Step7/Step8 per-stage Gazebo contact"]["claim_tier"],
             "simulated_ft",
@@ -1143,7 +1143,7 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
             )
 
         rows = {row["evidence_surface"]: row for row in payload["current_claim_tier_table"]}
-        p2_row = rows["0708 standalone P2 Gazebo contact witness"]
+        p2_row = rows["Standalone P2 native Gazebo contact witness"]
         self.assertEqual(p2_row["claim_tier"], "visual_only")
         self.assertIn("native wrench/contact correlation is not proven", p2_row["current_status"])
         self.assertNotIn("correlation all exist", p2_row["current_status"])

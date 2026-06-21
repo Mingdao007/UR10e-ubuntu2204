@@ -382,10 +382,10 @@ def validate_claim_tier_table_rows(table: list[list[str]], heading: str) -> list
                         f"{heading} row {row_number}: physical Gazebo claim missing " + ", ".join(missing)
                     )
 
-        if tier == "real bench/live contact" and "not authorized" in row_norm:
-            issues.append(f"{heading} row {row_number}: unauthorized real bench/live contact must downgrade to visual_only")
-        elif tier == "real bench/live contact":
-            issues.append(f"{heading} row {row_number}: real bench/live contact is not authorized")
+        if "real bench/live contact" in row_norm:
+            issues.append(
+                f"{heading} row {row_number}: unauthorized real bench/live contact must be an authorization blocker/no-claim status, not an evidence row"
+            )
 
     return issues
 

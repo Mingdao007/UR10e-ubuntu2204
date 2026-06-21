@@ -860,7 +860,7 @@ def current_claim_tier_table(
             "claim_tier": "simulated_ft" if step["contact_stages_simulated_ft"] else "visual_only",
         },
         {
-            "evidence_surface": "0708 standalone P2 Gazebo contact witness",
+            "evidence_surface": "Standalone P2 native Gazebo contact witness",
             "current_status": (
                 "EOAT collision evidence, contact pair/log evidence, and adapter-verified total contact wrench/contact correlation exist for the standalone P2 witness"
                 if step["standalone_p2_physical_witness"] and step["total_contact_wrench_proven"]
@@ -884,11 +884,6 @@ def current_claim_tier_table(
             "evidence_surface": "P6 TCP distance evidence",
             "current_status": demo_manifest.get("tcp_distance_evidence", {}).get("status", "missing"),
             "claim_tier": demo_manifest.get("tcp_distance_evidence", {}).get("claim_tier", "visual_only"),
-        },
-        {
-            "evidence_surface": "Real bench/live contact",
-            "current_status": "not authorized; no live robot action, bridge, TP Play, URScript, or device write occurred",
-            "claim_tier": "visual_only",
         },
     ]
 
