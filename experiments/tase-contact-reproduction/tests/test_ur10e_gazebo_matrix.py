@@ -1471,6 +1471,10 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             env = gui_row.build_row_environment(display=":97", local_ros_prefix=None)
 
         self.assertEqual(env["DISPLAY"], ":97")
+        local_prefix = (WORKSPACE / "install" / "ur10e_example_controllers").resolve()
+        if local_prefix.is_dir():
+            self.assertIn(str(local_prefix), env["AMENT_PREFIX_PATH"].split(":"))
+            self.assertIn(str(local_prefix), env["COLCON_PREFIX_PATH"].split(":"))
         if Path("/opt/ros/humble/lib/libign_ros2_control-system.so").is_file():
             self.assertIn("/opt/ros/humble/lib", env["IGN_GAZEBO_SYSTEM_PLUGIN_PATH"].split(":"))
             self.assertIn("/opt/ros/humble/lib", env["GZ_SIM_SYSTEM_PLUGIN_PATH"].split(":"))
@@ -1501,6 +1505,93 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
                 self.assertEqual(rc, 0)
                 self.assertTrue(payload["ready_for_row_plugin_load"])
             self.assertEqual(payload["mode"], "offline_no_gazebo_plugin_path_preflight")
+            self.assertFalse(payload["starts_gazebo"])
+
+    def test_action_readiness_preflight_payload_is_offline_visual_only(self) -> None:
+        plugin_payload = {
+            "ready_for_row_plugin_load": True,
+            "blocker": None,
+            "claim_tier": "visual_only",
+        }
+
+        def fake_pkg_check(package: str, env: dict[str, str]) -> dict[str, object]:
+            return {
+                "package": package,
+                "available": True,
+                "prefix": f"/mock/prefix/{package}",
+                "returncode": 0,
+                "stderr": "",
+            }
+
+        interface_payload = {
+            "interface": gui_row.ACTION_READINESS_REQUIRED_INTERFACE,
+            "available": True,
+            "returncode": 0,
+            "stdout_excerpt": "trajectory_msgs/JointTrajectory trajectory",
+            "stderr": "",
+        }
+
+        with mock.patch.dict(gui_row.os.environ, {}, clear=True), mock.patch.object(
+            gui_row, "build_plugin_path_preflight", return_value=plugin_payload
+        ), mock.patch.object(gui_row, "_ros2_pkg_prefix_check", side_effect=fake_pkg_check), mock.patch.object(
+            gui_row, "_ros2_interface_show_check", return_value=interface_payload
+        ):
+            payload = gui_row.build_action_readiness_preflight(display=":97", local_ros_prefix=None)
+
+        self.assertEqual(payload["schema"], gui_row.ACTION_READINESS_PREFLIGHT_SCHEMA)
+        self.assertEqual(payload["mode"], "offline_no_gazebo_action_readiness_preflight")
+        self.assertEqual(payload["claim_tier"], "visual_only")
+        self.assertTrue(payload["ready_for_static_action_readiness"])
+        self.assertEqual(payload["blockers"], [])
+        self.assertFalse(payload["starts_gazebo"])
+        self.assertFalse(payload["starts_bridge"])
+        self.assertFalse(payload["live_robot_command_authorized"])
+        self.assertIn("same-run dual-sensor binding", payload["forbidden_claim"])
+        self.assertIn("real bench/live contact", payload["forbidden_claim"])
+        self.assertTrue(payload["robot_description_check"]["ready"])
+        self.assertTrue(payload["controller_yaml_check"]["ready"])
+        self.assertTrue(payload["package_prefix_checks"]["ur10e_example_controllers"]["available"])
+        local_prefix = (WORKSPACE / "install" / "ur10e_example_controllers").resolve()
+        if local_prefix.is_dir():
+            self.assertIn(str(local_prefix), payload["workspace_install_prefixes"])
+
+    def test_action_readiness_preflight_command_writes_artifact(self) -> None:
+        plugin_payload = {
+            "ready_for_row_plugin_load": True,
+            "blocker": None,
+            "claim_tier": "visual_only",
+        }
+        interface_payload = {
+            "interface": gui_row.ACTION_READINESS_REQUIRED_INTERFACE,
+            "available": True,
+            "returncode": 0,
+            "stdout_excerpt": "trajectory_msgs/JointTrajectory trajectory",
+            "stderr": "",
+        }
+
+        def fake_pkg_check(package: str, env: dict[str, str]) -> dict[str, object]:
+            return {
+                "package": package,
+                "available": True,
+                "prefix": f"/mock/prefix/{package}",
+                "returncode": 0,
+                "stderr": "",
+            }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "action_readiness_preflight.json"
+            args = gui_row.parse_args(["action-readiness-preflight", "--output", str(output), "--display", ":97"])
+            with mock.patch.dict(gui_row.os.environ, {}, clear=True), mock.patch.object(
+                gui_row, "build_plugin_path_preflight", return_value=plugin_payload
+            ), mock.patch.object(gui_row, "_ros2_pkg_prefix_check", side_effect=fake_pkg_check), mock.patch.object(
+                gui_row, "_ros2_interface_show_check", return_value=interface_payload
+            ):
+                rc = gui_row.run_action_readiness_preflight(args)
+
+            payload = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(rc, 0)
+            self.assertTrue(payload["ready_for_static_action_readiness"])
+            self.assertEqual(payload["mode"], "offline_no_gazebo_action_readiness_preflight")
             self.assertFalse(payload["starts_gazebo"])
 
     def _write_gui_row_fixture(self, run_dir: Path, *, observer_review: bool) -> Path:

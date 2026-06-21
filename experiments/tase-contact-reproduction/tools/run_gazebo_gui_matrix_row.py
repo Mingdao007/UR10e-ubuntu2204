@@ -10,8 +10,11 @@ import signal
 import subprocess
 import sys
 import time
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
+
+import yaml
 
 
 WORKSPACE = Path(__file__).resolve().parents[3]
@@ -57,7 +60,19 @@ VISIBLE_GAZEBO_LOCK_SCHEMA = "ur10e_visible_gazebo_row_lock_preflight_v1"
 VISIBLE_GAZEBO_LOCK_RC = 44
 PLUGIN_PATH_PREFLIGHT_SCHEMA = "ur10e_gazebo_row_plugin_path_preflight_v1"
 PLUGIN_PATH_PREFLIGHT_RC = 45
+ACTION_READINESS_PREFLIGHT_SCHEMA = "ur10e_gazebo_row_action_readiness_preflight_v1"
+ACTION_READINESS_PREFLIGHT_RC = 46
 ROS_CONTROL_SYSTEM_PLUGIN_FILENAMES = ("libign_ros2_control-system.so", "libgz_ros2_control-system.so")
+ACTION_READINESS_REQUIRED_PACKAGES = (
+    "ur10e_example_controllers",
+    "ur_description",
+    "ign_ros2_control",
+    "controller_manager",
+    "ros_gz_sim",
+    "robot_state_publisher",
+    "control_msgs",
+)
+ACTION_READINESS_REQUIRED_INTERFACE = "control_msgs/action/FollowJointTrajectory"
 DEFAULT_VISIBLE_GAZEBO_LOCK_PATH = Path("/tmp/ur10e_gazebo_visible_gui_row.lock")
 ENHANCED_MARKER_VISUAL_NAMES = frozenset(
     {
@@ -434,17 +449,61 @@ def row_case_dir(run_dir: Path, stage: str, view: str) -> Path:
     return run_dir / "matrix_gui_real_aligned" / stage / view
 
 
+def workspace_install_prefix_dirs(*, local_ros_prefix: Path | None) -> list[Path]:
+    dirs: list[Path] = []
+    if local_ros_prefix is not None:
+        dirs.append(local_ros_prefix.resolve())
+    install_dir = WORKSPACE / "install"
+    if install_dir.is_dir():
+        for candidate in sorted(install_dir.iterdir(), key=lambda path: path.name):
+            package_index = candidate / "share" / "ament_index" / "resource_index" / "packages"
+            if candidate.is_dir() and package_index.is_dir():
+                dirs.append(candidate.resolve())
+    deduped: list[Path] = []
+    seen: set[str] = set()
+    for path in dirs:
+        key = str(path)
+        if key not in seen:
+            deduped.append(path)
+            seen.add(key)
+    return deduped
+
+
+def row_ros_prefix_dirs(*, local_ros_prefix: Path | None) -> list[Path]:
+    dirs = workspace_install_prefix_dirs(local_ros_prefix=local_ros_prefix)
+    for candidate in (Path("/opt/ros/humble"),):
+        package_index = candidate / "share" / "ament_index" / "resource_index" / "packages"
+        if candidate.is_dir() and package_index.is_dir():
+            dirs.append(candidate.resolve())
+    deduped: list[Path] = []
+    seen: set[str] = set()
+    for path in dirs:
+        key = str(path)
+        if key not in seen:
+            deduped.append(path)
+            seen.add(key)
+    return deduped
+
+
 def build_row_environment(*, display: str, local_ros_prefix: Path | None) -> dict[str, str]:
     env = os.environ.copy()
     env["DISPLAY"] = display
     env["PYTHONPATH"] = _prepend(str(SRC_PACKAGE), env.get("PYTHONPATH"))
-    if local_ros_prefix:
-        prefix = str(local_ros_prefix.resolve())
-        env["AMENT_PREFIX_PATH"] = _prepend(prefix, env.get("AMENT_PREFIX_PATH"))
-        env["LD_LIBRARY_PATH"] = _prepend(str(Path(prefix) / "lib"), env.get("LD_LIBRARY_PATH"))
+    install_prefixes = row_ros_prefix_dirs(local_ros_prefix=local_ros_prefix)
+    if install_prefixes:
+        prefix_entries = [str(prefix) for prefix in install_prefixes]
+        lib_entries = [str(prefix / "lib") for prefix in install_prefixes if (prefix / "lib").is_dir()]
+        env["AMENT_PREFIX_PATH"] = _prepend_path_entries(prefix_entries, env.get("AMENT_PREFIX_PATH"))
+        env["COLCON_PREFIX_PATH"] = _prepend_path_entries(prefix_entries, env.get("COLCON_PREFIX_PATH"))
+        if lib_entries:
+            env["LD_LIBRARY_PATH"] = _prepend_path_entries(lib_entries, env.get("LD_LIBRARY_PATH"))
     for plugin_dir in gazebo_system_plugin_lib_dirs(local_ros_prefix):
-        env["IGN_GAZEBO_SYSTEM_PLUGIN_PATH"] = _prepend(str(plugin_dir), env.get("IGN_GAZEBO_SYSTEM_PLUGIN_PATH"))
-        env["GZ_SIM_SYSTEM_PLUGIN_PATH"] = _prepend(str(plugin_dir), env.get("GZ_SIM_SYSTEM_PLUGIN_PATH"))
+        env["IGN_GAZEBO_SYSTEM_PLUGIN_PATH"] = _prepend_path_entries(
+            [str(plugin_dir)], env.get("IGN_GAZEBO_SYSTEM_PLUGIN_PATH")
+        )
+        env["GZ_SIM_SYSTEM_PLUGIN_PATH"] = _prepend_path_entries(
+            [str(plugin_dir)], env.get("GZ_SIM_SYSTEM_PLUGIN_PATH")
+        )
     return env
 
 
@@ -502,10 +561,231 @@ def build_plugin_path_preflight(*, display: str, local_ros_prefix: Path | None) 
     }
 
 
+def run_action_readiness_preflight(args: argparse.Namespace) -> int:
+    payload = build_action_readiness_preflight(display=args.display, local_ros_prefix=args.local_ros_prefix)
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(json.dumps(payload, indent=2, sort_keys=True))
+    return 0 if payload["ready_for_static_action_readiness"] else ACTION_READINESS_PREFLIGHT_RC
+
+
+def build_action_readiness_preflight(*, display: str, local_ros_prefix: Path | None) -> dict[str, object]:
+    env = build_row_environment(display=display, local_ros_prefix=local_ros_prefix)
+    plugin_preflight = build_plugin_path_preflight(display=display, local_ros_prefix=local_ros_prefix)
+    package_checks = {
+        package: _ros2_pkg_prefix_check(package, env)
+        for package in ACTION_READINESS_REQUIRED_PACKAGES
+    }
+    interface_check = _ros2_interface_show_check(ACTION_READINESS_REQUIRED_INTERFACE, env)
+    robot_description_check = build_robot_description_readiness_check(env=env)
+    controller_yaml_check = build_controller_yaml_readiness_check()
+    blockers = action_readiness_blockers(
+        plugin_preflight=plugin_preflight,
+        package_checks=package_checks,
+        interface_check=interface_check,
+        robot_description_check=robot_description_check,
+        controller_yaml_check=controller_yaml_check,
+    )
+    return {
+        "schema": ACTION_READINESS_PREFLIGHT_SCHEMA,
+        "generated_at": _now(),
+        "mode": "offline_no_gazebo_action_readiness_preflight",
+        "claim_tier": "visual_only",
+        "target": "isolated_gazebo_row_static_action_readiness",
+        "ready_for_static_action_readiness": not blockers,
+        "blockers": blockers,
+        "display": display,
+        "local_ros_prefix": str(local_ros_prefix.resolve()) if local_ros_prefix else "",
+        "workspace_install_prefixes": [
+            str(path) for path in workspace_install_prefix_dirs(local_ros_prefix=local_ros_prefix)
+        ],
+        "ros_prefixes": [str(path) for path in row_ros_prefix_dirs(local_ros_prefix=local_ros_prefix)],
+        "env": {
+            "AMENT_PREFIX_PATH": env.get("AMENT_PREFIX_PATH", ""),
+            "COLCON_PREFIX_PATH": env.get("COLCON_PREFIX_PATH", ""),
+            "LD_LIBRARY_PATH": env.get("LD_LIBRARY_PATH", ""),
+            "IGN_GAZEBO_SYSTEM_PLUGIN_PATH": env.get("IGN_GAZEBO_SYSTEM_PLUGIN_PATH", ""),
+            "GZ_SIM_SYSTEM_PLUGIN_PATH": env.get("GZ_SIM_SYSTEM_PLUGIN_PATH", ""),
+        },
+        "plugin_path_preflight": plugin_preflight,
+        "package_prefix_checks": package_checks,
+        "interface_check": interface_check,
+        "robot_description_check": robot_description_check,
+        "controller_yaml_check": controller_yaml_check,
+        "starts_gazebo": False,
+        "starts_xvfb": False,
+        "starts_bridge": False,
+        "live_robot_command_authorized": False,
+        "tp_load_play_authorized": False,
+        "urscript_send_authorized": False,
+        "zero_ftsensor_authorized": False,
+        "payload_tcp_safety_writes_authorized": False,
+        "forbidden_claim": (
+            "Gazebo action server online readiness; row-local contact pair/log; native plus total Gazebo contact wrench; "
+            "simulated FT validation; same-run dual-sensor binding; physical Gazebo contact physics; real bench/live contact"
+        ),
+    }
+
+
+def action_readiness_blockers(
+    *,
+    plugin_preflight: dict[str, object],
+    package_checks: dict[str, dict[str, object]],
+    interface_check: dict[str, object],
+    robot_description_check: dict[str, object],
+    controller_yaml_check: dict[str, object],
+) -> list[str]:
+    blockers: list[str] = []
+    if not plugin_preflight.get("ready_for_row_plugin_load"):
+        blockers.append(str(plugin_preflight.get("blocker") or "plugin_path_preflight_not_ready"))
+    for package, check in package_checks.items():
+        if not check.get("available"):
+            reason = check.get("stderr") or check.get("exception") or f"returncode={check.get('returncode')}"
+            blockers.append(f"ros2_pkg_prefix:{package}:{reason}")
+    if not interface_check.get("available"):
+        reason = interface_check.get("stderr") or interface_check.get("exception") or (
+            f"returncode={interface_check.get('returncode')}"
+        )
+        blockers.append(f"ros2_interface_show:{ACTION_READINESS_REQUIRED_INTERFACE}:{reason}")
+    for name, check in (
+        ("robot_description", robot_description_check),
+        ("controller_yaml", controller_yaml_check),
+    ):
+        if not check.get("ready"):
+            blockers.extend(f"{name}:{issue}" for issue in check.get("issues", ["not_ready"]))
+    return blockers
+
+
+def _ros2_pkg_prefix_check(package: str, env: dict[str, str]) -> dict[str, object]:
+    try:
+        completed = subprocess.run(
+            ["ros2", "pkg", "prefix", package],
+            cwd=WORKSPACE,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=20,
+        )
+    except FileNotFoundError as exc:
+        return {"package": package, "available": False, "prefix": "", "returncode": None, "exception": str(exc)}
+    except subprocess.TimeoutExpired as exc:
+        return {"package": package, "available": False, "prefix": "", "returncode": None, "exception": str(exc)}
+    prefix = completed.stdout.strip()
+    return {
+        "package": package,
+        "available": completed.returncode == 0 and bool(prefix),
+        "prefix": prefix if completed.returncode == 0 else "",
+        "returncode": completed.returncode,
+        "stderr": completed.stderr.strip(),
+    }
+
+
+def _ros2_interface_show_check(interface: str, env: dict[str, str]) -> dict[str, object]:
+    try:
+        completed = subprocess.run(
+            ["ros2", "interface", "show", interface],
+            cwd=WORKSPACE,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=20,
+        )
+    except FileNotFoundError as exc:
+        return {"interface": interface, "available": False, "returncode": None, "exception": str(exc)}
+    except subprocess.TimeoutExpired as exc:
+        return {"interface": interface, "available": False, "returncode": None, "exception": str(exc)}
+    return {
+        "interface": interface,
+        "available": completed.returncode == 0 and "trajectory_msgs/JointTrajectory" in completed.stdout,
+        "returncode": completed.returncode,
+        "stdout_excerpt": completed.stdout[:400],
+        "stderr": completed.stderr.strip(),
+    }
+
+
+def build_robot_description_readiness_check(env: dict[str, str] | None = None) -> dict[str, object]:
+    try:
+        robot_description = _generate_sim_robot_description_with_env(env)
+        root = ET.fromstring(robot_description)
+    except Exception as exc:  # pragma: no cover - exercised by artifact path on local setup failures.
+        return {
+            "ready": False,
+            "generated": False,
+            "issues": [f"{type(exc).__name__}:{exc}"],
+        }
+    checks = {
+        "uses_sim_hardware": "ign_ros2_control/IgnitionSystem" in robot_description,
+        "has_ros2_control_plugin_filename": "libign_ros2_control-system.so" in robot_description,
+        "excludes_real_ur_driver": "ur_robot_driver/URPositionHardwareInterface" not in robot_description,
+        "has_eoat_visual_link": root.find(f"./link[@name='{gazebo.EOAT_VISUAL_LINK}']") is not None,
+    }
+    issues = [name for name, passed in checks.items() if not passed]
+    return {
+        "ready": not issues,
+        "generated": True,
+        "robot_name": root.attrib.get("name", ""),
+        "checks": checks,
+        "issues": issues,
+    }
+
+
+def _generate_sim_robot_description_with_env(env: dict[str, str] | None) -> str:
+    if env is None:
+        return gazebo.generate_sim_robot_description()
+    original = os.environ.copy()
+    try:
+        os.environ.clear()
+        os.environ.update(env)
+        return gazebo.generate_sim_robot_description()
+    finally:
+        os.environ.clear()
+        os.environ.update(original)
+
+
+def build_controller_yaml_readiness_check() -> dict[str, object]:
+    try:
+        payload = yaml.safe_load(gazebo.CONTROLLERS_YAML.read_text(encoding="utf-8"))
+        manager = payload["controller_manager"]["ros__parameters"]
+        controller = payload["joint_trajectory_controller"]["ros__parameters"]
+    except Exception as exc:
+        return {
+            "ready": False,
+            "path": str(gazebo.CONTROLLERS_YAML),
+            "issues": [f"{type(exc).__name__}:{exc}"],
+        }
+    checks = {
+        "has_joint_state_broadcaster": manager.get("joint_state_broadcaster", {}).get("type")
+        == "joint_state_broadcaster/JointStateBroadcaster",
+        "has_joint_trajectory_controller": manager.get("joint_trajectory_controller", {}).get("type")
+        == "joint_trajectory_controller/JointTrajectoryController",
+        "has_expected_joints": controller.get("joints") == gazebo.JOINT_NAMES,
+        "uses_position_command_interface": controller.get("command_interfaces") == ["position"],
+    }
+    issues = [name for name, passed in checks.items() if not passed]
+    return {
+        "ready": not issues,
+        "path": str(gazebo.CONTROLLERS_YAML),
+        "checks": checks,
+        "issues": issues,
+    }
+
+
 def _env_path_entries(value: str | None) -> list[str]:
     if not value:
         return []
     return [entry for entry in value.split(os.pathsep) if entry]
+
+
+def _prepend_path_entries(values: list[str], current: str | None) -> str:
+    entries: list[str] = []
+    seen: set[str] = set()
+    for value in [*values, *_env_path_entries(current)]:
+        if value and value not in seen:
+            entries.append(value)
+            seen.add(value)
+    return os.pathsep.join(entries)
 
 
 def _plugin_matches(entries: list[str], filename: str) -> list[str]:
@@ -2377,6 +2657,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     plugin_preflight.add_argument("--local-ros-prefix", type=Path)
     plugin_preflight.add_argument("--display", default=":0")
     plugin_preflight.set_defaults(func=run_plugin_path_preflight)
+
+    action_preflight = subparsers.add_parser(
+        "action-readiness-preflight",
+        help="write an offline Gazebo row static action-readiness artifact without launching Gazebo",
+    )
+    action_preflight.add_argument("--output", type=Path, required=True)
+    action_preflight.add_argument("--local-ros-prefix", type=Path)
+    action_preflight.add_argument("--display", default=":0")
+    action_preflight.set_defaults(func=run_action_readiness_preflight)
     return parser.parse_args(argv)
 
 
