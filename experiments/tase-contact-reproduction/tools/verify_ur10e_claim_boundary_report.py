@@ -85,6 +85,9 @@ PHYSICAL_HASH_TOKENS = (
 
 JSON_PATH_RE = re.compile(r"`?(/[^`|\s]+\.json)`?")
 SHA256_RE = re.compile(r"\b(?:sha256|hash)\s*[=:]\s*([a-fA-F0-9]{64})\b")
+FULL_ACCEPTANCE_RE = re.compile(
+    r"\b(full reproduction|full acceptance|integrated demo|same-run integrated|same run integrated)\b"
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -254,6 +257,23 @@ def evaluate(report_path: Path) -> list[dict[str, Any]]:
             "not authorized"
             if not real_positive
             else "positive real bench/live contact claim appears without authorization",
+        )
+    )
+
+    full_positive = has_full_acceptance_positive_claim(text)
+    same_run_artifact = has_source_backed_same_run_integrated_claim(text)
+    findings.append(
+        _finding(
+            report_path,
+            "same_run_full_acceptance_claim_boundary",
+            not full_positive or same_run_artifact,
+            "no positive same-run/full acceptance claim"
+            if not full_positive
+            else (
+                "source-backed same-run integrated binding artifact present"
+                if same_run_artifact
+                else "positive same-run/full acceptance claim appears without source-backed same-run artifact"
+            ),
         )
     )
 
@@ -616,6 +636,96 @@ def has_source_backed_physical_gazebo_claim_row(sections: list[tuple[str, str]])
                 if not physical_gazebo_row_issues(" | ".join(row)):
                     return True
     return False
+
+
+def has_full_acceptance_positive_claim(text: str) -> bool:
+    for sentence in re.split(r"(?<=[.!?])\s+|\n+", text):
+        sentence_norm = normalize(sentence)
+        if not FULL_ACCEPTANCE_RE.search(sentence_norm):
+            continue
+        sanitized = sentence_norm
+        for allowed_negative in (
+            "blocked/not proven",
+            "not proven",
+            "not accepted",
+            "not authorized",
+            "not ready",
+            "blocked",
+            "no claim",
+            "cannot",
+        ):
+            sanitized = sanitized.replace(allowed_negative, "")
+        if re.search(r"\b(accepted|complete|success|verified|validated|pass(?:ed)?|proven|ready)\b", sanitized):
+            return True
+    return False
+
+
+def has_source_backed_same_run_integrated_claim(text: str) -> bool:
+    for path_match in JSON_PATH_RE.finditer(text):
+        path = Path(path_match.group(1))
+        if path.name != "same_run_integrated_binding_audit.json":
+            continue
+        row_text = surrounding_line(text, path_match.start())
+        hash_match = SHA256_RE.search(row_text) or SHA256_RE.search(text[max(0, path_match.start() - 300): path_match.end() + 300])
+        if not hash_match or not path.is_file():
+            continue
+        if sha256_file(path) != hash_match.group(1).lower():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(payload, dict) and same_run_integrated_artifact_proven(payload):
+            return True
+    return False
+
+
+def surrounding_line(text: str, index: int) -> str:
+    start = text.rfind("\n", 0, index) + 1
+    end = text.find("\n", index)
+    if end == -1:
+        end = len(text)
+    return text[start:end]
+
+
+def same_run_integrated_artifact_proven(payload: dict[str, Any]) -> bool:
+    if payload.get("schema") != "ur10e_same_run_integrated_binding_audit_v1":
+        return False
+    if payload.get("same_run_integrated_demo_proven") is not True:
+        return False
+    if payload.get("binding_status") != "same_run_integrated_demo_proven":
+        return False
+    if payload.get("validation_issues") or payload.get("blocker"):
+        return False
+    if payload.get("missing_surfaces") or payload.get("cross_run_surfaces"):
+        return False
+    source_content = payload.get("source_content_validation")
+    if isinstance(source_content, dict) and source_content.get("source_content_proven") is not True:
+        return False
+    rows = payload.get("artifact_rows") if isinstance(payload.get("artifact_rows"), list) else []
+    required_surfaces = {
+        "p6_manifest",
+        "p3_visual_rviz_audit",
+        "stage_simulated_ft_manifest",
+        "step_status_rnn_audit",
+        "p2_contact_correlation_audit",
+        "tcp_distance_evidence",
+    }
+    rows_by_surface = {str(row.get("surface")): row for row in rows if isinstance(row, dict)}
+    if not required_surfaces <= set(rows_by_surface):
+        return False
+    for surface in required_surfaces:
+        row = rows_by_surface[surface]
+        path_value = row.get("path")
+        sha_value = row.get("sha256")
+        if not path_value or not sha_value:
+            return False
+        path = Path(str(path_value))
+        if not path.is_absolute():
+            path = Path("/home/andy/ur10e_ros2_ws") / path
+        if not path.is_file() or sha256_file(path) != str(sha_value).lower():
+            return False
+    return True
 
 
 def has_positive_claim(text: str, tier: str) -> bool:

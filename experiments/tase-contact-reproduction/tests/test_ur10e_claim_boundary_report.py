@@ -104,6 +104,57 @@ def _per_stage_contact_artifact() -> dict[str, object]:
     }
 
 
+def _same_run_source_artifact(path: Path, payload: dict[str, object]) -> dict[str, object]:
+    sha256 = _write_json_artifact(path, payload)
+    return {
+        "surface": path.stem,
+        "path": str(path),
+        "exists": True,
+        "same_run_as_manifest": True,
+        "sha256": sha256,
+    }
+
+
+def _source_artifact_payload(surface: str) -> dict[str, object]:
+    return {
+        "schema": surface,
+        "goal_lineage": "/home/andy/codex_handoffs/ur10e-gazebo-17h-sim-ft-rnn-goal-prompt-20260621-0056.md",
+    }
+
+
+def _same_run_integrated_artifact(root: Path, *, proven: bool = True) -> Path:
+    rows = []
+    for surface in [
+        "p6_manifest",
+        "p3_visual_rviz_audit",
+        "stage_simulated_ft_manifest",
+        "step_status_rnn_audit",
+        "p2_contact_correlation_audit",
+        "tcp_distance_evidence",
+    ]:
+        path = root / f"{surface}.json"
+        row = _same_run_source_artifact(path, _source_artifact_payload(surface))
+        row["surface"] = surface
+        rows.append(row)
+    payload = {
+        "schema": "ur10e_same_run_integrated_binding_audit_v1",
+        "same_run_integrated_demo_proven": proven,
+        "binding_status": "same_run_integrated_demo_proven" if proven else "cross_run_evidence_only",
+        "missing_surfaces": [],
+        "cross_run_surfaces": [],
+        "validation_issues": [] if proven else ["artifact_content.total_contact_wrench:not_proven"],
+        "blocker": None if proven else "blocked",
+        "artifact_rows": rows,
+        "source_content_validation": {
+            "source_content_proven": proven,
+            "validation_issues": [] if proven else ["artifact_content.total_contact_wrench:not_proven"],
+        },
+    }
+    path = root / "same_run_integrated_binding_audit.json"
+    _write_json_artifact(path, payload)
+    return path
+
+
 class Ur10eClaimBoundaryReportVerifierTest(unittest.TestCase):
     def run_verifier(self, text: str) -> tuple[int, dict[str, object]]:
         with tempfile.TemporaryDirectory() as tmp:
@@ -378,6 +429,42 @@ class Ur10eClaimBoundaryReportVerifierTest(unittest.TestCase):
 """
         text = _base_report(GOOD_CLAIM_GATE, extra_body=table)
         self.assertFailsWith(text, "claim_tier_table_source_boundaries")
+
+    def test_full_acceptance_claim_requires_source_backed_same_run_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            artifact = _same_run_integrated_artifact(Path(tmp), proven=False)
+            sha256 = hashlib.sha256(artifact.read_bytes()).hexdigest()
+            body = f"""## Current Claim Tier Table
+
+| Evidence surface | Current status | Claim tier |
+|---|---|---|
+| P6 readiness | blocked/not proven | visual_only |
+
+## Acceptance
+
+The full reproduction is accepted using same-run integrated artifact `{artifact}` sha256={sha256}.
+"""
+            text = _base_report(GOOD_CLAIM_GATE, extra_body=body)
+            self.assertFailsWith(text, "same_run_full_acceptance_claim_boundary")
+
+    def test_source_backed_same_run_artifact_allows_integrated_demo_claim(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            artifact = _same_run_integrated_artifact(Path(tmp), proven=True)
+            sha256 = hashlib.sha256(artifact.read_bytes()).hexdigest()
+            body = f"""## Current Claim Tier Table
+
+| Evidence surface | Current status | Claim tier |
+|---|---|---|
+| P6 readiness | same-run integrated demo proven by artifact `{artifact}` sha256={sha256} | visual_only |
+
+## Acceptance
+
+The integrated demo is verified using same-run integrated artifact `{artifact}` sha256={sha256}.
+"""
+            text = _base_report(GOOD_CLAIM_GATE, extra_body=body)
+            returncode, payload = self.run_verifier(text)
+        self.assertEqual(returncode, 0, payload)
+        self.assertTrue(payload["ok"])
 
 
 if __name__ == "__main__":
