@@ -67,11 +67,13 @@
             </friction>
           </surface>
         </collision>
-        <visual name="visual">
+        <visual name="real_surface_mesh_visual">
+          <pose>0.0364678879 0.075 -0.0968663777 1.57079632679 0 0</pose>
           <geometry>
-            <box>
-              <size>0.18 0.10 0.008044839</size>
-            </box>
+            <mesh>
+              <uri>package://ur10e_example_controllers/meshes/contact_surface/two_piece_surface_smooth_v11_3mm_thick.stl</uri>
+              <scale>0.001 0.001 0.001</scale>
+            </mesh>
           </geometry>
           <material>
             <ambient>0.1 0.34 0.35 1</ambient>
@@ -125,11 +127,13 @@
             </friction>
           </surface>
         </collision>
-        <visual name="visual">
+        <visual name="real_surface_mesh_visual">
+          <pose>0.0364678879 0.075 -0.0968663777 1.57079632679 0 0</pose>
           <geometry>
-            <box>
-              <size>0.14 0.11 0.008044839</size>
-            </box>
+            <mesh>
+              <uri>package://ur10e_example_controllers/meshes/contact_surface/two_piece_surface_smooth_v11_3mm_thick.stl</uri>
+              <scale>0.001 0.001 0.001</scale>
+            </mesh>
           </geometry>
           <material>
             <ambient>0.16 0.28 0.58 1</ambient>
@@ -183,11 +187,13 @@
             </friction>
           </surface>
         </collision>
-        <visual name="visual">
+        <visual name="real_surface_mesh_visual">
+          <pose>0.0364678879 0.075 -0.0968663777 1.57079632679 0 0</pose>
           <geometry>
-            <box>
-              <size>0.16 0.18 0.008044839</size>
-            </box>
+            <mesh>
+              <uri>package://ur10e_example_controllers/meshes/contact_surface/two_piece_surface_smooth_v11_3mm_thick.stl</uri>
+              <scale>0.001 0.001 0.001</scale>
+            </mesh>
           </geometry>
           <material>
             <ambient>0.40 0.24 0.12 1</ambient>
@@ -241,11 +247,13 @@
             </friction>
           </surface>
         </collision>
-        <visual name="visual">
+        <visual name="real_surface_mesh_visual">
+          <pose>0.0364678879 0.075 -0.0968663777 1.57079632679 0 0</pose>
           <geometry>
-            <box>
-              <size>0.17 0.17 0.008044839</size>
-            </box>
+            <mesh>
+              <uri>package://ur10e_example_controllers/meshes/contact_surface/two_piece_surface_smooth_v11_3mm_thick.stl</uri>
+              <scale>0.001 0.001 0.001</scale>
+            </mesh>
           </geometry>
           <material>
             <ambient>0.34 0.14 0.38 1</ambient>

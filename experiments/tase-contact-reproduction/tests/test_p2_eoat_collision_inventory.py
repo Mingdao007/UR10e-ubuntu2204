@@ -46,37 +46,24 @@ class P2EoatCollisionInventoryTest(unittest.TestCase):
         ):
             self.assertIn(key, artifact)
 
-    def test_current_visual_proxy_parts_are_not_physics_claims(self) -> None:
+    def test_current_eoat_mesh_visual_is_not_physics_claim(self) -> None:
         artifact = p2_inventory.build_inventory(generated_at="2026-06-21T02:00:00+08:00")
         parts_by_id = {part["id"]: part for part in artifact["eoat_parts"]}
 
-        for required in (
-            "eoat_flange_adapter_visual",
-            "eoat_kunwei_sensor_body_visual",
-            "eoat_tool_plate_visual",
-            "eoat_contact_probe_visual",
-            "eoat_contact_pad_visual",
-            "eoat_active_tcp_marker_visual",
-        ):
-            self.assertIn(required, parts_by_id)
-            self.assertEqual(parts_by_id[required]["source_type"], "generated_urdf_visual_proxy")
-            self.assertEqual(parts_by_id[required]["unit"], "m")
-            self.assertEqual(parts_by_id[required]["claim_tier"], "visual_only")
+        mesh_part = parts_by_id[p2_inventory.gazebo.EOAT_REAL_MESH_VISUAL_NAME]
+        self.assertEqual(mesh_part["source_type"], "local_stl_mesh_installed_in_urdf")
+        self.assertEqual(mesh_part["unit"], "m")
+        self.assertEqual(mesh_part["scale_to_m"], 0.001)
+        self.assertEqual(mesh_part["claim_tier"], "visual_only")
+        self.assertEqual(mesh_part["geometry"]["kind"], "mesh")
+        self.assertEqual(mesh_part["geometry"]["filename"], p2_inventory.gazebo.EOAT_REAL_MESH_URI)
+        self.assertEqual(mesh_part["geometry"]["scale"], [0.001, 0.001, 0.001])
+        self.assertFalse(mesh_part["collision_body_instantiated"])
 
-        for required in (
-            "eoat_flange_adapter_visual",
-            "eoat_kunwei_sensor_body_visual",
-            "eoat_tool_plate_visual",
-            "eoat_contact_probe_visual",
-            "eoat_contact_pad_visual",
-        ):
-            self.assertTrue(parts_by_id[required]["collision_body_instantiated"])
-        self.assertFalse(parts_by_id["eoat_active_tcp_marker_visual"]["collision_body_instantiated"])
-
-        contact_pad = parts_by_id["eoat_contact_pad_visual"]
-        self.assertEqual(contact_pad["role"], "contact_pad")
-        self.assertEqual(contact_pad["geometry"]["kind"], "box")
-        self.assertEqual(contact_pad["transform"]["parent_frame"], "tool0")
+        summary = parts_by_id["current_eoat_visual_stack_summary"]
+        self.assertEqual(summary["source_type"], "local_stl_mesh_installed_in_urdf")
+        self.assertTrue(summary["collision_body_instantiated"])
+        self.assertGreater(summary["collision_count"], 0)
 
     def test_v13_cad_candidate_records_unit_scale_axis_and_source_files(self) -> None:
         artifact = p2_inventory.build_inventory(generated_at="2026-06-21T02:00:00+08:00")
@@ -109,6 +96,9 @@ class P2EoatCollisionInventoryTest(unittest.TestCase):
             self.assertEqual(surface["claim_tier"], "visual_only")
             self.assertTrue(surface["collision_body_instantiated"])
             self.assertEqual(surface["collision"]["geometry"]["kind"], "box")
+            self.assertTrue(surface["visual_mesh"]["actual_mesh_visual_present"])
+            self.assertEqual(surface["visual_mesh"]["uri"], p2_inventory.gazebo.CONTACT_SURFACE_REAL_MESH_URI)
+            self.assertEqual(surface["visual_mesh"]["scale"], "0.001 0.001 0.001")
             self.assertGreater(surface["collision"]["geometry"]["size_m"][0], 0.0)
             self.assertAlmostEqual(
                 surface["top_z_m"],
@@ -123,10 +113,10 @@ class P2EoatCollisionInventoryTest(unittest.TestCase):
         artifact = p2_inventory.build_inventory(generated_at="2026-06-21T02:00:00+08:00")
         candidates = {candidate["id"]: candidate for candidate in artifact["collision_candidates"]}
 
-        self.assertIn("current_eoat_visual_stack", candidates)
-        self.assertTrue(candidates["current_eoat_visual_stack"]["collision_body_instantiated"])
-        self.assertGreater(candidates["current_eoat_visual_stack"]["collision_count"], 0)
-        self.assertEqual(candidates["current_eoat_visual_stack"]["claim_tier"], "visual_only")
+        self.assertIn("current_eoat_simplified_collision_stack", candidates)
+        self.assertTrue(candidates["current_eoat_simplified_collision_stack"]["collision_body_instantiated"])
+        self.assertGreater(candidates["current_eoat_simplified_collision_stack"]["collision_count"], 0)
+        self.assertEqual(candidates["current_eoat_simplified_collision_stack"]["claim_tier"], "visual_only")
         self.assertIn("step5_contact_surface_collision", candidates)
         self.assertTrue(candidates["step5_contact_surface_collision"]["collision_body_instantiated"])
         self.assertEqual(candidates["step5_contact_surface_collision"]["claim_tier"], "visual_only")

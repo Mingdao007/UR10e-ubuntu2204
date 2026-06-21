@@ -70,8 +70,9 @@ def run_row(args: argparse.Namespace) -> int:
         prefix = str(args.local_ros_prefix.resolve())
         env["AMENT_PREFIX_PATH"] = _prepend(prefix, env.get("AMENT_PREFIX_PATH"))
         env["LD_LIBRARY_PATH"] = _prepend(str(Path(prefix) / "lib"), env.get("LD_LIBRARY_PATH"))
-        env["IGN_GAZEBO_SYSTEM_PLUGIN_PATH"] = _prepend(str(Path(prefix) / "lib"), env.get("IGN_GAZEBO_SYSTEM_PLUGIN_PATH"))
-        env["GZ_SIM_SYSTEM_PLUGIN_PATH"] = _prepend(str(Path(prefix) / "lib"), env.get("GZ_SIM_SYSTEM_PLUGIN_PATH"))
+        for plugin_dir in gazebo_system_plugin_lib_dirs(args.local_ros_prefix):
+            env["IGN_GAZEBO_SYSTEM_PLUGIN_PATH"] = _prepend(str(plugin_dir), env.get("IGN_GAZEBO_SYSTEM_PLUGIN_PATH"))
+            env["GZ_SIM_SYSTEM_PLUGIN_PATH"] = _prepend(str(plugin_dir), env.get("GZ_SIM_SYSTEM_PLUGIN_PATH"))
 
     _write_trace(
         trace_path,
@@ -268,6 +269,14 @@ def build_row_summary(
     introspection_summary_path = scene_introspection_dir / "introspection_summary.json"
     introspection_summary = _read_json(introspection_summary_path, default={})
     live_scene_content = summarize_live_scene_content(scene_introspection_dir)
+    model_composition_audit = payload.get("model_composition_audit") if isinstance(payload.get("model_composition_audit"), dict) else {}
+    surface_mesh_visual = (
+        visual_manifest.get("surface_mesh_visual")
+        if isinstance(visual_manifest.get("surface_mesh_visual"), dict)
+        else {}
+    )
+    actual_eoat_mesh_visual_present = bool(model_composition_audit.get("actual_eoat_mesh_visual_present"))
+    actual_contact_surface_mesh_visual_present = bool(surface_mesh_visual.get("primary_visual_uses_real_mesh"))
 
     force_loop = execution.get("force_loop") or stage_payload.get("force_loop") or {}
     force_success = execution.get("force_closed_loop")
@@ -386,6 +395,17 @@ def build_row_summary(
         "live_scene_enhanced_marker_visuals_present": live_scene_content["enhanced_marker_visuals_present"],
         "live_scene_tool0_eoat_visuals_present": live_scene_content["tool0_eoat_visuals_present"],
         "live_scene_eoat_affordance_visuals_present": live_scene_content["eoat_affordance_visuals_present"],
+        "model_composition_audit": model_composition_audit or None,
+        "actual_eoat_mesh_visual_present": actual_eoat_mesh_visual_present,
+        "actual_eoat_mesh_visual_name": model_composition_audit.get("eoat_primary_visual_mesh_name"),
+        "actual_eoat_mesh_visual_uri": model_composition_audit.get("eoat_primary_visual_mesh_uri"),
+        "eoat_primitive_visual_remnants": model_composition_audit.get("eoat_primitive_visual_remnants", []),
+        "surface_mesh_visual": surface_mesh_visual or None,
+        "actual_contact_surface_mesh_visual_present": actual_contact_surface_mesh_visual_present,
+        "actual_contact_surface_mesh_uri": surface_mesh_visual.get("mesh_uri"),
+        "primitive_proxy_not_primary_visual": bool(
+            actual_eoat_mesh_visual_present and actual_contact_surface_mesh_visual_present
+        ),
         "observer_visual_review_source": review_source,
         "observer_visual_notes": observer_review.get("notes"),
         "observer_visual_reviewed_at": observer_review.get("reviewed_at"),
@@ -452,9 +472,9 @@ def summarize_live_scene_content(scene_introspection_dir: Path) -> dict[str, obj
     missing_marker = sorted(ENHANCED_MARKER_VISUAL_NAMES - set(present_marker))
     missing_tool0 = sorted(gazebo.TOOL0_EOAT_VIEWER_VISUAL_NAMES - set(present_tool0))
     missing_eoat = sorted(gazebo.EOAT_VIEWER_AFFORDANCE_VISUAL_NAMES - set(present_eoat))
-    enhanced_marker_present = not missing_marker
-    tool0_present = not missing_tool0
-    eoat_present = not missing_eoat
+    enhanced_marker_present = bool(ENHANCED_MARKER_VISUAL_NAMES) and not missing_marker
+    tool0_present = bool(gazebo.TOOL0_EOAT_VIEWER_VISUAL_NAMES) and not missing_tool0
+    eoat_present = bool(gazebo.EOAT_VIEWER_AFFORDANCE_VISUAL_NAMES) and not missing_eoat
     if enhanced_marker_present and tool0_present and eoat_present:
         branch = "enhanced_geometry_present_in_live_ecm_render_not_viewer_visible"
     elif enhanced_marker_present and not (tool0_present and eoat_present):
@@ -529,6 +549,25 @@ def _read_pose_info_payload(path: Path) -> dict[str, Any]:
 
 def _present_name_fragments(pose_names: list[str], required: frozenset[str]) -> list[str]:
     return sorted(fragment for fragment in required if any(fragment in name for name in pose_names))
+
+
+def gazebo_system_plugin_lib_dirs(local_ros_prefix: Path | None) -> list[Path]:
+    dirs: list[Path] = []
+    if local_ros_prefix is not None:
+        dirs.append(local_ros_prefix.resolve() / "lib")
+    for candidate in (Path("/opt/ros/humble/lib"),):
+        if (candidate / "libign_ros2_control-system.so").is_file() or (
+            candidate / "libgz_ros2_control-system.so"
+        ).is_file():
+            dirs.append(candidate)
+    deduped: list[Path] = []
+    seen: set[str] = set()
+    for path in dirs:
+        key = str(path)
+        if key not in seen:
+            deduped.append(path)
+            seen.add(key)
+    return deduped
 
 
 def _introspection_output_captured(summary: dict[str, object], key: str) -> bool:

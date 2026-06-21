@@ -33,19 +33,7 @@ V13_VERIFICATION = EOAT_ARCHIVE / "verification.json"
 WORLD_PATH = WORKSPACE / "src" / "ur10e_example_controllers" / "worlds" / "step5_table_world.sdf"
 
 VISUAL_ROLE_BY_NAME = {
-    "eoat_flange_adapter_visual": "flange_adapter",
-    "eoat_kunwei_sensor_body_visual": "force_sensor_body",
-    "eoat_sensor_status_band_visual": "force_sensor_status_band",
-    "eoat_left_bracket_visual": "left_bracket",
-    "eoat_right_bracket_visual": "right_bracket",
-    "eoat_tool_plate_visual": "tool_plate",
-    "eoat_contact_probe_visual": "contact_probe",
-    "eoat_contact_probe_high_contrast_sleeve_visual": "contact_probe_sleeve",
-    "eoat_contact_pad_visual": "contact_pad",
-    "eoat_active_tcp_marker_visual": "tcp_marker",
-    "eoat_tool0_to_active_tcp_centerline_visual": "tool0_to_tcp_centerline",
-    "eoat_active_tcp_crossbar_x_visual": "tcp_crossbar",
-    "eoat_active_tcp_crossbar_y_visual": "tcp_crossbar",
+    gazebo.EOAT_REAL_MESH_VISUAL_NAME: "installed_ksm8n_ball_transfer_tool_mesh",
 }
 
 CONTACT_SURFACE_IDS = (
@@ -73,12 +61,18 @@ def _geometry_payload(geometry: ET.Element | None) -> dict[str, Any]:
         return {"kind": None}
     child = list(geometry)[0]
     payload: dict[str, Any] = {"kind": child.tag}
-    payload.update({key: _coerce_number(value) for key, value in child.attrib.items()})
+    payload.update({key: _coerce_value(value) for key, value in child.attrib.items()})
     for nested in child:
         if nested.text and nested.text.strip():
-            values = nested.text.split()
-            payload[nested.tag] = [_coerce_number(value) for value in values] if len(values) > 1 else _coerce_number(values[0])
+            payload[nested.tag] = _coerce_value(nested.text)
     return payload
+
+
+def _coerce_value(value: str) -> float | str | list[float | str]:
+    values = value.split()
+    if len(values) > 1:
+        return [_coerce_number(item) for item in values]
+    return _coerce_number(value)
 
 
 def _coerce_number(value: str) -> float | str:
@@ -94,43 +88,49 @@ def _visual_proxy_parts(robot_description: str, audit: dict[str, Any]) -> list[d
     if eoat is None:
         return []
 
-    collision_names = set(audit.get("present_eoat_collisions") or [])
     parts: list[dict[str, Any]] = []
     for visual in eoat.findall("visual"):
         name = visual.attrib.get("name", "")
         origin = visual.find("origin")
-        collision_name = gazebo.EOAT_VISUAL_COLLISION_NAME_BY_VISUAL.get(name)
-        collision_body_instantiated = bool(collision_name and collision_name in collision_names)
+        geometry = _geometry_payload(visual.find("geometry"))
+        mesh_installed = (
+            name == gazebo.EOAT_REAL_MESH_VISUAL_NAME
+            and geometry.get("filename") == gazebo.EOAT_REAL_MESH_URI
+            and geometry.get("scale") == [0.001, 0.001, 0.001]
+        )
         parts.append(
             {
                 "id": name,
                 "role": VISUAL_ROLE_BY_NAME.get(name, "viewer_affordance"),
-                "source_type": "generated_urdf_visual_proxy",
+                "source_type": "local_stl_mesh_installed_in_urdf" if mesh_installed else "generated_urdf_visual_proxy",
                 "source_path": "ur10e_example_controllers.ur10e_gazebo_matrix_runner:add_real_aligned_eoat_visual_stack",
+                "source_asset": gazebo.EOAT_REAL_MESH_SOURCE_ASSET if mesh_installed else None,
                 "unit": "m",
-                "scale_to_m": 1.0,
-                "axis_convention": "URDF link-local xyz/rpy; +Z follows tool0 toward active TCP marker",
+                "scale_to_m": 0.001 if mesh_installed else 1.0,
+                "axis_convention": "URDF link-local xyz/rpy; mesh source dimensions audited as mm and scaled to m",
                 "transform": {
                     "parent_frame": "tool0",
                     "child_frame": gazebo.EOAT_VISUAL_LINK,
                     "xyz_m": _parse_xyz(origin.attrib.get("xyz") if origin is not None else None),
                     "rpy_rad": _parse_xyz(origin.attrib.get("rpy") if origin is not None else None),
-                    "status": "generated_visual_proxy_transform_only",
+                    "status": "installed_mesh_visual_transform_only",
                 },
-                "geometry": _geometry_payload(visual.find("geometry")),
+                "geometry": geometry,
+                "raw_bbox_mm": gazebo.EOAT_REAL_MESH_RAW_BBOX_MM if mesh_installed else None,
+                "scaled_bbox_m": gazebo.EOAT_REAL_MESH_SCALED_BBOX_M if mesh_installed else None,
                 "approximation_status": (
-                    "parameterized_visual_proxy_with_collision_proxy_not_exact_cad"
-                    if collision_body_instantiated
-                    else "parameterized_visual_affordance_no_collision_proxy"
+                    "actual_local_stl_primary_visual_with_simplified_collision_primitives"
+                    if mesh_installed
+                    else "legacy_visual_proxy_not_acceptance_evidence"
                 ),
                 "claim_tier": "visual_only",
-                "collision_body_instantiated": collision_body_instantiated,
-                "collision_name": collision_name,
-                "physics_relevant_candidate": name in {"eoat_contact_probe_visual", "eoat_contact_pad_visual"},
+                "collision_body_instantiated": False,
+                "collision_name": None,
+                "physics_relevant_candidate": False,
                 "known_limit": (
-                    "Collision proxy exists for inventory only; no contact-pair log or wrench/contact correlation exists."
-                    if collision_body_instantiated
-                    else "Viewer affordance only; no collision element is intended for this visual marker."
+                    "Installed visual mesh only; simplified EOAT collision primitives are tracked separately and do not prove contact physics."
+                    if mesh_installed
+                    else "Legacy viewer affordance only; not accepted as current observer visual foundation."
                 ),
             }
         )
@@ -138,21 +138,25 @@ def _visual_proxy_parts(robot_description: str, audit: dict[str, Any]) -> list[d
     parts.append(
         {
             "id": "current_eoat_visual_stack_summary",
-            "role": "generated_eoat_visual_stack_summary",
-            "source_type": "generated_urdf_visual_proxy",
+            "role": "installed_eoat_mesh_visual_summary",
+            "source_type": "local_stl_mesh_installed_in_urdf",
             "source_path": "ur10e_example_controllers.ur10e_gazebo_matrix_runner:build_model_composition_audit",
             "unit": "m",
-            "scale_to_m": 1.0,
+            "scale_to_m": 0.001,
             "axis_convention": "URDF tool0 child fixed joint",
             "transform": audit.get("eoat_joint_origin"),
-            "geometry": {"kind": "composite_visuals", "visual_count": audit.get("eoat_visual_count")},
+            "geometry": {
+                "kind": "installed_mesh_visual",
+                "visual_count": audit.get("eoat_visual_count"),
+                "mesh_uri": audit.get("eoat_primary_visual_mesh_uri"),
+            },
             "approximation_status": audit.get("eoat_visual_proxy_policy"),
             "claim_tier": "visual_only",
             "collision_body_instantiated": bool(audit.get("eoat_collision_count")),
             "collision_count": audit.get("eoat_collision_count"),
             "collision_names": audit.get("present_eoat_collisions"),
             "physics_relevant_candidate": False,
-            "known_limit": "Summary row; collision bodies alone do not prove Gazebo contact physics.",
+            "known_limit": "Summary row; installed visual mesh plus simplified collision bodies do not prove Gazebo contact physics.",
         }
     )
     return parts
@@ -236,6 +240,8 @@ def _contact_surface_candidates() -> list[dict[str, Any]]:
         pose = _parse_xyz(model.findtext("pose"))
         link = model.find("./link")
         collision = model.find("./link/collision")
+        visual = model.find(f"./link/visual[@name='{gazebo.CONTACT_SURFACE_REAL_MESH_VISUAL_NAME}']")
+        mesh = visual.find("./geometry/mesh") if visual is not None else None
         geometry = _geometry_payload(collision.find("geometry") if collision is not None else None)
         size_m = geometry.get("size", [0.0, 0.0, 0.0])
         if not isinstance(size_m, list):
@@ -257,6 +263,20 @@ def _contact_surface_candidates() -> list[dict[str, Any]]:
                     "name": collision.attrib.get("name") if collision is not None else None,
                     "geometry": {"kind": geometry.get("kind"), "size_m": size_m},
                 },
+                "visual_mesh": {
+                    "name": visual.attrib.get("name") if visual is not None else None,
+                    "uri": mesh.findtext("uri") if mesh is not None else None,
+                    "scale": mesh.findtext("scale") if mesh is not None else None,
+                    "pose_xyz_rpy": visual.findtext("pose") if visual is not None else None,
+                    "source_asset": gazebo.CONTACT_SURFACE_REAL_MESH_SOURCE_ASSET,
+                    "raw_bbox_mm": gazebo.CONTACT_SURFACE_REAL_MESH_RAW_BBOX_MM,
+                    "oriented_bbox_m": gazebo.CONTACT_SURFACE_REAL_MESH_ORIENTED_BBOX_M,
+                    "actual_mesh_visual_present": bool(
+                        mesh is not None
+                        and mesh.findtext("uri") == gazebo.CONTACT_SURFACE_REAL_MESH_URI
+                        and mesh.findtext("scale") == "0.001 0.001 0.001"
+                    ),
+                },
                 "material": _surface_material(collision) if collision is not None else {},
                 "claim_tier": "visual_only",
                 "collision_body_instantiated": collision is not None,
@@ -270,9 +290,9 @@ def _contact_surface_candidates() -> list[dict[str, Any]]:
 def _collision_candidates(surfaces: list[dict[str, Any]], audit: dict[str, Any]) -> list[dict[str, Any]]:
     candidates = [
         {
-            "id": "current_eoat_visual_stack",
+            "id": "current_eoat_simplified_collision_stack",
             "role": "intended_future_eoat_contact_body",
-            "source_type": "generated_urdf_visual_proxy",
+            "source_type": "generated_urdf_simplified_collision_primitives",
             "source_path": "ur10e_example_controllers.ur10e_gazebo_matrix_runner",
             "claim_tier": "visual_only",
             "collision_body_instantiated": bool(audit.get("eoat_collision_count")),
@@ -310,14 +330,14 @@ def _inertial_provenance(root: ET.Element) -> list[dict[str, Any]]:
     eoat = root.find(f"./link[@name='{gazebo.EOAT_VISUAL_LINK}']")
     inertial = eoat.find("inertial") if eoat is not None else None
     current = {
-        "id": "current_eoat_visual_proxy_inertial",
-        "source_type": "generated_urdf_visual_proxy",
+        "id": "current_eoat_mesh_visual_link_inertial",
+        "source_type": "local_stl_mesh_visual_link_with_placeholder_inertial",
         "source_path": "ur10e_example_controllers.ur10e_gazebo_matrix_runner:_append_visual_proxy_inertial",
-        "status": "approximate_visual_proxy_only_not_physics_acceptance",
+        "status": "approximate_visual_link_inertial_not_physics_acceptance",
         "mass_kg": float(inertial.find("mass").attrib["value"]) if inertial is not None and inertial.find("mass") is not None else None,
         "cog_xyz_m": _parse_xyz(inertial.find("origin").attrib.get("xyz")) if inertial is not None and inertial.find("origin") is not None else None,
         "inertia_kg_m2": inertial.find("inertia").attrib if inertial is not None and inertial.find("inertia") is not None else None,
-        "provenance": "hard-coded placeholder for visual stack; not measured EOAT mass/COG/inertia",
+        "provenance": "hard-coded placeholder for visual mesh link; not measured EOAT mass/COG/inertia",
         "claim_tier": "visual_only",
     }
     return [
@@ -358,7 +378,8 @@ def build_inventory(*, generated_at: str | None = None) -> dict[str, Any]:
         "force_contact_physics_proven=false",
         "no_eoat_contact_pair_log_evidence",
         "no_wrench_contact_correlation",
-        "v13_cad_candidate_not_installed_in_gazebo_urdf",
+        "eoat_collision_primitives_simplified_no_contact_pair_log",
+        "full_force_sensor_tool_stack_mesh_incomplete",
         "mass_cog_inertia_exact_provenance_missing",
     ]
     if eoat_collision_count == 0:

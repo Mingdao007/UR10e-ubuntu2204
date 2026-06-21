@@ -44,12 +44,64 @@ INITIAL_POSITIONS_YAML = PACKAGE_ROOT / "config" / "gazebo_matrix_initial_positi
 ACTION_NAME = "/joint_trajectory_controller/follow_joint_trajectory"
 CONTACT_STAGE_IDS = frozenset({"step5b", "step5d", "step6b", "step7", "step8"})
 CONTACT_SURFACE_Z_M = 0.008044839
+CONTACT_SURFACE_REAL_MESH_VISUAL_NAME = "real_surface_mesh_visual"
+CONTACT_SURFACE_REAL_MESH_URI = (
+    "package://ur10e_example_controllers/meshes/contact_surface/"
+    "two_piece_surface_smooth_v11_3mm_thick.stl"
+)
+CONTACT_SURFACE_REAL_MESH_SOURCE_ASSET = (
+    "/home/andy/Documents/xwechat_files/wxid_yn52rrzphgdv21_b48e/msg/file/2026-06/"
+    "two_piece_surface_smooth_v11_3mm_thick.stl"
+)
+CONTACT_SURFACE_COUPON_MESH_SOURCE_ASSET = (
+    "/home/andy/Documents/xwechat_files/wxid_yn52rrzphgdv21_b48e/msg/file/2026-06/"
+    "coupon_v11_smooth_seam_30x30_3mm.stl"
+)
+CONTACT_SURFACE_REAL_MESH_SCALE = (0.001, 0.001, 0.001)
+CONTACT_SURFACE_REAL_MESH_VISUAL_POSE = (
+    0.0364678879,
+    0.075,
+    -0.0968663777,
+    math.pi / 2.0,
+    0.0,
+    0.0,
+)
+CONTACT_SURFACE_REAL_MESH_RAW_BBOX_MM = {
+    "min": [-111.46788787841797, 87.33544921875, 0.0],
+    "max": [38.532108306884766, 104.91121673583984, 150.0],
+    "size": [150.0, 17.575767517089844, 150.0],
+}
+CONTACT_SURFACE_REAL_MESH_ORIENTED_BBOX_M = {
+    "size": [0.15000000596046448, 0.15000000596046448, 0.017575768753886223],
+    "top_z_m": CONTACT_SURFACE_Z_M,
+    "bottom_z_m": CONTACT_SURFACE_Z_M - 0.017575768753886223,
+}
 DEFAULT_TARGET_LOAD_N = 5.0
 DEFAULT_CONTACT_STIFFNESS_N_M = 2500.0
 TCP_VISUAL_LINK = "tool0_tcp_visual_marker"
 TCP_VISUAL_JOINT = "tool0_tcp_visual_marker_joint"
 EOAT_VISUAL_LINK = "real_aligned_eoat_visual_stack"
 EOAT_VISUAL_JOINT = "real_aligned_eoat_visual_stack_joint"
+EOAT_REAL_MESH_VISUAL_NAME = "eoat_real_ksm8n_v13_assembly_mesh_visual"
+EOAT_REAL_MESH_URI = (
+    "package://ur10e_example_controllers/meshes/eoat/"
+    "ur5e_ksm8n_ball_transfer_tool_v13_assembly.stl"
+)
+EOAT_REAL_MESH_SOURCE_ASSET = (
+    "/home/andy/ur10e_lab_vault/onrobot/hex_e_v2_3010007655/eoat_design/"
+    "v13_ksm8n_receiver_5p3mm_side_window_85mm/"
+    "ur5e_ksm8n_ball_transfer_tool_v13_assembly.stl"
+)
+EOAT_REAL_MESH_SCALE = (0.001, 0.001, 0.001)
+EOAT_REAL_MESH_RAW_BBOX_MM = {
+    "min": [-35.99661, -35.99915, 0.0],
+    "max": [36.0, 35.99915, 73.9],
+    "size": [71.99661, 71.9983, 73.9],
+}
+EOAT_REAL_MESH_SCALED_BBOX_M = {
+    "size": [0.07199661, 0.0719983, 0.0739],
+    "center": [0.000001695, 0.0, 0.03695],
+}
 ACTIVE_TCP_FRAME = "base_to_active_tcp"
 TOOL0_FRAME = "base_to_tool0"
 GAZEBO_WORLD_FRAME = "gazebo_world"
@@ -61,51 +113,22 @@ ACTIVE_TCP_OFFSET_TOOL0_M = (
 )
 EOAT_REQUIRED_VISUAL_NAMES = frozenset(
     {
-        "eoat_flange_adapter_visual",
-        "eoat_kunwei_sensor_body_visual",
-        "eoat_sensor_status_band_visual",
-        "eoat_left_bracket_visual",
-        "eoat_right_bracket_visual",
-        "eoat_tool_plate_visual",
-        "eoat_contact_probe_visual",
-        "eoat_contact_pad_visual",
-        "eoat_active_tcp_marker_visual",
-        "eoat_tool0_to_active_tcp_centerline_visual",
-        "eoat_contact_probe_high_contrast_sleeve_visual",
-        "eoat_active_tcp_crossbar_x_visual",
-        "eoat_active_tcp_crossbar_y_visual",
+        EOAT_REAL_MESH_VISUAL_NAME,
     }
 )
-EOAT_VIEWER_AFFORDANCE_VISUAL_NAMES = frozenset(
+EOAT_VIEWER_AFFORDANCE_VISUAL_NAMES = frozenset()
+TOOL0_EOAT_VIEWER_VISUAL_NAMES = frozenset()
+EOAT_REQUIRED_COLLISION_NAMES = frozenset(
     {
-        "eoat_tool0_to_active_tcp_centerline_visual",
-        "eoat_contact_probe_high_contrast_sleeve_visual",
-        "eoat_active_tcp_marker_visual",
-        "eoat_active_tcp_crossbar_x_visual",
-        "eoat_active_tcp_crossbar_y_visual",
+        "eoat_flange_adapter_collision",
+        "eoat_kunwei_sensor_body_collision",
+        "eoat_left_bracket_collision",
+        "eoat_right_bracket_collision",
+        "eoat_tool_plate_collision",
+        "eoat_contact_probe_collision",
+        "eoat_contact_pad_collision",
     }
 )
-TOOL0_EOAT_VIEWER_VISUAL_NAMES = frozenset(
-    {
-        "tool0_eoat_visible_centerline_visual",
-        "tool0_eoat_visible_probe_sleeve_visual",
-        "tool0_eoat_visible_tcp_marker_visual",
-        "tool0_eoat_visible_crossbar_x_visual",
-        "tool0_eoat_visible_crossbar_y_visual",
-        "tool0_eoat_visible_left_probe_rail_visual",
-        "tool0_eoat_visible_right_probe_rail_visual",
-    }
-)
-EOAT_VISUAL_COLLISION_NAME_BY_VISUAL = {
-    "eoat_flange_adapter_visual": "eoat_flange_adapter_collision",
-    "eoat_kunwei_sensor_body_visual": "eoat_kunwei_sensor_body_collision",
-    "eoat_left_bracket_visual": "eoat_left_bracket_collision",
-    "eoat_right_bracket_visual": "eoat_right_bracket_collision",
-    "eoat_tool_plate_visual": "eoat_tool_plate_collision",
-    "eoat_contact_probe_visual": "eoat_contact_probe_collision",
-    "eoat_contact_pad_visual": "eoat_contact_pad_collision",
-}
-EOAT_REQUIRED_COLLISION_NAMES = frozenset(EOAT_VISUAL_COLLISION_NAME_BY_VISUAL.values())
 EOAT_CONTACT_COLLISION_NAMES = frozenset(
     {
         "eoat_contact_probe_collision",
@@ -170,7 +193,7 @@ def generate_sim_robot_description(
 
 
 def add_real_aligned_eoat_visual_stack(robot_description: str) -> str:
-    """Attach a non-colliding visual proxy for the real end-of-arm tooling stack."""
+    """Attach the local STL EOAT mesh as the primary visual, with simplified collisions."""
 
     root = ET.fromstring(robot_description)
     if root.find(f"./link[@name='{EOAT_VISUAL_LINK}']") is not None:
@@ -181,122 +204,12 @@ def add_real_aligned_eoat_visual_stack(robot_description: str) -> str:
 
     link = ET.Element("link", {"name": EOAT_VISUAL_LINK})
     _append_visual_proxy_inertial(link)
-    _append_eoat_visual(
+    _append_eoat_mesh_visual(
         link,
-        name="eoat_flange_adapter_visual",
-        xyz=(0.0, 0.0, 0.012),
-        rpy="0 0 0",
-        geometry_kind="cylinder",
-        geometry_attrs={"radius": "0.058", "length": "0.024"},
-        rgba="0.40 0.42 0.44 1.0",
-    )
-    _append_eoat_visual(
-        link,
-        name="eoat_kunwei_sensor_body_visual",
-        xyz=(0.0, 0.0, 0.052),
-        rpy="0 0 0",
-        geometry_kind="cylinder",
-        geometry_attrs={"radius": "0.043", "length": "0.060"},
-        rgba="0.05 0.22 0.30 1.0",
-    )
-    _append_eoat_visual(
-        link,
-        name="eoat_sensor_status_band_visual",
-        xyz=(0.0, 0.0, 0.056),
-        rpy="0 0 0",
-        geometry_kind="box",
-        geometry_attrs={"size": "0.096 0.014 0.014"},
-        rgba="0.00 0.95 0.85 1.0",
-    )
-    _append_eoat_visual(
-        link,
-        name="eoat_left_bracket_visual",
-        xyz=(0.0, 0.046, 0.086),
-        rpy="0 0 0",
-        geometry_kind="box",
-        geometry_attrs={"size": "0.100 0.014 0.040"},
-        rgba="0.18 0.18 0.18 1.0",
-    )
-    _append_eoat_visual(
-        link,
-        name="eoat_right_bracket_visual",
-        xyz=(0.0, -0.046, 0.086),
-        rpy="0 0 0",
-        geometry_kind="box",
-        geometry_attrs={"size": "0.100 0.014 0.040"},
-        rgba="0.18 0.18 0.18 1.0",
-    )
-    _append_eoat_visual(
-        link,
-        name="eoat_tool_plate_visual",
-        xyz=(0.0, 0.0, 0.092),
-        rpy="0 0 0",
-        geometry_kind="box",
-        geometry_attrs={"size": "0.118 0.074 0.016"},
-        rgba="0.72 0.72 0.68 1.0",
-    )
-    _append_eoat_visual(
-        link,
-        name="eoat_contact_probe_visual",
-        xyz=(0.0, 0.0, 0.106),
-        rpy="0 0 0",
-        geometry_kind="cylinder",
-        geometry_attrs={"radius": "0.014", "length": "0.052"},
-        rgba="0.95 0.76 0.18 1.0",
-    )
-    _append_eoat_visual(
-        link,
-        name="eoat_tool0_to_active_tcp_centerline_visual",
-        xyz=(0.0, 0.0, ACTIVE_TCP_OFFSET_TOOL0_M[2] / 2.0),
-        rpy="0 0 0",
-        geometry_kind="cylinder",
-        geometry_attrs={"radius": "0.006", "length": f"{ACTIVE_TCP_OFFSET_TOOL0_M[2]:.12g}"},
-        rgba="0.0 1.0 1.0 1.0",
-    )
-    _append_eoat_visual(
-        link,
-        name="eoat_contact_probe_high_contrast_sleeve_visual",
-        xyz=(0.0, 0.0, 0.106),
-        rpy="0 0 0",
-        geometry_kind="cylinder",
-        geometry_attrs={"radius": "0.020", "length": "0.068"},
-        rgba="1.0 0.88 0.0 1.0",
-    )
-    _append_eoat_visual(
-        link,
-        name="eoat_contact_pad_visual",
-        xyz=(0.0, 0.0, 0.122),
-        rpy="0 0 0",
-        geometry_kind="box",
-        geometry_attrs={"size": "0.052 0.052 0.010"},
-        rgba="1.0 0.50 0.05 1.0",
-    )
-    _append_eoat_visual(
-        link,
-        name="eoat_active_tcp_marker_visual",
-        xyz=ACTIVE_TCP_OFFSET_TOOL0_M,
-        rpy="0 0 0",
-        geometry_kind="sphere",
-        geometry_attrs={"radius": "0.022"},
-        rgba="1.0 0.0 1.0 1.0",
-    )
-    _append_eoat_visual(
-        link,
-        name="eoat_active_tcp_crossbar_x_visual",
-        xyz=ACTIVE_TCP_OFFSET_TOOL0_M,
-        rpy="0 1.57079632679 0",
-        geometry_kind="cylinder",
-        geometry_attrs={"radius": "0.006", "length": "0.110"},
-        rgba="1.0 1.0 1.0 1.0",
-    )
-    _append_eoat_visual(
-        link,
-        name="eoat_active_tcp_crossbar_y_visual",
-        xyz=ACTIVE_TCP_OFFSET_TOOL0_M,
-        rpy="1.57079632679 0 0",
-        geometry_kind="cylinder",
-        geometry_attrs={"radius": "0.006", "length": "0.110"},
-        rgba="0.0 1.0 1.0 1.0",
+        name=EOAT_REAL_MESH_VISUAL_NAME,
+        filename=EOAT_REAL_MESH_URI,
+        scale=EOAT_REAL_MESH_SCALE,
+        rgba="0.54 0.54 0.50 1.0",
     )
     _append_eoat_collision(
         link,
@@ -362,7 +275,6 @@ def add_real_aligned_eoat_visual_stack(robot_description: str) -> str:
 
     root.append(link)
     root.append(joint)
-    _append_tool0_viewer_affordance_visuals(tool0)
     return ET.tostring(root, encoding="unicode")
 
 
@@ -384,89 +296,25 @@ def _append_visual_proxy_inertial(link: ET.Element) -> None:
     )
 
 
-def _append_tool0_viewer_affordance_visuals(tool0: ET.Element) -> None:
-    existing = {visual.attrib.get("name", "") for visual in tool0.findall("visual")}
-    if TOOL0_EOAT_VIEWER_VISUAL_NAMES.issubset(existing):
-        return
-    _append_eoat_visual(
-        tool0,
-        name="tool0_eoat_visible_centerline_visual",
-        xyz=(0.0, 0.0, ACTIVE_TCP_OFFSET_TOOL0_M[2] / 2.0),
-        rpy="0 0 0",
-        geometry_kind="cylinder",
-        geometry_attrs={"radius": "0.009", "length": f"{ACTIVE_TCP_OFFSET_TOOL0_M[2]:.12g}"},
-        rgba="1.0 1.0 1.0 1.0",
-    )
-    _append_eoat_visual(
-        tool0,
-        name="tool0_eoat_visible_probe_sleeve_visual",
-        xyz=(0.0, 0.0, 0.106),
-        rpy="0 0 0",
-        geometry_kind="cylinder",
-        geometry_attrs={"radius": "0.026", "length": "0.080"},
-        rgba="1.0 0.90 0.0 1.0",
-    )
-    _append_eoat_visual(
-        tool0,
-        name="tool0_eoat_visible_tcp_marker_visual",
-        xyz=ACTIVE_TCP_OFFSET_TOOL0_M,
-        rpy="0 0 0",
-        geometry_kind="sphere",
-        geometry_attrs={"radius": "0.030"},
-        rgba="1.0 0.0 1.0 1.0",
-    )
-    _append_eoat_visual(
-        tool0,
-        name="tool0_eoat_visible_crossbar_x_visual",
-        xyz=ACTIVE_TCP_OFFSET_TOOL0_M,
-        rpy="0 1.57079632679 0",
-        geometry_kind="cylinder",
-        geometry_attrs={"radius": "0.008", "length": "0.140"},
-        rgba="1.0 1.0 1.0 1.0",
-    )
-    _append_eoat_visual(
-        tool0,
-        name="tool0_eoat_visible_crossbar_y_visual",
-        xyz=ACTIVE_TCP_OFFSET_TOOL0_M,
-        rpy="1.57079632679 0 0",
-        geometry_kind="cylinder",
-        geometry_attrs={"radius": "0.008", "length": "0.140"},
-        rgba="0.0 1.0 1.0 1.0",
-    )
-    _append_eoat_visual(
-        tool0,
-        name="tool0_eoat_visible_left_probe_rail_visual",
-        xyz=(0.070, 0.0, 0.0675),
-        rpy="0 0 0",
-        geometry_kind="box",
-        geometry_attrs={"size": "0.012 0.012 0.135"},
-        rgba="1.0 1.0 1.0 1.0",
-    )
-    _append_eoat_visual(
-        tool0,
-        name="tool0_eoat_visible_right_probe_rail_visual",
-        xyz=(-0.070, 0.0, 0.0675),
-        rpy="0 0 0",
-        geometry_kind="box",
-        geometry_attrs={"size": "0.012 0.012 0.135"},
-        rgba="0.0 1.0 1.0 1.0",
-    )
-
-
-def _append_eoat_visual(
+def _append_eoat_mesh_visual(
     link: ET.Element,
     *,
     name: str,
-    xyz: tuple[float, float, float],
-    rpy: str,
-    geometry_kind: str,
-    geometry_attrs: dict[str, str],
+    filename: str,
+    scale: tuple[float, float, float],
     rgba: str,
 ) -> None:
     visual = ET.SubElement(link, "visual", {"name": name})
-    ET.SubElement(visual, "origin", {"xyz": _xyz(xyz), "rpy": rpy})
+    ET.SubElement(visual, "origin", {"xyz": "0 0 0", "rpy": "0 0 0"})
     geometry = ET.SubElement(visual, "geometry")
-    ET.SubElement(geometry, geometry_kind, geometry_attrs)
+    ET.SubElement(
+        geometry,
+        "mesh",
+        {
+            "filename": filename,
+            "scale": _xyz(scale),
+        },
+    )
     material = ET.SubElement(visual, "material", {"name": f"{name}_mat"})
     ET.SubElement(material, "color", {"rgba": rgba})
 
@@ -536,6 +384,19 @@ def build_model_composition_audit(robot_description: str | None = None) -> dict[
         )
     eoat = root.find(f"./link[@name='{EOAT_VISUAL_LINK}']")
     eoat_visual_names = {visual.attrib.get("name", "") for visual in eoat.findall("visual")} if eoat is not None else set()
+    eoat_mesh_visuals = {}
+    eoat_primitive_visual_names = []
+    if eoat is not None:
+        for visual in eoat.findall("visual"):
+            name = visual.attrib.get("name", "")
+            mesh = visual.find("./geometry/mesh")
+            if mesh is not None:
+                eoat_mesh_visuals[name] = {
+                    "filename": mesh.attrib.get("filename"),
+                    "scale": mesh.attrib.get("scale"),
+                }
+            else:
+                eoat_primitive_visual_names.append(name)
     eoat_collision_names = (
         {collision.attrib.get("name", "") for collision in eoat.findall("collision")} if eoat is not None else set()
     )
@@ -558,13 +419,25 @@ def build_model_composition_audit(robot_description: str | None = None) -> dict[
         "present_eoat_visuals": sorted(eoat_visual_names),
         "missing_eoat_visuals": sorted(EOAT_REQUIRED_VISUAL_NAMES - eoat_visual_names),
         "eoat_visual_count": len(eoat_visual_names),
+        "eoat_primary_visual_mesh_name": EOAT_REAL_MESH_VISUAL_NAME,
+        "eoat_primary_visual_mesh_uri": EOAT_REAL_MESH_URI,
+        "eoat_primary_visual_mesh_source_asset": EOAT_REAL_MESH_SOURCE_ASSET,
+        "eoat_primary_visual_mesh_scale": list(EOAT_REAL_MESH_SCALE),
+        "eoat_primary_visual_mesh_raw_bbox_mm": EOAT_REAL_MESH_RAW_BBOX_MM,
+        "eoat_primary_visual_mesh_scaled_bbox_m": EOAT_REAL_MESH_SCALED_BBOX_M,
+        "eoat_mesh_visuals": eoat_mesh_visuals,
+        "actual_eoat_mesh_visual_present": (
+            eoat_mesh_visuals.get(EOAT_REAL_MESH_VISUAL_NAME, {}).get("filename") == EOAT_REAL_MESH_URI
+            and eoat_mesh_visuals.get(EOAT_REAL_MESH_VISUAL_NAME, {}).get("scale") == _xyz(EOAT_REAL_MESH_SCALE)
+        ),
+        "eoat_primitive_visual_remnants": sorted(eoat_primitive_visual_names),
         "required_eoat_collisions": sorted(EOAT_REQUIRED_COLLISION_NAMES),
         "present_eoat_collisions": sorted(eoat_collision_names),
         "missing_eoat_collisions": sorted(EOAT_REQUIRED_COLLISION_NAMES - eoat_collision_names),
         "present_eoat_contact_collisions": sorted(EOAT_CONTACT_COLLISION_NAMES & eoat_collision_names),
         "eoat_collision_count": len(eoat.findall("collision")) if eoat is not None else None,
         "eoat_inertial_present": eoat.find("inertial") is not None if eoat is not None else None,
-        "eoat_visual_proxy_policy": "parameterized_viewer_and_collision_proxy_not_exact_cad_not_contact_physics",
+        "eoat_visual_proxy_policy": "actual_local_stl_primary_visual_with_simplified_collision_primitives",
         "eoat_collision_policy": (
             "eoat_collision_bodies_instantiated_for_inventory_only;"
             "contact_pair_log_missing;wrench_contact_correlation_missing;"
@@ -1480,6 +1353,9 @@ def observer_visual_criteria(row: dict[str, Any]) -> dict[str, bool]:
         "gui_evidence_captured": bool(row.get("gui_evidence_captured")),
         "robot_arm_visible": bool(row.get("robot_posture_visible")),
         "eoat_tooling_visible": bool(row.get("eoat_tooling_visible")),
+        "actual_eoat_mesh_visual_present": bool(row.get("actual_eoat_mesh_visual_present")),
+        "actual_contact_surface_mesh_visual_present": bool(row.get("actual_contact_surface_mesh_visual_present")),
+        "primitive_proxy_not_primary_visual": bool(row.get("primitive_proxy_not_primary_visual")),
         "active_tcp_marker_visible": bool(row.get("tcp_marker_visible")),
         "surface_path_visible": bool(row.get("surface_path_visible")),
         "robot_tool_surface_relation_visible": bool(row.get("robot_tool_surface_relation_visible")),
@@ -1500,7 +1376,7 @@ def populate_observer_visual_pass(row: dict[str, Any]) -> dict[str, Any]:
     payload["observer_visual_criteria"] = criteria
     payload["observer_visual_pass"] = not failures
     payload["observer_visual_failure_reasons"] = failures
-    payload["observer_visual_gate_version"] = "observer_visual_gate_v2_active_tcp_eoat_clean_relation"
+    payload["observer_visual_gate_version"] = "observer_visual_gate_v3_actual_mesh_foundation"
     return payload
 
 

@@ -37,6 +37,19 @@ setup(
                 "worlds/step5_table_world.sdf",
             ],
         ),
+        (
+            f"share/{package_name}/meshes/eoat",
+            [
+                "meshes/eoat/ur5e_ksm8n_ball_transfer_tool_v13_assembly.stl",
+            ],
+        ),
+        (
+            f"share/{package_name}/meshes/contact_surface",
+            [
+                "meshes/contact_surface/two_piece_surface_smooth_v11_3mm_thick.stl",
+                "meshes/contact_surface/coupon_v11_smooth_seam_30x30_3mm.stl",
+            ],
+        ),
     ],
     install_requires=["setuptools"],
     zip_safe=True,

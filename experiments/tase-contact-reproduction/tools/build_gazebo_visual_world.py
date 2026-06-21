@@ -548,6 +548,7 @@ def _build_manifest(
         "contact_target_pose_base": contact_target_pose_base,
         "contact_target_pose_world": contact_target_pose_world,
         "surface": surface,
+        "surface_mesh_visual": _surface_mesh_visual(world, stage_id),
         "path_inside_surface_xy": _bounds_inside_surface(path_bounds_world, surface),
         "surface_tcp_sanity": _surface_tcp_sanity(surface, rows, contact_target_pose_world),
         "contact_stage": bool(matrix.STAGE_REGISTRY[stage_id].contact),
@@ -618,6 +619,36 @@ def _surface_footprint(world: ET.Element, stage_id: str) -> dict[str, float | No
         "max_x_m": center_x + 0.5 * size_x,
         "min_y_m": center_y - 0.5 * size_y,
         "max_y_m": center_y + 0.5 * size_y,
+    }
+
+
+def _surface_mesh_visual(world: ET.Element, stage_id: str) -> dict[str, object]:
+    surface_name = SURFACE_MODELS_BY_STAGE[stage_id][0]
+    surface = world.find(f"./model[@name='{surface_name}']")
+    visual = (
+        surface.find(f".//visual[@name='{runner.CONTACT_SURFACE_REAL_MESH_VISUAL_NAME}']")
+        if surface is not None
+        else None
+    )
+    mesh = visual.find("./geometry/mesh") if visual is not None else None
+    uri = mesh.findtext("uri") if mesh is not None else None
+    scale = mesh.findtext("scale") if mesh is not None else None
+    pose = visual.findtext("pose") if visual is not None else None
+    return {
+        "primary_visual_name": runner.CONTACT_SURFACE_REAL_MESH_VISUAL_NAME,
+        "primary_visual_uses_real_mesh": bool(uri == runner.CONTACT_SURFACE_REAL_MESH_URI),
+        "mesh_uri": uri,
+        "expected_mesh_uri": runner.CONTACT_SURFACE_REAL_MESH_URI,
+        "mesh_source_asset": runner.CONTACT_SURFACE_REAL_MESH_SOURCE_ASSET,
+        "coupon_mesh_source_asset_available": runner.CONTACT_SURFACE_COUPON_MESH_SOURCE_ASSET,
+        "scale": scale,
+        "expected_scale": " ".join(f"{value:.12g}" for value in runner.CONTACT_SURFACE_REAL_MESH_SCALE),
+        "pose_xyz_rpy": pose,
+        "expected_pose_xyz_rpy": " ".join(f"{value:.12g}" for value in runner.CONTACT_SURFACE_REAL_MESH_VISUAL_POSE),
+        "raw_bbox_mm": runner.CONTACT_SURFACE_REAL_MESH_RAW_BBOX_MM,
+        "oriented_bbox_m": runner.CONTACT_SURFACE_REAL_MESH_ORIENTED_BBOX_M,
+        "collision_primitive_remains": True,
+        "collision_primitive_policy": "box collision retained only as simplified collision/contact sensor surface",
     }
 
 

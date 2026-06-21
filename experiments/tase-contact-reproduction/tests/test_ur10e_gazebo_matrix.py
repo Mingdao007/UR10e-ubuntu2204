@@ -80,24 +80,15 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
 
         visual_names = {visual.attrib.get("name") for visual in stack.findall("visual")}
         self.assertTrue(gazebo.EOAT_REQUIRED_VISUAL_NAMES.issubset(visual_names))
-        self.assertTrue(gazebo.EOAT_VIEWER_AFFORDANCE_VISUAL_NAMES.issubset(visual_names))
+        self.assertEqual(visual_names, {gazebo.EOAT_REAL_MESH_VISUAL_NAME})
+        mesh = stack.find(f"./visual[@name='{gazebo.EOAT_REAL_MESH_VISUAL_NAME}']/geometry/mesh")
+        self.assertIsNotNone(mesh)
+        self.assertEqual(mesh.attrib["filename"], gazebo.EOAT_REAL_MESH_URI)
+        self.assertEqual(mesh.attrib["scale"], "0.001 0.001 0.001")
         self.assertIsNotNone(stack.find("inertial"))
         tool0 = root.find("./link[@name='tool0']")
         tool0_visual_names = {visual.attrib.get("name") for visual in tool0.findall("visual")}
-        self.assertTrue(gazebo.TOOL0_EOAT_VIEWER_VISUAL_NAMES.issubset(tool0_visual_names))
-        active_tcp = stack.find("./visual[@name='eoat_active_tcp_marker_visual']/origin")
-        self.assertIsNotNone(active_tcp)
-        active_tcp_xyz = [float(value) for value in active_tcp.attrib["xyz"].split()]
-        self.assertAlmostEqual(active_tcp_xyz[0], gazebo.ACTIVE_TCP_OFFSET_TOOL0_M[0], places=9)
-        self.assertAlmostEqual(active_tcp_xyz[1], gazebo.ACTIVE_TCP_OFFSET_TOOL0_M[1], places=9)
-        self.assertAlmostEqual(active_tcp_xyz[2], gazebo.ACTIVE_TCP_OFFSET_TOOL0_M[2], places=9)
-        marker_radius = stack.find("./visual[@name='eoat_active_tcp_marker_visual']/geometry/sphere")
-        self.assertGreaterEqual(float(marker_radius.attrib["radius"]), 0.022)
-        sleeve = stack.find("./visual[@name='eoat_contact_probe_high_contrast_sleeve_visual']/geometry/cylinder")
-        self.assertIsNotNone(sleeve)
-        self.assertGreaterEqual(float(sleeve.attrib["radius"]), 0.020)
-        self.assertIsNotNone(stack.find("./visual[@name='eoat_active_tcp_crossbar_x_visual']"))
-        self.assertIsNotNone(stack.find("./visual[@name='eoat_active_tcp_crossbar_y_visual']"))
+        self.assertFalse(gazebo.TOOL0_EOAT_VIEWER_VISUAL_NAMES - tool0_visual_names)
         collision_names = {collision.attrib.get("name") for collision in stack.findall("collision")}
         self.assertTrue(gazebo.EOAT_REQUIRED_COLLISION_NAMES.issubset(collision_names))
         contact_pad = stack.find("./collision[@name='eoat_contact_pad_collision']/geometry/box")
@@ -112,8 +103,11 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
         self.assertEqual(audit["missing_eoat_visuals"], [])
         self.assertEqual(audit["missing_tool0_viewer_affordance_visuals"], [])
         self.assertTrue(audit["eoat_inertial_present"])
-        self.assertEqual(audit["viewer_affordance_eoat_visuals"], sorted(gazebo.EOAT_VIEWER_AFFORDANCE_VISUAL_NAMES))
-        self.assertIn("parameterized_viewer_and_collision_proxy", audit["eoat_visual_proxy_policy"])
+        self.assertTrue(audit["actual_eoat_mesh_visual_present"])
+        self.assertEqual(audit["eoat_primary_visual_mesh_uri"], gazebo.EOAT_REAL_MESH_URI)
+        self.assertEqual(audit["eoat_primary_visual_mesh_scale"], [0.001, 0.001, 0.001])
+        self.assertEqual(audit["eoat_primitive_visual_remnants"], [])
+        self.assertIn("actual_local_stl_primary_visual", audit["eoat_visual_proxy_policy"])
         self.assertEqual(audit["missing_eoat_collisions"], [])
         self.assertEqual(audit["present_eoat_collisions"], sorted(gazebo.EOAT_REQUIRED_COLLISION_NAMES))
         self.assertEqual(audit["eoat_collision_count"], len(gazebo.EOAT_REQUIRED_COLLISION_NAMES))
@@ -175,6 +169,10 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
                 manifest["surface_viewer_affordance"]["policy"],
                 "non_colliding_viewer_affordance_surface_outline_and_contact_target_marker",
             )
+            self.assertTrue(manifest["surface_mesh_visual"]["primary_visual_uses_real_mesh"])
+            self.assertEqual(manifest["surface_mesh_visual"]["mesh_uri"], gazebo.CONTACT_SURFACE_REAL_MESH_URI)
+            self.assertEqual(manifest["surface_mesh_visual"]["scale"], "0.001 0.001 0.001")
+            self.assertIn("two_piece_surface_smooth_v11_3mm_thick.stl", manifest["surface_mesh_visual"]["mesh_source_asset"])
             self.assertNotIn("step7_large_platform_contact_surface", source)
             self.assertNotIn("step8_large_platform_contact_surface", source)
             root = ET.parse(output).getroot()
@@ -497,13 +495,16 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
         self.assertFalse(payload["observer_visual_pass"])
         self.assertIn("active_tcp_pose_frame_valid", payload["observer_visual_failure_reasons"])
 
-    def test_observer_visual_gate_accepts_active_tcp_eoat_clean_relation_row(self) -> None:
+    def test_observer_visual_gate_accepts_active_tcp_eoat_clean_relation_with_actual_meshes(self) -> None:
         row = {
             "observer_review_present": True,
             "observer_visual_review_source": "human_observer_row_review_v1",
             "gui_evidence_captured": True,
             "robot_posture_visible": True,
             "eoat_tooling_visible": True,
+            "actual_eoat_mesh_visual_present": True,
+            "actual_contact_surface_mesh_visual_present": True,
+            "primitive_proxy_not_primary_visual": True,
             "tcp_marker_visible": True,
             "surface_path_visible": True,
             "robot_tool_surface_relation_visible": True,
@@ -555,12 +556,17 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             self.assertEqual(row["observer_visual_criteria"]["active_tcp_pose_frame_valid"], True)
             self.assertEqual(
                 row["live_scene_content_branch"],
-                "enhanced_geometry_present_in_live_ecm_render_not_viewer_visible",
+                "enhanced_marker_present_but_robot_eoat_visuals_incomplete_in_live_ecm",
             )
             self.assertTrue(row["live_scene_enhanced_marker_visuals_present"])
-            self.assertTrue(row["live_scene_tool0_eoat_visuals_present"])
-            self.assertTrue(row["live_scene_eoat_affordance_visuals_present"])
+            self.assertFalse(row["live_scene_tool0_eoat_visuals_present"])
+            self.assertFalse(row["live_scene_eoat_affordance_visuals_present"])
             self.assertTrue(row["live_scene_content"]["does_not_override_observer_visual_gate"])
+            self.assertTrue(row["actual_eoat_mesh_visual_present"])
+            self.assertEqual(row["actual_eoat_mesh_visual_uri"], gazebo.EOAT_REAL_MESH_URI)
+            self.assertTrue(row["actual_contact_surface_mesh_visual_present"])
+            self.assertEqual(row["actual_contact_surface_mesh_uri"], gazebo.CONTACT_SURFACE_REAL_MESH_URI)
+            self.assertTrue(row["primitive_proxy_not_primary_visual"])
             self.assertTrue(row["scene_model_list_captured"])
             self.assertTrue(row["scene_info_captured"])
             self.assertEqual(row["scripted_camera_sha256"], "fixture-sha256")
@@ -631,6 +637,14 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
                 self.assertNotIn("EntityTree", source)
                 self.assertTrue(gui_row.gui_config_is_clean(path))
 
+    def test_gui_row_plugin_path_includes_local_and_ros_control_plugin_dirs(self) -> None:
+        local_prefix = WORKSPACE / "install" / "ur10e_example_controllers"
+        plugin_dirs = gui_row.gazebo_system_plugin_lib_dirs(local_prefix)
+
+        self.assertEqual(plugin_dirs[0], local_prefix.resolve() / "lib")
+        if Path("/opt/ros/humble/lib/libign_ros2_control-system.so").is_file():
+            self.assertIn(Path("/opt/ros/humble/lib"), plugin_dirs)
+
     def _write_gui_row_fixture(self, run_dir: Path, *, observer_review: bool) -> Path:
         case_dir = gui_row.row_case_dir(run_dir, "step5b", "close_detail")
         (case_dir / "runner").mkdir(parents=True)
@@ -685,6 +699,13 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             "dirty_entries": [],
             "ahead": 0,
             "behind": 0,
+        }
+        matrix_summary["model_composition_audit"] = {
+            "schema": "ur10e_gazebo_model_composition_audit_v2",
+            "actual_eoat_mesh_visual_present": True,
+            "eoat_primary_visual_mesh_name": gazebo.EOAT_REAL_MESH_VISUAL_NAME,
+            "eoat_primary_visual_mesh_uri": gazebo.EOAT_REAL_MESH_URI,
+            "eoat_primitive_visual_remnants": [],
         }
         (case_dir / "runner" / "matrix_summary.json").write_text(
             json.dumps(matrix_summary, indent=2, sort_keys=True) + "\n",
@@ -771,6 +792,15 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
                 "reaction_normal_base": [0.0, 0.0, 1.0],
                 "approach_normal_base": [0.0, 0.0, -1.0],
                 "approach_dot_reaction": -1.0,
+            },
+            "surface_mesh_visual": {
+                "primary_visual_name": gazebo.CONTACT_SURFACE_REAL_MESH_VISUAL_NAME,
+                "primary_visual_uses_real_mesh": True,
+                "mesh_uri": gazebo.CONTACT_SURFACE_REAL_MESH_URI,
+                "scale": "0.001 0.001 0.001",
+                "pose_xyz_rpy": "0.0364678879 0.075 -0.0968663777 1.57079632679 0 0",
+                "collision_primitive_remains": True,
+                "collision_primitive_policy": "box collision retained only as simplified collision/contact sensor surface",
             },
         }
         (run_dir / "_visual_worlds" / "step5b_visual.manifest.json").write_text(
