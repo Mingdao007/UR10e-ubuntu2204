@@ -20,7 +20,7 @@ from typing import Any
 
 import numpy as np
 
-from step5c_strict_rnn import StrictRnnConfig, StrictTaseRnnSolver
+from step5c_strict_rnn import StrictRnnConfig, StrictTaseRnnSolver, sigr
 
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
@@ -73,7 +73,105 @@ def verified_truth_file() -> Path:
     return Path(handle.name)
 
 
+def eq23_discrete_sign_sensitivity_probe(*, steps: int = 2000) -> dict[str, Any]:
+    variants = [
+        {
+            "variant": "current_positive_projection_positive_lambda_update",
+            "implementation_current": True,
+            "projection_input_form": "+J.T @ lambda_state",
+            "lambda_update_form": "lambda_state += (dt / epsilon) * (J @ theta_dot_state - xdot_c)",
+            "projection_sign": 1.0,
+            "lambda_update_sign": 1.0,
+        },
+        {
+            "variant": "shadow_positive_projection_negative_lambda_update",
+            "implementation_current": False,
+            "projection_input_form": "+J.T @ lambda_state",
+            "lambda_update_form": "lambda_state -= (dt / epsilon) * (J @ theta_dot_state - xdot_c)",
+            "projection_sign": 1.0,
+            "lambda_update_sign": -1.0,
+        },
+        {
+            "variant": "shadow_negative_projection_positive_lambda_update",
+            "implementation_current": False,
+            "projection_input_form": "-J.T @ lambda_state",
+            "lambda_update_form": "lambda_state += (dt / epsilon) * (J @ theta_dot_state - xdot_c)",
+            "projection_sign": -1.0,
+            "lambda_update_sign": 1.0,
+        },
+        {
+            "variant": "shadow_negative_projection_negative_lambda_update",
+            "implementation_current": False,
+            "projection_input_form": "-J.T @ lambda_state",
+            "lambda_update_form": "lambda_state -= (dt / epsilon) * (J @ theta_dot_state - xdot_c)",
+            "projection_sign": -1.0,
+            "lambda_update_sign": -1.0,
+        },
+    ]
+    xdot = np.array([0.05, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=float)
+    dt_s = 0.002
+    epsilon = 0.022
+    r = 0.2
+    lower = np.full(6, -0.15)
+    upper = np.full(6, 0.15)
+    rows: list[dict[str, Any]] = []
+    for variant in variants:
+        theta = np.zeros(6, dtype=float)
+        lambda_state = np.zeros(6, dtype=float)
+        residuals: list[float] = []
+        hit_bound = False
+        for _ in range(steps):
+            proj_input = float(variant["projection_sign"]) * lambda_state
+            projected = np.clip(proj_input, lower, upper)
+            sigr_arg = theta - projected
+            theta_delta = -(dt_s / epsilon) * np.asarray(sigr(sigr_arg, r), dtype=float)
+            crosses_projection = np.abs(theta_delta) > np.abs(sigr_arg)
+            theta = np.where(crosses_projection, projected, theta + theta_delta)
+            residual = theta - xdot
+            lambda_state = lambda_state + float(variant["lambda_update_sign"]) * (dt_s / epsilon) * residual
+            residuals.append(float(np.linalg.norm(residual)))
+            hit_bound = hit_bound or bool(np.any(np.isclose(projected, lower) | np.isclose(projected, upper)))
+        residual_nonincreasing = all(
+            residuals[index + 1] <= residuals[index] + 1e-12
+            for index in range(len(residuals) - 1)
+        )
+        stable = bool(residuals[-1] < residuals[0] and residuals[-1] < 1e-3 and not hit_bound)
+        rows.append(
+            {
+                **{key: value for key, value in variant.items() if not key.endswith("_sign")},
+                "steps": steps,
+                "dt_s": dt_s,
+                "epsilon": epsilon,
+                "r": r,
+                "qdot_bound_rad_s": 0.15,
+                "initial_residual_norm": residuals[0],
+                "final_residual_norm": residuals[-1],
+                "residual_nonincreasing": residual_nonincreasing,
+                "hit_velocity_bound": hit_bound,
+                "final_theta_dot_state": [float(value) for value in theta],
+                "final_lambda_state": [float(value) for value in lambda_state],
+                "stable_for_final_acceptance": stable,
+            }
+        )
+    current = next(row for row in rows if row["implementation_current"])
+    shadow_stable = [
+        row["variant"]
+        for row in rows
+        if not row["implementation_current"] and row["stable_for_final_acceptance"]
+    ]
+    return {
+        "probe": "identity_J_zero_initial_lambda_nonzero_xdot_c_sign_sensitivity",
+        "claim_tier": "virtual/software force-loop",
+        "status": "blocked_current_sign_unstable_shadow_variants_not_acceptance",
+        "current_variant": current,
+        "shadow_stable_variants": shadow_stable,
+        "variants": rows,
+        "acceptance_effect": "diagnostic_only_does_not_change_solver_or_clear_strict_rnn_final_acceptance",
+    }
+
+
 def nonzero_command_stability_probe(*, steps: int = 2000) -> dict[str, Any]:
+    sign_sensitivity = eq23_discrete_sign_sensitivity_probe(steps=steps)
     truth_path = verified_truth_file()
     try:
         solver = StrictTaseRnnSolver(
@@ -120,6 +218,7 @@ def nonzero_command_stability_probe(*, steps: int = 2000) -> dict[str, Any]:
             "final_theta_dot_state": [float(value) for value in last_diag.theta_dot_state],
             "final_lambda_state": [float(value) for value in last_diag.lambda_state],
             "stable_for_final_acceptance": stable,
+            "sign_sensitivity": sign_sensitivity,
             "status": "passed" if stable else "blocked_discrete_printed_sign_nonzero_command_not_stable",
         }
     finally:

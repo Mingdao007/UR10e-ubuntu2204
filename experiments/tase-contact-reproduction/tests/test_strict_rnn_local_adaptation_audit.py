@@ -67,6 +67,19 @@ class StrictRnnLocalAdaptationAuditTest(unittest.TestCase):
         self.assertGreaterEqual(evidence["final_residual_norm"], evidence["initial_residual_norm"])
         self.assertEqual(len(evidence["final_theta_dot_state"]), 6)
         self.assertEqual(len(evidence["final_lambda_state"]), 6)
+        sign = evidence["sign_sensitivity"]
+        self.assertEqual(sign["claim_tier"], "virtual/software force-loop")
+        self.assertEqual(sign["status"], "blocked_current_sign_unstable_shadow_variants_not_acceptance")
+        self.assertFalse(sign["current_variant"]["stable_for_final_acceptance"])
+        self.assertIn(
+            "shadow_positive_projection_negative_lambda_update",
+            sign["shadow_stable_variants"],
+        )
+        self.assertIn(
+            "shadow_negative_projection_positive_lambda_update",
+            sign["shadow_stable_variants"],
+        )
+        self.assertIn("does_not_change_solver", sign["acceptance_effect"])
 
     def test_local_qdot_and_no_contact_rows_explain_remaining_blockers(self) -> None:
         payload = audit.build_audit(generated_at="2026-06-21T10:42:00+08:00")
