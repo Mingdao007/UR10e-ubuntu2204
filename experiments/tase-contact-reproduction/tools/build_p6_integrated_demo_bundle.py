@@ -34,7 +34,8 @@ GOAL_LINEAGE = "/home/andy/codex_handoffs/ur10e-gazebo-17h-sim-ft-rnn-goal-promp
 
 DEFAULT_STAGE_SIM_FT_MANIFEST = (
     RUNS
-    / "ur10e_gazebo_17h_sim_ft_rnn_20260621_051618_step_simulated_ft_evidence_pack_v4"
+    / "ur10e_gazebo_17h_sim_ft_rnn_20260621_0818_p1_sim_ft_hard_floor"
+    / "per_stage_simulated_ft_pack"
     / "step_simulated_ft_evidence_manifest.json"
 )
 DEFAULT_P3_AUDIT = (
@@ -49,7 +50,7 @@ DEFAULT_P2_AUDIT = (
 )
 DEFAULT_STEP_STATUS_AUDIT = (
     RUNS
-    / "ur10e_gazebo_17h_sim_ft_rnn_20260621_0732_step_status_rnn_audit_p2_physical_v8"
+    / "ur10e_gazebo_17h_sim_ft_rnn_20260621_0828_step_status_latest_binding"
     / "step_status_rnn_audit.json"
 )
 
