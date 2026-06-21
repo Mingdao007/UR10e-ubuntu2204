@@ -95,6 +95,8 @@ def _adapter_report_fields(payload: dict[str, Any]) -> dict[str, Any]:
         "trace_written": bool(payload.get("trace_written")),
         "native_wrench_row_count": int(payload.get("native_wrench_row_count") or 0),
         "verified_native_wrench_row_count": int(payload.get("verified_native_wrench_row_count") or 0),
+        "total_contact_wrench_row_count": int(payload.get("total_contact_wrench_row_count") or 0),
+        "total_contact_wrench_blockers": payload.get("total_contact_wrench_blockers") or [],
         "adapter_report_blockers": payload.get("blockers") or [],
         "required_native_fields": payload.get("required_native_fields") or [],
         "wrench_trace_path": payload.get("wrench_trace_path"),
@@ -292,7 +294,9 @@ def build_audit(
         ),
         "referenced_wrench_claim_tier": wrench.get("claim_tier"),
         "allowed_claim": (
-            "physical Gazebo collision/contact physics with adapter-verified single contact-point wrench correlation"
+            "physical Gazebo collision/contact physics with adapter-verified total contact wrench correlation"
+            if force_contact_physics_proven and bool(wrench.get("total_contact_wrench_proven"))
+            else "physical Gazebo collision/contact physics with adapter-verified single contact-point wrench correlation"
             if force_contact_physics_proven
             else "visual_only contact-correlation readiness audit only"
         ),

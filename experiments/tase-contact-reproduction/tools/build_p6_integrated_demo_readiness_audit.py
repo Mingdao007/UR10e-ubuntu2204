@@ -164,14 +164,38 @@ def invalid_same_run_binding(payload: dict[str, Any], issues: list[str]) -> dict
 
 def invalid_dual_sensor_total_wrench(payload: dict[str, Any], issues: list[str]) -> dict[str, Any]:
     result = dict(payload)
-    result["total_contact_wrench_proven"] = False
+    total_invalid = dual_sensor_total_wrench_invalidated(payload, issues)
+    result["total_contact_wrench_proven"] = bool(payload.get("total_contact_wrench_proven")) and not total_invalid
     result["same_run_dual_sensor_observation_proven"] = False
     result["validation_issues"] = list(payload.get("validation_issues", [])) + issues
     blockers = set(payload.get("blockers", []))
-    blockers.add("total_contact_wrench:not_proven")
+    if total_invalid:
+        blockers.add("total_contact_wrench:not_proven")
+    elif result["total_contact_wrench_proven"]:
+        blockers.discard("total_contact_wrench:not_proven")
     blockers.add("same_run_dual_sensor_observation:not_proven")
     result["blockers"] = sorted(blockers)
     return result
+
+
+def dual_sensor_total_wrench_invalidated(payload: dict[str, Any], issues: list[str]) -> bool:
+    if payload.get("total_contact_wrench_proven") is not True:
+        return True
+    if "total_contact_wrench:not_proven" in list_value(payload, "blockers"):
+        return True
+    total_issue_tokens = (
+        "schema:",
+        "goal_lineage:",
+        "generated_at:",
+        "missing_surfaces",
+        "cross_run_surfaces",
+        "required_surfaces:",
+        "artifact_rows:",
+        ".sha256:",
+        ".path:",
+        "total_contact_wrench",
+    )
+    return any(issue.startswith(total_issue_tokens) or "total_contact_wrench" in issue for issue in issues)
 
 
 def list_value(payload: dict[str, Any], key: str) -> list[Any]:
@@ -838,7 +862,9 @@ def current_claim_tier_table(
         {
             "evidence_surface": "0708 standalone P2 Gazebo contact witness",
             "current_status": (
-                "EOAT collision evidence, contact pair/log evidence, and adapter-verified wrench/contact correlation exist for the standalone P2 witness"
+                "EOAT collision evidence, contact pair/log evidence, and adapter-verified total contact wrench/contact correlation exist for the standalone P2 witness"
+                if step["standalone_p2_physical_witness"] and step["total_contact_wrench_proven"]
+                else "EOAT collision evidence, contact pair/log evidence, and adapter-verified single contact-point wrench/contact correlation exist for the standalone P2 witness"
                 if step["standalone_p2_physical_witness"]
                 else "EOAT collision and contact-pair/log evidence exist, but native wrench/contact correlation is not proven for the standalone P2 witness"
             ),

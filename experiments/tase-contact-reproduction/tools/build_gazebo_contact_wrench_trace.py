@@ -46,6 +46,13 @@ REQUIRED_NATIVE_FIELDS = (
     "normal",
     "contact_count",
 )
+SINGLE_POINT_WRENCH_POLICY = "single_native_contact_point_wrench_sample_no_total_contact_wrench_claim"
+TOTAL_CONTACT_WRENCH_POLICY = "total_contact_wrench"
+TOTAL_CONTACT_FRAME_POLICIES = {
+    "pretransformed_to_base",
+    "verified_world_to_base_identity_from_p2_witness_sdf",
+}
+EPS = 1e-9
 
 
 def _now_iso() -> str:
@@ -70,6 +77,22 @@ def _vec3(value: Any, *, label: str) -> tuple[float, float, float]:
 
 def _dot3(left: tuple[float, float, float], right: tuple[float, float, float]) -> float:
     return left[0] * right[0] + left[1] * right[1] + left[2] * right[2]
+
+
+def _add3(left: tuple[float, float, float], right: tuple[float, float, float]) -> tuple[float, float, float]:
+    return (left[0] + right[0], left[1] + right[1], left[2] + right[2])
+
+
+def _sub3(left: tuple[float, float, float], right: tuple[float, float, float]) -> tuple[float, float, float]:
+    return (left[0] - right[0], left[1] - right[1], left[2] - right[2])
+
+
+def _norm3(value: tuple[float, float, float]) -> float:
+    return math.sqrt(_dot3(value, value))
+
+
+def _close3(left: tuple[float, float, float], right: tuple[float, float, float], *, tolerance: float = 1e-6) -> bool:
+    return _norm3(_sub3(left, right)) <= tolerance
 
 
 def _raw_native_wrench(row: dict[str, Any]) -> dict[str, Any] | None:
@@ -196,6 +219,150 @@ def _valid_transform_evidence(native: dict[str, Any]) -> bool:
     return abs(transform_stamp_s - wrench_stamp_s) <= 0.02
 
 
+def _total_contact_frame_policy_valid(native: dict[str, Any]) -> bool:
+    if native.get("frame_policy") in TOTAL_CONTACT_FRAME_POLICIES:
+        return True
+    evidence = native.get("frame_transform_evidence")
+    return (
+        isinstance(evidence, dict)
+        and evidence.get("source") == "p2_witness_sdf_ur10e_base_frame_identity"
+        and evidence.get("native_frame_interpreted_as") == "world"
+        and evidence.get("to_frame") == "base"
+    )
+
+
+def _raw_contact_wrenches(row: dict[str, Any]) -> list[Any]:
+    wrenches = row.get("raw_gazebo_contact_wrenches")
+    return wrenches if isinstance(wrenches, list) else []
+
+
+def _raw_wrench_body_payload(wrench: dict[str, Any], body: str) -> tuple[dict[str, Any] | None, str | None]:
+    aliases = {
+        "body_1_wrench": ("body_1_wrench", "body1Wrench"),
+        "body_2_wrench": ("body_2_wrench", "body2Wrench"),
+    }[body]
+    for field in aliases:
+        payload = wrench.get(field)
+        if isinstance(payload, dict):
+            return payload, field
+    return None, None
+
+
+def _other_body(body: str) -> str:
+    return "body_2_wrench" if body == "body_1_wrench" else "body_1_wrench"
+
+
+def _total_contact_wrench_evidence(row: dict[str, Any]) -> tuple[dict[str, Any] | None, list[str]]:
+    verified = _verified_native_wrench(row)
+    if verified is None:
+        return None, ["verified_native_wrench_required_for_total_contact_wrench"]
+    native_force, _native_torque, native = verified
+    raw_wrenches = _raw_contact_wrenches(row)
+    if not raw_wrenches:
+        return None, ["missing_raw_gazebo_contact_wrenches"]
+    if not _total_contact_frame_policy_valid(native):
+        return None, ["total_contact_wrench_requires_base_identity_or_pretransformed_frame_policy"]
+
+    blockers: list[str] = []
+    try:
+        native_raw_count = int(native.get("raw_wrench_count"))
+    except (TypeError, ValueError):
+        native_raw_count = -1
+        blockers.append("native_raw_wrench_count_missing")
+    if native_raw_count != len(raw_wrenches):
+        blockers.append("native_raw_wrench_count_mismatch")
+    contact_count = _contact_count(row)
+    if contact_count != len(raw_wrenches):
+        blockers.append("raw_wrench_count_contact_count_mismatch")
+
+    selected_body = str(native.get("selected_body") or "")
+    if selected_body not in {"body_1_wrench", "body_2_wrench"}:
+        blockers.append("total_contact_wrench_missing_selected_body")
+        selected_body = "body_1_wrench"
+    other_body = _other_body(selected_body)
+
+    reaction_normal = _vec3(row.get("normal") or [0.0, 0.0, 1.0], label="normal")
+    force_total = (0.0, 0.0, 0.0)
+    torque_total = (0.0, 0.0, 0.0)
+    component_loads: list[float] = []
+    component_count = 0
+    for index, raw_wrench in enumerate(raw_wrenches):
+        if not isinstance(raw_wrench, dict):
+            blockers.append(f"raw_wrench_{index}:malformed")
+            continue
+        selected_payload, _selected_field = _raw_wrench_body_payload(raw_wrench, selected_body)
+        other_payload, _other_field = _raw_wrench_body_payload(raw_wrench, other_body)
+        if selected_payload is None:
+            blockers.append(f"raw_wrench_{index}:missing_selected_body_wrench")
+            continue
+        if other_payload is None:
+            blockers.append(f"raw_wrench_{index}:missing_other_body_wrench")
+            continue
+        try:
+            selected_force = _vec3(selected_payload.get("force"), label=f"raw_wrench_{index}.selected.force")
+            selected_torque = _vec3(
+                selected_payload.get("torque") or [0.0, 0.0, 0.0],
+                label=f"raw_wrench_{index}.selected.torque",
+            )
+            other_force = _vec3(other_payload.get("force"), label=f"raw_wrench_{index}.other.force")
+        except (TypeError, ValueError):
+            blockers.append(f"raw_wrench_{index}:invalid_wrench_vector")
+            continue
+        if not all(math.isfinite(value) for value in (*selected_force, *selected_torque, *other_force)):
+            blockers.append(f"raw_wrench_{index}:nonfinite_wrench_vector")
+            continue
+        if not _close3(_add3(selected_force, other_force), (0.0, 0.0, 0.0), tolerance=1e-6):
+            blockers.append(f"raw_wrench_{index}:body_force_pair_not_balanced")
+        component_load = _dot3(selected_force, reaction_normal)
+        if component_load <= EPS:
+            blockers.append(f"raw_wrench_{index}:nonpositive_normal_load")
+        component_loads.append(component_load)
+        force_total = _add3(force_total, selected_force)
+        torque_total = _add3(torque_total, selected_torque)
+        component_count += 1
+
+    try:
+        raw_index = int(native.get("raw_wrench_index"))
+    except (TypeError, ValueError):
+        raw_index = -1
+        blockers.append("native_raw_wrench_index_missing")
+    if 0 <= raw_index < len(raw_wrenches):
+        selected_payload, _selected_field = _raw_wrench_body_payload(raw_wrenches[raw_index], selected_body)
+        if selected_payload is None:
+            blockers.append("native_raw_wrench_index_selected_body_missing")
+        else:
+            try:
+                indexed_force = _vec3(selected_payload.get("force"), label="native_raw_wrench_index.force")
+            except (TypeError, ValueError):
+                blockers.append("native_raw_wrench_index_force_invalid")
+            else:
+                if not _close3(indexed_force, native_force, tolerance=1e-6):
+                    blockers.append("native_raw_wrench_index_force_mismatch")
+    else:
+        blockers.append("native_raw_wrench_index_out_of_range")
+
+    if component_count != len(raw_wrenches):
+        blockers.append("raw_wrench_component_count_incomplete")
+    total_normal_load = _dot3(force_total, reaction_normal)
+    if total_normal_load <= EPS:
+        blockers.append("total_contact_wrench_normal_load_not_positive")
+    if blockers:
+        return None, _dedupe(blockers)
+    return (
+        {
+            "component_count": component_count,
+            "force_n": force_total,
+            "torque_nm": torque_total,
+            "normal_load_n": total_normal_load,
+            "component_normal_loads_n": component_loads,
+            "selected_body": selected_body,
+            "frame_policy": native.get("frame_policy"),
+            "frame_transform_evidence": native.get("frame_transform_evidence"),
+        },
+        [],
+    )
+
+
 def _dedupe(values: list[str]) -> list[str]:
     return list(dict.fromkeys(values))
 
@@ -283,12 +450,23 @@ def _evidence_contract() -> dict[str, Any]:
     }
 
 
-def _sample_from_row(row: dict[str, Any], *, sequence: int) -> contract.CanonicalWrenchSample | None:
+def _sample_from_row(
+    row: dict[str, Any],
+    *,
+    sequence: int,
+    total_wrench_evidence: dict[str, Any] | None = None,
+) -> contract.CanonicalWrenchSample | None:
     native = _verified_native_wrench(row)
     if native is None or _contact_count(row) <= 0:
         return None
     force, torque, native_payload = native
+    quality = "gazebo_contact_native_wrench"
     reaction_normal = _vec3(row.get("normal") or [0.0, 0.0, 1.0], label="normal")
+    total_contact = total_wrench_evidence is not None
+    if total_contact:
+        force = total_wrench_evidence["force_n"]
+        torque = total_wrench_evidence["torque_nm"]
+        quality = "gazebo_contact_total_native_wrench"
     if _dot3(force, reaction_normal) <= 0.0:
         return None
     flags = [
@@ -297,9 +475,16 @@ def _sample_from_row(row: dict[str, Any], *, sequence: int) -> contract.Canonica
         str(native_payload["source_schema"]),
         "frame_transform_evidence_provided",
         str(row.get("normal_source") or "normal_source_unspecified"),
-        "single_contact_point_wrench_sample",
-        "total_contact_wrench_not_proven",
     ]
+    if total_contact:
+        flags.extend(
+            [
+                "total_contact_wrench",
+                f"total_contact_wrench_component_count={total_wrench_evidence['component_count']}",
+            ]
+        )
+    else:
+        flags.extend(["single_contact_point_wrench_sample", "total_contact_wrench_not_proven"])
     if native_payload.get("raw_wrench_count") is not None:
         flags.append(f"raw_gazebo_contact_wrench_count={native_payload['raw_wrench_count']}")
     if native_payload.get("raw_wrench_index") is not None:
@@ -311,7 +496,7 @@ def _sample_from_row(row: dict[str, Any], *, sequence: int) -> contract.Canonica
         torque_nm=torque,
         source=contract.SOURCE_GAZEBO_CONTACT,
         valid=True,
-        quality="gazebo_contact_native_wrench",
+        quality=quality,
         status="valid",
         baseline_policy=str(native_payload["baseline_policy"]),
         latency_s=0.0,
@@ -338,6 +523,8 @@ def build_wrench_trace_or_report(
     blockers: list[str] = []
     row_diagnostics: list[dict[str, Any]] = []
     samples: list[contract.CanonicalWrenchSample] = []
+    total_contact_wrench_row_count = 0
+    total_contact_wrench_blockers: list[str] = []
     if contact_pair_payload.get("parse_issues"):
         blockers.append("contact_pair_parse_issues_present")
     for sequence, row in enumerate(rows):
@@ -349,7 +536,17 @@ def build_wrench_trace_or_report(
         row_blockers = _native_wrench_blockers(row)
         blockers.extend(row_blockers)
         if not row_blockers:
-            sample = _sample_from_row(row, sequence=sequence)
+            total_evidence, total_blockers = _total_contact_wrench_evidence(row)
+            if total_blockers:
+                total_contact_wrench_blockers.extend(total_blockers)
+            if total_evidence is not None:
+                total_contact_wrench_row_count += 1
+            row_diagnostics[-1]["total_contact_wrench_proven"] = total_evidence is not None
+            row_diagnostics[-1]["total_contact_wrench_component_count"] = (
+                total_evidence.get("component_count") if total_evidence else 0
+            )
+            row_diagnostics[-1]["total_contact_wrench_blockers"] = total_blockers
+            sample = _sample_from_row(row, sequence=sequence, total_wrench_evidence=total_evidence)
             if sample is None:
                 blockers.append("verified_native_wrench_sample_build_failed")
             else:
@@ -360,6 +557,13 @@ def build_wrench_trace_or_report(
         blockers = ["missing_contact_pair_rows"]
         blocker_summary = _blocker_summary(blockers)
     trace = contract.trace_payload(samples, source_topic=source_topic) if samples and not blockers else None
+    total_contact_wrench_proven = bool(
+        trace
+        and samples
+        and total_contact_wrench_row_count == len(samples)
+        and not _dedupe(total_contact_wrench_blockers)
+    )
+    wrench_policy = TOTAL_CONTACT_WRENCH_POLICY if total_contact_wrench_proven else SINGLE_POINT_WRENCH_POLICY
     return {
         "schema": REPORT_SCHEMA,
         "generated_at": generated_at or _now_iso(),
@@ -369,16 +573,24 @@ def build_wrench_trace_or_report(
         "claim_tier": PHYSICAL_GAZEBO_CLAIM_TIER if trace else BLOCKED_CLAIM_TIER,
         "target_claim_tier": PHYSICAL_GAZEBO_CLAIM_TIER,
         "allowed_claim": (
-            "physical Gazebo collision/contact physics with native gazebo_contact single contact-point wrench correlation"
+            "physical Gazebo collision/contact physics with native gazebo_contact total contact wrench correlation"
+            if trace and total_contact_wrench_proven
+            else "physical Gazebo collision/contact physics with native gazebo_contact single contact-point wrench correlation"
             if trace
             else "visual_only blocked/not_proven; contact pair evidence cannot be upgraded into force evidence"
         ),
         "forbidden_claim": (
-            "real bench/live contact; simulated_ft; inferred force from contact position/normal/depth; "
-            "total contact wrench across all Gazebo contact points"
+            "real bench/live contact; simulated_ft; inferred force from contact position/normal/depth"
+            if total_contact_wrench_proven
+            else (
+                "real bench/live contact; simulated_ft; inferred force from contact position/normal/depth; "
+                "total contact wrench across all Gazebo contact points"
+            )
         ),
-        "wrench_aggregation_policy": "single_native_contact_point_wrench_sample_no_total_contact_wrench_claim",
-        "total_contact_wrench_proven": False,
+        "wrench_aggregation_policy": wrench_policy,
+        "total_contact_wrench_proven": total_contact_wrench_proven,
+        "total_contact_wrench_row_count": total_contact_wrench_row_count,
+        "total_contact_wrench_blockers": _dedupe(total_contact_wrench_blockers),
         "force_source": contract.SOURCE_GAZEBO_CONTACT if trace else None,
         "native_wrench_source_class": contract.SOURCE_GAZEBO_CONTACT if native_wrench_row_count > 0 else None,
         "source_topic": source_topic,
@@ -396,6 +608,7 @@ def build_wrench_trace_or_report(
             "contact_pair_only_does_not_prove_wrench": True,
             "simulated_ft_is_not_physical_gazebo_contact": True,
             "real_bench_live_contact_authorized": False,
+            "total_contact_wrench_proven": total_contact_wrench_proven,
         },
         "live_robot_command_authorized": False,
         "bridge_start_authorized": False,

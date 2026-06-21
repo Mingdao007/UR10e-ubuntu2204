@@ -279,6 +279,40 @@ def _verified_base_frame_gazebo_contact_wrench_pair_log() -> dict[str, object]:
     }
 
 
+def _verified_base_frame_gazebo_total_contact_wrench_pair_log() -> dict[str, object]:
+    payload = _verified_base_frame_gazebo_contact_wrench_pair_log()
+    row = payload["rows"][0]
+    row["contact_count"] = 2
+    row["native_gazebo_contact_wrench"]["raw_wrench_count"] = 2
+    row["native_gazebo_contact_wrench"]["raw_wrench_index"] = 0
+    row["native_gazebo_contact_wrench"]["selected_body"] = "body_1_wrench"
+    row["native_gazebo_contact_wrench"]["frame_policy"] = "pretransformed_to_base"
+    row["raw_gazebo_contact_wrench_count"] = 2
+    row["raw_gazebo_contact_wrenches"] = [
+        {
+            "body1Wrench": {
+                "force": {"x": 0.0, "y": 0.0, "z": 2.1},
+                "torque": {"x": 0.0, "y": 0.0, "z": 0.0},
+            },
+            "body2Wrench": {
+                "force": {"x": 0.0, "y": 0.0, "z": -2.1},
+                "torque": {"x": 0.0, "y": 0.0, "z": 0.0},
+            },
+        },
+        {
+            "body1Wrench": {
+                "force": {"x": 0.0, "y": 0.0, "z": 1.4},
+                "torque": {"x": 0.0, "y": 0.0, "z": 0.0},
+            },
+            "body2Wrench": {
+                "force": {"x": 0.0, "y": 0.0, "z": -1.4},
+                "torque": {"x": 0.0, "y": 0.0, "z": 0.0},
+            },
+        },
+    ]
+    return payload
+
+
 def _simulated_ft_force_embedded_in_contact_pair_log() -> dict[str, object]:
     payload = _verified_base_frame_gazebo_contact_wrench_pair_log()
     row = payload["rows"][0]
@@ -688,6 +722,24 @@ class P2GazeboContactPairCaptureTest(unittest.TestCase):
         self.assertIn("single_contact_point_wrench_sample", trace["rows"][0]["diagnostic_flags"])
         self.assertIn("total_contact_wrench_not_proven", trace["rows"][0]["diagnostic_flags"])
 
+    def test_verified_raw_components_build_total_contact_wrench_trace(self) -> None:
+        payload = wrench_adapter.build_wrench_trace_or_report(
+            _verified_base_frame_gazebo_total_contact_wrench_pair_log(),
+            generated_at="2026-06-21T03:10:00+08:00",
+        )
+
+        self.assertTrue(payload["trace_written"])
+        self.assertEqual(payload["claim_tier"], "physical Gazebo collision/contact physics")
+        self.assertTrue(payload["total_contact_wrench_proven"])
+        self.assertEqual(payload["wrench_aggregation_policy"], "total_contact_wrench")
+        self.assertEqual(payload["total_contact_wrench_row_count"], 1)
+        self.assertEqual(payload["total_contact_wrench_blockers"], [])
+        trace = payload["wrench_trace"]
+        self.assertEqual(trace["rows"][0]["normal_load_n"], 3.5)
+        self.assertEqual(trace["rows"][0]["quality"], "gazebo_contact_total_native_wrench")
+        self.assertIn("total_contact_wrench", trace["rows"][0]["diagnostic_flags"])
+        self.assertIn("total_contact_wrench_component_count=2", trace["rows"][0]["diagnostic_flags"])
+
     def test_verified_gazebo_wrench_trace_can_close_correlation_gate(self) -> None:
         adapter_payload = wrench_adapter.build_wrench_trace_or_report(
             _verified_base_frame_gazebo_contact_wrench_pair_log(),
@@ -748,11 +800,12 @@ class P2GazeboContactPairCaptureTest(unittest.TestCase):
         )
         self.assertEqual(
             verified_payload["rows"][0]["native_gazebo_contact_wrench"]["wrench_aggregation_policy"],
-            "single_contact_point_wrench_no_total_contact_wrench_claim",
+            "raw_components_preserved_for_adapter_total_wrench_verification",
         )
         self.assertTrue(adapter_payload["trace_written"])
         self.assertEqual(adapter_payload["claim_tier"], "physical Gazebo collision/contact physics")
-        self.assertFalse(adapter_payload["total_contact_wrench_proven"])
+        self.assertTrue(adapter_payload["total_contact_wrench_proven"])
+        self.assertEqual(adapter_payload["wrench_aggregation_policy"], "total_contact_wrench")
         self.assertTrue(audit["physical_gazebo_contact_gate"]["force_contact_physics_proven"])
 
     def test_gz_eoat_wrench_verifier_blocks_when_base_frame_is_not_geometric(self) -> None:

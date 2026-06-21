@@ -553,7 +553,7 @@ def build_verified_contact_pair_or_report(
             "source": "primary_gazebosim_source_urls",
             "artifact_path": str(source_path),
         }
-        native["wrench_aggregation_policy"] = "single_contact_point_wrench_no_total_contact_wrench_claim"
+        native["wrench_aggregation_policy"] = "raw_components_preserved_for_adapter_total_wrench_verification"
         verified_rows.append(verified_row)
 
     if not verified_rows:
@@ -590,11 +590,11 @@ def build_verified_contact_pair_or_report(
             "target_claim_tier": PHYSICAL_GAZEBO_CLAIM_TIER,
             "allowed_claim": (
                 "standalone P2 witness physical Gazebo collision/contact physics with one native "
-                "Gazebo contact-point wrench correlation only"
+                "Gazebo contact-point wrench correlation; total wrench requires adapter aggregation"
             ),
             "forbidden_claim": (
                 "real bench/live contact; full UR10e reproduction acceptance; simulated_ft upgrade; "
-                "same-run concurrent dual-sensor observation; total contact wrench"
+                "same-run concurrent dual-sensor observation; total contact wrench from verifier alone"
             ),
             "row_count": len(verified_rows),
             "rows": verified_rows,
@@ -627,7 +627,7 @@ def build_verified_contact_pair_or_report(
         ),
         "forbidden_claim": (
             "real bench/live contact; full UR10e reproduction acceptance; simulated_ft upgrade; "
-            "same-run concurrent dual-sensor observation; total contact wrench"
+            "same-run concurrent dual-sensor observation; total contact wrench from verifier alone"
         ),
         "inputs": {
             "eoat_contact_pair_path": eoat_payload.get("artifact_path"),

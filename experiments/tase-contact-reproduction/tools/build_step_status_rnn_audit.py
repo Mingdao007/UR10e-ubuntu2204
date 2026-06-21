@@ -193,6 +193,8 @@ def p2_physical_gate_summary(path: Path = P2_CONTACT_CORRELATION_AUDIT) -> dict[
     claim_boundary = payload.get("claim_boundary_gate") if isinstance(payload.get("claim_boundary_gate"), dict) else {}
     allowed_claim = str(payload.get("allowed_claim") or "")
     force_contact_proven = bool(gate.get("force_contact_physics_proven"))
+    total_contact_wrench = bool(claim_boundary.get("total_contact_wrench_proven"))
+    wrench = payload.get("wrench_evidence") if isinstance(payload.get("wrench_evidence"), dict) else {}
     eoat_count = int(gate.get("eoat_collision_count") or 0)
     blocker_tokens: list[str] = []
     if eoat_count == 0:
@@ -210,12 +212,17 @@ def p2_physical_gate_summary(path: Path = P2_CONTACT_CORRELATION_AUDIT) -> dict[
         "wrench_contact_correlation": bool(gate.get("wrench_contact_correlation")),
         "force_contact_physics_proven": force_contact_proven,
         "scope": (
-            "standalone_p2_witness_single_contact_point_wrench"
-            if force_contact_proven and "single contact-point wrench" in allowed_claim
+            "standalone_p2_witness_total_contact_wrench"
+            if force_contact_proven and total_contact_wrench
+            else "standalone_p2_witness_single_contact_point_wrench"
+            if force_contact_proven and (
+                "single contact-point wrench" in allowed_claim or "single_contact_point" in str(wrench)
+            )
             else "stage_specific_or_unqualified"
         ),
         "stage_specific_contact_physics_proven": False,
-        "total_contact_wrench_proven": bool(claim_boundary.get("total_contact_wrench_proven")),
+        "total_contact_wrench_proven": total_contact_wrench,
+        "wrench_aggregation_policy": wrench.get("wrench_aggregation_policy"),
         "same_run_concurrent_dual_sensor_observation": not bool(
             claim_boundary.get("surface_eoat_cross_check_may_be_cross_run_repeatability_not_concurrent_observation")
         )

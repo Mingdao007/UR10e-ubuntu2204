@@ -960,7 +960,9 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
                 handoff_root=root / "missing_handoffs",
             )
 
+        self.assertTrue(payload["dual_sensor_total_wrench"]["total_contact_wrench_proven"])
         self.assertFalse(payload["dual_sensor_total_wrench"]["same_run_dual_sensor_observation_proven"])
+        self.assertNotIn("total_contact_wrench:not_proven", payload["full_goal_acceptance_gate"]["full_goal_acceptance_blockers"])
         self.assertIn(
             "same_run_dual_sensor_observation:missing",
             payload["dual_sensor_total_wrench"]["validation_issues"],
