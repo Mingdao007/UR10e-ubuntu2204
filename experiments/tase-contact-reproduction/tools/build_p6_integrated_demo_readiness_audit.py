@@ -25,6 +25,9 @@ from build_timed_audit_coverage_audit import (
 from build_same_run_integrated_binding_audit import (
     build_audit as build_same_run_integrated_binding_audit,
 )
+from build_dual_sensor_total_wrench_audit import (
+    build_audit as build_dual_sensor_total_wrench_audit,
+)
 
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
@@ -74,6 +77,7 @@ REQUIRED_PLOTS = [
 ]
 OPTIONAL_UNSUPPORTED_PLOTS = {"gravity_residual"}
 
+
 def load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -106,6 +110,80 @@ def sha256_file(path: str | None) -> str | None:
         for chunk in iter(lambda: fh.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def external_gate_validation_issues(payload: dict[str, Any], *, expected_schema: str) -> list[str]:
+    issues: list[str] = []
+    if payload.get("schema") != expected_schema:
+        issues.append(f"schema:not_{expected_schema}")
+    if payload.get("goal_lineage") != GOAL_LINEAGE:
+        issues.append("goal_lineage:mismatch_or_missing")
+    if not payload.get("generated_at"):
+        issues.append("generated_at:missing")
+    return issues
+
+
+def invalid_timed_audit_coverage(payload: dict[str, Any], issues: list[str]) -> dict[str, Any]:
+    coverage = payload.get("timed_audit_coverage")
+    if not isinstance(coverage, dict):
+        coverage = {}
+    result = dict(coverage)
+    result["full_acceptance_timed_audit_ready"] = False
+    result["claim_tier"] = result.get("claim_tier", "visual_only")
+    result["external_artifact_validation_issues"] = issues
+    result["blocker"] = "External timed audit artifact failed schema/lineage validation."
+    return result
+
+
+def invalid_same_run_binding(payload: dict[str, Any], issues: list[str]) -> dict[str, Any]:
+    result = dict(payload)
+    result["same_run_integrated_demo_proven"] = False
+    result["binding_status"] = "external_artifact_invalid"
+    result["validation_issues"] = list(payload.get("validation_issues", [])) + issues
+    result["blocker"] = "External same-run binding artifact failed schema/lineage validation."
+    return result
+
+
+def invalid_dual_sensor_total_wrench(payload: dict[str, Any], issues: list[str]) -> dict[str, Any]:
+    result = dict(payload)
+    result["total_contact_wrench_proven"] = False
+    result["same_run_dual_sensor_observation_proven"] = False
+    result["validation_issues"] = list(payload.get("validation_issues", [])) + issues
+    blockers = set(payload.get("blockers", []))
+    blockers.add("total_contact_wrench:not_proven")
+    blockers.add("same_run_dual_sensor_observation:not_proven")
+    result["blockers"] = sorted(blockers)
+    return result
+
+
+def list_value(payload: dict[str, Any], key: str) -> list[Any]:
+    value = payload.get(key)
+    return value if isinstance(value, list) else []
+
+
+def external_gate_internal_issues(payload: dict[str, Any], *, required_surfaces: set[str]) -> list[str]:
+    issues: list[str] = []
+    if list_value(payload, "missing_surfaces"):
+        issues.append("missing_surfaces:not_empty")
+    if list_value(payload, "cross_run_surfaces"):
+        issues.append("cross_run_surfaces:not_empty")
+    if list_value(payload, "validation_issues"):
+        issues.append("validation_issues:not_empty")
+    if list_value(payload, "blockers"):
+        issues.append("blockers:not_empty")
+    rows = payload.get("artifact_rows")
+    if required_surfaces and not isinstance(rows, list):
+        issues.append("artifact_rows:missing")
+    elif required_surfaces:
+        observed = {
+            str(row.get("surface"))
+            for row in rows
+            if isinstance(row, dict) and row.get("exists") is True
+        }
+        missing = sorted(required_surfaces - observed)
+        if missing:
+            issues.append("artifact_rows:missing_surfaces:" + ",".join(missing))
+    return issues
 
 
 def timed_audit_coverage_summary(
@@ -476,13 +554,14 @@ def full_goal_blockers(
     p6_blockers: list[str],
     timed_audit_coverage: dict[str, Any],
     same_run_binding: dict[str, Any],
+    dual_sensor_total_wrench: dict[str, Any],
 ) -> list[str]:
     blockers = [f"p6:{blocker}" for blocker in p6_blockers]
     if step["standalone_p2_physical_witness"] and not step["stage_specific_contact_physics_proven"]:
         blockers.append("per_stage_physical_gazebo_contact:not_proven")
-    if not step["total_contact_wrench_proven"]:
+    if not dual_sensor_total_wrench["total_contact_wrench_proven"]:
         blockers.append("total_contact_wrench:not_proven")
-    if not step["same_run_concurrent_dual_sensor_observation"]:
+    if not dual_sensor_total_wrench["same_run_dual_sensor_observation_proven"]:
         blockers.append("same_run_dual_sensor_observation:not_proven")
     if not step["strict_rnn_final_acceptance"]:
         blockers.append("strict_rnn_final_acceptance:not_proven")
@@ -548,6 +627,7 @@ def build_audit(
     handoff_root: Path = HANDOFF_ROOT,
     timed_audit_coverage_path: Path | None = None,
     same_run_binding_path: Path | None = None,
+    dual_sensor_total_wrench_path: Path | None = None,
 ) -> dict[str, Any]:
     generated = generated_at or datetime.now().isoformat(timespec="seconds")
     p3_payload = load_json(p3_audit_path)
@@ -557,7 +637,23 @@ def build_audit(
     demo_manifest = validate_demo_manifest(integrated_demo_manifest_path)
     if timed_audit_coverage_path is not None:
         timed_audit_payload = load_json(timed_audit_coverage_path)
-        timed_audit_coverage = timed_audit_payload["timed_audit_coverage"]
+        timed_audit_issues = external_gate_validation_issues(
+            timed_audit_payload,
+            expected_schema="ur10e_timed_audit_coverage_audit_v1",
+        )
+        timed_coverage_candidate = (
+            timed_audit_payload.get("timed_audit_coverage")
+            if isinstance(timed_audit_payload.get("timed_audit_coverage"), dict)
+            else {}
+        )
+        if not timed_coverage_candidate.get("expected_subagent_triplet_hours"):
+            timed_audit_issues.append("timed_audit_coverage.expected_subagent_triplet_hours:missing")
+        if not timed_coverage_candidate.get("expected_opus_checkpoint_hours"):
+            timed_audit_issues.append("timed_audit_coverage.expected_opus_checkpoint_hours:missing")
+        if timed_audit_issues:
+            timed_audit_coverage = invalid_timed_audit_coverage(timed_audit_payload, timed_audit_issues)
+        else:
+            timed_audit_coverage = timed_audit_payload["timed_audit_coverage"]
     else:
         timed_audit_coverage = timed_audit_coverage_summary(
             handoff_root,
@@ -566,6 +662,25 @@ def build_audit(
         )
     if same_run_binding_path is not None:
         same_run_binding_payload = load_json(same_run_binding_path)
+        same_run_issues = external_gate_validation_issues(
+            same_run_binding_payload,
+            expected_schema="ur10e_same_run_integrated_binding_audit_v1",
+        )
+        same_run_issues.extend(
+            external_gate_internal_issues(
+                same_run_binding_payload,
+                required_surfaces={
+                    "p6_manifest",
+                    "p3_visual_rviz_audit",
+                    "stage_simulated_ft_manifest",
+                    "step_status_rnn_audit",
+                    "p2_contact_correlation_audit",
+                    "tcp_distance_evidence",
+                },
+            )
+        )
+        if same_run_issues:
+            same_run_binding_payload = invalid_same_run_binding(same_run_binding_payload, same_run_issues)
     else:
         same_run_binding_payload = build_same_run_integrated_binding_audit(
             generated_at=generated,
@@ -605,12 +720,69 @@ def build_audit(
             "Step/RNN status is a report-level matrix that binds evidence scopes but is not an integrated run.",
         ],
     }
+    if dual_sensor_total_wrench_path is not None:
+        dual_sensor_payload = load_json(dual_sensor_total_wrench_path)
+        dual_sensor_issues = external_gate_validation_issues(
+            dual_sensor_payload,
+            expected_schema="ur10e_dual_sensor_total_wrench_audit_v1",
+        )
+        dual_sensor_issues.extend(
+            external_gate_internal_issues(
+                dual_sensor_payload,
+                required_surfaces={
+                    "stage_simulated_ft_manifest",
+                    "p2_contact_correlation_audit",
+                    "step_status_rnn_audit",
+                },
+            )
+        )
+        if dual_sensor_issues:
+            dual_sensor_payload = invalid_dual_sensor_total_wrench(dual_sensor_payload, dual_sensor_issues)
+    else:
+        dual_sensor_kwargs: dict[str, Any] = {
+            "generated_at": generated,
+            "step_status_audit_path": step_status_audit_path,
+        }
+        stage_simulated_ft_manifest_path = workspace_path(
+            step_payload.get("source_artifacts", {}).get("stage_simulated_ft_manifest")
+            if isinstance(step_payload.get("source_artifacts"), dict)
+            else None
+        )
+        p2_contact_correlation_audit_path = workspace_path(
+            step_payload.get("source_artifacts", {}).get("p2_contact_correlation_audit")
+            if isinstance(step_payload.get("source_artifacts"), dict)
+            else None
+        )
+        if stage_simulated_ft_manifest_path is not None:
+            dual_sensor_kwargs["stage_simulated_ft_manifest_path"] = stage_simulated_ft_manifest_path
+        if p2_contact_correlation_audit_path is not None:
+            dual_sensor_kwargs["p2_contact_correlation_audit_path"] = p2_contact_correlation_audit_path
+        dual_sensor_payload = build_dual_sensor_total_wrench_audit(
+            **dual_sensor_kwargs,
+        )
+    dual_sensor_total_wrench = {
+        "artifact": rel(dual_sensor_total_wrench_path),
+        "total_contact_wrench_proven": bool(dual_sensor_payload.get("total_contact_wrench_proven")),
+        "same_run_dual_sensor_observation_proven": bool(
+            dual_sensor_payload.get("same_run_dual_sensor_observation_proven")
+        ),
+        "claim_tier": dual_sensor_payload.get("claim_tier", "visual_only"),
+        "missing_surfaces": dual_sensor_payload.get("missing_surfaces", []),
+        "cross_run_surfaces": dual_sensor_payload.get("cross_run_surfaces", []),
+        "validation_issues": dual_sensor_payload.get("validation_issues", []),
+        "blockers": dual_sensor_payload.get("blockers", []),
+        "stage_simulated_ft": dual_sensor_payload.get("stage_simulated_ft", {}),
+        "p2_physical_gazebo_contact": dual_sensor_payload.get("p2_physical_gazebo_contact", {}),
+        "same_run_dual_sensor_observation": dual_sensor_payload.get("same_run_dual_sensor_observation", {}),
+        "forbidden_claim": dual_sensor_payload.get("forbidden_claim"),
+    }
     p6_blockers = build_blockers(p3=p3, step=step, demo_manifest=demo_manifest)
     final_blockers = full_goal_blockers(
         step=step,
         p6_blockers=p6_blockers,
         timed_audit_coverage=timed_audit_coverage,
         same_run_binding=same_run_binding,
+        dual_sensor_total_wrench=dual_sensor_total_wrench,
     )
     source_artifacts = {
         "p3_visual_rviz_audit": rel(p3_audit_path),
@@ -619,6 +791,7 @@ def build_audit(
         "tcp_distance_evidence": demo_manifest.get("tcp_distance_evidence", {}).get("path"),
         "timed_audit_coverage": rel(timed_audit_coverage_path),
         "same_run_integrated_binding": rel(same_run_binding_path),
+        "dual_sensor_total_wrench": rel(dual_sensor_total_wrench_path),
         "p1_simulated_ft_manifest": (
             step_payload.get("source_artifacts", {}).get("stage_simulated_ft_manifest")
             if isinstance(step_payload.get("source_artifacts"), dict)
@@ -657,6 +830,7 @@ def build_audit(
             for key, value in source_artifacts.items()
         },
         "same_run_binding": same_run_binding,
+        "dual_sensor_total_wrench": dual_sensor_total_wrench,
         "timed_audit_coverage": timed_audit_coverage,
         "p3_visual_rviz": p3,
         "step_status_rnn": step,
@@ -693,6 +867,7 @@ def write_audit(
     handoff_root: Path = HANDOFF_ROOT,
     timed_audit_coverage_path: Path | None = None,
     same_run_binding_path: Path | None = None,
+    dual_sensor_total_wrench_path: Path | None = None,
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     path = output_dir / "p6_integrated_demo_readiness_audit.json"
@@ -704,6 +879,7 @@ def write_audit(
         handoff_root=handoff_root,
         timed_audit_coverage_path=timed_audit_coverage_path,
         same_run_binding_path=same_run_binding_path,
+        dual_sensor_total_wrench_path=dual_sensor_total_wrench_path,
     )
     payload["artifact_path"] = str(path)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -720,6 +896,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--handoff-root", type=Path, default=HANDOFF_ROOT)
     parser.add_argument("--timed-audit-coverage", type=Path, default=None)
     parser.add_argument("--same-run-binding", type=Path, default=None)
+    parser.add_argument("--dual-sensor-total-wrench", type=Path, default=None)
     return parser.parse_args(argv)
 
 
@@ -734,6 +911,7 @@ def main(argv: list[str] | None = None) -> int:
         handoff_root=args.handoff_root,
         timed_audit_coverage_path=args.timed_audit_coverage,
         same_run_binding_path=args.same_run_binding,
+        dual_sensor_total_wrench_path=args.dual_sensor_total_wrench,
     )
     print(path)
     return 0

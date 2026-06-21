@@ -323,9 +323,13 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
                 json.dumps(
                     {
                         "schema": "ur10e_timed_audit_coverage_audit_v1",
+                        "goal_lineage": GOAL_LINEAGE,
+                        "generated_at": "2026-06-21T07:20:00+08:00",
                         "timed_audit_coverage": {
                             "full_acceptance_timed_audit_ready": True,
                             "claim_tier": "visual_only",
+                            "expected_subagent_triplet_hours": [1],
+                            "expected_opus_checkpoint_hours": [0],
                             "latest_opus_record": {"status": "complete"},
                             "hourly_subagent_triplets": [],
                             "complete_subagent_triplet_count": 2,
@@ -353,6 +357,43 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
         self.assertEqual(payload["source_artifacts"]["timed_audit_coverage"], str(timed_path))
         self.assertNotIn("timed_audit_coverage:not_verified", payload["full_goal_acceptance_gate"]["full_goal_acceptance_blockers"])
 
+    def test_readiness_rejects_external_timed_audit_without_lineage(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="p6_invalid_external_timed_fixture_") as tmp:
+            root = Path(tmp)
+            p3_path = root / "p3.json"
+            step_path = root / "step.json"
+            manifest_path = root / "manifest.json"
+            timed_path = root / "timed_audit_coverage_audit.json"
+            p3_path.write_text(json.dumps(_p3_payload(), indent=2), encoding="utf-8")
+            step_path.write_text(json.dumps(_step_payload(strict_ready=True), indent=2), encoding="utf-8")
+            manifest_path.write_text(json.dumps(_demo_manifest_payload(root), indent=2), encoding="utf-8")
+            timed_path.write_text(
+                json.dumps(
+                    {
+                        "schema": "ur10e_timed_audit_coverage_audit_v1",
+                        "timed_audit_coverage": {
+                            "full_acceptance_timed_audit_ready": True,
+                            "claim_tier": "visual_only",
+                        },
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            payload = audit.build_audit(
+                generated_at="2026-06-21T07:20:00+08:00",
+                p3_audit_path=p3_path,
+                step_status_audit_path=step_path,
+                integrated_demo_manifest_path=manifest_path,
+                timed_audit_coverage_path=timed_path,
+                handoff_root=root / "ignored_handoffs",
+            )
+
+        self.assertFalse(payload["timed_audit_coverage"]["full_acceptance_timed_audit_ready"])
+        self.assertIn("goal_lineage:mismatch_or_missing", payload["timed_audit_coverage"]["external_artifact_validation_issues"])
+        self.assertIn("timed_audit_coverage:not_verified", payload["full_goal_acceptance_gate"]["full_goal_acceptance_blockers"])
+
     def test_readiness_can_bind_external_same_run_artifact(self) -> None:
         audit = import_audit_module()
         with tempfile.TemporaryDirectory(prefix="p6_external_same_run_fixture_") as tmp:
@@ -368,13 +409,23 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
                 json.dumps(
                     {
                         "schema": "ur10e_same_run_integrated_binding_audit_v1",
+                        "goal_lineage": GOAL_LINEAGE,
+                        "generated_at": "2026-06-21T07:21:00+08:00",
                         "same_run_integrated_demo_proven": True,
                         "binding_status": "same_run_integrated_demo_proven",
                         "target_run_id": "fixture",
                         "missing_surfaces": [],
                         "cross_run_surfaces": [],
                         "validation_issues": [],
-                        "artifact_rows": [],
+                        "blockers": [],
+                        "artifact_rows": [
+                            {"surface": "p6_manifest", "exists": True},
+                            {"surface": "p3_visual_rviz_audit", "exists": True},
+                            {"surface": "stage_simulated_ft_manifest", "exists": True},
+                            {"surface": "step_status_rnn_audit", "exists": True},
+                            {"surface": "p2_contact_correlation_audit", "exists": True},
+                            {"surface": "tcp_distance_evidence", "exists": True},
+                        ],
                         "manifest_same_run_binding": {
                             "visual_rviz_simulated_ft_same_run": True,
                             "visual_rviz_physical_gazebo_contact_same_run": True,
@@ -398,6 +449,137 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
         self.assertTrue(payload["same_run_binding"]["same_run_integrated_demo_proven"])
         self.assertEqual(payload["source_artifacts"]["same_run_integrated_binding"], str(same_run_path))
         self.assertNotIn("same_run_integrated_binding:not_proven", payload["full_goal_acceptance_gate"]["full_goal_acceptance_blockers"])
+
+    def test_readiness_rejects_external_same_run_artifact_without_lineage(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="p6_invalid_external_same_run_fixture_") as tmp:
+            root = Path(tmp)
+            p3_path = root / "p3.json"
+            step_path = root / "step.json"
+            manifest_path = root / "manifest.json"
+            same_run_path = root / "same_run_integrated_binding_audit.json"
+            p3_path.write_text(json.dumps(_p3_payload(), indent=2), encoding="utf-8")
+            step_path.write_text(json.dumps(_step_payload(strict_ready=True), indent=2), encoding="utf-8")
+            manifest_path.write_text(json.dumps(_demo_manifest_payload(root), indent=2), encoding="utf-8")
+            same_run_path.write_text(
+                json.dumps(
+                    {
+                        "schema": "ur10e_same_run_integrated_binding_audit_v1",
+                        "same_run_integrated_demo_proven": True,
+                        "manifest_same_run_binding": {
+                            "visual_rviz_simulated_ft_same_run": True,
+                            "visual_rviz_physical_gazebo_contact_same_run": True,
+                            "step_rnn_physical_gazebo_contact_same_run": True,
+                        },
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            payload = audit.build_audit(
+                generated_at="2026-06-21T07:21:00+08:00",
+                p3_audit_path=p3_path,
+                step_status_audit_path=step_path,
+                integrated_demo_manifest_path=manifest_path,
+                same_run_binding_path=same_run_path,
+                handoff_root=root / "missing_handoffs",
+            )
+
+        self.assertFalse(payload["same_run_binding"]["same_run_integrated_demo_proven"])
+        self.assertIn("goal_lineage:mismatch_or_missing", payload["same_run_binding"]["validation_issues"])
+        self.assertIn("same_run_integrated_binding:not_proven", payload["full_goal_acceptance_gate"]["full_goal_acceptance_blockers"])
+
+    def test_readiness_can_bind_external_dual_sensor_total_wrench_artifact(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="p6_external_dual_sensor_fixture_") as tmp:
+            root = Path(tmp)
+            p3_path = root / "p3.json"
+            step_path = root / "step.json"
+            manifest_path = root / "manifest.json"
+            dual_path = root / "dual_sensor_total_wrench_audit.json"
+            p3_path.write_text(json.dumps(_p3_payload(), indent=2), encoding="utf-8")
+            step_path.write_text(json.dumps(_step_payload(strict_ready=True), indent=2), encoding="utf-8")
+            manifest_path.write_text(json.dumps(_demo_manifest_payload(root), indent=2), encoding="utf-8")
+            dual_path.write_text(
+                json.dumps(
+                    {
+                        "schema": "ur10e_dual_sensor_total_wrench_audit_v1",
+                        "goal_lineage": GOAL_LINEAGE,
+                        "generated_at": "2026-06-21T07:22:00+08:00",
+                        "claim_tier": "visual_only",
+                        "total_contact_wrench_proven": True,
+                        "same_run_dual_sensor_observation_proven": True,
+                        "missing_surfaces": [],
+                        "cross_run_surfaces": [],
+                        "validation_issues": [],
+                        "blockers": [],
+                        "artifact_rows": [
+                            {"surface": "stage_simulated_ft_manifest", "exists": True},
+                            {"surface": "p2_contact_correlation_audit", "exists": True},
+                            {"surface": "step_status_rnn_audit", "exists": True},
+                        ],
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            payload = audit.build_audit(
+                generated_at="2026-06-21T07:22:00+08:00",
+                p3_audit_path=p3_path,
+                step_status_audit_path=step_path,
+                integrated_demo_manifest_path=manifest_path,
+                dual_sensor_total_wrench_path=dual_path,
+                handoff_root=root / "missing_handoffs",
+            )
+
+        self.assertTrue(payload["dual_sensor_total_wrench"]["total_contact_wrench_proven"])
+        self.assertTrue(payload["dual_sensor_total_wrench"]["same_run_dual_sensor_observation_proven"])
+        self.assertEqual(payload["source_artifacts"]["dual_sensor_total_wrench"], str(dual_path))
+        self.assertNotIn("total_contact_wrench:not_proven", payload["full_goal_acceptance_gate"]["full_goal_acceptance_blockers"])
+        self.assertNotIn("same_run_dual_sensor_observation:not_proven", payload["full_goal_acceptance_gate"]["full_goal_acceptance_blockers"])
+
+    def test_readiness_rejects_external_dual_sensor_artifact_without_internal_evidence_rows(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="p6_invalid_external_dual_sensor_fixture_") as tmp:
+            root = Path(tmp)
+            p3_path = root / "p3.json"
+            step_path = root / "step.json"
+            manifest_path = root / "manifest.json"
+            dual_path = root / "dual_sensor_total_wrench_audit.json"
+            p3_path.write_text(json.dumps(_p3_payload(), indent=2), encoding="utf-8")
+            step_path.write_text(json.dumps(_step_payload(strict_ready=True), indent=2), encoding="utf-8")
+            manifest_path.write_text(json.dumps(_demo_manifest_payload(root), indent=2), encoding="utf-8")
+            dual_path.write_text(
+                json.dumps(
+                    {
+                        "schema": "ur10e_dual_sensor_total_wrench_audit_v1",
+                        "goal_lineage": GOAL_LINEAGE,
+                        "generated_at": "2026-06-21T07:22:00+08:00",
+                        "claim_tier": "visual_only",
+                        "total_contact_wrench_proven": True,
+                        "same_run_dual_sensor_observation_proven": True,
+                        "missing_surfaces": [],
+                        "cross_run_surfaces": [],
+                        "validation_issues": [],
+                        "blockers": [],
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            payload = audit.build_audit(
+                generated_at="2026-06-21T07:22:00+08:00",
+                p3_audit_path=p3_path,
+                step_status_audit_path=step_path,
+                integrated_demo_manifest_path=manifest_path,
+                dual_sensor_total_wrench_path=dual_path,
+                handoff_root=root / "missing_handoffs",
+            )
+
+        self.assertFalse(payload["dual_sensor_total_wrench"]["total_contact_wrench_proven"])
+        self.assertIn("artifact_rows:missing", payload["dual_sensor_total_wrench"]["validation_issues"])
+        self.assertIn("total_contact_wrench:not_proven", payload["full_goal_acceptance_gate"]["full_goal_acceptance_blockers"])
+        self.assertIn("same_run_dual_sensor_observation:not_proven", payload["full_goal_acceptance_gate"]["full_goal_acceptance_blockers"])
 
     def test_demo_manifest_requires_all_plots_with_units_frame_and_claim_labels(self) -> None:
         audit = import_audit_module()
