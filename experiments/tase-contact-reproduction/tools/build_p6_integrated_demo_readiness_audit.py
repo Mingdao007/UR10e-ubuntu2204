@@ -20,6 +20,8 @@ from typing import Any
 
 from build_timed_audit_coverage_audit import (
     GOAL_START_AT as TIMED_AUDIT_GOAL_START_AT,
+    expected_opus_checkpoint_hours as build_expected_opus_checkpoint_hours,
+    expected_subagent_hours as build_expected_subagent_hours,
     timed_audit_coverage_summary as build_timed_audit_coverage_summary,
 )
 from build_same_run_integrated_binding_audit import (
@@ -175,15 +177,67 @@ def external_gate_internal_issues(payload: dict[str, Any], *, required_surfaces:
     if required_surfaces and not isinstance(rows, list):
         issues.append("artifact_rows:missing")
     elif required_surfaces:
-        observed = {
-            str(row.get("surface"))
+        rows_by_surface = {
+            str(row.get("surface")): row
             for row in rows
-            if isinstance(row, dict) and row.get("exists") is True
+            if isinstance(row, dict)
+        }
+        observed = {
+            surface
+            for surface, row in rows_by_surface.items()
+            if row.get("exists") is True
         }
         missing = sorted(required_surfaces - observed)
         if missing:
             issues.append("artifact_rows:missing_surfaces:" + ",".join(missing))
+        for surface in sorted(required_surfaces & observed):
+            row = rows_by_surface[surface]
+            path_value = row.get("path")
+            if not path_value:
+                issues.append(f"artifact_rows.{surface}.path:missing")
+                continue
+            path = workspace_path(str(path_value))
+            if path is None or not path.is_file():
+                issues.append(f"artifact_rows.{surface}.path:missing_or_unreadable")
+                continue
+            expected_sha = row.get("sha256")
+            if not expected_sha:
+                issues.append(f"artifact_rows.{surface}.sha256:missing")
+                continue
+            actual_sha = sha256_file(str(path_value))
+            if actual_sha != expected_sha:
+                issues.append(f"artifact_rows.{surface}.sha256:mismatch")
     return issues
+
+
+def physical_gazebo_contact_claim_boundary(step_p2: dict[str, Any]) -> dict[str, Any]:
+    eoat_collision_count = int(step_p2.get("eoat_collision_count") or 0)
+    contact_pair_log_evidence = bool(step_p2.get("contact_pair_log_evidence"))
+    adapter_verified_wrench = bool(step_p2.get("adapter_verified_gazebo_contact_wrench"))
+    wrench_contact_correlation = bool(step_p2.get("wrench_contact_correlation"))
+    force_contact_physics_proven = bool(step_p2.get("force_contact_physics_proven"))
+    required_conditions = {
+        "eoat_collision_count_gt_zero": eoat_collision_count > 0,
+        "contact_pair_log_evidence": contact_pair_log_evidence,
+        "adapter_verified_gazebo_contact_wrench": adapter_verified_wrench,
+        "wrench_contact_correlation": wrench_contact_correlation,
+        "force_contact_physics_proven": force_contact_physics_proven,
+    }
+    blockers = [
+        name + ":not_proven"
+        for name, proven in required_conditions.items()
+        if not proven
+    ]
+    proven = not blockers
+    return {
+        "claim_tier": "physical Gazebo collision/contact physics" if proven else "visual_only",
+        "proven": proven,
+        "blocked_or_not_proven": not proven,
+        "required_conditions": required_conditions,
+        "eoat_collision_count": eoat_collision_count,
+        "blockers": blockers,
+        "downgrade_rule": "physical Gazebo collision/contact physics is blocked/not proven when EOAT collision evidence, contact pair/log evidence, wrench/contact correlation, or force_contact_physics_proven is missing.",
+    }
 
 
 def timed_audit_coverage_summary(
@@ -278,6 +332,16 @@ def step_status_summary(step: dict[str, Any], *, path: Path) -> dict[str, Any]:
             inner_status not in {"blocked_pending_pdf_truth_extraction", "missing"}
             and not inner_status.startswith("blocked")
         )
+    p2_claim_boundary = physical_gazebo_contact_claim_boundary(p2)
+    reported_p2_claim_tier = p2.get("claim_tier") or coverage.get("p2_claim_tier")
+    p2_claim_tier = (
+        "physical Gazebo collision/contact physics"
+        if reported_p2_claim_tier == "physical Gazebo collision/contact physics"
+        and p2_claim_boundary["proven"]
+        else "visual_only"
+        if reported_p2_claim_tier == "physical Gazebo collision/contact physics"
+        else reported_p2_claim_tier
+    )
     lineage = step.get("goal_lineage")
     stage_status_matrix = [
         {
@@ -321,11 +385,13 @@ def step_status_summary(step: dict[str, Any], *, path: Path) -> dict[str, Any]:
             for stage_id in CONTACT_STAGE_IDS
         },
         "stage_status_matrix": stage_status_matrix,
-        "p2_claim_tier": p2.get("claim_tier") or coverage.get("p2_claim_tier"),
+        "p2_claim_tier": p2_claim_tier,
+        "p2_reported_claim_tier": reported_p2_claim_tier,
+        "p2_physical_gazebo_contact_claim_boundary": p2_claim_boundary,
         "p2_scope": p2.get("scope") or coverage.get("p2_scope"),
         "standalone_p2_physical_witness": bool(
-            p2.get("claim_tier") == "physical Gazebo collision/contact physics"
-            and p2.get("force_contact_physics_proven")
+            reported_p2_claim_tier == "physical Gazebo collision/contact physics"
+            and p2_claim_boundary["proven"]
         ),
         "stage_specific_contact_physics_proven": bool(
             p2.get("stage_specific_contact_physics_proven")
@@ -555,10 +621,13 @@ def full_goal_blockers(
     timed_audit_coverage: dict[str, Any],
     same_run_binding: dict[str, Any],
     dual_sensor_total_wrench: dict[str, Any],
+    claim_boundary_validation_issues: list[str],
 ) -> list[str]:
     blockers = [f"p6:{blocker}" for blocker in p6_blockers]
-    if step["standalone_p2_physical_witness"] and not step["stage_specific_contact_physics_proven"]:
+    if not step["stage_specific_contact_physics_proven"]:
         blockers.append("per_stage_physical_gazebo_contact:not_proven")
+    if claim_boundary_validation_issues:
+        blockers.append("claim_boundary:not_verified")
     if not dual_sensor_total_wrench["total_contact_wrench_proven"]:
         blockers.append("total_contact_wrench:not_proven")
     if not dual_sensor_total_wrench["same_run_dual_sensor_observation_proven"]:
@@ -618,6 +687,27 @@ def current_claim_tier_table(
     ]
 
 
+def claim_boundary_validation_issues(
+    *,
+    step: dict[str, Any],
+    current_claim_tier_table: list[dict[str, str]],
+) -> list[str]:
+    issues: list[str] = []
+    for index, row in enumerate(current_claim_tier_table):
+        tier = row.get("claim_tier")
+        if tier not in CLAIM_TIERS:
+            issues.append(f"current_claim_tier_table[{index}].claim_tier:unsupported")
+        if tier == "real bench/live contact":
+            issues.append(f"current_claim_tier_table[{index}].claim_tier:real_bench_live_contact_not_authorized")
+    p2_boundary = step.get("p2_physical_gazebo_contact_claim_boundary", {})
+    if (
+        step.get("p2_reported_claim_tier") == "physical Gazebo collision/contact physics"
+        and not p2_boundary.get("proven")
+    ):
+        issues.append("p2_physical_gazebo_contact:reported_without_required_boundary_evidence")
+    return issues
+
+
 def build_audit(
     *,
     generated_at: str | None = None,
@@ -648,8 +738,18 @@ def build_audit(
         )
         if not timed_coverage_candidate.get("expected_subagent_triplet_hours"):
             timed_audit_issues.append("timed_audit_coverage.expected_subagent_triplet_hours:missing")
+        elif timed_coverage_candidate.get("expected_subagent_triplet_hours") != build_expected_subagent_hours(
+            TIMED_AUDIT_GOAL_START_AT,
+            generated,
+        ):
+            timed_audit_issues.append("timed_audit_coverage.expected_subagent_triplet_hours:stale_or_mismatch")
         if not timed_coverage_candidate.get("expected_opus_checkpoint_hours"):
             timed_audit_issues.append("timed_audit_coverage.expected_opus_checkpoint_hours:missing")
+        elif timed_coverage_candidate.get("expected_opus_checkpoint_hours") != build_expected_opus_checkpoint_hours(
+            TIMED_AUDIT_GOAL_START_AT,
+            generated,
+        ):
+            timed_audit_issues.append("timed_audit_coverage.expected_opus_checkpoint_hours:stale_or_mismatch")
         if timed_audit_issues:
             timed_audit_coverage = invalid_timed_audit_coverage(timed_audit_payload, timed_audit_issues)
         else:
@@ -777,12 +877,18 @@ def build_audit(
         "forbidden_claim": dual_sensor_payload.get("forbidden_claim"),
     }
     p6_blockers = build_blockers(p3=p3, step=step, demo_manifest=demo_manifest)
+    current_tier_table = current_claim_tier_table(p3=p3, step=step, demo_manifest=demo_manifest)
+    claim_boundary_issues = claim_boundary_validation_issues(
+        step=step,
+        current_claim_tier_table=current_tier_table,
+    )
     final_blockers = full_goal_blockers(
         step=step,
         p6_blockers=p6_blockers,
         timed_audit_coverage=timed_audit_coverage,
         same_run_binding=same_run_binding,
         dual_sensor_total_wrench=dual_sensor_total_wrench,
+        claim_boundary_validation_issues=claim_boundary_issues,
     )
     source_artifacts = {
         "p3_visual_rviz_audit": rel(p3_audit_path),
@@ -836,7 +942,13 @@ def build_audit(
         "step_status_rnn": step,
         "integrated_demo_manifest": demo_manifest,
         "stage_status_matrix": step["stage_status_matrix"],
-        "current_claim_tier_table": current_claim_tier_table(p3=p3, step=step, demo_manifest=demo_manifest),
+        "current_claim_tier_table": current_tier_table,
+        "claim_boundary_validation": {
+            "fail_closed": True,
+            "validation_issues": claim_boundary_issues,
+            "ready_for_full_acceptance_claim": not claim_boundary_issues,
+            "acceptance_gate_changed_by_steering_note": True,
+        },
         "readiness_gates": {
             "p3_visual_rviz_ready": p3["p3_visual_rviz_ready"],
             "stage_matrix_present": step["stage_rows"] >= 8,
@@ -851,6 +963,8 @@ def build_audit(
         },
         "full_goal_acceptance_gate": {
             "full_goal_acceptance_allowed": False,
+            "claim_boundary_ready_for_full_acceptance_claim": not claim_boundary_issues,
+            "claim_boundary_validation_issues": claim_boundary_issues,
             "full_goal_acceptance_blockers": final_blockers,
             "forbidden_claim": "full UR10e reproduction acceptance; real bench/live contact; per-stage physical Gazebo contact unless proven by stage-specific evidence",
         },
