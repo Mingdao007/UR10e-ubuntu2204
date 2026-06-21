@@ -24,6 +24,7 @@ CONTACT_LOG_SCHEMA = "ur10e_gazebo_contact_pair_log_v1"
 CONTACT_CAPTURE_SCHEMA = "ur10e_gazebo_contact_pair_capture_v1"
 STATIC_SURFACE_NORMAL = (0.0, 0.0, 1.0)
 STANDALONE_P2_OBSERVATION_SCOPE = "standalone_p2_contact_witness"
+SUPPORTED_CONTACT_BODY_ROLES = {"eoat", "surface"}
 
 
 def _now_iso() -> str:
@@ -157,6 +158,7 @@ def contact_pair_log_from_json_lines(
     raw_jsonl_path: str,
     transport: str = "ignition",
     sensor_collision_role: str = "surface",
+    selected_contact_body_role: str = "eoat",
     baseline_mode: str | None = None,
     generated_at: str | None = None,
     stage_id: str | None = None,
@@ -164,6 +166,8 @@ def contact_pair_log_from_json_lines(
     time_window: dict[str, Any] | None = None,
     observation_scope: str | None = None,
 ) -> dict[str, Any]:
+    if selected_contact_body_role not in SUPPORTED_CONTACT_BODY_ROLES:
+        raise ValueError(f"unsupported selected contact body role: {selected_contact_body_role}")
     rows: list[dict[str, Any]] = []
     parse_issues: list[str] = []
     for line_index, line in enumerate(lines):
@@ -183,7 +187,16 @@ def contact_pair_log_from_json_lines(
             if not isinstance(contact, dict):
                 parse_issues.append(f"line_{line_index}:contact_{contact_index}_not_object")
                 continue
-            rows.append(_contact_to_row(message, contact, line_index=line_index, contact_index=contact_index, topic=topic))
+            rows.append(
+                _contact_to_row(
+                    message,
+                    contact,
+                    line_index=line_index,
+                    contact_index=contact_index,
+                    topic=topic,
+                    selected_contact_body_role=selected_contact_body_role,
+                )
+            )
 
     payload = {
         "schema": CONTACT_LOG_SCHEMA,
@@ -192,6 +205,7 @@ def contact_pair_log_from_json_lines(
         "source": "gazebo_contact_sensor_topic",
         "sim_transport": transport,
         "sensor_collision_role": sensor_collision_role,
+        "selected_contact_body_role": selected_contact_body_role,
         "claim_tier": "visual_only",
         "target_claim_tier": "physical Gazebo collision/contact physics",
         "allowed_claim": "contact_pair_log_evidence_only_no_force_or_wrench_contact_correlation",
@@ -229,6 +243,7 @@ def _contact_to_row(
     line_index: int,
     contact_index: int,
     topic: str,
+    selected_contact_body_role: str,
 ) -> dict[str, Any]:
     positions = contact.get("position") if isinstance(contact.get("position"), list) else []
     normals = contact.get("normal") if isinstance(contact.get("normal"), list) else []
@@ -256,6 +271,7 @@ def _contact_to_row(
         collision1=collision1,
         collision2=collision2,
         normal=normal,
+        selected_contact_body_role=selected_contact_body_role,
     )
     if native_wrench is not None:
         row["native_gazebo_contact_wrench"] = native_wrench
@@ -321,11 +337,16 @@ def _first_native_gazebo_contact_wrench(
     collision1: str,
     collision2: str,
     normal: list[float],
+    selected_contact_body_role: str,
 ) -> dict[str, Any] | None:
     wrenches = contact.get("wrench") if isinstance(contact.get("wrench"), list) else []
     if not wrenches:
         return None
-    selected_body, selected_collision, selected_role = _selected_eoat_body_side(collision1, collision2)
+    selected_body, selected_collision, selected_role = _selected_contact_body_side(
+        collision1,
+        collision2,
+        selected_contact_body_role=selected_contact_body_role,
+    )
     if selected_body is None:
         return None
     for wrench_index, wrench in enumerate(wrenches):
@@ -410,11 +431,24 @@ def _wrench_source_schema(wrench: dict[str, Any]) -> str:
     return "ignition.msgs.Contact.contact.wrench"
 
 
-def _selected_eoat_body_side(collision1: str, collision2: str) -> tuple[str | None, str | None, str | None]:
-    if _is_eoat_collision(collision1) and _is_surface_collision(collision2):
-        return "body_1_wrench", "collision1", "eoat"
-    if _is_eoat_collision(collision2) and _is_surface_collision(collision1):
-        return "body_2_wrench", "collision2", "eoat"
+def _selected_contact_body_side(
+    collision1: str,
+    collision2: str,
+    *,
+    selected_contact_body_role: str,
+) -> tuple[str | None, str | None, str | None]:
+    if selected_contact_body_role == "eoat":
+        if _is_eoat_collision(collision1) and _is_surface_collision(collision2):
+            return "body_1_wrench", "collision1", "eoat"
+        if _is_eoat_collision(collision2) and _is_surface_collision(collision1):
+            return "body_2_wrench", "collision2", "eoat"
+        return None, None, None
+    if selected_contact_body_role == "surface":
+        if _is_surface_collision(collision1) and _is_eoat_collision(collision2):
+            return "body_1_wrench", "collision1", "surface"
+        if _is_surface_collision(collision2) and _is_eoat_collision(collision1):
+            return "body_2_wrench", "collision2", "surface"
+        return None, None, None
     return None, None, None
 
 
@@ -434,6 +468,7 @@ def capture_contact_pair_log(
     max_messages: int = 1,
     transport: str = "ignition",
     sensor_collision_role: str = "surface",
+    selected_contact_body_role: str = "eoat",
     eoat_pose_z: float = 0.09,
     eoat_static: bool = False,
     allow_no_messages: bool = False,
@@ -510,6 +545,7 @@ def capture_contact_pair_log(
         raw_jsonl_path=str(raw_jsonl_path),
         transport=transport,
         sensor_collision_role=sensor_collision_role,
+        selected_contact_body_role=selected_contact_body_role,
         baseline_mode=baseline_mode,
         generated_at=generated_at,
         stage_id=stage_id,
@@ -521,6 +557,7 @@ def capture_contact_pair_log(
         "schema": CONTACT_CAPTURE_SCHEMA,
         "sim_transport": transport,
         "sensor_collision_role": sensor_collision_role,
+        "selected_contact_body_role": selected_contact_body_role,
         "stage_id": stage_id,
         "observation_id": observation_id,
         "observation_scope": observation_scope,
@@ -583,6 +620,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max-messages", type=int, default=1)
     parser.add_argument("--transport", choices=("ignition", "gz"), default="ignition")
     parser.add_argument("--sensor-collision-role", choices=("surface", "eoat"), default="surface")
+    parser.add_argument("--selected-contact-body-role", choices=tuple(sorted(SUPPORTED_CONTACT_BODY_ROLES)), default="eoat")
     parser.add_argument("--eoat-pose-z", type=float, default=0.09)
     parser.add_argument("--eoat-static", action="store_true")
     parser.add_argument("--allow-no-messages", action="store_true")
@@ -605,6 +643,7 @@ def main(argv: list[str] | None = None) -> int:
         max_messages=args.max_messages,
         transport=args.transport,
         sensor_collision_role=args.sensor_collision_role,
+        selected_contact_body_role=args.selected_contact_body_role,
         eoat_pose_z=args.eoat_pose_z,
         eoat_static=args.eoat_static,
         allow_no_messages=args.allow_no_messages,

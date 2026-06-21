@@ -2045,13 +2045,20 @@ def start_contact_topic_capture(
     env: dict[str, str],
     max_messages: int,
     observation_id: str | None = None,
+    transport: str = "ignition",
 ) -> subprocess.Popen[str] | None:
     output_dir = case_dir / "contact_capture"
     output_dir.mkdir(parents=True, exist_ok=True)
-    command = ["ign", "topic", "-e", "-t", topic, "-n", str(max_messages), "--json-output"]
+    if transport == "ignition":
+        command = ["ign", "topic", "-e", "-t", topic, "-n", str(max_messages), "--json-output"]
+    elif transport == "gz":
+        command = ["gz", "topic", "-e", "-t", topic, "-n", str(max_messages), "--json-output"]
+    else:
+        raise ValueError(f"unsupported contact capture transport: {transport}")
     metadata = {
         "schema": CONTACT_CAPTURE_SCHEMA,
         "topic": topic,
+        "sim_transport": transport,
         "command": command,
         "max_messages": max_messages,
         "observation_id": observation_id,
@@ -2094,6 +2101,7 @@ def finish_contact_topic_capture(
     max_messages: int,
     observation_id: str | None = None,
     time_start: str | None = None,
+    transport: str = "ignition",
 ) -> dict[str, object]:
     output_dir = case_dir / "contact_capture"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -2123,6 +2131,7 @@ def finish_contact_topic_capture(
         topic=topic,
         world_path=str(world_path),
         raw_jsonl_path=str(raw_jsonl),
+        transport=transport,
         sensor_collision_role="surface",
         generated_at=finished_at,
     )
@@ -2137,11 +2146,16 @@ def finish_contact_topic_capture(
     payload["time_window"] = time_window
     payload["capture"] = {
         "schema": CONTACT_CAPTURE_SCHEMA,
+        "sim_transport": transport,
         "topic": topic,
         "stage_id": stage,
         "observation_id": observation_id,
         "observation_scope": SAME_RUN_STAGE_OBSERVATION_SCOPE,
-        "command": ["ign", "topic", "-e", "-t", topic, "-n", str(max_messages), "--json-output"],
+        "command": (
+            ["ign", "topic", "-e", "-t", topic, "-n", str(max_messages), "--json-output"]
+            if transport == "ignition"
+            else ["gz", "topic", "-e", "-t", topic, "-n", str(max_messages), "--json-output"]
+        ),
         "returncode": returncode,
         "timed_out_during_shutdown": timed_out,
         "max_messages": max_messages,
@@ -2158,6 +2172,7 @@ def finish_contact_topic_capture(
         output_dir,
         contact_pair_path=path,
         stage=stage,
+        source_topic=topic,
         observation_id=observation_id,
         time_window=time_window,
         observation_scope=SAME_RUN_STAGE_OBSERVATION_SCOPE,
@@ -2170,6 +2185,7 @@ def write_stage_contact_wrench_adapter(
     *,
     contact_pair_path: Path,
     stage: str,
+    source_topic: str | None = None,
     observation_id: str | None = None,
     time_window: dict[str, object] | None = None,
     observation_scope: str | None = SAME_RUN_STAGE_OBSERVATION_SCOPE,
@@ -2179,7 +2195,7 @@ def write_stage_contact_wrench_adapter(
             output_dir,
             contact_pair_path=contact_pair_path,
             generated_at=_now(),
-            source_topic=f"/ur10e/contact/gazebo/{stage}/wrench",
+            source_topic=source_topic or gazebo_visual_contact_topic(stage),
             report_filename=STAGE_CONTACT_WRENCH_ADAPTER_FILENAME,
             trace_filename=STAGE_CONTACT_WRENCH_TRACE_FILENAME,
             stage_id=stage,

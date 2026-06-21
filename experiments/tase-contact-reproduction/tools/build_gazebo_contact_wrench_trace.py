@@ -51,6 +51,7 @@ TOTAL_CONTACT_WRENCH_POLICY = "total_contact_wrench"
 TOTAL_CONTACT_FRAME_POLICIES = {
     "pretransformed_to_base",
     "verified_world_to_base_identity_from_p2_witness_sdf",
+    "verified_world_to_base_identity_from_contact_capability_witness_sdf",
 }
 STANDALONE_P2_OBSERVATION_SCOPE = "standalone_p2_contact_witness"
 EPS = 1e-9
@@ -143,15 +144,16 @@ def _native_wrench_blockers(row: dict[str, Any]) -> list[str]:
         blockers.append("missing_verified_gazebo_contact_wrench_provenance")
     if native.get("measured_contact_wrench") is not True or native.get("commanded_force") is not False:
         blockers.append("commanded_or_unverified_wrench_force")
-    expected_body, expected_collision = _expected_eoat_wrench_side(row)
+    selected_role = str(native.get("selected_body_role") or "")
+    expected_body, expected_collision = _expected_wrench_side(row, selected_body_role=selected_role)
     if expected_body is None:
         blockers.append("no_matching_eoat_surface_contact_pair")
     if (
-        native.get("selected_body_role") != "eoat"
+        selected_role not in {"eoat", "surface"}
         or native.get("selected_body") != expected_body
         or native.get("selected_body_collision") != expected_collision
     ):
-        blockers.append("missing_eoat_wrench_body_selection")
+        blockers.append("missing_eoat_wrench_body_selection" if selected_role != "surface" else "missing_surface_wrench_body_selection")
         blockers.append("wrench_body_collision_mismatch")
     if native.get("frame_id") != "base" or not _valid_transform_evidence(native):
         blockers.append("missing_base_frame_transform_evidence")
@@ -185,12 +187,22 @@ def _native_wrench_blockers(row: dict[str, Any]) -> list[str]:
 
 
 def _expected_eoat_wrench_side(row: dict[str, Any]) -> tuple[str | None, str | None]:
+    return _expected_wrench_side(row, selected_body_role="eoat")
+
+
+def _expected_wrench_side(row: dict[str, Any], *, selected_body_role: str) -> tuple[str | None, str | None]:
     collision1 = str(row.get("collision1") or "")
     collision2 = str(row.get("collision2") or "")
-    if _is_eoat_collision(collision1) and _is_surface_collision(collision2):
-        return "body_1_wrench", "collision1"
-    if _is_eoat_collision(collision2) and _is_surface_collision(collision1):
-        return "body_2_wrench", "collision2"
+    if selected_body_role == "eoat":
+        if _is_eoat_collision(collision1) and _is_surface_collision(collision2):
+            return "body_1_wrench", "collision1"
+        if _is_eoat_collision(collision2) and _is_surface_collision(collision1):
+            return "body_2_wrench", "collision2"
+    if selected_body_role == "surface":
+        if _is_surface_collision(collision1) and _is_eoat_collision(collision2):
+            return "body_1_wrench", "collision1"
+        if _is_surface_collision(collision2) and _is_eoat_collision(collision1):
+            return "body_2_wrench", "collision2"
     return None, None
 
 
@@ -227,6 +239,11 @@ def _total_contact_frame_policy_valid(native: dict[str, Any]) -> bool:
     return (
         isinstance(evidence, dict)
         and evidence.get("source") == "p2_witness_sdf_ur10e_base_frame_identity"
+        and evidence.get("native_frame_interpreted_as") == "world"
+        and evidence.get("to_frame") == "base"
+    ) or (
+        isinstance(evidence, dict)
+        and evidence.get("source") == "contact_capability_witness_sdf_ur10e_base_frame_identity"
         and evidence.get("native_frame_interpreted_as") == "world"
         and evidence.get("to_frame") == "base"
     )
@@ -443,7 +460,7 @@ def _evidence_contract() -> dict[str, Any]:
         ],
         "next_capture_requirements": [
             "Gazebo contact row contains native_gazebo_contact_wrench",
-            "native wrench selected body is the EOAT collision side of the EOAT/surface pair",
+            "native wrench selected body is the EOAT collision side, or an explicit surface reaction side for a surface-sensor capability gate",
             "native wrench is transformed to base with timestamped transform evidence",
             "native wrench status is valid and baseline policy is gazebo_contact_zero_no_contact_baseline",
             "normal_load_n = dot(force_base, reaction_normal) is positive",
