@@ -184,6 +184,10 @@ class P2ContactCorrelationAuditTest(unittest.TestCase):
         self.assertTrue(audit["physical_gazebo_contact_gate"]["wrench_source_is_gazebo_contact"])
         self.assertFalse(audit["physical_gazebo_contact_gate"]["adapter_verified_gazebo_contact_wrench"])
         self.assertFalse(audit["physical_gazebo_contact_gate"]["force_contact_physics_proven"])
+        self.assertFalse(audit["wrench_evidence"]["trace_written"])
+        self.assertEqual(audit["wrench_evidence"]["native_wrench_row_count"], 1)
+        self.assertEqual(audit["wrench_evidence"]["verified_native_wrench_row_count"], 0)
+        self.assertIn("native_wrench_status_not_valid", audit["wrench_evidence"]["adapter_report_blockers"])
         self.assertIn("wrench_not_adapter_verified_gazebo_contact", audit["known_blockers"])
         self.assertNotIn("wrench_source_not_gazebo_contact", audit["known_blockers"])
 
@@ -201,6 +205,10 @@ class P2ContactCorrelationAuditTest(unittest.TestCase):
         self.assertTrue(audit["physical_gazebo_contact_gate"]["force_contact_physics_proven"])
         self.assertEqual(audit["physical_gazebo_contact_gate"]["status"], "proven")
         self.assertEqual(audit["known_blockers"], [])
+        self.assertTrue(audit["wrench_evidence"]["trace_written"])
+        self.assertEqual(audit["wrench_evidence"]["native_wrench_row_count"], 1)
+        self.assertEqual(audit["wrench_evidence"]["verified_native_wrench_row_count"], 1)
+        self.assertEqual(audit["wrench_evidence"]["adapter_report_blockers"], [])
         self.assertIn("single contact-point wrench", audit["allowed_claim"])
         self.assertFalse(audit["claim_boundary_gate"]["total_contact_wrench_proven"])
 

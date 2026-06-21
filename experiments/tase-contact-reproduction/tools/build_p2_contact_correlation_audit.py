@@ -58,7 +58,7 @@ def _wrench_trace(payload: dict[str, Any] | None) -> dict[str, Any]:
         }
     if isinstance(payload.get("wrench_trace"), dict):
         trace = payload["wrench_trace"]
-        return {
+        result = {
             "present": True,
             "source": trace.get("force_source"),
             "claim_tier": trace.get("claim_tier"),
@@ -69,10 +69,13 @@ def _wrench_trace(payload: dict[str, Any] | None) -> dict[str, Any]:
             "forbidden_claim": payload.get("forbidden_claim"),
             "adapter_verified_gazebo_contact_wrench": _adapter_verified_gazebo_contact_wrench(payload, trace),
         }
+        if payload.get("schema") == "ur10e_gazebo_contact_wrench_adapter_report_v1":
+            result.update(_adapter_report_fields(payload))
+        return result
     source = payload.get("force_source")
     if payload.get("schema") == "ur10e_gazebo_contact_wrench_adapter_report_v1":
         source = source or payload.get("native_wrench_source_class")
-    return {
+    result = {
         "present": True,
         "source": source,
         "claim_tier": payload.get("claim_tier"),
@@ -80,6 +83,21 @@ def _wrench_trace(payload: dict[str, Any] | None) -> dict[str, Any]:
         "evidence_fields_present": payload.get("evidence_fields_present") or {},
         "observed_counts": payload.get("observed_counts") or {},
         "adapter_verified_gazebo_contact_wrench": False,
+    }
+    if payload.get("schema") == "ur10e_gazebo_contact_wrench_adapter_report_v1":
+        result.update(_adapter_report_fields(payload))
+    return result
+
+
+def _adapter_report_fields(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "adapter_report_schema": payload.get("schema"),
+        "trace_written": bool(payload.get("trace_written")),
+        "native_wrench_row_count": int(payload.get("native_wrench_row_count") or 0),
+        "verified_native_wrench_row_count": int(payload.get("verified_native_wrench_row_count") or 0),
+        "adapter_report_blockers": payload.get("blockers") or [],
+        "required_native_fields": payload.get("required_native_fields") or [],
+        "wrench_trace_path": payload.get("wrench_trace_path"),
     }
 
 
