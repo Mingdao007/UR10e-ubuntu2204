@@ -51,7 +51,9 @@ SIMULATED_FT_REQUIRED_SOURCES = (
 PHYSICAL_GAZEBO_REQUIRED_FIELDS = (
     "EOAT collision evidence",
     "contact pair/log evidence",
+    "contact normal/surface relation",
     "wrench/contact correlation",
+    "total contact wrench",
 )
 
 PHYSICAL_BLOCKERS = (
@@ -67,6 +69,17 @@ CLAIM_TIER_TABLE_EVIDENCE_HEADERS = (
     "gate",
     "path",
     "file",
+)
+
+PHYSICAL_ARTIFACT_TOKENS = (
+    "artifact",
+    "path",
+    ".json",
+)
+
+PHYSICAL_HASH_TOKENS = (
+    "sha256",
+    "hash",
 )
 
 
@@ -376,11 +389,11 @@ def validate_claim_tier_table_rows(table: list[list[str]], heading: str) -> list
                     f"{heading} row {row_number}: blocked physical Gazebo evidence must downgrade to visual_only"
                 )
             else:
-                missing = [field for field in PHYSICAL_GAZEBO_REQUIRED_FIELDS if field.lower() not in row_norm]
-                if missing:
-                    issues.append(
-                        f"{heading} row {row_number}: physical Gazebo claim missing " + ", ".join(missing)
-                    )
+                row_issues = physical_gazebo_row_issues(row_norm)
+                issues.extend(
+                    f"{heading} row {row_number}: {issue}"
+                    for issue in row_issues
+                )
 
         if "real bench/live contact" in row_norm:
             issues.append(
@@ -442,6 +455,47 @@ def has_blocked_or_not_proven(row_norm: str) -> bool:
     return "blocked" in row_norm or "not proven" in row_norm
 
 
+def physical_gazebo_row_issues(row_norm: str) -> list[str]:
+    issues: list[str] = []
+    missing = [field for field in PHYSICAL_GAZEBO_REQUIRED_FIELDS if field.lower() not in row_norm]
+    if missing:
+        issues.append("physical Gazebo claim missing " + ", ".join(missing))
+    standalone_scope = has_standalone_scope(row_norm)
+    per_stage_scope = has_per_stage_scope(row_norm)
+    if not standalone_scope and not per_stage_scope:
+        issues.append("physical Gazebo claim missing explicit standalone or per-stage scope")
+    if standalone_scope and "p2" not in row_norm:
+        issues.append("standalone physical Gazebo claim must name P2 scope")
+    if per_stage_scope and not has_per_stage_audit_artifact(row_norm):
+        issues.append("per-stage physical Gazebo claim missing per-stage audit artifact")
+    if not any(token in row_norm for token in PHYSICAL_ARTIFACT_TOKENS):
+        issues.append("physical Gazebo claim missing source artifact/path")
+    if not any(token in row_norm for token in PHYSICAL_HASH_TOKENS):
+        issues.append("physical Gazebo claim missing artifact hash/sha256 freshness evidence")
+    return issues
+
+
+def has_standalone_scope(row_norm: str) -> bool:
+    return "standalone" in row_norm and ("p2" in row_norm or "witness" in row_norm)
+
+
+def has_per_stage_scope(row_norm: str) -> bool:
+    return "per-stage" in row_norm or "per stage" in row_norm
+
+
+def has_per_stage_audit_artifact(row_norm: str) -> bool:
+    return any(
+        token in row_norm
+        for token in (
+            "per-stage audit artifact",
+            "per stage audit artifact",
+            "per-stage dual-sensor contact audit",
+            "per_stage_dual_sensor_contact_audit",
+            "per-stage contact audit",
+        )
+    )
+
+
 def has_source_backed_physical_gazebo_claim_row(sections: list[tuple[str, str]]) -> bool:
     for heading, body in sections:
         if normalize(heading) == "claim boundary gate":
@@ -461,8 +515,7 @@ def has_source_backed_physical_gazebo_claim_row(sections: list[tuple[str, str]])
                 row_norm = normalize(" | ".join(row))
                 if has_blocked_or_not_proven(row_norm) or any(token in row_norm for token in PHYSICAL_BLOCKERS):
                     continue
-                missing = [field for field in PHYSICAL_GAZEBO_REQUIRED_FIELDS if field.lower() not in row_norm]
-                if not missing:
+                if not physical_gazebo_row_issues(row_norm):
                     return True
     return False
 

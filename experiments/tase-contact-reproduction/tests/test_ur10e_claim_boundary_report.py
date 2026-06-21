@@ -50,8 +50,9 @@ evidence using these tiers:
   synthetic force logs only when stamp, frame_id, source, status, baseline, and
   log evidence are present.
 - physical Gazebo collision/contact physics: blocked/not proven unless EOAT
-  collision evidence, contact pair/log evidence, and wrench/contact correlation
-  all exist. If `eoat_collision_count=0` or
+  collision evidence, contact pair/log evidence, contact normal/surface
+  relation, total contact wrench, and wrench/contact correlation all exist.
+  If `eoat_collision_count=0` or
   `force_contact_physics_proven=false`, this tier is blocked/not proven.
 - real bench/live contact: not authorized in this goal; no claim may upgrade
   simulated_ft or Gazebo evidence into real bench/live contact.
@@ -261,6 +262,60 @@ class Ur10eClaimBoundaryReportVerifierTest(unittest.TestCase):
 """
         text = _base_report(GOOD_CLAIM_GATE, extra_body=table)
         self.assertFailsWith(text, "claim_tier_table_source_boundaries")
+
+    def test_standalone_physical_gazebo_row_requires_total_wrench_artifact_and_hash(self) -> None:
+        table = """## Current Claim Tier Table
+
+| Evidence surface | Current status | Claim tier |
+|---|---|---|
+| Standalone P2 contact witness artifact `/tmp/p2.json` sha256=abc123 | standalone P2 witness has EOAT collision evidence, contact pair/log evidence, contact normal/surface relation, and wrench/contact correlation, but only a single contact-point wrench | physical Gazebo collision/contact physics |
+"""
+        text = _base_report(GOOD_CLAIM_GATE, extra_body=table)
+        self.assertFailsWith(text, "claim_tier_table_source_boundaries")
+
+    def test_physical_gazebo_row_requires_artifact_hash_freshness(self) -> None:
+        table = """## Current Claim Tier Table
+
+| Evidence surface | Current status | Claim tier |
+|---|---|---|
+| Standalone P2 contact witness artifact `/tmp/p2.json` | standalone P2 witness has EOAT collision evidence, contact pair/log evidence, contact normal/surface relation, total contact wrench, and wrench/contact correlation | physical Gazebo collision/contact physics |
+"""
+        text = _base_report(GOOD_CLAIM_GATE, extra_body=table)
+        self.assertFailsWith(text, "claim_tier_table_source_boundaries")
+
+    def test_per_stage_physical_gazebo_row_requires_per_stage_audit_artifact(self) -> None:
+        table = """## Current Claim Tier Table
+
+| Evidence surface | Current status | Claim tier |
+|---|---|---|
+| Step5b per-stage contact artifact `/tmp/step5b.json` sha256=abc123 | per-stage Step5b has EOAT collision evidence, contact pair/log evidence, contact normal/surface relation, total contact wrench, and wrench/contact correlation | physical Gazebo collision/contact physics |
+"""
+        text = _base_report(GOOD_CLAIM_GATE, extra_body=table)
+        self.assertFailsWith(text, "claim_tier_table_source_boundaries")
+
+    def test_source_backed_standalone_physical_gazebo_row_passes(self) -> None:
+        table = """## Current Claim Tier Table
+
+| Evidence surface | Current status | Claim tier |
+|---|---|---|
+| Standalone P2 total-contact-wrench witness artifact `/tmp/p2_total_contact_wrench.json` sha256=abc123 | standalone P2 witness only; EOAT collision evidence, contact pair/log evidence, contact normal/surface relation, total contact wrench, and wrench/contact correlation are present | physical Gazebo collision/contact physics |
+"""
+        text = _base_report(GOOD_CLAIM_GATE, extra_body=table)
+        returncode, payload = self.run_verifier(text)
+        self.assertEqual(returncode, 0, payload)
+        self.assertTrue(payload["ok"])
+
+    def test_source_backed_per_stage_physical_gazebo_row_passes(self) -> None:
+        table = """## Current Claim Tier Table
+
+| Evidence surface | Current status | Claim tier |
+|---|---|---|
+| Step5b per-stage dual-sensor contact audit artifact `/tmp/step5b_per_stage_dual_sensor_contact_audit.json` sha256=abc123 | per-stage audit artifact; EOAT collision evidence, contact pair/log evidence, contact normal/surface relation, total contact wrench, and wrench/contact correlation are present | physical Gazebo collision/contact physics |
+"""
+        text = _base_report(GOOD_CLAIM_GATE, extra_body=table)
+        returncode, payload = self.run_verifier(text)
+        self.assertEqual(returncode, 0, payload)
+        self.assertTrue(payload["ok"])
 
     def test_hybrid_blocked_claim_tier_cells_fail_closed(self) -> None:
         table = """## Current Claim Tier Table
