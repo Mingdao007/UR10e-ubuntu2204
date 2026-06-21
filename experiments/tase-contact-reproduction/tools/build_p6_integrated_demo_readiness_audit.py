@@ -226,6 +226,72 @@ def external_gate_internal_issues(payload: dict[str, Any], *, required_surfaces:
     return issues
 
 
+def external_same_run_concurrent_observation_issues(
+    payload: dict[str, Any],
+    *,
+    required_surfaces: set[str],
+) -> list[str]:
+    issues: list[str] = []
+    observation = payload.get("concurrent_observation")
+    if not isinstance(observation, dict):
+        return ["concurrent_observation:missing"]
+    if observation.get("concurrent_observation_proven") is not True:
+        issues.append("concurrent_observation.concurrent_observation_proven:not_true")
+    if not observation.get("observation_id"):
+        issues.append("concurrent_observation.observation_id:missing")
+    if observation.get("same_run_concurrent_observation_explicit") is not True:
+        issues.append("concurrent_observation.same_run_concurrent_observation_explicit:not_true")
+    time_window = observation.get("time_window") if isinstance(observation.get("time_window"), dict) else {}
+    if not time_window.get("start"):
+        issues.append("concurrent_observation.time_window.start:missing")
+    if not time_window.get("end"):
+        issues.append("concurrent_observation.time_window.end:missing")
+    if not time_window.get("clock_source"):
+        issues.append("concurrent_observation.time_window.clock_source:missing")
+    surfaces = observation.get("surfaces") if isinstance(observation.get("surfaces"), list) else []
+    observed = {str(surface) for surface in surfaces if str(surface)}
+    missing = sorted(required_surfaces - {"p6_manifest"} - observed)
+    if missing:
+        issues.append("concurrent_observation.surfaces:missing:" + ",".join(missing))
+    return issues
+
+
+def external_dual_sensor_concurrent_observation_issues(payload: dict[str, Any]) -> list[str]:
+    issues: list[str] = []
+    container = payload.get("same_run_dual_sensor_observation")
+    if not isinstance(container, dict):
+        return ["same_run_dual_sensor_observation:missing"]
+    observation = container.get("same_run_concurrent_dual_sensor_observation")
+    if not isinstance(observation, dict):
+        return ["same_run_concurrent_dual_sensor_observation:missing"]
+    if observation.get("same_run_concurrent_dual_sensor_observation_proven") is not True:
+        issues.append("same_run_concurrent_dual_sensor_observation.proven:not_true")
+    if not observation.get("observation_id"):
+        issues.append("same_run_concurrent_dual_sensor_observation.observation_id:missing")
+    if observation.get("same_run_concurrent_dual_sensor_observation_explicit") is not True:
+        issues.append("same_run_concurrent_dual_sensor_observation.explicit:not_true")
+    time_window = observation.get("time_window") if isinstance(observation.get("time_window"), dict) else {}
+    if not time_window.get("start"):
+        issues.append("same_run_concurrent_dual_sensor_observation.time_window.start:missing")
+    if not time_window.get("end"):
+        issues.append("same_run_concurrent_dual_sensor_observation.time_window.end:missing")
+    if not time_window.get("clock_source"):
+        issues.append("same_run_concurrent_dual_sensor_observation.time_window.clock_source:missing")
+    surfaces = observation.get("surfaces") if isinstance(observation.get("surfaces"), dict) else {}
+    missing = sorted(
+        surface
+        for surface in (
+            "stage_simulated_ft_manifest",
+            "p2_contact_correlation_audit",
+            "step_status_rnn_audit",
+        )
+        if not surfaces.get(surface)
+    )
+    if missing:
+        issues.append("same_run_concurrent_dual_sensor_observation.surfaces:missing:" + ",".join(missing))
+    return issues
+
+
 def physical_gazebo_contact_claim_boundary(step_p2: dict[str, Any]) -> dict[str, Any]:
     eoat_collision_count = int(step_p2.get("eoat_collision_count") or 0)
     contact_pair_log_evidence = bool(step_p2.get("contact_pair_log_evidence"))
@@ -881,6 +947,19 @@ def build_audit(
                 },
             )
         )
+        same_run_issues.extend(
+            external_same_run_concurrent_observation_issues(
+                same_run_binding_payload,
+                required_surfaces={
+                    "p6_manifest",
+                    "p3_visual_rviz_audit",
+                    "stage_simulated_ft_manifest",
+                    "step_status_rnn_audit",
+                    "p2_contact_correlation_audit",
+                    "tcp_distance_evidence",
+                },
+            )
+        )
         if same_run_issues:
             same_run_binding_payload = invalid_same_run_binding(same_run_binding_payload, same_run_issues)
     else:
@@ -914,6 +993,7 @@ def build_audit(
         "cross_run_surfaces": same_run_binding_payload.get("cross_run_surfaces", []),
         "validation_issues": same_run_binding_payload.get("validation_issues", []),
         "artifact_rows": same_run_binding_payload.get("artifact_rows", []),
+        "concurrent_observation": same_run_binding_payload.get("concurrent_observation", {}),
         "blocker": same_run_binding_payload.get("blocker"),
         "cross_run_evidence": [
             "P3 visual/RViz audit is a retained visual_only evidence run.",
@@ -938,6 +1018,7 @@ def build_audit(
                 },
             )
         )
+        dual_sensor_issues.extend(external_dual_sensor_concurrent_observation_issues(dual_sensor_payload))
         if dual_sensor_issues:
             dual_sensor_payload = invalid_dual_sensor_total_wrench(dual_sensor_payload, dual_sensor_issues)
     else:

@@ -34,7 +34,32 @@ def write_json(path: Path, payload: dict[str, object]) -> None:
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
-def write_same_run_fixture(run_dir: Path, *, all_same_run: bool, external_run_dir: Path | None = None) -> Path:
+def concurrent_observation_payload() -> dict[str, object]:
+    return {
+        "observation_id": "fixture-concurrent-observation-001",
+        "same_run_concurrent_observation_explicit": True,
+        "time_window": {
+            "start": "2026-06-21T09:36:00+08:00",
+            "end": "2026-06-21T09:36:30+08:00",
+            "clock_source": "/clock",
+        },
+        "surfaces": [
+            "p3_visual_rviz_audit",
+            "stage_simulated_ft_manifest",
+            "step_status_rnn_audit",
+            "p2_contact_correlation_audit",
+            "tcp_distance_evidence",
+        ],
+    }
+
+
+def write_same_run_fixture(
+    run_dir: Path,
+    *,
+    all_same_run: bool,
+    external_run_dir: Path | None = None,
+    include_concurrent_observation: bool = True,
+) -> Path:
     same_run_dir = run_dir
     other_run_dir = external_run_dir or run_dir.parent / f"{run_dir.name}_external"
     surfaces = {
@@ -51,20 +76,20 @@ def write_same_run_fixture(run_dir: Path, *, all_same_run: bool, external_run_di
         write_json(path, {"schema": key, "goal_lineage": GOAL_LINEAGE})
         source_artifacts[key] = str(path)
     manifest_path = same_run_dir / "p6_integrated_demo_manifest.json"
-    write_json(
-        manifest_path,
-        {
-            "schema": "ur10e_p6_integrated_demo_manifest_v1",
-            "goal_lineage": GOAL_LINEAGE,
-            "source_artifacts": source_artifacts,
-            "same_run_binding": {
-                "binding_status": "same_run_integrated_demo_proven" if all_same_run else "cross_run_evidence_only",
-                "visual_rviz_simulated_ft_same_run": all_same_run,
-                "visual_rviz_physical_gazebo_contact_same_run": all_same_run,
-                "step_rnn_physical_gazebo_contact_same_run": all_same_run,
-            },
+    payload: dict[str, object] = {
+        "schema": "ur10e_p6_integrated_demo_manifest_v1",
+        "goal_lineage": GOAL_LINEAGE,
+        "source_artifacts": source_artifacts,
+        "same_run_binding": {
+            "binding_status": "same_run_integrated_demo_proven" if all_same_run else "cross_run_evidence_only",
+            "visual_rviz_simulated_ft_same_run": all_same_run,
+            "visual_rviz_physical_gazebo_contact_same_run": all_same_run,
+            "step_rnn_physical_gazebo_contact_same_run": all_same_run,
         },
-    )
+    }
+    if include_concurrent_observation:
+        payload["concurrent_observation"] = concurrent_observation_payload()
+    write_json(manifest_path, payload)
     return manifest_path
 
 
@@ -93,6 +118,24 @@ class SameRunIntegratedBindingAuditTest(unittest.TestCase):
         self.assertEqual(payload["binding_status"], "same_run_integrated_demo_proven")
         self.assertEqual(payload["cross_run_surfaces"], [])
         self.assertEqual(payload["missing_surfaces"], [])
+        self.assertTrue(payload["concurrent_observation"]["concurrent_observation_proven"])
+
+    def test_blocks_same_run_paths_without_concurrent_observation(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="same_run_no_observation_", dir=RUNS) as tmp:
+            manifest_path = write_same_run_fixture(
+                Path(tmp),
+                all_same_run=True,
+                include_concurrent_observation=False,
+            )
+            payload = audit.build_audit(
+                generated_at="2026-06-21T09:36:30+08:00",
+                integrated_demo_manifest_path=manifest_path,
+            )
+
+        self.assertFalse(payload["same_run_integrated_demo_proven"])
+        self.assertEqual(payload["binding_status"], "same_run_paths_without_concurrent_observation")
+        self.assertIn("manifest.concurrent_observation:missing", payload["validation_issues"])
 
     def test_blocks_cross_run_fixture(self) -> None:
         audit = import_audit_module()

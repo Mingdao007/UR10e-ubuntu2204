@@ -156,11 +156,61 @@ def total_contact_wrench_proven(p2_audit: dict[str, Any], step_p2: dict[str, Any
     return bool(p2_total)
 
 
-def explicit_dual_sensor_observed(p2_audit: dict[str, Any], step_p2: dict[str, Any]) -> bool:
-    return bool(
-        p2_audit.get("same_run_concurrent_dual_sensor_observation")
-        or step_p2.get("same_run_concurrent_dual_sensor_observation")
+def dual_sensor_observation_summary(p2_audit: dict[str, Any], step_p2: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    raw_candidates = [
+        p2_audit.get("same_run_concurrent_dual_sensor_observation"),
+        step_p2.get("same_run_concurrent_dual_sensor_observation"),
+    ]
+    observation = next((candidate for candidate in raw_candidates if isinstance(candidate, dict)), {})
+    legacy_true_flag = any(candidate is True for candidate in raw_candidates)
+    time_window = observation.get("time_window") if isinstance(observation.get("time_window"), dict) else {}
+    required_surface_fields = (
+        "stage_simulated_ft_manifest",
+        "p2_contact_correlation_audit",
+        "step_status_rnn_audit",
     )
+    surfaces = observation.get("surfaces") if isinstance(observation.get("surfaces"), dict) else {}
+    missing_surface_bindings = sorted(
+        field for field in required_surface_fields if not surfaces.get(field)
+    )
+    summary = {
+        "observation_id": str(observation.get("observation_id") or "").strip() or None,
+        "same_run_concurrent_dual_sensor_observation_explicit": observation.get("explicit") is True,
+        "time_window": {
+            "start": time_window.get("start"),
+            "end": time_window.get("end"),
+            "clock_source": time_window.get("clock_source"),
+        },
+        "surfaces": {
+            field: surfaces.get(field)
+            for field in required_surface_fields
+            if surfaces.get(field)
+        },
+        "missing_surface_bindings": missing_surface_bindings,
+        "legacy_true_flag_without_detail": legacy_true_flag and not observation,
+    }
+    issues: list[str] = []
+    if not isinstance(observation, dict) or not observation:
+        issues.append("same_run_concurrent_dual_sensor_observation:detail_missing")
+    if summary["legacy_true_flag_without_detail"]:
+        issues.append("same_run_concurrent_dual_sensor_observation:legacy_true_flag_only")
+    if not summary["observation_id"]:
+        issues.append("same_run_concurrent_dual_sensor_observation.observation_id:missing")
+    if not summary["same_run_concurrent_dual_sensor_observation_explicit"]:
+        issues.append("same_run_concurrent_dual_sensor_observation.explicit:not_true")
+    if not summary["time_window"]["start"]:
+        issues.append("same_run_concurrent_dual_sensor_observation.time_window.start:missing")
+    if not summary["time_window"]["end"]:
+        issues.append("same_run_concurrent_dual_sensor_observation.time_window.end:missing")
+    if not summary["time_window"]["clock_source"]:
+        issues.append("same_run_concurrent_dual_sensor_observation.time_window.clock_source:missing")
+    if missing_surface_bindings:
+        issues.append(
+            "same_run_concurrent_dual_sensor_observation.surfaces:missing:"
+            + ",".join(missing_surface_bindings)
+        )
+    summary["same_run_concurrent_dual_sensor_observation_proven"] = not issues
+    return summary, issues
 
 
 def build_audit(
@@ -170,7 +220,7 @@ def build_audit(
     p2_contact_correlation_audit_path: Path = DEFAULT_P2_CONTACT_CORRELATION_AUDIT,
     step_status_audit_path: Path = DEFAULT_STEP_STATUS_AUDIT,
 ) -> dict[str, Any]:
-    generated = generated_at or datetime.now().isoformat(timespec="seconds")
+    generated = generated_at or datetime.now().astimezone().isoformat(timespec="seconds")
     stage_manifest = load_json(stage_simulated_ft_manifest_path)
     p2_audit = load_json(p2_contact_correlation_audit_path)
     step_status = load_json(step_status_audit_path)
@@ -187,7 +237,10 @@ def build_audit(
     stage_valid = all_stage_simulated_ft_valid(stage_manifest)
     p2_proven = p2_physical_contact_proven(p2_audit, step_p2)
     raw_total_wrench = total_contact_wrench_proven(p2_audit, step_p2)
-    explicit_same_run_dual = explicit_dual_sensor_observed(p2_audit, step_p2)
+    dual_sensor_observation, dual_sensor_observation_issues = dual_sensor_observation_summary(p2_audit, step_p2)
+    explicit_same_run_dual = bool(
+        dual_sensor_observation["same_run_concurrent_dual_sensor_observation_proven"]
+    )
     total_wrench = bool(raw_total_wrench and not missing_surfaces and not cross_run_surfaces)
     dual_sensor = bool(
         stage_valid
@@ -216,6 +269,7 @@ def build_audit(
         blockers.append("same_run_dual_sensor_observation:not_proven")
     if not explicit_same_run_dual:
         validation_issues.append("same_run_concurrent_dual_sensor_observation:not_explicitly_proven")
+    validation_issues.extend(dual_sensor_observation_issues)
 
     return {
         "schema": "ur10e_dual_sensor_total_wrench_audit_v1",
@@ -259,6 +313,7 @@ def build_audit(
         "same_run_dual_sensor_observation": {
             "same_run_dual_sensor_observation_proven": dual_sensor,
             "same_run_concurrent_dual_sensor_observation_explicit": explicit_same_run_dual,
+            "same_run_concurrent_dual_sensor_observation": dual_sensor_observation,
             "required_surfaces": [
                 "stage_simulated_ft_manifest",
                 "p2_contact_correlation_audit",

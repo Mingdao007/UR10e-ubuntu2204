@@ -60,6 +60,23 @@ def stage_manifest_payload() -> dict[str, object]:
     }
 
 
+def dual_sensor_observation_payload() -> dict[str, object]:
+    return {
+        "observation_id": "fixture-dual-sensor-observation-001",
+        "explicit": True,
+        "time_window": {
+            "start": "2026-06-21T09:56:00+08:00",
+            "end": "2026-06-21T09:56:30+08:00",
+            "clock_source": "/clock",
+        },
+        "surfaces": {
+            "stage_simulated_ft_manifest": "stage_simulated_ft_manifest.json",
+            "p2_contact_correlation_audit": "p2_contact_correlation_audit.json",
+            "step_status_rnn_audit": "step_status_rnn_audit.json",
+        },
+    }
+
+
 def p2_payload(*, total_wrench: bool, same_run_dual: bool) -> dict[str, object]:
     wrench_policy = "total_contact_wrench" if total_wrench else "single_native_contact_point_wrench_sample_no_total_contact_wrench_claim"
     return {
@@ -74,7 +91,9 @@ def p2_payload(*, total_wrench: bool, same_run_dual: bool) -> dict[str, object]:
             "total_contact_wrench_proven": total_wrench,
             "real_bench_live_contact_authorized": False,
         },
-        "same_run_concurrent_dual_sensor_observation": same_run_dual,
+        "same_run_concurrent_dual_sensor_observation": dual_sensor_observation_payload()
+        if same_run_dual
+        else False,
         "wrench_evidence": {
             "wrench_aggregation_policy": wrench_policy,
             "total_contact_wrench_proven": total_wrench,
@@ -91,7 +110,9 @@ def step_payload(*, total_wrench: bool, same_run_dual: bool) -> dict[str, object
             "force_contact_physics_proven": True,
             "scope": "fixture",
             "total_contact_wrench_proven": total_wrench,
-            "same_run_concurrent_dual_sensor_observation": same_run_dual,
+            "same_run_concurrent_dual_sensor_observation": dual_sensor_observation_payload()
+            if same_run_dual
+            else False,
         },
     }
 
@@ -135,6 +156,39 @@ class DualSensorTotalWrenchAuditTest(unittest.TestCase):
         self.assertTrue(payload["same_run_dual_sensor_observation_proven"])
         self.assertEqual(payload["blockers"], [])
         self.assertEqual(payload["cross_run_surfaces"], [])
+        observation = payload["same_run_dual_sensor_observation"][
+            "same_run_concurrent_dual_sensor_observation"
+        ]
+        self.assertTrue(observation["same_run_concurrent_dual_sensor_observation_proven"])
+
+    def test_blocks_legacy_boolean_same_run_dual_sensor_flag(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="dual_sensor_legacy_bool_", dir=RUNS) as tmp:
+            root = Path(tmp)
+            stage_path = root / "stage_simulated_ft_manifest.json"
+            p2_path = root / "p2_contact_correlation_audit.json"
+            step_path = root / "step_status_rnn_audit.json"
+            write_json(stage_path, stage_manifest_payload())
+            p2 = p2_payload(total_wrench=True, same_run_dual=False)
+            p2["same_run_concurrent_dual_sensor_observation"] = True
+            step = step_payload(total_wrench=True, same_run_dual=False)
+            step["p2_physical_gazebo_contact"]["same_run_concurrent_dual_sensor_observation"] = True
+            write_json(p2_path, p2)
+            write_json(step_path, step)
+            payload = audit.build_audit(
+                generated_at="2026-06-21T09:56:30+08:00",
+                stage_simulated_ft_manifest_path=stage_path,
+                p2_contact_correlation_audit_path=p2_path,
+                step_status_audit_path=step_path,
+            )
+
+        self.assertTrue(payload["total_contact_wrench_proven"])
+        self.assertFalse(payload["same_run_dual_sensor_observation_proven"])
+        self.assertIn("same_run_dual_sensor_observation:not_proven", payload["blockers"])
+        self.assertIn(
+            "same_run_concurrent_dual_sensor_observation:legacy_true_flag_only",
+            payload["validation_issues"],
+        )
 
     def test_blocks_cross_run_fixture_even_with_positive_flags(self) -> None:
         audit = import_audit_module()

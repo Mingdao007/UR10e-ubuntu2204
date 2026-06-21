@@ -34,6 +34,9 @@ REQUIRED_SOURCE_ARTIFACTS = {
     "p2_contact_correlation_audit": "p2_contact_correlation_audit",
     "tcp_distance_evidence": "tcp_distance_evidence",
 }
+CONCURRENT_OBSERVATION_REQUIRED_SURFACES = sorted(
+    surface for surface in REQUIRED_SOURCE_ARTIFACTS if surface != "p6_manifest"
+)
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -98,12 +101,51 @@ def manifest_source_artifacts(manifest: dict[str, Any]) -> dict[str, Any]:
     return source_artifacts if isinstance(source_artifacts, dict) else {}
 
 
+def manifest_concurrent_observation(manifest: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    raw = manifest.get("concurrent_observation")
+    observation = raw if isinstance(raw, dict) else {}
+    time_window = observation.get("time_window") if isinstance(observation.get("time_window"), dict) else {}
+    surfaces = observation.get("surfaces") if isinstance(observation.get("surfaces"), list) else []
+    observed_surfaces = sorted({str(surface) for surface in surfaces if str(surface)})
+    missing_surfaces = sorted(set(CONCURRENT_OBSERVATION_REQUIRED_SURFACES) - set(observed_surfaces))
+    summary = {
+        "observation_id": str(observation.get("observation_id") or "").strip() or None,
+        "same_run_concurrent_observation_explicit": observation.get(
+            "same_run_concurrent_observation_explicit"
+        )
+        is True,
+        "time_window": {
+            "start": time_window.get("start"),
+            "end": time_window.get("end"),
+            "clock_source": time_window.get("clock_source"),
+        },
+        "surfaces": observed_surfaces,
+        "missing_surfaces": missing_surfaces,
+    }
+    issues: list[str] = []
+    if not isinstance(raw, dict):
+        issues.append("manifest.concurrent_observation:missing")
+    if not summary["observation_id"]:
+        issues.append("manifest.concurrent_observation.observation_id:missing")
+    if not summary["same_run_concurrent_observation_explicit"]:
+        issues.append("manifest.concurrent_observation.same_run_concurrent_observation_explicit:not_true")
+    if not summary["time_window"]["start"]:
+        issues.append("manifest.concurrent_observation.time_window.start:missing")
+    if not summary["time_window"]["end"]:
+        issues.append("manifest.concurrent_observation.time_window.end:missing")
+    if not summary["time_window"]["clock_source"]:
+        issues.append("manifest.concurrent_observation.time_window.clock_source:missing")
+    if missing_surfaces:
+        issues.append("manifest.concurrent_observation.surfaces:missing:" + ",".join(missing_surfaces))
+    return summary, issues
+
+
 def build_audit(
     *,
     generated_at: str | None = None,
     integrated_demo_manifest_path: Path | None = DEFAULT_INTEGRATED_DEMO_MANIFEST,
 ) -> dict[str, Any]:
-    generated = generated_at or datetime.now().isoformat(timespec="seconds")
+    generated = generated_at or datetime.now().astimezone().isoformat(timespec="seconds")
     manifest_path = integrated_demo_manifest_path
     manifest_exists = bool(manifest_path and manifest_path.is_file())
     validation_issues: list[str] = []
@@ -157,6 +199,8 @@ def build_audit(
             "step_rnn_physical_gazebo_contact_same_run",
         )
     )
+    concurrent_observation, concurrent_observation_issues = manifest_concurrent_observation(manifest)
+    concurrent_observation_proven = not concurrent_observation_issues
     same_run_integrated_demo_proven = bool(
         manifest_exists
         and target_run_id
@@ -164,6 +208,7 @@ def build_audit(
         and not missing_surfaces
         and not cross_run_surfaces
         and manifest_claims_same_run
+        and concurrent_observation_proven
     )
     if missing_surfaces:
         validation_issues.append("required_source_artifacts:missing:" + ",".join(sorted(missing_surfaces)))
@@ -171,6 +216,7 @@ def build_audit(
         validation_issues.append("required_source_artifacts:cross_run:" + ",".join(sorted(cross_run_surfaces)))
     if not manifest_claims_same_run:
         validation_issues.append("manifest.same_run_binding:not_all_true")
+    validation_issues.extend(concurrent_observation_issues)
 
     return {
         "schema": "ur10e_same_run_integrated_binding_audit_v1",
@@ -198,10 +244,19 @@ def build_audit(
             "visual_rviz_physical_gazebo_contact_same_run": manifest_binding.get("visual_rviz_physical_gazebo_contact_same_run"),
             "step_rnn_physical_gazebo_contact_same_run": manifest_binding.get("step_rnn_physical_gazebo_contact_same_run"),
         },
+        "concurrent_observation": {
+            **concurrent_observation,
+            "required_surfaces": CONCURRENT_OBSERVATION_REQUIRED_SURFACES,
+            "concurrent_observation_proven": concurrent_observation_proven,
+        },
         "same_run_integrated_demo_proven": same_run_integrated_demo_proven,
         "binding_status": "same_run_integrated_demo_proven"
         if same_run_integrated_demo_proven
-        else "cross_run_evidence_only",
+        else (
+            "same_run_paths_without_concurrent_observation"
+            if not concurrent_observation_proven and not missing_surfaces and not cross_run_surfaces
+            else "cross_run_evidence_only"
+        ),
         "validation_issues": validation_issues,
         "blocker": None
         if same_run_integrated_demo_proven
