@@ -42,6 +42,8 @@ DEFAULT_WORLD_NAME = "ur10e_step5_table_world"
 DEFAULT_OBSERVER_MARKER_STYLE = "observer_subtle"
 MARKER_STYLES = ("debug", "observer_subtle")
 CONTACT_CAPTURE_SCHEMA = "ur10e_gazebo_row_contact_topic_capture_v1"
+VISIBLE_GAZEBO_OVERLAP_SCHEMA = "ur10e_visible_gazebo_overlap_preflight_v1"
+VISIBLE_GAZEBO_OVERLAP_RC = 43
 ENHANCED_MARKER_VISUAL_NAMES = frozenset(
     {
         "tcp_contact_pad_orange",
@@ -93,6 +95,29 @@ def run_row(args: argparse.Namespace) -> int:
         },
         mode="w",
     )
+    if not args.allow_existing_gazebo:
+        overlapping_gazebo = existing_visible_gazebo_processes()
+        if overlapping_gazebo:
+            payload = write_visible_gazebo_overlap_preflight(
+                case_dir,
+                stage=args.stage,
+                view=args.view,
+                run_dir=run_dir,
+                display=args.display,
+                processes=overlapping_gazebo,
+            )
+            _write_trace(
+                trace_path,
+                {
+                    "visible_gazebo_overlap_preflight": "failed",
+                    "visible_gazebo_overlap_artifact": payload["path"],
+                    "visible_gazebo_overlap_process_count": len(overlapping_gazebo),
+                    "blocker": payload["blocker"],
+                    "finished_at": _now(),
+                },
+            )
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return VISIBLE_GAZEBO_OVERLAP_RC
 
     build_log = case_dir / "build_visual_world.log"
     with build_log.open("w", encoding="utf-8") as handle:
@@ -619,6 +644,109 @@ def gazebo_system_plugin_lib_dirs(local_ros_prefix: Path | None) -> list[Path]:
             deduped.append(path)
             seen.add(key)
     return deduped
+
+
+def existing_visible_gazebo_processes() -> list[dict[str, object]]:
+    completed = subprocess.run(
+        ["ps", "-eo", "pid=,ppid=,etimes=,stat=,args="],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return visible_gazebo_process_records_from_ps(completed.stdout, current_pid=os.getpid())
+
+
+def visible_gazebo_process_records_from_ps(ps_output: str, *, current_pid: int) -> list[dict[str, object]]:
+    records: list[dict[str, object]] = []
+    for raw_line in ps_output.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        parts = line.split(maxsplit=4)
+        if len(parts) < 5:
+            continue
+        try:
+            pid = int(parts[0])
+            ppid = int(parts[1])
+            elapsed_s = int(parts[2])
+        except ValueError:
+            continue
+        if pid == current_pid:
+            continue
+        cmd = parts[4]
+        role = visible_gazebo_process_role(cmd)
+        if role is None:
+            continue
+        records.append(
+            {
+                "pid": pid,
+                "ppid": ppid,
+                "elapsed_s": elapsed_s,
+                "stat": parts[3],
+                "role": role,
+                "cmd": cmd,
+            }
+        )
+    return records
+
+
+def visible_gazebo_process_role(cmd: str) -> str | None:
+    executable = cmd.split(maxsplit=1)[0] if cmd.strip() else ""
+    executable_name = Path(executable).name
+    if (
+        "run_gazebo_gui_matrix_row.py" in cmd
+        and " row " in f" {cmd} "
+        and (executable_name.startswith("python") or executable_name == "run_gazebo_gui_matrix_row.py")
+    ):
+        return "gui_matrix_row_runner"
+    if "ur10e_gazebo_matrix.launch.py" in cmd and "headless:=false" in cmd:
+        return "ros2_visible_gazebo_launch"
+    if "ign gazebo --gui-config" in cmd:
+        return "ign_visible_gazebo_parent"
+    if "gz sim" in cmd and (" --gui-config" in cmd or " -g" in cmd):
+        return "gz_visible_gazebo_parent"
+    if "ign gazebo gui" in cmd or "gz sim gui" in cmd:
+        return "gazebo_gui_process"
+    if "x11grab" in cmd and "gui_recording.mp4" in cmd:
+        return "gui_capture_process"
+    return None
+
+
+def write_visible_gazebo_overlap_preflight(
+    case_dir: Path,
+    *,
+    stage: str,
+    view: str,
+    run_dir: Path,
+    display: str,
+    processes: list[dict[str, object]],
+) -> dict[str, object]:
+    path = case_dir / "visible_gazebo_overlap_preflight.json"
+    payload: dict[str, object] = {
+        "schema": VISIBLE_GAZEBO_OVERLAP_SCHEMA,
+        "generated_at": _now(),
+        "stage": stage,
+        "view": view,
+        "run_dir": str(run_dir),
+        "display": display,
+        "process_count": len(processes),
+        "processes": processes,
+        "blocker": "existing_visible_gazebo_processes_present",
+        "action": "refused_to_start_new_visible_gazebo_row",
+        "claim_tier": "visual_only",
+        "target_claim_tier": "post-checkpoint visible Gazebo GUI row",
+        "allowed_claim": "preflight_blocker_evidence_only",
+        "forbidden_claim": "observer-level visual demo success; simulated_ft; physical Gazebo collision/contact physics; real bench/live contact",
+        "live_robot_command_authorized": False,
+        "bridge_start_authorized": False,
+        "urscript_send_authorized": False,
+        "tp_load_play_authorized": False,
+        "zero_ftsensor_authorized": False,
+        "payload_tcp_safety_writes_authorized": False,
+        "path": str(path),
+    }
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return payload
 
 
 def _introspection_output_captured(summary: dict[str, object], key: str) -> bool:
@@ -1261,6 +1389,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     row.add_argument("--marker-style", choices=MARKER_STYLES, default=DEFAULT_OBSERVER_MARKER_STYLE)
     row.add_argument("--contact-capture-max-messages", type=int, default=20)
     row.add_argument("--disable-contact-capture", action="store_true")
+    row.add_argument("--allow-existing-gazebo", action="store_true")
     row.add_argument("--update-summary", action="store_true")
     row.set_defaults(func=run_row)
 

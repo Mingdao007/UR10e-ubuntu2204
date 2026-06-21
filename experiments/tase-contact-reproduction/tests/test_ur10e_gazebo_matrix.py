@@ -311,6 +311,73 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             ]
         )
         self.assertEqual(args.marker_style, "observer_subtle")
+        self.assertFalse(args.allow_existing_gazebo)
+
+    def test_gui_row_can_only_allow_existing_gazebo_by_explicit_flag(self) -> None:
+        args = gui_row.parse_args(
+            [
+                "row",
+                "--run-dir",
+                "/tmp/ur10e_marker_style_parse_fixture",
+                "--stage",
+                "step5b",
+                "--view",
+                "close_detail",
+                "--allow-existing-gazebo",
+            ]
+        )
+        self.assertTrue(args.allow_existing_gazebo)
+
+    def test_visible_gazebo_process_scan_fails_closed_for_existing_gui(self) -> None:
+        ps_output = "\n".join(
+            [
+                "100 1 3600 SNsl /usr/bin/python3 /opt/ros/humble/bin/ros2 launch ur10e_example_controllers ur10e_gazebo_matrix.launch.py headless:=false world_path:=/tmp/step5a_visual.sdf",
+                "101 100 3600 SN ign gazebo --gui-config /tmp/interaction_view.config /tmp/step5a_visual.sdf -r",
+                "102 101 3600 SNl ign gazebo gui",
+                "103 1 12 SNsl /usr/bin/python3 /opt/ros/humble/bin/ros2 launch ur10e_example_controllers ur10e_gazebo_matrix.launch.py headless:=true world_path:=/tmp/headless.sdf",
+                "104 1 5 SN python3 experiments/tase-contact-reproduction/tools/run_gazebo_gui_matrix_row.py row --stage step5b",
+                "105 1 5 SN /bin/bash -lc python3 experiments/tase-contact-reproduction/tools/run_gazebo_gui_matrix_row.py row --stage step5b",
+            ]
+        )
+        records = gui_row.visible_gazebo_process_records_from_ps(ps_output, current_pid=104)
+        self.assertEqual([record["pid"] for record in records], [100, 101, 102])
+        self.assertEqual(
+            [record["role"] for record in records],
+            ["ros2_visible_gazebo_launch", "ign_visible_gazebo_parent", "gazebo_gui_process"],
+        )
+
+    def test_visible_gazebo_overlap_preflight_artifact_is_visual_only_blocker(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="ur10e_visible_overlap_preflight_test_") as tmp:
+            run_dir = Path(tmp)
+            case_dir = gui_row.row_case_dir(run_dir, "step5b", "close_detail")
+            case_dir.mkdir(parents=True)
+            payload = gui_row.write_visible_gazebo_overlap_preflight(
+                case_dir,
+                stage="step5b",
+                view="close_detail",
+                run_dir=run_dir,
+                display=":0",
+                processes=[
+                    {
+                        "pid": 100,
+                        "ppid": 1,
+                        "elapsed_s": 3600,
+                        "stat": "SNsl",
+                        "role": "ros2_visible_gazebo_launch",
+                        "cmd": "ros2 launch ... headless:=false",
+                    }
+                ],
+            )
+            path = Path(payload["path"])
+            self.assertTrue(path.is_file())
+            saved = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(saved["schema"], gui_row.VISIBLE_GAZEBO_OVERLAP_SCHEMA)
+            self.assertEqual(saved["claim_tier"], "visual_only")
+            self.assertEqual(saved["blocker"], "existing_visible_gazebo_processes_present")
+            self.assertEqual(saved["action"], "refused_to_start_new_visible_gazebo_row")
+            self.assertFalse(saved["live_robot_command_authorized"])
+            self.assertIn("simulated_ft", saved["forbidden_claim"])
+            self.assertIn("physical Gazebo collision/contact physics", saved["forbidden_claim"])
 
     def test_tcp_marker_follower_defaults_to_debug_marker_style(self) -> None:
         args = tcp_marker.parse_args(
