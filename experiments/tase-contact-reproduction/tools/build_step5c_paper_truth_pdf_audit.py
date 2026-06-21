@@ -70,12 +70,19 @@ PARTIAL_OR_UNRESOLVED_FIELDS = {
     "production_sigr_exponent_r": "PDF gives r domain and simulation examples; no single production r is selected for UR10e.",
     "local_qdot_bound_rad_s": "PDF Section VI uses +/-0.15 rad/s; the repo's 0.30 rad/s value is a local offline/live-prep adaptation until separately justified.",
     "communication_delay_T_mapping": "PDF defines T as robot-controller communication delay, but does not map it to this repo's dt_s assumption.",
-    "Eq23_nonzero_command_stability": "PDF provides continuous finite-time proof, but the local discrete zero-initial-lambda nonzero-command gate remains separate.",
+    "Eq23_nonzero_command_stability": "PDF provides continuous finite-time proof, but the printed Eq.23 sign convention and local discrete zero-initial-lambda nonzero-command gate remain separate fail-closed checks.",
     "step5c_strict_dryrun.which paper equations remain active in no-contact dry-run": "No-contact dry-run is a repo adaptation, not a direct paper mode.",
     "step5c_strict_dryrun.mapping from paper task variable to UR10e 6dof qdot": "Paper is generic n-DOF/FRANKA evidence; UR10e 6DOF mapping needs local kinematics evidence.",
     "step5c_strict_contact.filtered-live normal compatibility": "Paper reports no force-signal filter in experiments; repo filtered-live normal policy is a local adaptation.",
     "step5c_strict_contact.force ladder parameters": "Force ladder/contact-entry parameters are repo safety policy, not direct paper parameters.",
 }
+
+SIGN_CONSISTENCY_RULES: tuple[tuple[str, str], ...] = (
+    ("Eq.21 Lagrange sign", r"L\s*=\s*θ̇\s*θ̇/2\s*\+\s*λT\s*\(J\(θ\)θ̇\s*−\s*ẋc\s*\)"),
+    ("Eq.23a printed projection sign", r"θ̇\s*−\s*PΩ\s*\(θ̇\s*−\s*\(θ̇\s*−\s*J\s*T\s*\(θ\)λ\)\)"),
+    ("Eq.23b printed lambda residual", r"λ̇\s*=\s*J\(θ\)θ̇\s*−\s*ẋc?"),
+    ("Appendix Lyapunov projection sign", r"kθ̇\s*−\s*PΩ\s*\(θ̇\s*−\s*\(θ̇\s*−\s*J\s*T\s*\(θ\)λ\)\)k"),
+)
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -124,6 +131,26 @@ def pending_fields(payload: dict[str, Any]) -> list[str]:
     return sorted(pending)
 
 
+def eq23_sign_consistency_audit(lines: list[str]) -> dict[str, Any]:
+    _, hits = find_rule_hits(lines, SIGN_CONSISTENCY_RULES)
+    found = {hit["label"]: bool(hit["found"]) for hit in hits}
+    printed_eq23_sign_anchors_present = bool(
+        found.get("Eq.23a printed projection sign")
+        and found.get("Eq.23b printed lambda residual")
+        and found.get("Appendix Lyapunov projection sign")
+    )
+    kkt_sign_tension = bool(found.get("Eq.21 Lagrange sign") and printed_eq23_sign_anchors_present)
+    return {
+        "status": "blocked_pdf_printed_sign_requires_local_discrete_gate",
+        "claim_tier": "virtual/software force-loop",
+        "line_anchors": hits,
+        "printed_eq23_sign_anchors_present": printed_eq23_sign_anchors_present,
+        "kkt_sign_tension_from_eq21_and_printed_eq23": kkt_sign_tension,
+        "local_discrete_gate_required": True,
+        "acceptance_effect": "does_not_clear_Eq23_nonzero_command_stability_or_strict_rnn_final_acceptance",
+    }
+
+
 def build_audit(
     *,
     generated_at: str | None = None,
@@ -150,6 +177,7 @@ def build_audit(
             verified.append(field)
         else:
             unverified.append(field)
+    eq23_sign_consistency = eq23_sign_consistency_audit(lines)
 
     current_pending = pending_fields(truth)
     unresolved = sorted(field for field in current_pending if field in PARTIAL_OR_UNRESOLVED_FIELDS)
@@ -176,6 +204,7 @@ def build_audit(
         "unexpected_pending_fields": unexpected_pending,
         "partial_or_unresolved_evidence": {field: PARTIAL_OR_UNRESOLVED_FIELDS[field] for field in unresolved},
         "field_evidence": field_evidence,
+        "eq23_sign_consistency": eq23_sign_consistency,
         "acceptance_effect": (
             "Core paper equations and Section VI parameter anchors are text-verified, but strict RNN final acceptance "
             "remains blocked by local adaptation/stability fields and strict_rnn_enabled=false."

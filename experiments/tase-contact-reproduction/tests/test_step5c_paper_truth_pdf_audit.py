@@ -44,8 +44,12 @@ ẋo = x˙od + ko eo
 ẋod = 0
 min θ̇ θ̇/2
 L = θ̇ θ̇/2 + λT
+L = θ̇ θ̇/2 + λT (J(θ)θ̇ − ẋc)
 Karush-Kuhn-Tucker
 PΩ
+θ̇ − PΩ (θ̇ − (θ̇ − J T (θ)λ))
+λ̇ = J(θ)θ̇ − ẋc
+kθ̇ − PΩ (θ̇ − (θ̇ − J T (θ)λ))k
 parameters in the controller are set
 Md = Diag(12, ..., 12), Bd = Diag(550, ..., 550)
 0.022, k p = 4, ko = 5 and k f = 1
@@ -69,6 +73,13 @@ class Step5cPaperTruthPdfAuditTest(unittest.TestCase):
         self.assertEqual(payload["missing_expected_pending_fields"], [])
         self.assertIn("local_qdot_bound_rad_s", payload["remaining_pending_fields"])
         self.assertFalse(payload["strict_rnn_enabled"])
+        sign = payload["eq23_sign_consistency"]
+        self.assertEqual(sign["claim_tier"], "virtual/software force-loop")
+        self.assertEqual(sign["status"], "blocked_pdf_printed_sign_requires_local_discrete_gate")
+        self.assertTrue(sign["printed_eq23_sign_anchors_present"])
+        self.assertTrue(sign["kkt_sign_tension_from_eq21_and_printed_eq23"])
+        self.assertTrue(sign["local_discrete_gate_required"])
+        self.assertIn("does_not_clear", sign["acceptance_effect"])
         self.assertIn("simulated_ft", payload["forbidden_claim"])
 
     def test_current_config_splits_verified_fields_from_pending_fields(self) -> None:
