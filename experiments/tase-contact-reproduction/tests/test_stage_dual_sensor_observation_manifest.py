@@ -14,6 +14,7 @@ TOOLS = ROOT / "tools"
 RUNS = ROOT / "runs"
 MODULE_PATH = TOOLS / "build_stage_dual_sensor_observation_manifest.py"
 sys.path.insert(0, str(TOOLS))
+OBSERVATION_ID = "stage-step5b-same-run-001"
 
 
 def import_manifest_module():
@@ -51,6 +52,13 @@ def row_summary_payload(stage_id: str = "step5b") -> dict[str, object]:
 def contact_pair_payload() -> dict[str, object]:
     return {
         "schema": "ur10e_gazebo_contact_pair_log_v1",
+        "stage_id": "step5b",
+        "observation_id": OBSERVATION_ID,
+        "time_window": {
+            "start": "2026-06-21T17:12:00+08:00",
+            "end": "2026-06-21T17:12:10+08:00",
+            "clock_source": "/clock",
+        },
         "parse_issues": [],
         "rows": [
             {
@@ -69,6 +77,13 @@ def contact_pair_payload() -> dict[str, object]:
 def wrench_adapter_payload() -> dict[str, object]:
     return {
         "schema": "ur10e_gazebo_contact_wrench_adapter_report_v1",
+        "stage_id": "step5b",
+        "observation_id": OBSERVATION_ID,
+        "time_window": {
+            "start": "2026-06-21T17:12:00+08:00",
+            "end": "2026-06-21T17:12:10+08:00",
+            "clock_source": "/clock",
+        },
         "claim_tier": "physical Gazebo collision/contact physics",
         "force_source": "gazebo_contact",
         "trace_written": True,
@@ -154,7 +169,7 @@ class StageDualSensorObservationManifestTest(unittest.TestCase):
             root = Path(tmp)
             payload = manifest.build_manifest(
                 stage_id="step5b",
-                observation_id="stage-step5b-same-run-001",
+                observation_id=OBSERVATION_ID,
                 time_start="2026-06-21T17:12:00+08:00",
                 time_end="2026-06-21T17:12:10+08:00",
                 clock_source="/clock",
@@ -191,6 +206,35 @@ class StageDualSensorObservationManifestTest(unittest.TestCase):
             "stage_contact_wrench_adapter.total_contact_wrench_proven:not_true",
             payload["validation_issues"],
         )
+        self.assertIn(
+            "stage_contact_pair_log.observation_id:mismatch_or_missing",
+            payload["validation_issues"],
+        )
+
+    def test_blocks_contact_artifacts_with_mismatched_observation_id(self) -> None:
+        manifest = import_manifest_module()
+        with tempfile.TemporaryDirectory(prefix="stage_observation_id_mismatch_", dir=RUNS) as tmp:
+            root = Path(tmp)
+            surfaces = surface_paths(root)
+            contact = json.loads(surfaces["stage_contact_pair_log"].read_text(encoding="utf-8"))
+            contact["observation_id"] = "different-contact-observation"
+            write_json(surfaces["stage_contact_pair_log"], contact)
+            adapter = json.loads(surfaces["stage_contact_wrench_adapter"].read_text(encoding="utf-8"))
+            adapter["observation_id"] = "different-adapter-observation"
+            write_json(surfaces["stage_contact_wrench_adapter"], adapter)
+            payload = manifest.build_manifest(
+                stage_id="step5b",
+                observation_id=OBSERVATION_ID,
+                time_start="2026-06-21T17:12:00+08:00",
+                time_end="2026-06-21T17:12:10+08:00",
+                clock_source="/clock",
+                surfaces=surfaces,
+                generated_at="2026-06-21T17:12:20+08:00",
+            )
+
+        self.assertFalse(payload["same_run_stage_dual_sensor_observation_proven"])
+        self.assertIn("stage_contact_pair_log.observation_id:mismatch_or_missing", payload["validation_issues"])
+        self.assertIn("stage_contact_wrench_adapter.observation_id:mismatch_or_missing", payload["validation_issues"])
 
     def test_blocks_missing_adapter_and_cross_run_surfaces(self) -> None:
         manifest = import_manifest_module()
@@ -201,7 +245,7 @@ class StageDualSensorObservationManifestTest(unittest.TestCase):
                 surfaces["stage_simulated_ft_manifest"] = write_file(Path(right) / "step_simulated_ft_evidence_manifest.json")
                 payload = manifest.build_manifest(
                     stage_id="step5b",
-                    observation_id="stage-step5b-cross-run-001",
+                    observation_id=OBSERVATION_ID,
                     time_start="2026-06-21T17:13:00+08:00",
                     time_end="2026-06-21T17:13:10+08:00",
                     clock_source="/clock",
@@ -222,7 +266,7 @@ class StageDualSensorObservationManifestTest(unittest.TestCase):
             output_path = manifest.write_manifest(
                 root / "out",
                 stage_id="step5b",
-                observation_id="stage-step5b-write-001",
+                observation_id=OBSERVATION_ID,
                 time_start="2026-06-21T17:14:00+08:00",
                 time_end="2026-06-21T17:14:10+08:00",
                 clock_source="/clock",

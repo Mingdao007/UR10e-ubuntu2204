@@ -147,7 +147,11 @@ def build_manifest(
     if not target_run_id:
         validation_issues.append("target_run_id:missing")
 
-    content_validation = validate_surface_content(stage_id=stage_id, surfaces=surfaces)
+    content_validation = validate_surface_content(
+        stage_id=stage_id,
+        observation_id=observation_id.strip(),
+        surfaces=surfaces,
+    )
     validation_issues.extend(content_validation["validation_issues"])
 
     proven = not validation_issues
@@ -191,12 +195,23 @@ def build_manifest(
     }
 
 
-def validate_surface_content(*, stage_id: str, surfaces: dict[str, Path | None]) -> dict[str, Any]:
+def validate_surface_content(
+    *,
+    stage_id: str,
+    observation_id: str,
+    surfaces: dict[str, Path | None],
+) -> dict[str, Any]:
     checks = {
         "stage_row_summary": stage_row_summary_issues(stage_id, load_json_if_file(surfaces.get("stage_row_summary"))),
-        "stage_contact_pair_log": contact_pair_log_issues(load_json_if_file(surfaces.get("stage_contact_pair_log"))),
+        "stage_contact_pair_log": contact_pair_log_issues(
+            load_json_if_file(surfaces.get("stage_contact_pair_log")),
+            stage_id=stage_id,
+            observation_id=observation_id,
+        ),
         "stage_contact_wrench_adapter": contact_wrench_adapter_issues(
-            load_json_if_file(surfaces.get("stage_contact_wrench_adapter"))
+            load_json_if_file(surfaces.get("stage_contact_wrench_adapter")),
+            stage_id=stage_id,
+            observation_id=observation_id,
         ),
         "stage_simulated_ft_manifest": stage_simulated_ft_manifest_issues(
             stage_id,
@@ -233,12 +248,17 @@ def stage_row_summary_issues(stage_id: str, payload: dict[str, Any]) -> list[str
     return issues
 
 
-def contact_pair_log_issues(payload: dict[str, Any]) -> list[str]:
+def contact_pair_log_issues(payload: dict[str, Any], *, stage_id: str, observation_id: str) -> list[str]:
     issues: list[str] = []
     if payload.get("_load_error"):
         return [f"stage_contact_pair_log.unreadable:{payload['_load_error']}"]
     if payload.get("schema") != "ur10e_gazebo_contact_pair_log_v1":
         issues.append("stage_contact_pair_log.schema:unsupported_or_missing")
+    if payload.get("stage_id") != stage_id:
+        issues.append("stage_contact_pair_log.stage_id:mismatch_or_missing")
+    if payload.get("observation_id") != observation_id:
+        issues.append("stage_contact_pair_log.observation_id:mismatch_or_missing")
+    issues.extend(time_window_issues("stage_contact_pair_log", payload))
     if payload.get("parse_issues"):
         issues.append("stage_contact_pair_log.parse_issues:not_empty")
     rows = payload.get("rows") if isinstance(payload.get("rows"), list) else []
@@ -262,12 +282,17 @@ def contact_pair_log_issues(payload: dict[str, Any]) -> list[str]:
     return issues
 
 
-def contact_wrench_adapter_issues(payload: dict[str, Any]) -> list[str]:
+def contact_wrench_adapter_issues(payload: dict[str, Any], *, stage_id: str, observation_id: str) -> list[str]:
     issues: list[str] = []
     if payload.get("_load_error"):
         return [f"stage_contact_wrench_adapter.unreadable:{payload['_load_error']}"]
     if payload.get("schema") != "ur10e_gazebo_contact_wrench_adapter_report_v1":
         issues.append("stage_contact_wrench_adapter.schema:unsupported_or_missing")
+    if payload.get("stage_id") != stage_id:
+        issues.append("stage_contact_wrench_adapter.stage_id:mismatch_or_missing")
+    if payload.get("observation_id") != observation_id:
+        issues.append("stage_contact_wrench_adapter.observation_id:mismatch_or_missing")
+    issues.extend(time_window_issues("stage_contact_wrench_adapter", payload))
     if payload.get("claim_tier") != "physical Gazebo collision/contact physics":
         issues.append("stage_contact_wrench_adapter.claim_tier:not_physical_gazebo_contact")
     if payload.get("force_source") != "gazebo_contact":
@@ -292,6 +317,18 @@ def contact_wrench_adapter_issues(payload: dict[str, Any]) -> list[str]:
     valid_rows = [row for row in rows if isinstance(row, dict) and _valid_gazebo_contact_wrench_row(row)]
     if not valid_rows:
         issues.append("stage_contact_wrench_adapter.wrench_trace.valid_contact_row:missing")
+    return issues
+
+
+def time_window_issues(surface: str, payload: dict[str, Any]) -> list[str]:
+    window = payload.get("time_window") if isinstance(payload.get("time_window"), dict) else {}
+    issues: list[str] = []
+    if not window.get("start"):
+        issues.append(f"{surface}.time_window.start:missing")
+    if not window.get("end"):
+        issues.append(f"{surface}.time_window.end:missing")
+    if not window.get("clock_source"):
+        issues.append(f"{surface}.time_window.clock_source:missing")
     return issues
 
 

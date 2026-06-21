@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import json
 import sys
 import tempfile
@@ -106,6 +107,13 @@ def contact_pair_payload(*, include_wrench: bool = False) -> dict[str, object]:
         row["raw_gazebo_contact_wrench_count"] = 4
     return {
         "schema": "ur10e_gazebo_contact_pair_log_v1",
+        "stage_id": "step5b",
+        "observation_id": "stage-step5b-dual-sensor-fixture-001",
+        "time_window": {
+            "start": "2026-06-21T16:55:00+08:00",
+            "end": "2026-06-21T16:55:10+08:00",
+            "clock_source": "/clock",
+        },
         "claim_tier": "visual_only",
         "target_claim_tier": "physical Gazebo collision/contact physics",
         "topic": "/ur10e/contact/gazebo/step5b/contacts",
@@ -118,6 +126,13 @@ def contact_pair_payload(*, include_wrench: bool = False) -> dict[str, object]:
 def adapter_payload() -> dict[str, object]:
     return {
         "schema": "ur10e_gazebo_contact_wrench_adapter_report_v1",
+        "stage_id": "step5b",
+        "observation_id": "stage-step5b-dual-sensor-fixture-001",
+        "time_window": {
+            "start": "2026-06-21T16:55:00+08:00",
+            "end": "2026-06-21T16:55:10+08:00",
+            "clock_source": "/clock",
+        },
         "claim_tier": "physical Gazebo collision/contact physics",
         "force_source": "gazebo_contact",
         "trace_written": True,
@@ -145,7 +160,33 @@ def adapter_payload() -> dict[str, object]:
     }
 
 
-def observation_payload() -> dict[str, object]:
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
+def observation_artifact_row(surface: str, path: Path) -> dict[str, object]:
+    return {
+        "surface": surface,
+        "path": str(path),
+        "exists": True,
+        "run_id": path.relative_to(RUNS).parts[0],
+        "same_run_as_target": True,
+        "sha256": sha256_file(path),
+    }
+
+
+def observation_payload(paths: dict[str, Path | None]) -> dict[str, object]:
+    surfaces = {
+        "stage_row_summary": paths["row"],
+        "stage_contact_pair_log": paths["contact"],
+        "stage_contact_wrench_adapter": paths["adapter"],
+        "stage_simulated_ft_manifest": paths["manifest"],
+        "step_status_rnn_audit": paths["step"],
+        "visual_evidence": paths["visual"],
+        "tcp_path_evidence": paths["tcp"],
+    }
     return {
         "schema": "ur10e_stage_dual_sensor_observation_manifest_v1",
         "observation_id": "stage-step5b-dual-sensor-fixture-001",
@@ -156,15 +197,12 @@ def observation_payload() -> dict[str, object]:
             "end": "2026-06-21T16:55:10+08:00",
             "clock_source": "/clock",
         },
-        "surfaces": {
-            "stage_row_summary": "row_summary.json",
-            "stage_contact_pair_log": "gazebo_contact_pair_log.json",
-            "stage_contact_wrench_adapter": "stage_contact_wrench_adapter.json",
-            "stage_simulated_ft_manifest": "step_simulated_ft_evidence_manifest.json",
-            "step_status_rnn_audit": "step_status_rnn_audit.json",
-            "visual_evidence": "scripted_camera_final.png",
-            "tcp_path_evidence": "command_trace.csv",
-        },
+        "surfaces": {surface: str(path) for surface, path in surfaces.items() if path is not None},
+        "artifact_rows": [
+            observation_artifact_row(surface, path)
+            for surface, path in surfaces.items()
+            if path is not None
+        ],
     }
 
 
@@ -190,22 +228,30 @@ def write_fixture(root: Path, *, include_adapter: bool, include_observation: boo
     step_status_path = root / "step_status_rnn_audit.json"
     adapter_path = root / "stage_contact_wrench_adapter.json" if include_adapter else None
     observation_path = root / "same_run_observation.json" if include_observation else None
+    visual_path = root / "scripted_camera_final.png"
+    tcp_path = root / "runner" / "step5b" / "command_trace.csv"
     write_json(contact_path, contact_pair_payload(include_wrench=include_adapter))
     write_json(row_path, row_summary_payload(contact_path))
     write_json(stage_manifest_path, stage_manifest_payload())
     write_json(step_status_path, step_status_payload())
     if adapter_path:
         write_json(adapter_path, adapter_payload())
-    if observation_path:
-        write_json(observation_path, observation_payload())
-    return {
+    visual_path.write_text("png-placeholder\n", encoding="utf-8")
+    tcp_path.parent.mkdir(parents=True, exist_ok=True)
+    tcp_path.write_text("t,x,y,z\n0,0,0,0\n", encoding="utf-8")
+    paths = {
         "row": row_path,
         "contact": contact_path,
         "manifest": stage_manifest_path,
         "step": step_status_path,
         "adapter": adapter_path,
         "observation": observation_path,
+        "visual": visual_path,
+        "tcp": tcp_path,
     }
+    if observation_path:
+        write_json(observation_path, observation_payload(paths))
+    return paths
 
 
 class PerStageDualSensorContactAuditTest(unittest.TestCase):

@@ -937,16 +937,62 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
                 contact_dir,
                 contact_pair_path=contact_dir / "gazebo_contact_pair_log.json",
                 stage="step5b",
+                observation_id="stage-step5b-row-fixture-001",
+                time_window={
+                    "start": "2026-06-21T18:40:00+08:00",
+                    "end": "2026-06-21T18:40:10+08:00",
+                    "clock_source": "/clock",
+                },
             )
             payload = json.loads(report_path.read_text(encoding="utf-8"))
 
         self.assertEqual(report_path.name, gui_row.STAGE_CONTACT_WRENCH_ADAPTER_FILENAME)
         self.assertEqual(payload["schema"], gui_row.wrench_adapter.REPORT_SCHEMA)
         self.assertEqual(payload["stage_id"], "step5b")
+        self.assertEqual(payload["observation_id"], "stage-step5b-row-fixture-001")
+        self.assertEqual(payload["time_window"]["clock_source"], "/clock")
         self.assertEqual(payload["claim_tier"], "visual_only")
         self.assertFalse(payload["trace_written"])
         self.assertFalse(payload["total_contact_wrench_proven"])
         self.assertIn("missing_verified_gazebo_contact_wrench_provenance", payload["blockers"])
+
+    def test_finish_contact_topic_capture_tags_stage_observation_id(self) -> None:
+        class FinishedProcess:
+            returncode = 0
+
+            def poll(self) -> int:
+                return 0
+
+            def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+                return json.dumps({"contact": []}) + "\n", ""
+
+        with tempfile.TemporaryDirectory(prefix="ur10e_gui_contact_capture_observation_test_") as tmp:
+            case_dir = Path(tmp)
+            payload = gui_row.finish_contact_topic_capture(
+                FinishedProcess(),
+                case_dir,
+                stage="step5b",
+                topic="/ur10e/contact/gazebo/step5b/contacts",
+                world_path=case_dir / "step5b_visual.sdf",
+                max_messages=1,
+                observation_id="stage-step5b-row-fixture-001",
+                time_start="2026-06-21T18:40:00+08:00",
+            )
+            contact_log_path = case_dir / "contact_capture" / "gazebo_contact_pair_log.json"
+            adapter_path = case_dir / "contact_capture" / gui_row.STAGE_CONTACT_WRENCH_ADAPTER_FILENAME
+            contact_log = json.loads(contact_log_path.read_text(encoding="utf-8"))
+            adapter = json.loads(adapter_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(payload["stage_id"], "step5b")
+        self.assertEqual(payload["observation_id"], "stage-step5b-row-fixture-001")
+        self.assertEqual(payload["time_window"]["start"], "2026-06-21T18:40:00+08:00")
+        self.assertEqual(payload["capture"]["observation_id"], "stage-step5b-row-fixture-001")
+        self.assertEqual(contact_log["stage_id"], "step5b")
+        self.assertEqual(contact_log["observation_id"], "stage-step5b-row-fixture-001")
+        self.assertEqual(adapter["stage_id"], "step5b")
+        self.assertEqual(adapter["observation_id"], "stage-step5b-row-fixture-001")
+        self.assertEqual(adapter["time_window"], payload["time_window"])
+        self.assertFalse(adapter["total_contact_wrench_proven"])
 
     def test_stage_contact_wrench_adapter_summary_blocks_fake_positive_adapter(self) -> None:
         with tempfile.TemporaryDirectory(prefix="ur10e_gui_fake_adapter_test_") as tmp:

@@ -80,6 +80,7 @@ def run_row(args: argparse.Namespace) -> int:
     gui_config = (args.gui_config_dir or DEFAULT_GUI_CONFIG_DIR) / f"{args.view}.config"
     trace_path = case_dir / "command_trace.txt"
     row_started_at = _now()
+    stage_observation_id = f"{args.stage}-{args.view}-{row_started_at}"
     case_dir.mkdir(parents=True, exist_ok=True)
     world_dir.mkdir(parents=True, exist_ok=True)
 
@@ -214,6 +215,7 @@ def run_row(args: argparse.Namespace) -> int:
                 topic=contact_topic,
                 env=env,
                 max_messages=args.contact_capture_max_messages,
+                observation_id=stage_observation_id,
             )
             _write_trace(
                 trace_path,
@@ -300,6 +302,8 @@ def run_row(args: argparse.Namespace) -> int:
                 topic=contact_topic,
                 world_path=world,
                 max_messages=args.contact_capture_max_messages,
+                observation_id=stage_observation_id,
+                time_start=row_started_at,
             )
         _terminate_process(marker)
         _terminate_process(ffmpeg)
@@ -340,7 +344,7 @@ def run_row(args: argparse.Namespace) -> int:
             row_summary_path=row_summary_path,
             stage_simulated_ft_manifest_path=args.stage_simulated_ft_manifest,
             step_status_audit_path=args.step_status_audit,
-            observation_id=f"{args.stage}-{args.view}-{row_started_at}",
+            observation_id=stage_observation_id,
             time_start=row_started_at,
             time_end=row_finished_at,
             clock_source=args.stage_observation_clock_source,
@@ -1298,6 +1302,7 @@ def start_contact_topic_capture(
     topic: str,
     env: dict[str, str],
     max_messages: int,
+    observation_id: str | None = None,
 ) -> subprocess.Popen[str] | None:
     output_dir = case_dir / "contact_capture"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -1307,6 +1312,7 @@ def start_contact_topic_capture(
         "topic": topic,
         "command": command,
         "max_messages": max_messages,
+        "observation_id": observation_id,
         "started_at": _now(),
         "claim_tier": "visual_only",
         "target_claim_tier": "physical Gazebo collision/contact physics",
@@ -1344,6 +1350,8 @@ def finish_contact_topic_capture(
     topic: str,
     world_path: Path,
     max_messages: int,
+    observation_id: str | None = None,
+    time_start: str | None = None,
 ) -> dict[str, object]:
     output_dir = case_dir / "contact_capture"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -1367,17 +1375,28 @@ def finish_contact_topic_capture(
         returncode = process.returncode
     raw_jsonl.write_text(stdout or "", encoding="utf-8")
     stderr_log.write_text(stderr or "", encoding="utf-8")
+    finished_at = _now()
     payload = contact_capture.contact_pair_log_from_json_lines(
         (stdout or "").splitlines(),
         topic=topic,
         world_path=str(world_path),
         raw_jsonl_path=str(raw_jsonl),
         sensor_collision_role="surface",
-        generated_at=_now(),
+        generated_at=finished_at,
     )
+    payload["stage_id"] = stage
+    payload["observation_id"] = observation_id
+    time_window = {
+        "start": time_start,
+        "end": finished_at,
+        "clock_source": "ignition_transport_contact_topic_capture",
+    }
+    payload["time_window"] = time_window
     payload["capture"] = {
         "schema": CONTACT_CAPTURE_SCHEMA,
         "topic": topic,
+        "stage_id": stage,
+        "observation_id": observation_id,
         "command": ["ign", "topic", "-e", "-t", topic, "-n", str(max_messages), "--json-output"],
         "returncode": returncode,
         "timed_out_during_shutdown": timed_out,
@@ -1387,15 +1406,28 @@ def finish_contact_topic_capture(
         "claim_tier": "visual_only",
         "target_claim_tier": "physical Gazebo collision/contact physics",
         "forbidden_claim": "force_contact_physics_proven; total contact wrench; real bench/live contact",
-        "finished_at": _now(),
+        "finished_at": finished_at,
     }
     path = output_dir / "gazebo_contact_pair_log.json"
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    write_stage_contact_wrench_adapter(output_dir, contact_pair_path=path, stage=stage)
+    write_stage_contact_wrench_adapter(
+        output_dir,
+        contact_pair_path=path,
+        stage=stage,
+        observation_id=observation_id,
+        time_window=time_window,
+    )
     return payload
 
 
-def write_stage_contact_wrench_adapter(output_dir: Path, *, contact_pair_path: Path, stage: str) -> Path | None:
+def write_stage_contact_wrench_adapter(
+    output_dir: Path,
+    *,
+    contact_pair_path: Path,
+    stage: str,
+    observation_id: str | None = None,
+    time_window: dict[str, object] | None = None,
+) -> Path | None:
     try:
         return wrench_adapter.write_wrench_trace_or_report(
             output_dir,
@@ -1405,6 +1437,8 @@ def write_stage_contact_wrench_adapter(output_dir: Path, *, contact_pair_path: P
             report_filename=STAGE_CONTACT_WRENCH_ADAPTER_FILENAME,
             trace_filename=STAGE_CONTACT_WRENCH_TRACE_FILENAME,
             stage_id=stage,
+            observation_id=observation_id,
+            time_window=time_window,
         )
     except Exception as exc:  # noqa: BLE001 - artifact generation must downgrade, not crash row cleanup.
         path = output_dir / STAGE_CONTACT_WRENCH_ADAPTER_FILENAME
@@ -1413,6 +1447,8 @@ def write_stage_contact_wrench_adapter(output_dir: Path, *, contact_pair_path: P
             "generated_at": _now(),
             "mode": "offline_no_live_gazebo_contact_wrench_adapter",
             "stage_id": stage,
+            "observation_id": observation_id,
+            "time_window": time_window,
             "trace_written": False,
             "claim_tier": "visual_only",
             "target_claim_tier": "physical Gazebo collision/contact physics",

@@ -382,8 +382,41 @@ def observation_summary(payload: dict[str, Any]) -> tuple[dict[str, Any], list[s
         issues.append("same_run_stage_dual_sensor_observation.time_window.clock_source:missing")
     if missing_surfaces:
         issues.append("same_run_stage_dual_sensor_observation.surfaces:missing:" + ",".join(missing_surfaces))
+    if payload.get("validation_issues"):
+        issues.append("same_run_stage_dual_sensor_observation.validation_issues:not_empty")
+    if payload.get("blockers"):
+        issues.append("same_run_stage_dual_sensor_observation.blockers:not_empty")
+    issues.extend(observation_artifact_row_issues(payload))
     summary["same_run_stage_dual_sensor_observation_proven"] = not issues
     return summary, issues
+
+
+def observation_artifact_row_issues(payload: dict[str, Any]) -> list[str]:
+    rows = payload.get("artifact_rows")
+    if not isinstance(rows, list):
+        return ["same_run_stage_dual_sensor_observation.artifact_rows:missing"]
+    rows_by_surface = {
+        str(row.get("surface")): row
+        for row in rows
+        if isinstance(row, dict)
+    }
+    issues: list[str] = []
+    missing = sorted(surface for surface in REQUIRED_OBSERVATION_SURFACES if surface not in rows_by_surface)
+    if missing:
+        issues.append("same_run_stage_dual_sensor_observation.artifact_rows:missing_surfaces:" + ",".join(missing))
+    for surface in sorted(REQUIRED_OBSERVATION_SURFACES):
+        row = rows_by_surface.get(surface)
+        if not isinstance(row, dict):
+            continue
+        if row.get("exists") is not True:
+            issues.append(f"same_run_stage_dual_sensor_observation.artifact_rows.{surface}.exists:not_true")
+        if not row.get("path"):
+            issues.append(f"same_run_stage_dual_sensor_observation.artifact_rows.{surface}.path:missing")
+        if not row.get("sha256"):
+            issues.append(f"same_run_stage_dual_sensor_observation.artifact_rows.{surface}.sha256:missing")
+        if row.get("same_run_as_target") is not True:
+            issues.append(f"same_run_stage_dual_sensor_observation.artifact_rows.{surface}.same_run_as_target:not_true")
+    return issues
 
 
 def build_audit(

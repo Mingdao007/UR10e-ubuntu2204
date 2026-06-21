@@ -516,6 +516,7 @@ def build_wrench_trace_or_report(
     source_topic: str = DEFAULT_SOURCE_TOPIC,
     stage_id: str | None = None,
     observation_id: str | None = None,
+    time_window: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     rows = contact_pair_payload.get("rows") or []
     native_wrench_row_count = sum(1 for row in rows if isinstance(row, dict) and _raw_native_wrench(row) is not None)
@@ -573,6 +574,7 @@ def build_wrench_trace_or_report(
         "goal_lineage": "/home/andy/codex_handoffs/ur10e-gazebo-17h-sim-ft-rnn-goal-prompt-20260621-0056.md",
         "stage_id": stage_id,
         "observation_id": observation_id,
+        "time_window": time_window,
         "trace_written": bool(trace),
         "claim_tier": PHYSICAL_GAZEBO_CLAIM_TIER if trace else BLOCKED_CLAIM_TIER,
         "target_claim_tier": PHYSICAL_GAZEBO_CLAIM_TIER,
@@ -634,6 +636,7 @@ def write_wrench_trace_or_report(
     trace_filename: str = TRACE_FILENAME,
     stage_id: str | None = None,
     observation_id: str | None = None,
+    time_window: dict[str, Any] | None = None,
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     contact_pair_payload = _load_json(contact_pair_path)
@@ -643,6 +646,7 @@ def write_wrench_trace_or_report(
         source_topic=source_topic,
         stage_id=stage_id,
         observation_id=observation_id,
+        time_window=time_window,
     )
     report["inputs"] = {"contact_pair_path": str(contact_pair_path)}
     if isinstance(report.get("wrench_trace"), dict):
@@ -673,7 +677,17 @@ def main() -> int:
     parser.add_argument("--trace-filename", default=TRACE_FILENAME)
     parser.add_argument("--stage-id", default=None)
     parser.add_argument("--observation-id", default=None)
+    parser.add_argument("--time-window-start", default=None)
+    parser.add_argument("--time-window-end", default=None)
+    parser.add_argument("--clock-source", default=None)
     args = parser.parse_args()
+    time_window = None
+    if args.time_window_start or args.time_window_end or args.clock_source:
+        time_window = {
+            "start": args.time_window_start,
+            "end": args.time_window_end,
+            "clock_source": args.clock_source,
+        }
 
     report_path = write_wrench_trace_or_report(
         args.output_dir,
@@ -684,6 +698,7 @@ def main() -> int:
         trace_filename=args.trace_filename,
         stage_id=args.stage_id,
         observation_id=args.observation_id,
+        time_window=time_window,
     )
     print(report_path)
     return 0
