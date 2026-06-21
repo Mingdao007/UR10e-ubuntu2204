@@ -181,6 +181,8 @@ def run_row(args: argparse.Namespace) -> int:
 
     launch = marker = ffmpeg = contact_capture_proc = None
     runner_rc = None
+    abort_rc = None
+    abort_blocker = None
     contact_topic = gazebo_visual_contact_topic(args.stage)
     try:
         launch = _popen(
@@ -202,92 +204,99 @@ def run_row(args: argparse.Namespace) -> int:
         ready_after = _wait_for_action(workspace, env, args.action_ready_timeout_s)
         if ready_after is None:
             _write_trace(trace_path, {"action_ready": 0})
-            return 41
-        _write_trace(trace_path, {"action_ready": 1, "action_ready_after_s": ready_after})
-        if args.stage in CONTACT_STAGES and not args.disable_contact_capture:
-            contact_capture_proc = start_contact_topic_capture(
-                case_dir,
-                topic=contact_topic,
-                env=env,
-                max_messages=args.contact_capture_max_messages,
-                observation_id=stage_observation_id,
-            )
-            _write_trace(
-                trace_path,
-                {
-                    "contact_capture_pid": contact_capture_proc.pid if contact_capture_proc is not None else None,
-                    "contact_capture_topic": contact_topic,
-                },
-            )
+            abort_rc = 41
+            abort_blocker = "action_ready_timeout"
+        else:
+            _write_trace(trace_path, {"action_ready": 1, "action_ready_after_s": ready_after})
+            if args.stage in CONTACT_STAGES and not args.disable_contact_capture:
+                contact_capture_proc = start_contact_topic_capture(
+                    case_dir,
+                    topic=contact_topic,
+                    env=env,
+                    max_messages=args.contact_capture_max_messages,
+                    observation_id=stage_observation_id,
+                )
+                _write_trace(
+                    trace_path,
+                    {
+                        "contact_capture_pid": contact_capture_proc.pid if contact_capture_proc is not None else None,
+                        "contact_capture_topic": contact_topic,
+                    },
+                )
 
-        marker = _popen(
-            [
-                sys.executable,
-                str(workspace / "experiments/tase-contact-reproduction/tools/gazebo_tcp_marker_follower.py"),
-                "--stage",
-                args.stage,
-                "--output-dir",
-                str(case_dir / "marker"),
-                "--duration-s",
-                str(args.max_record_s),
-                "--marker-style",
-                args.marker_style,
-            ],
-            case_dir / "marker_follower.log",
-            cwd=workspace,
-            env=env,
-            new_session=True,
-        )
-        _write_trace(trace_path, {"marker_pid": marker.pid})
-        ffmpeg = _popen(
-            [
-                "ffmpeg",
-                "-y",
-                "-f",
-                "x11grab",
-                "-framerate",
-                "10",
-                "-video_size",
-                args.capture_size,
-                "-i",
-                f"{args.display}.0",
-                "-t",
-                str(args.max_record_s),
-                "-pix_fmt",
-                "yuv420p",
-                str(case_dir / "gui_recording.mp4"),
-            ],
-            case_dir / "ffmpeg.log",
-            cwd=workspace,
-            env=env,
-            new_session=True,
-        )
-        _write_trace(trace_path, {"ffmpeg_pid": ffmpeg.pid})
-        runner_rc = _run_logged(
-            [
-                sys.executable,
-                "-m",
-                "ur10e_example_controllers.ur10e_gazebo_matrix_runner",
-                "--stage",
-                args.stage,
-                "--output-dir",
-                str(case_dir / "runner"),
-                "--execute",
-            ],
-            case_dir / "runner.log",
-            cwd=workspace,
-            env=env,
-        )
-        _write_trace(trace_path, {"runner_rc": runner_rc})
-        camera_capture = capture_scripted_camera_image(
-            case_dir,
-            stage=args.stage,
-            view=args.view,
-            env=env,
-            timeout_s=args.scripted_camera_timeout_s,
-        )
-        _write_trace(trace_path, {"scripted_camera_capture": camera_capture})
-        capture_scene_introspection(case_dir, env=env, world_name=DEFAULT_WORLD_NAME, robot_model_name="ur10e_gazebo_matrix")
+            marker = _popen(
+                [
+                    sys.executable,
+                    str(workspace / "experiments/tase-contact-reproduction/tools/gazebo_tcp_marker_follower.py"),
+                    "--stage",
+                    args.stage,
+                    "--output-dir",
+                    str(case_dir / "marker"),
+                    "--duration-s",
+                    str(args.max_record_s),
+                    "--marker-style",
+                    args.marker_style,
+                ],
+                case_dir / "marker_follower.log",
+                cwd=workspace,
+                env=env,
+                new_session=True,
+            )
+            _write_trace(trace_path, {"marker_pid": marker.pid})
+            ffmpeg = _popen(
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-f",
+                    "x11grab",
+                    "-framerate",
+                    "10",
+                    "-video_size",
+                    args.capture_size,
+                    "-i",
+                    f"{args.display}.0",
+                    "-t",
+                    str(args.max_record_s),
+                    "-pix_fmt",
+                    "yuv420p",
+                    str(case_dir / "gui_recording.mp4"),
+                ],
+                case_dir / "ffmpeg.log",
+                cwd=workspace,
+                env=env,
+                new_session=True,
+            )
+            _write_trace(trace_path, {"ffmpeg_pid": ffmpeg.pid})
+            runner_rc = _run_logged(
+                [
+                    sys.executable,
+                    "-m",
+                    "ur10e_example_controllers.ur10e_gazebo_matrix_runner",
+                    "--stage",
+                    args.stage,
+                    "--output-dir",
+                    str(case_dir / "runner"),
+                    "--execute",
+                ],
+                case_dir / "runner.log",
+                cwd=workspace,
+                env=env,
+            )
+            _write_trace(trace_path, {"runner_rc": runner_rc})
+            camera_capture = capture_scripted_camera_image(
+                case_dir,
+                stage=args.stage,
+                view=args.view,
+                env=env,
+                timeout_s=args.scripted_camera_timeout_s,
+            )
+            _write_trace(trace_path, {"scripted_camera_capture": camera_capture})
+            capture_scene_introspection(
+                case_dir,
+                env=env,
+                world_name=DEFAULT_WORLD_NAME,
+                robot_model_name="ur10e_gazebo_matrix",
+            )
     finally:
         if args.stage in CONTACT_STAGES and not args.disable_contact_capture:
             finish_contact_topic_capture(
@@ -307,6 +316,42 @@ def run_row(args: argparse.Namespace) -> int:
         _kill_process(marker)
         _kill_process(ffmpeg)
         _kill_process_group(launch)
+
+    if abort_rc is not None:
+        row_finished_at = _now()
+        failure_paths = write_action_ready_failure_artifacts(
+            case_dir,
+            run_dir=run_dir,
+            stage=args.stage,
+            view=args.view,
+            runner_rc=abort_rc,
+            blocker=abort_blocker or "action_ready_timeout",
+            stage_simulated_ft_manifest_path=args.stage_simulated_ft_manifest,
+            step_status_audit_path=args.step_status_audit,
+            observation_id=stage_observation_id,
+            time_start=row_started_at,
+            time_end=row_finished_at,
+            clock_source=args.stage_observation_clock_source,
+            include_observation_manifest=not args.disable_stage_observation_manifest,
+            include_per_stage_audit=not args.disable_per_stage_contact_audit,
+            correlation_tolerance_s=args.per_stage_contact_correlation_tolerance_s,
+        )
+        _write_trace(
+            trace_path,
+            {
+                "finished_at": row_finished_at,
+                "row_summary": str(failure_paths["row_summary_path"]),
+                "same_run_stage_dual_sensor_observation_manifest": failure_paths.get(
+                    "same_run_stage_dual_sensor_observation_manifest_path"
+                ),
+                "per_stage_dual_sensor_contact_audit": failure_paths.get("per_stage_dual_sensor_contact_audit_path"),
+                "action_success": 0,
+                "blocker": abort_blocker or "action_ready_timeout",
+            },
+        )
+        release_visible_gazebo_row_lock(visible_lock_handle)
+        print(json.dumps(failure_paths["row_summary"], indent=2, sort_keys=True))
+        return abort_rc
 
     video = case_dir / "gui_recording.mp4"
     duration_s = _video_duration(video)
@@ -465,6 +510,193 @@ def _env_path_entries(value: str | None) -> list[str]:
 
 def _plugin_matches(entries: list[str], filename: str) -> list[str]:
     return [str(Path(entry) / filename) for entry in entries if (Path(entry) / filename).is_file()]
+
+
+def write_action_ready_failure_artifacts(
+    case_dir: Path,
+    *,
+    run_dir: Path,
+    stage: str,
+    view: str,
+    runner_rc: int,
+    blocker: str,
+    stage_simulated_ft_manifest_path: Path | None,
+    step_status_audit_path: Path | None,
+    observation_id: str,
+    time_start: str,
+    time_end: str,
+    clock_source: str,
+    include_observation_manifest: bool,
+    include_per_stage_audit: bool,
+    correlation_tolerance_s: float,
+) -> dict[str, object]:
+    row_summary_path = case_dir / "row_summary.json"
+    row = build_action_ready_failure_row(
+        case_dir,
+        run_dir=run_dir,
+        stage=stage,
+        view=view,
+        runner_rc=runner_rc,
+        blocker=blocker,
+    )
+    row = annotate_contact_stage_evidence_paths(
+        row,
+        case_dir=case_dir,
+        stage=stage,
+        include_observation_manifest=include_observation_manifest,
+        include_per_stage_audit=include_per_stage_audit,
+    )
+    write_row_summary(row, row_summary_path)
+    observation_path = None
+    if stage in CONTACT_STAGES and include_observation_manifest:
+        observation_path = write_stage_dual_sensor_observation_manifest(
+            case_dir,
+            stage=stage,
+            row=row,
+            row_summary_path=row_summary_path,
+            stage_simulated_ft_manifest_path=stage_simulated_ft_manifest_path,
+            step_status_audit_path=step_status_audit_path,
+            observation_id=observation_id,
+            time_start=time_start,
+            time_end=time_end,
+            clock_source=clock_source,
+        )
+    audit_path = None
+    if stage in CONTACT_STAGES and include_per_stage_audit:
+        audit_path = write_per_stage_dual_sensor_contact_audit(
+            case_dir,
+            stage=stage,
+            row=row,
+            row_summary_path=row_summary_path,
+            stage_simulated_ft_manifest_path=stage_simulated_ft_manifest_path,
+            step_status_audit_path=step_status_audit_path,
+            same_run_observation_manifest_path=observation_path,
+            correlation_tolerance_s=correlation_tolerance_s,
+        )
+    return {
+        "row_summary": row,
+        "row_summary_path": row_summary_path,
+        "same_run_stage_dual_sensor_observation_manifest_path": str(observation_path) if observation_path else None,
+        "per_stage_dual_sensor_contact_audit_path": str(audit_path) if audit_path else None,
+    }
+
+
+def build_action_ready_failure_row(
+    case_dir: Path,
+    *,
+    run_dir: Path,
+    stage: str,
+    view: str,
+    runner_rc: int,
+    blocker: str,
+) -> dict[str, object]:
+    contact_pair_log_path = case_dir / "contact_capture" / "gazebo_contact_pair_log.json"
+    contact_pair_summary = summarize_contact_pair_log(contact_pair_log_path)
+    stage_wrench_adapter_path = case_dir / "contact_capture" / STAGE_CONTACT_WRENCH_ADAPTER_FILENAME
+    stage_wrench_adapter_summary = summarize_stage_contact_wrench_adapter(stage_wrench_adapter_path)
+    visual_manifest_path = _visual_manifest_path(run_dir, stage)
+    visual_manifest = _read_json(visual_manifest_path, default={}) if visual_manifest_path else {}
+    surface_mesh_visual = (
+        visual_manifest.get("surface_mesh_visual")
+        if isinstance(visual_manifest.get("surface_mesh_visual"), dict)
+        else {}
+    )
+    return {
+        "schema": "ur10e_gazebo_real_aligned_gui_matrix_row_v2",
+        "stage": stage,
+        "view": view,
+        "view_role": _view_role(view),
+        "runner_rc": runner_rc,
+        "contact_stage": stage in CONTACT_STAGES,
+        "action_accepted": False,
+        "action_result_status": None,
+        "action_result_error_code": None,
+        "action_result_error_string": blocker,
+        "action_success": False,
+        "observed_motion": False,
+        "blocker": blocker,
+        "state_settled_success": False,
+        "force_loop_success": False if stage in CONTACT_STAGES else None,
+        "force_contact_source": gazebo.FORCE_CONTACT_SOURCE,
+        "force_contact_physics_proven": False,
+        "gazebo_contact_pair_log_path": str(contact_pair_log_path),
+        "gazebo_contact_pair_log_captured": contact_pair_summary["captured"],
+        "gazebo_contact_pair_log_evidence": contact_pair_summary["contact_pair_log_evidence"],
+        "gazebo_contact_pair_log_row_count": contact_pair_summary["row_count"],
+        "gazebo_contact_pair_matching_row_count": contact_pair_summary["matching_row_count"],
+        "gazebo_contact_native_wrench_row_count": contact_pair_summary["native_wrench_row_count"],
+        "gazebo_contact_pair_log_claim_tier": contact_pair_summary["claim_tier"],
+        "gazebo_contact_pair_log_target_claim_tier": contact_pair_summary["target_claim_tier"],
+        "gazebo_contact_pair_log_status": contact_pair_summary["status"],
+        "gazebo_contact_pair_log_validation_issues": contact_pair_summary["validation_issues"],
+        "gazebo_contact_wrench_contact_correlation_proven": False,
+        "stage_contact_wrench_adapter_path": str(stage_wrench_adapter_path),
+        "stage_contact_wrench_adapter_present": stage_wrench_adapter_summary["present"],
+        "stage_contact_wrench_adapter_claim_tier": stage_wrench_adapter_summary["claim_tier"],
+        "stage_contact_wrench_trace_written": stage_wrench_adapter_summary["trace_written"],
+        "stage_contact_wrench_trace_path": stage_wrench_adapter_summary["trace_path"],
+        "stage_contact_wrench_force_source": stage_wrench_adapter_summary["force_source"],
+        "stage_total_contact_wrench_proven": stage_wrench_adapter_summary["total_contact_wrench_proven"],
+        "stage_total_contact_wrench_row_count": stage_wrench_adapter_summary["total_contact_wrench_row_count"],
+        "stage_contact_wrench_validation_issues": stage_wrench_adapter_summary["validation_issues"],
+        "stage_contact_wrench_forbidden_claim": (
+            "real bench/live contact; simulated_ft; per-stage physical Gazebo contact unless total contact "
+            "wrench and correlation gates pass"
+        ),
+        "gazebo_contact_pair_log_forbidden_claim": "force_contact_physics_proven; total contact wrench; real bench/live contact",
+        "gui_evidence_captured": False,
+        "scripted_camera_evidence_captured": False,
+        "visual_evidence_captured": False,
+        "scripted_camera_final_png": str(case_dir / "scripted_camera_final.png"),
+        "scripted_camera_capture_path": str(case_dir / "scripted_camera_capture.json"),
+        "video_duration_s": None,
+        "video_path": str(case_dir / "gui_recording.mp4"),
+        "start_png": str(case_dir / "start_root.png"),
+        "mid_png": str(case_dir / "mid_root.png"),
+        "final_png": str(case_dir / "final_root.png"),
+        "marker_manifest": str(case_dir / "marker" / "tcp_marker_manifest.json"),
+        "marker_pose_count": 0,
+        "marker_spawned": False,
+        "marker_pose_source": None,
+        "marker_pose_frame": None,
+        "pose_source": None,
+        "pose_frame": None,
+        "matrix_summary": str(case_dir / "runner" / "matrix_summary.json"),
+        "trace_path": None,
+        "visual_world_manifest": str(visual_manifest_path) if visual_manifest_path else None,
+        "surface_frame": visual_manifest.get("surface_frame"),
+        "surface": visual_manifest.get("surface"),
+        "final_visual_pose_world": None,
+        "contact_target_pose_world": visual_manifest.get("contact_target_pose_world"),
+        "surface_tcp_sanity": visual_manifest.get("surface_tcp_sanity"),
+        "observer_review_present": False,
+        "observer_review_path": str(case_dir / "observer_review.json"),
+        "observer_visual_review_status": "not_reached_action_ready",
+        "robot_posture_visible": False,
+        "eoat_tooling_visible": False,
+        "tcp_marker_visible": False,
+        "surface_path_visible": False,
+        "robot_tool_surface_relation_visible": False,
+        "model_composition_audit": None,
+        "actual_eoat_mesh_visual_present": False,
+        "actual_contact_surface_mesh_visual_present": bool(surface_mesh_visual.get("primary_visual_uses_real_mesh")),
+        "actual_contact_surface_mesh_uri": surface_mesh_visual.get("mesh_uri"),
+        "primitive_proxy_not_primary_visual": False,
+        "primitive_proxy_not_main_visual_cue": False,
+        "observer_level_demo_realism": False,
+        "observer_visual_pass": False,
+        "observer_visual_claim_tier": "visual_only",
+        "observer_visual_forbidden_claim": (
+            "physical Gazebo collision/contact physics; simulated_ft; real bench/live contact; "
+            "observer demo acceptance"
+        ),
+        "row_failure_schema": "ur10e_gazebo_real_aligned_gui_matrix_action_ready_failure_v1",
+        "row_failure_claim_tier": "visual_only",
+        "row_failure_forbidden_claim": (
+            "Gazebo action readiness; row-local contact pair/log; native plus total Gazebo contact wrench; "
+            "same-run dual-sensor binding; real bench/live contact"
+        ),
+    }
 
 
 def build_row_summary(

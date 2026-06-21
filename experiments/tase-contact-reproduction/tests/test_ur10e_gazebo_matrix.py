@@ -1222,6 +1222,116 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
         self.assertIn("stage_total_contact_wrench:not_proven", audit_payload["blockers"])
         self.assertIn("same_run_stage_dual_sensor_observation:not_proven", audit_payload["blockers"])
 
+    def test_run_row_action_ready_failure_writes_fail_closed_artifacts(self) -> None:
+        class DummyProcess:
+            pid = 4242
+
+            def poll(self) -> int | None:
+                return 0
+
+            def send_signal(self, _signal: int) -> None:
+                return None
+
+            def terminate(self) -> None:
+                return None
+
+        with tempfile.TemporaryDirectory(prefix="ur10e_gui_row_action_ready_failure_test_") as tmp:
+            run_dir = Path(tmp) / "run"
+            stage_manifest = Path(tmp) / "step_simulated_ft_evidence_manifest.json"
+            stage_manifest.write_text(
+                json.dumps(
+                    {
+                        "schema": "ur10e_step_simulated_ft_evidence_pack_v1",
+                        "claim_tier": "simulated_ft",
+                        "stages": {
+                            "step5b": {
+                                "claim_tier": "simulated_ft",
+                                "valid": True,
+                                "evidence_fields_present": {
+                                    "stamp": True,
+                                    "frame_id": True,
+                                    "source": True,
+                                    "status": True,
+                                    "baseline": True,
+                                    "log_evidence": True,
+                                },
+                            }
+                        },
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            step_status = Path(tmp) / "step_status_rnn_audit.json"
+            step_status.write_text(
+                json.dumps(
+                    {
+                        "schema": "ur10e_step_status_rnn_audit_v1",
+                        "step_status_matrix": [{"stage_id": "step5b", "claim_tier": "simulated_ft"}],
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            args = gui_row.parse_args(
+                [
+                    "row",
+                    "--workspace",
+                    str(WORKSPACE),
+                    "--run-dir",
+                    str(run_dir),
+                    "--stage",
+                    "step5b",
+                    "--view",
+                    "close_detail",
+                    "--stage-simulated-ft-manifest",
+                    str(stage_manifest),
+                    "--step-status-audit",
+                    str(step_status),
+                    "--visible-gazebo-lock-path",
+                    str(Path(tmp) / "visible.lock"),
+                ]
+            )
+
+            with (
+                mock.patch.object(gui_row.subprocess, "run") as subprocess_run,
+                mock.patch.object(gui_row, "_wait_for_action", return_value=None),
+                mock.patch.object(gui_row, "_popen", return_value=DummyProcess()),
+                mock.patch.object(gui_row, "_run_logged") as run_logged,
+                mock.patch.object(gui_row.time, "sleep", return_value=None),
+                mock.patch.object(sys, "stdout", io.StringIO()),
+            ):
+                subprocess_run.return_value.returncode = 0
+                subprocess_run.return_value.stdout = ""
+                self.assertEqual(gui_row.run_row(args), 41)
+                run_logged.assert_not_called()
+
+            case_dir = gui_row.row_case_dir(run_dir, "step5b", "close_detail")
+            row_summary = json.loads((case_dir / "row_summary.json").read_text(encoding="utf-8"))
+            observation_path = case_dir / "stage_dual_sensor_observation" / (
+                "step5b_same_run_stage_dual_sensor_observation_manifest.json"
+            )
+            audit_path = case_dir / "per_stage_dual_sensor_contact" / (
+                "step5b_per_stage_dual_sensor_contact_audit.json"
+            )
+            observation_payload = json.loads(observation_path.read_text(encoding="utf-8"))
+            audit_payload = json.loads(audit_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(row_summary["blocker"], "action_ready_timeout")
+        self.assertEqual(row_summary["row_failure_claim_tier"], "visual_only")
+        self.assertFalse(row_summary["visual_evidence_captured"])
+        self.assertFalse(row_summary["stage_total_contact_wrench_proven"])
+        self.assertFalse(observation_payload["same_run_stage_dual_sensor_observation_proven"])
+        self.assertIn("same_run_stage_dual_sensor_observation:not_proven", observation_payload["blockers"])
+        self.assertFalse(
+            audit_payload["per_stage_physical_gazebo_contact"]["per_stage_physical_gazebo_contact_proven"]
+        )
+        self.assertIn("per_stage_physical_gazebo_contact:not_proven", audit_payload["blockers"])
+
     def test_stage_observation_manifest_writer_blocks_unproven_stage_adapter(self) -> None:
         with tempfile.TemporaryDirectory(prefix="ur10e_gui_stage_observation_test_") as tmp:
             run_dir = Path(tmp)
