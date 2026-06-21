@@ -29,6 +29,8 @@ from ur10e_example_controllers.step5a_cartesian_cycloid_motion import JOINT_NAME
 
 DEFAULT_WORLD_NAME = "ur10e_step5_table_world"
 DEFAULT_MODEL_NAME = "active_tcp_marker"
+DEFAULT_MARKER_STYLE = "debug"
+MARKER_STYLES = ("debug", "observer_subtle")
 DEFAULT_UPDATE_PERIOD_S = 0.10
 DEFAULT_SERVICE_TIMEOUT_MS = 1000
 POSE_SOURCE_ACTIVE_TCP = "joint_states_to_runner_fk_active_tcp_base_to_gazebo_world"
@@ -55,7 +57,15 @@ def _model_bundle():
     return build_calibrated_model()
 
 
-def build_marker_model_sdf(model_name: str = DEFAULT_MODEL_NAME) -> str:
+def build_marker_model_sdf(model_name: str = DEFAULT_MODEL_NAME, *, marker_style: str = DEFAULT_MARKER_STYLE) -> str:
+    if marker_style == "debug":
+        return _build_debug_marker_model_sdf(model_name)
+    if marker_style == "observer_subtle":
+        return _build_observer_subtle_marker_model_sdf(model_name)
+    raise ValueError(f"unsupported marker_style {marker_style!r}")
+
+
+def _build_debug_marker_model_sdf(model_name: str) -> str:
     return dedent(
         f"""\
         <sdf version="1.7">
@@ -178,10 +188,138 @@ def build_marker_model_sdf(model_name: str = DEFAULT_MODEL_NAME) -> str:
     )
 
 
-def write_marker_model_sdf(output_dir: Path, model_name: str = DEFAULT_MODEL_NAME) -> Path:
+def _build_observer_subtle_marker_model_sdf(model_name: str) -> str:
+    return dedent(
+        f"""\
+        <sdf version="1.7">
+          <model name="{model_name}">
+            <static>true</static>
+            <link name="tcp_marker_link">
+              <visual name="tcp_contact_pad_orange">
+                <pose>0 0 0.002 0 0 0</pose>
+                <geometry>
+                  <box>
+                    <size>0.024 0.024 0.004</size>
+                  </box>
+                </geometry>
+                <material>
+                  <ambient>0.22 0.22 0.20 1</ambient>
+                  <diffuse>0.22 0.22 0.20 1</diffuse>
+                  <emissive>0 0 0 1</emissive>
+                </material>
+              </visual>
+              <visual name="tcp_magenta_sphere">
+                <pose>0 0 0.012 0 0 0</pose>
+                <geometry>
+                  <sphere>
+                    <radius>0.007</radius>
+                  </sphere>
+                </geometry>
+                <material>
+                  <ambient>0.16 0.16 0.16 1</ambient>
+                  <diffuse>0.16 0.16 0.16 1</diffuse>
+                  <emissive>0 0 0 1</emissive>
+                </material>
+              </visual>
+              <visual name="tcp_probe_sleeve_yellow">
+                <pose>0 0 0.028 0 0 0</pose>
+                <geometry>
+                  <cylinder>
+                    <radius>0.004</radius>
+                    <length>0.056</length>
+                  </cylinder>
+                </geometry>
+                <material>
+                  <ambient>0.28 0.28 0.25 1</ambient>
+                  <diffuse>0.28 0.28 0.25 1</diffuse>
+                  <emissive>0 0 0 1</emissive>
+                </material>
+              </visual>
+              <visual name="tcp_white_mast">
+                <pose>0 0 0.035 0 0 0</pose>
+                <geometry>
+                  <cylinder>
+                    <radius>0.002</radius>
+                    <length>0.070</length>
+                  </cylinder>
+                </geometry>
+                <material>
+                  <ambient>0.38 0.38 0.36 1</ambient>
+                  <diffuse>0.38 0.38 0.36 1</diffuse>
+                  <emissive>0 0 0 1</emissive>
+                </material>
+              </visual>
+              <visual name="tcp_tool_plate_silver">
+                <pose>0 0 0.030 0 0 0</pose>
+                <geometry>
+                  <box>
+                    <size>0.034 0.026 0.005</size>
+                  </box>
+                </geometry>
+                <material>
+                  <ambient>0.42 0.42 0.39 1</ambient>
+                  <diffuse>0.42 0.42 0.39 1</diffuse>
+                  <emissive>0 0 0 1</emissive>
+                </material>
+              </visual>
+              <visual name="tcp_sensor_body_teal">
+                <pose>0 0 0.046 0 0 0</pose>
+                <geometry>
+                  <cylinder>
+                    <radius>0.013</radius>
+                    <length>0.022</length>
+                  </cylinder>
+                </geometry>
+                <material>
+                  <ambient>0.20 0.22 0.22 1</ambient>
+                  <diffuse>0.20 0.22 0.22 1</diffuse>
+                  <emissive>0 0 0 1</emissive>
+                </material>
+              </visual>
+              <visual name="tcp_cyan_crossbar_x">
+                <pose>0 0 0.026 0 1.57079632679 0</pose>
+                <geometry>
+                  <cylinder>
+                    <radius>0.0015</radius>
+                    <length>0.038</length>
+                  </cylinder>
+                </geometry>
+                <material>
+                  <ambient>0.30 0.30 0.30 1</ambient>
+                  <diffuse>0.30 0.30 0.30 1</diffuse>
+                  <emissive>0 0 0 1</emissive>
+                </material>
+              </visual>
+              <visual name="tcp_magenta_crossbar_y">
+                <pose>0 0 0.026 1.57079632679 0 0</pose>
+                <geometry>
+                  <cylinder>
+                    <radius>0.0015</radius>
+                    <length>0.038</length>
+                  </cylinder>
+                </geometry>
+                <material>
+                  <ambient>0.30 0.30 0.30 1</ambient>
+                  <diffuse>0.30 0.30 0.30 1</diffuse>
+                  <emissive>0 0 0 1</emissive>
+                </material>
+              </visual>
+            </link>
+          </model>
+        </sdf>
+        """
+    )
+
+
+def write_marker_model_sdf(
+    output_dir: Path,
+    model_name: str = DEFAULT_MODEL_NAME,
+    *,
+    marker_style: str = DEFAULT_MARKER_STYLE,
+) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     path = (output_dir / f"{model_name}.sdf").resolve()
-    path.write_text(build_marker_model_sdf(model_name), encoding="utf-8")
+    path.write_text(build_marker_model_sdf(model_name, marker_style=marker_style), encoding="utf-8")
     return path
 
 
@@ -214,6 +352,7 @@ def write_marker_artifacts(
     stage_id: str,
     world_name: str,
     model_name: str,
+    marker_style: str = DEFAULT_MARKER_STYLE,
     pose_records: Sequence[MarkerPose],
     pose_source: str,
     spawned: bool | None = None,
@@ -241,6 +380,7 @@ def write_marker_artifacts(
         "stage_id": stage_id,
         "world_name": world_name,
         "model_name": model_name,
+        "marker_style": marker_style,
         "pose_source": pose_source,
         "pose_frame": runner.GAZEBO_WORLD_FRAME,
         "source_frame": runner.ACTIVE_TCP_FRAME,
@@ -466,7 +606,7 @@ def run_follower(args: argparse.Namespace) -> MarkerArtifacts:
     from rclpy.node import Node as RosNode
     from sensor_msgs.msg import JointState
 
-    marker_sdf_path = write_marker_model_sdf(args.output_dir, args.model_name)
+    marker_sdf_path = write_marker_model_sdf(args.output_dir, args.model_name, marker_style=args.marker_style)
     stop_requested = {"value": False}
 
     def _request_stop(_signum, _frame) -> None:
@@ -539,6 +679,7 @@ def run_follower(args: argparse.Namespace) -> MarkerArtifacts:
             stage_id=args.stage,
             world_name=args.world_name,
             model_name=args.model_name,
+            marker_style=args.marker_style,
             pose_records=node.pose_records,
             pose_source=POSE_SOURCE_ACTIVE_TCP,
             spawned=node.spawned,
@@ -558,6 +699,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--world-name", default=DEFAULT_WORLD_NAME)
     parser.add_argument("--model-name", default=DEFAULT_MODEL_NAME)
+    parser.add_argument("--marker-style", choices=MARKER_STYLES, default=DEFAULT_MARKER_STYLE)
     parser.add_argument("--joint-state-topic", default="/joint_states")
     parser.add_argument("--update-period-s", type=float, default=DEFAULT_UPDATE_PERIOD_S)
     parser.add_argument("--duration-s", type=float, default=0.0, help="Run duration; <=0 means until interrupted.")

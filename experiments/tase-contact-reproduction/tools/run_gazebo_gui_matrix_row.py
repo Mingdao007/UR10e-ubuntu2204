@@ -38,6 +38,8 @@ TRACE_STATUS = {
 DEFAULT_GUI_CONFIG_DIR = EXPERIMENT / "config" / "gazebo_gui_real_aligned_views"
 POSE_SOURCE_ACTIVE_TCP = "joint_states_to_runner_fk_active_tcp_base_to_gazebo_world"
 DEFAULT_WORLD_NAME = "ur10e_step5_table_world"
+DEFAULT_OBSERVER_MARKER_STYLE = "observer_subtle"
+MARKER_STYLES = ("debug", "observer_subtle")
 ENHANCED_MARKER_VISUAL_NAMES = frozenset(
     {
         "tcp_contact_pad_orange",
@@ -85,6 +87,7 @@ def run_row(args: argparse.Namespace) -> int:
             "display": env["DISPLAY"],
             "local_ros_prefix": str(args.local_ros_prefix.resolve()) if args.local_ros_prefix else "",
             "ign_plugin_path": env.get("IGN_GAZEBO_SYSTEM_PLUGIN_PATH", ""),
+            "marker_style": args.marker_style,
         },
         mode="w",
     )
@@ -143,6 +146,8 @@ def run_row(args: argparse.Namespace) -> int:
                 str(case_dir / "marker"),
                 "--duration-s",
                 str(args.max_record_s),
+                "--marker-style",
+                args.marker_style,
             ],
             case_dir / "marker_follower.log",
             cwd=workspace,
@@ -362,6 +367,7 @@ def build_row_summary(
         "mid_png": str(mid_png),
         "final_png": str(final_png),
         "marker_manifest": str(marker_manifest),
+        "marker_style": marker_payload.get("marker_style"),
         "marker_pose_count": marker_pose_count,
         "marker_spawned": marker_payload.get("spawned"),
         "marker_pose_source": marker_payload.get("pose_source"),
@@ -1033,6 +1039,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     row.add_argument("--action-ready-timeout-s", type=int, default=75)
     row.add_argument("--max-record-s", type=float, default=240.0)
     row.add_argument("--scripted-camera-timeout-s", type=float, default=8.0)
+    row.add_argument("--marker-style", choices=MARKER_STYLES, default=DEFAULT_OBSERVER_MARKER_STYLE)
     row.add_argument("--update-summary", action="store_true")
     row.set_defaults(func=run_row)
 

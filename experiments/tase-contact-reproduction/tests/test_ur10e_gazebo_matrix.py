@@ -169,6 +169,10 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
                 manifest["surface_viewer_affordance"]["policy"],
                 "non_colliding_viewer_affordance_surface_outline_and_contact_target_marker",
             )
+            self.assertEqual(manifest["surface_viewer_affordance"]["style"], visual_world.VISUAL_AFFORDANCE_STYLE)
+            self.assertIn("not_primary_visual_cue", manifest["surface_viewer_affordance"]["primitive_proxy_visibility_policy"])
+            self.assertEqual(manifest["reference_path_style"], visual_world.VISUAL_AFFORDANCE_STYLE)
+            self.assertIn("not_primary_visual_cue", manifest["reference_path_visibility_policy"])
             self.assertTrue(manifest["surface_mesh_visual"]["primary_visual_uses_real_mesh"])
             self.assertEqual(manifest["surface_mesh_visual"]["mesh_uri"], gazebo.CONTACT_SURFACE_REAL_MESH_URI)
             self.assertEqual(manifest["surface_mesh_visual"]["scale"], "0.001 0.001 0.001")
@@ -178,6 +182,19 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             root = ET.parse(output).getroot()
             surface = root.find("./world/model[@name='step5_contact_surface']")
             self.assertIsNotNone(surface)
+            surface_affordance = root.find("./world/model[@name='step5b_surface_viewer_affordance']")
+            self.assertIsNotNone(surface_affordance)
+            path_visual = root.find("./world/model[@name='step5b_reference_path_visual']")
+            self.assertIsNotNone(path_visual)
+            for source in (
+                ET.tostring(surface_affordance, encoding="unicode"),
+                ET.tostring(path_visual, encoding="unicode"),
+            ):
+                self.assertNotIn("1.0 0.85 0.0 1.0", source)
+                self.assertNotIn("1.0 0.0 1.0 1.0", source)
+                self.assertNotIn("0.0 1.0 1.0 1.0", source)
+                self.assertNotIn("0.0 1.0 0.0 1.0", source)
+                self.assertNotIn("1.0 0.0 0.0 1.0", source)
             pose = [float(value) for value in surface.findtext("pose").split()]
             size = [
                 float(value)
@@ -212,6 +229,8 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
                     self.assertEqual(manifest["stage_id"], stage_id)
                     self.assertTrue(manifest["surface_viewer_affordance"]["added"])
                     self.assertIn("non_colliding_viewer_affordance", manifest["surface_viewer_affordance"]["policy"])
+                    self.assertEqual(manifest["surface_viewer_affordance"]["style"], visual_world.VISUAL_AFFORDANCE_STYLE)
+                    self.assertEqual(manifest["reference_path_style"], visual_world.VISUAL_AFFORDANCE_STYLE)
                     self.assertTrue(manifest["path_inside_surface_xy"])
                     self.assertEqual(manifest["force_loop_expected"], stage_id in contact_stage_ids)
                     self.assertEqual(manifest["active_tcp_reference_frame"], gazebo.ACTIVE_TCP_FRAME)
@@ -250,7 +269,7 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
                         self.assertIsNone(sanity["contact_target_xy_inside_surface"])
                         self.assertFalse(manifest["contact_pair_logging"]["enabled"])
 
-    def test_tcp_marker_model_sdf_is_non_colliding_and_high_contrast(self) -> None:
+    def test_tcp_marker_model_sdf_default_is_non_colliding_debug_high_contrast(self) -> None:
         source = tcp_marker.build_marker_model_sdf("active_tcp_marker")
         self.assertIn('model name="active_tcp_marker"', source)
         self.assertIn("tcp_magenta_sphere", source)
@@ -261,6 +280,48 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
         self.assertIn("tcp_white_mast", source)
         self.assertIn("1 0 1 1", source)
         self.assertNotIn("<collision", source)
+
+    def test_tcp_marker_model_sdf_observer_subtle_is_non_colliding_and_low_dominance(self) -> None:
+        source = tcp_marker.build_marker_model_sdf("active_tcp_marker", marker_style="observer_subtle")
+        self.assertIn('model name="active_tcp_marker"', source)
+        self.assertIn("tcp_magenta_sphere", source)
+        self.assertIn("tcp_contact_pad_orange", source)
+        self.assertIn("tcp_probe_sleeve_yellow", source)
+        self.assertIn("tcp_tool_plate_silver", source)
+        self.assertIn("tcp_sensor_body_teal", source)
+        self.assertIn("tcp_white_mast", source)
+        self.assertIn("<size>0.024 0.024 0.004</size>", source)
+        self.assertIn("<radius>0.007</radius>", source)
+        self.assertIn("<emissive>0 0 0 1</emissive>", source)
+        self.assertNotIn("1 0 1 1", source)
+        self.assertNotIn("1 0.45 0 1", source)
+        self.assertNotIn("0 1 1 1", source)
+        self.assertNotIn("<collision", source)
+
+    def test_gui_row_defaults_to_observer_subtle_marker_style(self) -> None:
+        args = gui_row.parse_args(
+            [
+                "row",
+                "--run-dir",
+                "/tmp/ur10e_marker_style_parse_fixture",
+                "--stage",
+                "step5b",
+                "--view",
+                "close_detail",
+            ]
+        )
+        self.assertEqual(args.marker_style, "observer_subtle")
+
+    def test_tcp_marker_follower_defaults_to_debug_marker_style(self) -> None:
+        args = tcp_marker.parse_args(
+            [
+                "--stage",
+                "step5b",
+                "--output-dir",
+                "/tmp/ur10e_marker_style_parse_fixture",
+            ]
+        )
+        self.assertEqual(args.marker_style, "debug")
 
     def test_tcp_marker_pose_uses_runner_fk_for_step5b_final_command(self) -> None:
         with tempfile.TemporaryDirectory(prefix="ur10e_gazebo_tcp_marker_test_") as tmp:
@@ -342,6 +403,7 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             self.assertEqual(payload["base_to_gazebo_world_rpy"], list(gazebo.BASE_TO_GAZEBO_WORLD_RPY))
             self.assertEqual(payload["active_tcp_offset_tool0_m"], list(gazebo.ACTIVE_TCP_OFFSET_TOOL0_M))
             self.assertEqual(payload["model_name"], "active_tcp_marker")
+            self.assertEqual(payload["marker_style"], "debug")
             self.assertEqual(payload["pose_count"], 1)
 
     def test_pose_info_reader_accepts_multiple_json_messages(self) -> None:
@@ -578,6 +640,7 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             self.assertTrue(row["observer_visual_pass"], row["observer_visual_failure_reasons"])
             self.assertTrue(row["observer_review_present"])
             self.assertEqual(row["observer_visual_review_source"], "human_observer_row_review_v1")
+            self.assertEqual(row["marker_style"], "observer_subtle")
             self.assertEqual(row["observer_visual_criteria"]["active_tcp_pose_source_valid"], True)
             self.assertEqual(row["observer_visual_criteria"]["active_tcp_pose_frame_valid"], True)
             self.assertEqual(
@@ -743,6 +806,7 @@ class Ur10eGazeboMatrixTest(unittest.TestCase):
             "schema": "ur10e_gazebo_tcp_marker_manifest_v2",
             "stage_id": "step5b",
             "spawned": True,
+            "marker_style": "observer_subtle",
             "pose_count": 3,
             "pose_source": tcp_marker.POSE_SOURCE_ACTIVE_TCP,
             "pose_frame": gazebo.GAZEBO_WORLD_FRAME,
