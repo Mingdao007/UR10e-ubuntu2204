@@ -101,6 +101,30 @@
     "communication_delay_T_mapping",
     "Eq23 nonzero-command stability from zero initial lambda under printed-sign dynamics"
   ],
+  "pdf_text_audit": {
+    "source": "pdftotext -layout over pdf_source",
+    "claim_tier": "virtual/software force-loop",
+    "verified_fields": [
+      "finite_time_rnn_state_equation",
+      "rnn_gain_scalar_not_matrix",
+      "sigr_exponent_r_domain_and_examples",
+      "force_motion_task_equations",
+      "orientation_compliance_equations",
+      "constraint_qp_or_kkt_form",
+      "paper_section_vi_experimental_parameters"
+    ],
+    "partial_or_unresolved_fields": [
+      "alpha_escape_velocity_gain_numeric_value",
+      "production_sigr_exponent_r_selection",
+      "communication_delay_T_to_dt_mapping",
+      "Eq23_nonzero_command_stability_from_zero_initial_lambda",
+      "step5c_strict_dryrun_equation_subset",
+      "paper_task_variable_to_ur10e_6dof_qdot_mapping",
+      "filtered_live_normal_compatibility",
+      "force_ladder_parameters"
+    ],
+    "acceptance_effect": "PDF text now supports the core equation/parameter extraction, but strict_rnn_enabled remains false until unresolved local adaptation and stability gates close."
+  },
   "implementation_assumptions": {
     "alpha_escape_velocity_gain_default_s_inv": {
       "value": 1.0,
@@ -130,13 +154,6 @@
     }
   },
   "pending_pdf_verify": [
-    "finite_time_rnn_state_equation",
-    "rnn_gain_matrix",
-    "sigr_exponent_r",
-    "force_motion_task_equations",
-    "orientation_compliance_equations",
-    "constraint_qp_or_kkt_form",
-    "paper_section_vi_experimental_parameters",
     "alpha_escape_velocity_gain",
     "production_sigr_exponent_r",
     "communication_delay_T_mapping",

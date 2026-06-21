@@ -51,6 +51,11 @@ P2_CONTACT_CORRELATION_AUDIT = (
 )
 STEP5D_PAPER_TRUTH = EXPERIMENT_ROOT / "config" / "step5c_tase_paper_truth.json"
 STEP5D_NUMERIC_SANITY = RUNS / "step5d_numeric_sanity_20260614_215555" / "step5d_numeric_sanity.json"
+STEP5C_PAPER_TRUTH_PDF_AUDIT = (
+    RUNS
+    / "ur10e_gazebo_17h_sim_ft_rnn_20260621_0905_step5c_pdf_truth_audit"
+    / "step5c_paper_truth_pdf_audit.json"
+)
 STAGE_SIM_FT_PACK_SCHEMA = "ur10e_step_simulated_ft_evidence_pack_v1"
 STAGE_SIM_FT_LOG_SCHEMA = "ur10e_stage_canonical_simulated_ft_log_v1"
 EPS = 1e-9
@@ -617,6 +622,7 @@ def pending_paper_truth_fields(payload: dict[str, Any]) -> list[str]:
 def strict_rnn_final_acceptance_gate() -> dict[str, Any]:
     paper_truth = load_json(STEP5D_PAPER_TRUTH)
     numeric_sanity = load_json(STEP5D_NUMERIC_SANITY) if STEP5D_NUMERIC_SANITY.exists() else {}
+    pdf_audit = load_json(STEP5C_PAPER_TRUTH_PDF_AUDIT) if STEP5C_PAPER_TRUTH_PDF_AUDIT.exists() else {}
     pending = pending_paper_truth_fields(paper_truth)
     strict_rnn_enabled = bool(paper_truth.get("strict_rnn_enabled"))
     numeric_sanity_pass = bool(numeric_sanity.get("overall_pass"))
@@ -658,6 +664,16 @@ def strict_rnn_final_acceptance_gate() -> dict[str, Any]:
             "strict_rnn_enabled": strict_rnn_enabled,
             "pending_pdf_verify_count": len(pending),
             "pending_pdf_verify_fields": pending,
+            "paper_truth_pdf_audit": rel(STEP5C_PAPER_TRUTH_PDF_AUDIT),
+            "paper_truth_pdf_audit_ok": bool(pdf_audit.get("audit_ok")),
+            "paper_truth_pdf_verified_fields": pdf_audit.get(
+                "verified_fields",
+                paper_truth.get("pdf_text_audit", {}).get("verified_fields", []),
+            ),
+            "paper_truth_pdf_remaining_pending_count": pdf_audit.get(
+                "remaining_pending_count",
+                len(pending),
+            ),
             "numeric_sanity": rel(STEP5D_NUMERIC_SANITY),
             "numeric_sanity_overall_pass": numeric_sanity_pass,
             "numeric_sanity_force_input": numeric_sanity.get("assumptions", {}).get("force_input"),
@@ -782,6 +798,7 @@ def build_audit(
             "stage_simulated_ft_manifest": stage_sim_ft_manifest["manifest_path"],
             "step56_simulation_matrix": rel(Path(step56.__file__)),
             "step5d_paper_truth": rel(STEP5D_PAPER_TRUTH),
+            "step5c_paper_truth_pdf_audit": rel(STEP5C_PAPER_TRUTH_PDF_AUDIT),
             "step5d_numeric_sanity": rel(STEP5D_NUMERIC_SANITY),
         },
         "p1_simulated_ft": p1,

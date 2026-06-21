@@ -163,7 +163,7 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
         self.assertEqual(payload["claim_boundary_gate"]["tiers"], EXPECTED_TIERS)
         self.assertFalse(payload["live_authorization"]["robot_motion_authorized"])
         self.assertFalse(payload["live_authorization"]["real_bench_live_contact_authorized"])
-        self.assertIn("0846_step_status_strict_rnn_gate", payload["source_artifacts"]["step_status_rnn_audit"])
+        self.assertIn("0910_step_status_pdf_truth_binding", payload["source_artifacts"]["step_status_rnn_audit"])
         self.assertIn("0818_p1_sim_ft_hard_floor", payload["source_artifacts"]["p1_simulated_ft_manifest"])
         self.assertEqual(payload["step_status_rnn"]["p2_claim_tier"], "physical Gazebo collision/contact physics")
         self.assertEqual(payload["step_status_rnn"]["p2_scope"], "standalone_p2_witness_single_contact_point_wrench")
@@ -174,6 +174,8 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
         self.assertEqual(strict_gate["claim_tier"], "virtual/software force-loop")
         self.assertFalse(strict_gate["strict_rnn_final_acceptance_allowed"])
         self.assertIn("paper_truth:pending_pdf_verify", strict_gate["blockers"])
+        self.assertTrue(strict_gate["evidence"]["paper_truth_pdf_audit_ok"])
+        self.assertEqual(strict_gate["evidence"]["paper_truth_pdf_remaining_pending_count"], 8)
 
         gates = payload["readiness_gates"]
         self.assertTrue(gates["p3_visual_rviz_ready"])

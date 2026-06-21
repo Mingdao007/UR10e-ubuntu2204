@@ -33,7 +33,7 @@ DEFAULT_P3_AUDIT = (
 )
 DEFAULT_STEP_STATUS_AUDIT = (
     RUNS
-    / "ur10e_gazebo_17h_sim_ft_rnn_20260621_0846_step_status_strict_rnn_gate"
+    / "ur10e_gazebo_17h_sim_ft_rnn_20260621_0910_step_status_pdf_truth_binding"
     / "step_status_rnn_audit.json"
 )
 
