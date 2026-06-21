@@ -50,6 +50,50 @@ def _p3_payload() -> dict[str, object]:
     }
 
 
+def _post_gate_visual_foundation_row() -> dict[str, object]:
+    return {
+        "schema": "ur10e_gazebo_real_aligned_gui_matrix_row_v2",
+        "stage": "step5b",
+        "view": "close_detail",
+        "observer_visual_pass": True,
+        "observer_visual_failure_reasons": [],
+        "observer_visual_gate_version": "observer_visual_gate_v3_actual_mesh_foundation",
+        "observer_visual_reviewed_at": "2026-06-21T11:58:50+08:00",
+        "actual_eoat_mesh_visual_present": True,
+        "actual_contact_surface_mesh_visual_present": True,
+        "actual_eoat_mesh_visual_uri": "package://ur10e_example_controllers/meshes/eoat/ur5e_ksm8n_ball_transfer_tool_v13_assembly.stl",
+        "actual_contact_surface_mesh_uri": "package://ur10e_example_controllers/meshes/contact_surface/two_piece_surface_smooth_v11_3mm_thick.stl",
+        "primitive_proxy_not_primary_visual": True,
+        "primitive_proxy_not_main_visual_cue": True,
+        "observer_level_demo_realism": True,
+        "visual_evidence_captured": True,
+        "scripted_camera_evidence_captured": True,
+        "scripted_camera_final_png": "scripted_camera_final.png",
+        "scripted_camera_sha256": "fixture-sha256",
+        "video_path": "gui_recording.mp4",
+        "marker_style": "observer_subtle",
+        "force_loop_success": False,
+        "force_contact_physics_proven": False,
+        "git_provenance": {
+            "branch": "archive/ur10e-materials-20260520-20260602",
+            "commit": "92fac338689ed793c9425e8b0e6527587f85f131",
+            "dirty": False,
+        },
+        "observer_visual_criteria": {
+            "actual_eoat_mesh_visual_present": True,
+            "actual_contact_surface_mesh_visual_present": True,
+            "primitive_proxy_not_main_visual_cue": True,
+            "observer_level_demo_realism": True,
+        },
+    }
+
+
+def _write_post_gate_visual_foundation_row(root: Path) -> Path:
+    path = root / "post_gate_visual_foundation_row.json"
+    path.write_text(json.dumps(_post_gate_visual_foundation_row(), indent=2), encoding="utf-8")
+    return path
+
+
 def _step_payload(*, strict_ready: bool = False) -> dict[str, object]:
     contact_rows = [
         {
@@ -181,6 +225,8 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
         self.assertFalse(payload["live_authorization"]["real_bench_live_contact_authorized"])
         self.assertIn("0910_step_status_pdf_truth_binding", payload["source_artifacts"]["step_status_rnn_audit"])
         self.assertIn("0818_p1_sim_ft_hard_floor", payload["source_artifacts"]["p1_simulated_ft_manifest"])
+        self.assertIn("115619_subtle_affordance_gui", payload["source_artifacts"]["post_gate_visual_foundation_row"])
+        self.assertTrue(payload["post_gate_visual_foundation"]["post_gate_visual_foundation_ready"])
         self.assertEqual(payload["step_status_rnn"]["p2_claim_tier"], "physical Gazebo collision/contact physics")
         self.assertEqual(payload["step_status_rnn"]["p2_scope"], "standalone_p2_witness_single_contact_point_wrench")
         self.assertEqual(payload["step_status_rnn"]["stage_simulated_ft_manifest_status"], "valid")
@@ -195,6 +241,7 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
 
         gates = payload["readiness_gates"]
         self.assertTrue(gates["p3_visual_rviz_ready"])
+        self.assertTrue(gates["post_gate_visual_foundation_ready"])
         self.assertTrue(gates["stage_matrix_present"])
         self.assertTrue(gates["contact_stage_simulated_ft_ready"])
         self.assertFalse(gates["integrated_demo_manifest_valid"])
@@ -224,17 +271,21 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
             step_path = root / "step.json"
             manifest_path = root / "manifest.json"
             p3_path.write_text(json.dumps(_p3_payload(), indent=2), encoding="utf-8")
+            visual_path = _write_post_gate_visual_foundation_row(root)
             step_path.write_text(json.dumps(_step_payload(strict_ready=True), indent=2), encoding="utf-8")
             manifest_path.write_text(json.dumps(_demo_manifest_payload(root), indent=2), encoding="utf-8")
             payload = audit.build_audit(
                 generated_at="2026-06-21T07:20:00+08:00",
                 p3_audit_path=p3_path,
+                post_gate_visual_foundation_row_path=visual_path,
                 step_status_audit_path=step_path,
                 integrated_demo_manifest_path=manifest_path,
                 handoff_root=root / "missing_handoffs",
             )
 
         self.assertTrue(payload["integrated_demo_manifest"]["valid"])
+        self.assertTrue(payload["post_gate_visual_foundation"]["post_gate_visual_foundation_ready"])
+        self.assertTrue(payload["readiness_gates"]["post_gate_visual_foundation_ready"])
         self.assertEqual(payload["integrated_demo_manifest"]["claim_tier"], "visual_only")
         self.assertFalse(payload["readiness_gates"]["p6_integrated_demo_readiness_allowed"])
         self.assertIn(
@@ -253,6 +304,79 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
         self.assertIn("total_contact_wrench:not_proven", payload["full_goal_acceptance_gate"]["full_goal_acceptance_blockers"])
         self.assertIn("same_run_integrated_binding:not_proven", payload["full_goal_acceptance_gate"]["full_goal_acceptance_blockers"])
         self.assertIn("timed_audit_coverage:not_verified", payload["full_goal_acceptance_gate"]["full_goal_acceptance_blockers"])
+
+    def test_post_gate_visual_foundation_missing_blocks_p6_readiness(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="p6_visual_foundation_missing_fixture_") as tmp:
+            root = Path(tmp)
+            p3_path = root / "p3.json"
+            step_path = root / "step.json"
+            manifest_path = root / "manifest.json"
+            p3_path.write_text(json.dumps(_p3_payload(), indent=2), encoding="utf-8")
+            step_path.write_text(json.dumps(_step_payload(strict_ready=True), indent=2), encoding="utf-8")
+            manifest_path.write_text(json.dumps(_demo_manifest_payload(root), indent=2), encoding="utf-8")
+            payload = audit.build_audit(
+                generated_at="2026-06-21T07:20:00+08:00",
+                p3_audit_path=p3_path,
+                post_gate_visual_foundation_row_path=root / "missing_visual_row.json",
+                step_status_audit_path=step_path,
+                integrated_demo_manifest_path=manifest_path,
+                handoff_root=root / "missing_handoffs",
+            )
+
+        self.assertFalse(payload["post_gate_visual_foundation"]["post_gate_visual_foundation_ready"])
+        self.assertIn(
+            "post_gate_visual_foundation:not_ready",
+            payload["readiness_gates"]["p6_integrated_demo_blockers"],
+        )
+        self.assertIn(
+            "p6:post_gate_visual_foundation:not_ready",
+            payload["full_goal_acceptance_gate"]["full_goal_acceptance_blockers"],
+        )
+
+    def test_post_gate_visual_foundation_failed_mesh_row_blocks_p6_readiness(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="p6_visual_foundation_failed_fixture_") as tmp:
+            root = Path(tmp)
+            p3_path = root / "p3.json"
+            visual_path = root / "failed_visual_row.json"
+            step_path = root / "step.json"
+            manifest_path = root / "manifest.json"
+            failed_visual_row = _post_gate_visual_foundation_row()
+            failed_visual_row["actual_eoat_mesh_visual_present"] = False
+            failed_visual_row["actual_eoat_mesh_visual_uri"] = ""
+            failed_visual_row["primitive_proxy_not_main_visual_cue"] = False
+            failed_visual_row["observer_visual_failure_reasons"] = ["eoat primary visual is primitive proxy"]
+            p3_path.write_text(json.dumps(_p3_payload(), indent=2), encoding="utf-8")
+            visual_path.write_text(json.dumps(failed_visual_row, indent=2), encoding="utf-8")
+            step_path.write_text(json.dumps(_step_payload(strict_ready=True), indent=2), encoding="utf-8")
+            manifest_path.write_text(json.dumps(_demo_manifest_payload(root), indent=2), encoding="utf-8")
+            payload = audit.build_audit(
+                generated_at="2026-06-21T07:20:00+08:00",
+                p3_audit_path=p3_path,
+                post_gate_visual_foundation_row_path=visual_path,
+                step_status_audit_path=step_path,
+                integrated_demo_manifest_path=manifest_path,
+                handoff_root=root / "missing_handoffs",
+            )
+
+        self.assertFalse(payload["post_gate_visual_foundation"]["post_gate_visual_foundation_ready"])
+        self.assertIn(
+            "actual_eoat_mesh_visual_present:not_true",
+            payload["post_gate_visual_foundation"]["validation_issues"],
+        )
+        self.assertIn(
+            "actual_eoat_mesh_visual_uri_mesh_like:not_true",
+            payload["post_gate_visual_foundation"]["validation_issues"],
+        )
+        self.assertIn(
+            "primitive_proxy_not_main_visual_cue:not_true",
+            payload["post_gate_visual_foundation"]["validation_issues"],
+        )
+        self.assertIn(
+            "p6:post_gate_visual_foundation:not_ready",
+            payload["full_goal_acceptance_gate"]["full_goal_acceptance_blockers"],
+        )
 
     def test_timed_audit_coverage_summarizes_prompt_only_triplet(self) -> None:
         audit = import_audit_module()
@@ -333,6 +457,7 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
             manifest_path = root / "manifest.json"
             timed_path = root / "timed_audit_coverage_audit.json"
             p3_path.write_text(json.dumps(_p3_payload(), indent=2), encoding="utf-8")
+            visual_path = _write_post_gate_visual_foundation_row(root)
             step_path.write_text(json.dumps(_step_payload(strict_ready=True), indent=2), encoding="utf-8")
             manifest_path.write_text(json.dumps(_demo_manifest_payload(root), indent=2), encoding="utf-8")
             timed_path.write_text(
@@ -363,6 +488,7 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
             payload = audit.build_audit(
                 generated_at="2026-06-21T02:20:00+08:00",
                 p3_audit_path=p3_path,
+                post_gate_visual_foundation_row_path=visual_path,
                 step_status_audit_path=step_path,
                 integrated_demo_manifest_path=manifest_path,
                 timed_audit_coverage_path=timed_path,
@@ -382,6 +508,7 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
             manifest_path = root / "manifest.json"
             timed_path = root / "timed_audit_coverage_audit.json"
             p3_path.write_text(json.dumps(_p3_payload(), indent=2), encoding="utf-8")
+            visual_path = _write_post_gate_visual_foundation_row(root)
             step_path.write_text(json.dumps(_step_payload(strict_ready=True), indent=2), encoding="utf-8")
             manifest_path.write_text(json.dumps(_demo_manifest_payload(root), indent=2), encoding="utf-8")
             timed_path.write_text(
@@ -405,6 +532,7 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
             payload = audit.build_audit(
                 generated_at="2026-06-21T07:20:00+08:00",
                 p3_audit_path=p3_path,
+                post_gate_visual_foundation_row_path=visual_path,
                 step_status_audit_path=step_path,
                 integrated_demo_manifest_path=manifest_path,
                 timed_audit_coverage_path=timed_path,
@@ -426,6 +554,7 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
             manifest_path = root / "manifest.json"
             timed_path = root / "timed_audit_coverage_audit.json"
             p3_path.write_text(json.dumps(_p3_payload(), indent=2), encoding="utf-8")
+            visual_path = _write_post_gate_visual_foundation_row(root)
             step_path.write_text(json.dumps(_step_payload(strict_ready=True), indent=2), encoding="utf-8")
             manifest_path.write_text(json.dumps(_demo_manifest_payload(root), indent=2), encoding="utf-8")
             timed_path.write_text(
@@ -444,6 +573,7 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
             payload = audit.build_audit(
                 generated_at="2026-06-21T07:20:00+08:00",
                 p3_audit_path=p3_path,
+                post_gate_visual_foundation_row_path=visual_path,
                 step_status_audit_path=step_path,
                 integrated_demo_manifest_path=manifest_path,
                 timed_audit_coverage_path=timed_path,
@@ -463,6 +593,7 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
             manifest_path = root / "manifest.json"
             same_run_path = root / "same_run_integrated_binding_audit.json"
             p3_path.write_text(json.dumps(_p3_payload(), indent=2), encoding="utf-8")
+            visual_path = _write_post_gate_visual_foundation_row(root)
             step_path.write_text(json.dumps(_step_payload(strict_ready=True), indent=2), encoding="utf-8")
             manifest_path.write_text(json.dumps(_demo_manifest_payload(root), indent=2), encoding="utf-8")
             same_run_path.write_text(
@@ -500,6 +631,7 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
             payload = audit.build_audit(
                 generated_at="2026-06-21T07:21:00+08:00",
                 p3_audit_path=p3_path,
+                post_gate_visual_foundation_row_path=visual_path,
                 step_status_audit_path=step_path,
                 integrated_demo_manifest_path=manifest_path,
                 same_run_binding_path=same_run_path,
@@ -519,6 +651,7 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
             manifest_path = root / "manifest.json"
             same_run_path = root / "same_run_integrated_binding_audit.json"
             p3_path.write_text(json.dumps(_p3_payload(), indent=2), encoding="utf-8")
+            visual_path = _write_post_gate_visual_foundation_row(root)
             step_path.write_text(json.dumps(_step_payload(strict_ready=True), indent=2), encoding="utf-8")
             manifest_path.write_text(json.dumps(_demo_manifest_payload(root), indent=2), encoding="utf-8")
             same_run_path.write_text(
@@ -539,6 +672,7 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
             payload = audit.build_audit(
                 generated_at="2026-06-21T07:21:00+08:00",
                 p3_audit_path=p3_path,
+                post_gate_visual_foundation_row_path=visual_path,
                 step_status_audit_path=step_path,
                 integrated_demo_manifest_path=manifest_path,
                 same_run_binding_path=same_run_path,
@@ -558,6 +692,7 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
             manifest_path = root / "manifest.json"
             same_run_path = root / "same_run_integrated_binding_audit.json"
             p3_path.write_text(json.dumps(_p3_payload(), indent=2), encoding="utf-8")
+            visual_path = _write_post_gate_visual_foundation_row(root)
             step_path.write_text(json.dumps(_step_payload(strict_ready=True), indent=2), encoding="utf-8")
             manifest_path.write_text(json.dumps(_demo_manifest_payload(root), indent=2), encoding="utf-8")
             rows = [
@@ -596,6 +731,7 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
             payload = audit.build_audit(
                 generated_at="2026-06-21T07:21:00+08:00",
                 p3_audit_path=p3_path,
+                post_gate_visual_foundation_row_path=visual_path,
                 step_status_audit_path=step_path,
                 integrated_demo_manifest_path=manifest_path,
                 same_run_binding_path=same_run_path,
@@ -615,6 +751,7 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
             manifest_path = root / "manifest.json"
             dual_path = root / "dual_sensor_total_wrench_audit.json"
             p3_path.write_text(json.dumps(_p3_payload(), indent=2), encoding="utf-8")
+            visual_path = _write_post_gate_visual_foundation_row(root)
             step_path.write_text(json.dumps(_step_payload(strict_ready=True), indent=2), encoding="utf-8")
             manifest_path.write_text(json.dumps(_demo_manifest_payload(root), indent=2), encoding="utf-8")
             dual_path.write_text(
@@ -643,6 +780,7 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
             payload = audit.build_audit(
                 generated_at="2026-06-21T07:22:00+08:00",
                 p3_audit_path=p3_path,
+                post_gate_visual_foundation_row_path=visual_path,
                 step_status_audit_path=step_path,
                 integrated_demo_manifest_path=manifest_path,
                 dual_sensor_total_wrench_path=dual_path,
@@ -664,6 +802,7 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
             manifest_path = root / "manifest.json"
             dual_path = root / "dual_sensor_total_wrench_audit.json"
             p3_path.write_text(json.dumps(_p3_payload(), indent=2), encoding="utf-8")
+            visual_path = _write_post_gate_visual_foundation_row(root)
             step_path.write_text(json.dumps(_step_payload(strict_ready=True), indent=2), encoding="utf-8")
             manifest_path.write_text(json.dumps(_demo_manifest_payload(root), indent=2), encoding="utf-8")
             dual_path.write_text(
@@ -687,6 +826,7 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
             payload = audit.build_audit(
                 generated_at="2026-06-21T07:22:00+08:00",
                 p3_audit_path=p3_path,
+                post_gate_visual_foundation_row_path=visual_path,
                 step_status_audit_path=step_path,
                 integrated_demo_manifest_path=manifest_path,
                 dual_sensor_total_wrench_path=dual_path,
@@ -777,10 +917,12 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
             p3_path = root / "p3.json"
             step_path = root / "step.json"
             p3_path.write_text(json.dumps(_p3_payload(), indent=2), encoding="utf-8")
+            visual_path = _write_post_gate_visual_foundation_row(root)
             step_path.write_text(json.dumps(_step_payload(), indent=2), encoding="utf-8")
             payload = audit.build_audit(
                 generated_at="2026-06-21T07:25:00+08:00",
                 p3_audit_path=p3_path,
+                post_gate_visual_foundation_row_path=visual_path,
                 step_status_audit_path=step_path,
             )
 
@@ -805,6 +947,7 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
             p3_path = root / "p3.json"
             step_path = root / "step.json"
             p3_path.write_text(json.dumps(_p3_payload(), indent=2), encoding="utf-8")
+            visual_path = _write_post_gate_visual_foundation_row(root)
             step = _step_payload()
             step["step_status_matrix"] = [row for row in step["step_status_matrix"] if row["stage_id"] != "step8"]
             step["step_status_matrix"].append({"stage_id": "step9", "claim_tier": "visual_only"})
@@ -812,6 +955,7 @@ class P6IntegratedDemoReadinessAuditTest(unittest.TestCase):
             payload = audit.build_audit(
                 generated_at="2026-06-21T07:28:00+08:00",
                 p3_audit_path=p3_path,
+                post_gate_visual_foundation_row_path=visual_path,
                 step_status_audit_path=step_path,
             )
 

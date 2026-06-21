@@ -43,6 +43,14 @@ DEFAULT_P3_AUDIT = (
     / "ur10e_gazebo_17h_sim_ft_rnn_20260621_055357_p3_merged_32row_visual_rviz_audit"
     / "p3_visual_rviz_evidence_audit.json"
 )
+DEFAULT_POST_GATE_VISUAL_FOUNDATION_ROW = (
+    RUNS
+    / "ur10e_gazebo_visual_mesh_foundation_20260621_115619_subtle_affordance_gui"
+    / "matrix_gui_real_aligned"
+    / "step5b"
+    / "close_detail"
+    / "row_summary.json"
+)
 DEFAULT_STEP_STATUS_AUDIT = (
     RUNS
     / "ur10e_gazebo_17h_sim_ft_rnn_20260621_0910_step_status_pdf_truth_binding"
@@ -78,6 +86,7 @@ REQUIRED_PLOTS = [
     "gravity_residual",
 ]
 OPTIONAL_UNSUPPORTED_PLOTS = {"gravity_residual"}
+MESH_VISUAL_SUFFIXES = {".dae", ".mesh", ".obj", ".stl", ".stp", ".step"}
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -92,6 +101,13 @@ def rel(path: Path | str | None) -> str | None:
         return str(candidate.resolve().relative_to(WORKSPACE.resolve()))
     except (OSError, ValueError):
         return str(path)
+
+
+def mesh_visual_uri_present(value: Any) -> bool:
+    if not isinstance(value, str) or not value.strip():
+        return False
+    path_part = value.split("#", 1)[0].split("?", 1)[0]
+    return Path(path_part).suffix.lower() in MESH_VISUAL_SUFFIXES
 
 
 def workspace_path(path: str | None) -> Path | None:
@@ -300,6 +316,77 @@ def p3_visual_rviz_summary(p3: dict[str, Any], *, path: Path) -> dict[str, Any]:
         "rviz_rendered_screenshot_evidence_present": rviz_rendered,
         "p3_visual_rviz_ready": bool(visual_pass and rviz_items and rviz_rendered),
         "forbidden_claim": "simulated_ft; physical Gazebo collision/contact physics; real bench/live contact",
+    }
+
+
+def post_gate_visual_foundation_summary(path: Path) -> dict[str, Any]:
+    base = {
+        "artifact": rel(path),
+        "claim_tier": "visual_only",
+        "schema": None,
+        "post_gate_visual_foundation_ready": False,
+        "support_scope": "single_step5b_close_detail_observer_row_only",
+        "forbidden_claim": "simulated_ft; physical Gazebo collision/contact physics; real bench/live contact; full Step5/6/7/8 visual matrix",
+    }
+    if not path.is_file():
+        return {
+            **base,
+            "status": "missing",
+            "validation_issues": ["post_gate_visual_foundation_row:missing"],
+        }
+    try:
+        row = load_json(path)
+    except (OSError, json.JSONDecodeError) as exc:
+        return {
+            **base,
+            "status": "unreadable",
+            "validation_issues": [f"post_gate_visual_foundation_row:unreadable:{type(exc).__name__}"],
+        }
+
+    git = row.get("git_provenance") if isinstance(row.get("git_provenance"), dict) else {}
+    criteria = row.get("observer_visual_criteria") if isinstance(row.get("observer_visual_criteria"), dict) else {}
+    eoat_mesh_uri = row.get("actual_eoat_mesh_visual_uri")
+    contact_surface_mesh_uri = row.get("actual_contact_surface_mesh_uri")
+    required = {
+        "observer_visual_pass": row.get("observer_visual_pass") is True,
+        "actual_eoat_mesh_visual_present": row.get("actual_eoat_mesh_visual_present") is True,
+        "actual_eoat_mesh_visual_uri_mesh_like": mesh_visual_uri_present(eoat_mesh_uri),
+        "actual_contact_surface_mesh_visual_present": row.get("actual_contact_surface_mesh_visual_present") is True,
+        "actual_contact_surface_mesh_visual_uri_mesh_like": mesh_visual_uri_present(contact_surface_mesh_uri),
+        "primitive_proxy_not_primary_visual": row.get("primitive_proxy_not_primary_visual") is True,
+        "primitive_proxy_not_main_visual_cue": row.get("primitive_proxy_not_main_visual_cue") is True,
+        "observer_level_demo_realism": row.get("observer_level_demo_realism") is True,
+        "visual_evidence_captured": row.get("visual_evidence_captured") is True,
+        "scripted_camera_evidence_captured": row.get("scripted_camera_evidence_captured") is True,
+        "marker_style_observer_subtle": row.get("marker_style") == "observer_subtle",
+        "clean_git_provenance": git.get("dirty") is False,
+        "force_contact_physics_not_inferred": row.get("force_contact_physics_proven") is False,
+    }
+    validation_issues = [f"{name}:not_true" for name, ok in required.items() if not ok]
+    return {
+        **base,
+        "schema": row.get("schema"),
+        "status": "ready" if not validation_issues else "not_ready",
+        "post_gate_visual_foundation_ready": not validation_issues,
+        "stage": row.get("stage"),
+        "view": row.get("view"),
+        "observer_visual_pass": row.get("observer_visual_pass"),
+        "observer_visual_failure_reasons": row.get("observer_visual_failure_reasons", []),
+        "observer_visual_gate_version": row.get("observer_visual_gate_version"),
+        "observer_visual_reviewed_at": row.get("observer_visual_reviewed_at"),
+        "scripted_camera_final_png": row.get("scripted_camera_final_png"),
+        "scripted_camera_sha256": row.get("scripted_camera_sha256"),
+        "video_path": row.get("video_path"),
+        "marker_style": row.get("marker_style"),
+        "actual_eoat_mesh_visual_uri": eoat_mesh_uri,
+        "actual_contact_surface_mesh_visual_uri": contact_surface_mesh_uri,
+        "primitive_proxy_not_main_visual_cue": row.get("primitive_proxy_not_main_visual_cue"),
+        "observer_level_demo_realism": row.get("observer_level_demo_realism"),
+        "force_loop_success": row.get("force_loop_success"),
+        "force_contact_physics_proven": row.get("force_contact_physics_proven"),
+        "git_provenance": git or None,
+        "observer_visual_criteria": criteria or None,
+        "validation_issues": validation_issues,
     }
 
 
@@ -589,6 +676,7 @@ def validate_demo_manifest(path: Path | None) -> dict[str, Any]:
 def build_blockers(
     *,
     p3: dict[str, Any],
+    post_gate_visual: dict[str, Any],
     step: dict[str, Any],
     demo_manifest: dict[str, Any],
 ) -> list[str]:
@@ -599,6 +687,8 @@ def build_blockers(
         blockers.append("step_goal_lineage:mismatch_or_missing")
     if not p3["p3_visual_rviz_ready"]:
         blockers.append("p3_visual_rviz:not_ready")
+    if not post_gate_visual["post_gate_visual_foundation_ready"]:
+        blockers.append("post_gate_visual_foundation:not_ready")
     if not step["stage_set_exact"]:
         blockers.append("step_status_matrix:stage_set_not_exact")
     if not step["full_acceptance_allowed_by_step_audit"]:
@@ -645,6 +735,7 @@ def full_goal_blockers(
 def current_claim_tier_table(
     *,
     p3: dict[str, Any],
+    post_gate_visual: dict[str, Any],
     step: dict[str, Any],
     demo_manifest: dict[str, Any],
 ) -> list[dict[str, str]]:
@@ -652,6 +743,15 @@ def current_claim_tier_table(
         {
             "evidence_surface": "Gazebo/RViz observer evidence",
             "current_status": "Gazebo/RViz screenshots, EOAT visibility, TCP marker, model pose, and observer-view evidence only",
+            "claim_tier": "visual_only",
+        },
+        {
+            "evidence_surface": "Post-gate actual-mesh observer visual foundation",
+            "current_status": (
+                "single Step5b close-detail observer row with actual EOAT/contact surface meshes and low-dominance auxiliary markers"
+                if post_gate_visual["post_gate_visual_foundation_ready"]
+                else "missing or failed post-gate actual-mesh observer row"
+            ),
             "claim_tier": "visual_only",
         },
         {
@@ -712,6 +812,7 @@ def build_audit(
     *,
     generated_at: str | None = None,
     p3_audit_path: Path = DEFAULT_P3_AUDIT,
+    post_gate_visual_foundation_row_path: Path = DEFAULT_POST_GATE_VISUAL_FOUNDATION_ROW,
     step_status_audit_path: Path = DEFAULT_STEP_STATUS_AUDIT,
     integrated_demo_manifest_path: Path | None = None,
     handoff_root: Path = HANDOFF_ROOT,
@@ -723,6 +824,7 @@ def build_audit(
     p3_payload = load_json(p3_audit_path)
     step_payload = load_json(step_status_audit_path)
     p3 = p3_visual_rviz_summary(p3_payload, path=p3_audit_path)
+    post_gate_visual = post_gate_visual_foundation_summary(post_gate_visual_foundation_row_path)
     step = step_status_summary(step_payload, path=step_status_audit_path)
     demo_manifest = validate_demo_manifest(integrated_demo_manifest_path)
     if timed_audit_coverage_path is not None:
@@ -876,8 +978,18 @@ def build_audit(
         "same_run_dual_sensor_observation": dual_sensor_payload.get("same_run_dual_sensor_observation", {}),
         "forbidden_claim": dual_sensor_payload.get("forbidden_claim"),
     }
-    p6_blockers = build_blockers(p3=p3, step=step, demo_manifest=demo_manifest)
-    current_tier_table = current_claim_tier_table(p3=p3, step=step, demo_manifest=demo_manifest)
+    p6_blockers = build_blockers(
+        p3=p3,
+        post_gate_visual=post_gate_visual,
+        step=step,
+        demo_manifest=demo_manifest,
+    )
+    current_tier_table = current_claim_tier_table(
+        p3=p3,
+        post_gate_visual=post_gate_visual,
+        step=step,
+        demo_manifest=demo_manifest,
+    )
     claim_boundary_issues = claim_boundary_validation_issues(
         step=step,
         current_claim_tier_table=current_tier_table,
@@ -892,6 +1004,7 @@ def build_audit(
     )
     source_artifacts = {
         "p3_visual_rviz_audit": rel(p3_audit_path),
+        "post_gate_visual_foundation_row": rel(post_gate_visual_foundation_row_path),
         "step_status_rnn_audit": rel(step_status_audit_path),
         "integrated_demo_manifest": demo_manifest["manifest_path"],
         "tcp_distance_evidence": demo_manifest.get("tcp_distance_evidence", {}).get("path"),
@@ -939,6 +1052,7 @@ def build_audit(
         "dual_sensor_total_wrench": dual_sensor_total_wrench,
         "timed_audit_coverage": timed_audit_coverage,
         "p3_visual_rviz": p3,
+        "post_gate_visual_foundation": post_gate_visual,
         "step_status_rnn": step,
         "integrated_demo_manifest": demo_manifest,
         "stage_status_matrix": step["stage_status_matrix"],
@@ -951,6 +1065,7 @@ def build_audit(
         },
         "readiness_gates": {
             "p3_visual_rviz_ready": p3["p3_visual_rviz_ready"],
+            "post_gate_visual_foundation_ready": post_gate_visual["post_gate_visual_foundation_ready"],
             "stage_matrix_present": step["stage_rows"] >= 8,
             "contact_stage_simulated_ft_ready": bool(
                 step["stage_simulated_ft_manifest_status"] == "valid"
@@ -976,6 +1091,7 @@ def write_audit(
     *,
     generated_at: str | None = None,
     p3_audit_path: Path = DEFAULT_P3_AUDIT,
+    post_gate_visual_foundation_row_path: Path = DEFAULT_POST_GATE_VISUAL_FOUNDATION_ROW,
     step_status_audit_path: Path = DEFAULT_STEP_STATUS_AUDIT,
     integrated_demo_manifest_path: Path | None = None,
     handoff_root: Path = HANDOFF_ROOT,
@@ -988,6 +1104,7 @@ def write_audit(
     payload = build_audit(
         generated_at=generated_at,
         p3_audit_path=p3_audit_path,
+        post_gate_visual_foundation_row_path=post_gate_visual_foundation_row_path,
         step_status_audit_path=step_status_audit_path,
         integrated_demo_manifest_path=integrated_demo_manifest_path,
         handoff_root=handoff_root,
@@ -1005,6 +1122,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--generated-at", default=None)
     parser.add_argument("--p3-audit-path", type=Path, default=DEFAULT_P3_AUDIT)
+    parser.add_argument("--post-gate-visual-foundation-row", type=Path, default=DEFAULT_POST_GATE_VISUAL_FOUNDATION_ROW)
     parser.add_argument("--step-status-audit-path", type=Path, default=DEFAULT_STEP_STATUS_AUDIT)
     parser.add_argument("--integrated-demo-manifest", type=Path, default=None)
     parser.add_argument("--handoff-root", type=Path, default=HANDOFF_ROOT)
@@ -1020,6 +1138,7 @@ def main(argv: list[str] | None = None) -> int:
         args.output_dir,
         generated_at=args.generated_at,
         p3_audit_path=args.p3_audit_path,
+        post_gate_visual_foundation_row_path=args.post_gate_visual_foundation_row,
         step_status_audit_path=args.step_status_audit_path,
         integrated_demo_manifest_path=args.integrated_demo_manifest,
         handoff_root=args.handoff_root,
