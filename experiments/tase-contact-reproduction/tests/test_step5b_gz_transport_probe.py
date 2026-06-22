@@ -195,6 +195,11 @@ class Step5bGzTransportProbeTest(unittest.TestCase):
                     encoding="utf-8"
                 )
             )
+            contact_point_row = json.loads(
+                Path(manifest["required_shape"]["step5b_total_wrench"]["contact_point_wrench_rows_path"])
+                .read_text(encoding="utf-8")
+                .splitlines()[0]
+            )
             semantics = json.loads(
                 Path(manifest["required_shape"]["step5b_semantics"]["sign_frame_magnitude_audit_path"]).read_text(
                     encoding="utf-8"
@@ -207,10 +212,16 @@ class Step5bGzTransportProbeTest(unittest.TestCase):
             )
 
         self.assertTrue(manifest["m3_wrench_integration_pass"])
+        self.assertFalse(manifest["is_formal_acceptance"])
+        self.assertEqual(manifest["claim_tier"], "visual_only")
+        self.assertEqual(manifest["diagnostic_claim_tier"], "physical Gazebo collision/contact physics")
         self.assertEqual(manifest["formal_step5b_acceptance_claim_tier"], "visual_only")
         self.assertIn("not formal Step5b physical acceptance proof", manifest["allowed_claim"])
         self.assertTrue(adapter["trace_written"])
         self.assertTrue(adapter["total_contact_wrench_proven"])
+        self.assertFalse(adapter["is_formal_acceptance"])
+        self.assertEqual(adapter["claim_tier"], "visual_only")
+        self.assertEqual(adapter["diagnostic_claim_tier"], "physical Gazebo collision/contact physics")
         self.assertEqual(adapter["formal_step5b_acceptance_claim_tier"], "visual_only")
         self.assertEqual(adapter["formal_step5b_acceptance_status"], "blocked")
         self.assertIn("not formal Step5b physical acceptance proof", adapter["allowed_claim"])
@@ -224,9 +235,17 @@ class Step5bGzTransportProbeTest(unittest.TestCase):
         self.assertEqual(verified["rows"][0]["normal"], [0.0, 0.0, 1.0])
         self.assertEqual(trace["rows"][0]["reaction_normal"], [0.0, 0.0, 1.0])
         self.assertEqual(trace["rows"][0]["approach_normal"], [-0.0, -0.0, -1.0])
+        self.assertFalse(correlation["is_formal_acceptance"])
+        self.assertEqual(correlation["claim_tier"], "visual_only")
+        self.assertEqual(correlation["diagnostic_claim_tier"], "physical Gazebo collision/contact physics")
         self.assertEqual(correlation["formal_step5b_acceptance_claim_tier"], "visual_only")
         self.assertIn("not formal Step5b physical acceptance proof", correlation["allowed_claim"])
+        self.assertFalse(contact_point_row["is_formal_acceptance"])
+        self.assertEqual(contact_point_row["claim_tier"], "visual_only")
+        self.assertEqual(contact_point_row["diagnostic_claim_tier"], "physical Gazebo collision/contact physics")
         self.assertEqual(semantics["selected_body_role"], "eoat")
+        self.assertFalse(semantics["is_formal_acceptance"])
+        self.assertEqual(semantics["claim_tier"], "visual_only")
         self.assertEqual(semantics["formal_step5b_acceptance_claim_tier"], "visual_only")
         self.assertIn(
             "transform_evidence_is_sdf_identity_assumption_not_independent_gazebo_frame_measurement",

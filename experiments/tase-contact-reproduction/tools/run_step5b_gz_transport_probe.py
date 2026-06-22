@@ -91,11 +91,13 @@ def _load_json(path: Path) -> dict[str, Any]:
 
 def _nonformal_claim_boundary(diagnostic_claim_tier: str | None = None) -> dict[str, Any]:
     return {
+        "is_formal_acceptance": False,
         "diagnostic_claim_tier": diagnostic_claim_tier or CLAIM_TIER,
         "formal_step5b_acceptance_claim_tier": CLAIM_TIER,
         "formal_step5b_acceptance_status": "blocked",
         "formal_step5b_acceptance_blockers": list(FORMAL_STEP5B_ACCEPTANCE_BLOCKERS),
         "nonformal_allowed_claim": NONFORMAL_ALLOWED_CLAIM,
+        "acceptance_discriminator": "is_formal_acceptance",
     }
 
 
@@ -539,7 +541,8 @@ def _write_transform_evidence(output_dir: Path, *, world_path: Path, generated_a
         "generated_at": generated_at,
         "stage_id": STAGE_ID,
         "observation_scope": OBSERVATION_SCOPE,
-        "claim_tier": "physical Gazebo collision/contact physics" if not blockers else CLAIM_TIER,
+        "claim_tier": CLAIM_TIER,
+        **_nonformal_claim_boundary(CLAIM_TIER),
         "world_path": str(world_path),
         "source": "step5b_transport_probe_sdf_ur10e_base_frame_identity",
         "from_frame": "gazebo_contact_message_native_frame",
@@ -599,7 +602,8 @@ def _write_baseline_evidence(
         "generated_at": generated_at,
         "stage_id": STAGE_ID,
         "observation_scope": OBSERVATION_SCOPE,
-        "claim_tier": "physical Gazebo collision/contact physics" if not blockers else CLAIM_TIER,
+        "claim_tier": CLAIM_TIER,
+        **_nonformal_claim_boundary(CLAIM_TIER),
         "baseline_policy": "gazebo_contact_zero_no_contact_baseline",
         "positive_contact_pair_path": positive_payload.get("artifact_path"),
         "baseline_contact_pair_path": baseline_payload.get("artifact_path"),
@@ -873,7 +877,7 @@ def build_step5b_wrench_integration(
             "generated_at": generated_at,
             "mode": "offline_verified_nonformal_step5b_gz_transport_probe_wrench",
             "source": "gazebo_contact_sensor_topic_verified_step5b_probe_eoat_reaction",
-            "claim_tier": "physical Gazebo collision/contact physics",
+            "claim_tier": CLAIM_TIER,
             "target_claim_tier": "physical Gazebo collision/contact physics",
             **_nonformal_claim_boundary("physical Gazebo collision/contact physics"),
             "allowed_claim": NONFORMAL_ALLOWED_CLAIM,
@@ -909,7 +913,7 @@ def build_step5b_wrench_integration(
         "generated_at": generated_at,
         "stage_id": STAGE_ID,
         "observation_scope": OBSERVATION_SCOPE,
-        "claim_tier": "physical Gazebo collision/contact physics" if verified_path else CLAIM_TIER,
+        "claim_tier": CLAIM_TIER,
         "target_claim_tier": "physical Gazebo collision/contact physics",
         "verified_contact_pair_path": verified_path,
         "verified_payload": verified_payload,
@@ -990,7 +994,8 @@ def _contact_point_wrench_rows(verified_payload: dict[str, Any]) -> list[dict[st
                     "normal_load_n": _dot3(selected_force, normal),
                     "frame_id": native.get("frame_id"),
                     "frame_policy": native.get("frame_policy"),
-                    "claim_tier": "physical Gazebo collision/contact physics",
+                    "claim_tier": CLAIM_TIER,
+                    **_nonformal_claim_boundary("physical Gazebo collision/contact physics"),
                 }
             )
     return rows
@@ -1030,6 +1035,9 @@ def write_m3_required_shape(
         "clock_source": time_window.get("clock_source"),
     }
     counts = _artifact_row_counts(adapter_payload, rejected_rows)
+    adapter_diagnostic_claim_tier = adapter_payload.get("diagnostic_claim_tier") or adapter_payload.get(
+        "claim_tier", CLAIM_TIER
+    )
 
     total_dir = output_dir / "step5b_total_wrench"
     correlation_dir = output_dir / "step5b_correlation"
@@ -1060,7 +1068,7 @@ def write_m3_required_shape(
         **common,
         **counts,
         "claim_tier": adapter_payload.get("claim_tier", CLAIM_TIER),
-        **_nonformal_claim_boundary(adapter_payload.get("claim_tier", CLAIM_TIER)),
+        **_nonformal_claim_boundary(adapter_diagnostic_claim_tier),
         "blockers": adapter_payload.get("blockers") or [],
         "validation_issues": [],
         "trace_written": adapter_payload.get("trace_written"),
@@ -1085,7 +1093,7 @@ def write_m3_required_shape(
             **common,
             **counts,
             "claim_tier": adapter_payload.get("claim_tier", CLAIM_TIER),
-            **_nonformal_claim_boundary(adapter_payload.get("claim_tier", CLAIM_TIER)),
+            **_nonformal_claim_boundary(adapter_diagnostic_claim_tier),
             "blockers": adapter_payload.get("total_contact_wrench_blockers") or [],
             "validation_issues": [],
             "aggregation_policy": adapter_payload.get("wrench_aggregation_policy"),
@@ -1106,7 +1114,7 @@ def write_m3_required_shape(
             **common,
             **counts,
             "claim_tier": adapter_payload.get("claim_tier", CLAIM_TIER),
-            **_nonformal_claim_boundary(adapter_payload.get("claim_tier", CLAIM_TIER)),
+            **_nonformal_claim_boundary(adapter_diagnostic_claim_tier),
             "blockers": [],
             "validation_issues": [],
             "correlation_policy": "intramessage_same_contact_entry",
@@ -1133,7 +1141,7 @@ def write_m3_required_shape(
             **common,
             **counts,
             "claim_tier": adapter_payload.get("claim_tier", CLAIM_TIER),
-            **_nonformal_claim_boundary(adapter_payload.get("claim_tier", CLAIM_TIER)),
+            **_nonformal_claim_boundary(adapter_diagnostic_claim_tier),
             "blockers": [] if time_window.get("start") and time_window.get("end") else ["missing_time_window"],
             "validation_issues": [],
             "contact_row_stamp_s": [row.get("stamp_s") for row in verified_payload.get("rows") or [] if isinstance(row, dict)],
@@ -1160,7 +1168,7 @@ def write_m3_required_shape(
             **counts,
             "claim_tier": adapter_payload.get("claim_tier", CLAIM_TIER) if not magnitude_blockers else CLAIM_TIER,
             **_nonformal_claim_boundary(
-                adapter_payload.get("claim_tier", CLAIM_TIER) if not magnitude_blockers else CLAIM_TIER
+                adapter_diagnostic_claim_tier if not magnitude_blockers else CLAIM_TIER
             ),
             "blockers": magnitude_blockers,
             "validation_issues": [],
@@ -1193,7 +1201,7 @@ def write_m3_required_shape(
             **common,
             **counts,
             "claim_tier": adapter_payload.get("claim_tier", CLAIM_TIER),
-            **_nonformal_claim_boundary(adapter_payload.get("claim_tier", CLAIM_TIER)),
+            **_nonformal_claim_boundary(adapter_diagnostic_claim_tier),
             "blockers": [],
             "validation_issues": [],
             "frame_policy": "verified_world_to_base_identity_from_step5b_transport_probe_sdf",
@@ -1214,7 +1222,7 @@ def write_m3_required_shape(
             **common,
             **counts,
             "claim_tier": adapter_payload.get("claim_tier", CLAIM_TIER),
-            **_nonformal_claim_boundary(adapter_payload.get("claim_tier", CLAIM_TIER)),
+            **_nonformal_claim_boundary(adapter_diagnostic_claim_tier),
             "blockers": [],
             "validation_issues": [],
             "rows": [
@@ -1283,7 +1291,9 @@ def build_m3_adapter_and_manifest(
             observation_scope=OBSERVATION_SCOPE,
         )
         adapter_payload = _load_json(adapter_report_path)
-        adapter_payload.update(_nonformal_claim_boundary(adapter_payload.get("claim_tier", CLAIM_TIER)))
+        adapter_diagnostic_claim_tier = adapter_payload.get("claim_tier", CLAIM_TIER)
+        adapter_payload.update(_nonformal_claim_boundary(adapter_diagnostic_claim_tier))
+        adapter_payload["claim_tier"] = CLAIM_TIER
         adapter_payload["allowed_claim"] = NONFORMAL_ALLOWED_CLAIM
         adapter_payload["forbidden_claim"] = NONFORMAL_FORBIDDEN_CLAIM
         _write_json(adapter_report_path, adapter_payload)
@@ -1309,7 +1319,7 @@ def build_m3_adapter_and_manifest(
         "generated_at": generated_at,
         "stage_id": STAGE_ID,
         "mode": "offline_nonformal_step5b_gz_transport_probe_m3_wrench_integration",
-        "claim_tier": "physical Gazebo collision/contact physics" if pass_gate else CLAIM_TIER,
+        "claim_tier": CLAIM_TIER,
         "target_claim_tier": "physical Gazebo collision/contact physics",
         **_nonformal_claim_boundary("physical Gazebo collision/contact physics" if pass_gate else CLAIM_TIER),
         "topic": TOPIC,
