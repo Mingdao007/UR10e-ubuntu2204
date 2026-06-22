@@ -558,7 +558,9 @@ def plan_preposition_to_entry(
     if ik_error > ik_tolerance_m:
         raise RuntimeError(f"Step5b entry preposition IK error too large: {ik_error:.6f} m > {ik_tolerance_m:.6f} m")
     xy_distance = math.hypot(target_pose[0] - start_pose[0], target_pose[1] - start_pose[1])
-    duration_s = max(min_duration_s, xy_distance / max(speed_m_s, 1e-6))
+    # Quintic smoothstep peaks at 1.875x average speed; size duration so the
+    # TCP XY preposition speed cap remains conservative instead of average-only.
+    duration_s = max(min_duration_s, 1.875 * xy_distance / max(speed_m_s, 1e-6))
     steps = max(1, int(math.ceil(duration_s / command_period_s)))
     return PrepositionPlan(
         stage=22.0,
@@ -569,6 +571,44 @@ def plan_preposition_to_entry(
         planned_duration_s=float(steps * command_period_s),
         steps=steps,
     )
+
+
+def _smoothstep5(u: float) -> tuple[float, float]:
+    u = max(0.0, min(1.0, u))
+    s = 10.0 * u**3 - 15.0 * u**4 + 6.0 * u**5
+    ds = 30.0 * u**2 - 60.0 * u**3 + 30.0 * u**4
+    return s, ds
+
+
+def build_preposition_trajectory_points(
+    start_positions: list[float],
+    target_positions: tuple[float, ...],
+    plan: PrepositionPlan,
+) -> tuple[list[JointTrajectoryPoint], dict[str, Any]]:
+    q_start = np.array(start_positions, dtype=float)
+    q_target = np.array(target_positions, dtype=float)
+    delta = q_target - q_start
+    duration_s = max(float(plan.planned_duration_s), 1e-9)
+    points: list[JointTrajectoryPoint] = []
+    max_joint_velocity = 0.0
+    for step_index in range(plan.steps + 1):
+        u = step_index / plan.steps
+        s, ds_du = _smoothstep5(u)
+        t_s = min(step_index * duration_s / plan.steps, duration_s)
+        q = q_start + s * delta
+        if step_index == 0 or step_index == plan.steps:
+            qd = np.zeros_like(delta)
+        else:
+            qd = delta * ds_du / duration_s
+        max_joint_velocity = max(max_joint_velocity, float(np.max(np.abs(qd))) if len(qd) else 0.0)
+        points.append(_point([float(value) for value in q], t_s, velocities=[float(value) for value in qd]))
+    return points, {
+        "strategy": "single_time_parameterized_quintic_joint_trajectory",
+        "goal_count": 1,
+        "trajectory_point_count": len(points),
+        "legacy_repeated_short_goals_rejected": True,
+        "max_joint_velocity_command_rad_s": max_joint_velocity,
+    }
 
 
 def execute_preposition_to_entry(
@@ -589,32 +629,26 @@ def execute_preposition_to_entry(
         ik_max_iters=node.args.preposition_ik_max_iters,
         ik_tolerance_m=node.args.preposition_ik_tolerance_m,
     )
-    q_start = np.array(start_positions, dtype=float)
-    q_target = np.array(plan.target_q, dtype=float)
-    next_progress = time.monotonic()
-    for step_index in range(1, plan.steps + 1):
-        monitor.assert_fresh_and_within_force_delta()
-        alpha = step_index / plan.steps
-        q_next = q_start + alpha * (q_target - q_start)
-        outcome = send_goal(node, _ordered_positions(node.wait_for_joint_state()), q_next, node.args.preposition_command_period_s)
-        node.goal_count += 1
-        node.preposition_motion_entered = True
-        now = time.monotonic()
-        if now >= next_progress:
-            current_pose = _pose_from_placement(
-                fk_tool0_base(node.model_bundle, np.array(_ordered_positions(node.wait_for_joint_state()), dtype=float))
-            )
-            print(
-                "step5b_live_preposition "
-                f"stage=22.00 step={step_index}/{plan.steps} "
-                f"tcp=({current_pose[0]:+.4f},{current_pose[1]:+.4f},{current_pose[2]:+.4f})m "
-                f"target=({plan.target_pose[0]:+.4f},{plan.target_pose[1]:+.4f},{plan.target_pose[2]:+.4f})m "
-                f"goals={node.goal_count}",
-                flush=True,
-            )
-            next_progress = now + node.args.progress_period_s
-        if not outcome.accepted:
-            raise RuntimeError("Step5b entry preposition goal was not accepted")
+    monitor.assert_fresh_and_within_force_delta()
+    trajectory_points, trajectory_metrics = build_preposition_trajectory_points(start_positions, plan.target_q, plan)
+    outcome = send_trajectory_goal(node, trajectory_points, plan.planned_duration_s, monitor=monitor)
+    node.goal_count += 1
+    node.preposition_motion_entered = True
+    current_pose = _pose_from_placement(
+        fk_tool0_base(node.model_bundle, np.array(_ordered_positions(node.wait_for_joint_state()), dtype=float))
+    )
+    print(
+        "step5b_live_preposition "
+        "stage=22.00 "
+        f"points={trajectory_metrics['trajectory_point_count']} "
+        f"duration_s={plan.planned_duration_s:.3f} "
+        f"tcp=({current_pose[0]:+.4f},{current_pose[1]:+.4f},{current_pose[2]:+.4f})m "
+        f"target=({plan.target_pose[0]:+.4f},{plan.target_pose[1]:+.4f},{plan.target_pose[2]:+.4f})m "
+        f"goals={node.goal_count}",
+        flush=True,
+    )
+    if not outcome.accepted:
+        raise RuntimeError("Step5b entry preposition goal was not accepted")
     final_pose = _pose_from_placement(
         fk_tool0_base(node.model_bundle, np.array(_ordered_positions(node.wait_for_joint_state()), dtype=float))
     )
@@ -636,6 +670,8 @@ def execute_preposition_to_entry(
         "final_position_error_m": position_error_m,
         "planned_duration_s": plan.planned_duration_s,
         "steps": plan.steps,
+        "command_period_s": node.args.preposition_command_period_s,
+        **trajectory_metrics,
         "entry_xy_source": "config/step5_safe_frame.json:basis.origin_xy_m",
         "target_rotvec_source": "programs/step5/step5b_contact_cycloid_baseline_v1.script TARGET_ROTVEC_RAD",
     }
@@ -811,9 +847,25 @@ def integrate_twist_to_joint_position(
 
 
 def send_goal(node: Step5bContactLiveRunner, current: list[float], q_next: np.ndarray, duration_s: float) -> ActionGoalOutcome:
+    return send_trajectory_goal(
+        node,
+        [_point(current, 0.0), _point([float(v) for v in q_next], duration_s)],
+        duration_s,
+    )
+
+
+def send_trajectory_goal(
+    node: Step5bContactLiveRunner,
+    points: list[JointTrajectoryPoint],
+    duration_s: float,
+    *,
+    monitor: KunweiPersistentMonitor | None = None,
+) -> ActionGoalOutcome:
+    if not points:
+        raise RuntimeError("FollowJointTrajectory goal has no points")
     goal = FollowJointTrajectory.Goal()
     goal.trajectory.joint_names = JOINT_NAMES
-    goal.trajectory.points = [_point(current, 0.0), _point([float(v) for v in q_next], duration_s)]
+    goal.trajectory.points = points
     future = node.action_client.send_goal_async(goal)
     rclpy.spin_until_future_complete(node, future, timeout_sec=node.args.wait_s)
     goal_handle = future.result()
@@ -825,7 +877,20 @@ def send_goal(node: Step5bContactLiveRunner, current: list[float], q_next: np.nd
         raise RuntimeError("FollowJointTrajectory goal was rejected")
     result_future = goal_handle.get_result_async()
     result_timeout_s = float(duration_s) + float(node.args.wait_s)
-    rclpy.spin_until_future_complete(node, result_future, timeout_sec=result_timeout_s)
+    if monitor is None:
+        rclpy.spin_until_future_complete(node, result_future, timeout_sec=result_timeout_s)
+    else:
+        deadline = time.monotonic() + result_timeout_s
+        while rclpy.ok() and time.monotonic() < deadline and not result_future.done():
+            rclpy.spin_once(node, timeout_sec=0.05)
+            try:
+                monitor.assert_fresh_and_within_force_delta()
+            except RuntimeError:
+                cancel_goal = getattr(goal_handle, "cancel_goal_async", None)
+                if callable(cancel_goal):
+                    cancel_future = cancel_goal()
+                    rclpy.spin_until_future_complete(node, cancel_future, timeout_sec=1.0)
+                raise
     if not result_future.done():
         node.action_result_timeout_s = result_timeout_s
         raise RuntimeError(f"FollowJointTrajectory result timed out after {result_timeout_s:.3f}s")
@@ -936,12 +1001,20 @@ def _ordered_positions(joint_state: JointState) -> list[float]:
     return [float(by_name[name]) for name in JOINT_NAMES]
 
 
-def _point(positions: list[float], time_from_start_s: float) -> JointTrajectoryPoint:
+def _point(
+    positions: list[float],
+    time_from_start_s: float,
+    *,
+    velocities: list[float] | None = None,
+) -> JointTrajectoryPoint:
     point = JointTrajectoryPoint()
     point.positions = positions
-    point.velocities = [0.0] * len(positions)
+    point.velocities = velocities if velocities is not None else [0.0] * len(positions)
     point.time_from_start.sec = int(time_from_start_s)
-    point.time_from_start.nanosec = int((time_from_start_s - int(time_from_start_s)) * 1_000_000_000)
+    point.time_from_start.nanosec = int(round((time_from_start_s - int(time_from_start_s)) * 1_000_000_000))
+    if point.time_from_start.nanosec >= 1_000_000_000:
+        point.time_from_start.sec += 1
+        point.time_from_start.nanosec -= 1_000_000_000
     return point
 
 

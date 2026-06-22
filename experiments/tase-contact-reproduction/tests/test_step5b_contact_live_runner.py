@@ -176,6 +176,47 @@ class Step5bContactLiveRunnerTest(unittest.TestCase):
         self.assertEqual(node.action_result_error_code, runner.FollowJointTrajectory.Result.SUCCESSFUL)
         self.assertEqual(node.action_result_error_string, "ok")
 
+    def test_preposition_builds_single_time_parameterized_goal(self) -> None:
+        plan = runner.PrepositionPlan(
+            stage=22.0,
+            target_pose=(0.1, 0.2, 0.3, 0.0, 0.0, 0.0),
+            start_pose=(0.0, 0.0, 0.3, 0.0, 0.0, 0.0),
+            target_q=(0.2, -0.1, 0.05, 0.0, 0.1, -0.2),
+            ik_position_error_m=0.0,
+            planned_duration_s=0.4,
+            steps=4,
+        )
+        points, metrics = runner.build_preposition_trajectory_points([0.0] * 6, plan.target_q, plan)
+        self.assertEqual(metrics["goal_count"], 1)
+        self.assertTrue(metrics["legacy_repeated_short_goals_rejected"])
+        self.assertEqual(metrics["trajectory_point_count"], 5)
+        self.assertEqual(len(points), 5)
+        self.assertEqual([duration_to_s(point.time_from_start) for point in points], [0.0, 0.1, 0.2, 0.3, 0.4])
+        self.assertTrue(all(abs(value) <= 1e-12 for value in points[0].velocities))
+        self.assertTrue(all(abs(value) <= 1e-12 for value in points[-1].velocities))
+        self.assertTrue(any(abs(value) > 0.0 for value in points[2].velocities))
+        self.assertGreater(points[2].positions[0], points[1].positions[0])
+
+    def test_send_trajectory_goal_sends_one_action_with_all_preposition_points(self) -> None:
+        node = fake_action_node(
+            result_status=runner.GoalStatus.STATUS_SUCCEEDED,
+            result_error_code=runner.FollowJointTrajectory.Result.SUCCESSFUL,
+        )
+        plan = runner.PrepositionPlan(
+            stage=22.0,
+            target_pose=(0.1, 0.2, 0.3, 0.0, 0.0, 0.0),
+            start_pose=(0.0, 0.0, 0.3, 0.0, 0.0, 0.0),
+            target_q=(0.2, -0.1, 0.05, 0.0, 0.1, -0.2),
+            ik_position_error_m=0.0,
+            planned_duration_s=0.4,
+            steps=4,
+        )
+        points, _metrics = runner.build_preposition_trajectory_points([0.0] * 6, plan.target_q, plan)
+        outcome = runner.send_trajectory_goal(node, points, plan.planned_duration_s)
+        self.assertTrue(outcome.accepted)
+        self.assertEqual(len(node.action_client.sent_goals), 1)
+        self.assertEqual(len(node.action_client.sent_goals[0].trajectory.points), len(points))
+
     def test_send_goal_aborted_status_with_success_error_code_fails_closed(self) -> None:
         node = fake_action_node(
             result_status=runner.GoalStatus.STATUS_ABORTED,
@@ -442,6 +483,10 @@ def fake_action_node(
 
 def fake_q_next() -> object:
     return [0.01] * 6
+
+
+def duration_to_s(duration: object) -> float:
+    return float(duration.sec) + float(duration.nanosec) / 1_000_000_000.0
 
 
 def csv_dict_rows(path: Path) -> list[dict[str, str]]:
