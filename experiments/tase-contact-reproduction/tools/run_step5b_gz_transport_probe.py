@@ -1001,6 +1001,23 @@ def _contact_point_wrench_rows(verified_payload: dict[str, Any]) -> list[dict[st
     return rows
 
 
+def _downgrade_nonformal_trace(trace_path: Path | None, diagnostic_claim_tier: str) -> None:
+    if trace_path is None or not trace_path.is_file():
+        return
+    trace_payload = _load_json(trace_path)
+    boundary = _nonformal_claim_boundary(diagnostic_claim_tier)
+    trace_payload.update(boundary)
+    trace_payload["claim_tier"] = CLAIM_TIER
+    trace_payload["allowed_claim"] = NONFORMAL_ALLOWED_CLAIM
+    trace_payload["forbidden_claim"] = NONFORMAL_FORBIDDEN_CLAIM
+    for row in trace_payload.get("rows") or []:
+        if not isinstance(row, dict):
+            continue
+        row.update(boundary)
+        row["claim_tier"] = CLAIM_TIER
+    _write_json(trace_path, trace_payload)
+
+
 def _artifact_row_counts(adapter_payload: dict[str, Any], rejected_rows: list[dict[str, Any]]) -> dict[str, int]:
     accepted = int(adapter_payload.get("total_contact_wrench_row_count") or 0)
     rejected = len(rejected_rows)
@@ -1296,6 +1313,10 @@ def build_m3_adapter_and_manifest(
         adapter_payload["claim_tier"] = CLAIM_TIER
         adapter_payload["allowed_claim"] = NONFORMAL_ALLOWED_CLAIM
         adapter_payload["forbidden_claim"] = NONFORMAL_FORBIDDEN_CLAIM
+        _downgrade_nonformal_trace(
+            Path(str(adapter_payload.get("wrench_trace_path"))) if adapter_payload.get("wrench_trace_path") else None,
+            str(adapter_diagnostic_claim_tier),
+        )
         _write_json(adapter_report_path, adapter_payload)
     required_shape: dict[str, Any] = {}
     if adapter_report_path and adapter_payload:

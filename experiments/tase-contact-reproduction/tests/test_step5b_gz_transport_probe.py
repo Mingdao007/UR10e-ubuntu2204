@@ -200,6 +200,9 @@ class Step5bGzTransportProbeTest(unittest.TestCase):
                 .read_text(encoding="utf-8")
                 .splitlines()[0]
             )
+            copied_total_trace = json.loads(
+                Path(manifest["required_shape"]["step5b_total_wrench"]["trace_path"]).read_text(encoding="utf-8")
+            )
             semantics = json.loads(
                 Path(manifest["required_shape"]["step5b_semantics"]["sign_frame_magnitude_audit_path"]).read_text(
                     encoding="utf-8"
@@ -233,8 +236,19 @@ class Step5bGzTransportProbeTest(unittest.TestCase):
         self.assertEqual(native["selected_body_role"], "eoat")
         self.assertEqual(native["selected_body"], "body_2_wrench")
         self.assertEqual(verified["rows"][0]["normal"], [0.0, 0.0, 1.0])
+        self.assertFalse(trace["is_formal_acceptance"])
+        self.assertEqual(trace["claim_tier"], "visual_only")
+        self.assertEqual(trace["diagnostic_claim_tier"], "physical Gazebo collision/contact physics")
+        self.assertFalse(trace["rows"][0]["is_formal_acceptance"])
+        self.assertEqual(trace["rows"][0]["claim_tier"], "visual_only")
+        self.assertEqual(trace["rows"][0]["diagnostic_claim_tier"], "physical Gazebo collision/contact physics")
         self.assertEqual(trace["rows"][0]["reaction_normal"], [0.0, 0.0, 1.0])
         self.assertEqual(trace["rows"][0]["approach_normal"], [-0.0, -0.0, -1.0])
+        self.assertFalse(copied_total_trace["is_formal_acceptance"])
+        self.assertEqual(copied_total_trace["claim_tier"], "visual_only")
+        self.assertEqual(copied_total_trace["diagnostic_claim_tier"], "physical Gazebo collision/contact physics")
+        self.assertFalse(copied_total_trace["rows"][0]["is_formal_acceptance"])
+        self.assertEqual(copied_total_trace["rows"][0]["claim_tier"], "visual_only")
         self.assertFalse(correlation["is_formal_acceptance"])
         self.assertEqual(correlation["claim_tier"], "visual_only")
         self.assertEqual(correlation["diagnostic_claim_tier"], "physical Gazebo collision/contact physics")
