@@ -12,6 +12,7 @@ __all__ = [
     "kunwei_persistent_monitor",
     "no_contact_cycloid_shadow",
     "no_contact_motion_probe",
+    "ros2_controller_switching",
     "step5a_cartesian_cycloid_motion",
     "step5a_driver_readiness_check",
     "step5a_gate_a_audit",
@@ -19,5 +20,6 @@ __all__ = [
     "step5a_joint_proxy_motion_probe",
     "step5a_return_to_anchor_motion",
     "step5b_contact_live_runner",
+    "step5b_velocity_admittance_runner",
     "state_machine",
 ]

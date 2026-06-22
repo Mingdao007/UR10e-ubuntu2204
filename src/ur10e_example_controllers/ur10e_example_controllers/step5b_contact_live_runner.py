@@ -49,6 +49,10 @@ TEXTBOOK_SPEC = CONFIG / "local_control_textbook_spec.json"
 LOCKED_ROUTE = "ros2_remote_control_headless"
 ENTRYPOINT_NAME = "step5b_contact_live_runner"
 DEFAULT_ACTION_NAME = "/scaled_joint_trajectory_controller/follow_joint_trajectory"
+RETAINED_PREVELOCITY_LABEL = "retained_for_prevelocity_evidence_not_live_contact_final"
+FINAL_CONTACT_STRATEGY = "forward_velocity_admittance"
+SMOOTHSTEP5_MAX_DU = 15.0 / 8.0
+SMOOTHSTEP5_MAX_D2U = 10.0 * math.sqrt(3.0) / 3.0
 TARGET_ROTVEC_RAD = (-3.044172198, -0.130573165, -0.202188631)
 FIRST_CONTACT_Z_M = 0.008044839
 FIRST_NEAR_ABOVE_CONTACT_M = 0.020
@@ -119,6 +123,7 @@ class PrepositionPlan:
     ik_position_error_m: float
     planned_duration_s: float
     steps: int
+    duration_bounds: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -142,7 +147,10 @@ def acceptance_contract(entrypoint: Path | None = None) -> dict[str, Any]:
             "action": "control_msgs/action/FollowJointTrajectory",
             "default_action_name": DEFAULT_ACTION_NAME,
             "controller": "scaled_joint_trajectory_controller",
+            "scope": "stage22_preposition_only",
         },
+        "contact_control_strategy": RETAINED_PREVELOCITY_LABEL,
+        "required_final_contact_control_strategy": FINAL_CONTACT_STRATEGY,
         "contact_core": "ur10e_example_controllers.step5b_contact_control_core.compute_step5b_contact_sample",
         "force_source": "kunwei_software_baselined_stream",
         "zero_policy": {
@@ -251,6 +259,8 @@ def dry_run_summary(args: argparse.Namespace) -> dict[str, Any]:
         "accepted": live_runner_accepted,
         "live_runner_route": LOCKED_ROUTE,
         "action_name": args.action_name,
+        "contact_control_strategy": RETAINED_PREVELOCITY_LABEL,
+        "required_final_contact_control_strategy": FINAL_CONTACT_STRATEGY,
         "readiness_summary_path": None if readiness_path is None else str(readiness_path),
         "readiness_pass": readiness_pass,
         "readiness_ok": None if readiness_payload is None else bool(readiness_payload.get("ok")),
@@ -423,28 +433,15 @@ class Step5bContactLiveRunner(Node):
                         next_progress = now + self.args.progress_period_s
                     time.sleep(self.args.command_period_s)
                     continue
-                q_next = integrate_twist_to_joint_position(
-                    self.model_bundle,
-                    np.array(positions, dtype=float),
-                    command.command_twist_base,
-                    self.args.command_period_s,
-                    max_joint_step_rad=self.args.max_joint_step_rad,
+                self.failure_stage = "final_contact_transport_retired"
+                self.trace_rows[-1]["failure_reason"] = (
+                    "RuntimeError: repeated_short_fjt contact transport is "
+                    f"{RETAINED_PREVELOCITY_LABEL}; use {FINAL_CONTACT_STRATEGY}"
                 )
-                self.contact_motion_entered = True
-                outcome = send_goal(self, positions, q_next, self.args.command_period_s)
-                self.goal_count += 1
-                self.trace_rows[-1].update(_action_outcome_fields(outcome))
-                if now >= next_progress:
-                    print_live_progress(
-                        t_rel_s=now - start,
-                        command=command,
-                        first_pose=first_pose,
-                        goal_count=self.goal_count,
-                        sent=True,
-                    )
-                    next_progress = now + self.args.progress_period_s
-                if state.normal_acquired and command.result.path_time_s >= params.duration_s:
-                    break
+                raise RuntimeError(
+                    "Step5b final contact transport is "
+                    f"{RETAINED_PREVELOCITY_LABEL}; use step5b_velocity_admittance_runner"
+                )
             incomplete_stage = live_loop_incomplete_stage(
                 state=state,
                 last_command=last_command,
@@ -479,6 +476,8 @@ class Step5bContactLiveRunner(Node):
                 "failure_stage": self.failure_stage,
                 "live_runner_route": LOCKED_ROUTE,
                 "action_name": self.args.action_name,
+                "contact_control_strategy": RETAINED_PREVELOCITY_LABEL,
+                "required_final_contact_control_strategy": FINAL_CONTACT_STRATEGY,
                 "readiness_summary_path": str(readiness_path),
                 "readiness_ok": bool(readiness_payload.get("ok")),
                 "authorization_status": auth,
@@ -537,6 +536,61 @@ def pose_to_se3(pose: tuple[float, float, float, float, float, float]) -> pin.SE
     )
 
 
+def _orientation_delta_rad(
+    start_pose: tuple[float, float, float, float, float, float],
+    target_pose: tuple[float, float, float, float, float, float],
+) -> float:
+    start_rotation = np.array(core.rotvec_to_matrix(start_pose[3], start_pose[4], start_pose[5]), dtype=float)
+    target_rotation = np.array(core.rotvec_to_matrix(target_pose[3], target_pose[4], target_pose[5]), dtype=float)
+    return float(np.linalg.norm(pin.log3(start_rotation.T @ target_rotation)))
+
+
+def preposition_duration_lower_bounds(
+    *,
+    start_pose: tuple[float, float, float, float, float, float],
+    target_pose: tuple[float, float, float, float, float, float],
+    start_positions: list[float],
+    target_positions: tuple[float, ...],
+    tcp_xy_speed_m_s: float,
+    orientation_rate_rad_s: float,
+    joint_velocity_rad_s: float,
+    joint_acceleration_rad_s2: float,
+    min_duration_s: float,
+) -> dict[str, Any]:
+    q_start = np.array(start_positions, dtype=float)
+    q_target = np.array(target_positions, dtype=float)
+    dq_abs = np.abs(q_target - q_start)
+    xy_distance_m = math.hypot(target_pose[0] - start_pose[0], target_pose[1] - start_pose[1])
+    orientation_delta_rad = _orientation_delta_rad(start_pose, target_pose)
+
+    sources = {
+        "min_duration": float(min_duration_s),
+        "tcp_xy_speed": SMOOTHSTEP5_MAX_DU * xy_distance_m / max(float(tcp_xy_speed_m_s), 1e-9),
+        "orientation_rate": SMOOTHSTEP5_MAX_DU * orientation_delta_rad / max(float(orientation_rate_rad_s), 1e-9),
+        "joint_velocity": float(np.max(SMOOTHSTEP5_MAX_DU * dq_abs / max(float(joint_velocity_rad_s), 1e-9)))
+        if len(dq_abs)
+        else 0.0,
+        "joint_acceleration": float(
+            np.max(np.sqrt(SMOOTHSTEP5_MAX_D2U * dq_abs / max(float(joint_acceleration_rad_s2), 1e-9)))
+        )
+        if len(dq_abs)
+        else 0.0,
+    }
+    active_source, duration_s = max(sources.items(), key=lambda item: item[1])
+    return {
+        "duration_s": float(duration_s),
+        "active_duration_bound": active_source,
+        "duration_bound_sources": list(sources.keys()),
+        "xy_distance_m": xy_distance_m,
+        "orientation_delta_rad": orientation_delta_rad,
+        "tcp_xy_speed_limit_m_s": float(tcp_xy_speed_m_s),
+        "orientation_rate_limit_rad_s": float(orientation_rate_rad_s),
+        "joint_velocity_limit_rad_s": float(joint_velocity_rad_s),
+        "joint_acceleration_limit_rad_s2": float(joint_acceleration_rad_s2),
+        **{f"{name}_s": float(value) for name, value in sources.items()},
+    }
+
+
 def plan_preposition_to_entry(
     model_bundle: CalibratedModel,
     start_positions: list[float],
@@ -545,6 +599,9 @@ def plan_preposition_to_entry(
     speed_m_s: float,
     command_period_s: float,
     min_duration_s: float,
+    max_joint_velocity_rad_s: float,
+    max_joint_acceleration_rad_s2: float,
+    max_orientation_rate_rad_s: float,
     ik_damping: float,
     ik_max_iters: int,
     ik_tolerance_m: float,
@@ -562,27 +619,39 @@ def plan_preposition_to_entry(
     )
     if ik_error > ik_tolerance_m:
         raise RuntimeError(f"Step5b entry preposition IK error too large: {ik_error:.6f} m > {ik_tolerance_m:.6f} m")
-    xy_distance = math.hypot(target_pose[0] - start_pose[0], target_pose[1] - start_pose[1])
-    # Quintic smoothstep peaks at 1.875x average speed; size duration so the
-    # TCP XY preposition speed cap remains conservative instead of average-only.
-    duration_s = max(min_duration_s, 1.875 * xy_distance / max(speed_m_s, 1e-6))
+    bounds = preposition_duration_lower_bounds(
+        start_pose=start_pose,
+        target_pose=target_pose,
+        start_positions=start_positions,
+        target_positions=tuple(float(value) for value in q_target),
+        tcp_xy_speed_m_s=speed_m_s,
+        orientation_rate_rad_s=max_orientation_rate_rad_s,
+        joint_velocity_rad_s=max_joint_velocity_rad_s,
+        joint_acceleration_rad_s2=max_joint_acceleration_rad_s2,
+        min_duration_s=min_duration_s,
+    )
+    duration_s = float(bounds["duration_s"])
     steps = max(1, int(math.ceil(duration_s / command_period_s)))
+    planned_duration_s = float(steps * command_period_s)
+    bounds = {**bounds, "planned_duration_s": planned_duration_s}
     return PrepositionPlan(
         stage=22.0,
         target_pose=target_pose,
         start_pose=start_pose,
         target_q=tuple(float(value) for value in q_target),
         ik_position_error_m=float(ik_error),
-        planned_duration_s=float(steps * command_period_s),
+        planned_duration_s=planned_duration_s,
         steps=steps,
+        duration_bounds=bounds,
     )
 
 
-def _smoothstep5(u: float) -> tuple[float, float]:
+def _smoothstep5(u: float) -> tuple[float, float, float]:
     u = max(0.0, min(1.0, u))
     s = 10.0 * u**3 - 15.0 * u**4 + 6.0 * u**5
     ds = 30.0 * u**2 - 60.0 * u**3 + 30.0 * u**4
-    return s, ds
+    d2s = 60.0 * u - 180.0 * u**2 + 120.0 * u**3
+    return s, ds, d2s
 
 
 def build_preposition_trajectory_points(
@@ -596,23 +665,42 @@ def build_preposition_trajectory_points(
     duration_s = max(float(plan.planned_duration_s), 1e-9)
     points: list[JointTrajectoryPoint] = []
     max_joint_velocity = 0.0
+    max_joint_acceleration = 0.0
     for step_index in range(plan.steps + 1):
         u = step_index / plan.steps
-        s, ds_du = _smoothstep5(u)
+        s, ds_du, d2s_du2 = _smoothstep5(u)
         t_s = min(step_index * duration_s / plan.steps, duration_s)
         q = q_start + s * delta
         if step_index == 0 or step_index == plan.steps:
             qd = np.zeros_like(delta)
+            qdd = np.zeros_like(delta)
         else:
             qd = delta * ds_du / duration_s
+            qdd = delta * d2s_du2 / (duration_s * duration_s)
         max_joint_velocity = max(max_joint_velocity, float(np.max(np.abs(qd))) if len(qd) else 0.0)
-        points.append(_point([float(value) for value in q], t_s, velocities=[float(value) for value in qd]))
+        max_joint_acceleration = max(max_joint_acceleration, float(np.max(np.abs(qdd))) if len(qdd) else 0.0)
+        points.append(
+            _point(
+                [float(value) for value in q],
+                t_s,
+                velocities=[float(value) for value in qd],
+                accelerations=[float(value) for value in qdd],
+            )
+        )
+    bounds = plan.duration_bounds or {}
     return points, {
         "strategy": "single_time_parameterized_quintic_joint_trajectory",
         "goal_count": 1,
         "trajectory_point_count": len(points),
         "legacy_repeated_short_goals_rejected": True,
         "max_joint_velocity_command_rad_s": max_joint_velocity,
+        "max_joint_acceleration_command_rad_s2": max_joint_acceleration,
+        "joint_velocity_limit_rad_s": bounds.get("joint_velocity_limit_rad_s"),
+        "joint_acceleration_limit_rad_s2": bounds.get("joint_acceleration_limit_rad_s2"),
+        "orientation_rate_limit_rad_s": bounds.get("orientation_rate_limit_rad_s"),
+        "duration_bound_sources": bounds.get("duration_bound_sources", []),
+        "active_duration_bound": bounds.get("active_duration_bound"),
+        "duration_bounds": bounds,
     }
 
 
@@ -630,6 +718,9 @@ def execute_preposition_to_entry(
         speed_m_s=node.args.preposition_speed_m_s,
         command_period_s=node.args.preposition_command_period_s,
         min_duration_s=node.args.preposition_min_duration_s,
+        max_joint_velocity_rad_s=node.args.preposition_max_joint_velocity_rad_s,
+        max_joint_acceleration_rad_s2=node.args.preposition_max_joint_acceleration_rad_s2,
+        max_orientation_rate_rad_s=node.args.preposition_max_orientation_rate_rad_s,
         ik_damping=node.args.preposition_ik_damping,
         ik_max_iters=node.args.preposition_ik_max_iters,
         ik_tolerance_m=node.args.preposition_ik_tolerance_m,
@@ -1013,10 +1104,12 @@ def _point(
     time_from_start_s: float,
     *,
     velocities: list[float] | None = None,
+    accelerations: list[float] | None = None,
 ) -> JointTrajectoryPoint:
     point = JointTrajectoryPoint()
     point.positions = positions
     point.velocities = velocities if velocities is not None else [0.0] * len(positions)
+    point.accelerations = accelerations if accelerations is not None else [0.0] * len(positions)
     point.time_from_start.sec = int(time_from_start_s)
     point.time_from_start.nanosec = int(round((time_from_start_s - int(time_from_start_s)) * 1_000_000_000))
     if point.time_from_start.nanosec >= 1_000_000_000:
@@ -1172,6 +1265,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--preposition-speed-m-s", type=float, default=0.020)
     parser.add_argument("--preposition-command-period-s", type=float, default=0.10)
     parser.add_argument("--preposition-min-duration-s", type=float, default=1.0)
+    parser.add_argument("--preposition-max-joint-velocity-rad-s", type=float, default=0.20)
+    parser.add_argument("--preposition-max-joint-acceleration-rad-s2", type=float, default=0.30)
+    parser.add_argument("--preposition-max-orientation-rate-rad-s", type=float, default=0.10)
     parser.add_argument("--preposition-position-tolerance-m", type=float, default=0.003)
     parser.add_argument("--preposition-ik-damping", type=float, default=1e-4)
     parser.add_argument("--preposition-ik-max-iters", type=int, default=120)
@@ -1245,6 +1341,8 @@ def main(argv: list[str] | None = None) -> int:
             "failure_stage": getattr(node, "failure_stage", "unknown"),
             "error": f"{type(exc).__name__}: {exc}",
             "live_runner_route": LOCKED_ROUTE,
+            "contact_control_strategy": RETAINED_PREVELOCITY_LABEL,
+            "required_final_contact_control_strategy": FINAL_CONTACT_STRATEGY,
             "trace_path": str(args.trace),
             "trace_rows": len(getattr(node, "trace_rows", [])),
             "diagnostic_summary": live_trace_diagnostics(getattr(node, "trace_rows", [])),

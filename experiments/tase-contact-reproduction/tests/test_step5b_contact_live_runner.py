@@ -205,8 +205,56 @@ class Step5bContactLiveRunnerTest(unittest.TestCase):
         self.assertEqual([duration_to_s(point.time_from_start) for point in points], [0.0, 0.1, 0.2, 0.3, 0.4])
         self.assertTrue(all(abs(value) <= 1e-12 for value in points[0].velocities))
         self.assertTrue(all(abs(value) <= 1e-12 for value in points[-1].velocities))
+        self.assertTrue(all(abs(value) <= 1e-12 for value in points[0].accelerations))
+        self.assertTrue(all(abs(value) <= 1e-12 for value in points[-1].accelerations))
+        self.assertTrue(any(abs(value) > 0.0 for point in points[1:-1] for value in point.accelerations))
         self.assertTrue(any(abs(value) > 0.0 for value in points[2].velocities))
         self.assertGreater(points[2].positions[0], points[1].positions[0])
+        self.assertIn("joint_velocity_limit_rad_s", metrics)
+        self.assertIn("joint_acceleration_limit_rad_s2", metrics)
+        self.assertIn("duration_bound_sources", metrics)
+
+    def test_preposition_duration_exceeds_xy_only_for_large_joint_delta(self) -> None:
+        bounds = runner.preposition_duration_lower_bounds(
+            start_pose=(0.0, 0.0, 0.3, 0.0, 0.0, 0.0),
+            target_pose=(0.001, 0.0, 0.3, 0.0, 0.0, 0.0),
+            start_positions=[0.0] * 6,
+            target_positions=(1.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+            tcp_xy_speed_m_s=0.020,
+            orientation_rate_rad_s=0.10,
+            joint_velocity_rad_s=0.20,
+            joint_acceleration_rad_s2=0.30,
+            min_duration_s=1.0,
+        )
+        self.assertAlmostEqual(bounds["tcp_xy_speed_s"], 0.09375)
+        self.assertAlmostEqual(bounds["joint_velocity_s"], 9.375)
+        self.assertGreater(bounds["duration_s"], 9.0)
+        self.assertEqual(bounds["active_duration_bound"], "joint_velocity")
+        self.assertIn("joint_acceleration", bounds["duration_bound_sources"])
+
+    def test_new_preposition_cli_limits_are_accepted_in_dry_run(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            summary = Path(tmp) / "summary.json"
+            rc = runner.main(
+                [
+                    "--summary",
+                    str(summary),
+                    "--runs-dir",
+                    str(ROOT / "runs"),
+                    "--preposition-max-joint-velocity-rad-s",
+                    "0.20",
+                    "--preposition-max-joint-acceleration-rad-s2",
+                    "0.30",
+                    "--preposition-max-orientation-rate-rad-s",
+                    "0.10",
+                ]
+            )
+            self.assertEqual(rc, 0)
+
+    def test_final_contact_live_loop_no_longer_uses_repeated_short_fjt(self) -> None:
+        text = Path(runner.__file__).read_text(encoding="utf-8")
+        self.assertNotIn("send_goal(self, positions, q_next, self.args.command_period_s)", text)
+        self.assertIn("retained_for_prevelocity_evidence_not_live_contact_final", text)
 
     def test_send_trajectory_goal_sends_one_action_with_all_preposition_points(self) -> None:
         node = fake_action_node(
