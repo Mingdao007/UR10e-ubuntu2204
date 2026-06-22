@@ -12,7 +12,6 @@ import argparse
 from datetime import datetime
 import hashlib
 import json
-import signal
 import subprocess
 import sys
 import time
