@@ -35,6 +35,7 @@ from .step5a_cartesian_cycloid_motion import (
     fk_tool0_base,
     solve_tool0_ik,
 )
+from .step5_stage_names import format_stage, stage_slug, stage_title
 
 
 WORKSPACE = Path(__file__).resolve().parents[3]
@@ -59,6 +60,8 @@ SECOND_SEARCH_NEAR_SPEED_M_S = -0.003
 DEFAULT_TRACE_FIELDS = [
     "t_rel_s",
     "stage",
+    "stage_slug",
+    "stage_title",
     "tcp_x_m",
     "tcp_y_m",
     "tcp_z_m",
@@ -348,6 +351,8 @@ class Step5bContactLiveRunner(Node):
             baseline_snapshot = monitor.snapshot()
             self.preposition_summary["software_baseline_reset"] = {
                 "stage": 23.0,
+                "stage_slug": stage_slug(23.0),
+                "stage_title": stage_title(23.0),
                 "ok": True,
                 "baseline_si_units": baseline_snapshot.get("baseline_si_units"),
                 "ur_zero_ftsensor_called": False,
@@ -639,7 +644,7 @@ def execute_preposition_to_entry(
     )
     print(
         "step5b_live_preposition "
-        "stage=22.00 "
+        f"{format_stage(plan.stage)} "
         f"points={trajectory_metrics['trajectory_point_count']} "
         f"duration_s={plan.planned_duration_s:.3f} "
         f"tcp=({current_pose[0]:+.4f},{current_pose[1]:+.4f},{current_pose[2]:+.4f})m "
@@ -662,6 +667,8 @@ def execute_preposition_to_entry(
         )
     return {
         "stage": plan.stage,
+        "stage_slug": stage_slug(plan.stage),
+        "stage_title": stage_title(plan.stage),
         "target_pose": list(plan.target_pose),
         "start_pose": list(plan.start_pose),
         "final_pose": list(final_pose),
@@ -806,7 +813,7 @@ def print_live_progress(
     print(
         "step5b_live "
         f"t={t_rel_s:6.2f}s "
-        f"stage={command.stage:5.2f} "
+        f"{format_stage(command.stage)} "
         f"tcp=({pose[0]:+.4f},{pose[1]:+.4f},{pose[2]:+.4f})m "
         f"dz={dz:+.4f}m "
         f"cmd=({twist[0]:+.5f},{twist[1]:+.5f},{twist[2]:+.5f})m/s "
@@ -1065,15 +1072,23 @@ def live_trace_diagnostics(rows: list[dict[str, Any]]) -> dict[str, Any]:
     last_tcp = [_row_float(last, key) for key in ("tcp_x_m", "tcp_y_m", "tcp_z_m")]
     tcp_delta = [last_tcp[index] - first_tcp[index] for index in range(3)]
     stage_counts: dict[str, int] = {}
+    stage_name_counts: dict[str, int] = {}
     for row in rows:
-        stage_key = f"{_row_float(row, 'stage'):.2f}"
+        stage_value = _row_float(row, "stage")
+        stage_key = f"{stage_value:.2f}"
         stage_counts[stage_key] = stage_counts.get(stage_key, 0) + 1
+        slug = str(row.get("stage_slug") or stage_slug(stage_value))
+        stage_name_counts[slug] = stage_name_counts.get(slug, 0) + 1
+    last_stage = _row_float(last, "stage")
     return {
         "trace_rows": len(rows),
         "first_t_rel_s": _row_float(first, "t_rel_s"),
         "last_t_rel_s": _row_float(last, "t_rel_s"),
         "stage_counts": stage_counts,
-        "last_stage": _row_float(last, "stage"),
+        "stage_name_counts": stage_name_counts,
+        "last_stage": last_stage,
+        "last_stage_slug": str(last.get("stage_slug") or stage_slug(last_stage)),
+        "last_stage_title": str(last.get("stage_title") or stage_title(last_stage)),
         "first_tcp_xyz_m": first_tcp,
         "last_tcp_xyz_m": last_tcp,
         "tcp_delta_xyz_m": tcp_delta,
@@ -1110,6 +1125,8 @@ def _trace_row(t_rel_s: float, command: LiveRunnerCommand, *, sent_goal: bool, a
     return {
         "t_rel_s": t_rel_s,
         "stage": command.stage,
+        "stage_slug": stage_slug(command.stage),
+        "stage_title": stage_title(command.stage),
         "tcp_x_m": pose[0],
         "tcp_y_m": pose[1],
         "tcp_z_m": pose[2],

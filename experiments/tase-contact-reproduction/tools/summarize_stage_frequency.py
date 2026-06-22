@@ -8,6 +8,13 @@ import csv
 import json
 import math
 from pathlib import Path
+import sys
+
+
+WORKSPACE = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(WORKSPACE / "src" / "ur10e_example_controllers"))
+
+from ur10e_example_controllers.step5_stage_names import stage_slug, stage_title  # noqa: E402
 
 
 def summarize(csv_path: Path) -> dict:
@@ -32,6 +39,8 @@ def summarize(csv_path: Path) -> dict:
         if len(stage_rows) < 2:
             return {
                 "stage": stage,
+                "stage_slug": stage_slug(stage),
+                "stage_title": stage_title(stage),
                 "duration_s": 0.0,
                 "rtde_rows": len(stage_rows),
                 "rtde_row_rate_hz": None,
@@ -48,6 +57,8 @@ def summarize(csv_path: Path) -> dict:
                 previous = current
         return {
             "stage": stage,
+            "stage_slug": stage_slug(stage),
+            "stage_title": stage_title(stage),
             "duration_s": duration,
             "rtde_rows": len(stage_rows),
             "rtde_row_rate_hz": (len(stage_rows) - 1) / duration if duration > 0 else None,

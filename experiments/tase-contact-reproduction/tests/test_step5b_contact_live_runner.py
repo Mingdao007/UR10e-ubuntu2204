@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 from ur10e_example_controllers import step5b_contact_control_core as core  # noqa: E402
 from ur10e_example_controllers import step5b_contact_live_runner as runner  # noqa: E402
+from ur10e_example_controllers import step5_stage_names  # noqa: E402
 
 import step5b_authorization_status as auth_gate  # noqa: E402
 
@@ -132,6 +133,16 @@ class Step5bContactLiveRunnerTest(unittest.TestCase):
         self.assertEqual(runner.stage_for_elapsed(2.0, state), 25.2)
         self.assertEqual(runner.stage_for_elapsed(3.0, state), 25.3)
         self.assertEqual(runner.stage_for_elapsed(4.0, state), 25.0)
+
+    def test_stage_name_mapping_keeps_numeric_protocol_human_readable(self) -> None:
+        self.assertEqual(step5_stage_names.stage_slug(22.0), "preposition_to_entry")
+        self.assertEqual(step5_stage_names.stage_slug(23.0), "software_baseline_reset")
+        self.assertEqual(step5_stage_names.stage_slug(24.0), "first_contact_search_far")
+        self.assertEqual(step5_stage_names.stage_slug(24.2), "first_contact_search_near")
+        self.assertEqual(step5_stage_names.stage_slug(25.05), "first_contact_detach")
+        self.assertEqual(step5_stage_names.stage_slug(25.3), "line_entry_gate")
+        self.assertEqual(step5_stage_names.stage_slug(25.0), "contact_line_control")
+        self.assertEqual(step5_stage_names.format_stage(22.0), "stage=preposition_to_entry code=22.00")
 
     def test_search_latch_fails_if_approach_opposes_tcp_search_axis(self) -> None:
         params = core.Step5bContactParams(bridge_min_force_for_control_n=1.0)
@@ -324,7 +335,18 @@ class Step5bContactLiveRunnerTest(unittest.TestCase):
         self.assertEqual(row["tcp_rx_rad"], 0.01)
         self.assertEqual(row["tcp_ry_rad"], 0.02)
         self.assertEqual(row["tcp_rz_rad"], -0.03)
-        for field in ("tcp_x_m", "tcp_y_m", "tcp_z_m", "tcp_rx_rad", "tcp_ry_rad", "tcp_rz_rad"):
+        self.assertEqual(row["stage_slug"], "first_contact_search_near")
+        self.assertEqual(row["stage_title"], "first contact search near")
+        for field in (
+            "stage_slug",
+            "stage_title",
+            "tcp_x_m",
+            "tcp_y_m",
+            "tcp_z_m",
+            "tcp_rx_rad",
+            "tcp_ry_rad",
+            "tcp_rz_rad",
+        ):
             self.assertIn(field, runner.DEFAULT_TRACE_FIELDS)
 
     def test_live_trace_diagnostics_summarizes_motion_and_commands(self) -> None:
@@ -372,6 +394,9 @@ class Step5bContactLiveRunnerTest(unittest.TestCase):
         diagnostics = runner.live_trace_diagnostics(rows)
         self.assertEqual(diagnostics["trace_rows"], 2)
         self.assertEqual(diagnostics["stage_counts"], {"24.20": 2})
+        self.assertEqual(diagnostics["stage_name_counts"], {"first_contact_search_near": 2})
+        self.assertEqual(diagnostics["last_stage_slug"], "first_contact_search_near")
+        self.assertEqual(diagnostics["last_stage_title"], "first contact search near")
         self.assertEqual(diagnostics["sent_goal_rows"], 1)
         self.assertEqual(diagnostics["accepted_goal_rows"], 1)
         self.assertAlmostEqual(diagnostics["tcp_delta_xyz_m"][0], 0.001)
