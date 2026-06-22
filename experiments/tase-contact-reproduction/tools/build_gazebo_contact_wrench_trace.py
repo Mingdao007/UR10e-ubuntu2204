@@ -52,6 +52,7 @@ TOTAL_CONTACT_FRAME_POLICIES = {
     "pretransformed_to_base",
     "verified_world_to_base_identity_from_p2_witness_sdf",
     "verified_world_to_base_identity_from_contact_capability_witness_sdf",
+    "verified_world_to_base_identity_from_step5b_transport_probe_sdf",
 }
 STANDALONE_P2_OBSERVATION_SCOPE = "standalone_p2_contact_witness"
 EPS = 1e-9
@@ -244,6 +245,11 @@ def _total_contact_frame_policy_valid(native: dict[str, Any]) -> bool:
     ) or (
         isinstance(evidence, dict)
         and evidence.get("source") == "contact_capability_witness_sdf_ur10e_base_frame_identity"
+        and evidence.get("native_frame_interpreted_as") == "world"
+        and evidence.get("to_frame") == "base"
+    ) or (
+        isinstance(evidence, dict)
+        and evidence.get("source") == "step5b_transport_probe_sdf_ur10e_base_frame_identity"
         and evidence.get("native_frame_interpreted_as") == "world"
         and evidence.get("to_frame") == "base"
     )

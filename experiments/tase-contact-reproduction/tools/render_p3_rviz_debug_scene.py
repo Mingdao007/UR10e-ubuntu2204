@@ -73,17 +73,19 @@ def build_render_report(
     publisher_returncode: int | None,
     ffmpeg_returncode: int,
 ) -> dict[str, Any]:
+    manifest = load_json(manifest_path) if manifest_path.is_file() else {}
     screenshot_exists = screenshot_path.is_file() and screenshot_path.stat().st_size > 0
-    return {
-        "schema": "ur10e_p3_rviz_debug_render_report_v1",
+    report = {
+        "schema": manifest.get("render_report_schema", "ur10e_p3_rviz_debug_render_report_v1"),
         "generated_at": generated_at,
         "mode": "offline_xvfb_rviz_static_scene_render",
-        "claim_tier": "visual_only",
+        "claim_tier": manifest.get("claim_tier", "visual_only"),
         "ok": bool(screenshot_exists and ffmpeg_returncode == 0 and publisher_returncode == 0),
         "screenshot_path": rel(screenshot_path),
         "screenshot_sha256": sha256_file(screenshot_path) if screenshot_exists else None,
         "screenshot_bytes": screenshot_path.stat().st_size if screenshot_exists else 0,
         "manifest_path": rel(manifest_path),
+        "source_manifest_schema": manifest.get("schema"),
         "rviz_config_path": rel(rviz_config_path),
         "publisher_summary_path": rel(publisher_summary_path),
         "rviz_stdout_path": rel(rviz_stdout_path),
@@ -106,6 +108,14 @@ def build_render_report(
         ],
         "forbidden_claim": "physical Gazebo collision/contact physics; simulated_ft; real bench/live contact",
     }
+    if manifest.get("schema") == "ur10e_step5b_rviz_debug_evidence_pack_v1":
+        report["current_run_rviz_viewer_candidate_present"] = bool(report["ok"])
+        report["formal_step5b_viewer_acceptance_allowed"] = False
+        report["formal_viewer_acceptance_blockers"] = [
+            "static_rviz_render_not_formal_step5b_same_run",
+            "formal_step5b_same_run_not_attempted",
+        ]
+    return report
 
 
 def update_manifest_with_render(
@@ -116,8 +126,9 @@ def update_manifest_with_render(
     render_report_path: Path,
 ) -> None:
     payload = load_json(manifest_path)
+    screenshot_present = screenshot_path.is_file() and screenshot_path.stat().st_size > 0
     payload["rendered_screenshot_evidence"] = {
-        "present": screenshot_path.is_file() and screenshot_path.stat().st_size > 0,
+        "present": screenshot_present,
         "status": "rendered_screenshot_captured",
         "path": screenshot_path.name,
         "sha256": sha256_file(screenshot_path),
@@ -126,10 +137,21 @@ def update_manifest_with_render(
         "claim_tier": "visual_only",
         "render_report_path": render_report_path.name,
     }
+    allow_full_acceptance = bool(payload.get("allow_full_rviz_render_acceptance_from_static_render", True))
     payload["full_rviz_render_acceptance_allowed"] = bool(
-        payload.get("all_required_items_evidenced")
-        and payload["rendered_screenshot_evidence"]["present"]
+        allow_full_acceptance
+        and payload.get("all_required_items_evidenced")
+        and screenshot_present
     )
+    if payload.get("schema") == "ur10e_step5b_rviz_debug_evidence_pack_v1":
+        payload["current_run_rviz_viewer_candidate_present"] = bool(
+            payload.get("all_required_items_evidenced") and screenshot_present
+        )
+        payload["formal_step5b_viewer_acceptance_allowed"] = False
+        payload["formal_viewer_acceptance_blockers"] = [
+            "static_rviz_render_not_formal_step5b_same_run",
+            "formal_step5b_same_run_not_attempted",
+        ]
     manifest_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
@@ -147,7 +169,7 @@ def publisher_child(args: argparse.Namespace) -> int:
     manifest = load_json(manifest_path)
     marker_topics = manifest["marker_topics"]
     rclpy.init()
-    node = rclpy.create_node("ur10e_p3_rviz_static_scene_publisher")
+    node = rclpy.create_node(manifest.get("publisher_node_name", "ur10e_p3_rviz_static_scene_publisher"))
     transient_qos = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
     robot_pub = node.create_publisher(String, "/robot_description", transient_qos)
     frame_pub = node.create_publisher(MarkerArray, marker_topics["frame_markers"], transient_qos)
@@ -159,7 +181,41 @@ def publisher_child(args: argparse.Namespace) -> int:
 
     urdf_path = resolve_manifest_relative(manifest_path, manifest.get("source_paths", {}).get("calibrated_urdf"))
     robot_description = String()
-    robot_description.data = urdf_path.read_text(encoding="utf-8") if urdf_path and urdf_path.is_file() else "<robot name='ur10e_p3_debug'/>"
+    fallback_robot_name = manifest.get("fallback_robot_name", "ur10e_p3_debug")
+    robot_description.data = (
+        urdf_path.read_text(encoding="utf-8")
+        if urdf_path and urdf_path.is_file()
+        else f"<robot name='{fallback_robot_name}'/>"
+    )
+    static_scene = manifest.get("static_scene") if isinstance(manifest.get("static_scene"), dict) else {}
+    namespace_prefix = str(manifest.get("marker_namespace_prefix") or "p3")
+
+    def scene_xyz(name: str, default: tuple[float, float, float]) -> tuple[float, float, float]:
+        value = static_scene.get(name)
+        if not isinstance(value, list) or len(value) != 3:
+            return default
+        return (float(value[0]), float(value[1]), float(value[2]))
+
+    tool0_xyz = scene_xyz("tool0_xyz", (0.48, 0.18, 0.20))
+    flange_xyz = scene_xyz("flange_xyz", (0.48, 0.18, 0.17))
+    ft_sensor_xyz = scene_xyz("ft_sensor_xyz", (0.48, 0.18, 0.13))
+    tcp_xyz = scene_xyz("tcp_xyz", (0.48, 0.18, 0.06))
+    contact_tip_xyz = scene_xyz("contact_tip_xyz", (0.48, 0.18, 0.025))
+    contact_surface_xyz = scene_xyz("contact_surface_xyz", (0.48, 0.18, 0.0))
+    surface_normal_xyz = scene_xyz("surface_normal_xyz", (0.48, 0.18, 0.05))
+    wrench_end_xyz = scene_xyz("wrench_end_xyz", (0.48, 0.18, 0.14))
+    label_xyz = scene_xyz("claim_label_xyz", (0.42, 0.08, 0.28))
+    path_points = static_scene.get("path_points_xyz")
+    if not isinstance(path_points, list):
+        path_points = []
+    path_points_xyz = [
+        (float(row[0]), float(row[1]), float(row[2]))
+        for row in path_points
+        if isinstance(row, list) and len(row) == 3
+    ]
+    surface_size = static_scene.get("surface_size_xyz")
+    if not isinstance(surface_size, list) or len(surface_size) != 3:
+        surface_size = [0.24, 0.16, 0.01]
 
     def transform(parent: str, child: str, xyz: tuple[float, float, float]) -> TransformStamped:
         msg = TransformStamped()
@@ -175,13 +231,13 @@ def publisher_child(args: argparse.Namespace) -> int:
     transforms = [
         transform("world", "base", (0.0, 0.0, 0.0)),
         transform("base", "base_link", (0.0, 0.0, 0.0)),
-        transform("base_link", "tool0", (0.48, 0.18, 0.20)),
-        transform("tool0", "flange", (0.0, 0.0, -0.03)),
-        transform("flange", "ft_sensor", (0.0, 0.0, -0.04)),
-        transform("ft_sensor", "tcp", (0.0, 0.0, -0.07)),
-        transform("tcp", "contact_tip", (0.0, 0.0, -0.035)),
-        transform("base", "contact_surface", (0.48, 0.18, 0.025)),
-        transform("contact_surface", "surface_normal", (0.0, 0.0, 0.05)),
+        transform("base", "tool0", tool0_xyz),
+        transform("base", "flange", flange_xyz),
+        transform("base", "ft_sensor", ft_sensor_xyz),
+        transform("base", "tcp", tcp_xyz),
+        transform("base", "contact_tip", contact_tip_xyz),
+        transform("base", "contact_surface", contact_surface_xyz),
+        transform("base", "surface_normal", surface_normal_xyz),
     ]
 
     def color(r: float, g: float, b: float, a: float = 1.0) -> ColorRGBA:
@@ -209,20 +265,20 @@ def publisher_child(args: argparse.Namespace) -> int:
     def frame_markers() -> MarkerArray:
         arr = MarkerArray()
         frames = [
-            ("tool0", (0.48, 0.18, 0.20), color(0.1, 0.4, 1.0)),
-            ("flange", (0.48, 0.18, 0.17), color(0.2, 0.8, 0.9)),
-            ("ft_sensor", (0.48, 0.18, 0.13), color(0.8, 0.6, 0.1)),
-            ("tcp", (0.48, 0.18, 0.06), color(0.2, 0.9, 0.2)),
-            ("contact_tip", (0.48, 0.18, 0.025), color(1.0, 0.2, 0.2)),
-            ("contact_surface", (0.48, 0.18, 0.0), color(0.6, 0.6, 0.6)),
+            ("tool0", tool0_xyz, color(0.1, 0.4, 1.0)),
+            ("flange", flange_xyz, color(0.2, 0.8, 0.9)),
+            ("ft_sensor", ft_sensor_xyz, color(0.8, 0.6, 0.1)),
+            ("tcp", tcp_xyz, color(0.2, 0.9, 0.2)),
+            ("contact_tip", contact_tip_xyz, color(1.0, 0.2, 0.2)),
+            ("contact_surface", contact_surface_xyz, color(0.6, 0.6, 0.6)),
         ]
         for idx, (name, xyz, rgba) in enumerate(frames):
-            sphere = marker("p3_frames", idx, Marker.SPHERE)
+            sphere = marker(f"{namespace_prefix}_frames", idx, Marker.SPHERE)
             sphere.pose.position = point(*xyz)
             sphere.scale.x = sphere.scale.y = sphere.scale.z = 0.025
             sphere.color = rgba
             arr.markers.append(sphere)
-            label = marker("p3_frame_labels", 100 + idx, Marker.TEXT_VIEW_FACING)
+            label = marker(f"{namespace_prefix}_frame_labels", 100 + idx, Marker.TEXT_VIEW_FACING)
             label.pose.position = point(xyz[0], xyz[1] + 0.035, xyz[2] + 0.02)
             label.scale.z = 0.035
             label.color = color(1.0, 1.0, 1.0)
@@ -232,15 +288,15 @@ def publisher_child(args: argparse.Namespace) -> int:
 
     def wrench_markers() -> MarkerArray:
         arr = MarkerArray()
-        arrow = marker("p3_wrench", 1, Marker.ARROW)
-        arrow.points = [point(0.48, 0.18, 0.025), point(0.48, 0.18, 0.14)]
+        arrow = marker(f"{namespace_prefix}_wrench", 1, Marker.ARROW)
+        arrow.points = [point(*contact_tip_xyz), point(*wrench_end_xyz)]
         arrow.scale.x = 0.012
         arrow.scale.y = 0.024
         arrow.scale.z = 0.024
         arrow.color = color(0.1, 0.8, 1.0)
         arr.markers.append(arrow)
-        text = marker("p3_wrench_label", 2, Marker.TEXT_VIEW_FACING)
-        text.pose.position = point(0.52, 0.18, 0.14)
+        text = marker(f"{namespace_prefix}_wrench_label", 2, Marker.TEXT_VIEW_FACING)
+        text.pose.position = point(wrench_end_xyz[0] + 0.04, wrench_end_xyz[1], wrench_end_xyz[2])
         text.scale.z = 0.035
         text.color = color(0.1, 0.8, 1.0)
         text.text = "canonical wrench markers | visual_only"
@@ -249,22 +305,22 @@ def publisher_child(args: argparse.Namespace) -> int:
 
     def contact_markers() -> MarkerArray:
         arr = MarkerArray()
-        surface = marker("p3_contact_surface", 1, Marker.CUBE)
-        surface.pose.position = point(0.48, 0.18, -0.005)
-        surface.scale.x = 0.24
-        surface.scale.y = 0.16
-        surface.scale.z = 0.01
+        surface = marker(f"{namespace_prefix}_contact_surface", 1, Marker.CUBE)
+        surface.pose.position = point(*contact_surface_xyz)
+        surface.scale.x = float(surface_size[0])
+        surface.scale.y = float(surface_size[1])
+        surface.scale.z = float(surface_size[2])
         surface.color = color(0.5, 0.5, 0.5, 0.75)
         arr.markers.append(surface)
         return arr
 
     def label_markers() -> MarkerArray:
         arr = MarkerArray()
-        text = marker("p3_claim_boundary", 1, Marker.TEXT_VIEW_FACING)
-        text.pose.position = point(0.42, 0.08, 0.28)
+        text = marker(f"{namespace_prefix}_claim_boundary", 1, Marker.TEXT_VIEW_FACING)
+        text.pose.position = point(*label_xyz)
         text.scale.z = 0.04
         text.color = color(1.0, 1.0, 0.2)
-        text.text = "RViz debug evidence: visual_only | no live robot"
+        text.text = str(manifest.get("claim_label_text") or "RViz debug evidence: visual_only | no live robot")
         arr.markers.append(text)
         return arr
 
@@ -272,11 +328,14 @@ def publisher_child(args: argparse.Namespace) -> int:
         msg = RosPath()
         msg.header.frame_id = "base"
         msg.header.stamp = node.get_clock().now().to_msg()
-        for idx in range(20):
+        points_for_path = path_points_xyz or [
+            (0.42 + 0.12 * (idx / 19.0), 0.18 + 0.03 * ((idx / 19.0) - 0.5), 0.055)
+            for idx in range(20)
+        ]
+        for xyz in points_for_path:
             pose = PoseStamped()
             pose.header = msg.header
-            t = idx / 19.0
-            pose.pose.position = point(0.42 + 0.12 * t, 0.18 + 0.03 * (t - 0.5), 0.055)
+            pose.pose.position = point(*xyz)
             pose.pose.orientation.w = 1.0
             msg.poses.append(pose)
         return msg
@@ -299,7 +358,7 @@ def publisher_child(args: argparse.Namespace) -> int:
         time.sleep(0.25)
 
     summary = {
-        "schema": "ur10e_p3_rviz_static_scene_publisher_summary_v1",
+        "schema": manifest.get("publisher_summary_schema", "ur10e_p3_rviz_static_scene_publisher_summary_v1"),
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "claim_tier": "visual_only",
         "publish_count": publish_count,
