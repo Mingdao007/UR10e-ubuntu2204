@@ -190,6 +190,11 @@ class Step5bGzTransportProbeTest(unittest.TestCase):
             adapter = json.loads(Path(manifest["adapter"]["path"]).read_text(encoding="utf-8"))
             verified = json.loads(Path(manifest["verification"]["verified_contact_pair_path"]).read_text(encoding="utf-8"))
             trace = json.loads(Path(manifest["adapter"]["trace_path"]).read_text(encoding="utf-8"))
+            correlation = json.loads(
+                Path(manifest["required_shape"]["step5b_correlation"]["correlation_path"]).read_text(
+                    encoding="utf-8"
+                )
+            )
             semantics = json.loads(
                 Path(manifest["required_shape"]["step5b_semantics"]["sign_frame_magnitude_audit_path"]).read_text(
                     encoding="utf-8"
@@ -202,8 +207,13 @@ class Step5bGzTransportProbeTest(unittest.TestCase):
             )
 
         self.assertTrue(manifest["m3_wrench_integration_pass"])
+        self.assertEqual(manifest["formal_step5b_acceptance_claim_tier"], "visual_only")
+        self.assertIn("not formal Step5b physical acceptance proof", manifest["allowed_claim"])
         self.assertTrue(adapter["trace_written"])
         self.assertTrue(adapter["total_contact_wrench_proven"])
+        self.assertEqual(adapter["formal_step5b_acceptance_claim_tier"], "visual_only")
+        self.assertEqual(adapter["formal_step5b_acceptance_status"], "blocked")
+        self.assertIn("not formal Step5b physical acceptance proof", adapter["allowed_claim"])
         self.assertEqual(adapter["wrench_aggregation_policy"], "total_contact_wrench")
         native = verified["rows"][0]["native_gazebo_contact_wrench"]
         self.assertEqual(native["frame_id"], "base")
@@ -214,7 +224,10 @@ class Step5bGzTransportProbeTest(unittest.TestCase):
         self.assertEqual(verified["rows"][0]["normal"], [0.0, 0.0, 1.0])
         self.assertEqual(trace["rows"][0]["reaction_normal"], [0.0, 0.0, 1.0])
         self.assertEqual(trace["rows"][0]["approach_normal"], [-0.0, -0.0, -1.0])
+        self.assertEqual(correlation["formal_step5b_acceptance_claim_tier"], "visual_only")
+        self.assertIn("not formal Step5b physical acceptance proof", correlation["allowed_claim"])
         self.assertEqual(semantics["selected_body_role"], "eoat")
+        self.assertEqual(semantics["formal_step5b_acceptance_claim_tier"], "visual_only")
         self.assertIn(
             "transform_evidence_is_sdf_identity_assumption_not_independent_gazebo_frame_measurement",
             semantics["formal_readiness_blockers"],
