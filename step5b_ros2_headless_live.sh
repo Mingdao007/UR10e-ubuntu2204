@@ -6,10 +6,11 @@ ROOT="$(cd "$(dirname "${SCRIPT_PATH}")" && pwd)"
 EXPERIMENT="${ROOT}/experiments/tase-contact-reproduction"
 LEDGER="${EXPERIMENT}/config/step5b_authorization_state.json"
 AUTH_STATUS="${EXPERIMENT}/tools/step5b_authorization_status.py"
-RUNNER="step5b_contact_live_runner"
+RUNNER="step5b_velocity_admittance_runner"
 ROBOT_IP="${ROBOT_IP:-192.168.1.18}"
 REVERSE_IP="${REVERSE_IP:-192.168.1.10}"
-ACTION_NAME="/scaled_joint_trajectory_controller/follow_joint_trajectory"
+CONTROLLER_MANAGER="${CONTROLLER_MANAGER:-/controller_manager}"
+VELOCITY_CONTROLLER="${VELOCITY_CONTROLLER:-forward_velocity_controller}"
 DRIVER_READINESS_WAIT_S="${DRIVER_READINESS_WAIT_S:-45}"
 
 usage() {
@@ -21,10 +22,11 @@ Usage:
 
 Boundary:
   - TEMPORARY LIVE LOCK: default run is disabled after 2026-06-18 table-vibration feedback.
-  - Use status/dry-run only until a low-vibration continuous preposition implementation is audited.
+  - Use status/dry-run only until the velocity-admittance runner and controller path are audited.
   - Current route only: ROS2 Remote Control/headless.
-  - Starts the ROS2 UR driver if the trajectory action server is not already present.
+  - Starts the ROS2 UR driver if the forward velocity controller is not already listed.
   - Uses the locked Step5b specification defaults from the runner/stage table.
+  - The runner switches to the forward velocity controller and fails closed if unavailable.
   - Does not override target force, path speed, path parameters, force source, or zero policy.
   - No TP/bridge fallback, no URScript send, no zero_ftsensor(), no Kunwei tare/config.
   - Running step5b_ros2_headless_live.sh is the per-run operator final trigger.
@@ -70,8 +72,16 @@ stop_process_group() {
   wait "${pid}" >/dev/null 2>&1 || true
 }
 
-action_server_available() {
-  timeout 5 ros2 action list 2>/dev/null | grep -Fxq "${ACTION_NAME}"
+controller_state() {
+  local controller="$1"
+  timeout 5 ros2 control list_controllers -c "${CONTROLLER_MANAGER}" 2>/dev/null \
+    | awk -v controller="${controller}" '$1 == controller { print $NF; found = 1 } END { if (!found) exit 1 }'
+}
+
+velocity_controller_available() {
+  local state
+  state="$(controller_state "${VELOCITY_CONTROLLER}")" || return 1
+  [[ "${state}" == "active" || "${state}" == "inactive" ]]
 }
 
 print_driver_failure() {
@@ -91,8 +101,8 @@ print_driver_failure() {
 
 ensure_driver_ready() {
   local run_dir="$1"
-  if action_server_available; then
-    echo "ROS2 action server already available: ${ACTION_NAME}"
+  if velocity_controller_available; then
+    echo "ROS2 velocity controller already available: ${VELOCITY_CONTROLLER} ($(controller_state "${VELOCITY_CONTROLLER}"))"
     return 0
   fi
 
@@ -102,30 +112,34 @@ ensure_driver_ready() {
     reverse_ip:="${REVERSE_IP}" \
     headless_mode:=true \
     launch_dashboard_client:=false \
-    activate_joint_controller:=true \
+    initial_joint_controller:="${VELOCITY_CONTROLLER}" \
+    activate_joint_controller:=false \
     launch_rviz:=false \
     >"${run_dir}/ur_driver_launch.log" 2>&1 &
   DRIVER_LAUNCH_PID=$!
 
-  echo "Waiting for controller/action readiness..."
+  echo "Waiting for driver and controller-manager readiness..."
   if ! ros2 run ur10e_example_controllers step5a_driver_readiness_check \
     --launch-log "${run_dir}/ur_driver_launch.log" \
     --summary "${run_dir}/driver_lifecycle_readiness.json" \
     --controllers-log "${run_dir}/controllers_readiness.log" \
     --joint-states-log "${run_dir}/joint_states_once.log" \
     --run-dir "${run_dir}" \
+    --controller-manager "${CONTROLLER_MANAGER}" \
+    --allow-inactive-scaled-controller \
+    --role step5b_velocity_driver_readiness_gate \
     --timeout-s "${DRIVER_READINESS_WAIT_S}" \
     | tee "${run_dir}/driver_lifecycle_readiness.log"; then
     print_driver_failure "${run_dir}"
     return 2
   fi
 
-  if ! action_server_available; then
-    echo "Driver readiness passed but action server is still absent: ${ACTION_NAME}" >&2
+  if ! velocity_controller_available; then
+    echo "Driver readiness passed but velocity controller is not listed active/inactive: ${VELOCITY_CONTROLLER}" >&2
     print_driver_failure "${run_dir}"
     return 2
   fi
-  echo "ROS2 action server ready: ${ACTION_NAME}"
+  echo "ROS2 velocity controller ready for runner switch: ${VELOCITY_CONTROLLER} ($(controller_state "${VELOCITY_CONTROLLER}"))"
 }
 
 write_operator_trigger() {
@@ -206,7 +220,7 @@ case "${mode}" in
   run)
     echo "Step5b ROS2 headless live is temporarily locked after table-vibration feedback." >&2
     echo "Use 'step5b_ros2_headless_live.sh status' or 'step5b_ros2_headless_live.sh dry-run' only." >&2
-    echo "Live re-enable requires a new audited low-vibration preposition implementation." >&2
+    echo "Live re-enable requires an audited velocity-admittance runner and controller path." >&2
     exit 44
 
     run_dir="$(make_run_dir)"
