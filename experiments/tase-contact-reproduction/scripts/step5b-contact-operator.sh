@@ -20,7 +20,7 @@ Boundary:
   - Bridge profile: step5b_v1.
   - Force target: 5.0 N default; guarded-15n-trial uses exact 15.0 N.
   - Raw normal guard: 50 N, force norm guard: 60 N, torque guard: 3.0 Nm.
-  - guarded-15n-trial tight guards: normal load 20 N, force norm 25 N, torque 1.5 Nm.
+  - guarded-15n-trial outer guards: normal load 50 N, force norm 35 N, torque 1.5 Nm.
   - No UR zero_ftsensor(), no Kunwei tare/zero/config, no TCP/payload write.
   - This wrapper never loads a program or presses Play.
 EOF
@@ -60,9 +60,9 @@ case "$1" in
     STEP4E_CONFIRM_PHRASE="START_STEP5B_15N_GUARDED" \
     STEP5B_TRIAL_PROFILE=guarded_15n_sentinel \
     STEP4E_TARGET_FORCE_N=15.0 \
-    BRIDGE_DURATION_S="${BRIDGE_DURATION_S:-20}" \
-    MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-20}" \
-    MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-25}" \
+    BRIDGE_DURATION_S="${BRIDGE_DURATION_S:-180}" \
+    MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-50}" \
+    MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-35}" \
     MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-1.5}" \
     STEP4E_NORMAL_FOLLOW_MODE="${STEP4E_NORMAL_FOLLOW_MODE:-filtered_live}" \
     STEP4E_NORMAL_FILTER_ALPHA="${STEP4E_NORMAL_FILTER_ALPHA:-0.45}" \
