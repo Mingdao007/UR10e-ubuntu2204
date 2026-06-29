@@ -12,6 +12,9 @@ BENCH_GATE="/home/andy/codex-private-skills/skills/ur10e-realsetup/scripts/check
 LONG_CHECK_TTL_S="${LONG_CHECK_TTL_S:-1800}"
 LONG_CHECK_CACHE="${LONG_CHECK_CACHE:-${RUN_ROOT}/.step4e_long_checks_cache.json}"
 STEP4E_VERSION="${STEP4E_VERSION:-v1}"
+STEP4E_DISPLAY_NAME="${STEP4E_DISPLAY_NAME:-}"
+STEP4E_CONFIRM_PHRASE="${STEP4E_CONFIRM_PHRASE:-}"
+STEP5B_TRIAL_PROFILE="${STEP5B_TRIAL_PROFILE:-none}"
 case "${STEP4E_VERSION}" in
   4f|f|cycloid|step4f)
     STEP4E_VERSION="step4f_v1"
@@ -47,6 +50,7 @@ STEP4E_NORMAL_COMMAND_SIGN="${STEP4E_NORMAL_COMMAND_SIGN:-1}"
 MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-50}"
 MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-60}"
 MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-3.0}"
+STEP4E_TARGET_FORCE_N="${STEP4E_TARGET_FORCE_N:-5.0}"
 STEP4E_ORIENTATION_GAIN="${STEP4E_ORIENTATION_GAIN:-0.20}"
 STEP4E_ORIENTATION_WX_SIGN="${STEP4E_ORIENTATION_WX_SIGN:-1}"
 STEP4E_ORIENTATION_WY_SIGN="${STEP4E_ORIENTATION_WY_SIGN:-1}"
@@ -99,6 +103,15 @@ if [[ -z "${STEP4E_NORMAL_FOLLOW_MODE}" ]]; then
   else
     STEP4E_NORMAL_FOLLOW_MODE="locked"
   fi
+fi
+if [[ "${STEP5B_TRIAL_PROFILE}" != "none" && "${STEP4E_VERSION}" != "step5b_v1" ]]; then
+  echo "refusing STEP5B_TRIAL_PROFILE=${STEP5B_TRIAL_PROFILE}: Step5b trial profiles require STEP4E_VERSION=step5b_v1"
+  exit 40
+fi
+if [[ "${STEP5B_TRIAL_PROFILE}" == "guarded_15n_sentinel" ]]; then
+  RUN_LABEL_SUFFIX="15n_guarded_trial"
+else
+  RUN_LABEL_SUFFIX=""
 fi
 
 PROGRAM_PREVIEW="/programs/andyl/kunwei/step4/step4e_preview_line_${STEP4E_VERSION}.urp"
@@ -395,6 +408,9 @@ select_mode() {
         RUN_LABEL="step4e_seed_normal_loop_${STEP4E_VERSION}"
       else
         RUN_LABEL="step4e_line_outerloop_${STEP4E_VERSION}"
+      fi
+      if [[ -n "${RUN_LABEL_SUFFIX}" ]]; then
+        RUN_LABEL="step5b_${RUN_LABEL_SUFFIX}"
       fi
       ;;
     axis-autowatch|axis-bridge)
@@ -777,7 +793,7 @@ run_bridge_for_mode() {
     --rtde-hz 500 \
     --socket-timeout-s 0.0 \
     --sensor-stale-s 0.10 \
-    --target-force-n 5 \
+    --target-force-n "${STEP4E_TARGET_FORCE_N}" \
     --normal-axis fz \
     --normal-sign 1 \
     --max-normal-force-n "${MAX_NORMAL_FORCE_N}" \
@@ -785,6 +801,7 @@ run_bridge_for_mode() {
     --max-torque-norm-nm "${MAX_TORQUE_NORM_NM}" \
     --step4e-mode "${STEP4E_MODE}" \
     --step4e-version "${STEP4E_VERSION}" \
+    --step5b-trial-profile "${STEP5B_TRIAL_PROFILE}" \
     --step4e-path-shape "${STEP4E_PATH_SHAPE}" \
     --step4e-line-speed-m-s "${STEP4E_LINE_SPEED_M_S}" \
     --step4e-line-settle-s "${STEP4E_LINE_SETTLE_S}" \
@@ -845,11 +862,15 @@ fi
 select_mode "${mode}"
 CONFIRM_TOKEN="${CONFIRM_LABEL:-${STEP4E_MODE}}"
 CONFIRM_TOKEN="${CONFIRM_TOKEN^^}"
+if [[ -z "${STEP4E_CONFIRM_PHRASE}" ]]; then
+  STEP4E_CONFIRM_PHRASE="START_STEP4E_${CONFIRM_TOKEN}_${STEP4E_VERSION^^}"
+fi
+DISPLAY_NAME="${STEP4E_DISPLAY_NAME:-STEP4e ${STEP4E_MODE} ${STEP4E_VERSION}}"
 
 case "${mode}" in
   *-autowatch)
     cat <<WARNING
-STEP4e ${STEP4E_MODE} ${STEP4E_VERSION} autowatch.
+${DISPLAY_NAME} autowatch.
 This mode waits for Teach Pendant Play first.
 It does not start Kunwei streaming or write RTDE inputs while waiting.
 
@@ -886,7 +907,7 @@ WARNING
     ;;
   *-bridge)
     cat <<WARNING
-STEP4e ${STEP4E_MODE} ${STEP4E_VERSION} lifecycle bridge.
+${DISPLAY_NAME} lifecycle bridge.
 This sends Kunwei 48 AA 0D 0A and writes UR RTDE input registers.
 It does not send URScript from Ubuntu.
 
@@ -897,15 +918,16 @@ Motion/control:
   preview = no motion, geo/hold/line setup = ${SEARCH_DESCRIPTION}
   path shape = ${STEP4E_PATH_SHAPE}; line XY speed command = ${STEP4E_LINE_SPEED_M_S} m/s for line shape, path cap = ${STEP4E_MOTION_LIMIT_M_S} m/s, total linear cap = ${STEP4E_TOTAL_LINEAR_LIMIT_M_S} m/s
   speedl acceleration = 300 mm/s^2, hold time = 2 ms
-  force target = 5 N for hold/line only; geo contact witness triggers around 1-1.5 N
+  force target = ${STEP4E_TARGET_FORCE_N} N for hold/line only; geo contact witness triggers around 1-1.5 N
+  Step5b trial profile = ${STEP5B_TRIAL_PROFILE}
   raw normal guard = ${MAX_NORMAL_FORCE_N} N, force norm guard = ${MAX_FORCE_NORM_N} N, torque guard = ${MAX_TORQUE_NORM_NM} Nm
   attitude proxy = bounded wx/wy velocity command, gain = ${STEP4E_ORIENTATION_GAIN}, angular limit = ${STEP4E_ANGULAR_LIMIT_RAD_S} rad/s, wx sign = ${STEP4E_ORIENTATION_WX_SIGN}, wy sign = ${STEP4E_ORIENTATION_WY_SIGN}, yaw frozen
   normal follow = ${STEP4E_NORMAL_FOLLOW_MODE}, tau = ${STEP4E_NORMAL_FILTER_TAU_S}s, max rate = ${STEP4E_NORMAL_MAX_RATE_RAD_S} rad/s, min force = ${STEP4E_NORMAL_MIN_FORCE_N} N, gate = ${STEP4E_NORMAL_MAX_ANGLE_FROM_LATCH_DEG} deg, friction projection = ${STEP4E_NORMAL_FRICTION_PROJECTION}
 
-Type START_STEP4E_${CONFIRM_TOKEN}_${STEP4E_VERSION^^} to continue:
+Type ${STEP4E_CONFIRM_PHRASE} to continue:
 WARNING
     read -r confirm
-    if [[ "${confirm}" != "START_STEP4E_${CONFIRM_TOKEN}_${STEP4E_VERSION^^}" ]]; then
+    if [[ "${confirm}" != "${STEP4E_CONFIRM_PHRASE}" ]]; then
       echo "aborted"
       exit 2
     fi

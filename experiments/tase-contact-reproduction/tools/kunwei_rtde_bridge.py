@@ -265,6 +265,27 @@ STEP4E_LINE_MID_XY = (
 )
 STEP4FG_PATH_DURATION_S = 60.0
 STEP5_CONTACT_CYCLOID_STAGE_ID = "step5_contact_cycloid_baseline_v1"
+STEP5B_15N_TRIAL_PROFILE = "guarded_15n_sentinel"
+STEP5B_15N_TRIAL_TARGET_N = 15.0
+STEP5B_15N_TRIAL_TARGET_TOL_N = 0.1
+STEP5B_15N_TRIAL_ACQUIRE_N = 12.0
+STEP5B_15N_TRIAL_ACQUIRE_TIMEOUT_S = 2.0
+STEP5B_15N_TRIAL_DISCARD_S = 0.5
+STEP5B_15N_TRIAL_SCORE_S = 2.0
+STEP5B_15N_TRIAL_NORMAL_STOP_N = 20.0
+STEP5B_15N_TRIAL_NORMAL_DWELL_N = 18.0
+STEP5B_15N_TRIAL_NORMAL_DWELL_S = 0.050
+STEP5B_15N_TRIAL_FORCE_STOP_N = 25.0
+STEP5B_15N_TRIAL_FORCE_DWELL_N = 22.0
+STEP5B_15N_TRIAL_FORCE_DWELL_S = 0.050
+STEP5B_15N_TRIAL_TORQUE_STOP_NM = 1.5
+STEP5B_15N_TRIAL_TORQUE_DWELL_NM = 0.6
+STEP5B_15N_TRIAL_TORQUE_DWELL_S = 0.100
+STEP5B_15N_TRIAL_LOW_LOAD_N = 2.0
+STEP5B_15N_TRIAL_LOW_LOAD_S = 0.050
+STEP5B_15N_TRIAL_RELATIVE_LOW_LOAD_N = 7.5
+STEP5B_15N_TRIAL_RELATIVE_LOW_LOAD_S = 0.150
+STEP5B_15N_TRIAL_SATURATION_S = 0.200
 STEP5C_DRYRUN_STAGE_ID = "step5c_speedj_dryrun_v1"
 STEP5C_CONTACT_STAGE_ID = "step5c_joint_rnn_cycloid_v1"
 STEP5D_REPRODUCTION_STAGE_ID = "step5d_strict_rnn_reproduction_v1"
@@ -1897,6 +1918,16 @@ class BridgeState:
         self.step5d_repeated_hold_count = 0
         self.step5d_last_hold_reason = ""
         self.step5d_hold_actual_tcp_speed_m_s: float | None = None
+        self.step5b_15n_anchor_xy: tuple[float, float] | None = None
+        self.step5b_15n_acquired = False
+        self.step5b_15n_after_acquire_s = 0.0
+        self.step5b_15n_scored_s = 0.0
+        self.step5b_15n_high_normal_s = 0.0
+        self.step5b_15n_high_force_s = 0.0
+        self.step5b_15n_high_torque_s = 0.0
+        self.step5b_15n_low_load_s = 0.0
+        self.step5b_15n_relative_low_load_s = 0.0
+        self.step5b_15n_saturation_s = 0.0
 
     def reset_line_contact(self) -> None:
         self.integral_error_n_s = 0.0
@@ -1923,6 +1954,19 @@ class BridgeState:
         self.step5d_repeated_hold_count = 0
         self.step5d_last_hold_reason = ""
         self.step5d_hold_actual_tcp_speed_m_s = None
+        self.reset_step5b_15n_trial()
+
+    def reset_step5b_15n_trial(self) -> None:
+        self.step5b_15n_anchor_xy = None
+        self.step5b_15n_acquired = False
+        self.step5b_15n_after_acquire_s = 0.0
+        self.step5b_15n_scored_s = 0.0
+        self.step5b_15n_high_normal_s = 0.0
+        self.step5b_15n_high_force_s = 0.0
+        self.step5b_15n_high_torque_s = 0.0
+        self.step5b_15n_low_load_s = 0.0
+        self.step5b_15n_relative_low_load_s = 0.0
+        self.step5b_15n_saturation_s = 0.0
 
 
 Step4EState = BridgeState
@@ -1964,6 +2008,7 @@ def compute_bridge_values(
     step4f_profile = args.bridge_profile == "step4f_v1"
     step4g_profile = args.bridge_profile == "step4g_v1"
     step5b_profile = args.bridge_profile == "step5b_v1"
+    step5b_15n_trial_profile = step5b_15n_trial_enabled(args)
     step5c_dryrun_profile = args.bridge_profile == STEP5C_DRYRUN_STAGE_ID
     step5c_contact_profile = args.bridge_profile == STEP5C_CONTACT_STAGE_ID
     step5c_joint_profile = step5c_dryrun_profile or step5c_contact_profile
@@ -2082,9 +2127,12 @@ def compute_bridge_values(
         state.line_stage_s += dt_s
     if step5d_joint_line_profile:
         state.step5d_active_stage25_s += max(0.0, dt_s)
+    if not (step5b_15n_trial_profile and line_stage_active):
+        state.reset_step5b_15n_trial()
 
     force_t, torque_t = kunwei_to_tcp_wrench(latest_zeroed)
     force_abs = norm3(force_t)
+    torque_abs = norm3(torque_t)
     contact_offset_x = ""
     contact_offset_y = ""
     if abs(force_t[2]) > args.bridge_contact_offset_min_fz_n:
@@ -2354,6 +2402,11 @@ def compute_bridge_values(
     progress = float(path_ref["progress"])
     desired_x, desired_y = path_ref["desired_xy"]
     path_error = (path_ref["path_error_xy"][0], path_ref["path_error_xy"][1], 0.0)
+    if step5b_15n_trial_profile and line_stage_active:
+        if state.step5b_15n_anchor_xy is None:
+            state.step5b_15n_anchor_xy = (float(pose[0]), float(pose[1]))
+        desired_x, desired_y = state.step5b_15n_anchor_xy
+        path_error = (0.0, 0.0, 0.0)
     if args.bridge_path_shape == "line":
         tangent_speed = args.bridge_line_speed_m_s if args.bridge_mode == "line" and line_stage_active else 0.0
         desired_velocity_xy = (
@@ -2364,6 +2417,8 @@ def compute_bridge_values(
         desired_velocity_xy = path_ref["desired_velocity_xy"]
         if args.bridge_mode != "line" or not line_stage_active:
             desired_velocity_xy = (0.0, 0.0)
+    if step5b_15n_trial_profile and line_stage_active:
+        desired_velocity_xy = (0.0, 0.0)
     if line_stage_active and state.line_stage_s <= args.bridge_line_settle_s:
         desired_velocity_xy = (0.0, 0.0)
     if detached_profile and not line_stage_active:
@@ -2412,6 +2467,7 @@ def compute_bridge_values(
     if args.bridge_integrate_stage25_only and args.bridge_mode == "line" and not control_stage_active:
         control_allowed = False
     step5d_v8_pid_recovery_ok = True
+    step5b_15n_trial_stop_reason = None
     if control_allowed:
         if args.bridge_mode == "line" and not step5c_dryrun_profile and not state.normal_acquired:
             cmd = (0.0, 0.0, 0.0)
@@ -2536,11 +2592,18 @@ def compute_bridge_values(
                 orientation_cmd = (0.0, 0.0, 0.0)
                 state.normal_velocity_m_s = 0.0
             else:
-                state.integral_error_n_s = clamp(
-                state.integral_error_n_s + force_error * dt_s,
-                -args.bridge_integral_limit_n_s,
-                args.bridge_integral_limit_n_s,
-                )
+                if step5b_15n_trial_profile and (
+                    normal_load_n < STEP5B_15N_TRIAL_LOW_LOAD_N
+                    or normal_filter_source == "hold_low_force"
+                ):
+                    bleed = min(1.0, max(0.0, dt_s) / 0.050)
+                    state.integral_error_n_s *= 1.0 - bleed
+                else:
+                    state.integral_error_n_s = clamp(
+                        state.integral_error_n_s + force_error * dt_s,
+                        -args.bridge_integral_limit_n_s,
+                        args.bridge_integral_limit_n_s,
+                    )
                 accel_like = (
                     args.bridge_force_p_gain * force_error
                     + args.bridge_force_i_gain * state.integral_error_n_s
@@ -2582,6 +2645,18 @@ def compute_bridge_values(
             abs(cmd[0]) > 1e-12 or abs(cmd[1]) > 1e-12 or abs(cmd[2]) > 1e-12
         ):
             raise RuntimeError("Step4e v23..v31 stage 25.2 contract violation: linear command registers must be zero")
+        step5b_15n_trial_stop_reason = None
+        if step5b_15n_trial_profile and line_stage_active:
+            step5b_15n_trial_stop_reason = step5b_15n_trial_guard_reason(
+                normal_load_n=normal_load_n,
+                force_norm_n=force_abs,
+                torque_norm_nm=torque_abs,
+                sensor_ok=sensor_ok,
+                normal_velocity_m_s=state.normal_velocity_m_s,
+                normal_velocity_limit_m_s=float(args.bridge_normal_velocity_limit_m_s),
+                dt_s=dt_s,
+                state=state,
+            )
         joint_result = None
         step5d_result = None
         step5d_qdot_command = None
@@ -2983,6 +3058,26 @@ def compute_bridge_values(
             }
         )
 
+    if step5b_15n_trial_profile:
+        values["_step5b_15n_trial_active"] = 1.0 if line_stage_active else 0.0
+        values["_step5b_15n_trial_acquired"] = 1.0 if state.step5b_15n_acquired else 0.0
+        values["_step5b_15n_trial_after_acquire_s"] = state.step5b_15n_after_acquire_s
+        values["_step5b_15n_trial_scored_s"] = state.step5b_15n_scored_s
+        values["_step5b_15n_trial_anchor_x_m"] = "" if state.step5b_15n_anchor_xy is None else state.step5b_15n_anchor_xy[0]
+        values["_step5b_15n_trial_anchor_y_m"] = "" if state.step5b_15n_anchor_xy is None else state.step5b_15n_anchor_xy[1]
+        values["_step5b_15n_trial_low_load_s"] = state.step5b_15n_low_load_s
+        values["_step5b_15n_trial_relative_low_load_s"] = state.step5b_15n_relative_low_load_s
+        values["_step5b_15n_trial_saturation_s"] = state.step5b_15n_saturation_s
+        values["_step5b_15n_trial_normal_velocity_saturated"] = (
+            1.0
+            if args.bridge_normal_velocity_limit_m_s > 0.0
+            and abs(state.normal_velocity_m_s) >= 0.98 * args.bridge_normal_velocity_limit_m_s
+            else 0.0
+        )
+        values["_step5b_15n_trial_stop_reason"] = step5b_15n_trial_stop_reason or ""
+        if step5b_15n_trial_stop_reason:
+            values["stop_request"] = 1.0
+
     values["_step4e_force_t_x"] = force_t[0]
     values["_step4e_force_t_y"] = force_t[1]
     values["_step4e_force_t_z"] = force_t[2]
@@ -3128,6 +3223,137 @@ def interval_stats(times: list[float]) -> dict[str, Any]:
         "dt_p99_s": percentile(intervals, 0.99),
         "dt_max_s": max(intervals) if intervals else None,
     }
+
+
+def finite_csv_float(row: dict[str, str], field: str, default: float = math.nan) -> float:
+    try:
+        value = float(row.get(field, ""))
+    except (TypeError, ValueError):
+        return default
+    return value if math.isfinite(value) else default
+
+
+def step5b_15n_trial_verdict(payload: dict[str, Any]) -> str:
+    stop_reason = str(payload.get("stop_reason") or "")
+    if stop_reason in {"step5b_15n_trial:normal_load_stop", "step5b_15n_trial:normal_load_dwell", "step5b_15n_trial:force_norm_stop", "step5b_15n_trial:force_norm_dwell", "step5b_15n_trial:torque_norm_stop", "step5b_15n_trial:torque_norm_dwell"}:
+        return "fail_high_force"
+    if stop_reason in {"step5b_15n_trial:low_load_dropout", "step5b_15n_trial:relative_low_load_dropout", "step5b_15n_trial:acquisition_timeout"}:
+        return "fail_dropout_not_improved"
+    if stop_reason == "step5b_15n_trial:normal_velocity_saturation":
+        return "fail_saturation"
+    if stop_reason not in {"step5b_15n_trial:complete", "duration"}:
+        return "invalid_run"
+    metrics = payload.get("metrics", {})
+    normal = metrics.get("normal_load_n", {})
+    if not metrics.get("scored_rows"):
+        return "invalid_run"
+    if normal.get("p50") is None or normal.get("p95") is None or normal.get("max") is None:
+        return "invalid_run"
+    if not (12.0 <= float(normal["p50"]) <= 18.0):
+        return "fail_dropout_not_improved"
+    if float(normal["p95"]) > 20.0 or float(normal["max"]) > 22.0:
+        return "fail_high_force"
+    if float(metrics.get("dropout_lt2_duty", 1.0)) > 0.0:
+        return "fail_dropout_not_improved"
+    if float(metrics.get("normal_velocity_saturation_duty", 1.0)) > 0.02:
+        return "fail_saturation"
+    return "pass_to_repeat_static"
+
+
+def write_step5b_15n_trial_summary(
+    *,
+    output_dir: Path,
+    bridge_csv_path: Path,
+    metadata: dict[str, Any],
+    stop_reason: str,
+) -> dict[str, Any]:
+    active_rows = 0
+    scored_rows = 0
+    normal_loads: list[float] = []
+    force_norms: list[float] = []
+    torque_norms: list[float] = []
+    dropout_lt2 = 0
+    dropout_lt75 = 0
+    saturation_rows = 0
+    first_trial_stop = ""
+    with bridge_csv_path.open(newline="", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            if finite_csv_float(row, "_step5b_15n_trial_active", 0.0) <= 0.5:
+                continue
+            active_rows += 1
+            reason = str(row.get("_step5b_15n_trial_stop_reason") or "")
+            if reason and not first_trial_stop:
+                first_trial_stop = reason
+            scored = finite_csv_float(row, "_step5b_15n_trial_scored_s", 0.0) > 0.0
+            if not scored:
+                continue
+            normal = finite_csv_float(row, "_step4e_normal_load_n")
+            force_norm = finite_csv_float(row, "force_norm_n")
+            torque_norm = finite_csv_float(row, "torque_norm_nm")
+            if not all(math.isfinite(value) for value in (normal, force_norm, torque_norm)):
+                continue
+            scored_rows += 1
+            normal_loads.append(normal)
+            force_norms.append(force_norm)
+            torque_norms.append(torque_norm)
+            dropout_lt2 += int(normal < STEP5B_15N_TRIAL_LOW_LOAD_N)
+            dropout_lt75 += int(normal < STEP5B_15N_TRIAL_RELATIVE_LOW_LOAD_N)
+            saturation_rows += int(finite_csv_float(row, "_step5b_15n_trial_normal_velocity_saturated", 0.0) > 0.5)
+    payload: dict[str, Any] = {
+        "profile": STEP5B_15N_TRIAL_PROFILE,
+        "target_force_n": metadata["args"].get("target_force_n"),
+        "stop_reason": first_trial_stop or stop_reason,
+        "active_rows": active_rows,
+        "metrics": {
+            "scored_rows": scored_rows,
+            "normal_load_n": {
+                "p50": percentile(normal_loads, 0.50),
+                "p95": percentile(normal_loads, 0.95),
+                "max": max(normal_loads) if normal_loads else None,
+            },
+            "force_norm_n": {
+                "max": max(force_norms) if force_norms else None,
+            },
+            "torque_norm_nm": {
+                "max": max(torque_norms) if torque_norms else None,
+            },
+            "dropout_lt2_duty": dropout_lt2 / scored_rows if scored_rows else None,
+            "dropout_lt7p5_duty": dropout_lt75 / scored_rows if scored_rows else None,
+            "normal_velocity_saturation_duty": saturation_rows / scored_rows if scored_rows else None,
+        },
+        "paths": {
+            "bridge_csv": str(bridge_csv_path),
+            "metadata": str(output_dir / "metadata.json"),
+        },
+    }
+    payload["verdict"] = step5b_15n_trial_verdict(payload)
+    summary_path = output_dir / "step5b_15n_guarded_trial_summary.json"
+    write_json(summary_path, payload)
+    md_path = output_dir / "step5b_15n_guarded_trial_summary.md"
+    md_path.write_text(
+        "\n".join(
+            [
+                "# Step5b 15N guarded trial summary",
+                "",
+                f"- profile: `{payload['profile']}`",
+                f"- target_force_n: `{payload['target_force_n']}`",
+                f"- stop_reason: `{payload['stop_reason']}`",
+                f"- verdict: `{payload['verdict']}`",
+                f"- active_rows: `{payload['active_rows']}`",
+                f"- scored_rows: `{payload['metrics']['scored_rows']}`",
+                f"- normal_load_p50_n: `{payload['metrics']['normal_load_n']['p50']}`",
+                f"- normal_load_p95_n: `{payload['metrics']['normal_load_n']['p95']}`",
+                f"- normal_load_max_n: `{payload['metrics']['normal_load_n']['max']}`",
+                f"- dropout_lt2_duty: `{payload['metrics']['dropout_lt2_duty']}`",
+                f"- normal_velocity_saturation_duty: `{payload['metrics']['normal_velocity_saturation_duty']}`",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    payload["paths"]["trial_summary_json"] = str(summary_path)
+    payload["paths"]["trial_summary_md"] = str(md_path)
+    return payload
 
 
 class RTDEBridgeClient(RTDEClient):
@@ -3322,6 +3548,118 @@ def guard_stop_reason(args: argparse.Namespace, bridge_values: dict[str, float])
     return None
 
 
+def step5b_15n_trial_enabled(args: argparse.Namespace) -> bool:
+    return (
+        getattr(args, "bridge_profile", "") == "step5b_v1"
+        and getattr(args, "step5b_trial_profile", "none") == STEP5B_15N_TRIAL_PROFILE
+    )
+
+
+def validate_common_target_force(args: argparse.Namespace) -> None:
+    target = float(args.target_force_n)
+    if not math.isfinite(target) or target <= 0.0:
+        raise SystemExit("--target-force-n must be finite and positive")
+
+
+def validate_step5b_15n_trial_args(args: argparse.Namespace) -> None:
+    if getattr(args, "step5b_trial_profile", "none") == "none":
+        return
+    if getattr(args, "step5b_trial_profile", "none") != STEP5B_15N_TRIAL_PROFILE:
+        raise SystemExit(f"Unknown --step5b-trial-profile {args.step5b_trial_profile!r}")
+    if args.bridge_profile != "step5b_v1" or args.bridge_mode != "line":
+        raise SystemExit("--step5b-trial-profile guarded_15n_sentinel requires step5b_v1 line mode")
+    if abs(float(args.target_force_n) - STEP5B_15N_TRIAL_TARGET_N) > STEP5B_15N_TRIAL_TARGET_TOL_N:
+        raise SystemExit("guarded_15n_sentinel requires --target-force-n 15.0")
+    if args.bridge_normal_velocity_limit_m_s > 0.0011:
+        raise SystemExit("guarded_15n_sentinel requires normal velocity limit <= 0.0011 m/s")
+    if args.bridge_total_linear_limit_m_s > 0.0041:
+        raise SystemExit("guarded_15n_sentinel requires total linear limit <= 0.0041 m/s")
+    if args.bridge_integral_limit_n_s > 1.01:
+        raise SystemExit("guarded_15n_sentinel requires integral limit <= 1.0 N*s")
+
+
+def step5b_15n_trial_guard_reason(
+    *,
+    normal_load_n: float,
+    force_norm_n: float,
+    torque_norm_nm: float,
+    sensor_ok: float,
+    normal_velocity_m_s: float,
+    normal_velocity_limit_m_s: float,
+    dt_s: float,
+    state: BridgeState,
+) -> str | None:
+    safe_dt_s = max(0.0, float(dt_s))
+    if sensor_ok <= 0.5 and state.step5b_15n_acquired:
+        return "step5b_15n_trial:sensor_not_ok"
+
+    if normal_load_n >= STEP5B_15N_TRIAL_ACQUIRE_N:
+        state.step5b_15n_acquired = True
+    if state.step5b_15n_acquired:
+        state.step5b_15n_after_acquire_s += safe_dt_s
+        if state.step5b_15n_after_acquire_s > STEP5B_15N_TRIAL_DISCARD_S:
+            state.step5b_15n_scored_s += safe_dt_s
+
+    if normal_load_n > STEP5B_15N_TRIAL_NORMAL_STOP_N:
+        return "step5b_15n_trial:normal_load_stop"
+    state.step5b_15n_high_normal_s = (
+        state.step5b_15n_high_normal_s + safe_dt_s
+        if normal_load_n > STEP5B_15N_TRIAL_NORMAL_DWELL_N
+        else 0.0
+    )
+    if state.step5b_15n_high_normal_s >= STEP5B_15N_TRIAL_NORMAL_DWELL_S:
+        return "step5b_15n_trial:normal_load_dwell"
+
+    if force_norm_n > STEP5B_15N_TRIAL_FORCE_STOP_N:
+        return "step5b_15n_trial:force_norm_stop"
+    state.step5b_15n_high_force_s = (
+        state.step5b_15n_high_force_s + safe_dt_s
+        if force_norm_n > STEP5B_15N_TRIAL_FORCE_DWELL_N
+        else 0.0
+    )
+    if state.step5b_15n_high_force_s >= STEP5B_15N_TRIAL_FORCE_DWELL_S:
+        return "step5b_15n_trial:force_norm_dwell"
+
+    if torque_norm_nm > STEP5B_15N_TRIAL_TORQUE_STOP_NM:
+        return "step5b_15n_trial:torque_norm_stop"
+    state.step5b_15n_high_torque_s = (
+        state.step5b_15n_high_torque_s + safe_dt_s
+        if torque_norm_nm > STEP5B_15N_TRIAL_TORQUE_DWELL_NM
+        else 0.0
+    )
+    if state.step5b_15n_high_torque_s >= STEP5B_15N_TRIAL_TORQUE_DWELL_S:
+        return "step5b_15n_trial:torque_norm_dwell"
+
+    if state.step5b_15n_acquired:
+        state.step5b_15n_low_load_s = (
+            state.step5b_15n_low_load_s + safe_dt_s
+            if normal_load_n < STEP5B_15N_TRIAL_LOW_LOAD_N
+            else 0.0
+        )
+        if state.step5b_15n_low_load_s >= STEP5B_15N_TRIAL_LOW_LOAD_S:
+            return "step5b_15n_trial:low_load_dropout"
+        state.step5b_15n_relative_low_load_s = (
+            state.step5b_15n_relative_low_load_s + safe_dt_s
+            if normal_load_n < STEP5B_15N_TRIAL_RELATIVE_LOW_LOAD_N
+            else 0.0
+        )
+        if state.step5b_15n_relative_low_load_s >= STEP5B_15N_TRIAL_RELATIVE_LOW_LOAD_S:
+            return "step5b_15n_trial:relative_low_load_dropout"
+
+    if normal_velocity_limit_m_s > 0.0 and abs(normal_velocity_m_s) >= 0.98 * normal_velocity_limit_m_s:
+        state.step5b_15n_saturation_s += safe_dt_s
+    else:
+        state.step5b_15n_saturation_s = 0.0
+    if state.step5b_15n_saturation_s >= STEP5B_15N_TRIAL_SATURATION_S:
+        return "step5b_15n_trial:normal_velocity_saturation"
+
+    if not state.step5b_15n_acquired and state.line_stage_s >= STEP5B_15N_TRIAL_ACQUIRE_TIMEOUT_S:
+        return "step5b_15n_trial:acquisition_timeout"
+    if state.step5b_15n_scored_s >= STEP5B_15N_TRIAL_SCORE_S:
+        return "step5b_15n_trial:complete"
+    return None
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--robot-host", default="192.168.1.18")
@@ -3348,6 +3686,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--rezero-s", type=float, default=1.0)
     parser.add_argument("--step4e-mode", choices=("off", "preview", "hold", "line", "axis_iso"), default="off")
     parser.add_argument("--step4e-version", default="")
+    parser.add_argument("--step5b-trial-profile", choices=("none", STEP5B_15N_TRIAL_PROFILE), default="none")
     parser.add_argument("--step4e-path-shape", choices=("line", "cycloid", "eight"), default="line")
     parser.add_argument("--step4e-line-speed-m-s", type=float, default=0.003)
     parser.add_argument("--step4e-line-settle-s", type=float, default=0.0)
@@ -3475,6 +3814,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     if args.duration_s <= 0 or args.baseline_s < 0 or args.rtde_hz <= 0:
         raise SystemExit("duration, baseline, and RTDE rate must be positive")
+    validate_common_target_force(args)
     if not args.no_start_command and not args.allow_kunwei_stream_command:
         raise SystemExit("Refusing to send Kunwei stream command without --allow-kunwei-stream-command")
     known_bridge_profiles = {
@@ -3543,6 +3883,7 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("--step5d-sigr-exponent-r must be in (0, 1]")
     if args.dashboard_program_watch_timeout_s <= 0.0:
         raise SystemExit("--dashboard-program-watch-timeout-s must be positive")
+    validate_step5b_15n_trial_args(args)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     sensor_csv_path = args.output_dir / "kunwei_sensor_1khz.csv"
@@ -3583,6 +3924,16 @@ def main(argv: list[str] | None = None) -> int:
             "max_normal_force_n": args.max_normal_force_n,
             "max_force_norm_n": args.max_force_norm_n,
             "max_torque_norm_nm": args.max_torque_norm_nm,
+        },
+        "step5b_trial_contract": {
+            "profile": args.step5b_trial_profile,
+            "target_force_n": args.target_force_n if step5b_15n_trial_enabled(args) else None,
+            "score_after_acquire_n": STEP5B_15N_TRIAL_ACQUIRE_N if step5b_15n_trial_enabled(args) else None,
+            "discard_s": STEP5B_15N_TRIAL_DISCARD_S if step5b_15n_trial_enabled(args) else None,
+            "score_s": STEP5B_15N_TRIAL_SCORE_S if step5b_15n_trial_enabled(args) else None,
+            "normal_load_stop_n": STEP5B_15N_TRIAL_NORMAL_STOP_N if step5b_15n_trial_enabled(args) else None,
+            "force_norm_stop_n": STEP5B_15N_TRIAL_FORCE_STOP_N if step5b_15n_trial_enabled(args) else None,
+            "torque_norm_stop_nm": STEP5B_15N_TRIAL_TORQUE_STOP_NM if step5b_15n_trial_enabled(args) else None,
         },
         "dashboard_program_watch": {
             "enabled": args.bridge_profile in STEP5D_LIVEPREP_STAGE_IDS
@@ -3830,6 +4181,17 @@ def main(argv: list[str] | None = None) -> int:
             "_step4e_contact_offset_x_m",
             "_step4e_contact_offset_y_m",
             "_step4e_actual_speed_norm_m_s",
+            "_step5b_15n_trial_active",
+            "_step5b_15n_trial_acquired",
+            "_step5b_15n_trial_after_acquire_s",
+            "_step5b_15n_trial_scored_s",
+            "_step5b_15n_trial_anchor_x_m",
+            "_step5b_15n_trial_anchor_y_m",
+            "_step5b_15n_trial_low_load_s",
+            "_step5b_15n_trial_relative_low_load_s",
+            "_step5b_15n_trial_saturation_s",
+            "_step5b_15n_trial_normal_velocity_saturated",
+            "_step5b_15n_trial_stop_reason",
             *STEP5C_DIAG_FIELDS,
             *STEP5D_DIAG_FIELDS,
         ]
@@ -4055,9 +4417,13 @@ def main(argv: list[str] | None = None) -> int:
                     if step4e_stop_request:
                         bridge_values["stop_request"] = 1.0
                         stop_request = 1.0
-                        guard_reason = "step5d_contact_safety:" + str(
-                            step4e_values.get("_step5d_contact_safety_reason", "stop_request")
-                        )
+                        step5b_trial_reason = str(step4e_values.get("_step5b_15n_trial_stop_reason", ""))
+                        if step5b_trial_reason.startswith("step5b_15n_trial:"):
+                            guard_reason = step5b_trial_reason
+                        else:
+                            guard_reason = "step5d_contact_safety:" + str(
+                                step4e_values.get("_step5d_contact_safety_reason", "stop_request")
+                            )
                         stop_reason = guard_reason
                     if sensor_ok:
                         hard_guard_reason = guard_stop_reason(args, bridge_values)
@@ -4149,6 +4515,16 @@ def main(argv: list[str] | None = None) -> int:
             "raw_frames": str(raw_path),
         },
     }
+    if step5b_15n_trial_enabled(args):
+        trial_summary = write_step5b_15n_trial_summary(
+            output_dir=args.output_dir,
+            bridge_csv_path=bridge_csv_path,
+            metadata=metadata,
+            stop_reason=stop_reason,
+        )
+        summary["step5b_15n_guarded_trial"] = trial_summary
+        summary["paths"]["step5b_15n_guarded_trial_summary_json"] = trial_summary["paths"]["trial_summary_json"]
+        summary["paths"]["step5b_15n_guarded_trial_summary_md"] = trial_summary["paths"]["trial_summary_md"]
     write_json(summary_path, summary)
     print(json.dumps(summary, indent=2, sort_keys=True))
     return 0 if samples > 0 and parse_errors == 0 else 3
