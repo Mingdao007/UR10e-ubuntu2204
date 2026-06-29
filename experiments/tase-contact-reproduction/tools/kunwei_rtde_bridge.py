@@ -284,10 +284,12 @@ STEP5B_15N_TRIAL_TORQUE_STOP_NM = 1.5
 STEP5B_15N_TRIAL_TORQUE_DWELL_NM = 0.6
 STEP5B_15N_TRIAL_TORQUE_DWELL_S = 0.100
 STEP5B_15N_TRIAL_LOW_LOAD_N = 2.0
-STEP5B_15N_TRIAL_LOW_LOAD_S = 0.050
+STEP5B_15N_TRIAL_LOW_LOAD_S = 0.500
 STEP5B_15N_TRIAL_RELATIVE_LOW_LOAD_N = 7.5
-STEP5B_15N_TRIAL_RELATIVE_LOW_LOAD_S = 0.150
+STEP5B_15N_TRIAL_RELATIVE_LOW_LOAD_S = 0.500
 STEP5B_15N_TRIAL_SATURATION_S = 0.200
+STEP5B_15N_TRIAL_NORMAL_VELOCITY_LIMIT_MAX_M_S = 0.0011
+STEP5B_RAMP_NORMAL_VELOCITY_LIMIT_MAX_M_S = 0.0101
 STEP5B_RAMP_START_TARGET_N = 5.0
 STEP5B_RAMP_FINAL_TARGET_N = 15.0
 STEP5B_RAMP_PRELOAD_MIN_N = 2.0
@@ -302,6 +304,10 @@ STEP5B_RAMP_FINAL_SCORE_S = 2.0
 STEP5B_RAMP_MOVE_SCORE_S = 2.0
 STEP5B_RAMP_PRELOAD_NORMAL_STOP_N = 35.0
 STEP5B_RAMP_PRELOAD_FORCE_STOP_N = 35.0
+STEP5B_RAMP_NORMAL_STOP_MARGIN_N = 20.0
+STEP5B_RAMP_NORMAL_DWELL_MARGIN_N = 18.0
+STEP5B_RAMP_FORCE_STOP_MARGIN_N = 20.0
+STEP5B_RAMP_FORCE_DWELL_MARGIN_N = 18.0
 STEP5B_RAMP_PHASE_CODES = {
     "inactive": 0.0,
     "pre_unload_to_5": 1.0,
@@ -3871,8 +3877,16 @@ def validate_step5b_15n_trial_args(args: argparse.Namespace) -> None:
         raise SystemExit(f"--step5b-trial-profile {args.step5b_trial_profile} requires step5b_v1 line mode")
     if abs(float(args.target_force_n) - STEP5B_15N_TRIAL_TARGET_N) > STEP5B_15N_TRIAL_TARGET_TOL_N:
         raise SystemExit(f"{args.step5b_trial_profile} requires --target-force-n 15.0")
-    if args.bridge_normal_velocity_limit_m_s > 0.0011:
-        raise SystemExit(f"{args.step5b_trial_profile} requires normal velocity limit <= 0.0011 m/s")
+    normal_velocity_limit_max_m_s = (
+        STEP5B_RAMP_NORMAL_VELOCITY_LIMIT_MAX_M_S
+        if args.step5b_trial_profile == STEP5B_RAMP_5_TO_15_TRIAL_PROFILE
+        else STEP5B_15N_TRIAL_NORMAL_VELOCITY_LIMIT_MAX_M_S
+    )
+    if args.bridge_normal_velocity_limit_m_s > normal_velocity_limit_max_m_s:
+        raise SystemExit(
+            f"{args.step5b_trial_profile} requires normal velocity limit <= "
+            f"{normal_velocity_limit_max_m_s:.4f} m/s"
+        )
     if args.bridge_total_linear_limit_m_s > 0.0041:
         raise SystemExit(f"{args.step5b_trial_profile} requires total linear limit <= 0.0041 m/s")
     if args.bridge_integral_limit_n_s > 1.01:
@@ -4011,10 +4025,10 @@ def step5b_ramp_trial_guard_reason(
             return "step5b_ramp_5_to_15:preload_acquisition_timeout"
         return None
 
-    normal_stop_n = min(STEP5B_15N_TRIAL_NORMAL_STOP_N, target + 5.0)
-    normal_dwell_n = min(STEP5B_15N_TRIAL_NORMAL_DWELL_N, target + 3.0)
-    force_stop_n = min(STEP5B_15N_TRIAL_FORCE_STOP_N, target + 10.0)
-    force_dwell_n = min(STEP5B_15N_TRIAL_FORCE_DWELL_N, target + 7.0)
+    normal_stop_n = min(STEP5B_RAMP_PRELOAD_NORMAL_STOP_N, target + STEP5B_RAMP_NORMAL_STOP_MARGIN_N)
+    normal_dwell_n = min(STEP5B_RAMP_PRELOAD_NORMAL_STOP_N - 2.0, target + STEP5B_RAMP_NORMAL_DWELL_MARGIN_N)
+    force_stop_n = min(STEP5B_RAMP_PRELOAD_FORCE_STOP_N, target + STEP5B_RAMP_FORCE_STOP_MARGIN_N)
+    force_dwell_n = min(STEP5B_RAMP_PRELOAD_FORCE_STOP_N - 2.0, target + STEP5B_RAMP_FORCE_DWELL_MARGIN_N)
     if normal_load_n > normal_stop_n:
         return "step5b_ramp_5_to_15:normal_load_stop"
     state.step5b_ramp_high_normal_s = (

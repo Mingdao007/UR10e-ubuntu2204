@@ -113,6 +113,9 @@ class Step5bRamp5To15SentinelTest(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "requires --target-force-n 15.0"):
             bridge.validate_step5b_15n_trial_args(bad_target)
 
+        fast_normal = ramp_args("--step4e-normal-velocity-limit-m-s", "0.0100")
+        self.assertAlmostEqual(fast_normal.bridge_normal_velocity_limit_m_s, 0.0100)
+
     def test_preload_high_load_unloads_without_old_20n_stop(self) -> None:
         values = compute_at_load(26.0)
         self.assertEqual(values["_step5b_ramp_phase"], "pre_unload_to_5")
@@ -154,7 +157,7 @@ class Step5bRamp5To15SentinelTest(unittest.TestCase):
         state = bridge.BridgeState()
         bridge.set_step5b_ramp_phase(state, "ramp_5_to_15")
         state.step5b_ramp_active_target_force_n = 5.0
-        self.assertEqual(
+        self.assertIsNone(
             bridge.step5b_ramp_trial_guard_reason(
                 normal_load_n=10.1,
                 force_norm_n=10.1,
@@ -164,8 +167,83 @@ class Step5bRamp5To15SentinelTest(unittest.TestCase):
                 normal_velocity_limit_m_s=0.001,
                 dt_s=0.002,
                 state=state,
+            )
+        )
+        self.assertEqual(
+            bridge.step5b_ramp_trial_guard_reason(
+                normal_load_n=25.1,
+                force_norm_n=25.1,
+                torque_norm_nm=0.1,
+                sensor_ok=1.0,
+                normal_velocity_m_s=0.0,
+                normal_velocity_limit_m_s=0.001,
+                dt_s=0.002,
+                state=state,
             ),
             "step5b_ramp_5_to_15:normal_load_stop",
+        )
+
+    def test_ramp_dropout_requires_half_second_continuous_low_load(self) -> None:
+        state = bridge.BridgeState()
+        bridge.set_step5b_ramp_phase(state, "ramp_5_to_15")
+        state.step5b_ramp_active_target_force_n = 5.0
+        reason = None
+        for _ in range(249):
+            reason = bridge.step5b_ramp_trial_guard_reason(
+                normal_load_n=1.0,
+                force_norm_n=1.0,
+                torque_norm_nm=0.1,
+                sensor_ok=1.0,
+                normal_velocity_m_s=0.0,
+                normal_velocity_limit_m_s=0.001,
+                dt_s=0.002,
+                state=state,
+            )
+        self.assertIsNone(reason)
+        self.assertAlmostEqual(state.step5b_ramp_low_load_s, 0.498)
+        self.assertEqual(
+            bridge.step5b_ramp_trial_guard_reason(
+                normal_load_n=1.0,
+                force_norm_n=1.0,
+                torque_norm_nm=0.1,
+                sensor_ok=1.0,
+                normal_velocity_m_s=0.0,
+                normal_velocity_limit_m_s=0.001,
+                dt_s=0.002,
+                state=state,
+            ),
+            "step5b_ramp_5_to_15:low_load_dropout",
+        )
+
+        state = bridge.BridgeState()
+        bridge.set_step5b_ramp_phase(state, "ramp_5_to_15")
+        state.step5b_ramp_active_target_force_n = 10.0
+        reason = None
+        for _ in range(249):
+            reason = bridge.step5b_ramp_trial_guard_reason(
+                normal_load_n=2.4,
+                force_norm_n=2.4,
+                torque_norm_nm=0.1,
+                sensor_ok=1.0,
+                normal_velocity_m_s=0.0,
+                normal_velocity_limit_m_s=0.001,
+                dt_s=0.002,
+                state=state,
+            )
+        self.assertIsNone(reason)
+        self.assertAlmostEqual(state.step5b_ramp_relative_low_load_s, 0.498)
+        self.assertEqual(
+            bridge.step5b_ramp_trial_guard_reason(
+                normal_load_n=2.4,
+                force_norm_n=2.4,
+                torque_norm_nm=0.1,
+                sensor_ok=1.0,
+                normal_velocity_m_s=0.0,
+                normal_velocity_limit_m_s=0.001,
+                dt_s=0.002,
+                state=state,
+            ),
+            "step5b_ramp_5_to_15:relative_low_load_dropout",
         )
 
     def test_summary_passes_clean_short_move(self) -> None:

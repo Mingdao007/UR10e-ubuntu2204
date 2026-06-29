@@ -56,6 +56,28 @@ class Step5b15NGuardedTrialTest(unittest.TestCase):
         self.assertTrue(bridge.step5b_15n_trial_enabled(args))
         self.assertEqual(args.target_force_n, 15.0)
 
+        fast_normal = bridge.parse_args(
+            [
+                "--no-start-command",
+                "--step4e-mode",
+                "line",
+                "--step4e-version",
+                "step5b_v1",
+                "--step5b-trial-profile",
+                "guarded_15n_sentinel",
+                "--target-force-n",
+                "15.0",
+                "--step4e-normal-velocity-limit-m-s",
+                "0.0100",
+                "--step4e-total-linear-limit-m-s",
+                "0.0040",
+                "--step4e-integral-limit-n-s",
+                "1.0",
+            ]
+        )
+        with self.assertRaisesRegex(SystemExit, "normal velocity limit <= 0.0011 m/s"):
+            bridge.validate_step5b_15n_trial_args(fast_normal)
+
         bad = bridge.parse_args(
             [
                 "--no-start-command",
@@ -146,6 +168,37 @@ class Step5b15NGuardedTrialTest(unittest.TestCase):
                 state=state,
             )
         self.assertEqual(reason, "step5b_15n_trial:normal_velocity_saturation")
+
+    def test_guarded_dropout_requires_half_second_continuous_low_load(self) -> None:
+        state = bridge.BridgeState()
+        state.step5b_15n_acquired = True
+        reason = None
+        for _ in range(249):
+            reason = bridge.step5b_15n_trial_guard_reason(
+                normal_load_n=1.0,
+                force_norm_n=1.0,
+                torque_norm_nm=0.1,
+                sensor_ok=1.0,
+                normal_velocity_m_s=0.0,
+                normal_velocity_limit_m_s=0.001,
+                dt_s=0.002,
+                state=state,
+            )
+        self.assertIsNone(reason)
+        self.assertAlmostEqual(state.step5b_15n_low_load_s, 0.498)
+        self.assertEqual(
+            bridge.step5b_15n_trial_guard_reason(
+                normal_load_n=1.0,
+                force_norm_n=1.0,
+                torque_norm_nm=0.1,
+                sensor_ok=1.0,
+                normal_velocity_m_s=0.0,
+                normal_velocity_limit_m_s=0.001,
+                dt_s=0.002,
+                state=state,
+            ),
+            "step5b_15n_trial:low_load_dropout",
+        )
 
     def test_summary_verdict_passes_clean_static_window(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
