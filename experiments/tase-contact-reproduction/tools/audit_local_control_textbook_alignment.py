@@ -112,6 +112,9 @@ def audit_step5b(root: Path, spec: dict[str, Any], stage5: dict[str, Any], failu
     require("--target-force-n 5.0" in package_text, failures, "Step5b contact target missing")
     require("step4e-normal-follow-mode=filtered_live" in script, failures, "Step5b filtered-live normal correction missing")
     require("x=0.015 * (0.1t - sin(0.1t))" in script, failures, "Step5b cycloid formula missing")
+    require("movel(entry_xy_pose, a=0.060, v=0.040, r=0.0)" in script, failures, "Step5b fast entry movel missing")
+    require("movel(lift_pose, a=0.060, v=0.040, r=0.0)" in script, failures, "Step5b fast lift movel missing")
+    require("local short_retract_speed_m_s = 0.040" in script, failures, "Step5b fast retract speed missing")
     require("zero_ftsensor(" not in script, failures, "Step5b must not call zero_ftsensor")
     require("set_tcp(" not in script and "set_payload(" not in script, failures, "Step5b must not write TCP/payload")
 

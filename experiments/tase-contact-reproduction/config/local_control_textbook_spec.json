@@ -98,7 +98,7 @@
           "path": "experiments/tase-contact-reproduction/programs/step5/step5b_contact_cycloid_baseline_v1.script",
           "package_text_path": "experiments/tase-contact-reproduction/programs/step5/step5b_contact_cycloid_baseline_v1.txt",
           "controller_path": "/programs/andyl/kunwei/step5/step5b_contact_cycloid_baseline_v1.urp",
-          "version_stamp": "2026-06-12T0821HKT_STEP5B_CONTACT_CYCLOID_BASELINE_V1"
+          "version_stamp": "2026-06-30T0417HKT_STEP5B_CONTACT_CYCLOID_BASELINE_V1"
         }
       },
       "stage_table": "experiments/tase-contact-reproduction/config/step5_stage_table.json",

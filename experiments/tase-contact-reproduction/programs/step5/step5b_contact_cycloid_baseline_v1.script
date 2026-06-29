@@ -1,6 +1,6 @@
 # Step5b contact cycloid baseline v1.
-# VERSION: 2026-06-12T0821HKT_STEP5B_CONTACT_CYCLOID_BASELINE_V1
-# GENERATED_AT_LOCAL: 2026-06-12T08:21:21+08:00
+# VERSION: 2026-06-30T0417HKT_STEP5B_CONTACT_CYCLOID_BASELINE_V1
+# GENERATED_AT_LOCAL: 2026-06-30T04:17:31+08:00
 # ENTRY_XY_M: [0.487795411, 0.129326793]
 # SAFE_FRAME_SOURCE: config/step5_safe_frame.json from confirmed drag-teach start/mid/end.
 # NO_SCALE_POLICY: Step5 table frame uses rotation+translation only.
@@ -277,11 +277,11 @@ def codex_step5b_contact_cycloid_baseline_v1():
   local cmd_invalid_s = 0.0
   local saw_cmd_valid = 0
   local short_retract_z_m = 0.010
-  local short_retract_speed_m_s = 0.020
+  local short_retract_speed_m_s = 0.040
   local home_return_speed_m_s = 0.050
   local final_progress_m = 0.0
 
-  textmsg("codex step4e version 2026-06-12T0821HKT_STEP5B_CONTACT_CYCLOID_BASELINE_V1 start step5b_contact_cycloid_baseline_v1")
+  textmsg("codex step4e version 2026-06-30T0417HKT_STEP5B_CONTACT_CYCLOID_BASELINE_V1 start step5b_contact_cycloid_baseline_v1")
   write_output_float_register(34, 0.0)
   write_output_float_register(35, 20.0)
   codex_echo_step4e(0.0)
@@ -294,7 +294,7 @@ def codex_step5b_contact_cycloid_baseline_v1():
     local p_current = get_actual_tcp_pose()
     local entry_xy_pose = p[entry_x, entry_y, p_current[2], target_rx, target_ry, target_rz]
     codex_echo_step4e(stop_reason)
-    movel(entry_xy_pose, a=0.030, v=0.020, r=0.0)
+    movel(entry_xy_pose, a=0.060, v=0.040, r=0.0)
     stopl(0.1)
     sleep(0.20)
     write_output_float_register(35, 23.0)
@@ -341,7 +341,7 @@ def codex_step5b_contact_cycloid_baseline_v1():
     local p_lift = get_actual_tcp_pose()
     local lift_pose = p[p_lift[0], p_lift[1], p_lift[2] + 0.020, p_lift[3], p_lift[4], p_lift[5]]
     codex_echo_step4e(stop_reason)
-    movel(lift_pose, a=0.030, v=0.020, r=0.0)
+    movel(lift_pose, a=0.060, v=0.040, r=0.0)
     stopl(0.1)
   end
 
@@ -566,7 +566,7 @@ def codex_step5b_contact_cycloid_baseline_v1():
     local short_retract_start = get_actual_tcp_pose()
     local short_retract_pose = p[short_retract_start[0], short_retract_start[1], short_retract_start[2] + short_retract_z_m, short_retract_start[3], short_retract_start[4], short_retract_start[5]]
     codex_echo_step4e(stop_reason)
-    movel(short_retract_pose, a=0.030, v=short_retract_speed_m_s, r=0.0)
+    movel(short_retract_pose, a=0.060, v=short_retract_speed_m_s, r=0.0)
     stopl(0.1)
     write_output_float_register(35, 27.0)
     codex_echo_step4e(stop_reason)
@@ -577,7 +577,7 @@ def codex_step5b_contact_cycloid_baseline_v1():
   write_output_float_register(30, stop_reason)
   write_output_float_register(31, final_progress_m)
   write_output_float_register(35, 29.0)
-  textmsg("codex step4e version 2026-06-12T0821HKT_STEP5B_CONTACT_CYCLOID_BASELINE_V1 stop reason:", stop_reason)
+  textmsg("codex step4e version 2026-06-30T0417HKT_STEP5B_CONTACT_CYCLOID_BASELINE_V1 stop reason:", stop_reason)
 end
 
 codex_step5b_contact_cycloid_baseline_v1()

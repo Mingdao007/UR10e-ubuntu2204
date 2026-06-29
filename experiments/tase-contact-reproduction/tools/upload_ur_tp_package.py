@@ -218,6 +218,11 @@ def validate_package(
                 and "25.2 attitude correction" in script
                 and "25.3 line-entry gate" in script
                 and "normal projection and force-loop composition" in script,
+                "fast non-contact movel": "movel(entry_xy_pose, a=0.060, v=0.040, r=0.0)" in script
+                and "movel(lift_pose, a=0.060, v=0.040, r=0.0)" in script
+                and "local short_retract_speed_m_s = 0.040" in script
+                and "movel(short_retract_pose, a=0.060, v=short_retract_speed_m_s, r=0.0)" in script
+                and "Non-contact movel speed: entry/lift/retract 0.040 m/s" in txt,
                 "raw contact guards": "codex_abs(normal_force) > 50.0" in script
                 and "force_norm > 60.0" in script
                 and "torque_norm > 3.0" in script,

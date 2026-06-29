@@ -20,6 +20,9 @@ BRIDGE_VERSION = "step5b_v1"
 LOCAL_PROGRAM_DIR = PROGRAM_DIR / "step5"
 CONTROLLER_DIR = "/programs/andyl/kunwei/step5"
 SAFE_FRAME_PATH = CONFIG_PATH.with_name("step5_safe_frame.json")
+FAST_NONCONTACT_MOVEL_ACCEL_M_S2 = 0.060
+FAST_NONCONTACT_MOVEL_SPEED_M_S = 0.040
+HOME_RETURN_SPEED_M_S = 0.050
 
 
 def source_stamp(now: datetime) -> str:
@@ -83,6 +86,20 @@ def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -
         "PAPER_PATH_FORMULA:",
         "STEP5_PATH_FORMULA:",
     )
+    script = script.replace("local short_retract_speed_m_s = 0.020", f"local short_retract_speed_m_s = {FAST_NONCONTACT_MOVEL_SPEED_M_S:.3f}")
+    script = script.replace("local home_return_speed_m_s = 0.050", f"local home_return_speed_m_s = {HOME_RETURN_SPEED_M_S:.3f}")
+    script = script.replace(
+        "movel(entry_xy_pose, a=0.030, v=0.020, r=0.0)",
+        f"movel(entry_xy_pose, a={FAST_NONCONTACT_MOVEL_ACCEL_M_S2:.3f}, v={FAST_NONCONTACT_MOVEL_SPEED_M_S:.3f}, r=0.0)",
+    )
+    script = script.replace(
+        "movel(lift_pose, a=0.030, v=0.020, r=0.0)",
+        f"movel(lift_pose, a={FAST_NONCONTACT_MOVEL_ACCEL_M_S2:.3f}, v={FAST_NONCONTACT_MOVEL_SPEED_M_S:.3f}, r=0.0)",
+    )
+    script = script.replace(
+        "movel(short_retract_pose, a=0.030, v=short_retract_speed_m_s, r=0.0)",
+        f"movel(short_retract_pose, a={FAST_NONCONTACT_MOVEL_ACCEL_M_S2:.3f}, v=short_retract_speed_m_s, r=0.0)",
+    )
     return script
 
 
@@ -101,6 +118,8 @@ Motion boundary:
   25.2 attitude correction, second contact, and 25.3 line-entry gate.
   Stage 25.0 consumes bridge command registers 37..44 only.
   Bridge profile: --step4e-version {BRIDGE_VERSION} --step4e-path-shape cycloid.
+  Non-contact movel speed: entry/lift/retract {FAST_NONCONTACT_MOVEL_SPEED_M_S:.3f} m/s,
+  accel {FAST_NONCONTACT_MOVEL_ACCEL_M_S2:.3f} m/s^2; contact search/acquire/Stage 25.0 unchanged.
   Force target: --target-force-n 5.0.
   Raw normal guard: 50 N. Force norm guard: 60 N. Torque guard: 3.0 Nm.
   No UR zero_ftsensor(), no Kunwei tare/zero/config, no TCP/payload write.
@@ -132,6 +151,11 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str) -> None:
         "v31 scaffold": "first-contact normal latch" in script
         and "25.2 attitude correction" in script
         and "25.3 line-entry gate" in script,
+        "fast non-contact movel": "movel(entry_xy_pose, a=0.060, v=0.040, r=0.0)" in script
+        and "movel(lift_pose, a=0.060, v=0.040, r=0.0)" in script
+        and "local short_retract_speed_m_s = 0.040" in script
+        and "movel(short_retract_pose, a=0.060, v=short_retract_speed_m_s, r=0.0)" in script
+        and "Non-contact movel speed: entry/lift/retract 0.040 m/s" in txt,
         "command registers": "read_input_float_register(37)" in script
         and "read_input_float_register(44)" in script,
         "raw guards": "codex_abs(normal_force) > 50.0" in script
