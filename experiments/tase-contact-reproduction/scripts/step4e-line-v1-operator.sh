@@ -110,6 +110,8 @@ if [[ "${STEP5B_TRIAL_PROFILE}" != "none" && "${STEP4E_VERSION}" != "step5b_v1" 
 fi
 if [[ "${STEP5B_TRIAL_PROFILE}" == "guarded_15n_sentinel" ]]; then
   RUN_LABEL_SUFFIX="15n_guarded_trial"
+elif [[ "${STEP5B_TRIAL_PROFILE}" == "ramp_5_to_15_sentinel" ]]; then
+  RUN_LABEL_SUFFIX="ramp_5_to_15_sentinel"
 else
   RUN_LABEL_SUFFIX=""
 fi

@@ -266,6 +266,8 @@ STEP4E_LINE_MID_XY = (
 STEP4FG_PATH_DURATION_S = 60.0
 STEP5_CONTACT_CYCLOID_STAGE_ID = "step5_contact_cycloid_baseline_v1"
 STEP5B_15N_TRIAL_PROFILE = "guarded_15n_sentinel"
+STEP5B_RAMP_5_TO_15_TRIAL_PROFILE = "ramp_5_to_15_sentinel"
+STEP5B_TRIAL_PROFILES = ("none", STEP5B_15N_TRIAL_PROFILE, STEP5B_RAMP_5_TO_15_TRIAL_PROFILE)
 STEP5B_15N_TRIAL_TARGET_N = 15.0
 STEP5B_15N_TRIAL_TARGET_TOL_N = 0.1
 STEP5B_15N_TRIAL_ACQUIRE_N = 12.0
@@ -286,6 +288,28 @@ STEP5B_15N_TRIAL_LOW_LOAD_S = 0.050
 STEP5B_15N_TRIAL_RELATIVE_LOW_LOAD_N = 7.5
 STEP5B_15N_TRIAL_RELATIVE_LOW_LOAD_S = 0.150
 STEP5B_15N_TRIAL_SATURATION_S = 0.200
+STEP5B_RAMP_START_TARGET_N = 5.0
+STEP5B_RAMP_FINAL_TARGET_N = 15.0
+STEP5B_RAMP_PRELOAD_MIN_N = 2.0
+STEP5B_RAMP_PRELOAD_MAX_N = 8.0
+STEP5B_RAMP_PRELOAD_FORCE_NORM_MAX_N = 12.0
+STEP5B_RAMP_PRELOAD_HOLD_S = 0.150
+STEP5B_RAMP_PRELOAD_TIMEOUT_S = 10.0
+STEP5B_RAMP_DURATION_S = 5.0
+STEP5B_RAMP_FINAL_ACQUIRE_N = 12.0
+STEP5B_RAMP_FINAL_DISCARD_S = 0.5
+STEP5B_RAMP_FINAL_SCORE_S = 2.0
+STEP5B_RAMP_MOVE_SCORE_S = 2.0
+STEP5B_RAMP_PRELOAD_NORMAL_STOP_N = 35.0
+STEP5B_RAMP_PRELOAD_FORCE_STOP_N = 35.0
+STEP5B_RAMP_PHASE_CODES = {
+    "inactive": 0.0,
+    "pre_unload_to_5": 1.0,
+    "ramp_5_to_15": 2.0,
+    "hold_15": 3.0,
+    "move_xy": 4.0,
+    "complete": 5.0,
+}
 STEP5C_DRYRUN_STAGE_ID = "step5c_speedj_dryrun_v1"
 STEP5C_CONTACT_STAGE_ID = "step5c_joint_rnn_cycloid_v1"
 STEP5D_REPRODUCTION_STAGE_ID = "step5d_strict_rnn_reproduction_v1"
@@ -1928,6 +1952,23 @@ class BridgeState:
         self.step5b_15n_low_load_s = 0.0
         self.step5b_15n_relative_low_load_s = 0.0
         self.step5b_15n_saturation_s = 0.0
+        self.step5b_ramp_anchor_xy: tuple[float, float] | None = None
+        self.step5b_ramp_phase = "inactive"
+        self.step5b_ramp_phase_s = 0.0
+        self.step5b_ramp_preload_ready_s = 0.0
+        self.step5b_ramp_after_initial_acquire_s = 0.0
+        self.step5b_ramp_terminal_discard_s = 0.0
+        self.step5b_ramp_scored_s = 0.0
+        self.step5b_ramp_move_s = 0.0
+        self.step5b_ramp_high_normal_s = 0.0
+        self.step5b_ramp_high_force_s = 0.0
+        self.step5b_ramp_high_torque_s = 0.0
+        self.step5b_ramp_low_load_s = 0.0
+        self.step5b_ramp_relative_low_load_s = 0.0
+        self.step5b_ramp_saturation_s = 0.0
+        self.step5b_ramp_active_target_force_n = STEP5B_RAMP_START_TARGET_N
+        self.step5b_ramp_alpha = 0.0
+        self.step5b_ramp_xy_enabled = False
 
     def reset_line_contact(self) -> None:
         self.integral_error_n_s = 0.0
@@ -1967,6 +2008,26 @@ class BridgeState:
         self.step5b_15n_low_load_s = 0.0
         self.step5b_15n_relative_low_load_s = 0.0
         self.step5b_15n_saturation_s = 0.0
+        self.reset_step5b_ramp_trial()
+
+    def reset_step5b_ramp_trial(self) -> None:
+        self.step5b_ramp_anchor_xy = None
+        self.step5b_ramp_phase = "inactive"
+        self.step5b_ramp_phase_s = 0.0
+        self.step5b_ramp_preload_ready_s = 0.0
+        self.step5b_ramp_after_initial_acquire_s = 0.0
+        self.step5b_ramp_terminal_discard_s = 0.0
+        self.step5b_ramp_scored_s = 0.0
+        self.step5b_ramp_move_s = 0.0
+        self.step5b_ramp_high_normal_s = 0.0
+        self.step5b_ramp_high_force_s = 0.0
+        self.step5b_ramp_high_torque_s = 0.0
+        self.step5b_ramp_low_load_s = 0.0
+        self.step5b_ramp_relative_low_load_s = 0.0
+        self.step5b_ramp_saturation_s = 0.0
+        self.step5b_ramp_active_target_force_n = STEP5B_RAMP_START_TARGET_N
+        self.step5b_ramp_alpha = 0.0
+        self.step5b_ramp_xy_enabled = False
 
 
 Step4EState = BridgeState
@@ -2009,6 +2070,8 @@ def compute_bridge_values(
     step4g_profile = args.bridge_profile == "step4g_v1"
     step5b_profile = args.bridge_profile == "step5b_v1"
     step5b_15n_trial_profile = step5b_15n_trial_enabled(args)
+    step5b_ramp_trial_profile = step5b_ramp_trial_enabled(args)
+    step5b_any_trial_profile = step5b_15n_trial_profile or step5b_ramp_trial_profile
     step5c_dryrun_profile = args.bridge_profile == STEP5C_DRYRUN_STAGE_ID
     step5c_contact_profile = args.bridge_profile == STEP5C_CONTACT_STAGE_ID
     step5c_joint_profile = step5c_dryrun_profile or step5c_contact_profile
@@ -2127,7 +2190,7 @@ def compute_bridge_values(
         state.line_stage_s += dt_s
     if step5d_joint_line_profile:
         state.step5d_active_stage25_s += max(0.0, dt_s)
-    if not (step5b_15n_trial_profile and line_stage_active):
+    if not (step5b_any_trial_profile and line_stage_active):
         state.reset_step5b_15n_trial()
 
     force_t, torque_t = kunwei_to_tcp_wrench(latest_zeroed)
@@ -2241,6 +2304,13 @@ def compute_bridge_values(
         else:
             normal_filter_source = "locked_pre_line"
     normal_load_n = max(0.0, dot3(force_b, n_control_b)) if state.normal_acquired else 0.0
+    if step5b_ramp_trial_profile and line_stage_active:
+        step5b_ramp_trial_phase_update(
+            normal_load_n=normal_load_n,
+            force_norm_n=force_abs,
+            dt_s=dt_s,
+            state=state,
+        )
     tcp_z_axis_b = (rotation[0][2], rotation[1][2], rotation[2][2])
     step5d_line_tcp_speed_m_s = (
         norm3([float(speed[0]), float(speed[1]), float(speed[2])])
@@ -2364,27 +2434,31 @@ def compute_bridge_values(
         scale = args.bridge_angular_limit_rad_s / orientation_norm
         orientation_cmd = tuple(value * scale for value in orientation_cmd)
 
+    path_time_s = state.line_stage_s
+    if step5b_ramp_trial_profile and line_stage_active:
+        path_time_s = state.step5b_ramp_move_s if state.step5b_ramp_xy_enabled else 0.0
+
     if step5b_profile:
         path_ref = step5_contact_path_reference(
             (float(pose[0]), float(pose[1])),
-            state.line_stage_s,
+            path_time_s,
         )
     elif step5c_dryrun_profile:
         path_ref = step5_contact_path_reference(
             (float(pose[0]), float(pose[1])),
-            state.line_stage_s,
+            path_time_s,
             stage_id=STEP5C_DRYRUN_STAGE_ID,
         )
     elif step5c_contact_profile:
         path_ref = step5_contact_path_reference(
             (float(pose[0]), float(pose[1])),
-            state.line_stage_s,
+            path_time_s,
             stage_id=STEP5C_CONTACT_STAGE_ID,
         )
     elif step5d_liveprep_profile:
         path_ref = step5_contact_path_reference(
             (float(pose[0]), float(pose[1])),
-            state.line_stage_s,
+            path_time_s,
             stage_id=args.bridge_profile,
         )
     elif step6b_profile:
@@ -2402,10 +2476,18 @@ def compute_bridge_values(
     progress = float(path_ref["progress"])
     desired_x, desired_y = path_ref["desired_xy"]
     path_error = (path_ref["path_error_xy"][0], path_ref["path_error_xy"][1], 0.0)
-    if step5b_15n_trial_profile and line_stage_active:
-        if state.step5b_15n_anchor_xy is None:
-            state.step5b_15n_anchor_xy = (float(pose[0]), float(pose[1]))
-        desired_x, desired_y = state.step5b_15n_anchor_xy
+    step5b_freeze_xy = line_stage_active and (
+        step5b_15n_trial_profile or (step5b_ramp_trial_profile and not state.step5b_ramp_xy_enabled)
+    )
+    if step5b_freeze_xy:
+        if step5b_ramp_trial_profile:
+            if state.step5b_ramp_anchor_xy is None:
+                state.step5b_ramp_anchor_xy = (float(pose[0]), float(pose[1]))
+            desired_x, desired_y = state.step5b_ramp_anchor_xy
+        else:
+            if state.step5b_15n_anchor_xy is None:
+                state.step5b_15n_anchor_xy = (float(pose[0]), float(pose[1]))
+            desired_x, desired_y = state.step5b_15n_anchor_xy
         path_error = (0.0, 0.0, 0.0)
     if args.bridge_path_shape == "line":
         tangent_speed = args.bridge_line_speed_m_s if args.bridge_mode == "line" and line_stage_active else 0.0
@@ -2417,9 +2499,9 @@ def compute_bridge_values(
         desired_velocity_xy = path_ref["desired_velocity_xy"]
         if args.bridge_mode != "line" or not line_stage_active:
             desired_velocity_xy = (0.0, 0.0)
-    if step5b_15n_trial_profile and line_stage_active:
+    if step5b_freeze_xy:
         desired_velocity_xy = (0.0, 0.0)
-    if line_stage_active and state.line_stage_s <= args.bridge_line_settle_s:
+    if line_stage_active and path_time_s <= args.bridge_line_settle_s:
         desired_velocity_xy = (0.0, 0.0)
     if detached_profile and not line_stage_active:
         base_motion = (0.0, 0.0, 0.0)
@@ -2440,7 +2522,12 @@ def compute_bridge_values(
         motion_cmd = tuple(value * scale for value in motion_cmd)
 
     controlled_force_n = 0.0 if step5c_dryrun_profile else normal_load_n if args.bridge_mode == "line" else force_abs
-    force_error = args.target_force_n - controlled_force_n
+    effective_target_force_n = (
+        state.step5b_ramp_active_target_force_n
+        if step5b_ramp_trial_profile and line_stage_active
+        else float(args.target_force_n)
+    )
+    force_error = effective_target_force_n - controlled_force_n
     line_grace_valid = (
         args.bridge_mode == "line"
         and not detached_profile
@@ -2592,7 +2679,7 @@ def compute_bridge_values(
                 orientation_cmd = (0.0, 0.0, 0.0)
                 state.normal_velocity_m_s = 0.0
             else:
-                if step5b_15n_trial_profile and (
+                if step5b_any_trial_profile and (
                     normal_load_n < STEP5B_15N_TRIAL_LOW_LOAD_N
                     or normal_filter_source == "hold_low_force"
                 ):
@@ -2648,6 +2735,17 @@ def compute_bridge_values(
         step5b_15n_trial_stop_reason = None
         if step5b_15n_trial_profile and line_stage_active:
             step5b_15n_trial_stop_reason = step5b_15n_trial_guard_reason(
+                normal_load_n=normal_load_n,
+                force_norm_n=force_abs,
+                torque_norm_nm=torque_abs,
+                sensor_ok=sensor_ok,
+                normal_velocity_m_s=state.normal_velocity_m_s,
+                normal_velocity_limit_m_s=float(args.bridge_normal_velocity_limit_m_s),
+                dt_s=dt_s,
+                state=state,
+            )
+        elif step5b_ramp_trial_profile and line_stage_active:
+            step5b_15n_trial_stop_reason = step5b_ramp_trial_guard_reason(
                 normal_load_n=normal_load_n,
                 force_norm_n=force_abs,
                 torque_norm_nm=torque_abs,
@@ -3077,6 +3175,32 @@ def compute_bridge_values(
         values["_step5b_15n_trial_stop_reason"] = step5b_15n_trial_stop_reason or ""
         if step5b_15n_trial_stop_reason:
             values["stop_request"] = 1.0
+    if step5b_ramp_trial_profile:
+        values["_step5b_ramp_active"] = 1.0 if line_stage_active else 0.0
+        values["_step5b_ramp_phase_code"] = STEP5B_RAMP_PHASE_CODES.get(state.step5b_ramp_phase, -1.0)
+        values["_step5b_ramp_phase"] = state.step5b_ramp_phase
+        values["_step5b_ramp_phase_s"] = state.step5b_ramp_phase_s
+        values["_step5b_ramp_active_target_force_n"] = state.step5b_ramp_active_target_force_n
+        values["_step5b_ramp_alpha"] = state.step5b_ramp_alpha
+        values["_step5b_ramp_xy_enabled"] = 1.0 if state.step5b_ramp_xy_enabled else 0.0
+        values["_step5b_ramp_preload_ready_s"] = state.step5b_ramp_preload_ready_s
+        values["_step5b_ramp_terminal_discard_s"] = state.step5b_ramp_terminal_discard_s
+        values["_step5b_ramp_scored_s"] = state.step5b_ramp_scored_s
+        values["_step5b_ramp_move_s"] = state.step5b_ramp_move_s
+        values["_step5b_ramp_low_load_s"] = state.step5b_ramp_low_load_s
+        values["_step5b_ramp_relative_low_load_s"] = state.step5b_ramp_relative_low_load_s
+        values["_step5b_ramp_saturation_s"] = state.step5b_ramp_saturation_s
+        values["_step5b_ramp_normal_velocity_saturated"] = (
+            1.0
+            if args.bridge_normal_velocity_limit_m_s > 0.0
+            and abs(state.normal_velocity_m_s) >= 0.98 * args.bridge_normal_velocity_limit_m_s
+            else 0.0
+        )
+        values["_step5b_ramp_stop_reason"] = step5b_15n_trial_stop_reason or ""
+        if step5b_15n_trial_stop_reason:
+            values["stop_request"] = 1.0
+    elif not step5b_15n_trial_profile:
+        values["_step5b_ramp_active"] = 0.0
 
     values["_step4e_force_t_x"] = force_t[0]
     values["_step4e_force_t_y"] = force_t[1]
@@ -3356,6 +3480,172 @@ def write_step5b_15n_trial_summary(
     return payload
 
 
+def step5b_ramp_trial_verdict(payload: dict[str, Any]) -> str:
+    stop_reason = str(payload.get("stop_reason") or "")
+    if stop_reason in {
+        "step5b_ramp_5_to_15:preload_normal_stop",
+        "step5b_ramp_5_to_15:preload_force_norm_stop",
+        "step5b_ramp_5_to_15:normal_load_stop",
+        "step5b_ramp_5_to_15:normal_load_dwell",
+        "step5b_ramp_5_to_15:force_norm_stop",
+        "step5b_ramp_5_to_15:force_norm_dwell",
+        "step5b_ramp_5_to_15:torque_norm_stop",
+        "step5b_ramp_5_to_15:torque_norm_dwell",
+    }:
+        return "fail_high_force"
+    if stop_reason in {
+        "step5b_ramp_5_to_15:low_load_dropout",
+        "step5b_ramp_5_to_15:relative_low_load_dropout",
+        "step5b_ramp_5_to_15:preload_acquisition_timeout",
+    }:
+        return "fail_dropout_not_improved"
+    if stop_reason == "step5b_ramp_5_to_15:normal_velocity_saturation":
+        return "fail_saturation"
+    if stop_reason != "step5b_ramp_5_to_15:complete":
+        return "invalid_run"
+
+    metrics = payload.get("metrics", {})
+    normal = metrics.get("move_normal_load_n", {})
+    if not payload.get("active_rows") or not metrics.get("move_rows"):
+        return "invalid_run"
+    if not metrics.get("target_monotonic") or not metrics.get("target_reached_final"):
+        return "invalid_run"
+    if metrics.get("xy_motion_before_move_rows", 1) != 0:
+        return "invalid_run"
+    if normal.get("p50") is None or normal.get("p95") is None or normal.get("max") is None:
+        return "invalid_run"
+    if not (12.0 <= float(normal["p50"]) <= 18.0):
+        return "fail_dropout_not_improved"
+    if float(normal["p95"]) > 20.0 or float(normal["max"]) > 22.0:
+        return "fail_high_force"
+    if float(metrics.get("move_dropout_lt2_duty", 1.0)) > 0.0:
+        return "fail_dropout_not_improved"
+    if float(metrics.get("move_normal_velocity_saturation_duty", 1.0)) > 0.02:
+        return "fail_saturation"
+    return "pass_ramp_and_short_move"
+
+
+def write_step5b_ramp_trial_summary(
+    *,
+    output_dir: Path,
+    bridge_csv_path: Path,
+    metadata: dict[str, Any],
+    stop_reason: str,
+) -> dict[str, Any]:
+    active_rows = 0
+    move_rows = 0
+    target_values: list[float] = []
+    move_normal_loads: list[float] = []
+    move_force_norms: list[float] = []
+    move_torque_norms: list[float] = []
+    phase_counts: dict[str, int] = {}
+    xy_motion_before_move_rows = 0
+    dropout_lt2 = 0
+    saturation_rows = 0
+    first_trial_stop = ""
+    with bridge_csv_path.open(newline="", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            if finite_csv_float(row, "_step5b_ramp_active", 0.0) <= 0.5:
+                continue
+            active_rows += 1
+            phase = str(row.get("_step5b_ramp_phase") or "")
+            phase_counts[phase] = phase_counts.get(phase, 0) + 1
+            reason = str(row.get("_step5b_ramp_stop_reason") or "")
+            if reason and not first_trial_stop:
+                first_trial_stop = reason
+            target = finite_csv_float(row, "_step5b_ramp_active_target_force_n")
+            if math.isfinite(target):
+                target_values.append(target)
+            xy_enabled = finite_csv_float(row, "_step5b_ramp_xy_enabled", 0.0) > 0.5
+            desired_vx = finite_csv_float(row, "_step4e_desired_vx_m_s", 0.0)
+            desired_vy = finite_csv_float(row, "_step4e_desired_vy_m_s", 0.0)
+            if phase != "move_xy" and (xy_enabled or abs(desired_vx) > 1e-9 or abs(desired_vy) > 1e-9):
+                xy_motion_before_move_rows += 1
+            if phase != "move_xy" or not xy_enabled:
+                continue
+            normal = finite_csv_float(row, "_step4e_normal_load_n")
+            force_norm = finite_csv_float(row, "force_norm_n")
+            torque_norm = finite_csv_float(row, "torque_norm_nm")
+            if not all(math.isfinite(value) for value in (normal, force_norm, torque_norm)):
+                continue
+            move_rows += 1
+            move_normal_loads.append(normal)
+            move_force_norms.append(force_norm)
+            move_torque_norms.append(torque_norm)
+            dropout_lt2 += int(normal < STEP5B_15N_TRIAL_LOW_LOAD_N)
+            saturation_rows += int(finite_csv_float(row, "_step5b_ramp_normal_velocity_saturated", 0.0) > 0.5)
+
+    target_monotonic = all(
+        nxt + 1e-6 >= prev
+        for prev, nxt in zip(target_values, target_values[1:])
+    )
+    payload: dict[str, Any] = {
+        "profile": STEP5B_RAMP_5_TO_15_TRIAL_PROFILE,
+        "target_force_n": metadata["args"].get("target_force_n"),
+        "ramp_start_force_n": STEP5B_RAMP_START_TARGET_N,
+        "ramp_final_force_n": STEP5B_RAMP_FINAL_TARGET_N,
+        "ramp_duration_s": STEP5B_RAMP_DURATION_S,
+        "stop_reason": first_trial_stop or stop_reason,
+        "active_rows": active_rows,
+        "phase_counts": phase_counts,
+        "metrics": {
+            "move_rows": move_rows,
+            "target_monotonic": target_monotonic,
+            "target_reached_final": any(value >= STEP5B_RAMP_FINAL_TARGET_N - 1e-6 for value in target_values),
+            "target_min_n": min(target_values) if target_values else None,
+            "target_max_n": max(target_values) if target_values else None,
+            "xy_motion_before_move_rows": xy_motion_before_move_rows,
+            "move_normal_load_n": {
+                "p50": percentile(move_normal_loads, 0.50),
+                "p95": percentile(move_normal_loads, 0.95),
+                "max": max(move_normal_loads) if move_normal_loads else None,
+            },
+            "move_force_norm_n": {
+                "max": max(move_force_norms) if move_force_norms else None,
+            },
+            "move_torque_norm_nm": {
+                "max": max(move_torque_norms) if move_torque_norms else None,
+            },
+            "move_dropout_lt2_duty": dropout_lt2 / move_rows if move_rows else None,
+            "move_normal_velocity_saturation_duty": saturation_rows / move_rows if move_rows else None,
+        },
+        "paths": {
+            "bridge_csv": str(bridge_csv_path),
+            "metadata": str(output_dir / "metadata.json"),
+        },
+    }
+    payload["verdict"] = step5b_ramp_trial_verdict(payload)
+    summary_path = output_dir / "step5b_ramp_5_to_15_sentinel_summary.json"
+    write_json(summary_path, payload)
+    md_path = output_dir / "step5b_ramp_5_to_15_sentinel_summary.md"
+    md_path.write_text(
+        "\n".join(
+            [
+                "# Step5b ramp 5N to 15N sentinel summary",
+                "",
+                f"- profile: `{payload['profile']}`",
+                f"- target_force_n: `{payload['target_force_n']}`",
+                f"- stop_reason: `{payload['stop_reason']}`",
+                f"- verdict: `{payload['verdict']}`",
+                f"- active_rows: `{payload['active_rows']}`",
+                f"- move_rows: `{payload['metrics']['move_rows']}`",
+                f"- target_monotonic: `{payload['metrics']['target_monotonic']}`",
+                f"- target_reached_final: `{payload['metrics']['target_reached_final']}`",
+                f"- move_normal_load_p50_n: `{payload['metrics']['move_normal_load_n']['p50']}`",
+                f"- move_normal_load_p95_n: `{payload['metrics']['move_normal_load_n']['p95']}`",
+                f"- move_normal_load_max_n: `{payload['metrics']['move_normal_load_n']['max']}`",
+                f"- move_dropout_lt2_duty: `{payload['metrics']['move_dropout_lt2_duty']}`",
+                f"- move_normal_velocity_saturation_duty: `{payload['metrics']['move_normal_velocity_saturation_duty']}`",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    payload["paths"]["trial_summary_json"] = str(summary_path)
+    payload["paths"]["trial_summary_md"] = str(md_path)
+    return payload
+
+
 class RTDEBridgeClient(RTDEClient):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
@@ -3555,6 +3845,17 @@ def step5b_15n_trial_enabled(args: argparse.Namespace) -> bool:
     )
 
 
+def step5b_ramp_trial_enabled(args: argparse.Namespace) -> bool:
+    return (
+        getattr(args, "bridge_profile", "") == "step5b_v1"
+        and getattr(args, "step5b_trial_profile", "none") == STEP5B_RAMP_5_TO_15_TRIAL_PROFILE
+    )
+
+
+def step5b_trial_enabled(args: argparse.Namespace) -> bool:
+    return step5b_15n_trial_enabled(args) or step5b_ramp_trial_enabled(args)
+
+
 def validate_common_target_force(args: argparse.Namespace) -> None:
     target = float(args.target_force_n)
     if not math.isfinite(target) or target <= 0.0:
@@ -3564,18 +3865,209 @@ def validate_common_target_force(args: argparse.Namespace) -> None:
 def validate_step5b_15n_trial_args(args: argparse.Namespace) -> None:
     if getattr(args, "step5b_trial_profile", "none") == "none":
         return
-    if getattr(args, "step5b_trial_profile", "none") != STEP5B_15N_TRIAL_PROFILE:
+    if getattr(args, "step5b_trial_profile", "none") not in STEP5B_TRIAL_PROFILES:
         raise SystemExit(f"Unknown --step5b-trial-profile {args.step5b_trial_profile!r}")
     if args.bridge_profile != "step5b_v1" or args.bridge_mode != "line":
-        raise SystemExit("--step5b-trial-profile guarded_15n_sentinel requires step5b_v1 line mode")
+        raise SystemExit(f"--step5b-trial-profile {args.step5b_trial_profile} requires step5b_v1 line mode")
     if abs(float(args.target_force_n) - STEP5B_15N_TRIAL_TARGET_N) > STEP5B_15N_TRIAL_TARGET_TOL_N:
-        raise SystemExit("guarded_15n_sentinel requires --target-force-n 15.0")
+        raise SystemExit(f"{args.step5b_trial_profile} requires --target-force-n 15.0")
     if args.bridge_normal_velocity_limit_m_s > 0.0011:
-        raise SystemExit("guarded_15n_sentinel requires normal velocity limit <= 0.0011 m/s")
+        raise SystemExit(f"{args.step5b_trial_profile} requires normal velocity limit <= 0.0011 m/s")
     if args.bridge_total_linear_limit_m_s > 0.0041:
-        raise SystemExit("guarded_15n_sentinel requires total linear limit <= 0.0041 m/s")
+        raise SystemExit(f"{args.step5b_trial_profile} requires total linear limit <= 0.0041 m/s")
     if args.bridge_integral_limit_n_s > 1.01:
-        raise SystemExit("guarded_15n_sentinel requires integral limit <= 1.0 N*s")
+        raise SystemExit(f"{args.step5b_trial_profile} requires integral limit <= 1.0 N*s")
+
+
+def set_step5b_ramp_phase(state: BridgeState, phase: str) -> None:
+    if state.step5b_ramp_phase == phase:
+        return
+    state.step5b_ramp_phase = phase
+    state.step5b_ramp_phase_s = 0.0
+    state.integral_error_n_s = 0.0
+    state.normal_velocity_m_s = 0.0
+    if phase == "pre_unload_to_5":
+        state.step5b_ramp_preload_ready_s = 0.0
+        state.step5b_ramp_after_initial_acquire_s = 0.0
+        state.step5b_ramp_terminal_discard_s = 0.0
+        state.step5b_ramp_scored_s = 0.0
+        state.step5b_ramp_move_s = 0.0
+        state.step5b_ramp_active_target_force_n = STEP5B_RAMP_START_TARGET_N
+        state.step5b_ramp_alpha = 0.0
+        state.step5b_ramp_xy_enabled = False
+    elif phase == "ramp_5_to_15":
+        state.step5b_ramp_alpha = 0.0
+        state.step5b_ramp_active_target_force_n = STEP5B_RAMP_START_TARGET_N
+        state.step5b_ramp_xy_enabled = False
+    elif phase == "hold_15":
+        state.step5b_ramp_terminal_discard_s = 0.0
+        state.step5b_ramp_scored_s = 0.0
+        state.step5b_ramp_active_target_force_n = STEP5B_RAMP_FINAL_TARGET_N
+        state.step5b_ramp_alpha = 1.0
+        state.step5b_ramp_xy_enabled = False
+    elif phase == "move_xy":
+        state.step5b_ramp_move_s = 0.0
+        state.step5b_ramp_active_target_force_n = STEP5B_RAMP_FINAL_TARGET_N
+        state.step5b_ramp_alpha = 1.0
+        state.step5b_ramp_xy_enabled = True
+    elif phase == "complete":
+        state.step5b_ramp_active_target_force_n = STEP5B_RAMP_FINAL_TARGET_N
+        state.step5b_ramp_alpha = 1.0
+        state.step5b_ramp_xy_enabled = False
+
+
+def step5b_ramp_trial_phase_update(
+    *,
+    normal_load_n: float,
+    force_norm_n: float,
+    dt_s: float,
+    state: BridgeState,
+) -> None:
+    safe_dt_s = max(0.0, float(dt_s))
+    if state.step5b_ramp_phase == "inactive":
+        set_step5b_ramp_phase(state, "pre_unload_to_5")
+    else:
+        state.step5b_ramp_phase_s += safe_dt_s
+
+    phase = state.step5b_ramp_phase
+    if phase == "pre_unload_to_5":
+        state.step5b_ramp_active_target_force_n = STEP5B_RAMP_START_TARGET_N
+        state.step5b_ramp_alpha = 0.0
+        state.step5b_ramp_xy_enabled = False
+        preload_ready = (
+            STEP5B_RAMP_PRELOAD_MIN_N <= float(normal_load_n) <= STEP5B_RAMP_PRELOAD_MAX_N
+            and float(force_norm_n) <= STEP5B_RAMP_PRELOAD_FORCE_NORM_MAX_N
+        )
+        state.step5b_ramp_preload_ready_s = (
+            state.step5b_ramp_preload_ready_s + safe_dt_s if preload_ready else 0.0
+        )
+        if state.step5b_ramp_preload_ready_s >= STEP5B_RAMP_PRELOAD_HOLD_S:
+            state.step5b_ramp_after_initial_acquire_s = 0.0
+            set_step5b_ramp_phase(state, "ramp_5_to_15")
+    elif phase == "ramp_5_to_15":
+        ramp_s = min(STEP5B_RAMP_DURATION_S, max(0.0, state.step5b_ramp_phase_s))
+        alpha = 1.0 if STEP5B_RAMP_DURATION_S <= 0.0 else clamp(ramp_s / STEP5B_RAMP_DURATION_S, 0.0, 1.0)
+        state.step5b_ramp_alpha = alpha
+        state.step5b_ramp_active_target_force_n = (
+            STEP5B_RAMP_START_TARGET_N
+            + (STEP5B_RAMP_FINAL_TARGET_N - STEP5B_RAMP_START_TARGET_N) * alpha
+        )
+        state.step5b_ramp_xy_enabled = False
+        state.step5b_ramp_after_initial_acquire_s += safe_dt_s
+        if alpha >= 1.0:
+            set_step5b_ramp_phase(state, "hold_15")
+    elif phase == "hold_15":
+        state.step5b_ramp_active_target_force_n = STEP5B_RAMP_FINAL_TARGET_N
+        state.step5b_ramp_alpha = 1.0
+        state.step5b_ramp_xy_enabled = False
+        if float(normal_load_n) >= STEP5B_RAMP_FINAL_ACQUIRE_N:
+            state.step5b_ramp_terminal_discard_s += safe_dt_s
+            if state.step5b_ramp_terminal_discard_s > STEP5B_RAMP_FINAL_DISCARD_S:
+                state.step5b_ramp_scored_s += safe_dt_s
+        else:
+            state.step5b_ramp_terminal_discard_s = 0.0
+            state.step5b_ramp_scored_s = 0.0
+        if state.step5b_ramp_scored_s >= STEP5B_RAMP_FINAL_SCORE_S:
+            set_step5b_ramp_phase(state, "move_xy")
+    elif phase == "move_xy":
+        state.step5b_ramp_active_target_force_n = STEP5B_RAMP_FINAL_TARGET_N
+        state.step5b_ramp_alpha = 1.0
+        state.step5b_ramp_xy_enabled = True
+        state.step5b_ramp_move_s += safe_dt_s
+        if state.step5b_ramp_move_s >= STEP5B_RAMP_MOVE_SCORE_S:
+            set_step5b_ramp_phase(state, "complete")
+    elif phase == "complete":
+        state.step5b_ramp_active_target_force_n = STEP5B_RAMP_FINAL_TARGET_N
+        state.step5b_ramp_alpha = 1.0
+        state.step5b_ramp_xy_enabled = False
+
+
+def step5b_ramp_trial_guard_reason(
+    *,
+    normal_load_n: float,
+    force_norm_n: float,
+    torque_norm_nm: float,
+    sensor_ok: float,
+    normal_velocity_m_s: float,
+    normal_velocity_limit_m_s: float,
+    dt_s: float,
+    state: BridgeState,
+) -> str | None:
+    safe_dt_s = max(0.0, float(dt_s))
+    phase = state.step5b_ramp_phase
+    target = float(state.step5b_ramp_active_target_force_n)
+
+    if phase == "complete":
+        return "step5b_ramp_5_to_15:complete"
+    if sensor_ok <= 0.5 and phase not in {"inactive", "pre_unload_to_5"}:
+        return "step5b_ramp_5_to_15:sensor_not_ok"
+
+    if phase == "pre_unload_to_5":
+        if normal_load_n > STEP5B_RAMP_PRELOAD_NORMAL_STOP_N:
+            return "step5b_ramp_5_to_15:preload_normal_stop"
+        if force_norm_n > STEP5B_RAMP_PRELOAD_FORCE_STOP_N:
+            return "step5b_ramp_5_to_15:preload_force_norm_stop"
+        if state.step5b_ramp_phase_s >= STEP5B_RAMP_PRELOAD_TIMEOUT_S:
+            return "step5b_ramp_5_to_15:preload_acquisition_timeout"
+        return None
+
+    normal_stop_n = min(STEP5B_15N_TRIAL_NORMAL_STOP_N, target + 5.0)
+    normal_dwell_n = min(STEP5B_15N_TRIAL_NORMAL_DWELL_N, target + 3.0)
+    force_stop_n = min(STEP5B_15N_TRIAL_FORCE_STOP_N, target + 10.0)
+    force_dwell_n = min(STEP5B_15N_TRIAL_FORCE_DWELL_N, target + 7.0)
+    if normal_load_n > normal_stop_n:
+        return "step5b_ramp_5_to_15:normal_load_stop"
+    state.step5b_ramp_high_normal_s = (
+        state.step5b_ramp_high_normal_s + safe_dt_s
+        if normal_load_n > normal_dwell_n
+        else 0.0
+    )
+    if state.step5b_ramp_high_normal_s >= STEP5B_15N_TRIAL_NORMAL_DWELL_S:
+        return "step5b_ramp_5_to_15:normal_load_dwell"
+
+    if force_norm_n > force_stop_n:
+        return "step5b_ramp_5_to_15:force_norm_stop"
+    state.step5b_ramp_high_force_s = (
+        state.step5b_ramp_high_force_s + safe_dt_s
+        if force_norm_n > force_dwell_n
+        else 0.0
+    )
+    if state.step5b_ramp_high_force_s >= STEP5B_15N_TRIAL_FORCE_DWELL_S:
+        return "step5b_ramp_5_to_15:force_norm_dwell"
+
+    if torque_norm_nm > STEP5B_15N_TRIAL_TORQUE_STOP_NM:
+        return "step5b_ramp_5_to_15:torque_norm_stop"
+    state.step5b_ramp_high_torque_s = (
+        state.step5b_ramp_high_torque_s + safe_dt_s
+        if torque_norm_nm > STEP5B_15N_TRIAL_TORQUE_DWELL_NM
+        else 0.0
+    )
+    if state.step5b_ramp_high_torque_s >= STEP5B_15N_TRIAL_TORQUE_DWELL_S:
+        return "step5b_ramp_5_to_15:torque_norm_dwell"
+
+    state.step5b_ramp_low_load_s = (
+        state.step5b_ramp_low_load_s + safe_dt_s
+        if normal_load_n < STEP5B_15N_TRIAL_LOW_LOAD_N
+        else 0.0
+    )
+    if state.step5b_ramp_low_load_s >= STEP5B_15N_TRIAL_LOW_LOAD_S:
+        return "step5b_ramp_5_to_15:low_load_dropout"
+    relative_low_load_n = max(STEP5B_15N_TRIAL_LOW_LOAD_N, 0.5 * target)
+    state.step5b_ramp_relative_low_load_s = (
+        state.step5b_ramp_relative_low_load_s + safe_dt_s
+        if normal_load_n < relative_low_load_n
+        else 0.0
+    )
+    if state.step5b_ramp_relative_low_load_s >= STEP5B_15N_TRIAL_RELATIVE_LOW_LOAD_S:
+        return "step5b_ramp_5_to_15:relative_low_load_dropout"
+
+    if normal_velocity_limit_m_s > 0.0 and abs(normal_velocity_m_s) >= 0.98 * normal_velocity_limit_m_s:
+        state.step5b_ramp_saturation_s += safe_dt_s
+    else:
+        state.step5b_ramp_saturation_s = 0.0
+    if state.step5b_ramp_saturation_s >= STEP5B_15N_TRIAL_SATURATION_S:
+        return "step5b_ramp_5_to_15:normal_velocity_saturation"
+    return None
 
 
 def step5b_15n_trial_guard_reason(
@@ -3686,7 +4178,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--rezero-s", type=float, default=1.0)
     parser.add_argument("--step4e-mode", choices=("off", "preview", "hold", "line", "axis_iso"), default="off")
     parser.add_argument("--step4e-version", default="")
-    parser.add_argument("--step5b-trial-profile", choices=("none", STEP5B_15N_TRIAL_PROFILE), default="none")
+    parser.add_argument("--step5b-trial-profile", choices=STEP5B_TRIAL_PROFILES, default="none")
     parser.add_argument("--step4e-path-shape", choices=("line", "cycloid", "eight"), default="line")
     parser.add_argument("--step4e-line-speed-m-s", type=float, default=0.003)
     parser.add_argument("--step4e-line-settle-s", type=float, default=0.0)
@@ -3927,13 +4419,18 @@ def main(argv: list[str] | None = None) -> int:
         },
         "step5b_trial_contract": {
             "profile": args.step5b_trial_profile,
-            "target_force_n": args.target_force_n if step5b_15n_trial_enabled(args) else None,
+            "target_force_n": args.target_force_n if step5b_trial_enabled(args) else None,
             "score_after_acquire_n": STEP5B_15N_TRIAL_ACQUIRE_N if step5b_15n_trial_enabled(args) else None,
             "discard_s": STEP5B_15N_TRIAL_DISCARD_S if step5b_15n_trial_enabled(args) else None,
             "score_s": STEP5B_15N_TRIAL_SCORE_S if step5b_15n_trial_enabled(args) else None,
             "normal_load_stop_n": STEP5B_15N_TRIAL_NORMAL_STOP_N if step5b_15n_trial_enabled(args) else None,
             "force_norm_stop_n": STEP5B_15N_TRIAL_FORCE_STOP_N if step5b_15n_trial_enabled(args) else None,
             "torque_norm_stop_nm": STEP5B_15N_TRIAL_TORQUE_STOP_NM if step5b_15n_trial_enabled(args) else None,
+            "ramp_start_force_n": STEP5B_RAMP_START_TARGET_N if step5b_ramp_trial_enabled(args) else None,
+            "ramp_final_force_n": STEP5B_RAMP_FINAL_TARGET_N if step5b_ramp_trial_enabled(args) else None,
+            "ramp_duration_s": STEP5B_RAMP_DURATION_S if step5b_ramp_trial_enabled(args) else None,
+            "ramp_final_score_s": STEP5B_RAMP_FINAL_SCORE_S if step5b_ramp_trial_enabled(args) else None,
+            "ramp_move_score_s": STEP5B_RAMP_MOVE_SCORE_S if step5b_ramp_trial_enabled(args) else None,
         },
         "dashboard_program_watch": {
             "enabled": args.bridge_profile in STEP5D_LIVEPREP_STAGE_IDS
@@ -4192,6 +4689,22 @@ def main(argv: list[str] | None = None) -> int:
             "_step5b_15n_trial_saturation_s",
             "_step5b_15n_trial_normal_velocity_saturated",
             "_step5b_15n_trial_stop_reason",
+            "_step5b_ramp_active",
+            "_step5b_ramp_phase_code",
+            "_step5b_ramp_phase",
+            "_step5b_ramp_phase_s",
+            "_step5b_ramp_active_target_force_n",
+            "_step5b_ramp_alpha",
+            "_step5b_ramp_xy_enabled",
+            "_step5b_ramp_preload_ready_s",
+            "_step5b_ramp_terminal_discard_s",
+            "_step5b_ramp_scored_s",
+            "_step5b_ramp_move_s",
+            "_step5b_ramp_low_load_s",
+            "_step5b_ramp_relative_low_load_s",
+            "_step5b_ramp_saturation_s",
+            "_step5b_ramp_normal_velocity_saturated",
+            "_step5b_ramp_stop_reason",
             *STEP5C_DIAG_FIELDS,
             *STEP5D_DIAG_FIELDS,
         ]
@@ -4418,8 +4931,11 @@ def main(argv: list[str] | None = None) -> int:
                         bridge_values["stop_request"] = 1.0
                         stop_request = 1.0
                         step5b_trial_reason = str(step4e_values.get("_step5b_15n_trial_stop_reason", ""))
+                        step5b_ramp_reason = str(step4e_values.get("_step5b_ramp_stop_reason", ""))
                         if step5b_trial_reason.startswith("step5b_15n_trial:"):
                             guard_reason = step5b_trial_reason
+                        elif step5b_ramp_reason.startswith("step5b_ramp_5_to_15:"):
+                            guard_reason = step5b_ramp_reason
                         else:
                             guard_reason = "step5d_contact_safety:" + str(
                                 step4e_values.get("_step5d_contact_safety_reason", "stop_request")
@@ -4525,6 +5041,16 @@ def main(argv: list[str] | None = None) -> int:
         summary["step5b_15n_guarded_trial"] = trial_summary
         summary["paths"]["step5b_15n_guarded_trial_summary_json"] = trial_summary["paths"]["trial_summary_json"]
         summary["paths"]["step5b_15n_guarded_trial_summary_md"] = trial_summary["paths"]["trial_summary_md"]
+    if step5b_ramp_trial_enabled(args):
+        trial_summary = write_step5b_ramp_trial_summary(
+            output_dir=args.output_dir,
+            bridge_csv_path=bridge_csv_path,
+            metadata=metadata,
+            stop_reason=stop_reason,
+        )
+        summary["step5b_ramp_5_to_15_sentinel"] = trial_summary
+        summary["paths"]["step5b_ramp_5_to_15_sentinel_summary_json"] = trial_summary["paths"]["trial_summary_json"]
+        summary["paths"]["step5b_ramp_5_to_15_sentinel_summary_md"] = trial_summary["paths"]["trial_summary_md"]
     write_json(summary_path, summary)
     print(json.dumps(summary, indent=2, sort_keys=True))
     return 0 if samples > 0 and parse_errors == 0 else 3
