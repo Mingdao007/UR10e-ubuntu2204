@@ -14,23 +14,92 @@ from build_step4e_p0p1_programs import build_urp, step4fg_seed_normal_loop_scrip
 from step5_table import load_stage_frame, step5_stage
 
 
-PROGRAM_NAME = "step5b_contact_cycloid_baseline_v1"
+PROGRAM_NAME = "step5b_contact_cycloid_baseline_v2"
 STEP5_STAGE_ID = "step5_contact_cycloid_baseline_v1"
-BRIDGE_VERSION = "step5b_v1"
+BRIDGE_VERSION = "step5b_v2"
 LOCAL_PROGRAM_DIR = PROGRAM_DIR / "step5"
 CONTROLLER_DIR = "/programs/andyl/kunwei/step5"
 SAFE_FRAME_PATH = CONFIG_PATH.with_name("step5_safe_frame.json")
 FAST_NONCONTACT_MOVEL_ACCEL_M_S2 = 0.060
 FAST_NONCONTACT_MOVEL_SPEED_M_S = 0.040
 HOME_RETURN_SPEED_M_S = 0.050
+TARGET_FORCE_N = 15.0
+BRIDGE_NORMAL_FILTER_ALPHA = 0.70
+ORIENTATION_SKIP_ERROR_RAD = 0.069813
 
 
 def source_stamp(now: datetime) -> str:
-    return now.strftime("%Y-%m-%dT%H%MHKT_STEP5B_CONTACT_CYCLOID_BASELINE_V1")
+    return now.strftime("%Y-%m-%dT%H%MHKT_STEP5B_CONTACT_CYCLOID_BASELINE_V2")
 
 
 def load_safe_frame() -> dict:
     return load_stage_frame(step5_stage(STEP5_STAGE_ID))
+
+
+def add_orientation_skip_gate(script: str) -> str:
+    marker = """  if stop_reason == 0.0:
+    write_output_float_register(35, 25.1)
+    local p_lift = get_actual_tcp_pose()
+    local lift_pose = p[p_lift[0], p_lift[1], p_lift[2] + 0.020, p_lift[3], p_lift[4], p_lift[5]]
+    codex_echo_step4e(stop_reason)
+    movel(lift_pose, a=0.030, v=0.020, r=0.0)
+    stopl(0.1)
+  end
+
+  if stop_reason == 0.0:
+    write_output_float_register(35, 25.2)"""
+    if marker not in script:
+        raise RuntimeError(f"{PROGRAM_NAME} orientation skip insertion point not found")
+    replacement = f"""  local skip_lift_attitude = 0
+  if stop_reason == 0.0:
+    write_output_float_register(35, 25.15)
+    local orientation_skip_error_rad = {ORIENTATION_SKIP_ERROR_RAD:.6f}
+    local t_skip = 0.0
+    local skip_timeout_s = 1.000
+    local last_heartbeat_skip = read_input_float_register(26)
+    local stale_s_skip = 0.0
+    while stop_reason == 0.0 and skip_lift_attitude == 0 and t_skip < skip_timeout_s:
+      local heartbeat_skip = read_input_float_register(26)
+      local cmd_valid = read_input_float_register(43)
+      local orientation_error = read_input_float_register(46)
+      local loop_dt = get_steptime()
+      if heartbeat_skip == last_heartbeat_skip:
+        stale_s_skip = stale_s_skip + loop_dt
+      else:
+        stale_s_skip = 0.0
+        last_heartbeat_skip = heartbeat_skip
+      end
+      t_skip = t_skip + loop_dt
+      codex_echo_step4e(stop_reason)
+      if stale_s_skip > 0.100:
+        stop_reason = 2.0
+      else:
+        stop_reason = codex_step4e_guard_stop_reason()
+      end
+      if stop_reason == 0.0:
+        if cmd_valid >= 0.5 and orientation_error <= orientation_skip_error_rad:
+          skip_lift_attitude = 1
+        elif cmd_valid >= 0.5:
+          t_skip = skip_timeout_s
+        else:
+          sync()
+        end
+      end
+    end
+  end
+
+  if stop_reason == 0.0 and skip_lift_attitude == 0:
+    write_output_float_register(35, 25.1)
+    local p_lift = get_actual_tcp_pose()
+    local lift_pose = p[p_lift[0], p_lift[1], p_lift[2] + 0.020, p_lift[3], p_lift[4], p_lift[5]]
+    codex_echo_step4e(stop_reason)
+    movel(lift_pose, a=0.030, v=0.020, r=0.0)
+    stopl(0.1)
+  end
+
+  if stop_reason == 0.0 and skip_lift_attitude == 0:
+    write_output_float_register(35, 25.2)"""
+    return script.replace(marker, replacement, 1)
 
 
 def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -> str:
@@ -46,7 +115,7 @@ def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -
         gen_at=gen_at,
         geom=geom,
         name=PROGRAM_NAME,
-        title="Step5b contact cycloid baseline v1",
+        title="Step5b contact cycloid baseline v2",
         version_token=BRIDGE_VERSION,
         path_shape="cycloid",
         path_formula=(
@@ -83,9 +152,20 @@ def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -
         "Step5 table-driven contact cycloid reference for 60 s",
     )
     script = script.replace(
+        "first-contact normal latch, lift, 25.2 attitude correction,",
+        "first-contact normal latch, optional 4deg skip-lift/25.2 gate, otherwise lift and 25.2 attitude correction,",
+        1,
+    )
+    script = script.replace(
         "PAPER_PATH_FORMULA:",
         "STEP5_PATH_FORMULA:",
     )
+    script = script.replace(
+        "step4e-normal-filter-alpha=0.35",
+        f"step4e-normal-filter-alpha={BRIDGE_NORMAL_FILTER_ALPHA:.2f}",
+        1,
+    )
+    script = add_orientation_skip_gate(script)
     script = script.replace("local short_retract_speed_m_s = 0.020", f"local short_retract_speed_m_s = {FAST_NONCONTACT_MOVEL_SPEED_M_S:.3f}")
     script = script.replace("local home_return_speed_m_s = 0.050", f"local home_return_speed_m_s = {HOME_RETURN_SPEED_M_S:.3f}")
     script = script.replace(
@@ -104,7 +184,7 @@ def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -
 
 
 def build_txt(stamp: str) -> str:
-    return f"""Step5b contact cycloid baseline TP package
+    return f"""Step5b contact cycloid baseline v2 TP package
 
 Open on Teach Pendant:
   {CONTROLLER_DIR}/{PROGRAM_NAME}.urp
@@ -114,13 +194,16 @@ Version:
 
 Motion boundary:
   Contact motion.
-  Reuses the current v31 contact search, first-contact normal latch, 20 mm lift,
+  Reuses the current v31 contact search and first-contact normal latch.
+  Stage 25.15 skips the 20 mm lift and 25.2 attitude correction when bridge
+  orientation_error <= {ORIENTATION_SKIP_ERROR_RAD:.6f} rad; otherwise it runs the old lift,
   25.2 attitude correction, second contact, and 25.3 line-entry gate.
   Stage 25.0 consumes bridge command registers 37..44 only.
   Bridge profile: --step4e-version {BRIDGE_VERSION} --step4e-path-shape cycloid.
+  Bridge normal filter alpha: --step4e-normal-filter-alpha {BRIDGE_NORMAL_FILTER_ALPHA:.2f}.
   Non-contact movel speed: entry/lift/retract {FAST_NONCONTACT_MOVEL_SPEED_M_S:.3f} m/s,
   accel {FAST_NONCONTACT_MOVEL_ACCEL_M_S2:.3f} m/s^2; contact search/acquire/Stage 25.0 unchanged.
-  Force target: --target-force-n 5.0.
+  Force target: --target-force-n {TARGET_FORCE_N:.1f}.
   Raw normal guard: 50 N. Force norm guard: 60 N. Torque guard: 3.0 Nm.
   No UR zero_ftsensor(), no Kunwei tare/zero/config, no TCP/payload write.
 
@@ -144,6 +227,8 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str) -> None:
         "step5 stage": STEP5_STAGE_ID in script and STEP5_STAGE_ID in txt,
         "bridge profile": f"step4e-version={BRIDGE_VERSION}" in script
         and f"--step4e-version {BRIDGE_VERSION}" in txt,
+        "bridge filter alpha": f"step4e-normal-filter-alpha={BRIDGE_NORMAL_FILTER_ALPHA:.2f}" in script
+        and f"--step4e-normal-filter-alpha {BRIDGE_NORMAL_FILTER_ALPHA:.2f}" in txt,
         "path source": "STEP5_TABLE_SOURCE: config/step5_stage_table.json" in script,
         "executor only": "TP_ROLE: executor_and_guard_only" in script,
         "line runtime": "local line_runtime_limit_s = 65.000" in script,
@@ -151,6 +236,10 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str) -> None:
         "v31 scaffold": "first-contact normal latch" in script
         and "25.2 attitude correction" in script
         and "25.3 line-entry gate" in script,
+        "orientation skip gate": "local skip_lift_attitude = 0" in script
+        and "write_output_float_register(35, 25.15)" in script
+        and f"local orientation_skip_error_rad = {ORIENTATION_SKIP_ERROR_RAD:.6f}" in script
+        and "if stop_reason == 0.0 and skip_lift_attitude == 0:" in script,
         "fast non-contact movel": "movel(entry_xy_pose, a=0.060, v=0.040, r=0.0)" in script
         and "movel(lift_pose, a=0.060, v=0.040, r=0.0)" in script
         and "local short_retract_speed_m_s = 0.040" in script
@@ -161,6 +250,7 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str) -> None:
         "raw guards": "codex_abs(normal_force) > 50.0" in script
         and "force_norm > 60.0" in script
         and "torque_norm > 3.0" in script,
+        "15n force target": f"Force target: --target-force-n {TARGET_FORCE_N:.1f}." in txt,
         "no stale step4 package names": "step4f_cycloid_seed_normal_v1" not in script
         and "step4g_eight_seed_normal_v1" not in script,
     }

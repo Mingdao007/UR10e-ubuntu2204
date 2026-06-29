@@ -25,7 +25,7 @@ def guarded_args(*extra: str) -> object:
             "--step4e-mode",
             "line",
             "--step4e-version",
-            "step5b_v1",
+            "step5b_v2",
             "--step5b-trial-profile",
             "guarded_15n_sentinel",
             "--target-force-n",
@@ -62,7 +62,7 @@ class Step5b15NGuardedTrialTest(unittest.TestCase):
                 "--step4e-mode",
                 "line",
                 "--step4e-version",
-                "step5b_v1",
+                "step5b_v2",
                 "--step5b-trial-profile",
                 "guarded_15n_sentinel",
                 "--target-force-n",
@@ -84,7 +84,7 @@ class Step5b15NGuardedTrialTest(unittest.TestCase):
                 "--step4e-mode",
                 "line",
                 "--step4e-version",
-                "step5b_v1",
+                "step5b_v2",
                 "--step5b-trial-profile",
                 "guarded_15n_sentinel",
                 "--target-force-n",
@@ -114,7 +114,7 @@ class Step5b15NGuardedTrialTest(unittest.TestCase):
                 "15.0",
             ]
         )
-        with self.assertRaisesRegex(SystemExit, "requires step5b_v1 line mode"):
+        with self.assertRaisesRegex(SystemExit, "requires Step5b line mode"):
             bridge.validate_step5b_15n_trial_args(args)
 
     def test_stage25_sentinel_freezes_xy_command(self) -> None:
@@ -141,10 +141,22 @@ class Step5b15NGuardedTrialTest(unittest.TestCase):
 
     def test_guard_helper_stops_high_force_and_saturation(self) -> None:
         state = bridge.BridgeState()
+        self.assertIsNone(
+            bridge.step5b_15n_trial_guard_reason(
+                normal_load_n=49.9,
+                force_norm_n=49.9,
+                torque_norm_nm=0.1,
+                sensor_ok=1.0,
+                normal_velocity_m_s=0.0,
+                normal_velocity_limit_m_s=0.001,
+                dt_s=0.002,
+                state=state,
+            )
+        )
         self.assertEqual(
             bridge.step5b_15n_trial_guard_reason(
-                normal_load_n=21.0,
-                force_norm_n=21.0,
+                normal_load_n=50.1,
+                force_norm_n=50.1,
                 torque_norm_nm=0.1,
                 sensor_ok=1.0,
                 normal_velocity_m_s=0.0,

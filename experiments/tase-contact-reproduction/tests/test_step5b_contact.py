@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import gzip
-import inspect
 import sys
 import unittest
 from datetime import datetime, timezone
@@ -23,7 +22,7 @@ class Step5bContactTest(unittest.TestCase):
     def test_package_contains_step5_table_bridge_contract(self) -> None:
         frame = step5b.load_safe_frame()
         geom = line_cfg(load_json(step5b.CONFIG_PATH))
-        stamp = "2026-06-12T1200HKT_STEP5B_CONTACT_CYCLOID_BASELINE_V1"
+        stamp = "2026-06-12T1200HKT_STEP5B_CONTACT_CYCLOID_BASELINE_V2"
         script = step5b.build_script(stamp, "2026-06-12T12:00:00+08:00", geom, frame)
         txt = step5b.build_txt(stamp)
         urp = step5b.build_urp(script, step5b.PROGRAM_NAME, step5b.CONTROLLER_DIR)
@@ -35,7 +34,12 @@ class Step5bContactTest(unittest.TestCase):
         self.assertIn(f"{step5b.CONTROLLER_DIR}/{step5b.PROGRAM_NAME}.script", xml)
         self.assertIn("STEP5_TABLE_SOURCE: config/step5_stage_table.json", script)
         self.assertIn("TP_ROLE: executor_and_guard_only", script)
-        self.assertIn("step4e-version=step5b_v1", script)
+        self.assertIn("step4e-version=step5b_v2", script)
+        self.assertIn("local skip_lift_attitude = 0", script)
+        self.assertIn("write_output_float_register(35, 25.15)", script)
+        self.assertIn("local orientation_skip_error_rad = 0.069813", script)
+        self.assertIn("--target-force-n 15.0", txt)
+        self.assertIn("--step4e-normal-filter-alpha 0.70", txt)
 
     def test_bridge_accepts_step5b_profile_name(self) -> None:
         args = bridge.parse_args(
@@ -44,17 +48,17 @@ class Step5bContactTest(unittest.TestCase):
                 "--step4e-mode",
                 "line",
                 "--step4e-version",
-                "step5b_v1",
+                "step5b_v2",
                 "--step4e-path-shape",
                 "cycloid",
             ]
         )
-        self.assertEqual(args.step4e_version, "step5b_v1")
-        self.assertIn('"step5b_v1"', inspect.getsource(bridge.main))
+        self.assertEqual(args.step4e_version, "step5b_v2")
+        self.assertIn("step5b_v2", bridge.STEP5B_BRIDGE_PROFILES)
 
     def test_step5b_source_stamp_has_minute_and_timezone(self) -> None:
         stamp = step5b.source_stamp(datetime(2026, 6, 12, 12, 34, tzinfo=timezone.utc))
-        self.assertEqual(stamp, "2026-06-12T1234HKT_STEP5B_CONTACT_CYCLOID_BASELINE_V1")
+        self.assertEqual(stamp, "2026-06-12T1234HKT_STEP5B_CONTACT_CYCLOID_BASELINE_V2")
 
 
 if __name__ == "__main__":

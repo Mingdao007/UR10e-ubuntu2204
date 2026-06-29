@@ -57,6 +57,13 @@ def _replace_exact(script: str, old: str, new: str) -> str:
     return script.replace(old, new, 1)
 
 
+def _replace_first_present(script: str, old_candidates: tuple[str, ...], new: str, label: str) -> str:
+    for old in old_candidates:
+        if old in script:
+            return script.replace(old, new, 1)
+    raise RuntimeError(f"{PROGRAM_NAME} scaffold replacement failed: {label}")
+
+
 def _replace_line_stage_with_speedj(script: str) -> str:
     start = script.index("  if stop_reason == 0.0:\n    write_output_float_register(35, 25.0)")
     end = script.index("\n\n  if codex_should_auto_home(stop_reason):", start)
@@ -129,6 +136,12 @@ def _replace_line_stage_with_speedj(script: str) -> str:
 
 
 def _add_orientation_skip_gate(script: str) -> str:
+    if (
+        "local skip_lift_attitude = 0" in script
+        and f"local orientation_skip_error_rad = {ORIENTATION_SKIP_ERROR_RAD:.6f}" in script
+        and "if stop_reason == 0.0 and skip_lift_attitude == 0:" in script
+    ):
+        return script
     start_marker = """  if stop_reason == 0.0:
     write_output_float_register(35, 25.1)
     local p_lift = get_actual_tcp_pose()
@@ -321,15 +334,24 @@ def _add_down_search_force_trigger_echo(script: str) -> str:
 def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -> str:
     script = build_step5b_script(stamp, gen_at, geom, frame)
     script = script.replace("step5b_contact_cycloid_baseline_v1", PROGRAM_NAME)
+    script = script.replace("step5b_contact_cycloid_baseline_v2", PROGRAM_NAME)
     script = script.replace("Step5b contact cycloid baseline v1", "Step5d strict RNN liveprep v15a")
+    script = script.replace("Step5b contact cycloid baseline v2", "Step5d strict RNN liveprep v15a")
     script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V1", "STEP5D_STRICT_RNN_LIVEPREP_V15A")
+    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V2", "STEP5D_STRICT_RNN_LIVEPREP_V15A")
     script = script.replace("codex_step5b_down_search", "codex_step5d_down_search")
     script = script.replace("step4e-version=step5b_v1", f"step4e-version={BRIDGE_VERSION}")
+    script = script.replace("step4e-version=step5b_v2", f"step4e-version={BRIDGE_VERSION}")
     script = script.replace("codex_abs(normal_force) > 50.0", f"codex_abs(normal_force) > {RAW_NORMAL_GUARD_N:.1f}")
     script = script.replace("force_norm > 60.0", f"force_norm > {FORCE_NORM_GUARD_N:.1f}")
-    script = script.replace(
-        "PURPOSE: v31 contact search, first-contact normal latch, lift, 25.2 attitude correction, 25.3 line-entry gate, then Step5 table-driven contact cycloid reference for 60 s.",
-            "PURPOSE: v31 contact search, first-contact normal latch, optional lift/25.2 attitude correction when orientation error is >4 deg, 25.3 bridge deadband acquire into the 2-15N contact window, then guarded Step5d strict RNN qdot cycloid reference for 60 s.",
+    script = _replace_first_present(
+        script,
+        (
+            "PURPOSE: v31 contact search, first-contact normal latch, lift, 25.2 attitude correction, 25.3 line-entry gate, then Step5 table-driven contact cycloid reference for 60 s.",
+            "PURPOSE: v31 contact search, first-contact normal latch, optional 4deg skip-lift/25.2 gate, otherwise lift and 25.2 attitude correction, 25.3 line-entry gate, then Step5 table-driven contact cycloid reference for 60 s.",
+        ),
+        "PURPOSE: v31 contact search, first-contact normal latch, optional lift/25.2 attitude correction when orientation error is >4 deg, 25.3 bridge deadband acquire into the 2-15N contact window, then guarded Step5d strict RNN qdot cycloid reference for 60 s.",
+        "purpose",
     )
     script = script.replace(
         "25.0 uses desired_velocity + path_p_gain*(desired-actual) before normal projection and force-loop composition.",
@@ -469,6 +491,7 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str) -> None:
         and f"torque_norm > {TORQUE_NORM_GUARD_NM:.1f}" in script,
         "not quarantine": "stop_only_quarantine" not in script + txt,
         "no stale package": "step5b_contact_cycloid_baseline_v1" not in script + txt,
+        "no stale step5b v2 package": "step5b_contact_cycloid_baseline_v2" not in script + txt,
         "no stale v9/v10/v11 identity": "STEP5D_STRICT_RNN_LIVEPREP_V9" not in script + txt
         and "step5d_strict_rnn_liveprep_v9" not in script + txt
         and "STEP5D_STRICT_RNN_LIVEPREP_V10" not in script + txt

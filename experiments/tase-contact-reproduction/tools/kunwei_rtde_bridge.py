@@ -265,6 +265,7 @@ STEP4E_LINE_MID_XY = (
 )
 STEP4FG_PATH_DURATION_S = 60.0
 STEP5_CONTACT_CYCLOID_STAGE_ID = "step5_contact_cycloid_baseline_v1"
+STEP5B_BRIDGE_PROFILES = {"step5b_v1", "step5b_v2"}
 STEP5B_15N_TRIAL_PROFILE = "guarded_15n_sentinel"
 STEP5B_RAMP_5_TO_15_TRIAL_PROFILE = "ramp_5_to_15_sentinel"
 STEP5B_TRIAL_PROFILES = ("none", STEP5B_15N_TRIAL_PROFILE, STEP5B_RAMP_5_TO_15_TRIAL_PROFILE)
@@ -274,14 +275,15 @@ STEP5B_15N_TRIAL_ACQUIRE_N = 12.0
 STEP5B_15N_TRIAL_ACQUIRE_TIMEOUT_S = 2.0
 STEP5B_15N_TRIAL_DISCARD_S = 0.5
 STEP5B_15N_TRIAL_SCORE_S = 2.0
-STEP5B_15N_TRIAL_NORMAL_STOP_N = 20.0
-STEP5B_15N_TRIAL_NORMAL_DWELL_N = 18.0
+STEP5B_FORCE_GUARD_MIN_N = 50.0
+STEP5B_15N_TRIAL_NORMAL_STOP_N = 50.0
+STEP5B_15N_TRIAL_NORMAL_DWELL_N = 50.0
 STEP5B_15N_TRIAL_NORMAL_DWELL_S = 0.050
-STEP5B_15N_TRIAL_FORCE_STOP_N = 25.0
-STEP5B_15N_TRIAL_FORCE_DWELL_N = 22.0
+STEP5B_15N_TRIAL_FORCE_STOP_N = 60.0
+STEP5B_15N_TRIAL_FORCE_DWELL_N = 50.0
 STEP5B_15N_TRIAL_FORCE_DWELL_S = 0.050
-STEP5B_15N_TRIAL_TORQUE_STOP_NM = 1.5
-STEP5B_15N_TRIAL_TORQUE_DWELL_NM = 0.6
+STEP5B_15N_TRIAL_TORQUE_STOP_NM = 3.0
+STEP5B_15N_TRIAL_TORQUE_DWELL_NM = 2.5
 STEP5B_15N_TRIAL_TORQUE_DWELL_S = 0.100
 STEP5B_15N_TRIAL_LOW_LOAD_N = 2.0
 STEP5B_15N_TRIAL_LOW_LOAD_S = 0.500
@@ -302,12 +304,12 @@ STEP5B_RAMP_FINAL_ACQUIRE_N = 12.0
 STEP5B_RAMP_FINAL_DISCARD_S = 0.5
 STEP5B_RAMP_FINAL_SCORE_S = 2.0
 STEP5B_RAMP_MOVE_SCORE_S = 2.0
-STEP5B_RAMP_PRELOAD_NORMAL_STOP_N = 35.0
-STEP5B_RAMP_PRELOAD_FORCE_STOP_N = 35.0
-STEP5B_RAMP_NORMAL_STOP_MARGIN_N = 20.0
-STEP5B_RAMP_NORMAL_DWELL_MARGIN_N = 18.0
-STEP5B_RAMP_FORCE_STOP_MARGIN_N = 20.0
-STEP5B_RAMP_FORCE_DWELL_MARGIN_N = 18.0
+STEP5B_RAMP_PRELOAD_NORMAL_STOP_N = 50.0
+STEP5B_RAMP_PRELOAD_FORCE_STOP_N = 60.0
+STEP5B_RAMP_NORMAL_STOP_MARGIN_N = 35.0
+STEP5B_RAMP_NORMAL_DWELL_MARGIN_N = 35.0
+STEP5B_RAMP_FORCE_STOP_MARGIN_N = 45.0
+STEP5B_RAMP_FORCE_DWELL_MARGIN_N = 35.0
 STEP5B_RAMP_PHASE_CODES = {
     "inactive": 0.0,
     "pre_unload_to_5": 1.0,
@@ -2074,7 +2076,7 @@ def compute_bridge_values(
     v31_profile = args.bridge_profile == "v31"
     step4f_profile = args.bridge_profile == "step4f_v1"
     step4g_profile = args.bridge_profile == "step4g_v1"
-    step5b_profile = args.bridge_profile == "step5b_v1"
+    step5b_profile = args.bridge_profile in STEP5B_BRIDGE_PROFILES
     step5b_15n_trial_profile = step5b_15n_trial_enabled(args)
     step5b_ramp_trial_profile = step5b_ramp_trial_enabled(args)
     step5b_any_trial_profile = step5b_15n_trial_profile or step5b_ramp_trial_profile
@@ -3846,14 +3848,14 @@ def guard_stop_reason(args: argparse.Namespace, bridge_values: dict[str, float])
 
 def step5b_15n_trial_enabled(args: argparse.Namespace) -> bool:
     return (
-        getattr(args, "bridge_profile", "") == "step5b_v1"
+        getattr(args, "bridge_profile", "") in STEP5B_BRIDGE_PROFILES
         and getattr(args, "step5b_trial_profile", "none") == STEP5B_15N_TRIAL_PROFILE
     )
 
 
 def step5b_ramp_trial_enabled(args: argparse.Namespace) -> bool:
     return (
-        getattr(args, "bridge_profile", "") == "step5b_v1"
+        getattr(args, "bridge_profile", "") in STEP5B_BRIDGE_PROFILES
         and getattr(args, "step5b_trial_profile", "none") == STEP5B_RAMP_5_TO_15_TRIAL_PROFILE
     )
 
@@ -3873,8 +3875,8 @@ def validate_step5b_15n_trial_args(args: argparse.Namespace) -> None:
         return
     if getattr(args, "step5b_trial_profile", "none") not in STEP5B_TRIAL_PROFILES:
         raise SystemExit(f"Unknown --step5b-trial-profile {args.step5b_trial_profile!r}")
-    if args.bridge_profile != "step5b_v1" or args.bridge_mode != "line":
-        raise SystemExit(f"--step5b-trial-profile {args.step5b_trial_profile} requires step5b_v1 line mode")
+    if args.bridge_profile not in STEP5B_BRIDGE_PROFILES or args.bridge_mode != "line":
+        raise SystemExit(f"--step5b-trial-profile {args.step5b_trial_profile} requires Step5b line mode")
     if abs(float(args.target_force_n) - STEP5B_15N_TRIAL_TARGET_N) > STEP5B_15N_TRIAL_TARGET_TOL_N:
         raise SystemExit(f"{args.step5b_trial_profile} requires --target-force-n 15.0")
     normal_velocity_limit_max_m_s = (
@@ -4025,10 +4027,22 @@ def step5b_ramp_trial_guard_reason(
             return "step5b_ramp_5_to_15:preload_acquisition_timeout"
         return None
 
-    normal_stop_n = min(STEP5B_RAMP_PRELOAD_NORMAL_STOP_N, target + STEP5B_RAMP_NORMAL_STOP_MARGIN_N)
-    normal_dwell_n = min(STEP5B_RAMP_PRELOAD_NORMAL_STOP_N - 2.0, target + STEP5B_RAMP_NORMAL_DWELL_MARGIN_N)
-    force_stop_n = min(STEP5B_RAMP_PRELOAD_FORCE_STOP_N, target + STEP5B_RAMP_FORCE_STOP_MARGIN_N)
-    force_dwell_n = min(STEP5B_RAMP_PRELOAD_FORCE_STOP_N - 2.0, target + STEP5B_RAMP_FORCE_DWELL_MARGIN_N)
+    normal_stop_n = max(
+        STEP5B_FORCE_GUARD_MIN_N,
+        min(STEP5B_RAMP_PRELOAD_NORMAL_STOP_N, target + STEP5B_RAMP_NORMAL_STOP_MARGIN_N),
+    )
+    normal_dwell_n = max(
+        STEP5B_FORCE_GUARD_MIN_N,
+        min(STEP5B_RAMP_PRELOAD_NORMAL_STOP_N, target + STEP5B_RAMP_NORMAL_DWELL_MARGIN_N),
+    )
+    force_stop_n = max(
+        STEP5B_FORCE_GUARD_MIN_N,
+        min(STEP5B_RAMP_PRELOAD_FORCE_STOP_N, target + STEP5B_RAMP_FORCE_STOP_MARGIN_N),
+    )
+    force_dwell_n = max(
+        STEP5B_FORCE_GUARD_MIN_N,
+        min(STEP5B_RAMP_PRELOAD_FORCE_STOP_N, target + STEP5B_RAMP_FORCE_DWELL_MARGIN_N),
+    )
     if normal_load_n > normal_stop_n:
         return "step5b_ramp_5_to_15:normal_load_stop"
     state.step5b_ramp_high_normal_s = (
@@ -4339,7 +4353,7 @@ def main(argv: list[str] | None = None) -> int:
         "v31",
         "step4f_v1",
         "step4g_v1",
-        "step5b_v1",
+        *STEP5B_BRIDGE_PROFILES,
         STEP5C_DRYRUN_STAGE_ID,
         STEP5C_CONTACT_STAGE_ID,
         *STEP5D_LIVEPREP_STAGE_IDS,
@@ -4480,6 +4494,7 @@ def main(argv: list[str] | None = None) -> int:
             "step4f_cycloid_seed_normal_v1": "Same TP flow and force/normal/orientation loop as v31, but stage 25.0 uses the paper Experiment #1 cycloid XY reference for 60 s.",
             "step4g_eight_seed_normal_v1": "Same TP flow and force/normal/orientation loop as v31, but stage 25.0 uses the paper Experiment #2 8-shaped XY reference for 60 s.",
             "step5b_contact_cycloid_baseline_v1": "Same TP contact-search/latch/25.2/25.3 scaffold as v31, but stage 25.0 uses the active Step5 table contact cycloid reference and v31 filtered-live normal policy.",
+            "step5b_contact_cycloid_baseline_v2": "Step5b v2 TP contact scaffold skips the lift/25.2 cycle when first-contact orientation error is already <=4deg; stage 25.0 keeps the Step5 table contact cycloid reference and filtered-live normal policy.",
             "step5c_speedj_dryrun_v1": "No-contact Step5c joint-space dry-run: bridge reads actual_q and writes qd0..qd5 in registers 37..42 through the explicit Step5c qdot helper; TP executes speedj only in the archived Stage25 dry-run fixture. Live profile remains blocked.",
             "step5c_joint_rnn_cycloid_v1": "Blocked/quarantined Step5c contact route: previous implementation was DLS, not strict TASE RNN.",
             "step5d_strict_rnn_liveprep_v1": "Live-prep strict RNN qdot route: TP reuses Step5b contact scaffold, then Stage 25.0 consumes registers 37..42 as qd0..qd5 rad/s and executes speedj. Not a completed reproduction claim.",
@@ -4516,12 +4531,12 @@ def main(argv: list[str] | None = None) -> int:
             "line_control_target": "latched contact normal load, not total force norm",
             "step4f_safe_frame": (
                 STEP4F_SAFE_FRAME
-                if args.bridge_path_shape == "cycloid" and args.bridge_profile != "step5b_v1"
+                if args.bridge_path_shape == "cycloid" and args.bridge_profile not in STEP5B_BRIDGE_PROFILES
                 else None
             ),
             "step5_stage_id": (
                 STEP5_CONTACT_CYCLOID_STAGE_ID
-                if args.bridge_profile == "step5b_v1"
+                if args.bridge_profile in STEP5B_BRIDGE_PROFILES
                 else args.bridge_profile
                 if args.bridge_profile in STEP5D_LIVEPREP_STAGE_IDS
                 else None

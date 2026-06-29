@@ -199,14 +199,20 @@ def validate_package(
                 and ("paper-derived cycloid XY reference" in script + txt if path_shape == "cycloid" else "paper-derived 8-shaped XY reference" in script + txt),
             }
         )
-    if program == "step5b_contact_cycloid_baseline_v1":
+    if program in {"step5b_contact_cycloid_baseline_v1", "step5b_contact_cycloid_baseline_v2"}:
+        is_v2 = program.endswith("_v2")
+        bridge_version = "step5b_v2" if is_v2 else "step5b_v1"
+        target_force = "15.0" if is_v2 else "5.0"
+        filter_alpha = "0.70" if is_v2 else "0.35"
         checks.update(
             {
                 "step5b function": f"def codex_{program}()" in script
                 and "codex_step5b_down_search" in script,
-                "step5b bridge contract": "step4e-version=step5b_v1" in script
-                and "--step4e-version step5b_v1" in txt
+                "step5b bridge contract": f"step4e-version={bridge_version}" in script
+                and f"--step4e-version {bridge_version}" in txt
                 and "--step4e-path-shape cycloid" in txt,
+                "step5b filter contract": f"step4e-normal-filter-alpha={filter_alpha}" in script
+                and f"--step4e-normal-filter-alpha {filter_alpha}" in txt,
                 "step5 table source": "STEP5_FLOW.md" in script
                 and "STEP5_TABLE_SOURCE: config/step5_stage_table.json" in script
                 and "step5_contact_cycloid_baseline_v1" in script + txt,
@@ -218,6 +224,13 @@ def validate_package(
                 and "25.2 attitude correction" in script
                 and "25.3 line-entry gate" in script
                 and "normal projection and force-loop composition" in script,
+                "step5b v2 orientation skip gate": (not is_v2)
+                or (
+                    "local skip_lift_attitude = 0" in script
+                    and "write_output_float_register(35, 25.15)" in script
+                    and "local orientation_skip_error_rad = 0.069813" in script
+                    and "skip_lift_attitude == 0" in script
+                ),
                 "fast non-contact movel": "movel(entry_xy_pose, a=0.060, v=0.040, r=0.0)" in script
                 and "movel(lift_pose, a=0.060, v=0.040, r=0.0)" in script
                 and "local short_retract_speed_m_s = 0.040" in script
@@ -226,6 +239,7 @@ def validate_package(
                 "raw contact guards": "codex_abs(normal_force) > 50.0" in script
                 and "force_norm > 60.0" in script
                 and "torque_norm > 3.0" in script,
+                "step5b force target": f"--target-force-n {target_force}" in txt,
                 "no stale step4 route": "step4f_cycloid_seed_normal_v1" not in script
                 and "step4g_eight_seed_normal_v1" not in script,
             }

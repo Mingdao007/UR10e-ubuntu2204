@@ -25,7 +25,7 @@ def ramp_args(*extra: str) -> object:
             "--step4e-mode",
             "line",
             "--step4e-version",
-            "step5b_v1",
+            "step5b_v2",
             "--step5b-trial-profile",
             "ramp_5_to_15_sentinel",
             "--target-force-n",
@@ -94,7 +94,7 @@ class Step5bRamp5To15SentinelTest(unittest.TestCase):
                 "15.0",
             ]
         )
-        with self.assertRaisesRegex(SystemExit, "requires step5b_v1 line mode"):
+        with self.assertRaisesRegex(SystemExit, "requires Step5b line mode"):
             bridge.validate_step5b_15n_trial_args(bad)
 
         bad_target = bridge.parse_args(
@@ -103,7 +103,7 @@ class Step5bRamp5To15SentinelTest(unittest.TestCase):
                 "--step4e-mode",
                 "line",
                 "--step4e-version",
-                "step5b_v1",
+                "step5b_v2",
                 "--step5b-trial-profile",
                 "ramp_5_to_15_sentinel",
                 "--target-force-n",
@@ -153,7 +153,7 @@ class Step5bRamp5To15SentinelTest(unittest.TestCase):
         self.assertEqual(state.step5b_ramp_phase, "hold_15")
         self.assertEqual(state.step5b_ramp_active_target_force_n, 15.0)
 
-    def test_ramp_guard_is_target_relative(self) -> None:
+    def test_ramp_guard_has_50n_minimum(self) -> None:
         state = bridge.BridgeState()
         bridge.set_step5b_ramp_phase(state, "ramp_5_to_15")
         state.step5b_ramp_active_target_force_n = 5.0
@@ -169,10 +169,22 @@ class Step5bRamp5To15SentinelTest(unittest.TestCase):
                 state=state,
             )
         )
+        self.assertIsNone(
+            bridge.step5b_ramp_trial_guard_reason(
+                normal_load_n=49.9,
+                force_norm_n=49.9,
+                torque_norm_nm=0.1,
+                sensor_ok=1.0,
+                normal_velocity_m_s=0.0,
+                normal_velocity_limit_m_s=0.001,
+                dt_s=0.002,
+                state=state,
+            )
+        )
         self.assertEqual(
             bridge.step5b_ramp_trial_guard_reason(
-                normal_load_n=25.1,
-                force_norm_n=25.1,
+                normal_load_n=50.1,
+                force_norm_n=50.1,
                 torque_norm_nm=0.1,
                 sensor_ok=1.0,
                 normal_velocity_m_s=0.0,
