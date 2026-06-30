@@ -222,7 +222,7 @@ elif [[ "${STEP4E_VERSION}" == "step4g_v1" ]]; then
 elif [[ "${STEP4E_VERSION}" == "step5b_v1" ]]; then
   SEARCH_DESCRIPTION="Step5b contact cycloid baseline: same v31 contact search, first-contact normal latch, 20 mm lift, 25.2 attitude correction, second contact, and 25.3 line-entry gate; stage 25.0 follows the active Step5 table contact cycloid reference for 60 s with filtered-live normal"
 elif [[ "${STEP4E_VERSION}" == "step5b_v2" ]]; then
-  SEARCH_DESCRIPTION="Step5b contact cycloid baseline v2: same Step5 table contact cycloid reference, but after first-contact latch it skips the lift/25.2 cycle when bridge orientation_error is already <=4deg; bridge defaults target 15N, Kp 0.0010, Ki 0.00001, damping 8.5, angular limit 0.150 rad/s, and filtered-live normal alpha 0.55 through the Step5b wrapper"
+  SEARCH_DESCRIPTION="Step5b contact cycloid baseline v2: same Step5 table contact cycloid reference, but after first-contact latch it skips the lift/25.2 cycle when bridge orientation_error is already <=4deg; bridge defaults target 15N, Kp 0.0010, Ki 0.00001, damping 7.0, angular limit 0.150 rad/s, and filtered-live normal alpha 0.55 through the Step5b wrapper"
 elif [[ "${STEP4E_VERSION}" == "step5c_speedj_dryrun_v1" ]]; then
   SEARCH_DESCRIPTION="Step5c speedj dry-run: no-contact short Step5 cycloid subset; bridge reads actual_q and writes qd0..qd5 in registers 37..42; TP executes speedj and no contact search"
 elif [[ "${STEP4E_VERSION}" == "step5c_joint_rnn_cycloid_v1" ]]; then
