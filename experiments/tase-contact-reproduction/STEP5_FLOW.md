@@ -790,6 +790,28 @@ On a valid trigger:
    cache is stale the operator refreshes it itself; do not add manual checks.
 4. Target from user trigger to bridge process start is a few seconds.
 
+## Step5b Post-Run Diagnostic Bundle
+
+After each Step5b bridge run completes, Codex must generate a run-local
+diagnostic overview plot and send it directly to the Mac target used for prior
+Step5b plot handoffs:
+`andyl@100.127.94.11:/Users/andyl/Downloads/ur10e_step5b_plots/`.
+This is part of the default bridge-run completion workflow, not an optional
+follow-up request.
+
+Use the active contact/path window for primary metrics and plots. Preserve the
+full raw logs, but label any first-to-last figure as context only.
+
+| panel | required evidence |
+|---|---|
+| Force tracking | raw `Fz` with signed target line, signed `Fz - target` metrics, projected normal load, and force norm when available. |
+| XY tracking | actual TCP XY overlaid with bridge/reference XY when available, plus X/Y tracking-error traces or summary metrics. |
+| Velocity | TCP speed components/norm, bridge command linear velocity components/norm, normal velocity command, and configured velocity limits. |
+| Attitude/posture | orientation or attitude error, actual TCP orientation/rotvec context, angular command norm, and configured angular limit. |
+| Limit usage | explicit linear, normal, angular, force, and torque limit hits or near-hit dwell when the run exposes those fields. |
+| Stop/event context | bridge stop reason, TP final state, guard reason, stage/event timeline, sample rates, parse errors, and reconnect counts. |
+| Optional diagnostics | torque norm, sensor age/heartbeat quality, filter source/alpha, integral state, normal-vector components, and comparison to the previous accepted run when the current decision is parameter tuning. |
+
 Commit hygiene for Step5d live-prep work:
 
 - A live-prep behavior fix, an archive move, and an SOP/documentation guard are
