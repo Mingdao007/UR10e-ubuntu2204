@@ -49,6 +49,8 @@ case "${STEP4E_VERSION}" in
 esac
 BRIDGE_DURATION_S="${BRIDGE_DURATION_S:-180}"
 STEP4E_BACKGROUND_PUSH_AFTER_LIVE="${STEP4E_BACKGROUND_PUSH_AFTER_LIVE:-0}"
+STEP5B_DIAGNOSTIC_SEND_MAC="${STEP5B_DIAGNOSTIC_SEND_MAC:-1}"
+STEP5B_DIAGNOSTIC_MAC_TARGET="${STEP5B_DIAGNOSTIC_MAC_TARGET:-andyl@100.127.94.11:/Users/andyl/Downloads/ur10e_step5b_plots/}"
 STEP4E_NORMAL_COMMAND_SIGN="${STEP4E_NORMAL_COMMAND_SIGN:-1}"
 MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-50}"
 MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-60}"
@@ -745,6 +747,17 @@ postprocess_run() {
     python3 "${ROOT}/tools/summarize_stage_frequency.py" "${bridge_csv}" --output "${out_dir}/stage_frequency_summary.json" || true
   else
     echo "[operator] no bridge CSV found for postprocess: ${bridge_csv}"
+  fi
+  if [[ "${STEP4E_VERSION}" == "step5b_v2" ]]; then
+    local diagnostic_args=("${out_dir}")
+    if [[ "${STEP5B_DIAGNOSTIC_SEND_MAC}" == "1" ]]; then
+      diagnostic_args+=(--mac-target "${STEP5B_DIAGNOSTIC_MAC_TARGET}")
+    fi
+    if python3 "${ROOT}/tools/build_step5b_diagnostic_overview.py" "${diagnostic_args[@]}"; then
+      echo "[operator] Step5b diagnostic overview complete: ${out_dir}/step5b_diagnostic_overview.png"
+    else
+      echo "[operator] Step5b diagnostic overview reported an issue; bridge run artifacts remain in ${out_dir}"
+    fi
   fi
 }
 
