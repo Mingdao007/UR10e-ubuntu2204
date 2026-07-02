@@ -15,8 +15,10 @@ from step5_table import load_stage_frame, step5_stage
 
 
 PROGRAM_NAME = "step5b_contact_cycloid_baseline_v2"
+PROGRAM_NAME_V3 = "step5b_contact_cycloid_baseline_v3"
 STEP5_STAGE_ID = "step5_contact_cycloid_baseline_v1"
 BRIDGE_VERSION = "step5b_v2"
+BRIDGE_VERSION_V3 = "step5b_v3"
 LOCAL_PROGRAM_DIR = PROGRAM_DIR / "step5"
 CONTROLLER_DIR = "/programs/andyl/kunwei/step5"
 SAFE_FRAME_PATH = CONFIG_PATH.with_name("step5_safe_frame.json")
@@ -24,19 +26,69 @@ FAST_NONCONTACT_MOVEL_ACCEL_M_S2 = 0.060
 FAST_NONCONTACT_MOVEL_SPEED_M_S = 0.040
 HOME_RETURN_SPEED_M_S = 0.050
 TARGET_FORCE_N = 15.0
+TARGET_FORCE_N_V3 = 12.0
 BRIDGE_NORMAL_FILTER_ALPHA = 0.70
+BRIDGE_NORMAL_FILTER_ALPHA_V3 = 0.55
 ORIENTATION_SKIP_ERROR_RAD = 0.069813
 
 
-def source_stamp(now: datetime) -> str:
-    return now.strftime("%Y-%m-%dT%H%MHKT_STEP5B_CONTACT_CYCLOID_BASELINE_V2")
+def variant_program_name(variant: str) -> str:
+    if variant == "v2":
+        return PROGRAM_NAME
+    if variant == "v3":
+        return PROGRAM_NAME_V3
+    raise ValueError(f"unsupported Step5b variant: {variant!r}")
+
+
+def variant_bridge_version(variant: str) -> str:
+    if variant == "v2":
+        return BRIDGE_VERSION
+    if variant == "v3":
+        return BRIDGE_VERSION_V3
+    raise ValueError(f"unsupported Step5b variant: {variant!r}")
+
+
+def variant_title(variant: str) -> str:
+    if variant == "v2":
+        return "Step5b contact cycloid baseline v2"
+    if variant == "v3":
+        return "Step5b contact cycloid baseline v3"
+    raise ValueError(f"unsupported Step5b variant: {variant!r}")
+
+
+def variant_stamp_token(variant: str) -> str:
+    if variant == "v2":
+        return "STEP5B_CONTACT_CYCLOID_BASELINE_V2"
+    if variant == "v3":
+        return "STEP5B_CONTACT_CYCLOID_BASELINE_V3"
+    raise ValueError(f"unsupported Step5b variant: {variant!r}")
+
+
+def variant_target_force_n(variant: str) -> float:
+    if variant == "v2":
+        return TARGET_FORCE_N
+    if variant == "v3":
+        return TARGET_FORCE_N_V3
+    raise ValueError(f"unsupported Step5b variant: {variant!r}")
+
+
+def variant_filter_alpha(variant: str) -> float:
+    if variant == "v2":
+        return BRIDGE_NORMAL_FILTER_ALPHA
+    if variant == "v3":
+        return BRIDGE_NORMAL_FILTER_ALPHA_V3
+    raise ValueError(f"unsupported Step5b variant: {variant!r}")
+
+
+def source_stamp(now: datetime, variant: str = "v2") -> str:
+    return now.strftime(f"%Y-%m-%dT%H%MHKT_{variant_stamp_token(variant)}")
 
 
 def load_safe_frame() -> dict:
     return load_stage_frame(step5_stage(STEP5_STAGE_ID))
 
 
-def add_orientation_skip_gate(script: str) -> str:
+def add_orientation_skip_gate(script: str, variant: str = "v2") -> str:
     marker = """  if stop_reason == 0.0:
     write_output_float_register(35, 25.1)
     local p_lift = get_actual_tcp_pose()
@@ -48,8 +100,28 @@ def add_orientation_skip_gate(script: str) -> str:
 
   if stop_reason == 0.0:
     write_output_float_register(35, 25.2)"""
+    program_name = variant_program_name(variant)
     if marker not in script:
-        raise RuntimeError(f"{PROGRAM_NAME} orientation skip insertion point not found")
+        raise RuntimeError(f"{program_name} orientation skip insertion point not found")
+    if variant == "v3":
+        end_marker = """  if stop_reason == 0.0:
+    stop_reason = codex_step5b_down_search(24.3, 24.4, 0.070, 0.040, 45.000, -0.005, -0.003)
+    if stop_reason == 11.0:
+      stop_reason = 0.0
+    end
+  end
+
+"""
+        start = script.index(marker)
+        end = script.index(end_marker, start) + len(end_marker)
+        replacement = """  if stop_reason == 0.0:
+    write_output_float_register(35, 25.15)
+    codex_echo_step4e(stop_reason)
+    sync()
+  end
+
+"""
+        return script[:start] + replacement + script[end:]
     replacement = f"""  local skip_lift_attitude = 0
   if stop_reason == 0.0:
     write_output_float_register(35, 25.15)
@@ -102,7 +174,7 @@ def add_orientation_skip_gate(script: str) -> str:
     return script.replace(marker, replacement, 1)
 
 
-def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -> str:
+def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict, variant: str = "v2") -> str:
     basis = frame["basis"]
     guard = frame["guard"]
     entry_x, entry_y = [float(v) for v in basis["origin_xy_m"]]
@@ -110,13 +182,17 @@ def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -
     duration_s = float(stage["duration_s"])
     omega = float(stage["phase_law"]["omega_rad_s"])
     amplitude = float(stage["amplitude_m"])
+    program_name = variant_program_name(variant)
+    bridge_version = variant_bridge_version(variant)
+    title = variant_title(variant)
+    filter_alpha = variant_filter_alpha(variant)
     script = step4fg_seed_normal_loop_script(
         stamp=stamp,
         gen_at=gen_at,
         geom=geom,
-        name=PROGRAM_NAME,
-        title="Step5b contact cycloid baseline v2",
-        version_token=BRIDGE_VERSION,
+        name=program_name,
+        title=title,
+        version_token=bridge_version,
         path_shape="cycloid",
         path_formula=(
             f"Step5 table stage {STEP5_STAGE_ID}: local-basis x={amplitude:.3f} * "
@@ -145,27 +221,34 @@ def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -
     }
     for old, new in replacements.items():
         if old not in script:
-            raise RuntimeError(f"{PROGRAM_NAME} scaffold replacement failed: {old}")
+            raise RuntimeError(f"{program_name} scaffold replacement failed: {old}")
         script = script.replace(old, new, 1)
     script = script.replace(
         "paper-derived cycloid XY reference for 60 s",
         "Step5 table-driven contact cycloid reference for 60 s",
     )
-    script = script.replace(
-        "first-contact normal latch, lift, 25.2 attitude correction,",
-        "first-contact normal latch, optional 4deg skip-lift/25.2 gate, otherwise lift and 25.2 attitude correction,",
-        1,
-    )
+    if variant == "v3":
+        script = script.replace(
+            "first-contact normal latch, lift, 25.2 attitude correction,",
+            "first-contact normal latch, no lift/25.2 attitude cycle and no second contact search,",
+            1,
+        )
+    else:
+        script = script.replace(
+            "first-contact normal latch, lift, 25.2 attitude correction,",
+            "first-contact normal latch, optional 4deg skip-lift/25.2 gate, otherwise lift and 25.2 attitude correction,",
+            1,
+        )
     script = script.replace(
         "PAPER_PATH_FORMULA:",
         "STEP5_PATH_FORMULA:",
     )
     script = script.replace(
         "step4e-normal-filter-alpha=0.35",
-        f"step4e-normal-filter-alpha={BRIDGE_NORMAL_FILTER_ALPHA:.2f}",
+        f"step4e-normal-filter-alpha={filter_alpha:.2f}",
         1,
     )
-    script = add_orientation_skip_gate(script)
+    script = add_orientation_skip_gate(script, variant=variant)
     script = script.replace("local short_retract_speed_m_s = 0.020", f"local short_retract_speed_m_s = {FAST_NONCONTACT_MOVEL_SPEED_M_S:.3f}")
     script = script.replace("local home_return_speed_m_s = 0.050", f"local home_return_speed_m_s = {HOME_RETURN_SPEED_M_S:.3f}")
     script = script.replace(
@@ -183,27 +266,44 @@ def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -
     return script
 
 
-def build_txt(stamp: str) -> str:
-    return f"""Step5b contact cycloid baseline v2 TP package
+def build_txt(stamp: str, variant: str = "v2") -> str:
+    program_name = variant_program_name(variant)
+    bridge_version = variant_bridge_version(variant)
+    filter_alpha = variant_filter_alpha(variant)
+    target_force_n = variant_target_force_n(variant)
+    if variant == "v3":
+        motion_detail = (
+            "  Reuses the current v31 contact search and first-contact normal latch.\n"
+            "  Stage 25.15 is a no-lift/no-attitude marker only; the program does not run\n"
+            "  the 20 mm lift, 25.2 attitude correction, or 24.3/24.4 second contact search.\n"
+            "  Stage 25.3 line-entry gate then releases Stage 25.0."
+        )
+        non_contact_speed = "entry/retract"
+    else:
+        motion_detail = (
+            "  Reuses the current v31 contact search and first-contact normal latch.\n"
+            f"  Stage 25.15 skips the 20 mm lift and 25.2 attitude correction when bridge\n"
+            f"  orientation_error <= {ORIENTATION_SKIP_ERROR_RAD:.6f} rad; otherwise it runs the old lift,\n"
+            "  25.2 attitude correction, second contact, and 25.3 line-entry gate."
+        )
+        non_contact_speed = "entry/lift/retract"
+    return f"""Step5b contact cycloid baseline {variant} TP package
 
 Open on Teach Pendant:
-  {CONTROLLER_DIR}/{PROGRAM_NAME}.urp
+  {CONTROLLER_DIR}/{program_name}.urp
 
 Version:
   {stamp}
 
 Motion boundary:
   Contact motion.
-  Reuses the current v31 contact search and first-contact normal latch.
-  Stage 25.15 skips the 20 mm lift and 25.2 attitude correction when bridge
-  orientation_error <= {ORIENTATION_SKIP_ERROR_RAD:.6f} rad; otherwise it runs the old lift,
-  25.2 attitude correction, second contact, and 25.3 line-entry gate.
+{motion_detail}
   Stage 25.0 consumes bridge command registers 37..44 only.
-  Bridge profile: --step4e-version {BRIDGE_VERSION} --step4e-path-shape cycloid.
-  Bridge normal filter alpha: --step4e-normal-filter-alpha {BRIDGE_NORMAL_FILTER_ALPHA:.2f}.
-  Non-contact movel speed: entry/lift/retract {FAST_NONCONTACT_MOVEL_SPEED_M_S:.3f} m/s,
+  Bridge profile: --step4e-version {bridge_version} --step4e-path-shape cycloid.
+  Bridge normal filter alpha: --step4e-normal-filter-alpha {filter_alpha:.2f}.
+  Non-contact movel speed: {non_contact_speed} {FAST_NONCONTACT_MOVEL_SPEED_M_S:.3f} m/s,
   accel {FAST_NONCONTACT_MOVEL_ACCEL_M_S2:.3f} m/s^2; contact search/acquire/Stage 25.0 unchanged.
-  Force target: --target-force-n {TARGET_FORCE_N:.1f}.
+  Force target: --target-force-n {target_force_n:.1f}.
   Raw normal guard: 50 N. Force norm guard: 60 N. Torque guard: 3.0 Nm.
   No UR zero_ftsensor(), no Kunwei tare/zero/config, no TCP/payload write.
 
@@ -213,64 +313,93 @@ Reference:
 """
 
 
-def validate_package(script: str, txt: str, urp: bytes, stamp: str) -> None:
+def validate_package(script: str, txt: str, urp: bytes, stamp: str, variant: str = "v2") -> None:
     xml = gzip.decompress(urp).decode("utf-8")
+    program_name = variant_program_name(variant)
+    bridge_version = variant_bridge_version(variant)
+    filter_alpha = variant_filter_alpha(variant)
+    target_force_n = variant_target_force_n(variant)
     checks = {
         "script stamp": stamp in script,
         "txt stamp": stamp in txt,
-        "program name": f'URProgram name="{PROGRAM_NAME}"' in xml,
+        "program name": f'URProgram name="{program_name}"' in xml,
         "controller directory": f'directory="{CONTROLLER_DIR}"' in xml,
-        "script file": f"{CONTROLLER_DIR}/{PROGRAM_NAME}.script" in xml,
+        "script file": f"{CONTROLLER_DIR}/{program_name}.script" in xml,
         "cached stamp": stamp in xml,
-        "function name": f"def codex_{PROGRAM_NAME}()" in script,
+        "function name": f"def codex_{program_name}()" in script,
         "step5 flow": "STEP5_FLOW.md" in script and "STEP5_FLOW.md" in txt,
         "step5 stage": STEP5_STAGE_ID in script and STEP5_STAGE_ID in txt,
-        "bridge profile": f"step4e-version={BRIDGE_VERSION}" in script
-        and f"--step4e-version {BRIDGE_VERSION}" in txt,
-        "bridge filter alpha": f"step4e-normal-filter-alpha={BRIDGE_NORMAL_FILTER_ALPHA:.2f}" in script
-        and f"--step4e-normal-filter-alpha {BRIDGE_NORMAL_FILTER_ALPHA:.2f}" in txt,
+        "bridge profile": f"step4e-version={bridge_version}" in script
+        and f"--step4e-version {bridge_version}" in txt,
+        "bridge filter alpha": f"step4e-normal-filter-alpha={filter_alpha:.2f}" in script
+        and f"--step4e-normal-filter-alpha {filter_alpha:.2f}" in txt,
         "path source": "STEP5_TABLE_SOURCE: config/step5_stage_table.json" in script,
         "executor only": "TP_ROLE: executor_and_guard_only" in script,
         "line runtime": "local line_runtime_limit_s = 65.000" in script,
         "line success": "local line_success_progress_m = 60.000000000" in script,
-        "v31 scaffold": "first-contact normal latch" in script
-        and "25.2 attitude correction" in script
-        and "25.3 line-entry gate" in script,
-        "orientation skip gate": "local skip_lift_attitude = 0" in script
-        and "write_output_float_register(35, 25.15)" in script
-        and f"local orientation_skip_error_rad = {ORIENTATION_SKIP_ERROR_RAD:.6f}" in script
-        and "if stop_reason == 0.0 and skip_lift_attitude == 0:" in script,
+        "v31 scaffold": "first-contact normal latch" in script and "25.3 line-entry gate" in script,
         "fast non-contact movel": "movel(entry_xy_pose, a=0.060, v=0.040, r=0.0)" in script
-        and "movel(lift_pose, a=0.060, v=0.040, r=0.0)" in script
         and "local short_retract_speed_m_s = 0.040" in script
         and "movel(short_retract_pose, a=0.060, v=short_retract_speed_m_s, r=0.0)" in script
-        and "Non-contact movel speed: entry/lift/retract 0.040 m/s" in txt,
+        and (
+            "Non-contact movel speed: entry/lift/retract 0.040 m/s" in txt
+            if variant == "v2"
+            else "Non-contact movel speed: entry/retract 0.040 m/s" in txt
+        ),
         "command registers": "read_input_float_register(37)" in script
         and "read_input_float_register(44)" in script,
         "raw guards": "codex_abs(normal_force) > 50.0" in script
         and "force_norm > 60.0" in script
         and "torque_norm > 3.0" in script,
-        "15n force target": f"Force target: --target-force-n {TARGET_FORCE_N:.1f}." in txt,
+        "force target": f"Force target: --target-force-n {target_force_n:.1f}." in txt,
         "no stale step4 package names": "step4f_cycloid_seed_normal_v1" not in script
         and "step4g_eight_seed_normal_v1" not in script,
     }
+    if variant == "v2":
+        checks.update(
+            {
+                "v2 lift scaffold": "25.2 attitude correction" in script
+                and "movel(lift_pose, a=0.060, v=0.040, r=0.0)" in script,
+                "orientation skip gate": "local skip_lift_attitude = 0" in script
+                and "write_output_float_register(35, 25.15)" in script
+                and f"local orientation_skip_error_rad = {ORIENTATION_SKIP_ERROR_RAD:.6f}" in script
+                and "if stop_reason == 0.0 and skip_lift_attitude == 0:" in script,
+            }
+        )
+    elif variant == "v3":
+        checks.update(
+            {
+                "v3 no lift": "write_output_float_register(35, 25.1)" not in script
+                and "p_lift[2] + 0.020" not in script
+                and "movel(lift_pose" not in script,
+                "v3 no attitude cycle": "write_output_float_register(35, 25.2)" not in script
+                and "local orientation_runtime_limit_s = 8.000" not in script
+                and "speedl([0.0, 0.0, 0.0, cmd_wx, cmd_wy, cmd_wz]" not in script,
+                "v3 no second search": "codex_step5b_down_search(24.3, 24.4" not in script,
+                "v3 marker": "write_output_float_register(35, 25.15)" in script,
+                "v3 no skip variable": "local skip_lift_attitude = 0" not in script,
+            }
+        )
+    else:
+        raise ValueError(f"unsupported Step5b variant: {variant!r}")
     failed = [label for label, ok in checks.items() if not ok]
     if failed:
-        raise RuntimeError(f"{PROGRAM_NAME} validation failed: {failed}")
+        raise RuntimeError(f"{program_name} validation failed: {failed}")
 
 
-def write_outputs(stamp: str, gen_at: str) -> dict[str, str]:
+def write_outputs(stamp: str, gen_at: str, variant: str = "v2") -> dict[str, str]:
     frame = load_safe_frame()
     geom = line_cfg(load_json(CONFIG_PATH))
-    script = build_script(stamp, gen_at, geom, frame)
-    txt = build_txt(stamp)
-    urp = build_urp(script, PROGRAM_NAME, CONTROLLER_DIR)
-    validate_package(script, txt, urp, stamp)
+    program_name = variant_program_name(variant)
+    script = build_script(stamp, gen_at, geom, frame, variant=variant)
+    txt = build_txt(stamp, variant=variant)
+    urp = build_urp(script, program_name, CONTROLLER_DIR)
+    validate_package(script, txt, urp, stamp, variant=variant)
 
     LOCAL_PROGRAM_DIR.mkdir(parents=True, exist_ok=True)
-    script_path = LOCAL_PROGRAM_DIR / f"{PROGRAM_NAME}.script"
-    txt_path = LOCAL_PROGRAM_DIR / f"{PROGRAM_NAME}.txt"
-    urp_path = LOCAL_PROGRAM_DIR / f"{PROGRAM_NAME}.urp"
+    script_path = LOCAL_PROGRAM_DIR / f"{program_name}.script"
+    txt_path = LOCAL_PROGRAM_DIR / f"{program_name}.txt"
+    urp_path = LOCAL_PROGRAM_DIR / f"{program_name}.urp"
 
     script_path.write_text(script, encoding="utf-8")
     txt_path.write_text(txt, encoding="utf-8")
@@ -279,7 +408,7 @@ def write_outputs(stamp: str, gen_at: str) -> dict[str, str]:
         "script": str(script_path),
         "txt": str(txt_path),
         "urp": str(urp_path),
-        "controller_urp": f"{CONTROLLER_DIR}/{PROGRAM_NAME}.urp",
+        "controller_urp": f"{CONTROLLER_DIR}/{program_name}.urp",
         "stamp": stamp,
     }
 
@@ -287,11 +416,12 @@ def write_outputs(stamp: str, gen_at: str) -> dict[str, str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--stamp-prefix", default=None)
+    parser.add_argument("--variant", choices=("v2", "v3"), default="v2")
     args = parser.parse_args()
     now = datetime.now(timezone(timedelta(hours=8)))
-    stamp = args.stamp_prefix or source_stamp(now)
-    result = write_outputs(stamp, generated_at(now))
-    print(json.dumps({"generated": {PROGRAM_NAME: result}}, indent=2))
+    stamp = args.stamp_prefix or source_stamp(now, variant=args.variant)
+    result = write_outputs(stamp, generated_at(now), variant=args.variant)
+    print(json.dumps({"generated": {variant_program_name(args.variant): result}}, indent=2))
     return 0
 
 

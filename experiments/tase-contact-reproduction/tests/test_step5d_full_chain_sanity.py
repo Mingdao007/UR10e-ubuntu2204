@@ -11,6 +11,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import numpy as np
+
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -63,7 +65,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             )
 
     def test_step5d_liveprep_package_is_non_quarantine_speedj_executor(self) -> None:
-        stamp = "2026-06-16T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V15A"
+        stamp = "2026-07-02T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V19"
         geom = liveprep.line_cfg(liveprep.load_json(liveprep.CONFIG_PATH))
         frame = liveprep.load_safe_frame()
         script = liveprep.build_script(stamp, "2026-06-14T12:00:00+08:00", geom, frame)
@@ -76,44 +78,64 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn("speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]", script)
         self.assertIn("local qdot_cap_rad_s = 0.050", script)
         self.assertIn("STAGE25_CONTACT_SAFETY", script)
-        self.assertIn("cmd_valid=1 zero-qdot hold", script)
-        self.assertIn("recoverable predicted-speed/contact uncertainty", script)
+        self.assertIn("active_reacquire_solver", script)
+        self.assertIn("low-load/no-contact", script)
         self.assertIn("online broad AABB TCP cage", script)
         self.assertIn("cage margin exhaustion", script)
-        self.assertIn("hold duty/event/consecutive exhaustion", script)
+        self.assertIn("active reacquire/no-contact diagnostics", script)
+        self.assertIn("reacquire predicted-speed cap", script)
         self.assertIn("stop_request", script)
-        self.assertIn("local skip_lift_attitude = 0", script)
-        self.assertIn("local orientation_skip_error_rad = 0.069813", script)
-        self.assertIn("if stop_reason == 0.0 and skip_lift_attitude == 0:", script)
-        self.assertIn("codex_step5d_down_search(24.3, 24.4, 0.035, 0.000, 45.000, -0.0025, -0.0025)", script)
+        self.assertNotIn("local skip_lift_attitude = 0", script)
+        self.assertNotIn("write_output_float_register(35, 25.1)", script)
+        self.assertNotIn("write_output_float_register(35, 25.2)", script)
+        self.assertNotIn("codex_step5d_down_search(24.3, 24.4", script)
         self.assertIn("Stage 25.3 consumes 37..39 as Cartesian deadband-acquire vx/vy/vz", script)
-        self.assertIn("local line_entry_normal_load_min_n = 2.000", script)
-        self.assertIn("local line_entry_normal_load_max_n = 15.000", script)
+        self.assertIn("local line_entry_normal_load_min_n = 8.000", script)
+        self.assertIn("local line_entry_normal_load_max_n = 13.000", script)
         self.assertIn("local line_entry_force_norm_max_n = 25.000", script)
-        self.assertIn("local line_entry_required_s = 0.150", script)
+        self.assertIn("local line_entry_required_s = 0.100", script)
         self.assertNotIn("local line_entry_settle_cmd_max_m_s", script)
         self.assertNotIn("codex_abs(cmd_vx) <= line_entry_settle_cmd_max_m_s", script)
         self.assertIn("local line_entry_recovery_normal_load_min_n = 0.000", script)
         self.assertIn("local line_entry_recovery_normal_load_max_n = 40.000", script)
-        self.assertIn("local line_entry_force_norm_stop_n = 25.000", script)
+        self.assertIn("local line_entry_force_norm_stop_n = 100.000", script)
         self.assertNotIn("or normal_load < line_entry_recovery_normal_load_min_n", script)
         self.assertIn("elif stop_reason == 17.0:\n    return True", script)
         self.assertIn("local normal_load = target_force - force_error", script)
         self.assertIn("local line_entry_timeout_s = 10.000", script)
+        self.assertIn("local line_runtime_limit_s = 15.000", script)
+        self.assertIn("local line_success_progress_m = 10.000000000", script)
         self.assertIn("speedl([cmd_vx, cmd_vy, cmd_vz, 0.0, 0.0, 0.0]", script)
-        self.assertIn("codex_abs(normal_force) > 50.0", script)
-        self.assertIn("force_norm > 60.0", script)
+        self.assertIn("movel(entry_xy_pose, a=0.090, v=0.060, r=0.0)", script)
+        self.assertIn("40.000, -0.0225, -0.0025)", script)
+        self.assertIn("codex_abs(normal_force) > 100.0", script)
+        self.assertIn("force_norm > 100.0", script)
+        self.assertIn("torque_norm > 4.0", script)
         self.assertIn("deadband contact acquire", txt)
-        self.assertIn("online-cage bounded-recovery", txt)
-        self.assertIn("recoverable predicted-speed/contact uncertainty", txt)
+        self.assertIn("--target-force-n 12.0", txt)
+        self.assertIn("cage-primary active reacquire", txt)
+        self.assertIn("Low-load or", txt)
+        self.assertIn("no-contact inside the cage", txt)
         self.assertIn("_step5d_tcp_cage_*", txt)
-        self.assertIn("2.0 N", txt)
-        self.assertIn("15.0 N", txt)
+        self.assertIn("_step5d_active_reacquire_s", txt)
+        self.assertIn("_step5d_no_contact_s", txt)
+        self.assertIn("8.0 N", txt)
+        self.assertIn("13.0 N", txt)
+        self.assertIn("7.5 N", txt)
+        self.assertIn("14.0 N", txt)
+        self.assertIn("Stage 22 entry movel is 0.060 m/s", txt)
+        self.assertIn("Stage 24 far search", txt)
+        self.assertIn("reacquire predicted-speed cap", txt)
+        self.assertIn("no second contact search", txt)
         self.assertNotIn("speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy", script)
         self.assertNotIn("stop_only_quarantine", script + txt)
         self.assertNotIn("STEP5D_STRICT_RNN_LIVEPREP_V12", script + txt)
         self.assertNotIn("STEP5D_STRICT_RNN_LIVEPREP_V13", script + txt)
         self.assertNotIn("STEP5D_STRICT_RNN_LIVEPREP_V14", script + txt)
+        self.assertNotIn("STEP5D_STRICT_RNN_LIVEPREP_V15", script + txt)
+        self.assertNotIn("STEP5D_STRICT_RNN_LIVEPREP_V16", script + txt)
+        self.assertNotIn("STEP5D_STRICT_RNN_LIVEPREP_V17", script + txt)
+        self.assertNotIn("STEP5D_STRICT_RNN_LIVEPREP_V18", script + txt)
 
     def test_bridge_allows_liveprep_profile_but_keeps_full_reproduction_blocked(self) -> None:
         args = bridge.parse_args(
@@ -206,6 +228,54 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             ]
         )
         self.assertEqual(v15a_args.step5d_qdot_limit_rad_s, 0.05)
+        v16_args = bridge.parse_args(
+            [
+                "--no-start-command",
+                "--step4e-mode",
+                "line",
+                "--step4e-version",
+                "step5d_strict_rnn_liveprep_v16",
+                "--step4e-path-shape",
+                "cycloid",
+            ]
+        )
+        self.assertEqual(v16_args.step5d_qdot_limit_rad_s, 0.05)
+        v17_args = bridge.parse_args(
+            [
+                "--no-start-command",
+                "--step4e-mode",
+                "line",
+                "--step4e-version",
+                "step5d_strict_rnn_liveprep_v17",
+                "--step4e-path-shape",
+                "cycloid",
+            ]
+        )
+        self.assertEqual(v17_args.step5d_qdot_limit_rad_s, 0.05)
+        v18_args = bridge.parse_args(
+            [
+                "--no-start-command",
+                "--step4e-mode",
+                "line",
+                "--step4e-version",
+                "step5d_strict_rnn_liveprep_v18",
+                "--step4e-path-shape",
+                "cycloid",
+            ]
+        )
+        self.assertEqual(v18_args.step5d_qdot_limit_rad_s, 0.05)
+        v19_args = bridge.parse_args(
+            [
+                "--no-start-command",
+                "--step4e-mode",
+                "line",
+                "--step4e-version",
+                "step5d_strict_rnn_liveprep_v19",
+                "--step4e-path-shape",
+                "cycloid",
+            ]
+        )
+        self.assertEqual(v19_args.step5d_qdot_limit_rad_s, 0.05)
         with self.assertRaisesRegex(SystemExit, "Blocked Step5d reproduction"):
             bridge.main(
                 [
@@ -232,14 +302,18 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         operator = (ROOT / "scripts" / "step5d-liveprep-operator.sh").read_text(encoding="utf-8")
         base = (ROOT / "scripts" / "step4e-line-v1-operator.sh").read_text(encoding="utf-8")
         bridge_operator = (ROOT / "scripts" / "bridge-line-operator.sh").read_text(encoding="utf-8")
-        self.assertIn('STEP5D_VERSION="${STEP5D_VERSION:-}"', operator)
-        self.assertIn('BRIDGE_OPERATOR="${ROOT}/scripts/bridge-line-operator.sh"', operator)
+        self.assertIn('STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v19}"', operator)
+        self.assertIn('BRIDGE_OPERATOR="${SCRIPT_DIR}/bridge-line-operator.sh"', operator)
         self.assertIn('Bridge profile: ${STEP5D_VERSION}', operator)
         self.assertIn('STEP5D_CONFIRM', operator)
         self.assertIn('require_current_stage_readback_gate', operator)
-        self.assertIn('set STEP5D_VERSION to the controller-readback-verified live-prep package', operator)
-        self.assertIn('MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-50}"', operator)
-        self.assertIn('MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-60}"', operator)
+        self.assertIn('Force target: 12.0 N', operator)
+        self.assertIn('filtered 8-13 N', operator)
+        self.assertIn('raw-sanity 7.5-14 N', operator)
+        self.assertIn('WAIT_FOR_PLAY_S="${WAIT_FOR_PLAY_S:-10}"', operator)
+        self.assertIn('MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-100}"', operator)
+        self.assertIn('MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-100}"', operator)
+        self.assertIn('MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-4.0}"', operator)
         self.assertIn('BRIDGE_PROFILE="${STEP5D_VERSION}"', operator)
         self.assertNotIn('STEP4E_VERSION="${STEP5D_VERSION}"', operator)
         self.assertIn('--bridge-profile "${BRIDGE_PROFILE}"', bridge_operator)
@@ -248,7 +322,9 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/${STEP4E_VERSION}.urp"', base)
         self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/step5d/${STEP4E_VERSION}.urp"', base)
         self.assertIn('"step5d_strict_rnn_liveprep_v10" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v11"', base)
-        self.assertIn('"step5d_strict_rnn_liveprep_v12" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v13" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v14" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v15" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v15a"', base)
+        self.assertIn('"step5d_strict_rnn_liveprep_v12" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v13" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v14" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v15" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v15a" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v16" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v17" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v18" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v19"', base)
+        self.assertIn('BRIDGE_PROFILE="step5d_strict_rnn_liveprep_v19"', bridge_operator)
+        self.assertIn('v18_v19_locked_normal_settle', (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(encoding="utf-8"))
         self.assertNotIn('if [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v9" ]]; then\n  PROGRAM_LINE="/programs/andyl/kunwei/step5/${STEP4E_VERSION}.urp"', base)
         self.assertIn('EXPECTED_BASENAME="${STEP4E_VERSION}.urp"', base)
         self.assertIn('RUN_LABEL="${STEP4E_VERSION}"', base)
@@ -276,6 +352,22 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertEqual((v12_min, v12_max, v12_force_max), (2.0, 15.0, 25.0))
         v13_min, v13_max, v13_force_max = bridge.step5d_liveprep_contact_window_limits("step5d_strict_rnn_liveprep_v13")
         self.assertEqual((v13_min, v13_max, v13_force_max), (2.0, 15.0, 25.0))
+        v16_min, v16_max, v16_force_max = bridge.step5d_liveprep_contact_window_limits("step5d_strict_rnn_liveprep_v16")
+        self.assertEqual((v16_min, v16_max, v16_force_max), (5.0, 20.0, 25.0))
+        v17_min, v17_max, v17_force_max = bridge.step5d_liveprep_contact_window_limits("step5d_strict_rnn_liveprep_v17")
+        self.assertEqual((v17_min, v17_max, v17_force_max), (8.0, 18.0, 25.0))
+        v18_min, v18_max, v18_force_max = bridge.step5d_liveprep_contact_window_limits("step5d_strict_rnn_liveprep_v18")
+        self.assertEqual((v18_min, v18_max, v18_force_max), (8.0, 18.0, 25.0))
+        v19_min, v19_max, v19_force_max = bridge.step5d_liveprep_contact_window_limits("step5d_strict_rnn_liveprep_v19")
+        self.assertEqual((v19_min, v19_max, v19_force_max), (8.0, 13.0, 25.0))
+        speed_limited, original_speed, speed_active = bridge.limit_step5d_predicted_tcp_speed(
+            [0.1, 0.0, 0.0, 0.0, 0.0, 0.0],
+            np.eye(6),
+            max_tcp_speed_m_s=0.035,
+        )
+        self.assertTrue(speed_active)
+        self.assertAlmostEqual(original_speed, 0.1)
+        self.assertLessEqual(float(np.linalg.norm(speed_limited[:3])), 0.035 + 1e-12)
         self.assertEqual(
             bridge.step5d_v12_line_guard(
                 normal_load_n=0.4,

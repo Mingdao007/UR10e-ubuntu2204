@@ -16,35 +16,43 @@ from build_step5b_contact import build_script as build_step5b_script
 from step5_table import load_stage_frame, step5_stage
 
 
-PROGRAM_NAME = "step5d_strict_rnn_liveprep_v15a"
-STEP5_STAGE_ID = "step5d_strict_rnn_liveprep_v15a"
+PROGRAM_NAME = "step5d_strict_rnn_liveprep_v19"
+STEP5_STAGE_ID = "step5d_strict_rnn_liveprep_v19"
 BRIDGE_VERSION = STEP5_STAGE_ID
 LOCAL_PROGRAM_DIR = PROGRAM_DIR / "step5"
 CONTROLLER_DIR = "/programs/andyl/kunwei/step5"
+TARGET_FORCE_N = 12.0
+BRIDGE_NORMAL_FILTER_ALPHA = 0.55
 QDOT_CAP_RAD_S = 0.050
 JOINT_ACCEL_RAD_S2 = 0.050
 ORIENTATION_SKIP_ERROR_RAD = 0.069813
-RAW_NORMAL_GUARD_N = 50.0
-FORCE_NORM_GUARD_N = 60.0
-TORQUE_NORM_GUARD_NM = 3.0
-LINE_ENTRY_NORMAL_LOAD_MIN_N = 2.0
-LINE_ENTRY_NORMAL_LOAD_MAX_N = 15.0
+RAW_NORMAL_GUARD_N = 100.0
+FORCE_NORM_GUARD_N = 100.0
+TORQUE_NORM_GUARD_NM = 4.0
+LINE_ENTRY_NORMAL_LOAD_MIN_N = 8.0
+LINE_ENTRY_NORMAL_LOAD_MAX_N = 13.0
 LINE_ENTRY_FORCE_NORM_MAX_N = 25.0
-LINE_ENTRY_REQUIRED_S = 0.150
+LINE_ENTRY_REQUIRED_S = 0.100
 LINE_ENTRY_CMD_LIMIT_M_S = 0.003
 LINE_ENTRY_TIMEOUT_S = 10.000
+LINE_ENTRY_RAW_SANITY_MIN_N = 7.5
+LINE_ENTRY_RAW_SANITY_MAX_N = 14.0
 LINE_ENTRY_RECOVERY_NORMAL_LOAD_MIN_N = 0.0
 LINE_ENTRY_RECOVERY_NORMAL_LOAD_MAX_N = 40.0
-LINE_ENTRY_FORCE_NORM_STOP_N = 25.0
+LINE_ENTRY_FORCE_NORM_STOP_N = 100.0
 SECOND_SEARCH_MAX_DOWN_M = 0.035
 SECOND_SEARCH_NEAR_START_DEPTH_M = 0.000
 SECOND_SEARCH_RUNTIME_LIMIT_S = 45.000
 SECOND_SEARCH_FAR_SPEED_M_S = -0.0025
 SECOND_SEARCH_NEAR_SPEED_M_S = -0.0025
+ENTRY_MOVEL_ACCEL_M_S2 = 0.090
+ENTRY_MOVEL_SPEED_M_S = 0.060
+FIRST_SEARCH_FAR_SPEED_M_S = -0.0225
+FIRST_SEARCH_NEAR_SPEED_M_S = -0.0025
 
 
 def source_stamp(now: datetime) -> str:
-    return now.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_LIVEPREP_V15A")
+    return now.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_LIVEPREP_V19")
 
 
 def load_safe_frame() -> dict:
@@ -305,6 +313,21 @@ def _replace_second_contact_search(script: str) -> str:
     return _replace_exact(script, old, new)
 
 
+def _speed_up_entry_and_first_search(script: str) -> str:
+    script = _replace_exact(
+        script,
+        "movel(entry_xy_pose, a=0.060, v=0.040, r=0.0)",
+        f"movel(entry_xy_pose, a={ENTRY_MOVEL_ACCEL_M_S2:.3f}, v={ENTRY_MOVEL_SPEED_M_S:.3f}, r=0.0)",
+    )
+    return _replace_exact(
+        script,
+        "stop_reason = codex_step5d_down_search(24.0, 24.2, first_search_max_down_m, first_search_near_start_depth_m, 40.000, -0.015, -0.0025)",
+        "stop_reason = codex_step5d_down_search("
+        "24.0, 24.2, first_search_max_down_m, first_search_near_start_depth_m, "
+        f"40.000, {FIRST_SEARCH_FAR_SPEED_M_S:.4f}, {FIRST_SEARCH_NEAR_SPEED_M_S:.4f})",
+    )
+
+
 def _add_force_envelope_auto_home(script: str) -> str:
     old = """  elif stop_reason == 14.0:
     return True
@@ -332,27 +355,37 @@ def _add_down_search_force_trigger_echo(script: str) -> str:
 
 
 def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -> str:
-    script = build_step5b_script(stamp, gen_at, geom, frame)
+    script = build_step5b_script(stamp, gen_at, geom, frame, variant="v3")
     script = script.replace("step5b_contact_cycloid_baseline_v1", PROGRAM_NAME)
     script = script.replace("step5b_contact_cycloid_baseline_v2", PROGRAM_NAME)
-    script = script.replace("Step5b contact cycloid baseline v1", "Step5d strict RNN liveprep v15a")
-    script = script.replace("Step5b contact cycloid baseline v2", "Step5d strict RNN liveprep v15a")
-    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V1", "STEP5D_STRICT_RNN_LIVEPREP_V15A")
-    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V2", "STEP5D_STRICT_RNN_LIVEPREP_V15A")
+    script = script.replace("step5b_contact_cycloid_baseline_v3", PROGRAM_NAME)
+    script = script.replace("Step5b contact cycloid baseline v1", "Step5d strict RNN liveprep v19")
+    script = script.replace("Step5b contact cycloid baseline v2", "Step5d strict RNN liveprep v19")
+    script = script.replace("Step5b contact cycloid baseline v3", "Step5d strict RNN liveprep v19")
+    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V1", "STEP5D_STRICT_RNN_LIVEPREP_V19")
+    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V2", "STEP5D_STRICT_RNN_LIVEPREP_V19")
+    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V3", "STEP5D_STRICT_RNN_LIVEPREP_V19")
     script = script.replace("codex_step5b_down_search", "codex_step5d_down_search")
     script = script.replace("step4e-version=step5b_v1", f"step4e-version={BRIDGE_VERSION}")
     script = script.replace("step4e-version=step5b_v2", f"step4e-version={BRIDGE_VERSION}")
+    script = script.replace("step4e-version=step5b_v3", f"step4e-version={BRIDGE_VERSION}")
+    script = script.replace("step4e-normal-filter-alpha=0.55", f"step4e-normal-filter-alpha={BRIDGE_NORMAL_FILTER_ALPHA:.2f}")
     script = script.replace("codex_abs(normal_force) > 50.0", f"codex_abs(normal_force) > {RAW_NORMAL_GUARD_N:.1f}")
     script = script.replace("force_norm > 60.0", f"force_norm > {FORCE_NORM_GUARD_N:.1f}")
+    script = script.replace("torque_norm > 3.0", f"torque_norm > {TORQUE_NORM_GUARD_NM:.1f}")
+    script = script.replace("local line_runtime_limit_s = 65.000", "local line_runtime_limit_s = 15.000")
+    script = script.replace("local line_success_progress_m = 60.000000000", "local line_success_progress_m = 10.000000000")
     script = _replace_first_present(
         script,
         (
             "PURPOSE: v31 contact search, first-contact normal latch, lift, 25.2 attitude correction, 25.3 line-entry gate, then Step5 table-driven contact cycloid reference for 60 s.",
             "PURPOSE: v31 contact search, first-contact normal latch, optional 4deg skip-lift/25.2 gate, otherwise lift and 25.2 attitude correction, 25.3 line-entry gate, then Step5 table-driven contact cycloid reference for 60 s.",
+            "PURPOSE: v31 contact search, first-contact normal latch, no lift/25.2 attitude cycle and no second contact search, 25.3 line-entry gate, then Step5 table-driven contact cycloid reference for 60 s.",
         ),
-        "PURPOSE: v31 contact search, first-contact normal latch, optional lift/25.2 attitude correction when orientation error is >4 deg, 25.3 bridge deadband acquire into the 2-15N contact window, then guarded Step5d strict RNN qdot cycloid reference for 60 s.",
+        "PURPOSE: v31 contact search, first-contact normal latch, no lift/25.2 attitude cycle and no second contact search, 25.3 bridge deadband acquire into the 8-13N filtered preload window with 7.5-14N raw sanity, then v19 cage-primary Step5d strict RNN qdot diagnostic for 10 s.",
         "purpose",
     )
+    script = _speed_up_entry_and_first_search(script)
     script = script.replace(
         "25.0 uses desired_velocity + path_p_gain*(desired-actual) before normal projection and force-loop composition.",
         "25.0 uses strict RNN qdot registers 37..42 and TP speedj execution; bridge owns calibrated Pinocchio/J(q) and paper outer-loop computation.",
@@ -362,14 +395,12 @@ def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -
         (
             "TP_ROLE: joint_executor_and_guard_only; Step5d strict RNN qdot is computed by the bridge.\n"
             "# REGISTER_CONTRACT: Stage 25.3 consumes 37..39 as Cartesian deadband-acquire vx/vy/vz; Stage 25.0 consumes 37..42 as qd0..qd5 rad/s, 43 cmd_valid, 44 path_time_s.\n"
-            "# STAGE25_CONTACT_SAFETY: v15a bridge computes online broad AABB TCP cage distance/braking margin, routes recoverable predicted-speed/contact uncertainty to bounded cmd_valid=1 zero-qdot hold/reacquire with frozen path_time_s, and preserves stop_request for cage margin exhaustion, semantic failure, hard force/torque/joint/sensor gates, actual speed dwell, repeated hold exhaustion, hold duty/event/consecutive exhaustion, or timeout.\n"
+            "# STAGE25_CONTACT_SAFETY: v19 bridge computes online broad AABB TCP cage distance/braking margin, routes low-load/no-contact to active_reacquire_solver with frozen path_time_s and a reacquire predicted-speed cap instead of hold-duty stop, logs active reacquire/no-contact diagnostics, and preserves stop_request for cage margin exhaustion, semantic failure, hard force/torque/joint/sensor gates, heartbeat/cmd_valid, Dashboard mismatch, or timeout.\n"
             "# FORCE_FRAME_CONTRACT: UR_FORCE_FRAME_CONTRACT.md; reaction normal for load, approach normal for posture."
         ),
     )
     script = _replace_exact(script, "STEP5_STAGE_ID: step5_contact_cycloid_baseline_v1", f"STEP5_STAGE_ID: {STEP5_STAGE_ID}")
-    script = _add_orientation_skip_gate(script)
     script = _add_down_search_force_trigger_echo(script)
-    script = _replace_second_contact_search(script)
     script = _add_force_envelope_auto_home(script)
     script = _replace_line_entry_with_force_settle(script)
     script = _replace_line_stage_with_speedj(script)
@@ -381,7 +412,7 @@ def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -
 
 
 def build_txt(stamp: str) -> str:
-    return f"""Step5d strict RNN v15a online-cage bounded-recovery live-prep TP package
+    return f"""Step5d strict RNN v19 cage-primary 12N diagnostic TP package
 
 Open on Teach Pendant after controller read-back is verified:
   {CONTROLLER_DIR}/{PROGRAM_NAME}.urp
@@ -390,42 +421,47 @@ Version:
   {stamp}
 
 Boundary:
-  Contact-capable v15a live-prep package; not a completed reproduction claim.
-  Reuses the Step5b contact-search/latch/25.3 scaffold.
-  If first-contact orientation error is <= {ORIENTATION_SKIP_ERROR_RAD:.6f} rad,
-  it skips the 20 mm lift and 25.2 attitude correction.
-  Otherwise it keeps the original lift + 25.2 attitude correction path.
-  Stage 24.3/24.4 second contact search is slow-only: near_start_depth is
-  {SECOND_SEARCH_NEAR_START_DEPTH_M:.3f} m, max_down is {SECOND_SEARCH_MAX_DOWN_M:.3f} m,
-  and both far/near speeds are {abs(SECOND_SEARCH_NEAR_SPEED_M_S) * 1000.0:.1f} mm/s.
+  Contact-capable v19 cage-primary diagnostic package; not a completed reproduction claim.
+  Reuses the Step5b v3 contact-search/latch/25.3 scaffold.
+  After first-contact latch, it does not run the 20 mm lift, 25.2 attitude
+  correction, or 24.3/24.4 second contact search.
+  no lift and no second contact search remain deliberate requirements.
   Stage 25.3 is deadband contact acquire: bridge filters normal_load and
   commands only locked-normal Cartesian vx/vy/vz in registers 37..39. It may
   actively recover while raw normal_load is between {LINE_ENTRY_RECOVERY_NORMAL_LOAD_MIN_N:.1f} N and {LINE_ENTRY_RECOVERY_NORMAL_LOAD_MAX_N:.1f} N,
   with force_norm <= {LINE_ENTRY_FORCE_NORM_STOP_N:.1f} N.
-  TP enters 25.0 only after filtered normal_load is between {LINE_ENTRY_NORMAL_LOAD_MIN_N:.1f} N
-  and {LINE_ENTRY_NORMAL_LOAD_MAX_N:.1f} N, with force_norm <= {LINE_ENTRY_FORCE_NORM_MAX_N:.1f} N,
+  TP enters 25.0 only after the bridge-side preload register reports filtered
+  normal_load between {LINE_ENTRY_NORMAL_LOAD_MIN_N:.1f} N and {LINE_ENTRY_NORMAL_LOAD_MAX_N:.1f} N,
+  raw normal_load is sanity-checked between {LINE_ENTRY_RAW_SANITY_MIN_N:.1f} N and {LINE_ENTRY_RAW_SANITY_MAX_N:.1f} N,
+  with force_norm <= {LINE_ENTRY_FORCE_NORM_MAX_N:.1f} N,
   and bridge cmd_valid is true for {LINE_ENTRY_REQUIRED_S:.3f} s.
   Stage 25.0 is different from Step5b: it consumes 37..42 as qd0..qd5 rad/s
-  and executes speedj, not Cartesian speedl. v15a bridge must compute online
+  and executes speedj, not Cartesian speedl. v19 bridge must compute online
   broad AABB TCP cage distance/braking margin from Step5b/Step6b success traces,
-  log _step5d_tcp_cage_* fields, keep cmd_valid=1 with zero qdot during bounded
-  recoverable predicted-speed/contact uncertainty, freeze path_time_s, and set
-  stop_request with zero qdot for cage margin exhaustion, semantic failure,
-  hard force/torque/joint/sensor gates, actual speed dwell, repeated hold
-  exhaustion, hold duty/event/consecutive exhaustion, or timeout.
+  use cage-primary active reacquire, and log _step5d_tcp_cage_*,
+  _step5d_active_reacquire_s, and _step5d_no_contact_s fields. Low-load or
+  no-contact inside the cage freezes path_time_s, holds the force integrator,
+  applies a reacquire predicted-speed cap, and stays in the solver path;
+  hold duty is diagnostic only for legacy hold actions. stop_request remains
+  hard for cage margin exhaustion, semantic failure, hard force/torque/joint/
+  sensor gates, heartbeat/cmd_valid failure, Dashboard mismatch, or timeout.
+  Stage 25.0 diagnostic progress target is 10 s.
+  Stage 22 entry movel is 0.060 m/s at 0.090 m/s^2; Stage 24 far search is
+  {abs(FIRST_SEARCH_FAR_SPEED_M_S):.4f} m/s down, near search remains {abs(FIRST_SEARCH_NEAR_SPEED_M_S):.4f} m/s.
 
 Bridge profile:
   --step4e-version {BRIDGE_VERSION} --step4e-path-shape cycloid
-  --target-force-n 5.0
+  --target-force-n {TARGET_FORCE_N:.1f}
   --step4e-normal-follow-mode filtered_live
-  --step4e-normal-filter-alpha 0.35
+  --step4e-normal-filter-alpha {BRIDGE_NORMAL_FILTER_ALPHA:.2f}
   --step4e-normal-min-force-n 2.0
 
 Safety:
   qdot cap: {QDOT_CAP_RAD_S:.3f} rad/s
   speedj acceleration: {JOINT_ACCEL_RAD_S2:.3f} rad/s^2
   Raw normal guard: {RAW_NORMAL_GUARD_N:.0f} N. Force norm guard: {FORCE_NORM_GUARD_N:.0f} N. Torque guard: {TORQUE_NORM_GUARD_NM:.1f} Nm.
-  50 N is the raw-normal hard guard; force norm hard guard is 60 N.
+  100 N raw-normal/force-norm and 4.0 Nm torque are sensor hard guards only;
+  human safety still depends on the external cage/operator/E-stop boundary.
   No UR zero_ftsensor(), no Kunwei tare/zero/config, no TCP/payload write.
   This package is not a bridge-start or TP-Play authorization.
 
@@ -456,17 +492,19 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str) -> None:
         "speedj line control": "speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]" in script,
         "line no cartesian speedl": "speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy" not in script,
         "qdot cap": f"local qdot_cap_rad_s = {QDOT_CAP_RAD_S:.3f}" in script,
-        "v15a Stage25 contact-safety note": "STAGE25_CONTACT_SAFETY" in script
-        and "cmd_valid=1 zero-qdot hold" in script
-        and "recoverable predicted-speed/contact uncertainty" in script
+        "v19 Stage25 cage-primary note": "STAGE25_CONTACT_SAFETY" in script
+        and "active_reacquire_solver" in script
+        and "low-load/no-contact" in script
+        and "reacquire predicted-speed cap" in script
         and "online broad AABB TCP cage" in script
         and "cage margin exhaustion" in script
-        and "hold duty/event/consecutive exhaustion" in script
-        and "actual speed dwell" in script
+        and "active reacquire/no-contact diagnostics" in script
+        and "_step5d_active_reacquire_s" in txt
+        and "_step5d_no_contact_s" in txt
         and "stop_request" in script,
-        "orientation skip gate": "local skip_lift_attitude = 0" in script
-        and f"local orientation_skip_error_rad = {ORIENTATION_SKIP_ERROR_RAD:.6f}" in script
-        and "if stop_reason == 0.0 and skip_lift_attitude == 0:" in script,
+        "no lift attitude cycle": "local skip_lift_attitude = 0" not in script
+        and "write_output_float_register(35, 25.1)" not in script
+        and "write_output_float_register(35, 25.2)" not in script,
         "force-settle entry gate": f"local line_entry_normal_load_min_n = {LINE_ENTRY_NORMAL_LOAD_MIN_N:.3f}" in script
         and f"local line_entry_normal_load_max_n = {LINE_ENTRY_NORMAL_LOAD_MAX_N:.3f}" in script
         and f"local line_entry_force_norm_max_n = {LINE_ENTRY_FORCE_NORM_MAX_N:.3f}" in script
@@ -478,20 +516,24 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str) -> None:
         and "local normal_load = target_force - force_error" in script
         and "stop_reason = 17.0" in script
         and "speedl([cmd_vx, cmd_vy, cmd_vz, 0.0, 0.0, 0.0]" in script,
-        "second contact slow search": (
-            "codex_step5d_down_search(24.3, 24.4, 0.035, 0.000, 45.000, -0.0025, -0.0025)" in script
-            and "codex_echo_step4e(stop_reason)" in script
-        ),
+        "no second contact search": "codex_step5d_down_search(24.3, 24.4" not in script,
         "force envelope auto-home": "elif stop_reason == 17.0:\n    return True" in script,
         "v31 scaffold retained": "first-contact normal latch" in script
-        and "25.2 attitude correction" in script
-        and "25.3 bridge deadband acquire into the 2-15N contact window" in script,
+        and "no lift/25.2 attitude cycle and no second contact search" in script
+        and "25.3 bridge deadband acquire into the 8-13N filtered preload window with 7.5-14N raw sanity" in script,
+        "entry and far-search speedup": f"movel(entry_xy_pose, a={ENTRY_MOVEL_ACCEL_M_S2:.3f}, v={ENTRY_MOVEL_SPEED_M_S:.3f}, r=0.0)" in script
+        and f"40.000, {FIRST_SEARCH_FAR_SPEED_M_S:.4f}, {FIRST_SEARCH_NEAR_SPEED_M_S:.4f})" in script
+        and "Stage 22 entry movel is 0.060 m/s" in txt,
+        "10s diagnostic window": "local line_runtime_limit_s = 15.000" in script
+        and "local line_success_progress_m = 10.000000000" in script
+        and "Stage 25.0 diagnostic progress target is 10 s" in txt,
         "raw contact guards": f"codex_abs(normal_force) > {RAW_NORMAL_GUARD_N:.1f}" in script
         and f"force_norm > {FORCE_NORM_GUARD_N:.1f}" in script
         and f"torque_norm > {TORQUE_NORM_GUARD_NM:.1f}" in script,
         "not quarantine": "stop_only_quarantine" not in script + txt,
         "no stale package": "step5b_contact_cycloid_baseline_v1" not in script + txt,
         "no stale step5b v2 package": "step5b_contact_cycloid_baseline_v2" not in script + txt,
+        "no stale step5b v3 package": "step5b_contact_cycloid_baseline_v3" not in script + txt,
         "no stale v9/v10/v11 identity": "STEP5D_STRICT_RNN_LIVEPREP_V9" not in script + txt
         and "step5d_strict_rnn_liveprep_v9" not in script + txt
         and "STEP5D_STRICT_RNN_LIVEPREP_V10" not in script + txt
@@ -505,6 +547,21 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str) -> None:
         "no stale v14 identity": "STEP5D_STRICT_RNN_LIVEPREP_V14" not in script + txt
         and "step5d_strict_rnn_liveprep_v14" not in script + txt
         and "liveprep v14" not in script + txt,
+        "no stale v15 identity": "STEP5D_STRICT_RNN_LIVEPREP_V15" not in script + txt
+        and "step5d_strict_rnn_liveprep_v15" not in script + txt
+        and "liveprep v15" not in script + txt,
+        "no stale v15a identity": "STEP5D_STRICT_RNN_LIVEPREP_V15A" not in script + txt
+        and "step5d_strict_rnn_liveprep_v15a" not in script + txt
+        and "liveprep v15a" not in script + txt,
+        "no stale v16 identity": "STEP5D_STRICT_RNN_LIVEPREP_V16" not in script + txt
+        and "step5d_strict_rnn_liveprep_v16" not in script + txt
+        and "liveprep v16" not in script + txt,
+        "no stale v17 identity": "STEP5D_STRICT_RNN_LIVEPREP_V17" not in script + txt
+        and "step5d_strict_rnn_liveprep_v17" not in script + txt
+        and "liveprep v17" not in script + txt,
+        "no stale v18 identity": "STEP5D_STRICT_RNN_LIVEPREP_V18" not in script + txt
+        and "step5d_strict_rnn_liveprep_v18" not in script + txt
+        and "liveprep v18" not in script + txt,
         "low-load recovery does not stop": "or normal_load < line_entry_recovery_normal_load_min_n" not in script,
     }
     failed = [label for label, ok in checks.items() if not ok]

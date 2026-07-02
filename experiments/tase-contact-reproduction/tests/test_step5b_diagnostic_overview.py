@@ -176,9 +176,37 @@ class Step5bDiagnosticOverviewTest(unittest.TestCase):
             self.assertFalse(payload["panels"]["Raw signed Fz tracking"]["supported"])
             self.assertTrue(payload["panels"]["Projected normal load"]["supported"])
 
-    def test_operator_postprocess_hooks_step5b_v2_only(self) -> None:
+    def test_mac_transfer_is_suppressed_when_run_did_not_complete(self) -> None:
+        tool = import_tool()
+        with tempfile.TemporaryDirectory(prefix="step5b_diag_incomplete_") as tmp:
+            run_dir = Path(tmp)
+            write_full_fixture(run_dir)
+            (run_dir / "summary.json").write_text(
+                json.dumps(
+                    {
+                        "stop_reason": "step5d_contact_safety:hold_duty_limit",
+                        "parse_errors": 0,
+                        "rtde_reconnect_event_count": 0,
+                        "rtde_output_timing": {"rate_hz": 500.0},
+                        "bridge_write_timing": {"rate_hz": 500.0},
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            rc = tool.main([str(run_dir), "--mac-target", "example.invalid:/tmp/step5b_plots"])
+
+            self.assertEqual(rc, 0)
+            payload = json.loads((run_dir / "step5b_diagnostic_overview_summary.json").read_text(encoding="utf-8"))
+            self.assertFalse(payload["completed_run"])
+            self.assertEqual(payload["mac_transfer"]["attempted"], False)
+            self.assertTrue(payload["mac_transfer"]["skipped"])
+            self.assertEqual(payload["mac_transfer"]["bridge_stop_reason"], "step5d_contact_safety:hold_duty_limit")
+
+    def test_operator_postprocess_hooks_step5b_v2_and_v3(self) -> None:
         operator = (ROOT / "scripts" / "step4e-line-v1-operator.sh").read_text(encoding="utf-8")
-        self.assertIn('if [[ "${STEP4E_VERSION}" == "step5b_v2" ]]; then', operator)
+        self.assertIn('if [[ "${STEP4E_VERSION}" == "step5b_v2" || "${STEP4E_VERSION}" == "step5b_v3" ]]; then', operator)
         self.assertIn('tools/build_step5b_diagnostic_overview.py', operator)
         self.assertIn('STEP5B_DIAGNOSTIC_SEND_MAC="${STEP5B_DIAGNOSTIC_SEND_MAC:-1}"', operator)
         self.assertIn('STEP5B_DIAGNOSTIC_MAC_TARGET="${STEP5B_DIAGNOSTIC_MAC_TARGET:-andyl@100.127.94.11:/Users/andyl/Downloads/ur10e_step5b_plots/}"', operator)

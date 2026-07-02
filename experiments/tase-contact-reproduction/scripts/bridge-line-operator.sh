@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction"
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "${SCRIPT_PATH}")" && pwd)"
+ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 RUN_ROOT="${ROOT}/runs"
 STAMP="$(date +%Y%m%d_%H%M%S)"
 ROBOT_HOST="${ROBOT_HOST:-192.168.1.18}"
@@ -23,8 +25,7 @@ case "${BRIDGE_PROFILE}" in
     BRIDGE_PROFILE="step5b_v1"
     ;;
   5d|step5d|step5d-liveprep|step5d_liveprep)
-    echo "refusing Step5d liveprep alias: no current package after step5d_strict_rnn_liveprep_v15a hold_duty_limit stop; analyze v15a and make a new current package or set an explicit retained BRIDGE_PROFILE only for evidence replay"
-    exit 40
+    BRIDGE_PROFILE="step5d_strict_rnn_liveprep_v19"
     ;;
   5c-dry|5c-dryrun|step5c-dryrun|step5c_speedj_dryrun_v1|speedj-dryrun|speedj_dryrun)
     echo "refusing Step5c dry-run alias: DLS/Jacobian mapping is quarantined after wrong XY/Z live motion"
@@ -44,15 +45,26 @@ esac
 BRIDGE_DURATION_S="${BRIDGE_DURATION_S:-180}"
 BRIDGE_BACKGROUND_PUSH_AFTER_LIVE="${BRIDGE_BACKGROUND_PUSH_AFTER_LIVE:-0}"
 BRIDGE_NORMAL_COMMAND_SIGN="${BRIDGE_NORMAL_COMMAND_SIGN:-1}"
-MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-50}"
-MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-60}"
-MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-3.0}"
+if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v18" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v19" ]]; then
+  MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-100}"
+  MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-100}"
+  MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-4.0}"
+else
+  MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-50}"
+  MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-60}"
+  MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-3.0}"
+fi
 BRIDGE_ORIENTATION_GAIN="${BRIDGE_ORIENTATION_GAIN:-0.20}"
 BRIDGE_ORIENTATION_WX_SIGN="${BRIDGE_ORIENTATION_WX_SIGN:-1}"
 BRIDGE_ORIENTATION_WY_SIGN="${BRIDGE_ORIENTATION_WY_SIGN:-1}"
 BRIDGE_LINE_SPEED_M_S="${BRIDGE_LINE_SPEED_M_S:-0.003}"
 BRIDGE_LINE_SETTLE_S="${BRIDGE_LINE_SETTLE_S:-0.0}"
 BRIDGE_STAGE25_ONLY="${BRIDGE_STAGE25_ONLY:-0}"
+if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v18" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v19" ]]; then
+  BRIDGE_TARGET_FORCE_N="${BRIDGE_TARGET_FORCE_N:-${STEP4E_TARGET_FORCE_N:-12.0}}"
+else
+  BRIDGE_TARGET_FORCE_N="${BRIDGE_TARGET_FORCE_N:-${STEP4E_TARGET_FORCE_N:-5}}"
+fi
 BRIDGE_MOTION_LIMIT_M_S="${BRIDGE_MOTION_LIMIT_M_S:-0.004}"
 BRIDGE_TOTAL_LINEAR_LIMIT_M_S="${BRIDGE_TOTAL_LINEAR_LIMIT_M_S:-0.006}"
 BRIDGE_NORMAL_VELOCITY_LIMIT_M_S="${BRIDGE_NORMAL_VELOCITY_LIMIT_M_S:-0.003}"
@@ -88,13 +100,13 @@ elif [[ "${BRIDGE_PROFILE}" == "step4g_v1" ]]; then
   BRIDGE_PATH_SHAPE="eight"
 elif [[ "${BRIDGE_PROFILE}" == "step5b_v1" ]]; then
   BRIDGE_PATH_SHAPE="cycloid"
-elif [[ "${BRIDGE_PROFILE}" == "step5c_speedj_dryrun_v1" || "${BRIDGE_PROFILE}" == "step5c_joint_rnn_cycloid_v1" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v1" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v2" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v3" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v4" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v5" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v6" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v7" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v8" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v9" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v10" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v11" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v12" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v13" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v14" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v15" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v15a" ]]; then
+elif [[ "${BRIDGE_PROFILE}" == "step5c_speedj_dryrun_v1" || "${BRIDGE_PROFILE}" == "step5c_joint_rnn_cycloid_v1" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v1" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v2" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v3" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v4" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v5" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v6" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v7" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v8" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v9" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v10" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v11" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v12" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v13" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v14" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v15" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v15a" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v16" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v17" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v18" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v19" ]]; then
   BRIDGE_PATH_SHAPE="cycloid"
 elif [[ "${BRIDGE_PROFILE}" == "step6b_v1" || "${BRIDGE_PROFILE}" == "step6b_v2" ]]; then
   BRIDGE_PATH_SHAPE="eight"
 fi
 if [[ -z "${BRIDGE_NORMAL_FOLLOW_MODE}" ]]; then
-  if [[ "${BRIDGE_PROFILE}" == "v30" || "${BRIDGE_PROFILE}" == "v31" || "${BRIDGE_PROFILE}" == "step4f_v1" || "${BRIDGE_PROFILE}" == "step4g_v1" || "${BRIDGE_PROFILE}" == "step5b_v1" || "${BRIDGE_PROFILE}" == "step5c_joint_rnn_cycloid_v1" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v1" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v2" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v3" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v4" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v5" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v6" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v7" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v8" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v9" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v10" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v11" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v12" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v13" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v14" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v15" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v15a" || "${BRIDGE_PROFILE}" == "step6b_v1" || "${BRIDGE_PROFILE}" == "step6b_v2" ]]; then
+  if [[ "${BRIDGE_PROFILE}" == "v30" || "${BRIDGE_PROFILE}" == "v31" || "${BRIDGE_PROFILE}" == "step4f_v1" || "${BRIDGE_PROFILE}" == "step4g_v1" || "${BRIDGE_PROFILE}" == "step5b_v1" || "${BRIDGE_PROFILE}" == "step5c_joint_rnn_cycloid_v1" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v1" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v2" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v3" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v4" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v5" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v6" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v7" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v8" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v9" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v10" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v11" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v12" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v13" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v14" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v15" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v15a" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v16" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v17" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v18" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v19" || "${BRIDGE_PROFILE}" == "step6b_v1" || "${BRIDGE_PROFILE}" == "step6b_v2" ]]; then
     BRIDGE_NORMAL_FOLLOW_MODE="filtered_live"
   else
     BRIDGE_NORMAL_FOLLOW_MODE="locked"
@@ -161,7 +173,7 @@ fi
 if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v10" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v11" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step5/step5d/${BRIDGE_PROFILE}.urp"
 fi
-if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v12" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v13" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v14" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v15" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v15a" ]]; then
+if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v12" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v13" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v14" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v15" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v15a" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v16" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v17" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v18" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v19" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step5/${BRIDGE_PROFILE}.urp"
 fi
 if [[ "${BRIDGE_PROFILE}" == "step6b_v1" ]]; then
@@ -232,6 +244,14 @@ elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v15" ]]; then
   SEARCH_DESCRIPTION="Retained Step5d v15 controller-readback evidence with audit gaps: online cage and bounded hold counters were incomplete; superseded by v15a before any bridge run"
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v15a" ]]; then
   SEARCH_DESCRIPTION="Retained Step5d v15a live-run evidence: online broad AABB TCP cage/braking margin and bounded zero-qdot hold/reacquire stopped by hold_duty_limit on 2026-06-16; no current retry authorization"
+elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v16" ]]; then
+  SEARCH_DESCRIPTION="Retained Step5d v16 live-run evidence: Step5b v3 no-lift/no-25.2/no-second-search scaffold, 5-20N entry window, stopped by hold_duty_limit"
+elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v17" ]]; then
+  SEARCH_DESCRIPTION="Retained Step5d v17 live-run evidence: Step5b v3 no-lift/no-25.2/no-second-search scaffold, 8-18N filtered preload, stopped by contact-safety hold_duty_limit"
+elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v18" ]]; then
+  SEARCH_DESCRIPTION="Retained Step5d v18 cage-primary diagnostic evidence: Step5b v3 no-lift/no-25.2/no-second-search scaffold, 8-18N filtered preload with 7.5-19N raw sanity, stopped by predicted TCP speed during active reacquire"
+elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v19" ]]; then
+  SEARCH_DESCRIPTION="Current Step5d v19 cage-primary diagnostic: Step5b v3 no-lift/no-25.2/no-second-search scaffold, Stage22 entry movel 0.060 m/s, Stage24 far search 0.0225 m/s, 8-13N filtered preload with 7.5-14N raw sanity, 10s strict RNN speedj diagnostic, 100N/4Nm hard sensor guards, and active reacquire predicted-speed cap at 0.035 m/s inside the online TCP cage"
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v8" ]]; then
   SEARCH_DESCRIPTION="Retained Step5d v8 failure evidence: Stage 25.3 bridge force-PID settle used Cartesian registers 37..39 but low-load dropout below 0.5N could stop with reason 17 before Stage 25.0"
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v4" ]]; then
@@ -324,6 +344,8 @@ Bridge lifecycle:
   * bridge starts Kunwei/RTDE bridge immediately, then waits up to 45 s for TP Play.
   * line-bridge-fast requires a fresh long-check cache and only runs short
     loaded-program/safety/no-old-bridge checks at trigger time.
+  * BRIDGE_SKIP_BENCH_GATE=1 skips long bench-gate refresh for prepared live
+    triggers; use prep-long-checks to refresh the cache when bench state changed.
   * autowatch waits for TP Play before starting the bridge; keep it for manual
     testing only, not for the normal 开bridge trigger.
   * bridge is stopped when TP program stops, safety is not NORMAL, or Dashboard is unreachable.
@@ -335,7 +357,7 @@ Step4e motion boundary:
   axis: no-contact four-quadrant attitude axis isolation.
   hold: contact search, then 12 s force/orientation hold.
   line: contact search, then XY path from the selected Step4e/Step4f/Step4g bridge reference.
-  force target = 5 N for hold/line only; geo contact witness triggers around 1-1.5 N.
+  force target = ${BRIDGE_TARGET_FORCE_N} N for hold/line only; geo contact witness triggers around 1-1.5 N.
   raw normal guard = ${MAX_NORMAL_FORCE_N} N, force norm guard = ${MAX_FORCE_NORM_N} N, torque guard = ${MAX_TORQUE_NORM_NM} Nm.
 USAGE
 }
@@ -491,6 +513,10 @@ PY
 }
 
 run_bench_gate_cached() {
+  if [[ "${BRIDGE_SKIP_BENCH_GATE:-0}" == "1" || "${BRIDGE_SKIP_LONG_CHECKS:-0}" == "1" ]]; then
+    echo "[operator] skipping long bench gate by request (BRIDGE_SKIP_BENCH_GATE=${BRIDGE_SKIP_BENCH_GATE:-0}, BRIDGE_SKIP_LONG_CHECKS=${BRIDGE_SKIP_LONG_CHECKS:-0})"
+    return 0
+  fi
   if long_gate_cache_valid; then
     return 0
   fi
@@ -498,6 +524,10 @@ run_bench_gate_cached() {
 }
 
 require_bench_gate_cache() {
+  if [[ "${BRIDGE_SKIP_BENCH_GATE:-0}" == "1" || "${BRIDGE_SKIP_LONG_CHECKS:-0}" == "1" ]]; then
+    echo "[operator] skipping long bench gate cache requirement by request (BRIDGE_SKIP_BENCH_GATE=${BRIDGE_SKIP_BENCH_GATE:-0}, BRIDGE_SKIP_LONG_CHECKS=${BRIDGE_SKIP_LONG_CHECKS:-0})"
+    return 0
+  fi
   if long_gate_cache_valid; then
     return 0
   fi
@@ -683,9 +713,11 @@ PY
         stop_bridge_process "${bridge_pid}" "safety mode is not NORMAL"
         return 0
       elif [[ "${rc}" == "21" ]]; then
-        echo "[operator] loaded program is no longer expected Step4e ${BRIDGE_MODE}"
-        stop_bridge_process "${bridge_pid}" "loaded program mismatch"
-        return 0
+        if [[ "${seen_running}" == "1" ]]; then
+          echo "[operator] loaded program is no longer expected Step4e ${BRIDGE_MODE}"
+          stop_bridge_process "${bridge_pid}" "loaded program mismatch"
+          return 0
+        fi
       fi
     fi
     if [[ "${seen_running}" == "0" ]]; then
@@ -777,7 +809,7 @@ run_bridge_for_mode() {
     --rtde-hz 500 \
     --socket-timeout-s 0.0 \
     --sensor-stale-s 0.10 \
-    --target-force-n 5 \
+    --target-force-n "${BRIDGE_TARGET_FORCE_N}" \
     --normal-axis fz \
     --normal-sign 1 \
     --max-normal-force-n "${MAX_NORMAL_FORCE_N}" \
@@ -897,7 +929,7 @@ Motion/control:
   preview = no motion, geo/hold/line setup = ${SEARCH_DESCRIPTION}
   path shape = ${BRIDGE_PATH_SHAPE}; line XY speed command = ${BRIDGE_LINE_SPEED_M_S} m/s for line shape, path cap = ${BRIDGE_MOTION_LIMIT_M_S} m/s, total linear cap = ${BRIDGE_TOTAL_LINEAR_LIMIT_M_S} m/s
   speedl acceleration = 300 mm/s^2, hold time = 2 ms
-  force target = 5 N for hold/line only; geo contact witness triggers around 1-1.5 N
+  force target = ${BRIDGE_TARGET_FORCE_N} N for hold/line only; geo contact witness triggers around 1-1.5 N
   raw normal guard = ${MAX_NORMAL_FORCE_N} N, force norm guard = ${MAX_FORCE_NORM_N} N, torque guard = ${MAX_TORQUE_NORM_NM} Nm
   attitude proxy = bounded wx/wy velocity command, gain = ${BRIDGE_ORIENTATION_GAIN}, angular limit = ${BRIDGE_ANGULAR_LIMIT_RAD_S} rad/s, wx sign = ${BRIDGE_ORIENTATION_WX_SIGN}, wy sign = ${BRIDGE_ORIENTATION_WY_SIGN}, yaw frozen
   normal follow = ${BRIDGE_NORMAL_FOLLOW_MODE}, tau = ${BRIDGE_NORMAL_FILTER_TAU_S}s, max rate = ${BRIDGE_NORMAL_MAX_RATE_RAD_S} rad/s, min force = ${BRIDGE_NORMAL_MIN_FORCE_N} N, gate = ${BRIDGE_NORMAL_MAX_ANGLE_FROM_LATCH_DEG} deg, friction projection = ${BRIDGE_NORMAL_FRICTION_PROJECTION}

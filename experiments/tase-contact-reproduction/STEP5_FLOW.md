@@ -3,15 +3,24 @@
 `config/current_stage.json` currently selects no runnable Step5c joint-space
 route. The diagnostic DLS dry-run is quarantined after the 2026-06-13 live run
 showed wrong XY/Z motion. Step5d is the named completion target for the
-complete strict TASE RNN reproduction. `step5d_strict_rnn_liveprep_v15a` is now
-retained live-run evidence after the 2026-06-16 bridge entered TP PLAYING and
-Stage25, then stopped by `step5d_contact_safety:hold_duty_limit`. There is no
-current Step5d live-prep package after that stop unless a new package is
-delivered or an explicit same-version retry decision is recorded. Bridge start,
-TP program load/Play, robot motion, payload/TCP writes, and `zero_ftsensor()`
-remain separate explicit live gates.
+complete strict TASE RNN reproduction. `step5d_strict_rnn_liveprep_v17` and
+`step5d_strict_rnn_liveprep_v18` are retained live-run evidence packages after
+their 2026-07-02 stops. `step5d_strict_rnn_liveprep_v19` is the current
+TP/script cage-primary diagnostic package after controller upload and
+read-back verification on 2026-07-02. It keeps the 12 N
+no-lift/no-25.2/no-second-search scaffold, speeds Stage22 entry movel by 1.5x,
+speeds Stage24 far search by 1.5x, and changes Stage25.3 release to filtered
+`8-13 N`, raw sanity `7.5-14 N`, force_norm `<=25 N`, and `0.100 s` dwell.
+Stage25.0 is a 10 s diagnostic with 100 N/100 N/4.0 Nm sensor hard guards,
+low-load/no-contact active reacquire diagnostics, v19 bridge-side initial
+locked-normal settle before filtered-live normal follow, and a 0.035 m/s
+active-reacquire predicted TCP speed cap before the existing 0.050 m/s hard
+stop. The dominant projector bug was fixed in bridge-side Python
+(`Phi = R_d @ Phi_E @ R_d.T`), so this TP package inherits that fix but does
+not encode it. Bridge start, TP program load/Play, robot motion, payload/TCP
+writes, and `zero_ftsensor()` remain separate explicit live gates.
 The full reproduction target remains separate and not complete.
-Step4f, Step4g, Step5b, and Step5d v1-v15a remain retained evidence packages
+Step4f, Step4g, Step5b, and Step5d v1-v17 remain retained evidence packages
 only. The ROS2 source package for the current route is now
 `src/ur10e_example_controllers`; stage ids such as
 `step5a_ros2_remote_no_contact_v1` remain historical/experimental mapping
@@ -161,6 +170,10 @@ instead of preserving the later 22 s TP v3 timing.
 | `step5d_strict_rnn_liveprep_v14` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained live-run evidence: first actual TCP speed violation sample holds zero qdot and freezes path time; second sample/`0.004 s` dwell stops; predicted TCP speed stops immediately; TP hard guards are `50/60 N` and 25.3 recovery force stop is `25 N`. 2026-06-15 run stopped by `predicted_tcp_speed_watchdog`; v14 is not current. |
 | `step5d_strict_rnn_liveprep_v15` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained controller-readback evidence only: audit found the cage hook was not truly online and bounded hold burden/counters were incomplete. Superseded by v15a before any bridge run. |
 | `step5d_strict_rnn_liveprep_v15a` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained live-run evidence: online broad AABB TCP cage/braking margin and bounded zero-qdot hold/reacquire were active. The 2026-06-16 bridge entered Stage25 for about `0.998 s` and stopped by `hold_duty_limit`; v15a is not current. |
+| `step5d_strict_rnn_liveprep_v16` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained live-run evidence: no-lift/no-25.2/no-second-search 12 N package entered Stage25.0 for about `0.998 s`, then stopped by `hold_duty_limit` after low-load/no-contact dominated Stage25.0; v16 is not current. |
+| `step5d_strict_rnn_liveprep_v17` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained live-run evidence: read-back verified package entered Stage25.0 but stopped by `hold_duty_limit`; later audit identified the bridge-side projector bug as the dominant B-class divergence root cause. |
+| `step5d_strict_rnn_liveprep_v18` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained live-run evidence: stopped by `cage_primary_tcp_speed_hard_stop` when predicted TCP speed reached about `0.05045 m/s` during low/no-load active reacquire while actual TCP speed was about `0.0211 m/s`. |
+| `step5d_strict_rnn_liveprep_v19` | bridge+TP | true | false | strict TASE RNN | `v31_filtered_live` | Current read-back verified cage-primary diagnostic package: keeps 12 N target, uses 8-13 N filtered preload with 7.5-14 N raw sanity, speeds Stage22 entry movel and Stage24 far search by 1.5x, keeps 10 s Stage25.0 and 100 N/100 N/4.0 Nm sensor guards, and caps active-reacquire predicted TCP speed at 0.035 m/s before the 0.050 m/s hard stop. Pending live bridge evidence. |
 | `step5d_ros2_remote_shadow_v1` | ROS2 offline | true | false | ROS2 shadow replay | `v31_filtered_live` input logs | Diagnostic-only Step5d policy replay: replays v15a/v14/v11 and Step5b/Step6b CSVs, removes long zero-qdot hold recovery, but is not live-ready and must follow Step5b plumbing validation. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |
 
@@ -698,10 +711,51 @@ v15 permissive recovery goal but made it honest and bounded:
   `13.992 N`, normal force range about `-13.967..3.573 N`, and max torque norm
   about `0.370 Nm`.
 
-v15a is not current after the hold-duty stop. A future Step5d bridge needs
-either a new current package after analysis or an explicit same-version retry
-decision; TP program load/Play, robot motion, payload/TCP writes, and
-`zero_ftsensor()` remain separate explicit live gates.
+v15a is not current after the hold-duty stop.
+
+`step5d_strict_rnn_liveprep_v16` is retained live-run evidence. The 2026-07-02
+run `runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v16_20260702_150703`
+entered Stage25.0 for about `0.998 s`, then stopped with
+`stop_reason=step5d_contact_safety:hold_duty_limit` after the 5-20 N entry gate
+released around `8.35 N` and load dropped below the 5 N valid-contact threshold
+about `0.116 s` into Stage25.0.
+
+`step5d_strict_rnn_liveprep_v17` is retained live-run evidence after the
+2026-07-02 `hold_duty_limit` stop. The later root-cause audit fixed the
+bridge-side projector in `tools/step5d_paper_outer_loop.py`; v17 itself is not
+the retry target.
+
+`step5d_strict_rnn_liveprep_v18` is retained live-run evidence after the
+2026-07-02 `cage_primary_tcp_speed_hard_stop`: predicted TCP speed reached about
+`0.05045 m/s` during low/no-load active reacquire while actual TCP speed was
+about `0.0211 m/s`; the TCP cage still reported `inside_broad_tcp_cage`.
+
+`step5d_strict_rnn_liveprep_v19` is current controller-readback evidence for
+the next live attempt:
+
+- local generated triplet:
+  `programs/step5/step5d_strict_rnn_liveprep_v19.{script,txt,urp}`;
+- controller target:
+  `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v19.urp`;
+- read-back manifest:
+  `runs/controller_readback_step5d_strict_rnn_liveprep_v19_20260702_172839/manifest.json`;
+- source stamp: `2026-07-02T1728HKT_STEP5D_STRICT_RNN_LIVEPREP_V19`;
+- SHA match across local/controller/read-back:
+  `.script` `1b6ac5a3ca8d1112a07a689778ec1284e1680fc3fe8c1cd45089ba4305d8fe23`,
+  `.txt` `77bf9b192edf8ae33fcb78b31093ca288c5941148e04bcc1d9fd7c099e82f234`,
+  `.urp` `5f49cf27461b83f63c0a89f7d6582fba808eb85744c143d8caf63cc361452f38`;
+- Stage22 entry movel: `0.060 m/s` at `0.090 m/s^2`;
+- Stage24 far search: `0.0225 m/s` down; near search remains `0.0025 m/s`;
+- Stage25.3 release: bridge-side filtered preload `8-13 N`, raw sanity
+  `7.5-14 N`, force_norm `<=25 N`, and `cmd_valid` true for `0.100 s`;
+- Stage25.0 keeps target `12 N` and qdot cap `0.050 rad/s`, uses a 10 s
+  diagnostic window, online broad TCP cage, active reacquire/no-contact
+  diagnostics, 100 N/100 N/4.0 Nm sensor hard guards, initial locked-normal
+  settle before filtered-live normal follow, and active-reacquire predicted TCP
+  speed cap `0.035 m/s`.
+
+TP program load/Play, robot motion, payload/TCP writes, and `zero_ftsensor()`
+remain separate explicit live gates.
 
 Retained v10-v11 archive delivery status:
 
@@ -746,7 +800,8 @@ Archived v1-v11 delivery status:
   `runs/controller_readback_step5d_strict_rnn_liveprep_v8_20260615_193040`,
   and `runs/controller_readback_step5d_strict_rnn_liveprep_v9_20260615_202010`;
 - controller root cleanup: old root v1-v11 triplets were removed after archive
-  read-back verification; current root package identity is v12 only.
+  read-back verification; the root package identity at that archive point was
+  v12.
 - bridge/TP Play remain separate explicit operator actions. These read-backs
   verify package delivery only; they do not mark the full reproduction target
   complete.
@@ -792,12 +847,16 @@ On a valid trigger:
 
 ## Step5b Post-Run Diagnostic Bundle
 
-After each Step5b bridge run completes, Codex must generate a run-local
-one-large-figure diagnostic overview PNG plus JSON summary and send both
-directly to the Mac target used for prior Step5b plot handoffs:
+After each Step5b bridge run, Codex must generate a run-local
+one-large-figure diagnostic overview PNG plus JSON summary. Send both
+artifacts directly to the Mac target used for prior Step5b plot handoffs only
+when the run completed successfully:
 `andyl@100.127.94.11:/Users/andyl/Downloads/ur10e_step5b_plots/`.
-This is part of the default bridge-run completion workflow, not an optional
-follow-up request.
+This local diagnostic generation is part of the default bridge-run completion
+workflow, not an optional follow-up request. If the run stops early, hits a
+guard, times out, or is otherwise incomplete, do not send artifacts to Mac;
+keep the run-local PNG/JSON and record the skipped transfer with the stop
+reason.
 
 Use the active contact/path window for primary metrics and plots. Preserve the
 full raw logs, but label any first-to-last figure as context only. Include all

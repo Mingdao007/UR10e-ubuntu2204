@@ -136,6 +136,37 @@ class Step5dPaperOuterLoopTest(unittest.TestCase):
         self.assertGreater(press_accel[2], 0.0)
         self.assertLess(unload_accel[2], 0.0)
 
+    def test_projectors_are_base_frame_and_press_direction_survives_tool_down(self) -> None:
+        # Regression for the Stage25.0 divergence (v11-v16 live runs): with the
+        # tool z axis pointing down (R_d ~ 180 deg from identity) the previous
+        # R_d.T @ Phi_E projectors flipped the force channel into base frame
+        # "away from surface" whenever the load was below target. Geometry taken
+        # from the v16 live run at Stage25.0 entry (load 8.3N, target 12N,
+        # reaction normal ~ +z base, tool pressing down).
+        reaction_normal = (-0.053183, 0.024056, 0.998295)
+        output = compute_step5d_outer_loop(
+            Step5dOuterLoopConfig(kp=0.0, ko=0.0, kf=1.0, force_target_n=12.0),
+            Step5dOuterLoopState(),
+            self.make_inputs(
+                tcp_pose_base=(-0.4, -0.6, 0.2, 2.9, -1.2, 0.0),
+                force_tcp_n=(0.4, -0.4, 8.3),
+                control_reaction_normal_base=reaction_normal,
+            ),
+        )
+        n = np.asarray(reaction_normal, dtype=float)
+        n = n / np.linalg.norm(n)
+        # Phi_O / Phi_bar_O must be symmetric idempotent base-frame projectors.
+        for key in ("Phi_O", "Phi_bar_O"):
+            P = np.asarray(output.diagnostics[key], dtype=float)
+            np.testing.assert_allclose(P, P.T, atol=1e-12)
+            np.testing.assert_allclose(P @ P, P, atol=1e-12)
+        # Load below target: the commanded linear velocity must press toward
+        # the surface (against the reaction normal), never away from it.
+        self.assertGreater(output.diagnostics["e_f"], 0.0)
+        xdot_p = np.asarray(output.xdot_p, dtype=float)
+        self.assertGreater(np.linalg.norm(xdot_p), 0.0)
+        self.assertLess(float(xdot_p @ n), 0.0)
+
     def test_outer_loop_uses_control_normal_not_raw_force_for_orientation(self) -> None:
         output = compute_step5d_outer_loop(
             Step5dOuterLoopConfig(kp=0.0, ko=5.0, force_target_n=5.0),

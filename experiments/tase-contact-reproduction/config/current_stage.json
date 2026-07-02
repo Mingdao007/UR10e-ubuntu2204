@@ -1,29 +1,43 @@
 {
   "version": 2,
-  "updated_at": "2026-06-16T16:05:34+08:00",
+  "updated_at": "2026-07-02T17:28:39+08:00",
   "current_step": "Step5d",
-  "current_stage_id": "no_current_step5d_liveprep_after_v15a",
-  "program": null,
+  "current_stage_id": "step5d_strict_rnn_liveprep_v19",
+  "program": "step5d_strict_rnn_liveprep_v19",
   "flow_path": "STEP5_FLOW.md",
   "stage_table_path": "config/step5_stage_table.json",
-  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v15a.urp",
-  "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v15a.script",
-  "local_triplet": "programs/step5/step5d_strict_rnn_liveprep_v15a",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v19.urp",
+  "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v19.script",
+  "local_triplet": "programs/step5/step5d_strict_rnn_liveprep_v19",
   "bridge_profile": {
-    "step4e_version": "step5d_strict_rnn_liveprep_v15a",
+    "step4e_version": "step5d_strict_rnn_liveprep_v19",
     "step4e_path_shape": "cycloid",
     "step5d_qdot_limit_rad_s": 0.05,
-    "target_force_n": 5.0,
+    "target_force_n": 12.0,
     "normal_follow_mode": "filtered_live",
+    "normal_filter_alpha": 0.55,
+    "normal_follow_settle_s": 0.15,
+    "stage25_3_preload_gate": "filtered 8-13N, raw sanity 7.5-14N, force_norm <=25N, cmd_valid true for 0.100s",
+    "stage25_0_diagnostic_window_s": 10.0,
     "online_tcp_cage": "broad_stagewise_aabb_from_success_step5b_step6b",
-    "bounded_hold_policy": "finite event/consecutive/duty/repeated limits from offline success replay"
+    "cage_primary_policy": "low-load/no-contact inside positive cage margin freezes path_time, holds the force integrator, caps active-reacquire predicted TCP speed at 0.035 m/s, and remains active_reacquire_solver until hard guards trip",
+    "sensor_hard_guards": {
+      "raw_normal_n": 100.0,
+      "force_norm_n": 100.0,
+      "torque_norm_nm": 4.0
+    },
+    "step5d_reacquire_predicted_tcp_speed_cap_m_s": 0.035,
+    "stage22_entry_movel_speed_m_s": 0.06,
+    "stage22_entry_movel_accel_m_s2": 0.09,
+    "stage24_far_search_speed_m_s": -0.0225,
+    "stage24_near_search_speed_m_s": -0.0025
   },
-  "status": "step5d_v15a_retained_live_hold_duty_limit_no_current_package",
+  "status": "step5d_strict_rnn_liveprep_v19_controller_readback_verified_pending_live_bridge_run_not_reproduction_claim",
   "strict_rnn_status": {
     "stage_id": "step5d_strict_rnn_reproduction_v1",
     "blocked": true,
     "paper_truth_config": "config/step5d_liveprep_solver_gate.json",
-    "reason": "v15a is retained live-run evidence after the 2026-06-16 bridge stopped by hold_duty_limit; full Step5d reproduction remains separate and incomplete."
+    "reason": "v19 TP/script cage-primary diagnostic package is generated, uploaded, and controller read-back verified. Full Step5d reproduction remains incomplete until a successful live run completes."
   },
   "evidence": {
     "v11_escape_replay_summary": "runs/step5d_v11_escape_replay_20260615/summary.json",
@@ -35,9 +49,9 @@
     "v13_local_package_validated": true,
     "v13_controller_readback_verified": true,
     "sha256": {
-      ".script": "cbad5c358dd99617b48a21e16e7b65d971e07c3038c582ae91e2bfcd9306f249",
-      ".txt": "aa3f7192e22a893fe5aed603097f21f6eb5583064bbae3ba289338c967751bc7",
-      ".urp": "8dd90a7fba50d6d2e7b4d9bef2d933881a5523b63a9c91ad42dd2123f7ed4640"
+      ".script": "1b6ac5a3ca8d1112a07a689778ec1284e1680fc3fe8c1cd45089ba4305d8fe23",
+      ".txt": "77bf9b192edf8ae33fcb78b31093ca288c5941148e04bcc1d9fd7c099e82f234",
+      ".urp": "5f49cf27461b83f63c0a89f7d6582fba808eb85744c143d8caf63cc361452f38"
     },
     "v14_stamp": "2026-06-15T2310HKT_STEP5D_STRICT_RNN_LIVEPREP_V14",
     "v14_local_package_validated": true,
@@ -93,14 +107,158 @@
       "success_hold_duty_max_observed": 0.3163918060112362,
       "success_hold_event_count_max_observed": 309,
       "success_max_consecutive_hold_s_observed": 0.29999989800000293
+    },
+    "v16_stamp": "2026-07-02T1234HKT_STEP5D_STRICT_RNN_LIVEPREP_V16",
+    "v16_local_package_validated": true,
+    "v16_controller_readback_verified": true,
+    "v16_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_liveprep_v16_20260702_145838",
+    "v16_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v16_20260702_145838/manifest.json",
+    "v16_controller_readback_at": "2026-07-02T14:58:38+08:00",
+    "v16_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v16.urp",
+    "v16_local_triplet": "programs/step5/step5d_strict_rnn_liveprep_v16",
+    "v16_dry_run_validation": "local package valid; upload/read-back plan targets /programs/andyl/kunwei/step5",
+    "v16_delivery_status": "controller read-back verified",
+    "v16_sha256": {
+      ".script": "bb523a86b0b850c266b4aa7065955a54963f6d46a2058c6f0028b68d4c312fb1",
+      ".txt": "ecdae545828154a54c88ef82eb4fd11605679e256ec3e6c816ed82a148ddaa3e",
+      ".urp": "aa3b406f819077d337e22bcdbea2896604a195a674ae450826b224cf5856a694"
+    },
+    "v16_live_run_dir": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v16_20260702_150703",
+    "v16_live_run_summary": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v16_20260702_150703/summary.json",
+    "v16_live_run_csv": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v16_20260702_150703/bridge_rtde_500hz.csv",
+    "v16_live_diagnostic_overview_png": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v16_20260702_150703/step5b_diagnostic_overview.png",
+    "v16_live_diagnostic_overview_summary": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v16_20260702_150703/step5b_diagnostic_overview_summary.json",
+    "v16_live_stop_reason": "step5d_contact_safety:hold_duty_limit",
+    "v16_live_result": "Entered TP PLAYING with Safetymode NORMAL; Stage25.0 ran for about 0.998 s, but normal load fell from the 5.95-8.35 N range to low-load/no-contact after about 0.116 s, then v16 stopped through the bounded hold-duty hard stop.",
+    "v16_live_hold_burden": {
+      "hold_duty": 0.884,
+      "hold_event_count": 12,
+      "consecutive_hold_s": 0.386,
+      "total_hold_s": 0.884,
+      "stage25_low_load_hold_s": 0.8837318240257446,
+      "contact_safety_reason": "hold_duty_limit"
+    },
+    "v16_live_guard_stats": {
+      "stage25_normal_load_max_n": 8.35160836,
+      "stage25_normal_load_median_n": 0.45786094,
+      "stage25_force_norm_max_n": 8.35482197,
+      "run_force_norm_max_n": 9.769171682481737,
+      "run_torque_norm_max_nm": 0.37317487248951786,
+      "tcp_cage_reason": "inside_broad_tcp_cage",
+      "rtde_output_rate_hz": 470.36136624185815,
+      "bridge_write_rate_hz": 500.1354016617248
+    },
+    "v16_live_problem_summary": "v16 did not establish the 12 N target before releasing strict RNN line control. The 5-20 N entry gate released around 8.35 N; load dropped below the 5 N valid-contact threshold about 0.116 s into Stage25.0, so contact safety held zero qdot for 88.4% of active Stage25 and stopped by hold_duty_limit.",
+    "v17_stamp": "2026-07-02T1558HKT_STEP5D_STRICT_RNN_LIVEPREP_V17",
+    "v17_local_package_validated": true,
+    "v17_controller_readback_verified": true,
+    "v17_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_liveprep_v17_20260702_155806",
+    "v17_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v17_20260702_155806/manifest.json",
+    "v17_controller_readback_at": "2026-07-02T15:58:48+08:00",
+    "v17_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v17.urp",
+    "v17_local_triplet": "programs/step5/step5d_strict_rnn_liveprep_v17",
+    "v17_delivery_status": "controller read-back verified",
+    "v17_sha256": {
+      ".script": "31be0c4a128fc60b8949cfed9d63a808a3963120820f94f8b31322969ea28e68",
+      ".txt": "fd60dcd2f59be924c7dd5cf719ae7535bd5a9dd95ec6937e9d3d139e0b81a07f",
+      ".urp": "cf69aa1b1992de9943d43033a7a51e67e7f1146f57e0382a6cb31b15d71bc636"
+    },
+    "v17_preload_gate": {
+      "filtered_normal_load_min_n": 8.0,
+      "filtered_normal_load_max_n": 18.0,
+      "raw_normal_load_sanity_min_n": 7.5,
+      "raw_normal_load_sanity_max_n": 19.0,
+      "force_norm_max_n": 25.0,
+      "required_s": 0.1,
+      "raw_sanity_enforcement": "bridge withholds an in-window TP preload register value when raw normal_load is outside sanity bounds"
+    },
+    "v17_live_run_dir": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v17_20260702_160744",
+    "v17_live_stop_reason": "step5d_contact_safety:hold_duty_limit",
+    "v17_live_result": "Retained live-run evidence; Stage25.0 stopped by hold_duty_limit after low-load/no-contact dominated. Later audit identified the bridge-side projector bug as the dominant B-class divergence root cause.",
+    "v17_live_hold_burden": {
+      "hold_duty": 0.866,
+      "normal_load_lt_5_s": 0.8539996710023843,
+      "tcp_cage_braking_margin_min_m": 0.00979324358,
+      "tcp_cage_reason": "inside_broad_tcp_cage"
+    },
+    "step5d_projector_root_cause_fix": {
+      "status": "present_in_worktree",
+      "fixed_files": [
+        "tools/step5d_paper_outer_loop.py",
+        "tests/test_step5d_paper_outer_loop.py"
+      ],
+      "fixed_form": "Phi_O = R_d @ Phi_E @ R_d.T; Phi_bar_O = R_d @ Phi_bar_E @ R_d.T",
+      "validation": "python3 -m unittest tests.test_step5d_paper_outer_loop",
+      "tp_reupload_required_for_projector_fix": false
+    },
+    "v18_stamp": "2026-07-02T1646HKT_STEP5D_STRICT_RNN_LIVEPREP_V18",
+    "v18_local_package_validated": true,
+    "v18_controller_readback_verified": true,
+    "v18_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_liveprep_v18_20260702_164653",
+    "v18_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v18_20260702_164653/manifest.json",
+    "v18_controller_readback_at": "2026-07-02T16:46:53+08:00",
+    "v18_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v18.urp",
+    "v18_local_triplet": "programs/step5/step5d_strict_rnn_liveprep_v18",
+    "v18_delivery_status": "controller read-back verified",
+    "v18_sha256": {
+      ".script": "a322366c58785fa0822b7bbea1e3fc3be515e61a17ace0bf4a145baa66db52eb",
+      ".txt": "16e8b5828cc3eed243b69ab543e7c11921bba4753dc16ca0d05b8a58f390a647",
+      ".urp": "4946c198b9ba17acdb33f424bab29c1d6f0e12556a88fc17fc394bb73d439e5d"
+    },
+    "v18_preload_gate": {
+      "filtered_normal_load_min_n": 8.0,
+      "filtered_normal_load_max_n": 18.0,
+      "raw_normal_load_sanity_min_n": 7.5,
+      "raw_normal_load_sanity_max_n": 19.0,
+      "force_norm_max_n": 25.0,
+      "required_s": 0.1,
+      "raw_sanity_enforcement": "bridge withholds an in-window TP preload register value when raw normal_load is outside sanity bounds"
+    },
+    "v18_live_run_dir": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v18_20260702_170048",
+    "v18_live_stop_reason": "step5d_contact_safety:cage_primary_tcp_speed_hard_stop",
+    "v18_predicted_tcp_speed_stop_m_s": 0.0504484676,
+    "v18_actual_tcp_speed_at_stop_m_s": 0.0211134143,
+    "v18_retained_after_live_failure": true,
+    "v19_stamp": "2026-07-02T1728HKT_STEP5D_STRICT_RNN_LIVEPREP_V19",
+    "v19_local_package_validated": true,
+    "v19_controller_readback_verified": true,
+    "v19_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_liveprep_v19_20260702_172839",
+    "v19_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v19_20260702_172839/manifest.json",
+    "v19_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v19.urp",
+    "v19_local_triplet": "programs/step5/step5d_strict_rnn_liveprep_v19",
+    "v19_preload_gate": {
+      "filtered_normal_load_min_n": 8.0,
+      "filtered_normal_load_max_n": 13.0,
+      "raw_normal_load_min_n": 7.5,
+      "raw_normal_load_max_n": 14.0,
+      "force_norm_max_n": 25.0,
+      "required_s": 0.1
+    },
+    "v19_speed_changes": {
+      "stage22_entry_movel_speed_m_s": 0.06,
+      "stage22_entry_movel_accel_m_s2": 0.09,
+      "stage24_far_search_speed_m_s": -0.0225,
+      "stage24_near_search_speed_m_s": -0.0025
+    },
+    "v19_active_reacquire_policy": {
+      "freeze_outer_state_on_freeze_low_force": true,
+      "predicted_tcp_speed_cap_m_s": 0.035,
+      "hard_stop_predicted_tcp_speed_m_s": 0.05
     }
   },
   "bridge_trigger": {
-    "allowed_tokens": [],
-    "bridge_has_started": true,
-    "live_motion_authorized": false,
+    "allowed_tokens": [
+      "LIVE STEP5D STRICT RNN LIVEPREP"
+    ],
+    "bridge_has_started": false,
+    "live_motion_authorized": true,
     "zero_ftsensor_authorized": false,
-    "blocked_reason": "v15a bridge was run on 2026-06-16 and stopped by step5d_contact_safety:hold_duty_limit. No current Step5d live-prep package remains until a new package is analyzed and delivered, or an explicit same-version retry decision is recorded."
+    "blocked_reason": null,
+    "required_before_live": [
+      "P0 no-contact symbol verification",
+      "operator outside UR reach/cage boundary",
+      "TP program opened on controller read-back v19 package"
+    ]
   },
   "retained_steps": [
     {
@@ -112,7 +270,7 @@
       "step": "Step5",
       "flow_path": "STEP5_FLOW.md",
       "stage_table_path": "config/step5_stage_table.json",
-      "role": "no current Step5d live-prep package after v15a hold_duty_limit stop; v15a and earlier retained as evidence"
+      "role": "v19 TP/script package generated, controller read-back verified, and selected as current cage-primary diagnostic package; v18 and earlier retained as evidence"
     },
     {
       "step": "Step6",
@@ -122,10 +280,11 @@
     }
   ],
   "notes": [
+    "step5d_strict_rnn_liveprep_v19 is controller read-back verified and selected as the current Step5d TP/script cage-primary diagnostic package.",
+    "v19 speeds Stage22 entry movel by 1.5x and Stage24 far search by 1.5x, tightens preload release to 8-13N filtered / 7.5-14N raw, and caps active-reacquire predicted TCP speed at 0.035 m/s.",
     "This file is the single current pointer for UR/Kunwei package and bridge handoffs.",
-    "step5d_strict_rnn_liveprep_v15a is controller read-back verified and retained after a live bridge run stopped by hold_duty_limit.",
-    "v15a is not current after the 2026-06-16 bridge run and does not mark the full Step5d TASE reproduction complete.",
-    "A future Step5d live bridge needs either a new current package or an explicit same-version retry decision; TP program load/Play, robot motion, payload/TCP writes, and zero_ftsensor remain explicit live gates.",
-    "v15 remains retained controller-readback evidence with audit gaps; v14 remains retained live-run evidence for the predicted TCP speed watchdog stop."
+    "The projector root-cause fix is bridge-side Python; v19 inherits it but does not encode it in the TP package.",
+    "TP program load/Play, robot motion, payload/TCP writes, and zero_ftsensor remain explicit live gates.",
+    "v18 and earlier Step5d live-prep packages remain retained evidence only."
   ]
 }

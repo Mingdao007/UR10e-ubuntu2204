@@ -26,6 +26,13 @@ PNG_NAME = "step5b_diagnostic_overview.png"
 SUMMARY_NAME = "step5b_diagnostic_overview_summary.json"
 
 
+def is_completed_run(bridge_summary: dict[str, Any]) -> bool:
+    stop_reason = str(bridge_summary.get("stop_reason", "")).strip().lower()
+    if not stop_reason or "incomplete" in stop_reason:
+        return False
+    return stop_reason in {"complete", "fixture_complete"} or stop_reason.endswith(":complete") or stop_reason.endswith("_complete")
+
+
 def load_json(path: Path) -> dict[str, Any]:
     if not path.is_file():
         return {}
@@ -566,6 +573,7 @@ def build_figure(run_dir: Path, max_points: int = 5000) -> dict[str, Any]:
         "schema": "step5b_diagnostic_overview_v1",
         "run_dir": str(run_dir),
         "run_id": run_dir.name,
+        "completed_run": is_completed_run(bridge_summary),
         "active_window": {
             "note": window_note,
             "rows": int(active.shape[0]),
@@ -697,15 +705,31 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(payload, indent=2, sort_keys=True))
         return 2
     if args.mac_target:
-        transfer = transfer_to_mac(run_dir, payload, args.mac_target, timeout_s=float(args.transfer_timeout_s))
-        write_payload_with_transfer(run_dir, payload, transfer)
-        if transfer.get("ok"):
-            transfer = transfer_summary_to_mac(run_dir, transfer, timeout_s=float(args.transfer_timeout_s))
+        if not payload.get("completed_run"):
+            transfer = {
+                "attempted": False,
+                "ok": None,
+                "target": args.mac_target,
+                "skipped": True,
+                "issue": "run_not_completed; Mac transfer suppressed",
+                "bridge_stop_reason": payload.get("source_summaries", {}).get("bridge_stop_reason"),
+            }
             write_payload_with_transfer(run_dir, payload, transfer)
-        if transfer.get("ok"):
-            print(f"[step5b-diagnostic] sent overview to {args.mac_target}")
+            print(
+                f"[step5b-diagnostic] Mac transfer skipped: run not completed "
+                f"({transfer.get('bridge_stop_reason')})",
+                file=sys.stderr,
+            )
         else:
-            print(f"[step5b-diagnostic] Mac transfer failed: {transfer.get('issue')}", file=sys.stderr)
+            transfer = transfer_to_mac(run_dir, payload, args.mac_target, timeout_s=float(args.transfer_timeout_s))
+            write_payload_with_transfer(run_dir, payload, transfer)
+            if transfer.get("ok"):
+                transfer = transfer_summary_to_mac(run_dir, transfer, timeout_s=float(args.transfer_timeout_s))
+                write_payload_with_transfer(run_dir, payload, transfer)
+            if transfer.get("ok"):
+                print(f"[step5b-diagnostic] sent overview to {args.mac_target}")
+            else:
+                print(f"[step5b-diagnostic] Mac transfer failed: {transfer.get('issue')}", file=sys.stderr)
     print(json.dumps(payload, indent=2, sort_keys=True))
     return 0
 

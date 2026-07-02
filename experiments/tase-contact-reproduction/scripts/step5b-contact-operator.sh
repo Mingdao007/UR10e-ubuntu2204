@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT="/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction"
 BASE_OPERATOR="${ROOT}/scripts/step4e-line-v1-operator.sh"
-STEP5B_BRIDGE_VERSION="step5b_v2"
-EXPECTED_PROGRAM="/programs/andyl/kunwei/step5/step5b_contact_cycloid_baseline_v2.urp"
+STEP5B_BRIDGE_VERSION="step5b_v3"
+EXPECTED_PROGRAM="/programs/andyl/kunwei/step5/step5b_contact_cycloid_baseline_v3.urp"
 
 usage() {
   cat <<EOF
@@ -20,8 +20,9 @@ Teach Pendant target:
 Boundary:
   - Contact motion.
   - Bridge profile: ${STEP5B_BRIDGE_VERSION}.
-  - Force target: 15.0 N default.
-  - Normal filter alpha: 0.55 default.
+  - Force target: 12.0 N default for contact-bridge.
+  - contact-bridge normal filter alpha: 0.55 default.
+  - contact-bridge skips long bench-gate refresh by default; TP/script force guards remain active.
   - Raw normal guard: 50 N, force norm guard: 60 N, torque guard: 3.0 Nm.
   - guarded-15n-trial outer guards: normal load 50 N, force norm 60 N, torque 3.0 Nm.
   - ramp-5-to-15-trial: Stage 25.0 unloads/acquires at 5 N, ramps to 15 N, then enables short XY motion.
@@ -45,12 +46,13 @@ case "$1" in
       exit 40
     fi
     STEP4E_VERSION="${STEP5B_BRIDGE_VERSION}" \
-    STEP4E_TARGET_FORCE_N="${STEP4E_TARGET_FORCE_N:-15.0}" \
+    STEP4E_TARGET_FORCE_N="${STEP4E_TARGET_FORCE_N:-12.0}" \
     BRIDGE_DURATION_S="${BRIDGE_DURATION_S:-180}" \
     MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-50}" \
     MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-60}" \
     MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-3.0}" \
     STEP4E_NORMAL_FOLLOW_MODE="${STEP4E_NORMAL_FOLLOW_MODE:-filtered_live}" \
+    STEP4E_SKIP_BENCH_GATE="${STEP4E_SKIP_BENCH_GATE:-1}" \
     STEP4E_NORMAL_FILTER_ALPHA="${STEP4E_NORMAL_FILTER_ALPHA:-0.55}" \
     STEP4E_NORMAL_MIN_FORCE_N="${STEP4E_NORMAL_MIN_FORCE_N:-2.0}" \
     STEP4E_FORCE_P_GAIN="${STEP4E_FORCE_P_GAIN:-0.0010}" \
@@ -69,6 +71,7 @@ case "$1" in
       exit 40
     fi
     STEP4E_VERSION="${STEP5B_BRIDGE_VERSION}" \
+    STEP4E_SKIP_BENCH_GATE="${STEP4E_SKIP_BENCH_GATE:-1}" \
     STEP4E_DISPLAY_NAME="Step5b 15N guarded trial" \
     STEP4E_CONFIRM_PHRASE="START_STEP5B_15N_GUARDED" \
     STEP5B_TRIAL_PROFILE=guarded_15n_sentinel \
@@ -96,6 +99,7 @@ case "$1" in
       exit 40
     fi
     STEP4E_VERSION="${STEP5B_BRIDGE_VERSION}" \
+    STEP4E_SKIP_BENCH_GATE="${STEP4E_SKIP_BENCH_GATE:-1}" \
     STEP4E_DISPLAY_NAME="Step5b ramp 5N to 15N trial" \
     STEP4E_CONFIRM_PHRASE="START_STEP5B_RAMP_5_TO_15" \
     STEP5B_TRIAL_PROFILE=ramp_5_to_15_sentinel \

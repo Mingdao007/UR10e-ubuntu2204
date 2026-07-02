@@ -252,8 +252,14 @@ def compute_step5d_outer_loop(
     R_d = desired_rotation_preserving_roll(R_cur, approach_normal_base)
     Phi_E = np.diag([1.0, 1.0, 0.0])
     Phi_bar_E = np.eye(3) - Phi_E
-    Phi_O = R_d.T @ Phi_E
-    Phi_bar_O = R_d.T @ Phi_bar_E
+    # Base-frame orthogonal projectors onto the desired task frame's tangent
+    # plane (Phi_O) and normal line (Phi_bar_O). The former R_d.T @ Phi_E form
+    # returned desired-frame vectors while the caller feeds xdot_c to a
+    # base-frame Jacobian solver; with the tool z pointing down (R_d ~ 180 deg
+    # flip) that inverted the force channel, commanding away from the surface
+    # whenever the load was below target (Stage25.0 divergence, v11-v16).
+    Phi_O = R_d @ Phi_E @ R_d.T
+    Phi_bar_O = R_d @ Phi_bar_E @ R_d.T
 
     e_p = x_pd - x_p
     normal_load_n = signed_normal_load_n(force_base, control_reaction_normal_base)
