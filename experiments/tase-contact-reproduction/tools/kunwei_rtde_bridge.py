@@ -60,6 +60,7 @@ from step5d_paper_outer_loop import (  # noqa: E402
     compute_step5d_outer_loop,
     rnn_target_state_from_outer_loop,
 )
+from step5d_runtime_interface import STEP5D_LINE_ENTRY_PARAM_VALID_CODE  # noqa: E402
 from step6_eight import (  # noqa: E402
     PATH_DURATION_S as STEP6_PATH_DURATION_S,
     STEP6_SAFE_FRAME_PATH,
@@ -374,6 +375,7 @@ STEP5D_LIVEPREP_V17_STAGE_ID = "step5d_strict_rnn_liveprep_v17"
 STEP5D_LIVEPREP_V18_STAGE_ID = "step5d_strict_rnn_liveprep_v18"
 STEP5D_LIVEPREP_V19_STAGE_ID = "step5d_strict_rnn_liveprep_v19"
 STEP5D_LIVEPREP_V20_STAGE_ID = "step5d_strict_rnn_liveprep_v20"
+STEP5D_LIVEPREP_V21_STAGE_ID = "step5d_strict_rnn_liveprep_v21"
 STEP5D_LIVEPREP_STAGE_IDS = {
     STEP5D_LIVEPREP_V1_STAGE_ID,
     STEP5D_LIVEPREP_V2_STAGE_ID,
@@ -396,6 +398,7 @@ STEP5D_LIVEPREP_STAGE_IDS = {
     STEP5D_LIVEPREP_V18_STAGE_ID,
     STEP5D_LIVEPREP_V19_STAGE_ID,
     STEP5D_LIVEPREP_V20_STAGE_ID,
+    STEP5D_LIVEPREP_V21_STAGE_ID,
 }
 STEP5D_SEMANTIC_ORIENTATION_TOLERANCE_RAD = math.radians(5.0)
 STEP5D_SEARCH_POSE_CONTRACT_ID = PRE_CONTACT_GRAVITY_DOWN_CONTRACT_ID
@@ -454,6 +457,14 @@ STEP5D_V17_ENTRY_RAW_NORMAL_LOAD_MIN_N = 7.5
 STEP5D_V17_ENTRY_RAW_NORMAL_LOAD_MAX_N = 19.0
 STEP5D_V19_ENTRY_FILTERED_NORMAL_LOAD_MAX_N = 13.0
 STEP5D_V19_ENTRY_RAW_NORMAL_LOAD_MAX_N = 14.0
+STEP5D_V21_ENTRY_FILTERED_NORMAL_LOAD_MIN_N = 7.5
+STEP5D_V21_ENTRY_FILTERED_NORMAL_LOAD_MAX_N = 14.0
+STEP5D_V21_ENTRY_RAW_NORMAL_LOAD_MIN_N = 7.0
+STEP5D_V21_ENTRY_RAW_NORMAL_LOAD_MAX_N = 15.0
+STEP5D_V21_ENTRY_FORCE_NORM_MAX_N = 25.0
+STEP5D_V21_ENTRY_REQUIRED_S = 0.100
+STEP5D_V21_ENTRY_TIMEOUT_S = 10.0
+STEP5D_V21_ENTRY_CMD_LIMIT_M_S = 0.003
 STEP5D_V19_REACQUIRE_PREDICTED_TCP_SPEED_CAP_M_S = 0.035
 STEP5D_V18_SENSOR_FORCE_HARD_STOP_N = 100.0
 STEP5D_V18_SENSOR_TORQUE_HARD_STOP_NM = 4.0
@@ -1347,6 +1358,12 @@ def step5d_v11_deadband_acquire_velocity(
 
 
 def step5d_liveprep_contact_window_limits(bridge_profile: str) -> tuple[float, float, float]:
+    if bridge_profile == STEP5D_LIVEPREP_V21_STAGE_ID:
+        return (
+            STEP5D_V21_ENTRY_FILTERED_NORMAL_LOAD_MIN_N,
+            STEP5D_V21_ENTRY_FILTERED_NORMAL_LOAD_MAX_N,
+            STEP5D_V21_ENTRY_FORCE_NORM_MAX_N,
+        )
     if bridge_profile in {STEP5D_LIVEPREP_V19_STAGE_ID, STEP5D_LIVEPREP_V20_STAGE_ID}:
         return (
             STEP5D_V17_ENTRY_FILTERED_NORMAL_LOAD_MIN_N,
@@ -2041,6 +2058,7 @@ def ensure_step5d_liveprep_runtime(state: "BridgeState", args: argparse.Namespac
         STEP5D_LIVEPREP_V18_STAGE_ID,
         STEP5D_LIVEPREP_V19_STAGE_ID,
         STEP5D_LIVEPREP_V20_STAGE_ID,
+        STEP5D_LIVEPREP_V21_STAGE_ID,
     } and state.step5d_tcp_cage is None:
         state.step5d_tcp_cage = build_step5d_v15a_tcp_cage()
     if state.step5d_solver is None:
@@ -2359,15 +2377,23 @@ def compute_bridge_values(
     step5d_liveprep_v18_profile = args.bridge_profile == STEP5D_LIVEPREP_V18_STAGE_ID
     step5d_liveprep_v19_profile = args.bridge_profile == STEP5D_LIVEPREP_V19_STAGE_ID
     step5d_liveprep_v20_profile = args.bridge_profile == STEP5D_LIVEPREP_V20_STAGE_ID
+    step5d_liveprep_v21_profile = args.bridge_profile == STEP5D_LIVEPREP_V21_STAGE_ID
     step5d_liveprep_v16_or_v17_profile = step5d_liveprep_v16_profile or step5d_liveprep_v17_profile
     step5d_liveprep_v18_or_v19_profile = step5d_liveprep_v18_profile or step5d_liveprep_v19_profile
-    step5d_liveprep_v18_or_newer_profile = step5d_liveprep_v18_or_v19_profile or step5d_liveprep_v20_profile
-    step5d_liveprep_v17_or_newer_profile = step5d_liveprep_v17_profile or step5d_liveprep_v18_or_newer_profile
-    step5d_entry_raw_sanity_max_n = (
-        STEP5D_V19_ENTRY_RAW_NORMAL_LOAD_MAX_N
-        if (step5d_liveprep_v19_profile or step5d_liveprep_v20_profile)
-        else STEP5D_V17_ENTRY_RAW_NORMAL_LOAD_MAX_N
+    step5d_liveprep_v18_or_newer_profile = (
+        step5d_liveprep_v18_or_v19_profile or step5d_liveprep_v20_profile or step5d_liveprep_v21_profile
     )
+    step5d_liveprep_v17_or_newer_profile = step5d_liveprep_v17_profile or step5d_liveprep_v18_or_newer_profile
+    if step5d_liveprep_v21_profile:
+        step5d_entry_raw_sanity_min_n = float(args.step5d_preload_raw_min_n)
+        step5d_entry_raw_sanity_max_n = float(args.step5d_preload_raw_max_n)
+    else:
+        step5d_entry_raw_sanity_min_n = STEP5D_V17_ENTRY_RAW_NORMAL_LOAD_MIN_N
+        step5d_entry_raw_sanity_max_n = (
+            STEP5D_V19_ENTRY_RAW_NORMAL_LOAD_MAX_N
+            if (step5d_liveprep_v19_profile or step5d_liveprep_v20_profile)
+            else STEP5D_V17_ENTRY_RAW_NORMAL_LOAD_MAX_N
+        )
     step5d_liveprep_online_cage_profile = (
         step5d_liveprep_v15a_profile
         or step5d_liveprep_v16_profile
@@ -2375,6 +2401,7 @@ def compute_bridge_values(
         or step5d_liveprep_v18_profile
         or step5d_liveprep_v19_profile
         or step5d_liveprep_v20_profile
+        or step5d_liveprep_v21_profile
     )
     step5d_liveprep_guarded_profile = (
         step5d_liveprep_v3_profile
@@ -2396,6 +2423,7 @@ def compute_bridge_values(
         or step5d_liveprep_v18_profile
         or step5d_liveprep_v19_profile
         or step5d_liveprep_v20_profile
+        or step5d_liveprep_v21_profile
     )
     if step5d_liveprep_profile:
         try:
@@ -3188,7 +3216,7 @@ def compute_bridge_values(
                     and normal_load_n <= STEP5D_V18_ACTIVE_REACQUIRE_LOAD_MAX_N
                 )
                 v20_low_load_active_reacquire = (
-                    step5d_liveprep_v20_profile
+                    (step5d_liveprep_v20_profile or step5d_liveprep_v21_profile)
                     and step5d_contact_safety["action"] == "active_reacquire_solver"
                     and normal_load_n <= STEP5D_V18_ACTIVE_REACQUIRE_LOAD_MAX_N
                 )
@@ -3432,18 +3460,27 @@ def compute_bridge_values(
             ):
                 line_entry_register_load_n = state.step5d_settle_filtered_normal_load_n
                 if step5d_liveprep_v17_or_newer_profile and not (
-                    STEP5D_V17_ENTRY_RAW_NORMAL_LOAD_MIN_N <= normal_load_n <= step5d_entry_raw_sanity_max_n
+                    step5d_entry_raw_sanity_min_n <= normal_load_n <= step5d_entry_raw_sanity_max_n
                 ):
                     line_entry_register_load_n = normal_load_n
                 register_force_error = float(args.target_force_n) - line_entry_register_load_n
+            preload_param_channel_active = step5d_liveprep_v21_profile and line_entry_gate_active
             values.update(
                 {
                     "step4e_cmd_vx_m_s": n_control_b[0] if (v21_profile and detach_stage_active) else cmd[0],
                     "step4e_cmd_vy_m_s": n_control_b[1] if (v21_profile and detach_stage_active) else cmd[1],
                     "step4e_cmd_vz_m_s": n_control_b[2] if (v21_profile and detach_stage_active) else cmd[2],
-                    "step4e_cmd_wx_rad_s": orientation_cmd[0],
-                    "step4e_cmd_wy_rad_s": orientation_cmd[1],
-                    "step4e_cmd_wz_rad_s": orientation_cmd[2] if (axis_iso_active or v21_profile or v22_profile or angular_speedl_profile) else 0.0,
+                    "step4e_cmd_wx_rad_s": float(args.step5d_preload_filtered_min_n)
+                    if preload_param_channel_active
+                    else orientation_cmd[0],
+                    "step4e_cmd_wy_rad_s": float(args.step5d_preload_filtered_max_n)
+                    if preload_param_channel_active
+                    else orientation_cmd[1],
+                    "step4e_cmd_wz_rad_s": float(args.step5d_preload_force_norm_max_n)
+                    if preload_param_channel_active
+                    else orientation_cmd[2]
+                    if (axis_iso_active or v21_profile or v22_profile or angular_speedl_profile)
+                    else 0.0,
                     "step4e_cmd_valid": 0.0
                     if args.bridge_mode == "preview"
                     or (
@@ -3452,10 +3489,15 @@ def compute_bridge_values(
                         and not step5d_v8_pid_recovery_ok
                     )
                     else 1.0,
-                    "step4e_progress_m": progress,
+                    "step4e_progress_m": float(args.step5d_preload_hold_s) if preload_param_channel_active else progress,
                     "step4e_force_error_n": register_force_error,
-                    "step4e_orientation_error_rad": orientation_error,
+                    "step4e_orientation_error_rad": float(args.step5d_preload_timeout_s)
+                    if preload_param_channel_active
+                    else orientation_error,
                     "step4e_controller_state": (
+                        STEP5D_LINE_ENTRY_PARAM_VALID_CODE
+                        if preload_param_channel_active
+                        else
                         33.0
                         if latch_stage_active
                         else 35.0
@@ -3517,7 +3559,7 @@ def compute_bridge_values(
             values["_step5d_reacquire_speed_cap_active"] = 1.0 if step5d_reacquire_speed_cap_active else 0.0
             values["_step5d_reacquire_speed_cap_m_s"] = (
                 STEP5D_V19_REACQUIRE_PREDICTED_TCP_SPEED_CAP_M_S
-                if (step5d_liveprep_v19_profile or step5d_liveprep_v20_profile)
+                if (step5d_liveprep_v19_profile or step5d_liveprep_v20_profile or step5d_liveprep_v21_profile)
                 else float("nan")
             )
             values["_step5d_reacquire_speed_cap_original_m_s"] = step5d_reacquire_speed_cap_original_m_s
@@ -4720,6 +4762,65 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--step5d-epsilon", type=float, default=0.022)
     parser.add_argument("--step5d-sigr-exponent-r", type=float, default=0.2)
     parser.add_argument(
+        "--step5d-preload-filtered-min-n",
+        type=float,
+        default=env_float_alias(
+            "STEP5D_PRELOAD_FILTERED_MIN_N",
+            "BRIDGE_STEP5D_PRELOAD_FILTERED_MIN_N",
+            STEP5D_V21_ENTRY_FILTERED_NORMAL_LOAD_MIN_N,
+        ),
+    )
+    parser.add_argument(
+        "--step5d-preload-filtered-max-n",
+        type=float,
+        default=env_float_alias(
+            "STEP5D_PRELOAD_FILTERED_MAX_N",
+            "BRIDGE_STEP5D_PRELOAD_FILTERED_MAX_N",
+            STEP5D_V21_ENTRY_FILTERED_NORMAL_LOAD_MAX_N,
+        ),
+    )
+    parser.add_argument(
+        "--step5d-preload-raw-min-n",
+        type=float,
+        default=env_float_alias(
+            "STEP5D_PRELOAD_RAW_MIN_N",
+            "BRIDGE_STEP5D_PRELOAD_RAW_MIN_N",
+            STEP5D_V21_ENTRY_RAW_NORMAL_LOAD_MIN_N,
+        ),
+    )
+    parser.add_argument(
+        "--step5d-preload-raw-max-n",
+        type=float,
+        default=env_float_alias(
+            "STEP5D_PRELOAD_RAW_MAX_N",
+            "BRIDGE_STEP5D_PRELOAD_RAW_MAX_N",
+            STEP5D_V21_ENTRY_RAW_NORMAL_LOAD_MAX_N,
+        ),
+    )
+    parser.add_argument(
+        "--step5d-preload-force-norm-max-n",
+        type=float,
+        default=env_float_alias(
+            "STEP5D_PRELOAD_FORCE_NORM_MAX_N",
+            "BRIDGE_STEP5D_PRELOAD_FORCE_NORM_MAX_N",
+            STEP5D_V21_ENTRY_FORCE_NORM_MAX_N,
+        ),
+    )
+    parser.add_argument(
+        "--step5d-preload-hold-s",
+        type=float,
+        default=env_float_alias("STEP5D_PRELOAD_HOLD_S", "BRIDGE_STEP5D_PRELOAD_HOLD_S", STEP5D_V21_ENTRY_REQUIRED_S),
+    )
+    parser.add_argument(
+        "--step5d-preload-timeout-s",
+        type=float,
+        default=env_float_alias(
+            "STEP5D_PRELOAD_TIMEOUT_S",
+            "BRIDGE_STEP5D_PRELOAD_TIMEOUT_S",
+            STEP5D_V21_ENTRY_TIMEOUT_S,
+        ),
+    )
+    parser.add_argument(
         "--disable-dashboard-program-watch",
         action="store_true",
         help="disable Step5d live-prep Dashboard watchdog that exits after TP stop/play timeout",
@@ -4745,6 +4846,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                 STEP5D_LIVEPREP_V18_STAGE_ID,
                 STEP5D_LIVEPREP_V19_STAGE_ID,
                 STEP5D_LIVEPREP_V20_STAGE_ID,
+                STEP5D_LIVEPREP_V21_STAGE_ID,
             }
             else 0.30
         )
@@ -4824,6 +4926,14 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("--step5d-epsilon must be positive")
     if not 0.0 < args.step5d_sigr_exponent_r <= 1.0:
         raise SystemExit("--step5d-sigr-exponent-r must be in (0, 1]")
+    if args.step5d_preload_filtered_min_n < 0.0 or args.step5d_preload_filtered_max_n < args.step5d_preload_filtered_min_n:
+        raise SystemExit("--step5d-preload-filtered-* must define a nonnegative min<=max window")
+    if args.step5d_preload_raw_min_n < 0.0 or args.step5d_preload_raw_max_n < args.step5d_preload_raw_min_n:
+        raise SystemExit("--step5d-preload-raw-* must define a nonnegative min<=max window")
+    if args.step5d_preload_force_norm_max_n <= 0.0:
+        raise SystemExit("--step5d-preload-force-norm-max-n must be positive")
+    if args.step5d_preload_hold_s < 0.0 or args.step5d_preload_timeout_s <= args.step5d_preload_hold_s:
+        raise SystemExit("--step5d-preload-timeout-s must be greater than --step5d-preload-hold-s")
     if args.dashboard_program_watch_timeout_s <= 0.0:
         raise SystemExit("--dashboard-program-watch-timeout-s must be positive")
     validate_step5b_15n_trial_args(args)
@@ -4902,6 +5012,17 @@ def main(argv: list[str] | None = None) -> int:
             "timeout_s": args.dashboard_program_watch_timeout_s,
             "scope": "Step5d live-prep bridge exits after TP program stop or Play timeout",
         },
+        "step5d_preload_gate": {
+            "profile": args.bridge_profile if args.bridge_profile in STEP5D_LIVEPREP_STAGE_IDS else None,
+            "filtered_min_n": args.step5d_preload_filtered_min_n,
+            "filtered_max_n": args.step5d_preload_filtered_max_n,
+            "raw_min_n": args.step5d_preload_raw_min_n,
+            "raw_max_n": args.step5d_preload_raw_max_n,
+            "force_norm_max_n": args.step5d_preload_force_norm_max_n,
+            "hold_s": args.step5d_preload_hold_s,
+            "timeout_s": args.step5d_preload_timeout_s,
+            "param_valid_code": STEP5D_LINE_ENTRY_PARAM_VALID_CODE,
+        },
         "register_map": dict(zip(INPUT_FIELDS, INPUT_NAMES)),
         "bridge_register_contract": {
             "physical_fields": BRIDGE_INPUT_FIELDS,
@@ -4916,6 +5037,7 @@ def main(argv: list[str] | None = None) -> int:
             "axis_iso_25.21_to_25.24": "input_double_register_40..42 are angular speedl wx/wy/wz; input_double_register_37..39 must remain zero.",
             "v21_line_25.1": "input_double_register_37..39 are the +locked-normal unit detach direction, not Cartesian velocity.",
             "v21_line_25.2": "input_double_register_40..42 are target TCP rotvec rx/ry/rz for a single detached movel; target is z_tcp_B ~= -locked_normal_B.",
+            "step5d_v21_liveprep_25.3": "input_double_register_37..39 are Cartesian deadband-acquire vx/vy/vz; 40/41 are preload filtered min/max, 42 is preload force_norm max, 44 is hold_s, 46 is timeout_s, and 47 must equal the v21 param-valid code.",
             "v22_seed_normal_loop": "25.05 latches the first contact normal; 25.2 outputs target TCP rotvec for optional lifted posture correction; 25.3 reacquires 5 N before 25.0 line control.",
             "v23_seed_normal_loop_failed_archive": "24.0/24.2 latch the first contact normal; 25.2 outputs angular speedl wx/wy/wz for lifted posture correction; 25.3 reacquires 5 N before 25.0 line control. Archived after 2026-06-12 stop_reason=13 at 25.2.",
             "v24_seed_normal_loop_evidence": "One-step entry scaffold evidence; first search envelope still used a fixed 80 mm far-search transition.",
@@ -4954,6 +5076,7 @@ def main(argv: list[str] | None = None) -> int:
             "step5d_strict_rnn_liveprep_v18": "Retained v18 cage-primary diagnostic TP/script live-prep evidence: stopped on predicted TCP speed during low-load/no-contact active reacquire after v17/v18 8-18N preload allowed an over-target handoff.",
             "step5d_strict_rnn_liveprep_v19": "Retained v19 cage-primary diagnostic TP/script live-prep evidence: kept 12N target, 8-13N filtered preload with 7.5-14N raw sanity, 1.5x Stage22/24 speedups, and a freeze_low_force-only active-reacquire speed cap; live v19 still stopped on cage_primary_tcp_speed_hard_stop because the cap did not cover the locked-normal settle source.",
             "step5d_strict_rnn_liveprep_v20": "Current v20 cage-primary diagnostic TP/script live-prep candidate: keeps v19 numeric baselines, forces Stage22/24 pre-contact search posture to gravity-down [pi,0,0], logs pose-contract/reacquire-cap diagnostics, and applies low-load active-reacquire outer-state reset plus 0.035 m/s predicted TCP speed cap based on action/load semantics rather than normal_filter_source.",
+            "step5d_strict_rnn_liveprep_v21": "Current v21 cage-primary TP/script live-prep candidate: keeps v20 gravity-down search posture, 12N target, 100N/4Nm hard sensor guards, 0.05 rad/s strict RNN speedj cap, and active-reacquire cage behavior, while widening the Stage25.3 default preload to 7.5-14N filtered with 7-15N raw sanity and accepting bridge-time preload override registers.",
             "step6b_contact_eight_baseline_v1": "Same TP contact-search/latch/25.2/25.3 scaffold as Step5b/v31, but stage 25.0 uses the active Step6 five-point safe-frame 8-shaped reference for 30 s and v31 filtered-live normal policy.",
             "step6b_contact_eight_baseline_v2": "Same TP contact-search/latch/25.2/25.3 scaffold and Step6 reference as v1, but intended bridge caps are 15 mm/s path, 15 mm/s total linear, 3 mm/s normal reserve, and 0.060 rad/s attitude.",
         },
@@ -4985,7 +5108,7 @@ def main(argv: list[str] | None = None) -> int:
             "step5c_stage_id": args.bridge_profile
             if args.bridge_profile in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID}
             else None,
-            "step5c_register_contract": "Step5c/Step5d Stage 25.0: 37..42=qd0..qd5 rad/s, 43=cmd_valid, 44=path_time, 45=force_error, 46=pose/orientation_error, 47=solver_status. Step5d v8/v9 Stage 25.3: 37..39=Cartesian force-PID settle vx/vy/vz only. Step5d v10 Stage 25.3: 37..39=Cartesian admittance settle vx/vy/vz only and 45 carries filtered force_error. Step5d v11/v12 Stage 25.3: 37..39=Cartesian deadband-acquire vx/vy/vz only and 45 carries filtered force_error. Step5d v12 Stage 25.0 additionally gates loss-of-contact and TCP speed before cmd_valid. Step4e field names are carrier names only in joint mode."
+            "step5c_register_contract": "Step5c/Step5d Stage 25.0: 37..42=qd0..qd5 rad/s, 43=cmd_valid, 44=path_time, 45=force_error, 46=pose/orientation_error, 47=solver_status. Step5d v8/v9 Stage 25.3: 37..39=Cartesian force-PID settle vx/vy/vz only. Step5d v10 Stage 25.3: 37..39=Cartesian admittance settle vx/vy/vz only and 45 carries filtered force_error. Step5d v11/v12 Stage 25.3: 37..39=Cartesian deadband-acquire vx/vy/vz only and 45 carries filtered force_error. Step5d v21 Stage 25.3 additionally uses 40/41/42/44/46/47 as the preload parameter channel, with 47 holding the param-valid code. Step5d v12+ Stage 25.0 additionally gates loss-of-contact and TCP speed before cmd_valid. Step4e field names are carrier names only in joint mode."
             if args.bridge_profile in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID, *STEP5D_LIVEPREP_STAGE_IDS}
             else None,
             "step5c_joint_model": str(args.step5c_joint_model)

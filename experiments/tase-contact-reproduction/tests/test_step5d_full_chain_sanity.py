@@ -67,7 +67,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             )
 
     def test_step5d_liveprep_package_is_non_quarantine_speedj_executor(self) -> None:
-        stamp = "2026-07-02T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V20"
+        stamp = "2026-07-02T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V21"
         geom = liveprep.line_cfg(liveprep.load_json(liveprep.CONFIG_PATH))
         frame = liveprep.load_safe_frame()
         script = liveprep.build_script(stamp, "2026-06-14T12:00:00+08:00", geom, frame)
@@ -100,10 +100,14 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertNotIn("write_output_float_register(35, 25.2)", script)
         self.assertNotIn("codex_step5d_down_search(24.3, 24.4", script)
         self.assertIn("Stage 25.3 consumes 37..39 as Cartesian deadband-acquire vx/vy/vz", script)
-        self.assertIn("local line_entry_normal_load_min_n = 8.000", script)
-        self.assertIn("local line_entry_normal_load_max_n = 13.000", script)
-        self.assertIn("local line_entry_force_norm_max_n = 25.000", script)
-        self.assertIn("local line_entry_required_s = 0.100", script)
+        self.assertIn("v21 preload overrides in 40/41/42/44/46/47", script)
+        self.assertIn("local line_entry_default_normal_load_min_n = 7.500", script)
+        self.assertIn("local line_entry_default_normal_load_max_n = 14.000", script)
+        self.assertIn("local line_entry_default_force_norm_max_n = 25.000", script)
+        self.assertIn("local line_entry_default_required_s = 0.100", script)
+        self.assertIn("local line_entry_param_valid_code = 521.000", script)
+        self.assertIn("local candidate_min_n = read_input_float_register(40)", script)
+        self.assertIn("local candidate_required_s = read_input_float_register(44)", script)
         self.assertNotIn("local line_entry_settle_cmd_max_m_s", script)
         self.assertNotIn("codex_abs(cmd_vx) <= line_entry_settle_cmd_max_m_s", script)
         self.assertIn("local line_entry_recovery_normal_load_min_n = 0.000", script)
@@ -112,7 +116,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertNotIn("or normal_load < line_entry_recovery_normal_load_min_n", script)
         self.assertIn("elif stop_reason == 17.0:\n    return True", script)
         self.assertIn("local normal_load = target_force - force_error", script)
-        self.assertIn("local line_entry_timeout_s = 10.000", script)
+        self.assertIn("local line_entry_default_timeout_s = 10.000", script)
         self.assertIn("local line_runtime_limit_s = 15.000", script)
         self.assertIn("local line_success_progress_m = 10.000000000", script)
         self.assertIn("speedl([cmd_vx, cmd_vy, cmd_vz, 0.0, 0.0, 0.0]", script)
@@ -130,10 +134,11 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn("_step5d_active_reacquire_s", txt)
         self.assertIn("_step5d_no_contact_s", txt)
         self.assertIn("_step5d_reacquire_speed_cap_*", txt)
-        self.assertIn("8.0 N", txt)
-        self.assertIn("13.0 N", txt)
         self.assertIn("7.5 N", txt)
         self.assertIn("14.0 N", txt)
+        self.assertIn("7.0 N", txt)
+        self.assertIn("15.0 N", txt)
+        self.assertIn("registers 40/41 are filtered", txt)
         self.assertIn("Stage 22 entry movel is 0.060 m/s", txt)
         self.assertIn("Stage 24 far search", txt)
         self.assertIn("reacquire predicted-speed cap", txt)
@@ -148,6 +153,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertNotIn("STEP5D_STRICT_RNN_LIVEPREP_V17", script + txt)
         self.assertNotIn("STEP5D_STRICT_RNN_LIVEPREP_V18", script + txt)
         self.assertNotIn("STEP5D_STRICT_RNN_LIVEPREP_V19", script + txt)
+        self.assertNotIn("STEP5D_STRICT_RNN_LIVEPREP_V20", script + txt)
 
     def test_step5d_precontact_pose_contract_targets_gravity_down(self) -> None:
         error = step_pose_contract.validate_contract_axis()
@@ -165,7 +171,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             liveprep.LOCAL_PROGRAM_DIR = Path(tmpdir)
             try:
                 first = liveprep.write_outputs(
-                    "2026-07-02T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V20",
+                    "2026-07-02T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V21",
                     "2026-07-02T12:00:00+08:00",
                 )
                 self.assertTrue(any(first["changed"].values()))
@@ -181,7 +187,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             out_dir = Path(tmpdir) / "candidate"
             result = liveprep.write_outputs(
-                "2026-07-02T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V20",
+                "2026-07-02T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V21",
                 "2026-07-02T12:00:00+08:00",
                 output_dir=out_dir,
                 local_only=True,
@@ -350,6 +356,22 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             ]
         )
         self.assertEqual(v20_args.step5d_qdot_limit_rad_s, 0.05)
+        v21_args = bridge.parse_args(
+            [
+                "--no-start-command",
+                "--step4e-mode",
+                "line",
+                "--step4e-version",
+                "step5d_strict_rnn_liveprep_v21",
+                "--step4e-path-shape",
+                "cycloid",
+            ]
+        )
+        self.assertEqual(v21_args.step5d_qdot_limit_rad_s, 0.05)
+        self.assertEqual(v21_args.step5d_preload_filtered_min_n, 7.5)
+        self.assertEqual(v21_args.step5d_preload_filtered_max_n, 14.0)
+        self.assertEqual(v21_args.step5d_preload_raw_min_n, 7.0)
+        self.assertEqual(v21_args.step5d_preload_raw_max_n, 15.0)
         with self.assertRaisesRegex(SystemExit, "Blocked Step5d reproduction"):
             bridge.main(
                 [
@@ -379,18 +401,19 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn("current_step5d_version()", operator)
         self.assertIn('STEP5D_VERSION="${STEP5D_VERSION:-$(current_step5d_version)}"', operator)
         self.assertIn('BRIDGE_OPERATOR="${SCRIPT_DIR}/bridge-line-operator.sh"', operator)
-        self.assertIn('READBACK_GATE="${ROOT}/tools/verify_current_stage_readback.py"', operator)
+        self.assertIn('READBACK_GATE="${ROOT}/tools/verify_step5d_current_binding.py"', operator)
+        self.assertIn('RUNTIME_INTERFACE="${ROOT}/tools/step5d_runtime_interface.py"', operator)
         self.assertIn('Bridge profile: ${STEP5D_VERSION}', operator)
         self.assertIn('STEP5D_CONFIRM', operator)
         self.assertIn('require_current_stage_readback_gate', operator)
         self.assertIn('python3 "${READBACK_GATE}" --root "${ROOT}" --program "${STEP5D_VERSION}"', operator)
-        self.assertIn('Force target: 12.0 N', operator)
-        self.assertIn('filtered 8-13 N', operator)
-        self.assertIn('raw-sanity 7.5-14 N', operator)
+        self.assertIn('Force target defaults to 12.0 N', operator)
+        self.assertIn('v21 default preload gate is filtered 7.5-14 N', operator)
+        self.assertIn('raw-sanity 7-15 N', operator)
         self.assertIn('WAIT_FOR_PLAY_S="${WAIT_FOR_PLAY_S:-10}"', operator)
-        self.assertIn('MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-100}"', operator)
-        self.assertIn('MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-100}"', operator)
-        self.assertIn('MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-4.0}"', operator)
+        self.assertIn('MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-${STEP5D_MAX_NORMAL_FORCE_N:-100}}"', operator)
+        self.assertIn('MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-${STEP5D_MAX_FORCE_NORM_N:-100}}"', operator)
+        self.assertIn('MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-${STEP5D_MAX_TORQUE_NORM_NM:-4.0}}"', operator)
         self.assertIn('BRIDGE_PROFILE="${STEP5D_VERSION}"', operator)
         self.assertIn('"${BRIDGE_OPERATOR}" line-bridge-fast', operator)
         self.assertNotIn('STEP4E_VERSION="${STEP5D_VERSION}"', operator)
@@ -402,7 +425,9 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn('"step5d_strict_rnn_liveprep_v10" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v11"', base)
         self.assertIn('"step5d_strict_rnn_liveprep_v12" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v13" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v14" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v15" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v15a" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v16" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v17" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v18" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v19" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v20"', base)
         self.assertIn("current_step5d_profile()", bridge_operator)
-        self.assertIn('BRIDGE_PROFILE="${BRIDGE_PROFILE:-step5d_strict_rnn_liveprep_v20}"', bridge_operator)
+        self.assertIn('BRIDGE_PROFILE="${BRIDGE_PROFILE:-step5d_strict_rnn_liveprep_v21}"', bridge_operator)
+        self.assertIn('--step5d-preload-filtered-min-n "${STEP5D_PRELOAD_FILTERED_MIN_N:-7.5}"', bridge_operator)
+        self.assertIn("step5d_live_ready", bridge_operator)
         bridge_source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(encoding="utf-8")
         self.assertIn('v18_v20_locked_normal_settle', bridge_source)
         self.assertIn('v20_low_load_active_reacquire', bridge_source)
@@ -444,6 +469,8 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertEqual((v19_min, v19_max, v19_force_max), (8.0, 13.0, 25.0))
         v20_min, v20_max, v20_force_max = bridge.step5d_liveprep_contact_window_limits("step5d_strict_rnn_liveprep_v20")
         self.assertEqual((v20_min, v20_max, v20_force_max), (8.0, 13.0, 25.0))
+        v21_min, v21_max, v21_force_max = bridge.step5d_liveprep_contact_window_limits("step5d_strict_rnn_liveprep_v21")
+        self.assertEqual((v21_min, v21_max, v21_force_max), (7.5, 14.0, 25.0))
         for field in (
             "_step5d_reacquire_speed_cap_active",
             "_step5d_reacquire_speed_cap_m_s",

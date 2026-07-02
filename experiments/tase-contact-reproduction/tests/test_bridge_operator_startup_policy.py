@@ -27,15 +27,16 @@ class BridgeOperatorStartupPolicyTest(unittest.TestCase):
         self.assertNotIn('BRIDGE_SKIP_BENCH_GATE="${BRIDGE_SKIP_BENCH_GATE:-1}"', script)
         self.assertIn('WAIT_FOR_PLAY_S="${WAIT_FOR_PLAY_S:-10}"', script)
         self.assertIn('AUTOWATCH_WAIT_FOR_PLAY_S="${AUTOWATCH_WAIT_FOR_PLAY_S:-10}"', script)
-        self.assertIn('READBACK_GATE="${ROOT}/tools/verify_current_stage_readback.py"', script)
+        self.assertIn('READBACK_GATE="${ROOT}/tools/verify_step5d_current_binding.py"', script)
         self.assertIn("current_step5d_version()", script)
 
     def test_fast_bridge_uses_two_hour_fingerprint_cache_and_rtde_probe(self) -> None:
         script = read_script("bridge-line-operator.sh")
 
         self.assertIn('LONG_CHECK_TTL_S="${LONG_CHECK_TTL_S:-7200}"', script)
+        self.assertIn("step5d_runtime_interface", script)
         self.assertIn('"fingerprint": current_fingerprint(gate)', script)
-        self.assertIn('payload.get("fingerprint") == current_fingerprint(gate)', script)
+        self.assertIn("long_check_cache_status", script)
         self.assertIn("require_rtde_quick_probe", script)
         self.assertIn("(host, 30004)", script)
 
