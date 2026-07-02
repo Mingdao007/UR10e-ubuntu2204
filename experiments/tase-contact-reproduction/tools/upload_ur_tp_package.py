@@ -14,6 +14,7 @@ import hashlib
 import html
 import json
 import re
+import shutil
 import shlex
 import subprocess
 import sys
@@ -109,6 +110,16 @@ def find_script_node(root: ET.Element) -> tuple[str, str]:
     return html.unescape(cached), script_file
 
 
+def installation_relative_path(controller_dir: str) -> str:
+    path = PurePosixPath(controller_dir)
+    try:
+        programs_idx = path.parts.index("programs")
+    except ValueError as exc:
+        raise ValueError(f"controller_dir must be under /programs: {controller_dir}") from exc
+    parent_levels = len(path.parts) - programs_idx - 1
+    return "/".join([".."] * parent_levels + ["default"])
+
+
 def validate_package(
     files: dict[str, Path],
     program: str,
@@ -122,12 +133,14 @@ def validate_package(
     root, xml = parse_urp(files[".urp"])
     cached_script, script_node_path = find_script_node(root)
     expected_script_path = str(PurePosixPath(target_dir) / f"{program}.script")
+    expected_installation_relative_path = installation_relative_path(target_dir)
 
     checks = {
         "script stamp": stamp in script,
         "txt stamp": stamp in txt,
         "URProgram name": root.attrib.get("name") == program,
         "controller directory": root.attrib.get("directory") == target_dir,
+        "installationRelativePath": root.attrib.get("installationRelativePath") == expected_installation_relative_path,
         "Script-node path": script_node_path == expected_script_path,
         "cachedContents stamp": stamp in cached_script,
         "cachedContents program": f"def codex_{program}" in cached_script
@@ -769,6 +782,7 @@ def validate_package(
         "stamp": stamp,
         "program": program,
         "target_dir": target_dir,
+        "installation_relative_path": expected_installation_relative_path,
         "script_node_path": script_node_path,
         "urp_sha256": sha256(files[".urp"]),
         "script_sha256": sha256(files[".script"]),
@@ -810,6 +824,14 @@ def controller_path(target_dir: str, filename: str) -> str:
     return str(PurePosixPath(target_dir) / filename)
 
 
+def remote_paths_for(files: dict[str, Path], target_dir: str) -> list[str]:
+    return [controller_path(target_dir, files[ext].name) for ext in EXTENSIONS]
+
+
+def package_sha(files: dict[str, Path]) -> dict[str, str]:
+    return {ext: sha256(path) for ext, path in files.items()}
+
+
 def remote_sha256(helper: Path, remote_paths: list[str], *, dry_run: bool) -> dict[str, str]:
     if dry_run:
         for remote_path in remote_paths:
@@ -833,6 +855,131 @@ def remote_sha256(helper: Path, remote_paths: list[str], *, dry_run: bool) -> di
     return shas
 
 
+def manifest_matches_package(
+    manifest: dict,
+    *,
+    program: str,
+    controller: str,
+    target_dir: str,
+    local_sha: dict[str, str],
+) -> bool:
+    if manifest.get("status") != "controller read-back verified":
+        return False
+    if manifest.get("controller") != controller or manifest.get("target_dir") != target_dir:
+        return False
+    validation = manifest.get("validation", {})
+    if validation.get("program") != program or validation.get("target_dir") != target_dir:
+        return False
+    validation_keys = {
+        ".script": "script_sha256",
+        ".txt": "txt_sha256",
+        ".urp": "urp_sha256",
+    }
+    for ext, key in validation_keys.items():
+        if validation.get(key) != local_sha[ext]:
+            return False
+    manifest_sha = manifest.get("sha256", {})
+    for section in ("local", "controller", "readback"):
+        section_sha = manifest_sha.get(section, {})
+        if any(section_sha.get(ext) != local_sha[ext] for ext in EXTENSIONS):
+            return False
+    return True
+
+
+def readback_triplet_matches(
+    manifest_path: Path,
+    *,
+    program: str,
+    local_sha: dict[str, str],
+) -> bool:
+    readback_dir = manifest_path.parent
+    for ext in EXTENSIONS:
+        path = readback_dir / f"{program}{ext}"
+        if not path.is_file() or sha256(path) != local_sha[ext]:
+            return False
+    return True
+
+
+def find_reusable_readback_manifest(
+    readback_root: Path,
+    *,
+    program: str,
+    controller: str,
+    target_dir: str,
+    local_sha: dict[str, str],
+) -> tuple[Path, dict] | None:
+    candidates = sorted(
+        readback_root.glob(f"controller_readback_{program}_*/manifest.json"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    for manifest_path in candidates:
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if not manifest_matches_package(
+            manifest,
+            program=program,
+            controller=controller,
+            target_dir=target_dir,
+            local_sha=local_sha,
+        ):
+            continue
+        if not readback_triplet_matches(manifest_path, program=program, local_sha=local_sha):
+            continue
+        return manifest_path, manifest
+    return None
+
+
+def reuse_readback_if_remote_sha_matches(
+    files: dict[str, Path],
+    program: str,
+    controller: str,
+    target_dir: str,
+    readback_root: Path,
+    readback_dir: Path,
+    *,
+    helper: Path,
+    local_sha: dict[str, str],
+) -> tuple[dict[str, dict[str, str]], Path] | None:
+    if controller != DEFAULT_CONTROLLER:
+        die(f"{Path(__file__).name} uses the bench helper for {DEFAULT_CONTROLLER}; got {controller!r}")
+    reusable = find_reusable_readback_manifest(
+        readback_root,
+        program=program,
+        controller=controller,
+        target_dir=target_dir,
+        local_sha=local_sha,
+    )
+    if reusable is None:
+        return None
+
+    manifest_path, _manifest = reusable
+    remote_paths = remote_paths_for(files, target_dir)
+    controller_sha = remote_sha256(helper, remote_paths, dry_run=False)
+    controller_sha_by_ext = {
+        ext: controller_sha[controller_path(target_dir, files[ext].name)] for ext in EXTENSIONS
+    }
+    remote_mismatches = [ext for ext in EXTENSIONS if controller_sha_by_ext[ext] != local_sha[ext]]
+    if remote_mismatches:
+        print(
+            "Controller SHA does not match reusable read-back; "
+            f"falling back to full upload/read-back for: {remote_mismatches}"
+        )
+        return None
+
+    readback_dir.mkdir(parents=True, exist_ok=False)
+    prior_readback_dir = manifest_path.parent
+    for ext in EXTENSIONS:
+        shutil.copy2(prior_readback_dir / files[ext].name, readback_dir / files[ext].name)
+    readback_sha = {ext: sha256(readback_dir / files[ext].name) for ext in EXTENSIONS}
+    mismatches = [ext for ext in EXTENSIONS if readback_sha[ext] != local_sha[ext]]
+    if mismatches:
+        die(f"reused read-back SHA mismatch for: {mismatches}")
+    return {"local": local_sha, "controller": controller_sha_by_ext, "readback": readback_sha}, manifest_path
+
+
 def upload_and_readback(
     files: dict[str, Path],
     program: str,
@@ -847,10 +994,9 @@ def upload_and_readback(
         die(f"{Path(__file__).name} uses the bench helper for {DEFAULT_CONTROLLER}; got {controller!r}")
 
     run(helper_cmd(helper, "run", "--", "mkdir", "-p", target_dir), dry_run=dry_run)
-    remote_paths: list[str] = []
+    remote_paths = remote_paths_for(files, target_dir)
     for ext in EXTENSIONS:
         remote_path = controller_path(target_dir, files[ext].name)
-        remote_paths.append(remote_path)
         run(helper_cmd(helper, "put", str(files[ext]), remote_path), dry_run=dry_run)
 
     run(helper_cmd(helper, "run", "--", "chown", "1000:1000", *remote_paths), dry_run=dry_run)
@@ -869,7 +1015,7 @@ def upload_and_readback(
         remote_path = controller_path(target_dir, files[ext].name)
         run(helper_cmd(helper, "get", remote_path, str(readback_dir / files[ext].name)), dry_run=False)
 
-    local_sha = {ext: sha256(path) for ext, path in files.items()}
+    local_sha = package_sha(files)
     readback_sha = {ext: sha256(readback_dir / path.name) for ext, path in files.items()}
     mismatches = [ext for ext in EXTENSIONS if local_sha[ext] != readback_sha[ext]]
     if mismatches:
@@ -896,6 +1042,10 @@ def write_manifest(
     validation: dict[str, str],
     shas: dict[str, dict[str, str]],
     dry_run: bool,
+    delivery_mode: str | None = None,
+    reused_from_manifest: Path | None = None,
+    fresh_controller_sha_verified: bool | None = None,
+    readback_source: str | None = None,
 ) -> None:
     manifest = {
         "status": "dry-run" if dry_run else "controller read-back verified",
@@ -913,6 +1063,16 @@ def write_manifest(
             "no robot motion command",
         ],
     }
+    if delivery_mode is not None:
+        manifest["delivery_mode"] = delivery_mode
+    if reused_from_manifest is not None:
+        manifest["skip_basis_manifest"] = str(reused_from_manifest)
+    if fresh_controller_sha_verified is not None:
+        manifest["fresh_controller_sha_verified"] = fresh_controller_sha_verified
+    if fresh_controller_sha_verified:
+        manifest["fresh_controller_checked_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
+    if readback_source is not None:
+        manifest["readback_source"] = readback_source
     if not dry_run:
         (readback_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(manifest, indent=2))
@@ -936,12 +1096,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--local-dir", type=Path, default=PROGRAM_DIR, help=f"default: {PROGRAM_DIR}")
     parser.add_argument("--readback-root", type=Path, default=RUN_ROOT, help=f"default: {RUN_ROOT}")
     parser.add_argument("--dry-run", action="store_true", help="print SSH/SCP plan and validate local files only")
+    parser.add_argument(
+        "--force-upload-readback",
+        action="store_true",
+        help="disable SHA-matched read-back reuse and force put/get verification",
+    )
     args = parser.parse_args(argv)
 
     program = normalize_program(args.program)
     target_dir = normalize_target_dir(args.target_dir)
     files = triplet(args.local_dir, program)
     local_validation = validate_package(files, program, target_dir, require_exact_cached_script=True)
+    local_sha = package_sha(files)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     readback_dir = args.readback_root / f"controller_readback_{program}_{stamp}"
 
@@ -953,15 +1119,36 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  {ext}: {args.controller}:{PurePosixPath(target_dir) / files[ext].name}")
     print(f"Read-back directory: {readback_dir}")
 
-    shas = upload_and_readback(
-        files,
-        program,
-        args.controller,
-        target_dir,
-        readback_dir,
-        helper=args.controller_helper,
-        dry_run=args.dry_run,
-    )
+    reused_from_manifest: Path | None = None
+    delivery_mode = "full_upload_readback"
+    readback_source = "fresh_controller_get"
+    reuse_result = None
+    if not args.dry_run and not args.force_upload_readback:
+        reuse_result = reuse_readback_if_remote_sha_matches(
+            files,
+            program,
+            args.controller,
+            target_dir,
+            args.readback_root,
+            readback_dir,
+            helper=args.controller_helper,
+            local_sha=local_sha,
+        )
+    if reuse_result is not None:
+        shas, reused_from_manifest = reuse_result
+        delivery_mode = "content_addressed_reuse"
+        readback_source = "prior_full_readback"
+        print(f"Reused verified read-back bytes from: {reused_from_manifest}")
+    else:
+        shas = upload_and_readback(
+            files,
+            program,
+            args.controller,
+            target_dir,
+            readback_dir,
+            helper=args.controller_helper,
+            dry_run=args.dry_run,
+        )
     if args.dry_run:
         write_manifest(
             readback_dir,
@@ -971,6 +1158,9 @@ def main(argv: list[str] | None = None) -> int:
             validation=local_validation,
             shas={},
             dry_run=True,
+            delivery_mode="dry-run",
+            fresh_controller_sha_verified=None,
+            readback_source=None,
         )
         return 0
 
@@ -989,8 +1179,15 @@ def main(argv: list[str] | None = None) -> int:
         validation=readback_validation,
         shas=shas,
         dry_run=False,
+        delivery_mode=delivery_mode,
+        reused_from_manifest=reused_from_manifest,
+        fresh_controller_sha_verified=reused_from_manifest is not None,
+        readback_source=readback_source,
     )
-    print(f"controller read-back verified: {readback_dir}")
+    if reused_from_manifest is None:
+        print(f"controller read-back verified: {readback_dir}")
+    else:
+        print(f"controller read-back verified via SHA-matched reuse: {readback_dir}")
     return 0
 
 

@@ -71,7 +71,9 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         script = liveprep.build_script(stamp, "2026-06-14T12:00:00+08:00", geom, frame)
         txt = liveprep.build_txt(stamp)
         urp = liveprep.build_urp(script, liveprep.PROGRAM_NAME, liveprep.CONTROLLER_DIR)
+        urp_again = liveprep.build_urp(script, liveprep.PROGRAM_NAME, liveprep.CONTROLLER_DIR)
         liveprep.validate_package(script, txt, urp, stamp)
+        self.assertEqual(urp, urp_again)
         xml = gzip.decompress(urp).decode("utf-8")
         self.assertIn(f'URProgram name="{liveprep.PROGRAM_NAME}"', xml)
         self.assertIn("joint_executor_and_guard_only", script)
@@ -136,6 +138,24 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertNotIn("STEP5D_STRICT_RNN_LIVEPREP_V16", script + txt)
         self.assertNotIn("STEP5D_STRICT_RNN_LIVEPREP_V17", script + txt)
         self.assertNotIn("STEP5D_STRICT_RNN_LIVEPREP_V18", script + txt)
+
+    def test_step5d_write_outputs_can_reuse_existing_metadata_without_rewriting(self) -> None:
+        original_dir = liveprep.LOCAL_PROGRAM_DIR
+        with tempfile.TemporaryDirectory() as tmpdir:
+            liveprep.LOCAL_PROGRAM_DIR = Path(tmpdir)
+            try:
+                first = liveprep.write_outputs(
+                    "2026-07-02T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V19",
+                    "2026-07-02T12:00:00+08:00",
+                )
+                self.assertTrue(any(first["changed"].values()))
+                second = liveprep.write_outputs(reuse_existing_metadata=True)
+                self.assertTrue(second["reused_existing_metadata"])
+                self.assertFalse(any(second["changed"].values()))
+                self.assertEqual(second["stamp"], first["stamp"])
+                self.assertEqual(second["generated_at"], first["generated_at"])
+            finally:
+                liveprep.LOCAL_PROGRAM_DIR = original_dir
 
     def test_bridge_allows_liveprep_profile_but_keeps_full_reproduction_blocked(self) -> None:
         args = bridge.parse_args(
@@ -304,9 +324,11 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         bridge_operator = (ROOT / "scripts" / "bridge-line-operator.sh").read_text(encoding="utf-8")
         self.assertIn('STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v19}"', operator)
         self.assertIn('BRIDGE_OPERATOR="${SCRIPT_DIR}/bridge-line-operator.sh"', operator)
+        self.assertIn('READBACK_GATE="${ROOT}/tools/verify_current_stage_readback.py"', operator)
         self.assertIn('Bridge profile: ${STEP5D_VERSION}', operator)
         self.assertIn('STEP5D_CONFIRM', operator)
         self.assertIn('require_current_stage_readback_gate', operator)
+        self.assertIn('python3 "${READBACK_GATE}" --root "${ROOT}" --program "${STEP5D_VERSION}"', operator)
         self.assertIn('Force target: 12.0 N', operator)
         self.assertIn('filtered 8-13 N', operator)
         self.assertIn('raw-sanity 7.5-14 N', operator)
@@ -315,6 +337,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn('MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-100}"', operator)
         self.assertIn('MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-4.0}"', operator)
         self.assertIn('BRIDGE_PROFILE="${STEP5D_VERSION}"', operator)
+        self.assertIn('"${BRIDGE_OPERATOR}" line-bridge-fast', operator)
         self.assertNotIn('STEP4E_VERSION="${STEP5D_VERSION}"', operator)
         self.assertIn('--bridge-profile "${BRIDGE_PROFILE}"', bridge_operator)
         self.assertIn('--bridge-mode "${BRIDGE_MODE}"', bridge_operator)

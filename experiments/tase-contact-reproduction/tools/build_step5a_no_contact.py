@@ -410,7 +410,7 @@ def build_urp(script: str, name: str, controller_dir: str) -> bytes:
         count=1,
         flags=re.S,
     )
-    return gzip.compress(xml.encode("utf-8"))
+    return gzip.compress(xml.encode("utf-8"), mtime=0)
 
 
 def build_html(metrics: dict, stamp: str) -> str:

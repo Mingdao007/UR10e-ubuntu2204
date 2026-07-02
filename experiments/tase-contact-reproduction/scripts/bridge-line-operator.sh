@@ -468,7 +468,20 @@ try:
 except Exception:
     raise SystemExit(1)
 age_s = time.time() - float(payload.get("checked_at_epoch", 0.0))
-if payload.get("ok") is True and payload.get("robot_host") == host and 0.0 <= age_s <= ttl_s:
+gate = payload.get("gate", {})
+kunwei = gate.get("kunwei", {})
+cache_ok = (
+    payload.get("ok") is True
+    and payload.get("robot_host") == host
+    and gate.get("ok") is True
+    and gate.get("robot_host") == host
+    and gate.get("same_subnet") is True
+    and gate.get("device") == "enp3s0"
+    and kunwei.get("route_ok") is True
+    and kunwei.get("tcp_connect", {}).get("ok") is True
+    and 0.0 <= age_s <= ttl_s
+)
+if cache_ok:
     print(f"[operator] long-check cache hit: age={age_s:.1f}s ttl={ttl_s:.1f}s {cache}")
     raise SystemExit(0)
 raise SystemExit(1)
@@ -524,10 +537,6 @@ run_bench_gate_cached() {
 }
 
 require_bench_gate_cache() {
-  if [[ "${BRIDGE_SKIP_BENCH_GATE:-0}" == "1" || "${BRIDGE_SKIP_LONG_CHECKS:-0}" == "1" ]]; then
-    echo "[operator] skipping long bench gate cache requirement by request (BRIDGE_SKIP_BENCH_GATE=${BRIDGE_SKIP_BENCH_GATE:-0}, BRIDGE_SKIP_LONG_CHECKS=${BRIDGE_SKIP_LONG_CHECKS:-0})"
-    return 0
-  fi
   if long_gate_cache_valid; then
     return 0
   fi

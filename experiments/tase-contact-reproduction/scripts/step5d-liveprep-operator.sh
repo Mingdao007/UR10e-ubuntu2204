@@ -5,6 +5,7 @@ SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
 SCRIPT_DIR="$(cd "$(dirname "${SCRIPT_PATH}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 BRIDGE_OPERATOR="${SCRIPT_DIR}/bridge-line-operator.sh"
+READBACK_GATE="${ROOT}/tools/verify_current_stage_readback.py"
 STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v19}"
 if [[ -z "${STEP5D_VERSION}" ]]; then
   EXPECTED_PROGRAM="<no current Step5d live-prep package>"
@@ -38,69 +39,13 @@ Boundary:
   - Stage 25.0 v19 freezes path_time during cage-primary active reacquire/no-contact diagnostics, holds the force integrator on freeze_low_force, and caps reacquire predicted TCP speed at 0.035 m/s before the 0.050 m/s hard stop.
   - No UR zero_ftsensor(), no Kunwei tare/zero/config, no TCP/payload write.
   - This wrapper never loads a program or presses Play.
-  - contact-bridge owns cached long checks; do not run prep-long-checks as a
-    separate bridge-start step.
+  - contact-bridge requires a fresh cached long-check result; refresh it during
+    prep-long-checks, then the live trigger runs only short checks.
 EOF
 }
 
 require_current_stage_readback_gate() {
-  python3 - "${ROOT}" "${STEP5D_VERSION}" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-root = Path(sys.argv[1])
-version = sys.argv[2]
-current_path = root / "config" / "current_stage.json"
-current = json.loads(current_path.read_text(encoding="utf-8"))
-suffix = version.rsplit("_", 1)[-1]
-expected_target_dir = "/programs/andyl/kunwei/step5"
-expected_urp = f"{expected_target_dir}/{version}.urp"
-
-def fail(message: str) -> None:
-    raise SystemExit(f"refusing live Step5d bridge start: {message}")
-
-if current.get("current_stage_id") != version or current.get("program") != version:
-    fail(f"current_stage.json points to {current.get('current_stage_id')}/{current.get('program')}, not {version}")
-if current.get("controller_target") != expected_urp:
-    fail(f"controller_target is {current.get('controller_target')}, expected {expected_urp}")
-if "controller_readback_verified" not in str(current.get("status", "")):
-    fail(f"current status is not read-back verified: {current.get('status')}")
-
-evidence = current.get("evidence", {})
-if evidence.get(f"{suffix}_controller_readback_verified") is not True:
-    fail(f"{suffix}_controller_readback_verified is not true")
-manifest_rel = evidence.get(f"{suffix}_controller_readback_manifest")
-if not manifest_rel:
-    fail(f"{suffix}_controller_readback_manifest is missing")
-manifest_path = root / str(manifest_rel)
-if not manifest_path.exists():
-    fail(f"read-back manifest does not exist: {manifest_rel}")
-manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-if manifest.get("status") != "controller read-back verified":
-    fail(f"manifest status is {manifest.get('status')}")
-validation = manifest.get("validation", {})
-if validation.get("program") != version:
-    fail(f"manifest program is {validation.get('program')}, expected {version}")
-if validation.get("target_dir") != expected_target_dir:
-    fail(f"manifest target_dir is {validation.get('target_dir')}, expected {expected_target_dir}")
-if validation.get("script_node_path") != f"{expected_target_dir}/{version}.script":
-    fail(f"manifest script_node_path is {validation.get('script_node_path')}")
-
-expected_sha = evidence.get("sha256", {})
-manifest_sha = manifest.get("sha256", {})
-for label, key in ((".script", "script_sha256"), (".txt", "txt_sha256"), (".urp", "urp_sha256")):
-    expected = expected_sha.get(label)
-    if not expected:
-        fail(f"current_stage sha256 {label} is missing")
-    if validation.get(key) != expected:
-        fail(f"manifest validation {key} does not match current_stage")
-    for section in ("local", "controller", "readback"):
-        if manifest_sha.get(section, {}).get(label) != expected:
-            fail(f"manifest sha256 {section} {label} does not match current_stage")
-
-print(f"[operator] read-back gate passed for {version}: {manifest_rel}")
-PY
+  python3 "${READBACK_GATE}" --root "${ROOT}" --program "${STEP5D_VERSION}"
 }
 
 if [[ $# -ne 1 ]]; then
@@ -128,7 +73,6 @@ case "$1" in
     fi
     BRIDGE_PROFILE="${STEP5D_VERSION}" \
     BRIDGE_DURATION_S="${BRIDGE_DURATION_S:-180}" \
-    BRIDGE_SKIP_BENCH_GATE="${BRIDGE_SKIP_BENCH_GATE:-1}" \
     WAIT_FOR_PLAY_S="${WAIT_FOR_PLAY_S:-10}" \
     AUTOWATCH_WAIT_FOR_PLAY_S="${AUTOWATCH_WAIT_FOR_PLAY_S:-10}" \
     MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-100}" \
@@ -146,7 +90,7 @@ case "$1" in
     BRIDGE_TOTAL_LINEAR_LIMIT_M_S="${BRIDGE_TOTAL_LINEAR_LIMIT_M_S:-${STEP4E_TOTAL_LINEAR_LIMIT_M_S:-0.0040}}" \
     BRIDGE_ANGULAR_LIMIT_RAD_S="${BRIDGE_ANGULAR_LIMIT_RAD_S:-${STEP4E_ANGULAR_LIMIT_RAD_S:-0.150}}" \
     BRIDGE_INTEGRAL_LIMIT_N_S="${BRIDGE_INTEGRAL_LIMIT_N_S:-${STEP4E_INTEGRAL_LIMIT_N_S:-1.0}}" \
-      "${BRIDGE_OPERATOR}" line-bridge
+      "${BRIDGE_OPERATOR}" line-bridge-fast
     ;;
   *)
     usage

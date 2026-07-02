@@ -55,6 +55,18 @@ def source_stamp(now: datetime) -> str:
     return now.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_LIVEPREP_V19")
 
 
+def existing_metadata() -> tuple[str, str] | None:
+    script_path = LOCAL_PROGRAM_DIR / f"{PROGRAM_NAME}.script"
+    if not script_path.is_file():
+        return None
+    text = script_path.read_text(encoding="utf-8")
+    stamp_match = re.search(r"^# VERSION:\s*(\S+)\s*$", text, flags=re.M)
+    generated_match = re.search(r"^# GENERATED_AT_LOCAL:\s*(\S+)\s*$", text, flags=re.M)
+    if not stamp_match or not generated_match:
+        return None
+    return stamp_match.group(1), generated_match.group(1)
+
+
 def load_safe_frame() -> dict:
     return load_stage_frame(step5_stage(STEP5_STAGE_ID))
 
@@ -569,12 +581,36 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str) -> None:
         raise RuntimeError(f"{PROGRAM_NAME} validation failed: {failed}")
 
 
-def write_outputs(stamp_prefix: str | None = None) -> dict[str, str]:
+def write_text_if_changed(path: Path, text: str) -> bool:
+    if path.is_file() and path.read_text(encoding="utf-8") == text:
+        return False
+    path.write_text(text, encoding="utf-8")
+    return True
+
+
+def write_bytes_if_changed(path: Path, data: bytes) -> bool:
+    if path.is_file() and path.read_bytes() == data:
+        return False
+    path.write_bytes(data)
+    return True
+
+
+def write_outputs(
+    stamp_prefix: str | None = None,
+    generated_at_override: str | None = None,
+    *,
+    reuse_existing_metadata: bool = False,
+) -> dict[str, object]:
     now = datetime.now(timezone(timedelta(hours=8)))
-    stamp = stamp_prefix or source_stamp(now)
+    reused = existing_metadata() if reuse_existing_metadata and stamp_prefix is None and generated_at_override is None else None
+    if reused is not None:
+        stamp, gen_at = reused
+    else:
+        stamp = stamp_prefix or source_stamp(now)
+        gen_at = generated_at_override or generated_at(now)
     frame = load_safe_frame()
     geom = line_cfg(load_json(CONFIG_PATH))
-    script = build_script(stamp, generated_at(now), geom, frame)
+    script = build_script(stamp, gen_at, geom, frame)
     txt = build_txt(stamp)
     urp = build_urp(script, PROGRAM_NAME, CONTROLLER_DIR)
     validate_package(script, txt, urp, stamp)
@@ -583,23 +619,34 @@ def write_outputs(stamp_prefix: str | None = None) -> dict[str, str]:
     script_path = LOCAL_PROGRAM_DIR / f"{PROGRAM_NAME}.script"
     txt_path = LOCAL_PROGRAM_DIR / f"{PROGRAM_NAME}.txt"
     urp_path = LOCAL_PROGRAM_DIR / f"{PROGRAM_NAME}.urp"
-    script_path.write_text(script, encoding="utf-8")
-    txt_path.write_text(txt, encoding="utf-8")
-    urp_path.write_bytes(urp)
+    changed = {
+        "script": write_text_if_changed(script_path, script),
+        "txt": write_text_if_changed(txt_path, txt),
+        "urp": write_bytes_if_changed(urp_path, urp),
+    }
     return {
         "script": str(script_path),
         "txt": str(txt_path),
         "urp": str(urp_path),
         "controller_urp": f"{CONTROLLER_DIR}/{PROGRAM_NAME}.urp",
         "stamp": stamp,
+        "generated_at": gen_at,
+        "reused_existing_metadata": reused is not None,
+        "changed": changed,
     }
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--stamp-prefix", default=None)
+    parser.add_argument("--generated-at", default=None)
+    parser.add_argument("--reuse-existing-metadata", action="store_true")
     args = parser.parse_args()
-    result = write_outputs(args.stamp_prefix)
+    result = write_outputs(
+        args.stamp_prefix,
+        args.generated_at,
+        reuse_existing_metadata=args.reuse_existing_metadata,
+    )
     print(json.dumps({"generated": {PROGRAM_NAME: result}}, indent=2, sort_keys=True))
     return 0
 

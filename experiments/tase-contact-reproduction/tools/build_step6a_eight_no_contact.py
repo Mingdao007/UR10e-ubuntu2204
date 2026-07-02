@@ -263,7 +263,7 @@ def build_urp(script: str, name: str, controller_dir: str) -> bytes:
     xml = re.sub(r'installationRelativePath="[^"]+"', f'installationRelativePath="{install_rel}"', xml, count=1)
     xml = re.sub(r'<cachedContents>.*?</cachedContents>', f"<cachedContents>{html.escape(script)}</cachedContents>", xml, count=1, flags=re.S)
     xml = re.sub(r'<file resolves-to="file">.*?</file>', f'<file resolves-to="file">{controller_script}</file>', xml, count=1, flags=re.S)
-    return gzip.compress(xml.encode("utf-8"))
+    return gzip.compress(xml.encode("utf-8"), mtime=0)
 
 
 def validate_package(script: str, txt: str, urp: bytes, stamp: str, metrics: dict) -> None:
