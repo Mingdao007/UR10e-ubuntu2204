@@ -1757,6 +1757,7 @@ def step5d_v15_permissive_recovery_guard(
     **kwargs: Any,
 ) -> dict[str, float | str]:
     allow_high_contact_below_hard_force = bool(kwargs.pop("allow_high_contact_below_hard_force", True))
+    defer_low_load_hold_timeout = bool(kwargs.pop("defer_low_load_hold_timeout", True))
     safe_dt_s = min(
         max(0.0, float(kwargs.get("dt_s", 0.0))),
         float(kwargs.get("dt_max_s", STEP5D_V12_GUARD_DT_MAX_S)),
@@ -1994,7 +1995,7 @@ def step5d_v15_permissive_recovery_guard(
             "reason": "ok_high_contact_below_hard_force",
             "high_window_s": 0.0,
         })
-    if base_result["reason"] == "low_load_hold_timeout" and bool(kwargs.get("defer_low_load_hold_timeout", True)):
+    if base_result["reason"] == "low_load_hold_timeout" and defer_low_load_hold_timeout:
         actual_tcp_speed_m_s = float(kwargs.get("actual_tcp_speed_m_s", math.inf))
         low_load_speed_stop_m_s = float(kwargs.get("low_load_speed_stop_m_s", STEP5D_V13_LOW_LOAD_SPEED_STOP_M_S))
         if math.isfinite(actual_tcp_speed_m_s) and actual_tcp_speed_m_s <= low_load_speed_stop_m_s:

@@ -480,7 +480,21 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn('raw-sanity 7-15 N', operator)
         self.assertIn('WAIT_FOR_PLAY_S="${WAIT_FOR_PLAY_S:-10}"', operator)
         self.assertIn('current v24 defaults to 25 N', operator)
-        self.assertIn('MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-${STEP5D_MAX_TORQUE_NORM_NM:-4.0}}"', operator)
+        self.assertIn('STEP5D_DEFAULT_MAX_NORMAL_FORCE_N="${STEP5D_DEFAULT_MAX_NORMAL_FORCE_N:-25}"', operator)
+        self.assertIn('STEP5D_DEFAULT_MAX_FORCE_NORM_N="${STEP5D_DEFAULT_MAX_FORCE_NORM_N:-25}"', operator)
+        self.assertIn(
+            'MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-${STEP5D_MAX_NORMAL_FORCE_N:-${STEP5D_DEFAULT_MAX_NORMAL_FORCE_N}}}"',
+            operator,
+        )
+        self.assertIn(
+            'MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-${STEP5D_MAX_FORCE_NORM_N:-${STEP5D_DEFAULT_MAX_FORCE_NORM_N}}}"',
+            operator,
+        )
+        self.assertIn(
+            'MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-${STEP5D_MAX_TORQUE_NORM_NM:-${STEP5D_DEFAULT_MAX_TORQUE_NORM_NM}}}"',
+            operator,
+        )
+        self.assertNotIn('MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-${STEP5D_MAX_NORMAL_FORCE_N:-100}}"', operator)
         self.assertIn('BRIDGE_PROFILE="${STEP5D_VERSION}"', operator)
         self.assertIn('"${BRIDGE_OPERATOR}" line-bridge-fast', operator)
         self.assertNotIn('STEP4E_VERSION="${STEP5D_VERSION}"', operator)

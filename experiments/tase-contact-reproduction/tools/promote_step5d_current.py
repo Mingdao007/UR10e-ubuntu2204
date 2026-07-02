@@ -530,6 +530,17 @@ def update_current_stage(
             "whose predicted or actual TCP motion presses into the surface."
         )
         if label == "v24":
+            bridge["cage_primary_policy"] = (
+                "Low-load/no-contact inside the TCP cage freezes path_time, writes zero qdot, "
+                "and stops after 0.050 s instead of executing active_reacquire_solver qdot; "
+                "the broad AABB cage remains a diagnostic boundary."
+            )
+            bridge["sensor_hard_guards"] = {
+                "raw_normal_n": 25.0,
+                "force_norm_n": 25.0,
+                "torque_norm_nm": 4.0,
+            }
+            bridge.pop("step5d_reacquire_predicted_tcp_speed_cap_m_s", None)
             bridge["stage25_low_load_policy"] = (
                 "Low-load/no-contact no longer executes active_reacquire_solver qdot; bridge freezes path_time, "
                 "writes zero qdot, and stops after 0.050 s if contact is not recovered."

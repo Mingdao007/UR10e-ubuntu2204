@@ -214,6 +214,25 @@ class Step5dV15PermissiveRecoveryTest(unittest.TestCase):
         self.assertEqual(hard_stop["action"], "stop_zero_qdot")
         self.assertEqual(hard_stop["reason"], "force_norm_hard_stop")
 
+    def test_v24_low_load_timeout_kwarg_is_consumed_by_permissive_wrapper(self) -> None:
+        result = bridge.step5d_v15_permissive_recovery_guard(
+            require_braking_margin=True,
+            normal_load_n=0.0,
+            force_norm_n=0.1,
+            actual_tcp_speed_m_s=0.004,
+            predicted_tcp_speed_m_s=0.0,
+            braking_margin_m=0.010,
+            prior_hold_s=0.048,
+            prior_high_window_s=0.0,
+            prior_actual_speed_violation_s=0.0,
+            dt_s=0.004,
+            hold_timeout_s=0.050,
+            cage_primary_low_load_reacquire=False,
+            defer_low_load_hold_timeout=False,
+        )
+        self.assertEqual(result["action"], "stop_zero_qdot")
+        self.assertEqual(result["reason"], "low_load_hold_timeout")
+
     def test_stage_table_marks_v15a_retained_after_hold_duty_live_stop(self) -> None:
         table = json.loads((ROOT / "config" / "step5_stage_table.json").read_text(encoding="utf-8"))
         retained = next(item for item in table["stages"] if item["id"] == "step5d_strict_rnn_liveprep_v15")
@@ -351,6 +370,13 @@ class Step5dV15PermissiveRecoveryTest(unittest.TestCase):
         self.assertIn("stage25_95_qdot_clear_barrier", current["bridge_profile"])
         self.assertIn("stage25_post_rnn_normal_guard", current["bridge_profile"])
         self.assertIn("stage25_post_rnn_tracking_guard", current["bridge_profile"])
+        self.assertEqual(
+            current["bridge_profile"]["sensor_hard_guards"],
+            {"raw_normal_n": 25.0, "force_norm_n": 25.0, "torque_norm_nm": 4.0},
+        )
+        self.assertIn("writes zero qdot", current["bridge_profile"]["cage_primary_policy"])
+        self.assertNotIn("remains active_reacquire_solver", current["bridge_profile"]["cage_primary_policy"])
+        self.assertNotIn("step5d_reacquire_predicted_tcp_speed_cap_m_s", current["bridge_profile"])
         self.assertIn("controller_readback_verified", current["status"])
         self.assertTrue(current["evidence"]["v20_retained_after_live_attempt"])
         self.assertEqual(current["evidence"]["v20_live_attempts"]["latest_stop_reason"], "signal_sigint")

@@ -22,6 +22,7 @@ V20 = "step5d_strict_rnn_liveprep_v20"
 V21 = "step5d_strict_rnn_liveprep_v21"
 V22 = "step5d_strict_rnn_liveprep_v22"
 V23 = "step5d_strict_rnn_liveprep_v23"
+V24 = "step5d_strict_rnn_liveprep_v24"
 
 
 def _sha(data: bytes) -> str:
@@ -225,6 +226,85 @@ def _write_v23_fixture(root: Path) -> tuple[Path, Path]:
     return v23_dir, manifest_path
 
 
+def _write_v24_fixture(root: Path) -> tuple[Path, Path]:
+    config = root / "config"
+    config.mkdir(parents=True)
+    v23_dir = root / "programs" / "step5"
+    v24_dir = root / "candidate"
+    v23_sha = _write_triplet(v23_dir, V23, "old-current-v23")
+    v24_sha = _write_triplet(v24_dir, V24, "new-current-v24")
+    manifest_path = _write_readback(root, V24, v24_dir, v24_sha)
+    v23_run = root / "runs" / "bridge_step5d_strict_rnn_liveprep_v23_fixture"
+    v23_run.mkdir(parents=True)
+    (v23_run / "summary.json").write_text(
+        json.dumps({"stop_reason": "step5d_contact_safety:tcp_cage_braking_margin_exhausted"}),
+        encoding="utf-8",
+    )
+    stale_bridge_profile = {
+        "step4e_version": V23,
+        "cage_primary_policy": (
+            "low-load/no-contact inside positive cage margin freezes path_time, resets outer-loop state "
+            "during low-load active_reacquire_solver, caps active-reacquire predicted TCP speed at 0.035 m/s, "
+            "and remains active_reacquire_solver until hard guards trip"
+        ),
+        "sensor_hard_guards": {
+            "raw_normal_n": 100.0,
+            "force_norm_n": 100.0,
+            "torque_norm_nm": 4.0,
+        },
+        "step5d_reacquire_predicted_tcp_speed_cap_m_s": 0.035,
+    }
+    current = {
+        "version": 2,
+        "current_step": "Step5d",
+        "current_stage_id": V23,
+        "program": V23,
+        "stage_table_path": "config/step5_stage_table.json",
+        "controller_target": f"{TARGET_DIR}/{V23}.urp",
+        "controller_script": f"{TARGET_DIR}/{V23}.script",
+        "local_triplet": f"programs/step5/{V23}",
+        "status": f"{V23}_controller_readback_verified_pending_live_bridge_run_not_reproduction_claim",
+        "sha256": v23_sha,
+        "bridge_profile": stale_bridge_profile,
+        "evidence": {},
+        "bridge_trigger": {"required_before_live": [f"TP program opened on controller read-back v23 package"]},
+        "retained_steps": [{"step": "Step5", "role": "v23 current before test"}],
+        "notes": [],
+    }
+    table = {
+        "stages": [
+            {
+                "id": V23,
+                "stage": "Step5d",
+                "owner": "bridge+TP",
+                "active": True,
+                "blocked": False,
+                "complete": False,
+                "completion_target": True,
+                "block_reason": "current fixture",
+                "guard": {
+                    "line_entry_normal_load_min_n": 7.5,
+                    "line_entry_normal_load_max_n": 14.0,
+                    "raw_normal_guard_n": 100.0,
+                    "force_norm_guard_n": 100.0,
+                },
+                "cadence": {},
+                "contact_policy": {"controller_readback_status": "verified"},
+                "local_delivery_evidence": {
+                    "program_basename": V23,
+                    "local_program_dir": "programs/step5",
+                    "local_triplet": f"programs/step5/{V23}.{{script,txt,urp}}",
+                    "controller_readback_verified": True,
+                    "sha256": v23_sha,
+                },
+            }
+        ]
+    }
+    (config / "current_stage.json").write_text(json.dumps(current), encoding="utf-8")
+    (config / "step5_stage_table.json").write_text(json.dumps(table), encoding="utf-8")
+    return v24_dir, manifest_path
+
+
 class Step5dCurrentPromotionTest(unittest.TestCase):
     def test_promote_v22_archives_v21_and_updates_current(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -288,6 +368,28 @@ class Step5dCurrentPromotionTest(unittest.TestCase):
             self.assertFalse(rows[V23]["complete"])
             self.assertEqual(rows[V23]["guard"]["stage25_95_qdot_clear_zero_tol_rad_s"], 0.0005)
             self.assertEqual(rows[V23]["guard"]["stage25_post_rnn_normal_guard_hard_stop_load_n"], 25.0)
+
+    def test_promote_v24_overwrites_v23_bridge_profile_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            v24_dir, manifest_path = _write_v24_fixture(root)
+
+            result = promote.promote(root, V24, TARGET_DIR, v24_dir, manifest_path)
+
+            self.assertTrue(result["ok"])
+            current = json.loads((root / "config" / "current_stage.json").read_text(encoding="utf-8"))
+            self.assertEqual(current["program"], V24)
+            bridge_profile = current["bridge_profile"]
+            self.assertEqual(bridge_profile["step4e_version"], V24)
+            self.assertEqual(
+                bridge_profile["sensor_hard_guards"],
+                {"raw_normal_n": 25.0, "force_norm_n": 25.0, "torque_norm_nm": 4.0},
+            )
+            self.assertIn("writes zero qdot", bridge_profile["cage_primary_policy"])
+            self.assertNotIn("remains active_reacquire_solver", bridge_profile["cage_primary_policy"])
+            self.assertNotIn("step5d_reacquire_predicted_tcp_speed_cap_m_s", bridge_profile)
+            self.assertIn("stage25_low_load_policy", bridge_profile)
+            self.assertIn("stage25_post_rnn_tracking_guard", bridge_profile)
 
 
 if __name__ == "__main__":

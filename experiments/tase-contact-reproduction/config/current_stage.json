@@ -21,13 +21,12 @@
     "stage25_3_preload_gate": "filtered 7.5-14N, raw sanity 7-15N, force_norm <=25N, bridge param-valid code 521.0 for 0.100s",
     "stage25_0_diagnostic_window_s": 10.0,
     "online_tcp_cage": "broad_stagewise_aabb_from_success_step5b_step6b",
-    "cage_primary_policy": "low-load/no-contact inside positive cage margin freezes path_time, resets outer-loop state during low-load active_reacquire_solver, caps active-reacquire predicted TCP speed at 0.035 m/s, and remains active_reacquire_solver until hard guards trip",
+    "cage_primary_policy": "Low-load/no-contact inside the TCP cage freezes path_time, writes zero qdot, and stops after 0.050 s instead of executing active_reacquire_solver qdot; the broad AABB cage remains a diagnostic boundary.",
     "sensor_hard_guards": {
-      "raw_normal_n": 100.0,
-      "force_norm_n": 100.0,
+      "raw_normal_n": 25.0,
+      "force_norm_n": 25.0,
       "torque_norm_nm": 4.0
     },
-    "step5d_reacquire_predicted_tcp_speed_cap_m_s": 0.035,
     "stage22_entry_movel_speed_m_s": 0.06,
     "stage22_entry_movel_accel_m_s2": 0.09,
     "stage24_far_search_speed_m_s": -0.0225,
