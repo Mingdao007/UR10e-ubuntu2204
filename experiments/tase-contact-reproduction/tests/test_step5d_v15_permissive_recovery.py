@@ -283,15 +283,25 @@ class Step5dV15PermissiveRecoveryTest(unittest.TestCase):
         self.assertEqual(retained_v19["live_run_evidence"]["stop_reason"], "step5d_contact_safety:cage_primary_tcp_speed_hard_stop")
         self.assertIn("locked-normal settle", retained_v19["live_run_evidence"]["root_cause_summary"])
 
-        current_candidate = next(item for item in table["stages"] if item["id"] == "step5d_strict_rnn_liveprep_v20")
+        retained_v20 = next(item for item in table["stages"] if item["id"] == "step5d_strict_rnn_liveprep_v20")
+        self.assertFalse(retained_v20["active"])
+        self.assertTrue(retained_v20["complete"])
+        self.assertFalse(retained_v20["completion_target"])
+        self.assertTrue(retained_v20["local_delivery_evidence"]["archived_to_step5d_dir"])
+        self.assertIn("programs/step5/step5d/", retained_v20["local_delivery_evidence"]["local_triplet"])
+        self.assertEqual(retained_v20["live_run_evidence"]["latest_stop_reason"], "signal_sigint")
+        self.assertIn("incomplete live-attempt", retained_v20["live_run_evidence"]["result"])
+
+        current_candidate = next(item for item in table["stages"] if item["id"] == "step5d_strict_rnn_liveprep_v21")
         self.assertTrue(current_candidate["active"])
         self.assertFalse(current_candidate["complete"])
         self.assertEqual(current_candidate["guard"]["target_force_n"], 12.0)
-        self.assertEqual(current_candidate["guard"]["line_entry_normal_load_min_n"], 8.0)
-        self.assertEqual(current_candidate["guard"]["line_entry_normal_load_max_n"], 13.0)
-        self.assertEqual(current_candidate["guard"]["line_entry_raw_sanity_min_n"], 7.5)
-        self.assertEqual(current_candidate["guard"]["line_entry_raw_sanity_max_n"], 14.0)
+        self.assertEqual(current_candidate["guard"]["line_entry_normal_load_min_n"], 7.5)
+        self.assertEqual(current_candidate["guard"]["line_entry_normal_load_max_n"], 14.0)
+        self.assertEqual(current_candidate["guard"]["line_entry_raw_sanity_min_n"], 7.0)
+        self.assertEqual(current_candidate["guard"]["line_entry_raw_sanity_max_n"], 15.0)
         self.assertEqual(current_candidate["guard"]["line_entry_required_s"], 0.1)
+        self.assertEqual(current_candidate["guard"]["line_entry_param_valid_code"], 521.0)
         self.assertEqual(current_candidate["guard"]["runtime_limit_s"], 15.0)
         self.assertEqual(current_candidate["guard"]["raw_normal_guard_n"], 100.0)
         self.assertEqual(current_candidate["guard"]["force_norm_guard_n"], 100.0)
@@ -307,13 +317,23 @@ class Step5dV15PermissiveRecoveryTest(unittest.TestCase):
         self.assertTrue(current_candidate["local_delivery_evidence"]["controller_readback_verified"])
         self.assertEqual(
             current_candidate["local_delivery_evidence"]["controller_readback"],
-            "runs/controller_readback_step5d_strict_rnn_liveprep_v20_20260702_192951/manifest.json",
+            "runs/controller_readback_step5d_strict_rnn_liveprep_v21_20260702_211049/manifest.json",
         )
         current = json.loads((ROOT / "config" / "current_stage.json").read_text(encoding="utf-8"))
-        self.assertEqual(current["current_stage_id"], "step5d_strict_rnn_liveprep_v20")
-        self.assertEqual(current["program"], "step5d_strict_rnn_liveprep_v20")
-        self.assertEqual(current["bridge_profile"]["step4e_version"], "step5d_strict_rnn_liveprep_v20")
+        self.assertEqual(current["current_stage_id"], "step5d_strict_rnn_liveprep_v21")
+        self.assertEqual(current["program"], "step5d_strict_rnn_liveprep_v21")
+        self.assertEqual(current["bridge_profile"]["step4e_version"], "step5d_strict_rnn_liveprep_v21")
         self.assertIn("controller_readback_verified", current["status"])
+        self.assertTrue(current["evidence"]["v20_retained_after_live_attempt"])
+        self.assertEqual(current["evidence"]["v20_live_attempts"]["latest_stop_reason"], "signal_sigint")
+        self.assertTrue(current["evidence"]["v21_local_package_validated"])
+        self.assertTrue(current["evidence"]["v21_controller_readback_verified"])
+        self.assertEqual(
+            current["evidence"]["v21_controller_readback_manifest"],
+            "runs/controller_readback_step5d_strict_rnn_liveprep_v21_20260702_211049/manifest.json",
+        )
+        self.assertEqual(current["evidence"]["v21_preload_gate"]["filtered_normal_load_min_n"], 7.5)
+        self.assertEqual(current["evidence"]["v21_preload_gate"]["filtered_normal_load_max_n"], 14.0)
         self.assertTrue(current["evidence"]["v16_local_package_validated"])
         self.assertTrue(current["evidence"]["v16_controller_readback_verified"])
         self.assertEqual(current["evidence"]["v16_live_stop_reason"], "step5d_contact_safety:hold_duty_limit")

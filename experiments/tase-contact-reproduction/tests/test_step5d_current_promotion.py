@@ -1,0 +1,164 @@
+#!/usr/bin/env python3
+"""Offline tests for Step5d current package promotion."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tools"))
+
+import promote_step5d_current as promote  # noqa: E402
+
+
+TARGET_DIR = "/programs/andyl/kunwei/step5"
+V20 = "step5d_strict_rnn_liveprep_v20"
+V21 = "step5d_strict_rnn_liveprep_v21"
+
+
+def _sha(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _write_triplet(local_dir: Path, program: str, prefix: str) -> dict[str, str]:
+    local_dir.mkdir(parents=True, exist_ok=True)
+    shas: dict[str, str] = {}
+    for ext in promote.EXTENSIONS:
+        data = f"{prefix}:{program}:{ext}\n".encode("utf-8")
+        (local_dir / f"{program}{ext}").write_bytes(data)
+        shas[ext] = _sha(data)
+    return shas
+
+
+def _write_readback(root: Path, program: str, local_dir: Path, shas: dict[str, str]) -> Path:
+    readback_dir = root / "runs" / f"controller_readback_{program}_fixture"
+    readback_dir.mkdir(parents=True, exist_ok=True)
+    for ext in promote.EXTENSIONS:
+        source = local_dir / f"{program}{ext}"
+        (readback_dir / source.name).write_bytes(source.read_bytes())
+    manifest = {
+        "status": "controller read-back verified",
+        "target_dir": TARGET_DIR,
+        "delivery_mode": "full_upload_readback",
+        "validation": {
+            "stamp": "2026-07-02T2100HKT_STEP5D_STRICT_RNN_LIVEPREP_V21",
+            "program": program,
+            "target_dir": TARGET_DIR,
+            "installation_relative_path": "../../../default",
+            "script_node_path": f"{TARGET_DIR}/{program}.script",
+            "script_sha256": shas[".script"],
+            "txt_sha256": shas[".txt"],
+            "urp_sha256": shas[".urp"],
+        },
+        "sha256": {
+            "local": shas,
+            "controller": shas,
+            "readback": shas,
+        },
+    }
+    manifest_path = readback_dir / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    return manifest_path
+
+
+def _write_fixture(root: Path) -> tuple[Path, Path]:
+    config = root / "config"
+    config.mkdir(parents=True)
+    v20_dir = root / "programs" / "step5"
+    v21_dir = root / "candidate"
+    v20_sha = _write_triplet(v20_dir, V20, "old-current")
+    v21_sha = _write_triplet(v21_dir, V21, "new-current")
+    manifest_path = _write_readback(root, V21, v21_dir, v21_sha)
+    current = {
+        "version": 2,
+        "current_step": "Step5d",
+        "current_stage_id": V20,
+        "program": V20,
+        "stage_table_path": "config/step5_stage_table.json",
+        "controller_target": f"{TARGET_DIR}/{V20}.urp",
+        "controller_script": f"{TARGET_DIR}/{V20}.script",
+        "local_triplet": f"programs/step5/{V20}",
+        "status": f"{V20}_controller_readback_verified_pending_live_bridge_run_not_reproduction_claim",
+        "sha256": v20_sha,
+        "bridge_profile": {
+            "step4e_version": V20,
+        },
+        "evidence": {},
+        "bridge_trigger": {
+            "required_before_live": [f"TP program opened on controller read-back v20 package"],
+        },
+        "retained_steps": [
+            {"step": "Step5", "role": "v20 current before test"},
+        ],
+        "notes": [],
+    }
+    table = {
+        "stages": [
+            {
+                "id": V20,
+                "stage": "Step5d",
+                "owner": "bridge+TP",
+                "active": True,
+                "blocked": False,
+                "complete": False,
+                "completion_target": True,
+                "block_reason": "current fixture",
+                "guard": {
+                    "line_entry_normal_load_min_n": 8.0,
+                    "line_entry_normal_load_max_n": 13.0,
+                },
+                "cadence": {},
+                "contact_policy": {
+                    "controller_readback_status": "verified",
+                },
+                "local_delivery_evidence": {
+                    "program_basename": V20,
+                    "local_program_dir": "programs/step5",
+                    "local_triplet": f"programs/step5/{V20}.{{script,txt,urp}}",
+                    "controller_readback_verified": True,
+                    "sha256": v20_sha,
+                },
+            }
+        ]
+    }
+    (config / "current_stage.json").write_text(json.dumps(current), encoding="utf-8")
+    (config / "step5_stage_table.json").write_text(json.dumps(table), encoding="utf-8")
+    return v21_dir, manifest_path
+
+
+class Step5dCurrentPromotionTest(unittest.TestCase):
+    def test_promote_v21_archives_v20_and_updates_current(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            v21_dir, manifest_path = _write_fixture(root)
+
+            result = promote.promote(root, V21, TARGET_DIR, v21_dir, manifest_path)
+
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["previous_program"], V20)
+            self.assertFalse((root / "programs" / "step5" / f"{V20}.urp").exists())
+            self.assertTrue((root / "programs" / "step5" / "step5d" / f"{V20}.urp").is_file())
+            self.assertTrue((root / "programs" / "step5" / f"{V21}.urp").is_file())
+            current = json.loads((root / "config" / "current_stage.json").read_text(encoding="utf-8"))
+            self.assertEqual(current["program"], V21)
+            self.assertEqual(current["bridge_profile"]["step4e_version"], V21)
+            self.assertIn("v21", current["bridge_trigger"]["required_before_live"][1])
+            table = json.loads((root / "config" / "step5_stage_table.json").read_text(encoding="utf-8"))
+            rows = {row["id"]: row for row in table["stages"]}
+            self.assertFalse(rows[V20]["active"])
+            self.assertTrue(rows[V20]["complete"])
+            self.assertTrue(rows[V20]["local_delivery_evidence"]["archived_to_step5d_dir"])
+            self.assertTrue(rows[V21]["active"])
+            self.assertFalse(rows[V21]["complete"])
+            self.assertEqual(rows[V21]["guard"]["line_entry_normal_load_min_n"], 7.5)
+            self.assertEqual(rows[V21]["guard"]["line_entry_raw_sanity_min_n"], 7.0)
+
+
+if __name__ == "__main__":
+    unittest.main()

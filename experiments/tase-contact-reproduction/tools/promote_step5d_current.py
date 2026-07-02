@@ -1,0 +1,454 @@
+#!/usr/bin/env python3
+"""Promote a controller-readback Step5d TP package to current_stage."""
+
+from __future__ import annotations
+
+import argparse
+import copy
+import hashlib
+import json
+import shutil
+from datetime import datetime
+from pathlib import Path, PurePosixPath
+from typing import Any
+
+
+EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
+EXTENSIONS = (".script", ".txt", ".urp")
+STEP5D_ARCHIVE_DIR = Path("programs/step5/step5d")
+STEP5D_CURRENT_DIR = Path("programs/step5")
+TARGET_DIR = "/programs/andyl/kunwei/step5"
+
+
+def fail(message: str) -> None:
+    raise RuntimeError(message)
+
+
+def load_json(path: Path) -> Any:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        fail(f"missing JSON file: {path}")
+    except json.JSONDecodeError as exc:
+        fail(f"invalid JSON file {path}: {exc}")
+
+
+def write_json(path: Path, payload: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    tmp.replace(path)
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def rel(root: Path, path: Path) -> str:
+    return str(path.relative_to(root))
+
+
+def local_triplet(root: Path, local_dir: Path, program: str) -> dict[str, Path]:
+    files = {ext: local_dir / f"{program}{ext}" for ext in EXTENSIONS}
+    missing = [str(path) for path in files.values() if not path.is_file()]
+    if missing:
+        fail(f"missing local triplet file(s): {missing}")
+    return files
+
+
+def triplet_sha(files: dict[str, Path]) -> dict[str, str]:
+    return {ext: sha256_file(path) for ext, path in files.items()}
+
+
+def latest_manifest(root: Path, program: str) -> Path:
+    matches = sorted(
+        (root / "runs").glob(f"controller_readback_{program}_*/manifest.json"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    if not matches:
+        fail(f"no controller read-back manifest found for {program}")
+    return matches[0]
+
+
+def validate_manifest(root: Path, program: str, target_dir: str, manifest_path: Path) -> dict[str, Any]:
+    manifest = load_json(manifest_path)
+    if manifest.get("status") != "controller read-back verified":
+        fail(f"manifest status is not controller read-back verified: {manifest.get('status')}")
+    if manifest.get("target_dir") != target_dir:
+        fail(f"manifest target_dir is {manifest.get('target_dir')}, expected {target_dir}")
+    validation = manifest.get("validation", {})
+    if validation.get("program") != program:
+        fail(f"manifest program is {validation.get('program')}, expected {program}")
+    if validation.get("target_dir") != target_dir:
+        fail(f"manifest validation target_dir is {validation.get('target_dir')}, expected {target_dir}")
+    expected_script = str(PurePosixPath(target_dir) / f"{program}.script")
+    if validation.get("script_node_path") != expected_script:
+        fail(f"manifest script_node_path is {validation.get('script_node_path')}, expected {expected_script}")
+    manifest_sha = manifest.get("sha256", {})
+    for section in ("local", "controller", "readback"):
+        for ext in EXTENSIONS:
+            if not manifest_sha.get(section, {}).get(ext):
+                fail(f"manifest sha256 {section} {ext} is missing")
+    if not (
+        manifest_sha["local"] == manifest_sha["controller"] == manifest_sha["readback"]
+    ):
+        fail("manifest local/controller/readback sha256 values do not all match")
+    readback_dir = manifest_path.parent
+    for ext in EXTENSIONS:
+        readback_file = readback_dir / f"{program}{ext}"
+        if not readback_file.is_file():
+            fail(f"read-back file is missing: {readback_file}")
+        actual = sha256_file(readback_file)
+        if actual != manifest_sha["readback"][ext]:
+            fail(f"read-back {ext} sha256 is {actual}, expected {manifest_sha['readback'][ext]}")
+    manifest["manifest_path"] = rel(root, manifest_path)
+    return manifest
+
+
+def ensure_formal_local_triplet(
+    root: Path,
+    program: str,
+    source_dir: Path,
+    expected_sha: dict[str, str],
+) -> dict[str, Path]:
+    formal_dir = root / STEP5D_CURRENT_DIR
+    formal_dir.mkdir(parents=True, exist_ok=True)
+    source_files = local_triplet(root, source_dir, program)
+    for ext, source in source_files.items():
+        if sha256_file(source) != expected_sha[ext]:
+            fail(f"source local {ext} sha does not match manifest")
+        dest = formal_dir / source.name
+        if dest.exists() and sha256_file(dest) == expected_sha[ext]:
+            continue
+        shutil.copy2(source, dest)
+    formal_files = local_triplet(root, formal_dir, program)
+    formal_sha = triplet_sha(formal_files)
+    if formal_sha != expected_sha:
+        fail(f"formal local triplet sha mismatch: {formal_sha} expected {expected_sha}")
+    return formal_files
+
+
+def archive_previous_triplet(root: Path, program: str, current: dict[str, Any]) -> str:
+    local_triplet_value = current.get("local_triplet") or str(STEP5D_CURRENT_DIR / program)
+    source_stem = root / str(local_triplet_value)
+    archive_dir = root / STEP5D_ARCHIVE_DIR
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    archived_stem = archive_dir / program
+    for ext in EXTENSIONS:
+        source = source_stem.with_suffix(ext)
+        dest = archived_stem.with_suffix(ext)
+        if dest.exists():
+            if source.exists():
+                if sha256_file(source) != sha256_file(dest):
+                    fail(f"archive destination already exists with different bytes: {dest}")
+                source.unlink()
+            continue
+        if source.exists():
+            shutil.move(str(source), str(dest))
+    return str(STEP5D_ARCHIVE_DIR / f"{program}.{{script,txt,urp}}")
+
+
+def v20_live_attempt_evidence(root: Path, program: str) -> dict[str, Any]:
+    attempts: list[dict[str, Any]] = []
+    for run_dir in sorted((root / "runs").glob(f"bridge_step4e_line_outerloop_{program}_*")):
+        summary_path = run_dir / "summary.json"
+        entry: dict[str, Any] = {"run_dir": rel(root, run_dir)}
+        if summary_path.is_file():
+            summary = load_json(summary_path)
+            entry["summary"] = rel(root, summary_path)
+            if "stop_reason" in summary:
+                entry["stop_reason"] = summary["stop_reason"]
+            if "stage25_ft_line_control" in summary:
+                entry["stage25_ft_line_control"] = summary["stage25_ft_line_control"]
+        attempts.append(entry)
+    latest = attempts[-1] if attempts else {}
+    return {
+        "attempts": attempts,
+        "latest_run_dir": latest.get("run_dir"),
+        "latest_stop_reason": latest.get("stop_reason"),
+        "result": "retained incomplete live-attempt evidence; no successful Step5d reproduction completion was recorded",
+        "root_cause_summary": "The v20 TP package was controller read-back verified, but live attempts did not complete successfully before v21 superseded it.",
+    }
+
+
+def find_stage(table: dict[str, Any], stage_id: str) -> dict[str, Any] | None:
+    for row in table.get("stages", []):
+        if row.get("id") == stage_id:
+            return row
+    return None
+
+
+def update_previous_stage(root: Path, table: dict[str, Any], previous: str, current: dict[str, Any]) -> dict[str, Any]:
+    row = find_stage(table, previous)
+    if row is None:
+        fail(f"stage table row is missing for previous current {previous}")
+    archived_triplet = archive_previous_triplet(root, previous, current)
+    row["active"] = False
+    row["complete"] = True
+    row["completion_target"] = False
+    row["block_reason"] = (
+        "Retained v20 live-attempt evidence. Controller read-back was verified, "
+        "but the 2026-07-02 live attempts did not complete successfully; superseded by v21."
+    )
+    row["live_run_evidence"] = v20_live_attempt_evidence(root, previous)
+    delivery = row.setdefault("local_delivery_evidence", {})
+    delivery["local_program_dir"] = str(STEP5D_ARCHIVE_DIR)
+    delivery["local_triplet"] = archived_triplet
+    delivery["archived_to_step5d_dir"] = True
+    contact_policy = row.setdefault("contact_policy", {})
+    contact_policy["live_authorization"] = "retained_live_attempt_evidence_no_current_retry_authorization"
+    contact_policy["tp_package_status"] = "retained_controller_readback_verified"
+    contact_policy["controller_readback_status"] = "verified_retained"
+    cadence = row.setdefault("cadence", {})
+    cadence["motion"] = "retained_incomplete_live_attempt_evidence"
+    return row
+
+
+def v21_preload_gate() -> dict[str, float]:
+    return {
+        "filtered_normal_load_min_n": 7.5,
+        "filtered_normal_load_max_n": 14.0,
+        "raw_normal_load_min_n": 7.0,
+        "raw_normal_load_max_n": 15.0,
+        "force_norm_max_n": 25.0,
+        "required_s": 0.1,
+        "param_valid_code": 521.0,
+    }
+
+
+def build_v21_stage_row(
+    base_row: dict[str, Any],
+    program: str,
+    manifest: dict[str, Any],
+) -> dict[str, Any]:
+    row = copy.deepcopy(base_row)
+    row["id"] = program
+    row["active"] = True
+    row["blocked"] = False
+    row["complete"] = False
+    row["completion_target"] = True
+    row["block_reason"] = (
+        "Current v21 cage-primary TP/script diagnostic package is generated, uploaded, "
+        "and controller read-back verified. It is ready for an explicit live bridge run; "
+        "not a completed reproduction claim."
+    )
+    row["live_run_evidence"] = None
+    validation = manifest["validation"]
+    sha = manifest["sha256"]["local"]
+    row["local_delivery_evidence"] = {
+        "program_basename": program,
+        "local_program_dir": str(STEP5D_CURRENT_DIR),
+        "local_triplet": f"{STEP5D_CURRENT_DIR}/{program}.{{script,txt,urp}}",
+        "controller_target": f"{manifest['target_dir']}/{program}.urp",
+        "controller_dir": manifest["target_dir"],
+        "local_package_validated": True,
+        "controller_readback_verified": True,
+        "controller_readback": manifest["manifest_path"],
+        "local_controller_readback_sha_match": True,
+        "fetched_back_urp_internal_gate_pass": True,
+        "sha256": sha,
+        "stamp": validation.get("stamp"),
+        "installation_relative_path": validation.get("installation_relative_path"),
+    }
+    if manifest.get("delivery_mode"):
+        row["local_delivery_evidence"]["delivery_mode"] = manifest["delivery_mode"]
+    if manifest.get("promoted_from_local_candidate"):
+        row["local_delivery_evidence"]["promoted_from_local_candidate"] = manifest["promoted_from_local_candidate"]
+    guard = row.setdefault("guard", {})
+    guard.update(
+        {
+            "line_entry_normal_load_min_n": 7.5,
+            "line_entry_normal_load_max_n": 14.0,
+            "line_entry_raw_sanity_min_n": 7.0,
+            "line_entry_raw_sanity_max_n": 15.0,
+            "line_entry_force_norm_max_n": 25.0,
+            "line_entry_required_s": 0.1,
+            "line_entry_param_valid_code": 521.0,
+            "raw_normal_guard_n": 100.0,
+            "force_norm_guard_n": 100.0,
+            "torque_norm_guard_nm": 4.0,
+            "target_force_n": 12.0,
+            "duration_s": 10.0,
+        }
+    )
+    contact_policy = row.setdefault("contact_policy", {})
+    contact_policy["live_authorization"] = "current_controller_readback_verified_pending_live_bridge_run"
+    contact_policy["tp_package_status"] = "generated_uploaded_readback_verified_current"
+    contact_policy["controller_readback_status"] = "verified"
+    contact_policy["stage25_contact_policy"] = (
+        "Online broad AABB TCP cage is primary diagnostic boundary; Stage25.3 "
+        "uses bridge-time preload parameters, low-load/no-contact freezes path time, "
+        "resets outer-loop state during active_reacquire_solver based on action/load semantics, "
+        "scales qdot to <=0.035 m/s predicted TCP speed, and preserves semantic/cage/sensor/"
+        "heartbeat/Dashboard hard stops."
+    )
+    cadence = row.setdefault("cadence", {})
+    cadence["motion"] = "pending_live_diagnostic"
+    return row
+
+
+def upsert_stage(table: dict[str, Any], row: dict[str, Any], after_id: str | None = None) -> None:
+    stages = table.setdefault("stages", [])
+    for idx, existing in enumerate(stages):
+        if existing.get("id") == row.get("id"):
+            stages[idx] = row
+            return
+    insert_at = len(stages)
+    if after_id:
+        for idx, existing in enumerate(stages):
+            if existing.get("id") == after_id:
+                insert_at = idx + 1
+                break
+    stages.insert(insert_at, row)
+
+
+def update_current_stage(
+    root: Path,
+    current: dict[str, Any],
+    program: str,
+    manifest: dict[str, Any],
+) -> dict[str, Any]:
+    payload = copy.deepcopy(current)
+    now = datetime.now().astimezone().isoformat(timespec="seconds")
+    validation = manifest["validation"]
+    sha = manifest["sha256"]["local"]
+    target_dir = manifest["target_dir"]
+    payload.update(
+        {
+            "updated_at": now,
+            "current_step": "Step5d",
+            "current_stage_id": program,
+            "program": program,
+            "controller_target": f"{target_dir}/{program}.urp",
+            "controller_script": f"{target_dir}/{program}.script",
+            "local_triplet": f"{STEP5D_CURRENT_DIR}/{program}",
+            "delivery_manifest": manifest["manifest_path"],
+            "controller_readback_manifest": manifest["manifest_path"],
+            "status": f"{program}_controller_readback_verified_pending_live_bridge_run_not_reproduction_claim",
+            "sha256": sha,
+        }
+    )
+    bridge = payload.setdefault("bridge_profile", {})
+    bridge.update(
+        {
+            "step4e_version": program,
+            "stage25_3_preload_gate": (
+                "filtered 7.5-14N, raw sanity 7-15N, force_norm <=25N, "
+                "bridge param-valid code 521.0 for 0.100s"
+            ),
+        }
+    )
+    evidence = payload.setdefault("evidence", {})
+    evidence.update(
+        {
+            "v20_retained_after_live_attempt": True,
+            "v20_live_attempts": v20_live_attempt_evidence(root, "step5d_strict_rnn_liveprep_v20"),
+            "v21_stamp": validation.get("stamp"),
+            "v21_local_package_validated": True,
+            "v21_controller_readback_verified": True,
+            "v21_controller_readback_dir": str(Path(manifest["manifest_path"]).parent),
+            "v21_controller_readback_manifest": manifest["manifest_path"],
+            "v21_controller_target": f"{target_dir}/{program}.urp",
+            "v21_local_triplet": f"{STEP5D_CURRENT_DIR}/{program}",
+            "v21_delivery_status": "controller read-back verified",
+            "v21_preload_gate": v21_preload_gate(),
+            "v21_sha256": sha,
+            "sha256": sha,
+        }
+    )
+    strict = payload.setdefault("strict_rnn_status", {})
+    strict["reason"] = (
+        "v21 TP/script cage-primary diagnostic package is generated, uploaded, "
+        "and controller read-back verified. Full Step5d reproduction remains incomplete "
+        "until a successful live run completes."
+    )
+    trigger = payload.setdefault("bridge_trigger", {})
+    trigger["bridge_has_started"] = False
+    trigger["required_before_live"] = [
+        "operator outside UR reach/cage boundary",
+        "TP program opened on controller read-back v21 package",
+    ]
+    for retained in payload.get("retained_steps", []):
+        if retained.get("step") == "Step5":
+            retained["role"] = (
+                "v21 TP/script package generated, controller read-back verified, "
+                "and selected as current cage-primary diagnostic package; v20 and earlier retained as evidence"
+            )
+    payload["notes"] = [
+        f"{program} is controller read-back verified and selected as the current Step5d TP/script cage-primary diagnostic package.",
+        "v21 keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
+        "v21 keeps v20 cage-primary active-reacquire policy and widens Stage25.3 default preload to 7.5-14N filtered with 7-15N raw sanity.",
+        "This file is the single current pointer for UR/Kunwei package and bridge handoffs.",
+        "TP program load/Play, robot motion, payload/TCP writes, and zero_ftsensor remain explicit live gates.",
+        "v20 and earlier Step5d live-prep packages remain retained evidence only.",
+    ]
+    return payload
+
+
+def promote(root: Path, program: str, target_dir: str, local_dir: Path, manifest_path: Path | None) -> dict[str, Any]:
+    if not program.startswith("step5d_strict_rnn_liveprep_"):
+        fail(f"refusing non-Step5d liveprep program: {program}")
+    manifest_path = manifest_path or latest_manifest(root, program)
+    manifest = validate_manifest(root, program, target_dir, manifest_path)
+    formal_files = ensure_formal_local_triplet(root, program, local_dir, manifest["sha256"]["local"])
+    current_path = root / "config" / "current_stage.json"
+    table_path = root / "config" / "step5_stage_table.json"
+    current = load_json(current_path)
+    table = load_json(table_path)
+    previous = current.get("program") or current.get("current_stage_id")
+    previous_row = find_stage(table, str(previous)) if previous else None
+    base_row = copy.deepcopy(previous_row) if previous_row is not None else {"stage": "Step5d", "owner": "bridge+TP"}
+    if previous and previous != program:
+        update_previous_stage(root, table, str(previous), current)
+    v21_row = build_v21_stage_row(base_row, program, manifest)
+    upsert_stage(table, v21_row, after_id=str(previous) if previous else None)
+    new_current = update_current_stage(root, current, program, manifest)
+    write_json(table_path, table)
+    write_json(current_path, new_current)
+    return {
+        "ok": True,
+        "program": program,
+        "previous_program": previous,
+        "manifest": manifest["manifest_path"],
+        "formal_local_triplet": [rel(root, path) for path in formal_files.values()],
+        "current_stage": rel(root, current_path),
+        "stage_table": rel(root, table_path),
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--root", type=Path, default=EXPERIMENT_ROOT)
+    parser.add_argument("--program", required=True)
+    parser.add_argument("--target-dir", default=TARGET_DIR)
+    parser.add_argument("--local-dir", type=Path, default=None)
+    parser.add_argument("--manifest", type=Path, default=None)
+    parser.add_argument("--json", action="store_true")
+    args = parser.parse_args(argv)
+
+    root = args.root.resolve()
+    local_dir = args.local_dir or (root / STEP5D_CURRENT_DIR)
+    if not local_dir.is_absolute():
+        local_dir = root / local_dir
+    manifest_path = args.manifest
+    if manifest_path is not None and not manifest_path.is_absolute():
+        manifest_path = root / manifest_path
+    result = promote(root, args.program, args.target_dir, local_dir, manifest_path)
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+    else:
+        print(f"promoted {result['program']} using {result['manifest']}")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except RuntimeError as exc:
+        print(f"refusing Step5d promotion: {exc}")
+        raise SystemExit(24)

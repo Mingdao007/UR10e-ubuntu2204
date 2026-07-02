@@ -21,7 +21,7 @@ import build_step5d_liveprep as liveprep  # noqa: E402
 
 class UploadUrTpPackageReuseTest(unittest.TestCase):
     def test_upload_validator_checks_installation_relative_path(self) -> None:
-        program = "step5d_strict_rnn_liveprep_v20"
+        program = "step5d_strict_rnn_liveprep_v21"
         target_dir = "/programs/andyl/kunwei/step5"
         files = {
             ext: ROOT / "programs" / "step5" / f"{program}{ext}"

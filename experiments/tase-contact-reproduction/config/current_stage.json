@@ -1,16 +1,16 @@
 {
   "version": 2,
-  "updated_at": "2026-07-02T19:30:55+08:00",
+  "updated_at": "2026-07-02T21:10:59+08:00",
   "current_step": "Step5d",
-  "current_stage_id": "step5d_strict_rnn_liveprep_v20",
-  "program": "step5d_strict_rnn_liveprep_v20",
+  "current_stage_id": "step5d_strict_rnn_liveprep_v21",
+  "program": "step5d_strict_rnn_liveprep_v21",
   "flow_path": "STEP5_FLOW.md",
   "stage_table_path": "config/step5_stage_table.json",
-  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v20.urp",
-  "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v20.script",
-  "local_triplet": "programs/step5/step5d_strict_rnn_liveprep_v20",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v21.urp",
+  "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v21.script",
+  "local_triplet": "programs/step5/step5d_strict_rnn_liveprep_v21",
   "bridge_profile": {
-    "step4e_version": "step5d_strict_rnn_liveprep_v20",
+    "step4e_version": "step5d_strict_rnn_liveprep_v21",
     "step4e_path_shape": "cycloid",
     "step5d_qdot_limit_rad_s": 0.05,
     "target_force_n": 12.0,
@@ -18,7 +18,7 @@
     "normal_filter_alpha": 0.55,
     "normal_follow_settle_s": 0.15,
     "stage22_24_pose_contract": "pre_contact_search_gravity_down_v1: TCP +Z targets base -Z with rotvec [pi,0,0]",
-    "stage25_3_preload_gate": "filtered 8-13N, raw sanity 7.5-14N, force_norm <=25N, cmd_valid true for 0.100s",
+    "stage25_3_preload_gate": "filtered 7.5-14N, raw sanity 7-15N, force_norm <=25N, bridge param-valid code 521.0 for 0.100s",
     "stage25_0_diagnostic_window_s": 10.0,
     "online_tcp_cage": "broad_stagewise_aabb_from_success_step5b_step6b",
     "cage_primary_policy": "low-load/no-contact inside positive cage margin freezes path_time, resets outer-loop state during low-load active_reacquire_solver, caps active-reacquire predicted TCP speed at 0.035 m/s, and remains active_reacquire_solver until hard guards trip",
@@ -33,12 +33,12 @@
     "stage24_far_search_speed_m_s": -0.0225,
     "stage24_near_search_speed_m_s": -0.0025
   },
-  "status": "step5d_strict_rnn_liveprep_v20_controller_readback_verified_pending_live_bridge_run_not_reproduction_claim",
+  "status": "step5d_strict_rnn_liveprep_v21_controller_readback_verified_pending_live_bridge_run_not_reproduction_claim",
   "strict_rnn_status": {
     "stage_id": "step5d_strict_rnn_reproduction_v1",
     "blocked": true,
     "paper_truth_config": "config/step5d_liveprep_solver_gate.json",
-    "reason": "v20 TP/script cage-primary diagnostic package is generated, uploaded, and controller read-back verified. Full Step5d reproduction remains incomplete until a successful live run completes."
+    "reason": "v21 TP/script cage-primary diagnostic package is generated, uploaded, and controller read-back verified. Full Step5d reproduction remains incomplete until a successful live run completes."
   },
   "evidence": {
     "v11_escape_replay_summary": "runs/step5d_v11_escape_replay_20260615/summary.json",
@@ -50,9 +50,9 @@
     "v13_local_package_validated": true,
     "v13_controller_readback_verified": true,
     "sha256": {
-      ".script": "24e01d3356857a896f9bf859b21f34e72d6229b68e09256b9c92ba2dc95cdbe2",
-      ".txt": "7cba49fdacbc18b37234d7fb108cff9207d78ab3ed690dd472b351c1e6850363",
-      ".urp": "8f367f2315c8fe492e9c4490dfc138fd3966167a8b5cfccf9a6256628a8106c4"
+      ".script": "47476b4bad388a332b3a9e3fa4272c2ef9c31eb6a69a1ab43b4ccb717b8b0efd",
+      ".txt": "01df395ebca0b892ad9d8a8488d0303a98bff83a92ef5301dce0884a95608967",
+      ".urp": "05d8a06301b67cd0f04f26c5dde2f2f7358c36919ee76ae5f34b54d66990794b"
     },
     "v14_stamp": "2026-06-15T2310HKT_STEP5D_STRICT_RNN_LIVEPREP_V14",
     "v14_local_package_validated": true,
@@ -294,6 +294,47 @@
       ".script": "24e01d3356857a896f9bf859b21f34e72d6229b68e09256b9c92ba2dc95cdbe2",
       ".txt": "7cba49fdacbc18b37234d7fb108cff9207d78ab3ed690dd472b351c1e6850363",
       ".urp": "8f367f2315c8fe492e9c4490dfc138fd3966167a8b5cfccf9a6256628a8106c4"
+    },
+    "v20_retained_after_live_attempt": true,
+    "v20_live_attempts": {
+      "attempts": [
+        {
+          "run_dir": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v20_20260702_194034",
+          "summary": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v20_20260702_194034/summary.json",
+          "stop_reason": "signal_sigint"
+        },
+        {
+          "run_dir": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v20_20260702_194536",
+          "summary": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v20_20260702_194536/summary.json",
+          "stop_reason": "signal_sigint"
+        }
+      ],
+      "latest_run_dir": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v20_20260702_194536",
+      "latest_stop_reason": "signal_sigint",
+      "result": "retained incomplete live-attempt evidence; no successful Step5d reproduction completion was recorded",
+      "root_cause_summary": "The v20 TP package was controller read-back verified, but live attempts did not complete successfully before v21 superseded it."
+    },
+    "v21_stamp": "2026-07-02T2110HKT_STEP5D_STRICT_RNN_LIVEPREP_V21",
+    "v21_local_package_validated": true,
+    "v21_controller_readback_verified": true,
+    "v21_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_liveprep_v21_20260702_211049",
+    "v21_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v21_20260702_211049/manifest.json",
+    "v21_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v21.urp",
+    "v21_local_triplet": "programs/step5/step5d_strict_rnn_liveprep_v21",
+    "v21_delivery_status": "controller read-back verified",
+    "v21_preload_gate": {
+      "filtered_normal_load_min_n": 7.5,
+      "filtered_normal_load_max_n": 14.0,
+      "raw_normal_load_min_n": 7.0,
+      "raw_normal_load_max_n": 15.0,
+      "force_norm_max_n": 25.0,
+      "required_s": 0.1,
+      "param_valid_code": 521.0
+    },
+    "v21_sha256": {
+      ".script": "47476b4bad388a332b3a9e3fa4272c2ef9c31eb6a69a1ab43b4ccb717b8b0efd",
+      ".txt": "01df395ebca0b892ad9d8a8488d0303a98bff83a92ef5301dce0884a95608967",
+      ".urp": "05d8a06301b67cd0f04f26c5dde2f2f7358c36919ee76ae5f34b54d66990794b"
     }
   },
   "bridge_trigger": {
@@ -306,7 +347,7 @@
     "blocked_reason": null,
     "required_before_live": [
       "operator outside UR reach/cage boundary",
-      "TP program opened on controller read-back v20 package"
+      "TP program opened on controller read-back v21 package"
     ]
   },
   "retained_steps": [
@@ -319,7 +360,7 @@
       "step": "Step5",
       "flow_path": "STEP5_FLOW.md",
       "stage_table_path": "config/step5_stage_table.json",
-      "role": "v20 TP/script package generated, controller read-back verified, and selected as current cage-primary diagnostic package; v19 and earlier retained as evidence"
+      "role": "v21 TP/script package generated, controller read-back verified, and selected as current cage-primary diagnostic package; v20 and earlier retained as evidence"
     },
     {
       "step": "Step6",
@@ -329,16 +370,18 @@
     }
   ],
   "notes": [
-    "step5d_strict_rnn_liveprep_v20 is controller read-back verified and selected as the current Step5d TP/script cage-primary diagnostic package.",
-    "v20 forces Stage22/24 pre-contact search posture to gravity-down [pi,0,0].",
-    "v20 keeps v19 numeric baselines and fixes the v19 active-reacquire cap/reset trigger to action/load semantics instead of normal_filter_source string matching.",
+    "step5d_strict_rnn_liveprep_v21 is controller read-back verified and selected as the current Step5d TP/script cage-primary diagnostic package.",
+    "v21 keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
+    "v21 keeps v20 cage-primary active-reacquire policy and widens Stage25.3 default preload to 7.5-14N filtered with 7-15N raw sanity.",
     "This file is the single current pointer for UR/Kunwei package and bridge handoffs.",
     "TP program load/Play, robot motion, payload/TCP writes, and zero_ftsensor remain explicit live gates.",
-    "v19 and earlier Step5d live-prep packages remain retained evidence only."
+    "v20 and earlier Step5d live-prep packages remain retained evidence only."
   ],
   "sha256": {
-    ".script": "24e01d3356857a896f9bf859b21f34e72d6229b68e09256b9c92ba2dc95cdbe2",
-    ".txt": "7cba49fdacbc18b37234d7fb108cff9207d78ab3ed690dd472b351c1e6850363",
-    ".urp": "8f367f2315c8fe492e9c4490dfc138fd3966167a8b5cfccf9a6256628a8106c4"
-  }
+    ".script": "47476b4bad388a332b3a9e3fa4272c2ef9c31eb6a69a1ab43b4ccb717b8b0efd",
+    ".txt": "01df395ebca0b892ad9d8a8488d0303a98bff83a92ef5301dce0884a95608967",
+    ".urp": "05d8a06301b67cd0f04f26c5dde2f2f7358c36919ee76ae5f34b54d66990794b"
+  },
+  "delivery_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v21_20260702_211049/manifest.json",
+  "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v21_20260702_211049/manifest.json"
 }

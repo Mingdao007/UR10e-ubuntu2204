@@ -9,6 +9,7 @@ BUILD_TOOL="${ROOT}/tools/build_step5d_liveprep.py"
 UPLOAD_TOOL="${ROOT}/tools/upload_ur_tp_package.py"
 READBACK_GATE="${ROOT}/tools/verify_step5d_current_binding.py"
 PROMOTE_TOOL="${ROOT}/tools/promote_step5d_current.py"
+PUBLISH_GATE="${ROOT}/tools/verify_step5d_publish_gate.py"
 OPERATOR="${SCRIPT_DIR}/step5d-liveprep-operator.sh"
 TARGET_DIR="${STEP5D_TARGET_DIR:-/programs/andyl/kunwei/step5}"
 DRYRUN_READBACK_ROOT="${STEP5D_DRYRUN_READBACK_ROOT:-/tmp/ur10e_tp_readback_dryrun}"
@@ -159,6 +160,8 @@ run_quick_tests() {
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_bridge_operator_startup_policy.py'
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_upload_ur_tp_package_reuse.py'
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_current_stage_readback_gate.py'
+    PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_step5d_current_promotion.py'
+    python3 "${PUBLISH_GATE}" --root "${ROOT}" --json
   )
 }
 
