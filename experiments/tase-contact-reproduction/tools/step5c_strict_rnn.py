@@ -48,6 +48,7 @@ class StrictRnnStepDiagnostics:
     theta_dot_state: tuple[float, float, float, float, float, float]
     lambda_state: tuple[float, float, float, float, float, float]
     proj_input_form: str
+    lambda_update_form: str
     proj_input: tuple[float, float, float, float, float, float]
     projected: tuple[float, float, float, float, float, float]
     sigr_arg: tuple[float, float, float, float, float, float]
@@ -178,6 +179,7 @@ class StrictTaseRnnSolver:
         if not math.isfinite(eps) or eps <= 0.0:
             raise ValueError("epsilon must be finite and positive")
         exponent = self.config.sigr_exponent_r if r is None else float(r)
+        lambda_update_form = "lambda_state -= (dt / epsilon) * (J @ theta_dot_state - xdot_c)"
 
         if cmd_valid:
             proj_input = jacobian.T @ self.lambda_state
@@ -192,7 +194,7 @@ class StrictTaseRnnSolver:
                 self.theta_dot_state + theta_delta,
             )
             constraint_residual = jacobian @ self.theta_dot_state - xdot
-            self.lambda_state = self.lambda_state + (step_s / eps) * constraint_residual
+            self.lambda_state = self.lambda_state - (step_s / eps) * constraint_residual
         else:
             proj_input = jacobian.T @ self.lambda_state
             projected = np.clip(proj_input, lower, upper)
@@ -206,6 +208,7 @@ class StrictTaseRnnSolver:
             theta_dot_state=_tuple6(self.theta_dot_state),
             lambda_state=_tuple6(self.lambda_state),
             proj_input_form="J.T @ lambda_state",
+            lambda_update_form=lambda_update_form,
             proj_input=_tuple6(proj_input),
             projected=_tuple6(projected),
             sigr_arg=_tuple6(sigr_arg),

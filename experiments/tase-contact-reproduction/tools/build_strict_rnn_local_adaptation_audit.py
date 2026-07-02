@@ -76,20 +76,20 @@ def verified_truth_file() -> Path:
 def eq23_discrete_sign_sensitivity_probe(*, steps: int = 2000) -> dict[str, Any]:
     variants = [
         {
-            "variant": "current_positive_projection_positive_lambda_update",
+            "variant": "current_positive_projection_negative_lambda_update",
             "implementation_current": True,
-            "projection_input_form": "+J.T @ lambda_state",
-            "lambda_update_form": "lambda_state += (dt / epsilon) * (J @ theta_dot_state - xdot_c)",
-            "projection_sign": 1.0,
-            "lambda_update_sign": 1.0,
-        },
-        {
-            "variant": "shadow_positive_projection_negative_lambda_update",
-            "implementation_current": False,
             "projection_input_form": "+J.T @ lambda_state",
             "lambda_update_form": "lambda_state -= (dt / epsilon) * (J @ theta_dot_state - xdot_c)",
             "projection_sign": 1.0,
             "lambda_update_sign": -1.0,
+        },
+        {
+            "variant": "shadow_positive_projection_positive_lambda_update",
+            "implementation_current": False,
+            "projection_input_form": "+J.T @ lambda_state",
+            "lambda_update_form": "lambda_state += (dt / epsilon) * (J @ theta_dot_state - xdot_c)",
+            "projection_sign": 1.0,
+            "lambda_update_sign": 1.0,
         },
         {
             "variant": "shadow_negative_projection_positive_lambda_update",
@@ -159,14 +159,23 @@ def eq23_discrete_sign_sensitivity_probe(*, steps: int = 2000) -> dict[str, Any]
         for row in rows
         if not row["implementation_current"] and row["stable_for_final_acceptance"]
     ]
+    status = (
+        "local_discrete_sign_gate_passed_current_variant"
+        if current["stable_for_final_acceptance"]
+        else "blocked_current_sign_unstable_shadow_variants_not_acceptance"
+    )
     return {
         "probe": "identity_J_zero_initial_lambda_nonzero_xdot_c_sign_sensitivity",
         "claim_tier": "virtual/software force-loop",
-        "status": "blocked_current_sign_unstable_shadow_variants_not_acceptance",
+        "status": status,
         "current_variant": current,
         "shadow_stable_variants": shadow_stable,
         "variants": rows,
-        "acceptance_effect": "diagnostic_only_does_not_change_solver_or_clear_strict_rnn_final_acceptance",
+        "adopted_sign_pair": {
+            "projection_input_form": current["projection_input_form"],
+            "lambda_update_form": current["lambda_update_form"],
+        },
+        "acceptance_effect": "local_sign_gate_only_does_not_clear_strict_rnn_final_acceptance",
     }
 
 
@@ -203,6 +212,11 @@ def nonzero_command_stability_probe(*, steps: int = 2000) -> dict[str, Any]:
             for index in range(len(residuals) - 1)
         )
         stable = bool(residuals[-1] < residuals[0] and residuals[-1] < 1e-3 and not hit_bound)
+        status = (
+            "local_discrete_sign_gate_passed_current_variant"
+            if stable
+            else "blocked_discrete_printed_sign_nonzero_command_not_stable"
+        )
         return {
             "probe": "identity_J_zero_initial_lambda_nonzero_xdot_c",
             "claim_tier": "virtual/software force-loop",
@@ -217,9 +231,11 @@ def nonzero_command_stability_probe(*, steps: int = 2000) -> dict[str, Any]:
             "hit_velocity_bound": hit_bound,
             "final_theta_dot_state": [float(value) for value in last_diag.theta_dot_state],
             "final_lambda_state": [float(value) for value in last_diag.lambda_state],
+            "projection_input_form": last_diag.proj_input_form,
+            "lambda_update_form": last_diag.lambda_update_form,
             "stable_for_final_acceptance": stable,
             "sign_sensitivity": sign_sensitivity,
-            "status": "passed" if stable else "blocked_discrete_printed_sign_nonzero_command_not_stable",
+            "status": status,
         }
     finally:
         truth_path.unlink(missing_ok=True)
@@ -254,6 +270,12 @@ def field_rows(
         else "current local full-chain sanity uses 0.30 rad/s while PDF Section VI anchor is +/-0.15 rad/s"
     )
     pdf_sign_consistency = pdf_audit.get("eq23_sign_consistency", {})
+    eq23_blocker = (
+        "local Eq23 nonzero-command sign gate passes for the current discrete implementation, "
+        "but strict RNN final acceptance remains blocked by other paper-truth/local-adaptation gates"
+        if nonzero_probe.get("stable_for_final_acceptance")
+        else "local discrete zero-initial-lambda nonzero-command probe does not prove stable convergence"
+    )
     return [
         {
             "field": "Eq23_nonzero_command_stability",
@@ -264,7 +286,7 @@ def field_rows(
                 **nonzero_probe,
                 "paper_pdf_sign_consistency": pdf_sign_consistency,
             },
-            "blocker": "local discrete zero-initial-lambda nonzero-command probe does not prove stable convergence",
+            "blocker": eq23_blocker,
         },
         {
             "field": "alpha_escape_velocity_gain",
@@ -401,6 +423,13 @@ def build_audit(
     audit_ok = not missing_pending_rows and not unexpected_rows and bool(pdf_audit.get("audit_ok")) and bool(
         numeric_sanity.get("overall_pass")
     )
+    blockers = [
+        "paper_truth:strict_rnn_disabled",
+        "paper_truth:pending_pdf_verify",
+        "local_adaptation:not_final_acceptance",
+    ]
+    if not bool(nonzero_probe.get("stable_for_final_acceptance")):
+        blockers.append("eq23_nonzero_command_stability:not_proven")
     return {
         "schema": "ur10e_strict_rnn_local_adaptation_audit_v1",
         "generated_at": generated,
@@ -433,12 +462,7 @@ def build_audit(
         "blocked_or_local_only_count": blocked_or_local_only_count,
         "missing_pending_rows": missing_pending_rows,
         "unexpected_rows": unexpected_rows,
-        "blockers": [
-            "paper_truth:strict_rnn_disabled",
-            "paper_truth:pending_pdf_verify",
-            "local_adaptation:not_final_acceptance",
-            "eq23_nonzero_command_stability:not_proven",
-        ],
+        "blockers": blockers,
         "forbidden_claim": (
             "strict RNN final acceptance; simulated_ft; physical Gazebo collision/contact physics; "
             "real bench/live contact; live bridge/TP/URScript/motion"

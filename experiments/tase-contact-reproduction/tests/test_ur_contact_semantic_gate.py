@@ -52,6 +52,11 @@ class UrContactSemanticGateTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             payload = semantic_gate.run_gate([csv_path], output_dir=Path(tmpdir), max_rows=4)
             self.assertTrue(payload["overall_pass"], payload)
+            self.assertTrue(payload["strict_rnn_eq23_sign_gate"]["pass"])
+            self.assertEqual(
+                payload["strict_rnn_eq23_sign_gate"]["lambda_update_form"],
+                "lambda_state -= (dt / epsilon) * (J @ theta_dot_state - xdot_c)",
+            )
             self.assertTrue(payload["replay_summaries"][0]["failure_contrast_required"])
             self.assertTrue(payload["replay_summaries"][0]["failure_contrast_pass"])
             self.assertTrue((Path(tmpdir) / "ur_contact_semantic_gate_summary.json").exists())

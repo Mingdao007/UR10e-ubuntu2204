@@ -215,6 +215,7 @@ STEP5D_DIAG_FIELDS = [
     "_step5d_force_settle_velocity_m_s",
     "_step5d_force_sign_convention",
     "_step5d_proj_input_form",
+    "_step5d_lambda_update_form",
     "_step5d_active_bounds_count",
     "_step5d_contact_orientation_error_rad",
     "_step5d_outer_orientation_error_rad",
@@ -3574,6 +3575,7 @@ def compute_bridge_values(
             values["_step5d_line_tcp_speed_m_s"] = step5d_line_tcp_speed_m_s
             values["_step5d_force_sign_convention"] = step5d_outer_output.diagnostics["force_sign_convention"]
             values["_step5d_proj_input_form"] = step5d_result.diagnostics["proj_input_form"]
+            values["_step5d_lambda_update_form"] = step5d_result.diagnostics["lambda_update_form"]
             values["_step5d_active_bounds_count"] = float(sum(bool(value) for value in step5d_result.diagnostics["active_bounds_mask"]))
             values["_step5d_contact_orientation_error_rad"] = orientation_error
             values["_step5d_outer_orientation_error_rad"] = float(step5d_outer_output.diagnostics["outer_orientation_angle_rad"])

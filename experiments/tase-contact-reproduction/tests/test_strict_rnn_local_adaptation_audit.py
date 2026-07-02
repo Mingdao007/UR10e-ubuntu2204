@@ -55,16 +55,22 @@ class StrictRnnLocalAdaptationAuditTest(unittest.TestCase):
                 self.assertFalse(row["supports_strict_rnn_final_acceptance"])
                 self.assertIn("blocker", row)
 
-    def test_nonzero_command_probe_blocks_local_discrete_final_acceptance(self) -> None:
+    def test_nonzero_command_probe_passes_local_discrete_sign_gate(self) -> None:
         payload = audit.build_audit(generated_at="2026-06-21T10:42:00+08:00")
         row = next(row for row in payload["field_rows"] if row["field"] == "Eq23_nonzero_command_stability")
         evidence = row["evidence"]
 
-        self.assertEqual(row["status"], "blocked_discrete_printed_sign_nonzero_command_not_stable")
+        self.assertEqual(row["status"], "local_discrete_sign_gate_passed_current_variant")
         self.assertEqual(evidence["claim_tier"], "virtual/software force-loop")
-        self.assertFalse(evidence["stable_for_final_acceptance"])
-        self.assertTrue(evidence["hit_velocity_bound"])
-        self.assertGreaterEqual(evidence["final_residual_norm"], evidence["initial_residual_norm"])
+        self.assertTrue(evidence["stable_for_final_acceptance"])
+        self.assertFalse(evidence["hit_velocity_bound"])
+        self.assertLess(evidence["final_residual_norm"], evidence["initial_residual_norm"])
+        self.assertLess(evidence["final_residual_norm"], 1e-3)
+        self.assertEqual(evidence["projection_input_form"], "J.T @ lambda_state")
+        self.assertEqual(
+            evidence["lambda_update_form"],
+            "lambda_state -= (dt / epsilon) * (J @ theta_dot_state - xdot_c)",
+        )
         self.assertEqual(len(evidence["final_theta_dot_state"]), 6)
         self.assertEqual(len(evidence["final_lambda_state"]), 6)
         pdf_sign = evidence["paper_pdf_sign_consistency"]
@@ -75,17 +81,20 @@ class StrictRnnLocalAdaptationAuditTest(unittest.TestCase):
         self.assertTrue(pdf_sign["local_discrete_gate_required"])
         sign = evidence["sign_sensitivity"]
         self.assertEqual(sign["claim_tier"], "virtual/software force-loop")
-        self.assertEqual(sign["status"], "blocked_current_sign_unstable_shadow_variants_not_acceptance")
-        self.assertFalse(sign["current_variant"]["stable_for_final_acceptance"])
-        self.assertIn(
-            "shadow_positive_projection_negative_lambda_update",
+        self.assertEqual(sign["status"], "local_discrete_sign_gate_passed_current_variant")
+        self.assertTrue(sign["current_variant"]["stable_for_final_acceptance"])
+        self.assertEqual(sign["current_variant"]["variant"], "current_positive_projection_negative_lambda_update")
+        self.assertNotIn(
+            "shadow_positive_projection_positive_lambda_update",
             sign["shadow_stable_variants"],
         )
         self.assertIn(
             "shadow_negative_projection_positive_lambda_update",
             sign["shadow_stable_variants"],
         )
-        self.assertIn("does_not_change_solver", sign["acceptance_effect"])
+        self.assertIn("does_not_clear_strict_rnn_final_acceptance", sign["acceptance_effect"])
+        self.assertNotIn("eq23_nonzero_command_stability:not_proven", payload["blockers"])
+        self.assertIn("local_adaptation:not_final_acceptance", payload["blockers"])
 
     def test_local_qdot_and_no_contact_rows_explain_remaining_blockers(self) -> None:
         payload = audit.build_audit(generated_at="2026-06-21T10:42:00+08:00")

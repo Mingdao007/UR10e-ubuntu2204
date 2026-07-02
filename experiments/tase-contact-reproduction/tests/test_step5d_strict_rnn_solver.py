@@ -67,8 +67,32 @@ class Step5dStrictRnnSolverTest(unittest.TestCase):
         expected = jacobian.T @ np.array([0.1, -0.2, 0.05, 0.0, -0.1, 0.3])
         old_bad_form = np.array([0.01, 0.02, 0.0, -0.01, 0.0, 0.03]) - expected
         self.assertEqual(diag.proj_input_form, "J.T @ lambda_state")
+        self.assertEqual(diag.lambda_update_form, "lambda_state -= (dt / epsilon) * (J @ theta_dot_state - xdot_c)")
         np.testing.assert_allclose(diag.proj_input, expected)
         self.assertFalse(np.allclose(diag.proj_input, old_bad_form))
+
+    def test_nonzero_command_converges_with_positive_projection_negative_lambda_update(self) -> None:
+        solver = self.make_solver()
+        xdot_c = np.array([0.05, 0.0, 0.0, 0.0, 0.0, 0.0])
+        residuals = []
+        for _ in range(2000):
+            diag = solver.step(
+                J=np.eye(6),
+                xdot_c=xdot_c,
+                omega_minus=np.full(6, -0.15),
+                omega_plus=np.full(6, 0.15),
+                dt=0.002,
+                epsilon=0.022,
+                r=0.2,
+            )
+            residuals.append(diag.constraint_residual_norm)
+
+        self.assertEqual(diag.proj_input_form, "J.T @ lambda_state")
+        self.assertEqual(diag.lambda_update_form, "lambda_state -= (dt / epsilon) * (J @ theta_dot_state - xdot_c)")
+        self.assertLess(residuals[-1], residuals[0])
+        self.assertLess(residuals[-1], 1e-3)
+        self.assertFalse(any(diag.active_bounds_mask))
+        np.testing.assert_allclose(diag.theta_dot_state, xdot_c, atol=1e-3)
 
     def test_finite_time_update_does_not_overshoot_projection_bound(self) -> None:
         solver = self.make_solver()
@@ -168,6 +192,10 @@ class Step5dStrictRnnSolverTest(unittest.TestCase):
         self.assertEqual(result.solver_status, 40.0)
         self.assertIn("proj_input", result.diagnostics)
         self.assertEqual(result.diagnostics["proj_input_form"], "J.T @ lambda_state")
+        self.assertEqual(
+            result.diagnostics["lambda_update_form"],
+            "lambda_state -= (dt / epsilon) * (J @ theta_dot_state - xdot_c)",
+        )
 
     def test_step_source_has_no_inverse_or_dls_fallback(self) -> None:
         source = inspect.getsource(strict_rnn.StrictTaseRnnSolver.step).lower()

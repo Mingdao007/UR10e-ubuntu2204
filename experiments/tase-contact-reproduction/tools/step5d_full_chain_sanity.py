@@ -26,6 +26,7 @@ import pandas as pd
 import pinocchio as pin
 
 import step5c_calibrated_kinematics_audit as kin
+from build_strict_rnn_local_adaptation_audit import nonzero_command_stability_probe
 from kunwei_rtde_bridge import step5c_joint_register_values
 from step5c_strict_rnn import StrictRnnConfig, StrictTaseRnnSolver
 from step5d_paper_outer_loop import (
@@ -192,7 +193,9 @@ def run_sanity(
             force_sign_convention=STEP5_STEP6_FORCE_SIGN_CONVENTION,
         )
         outer_state = Step5dOuterLoopState()
-        records: list[dict[str, float]] = []
+        records: list[dict[str, Any]] = []
+        solver_projection_input_form = ""
+        solver_lambda_update_form = ""
         q_min = model_bundle.model.lowerPositionLimit
         q_max = model_bundle.model.upperPositionLimit
         for idx, row in rows.iterrows():
@@ -246,6 +249,8 @@ def run_sanity(
                 r=r,
             )
             result = solver.solve(actual_q=q, actual_qd=qd, target_state=target_state)
+            solver_projection_input_form = str(result.diagnostics["proj_input_form"])
+            solver_lambda_update_form = str(result.diagnostics["lambda_update_form"])
             registers = step5c_joint_register_values(
                 result.qdot,
                 cmd_valid=1.0 if outer_output.cmd_valid else 0.0,
@@ -294,6 +299,12 @@ def run_sanity(
     residual_norms = np.array([record["constraint_residual_norm"] for record in records], dtype=float)
     qdot_max = np.array([record["qdot_max_abs_rad_s"] for record in records], dtype=float)
     xdot_norms = np.array([record["outer_xdot_norm"] for record in records], dtype=float)
+    eq23_sign_probe = nonzero_command_stability_probe()
+    eq23_sign_gate_pass = bool(
+        eq23_sign_probe.get("status") == "local_discrete_sign_gate_passed_current_variant"
+        and eq23_sign_probe.get("stable_for_final_acceptance")
+        and not eq23_sign_probe.get("hit_velocity_bound")
+    )
     register_order_pass = True
     for record in records:
         for joint_idx in range(6):
@@ -304,6 +315,7 @@ def run_sanity(
         "qdot_within_nominal_limit_pass": bool(float(np.max(qdot_max)) <= qdot_limit_rad_s + 1e-9),
         "register_order_pass": register_order_pass,
         "nonzero_outer_xdot_seen": bool(float(np.max(xdot_norms)) > 0.0),
+        "strict_rnn_eq23_sign_gate_pass": eq23_sign_gate_pass,
     }
     overall_pass = all(gates.values())
     summary = {
@@ -332,6 +344,8 @@ def run_sanity(
             "force_target_n": 5.0,
             "force_sign_convention": STEP5_STEP6_FORCE_SIGN_CONVENTION,
             "force_sign_evidence": "retained Step5/Step6 bridge convention: target_force_n=5.0, normal_axis=fz, normal_sign=1.0, step4e_normal_command_sign=1.0",
+            "projection_input_form": solver_projection_input_form,
+            "lambda_update_form": solver_lambda_update_form,
             "contact_evidence": "not_claimed",
             "position_error_mode": "recorded" if use_recorded_position_error else "zeroed_for_structural_sanity",
         },
@@ -342,8 +356,10 @@ def run_sanity(
             "constraint_residual_norm_max": float(np.max(residual_norms)),
             "constraint_residual_norm_rms": float(np.sqrt(np.mean(residual_norms**2))),
             "outer_xdot_norm_max": float(np.max(xdot_norms)),
+            "eq23_nonzero_command_final_residual_norm": float(eq23_sign_probe.get("final_residual_norm", float("nan"))),
         },
         "gates": gates,
+        "strict_rnn_eq23_sign_gate": eq23_sign_probe,
         "safety_boundary": [
             "offline analysis only",
             "no bridge start",

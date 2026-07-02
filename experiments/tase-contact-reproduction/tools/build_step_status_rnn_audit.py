@@ -671,6 +671,8 @@ def strict_local_adaptation_summary(path: Path | None) -> dict[str, Any]:
         "qdot_bound_status": qdot_row.get("status"),
         "qdot_bound_evidence": qdot_row.get("evidence", {}),
         "eq23_nonzero_command_status": eq23_row.get("status"),
+        "eq23_projection_input_form": eq23_evidence.get("projection_input_form"),
+        "eq23_lambda_update_form": eq23_evidence.get("lambda_update_form"),
         "eq23_pdf_sign_consistency_status": pdf_sign_consistency.get("status"),
         "eq23_pdf_sign_consistency": pdf_sign_consistency,
     }

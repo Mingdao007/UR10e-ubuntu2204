@@ -18,6 +18,7 @@ from contact_semantics import (
     orientation_axis_angle_error,
     semantic_boundary_is_consistent,
 )
+from build_strict_rnn_local_adaptation_audit import nonzero_command_stability_probe
 from step5d_paper_outer_loop import (
     Step5dOuterLoopConfig,
     Step5dOuterLoopInputs,
@@ -208,6 +209,28 @@ def replay_csv(
     return summary, records
 
 
+def strict_rnn_eq23_sign_gate() -> dict[str, Any]:
+    probe = nonzero_command_stability_probe()
+    passed = bool(
+        probe.get("status") == "local_discrete_sign_gate_passed_current_variant"
+        and probe.get("stable_for_final_acceptance")
+        and not probe.get("hit_velocity_bound")
+    )
+    return {
+        "gate": "strict_rnn_eq23_sign_gate",
+        "pass": passed,
+        "claim_tier": "virtual/software force-loop",
+        "status": probe.get("status"),
+        "projection_input_form": probe.get("projection_input_form"),
+        "lambda_update_form": probe.get("lambda_update_form"),
+        "initial_residual_norm": probe.get("initial_residual_norm"),
+        "final_residual_norm": probe.get("final_residual_norm"),
+        "sign_sensitivity_status": probe.get("sign_sensitivity", {}).get("status", ""),
+        "current_variant": probe.get("sign_sensitivity", {}).get("current_variant", {}).get("variant", ""),
+        "safety_boundary": "offline identity-J sign probe only",
+    }
+
+
 def run_gate(
     csv_paths: list[Path],
     *,
@@ -222,6 +245,7 @@ def run_gate(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     static_scan = static_scan_step5d_outer_loop()
+    eq23_sign_gate = strict_rnn_eq23_sign_gate()
     replay_summaries = []
     for csv_path in csv_paths:
         failure_contrast = require_failure_contrast or csv_path.resolve() in DEFAULT_FAILURE_CONTRAST_CSVS
@@ -240,11 +264,16 @@ def run_gate(
             writer.writerows(records)
         summary["records_csv"] = str(records_path)
 
-    overall_pass = bool(static_scan["pass"] and all(summary["pass"] for summary in replay_summaries))
+    overall_pass = bool(
+        static_scan["pass"]
+        and bool(eq23_sign_gate["pass"])
+        and all(summary["pass"] for summary in replay_summaries)
+    )
     payload = {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "overall_pass": overall_pass,
         "static_scan": static_scan,
+        "strict_rnn_eq23_sign_gate": eq23_sign_gate,
         "replay_summaries": replay_summaries,
         "contract": str(EXPERIMENT_ROOT / "UR_FORCE_FRAME_CONTRACT.md"),
         "safety_boundary": [

@@ -75,7 +75,7 @@ class StrictTaseRnnSolver:
         sigr_val = np.abs(sigr_arg)**r * np.sign(sigr_arg)   # Eq.23a
         # 3. 积分（Explicit Euler）
         self.theta_dot_state += -(dt / epsilon) * sigr_val
-        self.lambda_state    += (dt / epsilon) * (J @ self.theta_dot_state - xdot_c)  # Eq.23b
+        self.lambda_state    -= (dt / epsilon) * (J @ self.theta_dot_state - xdot_c)  # Eq.23b local discrete sign gate
         return self.theta_dot_state.copy()
 
     def freeze(self):
@@ -301,7 +301,7 @@ if abs(theta_delta[i]) > abs(theta_dot_state[i] - projected[i]):
     theta_dot_state[i] = projected[i]              # 连续 finite-time 到达后停住，不越过 P_Ω
 else:
     theta_dot_state[i] += theta_delta
-lambda_state    += (dt / epsilon) * constraint_res  # Eq.(23b)，constraint_res = J@θ̇_c − ẋ_c
+lambda_state    -= (dt / epsilon) * constraint_res  # Eq.(23b) local discrete sign gate，constraint_res = J@θ̇_c − ẋ_c
 ```
 
 这个 guard 不引入 IK/DLS/求逆；它只防止离散 tick 越过 `P_Ω(J.T@lambda)`，
@@ -381,7 +381,7 @@ H. RNN inner loop（Eq.23，stateful，ε=0.022）:
    sigr_v  = |θ̇_state − proj|^r * sign(θ̇_state − proj)
    Δθ̇      = −(dt/ε) * sigr_v             # Eq.(23a)
    θ̇_state = proj if |Δθ̇| would cross proj else θ̇_state + Δθ̇
-   λ_state  += (dt/ε) * (J@θ̇_state − xdot_c)  # Eq.(23b)
+   λ_state  -= (dt/ε) * (J@θ̇_state − xdot_c)  # Eq.(23b) local discrete sign gate
    # cmd_valid=0 时两个状态均冻结
    # [禁止] proj_input = θ̇_state − J.T @ λ_state
 

@@ -38,8 +38,18 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertEqual(summary["assumptions"]["force_target_n"], 5.0)
         self.assertEqual(summary["assumptions"]["force_sign_convention"], "step5_step6_positive_normal_load")
         self.assertEqual(summary["assumptions"]["qdot_limit_rad_s"], 0.30)
+        self.assertEqual(summary["assumptions"]["projection_input_form"], "J.T @ lambda_state")
+        self.assertEqual(
+            summary["assumptions"]["lambda_update_form"],
+            "lambda_state -= (dt / epsilon) * (J @ theta_dot_state - xdot_c)",
+        )
         self.assertTrue(summary["gates"]["register_order_pass"])
         self.assertTrue(summary["gates"]["qdot_within_nominal_limit_pass"])
+        self.assertTrue(summary["gates"]["strict_rnn_eq23_sign_gate_pass"])
+        self.assertEqual(
+            summary["strict_rnn_eq23_sign_gate"]["status"],
+            "local_discrete_sign_gate_passed_current_variant",
+        )
         self.assertTrue(summary["metrics"]["qdot_within_nominal_limit"])
         self.assertIn("constraint_residual_norm_rms", summary["metrics"])
 
