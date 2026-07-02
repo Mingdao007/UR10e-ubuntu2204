@@ -35,6 +35,20 @@ class Step5dRuntimeInterfaceTest(unittest.TestCase):
         self.assertEqual(iface.STEP5D_QDOT_CLEAR_ZERO_TOL_RAD_S, 0.0005)
         self.assertIn("near-zero", runtime.register_contract["stage25_95"])
 
+    def test_ablation_defaults_split_v25_speedl_and_v26_strict_rnn(self) -> None:
+        v25 = iface.resolve_runtime_interface(program=iface.STEP5D_ABLATION_V25_STAGE_ID, root=ROOT, env={})
+        v26 = iface.resolve_runtime_interface(program=iface.STEP5D_ABLATION_V26_STAGE_ID, root=ROOT, env={})
+
+        self.assertEqual(v25.stage25_control_mode, "speedl_cartesian_oracle")
+        self.assertEqual(v25.bridge_defaults.angular_limit_rad_s, 0.150)
+        self.assertEqual(v25.preload_gate.filtered_min_n, 10.5)
+        self.assertEqual(v25.preload_gate.raw_max_n, 13.5)
+        self.assertEqual(v26.stage25_control_mode, "speedj_rnn_live")
+        self.assertEqual(v26.bridge_defaults.angular_limit_rad_s, 0.015)
+        self.assertEqual(v26.preload_gate.filtered_min_n, 10.5)
+        self.assertEqual(v26.preload_gate.raw_max_n, 13.5)
+        self.assertIn("v25/v26", v26.register_contract["stage25_0"])
+
     def test_step5d_env_overrides_use_step5d_namespace(self) -> None:
         runtime = iface.resolve_runtime_interface(
             program=iface.STEP5D_LIVEPREP_V24_STAGE_ID,

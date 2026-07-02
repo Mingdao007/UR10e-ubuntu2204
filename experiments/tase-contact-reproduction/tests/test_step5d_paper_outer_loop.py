@@ -179,6 +179,29 @@ class Step5dPaperOuterLoopTest(unittest.TestCase):
         self.assertAlmostEqual(output.diagnostics["outer_orientation_angle_rad"], 0.0, places=12)
         np.testing.assert_allclose(output.xdot_o, [0.0, 0.0, 0.0], atol=1e-12)
 
+    def test_orientation_command_closes_quaternion_error_in_base_frame(self) -> None:
+        pitch_rad = np.deg2rad(8.0)
+        config = Step5dOuterLoopConfig(kp=0.0, kf=0.0, ko=5.0, force_target_n=2.0)
+        output = compute_step5d_outer_loop(
+            config,
+            Step5dOuterLoopState(),
+            self.make_inputs(
+                tcp_pose_base=(0.0, 0.0, 0.0, 0.0, pitch_rad, 0.0),
+                control_reaction_normal_base=(0.0, 0.0, -1.0),
+            ),
+        )
+        R_cur = rotvec_to_matrix((0.0, pitch_rad, 0.0))
+        R_d = np.asarray(output.diagnostics["R_d"], dtype=float)
+        _e_qua, e_o = quaternion_orientation_error(
+            rotation_matrix_to_quaternion(R_d),
+            rotation_matrix_to_quaternion(R_cur),
+        )
+        error_base = R_d @ e_o
+
+        self.assertLess(float(np.dot(output.xdot_o, error_base)), 0.0)
+        old_positive_feedback = config.ko * error_base
+        self.assertGreater(float(np.dot(old_positive_feedback, error_base)), 0.0)
+
     def test_invalid_command_freezes_outer_state(self) -> None:
         state = Step5dOuterLoopState(force_integral_n_s=1.0, xdot_p_prev_m_s=(0.01, 0.02, 0.03))
         output = compute_step5d_outer_loop(

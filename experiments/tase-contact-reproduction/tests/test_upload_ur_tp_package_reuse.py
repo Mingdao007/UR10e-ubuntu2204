@@ -23,7 +23,7 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             output_dir = Path(tmp)
             built = liveprep.write_outputs(
-                "2026-07-03T0100HKT_STEP5D_STRICT_RNN_LIVEPREP_V24",
+                "2026-07-03T0100HKT_STEP5D_STRICT_RNN_ABLATION_V26",
                 "2026-07-03T01:00:00+08:00",
                 output_dir=output_dir,
                 local_only=True,
@@ -39,47 +39,55 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
 
         self.assertEqual(result["installation_relative_path"], "../../../default")
 
-    def test_upload_validator_checks_step5d_v24_semantics(self) -> None:
+    def test_upload_validator_checks_step5d_v25_ablation_semantics(self) -> None:
+        program = "step5d_strict_rnn_ablation_v25"
         with tempfile.TemporaryDirectory() as tmp:
-            local_dir = Path(tmp) / "v24"
+            local_dir = Path(tmp) / "v25"
             liveprep.write_outputs(
-                "2026-07-03T0100HKT_STEP5D_STRICT_RNN_LIVEPREP_V24",
+                "2026-07-03T0100HKT_STEP5D_STRICT_RNN_ABLATION_V25",
                 "2026-07-03T01:00:00+08:00",
                 output_dir=local_dir,
                 local_only=True,
+                program=program,
             )
             files = {
-                ext: local_dir / f"{liveprep.PROGRAM_NAME}{ext}"
+                ext: local_dir / f"{program}{ext}"
                 for ext in upload.EXTENSIONS
             }
 
             result = upload.validate_package(
                 files,
-                liveprep.PROGRAM_NAME,
+                program,
                 liveprep.CONTROLLER_DIR,
                 require_exact_cached_script=True,
             )
             script_text = files[".script"].read_text(encoding="utf-8")
 
-        self.assertEqual(result["program"], liveprep.PROGRAM_NAME)
+        self.assertEqual(result["program"], program)
         self.assertEqual(result["target_dir"], liveprep.CONTROLLER_DIR)
-        self.assertIn("v24 preload overrides in 40/41/42/44/46/47", script_text)
+        self.assertIn("v25 preload overrides in 40/41/42/44/46/47", script_text)
+        self.assertIn("local cartesian_angular_cap_rad_s = 0.150", script_text)
         self.assertIn("write_output_float_register(35, 25.95)", script_text)
-        self.assertIn("local qdot_clear_required_s = 0.006", script_text)
-        self.assertIn("local qdot_clear_zero_tol_rad_s = 0.000500", script_text)
+        self.assertIn("local register_clear_required_s = 0.006", script_text)
+        self.assertIn("local register_clear_zero_tol = 0.000500", script_text)
         self.assertNotIn("qdot_clear_cap_rad_s", script_text)
-        self.assertIn("post-RNN normal-direction/tracking guard", script_text)
-        self.assertIn("active_reacquire_solver qdot", script_text)
+        self.assertIn("multimode_executor_and_guard_only", script_text)
+        self.assertIn("local cartesian_layout_code = 523.000", script_text)
+        self.assertIn("local joint_layout_code = 524.000", script_text)
+        self.assertIn("speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy, cmd_wz]", script_text)
+        self.assertIn("speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]", script_text)
         self.assertIn("# SAFETY: raw normal guard 25 N, force norm guard 25 N, torque guard 4.0 Nm.", script_text)
 
-    def test_upload_validator_accepts_step5d_v24_liveprep_candidate(self) -> None:
+    def test_upload_validator_accepts_step5d_v25_ablation_candidate(self) -> None:
+        program = "step5d_strict_rnn_ablation_v25"
         with tempfile.TemporaryDirectory() as tmp:
             output_dir = Path(tmp)
             built = liveprep.write_outputs(
-                "2026-07-03T0100HKT_STEP5D_STRICT_RNN_LIVEPREP_V24",
+                "2026-07-03T0100HKT_STEP5D_STRICT_RNN_ABLATION_V25",
                 "2026-07-03T01:00:00+08:00",
                 output_dir=output_dir,
                 local_only=True,
+                program=program,
             )
             files = {
                 ".script": Path(built["script"]),
@@ -89,13 +97,46 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
 
             result = upload.validate_package(
                 files,
-                liveprep.PROGRAM_NAME,
+                program,
                 liveprep.CONTROLLER_DIR,
                 require_exact_cached_script=True,
             )
 
-        self.assertEqual(result["program"], liveprep.PROGRAM_NAME)
+        self.assertEqual(result["program"], program)
         self.assertEqual(result["target_dir"], liveprep.CONTROLLER_DIR)
+
+    def test_upload_validator_checks_step5d_v26_ablation_semantics(self) -> None:
+        program = "step5d_strict_rnn_ablation_v26"
+        with tempfile.TemporaryDirectory() as tmp:
+            local_dir = Path(tmp) / "v26"
+            liveprep.write_outputs(
+                "2026-07-03T0100HKT_STEP5D_STRICT_RNN_ABLATION_V26",
+                "2026-07-03T01:00:00+08:00",
+                output_dir=local_dir,
+                local_only=True,
+                program=program,
+            )
+            files = {
+                ext: local_dir / f"{program}{ext}"
+                for ext in upload.EXTENSIONS
+            }
+
+            result = upload.validate_package(
+                files,
+                program,
+                liveprep.CONTROLLER_DIR,
+                require_exact_cached_script=True,
+            )
+            script_text = files[".script"].read_text(encoding="utf-8")
+            txt_text = files[".txt"].read_text(encoding="utf-8")
+
+        self.assertEqual(result["program"], program)
+        self.assertEqual(result["target_dir"], liveprep.CONTROLLER_DIR)
+        self.assertIn("v26 preload overrides in 40/41/42/44/46/47", script_text)
+        self.assertIn("local cartesian_angular_cap_rad_s = 0.015", script_text)
+        self.assertIn("v26 default live mode is speedj_rnn_live", txt_text)
+        self.assertIn("joint-feasibility-scaled", txt_text)
+        self.assertNotIn("step5d_strict_rnn_ablation_v25", script_text + txt_text)
 
     def _write_triplet(self, root: Path, program: str, payload_prefix: str) -> dict[str, Path]:
         files = {ext: root / f"{program}{ext}" for ext in upload.EXTENSIONS}

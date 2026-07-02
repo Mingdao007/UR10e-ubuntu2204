@@ -27,7 +27,7 @@ try:
 except Exception:
     raise SystemExit(0)
 program = current.get("program") or current.get("current_stage_id") or ""
-if program.startswith("step5d_strict_rnn_liveprep_"):
+if program.startswith(("step5d_strict_rnn_liveprep_", "step5d_strict_rnn_ablation_")):
     print(program)
 PY
 }
@@ -45,7 +45,7 @@ case "${BRIDGE_PROFILE}" in
   5d|step5d|step5d-liveprep|step5d_liveprep)
     BRIDGE_PROFILE="$(current_step5d_profile)"
     if [[ -z "${BRIDGE_PROFILE}" ]]; then
-      echo "refusing Step5d alias: current_stage does not name a controller-readback-verified Step5d live-prep package"
+      echo "refusing Step5d alias: current_stage does not name a controller-readback-verified Step5d package"
       exit 40
     fi
     ;;
@@ -72,7 +72,7 @@ BRIDGE_SENSOR_STALE_S="${BRIDGE_SENSOR_STALE_S:-${STEP5D_SENSOR_STALE_S:-0.10}}"
 BRIDGE_SOCKET_TIMEOUT_S="${BRIDGE_SOCKET_TIMEOUT_S:-${STEP5D_SOCKET_TIMEOUT_S:-0.0}}"
 BRIDGE_BACKGROUND_PUSH_AFTER_LIVE="${BRIDGE_BACKGROUND_PUSH_AFTER_LIVE:-0}"
 BRIDGE_NORMAL_COMMAND_SIGN="${BRIDGE_NORMAL_COMMAND_SIGN:-1}"
-if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v24" ]]; then
+if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v24" || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_v* ]]; then
   MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-25}"
   MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-25}"
   MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-4.0}"
@@ -91,10 +91,28 @@ BRIDGE_ORIENTATION_WY_SIGN="${BRIDGE_ORIENTATION_WY_SIGN:-1}"
 BRIDGE_LINE_SPEED_M_S="${BRIDGE_LINE_SPEED_M_S:-0.003}"
 BRIDGE_LINE_SETTLE_S="${BRIDGE_LINE_SETTLE_S:-0.0}"
 BRIDGE_STAGE25_ONLY="${BRIDGE_STAGE25_ONLY:-0}"
-if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v18" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v19" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v20" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v21" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v22" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v23" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v24" ]]; then
+if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v18" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v19" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v20" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v21" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v22" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v23" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v24" || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_v* ]]; then
   BRIDGE_TARGET_FORCE_N="${BRIDGE_TARGET_FORCE_N:-${STEP4E_TARGET_FORCE_N:-12.0}}"
 else
   BRIDGE_TARGET_FORCE_N="${BRIDGE_TARGET_FORCE_N:-${STEP4E_TARGET_FORCE_N:-5}}"
+fi
+if [[ "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_v* ]]; then
+  STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N:-10.5}"
+  STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N:-12.8}"
+  STEP5D_DEFAULT_PRELOAD_RAW_MIN_N="${STEP5D_DEFAULT_PRELOAD_RAW_MIN_N:-9.5}"
+  STEP5D_DEFAULT_PRELOAD_RAW_MAX_N="${STEP5D_DEFAULT_PRELOAD_RAW_MAX_N:-13.5}"
+else
+  STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N:-7.5}"
+  STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N:-14.0}"
+  STEP5D_DEFAULT_PRELOAD_RAW_MIN_N="${STEP5D_DEFAULT_PRELOAD_RAW_MIN_N:-7.0}"
+  STEP5D_DEFAULT_PRELOAD_RAW_MAX_N="${STEP5D_DEFAULT_PRELOAD_RAW_MAX_N:-15.0}"
+fi
+if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v25" ]]; then
+  STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedl_cartesian_oracle}"
+  BRIDGE_ANGULAR_LIMIT_RAD_S="${BRIDGE_ANGULAR_LIMIT_RAD_S:-0.150}"
+else
+  STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedj_rnn_live}"
+  BRIDGE_ANGULAR_LIMIT_RAD_S="${BRIDGE_ANGULAR_LIMIT_RAD_S:-0.015}"
 fi
 BRIDGE_MOTION_LIMIT_M_S="${BRIDGE_MOTION_LIMIT_M_S:-0.004}"
 BRIDGE_TOTAL_LINEAR_LIMIT_M_S="${BRIDGE_TOTAL_LINEAR_LIMIT_M_S:-0.006}"
@@ -104,7 +122,6 @@ BRIDGE_FORCE_I_GAIN="${BRIDGE_FORCE_I_GAIN:-0.00008}"
 BRIDGE_FORCE_DAMPING="${BRIDGE_FORCE_DAMPING:-0.35}"
 BRIDGE_INTEGRAL_LIMIT_N_S="${BRIDGE_INTEGRAL_LIMIT_N_S:-10.0}"
 BRIDGE_REACQUIRE_VELOCITY_M_S="${BRIDGE_REACQUIRE_VELOCITY_M_S:-0.001}"
-BRIDGE_ANGULAR_LIMIT_RAD_S="${BRIDGE_ANGULAR_LIMIT_RAD_S:-0.015}"
 STEP5C_QDOT_LIMIT_RAD_S="${STEP5C_QDOT_LIMIT_RAD_S:-0.15}"
 STEP5C_JOINT_DAMPING="${STEP5C_JOINT_DAMPING:-0.0001}"
 STEP5C_JOINT_MODEL="${STEP5C_JOINT_MODEL:-/home/andy/ur10e_ros2_ws/experiments/archive/legacy/tase-mujoco-reproduction-2026-05-23/assets/mjcf/ur10e_nominal.xml}"
@@ -131,13 +148,13 @@ elif [[ "${BRIDGE_PROFILE}" == "step4g_v1" ]]; then
   BRIDGE_PATH_SHAPE="eight"
 elif [[ "${BRIDGE_PROFILE}" == "step5b_v1" ]]; then
   BRIDGE_PATH_SHAPE="cycloid"
-elif [[ "${BRIDGE_PROFILE}" == "step5c_speedj_dryrun_v1" || "${BRIDGE_PROFILE}" == "step5c_joint_rnn_cycloid_v1" || "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_v* ]]; then
+elif [[ "${BRIDGE_PROFILE}" == "step5c_speedj_dryrun_v1" || "${BRIDGE_PROFILE}" == "step5c_joint_rnn_cycloid_v1" || "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_v* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_v* ]]; then
   BRIDGE_PATH_SHAPE="cycloid"
 elif [[ "${BRIDGE_PROFILE}" == "step6b_v1" || "${BRIDGE_PROFILE}" == "step6b_v2" ]]; then
   BRIDGE_PATH_SHAPE="eight"
 fi
 if [[ -z "${BRIDGE_NORMAL_FOLLOW_MODE}" ]]; then
-  if [[ "${BRIDGE_PROFILE}" == "v30" || "${BRIDGE_PROFILE}" == "v31" || "${BRIDGE_PROFILE}" == "step4f_v1" || "${BRIDGE_PROFILE}" == "step4g_v1" || "${BRIDGE_PROFILE}" == "step5b_v1" || "${BRIDGE_PROFILE}" == "step5c_joint_rnn_cycloid_v1" || "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_v* || "${BRIDGE_PROFILE}" == "step6b_v1" || "${BRIDGE_PROFILE}" == "step6b_v2" ]]; then
+  if [[ "${BRIDGE_PROFILE}" == "v30" || "${BRIDGE_PROFILE}" == "v31" || "${BRIDGE_PROFILE}" == "step4f_v1" || "${BRIDGE_PROFILE}" == "step4g_v1" || "${BRIDGE_PROFILE}" == "step5b_v1" || "${BRIDGE_PROFILE}" == "step5c_joint_rnn_cycloid_v1" || "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_v* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_v* || "${BRIDGE_PROFILE}" == "step6b_v1" || "${BRIDGE_PROFILE}" == "step6b_v2" ]]; then
     BRIDGE_NORMAL_FOLLOW_MODE="filtered_live"
   else
     BRIDGE_NORMAL_FOLLOW_MODE="locked"
@@ -205,6 +222,9 @@ if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v10" || "${BRIDGE_PROFI
   PROGRAM_LINE="/programs/andyl/kunwei/step5/step5d/${BRIDGE_PROFILE}.urp"
 fi
 if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v12" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v13" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v14" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v15" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v15a" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v16" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v17" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v18" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v19" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v20" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v21" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v22" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v23" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v24" ]]; then
+  PROGRAM_LINE="/programs/andyl/kunwei/step5/${BRIDGE_PROFILE}.urp"
+fi
+if [[ "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_v* ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step5/${BRIDGE_PROFILE}.urp"
 fi
 if [[ "${BRIDGE_PROFILE}" == "step6b_v1" ]]; then
@@ -293,6 +313,10 @@ elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v23" ]]; then
   SEARCH_DESCRIPTION="Retained Step5d v23 failure evidence: near-zero qdot clear and post-RNN normal guard were active, but live run lost contact, continued active_reacquire_solver qdot, and stopped on tcp_cage_braking_margin_exhausted"
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v24" ]]; then
   SEARCH_DESCRIPTION="Current Step5d v24 diagnostic: 12N target, 7.5-14N filtered preload, 25N/25N/4Nm guards, low/no-contact zero-qdot stop instead of active_reacquire_solver qdot, trusted force summaries, and post-RNN tracking reversal detection"
+elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v25" ]]; then
+  SEARCH_DESCRIPTION="Current Step5d v25 ablation diagnostic: 12N target, 10.5-12.8N filtered preload with 9.5-13.5N raw sanity, Stage25.95 register clear, Stage25.0 layout-tagged speedl/speedj, default speedl_cartesian_oracle with strict RNN shadow diagnostics, and 25N/25N/4Nm hard guards"
+elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v26" ]]; then
+  SEARCH_DESCRIPTION="Step5d v26 strict RNN ablation diagnostic: 12N target, 10.5-12.8N filtered preload with 9.5-13.5N raw sanity, Stage25.95 register clear, Stage25.0 layout-tagged speedl/speedj, default speedj_rnn_live with feasibility-scaled xdot_c, corrected orientation sign/frame, solver reset lifecycle, 0.015 rad/s angular cap, and 25N/25N/4Nm hard guards"
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v8" ]]; then
   SEARCH_DESCRIPTION="Retained Step5d v8 failure evidence: Stage 25.3 bridge force-PID settle used Cartesian registers 37..39 but low-load dropout below 0.5N could stop with reason 17 before Stage 25.0"
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v4" ]]; then
@@ -429,7 +453,7 @@ select_mode() {
         EXPECTED_BASENAME="step4g_eight_seed_normal_v1.urp"
       elif [[ "${BRIDGE_PROFILE}" == "step5b_v1" ]]; then
         EXPECTED_BASENAME="step5b_contact_cycloid_baseline_v1.urp"
-      elif [[ "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_v* ]]; then
+      elif [[ "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_v* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_v* ]]; then
         EXPECTED_BASENAME="${BRIDGE_PROFILE}.urp"
       elif [[ "${BRIDGE_PROFILE}" == "step6b_v1" ]]; then
         EXPECTED_BASENAME="step6b_contact_eight_baseline_v1.urp"
@@ -449,7 +473,7 @@ select_mode() {
         RUN_LABEL="step4g_eight_seed_normal_v1"
       elif [[ "${BRIDGE_PROFILE}" == "step5b_v1" ]]; then
         RUN_LABEL="step5b_contact_cycloid_baseline_v1"
-      elif [[ "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_v* ]]; then
+      elif [[ "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_v* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_v* ]]; then
         RUN_LABEL="${BRIDGE_PROFILE}"
       elif [[ "${BRIDGE_PROFILE}" == "step6b_v1" ]]; then
         RUN_LABEL="step6b_contact_eight_baseline_v1"
@@ -514,7 +538,7 @@ PY
 }
 
 step5d_live_ready() {
-  if [[ "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_* ]]; then
+  if [[ "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_* ]]; then
     python3 "${STEP5D_RUNTIME_INTERFACE}" \
       --root "${ROOT}" \
       --program "${BRIDGE_PROFILE}" \
@@ -948,10 +972,11 @@ run_bridge_for_mode() {
     --step5c-joint-damping "${STEP5C_JOINT_DAMPING}" \
     --step5c-joint-model "${STEP5C_JOINT_MODEL}" \
     --step5c-joint-site "${STEP5C_JOINT_SITE}" \
-    --step5d-preload-filtered-min-n "${STEP5D_PRELOAD_FILTERED_MIN_N:-7.5}" \
-    --step5d-preload-filtered-max-n "${STEP5D_PRELOAD_FILTERED_MAX_N:-14.0}" \
-    --step5d-preload-raw-min-n "${STEP5D_PRELOAD_RAW_MIN_N:-7.0}" \
-    --step5d-preload-raw-max-n "${STEP5D_PRELOAD_RAW_MAX_N:-15.0}" \
+    --step5d-stage25-control-mode "${STEP5D_STAGE25_CONTROL_MODE:-${STEP5D_STAGE25_CONTROL_MODE_DEFAULT}}" \
+    --step5d-preload-filtered-min-n "${STEP5D_PRELOAD_FILTERED_MIN_N:-${STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N}}" \
+    --step5d-preload-filtered-max-n "${STEP5D_PRELOAD_FILTERED_MAX_N:-${STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N}}" \
+    --step5d-preload-raw-min-n "${STEP5D_PRELOAD_RAW_MIN_N:-${STEP5D_DEFAULT_PRELOAD_RAW_MIN_N}}" \
+    --step5d-preload-raw-max-n "${STEP5D_PRELOAD_RAW_MAX_N:-${STEP5D_DEFAULT_PRELOAD_RAW_MAX_N}}" \
     --step5d-preload-force-norm-max-n "${STEP5D_PRELOAD_FORCE_NORM_MAX_N:-25.0}" \
     --step5d-preload-hold-s "${STEP5D_PRELOAD_HOLD_S:-0.100}" \
     --step5d-preload-timeout-s "${STEP5D_PRELOAD_TIMEOUT_S:-10.0}" \

@@ -964,6 +964,92 @@ def validate_package(
             checks["no stale step5d v1-v7 route"] = all(
                 f"step5d_strict_rnn_liveprep_v{idx}" not in script + txt for idx in range(1, 8)
             )
+    if program in {"step5d_strict_rnn_ablation_v25", "step5d_strict_rnn_ablation_v26"}:
+        version_label = program.rsplit("_", 1)[-1]
+        expected_angular_cap = "0.150" if version_label == "v25" else "0.015"
+        expected_default_mode = "speedl_cartesian_oracle" if version_label == "v25" else "speedj_rnn_live"
+        checks.update(
+            {
+                f"step5d {version_label} ablation function": f"def codex_{program}()" in script
+                and "codex_step5d_down_search" in script,
+                f"step5d {version_label} bridge contract": f"step4e-version={program}" in script
+                and f"--step4e-version {program}" in txt
+                and "--step4e-path-shape cycloid" in txt,
+                f"step5d {version_label} force contract": "--target-force-n 12.0" in txt,
+                f"step5d {version_label} table source": "STEP5_FLOW.md" in script
+                and "STEP5_TABLE_SOURCE: config/step5_stage_table.json" in script
+                and program in script + txt,
+                f"step5d {version_label} multimode executor": "multimode_executor_and_guard_only" in script
+                and "local stage25_layout_tag = read_input_float_register(47)" in script
+                and "local cartesian_layout_code = 523.000" in script
+                and "local joint_layout_code = 524.000" in script,
+                f"step5d {version_label} speedl speedj": "speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy, cmd_wz]" in script
+                and "speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]" in script
+                and "local cartesian_linear_cap_m_s = 0.004" in script
+                and f"local cartesian_angular_cap_rad_s = {expected_angular_cap}" in script
+                and "local qdot_cap_rad_s = 0.050" in script,
+                f"step5d {version_label} preload gate": "local line_entry_default_normal_load_min_n = 10.500" in script
+                and "local line_entry_default_normal_load_max_n = 12.800" in script
+                and "local line_entry_default_force_norm_max_n = 25.000" in script
+                and "local line_entry_default_required_s = 0.100" in script
+                and "local line_entry_recovery_normal_load_max_n = 20.000" in script
+                and "local line_entry_force_norm_stop_n = 25.000" in script
+                and "local line_entry_param_valid_code = 521.000" in script
+                and "local candidate_min_n = read_input_float_register(40)" in script
+                and "local candidate_required_s = read_input_float_register(44)" in script
+                and "local candidate_timeout_s = read_input_float_register(46)" in script
+                and "filtered normal_load between 10.5 N and 12.8 N" in txt
+                and "raw normal_load is sanity-checked between 9.5 N and 13.5 N" in txt,
+                f"step5d {version_label} register clear barrier": "write_output_float_register(35, 25.95)" in script
+                and "local register_clear_required_s = 0.006" in script
+                and "local register_clear_zero_tol = 0.000500" in script
+                and "clear_cmd_valid < 0.5" in script
+                and "codex_abs(clear_layout_tag - line_entry_param_valid_code) >= 0.001" in script
+                and "codex_abs(clear_layout_tag - 523.000) >= 0.001" in script
+                and "codex_abs(clear_layout_tag - 524.000) >= 0.001" in script
+                and "qdot_clear_required_s" not in script
+                and "qdot_clear_cap_rad_s" not in script
+                and "Stage 25.95 requires the bridge to clear registers 37..47" in txt,
+                f"step5d {version_label} ablation modes": "speedl_cartesian_oracle" in script + txt
+                and "speedj_dls_oracle" in txt
+                and "speedj_rnn_live" in txt
+                and expected_default_mode in txt
+                and "RNN is shadow-only" in txt
+                and "register 47=523.0" in txt
+                and "register 47=524.0" in txt,
+                f"step5d {version_label} contact safety": "STAGE25_CONTACT_SAFETY" in script
+                and "cage margin exhaustion" in script + txt
+                and "stop_request" in script + txt
+                and "25 N raw-normal/force-norm and 4.0 Nm torque" in txt,
+                f"step5d {version_label} gravity-down": "PRECONTACT_POSE_CONTRACT: pre_contact_search_gravity_down_v1" in script
+                and "config/step_pose_contract_table.json" in script + txt
+                and "local target_rx = 3.141592654" in script
+                and "local target_ry = 0.000000000" in script
+                and "local target_rz = 0.000000000" in script
+                and "TCP +Z targets base -Z" in script + txt,
+                f"step5d {version_label} no lift or second search": "local skip_lift_attitude = 0" not in script
+                and "write_output_float_register(35, 25.1)" not in script
+                and "write_output_float_register(35, 25.2)" not in script
+                and "codex_step5d_down_search(24.3, 24.4" not in script,
+                f"step5d {version_label} raw guards": "codex_abs(normal_force) > 25.0" in script
+                and "force_norm > 25.0" in script
+                and "torque_norm > 4.0" in script,
+                f"step5d {version_label} no stale route": "step5b_contact_cycloid_baseline_v1" not in script + txt
+                and "step5b_contact_cycloid_baseline_v2" not in script + txt
+                and "step5b_contact_cycloid_baseline_v3" not in script + txt
+                and "step5c_joint_rnn_cycloid_v1" not in script + txt
+                and "step5d_strict_rnn_liveprep_v24" not in script + txt
+                and "STEP5D_STRICT_RNN_LIVEPREP_V24" not in script + txt
+                and "stop_only_quarantine" not in script + txt,
+                f"step5d {version_label} no stale ablation identity": (
+                    program == "step5d_strict_rnn_ablation_v25"
+                    or (
+                        "step5d_strict_rnn_ablation_v25" not in script + txt
+                        and "STEP5D_STRICT_RNN_ABLATION_V25" not in script + txt
+                    )
+                ),
+            }
+        )
     if program == "step6a_eight_no_contact_v1":
         checks.update(
             {

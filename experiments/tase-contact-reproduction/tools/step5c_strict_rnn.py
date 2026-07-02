@@ -154,6 +154,11 @@ class StrictTaseRnnSolver:
     def freeze(self) -> None:
         """Hold RNN state unchanged when the command path is invalid."""
 
+    def reset_state(self) -> None:
+        """Clear stateful solver memory at explicit contact lifecycle boundaries."""
+        self.theta_dot_state = np.zeros(6, dtype=float)
+        self.lambda_state = np.zeros(6, dtype=float)
+
     def step(
         self,
         *,

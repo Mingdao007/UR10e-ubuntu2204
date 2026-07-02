@@ -20,20 +20,20 @@ try:
 except Exception:
     raise SystemExit(0)
 program = current.get("program") or current.get("current_stage_id") or ""
-if program.startswith("step5d_strict_rnn_liveprep_"):
+if program.startswith(("step5d_strict_rnn_liveprep_", "step5d_strict_rnn_ablation_")):
     print(program)
 PY
 }
 
 STEP5D_VERSION="${STEP5D_VERSION:-$(current_step5d_version)}"
 if [[ -z "${STEP5D_VERSION}" ]]; then
-  EXPECTED_PROGRAM="<no current Step5d live-prep package>"
+  EXPECTED_PROGRAM="<no current Step5d TP package>"
 elif [[ "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v1" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v2" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v3" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v4" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v5" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v6" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v7" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v8" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v9" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v10" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v11" ]]; then
   EXPECTED_PROGRAM="/programs/andyl/kunwei/step5/step5d/${STEP5D_VERSION}.urp"
 else
   EXPECTED_PROGRAM="/programs/andyl/kunwei/step5/${STEP5D_VERSION}.urp"
 fi
-if [[ "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v24" ]]; then
+if [[ "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v24" || "${STEP5D_VERSION}" == step5d_strict_rnn_ablation_v* ]]; then
   STEP5D_DEFAULT_MAX_NORMAL_FORCE_N="${STEP5D_DEFAULT_MAX_NORMAL_FORCE_N:-25}"
   STEP5D_DEFAULT_MAX_FORCE_NORM_N="${STEP5D_DEFAULT_MAX_FORCE_NORM_N:-25}"
 else
@@ -41,6 +41,24 @@ else
   STEP5D_DEFAULT_MAX_FORCE_NORM_N="${STEP5D_DEFAULT_MAX_FORCE_NORM_N:-100}"
 fi
 STEP5D_DEFAULT_MAX_TORQUE_NORM_NM="${STEP5D_DEFAULT_MAX_TORQUE_NORM_NM:-4.0}"
+if [[ "${STEP5D_VERSION}" == step5d_strict_rnn_ablation_v* ]]; then
+  STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N:-10.5}"
+  STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N:-12.8}"
+  STEP5D_DEFAULT_PRELOAD_RAW_MIN_N="${STEP5D_DEFAULT_PRELOAD_RAW_MIN_N:-9.5}"
+  STEP5D_DEFAULT_PRELOAD_RAW_MAX_N="${STEP5D_DEFAULT_PRELOAD_RAW_MAX_N:-13.5}"
+else
+  STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N:-7.5}"
+  STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N:-14.0}"
+  STEP5D_DEFAULT_PRELOAD_RAW_MIN_N="${STEP5D_DEFAULT_PRELOAD_RAW_MIN_N:-7.0}"
+  STEP5D_DEFAULT_PRELOAD_RAW_MAX_N="${STEP5D_DEFAULT_PRELOAD_RAW_MAX_N:-15.0}"
+fi
+if [[ "${STEP5D_VERSION}" == "step5d_strict_rnn_ablation_v25" ]]; then
+  STEP5D_DEFAULT_ANGULAR_LIMIT_RAD_S="${STEP5D_DEFAULT_ANGULAR_LIMIT_RAD_S:-0.150}"
+  STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedl_cartesian_oracle}"
+else
+  STEP5D_DEFAULT_ANGULAR_LIMIT_RAD_S="${STEP5D_DEFAULT_ANGULAR_LIMIT_RAD_S:-0.015}"
+  STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedj_rnn_live}"
+fi
 
 usage() {
   cat <<EOF
@@ -53,16 +71,19 @@ Teach Pendant target:
   ${EXPECTED_PROGRAM}
 
 Boundary:
-  - Contact-capable live-prep package, not a completed reproduction claim.
+  - Contact-capable Step5d TP package, not a completed reproduction claim.
   - Bridge profile: ${STEP5D_VERSION}.
   - Force target defaults to 12.0 N, Step5/Step6 positive normal-load convention.
-  - Stage 25.0: registers 37..42 are qd0..qd5 rad/s; TP executes speedj.
+  - v25/v26 Stage 25.0 uses register 47 layout tag: 523 Cartesian speedl vx/vy/vz/wx/wy/wz, 524 joint speedj qd0..qd5.
+  - v25 first live mode defaults to STEP5D_STAGE25_CONTROL_MODE=speedl_cartesian_oracle; v26 defaults to speedj_rnn_live with joint-feasibility-scaled xdot_c.
+  - v24 and older Stage 25.0: registers 37..42 are qd0..qd5 rad/s; TP executes speedj.
   - qdot cap: v12+ live-prep packages default to 0.05 rad/s; retained evidence packages may differ.
-  - Raw normal guard: current v24 defaults to 25 N, force norm guard 25 N, torque guard 4.0 Nm; retained v18-v23 evidence packages used 100/100/4.0.
+  - Raw normal guard: current v24/v25/v26 defaults to 25 N, force norm guard 25 N, torque guard 4.0 Nm; retained v18-v23 evidence packages used 100/100/4.0.
   - Stage 25.3 runs bridge deadband acquire with Cartesian registers 37..39.
   - v21+ Stage 25.3 can receive preload min/max/hold/timeout from STEP5D_PRELOAD_* at bridge time.
   - Stage 25.3 keeps press recovery on low load and v24 stops outside the 20 N normal-load / 25 N force-norm recovery envelope.
   - v24 default preload gate is filtered 7.5-14 N, raw-sanity 7-15 N, and force_norm <=25 N for 0.100 s before Stage 25.95 verifies near-zero qdot registers and Stage 25.0 speedj starts.
+  - v25/v26 default preload gate is filtered 10.5-12.8 N, raw-sanity 9.5-13.5 N, and force_norm <=25 N for 0.100 s before Stage 25.95 verifies registers 37..47 clear.
   - Stage 22/24 pre-contact search posture is gravity-down: TCP +Z targets base -Z with rotvec [pi,0,0].
   - Stage 22 entry movel is 1.5x faster than v18: 0.060 m/s at 0.090 m/s^2.
   - Stage 24 far search is 1.5x faster than v18: 0.0225 m/s down; near search remains 0.0025 m/s.
@@ -89,21 +110,21 @@ fi
 case "$1" in
   prep-long-checks)
     if [[ -z "${STEP5D_VERSION}" ]]; then
-      echo "refusing Step5d prep: set STEP5D_VERSION to the controller-readback-verified live-prep package before running diagnostics"
+      echo "refusing Step5d prep: set STEP5D_VERSION to the controller-readback-verified Step5d package before running diagnostics"
       exit 40
     fi
     BRIDGE_PROFILE="${STEP5D_VERSION}" "${BRIDGE_OPERATOR}" prep-long-checks
     ;;
   live-ready|status)
     if [[ -z "${STEP5D_VERSION}" ]]; then
-      echo "refusing Step5d live-ready: set STEP5D_VERSION or current_stage to a Step5d live-prep package"
+      echo "refusing Step5d live-ready: set STEP5D_VERSION or current_stage to a Step5d package"
       exit 40
     fi
     python3 "${RUNTIME_INTERFACE}" --root "${ROOT}" --program "${STEP5D_VERSION}" live-ready
     ;;
   contact-bridge)
     if [[ -z "${STEP5D_VERSION}" ]]; then
-      echo "refusing live Step5d bridge start: set STEP5D_VERSION to the controller-readback-verified live-prep package and provide explicit live confirmation"
+      echo "refusing live Step5d bridge start: set STEP5D_VERSION to the controller-readback-verified Step5d package and provide explicit live confirmation"
       exit 40
     fi
     require_current_stage_readback_gate
@@ -128,8 +149,15 @@ case "$1" in
     BRIDGE_FORCE_DAMPING="${BRIDGE_FORCE_DAMPING:-${STEP5D_FORCE_DAMPING:-7.0}}" \
     BRIDGE_NORMAL_VELOCITY_LIMIT_M_S="${BRIDGE_NORMAL_VELOCITY_LIMIT_M_S:-${STEP5D_NORMAL_VELOCITY_LIMIT_M_S:-0.0100}}" \
     BRIDGE_TOTAL_LINEAR_LIMIT_M_S="${BRIDGE_TOTAL_LINEAR_LIMIT_M_S:-${STEP5D_TOTAL_LINEAR_LIMIT_M_S:-0.0040}}" \
-    BRIDGE_ANGULAR_LIMIT_RAD_S="${BRIDGE_ANGULAR_LIMIT_RAD_S:-${STEP5D_ANGULAR_LIMIT_RAD_S:-0.150}}" \
+    BRIDGE_ANGULAR_LIMIT_RAD_S="${BRIDGE_ANGULAR_LIMIT_RAD_S:-${STEP5D_ANGULAR_LIMIT_RAD_S:-${STEP5D_DEFAULT_ANGULAR_LIMIT_RAD_S}}}" \
     BRIDGE_INTEGRAL_LIMIT_N_S="${BRIDGE_INTEGRAL_LIMIT_N_S:-${STEP5D_INTEGRAL_LIMIT_N_S:-1.0}}" \
+    STEP5D_STAGE25_CONTROL_MODE="${STEP5D_STAGE25_CONTROL_MODE:-${STEP5D_STAGE25_CONTROL_MODE_DEFAULT}}" \
+    STEP5D_PRELOAD_FILTERED_MIN_N="${STEP5D_PRELOAD_FILTERED_MIN_N:-${STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N}}" \
+    STEP5D_PRELOAD_FILTERED_MAX_N="${STEP5D_PRELOAD_FILTERED_MAX_N:-${STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N}}" \
+    STEP5D_PRELOAD_RAW_MIN_N="${STEP5D_PRELOAD_RAW_MIN_N:-${STEP5D_DEFAULT_PRELOAD_RAW_MIN_N}}" \
+    STEP5D_PRELOAD_RAW_MAX_N="${STEP5D_PRELOAD_RAW_MAX_N:-${STEP5D_DEFAULT_PRELOAD_RAW_MAX_N}}" \
+    STEP5D_PRELOAD_FORCE_NORM_MAX_N="${STEP5D_PRELOAD_FORCE_NORM_MAX_N:-25.0}" \
+    STEP5D_PRELOAD_HOLD_S="${STEP5D_PRELOAD_HOLD_S:-0.100}" \
       "${BRIDGE_OPERATOR}" line-bridge-fast
     ;;
   *)

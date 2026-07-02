@@ -288,7 +288,11 @@ def compute_step5d_outer_loop(
     Q_cur = rotation_matrix_to_quaternion(R_cur)
     e_qua, e_o = quaternion_orientation_error(Q_d, Q_cur)
     outer_orientation_angle_rad = orientation_axis_angle_error(R_cur, approach_normal_base)
-    xdot_o = float(config.ko) * e_o
+    # e_o follows the paper's Q_d^-1 * Q_cur convention, which is a
+    # desired-frame current-vs-desired error. Convert it to base frame and
+    # negate it so the commanded angular velocity closes the approach-axis
+    # error instead of amplifying it.
+    xdot_o = -float(config.ko) * (R_d @ e_o)
     xdot_c = np.concatenate((xdot_p, xdot_o))
     next_state = Step5dOuterLoopState(
         force_integral_n_s=float(force_integral),

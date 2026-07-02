@@ -173,6 +173,16 @@ class Step5dStrictRnnSolverTest(unittest.TestCase):
         np.testing.assert_allclose(solver.theta_dot_state, theta_before)
         np.testing.assert_allclose(solver.lambda_state, lambda_before)
 
+    def test_reset_state_clears_theta_dot_and_lambda(self) -> None:
+        solver = self.make_solver()
+        solver.theta_dot_state = np.array([0.05, -0.04, 0.03, -0.02, 0.01, -0.005])
+        solver.lambda_state = np.array([2.0, -3.0, 1.5, -1.0, 0.5, -0.25])
+
+        solver.reset_state()
+
+        np.testing.assert_allclose(solver.theta_dot_state, np.zeros(6), atol=1e-12)
+        np.testing.assert_allclose(solver.lambda_state, np.zeros(6), atol=1e-12)
+
     def test_solve_uses_stateful_step_when_truth_is_verified(self) -> None:
         solver = self.make_solver()
         result = solver.solve(

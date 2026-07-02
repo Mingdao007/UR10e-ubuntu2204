@@ -57,9 +57,10 @@ def verify_no_staged_local_candidates(root: Path) -> None:
 def verify_root_triplets_match_current(root: Path, current_program: str) -> None:
     root_dir = root / "programs" / "step5"
     programs: dict[str, set[str]] = {}
-    for path in root_dir.glob("step5d_strict_rnn_liveprep_v*.*"):
-        if path.suffix in EXTENSIONS:
-            programs.setdefault(path.stem, set()).add(path.suffix)
+    for pattern in ("step5d_strict_rnn_liveprep_v*.*", "step5d_strict_rnn_ablation_v*.*"):
+        for path in root_dir.glob(pattern):
+            if path.suffix in EXTENSIONS:
+                programs.setdefault(path.stem, set()).add(path.suffix)
     for program, exts in sorted(programs.items()):
         if program != current_program:
             fail(

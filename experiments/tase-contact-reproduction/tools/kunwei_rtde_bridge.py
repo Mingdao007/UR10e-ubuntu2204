@@ -60,7 +60,15 @@ from step5d_paper_outer_loop import (  # noqa: E402
     compute_step5d_outer_loop,
     rnn_target_state_from_outer_loop,
 )
-from step5d_runtime_interface import STEP5D_LINE_ENTRY_PARAM_VALID_CODE  # noqa: E402
+from step5d_runtime_interface import (  # noqa: E402
+    STEP5D_ABLATION_STAGE_IDS,
+    STEP5D_ABLATION_V25_STAGE_ID,
+    STEP5D_ABLATION_V26_STAGE_ID,
+    STEP5D_LINE_ENTRY_PARAM_VALID_CODE,
+    STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE,
+    STEP5D_STAGE25_CONTROL_MODES,
+    STEP5D_STAGE25_JOINT_LAYOUT_CODE,
+)
 from step6_eight import (  # noqa: E402
     PATH_DURATION_S as STEP6_PATH_DURATION_S,
     STEP6_SAFE_FRAME_PATH,
@@ -167,12 +175,21 @@ STEP5C_DIAG_FIELDS = [
     "_step5c_solver_error",
 ]
 STEP5D_DIAG_FIELDS = [
+    "_step5d_stage25_control_mode",
     "_step5d_solver_status",
     "_step5d_qdot_max_abs_rad_s",
     "_step5d_constraint_residual_norm",
     "_step5d_outer_xdot_norm",
     "_step5d_outer_xdot_limited_norm",
     "_step5d_outer_xdot_limiter_active",
+    "_step5d_qdot_cap_rad_s",
+    "_step5d_jinv_xdot_inf_rad_s",
+    "_step5d_jinv_xdot_inf_over_qdot_cap",
+    "_step5d_jinv_xdot_solve_status",
+    "_step5d_xdot_feasibility_scale",
+    "_step5d_xdot_norm_pre_feasibility_scale",
+    "_step5d_xdot_norm_post_feasibility_scale",
+    "_step5d_xdot_feasibility_scale_active",
     "_step5d_qdot_slew_limiter_active",
     "_step5d_engage_gate_ok",
     "_step5d_line_guard_ok",
@@ -239,6 +256,7 @@ STEP5D_DIAG_FIELDS = [
     *[f"_step5d_rnn_raw_qd{idx}_rad_s" for idx in range(6)],
     *[f"_step5d_post_slew_qd{idx}_rad_s" for idx in range(6)],
     *[f"_step5d_active_bound_qd{idx}" for idx in range(6)],
+    *[f"_step5d_lambda_state_{idx}" for idx in range(6)],
     "_step5d_contact_orientation_error_rad",
     "_step5d_outer_orientation_error_rad",
     "_step5d_R_d_z_dot_R_cur_z",
@@ -428,6 +446,8 @@ STEP5D_LIVEPREP_STAGE_IDS = {
     STEP5D_LIVEPREP_V22_STAGE_ID,
     STEP5D_LIVEPREP_V23_STAGE_ID,
     STEP5D_LIVEPREP_V24_STAGE_ID,
+    STEP5D_ABLATION_V25_STAGE_ID,
+    STEP5D_ABLATION_V26_STAGE_ID,
 }
 STEP5D_SEMANTIC_ORIENTATION_TOLERANCE_RAD = math.radians(5.0)
 STEP5D_SEARCH_POSE_CONTRACT_ID = PRE_CONTACT_GRAVITY_DOWN_CONTRACT_ID
@@ -510,6 +530,14 @@ STEP5D_V24_LOW_LOAD_HOLD_TIMEOUT_S = 0.050
 STEP5D_V24_RNN_TRACKING_OPPOSED_DWELL_S = 0.004
 STEP5D_V24_RNN_TRACKING_OUTER_PRESS_MIN_M_S = 0.0001
 STEP5D_V24_RNN_TRACKING_UNLOAD_MIN_M_S = 0.0005
+STEP5D_V25_ENTRY_FILTERED_NORMAL_LOAD_MIN_N = 10.5
+STEP5D_V25_ENTRY_FILTERED_NORMAL_LOAD_MAX_N = 12.8
+STEP5D_V25_ENTRY_RAW_NORMAL_LOAD_MIN_N = 9.5
+STEP5D_V25_ENTRY_RAW_NORMAL_LOAD_MAX_N = 13.5
+STEP5D_V25_HARD_LOW_LOAD_N = 2.0
+STEP5D_V25_HARD_LOW_LOAD_TIMEOUT_S = 0.100
+STEP5D_V25_SOFT_LOW_LOAD_N = 5.0
+STEP5D_V25_SOFT_LOW_LOAD_TIMEOUT_S = 0.500
 STEP5D_V18_SENSOR_FORCE_HARD_STOP_N = 100.0
 STEP5D_V18_SENSOR_TORQUE_HARD_STOP_NM = 4.0
 STEP5D_V18_VALID_CONTACT_MAX_N = 100.0
@@ -1402,6 +1430,12 @@ def step5d_v11_deadband_acquire_velocity(
 
 
 def step5d_liveprep_contact_window_limits(bridge_profile: str) -> tuple[float, float, float]:
+    if bridge_profile in STEP5D_ABLATION_STAGE_IDS:
+        return (
+            STEP5D_V25_ENTRY_FILTERED_NORMAL_LOAD_MIN_N,
+            STEP5D_V25_ENTRY_FILTERED_NORMAL_LOAD_MAX_N,
+            STEP5D_V21_ENTRY_FORCE_NORM_MAX_N,
+        )
     if bridge_profile in {
         STEP5D_LIVEPREP_V21_STAGE_ID,
         STEP5D_LIVEPREP_V22_STAGE_ID,
@@ -2009,10 +2043,16 @@ def step5d_v15_permissive_recovery_guard(
 
 
 def step5d_v15a_guard(**kwargs: Any) -> dict[str, float | str]:
+    kwargs.setdefault("prior_high_window_s", 0.0)
+    kwargs.setdefault("prior_actual_speed_violation_s", 0.0)
+    kwargs.setdefault("prior_actual_speed_violation_count", 0)
     return step5d_v15_permissive_recovery_guard(require_braking_margin=True, **kwargs)
 
 
 def step5d_v18_guard(**kwargs: Any) -> dict[str, float | str]:
+    kwargs.setdefault("prior_high_window_s", 0.0)
+    kwargs.setdefault("prior_actual_speed_violation_s", 0.0)
+    kwargs.setdefault("prior_actual_speed_violation_count", 0)
     kwargs.setdefault("force_norm_hard_stop_n", STEP5D_V18_SENSOR_FORCE_HARD_STOP_N)
     kwargs.setdefault("cage_primary_low_load_reacquire", True)
     kwargs.setdefault("active_reacquire_load_max_n", STEP5D_V18_ACTIVE_REACQUIRE_LOAD_MAX_N)
@@ -2020,6 +2060,127 @@ def step5d_v18_guard(**kwargs: Any) -> dict[str, float | str]:
     kwargs.setdefault("valid_contact_max_n", STEP5D_V18_VALID_CONTACT_MAX_N)
     kwargs.setdefault("allow_high_contact_below_hard_force", True)
     return step5d_v15_permissive_recovery_guard(require_braking_margin=True, **kwargs)
+
+
+def step5d_v25_speedl_cartesian_guard(
+    *,
+    normal_load_n: float,
+    force_norm_n: float,
+    actual_tcp_speed_m_s: float,
+    braking_margin_m: float | None,
+    prior_soft_low_load_s: float,
+    prior_hard_low_load_s: float,
+    prior_actual_speed_violation_s: float,
+    prior_actual_speed_violation_count: int,
+    dt_s: float,
+    force_norm_hard_stop_n: float = STEP5D_V24_SENSOR_FORCE_HARD_STOP_N,
+    hard_low_load_n: float = STEP5D_V25_HARD_LOW_LOAD_N,
+    hard_low_load_timeout_s: float = STEP5D_V25_HARD_LOW_LOAD_TIMEOUT_S,
+    soft_low_load_n: float = STEP5D_V25_SOFT_LOW_LOAD_N,
+    soft_low_load_timeout_s: float = STEP5D_V25_SOFT_LOW_LOAD_TIMEOUT_S,
+    low_load_speed_stop_m_s: float = STEP5D_V13_LOW_LOAD_SPEED_STOP_M_S,
+    absolute_speed_stop_m_s: float = STEP5D_V13_ABSOLUTE_SPEED_STOP_M_S,
+    dt_max_s: float = STEP5D_V12_GUARD_DT_MAX_S,
+) -> dict[str, float | str]:
+    values = [
+        normal_load_n,
+        force_norm_n,
+        actual_tcp_speed_m_s,
+        prior_soft_low_load_s,
+        prior_hard_low_load_s,
+        prior_actual_speed_violation_s,
+        dt_s,
+        force_norm_hard_stop_n,
+        hard_low_load_n,
+        hard_low_load_timeout_s,
+        soft_low_load_n,
+        soft_low_load_timeout_s,
+        low_load_speed_stop_m_s,
+        absolute_speed_stop_m_s,
+        dt_max_s,
+    ]
+    if any(not math.isfinite(float(value)) for value in values):
+        return {
+            "state": "danger_stop",
+            "action": "stop_zero_qdot",
+            "reason": "nonfinite_v25_speedl_guard_input",
+            "hold_s": float(prior_soft_low_load_s),
+            "hard_low_load_s": float(prior_hard_low_load_s),
+            "high_window_s": 0.0,
+            "actual_speed_violation_s": float(prior_actual_speed_violation_s),
+            "actual_speed_violation_count": int(prior_actual_speed_violation_count),
+        }
+    if braking_margin_m is None or not math.isfinite(float(braking_margin_m)):
+        return {
+            "state": "danger_stop",
+            "action": "stop_zero_qdot",
+            "reason": "missing_or_nonfinite_tcp_cage_braking_margin",
+            "hold_s": float(prior_soft_low_load_s),
+            "hard_low_load_s": float(prior_hard_low_load_s),
+            "high_window_s": 0.0,
+            "actual_speed_violation_s": float(prior_actual_speed_violation_s),
+            "actual_speed_violation_count": int(prior_actual_speed_violation_count),
+        }
+    if float(braking_margin_m) <= 0.0:
+        return {
+            "state": "danger_stop",
+            "action": "stop_zero_qdot",
+            "reason": "tcp_cage_braking_margin_exhausted",
+            "hold_s": float(prior_soft_low_load_s),
+            "hard_low_load_s": float(prior_hard_low_load_s),
+            "high_window_s": 0.0,
+            "actual_speed_violation_s": float(prior_actual_speed_violation_s),
+            "actual_speed_violation_count": int(prior_actual_speed_violation_count),
+        }
+    safe_dt_s = min(max(0.0, float(dt_s)), float(dt_max_s))
+    hard_low_load_s = max(0.0, float(prior_hard_low_load_s)) + safe_dt_s if normal_load_n < hard_low_load_n else 0.0
+    soft_low_load_s = max(0.0, float(prior_soft_low_load_s)) + safe_dt_s if normal_load_n < soft_low_load_n else 0.0
+    actual_speed_hard_stop = float(actual_tcp_speed_m_s) > float(absolute_speed_stop_m_s) or (
+        float(normal_load_n) < float(soft_low_load_n)
+        and float(actual_tcp_speed_m_s) > float(low_load_speed_stop_m_s)
+    )
+    actual_speed_violation_s = (
+        max(0.0, float(prior_actual_speed_violation_s)) + safe_dt_s if actual_speed_hard_stop else 0.0
+    )
+    actual_speed_violation_count = max(0, int(prior_actual_speed_violation_count)) + 1 if actual_speed_hard_stop else 0
+    common = {
+        "hold_s": soft_low_load_s,
+        "hard_low_load_s": hard_low_load_s,
+        "high_window_s": 0.0,
+        "actual_speed_violation_s": actual_speed_violation_s,
+        "actual_speed_violation_count": actual_speed_violation_count,
+    }
+    if float(force_norm_n) >= float(force_norm_hard_stop_n):
+        return {"state": "danger_stop", "action": "stop_zero_qdot", "reason": "force_norm_hard_stop", **common}
+    if actual_speed_hard_stop:
+        return {
+            "state": "danger_stop",
+            "action": "stop_zero_qdot",
+            "reason": "v25_speedl_actual_tcp_speed_hard_stop",
+            **common,
+        }
+    if hard_low_load_s >= float(hard_low_load_timeout_s):
+        return {
+            "state": "danger_stop",
+            "action": "stop_zero_qdot",
+            "reason": "v25_speedl_hard_low_load_timeout",
+            **common,
+        }
+    if soft_low_load_s >= float(soft_low_load_timeout_s):
+        return {
+            "state": "danger_stop",
+            "action": "stop_zero_qdot",
+            "reason": "v25_speedl_soft_low_load_timeout",
+            **common,
+        }
+    if soft_low_load_s > 0.0:
+        return {
+            "state": "active_reacquire",
+            "action": "pass_solver",
+            "reason": "v25_speedl_low_load_repress_window",
+            **common,
+        }
+    return {"state": "valid_contact", "action": "pass_solver", "reason": "ok", **common}
 
 
 def limit_step5d_live_xdot(
@@ -2048,6 +2209,41 @@ def limit_step5d_live_xdot(
         limited[3:] *= max_angular / angular_norm
         limiter_active = True
     return limited, limiter_active
+
+
+def scale_step5d_xdot_for_joint_feasibility(
+    xdot_c: Any,
+    jacobian: Any,
+    *,
+    qdot_cap_rad_s: float,
+    safety: float = 0.9,
+) -> tuple[np.ndarray, dict[str, Any]]:
+    xdot = np.asarray(xdot_c, dtype=float)
+    J = np.asarray(jacobian, dtype=float)
+    cap = float(qdot_cap_rad_s)
+    safety_factor = float(safety)
+    if xdot.shape != (6,) or J.shape != (6, 6) or not np.all(np.isfinite(xdot)) or not np.all(np.isfinite(J)):
+        raise ValueError("Step5d feasibility scaling expects finite 6-vector xdot and 6x6 Jacobian")
+    if not math.isfinite(cap) or cap <= 0.0:
+        raise ValueError("Step5d qdot cap must be finite and positive")
+    if not math.isfinite(safety_factor) or not 0.0 < safety_factor <= 1.0:
+        raise ValueError("Step5d feasibility safety factor must be in (0, 1]")
+    qdot_required = np.linalg.solve(J, xdot)
+    if qdot_required.shape != (6,) or not np.all(np.isfinite(qdot_required)):
+        raise ValueError("Step5d feasibility solve produced nonfinite qdot")
+    required_inf = float(np.max(np.abs(qdot_required)))
+    scale = 1.0 if required_inf <= 0.0 else min(1.0, safety_factor * cap / required_inf)
+    scaled = xdot * scale
+    return scaled, {
+        "qdot_cap_rad_s": cap,
+        "jinv_xdot_inf_rad_s": required_inf,
+        "jinv_xdot_inf_over_qdot_cap": required_inf / cap,
+        "jinv_xdot_solve_status": "ok",
+        "xdot_feasibility_scale": scale,
+        "xdot_norm_pre_feasibility_scale": float(np.linalg.norm(xdot)),
+        "xdot_norm_post_feasibility_scale": float(np.linalg.norm(scaled)),
+        "xdot_feasibility_scale_active": bool(scale < 1.0 - 1e-12),
+    }
 
 
 def limit_step5d_qdot_slew(
@@ -2096,6 +2292,30 @@ def limit_step5d_predicted_tcp_speed(
     return qdot_values * scale, predicted_speed_m_s, True
 
 
+def step5d_dls_qdot_oracle(
+    jacobian: Any,
+    xdot_c: Sequence[float],
+    omega_minus: Sequence[float],
+    omega_plus: Sequence[float],
+    *,
+    damping: float = 1e-4,
+) -> tuple[float, float, float, float, float, float]:
+    J = np.asarray(jacobian, dtype=float)
+    xdot = np.asarray(xdot_c, dtype=float)
+    lower = np.asarray(omega_minus, dtype=float)
+    upper = np.asarray(omega_plus, dtype=float)
+    if J.shape != (6, 6) or xdot.shape != (6,) or lower.shape != (6,) or upper.shape != (6,):
+        raise ValueError("Step5d DLS oracle expects 6x6 J, 6-vector xdot, and 6-vector bounds")
+    if not (np.all(np.isfinite(J)) and np.all(np.isfinite(xdot)) and np.all(np.isfinite(lower)) and np.all(np.isfinite(upper))):
+        raise ValueError("Step5d DLS oracle inputs must be finite")
+    if not math.isfinite(float(damping)) or damping <= 0.0:
+        raise ValueError("Step5d DLS damping must be positive")
+    lhs = J @ J.T + (float(damping) ** 2) * np.eye(6)
+    qdot = J.T @ np.linalg.solve(lhs, xdot)
+    qdot = np.clip(qdot, lower, upper)
+    return tuple(float(value) for value in qdot.tolist())
+
+
 def step5d_qdot_diagnostic_values(
     *,
     jacobian: Any,
@@ -2107,6 +2327,7 @@ def step5d_qdot_diagnostic_values(
     lambda_state: Sequence[float] | None = None,
     active_bounds_mask: Sequence[bool] | None = None,
     intervention_reason: str = "none",
+    feasibility_diagnostics: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     J = np.asarray(jacobian, dtype=float)
     reaction = normalize3((float(reaction_normal_b[0]), float(reaction_normal_b[1]), float(reaction_normal_b[2])))
@@ -2118,11 +2339,20 @@ def step5d_qdot_diagnostic_values(
         "_step5d_jqdot_cmd_approach_normal_m_s": math.nan,
         "_step5d_lambda_norm": math.nan,
         "_step5d_intervention_reason": intervention_reason,
+        "_step5d_qdot_cap_rad_s": math.nan,
+        "_step5d_jinv_xdot_inf_rad_s": math.nan,
+        "_step5d_jinv_xdot_inf_over_qdot_cap": math.nan,
+        "_step5d_jinv_xdot_solve_status": "",
+        "_step5d_xdot_feasibility_scale": math.nan,
+        "_step5d_xdot_norm_pre_feasibility_scale": math.nan,
+        "_step5d_xdot_norm_post_feasibility_scale": math.nan,
+        "_step5d_xdot_feasibility_scale_active": math.nan,
     }
     for idx in range(6):
         diagnostics[f"_step5d_rnn_raw_qd{idx}_rad_s"] = math.nan
         diagnostics[f"_step5d_post_slew_qd{idx}_rad_s"] = math.nan
         diagnostics[f"_step5d_active_bound_qd{idx}"] = 0.0
+        diagnostics[f"_step5d_lambda_state_{idx}"] = math.nan
 
     def qdot_array(values: Sequence[float] | None) -> np.ndarray | None:
         if values is None:
@@ -2152,9 +2382,26 @@ def step5d_qdot_diagnostic_values(
         lam = np.asarray(lambda_state, dtype=float)
         if lam.size > 0 and np.all(np.isfinite(lam)):
             diagnostics["_step5d_lambda_norm"] = float(np.linalg.norm(lam))
+            for idx, value in enumerate(lam.reshape(-1)[:6]):
+                diagnostics[f"_step5d_lambda_state_{idx}"] = float(value)
     if active_bounds_mask is not None:
         for idx, active in enumerate(list(active_bounds_mask)[:6]):
             diagnostics[f"_step5d_active_bound_qd{idx}"] = 1.0 if bool(active) else 0.0
+    if feasibility_diagnostics:
+        key_map = {
+            "qdot_cap_rad_s": "_step5d_qdot_cap_rad_s",
+            "jinv_xdot_inf_rad_s": "_step5d_jinv_xdot_inf_rad_s",
+            "jinv_xdot_inf_over_qdot_cap": "_step5d_jinv_xdot_inf_over_qdot_cap",
+            "jinv_xdot_solve_status": "_step5d_jinv_xdot_solve_status",
+            "xdot_feasibility_scale": "_step5d_xdot_feasibility_scale",
+            "xdot_norm_pre_feasibility_scale": "_step5d_xdot_norm_pre_feasibility_scale",
+            "xdot_norm_post_feasibility_scale": "_step5d_xdot_norm_post_feasibility_scale",
+            "xdot_feasibility_scale_active": "_step5d_xdot_feasibility_scale_active",
+        }
+        for source, target in key_map.items():
+            if source in feasibility_diagnostics:
+                value = feasibility_diagnostics[source]
+                diagnostics[target] = 1.0 if isinstance(value, bool) and value else 0.0 if isinstance(value, bool) else value
     return diagnostics
 
 
@@ -2407,6 +2654,15 @@ def ensure_step5d_liveprep_runtime(state: "BridgeState", args: argparse.Namespac
         )
 
 
+def reset_step5d_solver_state_for_boundary(state: "BridgeState", boundary_key: str) -> None:
+    if state.step5d_solver_lifecycle_key == boundary_key:
+        return
+    if state.step5d_solver is not None:
+        state.step5d_solver.reset_state()
+    state.step5d_last_qdot = None
+    state.step5d_solver_lifecycle_key = boundary_key
+
+
 def step6_contact_path_reference(
     pose_xy: tuple[float, float],
     elapsed_s: float,
@@ -2527,6 +2783,43 @@ def step5c_joint_register_values(
     return values
 
 
+def step5d_stage25_register_values(
+    command: tuple[float, float, float, float, float, float] | list[float],
+    *,
+    layout_tag: float,
+    cmd_valid: float,
+    path_time_s: float,
+    force_error_n: float,
+    pose_or_orientation_error: float,
+) -> dict[str, float]:
+    if len(command) != 6:
+        raise ValueError(f"Step5d Stage25 command must have 6 values, got {len(command)}")
+    command_values = tuple(float(value) for value in command)
+    scalar_values = {
+        "layout_tag": float(layout_tag),
+        "cmd_valid": float(cmd_valid),
+        "path_time_s": float(path_time_s),
+        "force_error_n": float(force_error_n),
+        "pose_or_orientation_error": float(pose_or_orientation_error),
+    }
+    for label, value in [*zip([f"cmd{idx}" for idx in range(6)], command_values), *scalar_values.items()]:
+        if not math.isfinite(value):
+            raise ValueError(f"Step5d Stage25 register value must be finite: {label}={value!r}")
+    if scalar_values["layout_tag"] not in {STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE, STEP5D_STAGE25_JOINT_LAYOUT_CODE}:
+        raise ValueError(f"Step5d Stage25 layout tag is invalid: {scalar_values['layout_tag']!r}")
+
+    values = {
+        "step4e_cmd_valid": scalar_values["cmd_valid"],
+        "step4e_progress_m": scalar_values["path_time_s"],
+        "step4e_force_error_n": scalar_values["force_error_n"],
+        "step4e_orientation_error_rad": scalar_values["pose_or_orientation_error"],
+        "step4e_controller_state": scalar_values["layout_tag"],
+    }
+    for idx, value in enumerate(command_values):
+        values[BRIDGE_INPUT_NAMES[idx]] = value
+    return values
+
+
 class BridgeState:
     def __init__(self) -> None:
         self.integral_error_n_s = 0.0
@@ -2541,11 +2834,13 @@ class BridgeState:
         self.step5d_tcp_offset_tool0: np.ndarray | None = None
         self.step5d_tcp_cage: Step5dTcpCage | None = None
         self.step5d_solver: StrictTaseRnnSolver | None = None
+        self.step5d_solver_lifecycle_key = "inactive"
         self.step5d_outer_state = Step5dOuterLoopState()
         self.step5d_settle_filtered_normal_load_n: float | None = None
         self.step5d_line_guard_loss_s = 0.0
         self.step5d_last_qdot: np.ndarray | None = None
         self.step5d_contact_hold_s = 0.0
+        self.step5d_hard_low_load_s = 0.0
         self.step5d_contact_high_window_s = 0.0
         self.step5d_actual_speed_violation_s = 0.0
         self.step5d_actual_speed_violation_count = 0
@@ -2600,10 +2895,12 @@ class BridgeState:
         self.line_stage_s = 0.0
         self.last_robot_stage = None
         self.step5d_outer_state = Step5dOuterLoopState()
+        reset_step5d_solver_state_for_boundary(self, "inactive")
         self.step5d_settle_filtered_normal_load_n = None
         self.step5d_line_guard_loss_s = 0.0
         self.step5d_last_qdot = None
         self.step5d_contact_hold_s = 0.0
+        self.step5d_hard_low_load_s = 0.0
         self.step5d_contact_high_window_s = 0.0
         self.step5d_actual_speed_violation_s = 0.0
         self.step5d_actual_speed_violation_count = 0
@@ -2618,6 +2915,8 @@ class BridgeState:
         self.step5d_normal_direction_guard_dwell_s = 0.0
         self.step5d_tracking_guard_dwell_s = 0.0
         self.step5d_normal_direction_prev_load_n = None
+        self.step5d_active_reacquire_s = 0.0
+        self.step5d_no_contact_s = 0.0
         self.reset_step5b_15n_trial()
 
     def reset_step5b_15n_trial(self) -> None:
@@ -2722,6 +3021,9 @@ def compute_bridge_values(
     step5d_liveprep_v22_profile = args.bridge_profile == STEP5D_LIVEPREP_V22_STAGE_ID
     step5d_liveprep_v23_profile = args.bridge_profile == STEP5D_LIVEPREP_V23_STAGE_ID
     step5d_liveprep_v24_profile = args.bridge_profile == STEP5D_LIVEPREP_V24_STAGE_ID
+    step5d_liveprep_v25_profile = args.bridge_profile == STEP5D_ABLATION_V25_STAGE_ID
+    step5d_liveprep_v26_profile = args.bridge_profile == STEP5D_ABLATION_V26_STAGE_ID
+    step5d_ablation_profile = step5d_liveprep_v25_profile or step5d_liveprep_v26_profile
     step5d_liveprep_v16_or_v17_profile = step5d_liveprep_v16_profile or step5d_liveprep_v17_profile
     step5d_liveprep_v18_or_v19_profile = step5d_liveprep_v18_profile or step5d_liveprep_v19_profile
     step5d_liveprep_v18_or_newer_profile = (
@@ -2731,9 +3033,18 @@ def compute_bridge_values(
         or step5d_liveprep_v22_profile
         or step5d_liveprep_v23_profile
         or step5d_liveprep_v24_profile
+        or step5d_liveprep_v25_profile
+        or step5d_liveprep_v26_profile
     )
     step5d_liveprep_v17_or_newer_profile = step5d_liveprep_v17_profile or step5d_liveprep_v18_or_newer_profile
-    if step5d_liveprep_v21_profile or step5d_liveprep_v22_profile or step5d_liveprep_v23_profile or step5d_liveprep_v24_profile:
+    if (
+        step5d_liveprep_v21_profile
+        or step5d_liveprep_v22_profile
+        or step5d_liveprep_v23_profile
+        or step5d_liveprep_v24_profile
+        or step5d_liveprep_v25_profile
+        or step5d_liveprep_v26_profile
+    ):
         step5d_entry_raw_sanity_min_n = float(args.step5d_preload_raw_min_n)
         step5d_entry_raw_sanity_max_n = float(args.step5d_preload_raw_max_n)
     else:
@@ -2754,6 +3065,8 @@ def compute_bridge_values(
         or step5d_liveprep_v22_profile
         or step5d_liveprep_v23_profile
         or step5d_liveprep_v24_profile
+        or step5d_liveprep_v25_profile
+        or step5d_liveprep_v26_profile
     )
     step5d_liveprep_guarded_profile = (
         step5d_liveprep_v3_profile
@@ -2779,6 +3092,8 @@ def compute_bridge_values(
         or step5d_liveprep_v22_profile
         or step5d_liveprep_v23_profile
         or step5d_liveprep_v24_profile
+        or step5d_liveprep_v25_profile
+        or step5d_liveprep_v26_profile
     )
     if step5d_liveprep_profile:
         try:
@@ -2826,7 +3141,7 @@ def compute_bridge_values(
     )
     qdot_clear_stage_active = (
         args.bridge_mode == "line"
-        and (step5d_liveprep_v22_profile or step5d_liveprep_v23_profile or step5d_liveprep_v24_profile)
+        and (step5d_liveprep_v22_profile or step5d_liveprep_v23_profile or step5d_liveprep_v24_profile or step5d_ablation_profile)
         and abs(robot_stage - STEP5D_QDOT_CLEAR_STAGE) < 0.05
     )
     line_entry_gate_active = (
@@ -2834,10 +3149,16 @@ def compute_bridge_values(
     ) and acquire_stage_active
     line_stage_active = args.bridge_mode == "line" and abs(robot_stage - 25.0) < 0.05
     step5d_joint_line_profile = step5d_liveprep_profile and line_stage_active
+    step5d_stage25_control_mode = (
+        str(getattr(args, "step5d_stage25_control_mode", "speedl_cartesian_oracle"))
+        if step5d_ablation_profile
+        else "speedj_rnn_live"
+    )
     if not step5d_joint_line_profile:
         state.step5d_line_guard_loss_s = 0.0
         state.step5d_last_qdot = None
         state.step5d_contact_hold_s = 0.0
+        state.step5d_hard_low_load_s = 0.0
         state.step5d_contact_high_window_s = 0.0
         state.step5d_actual_speed_violation_s = 0.0
         state.step5d_actual_speed_violation_count = 0
@@ -2854,6 +3175,7 @@ def compute_bridge_values(
         state.step5d_normal_direction_guard_dwell_s = 0.0
         state.step5d_tracking_guard_dwell_s = 0.0
         state.step5d_normal_direction_prev_load_n = None
+        reset_step5d_solver_state_for_boundary(state, "inactive")
     control_stage_active = (
         latch_stage_active
         or detach_stage_active
@@ -3076,39 +3398,57 @@ def compute_bridge_values(
                     actual_tcp_speed_m_s=step5d_line_tcp_speed_m_s,
                     predicted_tcp_speed_m_s=None,
                 )
-        step5d_contact_safety = step5d_contact_safety_fn(
-            normal_load_n=normal_load_n,
-            force_norm_n=force_abs,
-            actual_tcp_speed_m_s=step5d_line_tcp_speed_m_s,
-            predicted_tcp_speed_m_s=None,
-            braking_margin_m=(
-                float(step5d_tcp_cage["braking_margin_m"])
-                if step5d_liveprep_online_cage_profile
-                else None
-            ),
-            prior_hold_s=state.step5d_contact_hold_s,
-            prior_high_window_s=state.step5d_contact_high_window_s,
-            prior_actual_speed_violation_s=state.step5d_actual_speed_violation_s,
-            prior_actual_speed_violation_count=state.step5d_actual_speed_violation_count,
-            prior_consecutive_hold_s=state.step5d_consecutive_hold_s,
-            prior_total_hold_s=state.step5d_total_hold_s,
-            prior_hold_event_count=state.step5d_hold_event_count,
-            prior_last_hold_reason=state.step5d_last_hold_reason,
-            prior_hold_actual_tcp_speed_m_s=state.step5d_hold_actual_tcp_speed_m_s,
-            active_stage25_s=state.step5d_active_stage25_s,
-            dt_s=dt_s,
-            soft_low_load_n=STEP5D_V18_SOFT_LOW_LOAD_N if step5d_liveprep_v18_or_newer_profile else STEP5D_V16_SOFT_LOW_LOAD_N if step5d_liveprep_v16_or_v17_profile else STEP5D_V13_SOFT_LOW_LOAD_N,
-            valid_contact_min_n=STEP5D_V16_VALID_CONTACT_MIN_N if (step5d_liveprep_v16_or_v17_profile or step5d_liveprep_v18_or_newer_profile) else STEP5D_V13_VALID_CONTACT_MIN_N,
-            valid_contact_max_n=STEP5D_V18_VALID_CONTACT_MAX_N if step5d_liveprep_v18_or_newer_profile else STEP5D_V16_VALID_CONTACT_MAX_N if step5d_liveprep_v16_or_v17_profile else STEP5D_V13_VALID_CONTACT_MAX_N,
-            low_load_speed_load_n=STEP5D_V16_LOW_LOAD_SPEED_LOAD_N if (step5d_liveprep_v16_or_v17_profile or step5d_liveprep_v18_or_newer_profile) else STEP5D_V13_LOW_LOAD_SPEED_LOAD_N,
-            hold_timeout_s=STEP5D_V24_LOW_LOAD_HOLD_TIMEOUT_S if step5d_liveprep_v24_profile else STEP5D_V16_LOW_LOAD_HOLD_TIMEOUT_S if step5d_liveprep_v16_or_v17_profile else STEP5D_V13_LOW_LOAD_HOLD_TIMEOUT_S,
-            high_window_dwell_stop_s=STEP5D_V16_HIGH_WINDOW_DWELL_STOP_S if (step5d_liveprep_v16_or_v17_profile or step5d_liveprep_v18_or_newer_profile) else STEP5D_V13_HIGH_WINDOW_DWELL_STOP_S,
-            allow_high_contact_below_hard_force=step5d_liveprep_v18_or_newer_profile or not step5d_liveprep_v16_or_v17_profile,
-            force_norm_hard_stop_n=STEP5D_V24_SENSOR_FORCE_HARD_STOP_N if step5d_liveprep_v24_profile else STEP5D_V18_SENSOR_FORCE_HARD_STOP_N if step5d_liveprep_v18_or_newer_profile else 60.0,
-            cage_primary_low_load_reacquire=step5d_liveprep_v18_or_newer_profile and not step5d_liveprep_v24_profile,
-            defer_low_load_hold_timeout=not step5d_liveprep_v24_profile,
-        )
+        if step5d_ablation_profile and step5d_stage25_control_mode == "speedl_cartesian_oracle":
+            step5d_contact_safety = step5d_v25_speedl_cartesian_guard(
+                normal_load_n=normal_load_n,
+                force_norm_n=force_abs,
+                actual_tcp_speed_m_s=step5d_line_tcp_speed_m_s,
+                braking_margin_m=(
+                    float(step5d_tcp_cage["braking_margin_m"])
+                    if step5d_liveprep_online_cage_profile
+                    else None
+                ),
+                prior_soft_low_load_s=state.step5d_contact_hold_s,
+                prior_hard_low_load_s=state.step5d_hard_low_load_s,
+                prior_actual_speed_violation_s=state.step5d_actual_speed_violation_s,
+                prior_actual_speed_violation_count=state.step5d_actual_speed_violation_count,
+                dt_s=dt_s,
+            )
+        else:
+            step5d_contact_safety = step5d_contact_safety_fn(
+                normal_load_n=normal_load_n,
+                force_norm_n=force_abs,
+                actual_tcp_speed_m_s=step5d_line_tcp_speed_m_s,
+                predicted_tcp_speed_m_s=None,
+                braking_margin_m=(
+                    float(step5d_tcp_cage["braking_margin_m"])
+                    if step5d_liveprep_online_cage_profile
+                    else None
+                ),
+                prior_hold_s=state.step5d_contact_hold_s,
+                prior_high_window_s=state.step5d_contact_high_window_s,
+                prior_actual_speed_violation_s=state.step5d_actual_speed_violation_s,
+                prior_actual_speed_violation_count=state.step5d_actual_speed_violation_count,
+                prior_consecutive_hold_s=state.step5d_consecutive_hold_s,
+                prior_total_hold_s=state.step5d_total_hold_s,
+                prior_hold_event_count=state.step5d_hold_event_count,
+                prior_last_hold_reason=state.step5d_last_hold_reason,
+                prior_hold_actual_tcp_speed_m_s=state.step5d_hold_actual_tcp_speed_m_s,
+                active_stage25_s=state.step5d_active_stage25_s,
+                dt_s=dt_s,
+                soft_low_load_n=STEP5D_V18_SOFT_LOW_LOAD_N if step5d_liveprep_v18_or_newer_profile else STEP5D_V16_SOFT_LOW_LOAD_N if step5d_liveprep_v16_or_v17_profile else STEP5D_V13_SOFT_LOW_LOAD_N,
+                valid_contact_min_n=STEP5D_V16_VALID_CONTACT_MIN_N if (step5d_liveprep_v16_or_v17_profile or step5d_liveprep_v18_or_newer_profile) else STEP5D_V13_VALID_CONTACT_MIN_N,
+                valid_contact_max_n=STEP5D_V18_VALID_CONTACT_MAX_N if step5d_liveprep_v18_or_newer_profile else STEP5D_V16_VALID_CONTACT_MAX_N if step5d_liveprep_v16_or_v17_profile else STEP5D_V13_VALID_CONTACT_MAX_N,
+                low_load_speed_load_n=STEP5D_V16_LOW_LOAD_SPEED_LOAD_N if (step5d_liveprep_v16_or_v17_profile or step5d_liveprep_v18_or_newer_profile) else STEP5D_V13_LOW_LOAD_SPEED_LOAD_N,
+                hold_timeout_s=STEP5D_V24_LOW_LOAD_HOLD_TIMEOUT_S if step5d_liveprep_v24_profile else STEP5D_V16_LOW_LOAD_HOLD_TIMEOUT_S if step5d_liveprep_v16_or_v17_profile else STEP5D_V13_LOW_LOAD_HOLD_TIMEOUT_S,
+                high_window_dwell_stop_s=STEP5D_V16_HIGH_WINDOW_DWELL_STOP_S if (step5d_liveprep_v16_or_v17_profile or step5d_liveprep_v18_or_newer_profile) else STEP5D_V13_HIGH_WINDOW_DWELL_STOP_S,
+                allow_high_contact_below_hard_force=step5d_liveprep_v18_or_newer_profile or not step5d_liveprep_v16_or_v17_profile,
+                force_norm_hard_stop_n=STEP5D_V24_SENSOR_FORCE_HARD_STOP_N if (step5d_liveprep_v24_profile or step5d_ablation_profile) else STEP5D_V18_SENSOR_FORCE_HARD_STOP_N if step5d_liveprep_v18_or_newer_profile else 60.0,
+                cage_primary_low_load_reacquire=step5d_liveprep_v18_or_newer_profile and not (step5d_liveprep_v24_profile or step5d_ablation_profile),
+                defer_low_load_hold_timeout=not (step5d_liveprep_v24_profile or step5d_ablation_profile),
+            )
         state.step5d_contact_hold_s = float(step5d_contact_safety["hold_s"])
+        state.step5d_hard_low_load_s = float(step5d_contact_safety.get("hard_low_load_s", 0.0))
         state.step5d_contact_high_window_s = float(step5d_contact_safety["high_window_s"])
         state.step5d_actual_speed_violation_s = float(step5d_contact_safety["actual_speed_violation_s"])
         state.step5d_actual_speed_violation_count = int(step5d_contact_safety["actual_speed_violation_count"])
@@ -3495,10 +3835,28 @@ def compute_bridge_values(
         step5d_qdot_command = None
         step5d_outer_output = None
         step5d_outer_xdot_limited: np.ndarray | None = None
+        step5d_outer_xdot_joint_feasible: np.ndarray | None = None
         step5d_outer_xdot_limiter_active = False
+        step5d_xdot_feasibility_diagnostics: dict[str, Any] = {
+            "qdot_cap_rad_s": float(args.step5d_qdot_limit_rad_s),
+            "jinv_xdot_inf_rad_s": math.nan,
+            "jinv_xdot_inf_over_qdot_cap": math.nan,
+            "jinv_xdot_solve_status": "not_enabled",
+            "xdot_feasibility_scale": 1.0,
+            "xdot_norm_pre_feasibility_scale": math.nan,
+            "xdot_norm_post_feasibility_scale": math.nan,
+            "xdot_feasibility_scale_active": False,
+        }
         step5d_qdot_slew_limiter_active = False
         step5d_raw_qdot_command: tuple[float, float, float, float, float, float] | None = None
         step5d_post_slew_qdot_command: tuple[float, float, float, float, float, float] | None = None
+        step5d_stage25_command: tuple[float, float, float, float, float, float] | None = None
+        step5d_stage25_layout_tag = STEP5D_STAGE25_JOINT_LAYOUT_CODE
+        step5d_stage25_control_mode = (
+            str(getattr(args, "step5d_stage25_control_mode", "speedl_cartesian_oracle"))
+            if step5d_ablation_profile
+            else "speedj_rnn_live"
+        )
         step5d_intervention_reasons: list[str] = []
         step5d_predicted_twist = np.full(6, math.nan, dtype=float)
         step5d_post_rnn_normal_guard = {
@@ -3533,6 +3891,15 @@ def compute_bridge_values(
                     or state.step5d_solver is None
                 ):
                     raise RuntimeError("Step5d liveprep runtime did not initialize")
+                if step5d_contact_safety_profile:
+                    lifecycle_key = (
+                        "stage25_pass_solver"
+                        if step5d_contact_safety["action"] == "pass_solver"
+                        else f"stage25_{step5d_contact_safety['action']}:{step5d_contact_safety['reason']}"
+                    )
+                else:
+                    lifecycle_key = "stage25_pass_solver"
+                reset_step5d_solver_state_for_boundary(state, lifecycle_key)
                 q = np.asarray(actual_q[:6], dtype=float)
                 qd = np.asarray(actual_qd[:6], dtype=float)
                 if step5d_contact_safety_profile and step5d_contact_safety["action"] in {"hold_zero_qdot", "stop_zero_qdot"}:
@@ -3667,23 +4034,66 @@ def compute_bridge_values(
                         max_linear_m_s=float(args.bridge_total_linear_limit_m_s),
                         max_angular_rad_s=float(args.bridge_angular_limit_rad_s),
                     )
-                    target_state["xdot_c"] = step5d_outer_xdot_limited
-                step5d_result = state.step5d_solver.solve(actual_q=q, actual_qd=qd, target_state=target_state)
-                step5d_qdot_command = step5d_result.qdot
-                step5d_raw_qdot_command = tuple(float(value) for value in step5d_result.qdot)
-                step5d_post_slew_qdot_command = step5d_raw_qdot_command
-                if step5d_liveprep_v12_profile or step5d_liveprep_v13_profile or step5d_liveprep_v14_profile or step5d_liveprep_v15_profile or step5d_liveprep_online_cage_profile:
-                    qdot_limited, step5d_qdot_slew_limiter_active = limit_step5d_qdot_slew(
-                        step5d_result.qdot,
-                        state.step5d_last_qdot,
-                        dt_s=dt_s,
+                step5d_outer_xdot_joint_feasible = step5d_outer_xdot_limited
+                if step5d_liveprep_v26_profile and step5d_stage25_control_mode != "speedl_cartesian_oracle":
+                    step5d_outer_xdot_joint_feasible, step5d_xdot_feasibility_diagnostics = (
+                        scale_step5d_xdot_for_joint_feasibility(
+                            step5d_outer_xdot_limited,
+                            jacobian,
+                            qdot_cap_rad_s=float(args.step5d_qdot_limit_rad_s),
+                            safety=0.9,
+                        )
                     )
-                    step5d_qdot_command = tuple(float(value) for value in qdot_limited.tolist())
-                    step5d_post_slew_qdot_command = step5d_qdot_command
-                    if step5d_qdot_slew_limiter_active:
-                        step5d_intervention_reasons.append("qdot_slew_limited")
-                    state.step5d_last_qdot = qdot_limited
-                if step5d_contact_safety_profile:
+                else:
+                    step5d_xdot_feasibility_diagnostics.update(
+                        {
+                            "xdot_norm_pre_feasibility_scale": float(np.linalg.norm(step5d_outer_xdot_limited)),
+                            "xdot_norm_post_feasibility_scale": float(np.linalg.norm(step5d_outer_xdot_limited)),
+                        }
+                    )
+                target_state["xdot_c"] = step5d_outer_xdot_joint_feasible
+                try:
+                    step5d_result = state.step5d_solver.solve(actual_q=q, actual_qd=qd, target_state=target_state)
+                except (ValueError, RuntimeError) as exc:
+                    if step5d_ablation_profile and step5d_stage25_control_mode == "speedl_cartesian_oracle":
+                        values["_step5d_solver_error"] = f"shadow: {exc}"
+                        step5d_result = None
+                    else:
+                        raise
+                if step5d_result is not None:
+                    step5d_qdot_command = step5d_result.qdot
+                    step5d_raw_qdot_command = tuple(float(value) for value in step5d_result.qdot)
+                    step5d_post_slew_qdot_command = step5d_raw_qdot_command
+                if (
+                    step5d_liveprep_v12_profile
+                    or step5d_liveprep_v13_profile
+                    or step5d_liveprep_v14_profile
+                    or step5d_liveprep_v15_profile
+                    or (step5d_liveprep_online_cage_profile and not step5d_ablation_profile)
+                    or (
+                        step5d_liveprep_v26_profile
+                        and step5d_stage25_control_mode != "speedl_cartesian_oracle"
+                    )
+                ):
+                    if step5d_result is not None:
+                        qdot_limited, step5d_qdot_slew_limiter_active = limit_step5d_qdot_slew(
+                            step5d_result.qdot,
+                            state.step5d_last_qdot,
+                            dt_s=dt_s,
+                        )
+                        step5d_qdot_command = tuple(float(value) for value in qdot_limited.tolist())
+                        step5d_post_slew_qdot_command = step5d_qdot_command
+                        if step5d_qdot_slew_limiter_active:
+                            step5d_intervention_reasons.append("qdot_slew_limited")
+                        state.step5d_last_qdot = qdot_limited
+                if (
+                    step5d_contact_safety_profile
+                    and step5d_qdot_command is not None
+                    and not (
+                        step5d_ablation_profile
+                        and step5d_stage25_control_mode == "speedl_cartesian_oracle"
+                    )
+                ):
                     if (
                         v19_freeze_low_force_reacquire
                         or v20_low_load_active_reacquire
@@ -3790,9 +4200,9 @@ def compute_bridge_values(
                             hold_timeout_s=STEP5D_V24_LOW_LOAD_HOLD_TIMEOUT_S if step5d_liveprep_v24_profile else STEP5D_V16_LOW_LOAD_HOLD_TIMEOUT_S if step5d_liveprep_v16_or_v17_profile else STEP5D_V13_LOW_LOAD_HOLD_TIMEOUT_S,
                             high_window_dwell_stop_s=STEP5D_V16_HIGH_WINDOW_DWELL_STOP_S if (step5d_liveprep_v16_or_v17_profile or step5d_liveprep_v18_or_newer_profile) else STEP5D_V13_HIGH_WINDOW_DWELL_STOP_S,
                             allow_high_contact_below_hard_force=step5d_liveprep_v18_or_newer_profile or not step5d_liveprep_v16_or_v17_profile,
-                            force_norm_hard_stop_n=STEP5D_V24_SENSOR_FORCE_HARD_STOP_N if step5d_liveprep_v24_profile else STEP5D_V18_SENSOR_FORCE_HARD_STOP_N if step5d_liveprep_v18_or_newer_profile else 60.0,
-                            cage_primary_low_load_reacquire=step5d_liveprep_v18_or_newer_profile and not step5d_liveprep_v24_profile,
-                            defer_low_load_hold_timeout=not step5d_liveprep_v24_profile,
+                            force_norm_hard_stop_n=STEP5D_V24_SENSOR_FORCE_HARD_STOP_N if (step5d_liveprep_v24_profile or step5d_ablation_profile) else STEP5D_V18_SENSOR_FORCE_HARD_STOP_N if step5d_liveprep_v18_or_newer_profile else 60.0,
+                            cage_primary_low_load_reacquire=step5d_liveprep_v18_or_newer_profile and not (step5d_liveprep_v24_profile or step5d_ablation_profile),
+                            defer_low_load_hold_timeout=not (step5d_liveprep_v24_profile or step5d_ablation_profile),
                         )
                     state.step5d_contact_hold_s = float(step5d_contact_safety["hold_s"])
                     state.step5d_contact_high_window_s = float(step5d_contact_safety["high_window_s"])
@@ -3826,8 +4236,37 @@ def compute_bridge_values(
                         step5d_qdot_command = tuple(float(value) for value in zero_qdot.tolist())
                         state.step5d_outer_state = Step5dOuterLoopState()
                         state.step5d_last_qdot = None
-                cmd = (step5d_qdot_command[0], step5d_qdot_command[1], step5d_qdot_command[2])
-                orientation_cmd = (step5d_qdot_command[3], step5d_qdot_command[4], step5d_qdot_command[5])
+                if step5d_ablation_profile:
+                    if step5d_stage25_control_mode == "speedl_cartesian_oracle":
+                        step5d_stage25_command = tuple(float(value) for value in step5d_outer_xdot_limited.tolist())
+                        step5d_stage25_layout_tag = STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE
+                    elif step5d_stage25_control_mode == "speedj_dls_oracle":
+                        step5d_stage25_command = step5d_dls_qdot_oracle(
+                            jacobian,
+                            step5d_outer_xdot_joint_feasible,
+                            omega_minus,
+                            omega_plus,
+                        )
+                        step5d_qdot_command = step5d_stage25_command
+                        step5d_stage25_layout_tag = STEP5D_STAGE25_JOINT_LAYOUT_CODE
+                    elif step5d_stage25_control_mode == "speedj_rnn_live":
+                        if step5d_qdot_command is None:
+                            raise RuntimeError("Step5d ablation RNN live mode has no qdot command")
+                        step5d_stage25_command = tuple(float(value) for value in step5d_qdot_command)
+                        step5d_stage25_layout_tag = STEP5D_STAGE25_JOINT_LAYOUT_CODE
+                    else:
+                        raise ValueError(f"unsupported Step5d ablation Stage25 control mode: {step5d_stage25_control_mode}")
+                    cmd = (step5d_stage25_command[0], step5d_stage25_command[1], step5d_stage25_command[2])
+                    orientation_cmd = (
+                        step5d_stage25_command[3],
+                        step5d_stage25_command[4],
+                        step5d_stage25_command[5],
+                    )
+                else:
+                    if step5d_qdot_command is None:
+                        raise RuntimeError("Step5d liveprep qdot command is unavailable")
+                    cmd = (step5d_qdot_command[0], step5d_qdot_command[1], step5d_qdot_command[2])
+                    orientation_cmd = (step5d_qdot_command[3], step5d_qdot_command[4], step5d_qdot_command[5])
             except (ValueError, RuntimeError) as exc:
                 if not str(exc).startswith("Step5d contact safety"):
                     values["_step5d_solver_error"] = str(exc)
@@ -3862,34 +4301,52 @@ def compute_bridge_values(
                 register_force_error = force_error
                 register_pose_error = orientation_error
                 register_status = joint_result.solver_status if joint_result is not None else STATUS_INVALID
-            values.update(
-                step5c_joint_register_values(
-                    (
-                        step5d_result.qdot
-                        if step5d_joint_line_profile and step5d_result is not None and step5d_qdot_command is None
-                        else step5d_qdot_command
-                        if step5d_joint_line_profile and step5d_qdot_command is not None
-                        else joint_result.qdot
-                        if joint_result is not None
-                        else (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-                    ),
-                    cmd_valid=0.0
-                    if args.bridge_mode == "preview"
-                    or (
-                        joint_result is None
-                        and step5d_result is None
-                        and not (
-                            step5d_contact_safety_profile
-                            and step5d_contact_safety["action"] in {"hold_zero_qdot", "stop_zero_qdot"}
-                        )
+            if step5d_ablation_profile:
+                values.update(
+                    step5d_stage25_register_values(
+                        step5d_stage25_command
+                        if step5d_stage25_command is not None
+                        else (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+                        layout_tag=step5d_stage25_layout_tag,
+                        cmd_valid=0.0
+                        if args.bridge_mode == "preview"
+                        or step5d_outer_output is None
+                        or step5d_stage25_command is None
+                        else 1.0,
+                        path_time_s=progress,
+                        force_error_n=register_force_error,
+                        pose_or_orientation_error=register_pose_error,
                     )
-                    else 1.0,
-                    path_time_s=progress,
-                    force_error_n=register_force_error,
-                    pose_or_orientation_error=register_pose_error,
-                    solver_status=register_status,
                 )
-            )
+            else:
+                values.update(
+                    step5c_joint_register_values(
+                        (
+                            step5d_result.qdot
+                            if step5d_joint_line_profile and step5d_result is not None and step5d_qdot_command is None
+                            else step5d_qdot_command
+                            if step5d_joint_line_profile and step5d_qdot_command is not None
+                            else joint_result.qdot
+                            if joint_result is not None
+                            else (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+                        ),
+                        cmd_valid=0.0
+                        if args.bridge_mode == "preview"
+                        or (
+                            joint_result is None
+                            and step5d_result is None
+                            and not (
+                                step5d_contact_safety_profile
+                                and step5d_contact_safety["action"] in {"hold_zero_qdot", "stop_zero_qdot"}
+                            )
+                        )
+                        else 1.0,
+                        path_time_s=progress,
+                        force_error_n=register_force_error,
+                        pose_or_orientation_error=register_pose_error,
+                        solver_status=register_status,
+                    )
+                )
         else:
             register_force_error = force_error
             if (
@@ -3909,6 +4366,7 @@ def compute_bridge_values(
                     or step5d_liveprep_v22_profile
                     or step5d_liveprep_v23_profile
                     or step5d_liveprep_v24_profile
+                    or step5d_ablation_profile
                 )
                 and line_entry_gate_active
             )
@@ -3983,6 +4441,8 @@ def compute_bridge_values(
                     ),
                 }
             )
+        if step5d_joint_line_profile:
+            values["_step5d_stage25_control_mode"] = step5d_stage25_control_mode
         if step5d_joint_line_profile and step5d_result is not None and step5d_outer_output is not None:
             qdot_abs = [abs(float(value)) for value in (step5d_qdot_command or step5d_result.qdot)]
             raw_qdot_abs = [abs(float(value)) for value in (step5d_raw_qdot_command or step5d_result.qdot)]
@@ -3998,6 +4458,7 @@ def compute_bridge_values(
                     lambda_state=step5d_result.diagnostics.get("lambda_state"),
                     active_bounds_mask=step5d_result.diagnostics.get("active_bounds_mask"),
                     intervention_reason=intervention_reason,
+                    feasibility_diagnostics=step5d_xdot_feasibility_diagnostics,
                 )
             )
             values["_step5d_solver_status"] = step5d_result.solver_status
@@ -5136,6 +5597,7 @@ def step5b_15n_trial_guard_reason(
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    argv_list = list(argv) if argv is not None else sys.argv[1:]
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--robot-host", default="192.168.1.18")
     parser.add_argument("--sensor-ip", default="192.168.50.25")
@@ -5267,6 +5729,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--step5d-epsilon", type=float, default=0.022)
     parser.add_argument("--step5d-sigr-exponent-r", type=float, default=0.2)
     parser.add_argument(
+        "--step5d-stage25-control-mode",
+        default=os.environ.get("STEP5D_STAGE25_CONTROL_MODE", ""),
+        help="Step5d v25 Stage25 control mode: speedl_cartesian_oracle, speedj_dls_oracle, or speedj_rnn_live",
+    )
+    parser.add_argument(
         "--step5d-preload-filtered-min-n",
         type=float,
         default=env_float_alias(
@@ -5336,6 +5803,74 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         if key.startswith("step4e_"):
             setattr(args, f"bridge_{key.removeprefix('step4e_')}", value)
     args.bridge_profile = args.step4e_version
+    if not args.step5d_stage25_control_mode:
+        args.step5d_stage25_control_mode = (
+            "speedl_cartesian_oracle"
+            if args.bridge_profile == STEP5D_ABLATION_V25_STAGE_ID
+            else "speedj_rnn_live"
+        )
+    if args.step5d_stage25_control_mode not in STEP5D_STAGE25_CONTROL_MODES:
+        raise SystemExit(
+            "--step5d-stage25-control-mode must be one of "
+            f"{', '.join(STEP5D_STAGE25_CONTROL_MODES)}"
+        )
+    if args.bridge_profile in STEP5D_ABLATION_STAGE_IDS:
+        def preload_default_was_not_supplied(flag: str, *env_names: str) -> bool:
+            return flag not in argv_list and all(os.environ.get(name, "") == "" for name in env_names)
+
+        if preload_default_was_not_supplied(
+            "--step5d-preload-filtered-min-n",
+            "STEP5D_PRELOAD_FILTERED_MIN_N",
+            "BRIDGE_STEP5D_PRELOAD_FILTERED_MIN_N",
+        ):
+            args.step5d_preload_filtered_min_n = STEP5D_V25_ENTRY_FILTERED_NORMAL_LOAD_MIN_N
+        if preload_default_was_not_supplied(
+            "--step5d-preload-filtered-max-n",
+            "STEP5D_PRELOAD_FILTERED_MAX_N",
+            "BRIDGE_STEP5D_PRELOAD_FILTERED_MAX_N",
+        ):
+            args.step5d_preload_filtered_max_n = STEP5D_V25_ENTRY_FILTERED_NORMAL_LOAD_MAX_N
+        if preload_default_was_not_supplied(
+            "--step5d-preload-raw-min-n",
+            "STEP5D_PRELOAD_RAW_MIN_N",
+            "BRIDGE_STEP5D_PRELOAD_RAW_MIN_N",
+        ):
+            args.step5d_preload_raw_min_n = STEP5D_V25_ENTRY_RAW_NORMAL_LOAD_MIN_N
+        if preload_default_was_not_supplied(
+            "--step5d-preload-raw-max-n",
+            "STEP5D_PRELOAD_RAW_MAX_N",
+            "BRIDGE_STEP5D_PRELOAD_RAW_MAX_N",
+        ):
+            args.step5d_preload_raw_max_n = STEP5D_V25_ENTRY_RAW_NORMAL_LOAD_MAX_N
+        if preload_default_was_not_supplied(
+            "--step5d-preload-force-norm-max-n",
+            "STEP5D_PRELOAD_FORCE_NORM_MAX_N",
+            "BRIDGE_STEP5D_PRELOAD_FORCE_NORM_MAX_N",
+        ):
+            args.step5d_preload_force_norm_max_n = STEP5D_V21_ENTRY_FORCE_NORM_MAX_N
+        if preload_default_was_not_supplied(
+            "--step5d-preload-hold-s",
+            "STEP5D_PRELOAD_HOLD_S",
+            "BRIDGE_STEP5D_PRELOAD_HOLD_S",
+        ):
+            args.step5d_preload_hold_s = STEP5D_V21_ENTRY_REQUIRED_S
+        if (
+            "--step4e-total-linear-limit-m-s" not in argv_list
+            and "--bridge-total-linear-limit-m-s" not in argv_list
+            and os.environ.get("STEP4E_TOTAL_LINEAR_LIMIT_M_S", "") == ""
+            and os.environ.get("BRIDGE_TOTAL_LINEAR_LIMIT_M_S", "") == ""
+        ):
+            args.bridge_total_linear_limit_m_s = 0.004
+            args.step4e_total_linear_limit_m_s = 0.004
+        if (
+            "--step4e-angular-limit-rad-s" not in argv_list
+            and "--bridge-angular-limit-rad-s" not in argv_list
+            and os.environ.get("STEP4E_ANGULAR_LIMIT_RAD_S", "") == ""
+            and os.environ.get("BRIDGE_ANGULAR_LIMIT_RAD_S", "") == ""
+            and args.bridge_profile == STEP5D_ABLATION_V25_STAGE_ID
+        ):
+            args.bridge_angular_limit_rad_s = 0.150
+            args.step4e_angular_limit_rad_s = 0.150
     if args.step5d_qdot_limit_rad_s is None:
         args.step5d_qdot_limit_rad_s = (
             STEP5D_V12_QDOT_LIMIT_RAD_S
@@ -5355,6 +5890,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                 STEP5D_LIVEPREP_V22_STAGE_ID,
                 STEP5D_LIVEPREP_V23_STAGE_ID,
                 STEP5D_LIVEPREP_V24_STAGE_ID,
+                STEP5D_ABLATION_V25_STAGE_ID,
+                STEP5D_ABLATION_V26_STAGE_ID,
             }
             else 0.30
         )

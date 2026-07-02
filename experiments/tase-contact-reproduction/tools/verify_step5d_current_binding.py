@@ -14,6 +14,9 @@ from step5d_runtime_interface import resolve_runtime_interface
 from verify_current_stage_readback import EXPERIMENT_ROOT, fail, load_json, verify
 
 
+STEP5D_PACKAGE_PREFIXES = ("step5d_strict_rnn_liveprep_", "step5d_strict_rnn_ablation_")
+
+
 def _relative(root: Path, path: Path) -> str:
     try:
         return str(path.relative_to(root))
@@ -55,8 +58,8 @@ def verify_binding(root: Path, program: str | None = None, target_dir: str | Non
     readback = verify(root, program, target_dir)
     current = load_json(root / "config" / "current_stage.json")
     selected = readback["program"]
-    if not selected.startswith("step5d_strict_rnn_liveprep_"):
-        fail(f"{selected} is not a Step5d live-prep package")
+    if not selected.startswith(STEP5D_PACKAGE_PREFIXES):
+        fail(f"{selected} is not a Step5d TP package")
 
     interface = resolve_runtime_interface(program=selected, root=root)
     if current.get("controller_target") != interface.controller_target:

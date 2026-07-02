@@ -28,6 +28,12 @@ STEP5D_LIVEPREP_V21_STAGE_ID = "step5d_strict_rnn_liveprep_v21"
 STEP5D_LIVEPREP_V22_STAGE_ID = "step5d_strict_rnn_liveprep_v22"
 STEP5D_LIVEPREP_V23_STAGE_ID = "step5d_strict_rnn_liveprep_v23"
 STEP5D_LIVEPREP_V24_STAGE_ID = "step5d_strict_rnn_liveprep_v24"
+STEP5D_ABLATION_V25_STAGE_ID = "step5d_strict_rnn_ablation_v25"
+STEP5D_ABLATION_V26_STAGE_ID = "step5d_strict_rnn_ablation_v26"
+STEP5D_ABLATION_STAGE_IDS = (STEP5D_ABLATION_V25_STAGE_ID, STEP5D_ABLATION_V26_STAGE_ID)
+STEP5D_STAGE25_CONTROL_MODES = ("speedl_cartesian_oracle", "speedj_dls_oracle", "speedj_rnn_live")
+STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE = 523.0
+STEP5D_STAGE25_JOINT_LAYOUT_CODE = 524.0
 STEP5D_LINE_ENTRY_PARAM_VALID_CODE = 521.0
 STEP5D_QDOT_CLEAR_STAGE = 25.95
 STEP5D_QDOT_CLEAR_ACK_CYCLES = 3
@@ -81,6 +87,7 @@ class Step5dRuntimeInterface:
     controller_dir: str
     preload_gate: Step5dPreloadGate
     bridge_defaults: Step5dBridgeDefaults
+    stage25_control_mode: str
     line_entry_param_valid_code: float
     register_contract: dict[str, str]
     hard_contract: dict[str, Any]
@@ -120,7 +127,9 @@ def _current_stage(path: Path = CURRENT_STAGE_PATH) -> dict[str, Any]:
 def current_step5d_program(path: Path = CURRENT_STAGE_PATH) -> str:
     current = _current_stage(path)
     program = str(current.get("program") or current.get("current_stage_id") or "")
-    return program if program.startswith("step5d_strict_rnn_liveprep_") else STEP5D_LIVEPREP_V20_STAGE_ID
+    if program.startswith(("step5d_strict_rnn_liveprep_", "step5d_strict_rnn_ablation_")):
+        return program
+    return STEP5D_LIVEPREP_V20_STAGE_ID
 
 
 def controller_target_for(program: str, current: dict[str, Any] | None = None) -> str:
@@ -131,6 +140,18 @@ def controller_target_for(program: str, current: dict[str, Any] | None = None) -
 
 
 def default_preload_gate(program: str) -> Step5dPreloadGate:
+    if program in STEP5D_ABLATION_STAGE_IDS:
+        return Step5dPreloadGate(
+            filtered_min_n=10.5,
+            filtered_max_n=12.8,
+            raw_min_n=9.5,
+            raw_max_n=13.5,
+            force_norm_max_n=25.0,
+            hold_s=0.100,
+            recovery_normal_load_min_n=0.0,
+            recovery_normal_load_max_n=20.0,
+            force_norm_stop_n=25.0,
+        )
     if program == STEP5D_LIVEPREP_V24_STAGE_ID:
         return Step5dPreloadGate(
             filtered_min_n=7.5,
@@ -174,7 +195,18 @@ def resolve_runtime_interface(
     selected = program or current_step5d_program(current_path)
     target = controller_target_for(selected, current)
     default_gate = default_preload_gate(selected)
-    trusted_force_default_n = 25.0 if selected == STEP5D_LIVEPREP_V24_STAGE_ID else 100.0
+    trusted_force_default_n = 25.0 if selected in {STEP5D_LIVEPREP_V24_STAGE_ID, *STEP5D_ABLATION_STAGE_IDS} else 100.0
+    stage25_control_mode = str(
+        env_map.get(
+            "STEP5D_STAGE25_CONTROL_MODE",
+            "speedl_cartesian_oracle" if selected == STEP5D_ABLATION_V25_STAGE_ID else "speedj_rnn_live",
+        )
+    )
+    if stage25_control_mode not in STEP5D_STAGE25_CONTROL_MODES:
+        raise ValueError(
+            "STEP5D_STAGE25_CONTROL_MODE must be one of "
+            f"{', '.join(STEP5D_STAGE25_CONTROL_MODES)}: {stage25_control_mode!r}"
+        )
     gate = Step5dPreloadGate(
         filtered_min_n=env_float(env_map, "STEP5D_PRELOAD_FILTERED_MIN_N", default_gate.filtered_min_n),
         filtered_max_n=env_float(env_map, "STEP5D_PRELOAD_FILTERED_MAX_N", default_gate.filtered_max_n),
@@ -230,7 +262,7 @@ def resolve_runtime_interface(
         angular_limit_rad_s=env_float(
             env_map,
             "STEP5D_ANGULAR_LIMIT_RAD_S",
-            0.150,
+            0.150 if selected == STEP5D_ABLATION_V25_STAGE_ID else 0.015,
             legacy="BRIDGE_ANGULAR_LIMIT_RAD_S",
         ),
         max_normal_force_n=env_float(env_map, "STEP5D_MAX_NORMAL_FORCE_N", trusted_force_default_n, legacy="MAX_NORMAL_FORCE_N"),
@@ -251,16 +283,24 @@ def resolve_runtime_interface(
         controller_dir=str(PurePosixPath(target).parent),
         preload_gate=gate,
         bridge_defaults=bridge_defaults,
+        stage25_control_mode=stage25_control_mode,
         line_entry_param_valid_code=STEP5D_LINE_ENTRY_PARAM_VALID_CODE,
         register_contract={
             "stage25_3": "37..39 Cartesian vx/vy/vz; v21+ 40..42/44/46/47 preload param channel",
             "stage25_95": (
-                "37..47 bridge-cleared qdot barrier; 37..42 qdot near-zero; 43 cmd_valid=0; "
+                "37..47 bridge-cleared command barrier; 37..42 near-zero; 43 cmd_valid=0; "
                 f"47 must not equal preload param code {STEP5D_LINE_ENTRY_PARAM_VALID_CODE:g}; "
                 f"ack cycles={STEP5D_QDOT_CLEAR_ACK_CYCLES}; "
-                f"zero tol={STEP5D_QDOT_CLEAR_ZERO_TOL_RAD_S:g} rad/s"
+                f"zero tol={STEP5D_QDOT_CLEAR_ZERO_TOL_RAD_S:g}"
             ),
-            "stage25_0": "37..42 qd0..qd5 rad/s; 43 cmd_valid; 44 path_time; 45 force_error; 46 pose/orientation_error; 47 solver_status",
+            "stage25_0": (
+                "v25/v26: 37..42 cartesian vx/vy/vz/wx/wy/wz when "
+                f"47={STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:g}; "
+                "37..42 joint qd0..qd5 rad/s when "
+                f"47={STEP5D_STAGE25_JOINT_LAYOUT_CODE:g}; "
+                "43 cmd_valid; 44 path_time; 45 force_error; 46 pose/orientation_error. "
+                "v24 and older: 37..42 qd0..qd5 rad/s; 47 solver_status."
+            ),
         },
         hard_contract={
             "force_frame": "reaction normal for load; approach normal for posture/press direction",
@@ -406,6 +446,12 @@ def live_ready_lines(interface: Step5dRuntimeInterface, cache: Mapping[str, Any]
             "[tuning] force "
             f"Kp={bridge.force_p_gain:g} Ki={bridge.force_i_gain:g} "
             f"damping={bridge.force_damping:g} filter_alpha={bridge.normal_filter_alpha:g}"
+        ),
+        (
+            "[tuning] stage25 "
+            f"mode={interface.stage25_control_mode} "
+            f"cartesian_tag={STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:g} "
+            f"joint_tag={STEP5D_STAGE25_JOINT_LAYOUT_CODE:g}"
         ),
         (
             "[caps] "
