@@ -67,7 +67,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             )
 
     def test_step5d_liveprep_package_is_non_quarantine_speedj_executor(self) -> None:
-        stamp = "2026-07-02T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V21"
+        stamp = "2026-07-02T2200HKT_STEP5D_STRICT_RNN_LIVEPREP_V22"
         geom = liveprep.line_cfg(liveprep.load_json(liveprep.CONFIG_PATH))
         frame = liveprep.load_safe_frame()
         script = liveprep.build_script(stamp, "2026-06-14T12:00:00+08:00", geom, frame)
@@ -100,7 +100,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertNotIn("write_output_float_register(35, 25.2)", script)
         self.assertNotIn("codex_step5d_down_search(24.3, 24.4", script)
         self.assertIn("Stage 25.3 consumes 37..39 as Cartesian deadband-acquire vx/vy/vz", script)
-        self.assertIn("v21 preload overrides in 40/41/42/44/46/47", script)
+        self.assertIn("v22 preload overrides in 40/41/42/44/46/47", script)
         self.assertIn("local line_entry_default_normal_load_min_n = 7.500", script)
         self.assertIn("local line_entry_default_normal_load_max_n = 14.000", script)
         self.assertIn("local line_entry_default_force_norm_max_n = 25.000", script)
@@ -108,6 +108,10 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn("local line_entry_param_valid_code = 521.000", script)
         self.assertIn("local candidate_min_n = read_input_float_register(40)", script)
         self.assertIn("local candidate_required_s = read_input_float_register(44)", script)
+        self.assertIn("write_output_float_register(35, 25.95)", script)
+        self.assertIn("local qdot_clear_required_s = 0.006", script)
+        self.assertIn("qdot_layout_ok == 0", script)
+        self.assertIn("Stage 25.95 requires the bridge to clear registers 37..47", txt)
         self.assertNotIn("local line_entry_settle_cmd_max_m_s", script)
         self.assertNotIn("codex_abs(cmd_vx) <= line_entry_settle_cmd_max_m_s", script)
         self.assertIn("local line_entry_recovery_normal_load_min_n = 0.000", script)
@@ -154,6 +158,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertNotIn("STEP5D_STRICT_RNN_LIVEPREP_V18", script + txt)
         self.assertNotIn("STEP5D_STRICT_RNN_LIVEPREP_V19", script + txt)
         self.assertNotIn("STEP5D_STRICT_RNN_LIVEPREP_V20", script + txt)
+        self.assertNotIn("STEP5D_STRICT_RNN_LIVEPREP_V21", script + txt)
 
     def test_step5d_precontact_pose_contract_targets_gravity_down(self) -> None:
         error = step_pose_contract.validate_contract_axis()
@@ -171,8 +176,8 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             liveprep.LOCAL_PROGRAM_DIR = Path(tmpdir)
             try:
                 first = liveprep.write_outputs(
-                    "2026-07-02T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V21",
-                    "2026-07-02T12:00:00+08:00",
+                    "2026-07-02T2200HKT_STEP5D_STRICT_RNN_LIVEPREP_V22",
+                    "2026-07-02T22:00:00+08:00",
                 )
                 self.assertTrue(any(first["changed"].values()))
                 second = liveprep.write_outputs(reuse_existing_metadata=True)
@@ -187,8 +192,8 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             out_dir = Path(tmpdir) / "candidate"
             result = liveprep.write_outputs(
-                "2026-07-02T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V21",
-                "2026-07-02T12:00:00+08:00",
+                "2026-07-02T2200HKT_STEP5D_STRICT_RNN_LIVEPREP_V22",
+                "2026-07-02T22:00:00+08:00",
                 output_dir=out_dir,
                 local_only=True,
             )
@@ -208,14 +213,14 @@ class Step5dFullChainSanityTest(unittest.TestCase):
     def test_step5d_semantic_fingerprint_ignores_source_timestamp(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             first = liveprep.write_outputs(
-                "2026-07-02T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V21",
-                "2026-07-02T12:00:00+08:00",
+                "2026-07-02T2200HKT_STEP5D_STRICT_RNN_LIVEPREP_V22",
+                "2026-07-02T22:00:00+08:00",
                 output_dir=Path(tmpdir) / "candidate_a",
                 local_only=True,
             )
             second = liveprep.write_outputs(
-                "2026-07-02T1215HKT_STEP5D_STRICT_RNN_LIVEPREP_V21",
-                "2026-07-02T12:15:00+08:00",
+                "2026-07-02T2215HKT_STEP5D_STRICT_RNN_LIVEPREP_V22",
+                "2026-07-02T22:15:00+08:00",
                 output_dir=Path(tmpdir) / "candidate_b",
                 local_only=True,
             )
@@ -389,6 +394,22 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertEqual(v21_args.step5d_preload_filtered_max_n, 14.0)
         self.assertEqual(v21_args.step5d_preload_raw_min_n, 7.0)
         self.assertEqual(v21_args.step5d_preload_raw_max_n, 15.0)
+        v22_args = bridge.parse_args(
+            [
+                "--no-start-command",
+                "--step4e-mode",
+                "line",
+                "--step4e-version",
+                "step5d_strict_rnn_liveprep_v22",
+                "--step4e-path-shape",
+                "cycloid",
+            ]
+        )
+        self.assertEqual(v22_args.step5d_qdot_limit_rad_s, 0.05)
+        self.assertEqual(v22_args.step5d_preload_filtered_min_n, 7.5)
+        self.assertEqual(v22_args.step5d_preload_filtered_max_n, 14.0)
+        self.assertEqual(v22_args.step5d_preload_raw_min_n, 7.0)
+        self.assertEqual(v22_args.step5d_preload_raw_max_n, 15.0)
         with self.assertRaisesRegex(SystemExit, "Blocked Step5d reproduction"):
             bridge.main(
                 [
@@ -425,7 +446,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn('require_current_stage_readback_gate', operator)
         self.assertIn('python3 "${READBACK_GATE}" --root "${ROOT}" --program "${STEP5D_VERSION}"', operator)
         self.assertIn('Force target defaults to 12.0 N', operator)
-        self.assertIn('v21 default preload gate is filtered 7.5-14 N', operator)
+        self.assertIn('v22 default preload gate is filtered 7.5-14 N', operator)
         self.assertIn('raw-sanity 7-15 N', operator)
         self.assertIn('WAIT_FOR_PLAY_S="${WAIT_FOR_PLAY_S:-10}"', operator)
         self.assertIn('MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-${STEP5D_MAX_NORMAL_FORCE_N:-100}}"', operator)
@@ -491,6 +512,8 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertEqual((v20_min, v20_max, v20_force_max), (8.0, 13.0, 25.0))
         v21_min, v21_max, v21_force_max = bridge.step5d_liveprep_contact_window_limits("step5d_strict_rnn_liveprep_v21")
         self.assertEqual((v21_min, v21_max, v21_force_max), (7.5, 14.0, 25.0))
+        v22_min, v22_max, v22_force_max = bridge.step5d_liveprep_contact_window_limits("step5d_strict_rnn_liveprep_v22")
+        self.assertEqual((v22_min, v22_max, v22_force_max), (7.5, 14.0, 25.0))
         for field in (
             "_step5d_reacquire_speed_cap_active",
             "_step5d_reacquire_speed_cap_m_s",

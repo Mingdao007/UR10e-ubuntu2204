@@ -153,7 +153,14 @@ def archive_previous_triplet(root: Path, program: str, current: dict[str, Any]) 
     return str(STEP5D_ARCHIVE_DIR / f"{program}.{{script,txt,urp}}")
 
 
-def v20_live_attempt_evidence(root: Path, program: str) -> dict[str, Any]:
+def version_label(program: str) -> str:
+    prefix = "step5d_strict_rnn_liveprep_"
+    if not program.startswith(prefix):
+        fail(f"program is not a Step5d liveprep id: {program}")
+    return program[len(prefix):]
+
+
+def live_attempt_evidence(root: Path, program: str) -> dict[str, Any]:
     attempts: list[dict[str, Any]] = []
     for run_dir in sorted((root / "runs").glob(f"bridge_step4e_line_outerloop_{program}_*")):
         summary_path = run_dir / "summary.json"
@@ -167,12 +174,30 @@ def v20_live_attempt_evidence(root: Path, program: str) -> dict[str, Any]:
                 entry["stage25_ft_line_control"] = summary["stage25_ft_line_control"]
         attempts.append(entry)
     latest = attempts[-1] if attempts else {}
+    label = version_label(program)
+    if label == "v21":
+        root_cause = (
+            "The v21 TP package was controller read-back verified, but its live run exposed "
+            "a Stage25.3->25.0 register-layout hazard: preload parameters in input registers "
+            "40/41/42/44/46/47, tagged by 47=521, could still be echoed when Stage25.0 first "
+            "consumed 37..42 as qdot. It is superseded by v22's Stage25.95 qdot-clear barrier."
+        )
+    elif label == "v20":
+        root_cause = (
+            "The v20 TP package was controller read-back verified, but live attempts did not "
+            "complete successfully before it was superseded."
+        )
+    else:
+        root_cause = (
+            f"The {label} TP package was controller read-back verified, but no successful "
+            "Step5d reproduction completion was recorded before it was superseded."
+        )
     return {
         "attempts": attempts,
         "latest_run_dir": latest.get("run_dir"),
         "latest_stop_reason": latest.get("stop_reason"),
         "result": "retained incomplete live-attempt evidence; no successful Step5d reproduction completion was recorded",
-        "root_cause_summary": "The v20 TP package was controller read-back verified, but live attempts did not complete successfully before v21 superseded it.",
+        "root_cause_summary": root_cause,
     }
 
 
@@ -183,19 +208,27 @@ def find_stage(table: dict[str, Any], stage_id: str) -> dict[str, Any] | None:
     return None
 
 
-def update_previous_stage(root: Path, table: dict[str, Any], previous: str, current: dict[str, Any]) -> dict[str, Any]:
+def update_previous_stage(
+    root: Path,
+    table: dict[str, Any],
+    previous: str,
+    current: dict[str, Any],
+    successor: str,
+) -> dict[str, Any]:
     row = find_stage(table, previous)
     if row is None:
         fail(f"stage table row is missing for previous current {previous}")
     archived_triplet = archive_previous_triplet(root, previous, current)
+    previous_label = version_label(previous)
+    successor_label = version_label(successor)
     row["active"] = False
     row["complete"] = True
     row["completion_target"] = False
     row["block_reason"] = (
-        "Retained v20 live-attempt evidence. Controller read-back was verified, "
-        "but the 2026-07-02 live attempts did not complete successfully; superseded by v21."
+        f"Retained {previous_label} live-attempt evidence. Controller read-back was verified, "
+        f"but the live attempt did not complete successfully; superseded by {successor_label}."
     )
-    row["live_run_evidence"] = v20_live_attempt_evidence(root, previous)
+    row["live_run_evidence"] = live_attempt_evidence(root, previous)
     delivery = row.setdefault("local_delivery_evidence", {})
     delivery["local_program_dir"] = str(STEP5D_ARCHIVE_DIR)
     delivery["local_triplet"] = archived_triplet
@@ -206,10 +239,18 @@ def update_previous_stage(root: Path, table: dict[str, Any], previous: str, curr
     contact_policy["controller_readback_status"] = "verified_retained"
     cadence = row.setdefault("cadence", {})
     cadence["motion"] = "retained_incomplete_live_attempt_evidence"
+    row["notes"] = [
+        f"{previous_label} was controller read-back verified but is retained as failed live-attempt evidence.",
+        f"{previous_label} is no longer current; open {successor_label} from the Step5 root on the Teach Pendant.",
+        f"{previous_label} local triplet is archived under {STEP5D_ARCHIVE_DIR}.",
+    ]
     return row
 
 
-def v21_preload_gate() -> dict[str, float]:
+def preload_gate(program: str) -> dict[str, float]:
+    label = version_label(program)
+    if label not in {"v21", "v22"}:
+        fail(f"preload gate defaults are not defined for {program}")
     return {
         "filtered_normal_load_min_n": 7.5,
         "filtered_normal_load_max_n": 14.0,
@@ -221,11 +262,12 @@ def v21_preload_gate() -> dict[str, float]:
     }
 
 
-def build_v21_stage_row(
+def build_current_stage_row(
     base_row: dict[str, Any],
     program: str,
     manifest: dict[str, Any],
 ) -> dict[str, Any]:
+    label = version_label(program)
     row = copy.deepcopy(base_row)
     row["id"] = program
     row["active"] = True
@@ -233,7 +275,7 @@ def build_v21_stage_row(
     row["complete"] = False
     row["completion_target"] = True
     row["block_reason"] = (
-        "Current v21 cage-primary TP/script diagnostic package is generated, uploaded, "
+        f"Current {label} cage-primary TP/script diagnostic package is generated, uploaded, "
         "and controller read-back verified. It is ready for an explicit live bridge run; "
         "not a completed reproduction claim."
     )
@@ -269,6 +311,8 @@ def build_v21_stage_row(
             "line_entry_force_norm_max_n": 25.0,
             "line_entry_required_s": 0.1,
             "line_entry_param_valid_code": 521.0,
+            "stage25_95_qdot_clear_required_s": 0.006 if label == "v22" else None,
+            "stage25_95_qdot_clear_timeout_s": 1.0 if label == "v22" else None,
             "raw_normal_guard_n": 100.0,
             "force_norm_guard_n": 100.0,
             "torque_norm_guard_nm": 4.0,
@@ -276,17 +320,51 @@ def build_v21_stage_row(
             "duration_s": 10.0,
         }
     )
+    for key in (
+        "stage25_95_qdot_clear_required_s",
+        "stage25_95_qdot_clear_timeout_s",
+    ):
+        if guard.get(key) is None:
+            guard.pop(key, None)
     contact_policy = row.setdefault("contact_policy", {})
     contact_policy["live_authorization"] = "current_controller_readback_verified_pending_live_bridge_run"
     contact_policy["tp_package_status"] = "generated_uploaded_readback_verified_current"
     contact_policy["controller_readback_status"] = "verified"
-    contact_policy["stage25_contact_policy"] = (
+    stage25_policy = (
         "Online broad AABB TCP cage is primary diagnostic boundary; Stage25.3 "
         "uses bridge-time preload parameters, low-load/no-contact freezes path time, "
         "resets outer-loop state during active_reacquire_solver based on action/load semantics, "
         "scales qdot to <=0.035 m/s predicted TCP speed, and preserves semantic/cage/sensor/"
         "heartbeat/Dashboard hard stops."
     )
+    if label == "v22":
+        stage25_policy = (
+            "Online broad AABB TCP cage is primary diagnostic boundary; Stage25.3 "
+            "uses bridge-time preload parameters, Stage25.95 waits for the bridge to clear "
+            "37..47 away from the preload layout before Stage25.0 consumes qdot, low-load/"
+            "no-contact freezes path time, resets outer-loop state during active_reacquire_solver "
+            "based on action/load semantics, scales qdot to <=0.035 m/s predicted TCP speed, "
+            "and preserves semantic/cage/sensor/heartbeat/Dashboard hard stops."
+        )
+    contact_policy["stage25_contact_policy"] = stage25_policy
+    row["liveprep_gates"] = [
+        "Stage 22 and Stage 24 pre-contact search posture uses gravity-down [pi,0,0], TCP +Z targeting base -Z",
+        "Stage 25.3 bridge deadband acquire consumes Cartesian vx/vy/vz in registers 37..39",
+        "Stage 25.3 enters Stage25 only after 7.5-14N filtered normal_load, 7-15N raw sanity, force_norm <=25N, and cmd_valid true for 0.100 s",
+        "Stage 25.95 clears registers 37..47 away from the preload layout before Stage25.0 qdot consumption",
+        "Stage25 strict RNN qdot is capped at 0.05 rad/s with qdot slew limiting and online broad TCP cage active-reacquire safety",
+    ]
+    row["success_condition"] = (
+        f"Current {label} package is generated, uploaded, controller read-back verified, "
+        "and awaits explicit live bridge run evidence before any reproduction claim."
+    )
+    analysis = row.setdefault("local_analysis_evidence", {})
+    analysis["source"] = "2026-07-02 v21 live-run register-layout root cause plus v22 qdot-clear implementation"
+    analysis["v21_register_layout_root_cause"] = (
+        "Stage25.3 preload values in 40/41/42/44/46/47 with tag 521 were echoed into "
+        "Stage25.0 qdot consumption; v22 adds Stage25.95 to require bridge-cleared 37..47."
+    )
+    analysis["v22_controller_readback_manifest"] = manifest["manifest_path"]
     cadence = row.setdefault("cadence", {})
     cadence["motion"] = "pending_live_diagnostic"
     return row
@@ -318,6 +396,7 @@ def update_current_stage(
     validation = manifest["validation"]
     sha = manifest["sha256"]["local"]
     target_dir = manifest["target_dir"]
+    label = version_label(program)
     payload.update(
         {
             "updated_at": now,
@@ -343,27 +422,45 @@ def update_current_stage(
             ),
         }
     )
+    if label == "v22":
+        bridge["stage25_95_qdot_clear_barrier"] = (
+            "TP writes stage 25.95 after preload; bridge writes zero qdot/cmd_valid=0 and a non-521 "
+            "layout tag until TP observes 37..47 clear before Stage25.0 speedj consumption"
+        )
+    else:
+        bridge.pop("stage25_95_qdot_clear_barrier", None)
     evidence = payload.setdefault("evidence", {})
     evidence.update(
         {
             "v20_retained_after_live_attempt": True,
-            "v20_live_attempts": v20_live_attempt_evidence(root, "step5d_strict_rnn_liveprep_v20"),
-            "v21_stamp": validation.get("stamp"),
-            "v21_local_package_validated": True,
-            "v21_controller_readback_verified": True,
-            "v21_controller_readback_dir": str(Path(manifest["manifest_path"]).parent),
-            "v21_controller_readback_manifest": manifest["manifest_path"],
-            "v21_controller_target": f"{target_dir}/{program}.urp",
-            "v21_local_triplet": f"{STEP5D_CURRENT_DIR}/{program}",
-            "v21_delivery_status": "controller read-back verified",
-            "v21_preload_gate": v21_preload_gate(),
-            "v21_sha256": sha,
+            "v20_live_attempts": live_attempt_evidence(root, "step5d_strict_rnn_liveprep_v20"),
+            f"{label}_stamp": validation.get("stamp"),
+            f"{label}_local_package_validated": True,
+            f"{label}_controller_readback_verified": True,
+            f"{label}_controller_readback_dir": str(Path(manifest["manifest_path"]).parent),
+            f"{label}_controller_readback_manifest": manifest["manifest_path"],
+            f"{label}_controller_target": f"{target_dir}/{program}.urp",
+            f"{label}_local_triplet": f"{STEP5D_CURRENT_DIR}/{program}",
+            f"{label}_delivery_status": "controller read-back verified",
+            f"{label}_preload_gate": preload_gate(program),
+            f"{label}_sha256": sha,
             "sha256": sha,
         }
     )
+    if label == "v22":
+        evidence["v21_retained_after_live_failure"] = True
+        evidence["v21_live_attempts"] = live_attempt_evidence(root, "step5d_strict_rnn_liveprep_v21")
+        evidence["v22_qdot_clear_barrier"] = {
+            "stage": 25.95,
+            "required_s": 0.006,
+            "timeout_s": 1.0,
+            "clears_input_float_registers": "37..47",
+            "rejects_preload_layout_tag": 521.0,
+            "bridge_clear_mode_code": 522.0,
+        }
     strict = payload.setdefault("strict_rnn_status", {})
     strict["reason"] = (
-        "v21 TP/script cage-primary diagnostic package is generated, uploaded, "
+        f"{label} TP/script cage-primary diagnostic package is generated, uploaded, "
         "and controller read-back verified. Full Step5d reproduction remains incomplete "
         "until a successful live run completes."
     )
@@ -371,21 +468,26 @@ def update_current_stage(
     trigger["bridge_has_started"] = False
     trigger["required_before_live"] = [
         "operator outside UR reach/cage boundary",
-        "TP program opened on controller read-back v21 package",
+        f"TP program opened on controller read-back {label} package",
     ]
     for retained in payload.get("retained_steps", []):
         if retained.get("step") == "Step5":
             retained["role"] = (
-                "v21 TP/script package generated, controller read-back verified, "
-                "and selected as current cage-primary diagnostic package; v20 and earlier retained as evidence"
+                f"{label} TP/script package generated, controller read-back verified, "
+                f"and selected as current cage-primary diagnostic package; earlier Step5d packages retained as evidence"
             )
     payload["notes"] = [
         f"{program} is controller read-back verified and selected as the current Step5d TP/script cage-primary diagnostic package.",
-        "v21 keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
-        "v21 keeps v20 cage-primary active-reacquire policy and widens Stage25.3 default preload to 7.5-14N filtered with 7-15N raw sanity.",
+        f"{label} keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
+        f"{label} keeps v20 cage-primary active-reacquire policy and uses Stage25.3 default preload 7.5-14N filtered with 7-15N raw sanity.",
+        (
+            "v22 adds Stage25.95 qdot-clear barrier so Stage25.0 cannot consume stale Stage25.3 preload registers as qdot."
+            if label == "v22"
+            else "This package has no Stage25.95 qdot-clear barrier."
+        ),
         "This file is the single current pointer for UR/Kunwei package and bridge handoffs.",
         "TP program load/Play, robot motion, payload/TCP writes, and zero_ftsensor remain explicit live gates.",
-        "v20 and earlier Step5d live-prep packages remain retained evidence only.",
+        "Earlier Step5d live-prep packages remain retained evidence only.",
     ]
     return payload
 
@@ -404,9 +506,9 @@ def promote(root: Path, program: str, target_dir: str, local_dir: Path, manifest
     previous_row = find_stage(table, str(previous)) if previous else None
     base_row = copy.deepcopy(previous_row) if previous_row is not None else {"stage": "Step5d", "owner": "bridge+TP"}
     if previous and previous != program:
-        update_previous_stage(root, table, str(previous), current)
-    v21_row = build_v21_stage_row(base_row, program, manifest)
-    upsert_stage(table, v21_row, after_id=str(previous) if previous else None)
+        update_previous_stage(root, table, str(previous), current, program)
+    current_row = build_current_stage_row(base_row, program, manifest)
+    upsert_stage(table, current_row, after_id=str(previous) if previous else None)
     new_current = update_current_stage(root, current, program, manifest)
     write_json(table_path, table)
     write_json(current_path, new_current)

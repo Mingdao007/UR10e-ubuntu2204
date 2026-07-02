@@ -20,6 +20,7 @@ import promote_step5d_current as promote  # noqa: E402
 TARGET_DIR = "/programs/andyl/kunwei/step5"
 V20 = "step5d_strict_rnn_liveprep_v20"
 V21 = "step5d_strict_rnn_liveprep_v21"
+V22 = "step5d_strict_rnn_liveprep_v22"
 
 
 def _sha(data: bytes) -> str:
@@ -47,7 +48,7 @@ def _write_readback(root: Path, program: str, local_dir: Path, shas: dict[str, s
         "target_dir": TARGET_DIR,
         "delivery_mode": "full_upload_readback",
         "validation": {
-            "stamp": "2026-07-02T2100HKT_STEP5D_STRICT_RNN_LIVEPREP_V21",
+            "stamp": f"2026-07-02T2200HKT_{program.upper()}",
             "program": program,
             "target_dir": TARGET_DIR,
             "installation_relative_path": "../../../default",
@@ -70,31 +71,36 @@ def _write_readback(root: Path, program: str, local_dir: Path, shas: dict[str, s
 def _write_fixture(root: Path) -> tuple[Path, Path]:
     config = root / "config"
     config.mkdir(parents=True)
-    v20_dir = root / "programs" / "step5"
-    v21_dir = root / "candidate"
-    v20_sha = _write_triplet(v20_dir, V20, "old-current")
-    v21_sha = _write_triplet(v21_dir, V21, "new-current")
-    manifest_path = _write_readback(root, V21, v21_dir, v21_sha)
+    v20_dir = root / "programs" / "step5" / "step5d"
+    v21_dir = root / "programs" / "step5"
+    v22_dir = root / "candidate"
+    v20_sha = _write_triplet(v20_dir, V20, "retained-v20")
+    v21_sha = _write_triplet(v21_dir, V21, "old-current")
+    v22_sha = _write_triplet(v22_dir, V22, "new-current")
+    manifest_path = _write_readback(root, V22, v22_dir, v22_sha)
+    v21_run = root / "runs" / "bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v21_fixture"
+    v21_run.mkdir(parents=True)
+    (v21_run / "summary.json").write_text(json.dumps({"stop_reason": 13}), encoding="utf-8")
     current = {
         "version": 2,
         "current_step": "Step5d",
-        "current_stage_id": V20,
-        "program": V20,
+        "current_stage_id": V21,
+        "program": V21,
         "stage_table_path": "config/step5_stage_table.json",
-        "controller_target": f"{TARGET_DIR}/{V20}.urp",
-        "controller_script": f"{TARGET_DIR}/{V20}.script",
-        "local_triplet": f"programs/step5/{V20}",
-        "status": f"{V20}_controller_readback_verified_pending_live_bridge_run_not_reproduction_claim",
-        "sha256": v20_sha,
+        "controller_target": f"{TARGET_DIR}/{V21}.urp",
+        "controller_script": f"{TARGET_DIR}/{V21}.script",
+        "local_triplet": f"programs/step5/{V21}",
+        "status": f"{V21}_controller_readback_verified_pending_live_bridge_run_not_reproduction_claim",
+        "sha256": v21_sha,
         "bridge_profile": {
-            "step4e_version": V20,
+            "step4e_version": V21,
         },
         "evidence": {},
         "bridge_trigger": {
-            "required_before_live": [f"TP program opened on controller read-back v20 package"],
+            "required_before_live": [f"TP program opened on controller read-back v21 package"],
         },
         "retained_steps": [
-            {"step": "Step5", "role": "v20 current before test"},
+            {"step": "Step5", "role": "v21 current before test"},
         ],
         "notes": [],
     }
@@ -104,11 +110,11 @@ def _write_fixture(root: Path) -> tuple[Path, Path]:
                 "id": V20,
                 "stage": "Step5d",
                 "owner": "bridge+TP",
-                "active": True,
+                "active": False,
                 "blocked": False,
-                "complete": False,
-                "completion_target": True,
-                "block_reason": "current fixture",
+                "complete": True,
+                "completion_target": False,
+                "block_reason": "retained fixture",
                 "guard": {
                     "line_entry_normal_load_min_n": 8.0,
                     "line_entry_normal_load_max_n": 13.0,
@@ -119,45 +125,77 @@ def _write_fixture(root: Path) -> tuple[Path, Path]:
                 },
                 "local_delivery_evidence": {
                     "program_basename": V20,
-                    "local_program_dir": "programs/step5",
-                    "local_triplet": f"programs/step5/{V20}.{{script,txt,urp}}",
+                    "local_program_dir": "programs/step5/step5d",
+                    "local_triplet": f"programs/step5/step5d/{V20}.{{script,txt,urp}}",
                     "controller_readback_verified": True,
                     "sha256": v20_sha,
+                    "archived_to_step5d_dir": True,
+                },
+            },
+            {
+                "id": V21,
+                "stage": "Step5d",
+                "owner": "bridge+TP",
+                "active": True,
+                "blocked": False,
+                "complete": False,
+                "completion_target": True,
+                "block_reason": "current fixture",
+                "guard": {
+                    "line_entry_normal_load_min_n": 7.5,
+                    "line_entry_normal_load_max_n": 14.0,
+                },
+                "cadence": {},
+                "contact_policy": {
+                    "controller_readback_status": "verified",
+                },
+                "local_delivery_evidence": {
+                    "program_basename": V21,
+                    "local_program_dir": "programs/step5",
+                    "local_triplet": f"programs/step5/{V21}.{{script,txt,urp}}",
+                    "controller_readback_verified": True,
+                    "sha256": v21_sha,
                 },
             }
         ]
     }
     (config / "current_stage.json").write_text(json.dumps(current), encoding="utf-8")
     (config / "step5_stage_table.json").write_text(json.dumps(table), encoding="utf-8")
-    return v21_dir, manifest_path
+    return v22_dir, manifest_path
 
 
 class Step5dCurrentPromotionTest(unittest.TestCase):
-    def test_promote_v21_archives_v20_and_updates_current(self) -> None:
+    def test_promote_v22_archives_v21_and_updates_current(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            v21_dir, manifest_path = _write_fixture(root)
+            v22_dir, manifest_path = _write_fixture(root)
 
-            result = promote.promote(root, V21, TARGET_DIR, v21_dir, manifest_path)
+            result = promote.promote(root, V22, TARGET_DIR, v22_dir, manifest_path)
 
             self.assertTrue(result["ok"])
-            self.assertEqual(result["previous_program"], V20)
-            self.assertFalse((root / "programs" / "step5" / f"{V20}.urp").exists())
-            self.assertTrue((root / "programs" / "step5" / "step5d" / f"{V20}.urp").is_file())
-            self.assertTrue((root / "programs" / "step5" / f"{V21}.urp").is_file())
+            self.assertEqual(result["previous_program"], V21)
+            self.assertFalse((root / "programs" / "step5" / f"{V21}.urp").exists())
+            self.assertTrue((root / "programs" / "step5" / "step5d" / f"{V21}.urp").is_file())
+            self.assertTrue((root / "programs" / "step5" / f"{V22}.urp").is_file())
             current = json.loads((root / "config" / "current_stage.json").read_text(encoding="utf-8"))
-            self.assertEqual(current["program"], V21)
-            self.assertEqual(current["bridge_profile"]["step4e_version"], V21)
-            self.assertIn("v21", current["bridge_trigger"]["required_before_live"][1])
+            self.assertEqual(current["program"], V22)
+            self.assertEqual(current["bridge_profile"]["step4e_version"], V22)
+            self.assertIn("v22", current["bridge_trigger"]["required_before_live"][1])
+            self.assertIn("stage25_95_qdot_clear_barrier", current["bridge_profile"])
+            self.assertTrue(current["evidence"]["v21_retained_after_live_failure"])
+            self.assertEqual(current["evidence"]["v21_live_attempts"]["latest_stop_reason"], 13)
+            self.assertEqual(current["evidence"]["v22_qdot_clear_barrier"]["stage"], 25.95)
             table = json.loads((root / "config" / "step5_stage_table.json").read_text(encoding="utf-8"))
             rows = {row["id"]: row for row in table["stages"]}
-            self.assertFalse(rows[V20]["active"])
-            self.assertTrue(rows[V20]["complete"])
-            self.assertTrue(rows[V20]["local_delivery_evidence"]["archived_to_step5d_dir"])
-            self.assertTrue(rows[V21]["active"])
-            self.assertFalse(rows[V21]["complete"])
-            self.assertEqual(rows[V21]["guard"]["line_entry_normal_load_min_n"], 7.5)
-            self.assertEqual(rows[V21]["guard"]["line_entry_raw_sanity_min_n"], 7.0)
+            self.assertFalse(rows[V21]["active"])
+            self.assertTrue(rows[V21]["complete"])
+            self.assertTrue(rows[V21]["local_delivery_evidence"]["archived_to_step5d_dir"])
+            self.assertIn("Stage25.3->25.0 register-layout hazard", rows[V21]["live_run_evidence"]["root_cause_summary"])
+            self.assertTrue(rows[V22]["active"])
+            self.assertFalse(rows[V22]["complete"])
+            self.assertEqual(rows[V22]["guard"]["line_entry_normal_load_min_n"], 7.5)
+            self.assertEqual(rows[V22]["guard"]["line_entry_raw_sanity_min_n"], 7.0)
+            self.assertEqual(rows[V22]["guard"]["stage25_95_qdot_clear_required_s"], 0.006)
 
 
 if __name__ == "__main__":

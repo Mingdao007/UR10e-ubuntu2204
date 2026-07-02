@@ -16,33 +16,35 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 import upload_ur_tp_package as upload  # noqa: E402
 import build_step5d_liveprep as liveprep  # noqa: E402
-import build_step5d_liveprep as liveprep  # noqa: E402
 
 
 class UploadUrTpPackageReuseTest(unittest.TestCase):
     def test_upload_validator_checks_installation_relative_path(self) -> None:
-        program = "step5d_strict_rnn_liveprep_v21"
-        target_dir = "/programs/andyl/kunwei/step5"
-        files = {
-            ext: ROOT / "programs" / "step5" / f"{program}{ext}"
-            for ext in upload.EXTENSIONS
-        }
+        with tempfile.TemporaryDirectory() as tmp:
+            output_dir = Path(tmp)
+            built = liveprep.write_outputs(
+                "2026-07-02T2200HKT_STEP5D_STRICT_RNN_LIVEPREP_V22",
+                "2026-07-02T22:00:00+08:00",
+                output_dir=output_dir,
+                local_only=True,
+            )
+            files = {ext: Path(built[ext.lstrip(".")]) for ext in upload.EXTENSIONS}
 
-        result = upload.validate_package(
-            files,
-            program,
-            target_dir,
-            require_exact_cached_script=True,
-        )
+            result = upload.validate_package(
+                files,
+                liveprep.PROGRAM_NAME,
+                liveprep.CONTROLLER_DIR,
+                require_exact_cached_script=True,
+            )
 
         self.assertEqual(result["installation_relative_path"], "../../../default")
 
-    def test_upload_validator_checks_step5d_v21_semantics(self) -> None:
+    def test_upload_validator_checks_step5d_v22_semantics(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            local_dir = Path(tmp) / "v21"
+            local_dir = Path(tmp) / "v22"
             liveprep.write_outputs(
-                "2026-07-02T2100HKT_STEP5D_STRICT_RNN_LIVEPREP_V21",
-                "2026-07-02T21:00:00+08:00",
+                "2026-07-02T2200HKT_STEP5D_STRICT_RNN_LIVEPREP_V22",
+                "2026-07-02T22:00:00+08:00",
                 output_dir=local_dir,
                 local_only=True,
             )
@@ -61,15 +63,17 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
 
         self.assertEqual(result["program"], liveprep.PROGRAM_NAME)
         self.assertEqual(result["target_dir"], liveprep.CONTROLLER_DIR)
-        self.assertIn("v21 preload overrides in 40/41/42/44/46/47", script_text)
+        self.assertIn("v22 preload overrides in 40/41/42/44/46/47", script_text)
+        self.assertIn("write_output_float_register(35, 25.95)", script_text)
+        self.assertIn("local qdot_clear_required_s = 0.006", script_text)
         self.assertIn("# SAFETY: raw normal guard 100 N, force norm guard 100 N, torque guard 4.0 Nm.", script_text)
 
-    def test_upload_validator_accepts_step5d_v21_liveprep_candidate(self) -> None:
+    def test_upload_validator_accepts_step5d_v22_liveprep_candidate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             output_dir = Path(tmp)
             built = liveprep.write_outputs(
-                "2026-07-02T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V21",
-                "2026-07-02T12:00:00+08:00",
+                "2026-07-02T2200HKT_STEP5D_STRICT_RNN_LIVEPREP_V22",
+                "2026-07-02T22:00:00+08:00",
                 output_dir=output_dir,
                 local_only=True,
             )

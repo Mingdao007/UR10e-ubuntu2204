@@ -15,20 +15,22 @@ import step5d_runtime_interface as iface  # noqa: E402
 
 
 class Step5dRuntimeInterfaceTest(unittest.TestCase):
-    def test_v21_defaults_are_bridge_tunable(self) -> None:
-        runtime = iface.resolve_runtime_interface(program=iface.STEP5D_LIVEPREP_V21_STAGE_ID, root=ROOT, env={})
+    def test_v22_defaults_are_bridge_tunable(self) -> None:
+        runtime = iface.resolve_runtime_interface(program=iface.STEP5D_LIVEPREP_V22_STAGE_ID, root=ROOT, env={})
 
-        self.assertEqual(runtime.program, iface.STEP5D_LIVEPREP_V21_STAGE_ID)
+        self.assertEqual(runtime.program, iface.STEP5D_LIVEPREP_V22_STAGE_ID)
         self.assertEqual(runtime.preload_gate.filtered_min_n, 7.5)
         self.assertEqual(runtime.preload_gate.filtered_max_n, 14.0)
         self.assertEqual(runtime.preload_gate.raw_min_n, 7.0)
         self.assertEqual(runtime.preload_gate.raw_max_n, 15.0)
         self.assertEqual(runtime.preload_gate.hold_s, 0.100)
         self.assertEqual(runtime.line_entry_param_valid_code, 521.0)
+        self.assertEqual(iface.STEP5D_QDOT_CLEAR_STAGE, 25.95)
+        self.assertEqual(iface.STEP5D_QDOT_CLEAR_ACK_CYCLES, 3)
 
     def test_step5d_env_overrides_use_step5d_namespace(self) -> None:
         runtime = iface.resolve_runtime_interface(
-            program=iface.STEP5D_LIVEPREP_V21_STAGE_ID,
+            program=iface.STEP5D_LIVEPREP_V22_STAGE_ID,
             root=ROOT,
             env={
                 "STEP5D_PRELOAD_FILTERED_MIN_N": "6.5",

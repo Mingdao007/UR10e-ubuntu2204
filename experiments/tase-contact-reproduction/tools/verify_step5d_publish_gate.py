@@ -14,6 +14,7 @@ from verify_step5d_current_binding import verify_binding
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
 EXTENSIONS = (".script", ".txt", ".urp")
+V21_PROGRAM = "step5d_strict_rnn_liveprep_v21"
 
 
 def fail(message: str) -> None:
@@ -82,6 +83,22 @@ def verify_stage_table_current(root: Path, current_program: str) -> None:
         fail(f"current stage row {current_program} lacks controller_readback_verified=true")
     if delivery.get("archived_to_step5d_dir") is True:
         fail(f"current stage row {current_program} is marked archived")
+    v21_runs = sorted((root / "runs").glob(f"bridge_step4e_line_outerloop_{V21_PROGRAM}_*"))
+    if v21_runs and current_program == V21_PROGRAM:
+        fail(f"{V21_PROGRAM} has retained live-run failure evidence and must not remain current")
+    if v21_runs and current_program != V21_PROGRAM:
+        v21_row = next((item for item in table.get("stages", []) if item.get("id") == V21_PROGRAM), None)
+        if v21_row is None:
+            fail(f"{V21_PROGRAM} live-run evidence exists but the stage table row is missing")
+        if v21_row.get("active") is True:
+            fail(f"{V21_PROGRAM} live-run evidence exists but the stage table row is still active")
+        v21_delivery = v21_row.get("local_delivery_evidence", {})
+        if v21_delivery.get("archived_to_step5d_dir") is not True:
+            fail(f"{V21_PROGRAM} is not archived under programs/step5/step5d")
+        v21_evidence = v21_row.get("live_run_evidence") or {}
+        root_cause = str(v21_evidence.get("root_cause_summary") or "")
+        if "Stage25.3->25.0 register-layout hazard" not in root_cause:
+            fail(f"{V21_PROGRAM} retained evidence does not record the register-layout root cause")
 
 
 def verify_operator_text(root: Path, current_program: str) -> None:
