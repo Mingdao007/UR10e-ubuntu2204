@@ -442,6 +442,10 @@ def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -
     script = script.replace("codex_abs(normal_force) > 50.0", f"codex_abs(normal_force) > {RAW_NORMAL_GUARD_N:.1f}")
     script = script.replace("force_norm > 60.0", f"force_norm > {FORCE_NORM_GUARD_N:.1f}")
     script = script.replace("torque_norm > 3.0", f"torque_norm > {TORQUE_NORM_GUARD_NM:.1f}")
+    script = script.replace(
+        "# SAFETY: raw normal guard 50 N, force norm guard 60 N, torque guard 3.0 Nm.",
+        "# SAFETY: raw normal guard 100 N, force norm guard 100 N, torque guard 4.0 Nm.",
+    )
     script = script.replace("local line_runtime_limit_s = 65.000", "local line_runtime_limit_s = 15.000")
     script = script.replace("local line_success_progress_m = 60.000000000", "local line_success_progress_m = 10.000000000")
     script = _replace_first_present(
@@ -676,23 +680,17 @@ def write_bytes_if_changed(path: Path, data: bytes) -> bool:
     return True
 
 
-def normalize_package_text(text: str) -> str:
-    text = re.sub(r"^# VERSION:\s*\S+\s*$", "# VERSION: <normalized>", text, flags=re.M)
-    text = re.sub(r"^# GENERATED_AT_LOCAL:\s*\S+\s*$", "# GENERATED_AT_LOCAL: <normalized>", text, flags=re.M)
-    return text
-
-
-def semantic_fingerprint(script: str, txt: str, urp: bytes) -> str:
-    xml = gzip.decompress(urp).decode("utf-8")
-    payload = {
+def semantic_fingerprint_payload() -> dict[str, object]:
+    return {
         "schema": "step5d_liveprep_semantic_fingerprint_v2",
         "interface_class": STEP5D_INTERFACE_CLASS,
         "tuning_bundle": STEP5D_TUNING_BUNDLE,
-        "program": PROGRAM_NAME,
-        "controller_dir": CONTROLLER_DIR,
+        "program_family": "step5d_strict_rnn_liveprep",
         "pose_contract_id": POSE_CONTRACT_ID,
         "target_force_n": TARGET_FORCE_N,
         "qdot_cap_rad_s": QDOT_CAP_RAD_S,
+        "joint_accel_rad_s2": JOINT_ACCEL_RAD_S2,
+        "orientation_skip_error_rad": ORIENTATION_SKIP_ERROR_RAD,
         "raw_normal_guard_n": RAW_NORMAL_GUARD_N,
         "force_norm_guard_n": FORCE_NORM_GUARD_N,
         "torque_norm_guard_nm": TORQUE_NORM_GUARD_NM,
@@ -704,12 +702,35 @@ def semantic_fingerprint(script: str, txt: str, urp: bytes) -> str:
             "force_norm_max_n": LINE_ENTRY_FORCE_NORM_MAX_N,
             "hold_s": LINE_ENTRY_REQUIRED_S,
             "timeout_s": LINE_ENTRY_TIMEOUT_S,
+            "cmd_limit_m_s": LINE_ENTRY_CMD_LIMIT_M_S,
+            "recovery_normal_load_min_n": LINE_ENTRY_RECOVERY_NORMAL_LOAD_MIN_N,
+            "recovery_normal_load_max_n": LINE_ENTRY_RECOVERY_NORMAL_LOAD_MAX_N,
+            "force_norm_stop_n": LINE_ENTRY_FORCE_NORM_STOP_N,
             "param_valid_code": STEP5D_LINE_ENTRY_PARAM_VALID_CODE,
         },
-        "script": normalize_package_text(script),
-        "txt": normalize_package_text(txt),
-        "urp_xml": normalize_package_text(xml),
+        "search": {
+            "second_max_down_m": SECOND_SEARCH_MAX_DOWN_M,
+            "second_near_start_depth_m": SECOND_SEARCH_NEAR_START_DEPTH_M,
+            "second_runtime_limit_s": SECOND_SEARCH_RUNTIME_LIMIT_S,
+            "second_far_speed_m_s": SECOND_SEARCH_FAR_SPEED_M_S,
+            "second_near_speed_m_s": SECOND_SEARCH_NEAR_SPEED_M_S,
+            "entry_movel_accel_m_s2": ENTRY_MOVEL_ACCEL_M_S2,
+            "entry_movel_speed_m_s": ENTRY_MOVEL_SPEED_M_S,
+            "first_far_speed_m_s": FIRST_SEARCH_FAR_SPEED_M_S,
+            "first_near_speed_m_s": FIRST_SEARCH_NEAR_SPEED_M_S,
+        },
+        "register_contract": {
+            "stage25_3": "37..39 Cartesian acquire, 40/41/42/44/46/47 preload parameter channel",
+            "stage25_0": "37..42 qd0..qd5, 43 cmd_valid, 44 path_time, 45 force_error, 46 orientation_error, 47 solver_status",
+        },
     }
+
+
+def semantic_fingerprint(script: str, txt: str, urp: bytes) -> str:
+    # Validate caller supplied a real rendered package, but hash only behavior.
+    # Byte identity is tracked separately by the delivery/read-back manifests.
+    gzip.decompress(urp)
+    payload = semantic_fingerprint_payload()
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
 

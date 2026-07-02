@@ -50,7 +50,10 @@ case "${STEP4E_VERSION}" in
     ;;
   5d|step5d|step5d-liveprep|step5d_liveprep)
     STEP4E_VERSION="$(current_step5d_profile)"
-    STEP4E_VERSION="${STEP4E_VERSION:-step5d_strict_rnn_liveprep_v20}"
+    if [[ -z "${STEP4E_VERSION}" ]]; then
+      echo "refusing Step5d alias: current_stage does not name a controller-readback-verified Step5d live-prep package"
+      exit 40
+    fi
     ;;
   5c-dry|5c-dryrun|step5c-dryrun|step5c_speedj_dryrun_v1|speedj-dryrun|speedj_dryrun)
     echo "refusing Step5c dry-run alias: DLS/Jacobian mapping is quarantined after wrong XY/Z live motion"

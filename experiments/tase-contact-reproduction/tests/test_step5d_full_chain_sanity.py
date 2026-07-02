@@ -205,6 +205,23 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             self.assertIn("do not open on Teach Pendant", marker["safety_boundary"])
             self.assertTrue((out_dir / f"{liveprep.PROGRAM_NAME}.urp").is_file())
 
+    def test_step5d_semantic_fingerprint_ignores_source_timestamp(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            first = liveprep.write_outputs(
+                "2026-07-02T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V21",
+                "2026-07-02T12:00:00+08:00",
+                output_dir=Path(tmpdir) / "candidate_a",
+                local_only=True,
+            )
+            second = liveprep.write_outputs(
+                "2026-07-02T1215HKT_STEP5D_STRICT_RNN_LIVEPREP_V21",
+                "2026-07-02T12:15:00+08:00",
+                output_dir=Path(tmpdir) / "candidate_b",
+                local_only=True,
+            )
+
+        self.assertEqual(first["semantic_fingerprint"], second["semantic_fingerprint"])
+
     def test_bridge_allows_liveprep_profile_but_keeps_full_reproduction_blocked(self) -> None:
         args = bridge.parse_args(
             [
@@ -425,7 +442,10 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn('"step5d_strict_rnn_liveprep_v10" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v11"', base)
         self.assertIn('"step5d_strict_rnn_liveprep_v12" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v13" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v14" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v15" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v15a" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v16" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v17" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v18" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v19" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v20"', base)
         self.assertIn("current_step5d_profile()", bridge_operator)
-        self.assertIn('BRIDGE_PROFILE="${BRIDGE_PROFILE:-step5d_strict_rnn_liveprep_v21}"', bridge_operator)
+        self.assertIn("refusing Step5d alias: current_stage does not name", bridge_operator)
+        self.assertIn("refusing Step5d alias: current_stage does not name", base)
+        self.assertNotIn('BRIDGE_PROFILE="${BRIDGE_PROFILE:-step5d_strict_rnn_liveprep_v21}"', bridge_operator)
+        self.assertNotIn('STEP4E_VERSION="${STEP4E_VERSION:-step5d_strict_rnn_liveprep_v20}"', base)
         self.assertIn('--step5d-preload-filtered-min-n "${STEP5D_PRELOAD_FILTERED_MIN_N:-7.5}"', bridge_operator)
         self.assertIn("step5d_live_ready", bridge_operator)
         bridge_source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(encoding="utf-8")

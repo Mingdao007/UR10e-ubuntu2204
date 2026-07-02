@@ -15,6 +15,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 import upload_ur_tp_package as upload  # noqa: E402
+import build_step5d_liveprep as liveprep  # noqa: E402
+import build_step5d_liveprep as liveprep  # noqa: E402
 
 
 class UploadUrTpPackageReuseTest(unittest.TestCase):
@@ -34,6 +36,58 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
         )
 
         self.assertEqual(result["installation_relative_path"], "../../../default")
+
+    def test_upload_validator_checks_step5d_v21_semantics(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            local_dir = Path(tmp) / "v21"
+            liveprep.write_outputs(
+                "2026-07-02T2100HKT_STEP5D_STRICT_RNN_LIVEPREP_V21",
+                "2026-07-02T21:00:00+08:00",
+                output_dir=local_dir,
+                local_only=True,
+            )
+            files = {
+                ext: local_dir / f"{liveprep.PROGRAM_NAME}{ext}"
+                for ext in upload.EXTENSIONS
+            }
+
+            result = upload.validate_package(
+                files,
+                liveprep.PROGRAM_NAME,
+                liveprep.CONTROLLER_DIR,
+                require_exact_cached_script=True,
+            )
+            script_text = files[".script"].read_text(encoding="utf-8")
+
+        self.assertEqual(result["program"], liveprep.PROGRAM_NAME)
+        self.assertEqual(result["target_dir"], liveprep.CONTROLLER_DIR)
+        self.assertIn("v21 preload overrides in 40/41/42/44/46/47", script_text)
+        self.assertIn("# SAFETY: raw normal guard 100 N, force norm guard 100 N, torque guard 4.0 Nm.", script_text)
+
+    def test_upload_validator_accepts_step5d_v21_liveprep_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            output_dir = Path(tmp)
+            built = liveprep.write_outputs(
+                "2026-07-02T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V21",
+                "2026-07-02T12:00:00+08:00",
+                output_dir=output_dir,
+                local_only=True,
+            )
+            files = {
+                ".script": Path(built["script"]),
+                ".txt": Path(built["txt"]),
+                ".urp": Path(built["urp"]),
+            }
+
+            result = upload.validate_package(
+                files,
+                liveprep.PROGRAM_NAME,
+                liveprep.CONTROLLER_DIR,
+                require_exact_cached_script=True,
+            )
+
+        self.assertEqual(result["program"], liveprep.PROGRAM_NAME)
+        self.assertEqual(result["target_dir"], liveprep.CONTROLLER_DIR)
 
     def _write_triplet(self, root: Path, program: str, payload_prefix: str) -> dict[str, Path]:
         files = {ext: root / f"{program}{ext}" for ext in upload.EXTENSIONS}

@@ -43,6 +43,12 @@ class BridgeOperatorStartupPolicyTest(unittest.TestCase):
     def test_step5d_workflow_separates_dev_promote_and_live(self) -> None:
         script = read_script("step5d-workflow.sh")
 
+        self.assertIn('LATEST_CANDIDATE_INDEX="${RUN_ROOT}/local_tp_packages/.latest_step5d_candidate.json"', script)
+        self.assertIn("record_latest_candidate()", script)
+        self.assertIn("latest_candidate_exports()", script)
+        self.assertIn('record_latest_candidate "${candidate_dir}"', script)
+        self.assertIn("promoting latest local-only candidate", script)
+        self.assertIn('READBACK_GATE="${ROOT}/tools/verify_step5d_current_binding.py"', script)
         self.assertIn("dev-loop)", script)
         self.assertIn("--local-only --output-dir", script)
         self.assertIn("--dry-run", script)

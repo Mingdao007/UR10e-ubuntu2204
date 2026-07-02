@@ -7,10 +7,12 @@ ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 RUN_ROOT="${ROOT}/runs"
 BUILD_TOOL="${ROOT}/tools/build_step5d_liveprep.py"
 UPLOAD_TOOL="${ROOT}/tools/upload_ur_tp_package.py"
-READBACK_GATE="${ROOT}/tools/verify_current_stage_readback.py"
+READBACK_GATE="${ROOT}/tools/verify_step5d_current_binding.py"
+PROMOTE_TOOL="${ROOT}/tools/promote_step5d_current.py"
 OPERATOR="${SCRIPT_DIR}/step5d-liveprep-operator.sh"
 TARGET_DIR="${STEP5D_TARGET_DIR:-/programs/andyl/kunwei/step5}"
 DRYRUN_READBACK_ROOT="${STEP5D_DRYRUN_READBACK_ROOT:-/tmp/ur10e_tp_readback_dryrun}"
+LATEST_CANDIDATE_INDEX="${RUN_ROOT}/local_tp_packages/.latest_step5d_candidate.json"
 
 usage() {
   cat <<EOF
@@ -68,6 +70,69 @@ print(str(PurePosixPath(str(target)).parent) if target else fallback)
 PY
 }
 
+record_latest_candidate() {
+  python3 - "$1" "${LATEST_CANDIDATE_INDEX}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+candidate_dir = Path(sys.argv[1]).resolve()
+index_path = Path(sys.argv[2])
+marker_path = candidate_dir / ".local_tp_candidate.json"
+marker = json.loads(marker_path.read_text(encoding="utf-8"))
+if marker.get("local_only") is not True or marker.get("not_delivered") is not True:
+    raise SystemExit(f"refusing to index non-local candidate marker: {marker_path}")
+payload = {
+    "candidate_dir": str(candidate_dir),
+    "marker": str(marker_path),
+    "program": marker["program"],
+    "target_dir": marker["target_dir"],
+    "semantic_fingerprint": marker.get("semantic_fingerprint"),
+    "stamp": marker.get("stamp"),
+}
+index_path.parent.mkdir(parents=True, exist_ok=True)
+tmp = index_path.with_suffix(index_path.suffix + ".tmp")
+tmp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+tmp.replace(index_path)
+PY
+}
+
+latest_candidate_exports() {
+  python3 - "${LATEST_CANDIDATE_INDEX}" "$(builder_program)" <<'PY'
+import json
+import shlex
+import sys
+from pathlib import Path
+
+index_path = Path(sys.argv[1])
+builder_program = sys.argv[2]
+if not index_path.is_file():
+    raise SystemExit(1)
+index = json.loads(index_path.read_text(encoding="utf-8"))
+candidate_dir = Path(index.get("candidate_dir", ""))
+marker_path = Path(index.get("marker", ""))
+if not candidate_dir.is_dir() or not marker_path.is_file():
+    raise SystemExit(1)
+marker = json.loads(marker_path.read_text(encoding="utf-8"))
+if marker.get("local_only") is not True or marker.get("not_delivered") is not True:
+    raise SystemExit(1)
+if marker.get("program") != index.get("program") or marker.get("target_dir") != index.get("target_dir"):
+    raise SystemExit(1)
+if marker.get("program") != builder_program:
+    raise SystemExit(1)
+for ext in (".script", ".txt", ".urp"):
+    if not (candidate_dir / f"{marker['program']}{ext}").is_file():
+        raise SystemExit(1)
+values = {
+    "program": marker["program"],
+    "local_dir": str(candidate_dir),
+    "target_dir": marker["target_dir"],
+}
+for key, value in values.items():
+    print(f"{key}={shlex.quote(str(value))}")
+PY
+}
+
 cache_status() {
   python3 - "${RUN_ROOT}/.bridge_long_checks_cache.json" "${LONG_CHECK_TTL_S:-7200}" <<'PY'
 import json
@@ -111,6 +176,7 @@ case "${mode}" in
     program="$(builder_program)"
     candidate_dir="${STEP5D_CANDIDATE_DIR:-${RUN_ROOT}/local_tp_packages/${program}_$(date +%Y%m%d_%H%M%S)}"
     python3 "${BUILD_TOOL}" --local-only --output-dir "${candidate_dir}"
+    record_latest_candidate "${candidate_dir}"
     python3 "${UPLOAD_TOOL}" "${program}" \
       --target-dir "${TARGET_DIR}" \
       --local-dir "${candidate_dir}" \
@@ -122,9 +188,18 @@ case "${mode}" in
     ;;
   promote-package)
     current="$(current_program)"
-    program="${STEP5D_VERSION:-${current:-$(builder_program)}}"
-    local_dir="${STEP5D_PACKAGE_DIR:-${ROOT}/programs/step5}"
-    target_dir="$(current_target_dir)"
+    if [[ -n "${STEP5D_PACKAGE_DIR:-}" ]]; then
+      program="${STEP5D_VERSION:-${current:-$(builder_program)}}"
+      local_dir="${STEP5D_PACKAGE_DIR}"
+      target_dir="${STEP5D_TARGET_DIR:-$(current_target_dir)}"
+    elif [[ -z "${STEP5D_VERSION:-}" && "${STEP5D_USE_LATEST_CANDIDATE:-1}" == "1" ]] && latest_env="$(latest_candidate_exports)"; then
+      eval "${latest_env}"
+      echo "promoting latest local-only candidate: ${program} from ${local_dir}"
+    else
+      program="${STEP5D_VERSION:-${current:-$(builder_program)}}"
+      local_dir="${ROOT}/programs/step5"
+      target_dir="$(current_target_dir)"
+    fi
     extra_args=()
     if [[ "${STEP5D_PROMOTE_DRY_RUN:-0}" == "1" ]]; then
       extra_args+=(--dry-run --readback-root "${DRYRUN_READBACK_ROOT}")
@@ -134,11 +209,14 @@ case "${mode}" in
       --local-dir "${local_dir}" \
       --allow-local-candidate-promote \
       "${extra_args[@]}"
-    if [[ "${STEP5D_PROMOTE_DRY_RUN:-0}" != "1" && -n "${current}" && "${program}" == "${current}" ]]; then
+    if [[ "${STEP5D_PROMOTE_DRY_RUN:-0}" != "1" ]]; then
+      python3 "${PROMOTE_TOOL}" \
+        --root "${ROOT}" \
+        --program "${program}" \
+        --target-dir "${target_dir}" \
+        --local-dir "${local_dir}" \
+        --json
       python3 "${READBACK_GATE}" --root "${ROOT}" --program "${program}" --json
-    elif [[ "${STEP5D_PROMOTE_DRY_RUN:-0}" != "1" ]]; then
-      echo "promoted ${program}; current_stage still points to ${current:-<missing>}"
-      echo "update current_stage before using contact-bridge for this program"
     fi
     ;;
   prep-long-checks)

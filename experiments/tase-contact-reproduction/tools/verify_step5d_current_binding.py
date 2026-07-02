@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from dataclasses import asdict
 from pathlib import Path
@@ -29,6 +30,27 @@ def _local_triplet_paths(root: Path, current: dict[str, Any], program: str) -> l
     return [stem.with_suffix(ext) for ext in (".script", ".txt", ".urp")]
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _stage_table_entry(root: Path, current: dict[str, Any], program: str) -> dict[str, Any]:
+    table_rel = current.get("stage_table_path") or "config/step5_stage_table.json"
+    table = load_json(root / str(table_rel))
+    for row in table.get("stages", []):
+        if row.get("id") == program:
+            if row.get("active") is not True:
+                fail(f"stage table row {program} is not active")
+            if row.get("blocked") is True:
+                fail(f"stage table row {program} is blocked")
+            return row
+    fail(f"stage table row {program} is missing")
+
+
 def verify_binding(root: Path, program: str | None = None, target_dir: str | None = None) -> dict[str, Any]:
     readback = verify(root, program, target_dir)
     current = load_json(root / "config" / "current_stage.json")
@@ -47,9 +69,19 @@ def verify_binding(root: Path, program: str | None = None, target_dir: str | Non
         fail("local triplet is incomplete: " + ", ".join(_relative(root, path) for path in missing_triplet))
 
     current_sha = current.get("sha256") or current.get("evidence", {}).get("sha256") or {}
-    for ext in (".script", ".txt", ".urp"):
-        if not current_sha.get(ext):
+    local_triplet = _local_triplet_paths(root, current, selected)
+    for ext, path in zip((".script", ".txt", ".urp"), local_triplet, strict=True):
+        expected_sha = current_sha.get(ext)
+        if not expected_sha:
             fail(f"current_stage sha256 for {ext} is missing")
+        actual_sha = _sha256_file(path)
+        if actual_sha != expected_sha:
+            fail(
+                "local triplet sha256 "
+                f"{_relative(root, path)} is {actual_sha}, expected current_stage {ext} {expected_sha}"
+            )
+
+    stage_entry = _stage_table_entry(root, current, selected)
 
     return {
         "ok": True,
@@ -58,7 +90,13 @@ def verify_binding(root: Path, program: str | None = None, target_dir: str | Non
         "manifest": readback["manifest"],
         "delivery_mode": readback["delivery_mode"],
         "runtime_interface": asdict(interface),
-        "local_triplet": [_relative(root, path) for path in _local_triplet_paths(root, current, selected)],
+        "stage_table": {
+            "path": current.get("stage_table_path") or "config/step5_stage_table.json",
+            "id": stage_entry.get("id"),
+            "active": stage_entry.get("active"),
+            "blocked": stage_entry.get("blocked"),
+        },
+        "local_triplet": [_relative(root, path) for path in local_triplet],
     }
 
 
