@@ -1,28 +1,29 @@
 # Step5 Flow
 
 `config/current_stage.json` currently selects
-`step5d_strict_rnn_liveprep_v23` as the Step5d Local TP/script cage-primary
+`step5d_strict_rnn_liveprep_v24` as the Step5d Local TP/script diagnostic
 diagnostic package after controller upload and read-back verification on
 2026-07-03. Step5d is the named completion target for the complete strict TASE
 RNN reproduction; this package is still a diagnostic/live-prep package, not a
-completed reproduction claim. v23 keeps the 12 N no-lift/no-25.2/no-second-
+completed reproduction claim. v24 keeps the 12 N no-lift/no-25.2/no-second-
 search scaffold, Stage22/24 gravity-down pre-contact posture, 1.5x Stage22
 entry movel and Stage24 far search, and Stage25.3 release at filtered
 `7.5-14 N`, raw sanity `7-15 N`, force_norm `<=25 N`, and `0.100 s` dwell.
 Stage25.95 now requires near-zero qdot registers before Stage25.0 can consume
-37..42 as speedj qdot. Stage25.0 is a 10 s diagnostic with 100 N/100 N/4.0 Nm
-sensor hard guards, low-load/no-contact active reacquire diagnostics, a
-0.035 m/s active-reacquire predicted TCP speed cap before the existing
-0.050 m/s hard stop, raw/post-slew/final RNN qdot diagnostics, and a post-RNN
-normal-direction guard that holds/stops over-target pressing commands before
-the 100 N sensor hard guard. v22 is retained failure evidence after
-normal_force_guard live attempts. The dominant projector bug was fixed in
+37..42 as speedj qdot. Stage25.0 is a 10 s diagnostic with 25 N/25 N/4.0 Nm
+sensor hard guards. The bridge still computes and logs strict RNN qdot, but
+low-load/no-contact now freezes path time, writes zero qdot instead of executing
+active_reacquire_solver qdot, and stops after 0.050 s if contact is not
+recovered. v24 also adds post-RNN tracking reversal detection for the case
+where the outer-loop approach command presses into the surface while J(q)qdot
+predicts unloading. v23 is retained failure evidence after
+tcp_cage_braking_margin_exhausted in active_reacquire_solver. The dominant projector bug was fixed in
 bridge-side Python (`Phi = R_d @ Phi_E @ R_d.T`), so this TP package inherits
 that fix but does not encode it. Bridge start, TP program load/Play, robot
 motion, payload/TCP writes, and `zero_ftsensor()` remain separate explicit live
 gates.
 The full reproduction target remains separate and not complete.
-Step4f, Step4g, Step5b, and Step5d v1-v22 remain retained evidence packages
+Step4f, Step4g, Step5b, and Step5d v1-v23 remain retained evidence packages
 only. The ROS2 source package for the current route is now
 `src/ur10e_example_controllers`; stage ids such as
 `step5a_ros2_remote_no_contact_v1` remain historical/experimental mapping
@@ -175,7 +176,12 @@ instead of preserving the later 22 s TP v3 timing.
 | `step5d_strict_rnn_liveprep_v16` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained live-run evidence: no-lift/no-25.2/no-second-search 12 N package entered Stage25.0 for about `0.998 s`, then stopped by `hold_duty_limit` after low-load/no-contact dominated Stage25.0; v16 is not current. |
 | `step5d_strict_rnn_liveprep_v17` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained live-run evidence: read-back verified package entered Stage25.0 but stopped by `hold_duty_limit`; later audit identified the bridge-side projector bug as the dominant B-class divergence root cause. |
 | `step5d_strict_rnn_liveprep_v18` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained live-run evidence: stopped by `cage_primary_tcp_speed_hard_stop` when predicted TCP speed reached about `0.05045 m/s` during low/no-load active reacquire while actual TCP speed was about `0.0211 m/s`. |
-| `step5d_strict_rnn_liveprep_v19` | bridge+TP | true | false | strict TASE RNN | `v31_filtered_live` | Current read-back verified cage-primary diagnostic package: keeps 12 N target, uses 8-13 N filtered preload with 7.5-14 N raw sanity, speeds Stage22 entry movel and Stage24 far search by 1.5x, keeps 10 s Stage25.0 and 100 N/100 N/4.0 Nm sensor guards, and caps active-reacquire predicted TCP speed at 0.035 m/s before the 0.050 m/s hard stop. Pending live bridge evidence. |
+| `step5d_strict_rnn_liveprep_v19` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained live-run evidence: kept 12 N target, 8-13 N filtered preload with 7.5-14 N raw sanity, 1.5x Stage22/24 speedups, and active-reacquire predicted-speed cap, but was superseded by v20-v24 diagnostics. |
+| `step5d_strict_rnn_liveprep_v20` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained live-run evidence: added gravity-down Stage22/24 search posture and action/load active-reacquire reset; superseded by v21-v24 diagnostics. |
+| `step5d_strict_rnn_liveprep_v21` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained failure evidence: Stage25.3 preload parameter registers could persist into Stage25.0 qdot consumption; superseded by v22 Stage25.95 qdot-clear barrier. |
+| `step5d_strict_rnn_liveprep_v22` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained failure evidence: Stage25.95 qdot-clear barrier existed, but live attempts still hit `normal_force_guard`; superseded by v23. |
+| `step5d_strict_rnn_liveprep_v23` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained failure evidence: live run lost contact, continued active_reacquire_solver qdot, and stopped on `tcp_cage_braking_margin_exhausted`; trusted force stayed near 16 N and startup 102 N was baseline-not-ready. |
+| `step5d_strict_rnn_liveprep_v24` | bridge+TP | true | false | strict TASE RNN | `v31_filtered_live` | Current read-back verified diagnostic package: keeps 12 N target, 7.5-14 N filtered preload with 7-15 N raw sanity, 25 N/25 N/4.0 Nm guards, low/no-contact zero-qdot stop instead of active_reacquire_solver qdot, trusted force summaries, and post-RNN tracking reversal detection. Pending live bridge evidence. |
 | `step5d_ros2_remote_shadow_v1` | ROS2 offline | true | false | ROS2 shadow replay | `v31_filtered_live` input logs | Diagnostic-only Step5d policy replay: replays v15a/v14/v11 and Step5b/Step6b CSVs, removes long zero-qdot hold recovery, but is not live-ready and must follow Step5b plumbing validation. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |
 

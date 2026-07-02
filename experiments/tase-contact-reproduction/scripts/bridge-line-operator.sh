@@ -72,7 +72,11 @@ BRIDGE_SENSOR_STALE_S="${BRIDGE_SENSOR_STALE_S:-${STEP5D_SENSOR_STALE_S:-0.10}}"
 BRIDGE_SOCKET_TIMEOUT_S="${BRIDGE_SOCKET_TIMEOUT_S:-${STEP5D_SOCKET_TIMEOUT_S:-0.0}}"
 BRIDGE_BACKGROUND_PUSH_AFTER_LIVE="${BRIDGE_BACKGROUND_PUSH_AFTER_LIVE:-0}"
 BRIDGE_NORMAL_COMMAND_SIGN="${BRIDGE_NORMAL_COMMAND_SIGN:-1}"
-if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v18" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v19" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v20" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v21" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v22" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v23" ]]; then
+if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v24" ]]; then
+  MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-25}"
+  MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-25}"
+  MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-4.0}"
+elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v18" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v19" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v20" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v21" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v22" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v23" ]]; then
   MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-100}"
   MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-100}"
   MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-4.0}"
@@ -87,7 +91,7 @@ BRIDGE_ORIENTATION_WY_SIGN="${BRIDGE_ORIENTATION_WY_SIGN:-1}"
 BRIDGE_LINE_SPEED_M_S="${BRIDGE_LINE_SPEED_M_S:-0.003}"
 BRIDGE_LINE_SETTLE_S="${BRIDGE_LINE_SETTLE_S:-0.0}"
 BRIDGE_STAGE25_ONLY="${BRIDGE_STAGE25_ONLY:-0}"
-if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v18" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v19" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v20" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v21" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v22" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v23" ]]; then
+if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v18" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v19" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v20" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v21" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v22" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v23" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v24" ]]; then
   BRIDGE_TARGET_FORCE_N="${BRIDGE_TARGET_FORCE_N:-${STEP4E_TARGET_FORCE_N:-12.0}}"
 else
   BRIDGE_TARGET_FORCE_N="${BRIDGE_TARGET_FORCE_N:-${STEP4E_TARGET_FORCE_N:-5}}"
@@ -200,7 +204,7 @@ fi
 if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v10" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v11" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step5/step5d/${BRIDGE_PROFILE}.urp"
 fi
-if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v12" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v13" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v14" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v15" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v15a" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v16" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v17" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v18" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v19" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v20" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v21" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v22" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v23" ]]; then
+if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v12" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v13" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v14" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v15" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v15a" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v16" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v17" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v18" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v19" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v20" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v21" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v22" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v23" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v24" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step5/${BRIDGE_PROFILE}.urp"
 fi
 if [[ "${BRIDGE_PROFILE}" == "step6b_v1" ]]; then
@@ -280,13 +284,15 @@ elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v18" ]]; then
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v19" ]]; then
   SEARCH_DESCRIPTION="Retained Step5d v19 cage-primary diagnostic evidence: v19 kept 12N, 8-13N filtered preload, 7.5-14N raw sanity, Stage22/24 1.5x speedups, and a freeze_low_force active-reacquire speed cap, but live v19 still stopped on predicted TCP speed during locked-normal settle"
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v20" ]]; then
-  SEARCH_DESCRIPTION="Current Step5d v20 cage-primary diagnostic: Step5b v3 no-lift/no-25.2/no-second-search scaffold, Stage22/24 gravity-down [pi,0,0] pre-contact search posture, Stage22 entry movel 0.060 m/s, Stage24 far search 0.0225 m/s, 8-13N filtered preload with 7.5-14N raw sanity, 10s strict RNN speedj diagnostic, 100N/4Nm hard sensor guards, and low-load active-reacquire predicted-speed cap at 0.035 m/s inside the online TCP cage"
+  SEARCH_DESCRIPTION="Retained Step5d v20 cage-primary diagnostic evidence: Step5b v3 no-lift/no-25.2/no-second-search scaffold, Stage22/24 gravity-down [pi,0,0] posture, active-reacquire reset/cap diagnostics, superseded by v21-v24"
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v21" ]]; then
   SEARCH_DESCRIPTION="Retained Step5d v21 failure evidence: bridge-time preload override could persist into Stage25.0 qdot registers and trigger stop_reason=13"
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v22" ]]; then
   SEARCH_DESCRIPTION="Retained Step5d v22 failure evidence: Stage25.95 qdot register clear barrier existed but used running qdot cap tolerance, and live v22 exposed post-RNN normal-direction over-load"
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v23" ]]; then
-  SEARCH_DESCRIPTION="Current Step5d v23 cage-primary diagnostic: v22 gravity-down/preload/cage behavior retained, Stage25.95 near-zero qdot register clear barrier, post-RNN normal-direction guard, RNN qdot diagnostics, 10s strict RNN speedj diagnostic, 100N/4Nm sensor hard guards plus operational over-load stop"
+  SEARCH_DESCRIPTION="Retained Step5d v23 failure evidence: near-zero qdot clear and post-RNN normal guard were active, but live run lost contact, continued active_reacquire_solver qdot, and stopped on tcp_cage_braking_margin_exhausted"
+elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v24" ]]; then
+  SEARCH_DESCRIPTION="Current Step5d v24 diagnostic: 12N target, 7.5-14N filtered preload, 25N/25N/4Nm guards, low/no-contact zero-qdot stop instead of active_reacquire_solver qdot, trusted force summaries, and post-RNN tracking reversal detection"
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v8" ]]; then
   SEARCH_DESCRIPTION="Retained Step5d v8 failure evidence: Stage 25.3 bridge force-PID settle used Cartesian registers 37..39 but low-load dropout below 0.5N could stop with reason 17 before Stage 25.0"
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v4" ]]; then

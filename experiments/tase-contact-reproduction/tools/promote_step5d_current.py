@@ -162,7 +162,11 @@ def version_label(program: str) -> str:
 
 def live_attempt_evidence(root: Path, program: str) -> dict[str, Any]:
     attempts: list[dict[str, Any]] = []
-    for run_dir in sorted((root / "runs").glob(f"bridge_step4e_line_outerloop_{program}_*")):
+    run_dirs = {
+        *list((root / "runs").glob(f"bridge_step4e_line_outerloop_{program}_*")),
+        *list((root / "runs").glob(f"bridge_{program}_*")),
+    }
+    for run_dir in sorted(run_dirs):
         summary_path = run_dir / "summary.json"
         entry: dict[str, Any] = {"run_dir": rel(root, run_dir)}
         if summary_path.is_file():
@@ -192,6 +196,16 @@ def live_attempt_evidence(root: Path, program: str) -> dict[str, Any]:
             "The v22 TP package was controller read-back verified and added Stage25.95, "
             "but live attempts still hit normal_force_guard during strict RNN Stage25. "
             "It is superseded by v23's near-zero qdot-clear check and post-RNN normal-direction guard."
+        )
+    elif label == "v23":
+        root_cause = (
+            "The v23 TP package was controller read-back verified, but the latest live run "
+            "lost contact in Stage25.0, continued active_reacquire_solver qdot for about 1.7s, "
+            "and stopped on tcp_cage_braking_margin_exhausted. The 102N summary spike was a "
+            "baseline_not_ready startup sample; trusted contact force stayed near 16N. The "
+            "RNN/J(q) approach projection opposed the outer-loop press command, so v24 "
+            "supersedes v23 with low/no-contact zero-qdot stop, trusted startup summaries, "
+            "25N raw/force hard guards, and post-RNN tracking reversal detection."
         )
     else:
         root_cause = (
@@ -234,6 +248,9 @@ def update_previous_stage(
         f"Retained {previous_label} live-attempt evidence. Controller read-back was verified, "
         f"but the live attempt did not complete successfully; superseded by {successor_label}."
     )
+    row["success_condition"] = (
+        f"Retained {previous_label} evidence only; not current and not a completed reproduction claim."
+    )
     row["live_run_evidence"] = live_attempt_evidence(root, previous)
     delivery = row.setdefault("local_delivery_evidence", {})
     delivery["local_program_dir"] = str(STEP5D_ARCHIVE_DIR)
@@ -255,9 +272,9 @@ def update_previous_stage(
 
 def preload_gate(program: str) -> dict[str, float]:
     label = version_label(program)
-    if label not in {"v21", "v22", "v23"}:
+    if label not in {"v21", "v22", "v23", "v24"}:
         fail(f"preload gate defaults are not defined for {program}")
-    return {
+    gate = {
         "filtered_normal_load_min_n": 7.5,
         "filtered_normal_load_max_n": 14.0,
         "raw_normal_load_min_n": 7.0,
@@ -266,6 +283,14 @@ def preload_gate(program: str) -> dict[str, float]:
         "required_s": 0.1,
         "param_valid_code": 521.0,
     }
+    if label == "v24":
+        gate.update(
+            {
+                "recovery_normal_load_max_n": 20.0,
+                "force_norm_stop_n": 25.0,
+            }
+        )
+    return gate
 
 
 def build_current_stage_row(
@@ -317,15 +342,21 @@ def build_current_stage_row(
             "line_entry_force_norm_max_n": 25.0,
             "line_entry_required_s": 0.1,
             "line_entry_param_valid_code": 521.0,
-            "stage25_95_qdot_clear_required_s": 0.006 if label in {"v22", "v23"} else None,
-            "stage25_95_qdot_clear_timeout_s": 1.0 if label in {"v22", "v23"} else None,
-            "stage25_95_qdot_clear_zero_tol_rad_s": 0.0005 if label == "v23" else None,
-            "stage25_post_rnn_normal_guard_hold_load_n": 14.0 if label == "v23" else None,
-            "stage25_post_rnn_normal_guard_directional_stop_load_n": 18.0 if label == "v23" else None,
-            "stage25_post_rnn_normal_guard_hard_stop_load_n": 25.0 if label == "v23" else None,
-            "stage25_post_rnn_normal_guard_hard_stop_force_norm_n": 25.0 if label == "v23" else None,
-            "raw_normal_guard_n": 100.0,
-            "force_norm_guard_n": 100.0,
+            "line_entry_recovery_normal_load_max_n": 20.0 if label == "v24" else 40.0,
+            "line_entry_force_norm_stop_n": 25.0 if label == "v24" else 100.0,
+            "stage25_95_qdot_clear_required_s": 0.006 if label in {"v22", "v23", "v24"} else None,
+            "stage25_95_qdot_clear_timeout_s": 1.0 if label in {"v22", "v23", "v24"} else None,
+            "stage25_95_qdot_clear_zero_tol_rad_s": 0.0005 if label in {"v23", "v24"} else None,
+            "stage25_post_rnn_normal_guard_hold_load_n": 14.0 if label in {"v23", "v24"} else None,
+            "stage25_post_rnn_normal_guard_directional_stop_load_n": 18.0 if label in {"v23", "v24"} else None,
+            "stage25_post_rnn_normal_guard_hard_stop_load_n": 25.0 if label in {"v23", "v24"} else None,
+            "stage25_post_rnn_normal_guard_hard_stop_force_norm_n": 25.0 if label in {"v23", "v24"} else None,
+            "stage25_low_load_hold_timeout_s": 0.050 if label == "v24" else None,
+            "stage25_tracking_guard_opposed_dwell_s": 0.004 if label == "v24" else None,
+            "stage25_tracking_guard_outer_press_min_m_s": 0.0001 if label == "v24" else None,
+            "stage25_tracking_guard_unload_min_m_s": 0.0005 if label == "v24" else None,
+            "raw_normal_guard_n": 25.0 if label == "v24" else 100.0,
+            "force_norm_guard_n": 25.0 if label == "v24" else 100.0,
             "torque_norm_guard_nm": 4.0,
             "target_force_n": 12.0,
             "duration_s": 10.0,
@@ -339,6 +370,10 @@ def build_current_stage_row(
         "stage25_post_rnn_normal_guard_directional_stop_load_n",
         "stage25_post_rnn_normal_guard_hard_stop_load_n",
         "stage25_post_rnn_normal_guard_hard_stop_force_norm_n",
+        "stage25_low_load_hold_timeout_s",
+        "stage25_tracking_guard_opposed_dwell_s",
+        "stage25_tracking_guard_outer_press_min_m_s",
+        "stage25_tracking_guard_unload_min_m_s",
     ):
         if guard.get(key) is None:
             guard.pop(key, None)
@@ -372,22 +407,51 @@ def build_current_stage_row(
             "and applies a post-RNN normal-direction guard that holds/stops over-target "
             "pressing commands before the 100N sensor hard guard."
         )
+    if label == "v24":
+        stage25_policy = (
+            "Online broad AABB TCP cage remains a diagnostic boundary; Stage25.3 "
+            "uses bridge-time preload parameters with 20N/25N recovery stops, "
+            "Stage25.95 waits for bridge-cleared near-zero qdot registers, low-load/"
+            "no-contact freezes path time and commands zero qdot instead of executing "
+            "active_reacquire_solver qdot, and post-RNN tracking reversal detection "
+            "holds/stops when the RNN/J(q) command unloads while the outer loop asks to press."
+        )
     contact_policy["stage25_contact_policy"] = stage25_policy
     row["liveprep_gates"] = [
         "Stage 22 and Stage 24 pre-contact search posture uses gravity-down [pi,0,0], TCP +Z targeting base -Z",
         "Stage 25.3 bridge deadband acquire consumes Cartesian vx/vy/vz in registers 37..39",
         "Stage 25.3 enters Stage25 only after 7.5-14N filtered normal_load, 7-15N raw sanity, force_norm <=25N, and cmd_valid true for 0.100 s",
         "Stage 25.95 clears registers 37..47 away from the preload layout before Stage25.0 qdot consumption",
-        "Stage25 strict RNN qdot is capped at 0.05 rad/s with qdot slew limiting and online broad TCP cage active-reacquire safety",
+        (
+            "Stage25 strict RNN qdot is capped at 0.05 rad/s with qdot slew limiting; "
+            "v24 computes/logs RNN output but low/no-contact commands zero qdot and stops after 0.050 s"
+            if label == "v24"
+            else "Stage25 strict RNN qdot is capped at 0.05 rad/s with qdot slew limiting and online broad TCP cage active-reacquire safety"
+        ),
     ]
     row["success_condition"] = (
         f"Current {label} package is generated, uploaded, controller read-back verified, "
         "and awaits explicit live bridge run evidence before any reproduction claim."
     )
+    row["notes"] = [
+        f"{label} is controller read-back verified and selected as the current Step5d TP/script diagnostic package.",
+        f"{label} keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
+        (
+            f"{label} stops low-load/no-contact with zero qdot instead of executing active_reacquire_solver qdot."
+            if label == "v24"
+            else f"{label} uses the retained cage-primary active-reacquire diagnostic policy."
+        ),
+        (
+            f"{label} uses 25N raw-normal/force-norm hard guards and post-RNN tracking reversal detection."
+            if label == "v24"
+            else f"{label} uses retained raw-normal/force-norm hard guards."
+        ),
+        "This current row is not a completed Step5d reproduction claim; explicit live bridge evidence is still pending.",
+    ]
     analysis = row.setdefault("local_analysis_evidence", {})
     analysis["source"] = (
         "2026-07-02 v21 live-run register-layout root cause plus v22 qdot-clear implementation; "
-        "2026-07-03 v22 normal_force_guard live attempts plus v23 post-RNN normal guard"
+        "2026-07-03 v22 normal_force_guard, v23 active_reacquire cage-margin failure, and v24 low-load/tracking guard"
     )
     analysis["v21_register_layout_root_cause"] = (
         "Stage25.3 preload values in 40/41/42/44/46/47 with tag 521 were echoed into "
@@ -456,7 +520,7 @@ def update_current_stage(
             "TP writes stage 25.95 after preload; bridge writes zero qdot/cmd_valid=0 and a non-521 "
             "layout tag until TP observes 37..47 clear before Stage25.0 speedj consumption"
         )
-    elif label == "v23":
+    elif label == "v23" or label == "v24":
         bridge["stage25_95_qdot_clear_barrier"] = (
             "TP writes stage 25.95 after preload; bridge writes zero qdot/cmd_valid=0 and a non-521 "
             "layout tag until TP observes 37..47 clear and qdot registers 37..42 are near zero before Stage25.0 speedj consumption"
@@ -465,9 +529,23 @@ def update_current_stage(
             "Bridge preserves the RNN as object under test, then holds/stops any over-target post-RNN command "
             "whose predicted or actual TCP motion presses into the surface."
         )
+        if label == "v24":
+            bridge["stage25_low_load_policy"] = (
+                "Low-load/no-contact no longer executes active_reacquire_solver qdot; bridge freezes path_time, "
+                "writes zero qdot, and stops after 0.050 s if contact is not recovered."
+            )
+            bridge["stage25_post_rnn_tracking_guard"] = (
+                "Bridge holds/stops if outer_xdot_limited projects into the surface while J(q)qdot projects away from it."
+            )
+            bridge["trusted_force_summary"] = (
+                "v24 summary force stats use baseline-ready trusted samples; raw_all_* stats retain startup artifacts."
+            )
     else:
         bridge.pop("stage25_95_qdot_clear_barrier", None)
         bridge.pop("stage25_post_rnn_normal_guard", None)
+        bridge.pop("stage25_low_load_policy", None)
+        bridge.pop("stage25_post_rnn_tracking_guard", None)
+        bridge.pop("trusted_force_summary", None)
     evidence = payload.setdefault("evidence", {})
     evidence.update(
         {
@@ -519,6 +597,34 @@ def update_current_stage(
             "normal_load_rate_hold_n_s": 20.0,
             "directional_stop_dwell_s": 0.004,
         }
+    if label == "v24":
+        evidence["v23_retained_after_live_failure"] = True
+        evidence["v23_live_attempts"] = live_attempt_evidence(root, "step5d_strict_rnn_liveprep_v23")
+        evidence["v24_qdot_clear_barrier"] = {
+            "stage": 25.95,
+            "required_s": 0.006,
+            "timeout_s": 1.0,
+            "qdot_zero_tol_rad_s": 0.0005,
+            "clears_input_float_registers": "37..47",
+            "rejects_preload_layout_tag": 521.0,
+            "bridge_clear_mode_code": 522.0,
+        }
+        evidence["v24_low_load_policy"] = {
+            "active_reacquire_solver_qdot_executed": False,
+            "low_load_hold_timeout_s": 0.050,
+            "hold_command": "zero_qdot",
+        }
+        evidence["v24_post_rnn_tracking_guard"] = {
+            "outer_press_min_m_s": 0.0001,
+            "unload_min_m_s": 0.0005,
+            "opposed_dwell_stop_s": 0.004,
+            "hard_stop_load_n": 25.0,
+            "hard_stop_force_norm_n": 25.0,
+        }
+        evidence["v24_trusted_summary_policy"] = {
+            "primary_force_stats": "baseline_ready trusted samples",
+            "raw_all_force_stats": "retained for startup artifact audit",
+        }
     strict = payload.setdefault("strict_rnn_status", {})
     strict["reason"] = (
         f"{label} TP/script cage-primary diagnostic package is generated, uploaded, "
@@ -540,10 +646,16 @@ def update_current_stage(
     payload["notes"] = [
         f"{program} is controller read-back verified and selected as the current Step5d TP/script cage-primary diagnostic package.",
         f"{label} keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
-        f"{label} keeps v20 cage-primary active-reacquire policy and uses Stage25.3 default preload 7.5-14N filtered with 7-15N raw sanity.",
+        (
+            f"{label} stops low-load/no-contact with zero qdot instead of executing active_reacquire_solver qdot, and uses Stage25.3 default preload 7.5-14N filtered with 7-15N raw sanity."
+            if label == "v24"
+            else f"{label} keeps v20 cage-primary active-reacquire policy and uses Stage25.3 default preload 7.5-14N filtered with 7-15N raw sanity."
+        ),
         (
             "v22 adds Stage25.95 qdot-clear barrier so Stage25.0 cannot consume stale Stage25.3 preload registers as qdot."
             if label == "v22"
+            else "v24 keeps Stage25.95 near-zero qdot clear, lowers raw/force hard guards to 25N, and adds post-RNN tracking reversal detection."
+            if label == "v24"
             else "v23 keeps Stage25.95 qdot-clear and tightens it to near-zero qdot before Stage25.0 speedj consumption."
             if label == "v23"
             else "This package has no Stage25.95 qdot-clear barrier."
@@ -551,6 +663,8 @@ def update_current_stage(
         (
             "v23 adds a post-RNN normal-direction guard so over-target commands that press into the surface hold/stop before the 100N sensor hard guard."
             if label == "v23"
+            else "v24 keeps the post-RNN normal-direction guard and adds a tracking guard for outer-loop press vs J(q)qdot unload disagreement."
+            if label == "v24"
             else "No v23 post-RNN normal-direction guard is active for this package."
         ),
         "This file is the single current pointer for UR/Kunwei package and bridge handoffs.",

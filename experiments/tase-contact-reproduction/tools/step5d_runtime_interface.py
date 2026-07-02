@@ -22,11 +22,12 @@ DEFAULT_ROBOT_HOST = "192.168.1.18"
 DEFAULT_LONG_CHECK_CACHE = RUN_ROOT / ".bridge_long_checks_cache.json"
 
 STEP5D_INTERFACE_CLASS = "tp_speedj_strict_rnn_liveprep_v1"
-STEP5D_TUNING_BUNDLE = "cage_primary_v23_rnn_normal_guard"
+STEP5D_TUNING_BUNDLE = "v24_startup_quarantine_rnn_tracking_guard"
 STEP5D_LIVEPREP_V20_STAGE_ID = "step5d_strict_rnn_liveprep_v20"
 STEP5D_LIVEPREP_V21_STAGE_ID = "step5d_strict_rnn_liveprep_v21"
 STEP5D_LIVEPREP_V22_STAGE_ID = "step5d_strict_rnn_liveprep_v22"
 STEP5D_LIVEPREP_V23_STAGE_ID = "step5d_strict_rnn_liveprep_v23"
+STEP5D_LIVEPREP_V24_STAGE_ID = "step5d_strict_rnn_liveprep_v24"
 STEP5D_LINE_ENTRY_PARAM_VALID_CODE = 521.0
 STEP5D_QDOT_CLEAR_STAGE = 25.95
 STEP5D_QDOT_CLEAR_ACK_CYCLES = 3
@@ -130,6 +131,18 @@ def controller_target_for(program: str, current: dict[str, Any] | None = None) -
 
 
 def default_preload_gate(program: str) -> Step5dPreloadGate:
+    if program == STEP5D_LIVEPREP_V24_STAGE_ID:
+        return Step5dPreloadGate(
+            filtered_min_n=7.5,
+            filtered_max_n=14.0,
+            raw_min_n=7.0,
+            raw_max_n=15.0,
+            force_norm_max_n=25.0,
+            hold_s=0.100,
+            recovery_normal_load_min_n=0.0,
+            recovery_normal_load_max_n=20.0,
+            force_norm_stop_n=25.0,
+        )
     if program in {STEP5D_LIVEPREP_V21_STAGE_ID, STEP5D_LIVEPREP_V22_STAGE_ID, STEP5D_LIVEPREP_V23_STAGE_ID}:
         return Step5dPreloadGate(
             filtered_min_n=7.5,
@@ -161,6 +174,7 @@ def resolve_runtime_interface(
     selected = program or current_step5d_program(current_path)
     target = controller_target_for(selected, current)
     default_gate = default_preload_gate(selected)
+    trusted_force_default_n = 25.0 if selected == STEP5D_LIVEPREP_V24_STAGE_ID else 100.0
     gate = Step5dPreloadGate(
         filtered_min_n=env_float(env_map, "STEP5D_PRELOAD_FILTERED_MIN_N", default_gate.filtered_min_n),
         filtered_max_n=env_float(env_map, "STEP5D_PRELOAD_FILTERED_MAX_N", default_gate.filtered_max_n),
@@ -219,8 +233,8 @@ def resolve_runtime_interface(
             0.150,
             legacy="BRIDGE_ANGULAR_LIMIT_RAD_S",
         ),
-        max_normal_force_n=env_float(env_map, "STEP5D_MAX_NORMAL_FORCE_N", 100.0, legacy="MAX_NORMAL_FORCE_N"),
-        max_force_norm_n=env_float(env_map, "STEP5D_MAX_FORCE_NORM_N", 100.0, legacy="MAX_FORCE_NORM_N"),
+        max_normal_force_n=env_float(env_map, "STEP5D_MAX_NORMAL_FORCE_N", trusted_force_default_n, legacy="MAX_NORMAL_FORCE_N"),
+        max_force_norm_n=env_float(env_map, "STEP5D_MAX_FORCE_NORM_N", trusted_force_default_n, legacy="MAX_FORCE_NORM_N"),
         max_torque_norm_nm=env_float(env_map, "STEP5D_MAX_TORQUE_NORM_NM", 4.0, legacy="MAX_TORQUE_NORM_NM"),
         baseline_s=env_float(env_map, "STEP5D_BASELINE_S", 5.0, legacy="BRIDGE_BASELINE_S"),
         rezero_s=env_float(env_map, "STEP5D_REZERO_S", 1.0, legacy="BRIDGE_REZERO_S"),

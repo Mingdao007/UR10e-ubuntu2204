@@ -23,7 +23,7 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             output_dir = Path(tmp)
             built = liveprep.write_outputs(
-                "2026-07-03T0100HKT_STEP5D_STRICT_RNN_LIVEPREP_V23",
+                "2026-07-03T0100HKT_STEP5D_STRICT_RNN_LIVEPREP_V24",
                 "2026-07-03T01:00:00+08:00",
                 output_dir=output_dir,
                 local_only=True,
@@ -39,11 +39,11 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
 
         self.assertEqual(result["installation_relative_path"], "../../../default")
 
-    def test_upload_validator_checks_step5d_v23_semantics(self) -> None:
+    def test_upload_validator_checks_step5d_v24_semantics(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            local_dir = Path(tmp) / "v23"
+            local_dir = Path(tmp) / "v24"
             liveprep.write_outputs(
-                "2026-07-03T0100HKT_STEP5D_STRICT_RNN_LIVEPREP_V23",
+                "2026-07-03T0100HKT_STEP5D_STRICT_RNN_LIVEPREP_V24",
                 "2026-07-03T01:00:00+08:00",
                 output_dir=local_dir,
                 local_only=True,
@@ -63,19 +63,20 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
 
         self.assertEqual(result["program"], liveprep.PROGRAM_NAME)
         self.assertEqual(result["target_dir"], liveprep.CONTROLLER_DIR)
-        self.assertIn("v23 preload overrides in 40/41/42/44/46/47", script_text)
+        self.assertIn("v24 preload overrides in 40/41/42/44/46/47", script_text)
         self.assertIn("write_output_float_register(35, 25.95)", script_text)
         self.assertIn("local qdot_clear_required_s = 0.006", script_text)
         self.assertIn("local qdot_clear_zero_tol_rad_s = 0.000500", script_text)
         self.assertNotIn("qdot_clear_cap_rad_s", script_text)
-        self.assertIn("post-RNN normal-direction guard", script_text)
-        self.assertIn("# SAFETY: raw normal guard 100 N, force norm guard 100 N, torque guard 4.0 Nm.", script_text)
+        self.assertIn("post-RNN normal-direction/tracking guard", script_text)
+        self.assertIn("active_reacquire_solver qdot", script_text)
+        self.assertIn("# SAFETY: raw normal guard 25 N, force norm guard 25 N, torque guard 4.0 Nm.", script_text)
 
-    def test_upload_validator_accepts_step5d_v23_liveprep_candidate(self) -> None:
+    def test_upload_validator_accepts_step5d_v24_liveprep_candidate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             output_dir = Path(tmp)
             built = liveprep.write_outputs(
-                "2026-07-03T0100HKT_STEP5D_STRICT_RNN_LIVEPREP_V23",
+                "2026-07-03T0100HKT_STEP5D_STRICT_RNN_LIVEPREP_V24",
                 "2026-07-03T01:00:00+08:00",
                 output_dir=output_dir,
                 local_only=True,

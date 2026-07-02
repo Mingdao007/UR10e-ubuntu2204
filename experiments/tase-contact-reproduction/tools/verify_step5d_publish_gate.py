@@ -17,6 +17,7 @@ EXTENSIONS = (".script", ".txt", ".urp")
 RETAINED_FAILURE_PROGRAMS = {
     "step5d_strict_rnn_liveprep_v21": "Stage25.3->25.0 register-layout hazard",
     "step5d_strict_rnn_liveprep_v22": "normal_force_guard",
+    "step5d_strict_rnn_liveprep_v23": "tcp_cage_braking_margin_exhausted",
 }
 
 
@@ -87,7 +88,12 @@ def verify_stage_table_current(root: Path, current_program: str) -> None:
     if delivery.get("archived_to_step5d_dir") is True:
         fail(f"current stage row {current_program} is marked archived")
     for retained_program, root_cause_substring in RETAINED_FAILURE_PROGRAMS.items():
-        runs = sorted((root / "runs").glob(f"bridge_step4e_line_outerloop_{retained_program}_*"))
+        runs = sorted(
+            {
+                *list((root / "runs").glob(f"bridge_step4e_line_outerloop_{retained_program}_*")),
+                *list((root / "runs").glob(f"bridge_{retained_program}_*")),
+            }
+        )
         if runs and current_program == retained_program:
             fail(f"{retained_program} has retained live-run failure evidence and must not remain current")
         if runs and current_program != retained_program:

@@ -401,6 +401,7 @@ STEP5D_LIVEPREP_V20_STAGE_ID = "step5d_strict_rnn_liveprep_v20"
 STEP5D_LIVEPREP_V21_STAGE_ID = "step5d_strict_rnn_liveprep_v21"
 STEP5D_LIVEPREP_V22_STAGE_ID = "step5d_strict_rnn_liveprep_v22"
 STEP5D_LIVEPREP_V23_STAGE_ID = "step5d_strict_rnn_liveprep_v23"
+STEP5D_LIVEPREP_V24_STAGE_ID = "step5d_strict_rnn_liveprep_v24"
 STEP5D_LIVEPREP_STAGE_IDS = {
     STEP5D_LIVEPREP_V1_STAGE_ID,
     STEP5D_LIVEPREP_V2_STAGE_ID,
@@ -426,6 +427,7 @@ STEP5D_LIVEPREP_STAGE_IDS = {
     STEP5D_LIVEPREP_V21_STAGE_ID,
     STEP5D_LIVEPREP_V22_STAGE_ID,
     STEP5D_LIVEPREP_V23_STAGE_ID,
+    STEP5D_LIVEPREP_V24_STAGE_ID,
 }
 STEP5D_SEMANTIC_ORIENTATION_TOLERANCE_RAD = math.radians(5.0)
 STEP5D_SEARCH_POSE_CONTRACT_ID = PRE_CONTACT_GRAVITY_DOWN_CONTRACT_ID
@@ -503,6 +505,11 @@ STEP5D_V23_NORMAL_GUARD_PREDICTED_PRESS_HOLD_M_S = 0.0005
 STEP5D_V23_NORMAL_GUARD_ACTUAL_PRESS_HOLD_M_S = 0.0010
 STEP5D_V23_NORMAL_GUARD_LOAD_RATE_HOLD_N_S = 20.0
 STEP5D_V23_NORMAL_GUARD_DIRECTIONAL_STOP_DWELL_S = 0.004
+STEP5D_V24_SENSOR_FORCE_HARD_STOP_N = 25.0
+STEP5D_V24_LOW_LOAD_HOLD_TIMEOUT_S = 0.050
+STEP5D_V24_RNN_TRACKING_OPPOSED_DWELL_S = 0.004
+STEP5D_V24_RNN_TRACKING_OUTER_PRESS_MIN_M_S = 0.0001
+STEP5D_V24_RNN_TRACKING_UNLOAD_MIN_M_S = 0.0005
 STEP5D_V18_SENSOR_FORCE_HARD_STOP_N = 100.0
 STEP5D_V18_SENSOR_TORQUE_HARD_STOP_NM = 4.0
 STEP5D_V18_VALID_CONTACT_MAX_N = 100.0
@@ -1395,7 +1402,12 @@ def step5d_v11_deadband_acquire_velocity(
 
 
 def step5d_liveprep_contact_window_limits(bridge_profile: str) -> tuple[float, float, float]:
-    if bridge_profile in {STEP5D_LIVEPREP_V21_STAGE_ID, STEP5D_LIVEPREP_V22_STAGE_ID, STEP5D_LIVEPREP_V23_STAGE_ID}:
+    if bridge_profile in {
+        STEP5D_LIVEPREP_V21_STAGE_ID,
+        STEP5D_LIVEPREP_V22_STAGE_ID,
+        STEP5D_LIVEPREP_V23_STAGE_ID,
+        STEP5D_LIVEPREP_V24_STAGE_ID,
+    }:
         return (
             STEP5D_V21_ENTRY_FILTERED_NORMAL_LOAD_MIN_N,
             STEP5D_V21_ENTRY_FILTERED_NORMAL_LOAD_MAX_N,
@@ -1982,7 +1994,7 @@ def step5d_v15_permissive_recovery_guard(
             "reason": "ok_high_contact_below_hard_force",
             "high_window_s": 0.0,
         })
-    if base_result["reason"] == "low_load_hold_timeout":
+    if base_result["reason"] == "low_load_hold_timeout" and bool(kwargs.get("defer_low_load_hold_timeout", True)):
         actual_tcp_speed_m_s = float(kwargs.get("actual_tcp_speed_m_s", math.inf))
         low_load_speed_stop_m_s = float(kwargs.get("low_load_speed_stop_m_s", STEP5D_V13_LOW_LOAD_SPEED_STOP_M_S))
         if math.isfinite(actual_tcp_speed_m_s) and actual_tcp_speed_m_s <= low_load_speed_stop_m_s:
@@ -2274,6 +2286,97 @@ def step5d_post_rnn_normal_direction_guard(
     }
 
 
+def step5d_post_rnn_tracking_guard(
+    *,
+    qdot: Sequence[float],
+    jacobian: Any,
+    outer_xdot_limited: Sequence[float] | None,
+    reaction_normal_b: Sequence[float],
+    actual_tcp_speed_b: Sequence[float],
+    prior_dwell_s: float,
+    dt_s: float,
+    outer_press_min_m_s: float = STEP5D_V24_RNN_TRACKING_OUTER_PRESS_MIN_M_S,
+    unload_min_m_s: float = STEP5D_V24_RNN_TRACKING_UNLOAD_MIN_M_S,
+    opposed_dwell_stop_s: float = STEP5D_V24_RNN_TRACKING_OPPOSED_DWELL_S,
+) -> dict[str, Any]:
+    safe_dt_s = min(max(0.0, float(dt_s)), STEP5D_V12_GUARD_DT_MAX_S)
+    prior_dwell = max(0.0, float(prior_dwell_s))
+    try:
+        qdot_arr = np.asarray(qdot, dtype=float)
+        J = np.asarray(jacobian, dtype=float)
+        outer = np.zeros(6, dtype=float) if outer_xdot_limited is None else np.asarray(outer_xdot_limited, dtype=float)
+        reaction = normalize3(
+            (float(reaction_normal_b[0]), float(reaction_normal_b[1]), float(reaction_normal_b[2]))
+        )
+        approach = np.asarray((-reaction[0], -reaction[1], -reaction[2]), dtype=float)
+        actual_speed = np.asarray(actual_tcp_speed_b[:3], dtype=float)
+        if qdot_arr.shape != (6,) or J.shape[1] != 6 or outer.shape != (6,) or actual_speed.shape != (3,):
+            raise ValueError("shape")
+        predicted_twist = J @ qdot_arr
+        values_to_check = np.concatenate([qdot_arr, predicted_twist, outer, approach, actual_speed])
+        if not np.all(np.isfinite(values_to_check)):
+            raise ValueError("nonfinite")
+    except (TypeError, ValueError, IndexError):
+        return {
+            "state": "danger_stop",
+            "action": "stop_zero_qdot",
+            "reason": "post_rnn_tracking_nonfinite",
+            "predicted_twist": np.full(6, math.nan),
+            "predicted_press_speed_m_s": math.nan,
+            "actual_press_speed_m_s": math.nan,
+            "normal_load_rate_n_s": math.nan,
+            "dwell_s": prior_dwell,
+            "zeroed_qdot": True,
+            "directional_press": False,
+        }
+    outer_press_m_s = float(np.dot(outer[:3], approach))
+    predicted_press_m_s = float(np.dot(predicted_twist[:3], approach))
+    actual_press_m_s = float(np.dot(actual_speed, approach))
+    reversed_unload = (
+        outer_press_m_s >= float(outer_press_min_m_s)
+        and predicted_press_m_s <= -float(unload_min_m_s)
+    )
+    if reversed_unload:
+        dwell_s = prior_dwell + safe_dt_s
+        if dwell_s >= float(opposed_dwell_stop_s):
+            return {
+                "state": "danger_stop",
+                "action": "stop_zero_qdot",
+                "reason": "post_rnn_tracking_reversed_unload_stop",
+                "predicted_twist": predicted_twist,
+                "predicted_press_speed_m_s": predicted_press_m_s,
+                "actual_press_speed_m_s": actual_press_m_s,
+                "normal_load_rate_n_s": math.nan,
+                "dwell_s": dwell_s,
+                "zeroed_qdot": True,
+                "directional_press": False,
+            }
+        return {
+            "state": "contact_uncertain_hold",
+            "action": "hold_zero_qdot",
+            "reason": "post_rnn_tracking_reversed_unload_hold",
+            "predicted_twist": predicted_twist,
+            "predicted_press_speed_m_s": predicted_press_m_s,
+            "actual_press_speed_m_s": actual_press_m_s,
+            "normal_load_rate_n_s": math.nan,
+            "dwell_s": dwell_s,
+            "zeroed_qdot": True,
+            "directional_press": False,
+        }
+    return {
+        "state": "valid_contact",
+        "action": "pass_solver",
+        "reason": "post_rnn_tracking_ok",
+        "predicted_twist": predicted_twist,
+        "predicted_press_speed_m_s": predicted_press_m_s,
+        "actual_press_speed_m_s": actual_press_m_s,
+        "normal_load_rate_n_s": math.nan,
+        "dwell_s": 0.0,
+        "zeroed_qdot": False,
+        "directional_press": predicted_press_m_s >= 0.0,
+    }
+
+
 def ensure_step5d_liveprep_runtime(state: "BridgeState", args: argparse.Namespace) -> None:
     if state.step5d_model_bundle is None:
         state.step5d_model_bundle = step5d_kin.build_calibrated_model()
@@ -2289,6 +2392,7 @@ def ensure_step5d_liveprep_runtime(state: "BridgeState", args: argparse.Namespac
         STEP5D_LIVEPREP_V21_STAGE_ID,
         STEP5D_LIVEPREP_V22_STAGE_ID,
         STEP5D_LIVEPREP_V23_STAGE_ID,
+        STEP5D_LIVEPREP_V24_STAGE_ID,
     } and state.step5d_tcp_cage is None:
         state.step5d_tcp_cage = build_step5d_v15a_tcp_cage()
     if state.step5d_solver is None:
@@ -2455,6 +2559,7 @@ class BridgeState:
         self.step5d_active_reacquire_s = 0.0
         self.step5d_no_contact_s = 0.0
         self.step5d_normal_direction_guard_dwell_s = 0.0
+        self.step5d_tracking_guard_dwell_s = 0.0
         self.step5d_normal_direction_prev_load_n: float | None = None
         self.step5b_15n_anchor_xy: tuple[float, float] | None = None
         self.step5b_15n_acquired = False
@@ -2510,6 +2615,7 @@ class BridgeState:
         self.step5d_last_hold_reason = ""
         self.step5d_hold_actual_tcp_speed_m_s = None
         self.step5d_normal_direction_guard_dwell_s = 0.0
+        self.step5d_tracking_guard_dwell_s = 0.0
         self.step5d_normal_direction_prev_load_n = None
         self.reset_step5b_15n_trial()
 
@@ -2614,6 +2720,7 @@ def compute_bridge_values(
     step5d_liveprep_v21_profile = args.bridge_profile == STEP5D_LIVEPREP_V21_STAGE_ID
     step5d_liveprep_v22_profile = args.bridge_profile == STEP5D_LIVEPREP_V22_STAGE_ID
     step5d_liveprep_v23_profile = args.bridge_profile == STEP5D_LIVEPREP_V23_STAGE_ID
+    step5d_liveprep_v24_profile = args.bridge_profile == STEP5D_LIVEPREP_V24_STAGE_ID
     step5d_liveprep_v16_or_v17_profile = step5d_liveprep_v16_profile or step5d_liveprep_v17_profile
     step5d_liveprep_v18_or_v19_profile = step5d_liveprep_v18_profile or step5d_liveprep_v19_profile
     step5d_liveprep_v18_or_newer_profile = (
@@ -2622,9 +2729,10 @@ def compute_bridge_values(
         or step5d_liveprep_v21_profile
         or step5d_liveprep_v22_profile
         or step5d_liveprep_v23_profile
+        or step5d_liveprep_v24_profile
     )
     step5d_liveprep_v17_or_newer_profile = step5d_liveprep_v17_profile or step5d_liveprep_v18_or_newer_profile
-    if step5d_liveprep_v21_profile or step5d_liveprep_v22_profile or step5d_liveprep_v23_profile:
+    if step5d_liveprep_v21_profile or step5d_liveprep_v22_profile or step5d_liveprep_v23_profile or step5d_liveprep_v24_profile:
         step5d_entry_raw_sanity_min_n = float(args.step5d_preload_raw_min_n)
         step5d_entry_raw_sanity_max_n = float(args.step5d_preload_raw_max_n)
     else:
@@ -2644,6 +2752,7 @@ def compute_bridge_values(
         or step5d_liveprep_v21_profile
         or step5d_liveprep_v22_profile
         or step5d_liveprep_v23_profile
+        or step5d_liveprep_v24_profile
     )
     step5d_liveprep_guarded_profile = (
         step5d_liveprep_v3_profile
@@ -2668,6 +2777,7 @@ def compute_bridge_values(
         or step5d_liveprep_v21_profile
         or step5d_liveprep_v22_profile
         or step5d_liveprep_v23_profile
+        or step5d_liveprep_v24_profile
     )
     if step5d_liveprep_profile:
         try:
@@ -2715,7 +2825,7 @@ def compute_bridge_values(
     )
     qdot_clear_stage_active = (
         args.bridge_mode == "line"
-        and (step5d_liveprep_v22_profile or step5d_liveprep_v23_profile)
+        and (step5d_liveprep_v22_profile or step5d_liveprep_v23_profile or step5d_liveprep_v24_profile)
         and abs(robot_stage - STEP5D_QDOT_CLEAR_STAGE) < 0.05
     )
     line_entry_gate_active = (
@@ -2741,6 +2851,7 @@ def compute_bridge_values(
         state.step5d_active_reacquire_s = 0.0
         state.step5d_no_contact_s = 0.0
         state.step5d_normal_direction_guard_dwell_s = 0.0
+        state.step5d_tracking_guard_dwell_s = 0.0
         state.step5d_normal_direction_prev_load_n = None
     control_stage_active = (
         latch_stage_active
@@ -2989,11 +3100,12 @@ def compute_bridge_values(
             valid_contact_min_n=STEP5D_V16_VALID_CONTACT_MIN_N if (step5d_liveprep_v16_or_v17_profile or step5d_liveprep_v18_or_newer_profile) else STEP5D_V13_VALID_CONTACT_MIN_N,
             valid_contact_max_n=STEP5D_V18_VALID_CONTACT_MAX_N if step5d_liveprep_v18_or_newer_profile else STEP5D_V16_VALID_CONTACT_MAX_N if step5d_liveprep_v16_or_v17_profile else STEP5D_V13_VALID_CONTACT_MAX_N,
             low_load_speed_load_n=STEP5D_V16_LOW_LOAD_SPEED_LOAD_N if (step5d_liveprep_v16_or_v17_profile or step5d_liveprep_v18_or_newer_profile) else STEP5D_V13_LOW_LOAD_SPEED_LOAD_N,
-            hold_timeout_s=STEP5D_V16_LOW_LOAD_HOLD_TIMEOUT_S if step5d_liveprep_v16_or_v17_profile else STEP5D_V13_LOW_LOAD_HOLD_TIMEOUT_S,
+            hold_timeout_s=STEP5D_V24_LOW_LOAD_HOLD_TIMEOUT_S if step5d_liveprep_v24_profile else STEP5D_V16_LOW_LOAD_HOLD_TIMEOUT_S if step5d_liveprep_v16_or_v17_profile else STEP5D_V13_LOW_LOAD_HOLD_TIMEOUT_S,
             high_window_dwell_stop_s=STEP5D_V16_HIGH_WINDOW_DWELL_STOP_S if (step5d_liveprep_v16_or_v17_profile or step5d_liveprep_v18_or_newer_profile) else STEP5D_V13_HIGH_WINDOW_DWELL_STOP_S,
             allow_high_contact_below_hard_force=step5d_liveprep_v18_or_newer_profile or not step5d_liveprep_v16_or_v17_profile,
-            force_norm_hard_stop_n=STEP5D_V18_SENSOR_FORCE_HARD_STOP_N if step5d_liveprep_v18_or_newer_profile else 60.0,
-            cage_primary_low_load_reacquire=step5d_liveprep_v18_or_newer_profile,
+            force_norm_hard_stop_n=STEP5D_V24_SENSOR_FORCE_HARD_STOP_N if step5d_liveprep_v24_profile else STEP5D_V18_SENSOR_FORCE_HARD_STOP_N if step5d_liveprep_v18_or_newer_profile else 60.0,
+            cage_primary_low_load_reacquire=step5d_liveprep_v18_or_newer_profile and not step5d_liveprep_v24_profile,
+            defer_low_load_hold_timeout=not step5d_liveprep_v24_profile,
         )
         state.step5d_contact_hold_s = float(step5d_contact_safety["hold_s"])
         state.step5d_contact_high_window_s = float(step5d_contact_safety["high_window_s"])
@@ -3604,7 +3716,7 @@ def compute_bridge_values(
                                 actual_tcp_speed_m_s=step5d_line_tcp_speed_m_s,
                                 predicted_tcp_speed_m_s=step5d_predicted_tcp_speed_m_s,
                             )
-                    if step5d_liveprep_v23_profile:
+                    if step5d_liveprep_v23_profile or step5d_liveprep_v24_profile:
                         step5d_post_rnn_normal_guard = step5d_post_rnn_normal_direction_guard(
                             qdot=step5d_qdot_command,
                             jacobian=jacobian,
@@ -3618,7 +3730,20 @@ def compute_bridge_values(
                         )
                         state.step5d_normal_direction_guard_dwell_s = float(step5d_post_rnn_normal_guard["dwell_s"])
                         state.step5d_normal_direction_prev_load_n = normal_load_n
-                    if step5d_liveprep_v23_profile and step5d_post_rnn_normal_guard["action"] in {"hold_zero_qdot", "stop_zero_qdot"}:
+                        if step5d_liveprep_v24_profile and step5d_post_rnn_normal_guard["action"] == "pass_solver":
+                            step5d_post_rnn_normal_guard = step5d_post_rnn_tracking_guard(
+                                qdot=step5d_qdot_command,
+                                jacobian=jacobian,
+                                outer_xdot_limited=step5d_outer_xdot_limited,
+                                reaction_normal_b=n_control_b,
+                                actual_tcp_speed_b=speed[:3],
+                                prior_dwell_s=state.step5d_tracking_guard_dwell_s,
+                                dt_s=dt_s,
+                            )
+                            state.step5d_tracking_guard_dwell_s = float(step5d_post_rnn_normal_guard["dwell_s"])
+                        elif step5d_liveprep_v24_profile:
+                            state.step5d_tracking_guard_dwell_s = 0.0
+                    if (step5d_liveprep_v23_profile or step5d_liveprep_v24_profile) and step5d_post_rnn_normal_guard["action"] in {"hold_zero_qdot", "stop_zero_qdot"}:
                         step5d_contact_safety = {
                             "state": step5d_post_rnn_normal_guard["state"],
                             "action": step5d_post_rnn_normal_guard["action"],
@@ -3661,11 +3786,12 @@ def compute_bridge_values(
                             valid_contact_min_n=STEP5D_V16_VALID_CONTACT_MIN_N if (step5d_liveprep_v16_or_v17_profile or step5d_liveprep_v18_or_newer_profile) else STEP5D_V13_VALID_CONTACT_MIN_N,
                             valid_contact_max_n=STEP5D_V18_VALID_CONTACT_MAX_N if step5d_liveprep_v18_or_newer_profile else STEP5D_V16_VALID_CONTACT_MAX_N if step5d_liveprep_v16_or_v17_profile else STEP5D_V13_VALID_CONTACT_MAX_N,
                             low_load_speed_load_n=STEP5D_V16_LOW_LOAD_SPEED_LOAD_N if (step5d_liveprep_v16_or_v17_profile or step5d_liveprep_v18_or_newer_profile) else STEP5D_V13_LOW_LOAD_SPEED_LOAD_N,
-                            hold_timeout_s=STEP5D_V16_LOW_LOAD_HOLD_TIMEOUT_S if step5d_liveprep_v16_or_v17_profile else STEP5D_V13_LOW_LOAD_HOLD_TIMEOUT_S,
+                            hold_timeout_s=STEP5D_V24_LOW_LOAD_HOLD_TIMEOUT_S if step5d_liveprep_v24_profile else STEP5D_V16_LOW_LOAD_HOLD_TIMEOUT_S if step5d_liveprep_v16_or_v17_profile else STEP5D_V13_LOW_LOAD_HOLD_TIMEOUT_S,
                             high_window_dwell_stop_s=STEP5D_V16_HIGH_WINDOW_DWELL_STOP_S if (step5d_liveprep_v16_or_v17_profile or step5d_liveprep_v18_or_newer_profile) else STEP5D_V13_HIGH_WINDOW_DWELL_STOP_S,
                             allow_high_contact_below_hard_force=step5d_liveprep_v18_or_newer_profile or not step5d_liveprep_v16_or_v17_profile,
-                            force_norm_hard_stop_n=STEP5D_V18_SENSOR_FORCE_HARD_STOP_N if step5d_liveprep_v18_or_newer_profile else 60.0,
-                            cage_primary_low_load_reacquire=step5d_liveprep_v18_or_newer_profile,
+                            force_norm_hard_stop_n=STEP5D_V24_SENSOR_FORCE_HARD_STOP_N if step5d_liveprep_v24_profile else STEP5D_V18_SENSOR_FORCE_HARD_STOP_N if step5d_liveprep_v18_or_newer_profile else 60.0,
+                            cage_primary_low_load_reacquire=step5d_liveprep_v18_or_newer_profile and not step5d_liveprep_v24_profile,
+                            defer_low_load_hold_timeout=not step5d_liveprep_v24_profile,
                         )
                     state.step5d_contact_hold_s = float(step5d_contact_safety["hold_s"])
                     state.step5d_contact_high_window_s = float(step5d_contact_safety["high_window_s"])
@@ -3777,7 +3903,12 @@ def compute_bridge_values(
                     line_entry_register_load_n = normal_load_n
                 register_force_error = float(args.target_force_n) - line_entry_register_load_n
             preload_param_channel_active = (
-                (step5d_liveprep_v21_profile or step5d_liveprep_v22_profile or step5d_liveprep_v23_profile)
+                (
+                    step5d_liveprep_v21_profile
+                    or step5d_liveprep_v22_profile
+                    or step5d_liveprep_v23_profile
+                    or step5d_liveprep_v24_profile
+                )
                 and line_entry_gate_active
             )
             qdot_clear_packet_active = qdot_clear_stage_active
@@ -3931,6 +4062,7 @@ def compute_bridge_values(
                     or step5d_liveprep_v21_profile
                     or step5d_liveprep_v22_profile
                     or step5d_liveprep_v23_profile
+                    or step5d_liveprep_v24_profile
                 )
                 else float("nan")
             )
@@ -5221,6 +5353,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                 STEP5D_LIVEPREP_V21_STAGE_ID,
                 STEP5D_LIVEPREP_V22_STAGE_ID,
                 STEP5D_LIVEPREP_V23_STAGE_ID,
+                STEP5D_LIVEPREP_V24_STAGE_ID,
             }
             else 0.30
         )
@@ -5414,6 +5547,7 @@ def main(argv: list[str] | None = None) -> int:
             "step5d_v21_plus_liveprep_25.3": "input_double_register_37..39 are Cartesian deadband-acquire vx/vy/vz; 40/41 are preload filtered min/max, 42 is preload force_norm max, 44 is hold_s, 46 is timeout_s, and 47 must equal the Step5d preload param-valid code.",
             "step5d_v22_liveprep_25.95": "input_double_register_37..42 must be bridge-cleared qdot-safe zeros, 43 must be 0, and 47 must not equal the preload param-valid code before TP enters Stage 25.0.",
             "step5d_v23_liveprep_25.95": "TP requires qdot registers 37..42 to be near-zero before Stage 25.0; bridge also applies a post-RNN normal-direction command guard while preserving RNN as the object under test.",
+            "step5d_v24_liveprep_25.95": "TP keeps the v23 near-zero qdot-clear barrier; bridge stops low/no-contact instead of executing active_reacquire_solver qdot and adds post-RNN tracking reversal detection.",
             "v22_seed_normal_loop": "25.05 latches the first contact normal; 25.2 outputs target TCP rotvec for optional lifted posture correction; 25.3 reacquires 5 N before 25.0 line control.",
             "v23_seed_normal_loop_failed_archive": "24.0/24.2 latch the first contact normal; 25.2 outputs angular speedl wx/wy/wz for lifted posture correction; 25.3 reacquires 5 N before 25.0 line control. Archived after 2026-06-12 stop_reason=13 at 25.2.",
             "v24_seed_normal_loop_evidence": "One-step entry scaffold evidence; first search envelope still used a fixed 80 mm far-search transition.",
@@ -5454,7 +5588,8 @@ def main(argv: list[str] | None = None) -> int:
             "step5d_strict_rnn_liveprep_v20": "Current v20 cage-primary diagnostic TP/script live-prep candidate: keeps v19 numeric baselines, forces Stage22/24 pre-contact search posture to gravity-down [pi,0,0], logs pose-contract/reacquire-cap diagnostics, and applies low-load active-reacquire outer-state reset plus 0.035 m/s predicted TCP speed cap based on action/load semantics rather than normal_filter_source.",
             "step5d_strict_rnn_liveprep_v21": "Retained v21 failure evidence: bridge-time preload override registers could persist into Stage25.0 and be interpreted as qdot, causing stop_reason=13 at the 25.3->25.0 boundary.",
             "step5d_strict_rnn_liveprep_v22": "Retained v22 cage-primary TP/script live-prep evidence: Stage25.95 qdot clear barrier existed, but live v22 still reached normal_force_guard during strict RNN Stage25.",
-            "step5d_strict_rnn_liveprep_v23": "Current v23 cage-primary TP/script live-prep candidate: keeps v22 preload/qdot-clear scaffold, tightens Stage25.95 to near-zero qdot, adds post-RNN normal-direction guard and raw/post-slew/final RNN qdot diagnostics.",
+            "step5d_strict_rnn_liveprep_v23": "Retained v23 cage-primary TP/script live-prep evidence: live run lost contact, continued active_reacquire_solver qdot, and exhausted TCP cage margin while RNN/J(q) approach tracking opposed the outer-loop press command.",
+            "step5d_strict_rnn_liveprep_v24": "Current v24 cage-primary TP/script live-prep candidate: keeps v23 preload/qdot-clear scaffold, uses 25N raw/force hard guards, stops low/no-contact instead of executing active_reacquire_solver qdot, and adds post-RNN tracking reversal detection.",
             "step6b_contact_eight_baseline_v1": "Same TP contact-search/latch/25.2/25.3 scaffold as Step5b/v31, but stage 25.0 uses the active Step6 five-point safe-frame 8-shaped reference for 30 s and v31 filtered-live normal policy.",
             "step6b_contact_eight_baseline_v2": "Same TP contact-search/latch/25.2/25.3 scaffold and Step6 reference as v1, but intended bridge caps are 15 mm/s path, 15 mm/s total linear, 3 mm/s normal reserve, and 0.060 rad/s attitude.",
         },
@@ -5486,7 +5621,7 @@ def main(argv: list[str] | None = None) -> int:
             "step5c_stage_id": args.bridge_profile
             if args.bridge_profile in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID}
             else None,
-            "step5c_register_contract": "Step5c/Step5d Stage 25.0: 37..42=qd0..qd5 rad/s, 43=cmd_valid, 44=path_time, 45=force_error, 46=pose/orientation_error, 47=solver_status. Step5d v8/v9 Stage 25.3: 37..39=Cartesian force-PID settle vx/vy/vz only. Step5d v10 Stage 25.3: 37..39=Cartesian admittance settle vx/vy/vz only and 45 carries filtered force_error. Step5d v11/v12 Stage 25.3: 37..39=Cartesian deadband-acquire vx/vy/vz only and 45 carries filtered force_error. Step5d v21+ Stage 25.3 additionally uses 40/41/42/44/46/47 as the preload parameter channel, with 47 holding the param-valid code. Step5d v22+ inserts Stage 25.95 as a qdot-clear barrier before Stage 25.0; v23 requires near-zero qdot and adds a post-RNN normal-direction guard. Step5d v12+ Stage 25.0 additionally gates loss-of-contact and TCP speed before cmd_valid. Step4e field names are carrier names only in joint mode."
+            "step5c_register_contract": "Step5c/Step5d Stage 25.0: 37..42=qd0..qd5 rad/s, 43=cmd_valid, 44=path_time, 45=force_error, 46=pose/orientation_error, 47=solver_status. Step5d v8/v9 Stage 25.3: 37..39=Cartesian force-PID settle vx/vy/vz only. Step5d v10 Stage 25.3: 37..39=Cartesian admittance settle vx/vy/vz only and 45 carries filtered force_error. Step5d v11/v12 Stage 25.3: 37..39=Cartesian deadband-acquire vx/vy/vz only and 45 carries filtered force_error. Step5d v21+ Stage 25.3 additionally uses 40/41/42/44/46/47 as the preload parameter channel, with 47 holding the param-valid code. Step5d v22+ inserts Stage 25.95 as a qdot-clear barrier before Stage 25.0; v23 requires near-zero qdot and adds a post-RNN normal-direction guard; v24 stops low/no-contact before executing active_reacquire_solver qdot and adds tracking reversal detection. Step5d v12+ Stage 25.0 additionally gates loss-of-contact and TCP speed before cmd_valid. Step4e field names are carrier names only in joint mode."
             if args.bridge_profile in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID, *STEP5D_LIVEPREP_STAGE_IDS}
             else None,
             "step5c_joint_model": str(args.step5c_joint_model)
@@ -5558,6 +5693,10 @@ def main(argv: list[str] | None = None) -> int:
     normals: list[float] = []
     force_norms: list[float] = []
     torque_norms: list[float] = []
+    trusted_normals: list[float] = []
+    trusted_force_norms: list[float] = []
+    trusted_torque_norms: list[float] = []
+    startup_untrusted_spikes: list[dict[str, Any]] = []
     zero_events: list[dict[str, Any]] = []
     buffer = bytearray()
     step4e_state = BridgeState()
@@ -5799,6 +5938,26 @@ def main(argv: list[str] | None = None) -> int:
                             normal_threshold_n=args.bias_contact_normal_threshold_n,
                             force_norm_threshold_n=args.bias_contact_force_norm_threshold_n,
                         )
+                        trusted_sensor_sample = baseline_ready and sensor_bias_reason != "baseline_not_ready"
+                        if trusted_sensor_sample:
+                            trusted_normals.append(normal)
+                            trusted_force_norms.append(force_norm)
+                            trusted_torque_norms.append(torque_norm)
+                        elif (
+                            args.bridge_profile == STEP5D_LIVEPREP_V24_STAGE_ID
+                            and len(startup_untrusted_spikes) < 16
+                            and (abs(normal) >= STEP5D_V24_SENSOR_FORCE_HARD_STOP_N or force_norm >= STEP5D_V24_SENSOR_FORCE_HARD_STOP_N)
+                        ):
+                            startup_untrusted_spikes.append(
+                                {
+                                    "sample_index": samples,
+                                    "zero_event_id": baseline_epoch,
+                                    "bias_contact_reason": sensor_bias_reason,
+                                    "normal_force_n": normal,
+                                    "force_norm_n": force_norm,
+                                    "torque_norm_nm": torque_norm,
+                                }
+                            )
                         sensor_writer.writerow(
                             {
                                 "sample_index": samples,
@@ -6038,6 +6197,14 @@ def main(argv: list[str] | None = None) -> int:
             sock.close()
         close_rtde_bridge(rtde)
 
+    if args.bridge_profile == STEP5D_LIVEPREP_V24_STAGE_ID and trusted_force_norms:
+        summary_normals = trusted_normals
+        summary_force_norms = trusted_force_norms
+        summary_torque_norms = trusted_torque_norms
+    else:
+        summary_normals = normals
+        summary_force_norms = force_norms
+        summary_torque_norms = torque_norms
     summary = {
         "finished_at": datetime.now().isoformat(timespec="seconds"),
         "stop_reason": stop_reason,
@@ -6059,9 +6226,16 @@ def main(argv: list[str] | None = None) -> int:
         "baseline_si_offsets": dict(zip(BIAS_VECTOR_NAMES, baseline)),
         "bias_rate_estimate_si_per_s": dict(zip(BIAS_VECTOR_NAMES, bias_rate_estimate)),
         "bias_estimator_logging_contract": metadata["bias_estimator_logging_contract"],
-        "normal_force_stats_n": stats(normals),
-        "force_norm_stats_n": stats(force_norms),
-        "torque_norm_stats_nm": stats(torque_norms),
+        "normal_force_stats_n": stats(summary_normals),
+        "force_norm_stats_n": stats(summary_force_norms),
+        "torque_norm_stats_nm": stats(summary_torque_norms),
+        "raw_all_normal_force_stats_n": stats(normals),
+        "raw_all_force_norm_stats_n": stats(force_norms),
+        "raw_all_torque_norm_stats_nm": stats(torque_norms),
+        "trusted_normal_force_stats_n": stats(trusted_normals),
+        "trusted_force_norm_stats_n": stats(trusted_force_norms),
+        "trusted_torque_norm_stats_nm": stats(trusted_torque_norms),
+        "startup_untrusted_spikes": startup_untrusted_spikes,
         "paths": {
             "metadata": str(metadata_path),
             "summary": str(summary_path),
