@@ -41,6 +41,29 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
             path.write_bytes(f"{payload_prefix}:{ext}\n".encode("utf-8"))
         return files
 
+    def _write_local_candidate_marker(
+        self,
+        local_dir: Path,
+        *,
+        program: str,
+        target_dir: str,
+        files: dict[str, Path],
+    ) -> Path:
+        marker = {
+            "schema": "ur_tp_local_candidate_v1",
+            "status": "local package verified",
+            "local_only": True,
+            "not_delivered": True,
+            "program": program,
+            "target_dir": target_dir,
+            "sha256": upload.package_sha(files),
+            "semantic_fingerprint": "abc123",
+            "stamp": "2026-07-02T1200HKT_DEMO",
+        }
+        marker_path = local_dir / upload.LOCAL_CANDIDATE_MARKER
+        marker_path.write_text(json.dumps(marker), encoding="utf-8")
+        return marker_path
+
     def _write_manifest(
         self,
         readback_root: Path,
@@ -157,6 +180,51 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
                 )
 
             self.assertIsNone(result)
+
+    def test_local_only_candidate_blocks_non_dry_upload_without_promote_flag(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            program = "demo_program"
+            target_dir = "/programs/andyl/kunwei/demo"
+            local_dir = tmp_path / "local"
+            local_dir.mkdir()
+            files = self._write_triplet(local_dir, program, "candidate")
+            self._write_local_candidate_marker(
+                local_dir,
+                program=program,
+                target_dir=target_dir,
+                files=files,
+            )
+
+            with self.assertRaisesRegex(RuntimeError, "refusing to upload local-only TP candidate"):
+                upload.main([program, "--target-dir", target_dir, "--local-dir", str(local_dir)])
+
+    def test_local_only_candidate_marker_validates_exact_triplet_sha(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            program = "demo_program"
+            target_dir = "/programs/andyl/kunwei/demo"
+            local_dir = tmp_path / "local"
+            local_dir.mkdir()
+            files = self._write_triplet(local_dir, program, "candidate")
+            self._write_local_candidate_marker(
+                local_dir,
+                program=program,
+                target_dir=target_dir,
+                files=files,
+            )
+            marker = upload.load_local_candidate_marker(local_dir)
+            assert marker is not None
+            files[".urp"].write_bytes(b"changed\n")
+
+            with self.assertRaisesRegex(RuntimeError, "local candidate marker sha256 does not match"):
+                upload.validate_local_candidate_marker(
+                    marker,
+                    files=files,
+                    program=program,
+                    target_dir=target_dir,
+                    local_sha=upload.package_sha(files),
+                )
 
     def test_reuse_manifest_records_fresh_controller_sha_basis(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

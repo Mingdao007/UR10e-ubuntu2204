@@ -6,7 +6,25 @@ SCRIPT_DIR="$(cd "$(dirname "${SCRIPT_PATH}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 BRIDGE_OPERATOR="${SCRIPT_DIR}/bridge-line-operator.sh"
 READBACK_GATE="${ROOT}/tools/verify_current_stage_readback.py"
-STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v20}"
+
+current_step5d_version() {
+  python3 - "${ROOT}/config/current_stage.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+try:
+    current = json.loads(path.read_text(encoding="utf-8"))
+except Exception:
+    raise SystemExit(0)
+program = current.get("program") or current.get("current_stage_id") or ""
+if program.startswith("step5d_strict_rnn_liveprep_"):
+    print(program)
+PY
+}
+
+STEP5D_VERSION="${STEP5D_VERSION:-$(current_step5d_version)}"
 if [[ -z "${STEP5D_VERSION}" ]]; then
   EXPECTED_PROGRAM="<no current Step5d live-prep package>"
 elif [[ "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v1" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v2" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v3" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v4" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v5" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v6" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v7" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v8" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v9" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v10" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v11" ]]; then

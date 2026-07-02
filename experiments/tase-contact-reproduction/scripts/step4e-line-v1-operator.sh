@@ -15,6 +15,23 @@ STEP4E_VERSION="${STEP4E_VERSION:-v1}"
 STEP4E_DISPLAY_NAME="${STEP4E_DISPLAY_NAME:-}"
 STEP4E_CONFIRM_PHRASE="${STEP4E_CONFIRM_PHRASE:-}"
 STEP5B_TRIAL_PROFILE="${STEP5B_TRIAL_PROFILE:-none}"
+
+current_step5d_profile() {
+  python3 - "${ROOT}/config/current_stage.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+try:
+    current = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+except Exception:
+    raise SystemExit(0)
+program = current.get("program") or current.get("current_stage_id") or ""
+if program.startswith("step5d_strict_rnn_liveprep_"):
+    print(program)
+PY
+}
+
 case "${STEP4E_VERSION}" in
   4f|f|cycloid|step4f)
     STEP4E_VERSION="step4f_v1"
@@ -32,7 +49,8 @@ case "${STEP4E_VERSION}" in
     STEP4E_VERSION="step5b_v3"
     ;;
   5d|step5d|step5d-liveprep|step5d_liveprep)
-    STEP4E_VERSION="step5d_strict_rnn_liveprep_v20"
+    STEP4E_VERSION="$(current_step5d_profile)"
+    STEP4E_VERSION="${STEP4E_VERSION:-step5d_strict_rnn_liveprep_v20}"
     ;;
   5c-dry|5c-dryrun|step5c-dryrun|step5c_speedj_dryrun_v1|speedj-dryrun|speedj_dryrun)
     echo "refusing Step5c dry-run alias: DLS/Jacobian mapping is quarantined after wrong XY/Z live motion"

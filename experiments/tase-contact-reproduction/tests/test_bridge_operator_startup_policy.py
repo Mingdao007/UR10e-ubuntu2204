@@ -28,6 +28,31 @@ class BridgeOperatorStartupPolicyTest(unittest.TestCase):
         self.assertIn('WAIT_FOR_PLAY_S="${WAIT_FOR_PLAY_S:-10}"', script)
         self.assertIn('AUTOWATCH_WAIT_FOR_PLAY_S="${AUTOWATCH_WAIT_FOR_PLAY_S:-10}"', script)
         self.assertIn('READBACK_GATE="${ROOT}/tools/verify_current_stage_readback.py"', script)
+        self.assertIn("current_step5d_version()", script)
+
+    def test_fast_bridge_uses_two_hour_fingerprint_cache_and_rtde_probe(self) -> None:
+        script = read_script("bridge-line-operator.sh")
+
+        self.assertIn('LONG_CHECK_TTL_S="${LONG_CHECK_TTL_S:-7200}"', script)
+        self.assertIn('"fingerprint": current_fingerprint(gate)', script)
+        self.assertIn('payload.get("fingerprint") == current_fingerprint(gate)', script)
+        self.assertIn("require_rtde_quick_probe", script)
+        self.assertIn("(host, 30004)", script)
+
+    def test_step5d_workflow_separates_dev_promote_and_live(self) -> None:
+        script = read_script("step5d-workflow.sh")
+
+        self.assertIn("dev-loop)", script)
+        self.assertIn("--local-only --output-dir", script)
+        self.assertIn("--dry-run", script)
+        self.assertIn("not delivered; current_stage unchanged", script)
+        self.assertIn("promote-package)", script)
+        self.assertIn("--allow-local-candidate-promote", script)
+        self.assertIn("contact-bridge)", script)
+        self.assertIn('"${OPERATOR}" contact-bridge', script)
+        contact_section = script.split("contact-bridge)", 1)[1]
+        self.assertNotIn("build_step5d_liveprep.py", contact_section)
+        self.assertNotIn("upload_ur_tp_package.py", contact_section)
 
     def test_fast_bridge_requires_fresh_cache_even_when_skip_env_is_set(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

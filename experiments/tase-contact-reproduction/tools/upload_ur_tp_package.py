@@ -31,6 +31,7 @@ DEFAULT_HELPER = Path(
     "/home/andy/codex-private-skills-shared-main/skills/ur10e-controller-access/scripts/ur10e_controller_ssh.py"
 )
 EXTENSIONS = (".script", ".txt", ".urp")
+LOCAL_CANDIDATE_MARKER = ".local_tp_candidate.json"
 
 
 def die(message: str) -> None:
@@ -70,6 +71,41 @@ def triplet(local_dir: Path, program: str) -> dict[str, Path]:
     if missing:
         die(f"missing local package file(s): {missing}")
     return files
+
+
+def load_local_candidate_marker(local_dir: Path) -> dict | None:
+    marker_path = local_dir / LOCAL_CANDIDATE_MARKER
+    if not marker_path.is_file():
+        return None
+    try:
+        marker = json.loads(marker_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        die(f"invalid local candidate marker {marker_path}: {exc}")
+    if marker.get("local_only") is not True:
+        die(f"local candidate marker does not declare local_only=true: {marker_path}")
+    return marker
+
+
+def validate_local_candidate_marker(
+    marker: dict,
+    *,
+    files: dict[str, Path],
+    program: str,
+    target_dir: str,
+    local_sha: dict[str, str],
+) -> None:
+    if marker.get("program") != program:
+        die(f"local candidate marker program is {marker.get('program')}, expected {program}")
+    if marker.get("target_dir") != target_dir:
+        die(f"local candidate marker target_dir is {marker.get('target_dir')}, expected {target_dir}")
+    marker_sha = marker.get("sha256", {})
+    missing = [ext for ext in EXTENSIONS if marker_sha.get(ext) != local_sha[ext]]
+    if missing:
+        die(f"local candidate marker sha256 does not match current files for: {missing}")
+    for ext in EXTENSIONS:
+        expected_name = f"{program}{ext}"
+        if files[ext].name != expected_name:
+            die(f"local candidate file name mismatch for {ext}: {files[ext].name}")
 
 
 def read_text(path: Path) -> str:
@@ -1077,6 +1113,7 @@ def write_manifest(
     reused_from_manifest: Path | None = None,
     fresh_controller_sha_verified: bool | None = None,
     readback_source: str | None = None,
+    local_candidate_marker: dict | None = None,
 ) -> None:
     manifest = {
         "status": "dry-run" if dry_run else "controller read-back verified",
@@ -1104,6 +1141,12 @@ def write_manifest(
         manifest["fresh_controller_checked_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
     if readback_source is not None:
         manifest["readback_source"] = readback_source
+    if local_candidate_marker is not None:
+        manifest["promoted_from_local_candidate"] = {
+            "marker_schema": local_candidate_marker.get("schema"),
+            "semantic_fingerprint": local_candidate_marker.get("semantic_fingerprint"),
+            "stamp": local_candidate_marker.get("stamp"),
+        }
     if not dry_run:
         (readback_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(manifest, indent=2))
@@ -1132,13 +1175,32 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="disable SHA-matched read-back reuse and force put/get verification",
     )
+    parser.add_argument(
+        "--allow-local-candidate-promote",
+        action="store_true",
+        help="explicitly promote a directory marked local_only=true; ignored for --dry-run",
+    )
     args = parser.parse_args(argv)
 
     program = normalize_program(args.program)
     target_dir = normalize_target_dir(args.target_dir)
     files = triplet(args.local_dir, program)
-    local_validation = validate_package(files, program, target_dir, require_exact_cached_script=True)
     local_sha = package_sha(files)
+    local_candidate_marker = load_local_candidate_marker(args.local_dir)
+    if local_candidate_marker is not None:
+        validate_local_candidate_marker(
+            local_candidate_marker,
+            files=files,
+            program=program,
+            target_dir=target_dir,
+            local_sha=local_sha,
+        )
+        if not args.dry_run and not args.allow_local_candidate_promote:
+            die(
+                "refusing to upload local-only TP candidate without "
+                "--allow-local-candidate-promote; run a local dev-loop dry-run or promote explicitly"
+            )
+    local_validation = validate_package(files, program, target_dir, require_exact_cached_script=True)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     readback_dir = args.readback_root / f"controller_readback_{program}_{stamp}"
 
@@ -1192,6 +1254,7 @@ def main(argv: list[str] | None = None) -> int:
             delivery_mode="dry-run",
             fresh_controller_sha_verified=None,
             readback_source=None,
+            local_candidate_marker=local_candidate_marker,
         )
         return 0
 
@@ -1214,6 +1277,7 @@ def main(argv: list[str] | None = None) -> int:
         reused_from_manifest=reused_from_manifest,
         fresh_controller_sha_verified=reused_from_manifest is not None,
         readback_source=readback_source,
+        local_candidate_marker=local_candidate_marker,
     )
     if reused_from_manifest is None:
         print(f"controller read-back verified: {readback_dir}")

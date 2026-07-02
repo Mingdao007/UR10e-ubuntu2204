@@ -11,9 +11,26 @@ DASHBOARD_PORT="${DASHBOARD_PORT:-29999}"
 WAIT_FOR_PLAY_S="${WAIT_FOR_PLAY_S:-45}"
 AUTOWATCH_WAIT_FOR_PLAY_S="${AUTOWATCH_WAIT_FOR_PLAY_S:-30}"
 BENCH_GATE="/home/andy/codex-private-skills/skills/ur10e-realsetup/scripts/check_ubuntu_network.py"
-LONG_CHECK_TTL_S="${LONG_CHECK_TTL_S:-1800}"
+LONG_CHECK_TTL_S="${LONG_CHECK_TTL_S:-7200}"
 LONG_CHECK_CACHE="${LONG_CHECK_CACHE:-${RUN_ROOT}/.bridge_long_checks_cache.json}"
 BRIDGE_PROFILE="${BRIDGE_PROFILE:-${STEP4E_VERSION:-v31}}"
+
+current_step5d_profile() {
+  python3 - "${ROOT}/config/current_stage.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+try:
+    current = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+except Exception:
+    raise SystemExit(0)
+program = current.get("program") or current.get("current_stage_id") or ""
+if program.startswith("step5d_strict_rnn_liveprep_"):
+    print(program)
+PY
+}
+
 case "${BRIDGE_PROFILE}" in
   4f|f|cycloid|step4f)
     BRIDGE_PROFILE="step4f_v1"
@@ -25,7 +42,8 @@ case "${BRIDGE_PROFILE}" in
     BRIDGE_PROFILE="step5b_v1"
     ;;
   5d|step5d|step5d-liveprep|step5d_liveprep)
-    BRIDGE_PROFILE="step5d_strict_rnn_liveprep_v20"
+    BRIDGE_PROFILE="$(current_step5d_profile)"
+    BRIDGE_PROFILE="${BRIDGE_PROFILE:-step5d_strict_rnn_liveprep_v20}"
     ;;
   5c-dry|5c-dryrun|step5c-dryrun|step5c_speedj_dryrun_v1|speedj-dryrun|speedj_dryrun)
     echo "refusing Step5c dry-run alias: DLS/Jacobian mapping is quarantined after wrong XY/Z live motion"
@@ -456,9 +474,41 @@ run_bench_gate() {
 long_gate_cache_valid() {
   python3 - "${LONG_CHECK_CACHE}" "${LONG_CHECK_TTL_S}" "${ROBOT_HOST}" <<'PY'
 import json
+import subprocess
 import sys
 import time
 from pathlib import Path
+
+def run_json(args):
+    completed = subprocess.run(args, text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False)
+    if completed.returncode != 0 or not completed.stdout.strip():
+        return []
+    try:
+        return json.loads(completed.stdout)
+    except Exception:
+        return []
+
+def route_get(host):
+    completed = subprocess.run(["ip", "route", "get", host], text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False)
+    return completed.stdout.strip() if completed.returncode == 0 else ""
+
+def boot_id():
+    try:
+        return Path("/proc/sys/kernel/random/boot_id").read_text(encoding="utf-8").strip()
+    except Exception:
+        return ""
+
+def current_fingerprint(gate):
+    device = gate.get("device", "enp3s0")
+    kunwei = gate.get("kunwei") or {}
+    kunwei_host = kunwei.get("sensor_host", "")
+    return {
+        "boot_id": boot_id(),
+        "device": device,
+        "ipv4_addresses": run_json(["ip", "-j", "-4", "addr", "show", "dev", device]),
+        "default_routes": run_json(["ip", "-j", "route", "show", "default"]),
+        "kunwei_route_get": route_get(kunwei_host) if kunwei_host else "",
+    }
 
 cache = Path(sys.argv[1])
 ttl_s = float(sys.argv[2])
@@ -472,6 +522,7 @@ except Exception:
 age_s = time.time() - float(payload.get("checked_at_epoch", 0.0))
 gate = payload.get("gate", {})
 kunwei = gate.get("kunwei", {})
+fingerprint_ok = payload.get("fingerprint") == current_fingerprint(gate)
 cache_ok = (
     payload.get("ok") is True
     and payload.get("robot_host") == host
@@ -481,6 +532,7 @@ cache_ok = (
     and gate.get("device") == "enp3s0"
     and kunwei.get("route_ok") is True
     and kunwei.get("tcp_connect", {}).get("ok") is True
+    and fingerprint_ok
     and 0.0 <= age_s <= ttl_s
 )
 if cache_ok:
@@ -497,9 +549,41 @@ refresh_bench_gate_cache() {
   if run_bench_gate | tee "${tmp}"; then
     python3 - "${tmp}" "${LONG_CHECK_CACHE}" "${ROBOT_HOST}" <<'PY'
 import json
+import subprocess
 import sys
 import time
 from pathlib import Path
+
+def run_json(args):
+    completed = subprocess.run(args, text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False)
+    if completed.returncode != 0 or not completed.stdout.strip():
+        return []
+    try:
+        return json.loads(completed.stdout)
+    except Exception:
+        return []
+
+def route_get(host):
+    completed = subprocess.run(["ip", "route", "get", host], text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False)
+    return completed.stdout.strip() if completed.returncode == 0 else ""
+
+def boot_id():
+    try:
+        return Path("/proc/sys/kernel/random/boot_id").read_text(encoding="utf-8").strip()
+    except Exception:
+        return ""
+
+def current_fingerprint(gate):
+    device = gate.get("device", "enp3s0")
+    kunwei = gate.get("kunwei") or {}
+    kunwei_host = kunwei.get("sensor_host", "")
+    return {
+        "boot_id": boot_id(),
+        "device": device,
+        "ipv4_addresses": run_json(["ip", "-j", "-4", "addr", "show", "dev", device]),
+        "default_routes": run_json(["ip", "-j", "route", "show", "default"]),
+        "kunwei_route_get": route_get(kunwei_host) if kunwei_host else "",
+    }
 
 source = Path(sys.argv[1])
 cache = Path(sys.argv[2])
@@ -513,6 +597,7 @@ payload = {
     "checked_at_epoch": time.time(),
     "robot_host": host,
     "gate": gate,
+    "fingerprint": current_fingerprint(gate),
 }
 tmp = cache.with_suffix(cache.suffix + ".tmp")
 tmp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -596,6 +681,22 @@ raise SystemExit(12)
 
 dashboard_snapshot() {
   python3 -c "${dashboard_snapshot_py}" "${EXPECTED_PROGRAM}" "${EXPECTED_BASENAME}" "${ROBOT_HOST}" "${DASHBOARD_PORT}"
+}
+
+require_rtde_quick_probe() {
+  python3 - "${ROBOT_HOST}" <<'PY'
+import socket
+import sys
+
+host = sys.argv[1]
+try:
+    with socket.create_connection((host, 30004), timeout=1.0):
+        pass
+except OSError as exc:
+    print(f"refusing fast bridge: RTDE 30004 is not reachable on {host}: {type(exc).__name__}: {exc}")
+    raise SystemExit(25)
+print(f"[operator] RTDE quick probe passed: {host}:30004")
+PY
 }
 
 trigger_dashboard_check() {
@@ -913,6 +1014,7 @@ WARNING
       exit 2
     fi
     require_bench_gate_cache
+    require_rtde_quick_probe
     ensure_no_existing_bridge
     trigger_rc=0
     set +e

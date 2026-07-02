@@ -6,6 +6,7 @@ from __future__ import annotations
 import inspect
 import gzip
 import csv
+import json
 import sys
 import tempfile
 import unittest
@@ -175,6 +176,28 @@ class Step5dFullChainSanityTest(unittest.TestCase):
                 self.assertEqual(second["generated_at"], first["generated_at"])
             finally:
                 liveprep.LOCAL_PROGRAM_DIR = original_dir
+
+    def test_step5d_write_outputs_can_make_local_only_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_dir = Path(tmpdir) / "candidate"
+            result = liveprep.write_outputs(
+                "2026-07-02T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V20",
+                "2026-07-02T12:00:00+08:00",
+                output_dir=out_dir,
+                local_only=True,
+            )
+
+            marker_path = Path(result["local_candidate_marker"])
+            self.assertTrue(marker_path.is_file())
+            marker = json.loads(marker_path.read_text(encoding="utf-8"))
+            self.assertTrue(marker["local_only"])
+            self.assertTrue(marker["not_delivered"])
+            self.assertEqual(marker["status"], "local package verified")
+            self.assertEqual(marker["program"], liveprep.PROGRAM_NAME)
+            self.assertEqual(marker["target_dir"], liveprep.CONTROLLER_DIR)
+            self.assertEqual(marker["semantic_fingerprint"], result["semantic_fingerprint"])
+            self.assertIn("do not open on Teach Pendant", marker["safety_boundary"])
+            self.assertTrue((out_dir / f"{liveprep.PROGRAM_NAME}.urp").is_file())
 
     def test_bridge_allows_liveprep_profile_but_keeps_full_reproduction_blocked(self) -> None:
         args = bridge.parse_args(
@@ -353,7 +376,8 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         operator = (ROOT / "scripts" / "step5d-liveprep-operator.sh").read_text(encoding="utf-8")
         base = (ROOT / "scripts" / "step4e-line-v1-operator.sh").read_text(encoding="utf-8")
         bridge_operator = (ROOT / "scripts" / "bridge-line-operator.sh").read_text(encoding="utf-8")
-        self.assertIn('STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v20}"', operator)
+        self.assertIn("current_step5d_version()", operator)
+        self.assertIn('STEP5D_VERSION="${STEP5D_VERSION:-$(current_step5d_version)}"', operator)
         self.assertIn('BRIDGE_OPERATOR="${SCRIPT_DIR}/bridge-line-operator.sh"', operator)
         self.assertIn('READBACK_GATE="${ROOT}/tools/verify_current_stage_readback.py"', operator)
         self.assertIn('Bridge profile: ${STEP5D_VERSION}', operator)
@@ -377,7 +401,8 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/step5d/${STEP4E_VERSION}.urp"', base)
         self.assertIn('"step5d_strict_rnn_liveprep_v10" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v11"', base)
         self.assertIn('"step5d_strict_rnn_liveprep_v12" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v13" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v14" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v15" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v15a" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v16" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v17" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v18" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v19" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v20"', base)
-        self.assertIn('BRIDGE_PROFILE="step5d_strict_rnn_liveprep_v20"', bridge_operator)
+        self.assertIn("current_step5d_profile()", bridge_operator)
+        self.assertIn('BRIDGE_PROFILE="${BRIDGE_PROFILE:-step5d_strict_rnn_liveprep_v20}"', bridge_operator)
         bridge_source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(encoding="utf-8")
         self.assertIn('v18_v20_locked_normal_settle', bridge_source)
         self.assertIn('v20_low_load_active_reacquire', bridge_source)

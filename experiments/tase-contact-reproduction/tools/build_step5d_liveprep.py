@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import gzip
+import hashlib
 import json
 import re
 from datetime import datetime, timedelta, timezone
@@ -21,6 +22,8 @@ PROGRAM_NAME = "step5d_strict_rnn_liveprep_v20"
 STEP5_STAGE_ID = "step5d_strict_rnn_liveprep_v20"
 BRIDGE_VERSION = STEP5_STAGE_ID
 LOCAL_PROGRAM_DIR = PROGRAM_DIR / "step5"
+LOCAL_CANDIDATE_ROOT = PROGRAM_DIR.parent / "runs" / "local_tp_packages"
+LOCAL_CANDIDATE_MARKER = ".local_tp_candidate.json"
 CONTROLLER_DIR = "/programs/andyl/kunwei/step5"
 POSE_CONTRACT_ID = PRE_CONTACT_GRAVITY_DOWN_CONTRACT_ID
 SEARCH_GRAVITY_DOWN_ROTVEC = contract_target_rotvec_rad(POSE_CONTRACT_ID)
@@ -58,8 +61,8 @@ def source_stamp(now: datetime) -> str:
     return now.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_LIVEPREP_V20")
 
 
-def existing_metadata() -> tuple[str, str] | None:
-    script_path = LOCAL_PROGRAM_DIR / f"{PROGRAM_NAME}.script"
+def existing_metadata(program_dir: Path = LOCAL_PROGRAM_DIR) -> tuple[str, str] | None:
+    script_path = program_dir / f"{PROGRAM_NAME}.script"
     if not script_path.is_file():
         return None
     text = script_path.read_text(encoding="utf-8")
@@ -635,14 +638,100 @@ def write_bytes_if_changed(path: Path, data: bytes) -> bool:
     return True
 
 
+def normalize_package_text(text: str) -> str:
+    text = re.sub(r"^# VERSION:\s*\S+\s*$", "# VERSION: <normalized>", text, flags=re.M)
+    text = re.sub(r"^# GENERATED_AT_LOCAL:\s*\S+\s*$", "# GENERATED_AT_LOCAL: <normalized>", text, flags=re.M)
+    return text
+
+
+def semantic_fingerprint(script: str, txt: str, urp: bytes) -> str:
+    xml = gzip.decompress(urp).decode("utf-8")
+    payload = {
+        "schema": "step5d_liveprep_semantic_fingerprint_v1",
+        "program": PROGRAM_NAME,
+        "controller_dir": CONTROLLER_DIR,
+        "pose_contract_id": POSE_CONTRACT_ID,
+        "target_force_n": TARGET_FORCE_N,
+        "qdot_cap_rad_s": QDOT_CAP_RAD_S,
+        "raw_normal_guard_n": RAW_NORMAL_GUARD_N,
+        "force_norm_guard_n": FORCE_NORM_GUARD_N,
+        "torque_norm_guard_nm": TORQUE_NORM_GUARD_NM,
+        "script": normalize_package_text(script),
+        "txt": normalize_package_text(txt),
+        "urp_xml": normalize_package_text(xml),
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def file_sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def default_local_candidate_dir(now: datetime) -> Path:
+    stamp = now.strftime("%Y%m%d_%H%M%S")
+    return LOCAL_CANDIDATE_ROOT / f"{PROGRAM_NAME}_{stamp}"
+
+
+def write_local_candidate_marker(
+    output_dir: Path,
+    *,
+    script_path: Path,
+    txt_path: Path,
+    urp_path: Path,
+    stamp: str,
+    gen_at: str,
+    fingerprint: str,
+) -> Path:
+    marker = {
+        "schema": "ur_tp_local_candidate_v1",
+        "status": "local package verified",
+        "local_only": True,
+        "not_delivered": True,
+        "program": PROGRAM_NAME,
+        "target_dir": CONTROLLER_DIR,
+        "controller_urp": f"{CONTROLLER_DIR}/{PROGRAM_NAME}.urp",
+        "stamp": stamp,
+        "generated_at": gen_at,
+        "semantic_fingerprint": fingerprint,
+        "sha256": {
+            ".script": file_sha256(script_path),
+            ".txt": file_sha256(txt_path),
+            ".urp": file_sha256(urp_path),
+        },
+        "safety_boundary": [
+            "local candidate only",
+            "no controller upload",
+            "no controller read-back",
+            "not current_stage",
+            "do not open on Teach Pendant",
+            "no live bridge",
+        ],
+    }
+    marker_path = output_dir / LOCAL_CANDIDATE_MARKER
+    marker_path.write_text(json.dumps(marker, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return marker_path
+
+
 def write_outputs(
     stamp_prefix: str | None = None,
     generated_at_override: str | None = None,
     *,
     reuse_existing_metadata: bool = False,
+    output_dir: Path | None = None,
+    local_only: bool = False,
 ) -> dict[str, object]:
     now = datetime.now(timezone(timedelta(hours=8)))
-    reused = existing_metadata() if reuse_existing_metadata and stamp_prefix is None and generated_at_override is None else None
+    target_dir = output_dir or (default_local_candidate_dir(now) if local_only else LOCAL_PROGRAM_DIR)
+    reused = (
+        existing_metadata(target_dir)
+        if reuse_existing_metadata and stamp_prefix is None and generated_at_override is None
+        else None
+    )
     if reused is not None:
         stamp, gen_at = reused
     else:
@@ -654,16 +743,28 @@ def write_outputs(
     txt = build_txt(stamp)
     urp = build_urp(script, PROGRAM_NAME, CONTROLLER_DIR)
     validate_package(script, txt, urp, stamp)
+    fingerprint = semantic_fingerprint(script, txt, urp)
 
-    LOCAL_PROGRAM_DIR.mkdir(parents=True, exist_ok=True)
-    script_path = LOCAL_PROGRAM_DIR / f"{PROGRAM_NAME}.script"
-    txt_path = LOCAL_PROGRAM_DIR / f"{PROGRAM_NAME}.txt"
-    urp_path = LOCAL_PROGRAM_DIR / f"{PROGRAM_NAME}.urp"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    script_path = target_dir / f"{PROGRAM_NAME}.script"
+    txt_path = target_dir / f"{PROGRAM_NAME}.txt"
+    urp_path = target_dir / f"{PROGRAM_NAME}.urp"
     changed = {
         "script": write_text_if_changed(script_path, script),
         "txt": write_text_if_changed(txt_path, txt),
         "urp": write_bytes_if_changed(urp_path, urp),
     }
+    marker_path = None
+    if local_only:
+        marker_path = write_local_candidate_marker(
+            target_dir,
+            script_path=script_path,
+            txt_path=txt_path,
+            urp_path=urp_path,
+            stamp=stamp,
+            gen_at=gen_at,
+            fingerprint=fingerprint,
+        )
     return {
         "script": str(script_path),
         "txt": str(txt_path),
@@ -671,6 +772,9 @@ def write_outputs(
         "controller_urp": f"{CONTROLLER_DIR}/{PROGRAM_NAME}.urp",
         "stamp": stamp,
         "generated_at": gen_at,
+        "semantic_fingerprint": fingerprint,
+        "local_only": local_only,
+        "local_candidate_marker": str(marker_path) if marker_path is not None else None,
         "reused_existing_metadata": reused is not None,
         "changed": changed,
     }
@@ -681,11 +785,20 @@ def main() -> int:
     parser.add_argument("--stamp-prefix", default=None)
     parser.add_argument("--generated-at", default=None)
     parser.add_argument("--reuse-existing-metadata", action="store_true")
+    parser.add_argument("--output-dir", type=Path, default=None)
+    parser.add_argument(
+        "--local-only",
+        action="store_true",
+        help="write a local-only candidate marker; no controller delivery is implied",
+    )
     args = parser.parse_args()
+    local_only = args.local_only or args.output_dir is not None
     result = write_outputs(
         args.stamp_prefix,
         args.generated_at,
         reuse_existing_metadata=args.reuse_existing_metadata,
+        output_dir=args.output_dir,
+        local_only=local_only,
     )
     print(json.dumps({"generated": {PROGRAM_NAME: result}}, indent=2, sort_keys=True))
     return 0
