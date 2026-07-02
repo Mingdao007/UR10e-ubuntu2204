@@ -22,13 +22,15 @@ DEFAULT_ROBOT_HOST = "192.168.1.18"
 DEFAULT_LONG_CHECK_CACHE = RUN_ROOT / ".bridge_long_checks_cache.json"
 
 STEP5D_INTERFACE_CLASS = "tp_speedj_strict_rnn_liveprep_v1"
-STEP5D_TUNING_BUNDLE = "cage_primary_v22"
+STEP5D_TUNING_BUNDLE = "cage_primary_v23_rnn_normal_guard"
 STEP5D_LIVEPREP_V20_STAGE_ID = "step5d_strict_rnn_liveprep_v20"
 STEP5D_LIVEPREP_V21_STAGE_ID = "step5d_strict_rnn_liveprep_v21"
 STEP5D_LIVEPREP_V22_STAGE_ID = "step5d_strict_rnn_liveprep_v22"
+STEP5D_LIVEPREP_V23_STAGE_ID = "step5d_strict_rnn_liveprep_v23"
 STEP5D_LINE_ENTRY_PARAM_VALID_CODE = 521.0
 STEP5D_QDOT_CLEAR_STAGE = 25.95
 STEP5D_QDOT_CLEAR_ACK_CYCLES = 3
+STEP5D_QDOT_CLEAR_ZERO_TOL_RAD_S = 0.0005
 
 
 @dataclass(frozen=True)
@@ -128,7 +130,7 @@ def controller_target_for(program: str, current: dict[str, Any] | None = None) -
 
 
 def default_preload_gate(program: str) -> Step5dPreloadGate:
-    if program in {STEP5D_LIVEPREP_V21_STAGE_ID, STEP5D_LIVEPREP_V22_STAGE_ID}:
+    if program in {STEP5D_LIVEPREP_V21_STAGE_ID, STEP5D_LIVEPREP_V22_STAGE_ID, STEP5D_LIVEPREP_V23_STAGE_ID}:
         return Step5dPreloadGate(
             filtered_min_n=7.5,
             filtered_max_n=14.0,
@@ -237,11 +239,12 @@ def resolve_runtime_interface(
         bridge_defaults=bridge_defaults,
         line_entry_param_valid_code=STEP5D_LINE_ENTRY_PARAM_VALID_CODE,
         register_contract={
-            "stage25_3": "37..39 Cartesian vx/vy/vz; v22 40..42/44/46/47 preload param channel",
+            "stage25_3": "37..39 Cartesian vx/vy/vz; v21+ 40..42/44/46/47 preload param channel",
             "stage25_95": (
-                "37..47 bridge-cleared qdot barrier; 43 cmd_valid=0; "
+                "37..47 bridge-cleared qdot barrier; 37..42 qdot near-zero; 43 cmd_valid=0; "
                 f"47 must not equal preload param code {STEP5D_LINE_ENTRY_PARAM_VALID_CODE:g}; "
-                f"ack cycles={STEP5D_QDOT_CLEAR_ACK_CYCLES}"
+                f"ack cycles={STEP5D_QDOT_CLEAR_ACK_CYCLES}; "
+                f"zero tol={STEP5D_QDOT_CLEAR_ZERO_TOL_RAD_S:g} rad/s"
             ),
             "stage25_0": "37..42 qd0..qd5 rad/s; 43 cmd_valid; 44 path_time; 45 force_error; 46 pose/orientation_error; 47 solver_status",
         },

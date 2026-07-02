@@ -1,26 +1,28 @@
 # Step5 Flow
 
-`config/current_stage.json` currently selects no runnable Step5c joint-space
-route. The diagnostic DLS dry-run is quarantined after the 2026-06-13 live run
-showed wrong XY/Z motion. Step5d is the named completion target for the
-complete strict TASE RNN reproduction. `step5d_strict_rnn_liveprep_v17` and
-`step5d_strict_rnn_liveprep_v18` are retained live-run evidence packages after
-their 2026-07-02 stops. `step5d_strict_rnn_liveprep_v19` is the current
-TP/script cage-primary diagnostic package after controller upload and
-read-back verification on 2026-07-02. It keeps the 12 N
-no-lift/no-25.2/no-second-search scaffold, speeds Stage22 entry movel by 1.5x,
-speeds Stage24 far search by 1.5x, and changes Stage25.3 release to filtered
-`8-13 N`, raw sanity `7.5-14 N`, force_norm `<=25 N`, and `0.100 s` dwell.
-Stage25.0 is a 10 s diagnostic with 100 N/100 N/4.0 Nm sensor hard guards,
-low-load/no-contact active reacquire diagnostics, v19 bridge-side initial
-locked-normal settle before filtered-live normal follow, and a 0.035 m/s
-active-reacquire predicted TCP speed cap before the existing 0.050 m/s hard
-stop. The dominant projector bug was fixed in bridge-side Python
-(`Phi = R_d @ Phi_E @ R_d.T`), so this TP package inherits that fix but does
-not encode it. Bridge start, TP program load/Play, robot motion, payload/TCP
-writes, and `zero_ftsensor()` remain separate explicit live gates.
+`config/current_stage.json` currently selects
+`step5d_strict_rnn_liveprep_v23` as the Step5d Local TP/script cage-primary
+diagnostic package after controller upload and read-back verification on
+2026-07-03. Step5d is the named completion target for the complete strict TASE
+RNN reproduction; this package is still a diagnostic/live-prep package, not a
+completed reproduction claim. v23 keeps the 12 N no-lift/no-25.2/no-second-
+search scaffold, Stage22/24 gravity-down pre-contact posture, 1.5x Stage22
+entry movel and Stage24 far search, and Stage25.3 release at filtered
+`7.5-14 N`, raw sanity `7-15 N`, force_norm `<=25 N`, and `0.100 s` dwell.
+Stage25.95 now requires near-zero qdot registers before Stage25.0 can consume
+37..42 as speedj qdot. Stage25.0 is a 10 s diagnostic with 100 N/100 N/4.0 Nm
+sensor hard guards, low-load/no-contact active reacquire diagnostics, a
+0.035 m/s active-reacquire predicted TCP speed cap before the existing
+0.050 m/s hard stop, raw/post-slew/final RNN qdot diagnostics, and a post-RNN
+normal-direction guard that holds/stops over-target pressing commands before
+the 100 N sensor hard guard. v22 is retained failure evidence after
+normal_force_guard live attempts. The dominant projector bug was fixed in
+bridge-side Python (`Phi = R_d @ Phi_E @ R_d.T`), so this TP package inherits
+that fix but does not encode it. Bridge start, TP program load/Play, robot
+motion, payload/TCP writes, and `zero_ftsensor()` remain separate explicit live
+gates.
 The full reproduction target remains separate and not complete.
-Step4f, Step4g, Step5b, and Step5d v1-v17 remain retained evidence packages
+Step4f, Step4g, Step5b, and Step5d v1-v22 remain retained evidence packages
 only. The ROS2 source package for the current route is now
 `src/ur10e_example_controllers`; stage ids such as
 `step5a_ros2_remote_no_contact_v1` remain historical/experimental mapping

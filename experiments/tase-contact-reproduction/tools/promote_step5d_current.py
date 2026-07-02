@@ -187,6 +187,12 @@ def live_attempt_evidence(root: Path, program: str) -> dict[str, Any]:
             "The v20 TP package was controller read-back verified, but live attempts did not "
             "complete successfully before it was superseded."
         )
+    elif label == "v22":
+        root_cause = (
+            "The v22 TP package was controller read-back verified and added Stage25.95, "
+            "but live attempts still hit normal_force_guard during strict RNN Stage25. "
+            "It is superseded by v23's near-zero qdot-clear check and post-RNN normal-direction guard."
+        )
     else:
         root_cause = (
             f"The {label} TP package was controller read-back verified, but no successful "
@@ -249,7 +255,7 @@ def update_previous_stage(
 
 def preload_gate(program: str) -> dict[str, float]:
     label = version_label(program)
-    if label not in {"v21", "v22"}:
+    if label not in {"v21", "v22", "v23"}:
         fail(f"preload gate defaults are not defined for {program}")
     return {
         "filtered_normal_load_min_n": 7.5,
@@ -311,8 +317,13 @@ def build_current_stage_row(
             "line_entry_force_norm_max_n": 25.0,
             "line_entry_required_s": 0.1,
             "line_entry_param_valid_code": 521.0,
-            "stage25_95_qdot_clear_required_s": 0.006 if label == "v22" else None,
-            "stage25_95_qdot_clear_timeout_s": 1.0 if label == "v22" else None,
+            "stage25_95_qdot_clear_required_s": 0.006 if label in {"v22", "v23"} else None,
+            "stage25_95_qdot_clear_timeout_s": 1.0 if label in {"v22", "v23"} else None,
+            "stage25_95_qdot_clear_zero_tol_rad_s": 0.0005 if label == "v23" else None,
+            "stage25_post_rnn_normal_guard_hold_load_n": 14.0 if label == "v23" else None,
+            "stage25_post_rnn_normal_guard_directional_stop_load_n": 18.0 if label == "v23" else None,
+            "stage25_post_rnn_normal_guard_hard_stop_load_n": 25.0 if label == "v23" else None,
+            "stage25_post_rnn_normal_guard_hard_stop_force_norm_n": 25.0 if label == "v23" else None,
             "raw_normal_guard_n": 100.0,
             "force_norm_guard_n": 100.0,
             "torque_norm_guard_nm": 4.0,
@@ -323,6 +334,11 @@ def build_current_stage_row(
     for key in (
         "stage25_95_qdot_clear_required_s",
         "stage25_95_qdot_clear_timeout_s",
+        "stage25_95_qdot_clear_zero_tol_rad_s",
+        "stage25_post_rnn_normal_guard_hold_load_n",
+        "stage25_post_rnn_normal_guard_directional_stop_load_n",
+        "stage25_post_rnn_normal_guard_hard_stop_load_n",
+        "stage25_post_rnn_normal_guard_hard_stop_force_norm_n",
     ):
         if guard.get(key) is None:
             guard.pop(key, None)
@@ -346,6 +362,16 @@ def build_current_stage_row(
             "based on action/load semantics, scales qdot to <=0.035 m/s predicted TCP speed, "
             "and preserves semantic/cage/sensor/heartbeat/Dashboard hard stops."
         )
+    if label == "v23":
+        stage25_policy = (
+            "Online broad AABB TCP cage is primary diagnostic boundary; Stage25.3 "
+            "uses bridge-time preload parameters, Stage25.95 waits for bridge-cleared "
+            "near-zero qdot registers before Stage25.0 consumes qdot, low-load/no-contact "
+            "freezes path time, resets outer-loop state during active_reacquire_solver based "
+            "on action/load semantics, scales qdot to <=0.035 m/s predicted TCP speed, "
+            "and applies a post-RNN normal-direction guard that holds/stops over-target "
+            "pressing commands before the 100N sensor hard guard."
+        )
     contact_policy["stage25_contact_policy"] = stage25_policy
     row["liveprep_gates"] = [
         "Stage 22 and Stage 24 pre-contact search posture uses gravity-down [pi,0,0], TCP +Z targeting base -Z",
@@ -359,12 +385,15 @@ def build_current_stage_row(
         "and awaits explicit live bridge run evidence before any reproduction claim."
     )
     analysis = row.setdefault("local_analysis_evidence", {})
-    analysis["source"] = "2026-07-02 v21 live-run register-layout root cause plus v22 qdot-clear implementation"
+    analysis["source"] = (
+        "2026-07-02 v21 live-run register-layout root cause plus v22 qdot-clear implementation; "
+        "2026-07-03 v22 normal_force_guard live attempts plus v23 post-RNN normal guard"
+    )
     analysis["v21_register_layout_root_cause"] = (
         "Stage25.3 preload values in 40/41/42/44/46/47 with tag 521 were echoed into "
         "Stage25.0 qdot consumption; v22 adds Stage25.95 to require bridge-cleared 37..47."
     )
-    analysis["v22_controller_readback_manifest"] = manifest["manifest_path"]
+    analysis[f"{label}_controller_readback_manifest"] = manifest["manifest_path"]
     cadence = row.setdefault("cadence", {})
     cadence["motion"] = "pending_live_diagnostic"
     return row
@@ -427,8 +456,18 @@ def update_current_stage(
             "TP writes stage 25.95 after preload; bridge writes zero qdot/cmd_valid=0 and a non-521 "
             "layout tag until TP observes 37..47 clear before Stage25.0 speedj consumption"
         )
+    elif label == "v23":
+        bridge["stage25_95_qdot_clear_barrier"] = (
+            "TP writes stage 25.95 after preload; bridge writes zero qdot/cmd_valid=0 and a non-521 "
+            "layout tag until TP observes 37..47 clear and qdot registers 37..42 are near zero before Stage25.0 speedj consumption"
+        )
+        bridge["stage25_post_rnn_normal_guard"] = (
+            "Bridge preserves the RNN as object under test, then holds/stops any over-target post-RNN command "
+            "whose predicted or actual TCP motion presses into the surface."
+        )
     else:
         bridge.pop("stage25_95_qdot_clear_barrier", None)
+        bridge.pop("stage25_post_rnn_normal_guard", None)
     evidence = payload.setdefault("evidence", {})
     evidence.update(
         {
@@ -458,6 +497,28 @@ def update_current_stage(
             "rejects_preload_layout_tag": 521.0,
             "bridge_clear_mode_code": 522.0,
         }
+    if label == "v23":
+        evidence["v22_retained_after_live_failure"] = True
+        evidence["v22_live_attempts"] = live_attempt_evidence(root, "step5d_strict_rnn_liveprep_v22")
+        evidence["v23_qdot_clear_barrier"] = {
+            "stage": 25.95,
+            "required_s": 0.006,
+            "timeout_s": 1.0,
+            "qdot_zero_tol_rad_s": 0.0005,
+            "clears_input_float_registers": "37..47",
+            "rejects_preload_layout_tag": 521.0,
+            "bridge_clear_mode_code": 522.0,
+        }
+        evidence["v23_post_rnn_normal_guard"] = {
+            "hold_load_n": 14.0,
+            "directional_stop_load_n": 18.0,
+            "hard_stop_load_n": 25.0,
+            "hard_stop_force_norm_n": 25.0,
+            "predicted_press_hold_m_s": 0.0005,
+            "actual_press_hold_m_s": 0.0010,
+            "normal_load_rate_hold_n_s": 20.0,
+            "directional_stop_dwell_s": 0.004,
+        }
     strict = payload.setdefault("strict_rnn_status", {})
     strict["reason"] = (
         f"{label} TP/script cage-primary diagnostic package is generated, uploaded, "
@@ -483,7 +544,14 @@ def update_current_stage(
         (
             "v22 adds Stage25.95 qdot-clear barrier so Stage25.0 cannot consume stale Stage25.3 preload registers as qdot."
             if label == "v22"
+            else "v23 keeps Stage25.95 qdot-clear and tightens it to near-zero qdot before Stage25.0 speedj consumption."
+            if label == "v23"
             else "This package has no Stage25.95 qdot-clear barrier."
+        ),
+        (
+            "v23 adds a post-RNN normal-direction guard so over-target commands that press into the surface hold/stop before the 100N sensor hard guard."
+            if label == "v23"
+            else "No v23 post-RNN normal-direction guard is active for this package."
         ),
         "This file is the single current pointer for UR/Kunwei package and bridge handoffs.",
         "TP program load/Play, robot motion, payload/TCP writes, and zero_ftsensor remain explicit live gates.",

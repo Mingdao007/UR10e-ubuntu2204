@@ -23,9 +23,9 @@ from step5d_runtime_interface import (
 )
 
 
-PROGRAM_NAME = "step5d_strict_rnn_liveprep_v22"
-STEP5_STAGE_ID = "step5d_strict_rnn_liveprep_v22"
-SOURCE_STAGE_ID = "step5d_strict_rnn_liveprep_v21"
+PROGRAM_NAME = "step5d_strict_rnn_liveprep_v23"
+STEP5_STAGE_ID = "step5d_strict_rnn_liveprep_v23"
+SOURCE_STAGE_ID = "step5d_strict_rnn_liveprep_v22"
 BRIDGE_VERSION = STEP5_STAGE_ID
 LOCAL_PROGRAM_DIR = PROGRAM_DIR / "step5"
 LOCAL_CANDIDATE_ROOT = PROGRAM_DIR.parent / "runs" / "local_tp_packages"
@@ -36,6 +36,7 @@ SEARCH_GRAVITY_DOWN_ROTVEC = contract_target_rotvec_rad(POSE_CONTRACT_ID)
 TARGET_FORCE_N = 12.0
 BRIDGE_NORMAL_FILTER_ALPHA = 0.55
 QDOT_CAP_RAD_S = 0.050
+QDOT_CLEAR_ZERO_TOL_RAD_S = 0.0005
 JOINT_ACCEL_RAD_S2 = 0.050
 ORIENTATION_SKIP_ERROR_RAD = 0.069813
 RAW_NORMAL_GUARD_N = 100.0
@@ -64,7 +65,7 @@ FIRST_SEARCH_NEAR_SPEED_M_S = -0.0025
 
 
 def source_stamp(now: datetime) -> str:
-    return now.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_LIVEPREP_V22")
+    return now.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_LIVEPREP_V23")
 
 
 def existing_metadata(program_dir: Path = LOCAL_PROGRAM_DIR) -> tuple[str, str] | None:
@@ -357,7 +358,7 @@ def _replace_line_entry_with_force_settle(script: str) -> str:
       local qdot_clear_timeout_s = 1.000
       local qdot_clear_s = 0.0
       local qdot_clear_t = 0.0
-      local qdot_clear_cap_rad_s = {QDOT_CAP_RAD_S:.3f}
+      local qdot_clear_zero_tol_rad_s = {QDOT_CLEAR_ZERO_TOL_RAD_S:.6f}
       local last_heartbeat_clear = read_input_float_register(26)
       local stale_s_clear = 0.0
       while stop_reason == 0.0 and qdot_clear_s < qdot_clear_required_s and qdot_clear_t < qdot_clear_timeout_s:
@@ -385,7 +386,7 @@ def _replace_line_entry_with_force_settle(script: str) -> str:
           stop_reason = codex_step4e_guard_stop_reason()
         end
         if stop_reason == 0.0:
-          if clear_cmd_valid < 0.5 and codex_abs(clear_layout_tag - line_entry_param_valid_code) >= 0.001 and codex_abs(clear_qd0) <= qdot_clear_cap_rad_s and codex_abs(clear_qd1) <= qdot_clear_cap_rad_s and codex_abs(clear_qd2) <= qdot_clear_cap_rad_s and codex_abs(clear_qd3) <= qdot_clear_cap_rad_s and codex_abs(clear_qd4) <= qdot_clear_cap_rad_s and codex_abs(clear_qd5) <= qdot_clear_cap_rad_s:
+          if clear_cmd_valid < 0.5 and codex_abs(clear_layout_tag - line_entry_param_valid_code) >= 0.001 and codex_abs(clear_qd0) <= qdot_clear_zero_tol_rad_s and codex_abs(clear_qd1) <= qdot_clear_zero_tol_rad_s and codex_abs(clear_qd2) <= qdot_clear_zero_tol_rad_s and codex_abs(clear_qd3) <= qdot_clear_zero_tol_rad_s and codex_abs(clear_qd4) <= qdot_clear_zero_tol_rad_s and codex_abs(clear_qd5) <= qdot_clear_zero_tol_rad_s:
             qdot_clear_s = qdot_clear_s + loop_dt
           else:
             qdot_clear_s = 0.0
@@ -477,12 +478,13 @@ def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -
     script = script.replace("step5b_contact_cycloid_baseline_v1", PROGRAM_NAME)
     script = script.replace("step5b_contact_cycloid_baseline_v2", PROGRAM_NAME)
     script = script.replace("step5b_contact_cycloid_baseline_v3", PROGRAM_NAME)
-    script = script.replace("Step5b contact cycloid baseline v1", "Step5d strict RNN liveprep v22")
-    script = script.replace("Step5b contact cycloid baseline v2", "Step5d strict RNN liveprep v22")
-    script = script.replace("Step5b contact cycloid baseline v3", "Step5d strict RNN liveprep v22")
-    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V1", "STEP5D_STRICT_RNN_LIVEPREP_V22")
-    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V2", "STEP5D_STRICT_RNN_LIVEPREP_V22")
-    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V3", "STEP5D_STRICT_RNN_LIVEPREP_V22")
+    script = script.replace("Step5b contact cycloid baseline v1", "Step5d strict RNN liveprep v23")
+    script = script.replace("Step5b contact cycloid baseline v2", "Step5d strict RNN liveprep v23")
+    script = script.replace("Step5b contact cycloid baseline v3", "Step5d strict RNN liveprep v23")
+    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V1", "STEP5D_STRICT_RNN_LIVEPREP_V23")
+    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V2", "STEP5D_STRICT_RNN_LIVEPREP_V23")
+    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V3", "STEP5D_STRICT_RNN_LIVEPREP_V23")
+    script = script.replace("STEP5D_STRICT_RNN_LIVEPREP_V31", "STEP5D_STRICT_RNN_LIVEPREP_V23")
     script = script.replace("codex_step5b_down_search", "codex_step5d_down_search")
     script = script.replace("step4e-version=step5b_v1", f"step4e-version={BRIDGE_VERSION}")
     script = script.replace("step4e-version=step5b_v2", f"step4e-version={BRIDGE_VERSION}")
@@ -504,7 +506,7 @@ def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -
             "PURPOSE: v31 contact search, first-contact normal latch, optional 4deg skip-lift/25.2 gate, otherwise lift and 25.2 attitude correction, 25.3 line-entry gate, then Step5 table-driven contact cycloid reference for 60 s.",
             "PURPOSE: v31 contact search, first-contact normal latch, no lift/25.2 attitude cycle and no second contact search, 25.3 line-entry gate, then Step5 table-driven contact cycloid reference for 60 s.",
         ),
-        "PURPOSE: v31 contact search with Stage22/24 gravity-down pre-contact posture, first-contact normal latch, no lift/25.2 attitude cycle and no second contact search, 25.3 bridge deadband acquire into the 7.5-14N filtered preload window with 7-15N raw sanity and bridge-time preload parameter channel, 25.95 qdot register clear barrier, then v22 cage-primary Step5d strict RNN qdot diagnostic for 10 s.",
+        "PURPOSE: v31 contact search with Stage22/24 gravity-down pre-contact posture, first-contact normal latch, no lift/25.2 attitude cycle and no second contact search, 25.3 bridge deadband acquire into the 7.5-14N filtered preload window with 7-15N raw sanity and bridge-time preload parameter channel, 25.95 near-zero qdot register clear barrier, then v23 cage-primary Step5d strict RNN qdot diagnostic with post-RNN normal guard for 10 s.",
         "purpose",
     )
     script = _force_gravity_down_search_pose(script)
@@ -517,9 +519,9 @@ def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -
         "TP_ROLE: executor_and_guard_only; Step5 trajectory reference is computed by the bridge.",
         (
             "TP_ROLE: joint_executor_and_guard_only; Step5d strict RNN qdot is computed by the bridge.\n"
-            "# REGISTER_CONTRACT: Stage 25.3 consumes 37..39 as Cartesian deadband-acquire vx/vy/vz, plus v22 preload overrides in 40/41/42/44/46/47; Stage 25.95 requires bridge-cleared 37..47 before Stage 25.0 consumes 37..42 as qd0..qd5 rad/s, 43 cmd_valid, 44 path_time_s.\n"
+            "# REGISTER_CONTRACT: Stage 25.3 consumes 37..39 as Cartesian deadband-acquire vx/vy/vz, plus v23 preload overrides in 40/41/42/44/46/47; Stage 25.95 requires bridge-cleared 37..47 with near-zero qdot before Stage 25.0 consumes 37..42 as qd0..qd5 rad/s, 43 cmd_valid, 44 path_time_s.\n"
             "# PRECONTACT_POSE_CONTRACT: config/step_pose_contract_table.json pre_contact_search_gravity_down_v1; Stage22/24 TCP +Z targets base -Z using [pi,0,0].\n"
-            "# STAGE25_CONTACT_SAFETY: v22 bridge computes online broad AABB TCP cage distance/braking margin, routes low-load/no-contact to active_reacquire_solver with frozen path_time_s, resets the outer-loop state during low-load active reacquire, applies a reacquire predicted-speed cap instead of hold-duty stop, logs active reacquire/no-contact and speed-cap diagnostics, and preserves stop_request for cage margin exhaustion, semantic failure, hard force/torque/joint/sensor gates, heartbeat/cmd_valid, Dashboard mismatch, or timeout.\n"
+            "# STAGE25_CONTACT_SAFETY: v23 bridge computes online broad AABB TCP cage distance/braking margin, routes low-load/no-contact to active_reacquire_solver with frozen path_time_s, resets the outer-loop state during low-load active reacquire, applies a reacquire predicted-speed cap instead of hold-duty stop, enforces a post-RNN normal-direction guard for over-target load, logs active reacquire/no-contact, speed-cap, and RNN normal diagnostics, and preserves stop_request for operational over-load, cage margin exhaustion, semantic failure, hard force/torque/joint/sensor gates, heartbeat/cmd_valid, Dashboard mismatch, or timeout.\n"
             "# FORCE_FRAME_CONTRACT: UR_FORCE_FRAME_CONTRACT.md; reaction normal for load, approach normal for posture."
         ),
     )
@@ -536,7 +538,7 @@ def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -
 
 
 def build_txt(stamp: str) -> str:
-    return f"""Step5d strict RNN v22 cage-primary 12N diagnostic TP package
+    return f"""Step5d strict RNN v23 cage-primary 12N diagnostic TP package
 
 Open on Teach Pendant after controller read-back is verified:
   {CONTROLLER_DIR}/{PROGRAM_NAME}.urp
@@ -545,7 +547,7 @@ Version:
   {stamp}
 
 Boundary:
-  Contact-capable v22 cage-primary diagnostic package; not a completed reproduction claim.
+  Contact-capable v23 cage-primary diagnostic package; not a completed reproduction claim.
   Reuses the Step5b v3 contact-search/latch/25.3 scaffold.
   Stage 22 entry and Stage 24 far/near search use the shared pre-contact pose
   contract {POSE_CONTRACT_ID}: TCP +Z targets base -Z with rotvec
@@ -557,7 +559,7 @@ Boundary:
   commands only locked-normal Cartesian vx/vy/vz in registers 37..39. It may
   actively recover while raw normal_load is between {LINE_ENTRY_RECOVERY_NORMAL_LOAD_MIN_N:.1f} N and {LINE_ENTRY_RECOVERY_NORMAL_LOAD_MAX_N:.1f} N,
   with force_norm <= {LINE_ENTRY_FORCE_NORM_STOP_N:.1f} N.
-  v22 Stage 25.3 accepts a bridge-time preload parameter channel when register
+  v23 Stage 25.3 accepts a bridge-time preload parameter channel when register
   47 equals {STEP5D_LINE_ENTRY_PARAM_VALID_CODE:.1f}: registers 40/41 are filtered
   min/max, 42 is force_norm max, 44 is hold time, and 46 is timeout.
   TP enters 25.0 only after the bridge-side preload register reports filtered
@@ -566,17 +568,18 @@ Boundary:
   with force_norm <= {LINE_ENTRY_FORCE_NORM_MAX_N:.1f} N,
   and bridge cmd_valid is true for {LINE_ENTRY_REQUIRED_S:.3f} s.
   Before Stage 25.0, Stage 25.95 requires the bridge to clear registers 37..47
-  with cmd_valid=0 so stale 25.3 preload parameters cannot be interpreted as
+  with cmd_valid=0 and qdot registers 37..42 near zero (<= {QDOT_CLEAR_ZERO_TOL_RAD_S:.6f} rad/s) so stale 25.3 preload parameters cannot be interpreted as
   qdot. Stage 25.0 is different from Step5b: it consumes 37..42 as qd0..qd5 rad/s
-  and executes speedj, not Cartesian speedl. v22 bridge must compute online
+  and executes speedj, not Cartesian speedl. v23 bridge must compute online
   broad AABB TCP cage distance/braking margin from Step5b/Step6b success traces,
   use cage-primary active reacquire, and log _step5d_tcp_cage_*,
-  _step5d_active_reacquire_s, _step5d_no_contact_s, and _step5d_reacquire_speed_cap_*
+  _step5d_active_reacquire_s, _step5d_no_contact_s, _step5d_reacquire_speed_cap_*,
+  _step5d_rnn_raw_qd*, _step5d_jqdot_cmd_approach_normal_m_s, and _step5d_post_rnn_normal_guard_action
   fields. Low-load or no-contact inside the cage freezes path_time_s, resets
   outer-loop state for active reacquire independently of normal_filter_source,
   applies a reacquire predicted-speed cap, and stays in the solver path;
   hold duty is diagnostic only for legacy hold actions. stop_request remains
-  hard for cage margin exhaustion, semantic failure, hard force/torque/joint/
+  hard for operational over-load, cage margin exhaustion, semantic failure, hard force/torque/joint/
   sensor gates, heartbeat/cmd_valid failure, Dashboard mismatch, or timeout.
   Stage 25.0 diagnostic progress target is 10 s.
   Stage 22 entry movel is 0.060 m/s at 0.090 m/s^2; Stage 24 far search is
@@ -626,16 +629,18 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str) -> None:
         "speedj line control": "speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]" in script,
         "line no cartesian speedl": "speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy" not in script,
         "qdot cap": f"local qdot_cap_rad_s = {QDOT_CAP_RAD_S:.3f}" in script,
-        "v22 Stage25 cage-primary note": "STAGE25_CONTACT_SAFETY" in script
+        "v23 Stage25 cage-primary note": "STAGE25_CONTACT_SAFETY" in script
         and "active_reacquire_solver" in script
         and "low-load/no-contact" in script
         and "reacquire predicted-speed cap" in script
         and "online broad AABB TCP cage" in script
+        and "post-RNN normal-direction guard" in script
         and "cage margin exhaustion" in script
-        and "active reacquire/no-contact and speed-cap diagnostics" in script
+        and "active reacquire/no-contact, speed-cap, and RNN normal diagnostics" in script
         and "_step5d_active_reacquire_s" in txt
         and "_step5d_no_contact_s" in txt
         and "_step5d_reacquire_speed_cap_*" in txt
+        and "_step5d_post_rnn_normal_guard_action" in txt
         and "stop_request" in script,
         "gravity-down pose contract": f"PRECONTACT_POSE_CONTRACT: {POSE_CONTRACT_ID}" in script
         and "config/step_pose_contract_table.json" in script + txt
@@ -665,10 +670,13 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str) -> None:
         and "local qdot_clear_required_s = 0.006" in script
         and "clear_cmd_valid < 0.5" in script
         and f"codex_abs(clear_layout_tag - line_entry_param_valid_code) >= 0.001" in script
-        and f"local qdot_clear_cap_rad_s = {QDOT_CAP_RAD_S:.3f}" in script
+        and f"local qdot_clear_zero_tol_rad_s = {QDOT_CLEAR_ZERO_TOL_RAD_S:.6f}" in script
+        and "qdot_clear_cap_rad_s" not in script
+        and f"<= qdot_clear_zero_tol_rad_s" in script
         and f"codex_abs(qdot_layout_tag - {STEP5D_LINE_ENTRY_PARAM_VALID_CODE:.3f}) < 0.001" in script
         and "if cmd_valid < 0.5 or qdot_layout_ok == 0" in script
-        and "Stage 25.95 requires the bridge to clear registers 37..47" in txt,
+        and "Stage 25.95 requires the bridge to clear registers 37..47" in txt
+        and "near zero" in txt,
         "no second contact search": "codex_step5d_down_search(24.3, 24.4" not in script,
         "force envelope auto-home": "elif stop_reason == 17.0:\n    return True" in script,
         "v31 scaffold retained": "first-contact normal latch" in script
@@ -718,12 +726,15 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str) -> None:
         "no stale v19 identity": "STEP5D_STRICT_RNN_LIVEPREP_V19" not in script + txt
         and "step5d_strict_rnn_liveprep_v19" not in script + txt
         and "liveprep v19" not in script + txt,
-        "no stale v20/v21 identity": "STEP5D_STRICT_RNN_LIVEPREP_V20" not in script + txt
+        "no stale v20/v21/v22 identity": "STEP5D_STRICT_RNN_LIVEPREP_V20" not in script + txt
         and "step5d_strict_rnn_liveprep_v20" not in script + txt
         and "liveprep v20" not in script + txt
         and "STEP5D_STRICT_RNN_LIVEPREP_V21" not in script + txt
         and "step5d_strict_rnn_liveprep_v21" not in script + txt
-        and "liveprep v21" not in script + txt,
+        and "liveprep v21" not in script + txt
+        and "STEP5D_STRICT_RNN_LIVEPREP_V22" not in script + txt
+        and "step5d_strict_rnn_liveprep_v22" not in script + txt
+        and "liveprep v22" not in script + txt,
         "low-load recovery does not stop": "or normal_load < line_entry_recovery_normal_load_min_n" not in script,
     }
     failed = [label for label, ok in checks.items() if not ok]
@@ -754,6 +765,7 @@ def semantic_fingerprint_payload() -> dict[str, object]:
         "pose_contract_id": POSE_CONTRACT_ID,
         "target_force_n": TARGET_FORCE_N,
         "qdot_cap_rad_s": QDOT_CAP_RAD_S,
+        "qdot_clear_zero_tol_rad_s": QDOT_CLEAR_ZERO_TOL_RAD_S,
         "joint_accel_rad_s2": JOINT_ACCEL_RAD_S2,
         "orientation_skip_error_rad": ORIENTATION_SKIP_ERROR_RAD,
         "raw_normal_guard_n": RAW_NORMAL_GUARD_N,
@@ -786,7 +798,7 @@ def semantic_fingerprint_payload() -> dict[str, object]:
         },
         "register_contract": {
             "stage25_3": "37..39 Cartesian acquire, 40/41/42/44/46/47 preload parameter channel",
-            "stage25_95": "37..47 bridge-cleared qdot barrier, 43 cmd_valid=0, 47 != preload param-valid code",
+            "stage25_95": f"37..47 bridge-cleared qdot barrier, 37..42 near-zero <= {QDOT_CLEAR_ZERO_TOL_RAD_S:.6f} rad/s, 43 cmd_valid=0, 47 != preload param-valid code",
             "stage25_0": "37..42 qd0..qd5, 43 cmd_valid, 44 path_time, 45 force_error, 46 orientation_error, 47 solver_status",
         },
     }
