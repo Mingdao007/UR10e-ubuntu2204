@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 import kunwei_rtde_bridge as bridge  # noqa: E402
 import build_step5d_liveprep as liveprep  # noqa: E402
 import contact_semantics  # noqa: E402
+import step_pose_contract  # noqa: E402
 import step5d_v11_escape_replay as escape_replay  # noqa: E402
 import step5d_full_chain_sanity as sanity  # noqa: E402
 
@@ -65,7 +66,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             )
 
     def test_step5d_liveprep_package_is_non_quarantine_speedj_executor(self) -> None:
-        stamp = "2026-07-02T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V19"
+        stamp = "2026-07-02T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V20"
         geom = liveprep.line_cfg(liveprep.load_json(liveprep.CONFIG_PATH))
         frame = liveprep.load_safe_frame()
         script = liveprep.build_script(stamp, "2026-06-14T12:00:00+08:00", geom, frame)
@@ -84,8 +85,14 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn("low-load/no-contact", script)
         self.assertIn("online broad AABB TCP cage", script)
         self.assertIn("cage margin exhaustion", script)
-        self.assertIn("active reacquire/no-contact diagnostics", script)
+        self.assertIn("active reacquire/no-contact and speed-cap diagnostics", script)
         self.assertIn("reacquire predicted-speed cap", script)
+        self.assertIn("PRECONTACT_POSE_CONTRACT: pre_contact_search_gravity_down_v1", script)
+        self.assertIn("local target_rx = 3.141592654", script)
+        self.assertIn("local target_ry = 0.000000000", script)
+        self.assertIn("local target_rz = 0.000000000", script)
+        self.assertIn("TCP +Z targets base -Z", script)
+        self.assertIn("config/step_pose_contract_table.json", script + txt)
         self.assertIn("stop_request", script)
         self.assertNotIn("local skip_lift_attitude = 0", script)
         self.assertNotIn("write_output_float_register(35, 25.1)", script)
@@ -121,6 +128,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn("_step5d_tcp_cage_*", txt)
         self.assertIn("_step5d_active_reacquire_s", txt)
         self.assertIn("_step5d_no_contact_s", txt)
+        self.assertIn("_step5d_reacquire_speed_cap_*", txt)
         self.assertIn("8.0 N", txt)
         self.assertIn("13.0 N", txt)
         self.assertIn("7.5 N", txt)
@@ -138,6 +146,17 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertNotIn("STEP5D_STRICT_RNN_LIVEPREP_V16", script + txt)
         self.assertNotIn("STEP5D_STRICT_RNN_LIVEPREP_V17", script + txt)
         self.assertNotIn("STEP5D_STRICT_RNN_LIVEPREP_V18", script + txt)
+        self.assertNotIn("STEP5D_STRICT_RNN_LIVEPREP_V19", script + txt)
+
+    def test_step5d_precontact_pose_contract_targets_gravity_down(self) -> None:
+        error = step_pose_contract.validate_contract_axis()
+        self.assertLess(error, 1e-6)
+        rotvec = step_pose_contract.contract_target_rotvec_rad()
+        self.assertEqual(rotvec, (3.141592654, 0.0, 0.0))
+        tcp_z = step_pose_contract.tool_z_axis_from_rotvec(rotvec)
+        self.assertAlmostEqual(tcp_z[0], 0.0, places=9)
+        self.assertAlmostEqual(tcp_z[1], 0.0, places=9)
+        self.assertAlmostEqual(tcp_z[2], -1.0, places=9)
 
     def test_step5d_write_outputs_can_reuse_existing_metadata_without_rewriting(self) -> None:
         original_dir = liveprep.LOCAL_PROGRAM_DIR
@@ -145,7 +164,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             liveprep.LOCAL_PROGRAM_DIR = Path(tmpdir)
             try:
                 first = liveprep.write_outputs(
-                    "2026-07-02T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V19",
+                    "2026-07-02T1200HKT_STEP5D_STRICT_RNN_LIVEPREP_V20",
                     "2026-07-02T12:00:00+08:00",
                 )
                 self.assertTrue(any(first["changed"].values()))
@@ -296,6 +315,18 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             ]
         )
         self.assertEqual(v19_args.step5d_qdot_limit_rad_s, 0.05)
+        v20_args = bridge.parse_args(
+            [
+                "--no-start-command",
+                "--step4e-mode",
+                "line",
+                "--step4e-version",
+                "step5d_strict_rnn_liveprep_v20",
+                "--step4e-path-shape",
+                "cycloid",
+            ]
+        )
+        self.assertEqual(v20_args.step5d_qdot_limit_rad_s, 0.05)
         with self.assertRaisesRegex(SystemExit, "Blocked Step5d reproduction"):
             bridge.main(
                 [
@@ -322,7 +353,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         operator = (ROOT / "scripts" / "step5d-liveprep-operator.sh").read_text(encoding="utf-8")
         base = (ROOT / "scripts" / "step4e-line-v1-operator.sh").read_text(encoding="utf-8")
         bridge_operator = (ROOT / "scripts" / "bridge-line-operator.sh").read_text(encoding="utf-8")
-        self.assertIn('STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v19}"', operator)
+        self.assertIn('STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v20}"', operator)
         self.assertIn('BRIDGE_OPERATOR="${SCRIPT_DIR}/bridge-line-operator.sh"', operator)
         self.assertIn('READBACK_GATE="${ROOT}/tools/verify_current_stage_readback.py"', operator)
         self.assertIn('Bridge profile: ${STEP5D_VERSION}', operator)
@@ -345,9 +376,12 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/${STEP4E_VERSION}.urp"', base)
         self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/step5d/${STEP4E_VERSION}.urp"', base)
         self.assertIn('"step5d_strict_rnn_liveprep_v10" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v11"', base)
-        self.assertIn('"step5d_strict_rnn_liveprep_v12" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v13" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v14" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v15" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v15a" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v16" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v17" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v18" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v19"', base)
-        self.assertIn('BRIDGE_PROFILE="step5d_strict_rnn_liveprep_v19"', bridge_operator)
-        self.assertIn('v18_v19_locked_normal_settle', (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(encoding="utf-8"))
+        self.assertIn('"step5d_strict_rnn_liveprep_v12" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v13" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v14" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v15" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v15a" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v16" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v17" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v18" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v19" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v20"', base)
+        self.assertIn('BRIDGE_PROFILE="step5d_strict_rnn_liveprep_v20"', bridge_operator)
+        bridge_source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(encoding="utf-8")
+        self.assertIn('v18_v20_locked_normal_settle', bridge_source)
+        self.assertIn('v20_low_load_active_reacquire', bridge_source)
+        self.assertIn('step5d_contact_safety["action"] == "active_reacquire_solver"', bridge_source)
         self.assertNotIn('if [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v9" ]]; then\n  PROGRAM_LINE="/programs/andyl/kunwei/step5/${STEP4E_VERSION}.urp"', base)
         self.assertIn('EXPECTED_BASENAME="${STEP4E_VERSION}.urp"', base)
         self.assertIn('RUN_LABEL="${STEP4E_VERSION}"', base)
@@ -383,6 +417,20 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertEqual((v18_min, v18_max, v18_force_max), (8.0, 18.0, 25.0))
         v19_min, v19_max, v19_force_max = bridge.step5d_liveprep_contact_window_limits("step5d_strict_rnn_liveprep_v19")
         self.assertEqual((v19_min, v19_max, v19_force_max), (8.0, 13.0, 25.0))
+        v20_min, v20_max, v20_force_max = bridge.step5d_liveprep_contact_window_limits("step5d_strict_rnn_liveprep_v20")
+        self.assertEqual((v20_min, v20_max, v20_force_max), (8.0, 13.0, 25.0))
+        for field in (
+            "_step5d_reacquire_speed_cap_active",
+            "_step5d_reacquire_speed_cap_m_s",
+            "_step5d_reacquire_speed_cap_original_m_s",
+            "_step5d_active_reacquire_s",
+            "_step5d_no_contact_s",
+            "_step5d_search_pose_contract_active",
+            "_step5d_search_pose_contract_ok",
+            "_step5d_search_pose_contract_axis_error_rad",
+            "_step5d_search_pose_contract_tcp_z_dot_down",
+        ):
+            self.assertIn(field, bridge.STEP5D_DIAG_FIELDS)
         speed_limited, original_speed, speed_active = bridge.limit_step5d_predicted_tcp_speed(
             [0.1, 0.0, 0.0, 0.0, 0.0, 0.0],
             np.eye(6),

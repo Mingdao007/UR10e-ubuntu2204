@@ -48,6 +48,7 @@ from capture_kunwei_kwr75_1khz import (  # noqa: E402
 )
 from _ur_common import RTDEClient, dashboard_exchange  # noqa: E402
 from contact_semantics import semantic_boundary_is_consistent  # noqa: E402
+from step_pose_contract import PRE_CONTACT_GRAVITY_DOWN_CONTRACT_ID, contract_target_axis_base  # noqa: E402
 import step5c_calibrated_kinematics_audit as step5d_kin  # noqa: E402
 from step5_table import step5_path_reference  # noqa: E402
 from step5c_dls_joint_solver import JointSolverConfig, STATUS_INVALID, Step5cDlsJointSolver  # noqa: E402
@@ -185,6 +186,9 @@ STEP5D_DIAG_FIELDS = [
     "_step5d_actual_speed_violation_count",
     "_step5d_actual_tcp_speed_m_s",
     "_step5d_predicted_tcp_speed_m_s",
+    "_step5d_reacquire_speed_cap_active",
+    "_step5d_reacquire_speed_cap_m_s",
+    "_step5d_reacquire_speed_cap_original_m_s",
     "_step5d_tcp_cage_distance_m",
     "_step5d_tcp_cage_braking_margin_m",
     "_step5d_tcp_cage_signed_distance_m",
@@ -195,7 +199,13 @@ STEP5D_DIAG_FIELDS = [
     "_step5d_total_hold_s",
     "_step5d_hold_duty",
     "_step5d_repeated_hold_count",
+    "_step5d_active_reacquire_s",
+    "_step5d_no_contact_s",
     "_step5d_contact_safety_reason",
+    "_step5d_search_pose_contract_active",
+    "_step5d_search_pose_contract_ok",
+    "_step5d_search_pose_contract_axis_error_rad",
+    "_step5d_search_pose_contract_tcp_z_dot_down",
     "_step5d_control_normal_vs_world_z_angle_rad",
     "_step5d_control_normal_vs_tcp_z_angle_rad",
     "_step5d_approach_normal_vs_tcp_z_angle_rad",
@@ -363,6 +373,7 @@ STEP5D_LIVEPREP_V16_STAGE_ID = "step5d_strict_rnn_liveprep_v16"
 STEP5D_LIVEPREP_V17_STAGE_ID = "step5d_strict_rnn_liveprep_v17"
 STEP5D_LIVEPREP_V18_STAGE_ID = "step5d_strict_rnn_liveprep_v18"
 STEP5D_LIVEPREP_V19_STAGE_ID = "step5d_strict_rnn_liveprep_v19"
+STEP5D_LIVEPREP_V20_STAGE_ID = "step5d_strict_rnn_liveprep_v20"
 STEP5D_LIVEPREP_STAGE_IDS = {
     STEP5D_LIVEPREP_V1_STAGE_ID,
     STEP5D_LIVEPREP_V2_STAGE_ID,
@@ -384,8 +395,12 @@ STEP5D_LIVEPREP_STAGE_IDS = {
     STEP5D_LIVEPREP_V17_STAGE_ID,
     STEP5D_LIVEPREP_V18_STAGE_ID,
     STEP5D_LIVEPREP_V19_STAGE_ID,
+    STEP5D_LIVEPREP_V20_STAGE_ID,
 }
 STEP5D_SEMANTIC_ORIENTATION_TOLERANCE_RAD = math.radians(5.0)
+STEP5D_SEARCH_POSE_CONTRACT_ID = PRE_CONTACT_GRAVITY_DOWN_CONTRACT_ID
+STEP5D_SEARCH_POSE_TARGET_AXIS_B = contract_target_axis_base(STEP5D_SEARCH_POSE_CONTRACT_ID)
+STEP5D_SEARCH_POSE_RUNTIME_TOLERANCE_RAD = math.radians(2.0)
 STEP5D_LIVEPREP_TRUTH_PATH = EXPERIMENT_ROOT / "config" / "step5d_liveprep_solver_gate.json"
 STEP5D_V3_FORCE_SETTLE_TOLERANCE_N = 3.0
 STEP5D_V3_FORCE_SETTLE_MAX_N = 12.0
@@ -1332,7 +1347,7 @@ def step5d_v11_deadband_acquire_velocity(
 
 
 def step5d_liveprep_contact_window_limits(bridge_profile: str) -> tuple[float, float, float]:
-    if bridge_profile == STEP5D_LIVEPREP_V19_STAGE_ID:
+    if bridge_profile in {STEP5D_LIVEPREP_V19_STAGE_ID, STEP5D_LIVEPREP_V20_STAGE_ID}:
         return (
             STEP5D_V17_ENTRY_FILTERED_NORMAL_LOAD_MIN_N,
             STEP5D_V19_ENTRY_FILTERED_NORMAL_LOAD_MAX_N,
@@ -2025,6 +2040,7 @@ def ensure_step5d_liveprep_runtime(state: "BridgeState", args: argparse.Namespac
         STEP5D_LIVEPREP_V17_STAGE_ID,
         STEP5D_LIVEPREP_V18_STAGE_ID,
         STEP5D_LIVEPREP_V19_STAGE_ID,
+        STEP5D_LIVEPREP_V20_STAGE_ID,
     } and state.step5d_tcp_cage is None:
         state.step5d_tcp_cage = build_step5d_v15a_tcp_cage()
     if state.step5d_solver is None:
@@ -2342,12 +2358,14 @@ def compute_bridge_values(
     step5d_liveprep_v17_profile = args.bridge_profile == STEP5D_LIVEPREP_V17_STAGE_ID
     step5d_liveprep_v18_profile = args.bridge_profile == STEP5D_LIVEPREP_V18_STAGE_ID
     step5d_liveprep_v19_profile = args.bridge_profile == STEP5D_LIVEPREP_V19_STAGE_ID
+    step5d_liveprep_v20_profile = args.bridge_profile == STEP5D_LIVEPREP_V20_STAGE_ID
     step5d_liveprep_v16_or_v17_profile = step5d_liveprep_v16_profile or step5d_liveprep_v17_profile
     step5d_liveprep_v18_or_v19_profile = step5d_liveprep_v18_profile or step5d_liveprep_v19_profile
-    step5d_liveprep_v17_or_newer_profile = step5d_liveprep_v17_profile or step5d_liveprep_v18_or_v19_profile
+    step5d_liveprep_v18_or_newer_profile = step5d_liveprep_v18_or_v19_profile or step5d_liveprep_v20_profile
+    step5d_liveprep_v17_or_newer_profile = step5d_liveprep_v17_profile or step5d_liveprep_v18_or_newer_profile
     step5d_entry_raw_sanity_max_n = (
         STEP5D_V19_ENTRY_RAW_NORMAL_LOAD_MAX_N
-        if step5d_liveprep_v19_profile
+        if (step5d_liveprep_v19_profile or step5d_liveprep_v20_profile)
         else STEP5D_V17_ENTRY_RAW_NORMAL_LOAD_MAX_N
     )
     step5d_liveprep_online_cage_profile = (
@@ -2356,6 +2374,7 @@ def compute_bridge_values(
         or step5d_liveprep_v17_profile
         or step5d_liveprep_v18_profile
         or step5d_liveprep_v19_profile
+        or step5d_liveprep_v20_profile
     )
     step5d_liveprep_guarded_profile = (
         step5d_liveprep_v3_profile
@@ -2376,6 +2395,7 @@ def compute_bridge_values(
         or step5d_liveprep_v17_profile
         or step5d_liveprep_v18_profile
         or step5d_liveprep_v19_profile
+        or step5d_liveprep_v20_profile
     )
     if step5d_liveprep_profile:
         try:
@@ -2533,11 +2553,11 @@ def compute_bridge_values(
         filtered_current = state.filtered_normal_b if state.filtered_normal_b is not None else state.latched_normal_b
         live_candidate_angle_rad = angle_between_unit(filtered_current, live_candidate_b)
         live_candidate_angle_from_latch_rad = angle_between_unit(state.latched_normal_b, live_candidate_b)
-        if step5d_liveprep_v18_or_v19_profile and state.line_stage_s <= STEP5D_V18_NORMAL_FOLLOW_SETTLE_S:
+        if step5d_liveprep_v18_or_newer_profile and state.line_stage_s <= STEP5D_V18_NORMAL_FOLLOW_SETTLE_S:
             state.filtered_normal_b = state.latched_normal_b
             n_control_b = state.latched_normal_b
-            normal_filter_source = "v18_v19_locked_normal_settle"
-        elif v31_profile or step4f_profile or step4g_profile or step5b_profile or step5c_contact_profile or (step5d_liveprep_profile and not step5d_liveprep_v18_or_v19_profile) or step6b_profile:
+            normal_filter_source = "v18_v20_locked_normal_settle"
+        elif v31_profile or step4f_profile or step4g_profile or step5b_profile or step5c_contact_profile or (step5d_liveprep_profile and not step5d_liveprep_v18_or_newer_profile) or step6b_profile:
             state.filtered_normal_b, normal_filter_source = v31_filtered_live_normal(
                 filtered_current,
                 live_candidate_b,
@@ -2589,6 +2609,24 @@ def compute_bridge_values(
             state=state,
         )
     tcp_z_axis_b = (rotation[0][2], rotation[1][2], rotation[2][2])
+    step5d_search_pose_contract_active = (
+        step5d_liveprep_profile
+        and math.isfinite(robot_stage)
+        and (
+            abs(robot_stage - 22.0) < 0.05
+            or abs(robot_stage - 24.0) < 0.05
+            or abs(robot_stage - 24.2) < 0.05
+        )
+    )
+    step5d_search_pose_contract_axis_error_rad = (
+        angle_between_unit(tcp_z_axis_b, STEP5D_SEARCH_POSE_TARGET_AXIS_B)
+        if step5d_search_pose_contract_active
+        else math.nan
+    )
+    step5d_search_pose_contract_ok = (
+        step5d_search_pose_contract_active
+        and step5d_search_pose_contract_axis_error_rad <= STEP5D_SEARCH_POSE_RUNTIME_TOLERANCE_RAD
+    )
     step5d_line_tcp_speed_m_s = (
         norm3([float(speed[0]), float(speed[1]), float(speed[2])])
         if speed and len(speed) >= 3
@@ -2621,7 +2659,7 @@ def compute_bridge_values(
     if step5d_contact_safety_profile and step5d_joint_line_profile:
         step5d_contact_safety_fn = (
             step5d_v18_guard
-            if step5d_liveprep_v18_or_v19_profile
+            if step5d_liveprep_v18_or_newer_profile
             else step5d_v15a_guard
             if step5d_liveprep_online_cage_profile
             else step5d_v15_permissive_recovery_guard
@@ -2667,15 +2705,15 @@ def compute_bridge_values(
             prior_hold_actual_tcp_speed_m_s=state.step5d_hold_actual_tcp_speed_m_s,
             active_stage25_s=state.step5d_active_stage25_s,
             dt_s=dt_s,
-            soft_low_load_n=STEP5D_V18_SOFT_LOW_LOAD_N if step5d_liveprep_v18_or_v19_profile else STEP5D_V16_SOFT_LOW_LOAD_N if step5d_liveprep_v16_or_v17_profile else STEP5D_V13_SOFT_LOW_LOAD_N,
-            valid_contact_min_n=STEP5D_V16_VALID_CONTACT_MIN_N if (step5d_liveprep_v16_or_v17_profile or step5d_liveprep_v18_or_v19_profile) else STEP5D_V13_VALID_CONTACT_MIN_N,
-            valid_contact_max_n=STEP5D_V18_VALID_CONTACT_MAX_N if step5d_liveprep_v18_or_v19_profile else STEP5D_V16_VALID_CONTACT_MAX_N if step5d_liveprep_v16_or_v17_profile else STEP5D_V13_VALID_CONTACT_MAX_N,
-            low_load_speed_load_n=STEP5D_V16_LOW_LOAD_SPEED_LOAD_N if (step5d_liveprep_v16_or_v17_profile or step5d_liveprep_v18_or_v19_profile) else STEP5D_V13_LOW_LOAD_SPEED_LOAD_N,
+            soft_low_load_n=STEP5D_V18_SOFT_LOW_LOAD_N if step5d_liveprep_v18_or_newer_profile else STEP5D_V16_SOFT_LOW_LOAD_N if step5d_liveprep_v16_or_v17_profile else STEP5D_V13_SOFT_LOW_LOAD_N,
+            valid_contact_min_n=STEP5D_V16_VALID_CONTACT_MIN_N if (step5d_liveprep_v16_or_v17_profile or step5d_liveprep_v18_or_newer_profile) else STEP5D_V13_VALID_CONTACT_MIN_N,
+            valid_contact_max_n=STEP5D_V18_VALID_CONTACT_MAX_N if step5d_liveprep_v18_or_newer_profile else STEP5D_V16_VALID_CONTACT_MAX_N if step5d_liveprep_v16_or_v17_profile else STEP5D_V13_VALID_CONTACT_MAX_N,
+            low_load_speed_load_n=STEP5D_V16_LOW_LOAD_SPEED_LOAD_N if (step5d_liveprep_v16_or_v17_profile or step5d_liveprep_v18_or_newer_profile) else STEP5D_V13_LOW_LOAD_SPEED_LOAD_N,
             hold_timeout_s=STEP5D_V16_LOW_LOAD_HOLD_TIMEOUT_S if step5d_liveprep_v16_or_v17_profile else STEP5D_V13_LOW_LOAD_HOLD_TIMEOUT_S,
-            high_window_dwell_stop_s=STEP5D_V16_HIGH_WINDOW_DWELL_STOP_S if (step5d_liveprep_v16_or_v17_profile or step5d_liveprep_v18_or_v19_profile) else STEP5D_V13_HIGH_WINDOW_DWELL_STOP_S,
-            allow_high_contact_below_hard_force=step5d_liveprep_v18_or_v19_profile or not step5d_liveprep_v16_or_v17_profile,
-            force_norm_hard_stop_n=STEP5D_V18_SENSOR_FORCE_HARD_STOP_N if step5d_liveprep_v18_or_v19_profile else 60.0,
-            cage_primary_low_load_reacquire=step5d_liveprep_v18_or_v19_profile,
+            high_window_dwell_stop_s=STEP5D_V16_HIGH_WINDOW_DWELL_STOP_S if (step5d_liveprep_v16_or_v17_profile or step5d_liveprep_v18_or_newer_profile) else STEP5D_V13_HIGH_WINDOW_DWELL_STOP_S,
+            allow_high_contact_below_hard_force=step5d_liveprep_v18_or_newer_profile or not step5d_liveprep_v16_or_v17_profile,
+            force_norm_hard_stop_n=STEP5D_V18_SENSOR_FORCE_HARD_STOP_N if step5d_liveprep_v18_or_newer_profile else 60.0,
+            cage_primary_low_load_reacquire=step5d_liveprep_v18_or_newer_profile,
         )
         state.step5d_contact_hold_s = float(step5d_contact_safety["hold_s"])
         state.step5d_contact_high_window_s = float(step5d_contact_safety["high_window_s"])
@@ -3149,9 +3187,15 @@ def compute_bridge_values(
                     and normal_filter_source == "freeze_low_force"
                     and normal_load_n <= STEP5D_V18_ACTIVE_REACQUIRE_LOAD_MAX_N
                 )
+                v20_low_load_active_reacquire = (
+                    step5d_liveprep_v20_profile
+                    and step5d_contact_safety["action"] == "active_reacquire_solver"
+                    and normal_load_n <= STEP5D_V18_ACTIVE_REACQUIRE_LOAD_MAX_N
+                )
+                low_load_active_reacquire_reset = v19_freeze_low_force_reacquire or v20_low_load_active_reacquire
                 step5d_outer_state_for_compute = (
                     Step5dOuterLoopState()
-                    if v19_freeze_low_force_reacquire
+                    if low_load_active_reacquire_reset
                     else state.step5d_outer_state
                 )
                 step5d_outer_output = compute_step5d_outer_loop(
@@ -3190,7 +3234,7 @@ def compute_bridge_values(
                     )
                 state.step5d_outer_state = (
                     Step5dOuterLoopState()
-                    if v19_freeze_low_force_reacquire
+                    if low_load_active_reacquire_reset
                     else step5d_outer_output.next_state
                 )
                 target_state = rnn_target_state_from_outer_loop(
@@ -3222,9 +3266,8 @@ def compute_bridge_values(
                     state.step5d_last_qdot = qdot_limited
                 if step5d_contact_safety_profile:
                     if (
-                        step5d_liveprep_v19_profile
-                        and normal_load_n <= STEP5D_V18_ACTIVE_REACQUIRE_LOAD_MAX_N
-                        and normal_filter_source == "freeze_low_force"
+                        v19_freeze_low_force_reacquire
+                        or v20_low_load_active_reacquire
                     ):
                         qdot_capped, step5d_reacquire_speed_cap_original_m_s, step5d_reacquire_speed_cap_active = (
                             limit_step5d_predicted_tcp_speed(
@@ -3275,15 +3318,15 @@ def compute_bridge_values(
                         active_stage25_s=state.step5d_active_stage25_s,
                         dt_s=dt_s,
                         advance_actual_speed_dwell=False,
-                        soft_low_load_n=STEP5D_V18_SOFT_LOW_LOAD_N if step5d_liveprep_v18_or_v19_profile else STEP5D_V16_SOFT_LOW_LOAD_N if step5d_liveprep_v16_or_v17_profile else STEP5D_V13_SOFT_LOW_LOAD_N,
-                        valid_contact_min_n=STEP5D_V16_VALID_CONTACT_MIN_N if (step5d_liveprep_v16_or_v17_profile or step5d_liveprep_v18_or_v19_profile) else STEP5D_V13_VALID_CONTACT_MIN_N,
-                        valid_contact_max_n=STEP5D_V18_VALID_CONTACT_MAX_N if step5d_liveprep_v18_or_v19_profile else STEP5D_V16_VALID_CONTACT_MAX_N if step5d_liveprep_v16_or_v17_profile else STEP5D_V13_VALID_CONTACT_MAX_N,
-                        low_load_speed_load_n=STEP5D_V16_LOW_LOAD_SPEED_LOAD_N if (step5d_liveprep_v16_or_v17_profile or step5d_liveprep_v18_or_v19_profile) else STEP5D_V13_LOW_LOAD_SPEED_LOAD_N,
+                        soft_low_load_n=STEP5D_V18_SOFT_LOW_LOAD_N if step5d_liveprep_v18_or_newer_profile else STEP5D_V16_SOFT_LOW_LOAD_N if step5d_liveprep_v16_or_v17_profile else STEP5D_V13_SOFT_LOW_LOAD_N,
+                        valid_contact_min_n=STEP5D_V16_VALID_CONTACT_MIN_N if (step5d_liveprep_v16_or_v17_profile or step5d_liveprep_v18_or_newer_profile) else STEP5D_V13_VALID_CONTACT_MIN_N,
+                        valid_contact_max_n=STEP5D_V18_VALID_CONTACT_MAX_N if step5d_liveprep_v18_or_newer_profile else STEP5D_V16_VALID_CONTACT_MAX_N if step5d_liveprep_v16_or_v17_profile else STEP5D_V13_VALID_CONTACT_MAX_N,
+                        low_load_speed_load_n=STEP5D_V16_LOW_LOAD_SPEED_LOAD_N if (step5d_liveprep_v16_or_v17_profile or step5d_liveprep_v18_or_newer_profile) else STEP5D_V13_LOW_LOAD_SPEED_LOAD_N,
                         hold_timeout_s=STEP5D_V16_LOW_LOAD_HOLD_TIMEOUT_S if step5d_liveprep_v16_or_v17_profile else STEP5D_V13_LOW_LOAD_HOLD_TIMEOUT_S,
-                        high_window_dwell_stop_s=STEP5D_V16_HIGH_WINDOW_DWELL_STOP_S if (step5d_liveprep_v16_or_v17_profile or step5d_liveprep_v18_or_v19_profile) else STEP5D_V13_HIGH_WINDOW_DWELL_STOP_S,
-                        allow_high_contact_below_hard_force=step5d_liveprep_v18_or_v19_profile or not step5d_liveprep_v16_or_v17_profile,
-                        force_norm_hard_stop_n=STEP5D_V18_SENSOR_FORCE_HARD_STOP_N if step5d_liveprep_v18_or_v19_profile else 60.0,
-                        cage_primary_low_load_reacquire=step5d_liveprep_v18_or_v19_profile,
+                        high_window_dwell_stop_s=STEP5D_V16_HIGH_WINDOW_DWELL_STOP_S if (step5d_liveprep_v16_or_v17_profile or step5d_liveprep_v18_or_newer_profile) else STEP5D_V13_HIGH_WINDOW_DWELL_STOP_S,
+                        allow_high_contact_below_hard_force=step5d_liveprep_v18_or_newer_profile or not step5d_liveprep_v16_or_v17_profile,
+                        force_norm_hard_stop_n=STEP5D_V18_SENSOR_FORCE_HARD_STOP_N if step5d_liveprep_v18_or_newer_profile else 60.0,
+                        cage_primary_low_load_reacquire=step5d_liveprep_v18_or_newer_profile,
                     )
                     state.step5d_contact_hold_s = float(step5d_contact_safety["hold_s"])
                     state.step5d_contact_high_window_s = float(step5d_contact_safety["high_window_s"])
@@ -3474,7 +3517,7 @@ def compute_bridge_values(
             values["_step5d_reacquire_speed_cap_active"] = 1.0 if step5d_reacquire_speed_cap_active else 0.0
             values["_step5d_reacquire_speed_cap_m_s"] = (
                 STEP5D_V19_REACQUIRE_PREDICTED_TCP_SPEED_CAP_M_S
-                if step5d_liveprep_v19_profile
+                if (step5d_liveprep_v19_profile or step5d_liveprep_v20_profile)
                 else float("nan")
             )
             values["_step5d_reacquire_speed_cap_original_m_s"] = step5d_reacquire_speed_cap_original_m_s
@@ -3599,6 +3642,10 @@ def compute_bridge_values(
     values["_step4e_normal_force_error_n"] = force_error
     values["_step4e_normal_acquired"] = 1.0 if state.normal_acquired else 0.0
     if step5d_liveprep_profile:
+        values["_step5d_search_pose_contract_active"] = 1.0 if step5d_search_pose_contract_active else 0.0
+        values["_step5d_search_pose_contract_ok"] = 1.0 if step5d_search_pose_contract_ok else 0.0
+        values["_step5d_search_pose_contract_axis_error_rad"] = step5d_search_pose_contract_axis_error_rad
+        values["_step5d_search_pose_contract_tcp_z_dot_down"] = dot3(tcp_z_axis_b, STEP5D_SEARCH_POSE_TARGET_AXIS_B)
         values["_step5d_force_settle_filtered_normal_load_n"] = (
             state.step5d_settle_filtered_normal_load_n
             if state.step5d_settle_filtered_normal_load_n is not None
@@ -4697,6 +4744,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                 STEP5D_LIVEPREP_V17_STAGE_ID,
                 STEP5D_LIVEPREP_V18_STAGE_ID,
                 STEP5D_LIVEPREP_V19_STAGE_ID,
+                STEP5D_LIVEPREP_V20_STAGE_ID,
             }
             else 0.30
         )
@@ -4904,7 +4952,8 @@ def main(argv: list[str] | None = None) -> int:
             "step5d_strict_rnn_liveprep_v16": "Retained v16 TP/script live-prep evidence: Step5b v3 no-lift/no-25.2/no-second-search scaffold, 12N target, 5-20N entry window, 0.05 rad/s strict RNN speedj, and v15a online cage bounded hold/reacquire safety.",
             "step5d_strict_rnn_liveprep_v17": "Retained v17 TP/script live-prep evidence: Step5b v3 no-lift/no-25.2/no-second-search scaffold, 12N target, 8-18N filtered preload release with 7.5-19N raw sanity, 0.05 rad/s strict RNN speedj, and v15a online cage bounded hold/reacquire safety stopped by hold_duty_limit.",
             "step5d_strict_rnn_liveprep_v18": "Retained v18 cage-primary diagnostic TP/script live-prep evidence: stopped on predicted TCP speed during low-load/no-contact active reacquire after v17/v18 8-18N preload allowed an over-target handoff.",
-            "step5d_strict_rnn_liveprep_v19": "Current v19 cage-primary diagnostic TP/script live-prep candidate: keeps 12N target, tightens preload release to 8-13N filtered with 7.5-14N raw sanity, speeds Stage22 entry movel and Stage24 far search by 1.5x, freezes the outer-loop state during freeze_low_force active reacquire, and caps reacquire predicted TCP speed at 0.035 m/s before the 0.050 m/s hard stop.",
+            "step5d_strict_rnn_liveprep_v19": "Retained v19 cage-primary diagnostic TP/script live-prep evidence: kept 12N target, 8-13N filtered preload with 7.5-14N raw sanity, 1.5x Stage22/24 speedups, and a freeze_low_force-only active-reacquire speed cap; live v19 still stopped on cage_primary_tcp_speed_hard_stop because the cap did not cover the locked-normal settle source.",
+            "step5d_strict_rnn_liveprep_v20": "Current v20 cage-primary diagnostic TP/script live-prep candidate: keeps v19 numeric baselines, forces Stage22/24 pre-contact search posture to gravity-down [pi,0,0], logs pose-contract/reacquire-cap diagnostics, and applies low-load active-reacquire outer-state reset plus 0.035 m/s predicted TCP speed cap based on action/load semantics rather than normal_filter_source.",
             "step6b_contact_eight_baseline_v1": "Same TP contact-search/latch/25.2/25.3 scaffold as Step5b/v31, but stage 25.0 uses the active Step6 five-point safe-frame 8-shaped reference for 30 s and v31 filtered-live normal policy.",
             "step6b_contact_eight_baseline_v2": "Same TP contact-search/latch/25.2/25.3 scaffold and Step6 reference as v1, but intended bridge caps are 15 mm/s path, 15 mm/s total linear, 3 mm/s normal reserve, and 0.060 rad/s attitude.",
         },

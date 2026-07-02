@@ -13,14 +13,17 @@ from pathlib import Path
 from build_step4e_line_programs import CONFIG_PATH, PROGRAM_DIR, generated_at, line_cfg, load_json
 from build_step4e_p0p1_programs import build_urp
 from build_step5b_contact import build_script as build_step5b_script
+from step_pose_contract import PRE_CONTACT_GRAVITY_DOWN_CONTRACT_ID, contract_target_rotvec_rad, validate_contract_axis
 from step5_table import load_stage_frame, step5_stage
 
 
-PROGRAM_NAME = "step5d_strict_rnn_liveprep_v19"
-STEP5_STAGE_ID = "step5d_strict_rnn_liveprep_v19"
+PROGRAM_NAME = "step5d_strict_rnn_liveprep_v20"
+STEP5_STAGE_ID = "step5d_strict_rnn_liveprep_v20"
 BRIDGE_VERSION = STEP5_STAGE_ID
 LOCAL_PROGRAM_DIR = PROGRAM_DIR / "step5"
 CONTROLLER_DIR = "/programs/andyl/kunwei/step5"
+POSE_CONTRACT_ID = PRE_CONTACT_GRAVITY_DOWN_CONTRACT_ID
+SEARCH_GRAVITY_DOWN_ROTVEC = contract_target_rotvec_rad(POSE_CONTRACT_ID)
 TARGET_FORCE_N = 12.0
 BRIDGE_NORMAL_FILTER_ALPHA = 0.55
 QDOT_CAP_RAD_S = 0.050
@@ -52,7 +55,7 @@ FIRST_SEARCH_NEAR_SPEED_M_S = -0.0025
 
 
 def source_stamp(now: datetime) -> str:
-    return now.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_LIVEPREP_V19")
+    return now.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_LIVEPREP_V20")
 
 
 def existing_metadata() -> tuple[str, str] | None:
@@ -340,6 +343,26 @@ def _speed_up_entry_and_first_search(script: str) -> str:
     )
 
 
+def _force_gravity_down_search_pose(script: str) -> str:
+    validate_contract_axis(POSE_CONTRACT_ID)
+    rx, ry, rz = SEARCH_GRAVITY_DOWN_ROTVEC
+    pattern = (
+        r"  local target_rx = [-0-9.]+\n"
+        r"  local target_ry = [-0-9.]+\n"
+        r"  local target_rz = [-0-9.]+"
+    )
+    replacement = (
+        f"  # PRECONTACT_POSE_CONTRACT: {POSE_CONTRACT_ID}; Stage22/24 TCP +Z targets base -Z.\n"
+        f"  local target_rx = {rx:.9f}\n"
+        f"  local target_ry = {ry:.9f}\n"
+        f"  local target_rz = {rz:.9f}"
+    )
+    script, count = re.subn(pattern, replacement, script, count=1)
+    if count != 1:
+        raise RuntimeError(f"{PROGRAM_NAME} gravity-down pose contract replacement failed")
+    return script
+
+
 def _add_force_envelope_auto_home(script: str) -> str:
     old = """  elif stop_reason == 14.0:
     return True
@@ -371,12 +394,12 @@ def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -
     script = script.replace("step5b_contact_cycloid_baseline_v1", PROGRAM_NAME)
     script = script.replace("step5b_contact_cycloid_baseline_v2", PROGRAM_NAME)
     script = script.replace("step5b_contact_cycloid_baseline_v3", PROGRAM_NAME)
-    script = script.replace("Step5b contact cycloid baseline v1", "Step5d strict RNN liveprep v19")
-    script = script.replace("Step5b contact cycloid baseline v2", "Step5d strict RNN liveprep v19")
-    script = script.replace("Step5b contact cycloid baseline v3", "Step5d strict RNN liveprep v19")
-    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V1", "STEP5D_STRICT_RNN_LIVEPREP_V19")
-    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V2", "STEP5D_STRICT_RNN_LIVEPREP_V19")
-    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V3", "STEP5D_STRICT_RNN_LIVEPREP_V19")
+    script = script.replace("Step5b contact cycloid baseline v1", "Step5d strict RNN liveprep v20")
+    script = script.replace("Step5b contact cycloid baseline v2", "Step5d strict RNN liveprep v20")
+    script = script.replace("Step5b contact cycloid baseline v3", "Step5d strict RNN liveprep v20")
+    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V1", "STEP5D_STRICT_RNN_LIVEPREP_V20")
+    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V2", "STEP5D_STRICT_RNN_LIVEPREP_V20")
+    script = script.replace("STEP5B_CONTACT_CYCLOID_BASELINE_V3", "STEP5D_STRICT_RNN_LIVEPREP_V20")
     script = script.replace("codex_step5b_down_search", "codex_step5d_down_search")
     script = script.replace("step4e-version=step5b_v1", f"step4e-version={BRIDGE_VERSION}")
     script = script.replace("step4e-version=step5b_v2", f"step4e-version={BRIDGE_VERSION}")
@@ -394,9 +417,10 @@ def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -
             "PURPOSE: v31 contact search, first-contact normal latch, optional 4deg skip-lift/25.2 gate, otherwise lift and 25.2 attitude correction, 25.3 line-entry gate, then Step5 table-driven contact cycloid reference for 60 s.",
             "PURPOSE: v31 contact search, first-contact normal latch, no lift/25.2 attitude cycle and no second contact search, 25.3 line-entry gate, then Step5 table-driven contact cycloid reference for 60 s.",
         ),
-        "PURPOSE: v31 contact search, first-contact normal latch, no lift/25.2 attitude cycle and no second contact search, 25.3 bridge deadband acquire into the 8-13N filtered preload window with 7.5-14N raw sanity, then v19 cage-primary Step5d strict RNN qdot diagnostic for 10 s.",
+        "PURPOSE: v31 contact search with Stage22/24 gravity-down pre-contact posture, first-contact normal latch, no lift/25.2 attitude cycle and no second contact search, 25.3 bridge deadband acquire into the 8-13N filtered preload window with 7.5-14N raw sanity, then v20 cage-primary Step5d strict RNN qdot diagnostic for 10 s.",
         "purpose",
     )
+    script = _force_gravity_down_search_pose(script)
     script = _speed_up_entry_and_first_search(script)
     script = script.replace(
         "25.0 uses desired_velocity + path_p_gain*(desired-actual) before normal projection and force-loop composition.",
@@ -407,7 +431,8 @@ def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -
         (
             "TP_ROLE: joint_executor_and_guard_only; Step5d strict RNN qdot is computed by the bridge.\n"
             "# REGISTER_CONTRACT: Stage 25.3 consumes 37..39 as Cartesian deadband-acquire vx/vy/vz; Stage 25.0 consumes 37..42 as qd0..qd5 rad/s, 43 cmd_valid, 44 path_time_s.\n"
-            "# STAGE25_CONTACT_SAFETY: v19 bridge computes online broad AABB TCP cage distance/braking margin, routes low-load/no-contact to active_reacquire_solver with frozen path_time_s and a reacquire predicted-speed cap instead of hold-duty stop, logs active reacquire/no-contact diagnostics, and preserves stop_request for cage margin exhaustion, semantic failure, hard force/torque/joint/sensor gates, heartbeat/cmd_valid, Dashboard mismatch, or timeout.\n"
+            "# PRECONTACT_POSE_CONTRACT: config/step_pose_contract_table.json pre_contact_search_gravity_down_v1; Stage22/24 TCP +Z targets base -Z using [pi,0,0].\n"
+            "# STAGE25_CONTACT_SAFETY: v20 bridge computes online broad AABB TCP cage distance/braking margin, routes low-load/no-contact to active_reacquire_solver with frozen path_time_s, resets the outer-loop state during low-load active reacquire, applies a reacquire predicted-speed cap instead of hold-duty stop, logs active reacquire/no-contact and speed-cap diagnostics, and preserves stop_request for cage margin exhaustion, semantic failure, hard force/torque/joint/sensor gates, heartbeat/cmd_valid, Dashboard mismatch, or timeout.\n"
             "# FORCE_FRAME_CONTRACT: UR_FORCE_FRAME_CONTRACT.md; reaction normal for load, approach normal for posture."
         ),
     )
@@ -424,7 +449,7 @@ def build_script(stamp: str, gen_at: str, geom: dict[str, float], frame: dict) -
 
 
 def build_txt(stamp: str) -> str:
-    return f"""Step5d strict RNN v19 cage-primary 12N diagnostic TP package
+    return f"""Step5d strict RNN v20 cage-primary 12N diagnostic TP package
 
 Open on Teach Pendant after controller read-back is verified:
   {CONTROLLER_DIR}/{PROGRAM_NAME}.urp
@@ -433,8 +458,11 @@ Version:
   {stamp}
 
 Boundary:
-  Contact-capable v19 cage-primary diagnostic package; not a completed reproduction claim.
+  Contact-capable v20 cage-primary diagnostic package; not a completed reproduction claim.
   Reuses the Step5b v3 contact-search/latch/25.3 scaffold.
+  Stage 22 entry and Stage 24 far/near search use the shared pre-contact pose
+  contract {POSE_CONTRACT_ID}: TCP +Z targets base -Z with rotvec
+  [{SEARCH_GRAVITY_DOWN_ROTVEC[0]:.9f}, {SEARCH_GRAVITY_DOWN_ROTVEC[1]:.9f}, {SEARCH_GRAVITY_DOWN_ROTVEC[2]:.9f}].
   After first-contact latch, it does not run the 20 mm lift, 25.2 attitude
   correction, or 24.3/24.4 second contact search.
   no lift and no second contact search remain deliberate requirements.
@@ -448,11 +476,12 @@ Boundary:
   with force_norm <= {LINE_ENTRY_FORCE_NORM_MAX_N:.1f} N,
   and bridge cmd_valid is true for {LINE_ENTRY_REQUIRED_S:.3f} s.
   Stage 25.0 is different from Step5b: it consumes 37..42 as qd0..qd5 rad/s
-  and executes speedj, not Cartesian speedl. v19 bridge must compute online
+  and executes speedj, not Cartesian speedl. v20 bridge must compute online
   broad AABB TCP cage distance/braking margin from Step5b/Step6b success traces,
   use cage-primary active reacquire, and log _step5d_tcp_cage_*,
-  _step5d_active_reacquire_s, and _step5d_no_contact_s fields. Low-load or
-  no-contact inside the cage freezes path_time_s, holds the force integrator,
+  _step5d_active_reacquire_s, _step5d_no_contact_s, and _step5d_reacquire_speed_cap_*
+  fields. Low-load or no-contact inside the cage freezes path_time_s, resets
+  outer-loop state for active reacquire independently of normal_filter_source,
   applies a reacquire predicted-speed cap, and stays in the solver path;
   hold duty is diagnostic only for legacy hold actions. stop_request remains
   hard for cage margin exhaustion, semantic failure, hard force/torque/joint/
@@ -480,6 +509,7 @@ Safety:
 Reference:
   STEP5_FLOW.md
   config/step5_stage_table.json stage {STEP5_STAGE_ID}
+  config/step_pose_contract_table.json contract {POSE_CONTRACT_ID}
   UR_FORCE_FRAME_CONTRACT.md
   config/step5d_liveprep_solver_gate.json
 """
@@ -504,16 +534,23 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str) -> None:
         "speedj line control": "speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]" in script,
         "line no cartesian speedl": "speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy" not in script,
         "qdot cap": f"local qdot_cap_rad_s = {QDOT_CAP_RAD_S:.3f}" in script,
-        "v19 Stage25 cage-primary note": "STAGE25_CONTACT_SAFETY" in script
+        "v20 Stage25 cage-primary note": "STAGE25_CONTACT_SAFETY" in script
         and "active_reacquire_solver" in script
         and "low-load/no-contact" in script
         and "reacquire predicted-speed cap" in script
         and "online broad AABB TCP cage" in script
         and "cage margin exhaustion" in script
-        and "active reacquire/no-contact diagnostics" in script
+        and "active reacquire/no-contact and speed-cap diagnostics" in script
         and "_step5d_active_reacquire_s" in txt
         and "_step5d_no_contact_s" in txt
+        and "_step5d_reacquire_speed_cap_*" in txt
         and "stop_request" in script,
+        "gravity-down pose contract": f"PRECONTACT_POSE_CONTRACT: {POSE_CONTRACT_ID}" in script
+        and "config/step_pose_contract_table.json" in script + txt
+        and f"local target_rx = {SEARCH_GRAVITY_DOWN_ROTVEC[0]:.9f}" in script
+        and f"local target_ry = {SEARCH_GRAVITY_DOWN_ROTVEC[1]:.9f}" in script
+        and f"local target_rz = {SEARCH_GRAVITY_DOWN_ROTVEC[2]:.9f}" in script
+        and "TCP +Z targets base -Z" in script + txt,
         "no lift attitude cycle": "local skip_lift_attitude = 0" not in script
         and "write_output_float_register(35, 25.1)" not in script
         and "write_output_float_register(35, 25.2)" not in script,
@@ -574,6 +611,9 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str) -> None:
         "no stale v18 identity": "STEP5D_STRICT_RNN_LIVEPREP_V18" not in script + txt
         and "step5d_strict_rnn_liveprep_v18" not in script + txt
         and "liveprep v18" not in script + txt,
+        "no stale v19 identity": "STEP5D_STRICT_RNN_LIVEPREP_V19" not in script + txt
+        and "step5d_strict_rnn_liveprep_v19" not in script + txt
+        and "liveprep v19" not in script + txt,
         "low-load recovery does not stop": "or normal_load < line_entry_recovery_normal_load_min_n" not in script,
     }
     failed = [label for label, ok in checks.items() if not ok]

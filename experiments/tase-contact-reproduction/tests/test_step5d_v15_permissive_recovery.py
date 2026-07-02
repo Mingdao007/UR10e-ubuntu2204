@@ -162,7 +162,7 @@ class Step5dV15PermissiveRecoveryTest(unittest.TestCase):
 
     def test_v15a_hold_path_freezes_stage_time_and_skips_solver(self) -> None:
         source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(encoding="utf-8")
-        self.assertIn("step5d_liveprep_v18_or_v19_profile", source)
+        self.assertIn("step5d_liveprep_v18_or_newer_profile", source)
         self.assertIn("or step5d_liveprep_online_cage_profile", source)
         self.assertIn('step5d_contact_safety["action"] in {"hold_zero_qdot", "stop_zero_qdot"}', source)
         self.assertIn('step5d_contact_safety["action"] == "active_reacquire_solver"', source)
@@ -182,7 +182,7 @@ class Step5dV15PermissiveRecoveryTest(unittest.TestCase):
             "_step5d_repeated_hold_count",
             "_step5d_active_reacquire_s",
             "_step5d_no_contact_s",
-            "v18_v19_locked_normal_settle",
+            "v18_v20_locked_normal_settle",
         ):
             self.assertIn(field, source)
 
@@ -277,7 +277,13 @@ class Step5dV15PermissiveRecoveryTest(unittest.TestCase):
         self.assertEqual(retained_v18["live_run_evidence"]["stop_reason"], "step5d_contact_safety:cage_primary_tcp_speed_hard_stop")
         self.assertAlmostEqual(retained_v18["live_run_evidence"]["predicted_tcp_speed_stop_m_s"], 0.0504484676)
 
-        current_candidate = next(item for item in table["stages"] if item["id"] == "step5d_strict_rnn_liveprep_v19")
+        retained_v19 = next(item for item in table["stages"] if item["id"] == "step5d_strict_rnn_liveprep_v19")
+        self.assertFalse(retained_v19["active"])
+        self.assertTrue(retained_v19["complete"])
+        self.assertEqual(retained_v19["live_run_evidence"]["stop_reason"], "step5d_contact_safety:cage_primary_tcp_speed_hard_stop")
+        self.assertIn("locked-normal settle", retained_v19["live_run_evidence"]["root_cause_summary"])
+
+        current_candidate = next(item for item in table["stages"] if item["id"] == "step5d_strict_rnn_liveprep_v20")
         self.assertTrue(current_candidate["active"])
         self.assertFalse(current_candidate["complete"])
         self.assertEqual(current_candidate["guard"]["target_force_n"], 12.0)
@@ -292,6 +298,8 @@ class Step5dV15PermissiveRecoveryTest(unittest.TestCase):
         self.assertEqual(current_candidate["guard"]["torque_norm_guard_nm"], 4.0)
         self.assertEqual(current_candidate["guard"]["normal_follow_settle_s"], 0.15)
         self.assertEqual(current_candidate["guard"]["reacquire_predicted_tcp_speed_cap_m_s"], 0.035)
+        self.assertEqual(current_candidate["guard"]["precontact_pose_contract_id"], "pre_contact_search_gravity_down_v1")
+        self.assertEqual(current_candidate["guard"]["precontact_pose_target_rotvec_rad"], [3.141592654, 0.0, 0.0])
         self.assertEqual(current_candidate["guard"]["entry_movel_speed_m_s"], 0.060)
         self.assertEqual(current_candidate["guard"]["first_search_far_speed_m_s"], -0.0225)
         self.assertEqual(current_candidate["contact_policy"]["controller_readback_status"], "verified")
@@ -299,12 +307,12 @@ class Step5dV15PermissiveRecoveryTest(unittest.TestCase):
         self.assertTrue(current_candidate["local_delivery_evidence"]["controller_readback_verified"])
         self.assertEqual(
             current_candidate["local_delivery_evidence"]["controller_readback"],
-            "runs/controller_readback_step5d_strict_rnn_liveprep_v19_20260702_172839/manifest.json",
+            "runs/controller_readback_step5d_strict_rnn_liveprep_v20_20260702_192951/manifest.json",
         )
         current = json.loads((ROOT / "config" / "current_stage.json").read_text(encoding="utf-8"))
-        self.assertEqual(current["current_stage_id"], "step5d_strict_rnn_liveprep_v19")
-        self.assertEqual(current["program"], "step5d_strict_rnn_liveprep_v19")
-        self.assertEqual(current["bridge_profile"]["step4e_version"], "step5d_strict_rnn_liveprep_v19")
+        self.assertEqual(current["current_stage_id"], "step5d_strict_rnn_liveprep_v20")
+        self.assertEqual(current["program"], "step5d_strict_rnn_liveprep_v20")
+        self.assertEqual(current["bridge_profile"]["step4e_version"], "step5d_strict_rnn_liveprep_v20")
         self.assertIn("controller_readback_verified", current["status"])
         self.assertTrue(current["evidence"]["v16_local_package_validated"])
         self.assertTrue(current["evidence"]["v16_controller_readback_verified"])

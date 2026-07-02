@@ -449,6 +449,7 @@ def validate_package(
         "step5d_strict_rnn_liveprep_v17",
         "step5d_strict_rnn_liveprep_v18",
         "step5d_strict_rnn_liveprep_v19",
+        "step5d_strict_rnn_liveprep_v20",
     }:
         is_v9 = program.endswith("_v9")
         is_v10 = program.endswith("_v10")
@@ -462,23 +463,24 @@ def validate_package(
         is_v17 = program.endswith("_v17")
         is_v18 = program.endswith("_v18")
         is_v19 = program.endswith("_v19")
-        guarded_v9_plus = is_v9 or is_v10 or is_v11 or is_v12 or is_v13 or is_v14 or is_v15 or is_v15a or is_v16 or is_v17 or is_v18 or is_v19
+        is_v20 = program.endswith("_v20")
+        guarded_v9_plus = is_v9 or is_v10 or is_v11 or is_v12 or is_v13 or is_v14 or is_v15 or is_v15a or is_v16 or is_v17 or is_v18 or is_v19 or is_v20
         recovery_min = "0.000" if guarded_v9_plus else "0.500"
-        recovery_force_stop = "100.000" if is_v18 or is_v19 else "25.000" if is_v14 or is_v15 or is_v15a or is_v16 or is_v17 else "100.000"
+        recovery_force_stop = "100.000" if is_v18 or is_v19 or is_v20 else "25.000" if is_v14 or is_v15 or is_v15a or is_v16 or is_v17 else "100.000"
         settle_label = (
             "Stage 25.3 consumes 37..39 as Cartesian admittance settle vx/vy/vz"
             if is_v10
             else "Stage 25.3 consumes 37..39 as Cartesian deadband-acquire vx/vy/vz"
-            if is_v11 or is_v12 or is_v13 or is_v14 or is_v15 or is_v15a or is_v16 or is_v17 or is_v18 or is_v19
+            if is_v11 or is_v12 or is_v13 or is_v14 or is_v15 or is_v15a or is_v16 or is_v17 or is_v18 or is_v19 or is_v20
             else "Stage 25.3 consumes 37..39 as Cartesian force-PID settle vx/vy/vz"
         )
-        qdot_cap = "0.050" if is_v12 or is_v13 or is_v14 or is_v15 or is_v15a or is_v16 or is_v17 or is_v18 or is_v19 else "0.300"
+        qdot_cap = "0.050" if is_v12 or is_v13 or is_v14 or is_v15 or is_v15a or is_v16 or is_v17 or is_v18 or is_v19 or is_v20 else "0.300"
         min_load = "8.000" if (is_v17 or is_v18) else "5.000" if is_v16 else "2.000" if is_v11 or is_v12 or is_v13 or is_v14 or is_v15 or is_v15a else "3.000"
-        if is_v19:
+        if is_v19 or is_v20:
             min_load = "8.000"
-        max_load = "13.000" if is_v19 else "18.000" if (is_v17 or is_v18) else "20.000" if is_v16 else "15.000" if is_v11 or is_v12 or is_v13 or is_v14 or is_v15 or is_v15a else "8.000"
-        required_s = "0.100" if (is_v17 or is_v18 or is_v19) else "0.150" if is_v11 or is_v12 or is_v13 or is_v14 or is_v15 or is_v15a or is_v16 else "0.300" if is_v10 else "0.200"
-        target_force = "12.0" if is_v16 or is_v17 or is_v18 or is_v19 else "5.0"
+        max_load = "13.000" if is_v19 or is_v20 else "18.000" if (is_v17 or is_v18) else "20.000" if is_v16 else "15.000" if is_v11 or is_v12 or is_v13 or is_v14 or is_v15 or is_v15a else "8.000"
+        required_s = "0.100" if (is_v17 or is_v18 or is_v19 or is_v20) else "0.150" if is_v11 or is_v12 or is_v13 or is_v14 or is_v15 or is_v15a or is_v16 else "0.300" if is_v10 else "0.200"
+        target_force = "12.0" if is_v16 or is_v17 or is_v18 or is_v19 or is_v20 else "5.0"
         checks.update(
             {
                 "step5d function": f"def codex_{program}()" in script
@@ -500,6 +502,7 @@ def validate_package(
                     and "write_output_float_register(35, 25.1)" not in script
                     and "write_output_float_register(35, 25.2)" not in script
                     if is_v16 or is_v17 or is_v18 or is_v19
+                    or is_v20
                     else "local skip_lift_attitude = 0" in script
                     and "local orientation_skip_error_rad = 0.069813" in script
                     and "skip_lift_attitude == 0" in script
@@ -516,7 +519,7 @@ def validate_package(
                 and "speedl([cmd_vx, cmd_vy, cmd_vz, 0.0, 0.0, 0.0]" in script,
                 "second contact slow search": (
                     "codex_step5d_down_search(24.3, 24.4" not in script
-                    if is_v16 or is_v17 or is_v18 or is_v19
+                    if is_v16 or is_v17 or is_v18 or is_v19 or is_v20
                     else "codex_step5d_down_search(24.3, 24.4, 0.035, 0.000, 45.000, -0.0025, -0.0025)" in script
                 ),
                 "line no cartesian speedl": "speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy" not in script,
@@ -530,7 +533,7 @@ def validate_package(
                     else "codex_abs(normal_force) > 100.0" in script
                     and "force_norm > 100.0" in script
                 )
-                and ("torque_norm > 4.0" in script if is_v18 or is_v19 else "torque_norm > 3.0" in script),
+                and ("torque_norm > 4.0" in script if is_v18 or is_v19 or is_v20 else "torque_norm > 3.0" in script),
                 "not quarantine": "stop_only_quarantine" not in script + txt,
                 "no stale step5bc route": "step5b_contact_cycloid_baseline_v1" not in script + txt
                 and "step5c_joint_rnn_cycloid_v1" not in script + txt,
@@ -540,7 +543,9 @@ def validate_package(
             checks["low-load does not stop"] = "or normal_load < line_entry_recovery_normal_load_min_n" not in script
             checks["force envelope auto-home"] = "elif stop_reason == 17.0:\n    return True" in script
             stale_range_end = (
-                19
+                20
+                if is_v20
+                else 19
                 if is_v19
                 else 18
                 if is_v18
@@ -574,16 +579,16 @@ def validate_package(
                     and "codex_abs(cmd_vx) <= line_entry_settle_cmd_max_m_s" in script
                     and "scalar admittance settle" in txt
                 )
-            if is_v11 or is_v12 or is_v13 or is_v14 or is_v15 or is_v15a or is_v16 or is_v17 or is_v18 or is_v19:
-                checks["v11/v12/v13/v14/v15/v15a/v16/v17/v18/v19 deadband acquire release gate"] = (
+            if is_v11 or is_v12 or is_v13 or is_v14 or is_v15 or is_v15a or is_v16 or is_v17 or is_v18 or is_v19 or is_v20:
+                checks["v11/v12/v13/v14/v15/v15a/v16/v17/v18/v19/v20 deadband acquire release gate"] = (
                     "local line_entry_settle_cmd_max_m_s" not in script
                     and "codex_abs(cmd_vx) <= line_entry_settle_cmd_max_m_s" not in script
                     and "deadband contact acquire" in txt
-                    and ("8.0 N" in txt if (is_v17 or is_v18 or is_v19) else "5.0 N" in txt if is_v16 else "2.0 N" in txt)
-                    and ("13.0 N" in txt if is_v19 else "18.0 N" in txt if (is_v17 or is_v18) else "20.0 N" in txt if is_v16 else "15.0 N" in txt)
+                    and ("8.0 N" in txt if (is_v17 or is_v18 or is_v19 or is_v20) else "5.0 N" in txt if is_v16 else "2.0 N" in txt)
+                    and ("13.0 N" in txt if (is_v19 or is_v20) else "18.0 N" in txt if (is_v17 or is_v18) else "20.0 N" in txt if is_v16 else "15.0 N" in txt)
                 )
-            if is_v17 or is_v18 or is_v19:
-                checks["v17/v18/v19 raw sanity release note"] = "7.5 N" in txt and ("14.0 N" in txt if is_v19 else "19.0 N" in txt)
+            if is_v17 or is_v18 or is_v19 or is_v20:
+                checks["v17/v18/v19/v20 raw sanity release note"] = "7.5 N" in txt and ("14.0 N" in txt if (is_v19 or is_v20) else "19.0 N" in txt)
             if is_v12:
                 checks["v12 Stage25 guard note"] = (
                     "STAGE25_GUARD" in script
@@ -691,6 +696,32 @@ def validate_package(
                     and "movel(entry_xy_pose, a=0.090, v=0.060, r=0.0)" in script
                     and "40.000, -0.0225, -0.0025)" in script
                     and "step5d_strict_rnn_liveprep_v18" not in script + txt
+                    and "stop_request" in script + txt
+                )
+            if is_v20:
+                checks["v20 gravity-down cage-primary active reacquire speed-cap note"] = (
+                    "STAGE25_CONTACT_SAFETY" in script
+                    and "PRECONTACT_POSE_CONTRACT: pre_contact_search_gravity_down_v1" in script
+                    and "config/step_pose_contract_table.json" in script + txt
+                    and "local target_rx = 3.141592654" in script
+                    and "local target_ry = 0.000000000" in script
+                    and "local target_rz = 0.000000000" in script
+                    and "TCP +Z targets base -Z" in script + txt
+                    and "active_reacquire_solver" in script + txt
+                    and "reacquire predicted-speed cap" in script + txt
+                    and "normal_filter_source" in txt
+                    and "low-load or" in txt.lower()
+                    and "no-contact" in script + txt
+                    and "_step5d_tcp_cage_*" in txt
+                    and "_step5d_active_reacquire_s" in txt
+                    and "_step5d_no_contact_s" in txt
+                    and "_step5d_reacquire_speed_cap_*" in txt
+                    and "100 N raw-normal/force-norm and 4.0 Nm torque" in txt
+                    and "local line_runtime_limit_s = 15.000" in script
+                    and "local line_success_progress_m = 10.000000000" in script
+                    and "movel(entry_xy_pose, a=0.090, v=0.060, r=0.0)" in script
+                    and "40.000, -0.0225, -0.0025)" in script
+                    and "step5d_strict_rnn_liveprep_v19" not in script + txt
                     and "stop_request" in script + txt
                 )
         else:

@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "status": "active",
+  "updated_at": "2026-07-02T19:20:00+08:00",
+  "contracts": [
+    {
+      "id": "pre_contact_search_gravity_down_v1",
+      "role": "pre_contact_search_pose",
+      "applies_to": "UR tabletop contact search stages before first-contact latch",
+      "reference_frame": "base",
+      "tp_stage_codes": [
+        22.0,
+        24.0,
+        24.2
+      ],
+      "tcp_axis": "tool_z_positive",
+      "target_axis_base": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "target_rotvec_rad": [
+        3.141592654,
+        0.0,
+        0.0
+      ],
+      "generation_axis_error_max_deg": 0.25,
+      "runtime_axis_error_max_deg": 2.0,
+      "roll_policy": "fixed_x_pi_for_current_tool_clearance",
+      "enforcement": "current_live_package"
+    }
+  ],
+  "stage_selectors": [
+    {
+      "stage_table": "config/step5_stage_table.json",
+      "stage_id": "step5d_strict_rnn_liveprep_v20",
+      "pose_contract_id": "pre_contact_search_gravity_down_v1",
+      "enforcement": "current_live_package"
+    },
+    {
+      "stage_table": "config/step5_stage_table.json",
+      "stage_id": "step5_contact_cycloid_baseline_v1",
+      "pose_contract_id": "pre_contact_search_gravity_down_v1",
+      "enforcement": "future_migration_contract_reference"
+    },
+    {
+      "stage_table": "config/step6_stage_table.json",
+      "stage_id": "step6_contact_eight_baseline_v2",
+      "pose_contract_id": "pre_contact_search_gravity_down_v1",
+      "enforcement": "future_migration_contract_reference"
+    }
+  ],
+  "retained_evidence_policy": "Retained historical stages may record historical_pose_contract_status instead of passing this contract."
+}

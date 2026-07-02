@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${SCRIPT_PATH}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 BRIDGE_OPERATOR="${SCRIPT_DIR}/bridge-line-operator.sh"
 READBACK_GATE="${ROOT}/tools/verify_current_stage_readback.py"
-STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v19}"
+STEP5D_VERSION="${STEP5D_VERSION:-step5d_strict_rnn_liveprep_v20}"
 if [[ -z "${STEP5D_VERSION}" ]]; then
   EXPECTED_PROGRAM="<no current Step5d live-prep package>"
 elif [[ "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v1" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v2" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v3" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v4" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v5" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v6" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v7" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v8" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v9" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v10" || "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v11" ]]; then
@@ -29,14 +29,15 @@ Boundary:
   - Bridge profile: ${STEP5D_VERSION}.
   - Force target: 12.0 N, Step5/Step6 positive normal-load convention.
   - Stage 25.0: registers 37..42 are qd0..qd5 rad/s; TP executes speedj.
-  - qdot cap: v12/v13/v14/v15/v15a/v16/v17/v18/v19 default to 0.05 rad/s; retained evidence packages may differ.
-  - Raw normal guard: v18/v19 defaults to 100 N, force norm guard 100 N, torque guard 4.0 Nm.
+  - qdot cap: v12/v13/v14/v15/v15a/v16/v17/v18/v19/v20 default to 0.05 rad/s; retained evidence packages may differ.
+  - Raw normal guard: v18/v19/v20 defaults to 100 N, force norm guard 100 N, torque guard 4.0 Nm.
   - Stage 25.3 runs bridge deadband acquire with Cartesian registers 37..39.
   - Stage 25.3 keeps press recovery on low load and stops outside the 40 N normal-load / 100 N force-norm recovery envelope.
   - Stage 25.3 must hold filtered 8-13 N, raw-sanity 7.5-14 N, and force_norm <=25 N for 0.100 s before Stage 25.0 speedj starts.
+  - Stage 22/24 pre-contact search posture is gravity-down: TCP +Z targets base -Z with rotvec [pi,0,0].
   - Stage 22 entry movel is 1.5x faster than v18: 0.060 m/s at 0.090 m/s^2.
   - Stage 24 far search is 1.5x faster than v18: 0.0225 m/s down; near search remains 0.0025 m/s.
-  - Stage 25.0 v19 freezes path_time during cage-primary active reacquire/no-contact diagnostics, holds the force integrator on freeze_low_force, and caps reacquire predicted TCP speed at 0.035 m/s before the 0.050 m/s hard stop.
+  - Stage 25.0 v20 freezes path_time during cage-primary active reacquire/no-contact diagnostics, resets outer-loop state on low-load active reacquire, and caps reacquire predicted TCP speed at 0.035 m/s before the 0.050 m/s hard stop.
   - No UR zero_ftsensor(), no Kunwei tare/zero/config, no TCP/payload write.
   - This wrapper never loads a program or presses Play.
   - contact-bridge requires a fresh cached long-check result; refresh it during
