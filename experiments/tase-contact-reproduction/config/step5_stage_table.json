@@ -84,6 +84,65 @@
       "bridge main still hard-blocks step5c_speedj_dryrun_v1 and step5c_joint_rnn_cycloid_v1 live profiles"
     ]
   },
+  "bridge_startup_policy": {
+    "scope": "cross_step_legacy_kunwei_rtde_bridge_routes",
+    "applies_to": [
+      "Step5b bridge contact packages",
+      "Step5d live-prep and ablation bridge packages",
+      "Step6b bridge contact packages"
+    ],
+    "normal_operator_model": "prepared_fast_bridge",
+    "phase_model": {
+      "prep": [
+        "Refresh the long-check cache before a live trigger when bench, route, VPN, cabling, controller power, or Kunwei state changed.",
+        "Run build/upload/read-back only when generated .script/.txt/.urp bytes, generator logic, TP stage semantics, or register contracts changed.",
+        "Run focused tests and semantic/textbook gates only for the touched safety, force-frame, bridge, package, or routing surface."
+      ],
+      "trigger": [
+        "When the user says open bridge and a package is already controller-read-back verified, enter the operator path first; do not rebuild, upload, push, write a handoff, or run heavy reports on the trigger path.",
+        "Keep the live trigger checks: explicit confirmation token, current binding gate, fresh long-check cache or accepted prepared short path, RTDE 30004 quick probe, no existing bridge process, Dashboard loaded-program match, and safety NORMAL.",
+        "Do not cache Dashboard safety, loaded-program, running state, RTDE reachability, or no-existing-bridge checks."
+      ],
+      "post_run": [
+        "Keep bridge monitor, quiet-stop check, and minimal frequency summary in the foreground.",
+        "Move git push, final report/handoff, Mac transfer, detailed plots, and heavy diagnostics after bridge start/run or to a background/archive loop."
+      ]
+    },
+    "cache_policy": {
+      "long_check_cache": "runs/.bridge_long_checks_cache.json",
+      "ttl_s": 7200,
+      "fingerprint_required": true,
+      "fingerprint_fields": [
+        "boot_id",
+        "device",
+        "ipv4_addresses",
+        "default_routes",
+        "kunwei_route_get"
+      ],
+      "refresh_required_after": [
+        "safety fault",
+        "protective stop",
+        "controller power-cycle",
+        "unexplained network drop",
+        "VPN or route change",
+        "direct-link or Kunwei cabling change"
+      ]
+    },
+    "change_surface_routing": {
+      "bridge_parameter_only": "Skip TP package rebuild/upload; run focused bridge/runtime tests and use the prepared fast bridge trigger.",
+      "bridge_python_guard_changed": "Skip TP upload unless TP/register semantics changed; run focused guard tests and semantic/contact-frame gate when force/contact semantics are touched.",
+      "tp_package_or_generator_changed": "Build, validate, upload, and controller read-back before any live bridge trigger.",
+      "tests_or_reports_only": "Do not block bridge startup; archive or publish after live gate handling."
+    },
+    "observed_timing": {
+      "current_step5d_trigger_checks_eta_s": "1-3",
+      "current_step5d_tp_play_wait_max_s": 10,
+      "bridge_baseline_s": 5,
+      "bridge_rezero_s": 1,
+      "latest_v25_command_to_metadata_s": 1,
+      "latest_v25_stage_visible_after_bridge_start_s": "about 8-9 including baseline/rezero"
+    }
+  },
   "stages": [
     {
       "id": "step5a_cycloid_no_contact_v3",
@@ -5150,7 +5209,8 @@
         "stage25_contact_policy": "Online broad AABB TCP cage remains a hard diagnostic boundary; Stage25.3 uses target-centric preload parameters (10.5-12.8N filtered, 9.5-13.5N raw sanity), Stage25.95 waits for bridge-cleared registers 37..47, and Stage25.0 selects Cartesian speedl or joint speedj from layout tag 47. v25 defaults to speedl_cartesian_oracle with strict RNN/J(q) shadow diagnostics; v26 defaults to speedj_rnn_live with joint-feasibility-scaled xdot_c.",
         "live_authorization": "current_controller_readback_verified_pending_live_bridge_run",
         "tp_package_status": "generated_uploaded_readback_verified_current",
-        "controller_readback_status": "verified"
+        "controller_readback_status": "verified",
+        "bridge_startup_policy_ref": "bridge_startup_policy"
       },
       "semantic_control_gate": {
         "contract": "UR_FORCE_FRAME_CONTRACT.md",
@@ -5241,6 +5301,7 @@
         "v25 keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
         "v25 is an ablation package with layout-tagged speedl/speedj Stage25.0 modes.",
         "v25 uses 25N raw-normal/force-norm hard guards, 4Nm torque guard, and layout-tagged speedl/speedj Stage25.0.",
+        "Use bridge_startup_policy for the prepared fast bridge path: do not rebuild, upload, push, or write heavy reports on the trigger path; keep binding, cache, RTDE, no-existing-bridge, Dashboard loaded-program, and safety checks.",
         "This current row is not a completed Step5d reproduction claim; explicit live bridge evidence is still pending."
       ],
       "live_run_evidence": null
