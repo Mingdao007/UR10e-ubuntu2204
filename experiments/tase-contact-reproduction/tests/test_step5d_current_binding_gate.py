@@ -90,8 +90,10 @@ class Step5dCurrentBindingGateTest(unittest.TestCase):
         result = gate.verify_binding(ROOT)
 
         self.assertTrue(result["ok"])
-        self.assertTrue(result["program"].startswith("step5d_strict_rnn_liveprep_"))
-        self.assertIn("controller_readback_step5d_strict_rnn_liveprep", result["manifest"])
+        self.assertTrue(
+            result["program"].startswith(("step5d_strict_rnn_liveprep_", "step5d_strict_rnn_ablation_"))
+        )
+        self.assertIn("controller_readback_step5d_strict_rnn_", result["manifest"])
         self.assertEqual(result["runtime_interface"]["program"], result["program"])
         self.assertEqual(len(result["local_triplet"]), 3)
         self.assertEqual(result["stage_table"]["id"], result["program"])

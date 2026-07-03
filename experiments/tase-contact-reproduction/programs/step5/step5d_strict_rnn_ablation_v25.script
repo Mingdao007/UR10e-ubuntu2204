@@ -1,6 +1,6 @@
 # Step5d strict RNN ablation v25.
-# VERSION: 2026-07-03T0225HKT_STEP5D_STRICT_RNN_ABLATION_V25
-# GENERATED_AT_LOCAL: 2026-07-03T02:25:40+08:00
+# VERSION: 2026-07-03T2258HKT_STEP5D_STRICT_RNN_ABLATION_V25
+# GENERATED_AT_LOCAL: 2026-07-03T22:58:38+08:00
 # ENTRY_XY_M: [0.487795411, 0.129326793]
 # SAFE_FRAME_SOURCE: config/step5_safe_frame.json from confirmed drag-teach start/mid/end.
 # NO_SCALE_POLICY: Step5 table frame uses rotation+translation only.
@@ -294,11 +294,11 @@ def codex_step5d_strict_rnn_ablation_v25():
   local home_return_speed_m_s = 0.050
   local final_progress_m = 0.0
 
-  textmsg("codex step4e version 2026-07-03T0225HKT_STEP5D_STRICT_RNN_ABLATION_V25 start step5d_strict_rnn_ablation_v25")
+  textmsg("codex step4e version 2026-07-03T2258HKT_STEP5D_STRICT_RNN_ABLATION_V25 start step5d_strict_rnn_ablation_v25")
   write_output_float_register(34, 0.0)
   write_output_float_register(35, 20.0)
   codex_echo_step4e(0.0)
-  if not codex_wait_for_fresh_heartbeat(30.0):
+  if not codex_wait_for_fresh_heartbeat(60.0):
     stop_reason = 3.0
   end
 
@@ -604,7 +604,7 @@ def codex_step5d_strict_rnn_ablation_v25():
   write_output_float_register(30, stop_reason)
   write_output_float_register(31, final_progress_m)
   write_output_float_register(35, 29.0)
-  textmsg("codex step4e version 2026-07-03T0225HKT_STEP5D_STRICT_RNN_ABLATION_V25 stop reason:", stop_reason)
+  textmsg("codex step4e version 2026-07-03T2258HKT_STEP5D_STRICT_RNN_ABLATION_V25 stop reason:", stop_reason)
 end
 
 codex_step5d_strict_rnn_ablation_v25()

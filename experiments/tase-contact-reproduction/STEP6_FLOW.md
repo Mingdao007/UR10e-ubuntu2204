@@ -1,8 +1,8 @@
 # Step6 8-Shaped Flow
 
-Step6 promotes the paper Experiment #2 8-shaped path into the current Kunwei
-flow selected by `config/current_stage.json`. Step4g remains historical
-evidence only.
+Step6 retains the paper Experiment #2 8-shaped path as Kunwei bridge evidence.
+`config/current_stage.json` currently points to Step5d, not Step6. Step4g
+remains historical evidence only.
 
 ## Selected Target
 

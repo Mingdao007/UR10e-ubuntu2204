@@ -979,6 +979,8 @@ def validate_package(
                 f"step5d {version_label} table source": "STEP5_FLOW.md" in script
                 and "STEP5_TABLE_SOURCE: config/step5_stage_table.json" in script
                 and program in script + txt,
+                f"step5d {version_label} bridge start wait timeout": "codex_wait_for_fresh_heartbeat(60.0)" in script
+                and "to 60.0 s for a fresh bridge heartbeat" in txt,
                 f"step5d {version_label} multimode executor": "multimode_executor_and_guard_only" in script
                 and "local stage25_layout_tag = read_input_float_register(47)" in script
                 and "local cartesian_layout_code = 523.000" in script

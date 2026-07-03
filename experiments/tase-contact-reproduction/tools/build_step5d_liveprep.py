@@ -91,6 +91,7 @@ LINE_ENTRY_FORCE_NORM_MAX_N = 25.0
 LINE_ENTRY_REQUIRED_S = 0.100
 LINE_ENTRY_CMD_LIMIT_M_S = 0.003
 LINE_ENTRY_TIMEOUT_S = 10.000
+BRIDGE_START_WAIT_TIMEOUT_S = 60.000
 LINE_ENTRY_RAW_SANITY_MIN_N = 9.5
 LINE_ENTRY_RAW_SANITY_MAX_N = 13.5
 LINE_ENTRY_RECOVERY_NORMAL_LOAD_MIN_N = 0.0
@@ -137,6 +138,25 @@ def load_safe_frame(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dict:
     except KeyError:
         stage = step5_stage(spec.source_stage_id)
     return load_stage_frame(stage)
+
+
+def guard_value(spec: Step5dAblationSpec, key: str, default: float) -> float:
+    try:
+        stage = step5_stage(spec.stage_id)
+    except KeyError:
+        stage = step5_stage(spec.source_stage_id)
+    guard = stage.get("guard", {})
+    if not isinstance(guard, dict):
+        return default
+    value = guard.get(key, default)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def bridge_start_wait_timeout_s(spec: Step5dAblationSpec = DEFAULT_SPEC) -> float:
+    return guard_value(spec, "bridge_start_wait_timeout_s", BRIDGE_START_WAIT_TIMEOUT_S)
 
 
 def _replace_exact(script: str, old: str, new: str) -> str:
@@ -545,6 +565,7 @@ def build_script(
     frame: dict,
     spec: Step5dAblationSpec = DEFAULT_SPEC,
 ) -> str:
+    bridge_wait_timeout_s = bridge_start_wait_timeout_s(spec)
     script = build_step5b_script(stamp, gen_at, geom, frame, variant="v3")
     scaffold_mutated_stamp = stamp.replace(spec.version_label.upper(), "V31").replace(spec.version_label, "v31")
     script = script.replace(scaffold_mutated_stamp, stamp)
@@ -572,6 +593,10 @@ def build_script(
     )
     script = script.replace("local line_runtime_limit_s = 65.000", "local line_runtime_limit_s = 15.000")
     script = script.replace("local line_success_progress_m = 60.000000000", "local line_success_progress_m = 10.000000000")
+    script = script.replace(
+        "codex_wait_for_fresh_heartbeat(30.0)",
+        f"codex_wait_for_fresh_heartbeat({bridge_wait_timeout_s:.1f})",
+    )
     script = _replace_first_present(
         script,
         (
@@ -609,6 +634,7 @@ def build_script(
 
 
 def build_txt(stamp: str, spec: Step5dAblationSpec = DEFAULT_SPEC) -> str:
+    bridge_wait_timeout_s = bridge_start_wait_timeout_s(spec)
     first_run = (
         "First live run must use speedl_cartesian_oracle. Acceptance target is Stage25.0\n"
         "  continuous runtime >=5 s, load mostly 8..14 N, trusted force max <20 N, and no\n"
@@ -631,6 +657,8 @@ Version:
 Boundary:
   Contact-capable {spec.version_label} ablation package; not a completed reproduction claim.
   Reuses the Step5b v3 contact-search/latch/25.3 scaffold.
+  If TP Play is pressed before the Ubuntu bridge is started, Stage 20 waits up
+  to {bridge_wait_timeout_s:.1f} s for a fresh bridge heartbeat before timing out.
   Stage 22 entry and Stage 24 far/near search use the shared pre-contact pose
   contract {POSE_CONTRACT_ID}: TCP +Z targets base -Z with rotvec
   [{SEARCH_GRAVITY_DOWN_ROTVEC[0]:.9f}, {SEARCH_GRAVITY_DOWN_ROTVEC[1]:.9f}, {SEARCH_GRAVITY_DOWN_ROTVEC[2]:.9f}].
@@ -694,6 +722,7 @@ Reference:
 
 
 def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5dAblationSpec = DEFAULT_SPEC) -> None:
+    bridge_wait_timeout_s = bridge_start_wait_timeout_s(spec)
     xml = gzip.decompress(urp).decode("utf-8")
     checks = {
         "script stamp": stamp in script,
@@ -705,6 +734,8 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5d
         "function name": f"def codex_{spec.program_name}()" in script,
         "step5 flow": "STEP5_FLOW.md" in script and "STEP5_FLOW.md" in txt,
         "step5d stage": spec.stage_id in script and spec.stage_id in txt,
+        "bridge start wait timeout": f"codex_wait_for_fresh_heartbeat({bridge_wait_timeout_s:.1f})" in script
+        and f"to {bridge_wait_timeout_s:.1f} s for a fresh bridge heartbeat" in txt,
         "bridge profile": f"step4e-version={spec.bridge_version}" in script
         and f"--step4e-version {spec.bridge_version}" in txt,
         "multimode executor role": "multimode_executor_and_guard_only" in script,
@@ -892,6 +923,7 @@ def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dic
             "force_norm_max_n": LINE_ENTRY_FORCE_NORM_MAX_N,
             "hold_s": LINE_ENTRY_REQUIRED_S,
             "timeout_s": LINE_ENTRY_TIMEOUT_S,
+            "bridge_start_wait_timeout_s": bridge_start_wait_timeout_s(spec),
             "cmd_limit_m_s": LINE_ENTRY_CMD_LIMIT_M_S,
             "recovery_normal_load_min_n": LINE_ENTRY_RECOVERY_NORMAL_LOAD_MIN_N,
             "recovery_normal_load_max_n": LINE_ENTRY_RECOVERY_NORMAL_LOAD_MAX_N,

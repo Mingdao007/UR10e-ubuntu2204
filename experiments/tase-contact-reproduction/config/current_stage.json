@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "updated_at": "2026-07-03T22:05:24+08:00",
+  "updated_at": "2026-07-03T23:04:20+08:00",
   "current_step": "Step5d",
   "current_stage_id": "step5d_strict_rnn_ablation_v25",
   "program": "step5d_strict_rnn_ablation_v25",
@@ -57,9 +57,9 @@
     "v13_local_package_validated": true,
     "v13_controller_readback_verified": true,
     "sha256": {
-      ".script": "b5428a732e1daccfee0cde8dd732aca8a15f9983733c6b823f44f92d8ac3fc2b",
-      ".txt": "5fa87e9960252b9e1c69527014eb6b25dd615889c405a6ddc78c5a175c20a2d1",
-      ".urp": "61c90b723c423e09e252bfe7c297a242dc28b8dd4521dd193eba40e4d05b7035"
+      ".script": "8ab25653a87ccd5426e5bb46562e390d965288d48d2c7717e0209c68dca9789e",
+      ".txt": "b03f47a2b95d0c8a1c94382b2aaddf48859fecb338f016c093b3e4d71ebb919b",
+      ".urp": "aa39b5b2c3075950fc38377750370eac1ccd1747f5863ef462c7fbacf5cac014"
     },
     "v14_stamp": "2026-06-15T2310HKT_STEP5D_STRICT_RNN_LIVEPREP_V14",
     "v14_local_package_validated": true,
@@ -525,11 +525,11 @@
       "primary_force_stats": "baseline_ready trusted samples",
       "raw_all_force_stats": "retained for startup artifact audit"
     },
-    "v25_stamp": "2026-07-03T0225HKT_STEP5D_STRICT_RNN_ABLATION_V25",
+    "v25_stamp": "2026-07-03T2258HKT_STEP5D_STRICT_RNN_ABLATION_V25",
     "v25_local_package_validated": true,
     "v25_controller_readback_verified": true,
-    "v25_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_ablation_v25_20260703_220513",
-    "v25_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v25_20260703_220513/manifest.json",
+    "v25_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_ablation_v25_20260703_225843",
+    "v25_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v25_20260703_225843/manifest.json",
     "v25_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v25.urp",
     "v25_local_triplet": "programs/step5/step5d_strict_rnn_ablation_v25",
     "v25_delivery_status": "controller read-back verified",
@@ -543,9 +543,9 @@
       "param_valid_code": 521.0
     },
     "v25_sha256": {
-      ".script": "b5428a732e1daccfee0cde8dd732aca8a15f9983733c6b823f44f92d8ac3fc2b",
-      ".txt": "5fa87e9960252b9e1c69527014eb6b25dd615889c405a6ddc78c5a175c20a2d1",
-      ".urp": "61c90b723c423e09e252bfe7c297a242dc28b8dd4521dd193eba40e4d05b7035"
+      ".script": "8ab25653a87ccd5426e5bb46562e390d965288d48d2c7717e0209c68dca9789e",
+      ".txt": "b03f47a2b95d0c8a1c94382b2aaddf48859fecb338f016c093b3e4d71ebb919b",
+      ".urp": "aa39b5b2c3075950fc38377750370eac1ccd1747f5863ef462c7fbacf5cac014"
     },
     "v24_retained_after_superseded_by_v25_ablation": true,
     "v24_live_attempts": {
@@ -635,10 +635,10 @@
     "Earlier Step5d live-prep packages remain retained evidence only."
   ],
   "sha256": {
-    ".script": "b5428a732e1daccfee0cde8dd732aca8a15f9983733c6b823f44f92d8ac3fc2b",
-    ".txt": "5fa87e9960252b9e1c69527014eb6b25dd615889c405a6ddc78c5a175c20a2d1",
-    ".urp": "61c90b723c423e09e252bfe7c297a242dc28b8dd4521dd193eba40e4d05b7035"
+    ".script": "8ab25653a87ccd5426e5bb46562e390d965288d48d2c7717e0209c68dca9789e",
+    ".txt": "b03f47a2b95d0c8a1c94382b2aaddf48859fecb338f016c093b3e4d71ebb919b",
+    ".urp": "aa39b5b2c3075950fc38377750370eac1ccd1747f5863ef462c7fbacf5cac014"
   },
-  "delivery_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v25_20260703_220513/manifest.json",
-  "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v25_20260703_220513/manifest.json"
+  "delivery_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v25_20260703_225843/manifest.json",
+  "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v25_20260703_225843/manifest.json"
 }

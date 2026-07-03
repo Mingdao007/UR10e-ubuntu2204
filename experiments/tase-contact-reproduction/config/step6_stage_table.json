@@ -1,7 +1,40 @@
 {
   "version": 1,
   "status": "active",
+  "table_schema": {
+    "schema_version": "cross_step_parameter_table_v1",
+    "canonical_current_pointer": "config/current_stage.json",
+    "required_stage_fields": [
+      "id",
+      "stage",
+      "owner",
+      "active",
+      "shape",
+      "frame",
+      "contact",
+      "bridge",
+      "success_condition"
+    ],
+    "normalized_stage_fields": [
+      "policy_refs",
+      "lifecycle",
+      "current_binding",
+      "operator_lifecycle",
+      "package_delivery",
+      "evidence_refs"
+    ]
+  },
   "source_of_truth": "STEP6_FLOW.md",
+  "policy_registry": {
+    "bridge_startup_policy_ref": "config/step5_stage_table.json#bridge_startup_policy",
+    "startup_gate_profile_ref": "config/step5_stage_table.json#startup_gate_profiles.prepared_fast_bridge_v1",
+    "global_contract_refs": [
+      "STEP4E_BRIDGE_CONTRACT.md",
+      "UR_FORCE_FRAME_CONTRACT.md",
+      "config/step_pose_contract_table.json",
+      "config/local_control_textbook_spec.json"
+    ]
+  },
   "stages": [
     {
       "id": "step6a_eight_no_contact_v1",
@@ -108,6 +141,74 @@
       "frame": "config/step6_eight_safe_frame.json",
       "contact": true,
       "bridge": true,
+      "policy_refs": {
+        "bridge_startup_policy": "config/step5_stage_table.json#bridge_startup_policy",
+        "startup_gate_profile": "config/step5_stage_table.json#startup_gate_profiles.prepared_fast_bridge_v1",
+        "bridge_contract": "STEP4E_BRIDGE_CONTRACT.md",
+        "force_frame_contract": "UR_FORCE_FRAME_CONTRACT.md",
+        "pose_contract": "config/step_pose_contract_table.json#pre_contact_search_gravity_down_v1",
+        "textbook_spec": "config/local_control_textbook_spec.json"
+      },
+      "lifecycle": {
+        "state": "retained_eight_shape_evidence",
+        "active_scope": "step6_stage_table_only",
+        "current_candidate": false,
+        "retained_evidence": true,
+        "claim_status": "retained_not_current_pointer"
+      },
+      "current_binding": {
+        "source": "config/current_stage.json",
+        "is_current": false,
+        "global_current_stage_id": "step5d_strict_rnn_ablation_v25",
+        "flow_claim_status": "STEP6_FLOW_selected_target_is_retained_not_current_pointer"
+      },
+      "operator_lifecycle": {
+        "entrypoint": "scripts/step6b-v2-contact-operator.sh",
+        "base_operator": "scripts/step4e-line-v1-operator.sh",
+        "mode": "line-bridge",
+        "profile_alias_source": "STEP4E_VERSION=step6b_v2",
+        "confirm_env": "STEP6B_CONFIRM",
+        "confirm_token": "LIVE STEP6B CONTACT RUN",
+        "expected_program": "/programs/andyl/kunwei/step6/step6b_contact_eight_baseline_v2.urp",
+        "fast_trigger_requires_long_check_cache": false,
+        "long_check_cache_path": "runs/.bridge_long_checks_cache.json",
+        "long_check_ttl_s": 7200,
+        "wait_for_play_s": 45,
+        "autowatch_wait_for_play_s": 30,
+        "dashboard_program_watch_timeout_s": 45,
+        "rtde_quick_probe_timeout_s": 1.0,
+        "output_start_wait_s": 3.0,
+        "post_run_quiet_stop_check": true,
+        "post_run_stage_frequency_summary": true,
+        "background_push_after_live": false,
+        "operator_boundaries": [
+          "wrapper never loads a program or presses Play",
+          "no zero_ftsensor",
+          "no Kunwei tare/zero/config",
+          "no TCP/payload write"
+        ]
+      },
+      "package_delivery": {
+        "program_basename": "step6b_contact_eight_baseline_v2",
+        "local_program_dir": "programs/step6",
+        "local_triplet": "programs/step6/step6b_contact_eight_baseline_v2.{script,txt,urp}",
+        "controller_target": "/programs/andyl/kunwei/step6/step6b_contact_eight_baseline_v2.urp",
+        "controller_dir": "/programs/andyl/kunwei/step6",
+        "controller_readback_status": "verified_retained",
+        "controller_readback_manifest": "runs/controller_readback_step6b_contact_eight_baseline_v2_20260612_225651/manifest.json",
+        "delivery_mode": "full_upload_readback",
+        "sha256": {
+          ".script": "55ded669a38ddec1e5e58c8450f7a5358964c982336e9381a9e46b23ae864e76",
+          ".txt": "bf0dbf0919144d3cf60c603cce8e08dc1fde0f25eeada5a75577c14b1e1c2142",
+          ".urp": "999dba3efb431c3811451b58ce26fb841d42b3ad4f6f6728b99bc3f0418f8a0d"
+        }
+      },
+      "evidence_refs": {
+        "latest_live_run_status": "retained",
+        "latest_live_run_dir": "runs/bridge_step6b_contact_eight_baseline_v2_20260616_164353",
+        "latest_live_run_summary": "runs/bridge_step6b_contact_eight_baseline_v2_20260616_164353/summary.json",
+        "latest_stop_reason": "signal_sigint"
+      },
       "bridge_profile": {
         "step4e_version": "step6b_v2",
         "step4e_path_shape": "eight",

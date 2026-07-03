@@ -140,6 +140,8 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertNotIn("or normal_load < line_entry_recovery_normal_load_min_n", script)
         self.assertIn("elif stop_reason == 17.0:\n    return True", script)
         self.assertIn("local normal_load = target_force - force_error", script)
+        self.assertIn("codex_wait_for_fresh_heartbeat(60.0)", script)
+        self.assertIn("to 60.0 s for a fresh bridge heartbeat", txt)
         self.assertIn("local line_entry_default_timeout_s = 10.000", script)
         self.assertIn("local line_runtime_limit_s = 15.000", script)
         self.assertIn("local line_success_progress_m = 10.000000000", script)

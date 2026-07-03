@@ -264,6 +264,28 @@ def update_previous_stage(
     contact_policy["live_authorization"] = "retained_live_attempt_evidence_no_current_retry_authorization"
     contact_policy["tp_package_status"] = "retained_controller_readback_verified"
     contact_policy["controller_readback_status"] = "verified_retained"
+    binding = row.setdefault("current_binding", {})
+    binding.update(
+        {
+            "source": "config/current_stage.json",
+            "is_current": False,
+            "flow_claim_status": "retained_evidence_route",
+        }
+    )
+    package_delivery = row.setdefault("package_delivery", {})
+    package_delivery.update(
+        {
+            "program_basename": delivery.get("program_basename", previous),
+            "local_program_dir": delivery.get("local_program_dir", str(STEP5D_ARCHIVE_DIR)),
+            "local_triplet": delivery.get("local_triplet", archived_triplet),
+            "controller_target": delivery.get("controller_target"),
+            "controller_dir": delivery.get("controller_dir", TARGET_DIR),
+            "controller_readback_status": "verified_retained",
+            "controller_readback_manifest": delivery.get("controller_readback"),
+            "delivery_mode": delivery.get("delivery_mode", "full_upload_readback"),
+            "sha256": delivery.get("sha256", {}),
+        }
+    )
     cadence = row.setdefault("cadence", {})
     cadence["motion"] = "retained_incomplete_live_attempt_evidence"
     row["notes"] = [
@@ -327,15 +349,17 @@ def build_current_stage_row(
     row["live_run_evidence"] = None
     validation = manifest["validation"]
     sha = manifest["sha256"]["local"]
+    controller_target = f"{manifest['target_dir']}/{program}.urp"
+    controller_readback_manifest = manifest["manifest_path"]
     row["local_delivery_evidence"] = {
         "program_basename": program,
         "local_program_dir": str(STEP5D_CURRENT_DIR),
         "local_triplet": f"{STEP5D_CURRENT_DIR}/{program}.{{script,txt,urp}}",
-        "controller_target": f"{manifest['target_dir']}/{program}.urp",
+        "controller_target": controller_target,
         "controller_dir": manifest["target_dir"],
         "local_package_validated": True,
         "controller_readback_verified": True,
-        "controller_readback": manifest["manifest_path"],
+        "controller_readback": controller_readback_manifest,
         "local_controller_readback_sha_match": True,
         "fetched_back_urp_internal_gate_pass": True,
         "sha256": sha,
@@ -346,6 +370,27 @@ def build_current_stage_row(
         row["local_delivery_evidence"]["delivery_mode"] = manifest["delivery_mode"]
     if manifest.get("promoted_from_local_candidate"):
         row["local_delivery_evidence"]["promoted_from_local_candidate"] = manifest["promoted_from_local_candidate"]
+    row["current_binding"] = {
+        "source": "config/current_stage.json",
+        "is_current": True,
+        "stage_id": program,
+        "program": program,
+        "controller_target": controller_target,
+        "controller_readback_status": "verified_current",
+        "controller_readback_manifest": controller_readback_manifest,
+        "flow_claim_status": "STEP5_FLOW_top_summary_must_match_current_stage_pointer",
+    }
+    row["package_delivery"] = {
+        "program_basename": program,
+        "local_program_dir": str(STEP5D_CURRENT_DIR),
+        "local_triplet": f"{STEP5D_CURRENT_DIR}/{program}.{{script,txt,urp}}",
+        "controller_target": controller_target,
+        "controller_dir": manifest["target_dir"],
+        "controller_readback_status": "verified_current",
+        "controller_readback_manifest": controller_readback_manifest,
+        "delivery_mode": manifest.get("delivery_mode", "full_upload_readback"),
+        "sha256": sha,
+    }
     guard = row.setdefault("guard", {})
     guard.update(
         {
@@ -355,6 +400,7 @@ def build_current_stage_row(
             "line_entry_raw_sanity_max_n": 13.5 if is_ablation else 15.0,
             "line_entry_force_norm_max_n": 25.0,
             "line_entry_required_s": 0.1,
+            "bridge_start_wait_timeout_s": 60.0 if is_ablation else None,
             "line_entry_param_valid_code": 521.0,
             "line_entry_recovery_normal_load_max_n": 20.0 if label in {"v24", "v25", "v26"} else 40.0,
             "line_entry_force_norm_stop_n": 25.0 if label in {"v24", "v25", "v26"} else 100.0,
@@ -396,6 +442,7 @@ def build_current_stage_row(
         "stage25_cartesian_layout_tag",
         "stage25_joint_layout_tag",
         "stage25_default_control_mode",
+        "bridge_start_wait_timeout_s",
         "stage25_post_rnn_normal_guard_hold_load_n",
         "stage25_post_rnn_normal_guard_directional_stop_load_n",
         "stage25_post_rnn_normal_guard_hard_stop_load_n",

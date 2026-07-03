@@ -1,6 +1,37 @@
 {
   "version": 1,
   "status": "active",
+  "table_schema": {
+    "schema_version": "cross_step_parameter_table_v1",
+    "canonical_current_pointer": "config/current_stage.json",
+    "required_stage_fields": [
+      "id",
+      "stage",
+      "owner",
+      "active",
+      "shape",
+      "frame",
+      "contact",
+      "bridge",
+      "success_condition"
+    ],
+    "normalized_stage_fields": [
+      "policy_refs",
+      "lifecycle",
+      "current_binding",
+      "operator_lifecycle",
+      "package_delivery",
+      "runtime_interface_ref",
+      "evidence_refs"
+    ],
+    "extension_namespaces": [
+      "step5",
+      "step6",
+      "bridge",
+      "runtime",
+      "evidence"
+    ]
+  },
   "source_of_truth": "Step5 trajectory/stage table; Step4f/Step4g and Step5b are historical evidence routes. Step5c DLS dry-run and contact are quarantined. Step5d is the complete strict TASE RNN reproduction route and completion target, blocked until PDF truth extraction, strict RNN implementation, calibrated kinematics, qdot register path, numeric sanity, package read-back, and live-plan gates pass.",
   "register_contract": {
     "command_registers": {
@@ -84,12 +115,133 @@
       "bridge main still hard-blocks step5c_speedj_dryrun_v1 and step5c_joint_rnn_cycloid_v1 live profiles"
     ]
   },
+  "startup_gate_profiles": {
+    "prepared_fast_bridge_v1": {
+      "operator_model": "prepared_fast_bridge",
+      "long_check_cache_path": "runs/.bridge_long_checks_cache.json",
+      "long_check_ttl_s": 7200,
+      "gates": [
+        {
+          "id": "explicit_confirmation_token",
+          "phase": "trigger",
+          "liveness_required": true,
+          "cacheable": false
+        },
+        {
+          "id": "current_binding_readback_gate",
+          "phase": "trigger",
+          "liveness_required": true,
+          "cacheable": false
+        },
+        {
+          "id": "rtde_30004_quick_probe",
+          "phase": "trigger",
+          "liveness_required": true,
+          "cacheable": false,
+          "timeout_s": 1.0
+        },
+        {
+          "id": "no_existing_bridge_process",
+          "phase": "trigger",
+          "liveness_required": true,
+          "cacheable": false
+        },
+        {
+          "id": "dashboard_loaded_program_match",
+          "phase": "trigger",
+          "liveness_required": true,
+          "cacheable": false
+        },
+        {
+          "id": "dashboard_running_state",
+          "phase": "trigger",
+          "liveness_required": true,
+          "cacheable": false
+        },
+        {
+          "id": "dashboard_safety_normal",
+          "phase": "trigger",
+          "liveness_required": true,
+          "cacheable": false
+        },
+        {
+          "id": "ubuntu_direct_link_and_kunwei_route",
+          "phase": "prep",
+          "liveness_required": false,
+          "cacheable": true,
+          "ttl_s": 7200,
+          "fingerprint_fields": [
+            "boot_id",
+            "device",
+            "ipv4_addresses",
+            "default_routes",
+            "kunwei_route_get"
+          ]
+        }
+      ],
+      "invalidates_on": [
+        "boot_id_change",
+        "direct_link_device_change",
+        "ipv4_address_change",
+        "default_route_change",
+        "kunwei_route_get_change",
+        "safety_fault",
+        "protective_stop",
+        "controller_power_cycle",
+        "vpn_or_route_change",
+        "direct_link_or_kunwei_cabling_change"
+      ]
+    }
+  },
+  "policy_registry": {
+    "global_policies": [
+      "bridge_startup_policy",
+      "startup_gate_profiles.prepared_fast_bridge_v1",
+      "register_contract",
+      "UR_FORCE_FRAME_CONTRACT.md",
+      "config/step_pose_contract_table.json",
+      "STEP4E_BRIDGE_CONTRACT.md"
+    ],
+    "route_policies": {
+      "legacy_kunwei_rtde_bridge": "bridge_startup_policy",
+      "step5d_runtime_interface": "tools/step5d_runtime_interface.py#tp_speedj_strict_rnn_liveprep_v1"
+    }
+  },
+  "validation_contract": {
+    "tool": "tools/validate_cross_step_parameter_table.py",
+    "required_assertions": [
+      "liveness_required gates are not cacheable",
+      "policy refs resolve to known policies or files",
+      "current_binding agrees with config/current_stage.json",
+      "Step6 retained evidence is not treated as current",
+      "Step5d current package delivery refs match current pointer"
+    ]
+  },
   "bridge_startup_policy": {
+    "policy_version": 2,
+    "startup_gate_profile_ref": "startup_gate_profiles.prepared_fast_bridge_v1",
     "scope": "cross_step_legacy_kunwei_rtde_bridge_routes",
     "applies_to": [
       "Step5b bridge contact packages",
       "Step5d live-prep and ablation bridge packages",
       "Step6b bridge contact packages"
+    ],
+    "applies_to_stage_ids": [
+      "step5_contact_cycloid_baseline_v1",
+      "step5d_strict_rnn_ablation_v25",
+      "step5d_strict_rnn_ablation_v26",
+      "step6_contact_eight_baseline_v2"
+    ],
+    "applies_to_stage_families": [
+      "Step5b",
+      "Step5d",
+      "Step6b"
+    ],
+    "excluded_stage_ids": [
+      "step5c_speedj_dryrun_v1",
+      "step5c_joint_rnn_cycloid_v1",
+      "step5c_strict_rnn_dryrun_v1",
+      "step5d_strict_rnn_reproduction_v1"
     ],
     "normal_operator_model": "prepared_fast_bridge",
     "phase_model": {
@@ -277,6 +429,72 @@
       "frame": "config/step5_safe_frame.json",
       "contact": true,
       "bridge": true,
+      "policy_refs": {
+        "bridge_startup_policy": "bridge_startup_policy",
+        "startup_gate_profile": "startup_gate_profiles.prepared_fast_bridge_v1",
+        "bridge_contract": "STEP4E_BRIDGE_CONTRACT.md",
+        "force_frame_contract": "UR_FORCE_FRAME_CONTRACT.md",
+        "pose_contract": "config/step_pose_contract_table.json#pre_contact_search_gravity_down_v1",
+        "textbook_spec": "config/local_control_textbook_spec.json"
+      },
+      "lifecycle": {
+        "state": "retained_contact_evidence",
+        "current_candidate": false,
+        "retained_evidence": true,
+        "claim_status": "retained_not_current"
+      },
+      "current_binding": {
+        "source": "config/current_stage.json",
+        "is_current": false,
+        "flow_claim_status": "retained_evidence_route"
+      },
+      "operator_lifecycle": {
+        "entrypoint": "scripts/step5b-contact-operator.sh",
+        "base_operator": "scripts/step4e-line-v1-operator.sh",
+        "mode": "line-bridge",
+        "profile_alias_source": "STEP5B_BRIDGE_VERSION=step5b_v3",
+        "confirm_env": "STEP5B_CONFIRM",
+        "confirm_token": "LIVE STEP5B CONTACT RUN",
+        "expected_program": "/programs/andyl/kunwei/step5/step5b_contact_cycloid_baseline_v3.urp",
+        "fast_trigger_requires_long_check_cache": false,
+        "long_check_cache_path": "runs/.bridge_long_checks_cache.json",
+        "long_check_ttl_s": 7200,
+        "wait_for_play_s": 45,
+        "autowatch_wait_for_play_s": 30,
+        "dashboard_program_watch_timeout_s": 45,
+        "rtde_quick_probe_timeout_s": 1.0,
+        "output_start_wait_s": 3.0,
+        "post_run_quiet_stop_check": true,
+        "post_run_stage_frequency_summary": true,
+        "background_push_after_live": false,
+        "operator_boundaries": [
+          "wrapper never loads a program or presses Play",
+          "no zero_ftsensor",
+          "no Kunwei tare/zero/config",
+          "no TCP/payload write"
+        ]
+      },
+      "package_delivery": {
+        "program_basename": "step5b_contact_cycloid_baseline_v3",
+        "variant_of": "step5_contact_cycloid_baseline_v1",
+        "local_program_dir": "programs/step5",
+        "local_triplet": "programs/step5/step5b_contact_cycloid_baseline_v3.{script,txt,urp}",
+        "controller_target": "/programs/andyl/kunwei/step5/step5b_contact_cycloid_baseline_v3.urp",
+        "controller_dir": "/programs/andyl/kunwei/step5",
+        "controller_readback_status": "verified_retained",
+        "controller_readback_manifest": "runs/controller_readback_step5b_contact_cycloid_baseline_v3_20260702_113338/manifest.json",
+        "delivery_mode": "full_upload_readback",
+        "sha256": {
+          ".script": "b834e1de72a0ea2d4b75f2c4f0072f4d847021abad6d2495c3899719a4eb3c5a",
+          ".txt": "47d778f28d50fb3fa7e08c466cde55057b2ad450bf8a2c0b7b418f373d4849d2",
+          ".urp": "196eb21da397e26b27187a4925975fe274b8bc060de7d012dc76ae5ff0bb6c87"
+        }
+      },
+      "evidence_refs": {
+        "latest_live_run_status": "retained",
+        "latest_live_run_dir": "runs/bridge_step5b_contact_cycloid_baseline_v3_20260702_113430",
+        "latest_stop_reason": "retained_contact_evidence"
+      },
       "fixed_base_z_m": null,
       "duration_s": 60.0,
       "amplitude_m": 0.015,
@@ -3395,6 +3613,7 @@
         "line_entry_force_norm_max_n": 25.0,
         "line_entry_required_s": 0.1,
         "line_entry_timeout_s": 10.0,
+        "bridge_start_wait_timeout_s": 60.0,
         "runtime_limit_s": 15.0,
         "progress_end_hold_s": 0.1,
         "raw_normal_guard_n": 100.0,
@@ -3613,6 +3832,7 @@
         "line_entry_force_norm_max_n": 25.0,
         "line_entry_required_s": 0.1,
         "line_entry_timeout_s": 10.0,
+        "bridge_start_wait_timeout_s": 60.0,
         "runtime_limit_s": 15.0,
         "progress_end_hold_s": 0.1,
         "raw_normal_guard_n": 100.0,
@@ -5191,7 +5411,8 @@
         "stage25_speedl_low_load_hard_stop_n": 2.0,
         "stage25_speedl_low_load_hard_stop_s": 0.1,
         "stage25_speedl_low_load_soft_stop_n": 5.0,
-        "stage25_speedl_low_load_soft_stop_s": 0.5
+        "stage25_speedl_low_load_soft_stop_s": 0.5,
+        "bridge_start_wait_timeout_s": 60.0
       },
       "contact_policy": {
         "bridge_required": true,
@@ -5261,7 +5482,7 @@
         "v22_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v22_20260702_220811/manifest.json",
         "v23_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v23_20260703_004136/manifest.json",
         "v24_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v24_20260703_010837/manifest.json",
-        "v25_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v25_20260703_220513/manifest.json"
+        "v25_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v25_20260703_225843/manifest.json"
       },
       "local_delivery_evidence": {
         "program_basename": "step5d_strict_rnn_ablation_v25",
@@ -5271,22 +5492,17 @@
         "controller_dir": "/programs/andyl/kunwei/step5",
         "local_package_validated": true,
         "controller_readback_verified": true,
-        "controller_readback": "runs/controller_readback_step5d_strict_rnn_ablation_v25_20260703_220513/manifest.json",
+        "controller_readback": "runs/controller_readback_step5d_strict_rnn_ablation_v25_20260703_225843/manifest.json",
         "local_controller_readback_sha_match": true,
         "fetched_back_urp_internal_gate_pass": true,
         "sha256": {
-          ".script": "b5428a732e1daccfee0cde8dd732aca8a15f9983733c6b823f44f92d8ac3fc2b",
-          ".txt": "5fa87e9960252b9e1c69527014eb6b25dd615889c405a6ddc78c5a175c20a2d1",
-          ".urp": "61c90b723c423e09e252bfe7c297a242dc28b8dd4521dd193eba40e4d05b7035"
+          ".script": "8ab25653a87ccd5426e5bb46562e390d965288d48d2c7717e0209c68dca9789e",
+          ".txt": "b03f47a2b95d0c8a1c94382b2aaddf48859fecb338f016c093b3e4d71ebb919b",
+          ".urp": "aa39b5b2c3075950fc38377750370eac1ccd1747f5863ef462c7fbacf5cac014"
         },
-        "stamp": "2026-07-03T0225HKT_STEP5D_STRICT_RNN_ABLATION_V25",
+        "stamp": "2026-07-03T2258HKT_STEP5D_STRICT_RNN_ABLATION_V25",
         "installation_relative_path": "../../../default",
-        "delivery_mode": "full_upload_readback",
-        "promoted_from_local_candidate": {
-          "marker_schema": "ur_tp_local_candidate_v1",
-          "semantic_fingerprint": "2b207c7d9ecd54f24ed18bf1b21d99bb3d58b528563e3d8c77fee2bacae63645",
-          "stamp": "2026-07-03T0225HKT_STEP5D_STRICT_RNN_ABLATION_V25"
-        }
+        "delivery_mode": "full_upload_readback"
       },
       "acceptance": {
         "package_generation_required": true,
@@ -5301,10 +5517,102 @@
         "v25 keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
         "v25 is an ablation package with layout-tagged speedl/speedj Stage25.0 modes.",
         "v25 uses 25N raw-normal/force-norm hard guards, 4Nm torque guard, and layout-tagged speedl/speedj Stage25.0.",
-        "Use bridge_startup_policy for the prepared fast bridge path: do not rebuild, upload, push, or write heavy reports on the trigger path; keep binding, cache, RTDE, no-existing-bridge, Dashboard loaded-program, and safety checks.",
         "This current row is not a completed Step5d reproduction claim; explicit live bridge evidence is still pending."
       ],
-      "live_run_evidence": null
+      "live_run_evidence": null,
+      "policy_refs": {
+        "bridge_startup_policy": "bridge_startup_policy",
+        "startup_gate_profile": "startup_gate_profiles.prepared_fast_bridge_v1",
+        "bridge_contract": "STEP4E_BRIDGE_CONTRACT.md",
+        "force_frame_contract": "UR_FORCE_FRAME_CONTRACT.md",
+        "pose_contract": "config/step_pose_contract_table.json#pre_contact_search_gravity_down_v1",
+        "register_contract": "register_contract",
+        "runtime_interface": "tools/step5d_runtime_interface.py#tp_speedj_strict_rnn_liveprep_v1"
+      },
+      "lifecycle": {
+        "state": "current_controller_readback_verified_pending_live_bridge_run",
+        "current_candidate": true,
+        "retained_evidence": false,
+        "claim_status": "pending_live_bridge_run_not_reproduction_claim",
+        "supersedes": "step5d_strict_rnn_liveprep_v24"
+      },
+      "operator_lifecycle": {
+        "entrypoint": "scripts/step5d-liveprep-operator.sh",
+        "base_operator": "scripts/bridge-line-operator.sh",
+        "mode": "line-bridge-fast",
+        "confirm_env": "STEP5D_CONFIRM",
+        "confirm_token": "LIVE STEP5D STRICT RNN LIVEPREP",
+        "expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v25.urp",
+        "fast_trigger_requires_long_check_cache": true,
+        "long_check_cache_path": "runs/.bridge_long_checks_cache.json",
+        "long_check_ttl_s": 7200,
+        "wait_for_play_s": 10,
+        "autowatch_wait_for_play_s": 10,
+        "dashboard_program_watch_timeout_s": 45,
+        "tp_bridge_start_wait_timeout_s": 60,
+        "rtde_quick_probe_timeout_s": 1.0,
+        "output_start_wait_s": 3.0,
+        "post_run_quiet_stop_check": true,
+        "post_run_stage_frequency_summary": true,
+        "background_push_after_live": false,
+        "stop_sequence": [
+          {
+            "signal": "SIGINT",
+            "wait_s": 2.0
+          },
+          {
+            "signal": "SIGTERM",
+            "wait_s": 2.0
+          },
+          {
+            "signal": "SIGKILL",
+            "wait_s": 0.0
+          }
+        ],
+        "operator_boundaries": [
+          "wrapper never loads a program or presses Play",
+          "no zero_ftsensor",
+          "no Kunwei tare/zero/config",
+          "no TCP/payload write"
+        ]
+      },
+      "runtime_interface_ref": {
+        "path": "tools/step5d_runtime_interface.py",
+        "interface_class": "tp_speedj_strict_rnn_liveprep_v1",
+        "tuning_bundle": "v24_startup_quarantine_rnn_tracking_guard",
+        "stage25_default_control_mode": "speedl_cartesian_oracle"
+      },
+      "evidence_refs": {
+        "latest_live_run_status": "pending_explicit_live_bridge_run",
+        "latest_live_run_summary": null,
+        "latest_stop_reason": null,
+        "previous_retained_evidence_index": "current_stage.json#evidence"
+      },
+      "current_binding": {
+        "source": "config/current_stage.json",
+        "is_current": true,
+        "stage_id": "step5d_strict_rnn_ablation_v25",
+        "program": "step5d_strict_rnn_ablation_v25",
+        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v25.urp",
+        "controller_readback_status": "verified_current",
+        "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v25_20260703_225843/manifest.json",
+        "flow_claim_status": "STEP5_FLOW_top_summary_must_match_current_stage_pointer"
+      },
+      "package_delivery": {
+        "program_basename": "step5d_strict_rnn_ablation_v25",
+        "local_program_dir": "programs/step5",
+        "local_triplet": "programs/step5/step5d_strict_rnn_ablation_v25.{script,txt,urp}",
+        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v25.urp",
+        "controller_dir": "/programs/andyl/kunwei/step5",
+        "controller_readback_status": "verified_current",
+        "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v25_20260703_225843/manifest.json",
+        "delivery_mode": "full_upload_readback",
+        "sha256": {
+          ".script": "8ab25653a87ccd5426e5bb46562e390d965288d48d2c7717e0209c68dca9789e",
+          ".txt": "b03f47a2b95d0c8a1c94382b2aaddf48859fecb338f016c093b3e4d71ebb919b",
+          ".urp": "aa39b5b2c3075950fc38377750370eac1ccd1747f5863ef462c7fbacf5cac014"
+        }
+      }
     },
     {
       "id": "step5d_strict_rnn_ablation_v26",
@@ -5321,6 +5629,68 @@
       "bridge": true,
       "joint_space": true,
       "strict_rnn": true,
+      "policy_refs": {
+        "bridge_startup_policy": "bridge_startup_policy",
+        "startup_gate_profile": "startup_gate_profiles.prepared_fast_bridge_v1",
+        "bridge_contract": "STEP4E_BRIDGE_CONTRACT.md",
+        "force_frame_contract": "UR_FORCE_FRAME_CONTRACT.md",
+        "pose_contract": "config/step_pose_contract_table.json#pre_contact_search_gravity_down_v1",
+        "register_contract": "register_contract",
+        "runtime_interface": "tools/step5d_runtime_interface.py#tp_speedj_strict_rnn_liveprep_v1"
+      },
+      "lifecycle": {
+        "state": "candidate_package_not_delivered",
+        "current_candidate": false,
+        "retained_evidence": false,
+        "claim_status": "package_generation_and_readback_required_before_live"
+      },
+      "current_binding": {
+        "source": "config/current_stage.json",
+        "is_current": false,
+        "flow_claim_status": "candidate_not_current"
+      },
+      "operator_lifecycle": {
+        "entrypoint": "scripts/step5d-liveprep-operator.sh",
+        "base_operator": "scripts/bridge-line-operator.sh",
+        "mode": "line-bridge-fast_after_package_delivery",
+        "confirm_env": "STEP5D_CONFIRM",
+        "confirm_token": "LIVE STEP5D STRICT RNN LIVEPREP",
+        "expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v26.urp",
+        "fast_trigger_requires_long_check_cache": true,
+        "long_check_cache_path": "runs/.bridge_long_checks_cache.json",
+        "long_check_ttl_s": 7200,
+        "wait_for_play_s": 10,
+        "autowatch_wait_for_play_s": 10,
+        "dashboard_program_watch_timeout_s": 45,
+        "tp_bridge_start_wait_timeout_s": 60,
+        "rtde_quick_probe_timeout_s": 1.0,
+        "output_start_wait_s": 3.0,
+        "post_run_quiet_stop_check": true,
+        "post_run_stage_frequency_summary": true,
+        "background_push_after_live": false,
+        "operator_boundaries": [
+          "wrapper never loads a program or presses Play",
+          "no zero_ftsensor",
+          "no Kunwei tare/zero/config",
+          "no TCP/payload write"
+        ]
+      },
+      "runtime_interface_ref": {
+        "path": "tools/step5d_runtime_interface.py",
+        "interface_class": "tp_speedj_strict_rnn_liveprep_v1",
+        "tuning_bundle": "v24_startup_quarantine_rnn_tracking_guard",
+        "stage25_default_control_mode": "speedj_rnn_live"
+      },
+      "package_delivery": {
+        "program_basename": "step5d_strict_rnn_ablation_v26",
+        "local_program_dir": "programs/step5",
+        "local_triplet": "programs/step5/step5d_strict_rnn_ablation_v26.{script,txt,urp}",
+        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v26.urp",
+        "controller_dir": "/programs/andyl/kunwei/step5",
+        "controller_readback_status": "missing",
+        "controller_readback_manifest": null,
+        "delivery_mode": "required_before_live"
+      },
       "fixed_base_z_m": null,
       "duration_s": 10.0,
       "amplitude_m": 0.015,

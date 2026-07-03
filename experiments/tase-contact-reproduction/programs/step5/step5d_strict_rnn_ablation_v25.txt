@@ -4,11 +4,13 @@ Open on Teach Pendant after controller read-back is verified:
   /programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v25.urp
 
 Version:
-  2026-07-03T0225HKT_STEP5D_STRICT_RNN_ABLATION_V25
+  2026-07-03T2258HKT_STEP5D_STRICT_RNN_ABLATION_V25
 
 Boundary:
   Contact-capable v25 ablation package; not a completed reproduction claim.
   Reuses the Step5b v3 contact-search/latch/25.3 scaffold.
+  If TP Play is pressed before the Ubuntu bridge is started, Stage 20 waits up
+  to 60.0 s for a fresh bridge heartbeat before timing out.
   Stage 22 entry and Stage 24 far/near search use the shared pre-contact pose
   contract pre_contact_search_gravity_down_v1: TCP +Z targets base -Z with rotvec
   [3.141592654, 0.000000000, 0.000000000].
