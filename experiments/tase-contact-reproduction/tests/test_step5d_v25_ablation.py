@@ -169,6 +169,11 @@ class Step5dV25AblationTest(unittest.TestCase):
         self.assertIn("local cartesian_angular_cap_rad_s = 0.015", script)
         self.assertIn("v26 default live mode is speedj_rnn_live", txt)
         self.assertIn("joint-feasibility-scaled", txt)
+        self.assertIn("filtered normal_load between 7.0 N and 18.0 N", txt)
+        self.assertIn("raw normal_load is sanity-checked between 5.0 N and 20.0 N", txt)
+        self.assertIn("local line_entry_default_normal_load_min_n = 7.000", script)
+        self.assertIn("local line_entry_default_normal_load_max_n = 18.000", script)
+        self.assertIn("local line_entry_recovery_normal_load_max_n = 24.000", script)
         self.assertNotIn("step5d_strict_rnn_ablation_v25", script + txt)
 
     def test_runtime_interface_defaults_to_speedl_cartesian_oracle_for_v25(self) -> None:
@@ -197,8 +202,11 @@ class Step5dV25AblationTest(unittest.TestCase):
         self.assertEqual(runtime.program, "step5d_strict_rnn_ablation_v26")
         self.assertEqual(runtime.stage25_control_mode, "speedj_rnn_live")
         self.assertEqual(runtime.bridge_defaults.angular_limit_rad_s, 0.015)
-        self.assertEqual(runtime.preload_gate.filtered_min_n, 10.5)
-        self.assertEqual(runtime.preload_gate.filtered_max_n, 12.8)
+        self.assertEqual(runtime.preload_gate.filtered_min_n, 7.0)
+        self.assertEqual(runtime.preload_gate.filtered_max_n, 18.0)
+        self.assertEqual(runtime.preload_gate.raw_min_n, 5.0)
+        self.assertEqual(runtime.preload_gate.raw_max_n, 20.0)
+        self.assertEqual(runtime.preload_gate.recovery_normal_load_max_n, 24.0)
         self.assertIn("v25/v26", runtime.register_contract["stage25_0"])
 
     def test_speedl_cartesian_oracle_writes_cartesian_layout_and_keeps_rnn_shadow(self) -> None:

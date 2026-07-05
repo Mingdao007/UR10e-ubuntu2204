@@ -477,10 +477,10 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             ]
         )
         self.assertEqual(v26_args.step5d_qdot_limit_rad_s, 0.05)
-        self.assertEqual(v26_args.step5d_preload_filtered_min_n, 10.5)
-        self.assertEqual(v26_args.step5d_preload_filtered_max_n, 12.8)
-        self.assertEqual(v26_args.step5d_preload_raw_min_n, 9.5)
-        self.assertEqual(v26_args.step5d_preload_raw_max_n, 13.5)
+        self.assertEqual(v26_args.step5d_preload_filtered_min_n, 7.0)
+        self.assertEqual(v26_args.step5d_preload_filtered_max_n, 18.0)
+        self.assertEqual(v26_args.step5d_preload_raw_min_n, 5.0)
+        self.assertEqual(v26_args.step5d_preload_raw_max_n, 20.0)
         self.assertEqual(v26_args.step5d_stage25_control_mode, "speedj_rnn_live")
         self.assertEqual(v26_args.bridge_angular_limit_rad_s, 0.015)
         with self.assertRaisesRegex(SystemExit, "Blocked Step5d reproduction"):
@@ -526,6 +526,10 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn('STEP5D_DEFAULT_MAX_NORMAL_FORCE_N="${STEP5D_DEFAULT_MAX_NORMAL_FORCE_N:-25}"', operator)
         self.assertIn('STEP5D_DEFAULT_MAX_FORCE_NORM_N="${STEP5D_DEFAULT_MAX_FORCE_NORM_N:-25}"', operator)
         self.assertIn('STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N:-10.5}"', operator)
+        self.assertIn('STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N:-7.0}"', operator)
+        self.assertIn('STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N:-18.0}"', operator)
+        self.assertIn('STEP5D_DEFAULT_PRELOAD_RAW_MIN_N="${STEP5D_DEFAULT_PRELOAD_RAW_MIN_N:-5.0}"', operator)
+        self.assertIn('STEP5D_DEFAULT_PRELOAD_RAW_MAX_N="${STEP5D_DEFAULT_PRELOAD_RAW_MAX_N:-20.0}"', operator)
         self.assertIn('STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedl_cartesian_oracle}"', operator)
         self.assertIn('STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedj_rnn_live}"', operator)
         self.assertIn('STEP5D_DEFAULT_ANGULAR_LIMIT_RAD_S="${STEP5D_DEFAULT_ANGULAR_LIMIT_RAD_S:-0.150}"', operator)
@@ -619,7 +623,7 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         v25_min, v25_max, v25_force_max = bridge.step5d_liveprep_contact_window_limits("step5d_strict_rnn_ablation_v25")
         self.assertEqual((v25_min, v25_max, v25_force_max), (10.5, 12.8, 25.0))
         v26_min, v26_max, v26_force_max = bridge.step5d_liveprep_contact_window_limits("step5d_strict_rnn_ablation_v26")
-        self.assertEqual((v26_min, v26_max, v26_force_max), (10.5, 12.8, 25.0))
+        self.assertEqual((v26_min, v26_max, v26_force_max), (7.0, 18.0, 25.0))
         for field in (
             "_step5d_reacquire_speed_cap_active",
             "_step5d_reacquire_speed_cap_m_s",

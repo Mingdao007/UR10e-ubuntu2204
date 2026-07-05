@@ -309,7 +309,7 @@ def preload_gate(program: str) -> dict[str, float]:
         "required_s": 0.1,
         "param_valid_code": 521.0,
     }
-    if program in STEP5D_ABLATION_PROGRAMS:
+    if program == STEP5D_ABLATION_V25:
         gate.update(
             {
                 "filtered_normal_load_min_n": 10.5,
@@ -318,7 +318,18 @@ def preload_gate(program: str) -> dict[str, float]:
                 "raw_normal_load_max_n": 13.5,
             }
         )
-    if label == "v24":
+    if program == STEP5D_ABLATION_V26:
+        gate.update(
+            {
+                "filtered_normal_load_min_n": 7.0,
+                "filtered_normal_load_max_n": 18.0,
+                "raw_normal_load_min_n": 5.0,
+                "raw_normal_load_max_n": 20.0,
+                "recovery_normal_load_max_n": 24.0,
+                "force_norm_stop_n": 25.0,
+            }
+        )
+    if label in {"v24", "v25"}:
         gate.update(
             {
                 "recovery_normal_load_max_n": 20.0,
@@ -335,6 +346,13 @@ def build_current_stage_row(
 ) -> dict[str, Any]:
     label = version_label(program)
     is_ablation = program in STEP5D_ABLATION_PROGRAMS
+    stage25_default_mode = (
+        "speedl_cartesian_oracle"
+        if program == STEP5D_ABLATION_V25
+        else "speedj_rnn_live"
+        if program == STEP5D_ABLATION_V26
+        else None
+    )
     row = copy.deepcopy(base_row)
     row["id"] = program
     row["active"] = True
@@ -391,19 +409,23 @@ def build_current_stage_row(
         "delivery_mode": manifest.get("delivery_mode", "full_upload_readback"),
         "sha256": sha,
     }
+    entry_gate = preload_gate(program)
     guard = row.setdefault("guard", {})
     guard.update(
         {
-            "line_entry_normal_load_min_n": 10.5 if is_ablation else 7.5,
-            "line_entry_normal_load_max_n": 12.8 if is_ablation else 14.0,
-            "line_entry_raw_sanity_min_n": 9.5 if is_ablation else 7.0,
-            "line_entry_raw_sanity_max_n": 13.5 if is_ablation else 15.0,
-            "line_entry_force_norm_max_n": 25.0,
-            "line_entry_required_s": 0.1,
+            "line_entry_normal_load_min_n": entry_gate["filtered_normal_load_min_n"],
+            "line_entry_normal_load_max_n": entry_gate["filtered_normal_load_max_n"],
+            "line_entry_raw_sanity_min_n": entry_gate["raw_normal_load_min_n"],
+            "line_entry_raw_sanity_max_n": entry_gate["raw_normal_load_max_n"],
+            "line_entry_force_norm_max_n": entry_gate["force_norm_max_n"],
+            "line_entry_required_s": entry_gate["required_s"],
             "bridge_start_wait_timeout_s": 60.0 if is_ablation else None,
-            "line_entry_param_valid_code": 521.0,
-            "line_entry_recovery_normal_load_max_n": 20.0 if label in {"v24", "v25", "v26"} else 40.0,
-            "line_entry_force_norm_stop_n": 25.0 if label in {"v24", "v25", "v26"} else 100.0,
+            "line_entry_param_valid_code": entry_gate["param_valid_code"],
+            "line_entry_recovery_normal_load_max_n": entry_gate.get(
+                "recovery_normal_load_max_n",
+                40.0,
+            ),
+            "line_entry_force_norm_stop_n": entry_gate.get("force_norm_stop_n", 100.0),
             "stage25_95_qdot_clear_required_s": 0.006 if label in {"v22", "v23", "v24"} else None,
             "stage25_95_qdot_clear_timeout_s": 1.0 if label in {"v22", "v23", "v24"} else None,
             "stage25_95_qdot_clear_zero_tol_rad_s": 0.0005 if label in {"v23", "v24"} else None,
@@ -412,7 +434,7 @@ def build_current_stage_row(
             "stage25_95_register_clear_zero_tol": 0.0005 if is_ablation else None,
             "stage25_cartesian_layout_tag": 523.0 if is_ablation else None,
             "stage25_joint_layout_tag": 524.0 if is_ablation else None,
-            "stage25_default_control_mode": "speedl_cartesian_oracle" if program == STEP5D_ABLATION_V25 else "speedj_rnn_live" if program == STEP5D_ABLATION_V26 else None,
+            "stage25_default_control_mode": stage25_default_mode,
             "stage25_post_rnn_normal_guard_hold_load_n": 14.0 if label in {"v23", "v24"} else None,
             "stage25_post_rnn_normal_guard_directional_stop_load_n": 18.0 if label in {"v23", "v24"} else None,
             "stage25_post_rnn_normal_guard_hard_stop_load_n": 25.0 if label in {"v23", "v24"} else None,
@@ -458,7 +480,83 @@ def build_current_stage_row(
     ):
         if guard.get(key) is None:
             guard.pop(key, None)
+    if is_ablation:
+        guard.update(
+            {
+                "cartesian_layout_code": 523.0,
+                "joint_layout_code": 524.0,
+                "speedl_linear_cap_m_s": 0.004,
+                "speedl_angular_cap_rad_s": 0.150 if program == STEP5D_ABLATION_V25 else 0.015,
+                "attitude_cap_rad_s": 0.150 if program == STEP5D_ABLATION_V25 else 0.015,
+                "force_norm_hard_stop_n": 25.0,
+                "runtime_diagnostics": [
+                    "_step5d_stage25_control_mode",
+                    "_step5d_tcp_cage_distance_m",
+                    "_step5d_tcp_cage_braking_margin_m",
+                    "_step5d_rnn_raw_qd0_rad_s",
+                    "_step5d_jqdot_raw_approach_normal_m_s",
+                    "_step5d_jqdot_cmd_approach_normal_m_s",
+                    "_step5d_outer_xdot_limited_approach_normal_m_s",
+                    "_step5d_qdot_cap_rad_s",
+                    "_step5d_jinv_xdot_inf_rad_s",
+                    "_step5d_jinv_xdot_inf_over_qdot_cap",
+                    "_step5d_jinv_xdot_solve_status",
+                    "_step5d_xdot_feasibility_scale",
+                    "_step5d_xdot_norm_pre_feasibility_scale",
+                    "_step5d_xdot_norm_post_feasibility_scale",
+                    "_step5d_xdot_feasibility_scale_active",
+                    "_step5d_lambda_state_0",
+                    "_step5d_qdot_max_abs_rad_s",
+                ],
+            }
+        )
+        if program == STEP5D_ABLATION_V26:
+            guard["joint_feasibility_scale"] = (
+                "s=min(1,0.9*qdot_cap/||J^-1 xdot_c||inf) before strict RNN/DLS speedj modes"
+            )
     contact_policy = row.setdefault("contact_policy", {})
+    if is_ablation:
+        for stale_key in (
+            "joint_solver",
+            "dls_fallback_allowed",
+            "ik_fallback_allowed",
+            "calibrated_kinematics_backend",
+        ):
+            contact_policy.pop(stale_key, None)
+        contact_policy.update(
+            {
+                "bridge_required": True,
+                "tp_role": "multimode_executor_and_guard_only",
+                "reference_owner": "bridge",
+                "stage25_control_modes": [
+                    "speedl_cartesian_oracle",
+                    "speedj_dls_oracle",
+                    "speedj_rnn_live",
+                ],
+                "default_stage25_control_mode": stage25_default_mode,
+                "speedl_cartesian_oracle_policy": (
+                    "paper outer-loop xdot_c is sent directly to TP speedl for Cartesian oracle diagnostics; "
+                    "strict RNN and J(q) qdot are shadow diagnostics only"
+                ),
+                "speedj_dls_oracle_policy": (
+                    "feasibility-scaled xdot_c is converted through the DLS/Jacobian qdot oracle and sent to TP speedj "
+                    "for diagnostic comparison only"
+                ),
+                "speedj_rnn_live_policy": (
+                    "strict RNN qdot from feasibility-scaled xdot_c is sent to TP speedj after solver lambda/theta_dot "
+                    "reset on Stage25 lifecycle boundaries"
+                ),
+                "force_control": True,
+                "contact_search": True,
+                "timing_policy": (
+                    "step5b_v3_no_lift_no_25_2_no_second_search_with_gravity_down_search_and_target_centric_preload"
+                    if program == STEP5D_ABLATION_V25
+                    else "step5b_v3_no_lift_no_25_2_no_second_search_with_gravity_down_search_and_step5b_step6b_evidence_tube_preload"
+                ),
+                "virtual_clock_freeze": False,
+                "deadband_acquire_stage": "25.3",
+            }
+        )
     contact_policy["live_authorization"] = "current_controller_readback_verified_pending_live_bridge_run"
     contact_policy["tp_package_status"] = "generated_uploaded_readback_verified_current"
     contact_policy["controller_readback_status"] = "verified"
@@ -498,9 +596,18 @@ def build_current_stage_row(
             "holds/stops when the RNN/J(q) command unloads while the outer loop asks to press."
         )
     if is_ablation:
+        preload_policy = (
+            f"{entry_gate['filtered_normal_load_min_n']:g}-{entry_gate['filtered_normal_load_max_n']:g}N filtered, "
+            f"{entry_gate['raw_normal_load_min_n']:g}-{entry_gate['raw_normal_load_max_n']:g}N raw sanity"
+        )
+        preload_basis = (
+            "target-centric preload parameters"
+            if program == STEP5D_ABLATION_V25
+            else "Step5b/Step6b evidence tube preload parameters"
+        )
         stage25_policy = (
             "Online broad AABB TCP cage remains a hard diagnostic boundary; Stage25.3 "
-            "uses target-centric preload parameters (10.5-12.8N filtered, 9.5-13.5N raw sanity), "
+            f"uses {preload_basis} ({preload_policy}), "
             "Stage25.95 waits for bridge-cleared registers 37..47, and Stage25.0 selects "
             "Cartesian speedl or joint speedj from layout tag 47. v25 defaults to "
             "speedl_cartesian_oracle with strict RNN/J(q) shadow diagnostics; v26 defaults "
@@ -511,7 +618,12 @@ def build_current_stage_row(
         row["liveprep_gates"] = [
             "Stage 22 and Stage 24 pre-contact search posture uses gravity-down [pi,0,0], TCP +Z targeting base -Z",
             "Stage 25.3 bridge deadband acquire consumes Cartesian vx/vy/vz in registers 37..39",
-            "Stage 25.3 enters Stage25 only after 10.5-12.8N filtered normal_load, 9.5-13.5N raw sanity, force_norm <=25N, and cmd_valid true for 0.100 s",
+            (
+                f"Stage 25.3 enters Stage25 only after {entry_gate['filtered_normal_load_min_n']:g}-"
+                f"{entry_gate['filtered_normal_load_max_n']:g}N filtered normal_load, "
+                f"{entry_gate['raw_normal_load_min_n']:g}-{entry_gate['raw_normal_load_max_n']:g}N raw sanity, "
+                f"force_norm <={entry_gate['force_norm_max_n']:g}N, and cmd_valid true for {entry_gate['required_s']:.3f} s"
+            ),
             "Stage 25.95 clears registers 37..47 away from preload/cartesian/joint layout tags before Stage25.0 consumption",
             "Stage25.0 register 47 selects 523.0 Cartesian speedl or 524.0 joint speedj; v25 defaults to speedl_cartesian_oracle, v26 defaults to speedj_rnn_live",
         ]
@@ -532,6 +644,45 @@ def build_current_stage_row(
         f"Current {label} package is generated, uploaded, controller read-back verified, "
         "and awaits explicit live bridge run evidence before any reproduction claim."
     )
+    if is_ablation:
+        operator = row.setdefault("operator_lifecycle", {})
+        operator.update(
+            {
+                "entrypoint": "scripts/step5d-liveprep-operator.sh",
+                "base_operator": "scripts/bridge-line-operator.sh",
+                "mode": "line-bridge-fast",
+                "confirm_env": "STEP5D_CONFIRM",
+                "confirm_token": "LIVE STEP5D STRICT RNN LIVEPREP",
+                "expected_program": controller_target,
+                "fast_trigger_requires_long_check_cache": True,
+                "long_check_cache_path": "runs/.bridge_long_checks_cache.json",
+                "long_check_ttl_s": 7200,
+                "wait_for_play_s": 10,
+                "autowatch_wait_for_play_s": 10,
+                "dashboard_program_watch_timeout_s": 45,
+                "tp_bridge_start_wait_timeout_s": 60,
+                "rtde_quick_probe_timeout_s": 1.0,
+                "output_start_wait_s": 3.0,
+                "post_run_quiet_stop_check": True,
+                "post_run_stage_frequency_summary": True,
+                "background_push_after_live": False,
+                "operator_boundaries": [
+                    "wrapper never loads a program or presses Play",
+                    "no zero_ftsensor",
+                    "no Kunwei tare/zero/config",
+                    "no TCP/payload write",
+                ],
+            }
+        )
+        runtime_ref = row.setdefault("runtime_interface_ref", {})
+        runtime_ref.update(
+            {
+                "path": "tools/step5d_runtime_interface.py",
+                "interface_class": "tp_speedj_strict_rnn_liveprep_v1",
+                "tuning_bundle": "v24_startup_quarantine_rnn_tracking_guard",
+                "stage25_default_control_mode": stage25_default_mode,
+            }
+        )
     row["notes"] = [
         f"{label} is controller read-back verified and selected as the current Step5d TP/script diagnostic package.",
         f"{label} keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
@@ -596,6 +747,7 @@ def update_current_stage(
     target_dir = manifest["target_dir"]
     label = version_label(program)
     is_ablation = program in STEP5D_ABLATION_PROGRAMS
+    entry_gate = preload_gate(program)
     payload.update(
         {
             "updated_at": now,
@@ -617,8 +769,10 @@ def update_current_stage(
             "step4e_version": program,
             "stage25_3_preload_gate": (
                 (
-                    "filtered 10.5-12.8N, raw sanity 9.5-13.5N, force_norm <=25N, "
-                    "bridge param-valid code 521.0 for 0.100s"
+                    f"filtered {entry_gate['filtered_normal_load_min_n']:g}-{entry_gate['filtered_normal_load_max_n']:g}N, "
+                    f"raw sanity {entry_gate['raw_normal_load_min_n']:g}-{entry_gate['raw_normal_load_max_n']:g}N, "
+                    f"force_norm <={entry_gate['force_norm_max_n']:g}N, "
+                    f"bridge param-valid code {entry_gate['param_valid_code']:g} for {entry_gate['required_s']:.3f}s"
                 )
                 if is_ablation
                 else (
@@ -830,7 +984,7 @@ def update_current_stage(
         f"{program} is controller read-back verified and selected as the current Step5d TP/script cage-primary diagnostic package.",
         f"{label} keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
         (
-            f"{label} is an ablation package: v25 defaults to speedl_cartesian_oracle, v26 defaults to speedj_rnn_live, and preload is 10.5-12.8N filtered with 9.5-13.5N raw sanity."
+            f"{label} is an ablation package: v25 defaults to speedl_cartesian_oracle, v26 defaults to speedj_rnn_live, and preload is {entry_gate['filtered_normal_load_min_n']:g}-{entry_gate['filtered_normal_load_max_n']:g}N filtered with {entry_gate['raw_normal_load_min_n']:g}-{entry_gate['raw_normal_load_max_n']:g}N raw sanity."
             if is_ablation
             else
             f"{label} stops low-load/no-contact with zero qdot instead of executing active_reacquire_solver qdot, and uses Stage25.3 default preload 7.5-14N filtered with 7-15N raw sanity."
@@ -875,7 +1029,8 @@ def promote(root: Path, program: str, target_dir: str, local_dir: Path, manifest
     table = load_json(table_path)
     previous = current.get("program") or current.get("current_stage_id")
     previous_row = find_stage(table, str(previous)) if previous else None
-    base_row = copy.deepcopy(previous_row) if previous_row is not None else {"stage": "Step5d", "owner": "bridge+TP"}
+    target_row = find_stage(table, program)
+    base_row = copy.deepcopy(target_row or previous_row or {"stage": "Step5d", "owner": "bridge+TP"})
     if previous and previous != program:
         update_previous_stage(root, table, str(previous), current, program)
     current_row = build_current_stage_row(base_row, program, manifest)

@@ -23,6 +23,8 @@ V21 = "step5d_strict_rnn_liveprep_v21"
 V22 = "step5d_strict_rnn_liveprep_v22"
 V23 = "step5d_strict_rnn_liveprep_v23"
 V24 = "step5d_strict_rnn_liveprep_v24"
+V25 = "step5d_strict_rnn_ablation_v25"
+V26 = "step5d_strict_rnn_ablation_v26"
 
 
 def _sha(data: bytes) -> str:
@@ -305,6 +307,104 @@ def _write_v24_fixture(root: Path) -> tuple[Path, Path]:
     return v24_dir, manifest_path
 
 
+def _write_v26_fixture(root: Path) -> tuple[Path, Path]:
+    config = root / "config"
+    config.mkdir(parents=True)
+    v25_dir = root / "programs" / "step5"
+    v26_dir = root / "candidate"
+    v25_sha = _write_triplet(v25_dir, V25, "old-current-v25")
+    v26_sha = _write_triplet(v26_dir, V26, "new-current-v26")
+    manifest_path = _write_readback(root, V26, v26_dir, v26_sha)
+    v25_run = root / "runs" / "bridge_step5d_strict_rnn_ablation_v25_fixture"
+    v25_run.mkdir(parents=True)
+    (v25_run / "summary.json").write_text(json.dumps({"stop_reason": "signal_sigint"}), encoding="utf-8")
+    current = {
+        "version": 2,
+        "current_step": "Step5d",
+        "current_stage_id": V25,
+        "program": V25,
+        "stage_table_path": "config/step5_stage_table.json",
+        "controller_target": f"{TARGET_DIR}/{V25}.urp",
+        "controller_script": f"{TARGET_DIR}/{V25}.script",
+        "local_triplet": f"programs/step5/{V25}",
+        "status": f"{V25}_controller_readback_verified_pending_live_bridge_run_not_reproduction_claim",
+        "sha256": v25_sha,
+        "bridge_profile": {"step4e_version": V25, "stage25_control_mode": "speedl_cartesian_oracle"},
+        "evidence": {},
+        "bridge_trigger": {"required_before_live": [f"TP program opened on controller read-back v25 package"]},
+        "retained_steps": [{"step": "Step5", "role": "v25 current before test"}],
+        "notes": [],
+    }
+    table = {
+        "stages": [
+            {
+                "id": V25,
+                "stage": "Step5d",
+                "owner": "bridge+TP",
+                "active": True,
+                "blocked": False,
+                "complete": False,
+                "completion_target": True,
+                "block_reason": "current v25 fixture",
+                "guard": {
+                    "line_entry_normal_load_min_n": 10.5,
+                    "line_entry_normal_load_max_n": 12.8,
+                    "line_entry_raw_sanity_min_n": 9.5,
+                    "line_entry_raw_sanity_max_n": 13.5,
+                    "attitude_cap_rad_s": 0.150,
+                },
+                "cadence": {},
+                "contact_policy": {"controller_readback_status": "verified"},
+                "local_delivery_evidence": {
+                    "program_basename": V25,
+                    "local_program_dir": "programs/step5",
+                    "local_triplet": f"programs/step5/{V25}.{{script,txt,urp}}",
+                    "controller_readback_verified": True,
+                    "sha256": v25_sha,
+                },
+                "operator_lifecycle": {
+                    "expected_program": f"{TARGET_DIR}/{V25}.urp",
+                },
+                "runtime_interface_ref": {
+                    "stage25_default_control_mode": "speedl_cartesian_oracle",
+                },
+            },
+            {
+                "id": V26,
+                "stage": "Step5d",
+                "owner": "bridge+TP",
+                "active": False,
+                "blocked": False,
+                "complete": False,
+                "completion_target": True,
+                "block_reason": "candidate v26 fixture",
+                "guard": {
+                    "line_entry_normal_load_min_n": 7.0,
+                    "line_entry_normal_load_max_n": 18.0,
+                    "line_entry_raw_sanity_min_n": 5.0,
+                    "line_entry_raw_sanity_max_n": 20.0,
+                    "line_entry_recovery_normal_load_max_n": 24.0,
+                    "attitude_cap_rad_s": 0.015,
+                    "cartesian_layout_code": 523.0,
+                    "joint_layout_code": 524.0,
+                },
+                "cadence": {},
+                "contact_policy": {"controller_readback_status": "candidate"},
+                "local_delivery_evidence": {},
+                "operator_lifecycle": {
+                    "expected_program": f"{TARGET_DIR}/{V26}.urp",
+                },
+                "runtime_interface_ref": {
+                    "stage25_default_control_mode": "speedj_rnn_live",
+                },
+            },
+        ]
+    }
+    (config / "current_stage.json").write_text(json.dumps(current), encoding="utf-8")
+    (config / "step5_stage_table.json").write_text(json.dumps(table), encoding="utf-8")
+    return v26_dir, manifest_path
+
+
 class Step5dCurrentPromotionTest(unittest.TestCase):
     def test_promote_v22_archives_v21_and_updates_current(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -390,6 +490,35 @@ class Step5dCurrentPromotionTest(unittest.TestCase):
             self.assertNotIn("step5d_reacquire_predicted_tcp_speed_cap_m_s", bridge_profile)
             self.assertIn("stage25_low_load_policy", bridge_profile)
             self.assertIn("stage25_post_rnn_tracking_guard", bridge_profile)
+
+    def test_promote_v26_uses_v26_candidate_row_not_previous_v25_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            v26_dir, manifest_path = _write_v26_fixture(root)
+
+            result = promote.promote(root, V26, TARGET_DIR, v26_dir, manifest_path)
+
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["previous_program"], V25)
+            table = json.loads((root / "config" / "step5_stage_table.json").read_text(encoding="utf-8"))
+            rows = {row["id"]: row for row in table["stages"]}
+            self.assertFalse(rows[V25]["active"])
+            self.assertTrue(rows[V25]["complete"])
+            self.assertTrue(rows[V26]["active"])
+            self.assertEqual(rows[V26]["guard"]["line_entry_normal_load_min_n"], 7.0)
+            self.assertEqual(rows[V26]["guard"]["line_entry_normal_load_max_n"], 18.0)
+            self.assertEqual(rows[V26]["guard"]["line_entry_raw_sanity_min_n"], 5.0)
+            self.assertEqual(rows[V26]["guard"]["line_entry_raw_sanity_max_n"], 20.0)
+            self.assertEqual(rows[V26]["guard"]["line_entry_recovery_normal_load_max_n"], 24.0)
+            self.assertEqual(rows[V26]["guard"]["attitude_cap_rad_s"], 0.015)
+            self.assertEqual(rows[V26]["operator_lifecycle"]["expected_program"], f"{TARGET_DIR}/{V26}.urp")
+            self.assertEqual(rows[V26]["runtime_interface_ref"]["stage25_default_control_mode"], "speedj_rnn_live")
+            self.assertEqual(rows[V26]["contact_policy"]["tp_role"], "multimode_executor_and_guard_only")
+            self.assertEqual(rows[V26]["contact_policy"]["default_stage25_control_mode"], "speedj_rnn_live")
+            current = json.loads((root / "config" / "current_stage.json").read_text(encoding="utf-8"))
+            self.assertEqual(current["program"], V26)
+            self.assertEqual(current["bridge_profile"]["stage25_control_mode"], "speedj_rnn_live")
+            self.assertIn("7-18N", current["bridge_profile"]["stage25_3_preload_gate"])
 
 
 if __name__ == "__main__":

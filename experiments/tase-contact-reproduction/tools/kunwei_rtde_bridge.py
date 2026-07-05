@@ -534,6 +534,11 @@ STEP5D_V25_ENTRY_FILTERED_NORMAL_LOAD_MIN_N = 10.5
 STEP5D_V25_ENTRY_FILTERED_NORMAL_LOAD_MAX_N = 12.8
 STEP5D_V25_ENTRY_RAW_NORMAL_LOAD_MIN_N = 9.5
 STEP5D_V25_ENTRY_RAW_NORMAL_LOAD_MAX_N = 13.5
+STEP5D_V26_ENTRY_FILTERED_NORMAL_LOAD_MIN_N = 7.0
+STEP5D_V26_ENTRY_FILTERED_NORMAL_LOAD_MAX_N = 18.0
+STEP5D_V26_ENTRY_RAW_NORMAL_LOAD_MIN_N = 5.0
+STEP5D_V26_ENTRY_RAW_NORMAL_LOAD_MAX_N = 20.0
+STEP5D_V26_ENTRY_RECOVERY_NORMAL_LOAD_MAX_N = 24.0
 STEP5D_V25_HARD_LOW_LOAD_N = 2.0
 STEP5D_V25_HARD_LOW_LOAD_TIMEOUT_S = 0.100
 STEP5D_V25_SOFT_LOW_LOAD_N = 5.0
@@ -1430,7 +1435,13 @@ def step5d_v11_deadband_acquire_velocity(
 
 
 def step5d_liveprep_contact_window_limits(bridge_profile: str) -> tuple[float, float, float]:
-    if bridge_profile in STEP5D_ABLATION_STAGE_IDS:
+    if bridge_profile == STEP5D_ABLATION_V26_STAGE_ID:
+        return (
+            STEP5D_V26_ENTRY_FILTERED_NORMAL_LOAD_MIN_N,
+            STEP5D_V26_ENTRY_FILTERED_NORMAL_LOAD_MAX_N,
+            STEP5D_V21_ENTRY_FORCE_NORM_MAX_N,
+        )
+    if bridge_profile == STEP5D_ABLATION_V25_STAGE_ID:
         return (
             STEP5D_V25_ENTRY_FILTERED_NORMAL_LOAD_MIN_N,
             STEP5D_V25_ENTRY_FILTERED_NORMAL_LOAD_MAX_N,
@@ -5818,30 +5829,40 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         def preload_default_was_not_supplied(flag: str, *env_names: str) -> bool:
             return flag not in argv_list and all(os.environ.get(name, "") == "" for name in env_names)
 
+        if args.bridge_profile == STEP5D_ABLATION_V26_STAGE_ID:
+            default_filtered_min_n = STEP5D_V26_ENTRY_FILTERED_NORMAL_LOAD_MIN_N
+            default_filtered_max_n = STEP5D_V26_ENTRY_FILTERED_NORMAL_LOAD_MAX_N
+            default_raw_min_n = STEP5D_V26_ENTRY_RAW_NORMAL_LOAD_MIN_N
+            default_raw_max_n = STEP5D_V26_ENTRY_RAW_NORMAL_LOAD_MAX_N
+        else:
+            default_filtered_min_n = STEP5D_V25_ENTRY_FILTERED_NORMAL_LOAD_MIN_N
+            default_filtered_max_n = STEP5D_V25_ENTRY_FILTERED_NORMAL_LOAD_MAX_N
+            default_raw_min_n = STEP5D_V25_ENTRY_RAW_NORMAL_LOAD_MIN_N
+            default_raw_max_n = STEP5D_V25_ENTRY_RAW_NORMAL_LOAD_MAX_N
         if preload_default_was_not_supplied(
             "--step5d-preload-filtered-min-n",
             "STEP5D_PRELOAD_FILTERED_MIN_N",
             "BRIDGE_STEP5D_PRELOAD_FILTERED_MIN_N",
         ):
-            args.step5d_preload_filtered_min_n = STEP5D_V25_ENTRY_FILTERED_NORMAL_LOAD_MIN_N
+            args.step5d_preload_filtered_min_n = default_filtered_min_n
         if preload_default_was_not_supplied(
             "--step5d-preload-filtered-max-n",
             "STEP5D_PRELOAD_FILTERED_MAX_N",
             "BRIDGE_STEP5D_PRELOAD_FILTERED_MAX_N",
         ):
-            args.step5d_preload_filtered_max_n = STEP5D_V25_ENTRY_FILTERED_NORMAL_LOAD_MAX_N
+            args.step5d_preload_filtered_max_n = default_filtered_max_n
         if preload_default_was_not_supplied(
             "--step5d-preload-raw-min-n",
             "STEP5D_PRELOAD_RAW_MIN_N",
             "BRIDGE_STEP5D_PRELOAD_RAW_MIN_N",
         ):
-            args.step5d_preload_raw_min_n = STEP5D_V25_ENTRY_RAW_NORMAL_LOAD_MIN_N
+            args.step5d_preload_raw_min_n = default_raw_min_n
         if preload_default_was_not_supplied(
             "--step5d-preload-raw-max-n",
             "STEP5D_PRELOAD_RAW_MAX_N",
             "BRIDGE_STEP5D_PRELOAD_RAW_MAX_N",
         ):
-            args.step5d_preload_raw_max_n = STEP5D_V25_ENTRY_RAW_NORMAL_LOAD_MAX_N
+            args.step5d_preload_raw_max_n = default_raw_max_n
         if preload_default_was_not_supplied(
             "--step5d-preload-force-norm-max-n",
             "STEP5D_PRELOAD_FORCE_NORM_MAX_N",

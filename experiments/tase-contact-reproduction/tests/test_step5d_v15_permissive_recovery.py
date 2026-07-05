@@ -380,20 +380,30 @@ class Step5dV15PermissiveRecoveryTest(unittest.TestCase):
             self.assertIn("writes zero qdot", current["bridge_profile"]["cage_primary_policy"])
             self.assertNotIn("remains active_reacquire_solver", current["bridge_profile"]["cage_primary_policy"])
             self.assertNotIn("step5d_reacquire_predicted_tcp_speed_cap_m_s", current["bridge_profile"])
-        elif current["program"] == "step5d_strict_rnn_ablation_v25":
-            self.assertEqual(current_candidate["guard"]["line_entry_normal_load_min_n"], 10.5)
-            self.assertEqual(current_candidate["guard"]["line_entry_normal_load_max_n"], 12.8)
-            self.assertEqual(current_candidate["guard"]["line_entry_raw_sanity_min_n"], 9.5)
-            self.assertEqual(current_candidate["guard"]["line_entry_raw_sanity_max_n"], 13.5)
+        elif current["program"] in {"step5d_strict_rnn_ablation_v25", "step5d_strict_rnn_ablation_v26"}:
+            if current["program"] == "step5d_strict_rnn_ablation_v25":
+                self.assertEqual(current_candidate["guard"]["line_entry_normal_load_min_n"], 10.5)
+                self.assertEqual(current_candidate["guard"]["line_entry_normal_load_max_n"], 12.8)
+                self.assertEqual(current_candidate["guard"]["line_entry_raw_sanity_min_n"], 9.5)
+                self.assertEqual(current_candidate["guard"]["line_entry_raw_sanity_max_n"], 13.5)
+                self.assertEqual(current_candidate["guard"]["line_entry_recovery_normal_load_max_n"], 20.0)
+                expected_mode = "speedl_cartesian_oracle"
+            else:
+                self.assertEqual(current_candidate["guard"]["line_entry_normal_load_min_n"], 7.0)
+                self.assertEqual(current_candidate["guard"]["line_entry_normal_load_max_n"], 18.0)
+                self.assertEqual(current_candidate["guard"]["line_entry_raw_sanity_min_n"], 5.0)
+                self.assertEqual(current_candidate["guard"]["line_entry_raw_sanity_max_n"], 20.0)
+                self.assertEqual(current_candidate["guard"]["line_entry_recovery_normal_load_max_n"], 24.0)
+                expected_mode = "speedj_rnn_live"
             self.assertEqual(current_candidate["guard"]["stage25_95_register_clear_required_s"], 0.006)
             self.assertEqual(current_candidate["guard"]["stage25_95_register_clear_timeout_s"], 1.0)
             self.assertEqual(current_candidate["guard"]["stage25_cartesian_layout_tag"], 523.0)
             self.assertEqual(current_candidate["guard"]["stage25_joint_layout_tag"], 524.0)
-            self.assertEqual(current_candidate["guard"]["stage25_default_control_mode"], "speedl_cartesian_oracle")
+            self.assertEqual(current_candidate["guard"]["stage25_default_control_mode"], expected_mode)
             self.assertEqual(current_candidate["guard"]["bridge_start_wait_timeout_s"], 60.0)
-            self.assertIn("controller_readback_step5d_strict_rnn_ablation_v25", current_candidate["local_delivery_evidence"]["controller_readback"])
+            self.assertIn(f"controller_readback_{current['program']}", current_candidate["local_delivery_evidence"]["controller_readback"])
             self.assertIn("stage25_95_register_clear_barrier", current["bridge_profile"])
-            self.assertEqual(current["bridge_profile"]["stage25_control_mode"], "speedl_cartesian_oracle")
+            self.assertEqual(current["bridge_profile"]["stage25_control_mode"], expected_mode)
             self.assertEqual(current["bridge_profile"]["stage25_layout_contract"]["cartesian_layout_tag"], 523.0)
             self.assertIn("<2N for 0.100s", current["bridge_profile"]["cage_primary_policy"])
         else:

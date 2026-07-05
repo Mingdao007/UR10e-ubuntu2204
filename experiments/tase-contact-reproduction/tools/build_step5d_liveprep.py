@@ -46,6 +46,21 @@ class Step5dAblationSpec:
         return self.program_name
 
 
+@dataclass(frozen=True)
+class LineEntryConfig:
+    normal_load_min_n: float
+    normal_load_max_n: float
+    force_norm_max_n: float
+    required_s: float
+    cmd_limit_m_s: float
+    timeout_s: float
+    raw_sanity_min_n: float
+    raw_sanity_max_n: float
+    recovery_normal_load_min_n: float
+    recovery_normal_load_max_n: float
+    force_norm_stop_n: float
+
+
 ABLATION_SPECS = {
     STEP5D_ABLATION_V25_STAGE_ID: Step5dAblationSpec(
         program_name=STEP5D_ABLATION_V25_STAGE_ID,
@@ -85,6 +100,16 @@ ORIENTATION_SKIP_ERROR_RAD = 0.069813
 RAW_NORMAL_GUARD_N = 25.0
 FORCE_NORM_GUARD_N = 25.0
 TORQUE_NORM_GUARD_NM = 4.0
+V25_LINE_ENTRY_NORMAL_LOAD_MIN_N = 10.5
+V25_LINE_ENTRY_NORMAL_LOAD_MAX_N = 12.8
+V25_LINE_ENTRY_RAW_SANITY_MIN_N = 9.5
+V25_LINE_ENTRY_RAW_SANITY_MAX_N = 13.5
+V25_LINE_ENTRY_RECOVERY_NORMAL_LOAD_MAX_N = 20.0
+V26_LINE_ENTRY_NORMAL_LOAD_MIN_N = 7.0
+V26_LINE_ENTRY_NORMAL_LOAD_MAX_N = 18.0
+V26_LINE_ENTRY_RAW_SANITY_MIN_N = 5.0
+V26_LINE_ENTRY_RAW_SANITY_MAX_N = 20.0
+V26_LINE_ENTRY_RECOVERY_NORMAL_LOAD_MAX_N = 24.0
 LINE_ENTRY_NORMAL_LOAD_MIN_N = 10.5
 LINE_ENTRY_NORMAL_LOAD_MAX_N = 12.8
 LINE_ENTRY_FORCE_NORM_MAX_N = 25.0
@@ -153,6 +178,61 @@ def guard_value(spec: Step5dAblationSpec, key: str, default: float) -> float:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def default_line_entry_config(spec: Step5dAblationSpec) -> LineEntryConfig:
+    if spec.version_label == "v26":
+        return LineEntryConfig(
+            normal_load_min_n=V26_LINE_ENTRY_NORMAL_LOAD_MIN_N,
+            normal_load_max_n=V26_LINE_ENTRY_NORMAL_LOAD_MAX_N,
+            force_norm_max_n=LINE_ENTRY_FORCE_NORM_MAX_N,
+            required_s=LINE_ENTRY_REQUIRED_S,
+            cmd_limit_m_s=LINE_ENTRY_CMD_LIMIT_M_S,
+            timeout_s=LINE_ENTRY_TIMEOUT_S,
+            raw_sanity_min_n=V26_LINE_ENTRY_RAW_SANITY_MIN_N,
+            raw_sanity_max_n=V26_LINE_ENTRY_RAW_SANITY_MAX_N,
+            recovery_normal_load_min_n=LINE_ENTRY_RECOVERY_NORMAL_LOAD_MIN_N,
+            recovery_normal_load_max_n=V26_LINE_ENTRY_RECOVERY_NORMAL_LOAD_MAX_N,
+            force_norm_stop_n=LINE_ENTRY_FORCE_NORM_STOP_N,
+        )
+    return LineEntryConfig(
+        normal_load_min_n=V25_LINE_ENTRY_NORMAL_LOAD_MIN_N,
+        normal_load_max_n=V25_LINE_ENTRY_NORMAL_LOAD_MAX_N,
+        force_norm_max_n=LINE_ENTRY_FORCE_NORM_MAX_N,
+        required_s=LINE_ENTRY_REQUIRED_S,
+        cmd_limit_m_s=LINE_ENTRY_CMD_LIMIT_M_S,
+        timeout_s=LINE_ENTRY_TIMEOUT_S,
+        raw_sanity_min_n=V25_LINE_ENTRY_RAW_SANITY_MIN_N,
+        raw_sanity_max_n=V25_LINE_ENTRY_RAW_SANITY_MAX_N,
+        recovery_normal_load_min_n=LINE_ENTRY_RECOVERY_NORMAL_LOAD_MIN_N,
+        recovery_normal_load_max_n=V25_LINE_ENTRY_RECOVERY_NORMAL_LOAD_MAX_N,
+        force_norm_stop_n=LINE_ENTRY_FORCE_NORM_STOP_N,
+    )
+
+
+def line_entry_config(spec: Step5dAblationSpec = DEFAULT_SPEC) -> LineEntryConfig:
+    default = default_line_entry_config(spec)
+    return LineEntryConfig(
+        normal_load_min_n=guard_value(spec, "line_entry_normal_load_min_n", default.normal_load_min_n),
+        normal_load_max_n=guard_value(spec, "line_entry_normal_load_max_n", default.normal_load_max_n),
+        force_norm_max_n=guard_value(spec, "line_entry_force_norm_max_n", default.force_norm_max_n),
+        required_s=guard_value(spec, "line_entry_required_s", default.required_s),
+        cmd_limit_m_s=guard_value(spec, "line_entry_cmd_limit_m_s", default.cmd_limit_m_s),
+        timeout_s=guard_value(spec, "line_entry_timeout_s", default.timeout_s),
+        raw_sanity_min_n=guard_value(spec, "line_entry_raw_sanity_min_n", default.raw_sanity_min_n),
+        raw_sanity_max_n=guard_value(spec, "line_entry_raw_sanity_max_n", default.raw_sanity_max_n),
+        recovery_normal_load_min_n=guard_value(
+            spec,
+            "line_entry_recovery_normal_load_min_n",
+            default.recovery_normal_load_min_n,
+        ),
+        recovery_normal_load_max_n=guard_value(
+            spec,
+            "line_entry_recovery_normal_load_max_n",
+            default.recovery_normal_load_max_n,
+        ),
+        force_norm_stop_n=guard_value(spec, "line_entry_force_norm_stop_n", default.force_norm_stop_n),
+    )
 
 
 def bridge_start_wait_timeout_s(spec: Step5dAblationSpec = DEFAULT_SPEC) -> float:
@@ -334,7 +414,8 @@ def _add_orientation_skip_gate(script: str) -> str:
     return script.replace(start_marker, replacement, 1)
 
 
-def _replace_line_entry_with_force_settle(script: str) -> str:
+def _replace_line_entry_with_force_settle(script: str, spec: Step5dAblationSpec = DEFAULT_SPEC) -> str:
+    line_entry = line_entry_config(spec)
     start = script.index("  if stop_reason == 0.0:\n    write_output_float_register(35, 25.3)")
     end = script.index("\n\n  if stop_reason == 0.0:\n    write_output_float_register(35, 25.0)", start)
     block = f"""  if stop_reason == 0.0:
@@ -343,15 +424,15 @@ def _replace_line_entry_with_force_settle(script: str) -> str:
     local stale_s_entry = 0.0
     local t_entry = 0.0
     local line_entry_s = 0.0
-    local line_entry_default_required_s = {LINE_ENTRY_REQUIRED_S:.3f}
-    local line_entry_default_timeout_s = {LINE_ENTRY_TIMEOUT_S:.3f}
-    local line_entry_default_normal_load_min_n = {LINE_ENTRY_NORMAL_LOAD_MIN_N:.3f}
-    local line_entry_default_normal_load_max_n = {LINE_ENTRY_NORMAL_LOAD_MAX_N:.3f}
-    local line_entry_default_force_norm_max_n = {LINE_ENTRY_FORCE_NORM_MAX_N:.3f}
-    local line_entry_recovery_normal_load_min_n = {LINE_ENTRY_RECOVERY_NORMAL_LOAD_MIN_N:.3f}
-    local line_entry_recovery_normal_load_max_n = {LINE_ENTRY_RECOVERY_NORMAL_LOAD_MAX_N:.3f}
-    local line_entry_force_norm_stop_n = {LINE_ENTRY_FORCE_NORM_STOP_N:.3f}
-    local line_entry_cmd_limit_m_s = {LINE_ENTRY_CMD_LIMIT_M_S:.3f}
+    local line_entry_default_required_s = {line_entry.required_s:.3f}
+    local line_entry_default_timeout_s = {line_entry.timeout_s:.3f}
+    local line_entry_default_normal_load_min_n = {line_entry.normal_load_min_n:.3f}
+    local line_entry_default_normal_load_max_n = {line_entry.normal_load_max_n:.3f}
+    local line_entry_default_force_norm_max_n = {line_entry.force_norm_max_n:.3f}
+    local line_entry_recovery_normal_load_min_n = {line_entry.recovery_normal_load_min_n:.3f}
+    local line_entry_recovery_normal_load_max_n = {line_entry.recovery_normal_load_max_n:.3f}
+    local line_entry_force_norm_stop_n = {line_entry.force_norm_stop_n:.3f}
+    local line_entry_cmd_limit_m_s = {line_entry.cmd_limit_m_s:.3f}
     local line_entry_param_valid_code = {STEP5D_LINE_ENTRY_PARAM_VALID_CODE:.3f}
     saw_cmd_valid = 0
     cmd_invalid_s = 0.0
@@ -566,6 +647,7 @@ def build_script(
     spec: Step5dAblationSpec = DEFAULT_SPEC,
 ) -> str:
     bridge_wait_timeout_s = bridge_start_wait_timeout_s(spec)
+    line_entry = line_entry_config(spec)
     script = build_step5b_script(stamp, gen_at, geom, frame, variant="v3")
     scaffold_mutated_stamp = stamp.replace(spec.version_label.upper(), "V31").replace(spec.version_label, "v31")
     script = script.replace(scaffold_mutated_stamp, stamp)
@@ -604,7 +686,7 @@ def build_script(
             "PURPOSE: v31 contact search, first-contact normal latch, optional 4deg skip-lift/25.2 gate, otherwise lift and 25.2 attitude correction, 25.3 line-entry gate, then Step5 table-driven contact cycloid reference for 60 s.",
             "PURPOSE: v31 contact search, first-contact normal latch, no lift/25.2 attitude cycle and no second contact search, 25.3 line-entry gate, then Step5 table-driven contact cycloid reference for 60 s.",
         ),
-        f"PURPOSE: v31 contact search with Stage22/24 gravity-down pre-contact posture, first-contact normal latch, no lift/25.2 attitude cycle and no second contact search, 25.3 bridge deadband acquire into the 10.5-12.8N filtered preload window with 9.5-13.5N raw sanity and bridge-time preload parameter channel, 25.95 register clear barrier, then {spec.version_label} Step5d ablation Stage25.0 multi-layout speedl/speedj diagnostic for 10 s.",
+        f"PURPOSE: v31 contact search with Stage22/24 gravity-down pre-contact posture, first-contact normal latch, no lift/25.2 attitude cycle and no second contact search, 25.3 bridge deadband acquire into the {line_entry.normal_load_min_n:.1f}-{line_entry.normal_load_max_n:.1f}N filtered preload window with {line_entry.raw_sanity_min_n:.1f}-{line_entry.raw_sanity_max_n:.1f}N raw sanity and bridge-time preload parameter channel, 25.95 register clear barrier, then {spec.version_label} Step5d ablation Stage25.0 multi-layout speedl/speedj diagnostic for 10 s.",
         "purpose",
     )
     script = _force_gravity_down_search_pose(script)
@@ -626,7 +708,7 @@ def build_script(
     script = _replace_exact(script, "STEP5_STAGE_ID: step5_contact_cycloid_baseline_v1", f"STEP5_STAGE_ID: {spec.stage_id}")
     script = _add_down_search_force_trigger_echo(script)
     script = _add_force_envelope_auto_home(script)
-    script = _replace_line_entry_with_force_settle(script)
+    script = _replace_line_entry_with_force_settle(script, spec)
     script = _replace_line_stage_with_stage25_multimode(script, spec)
     if f"def codex_{spec.program_name}()" not in script:
         raise RuntimeError("Step5d ablation function rename failed")
@@ -635,6 +717,7 @@ def build_script(
 
 def build_txt(stamp: str, spec: Step5dAblationSpec = DEFAULT_SPEC) -> str:
     bridge_wait_timeout_s = bridge_start_wait_timeout_s(spec)
+    line_entry = line_entry_config(spec)
     first_run = (
         "First live run must use speedl_cartesian_oracle. Acceptance target is Stage25.0\n"
         "  continuous runtime >=5 s, load mostly 8..14 N, trusted force max <20 N, and no\n"
@@ -667,16 +750,16 @@ Boundary:
   no lift and no second contact search remain deliberate requirements.
   Stage 25.3 is deadband contact acquire: bridge filters normal_load and
   commands only locked-normal Cartesian vx/vy/vz in registers 37..39. It may
-  actively recover while raw normal_load is between {LINE_ENTRY_RECOVERY_NORMAL_LOAD_MIN_N:.1f} N and {LINE_ENTRY_RECOVERY_NORMAL_LOAD_MAX_N:.1f} N,
-  with force_norm <= {LINE_ENTRY_FORCE_NORM_STOP_N:.1f} N.
+  actively recover while raw normal_load is between {line_entry.recovery_normal_load_min_n:.1f} N and {line_entry.recovery_normal_load_max_n:.1f} N,
+  with force_norm <= {line_entry.force_norm_stop_n:.1f} N.
   {spec.version_label} Stage 25.3 accepts a bridge-time preload parameter channel when register
   47 equals {STEP5D_LINE_ENTRY_PARAM_VALID_CODE:.1f}: registers 40/41 are filtered
   min/max, 42 is force_norm max, 44 is hold time, and 46 is timeout.
   TP enters 25.0 only after the bridge-side preload register reports
-  filtered normal_load between {LINE_ENTRY_NORMAL_LOAD_MIN_N:.1f} N and {LINE_ENTRY_NORMAL_LOAD_MAX_N:.1f} N,
-  raw normal_load is sanity-checked between {LINE_ENTRY_RAW_SANITY_MIN_N:.1f} N and {LINE_ENTRY_RAW_SANITY_MAX_N:.1f} N,
-  with force_norm <= {LINE_ENTRY_FORCE_NORM_MAX_N:.1f} N,
-  and bridge cmd_valid is true for {LINE_ENTRY_REQUIRED_S:.3f} s.
+  filtered normal_load between {line_entry.normal_load_min_n:.1f} N and {line_entry.normal_load_max_n:.1f} N,
+  raw normal_load is sanity-checked between {line_entry.raw_sanity_min_n:.1f} N and {line_entry.raw_sanity_max_n:.1f} N,
+  with force_norm <= {line_entry.force_norm_max_n:.1f} N,
+  and bridge cmd_valid is true for {line_entry.required_s:.3f} s.
   Before Stage 25.0, Stage 25.95 requires the bridge to clear registers 37..47
   with cmd_valid=0 and registers 37..42 near zero (<= {QDOT_CLEAR_ZERO_TOL_RAD_S:.6f}) so stale 25.3 preload parameters or old Stage25 commands cannot be interpreted as current command.
   Stage 25.0 supports Cartesian speedl layout and joint speedj layout:
@@ -723,6 +806,7 @@ Reference:
 
 def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5dAblationSpec = DEFAULT_SPEC) -> None:
     bridge_wait_timeout_s = bridge_start_wait_timeout_s(spec)
+    line_entry = line_entry_config(spec)
     xml = gzip.decompress(urp).decode("utf-8")
     checks = {
         "script stamp": stamp in script,
@@ -767,16 +851,16 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5d
         "no lift attitude cycle": "local skip_lift_attitude = 0" not in script
         and "write_output_float_register(35, 25.1)" not in script
         and "write_output_float_register(35, 25.2)" not in script,
-        "force-settle entry gate": f"local line_entry_default_normal_load_min_n = {LINE_ENTRY_NORMAL_LOAD_MIN_N:.3f}" in script
-        and f"local line_entry_default_normal_load_max_n = {LINE_ENTRY_NORMAL_LOAD_MAX_N:.3f}" in script
-        and f"local line_entry_default_force_norm_max_n = {LINE_ENTRY_FORCE_NORM_MAX_N:.3f}" in script
-        and f"normal_load between {LINE_ENTRY_NORMAL_LOAD_MIN_N:.1f} N and {LINE_ENTRY_NORMAL_LOAD_MAX_N:.1f} N" in txt
-        and f"raw normal_load is sanity-checked between {LINE_ENTRY_RAW_SANITY_MIN_N:.1f} N and {LINE_ENTRY_RAW_SANITY_MAX_N:.1f} N" in txt
-        and f"local line_entry_default_required_s = {LINE_ENTRY_REQUIRED_S:.3f}" in script
-        and f"local line_entry_default_timeout_s = {LINE_ENTRY_TIMEOUT_S:.3f}" in script
-        and f"local line_entry_recovery_normal_load_min_n = {LINE_ENTRY_RECOVERY_NORMAL_LOAD_MIN_N:.3f}" in script
-        and f"local line_entry_recovery_normal_load_max_n = {LINE_ENTRY_RECOVERY_NORMAL_LOAD_MAX_N:.3f}" in script
-        and f"local line_entry_force_norm_stop_n = {LINE_ENTRY_FORCE_NORM_STOP_N:.3f}" in script
+        "force-settle entry gate": f"local line_entry_default_normal_load_min_n = {line_entry.normal_load_min_n:.3f}" in script
+        and f"local line_entry_default_normal_load_max_n = {line_entry.normal_load_max_n:.3f}" in script
+        and f"local line_entry_default_force_norm_max_n = {line_entry.force_norm_max_n:.3f}" in script
+        and f"normal_load between {line_entry.normal_load_min_n:.1f} N and {line_entry.normal_load_max_n:.1f} N" in txt
+        and f"raw normal_load is sanity-checked between {line_entry.raw_sanity_min_n:.1f} N and {line_entry.raw_sanity_max_n:.1f} N" in txt
+        and f"local line_entry_default_required_s = {line_entry.required_s:.3f}" in script
+        and f"local line_entry_default_timeout_s = {line_entry.timeout_s:.3f}" in script
+        and f"local line_entry_recovery_normal_load_min_n = {line_entry.recovery_normal_load_min_n:.3f}" in script
+        and f"local line_entry_recovery_normal_load_max_n = {line_entry.recovery_normal_load_max_n:.3f}" in script
+        and f"local line_entry_force_norm_stop_n = {line_entry.force_norm_stop_n:.3f}" in script
         and f"local line_entry_param_valid_code = {STEP5D_LINE_ENTRY_PARAM_VALID_CODE:.3f}" in script
         and "local normal_load = target_force - force_error" in script
         and "local candidate_min_n = read_input_float_register(40)" in script
@@ -801,7 +885,7 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5d
         "force envelope auto-home": "elif stop_reason == 17.0:\n    return True" in script,
         "v31 scaffold retained": "first-contact normal latch" in script
         and "no lift/25.2 attitude cycle and no second contact search" in script
-        and "25.3 bridge deadband acquire into the 10.5-12.8N filtered preload window with 9.5-13.5N raw sanity" in script,
+        and f"25.3 bridge deadband acquire into the {line_entry.normal_load_min_n:.1f}-{line_entry.normal_load_max_n:.1f}N filtered preload window with {line_entry.raw_sanity_min_n:.1f}-{line_entry.raw_sanity_max_n:.1f}N raw sanity" in script,
         "entry and far-search speedup": f"movel(entry_xy_pose, a={ENTRY_MOVEL_ACCEL_M_S2:.3f}, v={ENTRY_MOVEL_SPEED_M_S:.3f}, r=0.0)" in script
         and f"40.000, {FIRST_SEARCH_FAR_SPEED_M_S:.4f}, {FIRST_SEARCH_NEAR_SPEED_M_S:.4f})" in script
         and "Stage 22 entry movel is 0.060 m/s" in txt,
@@ -891,6 +975,7 @@ def write_bytes_if_changed(path: Path, data: bytes) -> bool:
 
 
 def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dict[str, object]:
+    line_entry = line_entry_config(spec)
     return {
         "schema": f"step5d_ablation_semantic_fingerprint_{spec.version_label}",
         "interface_class": STEP5D_INTERFACE_CLASS,
@@ -916,18 +1001,18 @@ def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dic
             "speedj_rnn_live",
         ],
         "line_entry": {
-            "filtered_min_n": LINE_ENTRY_NORMAL_LOAD_MIN_N,
-            "filtered_max_n": LINE_ENTRY_NORMAL_LOAD_MAX_N,
-            "raw_min_n": LINE_ENTRY_RAW_SANITY_MIN_N,
-            "raw_max_n": LINE_ENTRY_RAW_SANITY_MAX_N,
-            "force_norm_max_n": LINE_ENTRY_FORCE_NORM_MAX_N,
-            "hold_s": LINE_ENTRY_REQUIRED_S,
-            "timeout_s": LINE_ENTRY_TIMEOUT_S,
+            "filtered_min_n": line_entry.normal_load_min_n,
+            "filtered_max_n": line_entry.normal_load_max_n,
+            "raw_min_n": line_entry.raw_sanity_min_n,
+            "raw_max_n": line_entry.raw_sanity_max_n,
+            "force_norm_max_n": line_entry.force_norm_max_n,
+            "hold_s": line_entry.required_s,
+            "timeout_s": line_entry.timeout_s,
             "bridge_start_wait_timeout_s": bridge_start_wait_timeout_s(spec),
-            "cmd_limit_m_s": LINE_ENTRY_CMD_LIMIT_M_S,
-            "recovery_normal_load_min_n": LINE_ENTRY_RECOVERY_NORMAL_LOAD_MIN_N,
-            "recovery_normal_load_max_n": LINE_ENTRY_RECOVERY_NORMAL_LOAD_MAX_N,
-            "force_norm_stop_n": LINE_ENTRY_FORCE_NORM_STOP_N,
+            "cmd_limit_m_s": line_entry.cmd_limit_m_s,
+            "recovery_normal_load_min_n": line_entry.recovery_normal_load_min_n,
+            "recovery_normal_load_max_n": line_entry.recovery_normal_load_max_n,
+            "force_norm_stop_n": line_entry.force_norm_stop_n,
             "param_valid_code": STEP5D_LINE_ENTRY_PARAM_VALID_CODE,
         },
         "search": {

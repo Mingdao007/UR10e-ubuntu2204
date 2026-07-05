@@ -1,20 +1,22 @@
 # Step5 Flow
 
 `config/current_stage.json` currently selects
-`step5d_strict_rnn_ablation_v25` as the Step5d Local TP/script diagnostic
-package after controller upload and read-back verification on 2026-07-03.
+`step5d_strict_rnn_ablation_v26` as the Step5d Local TP/script diagnostic
+package after controller upload and read-back verification on 2026-07-05.
 Step5d is the named completion target for the complete strict TASE RNN
-reproduction; v25 is still a diagnostic/ablation package, not a completed
-reproduction claim. v25 keeps the 12 N no-lift/no-25.2/no-second-search
+reproduction; v26 is still a diagnostic/ablation package, not a completed
+reproduction claim. v26 keeps the 12 N no-lift/no-25.2/no-second-search
 scaffold, Stage22/24 gravity-down pre-contact posture, 1.5x Stage22 entry movel
-and Stage24 far search, Stage25.3 release at filtered `10.5-12.8 N`, raw sanity
-`9.5-13.5 N`, force_norm `<=25 N`, and `0.100 s` dwell, then Stage25.95 clears
+and Stage24 far search, Stage25.3 release through the Step5b/Step6b evidence
+tube at filtered `7-18 N`, raw sanity `5-20 N`, force_norm `<=25 N`, and
+`0.100 s` dwell, then Stage25.95 clears
 registers `37..47` before Stage25.0 consumes layout-tagged Cartesian speedl or
-joint speedj commands. v25 defaults to `speedl_cartesian_oracle` with strict
-RNN/J(q) shadow diagnostics. Bridge start, TP program load/Play, robot motion,
+joint speedj commands. v26 defaults to `speedj_rnn_live` with joint-feasibility
+scaling, corrected orientation frame/sign, and RNN/J(q) diagnostics. Bridge
+start, TP program load/Play, robot motion,
 payload/TCP writes, and `zero_ftsensor()` remain separate explicit live gates.
 The full reproduction target remains separate and not complete.
-Step4f, Step4g, Step5b, and Step5d v1-v24 remain retained evidence packages
+Step4f, Step4g, Step5b, and Step5d v1-v25 remain retained evidence packages
 only. The ROS2 source package for the current route is now
 `src/ur10e_example_controllers`; stage ids such as
 `step5a_ros2_remote_no_contact_v1` remain historical/experimental mapping
@@ -173,8 +175,8 @@ instead of preserving the later 22 s TP v3 timing.
 | `step5d_strict_rnn_liveprep_v22` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained failure evidence: Stage25.95 qdot-clear barrier existed, but live attempts still hit `normal_force_guard`; superseded by v23. |
 | `step5d_strict_rnn_liveprep_v23` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained failure evidence: live run lost contact, continued active_reacquire_solver qdot, and stopped on `tcp_cage_braking_margin_exhausted`; trusted force stayed near 16 N and startup 102 N was baseline-not-ready. |
 | `step5d_strict_rnn_liveprep_v24` | bridge+TP | true | false | strict TASE RNN | `v31_filtered_live` | Retained read-back/live-attempt evidence: keeps 12 N target, 7.5-14 N filtered preload with 7-15 N raw sanity, 25 N/25 N/4.0 Nm guards, low/no-contact zero-qdot stop instead of active_reacquire_solver qdot, trusted force summaries, and post-RNN tracking reversal detection. Superseded by v25. |
-| `step5d_strict_rnn_ablation_v25` | bridge+TP | true | true | speedl Cartesian oracle with strict RNN shadow diagnostics | `v31_filtered_live` | Current read-back verified diagnostic package: 12 N target, 10.5-12.8 N filtered preload with 9.5-13.5 N raw sanity, Stage25.95 register clear, layout-tagged Stage25 speedl/speedj, default `speedl_cartesian_oracle`, pending explicit live bridge evidence. |
-| `step5d_strict_rnn_ablation_v26` | bridge+TP | true | true | strict RNN speedj live candidate | `v31_filtered_live` | Candidate package: same v25 preload/register-clear scaffold, default `speedj_rnn_live` with feasibility-scaled xdot_c, package generation and controller read-back required before any live bridge trigger. |
+| `step5d_strict_rnn_ablation_v25` | bridge+TP | true | true | speedl Cartesian oracle with strict RNN shadow diagnostics | `v31_filtered_live` | Retained failed/live-attempt evidence: 12 N target, 10.5-12.8 N filtered preload with 9.5-13.5 N raw sanity, Stage25.95 register clear, layout-tagged Stage25 speedl/speedj, default `speedl_cartesian_oracle`; superseded by v26 tube. |
+| `step5d_strict_rnn_ablation_v26` | bridge+TP | true | true | strict RNN speedj live candidate | `v31_filtered_live` | Current read-back verified diagnostic package: default `speedj_rnn_live` with feasibility-scaled xdot_c, corrected orientation frame/sign, Stage25 lifecycle solver reset, and Stage25.3 Step5b/Step6b evidence tube filtered 7-18 N / raw 5-20 N; pending explicit live bridge evidence. |
 | `step5d_ros2_remote_shadow_v1` | ROS2 offline | true | false | ROS2 shadow replay | `v31_filtered_live` input logs | Diagnostic-only Step5d policy replay: replays v15a/v14/v11 and Step5b/Step6b CSVs, removes long zero-qdot hold recovery, but is not live-ready and must follow Step5b plumbing validation. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |
 

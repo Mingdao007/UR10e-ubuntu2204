@@ -45,8 +45,11 @@ class Step5dRuntimeInterfaceTest(unittest.TestCase):
         self.assertEqual(v25.preload_gate.raw_max_n, 13.5)
         self.assertEqual(v26.stage25_control_mode, "speedj_rnn_live")
         self.assertEqual(v26.bridge_defaults.angular_limit_rad_s, 0.015)
-        self.assertEqual(v26.preload_gate.filtered_min_n, 10.5)
-        self.assertEqual(v26.preload_gate.raw_max_n, 13.5)
+        self.assertEqual(v26.preload_gate.filtered_min_n, 7.0)
+        self.assertEqual(v26.preload_gate.filtered_max_n, 18.0)
+        self.assertEqual(v26.preload_gate.raw_min_n, 5.0)
+        self.assertEqual(v26.preload_gate.raw_max_n, 20.0)
+        self.assertEqual(v26.preload_gate.recovery_normal_load_max_n, 24.0)
         self.assertIn("v25/v26", v26.register_contract["stage25_0"])
 
     def test_step5d_env_overrides_use_step5d_namespace(self) -> None:

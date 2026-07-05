@@ -140,7 +140,19 @@ def controller_target_for(program: str, current: dict[str, Any] | None = None) -
 
 
 def default_preload_gate(program: str) -> Step5dPreloadGate:
-    if program in STEP5D_ABLATION_STAGE_IDS:
+    if program == STEP5D_ABLATION_V26_STAGE_ID:
+        return Step5dPreloadGate(
+            filtered_min_n=7.0,
+            filtered_max_n=18.0,
+            raw_min_n=5.0,
+            raw_max_n=20.0,
+            force_norm_max_n=25.0,
+            hold_s=0.100,
+            recovery_normal_load_min_n=0.0,
+            recovery_normal_load_max_n=24.0,
+            force_norm_stop_n=25.0,
+        )
+    if program == STEP5D_ABLATION_V25_STAGE_ID:
         return Step5dPreloadGate(
             filtered_min_n=10.5,
             filtered_max_n=12.8,

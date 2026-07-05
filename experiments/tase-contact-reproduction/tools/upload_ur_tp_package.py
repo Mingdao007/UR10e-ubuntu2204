@@ -968,6 +968,13 @@ def validate_package(
         version_label = program.rsplit("_", 1)[-1]
         expected_angular_cap = "0.150" if version_label == "v25" else "0.015"
         expected_default_mode = "speedl_cartesian_oracle" if version_label == "v25" else "speedj_rnn_live"
+        expected_preload_min = "10.500" if version_label == "v25" else "7.000"
+        expected_preload_max = "12.800" if version_label == "v25" else "18.000"
+        expected_raw_min_text = "9.5" if version_label == "v25" else "5.0"
+        expected_raw_max_text = "13.5" if version_label == "v25" else "20.0"
+        expected_preload_min_text = "10.5" if version_label == "v25" else "7.0"
+        expected_preload_max_text = "12.8" if version_label == "v25" else "18.0"
+        expected_recovery_max = "20.000" if version_label == "v25" else "24.000"
         checks.update(
             {
                 f"step5d {version_label} ablation function": f"def codex_{program}()" in script
@@ -990,18 +997,18 @@ def validate_package(
                 and "local cartesian_linear_cap_m_s = 0.004" in script
                 and f"local cartesian_angular_cap_rad_s = {expected_angular_cap}" in script
                 and "local qdot_cap_rad_s = 0.050" in script,
-                f"step5d {version_label} preload gate": "local line_entry_default_normal_load_min_n = 10.500" in script
-                and "local line_entry_default_normal_load_max_n = 12.800" in script
+                f"step5d {version_label} preload gate": f"local line_entry_default_normal_load_min_n = {expected_preload_min}" in script
+                and f"local line_entry_default_normal_load_max_n = {expected_preload_max}" in script
                 and "local line_entry_default_force_norm_max_n = 25.000" in script
                 and "local line_entry_default_required_s = 0.100" in script
-                and "local line_entry_recovery_normal_load_max_n = 20.000" in script
+                and f"local line_entry_recovery_normal_load_max_n = {expected_recovery_max}" in script
                 and "local line_entry_force_norm_stop_n = 25.000" in script
                 and "local line_entry_param_valid_code = 521.000" in script
                 and "local candidate_min_n = read_input_float_register(40)" in script
                 and "local candidate_required_s = read_input_float_register(44)" in script
                 and "local candidate_timeout_s = read_input_float_register(46)" in script
-                and "filtered normal_load between 10.5 N and 12.8 N" in txt
-                and "raw normal_load is sanity-checked between 9.5 N and 13.5 N" in txt,
+                and f"filtered normal_load between {expected_preload_min_text} N and {expected_preload_max_text} N" in txt
+                and f"raw normal_load is sanity-checked between {expected_raw_min_text} N and {expected_raw_max_text} N" in txt,
                 f"step5d {version_label} register clear barrier": "write_output_float_register(35, 25.95)" in script
                 and "local register_clear_required_s = 0.006" in script
                 and "local register_clear_zero_tol = 0.000500" in script
