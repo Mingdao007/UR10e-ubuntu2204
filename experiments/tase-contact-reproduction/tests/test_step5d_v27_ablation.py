@@ -452,7 +452,7 @@ class Step5dV27AblationTest(unittest.TestCase):
         self.assertEqual(values["step4e_cmd_valid"], 1.0)
         self.assertEqual(values["_step5d_stage25_control_mode"], "speedl_cartesian_oracle")
 
-    def test_v27_speedl_entry_freezes_angular_command_but_keeps_shadow_orientation_error(self) -> None:
+    def test_v27_speedl_entry_runs_step5b_orientation_follow_live_with_shadow_orientation_error(self) -> None:
         args = bridge.parse_args(
             [
                 "--no-start-command",
@@ -502,9 +502,26 @@ class Step5dV27AblationTest(unittest.TestCase):
             values["step4e_cmd_vz_m_s"],
         )
         self.assertFalse(np.allclose(live_linear, (0.0010, 0.0015, -0.0020), atol=1e-12))
-        self.assertAlmostEqual(values["step4e_cmd_wx_rad_s"], 0.0, places=9)
-        self.assertAlmostEqual(values["step4e_cmd_wy_rad_s"], 0.0, places=9)
-        self.assertAlmostEqual(values["step4e_cmd_wz_rad_s"], 0.0, places=9)
+        live_angular = (
+            values["step4e_cmd_wx_rad_s"],
+            values["step4e_cmd_wy_rad_s"],
+            values["step4e_cmd_wz_rad_s"],
+        )
+        # v29 policy: live angular is the Step5b/step4e orientation follow
+        # (inside its limit), never the raw Step5d shadow angular command.
+        self.assertLessEqual(math.sqrt(sum(value**2 for value in live_angular)), 0.015 + 1e-9)
+        self.assertEqual(values["_step5d_live_orientation_enabled"], 1.0)
+        self.assertFalse(
+            np.allclose(
+                live_angular,
+                (
+                    values["_step5d_speedl_shadow_raw_wx_rad_s"],
+                    values["_step5d_speedl_shadow_raw_wy_rad_s"],
+                    values["_step5d_speedl_shadow_raw_wz_rad_s"],
+                ),
+                atol=1e-12,
+            )
+        )
         self.assertAlmostEqual(values["step4e_orientation_error_rad"], tilt_rad, delta=0.002)
         self.assertAlmostEqual(values["_step5d_outer_orientation_error_rad"], tilt_rad, delta=0.002)
         self.assertEqual(values["_step5d_stage25_control_mode"], "speedl_cartesian_oracle")
@@ -616,7 +633,7 @@ class Step5dV27AblationTest(unittest.TestCase):
         self.assertEqual(state.latched_normal_b, stale_latch_b)
         self.assertAlmostEqual(values["step4e_orientation_error_rad"], tilt_rad, delta=0.002)
 
-    def test_v27_speedl_shadow_only_keeps_angular_zero_after_entry_window(self) -> None:
+    def test_v27_speedl_keeps_paper_angular_shadow_only_after_entry_window(self) -> None:
         args = bridge.parse_args(
             [
                 "--no-start-command",
@@ -676,9 +693,26 @@ class Step5dV27AblationTest(unittest.TestCase):
             values["step4e_cmd_vz_m_s"],
         )
         self.assertFalse(np.allclose(live_linear, (0.0010, 0.0015, -0.0020), atol=1e-12))
-        self.assertAlmostEqual(values["step4e_cmd_wx_rad_s"], 0.0, places=9)
-        self.assertAlmostEqual(values["step4e_cmd_wy_rad_s"], 0.0, places=9)
-        self.assertAlmostEqual(values["step4e_cmd_wz_rad_s"], 0.0, places=9)
+        live_angular = (
+            values["step4e_cmd_wx_rad_s"],
+            values["step4e_cmd_wy_rad_s"],
+            values["step4e_cmd_wz_rad_s"],
+        )
+        # v29 policy: live angular is the Step5b/step4e orientation follow
+        # (inside its limit), never the raw Step5d shadow angular command.
+        self.assertLessEqual(math.sqrt(sum(value**2 for value in live_angular)), 0.015 + 1e-9)
+        self.assertEqual(values["_step5d_live_orientation_enabled"], 1.0)
+        self.assertFalse(
+            np.allclose(
+                live_angular,
+                (
+                    values["_step5d_speedl_shadow_raw_wx_rad_s"],
+                    values["_step5d_speedl_shadow_raw_wy_rad_s"],
+                    values["_step5d_speedl_shadow_raw_wz_rad_s"],
+                ),
+                atol=1e-12,
+            )
+        )
         self.assertEqual(values["_step5d_stage25_control_mode"], "speedl_cartesian_oracle")
         self.assertEqual(values["_step5d_speedl_orientation_shadow_only"], 1.0)
         raw_angular_norm = math.sqrt(
@@ -754,9 +788,26 @@ class Step5dV27AblationTest(unittest.TestCase):
             values["step4e_cmd_vz_m_s"],
         )
         self.assertFalse(np.allclose(live_linear, (0.0010, 0.0015, -0.0020), atol=1e-12))
-        self.assertAlmostEqual(values["step4e_cmd_wx_rad_s"], 0.0, places=9)
-        self.assertAlmostEqual(values["step4e_cmd_wy_rad_s"], 0.0, places=9)
-        self.assertAlmostEqual(values["step4e_cmd_wz_rad_s"], 0.0, places=9)
+        live_angular = (
+            values["step4e_cmd_wx_rad_s"],
+            values["step4e_cmd_wy_rad_s"],
+            values["step4e_cmd_wz_rad_s"],
+        )
+        # v29 policy: live angular is the Step5b/step4e orientation follow
+        # (inside its limit), never the raw Step5d shadow angular command.
+        self.assertLessEqual(math.sqrt(sum(value**2 for value in live_angular)), 0.015 + 1e-9)
+        self.assertEqual(values["_step5d_live_orientation_enabled"], 1.0)
+        self.assertFalse(
+            np.allclose(
+                live_angular,
+                (
+                    values["_step5d_speedl_shadow_raw_wx_rad_s"],
+                    values["_step5d_speedl_shadow_raw_wy_rad_s"],
+                    values["_step5d_speedl_shadow_raw_wz_rad_s"],
+                ),
+                atol=1e-12,
+            )
+        )
         self.assertEqual(values["_step5d_stage25_control_mode"], "speedl_cartesian_oracle")
         self.assertEqual(values["_step5d_live_control_source"], "step5b_speedl_live_step5d_shadow")
         self.assertEqual(values["_step5d_speedl_orientation_shadow_only"], 1.0)
@@ -816,9 +867,26 @@ class Step5dV27AblationTest(unittest.TestCase):
         self.assertAlmostEqual(raw_angular_norm, 0.015, places=9)
         self.assertLess(values["_step5d_speedl_shadow_raw_wy_rad_s"], 0.0)
         self.assertGreater(values["_step5d_speedl_shadow_raw_wz_rad_s"], 0.0)
-        self.assertAlmostEqual(values["step4e_cmd_wx_rad_s"], 0.0, places=9)
-        self.assertAlmostEqual(values["step4e_cmd_wy_rad_s"], 0.0, places=9)
-        self.assertAlmostEqual(values["step4e_cmd_wz_rad_s"], 0.0, places=9)
+        live_angular = (
+            values["step4e_cmd_wx_rad_s"],
+            values["step4e_cmd_wy_rad_s"],
+            values["step4e_cmd_wz_rad_s"],
+        )
+        # v29 policy: live angular is the Step5b/step4e orientation follow
+        # (inside its limit), never the raw Step5d shadow angular command.
+        self.assertLessEqual(math.sqrt(sum(value**2 for value in live_angular)), 0.015 + 1e-9)
+        self.assertEqual(values["_step5d_live_orientation_enabled"], 1.0)
+        self.assertFalse(
+            np.allclose(
+                live_angular,
+                (
+                    values["_step5d_speedl_shadow_raw_wx_rad_s"],
+                    values["_step5d_speedl_shadow_raw_wy_rad_s"],
+                    values["_step5d_speedl_shadow_raw_wz_rad_s"],
+                ),
+                atol=1e-12,
+            )
+        )
 
 
 if __name__ == "__main__":

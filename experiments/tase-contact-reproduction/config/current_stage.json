@@ -32,7 +32,7 @@
     "stage24_near_search_speed_m_s": -0.0025,
     "stage25_95_register_clear_barrier": "TP writes stage 25.95 after preload; bridge writes zero command/cmd_valid=0 and a layout tag that is not 521/523/524 until TP observes registers 37..47 clear before Stage25.0 consumption",
     "stage25_control_mode": "speedl_cartesian_oracle",
-    "stage25_speedl_orientation_policy": "v28 bridge runtime uses Step5b speedl vx/vy/vz as the live command source in speedl_cartesian_oracle; Step5d paper/RNN vx/vy/vz and wx/wy/wz are shadow diagnostics, and live wx/wy/wz are forced to 0 for all Stage25.0.",
+    "stage25_speedl_orientation_policy": "v28 bridge runtime uses Step5b speedl vx/vy/vz plus the Step5b/step4e orientation follow wx/wy/wz (gain 0.2, 0.015 rad/s limit, re-latched normal reference) as the live command source in speedl_cartesian_oracle; Step5d paper/RNN vx/vy/vz and wx/wy/wz remain shadow diagnostics.",
     "stage25_layout_contract": {
       "cartesian_layout_tag": 523.0,
       "cartesian_registers": "37..42 vx/vy/vz/wx/wy/wz, TP executes speedl",
@@ -855,6 +855,26 @@
       "exit_orientation_error_rad": 0.00131560175,
       "success_band_note": "initial analysis rejected this run via the pre-recalibration 9.0/15.0 success band; band recalibrated to the Step5b v3 evidence envelope (5.0/21.0) and the run reclassified stage25_full_run_success",
       "next_action": "keep paper outer loop shadow-only; recalibrate outer-loop kf/ko and validate via offline replay before any v29 live promotion"
+    },
+    "v28_20260706_062908_shadow_validation_success": {
+      "run_dir": "runs/bridge_step5d_strict_rnn_ablation_v28_20260706_062908",
+      "analysis": "runs/bridge_step5d_strict_rnn_ablation_v28_20260706_062908/step5d_bridge_analysis.json",
+      "bridge_csv": "runs/bridge_step5d_strict_rnn_ablation_v28_20260706_062908/bridge_rtde_500hz.csv",
+      "result": "successful_60s_full_run_with_entry_relatch_and_recalibrated_shadow_outer_loop",
+      "analysis_classification": "stage25_full_run_success",
+      "fix_validation_status": "passed_60s_full_run",
+      "stage25_duration_s": 60.20330412697513,
+      "stage25_consumption_ratio": 0.9998006776958341,
+      "terminal_tp_stop_reason": 1,
+      "entry_relatch_angle_rad": 0.124017599,
+      "entry_orientation_error_rad": 0.0532979936,
+      "exit_orientation_error_rad_approx": 0.0086,
+      "shadow_angular_saturation_ratio": 0.005,
+      "shadow_live_linear_ratio_median": 1.013,
+      "normal_load_min_n": 8.90858102,
+      "normal_load_max_n": 16.6154829,
+      "note": "recalibrated shadow outer loop validated live: angular saturation collapsed from 0.82 (054904) to 0.005; shadow linear tracks the proven live command 1:1; residual 3-degree entry orientation error is real entry friction tilt and self-converges",
+      "next_action": "v29 step: re-enable Step5b/step4e orientation follow live (paper outputs stay shadow) and re-run"
     }
   },
   "bridge_trigger": {

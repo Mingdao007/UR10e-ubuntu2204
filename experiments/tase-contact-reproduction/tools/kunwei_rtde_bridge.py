@@ -232,6 +232,7 @@ STEP5D_DIAG_FIELDS = [
     "_step5d_intervention_reason",
     "_step5d_live_control_source",
     "_step5d_stage25_entry_relatch_angle_rad",
+    "_step5d_live_orientation_enabled",
     "_step5d_speedl_orientation_shadow_only",
     "_step5d_speedl_shadow_raw_vx_m_s",
     "_step5d_speedl_shadow_raw_vy_m_s",
@@ -608,6 +609,14 @@ STEP5D_V28_SHADOW_MD = 12.0 * STEP5D_V28_SHADOW_ADMITTANCE_SCALE
 STEP5D_V28_SHADOW_BD = 550.0 * STEP5D_V28_SHADOW_ADMITTANCE_SCALE
 STEP5D_V28_SHADOW_KO = 0.5
 STEP5D_ABLATION_SPEEDL_ORIENTATION_SHADOW_ONLY = True
+# v29 step: execute the Step5b/step4e orientation-follow command live again
+# (gain 0.2 against the re-latched normal reference, existing 0.015 rad/s
+# limit). The Step5b 60s baselines always ran with live orientation follow;
+# v27/v28 zeroed it as emergency isolation while the (then miscalibrated)
+# paper force channel was suspect. With the entry re-latch the follow demand
+# stays inside the box (0.2 * ~0.05 rad ~= 0.011 rad/s). The Step5d paper/RNN
+# outputs remain shadow-only regardless of this switch.
+STEP5D_V28_LIVE_STEP5B_ORIENTATION = True
 STEP5D_V25_HARD_LOW_LOAD_N = 2.0
 STEP5D_V25_HARD_LOW_LOAD_TIMEOUT_S = 0.100
 STEP5D_V25_SOFT_LOW_LOAD_N = 5.0
@@ -4511,13 +4520,21 @@ def compute_bridge_values(
                             )
                             step5d_speedl_orientation_shadow_only = True
                             step5d_live_control_source = STEP5D_V27_SPEEDL_LIVE_CONTROL_SOURCE
+                            if STEP5D_V28_LIVE_STEP5B_ORIENTATION:
+                                live_angular = (
+                                    orientation_cmd[0],
+                                    orientation_cmd[1],
+                                    orientation_cmd[2],
+                                )
+                            else:
+                                live_angular = (0.0, 0.0, 0.0)
                             step5d_stage25_command = (
                                 cmd[0],
                                 cmd[1],
                                 cmd[2],
-                                0.0,
-                                0.0,
-                                0.0,
+                                live_angular[0],
+                                live_angular[1],
+                                live_angular[2],
                             )
                             step5d_intervention_reasons.append("stage25_step5b_speedl_live_step5d_shadow")
                     elif step5d_stage25_control_mode == "speedj_dls_oracle":
@@ -4728,6 +4745,11 @@ def compute_bridge_values(
                 state.step5d_stage25_entry_relatch_angle_rad
                 if state.step5d_stage25_entry_relatch_angle_rad is not None
                 else math.nan
+            )
+            values["_step5d_live_orientation_enabled"] = (
+                1.0
+                if step5d_speedl_orientation_shadow_only and STEP5D_V28_LIVE_STEP5B_ORIENTATION
+                else 0.0
             )
             values["_step5d_speedl_orientation_shadow_only"] = 1.0 if step5d_speedl_orientation_shadow_only else 0.0
             values["_step5d_speedl_shadow_raw_vx_m_s"] = (

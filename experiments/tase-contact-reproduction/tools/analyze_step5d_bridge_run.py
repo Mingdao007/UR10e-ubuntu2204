@@ -502,6 +502,8 @@ def stage25_speedl_fix_success(profile: str, result: dict[str, Any]) -> bool:
     stage25_rows = int(result.get("stage25_rows") or 0)
     source_counts = attribution.get("live_control_source_counts")
     angular_max = finite_float(attribution.get("angular_cmd_norm_max_rad_s"))
+    angular_limit = finite_float(attribution.get("angular_limit_rad_s"))
+    angular_saturation = finite_float(attribution.get("angular_saturation_ratio"))
     normal_min = finite_float(attribution.get("normal_load_min_n"))
     normal_max = finite_float(attribution.get("normal_load_max_n"))
     force_norm_max = finite_float(attribution.get("force_norm_max_n"))
@@ -514,8 +516,19 @@ def stage25_speedl_fix_success(profile: str, result: dict[str, Any]) -> bool:
         and result.get("terminal_tp_stop_reason") == 1
         and isinstance(source_counts, dict)
         and source_counts == {STEP5D_V27_SPEEDL_LIVE_CONTROL_SOURCE: stage25_rows}
+        # Live angular is either fully zeroed (v27/v28 shadow-only isolation
+        # runs) or the Step5b orientation follow inside its limit (v29 step);
+        # in both cases it must stay off the angular cap essentially always.
         and math.isfinite(angular_max)
-        and angular_max <= 1e-6
+        and (
+            angular_max <= 1e-6
+            or (
+                math.isfinite(angular_limit)
+                and angular_max <= angular_limit * 1.001
+                and math.isfinite(angular_saturation)
+                and angular_saturation < 0.05
+            )
+        )
         and shadow_only_rows == stage25_rows
         and math.isfinite(normal_min)
         and math.isfinite(normal_max)
