@@ -531,7 +531,8 @@
       "filter_policy": {
         "normal_filter": "v31_filtered_live",
         "follow_mode": "filtered_live",
-        "alpha": 0.35,
+        "alpha": 0.55,
+        "alpha_source": "runs/bridge_step5b_contact_cycloid_baseline_v3_20260702_113430/metadata.json args.bridge_normal_filter_alpha",
         "min_force_n": 2.0,
         "hold_on": [
           "stale",

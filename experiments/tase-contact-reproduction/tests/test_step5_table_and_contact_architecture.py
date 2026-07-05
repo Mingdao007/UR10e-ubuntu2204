@@ -47,7 +47,7 @@ class Step5TableAndContactArchitectureTest(unittest.TestCase):
         self.assertEqual(self.contact["contact_policy"]["reference_owner"], "bridge")
         self.assertEqual(self.contact["contact_policy"]["tp_role"], "executor_and_guard_only")
         self.assertEqual(self.contact["filter_policy"]["normal_filter"], "v31_filtered_live")
-        self.assertEqual(self.contact["filter_policy"]["alpha"], 0.35)
+        self.assertEqual(self.contact["filter_policy"]["alpha"], 0.55)
         self.assertEqual(self.contact["filter_policy"]["min_force_n"], 2.0)
 
         regs = self.table["register_contract"]["command_registers"]

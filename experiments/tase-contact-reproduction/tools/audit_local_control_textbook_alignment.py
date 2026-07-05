@@ -123,8 +123,17 @@ def audit_step5b(root: Path, spec: dict[str, Any], stage5: dict[str, Any], failu
     require(stage.get("duration_s") == 60.0, failures, "Step5b duration mismatch")
     require(stage.get("amplitude_m") == 0.015, failures, "Step5b amplitude mismatch")
     require(stage.get("phase_law", {}).get("omega_rad_s") == 0.1, failures, "Step5b omega mismatch")
-    require(stage.get("filter_policy", {}).get("alpha") == 0.35, failures, "Step5b normal filter alpha mismatch")
-    require(stage.get("filter_policy", {}).get("min_force_n") == 2.0, failures, "Step5b normal filter min force mismatch")
+    contact_policy = stage_spec["contact_policy"]
+    require(
+        stage.get("filter_policy", {}).get("alpha") == contact_policy["normal_filter_alpha"],
+        failures,
+        "Step5b normal filter alpha mismatch",
+    )
+    require(
+        stage.get("filter_policy", {}).get("min_force_n") == contact_policy["normal_filter_min_force_n"],
+        failures,
+        "Step5b normal filter min force mismatch",
+    )
     require(stage.get("contact_policy", {}).get("tp_role") == "executor_and_guard_only", failures, "Step5b TP role mismatch in stage table")
 
 

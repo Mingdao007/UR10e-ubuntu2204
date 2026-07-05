@@ -140,7 +140,7 @@
           "v16_cross_check_z_m": 0.007996174
         },
         "normal_filter": "filtered_live",
-        "normal_filter_alpha": 0.35,
+        "normal_filter_alpha": 0.55,
         "normal_filter_min_force_n": 2.0
       },
       "bridge_contract": {
