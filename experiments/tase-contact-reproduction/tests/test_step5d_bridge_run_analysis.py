@@ -114,6 +114,60 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
         self.assertEqual(analysis["stage25_rows"], 1)
         self.assertEqual(analysis["classification"], "entered_stage25")
 
+    def test_stage25_cadence_and_consumption_gap_is_reported(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / "bridge_step5d_strict_rnn_ablation_v27_20260706_010000"
+            run_dir.mkdir()
+            csv_path = run_dir / "bridge_rtde_500hz.csv"
+            fieldnames = [
+                *FIELDNAMES,
+                "_step5d_stage25_echo_consumed",
+                "_step5d_stage25_echo_layout_tag",
+                "_step5d_stage25_echo_cmd_valid",
+                "_step5d_stage25_echo_command_norm",
+            ]
+            write_bridge_csv(
+                csv_path,
+                [
+                    {
+                        "t_monotonic_s": "1.000",
+                        "ur_output_double_register_30": "0",
+                        "ur_output_double_register_35": "25.0",
+                        "_step4e_normal_load_n": "12.0",
+                        "_step5d_force_settle_filtered_normal_load_n": "12.0",
+                        "force_norm_n": "12.0",
+                        "_step5d_stage25_echo_consumed": "1",
+                        "_step5d_stage25_echo_layout_tag": "523",
+                        "_step5d_stage25_echo_cmd_valid": "1",
+                        "_step5d_stage25_echo_command_norm": "0.001",
+                    },
+                    {
+                        "t_monotonic_s": "1.030",
+                        "ur_output_double_register_30": "0",
+                        "ur_output_double_register_35": "25.0",
+                        "_step4e_normal_load_n": "12.0",
+                        "_step5d_force_settle_filtered_normal_load_n": "12.0",
+                        "force_norm_n": "12.0",
+                        "_step5d_stage25_echo_consumed": "0",
+                        "_step5d_stage25_echo_layout_tag": "0",
+                        "_step5d_stage25_echo_cmd_valid": "0",
+                        "_step5d_stage25_echo_command_norm": "0",
+                    },
+                ],
+                fieldnames=fieldnames,
+            )
+
+            analysis = analyze_step5d_bridge_run.analyze_run_dir(run_dir)
+
+        self.assertTrue(analysis["entered_stage25"])
+        self.assertEqual(analysis["profile"], "step5d_strict_rnn_ablation_v27")
+        self.assertAlmostEqual(analysis["stage25_duration_s"], 0.030)
+        self.assertAlmostEqual(analysis["stage25_max_row_gap_s"], 0.030)
+        self.assertEqual(analysis["stage25_echo_consumed_rows"], 1)
+        self.assertFalse(analysis["stage25_cadence_ok"])
+        self.assertFalse(analysis["stage25_consumption_ok"])
+        self.assertEqual(analysis["classification"], "stage25_cadence_or_consumption_failure")
+
     def test_no_play_or_false_start_without_stage_echo(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = Path(tmp)

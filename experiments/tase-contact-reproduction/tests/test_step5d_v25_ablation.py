@@ -163,7 +163,6 @@ class Step5dV25AblationTest(unittest.TestCase):
         txt = liveprep.build_txt(stamp, spec)
         urp = liveprep.build_urp(script, spec.program_name, liveprep.CONTROLLER_DIR)
 
-        self.assertEqual(liveprep.PROGRAM_NAME, "step5d_strict_rnn_ablation_v26")
         self.assertEqual(spec.program_name, "step5d_strict_rnn_ablation_v26")
         liveprep.validate_package(script, txt, urp, stamp, spec)
         self.assertIn("local cartesian_angular_cap_rad_s = 0.015", script)

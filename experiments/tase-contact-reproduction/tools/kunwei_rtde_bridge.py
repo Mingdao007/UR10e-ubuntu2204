@@ -64,6 +64,7 @@ from step5d_runtime_interface import (  # noqa: E402
     STEP5D_ABLATION_STAGE_IDS,
     STEP5D_ABLATION_V25_STAGE_ID,
     STEP5D_ABLATION_V26_STAGE_ID,
+    STEP5D_ABLATION_V27_STAGE_ID,
     STEP5D_LINE_ENTRY_PARAM_VALID_CODE,
     STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE,
     STEP5D_STAGE25_CONTROL_MODES,
@@ -176,6 +177,11 @@ STEP5C_DIAG_FIELDS = [
 ]
 STEP5D_DIAG_FIELDS = [
     "_step5d_stage25_control_mode",
+    "_step5d_stage25_echo_layout_tag",
+    "_step5d_stage25_echo_cmd_valid",
+    "_step5d_stage25_echo_command_norm",
+    "_step5d_stage25_echo_consumed",
+    "_step5d_stage25_row_gap_s",
     "_step5d_solver_status",
     "_step5d_qdot_max_abs_rad_s",
     "_step5d_constraint_residual_norm",
@@ -262,6 +268,12 @@ STEP5D_DIAG_FIELDS = [
     "_step5d_R_d_z_dot_R_cur_z",
     "_step5d_semantic_gate_ok",
     "_step5d_solver_error",
+    "_bridge_loop_gap_s",
+    "_bridge_loop_sensor_recv_s",
+    "_bridge_loop_rtde_recv_s",
+    "_bridge_loop_compute_s",
+    "_bridge_loop_rtde_send_s",
+    "_bridge_loop_csv_write_s",
 ]
 INPUT_FIELDS = BASE_INPUT_FIELDS + BRIDGE_INPUT_FIELDS
 INPUT_NAMES = BASE_INPUT_NAMES + BRIDGE_INPUT_NAMES
@@ -448,6 +460,7 @@ STEP5D_LIVEPREP_STAGE_IDS = {
     STEP5D_LIVEPREP_V24_STAGE_ID,
     STEP5D_ABLATION_V25_STAGE_ID,
     STEP5D_ABLATION_V26_STAGE_ID,
+    STEP5D_ABLATION_V27_STAGE_ID,
 }
 STEP5D_SEMANTIC_ORIENTATION_TOLERANCE_RAD = math.radians(5.0)
 STEP5D_SEARCH_POSE_CONTRACT_ID = PRE_CONTACT_GRAVITY_DOWN_CONTRACT_ID
@@ -539,6 +552,13 @@ STEP5D_V26_ENTRY_FILTERED_NORMAL_LOAD_MAX_N = 18.0
 STEP5D_V26_ENTRY_RAW_NORMAL_LOAD_MIN_N = 5.0
 STEP5D_V26_ENTRY_RAW_NORMAL_LOAD_MAX_N = 20.0
 STEP5D_V26_ENTRY_RECOVERY_NORMAL_LOAD_MAX_N = 24.0
+STEP5D_V27_ENTRY_FILTERED_NORMAL_LOAD_MIN_N = 5.0
+STEP5D_V27_ENTRY_FILTERED_NORMAL_LOAD_MAX_N = 22.0
+STEP5D_V27_ENTRY_RAW_NORMAL_LOAD_MIN_N = 3.0
+STEP5D_V27_ENTRY_RAW_NORMAL_LOAD_MAX_N = 25.0
+STEP5D_V27_ENTRY_FORCE_NORM_MAX_N = 35.0
+STEP5D_V27_ENTRY_RECOVERY_NORMAL_LOAD_MAX_N = 35.0
+STEP5D_V27_SENSOR_FORCE_HARD_STOP_N = 35.0
 STEP5D_V25_HARD_LOW_LOAD_N = 2.0
 STEP5D_V25_HARD_LOW_LOAD_TIMEOUT_S = 0.100
 STEP5D_V25_SOFT_LOW_LOAD_N = 5.0
@@ -1435,6 +1455,12 @@ def step5d_v11_deadband_acquire_velocity(
 
 
 def step5d_liveprep_contact_window_limits(bridge_profile: str) -> tuple[float, float, float]:
+    if bridge_profile == STEP5D_ABLATION_V27_STAGE_ID:
+        return (
+            STEP5D_V27_ENTRY_FILTERED_NORMAL_LOAD_MIN_N,
+            STEP5D_V27_ENTRY_FILTERED_NORMAL_LOAD_MAX_N,
+            STEP5D_V27_ENTRY_FORCE_NORM_MAX_N,
+        )
     if bridge_profile == STEP5D_ABLATION_V26_STAGE_ID:
         return (
             STEP5D_V26_ENTRY_FILTERED_NORMAL_LOAD_MIN_N,
@@ -2857,6 +2883,7 @@ class BridgeState:
         self.step5d_actual_speed_violation_count = 0
         self.step5d_contact_hold_path_time_s: float | None = None
         self.step5d_active_stage25_s = 0.0
+        self.step5d_last_stage25_row_time_s: float | None = None
         self.step5d_hold_event_count = 0
         self.step5d_consecutive_hold_s = 0.0
         self.step5d_total_hold_s = 0.0
@@ -2917,6 +2944,7 @@ class BridgeState:
         self.step5d_actual_speed_violation_count = 0
         self.step5d_contact_hold_path_time_s = None
         self.step5d_active_stage25_s = 0.0
+        self.step5d_last_stage25_row_time_s = None
         self.step5d_hold_event_count = 0
         self.step5d_consecutive_hold_s = 0.0
         self.step5d_total_hold_s = 0.0
@@ -3034,7 +3062,8 @@ def compute_bridge_values(
     step5d_liveprep_v24_profile = args.bridge_profile == STEP5D_LIVEPREP_V24_STAGE_ID
     step5d_liveprep_v25_profile = args.bridge_profile == STEP5D_ABLATION_V25_STAGE_ID
     step5d_liveprep_v26_profile = args.bridge_profile == STEP5D_ABLATION_V26_STAGE_ID
-    step5d_ablation_profile = step5d_liveprep_v25_profile or step5d_liveprep_v26_profile
+    step5d_liveprep_v27_profile = args.bridge_profile == STEP5D_ABLATION_V27_STAGE_ID
+    step5d_ablation_profile = step5d_liveprep_v25_profile or step5d_liveprep_v26_profile or step5d_liveprep_v27_profile
     step5d_liveprep_v16_or_v17_profile = step5d_liveprep_v16_profile or step5d_liveprep_v17_profile
     step5d_liveprep_v18_or_v19_profile = step5d_liveprep_v18_profile or step5d_liveprep_v19_profile
     step5d_liveprep_v18_or_newer_profile = (
@@ -3046,6 +3075,7 @@ def compute_bridge_values(
         or step5d_liveprep_v24_profile
         or step5d_liveprep_v25_profile
         or step5d_liveprep_v26_profile
+        or step5d_liveprep_v27_profile
     )
     step5d_liveprep_v17_or_newer_profile = step5d_liveprep_v17_profile or step5d_liveprep_v18_or_newer_profile
     if (
@@ -3055,6 +3085,7 @@ def compute_bridge_values(
         or step5d_liveprep_v24_profile
         or step5d_liveprep_v25_profile
         or step5d_liveprep_v26_profile
+        or step5d_liveprep_v27_profile
     ):
         step5d_entry_raw_sanity_min_n = float(args.step5d_preload_raw_min_n)
         step5d_entry_raw_sanity_max_n = float(args.step5d_preload_raw_max_n)
@@ -3078,6 +3109,7 @@ def compute_bridge_values(
         or step5d_liveprep_v24_profile
         or step5d_liveprep_v25_profile
         or step5d_liveprep_v26_profile
+        or step5d_liveprep_v27_profile
     )
     step5d_liveprep_guarded_profile = (
         step5d_liveprep_v3_profile
@@ -3105,6 +3137,7 @@ def compute_bridge_values(
         or step5d_liveprep_v24_profile
         or step5d_liveprep_v25_profile
         or step5d_liveprep_v26_profile
+        or step5d_liveprep_v27_profile
     )
     if step5d_liveprep_profile:
         try:
@@ -3175,6 +3208,7 @@ def compute_bridge_values(
         state.step5d_actual_speed_violation_count = 0
         state.step5d_contact_hold_path_time_s = None
         state.step5d_active_stage25_s = 0.0
+        state.step5d_last_stage25_row_time_s = None
         state.step5d_hold_event_count = 0
         state.step5d_consecutive_hold_s = 0.0
         state.step5d_total_hold_s = 0.0
@@ -3208,6 +3242,30 @@ def compute_bridge_values(
         state.line_stage_s += dt_s
     if step5d_joint_line_profile:
         state.step5d_active_stage25_s += max(0.0, dt_s)
+        stage25_now_s = time.monotonic()
+        values["_step5d_stage25_row_gap_s"] = (
+            0.0 if state.step5d_last_stage25_row_time_s is None else stage25_now_s - state.step5d_last_stage25_row_time_s
+        )
+        state.step5d_last_stage25_row_time_s = stage25_now_s
+        echo_command = []
+        for idx in range(36, 42):
+            try:
+                echo_command.append(float(latest_output.get(f"output_double_register_{idx}", 0.0)))
+            except (TypeError, ValueError):
+                echo_command.append(0.0)
+        try:
+            values["_step5d_stage25_echo_cmd_valid"] = float(latest_output.get("output_double_register_42", 0.0))
+        except (TypeError, ValueError):
+            values["_step5d_stage25_echo_cmd_valid"] = 0.0
+        try:
+            values["_step5d_stage25_echo_layout_tag"] = float(latest_output.get("output_double_register_46", 0.0))
+        except (TypeError, ValueError):
+            values["_step5d_stage25_echo_layout_tag"] = 0.0
+        try:
+            values["_step5d_stage25_echo_consumed"] = float(latest_output.get("output_double_register_47", 0.0))
+        except (TypeError, ValueError):
+            values["_step5d_stage25_echo_consumed"] = 0.0
+        values["_step5d_stage25_echo_command_norm"] = math.sqrt(sum(value * value for value in echo_command))
     if not (step5b_any_trial_profile and line_stage_active):
         state.reset_step5b_15n_trial()
 
@@ -3454,7 +3512,7 @@ def compute_bridge_values(
                 hold_timeout_s=STEP5D_V24_LOW_LOAD_HOLD_TIMEOUT_S if step5d_liveprep_v24_profile else STEP5D_V16_LOW_LOAD_HOLD_TIMEOUT_S if step5d_liveprep_v16_or_v17_profile else STEP5D_V13_LOW_LOAD_HOLD_TIMEOUT_S,
                 high_window_dwell_stop_s=STEP5D_V16_HIGH_WINDOW_DWELL_STOP_S if (step5d_liveprep_v16_or_v17_profile or step5d_liveprep_v18_or_newer_profile) else STEP5D_V13_HIGH_WINDOW_DWELL_STOP_S,
                 allow_high_contact_below_hard_force=step5d_liveprep_v18_or_newer_profile or not step5d_liveprep_v16_or_v17_profile,
-                force_norm_hard_stop_n=STEP5D_V24_SENSOR_FORCE_HARD_STOP_N if (step5d_liveprep_v24_profile or step5d_ablation_profile) else STEP5D_V18_SENSOR_FORCE_HARD_STOP_N if step5d_liveprep_v18_or_newer_profile else 60.0,
+                force_norm_hard_stop_n=STEP5D_V27_SENSOR_FORCE_HARD_STOP_N if step5d_liveprep_v27_profile else STEP5D_V24_SENSOR_FORCE_HARD_STOP_N if (step5d_liveprep_v24_profile or step5d_ablation_profile) else STEP5D_V18_SENSOR_FORCE_HARD_STOP_N if step5d_liveprep_v18_or_newer_profile else 60.0,
                 cage_primary_low_load_reacquire=step5d_liveprep_v18_or_newer_profile and not (step5d_liveprep_v24_profile or step5d_ablation_profile),
                 defer_low_load_hold_timeout=not (step5d_liveprep_v24_profile or step5d_ablation_profile),
             )
@@ -4046,7 +4104,7 @@ def compute_bridge_values(
                         max_angular_rad_s=float(args.bridge_angular_limit_rad_s),
                     )
                 step5d_outer_xdot_joint_feasible = step5d_outer_xdot_limited
-                if step5d_liveprep_v26_profile and step5d_stage25_control_mode != "speedl_cartesian_oracle":
+                if (step5d_liveprep_v26_profile or step5d_liveprep_v27_profile) and step5d_stage25_control_mode != "speedl_cartesian_oracle":
                     step5d_outer_xdot_joint_feasible, step5d_xdot_feasibility_diagnostics = (
                         scale_step5d_xdot_for_joint_feasibility(
                             step5d_outer_xdot_limited,
@@ -4082,7 +4140,7 @@ def compute_bridge_values(
                     or step5d_liveprep_v15_profile
                     or (step5d_liveprep_online_cage_profile and not step5d_ablation_profile)
                     or (
-                        step5d_liveprep_v26_profile
+                        (step5d_liveprep_v26_profile or step5d_liveprep_v27_profile)
                         and step5d_stage25_control_mode != "speedl_cartesian_oracle"
                     )
                 ):
@@ -4211,7 +4269,7 @@ def compute_bridge_values(
                             hold_timeout_s=STEP5D_V24_LOW_LOAD_HOLD_TIMEOUT_S if step5d_liveprep_v24_profile else STEP5D_V16_LOW_LOAD_HOLD_TIMEOUT_S if step5d_liveprep_v16_or_v17_profile else STEP5D_V13_LOW_LOAD_HOLD_TIMEOUT_S,
                             high_window_dwell_stop_s=STEP5D_V16_HIGH_WINDOW_DWELL_STOP_S if (step5d_liveprep_v16_or_v17_profile or step5d_liveprep_v18_or_newer_profile) else STEP5D_V13_HIGH_WINDOW_DWELL_STOP_S,
                             allow_high_contact_below_hard_force=step5d_liveprep_v18_or_newer_profile or not step5d_liveprep_v16_or_v17_profile,
-                            force_norm_hard_stop_n=STEP5D_V24_SENSOR_FORCE_HARD_STOP_N if (step5d_liveprep_v24_profile or step5d_ablation_profile) else STEP5D_V18_SENSOR_FORCE_HARD_STOP_N if step5d_liveprep_v18_or_newer_profile else 60.0,
+                            force_norm_hard_stop_n=STEP5D_V27_SENSOR_FORCE_HARD_STOP_N if step5d_liveprep_v27_profile else STEP5D_V24_SENSOR_FORCE_HARD_STOP_N if (step5d_liveprep_v24_profile or step5d_ablation_profile) else STEP5D_V18_SENSOR_FORCE_HARD_STOP_N if step5d_liveprep_v18_or_newer_profile else 60.0,
                             cage_primary_low_load_reacquire=step5d_liveprep_v18_or_newer_profile and not (step5d_liveprep_v24_profile or step5d_ablation_profile),
                             defer_low_load_hold_timeout=not (step5d_liveprep_v24_profile or step5d_ablation_profile),
                         )
@@ -5817,7 +5875,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     if not args.step5d_stage25_control_mode:
         args.step5d_stage25_control_mode = (
             "speedl_cartesian_oracle"
-            if args.bridge_profile in {STEP5D_ABLATION_V25_STAGE_ID, STEP5D_ABLATION_V26_STAGE_ID}
+            if args.bridge_profile in STEP5D_ABLATION_STAGE_IDS
             else "speedj_rnn_live"
         )
     if args.step5d_stage25_control_mode not in STEP5D_STAGE25_CONTROL_MODES:
@@ -5829,16 +5887,27 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         def preload_default_was_not_supplied(flag: str, *env_names: str) -> bool:
             return flag not in argv_list and all(os.environ.get(name, "") == "" for name in env_names)
 
-        if args.bridge_profile == STEP5D_ABLATION_V26_STAGE_ID:
+        if args.bridge_profile == STEP5D_ABLATION_V27_STAGE_ID:
+            default_filtered_min_n = STEP5D_V27_ENTRY_FILTERED_NORMAL_LOAD_MIN_N
+            default_filtered_max_n = STEP5D_V27_ENTRY_FILTERED_NORMAL_LOAD_MAX_N
+            default_raw_min_n = STEP5D_V27_ENTRY_RAW_NORMAL_LOAD_MIN_N
+            default_raw_max_n = STEP5D_V27_ENTRY_RAW_NORMAL_LOAD_MAX_N
+            default_force_norm_max_n = STEP5D_V27_ENTRY_FORCE_NORM_MAX_N
+            default_hard_force_n = STEP5D_V27_SENSOR_FORCE_HARD_STOP_N
+        elif args.bridge_profile == STEP5D_ABLATION_V26_STAGE_ID:
             default_filtered_min_n = STEP5D_V26_ENTRY_FILTERED_NORMAL_LOAD_MIN_N
             default_filtered_max_n = STEP5D_V26_ENTRY_FILTERED_NORMAL_LOAD_MAX_N
             default_raw_min_n = STEP5D_V26_ENTRY_RAW_NORMAL_LOAD_MIN_N
             default_raw_max_n = STEP5D_V26_ENTRY_RAW_NORMAL_LOAD_MAX_N
+            default_force_norm_max_n = STEP5D_V21_ENTRY_FORCE_NORM_MAX_N
+            default_hard_force_n = STEP5D_V24_SENSOR_FORCE_HARD_STOP_N
         else:
             default_filtered_min_n = STEP5D_V25_ENTRY_FILTERED_NORMAL_LOAD_MIN_N
             default_filtered_max_n = STEP5D_V25_ENTRY_FILTERED_NORMAL_LOAD_MAX_N
             default_raw_min_n = STEP5D_V25_ENTRY_RAW_NORMAL_LOAD_MIN_N
             default_raw_max_n = STEP5D_V25_ENTRY_RAW_NORMAL_LOAD_MAX_N
+            default_force_norm_max_n = STEP5D_V21_ENTRY_FORCE_NORM_MAX_N
+            default_hard_force_n = STEP5D_V24_SENSOR_FORCE_HARD_STOP_N
         if preload_default_was_not_supplied(
             "--step5d-preload-filtered-min-n",
             "STEP5D_PRELOAD_FILTERED_MIN_N",
@@ -5868,7 +5937,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "STEP5D_PRELOAD_FORCE_NORM_MAX_N",
             "BRIDGE_STEP5D_PRELOAD_FORCE_NORM_MAX_N",
         ):
-            args.step5d_preload_force_norm_max_n = STEP5D_V21_ENTRY_FORCE_NORM_MAX_N
+            args.step5d_preload_force_norm_max_n = default_force_norm_max_n
         if preload_default_was_not_supplied(
             "--step5d-preload-hold-s",
             "STEP5D_PRELOAD_HOLD_S",
@@ -5883,6 +5952,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ):
             args.bridge_total_linear_limit_m_s = 0.004
             args.step4e_total_linear_limit_m_s = 0.004
+        if "--max-normal-force-n" not in argv_list and os.environ.get("MAX_NORMAL_FORCE_N", "") == "":
+            args.max_normal_force_n = default_hard_force_n
+        if "--max-force-norm-n" not in argv_list and os.environ.get("MAX_FORCE_NORM_N", "") == "":
+            args.max_force_norm_n = default_hard_force_n
+        if "--max-torque-norm-nm" not in argv_list and os.environ.get("MAX_TORQUE_NORM_NM", "") == "":
+            args.max_torque_norm_nm = STEP5D_V18_SENSOR_TORQUE_HARD_STOP_NM
         if (
             "--step4e-angular-limit-rad-s" not in argv_list
             and "--bridge-angular-limit-rad-s" not in argv_list
@@ -5913,6 +5988,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                 STEP5D_LIVEPREP_V24_STAGE_ID,
                 STEP5D_ABLATION_V25_STAGE_ID,
                 STEP5D_ABLATION_V26_STAGE_ID,
+                STEP5D_ABLATION_V27_STAGE_ID,
             }
             else 0.30
         )
@@ -6406,8 +6482,13 @@ def main(argv: list[str] | None = None) -> int:
             )
             sensor_writer.writeheader()
             bridge_writer.writeheader()
+            last_csv_write_s = 0.0
 
             while True:
+                loop_sensor_recv_s = 0.0
+                loop_rtde_recv_s = 0.0
+                loop_compute_s = 0.0
+                loop_rtde_send_s = 0.0
                 now = time.monotonic()
                 if stop_signal["name"] is not None:
                     stop_reason = f"signal_{stop_signal['name'].lower()}"
@@ -6432,10 +6513,12 @@ def main(argv: list[str] | None = None) -> int:
                         break
                     next_dashboard_watch = now + 0.25
 
+                sensor_recv_start = time.perf_counter()
                 try:
                     chunk = sock.recv(8192)
                 except (BlockingIOError, socket.timeout):
                     chunk = b""
+                loop_sensor_recv_s = time.perf_counter() - sensor_recv_start
                 if chunk:
                     buffer.extend(chunk)
                     frames, dropped = pop_frames(buffer, 0x48 if not args.no_start_command else None)
@@ -6571,9 +6654,11 @@ def main(argv: list[str] | None = None) -> int:
                         next_rtde_reconnect_mono = now + 0.05
 
                 if rtde is not None:
+                    rtde_recv_start = time.perf_counter()
                     try:
                         sample = rtde.recv_available_sample(rtde_output_recipe, rtde_output_types)
                     except (OSError, RuntimeError, socket.timeout) as exc:
+                        loop_rtde_recv_s = time.perf_counter() - rtde_recv_start
                         rtde_reconnect_events.append(
                             {
                                 "event": "recv_failed",
@@ -6586,6 +6671,8 @@ def main(argv: list[str] | None = None) -> int:
                         rtde = None
                         next_rtde_reconnect_mono = now + 0.05
                         sample = None
+                    else:
+                        loop_rtde_recv_s = time.perf_counter() - rtde_recv_start
                     if sample is not None:
                         rtde_output_time = time.monotonic()
                         kinematics_dt_s = (
@@ -6651,6 +6738,7 @@ def main(argv: list[str] | None = None) -> int:
                         "my_nm_zeroed": latest_zeroed[4],
                         "mz_nm_zeroed": latest_zeroed[5],
                     }
+                    compute_start = time.perf_counter()
                     step4e_values = compute_bridge_values(
                         args,
                         latest_zeroed,
@@ -6659,6 +6747,13 @@ def main(argv: list[str] | None = None) -> int:
                         step4e_state,
                         write_period,
                     )
+                    loop_compute_s = time.perf_counter() - compute_start
+                    step4e_values["_bridge_loop_gap_s"] = 0.0 if not bridge_write_times else now - bridge_write_times[-1]
+                    step4e_values["_bridge_loop_sensor_recv_s"] = loop_sensor_recv_s
+                    step4e_values["_bridge_loop_rtde_recv_s"] = loop_rtde_recv_s
+                    step4e_values["_bridge_loop_compute_s"] = loop_compute_s
+                    step4e_values["_bridge_loop_rtde_send_s"] = loop_rtde_send_s
+                    step4e_values["_bridge_loop_csv_write_s"] = last_csv_write_s
                     for name in BRIDGE_INPUT_NAMES:
                         bridge_values[name] = float(step4e_values.get(name, 0.0))
                     control_contact_window = control_contact_window_from_bridge_values(step4e_values)
@@ -6695,6 +6790,7 @@ def main(argv: list[str] | None = None) -> int:
                             stop_reason = hard_guard_reason
                     rtde_connected = rtde is not None
                     if rtde is not None:
+                        rtde_send_start = time.perf_counter()
                         try:
                             rtde.send_input_sample(
                                 rtde_input_recipe,
@@ -6702,6 +6798,7 @@ def main(argv: list[str] | None = None) -> int:
                                 [bridge_values[name] for name in INPUT_NAMES],
                             )
                         except (OSError, RuntimeError, socket.timeout) as exc:
+                            loop_rtde_send_s = time.perf_counter() - rtde_send_start
                             rtde_reconnect_events.append(
                                 {
                                     "event": "send_failed",
@@ -6714,6 +6811,9 @@ def main(argv: list[str] | None = None) -> int:
                             rtde = None
                             rtde_connected = False
                             next_rtde_reconnect_mono = now + 0.05
+                        else:
+                            loop_rtde_send_s = time.perf_counter() - rtde_send_start
+                    step4e_values["_bridge_loop_rtde_send_s"] = loop_rtde_send_s
                     row = {
                         "write_index": bridge_writes + 1,
                         "t_wall_ns": time.time_ns(),
@@ -6739,7 +6839,10 @@ def main(argv: list[str] | None = None) -> int:
                     }
                     row.update(flatten_output(latest_output))
                     row.update({key: csv_value(latest_derived_kinematics.get(key, "")) for key in KINEMATIC_DERIVED_FIELDS})
+                    row.update({key: csv_value(step4e_values.get(key, "")) for key in STEP5D_DIAG_FIELDS if key.startswith("_bridge_loop_")})
+                    csv_write_start = time.perf_counter()
                     bridge_writer.writerow(row)
+                    last_csv_write_s = time.perf_counter() - csv_write_start
                     bridge_writes += 1
                     bridge_write_times.append(now)
                     heartbeat += 1.0

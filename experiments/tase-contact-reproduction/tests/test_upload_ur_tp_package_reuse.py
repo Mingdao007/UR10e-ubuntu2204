@@ -23,7 +23,7 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             output_dir = Path(tmp)
             built = liveprep.write_outputs(
-                "2026-07-03T0100HKT_STEP5D_STRICT_RNN_ABLATION_V26",
+                "2026-07-06T0100HKT_STEP5D_STRICT_RNN_ABLATION_V27",
                 "2026-07-03T01:00:00+08:00",
                 output_dir=output_dir,
                 local_only=True,

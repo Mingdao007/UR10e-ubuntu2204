@@ -21,7 +21,9 @@ TARGET_DIR = "/programs/andyl/kunwei/step5"
 STEP5D_PACKAGE_PREFIXES = ("step5d_strict_rnn_liveprep_", "step5d_strict_rnn_ablation_")
 STEP5D_ABLATION_V25 = "step5d_strict_rnn_ablation_v25"
 STEP5D_ABLATION_V26 = "step5d_strict_rnn_ablation_v26"
-STEP5D_ABLATION_PROGRAMS = {STEP5D_ABLATION_V25, STEP5D_ABLATION_V26}
+STEP5D_ABLATION_V27 = "step5d_strict_rnn_ablation_v27"
+STEP5D_ABLATION_PROGRAMS = {STEP5D_ABLATION_V25, STEP5D_ABLATION_V26, STEP5D_ABLATION_V27}
+STEP5D_OPERATOR_PLAY_WAIT_S = 20
 
 
 def fail(message: str) -> None:
@@ -243,6 +245,14 @@ def update_previous_stage(
     if row is None:
         fail(f"stage table row is missing for previous current {previous}")
     archived_triplet = archive_previous_triplet(root, previous, current)
+    current_target = current.get("controller_target") or current.get("controller_program")
+    archived_controller_target = None
+    if isinstance(current_target, str) and current_target:
+        target_path = PurePosixPath(current_target)
+        if target_path.parent.name == "step5d":
+            archived_controller_target = str(target_path)
+        else:
+            archived_controller_target = str(target_path.parent / "step5d" / target_path.name)
     previous_label = version_label(previous)
     successor_label = version_label(successor)
     row["active"] = False
@@ -260,6 +270,8 @@ def update_previous_stage(
     delivery["local_program_dir"] = str(STEP5D_ARCHIVE_DIR)
     delivery["local_triplet"] = archived_triplet
     delivery["archived_to_step5d_dir"] = True
+    if archived_controller_target:
+        delivery["controller_target"] = archived_controller_target
     contact_policy = row.setdefault("contact_policy", {})
     contact_policy["live_authorization"] = "retained_live_attempt_evidence_no_current_retry_authorization"
     contact_policy["tp_package_status"] = "retained_controller_readback_verified"
@@ -288,6 +300,11 @@ def update_previous_stage(
     )
     cadence = row.setdefault("cadence", {})
     cadence["motion"] = "retained_incomplete_live_attempt_evidence"
+    operator = row.setdefault("operator_lifecycle", {})
+    if archived_controller_target:
+        operator["expected_program"] = archived_controller_target
+        binding = row.setdefault("current_binding", {})
+        binding["controller_target"] = archived_controller_target
     row["notes"] = [
         f"{previous_label} was controller read-back verified but is retained as failed live-attempt evidence.",
         f"{previous_label} is no longer current; open {successor_label} from the Step5 root on the Teach Pendant.",
@@ -298,7 +315,7 @@ def update_previous_stage(
 
 def preload_gate(program: str) -> dict[str, float]:
     label = version_label(program)
-    if label not in {"v21", "v22", "v23", "v24", "v25", "v26"}:
+    if label not in {"v21", "v22", "v23", "v24", "v25", "v26", "v27"}:
         fail(f"preload gate defaults are not defined for {program}")
     gate = {
         "filtered_normal_load_min_n": 7.5,
@@ -329,6 +346,18 @@ def preload_gate(program: str) -> dict[str, float]:
                 "force_norm_stop_n": 25.0,
             }
         )
+    if program == STEP5D_ABLATION_V27:
+        gate.update(
+            {
+                "filtered_normal_load_min_n": 5.0,
+                "filtered_normal_load_max_n": 22.0,
+                "raw_normal_load_min_n": 3.0,
+                "raw_normal_load_max_n": 25.0,
+                "force_norm_max_n": 35.0,
+                "recovery_normal_load_max_n": 35.0,
+                "force_norm_stop_n": 35.0,
+            }
+        )
     if label in {"v24", "v25"}:
         gate.update(
             {
@@ -348,9 +377,10 @@ def build_current_stage_row(
     is_ablation = program in STEP5D_ABLATION_PROGRAMS
     stage25_default_mode = (
         "speedl_cartesian_oracle"
-        if program in {STEP5D_ABLATION_V25, STEP5D_ABLATION_V26}
+        if program in STEP5D_ABLATION_PROGRAMS
         else None
     )
+    hard_force_guard_n = 35.0 if program == STEP5D_ABLATION_V27 else 25.0
     row = copy.deepcopy(base_row)
     row["id"] = program
     row["active"] = True
@@ -445,8 +475,8 @@ def build_current_stage_row(
             "stage25_tracking_guard_opposed_dwell_s": 0.004 if label == "v24" else None,
             "stage25_tracking_guard_outer_press_min_m_s": 0.0001 if label == "v24" else None,
             "stage25_tracking_guard_unload_min_m_s": 0.0005 if label == "v24" else None,
-            "raw_normal_guard_n": 25.0 if label in {"v24", "v25", "v26"} else 100.0,
-            "force_norm_guard_n": 25.0 if label in {"v24", "v25", "v26"} else 100.0,
+            "raw_normal_guard_n": hard_force_guard_n if label in {"v24", "v25", "v26", "v27"} else 100.0,
+            "force_norm_guard_n": hard_force_guard_n if label in {"v24", "v25", "v26", "v27"} else 100.0,
             "torque_norm_guard_nm": 4.0,
             "target_force_n": 12.0,
             "duration_s": 10.0,
@@ -486,9 +516,12 @@ def build_current_stage_row(
                 "speedl_linear_cap_m_s": 0.004,
                 "speedl_angular_cap_rad_s": 0.150 if program == STEP5D_ABLATION_V25 else 0.015,
                 "attitude_cap_rad_s": 0.150 if program == STEP5D_ABLATION_V25 else 0.015,
-                "force_norm_hard_stop_n": 25.0,
+                "force_norm_hard_stop_n": hard_force_guard_n,
                 "runtime_diagnostics": [
                     "_step5d_stage25_control_mode",
+                    "_step5d_stage25_echo_consumed",
+                    "_step5d_stage25_row_gap_s",
+                    "_bridge_loop_rtde_send_s",
                     "_step5d_tcp_cage_distance_m",
                     "_step5d_tcp_cage_braking_margin_m",
                     "_step5d_rnn_raw_qd0_rad_s",
@@ -512,6 +545,9 @@ def build_current_stage_row(
             guard["joint_feasibility_scale"] = (
                 "s=min(1,0.9*qdot_cap/||J^-1 xdot_c||inf) before strict RNN/DLS speedj modes"
             )
+        if program == STEP5D_ABLATION_V27:
+            guard["stage25_cadence_max_gap_s"] = 0.020
+            guard["stage25_command_consumption_echo_register"] = 47.0
     contact_policy = row.setdefault("contact_policy", {})
     if is_ablation:
         for stale_key in (
@@ -549,6 +585,8 @@ def build_current_stage_row(
                 "timing_policy": (
                     "step5b_v3_no_lift_no_25_2_no_second_search_with_gravity_down_search_and_target_centric_preload"
                     if program == STEP5D_ABLATION_V25
+                    else "step5b_v3_scaffold_min_delta_stage25_speedl_oracle_with_cadence_consumption_instrumentation"
+                    if program == STEP5D_ABLATION_V27
                     else "step5b_v3_no_lift_no_25_2_no_second_search_with_gravity_down_search_and_step5b_step6b_evidence_tube_preload"
                 ),
                 "virtual_clock_freeze": False,
@@ -607,10 +645,12 @@ def build_current_stage_row(
             "Online broad AABB TCP cage remains a hard diagnostic boundary; Stage25.3 "
             f"uses {preload_basis} ({preload_policy}), "
             "Stage25.95 waits for bridge-cleared registers 37..47, and Stage25.0 selects "
-            "Cartesian speedl or joint speedj from layout tag 47. v25 defaults to "
-            "speedl_cartesian_oracle with strict RNN/J(q) shadow diagnostics; v26 keeps "
-            "speedj_rnn_live as an explicit follow-up with joint-feasibility-scaled xdot_c."
+            "Cartesian speedl or joint speedj from layout tag 47. v25/v26/v27 default to "
+            "speedl_cartesian_oracle with strict RNN/J(q) shadow diagnostics; v26/v27 keep "
+            "speedj_rnn_live as explicit follow-up modes with joint-feasibility-scaled xdot_c."
         )
+        if program == STEP5D_ABLATION_V27:
+            stage25_policy += " v27 also logs Stage25.0 cadence, TP consumption echo, and bridge loop timing."
     contact_policy["stage25_contact_policy"] = stage25_policy
     if is_ablation:
         row["liveprep_gates"] = [
@@ -623,7 +663,7 @@ def build_current_stage_row(
                 f"force_norm <={entry_gate['force_norm_max_n']:g}N, and cmd_valid true for {entry_gate['required_s']:.3f} s"
             ),
             "Stage 25.95 clears registers 37..47 away from preload/cartesian/joint layout tags before Stage25.0 consumption",
-            "Stage25.0 register 47 selects 523.0 Cartesian speedl or 524.0 joint speedj; v25/v26 default to speedl_cartesian_oracle",
+            "Stage25.0 register 47 selects 523.0 Cartesian speedl or 524.0 joint speedj; v25/v26/v27 default to speedl_cartesian_oracle",
         ]
     else:
         row["liveprep_gates"] = [
@@ -655,8 +695,8 @@ def build_current_stage_row(
                 "fast_trigger_requires_long_check_cache": True,
                 "long_check_cache_path": "runs/.bridge_long_checks_cache.json",
                 "long_check_ttl_s": 7200,
-                "wait_for_play_s": 10,
-                "autowatch_wait_for_play_s": 10,
+                "wait_for_play_s": STEP5D_OPERATOR_PLAY_WAIT_S,
+                "autowatch_wait_for_play_s": STEP5D_OPERATOR_PLAY_WAIT_S,
                 "dashboard_program_watch_timeout_s": 45,
                 "tp_bridge_start_wait_timeout_s": 60,
                 "rtde_quick_probe_timeout_s": 1.0,
@@ -693,7 +733,7 @@ def build_current_stage_row(
             else f"{label} uses the retained cage-primary active-reacquire diagnostic policy."
         ),
         (
-            f"{label} uses 25N raw-normal/force-norm hard guards, 4Nm torque guard, and layout-tagged speedl/speedj Stage25.0."
+            f"{label} uses {hard_force_guard_n:g}N raw-normal/force-norm hard guards, 4Nm torque guard, and layout-tagged speedl/speedj Stage25.0."
             if is_ablation
             else
             f"{label} uses 25N raw-normal/force-norm hard guards and post-RNN tracking reversal detection."
@@ -732,6 +772,81 @@ def upsert_stage(table: dict[str, Any], row: dict[str, Any], after_id: str | Non
     stages.insert(insert_at, row)
 
 
+def update_bridge_startup_policy(table: dict[str, Any], program: str) -> None:
+    startup = table.setdefault("bridge_startup_policy", {})
+    stage_ids = startup.setdefault("applies_to_stage_ids", [])
+    if isinstance(stage_ids, list) and program not in stage_ids:
+        stage_ids.append(program)
+    observed = startup.setdefault("observed_timing", {})
+    observed["current_step5d_tp_play_wait_max_s"] = STEP5D_OPERATOR_PLAY_WAIT_S
+
+
+def archived_controller_target(value: str) -> str:
+    target_path = PurePosixPath(value)
+    if target_path.parent.name == "step5d":
+        return str(target_path)
+    return str(target_path.parent / "step5d" / target_path.name)
+
+
+def normalize_retained_stage_metadata(table: dict[str, Any], current_program: str) -> None:
+    for row in table.get("stages", []):
+        program = row.get("id")
+        if not isinstance(program, str):
+            continue
+        if program == current_program or not program.startswith(STEP5D_PACKAGE_PREFIXES):
+            continue
+        delivery = row.get("local_delivery_evidence")
+        if not (isinstance(delivery, dict) and delivery.get("archived_to_step5d_dir") is True):
+            continue
+        if delivery:
+            delivery["local_program_dir"] = str(STEP5D_ARCHIVE_DIR)
+            delivery["local_triplet"] = str(STEP5D_ARCHIVE_DIR / f"{program}.{{script,txt,urp}}")
+            delivery["archived_to_step5d_dir"] = True
+            target = delivery.get("controller_target")
+            if isinstance(target, str) and "step5d_strict_rnn" in target:
+                delivery["controller_target"] = archived_controller_target(target)
+        package_delivery = row.get("package_delivery")
+        if isinstance(package_delivery, dict) and package_delivery:
+            package_delivery["local_program_dir"] = str(STEP5D_ARCHIVE_DIR)
+            package_delivery["local_triplet"] = str(STEP5D_ARCHIVE_DIR / f"{program}.{{script,txt,urp}}")
+            target = package_delivery.get("controller_target")
+            if isinstance(target, str) and "step5d_strict_rnn" in target:
+                package_delivery["controller_target"] = archived_controller_target(target)
+        operator = row.get("operator_lifecycle")
+        if isinstance(operator, dict):
+            expected = operator.get("expected_program")
+            if isinstance(expected, str) and "step5d_strict_rnn" in expected:
+                operator["expected_program"] = archived_controller_target(expected)
+        binding = row.get("current_binding")
+        if isinstance(binding, dict):
+            target = binding.get("controller_target")
+            if isinstance(target, str) and "step5d_strict_rnn" in target:
+                binding["controller_target"] = archived_controller_target(target)
+
+
+def normalize_retained_local_triplet_evidence(evidence: dict[str, Any], current_label: str) -> None:
+    current_key = f"{current_label}_local_triplet"
+    for key, value in list(evidence.items()):
+        if key == current_key or not key.endswith("_local_triplet"):
+            continue
+        if not isinstance(value, str) or "step5d_strict_rnn" not in value:
+            continue
+        evidence[key] = str(STEP5D_ARCHIVE_DIR / Path(value).name)
+
+
+def normalize_retained_controller_target_evidence(evidence: dict[str, Any], current_label: str) -> None:
+    current_key = f"{current_label}_controller_target"
+    for key, value in list(evidence.items()):
+        if key == current_key or not key.endswith("_controller_target"):
+            continue
+        if not isinstance(value, str) or "step5d_strict_rnn" not in value:
+            continue
+        target_path = PurePosixPath(value)
+        if target_path.parent.name == "step5d":
+            continue
+        evidence[key] = archived_controller_target(value)
+
+
 def update_current_stage(
     root: Path,
     current: dict[str, Any],
@@ -745,6 +860,7 @@ def update_current_stage(
     target_dir = manifest["target_dir"]
     label = version_label(program)
     is_ablation = program in STEP5D_ABLATION_PROGRAMS
+    hard_force_guard_n = 35.0 if program == STEP5D_ABLATION_V27 else 25.0
     entry_gate = preload_gate(program)
     payload.update(
         {
@@ -797,10 +913,20 @@ def update_current_stage(
             "<5N for 0.500s stops, while cage margin, force norm, and actual speed remain hard stops."
         )
         bridge["sensor_hard_guards"] = {
-            "raw_normal_n": 25.0,
-            "force_norm_n": 25.0,
+            "raw_normal_n": hard_force_guard_n,
+            "force_norm_n": hard_force_guard_n,
             "torque_norm_nm": 4.0,
         }
+        if program == STEP5D_ABLATION_V27:
+            bridge["stage25_cadence_consumption_instrumentation"] = {
+                "max_row_gap_s": 0.020,
+                "tp_consumed_echo_register": 47,
+                "bridge_csv_fields": [
+                    "_step5d_stage25_echo_consumed",
+                    "_step5d_stage25_row_gap_s",
+                    "_bridge_loop_rtde_send_s",
+                ],
+            }
         for stale_key in (
             "stage25_95_qdot_clear_barrier",
             "stage25_post_rnn_normal_guard",
@@ -873,6 +999,8 @@ def update_current_stage(
             "sha256": sha,
         }
     )
+    normalize_retained_local_triplet_evidence(evidence, label)
+    normalize_retained_controller_target_evidence(evidence, label)
     if label == "v22":
         evidence["v21_retained_after_live_failure"] = True
         evidence["v21_live_attempts"] = live_attempt_evidence(root, "step5d_strict_rnn_liveprep_v21")
@@ -982,7 +1110,7 @@ def update_current_stage(
         f"{program} is controller read-back verified and selected as the current Step5d TP/script cage-primary diagnostic package.",
         f"{label} keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
         (
-            f"{label} is an ablation package: v25/v26 default to speedl_cartesian_oracle, speedj_rnn_live is explicit follow-up, and preload is {entry_gate['filtered_normal_load_min_n']:g}-{entry_gate['filtered_normal_load_max_n']:g}N filtered with {entry_gate['raw_normal_load_min_n']:g}-{entry_gate['raw_normal_load_max_n']:g}N raw sanity."
+            f"{label} is an ablation package: v25/v26/v27 default to speedl_cartesian_oracle, speedj_rnn_live is explicit follow-up, and preload is {entry_gate['filtered_normal_load_min_n']:g}-{entry_gate['filtered_normal_load_max_n']:g}N filtered with {entry_gate['raw_normal_load_min_n']:g}-{entry_gate['raw_normal_load_max_n']:g}N raw sanity."
             if is_ablation
             else
             f"{label} stops low-load/no-contact with zero qdot instead of executing active_reacquire_solver qdot, and uses Stage25.3 default preload 7.5-14N filtered with 7-15N raw sanity."
@@ -1033,6 +1161,8 @@ def promote(root: Path, program: str, target_dir: str, local_dir: Path, manifest
         update_previous_stage(root, table, str(previous), current, program)
     current_row = build_current_stage_row(base_row, program, manifest)
     upsert_stage(table, current_row, after_id=str(previous) if previous else None)
+    update_bridge_startup_policy(table, program)
+    normalize_retained_stage_metadata(table, program)
     new_current = update_current_stage(root, current, program, manifest)
     write_json(table_path, table)
     write_json(current_path, new_current)

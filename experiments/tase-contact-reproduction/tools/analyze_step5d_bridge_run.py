@@ -14,6 +14,7 @@ from typing import Any
 from step5d_runtime_interface import (
     STEP5D_ABLATION_V25_STAGE_ID,
     STEP5D_ABLATION_V26_STAGE_ID,
+    STEP5D_ABLATION_V27_STAGE_ID,
     STEP5D_LIVEPREP_V24_STAGE_ID,
     Step5dPreloadGate,
     default_preload_gate,
@@ -25,6 +26,7 @@ BRIDGE_CSV_FILENAME = "bridge_rtde_500hz.csv"
 METADATA_FILENAME = "metadata.json"
 SUMMARY_FILENAME = "summary.json"
 STAGE_TOL = 0.005
+STAGE25_MAX_ROW_GAP_S = 0.020
 REQUIRED_COLUMNS = {
     "t_monotonic_s",
     "ur_output_double_register_30",
@@ -72,6 +74,7 @@ def infer_step5d_profile(run_dir: Path | None, metadata: dict[str, Any]) -> str:
     if run_dir is not None:
         name = run_dir.name
         for profile in (
+            STEP5D_ABLATION_V27_STAGE_ID,
             STEP5D_ABLATION_V26_STAGE_ID,
             STEP5D_ABLATION_V25_STAGE_ID,
             STEP5D_LIVEPREP_V24_STAGE_ID,
@@ -137,6 +140,13 @@ def base_analysis(csv_path: Path, run_dir: Path | None, profile: str, gate: Step
         "preload_gate": asdict(gate),
         "entered_stage25": False,
         "stage25_rows": 0,
+        "stage25_duration_s": 0.0,
+        "stage25_max_row_gap_s": 0.0,
+        "stage25_row_rate_hz": 0.0,
+        "stage25_cadence_ok": None,
+        "stage25_echo_consumed_rows": 0,
+        "stage25_first_consumed_t_s": None,
+        "stage25_consumption_ok": None,
         "stage25_3_rows": 0,
         "stage25_3_duration_s": 0.0,
         "longest_preload_gate_dwell_s": 0.0,
@@ -165,6 +175,9 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
 
     stage25_3_segment_start_t: float | None = None
     stage25_3_segment_last_t: float | None = None
+    stage25_segment_start_t: float | None = None
+    stage25_segment_last_t: float | None = None
+    stage25_previous_t: float | None = None
     ready_start_t: float | None = None
 
     def close_stage25_3_segment() -> None:
@@ -176,6 +189,16 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
             )
         stage25_3_segment_start_t = None
         stage25_3_segment_last_t = None
+
+    def close_stage25_segment() -> None:
+        nonlocal stage25_segment_start_t, stage25_segment_last_t
+        if stage25_segment_start_t is not None and stage25_segment_last_t is not None:
+            result["stage25_duration_s"] += max(
+                0.0,
+                stage25_segment_last_t - stage25_segment_start_t,
+            )
+        stage25_segment_start_t = None
+        stage25_segment_last_t = None
 
     with csv_path.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
@@ -201,6 +224,24 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
             if stage_is(stage, 25.0):
                 result["stage25_rows"] += 1
                 result["entered_stage25"] = True
+                if math.isfinite(t_s):
+                    if stage25_segment_start_t is None:
+                        stage25_segment_start_t = t_s
+                    if stage25_previous_t is not None:
+                        result["stage25_max_row_gap_s"] = max(
+                            result["stage25_max_row_gap_s"],
+                            max(0.0, t_s - stage25_previous_t),
+                        )
+                    stage25_previous_t = t_s
+                    stage25_segment_last_t = t_s
+                consumed = finite_float(row.get("_step5d_stage25_echo_consumed"))
+                if math.isfinite(consumed) and consumed >= 0.5:
+                    result["stage25_echo_consumed_rows"] += 1
+                    if result["stage25_first_consumed_t_s"] is None and math.isfinite(t_s):
+                        result["stage25_first_consumed_t_s"] = t_s
+            else:
+                close_stage25_segment()
+                stage25_previous_t = None
 
             if stage_is(stage, 25.3):
                 result["stage25_3_rows"] += 1
@@ -232,10 +273,23 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
                 ready_start_t = None
 
     close_stage25_3_segment()
+    close_stage25_segment()
+    if result["stage25_duration_s"] > 0.0:
+        result["stage25_row_rate_hz"] = result["stage25_rows"] / result["stage25_duration_s"]
+    if result["entered_stage25"]:
+        result["stage25_cadence_ok"] = result["stage25_max_row_gap_s"] <= STAGE25_MAX_ROW_GAP_S
+        result["stage25_consumption_ok"] = result["stage25_echo_consumed_rows"] == result["stage25_rows"]
 
     if result["entered_stage25"]:
-        result["classification"] = "entered_stage25"
-        result["next_action"] = "audit Stage25.0 behavior and acceptance evidence"
+        if (
+            profile == STEP5D_ABLATION_V27_STAGE_ID
+            and (not result["stage25_cadence_ok"] or not result["stage25_consumption_ok"])
+        ):
+            result["classification"] = "stage25_cadence_or_consumption_failure"
+            result["next_action"] = "audit Stage25.0 bridge loop timing, RTDE send blocking, and TP command consumption echo"
+        else:
+            result["classification"] = "entered_stage25"
+            result["next_action"] = "audit Stage25.0 behavior and acceptance evidence"
     elif result["stage25_3_rows"] == 0:
         result["classification"] = "no_tp_play_or_no_stage_echo"
         result["next_action"] = "check TP Play, loaded-program state, and stage echo before CSV diagnosis"

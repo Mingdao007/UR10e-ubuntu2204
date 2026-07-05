@@ -30,7 +30,12 @@ STEP5D_LIVEPREP_V23_STAGE_ID = "step5d_strict_rnn_liveprep_v23"
 STEP5D_LIVEPREP_V24_STAGE_ID = "step5d_strict_rnn_liveprep_v24"
 STEP5D_ABLATION_V25_STAGE_ID = "step5d_strict_rnn_ablation_v25"
 STEP5D_ABLATION_V26_STAGE_ID = "step5d_strict_rnn_ablation_v26"
-STEP5D_ABLATION_STAGE_IDS = (STEP5D_ABLATION_V25_STAGE_ID, STEP5D_ABLATION_V26_STAGE_ID)
+STEP5D_ABLATION_V27_STAGE_ID = "step5d_strict_rnn_ablation_v27"
+STEP5D_ABLATION_STAGE_IDS = (
+    STEP5D_ABLATION_V25_STAGE_ID,
+    STEP5D_ABLATION_V26_STAGE_ID,
+    STEP5D_ABLATION_V27_STAGE_ID,
+)
 STEP5D_STAGE25_CONTROL_MODES = ("speedl_cartesian_oracle", "speedj_dls_oracle", "speedj_rnn_live")
 STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE = 523.0
 STEP5D_STAGE25_JOINT_LAYOUT_CODE = 524.0
@@ -140,6 +145,18 @@ def controller_target_for(program: str, current: dict[str, Any] | None = None) -
 
 
 def default_preload_gate(program: str) -> Step5dPreloadGate:
+    if program == STEP5D_ABLATION_V27_STAGE_ID:
+        return Step5dPreloadGate(
+            filtered_min_n=5.0,
+            filtered_max_n=22.0,
+            raw_min_n=3.0,
+            raw_max_n=25.0,
+            force_norm_max_n=35.0,
+            hold_s=0.100,
+            recovery_normal_load_min_n=0.0,
+            recovery_normal_load_max_n=35.0,
+            force_norm_stop_n=35.0,
+        )
     if program == STEP5D_ABLATION_V26_STAGE_ID:
         return Step5dPreloadGate(
             filtered_min_n=7.0,
@@ -207,12 +224,17 @@ def resolve_runtime_interface(
     selected = program or current_step5d_program(current_path)
     target = controller_target_for(selected, current)
     default_gate = default_preload_gate(selected)
-    trusted_force_default_n = 25.0 if selected in {STEP5D_LIVEPREP_V24_STAGE_ID, *STEP5D_ABLATION_STAGE_IDS} else 100.0
+    if selected == STEP5D_ABLATION_V27_STAGE_ID:
+        trusted_force_default_n = 35.0
+    elif selected in {STEP5D_LIVEPREP_V24_STAGE_ID, STEP5D_ABLATION_V25_STAGE_ID, STEP5D_ABLATION_V26_STAGE_ID}:
+        trusted_force_default_n = 25.0
+    else:
+        trusted_force_default_n = 100.0
     stage25_control_mode = str(
         env_map.get(
             "STEP5D_STAGE25_CONTROL_MODE",
             "speedl_cartesian_oracle"
-            if selected in {STEP5D_ABLATION_V25_STAGE_ID, STEP5D_ABLATION_V26_STAGE_ID}
+            if selected in STEP5D_ABLATION_STAGE_IDS
             else "speedj_rnn_live",
         )
     )
@@ -308,7 +330,7 @@ def resolve_runtime_interface(
                 f"zero tol={STEP5D_QDOT_CLEAR_ZERO_TOL_RAD_S:g}"
             ),
             "stage25_0": (
-                "v25/v26: 37..42 cartesian vx/vy/vz/wx/wy/wz when "
+                "v25/v26/v27: 37..42 cartesian vx/vy/vz/wx/wy/wz when "
                 f"47={STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:g}; "
                 "37..42 joint qd0..qd5 rad/s when "
                 f"47={STEP5D_STAGE25_JOINT_LAYOUT_CODE:g}; "
@@ -318,6 +340,7 @@ def resolve_runtime_interface(
         },
         hard_contract={
             "force_frame": "reaction normal for load; approach normal for posture/press direction",
+            "stage25_cadence_max_gap_s": 0.020 if selected == STEP5D_ABLATION_V27_STAGE_ID else None,
             "no_ubuntu_motion": True,
             "no_zero_ftsensor": True,
             "no_kunwei_tare_or_config": True,
@@ -449,7 +472,7 @@ def live_ready_lines(interface: Step5dRuntimeInterface, cache: Mapping[str, Any]
         "[step5d][phase=live-bridge][rebuild=no][upload=no]",
         "[touches=kunwei+rtde]",
         f"[cache] long-check={cache.get('state', 'MISS')} age={age_text} ttl={ttl_text} fingerprint={fp}",
-        "[next] short checks ETA=1-3s, TP Play wait<=10s, baseline+rezero=6s",
+        "[next] short checks ETA=1-3s, TP Play wait<=20s, baseline+rezero=6s",
         (
             "[tuning] preload "
             f"filtered={gate.filtered_min_n:g}..{gate.filtered_max_n:g}N "

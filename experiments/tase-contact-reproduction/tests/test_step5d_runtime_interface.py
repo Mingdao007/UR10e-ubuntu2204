@@ -52,6 +52,24 @@ class Step5dRuntimeInterfaceTest(unittest.TestCase):
         self.assertEqual(v26.preload_gate.recovery_normal_load_max_n, 24.0)
         self.assertIn("v25/v26", v26.register_contract["stage25_0"])
 
+    def test_v27_defaults_to_step5b_scaffold_speedl_oracle_with_wide_tube(self) -> None:
+        runtime = iface.resolve_runtime_interface(program=iface.STEP5D_ABLATION_V27_STAGE_ID, root=ROOT, env={})
+
+        self.assertIn(iface.STEP5D_ABLATION_V27_STAGE_ID, iface.STEP5D_ABLATION_STAGE_IDS)
+        self.assertEqual(runtime.stage25_control_mode, "speedl_cartesian_oracle")
+        self.assertEqual(runtime.preload_gate.filtered_min_n, 5.0)
+        self.assertEqual(runtime.preload_gate.filtered_max_n, 22.0)
+        self.assertEqual(runtime.preload_gate.raw_min_n, 3.0)
+        self.assertEqual(runtime.preload_gate.raw_max_n, 25.0)
+        self.assertEqual(runtime.preload_gate.force_norm_max_n, 35.0)
+        self.assertEqual(runtime.preload_gate.recovery_normal_load_max_n, 35.0)
+        self.assertEqual(runtime.preload_gate.force_norm_stop_n, 35.0)
+        self.assertEqual(runtime.bridge_defaults.max_normal_force_n, 35.0)
+        self.assertEqual(runtime.bridge_defaults.max_force_norm_n, 35.0)
+        self.assertEqual(runtime.bridge_defaults.angular_limit_rad_s, 0.015)
+        self.assertIn("v25/v26/v27", runtime.register_contract["stage25_0"])
+        self.assertEqual(runtime.hard_contract["stage25_cadence_max_gap_s"], 0.020)
+
     def test_step5d_env_overrides_use_step5d_namespace(self) -> None:
         runtime = iface.resolve_runtime_interface(
             program=iface.STEP5D_LIVEPREP_V24_STAGE_ID,

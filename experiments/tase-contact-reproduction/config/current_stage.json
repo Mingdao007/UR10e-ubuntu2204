@@ -1,16 +1,16 @@
 {
   "version": 2,
-  "updated_at": "2026-07-05T22:57:40+08:00",
+  "updated_at": "2026-07-06T01:39:42+08:00",
   "current_step": "Step5d",
-  "current_stage_id": "step5d_strict_rnn_ablation_v26",
-  "program": "step5d_strict_rnn_ablation_v26",
+  "current_stage_id": "step5d_strict_rnn_ablation_v27",
+  "program": "step5d_strict_rnn_ablation_v27",
   "flow_path": "STEP5_FLOW.md",
   "stage_table_path": "config/step5_stage_table.json",
-  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v26.urp",
-  "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v26.script",
-  "local_triplet": "programs/step5/step5d_strict_rnn_ablation_v26",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v27.urp",
+  "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v27.script",
+  "local_triplet": "programs/step5/step5d_strict_rnn_ablation_v27",
   "bridge_profile": {
-    "step4e_version": "step5d_strict_rnn_ablation_v26",
+    "step4e_version": "step5d_strict_rnn_ablation_v27",
     "step4e_path_shape": "cycloid",
     "step5d_qdot_limit_rad_s": 0.05,
     "target_force_n": 12.0,
@@ -18,13 +18,13 @@
     "normal_filter_alpha": 0.55,
     "normal_follow_settle_s": 0.15,
     "stage22_24_pose_contract": "pre_contact_search_gravity_down_v1: TCP +Z targets base -Z with rotvec [pi,0,0]",
-    "stage25_3_preload_gate": "filtered 7-18N, raw sanity 5-20N, force_norm <=25N, bridge param-valid code 521 for 0.100s",
+    "stage25_3_preload_gate": "filtered 5-22N, raw sanity 3-25N, force_norm <=35N, bridge param-valid code 521 for 0.100s",
     "stage25_0_diagnostic_window_s": 10.0,
     "online_tcp_cage": "broad_stagewise_aabb_from_success_step5b_step6b",
     "cage_primary_policy": "In speedl_cartesian_oracle, low-load re-press is bounded: <2N for 0.100s hard-stops, <5N for 0.500s stops, while cage margin, force norm, and actual speed remain hard stops.",
     "sensor_hard_guards": {
-      "raw_normal_n": 25.0,
-      "force_norm_n": 25.0,
+      "raw_normal_n": 35.0,
+      "force_norm_n": 35.0,
       "torque_norm_nm": 4.0
     },
     "stage22_entry_movel_speed_m_s": 0.06,
@@ -38,14 +38,23 @@
       "cartesian_registers": "37..42 vx/vy/vz/wx/wy/wz, TP executes speedl",
       "joint_layout_tag": 524.0,
       "joint_registers": "37..42 qd0..qd5, TP executes speedj"
+    },
+    "stage25_cadence_consumption_instrumentation": {
+      "max_row_gap_s": 0.02,
+      "tp_consumed_echo_register": 47,
+      "bridge_csv_fields": [
+        "_step5d_stage25_echo_consumed",
+        "_step5d_stage25_row_gap_s",
+        "_bridge_loop_rtde_send_s"
+      ]
     }
   },
-  "status": "step5d_strict_rnn_ablation_v26_controller_readback_verified_pending_live_bridge_run_not_reproduction_claim",
+  "status": "step5d_strict_rnn_ablation_v27_controller_readback_verified_pending_live_bridge_run_not_reproduction_claim",
   "strict_rnn_status": {
     "stage_id": "step5d_strict_rnn_reproduction_v1",
     "blocked": true,
     "paper_truth_config": "config/step5d_liveprep_solver_gate.json",
-    "reason": "v26 TP/script cage-primary diagnostic package is generated, uploaded, and controller read-back verified. Full Step5d reproduction remains incomplete until a successful live run completes."
+    "reason": "v27 TP/script cage-primary diagnostic package is generated, uploaded, and controller read-back verified. Full Step5d reproduction remains incomplete until a successful live run completes."
   },
   "evidence": {
     "v11_escape_replay_summary": "runs/step5d_v11_escape_replay_20260615/summary.json",
@@ -57,9 +66,9 @@
     "v13_local_package_validated": true,
     "v13_controller_readback_verified": true,
     "sha256": {
-      ".script": "46dac73ed9d167cb96796ee4d2198eb2bf1685fd95d21404d0174c8e0653d93f",
-      ".txt": "6d6d71b697106d2c835569dba1a88a7dd1cdd870cf0d18295db8ff400dfda224",
-      ".urp": "8754f1b4419a1a3ff655abc3e3246fa29596a6e2a6c400afbb4b7ff94b917ad3"
+      ".script": "c1a12e1ab236ec50d930c07cfd69c8a9a05ce9916d3d1412e63ab19a15148f3f",
+      ".txt": "2c30fb41d75d23783dbfeb43cd85aa5939f22f471e2d2979db99893227c811f6",
+      ".urp": "3c9f35d54c46139a7223e23681c5cb8e6a919c5bd50869dd73a4ae2f1f7e2fc7"
     },
     "v14_stamp": "2026-06-15T2310HKT_STEP5D_STRICT_RNN_LIVEPREP_V14",
     "v14_local_package_validated": true,
@@ -76,14 +85,14 @@
     "v15_controller_readback_verified": true,
     "v15_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_liveprep_v15_20260616_151843",
     "v15_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v15_20260616_151843/manifest.json",
-    "v15_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v15.urp",
+    "v15_controller_target": "/programs/andyl/kunwei/step5/step5d/step5d_strict_rnn_liveprep_v15.urp",
     "v15a_offline_replay_summary": "runs/step5d_v15a_permissive_recovery_offline_20260616/summary.json",
     "v15a_stamp": "2026-06-16T1553HKT_STEP5D_STRICT_RNN_LIVEPREP_V15A",
     "v15a_local_package_validated": true,
     "v15a_controller_readback_verified": true,
     "v15a_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_liveprep_v15a_20260616_155322",
     "v15a_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v15a_20260616_155322/manifest.json",
-    "v15a_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v15a.urp",
+    "v15a_controller_target": "/programs/andyl/kunwei/step5/step5d/step5d_strict_rnn_liveprep_v15a.urp",
     "v15a_live_run_dir": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v15a_20260616_160355",
     "v15a_live_run_summary": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v15a_20260616_160355/summary.json",
     "v15a_live_stop_reason": "step5d_contact_safety:hold_duty_limit",
@@ -122,7 +131,7 @@
     "v16_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_liveprep_v16_20260702_145838",
     "v16_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v16_20260702_145838/manifest.json",
     "v16_controller_readback_at": "2026-07-02T14:58:38+08:00",
-    "v16_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v16.urp",
+    "v16_controller_target": "/programs/andyl/kunwei/step5/step5d/step5d_strict_rnn_liveprep_v16.urp",
     "v16_local_triplet": "programs/step5/step5d/step5d_strict_rnn_liveprep_v16",
     "v16_dry_run_validation": "local package valid; upload/read-back plan targets /programs/andyl/kunwei/step5",
     "v16_delivery_status": "controller read-back verified",
@@ -163,7 +172,7 @@
     "v17_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_liveprep_v17_20260702_155806",
     "v17_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v17_20260702_155806/manifest.json",
     "v17_controller_readback_at": "2026-07-02T15:58:48+08:00",
-    "v17_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v17.urp",
+    "v17_controller_target": "/programs/andyl/kunwei/step5/step5d/step5d_strict_rnn_liveprep_v17.urp",
     "v17_local_triplet": "programs/step5/step5d/step5d_strict_rnn_liveprep_v17",
     "v17_delivery_status": "controller read-back verified",
     "v17_sha256": {
@@ -205,7 +214,7 @@
     "v18_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_liveprep_v18_20260702_164653",
     "v18_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v18_20260702_164653/manifest.json",
     "v18_controller_readback_at": "2026-07-02T16:46:53+08:00",
-    "v18_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v18.urp",
+    "v18_controller_target": "/programs/andyl/kunwei/step5/step5d/step5d_strict_rnn_liveprep_v18.urp",
     "v18_local_triplet": "programs/step5/step5d/step5d_strict_rnn_liveprep_v18",
     "v18_delivery_status": "controller read-back verified",
     "v18_sha256": {
@@ -232,7 +241,7 @@
     "v19_controller_readback_verified": true,
     "v19_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_liveprep_v19_20260702_172839",
     "v19_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v19_20260702_172839/manifest.json",
-    "v19_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v19.urp",
+    "v19_controller_target": "/programs/andyl/kunwei/step5/step5d/step5d_strict_rnn_liveprep_v19.urp",
     "v19_local_triplet": "programs/step5/step5d/step5d_strict_rnn_liveprep_v19",
     "v19_preload_gate": {
       "filtered_normal_load_min_n": 8.0,
@@ -262,7 +271,7 @@
     "v20_controller_readback_verified": true,
     "v20_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_liveprep_v20_20260702_192951",
     "v20_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v20_20260702_192951/manifest.json",
-    "v20_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v20.urp",
+    "v20_controller_target": "/programs/andyl/kunwei/step5/step5d/step5d_strict_rnn_liveprep_v20.urp",
     "v20_local_triplet": "programs/step5/step5d/step5d_strict_rnn_liveprep_v20",
     "v20_pose_contract": {
       "id": "pre_contact_search_gravity_down_v1",
@@ -326,7 +335,7 @@
     "v21_controller_readback_verified": true,
     "v21_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_liveprep_v21_20260702_211049",
     "v21_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v21_20260702_211049/manifest.json",
-    "v21_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v21.urp",
+    "v21_controller_target": "/programs/andyl/kunwei/step5/step5d/step5d_strict_rnn_liveprep_v21.urp",
     "v21_local_triplet": "programs/step5/step5d/step5d_strict_rnn_liveprep_v21",
     "v21_delivery_status": "controller read-back verified",
     "v21_preload_gate": {
@@ -348,7 +357,7 @@
     "v22_controller_readback_verified": true,
     "v22_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_liveprep_v22_20260702_220811",
     "v22_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v22_20260702_220811/manifest.json",
-    "v22_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v22.urp",
+    "v22_controller_target": "/programs/andyl/kunwei/step5/step5d/step5d_strict_rnn_liveprep_v22.urp",
     "v22_local_triplet": "programs/step5/step5d/step5d_strict_rnn_liveprep_v22",
     "v22_delivery_status": "controller read-back verified",
     "v22_preload_gate": {
@@ -392,7 +401,7 @@
     "v23_controller_readback_verified": true,
     "v23_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_liveprep_v23_20260703_004136",
     "v23_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v23_20260703_004136/manifest.json",
-    "v23_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v23.urp",
+    "v23_controller_target": "/programs/andyl/kunwei/step5/step5d/step5d_strict_rnn_liveprep_v23.urp",
     "v23_local_triplet": "programs/step5/step5d/step5d_strict_rnn_liveprep_v23",
     "v23_delivery_status": "controller read-back verified",
     "v23_preload_gate": {
@@ -467,7 +476,7 @@
     "v24_controller_readback_verified": true,
     "v24_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_liveprep_v24_20260703_010837",
     "v24_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v24_20260703_010837/manifest.json",
-    "v24_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v24.urp",
+    "v24_controller_target": "/programs/andyl/kunwei/step5/step5d/step5d_strict_rnn_liveprep_v24.urp",
     "v24_local_triplet": "programs/step5/step5d/step5d_strict_rnn_liveprep_v24",
     "v24_delivery_status": "controller read-back verified",
     "v24_preload_gate": {
@@ -530,7 +539,7 @@
     "v25_controller_readback_verified": true,
     "v25_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_ablation_v25_20260703_225843",
     "v25_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v25_20260703_225843/manifest.json",
-    "v25_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v25.urp",
+    "v25_controller_target": "/programs/andyl/kunwei/step5/step5d/step5d_strict_rnn_ablation_v25.urp",
     "v25_local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v25",
     "v25_delivery_status": "controller read-back verified",
     "v25_preload_gate": {
@@ -596,8 +605,8 @@
     "v26_controller_readback_verified": true,
     "v26_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_ablation_v26_20260705_225718",
     "v26_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v26_20260705_225718/manifest.json",
-    "v26_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v26.urp",
-    "v26_local_triplet": "programs/step5/step5d_strict_rnn_ablation_v26",
+    "v26_controller_target": "/programs/andyl/kunwei/step5/step5d/step5d_strict_rnn_ablation_v26.urp",
+    "v26_local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v26",
     "v26_delivery_status": "controller read-back verified",
     "v26_preload_gate": {
       "filtered_normal_load_min_n": 7.0,
@@ -642,6 +651,58 @@
       "hard_stop_s": 0.1,
       "soft_stop_below_n": 5.0,
       "soft_stop_s": 0.5
+    },
+    "v27_stamp": "2026-07-06T0057HKT_STEP5D_STRICT_RNN_ABLATION_V27",
+    "v27_local_package_validated": true,
+    "v27_controller_readback_verified": true,
+    "v27_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_ablation_v27_20260706_005730",
+    "v27_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v27_20260706_005730/manifest.json",
+    "v27_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v27.urp",
+    "v27_local_triplet": "programs/step5/step5d_strict_rnn_ablation_v27",
+    "v27_delivery_status": "controller read-back verified",
+    "v27_preload_gate": {
+      "filtered_normal_load_min_n": 5.0,
+      "filtered_normal_load_max_n": 22.0,
+      "raw_normal_load_min_n": 3.0,
+      "raw_normal_load_max_n": 25.0,
+      "force_norm_max_n": 35.0,
+      "required_s": 0.1,
+      "param_valid_code": 521.0,
+      "recovery_normal_load_max_n": 35.0,
+      "force_norm_stop_n": 35.0
+    },
+    "v27_sha256": {
+      ".script": "c1a12e1ab236ec50d930c07cfd69c8a9a05ce9916d3d1412e63ab19a15148f3f",
+      ".txt": "2c30fb41d75d23783dbfeb43cd85aa5939f22f471e2d2979db99893227c811f6",
+      ".urp": "3c9f35d54c46139a7223e23681c5cb8e6a919c5bd50869dd73a4ae2f1f7e2fc7"
+    },
+    "v24_retained_after_superseded_by_v27_ablation": true,
+    "v27_stage25_control_modes": [
+      "speedl_cartesian_oracle",
+      "speedj_dls_oracle",
+      "speedj_rnn_live"
+    ],
+    "v27_register_clear_barrier": {
+      "stage": 25.95,
+      "required_s": 0.006,
+      "timeout_s": 1.0,
+      "register_zero_tol": 0.0005,
+      "clears_input_float_registers": "37..47",
+      "rejects_layout_tags": [
+        521.0,
+        523.0,
+        524.0
+      ]
+    },
+    "v27_stage25_layout_tags": {
+      "cartesian_speedl": 523.0,
+      "joint_speedj": 524.0
+    },
+    "v27_speedl_low_load_policy": {
+      "hard_stop_below_n": 2.0,
+      "hard_stop_s": 0.1,
+      "soft_stop_below_n": 5.0,
+      "soft_stop_s": 0.5
     }
   },
   "bridge_trigger": {
@@ -654,7 +715,7 @@
     "blocked_reason": null,
     "required_before_live": [
       "operator outside UR reach/cage boundary",
-      "TP program opened on controller read-back v26 package"
+      "TP program opened on controller read-back v27 package"
     ]
   },
   "retained_steps": [
@@ -667,7 +728,7 @@
       "step": "Step5",
       "flow_path": "STEP5_FLOW.md",
       "stage_table_path": "config/step5_stage_table.json",
-      "role": "v26 TP/script package generated, controller read-back verified, and selected as current cage-primary diagnostic package; earlier Step5d packages retained as evidence"
+      "role": "v27 TP/script package generated, controller read-back verified, and selected as current cage-primary diagnostic package; earlier Step5d packages retained as evidence"
     },
     {
       "step": "Step6",
@@ -677,20 +738,20 @@
     }
   ],
   "notes": [
-    "step5d_strict_rnn_ablation_v26 is controller read-back verified and selected as the current Step5d TP/script cage-primary diagnostic package.",
-    "v26 keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
-    "v26 is an ablation package: v25/v26 default to speedl_cartesian_oracle, speedj_rnn_live is explicit follow-up, and preload is 7-18N filtered with 5-20N raw sanity.",
-    "v26 uses Stage25.95 register-clear barrier plus layout tag 523.0 for Cartesian speedl and 524.0 for joint speedj.",
+    "step5d_strict_rnn_ablation_v27 is controller read-back verified and selected as the current Step5d TP/script cage-primary diagnostic package.",
+    "v27 keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
+    "v27 is an ablation package: v25/v26/v27 default to speedl_cartesian_oracle, speedj_rnn_live is explicit follow-up, and preload is 5-22N filtered with 3-25N raw sanity.",
+    "v27 uses Stage25.95 register-clear barrier plus layout tag 523.0 for Cartesian speedl and 524.0 for joint speedj.",
     "No v23 post-RNN normal-direction guard is active for this package.",
     "This file is the single current pointer for UR/Kunwei package and bridge handoffs.",
     "TP program load/Play, robot motion, payload/TCP writes, and zero_ftsensor remain explicit live gates.",
     "Earlier Step5d live-prep packages remain retained evidence only."
   ],
   "sha256": {
-    ".script": "46dac73ed9d167cb96796ee4d2198eb2bf1685fd95d21404d0174c8e0653d93f",
-    ".txt": "6d6d71b697106d2c835569dba1a88a7dd1cdd870cf0d18295db8ff400dfda224",
-    ".urp": "8754f1b4419a1a3ff655abc3e3246fa29596a6e2a6c400afbb4b7ff94b917ad3"
+    ".script": "c1a12e1ab236ec50d930c07cfd69c8a9a05ce9916d3d1412e63ab19a15148f3f",
+    ".txt": "2c30fb41d75d23783dbfeb43cd85aa5939f22f471e2d2979db99893227c811f6",
+    ".urp": "3c9f35d54c46139a7223e23681c5cb8e6a919c5bd50869dd73a4ae2f1f7e2fc7"
   },
-  "delivery_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v26_20260705_225718/manifest.json",
-  "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v26_20260705_225718/manifest.json"
+  "delivery_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v27_20260706_005730/manifest.json",
+  "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v27_20260706_005730/manifest.json"
 }

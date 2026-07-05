@@ -964,17 +964,47 @@ def validate_package(
             checks["no stale step5d v1-v7 route"] = all(
                 f"step5d_strict_rnn_liveprep_v{idx}" not in script + txt for idx in range(1, 8)
             )
-    if program in {"step5d_strict_rnn_ablation_v25", "step5d_strict_rnn_ablation_v26"}:
+    if program in {
+        "step5d_strict_rnn_ablation_v25",
+        "step5d_strict_rnn_ablation_v26",
+        "step5d_strict_rnn_ablation_v27",
+    }:
         version_label = program.rsplit("_", 1)[-1]
         expected_angular_cap = "0.150" if version_label == "v25" else "0.015"
         expected_default_mode = "speedl_cartesian_oracle"
-        expected_preload_min = "10.500" if version_label == "v25" else "7.000"
-        expected_preload_max = "12.800" if version_label == "v25" else "18.000"
-        expected_raw_min_text = "9.5" if version_label == "v25" else "5.0"
-        expected_raw_max_text = "13.5" if version_label == "v25" else "20.0"
-        expected_preload_min_text = "10.5" if version_label == "v25" else "7.0"
-        expected_preload_max_text = "12.8" if version_label == "v25" else "18.0"
-        expected_recovery_max = "20.000" if version_label == "v25" else "24.000"
+        if version_label == "v25":
+            expected_preload_min = "10.500"
+            expected_preload_max = "12.800"
+            expected_raw_min_text = "9.5"
+            expected_raw_max_text = "13.5"
+            expected_preload_min_text = "10.5"
+            expected_preload_max_text = "12.8"
+            expected_recovery_max = "20.000"
+            expected_preload_force_norm = "25.000"
+            expected_hard_guard = "25"
+            expected_hard_guard_decimal = "25.0"
+        elif version_label == "v27":
+            expected_preload_min = "5.000"
+            expected_preload_max = "22.000"
+            expected_raw_min_text = "3.0"
+            expected_raw_max_text = "25.0"
+            expected_preload_min_text = "5.0"
+            expected_preload_max_text = "22.0"
+            expected_recovery_max = "35.000"
+            expected_preload_force_norm = "35.000"
+            expected_hard_guard = "35"
+            expected_hard_guard_decimal = "35.0"
+        else:
+            expected_preload_min = "7.000"
+            expected_preload_max = "18.000"
+            expected_raw_min_text = "5.0"
+            expected_raw_max_text = "20.0"
+            expected_preload_min_text = "7.0"
+            expected_preload_max_text = "18.0"
+            expected_recovery_max = "24.000"
+            expected_preload_force_norm = "25.000"
+            expected_hard_guard = "25"
+            expected_hard_guard_decimal = "25.0"
         checks.update(
             {
                 f"step5d {version_label} ablation function": f"def codex_{program}()" in script
@@ -999,10 +1029,10 @@ def validate_package(
                 and "local qdot_cap_rad_s = 0.050" in script,
                 f"step5d {version_label} preload gate": f"local line_entry_default_normal_load_min_n = {expected_preload_min}" in script
                 and f"local line_entry_default_normal_load_max_n = {expected_preload_max}" in script
-                and "local line_entry_default_force_norm_max_n = 25.000" in script
+                and f"local line_entry_default_force_norm_max_n = {expected_preload_force_norm}" in script
                 and "local line_entry_default_required_s = 0.100" in script
                 and f"local line_entry_recovery_normal_load_max_n = {expected_recovery_max}" in script
-                and "local line_entry_force_norm_stop_n = 25.000" in script
+                and f"local line_entry_force_norm_stop_n = {expected_preload_force_norm}" in script
                 and "local line_entry_param_valid_code = 521.000" in script
                 and "local candidate_min_n = read_input_float_register(40)" in script
                 and "local candidate_required_s = read_input_float_register(44)" in script
@@ -1029,7 +1059,7 @@ def validate_package(
                 f"step5d {version_label} contact safety": "STAGE25_CONTACT_SAFETY" in script
                 and "cage margin exhaustion" in script + txt
                 and "stop_request" in script + txt
-                and "25 N raw-normal/force-norm and 4.0 Nm torque" in txt,
+                and f"{expected_hard_guard} N raw-normal/{expected_hard_guard} N force-norm and 4.0 Nm torque" in txt,
                 f"step5d {version_label} gravity-down": "PRECONTACT_POSE_CONTRACT: pre_contact_search_gravity_down_v1" in script
                 and "config/step_pose_contract_table.json" in script + txt
                 and "local target_rx = 3.141592654" in script
@@ -1040,9 +1070,18 @@ def validate_package(
                 and "write_output_float_register(35, 25.1)" not in script
                 and "write_output_float_register(35, 25.2)" not in script
                 and "codex_step5d_down_search(24.3, 24.4" not in script,
-                f"step5d {version_label} raw guards": "codex_abs(normal_force) > 25.0" in script
-                and "force_norm > 25.0" in script
+                f"step5d {version_label} raw guards": f"codex_abs(normal_force) > {expected_hard_guard_decimal}" in script
+                and f"force_norm > {expected_hard_guard_decimal}" in script
                 and "torque_norm > 4.0" in script,
+                f"step5d {version_label} v27 consumption instrumentation": (
+                    version_label != "v27"
+                    or (
+                        "# STAGE25_V27_SCAFFOLD: step5b_v3_scaffold_min_delta" in script
+                        and "STAGE25_CADENCE_CONSUMPTION" in script
+                        and "write_output_float_register(47, stage25_command_consumed)" in script
+                        and "Stage25.0 cadence/command-consumption instrumentation" in txt
+                    )
+                ),
                 f"step5d {version_label} no stale route": "step5b_contact_cycloid_baseline_v1" not in script + txt
                 and "step5b_contact_cycloid_baseline_v2" not in script + txt
                 and "step5b_contact_cycloid_baseline_v3" not in script + txt
@@ -1055,6 +1094,13 @@ def validate_package(
                     or (
                         "step5d_strict_rnn_ablation_v25" not in script + txt
                         and "STEP5D_STRICT_RNN_ABLATION_V25" not in script + txt
+                    )
+                )
+                and (
+                    program == "step5d_strict_rnn_ablation_v26"
+                    or (
+                        "step5d_strict_rnn_ablation_v26" not in script + txt
+                        and "STEP5D_STRICT_RNN_ABLATION_V26" not in script + txt
                     )
                 ),
             }

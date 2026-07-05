@@ -20,6 +20,7 @@ from step5_table import load_stage_frame, step5_stage
 from step5d_runtime_interface import (
     STEP5D_ABLATION_V25_STAGE_ID,
     STEP5D_ABLATION_V26_STAGE_ID,
+    STEP5D_ABLATION_V27_STAGE_ID,
     STEP5D_INTERFACE_CLASS,
     STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE,
     STEP5D_STAGE25_JOINT_LAYOUT_CODE,
@@ -76,8 +77,15 @@ ABLATION_SPECS = {
         cartesian_angular_cap_rad_s=0.015,
         default_stage25_control_mode="speedl_cartesian_oracle",
     ),
+    STEP5D_ABLATION_V27_STAGE_ID: Step5dAblationSpec(
+        program_name=STEP5D_ABLATION_V27_STAGE_ID,
+        version_label="v27",
+        stamp_token="STEP5D_STRICT_RNN_ABLATION_V27",
+        cartesian_angular_cap_rad_s=0.015,
+        default_stage25_control_mode="speedl_cartesian_oracle",
+    ),
 }
-DEFAULT_SPEC = ABLATION_SPECS[STEP5D_ABLATION_V26_STAGE_ID]
+DEFAULT_SPEC = ABLATION_SPECS[STEP5D_ABLATION_V27_STAGE_ID]
 PROGRAM_NAME = DEFAULT_SPEC.program_name
 STEP5_STAGE_ID = DEFAULT_SPEC.stage_id
 SOURCE_STAGE_ID = DEFAULT_SPEC.source_stage_id
@@ -110,6 +118,13 @@ V26_LINE_ENTRY_NORMAL_LOAD_MAX_N = 18.0
 V26_LINE_ENTRY_RAW_SANITY_MIN_N = 5.0
 V26_LINE_ENTRY_RAW_SANITY_MAX_N = 20.0
 V26_LINE_ENTRY_RECOVERY_NORMAL_LOAD_MAX_N = 24.0
+V27_LINE_ENTRY_NORMAL_LOAD_MIN_N = 5.0
+V27_LINE_ENTRY_NORMAL_LOAD_MAX_N = 22.0
+V27_LINE_ENTRY_RAW_SANITY_MIN_N = 3.0
+V27_LINE_ENTRY_RAW_SANITY_MAX_N = 25.0
+V27_LINE_ENTRY_FORCE_NORM_MAX_N = 35.0
+V27_LINE_ENTRY_RECOVERY_NORMAL_LOAD_MAX_N = 35.0
+V27_LINE_ENTRY_FORCE_NORM_STOP_N = 35.0
 LINE_ENTRY_NORMAL_LOAD_MIN_N = 10.5
 LINE_ENTRY_NORMAL_LOAD_MAX_N = 12.8
 LINE_ENTRY_FORCE_NORM_MAX_N = 25.0
@@ -169,7 +184,7 @@ def guard_value(spec: Step5dAblationSpec, key: str, default: float) -> float:
     try:
         stage = step5_stage(spec.stage_id)
     except KeyError:
-        stage = step5_stage(spec.source_stage_id)
+        return default
     guard = stage.get("guard", {})
     if not isinstance(guard, dict):
         return default
@@ -181,6 +196,20 @@ def guard_value(spec: Step5dAblationSpec, key: str, default: float) -> float:
 
 
 def default_line_entry_config(spec: Step5dAblationSpec) -> LineEntryConfig:
+    if spec.version_label == "v27":
+        return LineEntryConfig(
+            normal_load_min_n=V27_LINE_ENTRY_NORMAL_LOAD_MIN_N,
+            normal_load_max_n=V27_LINE_ENTRY_NORMAL_LOAD_MAX_N,
+            force_norm_max_n=V27_LINE_ENTRY_FORCE_NORM_MAX_N,
+            required_s=LINE_ENTRY_REQUIRED_S,
+            cmd_limit_m_s=LINE_ENTRY_CMD_LIMIT_M_S,
+            timeout_s=LINE_ENTRY_TIMEOUT_S,
+            raw_sanity_min_n=V27_LINE_ENTRY_RAW_SANITY_MIN_N,
+            raw_sanity_max_n=V27_LINE_ENTRY_RAW_SANITY_MAX_N,
+            recovery_normal_load_min_n=LINE_ENTRY_RECOVERY_NORMAL_LOAD_MIN_N,
+            recovery_normal_load_max_n=V27_LINE_ENTRY_RECOVERY_NORMAL_LOAD_MAX_N,
+            force_norm_stop_n=V27_LINE_ENTRY_FORCE_NORM_STOP_N,
+        )
     if spec.version_label == "v26":
         return LineEntryConfig(
             normal_load_min_n=V26_LINE_ENTRY_NORMAL_LOAD_MIN_N,
@@ -239,6 +268,14 @@ def bridge_start_wait_timeout_s(spec: Step5dAblationSpec = DEFAULT_SPEC) -> floa
     return guard_value(spec, "bridge_start_wait_timeout_s", BRIDGE_START_WAIT_TIMEOUT_S)
 
 
+def raw_normal_guard_n(spec: Step5dAblationSpec = DEFAULT_SPEC) -> float:
+    return 35.0 if spec.version_label == "v27" else RAW_NORMAL_GUARD_N
+
+
+def force_norm_guard_n(spec: Step5dAblationSpec = DEFAULT_SPEC) -> float:
+    return 35.0 if spec.version_label == "v27" else FORCE_NORM_GUARD_N
+
+
 def _replace_exact(script: str, old: str, new: str) -> str:
     if old not in script:
         raise RuntimeError(f"Step5d ablation scaffold replacement failed: {old}")
@@ -267,11 +304,14 @@ def _replace_line_stage_with_stage25_multimode(script: str, spec: Step5dAblation
     local joint_accel_rad_s2 = {JOINT_ACCEL_RAD_S2:.3f}
     local cartesian_layout_code = {STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:.3f}
     local joint_layout_code = {STEP5D_STAGE25_JOINT_LAYOUT_CODE:.3f}
+    # STAGE25_CADENCE_CONSUMPTION: output register 47 is 1 only when this
+    # TP loop accepts a current Stage25 command packet and reaches speedl/speedj.
     while stop_reason == 0.0:
       local heartbeat2 = read_input_float_register(26)
       local cmd_valid = read_input_float_register(43)
       local progress_s = read_input_float_register(44)
       local stage25_layout_tag = read_input_float_register(47)
+      local stage25_command_consumed = 0
       local cartesian_layout_ok = codex_abs(stage25_layout_tag - cartesian_layout_code) < 0.001
       local joint_layout_ok = codex_abs(stage25_layout_tag - joint_layout_code) < 0.001
       local cmd_qd0 = read_input_float_register(37)
@@ -314,6 +354,7 @@ def _replace_line_stage_with_stage25_multimode(script: str, spec: Step5dAblation
       end
       if stop_reason == 0.0:
         if cmd_valid < 0.5 or not (cartesian_layout_ok or joint_layout_ok):
+          write_output_float_register(47, stage25_command_consumed)
           if saw_cmd_valid == 0 and t2 < cmd_valid_grace_s:
             sync()
           elif saw_cmd_valid == 1 and cmd_invalid_s <= cmd_valid_loss_limit_s:
@@ -322,16 +363,24 @@ def _replace_line_stage_with_stage25_multimode(script: str, spec: Step5dAblation
             stop_reason = 12.0
           end
         elif cartesian_layout_ok and (codex_abs(cmd_vx) > cartesian_linear_cap_m_s or codex_abs(cmd_vy) > cartesian_linear_cap_m_s or codex_abs(cmd_vz) > cartesian_linear_cap_m_s or codex_abs(cmd_wx) > cartesian_angular_cap_rad_s or codex_abs(cmd_wy) > cartesian_angular_cap_rad_s or codex_abs(cmd_wz) > cartesian_angular_cap_rad_s):
+          write_output_float_register(47, stage25_command_consumed)
           stop_reason = 13.0
         elif joint_layout_ok and (codex_abs(cmd_qd0) > qdot_cap_rad_s or codex_abs(cmd_qd1) > qdot_cap_rad_s or codex_abs(cmd_qd2) > qdot_cap_rad_s or codex_abs(cmd_qd3) > qdot_cap_rad_s or codex_abs(cmd_qd4) > qdot_cap_rad_s or codex_abs(cmd_qd5) > qdot_cap_rad_s):
+          write_output_float_register(47, stage25_command_consumed)
           stop_reason = 13.0
         elif end_hold_s >= end_hold_required_s:
+          write_output_float_register(47, stage25_command_consumed)
           stop_reason = 1.0
         elif t2 >= line_runtime_limit_s:
+          write_output_float_register(47, stage25_command_consumed)
           stop_reason = 10.0
         elif cartesian_layout_ok:
+          stage25_command_consumed = 1
+          write_output_float_register(47, stage25_command_consumed)
           speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy, cmd_wz], cartesian_accel_m_s2, line_hold_s)
         else:
+          stage25_command_consumed = 1
+          write_output_float_register(47, stage25_command_consumed)
           speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5], joint_accel_rad_s2, line_hold_s)
         end
       end
@@ -666,12 +715,14 @@ def build_script(
     script = script.replace("step4e-version=step5b_v2", f"step4e-version={spec.bridge_version}")
     script = script.replace("step4e-version=step5b_v3", f"step4e-version={spec.bridge_version}")
     script = script.replace("step4e-normal-filter-alpha=0.55", f"step4e-normal-filter-alpha={BRIDGE_NORMAL_FILTER_ALPHA:.2f}")
-    script = script.replace("codex_abs(normal_force) > 50.0", f"codex_abs(normal_force) > {RAW_NORMAL_GUARD_N:.1f}")
-    script = script.replace("force_norm > 60.0", f"force_norm > {FORCE_NORM_GUARD_N:.1f}")
+    raw_guard = raw_normal_guard_n(spec)
+    force_guard = force_norm_guard_n(spec)
+    script = script.replace("codex_abs(normal_force) > 50.0", f"codex_abs(normal_force) > {raw_guard:.1f}")
+    script = script.replace("force_norm > 60.0", f"force_norm > {force_guard:.1f}")
     script = script.replace("torque_norm > 3.0", f"torque_norm > {TORQUE_NORM_GUARD_NM:.1f}")
     script = script.replace(
         "# SAFETY: raw normal guard 50 N, force norm guard 60 N, torque guard 3.0 Nm.",
-        "# SAFETY: raw normal guard 25 N, force norm guard 25 N, torque guard 4.0 Nm.",
+        f"# SAFETY: raw normal guard {raw_guard:.0f} N, force norm guard {force_guard:.0f} N, torque guard 4.0 Nm.",
     )
     script = script.replace("local line_runtime_limit_s = 65.000", "local line_runtime_limit_s = 15.000")
     script = script.replace("local line_success_progress_m = 60.000000000", "local line_success_progress_m = 10.000000000")
@@ -701,10 +752,19 @@ def build_script(
             f"TP_ROLE: multimode_executor_and_guard_only; Step5d {spec.version_label} command layout is computed by the bridge.\n"
             f"# REGISTER_CONTRACT: Stage 25.3 consumes 37..39 as Cartesian deadband-acquire vx/vy/vz, plus {spec.version_label} preload overrides in 40/41/42/44/46/47; Stage 25.95 requires bridge-cleared registers 37..47 before Stage 25.0. Stage 25.0 reads register 47 as layout tag: {STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:.1f}=Cartesian speedl vx/vy/vz/wx/wy/wz in 37..42, {STEP5D_STAGE25_JOINT_LAYOUT_CODE:.1f}=joint speedj qd0..qd5 in 37..42; 43 cmd_valid, 44 path_time_s.\n"
             "# PRECONTACT_POSE_CONTRACT: config/step_pose_contract_table.json pre_contact_search_gravity_down_v1; Stage22/24 TCP +Z targets base -Z using [pi,0,0].\n"
-            f"# STAGE25_CONTACT_SAFETY: {spec.version_label} bridge keeps 25N normal/force guards and 4Nm torque guard; speedl_cartesian_oracle may re-press within bounded low-load timers while RNN is shadow-only, while joint modes keep stricter low-load stopping and RNN/J(q) diagnostics.\n"
+            f"# STAGE25_CONTACT_SAFETY: {spec.version_label} bridge keeps {raw_guard:.0f}N normal/{force_guard:.0f}N force guards and 4Nm torque guard; speedl_cartesian_oracle may re-press within bounded low-load timers while RNN is shadow-only, while joint modes keep stricter low-load stopping and RNN/J(q) diagnostics.\n"
             "# FORCE_FRAME_CONTRACT: UR_FORCE_FRAME_CONTRACT.md; reaction normal for load, approach normal for posture."
         ),
     )
+    if spec.version_label == "v27":
+        script = script.replace(
+            "# FORCE_FRAME_CONTRACT: UR_FORCE_FRAME_CONTRACT.md; reaction normal for load, approach normal for posture.",
+            (
+                "# FORCE_FRAME_CONTRACT: UR_FORCE_FRAME_CONTRACT.md; reaction normal for load, approach normal for posture.\n"
+                "# STAGE25_V27_SCAFFOLD: step5b_v3_scaffold_min_delta; only Stage25 command source becomes Cartesian speedl oracle."
+            ),
+            1,
+        )
     script = _replace_exact(script, "STEP5_STAGE_ID: step5_contact_cycloid_baseline_v1", f"STEP5_STAGE_ID: {spec.stage_id}")
     script = _add_down_search_force_trigger_echo(script)
     script = _add_force_envelope_auto_home(script)
@@ -718,17 +778,28 @@ def build_script(
 def build_txt(stamp: str, spec: Step5dAblationSpec = DEFAULT_SPEC) -> str:
     bridge_wait_timeout_s = bridge_start_wait_timeout_s(spec)
     line_entry = line_entry_config(spec)
-    first_run = (
-        "First live run must use speedl_cartesian_oracle. Acceptance target is Stage25.0\n"
-        "  continuous runtime >=5 s, load mostly 8..14 N, trusted force max <20 N, and no\n"
-        "  cage/hard-guard stop. If speedl succeeds but RNN shadow direction or magnitude\n"
-        "  is abnormal, the defect is isolated to the RNN/Jacobian/qdot layer."
-        if spec.version_label == "v25"
-        else "v26 first live mode defaults to speedl_cartesian_oracle. The bridge sends\n"
-        "  paper outer-loop xdot_c directly to TP speedl while strict RNN/J(q) qdot stays\n"
-        "  shadow-only. speedj_rnn_live remains an explicit follow-up mode with\n"
-        "  joint-feasibility-scaled xdot_c after speedl passes."
-    )
+    if spec.version_label == "v25":
+        first_run = (
+            "First live run must use speedl_cartesian_oracle. Acceptance target is Stage25.0\n"
+            "  continuous runtime >=5 s, load mostly 8..14 N, trusted force max <20 N, and no\n"
+            "  cage/hard-guard stop. If speedl succeeds but RNN shadow direction or magnitude\n"
+            "  is abnormal, the defect is isolated to the RNN/Jacobian/qdot layer."
+        )
+    elif spec.version_label == "v27":
+        first_run = (
+            "v27 starts from the proven Step5b v3 scaffold with a minimal delta: Stage25.0\n"
+            "  command source is the Cartesian speedl oracle, strict RNN/J(q) stays shadow-only,\n"
+            "  and Stage25.0 cadence/command-consumption instrumentation is logged for diagnosis."
+        )
+    else:
+        first_run = (
+            "v26 first live mode defaults to speedl_cartesian_oracle. The bridge sends\n"
+            "  paper outer-loop xdot_c directly to TP speedl while strict RNN/J(q) qdot stays\n"
+            "  shadow-only. speedj_rnn_live remains an explicit follow-up mode with\n"
+            "  joint-feasibility-scaled xdot_c after speedl passes."
+        )
+    raw_guard = raw_normal_guard_n(spec)
+    force_guard = force_norm_guard_n(spec)
     return f"""Step5d strict RNN ablation {spec.version_label} 12N diagnostic TP package
 
 Open on Teach Pendant after controller read-back is verified:
@@ -740,6 +811,8 @@ Version:
 Boundary:
   Contact-capable {spec.version_label} ablation package; not a completed reproduction claim.
   Reuses the Step5b v3 contact-search/latch/25.3 scaffold.
+  {spec.version_label} scaffold delta: Step5b v3 timing/search/scaffold is retained, and only
+  Stage25.0 command consumption changes to the layout-tagged Step5d ablation source.
   If TP Play is pressed before the Ubuntu bridge is started, Stage 20 waits up
   to {bridge_wait_timeout_s:.1f} s for a fresh bridge heartbeat before timing out.
   Stage 22 entry and Stage 24 far/near search use the shared pre-contact pose
@@ -765,6 +838,10 @@ Boundary:
   Stage 25.0 supports Cartesian speedl layout and joint speedj layout:
   register 47={STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:.1f} means 37..42 are vx/vy/vz/wx/wy/wz for TP speedl,
   while register 47={STEP5D_STAGE25_JOINT_LAYOUT_CODE:.1f} means 37..42 are qd0..qd5 for TP speedj.
+  Stage25.0 cadence/command-consumption instrumentation: output register 47
+  is 1 only when the TP loop accepts a current Stage25 command packet and
+  reaches speedl/speedj; bridge CSV records echo tag, cmd_valid, command norm,
+  row gap, and loop recv/compute/send/csv timing.
   Bridge control modes:
     STEP5D_STAGE25_CONTROL_MODE=speedl_cartesian_oracle sends the paper outer-loop xdot_c directly to speedl; RNN is shadow-only and strict RNN/J(q) qdot is logged only as diagnostics.
     STEP5D_STAGE25_CONTROL_MODE=speedj_dls_oracle sends a DLS/Jacobian qdot oracle to speedj and keeps strict RNN shadow diagnostics.
@@ -789,8 +866,8 @@ Safety:
   speedl Cartesian angular cap: {spec.cartesian_angular_cap_rad_s:.3f} rad/s
   qdot cap: {QDOT_CAP_RAD_S:.3f} rad/s
   speedj acceleration: {JOINT_ACCEL_RAD_S2:.3f} rad/s^2
-  Raw normal guard: {RAW_NORMAL_GUARD_N:.0f} N. Force norm guard: {FORCE_NORM_GUARD_N:.0f} N. Torque guard: {TORQUE_NORM_GUARD_NM:.1f} Nm.
-  25 N raw-normal/force-norm and 4.0 Nm torque are sensor hard guards only;
+  Raw normal guard: {raw_guard:.0f} N. Force norm guard: {force_guard:.0f} N. Torque guard: {TORQUE_NORM_GUARD_NM:.1f} Nm.
+  {raw_guard:.0f} N raw-normal/{force_guard:.0f} N force-norm and 4.0 Nm torque are sensor hard guards only;
   human safety still depends on the external cage/operator/E-stop boundary.
   No UR zero_ftsensor(), no Kunwei tare/zero/config, no TCP/payload write.
   This package is not a bridge-start or TP-Play authorization.
@@ -807,6 +884,8 @@ Reference:
 def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5dAblationSpec = DEFAULT_SPEC) -> None:
     bridge_wait_timeout_s = bridge_start_wait_timeout_s(spec)
     line_entry = line_entry_config(spec)
+    raw_guard = raw_normal_guard_n(spec)
+    force_guard = force_norm_guard_n(spec)
     xml = gzip.decompress(urp).decode("utf-8")
     checks = {
         "script stamp": stamp in script,
@@ -842,6 +921,15 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5d
         and "RNN is shadow-only" in txt
         and "cage margin exhaustion" in script + txt
         and "stop_request" in script + txt,
+        "Stage25 consumption instrumentation": (
+            spec.version_label != "v27"
+            or (
+                "STAGE25_CADENCE_CONSUMPTION" in script
+                and "local stage25_command_consumed = 0" in script
+                and "write_output_float_register(47, stage25_command_consumed)" in script
+                and "Stage25.0 cadence/command-consumption instrumentation" in txt
+            )
+        ),
         "gravity-down pose contract": f"PRECONTACT_POSE_CONTRACT: {POSE_CONTRACT_ID}" in script
         and "config/step_pose_contract_table.json" in script + txt
         and f"local target_rx = {SEARCH_GRAVITY_DOWN_ROTVEC[0]:.9f}" in script
@@ -892,8 +980,8 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5d
         "10s diagnostic window": "local line_runtime_limit_s = 15.000" in script
         and "local line_success_progress_m = 10.000000000" in script
         and "Stage 25.0 diagnostic progress target is 10 s" in txt,
-        "raw contact guards": f"codex_abs(normal_force) > {RAW_NORMAL_GUARD_N:.1f}" in script
-        and f"force_norm > {FORCE_NORM_GUARD_N:.1f}" in script
+        "raw contact guards": f"codex_abs(normal_force) > {raw_guard:.1f}" in script
+        and f"force_norm > {force_guard:.1f}" in script
         and f"torque_norm > {TORQUE_NORM_GUARD_NM:.1f}" in script,
         "not quarantine": "stop_only_quarantine" not in script + txt,
         "no stale package": "step5b_contact_cycloid_baseline_v1" not in script + txt,
@@ -953,6 +1041,14 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5d
                 and "ablation v25" not in script + txt
             )
         ),
+        "no stale v26 ablation identity": (
+            spec.program_name == STEP5D_ABLATION_V26_STAGE_ID
+            or (
+                STEP5D_ABLATION_V26_STAGE_ID not in script + txt + xml
+                and "STEP5D_STRICT_RNN_ABLATION_V26" not in script + txt + xml
+                and "ablation v26" not in script + txt
+            )
+        ),
         "low-load recovery does not stop": "or normal_load < line_entry_recovery_normal_load_min_n" not in script,
     }
     failed = [label for label, ok in checks.items() if not ok]
@@ -976,6 +1072,8 @@ def write_bytes_if_changed(path: Path, data: bytes) -> bool:
 
 def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dict[str, object]:
     line_entry = line_entry_config(spec)
+    raw_guard = raw_normal_guard_n(spec)
+    force_guard = force_norm_guard_n(spec)
     return {
         "schema": f"step5d_ablation_semantic_fingerprint_{spec.version_label}",
         "interface_class": STEP5D_INTERFACE_CLASS,
@@ -992,9 +1090,15 @@ def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dic
         "register_clear_zero_tol": QDOT_CLEAR_ZERO_TOL_RAD_S,
         "joint_accel_rad_s2": JOINT_ACCEL_RAD_S2,
         "cartesian_accel_m_s2": LINE_ACCEL_M_S2,
-        "raw_normal_guard_n": RAW_NORMAL_GUARD_N,
-        "force_norm_guard_n": FORCE_NORM_GUARD_N,
+        "raw_normal_guard_n": raw_guard,
+        "force_norm_guard_n": force_guard,
         "torque_norm_guard_nm": TORQUE_NORM_GUARD_NM,
+        "scaffold_delta": (
+            "step5b_v3_scaffold_min_delta_stage25_cartesian_speedl_oracle"
+            if spec.version_label == "v27"
+            else "step5b_v3_ablation_scaffold"
+        ),
+        "stage25_consumption_instrumentation": spec.version_label == "v27",
         "stage25_control_modes": [
             "speedl_cartesian_oracle",
             "speedj_dls_oracle",

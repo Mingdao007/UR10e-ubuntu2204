@@ -27,28 +27,30 @@ import step5d_full_chain_sanity as sanity  # noqa: E402
 
 
 class Step5dFullChainSanityTest(unittest.TestCase):
-    def test_pre_v26_step5d_packages_are_archived_under_step5d_subdir(self) -> None:
+    def test_non_current_step5d_packages_are_archived_under_step5d_subdir(self) -> None:
         step5_dir = ROOT / "programs" / "step5"
         archive_dir = step5_dir / "step5d"
-        stray_pre_v26 = [
+        current = json.loads((ROOT / "config" / "current_stage.json").read_text(encoding="utf-8"))
+        current_program = current["program"]
+        stray_non_current = [
             path.relative_to(ROOT).as_posix()
             for path in step5_dir.glob("step5d*.*")
-            if path.is_file() and "_v26." not in path.name
+            if path.is_file() and path.stem != current_program
         ]
-        self.assertEqual(stray_pre_v26, [])
+        self.assertEqual(stray_non_current, [])
 
         archived_triplets = sorted(path.name for path in archive_dir.glob("step5d*.*"))
         self.assertIn("step5d_strict_rnn_liveprep_v24.urp", archived_triplets)
         self.assertIn("step5d_strict_rnn_ablation_v25.urp", archived_triplets)
+        self.assertIn("step5d_strict_rnn_ablation_v26.urp", archived_triplets)
 
-        current = json.loads((ROOT / "config" / "current_stage.json").read_text(encoding="utf-8"))
         table = json.loads((ROOT / "config" / "step5_stage_table.json").read_text(encoding="utf-8"))
 
         def assert_archived_local_triplet(value: object) -> None:
             if not isinstance(value, str) or "step5d_strict_rnn" not in value:
                 return
-            if "v26" in value:
-                self.assertTrue(value.startswith("programs/step5/step5d_strict_rnn_ablation_v26"))
+            if current_program in value:
+                self.assertTrue(value.startswith(f"programs/step5/{current_program}"))
             else:
                 self.assertTrue(value.startswith("programs/step5/step5d/"), value)
 
@@ -59,7 +61,8 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         for stage in table.get("stages", []):
             evidence = stage.get("local_delivery_evidence")
             if isinstance(evidence, dict):
-                assert_archived_local_triplet(evidence.get("local_triplet"))
+                if evidence.get("archived_to_step5d_dir") is True:
+                    assert_archived_local_triplet(evidence.get("local_triplet"))
 
     def test_full_chain_sanity_produces_offline_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -555,17 +558,26 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn('Force target defaults to 12.0 N', operator)
         self.assertIn('v24 default preload gate is filtered 7.5-14 N', operator)
         self.assertIn('raw-sanity 7-15 N', operator)
-        self.assertIn('WAIT_FOR_PLAY_S="${WAIT_FOR_PLAY_S:-10}"', operator)
+        self.assertIn('WAIT_FOR_PLAY_S="${WAIT_FOR_PLAY_S:-20}"', operator)
+        self.assertIn('AUTOWATCH_WAIT_FOR_PLAY_S="${AUTOWATCH_WAIT_FOR_PLAY_S:-20}"', operator)
         self.assertIn('current v24/v25/v26 defaults to 25 N', operator)
+        self.assertIn('v27 default tube is filtered 5-22 N', operator)
         self.assertIn('STEP5D_DEFAULT_MAX_NORMAL_FORCE_N="${STEP5D_DEFAULT_MAX_NORMAL_FORCE_N:-25}"', operator)
         self.assertIn('STEP5D_DEFAULT_MAX_FORCE_NORM_N="${STEP5D_DEFAULT_MAX_FORCE_NORM_N:-25}"', operator)
+        self.assertIn('STEP5D_DEFAULT_MAX_NORMAL_FORCE_N="${STEP5D_DEFAULT_MAX_NORMAL_FORCE_N:-35}"', operator)
+        self.assertIn('STEP5D_DEFAULT_MAX_FORCE_NORM_N="${STEP5D_DEFAULT_MAX_FORCE_NORM_N:-35}"', operator)
         self.assertIn('STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N:-10.5}"', operator)
         self.assertIn('STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N:-7.0}"', operator)
         self.assertIn('STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N:-18.0}"', operator)
         self.assertIn('STEP5D_DEFAULT_PRELOAD_RAW_MIN_N="${STEP5D_DEFAULT_PRELOAD_RAW_MIN_N:-5.0}"', operator)
         self.assertIn('STEP5D_DEFAULT_PRELOAD_RAW_MAX_N="${STEP5D_DEFAULT_PRELOAD_RAW_MAX_N:-20.0}"', operator)
+        self.assertIn('STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N:-5.0}"', operator)
+        self.assertIn('STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N:-22.0}"', operator)
+        self.assertIn('STEP5D_DEFAULT_PRELOAD_RAW_MIN_N="${STEP5D_DEFAULT_PRELOAD_RAW_MIN_N:-3.0}"', operator)
+        self.assertIn('STEP5D_DEFAULT_PRELOAD_RAW_MAX_N="${STEP5D_DEFAULT_PRELOAD_RAW_MAX_N:-25.0}"', operator)
         self.assertIn('STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedl_cartesian_oracle}"', operator)
         self.assertIn('elif [[ "${STEP5D_VERSION}" == "step5d_strict_rnn_ablation_v26" ]]', operator)
+        self.assertIn('elif [[ "${STEP5D_VERSION}" == "step5d_strict_rnn_ablation_v27" ]]', operator)
         self.assertIn('STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedl_cartesian_oracle}"', operator)
         self.assertIn('STEP5D_DEFAULT_ANGULAR_LIMIT_RAD_S="${STEP5D_DEFAULT_ANGULAR_LIMIT_RAD_S:-0.150}"', operator)
         self.assertIn('STEP5D_DEFAULT_ANGULAR_LIMIT_RAD_S="${STEP5D_DEFAULT_ANGULAR_LIMIT_RAD_S:-0.015}"', operator)

@@ -25,6 +25,7 @@ V23 = "step5d_strict_rnn_liveprep_v23"
 V24 = "step5d_strict_rnn_liveprep_v24"
 V25 = "step5d_strict_rnn_ablation_v25"
 V26 = "step5d_strict_rnn_ablation_v26"
+V27 = "step5d_strict_rnn_ablation_v27"
 
 
 def _sha(data: bytes) -> str:
@@ -519,6 +520,53 @@ class Step5dCurrentPromotionTest(unittest.TestCase):
             self.assertEqual(current["program"], V26)
             self.assertEqual(current["bridge_profile"]["stage25_control_mode"], "speedl_cartesian_oracle")
             self.assertIn("7-18N", current["bridge_profile"]["stage25_3_preload_gate"])
+
+    def test_promote_v27_records_doubled_tp_play_wait_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            v26_dir, manifest_path = _write_v26_fixture(root)
+            promote.promote(root, V26, TARGET_DIR, v26_dir, manifest_path)
+            table_path = root / "config" / "step5_stage_table.json"
+            table = json.loads(table_path.read_text(encoding="utf-8"))
+            table["bridge_startup_policy"] = {
+                "observed_timing": {
+                    "current_step5d_tp_play_wait_max_s": 10,
+                }
+            }
+            table_path.write_text(json.dumps(table), encoding="utf-8")
+            v27_dir = root / "candidate_v27"
+            v27_sha = _write_triplet(v27_dir, V27, "v27")
+            v27_manifest = _write_readback(root, V27, v27_dir, v27_sha)
+
+            result = promote.promote(root, V27, TARGET_DIR, v27_dir, v27_manifest)
+
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["previous_program"], V26)
+            table = json.loads(table_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                table["bridge_startup_policy"]["observed_timing"]["current_step5d_tp_play_wait_max_s"],
+                20,
+            )
+            self.assertIn(V27, table["bridge_startup_policy"]["applies_to_stage_ids"])
+            rows = {row["id"]: row for row in table["stages"]}
+            self.assertEqual(rows[V27]["operator_lifecycle"]["wait_for_play_s"], 20)
+            self.assertEqual(rows[V27]["operator_lifecycle"]["autowatch_wait_for_play_s"], 20)
+            self.assertEqual(rows[V27]["guard"]["force_norm_guard_n"], 35.0)
+            self.assertEqual(rows[V27]["guard"]["stage25_cadence_max_gap_s"], 0.020)
+            self.assertEqual(
+                rows[V26]["local_delivery_evidence"]["controller_target"],
+                f"{TARGET_DIR}/step5d/{V26}.urp",
+            )
+            self.assertEqual(rows[V26]["operator_lifecycle"]["expected_program"], f"{TARGET_DIR}/step5d/{V26}.urp")
+            current = json.loads((root / "config" / "current_stage.json").read_text(encoding="utf-8"))
+            self.assertEqual(current["bridge_profile"]["sensor_hard_guards"]["force_norm_n"], 35.0)
+            self.assertIn("stage25_cadence_consumption_instrumentation", current["bridge_profile"])
+            self.assertEqual(
+                current["evidence"]["v26_local_triplet"],
+                f"programs/step5/step5d/{V26}",
+            )
+            self.assertEqual(current["evidence"]["v26_controller_target"], f"{TARGET_DIR}/step5d/{V26}.urp")
+            self.assertEqual(current["evidence"]["v27_local_triplet"], f"programs/step5/{V27}")
 
 
 if __name__ == "__main__":
