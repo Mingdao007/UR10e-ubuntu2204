@@ -13,6 +13,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 
+from tase_protocol_table import resolve_experiment_profile
+
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
 CURRENT_STAGE_PATH = EXPERIMENT_ROOT / "config" / "current_stage.json"
@@ -212,9 +214,10 @@ def default_preload_gate(program: str) -> Step5dPreloadGate:
     )
 
 
-def default_bridge_rezero_s(program: str) -> float:
+def default_bridge_rezero_s(program: str, root: Path = EXPERIMENT_ROOT) -> float:
     if program == STEP5D_ABLATION_V27_STAGE_ID:
-        return 0.25
+        profile = resolve_experiment_profile("Step5.step5d_rnn", root)
+        return float(profile["parameters"]["zero_hold_s"])
     return 1.0
 
 
@@ -230,8 +233,11 @@ def resolve_runtime_interface(
     selected = program or current_step5d_program(current_path)
     target = controller_target_for(selected, current)
     default_gate = default_preload_gate(selected)
+    protocol_profile = resolve_experiment_profile("Step5.step5d_rnn", root)
+    protocol_params = protocol_profile["parameters"]
+    protocol_limits = protocol_profile["safety_limits"]
     if selected == STEP5D_ABLATION_V27_STAGE_ID:
-        trusted_force_default_n = 35.0
+        trusted_force_default_n = float(protocol_limits["force_norm_guard_n"])
     elif selected in {STEP5D_LIVEPREP_V24_STAGE_ID, STEP5D_ABLATION_V25_STAGE_ID, STEP5D_ABLATION_V26_STAGE_ID}:
         trusted_force_default_n = 25.0
     else:
@@ -271,47 +277,52 @@ def resolve_runtime_interface(
         force_norm_stop_n=env_float(env_map, "STEP5D_PRELOAD_FORCE_NORM_STOP_N", default_gate.force_norm_stop_n),
     )
     bridge_defaults = Step5dBridgeDefaults(
-        duration_s=env_float(env_map, "STEP5D_DURATION_S", 180.0, legacy="BRIDGE_DURATION_S"),
-        target_force_n=env_float(env_map, "STEP5D_TARGET_FORCE_N", 12.0, legacy="BRIDGE_TARGET_FORCE_N"),
-        force_p_gain=env_float(env_map, "STEP5D_FORCE_P_GAIN", 0.0010, legacy="BRIDGE_FORCE_P_GAIN"),
-        force_i_gain=env_float(env_map, "STEP5D_FORCE_I_GAIN", 0.00001, legacy="BRIDGE_FORCE_I_GAIN"),
-        force_damping=env_float(env_map, "STEP5D_FORCE_DAMPING", 7.0, legacy="BRIDGE_FORCE_DAMPING"),
+        duration_s=env_float(env_map, "STEP5D_DURATION_S", float(protocol_params["bridge_duration_s"]), legacy="BRIDGE_DURATION_S"),
+        target_force_n=env_float(env_map, "STEP5D_TARGET_FORCE_N", float(protocol_params["target_force_n"]), legacy="BRIDGE_TARGET_FORCE_N"),
+        force_p_gain=env_float(env_map, "STEP5D_FORCE_P_GAIN", float(protocol_params["force_p_gain"]), legacy="BRIDGE_FORCE_P_GAIN"),
+        force_i_gain=env_float(env_map, "STEP5D_FORCE_I_GAIN", float(protocol_params["force_i_gain"]), legacy="BRIDGE_FORCE_I_GAIN"),
+        force_damping=env_float(env_map, "STEP5D_FORCE_DAMPING", float(protocol_params["force_damping"]), legacy="BRIDGE_FORCE_DAMPING"),
         integral_limit_n_s=env_float(
             env_map,
             "STEP5D_INTEGRAL_LIMIT_N_S",
-            1.0,
+            float(protocol_params["integral_limit_n_s"]),
             legacy="BRIDGE_INTEGRAL_LIMIT_N_S",
         ),
         normal_velocity_limit_m_s=env_float(
             env_map,
             "STEP5D_NORMAL_VELOCITY_LIMIT_M_S",
-            0.0100,
+            float(protocol_limits["normal_velocity_limit_m_s"]),
             legacy="BRIDGE_NORMAL_VELOCITY_LIMIT_M_S",
         ),
         normal_filter_alpha=env_float(
             env_map,
             "STEP5D_NORMAL_FILTER_ALPHA",
-            0.55,
+            float(protocol_params["normal_filter_alpha"]),
             legacy="BRIDGE_NORMAL_FILTER_ALPHA",
         ),
-        normal_min_force_n=env_float(env_map, "STEP5D_NORMAL_MIN_FORCE_N", 2.0, legacy="BRIDGE_NORMAL_MIN_FORCE_N"),
+        normal_min_force_n=env_float(
+            env_map,
+            "STEP5D_NORMAL_MIN_FORCE_N",
+            float(protocol_params["normal_filter_min_force_n"]),
+            legacy="BRIDGE_NORMAL_MIN_FORCE_N",
+        ),
         total_linear_limit_m_s=env_float(
             env_map,
             "STEP5D_TOTAL_LINEAR_LIMIT_M_S",
-            0.0040,
+            float(protocol_limits["total_linear_limit_m_s"]),
             legacy="BRIDGE_TOTAL_LINEAR_LIMIT_M_S",
         ),
         angular_limit_rad_s=env_float(
             env_map,
             "STEP5D_ANGULAR_LIMIT_RAD_S",
-            0.150 if selected == STEP5D_ABLATION_V25_STAGE_ID else 0.015,
+            0.150 if selected == STEP5D_ABLATION_V25_STAGE_ID else float(protocol_limits["angular_limit_rad_s"]),
             legacy="BRIDGE_ANGULAR_LIMIT_RAD_S",
         ),
         max_normal_force_n=env_float(env_map, "STEP5D_MAX_NORMAL_FORCE_N", trusted_force_default_n, legacy="MAX_NORMAL_FORCE_N"),
         max_force_norm_n=env_float(env_map, "STEP5D_MAX_FORCE_NORM_N", trusted_force_default_n, legacy="MAX_FORCE_NORM_N"),
         max_torque_norm_nm=env_float(env_map, "STEP5D_MAX_TORQUE_NORM_NM", 4.0, legacy="MAX_TORQUE_NORM_NM"),
         baseline_s=env_float(env_map, "STEP5D_BASELINE_S", 5.0, legacy="BRIDGE_BASELINE_S"),
-        rezero_s=env_float(env_map, "STEP5D_REZERO_S", default_bridge_rezero_s(selected), legacy="BRIDGE_REZERO_S"),
+        rezero_s=env_float(env_map, "STEP5D_REZERO_S", default_bridge_rezero_s(selected, root), legacy="BRIDGE_REZERO_S"),
         rtde_hz=env_float(env_map, "STEP5D_RTDE_HZ", 500.0, legacy="BRIDGE_RTDE_HZ"),
         sensor_stale_s=env_float(env_map, "STEP5D_SENSOR_STALE_S", 0.10, legacy="BRIDGE_SENSOR_STALE_S"),
         socket_timeout_s=env_float(env_map, "STEP5D_SOCKET_TIMEOUT_S", 0.0, legacy="BRIDGE_SOCKET_TIMEOUT_S"),

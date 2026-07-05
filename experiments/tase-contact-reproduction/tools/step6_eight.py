@@ -8,6 +8,8 @@ import math
 from pathlib import Path
 from typing import Any
 
+from tase_protocol_table import resolve_experiment_profile
+
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
 REPO = EXPERIMENT_ROOT.parents[3]
@@ -21,10 +23,12 @@ PROGRAM_NAME = "step6a_eight_no_contact_v1"
 CONTROLLER_DIR = "/programs/andyl/kunwei/step6"
 LOCAL_PROGRAM_DIR = EXPERIMENT_ROOT / "programs" / "step6"
 
-PATH_DURATION_S = 30.0
-OMEGA_RAD_S = 0.2
-ALONG_AMPLITUDE_M = 0.04
-LATERAL_AMPLITUDE_M = 0.01
+_STEP6_PROTOCOL = resolve_experiment_profile("Step6.no_contact_eight")
+_STEP6_PARAMS = _STEP6_PROTOCOL["parameters"]
+PATH_DURATION_S = float(_STEP6_PARAMS["trajectory_duration_s"])
+OMEGA_RAD_S = float(_STEP6_PARAMS["omega_rad_s"])
+ALONG_AMPLITUDE_M = float(_STEP6_PARAMS["along_amplitude_m"])
+LATERAL_AMPLITUDE_M = float(_STEP6_PARAMS["lateral_amplitude_m"])
 DEFAULT_FIXED_BASE_Z_M = 0.029423891
 Z_CLEARANCE_ABOVE_HIGHEST_WAYPOINT_M = 0.010
 SAMPLE_DT_S = 0.1

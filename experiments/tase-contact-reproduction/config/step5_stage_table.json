@@ -425,6 +425,7 @@
     },
     {
       "id": "step5_contact_cycloid_baseline_v1",
+      "canonical_profile_ref": "Step5.contact_cycloid",
       "stage": "Step5-contact",
       "owner": "bridge+TP",
       "active": false,
@@ -6041,6 +6042,7 @@
     },
     {
       "id": "step5d_strict_rnn_ablation_v27",
+      "canonical_profile_ref": "Step5.step5d_rnn",
       "stage": "Step5d",
       "owner": "bridge+TP",
       "active": true,

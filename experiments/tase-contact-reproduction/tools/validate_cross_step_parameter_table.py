@@ -8,6 +8,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from tase_protocol_table import resolve_experiment_profile
+
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -148,6 +150,58 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             failures.append("Step6b v2 must be retained evidence, not the global current pointer")
         if step6_v2.get("package_delivery", {}).get("controller_readback_status") != "verified_retained":
             failures.append("Step6b v2 package delivery must be marked verified_retained")
+
+    try:
+        step5_contact = resolve_experiment_profile("Step5.contact_cycloid", root)
+        step5d = resolve_experiment_profile("Step5.step5d_rnn", root)
+        step6a = resolve_experiment_profile("Step6.no_contact_eight", root)
+        step6b_v1 = resolve_experiment_profile("Step6.contact_eight_v1", root)
+        step6b_v2 = resolve_experiment_profile("Step6.contact_eight", root)
+    except Exception as exc:
+        failures.append(f"canonical protocol table cannot be resolved: {exc}")
+        return failures
+
+    step5b_row = step5_rows.get("step5_contact_cycloid_baseline_v1", {})
+    step5d_row = step5_rows.get("step5d_strict_rnn_ablation_v27", {})
+    step6a_row = step6_rows.get("step6a_eight_no_contact_v1", {})
+    step6b_v1_row = step6_rows.get("step6_contact_eight_baseline_v1", {})
+    step6b_v2_row = step6_rows.get("step6_contact_eight_baseline_v2", {})
+
+    canonical_refs = {
+        "step5_contact_cycloid_baseline_v1": (step5b_row, "Step5.contact_cycloid"),
+        "step5d_strict_rnn_ablation_v27": (step5d_row, "Step5.step5d_rnn"),
+        "step6a_eight_no_contact_v1": (step6a_row, "Step6.no_contact_eight"),
+        "step6_contact_eight_baseline_v1": (step6b_v1_row, "Step6.contact_eight_v1"),
+        "step6_contact_eight_baseline_v2": (step6b_v2_row, "Step6.contact_eight"),
+    }
+    for row_id, (row, expected_ref) in canonical_refs.items():
+        if row.get("canonical_profile_ref") != expected_ref:
+            failures.append(f"{row_id} canonical_profile_ref mismatch")
+
+    if step5b_row.get("filter_policy", {}).get("alpha") != step5_contact["parameters"]["normal_filter_alpha"]:
+        failures.append("Step5b normal filter alpha does not match canonical Step5 contact profile")
+    if step5d_row.get("filter_policy", {}).get("alpha") != step5d["parameters"]["normal_filter_alpha"]:
+        failures.append("Step5d v27 normal filter alpha does not match canonical profile")
+    if step5d_row.get("guard", {}).get("post_far_search_rezero_s") != step5d["parameters"]["zero_hold_s"]:
+        failures.append("Step5d v27 post-far-search rezero does not match canonical profile")
+    if step5d_row.get("guard", {}).get("target_force_n") != step5d["parameters"]["target_force_n"]:
+        failures.append("Step5d v27 target force does not match canonical profile")
+    if step5d_row.get("guard", {}).get("speedl_linear_cap_m_s") != step5d["safety_limits"]["speedl_linear_cap_m_s"]:
+        failures.append("Step5d v27 speedl linear cap does not match canonical profile")
+    if step5d_row.get("guard", {}).get("speedl_angular_cap_rad_s") != step5d["safety_limits"]["speedl_angular_cap_rad_s"]:
+        failures.append("Step5d v27 speedl angular cap does not match canonical profile")
+    if step6a_row.get("duration_s") != step6a["parameters"]["trajectory_duration_s"]:
+        failures.append("Step6a duration does not match canonical profile")
+    if step6b_v1_row.get("filter_policy", {}).get("alpha") != step6b_v1["parameters"]["normal_filter_alpha"]:
+        failures.append("Step6b v1 filter alpha does not match canonical profile")
+    if step6b_v2_row.get("duration_s") != step6b_v2["parameters"]["trajectory_duration_s"]:
+        failures.append("Step6b v2 duration does not match canonical profile")
+    if step6b_v2_row.get("filter_policy", {}).get("alpha") != step6b_v2["parameters"]["normal_filter_alpha"]:
+        failures.append("Step6b v2 filter alpha does not match canonical profile")
+    if step6b_v2_row.get("bridge_limits", {}).get("total_linear_limit_m_s") != step6b_v2["safety_limits"]["total_linear_limit_m_s"]:
+        failures.append("Step6b v2 total linear limit does not match canonical profile")
+    if step6b_v2_row.get("bridge_limits", {}).get("angular_limit_rad_s") != step6b_v2["safety_limits"]["angular_limit_rad_s"]:
+        failures.append("Step6b v2 angular limit does not match canonical profile")
 
     return failures
 

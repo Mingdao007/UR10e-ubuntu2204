@@ -12,6 +12,7 @@ from typing import Any
 
 from build_step4e_line_programs import CONFIG_PATH, generated_at, line_cfg, load_json
 from build_step4e_p0p1_programs import build_urp, step4fg_seed_normal_loop_script
+from tase_protocol_table import resolve_experiment_profile
 from step6_eight import (
     ALONG_AMPLITUDE_M,
     CONTROLLER_DIR,
@@ -27,35 +28,42 @@ from step6_eight import (
 )
 
 
-LINE_RUNTIME_LIMIT_S = 35.0
-TARGET_FORCE_N = 5.0
+_STEP6_CONTACT_V1 = resolve_experiment_profile("Step6.contact_eight_v1")
+_STEP6_CONTACT_V2 = resolve_experiment_profile("Step6.contact_eight")
+LINE_RUNTIME_LIMIT_S = float(_STEP6_CONTACT_V2["parameters"]["line_runtime_limit_s"])
+TARGET_FORCE_N = float(_STEP6_CONTACT_V2["parameters"]["target_force_n"])
 ORIENTATION_RUNTIME_LIMIT_S = 8.0
 ORIENTATION_IGNORE_ERROR_RAD = 0.052360
 ORIENTATION_HARD_STOP_ERROR_RAD = 0.523599
 
+
+def _variant_from_profile(profile: dict[str, Any], **extra: Any) -> dict[str, Any]:
+    limits = profile["safety_limits"]
+    return {
+        **extra,
+        "bridge_version": profile["experiment"]["bridge_version"],
+        "motion_limit_m_s": float(limits["motion_limit_m_s"]),
+        "total_linear_limit_m_s": float(limits["total_linear_limit_m_s"]),
+        "normal_velocity_limit_m_s": float(limits["normal_velocity_limit_m_s"]),
+        "angular_limit_rad_s": float(limits["angular_limit_rad_s"]),
+    }
+
+
 VARIANTS: dict[str, dict[str, Any]] = {
-    "v1": {
-        "program_name": "step6b_contact_eight_baseline_v1",
-        "stage_id": "step6_contact_eight_baseline_v1",
-        "bridge_version": "step6b_v1",
-        "title": "Step6b contact 8-shaped baseline v1",
-        "stamp_suffix": "STEP6B_CONTACT_EIGHT_BASELINE_V1",
-        "motion_limit_m_s": 0.004,
-        "total_linear_limit_m_s": 0.006,
-        "normal_velocity_limit_m_s": 0.003,
-        "angular_limit_rad_s": 0.015,
-    },
-    "v2": {
-        "program_name": "step6b_contact_eight_baseline_v2",
-        "stage_id": "step6_contact_eight_baseline_v2",
-        "bridge_version": "step6b_v2",
-        "title": "Step6b contact 8-shaped baseline v2",
-        "stamp_suffix": "STEP6B_CONTACT_EIGHT_BASELINE_V2",
-        "motion_limit_m_s": 0.015,
-        "total_linear_limit_m_s": 0.015,
-        "normal_velocity_limit_m_s": 0.003,
-        "angular_limit_rad_s": 0.060,
-    },
+    "v1": _variant_from_profile(
+        _STEP6_CONTACT_V1,
+        program_name="step6b_contact_eight_baseline_v1",
+        stage_id="step6_contact_eight_baseline_v1",
+        title="Step6b contact 8-shaped baseline v1",
+        stamp_suffix="STEP6B_CONTACT_EIGHT_BASELINE_V1",
+    ),
+    "v2": _variant_from_profile(
+        _STEP6_CONTACT_V2,
+        program_name="step6b_contact_eight_baseline_v2",
+        stage_id="step6_contact_eight_baseline_v2",
+        title="Step6b contact 8-shaped baseline v2",
+        stamp_suffix="STEP6B_CONTACT_EIGHT_BASELINE_V2",
+    ),
 }
 DEFAULT_VARIANT = "v2"
 ACTIVE_VARIANT = VARIANTS[DEFAULT_VARIANT]

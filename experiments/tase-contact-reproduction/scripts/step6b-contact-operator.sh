@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT="/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction"
 BASE_OPERATOR="${ROOT}/scripts/step4e-line-v1-operator.sh"
 EXPECTED_PROGRAM="/programs/andyl/kunwei/step6/step6b_contact_eight_baseline_v1.urp"
+TASE_PROTOCOL_DEFAULTS="$(python3 "${ROOT}/tools/tase_protocol_table.py" operator-env step6b-contact)"
+eval "${TASE_PROTOCOL_DEFAULTS}"
 
 usage() {
   cat <<EOF
@@ -40,13 +42,13 @@ case "$1" in
       exit 40
     fi
     STEP4E_VERSION=step6b_v1 \
-    BRIDGE_DURATION_S="${BRIDGE_DURATION_S:-180}" \
-    MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-50}" \
-    MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-60}" \
-    MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-3.0}" \
+    BRIDGE_DURATION_S="${BRIDGE_DURATION_S:-${TASE_STEP6B_BRIDGE_DURATION_S}}" \
+    MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-${TASE_STEP6B_MAX_NORMAL_FORCE_N}}" \
+    MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-${TASE_STEP6B_MAX_FORCE_NORM_N}}" \
+    MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-${TASE_STEP6B_MAX_TORQUE_NORM_NM}}" \
     STEP4E_NORMAL_FOLLOW_MODE="${STEP4E_NORMAL_FOLLOW_MODE:-filtered_live}" \
-    STEP4E_NORMAL_FILTER_ALPHA="${STEP4E_NORMAL_FILTER_ALPHA:-0.35}" \
-    STEP4E_NORMAL_MIN_FORCE_N="${STEP4E_NORMAL_MIN_FORCE_N:-2.0}" \
+    STEP4E_NORMAL_FILTER_ALPHA="${STEP4E_NORMAL_FILTER_ALPHA:-${TASE_STEP6B_NORMAL_FILTER_ALPHA}}" \
+    STEP4E_NORMAL_MIN_FORCE_N="${STEP4E_NORMAL_MIN_FORCE_N:-${TASE_STEP6B_NORMAL_MIN_FORCE_N}}" \
       "${BASE_OPERATOR}" line-bridge
     ;;
   *)

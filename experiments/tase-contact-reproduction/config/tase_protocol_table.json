@@ -1,0 +1,215 @@
+{
+  "version": 1,
+  "table_schema": {
+    "schema_version": "tase_protocol_table_v1",
+    "source_of_truth": "paper_level_shared_protocol_parameters",
+    "legacy_ledgers": [
+      "config/step5_stage_table.json",
+      "config/step6_stage_table.json"
+    ]
+  },
+  "current": {
+    "paper": "TASE contact reproduction",
+    "default_profiles": {
+      "Step5": "Step5.step5d_rnn",
+      "Step6": "Step6.contact_eight"
+    },
+    "confirmed_parameter_update_policy": "confirmed_flexible_parameters_default_to_this_table"
+  },
+  "paper_shared": {
+    "flow_profiles": {
+      "contact_search_then_control_v1": {
+        "steps": [
+          "move_to_precontact_entry",
+          "fast_search_down",
+          "zero_after_far_search",
+          "near_search_down",
+          "first_contact_latch",
+          "lift_from_first_contact",
+          "posture_or_normal_alignment",
+          "line_entry_preload",
+          "run_contact_path",
+          "exit_or_stop"
+        ],
+        "zero_timing": "after_far_search_before_near_search",
+        "zero_stage_boundary": "after Stage24.0 far search completes and before Stage24.2 near search"
+      },
+      "fixed_z_no_contact_v1": {
+        "steps": [
+          "move_to_path_start",
+          "run_fixed_z_path",
+          "exit_or_stop"
+        ],
+        "zero_timing": "none"
+      }
+    }
+  },
+  "step_profiles": {
+    "Step5": {
+      "description": "Cycloid contact reproduction family; Step5b/Step5d are historical variants under this step.",
+      "shared_flow_profile": "contact_search_then_control_v1",
+      "shared_parameter_profile": "step5_contact_shared_v1"
+    },
+    "Step6": {
+      "description": "Eight-shaped path reproduction family; no-contact and contact branches share the Step6 safe frame.",
+      "shared_flow_profile": "contact_search_then_control_v1",
+      "shared_parameter_profile": "step6_eight_shared_v1"
+    }
+  },
+  "parameter_profiles": {
+    "step5_contact_shared_v1": {
+      "trajectory_duration_s": 60.0,
+      "bridge_duration_s": 180.0,
+      "diagnostic_window_s": 10.0,
+      "line_runtime_limit_s": 15.0,
+      "target_force_n": 12.0,
+      "normal_filter": "v31_filtered_live",
+      "normal_filter_alpha": 0.55,
+      "normal_filter_min_force_n": 2.0,
+      "zero_timing": "after_far_search_before_near_search",
+      "zero_hold_s": 0.25,
+      "first_search_far_speed_m_s": -0.0225,
+      "first_search_near_speed_m_s": -0.0025,
+      "force_p_gain": 0.001,
+      "force_i_gain": 0.00001,
+      "force_damping": 7.0,
+      "integral_limit_n_s": 1.0
+    },
+    "step6_eight_shared_v1": {
+      "trajectory_duration_s": 30.0,
+      "bridge_duration_s": 180.0,
+      "target_force_n": 5.0,
+      "normal_filter": "filtered_live_alpha",
+      "normal_filter_alpha": 0.35,
+      "normal_filter_min_force_n": 2.0,
+      "along_amplitude_m": 0.04,
+      "lateral_amplitude_m": 0.01,
+      "omega_rad_s": 0.2,
+      "line_runtime_limit_s": 35.0
+    }
+  },
+  "safety_limits": {
+    "step5b_contact_safety_v1": {
+      "max_normal_force_n": 50.0,
+      "force_norm_guard_n": 60.0,
+      "max_torque_norm_nm": 3.0,
+      "total_linear_limit_m_s": 0.004,
+      "normal_velocity_limit_m_s": 0.01,
+      "angular_limit_rad_s": 0.15,
+      "reacquire_velocity_m_s": 0.0004
+    },
+    "step5d_v27_safety_v1": {
+      "max_normal_force_n": 35.0,
+      "force_norm_guard_n": 35.0,
+      "max_torque_norm_nm": 4.0,
+      "total_linear_limit_m_s": 0.004,
+      "normal_velocity_limit_m_s": 0.01,
+      "angular_limit_rad_s": 0.015,
+      "speedl_linear_cap_m_s": 0.004,
+      "speedl_angular_cap_rad_s": 0.015,
+      "stage25_cadence_max_gap_s": 0.02,
+      "preload_filtered_min_n": 5.0,
+      "preload_filtered_max_n": 22.0,
+      "preload_raw_min_n": 3.0,
+      "preload_raw_max_n": 25.0,
+      "preload_force_norm_max_n": 35.0,
+      "preload_hold_s": 0.1,
+      "preload_recovery_normal_load_min_n": 0.0,
+      "preload_recovery_normal_load_max_n": 35.0,
+      "preload_force_norm_stop_n": 35.0
+    },
+    "step6a_no_contact_safety_v1": {
+      "velocity_cap_m_s": 0.009,
+      "zero_ftsensor": false,
+      "tcp_payload_write": false
+    },
+    "step6b_v1_safety_v1": {
+      "motion_limit_m_s": 0.004,
+      "total_linear_limit_m_s": 0.006,
+      "normal_velocity_limit_m_s": 0.003,
+      "angular_limit_rad_s": 0.015,
+      "max_normal_force_n": 50.0,
+      "force_norm_guard_n": 60.0,
+      "max_torque_norm_nm": 3.0
+    },
+    "step6b_v2_safety_v1": {
+      "motion_limit_m_s": 0.015,
+      "total_linear_limit_m_s": 0.015,
+      "normal_velocity_limit_m_s": 0.003,
+      "angular_limit_rad_s": 0.06,
+      "max_normal_force_n": 50.0,
+      "force_norm_guard_n": 60.0,
+      "max_torque_norm_nm": 3.0
+    }
+  },
+  "experiment_profiles": {
+    "Step5.contact_cycloid": {
+      "step": "Step5",
+      "task": "contact_cycloid",
+      "flow_profile": "contact_search_then_control_v1",
+      "parameter_profile": "step5_contact_shared_v1",
+      "safety_limits": "step5b_contact_safety_v1",
+      "evidence_profile": "step5b_v3_success",
+      "runtime_family": "step5b_contact"
+    },
+    "Step5.step5d_rnn": {
+      "step": "Step5",
+      "task": "contact_cycloid",
+      "flow_profile": "contact_search_then_control_v1",
+      "parameter_profile": "step5_contact_shared_v1",
+      "safety_limits": "step5d_v27_safety_v1",
+      "evidence_profile": "step5b_v3_success",
+      "runtime_family": "step5d_rnn",
+      "current_program": "step5d_strict_rnn_ablation_v27",
+      "stage25_default_control_mode": "speedl_cartesian_oracle"
+    },
+    "Step6.no_contact_eight": {
+      "step": "Step6",
+      "task": "no_contact_eight",
+      "flow_profile": "fixed_z_no_contact_v1",
+      "parameter_profile": "step6_eight_shared_v1",
+      "safety_limits": "step6a_no_contact_safety_v1",
+      "runtime_family": "step6a_no_contact"
+    },
+    "Step6.contact_eight_v1": {
+      "step": "Step6",
+      "task": "contact_eight",
+      "flow_profile": "contact_search_then_control_v1",
+      "parameter_profile": "step6_eight_shared_v1",
+      "safety_limits": "step6b_v1_safety_v1",
+      "evidence_profile": "step6b_v1_retained",
+      "runtime_family": "step6b_contact",
+      "bridge_version": "step6b_v1"
+    },
+    "Step6.contact_eight": {
+      "step": "Step6",
+      "task": "contact_eight",
+      "flow_profile": "contact_search_then_control_v1",
+      "parameter_profile": "step6_eight_shared_v1",
+      "safety_limits": "step6b_v2_safety_v1",
+      "evidence_profile": "step6b_v2_retained",
+      "runtime_family": "step6b_contact",
+      "bridge_version": "step6b_v2"
+    }
+  },
+  "evidence": {
+    "step5b_v3_success": {
+      "source_profile": "step5b_v3_success",
+      "run_dir": "runs/bridge_step5b_contact_cycloid_baseline_v3_20260702_113430",
+      "metadata": "runs/bridge_step5b_contact_cycloid_baseline_v3_20260702_113430/metadata.json",
+      "normal_filter_alpha": 0.55,
+      "status": "retained_contact_evidence"
+    },
+    "step6b_v1_retained": {
+      "source_profile": "step6b_v1_retained",
+      "program": "step6b_contact_eight_baseline_v1",
+      "status": "retained"
+    },
+    "step6b_v2_retained": {
+      "source_profile": "step6b_v2_retained",
+      "run_dir": "runs/bridge_step6b_contact_eight_baseline_v2_20260616_164353",
+      "summary": "runs/bridge_step6b_contact_eight_baseline_v2_20260616_164353/summary.json",
+      "status": "verified_retained"
+    }
+  }
+}

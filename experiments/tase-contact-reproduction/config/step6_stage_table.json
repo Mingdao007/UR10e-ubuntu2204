@@ -38,6 +38,7 @@
   "stages": [
     {
       "id": "step6a_eight_no_contact_v1",
+      "canonical_profile_ref": "Step6.no_contact_eight",
       "stage": "Step6a",
       "owner": "TP",
       "active": false,
@@ -81,6 +82,7 @@
     },
     {
       "id": "step6_contact_eight_baseline_v1",
+      "canonical_profile_ref": "Step6.contact_eight_v1",
       "program": "step6b_contact_eight_baseline_v1",
       "stage": "Step6b",
       "owner": "TP + bridge",
@@ -133,6 +135,7 @@
     },
     {
       "id": "step6_contact_eight_baseline_v2",
+      "canonical_profile_ref": "Step6.contact_eight",
       "program": "step6b_contact_eight_baseline_v2",
       "stage": "Step6b",
       "owner": "TP + bridge",

@@ -27,6 +27,7 @@ from step5d_runtime_interface import (
     STEP5D_LINE_ENTRY_PARAM_VALID_CODE,
     STEP5D_TUNING_BUNDLE,
 )
+from tase_protocol_table import resolve_experiment_profile
 
 
 @dataclass(frozen=True)
@@ -96,13 +97,18 @@ LOCAL_CANDIDATE_MARKER = ".local_tp_candidate.json"
 CONTROLLER_DIR = "/programs/andyl/kunwei/step5"
 POSE_CONTRACT_ID = PRE_CONTACT_GRAVITY_DOWN_CONTRACT_ID
 SEARCH_GRAVITY_DOWN_ROTVEC = contract_target_rotvec_rad(POSE_CONTRACT_ID)
-TARGET_FORCE_N = 12.0
-BRIDGE_NORMAL_FILTER_ALPHA = 0.55
+_STEP5D_PROTOCOL = resolve_experiment_profile("Step5.step5d_rnn")
+_STEP5D_PARAMS = _STEP5D_PROTOCOL["parameters"]
+_STEP5D_LIMITS = _STEP5D_PROTOCOL["safety_limits"]
+TARGET_FORCE_N = float(_STEP5D_PARAMS["target_force_n"])
+BRIDGE_NORMAL_FILTER_ALPHA = float(_STEP5D_PARAMS["normal_filter_alpha"])
 QDOT_CAP_RAD_S = 0.050
 QDOT_CLEAR_ZERO_TOL_RAD_S = 0.0005
 JOINT_ACCEL_RAD_S2 = 0.050
-CARTESIAN_LINEAR_CAP_M_S = 0.004
-CARTESIAN_ANGULAR_CAP_RAD_S = DEFAULT_SPEC.cartesian_angular_cap_rad_s
+CARTESIAN_LINEAR_CAP_M_S = float(_STEP5D_LIMITS["speedl_linear_cap_m_s"])
+CARTESIAN_ANGULAR_CAP_RAD_S = float(_STEP5D_LIMITS["speedl_angular_cap_rad_s"])
+LINE_RUNTIME_LIMIT_S = float(_STEP5D_PARAMS["line_runtime_limit_s"])
+DIAGNOSTIC_WINDOW_S = float(_STEP5D_PARAMS["diagnostic_window_s"])
 LINE_ACCEL_M_S2 = 0.050
 ORIENTATION_SKIP_ERROR_RAD = 0.069813
 RAW_NORMAL_GUARD_N = 25.0
@@ -144,8 +150,8 @@ SECOND_SEARCH_FAR_SPEED_M_S = -0.0025
 SECOND_SEARCH_NEAR_SPEED_M_S = -0.0025
 ENTRY_MOVEL_ACCEL_M_S2 = 0.090
 ENTRY_MOVEL_SPEED_M_S = 0.060
-FIRST_SEARCH_FAR_SPEED_M_S = -0.0225
-FIRST_SEARCH_NEAR_SPEED_M_S = -0.0025
+FIRST_SEARCH_FAR_SPEED_M_S = float(_STEP5D_PARAMS["first_search_far_speed_m_s"])
+FIRST_SEARCH_NEAR_SPEED_M_S = float(_STEP5D_PARAMS["first_search_near_speed_m_s"])
 
 
 def spec_for(program: str | None = None) -> Step5dAblationSpec:
@@ -724,8 +730,11 @@ def build_script(
         "# SAFETY: raw normal guard 50 N, force norm guard 60 N, torque guard 3.0 Nm.",
         f"# SAFETY: raw normal guard {raw_guard:.0f} N, force norm guard {force_guard:.0f} N, torque guard 4.0 Nm.",
     )
-    script = script.replace("local line_runtime_limit_s = 65.000", "local line_runtime_limit_s = 15.000")
-    script = script.replace("local line_success_progress_m = 60.000000000", "local line_success_progress_m = 10.000000000")
+    script = script.replace("local line_runtime_limit_s = 65.000", f"local line_runtime_limit_s = {LINE_RUNTIME_LIMIT_S:.3f}")
+    script = script.replace(
+        "local line_success_progress_m = 60.000000000",
+        f"local line_success_progress_m = {DIAGNOSTIC_WINDOW_S:.9f}",
+    )
     script = script.replace(
         "codex_wait_for_fresh_heartbeat(30.0)",
         f"codex_wait_for_fresh_heartbeat({bridge_wait_timeout_s:.1f})",
@@ -737,7 +746,7 @@ def build_script(
             "PURPOSE: v31 contact search, first-contact normal latch, optional 4deg skip-lift/25.2 gate, otherwise lift and 25.2 attitude correction, 25.3 line-entry gate, then Step5 table-driven contact cycloid reference for 60 s.",
             "PURPOSE: v31 contact search, first-contact normal latch, no lift/25.2 attitude cycle and no second contact search, 25.3 line-entry gate, then Step5 table-driven contact cycloid reference for 60 s.",
         ),
-        f"PURPOSE: v31 contact search with Stage22/24 gravity-down pre-contact posture, first-contact normal latch, no lift/25.2 attitude cycle and no second contact search, 25.3 bridge deadband acquire into the {line_entry.normal_load_min_n:.1f}-{line_entry.normal_load_max_n:.1f}N filtered preload window with {line_entry.raw_sanity_min_n:.1f}-{line_entry.raw_sanity_max_n:.1f}N raw sanity and bridge-time preload parameter channel, 25.95 register clear barrier, then {spec.version_label} Step5d ablation Stage25.0 multi-layout speedl/speedj diagnostic for 10 s.",
+        f"PURPOSE: v31 contact search with Stage22/24 gravity-down pre-contact posture, first-contact normal latch, no lift/25.2 attitude cycle and no second contact search, 25.3 bridge deadband acquire into the {line_entry.normal_load_min_n:.1f}-{line_entry.normal_load_max_n:.1f}N filtered preload window with {line_entry.raw_sanity_min_n:.1f}-{line_entry.raw_sanity_max_n:.1f}N raw sanity and bridge-time preload parameter channel, 25.95 register clear barrier, then {spec.version_label} Step5d ablation Stage25.0 multi-layout speedl/speedj diagnostic for {DIAGNOSTIC_WINDOW_S:g} s.",
         "purpose",
     )
     script = _force_gravity_down_search_pose(script)
@@ -850,7 +859,7 @@ Boundary:
   stop_request remains hard for operational over-load, cage margin exhaustion,
   semantic failure, hard force/torque/joint/sensor gates, heartbeat/cmd_valid
   failure, Dashboard mismatch, or timeout.
-  Stage 25.0 diagnostic progress target is 10 s.
+  Stage 25.0 diagnostic progress target is {DIAGNOSTIC_WINDOW_S:g} s.
   Stage 22 entry movel is 0.060 m/s at 0.090 m/s^2; Stage 24 far search is
   {abs(FIRST_SEARCH_FAR_SPEED_M_S):.4f} m/s down, near search remains {abs(FIRST_SEARCH_NEAR_SPEED_M_S):.4f} m/s.
 
@@ -977,9 +986,9 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5d
         "entry and far-search speedup": f"movel(entry_xy_pose, a={ENTRY_MOVEL_ACCEL_M_S2:.3f}, v={ENTRY_MOVEL_SPEED_M_S:.3f}, r=0.0)" in script
         and f"40.000, {FIRST_SEARCH_FAR_SPEED_M_S:.4f}, {FIRST_SEARCH_NEAR_SPEED_M_S:.4f})" in script
         and "Stage 22 entry movel is 0.060 m/s" in txt,
-        "10s diagnostic window": "local line_runtime_limit_s = 15.000" in script
-        and "local line_success_progress_m = 10.000000000" in script
-        and "Stage 25.0 diagnostic progress target is 10 s" in txt,
+        "10s diagnostic window": f"local line_runtime_limit_s = {LINE_RUNTIME_LIMIT_S:.3f}" in script
+        and f"local line_success_progress_m = {DIAGNOSTIC_WINDOW_S:.9f}" in script
+        and f"Stage 25.0 diagnostic progress target is {DIAGNOSTIC_WINDOW_S:g} s" in txt,
         "raw contact guards": f"codex_abs(normal_force) > {raw_guard:.1f}" in script
         and f"force_norm > {force_guard:.1f}" in script
         and f"torque_norm > {TORQUE_NORM_GUARD_NM:.1f}" in script,
