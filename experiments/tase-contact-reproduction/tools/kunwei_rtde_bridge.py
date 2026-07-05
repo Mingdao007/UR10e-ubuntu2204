@@ -66,6 +66,7 @@ from step5d_runtime_interface import (  # noqa: E402
     STEP5D_ABLATION_V25_STAGE_ID,
     STEP5D_ABLATION_V26_STAGE_ID,
     STEP5D_ABLATION_V27_STAGE_ID,
+    STEP5D_ABLATION_V28_STAGE_ID,
     STEP5D_LINE_ENTRY_PARAM_VALID_CODE,
     STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE,
     STEP5D_STAGE25_CONTROL_MODES,
@@ -470,6 +471,7 @@ STEP5D_LIVEPREP_STAGE_IDS = {
     STEP5D_ABLATION_V25_STAGE_ID,
     STEP5D_ABLATION_V26_STAGE_ID,
     STEP5D_ABLATION_V27_STAGE_ID,
+    STEP5D_ABLATION_V28_STAGE_ID,
 }
 STEP5D_TCP_CAGE_PROFILES = {
     STEP5D_LIVEPREP_V15A_STAGE_ID,
@@ -485,6 +487,7 @@ STEP5D_TCP_CAGE_PROFILES = {
     STEP5D_ABLATION_V25_STAGE_ID,
     STEP5D_ABLATION_V26_STAGE_ID,
     STEP5D_ABLATION_V27_STAGE_ID,
+    STEP5D_ABLATION_V28_STAGE_ID,
 }
 STEP5D_SEMANTIC_ORIENTATION_TOLERANCE_RAD = math.radians(5.0)
 STEP5D_SEARCH_POSE_CONTRACT_ID = PRE_CONTACT_GRAVITY_DOWN_CONTRACT_ID
@@ -1613,7 +1616,7 @@ def step5d_v11_deadband_acquire_velocity(
 
 
 def step5d_liveprep_contact_window_limits(bridge_profile: str) -> tuple[float, float, float]:
-    if bridge_profile == STEP5D_ABLATION_V27_STAGE_ID:
+    if bridge_profile in {STEP5D_ABLATION_V27_STAGE_ID, STEP5D_ABLATION_V28_STAGE_ID}:
         return (
             STEP5D_V27_ENTRY_FILTERED_NORMAL_LOAD_MIN_N,
             STEP5D_V27_ENTRY_FILTERED_NORMAL_LOAD_MAX_N,
@@ -3210,7 +3213,13 @@ def compute_bridge_values(
     step5d_liveprep_v25_profile = args.bridge_profile == STEP5D_ABLATION_V25_STAGE_ID
     step5d_liveprep_v26_profile = args.bridge_profile == STEP5D_ABLATION_V26_STAGE_ID
     step5d_liveprep_v27_profile = args.bridge_profile == STEP5D_ABLATION_V27_STAGE_ID
-    step5d_ablation_profile = step5d_liveprep_v25_profile or step5d_liveprep_v26_profile or step5d_liveprep_v27_profile
+    step5d_liveprep_v28_profile = args.bridge_profile == STEP5D_ABLATION_V28_STAGE_ID
+    step5d_step5b_speedl_live_profile = step5d_liveprep_v27_profile or step5d_liveprep_v28_profile
+    step5d_ablation_profile = (
+        step5d_liveprep_v25_profile
+        or step5d_liveprep_v26_profile
+        or step5d_step5b_speedl_live_profile
+    )
     step5d_liveprep_v16_or_v17_profile = step5d_liveprep_v16_profile or step5d_liveprep_v17_profile
     step5d_liveprep_v18_or_v19_profile = step5d_liveprep_v18_profile or step5d_liveprep_v19_profile
     step5d_liveprep_v18_or_newer_profile = (
@@ -3222,7 +3231,7 @@ def compute_bridge_values(
         or step5d_liveprep_v24_profile
         or step5d_liveprep_v25_profile
         or step5d_liveprep_v26_profile
-        or step5d_liveprep_v27_profile
+        or step5d_step5b_speedl_live_profile
     )
     step5d_liveprep_v17_or_newer_profile = step5d_liveprep_v17_profile or step5d_liveprep_v18_or_newer_profile
     if (
@@ -3232,7 +3241,7 @@ def compute_bridge_values(
         or step5d_liveprep_v24_profile
         or step5d_liveprep_v25_profile
         or step5d_liveprep_v26_profile
-        or step5d_liveprep_v27_profile
+        or step5d_step5b_speedl_live_profile
     ):
         step5d_entry_raw_sanity_min_n = float(args.step5d_preload_raw_min_n)
         step5d_entry_raw_sanity_max_n = float(args.step5d_preload_raw_max_n)
@@ -3270,7 +3279,7 @@ def compute_bridge_values(
         or step5d_liveprep_v24_profile
         or step5d_liveprep_v25_profile
         or step5d_liveprep_v26_profile
-        or step5d_liveprep_v27_profile
+        or step5d_step5b_speedl_live_profile
     )
     if step5d_liveprep_profile:
         try:
@@ -3645,7 +3654,7 @@ def compute_bridge_values(
                 hold_timeout_s=STEP5D_V24_LOW_LOAD_HOLD_TIMEOUT_S if step5d_liveprep_v24_profile else STEP5D_V16_LOW_LOAD_HOLD_TIMEOUT_S if step5d_liveprep_v16_or_v17_profile else STEP5D_V13_LOW_LOAD_HOLD_TIMEOUT_S,
                 high_window_dwell_stop_s=STEP5D_V16_HIGH_WINDOW_DWELL_STOP_S if (step5d_liveprep_v16_or_v17_profile or step5d_liveprep_v18_or_newer_profile) else STEP5D_V13_HIGH_WINDOW_DWELL_STOP_S,
                 allow_high_contact_below_hard_force=step5d_liveprep_v18_or_newer_profile or not step5d_liveprep_v16_or_v17_profile,
-                force_norm_hard_stop_n=STEP5D_V27_SENSOR_FORCE_HARD_STOP_N if step5d_liveprep_v27_profile else STEP5D_V24_SENSOR_FORCE_HARD_STOP_N if (step5d_liveprep_v24_profile or step5d_ablation_profile) else STEP5D_V18_SENSOR_FORCE_HARD_STOP_N if step5d_liveprep_v18_or_newer_profile else 60.0,
+                force_norm_hard_stop_n=STEP5D_V27_SENSOR_FORCE_HARD_STOP_N if step5d_step5b_speedl_live_profile else STEP5D_V24_SENSOR_FORCE_HARD_STOP_N if (step5d_liveprep_v24_profile or step5d_ablation_profile) else STEP5D_V18_SENSOR_FORCE_HARD_STOP_N if step5d_liveprep_v18_or_newer_profile else 60.0,
                 cage_primary_low_load_reacquire=step5d_liveprep_v18_or_newer_profile and not (step5d_liveprep_v24_profile or step5d_ablation_profile),
                 defer_low_load_hold_timeout=not (step5d_liveprep_v24_profile or step5d_ablation_profile),
             )
@@ -4241,7 +4250,7 @@ def compute_bridge_values(
                         max_angular_rad_s=float(args.bridge_angular_limit_rad_s),
                     )
                 step5d_outer_xdot_joint_feasible = step5d_outer_xdot_limited
-                if (step5d_liveprep_v26_profile or step5d_liveprep_v27_profile) and step5d_stage25_control_mode != "speedl_cartesian_oracle":
+                if (step5d_liveprep_v26_profile or step5d_step5b_speedl_live_profile) and step5d_stage25_control_mode != "speedl_cartesian_oracle":
                     step5d_outer_xdot_joint_feasible, step5d_xdot_feasibility_diagnostics = (
                         scale_step5d_xdot_for_joint_feasibility(
                             step5d_outer_xdot_limited,
@@ -4277,7 +4286,7 @@ def compute_bridge_values(
                     or step5d_liveprep_v15_profile
                     or (step5d_liveprep_online_cage_profile and not step5d_ablation_profile)
                     or (
-                        (step5d_liveprep_v26_profile or step5d_liveprep_v27_profile)
+                        (step5d_liveprep_v26_profile or step5d_step5b_speedl_live_profile)
                         and step5d_stage25_control_mode != "speedl_cartesian_oracle"
                     )
                 ):
@@ -4406,7 +4415,7 @@ def compute_bridge_values(
                             hold_timeout_s=STEP5D_V24_LOW_LOAD_HOLD_TIMEOUT_S if step5d_liveprep_v24_profile else STEP5D_V16_LOW_LOAD_HOLD_TIMEOUT_S if step5d_liveprep_v16_or_v17_profile else STEP5D_V13_LOW_LOAD_HOLD_TIMEOUT_S,
                             high_window_dwell_stop_s=STEP5D_V16_HIGH_WINDOW_DWELL_STOP_S if (step5d_liveprep_v16_or_v17_profile or step5d_liveprep_v18_or_newer_profile) else STEP5D_V13_HIGH_WINDOW_DWELL_STOP_S,
                             allow_high_contact_below_hard_force=step5d_liveprep_v18_or_newer_profile or not step5d_liveprep_v16_or_v17_profile,
-                            force_norm_hard_stop_n=STEP5D_V27_SENSOR_FORCE_HARD_STOP_N if step5d_liveprep_v27_profile else STEP5D_V24_SENSOR_FORCE_HARD_STOP_N if (step5d_liveprep_v24_profile or step5d_ablation_profile) else STEP5D_V18_SENSOR_FORCE_HARD_STOP_N if step5d_liveprep_v18_or_newer_profile else 60.0,
+                            force_norm_hard_stop_n=STEP5D_V27_SENSOR_FORCE_HARD_STOP_N if step5d_step5b_speedl_live_profile else STEP5D_V24_SENSOR_FORCE_HARD_STOP_N if (step5d_liveprep_v24_profile or step5d_ablation_profile) else STEP5D_V18_SENSOR_FORCE_HARD_STOP_N if step5d_liveprep_v18_or_newer_profile else 60.0,
                             cage_primary_low_load_reacquire=step5d_liveprep_v18_or_newer_profile and not (step5d_liveprep_v24_profile or step5d_ablation_profile),
                             defer_low_load_hold_timeout=not (step5d_liveprep_v24_profile or step5d_ablation_profile),
                         )
@@ -4448,7 +4457,7 @@ def compute_bridge_values(
                         step5d_stage25_command = raw_stage25_command
                         step5d_stage25_layout_tag = STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE
                         if (
-                            step5d_liveprep_v27_profile
+                            step5d_step5b_speedl_live_profile
                             and STEP5D_ABLATION_SPEEDL_ORIENTATION_SHADOW_ONLY
                         ):
                             step5d_speedl_shadow_raw_linear_cmd = (
@@ -6082,7 +6091,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         def preload_default_was_not_supplied(flag: str, *env_names: str) -> bool:
             return flag not in argv_list and all(os.environ.get(name, "") == "" for name in env_names)
 
-        if args.bridge_profile == STEP5D_ABLATION_V27_STAGE_ID:
+        if args.bridge_profile in {STEP5D_ABLATION_V27_STAGE_ID, STEP5D_ABLATION_V28_STAGE_ID}:
             default_filtered_min_n = STEP5D_V27_ENTRY_FILTERED_NORMAL_LOAD_MIN_N
             default_filtered_max_n = STEP5D_V27_ENTRY_FILTERED_NORMAL_LOAD_MAX_N
             default_raw_min_n = STEP5D_V27_ENTRY_RAW_NORMAL_LOAD_MIN_N
@@ -6190,6 +6199,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                 STEP5D_ABLATION_V25_STAGE_ID,
                 STEP5D_ABLATION_V26_STAGE_ID,
                 STEP5D_ABLATION_V27_STAGE_ID,
+                STEP5D_ABLATION_V28_STAGE_ID,
             }
             else 0.30
         )
@@ -6384,7 +6394,7 @@ def main(argv: list[str] | None = None) -> int:
             "step5d_v22_liveprep_25.95": "input_double_register_37..42 must be bridge-cleared qdot-safe zeros, 43 must be 0, and 47 must not equal the preload param-valid code before TP enters Stage 25.0.",
             "step5d_v23_liveprep_25.95": "TP requires qdot registers 37..42 to be near-zero before Stage 25.0; bridge also applies a post-RNN normal-direction command guard while preserving RNN as the object under test.",
             "step5d_v24_liveprep_25.95": "TP keeps the v23 near-zero qdot-clear barrier; bridge stops low/no-contact instead of executing active_reacquire_solver qdot and adds post-RNN tracking reversal detection.",
-            "step5d_strict_rnn_ablation_v27_25.0": "In speedl_cartesian_oracle, bridge writes layout tag 523 and live linear vx/vy/vz, but forces wx/wy/wz to 0 for all Stage25.0; limited raw angular speedl command remains diagnostic in _step5d_speedl_shadow_raw_w* fields.",
+            "step5d_strict_rnn_ablation_v27_v28_25.0": "In speedl_cartesian_oracle, bridge writes layout tag 523 and Step5b-live linear vx/vy/vz, forces wx/wy/wz to 0 for all Stage25.0, and records limited raw Step5d angular/linear commands in _step5d_speedl_shadow_raw_* fields.",
             "v22_seed_normal_loop": "25.05 latches the first contact normal; 25.2 outputs target TCP rotvec for optional lifted posture correction; 25.3 reacquires 5 N before 25.0 line control.",
             "v23_seed_normal_loop_failed_archive": "24.0/24.2 latch the first contact normal; 25.2 outputs angular speedl wx/wy/wz for lifted posture correction; 25.3 reacquires 5 N before 25.0 line control. Archived after 2026-06-12 stop_reason=13 at 25.2.",
             "v24_seed_normal_loop_evidence": "One-step entry scaffold evidence; first search envelope still used a fixed 80 mm far-search transition.",

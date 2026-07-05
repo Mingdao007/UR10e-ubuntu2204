@@ -341,10 +341,17 @@ class Step5dV15PermissiveRecoveryTest(unittest.TestCase):
         self.assertEqual(current_candidate["guard"]["target_force_n"], 12.0)
         self.assertEqual(current_candidate["guard"]["line_entry_required_s"], 0.1)
         self.assertEqual(current_candidate["guard"]["line_entry_param_valid_code"], 521.0)
-        self.assertEqual(current_candidate["guard"]["runtime_limit_s"], 15.0)
-        expected_raw_guard_n = 50.0 if current["program"] == "step5d_strict_rnn_ablation_v27" else 25.0
-        expected_force_guard_n = 60.0 if current["program"] == "step5d_strict_rnn_ablation_v27" else 25.0
-        expected_torque_guard_nm = 3.0 if current["program"] == "step5d_strict_rnn_ablation_v27" else 4.0
+        step5b_speedl_live_programs = {
+            "step5d_strict_rnn_ablation_v27",
+            "step5d_strict_rnn_ablation_v28",
+        }
+        self.assertEqual(
+            current_candidate["guard"]["runtime_limit_s"],
+            65.0 if current["program"] == "step5d_strict_rnn_ablation_v28" else 15.0,
+        )
+        expected_raw_guard_n = 50.0 if current["program"] in step5b_speedl_live_programs else 25.0
+        expected_force_guard_n = 60.0 if current["program"] in step5b_speedl_live_programs else 25.0
+        expected_torque_guard_nm = 3.0 if current["program"] in step5b_speedl_live_programs else 4.0
         self.assertEqual(current_candidate["guard"]["raw_normal_guard_n"], expected_raw_guard_n)
         self.assertEqual(current_candidate["guard"]["force_norm_guard_n"], expected_force_guard_n)
         self.assertEqual(current_candidate["guard"]["torque_norm_guard_nm"], expected_torque_guard_nm)
@@ -391,6 +398,7 @@ class Step5dV15PermissiveRecoveryTest(unittest.TestCase):
             "step5d_strict_rnn_ablation_v25",
             "step5d_strict_rnn_ablation_v26",
             "step5d_strict_rnn_ablation_v27",
+            "step5d_strict_rnn_ablation_v28",
         }:
             if current["program"] == "step5d_strict_rnn_ablation_v25":
                 self.assertEqual(current_candidate["guard"]["line_entry_normal_load_min_n"], 10.5)
@@ -415,6 +423,9 @@ class Step5dV15PermissiveRecoveryTest(unittest.TestCase):
                 self.assertEqual(current_candidate["guard"]["stage25_cadence_max_gap_s"], 0.020)
                 self.assertEqual(current_candidate["guard"]["stage25_command_consumption_echo_register"], 47.0)
                 self.assertIn("stage25_cadence_consumption_instrumentation", current["bridge_profile"])
+                if current["program"] == "step5d_strict_rnn_ablation_v28":
+                    self.assertEqual(current_candidate["guard"]["stage25_success_target_s"], 60.0)
+                    self.assertEqual(current_candidate["guard"]["stage25_runtime_limit_s"], 65.0)
                 expected_mode = "speedl_cartesian_oracle"
             self.assertEqual(current_candidate["guard"]["stage25_95_register_clear_required_s"], 0.006)
             self.assertEqual(current_candidate["guard"]["stage25_95_register_clear_timeout_s"], 1.0)
@@ -494,9 +505,10 @@ class Step5dV15PermissiveRecoveryTest(unittest.TestCase):
         self.assertEqual(current["evidence"]["step5d_projector_root_cause_fix"]["status"], "present_in_worktree")
         self.assertFalse(current["bridge_trigger"]["bridge_has_started"])
         self.assertFalse(current["bridge_trigger"]["live_motion_authorized"])
-        self.assertIn("040900 failed retained fix-validation evidence", current["bridge_trigger"]["blocked_reason"])
+        self.assertIn("v28 package delivery is complete", current["bridge_trigger"]["blocked_reason"])
+        self.assertIn("requires an explicit live trigger", current["bridge_trigger"]["blocked_reason"])
         self.assertIn(
-            "offline bridge-runtime copy-Step5b-live / Step5d-shadow fix audited",
+            "TP program opened on controller read-back v28 package",
             current["bridge_trigger"]["required_before_live"],
         )
         self.assertEqual(current["bridge_trigger"]["allowed_tokens"], ["LIVE STEP5D STRICT RNN LIVEPREP"])

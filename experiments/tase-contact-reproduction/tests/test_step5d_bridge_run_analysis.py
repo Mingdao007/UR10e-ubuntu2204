@@ -30,6 +30,7 @@ V27_CORROBORATION_RUN_ID = "bridge_step5d_strict_rnn_ablation_v27_20260706_02585
 V27_STARTUP_FAILURE_RUN_ID = "bridge_step5d_strict_rnn_ablation_v27_20260706_020732"
 V27_SHADOW_EXPERIMENT_RUN_ID = "bridge_step5d_strict_rnn_ablation_v27_20260706_033032"
 V27_FORCE_OVERSHOOT_RUN_ID = "bridge_step5d_strict_rnn_ablation_v27_20260706_040900"
+V27_FIX_VALIDATION_SUCCESS_RUN_ID = "bridge_step5d_strict_rnn_ablation_v27_20260706_045513"
 
 
 def write_bridge_csv(path: Path, rows: list[dict[str, str]], fieldnames: list[str] | None = None) -> None:
@@ -273,6 +274,123 @@ def write_v27_040900_force_overshoot_slice(run_dir: Path) -> None:
                 "_step5d_speedl_shadow_raw_wz_rad_s": "0.000000000",
             }
         )
+    write_bridge_csv(csv_path, rows, fieldnames=fieldnames)
+
+
+def write_v27_045513_fix_validation_success_slice(run_dir: Path) -> None:
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "metadata.json").write_text(
+        json.dumps(
+            {
+                "args": {
+                    "bridge_profile": "step5d_strict_rnn_ablation_v27",
+                    "bridge_angular_limit_rad_s": 0.015,
+                }
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    csv_path = run_dir / "bridge_rtde_500hz.csv"
+    fieldnames = [
+        *FIELDNAMES,
+        "_step5d_stage25_echo_consumed",
+        "_step5d_stage25_echo_layout_tag",
+        "_step5d_stage25_echo_cmd_valid",
+        "_step5d_stage25_echo_command_norm",
+        "_step5d_contact_safety_reason",
+        "_step4e_normal_filter_source",
+        "_step5d_live_control_source",
+        "step4e_orientation_error_rad",
+        "_step5d_outer_orientation_error_rad",
+        "step4e_cmd_vx_m_s",
+        "step4e_cmd_vy_m_s",
+        "step4e_cmd_vz_m_s",
+        "step4e_cmd_wx_rad_s",
+        "step4e_cmd_wy_rad_s",
+        "step4e_cmd_wz_rad_s",
+        "_step5d_outer_xdot_limited_approach_normal_m_s",
+        "_step5d_speedl_orientation_shadow_only",
+        "_step5d_speedl_shadow_raw_vx_m_s",
+        "_step5d_speedl_shadow_raw_vy_m_s",
+        "_step5d_speedl_shadow_raw_vz_m_s",
+        "_step5d_speedl_shadow_raw_wx_rad_s",
+        "_step5d_speedl_shadow_raw_wy_rad_s",
+        "_step5d_speedl_shadow_raw_wz_rad_s",
+    ]
+    rows: list[dict[str, str]] = [
+        {
+            "t_monotonic_s": "1.900000",
+            "ur_output_double_register_30": "11",
+            "ur_output_double_register_35": "24.2",
+            "_step4e_normal_load_n": "12.000000000",
+            "_step5d_force_settle_filtered_normal_load_n": "12.000000000",
+            "force_norm_n": "12.000000000",
+        },
+        {
+            "t_monotonic_s": "1.950000",
+            "ur_output_double_register_30": "0",
+            "ur_output_double_register_35": "25.05",
+            "_step4e_normal_load_n": "12.000000000",
+            "_step5d_force_settle_filtered_normal_load_n": "12.000000000",
+            "force_norm_n": "12.000000000",
+        },
+    ]
+    stage25_rows = 5109
+    unconsumed_head = 4
+    unconsumed_tail = 5
+    t_s = 2.0
+    for idx in range(stage25_rows):
+        if idx == 4922:
+            t_s += 0.048837
+        elif idx > 0:
+            t_s += 0.002
+        sawtooth = ((idx % 200) - 100) / 100.0
+        load = 12.0 + 0.8 * sawtooth
+        consumed = unconsumed_head <= idx < stage25_rows - unconsumed_tail
+        rows.append(
+            {
+                "t_monotonic_s": f"{t_s:.6f}",
+                "ur_output_double_register_30": "0",
+                "ur_output_double_register_35": "25.0",
+                "_step4e_normal_load_n": f"{load:.9f}",
+                "_step5d_force_settle_filtered_normal_load_n": f"{load:.9f}",
+                "force_norm_n": f"{abs(load):.9f}",
+                "_step5d_stage25_echo_consumed": "1" if consumed else "0",
+                "_step5d_stage25_echo_layout_tag": "523",
+                "_step5d_stage25_echo_cmd_valid": "1",
+                "_step5d_stage25_echo_command_norm": "0.0012",
+                "_step5d_contact_safety_reason": "ok",
+                "_step4e_normal_filter_source": "filtered_live",
+                "_step5d_live_control_source": "step5b_speedl_live_step5d_shadow",
+                "step4e_orientation_error_rad": "0.116000000",
+                "_step5d_outer_orientation_error_rad": "0.116000000",
+                "step4e_cmd_vx_m_s": "0.000150000",
+                "step4e_cmd_vy_m_s": "-0.000050000",
+                "step4e_cmd_vz_m_s": "0.000250000",
+                "step4e_cmd_wx_rad_s": "0.000000000",
+                "step4e_cmd_wy_rad_s": "0.000000000",
+                "step4e_cmd_wz_rad_s": "0.000000000",
+                "_step5d_outer_xdot_limited_approach_normal_m_s": "0.000250000",
+                "_step5d_speedl_orientation_shadow_only": "1",
+                "_step5d_speedl_shadow_raw_vx_m_s": "0.000150000",
+                "_step5d_speedl_shadow_raw_vy_m_s": "-0.000050000",
+                "_step5d_speedl_shadow_raw_vz_m_s": "0.000250000",
+                "_step5d_speedl_shadow_raw_wx_rad_s": "0.007250000",
+                "_step5d_speedl_shadow_raw_wy_rad_s": "-0.013130000",
+                "_step5d_speedl_shadow_raw_wz_rad_s": "0.000000000",
+            }
+        )
+    rows.append(
+        {
+            "t_monotonic_s": f"{t_s + 0.010000:.6f}",
+            "ur_output_double_register_30": "1",
+            "ur_output_double_register_35": "26.0",
+            "_step4e_normal_load_n": "12.000000000",
+            "_step5d_force_settle_filtered_normal_load_n": "12.000000000",
+            "force_norm_n": "12.000000000",
+        }
+    )
     write_bridge_csv(csv_path, rows, fieldnames=fieldnames)
 
 
@@ -562,6 +680,30 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
         self.assertAlmostEqual(attribution["linear_vz_cmd_abs_max_m_s"], 0.004, places=9)
         self.assertEqual(attribution["control_oscillation_trigger"], "force_norm_hard_stop")
         self.assertEqual(attribution["terminal_contact_safety_reason"], "force_norm_hard_stop")
+
+    def test_v27_045513_success_is_fix_validation_not_cadence_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / V27_FIX_VALIDATION_SUCCESS_RUN_ID
+            write_v27_045513_fix_validation_success_slice(run_dir)
+
+            analysis = analyze_step5d_bridge_run.analyze_run_dir(run_dir)
+
+        self.assertFalse(analysis["stage25_cadence_ok"])
+        self.assertTrue(analysis["stage25_consumption_ok"])
+        self.assertGreater(analysis["stage25_max_row_gap_s"], 0.040)
+        self.assertGreaterEqual(analysis["stage25_duration_s"], 10.0)
+        self.assertEqual(analysis["first_tp_stop_reason"], 11)
+        self.assertEqual(analysis["terminal_tp_stop_reason"], 1)
+        self.assertEqual(analysis["classification"], "stage25_fix_validation_success")
+        self.assertEqual(analysis["fix_validation_status"], "passed_10s_stage25_window")
+        self.assertEqual(analysis["reproduction_status"], "pending_60s_step5b_equivalent_run")
+        attribution = analysis["stage25_control_attribution"]
+        self.assertEqual(
+            attribution["live_control_source_counts"],
+            {"step5b_speedl_live_step5d_shadow": 5109},
+        )
+        self.assertAlmostEqual(attribution["angular_cmd_norm_max_rad_s"], 0.0, places=9)
+        self.assertIsNone(attribution["control_oscillation_trigger"])
 
     def test_no_play_or_false_start_without_stage_echo(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

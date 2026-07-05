@@ -33,10 +33,12 @@ STEP5D_LIVEPREP_V24_STAGE_ID = "step5d_strict_rnn_liveprep_v24"
 STEP5D_ABLATION_V25_STAGE_ID = "step5d_strict_rnn_ablation_v25"
 STEP5D_ABLATION_V26_STAGE_ID = "step5d_strict_rnn_ablation_v26"
 STEP5D_ABLATION_V27_STAGE_ID = "step5d_strict_rnn_ablation_v27"
+STEP5D_ABLATION_V28_STAGE_ID = "step5d_strict_rnn_ablation_v28"
 STEP5D_ABLATION_STAGE_IDS = (
     STEP5D_ABLATION_V25_STAGE_ID,
     STEP5D_ABLATION_V26_STAGE_ID,
     STEP5D_ABLATION_V27_STAGE_ID,
+    STEP5D_ABLATION_V28_STAGE_ID,
 )
 STEP5D_STAGE25_CONTROL_MODES = ("speedl_cartesian_oracle", "speedj_dls_oracle", "speedj_rnn_live")
 STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE = 523.0
@@ -49,6 +51,10 @@ STEP5D_V27_STEP5B_ENVELOPE_NORMAL_GUARD_N = 50.0
 STEP5D_V27_STEP5B_ENVELOPE_FORCE_GUARD_N = 60.0
 STEP5D_V27_STEP5B_ENVELOPE_TORQUE_GUARD_NM = 3.0
 STEP5D_V27_SPEEDL_LIVE_CONTROL_SOURCE = "step5b_speedl_live_step5d_shadow"
+STEP5D_STAGE25_V27_FIX_VALIDATION_TARGET_S = 10.0
+STEP5D_STAGE25_V28_FULL_RUN_TARGET_S = 60.0
+STEP5D_STAGE25_V27_RUNTIME_LIMIT_S = 15.0
+STEP5D_STAGE25_V28_RUNTIME_LIMIT_S = 65.0
 
 STEP5D_PROTOCOL_FALLBACK_PROFILE = {
     "parameters": {
@@ -169,8 +175,28 @@ def controller_target_for(program: str, current: dict[str, Any] | None = None) -
     return f"/programs/andyl/kunwei/step5/{program}.urp"
 
 
-def default_preload_gate(program: str) -> Step5dPreloadGate:
+def uses_step5b_speedl_live_source(program: str) -> bool:
+    return program in {STEP5D_ABLATION_V27_STAGE_ID, STEP5D_ABLATION_V28_STAGE_ID}
+
+
+def stage25_success_target_s(program: str) -> float | None:
+    if program == STEP5D_ABLATION_V28_STAGE_ID:
+        return STEP5D_STAGE25_V28_FULL_RUN_TARGET_S
     if program == STEP5D_ABLATION_V27_STAGE_ID:
+        return STEP5D_STAGE25_V27_FIX_VALIDATION_TARGET_S
+    return None
+
+
+def stage25_runtime_limit_s(program: str) -> float | None:
+    if program == STEP5D_ABLATION_V28_STAGE_ID:
+        return STEP5D_STAGE25_V28_RUNTIME_LIMIT_S
+    if program == STEP5D_ABLATION_V27_STAGE_ID:
+        return STEP5D_STAGE25_V27_RUNTIME_LIMIT_S
+    return None
+
+
+def default_preload_gate(program: str) -> Step5dPreloadGate:
+    if uses_step5b_speedl_live_source(program):
         return Step5dPreloadGate(
             filtered_min_n=5.0,
             filtered_max_n=22.0,
@@ -238,7 +264,7 @@ def default_preload_gate(program: str) -> Step5dPreloadGate:
 
 
 def default_bridge_rezero_s(program: str, root: Path = EXPERIMENT_ROOT) -> float:
-    if program == STEP5D_ABLATION_V27_STAGE_ID:
+    if uses_step5b_speedl_live_source(program):
         profile = runtime_protocol_profile(root)
         return float(profile["parameters"]["zero_hold_s"])
     return 1.0
@@ -268,7 +294,7 @@ def resolve_runtime_interface(
     protocol_profile = runtime_protocol_profile(root)
     protocol_params = protocol_profile["parameters"]
     protocol_limits = protocol_profile["safety_limits"]
-    if selected == STEP5D_ABLATION_V27_STAGE_ID:
+    if uses_step5b_speedl_live_source(selected):
         trusted_normal_default_n = STEP5D_V27_STEP5B_ENVELOPE_NORMAL_GUARD_N
         trusted_force_default_n = STEP5D_V27_STEP5B_ENVELOPE_FORCE_GUARD_N
         trusted_torque_default_nm = STEP5D_V27_STEP5B_ENVELOPE_TORQUE_GUARD_NM
@@ -385,9 +411,9 @@ def resolve_runtime_interface(
                 f"zero tol={STEP5D_QDOT_CLEAR_ZERO_TOL_RAD_S:g}"
             ),
             "stage25_0": (
-                "v25/v26/v27: 37..42 cartesian vx/vy/vz/wx/wy/wz when "
+                "v25/v26/v27/v28: 37..42 cartesian vx/vy/vz/wx/wy/wz when "
                 f"47={STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:g}; "
-                "v27 speedl_cartesian_oracle bridge runtime uses "
+                "v27/v28 speedl_cartesian_oracle bridge runtime uses "
                 f"{STEP5D_V27_SPEEDL_LIVE_CONTROL_SOURCE}: Step5b speedl live vx/vy/vz, "
                 "wx/wy/wz forced to 0 for all Stage25.0, and Step5d paper/RNN outputs logged as shadow diagnostics; "
                 "37..42 joint qd0..qd5 rad/s when "
@@ -398,13 +424,15 @@ def resolve_runtime_interface(
         },
         hard_contract={
             "force_frame": "reaction normal for load; approach normal for posture/press direction",
-            "stage25_cadence_max_gap_s": 0.020 if selected == STEP5D_ABLATION_V27_STAGE_ID else None,
+            "stage25_cadence_max_gap_s": 0.020 if uses_step5b_speedl_live_source(selected) else None,
             "stage25_speedl_orientation_policy": (
-                "shadow_only_full_stage25" if selected == STEP5D_ABLATION_V27_STAGE_ID else None
+                "shadow_only_full_stage25" if uses_step5b_speedl_live_source(selected) else None
             ),
             "stage25_live_control_source": (
-                STEP5D_V27_SPEEDL_LIVE_CONTROL_SOURCE if selected == STEP5D_ABLATION_V27_STAGE_ID else None
+                STEP5D_V27_SPEEDL_LIVE_CONTROL_SOURCE if uses_step5b_speedl_live_source(selected) else None
             ),
+            "stage25_success_target_s": stage25_success_target_s(selected),
+            "stage25_runtime_limit_s": stage25_runtime_limit_s(selected),
             "no_ubuntu_motion": True,
             "no_zero_ftsensor": True,
             "no_kunwei_tare_or_config": True,

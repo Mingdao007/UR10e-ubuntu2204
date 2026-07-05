@@ -72,10 +72,10 @@ BRIDGE_SENSOR_STALE_S="${BRIDGE_SENSOR_STALE_S:-${STEP5D_SENSOR_STALE_S:-0.10}}"
 BRIDGE_SOCKET_TIMEOUT_S="${BRIDGE_SOCKET_TIMEOUT_S:-${STEP5D_SOCKET_TIMEOUT_S:-0.0}}"
 BRIDGE_BACKGROUND_PUSH_AFTER_LIVE="${BRIDGE_BACKGROUND_PUSH_AFTER_LIVE:-0}"
 BRIDGE_NORMAL_COMMAND_SIGN="${BRIDGE_NORMAL_COMMAND_SIGN:-1}"
-if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v27" ]]; then
-  MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-35}"
-  MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-35}"
-  MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-4.0}"
+if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v27" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v28" ]]; then
+  MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-50}"
+  MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-60}"
+  MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-3.0}"
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v24" || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_v* ]]; then
   MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-25}"
   MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-25}"
@@ -112,7 +112,7 @@ elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v26" ]]; then
   STEP5D_DEFAULT_PRELOAD_RAW_MIN_N="${STEP5D_DEFAULT_PRELOAD_RAW_MIN_N:-5.0}"
   STEP5D_DEFAULT_PRELOAD_RAW_MAX_N="${STEP5D_DEFAULT_PRELOAD_RAW_MAX_N:-20.0}"
   STEP5D_DEFAULT_PRELOAD_FORCE_NORM_MAX_N="${STEP5D_DEFAULT_PRELOAD_FORCE_NORM_MAX_N:-25.0}"
-elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v27" ]]; then
+elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v27" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v28" ]]; then
   STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N:-5.0}"
   STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N:-22.0}"
   STEP5D_DEFAULT_PRELOAD_RAW_MIN_N="${STEP5D_DEFAULT_PRELOAD_RAW_MIN_N:-3.0}"
@@ -131,7 +131,7 @@ if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v25" ]]; then
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v26" ]]; then
   STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedl_cartesian_oracle}"
   BRIDGE_ANGULAR_LIMIT_RAD_S="${BRIDGE_ANGULAR_LIMIT_RAD_S:-0.015}"
-elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v27" ]]; then
+elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v27" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v28" ]]; then
   STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedl_cartesian_oracle}"
   BRIDGE_ANGULAR_LIMIT_RAD_S="${BRIDGE_ANGULAR_LIMIT_RAD_S:-0.015}"
 else
@@ -342,7 +342,9 @@ elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v25" ]]; then
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v26" ]]; then
   SEARCH_DESCRIPTION="Step5d v26 tube ablation diagnostic: 12N target, 7-18N filtered preload with 5-20N raw sanity, Stage25.95 register clear, Stage25.0 layout-tagged speedl/speedj, default speedl_cartesian_oracle with strict RNN shadow diagnostics, explicit speedj_rnn_live follow-up with feasibility-scaled xdot_c, 0.015 rad/s angular cap, and 25N/25N/4Nm hard guards"
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v27" ]]; then
-  SEARCH_DESCRIPTION="Step5d v27 Step5b-scaffold speedl oracle diagnostic: 12N target, Step5b v3 scaffold minimal delta, 5-22N filtered preload with 3-25N raw sanity, Stage25.95 register clear, Stage25.0 Cartesian speedl oracle by default, Stage25 cadence/command-consumption instrumentation, 0.015 rad/s angular cap, and 35N/35N/4Nm hard guards"
+  SEARCH_DESCRIPTION="Step5d v27 Step5b-scaffold speedl oracle diagnostic: 12N target, Step5b v3 scaffold minimal delta, 5-22N filtered preload with 3-25N raw sanity, Stage25.95 register clear, Stage25.0 Cartesian speedl oracle by default, Stage25 cadence/command-consumption instrumentation, 0.015 rad/s angular cap, and Step5b-envelope 50N/60N/3Nm bridge hard guards"
+elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v28" ]]; then
+  SEARCH_DESCRIPTION="Step5d v28 60s full-run package: same successful v27 Step5b speedl live / Step5d shadow boundary, 12N target, 5-22N filtered preload with 3-25N raw sanity, Stage25.95 register clear, live angular zero, 0.015 rad/s shadow cap, and Step5b-envelope 50N/60N/3Nm bridge hard guards"
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v8" ]]; then
   SEARCH_DESCRIPTION="Retained Step5d v8 failure evidence: Stage 25.3 bridge force-PID settle used Cartesian registers 37..39 but low-load dropout below 0.5N could stop with reason 17 before Stage 25.0"
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v4" ]]; then

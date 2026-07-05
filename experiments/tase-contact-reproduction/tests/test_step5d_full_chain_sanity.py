@@ -561,8 +561,8 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn('WAIT_FOR_PLAY_S="${WAIT_FOR_PLAY_S:-20}"', operator)
         self.assertIn('AUTOWATCH_WAIT_FOR_PLAY_S="${AUTOWATCH_WAIT_FOR_PLAY_S:-20}"', operator)
         self.assertIn('current v24/v25/v26 defaults to 25/25 N', operator)
-        self.assertIn('v27 defaults to Step5b envelope 50/60 N with torque guard 3.0 Nm', operator)
-        self.assertIn('v27 default preload tube is filtered 5-22 N', operator)
+        self.assertIn('v27/v28 defaults to Step5b envelope 50/60 N with torque guard 3.0 Nm', operator)
+        self.assertIn('v27/v28 default preload tube is filtered 5-22 N', operator)
         self.assertIn('STEP5D_DEFAULT_MAX_NORMAL_FORCE_N="${STEP5D_DEFAULT_MAX_NORMAL_FORCE_N:-25}"', operator)
         self.assertIn('STEP5D_DEFAULT_MAX_FORCE_NORM_N="${STEP5D_DEFAULT_MAX_FORCE_NORM_N:-25}"', operator)
         self.assertIn('tase_protocol_table.py" operator-env step5d-liveprep', operator)
@@ -579,7 +579,10 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn('STEP5D_DEFAULT_PRELOAD_RAW_MIN_N="${STEP5D_DEFAULT_PRELOAD_RAW_MIN_N:-${TASE_STEP5D_PRELOAD_RAW_MIN_N}}"', operator)
         self.assertIn('STEP5D_DEFAULT_PRELOAD_RAW_MAX_N="${STEP5D_DEFAULT_PRELOAD_RAW_MAX_N:-${TASE_STEP5D_PRELOAD_RAW_MAX_N}}"', operator)
         self.assertIn('elif [[ "${STEP5D_VERSION}" == "step5d_strict_rnn_ablation_v26" ]]', operator)
-        self.assertIn('elif [[ "${STEP5D_VERSION}" == "step5d_strict_rnn_ablation_v27" ]]', operator)
+        self.assertIn(
+            'elif [[ "${STEP5D_VERSION}" == "step5d_strict_rnn_ablation_v27" || "${STEP5D_VERSION}" == "step5d_strict_rnn_ablation_v28" ]]',
+            operator,
+        )
         self.assertIn('STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-${TASE_STEP5D_STAGE25_CONTROL_MODE_DEFAULT}}"', operator)
         self.assertIn('STEP5D_DEFAULT_ANGULAR_LIMIT_RAD_S="${STEP5D_DEFAULT_ANGULAR_LIMIT_RAD_S:-0.150}"', operator)
         self.assertIn('STEP5D_DEFAULT_ANGULAR_LIMIT_RAD_S="${STEP5D_DEFAULT_ANGULAR_LIMIT_RAD_S:-${TASE_STEP5D_ANGULAR_LIMIT_RAD_S}}"', operator)

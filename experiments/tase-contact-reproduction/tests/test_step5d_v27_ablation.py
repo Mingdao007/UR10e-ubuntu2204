@@ -26,6 +26,7 @@ from step5d_paper_outer_loop import Step5dOuterLoopState  # noqa: E402
 
 
 V27 = "step5d_strict_rnn_ablation_v27"
+V28 = "step5d_strict_rnn_ablation_v28"
 
 
 def write_tcp_cage_source(path: Path, *, x: float, y: float, z: float) -> None:
@@ -197,6 +198,35 @@ class Step5dV27AblationTest(unittest.TestCase):
         self.assertIn("Stage25.0 cadence/command-consumption instrumentation", txt_text)
         self.assertNotIn("step5d_strict_rnn_ablation_v26", script_text + txt_text)
 
+    def test_v28_package_is_v27_source_boundary_with_60s_stage25_target(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            local_dir = Path(tmp) / "v28"
+            liveprep.write_outputs(
+                "2026-07-06T0600HKT_STEP5D_STRICT_RNN_ABLATION_V28",
+                "2026-07-06T06:00:00+08:00",
+                output_dir=local_dir,
+                local_only=True,
+                program=V28,
+            )
+            files = {ext: local_dir / f"{V28}{ext}" for ext in upload.EXTENSIONS}
+            result = upload.validate_package(
+                files,
+                V28,
+                liveprep.CONTROLLER_DIR,
+                require_exact_cached_script=True,
+            )
+            script_text = files[".script"].read_text(encoding="utf-8")
+            txt_text = files[".txt"].read_text(encoding="utf-8")
+
+        self.assertEqual(result["program"], V28)
+        self.assertIn("local line_success_progress_m = 60.000000000", script_text)
+        self.assertIn("local line_runtime_limit_s = 65.000", script_text)
+        self.assertIn("Step5d ablation Stage25.0 multi-layout speedl/speedj full-run for 60 s", script_text)
+        self.assertIn("# STAGE25_V28_SCAFFOLD: v27_step5b_speedl_live_shadow_boundary_60s_full_run", script_text)
+        self.assertIn("v28 extends the successful v27 Step5b speedl live / Step5d shadow boundary to 60s", txt_text)
+        self.assertIn("speedl_cartesian_oracle", script_text + txt_text)
+        self.assertNotIn("step5d_strict_rnn_ablation_v27", script_text + txt_text)
+
     def test_bridge_csv_fields_include_v27_stage25_timing_and_consumption(self) -> None:
         source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(encoding="utf-8")
 
@@ -341,6 +371,7 @@ class Step5dV27AblationTest(unittest.TestCase):
             bridge.STEP5D_ABLATION_V25_STAGE_ID,
             bridge.STEP5D_ABLATION_V26_STAGE_ID,
             bridge.STEP5D_ABLATION_V27_STAGE_ID,
+            bridge.STEP5D_ABLATION_V28_STAGE_ID,
         }
         source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(encoding="utf-8")
 
@@ -509,6 +540,17 @@ class Step5dV27AblationTest(unittest.TestCase):
         state.step5d_active_stage25_s = 0.200
 
         with (
+            patch.object(
+                bridge,
+                "step5_contact_path_reference",
+                return_value={
+                    "progress": 0.2,
+                    "desired_xy": (0.49, 0.14),
+                    "path_error_xy": (0.0, 0.0),
+                    "desired_velocity_xy": (0.0, 0.0),
+                    "path_time_s": 0.2,
+                },
+            ),
             patch.object(bridge, "step5d_tcp_jacobian_base", return_value=np.eye(6)),
             patch.object(bridge, "step5d_omega_bounds", return_value=(np.full(6, -0.05), np.full(6, 0.05))),
             patch.object(bridge, "compute_step5d_outer_loop", side_effect=fake_v27_outer),
@@ -549,6 +591,75 @@ class Step5dV27AblationTest(unittest.TestCase):
         self.assertAlmostEqual(values["_step5d_speedl_shadow_raw_vz_m_s"], -0.0020, places=9)
         self.assertEqual(values["_step5d_live_control_source"], "step5b_speedl_live_step5d_shadow")
         self.assertIn("stage25_step5b_speedl_live_step5d_shadow", values["_step5d_intervention_reason"])
+
+    def test_v28_speedl_source_boundary_matches_v27_shadow_policy(self) -> None:
+        args = bridge.parse_args(
+            [
+                "--no-start-command",
+                "--skip-dashboard-preflight",
+                "--bridge-mode",
+                "line",
+                "--bridge-profile",
+                V28,
+                "--bridge-path-shape",
+                "cycloid",
+            ]
+        )
+        latest_output = {
+            "actual_TCP_pose": [0.49, 0.14, 0.02, 3.14, 0.0, 0.0],
+            "actual_TCP_speed": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            "actual_q": [0.0] * 6,
+            "actual_qd": [0.0] * 6,
+            "output_double_register_35": 25.0,
+        }
+
+        state = acquired_v27_state()
+        state.last_robot_stage = 25.0
+        state.line_stage_s = 0.200
+        state.step5d_active_stage25_s = 0.200
+
+        with (
+            patch.object(
+                bridge,
+                "step5_contact_path_reference",
+                return_value={
+                    "progress": 0.2,
+                    "desired_xy": (0.49, 0.14),
+                    "path_error_xy": (0.0, 0.0),
+                    "desired_velocity_xy": (0.0, 0.0),
+                    "path_time_s": 0.2,
+                },
+            ),
+            patch.object(bridge, "step5d_tcp_jacobian_base", return_value=np.eye(6)),
+            patch.object(bridge, "step5d_omega_bounds", return_value=(np.full(6, -0.05), np.full(6, 0.05))),
+            patch.object(bridge, "compute_step5d_outer_loop", side_effect=fake_v27_outer),
+            patch.object(bridge, "rnn_target_state_from_outer_loop", return_value={"shadow": True}),
+        ):
+            fake_v27_runtime(state, args)
+            values = bridge.compute_bridge_values(
+                args,
+                [0.0, 0.0, -12.0, 0.0, 0.0, 0.0],
+                latest_output,
+                1.0,
+                state,
+                0.002,
+            )
+
+        live_linear = (
+            values["step4e_cmd_vx_m_s"],
+            values["step4e_cmd_vy_m_s"],
+            values["step4e_cmd_vz_m_s"],
+        )
+        self.assertFalse(np.allclose(live_linear, (0.0010, 0.0015, -0.0020), atol=1e-12))
+        self.assertAlmostEqual(values["step4e_cmd_wx_rad_s"], 0.0, places=9)
+        self.assertAlmostEqual(values["step4e_cmd_wy_rad_s"], 0.0, places=9)
+        self.assertAlmostEqual(values["step4e_cmd_wz_rad_s"], 0.0, places=9)
+        self.assertEqual(values["_step5d_stage25_control_mode"], "speedl_cartesian_oracle")
+        self.assertEqual(values["_step5d_live_control_source"], "step5b_speedl_live_step5d_shadow")
+        self.assertEqual(values["_step5d_speedl_orientation_shadow_only"], 1.0)
+        self.assertAlmostEqual(values["_step5d_speedl_shadow_raw_vx_m_s"], 0.0010, places=9)
+        self.assertAlmostEqual(values["_step5d_speedl_shadow_raw_vy_m_s"], 0.0015, places=9)
+        self.assertAlmostEqual(values["_step5d_speedl_shadow_raw_vz_m_s"], -0.0020, places=9)
 
     def test_v27_speedl_shadow_solver_failure_keeps_live_source_diagnostics(self) -> None:
         args = bridge.parse_args(

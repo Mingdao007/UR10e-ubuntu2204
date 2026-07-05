@@ -16,10 +16,13 @@ from step5d_runtime_interface import (
     STEP5D_ABLATION_V25_STAGE_ID,
     STEP5D_ABLATION_V26_STAGE_ID,
     STEP5D_ABLATION_V27_STAGE_ID,
+    STEP5D_ABLATION_V28_STAGE_ID,
     STEP5D_LIVEPREP_V24_STAGE_ID,
     STEP5D_V27_SPEEDL_LIVE_CONTROL_SOURCE,
     Step5dPreloadGate,
     default_preload_gate,
+    stage25_success_target_s,
+    uses_step5b_speedl_live_source,
 )
 
 
@@ -30,6 +33,7 @@ SUMMARY_FILENAME = "summary.json"
 STAGE_TOL = 0.005
 STAGE25_MAX_ROW_GAP_S = 0.020
 STAGE25_MIN_CONSUMPTION_RATIO = 0.95
+STAGE25_SUCCESS_MIN_CONSUMPTION_RATIO = 0.98
 STAGE25_ORIENTATION_ENTRY_HOLD_S = 0.150
 REQUIRED_COLUMNS = {
     "t_monotonic_s",
@@ -78,6 +82,7 @@ def infer_step5d_profile(run_dir: Path | None, metadata: dict[str, Any]) -> str:
     if run_dir is not None:
         name = run_dir.name
         for profile in (
+            STEP5D_ABLATION_V28_STAGE_ID,
             STEP5D_ABLATION_V27_STAGE_ID,
             STEP5D_ABLATION_V26_STAGE_ID,
             STEP5D_ABLATION_V25_STAGE_ID,
@@ -222,6 +227,17 @@ def linear_norms(rows: list[dict[str, str]]) -> list[float]:
     return norms
 
 
+def shadow_raw_angular_norms(rows: list[dict[str, str]]) -> list[float]:
+    norms: list[float] = []
+    for row in rows:
+        wx = finite_float(row.get("_step5d_speedl_shadow_raw_wx_rad_s"))
+        wy = finite_float(row.get("_step5d_speedl_shadow_raw_wy_rad_s"))
+        wz = finite_float(row.get("_step5d_speedl_shadow_raw_wz_rad_s"))
+        if math.isfinite(wx) and math.isfinite(wy) and math.isfinite(wz):
+            norms.append(math.sqrt(wx * wx + wy * wy + wz * wz))
+    return norms
+
+
 def reason_counts(rows: list[dict[str, str]], key: str) -> dict[str, int]:
     counts = Counter(row.get(key) or "" for row in rows)
     return dict(sorted((name, count) for name, count in counts.items() if name))
@@ -354,6 +370,7 @@ def stage25_control_attribution(rows: list[dict[str, str]], metadata: dict[str, 
     force_norms = finite_values(rows, "force_norm_n")
     rates = load_rates(rows)
     angular = angular_norms(rows)
+    shadow_angular = shadow_raw_angular_norms(rows)
     angular_limit = metadata_float(metadata, "bridge_angular_limit_rad_s", "step4e_angular_limit_rad_s")
     if not math.isfinite(angular_limit) and angular:
         angular_limit = max(angular)
@@ -392,6 +409,11 @@ def stage25_control_attribution(rows: list[dict[str, str]], metadata: dict[str, 
         "angular_limit_rad_s": angular_limit if math.isfinite(angular_limit) else None,
         "angular_cmd_norm_max_rad_s": max_or_none(angular),
         "angular_cmd_norm_mean_rad_s": mean_or_none(angular),
+        "shadow_raw_angular_cmd_norm_max_rad_s": max_or_none(shadow_angular),
+        "shadow_raw_angular_cmd_norm_mean_rad_s": mean_or_none(shadow_angular),
+        "orientation_shadow_only_rows": sum(
+            1 for value in finite_values(rows, "_step5d_speedl_orientation_shadow_only") if value >= 0.5
+        ),
         "angular_saturation_rows": saturated,
         "angular_saturation_ratio": angular_saturation_ratio,
         "linear_vz_cmd_abs_max_m_s": max_or_none([abs(value) for value in finite_values(rows, "step4e_cmd_vz_m_s")]),
@@ -462,6 +484,41 @@ def old_v27_paper_outer_linear_live_gain_mismatch(attribution: dict[str, Any]) -
     )
 
 
+def stage25_speedl_fix_success(profile: str, result: dict[str, Any]) -> bool:
+    target_s = stage25_success_target_s(profile)
+    if not uses_step5b_speedl_live_source(profile) or target_s is None:
+        return False
+    attribution = result.get("stage25_control_attribution")
+    if not isinstance(attribution, dict):
+        return False
+    stage25_rows = int(result.get("stage25_rows") or 0)
+    source_counts = attribution.get("live_control_source_counts")
+    angular_max = finite_float(attribution.get("angular_cmd_norm_max_rad_s"))
+    normal_min = finite_float(attribution.get("normal_load_min_n"))
+    normal_max = finite_float(attribution.get("normal_load_max_n"))
+    force_norm_max = finite_float(attribution.get("force_norm_max_n"))
+    shadow_only_rows = int(attribution.get("orientation_shadow_only_rows") or 0)
+    trigger = attribution.get("control_oscillation_trigger")
+    return (
+        stage25_rows > 0
+        and float(result.get("stage25_duration_s") or 0.0) >= target_s
+        and finite_float(result.get("stage25_consumption_ratio")) >= STAGE25_SUCCESS_MIN_CONSUMPTION_RATIO
+        and result.get("terminal_tp_stop_reason") == 1
+        and isinstance(source_counts, dict)
+        and source_counts == {STEP5D_V27_SPEEDL_LIVE_CONTROL_SOURCE: stage25_rows}
+        and math.isfinite(angular_max)
+        and angular_max <= 1e-6
+        and shadow_only_rows == stage25_rows
+        and math.isfinite(normal_min)
+        and math.isfinite(normal_max)
+        and normal_min >= 9.0
+        and normal_max <= 15.0
+        and math.isfinite(force_norm_max)
+        and force_norm_max < 60.0
+        and trigger is None
+    )
+
+
 def base_analysis(csv_path: Path, run_dir: Path | None, profile: str, gate: Step5dPreloadGate) -> dict[str, Any]:
     return {
         "ok": True,
@@ -488,6 +545,10 @@ def base_analysis(csv_path: Path, run_dir: Path | None, profile: str, gate: Step
         "max_stage25_3_raw_normal_load_n": None,
         "max_stage25_3_force_norm_n": None,
         "first_tp_stop_reason": None,
+        "terminal_tp_stop_reason": None,
+        "stage25_success_target_s": stage25_success_target_s(profile),
+        "fix_validation_status": None,
+        "reproduction_status": None,
         "classification": "ambiguous_requires_manual_audit",
         "next_action": "manual audit of stage echo, preload gate, and a small CSV slice",
     }
@@ -556,6 +617,8 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
             stop_reason = finite_float(row.get("ur_output_double_register_30"))
             if result["first_tp_stop_reason"] is None and math.isfinite(stop_reason) and stop_reason != 0.0:
                 result["first_tp_stop_reason"] = maybe_int(stop_reason)
+            if math.isfinite(stop_reason) and stop_reason != 0.0:
+                result["terminal_tp_stop_reason"] = maybe_int(stop_reason)
 
             if stage_is(stage, 25.0):
                 result["stage25_rows"] += 1
@@ -626,7 +689,24 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
 
     if result["entered_stage25"]:
         oscillation_reason = stage25_control_oscillation_reason(result["stage25_control_attribution"])
-        if profile == STEP5D_ABLATION_V27_STAGE_ID and (
+        if stage25_speedl_fix_success(profile, result):
+            if profile == STEP5D_ABLATION_V28_STAGE_ID:
+                result["classification"] = "stage25_full_run_success"
+                result["fix_validation_status"] = "passed_60s_full_run"
+                result["reproduction_status"] = "passed_60s_step5b_equivalent_run"
+                result["next_action"] = (
+                    "archive v28 as the 60s Step5b-speedl-live / Step5d-shadow full-run evidence; "
+                    "do not re-enable orientation servo until the expected-normal error case is closed"
+                )
+            else:
+                result["classification"] = "stage25_fix_validation_success"
+                result["fix_validation_status"] = "passed_10s_stage25_window"
+                result["reproduction_status"] = "pending_60s_step5b_equivalent_run"
+                result["next_action"] = (
+                    "retain v27 as successful 10s fix-validation evidence and generate a v28 60s full-run package "
+                    "before any full reproduction claim"
+                )
+        elif uses_step5b_speedl_live_source(profile) and (
             not result["stage25_cadence_ok"] or not result["stage25_consumption_ok"]
         ):
             result["classification"] = "stage25_cadence_or_consumption_failure"

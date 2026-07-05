@@ -551,7 +551,9 @@ class Step5dCurrentPromotionTest(unittest.TestCase):
             rows = {row["id"]: row for row in table["stages"]}
             self.assertEqual(rows[V27]["operator_lifecycle"]["wait_for_play_s"], 20)
             self.assertEqual(rows[V27]["operator_lifecycle"]["autowatch_wait_for_play_s"], 20)
-            self.assertEqual(rows[V27]["guard"]["force_norm_guard_n"], 35.0)
+            self.assertEqual(rows[V27]["guard"]["raw_normal_guard_n"], 50.0)
+            self.assertEqual(rows[V27]["guard"]["force_norm_guard_n"], 60.0)
+            self.assertEqual(rows[V27]["guard"]["torque_norm_guard_nm"], 3.0)
             self.assertEqual(rows[V27]["guard"]["stage25_cadence_max_gap_s"], 0.020)
             self.assertEqual(
                 rows[V26]["local_delivery_evidence"]["controller_target"],
@@ -559,7 +561,9 @@ class Step5dCurrentPromotionTest(unittest.TestCase):
             )
             self.assertEqual(rows[V26]["operator_lifecycle"]["expected_program"], f"{TARGET_DIR}/step5d/{V26}.urp")
             current = json.loads((root / "config" / "current_stage.json").read_text(encoding="utf-8"))
-            self.assertEqual(current["bridge_profile"]["sensor_hard_guards"]["force_norm_n"], 35.0)
+            self.assertEqual(current["bridge_profile"]["sensor_hard_guards"]["raw_normal_n"], 50.0)
+            self.assertEqual(current["bridge_profile"]["sensor_hard_guards"]["force_norm_n"], 60.0)
+            self.assertEqual(current["bridge_profile"]["sensor_hard_guards"]["torque_norm_nm"], 3.0)
             self.assertIn("stage25_cadence_consumption_instrumentation", current["bridge_profile"])
             self.assertEqual(
                 current["evidence"]["v26_local_triplet"],

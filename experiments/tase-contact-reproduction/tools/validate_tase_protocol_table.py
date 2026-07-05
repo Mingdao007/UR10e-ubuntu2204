@@ -58,6 +58,14 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         failures.append(f"Step6 resolved profile validation failed: {exc}")
 
     try:
+        current = _load_json(root / "config" / "current_stage.json")
+        current_step5d_id = (
+            str(current.get("program") or current.get("current_stage_id"))
+            if str(current.get("program") or current.get("current_stage_id")).startswith(
+                "step5d_strict_rnn_ablation_"
+            )
+            else "step5d_strict_rnn_ablation_v27"
+        )
         step5_rows = _stage_by_id(_load_json(root / "config" / "step5_stage_table.json"))
         step6_rows = _stage_by_id(_load_json(root / "config" / "step6_stage_table.json"))
         _require(
@@ -66,9 +74,9 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             "Step5b ledger row missing canonical profile ref",
         )
         _require(
-            step5_rows["step5d_strict_rnn_ablation_v27"].get("canonical_profile_ref") == "Step5.step5d_rnn",
+            step5_rows[current_step5d_id].get("canonical_profile_ref") == "Step5.step5d_rnn",
             failures,
-            "Step5d v27 ledger row missing canonical profile ref",
+            f"Step5d {current_step5d_id.rsplit('_', 1)[-1]} ledger row missing canonical profile ref",
         )
         _require(
             step6_rows["step6a_eight_no_contact_v1"].get("canonical_profile_ref") == "Step6.no_contact_eight",

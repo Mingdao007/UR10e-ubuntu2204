@@ -968,6 +968,7 @@ def validate_package(
         "step5d_strict_rnn_ablation_v25",
         "step5d_strict_rnn_ablation_v26",
         "step5d_strict_rnn_ablation_v27",
+        "step5d_strict_rnn_ablation_v28",
     }:
         version_label = program.rsplit("_", 1)[-1]
         expected_angular_cap = "0.150" if version_label == "v25" else "0.015"
@@ -981,8 +982,13 @@ def validate_package(
             expected_preload_max_text = "12.8"
             expected_recovery_max = "20.000"
             expected_preload_force_norm = "25.000"
-            expected_hard_guard = "25"
-            expected_hard_guard_decimal = "25.0"
+            expected_hard_normal_guard = "25"
+            expected_hard_force_guard = "25"
+            expected_hard_normal_guard_decimal = "25.0"
+            expected_hard_force_guard_decimal = "25.0"
+            expected_torque_guard_decimal = "4.0"
+            expected_runtime_s = "15.000"
+            expected_success_s = "10.000000000"
         elif version_label == "v27":
             expected_preload_min = "5.000"
             expected_preload_max = "22.000"
@@ -992,8 +998,29 @@ def validate_package(
             expected_preload_max_text = "22.0"
             expected_recovery_max = "35.000"
             expected_preload_force_norm = "35.000"
-            expected_hard_guard = "35"
-            expected_hard_guard_decimal = "35.0"
+            expected_hard_normal_guard = "35"
+            expected_hard_force_guard = "35"
+            expected_hard_normal_guard_decimal = "35.0"
+            expected_hard_force_guard_decimal = "35.0"
+            expected_torque_guard_decimal = "4.0"
+            expected_runtime_s = "15.000"
+            expected_success_s = "10.000000000"
+        elif version_label == "v28":
+            expected_preload_min = "5.000"
+            expected_preload_max = "22.000"
+            expected_raw_min_text = "3.0"
+            expected_raw_max_text = "25.0"
+            expected_preload_min_text = "5.0"
+            expected_preload_max_text = "22.0"
+            expected_recovery_max = "35.000"
+            expected_preload_force_norm = "35.000"
+            expected_hard_normal_guard = "50"
+            expected_hard_force_guard = "60"
+            expected_hard_normal_guard_decimal = "50.0"
+            expected_hard_force_guard_decimal = "60.0"
+            expected_torque_guard_decimal = "3.0"
+            expected_runtime_s = "65.000"
+            expected_success_s = "60.000000000"
         else:
             expected_preload_min = "7.000"
             expected_preload_max = "18.000"
@@ -1003,8 +1030,13 @@ def validate_package(
             expected_preload_max_text = "18.0"
             expected_recovery_max = "24.000"
             expected_preload_force_norm = "25.000"
-            expected_hard_guard = "25"
-            expected_hard_guard_decimal = "25.0"
+            expected_hard_normal_guard = "25"
+            expected_hard_force_guard = "25"
+            expected_hard_normal_guard_decimal = "25.0"
+            expected_hard_force_guard_decimal = "25.0"
+            expected_torque_guard_decimal = "4.0"
+            expected_runtime_s = "15.000"
+            expected_success_s = "10.000000000"
         checks.update(
             {
                 f"step5d {version_label} ablation function": f"def codex_{program}()" in script
@@ -1059,7 +1091,11 @@ def validate_package(
                 f"step5d {version_label} contact safety": "STAGE25_CONTACT_SAFETY" in script
                 and "cage margin exhaustion" in script + txt
                 and "stop_request" in script + txt
-                and f"{expected_hard_guard} N raw-normal/{expected_hard_guard} N force-norm and 4.0 Nm torque" in txt,
+                and (
+                    f"{expected_hard_normal_guard} N raw-normal/{expected_hard_force_guard} N force-norm "
+                    f"and {expected_torque_guard_decimal} Nm torque"
+                )
+                in txt,
                 f"step5d {version_label} gravity-down": "PRECONTACT_POSE_CONTRACT: pre_contact_search_gravity_down_v1" in script
                 and "config/step_pose_contract_table.json" in script + txt
                 and "local target_rx = 3.141592654" in script
@@ -1070,13 +1106,19 @@ def validate_package(
                 and "write_output_float_register(35, 25.1)" not in script
                 and "write_output_float_register(35, 25.2)" not in script
                 and "codex_step5d_down_search(24.3, 24.4" not in script,
-                f"step5d {version_label} raw guards": f"codex_abs(normal_force) > {expected_hard_guard_decimal}" in script
-                and f"force_norm > {expected_hard_guard_decimal}" in script
-                and "torque_norm > 4.0" in script,
+                f"step5d {version_label} raw guards": f"codex_abs(normal_force) > {expected_hard_normal_guard_decimal}" in script
+                and f"force_norm > {expected_hard_force_guard_decimal}" in script
+                and f"torque_norm > {expected_torque_guard_decimal}" in script,
+                f"step5d {version_label} Stage25 target window": f"local line_runtime_limit_s = {expected_runtime_s}" in script
+                and f"local line_success_progress_m = {expected_success_s}" in script,
                 f"step5d {version_label} v27 consumption instrumentation": (
-                    version_label != "v27"
+                    version_label not in {"v27", "v28"}
                     or (
-                        "# STAGE25_V27_SCAFFOLD: step5b_v3_scaffold_min_delta" in script
+                        (
+                            "# STAGE25_V27_SCAFFOLD: step5b_v3_scaffold_min_delta" in script
+                            or "# STAGE25_V28_SCAFFOLD: v27_step5b_speedl_live_shadow_boundary_60s_full_run"
+                            in script
+                        )
                         and "STAGE25_CADENCE_CONSUMPTION" in script
                         and "write_output_float_register(47, stage25_command_consumed)" in script
                         and "Stage25.0 cadence/command-consumption instrumentation" in txt

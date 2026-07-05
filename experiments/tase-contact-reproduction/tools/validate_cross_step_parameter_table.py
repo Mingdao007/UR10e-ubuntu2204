@@ -162,14 +162,20 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         return failures
 
     step5b_row = step5_rows.get("step5_contact_cycloid_baseline_v1", {})
-    step5d_row = step5_rows.get("step5d_strict_rnn_ablation_v27", {})
+    current_step5d_id = (
+        str(current_program or current_stage_id)
+        if str(current_program or current_stage_id).startswith("step5d_strict_rnn_ablation_")
+        else "step5d_strict_rnn_ablation_v27"
+    )
+    step5d_label = current_step5d_id.rsplit("_", 1)[-1]
+    step5d_row = step5_rows.get(current_step5d_id, {})
     step6a_row = step6_rows.get("step6a_eight_no_contact_v1", {})
     step6b_v1_row = step6_rows.get("step6_contact_eight_baseline_v1", {})
     step6b_v2_row = step6_rows.get("step6_contact_eight_baseline_v2", {})
 
     canonical_refs = {
         "step5_contact_cycloid_baseline_v1": (step5b_row, "Step5.contact_cycloid"),
-        "step5d_strict_rnn_ablation_v27": (step5d_row, "Step5.step5d_rnn"),
+        current_step5d_id: (step5d_row, "Step5.step5d_rnn"),
         "step6a_eight_no_contact_v1": (step6a_row, "Step6.no_contact_eight"),
         "step6_contact_eight_baseline_v1": (step6b_v1_row, "Step6.contact_eight_v1"),
         "step6_contact_eight_baseline_v2": (step6b_v2_row, "Step6.contact_eight"),
@@ -181,15 +187,15 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
     if step5b_row.get("filter_policy", {}).get("alpha") != step5_contact["parameters"]["normal_filter_alpha"]:
         failures.append("Step5b normal filter alpha does not match canonical Step5 contact profile")
     if step5d_row.get("filter_policy", {}).get("alpha") != step5d["parameters"]["normal_filter_alpha"]:
-        failures.append("Step5d v27 normal filter alpha does not match canonical profile")
+        failures.append(f"Step5d {step5d_label} normal filter alpha does not match canonical profile")
     if step5d_row.get("guard", {}).get("post_far_search_rezero_s") != step5d["parameters"]["zero_hold_s"]:
-        failures.append("Step5d v27 post-far-search rezero does not match canonical profile")
+        failures.append(f"Step5d {step5d_label} post-far-search rezero does not match canonical profile")
     if step5d_row.get("guard", {}).get("target_force_n") != step5d["parameters"]["target_force_n"]:
-        failures.append("Step5d v27 target force does not match canonical profile")
+        failures.append(f"Step5d {step5d_label} target force does not match canonical profile")
     if step5d_row.get("guard", {}).get("speedl_linear_cap_m_s") != step5d["safety_limits"]["speedl_linear_cap_m_s"]:
-        failures.append("Step5d v27 speedl linear cap does not match canonical profile")
+        failures.append(f"Step5d {step5d_label} speedl linear cap does not match canonical profile")
     if step5d_row.get("guard", {}).get("speedl_angular_cap_rad_s") != step5d["safety_limits"]["speedl_angular_cap_rad_s"]:
-        failures.append("Step5d v27 speedl angular cap does not match canonical profile")
+        failures.append(f"Step5d {step5d_label} speedl angular cap does not match canonical profile")
     if step6a_row.get("duration_s") != step6a["parameters"]["trajectory_duration_s"]:
         failures.append("Step6a duration does not match canonical profile")
     if step6b_v1_row.get("filter_policy", {}).get("alpha") != step6b_v1["parameters"]["normal_filter_alpha"]:

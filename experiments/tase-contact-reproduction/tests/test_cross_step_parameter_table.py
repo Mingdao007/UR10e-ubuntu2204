@@ -27,6 +27,9 @@ class CrossStepParameterTableTest(unittest.TestCase):
         timing = stage["local_analysis_evidence"]["v27_20260706_024815_live_timing"]
         shadow_experiment = stage["local_analysis_evidence"]["v27_20260706_033032_orientation_shadow_experiment"]
         force_overshoot = stage["local_analysis_evidence"]["v27_20260706_040900_step5d_outer_linear_live_fix_validation"]
+        fix_validation = stage["local_analysis_evidence"][
+            "v27_20260706_045513_step5b_live_step5d_shadow_fix_validation"
+        ]
         evidence_refs = stage["evidence_refs"]
 
         self.assertEqual(timing["terminal_stop_reason"], "step5d_contact_safety:force_norm_hard_stop")
@@ -43,11 +46,18 @@ class CrossStepParameterTableTest(unittest.TestCase):
             force_overshoot["evidence_classification"],
             "old_v27_paper_outer_linear_live_gain_mismatch_force_norm_hard_stop",
         )
-        self.assertEqual(evidence_refs["latest_terminal_stop_reason"], "force_norm_hard_stop")
-        self.assertEqual(evidence_refs["latest_analysis_classification"], "stage25_control_force_oscillation/force_norm_hard_stop")
+        self.assertEqual(fix_validation["analysis_classification"], "stage25_fix_validation_success")
+        self.assertEqual(fix_validation["result"], "successful_10s_fix_validation_not_60s_reproduction")
+        self.assertEqual(fix_validation["reproduction_status"], "pending_60s_step5b_equivalent_run")
+        self.assertEqual(evidence_refs["latest_terminal_stop_reason"], "tp_normal_stop_reason_1")
+        self.assertEqual(evidence_refs["latest_analysis_classification"], "stage25_fix_validation_success")
         self.assertEqual(
             evidence_refs["latest_evidence_classification"],
-            "old_v27_paper_outer_linear_live_gain_mismatch_force_norm_hard_stop",
+            "v27_10s_step5b_live_step5d_shadow_fix_validation_success",
+        )
+        self.assertEqual(
+            evidence_refs["previous_failed_live_run_analysis"],
+            "runs/bridge_step5d_strict_rnn_ablation_v27_20260706_040900/step5d_bridge_analysis.json",
         )
 
 

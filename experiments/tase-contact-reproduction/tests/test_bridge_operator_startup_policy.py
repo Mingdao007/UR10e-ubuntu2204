@@ -81,7 +81,7 @@ postprocess_run "{run_dir}"
         self.assertIn('STEP5D_DEFAULT_REZERO_S="${STEP5D_DEFAULT_REZERO_S:-${TASE_STEP5D_REZERO_S}}"', script)
         self.assertIn('STEP5D_REZERO_S="${STEP5D_REZERO_S:-${STEP5D_DEFAULT_REZERO_S:-1.0}}"', script)
         self.assertIn(
-            "v27 defaults to Step5b envelope 50/60 N with torque guard 3.0 Nm",
+            "v27/v28 defaults to Step5b envelope 50/60 N with torque guard 3.0 Nm",
             script,
         )
         self.assertIn('READBACK_GATE="${ROOT}/tools/verify_step5d_current_binding.py"', script)
