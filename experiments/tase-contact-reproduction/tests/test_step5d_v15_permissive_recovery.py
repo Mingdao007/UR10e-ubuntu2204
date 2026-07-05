@@ -487,7 +487,12 @@ class Step5dV15PermissiveRecoveryTest(unittest.TestCase):
         self.assertEqual(current["evidence"]["v19_active_reacquire_policy"]["predicted_tcp_speed_cap_m_s"], 0.035)
         self.assertEqual(current["evidence"]["step5d_projector_root_cause_fix"]["status"], "present_in_worktree")
         self.assertFalse(current["bridge_trigger"]["bridge_has_started"])
-        self.assertTrue(current["bridge_trigger"]["live_motion_authorized"])
+        self.assertFalse(current["bridge_trigger"]["live_motion_authorized"])
+        self.assertIn("033032 failed retained live evidence", current["bridge_trigger"]["blocked_reason"])
+        self.assertIn(
+            "offline bridge-runtime orientation shadow-only fix audited",
+            current["bridge_trigger"]["required_before_live"],
+        )
         self.assertEqual(current["bridge_trigger"]["allowed_tokens"], ["LIVE STEP5D STRICT RNN LIVEPREP"])
 
     def test_offline_replay_acceptance(self) -> None:

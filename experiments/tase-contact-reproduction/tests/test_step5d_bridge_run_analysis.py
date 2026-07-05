@@ -28,6 +28,7 @@ FIELDNAMES = [
 V27_MAIN_RUN_ID = "bridge_step5d_strict_rnn_ablation_v27_20260706_024815"
 V27_CORROBORATION_RUN_ID = "bridge_step5d_strict_rnn_ablation_v27_20260706_025857"
 V27_STARTUP_FAILURE_RUN_ID = "bridge_step5d_strict_rnn_ablation_v27_20260706_020732"
+V27_SHADOW_EXPERIMENT_RUN_ID = "bridge_step5d_strict_rnn_ablation_v27_20260706_033032"
 
 
 def write_bridge_csv(path: Path, rows: list[dict[str, str]], fieldnames: list[str] | None = None) -> None:
@@ -112,6 +113,90 @@ def write_v27_stage25_slice(
                 "step4e_cmd_wz_rad_s": "0.0",
                 "_step4e_live_normal_candidate_angle_rad": "0.084",
                 "_step4e_live_normal_angle_from_latch_rad": "0.086",
+            }
+        )
+    write_bridge_csv(csv_path, rows, fieldnames=fieldnames)
+
+
+def write_v27_033032_shadow_experiment_slice(run_dir: Path) -> None:
+    run_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = run_dir / "bridge_rtde_500hz.csv"
+    fieldnames = [
+        *FIELDNAMES,
+        "_step5d_stage25_echo_consumed",
+        "_step5d_stage25_echo_layout_tag",
+        "_step5d_stage25_echo_cmd_valid",
+        "_step5d_stage25_echo_command_norm",
+        "_step5d_contact_safety_reason",
+        "_step4e_normal_filter_source",
+        "step4e_orientation_error_rad",
+        "_step5d_outer_orientation_error_rad",
+        "step4e_cmd_vx_m_s",
+        "step4e_cmd_vy_m_s",
+        "step4e_cmd_vz_m_s",
+        "step4e_cmd_wx_rad_s",
+        "step4e_cmd_wy_rad_s",
+        "step4e_cmd_wz_rad_s",
+        "_step5d_outer_xdot_limited_approach_normal_m_s",
+        "_step4e_live_normal_candidate_angle_rad",
+        "_step4e_live_normal_angle_from_latch_rad",
+    ]
+    rows: list[dict[str, str]] = []
+    row_count = 281
+    consumed_rows = 278
+    unconsumed_rows = row_count - consumed_rows
+    for idx in range(row_count):
+        t_s = 1.0 + idx * 0.002
+        entry_hold = idx < 76
+        low_load = 231 <= idx < 280
+        terminal = idx == 280
+        if entry_hold:
+            load = 11.4 + 1.3 * (idx / 75.0)
+            angular = (0.0, 0.0, 0.0)
+            linear = (0.0003, 0.0002, -0.0004)
+            filter_source = "v18_v20_locked_normal_settle"
+            normal_lag = 0.110
+            reason = "ok"
+        elif low_load or terminal:
+            load = 0.002 if terminal else max(0.002, 1.3 - 0.03 * (idx - 231))
+            angular = (0.00725, -0.01313, 0.0)
+            linear = (0.0007, 0.0001, -0.0039)
+            filter_source = "freeze_low_force"
+            normal_lag = 1.788
+            reason = "v25_speedl_hard_low_load_timeout" if terminal else "v25_speedl_low_load_repress_window"
+        else:
+            peak = 16.3 - abs(idx - 150) * 0.035
+            load = max(5.8, peak)
+            angular = (0.00725, -0.01313, 0.0)
+            linear = (0.0005, 0.0003, -0.0030)
+            filter_source = "filtered_live"
+            normal_lag = 0.090
+            reason = "ok"
+        rows.append(
+            {
+                "t_monotonic_s": f"{t_s:.6f}",
+                "ur_output_double_register_30": "11" if terminal else "0",
+                "ur_output_double_register_35": "25.0",
+                "_step4e_normal_load_n": f"{load:.9f}",
+                "_step5d_force_settle_filtered_normal_load_n": f"{load:.9f}",
+                "force_norm_n": f"{max(load, 0.0):.9f}",
+                "_step5d_stage25_echo_consumed": "0" if idx < unconsumed_rows else "1",
+                "_step5d_stage25_echo_layout_tag": "523",
+                "_step5d_stage25_echo_cmd_valid": "1",
+                "_step5d_stage25_echo_command_norm": "0.004",
+                "_step5d_contact_safety_reason": reason,
+                "_step4e_normal_filter_source": filter_source,
+                "step4e_orientation_error_rad": "0.132466117",
+                "_step5d_outer_orientation_error_rad": f"{0.132466117 - 0.00002 * idx:.9f}",
+                "step4e_cmd_vx_m_s": f"{linear[0]:.9f}",
+                "step4e_cmd_vy_m_s": f"{linear[1]:.9f}",
+                "step4e_cmd_vz_m_s": f"{linear[2]:.9f}",
+                "step4e_cmd_wx_rad_s": f"{angular[0]:.9f}",
+                "step4e_cmd_wy_rad_s": f"{angular[1]:.9f}",
+                "step4e_cmd_wz_rad_s": f"{angular[2]:.9f}",
+                "_step5d_outer_xdot_limited_approach_normal_m_s": f"{linear[2]:.9f}",
+                "_step4e_live_normal_candidate_angle_rad": f"{normal_lag:.9f}",
+                "_step4e_live_normal_angle_from_latch_rad": f"{normal_lag:.9f}",
             }
         )
     write_bridge_csv(csv_path, rows, fieldnames=fieldnames)
@@ -352,6 +437,35 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
         self.assertFalse(analysis["stage25_consumption_complete"])
         self.assertEqual(analysis["stage25_consumption_ratio"], 0.0)
         self.assertEqual(analysis["classification"], "stage25_cadence_or_consumption_failure")
+
+    def test_v27_033032_shadow_experiment_failed_low_load_timeout_with_segments(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / V27_SHADOW_EXPERIMENT_RUN_ID
+            write_v27_033032_shadow_experiment_slice(run_dir)
+
+            analysis = analyze_step5d_bridge_run.analyze_run_dir(run_dir)
+
+        self.assertTrue(analysis["stage25_cadence_ok"])
+        self.assertTrue(analysis["stage25_consumption_ok"])
+        self.assertEqual(analysis["stage25_rows"], 281)
+        self.assertEqual(analysis["classification"], "stage25_control_force_oscillation/low_load_timeout")
+        self.assertNotEqual(analysis["classification"], "stage25_cadence_or_consumption_failure")
+        attribution = analysis["stage25_control_attribution"]
+        self.assertEqual(attribution["control_oscillation_trigger"], "hard_low_load_timeout")
+        self.assertEqual(attribution["terminal_contact_safety_reason"], "v25_speedl_hard_low_load_timeout")
+        self.assertEqual(
+            attribution["orientation_shadow_experiment_classification"],
+            "stage25_orientation_shadow_experiment_failed_low_load_timeout",
+        )
+        segments = attribution["stage25_segment_diagnostics"]
+        self.assertEqual(segments["entry_hold"]["rows"], 76)
+        self.assertAlmostEqual(segments["entry_hold"]["angular_cmd_norm_max_rad_s"], 0.0, places=9)
+        self.assertGreater(segments["entry_hold"]["normal_load_min_n"], 11.0)
+        self.assertGreater(segments["post_entry_old_behavior"]["angular_cmd_norm_mean_rad_s"], 0.014)
+        self.assertEqual(segments["low_load_repress"]["rows"], 49)
+        self.assertLess(segments["low_load_repress"]["normal_load_max_n"], 1.4)
+        self.assertGreater(segments["low_load_repress"]["normal_filter_lag_angle_abs_max_rad"], 1.7)
+        self.assertGreater(segments["loaded"]["normal_load_max_n"], 16.0)
 
     def test_no_play_or_false_start_without_stage_echo(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

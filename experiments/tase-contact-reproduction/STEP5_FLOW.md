@@ -1,23 +1,30 @@
 # Step5 Flow
 
 `config/current_stage.json` currently selects
-`step5d_strict_rnn_ablation_v26` as the Step5d Local TP/script diagnostic
-package after controller upload and read-back verification on 2026-07-05.
+`step5d_strict_rnn_ablation_v27` as the Step5d Local TP/script diagnostic
+package after controller upload and read-back verification on 2026-07-06.
 Step5d is the named completion target for the complete strict TASE RNN
-reproduction; v26 is still a diagnostic/ablation package, not a completed
-reproduction claim. v26 keeps the 12 N no-lift/no-25.2/no-second-search
+reproduction; v27 is still a diagnostic/ablation package, not a completed
+reproduction claim. v27 keeps the 12 N no-lift/no-25.2/no-second-search
 scaffold, Stage22/24 gravity-down pre-contact posture, 1.5x Stage22 entry movel
 and Stage24 far search, Stage25.3 release through the Step5b/Step6b evidence
-tube at filtered `7-18 N`, raw sanity `5-20 N`, force_norm `<=25 N`, and
+tube at filtered `5-22 N`, raw sanity `3-25 N`, force_norm `<=35 N`, and
 `0.100 s` dwell, then Stage25.95 clears
 registers `37..47` before Stage25.0 consumes layout-tagged Cartesian speedl or
-joint speedj commands. v26 defaults to `speedl_cartesian_oracle`; strict RNN
-speedj live remains an explicit follow-up mode with joint-feasibility scaling,
-corrected orientation frame/sign, and RNN/J(q) diagnostics. Bridge
-start, TP program load/Play, robot motion,
+joint speedj commands. The retained live run
+`runs/bridge_step5d_strict_rnn_ablation_v27_20260706_033032` is failed
+evidence, not acceptance: it reached Stage25.0 with good cadence/consumption,
+then stopped with `v25_speedl_hard_low_load_timeout` after angular command
+release. The bridge-runtime offline fix keeps
+`speedl_cartesian_oracle` linear `vx/vy/vz` live, but makes angular
+`wx/wy/wz` shadow-only for all Stage25.0 while logging the limited raw angular
+diagnostics. No v28 package is generated and the v27 TP/controller bytes remain
+the current read-back package. Bridge start, TP program load/Play, robot motion,
 payload/TCP writes, and `zero_ftsensor()` remain separate explicit live gates.
+The next v27 live retry is blocked until the offline fix audit passes and the
+user explicitly authorizes another live run.
 The full reproduction target remains separate and not complete.
-Step4f, Step4g, Step5b, and Step5d v1-v25 remain retained evidence packages
+Step4f, Step4g, Step5b, and Step5d v1-v26 remain retained evidence packages
 only. The ROS2 source package for the current route is now
 `src/ur10e_example_controllers`; stage ids such as
 `step5a_ros2_remote_no_contact_v1` remain historical/experimental mapping
@@ -177,7 +184,8 @@ instead of preserving the later 22 s TP v3 timing.
 | `step5d_strict_rnn_liveprep_v23` | bridge+TP | true | true | strict TASE RNN | `v31_filtered_live` | Retained failure evidence: live run lost contact, continued active_reacquire_solver qdot, and stopped on `tcp_cage_braking_margin_exhausted`; trusted force stayed near 16 N and startup 102 N was baseline-not-ready. |
 | `step5d_strict_rnn_liveprep_v24` | bridge+TP | true | false | strict TASE RNN | `v31_filtered_live` | Retained read-back/live-attempt evidence: keeps 12 N target, 7.5-14 N filtered preload with 7-15 N raw sanity, 25 N/25 N/4.0 Nm guards, low/no-contact zero-qdot stop instead of active_reacquire_solver qdot, trusted force summaries, and post-RNN tracking reversal detection. Superseded by v25. |
 | `step5d_strict_rnn_ablation_v25` | bridge+TP | true | true | speedl Cartesian oracle with strict RNN shadow diagnostics | `v31_filtered_live` | Retained failed/live-attempt evidence: 12 N target, 10.5-12.8 N filtered preload with 9.5-13.5 N raw sanity, Stage25.95 register clear, layout-tagged Stage25 speedl/speedj, default `speedl_cartesian_oracle`; superseded by v26 tube. |
-| `step5d_strict_rnn_ablation_v26` | bridge+TP | true | true | speedl Cartesian oracle with strict RNN shadow diagnostics | `v31_filtered_live` | Current read-back verified diagnostic package: default `speedl_cartesian_oracle`; strict RNN speedj live remains an explicit follow-up with feasibility-scaled xdot_c, corrected orientation frame/sign, Stage25 lifecycle solver reset, and Stage25.3 Step5b/Step6b evidence tube filtered 7-18 N / raw 5-20 N; pending explicit live bridge evidence. |
+| `step5d_strict_rnn_ablation_v26` | bridge+TP | true | true | speedl Cartesian oracle with strict RNN shadow diagnostics | `v31_filtered_live` | Retained read-back/live-attempt evidence: default `speedl_cartesian_oracle`, Stage25.3 Step5b/Step6b evidence tube filtered 7-18 N / raw 5-20 N, superseded by v27 wider tube and 35 N hard guards; not current. |
+| `step5d_strict_rnn_ablation_v27` | bridge+TP | true | true | speedl Cartesian oracle linear-live / angular shadow-only | `v31_filtered_live` | Current read-back verified diagnostic package with failed retained 033032 live evidence. Stage25.3 uses filtered 5-22 N / raw 3-25 N / force_norm <=35 N. Stage25.0 `speedl_cartesian_oracle` executes linear `vx/vy/vz` only and keeps angular `wx/wy/wz` shadow-only for all Stage25.0. Next live retry is blocked until offline fix audit and explicit authorization. |
 | `step5d_ros2_remote_shadow_v1` | ROS2 offline | true | false | ROS2 shadow replay | `v31_filtered_live` input logs | Diagnostic-only Step5d policy replay: replays v15a/v14/v11 and Step5b/Step6b CSVs, removes long zero-qdot hold recovery, but is not live-ready and must follow Step5b plumbing validation. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |
 

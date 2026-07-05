@@ -338,6 +338,8 @@ def resolve_runtime_interface(
             "stage25_0": (
                 "v25/v26/v27: 37..42 cartesian vx/vy/vz/wx/wy/wz when "
                 f"47={STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:g}; "
+                "v27 speedl_cartesian_oracle bridge runtime executes vx/vy/vz but keeps "
+                "wx/wy/wz forced to 0 for all Stage25.0 while logging limited raw angular diagnostics; "
                 "37..42 joint qd0..qd5 rad/s when "
                 f"47={STEP5D_STAGE25_JOINT_LAYOUT_CODE:g}; "
                 "43 cmd_valid; 44 path_time; 45 force_error; 46 pose/orientation_error. "
@@ -347,6 +349,9 @@ def resolve_runtime_interface(
         hard_contract={
             "force_frame": "reaction normal for load; approach normal for posture/press direction",
             "stage25_cadence_max_gap_s": 0.020 if selected == STEP5D_ABLATION_V27_STAGE_ID else None,
+            "stage25_speedl_orientation_policy": (
+                "shadow_only_full_stage25" if selected == STEP5D_ABLATION_V27_STAGE_ID else None
+            ),
             "no_ubuntu_motion": True,
             "no_zero_ftsensor": True,
             "no_kunwei_tare_or_config": True,

@@ -29,6 +29,7 @@ SUMMARY_FILENAME = "summary.json"
 STAGE_TOL = 0.005
 STAGE25_MAX_ROW_GAP_S = 0.020
 STAGE25_MIN_CONSUMPTION_RATIO = 0.95
+STAGE25_ORIENTATION_ENTRY_HOLD_S = 0.150
 REQUIRED_COLUMNS = {
     "t_monotonic_s",
     "ur_output_double_register_30",
@@ -209,6 +210,136 @@ def angular_norms(rows: list[dict[str, str]]) -> list[float]:
     return norms
 
 
+def linear_norms(rows: list[dict[str, str]]) -> list[float]:
+    norms: list[float] = []
+    for row in rows:
+        vx = finite_float(row.get("step4e_cmd_vx_m_s"))
+        vy = finite_float(row.get("step4e_cmd_vy_m_s"))
+        vz = finite_float(row.get("step4e_cmd_vz_m_s"))
+        if math.isfinite(vx) and math.isfinite(vy) and math.isfinite(vz):
+            norms.append(math.sqrt(vx * vx + vy * vy + vz * vz))
+    return norms
+
+
+def reason_counts(rows: list[dict[str, str]], key: str) -> dict[str, int]:
+    counts = Counter(row.get(key) or "" for row in rows)
+    return dict(sorted((name, count) for name, count in counts.items() if name))
+
+
+def stage25_segment_metrics(rows: list[dict[str, str]], angular_limit: float) -> dict[str, Any]:
+    angular = angular_norms(rows)
+    linear = linear_norms(rows)
+    normal_loads = finite_values(rows, "_step4e_normal_load_n")
+    force_norms = finite_values(rows, "force_norm_n")
+    orientation = finite_values(rows, "step4e_orientation_error_rad")
+    outer_orientation = finite_values(rows, "_step5d_outer_orientation_error_rad")
+    t_values = finite_values(rows, "t_monotonic_s")
+    saturation_threshold = angular_limit * 0.99 if math.isfinite(angular_limit) and angular_limit > 0.0 else math.inf
+    saturated = sum(1 for value in angular if value >= saturation_threshold)
+    return {
+        "rows": len(rows),
+        "duration_s": max(t_values) - min(t_values) if len(t_values) >= 2 else 0.0,
+        "normal_load_min_n": min_or_none(normal_loads),
+        "normal_load_max_n": max_or_none(normal_loads),
+        "normal_load_mean_n": mean_or_none(normal_loads),
+        "force_norm_max_n": max_or_none(force_norms),
+        "linear_cmd_norm_abs_max_m_s": max_or_none(linear),
+        "linear_cmd_norm_mean_m_s": mean_or_none(linear),
+        "linear_vz_cmd_mean_m_s": mean_or_none(finite_values(rows, "step4e_cmd_vz_m_s")),
+        "linear_approach_cmd_mean_m_s": mean_or_none(
+            finite_values(rows, "_step5d_outer_xdot_limited_approach_normal_m_s")
+        ),
+        "angular_cmd_norm_max_rad_s": max_or_none(angular),
+        "angular_cmd_norm_mean_rad_s": mean_or_none(angular),
+        "angular_saturation_ratio": 0.0 if not angular else saturated / len(angular),
+        "normal_filter_source_counts": reason_counts(rows, "_step4e_normal_filter_source"),
+        "contact_safety_reason_counts": reason_counts(rows, "_step5d_contact_safety_reason"),
+        "normal_filter_lag_angle_abs_max_rad": max_or_none(
+            [abs(value) for value in finite_values(rows, "_step4e_live_normal_candidate_angle_rad")]
+        ),
+        "normal_filter_latch_lag_angle_abs_max_rad": max_or_none(
+            [abs(value) for value in finite_values(rows, "_step4e_live_normal_angle_from_latch_rad")]
+        ),
+        "orientation_error_first_rad": orientation[0] if orientation else None,
+        "orientation_error_last_rad": orientation[-1] if orientation else None,
+        "outer_orientation_error_first_rad": outer_orientation[0] if outer_orientation else None,
+        "outer_orientation_error_last_rad": outer_orientation[-1] if outer_orientation else None,
+    }
+
+
+def stage25_segment_diagnostics(rows: list[dict[str, str]], angular_limit: float) -> dict[str, Any]:
+    first_t = first_finite(rows, "t_monotonic_s")
+    entry_rows: list[dict[str, str]] = []
+    post_entry_rows: list[dict[str, str]] = []
+    shadow_only_rows: list[dict[str, str]] = []
+    if math.isfinite(first_t):
+        release_index: int | None = None
+        for idx, row in enumerate(rows):
+            t_s = finite_float(row.get("t_monotonic_s"))
+            row_angular = angular_norms([row])
+            if row_angular and row_angular[0] <= 1e-6:
+                shadow_only_rows.append(row)
+            if (
+                release_index is None
+                and math.isfinite(t_s)
+                and t_s - first_t <= STAGE25_ORIENTATION_ENTRY_HOLD_S + 1e-9
+                and row_angular
+                and row_angular[0] > 1e-6
+            ):
+                release_index = idx
+        if release_index is not None:
+            entry_rows = rows[:release_index]
+            post_entry_rows = rows[release_index:]
+        else:
+            for row in rows:
+                t_s = finite_float(row.get("t_monotonic_s"))
+                if math.isfinite(t_s) and t_s - first_t <= STAGE25_ORIENTATION_ENTRY_HOLD_S + 1e-9:
+                    entry_rows.append(row)
+                elif math.isfinite(t_s):
+                    post_entry_rows.append(row)
+    loaded_rows = [
+        row
+        for row in rows
+        if (row.get("_step5d_contact_safety_reason") or "") == "ok"
+        and finite_float(row.get("_step4e_normal_load_n")) >= 5.0
+    ]
+    low_load_repress_rows = [
+        row
+        for row in rows
+        if (row.get("_step5d_contact_safety_reason") or "") == "v25_speedl_low_load_repress_window"
+    ]
+    return {
+        "entry_hold": stage25_segment_metrics(entry_rows, angular_limit),
+        "shadow_only": stage25_segment_metrics(shadow_only_rows, angular_limit),
+        "post_entry_old_behavior": stage25_segment_metrics(post_entry_rows, angular_limit),
+        "loaded": stage25_segment_metrics(loaded_rows, angular_limit),
+        "low_load_repress": stage25_segment_metrics(low_load_repress_rows, angular_limit),
+    }
+
+
+def orientation_shadow_experiment_classification(
+    segments: dict[str, Any],
+    trigger: str | None,
+) -> str | None:
+    entry = segments.get("entry_hold") if isinstance(segments, dict) else {}
+    post_entry = segments.get("post_entry_old_behavior") if isinstance(segments, dict) else {}
+    if not isinstance(entry, dict) or not isinstance(post_entry, dict):
+        return None
+    entry_rows = int(entry.get("rows") or 0)
+    entry_angular_max = finite_float(entry.get("angular_cmd_norm_max_rad_s"))
+    post_entry_angular_mean = finite_float(post_entry.get("angular_cmd_norm_mean_rad_s"))
+    if (
+        trigger == "hard_low_load_timeout"
+        and entry_rows > 0
+        and math.isfinite(entry_angular_max)
+        and entry_angular_max <= 1e-6
+        and math.isfinite(post_entry_angular_mean)
+        and post_entry_angular_mean > 0.005
+    ):
+        return "stage25_orientation_shadow_experiment_failed_low_load_timeout"
+    return None
+
+
 def last_contact_safety_reason(rows: list[dict[str, str]]) -> str | None:
     for row in reversed(rows):
         reason = row.get("_step5d_contact_safety_reason") or ""
@@ -252,6 +383,7 @@ def stage25_control_attribution(rows: list[dict[str, str]], metadata: dict[str, 
         control_oscillation_trigger = "low_load_excursion_with_angular_saturation"
     elif has_force_hard_stop:
         control_oscillation_trigger = "force_norm_hard_stop"
+    segment_diagnostics = stage25_segment_diagnostics(rows, angular_limit)
     return {
         "stage25_rows": len(rows),
         "entry_orientation_error_rad": first_finite(rows, "step4e_orientation_error_rad"),
@@ -283,6 +415,11 @@ def stage25_control_attribution(rows: list[dict[str, str]], metadata: dict[str, 
         ),
         "normal_filter_latch_lag_angle_abs_max_rad": max_or_none(
             [abs(value) for value in finite_values(rows, "_step4e_live_normal_angle_from_latch_rad")]
+        ),
+        "stage25_segment_diagnostics": segment_diagnostics,
+        "orientation_shadow_experiment_classification": orientation_shadow_experiment_classification(
+            segment_diagnostics,
+            control_oscillation_trigger,
         ),
     }
 

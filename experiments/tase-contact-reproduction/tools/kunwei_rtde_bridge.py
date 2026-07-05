@@ -229,6 +229,10 @@ STEP5D_DIAG_FIELDS = [
     "_step5d_rnn_qdot_max_abs_raw_rad_s",
     "_step5d_qdot_max_abs_after_guard_rad_s",
     "_step5d_intervention_reason",
+    "_step5d_speedl_orientation_shadow_only",
+    "_step5d_speedl_shadow_raw_wx_rad_s",
+    "_step5d_speedl_shadow_raw_wy_rad_s",
+    "_step5d_speedl_shadow_raw_wz_rad_s",
     "_step5d_reacquire_speed_cap_active",
     "_step5d_reacquire_speed_cap_m_s",
     "_step5d_reacquire_speed_cap_original_m_s",
@@ -575,7 +579,7 @@ STEP5D_V27_ENTRY_RAW_NORMAL_LOAD_MAX_N = 25.0
 STEP5D_V27_ENTRY_FORCE_NORM_MAX_N = 35.0
 STEP5D_V27_ENTRY_RECOVERY_NORMAL_LOAD_MAX_N = 35.0
 STEP5D_V27_SENSOR_FORCE_HARD_STOP_N = 35.0
-STEP5D_ABLATION_SPEEDL_ENTRY_ORIENTATION_HOLD_S = 0.150
+STEP5D_ABLATION_SPEEDL_ORIENTATION_SHADOW_ONLY = True
 STEP5D_V25_HARD_LOW_LOAD_N = 2.0
 STEP5D_V25_HARD_LOW_LOAD_TIMEOUT_S = 0.100
 STEP5D_V25_SOFT_LOW_LOAD_N = 5.0
@@ -4042,6 +4046,8 @@ def compute_bridge_values(
         step5d_raw_qdot_command: tuple[float, float, float, float, float, float] | None = None
         step5d_post_slew_qdot_command: tuple[float, float, float, float, float, float] | None = None
         step5d_stage25_command: tuple[float, float, float, float, float, float] | None = None
+        step5d_speedl_shadow_raw_angular_cmd: tuple[float, float, float] | None = None
+        step5d_speedl_orientation_shadow_only = False
         step5d_stage25_layout_tag = STEP5D_STAGE25_JOINT_LAYOUT_CODE
         step5d_stage25_control_mode = (
             str(getattr(args, "step5d_stage25_control_mode", "speedl_cartesian_oracle"))
@@ -4429,21 +4435,28 @@ def compute_bridge_values(
                         state.step5d_last_qdot = None
                 if step5d_ablation_profile:
                     if step5d_stage25_control_mode == "speedl_cartesian_oracle":
-                        step5d_stage25_command = tuple(float(value) for value in step5d_outer_xdot_limited.tolist())
+                        raw_stage25_command = tuple(float(value) for value in step5d_outer_xdot_limited.tolist())
+                        step5d_stage25_command = raw_stage25_command
                         step5d_stage25_layout_tag = STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE
                         if (
                             step5d_liveprep_v27_profile
-                            and state.step5d_active_stage25_s <= STEP5D_ABLATION_SPEEDL_ENTRY_ORIENTATION_HOLD_S
+                            and STEP5D_ABLATION_SPEEDL_ORIENTATION_SHADOW_ONLY
                         ):
+                            step5d_speedl_shadow_raw_angular_cmd = (
+                                raw_stage25_command[3],
+                                raw_stage25_command[4],
+                                raw_stage25_command[5],
+                            )
+                            step5d_speedl_orientation_shadow_only = True
                             step5d_stage25_command = (
-                                step5d_stage25_command[0],
-                                step5d_stage25_command[1],
-                                step5d_stage25_command[2],
+                                raw_stage25_command[0],
+                                raw_stage25_command[1],
+                                raw_stage25_command[2],
                                 0.0,
                                 0.0,
                                 0.0,
                             )
-                            step5d_intervention_reasons.append("stage25_entry_orientation_hold")
+                            step5d_intervention_reasons.append("stage25_orientation_shadow_only")
                     elif step5d_stage25_control_mode == "speedj_dls_oracle":
                         step5d_stage25_command = step5d_dls_qdot_oracle(
                             jacobian,
@@ -4669,6 +4682,22 @@ def compute_bridge_values(
             values["_step5d_qdot_max_abs_rad_s"] = max(qdot_abs)
             values["_step5d_rnn_qdot_max_abs_raw_rad_s"] = max(raw_qdot_abs)
             values["_step5d_qdot_max_abs_after_guard_rad_s"] = max(qdot_abs)
+            values["_step5d_speedl_orientation_shadow_only"] = 1.0 if step5d_speedl_orientation_shadow_only else 0.0
+            values["_step5d_speedl_shadow_raw_wx_rad_s"] = (
+                step5d_speedl_shadow_raw_angular_cmd[0]
+                if step5d_speedl_shadow_raw_angular_cmd is not None
+                else math.nan
+            )
+            values["_step5d_speedl_shadow_raw_wy_rad_s"] = (
+                step5d_speedl_shadow_raw_angular_cmd[1]
+                if step5d_speedl_shadow_raw_angular_cmd is not None
+                else math.nan
+            )
+            values["_step5d_speedl_shadow_raw_wz_rad_s"] = (
+                step5d_speedl_shadow_raw_angular_cmd[2]
+                if step5d_speedl_shadow_raw_angular_cmd is not None
+                else math.nan
+            )
             values["_step5d_constraint_residual_norm"] = step5d_result.residual_norm
             values["_step5d_outer_xdot_norm"] = float(np.linalg.norm(np.asarray(step5d_outer_output.xdot_c, dtype=float)))
             values["_step5d_outer_xdot_limited_norm"] = (
@@ -6318,6 +6347,7 @@ def main(argv: list[str] | None = None) -> int:
             "step5d_v22_liveprep_25.95": "input_double_register_37..42 must be bridge-cleared qdot-safe zeros, 43 must be 0, and 47 must not equal the preload param-valid code before TP enters Stage 25.0.",
             "step5d_v23_liveprep_25.95": "TP requires qdot registers 37..42 to be near-zero before Stage 25.0; bridge also applies a post-RNN normal-direction command guard while preserving RNN as the object under test.",
             "step5d_v24_liveprep_25.95": "TP keeps the v23 near-zero qdot-clear barrier; bridge stops low/no-contact instead of executing active_reacquire_solver qdot and adds post-RNN tracking reversal detection.",
+            "step5d_strict_rnn_ablation_v27_25.0": "In speedl_cartesian_oracle, bridge writes layout tag 523 and live linear vx/vy/vz, but forces wx/wy/wz to 0 for all Stage25.0; limited raw angular speedl command remains diagnostic in _step5d_speedl_shadow_raw_w* fields.",
             "v22_seed_normal_loop": "25.05 latches the first contact normal; 25.2 outputs target TCP rotvec for optional lifted posture correction; 25.3 reacquires 5 N before 25.0 line control.",
             "v23_seed_normal_loop_failed_archive": "24.0/24.2 latch the first contact normal; 25.2 outputs angular speedl wx/wy/wz for lifted posture correction; 25.3 reacquires 5 N before 25.0 line control. Archived after 2026-06-12 stop_reason=13 at 25.2.",
             "v24_seed_normal_loop_evidence": "One-step entry scaffold evidence; first search envelope still used a fixed 80 mm far-search transition.",
