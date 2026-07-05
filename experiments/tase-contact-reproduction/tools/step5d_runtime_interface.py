@@ -13,7 +13,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 
-from tase_protocol_table import resolve_experiment_profile
+from tase_protocol_table import ProtocolTableError, resolve_experiment_profile
 
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
@@ -45,6 +45,29 @@ STEP5D_LINE_ENTRY_PARAM_VALID_CODE = 521.0
 STEP5D_QDOT_CLEAR_STAGE = 25.95
 STEP5D_QDOT_CLEAR_ACK_CYCLES = 3
 STEP5D_QDOT_CLEAR_ZERO_TOL_RAD_S = 0.0005
+STEP5D_V27_STEP5B_ENVELOPE_NORMAL_GUARD_N = 50.0
+STEP5D_V27_STEP5B_ENVELOPE_FORCE_GUARD_N = 60.0
+STEP5D_V27_STEP5B_ENVELOPE_TORQUE_GUARD_NM = 3.0
+STEP5D_V27_SPEEDL_LIVE_CONTROL_SOURCE = "step5b_speedl_live_step5d_shadow"
+
+STEP5D_PROTOCOL_FALLBACK_PROFILE = {
+    "parameters": {
+        "bridge_duration_s": 180.0,
+        "target_force_n": 12.0,
+        "force_p_gain": 0.001,
+        "force_i_gain": 0.00001,
+        "force_damping": 7.0,
+        "integral_limit_n_s": 1.0,
+        "normal_filter_alpha": 0.55,
+        "normal_filter_min_force_n": 2.0,
+        "zero_hold_s": 0.25,
+    },
+    "safety_limits": {
+        "normal_velocity_limit_m_s": 0.01,
+        "total_linear_limit_m_s": 0.004,
+        "angular_limit_rad_s": 0.015,
+    },
+}
 
 
 @dataclass(frozen=True)
@@ -216,9 +239,18 @@ def default_preload_gate(program: str) -> Step5dPreloadGate:
 
 def default_bridge_rezero_s(program: str, root: Path = EXPERIMENT_ROOT) -> float:
     if program == STEP5D_ABLATION_V27_STAGE_ID:
-        profile = resolve_experiment_profile("Step5.step5d_rnn", root)
+        profile = runtime_protocol_profile(root)
         return float(profile["parameters"]["zero_hold_s"])
     return 1.0
+
+
+def runtime_protocol_profile(root: Path = EXPERIMENT_ROOT) -> dict[str, Any]:
+    try:
+        return resolve_experiment_profile("Step5.step5d_rnn", root)
+    except ProtocolTableError:
+        if (root / "config" / "tase_protocol_table.json").exists():
+            raise
+        return STEP5D_PROTOCOL_FALLBACK_PROFILE
 
 
 def resolve_runtime_interface(
@@ -233,15 +265,21 @@ def resolve_runtime_interface(
     selected = program or current_step5d_program(current_path)
     target = controller_target_for(selected, current)
     default_gate = default_preload_gate(selected)
-    protocol_profile = resolve_experiment_profile("Step5.step5d_rnn", root)
+    protocol_profile = runtime_protocol_profile(root)
     protocol_params = protocol_profile["parameters"]
     protocol_limits = protocol_profile["safety_limits"]
     if selected == STEP5D_ABLATION_V27_STAGE_ID:
-        trusted_force_default_n = float(protocol_limits["force_norm_guard_n"])
+        trusted_normal_default_n = STEP5D_V27_STEP5B_ENVELOPE_NORMAL_GUARD_N
+        trusted_force_default_n = STEP5D_V27_STEP5B_ENVELOPE_FORCE_GUARD_N
+        trusted_torque_default_nm = STEP5D_V27_STEP5B_ENVELOPE_TORQUE_GUARD_NM
     elif selected in {STEP5D_LIVEPREP_V24_STAGE_ID, STEP5D_ABLATION_V25_STAGE_ID, STEP5D_ABLATION_V26_STAGE_ID}:
+        trusted_normal_default_n = 25.0
         trusted_force_default_n = 25.0
+        trusted_torque_default_nm = 4.0
     else:
+        trusted_normal_default_n = 100.0
         trusted_force_default_n = 100.0
+        trusted_torque_default_nm = 4.0
     stage25_control_mode = str(
         env_map.get(
             "STEP5D_STAGE25_CONTROL_MODE",
@@ -318,9 +356,9 @@ def resolve_runtime_interface(
             0.150 if selected == STEP5D_ABLATION_V25_STAGE_ID else float(protocol_limits["angular_limit_rad_s"]),
             legacy="BRIDGE_ANGULAR_LIMIT_RAD_S",
         ),
-        max_normal_force_n=env_float(env_map, "STEP5D_MAX_NORMAL_FORCE_N", trusted_force_default_n, legacy="MAX_NORMAL_FORCE_N"),
+        max_normal_force_n=env_float(env_map, "STEP5D_MAX_NORMAL_FORCE_N", trusted_normal_default_n, legacy="MAX_NORMAL_FORCE_N"),
         max_force_norm_n=env_float(env_map, "STEP5D_MAX_FORCE_NORM_N", trusted_force_default_n, legacy="MAX_FORCE_NORM_N"),
-        max_torque_norm_nm=env_float(env_map, "STEP5D_MAX_TORQUE_NORM_NM", 4.0, legacy="MAX_TORQUE_NORM_NM"),
+        max_torque_norm_nm=env_float(env_map, "STEP5D_MAX_TORQUE_NORM_NM", trusted_torque_default_nm, legacy="MAX_TORQUE_NORM_NM"),
         baseline_s=env_float(env_map, "STEP5D_BASELINE_S", 5.0, legacy="BRIDGE_BASELINE_S"),
         rezero_s=env_float(env_map, "STEP5D_REZERO_S", default_bridge_rezero_s(selected, root), legacy="BRIDGE_REZERO_S"),
         rtde_hz=env_float(env_map, "STEP5D_RTDE_HZ", 500.0, legacy="BRIDGE_RTDE_HZ"),
@@ -349,8 +387,9 @@ def resolve_runtime_interface(
             "stage25_0": (
                 "v25/v26/v27: 37..42 cartesian vx/vy/vz/wx/wy/wz when "
                 f"47={STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:g}; "
-                "v27 speedl_cartesian_oracle bridge runtime executes vx/vy/vz but keeps "
-                "wx/wy/wz forced to 0 for all Stage25.0 while logging limited raw angular diagnostics; "
+                "v27 speedl_cartesian_oracle bridge runtime uses "
+                f"{STEP5D_V27_SPEEDL_LIVE_CONTROL_SOURCE}: Step5b speedl live vx/vy/vz, "
+                "wx/wy/wz forced to 0 for all Stage25.0, and Step5d paper/RNN outputs logged as shadow diagnostics; "
                 "37..42 joint qd0..qd5 rad/s when "
                 f"47={STEP5D_STAGE25_JOINT_LAYOUT_CODE:g}; "
                 "43 cmd_valid; 44 path_time; 45 force_error; 46 pose/orientation_error. "
@@ -362,6 +401,9 @@ def resolve_runtime_interface(
             "stage25_cadence_max_gap_s": 0.020 if selected == STEP5D_ABLATION_V27_STAGE_ID else None,
             "stage25_speedl_orientation_policy": (
                 "shadow_only_full_stage25" if selected == STEP5D_ABLATION_V27_STAGE_ID else None
+            ),
+            "stage25_live_control_source": (
+                STEP5D_V27_SPEEDL_LIVE_CONTROL_SOURCE if selected == STEP5D_ABLATION_V27_STAGE_ID else None
             ),
             "no_ubuntu_motion": True,
             "no_zero_ftsensor": True,

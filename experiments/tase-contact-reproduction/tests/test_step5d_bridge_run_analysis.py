@@ -29,6 +29,7 @@ V27_MAIN_RUN_ID = "bridge_step5d_strict_rnn_ablation_v27_20260706_024815"
 V27_CORROBORATION_RUN_ID = "bridge_step5d_strict_rnn_ablation_v27_20260706_025857"
 V27_STARTUP_FAILURE_RUN_ID = "bridge_step5d_strict_rnn_ablation_v27_20260706_020732"
 V27_SHADOW_EXPERIMENT_RUN_ID = "bridge_step5d_strict_rnn_ablation_v27_20260706_033032"
+V27_FORCE_OVERSHOOT_RUN_ID = "bridge_step5d_strict_rnn_ablation_v27_20260706_040900"
 
 
 def write_bridge_csv(path: Path, rows: list[dict[str, str]], fieldnames: list[str] | None = None) -> None:
@@ -197,6 +198,79 @@ def write_v27_033032_shadow_experiment_slice(run_dir: Path) -> None:
                 "_step5d_outer_xdot_limited_approach_normal_m_s": f"{linear[2]:.9f}",
                 "_step4e_live_normal_candidate_angle_rad": f"{normal_lag:.9f}",
                 "_step4e_live_normal_angle_from_latch_rad": f"{normal_lag:.9f}",
+            }
+        )
+    write_bridge_csv(csv_path, rows, fieldnames=fieldnames)
+
+
+def write_v27_040900_force_overshoot_slice(run_dir: Path) -> None:
+    run_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = run_dir / "bridge_rtde_500hz.csv"
+    fieldnames = [
+        *FIELDNAMES,
+        "_step5d_stage25_echo_consumed",
+        "_step5d_stage25_echo_layout_tag",
+        "_step5d_stage25_echo_cmd_valid",
+        "_step5d_stage25_echo_command_norm",
+        "_step5d_contact_safety_reason",
+        "_step4e_normal_filter_source",
+        "step4e_orientation_error_rad",
+        "_step5d_outer_orientation_error_rad",
+        "step4e_cmd_vx_m_s",
+        "step4e_cmd_vy_m_s",
+        "step4e_cmd_vz_m_s",
+        "step4e_cmd_wx_rad_s",
+        "step4e_cmd_wy_rad_s",
+        "step4e_cmd_wz_rad_s",
+        "_step5d_outer_xdot_limited_approach_normal_m_s",
+        "_step5d_speedl_orientation_shadow_only",
+        "_step5d_speedl_shadow_raw_wx_rad_s",
+        "_step5d_speedl_shadow_raw_wy_rad_s",
+        "_step5d_speedl_shadow_raw_wz_rad_s",
+    ]
+    rows: list[dict[str, str]] = []
+    row_count = 146
+    consumed_rows = 143
+    unconsumed_rows = row_count - consumed_rows
+    for idx in range(row_count):
+        t_s = 1.0 + idx * 0.002
+        if idx < 30:
+            load = 13.7 - 1.2 * (idx / 29.0)
+            vz = 0.0015
+        elif idx < 75:
+            load = 12.5 - 5.6 * ((idx - 30) / 44.0)
+            vz = 0.0038
+        else:
+            load = min(29.2, 6.9 + 22.3 * ((idx - 75) / 70.0))
+            vz = -0.0040
+        terminal = idx == row_count - 1
+        rows.append(
+            {
+                "t_monotonic_s": f"{t_s:.6f}",
+                "ur_output_double_register_30": "4" if terminal else "0",
+                "ur_output_double_register_35": "25.0",
+                "_step4e_normal_load_n": f"{load:.9f}",
+                "_step5d_force_settle_filtered_normal_load_n": f"{load:.9f}",
+                "force_norm_n": f"{max(load, 0.0):.9f}",
+                "_step5d_stage25_echo_consumed": "0" if idx < unconsumed_rows else "1",
+                "_step5d_stage25_echo_layout_tag": "523",
+                "_step5d_stage25_echo_cmd_valid": "1",
+                "_step5d_stage25_echo_command_norm": "0.004",
+                "_step5d_contact_safety_reason": "force_norm_hard_stop" if terminal else "ok",
+                "_step4e_normal_filter_source": "filtered_live",
+                "step4e_orientation_error_rad": "0.116000000",
+                "_step5d_outer_orientation_error_rad": "0.116000000",
+                "step4e_cmd_vx_m_s": "0.000000000",
+                "step4e_cmd_vy_m_s": "0.000000000",
+                "step4e_cmd_vz_m_s": f"{vz:.9f}",
+                "step4e_cmd_wx_rad_s": "0.000000000",
+                "step4e_cmd_wy_rad_s": "0.000000000",
+                "step4e_cmd_wz_rad_s": "0.000000000",
+                "_step5d_outer_xdot_limited_approach_normal_m_s": f"{vz:.9f}",
+                "_step5d_speedl_orientation_shadow_only": "1",
+                "_step5d_speedl_shadow_raw_wx_rad_s": "0.007250000",
+                "_step5d_speedl_shadow_raw_wy_rad_s": "-0.013130000",
+                "_step5d_speedl_shadow_raw_wz_rad_s": "0.000000000",
             }
         )
     write_bridge_csv(csv_path, rows, fieldnames=fieldnames)
@@ -466,6 +540,28 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
         self.assertLess(segments["low_load_repress"]["normal_load_max_n"], 1.4)
         self.assertGreater(segments["low_load_repress"]["normal_filter_lag_angle_abs_max_rad"], 1.7)
         self.assertGreater(segments["loaded"]["normal_load_max_n"], 16.0)
+
+    def test_v27_040900_force_overshoot_points_to_step5b_live_copy_not_orientation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / V27_FORCE_OVERSHOOT_RUN_ID
+            write_v27_040900_force_overshoot_slice(run_dir)
+
+            analysis = analyze_step5d_bridge_run.analyze_run_dir(run_dir)
+
+        self.assertTrue(analysis["stage25_cadence_ok"])
+        self.assertTrue(analysis["stage25_consumption_ok"])
+        self.assertEqual(analysis["classification"], "stage25_control_force_oscillation/force_norm_hard_stop")
+        self.assertEqual(
+            analysis["evidence_classification"],
+            "old_v27_paper_outer_linear_live_gain_mismatch_force_norm_hard_stop",
+        )
+        self.assertIn("Step5b speedl", analysis["next_action"])
+        self.assertNotIn("entry orientation command", analysis["next_action"])
+        attribution = analysis["stage25_control_attribution"]
+        self.assertAlmostEqual(attribution["angular_cmd_norm_max_rad_s"], 0.0, places=9)
+        self.assertAlmostEqual(attribution["linear_vz_cmd_abs_max_m_s"], 0.004, places=9)
+        self.assertEqual(attribution["control_oscillation_trigger"], "force_norm_hard_stop")
+        self.assertEqual(attribution["terminal_contact_safety_reason"], "force_norm_hard_stop")
 
     def test_no_play_or_false_start_without_stage_echo(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

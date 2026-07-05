@@ -342,10 +342,12 @@ class Step5dV15PermissiveRecoveryTest(unittest.TestCase):
         self.assertEqual(current_candidate["guard"]["line_entry_required_s"], 0.1)
         self.assertEqual(current_candidate["guard"]["line_entry_param_valid_code"], 521.0)
         self.assertEqual(current_candidate["guard"]["runtime_limit_s"], 15.0)
-        expected_hard_guard_n = 35.0 if current["program"] == "step5d_strict_rnn_ablation_v27" else 25.0
-        self.assertEqual(current_candidate["guard"]["raw_normal_guard_n"], expected_hard_guard_n)
-        self.assertEqual(current_candidate["guard"]["force_norm_guard_n"], expected_hard_guard_n)
-        self.assertEqual(current_candidate["guard"]["torque_norm_guard_nm"], 4.0)
+        expected_raw_guard_n = 50.0 if current["program"] == "step5d_strict_rnn_ablation_v27" else 25.0
+        expected_force_guard_n = 60.0 if current["program"] == "step5d_strict_rnn_ablation_v27" else 25.0
+        expected_torque_guard_nm = 3.0 if current["program"] == "step5d_strict_rnn_ablation_v27" else 4.0
+        self.assertEqual(current_candidate["guard"]["raw_normal_guard_n"], expected_raw_guard_n)
+        self.assertEqual(current_candidate["guard"]["force_norm_guard_n"], expected_force_guard_n)
+        self.assertEqual(current_candidate["guard"]["torque_norm_guard_nm"], expected_torque_guard_nm)
         self.assertEqual(current_candidate["guard"]["precontact_pose_contract_id"], "pre_contact_search_gravity_down_v1")
         self.assertEqual(current_candidate["guard"]["precontact_pose_target_rotvec_rad"], [3.141592654, 0.0, 0.0])
         self.assertEqual(current_candidate["guard"]["entry_movel_speed_m_s"], 0.060)
@@ -358,7 +360,11 @@ class Step5dV15PermissiveRecoveryTest(unittest.TestCase):
         self.assertEqual(current["bridge_profile"]["step4e_version"], current["program"])
         self.assertEqual(
             current["bridge_profile"]["sensor_hard_guards"],
-            {"raw_normal_n": expected_hard_guard_n, "force_norm_n": expected_hard_guard_n, "torque_norm_nm": 4.0},
+            {
+                "raw_normal_n": expected_raw_guard_n,
+                "force_norm_n": expected_force_guard_n,
+                "torque_norm_nm": expected_torque_guard_nm,
+            },
         )
         self.assertIn("controller_readback_verified", current["status"])
         if current["program"] == "step5d_strict_rnn_liveprep_v24":
@@ -488,9 +494,9 @@ class Step5dV15PermissiveRecoveryTest(unittest.TestCase):
         self.assertEqual(current["evidence"]["step5d_projector_root_cause_fix"]["status"], "present_in_worktree")
         self.assertFalse(current["bridge_trigger"]["bridge_has_started"])
         self.assertFalse(current["bridge_trigger"]["live_motion_authorized"])
-        self.assertIn("033032 failed retained live evidence", current["bridge_trigger"]["blocked_reason"])
+        self.assertIn("040900 failed retained fix-validation evidence", current["bridge_trigger"]["blocked_reason"])
         self.assertIn(
-            "offline bridge-runtime orientation shadow-only fix audited",
+            "offline bridge-runtime copy-Step5b-live / Step5d-shadow fix audited",
             current["bridge_trigger"]["required_before_live"],
         )
         self.assertEqual(current["bridge_trigger"]["allowed_tokens"], ["LIVE STEP5D STRICT RNN LIVEPREP"])

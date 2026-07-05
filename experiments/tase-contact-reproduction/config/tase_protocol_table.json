@@ -99,9 +99,9 @@
       "reacquire_velocity_m_s": 0.0004
     },
     "step5d_v27_safety_v1": {
-      "max_normal_force_n": 35.0,
-      "force_norm_guard_n": 35.0,
-      "max_torque_norm_nm": 4.0,
+      "max_normal_force_n": 50.0,
+      "force_norm_guard_n": 60.0,
+      "max_torque_norm_nm": 3.0,
       "total_linear_limit_m_s": 0.004,
       "normal_velocity_limit_m_s": 0.01,
       "angular_limit_rad_s": 0.015,
@@ -161,7 +161,14 @@
       "evidence_profile": "step5b_v3_success",
       "runtime_family": "step5d_rnn",
       "current_program": "step5d_strict_rnn_ablation_v27",
-      "stage25_default_control_mode": "speedl_cartesian_oracle"
+      "stage25_default_control_mode": "speedl_cartesian_oracle",
+      "current_evidence": {
+        "latest_failed_retained": "runs/bridge_step5d_strict_rnn_ablation_v27_20260706_040900/step5d_bridge_analysis.json",
+        "result": "failed_retained_fix_validation_evidence_not_acceptance",
+        "classification": "stage25_control_force_oscillation/force_norm_hard_stop",
+        "evidence_classification": "old_v27_paper_outer_linear_live_gain_mismatch_force_norm_hard_stop",
+        "live_retry_blocked_until": "offline copy-Step5b-live / Step5d-shadow fix audit plus explicit user authorization"
+      }
     },
     "Step6.no_contact_eight": {
       "step": "Step6",

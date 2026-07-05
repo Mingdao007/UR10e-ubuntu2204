@@ -38,14 +38,16 @@ fi
 if [[ "${STEP5D_VERSION}" == "step5d_strict_rnn_ablation_v27" ]]; then
   STEP5D_DEFAULT_MAX_NORMAL_FORCE_N="${STEP5D_DEFAULT_MAX_NORMAL_FORCE_N:-${TASE_STEP5D_MAX_NORMAL_FORCE_N}}"
   STEP5D_DEFAULT_MAX_FORCE_NORM_N="${STEP5D_DEFAULT_MAX_FORCE_NORM_N:-${TASE_STEP5D_MAX_FORCE_NORM_N}}"
+  STEP5D_DEFAULT_MAX_TORQUE_NORM_NM="${STEP5D_DEFAULT_MAX_TORQUE_NORM_NM:-${TASE_STEP5D_MAX_TORQUE_NORM_NM}}"
 elif [[ "${STEP5D_VERSION}" == "step5d_strict_rnn_liveprep_v24" || "${STEP5D_VERSION}" == step5d_strict_rnn_ablation_v* ]]; then
   STEP5D_DEFAULT_MAX_NORMAL_FORCE_N="${STEP5D_DEFAULT_MAX_NORMAL_FORCE_N:-25}"
   STEP5D_DEFAULT_MAX_FORCE_NORM_N="${STEP5D_DEFAULT_MAX_FORCE_NORM_N:-25}"
+  STEP5D_DEFAULT_MAX_TORQUE_NORM_NM="${STEP5D_DEFAULT_MAX_TORQUE_NORM_NM:-4.0}"
 else
   STEP5D_DEFAULT_MAX_NORMAL_FORCE_N="${STEP5D_DEFAULT_MAX_NORMAL_FORCE_N:-100}"
   STEP5D_DEFAULT_MAX_FORCE_NORM_N="${STEP5D_DEFAULT_MAX_FORCE_NORM_N:-100}"
+  STEP5D_DEFAULT_MAX_TORQUE_NORM_NM="${STEP5D_DEFAULT_MAX_TORQUE_NORM_NM:-4.0}"
 fi
-STEP5D_DEFAULT_MAX_TORQUE_NORM_NM="${STEP5D_DEFAULT_MAX_TORQUE_NORM_NM:-4.0}"
 if [[ "${STEP5D_VERSION}" == "step5d_strict_rnn_ablation_v25" ]]; then
   STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N:-10.5}"
   STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N:-12.8}"
@@ -105,14 +107,14 @@ Boundary:
   - v25/v26/v27 first live mode defaults to STEP5D_STAGE25_CONTROL_MODE=speedl_cartesian_oracle; speedj_rnn_live remains an explicit follow-up mode.
   - v24 and older Stage 25.0: registers 37..42 are qd0..qd5 rad/s; TP executes speedj.
   - qdot cap: v12+ live-prep packages default to 0.05 rad/s; retained evidence packages may differ.
-  - Raw normal guard: current v24/v25/v26 defaults to 25 N, v27 defaults to 35 N, torque guard 4.0 Nm; retained v18-v23 evidence packages used 100/100/4.0.
+  - Raw normal/force guards: current v24/v25/v26 defaults to 25/25 N, v27 defaults to Step5b envelope 50/60 N with torque guard 3.0 Nm; retained v18-v23 evidence packages used 100/100/4.0.
   - Stage 25.3 runs bridge deadband acquire with Cartesian registers 37..39.
   - v21+ Stage 25.3 can receive preload min/max/hold/timeout from STEP5D_PRELOAD_* at bridge time.
   - Stage 25.3 keeps press recovery on low load and v24 stops outside the 20 N normal-load / 25 N force-norm recovery envelope.
   - v24 default preload gate is filtered 7.5-14 N, raw-sanity 7-15 N, and force_norm <=25 N for 0.100 s before Stage 25.95 verifies near-zero qdot registers and Stage 25.0 speedj starts.
   - v25 default preload gate is filtered 10.5-12.8 N, raw-sanity 9.5-13.5 N, and force_norm <=25 N for 0.100 s before Stage 25.95 verifies registers 37..47 clear.
   - v26 default preload tube is filtered 7-18 N, raw-sanity 5-20 N, and force_norm <=25 N for 0.100 s before Stage 25.95 verifies registers 37..47 clear.
-  - v27 default tube is filtered 5-22 N, raw-sanity 3-25 N, and force_norm <=35 N for 0.100 s before Stage 25.95 verifies registers 37..47 clear.
+  - v27 default preload tube is filtered 5-22 N, raw-sanity 3-25 N, and force_norm <=35 N for 0.100 s before Stage 25.95 verifies registers 37..47 clear.
   - Stage 22/24 pre-contact search posture is gravity-down: TCP +Z targets base -Z with rotvec [pi,0,0].
   - Stage 22 entry movel is 1.5x faster than v18: 0.060 m/s at 0.090 m/s^2.
   - Stage 24 far search is 1.5x faster than v18: 0.0225 m/s down; near search remains 0.0025 m/s.

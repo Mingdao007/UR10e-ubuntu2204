@@ -88,6 +88,19 @@ def fake_v27_runtime(state: bridge.BridgeState, _args: object) -> None:
     state.step5d_solver = FakeSolver()
 
 
+def fake_v27_runtime_with_solver_failure(state: bridge.BridgeState, _args: object) -> None:
+    fake_v27_runtime(state, _args)
+
+    class FailingSolver:
+        def reset_state(self) -> None:
+            return None
+
+        def solve(self, **_kwargs: object) -> SimpleNamespace:
+            raise RuntimeError("synthetic shadow solver failure")
+
+    state.step5d_solver = FailingSolver()
+
+
 def fake_v27_outer(*_args: object, **_kwargs: object) -> SimpleNamespace:
     return SimpleNamespace(
         xdot_c=np.array([0.0010, 0.0015, -0.0020, 0.0100, -0.0200, 0.0300]),
@@ -125,7 +138,7 @@ def fake_v27_outer_with_matching_orientation(_config: object, _state: object, in
 
 
 class Step5dV27AblationTest(unittest.TestCase):
-    def test_bridge_parse_args_recognizes_v27_speedl_wide_tube(self) -> None:
+    def test_bridge_parse_args_recognizes_v27_step5b_envelope_with_speedl_shadow(self) -> None:
         args = bridge.parse_args(
             [
                 "--no-start-command",
@@ -146,9 +159,9 @@ class Step5dV27AblationTest(unittest.TestCase):
         self.assertEqual(args.step5d_preload_raw_min_n, 3.0)
         self.assertEqual(args.step5d_preload_raw_max_n, 25.0)
         self.assertEqual(args.step5d_preload_force_norm_max_n, 35.0)
-        self.assertEqual(args.max_normal_force_n, 35.0)
-        self.assertEqual(args.max_force_norm_n, 35.0)
-        self.assertEqual(args.max_torque_norm_nm, 4.0)
+        self.assertEqual(args.max_normal_force_n, 50.0)
+        self.assertEqual(args.max_force_norm_n, 60.0)
+        self.assertEqual(args.max_torque_norm_nm, 3.0)
 
     def test_v27_package_keeps_step5b_scaffold_min_delta_and_consumption_contract(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -452,15 +465,22 @@ class Step5dV27AblationTest(unittest.TestCase):
             )
 
         self.assertEqual(values["step4e_cmd_valid"], 1.0)
-        self.assertAlmostEqual(values["step4e_cmd_vx_m_s"], 0.0010, places=9)
-        self.assertAlmostEqual(values["step4e_cmd_vy_m_s"], 0.0015, places=9)
-        self.assertAlmostEqual(values["step4e_cmd_vz_m_s"], -0.0020, places=9)
+        live_linear = (
+            values["step4e_cmd_vx_m_s"],
+            values["step4e_cmd_vy_m_s"],
+            values["step4e_cmd_vz_m_s"],
+        )
+        self.assertFalse(np.allclose(live_linear, (0.0010, 0.0015, -0.0020), atol=1e-12))
         self.assertAlmostEqual(values["step4e_cmd_wx_rad_s"], 0.0, places=9)
         self.assertAlmostEqual(values["step4e_cmd_wy_rad_s"], 0.0, places=9)
         self.assertAlmostEqual(values["step4e_cmd_wz_rad_s"], 0.0, places=9)
         self.assertAlmostEqual(values["step4e_orientation_error_rad"], tilt_rad, delta=0.002)
         self.assertAlmostEqual(values["_step5d_outer_orientation_error_rad"], tilt_rad, delta=0.002)
         self.assertEqual(values["_step5d_stage25_control_mode"], "speedl_cartesian_oracle")
+        self.assertEqual(values["_step5d_live_control_source"], "step5b_speedl_live_step5d_shadow")
+        self.assertAlmostEqual(values["_step5d_speedl_shadow_raw_vx_m_s"], 0.0010, places=9)
+        self.assertAlmostEqual(values["_step5d_speedl_shadow_raw_vy_m_s"], 0.0015, places=9)
+        self.assertAlmostEqual(values["_step5d_speedl_shadow_raw_vz_m_s"], -0.0020, places=9)
 
     def test_v27_speedl_shadow_only_keeps_angular_zero_after_entry_window(self) -> None:
         args = bridge.parse_args(
@@ -505,9 +525,12 @@ class Step5dV27AblationTest(unittest.TestCase):
             )
 
         self.assertEqual(values["step4e_cmd_valid"], 1.0)
-        self.assertAlmostEqual(values["step4e_cmd_vx_m_s"], 0.0010, places=9)
-        self.assertAlmostEqual(values["step4e_cmd_vy_m_s"], 0.0015, places=9)
-        self.assertAlmostEqual(values["step4e_cmd_vz_m_s"], -0.0020, places=9)
+        live_linear = (
+            values["step4e_cmd_vx_m_s"],
+            values["step4e_cmd_vy_m_s"],
+            values["step4e_cmd_vz_m_s"],
+        )
+        self.assertFalse(np.allclose(live_linear, (0.0010, 0.0015, -0.0020), atol=1e-12))
         self.assertAlmostEqual(values["step4e_cmd_wx_rad_s"], 0.0, places=9)
         self.assertAlmostEqual(values["step4e_cmd_wy_rad_s"], 0.0, places=9)
         self.assertAlmostEqual(values["step4e_cmd_wz_rad_s"], 0.0, places=9)
@@ -521,7 +544,67 @@ class Step5dV27AblationTest(unittest.TestCase):
         self.assertAlmostEqual(raw_angular_norm, 0.015, places=9)
         self.assertLess(values["_step5d_speedl_shadow_raw_wy_rad_s"], 0.0)
         self.assertGreater(values["_step5d_speedl_shadow_raw_wz_rad_s"], 0.0)
-        self.assertIn("stage25_orientation_shadow_only", values["_step5d_intervention_reason"])
+        self.assertAlmostEqual(values["_step5d_speedl_shadow_raw_vx_m_s"], 0.0010, places=9)
+        self.assertAlmostEqual(values["_step5d_speedl_shadow_raw_vy_m_s"], 0.0015, places=9)
+        self.assertAlmostEqual(values["_step5d_speedl_shadow_raw_vz_m_s"], -0.0020, places=9)
+        self.assertEqual(values["_step5d_live_control_source"], "step5b_speedl_live_step5d_shadow")
+        self.assertIn("stage25_step5b_speedl_live_step5d_shadow", values["_step5d_intervention_reason"])
+
+    def test_v27_speedl_shadow_solver_failure_keeps_live_source_diagnostics(self) -> None:
+        args = bridge.parse_args(
+            [
+                "--no-start-command",
+                "--skip-dashboard-preflight",
+                "--bridge-mode",
+                "line",
+                "--bridge-profile",
+                V27,
+                "--bridge-path-shape",
+                "cycloid",
+            ]
+        )
+        latest_output = {
+            "actual_TCP_pose": [0.49, 0.14, 0.02, 3.14, 0.0, 0.0],
+            "actual_TCP_speed": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            "actual_q": [0.0] * 6,
+            "actual_qd": [0.0] * 6,
+            "output_double_register_35": 25.0,
+        }
+
+        state = acquired_v27_state()
+        with (
+            patch.object(bridge, "step5d_tcp_jacobian_base", return_value=np.eye(6)),
+            patch.object(bridge, "step5d_omega_bounds", return_value=(np.full(6, -0.05), np.full(6, 0.05))),
+            patch.object(bridge, "compute_step5d_outer_loop", side_effect=fake_v27_outer),
+            patch.object(bridge, "rnn_target_state_from_outer_loop", return_value={"shadow": True}),
+        ):
+            fake_v27_runtime_with_solver_failure(state, args)
+            values = bridge.compute_bridge_values(
+                args,
+                [0.0, 0.0, -12.0, 0.0, 0.0, 0.0],
+                latest_output,
+                1.0,
+                state,
+                0.002,
+            )
+
+        self.assertIn("synthetic shadow solver failure", values["_step5d_solver_error"])
+        self.assertEqual(values["_step5d_live_control_source"], "step5b_speedl_live_step5d_shadow")
+        self.assertEqual(values["_step5d_speedl_orientation_shadow_only"], 1.0)
+        self.assertAlmostEqual(values["_step5d_speedl_shadow_raw_vx_m_s"], 0.0010, places=9)
+        self.assertAlmostEqual(values["_step5d_speedl_shadow_raw_vy_m_s"], 0.0015, places=9)
+        self.assertAlmostEqual(values["_step5d_speedl_shadow_raw_vz_m_s"], -0.0020, places=9)
+        raw_angular_norm = math.sqrt(
+            values["_step5d_speedl_shadow_raw_wx_rad_s"] ** 2
+            + values["_step5d_speedl_shadow_raw_wy_rad_s"] ** 2
+            + values["_step5d_speedl_shadow_raw_wz_rad_s"] ** 2
+        )
+        self.assertAlmostEqual(raw_angular_norm, 0.015, places=9)
+        self.assertLess(values["_step5d_speedl_shadow_raw_wy_rad_s"], 0.0)
+        self.assertGreater(values["_step5d_speedl_shadow_raw_wz_rad_s"], 0.0)
+        self.assertAlmostEqual(values["step4e_cmd_wx_rad_s"], 0.0, places=9)
+        self.assertAlmostEqual(values["step4e_cmd_wy_rad_s"], 0.0, places=9)
+        self.assertAlmostEqual(values["step4e_cmd_wz_rad_s"], 0.0, places=9)
 
 
 if __name__ == "__main__":

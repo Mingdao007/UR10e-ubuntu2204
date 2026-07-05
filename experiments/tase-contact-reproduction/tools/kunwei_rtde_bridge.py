@@ -229,7 +229,11 @@ STEP5D_DIAG_FIELDS = [
     "_step5d_rnn_qdot_max_abs_raw_rad_s",
     "_step5d_qdot_max_abs_after_guard_rad_s",
     "_step5d_intervention_reason",
+    "_step5d_live_control_source",
     "_step5d_speedl_orientation_shadow_only",
+    "_step5d_speedl_shadow_raw_vx_m_s",
+    "_step5d_speedl_shadow_raw_vy_m_s",
+    "_step5d_speedl_shadow_raw_vz_m_s",
     "_step5d_speedl_shadow_raw_wx_rad_s",
     "_step5d_speedl_shadow_raw_wy_rad_s",
     "_step5d_speedl_shadow_raw_wz_rad_s",
@@ -578,7 +582,10 @@ STEP5D_V27_ENTRY_RAW_NORMAL_LOAD_MIN_N = 3.0
 STEP5D_V27_ENTRY_RAW_NORMAL_LOAD_MAX_N = 25.0
 STEP5D_V27_ENTRY_FORCE_NORM_MAX_N = 35.0
 STEP5D_V27_ENTRY_RECOVERY_NORMAL_LOAD_MAX_N = 35.0
-STEP5D_V27_SENSOR_FORCE_HARD_STOP_N = 35.0
+STEP5D_V27_SENSOR_NORMAL_HARD_STOP_N = 50.0
+STEP5D_V27_SENSOR_FORCE_HARD_STOP_N = 60.0
+STEP5D_V27_SENSOR_TORQUE_HARD_STOP_NM = 3.0
+STEP5D_V27_SPEEDL_LIVE_CONTROL_SOURCE = "step5b_speedl_live_step5d_shadow"
 STEP5D_ABLATION_SPEEDL_ORIENTATION_SHADOW_ONLY = True
 STEP5D_V25_HARD_LOW_LOAD_N = 2.0
 STEP5D_V25_HARD_LOW_LOAD_TIMEOUT_S = 0.100
@@ -4046,8 +4053,10 @@ def compute_bridge_values(
         step5d_raw_qdot_command: tuple[float, float, float, float, float, float] | None = None
         step5d_post_slew_qdot_command: tuple[float, float, float, float, float, float] | None = None
         step5d_stage25_command: tuple[float, float, float, float, float, float] | None = None
+        step5d_speedl_shadow_raw_linear_cmd: tuple[float, float, float] | None = None
         step5d_speedl_shadow_raw_angular_cmd: tuple[float, float, float] | None = None
         step5d_speedl_orientation_shadow_only = False
+        step5d_live_control_source = ""
         step5d_stage25_layout_tag = STEP5D_STAGE25_JOINT_LAYOUT_CODE
         step5d_stage25_control_mode = (
             str(getattr(args, "step5d_stage25_control_mode", "speedl_cartesian_oracle"))
@@ -4442,21 +4451,27 @@ def compute_bridge_values(
                             step5d_liveprep_v27_profile
                             and STEP5D_ABLATION_SPEEDL_ORIENTATION_SHADOW_ONLY
                         ):
+                            step5d_speedl_shadow_raw_linear_cmd = (
+                                raw_stage25_command[0],
+                                raw_stage25_command[1],
+                                raw_stage25_command[2],
+                            )
                             step5d_speedl_shadow_raw_angular_cmd = (
                                 raw_stage25_command[3],
                                 raw_stage25_command[4],
                                 raw_stage25_command[5],
                             )
                             step5d_speedl_orientation_shadow_only = True
+                            step5d_live_control_source = STEP5D_V27_SPEEDL_LIVE_CONTROL_SOURCE
                             step5d_stage25_command = (
-                                raw_stage25_command[0],
-                                raw_stage25_command[1],
-                                raw_stage25_command[2],
+                                cmd[0],
+                                cmd[1],
+                                cmd[2],
                                 0.0,
                                 0.0,
                                 0.0,
                             )
-                            step5d_intervention_reasons.append("stage25_orientation_shadow_only")
+                            step5d_intervention_reasons.append("stage25_step5b_speedl_live_step5d_shadow")
                     elif step5d_stage25_control_mode == "speedj_dls_oracle":
                         step5d_stage25_command = step5d_dls_qdot_oracle(
                             jacobian,
@@ -4660,6 +4675,38 @@ def compute_bridge_values(
             )
         if step5d_joint_line_profile:
             values["_step5d_stage25_control_mode"] = step5d_stage25_control_mode
+            values["_step5d_live_control_source"] = step5d_live_control_source
+            values["_step5d_speedl_orientation_shadow_only"] = 1.0 if step5d_speedl_orientation_shadow_only else 0.0
+            values["_step5d_speedl_shadow_raw_vx_m_s"] = (
+                step5d_speedl_shadow_raw_linear_cmd[0]
+                if step5d_speedl_shadow_raw_linear_cmd is not None
+                else math.nan
+            )
+            values["_step5d_speedl_shadow_raw_vy_m_s"] = (
+                step5d_speedl_shadow_raw_linear_cmd[1]
+                if step5d_speedl_shadow_raw_linear_cmd is not None
+                else math.nan
+            )
+            values["_step5d_speedl_shadow_raw_vz_m_s"] = (
+                step5d_speedl_shadow_raw_linear_cmd[2]
+                if step5d_speedl_shadow_raw_linear_cmd is not None
+                else math.nan
+            )
+            values["_step5d_speedl_shadow_raw_wx_rad_s"] = (
+                step5d_speedl_shadow_raw_angular_cmd[0]
+                if step5d_speedl_shadow_raw_angular_cmd is not None
+                else math.nan
+            )
+            values["_step5d_speedl_shadow_raw_wy_rad_s"] = (
+                step5d_speedl_shadow_raw_angular_cmd[1]
+                if step5d_speedl_shadow_raw_angular_cmd is not None
+                else math.nan
+            )
+            values["_step5d_speedl_shadow_raw_wz_rad_s"] = (
+                step5d_speedl_shadow_raw_angular_cmd[2]
+                if step5d_speedl_shadow_raw_angular_cmd is not None
+                else math.nan
+            )
         if step5d_joint_line_profile and step5d_result is not None and step5d_outer_output is not None:
             qdot_abs = [abs(float(value)) for value in (step5d_qdot_command or step5d_result.qdot)]
             raw_qdot_abs = [abs(float(value)) for value in (step5d_raw_qdot_command or step5d_result.qdot)]
@@ -4682,22 +4729,6 @@ def compute_bridge_values(
             values["_step5d_qdot_max_abs_rad_s"] = max(qdot_abs)
             values["_step5d_rnn_qdot_max_abs_raw_rad_s"] = max(raw_qdot_abs)
             values["_step5d_qdot_max_abs_after_guard_rad_s"] = max(qdot_abs)
-            values["_step5d_speedl_orientation_shadow_only"] = 1.0 if step5d_speedl_orientation_shadow_only else 0.0
-            values["_step5d_speedl_shadow_raw_wx_rad_s"] = (
-                step5d_speedl_shadow_raw_angular_cmd[0]
-                if step5d_speedl_shadow_raw_angular_cmd is not None
-                else math.nan
-            )
-            values["_step5d_speedl_shadow_raw_wy_rad_s"] = (
-                step5d_speedl_shadow_raw_angular_cmd[1]
-                if step5d_speedl_shadow_raw_angular_cmd is not None
-                else math.nan
-            )
-            values["_step5d_speedl_shadow_raw_wz_rad_s"] = (
-                step5d_speedl_shadow_raw_angular_cmd[2]
-                if step5d_speedl_shadow_raw_angular_cmd is not None
-                else math.nan
-            )
             values["_step5d_constraint_residual_norm"] = step5d_result.residual_norm
             values["_step5d_outer_xdot_norm"] = float(np.linalg.norm(np.asarray(step5d_outer_output.xdot_c, dtype=float)))
             values["_step5d_outer_xdot_limited_norm"] = (
@@ -6057,21 +6088,27 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             default_raw_min_n = STEP5D_V27_ENTRY_RAW_NORMAL_LOAD_MIN_N
             default_raw_max_n = STEP5D_V27_ENTRY_RAW_NORMAL_LOAD_MAX_N
             default_force_norm_max_n = STEP5D_V27_ENTRY_FORCE_NORM_MAX_N
+            default_hard_normal_n = STEP5D_V27_SENSOR_NORMAL_HARD_STOP_N
             default_hard_force_n = STEP5D_V27_SENSOR_FORCE_HARD_STOP_N
+            default_hard_torque_nm = STEP5D_V27_SENSOR_TORQUE_HARD_STOP_NM
         elif args.bridge_profile == STEP5D_ABLATION_V26_STAGE_ID:
             default_filtered_min_n = STEP5D_V26_ENTRY_FILTERED_NORMAL_LOAD_MIN_N
             default_filtered_max_n = STEP5D_V26_ENTRY_FILTERED_NORMAL_LOAD_MAX_N
             default_raw_min_n = STEP5D_V26_ENTRY_RAW_NORMAL_LOAD_MIN_N
             default_raw_max_n = STEP5D_V26_ENTRY_RAW_NORMAL_LOAD_MAX_N
             default_force_norm_max_n = STEP5D_V21_ENTRY_FORCE_NORM_MAX_N
+            default_hard_normal_n = STEP5D_V24_SENSOR_FORCE_HARD_STOP_N
             default_hard_force_n = STEP5D_V24_SENSOR_FORCE_HARD_STOP_N
+            default_hard_torque_nm = STEP5D_V18_SENSOR_TORQUE_HARD_STOP_NM
         else:
             default_filtered_min_n = STEP5D_V25_ENTRY_FILTERED_NORMAL_LOAD_MIN_N
             default_filtered_max_n = STEP5D_V25_ENTRY_FILTERED_NORMAL_LOAD_MAX_N
             default_raw_min_n = STEP5D_V25_ENTRY_RAW_NORMAL_LOAD_MIN_N
             default_raw_max_n = STEP5D_V25_ENTRY_RAW_NORMAL_LOAD_MAX_N
             default_force_norm_max_n = STEP5D_V21_ENTRY_FORCE_NORM_MAX_N
+            default_hard_normal_n = STEP5D_V24_SENSOR_FORCE_HARD_STOP_N
             default_hard_force_n = STEP5D_V24_SENSOR_FORCE_HARD_STOP_N
+            default_hard_torque_nm = STEP5D_V18_SENSOR_TORQUE_HARD_STOP_NM
         if preload_default_was_not_supplied(
             "--step5d-preload-filtered-min-n",
             "STEP5D_PRELOAD_FILTERED_MIN_N",
@@ -6117,11 +6154,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             args.bridge_total_linear_limit_m_s = 0.004
             args.step4e_total_linear_limit_m_s = 0.004
         if "--max-normal-force-n" not in argv_list and os.environ.get("MAX_NORMAL_FORCE_N", "") == "":
-            args.max_normal_force_n = default_hard_force_n
+            args.max_normal_force_n = default_hard_normal_n
         if "--max-force-norm-n" not in argv_list and os.environ.get("MAX_FORCE_NORM_N", "") == "":
             args.max_force_norm_n = default_hard_force_n
         if "--max-torque-norm-nm" not in argv_list and os.environ.get("MAX_TORQUE_NORM_NM", "") == "":
-            args.max_torque_norm_nm = STEP5D_V18_SENSOR_TORQUE_HARD_STOP_NM
+            args.max_torque_norm_nm = default_hard_torque_nm
         if (
             "--step4e-angular-limit-rad-s" not in argv_list
             and "--bridge-angular-limit-rad-s" not in argv_list

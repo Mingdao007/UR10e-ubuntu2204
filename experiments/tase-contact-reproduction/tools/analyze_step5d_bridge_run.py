@@ -17,6 +17,7 @@ from step5d_runtime_interface import (
     STEP5D_ABLATION_V26_STAGE_ID,
     STEP5D_ABLATION_V27_STAGE_ID,
     STEP5D_LIVEPREP_V24_STAGE_ID,
+    STEP5D_V27_SPEEDL_LIVE_CONTROL_SOURCE,
     Step5dPreloadGate,
     default_preload_gate,
 )
@@ -360,13 +361,13 @@ def stage25_control_attribution(rows: list[dict[str, str]], metadata: dict[str, 
     saturated = sum(1 for value in angular if value >= saturation_threshold)
     sources = Counter(row.get("_step4e_normal_filter_source") or "" for row in rows)
     reasons = Counter(row.get("_step5d_contact_safety_reason") or "" for row in rows)
-    reason_counts = dict(sorted((key, value) for key, value in reasons.items() if key))
+    contact_reason_counts = dict(sorted((key, value) for key, value in reasons.items() if key))
     load_min = min_or_none(normal_loads)
     load_range = range_or_none(normal_loads)
     angular_saturation_ratio = 0.0 if not angular else saturated / len(angular)
-    has_low_load_repress = int(reason_counts.get("v25_speedl_low_load_repress_window", 0)) > 0
-    has_low_load_timeout = int(reason_counts.get("v25_speedl_hard_low_load_timeout", 0)) > 0
-    has_force_hard_stop = int(reason_counts.get("force_norm_hard_stop", 0)) > 0
+    has_low_load_repress = int(contact_reason_counts.get("v25_speedl_low_load_repress_window", 0)) > 0
+    has_low_load_timeout = int(contact_reason_counts.get("v25_speedl_hard_low_load_timeout", 0)) > 0
+    has_force_hard_stop = int(contact_reason_counts.get("force_norm_hard_stop", 0)) > 0
     low_load_excursion = (
         isinstance(load_min, (int, float))
         and isinstance(load_range, (int, float))
@@ -407,7 +408,8 @@ def stage25_control_attribution(rows: list[dict[str, str]], metadata: dict[str, 
         "normal_load_rate_max_n_s": max_or_none(rates),
         "normal_load_rate_min_n_s": min_or_none(rates),
         "normal_filter_source_counts": dict(sorted((key, value) for key, value in sources.items() if key)),
-        "contact_safety_reason_counts": reason_counts,
+        "live_control_source_counts": reason_counts(rows, "_step5d_live_control_source"),
+        "contact_safety_reason_counts": contact_reason_counts,
         "terminal_contact_safety_reason": last_contact_safety_reason(rows),
         "control_oscillation_trigger": control_oscillation_trigger,
         "normal_filter_lag_angle_abs_max_rad": max_or_none(
@@ -435,6 +437,29 @@ def stage25_control_oscillation_reason(attribution: dict[str, Any]) -> str | Non
     if trigger == "force_norm_hard_stop":
         return "force_norm_hard_stop"
     return None
+
+
+def old_v27_paper_outer_linear_live_gain_mismatch(attribution: dict[str, Any]) -> bool:
+    if attribution.get("control_oscillation_trigger") != "force_norm_hard_stop":
+        return False
+    live_source_counts = attribution.get("live_control_source_counts")
+    if isinstance(live_source_counts, dict) and STEP5D_V27_SPEEDL_LIVE_CONTROL_SOURCE in live_source_counts:
+        return False
+    angular_max = finite_float(attribution.get("angular_cmd_norm_max_rad_s"))
+    linear_vz_max = finite_float(attribution.get("linear_vz_cmd_abs_max_m_s"))
+    linear_approach_max = finite_float(attribution.get("linear_approach_cmd_abs_max_m_s"))
+    force_norm_max = finite_float(attribution.get("force_norm_max_n"))
+    linear_live_near_cap = (
+        (math.isfinite(linear_vz_max) and linear_vz_max >= 0.0038)
+        or (math.isfinite(linear_approach_max) and linear_approach_max >= 0.0038)
+    )
+    return (
+        math.isfinite(angular_max)
+        and angular_max <= 1e-6
+        and linear_live_near_cap
+        and math.isfinite(force_norm_max)
+        and force_norm_max >= 20.0
+    )
 
 
 def base_analysis(csv_path: Path, run_dir: Path | None, profile: str, gate: Step5dPreloadGate) -> dict[str, Any]:
@@ -608,7 +633,22 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
             result["next_action"] = "audit Stage25.0 bridge loop timing, RTDE send blocking, and TP command consumption echo"
         elif oscillation_reason is not None:
             result["classification"] = f"stage25_control_force_oscillation/{oscillation_reason}"
-            result["next_action"] = "keep bridge live-gated; fix Stage25.0 entry orientation command before another live retry"
+            if (
+                profile == STEP5D_ABLATION_V27_STAGE_ID
+                and old_v27_paper_outer_linear_live_gain_mismatch(result["stage25_control_attribution"])
+            ):
+                result["evidence_classification"] = (
+                    "old_v27_paper_outer_linear_live_gain_mismatch_force_norm_hard_stop"
+                )
+                result["next_action"] = (
+                    "keep bridge live-gated; copy Step5b speedl live vx/vy/vz, keep Step5d paper/RNN outputs "
+                    "shadow-only, and audit the offline fix before another live retry"
+                )
+            else:
+                result["next_action"] = (
+                    "keep bridge live-gated; audit Stage25.0 live command source, force response, "
+                    "and orientation attribution before another live retry"
+                )
         else:
             result["classification"] = "entered_stage25"
             result["next_action"] = "audit Stage25.0 behavior and acceptance evidence"

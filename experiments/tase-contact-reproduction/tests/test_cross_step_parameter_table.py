@@ -26,6 +26,7 @@ class CrossStepParameterTableTest(unittest.TestCase):
         stage = next(stage for stage in table["stages"] if stage.get("id") == "step5d_strict_rnn_ablation_v27")
         timing = stage["local_analysis_evidence"]["v27_20260706_024815_live_timing"]
         shadow_experiment = stage["local_analysis_evidence"]["v27_20260706_033032_orientation_shadow_experiment"]
+        force_overshoot = stage["local_analysis_evidence"]["v27_20260706_040900_step5d_outer_linear_live_fix_validation"]
         evidence_refs = stage["evidence_refs"]
 
         self.assertEqual(timing["terminal_stop_reason"], "step5d_contact_safety:force_norm_hard_stop")
@@ -36,11 +37,17 @@ class CrossStepParameterTableTest(unittest.TestCase):
             shadow_experiment["evidence_classification"],
             "stage25_orientation_shadow_experiment_failed_low_load_timeout",
         )
-        self.assertEqual(evidence_refs["latest_terminal_stop_reason"], "v25_speedl_hard_low_load_timeout")
-        self.assertEqual(evidence_refs["latest_analysis_classification"], "stage25_control_force_oscillation/low_load_timeout")
+        self.assertEqual(force_overshoot["summary_stop_reason"], "step5d_contact_safety:force_norm_hard_stop")
+        self.assertEqual(force_overshoot["analysis_classification"], "stage25_control_force_oscillation/force_norm_hard_stop")
+        self.assertEqual(
+            force_overshoot["evidence_classification"],
+            "old_v27_paper_outer_linear_live_gain_mismatch_force_norm_hard_stop",
+        )
+        self.assertEqual(evidence_refs["latest_terminal_stop_reason"], "force_norm_hard_stop")
+        self.assertEqual(evidence_refs["latest_analysis_classification"], "stage25_control_force_oscillation/force_norm_hard_stop")
         self.assertEqual(
             evidence_refs["latest_evidence_classification"],
-            "stage25_orientation_shadow_experiment_failed_low_load_timeout",
+            "old_v27_paper_outer_linear_live_gain_mismatch_force_norm_hard_stop",
         )
 
 
