@@ -67,8 +67,16 @@ class Step5dRuntimeInterfaceTest(unittest.TestCase):
         self.assertEqual(runtime.bridge_defaults.max_normal_force_n, 35.0)
         self.assertEqual(runtime.bridge_defaults.max_force_norm_n, 35.0)
         self.assertEqual(runtime.bridge_defaults.angular_limit_rad_s, 0.015)
+        self.assertEqual(runtime.bridge_defaults.rezero_s, 0.25)
         self.assertIn("v25/v26/v27", runtime.register_contract["stage25_0"])
         self.assertEqual(runtime.hard_contract["stage25_cadence_max_gap_s"], 0.020)
+
+    def test_live_ready_reports_actual_baseline_plus_rezero_budget(self) -> None:
+        runtime = iface.resolve_runtime_interface(program=iface.STEP5D_ABLATION_V27_STAGE_ID, root=ROOT, env={})
+
+        lines = iface.live_ready_lines(runtime, {"state": "HIT", "age_s": 60.0, "ttl_s": 7200.0, "fingerprint_ok": True})
+
+        self.assertIn("[next] short checks ETA=1-3s, TP Play wait<=20s, baseline+rezero=5.25s", lines)
 
     def test_step5d_env_overrides_use_step5d_namespace(self) -> None:
         runtime = iface.resolve_runtime_interface(

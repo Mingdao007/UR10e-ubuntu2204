@@ -212,6 +212,12 @@ def default_preload_gate(program: str) -> Step5dPreloadGate:
     )
 
 
+def default_bridge_rezero_s(program: str) -> float:
+    if program == STEP5D_ABLATION_V27_STAGE_ID:
+        return 0.25
+    return 1.0
+
+
 def resolve_runtime_interface(
     *,
     program: str | None = None,
@@ -305,7 +311,7 @@ def resolve_runtime_interface(
         max_force_norm_n=env_float(env_map, "STEP5D_MAX_FORCE_NORM_N", trusted_force_default_n, legacy="MAX_FORCE_NORM_N"),
         max_torque_norm_nm=env_float(env_map, "STEP5D_MAX_TORQUE_NORM_NM", 4.0, legacy="MAX_TORQUE_NORM_NM"),
         baseline_s=env_float(env_map, "STEP5D_BASELINE_S", 5.0, legacy="BRIDGE_BASELINE_S"),
-        rezero_s=env_float(env_map, "STEP5D_REZERO_S", 1.0, legacy="BRIDGE_REZERO_S"),
+        rezero_s=env_float(env_map, "STEP5D_REZERO_S", default_bridge_rezero_s(selected), legacy="BRIDGE_REZERO_S"),
         rtde_hz=env_float(env_map, "STEP5D_RTDE_HZ", 500.0, legacy="BRIDGE_RTDE_HZ"),
         sensor_stale_s=env_float(env_map, "STEP5D_SENSOR_STALE_S", 0.10, legacy="BRIDGE_SENSOR_STALE_S"),
         socket_timeout_s=env_float(env_map, "STEP5D_SOCKET_TIMEOUT_S", 0.0, legacy="BRIDGE_SOCKET_TIMEOUT_S"),
@@ -472,7 +478,7 @@ def live_ready_lines(interface: Step5dRuntimeInterface, cache: Mapping[str, Any]
         "[step5d][phase=live-bridge][rebuild=no][upload=no]",
         "[touches=kunwei+rtde]",
         f"[cache] long-check={cache.get('state', 'MISS')} age={age_text} ttl={ttl_text} fingerprint={fp}",
-        "[next] short checks ETA=1-3s, TP Play wait<=20s, baseline+rezero=6s",
+        f"[next] short checks ETA=1-3s, TP Play wait<=20s, baseline+rezero={bridge.baseline_s + bridge.rezero_s:g}s",
         (
             "[tuning] preload "
             f"filtered={gate.filtered_min_n:g}..{gate.filtered_max_n:g}N "

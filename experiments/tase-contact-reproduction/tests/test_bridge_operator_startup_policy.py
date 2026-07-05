@@ -78,6 +78,8 @@ postprocess_run "{run_dir}"
         self.assertNotIn('BRIDGE_SKIP_BENCH_GATE="${BRIDGE_SKIP_BENCH_GATE:-1}"', script)
         self.assertIn('WAIT_FOR_PLAY_S="${WAIT_FOR_PLAY_S:-20}"', script)
         self.assertIn('AUTOWATCH_WAIT_FOR_PLAY_S="${AUTOWATCH_WAIT_FOR_PLAY_S:-20}"', script)
+        self.assertIn('STEP5D_DEFAULT_REZERO_S="${STEP5D_DEFAULT_REZERO_S:-0.25}"', script)
+        self.assertIn('STEP5D_REZERO_S="${STEP5D_REZERO_S:-${STEP5D_DEFAULT_REZERO_S:-1.0}}"', script)
         self.assertIn('READBACK_GATE="${ROOT}/tools/verify_step5d_current_binding.py"', script)
         self.assertIn("current_step5d_version()", script)
 

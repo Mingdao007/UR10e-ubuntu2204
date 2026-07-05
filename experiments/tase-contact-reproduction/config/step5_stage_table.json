@@ -292,6 +292,9 @@
       "current_step5d_tp_play_wait_max_s": 20,
       "bridge_baseline_s": 5,
       "bridge_rezero_s": 1,
+      "current_step5d_v27_bridge_rezero_s": 0.25,
+      "latest_v27_stage23_rezero_pause_s": 1.228001,
+      "next_v27_expected_stage23_rezero_pause_s": "about 0.45 including 0.25s bridge re-zero plus TP fixed sleeps/sync",
       "latest_v25_command_to_metadata_s": 1,
       "latest_v25_stage_visible_after_bridge_start_s": "about 8-9 including baseline/rezero"
     }
@@ -6170,6 +6173,7 @@
         "stage25_cartesian_layout_tag": 523.0,
         "stage25_joint_layout_tag": 524.0,
         "stage25_default_control_mode": "speedl_cartesian_oracle",
+        "entry_rezero_s": 0.25,
         "stage25_speedl_low_load_hard_stop_n": 2.0,
         "stage25_speedl_low_load_hard_stop_s": 0.1,
         "stage25_speedl_low_load_soft_stop_n": 5.0,
@@ -6258,7 +6262,18 @@
         "v24_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v24_20260703_010837/manifest.json",
         "v25_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v25_20260703_225843/manifest.json",
         "v26_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v26_20260705_225718/manifest.json",
-        "v27_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v27_20260706_005730/manifest.json"
+        "v27_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v27_20260706_005730/manifest.json",
+        "v27_20260706_024815_live_timing": {
+          "run_dir": "runs/bridge_step5d_strict_rnn_ablation_v27_20260706_024815",
+          "summary": "runs/bridge_step5d_strict_rnn_ablation_v27_20260706_024815/summary.json",
+          "analysis": "runs/bridge_step5d_strict_rnn_ablation_v27_20260706_024815/step5d_bridge_analysis.json",
+          "stage23_rezero_pause_s": 1.228001,
+          "stage25_first_compute_s": 0.001496,
+          "stage25_max_row_gap_s": 0.003664,
+          "stage25_echo_consumed_rows": "262/266",
+          "stop_reason": "step5d_contact_safety:force_norm_hard_stop",
+          "conclusion": "TCP cage cold-start/freeze is resolved; remaining failure is force spike/hard-stop after Stage25.0 starts. Reduce v27 bridge re-zero default to 0.25s to remove avoidable pre-far-search pause without changing TP package semantics."
+        }
       },
       "local_delivery_evidence": {
         "program_basename": "step5d_strict_rnn_ablation_v27",
@@ -6293,7 +6308,8 @@
         "v27 keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
         "v27 is an ablation package with layout-tagged speedl/speedj Stage25.0 modes.",
         "v27 uses 35N raw-normal/force-norm hard guards, 4Nm torque guard, and layout-tagged speedl/speedj Stage25.0.",
-        "This current row is not a completed Step5d reproduction claim; explicit live bridge evidence is still pending."
+        "2026-07-06 run 024815 showed Stage23 entry re-zero pause 1.228001s before far search; bridge-runtime v27 default re-zero is reduced to 0.25s to target about 0.45s Stage23 pause without regenerating the TP package.",
+        "This current row is not a completed Step5d reproduction claim; completed live reproduction evidence is still pending."
       ],
       "live_run_evidence": null,
       "policy_refs": {
@@ -6324,6 +6340,9 @@
         "long_check_ttl_s": 7200,
         "wait_for_play_s": 20,
         "autowatch_wait_for_play_s": 20,
+        "baseline_s": 5.0,
+        "rezero_s": 0.25,
+        "entry_rezero_policy": "v27 bridge runtime default only; TP script/package unchanged and still requests Stage23 software re-zero before Stage24.0 far search",
         "dashboard_program_watch_timeout_s": 45,
         "tp_bridge_start_wait_timeout_s": 60,
         "rtde_quick_probe_timeout_s": 1.0,
@@ -6359,9 +6378,10 @@
         "stage25_default_control_mode": "speedl_cartesian_oracle"
       },
       "evidence_refs": {
-        "latest_live_run_status": "pending_explicit_live_bridge_run",
-        "latest_live_run_summary": null,
-        "latest_stop_reason": null,
+        "latest_live_run_status": "failed_after_stage25_entry_timing_smoke_passed",
+        "latest_live_run_summary": "runs/bridge_step5d_strict_rnn_ablation_v27_20260706_024815/summary.json",
+        "latest_live_run_analysis": "runs/bridge_step5d_strict_rnn_ablation_v27_20260706_024815/step5d_bridge_analysis.json",
+        "latest_stop_reason": "step5d_contact_safety:force_norm_hard_stop",
         "previous_retained_evidence_index": "current_stage.json#evidence"
       },
       "current_binding": {
