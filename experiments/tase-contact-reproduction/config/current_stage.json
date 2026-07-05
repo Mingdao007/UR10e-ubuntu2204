@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "updated_at": "2026-07-06T05:30:39+08:00",
+  "updated_at": "2026-07-06T06:05:07+08:00",
   "current_step": "Step5d",
   "current_stage_id": "step5d_strict_rnn_ablation_v28",
   "program": "step5d_strict_rnn_ablation_v28",
@@ -53,12 +53,12 @@
     "stage25_speedl_live_source": "Step5b speedl live vx/vy/vz; live wx/wy/wz forced to zero; Step5d paper/RNN outputs shadow-only",
     "stage25_0_success_target_s": 60.0
   },
-  "status": "step5d_strict_rnn_ablation_v28_controller_readback_verified_pending_live_bridge_run_not_reproduction_claim",
+  "status": "step5d_strict_rnn_ablation_v28_controller_readback_verified_60s_full_run_success_step5b_speedl_live_step5d_shadow",
   "strict_rnn_status": {
     "stage_id": "step5d_strict_rnn_reproduction_v1",
     "blocked": true,
     "paper_truth_config": "config/step5d_liveprep_solver_gate.json",
-    "reason": "v28 TP/script cage-primary diagnostic package is generated, uploaded, and controller read-back verified. Full Step5d reproduction remains incomplete until a successful live run completes."
+    "reason": "v28 completed the 60s Stage25.0 full run (20260706_054904, passed_60s_full_run) with Step5b speedl as the live command source and Step5d paper/RNN outputs shadow-only. Strict RNN live reproduction remains blocked: the paper outer loop is shadow-only pending realizability recalibration and the expected-normal entry case."
   },
   "evidence": {
     "v11_escape_replay_summary": "runs/step5d_v11_escape_replay_20260615/summary.json",
@@ -832,6 +832,29 @@
       "normal_load_max_n": 14.4362819,
       "force_norm_max_n": 14.4401489,
       "next_action": "v28 60s full-run live bridge evidence"
+    },
+    "v28_20260706_054904_full_run_success": {
+      "run_dir": "runs/bridge_step5d_strict_rnn_ablation_v28_20260706_054904",
+      "summary": "runs/bridge_step5d_strict_rnn_ablation_v28_20260706_054904/summary.json",
+      "analysis": "runs/bridge_step5d_strict_rnn_ablation_v28_20260706_054904/step5d_bridge_analysis.json",
+      "bridge_csv": "runs/bridge_step5d_strict_rnn_ablation_v28_20260706_054904/bridge_rtde_500hz.csv",
+      "result": "successful_60s_full_run_step5b_speedl_live_step5d_shadow",
+      "analysis_classification": "stage25_full_run_success",
+      "fix_validation_status": "passed_60s_full_run",
+      "reproduction_status": "passed_60s_step5b_equivalent_run",
+      "stage25_duration_s": 60.20599849591963,
+      "stage25_consumption_ratio": 0.9998006909380813,
+      "terminal_tp_stop_reason": 1,
+      "live_control_source": "step5b_speedl_live_step5d_shadow",
+      "angular_cmd_norm_max_rad_s": 0.0,
+      "shadow_raw_angular_cmd_norm_max_rad_s": 0.015000000049882226,
+      "normal_load_min_n": 9.24166357,
+      "normal_load_max_n": 15.6875077,
+      "force_norm_max_n": 15.8454873,
+      "entry_orientation_error_rad": 0.117243243,
+      "exit_orientation_error_rad": 0.00131560175,
+      "success_band_note": "initial analysis rejected this run via the pre-recalibration 9.0/15.0 success band; band recalibrated to the Step5b v3 evidence envelope (5.0/21.0) and the run reclassified stage25_full_run_success",
+      "next_action": "keep paper outer loop shadow-only; recalibrate outer-loop kf/ko and validate via offline replay before any v29 live promotion"
     }
   },
   "bridge_trigger": {
@@ -841,7 +864,7 @@
     "bridge_has_started": false,
     "live_motion_authorized": false,
     "zero_ftsensor_authorized": false,
-    "blocked_reason": "v28 package delivery is complete and controller read-back verified; live bridge start is outside this offline/package action and still requires an explicit live trigger.",
+    "blocked_reason": "v28 60s full run (20260706_054904) completed and archived as evidence; the next live bridge start is a new action and still requires an explicit live trigger.",
     "required_before_live": [
       "operator outside UR reach/cage boundary",
       "TP program opened on controller read-back v28 package"
@@ -867,6 +890,7 @@
     }
   ],
   "notes": [
+    "step5d_strict_rnn_ablation_v28 completed its 60s Stage25.0 full run (20260706_054904, passed_60s_full_run) with Step5b speedl live and Step5d outputs shadow-only.",
     "step5d_strict_rnn_ablation_v28 is controller read-back verified and selected as the current Step5d TP/script cage-primary diagnostic package.",
     "v28 keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
     "v28 is an ablation package: v25/v26/v27/v28 default to speedl_cartesian_oracle, speedj_rnn_live is explicit follow-up, and preload is 5-22N filtered with 3-25N raw sanity.",

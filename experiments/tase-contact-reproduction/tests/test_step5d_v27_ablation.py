@@ -513,6 +513,109 @@ class Step5dV27AblationTest(unittest.TestCase):
         self.assertAlmostEqual(values["_step5d_speedl_shadow_raw_vy_m_s"], 0.0015, places=9)
         self.assertAlmostEqual(values["_step5d_speedl_shadow_raw_vz_m_s"], -0.0020, places=9)
 
+    def test_v27_filtered_live_entry_relatches_stale_normal_to_live_candidate(self) -> None:
+        args = bridge.parse_args(
+            [
+                "--no-start-command",
+                "--skip-dashboard-preflight",
+                "--bridge-mode",
+                "line",
+                "--bridge-profile",
+                V27,
+                "--bridge-path-shape",
+                "cycloid",
+                "--bridge-normal-follow-mode",
+                "filtered_live",
+            ]
+        )
+        tilt_rad = 0.105
+        stale_latch_b = (math.sin(tilt_rad), 0.0, math.cos(tilt_rad))
+        latest_output = {
+            "actual_TCP_pose": [0.49, 0.14, 0.02, 3.14, 0.0, 0.0],
+            "actual_TCP_speed": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            "actual_q": [0.0] * 6,
+            "actual_qd": [0.0] * 6,
+            "output_double_register_35": 25.0,
+        }
+
+        state = acquired_v27_state()
+        state.latched_normal_b = stale_latch_b
+        state.filtered_normal_b = stale_latch_b
+
+        with (
+            patch.object(bridge, "step5d_tcp_jacobian_base", return_value=np.eye(6)),
+            patch.object(bridge, "step5d_omega_bounds", return_value=(np.full(6, -0.05), np.full(6, 0.05))),
+            patch.object(bridge, "compute_step5d_outer_loop", side_effect=fake_v27_outer_with_matching_orientation),
+            patch.object(bridge, "rnn_target_state_from_outer_loop", return_value={"shadow": True}),
+        ):
+            fake_v27_runtime(state, args)
+            values = bridge.compute_bridge_values(
+                args,
+                [0.0, 0.0, -12.0, 0.0, 0.0, 0.0],
+                latest_output,
+                1.0,
+                state,
+                0.002,
+            )
+
+        self.assertTrue(state.step5d_stage25_normal_relatched)
+        self.assertAlmostEqual(values["_step5d_stage25_entry_relatch_angle_rad"], tilt_rad, delta=0.002)
+        # After the entry re-latch the orientation reference is the measured
+        # reaction direction, so the stale-latch tilt no longer appears as an
+        # orientation error for the (shadow) outer loop to chase.
+        self.assertLess(values["step4e_orientation_error_rad"], 0.01)
+        self.assertLess(values["_step5d_outer_orientation_error_rad"], 0.01)
+        relatched = state.latched_normal_b
+        self.assertAlmostEqual(bridge.angle_between_unit(relatched, (0.0, 0.0, 1.0)), 0.0, delta=0.002)
+
+    def test_v27_locked_follow_mode_does_not_relatch(self) -> None:
+        args = bridge.parse_args(
+            [
+                "--no-start-command",
+                "--skip-dashboard-preflight",
+                "--bridge-mode",
+                "line",
+                "--bridge-profile",
+                V27,
+                "--bridge-path-shape",
+                "cycloid",
+            ]
+        )
+        tilt_rad = 0.105
+        stale_latch_b = (math.sin(tilt_rad), 0.0, math.cos(tilt_rad))
+        latest_output = {
+            "actual_TCP_pose": [0.49, 0.14, 0.02, 3.14, 0.0, 0.0],
+            "actual_TCP_speed": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            "actual_q": [0.0] * 6,
+            "actual_qd": [0.0] * 6,
+            "output_double_register_35": 25.0,
+        }
+
+        state = acquired_v27_state()
+        state.latched_normal_b = stale_latch_b
+        state.filtered_normal_b = stale_latch_b
+
+        with (
+            patch.object(bridge, "step5d_tcp_jacobian_base", return_value=np.eye(6)),
+            patch.object(bridge, "step5d_omega_bounds", return_value=(np.full(6, -0.05), np.full(6, 0.05))),
+            patch.object(bridge, "compute_step5d_outer_loop", side_effect=fake_v27_outer_with_matching_orientation),
+            patch.object(bridge, "rnn_target_state_from_outer_loop", return_value={"shadow": True}),
+        ):
+            fake_v27_runtime(state, args)
+            values = bridge.compute_bridge_values(
+                args,
+                [0.0, 0.0, -12.0, 0.0, 0.0, 0.0],
+                latest_output,
+                1.0,
+                state,
+                0.002,
+            )
+
+        self.assertFalse(state.step5d_stage25_normal_relatched)
+        self.assertTrue(math.isnan(values["_step5d_stage25_entry_relatch_angle_rad"]))
+        self.assertEqual(state.latched_normal_b, stale_latch_b)
+        self.assertAlmostEqual(values["step4e_orientation_error_rad"], tilt_rad, delta=0.002)
+
     def test_v27_speedl_shadow_only_keeps_angular_zero_after_entry_window(self) -> None:
         args = bridge.parse_args(
             [

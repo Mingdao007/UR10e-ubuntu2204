@@ -505,7 +505,7 @@ class Step5dV15PermissiveRecoveryTest(unittest.TestCase):
         self.assertEqual(current["evidence"]["step5d_projector_root_cause_fix"]["status"], "present_in_worktree")
         self.assertFalse(current["bridge_trigger"]["bridge_has_started"])
         self.assertFalse(current["bridge_trigger"]["live_motion_authorized"])
-        self.assertIn("v28 package delivery is complete", current["bridge_trigger"]["blocked_reason"])
+        self.assertIn("v28 60s full run (20260706_054904) completed", current["bridge_trigger"]["blocked_reason"])
         self.assertIn("requires an explicit live trigger", current["bridge_trigger"]["blocked_reason"])
         self.assertIn(
             "TP program opened on controller read-back v28 package",

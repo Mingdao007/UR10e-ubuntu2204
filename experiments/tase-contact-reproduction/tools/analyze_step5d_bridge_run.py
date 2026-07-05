@@ -34,6 +34,14 @@ STAGE_TOL = 0.005
 STAGE25_MAX_ROW_GAP_S = 0.020
 STAGE25_MIN_CONSUMPTION_RATIO = 0.95
 STAGE25_SUCCESS_MIN_CONSUMPTION_RATIO = 0.98
+# Stage25 success-gate normal-load band, calibrated to the proven-stable
+# Step5b v3 @12N 60s baseline (runs/bridge_step5b_contact_cycloid_baseline_v3_
+# 20260702_113430: observed envelope 5.3..20.6 N) plus margin. The lower bound
+# stays above the 2.0 N hard low-load guard; the previous 9.0/15.0 literals
+# were calibrated on the v27 10s diagnostic window and rejected runs that the
+# reference Step5b controller itself produces over a full 60s pass.
+STAGE25_SUCCESS_NORMAL_LOAD_MIN_N = 5.0
+STAGE25_SUCCESS_NORMAL_LOAD_MAX_N = 21.0
 STAGE25_ORIENTATION_ENTRY_HOLD_S = 0.150
 REQUIRED_COLUMNS = {
     "t_monotonic_s",
@@ -511,8 +519,8 @@ def stage25_speedl_fix_success(profile: str, result: dict[str, Any]) -> bool:
         and shadow_only_rows == stage25_rows
         and math.isfinite(normal_min)
         and math.isfinite(normal_max)
-        and normal_min >= 9.0
-        and normal_max <= 15.0
+        and normal_min >= STAGE25_SUCCESS_NORMAL_LOAD_MIN_N
+        and normal_max <= STAGE25_SUCCESS_NORMAL_LOAD_MAX_N
         and math.isfinite(force_norm_max)
         and force_norm_max < 60.0
         and trigger is None

@@ -231,6 +231,7 @@ STEP5D_DIAG_FIELDS = [
     "_step5d_qdot_max_abs_after_guard_rad_s",
     "_step5d_intervention_reason",
     "_step5d_live_control_source",
+    "_step5d_stage25_entry_relatch_angle_rad",
     "_step5d_speedl_orientation_shadow_only",
     "_step5d_speedl_shadow_raw_vx_m_s",
     "_step5d_speedl_shadow_raw_vy_m_s",
@@ -589,6 +590,23 @@ STEP5D_V27_SENSOR_NORMAL_HARD_STOP_N = 50.0
 STEP5D_V27_SENSOR_FORCE_HARD_STOP_N = 60.0
 STEP5D_V27_SENSOR_TORQUE_HARD_STOP_NM = 3.0
 STEP5D_V27_SPEEDL_LIVE_CONTROL_SOURCE = "step5b_speedl_live_step5d_shadow"
+# Bridge-side realizability recalibration of the paper outer loop for the
+# v27/v28 shadow lane (paper originals: Md=12, Bd=550, ko=5.0). The paper
+# values assume continuous, delay-free feedback; against the measured ~50ms
+# force batching and the 0.004 m/s / 0.015 rad/s command box the paper
+# admittance's proportional force gain (1/Bd ~= 1.8 mm/s per N; kf scales the
+# integral term only, see force_motion_acceleration_base) is ~20x the
+# proven-stable Step5b evidence gain (~0.09 mm/s per N), and the orientation
+# gain saturates the angular channel (5.0 * 0.117 rad >> 0.015 rad/s).
+# Scaling Md and Bd together by 20 sets the proportional gain to 1/11000 ~=
+# 0.091 mm/s per N while preserving the paper's admittance pole Bd/Md; ko=0.5
+# keeps orientation demand inside the box for errors up to ~0.03 rad while
+# still tracking the <=0.01 rad/s normal-follow reference drift. Validated
+# offline by tools/replay_step5d_outer_loop.py against the v28 60s run.
+STEP5D_V28_SHADOW_ADMITTANCE_SCALE = 20.0
+STEP5D_V28_SHADOW_MD = 12.0 * STEP5D_V28_SHADOW_ADMITTANCE_SCALE
+STEP5D_V28_SHADOW_BD = 550.0 * STEP5D_V28_SHADOW_ADMITTANCE_SCALE
+STEP5D_V28_SHADOW_KO = 0.5
 STEP5D_ABLATION_SPEEDL_ORIENTATION_SHADOW_ONLY = True
 STEP5D_V25_HARD_LOW_LOAD_N = 2.0
 STEP5D_V25_HARD_LOW_LOAD_TIMEOUT_S = 0.100
@@ -3045,6 +3063,8 @@ class BridgeState:
         self.step5d_normal_direction_guard_dwell_s = 0.0
         self.step5d_tracking_guard_dwell_s = 0.0
         self.step5d_normal_direction_prev_load_n: float | None = None
+        self.step5d_stage25_normal_relatched = False
+        self.step5d_stage25_entry_relatch_angle_rad: float | None = None
         self.step5b_15n_anchor_xy: tuple[float, float] | None = None
         self.step5b_15n_acquired = False
         self.step5b_15n_after_acquire_s = 0.0
@@ -3476,6 +3496,25 @@ def compute_bridge_values(
     )
     if normal_follow_active:
         filtered_current = state.filtered_normal_b if state.filtered_normal_b is not None else state.latched_normal_b
+        if (
+            step5d_step5b_speedl_live_profile
+            and not state.step5d_stage25_normal_relatched
+            and live_candidate_force_n >= args.bridge_normal_min_force_n
+            and dot3(state.latched_normal_b, live_candidate_b) > 0.0
+        ):
+            # Stage25 entry re-latch: the pre-contact latch can sit several
+            # degrees off the true reaction direction (0.117 rad on the v28
+            # 60s run) while the 0.01 rad/s follow filter needs the whole run
+            # to walk it back; any orientation loop chasing that stale latch
+            # saturates. Re-anchor latch and filter state to the live
+            # force-direction candidate on the first loaded Stage25 tick.
+            state.step5d_stage25_entry_relatch_angle_rad = angle_between_unit(
+                state.latched_normal_b, live_candidate_b
+            )
+            state.latched_normal_b = live_candidate_b
+            state.filtered_normal_b = live_candidate_b
+            filtered_current = live_candidate_b
+            state.step5d_stage25_normal_relatched = True
         live_candidate_angle_rad = angle_between_unit(filtered_current, live_candidate_b)
         live_candidate_angle_from_latch_rad = angle_between_unit(state.latched_normal_b, live_candidate_b)
         if step5d_liveprep_v18_or_newer_profile and state.line_stage_s <= STEP5D_V18_NORMAL_FOLLOW_SETTLE_S:
@@ -4197,10 +4236,10 @@ def compute_bridge_values(
                 step5d_outer_output = compute_step5d_outer_loop(
                     Step5dOuterLoopConfig(
                         kp=4.0,
-                        ko=5.0,
+                        ko=STEP5D_V28_SHADOW_KO if step5d_step5b_speedl_live_profile else 5.0,
                         kf=1.0,
-                        Md_scalar=12.0,
-                        Bd_scalar=550.0,
+                        Md_scalar=STEP5D_V28_SHADOW_MD if step5d_step5b_speedl_live_profile else 12.0,
+                        Bd_scalar=STEP5D_V28_SHADOW_BD if step5d_step5b_speedl_live_profile else 550.0,
                         force_target_n=float(args.target_force_n),
                         delay_T_s=dt_s,
                         force_sign_convention="step5_step6_positive_normal_load",
@@ -4685,6 +4724,11 @@ def compute_bridge_values(
         if step5d_joint_line_profile:
             values["_step5d_stage25_control_mode"] = step5d_stage25_control_mode
             values["_step5d_live_control_source"] = step5d_live_control_source
+            values["_step5d_stage25_entry_relatch_angle_rad"] = (
+                state.step5d_stage25_entry_relatch_angle_rad
+                if state.step5d_stage25_entry_relatch_angle_rad is not None
+                else math.nan
+            )
             values["_step5d_speedl_orientation_shadow_only"] = 1.0 if step5d_speedl_orientation_shadow_only else 0.0
             values["_step5d_speedl_shadow_raw_vx_m_s"] = (
                 step5d_speedl_shadow_raw_linear_cmd[0]

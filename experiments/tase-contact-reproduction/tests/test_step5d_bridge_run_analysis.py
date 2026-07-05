@@ -31,6 +31,7 @@ V27_STARTUP_FAILURE_RUN_ID = "bridge_step5d_strict_rnn_ablation_v27_20260706_020
 V27_SHADOW_EXPERIMENT_RUN_ID = "bridge_step5d_strict_rnn_ablation_v27_20260706_033032"
 V27_FORCE_OVERSHOOT_RUN_ID = "bridge_step5d_strict_rnn_ablation_v27_20260706_040900"
 V27_FIX_VALIDATION_SUCCESS_RUN_ID = "bridge_step5d_strict_rnn_ablation_v27_20260706_045513"
+V28_FULL_RUN_SUCCESS_RUN_ID = "bridge_step5d_strict_rnn_ablation_v28_20260706_054904"
 
 
 def write_bridge_csv(path: Path, rows: list[dict[str, str]], fieldnames: list[str] | None = None) -> None:
@@ -277,13 +278,23 @@ def write_v27_040900_force_overshoot_slice(run_dir: Path) -> None:
     write_bridge_csv(csv_path, rows, fieldnames=fieldnames)
 
 
-def write_v27_045513_fix_validation_success_slice(run_dir: Path) -> None:
+def write_speedl_live_success_slice(
+    run_dir: Path,
+    *,
+    profile: str,
+    stage25_rows: int,
+    dt_s: float,
+    gap_row_idx: int,
+    gap_s: float,
+    load_mid_n: float,
+    load_amp_n: float,
+) -> None:
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "metadata.json").write_text(
         json.dumps(
             {
                 "args": {
-                    "bridge_profile": "step5d_strict_rnn_ablation_v27",
+                    "bridge_profile": profile,
                     "bridge_angular_limit_rad_s": 0.015,
                 }
             }
@@ -336,17 +347,16 @@ def write_v27_045513_fix_validation_success_slice(run_dir: Path) -> None:
             "force_norm_n": "12.000000000",
         },
     ]
-    stage25_rows = 5109
     unconsumed_head = 4
     unconsumed_tail = 5
     t_s = 2.0
     for idx in range(stage25_rows):
-        if idx == 4922:
-            t_s += 0.048837
+        if idx == gap_row_idx:
+            t_s += gap_s
         elif idx > 0:
-            t_s += 0.002
+            t_s += dt_s
         sawtooth = ((idx % 200) - 100) / 100.0
-        load = 12.0 + 0.8 * sawtooth
+        load = load_mid_n + load_amp_n * sawtooth
         consumed = unconsumed_head <= idx < stage25_rows - unconsumed_tail
         rows.append(
             {
@@ -392,6 +402,35 @@ def write_v27_045513_fix_validation_success_slice(run_dir: Path) -> None:
         }
     )
     write_bridge_csv(csv_path, rows, fieldnames=fieldnames)
+
+
+def write_v27_045513_fix_validation_success_slice(run_dir: Path) -> None:
+    write_speedl_live_success_slice(
+        run_dir,
+        profile="step5d_strict_rnn_ablation_v27",
+        stage25_rows=5109,
+        dt_s=0.002,
+        gap_row_idx=4922,
+        gap_s=0.048837,
+        load_mid_n=12.0,
+        load_amp_n=0.8,
+    )
+
+
+def write_v28_054904_full_run_success_slice(run_dir: Path) -> None:
+    # Mirrors the live v28 60s full run: 60.2s of Stage25.0, one benign 46ms
+    # sensor-batch row gap, and the observed 9.24..15.69 N load envelope that
+    # the old 9.0/15.0 success band wrongly rejected.
+    write_speedl_live_success_slice(
+        run_dir,
+        profile="step5d_strict_rnn_ablation_v28",
+        stage25_rows=3011,
+        dt_s=0.02,
+        gap_row_idx=2900,
+        gap_s=0.046135,
+        load_mid_n=12.465,
+        load_amp_n=3.225,
+    )
 
 
 class Step5dBridgeRunAnalysisTest(unittest.TestCase):
@@ -701,6 +740,35 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
         self.assertEqual(
             attribution["live_control_source_counts"],
             {"step5b_speedl_live_step5d_shadow": 5109},
+        )
+        self.assertAlmostEqual(attribution["angular_cmd_norm_max_rad_s"], 0.0, places=9)
+        self.assertIsNone(attribution["control_oscillation_trigger"])
+
+    def test_v28_054904_full_run_success_with_step5b_calibrated_load_band(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / V28_FULL_RUN_SUCCESS_RUN_ID
+            write_v28_054904_full_run_success_slice(run_dir)
+
+            analysis = analyze_step5d_bridge_run.analyze_run_dir(run_dir)
+
+        self.assertFalse(analysis["stage25_cadence_ok"])
+        self.assertTrue(analysis["stage25_consumption_ok"])
+        self.assertGreaterEqual(analysis["stage25_duration_s"], 60.0)
+        self.assertEqual(analysis["first_tp_stop_reason"], 11)
+        self.assertEqual(analysis["terminal_tp_stop_reason"], 1)
+        self.assertEqual(analysis["classification"], "stage25_full_run_success")
+        self.assertEqual(analysis["fix_validation_status"], "passed_60s_full_run")
+        self.assertEqual(analysis["reproduction_status"], "passed_60s_step5b_equivalent_run")
+        attribution = analysis["stage25_control_attribution"]
+        self.assertLess(attribution["normal_load_min_n"], 9.3)
+        self.assertGreater(attribution["normal_load_max_n"], 15.6)
+        self.assertGreaterEqual(
+            attribution["normal_load_min_n"],
+            analyze_step5d_bridge_run.STAGE25_SUCCESS_NORMAL_LOAD_MIN_N,
+        )
+        self.assertLessEqual(
+            attribution["normal_load_max_n"],
+            analyze_step5d_bridge_run.STAGE25_SUCCESS_NORMAL_LOAD_MAX_N,
         )
         self.assertAlmostEqual(attribution["angular_cmd_norm_max_rad_s"], 0.0, places=9)
         self.assertIsNone(attribution["control_oscillation_trigger"])
