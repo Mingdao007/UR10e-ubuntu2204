@@ -867,7 +867,27 @@ postprocess_run() {
   local out_dir="$1"
   local bridge_csv="${out_dir}/bridge_rtde_500hz.csv"
   if [[ -f "${bridge_csv}" ]]; then
-    python3 "${ROOT}/tools/summarize_stage_frequency.py" "${bridge_csv}" --output "${out_dir}/stage_frequency_summary.json" || true
+    local stage_summary="${out_dir}/stage_frequency_summary.json"
+    local step5d_analysis="${out_dir}/step5d_bridge_analysis.json"
+    python3 "${ROOT}/tools/summarize_stage_frequency.py" "${bridge_csv}" --output "${stage_summary}" || true
+    if [[ "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_* ]]; then
+      python3 "${ROOT}/tools/analyze_step5d_bridge_run.py" --run-dir "${out_dir}" --output "${step5d_analysis}" || true
+      echo "[operator] run dir: ${out_dir}"
+      echo "[operator] stage frequency summary: ${stage_summary}"
+      echo "[operator] Step5d bridge analysis: ${step5d_analysis}"
+      if [[ -f "${step5d_analysis}" ]]; then
+        python3 - "${step5d_analysis}" <<'PY' || true
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+classification = payload.get("classification", "unknown")
+next_action = payload.get("next_action", "")
+print(f"[operator] root-cause classification: {classification}; next_action={next_action}")
+PY
+      fi
+    fi
   else
     echo "[operator] no bridge CSV found for postprocess: ${bridge_csv}"
   fi
@@ -896,6 +916,10 @@ wait_for_bridge_output_started() {
 
 maybe_start_background_push() {
   local out_dir="$1"
+  if [[ "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_* ]]; then
+    # step5d live trigger keeps git publication in finalize.
+    return 0
+  fi
   if [[ "${BRIDGE_BACKGROUND_PUSH_AFTER_LIVE}" != "1" ]]; then
     return 0
   fi

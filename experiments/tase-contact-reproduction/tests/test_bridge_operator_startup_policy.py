@@ -20,6 +20,14 @@ class BridgeOperatorStartupPolicyTest(unittest.TestCase):
         self.assertIn("BRIDGE_SKIP_LONG_CHECKS", script)
         self.assertIn("skipping long bench gate by request", script)
 
+    def test_bridge_postprocess_emits_step5d_fast_analysis_json(self) -> None:
+        script = read_script("bridge-line-operator.sh")
+
+        self.assertIn("postprocess_run()", script)
+        self.assertIn("summarize_stage_frequency.py", script)
+        self.assertIn("analyze_step5d_bridge_run.py", script)
+        self.assertIn('"${out_dir}/step5d_bridge_analysis.json"', script)
+
     def test_step5d_contact_bridge_defaults_to_short_start_path(self) -> None:
         script = read_script("step5d-liveprep-operator.sh")
 
@@ -29,6 +37,12 @@ class BridgeOperatorStartupPolicyTest(unittest.TestCase):
         self.assertIn('AUTOWATCH_WAIT_FOR_PLAY_S="${AUTOWATCH_WAIT_FOR_PLAY_S:-10}"', script)
         self.assertIn('READBACK_GATE="${ROOT}/tools/verify_step5d_current_binding.py"', script)
         self.assertIn("current_step5d_version()", script)
+
+    def test_step5d_bridge_path_does_not_background_git_push(self) -> None:
+        script = read_script("bridge-line-operator.sh")
+
+        self.assertIn("maybe_start_background_push()", script)
+        self.assertIn("step5d live trigger keeps git publication in finalize", script)
 
     def test_fast_bridge_uses_two_hour_fingerprint_cache_and_rtde_probe(self) -> None:
         script = read_script("bridge-line-operator.sh")
