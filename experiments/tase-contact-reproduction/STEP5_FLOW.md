@@ -564,7 +564,7 @@ changes the bridge and package contract:
 - retained Teach Pendant target after read-back:
   `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v12.urp`;
 - local generated triplet:
-  `programs/step5/step5d_strict_rnn_liveprep_v12.{script,txt,urp}`;
+  `programs/step5/step5d/step5d_strict_rnn_liveprep_v12.{script,txt,urp}`;
 - bridge profile:
   `--step4e-version step5d_strict_rnn_liveprep_v12`;
 - qdot cap: `0.050 rad/s`, with qdot slew limited to `0.20 rad/s^2` from zero
@@ -603,7 +603,7 @@ It keeps the v11/v12 contact-search scaffold, v11 deadband acquire at Stage
 Stage 25.0 changes the bridge safety contract:
 
 - local generated triplet:
-  `programs/step5/step5d_strict_rnn_liveprep_v14.{script,txt,urp}`;
+  `programs/step5/step5d/step5d_strict_rnn_liveprep_v14.{script,txt,urp}`;
 - controller target after upload/read-back verification:
   `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v14.urp`;
 - bridge profile:
@@ -673,7 +673,7 @@ and hold burden/counters were not fully bounded in runtime.
 v15 permissive recovery goal but made it honest and bounded:
 
 - local generated triplet:
-  `programs/step5/step5d_strict_rnn_liveprep_v15a.{script,txt,urp}`;
+  `programs/step5/step5d/step5d_strict_rnn_liveprep_v15a.{script,txt,urp}`;
 - controller target after upload/read-back verification:
   `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v15a.urp`;
 - read-back manifest:
@@ -737,7 +737,7 @@ about `0.0211 m/s`; the TCP cage still reported `inside_broad_tcp_cage`.
 the next live attempt:
 
 - local generated triplet:
-  `programs/step5/step5d_strict_rnn_liveprep_v19.{script,txt,urp}`;
+  `programs/step5/step5d/step5d_strict_rnn_liveprep_v19.{script,txt,urp}`;
 - controller target:
   `/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v19.urp`;
 - read-back manifest:

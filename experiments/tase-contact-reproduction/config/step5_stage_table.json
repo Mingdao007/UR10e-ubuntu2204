@@ -3521,7 +3521,7 @@
       "local_delivery_evidence": {
         "program_basename": "step5d_strict_rnn_liveprep_v17",
         "stamp": "2026-07-02T1558HKT_STEP5D_STRICT_RNN_LIVEPREP_V17",
-        "local_triplet": "programs/step5/step5d_strict_rnn_liveprep_v17.{script,txt,urp}",
+        "local_triplet": "programs/step5/step5d/step5d_strict_rnn_liveprep_v17.{script,txt,urp}",
         "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v17.urp",
         "local_package_validated": true,
         "controller_readback_verified": true,
@@ -3736,7 +3736,7 @@
       },
       "local_delivery_evidence": {
         "program_basename": "step5d_strict_rnn_liveprep_v18",
-        "local_triplet": "programs/step5/step5d_strict_rnn_liveprep_v18.{script,txt,urp}",
+        "local_triplet": "programs/step5/step5d/step5d_strict_rnn_liveprep_v18.{script,txt,urp}",
         "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v18.urp",
         "local_package_validated": true,
         "controller_readback_verified": true,
@@ -3971,7 +3971,7 @@
       },
       "local_delivery_evidence": {
         "program_basename": "step5d_strict_rnn_liveprep_v19",
-        "local_triplet": "programs/step5/step5d_strict_rnn_liveprep_v19.{script,txt,urp}",
+        "local_triplet": "programs/step5/step5d/step5d_strict_rnn_liveprep_v19.{script,txt,urp}",
         "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_liveprep_v19.urp",
         "local_package_validated": true,
         "controller_readback_verified": true,

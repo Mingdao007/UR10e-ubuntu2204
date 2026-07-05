@@ -27,6 +27,40 @@ import step5d_full_chain_sanity as sanity  # noqa: E402
 
 
 class Step5dFullChainSanityTest(unittest.TestCase):
+    def test_pre_v26_step5d_packages_are_archived_under_step5d_subdir(self) -> None:
+        step5_dir = ROOT / "programs" / "step5"
+        archive_dir = step5_dir / "step5d"
+        stray_pre_v26 = [
+            path.relative_to(ROOT).as_posix()
+            for path in step5_dir.glob("step5d*.*")
+            if path.is_file() and "_v26." not in path.name
+        ]
+        self.assertEqual(stray_pre_v26, [])
+
+        archived_triplets = sorted(path.name for path in archive_dir.glob("step5d*.*"))
+        self.assertIn("step5d_strict_rnn_liveprep_v24.urp", archived_triplets)
+        self.assertIn("step5d_strict_rnn_ablation_v25.urp", archived_triplets)
+
+        current = json.loads((ROOT / "config" / "current_stage.json").read_text(encoding="utf-8"))
+        table = json.loads((ROOT / "config" / "step5_stage_table.json").read_text(encoding="utf-8"))
+
+        def assert_archived_local_triplet(value: object) -> None:
+            if not isinstance(value, str) or "step5d_strict_rnn" not in value:
+                return
+            if "v26" in value:
+                self.assertTrue(value.startswith("programs/step5/step5d_strict_rnn_ablation_v26"))
+            else:
+                self.assertTrue(value.startswith("programs/step5/step5d/"), value)
+
+        assert_archived_local_triplet(current.get("local_triplet"))
+        for key, value in current.get("evidence", {}).items():
+            if key.endswith("_local_triplet"):
+                assert_archived_local_triplet(value)
+        for stage in table.get("stages", []):
+            evidence = stage.get("local_delivery_evidence")
+            if isinstance(evidence, dict):
+                assert_archived_local_triplet(evidence.get("local_triplet"))
+
     def test_full_chain_sanity_produces_offline_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             summary = sanity.run_sanity(output_dir=Path(tmpdir), sample_limit=8)
