@@ -395,7 +395,7 @@ def _write_v26_fixture(root: Path) -> tuple[Path, Path]:
                     "expected_program": f"{TARGET_DIR}/{V26}.urp",
                 },
                 "runtime_interface_ref": {
-                    "stage25_default_control_mode": "speedj_rnn_live",
+                    "stage25_default_control_mode": "speedl_cartesian_oracle",
                 },
             },
         ]
@@ -512,12 +512,12 @@ class Step5dCurrentPromotionTest(unittest.TestCase):
             self.assertEqual(rows[V26]["guard"]["line_entry_recovery_normal_load_max_n"], 24.0)
             self.assertEqual(rows[V26]["guard"]["attitude_cap_rad_s"], 0.015)
             self.assertEqual(rows[V26]["operator_lifecycle"]["expected_program"], f"{TARGET_DIR}/{V26}.urp")
-            self.assertEqual(rows[V26]["runtime_interface_ref"]["stage25_default_control_mode"], "speedj_rnn_live")
+            self.assertEqual(rows[V26]["runtime_interface_ref"]["stage25_default_control_mode"], "speedl_cartesian_oracle")
             self.assertEqual(rows[V26]["contact_policy"]["tp_role"], "multimode_executor_and_guard_only")
-            self.assertEqual(rows[V26]["contact_policy"]["default_stage25_control_mode"], "speedj_rnn_live")
+            self.assertEqual(rows[V26]["contact_policy"]["default_stage25_control_mode"], "speedl_cartesian_oracle")
             current = json.loads((root / "config" / "current_stage.json").read_text(encoding="utf-8"))
             self.assertEqual(current["program"], V26)
-            self.assertEqual(current["bridge_profile"]["stage25_control_mode"], "speedj_rnn_live")
+            self.assertEqual(current["bridge_profile"]["stage25_control_mode"], "speedl_cartesian_oracle")
             self.assertIn("7-18N", current["bridge_profile"]["stage25_3_preload_gate"])
 
 

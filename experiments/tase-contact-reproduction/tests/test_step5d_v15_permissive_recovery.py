@@ -394,7 +394,7 @@ class Step5dV15PermissiveRecoveryTest(unittest.TestCase):
                 self.assertEqual(current_candidate["guard"]["line_entry_raw_sanity_min_n"], 5.0)
                 self.assertEqual(current_candidate["guard"]["line_entry_raw_sanity_max_n"], 20.0)
                 self.assertEqual(current_candidate["guard"]["line_entry_recovery_normal_load_max_n"], 24.0)
-                expected_mode = "speedj_rnn_live"
+                expected_mode = "speedl_cartesian_oracle"
             self.assertEqual(current_candidate["guard"]["stage25_95_register_clear_required_s"], 0.006)
             self.assertEqual(current_candidate["guard"]["stage25_95_register_clear_timeout_s"], 1.0)
             self.assertEqual(current_candidate["guard"]["stage25_cartesian_layout_tag"], 523.0)

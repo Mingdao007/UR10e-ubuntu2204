@@ -348,9 +348,7 @@ def build_current_stage_row(
     is_ablation = program in STEP5D_ABLATION_PROGRAMS
     stage25_default_mode = (
         "speedl_cartesian_oracle"
-        if program == STEP5D_ABLATION_V25
-        else "speedj_rnn_live"
-        if program == STEP5D_ABLATION_V26
+        if program in {STEP5D_ABLATION_V25, STEP5D_ABLATION_V26}
         else None
     )
     row = copy.deepcopy(base_row)
@@ -610,8 +608,8 @@ def build_current_stage_row(
             f"uses {preload_basis} ({preload_policy}), "
             "Stage25.95 waits for bridge-cleared registers 37..47, and Stage25.0 selects "
             "Cartesian speedl or joint speedj from layout tag 47. v25 defaults to "
-            "speedl_cartesian_oracle with strict RNN/J(q) shadow diagnostics; v26 defaults "
-            "to speedj_rnn_live with joint-feasibility-scaled xdot_c."
+            "speedl_cartesian_oracle with strict RNN/J(q) shadow diagnostics; v26 keeps "
+            "speedj_rnn_live as an explicit follow-up with joint-feasibility-scaled xdot_c."
         )
     contact_policy["stage25_contact_policy"] = stage25_policy
     if is_ablation:
@@ -625,7 +623,7 @@ def build_current_stage_row(
                 f"force_norm <={entry_gate['force_norm_max_n']:g}N, and cmd_valid true for {entry_gate['required_s']:.3f} s"
             ),
             "Stage 25.95 clears registers 37..47 away from preload/cartesian/joint layout tags before Stage25.0 consumption",
-            "Stage25.0 register 47 selects 523.0 Cartesian speedl or 524.0 joint speedj; v25 defaults to speedl_cartesian_oracle, v26 defaults to speedj_rnn_live",
+            "Stage25.0 register 47 selects 523.0 Cartesian speedl or 524.0 joint speedj; v25/v26 default to speedl_cartesian_oracle",
         ]
     else:
         row["liveprep_gates"] = [
@@ -787,7 +785,7 @@ def update_current_stage(
             "TP writes stage 25.95 after preload; bridge writes zero command/cmd_valid=0 and a layout tag "
             "that is not 521/523/524 until TP observes registers 37..47 clear before Stage25.0 consumption"
         )
-        bridge["stage25_control_mode"] = "speedl_cartesian_oracle" if program == STEP5D_ABLATION_V25 else "speedj_rnn_live"
+        bridge["stage25_control_mode"] = "speedl_cartesian_oracle"
         bridge["stage25_layout_contract"] = {
             "cartesian_layout_tag": 523.0,
             "cartesian_registers": "37..42 vx/vy/vz/wx/wy/wz, TP executes speedl",
@@ -984,7 +982,7 @@ def update_current_stage(
         f"{program} is controller read-back verified and selected as the current Step5d TP/script cage-primary diagnostic package.",
         f"{label} keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
         (
-            f"{label} is an ablation package: v25 defaults to speedl_cartesian_oracle, v26 defaults to speedj_rnn_live, and preload is {entry_gate['filtered_normal_load_min_n']:g}-{entry_gate['filtered_normal_load_max_n']:g}N filtered with {entry_gate['raw_normal_load_min_n']:g}-{entry_gate['raw_normal_load_max_n']:g}N raw sanity."
+            f"{label} is an ablation package: v25/v26 default to speedl_cartesian_oracle, speedj_rnn_live is explicit follow-up, and preload is {entry_gate['filtered_normal_load_min_n']:g}-{entry_gate['filtered_normal_load_max_n']:g}N filtered with {entry_gate['raw_normal_load_min_n']:g}-{entry_gate['raw_normal_load_max_n']:g}N raw sanity."
             if is_ablation
             else
             f"{label} stops low-load/no-contact with zero qdot instead of executing active_reacquire_solver qdot, and uses Stage25.3 default preload 7.5-14N filtered with 7-15N raw sanity."

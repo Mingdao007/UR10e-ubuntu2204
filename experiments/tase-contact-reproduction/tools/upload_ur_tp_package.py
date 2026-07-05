@@ -967,7 +967,7 @@ def validate_package(
     if program in {"step5d_strict_rnn_ablation_v25", "step5d_strict_rnn_ablation_v26"}:
         version_label = program.rsplit("_", 1)[-1]
         expected_angular_cap = "0.150" if version_label == "v25" else "0.015"
-        expected_default_mode = "speedl_cartesian_oracle" if version_label == "v25" else "speedj_rnn_live"
+        expected_default_mode = "speedl_cartesian_oracle"
         expected_preload_min = "10.500" if version_label == "v25" else "7.000"
         expected_preload_max = "12.800" if version_label == "v25" else "18.000"
         expected_raw_min_text = "9.5" if version_label == "v25" else "5.0"

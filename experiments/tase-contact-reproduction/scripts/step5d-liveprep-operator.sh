@@ -60,6 +60,9 @@ fi
 if [[ "${STEP5D_VERSION}" == "step5d_strict_rnn_ablation_v25" ]]; then
   STEP5D_DEFAULT_ANGULAR_LIMIT_RAD_S="${STEP5D_DEFAULT_ANGULAR_LIMIT_RAD_S:-0.150}"
   STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedl_cartesian_oracle}"
+elif [[ "${STEP5D_VERSION}" == "step5d_strict_rnn_ablation_v26" ]]; then
+  STEP5D_DEFAULT_ANGULAR_LIMIT_RAD_S="${STEP5D_DEFAULT_ANGULAR_LIMIT_RAD_S:-0.015}"
+  STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedl_cartesian_oracle}"
 else
   STEP5D_DEFAULT_ANGULAR_LIMIT_RAD_S="${STEP5D_DEFAULT_ANGULAR_LIMIT_RAD_S:-0.015}"
   STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedj_rnn_live}"
@@ -80,7 +83,7 @@ Boundary:
   - Bridge profile: ${STEP5D_VERSION}.
   - Force target defaults to 12.0 N, Step5/Step6 positive normal-load convention.
   - v25/v26 Stage 25.0 uses register 47 layout tag: 523 Cartesian speedl vx/vy/vz/wx/wy/wz, 524 joint speedj qd0..qd5.
-  - v25 first live mode defaults to STEP5D_STAGE25_CONTROL_MODE=speedl_cartesian_oracle; v26 defaults to speedj_rnn_live with joint-feasibility-scaled xdot_c.
+  - v25/v26 first live mode defaults to STEP5D_STAGE25_CONTROL_MODE=speedl_cartesian_oracle; speedj_rnn_live remains an explicit follow-up mode.
   - v24 and older Stage 25.0: registers 37..42 are qd0..qd5 rad/s; TP executes speedj.
   - qdot cap: v12+ live-prep packages default to 0.05 rad/s; retained evidence packages may differ.
   - Raw normal guard: current v24/v25/v26 defaults to 25 N, force norm guard 25 N, torque guard 4.0 Nm; retained v18-v23 evidence packages used 100/100/4.0.

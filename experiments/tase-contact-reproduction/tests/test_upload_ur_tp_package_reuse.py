@@ -134,7 +134,7 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
         self.assertEqual(result["target_dir"], liveprep.CONTROLLER_DIR)
         self.assertIn("v26 preload overrides in 40/41/42/44/46/47", script_text)
         self.assertIn("local cartesian_angular_cap_rad_s = 0.015", script_text)
-        self.assertIn("v26 default live mode is speedj_rnn_live", txt_text)
+        self.assertIn("v26 first live mode defaults to speedl_cartesian_oracle", txt_text)
         self.assertIn("joint-feasibility-scaled", txt_text)
         self.assertNotIn("step5d_strict_rnn_ablation_v25", script_text + txt_text)
 

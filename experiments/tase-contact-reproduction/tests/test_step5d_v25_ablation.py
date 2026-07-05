@@ -167,7 +167,7 @@ class Step5dV25AblationTest(unittest.TestCase):
         self.assertEqual(spec.program_name, "step5d_strict_rnn_ablation_v26")
         liveprep.validate_package(script, txt, urp, stamp, spec)
         self.assertIn("local cartesian_angular_cap_rad_s = 0.015", script)
-        self.assertIn("v26 default live mode is speedj_rnn_live", txt)
+        self.assertIn("v26 first live mode defaults to speedl_cartesian_oracle", txt)
         self.assertIn("joint-feasibility-scaled", txt)
         self.assertIn("filtered normal_load between 7.0 N and 18.0 N", txt)
         self.assertIn("raw normal_load is sanity-checked between 5.0 N and 20.0 N", txt)
@@ -192,7 +192,7 @@ class Step5dV25AblationTest(unittest.TestCase):
         self.assertIn("cartesian", runtime.register_contract["stage25_0"])
         self.assertIn("joint", runtime.register_contract["stage25_0"])
 
-    def test_runtime_interface_defaults_to_speedj_rnn_live_for_v26(self) -> None:
+    def test_runtime_interface_defaults_to_speedl_cartesian_oracle_for_v26(self) -> None:
         runtime = iface.resolve_runtime_interface(
             program=iface.STEP5D_ABLATION_V26_STAGE_ID,
             root=ROOT,
@@ -200,7 +200,7 @@ class Step5dV25AblationTest(unittest.TestCase):
         )
 
         self.assertEqual(runtime.program, "step5d_strict_rnn_ablation_v26")
-        self.assertEqual(runtime.stage25_control_mode, "speedj_rnn_live")
+        self.assertEqual(runtime.stage25_control_mode, "speedl_cartesian_oracle")
         self.assertEqual(runtime.bridge_defaults.angular_limit_rad_s, 0.015)
         self.assertEqual(runtime.preload_gate.filtered_min_n, 7.0)
         self.assertEqual(runtime.preload_gate.filtered_max_n, 18.0)

@@ -43,7 +43,7 @@ class Step5dRuntimeInterfaceTest(unittest.TestCase):
         self.assertEqual(v25.bridge_defaults.angular_limit_rad_s, 0.150)
         self.assertEqual(v25.preload_gate.filtered_min_n, 10.5)
         self.assertEqual(v25.preload_gate.raw_max_n, 13.5)
-        self.assertEqual(v26.stage25_control_mode, "speedj_rnn_live")
+        self.assertEqual(v26.stage25_control_mode, "speedl_cartesian_oracle")
         self.assertEqual(v26.bridge_defaults.angular_limit_rad_s, 0.015)
         self.assertEqual(v26.preload_gate.filtered_min_n, 7.0)
         self.assertEqual(v26.preload_gate.filtered_max_n, 18.0)

@@ -91,11 +91,16 @@ else
   MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-3.0}"
   STEP4E_TARGET_FORCE_N="${STEP4E_TARGET_FORCE_N:-5.0}"
 fi
-if [[ "${STEP4E_VERSION}" == step5d_strict_rnn_ablation_v* ]]; then
+if [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_ablation_v25" ]]; then
   STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N:-10.5}"
   STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N:-12.8}"
   STEP5D_DEFAULT_PRELOAD_RAW_MIN_N="${STEP5D_DEFAULT_PRELOAD_RAW_MIN_N:-9.5}"
   STEP5D_DEFAULT_PRELOAD_RAW_MAX_N="${STEP5D_DEFAULT_PRELOAD_RAW_MAX_N:-13.5}"
+elif [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_ablation_v26" ]]; then
+  STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N:-7.0}"
+  STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N:-18.0}"
+  STEP5D_DEFAULT_PRELOAD_RAW_MIN_N="${STEP5D_DEFAULT_PRELOAD_RAW_MIN_N:-5.0}"
+  STEP5D_DEFAULT_PRELOAD_RAW_MAX_N="${STEP5D_DEFAULT_PRELOAD_RAW_MAX_N:-20.0}"
 else
   STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N:-7.5}"
   STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N:-14.0}"
@@ -105,6 +110,9 @@ fi
 if [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_ablation_v25" ]]; then
   STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedl_cartesian_oracle}"
   STEP4E_ANGULAR_LIMIT_RAD_S="${STEP4E_ANGULAR_LIMIT_RAD_S:-0.150}"
+elif [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_ablation_v26" ]]; then
+  STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedl_cartesian_oracle}"
+  STEP4E_ANGULAR_LIMIT_RAD_S="${STEP4E_ANGULAR_LIMIT_RAD_S:-0.015}"
 else
   STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedj_rnn_live}"
   STEP4E_ANGULAR_LIMIT_RAD_S="${STEP4E_ANGULAR_LIMIT_RAD_S:-0.015}"
@@ -330,7 +338,7 @@ elif [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v20" ]]; then
 elif [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_ablation_v25" ]]; then
   SEARCH_DESCRIPTION="Current Step5d v25 ablation diagnostic: 12N target, 10.5-12.8N filtered preload with 9.5-13.5N raw sanity, Stage25.95 register clear, Stage25.0 layout-tagged speedl/speedj, default speedl_cartesian_oracle with strict RNN shadow diagnostics, and 25N/25N/4Nm hard guards"
 elif [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_ablation_v26" ]]; then
-  SEARCH_DESCRIPTION="Step5d v26 strict RNN ablation diagnostic: 12N target, 10.5-12.8N filtered preload with 9.5-13.5N raw sanity, Stage25.95 register clear, Stage25.0 layout-tagged speedl/speedj, default speedj_rnn_live with feasibility-scaled xdot_c, corrected orientation sign/frame, solver reset lifecycle, 0.015 rad/s angular cap, and 25N/25N/4Nm hard guards"
+  SEARCH_DESCRIPTION="Step5d v26 tube ablation diagnostic: 12N target, 7-18N filtered preload with 5-20N raw sanity, Stage25.95 register clear, Stage25.0 layout-tagged speedl/speedj, default speedl_cartesian_oracle with strict RNN shadow diagnostics, explicit speedj_rnn_live follow-up with feasibility-scaled xdot_c, 0.015 rad/s angular cap, and 25N/25N/4Nm hard guards"
 elif [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v8" ]]; then
   SEARCH_DESCRIPTION="Retained Step5d v8 failure evidence: Stage 25.3 bridge force-PID settle used Cartesian registers 37..39 but low-load dropout below 0.5N could stop with reason 17 before Stage 25.0"
 elif [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v4" ]]; then

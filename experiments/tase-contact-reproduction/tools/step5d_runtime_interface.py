@@ -211,7 +211,9 @@ def resolve_runtime_interface(
     stage25_control_mode = str(
         env_map.get(
             "STEP5D_STAGE25_CONTROL_MODE",
-            "speedl_cartesian_oracle" if selected == STEP5D_ABLATION_V25_STAGE_ID else "speedj_rnn_live",
+            "speedl_cartesian_oracle"
+            if selected in {STEP5D_ABLATION_V25_STAGE_ID, STEP5D_ABLATION_V26_STAGE_ID}
+            else "speedj_rnn_live",
         )
     )
     if stage25_control_mode not in STEP5D_STAGE25_CONTROL_MODES:

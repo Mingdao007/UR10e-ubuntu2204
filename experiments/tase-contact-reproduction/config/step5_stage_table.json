@@ -5427,7 +5427,7 @@
         "timing_policy": "step5b_v3_no_lift_no_25_2_no_second_search_with_v20_gravity_down_search_and_action_load_reacquire_speed_cap",
         "virtual_clock_freeze": true,
         "deadband_acquire_stage": "25.3",
-        "stage25_contact_policy": "Online broad AABB TCP cage remains a hard diagnostic boundary; Stage25.3 uses target-centric preload parameters (10.5-12.8N filtered, 9.5-13.5N raw sanity), Stage25.95 waits for bridge-cleared registers 37..47, and Stage25.0 selects Cartesian speedl or joint speedj from layout tag 47. v25 defaults to speedl_cartesian_oracle with strict RNN/J(q) shadow diagnostics; v26 defaults to speedj_rnn_live with joint-feasibility-scaled xdot_c.",
+        "stage25_contact_policy": "Online broad AABB TCP cage remains a hard diagnostic boundary; Stage25.3 uses target-centric preload parameters (10.5-12.8N filtered, 9.5-13.5N raw sanity), Stage25.95 waits for bridge-cleared registers 37..47, and Stage25.0 selects Cartesian speedl or joint speedj from layout tag 47. v25/v26 default to speedl_cartesian_oracle with strict RNN/J(q) shadow diagnostics; speedj_rnn_live remains an explicit follow-up with joint-feasibility-scaled xdot_c.",
         "live_authorization": "retained_live_attempt_evidence_no_current_retry_authorization",
         "tp_package_status": "retained_controller_readback_verified",
         "controller_readback_status": "verified_retained",
@@ -5449,7 +5449,7 @@
         "Stage 25.3 bridge deadband acquire consumes Cartesian vx/vy/vz in registers 37..39",
         "Stage 25.3 enters Stage25 only after 10.5-12.8N filtered normal_load, 9.5-13.5N raw sanity, force_norm <=25N, and cmd_valid true for 0.100 s",
         "Stage 25.95 clears registers 37..47 away from preload/cartesian/joint layout tags before Stage25.0 consumption",
-        "Stage25.0 register 47 selects 523.0 Cartesian speedl or 524.0 joint speedj; v25 defaults to speedl_cartesian_oracle, v26 defaults to speedj_rnn_live"
+        "Stage25.0 register 47 selects 523.0 Cartesian speedl or 524.0 joint speedj; v25/v26 default to speedl_cartesian_oracle"
       ],
       "filter_policy": {
         "normal_filter": "v31_filtered_live",
@@ -5761,7 +5761,7 @@
         "stage25_95_register_clear_zero_tol": 0.0005,
         "stage25_cartesian_layout_tag": 523.0,
         "stage25_joint_layout_tag": 524.0,
-        "stage25_default_control_mode": "speedj_rnn_live",
+        "stage25_default_control_mode": "speedl_cartesian_oracle",
         "stage25_speedl_low_load_hard_stop_n": 2.0,
         "stage25_speedl_low_load_hard_stop_s": 0.1,
         "stage25_speedl_low_load_soft_stop_n": 5.0,
@@ -5782,7 +5782,7 @@
         "timing_policy": "step5b_v3_no_lift_no_25_2_no_second_search_with_gravity_down_search_and_step5b_step6b_evidence_tube_preload",
         "virtual_clock_freeze": false,
         "deadband_acquire_stage": "25.3",
-        "stage25_contact_policy": "Online broad AABB TCP cage remains a hard diagnostic boundary; Stage25.3 uses Step5b/Step6b evidence tube preload parameters (7-18N filtered, 5-20N raw sanity), Stage25.95 waits for bridge-cleared registers 37..47, and Stage25.0 selects Cartesian speedl or joint speedj from layout tag 47. v25 defaults to speedl_cartesian_oracle with strict RNN/J(q) shadow diagnostics; v26 defaults to speedj_rnn_live with joint-feasibility-scaled xdot_c.",
+        "stage25_contact_policy": "Online broad AABB TCP cage remains a hard diagnostic boundary; Stage25.3 uses Step5b/Step6b evidence tube preload parameters (7-18N filtered, 5-20N raw sanity), Stage25.95 waits for bridge-cleared registers 37..47, and Stage25.0 selects Cartesian speedl or joint speedj from layout tag 47. v25 defaults to speedl_cartesian_oracle with strict RNN/J(q) shadow diagnostics; v26 keeps speedj_rnn_live as an explicit follow-up with joint-feasibility-scaled xdot_c.",
         "live_authorization": "current_controller_readback_verified_pending_live_bridge_run",
         "tp_package_status": "generated_uploaded_readback_verified_current",
         "controller_readback_status": "verified",
@@ -5792,7 +5792,7 @@
           "speedj_dls_oracle",
           "speedj_rnn_live"
         ],
-        "default_stage25_control_mode": "speedj_rnn_live",
+        "default_stage25_control_mode": "speedl_cartesian_oracle",
         "speedl_cartesian_oracle_policy": "paper outer-loop xdot_c is sent directly to TP speedl for Cartesian oracle diagnostics; strict RNN and J(q) qdot are shadow diagnostics only",
         "speedj_dls_oracle_policy": "feasibility-scaled xdot_c is converted through the DLS/Jacobian qdot oracle and sent to TP speedj for diagnostic comparison only",
         "speedj_rnn_live_policy": "strict RNN qdot from feasibility-scaled xdot_c is sent to TP speedj after solver lambda/theta_dot reset on Stage25 lifecycle boundaries"
@@ -5813,7 +5813,7 @@
         "Stage 25.3 bridge deadband acquire consumes Cartesian vx/vy/vz in registers 37..39",
         "Stage 25.3 enters Stage25 only after 7-18N filtered normal_load, 5-20N raw sanity, force_norm <=25N, and cmd_valid true for 0.100 s",
         "Stage 25.95 clears registers 37..47 away from preload/cartesian/joint layout tags before Stage25.0 consumption",
-        "Stage25.0 register 47 selects 523.0 Cartesian speedl or 524.0 joint speedj; v25 defaults to speedl_cartesian_oracle, v26 defaults to speedj_rnn_live"
+        "Stage25.0 register 47 selects 523.0 Cartesian speedl or 524.0 joint speedj; v25/v26 default to speedl_cartesian_oracle"
       ],
       "filter_policy": {
         "normal_filter": "v31_filtered_live",
@@ -5847,7 +5847,7 @@
         "v23_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v23_20260703_004136/manifest.json",
         "v24_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v24_20260703_010837/manifest.json",
         "v25_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v25_20260703_225843/manifest.json",
-        "v26_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v26_20260705_213513/manifest.json"
+        "v26_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v26_20260705_225718/manifest.json"
       },
       "local_delivery_evidence": {
         "program_basename": "step5d_strict_rnn_ablation_v26",
@@ -5857,15 +5857,15 @@
         "controller_dir": "/programs/andyl/kunwei/step5",
         "local_package_validated": true,
         "controller_readback_verified": true,
-        "controller_readback": "runs/controller_readback_step5d_strict_rnn_ablation_v26_20260705_213513/manifest.json",
+        "controller_readback": "runs/controller_readback_step5d_strict_rnn_ablation_v26_20260705_225718/manifest.json",
         "local_controller_readback_sha_match": true,
         "fetched_back_urp_internal_gate_pass": true,
         "sha256": {
-          ".script": "b10e29ff23deb72ebead24159dcb823753374a5e36b77bd3c615689d1abdd9d2",
-          ".txt": "9c6250189fd7dd159202ae839b30cf875882b5332a8aac6fac6ec77a7690186a",
-          ".urp": "880cfe831a777d9ae33dd7254c0a293ef4e94bc51d2bc2325be08128ae9896ed"
+          ".script": "46dac73ed9d167cb96796ee4d2198eb2bf1685fd95d21404d0174c8e0653d93f",
+          ".txt": "6d6d71b697106d2c835569dba1a88a7dd1cdd870cf0d18295db8ff400dfda224",
+          ".urp": "8754f1b4419a1a3ff655abc3e3246fa29596a6e2a6c400afbb4b7ff94b917ad3"
         },
-        "stamp": "2026-07-05T2135HKT_STEP5D_STRICT_RNN_ABLATION_V26",
+        "stamp": "2026-07-05T2257HKT_STEP5D_STRICT_RNN_ABLATION_V26",
         "installation_relative_path": "../../../default",
         "delivery_mode": "full_upload_readback"
       },
@@ -5945,7 +5945,7 @@
         "path": "tools/step5d_runtime_interface.py",
         "interface_class": "tp_speedj_strict_rnn_liveprep_v1",
         "tuning_bundle": "v24_startup_quarantine_rnn_tracking_guard",
-        "stage25_default_control_mode": "speedj_rnn_live"
+        "stage25_default_control_mode": "speedl_cartesian_oracle"
       },
       "evidence_refs": {
         "latest_live_run_status": "pending_explicit_live_bridge_run",
@@ -5960,7 +5960,7 @@
         "program": "step5d_strict_rnn_ablation_v26",
         "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v26.urp",
         "controller_readback_status": "verified_current",
-        "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v26_20260705_213513/manifest.json",
+        "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v26_20260705_225718/manifest.json",
         "flow_claim_status": "STEP5_FLOW_top_summary_must_match_current_stage_pointer"
       },
       "package_delivery": {
@@ -5970,12 +5970,12 @@
         "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v26.urp",
         "controller_dir": "/programs/andyl/kunwei/step5",
         "controller_readback_status": "verified_current",
-        "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v26_20260705_213513/manifest.json",
+        "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v26_20260705_225718/manifest.json",
         "delivery_mode": "full_upload_readback",
         "sha256": {
-          ".script": "b10e29ff23deb72ebead24159dcb823753374a5e36b77bd3c615689d1abdd9d2",
-          ".txt": "9c6250189fd7dd159202ae839b30cf875882b5332a8aac6fac6ec77a7690186a",
-          ".urp": "880cfe831a777d9ae33dd7254c0a293ef4e94bc51d2bc2325be08128ae9896ed"
+          ".script": "46dac73ed9d167cb96796ee4d2198eb2bf1685fd95d21404d0174c8e0653d93f",
+          ".txt": "6d6d71b697106d2c835569dba1a88a7dd1cdd870cf0d18295db8ff400dfda224",
+          ".urp": "8754f1b4419a1a3ff655abc3e3246fa29596a6e2a6c400afbb4b7ff94b917ad3"
         }
       }
     },

@@ -5817,7 +5817,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     if not args.step5d_stage25_control_mode:
         args.step5d_stage25_control_mode = (
             "speedl_cartesian_oracle"
-            if args.bridge_profile == STEP5D_ABLATION_V25_STAGE_ID
+            if args.bridge_profile in {STEP5D_ABLATION_V25_STAGE_ID, STEP5D_ABLATION_V26_STAGE_ID}
             else "speedj_rnn_live"
         )
     if args.step5d_stage25_control_mode not in STEP5D_STAGE25_CONTROL_MODES:

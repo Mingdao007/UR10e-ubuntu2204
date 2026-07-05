@@ -74,7 +74,7 @@ ABLATION_SPECS = {
         version_label="v26",
         stamp_token="STEP5D_STRICT_RNN_ABLATION_V26",
         cartesian_angular_cap_rad_s=0.015,
-        default_stage25_control_mode="speedj_rnn_live",
+        default_stage25_control_mode="speedl_cartesian_oracle",
     ),
 }
 DEFAULT_SPEC = ABLATION_SPECS[STEP5D_ABLATION_V26_STAGE_ID]
@@ -724,10 +724,10 @@ def build_txt(stamp: str, spec: Step5dAblationSpec = DEFAULT_SPEC) -> str:
         "  cage/hard-guard stop. If speedl succeeds but RNN shadow direction or magnitude\n"
         "  is abnormal, the defect is isolated to the RNN/Jacobian/qdot layer."
         if spec.version_label == "v25"
-        else "v26 default live mode is speedj_rnn_live with joint-feasibility-scaled\n"
-        "  xdot_c, corrected orientation frame/sign, 0.015 rad/s angular cap, and solver\n"
-        "  reset at Stage25 lifecycle boundaries. speedl_cartesian_oracle remains\n"
-        "  available only as a diagnostic ablation mode."
+        else "v26 first live mode defaults to speedl_cartesian_oracle. The bridge sends\n"
+        "  paper outer-loop xdot_c directly to TP speedl while strict RNN/J(q) qdot stays\n"
+        "  shadow-only. speedj_rnn_live remains an explicit follow-up mode with\n"
+        "  joint-feasibility-scaled xdot_c after speedl passes."
     )
     return f"""Step5d strict RNN ablation {spec.version_label} 12N diagnostic TP package
 
