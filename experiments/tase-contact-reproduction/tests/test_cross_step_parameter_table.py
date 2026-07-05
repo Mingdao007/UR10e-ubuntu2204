@@ -21,6 +21,18 @@ class CrossStepParameterTableTest(unittest.TestCase):
         self.assertGreaterEqual(len(live_gates), 5)
         self.assertTrue(all(gate.get("cacheable") is False for gate in live_gates))
 
+    def test_v27_latest_live_timing_separates_stop_reason_from_control_classification(self) -> None:
+        table = validator.load_json(ROOT / "config" / "step5_stage_table.json")
+        stage = next(stage for stage in table["stages"] if stage.get("id") == "step5d_strict_rnn_ablation_v27")
+        timing = stage["local_analysis_evidence"]["v27_20260706_024815_live_timing"]
+        evidence_refs = stage["evidence_refs"]
+
+        self.assertEqual(timing["terminal_stop_reason"], "step5d_contact_safety:force_norm_hard_stop")
+        self.assertEqual(timing["analysis_classification"], "stage25_control_force_oscillation/low_load_timeout")
+        self.assertEqual(timing["control_oscillation_trigger"], "low_load_repress_window")
+        self.assertEqual(evidence_refs["latest_terminal_stop_reason"], "step5d_contact_safety:force_norm_hard_stop")
+        self.assertEqual(evidence_refs["latest_analysis_classification"], "stage25_control_force_oscillation/low_load_timeout")
+
 
 if __name__ == "__main__":
     unittest.main()

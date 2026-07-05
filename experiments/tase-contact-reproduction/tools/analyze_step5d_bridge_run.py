@@ -7,6 +7,7 @@ import argparse
 import csv
 import json
 import math
+from collections import Counter
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -27,6 +28,7 @@ METADATA_FILENAME = "metadata.json"
 SUMMARY_FILENAME = "summary.json"
 STAGE_TOL = 0.005
 STAGE25_MAX_ROW_GAP_S = 0.020
+STAGE25_MIN_CONSUMPTION_RATIO = 0.95
 REQUIRED_COLUMNS = {
     "t_monotonic_s",
     "ur_output_double_register_30",
@@ -131,6 +133,173 @@ def preload_ready(row: dict[str, str], gate: Step5dPreloadGate) -> bool:
     )
 
 
+def metadata_float(metadata: dict[str, Any], *keys: str) -> float:
+    args = metadata.get("args")
+    if not isinstance(args, dict):
+        return math.nan
+    for key in keys:
+        parsed = finite_float(args.get(key))
+        if math.isfinite(parsed):
+            return parsed
+    return math.nan
+
+
+def finite_values(rows: list[dict[str, str]], key: str) -> list[float]:
+    values: list[float] = []
+    for row in rows:
+        parsed = finite_float(row.get(key))
+        if math.isfinite(parsed):
+            values.append(parsed)
+    return values
+
+
+def first_finite(rows: list[dict[str, str]], key: str) -> float:
+    for row in rows:
+        parsed = finite_float(row.get(key))
+        if math.isfinite(parsed):
+            return parsed
+    return math.nan
+
+
+def range_or_none(values: list[float]) -> float | None:
+    return None if not values else max(values) - min(values)
+
+
+def min_or_none(values: list[float]) -> float | None:
+    return None if not values else min(values)
+
+
+def max_or_none(values: list[float]) -> float | None:
+    return None if not values else max(values)
+
+
+def mean_or_none(values: list[float]) -> float | None:
+    return None if not values else sum(values) / len(values)
+
+
+def load_rates(rows: list[dict[str, str]]) -> list[float]:
+    rates: list[float] = []
+    previous_t: float | None = None
+    previous_load: float | None = None
+    for row in rows:
+        t_s = finite_float(row.get("t_monotonic_s"))
+        load = finite_float(row.get("_step4e_normal_load_n"))
+        if (
+            previous_t is not None
+            and previous_load is not None
+            and math.isfinite(t_s)
+            and math.isfinite(load)
+            and t_s > previous_t
+        ):
+            rates.append((load - previous_load) / (t_s - previous_t))
+        if math.isfinite(t_s) and math.isfinite(load):
+            previous_t = t_s
+            previous_load = load
+    return rates
+
+
+def angular_norms(rows: list[dict[str, str]]) -> list[float]:
+    norms: list[float] = []
+    for row in rows:
+        wx = finite_float(row.get("step4e_cmd_wx_rad_s"))
+        wy = finite_float(row.get("step4e_cmd_wy_rad_s"))
+        wz = finite_float(row.get("step4e_cmd_wz_rad_s"))
+        if math.isfinite(wx) and math.isfinite(wy) and math.isfinite(wz):
+            norms.append(math.sqrt(wx * wx + wy * wy + wz * wz))
+    return norms
+
+
+def last_contact_safety_reason(rows: list[dict[str, str]]) -> str | None:
+    for row in reversed(rows):
+        reason = row.get("_step5d_contact_safety_reason") or ""
+        if reason and reason != "ok":
+            return reason
+    return None
+
+
+def stage25_control_attribution(rows: list[dict[str, str]], metadata: dict[str, Any]) -> dict[str, Any]:
+    normal_loads = finite_values(rows, "_step4e_normal_load_n")
+    force_norms = finite_values(rows, "force_norm_n")
+    rates = load_rates(rows)
+    angular = angular_norms(rows)
+    angular_limit = metadata_float(metadata, "bridge_angular_limit_rad_s", "step4e_angular_limit_rad_s")
+    if not math.isfinite(angular_limit) and angular:
+        angular_limit = max(angular)
+    saturation_threshold = angular_limit * 0.99 if math.isfinite(angular_limit) and angular_limit > 0.0 else math.inf
+    saturated = sum(1 for value in angular if value >= saturation_threshold)
+    sources = Counter(row.get("_step4e_normal_filter_source") or "" for row in rows)
+    reasons = Counter(row.get("_step5d_contact_safety_reason") or "" for row in rows)
+    reason_counts = dict(sorted((key, value) for key, value in reasons.items() if key))
+    load_min = min_or_none(normal_loads)
+    load_range = range_or_none(normal_loads)
+    angular_saturation_ratio = 0.0 if not angular else saturated / len(angular)
+    has_low_load_repress = int(reason_counts.get("v25_speedl_low_load_repress_window", 0)) > 0
+    has_low_load_timeout = int(reason_counts.get("v25_speedl_hard_low_load_timeout", 0)) > 0
+    has_force_hard_stop = int(reason_counts.get("force_norm_hard_stop", 0)) > 0
+    low_load_excursion = (
+        isinstance(load_min, (int, float))
+        and isinstance(load_range, (int, float))
+        and load_min < 2.0
+        and load_range > 8.0
+    )
+    angular_saturated = angular_saturation_ratio >= 0.90
+    control_oscillation_trigger: str | None = None
+    if has_low_load_timeout:
+        control_oscillation_trigger = "hard_low_load_timeout"
+    elif has_low_load_repress:
+        control_oscillation_trigger = "low_load_repress_window"
+    elif low_load_excursion and angular_saturated:
+        control_oscillation_trigger = "low_load_excursion_with_angular_saturation"
+    elif has_force_hard_stop:
+        control_oscillation_trigger = "force_norm_hard_stop"
+    return {
+        "stage25_rows": len(rows),
+        "entry_orientation_error_rad": first_finite(rows, "step4e_orientation_error_rad"),
+        "entry_outer_orientation_error_rad": first_finite(rows, "_step5d_outer_orientation_error_rad"),
+        "angular_limit_rad_s": angular_limit if math.isfinite(angular_limit) else None,
+        "angular_cmd_norm_max_rad_s": max_or_none(angular),
+        "angular_cmd_norm_mean_rad_s": mean_or_none(angular),
+        "angular_saturation_rows": saturated,
+        "angular_saturation_ratio": angular_saturation_ratio,
+        "linear_vz_cmd_abs_max_m_s": max_or_none([abs(value) for value in finite_values(rows, "step4e_cmd_vz_m_s")]),
+        "linear_vz_cmd_mean_m_s": mean_or_none(finite_values(rows, "step4e_cmd_vz_m_s")),
+        "linear_approach_cmd_abs_max_m_s": max_or_none(
+            [abs(value) for value in finite_values(rows, "_step5d_outer_xdot_limited_approach_normal_m_s")]
+        ),
+        "linear_approach_cmd_mean_m_s": mean_or_none(finite_values(rows, "_step5d_outer_xdot_limited_approach_normal_m_s")),
+        "normal_load_min_n": load_min,
+        "normal_load_max_n": max_or_none(normal_loads),
+        "normal_load_range_n": load_range,
+        "force_norm_max_n": max_or_none(force_norms),
+        "normal_load_rate_abs_max_n_s": max_or_none([abs(value) for value in rates]),
+        "normal_load_rate_max_n_s": max_or_none(rates),
+        "normal_load_rate_min_n_s": min_or_none(rates),
+        "normal_filter_source_counts": dict(sorted((key, value) for key, value in sources.items() if key)),
+        "contact_safety_reason_counts": reason_counts,
+        "terminal_contact_safety_reason": last_contact_safety_reason(rows),
+        "control_oscillation_trigger": control_oscillation_trigger,
+        "normal_filter_lag_angle_abs_max_rad": max_or_none(
+            [abs(value) for value in finite_values(rows, "_step4e_live_normal_candidate_angle_rad")]
+        ),
+        "normal_filter_latch_lag_angle_abs_max_rad": max_or_none(
+            [abs(value) for value in finite_values(rows, "_step4e_live_normal_angle_from_latch_rad")]
+        ),
+    }
+
+
+def stage25_control_oscillation_reason(attribution: dict[str, Any]) -> str | None:
+    trigger = attribution.get("control_oscillation_trigger")
+    if trigger in {
+        "hard_low_load_timeout",
+        "low_load_repress_window",
+        "low_load_excursion_with_angular_saturation",
+    }:
+        return "low_load_timeout"
+    if trigger == "force_norm_hard_stop":
+        return "force_norm_hard_stop"
+    return None
+
+
 def base_analysis(csv_path: Path, run_dir: Path | None, profile: str, gate: Step5dPreloadGate) -> dict[str, Any]:
     return {
         "ok": True,
@@ -145,8 +314,11 @@ def base_analysis(csv_path: Path, run_dir: Path | None, profile: str, gate: Step
         "stage25_row_rate_hz": 0.0,
         "stage25_cadence_ok": None,
         "stage25_echo_consumed_rows": 0,
+        "stage25_consumption_ratio": 0.0,
+        "stage25_consumption_complete": None,
         "stage25_first_consumed_t_s": None,
         "stage25_consumption_ok": None,
+        "stage25_control_attribution": {},
         "stage25_3_rows": 0,
         "stage25_3_duration_s": 0.0,
         "longest_preload_gate_dwell_s": 0.0,
@@ -160,6 +332,7 @@ def base_analysis(csv_path: Path, run_dir: Path | None, profile: str, gate: Step
 
 
 def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any]:
+    metadata = read_json(run_dir / METADATA_FILENAME) if run_dir is not None else {}
     profile, gate = preload_gate_for(run_dir)
     result = base_analysis(csv_path, run_dir, profile, gate)
     if not csv_path.exists():
@@ -179,6 +352,7 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
     stage25_segment_last_t: float | None = None
     stage25_previous_t: float | None = None
     ready_start_t: float | None = None
+    stage25_rows: list[dict[str, str]] = []
 
     def close_stage25_3_segment() -> None:
         nonlocal stage25_3_segment_start_t, stage25_3_segment_last_t
@@ -224,6 +398,7 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
             if stage_is(stage, 25.0):
                 result["stage25_rows"] += 1
                 result["entered_stage25"] = True
+                stage25_rows.append(row)
                 if math.isfinite(t_s):
                     if stage25_segment_start_t is None:
                         stage25_segment_start_t = t_s
@@ -278,15 +453,25 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
         result["stage25_row_rate_hz"] = result["stage25_rows"] / result["stage25_duration_s"]
     if result["entered_stage25"]:
         result["stage25_cadence_ok"] = result["stage25_max_row_gap_s"] <= STAGE25_MAX_ROW_GAP_S
-        result["stage25_consumption_ok"] = result["stage25_echo_consumed_rows"] == result["stage25_rows"]
+        result["stage25_consumption_ratio"] = (
+            result["stage25_echo_consumed_rows"] / result["stage25_rows"]
+            if result["stage25_rows"] > 0
+            else 0.0
+        )
+        result["stage25_consumption_complete"] = result["stage25_echo_consumed_rows"] == result["stage25_rows"]
+        result["stage25_consumption_ok"] = result["stage25_consumption_ratio"] >= STAGE25_MIN_CONSUMPTION_RATIO
+        result["stage25_control_attribution"] = stage25_control_attribution(stage25_rows, metadata)
 
     if result["entered_stage25"]:
-        if (
-            profile == STEP5D_ABLATION_V27_STAGE_ID
-            and (not result["stage25_cadence_ok"] or not result["stage25_consumption_ok"])
+        oscillation_reason = stage25_control_oscillation_reason(result["stage25_control_attribution"])
+        if profile == STEP5D_ABLATION_V27_STAGE_ID and (
+            not result["stage25_cadence_ok"] or not result["stage25_consumption_ok"]
         ):
             result["classification"] = "stage25_cadence_or_consumption_failure"
             result["next_action"] = "audit Stage25.0 bridge loop timing, RTDE send blocking, and TP command consumption echo"
+        elif oscillation_reason is not None:
+            result["classification"] = f"stage25_control_force_oscillation/{oscillation_reason}"
+            result["next_action"] = "keep bridge live-gated; fix Stage25.0 entry orientation command before another live retry"
         else:
             result["classification"] = "entered_stage25"
             result["next_action"] = "audit Stage25.0 behavior and acceptance evidence"

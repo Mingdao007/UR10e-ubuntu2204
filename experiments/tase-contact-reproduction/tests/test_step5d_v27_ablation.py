@@ -8,6 +8,7 @@ import tempfile
 import time
 import unittest
 import os
+import math
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -95,6 +96,29 @@ def fake_v27_outer(*_args: object, **_kwargs: object) -> SimpleNamespace:
             "outer_orientation_angle_rad": 0.0,
             "e_f": 0.0,
             "R_d_z_dot_R_cur_z": 1.0,
+            "force_sign_convention": "step5_step6_positive_normal_load",
+        },
+    )
+
+
+def fake_v27_outer_with_matching_orientation(_config: object, _state: object, inputs: object) -> SimpleNamespace:
+    pose = getattr(inputs, "tcp_pose_base")
+    reaction = getattr(inputs, "control_reaction_normal_base")
+    rotation = bridge.rotvec_to_matrix(float(pose[3]), float(pose[4]), float(pose[5]))
+    tcp_z_axis_b = (rotation[0][2], rotation[1][2], rotation[2][2])
+    approach_axis_b = (-float(reaction[0]), -float(reaction[1]), -float(reaction[2]))
+    orientation_axis = bridge.cross3(tcp_z_axis_b, approach_axis_b)
+    orientation_error = math.atan2(
+        bridge.norm3(orientation_axis),
+        bridge.clamp(bridge.dot3(tcp_z_axis_b, approach_axis_b), -1.0, 1.0),
+    )
+    return SimpleNamespace(
+        xdot_c=np.array([0.0010, 0.0015, -0.0020, 0.0100, -0.0200, 0.0300]),
+        next_state=Step5dOuterLoopState(),
+        diagnostics={
+            "outer_orientation_angle_rad": orientation_error,
+            "e_f": 0.0,
+            "R_d_z_dot_R_cur_z": math.cos(orientation_error),
             "force_sign_convention": "step5_step6_positive_normal_load",
         },
     )
@@ -379,6 +403,60 @@ class Step5dV27AblationTest(unittest.TestCase):
 
         self.assertLess(elapsed_s, 0.050)
         self.assertEqual(values["step4e_cmd_valid"], 1.0)
+        self.assertEqual(values["_step5d_stage25_control_mode"], "speedl_cartesian_oracle")
+
+    def test_v27_speedl_entry_freezes_angular_command_but_keeps_shadow_orientation_error(self) -> None:
+        args = bridge.parse_args(
+            [
+                "--no-start-command",
+                "--skip-dashboard-preflight",
+                "--bridge-mode",
+                "line",
+                "--bridge-profile",
+                V27,
+                "--bridge-path-shape",
+                "cycloid",
+            ]
+        )
+        tilt_rad = 0.105
+        reaction_normal_b = (math.sin(tilt_rad), 0.0, math.cos(tilt_rad))
+        latest_output = {
+            "actual_TCP_pose": [0.49, 0.14, 0.02, 3.14, 0.0, 0.0],
+            "actual_TCP_speed": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            "actual_q": [0.0] * 6,
+            "actual_qd": [0.0] * 6,
+            "output_double_register_35": 25.0,
+        }
+
+        state = acquired_v27_state()
+        state.latched_normal_b = reaction_normal_b
+        state.filtered_normal_b = reaction_normal_b
+
+        with (
+            patch.object(bridge, "step5d_tcp_jacobian_base", return_value=np.eye(6)),
+            patch.object(bridge, "step5d_omega_bounds", return_value=(np.full(6, -0.05), np.full(6, 0.05))),
+            patch.object(bridge, "compute_step5d_outer_loop", side_effect=fake_v27_outer_with_matching_orientation),
+            patch.object(bridge, "rnn_target_state_from_outer_loop", return_value={"shadow": True}),
+        ):
+            fake_v27_runtime(state, args)
+            values = bridge.compute_bridge_values(
+                args,
+                [0.0, 0.0, -12.0, 0.0, 0.0, 0.0],
+                latest_output,
+                1.0,
+                state,
+                0.002,
+            )
+
+        self.assertEqual(values["step4e_cmd_valid"], 1.0)
+        self.assertAlmostEqual(values["step4e_cmd_vx_m_s"], 0.0010, places=9)
+        self.assertAlmostEqual(values["step4e_cmd_vy_m_s"], 0.0015, places=9)
+        self.assertAlmostEqual(values["step4e_cmd_vz_m_s"], -0.0020, places=9)
+        self.assertAlmostEqual(values["step4e_cmd_wx_rad_s"], 0.0, places=9)
+        self.assertAlmostEqual(values["step4e_cmd_wy_rad_s"], 0.0, places=9)
+        self.assertAlmostEqual(values["step4e_cmd_wz_rad_s"], 0.0, places=9)
+        self.assertAlmostEqual(values["step4e_orientation_error_rad"], tilt_rad, delta=0.002)
+        self.assertAlmostEqual(values["_step5d_outer_orientation_error_rad"], tilt_rad, delta=0.002)
         self.assertEqual(values["_step5d_stage25_control_mode"], "speedl_cartesian_oracle")
 
 

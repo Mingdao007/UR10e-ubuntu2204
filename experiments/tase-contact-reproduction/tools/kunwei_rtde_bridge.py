@@ -575,6 +575,7 @@ STEP5D_V27_ENTRY_RAW_NORMAL_LOAD_MAX_N = 25.0
 STEP5D_V27_ENTRY_FORCE_NORM_MAX_N = 35.0
 STEP5D_V27_ENTRY_RECOVERY_NORMAL_LOAD_MAX_N = 35.0
 STEP5D_V27_SENSOR_FORCE_HARD_STOP_N = 35.0
+STEP5D_ABLATION_SPEEDL_ENTRY_ORIENTATION_HOLD_S = 0.150
 STEP5D_V25_HARD_LOW_LOAD_N = 2.0
 STEP5D_V25_HARD_LOW_LOAD_TIMEOUT_S = 0.100
 STEP5D_V25_SOFT_LOW_LOAD_N = 5.0
@@ -4430,6 +4431,19 @@ def compute_bridge_values(
                     if step5d_stage25_control_mode == "speedl_cartesian_oracle":
                         step5d_stage25_command = tuple(float(value) for value in step5d_outer_xdot_limited.tolist())
                         step5d_stage25_layout_tag = STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE
+                        if (
+                            step5d_liveprep_v27_profile
+                            and state.step5d_active_stage25_s <= STEP5D_ABLATION_SPEEDL_ENTRY_ORIENTATION_HOLD_S
+                        ):
+                            step5d_stage25_command = (
+                                step5d_stage25_command[0],
+                                step5d_stage25_command[1],
+                                step5d_stage25_command[2],
+                                0.0,
+                                0.0,
+                                0.0,
+                            )
+                            step5d_intervention_reasons.append("stage25_entry_orientation_hold")
                     elif step5d_stage25_control_mode == "speedj_dls_oracle":
                         step5d_stage25_command = step5d_dls_qdot_oracle(
                             jacobian,

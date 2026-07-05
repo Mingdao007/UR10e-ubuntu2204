@@ -6271,8 +6271,15 @@
           "stage25_first_compute_s": 0.001496,
           "stage25_max_row_gap_s": 0.003664,
           "stage25_echo_consumed_rows": "262/266",
+          "stage25_consumption_ratio": 0.984962,
+          "stage25_consumption_complete": false,
           "stop_reason": "step5d_contact_safety:force_norm_hard_stop",
-          "conclusion": "TCP cage cold-start/freeze is resolved; remaining failure is force spike/hard-stop after Stage25.0 starts. Reduce v27 bridge re-zero default to 0.25s to remove avoidable pre-far-search pause without changing TP package semantics."
+          "terminal_stop_reason": "step5d_contact_safety:force_norm_hard_stop",
+          "analysis_classification": "stage25_control_force_oscillation/low_load_timeout",
+          "control_oscillation_trigger": "low_load_repress_window",
+          "entry_orientation_error_rad": 0.103856,
+          "angular_saturation_ratio": 0.99624,
+          "conclusion": "TCP cage cold-start/freeze is resolved. Stage25.0 cadence and near-complete TP echo consumption passed; the terminal stop reason remained force_norm_hard_stop, but the control classification is Stage25 entry posture-error amplification with low-load repress/force-loop oscillation. Keep bridge live-gated and fix Stage25.0 entry orientation command before another live retry."
         }
       },
       "local_delivery_evidence": {
@@ -6378,10 +6385,13 @@
         "stage25_default_control_mode": "speedl_cartesian_oracle"
       },
       "evidence_refs": {
-        "latest_live_run_status": "failed_after_stage25_entry_timing_smoke_passed",
+        "latest_live_run_status": "failed_stage25_control_force_oscillation_after_stage25_entry_timing_smoke_passed",
         "latest_live_run_summary": "runs/bridge_step5d_strict_rnn_ablation_v27_20260706_024815/summary.json",
         "latest_live_run_analysis": "runs/bridge_step5d_strict_rnn_ablation_v27_20260706_024815/step5d_bridge_analysis.json",
         "latest_stop_reason": "step5d_contact_safety:force_norm_hard_stop",
+        "latest_terminal_stop_reason": "step5d_contact_safety:force_norm_hard_stop",
+        "latest_analysis_classification": "stage25_control_force_oscillation/low_load_timeout",
+        "latest_control_oscillation_trigger": "low_load_repress_window",
         "previous_retained_evidence_index": "current_stage.json#evidence"
       },
       "current_binding": {
