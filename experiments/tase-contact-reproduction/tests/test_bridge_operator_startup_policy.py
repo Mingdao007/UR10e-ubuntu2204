@@ -1,4 +1,5 @@
 from pathlib import Path
+import csv
 import os
 import subprocess
 import tempfile
@@ -21,12 +22,54 @@ class BridgeOperatorStartupPolicyTest(unittest.TestCase):
         self.assertIn("skipping long bench gate by request", script)
 
     def test_bridge_postprocess_emits_step5d_fast_analysis_json(self) -> None:
-        script = read_script("bridge-line-operator.sh")
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            bridge_csv = run_dir / "bridge_rtde_500hz.csv"
+            with bridge_csv.open("w", newline="", encoding="utf-8") as handle:
+                writer = csv.DictWriter(
+                    handle,
+                    fieldnames=[
+                        "t_monotonic_s",
+                        "ur_output_double_register_30",
+                        "ur_output_double_register_35",
+                        "_step4e_normal_load_n",
+                        "_step5d_force_settle_filtered_normal_load_n",
+                        "force_norm_n",
+                    ],
+                )
+                writer.writeheader()
+                writer.writerow(
+                    {
+                        "t_monotonic_s": "0.000",
+                        "ur_output_double_register_30": "17",
+                        "ur_output_double_register_35": "25.3",
+                        "_step4e_normal_load_n": "11.0",
+                        "_step5d_force_settle_filtered_normal_load_n": "10.8",
+                        "force_norm_n": "11.2",
+                    }
+                )
+            script = f"""
+set -euo pipefail
+export BRIDGE_OPERATOR_SOURCE_ONLY=1
+export BRIDGE_PROFILE=step5d_strict_rnn_ablation_v25
+source "{ROOT / 'scripts' / 'bridge-line-operator.sh'}"
+postprocess_run "{run_dir}"
+"""
+            completed = subprocess.run(
+                ["bash", "-lc", script],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
 
-        self.assertIn("postprocess_run()", script)
-        self.assertIn("summarize_stage_frequency.py", script)
-        self.assertIn("analyze_step5d_bridge_run.py", script)
-        self.assertIn('"${out_dir}/step5d_bridge_analysis.json"', script)
+            self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+            self.assertTrue((run_dir / "stage_frequency_summary.json").exists())
+            self.assertTrue((run_dir / "step5d_bridge_analysis.json").exists())
+            self.assertIn("[operator] run dir:", completed.stdout)
+            self.assertIn("[operator] stage frequency summary:", completed.stdout)
+            self.assertIn("[operator] Step5d bridge analysis:", completed.stdout)
+            self.assertIn("root-cause classification: no_stage25_preload_dwell_short", completed.stdout)
 
     def test_step5d_contact_bridge_defaults_to_short_start_path(self) -> None:
         script = read_script("step5d-liveprep-operator.sh")
@@ -39,10 +82,26 @@ class BridgeOperatorStartupPolicyTest(unittest.TestCase):
         self.assertIn("current_step5d_version()", script)
 
     def test_step5d_bridge_path_does_not_background_git_push(self) -> None:
-        script = read_script("bridge-line-operator.sh")
+        with tempfile.TemporaryDirectory() as tmp:
+            script = f"""
+set -euo pipefail
+export BRIDGE_OPERATOR_SOURCE_ONLY=1
+export BRIDGE_PROFILE=step5d_strict_rnn_ablation_v25
+export BRIDGE_BACKGROUND_PUSH_AFTER_LIVE=1
+source "{ROOT / 'scripts' / 'bridge-line-operator.sh'}"
+maybe_start_background_push "{tmp}"
+"""
+            completed = subprocess.run(
+                ["bash", "-lc", script],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
 
-        self.assertIn("maybe_start_background_push()", script)
-        self.assertIn("step5d live trigger keeps git publication in finalize", script)
+            self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+            self.assertNotIn("background git push started", completed.stdout)
+            self.assertFalse((Path(tmp) / "background_git_push.log").exists())
 
     def test_fast_bridge_uses_two_hour_fingerprint_cache_and_rtde_probe(self) -> None:
         script = read_script("bridge-line-operator.sh")

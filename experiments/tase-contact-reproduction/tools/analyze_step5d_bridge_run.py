@@ -163,9 +163,19 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
         )
         return result
 
-    stage25_3_first_t: float | None = None
-    stage25_3_last_t: float | None = None
+    stage25_3_segment_start_t: float | None = None
+    stage25_3_segment_last_t: float | None = None
     ready_start_t: float | None = None
+
+    def close_stage25_3_segment() -> None:
+        nonlocal stage25_3_segment_start_t, stage25_3_segment_last_t
+        if stage25_3_segment_start_t is not None and stage25_3_segment_last_t is not None:
+            result["stage25_3_duration_s"] += max(
+                0.0,
+                stage25_3_segment_last_t - stage25_3_segment_start_t,
+            )
+        stage25_3_segment_start_t = None
+        stage25_3_segment_last_t = None
 
     with csv_path.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
@@ -195,9 +205,9 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
             if stage_is(stage, 25.3):
                 result["stage25_3_rows"] += 1
                 if math.isfinite(t_s):
-                    if stage25_3_first_t is None:
-                        stage25_3_first_t = t_s
-                    stage25_3_last_t = t_s
+                    if stage25_3_segment_start_t is None:
+                        stage25_3_segment_start_t = t_s
+                    stage25_3_segment_last_t = t_s
 
                 raw_load = finite_float(row.get("_step4e_normal_load_n"))
                 force_norm = finite_float(row.get("force_norm_n"))
@@ -218,10 +228,10 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
                 else:
                     ready_start_t = None
             else:
+                close_stage25_3_segment()
                 ready_start_t = None
 
-    if stage25_3_first_t is not None and stage25_3_last_t is not None:
-        result["stage25_3_duration_s"] = max(0.0, stage25_3_last_t - stage25_3_first_t)
+    close_stage25_3_segment()
 
     if result["entered_stage25"]:
         result["classification"] = "entered_stage25"
@@ -258,8 +268,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    run_dir = args.run_dir
-    csv_path = args.csv if args.csv is not None else run_dir / BRIDGE_CSV_FILENAME
+    csv_path = args.csv if args.csv is not None else args.run_dir / BRIDGE_CSV_FILENAME
+    run_dir = args.run_dir if args.run_dir is not None else csv_path.parent
     analysis = analyze_csv(csv_path, run_dir=run_dir)
     output = args.output or default_output_path(csv_path, run_dir)
     output.write_text(json.dumps(analysis, indent=2, sort_keys=True) + "\n", encoding="utf-8")

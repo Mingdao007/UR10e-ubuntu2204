@@ -869,9 +869,13 @@ postprocess_run() {
   if [[ -f "${bridge_csv}" ]]; then
     local stage_summary="${out_dir}/stage_frequency_summary.json"
     local step5d_analysis="${out_dir}/step5d_bridge_analysis.json"
-    python3 "${ROOT}/tools/summarize_stage_frequency.py" "${bridge_csv}" --output "${stage_summary}" || true
+    if ! python3 "${ROOT}/tools/summarize_stage_frequency.py" "${bridge_csv}" --output "${stage_summary}"; then
+      echo "[operator] stage frequency summary failed: ${stage_summary}"
+    fi
     if [[ "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_* ]]; then
-      python3 "${ROOT}/tools/analyze_step5d_bridge_run.py" --run-dir "${out_dir}" --output "${step5d_analysis}" || true
+      if ! python3 "${ROOT}/tools/analyze_step5d_bridge_run.py" --run-dir "${out_dir}" --output "${step5d_analysis}"; then
+        echo "[operator] Step5d bridge analysis failed: ${step5d_analysis}"
+      fi
       echo "[operator] run dir: ${out_dir}"
       echo "[operator] stage frequency summary: ${stage_summary}"
       echo "[operator] Step5d bridge analysis: ${step5d_analysis}"
@@ -1023,6 +1027,10 @@ run_bridge_for_mode() {
   [[ -f "${quiet_json}" ]] && cat "${quiet_json}"
   postprocess_run "${out_dir}"
 }
+
+if [[ "${BRIDGE_OPERATOR_SOURCE_ONLY:-0}" == "1" ]]; then
+  return 0 2>/dev/null || exit 0
+fi
 
 mode="${1:-}"
 if [[ "${mode}" == "prep-long-checks" ]]; then
