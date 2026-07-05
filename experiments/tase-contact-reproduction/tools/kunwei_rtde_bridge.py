@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import math
 import os
@@ -462,6 +463,21 @@ STEP5D_LIVEPREP_STAGE_IDS = {
     STEP5D_ABLATION_V26_STAGE_ID,
     STEP5D_ABLATION_V27_STAGE_ID,
 }
+STEP5D_TCP_CAGE_PROFILES = {
+    STEP5D_LIVEPREP_V15A_STAGE_ID,
+    STEP5D_LIVEPREP_V16_STAGE_ID,
+    STEP5D_LIVEPREP_V17_STAGE_ID,
+    STEP5D_LIVEPREP_V18_STAGE_ID,
+    STEP5D_LIVEPREP_V19_STAGE_ID,
+    STEP5D_LIVEPREP_V20_STAGE_ID,
+    STEP5D_LIVEPREP_V21_STAGE_ID,
+    STEP5D_LIVEPREP_V22_STAGE_ID,
+    STEP5D_LIVEPREP_V23_STAGE_ID,
+    STEP5D_LIVEPREP_V24_STAGE_ID,
+    STEP5D_ABLATION_V25_STAGE_ID,
+    STEP5D_ABLATION_V26_STAGE_ID,
+    STEP5D_ABLATION_V27_STAGE_ID,
+}
 STEP5D_SEMANTIC_ORIENTATION_TOLERANCE_RAD = math.radians(5.0)
 STEP5D_SEARCH_POSE_CONTRACT_ID = PRE_CONTACT_GRAVITY_DOWN_CONTRACT_ID
 STEP5D_SEARCH_POSE_TARGET_AXIS_B = contract_target_axis_base(STEP5D_SEARCH_POSE_CONTRACT_ID)
@@ -597,6 +613,7 @@ STEP5D_V15A_TCP_CAGE_SOURCE_CSVS = [
     EXPERIMENT_ROOT / "runs" / "bridge_step6b_contact_eight_baseline_v2_20260612_225841" / "bridge_rtde_500hz.csv",
     EXPERIMENT_ROOT / "runs" / "bridge_step6b_contact_eight_baseline_v2_20260614_223106" / "bridge_rtde_500hz.csv",
 ]
+STEP5D_V15A_TCP_CAGE_CACHE_PATH = EXPERIMENT_ROOT / "config" / "step5d_v15a_tcp_cage_cache.json"
 STEP5D_V15A_TCP_CAGE_PADDING_M = 0.020
 STEP5D_V15A_TCP_CAGE_TAU_STOP_S = 0.100
 STEP5D_V15A_TCP_CAGE_A_STOP_M_S2 = 1.000
@@ -857,8 +874,132 @@ class Step5dTcpCage:
         }
 
 
-def build_step5d_v15a_tcp_cage(source_csvs: list[Path] | None = None) -> Step5dTcpCage:
-    paths = source_csvs or STEP5D_V15A_TCP_CAGE_SOURCE_CSVS
+def _step5d_tcp_cage_source_fingerprint(
+    paths: Sequence[Path],
+    *,
+    include_content_hash: bool = False,
+) -> list[dict[str, int | str]]:
+    fingerprint: list[dict[str, int | str]] = []
+    for path in paths:
+        stat = path.stat()
+        try:
+            path_id = str(path.resolve().relative_to(EXPERIMENT_ROOT.resolve()))
+        except ValueError:
+            path_id = str(path.resolve())
+        row = {
+            "path": path_id,
+            "size_bytes": int(stat.st_size),
+            "mtime_ns": int(stat.st_mtime_ns),
+        }
+        if include_content_hash:
+            digest = hashlib.sha256()
+            with path.open("rb") as handle:
+                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                    digest.update(chunk)
+            row["sha256"] = digest.hexdigest()
+        fingerprint.append(row)
+    return fingerprint
+
+
+def _step5d_tcp_cage_from_payload(payload: dict[str, Any]) -> Step5dTcpCage | None:
+    try:
+        min_xyz_raw = payload["min_xyz"]
+        max_xyz_raw = payload["max_xyz"]
+        source_rows = int(payload["source_rows"])
+        source_csvs = [str(path) for path in payload["source_csvs"]]
+        padding_m = float(payload["padding_m"])
+        min_xyz_values = [float(value) for value in min_xyz_raw]
+        max_xyz_values = [float(value) for value in max_xyz_raw]
+    except (KeyError, TypeError, ValueError):
+        return None
+    if payload.get("mode") != "broad_stagewise_aabb_from_success_step5b_step6b":
+        return None
+    if len(min_xyz_values) != 3 or len(max_xyz_values) != 3:
+        return None
+    if not all(math.isfinite(value) for value in (*min_xyz_values, *max_xyz_values, padding_m)):
+        return None
+    if source_rows <= 0 or not source_csvs:
+        return None
+    return Step5dTcpCage(
+        min_xyz=(min_xyz_values[0], min_xyz_values[1], min_xyz_values[2]),
+        max_xyz=(max_xyz_values[0], max_xyz_values[1], max_xyz_values[2]),
+        source_rows=source_rows,
+        source_csvs=source_csvs,
+        padding_m=padding_m,
+    )
+
+
+def _load_step5d_tcp_cage_cache(
+    cache_path: Path,
+    paths: Sequence[Path],
+    *,
+    padding_m: float,
+    validate_content_hash: bool,
+) -> Step5dTcpCage | None:
+    try:
+        payload = json.loads(cache_path.read_text(encoding="utf-8"))
+        fingerprint = _step5d_tcp_cage_source_fingerprint(paths, include_content_hash=False)
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("schema") != "step5d_v15a_tcp_cage_cache_v1":
+        return None
+    if payload.get("source_fingerprint") != fingerprint:
+        return None
+    if validate_content_hash:
+        content_fingerprint = _step5d_tcp_cage_source_fingerprint(paths, include_content_hash=True)
+        if payload.get("source_content_fingerprint") != content_fingerprint:
+            return None
+    try:
+        cached_padding_m = float(payload.get("padding_m"))
+    except (TypeError, ValueError):
+        return None
+    if not math.isclose(cached_padding_m, float(padding_m), rel_tol=0.0, abs_tol=1e-12):
+        return None
+    return _step5d_tcp_cage_from_payload(payload)
+
+
+def _write_step5d_tcp_cage_cache(
+    cache_path: Path,
+    cage: Step5dTcpCage,
+    paths: Sequence[Path],
+) -> None:
+    payload = {
+        "schema": "step5d_v15a_tcp_cage_cache_v1",
+        "mode": cage.mode,
+        "min_xyz": list(cage.min_xyz),
+        "max_xyz": list(cage.max_xyz),
+        "padding_m": cage.padding_m,
+        "source_rows": cage.source_rows,
+        "source_csvs": cage.source_csvs,
+        "source_fingerprint": _step5d_tcp_cage_source_fingerprint(paths, include_content_hash=False),
+        "source_content_fingerprint": _step5d_tcp_cage_source_fingerprint(paths, include_content_hash=True),
+    }
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    write_json(cache_path, payload)
+
+
+def build_step5d_v15a_tcp_cage(
+    source_csvs: list[Path] | None = None,
+    *,
+    cache_path: Path | None = None,
+    validate_content_hash: bool = False,
+) -> Step5dTcpCage:
+    paths = STEP5D_V15A_TCP_CAGE_SOURCE_CSVS if source_csvs is None else source_csvs
+    effective_cache_path = cache_path
+    if source_csvs is None and effective_cache_path is None:
+        effective_cache_path = STEP5D_V15A_TCP_CAGE_CACHE_PATH
+    padding = STEP5D_V15A_TCP_CAGE_PADDING_M
+    if effective_cache_path is not None:
+        cached = _load_step5d_tcp_cage_cache(
+            effective_cache_path,
+            paths,
+            padding_m=padding,
+            validate_content_hash=validate_content_hash,
+        )
+        if cached is not None:
+            return cached
     xs: list[float] = []
     ys: list[float] = []
     zs: list[float] = []
@@ -882,14 +1023,19 @@ def build_step5d_v15a_tcp_cage(source_csvs: list[Path] | None = None) -> Step5dT
                 used_paths.append(str(path))
     if not xs:
         raise RuntimeError("Step5d v15a TCP cage construction found no finite Stage25 source poses")
-    padding = STEP5D_V15A_TCP_CAGE_PADDING_M
-    return Step5dTcpCage(
+    cage = Step5dTcpCage(
         min_xyz=(min(xs) - padding, min(ys) - padding, min(zs) - padding),
         max_xyz=(max(xs) + padding, max(ys) + padding, max(zs) + padding),
         source_rows=len(xs),
         source_csvs=used_paths,
         padding_m=padding,
     )
+    if effective_cache_path is not None:
+        try:
+            _write_step5d_tcp_cage_cache(effective_cache_path, cage, paths)
+        except OSError:
+            pass
+    return cage
 
 
 def xy_from_line_basis(anchor_xy: tuple[float, float], along_m: float, lateral_m: float) -> tuple[float, float]:
@@ -2667,21 +2813,7 @@ def ensure_step5d_liveprep_runtime(state: "BridgeState", args: argparse.Namespac
         state.step5d_model_bundle = step5d_kin.build_calibrated_model()
         audit_rows = step5d_kin.finite_run_rows(step5d_kin.DEFAULT_BRIDGE_CSV)
         state.step5d_tcp_offset_tool0 = step5d_kin.infer_tcp_offset(state.step5d_model_bundle, audit_rows)["mean"]
-    if args.bridge_profile in {
-        STEP5D_LIVEPREP_V15A_STAGE_ID,
-        STEP5D_LIVEPREP_V16_STAGE_ID,
-        STEP5D_LIVEPREP_V17_STAGE_ID,
-        STEP5D_LIVEPREP_V18_STAGE_ID,
-        STEP5D_LIVEPREP_V19_STAGE_ID,
-        STEP5D_LIVEPREP_V20_STAGE_ID,
-        STEP5D_LIVEPREP_V21_STAGE_ID,
-        STEP5D_LIVEPREP_V22_STAGE_ID,
-        STEP5D_LIVEPREP_V23_STAGE_ID,
-        STEP5D_LIVEPREP_V24_STAGE_ID,
-        STEP5D_ABLATION_V25_STAGE_ID,
-        STEP5D_ABLATION_V26_STAGE_ID,
-        STEP5D_ABLATION_V27_STAGE_ID,
-    } and state.step5d_tcp_cage is None:
+    if args.bridge_profile in STEP5D_TCP_CAGE_PROFILES and state.step5d_tcp_cage is None:
         state.step5d_tcp_cage = build_step5d_v15a_tcp_cage()
     if state.step5d_solver is None:
         state.step5d_solver = StrictTaseRnnSolver(
@@ -3099,21 +3231,7 @@ def compute_bridge_values(
             if (step5d_liveprep_v19_profile or step5d_liveprep_v20_profile)
             else STEP5D_V17_ENTRY_RAW_NORMAL_LOAD_MAX_N
         )
-    step5d_liveprep_online_cage_profile = (
-        step5d_liveprep_v15a_profile
-        or step5d_liveprep_v16_profile
-        or step5d_liveprep_v17_profile
-        or step5d_liveprep_v18_profile
-        or step5d_liveprep_v19_profile
-        or step5d_liveprep_v20_profile
-        or step5d_liveprep_v21_profile
-        or step5d_liveprep_v22_profile
-        or step5d_liveprep_v23_profile
-        or step5d_liveprep_v24_profile
-        or step5d_liveprep_v25_profile
-        or step5d_liveprep_v26_profile
-        or step5d_liveprep_v27_profile
-    )
+    step5d_liveprep_online_cage_profile = args.bridge_profile in STEP5D_TCP_CAGE_PROFILES
     step5d_liveprep_guarded_profile = (
         step5d_liveprep_v3_profile
         or step5d_liveprep_v4_profile
