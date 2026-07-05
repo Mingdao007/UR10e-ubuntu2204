@@ -7,7 +7,10 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
+import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -99,6 +102,40 @@ class Step5dV27AblationTest(unittest.TestCase):
     def test_v27_runtime_constant_matches_interface(self) -> None:
         self.assertEqual(iface.STEP5D_ABLATION_V27_STAGE_ID, V27)
         self.assertEqual(liveprep.spec_for(V27).program_name, V27)
+
+    def test_v27_runtime_prewarm_builds_tcp_cage_before_stage25(self) -> None:
+        args = bridge.parse_args(
+            [
+                "--no-start-command",
+                "--skip-dashboard-preflight",
+                "--bridge-mode",
+                "line",
+                "--bridge-profile",
+                V27,
+                "--bridge-path-shape",
+                "cycloid",
+            ]
+        )
+        state = bridge.BridgeState()
+        cage = object()
+        model_bundle = SimpleNamespace(
+            model=SimpleNamespace(
+                lowerPositionLimit=np.full(6, -3.14),
+                upperPositionLimit=np.full(6, 3.14),
+            )
+        )
+
+        with (
+            patch.object(bridge.step5d_kin, "build_calibrated_model", return_value=model_bundle),
+            patch.object(bridge.step5d_kin, "finite_run_rows", return_value=[]),
+            patch.object(bridge.step5d_kin, "infer_tcp_offset", return_value={"mean": np.zeros(3)}),
+            patch.object(bridge, "StrictTaseRnnSolver", return_value=SimpleNamespace(reset_state=lambda: None)),
+            patch.object(bridge, "build_step5d_v15a_tcp_cage", return_value=cage) as build_cage,
+        ):
+            bridge.ensure_step5d_liveprep_runtime(state, args)
+
+        self.assertIs(state.step5d_tcp_cage, cage)
+        build_cage.assert_called_once_with()
 
 
 if __name__ == "__main__":

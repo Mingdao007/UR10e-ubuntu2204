@@ -2678,6 +2678,9 @@ def ensure_step5d_liveprep_runtime(state: "BridgeState", args: argparse.Namespac
         STEP5D_LIVEPREP_V22_STAGE_ID,
         STEP5D_LIVEPREP_V23_STAGE_ID,
         STEP5D_LIVEPREP_V24_STAGE_ID,
+        STEP5D_ABLATION_V25_STAGE_ID,
+        STEP5D_ABLATION_V26_STAGE_ID,
+        STEP5D_ABLATION_V27_STAGE_ID,
     } and state.step5d_tcp_cage is None:
         state.step5d_tcp_cage = build_step5d_v15a_tcp_cage()
     if state.step5d_solver is None:
