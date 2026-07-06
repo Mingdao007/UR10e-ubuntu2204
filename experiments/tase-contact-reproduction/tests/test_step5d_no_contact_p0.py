@@ -19,6 +19,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 import verify_step5d_no_contact_p0 as p0  # noqa: E402
 import build_step5d_liveprep as liveprep  # noqa: E402
 import kunwei_rtde_bridge as bridge  # noqa: E402
+import step5_table  # noqa: E402
 import step5d_runtime_interface as iface  # noqa: E402
 
 
@@ -114,6 +115,24 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertEqual(runtime.bridge_defaults.max_torque_norm_nm, 3.0)
         self.assertTrue(runtime.hard_contract["no_contact_p0_capture"])
         self.assertIn("no-contact", runtime.register_contract["stage25_0"])
+
+    def test_no_contact_p0_profile_is_step5_table_reference(self) -> None:
+        stage = step5_table.step5_stage(iface.STEP5D_NO_CONTACT_P0_STAGE_ID)
+
+        self.assertEqual(stage["id"], iface.STEP5D_NO_CONTACT_P0_STAGE_ID)
+        self.assertEqual(stage["shape"], "cycloid")
+        self.assertFalse(stage["contact"])
+        self.assertTrue(stage["bridge"])
+        self.assertTrue(stage["strict_rnn"])
+
+        ref = step5_table.step5_path_reference(
+            iface.STEP5D_NO_CONTACT_P0_STAGE_ID,
+            pose_xy=(0.0, 0.0),
+            elapsed_s=0.0,
+        )
+        self.assertEqual(ref["stage_id"], iface.STEP5D_NO_CONTACT_P0_STAGE_ID)
+        self.assertEqual(ref["path_time_s"], 0.0)
+        self.assertIn("desired_velocity_xy", ref)
 
     def test_no_contact_p0_runtime_interface_ignores_ambient_live_caps(self) -> None:
         runtime = iface.resolve_runtime_interface(
@@ -571,7 +590,7 @@ out.write_text(json.dumps({{"ok": True}}), encoding="utf-8")
             )
 
             self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
-            self.assertEqual((sandbox / "bridge_argv.txt").read_text(encoding="utf-8").strip(), "line-bridge-fast")
+            self.assertEqual((sandbox / "bridge_argv.txt").read_text(encoding="utf-8").strip(), "line-autowatch")
             bridge_env = dict(
                 line.split("=", 1)
                 for line in (sandbox / "bridge_env.txt").read_text(encoding="utf-8").splitlines()

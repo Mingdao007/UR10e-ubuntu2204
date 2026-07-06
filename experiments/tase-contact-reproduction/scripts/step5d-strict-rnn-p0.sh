@@ -22,8 +22,9 @@ Usage:
 Boundary:
   - status/live-ready only report current Step5d runtime readiness.
   - capture-ready reports the dedicated no-contact P0 capture profile readiness.
-  - capture-bridge starts only the dedicated no-contact P0 bridge path after
-    STEP5D_P0_CONFIRM is set exactly; it does not mark P0 passed.
+  - capture-bridge waits for Teach Pendant Play through the dedicated
+    no-contact P0 autowatch bridge path after STEP5D_P0_CONFIRM is set exactly;
+    it does not mark P0 passed.
   - validate-run only checks an already captured bridge_rtde_500hz.csv artifact.
   - This wrapper never loads a program, presses Play, zeroes/tares force sensing,
     writes TCP/payload, or changes the full live authorization gate.
@@ -109,7 +110,7 @@ case "$1" in
     STEP5D_PRELOAD_RAW_MAX_N=2.0 \
     STEP5D_PRELOAD_FORCE_NORM_MAX_N=5.0 \
     STEP5D_PRELOAD_HOLD_S=0.0 \
-      "${BRIDGE_OPERATOR}" line-bridge-fast | tee "${tmp_log}"
+      "${BRIDGE_OPERATOR}" line-autowatch | tee "${tmp_log}"
     run_dir="$(python3 - "${tmp_log}" <<'PY'
 import re
 import sys
