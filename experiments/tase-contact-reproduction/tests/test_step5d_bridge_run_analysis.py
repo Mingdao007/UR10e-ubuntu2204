@@ -32,6 +32,8 @@ V27_SHADOW_EXPERIMENT_RUN_ID = "bridge_step5d_strict_rnn_ablation_v27_20260706_0
 V27_FORCE_OVERSHOOT_RUN_ID = "bridge_step5d_strict_rnn_ablation_v27_20260706_040900"
 V27_FIX_VALIDATION_SUCCESS_RUN_ID = "bridge_step5d_strict_rnn_ablation_v27_20260706_045513"
 V28_FULL_RUN_SUCCESS_RUN_ID = "bridge_step5d_strict_rnn_ablation_v28_20260706_054904"
+V28_SPEEDJ_DLS_SUCCESS_RUN_ID = "bridge_step5d_strict_rnn_ablation_v28_20260706_073115"
+V28_SPEEDJ_RNN_SHORT_RUN_ID = "bridge_step5d_strict_rnn_ablation_v28_20260706_074351"
 
 
 def write_bridge_csv(path: Path, rows: list[dict[str, str]], fieldnames: list[str] | None = None) -> None:
@@ -433,6 +435,114 @@ def write_v28_054904_full_run_success_slice(run_dir: Path) -> None:
     )
 
 
+def write_v28_speedj_dls_success_slice(run_dir: Path, *, write_metadata: bool = True) -> None:
+    run_dir.mkdir(parents=True, exist_ok=True)
+    if write_metadata:
+        (run_dir / "metadata.json").write_text(
+            json.dumps(
+                {
+                    "args": {
+                        "bridge_profile": "step5d_strict_rnn_ablation_v28",
+                        "step5d_stage25_control_mode": "speedj_dls_oracle",
+                    }
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    csv_path = run_dir / "bridge_rtde_500hz.csv"
+    fieldnames = [
+        *FIELDNAMES,
+        "_step5d_stage25_control_mode",
+        "_step5d_stage25_echo_consumed",
+        "_step5d_stage25_echo_layout_tag",
+        "_step5d_contact_safety_reason",
+        "_step5d_outer_xdot_limited_approach_normal_m_s",
+        "_step5d_jqdot_cmd_approach_normal_m_s",
+    ]
+    rows: list[dict[str, str]] = []
+    for idx in range(3021):
+        t_s = 1.0 + idx * 0.0199
+        load = 12.0 + 0.8 * (((idx % 200) - 100) / 100.0)
+        rows.append(
+            {
+                "t_monotonic_s": f"{t_s:.6f}",
+                "ur_output_double_register_30": "0",
+                "ur_output_double_register_35": "25.0",
+                "_step4e_normal_load_n": f"{load:.9f}",
+                "_step5d_force_settle_filtered_normal_load_n": f"{load:.9f}",
+                "force_norm_n": f"{load:.9f}",
+                "_step5d_stage25_control_mode": "speedj_dls_oracle",
+                "_step5d_stage25_echo_consumed": "1",
+                "_step5d_stage25_echo_layout_tag": "524",
+                "_step5d_contact_safety_reason": "ok",
+                "_step5d_outer_xdot_limited_approach_normal_m_s": "0.000120000",
+                "_step5d_jqdot_cmd_approach_normal_m_s": "0.000120000",
+            }
+        )
+    rows.append(
+        {
+            "t_monotonic_s": "61.300000",
+            "ur_output_double_register_30": "1",
+            "ur_output_double_register_35": "26.0",
+            "_step4e_normal_load_n": "12.000000000",
+            "_step5d_force_settle_filtered_normal_load_n": "12.000000000",
+            "force_norm_n": "12.000000000",
+        }
+    )
+    write_bridge_csv(csv_path, rows, fieldnames=fieldnames)
+
+
+def write_v28_speedj_rnn_short_soft_hold_slice(run_dir: Path) -> None:
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "metadata.json").write_text(
+        json.dumps(
+            {
+                "args": {
+                    "bridge_profile": "step5d_strict_rnn_ablation_v28",
+                    "step5d_stage25_control_mode": "speedj_rnn_live",
+                }
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    csv_path = run_dir / "bridge_rtde_500hz.csv"
+    fieldnames = [
+        *FIELDNAMES,
+        "step4e_cmd_valid",
+        "_step5d_stage25_control_mode",
+        "_step5d_stage25_echo_consumed",
+        "_step5d_stage25_echo_layout_tag",
+        "_step5d_contact_safety_reason",
+        "_step5d_outer_xdot_limited_approach_normal_m_s",
+        "_step5d_jqdot_cmd_approach_normal_m_s",
+    ]
+    rows: list[dict[str, str]] = []
+    for idx in range(150):
+        t_s = 1.0 + idx * 0.002
+        hold = idx >= 88
+        load = (10.0 - 0.06 * idx) if not hold else max(2.8, 4.9 - 0.03 * (idx - 88))
+        rows.append(
+            {
+                "t_monotonic_s": f"{t_s:.6f}",
+                "ur_output_double_register_30": "12" if idx == 149 else "0",
+                "ur_output_double_register_35": "25.0",
+                "_step4e_normal_load_n": f"{load:.9f}",
+                "_step5d_force_settle_filtered_normal_load_n": f"{load:.9f}",
+                "force_norm_n": f"{load:.9f}",
+                "step4e_cmd_valid": "0" if hold else "1",
+                "_step5d_stage25_control_mode": "speedj_rnn_live",
+                "_step5d_stage25_echo_consumed": "0" if hold else "1",
+                "_step5d_stage25_echo_layout_tag": "524",
+                "_step5d_contact_safety_reason": "soft_low_contact_hold" if hold else "ok",
+                "_step5d_outer_xdot_limited_approach_normal_m_s": "0.000220000",
+                "_step5d_jqdot_cmd_approach_normal_m_s": "-0.001100000" if not hold else "0.000000000",
+            }
+        )
+    write_bridge_csv(csv_path, rows, fieldnames=fieldnames)
+
+
 class Step5dBridgeRunAnalysisTest(unittest.TestCase):
     def test_v25_preload_failure_reports_short_dwell(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -566,6 +676,131 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
         self.assertFalse(analysis["stage25_cadence_ok"])
         self.assertFalse(analysis["stage25_consumption_ok"])
         self.assertEqual(analysis["classification"], "stage25_cadence_or_consumption_failure")
+
+    def test_stage25_single_benign_timing_gap_is_not_a_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / V28_FULL_RUN_SUCCESS_RUN_ID
+            run_dir.mkdir()
+            csv_path = run_dir / "bridge_rtde_500hz.csv"
+            fieldnames = [
+                *FIELDNAMES,
+                "_step5d_stage25_echo_consumed",
+                "_step5d_stage25_echo_layout_tag",
+                "_bridge_loop_rtde_send_s",
+                "_bridge_loop_rtde_recv_s",
+            ]
+            write_bridge_csv(
+                csv_path,
+                [
+                    {
+                        "t_monotonic_s": "1.000",
+                        "ur_output_double_register_30": "0",
+                        "ur_output_double_register_35": "25.0",
+                        "_step4e_normal_load_n": "11.8",
+                        "_step5d_force_settle_filtered_normal_load_n": "11.8",
+                        "force_norm_n": "11.8",
+                        "_step5d_stage25_echo_consumed": "1",
+                        "_step5d_stage25_echo_layout_tag": "523",
+                        "_bridge_loop_rtde_send_s": "0.000020",
+                        "_bridge_loop_rtde_recv_s": "0.000020",
+                    },
+                    {
+                        "t_monotonic_s": "1.002",
+                        "ur_output_double_register_30": "0",
+                        "ur_output_double_register_35": "25.0",
+                        "_step4e_normal_load_n": "11.8",
+                        "_step5d_force_settle_filtered_normal_load_n": "11.8",
+                        "force_norm_n": "11.8",
+                        "_step5d_stage25_echo_consumed": "1",
+                        "_step5d_stage25_echo_layout_tag": "523",
+                        "_bridge_loop_rtde_send_s": "0.000020",
+                        "_bridge_loop_rtde_recv_s": "0.000020",
+                    },
+                    {
+                        "t_monotonic_s": "1.034",
+                        "ur_output_double_register_30": "0",
+                        "ur_output_double_register_35": "25.0",
+                        "_step4e_normal_load_n": "11.8",
+                        "_step5d_force_settle_filtered_normal_load_n": "11.8",
+                        "force_norm_n": "11.8",
+                        "_step5d_stage25_echo_consumed": "1",
+                        "_step5d_stage25_echo_layout_tag": "523",
+                        "_bridge_loop_rtde_send_s": "0.000020",
+                        "_bridge_loop_rtde_recv_s": "0.000020",
+                    },
+                    {
+                        "t_monotonic_s": "1.036",
+                        "ur_output_double_register_30": "0",
+                        "ur_output_double_register_35": "25.0",
+                        "_step4e_normal_load_n": "11.8",
+                        "_step5d_force_settle_filtered_normal_load_n": "11.8",
+                        "force_norm_n": "11.8",
+                        "_step5d_stage25_echo_consumed": "1",
+                        "_step5d_stage25_echo_layout_tag": "523",
+                        "_bridge_loop_rtde_send_s": "0.000020",
+                        "_bridge_loop_rtde_recv_s": "0.000020",
+                    },
+                ],
+                fieldnames=fieldnames,
+            )
+            (run_dir / "metadata.json").write_text(
+                json.dumps(
+                    {
+                        "args": {
+                            "bridge_profile": "step5d_strict_rnn_ablation_v28",
+                            "step5d_stage25_control_mode": "speedl_cartesian_oracle",
+                        }
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            analysis = analyze_step5d_bridge_run.analyze_run_dir(run_dir)
+
+        self.assertEqual(analysis["stage25_row_gap_count"], 1)
+        self.assertEqual(analysis["stage25_benign_row_gap_count"], 1)
+        self.assertTrue(analysis["stage25_cadence_ok"])
+        self.assertEqual(analysis["classification"], "entered_stage25")
+
+    def test_v28_speedj_dls_oracle_classifies_as_branch_success_not_speedl_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / V28_SPEEDJ_DLS_SUCCESS_RUN_ID
+            write_v28_speedj_dls_success_slice(run_dir)
+
+            analysis = analyze_step5d_bridge_run.analyze_run_dir(run_dir)
+
+        self.assertEqual(analysis["classification"], "stage25_speedj_dls_branch_success")
+        self.assertEqual(analysis["acceptance_status"], "excluded_from_speedl_acceptance")
+        self.assertEqual(analysis["stage25_control_mode"], "speedj_dls_oracle")
+        self.assertEqual(analysis["terminal_tp_stop_reason"], 1)
+        self.assertEqual(analysis["stage25_control_attribution"]["approach_normal_sign_mismatch_rows"], 0)
+
+    def test_v28_speedj_dls_oracle_uses_csv_control_mode_when_metadata_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / V28_SPEEDJ_DLS_SUCCESS_RUN_ID
+            write_v28_speedj_dls_success_slice(run_dir, write_metadata=False)
+
+            analysis = analyze_step5d_bridge_run.analyze_run_dir(run_dir)
+
+        self.assertEqual(analysis["stage25_control_mode"], "speedj_dls_oracle")
+        self.assertEqual(analysis["classification"], "stage25_speedj_dls_branch_success")
+
+    def test_v28_speedj_rnn_live_short_soft_hold_classifies_specific_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / V28_SPEEDJ_RNN_SHORT_RUN_ID
+            write_v28_speedj_rnn_short_soft_hold_slice(run_dir)
+
+            analysis = analyze_step5d_bridge_run.analyze_run_dir(run_dir)
+
+        self.assertEqual(analysis["classification"], "stage25_speedj_rnn_short_soft_hold_failure")
+        self.assertEqual(analysis["acceptance_status"], "failed_speedj_rnn_branch")
+        self.assertEqual(analysis["terminal_tp_stop_reason"], 12)
+        self.assertEqual(
+            analysis["stage25_control_attribution"]["terminal_contact_safety_reason"],
+            "soft_low_contact_hold",
+        )
+        self.assertGreater(analysis["stage25_control_attribution"]["approach_normal_sign_mismatch_rows"], 0)
 
     def test_v27_near_complete_consumption_and_good_cadence_classifies_as_control_oscillation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -720,7 +955,7 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
         self.assertEqual(attribution["control_oscillation_trigger"], "force_norm_hard_stop")
         self.assertEqual(attribution["terminal_contact_safety_reason"], "force_norm_hard_stop")
 
-    def test_v27_045513_success_is_fix_validation_not_cadence_failure(self) -> None:
+    def test_v27_045513_non_benign_cadence_gap_blocks_fix_validation_success(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = Path(tmp) / V27_FIX_VALIDATION_SUCCESS_RUN_ID
             write_v27_045513_fix_validation_success_slice(run_dir)
@@ -733,9 +968,10 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
         self.assertGreaterEqual(analysis["stage25_duration_s"], 10.0)
         self.assertEqual(analysis["first_tp_stop_reason"], 11)
         self.assertEqual(analysis["terminal_tp_stop_reason"], 1)
-        self.assertEqual(analysis["classification"], "stage25_fix_validation_success")
-        self.assertEqual(analysis["fix_validation_status"], "passed_10s_stage25_window")
-        self.assertEqual(analysis["reproduction_status"], "pending_60s_step5b_equivalent_run")
+        self.assertEqual(analysis["classification"], "stage25_cadence_or_consumption_failure")
+        self.assertEqual(analysis["acceptance_status"], "failed_stage25_cadence_or_consumption")
+        self.assertIsNone(analysis["fix_validation_status"])
+        self.assertIsNone(analysis["reproduction_status"])
         attribution = analysis["stage25_control_attribution"]
         self.assertEqual(
             attribution["live_control_source_counts"],
@@ -744,7 +980,7 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
         self.assertAlmostEqual(attribution["angular_cmd_norm_max_rad_s"], 0.0, places=9)
         self.assertIsNone(attribution["control_oscillation_trigger"])
 
-    def test_v28_054904_full_run_success_with_step5b_calibrated_load_band(self) -> None:
+    def test_v28_054904_non_benign_cadence_gap_blocks_full_run_success(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = Path(tmp) / V28_FULL_RUN_SUCCESS_RUN_ID
             write_v28_054904_full_run_success_slice(run_dir)
@@ -756,9 +992,10 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
         self.assertGreaterEqual(analysis["stage25_duration_s"], 60.0)
         self.assertEqual(analysis["first_tp_stop_reason"], 11)
         self.assertEqual(analysis["terminal_tp_stop_reason"], 1)
-        self.assertEqual(analysis["classification"], "stage25_full_run_success")
-        self.assertEqual(analysis["fix_validation_status"], "passed_60s_full_run")
-        self.assertEqual(analysis["reproduction_status"], "passed_60s_step5b_equivalent_run")
+        self.assertEqual(analysis["classification"], "stage25_cadence_or_consumption_failure")
+        self.assertEqual(analysis["acceptance_status"], "failed_stage25_cadence_or_consumption")
+        self.assertIsNone(analysis["fix_validation_status"])
+        self.assertIsNone(analysis["reproduction_status"])
         attribution = analysis["stage25_control_attribution"]
         self.assertLess(attribution["normal_load_min_n"], 9.3)
         self.assertGreater(attribution["normal_load_max_n"], 15.6)

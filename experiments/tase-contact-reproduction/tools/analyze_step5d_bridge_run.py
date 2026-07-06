@@ -43,6 +43,14 @@ STAGE25_SUCCESS_MIN_CONSUMPTION_RATIO = 0.98
 STAGE25_SUCCESS_NORMAL_LOAD_MIN_N = 5.0
 STAGE25_SUCCESS_NORMAL_LOAD_MAX_N = 21.0
 STAGE25_ORIENTATION_ENTRY_HOLD_S = 0.150
+STAGE25_BENIGN_GAP_MAX_S = 0.040
+STAGE25_BENIGN_GAP_OUTLIER_LIMIT = 1
+STAGE25_BENIGN_RTDE_PHASE_S = 0.0001
+STAGE25_SPEEDL_CARTESIAN_MODE = "speedl_cartesian_oracle"
+STAGE25_SPEEDJ_DLS_MODE = "speedj_dls_oracle"
+STAGE25_SPEEDJ_RNN_MODE = "speedj_rnn_live"
+STAGE25_CARTESIAN_LAYOUT_TAG = 523
+STAGE25_JOINT_LAYOUT_TAG = 524
 REQUIRED_COLUMNS = {
     "t_monotonic_s",
     "ur_output_double_register_30",
@@ -159,6 +167,17 @@ def metadata_float(metadata: dict[str, Any], *keys: str) -> float:
     return math.nan
 
 
+def metadata_text(metadata: dict[str, Any], *keys: str) -> str | None:
+    args = metadata.get("args")
+    if not isinstance(args, dict):
+        return None
+    for key in keys:
+        value = args.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
 def finite_values(rows: list[dict[str, str]], key: str) -> list[float]:
     values: list[float] = []
     for row in rows:
@@ -249,6 +268,53 @@ def shadow_raw_angular_norms(rows: list[dict[str, str]]) -> list[float]:
 def reason_counts(rows: list[dict[str, str]], key: str) -> dict[str, int]:
     counts = Counter(row.get(key) or "" for row in rows)
     return dict(sorted((name, count) for name, count in counts.items() if name))
+
+
+def numeric_tag_counts(rows: list[dict[str, str]], key: str) -> dict[str, int]:
+    counts: Counter[str] = Counter()
+    for row in rows:
+        parsed = finite_float(row.get(key))
+        if math.isfinite(parsed):
+            counts[str(maybe_int(parsed))] += 1
+    return dict(sorted(counts.items()))
+
+
+def stage25_control_mode_from_rows(rows: list[dict[str, str]]) -> str | None:
+    counts = Counter(row.get("_step5d_stage25_control_mode") or "" for row in rows)
+    modes = [(mode, count) for mode, count in counts.items() if mode]
+    if len(modes) == 1:
+        return modes[0][0]
+    return None
+
+
+def approach_normal_tracking(rows: list[dict[str, str]]) -> dict[str, Any]:
+    outer_values: list[float] = []
+    jqdot_values: list[float] = []
+    sign_mismatch_rows = 0
+    press_unload_mismatch_rows = 0
+    for row in rows:
+        outer = finite_float(row.get("_step5d_outer_xdot_limited_approach_normal_m_s"))
+        jqdot = finite_float(row.get("_step5d_jqdot_cmd_approach_normal_m_s"))
+        if not (math.isfinite(outer) and math.isfinite(jqdot)):
+            continue
+        outer_values.append(outer)
+        jqdot_values.append(jqdot)
+        if abs(outer) > 1e-9 and abs(jqdot) > 1e-9 and outer * jqdot < 0.0:
+            sign_mismatch_rows += 1
+        if outer > 1e-9 and jqdot < -1e-9:
+            press_unload_mismatch_rows += 1
+    sample_rows = len(outer_values)
+    return {
+        "approach_normal_sample_rows": sample_rows,
+        "approach_normal_outer_mean_m_s": mean_or_none(outer_values),
+        "approach_normal_jqdot_cmd_mean_m_s": mean_or_none(jqdot_values),
+        "approach_normal_sign_mismatch_rows": sign_mismatch_rows,
+        "approach_normal_sign_mismatch_ratio": 0.0 if sample_rows == 0 else sign_mismatch_rows / sample_rows,
+        "approach_normal_press_unload_mismatch_rows": press_unload_mismatch_rows,
+        "approach_normal_press_unload_mismatch_ratio": (
+            0.0 if sample_rows == 0 else press_unload_mismatch_rows / sample_rows
+        ),
+    }
 
 
 def stage25_segment_metrics(rows: list[dict[str, str]], angular_limit: float) -> dict[str, Any]:
@@ -365,6 +431,19 @@ def orientation_shadow_experiment_classification(
     return None
 
 
+def is_benign_stage25_row_gap(gap_s: float, row: dict[str, str]) -> bool:
+    if not (STAGE25_MAX_ROW_GAP_S < gap_s <= STAGE25_BENIGN_GAP_MAX_S):
+        return False
+    send_s = finite_float(row.get("_bridge_loop_rtde_send_s"))
+    recv_s = finite_float(row.get("_bridge_loop_rtde_recv_s"))
+    return (
+        math.isfinite(send_s)
+        and math.isfinite(recv_s)
+        and send_s <= STAGE25_BENIGN_RTDE_PHASE_S
+        and recv_s <= STAGE25_BENIGN_RTDE_PHASE_S
+    )
+
+
 def last_contact_safety_reason(rows: list[dict[str, str]]) -> str | None:
     for row in reversed(rows):
         reason = row.get("_step5d_contact_safety_reason") or ""
@@ -439,6 +518,7 @@ def stage25_control_attribution(rows: list[dict[str, str]], metadata: dict[str, 
         "normal_load_rate_min_n_s": min_or_none(rates),
         "normal_filter_source_counts": dict(sorted((key, value) for key, value in sources.items() if key)),
         "live_control_source_counts": reason_counts(rows, "_step5d_live_control_source"),
+        "layout_tag_counts": numeric_tag_counts(rows, "_step5d_stage25_echo_layout_tag"),
         "contact_safety_reason_counts": contact_reason_counts,
         "terminal_contact_safety_reason": last_contact_safety_reason(rows),
         "control_oscillation_trigger": control_oscillation_trigger,
@@ -453,6 +533,7 @@ def stage25_control_attribution(rows: list[dict[str, str]], metadata: dict[str, 
             segment_diagnostics,
             control_oscillation_trigger,
         ),
+        **approach_normal_tracking(rows),
     }
 
 
@@ -492,7 +573,12 @@ def old_v27_paper_outer_linear_live_gain_mismatch(attribution: dict[str, Any]) -
     )
 
 
-def stage25_speedl_fix_success(profile: str, result: dict[str, Any]) -> bool:
+def stage25_speedl_fix_success(
+    profile: str,
+    result: dict[str, Any],
+    *,
+    control_mode: str | None,
+) -> bool:
     target_s = stage25_success_target_s(profile)
     if not uses_step5b_speedl_live_source(profile) or target_s is None:
         return False
@@ -501,6 +587,9 @@ def stage25_speedl_fix_success(profile: str, result: dict[str, Any]) -> bool:
         return False
     stage25_rows = int(result.get("stage25_rows") or 0)
     source_counts = attribution.get("live_control_source_counts")
+    layout_counts = attribution.get("layout_tag_counts")
+    if control_mode is not None and control_mode not in {"", "speedl_cartesian_oracle"}:
+        return False
     angular_max = finite_float(attribution.get("angular_cmd_norm_max_rad_s"))
     angular_limit = finite_float(attribution.get("angular_limit_rad_s"))
     angular_saturation = finite_float(attribution.get("angular_saturation_ratio"))
@@ -509,13 +598,25 @@ def stage25_speedl_fix_success(profile: str, result: dict[str, Any]) -> bool:
     force_norm_max = finite_float(attribution.get("force_norm_max_n"))
     shadow_only_rows = int(attribution.get("orientation_shadow_only_rows") or 0)
     trigger = attribution.get("control_oscillation_trigger")
+    # Legacy ablation logs may omit live_control_source even when speedl control was active.
+    # Accept that path only when the run declares speedl control mode.
+    source_ok = False
+    if isinstance(source_counts, dict):
+        source_ok = source_counts == {STEP5D_V27_SPEEDL_LIVE_CONTROL_SOURCE: stage25_rows}
+        if not source_ok and control_mode in {None, "", "speedl_cartesian_oracle"} and source_counts == {}:
+            source_ok = True
+    elif control_mode in {None, "", "speedl_cartesian_oracle"}:
+        source_ok = True
+    layout_ok = not isinstance(layout_counts, dict) or str(STAGE25_JOINT_LAYOUT_TAG) not in layout_counts
+
     return (
         stage25_rows > 0
         and float(result.get("stage25_duration_s") or 0.0) >= target_s
+        and result.get("stage25_cadence_ok") is True
         and finite_float(result.get("stage25_consumption_ratio")) >= STAGE25_SUCCESS_MIN_CONSUMPTION_RATIO
         and result.get("terminal_tp_stop_reason") == 1
-        and isinstance(source_counts, dict)
-        and source_counts == {STEP5D_V27_SPEEDL_LIVE_CONTROL_SOURCE: stage25_rows}
+        and source_ok
+        and layout_ok
         # Live angular is either fully zeroed (v27/v28 shadow-only isolation
         # runs) or the Step5b orientation follow inside its limit (v29 step);
         # in both cases it must stay off the angular cap essentially always.
@@ -540,6 +641,51 @@ def stage25_speedl_fix_success(profile: str, result: dict[str, Any]) -> bool:
     )
 
 
+def stage25_speedj_dls_branch_success(profile: str, result: dict[str, Any], control_mode: str | None) -> bool:
+    if control_mode != STAGE25_SPEEDJ_DLS_MODE:
+        return False
+    target_s = stage25_success_target_s(profile)
+    if not uses_step5b_speedl_live_source(profile) or target_s is None:
+        return False
+    attribution = result.get("stage25_control_attribution")
+    if not isinstance(attribution, dict):
+        return False
+    layout_counts = attribution.get("layout_tag_counts")
+    normal_min = finite_float(attribution.get("normal_load_min_n"))
+    normal_max = finite_float(attribution.get("normal_load_max_n"))
+    force_norm_max = finite_float(attribution.get("force_norm_max_n"))
+    return (
+        int(result.get("stage25_rows") or 0) > 0
+        and float(result.get("stage25_duration_s") or 0.0) >= target_s
+        and result.get("stage25_cadence_ok") is True
+        and finite_float(result.get("stage25_consumption_ratio")) >= STAGE25_SUCCESS_MIN_CONSUMPTION_RATIO
+        and result.get("terminal_tp_stop_reason") == 1
+        and isinstance(layout_counts, dict)
+        and int(layout_counts.get(str(STAGE25_JOINT_LAYOUT_TAG), 0))
+        >= int(result.get("stage25_rows") or 0) * STAGE25_SUCCESS_MIN_CONSUMPTION_RATIO
+        and str(STAGE25_CARTESIAN_LAYOUT_TAG) not in layout_counts
+        and attribution.get("terminal_contact_safety_reason") is None
+        and math.isfinite(normal_min)
+        and normal_min >= STAGE25_SUCCESS_NORMAL_LOAD_MIN_N
+        and math.isfinite(normal_max)
+        and normal_max <= STAGE25_SUCCESS_NORMAL_LOAD_MAX_N
+        and math.isfinite(force_norm_max)
+        and force_norm_max < 60.0
+    )
+
+
+def stage25_speedj_rnn_short_soft_hold_failure(result: dict[str, Any], control_mode: str | None) -> bool:
+    if control_mode != STAGE25_SPEEDJ_RNN_MODE:
+        return False
+    attribution = result.get("stage25_control_attribution")
+    if not isinstance(attribution, dict):
+        return False
+    return (
+        result.get("terminal_tp_stop_reason") == 12
+        and attribution.get("terminal_contact_safety_reason") == "soft_low_contact_hold"
+    )
+
+
 def base_analysis(csv_path: Path, run_dir: Path | None, profile: str, gate: Step5dPreloadGate) -> dict[str, Any]:
     return {
         "ok": True,
@@ -551,8 +697,11 @@ def base_analysis(csv_path: Path, run_dir: Path | None, profile: str, gate: Step
         "stage25_rows": 0,
         "stage25_duration_s": 0.0,
         "stage25_max_row_gap_s": 0.0,
+        "stage25_benign_row_gap_count": 0,
+        "stage25_row_gap_count": 0,
         "stage25_row_rate_hz": 0.0,
         "stage25_cadence_ok": None,
+        "stage25_control_mode": None,
         "stage25_echo_consumed_rows": 0,
         "stage25_consumption_ratio": 0.0,
         "stage25_consumption_complete": None,
@@ -570,6 +719,7 @@ def base_analysis(csv_path: Path, run_dir: Path | None, profile: str, gate: Step
         "stage25_success_target_s": stage25_success_target_s(profile),
         "fix_validation_status": None,
         "reproduction_status": None,
+        "acceptance_status": None,
         "classification": "ambiguous_requires_manual_audit",
         "next_action": "manual audit of stage echo, preload gate, and a small CSV slice",
     }
@@ -577,8 +727,10 @@ def base_analysis(csv_path: Path, run_dir: Path | None, profile: str, gate: Step
 
 def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any]:
     metadata = read_json(run_dir / METADATA_FILENAME) if run_dir is not None else {}
+    stage25_control_mode = metadata_text(metadata, "step5d_stage25_control_mode")
     profile, gate = preload_gate_for(run_dir)
     result = base_analysis(csv_path, run_dir, profile, gate)
+    result["stage25_control_mode"] = stage25_control_mode
     if not csv_path.exists():
         result.update(
             {
@@ -649,10 +801,15 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
                     if stage25_segment_start_t is None:
                         stage25_segment_start_t = t_s
                     if stage25_previous_t is not None:
+                        gap_s = max(0.0, t_s - stage25_previous_t)
                         result["stage25_max_row_gap_s"] = max(
                             result["stage25_max_row_gap_s"],
-                            max(0.0, t_s - stage25_previous_t),
+                            gap_s,
                         )
+                        if gap_s > STAGE25_MAX_ROW_GAP_S:
+                            result["stage25_row_gap_count"] += 1
+                            if is_benign_stage25_row_gap(gap_s, row):
+                                result["stage25_benign_row_gap_count"] += 1
                     stage25_previous_t = t_s
                     stage25_segment_last_t = t_s
                 consumed = finite_float(row.get("_step5d_stage25_echo_consumed"))
@@ -698,7 +855,13 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
     if result["stage25_duration_s"] > 0.0:
         result["stage25_row_rate_hz"] = result["stage25_rows"] / result["stage25_duration_s"]
     if result["entered_stage25"]:
-        result["stage25_cadence_ok"] = result["stage25_max_row_gap_s"] <= STAGE25_MAX_ROW_GAP_S
+        result["stage25_cadence_ok"] = (
+            result["stage25_row_gap_count"] == 0
+            or (
+                result["stage25_row_gap_count"] == result["stage25_benign_row_gap_count"]
+                and result["stage25_benign_row_gap_count"] <= STAGE25_BENIGN_GAP_OUTLIER_LIMIT
+            )
+        )
         result["stage25_consumption_ratio"] = (
             result["stage25_echo_consumed_rows"] / result["stage25_rows"]
             if result["stage25_rows"] > 0
@@ -707,14 +870,18 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
         result["stage25_consumption_complete"] = result["stage25_echo_consumed_rows"] == result["stage25_rows"]
         result["stage25_consumption_ok"] = result["stage25_consumption_ratio"] >= STAGE25_MIN_CONSUMPTION_RATIO
         result["stage25_control_attribution"] = stage25_control_attribution(stage25_rows, metadata)
+        if stage25_control_mode in {None, ""}:
+            stage25_control_mode = stage25_control_mode_from_rows(stage25_rows)
+            result["stage25_control_mode"] = stage25_control_mode
 
     if result["entered_stage25"]:
         oscillation_reason = stage25_control_oscillation_reason(result["stage25_control_attribution"])
-        if stage25_speedl_fix_success(profile, result):
+        if stage25_speedl_fix_success(profile, result, control_mode=stage25_control_mode):
             if profile == STEP5D_ABLATION_V28_STAGE_ID:
                 result["classification"] = "stage25_full_run_success"
                 result["fix_validation_status"] = "passed_60s_full_run"
                 result["reproduction_status"] = "passed_60s_step5b_equivalent_run"
+                result["acceptance_status"] = "speedl_full_run_passed"
                 result["next_action"] = (
                     "archive v28 as the 60s Step5b-speedl-live / Step5d-shadow full-run evidence; "
                     "do not re-enable orientation servo until the expected-normal error case is closed"
@@ -723,14 +890,37 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
                 result["classification"] = "stage25_fix_validation_success"
                 result["fix_validation_status"] = "passed_10s_stage25_window"
                 result["reproduction_status"] = "pending_60s_step5b_equivalent_run"
+                result["acceptance_status"] = "speedl_fix_validation_passed"
                 result["next_action"] = (
                     "retain v27 as successful 10s fix-validation evidence and generate a v28 60s full-run package "
                     "before any full reproduction claim"
                 )
+        elif stage25_speedj_dls_branch_success(profile, result, stage25_control_mode):
+            result["classification"] = "stage25_speedj_dls_branch_success"
+            result["acceptance_status"] = "excluded_from_speedl_acceptance"
+            result["next_action"] = (
+                "archive this as speedj_dls_oracle branch evidence for layout-524/speedj stability; "
+                "keep it out of speedl full-run acceptance and compare RNN live qdot against DLS"
+            )
+        elif stage25_speedj_rnn_short_soft_hold_failure(result, stage25_control_mode):
+            result["classification"] = "stage25_speedj_rnn_short_soft_hold_failure"
+            result["acceptance_status"] = "failed_speedj_rnn_branch"
+            result["next_action"] = (
+                "debug strict RNN live qdot tracking: outer-loop approach-normal press maps to unload, "
+                "normal load drops below 5N, contact safety holds, and TP stops on command-valid loss"
+            )
+        elif uses_step5b_speedl_live_source(profile) and stage25_control_mode not in {None, "", "speedl_cartesian_oracle"}:
+            result["classification"] = "stage25_control_mode_mismatch"
+            result["acceptance_status"] = "excluded_from_speedl_acceptance"
+            result["next_action"] = (
+                f"stage25 control mode is {stage25_control_mode!r}, expected speedl_cartesian_oracle for v27/v28 step5d fix validation; "
+                "continue with the next control-mode branch and keep this run out of speedl full-run acceptance"
+            )
         elif uses_step5b_speedl_live_source(profile) and (
             not result["stage25_cadence_ok"] or not result["stage25_consumption_ok"]
         ):
             result["classification"] = "stage25_cadence_or_consumption_failure"
+            result["acceptance_status"] = "failed_stage25_cadence_or_consumption"
             result["next_action"] = "audit Stage25.0 bridge loop timing, RTDE send blocking, and TP command consumption echo"
         elif oscillation_reason is not None:
             result["classification"] = f"stage25_control_force_oscillation/{oscillation_reason}"
