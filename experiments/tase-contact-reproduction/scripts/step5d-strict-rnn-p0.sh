@@ -66,7 +66,7 @@ case "$1" in
     BRIDGE_ANGULAR_LIMIT_RAD_S=0.015 \
     STEP5D_STAGE25_CONTROL_MODE=speedj_rnn_live \
       "${BRIDGE_OPERATOR}" live-ready
-    echo "Teach Pendant target: /programs/andyl/kunwei/step5/step5d/${P0_PROFILE}.urp"
+    echo "Teach Pendant target: /programs/andyl/kunwei/step5/${P0_PROFILE}.urp"
     ;;
   capture-bridge)
     if [[ "${STEP5D_P0_CONFIRM:-}" != "${P0_CONFIRM_TOKEN}" ]]; then

@@ -101,7 +101,7 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertNotIn("write_output_float_register(35, 25.3)", script)
         self.assertNotIn("codex_step5d_down_search", script)
         self.assertNotIn("deadband contact acquire", txt)
-        self.assertEqual(spec.controller_dir, "/programs/andyl/kunwei/step5/step5d")
+        self.assertEqual(spec.controller_dir, "/programs/andyl/kunwei/step5")
 
     def test_no_contact_p0_runtime_interface_defaults_are_short_and_no_contact(self) -> None:
         runtime = iface.resolve_runtime_interface(program=iface.STEP5D_NO_CONTACT_P0_STAGE_ID, root=ROOT, env={})
@@ -262,7 +262,7 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertEqual(capture["local_triplet"], "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v1")
         self.assertEqual(
             capture["controller_target"],
-            "/programs/andyl/kunwei/step5/step5d/step5d_strict_rnn_no_contact_p0_v1.urp",
+            "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v1.urp",
         )
         for ext, path in files.items():
             self.assertTrue(path.exists(), path)

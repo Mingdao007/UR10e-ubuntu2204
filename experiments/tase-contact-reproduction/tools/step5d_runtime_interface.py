@@ -196,7 +196,7 @@ def controller_target_for(program: str, current: dict[str, Any] | None = None) -
     if payload.get("program") == program and payload.get("controller_target"):
         return str(payload["controller_target"])
     if program == STEP5D_NO_CONTACT_P0_STAGE_ID:
-        return f"/programs/andyl/kunwei/step5/step5d/{program}.urp"
+        return f"/programs/andyl/kunwei/step5/{program}.urp"
     return f"/programs/andyl/kunwei/step5/{program}.urp"
 
 

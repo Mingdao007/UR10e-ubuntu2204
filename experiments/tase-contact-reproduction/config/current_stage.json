@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "updated_at": "2026-07-06T22:50:00+08:00",
+  "updated_at": "2026-07-06T22:55:00+08:00",
   "current_step": "Step5d",
   "current_stage_id": "step5d_strict_rnn_ablation_v28",
   "program": "step5d_strict_rnn_ablation_v28",
@@ -982,7 +982,7 @@
         "targeted_unittest_result": "101 warm_start/gate/analyzer/P0 tooling targeted tests passed after 6-Codex false-pass hardening",
         "full_unittest_result": "650 tests passed",
         "diff_check": "git diff --check passed",
-        "no_contact_p0_tooling": "offline artifact verifier, no-contact capture entrypoint, and TP package are present and controller read-back verified: tools/verify_step5d_no_contact_p0.py, scripts/step5d-strict-rnn-p0.sh capture-ready/capture-bridge, programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v1.{script,txt,urp}, and runs/controller_readback_step5d_strict_rnn_no_contact_p0_v1_20260706_224817/manifest.json. The wrapper requires STEP5D_P0_CONFIRM=LIVE STEP5D STRICT RNN NO CONTACT P0 and the bridge requires BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE=1; this does not mark no-contact P0 passed."
+        "no_contact_p0_tooling": "offline artifact verifier, no-contact capture entrypoint, and TP package are present and controller read-back verified at the Step5 table/controller directory: tools/verify_step5d_no_contact_p0.py, scripts/step5d-strict-rnn-p0.sh capture-ready/capture-bridge, programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v1.{script,txt,urp}, and runs/controller_readback_step5d_strict_rnn_no_contact_p0_v1_20260706_225204/manifest.json. The controller target is /programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v1.urp. The wrapper requires STEP5D_P0_CONFIRM=LIVE STEP5D STRICT RNN NO CONTACT P0 and the bridge requires BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE=1; this does not mark no-contact P0 passed."
       },
       "live_status": "blocked_until_no_contact_p0_and_explicit_live_trigger",
       "next_action": "verify no-contact P0 first tick has solver_warm_start and approach-normal J(q)qdot aligned with the outer command before any live strict RNN run"
@@ -1000,17 +1000,17 @@
       "profile": "step5d_strict_rnn_no_contact_p0_v1",
       "entrypoint": "scripts/step5d-strict-rnn-p0.sh capture-bridge",
       "confirm_token": "LIVE STEP5D STRICT RNN NO CONTACT P0",
-      "controller_target": "/programs/andyl/kunwei/step5/step5d/step5d_strict_rnn_no_contact_p0_v1.urp",
+      "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v1.urp",
       "local_triplet": "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v1",
       "controller_readback_verified": true,
-      "controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v1_20260706_224817",
-      "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v1_20260706_224817/manifest.json",
+      "controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v1_20260706_225204",
+      "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v1_20260706_225204/manifest.json",
       "delivery_mode": "full_upload_readback",
       "readback_source": "fresh_controller_get",
       "sha256": {
         ".script": "b884ef3692f3c81694141772a58379c7972ca9fc60e3f26271da80f52bb35bbd",
-        ".txt": "1439482b06f47f83fd2bc1a2ca23f4a1fcb2ff52c752475391fca58e129917d5",
-        ".urp": "6babacd806a2dd54b61f426fb6eac8e9195299f205c991f1455f28de86cf01fd"
+        ".txt": "42ab97cfc4edb09c985cdf0f9def21f4bbffc2eed2c01120aebaead09a8bc04d",
+        ".urp": "7ee679ff62c9902b86ea8ec22bccdbb1165e062c8085fc204f9268562ebb7824"
       },
       "capture_authorized": false,
       "passed": false,
@@ -1044,7 +1044,7 @@
   "notes": [
     "step5d_strict_rnn_ablation_v28 has cadence-clean speedl positive-control runs, DLS speedj layout-524 branch success, and historical RNN speedj short soft-hold failure evidence; older 054904/062908 speedl runs are retained as historical but excluded from current acceptance by the cadence gate.",
     "The RNN speedj failure root cause is attributed offline to solver cold-start at Stage25 lifecycle reset while preloaded; the current code applies a one-shot strict RNN warm_start at the next solve, but live strict RNN remains blocked pending no-contact P0 verification and explicit live authorization.",
-    "The no-contact P0 TP package is controller read-back verified at runs/controller_readback_step5d_strict_rnn_no_contact_p0_v1_20260706_224817/manifest.json. The verifier remains available as step5d-strict-rnn-p0.sh validate-run RUN_DIR_OR_CSV; capture-ready/capture-bridge now provide the separate no-contact capture route but still do not satisfy the P0 gate until a real captured artifact passes validation.",
+    "The no-contact P0 TP package is controller read-back verified at runs/controller_readback_step5d_strict_rnn_no_contact_p0_v1_20260706_225204/manifest.json with controller target /programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v1.urp. The verifier remains available as step5d-strict-rnn-p0.sh validate-run RUN_DIR_OR_CSV; capture-ready/capture-bridge now provide the separate no-contact capture route but still do not satisfy the P0 gate until a real captured artifact passes validation.",
     "step5d_strict_rnn_ablation_v28 is controller read-back verified and selected as the current Step5d TP/script cage-primary diagnostic package.",
     "v28 keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
     "v28 is an ablation package: v25/v26/v27/v28 default to speedl_cartesian_oracle, speedj_rnn_live is explicit follow-up, and preload is 5-22N filtered with 3-25N raw sanity.",

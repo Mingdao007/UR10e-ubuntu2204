@@ -116,7 +116,7 @@ postprocess_run "{run_dir}"
         script = read_script("bridge-line-operator.sh")
 
         self.assertIn("step5d_strict_rnn_no_contact_p0_v1", script)
-        self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/step5d/${BRIDGE_PROFILE}.urp"', script)
+        self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/${BRIDGE_PROFILE}.urp"', script)
         self.assertIn("step5d_no_contact_p0_capture_authorized", script)
         self.assertIn("BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE", script)
         self.assertIn("step5d_live_bridge_authorized", script)

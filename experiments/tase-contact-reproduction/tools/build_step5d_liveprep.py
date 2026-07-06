@@ -114,7 +114,7 @@ ABLATION_SPECS = {
         default_stage25_control_mode="speedj_rnn_live",
         stage25_success_target_s=1.0,
         stage25_runtime_limit_s=1.0,
-        controller_dir="/programs/andyl/kunwei/step5/step5d",
+        controller_dir="/programs/andyl/kunwei/step5",
         no_contact_p0=True,
     ),
 }
@@ -127,7 +127,7 @@ LOCAL_PROGRAM_DIR = PROGRAM_DIR / "step5"
 LOCAL_CANDIDATE_ROOT = PROGRAM_DIR.parent / "runs" / "local_tp_packages"
 LOCAL_CANDIDATE_MARKER = ".local_tp_candidate.json"
 CONTROLLER_DIR = "/programs/andyl/kunwei/step5"
-NO_CONTACT_P0_CONTROLLER_DIR = "/programs/andyl/kunwei/step5/step5d"
+NO_CONTACT_P0_CONTROLLER_DIR = CONTROLLER_DIR
 POSE_CONTRACT_ID = PRE_CONTACT_GRAVITY_DOWN_CONTRACT_ID
 SEARCH_GRAVITY_DOWN_ROTVEC = contract_target_rotvec_rad(POSE_CONTRACT_ID)
 _STEP5D_PROTOCOL = resolve_experiment_profile("Step5.step5d_rnn")
