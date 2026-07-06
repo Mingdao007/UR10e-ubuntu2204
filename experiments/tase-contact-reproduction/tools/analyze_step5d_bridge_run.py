@@ -454,6 +454,7 @@ def last_contact_safety_reason(rows: list[dict[str, str]]) -> str | None:
 
 def stage25_control_attribution(rows: list[dict[str, str]], metadata: dict[str, Any]) -> dict[str, Any]:
     normal_loads = finite_values(rows, "_step4e_normal_load_n")
+    lambda_norms = finite_values(rows, "_step5d_lambda_norm")
     force_norms = finite_values(rows, "force_norm_n")
     rates = load_rates(rows)
     angular = angular_norms(rows)
@@ -533,6 +534,9 @@ def stage25_control_attribution(rows: list[dict[str, str]], metadata: dict[str, 
             segment_diagnostics,
             control_oscillation_trigger,
         ),
+        "rnn_solver_eval_rows": len(lambda_norms),
+        "rnn_lambda_norm_first": lambda_norms[0] if lambda_norms else None,
+        "rnn_lambda_norm_last": lambda_norms[-1] if lambda_norms else None,
         **approach_normal_tracking(rows),
     }
 
@@ -906,8 +910,12 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
             result["classification"] = "stage25_speedj_rnn_short_soft_hold_failure"
             result["acceptance_status"] = "failed_speedj_rnn_branch"
             result["next_action"] = (
-                "debug strict RNN live qdot tracking: outer-loop approach-normal press maps to unload, "
-                "normal load drops below 5N, contact safety holds, and TP stops on command-valid loss"
+                "strict RNN cold-start transient: solver state resets to zero at the Stage25 lifecycle "
+                "boundary while already preloaded, so early Cartesian velocity follows J@J.T@xdot_c and "
+                "the angular-dominant entry command unloads the contact below 5N before lambda converges "
+                "(see approach_normal_* opposition and rnn_lambda_norm_first/last still ramping); "
+                "fix offline via solver warm_start at the lifecycle boundary, then re-verify with a "
+                "no-contact P0 pass before any live retry"
             )
         elif uses_step5b_speedl_live_source(profile) and stage25_control_mode not in {None, "", "speedl_cartesian_oracle"}:
             result["classification"] = "stage25_control_mode_mismatch"

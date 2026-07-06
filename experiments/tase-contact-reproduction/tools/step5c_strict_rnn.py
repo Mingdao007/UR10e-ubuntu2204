@@ -159,6 +159,37 @@ class StrictTaseRnnSolver:
         self.theta_dot_state = np.zeros(6, dtype=float)
         self.lambda_state = np.zeros(6, dtype=float)
 
+    def warm_start(
+        self,
+        *,
+        J: Any,
+        xdot_c: Any,
+        omega_minus: Any,
+        omega_plus: Any,
+        damping: float = 1e-4,
+    ) -> None:
+        """Initialize (theta_dot, lambda) from a damped DLS boundary command.
+
+        From zero state the early Cartesian velocity follows J @ J.T @ xdot_c
+        instead of xdot_c while lambda converges, so an angular-dominant entry
+        command can invert a press request into unload on the approach normal
+        (v28 speedj_rnn_live soft_low_contact_hold failure). Initializing near
+        the boundary command removes that transient; the running dynamics are
+        unchanged. If clipping is active, the next Eq.(23) residual is still
+        nonzero and lambda continues adapting from the clipped command.
+        """
+        jacobian = _finite_matrix(J, (6, 6), "J")
+        xdot = _finite_array(xdot_c, 6, "xdot_c")
+        lower = _finite_array(omega_minus, 6, "omega_minus")
+        upper = _finite_array(omega_plus, 6, "omega_plus")
+        if np.any(lower > upper):
+            raise ValueError("omega_minus must be <= omega_plus element-wise")
+        if not math.isfinite(float(damping)) or damping <= 0.0:
+            raise ValueError("warm start damping must be positive")
+        lhs = jacobian @ jacobian.T + (float(damping) ** 2) * np.eye(6)
+        self.lambda_state = np.linalg.solve(lhs, xdot)
+        self.theta_dot_state = np.clip(jacobian.T @ self.lambda_state, lower, upper)
+
     def step(
         self,
         *,

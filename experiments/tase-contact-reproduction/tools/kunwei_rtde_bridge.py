@@ -2875,6 +2875,32 @@ def reset_step5d_solver_state_for_boundary(state: "BridgeState", boundary_key: s
         state.step5d_solver.reset_state()
     state.step5d_last_qdot = None
     state.step5d_solver_lifecycle_key = boundary_key
+    state.step5d_pending_solver_warm_start = True
+
+
+def apply_step5d_solver_warm_start_if_pending(
+    state: "BridgeState",
+    *,
+    jacobian: np.ndarray,
+    xdot_c: np.ndarray,
+    omega_minus: np.ndarray,
+    omega_plus: np.ndarray,
+) -> bool:
+    """Warm-start the strict RNN at the first solve after a lifecycle reset.
+
+    The reset boundary has no J/xdot_c in scope, so the reset only flags the
+    warm start and the first subsequent solve supplies the entry command here.
+    """
+    if not state.step5d_pending_solver_warm_start or state.step5d_solver is None:
+        return False
+    state.step5d_solver.warm_start(
+        J=jacobian,
+        xdot_c=xdot_c,
+        omega_minus=omega_minus,
+        omega_plus=omega_plus,
+    )
+    state.step5d_pending_solver_warm_start = False
+    return True
 
 
 def step6_contact_path_reference(
@@ -3049,6 +3075,7 @@ class BridgeState:
         self.step5d_tcp_cage: Step5dTcpCage | None = None
         self.step5d_solver: StrictTaseRnnSolver | None = None
         self.step5d_solver_lifecycle_key = "inactive"
+        self.step5d_pending_solver_warm_start = False
         self.step5d_outer_state = Step5dOuterLoopState()
         self.step5d_settle_filtered_normal_load_n: float | None = None
         self.step5d_line_guard_loss_s = 0.0
@@ -4315,6 +4342,14 @@ def compute_bridge_values(
                         }
                     )
                 target_state["xdot_c"] = step5d_outer_xdot_joint_feasible
+                if apply_step5d_solver_warm_start_if_pending(
+                    state,
+                    jacobian=jacobian,
+                    xdot_c=step5d_outer_xdot_joint_feasible,
+                    omega_minus=omega_minus,
+                    omega_plus=omega_plus,
+                ):
+                    step5d_intervention_reasons.append("solver_warm_start")
                 try:
                     step5d_result = state.step5d_solver.solve(actual_q=q, actual_qd=qd, target_state=target_state)
                 except (ValueError, RuntimeError) as exc:

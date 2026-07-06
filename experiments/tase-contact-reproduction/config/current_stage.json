@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "updated_at": "2026-07-06T06:05:07+08:00",
+  "updated_at": "2026-07-06T19:17:31+08:00",
   "current_step": "Step5d",
   "current_stage_id": "step5d_strict_rnn_ablation_v28",
   "program": "step5d_strict_rnn_ablation_v28",
@@ -53,12 +53,12 @@
     "stage25_speedl_live_source": "Step5b speedl live vx/vy/vz and live orientation where enabled; Step5d paper/RNN outputs shadow-only",
     "stage25_0_success_target_s": 60.0
   },
-  "status": "step5d_strict_rnn_ablation_v28_controller_readback_verified_branch_evidence_baseline",
+  "status": "step5d_strict_rnn_ablation_v28_controller_readback_verified_warm_start_offline_fix_validated_live_blocked",
   "strict_rnn_status": {
     "stage_id": "step5d_strict_rnn_reproduction_v1",
     "blocked": true,
     "paper_truth_config": "config/step5d_liveprep_solver_gate.json",
-    "reason": "v28 has cadence-clean 60s Step5b-speedl positive-control evidence (064317/070301/072843/074542) with Step5d paper/RNN outputs shadow-only, plus DLS speedj layout-524 success and RNN speedj short soft-hold failure evidence. Strict RNN live reproduction remains blocked pending offline qdot normal-direction tracking fixes."
+    "reason": "v28 has cadence-clean 60s Step5b-speedl positive-control evidence (064317/070301/072843/074542) with Step5d paper/RNN outputs shadow-only, plus DLS speedj layout-524 success and RNN speedj short soft-hold failure evidence. The RNN failure root cause is now attributed offline to StrictTaseRnnSolver cold-start at the Stage25 lifecycle boundary while already preloaded; a warm_start patch is validated offline, but strict RNN live reproduction remains blocked pending no-contact P0 verification and explicit live authorization."
   },
   "evidence": {
     "v11_escape_replay_summary": "runs/step5d_v11_escape_replay_20260615/summary.json",
@@ -900,7 +900,7 @@
       "normal_load_min_n": 8.67347747,
       "normal_load_max_n": 16.629442,
       "note": "third consecutive 60s full run; live orientation closed-loop converged 0.031->0.0007 rad by t=20s (3x faster than passive shadow-only convergence), live |w| peak 7.0 mrad/s (47% of cap, 0% saturation), force undisturbed at ~12N. v28 now reproduces the full Step5b behavior (linear + angular) with entry re-latch and the recalibrated paper outer loop in shadow.",
-      "next_action": "branch evidence now split into speedl positive control, speedj_dls_oracle layout-524 success, and speedj_rnn_live short soft-hold failure; fix RNN qdot normal-direction tracking offline before another live retry"
+      "next_action": "branch evidence now split into speedl positive control, speedj_dls_oracle layout-524 success, and historical speedj_rnn_live short soft-hold failure; strict RNN warm_start is validated offline, with no-contact P0 required before any live retry"
     },
     "v28_20260706_branch_evidence_baseline": {
       "result": "branch_aware_stage25_evidence_baseline",
@@ -963,7 +963,28 @@
         ],
         "note": "RNN enters layout-524 speedj and is consumed, but J*qdot_cmd unloads along the approach normal while the outer loop requests press; raw normal load drops below 5N, contact safety holds, cmd_valid is withdrawn, and TP stops on command-valid loss."
       },
-      "next_action": "offline fix: make strict RNN live qdot satisfy the outer-loop approach-normal press direction/envelope before any new bridge run"
+      "next_action": "offline root cause is fixed by strict RNN lifecycle warm_start; run no-contact P0 verification before any strict RNN live retry"
+    },
+    "v28_20260706_rnn_warm_start_offline_fix": {
+      "result": "offline_fix_validated_live_blocked",
+      "root_cause_report": "repo_external:claude_handoffs/ur10e-step5d-v28-speedj-rnn-coldstart-rootcause-fable5-20260706.md",
+      "root_cause": "StrictTaseRnnSolver reset_state clears theta_dot and lambda at Stage25 lifecycle boundaries; from zero state the early Cartesian velocity follows J@J.T@xdot_c while lambda converges, so angular-dominant entry commands unload the approach normal before contact survives.",
+      "fix": "StrictTaseRnnSolver.warm_start initializes lambda and theta_dot at the damped DLS-shaped fixed point for the boundary xdot_c, and the bridge applies it once on the first solve after a lifecycle reset or hold-resume reset.",
+      "runtime_evidence_fields": [
+        "_step5d_intervention_reason includes solver_warm_start",
+        "_step5d_jqdot_raw_approach_normal_m_s",
+        "_step5d_jqdot_cmd_approach_normal_m_s",
+        "_step5d_active_bounds_count",
+        "_step5d_constraint_residual_norm",
+        "_step5d_lambda_norm"
+      ],
+      "validation": {
+        "targeted_unittest_result": "69 targeted Step5d tests passed",
+        "full_unittest_result": "623 tests passed",
+        "diff_check": "git diff --check passed"
+      },
+      "live_status": "blocked_until_no_contact_p0_and_explicit_live_trigger",
+      "next_action": "verify no-contact P0 first tick has solver_warm_start and approach-normal J(q)qdot aligned with the outer command before any live strict RNN run"
     }
   },
   "bridge_trigger": {
@@ -973,8 +994,9 @@
     "bridge_has_started": false,
     "live_motion_authorized": false,
     "zero_ftsensor_authorized": false,
-    "blocked_reason": "v28 branch evidence is archived; the next live bridge start is a new action and still requires an explicit live trigger.",
+    "blocked_reason": "v28 branch evidence is archived; strict RNN live retry remains blocked until no-contact P0 warm_start verification passes and still requires an explicit live trigger.",
     "required_before_live": [
+      "no-contact P0 strict RNN warm_start verification: first tick logs solver_warm_start, approach-normal J(q)qdot aligns with the outer command, and active bounds/residual/lambda diagnostics are reviewed",
       "operator outside UR reach/cage boundary",
       "TP program opened on controller read-back v28 package"
     ]
@@ -999,7 +1021,8 @@
     }
   ],
   "notes": [
-    "step5d_strict_rnn_ablation_v28 has cadence-clean speedl positive-control runs, DLS speedj layout-524 branch success, and RNN speedj short soft-hold failure evidence; older 054904/062908 speedl runs are retained as historical but excluded from current acceptance by the cadence gate.",
+    "step5d_strict_rnn_ablation_v28 has cadence-clean speedl positive-control runs, DLS speedj layout-524 branch success, and historical RNN speedj short soft-hold failure evidence; older 054904/062908 speedl runs are retained as historical but excluded from current acceptance by the cadence gate.",
+    "The RNN speedj failure root cause is attributed offline to solver cold-start at Stage25 lifecycle reset while preloaded; the current code applies a one-shot strict RNN warm_start at the next solve, but live strict RNN remains blocked pending no-contact P0 verification and explicit live authorization.",
     "step5d_strict_rnn_ablation_v28 is controller read-back verified and selected as the current Step5d TP/script cage-primary diagnostic package.",
     "v28 keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
     "v28 is an ablation package: v25/v26/v27/v28 default to speedl_cartesian_oracle, speedj_rnn_live is explicit follow-up, and preload is 5-22N filtered with 3-25N raw sanity.",

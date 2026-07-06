@@ -517,6 +517,7 @@ def write_v28_speedj_rnn_short_soft_hold_slice(run_dir: Path) -> None:
         "_step5d_contact_safety_reason",
         "_step5d_outer_xdot_limited_approach_normal_m_s",
         "_step5d_jqdot_cmd_approach_normal_m_s",
+        "_step5d_lambda_norm",
     ]
     rows: list[dict[str, str]] = []
     for idx in range(150):
@@ -538,6 +539,7 @@ def write_v28_speedj_rnn_short_soft_hold_slice(run_dir: Path) -> None:
                 "_step5d_contact_safety_reason": "soft_low_contact_hold" if hold else "ok",
                 "_step5d_outer_xdot_limited_approach_normal_m_s": "0.000220000",
                 "_step5d_jqdot_cmd_approach_normal_m_s": "-0.001100000" if not hold else "0.000000000",
+                "_step5d_lambda_norm": f"{0.0007 + 0.00008 * idx:.9f}" if not hold else "",
             }
         )
     write_bridge_csv(csv_path, rows, fieldnames=fieldnames)
@@ -801,6 +803,12 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
             "soft_low_contact_hold",
         )
         self.assertGreater(analysis["stage25_control_attribution"]["approach_normal_sign_mismatch_rows"], 0)
+        attribution = analysis["stage25_control_attribution"]
+        self.assertEqual(attribution["rnn_solver_eval_rows"], 88)
+        self.assertAlmostEqual(attribution["rnn_lambda_norm_first"], 0.0007, places=9)
+        self.assertGreater(attribution["rnn_lambda_norm_last"], attribution["rnn_lambda_norm_first"])
+        self.assertIn("cold-start transient", analysis["next_action"])
+        self.assertIn("warm_start", analysis["next_action"])
 
     def test_v27_near_complete_consumption_and_good_cadence_classifies_as_control_oscillation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

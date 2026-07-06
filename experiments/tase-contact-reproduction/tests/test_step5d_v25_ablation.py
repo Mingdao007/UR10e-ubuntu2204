@@ -74,6 +74,9 @@ def fake_runtime(state: bridge.BridgeState, _args: object) -> None:
         def reset_state(self) -> None:
             return None
 
+        def warm_start(self, **_kwargs: object) -> None:
+            return None
+
         def solve(self, **_kwargs: object) -> SimpleNamespace:
             return SimpleNamespace(
                 qdot=(0.020, 0.010, -0.010, 0.004, -0.003, 0.002),

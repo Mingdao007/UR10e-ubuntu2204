@@ -6558,7 +6558,7 @@
       "blocked": false,
       "complete": false,
       "completion_target": true,
-      "block_reason": "Current v28 cage-primary TP/script diagnostic package is generated, uploaded, and controller read-back verified. It is ready for an explicit 60 s live bridge run; not a completed reproduction claim.",
+      "block_reason": "Current v28 cage-primary TP/script diagnostic package is generated, uploaded, and controller read-back verified. Speedl positive-control 60 s evidence is archived; strict RNN live retry remains blocked until no-contact P0 warm_start verification passes and a new explicit live trigger is provided.",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": true,
@@ -6575,7 +6575,7 @@
       },
       "cadence": {
         "reference_clock": "bridge_path_time_freezes_during_cage_primary_active_reacquire_with_v20_action_load_speed_cap",
-        "motion": "pending_live_60s_full_run",
+        "motion": "speedl_positive_control_60s_archived_strict_rnn_live_blocked_pending_no_contact_p0",
         "tp_hold_s": 0.002,
         "end_hold_s": 0.1
       },
@@ -6704,7 +6704,7 @@
         "joint_layout_code": 524.0,
         "speedl_linear_cap_m_s": 0.004,
         "speedl_angular_cap_rad_s": 0.015,
-        "speedl_angular_live_command_policy": "v28 bridge runtime forces wx/wy/wz to 0 for all Stage25.0 in speedl_cartesian_oracle; limited raw angular remains diagnostic only",
+        "speedl_angular_live_command_policy": "v28 bridge runtime uses Step5b/step4e orientation follow wx/wy/wz in speedl_cartesian_oracle; limited Step5d paper/RNN angular remains diagnostic only",
         "joint_feasibility_scale": "s=min(1,0.9*qdot_cap/||J^-1 xdot_c||inf) before strict RNN/DLS speedj modes",
         "stage25_cadence_max_gap_s": 0.02,
         "stage25_command_consumption_echo_register": 47.0,
@@ -6722,7 +6722,7 @@
         "timing_policy": "step5b_v3_scaffold_min_delta_stage25_speedl_oracle_with_cadence_consumption_instrumentation",
         "virtual_clock_freeze": false,
         "deadband_acquire_stage": "25.3",
-        "stage25_contact_policy": "Online broad AABB TCP cage remains a hard diagnostic boundary; Stage25.3 uses Step5b/Step6b evidence tube preload parameters (5-22N filtered, 3-25N raw sanity), Stage25.95 waits for bridge-cleared registers 37..47, and Stage25.0 selects Cartesian speedl or joint speedj from layout tag 47. v25/v26/v27/v28 default to speedl_cartesian_oracle with strict RNN/J(q) shadow diagnostics; v26/v27/v28 keep speedj_rnn_live as explicit follow-up modes with joint-feasibility-scaled xdot_c. v28 speedl_cartesian_oracle executes Step5b live vx/vy/vz, forces live wx/wy/wz to zero, keeps Step5d paper/RNN linear/angular outputs shadow-only, and logs Stage25.0 cadence, TP consumption echo, and bridge loop timing.",
+        "stage25_contact_policy": "Online broad AABB TCP cage remains a hard diagnostic boundary; Stage25.3 uses Step5b/Step6b evidence tube preload parameters (5-22N filtered, 3-25N raw sanity), Stage25.95 waits for bridge-cleared registers 37..47, and Stage25.0 selects Cartesian speedl or joint speedj from layout tag 47. v25/v26/v27/v28 default to speedl_cartesian_oracle with strict RNN/J(q) shadow diagnostics; v26/v27/v28 keep speedj_rnn_live as explicit follow-up modes with joint-feasibility-scaled xdot_c. v28 speedl_cartesian_oracle executes Step5b live vx/vy/vz plus Step5b/step4e orientation follow wx/wy/wz, keeps Step5d paper/RNN linear/angular outputs shadow-only, and logs Stage25.0 cadence, TP consumption echo, and bridge loop timing.",
         "live_authorization": "current_controller_readback_verified_pending_live_bridge_run",
         "tp_package_status": "generated_uploaded_readback_verified_current",
         "controller_readback_status": "verified",
@@ -6733,9 +6733,9 @@
           "speedj_rnn_live"
         ],
         "default_stage25_control_mode": "speedl_cartesian_oracle",
-        "speedl_cartesian_oracle_policy": "Step5b speedl live vx/vy/vz is sent to TP speedl, live wx/wy/wz are forced to zero, and Step5d paper/RNN linear/angular outputs are shadow diagnostics only",
+        "speedl_cartesian_oracle_policy": "Step5b speedl live vx/vy/vz plus Step5b/step4e orientation follow wx/wy/wz are sent to TP speedl, and Step5d paper/RNN linear/angular outputs are shadow diagnostics only",
         "speedj_dls_oracle_policy": "feasibility-scaled xdot_c is converted through the DLS/Jacobian qdot oracle and sent to TP speedj for diagnostic comparison only",
-        "speedj_rnn_live_policy": "strict RNN qdot from feasibility-scaled xdot_c is sent to TP speedj after solver lambda/theta_dot reset on Stage25 lifecycle boundaries"
+        "speedj_rnn_live_policy": "strict RNN qdot from feasibility-scaled xdot_c is sent to TP speedj after solver lambda/theta_dot lifecycle reset is followed by a one-shot warm_start on the next solve; no live strict RNN retry is authorized until no-contact P0 verification passes"
       },
       "semantic_control_gate": {
         "contract": "UR_FORCE_FRAME_CONTRACT.md",
@@ -6765,7 +6765,7 @@
         "v18_status": "retained_live_run_evidence_predicted_tcp_speed_hard_stop",
         "v19_status": "retained_live_run_evidence_predicted_tcp_speed_hard_stop_due_to_filter_source_bound_cap"
       },
-      "success_condition": "Current v28 package is generated, uploaded, controller read-back verified, and awaits explicit 60 s live bridge run evidence before any reproduction claim.",
+      "success_condition": "Current v28 package is generated, uploaded, controller read-back verified, and has archived speedl positive-control 60 s evidence; strict RNN live reproduction is not claimed and remains blocked pending no-contact P0 warm_start verification.",
       "local_analysis_evidence": {
         "source": "2026-07-02 v21 live-run register-layout root cause plus v22 qdot-clear implementation; 2026-07-03 v22 normal_force_guard, v23 active_reacquire cage-margin failure, and v24 low-load/tracking guard",
         "v19_live_problem_summary": {
@@ -6892,9 +6892,10 @@
         "package_generation_required": true,
         "controller_readback_required": true,
         "bridge_side_projector_fix_required": true,
-        "no_contact_symbol_verification_required_before_live": false,
+        "no_contact_symbol_verification_required_before_live": true,
         "live_bridge_authorization_required": true,
         "offline_copy_step5b_live_fix_audit_required_before_live": true,
+        "strict_rnn_no_contact_p0_required_before_live": true,
         "not_a_completed_reproduction_claim": true
       },
       "notes": [
@@ -6902,7 +6903,7 @@
         "v28 keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
         "v28 is an ablation package with layout-tagged speedl/speedj Stage25.0 modes.",
         "v28 uses 50N raw-normal, 60N force-norm, 3Nm torque guard, and layout-tagged speedl/speedj Stage25.0.",
-        "This current row is not a completed Step5d reproduction claim; explicit 60 s live bridge evidence is still pending."
+        "This current row has archived speedl positive-control 60 s evidence but is not a completed strict RNN reproduction claim; strict RNN live retry requires no-contact P0 warm_start verification plus explicit live authorization."
       ],
       "live_run_evidence": null,
       "policy_refs": {
@@ -6915,10 +6916,10 @@
         "runtime_interface": "tools/step5d_runtime_interface.py#tp_speedj_strict_rnn_liveprep_v1"
       },
       "lifecycle": {
-        "state": "current_v28_controller_readback_verified_pending_60s_full_run",
+        "state": "current_v28_controller_readback_verified_speedl_positive_control_archived_strict_rnn_live_blocked_pending_p0",
         "current_candidate": true,
         "retained_evidence": false,
-        "claim_status": "controller_readback_verified_pending_60s_live_run_not_reproduction_claim",
+        "claim_status": "speedl_positive_control_60s_archived_strict_rnn_reproduction_not_claimed_pending_no_contact_p0",
         "supersedes": "step5d_strict_rnn_ablation_v27"
       },
       "operator_lifecycle": {
@@ -6935,7 +6936,7 @@
         "autowatch_wait_for_play_s": 20,
         "baseline_s": 5.0,
         "rezero_s": 0.25,
-        "post_far_search_rezero_policy": "table policy: request Kunwei software re-zero after Stage24.0 far search completes and before Stage24.2 near search; current controller read-back package bytes remain unchanged until regeneration/upload/read-back",
+        "post_far_search_rezero_policy": "table policy: request Kunwei software-baseline epoch reset after Stage24.0 far search completes and before Stage24.2 near search; no zero_ftsensor or Kunwei tare/config write; current controller read-back package bytes remain unchanged until regeneration/upload/read-back",
         "dashboard_program_watch_timeout_s": 45,
         "tp_bridge_start_wait_timeout_s": 60,
         "rtde_quick_probe_timeout_s": 1.0,
@@ -6963,27 +6964,27 @@
           "no Kunwei tare/zero/config",
           "no TCP/payload write"
         ],
-        "live_readiness_state": "controller_readback_verified_pending_explicit_60s_live_bridge_run"
+        "live_readiness_state": "controller_readback_verified_strict_rnn_live_blocked_pending_no_contact_p0_and_explicit_trigger"
       },
       "runtime_interface_ref": {
         "path": "tools/step5d_runtime_interface.py",
         "interface_class": "tp_speedj_strict_rnn_liveprep_v1",
         "tuning_bundle": "v24_startup_quarantine_rnn_tracking_guard",
         "stage25_default_control_mode": "speedl_cartesian_oracle",
-        "stage25_speedl_orientation_policy": "shadow_only_full_stage25",
+        "stage25_speedl_orientation_policy": "step5b_orientation_follow_live_step5d_shadow",
         "stage25_success_target_s": 60.0,
         "stage25_runtime_limit_s": 65.0
       },
       "evidence_refs": {
-        "latest_live_run_status": "v27_fix_validation_success_pending_v28_60s_live_run",
-        "latest_live_run_summary": "runs/bridge_step5d_strict_rnn_ablation_v27_20260706_045513/summary.json",
-        "latest_live_run_analysis": "runs/bridge_step5d_strict_rnn_ablation_v27_20260706_045513/step5d_bridge_analysis.json",
+        "latest_live_run_status": "v28_speedl_positive_control_60s_archived_strict_rnn_live_blocked_pending_no_contact_p0",
+        "latest_live_run_summary": "runs/bridge_step5d_strict_rnn_ablation_v28_20260706_064317/summary.json",
+        "latest_live_run_analysis": "runs/bridge_step5d_strict_rnn_ablation_v28_20260706_064317/step5d_bridge_analysis.json",
         "latest_stop_reason": "dashboard_program_stopped",
         "latest_terminal_stop_reason": "tp_normal_stop_reason_1",
-        "latest_analysis_classification": "stage25_fix_validation_success",
-        "latest_evidence_classification": "v27_10s_step5b_live_step5d_shadow_fix_validation_success_not_60s_reproduction",
+        "latest_analysis_classification": "stage25_full_run_success",
+        "latest_evidence_classification": "v28_speedl_positive_control_60s_success_strict_rnn_reproduction_not_claimed",
         "previous_retained_evidence_index": "current_stage.json#evidence",
-        "v28_live_run_status": "pending_explicit_60s_live_bridge_run",
+        "v28_live_run_status": "speedl_positive_control_60s_archived_strict_rnn_live_blocked_pending_no_contact_p0",
         "previous_failed_live_run_analysis": "runs/bridge_step5d_strict_rnn_ablation_v27_20260706_040900/step5d_bridge_analysis.json"
       },
       "current_binding": {

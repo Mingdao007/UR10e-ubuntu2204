@@ -179,6 +179,44 @@ def uses_step5b_speedl_live_source(program: str) -> bool:
     return program in {STEP5D_ABLATION_V27_STAGE_ID, STEP5D_ABLATION_V28_STAGE_ID}
 
 
+def speedl_orientation_policy(program: str) -> str | None:
+    if program == STEP5D_ABLATION_V28_STAGE_ID:
+        return "step5b_orientation_follow_live_step5d_shadow"
+    if program == STEP5D_ABLATION_V27_STAGE_ID:
+        return "shadow_only_full_stage25"
+    return None
+
+
+def stage25_0_register_contract(program: str) -> str:
+    prefix = (
+        "v25/v26/v27/v28: 37..42 cartesian vx/vy/vz/wx/wy/wz when "
+        f"47={STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:g}; "
+    )
+    suffix = (
+        "37..42 joint qd0..qd5 rad/s when "
+        f"47={STEP5D_STAGE25_JOINT_LAYOUT_CODE:g}; "
+        "43 cmd_valid; 44 path_time; 45 force_error; 46 pose/orientation_error. "
+        "v24 and older: 37..42 qd0..qd5 rad/s; 47 solver_status."
+    )
+    if program == STEP5D_ABLATION_V28_STAGE_ID:
+        return (
+            prefix
+            + "v28 speedl_cartesian_oracle bridge runtime uses "
+            + f"{STEP5D_V27_SPEEDL_LIVE_CONTROL_SOURCE}: Step5b speedl live vx/vy/vz plus "
+            + "Step5b/step4e orientation follow wx/wy/wz; Step5d paper/RNN outputs are logged as shadow diagnostics; "
+            + suffix
+        )
+    if program == STEP5D_ABLATION_V27_STAGE_ID:
+        return (
+            prefix
+            + "v27 speedl_cartesian_oracle bridge runtime uses "
+            + f"{STEP5D_V27_SPEEDL_LIVE_CONTROL_SOURCE}: Step5b speedl live vx/vy/vz, "
+            + "wx/wy/wz forced to 0 for all Stage25.0, and Step5d paper/RNN outputs logged as shadow diagnostics; "
+            + suffix
+        )
+    return prefix + suffix
+
+
 def stage25_success_target_s(program: str) -> float | None:
     if program == STEP5D_ABLATION_V28_STAGE_ID:
         return STEP5D_STAGE25_V28_FULL_RUN_TARGET_S
@@ -410,24 +448,12 @@ def resolve_runtime_interface(
                 f"ack cycles={STEP5D_QDOT_CLEAR_ACK_CYCLES}; "
                 f"zero tol={STEP5D_QDOT_CLEAR_ZERO_TOL_RAD_S:g}"
             ),
-            "stage25_0": (
-                "v25/v26/v27/v28: 37..42 cartesian vx/vy/vz/wx/wy/wz when "
-                f"47={STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:g}; "
-                "v27/v28 speedl_cartesian_oracle bridge runtime uses "
-                f"{STEP5D_V27_SPEEDL_LIVE_CONTROL_SOURCE}: Step5b speedl live vx/vy/vz, "
-                "wx/wy/wz forced to 0 for all Stage25.0, and Step5d paper/RNN outputs logged as shadow diagnostics; "
-                "37..42 joint qd0..qd5 rad/s when "
-                f"47={STEP5D_STAGE25_JOINT_LAYOUT_CODE:g}; "
-                "43 cmd_valid; 44 path_time; 45 force_error; 46 pose/orientation_error. "
-                "v24 and older: 37..42 qd0..qd5 rad/s; 47 solver_status."
-            ),
+            "stage25_0": stage25_0_register_contract(selected),
         },
         hard_contract={
             "force_frame": "reaction normal for load; approach normal for posture/press direction",
             "stage25_cadence_max_gap_s": 0.020 if uses_step5b_speedl_live_source(selected) else None,
-            "stage25_speedl_orientation_policy": (
-                "shadow_only_full_stage25" if uses_step5b_speedl_live_source(selected) else None
-            ),
+            "stage25_speedl_orientation_policy": speedl_orientation_policy(selected),
             "stage25_live_control_source": (
                 STEP5D_V27_SPEEDL_LIVE_CONTROL_SOURCE if uses_step5b_speedl_live_source(selected) else None
             ),

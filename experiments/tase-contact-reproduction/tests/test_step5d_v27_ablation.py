@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 import time
@@ -20,6 +21,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 import build_step5d_liveprep as liveprep  # noqa: E402
 import kunwei_rtde_bridge as bridge  # noqa: E402
+import step5c_strict_rnn as strict_rnn  # noqa: E402
 import step5d_runtime_interface as iface  # noqa: E402
 import upload_ur_tp_package as upload  # noqa: E402
 from step5d_paper_outer_loop import Step5dOuterLoopState  # noqa: E402
@@ -73,6 +75,9 @@ def fake_v27_runtime(state: bridge.BridgeState, _args: object) -> None:
         def reset_state(self) -> None:
             return None
 
+        def warm_start(self, **_kwargs: object) -> None:
+            return None
+
         def solve(self, **_kwargs: object) -> SimpleNamespace:
             return SimpleNamespace(
                 qdot=(0.020, 0.010, -0.010, 0.004, -0.003, 0.002),
@@ -94,6 +99,9 @@ def fake_v27_runtime_with_solver_failure(state: bridge.BridgeState, _args: objec
 
     class FailingSolver:
         def reset_state(self) -> None:
+            return None
+
+        def warm_start(self, **_kwargs: object) -> None:
             return None
 
         def solve(self, **_kwargs: object) -> SimpleNamespace:
@@ -248,6 +256,17 @@ class Step5dV27AblationTest(unittest.TestCase):
         runtime = iface.resolve_runtime_interface(program=V27, root=ROOT, env={})
         self.assertEqual(runtime.hard_contract["stage25_speedl_orientation_policy"], "shadow_only_full_stage25")
         self.assertIn("wx/wy/wz forced to 0", runtime.register_contract["stage25_0"])
+
+    def test_v28_runtime_interface_records_live_step5b_orientation_follow(self) -> None:
+        self.assertEqual(iface.STEP5D_ABLATION_V28_STAGE_ID, V28)
+        self.assertEqual(liveprep.spec_for(V28).program_name, V28)
+        runtime = iface.resolve_runtime_interface(program=V28, root=ROOT, env={})
+        self.assertEqual(
+            runtime.hard_contract["stage25_speedl_orientation_policy"],
+            "step5b_orientation_follow_live_step5d_shadow",
+        )
+        self.assertIn("Step5b/step4e orientation follow wx/wy/wz", runtime.register_contract["stage25_0"])
+        self.assertNotIn("wx/wy/wz forced to 0", runtime.register_contract["stage25_0"])
 
     def test_v27_runtime_prewarm_builds_tcp_cage_before_stage25(self) -> None:
         args = bridge.parse_args(
@@ -815,6 +834,82 @@ class Step5dV27AblationTest(unittest.TestCase):
         self.assertAlmostEqual(values["_step5d_speedl_shadow_raw_vy_m_s"], 0.0015, places=9)
         self.assertAlmostEqual(values["_step5d_speedl_shadow_raw_vz_m_s"], -0.0020, places=9)
 
+    def test_speedj_rnn_resume_compute_path_warm_starts_before_solve(self) -> None:
+        args = bridge.parse_args(
+            [
+                "--no-start-command",
+                "--skip-dashboard-preflight",
+                "--bridge-mode",
+                "line",
+                "--bridge-profile",
+                V28,
+                "--bridge-path-shape",
+                "cycloid",
+                "--step5d-stage25-control-mode",
+                "speedj_rnn_live",
+            ]
+        )
+        latest_output = {
+            "actual_TCP_pose": [0.49, 0.14, 0.02, 3.14, 0.0, 0.0],
+            "actual_TCP_speed": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            "actual_q": [0.0] * 6,
+            "actual_qd": [0.0] * 6,
+            "output_double_register_35": 25.0,
+        }
+        calls: list[str] = []
+
+        class RecordingSolver:
+            def reset_state(self) -> None:
+                calls.append("reset")
+
+            def warm_start(self, **_kwargs: object) -> None:
+                calls.append("warm_start")
+
+            def solve(self, **_kwargs: object) -> SimpleNamespace:
+                calls.append("solve")
+                return SimpleNamespace(
+                    qdot=(0.020, 0.010, -0.010, 0.004, -0.003, 0.002),
+                    solver_status=40.0,
+                    residual_norm=0.012,
+                    diagnostics={
+                        "lambda_state": np.array([3.0, 4.0, 0.0, 0.0, 0.0, 0.0]),
+                        "active_bounds_mask": [True, False, False, False, False, False],
+                        "proj_input_form": "J.T @ lambda_state",
+                        "lambda_update_form": "lambda_state -= (dt / epsilon) * (J @ theta_dot_state - xdot_c)",
+                    },
+                )
+
+        state = acquired_v27_state()
+        fake_v27_runtime(state, args)
+        state.step5d_solver = RecordingSolver()
+        state.step5d_solver_lifecycle_key = "stage25_hold_zero_qdot:soft_low_contact_hold"
+        state.step5d_pending_solver_warm_start = False
+
+        with (
+            patch.object(bridge, "step5d_tcp_jacobian_base", return_value=np.eye(6)),
+            patch.object(bridge, "step5d_omega_bounds", return_value=(np.full(6, -0.05), np.full(6, 0.05))),
+            patch.object(bridge, "compute_step5d_outer_loop", side_effect=fake_v27_outer),
+            patch.object(bridge, "rnn_target_state_from_outer_loop", return_value={"shadow": True}),
+        ):
+            values = bridge.compute_bridge_values(
+                args,
+                [0.0, 0.0, -12.0, 0.0, 0.0, 0.0],
+                latest_output,
+                1.0,
+                state,
+                0.002,
+            )
+
+        self.assertEqual(calls, ["reset", "warm_start", "solve"])
+        self.assertFalse(state.step5d_pending_solver_warm_start)
+        self.assertEqual(state.step5d_solver_lifecycle_key, "stage25_pass_solver")
+        self.assertEqual(values["_step5d_stage25_control_mode"], "speedj_rnn_live")
+        self.assertIn("solver_warm_start", values["_step5d_intervention_reason"])
+        self.assertEqual(values["step4e_cmd_valid"], 1.0)
+        self.assertAlmostEqual(values["_step5d_rnn_raw_qd0_rad_s"], 0.020, places=9)
+        self.assertAlmostEqual(values["_step5d_rnn_raw_qd1_rad_s"], 0.010, places=9)
+        self.assertAlmostEqual(values["_step5d_rnn_raw_qd3_rad_s"], 0.004, places=9)
+
     def test_v27_speedl_shadow_solver_failure_keeps_live_source_diagnostics(self) -> None:
         args = bridge.parse_args(
             [
@@ -887,6 +982,86 @@ class Step5dV27AblationTest(unittest.TestCase):
                 atol=1e-12,
             )
         )
+
+
+class Step5dSolverWarmStartLifecycleTest(unittest.TestCase):
+    def make_state_with_fake_solver(self) -> tuple[bridge.BridgeState, list[str]]:
+        state = bridge.BridgeState()
+        calls: list[str] = []
+        state.step5d_solver = SimpleNamespace(
+            reset_state=lambda: calls.append("reset"),
+            warm_start=lambda **kwargs: calls.append("warm_start"),
+        )
+        return state, calls
+
+    def test_lifecycle_boundary_reset_flags_pending_warm_start(self) -> None:
+        state, calls = self.make_state_with_fake_solver()
+        self.assertFalse(state.step5d_pending_solver_warm_start)
+
+        bridge.reset_step5d_solver_state_for_boundary(state, "stage25_pass_solver")
+        self.assertEqual(calls, ["reset"])
+        self.assertTrue(state.step5d_pending_solver_warm_start)
+
+        # Same boundary key is a no-op and must not re-arm the warm start.
+        state.step5d_pending_solver_warm_start = False
+        bridge.reset_step5d_solver_state_for_boundary(state, "stage25_pass_solver")
+        self.assertEqual(calls, ["reset"])
+        self.assertFalse(state.step5d_pending_solver_warm_start)
+
+        bridge.reset_step5d_solver_state_for_boundary(
+            state, "stage25_hold_zero_qdot:soft_low_contact_hold"
+        )
+        self.assertEqual(calls, ["reset", "reset"])
+        self.assertTrue(state.step5d_pending_solver_warm_start)
+
+    def test_apply_warm_start_consumes_pending_flag_once(self) -> None:
+        state, calls = self.make_state_with_fake_solver()
+        bridge.reset_step5d_solver_state_for_boundary(state, "stage25_pass_solver")
+
+        applied = bridge.apply_step5d_solver_warm_start_if_pending(
+            state,
+            jacobian=np.eye(6),
+            xdot_c=np.zeros(6),
+            omega_minus=np.full(6, -0.05),
+            omega_plus=np.full(6, 0.05),
+        )
+        self.assertTrue(applied)
+        self.assertEqual(calls, ["reset", "warm_start"])
+        self.assertFalse(state.step5d_pending_solver_warm_start)
+
+        applied_again = bridge.apply_step5d_solver_warm_start_if_pending(
+            state,
+            jacobian=np.eye(6),
+            xdot_c=np.zeros(6),
+            omega_minus=np.full(6, -0.05),
+            omega_plus=np.full(6, 0.05),
+        )
+        self.assertFalse(applied_again)
+        self.assertEqual(calls, ["reset", "warm_start"])
+
+    def test_warm_start_places_real_solver_at_entry_command_fixed_point(self) -> None:
+        state = bridge.BridgeState()
+        truth = tempfile.NamedTemporaryFile("w", suffix=".json", encoding="utf-8", delete=False)
+        json.dump({"strict_rnn_enabled": True, "pending_pdf_verify": [], "sections": {}}, truth)
+        truth.close()
+        self.addCleanup(lambda: Path(truth.name).unlink(missing_ok=True))
+        state.step5d_solver = strict_rnn.StrictTaseRnnSolver(
+            strict_rnn.StrictRnnConfig(paper_truth_path=Path(truth.name))
+        )
+        bridge.reset_step5d_solver_state_for_boundary(state, "stage25_pass_solver")
+
+        jacobian = np.eye(6)
+        jacobian[0, 4] = -0.8
+        xdot_c = np.array([1e-4, 0.0, 0.0, 0.0, 6e-3, 0.0])
+        applied = bridge.apply_step5d_solver_warm_start_if_pending(
+            state,
+            jacobian=jacobian,
+            xdot_c=xdot_c,
+            omega_minus=np.full(6, -0.05),
+            omega_plus=np.full(6, 0.05),
+        )
+        self.assertTrue(applied)
+        np.testing.assert_allclose(jacobian @ state.step5d_solver.theta_dot_state, xdot_c, atol=1e-6)
 
 
 if __name__ == "__main__":

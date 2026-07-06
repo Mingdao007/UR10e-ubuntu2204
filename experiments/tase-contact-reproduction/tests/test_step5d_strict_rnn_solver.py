@@ -173,6 +173,75 @@ class Step5dStrictRnnSolverTest(unittest.TestCase):
         np.testing.assert_allclose(solver.theta_dot_state, theta_before)
         np.testing.assert_allclose(solver.lambda_state, lambda_before)
 
+    def test_warm_start_tracks_command_from_first_tick(self) -> None:
+        solver = self.make_solver()
+        # Linear/angular-coupled J: from zero state the transient Cartesian
+        # velocity follows J@J.T@xdot_c, whose x component opposes the +x press
+        # when the command is angular-dominant (the v28 speedj_rnn_live shape).
+        jacobian = np.eye(6)
+        jacobian[0, 4] = -0.8
+        xdot_c = np.array([1e-4, 0.0, 0.0, 0.0, 6e-3, 0.0])
+        lower = np.full(6, -0.15)
+        upper = np.full(6, 0.15)
+        self.assertLess(float((jacobian @ jacobian.T @ xdot_c)[0]), 0.0)
+
+        cold = solver
+        cold_press = []
+        for _ in range(50):
+            diag = cold.step(J=jacobian, xdot_c=xdot_c, omega_minus=lower, omega_plus=upper, dt=0.002, epsilon=0.022, r=0.2)
+            cold_press.append(float((jacobian @ np.asarray(diag.theta_dot_state))[0]))
+        self.assertLess(min(cold_press), -1e-5)
+
+        warm = self.make_solver()
+        warm.warm_start(J=jacobian, xdot_c=xdot_c, omega_minus=lower, omega_plus=upper)
+        first = warm.step(J=jacobian, xdot_c=xdot_c, omega_minus=lower, omega_plus=upper, dt=0.002, epsilon=0.022, r=0.2)
+        twist = jacobian @ np.asarray(first.theta_dot_state)
+        np.testing.assert_allclose(twist, xdot_c, atol=1e-6)
+        self.assertGreaterEqual(float(twist[0]), 0.0)
+        for _ in range(50):
+            diag = warm.step(J=jacobian, xdot_c=xdot_c, omega_minus=lower, omega_plus=upper, dt=0.002, epsilon=0.022, r=0.2)
+            self.assertGreater(float((jacobian @ np.asarray(diag.theta_dot_state))[0]), -1e-6)
+
+    def test_warm_start_clips_theta_dot_to_omega_bounds(self) -> None:
+        solver = self.make_solver()
+        jacobian = np.eye(6)
+        xdot_c = np.array([0.05, -0.05, 0.0, 0.0, 0.0, 0.0])
+        lower = np.full(6, -0.02)
+        upper = np.full(6, 0.02)
+        solver.warm_start(
+            J=jacobian,
+            xdot_c=xdot_c,
+            omega_minus=lower,
+            omega_plus=upper,
+        )
+        expected_lambda = np.linalg.solve(jacobian @ jacobian.T + (1e-4**2) * np.eye(6), xdot_c)
+        expected_theta = np.clip(jacobian.T @ expected_lambda, lower, upper)
+        np.testing.assert_allclose(solver.lambda_state, expected_lambda)
+        np.testing.assert_allclose(solver.theta_dot_state, expected_theta)
+        self.assertGreater(float(np.linalg.norm(jacobian @ solver.theta_dot_state - xdot_c)), 0.04)
+
+        diag = solver.step(
+            J=jacobian,
+            xdot_c=xdot_c,
+            omega_minus=lower,
+            omega_plus=upper,
+            dt=0.002,
+            epsilon=0.022,
+            r=0.2,
+        )
+        self.assertEqual(diag.active_bounds_mask[:2], (True, True))
+        self.assertGreater(diag.constraint_residual_norm, 0.04)
+
+    def test_warm_start_rejects_nonfinite_inputs(self) -> None:
+        solver = self.make_solver()
+        with self.assertRaises(ValueError):
+            solver.warm_start(
+                J=np.full((6, 6), np.nan),
+                xdot_c=np.zeros(6),
+                omega_minus=np.full(6, -0.15),
+                omega_plus=np.full(6, 0.15),
+            )
+
     def test_reset_state_clears_theta_dot_and_lambda(self) -> None:
         solver = self.make_solver()
         solver.theta_dot_state = np.array([0.05, -0.04, 0.03, -0.02, 0.01, -0.005])
