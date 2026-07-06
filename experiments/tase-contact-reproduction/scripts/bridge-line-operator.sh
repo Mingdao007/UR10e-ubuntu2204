@@ -75,7 +75,7 @@ BRIDGE_SOCKET_TIMEOUT_S="${BRIDGE_SOCKET_TIMEOUT_S:-${STEP5D_SOCKET_TIMEOUT_S:-0
 BRIDGE_BACKGROUND_PUSH_AFTER_LIVE="${BRIDGE_BACKGROUND_PUSH_AFTER_LIVE:-0}"
 BRIDGE_NORMAL_COMMAND_SIGN="${BRIDGE_NORMAL_COMMAND_SIGN:-1}"
 if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
-  BRIDGE_DURATION_S="3"
+  BRIDGE_DURATION_S="180"
   BRIDGE_BASELINE_S="1"
   BRIDGE_REZERO_S="0.25"
   BRIDGE_RTDE_HZ="500"
@@ -298,7 +298,7 @@ if [[ "${BRIDGE_PROFILE}" == "step6b_v2" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step6/step6b_contact_eight_baseline_v2.urp"
 fi
 if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
-  SEARCH_DESCRIPTION="Step5d strict RNN no-contact P0 capture: no contact search, no preload, no zero/tare, direct Stage25.95 register-clear barrier then short Stage25.0 layout-524 speedj_rnn_live warm-start capture"
+  SEARCH_DESCRIPTION="Step5d strict RNN no-contact P0 capture: no contact search, no preload, no zero/tare, wait for bridge heartbeat/sensor_ok, direct Stage25.95 register-clear barrier then 60s Stage25.0 layout-524 speedj_rnn_live warm-start capture"
 elif [[ "${BRIDGE_PROFILE}" == "p0_geo_v1" ]]; then
   SEARCH_DESCRIPTION="P0-geo ball-first contact witness: vertical TCP entry, far 15 mm/s until 80 mm depth, then near 3 mm/s until first 1-1.5 N contact or 92 mm max depth; after contact it holds still for visual confirmation, retracts base-Z 2 mm, and never runs attitude, 5N acquisition, or line motion"
 elif [[ "${BRIDGE_PROFILE}" == "p0_ball_vs_cyl_v1" ]]; then

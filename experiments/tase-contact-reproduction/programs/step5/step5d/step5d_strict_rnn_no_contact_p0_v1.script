@@ -1,5 +1,5 @@
-# VERSION: 2026-07-06T2146HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V1
-# GENERATED_AT_LOCAL: 2026-07-06T21:46:40+08:00
+# VERSION: 2026-07-06T2325HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V1
+# GENERATED_AT_LOCAL: 2026-07-06T23:25:43+08:00
 # PURPOSE: NO_CONTACT_P0_CAPTURE; no contact search, no preload, no zero/tare, direct Stage25 strict RNN warm-start capture.
 # TP_ROLE: no_contact_stage25_executor_and_guard_only; bridge computes Step5d strict RNN speedj command.
 # REGISTER_CONTRACT: Stage 25.95 requires bridge-cleared registers 37..47 before Stage25.0. Stage25.0 reads register 47 as layout tag: 523.0=Cartesian speedl vx/vy/vz/wx/wy/wz, 524.0=joint speedj qd0..qd5; 43 cmd_valid, 44 path_time_s.
@@ -13,12 +13,17 @@ def codex_abs(x):
   return x
 end
 
-def codex_wait_for_fresh_heartbeat(timeout_s):
+def codex_wait_for_bridge_ready(timeout_s):
   local t_wait = 0.0
   local last_heartbeat = read_input_float_register(26)
+  local heartbeat_seen = False
   while t_wait < timeout_s:
     local heartbeat = read_input_float_register(26)
     if heartbeat != last_heartbeat:
+      heartbeat_seen = True
+      last_heartbeat = heartbeat
+    end
+    if heartbeat_seen and read_input_float_register(27) >= 0.5:
       return True
     end
     t_wait = t_wait + get_steptime()
@@ -51,7 +56,7 @@ def codex_step5d_strict_rnn_no_contact_p0_v1():
   write_output_float_register(35, 20.0)
   write_output_float_register(47, 0.0)
   local stop_reason = 0.0
-  local bridge_ready = codex_wait_for_fresh_heartbeat(10.0)
+  local bridge_ready = codex_wait_for_bridge_ready(60.0)
   if not bridge_ready:
     stop_reason = 2.0
   end
@@ -115,7 +120,7 @@ def codex_step5d_strict_rnn_no_contact_p0_v1():
     local cartesian_layout_code = 523.000
     local joint_layout_code = 524.000
     local cmd_valid_grace_s = 1.000
-    local stage25_runtime_limit_s = 1.000
+    local stage25_runtime_limit_s = 65.000
     local stage25_command_consumed = 0
     while stop_reason == 0.0:
       local heartbeat2 = read_input_float_register(26)

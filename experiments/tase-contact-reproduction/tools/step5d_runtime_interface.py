@@ -57,7 +57,7 @@ STEP5D_STAGE25_V27_FIX_VALIDATION_TARGET_S = 10.0
 STEP5D_STAGE25_V28_FULL_RUN_TARGET_S = 60.0
 STEP5D_STAGE25_V27_RUNTIME_LIMIT_S = 15.0
 STEP5D_STAGE25_V28_RUNTIME_LIMIT_S = 65.0
-STEP5D_NO_CONTACT_P0_DURATION_S = 3.0
+STEP5D_NO_CONTACT_P0_DURATION_S = 180.0
 STEP5D_NO_CONTACT_P0_TARGET_FORCE_N = 1.0
 STEP5D_NO_CONTACT_P0_BASELINE_S = 1.0
 STEP5D_NO_CONTACT_P0_REZERO_S = 0.25
@@ -251,7 +251,7 @@ def stage25_0_register_contract(program: str) -> str:
 
 def stage25_success_target_s(program: str) -> float | None:
     if program == STEP5D_NO_CONTACT_P0_STAGE_ID:
-        return 1.0
+        return STEP5D_STAGE25_V28_FULL_RUN_TARGET_S
     if program == STEP5D_ABLATION_V28_STAGE_ID:
         return STEP5D_STAGE25_V28_FULL_RUN_TARGET_S
     if program == STEP5D_ABLATION_V27_STAGE_ID:
@@ -261,7 +261,7 @@ def stage25_success_target_s(program: str) -> float | None:
 
 def stage25_runtime_limit_s(program: str) -> float | None:
     if program == STEP5D_NO_CONTACT_P0_STAGE_ID:
-        return 1.0
+        return STEP5D_STAGE25_V28_RUNTIME_LIMIT_S
     if program == STEP5D_ABLATION_V28_STAGE_ID:
         return STEP5D_STAGE25_V28_RUNTIME_LIMIT_S
     if program == STEP5D_ABLATION_V27_STAGE_ID:

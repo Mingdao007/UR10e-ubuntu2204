@@ -98,18 +98,23 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertIn("write_output_float_register(35, 25.0)", script)
         self.assertIn("local joint_layout_code = 524.000", script)
         self.assertIn("speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]", script)
+        self.assertIn("codex_wait_for_bridge_ready(60.0)", script)
+        self.assertNotIn("codex_wait_for_sensor_ok(60.0)", script)
+        self.assertIn("local stage25_runtime_limit_s = 65.000", script)
         self.assertNotIn("write_output_float_register(35, 24.0)", script)
         self.assertNotIn("write_output_float_register(35, 25.3)", script)
         self.assertNotIn("codex_step5d_down_search", script)
         self.assertNotIn("deadband contact acquire", txt)
         self.assertEqual(spec.controller_dir, "/programs/andyl/kunwei/step5")
 
-    def test_no_contact_p0_runtime_interface_defaults_are_short_and_no_contact(self) -> None:
+    def test_no_contact_p0_runtime_interface_defaults_follow_step5d_full_window(self) -> None:
         runtime = iface.resolve_runtime_interface(program=iface.STEP5D_NO_CONTACT_P0_STAGE_ID, root=ROOT, env={})
 
         self.assertEqual(runtime.program, iface.STEP5D_NO_CONTACT_P0_STAGE_ID)
         self.assertEqual(runtime.stage25_control_mode, "speedj_rnn_live")
-        self.assertEqual(runtime.bridge_defaults.duration_s, 3.0)
+        self.assertEqual(runtime.bridge_defaults.duration_s, 180.0)
+        self.assertEqual(runtime.hard_contract["stage25_success_target_s"], 60.0)
+        self.assertEqual(runtime.hard_contract["stage25_runtime_limit_s"], 65.0)
         self.assertEqual(runtime.bridge_defaults.max_normal_force_n, 2.0)
         self.assertEqual(runtime.bridge_defaults.max_force_norm_n, 5.0)
         self.assertEqual(runtime.bridge_defaults.max_torque_norm_nm, 3.0)
@@ -124,6 +129,11 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertFalse(stage["contact"])
         self.assertTrue(stage["bridge"])
         self.assertTrue(stage["strict_rnn"])
+        self.assertEqual(stage["duration_s"], 60.0)
+        self.assertEqual(stage["guard"]["stage25_success_target_s"], 60.0)
+        self.assertEqual(stage["guard"]["stage25_runtime_limit_s"], 65.0)
+        self.assertEqual(stage["runtime_interface_ref"]["stage25_success_target_s"], 60.0)
+        self.assertEqual(stage["runtime_interface_ref"]["stage25_runtime_limit_s"], 65.0)
 
         ref = step5_table.step5_path_reference(
             iface.STEP5D_NO_CONTACT_P0_STAGE_ID,
@@ -177,7 +187,7 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertEqual(runtime.preload_gate.force_norm_max_n, 5.0)
         self.assertEqual(runtime.preload_gate.hold_s, 0.0)
         self.assertEqual(runtime.preload_gate.timeout_s, 1.0)
-        self.assertEqual(runtime.bridge_defaults.duration_s, 3.0)
+        self.assertEqual(runtime.bridge_defaults.duration_s, 180.0)
         self.assertEqual(runtime.bridge_defaults.target_force_n, 1.0)
         self.assertEqual(runtime.bridge_defaults.baseline_s, 1.0)
         self.assertEqual(runtime.bridge_defaults.rezero_s, 0.25)
@@ -197,7 +207,7 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertEqual(runtime.bridge_defaults.angular_limit_rad_s, 0.015)
         self.assertEqual(runtime.bridge_defaults.normal_min_force_n, 0.001)
 
-    def test_no_contact_p0_bridge_parse_args_uses_short_no_contact_defaults(self) -> None:
+    def test_no_contact_p0_bridge_parse_args_uses_full_window_no_contact_defaults(self) -> None:
         args = bridge.parse_args(
             [
                 "--no-start-command",
@@ -237,7 +247,7 @@ class Step5dNoContactP0Test(unittest.TestCase):
 
         self.assertEqual(args.bridge_profile, iface.STEP5D_NO_CONTACT_P0_STAGE_ID)
         self.assertEqual(args.step5d_stage25_control_mode, "speedj_rnn_live")
-        self.assertEqual(args.duration_s, 3.0)
+        self.assertEqual(args.duration_s, 180.0)
         self.assertEqual(args.baseline_s, 1.0)
         self.assertEqual(args.rezero_s, 0.25)
         self.assertEqual(args.target_force_n, 1.0)
@@ -515,6 +525,7 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertIn("BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE=1", script)
         self.assertIn("verify_step5d_no_contact_p0.py", script)
         self.assertIn("step5d_no_contact_p0_summary", script)
+        self.assertIn("BRIDGE_DURATION_S=180", script)
         self.assertNotIn("contact-bridge", script)
 
     def test_capture_bridge_refuses_without_p0_confirm_before_starting_bridge(self) -> None:
@@ -598,7 +609,7 @@ out.write_text(json.dumps({{"ok": True}}), encoding="utf-8")
             )
             self.assertEqual(bridge_env["BRIDGE_PROFILE"], "step5d_strict_rnn_no_contact_p0_v1")
             self.assertEqual(bridge_env["BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE"], "1")
-            self.assertEqual(bridge_env["BRIDGE_DURATION_S"], "3")
+            self.assertEqual(bridge_env["BRIDGE_DURATION_S"], "180")
             self.assertEqual(bridge_env["BRIDGE_RTDE_HZ"], "500")
             self.assertEqual(bridge_env["BRIDGE_SENSOR_STALE_S"], "0.10")
             self.assertEqual(bridge_env["BRIDGE_SOCKET_TIMEOUT_S"], "0.0")

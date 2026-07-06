@@ -4,14 +4,15 @@ Open on Teach Pendant only after the no-contact P0 capture package is explicitly
   /programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v1.urp
 
 Version:
-  2026-07-06T2146HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V1
+  2026-07-06T2325HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V1
 
 Boundary:
   NO_CONTACT_P0_CAPTURE diagnostic package; not a contact reproduction claim.
   No contact search, no first-contact latch, no force-based acquire stage, no
   preload gate, no zero_ftsensor(), no Kunwei tare/zero/config, no TCP/payload write.
-  The program waits for a fresh bridge heartbeat, runs Stage 25.95 register
-  clear, then enters a short Stage 25.0 command-consumption loop in open air.
+  The program waits up to 60 s total for a fresh bridge heartbeat and
+  sensor_ok, runs Stage 25.95 register clear, then enters Stage 25.0 in open
+  air for a 60 s target window with a 65 s runtime guard.
   Stage 25.95 requires cmd_valid=0, registers 37..42 near zero
   (<= 0.000500), and register 47 not equal to
   521.0, 523.0, or 524.0.
@@ -28,7 +29,7 @@ Bridge profile:
   --step4e-version step5d_strict_rnn_no_contact_p0_v1 --step4e-path-shape cycloid
   --target-force-n 1.0
   --step4e-normal-follow-mode locked
-  --duration-s 3.0
+  --duration-s 180.0
 
 Safety:
   speedl Cartesian linear cap: 0.004 m/s

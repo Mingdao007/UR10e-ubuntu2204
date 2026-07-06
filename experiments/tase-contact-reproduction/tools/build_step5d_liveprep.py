@@ -112,8 +112,8 @@ ABLATION_SPECS = {
         stamp_token="STEP5D_STRICT_RNN_NO_CONTACT_P0_V1",
         cartesian_angular_cap_rad_s=0.015,
         default_stage25_control_mode="speedj_rnn_live",
-        stage25_success_target_s=1.0,
-        stage25_runtime_limit_s=1.0,
+        stage25_success_target_s=STEP5D_STAGE25_V28_FULL_RUN_TARGET_S,
+        stage25_runtime_limit_s=STEP5D_STAGE25_V28_RUNTIME_LIMIT_S,
         controller_dir="/programs/andyl/kunwei/step5",
         no_contact_p0=True,
     ),
@@ -755,12 +755,17 @@ def codex_abs(x):
   return x
 end
 
-def codex_wait_for_fresh_heartbeat(timeout_s):
+def codex_wait_for_bridge_ready(timeout_s):
   local t_wait = 0.0
   local last_heartbeat = read_input_float_register(26)
+  local heartbeat_seen = False
   while t_wait < timeout_s:
     local heartbeat = read_input_float_register(26)
     if heartbeat != last_heartbeat:
+      heartbeat_seen = True
+      last_heartbeat = heartbeat
+    end
+    if heartbeat_seen and read_input_float_register(27) >= 0.5:
       return True
     end
     t_wait = t_wait + get_steptime()
@@ -793,7 +798,7 @@ def codex_{spec.program_name}():
   write_output_float_register(35, 20.0)
   write_output_float_register(47, 0.0)
   local stop_reason = 0.0
-  local bridge_ready = codex_wait_for_fresh_heartbeat(10.0)
+  local bridge_ready = codex_wait_for_bridge_ready(60.0)
   if not bridge_ready:
     stop_reason = 2.0
   end
@@ -1048,8 +1053,9 @@ Boundary:
   NO_CONTACT_P0_CAPTURE diagnostic package; not a contact reproduction claim.
   No contact search, no first-contact latch, no force-based acquire stage, no
   preload gate, no zero_ftsensor(), no Kunwei tare/zero/config, no TCP/payload write.
-  The program waits for a fresh bridge heartbeat, runs Stage 25.95 register
-  clear, then enters a short Stage 25.0 command-consumption loop in open air.
+  The program waits up to 60 s total for a fresh bridge heartbeat and
+  sensor_ok, runs Stage 25.95 register clear, then enters Stage 25.0 in open
+  air for a 60 s target window with a 65 s runtime guard.
   Stage 25.95 requires cmd_valid=0, registers 37..42 near zero
   (<= {QDOT_CLEAR_ZERO_TOL_RAD_S:.6f}), and register 47 not equal to
   {STEP5D_LINE_ENTRY_PARAM_VALID_CODE:.1f}, {STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:.1f}, or {STEP5D_STAGE25_JOINT_LAYOUT_CODE:.1f}.
@@ -1066,7 +1072,7 @@ Bridge profile:
   --step4e-version {spec.bridge_version} --step4e-path-shape cycloid
   --target-force-n 1.0
   --step4e-normal-follow-mode locked
-  --duration-s 3.0
+  --duration-s 180.0
 
 Safety:
   speedl Cartesian linear cap: {CARTESIAN_LINEAR_CAP_M_S:.3f} m/s

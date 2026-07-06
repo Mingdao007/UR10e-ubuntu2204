@@ -44,7 +44,7 @@ case "$1" in
   capture-ready)
     echo "Step5d strict RNN no-contact P0 capture readiness: no bridge is started by this command." >&2
     BRIDGE_PROFILE="${P0_PROFILE}" \
-    BRIDGE_DURATION_S=3 \
+    BRIDGE_DURATION_S=180 \
     BRIDGE_BASELINE_S=1 \
     BRIDGE_REZERO_S=0.25 \
     BRIDGE_RTDE_HZ=500 \
@@ -82,7 +82,7 @@ case "$1" in
     BRIDGE_PROFILE="${P0_PROFILE}" \
     BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE=1 \
     BRIDGE_STAGE25_ONLY=1 \
-    BRIDGE_DURATION_S=3 \
+    BRIDGE_DURATION_S=180 \
     BRIDGE_BASELINE_S=1 \
     BRIDGE_REZERO_S=0.25 \
     BRIDGE_RTDE_HZ=500 \
