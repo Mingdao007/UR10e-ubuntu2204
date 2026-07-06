@@ -4,9 +4,11 @@
 from __future__ import annotations
 
 import json
+import io
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -16,6 +18,14 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 import upload_ur_tp_package as upload  # noqa: E402
 import build_step5d_liveprep as liveprep  # noqa: E402
+
+
+def manifest_from_upload_output(output: str) -> dict:
+    marker = '{\n  "status":'
+    start = output.rfind(marker)
+    if start < 0:
+        raise AssertionError(f"upload manifest JSON not found in output:\n{output}")
+    return json.loads(output[start:])
 
 
 class UploadUrTpPackageReuseTest(unittest.TestCase):
@@ -300,7 +310,85 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
             )
 
             with self.assertRaisesRegex(RuntimeError, "refusing to upload local-only TP candidate"):
-                upload.main([program, "--target-dir", target_dir, "--local-dir", str(local_dir)])
+                upload.main(
+                    [
+                        program,
+                        "--target-dir",
+                        target_dir,
+                        "--override-table",
+                        "--override-reason",
+                        "offline demo fixture",
+                        "--local-dir",
+                        str(local_dir),
+                    ]
+                )
+
+    def test_upload_derives_step5d_p0_target_from_table_without_target_dir(self) -> None:
+        out = io.StringIO()
+
+        with redirect_stdout(out):
+            result = upload.main(
+                [
+                    "step5d_strict_rnn_no_contact_p0_v1",
+                    "--local-dir",
+                    str(ROOT / "programs" / "step5" / "step5d"),
+                    "--dry-run",
+                ]
+            )
+
+        self.assertEqual(result, 0)
+        manifest = manifest_from_upload_output(out.getvalue())
+        self.assertEqual(manifest["target_dir"], "/programs/andyl/kunwei/step5")
+        self.assertEqual(manifest["target_source"], "table")
+        self.assertEqual(manifest["target_resolution"]["row_id"], "step5d_strict_rnn_no_contact_p0_v1")
+
+    def test_upload_rejects_explicit_target_dir_without_override(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "explicit --target-dir requires --override-table"):
+            upload.main(
+                [
+                    "step5d_strict_rnn_no_contact_p0_v1",
+                    "--local-dir",
+                    str(ROOT / "programs" / "step5" / "step5d"),
+                    "--target-dir",
+                    "/programs/andyl/kunwei/step5/step5d",
+                    "--dry-run",
+                ]
+            )
+
+    def test_upload_override_requires_reason_and_records_manifest_reason(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "--override-reason is required"):
+            upload.main(
+                [
+                    "step5d_strict_rnn_no_contact_p0_v1",
+                    "--local-dir",
+                    str(ROOT / "programs" / "step5" / "step5d"),
+                    "--target-dir",
+                    "/programs/andyl/kunwei/step5",
+                    "--override-table",
+                    "--dry-run",
+                ]
+            )
+
+        out = io.StringIO()
+        with redirect_stdout(out):
+            result = upload.main(
+                [
+                    "step5d_strict_rnn_no_contact_p0_v1",
+                    "--local-dir",
+                    str(ROOT / "programs" / "step5" / "step5d"),
+                    "--target-dir",
+                    "/programs/andyl/kunwei/step5",
+                    "--override-table",
+                    "--override-reason",
+                    "operator recovery drill",
+                    "--dry-run",
+                ]
+            )
+
+        self.assertEqual(result, 0)
+        manifest = manifest_from_upload_output(out.getvalue())
+        self.assertEqual(manifest["target_source"], "override")
+        self.assertEqual(manifest["target_override_reason"], "operator recovery drill")
 
     def test_local_only_candidate_marker_validates_exact_triplet_sha(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

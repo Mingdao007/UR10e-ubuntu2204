@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Any
 
 from tase_protocol_table import resolve_experiment_profile
@@ -135,6 +136,30 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         for ext in (".script", ".txt", ".urp"):
             if delivery_sha.get(ext) != current_sha.get(ext):
                 failures.append(f"current row package sha mismatch for {ext}")
+
+    p0_capture = current.get("bridge_trigger", {}).get("no_contact_p0_capture", {})
+    p0_profile = p0_capture.get("profile")
+    if p0_profile:
+        p0_row = step5_rows.get(str(p0_profile))
+        if p0_row is None:
+            failures.append(f"strict RNN no-contact P0 row is missing from Step5 table: {p0_profile}")
+        else:
+            p0_delivery = p0_row.get("package_delivery", {})
+            capture_target = p0_capture.get("controller_target")
+            capture_dir = str(PurePosixPath(str(capture_target)).parent) if capture_target else None
+            if p0_delivery.get("program_basename") != p0_profile:
+                failures.append("strict RNN no-contact P0 package_delivery.program_basename does not match current capture profile")
+            if p0_delivery.get("controller_target") != capture_target:
+                failures.append("strict RNN no-contact P0 package_delivery.controller_target does not match current capture pointer")
+            if p0_delivery.get("controller_dir") != capture_dir:
+                failures.append("strict RNN no-contact P0 package_delivery.controller_dir does not match current capture pointer")
+            if p0_delivery.get("controller_readback_manifest") != p0_capture.get("controller_readback_manifest"):
+                failures.append("strict RNN no-contact P0 package_delivery.controller_readback_manifest does not match current capture pointer")
+            p0_capture_sha = p0_capture.get("sha256") or {}
+            p0_delivery_sha = p0_delivery.get("sha256") or {}
+            for ext in (".script", ".txt", ".urp"):
+                if p0_delivery_sha.get(ext) != p0_capture_sha.get(ext):
+                    failures.append(f"strict RNN no-contact P0 package sha mismatch for {ext}")
 
     for table_name, rows in (("step5", step5_rows), ("step6", step6_rows)):
         for row_id, row in rows.items():

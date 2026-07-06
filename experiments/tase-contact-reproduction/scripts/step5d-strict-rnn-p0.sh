@@ -31,6 +31,51 @@ Boundary:
 EOF
 }
 
+p0_table_preflight() {
+  python3 - "${ROOT}/config/current_stage.json" "${ROOT}/config/step5_stage_table.json" "${P0_PROFILE}" <<'PY' || exit 24
+import json
+import sys
+from pathlib import PurePosixPath
+
+current_path, table_path, profile = sys.argv[1:4]
+current = json.loads(open(current_path, encoding="utf-8").read())
+table = json.loads(open(table_path, encoding="utf-8").read())
+capture = current.get("bridge_trigger", {}).get("no_contact_p0_capture", {})
+if capture.get("profile") != profile:
+    raise SystemExit(f"refusing no-contact P0: current capture profile is {capture.get('profile')}, expected {profile}")
+row = next((row for row in table.get("stages", []) if row.get("id") == profile), None)
+if row is None:
+    raise SystemExit(f"refusing no-contact P0: missing stage table row {profile}")
+delivery = row.get("package_delivery", {})
+guard = row.get("guard", {})
+target = capture.get("controller_target")
+controller_dir = str(PurePosixPath(str(target)).parent) if target else None
+checks = {
+    "controller_target": delivery.get("controller_target") == target,
+    "controller_dir": delivery.get("controller_dir") == controller_dir,
+    "readback_manifest": delivery.get("controller_readback_manifest") == capture.get("controller_readback_manifest"),
+}
+for ext in (".script", ".txt", ".urp"):
+    checks[f"sha256 {ext}"] = delivery.get("sha256", {}).get(ext) == capture.get("sha256", {}).get(ext)
+failed = [key for key, ok in checks.items() if not ok]
+if failed:
+    raise SystemExit(f"refusing no-contact P0: table/current mismatch: {failed}")
+print(f"[operator] P0 table preflight: program={profile}")
+print(f"[operator] P0 table preflight: controller_dir={controller_dir} controller_target={target}")
+print(
+    "[operator] P0 table preflight: "
+    f"duration_s={row.get('duration_s')} "
+    f"stage25_success_target_s={guard.get('stage25_success_target_s')} "
+    f"stage25_runtime_limit_s={guard.get('stage25_runtime_limit_s')}"
+)
+sha = capture.get("sha256", {})
+print(
+    "[operator] P0 table preflight: "
+    f"sha256 .script={sha.get('.script')} .txt={sha.get('.txt')} .urp={sha.get('.urp')}"
+)
+PY
+}
+
 if [[ $# -lt 1 ]]; then
   usage
   exit 2
@@ -43,6 +88,7 @@ case "$1" in
     ;;
   capture-ready)
     echo "Step5d strict RNN no-contact P0 capture readiness: no bridge is started by this command." >&2
+    p0_table_preflight
     BRIDGE_PROFILE="${P0_PROFILE}" \
     BRIDGE_DURATION_S=180 \
     BRIDGE_BASELINE_S=1 \
@@ -74,6 +120,7 @@ case "$1" in
       echo "refusing no-contact P0 bridge start: set STEP5D_P0_CONFIRM='${P0_CONFIRM_TOKEN}'"
       exit 40
     fi
+    p0_table_preflight
     tmp_log="$(mktemp)"
     cleanup() {
       rm -f "${tmp_log}"

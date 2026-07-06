@@ -57,6 +57,99 @@ def normalize_target_dir(value: str) -> str:
     return target
 
 
+def load_json_if_present(path: Path) -> dict:
+    if not path.is_file():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        die(f"invalid JSON in {path}: {exc}")
+
+
+def controller_dir_from_target(controller_target: str) -> str:
+    target = "/" + str(controller_target).strip().strip("/")
+    if not target.startswith("/programs/") or not target.endswith(".urp"):
+        die(f"invalid controller target in table: {controller_target}")
+    return normalize_target_dir(str(PurePosixPath(target).parent))
+
+
+def _target_resolution(
+    *,
+    target: str | None,
+    target_dir: str | None,
+    row_id: str,
+    source: str,
+) -> dict | None:
+    if target:
+        resolved_dir = controller_dir_from_target(target)
+        resolved_target = "/" + str(target).strip().strip("/")
+    elif target_dir:
+        resolved_dir = normalize_target_dir(target_dir)
+        resolved_target = ""
+    else:
+        return None
+    return {
+        "row_id": row_id,
+        "source": source,
+        "controller_dir": resolved_dir,
+        "controller_target": resolved_target,
+    }
+
+
+def resolve_table_target(program: str, *, root: Path = EXPERIMENT_ROOT, required: bool = True) -> dict | None:
+    current = load_json_if_present(root / "config" / "current_stage.json")
+    table = load_json_if_present(root / "config" / "step5_stage_table.json")
+
+    current_program = str(current.get("program") or current.get("current_stage_id") or "")
+    if current_program == program:
+        resolution = _target_resolution(
+            target=current.get("controller_target"),
+            target_dir=None,
+            row_id=program,
+            source="config/current_stage.json",
+        )
+        if resolution is not None:
+            return resolution
+
+    capture = current.get("bridge_trigger", {}).get("no_contact_p0_capture", {})
+    if capture.get("profile") == program:
+        resolution = _target_resolution(
+            target=capture.get("controller_target"),
+            target_dir=None,
+            row_id=program,
+            source="config/current_stage.json#bridge_trigger.no_contact_p0_capture",
+        )
+        if resolution is not None:
+            return resolution
+
+    for row in table.get("stages", []):
+        row_id = str(row.get("id") or "")
+        sections = [
+            row.get("package_delivery", {}),
+            row.get("local_delivery_evidence", {}),
+            row.get("current_binding", {}),
+            row.get("operator_lifecycle", {}),
+        ]
+        row_programs = {
+            row_id,
+            *(str(section.get("program_basename") or section.get("program") or "") for section in sections),
+        }
+        if program not in row_programs:
+            continue
+        for section in sections:
+            resolution = _target_resolution(
+                target=section.get("controller_target") or section.get("expected_program"),
+                target_dir=section.get("controller_dir"),
+                row_id=row_id,
+                source=f"config/step5_stage_table.json#stages[id={row_id}]",
+            )
+            if resolution is not None:
+                return resolution
+    if required:
+        die(f"no table controller target found for {program}; use --override-table with --override-reason only for audited recovery")
+    return None
+
+
 def sha256(path: Path) -> str:
     h = hashlib.sha256()
     with path.open("rb") as f:
@@ -1497,11 +1590,15 @@ def write_manifest(
     fresh_controller_sha_verified: bool | None = None,
     readback_source: str | None = None,
     local_candidate_marker: dict | None = None,
+    target_source: str = "table",
+    target_resolution: dict | None = None,
+    target_override_reason: str | None = None,
 ) -> None:
     manifest = {
         "status": "dry-run" if dry_run else "controller read-back verified",
         "controller": controller,
         "target_dir": target_dir,
+        "target_source": target_source,
         "local_dir": str(local_dir),
         "validation": validation,
         "sha256": shas,
@@ -1516,6 +1613,10 @@ def write_manifest(
     }
     if delivery_mode is not None:
         manifest["delivery_mode"] = delivery_mode
+    if target_resolution is not None:
+        manifest["target_resolution"] = target_resolution
+    if target_override_reason is not None:
+        manifest["target_override_reason"] = target_override_reason
     if reused_from_manifest is not None:
         manifest["skip_basis_manifest"] = str(reused_from_manifest)
     if fresh_controller_sha_verified is not None:
@@ -1540,8 +1641,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("program", help="program basename, for example step4e_seed_normal_loop_v29")
     parser.add_argument(
         "--target-dir",
-        required=True,
-        help="explicit controller directory, for example /programs/andyl/kunwei/step4/",
+        default=None,
+        help="override controller directory; requires --override-table and --override-reason",
+    )
+    parser.add_argument(
+        "--override-table",
+        action="store_true",
+        help="allow an explicit --target-dir instead of the table-resolved controller directory",
+    )
+    parser.add_argument(
+        "--override-reason",
+        default="",
+        help="required audit reason when --override-table is used",
     )
     parser.add_argument("--controller", default=DEFAULT_CONTROLLER, help=f"default: {DEFAULT_CONTROLLER}")
     parser.add_argument(
@@ -1566,7 +1677,22 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     program = normalize_program(args.program)
-    target_dir = normalize_target_dir(args.target_dir)
+    table_resolution = resolve_table_target(program, required=not args.override_table)
+    target_source = "table"
+    target_override_reason = None
+    if args.target_dir:
+        if not args.override_table:
+            die("explicit --target-dir requires --override-table and --override-reason")
+        if not args.override_reason.strip():
+            die("--override-reason is required when --override-table is used")
+        target_dir = normalize_target_dir(args.target_dir)
+        target_source = "override"
+        target_override_reason = args.override_reason.strip()
+    else:
+        if args.override_table:
+            die("--override-table requires --target-dir and --override-reason")
+        assert table_resolution is not None
+        target_dir = table_resolution["controller_dir"]
     files = triplet(args.local_dir, program)
     local_sha = package_sha(files)
     local_candidate_marker = load_local_candidate_marker(args.local_dir)
@@ -1638,6 +1764,9 @@ def main(argv: list[str] | None = None) -> int:
             fresh_controller_sha_verified=None,
             readback_source=None,
             local_candidate_marker=local_candidate_marker,
+            target_source=target_source,
+            target_resolution=table_resolution,
+            target_override_reason=target_override_reason,
         )
         return 0
 
@@ -1661,6 +1790,9 @@ def main(argv: list[str] | None = None) -> int:
         fresh_controller_sha_verified=reused_from_manifest is not None,
         readback_source=readback_source,
         local_candidate_marker=local_candidate_marker,
+        target_source=target_source,
+        target_resolution=table_resolution,
+        target_override_reason=target_override_reason,
     )
     if reused_from_manifest is None:
         print(f"controller read-back verified: {readback_dir}")

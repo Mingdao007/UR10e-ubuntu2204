@@ -11,7 +11,6 @@ READBACK_GATE="${ROOT}/tools/verify_step5d_current_binding.py"
 PROMOTE_TOOL="${ROOT}/tools/promote_step5d_current.py"
 PUBLISH_GATE="${ROOT}/tools/verify_step5d_publish_gate.py"
 OPERATOR="${SCRIPT_DIR}/step5d-liveprep-operator.sh"
-TARGET_DIR="${STEP5D_TARGET_DIR:-/programs/andyl/kunwei/step5}"
 DRYRUN_READBACK_ROOT="${STEP5D_DRYRUN_READBACK_ROOT:-/tmp/ur10e_tp_readback_dryrun}"
 LATEST_CANDIDATE_INDEX="${RUN_ROOT}/local_tp_packages/.latest_step5d_candidate.json"
 
@@ -51,23 +50,6 @@ except Exception:
 program = current.get("program") or current.get("current_stage_id") or ""
 if program:
     print(program)
-PY
-}
-
-current_target_dir() {
-  python3 - "${ROOT}/config/current_stage.json" "${TARGET_DIR}" <<'PY'
-import json
-import sys
-from pathlib import Path, PurePosixPath
-
-fallback = sys.argv[2]
-try:
-    current = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-except Exception:
-    print(fallback)
-    raise SystemExit(0)
-target = current.get("controller_target")
-print(str(PurePosixPath(str(target)).parent) if target else fallback)
 PY
 }
 
@@ -127,7 +109,6 @@ for ext in (".script", ".txt", ".urp"):
 values = {
     "program": marker["program"],
     "local_dir": str(candidate_dir),
-    "target_dir": marker["target_dir"],
 }
 for key, value in values.items():
     print(f"{key}={shlex.quote(str(value))}")
@@ -181,7 +162,6 @@ case "${mode}" in
     python3 "${BUILD_TOOL}" --local-only --output-dir "${candidate_dir}"
     record_latest_candidate "${candidate_dir}"
     python3 "${UPLOAD_TOOL}" "${program}" \
-      --target-dir "${TARGET_DIR}" \
       --local-dir "${candidate_dir}" \
       --dry-run \
       --readback-root "${DRYRUN_READBACK_ROOT}"
@@ -194,21 +174,18 @@ case "${mode}" in
     if [[ -n "${STEP5D_PACKAGE_DIR:-}" ]]; then
       program="${STEP5D_VERSION:-${current:-$(builder_program)}}"
       local_dir="${STEP5D_PACKAGE_DIR}"
-      target_dir="${STEP5D_TARGET_DIR:-$(current_target_dir)}"
     elif [[ -z "${STEP5D_VERSION:-}" && "${STEP5D_USE_LATEST_CANDIDATE:-1}" == "1" ]] && latest_env="$(latest_candidate_exports)"; then
       eval "${latest_env}"
       echo "promoting latest local-only candidate: ${program} from ${local_dir}"
     else
       program="${STEP5D_VERSION:-${current:-$(builder_program)}}"
       local_dir="${ROOT}/programs/step5"
-      target_dir="$(current_target_dir)"
     fi
     extra_args=()
     if [[ "${STEP5D_PROMOTE_DRY_RUN:-0}" == "1" ]]; then
       extra_args+=(--dry-run --readback-root "${DRYRUN_READBACK_ROOT}")
     fi
     python3 "${UPLOAD_TOOL}" "${program}" \
-      --target-dir "${target_dir}" \
       --local-dir "${local_dir}" \
       --allow-local-candidate-promote \
       "${extra_args[@]}"
@@ -216,7 +193,6 @@ case "${mode}" in
       python3 "${PROMOTE_TOOL}" \
         --root "${ROOT}" \
         --program "${program}" \
-        --target-dir "${target_dir}" \
         --local-dir "${local_dir}" \
         --json
       python3 "${READBACK_GATE}" --root "${ROOT}" --program "${program}" --json

@@ -121,6 +121,23 @@ postprocess_run "{run_dir}"
         self.assertIn("BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE", script)
         self.assertIn("step5d_live_bridge_authorized", script)
 
+    def test_no_contact_p0_wrapper_prints_table_preflight(self) -> None:
+        script = read_script("step5d-strict-rnn-p0.sh")
+
+        self.assertIn("p0_table_preflight", script)
+        self.assertIn("P0 table preflight", script)
+        self.assertIn("controller_target", script)
+        self.assertIn("sha256", script)
+        self.assertIn("duration_s", script)
+
+    def test_step5d_workflow_upload_uses_table_resolved_target(self) -> None:
+        script = read_script("step5d-workflow.sh")
+        upload_calls = [line for line in script.splitlines() if 'python3 "${UPLOAD_TOOL}"' in line]
+
+        self.assertGreaterEqual(len(upload_calls), 2)
+        self.assertNotIn('--target-dir "${TARGET_DIR}"', script)
+        self.assertNotIn('--target-dir "${target_dir}"', script)
+
     def test_no_contact_p0_fast_bridge_refuses_without_capture_env_before_start(self) -> None:
         env = os.environ.copy()
         env.update(

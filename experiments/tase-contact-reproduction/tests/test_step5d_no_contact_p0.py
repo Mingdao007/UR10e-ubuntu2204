@@ -6,6 +6,7 @@ import gzip
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -550,6 +551,7 @@ class Step5dNoContactP0Test(unittest.TestCase):
             scripts_dir.mkdir()
             tools_dir.mkdir()
             run_dir.mkdir()
+            shutil.copytree(ROOT / "config", sandbox / "config")
             wrapper = scripts_dir / "step5d-strict-rnn-p0.sh"
             wrapper.write_text((ROOT / "scripts" / "step5d-strict-rnn-p0.sh").read_text(encoding="utf-8"), encoding="utf-8")
             wrapper.chmod(0o755)

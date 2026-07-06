@@ -1,4 +1,7 @@
+import json
 import sys
+import shutil
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -20,6 +23,26 @@ class CrossStepParameterTableTest(unittest.TestCase):
 
         self.assertGreaterEqual(len(live_gates), 5)
         self.assertTrue(all(gate.get("cacheable") is False for gate in live_gates))
+
+    def test_no_contact_p0_delivery_must_match_current_capture_pointer(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            shutil.copytree(ROOT / "config", tmp_root / "config")
+            table_path = tmp_root / "config" / "step5_stage_table.json"
+            table = validator.load_json(table_path)
+            row = next(row for row in table["stages"] if row.get("id") == "step5d_strict_rnn_no_contact_p0_v1")
+            row["package_delivery"]["controller_dir"] = "/programs/andyl/kunwei/step5/step5d"
+            row["package_delivery"][
+                "controller_target"
+            ] = "/programs/andyl/kunwei/step5/step5d/step5d_strict_rnn_no_contact_p0_v1.urp"
+            table_path.write_text(json.dumps(table), encoding="utf-8")
+
+            failures = validator.validate(tmp_root)
+
+        self.assertTrue(
+            any("strict RNN no-contact P0 package_delivery.controller_target" in failure for failure in failures),
+            failures,
+        )
 
     def test_v27_failed_evidence_separates_stop_reason_from_control_classification(self) -> None:
         table = validator.load_json(ROOT / "config" / "step5_stage_table.json")
