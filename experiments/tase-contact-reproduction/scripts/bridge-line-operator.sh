@@ -14,6 +14,7 @@ BENCH_GATE="/home/andy/codex-private-skills/skills/ur10e-realsetup/scripts/check
 LONG_CHECK_TTL_S="${LONG_CHECK_TTL_S:-7200}"
 LONG_CHECK_CACHE="${LONG_CHECK_CACHE:-${RUN_ROOT}/.bridge_long_checks_cache.json}"
 STEP5D_RUNTIME_INTERFACE="${ROOT}/tools/step5d_runtime_interface.py"
+STEP5D_CURRENT_BINDING_GATE="${ROOT}/tools/verify_step5d_current_binding.py"
 BRIDGE_PROFILE="${BRIDGE_PROFILE:-${STEP4E_VERSION:-v31}}"
 
 current_step5d_profile() {
@@ -577,6 +578,16 @@ step5d_live_ready() {
   fi
 }
 
+step5d_live_bridge_authorized() {
+  if [[ "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_* ]]; then
+    python3 "${STEP5D_CURRENT_BINDING_GATE}" \
+      --root "${ROOT}" \
+      --program "${BRIDGE_PROFILE}" \
+      --stage25-control-mode "${STEP5D_STAGE25_CONTROL_MODE:-${STEP5D_STAGE25_CONTROL_MODE_DEFAULT}}" \
+      --require-live-bridge-authorization
+  fi
+}
+
 refresh_bench_gate_cache() {
   mkdir -p "$(dirname "${LONG_CHECK_CACHE}")"
   local tmp
@@ -1087,6 +1098,7 @@ Then run this mode and press Play on the Teach Pendant.
 The bridge will start automatically only after Dashboard reports that exact Step4e program running.
 WARNING
     run_bench_gate_cached
+    step5d_live_bridge_authorized
     ensure_no_existing_bridge
     wait_for_tp_play_autowatch
     run_bridge_for_mode "${RUN_ROOT}/bridge_${RUN_LABEL}_autowatch_${STAMP}" 1
@@ -1098,6 +1110,7 @@ WARNING
     fi
     step5d_live_ready
     require_bench_gate_cache
+    step5d_live_bridge_authorized
     require_rtde_quick_probe
     ensure_no_existing_bridge
     trigger_rc=0
@@ -1138,6 +1151,7 @@ WARNING
       echo "aborted"
       exit 2
     fi
+    step5d_live_bridge_authorized
     run_bench_gate_cached
     ensure_no_existing_bridge
     run_bridge_for_mode "${RUN_ROOT}/bridge_${RUN_LABEL}_${STAMP}" 0

@@ -6723,7 +6723,7 @@
         "virtual_clock_freeze": false,
         "deadband_acquire_stage": "25.3",
         "stage25_contact_policy": "Online broad AABB TCP cage remains a hard diagnostic boundary; Stage25.3 uses Step5b/Step6b evidence tube preload parameters (5-22N filtered, 3-25N raw sanity), Stage25.95 waits for bridge-cleared registers 37..47, and Stage25.0 selects Cartesian speedl or joint speedj from layout tag 47. v25/v26/v27/v28 default to speedl_cartesian_oracle with strict RNN/J(q) shadow diagnostics; v26/v27/v28 keep speedj_rnn_live as explicit follow-up modes with joint-feasibility-scaled xdot_c. v28 speedl_cartesian_oracle executes Step5b live vx/vy/vz plus Step5b/step4e orientation follow wx/wy/wz, keeps Step5d paper/RNN linear/angular outputs shadow-only, and logs Stage25.0 cadence, TP consumption echo, and bridge loop timing.",
-        "live_authorization": "current_controller_readback_verified_pending_live_bridge_run",
+        "live_authorization": "blocked_pending_no_contact_p0_and_explicit_live_trigger",
         "tp_package_status": "generated_uploaded_readback_verified_current",
         "controller_readback_status": "verified",
         "bridge_startup_policy_ref": "bridge_startup_policy",
@@ -6896,6 +6896,7 @@
         "live_bridge_authorization_required": true,
         "offline_copy_step5b_live_fix_audit_required_before_live": true,
         "strict_rnn_no_contact_p0_required_before_live": true,
+        "strict_rnn_no_contact_p0_passed": false,
         "not_a_completed_reproduction_claim": true
       },
       "notes": [

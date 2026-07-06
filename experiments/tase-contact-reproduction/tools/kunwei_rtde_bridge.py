@@ -2893,12 +2893,15 @@ def apply_step5d_solver_warm_start_if_pending(
     """
     if not state.step5d_pending_solver_warm_start or state.step5d_solver is None:
         return False
-    state.step5d_solver.warm_start(
-        J=jacobian,
-        xdot_c=xdot_c,
-        omega_minus=omega_minus,
-        omega_plus=omega_plus,
-    )
+    try:
+        state.step5d_solver.warm_start(
+            J=jacobian,
+            xdot_c=xdot_c,
+            omega_minus=omega_minus,
+            omega_plus=omega_plus,
+        )
+    except (ValueError, RuntimeError, np.linalg.LinAlgError) as exc:
+        raise RuntimeError(f"Step5d solver warm_start failed: {exc}") from exc
     state.step5d_pending_solver_warm_start = False
     return True
 
@@ -4342,15 +4345,15 @@ def compute_bridge_values(
                         }
                     )
                 target_state["xdot_c"] = step5d_outer_xdot_joint_feasible
-                if apply_step5d_solver_warm_start_if_pending(
-                    state,
-                    jacobian=jacobian,
-                    xdot_c=step5d_outer_xdot_joint_feasible,
-                    omega_minus=omega_minus,
-                    omega_plus=omega_plus,
-                ):
-                    step5d_intervention_reasons.append("solver_warm_start")
                 try:
+                    if step5d_stage25_control_mode == "speedj_rnn_live" and apply_step5d_solver_warm_start_if_pending(
+                        state,
+                        jacobian=jacobian,
+                        xdot_c=step5d_outer_xdot_joint_feasible,
+                        omega_minus=omega_minus,
+                        omega_plus=omega_plus,
+                    ):
+                        step5d_intervention_reasons.append("solver_warm_start")
                     step5d_result = state.step5d_solver.solve(actual_q=q, actual_qd=qd, target_state=target_state)
                 except (ValueError, RuntimeError) as exc:
                     if step5d_ablation_profile and step5d_stage25_control_mode == "speedl_cartesian_oracle":

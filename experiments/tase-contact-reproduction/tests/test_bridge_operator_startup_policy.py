@@ -86,12 +86,37 @@ postprocess_run "{run_dir}"
         )
         self.assertIn('READBACK_GATE="${ROOT}/tools/verify_step5d_current_binding.py"', script)
         self.assertIn("current_step5d_version()", script)
+        self.assertIn("require_live_bridge_authorization_gate", script)
+        self.assertIn("--require-live-bridge-authorization", script)
+        self.assertIn("--stage25-control-mode", script)
+
+    def test_step5d_contact_bridge_denies_speedj_rnn_live_before_bridge_start(self) -> None:
+        env = os.environ.copy()
+        env.update(
+            {
+                "STEP5D_STAGE25_CONTROL_MODE": "speedj_rnn_live",
+                "STEP5D_CONFIRM": "LIVE STEP5D STRICT RNN LIVEPREP",
+            }
+        )
+
+        completed = subprocess.run(
+            ["bash", str(ROOT / "scripts" / "step5d-liveprep-operator.sh"), "contact-bridge"],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(completed.returncode, 24, completed.stdout + completed.stderr)
+        self.assertIn("live motion is not authorized", completed.stderr or completed.stdout)
+        self.assertNotIn("bridge output:", completed.stdout)
 
     def test_step5d_bridge_path_does_not_background_git_push(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             script = f"""
-set -euo pipefail
-export BRIDGE_OPERATOR_SOURCE_ONLY=1
+	set -euo pipefail
+	export BRIDGE_OPERATOR_SOURCE_ONLY=1
 export BRIDGE_PROFILE=step5d_strict_rnn_ablation_v25
 export BRIDGE_BACKGROUND_PUSH_AFTER_LIVE=1
 source "{ROOT / 'scripts' / 'bridge-line-operator.sh'}"
@@ -108,6 +133,19 @@ maybe_start_background_push "{tmp}"
             self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
             self.assertNotIn("background git push started", completed.stdout)
             self.assertFalse((Path(tmp) / "background_git_push.log").exists())
+
+    def test_autowatch_bridge_uses_live_authorization_gate_before_start(self) -> None:
+        script = read_script("bridge-line-operator.sh")
+        autowatch_start = script.index("*-autowatch)")
+        autowatch_end = script.index("*-bridge-fast)", autowatch_start)
+        autowatch_body = script[autowatch_start:autowatch_end]
+
+        gate_idx = autowatch_body.index("step5d_live_bridge_authorized")
+        wait_idx = autowatch_body.index("wait_for_tp_play_autowatch")
+        run_idx = autowatch_body.index("run_bridge_for_mode")
+
+        self.assertLess(gate_idx, wait_idx)
+        self.assertLess(gate_idx, run_idx)
 
     def test_fast_bridge_uses_two_hour_fingerprint_cache_and_rtde_probe(self) -> None:
         script = read_script("bridge-line-operator.sh")

@@ -25,7 +25,14 @@ def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def _write_binding_fixture(root: Path, *, stage_active: bool = True) -> None:
+def _write_binding_fixture(
+    root: Path,
+    *,
+    stage_active: bool = True,
+    live_motion_authorized: bool = True,
+    strict_rnn_p0_required: bool = False,
+    strict_rnn_p0_passed: bool = False,
+) -> None:
     local_stem = root / "programs" / "step5" / PROGRAM
     local_stem.parent.mkdir(parents=True)
     contents = {
@@ -52,6 +59,12 @@ def _write_binding_fixture(root: Path, *, stage_active: bool = True) -> None:
         "status": f"{PROGRAM}_controller_readback_verified_pending_live_bridge_run",
         "delivery_manifest": manifest_rel,
         "sha256": sha,
+        "bridge_trigger": {
+            "bridge_has_started": False,
+            "live_motion_authorized": live_motion_authorized,
+            "zero_ftsensor_authorized": False,
+            "required_before_live": [],
+        },
     }
     manifest = {
         "status": "controller read-back verified",
@@ -77,6 +90,10 @@ def _write_binding_fixture(root: Path, *, stage_active: bool = True) -> None:
                 "id": PROGRAM,
                 "active": stage_active,
                 "blocked": False,
+                "acceptance": {
+                    "strict_rnn_no_contact_p0_required_before_live": strict_rnn_p0_required,
+                    "strict_rnn_no_contact_p0_passed": strict_rnn_p0_passed,
+                },
             }
         ]
     }
@@ -117,6 +134,59 @@ class Step5dCurrentBindingGateTest(unittest.TestCase):
             _write_binding_fixture(root, stage_active=False)
             with self.assertRaisesRegex(RuntimeError, "stage table row .* is not active"):
                 gate.verify_binding(root, PROGRAM)
+
+    def test_live_bridge_authorization_requires_current_stage_live_motion_flag(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            _write_binding_fixture(root, live_motion_authorized=False)
+
+            with self.assertRaisesRegex(RuntimeError, "live motion is not authorized"):
+                gate.verify_live_bridge_authorization(root, PROGRAM, "speedl_cartesian_oracle")
+
+    def test_speedj_rnn_live_authorization_requires_no_contact_p0_passed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            _write_binding_fixture(
+                root,
+                live_motion_authorized=True,
+                strict_rnn_p0_required=True,
+                strict_rnn_p0_passed=False,
+            )
+
+            with self.assertRaisesRegex(RuntimeError, "no-contact P0"):
+                gate.verify_live_bridge_authorization(root, PROGRAM, "speedj_rnn_live")
+
+    def test_speedj_rnn_live_authorization_passes_after_no_contact_p0(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            _write_binding_fixture(
+                root,
+                live_motion_authorized=True,
+                strict_rnn_p0_required=True,
+                strict_rnn_p0_passed=True,
+            )
+
+            result = gate.verify_live_bridge_authorization(root, PROGRAM, "speedj_rnn_live")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["stage25_control_mode"], "speedj_rnn_live")
+        self.assertTrue(result["live_motion_authorized"])
+        self.assertTrue(result["strict_rnn_no_contact_p0_passed"])
+
+    def test_speedl_live_authorization_does_not_require_strict_rnn_p0(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            _write_binding_fixture(
+                root,
+                live_motion_authorized=True,
+                strict_rnn_p0_required=True,
+                strict_rnn_p0_passed=False,
+            )
+
+            result = gate.verify_live_bridge_authorization(root, PROGRAM, "speedl_cartesian_oracle")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["stage25_control_mode"], "speedl_cartesian_oracle")
 
 
 if __name__ == "__main__":

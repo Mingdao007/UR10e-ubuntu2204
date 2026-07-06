@@ -690,6 +690,19 @@ def stage25_speedj_rnn_short_soft_hold_failure(result: dict[str, Any], control_m
     )
 
 
+def stage25_speedj_rnn_cold_start_evidence(attribution: dict[str, Any]) -> bool:
+    opposition_rows = int(attribution.get("approach_normal_press_unload_mismatch_rows") or 0)
+    sign_mismatch_rows = int(attribution.get("approach_normal_sign_mismatch_rows") or 0)
+    first_lambda = finite_float(attribution.get("rnn_lambda_norm_first"))
+    last_lambda = finite_float(attribution.get("rnn_lambda_norm_last"))
+    lambda_ramping = (
+        math.isfinite(first_lambda)
+        and math.isfinite(last_lambda)
+        and last_lambda > max(first_lambda * 1.25, first_lambda + 1e-6)
+    )
+    return opposition_rows > 0 or sign_mismatch_rows > 0 or lambda_ramping
+
+
 def base_analysis(csv_path: Path, run_dir: Path | None, profile: str, gate: Step5dPreloadGate) -> dict[str, Any]:
     return {
         "ok": True,
@@ -887,8 +900,9 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
                 result["reproduction_status"] = "passed_60s_step5b_equivalent_run"
                 result["acceptance_status"] = "speedl_full_run_passed"
                 result["next_action"] = (
-                    "archive v28 as the 60s Step5b-speedl-live / Step5d-shadow full-run evidence; "
-                    "do not re-enable orientation servo until the expected-normal error case is closed"
+                    "archive v28 as the 60s Step5b-speedl-live orientation-follow / Step5d-shadow "
+                    "full-run evidence; strict RNN live remains blocked pending no-contact P0 "
+                    "warm_start verification and explicit live authorization"
                 )
             else:
                 result["classification"] = "stage25_fix_validation_success"
@@ -907,16 +921,29 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
                 "keep it out of speedl full-run acceptance and compare RNN live qdot against DLS"
             )
         elif stage25_speedj_rnn_short_soft_hold_failure(result, stage25_control_mode):
-            result["classification"] = "stage25_speedj_rnn_short_soft_hold_failure"
-            result["acceptance_status"] = "failed_speedj_rnn_branch"
-            result["next_action"] = (
-                "strict RNN cold-start transient: solver state resets to zero at the Stage25 lifecycle "
-                "boundary while already preloaded, so early Cartesian velocity follows J@J.T@xdot_c and "
-                "the angular-dominant entry command unloads the contact below 5N before lambda converges "
-                "(see approach_normal_* opposition and rnn_lambda_norm_first/last still ramping); "
-                "fix offline via solver warm_start at the lifecycle boundary, then re-verify with a "
-                "no-contact P0 pass before any live retry"
+            attribution = result["stage25_control_attribution"]
+            cold_start_evidence = isinstance(attribution, dict) and stage25_speedj_rnn_cold_start_evidence(attribution)
+            result["classification"] = (
+                "stage25_speedj_rnn_short_soft_hold_failure"
+                if cold_start_evidence
+                else "stage25_speedj_rnn_soft_hold_failure"
             )
+            result["acceptance_status"] = "failed_speedj_rnn_branch"
+            if cold_start_evidence:
+                result["next_action"] = (
+                    "strict RNN cold-start transient: solver state resets to zero at the Stage25 lifecycle "
+                    "boundary while already preloaded, so early Cartesian velocity follows J@J.T@xdot_c and "
+                    "the angular-dominant entry command unloads the contact below 5N before lambda converges "
+                    "(see approach_normal_* opposition and rnn_lambda_norm_first/last still ramping); "
+                    "fix offline via solver warm_start at the lifecycle boundary, then re-verify with a "
+                    "no-contact P0 pass before any live retry"
+                )
+            else:
+                result["next_action"] = (
+                    "speedj_rnn_live stopped in soft_low_contact_hold without enough cold-start-specific "
+                    "opposition or lambda-ramp evidence; inspect RNN solver evidence before attributing "
+                    "root cause, and keep strict RNN live blocked pending no-contact P0 verification"
+                )
         elif uses_step5b_speedl_live_source(profile) and stage25_control_mode not in {None, "", "speedl_cartesian_oracle"}:
             result["classification"] = "stage25_control_mode_mismatch"
             result["acceptance_status"] = "excluded_from_speedl_acceptance"

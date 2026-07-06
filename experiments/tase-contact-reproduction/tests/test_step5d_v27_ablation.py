@@ -857,6 +857,122 @@ class Step5dV27AblationTest(unittest.TestCase):
             "output_double_register_35": 25.0,
         }
         calls: list[str] = []
+        captured: dict[str, object] = {}
+
+        class RecordingSolver:
+            def reset_state(self) -> None:
+                calls.append("reset")
+
+            def warm_start(self, **kwargs: object) -> None:
+                calls.append("warm_start")
+                captured["warm_start"] = kwargs
+
+            def solve(self, **kwargs: object) -> SimpleNamespace:
+                calls.append("solve")
+                captured["solve"] = kwargs
+                return SimpleNamespace(
+                    qdot=(0.020, 0.010, -0.010, 0.004, -0.003, 0.002),
+                    solver_status=40.0,
+                    residual_norm=0.012,
+                    diagnostics={
+                        "lambda_state": np.array([3.0, 4.0, 0.0, 0.0, 0.0, 0.0]),
+                        "active_bounds_mask": [True, False, False, False, False, False],
+                        "proj_input_form": "J.T @ lambda_state",
+                        "lambda_update_form": "lambda_state -= (dt / epsilon) * (J @ theta_dot_state - xdot_c)",
+                    },
+                )
+
+        state = acquired_v27_state()
+        fake_v27_runtime(state, args)
+        state.step5d_solver = RecordingSolver()
+        state.step5d_solver_lifecycle_key = "stage25_hold_zero_qdot:soft_low_contact_hold"
+        state.step5d_pending_solver_warm_start = False
+
+        with (
+            patch.object(
+                bridge,
+                "step5d_tcp_jacobian_base",
+                return_value=np.diag([2.0, 1.5, 1.0, 1.0, 0.5, 0.25]),
+            ),
+            patch.object(bridge, "step5d_omega_bounds", return_value=(np.full(6, -0.05), np.full(6, 0.05))),
+            patch.object(bridge, "compute_step5d_outer_loop", side_effect=fake_v27_outer),
+            patch.object(
+                bridge,
+                "rnn_target_state_from_outer_loop",
+                side_effect=lambda output, **kwargs: {"xdot_c": np.asarray(output.xdot_c, dtype=float), **kwargs},
+            ),
+        ):
+            values = bridge.compute_bridge_values(
+                args,
+                [0.0, 0.0, -12.0, 0.0, 0.0, 0.0],
+                latest_output,
+                1.0,
+                state,
+                0.002,
+            )
+
+        self.assertEqual(calls, ["reset", "warm_start", "solve"])
+        self.assertFalse(state.step5d_pending_solver_warm_start)
+        self.assertEqual(state.step5d_solver_lifecycle_key, "stage25_pass_solver")
+        self.assertEqual(values["_step5d_stage25_control_mode"], "speedj_rnn_live")
+        self.assertIn("solver_warm_start", values["_step5d_intervention_reason"])
+        self.assertEqual(values["step4e_cmd_valid"], 1.0)
+        self.assertAlmostEqual(values["_step5d_rnn_raw_qd0_rad_s"], 0.020, places=9)
+        self.assertAlmostEqual(values["_step5d_rnn_raw_qd1_rad_s"], 0.010, places=9)
+        self.assertAlmostEqual(values["_step5d_rnn_raw_qd3_rad_s"], 0.004, places=9)
+        warm_kwargs = captured["warm_start"]
+        solve_target = captured["solve"]["target_state"]  # type: ignore[index]
+        np.testing.assert_allclose(warm_kwargs["J"], solve_target["J"])  # type: ignore[index]
+        np.testing.assert_allclose(warm_kwargs["xdot_c"], solve_target["xdot_c"])  # type: ignore[index]
+        np.testing.assert_allclose(warm_kwargs["omega_minus"], solve_target["omega_minus"])  # type: ignore[index]
+        np.testing.assert_allclose(warm_kwargs["omega_plus"], solve_target["omega_plus"])  # type: ignore[index]
+
+    def test_speedj_rnn_warm_start_failure_keeps_pending_fail_closed(self) -> None:
+        class FailingWarmStartSolver:
+            def warm_start(self, **_kwargs: object) -> None:
+                raise np.linalg.LinAlgError("synthetic singular warm start")
+
+        state = acquired_v27_state()
+        state.step5d_solver = FailingWarmStartSolver()
+        state.step5d_solver_lifecycle_key = "stage25_pass_solver"
+        state.step5d_pending_solver_warm_start = True
+
+        with self.assertRaisesRegex(RuntimeError, "Step5d solver warm_start failed"):
+            bridge.apply_step5d_solver_warm_start_if_pending(
+                state,
+                jacobian=np.eye(6),
+                xdot_c=np.ones(6) * 0.001,
+                omega_minus=np.full(6, -0.05),
+                omega_plus=np.full(6, 0.05),
+            )
+
+        self.assertTrue(state.step5d_pending_solver_warm_start)
+
+        bridge.reset_step5d_solver_state_for_boundary(state, "stage25_pass_solver")
+
+        self.assertTrue(state.step5d_pending_solver_warm_start)
+
+    def test_speedl_shadow_path_does_not_consume_pending_rnn_warm_start(self) -> None:
+        args = bridge.parse_args(
+            [
+                "--no-start-command",
+                "--skip-dashboard-preflight",
+                "--bridge-mode",
+                "line",
+                "--bridge-profile",
+                V28,
+                "--bridge-path-shape",
+                "cycloid",
+            ]
+        )
+        latest_output = {
+            "actual_TCP_pose": [0.49, 0.14, 0.02, 3.14, 0.0, 0.0],
+            "actual_TCP_speed": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            "actual_q": [0.0] * 6,
+            "actual_qd": [0.0] * 6,
+            "output_double_register_35": 25.0,
+        }
+        calls: list[str] = []
 
         class RecordingSolver:
             def reset_state(self) -> None:
@@ -900,15 +1016,80 @@ class Step5dV27AblationTest(unittest.TestCase):
                 0.002,
             )
 
-        self.assertEqual(calls, ["reset", "warm_start", "solve"])
-        self.assertFalse(state.step5d_pending_solver_warm_start)
-        self.assertEqual(state.step5d_solver_lifecycle_key, "stage25_pass_solver")
-        self.assertEqual(values["_step5d_stage25_control_mode"], "speedj_rnn_live")
-        self.assertIn("solver_warm_start", values["_step5d_intervention_reason"])
-        self.assertEqual(values["step4e_cmd_valid"], 1.0)
-        self.assertAlmostEqual(values["_step5d_rnn_raw_qd0_rad_s"], 0.020, places=9)
-        self.assertAlmostEqual(values["_step5d_rnn_raw_qd1_rad_s"], 0.010, places=9)
-        self.assertAlmostEqual(values["_step5d_rnn_raw_qd3_rad_s"], 0.004, places=9)
+        self.assertEqual(calls, ["reset", "solve"])
+        self.assertTrue(state.step5d_pending_solver_warm_start)
+        self.assertNotIn("solver_warm_start", values["_step5d_intervention_reason"])
+
+    def test_speedj_dls_path_does_not_consume_pending_rnn_warm_start(self) -> None:
+        args = bridge.parse_args(
+            [
+                "--no-start-command",
+                "--skip-dashboard-preflight",
+                "--bridge-mode",
+                "line",
+                "--bridge-profile",
+                V28,
+                "--bridge-path-shape",
+                "cycloid",
+                "--step5d-stage25-control-mode",
+                "speedj_dls_oracle",
+            ]
+        )
+        latest_output = {
+            "actual_TCP_pose": [0.49, 0.14, 0.02, 3.14, 0.0, 0.0],
+            "actual_TCP_speed": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            "actual_q": [0.0] * 6,
+            "actual_qd": [0.0] * 6,
+            "output_double_register_35": 25.0,
+        }
+        calls: list[str] = []
+
+        class RecordingSolver:
+            def reset_state(self) -> None:
+                calls.append("reset")
+
+            def warm_start(self, **_kwargs: object) -> None:
+                calls.append("warm_start")
+
+            def solve(self, **_kwargs: object) -> SimpleNamespace:
+                calls.append("solve")
+                return SimpleNamespace(
+                    qdot=(0.0,) * 6,
+                    solver_status=40.0,
+                    residual_norm=0.0,
+                    diagnostics={
+                        "lambda_state": np.zeros(6),
+                        "active_bounds_mask": [False] * 6,
+                        "proj_input_form": "J.T @ lambda_state",
+                        "lambda_update_form": "lambda_state -= (dt / epsilon) * (J @ theta_dot_state - xdot_c)",
+                    },
+                )
+
+        state = acquired_v27_state()
+        fake_v27_runtime(state, args)
+        state.step5d_solver = RecordingSolver()
+        state.step5d_solver_lifecycle_key = "stage25_hold_zero_qdot:soft_low_contact_hold"
+        state.step5d_pending_solver_warm_start = False
+
+        with (
+            patch.object(bridge, "step5d_tcp_jacobian_base", return_value=np.eye(6)),
+            patch.object(bridge, "step5d_omega_bounds", return_value=(np.full(6, -0.05), np.full(6, 0.05))),
+            patch.object(bridge, "compute_step5d_outer_loop", side_effect=fake_v27_outer),
+            patch.object(bridge, "rnn_target_state_from_outer_loop", return_value={"shadow": True}),
+        ):
+            values = bridge.compute_bridge_values(
+                args,
+                [0.0, 0.0, -12.0, 0.0, 0.0, 0.0],
+                latest_output,
+                1.0,
+                state,
+                0.002,
+            )
+
+        self.assertEqual(calls, ["reset", "solve"])
+        self.assertTrue(state.step5d_pending_solver_warm_start)
+        self.assertNotIn("solver_warm_start", values["_step5d_intervention_reason"])
+        self.assertEqual(values["_step5d_stage25_control_mode"], "speedj_dls_oracle")
 
     def test_v27_speedl_shadow_solver_failure_keeps_live_source_diagnostics(self) -> None:
         args = bridge.parse_args(

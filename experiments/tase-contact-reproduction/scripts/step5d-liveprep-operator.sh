@@ -133,6 +133,18 @@ require_current_stage_readback_gate() {
   python3 "${READBACK_GATE}" --root "${ROOT}" --program "${STEP5D_VERSION}"
 }
 
+selected_stage25_control_mode() {
+  printf "%s" "${STEP5D_STAGE25_CONTROL_MODE:-${STEP5D_STAGE25_CONTROL_MODE_DEFAULT}}"
+}
+
+require_live_bridge_authorization_gate() {
+  python3 "${READBACK_GATE}" \
+    --root "${ROOT}" \
+    --program "${STEP5D_VERSION}" \
+    --stage25-control-mode "$(selected_stage25_control_mode)" \
+    --require-live-bridge-authorization
+}
+
 if [[ $# -ne 1 ]]; then
   usage
   exit 2
@@ -159,6 +171,7 @@ case "$1" in
       exit 40
     fi
     require_current_stage_readback_gate
+    require_live_bridge_authorization_gate
     if [[ "${STEP5D_CONFIRM:-}" != "LIVE STEP5D STRICT RNN LIVEPREP" ]]; then
       echo "refusing live Step5d bridge start: set STEP5D_CONFIRM='LIVE STEP5D STRICT RNN LIVEPREP'"
       exit 40

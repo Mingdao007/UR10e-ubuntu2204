@@ -545,6 +545,57 @@ def write_v28_speedj_rnn_short_soft_hold_slice(run_dir: Path) -> None:
     write_bridge_csv(csv_path, rows, fieldnames=fieldnames)
 
 
+def write_v28_speedj_rnn_soft_hold_without_cold_start_evidence_slice(run_dir: Path) -> None:
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "metadata.json").write_text(
+        json.dumps(
+            {
+                "args": {
+                    "bridge_profile": "step5d_strict_rnn_ablation_v28",
+                    "step5d_stage25_control_mode": "speedj_rnn_live",
+                }
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    csv_path = run_dir / "bridge_rtde_500hz.csv"
+    fieldnames = [
+        *FIELDNAMES,
+        "step4e_cmd_valid",
+        "_step5d_stage25_control_mode",
+        "_step5d_stage25_echo_consumed",
+        "_step5d_stage25_echo_layout_tag",
+        "_step5d_contact_safety_reason",
+        "_step5d_outer_xdot_limited_approach_normal_m_s",
+        "_step5d_jqdot_cmd_approach_normal_m_s",
+        "_step5d_lambda_norm",
+    ]
+    rows: list[dict[str, str]] = []
+    for idx in range(150):
+        t_s = 1.0 + idx * 0.002
+        hold = idx >= 88
+        rows.append(
+            {
+                "t_monotonic_s": f"{t_s:.6f}",
+                "ur_output_double_register_30": "12" if idx == 149 else "0",
+                "ur_output_double_register_35": "25.0",
+                "_step4e_normal_load_n": "4.800000000" if hold else "10.000000000",
+                "_step5d_force_settle_filtered_normal_load_n": "4.800000000" if hold else "10.000000000",
+                "force_norm_n": "4.800000000" if hold else "10.000000000",
+                "step4e_cmd_valid": "0" if hold else "1",
+                "_step5d_stage25_control_mode": "speedj_rnn_live",
+                "_step5d_stage25_echo_consumed": "0" if hold else "1",
+                "_step5d_stage25_echo_layout_tag": "524",
+                "_step5d_contact_safety_reason": "soft_low_contact_hold" if hold else "ok",
+                "_step5d_outer_xdot_limited_approach_normal_m_s": "0.000220000",
+                "_step5d_jqdot_cmd_approach_normal_m_s": "0.000210000",
+                "_step5d_lambda_norm": "0.010000000",
+            }
+        )
+    write_bridge_csv(csv_path, rows, fieldnames=fieldnames)
+
+
 class Step5dBridgeRunAnalysisTest(unittest.TestCase):
     def test_v25_preload_failure_reports_short_dwell(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -809,6 +860,39 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
         self.assertGreater(attribution["rnn_lambda_norm_last"], attribution["rnn_lambda_norm_first"])
         self.assertIn("cold-start transient", analysis["next_action"])
         self.assertIn("warm_start", analysis["next_action"])
+
+    def test_v28_speedj_rnn_soft_hold_without_evidence_uses_generic_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / "bridge_step5d_strict_rnn_ablation_v28_20260706_080000"
+            write_v28_speedj_rnn_soft_hold_without_cold_start_evidence_slice(run_dir)
+
+            analysis = analyze_step5d_bridge_run.analyze_run_dir(run_dir)
+
+        self.assertEqual(analysis["classification"], "stage25_speedj_rnn_soft_hold_failure")
+        self.assertEqual(analysis["acceptance_status"], "failed_speedj_rnn_branch")
+        self.assertNotIn("cold-start transient", analysis["next_action"])
+        self.assertIn("inspect RNN solver evidence", analysis["next_action"])
+
+    def test_v28_speedl_success_next_action_matches_orientation_follow_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / V28_FULL_RUN_SUCCESS_RUN_ID
+            write_speedl_live_success_slice(
+                run_dir,
+                profile="step5d_strict_rnn_ablation_v28",
+                stage25_rows=30055,
+                dt_s=0.002,
+                gap_row_idx=-1,
+                gap_s=0.0,
+                load_mid_n=12.465,
+                load_amp_n=3.225,
+            )
+
+            analysis = analyze_step5d_bridge_run.analyze_run_dir(run_dir)
+
+        self.assertEqual(analysis["classification"], "stage25_full_run_success")
+        self.assertIn("orientation-follow", analysis["next_action"])
+        self.assertIn("strict RNN live remains blocked pending no-contact P0", analysis["next_action"])
+        self.assertNotIn("do not re-enable orientation servo", analysis["next_action"])
 
     def test_v27_near_complete_consumption_and_good_cadence_classifies_as_control_oscillation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

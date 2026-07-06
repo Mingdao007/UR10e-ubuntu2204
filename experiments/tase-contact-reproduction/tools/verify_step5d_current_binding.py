@@ -103,15 +103,78 @@ def verify_binding(root: Path, program: str | None = None, target_dir: str | Non
     }
 
 
+def _stage_bool(row: dict[str, Any], *keys: str) -> bool:
+    containers = [row, row.get("acceptance"), row.get("contact_policy"), row.get("current_binding")]
+    for container in containers:
+        if not isinstance(container, dict):
+            continue
+        for key in keys:
+            if container.get(key) is True:
+                return True
+    return False
+
+
+def verify_live_bridge_authorization(
+    root: Path,
+    program: str | None = None,
+    stage25_control_mode: str | None = None,
+    target_dir: str | None = None,
+) -> dict[str, Any]:
+    binding = verify_binding(root, program, target_dir)
+    current = load_json(root / "config" / "current_stage.json")
+    selected = binding["program"]
+    trigger = current.get("bridge_trigger")
+    if not isinstance(trigger, dict):
+        fail("current_stage bridge_trigger is missing")
+    stage_entry = _stage_table_entry(root, current, selected)
+    mode = str(stage25_control_mode or "")
+    p0_required = _stage_bool(
+        stage_entry,
+        "strict_rnn_no_contact_p0_required_before_live",
+        "no_contact_symbol_verification_required_before_live",
+    )
+    p0_passed = _stage_bool(
+        stage_entry,
+        "strict_rnn_no_contact_p0_passed",
+        "strict_rnn_no_contact_p0_verified",
+        "no_contact_symbol_verification_passed",
+    )
+    live_motion_authorized = trigger.get("live_motion_authorized") is True
+    if not live_motion_authorized:
+        fail("live motion is not authorized by current_stage.bridge_trigger.live_motion_authorized")
+    if mode == "speedj_rnn_live":
+        if p0_required and not p0_passed:
+            fail("speedj_rnn_live requires no-contact P0 verification before live bridge authorization")
+
+    return {
+        "ok": True,
+        "program": selected,
+        "stage25_control_mode": mode,
+        "live_motion_authorized": live_motion_authorized,
+        "strict_rnn_no_contact_p0_required_before_live": p0_required,
+        "strict_rnn_no_contact_p0_passed": p0_passed,
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=EXPERIMENT_ROOT)
     parser.add_argument("--program", default=None)
     parser.add_argument("--target-dir", default=None)
+    parser.add_argument("--stage25-control-mode", default=None)
+    parser.add_argument("--require-live-bridge-authorization", action="store_true")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
 
-    result = verify_binding(args.root, args.program, args.target_dir)
+    if args.require_live_bridge_authorization:
+        result = verify_live_bridge_authorization(
+            args.root,
+            args.program,
+            args.stage25_control_mode,
+            args.target_dir,
+        )
+    else:
+        result = verify_binding(args.root, args.program, args.target_dir)
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))
     else:

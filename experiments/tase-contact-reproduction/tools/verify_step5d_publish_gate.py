@@ -126,6 +126,24 @@ def verify_operator_text(root: Path, current_program: str) -> None:
         fail("bridge-line-operator no longer refuses missing Step5d current_stage aliases")
     if "refusing Step5d alias: current_stage does not name" not in base:
         fail("step4e-line-v1-operator no longer refuses missing Step5d current_stage aliases")
+    if "step5d_live_bridge_authorized" not in bridge or "--require-live-bridge-authorization" not in bridge:
+        fail("bridge-line-operator no longer gates Step5d bridge starts on current live authorization")
+    try:
+        autowatch_start = bridge.index("*-autowatch)")
+        autowatch_end = bridge.index("*-bridge-fast)", autowatch_start)
+        autowatch_body = bridge[autowatch_start:autowatch_end]
+        gate_idx = autowatch_body.index("step5d_live_bridge_authorized")
+        wait_idx = autowatch_body.index("wait_for_tp_play_autowatch")
+        run_idx = autowatch_body.index("run_bridge_for_mode")
+    except ValueError as exc:
+        fail(f"bridge-line-operator autowatch branch no longer has the expected live-gated structure: {exc}")
+    if gate_idx > wait_idx or gate_idx > run_idx:
+        fail("bridge-line-operator autowatch branch starts waiting/running before current live authorization")
+    liveprep = root / "scripts" / "step5d-liveprep-operator.sh"
+    if liveprep.exists():
+        liveprep_text = liveprep.read_text(encoding="utf-8")
+        if "require_live_bridge_authorization_gate" not in liveprep_text:
+            fail("step5d-liveprep-operator no longer gates contact-bridge on current live authorization")
     if current_program not in load_json(root / "config" / "current_stage.json").get("controller_target", ""):
         fail("current_stage controller target does not contain the current program")
 

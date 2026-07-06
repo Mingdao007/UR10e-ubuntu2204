@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "updated_at": "2026-07-06T19:17:31+08:00",
+  "updated_at": "2026-07-06T19:58:00+08:00",
   "current_step": "Step5d",
   "current_stage_id": "step5d_strict_rnn_ablation_v28",
   "program": "step5d_strict_rnn_ablation_v28",
@@ -53,12 +53,12 @@
     "stage25_speedl_live_source": "Step5b speedl live vx/vy/vz and live orientation where enabled; Step5d paper/RNN outputs shadow-only",
     "stage25_0_success_target_s": 60.0
   },
-  "status": "step5d_strict_rnn_ablation_v28_controller_readback_verified_warm_start_offline_fix_validated_live_blocked",
+  "status": "step5d_strict_rnn_ablation_v28_controller_readback_verified_warm_start_offline_fix_validated_live_gate_hardened_blocked",
   "strict_rnn_status": {
     "stage_id": "step5d_strict_rnn_reproduction_v1",
     "blocked": true,
     "paper_truth_config": "config/step5d_liveprep_solver_gate.json",
-    "reason": "v28 has cadence-clean 60s Step5b-speedl positive-control evidence (064317/070301/072843/074542) with Step5d paper/RNN outputs shadow-only, plus DLS speedj layout-524 success and RNN speedj short soft-hold failure evidence. The RNN failure root cause is now attributed offline to StrictTaseRnnSolver cold-start at the Stage25 lifecycle boundary while already preloaded; a warm_start patch is validated offline, but strict RNN live reproduction remains blocked pending no-contact P0 verification and explicit live authorization."
+    "reason": "v28 has cadence-clean 60s Step5b-speedl positive-control evidence (064317/070301/072843/074542) with Step5d paper/RNN outputs shadow-only, plus DLS speedj layout-524 success and RNN speedj short soft-hold failure evidence. The RNN failure root cause is now attributed offline to StrictTaseRnnSolver cold-start at the Stage25 lifecycle boundary while already preloaded; a warm_start patch is validated offline and the live bridge gate is hardened, but strict RNN live reproduction remains blocked pending no-contact P0 verification and explicit live authorization."
   },
   "evidence": {
     "v11_escape_replay_summary": "runs/step5d_v11_escape_replay_20260615/summary.json",
@@ -969,7 +969,7 @@
       "result": "offline_fix_validated_live_blocked",
       "root_cause_report": "repo_external:claude_handoffs/ur10e-step5d-v28-speedj-rnn-coldstart-rootcause-fable5-20260706.md",
       "root_cause": "StrictTaseRnnSolver reset_state clears theta_dot and lambda at Stage25 lifecycle boundaries; from zero state the early Cartesian velocity follows J@J.T@xdot_c while lambda converges, so angular-dominant entry commands unload the approach normal before contact survives.",
-      "fix": "StrictTaseRnnSolver.warm_start initializes lambda and theta_dot at the damped DLS-shaped fixed point for the boundary xdot_c, and the bridge applies it once on the first solve after a lifecycle reset or hold-resume reset.",
+      "fix": "StrictTaseRnnSolver.warm_start initializes lambda and theta_dot at the damped DLS-shaped fixed point for the boundary xdot_c. The bridge applies it once only on the first speedj_rnn_live solve after a lifecycle reset or hold-resume reset; speedl/DLS shadow branches do not consume the pending warm_start.",
       "runtime_evidence_fields": [
         "_step5d_intervention_reason includes solver_warm_start",
         "_step5d_jqdot_raw_approach_normal_m_s",
@@ -979,8 +979,8 @@
         "_step5d_lambda_norm"
       ],
       "validation": {
-        "targeted_unittest_result": "69 targeted Step5d tests passed",
-        "full_unittest_result": "623 tests passed",
+        "targeted_unittest_result": "65 warm_start/gate/analyzer targeted tests passed after red-green hardening",
+        "full_unittest_result": "634 tests passed",
         "diff_check": "git diff --check passed"
       },
       "live_status": "blocked_until_no_contact_p0_and_explicit_live_trigger",
