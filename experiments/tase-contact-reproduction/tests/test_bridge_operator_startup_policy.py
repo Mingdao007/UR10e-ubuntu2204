@@ -112,6 +112,94 @@ postprocess_run "{run_dir}"
         self.assertIn("live motion is not authorized", completed.stderr or completed.stdout)
         self.assertNotIn("bridge output:", completed.stdout)
 
+    def test_no_contact_p0_capture_profile_has_separate_bridge_gate(self) -> None:
+        script = read_script("bridge-line-operator.sh")
+
+        self.assertIn("step5d_strict_rnn_no_contact_p0_v1", script)
+        self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/step5d/${BRIDGE_PROFILE}.urp"', script)
+        self.assertIn("step5d_no_contact_p0_capture_authorized", script)
+        self.assertIn("BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE", script)
+        self.assertIn("step5d_live_bridge_authorized", script)
+
+    def test_no_contact_p0_fast_bridge_refuses_without_capture_env_before_start(self) -> None:
+        env = os.environ.copy()
+        env.update(
+            {
+                "BRIDGE_PROFILE": "step5d_strict_rnn_no_contact_p0_v1",
+                "STEP5D_P0_CONFIRM": "LIVE STEP5D STRICT RNN NO CONTACT P0",
+                "BRIDGE_SKIP_BENCH_GATE": "1",
+                "BRIDGE_SKIP_LONG_CHECKS": "1",
+                "LONG_CHECK_CACHE": str(Path(tempfile.gettempdir()) / "missing-step5d-p0-cache.json"),
+            }
+        )
+
+        completed = subprocess.run(
+            [str(ROOT / "scripts" / "bridge-line-operator.sh"), "line-bridge-fast"],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(completed.returncode, 24, completed.stdout + completed.stderr)
+        self.assertIn("no-contact P0 capture is not authorized", completed.stdout + completed.stderr)
+        self.assertNotIn("RTDE quick probe passed", completed.stdout + completed.stderr)
+
+    def test_no_contact_p0_fast_bridge_refuses_allow_flag_without_confirm_token(self) -> None:
+        env = os.environ.copy()
+        env.update(
+            {
+                "BRIDGE_PROFILE": "step5d_strict_rnn_no_contact_p0_v1",
+                "BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE": "1",
+                "BRIDGE_SKIP_BENCH_GATE": "1",
+                "BRIDGE_SKIP_LONG_CHECKS": "1",
+                "LONG_CHECK_CACHE": str(Path(tempfile.gettempdir()) / "missing-step5d-p0-cache.json"),
+            }
+        )
+
+        completed = subprocess.run(
+            [str(ROOT / "scripts" / "bridge-line-operator.sh"), "line-bridge-fast"],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        output = completed.stdout + completed.stderr
+        self.assertEqual(completed.returncode, 40, output)
+        self.assertIn("STEP5D_P0_CONFIRM", output)
+        self.assertNotIn("skipping long bench gate", output)
+        self.assertNotIn("RTDE quick probe passed", output)
+
+    def test_no_contact_p0_autowatch_refuses_before_bench_gate(self) -> None:
+        env = os.environ.copy()
+        env.update(
+            {
+                "BRIDGE_PROFILE": "step5d_strict_rnn_no_contact_p0_v1",
+                "STEP5D_P0_CONFIRM": "LIVE STEP5D STRICT RNN NO CONTACT P0",
+                "BRIDGE_SKIP_BENCH_GATE": "1",
+                "BRIDGE_SKIP_LONG_CHECKS": "1",
+                "LONG_CHECK_CACHE": str(Path(tempfile.gettempdir()) / "missing-step5d-p0-cache.json"),
+            }
+        )
+
+        completed = subprocess.run(
+            [str(ROOT / "scripts" / "bridge-line-operator.sh"), "line-autowatch"],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        output = completed.stdout + completed.stderr
+        self.assertEqual(completed.returncode, 24, output)
+        self.assertIn("no-contact P0 capture is not authorized", output)
+        self.assertNotIn("skipping long bench gate", output)
+        self.assertNotIn("RTDE quick probe passed", output)
+
     def test_step5d_bridge_path_does_not_background_git_push(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             script = f"""

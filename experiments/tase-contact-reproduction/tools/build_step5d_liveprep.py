@@ -6,8 +6,10 @@ from __future__ import annotations
 import argparse
 import gzip
 import hashlib
+import html
 import json
 import re
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -26,6 +28,7 @@ from step5d_runtime_interface import (
     STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE,
     STEP5D_STAGE25_JOINT_LAYOUT_CODE,
     STEP5D_LINE_ENTRY_PARAM_VALID_CODE,
+    STEP5D_NO_CONTACT_P0_STAGE_ID,
     STEP5D_STAGE25_V27_FIX_VALIDATION_TARGET_S,
     STEP5D_STAGE25_V27_RUNTIME_LIMIT_S,
     STEP5D_STAGE25_V28_FULL_RUN_TARGET_S,
@@ -45,6 +48,8 @@ class Step5dAblationSpec:
     stage25_success_target_s: float = STEP5D_STAGE25_V27_FIX_VALIDATION_TARGET_S
     stage25_runtime_limit_s: float = STEP5D_STAGE25_V27_RUNTIME_LIMIT_S
     source_stage_id: str = "step5d_strict_rnn_liveprep_v24"
+    controller_dir: str = "/programs/andyl/kunwei/step5"
+    no_contact_p0: bool = False
 
     @property
     def stage_id(self) -> str:
@@ -101,6 +106,17 @@ ABLATION_SPECS = {
         stage25_success_target_s=STEP5D_STAGE25_V28_FULL_RUN_TARGET_S,
         stage25_runtime_limit_s=STEP5D_STAGE25_V28_RUNTIME_LIMIT_S,
     ),
+    STEP5D_NO_CONTACT_P0_STAGE_ID: Step5dAblationSpec(
+        program_name=STEP5D_NO_CONTACT_P0_STAGE_ID,
+        version_label="no_contact_p0_v1",
+        stamp_token="STEP5D_STRICT_RNN_NO_CONTACT_P0_V1",
+        cartesian_angular_cap_rad_s=0.015,
+        default_stage25_control_mode="speedj_rnn_live",
+        stage25_success_target_s=1.0,
+        stage25_runtime_limit_s=1.0,
+        controller_dir="/programs/andyl/kunwei/step5/step5d",
+        no_contact_p0=True,
+    ),
 }
 DEFAULT_SPEC = ABLATION_SPECS[STEP5D_ABLATION_V27_STAGE_ID]
 PROGRAM_NAME = DEFAULT_SPEC.program_name
@@ -111,6 +127,7 @@ LOCAL_PROGRAM_DIR = PROGRAM_DIR / "step5"
 LOCAL_CANDIDATE_ROOT = PROGRAM_DIR.parent / "runs" / "local_tp_packages"
 LOCAL_CANDIDATE_MARKER = ".local_tp_candidate.json"
 CONTROLLER_DIR = "/programs/andyl/kunwei/step5"
+NO_CONTACT_P0_CONTROLLER_DIR = "/programs/andyl/kunwei/step5/step5d"
 POSE_CONTRACT_ID = PRE_CONTACT_GRAVITY_DOWN_CONTRACT_ID
 SEARCH_GRAVITY_DOWN_ROTVEC = contract_target_rotvec_rad(POSE_CONTRACT_ID)
 _STEP5D_PROTOCOL = resolve_experiment_profile("Step5.step5d_rnn")
@@ -200,6 +217,10 @@ def load_safe_frame(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dict:
     except KeyError:
         stage = step5_stage(spec.source_stage_id)
     return load_stage_frame(stage)
+
+
+def local_program_dir_for(spec: Step5dAblationSpec = DEFAULT_SPEC) -> Path:
+    return LOCAL_PROGRAM_DIR / "step5d" if spec.no_contact_p0 else LOCAL_PROGRAM_DIR
 
 
 def guard_value(spec: Step5dAblationSpec, key: str, default: float) -> float:
@@ -718,6 +739,196 @@ def _add_down_search_force_trigger_echo(script: str) -> str:
     return _replace_exact(script, old, new)
 
 
+def build_no_contact_p0_script(stamp: str, gen_at: str, spec: Step5dAblationSpec) -> str:
+    return f"""# VERSION: {stamp}
+# GENERATED_AT_LOCAL: {gen_at}
+# PURPOSE: NO_CONTACT_P0_CAPTURE; no contact search, no preload, no zero/tare, direct Stage25 strict RNN warm-start capture.
+# TP_ROLE: no_contact_stage25_executor_and_guard_only; bridge computes Step5d strict RNN speedj command.
+# REGISTER_CONTRACT: Stage 25.95 requires bridge-cleared registers 37..47 before Stage25.0. Stage25.0 reads register 47 as layout tag: {STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:.1f}=Cartesian speedl vx/vy/vz/wx/wy/wz, {STEP5D_STAGE25_JOINT_LAYOUT_CODE:.1f}=joint speedj qd0..qd5; 43 cmd_valid, 44 path_time_s.
+# FORCE_FRAME_CONTRACT: reaction normal for load, approach normal for posture/press direction; no-contact capture uses the bridge fallback normal rather than live force as the normal source.
+# SAFETY: no-contact P0 caps raw normal 2 N, force norm 5 N, torque 3.0 Nm; external cage/operator/E-stop boundary still applies.
+
+def codex_abs(x):
+  if x < 0:
+    return -x
+  end
+  return x
+end
+
+def codex_wait_for_fresh_heartbeat(timeout_s):
+  local t_wait = 0.0
+  local last_heartbeat = read_input_float_register(26)
+  while t_wait < timeout_s:
+    local heartbeat = read_input_float_register(26)
+    if heartbeat != last_heartbeat:
+      return True
+    end
+    t_wait = t_wait + get_steptime()
+    sync()
+  end
+  return False
+end
+
+def codex_step5d_no_contact_p0_guard_stop_reason():
+  local normal_force = read_input_float_register(24)
+  local force_norm = read_input_float_register(25)
+  local sensor_ok = read_input_float_register(27)
+  local stop_request = read_input_float_register(28)
+  local torque_norm = read_input_float_register(30)
+  if sensor_ok < 0.5:
+    return 2.0
+  elif stop_request > 0.5:
+    return stop_request
+  elif codex_abs(normal_force) > 2.0:
+    return 17.0
+  elif force_norm > 5.0:
+    return 17.0
+  elif torque_norm > 3.0:
+    return 17.0
+  end
+  return 0.0
+end
+
+def codex_{spec.program_name}():
+  write_output_float_register(35, 20.0)
+  write_output_float_register(47, 0.0)
+  local stop_reason = 0.0
+  local bridge_ready = codex_wait_for_fresh_heartbeat(10.0)
+  if not bridge_ready:
+    stop_reason = 2.0
+  end
+
+  if stop_reason == 0.0:
+    write_output_float_register(35, 25.95)
+    local register_clear_required_s = 0.006
+    local register_clear_timeout_s = 1.000
+    local register_clear_s = 0.0
+    local register_clear_t = 0.0
+    local register_clear_zero_tol = {QDOT_CLEAR_ZERO_TOL_RAD_S:.6f}
+    local line_entry_param_valid_code = {STEP5D_LINE_ENTRY_PARAM_VALID_CODE:.3f}
+    local last_heartbeat_clear = read_input_float_register(26)
+    local stale_s_clear = 0.0
+    while stop_reason == 0.0 and register_clear_s < register_clear_required_s and register_clear_t < register_clear_timeout_s:
+      local heartbeat_clear = read_input_float_register(26)
+      local clear_cmd_valid = read_input_float_register(43)
+      local clear_reg0 = read_input_float_register(37)
+      local clear_reg1 = read_input_float_register(38)
+      local clear_reg2 = read_input_float_register(39)
+      local clear_reg3 = read_input_float_register(40)
+      local clear_reg4 = read_input_float_register(41)
+      local clear_reg5 = read_input_float_register(42)
+      local clear_layout_tag = read_input_float_register(47)
+      local loop_dt = get_steptime()
+      if heartbeat_clear == last_heartbeat_clear:
+        stale_s_clear = stale_s_clear + loop_dt
+      else:
+        stale_s_clear = 0.0
+        last_heartbeat_clear = heartbeat_clear
+      end
+      register_clear_t = register_clear_t + loop_dt
+      stop_reason = codex_step5d_no_contact_p0_guard_stop_reason()
+      if stale_s_clear > 0.100:
+        stop_reason = 2.0
+      end
+      if stop_reason == 0.0:
+        if clear_cmd_valid < 0.5 and codex_abs(clear_layout_tag - line_entry_param_valid_code) >= 0.001 and codex_abs(clear_layout_tag - {STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:.3f}) >= 0.001 and codex_abs(clear_layout_tag - {STEP5D_STAGE25_JOINT_LAYOUT_CODE:.3f}) >= 0.001 and codex_abs(clear_reg0) <= register_clear_zero_tol and codex_abs(clear_reg1) <= register_clear_zero_tol and codex_abs(clear_reg2) <= register_clear_zero_tol and codex_abs(clear_reg3) <= register_clear_zero_tol and codex_abs(clear_reg4) <= register_clear_zero_tol and codex_abs(clear_reg5) <= register_clear_zero_tol:
+          register_clear_s = register_clear_s + loop_dt
+        else:
+          register_clear_s = 0.0
+        end
+        sync()
+      end
+    end
+    if stop_reason == 0.0 and register_clear_s < register_clear_required_s:
+      stop_reason = 12.0
+    end
+  end
+
+  if stop_reason == 0.0:
+    write_output_float_register(35, 25.0)
+    local last_heartbeat2 = read_input_float_register(26)
+    local stale_s2 = 0.0
+    local t2 = 0.0
+    local qdot_cap_rad_s = {QDOT_CAP_RAD_S:.3f}
+    local cartesian_linear_cap_m_s = {CARTESIAN_LINEAR_CAP_M_S:.3f}
+    local cartesian_angular_cap_rad_s = {spec.cartesian_angular_cap_rad_s:.3f}
+    local cartesian_accel_m_s2 = {LINE_ACCEL_M_S2:.3f}
+    local joint_accel_rad_s2 = {JOINT_ACCEL_RAD_S2:.3f}
+    local cartesian_layout_code = {STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:.3f}
+    local joint_layout_code = {STEP5D_STAGE25_JOINT_LAYOUT_CODE:.3f}
+    local cmd_valid_grace_s = 1.000
+    local stage25_runtime_limit_s = {spec.stage25_runtime_limit_s:.3f}
+    local stage25_command_consumed = 0
+    while stop_reason == 0.0:
+      local heartbeat2 = read_input_float_register(26)
+      local cmd_valid = read_input_float_register(43)
+      local stage25_layout_tag = read_input_float_register(47)
+      local cartesian_layout_ok = codex_abs(stage25_layout_tag - cartesian_layout_code) < 0.001
+      local joint_layout_ok = codex_abs(stage25_layout_tag - joint_layout_code) < 0.001
+      local cmd_qd0 = read_input_float_register(37)
+      local cmd_qd1 = read_input_float_register(38)
+      local cmd_qd2 = read_input_float_register(39)
+      local cmd_qd3 = read_input_float_register(40)
+      local cmd_qd4 = read_input_float_register(41)
+      local cmd_qd5 = read_input_float_register(42)
+      local cmd_vx = cmd_qd0
+      local cmd_vy = cmd_qd1
+      local cmd_vz = cmd_qd2
+      local cmd_wx = cmd_qd3
+      local cmd_wy = cmd_qd4
+      local cmd_wz = cmd_qd5
+      local loop_dt2 = get_steptime()
+      if heartbeat2 == last_heartbeat2:
+        stale_s2 = stale_s2 + loop_dt2
+      else:
+        stale_s2 = 0.0
+        last_heartbeat2 = heartbeat2
+      end
+      t2 = t2 + loop_dt2
+      stop_reason = codex_step5d_no_contact_p0_guard_stop_reason()
+      if stale_s2 > 0.100:
+        stop_reason = 2.0
+      end
+      if stop_reason == 0.0:
+        if cmd_valid < 0.5 or not (cartesian_layout_ok or joint_layout_ok):
+          write_output_float_register(47, stage25_command_consumed)
+          if t2 < cmd_valid_grace_s:
+            sync()
+          else:
+            stop_reason = 12.0
+          end
+        elif cartesian_layout_ok and (codex_abs(cmd_vx) > cartesian_linear_cap_m_s or codex_abs(cmd_vy) > cartesian_linear_cap_m_s or codex_abs(cmd_vz) > cartesian_linear_cap_m_s or codex_abs(cmd_wx) > cartesian_angular_cap_rad_s or codex_abs(cmd_wy) > cartesian_angular_cap_rad_s or codex_abs(cmd_wz) > cartesian_angular_cap_rad_s):
+          write_output_float_register(47, stage25_command_consumed)
+          stop_reason = 13.0
+        elif joint_layout_ok and (codex_abs(cmd_qd0) > qdot_cap_rad_s or codex_abs(cmd_qd1) > qdot_cap_rad_s or codex_abs(cmd_qd2) > qdot_cap_rad_s or codex_abs(cmd_qd3) > qdot_cap_rad_s or codex_abs(cmd_qd4) > qdot_cap_rad_s or codex_abs(cmd_qd5) > qdot_cap_rad_s):
+          write_output_float_register(47, stage25_command_consumed)
+          stop_reason = 13.0
+        elif t2 >= stage25_runtime_limit_s:
+          write_output_float_register(47, stage25_command_consumed)
+          stop_reason = 1.0
+        elif cartesian_layout_ok:
+          stage25_command_consumed = 1
+          write_output_float_register(47, stage25_command_consumed)
+          speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy, cmd_wz], cartesian_accel_m_s2, 0.002)
+        else:
+          stage25_command_consumed = 1
+          write_output_float_register(47, stage25_command_consumed)
+          speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5], joint_accel_rad_s2, 0.002)
+        end
+      end
+    end
+    stopj(0.3)
+    stopl(0.1)
+  end
+
+  write_output_float_register(28, stop_reason)
+  write_output_float_register(35, 26.0)
+end
+
+codex_{spec.program_name}()
+"""
+
+
 def build_script(
     stamp: str,
     gen_at: str,
@@ -725,6 +936,8 @@ def build_script(
     frame: dict,
     spec: Step5dAblationSpec = DEFAULT_SPEC,
 ) -> str:
+    if spec.no_contact_p0:
+        return build_no_contact_p0_script(stamp, gen_at, spec)
     bridge_wait_timeout_s = bridge_start_wait_timeout_s(spec)
     line_entry = line_entry_config(spec)
     script = build_step5b_script(stamp, gen_at, geom, frame, variant="v3")
@@ -822,6 +1035,52 @@ def build_script(
 
 
 def build_txt(stamp: str, spec: Step5dAblationSpec = DEFAULT_SPEC) -> str:
+    if spec.no_contact_p0:
+        return f"""Step5d strict RNN no-contact P0 capture TP package
+
+Open on Teach Pendant only after the no-contact P0 capture package is explicitly delivered:
+  {spec.controller_dir}/{spec.program_name}.urp
+
+Version:
+  {stamp}
+
+Boundary:
+  NO_CONTACT_P0_CAPTURE diagnostic package; not a contact reproduction claim.
+  No contact search, no first-contact latch, no force-based acquire stage, no
+  preload gate, no zero_ftsensor(), no Kunwei tare/zero/config, no TCP/payload write.
+  The program waits for a fresh bridge heartbeat, runs Stage 25.95 register
+  clear, then enters a short Stage 25.0 command-consumption loop in open air.
+  Stage 25.95 requires cmd_valid=0, registers 37..42 near zero
+  (<= {QDOT_CLEAR_ZERO_TOL_RAD_S:.6f}), and register 47 not equal to
+  {STEP5D_LINE_ENTRY_PARAM_VALID_CODE:.1f}, {STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:.1f}, or {STEP5D_STAGE25_JOINT_LAYOUT_CODE:.1f}.
+  Stage 25.0 supports Cartesian speedl layout and joint speedj layout:
+  register 47={STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:.1f} means 37..42 are vx/vy/vz/wx/wy/wz for TP speedl,
+  while register 47={STEP5D_STAGE25_JOINT_LAYOUT_CODE:.1f} means 37..42 are qd0..qd5 for TP speedj.
+  The intended bridge mode is STEP5D_STAGE25_CONTROL_MODE=speedj_rnn_live so
+  the first consumed Stage25 tick records solver_warm_start and layout 524.
+  Stage25.0 command-consumption instrumentation: output register 47 is 1 only
+  when the TP loop accepts a current Stage25 command packet and reaches
+  speedl/speedj.
+
+Bridge profile:
+  --step4e-version {spec.bridge_version} --step4e-path-shape cycloid
+  --target-force-n 1.0
+  --step4e-normal-follow-mode locked
+  --duration-s 3.0
+
+Safety:
+  speedl Cartesian linear cap: {CARTESIAN_LINEAR_CAP_M_S:.3f} m/s
+  speedl Cartesian angular cap: {spec.cartesian_angular_cap_rad_s:.3f} rad/s
+  qdot cap: {QDOT_CAP_RAD_S:.3f} rad/s
+  speedj acceleration: {JOINT_ACCEL_RAD_S2:.3f} rad/s^2
+  Raw normal guard: 2 N. Force norm guard: 5 N. Torque guard: 3.0 Nm.
+  This package is not a bridge-start, TP-Play, upload, or live-contact authorization.
+
+Reference:
+  tools/verify_step5d_no_contact_p0.py
+  scripts/step5d-strict-rnn-p0.sh
+  UR_FORCE_FRAME_CONTRACT.md
+"""
     bridge_wait_timeout_s = bridge_start_wait_timeout_s(spec)
     line_entry = line_entry_config(spec)
     speedl_mode_description = (
@@ -939,6 +1198,53 @@ Reference:
 
 
 def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5dAblationSpec = DEFAULT_SPEC) -> None:
+    if spec.no_contact_p0:
+        xml = gzip.decompress(urp).decode("utf-8")
+        root = ET.fromstring(xml)
+        cached_script = ""
+        for node in root.iter():
+            if node.tag == "cachedContents":
+                cached_script = html.unescape(node.text or "")
+                break
+        checks = {
+            "script stamp": stamp in script,
+            "txt stamp": stamp in txt,
+            "program name": f'URProgram name="{spec.program_name}"' in xml,
+            "controller directory": f'directory="{spec.controller_dir}"' in xml,
+            "script file": f"{spec.controller_dir}/{spec.program_name}.script" in xml,
+            "function name": f"def codex_{spec.program_name}()" in script,
+            "entrypoint call": script.strip().endswith(f"codex_{spec.program_name}()"),
+            "cachedContents exact script": cached_script == script,
+            "cachedContents entrypoint call": cached_script.strip().endswith(f"codex_{spec.program_name}()"),
+            "no-contact marker": "NO_CONTACT_P0_CAPTURE" in script + txt,
+            "direct Stage25": "write_output_float_register(35, 25.95)" in script
+            and "write_output_float_register(35, 25.0)" in script,
+            "no contact stages": "write_output_float_register(35, 24.0)" not in script
+            and "write_output_float_register(35, 25.3)" not in script
+            and "codex_step5d_down_search" not in script
+            and "deadband_contact_acquire" not in script,
+            "layout tag read": "local stage25_layout_tag = read_input_float_register(47)" in script,
+            "cartesian layout code": f"local cartesian_layout_code = {STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:.3f}" in script
+            and f"register 47={STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:.1f}" in txt,
+            "joint layout code": f"local joint_layout_code = {STEP5D_STAGE25_JOINT_LAYOUT_CODE:.3f}" in script
+            and f"register 47={STEP5D_STAGE25_JOINT_LAYOUT_CODE:.1f}" in txt,
+            "speedj line control": "speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]" in script,
+            "speedl diagnostic support": "speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy, cmd_wz]" in script,
+            "register clear barrier": "local register_clear_required_s = 0.006" in script
+            and "clear_cmd_valid < 0.5" in script
+            and f"local register_clear_zero_tol = {QDOT_CLEAR_ZERO_TOL_RAD_S:.6f}" in script,
+            "no live settings write": "zero_ftsensor" not in script
+            and "set_payload" not in script
+            and "set_tcp" not in script,
+            "force caps": "codex_abs(normal_force) > 2.0" in script
+            and "force_norm > 5.0" in script
+            and "torque_norm > 3.0" in script,
+            "not stale ablation": "step5d_strict_rnn_ablation_v28" not in script + txt,
+        }
+        failed = [label for label, ok in checks.items() if not ok]
+        if failed:
+            raise RuntimeError(f"{spec.program_name} validation failed: {failed}")
+        return
     bridge_wait_timeout_s = bridge_start_wait_timeout_s(spec)
     line_entry = line_entry_config(spec)
     raw_guard = raw_normal_guard_n(spec)
@@ -1136,6 +1442,38 @@ def write_bytes_if_changed(path: Path, data: bytes) -> bool:
 
 
 def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dict[str, object]:
+    if spec.no_contact_p0:
+        return {
+            "schema": "step5d_no_contact_p0_semantic_fingerprint_v1",
+            "interface_class": STEP5D_INTERFACE_CLASS,
+            "program_family": "step5d_strict_rnn_no_contact_p0",
+            "program": spec.program_name,
+            "controller_dir": spec.controller_dir,
+            "qdot_cap_rad_s": QDOT_CAP_RAD_S,
+            "cartesian_linear_cap_m_s": CARTESIAN_LINEAR_CAP_M_S,
+            "cartesian_angular_cap_rad_s": spec.cartesian_angular_cap_rad_s,
+            "default_stage25_control_mode": spec.default_stage25_control_mode,
+            "register_clear_zero_tol": QDOT_CLEAR_ZERO_TOL_RAD_S,
+            "joint_accel_rad_s2": JOINT_ACCEL_RAD_S2,
+            "cartesian_accel_m_s2": LINE_ACCEL_M_S2,
+            "stage25_success_target_s": spec.stage25_success_target_s,
+            "stage25_runtime_limit_s": spec.stage25_runtime_limit_s,
+            "no_contact_force_caps": {
+                "raw_normal_guard_n": 2.0,
+                "force_norm_guard_n": 5.0,
+                "torque_norm_guard_nm": 3.0,
+            },
+            "register_contract": {
+                "stage25_95": (
+                    f"37..47 bridge-cleared register barrier, 37..42 near-zero <= {QDOT_CLEAR_ZERO_TOL_RAD_S:.6f}, "
+                    "43 cmd_valid=0, 47 != preload/cartesian/joint layout code"
+                ),
+                "stage25_0": {
+                    "cartesian_layout_code": STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE,
+                    "joint_layout_code": STEP5D_STAGE25_JOINT_LAYOUT_CODE,
+                },
+            },
+        }
     line_entry = line_entry_config(spec)
     raw_guard = raw_normal_guard_n(spec)
     force_guard = force_norm_guard_n(spec)
@@ -1256,8 +1594,8 @@ def write_local_candidate_marker(
         "local_only": True,
         "not_delivered": True,
         "program": spec.program_name,
-        "target_dir": CONTROLLER_DIR,
-        "controller_urp": f"{CONTROLLER_DIR}/{spec.program_name}.urp",
+        "target_dir": spec.controller_dir,
+        "controller_urp": f"{spec.controller_dir}/{spec.program_name}.urp",
         "stamp": stamp,
         "generated_at": gen_at,
         "semantic_fingerprint": fingerprint,
@@ -1291,7 +1629,7 @@ def write_outputs(
 ) -> dict[str, object]:
     spec = spec_for(program)
     now = datetime.now(timezone(timedelta(hours=8)))
-    target_dir = output_dir or (default_local_candidate_dir(now, spec) if local_only else LOCAL_PROGRAM_DIR)
+    target_dir = output_dir or (default_local_candidate_dir(now, spec) if local_only else local_program_dir_for(spec))
     reused = (
         existing_metadata(target_dir, spec)
         if reuse_existing_metadata and stamp_prefix is None and generated_at_override is None
@@ -1306,7 +1644,7 @@ def write_outputs(
     geom = line_cfg(load_json(CONFIG_PATH))
     script = build_script(stamp, gen_at, geom, frame, spec)
     txt = build_txt(stamp, spec)
-    urp = build_urp(script, spec.program_name, CONTROLLER_DIR)
+    urp = build_urp(script, spec.program_name, spec.controller_dir)
     validate_package(script, txt, urp, stamp, spec)
     fingerprint = semantic_fingerprint(script, txt, urp, spec)
 
@@ -1335,7 +1673,7 @@ def write_outputs(
         "script": str(script_path),
         "txt": str(txt_path),
         "urp": str(urp_path),
-        "controller_urp": f"{CONTROLLER_DIR}/{spec.program_name}.urp",
+        "controller_urp": f"{spec.controller_dir}/{spec.program_name}.urp",
         "stamp": stamp,
         "generated_at": gen_at,
         "semantic_fingerprint": fingerprint,

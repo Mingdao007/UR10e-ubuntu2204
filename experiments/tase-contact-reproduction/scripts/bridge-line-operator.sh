@@ -15,6 +15,7 @@ LONG_CHECK_TTL_S="${LONG_CHECK_TTL_S:-7200}"
 LONG_CHECK_CACHE="${LONG_CHECK_CACHE:-${RUN_ROOT}/.bridge_long_checks_cache.json}"
 STEP5D_RUNTIME_INTERFACE="${ROOT}/tools/step5d_runtime_interface.py"
 STEP5D_CURRENT_BINDING_GATE="${ROOT}/tools/verify_step5d_current_binding.py"
+STEP5D_NO_CONTACT_P0_PROFILE="step5d_strict_rnn_no_contact_p0_v1"
 BRIDGE_PROFILE="${BRIDGE_PROFILE:-${STEP4E_VERSION:-v31}}"
 
 current_step5d_profile() {
@@ -73,7 +74,17 @@ BRIDGE_SENSOR_STALE_S="${BRIDGE_SENSOR_STALE_S:-${STEP5D_SENSOR_STALE_S:-0.10}}"
 BRIDGE_SOCKET_TIMEOUT_S="${BRIDGE_SOCKET_TIMEOUT_S:-${STEP5D_SOCKET_TIMEOUT_S:-0.0}}"
 BRIDGE_BACKGROUND_PUSH_AFTER_LIVE="${BRIDGE_BACKGROUND_PUSH_AFTER_LIVE:-0}"
 BRIDGE_NORMAL_COMMAND_SIGN="${BRIDGE_NORMAL_COMMAND_SIGN:-1}"
-if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v27" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v28" ]]; then
+if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
+  BRIDGE_DURATION_S="3"
+  BRIDGE_BASELINE_S="1"
+  BRIDGE_REZERO_S="0.25"
+  BRIDGE_RTDE_HZ="500"
+  BRIDGE_SENSOR_STALE_S="0.10"
+  BRIDGE_SOCKET_TIMEOUT_S="0.0"
+  MAX_NORMAL_FORCE_N="2"
+  MAX_FORCE_NORM_N="5"
+  MAX_TORQUE_NORM_NM="3.0"
+elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v27" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v28" ]]; then
   MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-50}"
   MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-60}"
   MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-3.0}"
@@ -96,12 +107,20 @@ BRIDGE_ORIENTATION_WY_SIGN="${BRIDGE_ORIENTATION_WY_SIGN:-1}"
 BRIDGE_LINE_SPEED_M_S="${BRIDGE_LINE_SPEED_M_S:-0.003}"
 BRIDGE_LINE_SETTLE_S="${BRIDGE_LINE_SETTLE_S:-0.0}"
 BRIDGE_STAGE25_ONLY="${BRIDGE_STAGE25_ONLY:-0}"
-if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v18" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v19" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v20" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v21" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v22" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v23" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v24" || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_v* ]]; then
+if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
+  BRIDGE_TARGET_FORCE_N="1.0"
+elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v18" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v19" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v20" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v21" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v22" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v23" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v24" || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_v* ]]; then
   BRIDGE_TARGET_FORCE_N="${BRIDGE_TARGET_FORCE_N:-${STEP4E_TARGET_FORCE_N:-12.0}}"
 else
   BRIDGE_TARGET_FORCE_N="${BRIDGE_TARGET_FORCE_N:-${STEP4E_TARGET_FORCE_N:-5}}"
 fi
-if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v25" ]]; then
+if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
+  STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N="0.0"
+  STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N="2.0"
+  STEP5D_DEFAULT_PRELOAD_RAW_MIN_N="0.0"
+  STEP5D_DEFAULT_PRELOAD_RAW_MAX_N="2.0"
+  STEP5D_DEFAULT_PRELOAD_FORCE_NORM_MAX_N="5.0"
+elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v25" ]]; then
   STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N:-10.5}"
   STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N:-12.8}"
   STEP5D_DEFAULT_PRELOAD_RAW_MIN_N="${STEP5D_DEFAULT_PRELOAD_RAW_MIN_N:-9.5}"
@@ -126,7 +145,10 @@ else
   STEP5D_DEFAULT_PRELOAD_RAW_MAX_N="${STEP5D_DEFAULT_PRELOAD_RAW_MAX_N:-15.0}"
   STEP5D_DEFAULT_PRELOAD_FORCE_NORM_MAX_N="${STEP5D_DEFAULT_PRELOAD_FORCE_NORM_MAX_N:-25.0}"
 fi
-if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v25" ]]; then
+if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
+  STEP5D_STAGE25_CONTROL_MODE_DEFAULT="speedj_rnn_live"
+  BRIDGE_ANGULAR_LIMIT_RAD_S="0.015"
+elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v25" ]]; then
   STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedl_cartesian_oracle}"
   BRIDGE_ANGULAR_LIMIT_RAD_S="${BRIDGE_ANGULAR_LIMIT_RAD_S:-0.150}"
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v26" ]]; then
@@ -173,17 +195,31 @@ elif [[ "${BRIDGE_PROFILE}" == "step4g_v1" ]]; then
   BRIDGE_PATH_SHAPE="eight"
 elif [[ "${BRIDGE_PROFILE}" == "step5b_v1" ]]; then
   BRIDGE_PATH_SHAPE="cycloid"
-elif [[ "${BRIDGE_PROFILE}" == "step5c_speedj_dryrun_v1" || "${BRIDGE_PROFILE}" == "step5c_joint_rnn_cycloid_v1" || "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_v* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_v* ]]; then
+elif [[ "${BRIDGE_PROFILE}" == "step5c_speedj_dryrun_v1" || "${BRIDGE_PROFILE}" == "step5c_joint_rnn_cycloid_v1" || "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_v* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_v* || "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
   BRIDGE_PATH_SHAPE="cycloid"
 elif [[ "${BRIDGE_PROFILE}" == "step6b_v1" || "${BRIDGE_PROFILE}" == "step6b_v2" ]]; then
   BRIDGE_PATH_SHAPE="eight"
 fi
 if [[ -z "${BRIDGE_NORMAL_FOLLOW_MODE}" ]]; then
-  if [[ "${BRIDGE_PROFILE}" == "v30" || "${BRIDGE_PROFILE}" == "v31" || "${BRIDGE_PROFILE}" == "step4f_v1" || "${BRIDGE_PROFILE}" == "step4g_v1" || "${BRIDGE_PROFILE}" == "step5b_v1" || "${BRIDGE_PROFILE}" == "step5c_joint_rnn_cycloid_v1" || "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_v* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_v* || "${BRIDGE_PROFILE}" == "step6b_v1" || "${BRIDGE_PROFILE}" == "step6b_v2" ]]; then
+  if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
+    BRIDGE_NORMAL_FOLLOW_MODE="locked"
+  elif [[ "${BRIDGE_PROFILE}" == "v30" || "${BRIDGE_PROFILE}" == "v31" || "${BRIDGE_PROFILE}" == "step4f_v1" || "${BRIDGE_PROFILE}" == "step4g_v1" || "${BRIDGE_PROFILE}" == "step5b_v1" || "${BRIDGE_PROFILE}" == "step5c_joint_rnn_cycloid_v1" || "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_v* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_v* || "${BRIDGE_PROFILE}" == "step6b_v1" || "${BRIDGE_PROFILE}" == "step6b_v2" ]]; then
     BRIDGE_NORMAL_FOLLOW_MODE="filtered_live"
   else
     BRIDGE_NORMAL_FOLLOW_MODE="locked"
   fi
+fi
+if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
+  BRIDGE_TOTAL_LINEAR_LIMIT_M_S="0.004"
+  BRIDGE_MOTION_LIMIT_M_S="0.004"
+  BRIDGE_NORMAL_VELOCITY_LIMIT_M_S="0.003"
+  BRIDGE_FORCE_P_GAIN="0.001"
+  BRIDGE_FORCE_I_GAIN="0.00001"
+  BRIDGE_FORCE_DAMPING="7.0"
+  BRIDGE_INTEGRAL_LIMIT_N_S="1.0"
+  BRIDGE_NORMAL_FILTER_ALPHA="0.55"
+  BRIDGE_NORMAL_FOLLOW_MODE="locked"
+  BRIDGE_NORMAL_MIN_FORCE_N="0.001"
 fi
 
 PROGRAM_PREVIEW="/programs/andyl/kunwei/step4/step4e_preview_line_${BRIDGE_PROFILE}.urp"
@@ -246,6 +282,9 @@ fi
 if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v10" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v11" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step5/step5d/${BRIDGE_PROFILE}.urp"
 fi
+if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
+  PROGRAM_LINE="/programs/andyl/kunwei/step5/step5d/${BRIDGE_PROFILE}.urp"
+fi
 if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v12" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v13" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v14" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v15" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v15a" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v16" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v17" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v18" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v19" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v20" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v21" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v22" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v23" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v24" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step5/${BRIDGE_PROFILE}.urp"
 fi
@@ -258,7 +297,9 @@ fi
 if [[ "${BRIDGE_PROFILE}" == "step6b_v2" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step6/step6b_contact_eight_baseline_v2.urp"
 fi
-if [[ "${BRIDGE_PROFILE}" == "p0_geo_v1" ]]; then
+if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
+  SEARCH_DESCRIPTION="Step5d strict RNN no-contact P0 capture: no contact search, no preload, no zero/tare, direct Stage25.95 register-clear barrier then short Stage25.0 layout-524 speedj_rnn_live warm-start capture"
+elif [[ "${BRIDGE_PROFILE}" == "p0_geo_v1" ]]; then
   SEARCH_DESCRIPTION="P0-geo ball-first contact witness: vertical TCP entry, far 15 mm/s until 80 mm depth, then near 3 mm/s until first 1-1.5 N contact or 92 mm max depth; after contact it holds still for visual confirmation, retracts base-Z 2 mm, and never runs attitude, 5N acquisition, or line motion"
 elif [[ "${BRIDGE_PROFILE}" == "p0_ball_vs_cyl_v1" ]]; then
   SEARCH_DESCRIPTION="P0 witness pair: ball pose first, then KSM-8N housing/cylindrical-face pose; each uses low-threshold 1-1.5 N contact, 8 s visual dwell, and no attitude, 5N acquisition, or line motion"
@@ -567,7 +608,7 @@ PY
 }
 
 step5d_live_ready() {
-  if [[ "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_* ]]; then
+  if [[ "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_* || "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
     python3 "${STEP5D_RUNTIME_INTERFACE}" \
       --root "${ROOT}" \
       --program "${BRIDGE_PROFILE}" \
@@ -578,7 +619,24 @@ step5d_live_ready() {
   fi
 }
 
+step5d_no_contact_p0_capture_authorized() {
+  if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
+    if [[ "${STEP5D_P0_CONFIRM:-}" != "LIVE STEP5D STRICT RNN NO CONTACT P0" ]]; then
+      echo "refusing: no-contact P0 capture requires STEP5D_P0_CONFIRM='LIVE STEP5D STRICT RNN NO CONTACT P0'"
+      exit 40
+    fi
+    if [[ "${BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE:-0}" != "1" ]]; then
+      echo "refusing: no-contact P0 capture is not authorized; set BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE=1 through step5d-strict-rnn-p0.sh capture-bridge"
+      exit 24
+    fi
+  fi
+}
+
 step5d_live_bridge_authorized() {
+  if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
+    step5d_no_contact_p0_capture_authorized
+    return 0
+  fi
   if [[ "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_* ]]; then
     python3 "${STEP5D_CURRENT_BINDING_GATE}" \
       --root "${ROOT}" \
@@ -911,7 +969,7 @@ postprocess_run() {
     if ! python3 "${ROOT}/tools/summarize_stage_frequency.py" "${bridge_csv}" --output "${stage_summary}"; then
       echo "[operator] stage frequency summary failed: ${stage_summary}"
     fi
-    if [[ "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_* ]]; then
+    if [[ "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_* || "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
       if ! python3 "${ROOT}/tools/analyze_step5d_bridge_run.py" --run-dir "${out_dir}" --output "${step5d_analysis}"; then
         echo "[operator] Step5d bridge analysis failed: ${step5d_analysis}"
       fi
@@ -959,7 +1017,7 @@ wait_for_bridge_output_started() {
 
 maybe_start_background_push() {
   local out_dir="$1"
-  if [[ "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_* ]]; then
+  if [[ "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_* || "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
     # step5d live trigger keeps git publication in finalize.
     return 0
   fi
@@ -1097,8 +1155,13 @@ Open this Teach Pendant program first:
 Then run this mode and press Play on the Teach Pendant.
 The bridge will start automatically only after Dashboard reports that exact Step4e program running.
 WARNING
+    if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
+      step5d_live_bridge_authorized
+    fi
     run_bench_gate_cached
-    step5d_live_bridge_authorized
+    if [[ "${BRIDGE_PROFILE}" != "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
+      step5d_live_bridge_authorized
+    fi
     ensure_no_existing_bridge
     wait_for_tp_play_autowatch
     run_bridge_for_mode "${RUN_ROOT}/bridge_${RUN_LABEL}_autowatch_${STAMP}" 1
@@ -1108,9 +1171,14 @@ WARNING
       echo "fast trigger is currently implemented only for line-bridge-fast"
       exit 2
     fi
+    if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
+      step5d_live_bridge_authorized
+    fi
     step5d_live_ready
     require_bench_gate_cache
-    step5d_live_bridge_authorized
+    if [[ "${BRIDGE_PROFILE}" != "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
+      step5d_live_bridge_authorized
+    fi
     require_rtde_quick_probe
     ensure_no_existing_bridge
     trigger_rc=0

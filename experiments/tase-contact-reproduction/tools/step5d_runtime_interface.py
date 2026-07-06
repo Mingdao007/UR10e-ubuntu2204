@@ -34,11 +34,13 @@ STEP5D_ABLATION_V25_STAGE_ID = "step5d_strict_rnn_ablation_v25"
 STEP5D_ABLATION_V26_STAGE_ID = "step5d_strict_rnn_ablation_v26"
 STEP5D_ABLATION_V27_STAGE_ID = "step5d_strict_rnn_ablation_v27"
 STEP5D_ABLATION_V28_STAGE_ID = "step5d_strict_rnn_ablation_v28"
+STEP5D_NO_CONTACT_P0_STAGE_ID = "step5d_strict_rnn_no_contact_p0_v1"
 STEP5D_ABLATION_STAGE_IDS = (
     STEP5D_ABLATION_V25_STAGE_ID,
     STEP5D_ABLATION_V26_STAGE_ID,
     STEP5D_ABLATION_V27_STAGE_ID,
     STEP5D_ABLATION_V28_STAGE_ID,
+    STEP5D_NO_CONTACT_P0_STAGE_ID,
 )
 STEP5D_STAGE25_CONTROL_MODES = ("speedl_cartesian_oracle", "speedj_dls_oracle", "speedj_rnn_live")
 STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE = 523.0
@@ -55,6 +57,27 @@ STEP5D_STAGE25_V27_FIX_VALIDATION_TARGET_S = 10.0
 STEP5D_STAGE25_V28_FULL_RUN_TARGET_S = 60.0
 STEP5D_STAGE25_V27_RUNTIME_LIMIT_S = 15.0
 STEP5D_STAGE25_V28_RUNTIME_LIMIT_S = 65.0
+STEP5D_NO_CONTACT_P0_DURATION_S = 3.0
+STEP5D_NO_CONTACT_P0_TARGET_FORCE_N = 1.0
+STEP5D_NO_CONTACT_P0_BASELINE_S = 1.0
+STEP5D_NO_CONTACT_P0_REZERO_S = 0.25
+STEP5D_NO_CONTACT_P0_FORCE_P_GAIN = 0.001
+STEP5D_NO_CONTACT_P0_FORCE_I_GAIN = 0.00001
+STEP5D_NO_CONTACT_P0_FORCE_DAMPING = 7.0
+STEP5D_NO_CONTACT_P0_INTEGRAL_LIMIT_N_S = 1.0
+STEP5D_NO_CONTACT_P0_NORMAL_GUARD_N = 2.0
+STEP5D_NO_CONTACT_P0_FORCE_GUARD_N = 5.0
+STEP5D_NO_CONTACT_P0_TORQUE_GUARD_NM = 3.0
+STEP5D_NO_CONTACT_P0_MOTION_LIMIT_M_S = 0.004
+STEP5D_NO_CONTACT_P0_TOTAL_LINEAR_LIMIT_M_S = 0.004
+STEP5D_NO_CONTACT_P0_NORMAL_VELOCITY_LIMIT_M_S = 0.003
+STEP5D_NO_CONTACT_P0_NORMAL_FILTER_ALPHA = 0.55
+STEP5D_NO_CONTACT_P0_ANGULAR_LIMIT_RAD_S = 0.015
+STEP5D_NO_CONTACT_P0_NORMAL_MIN_FORCE_N = 0.001
+STEP5D_NO_CONTACT_P0_PRELOAD_TIMEOUT_S = 1.0
+STEP5D_NO_CONTACT_P0_RTDE_HZ = 500.0
+STEP5D_NO_CONTACT_P0_SENSOR_STALE_S = 0.10
+STEP5D_NO_CONTACT_P0_SOCKET_TIMEOUT_S = 0.0
 
 STEP5D_PROTOCOL_FALLBACK_PROFILE = {
     "parameters": {
@@ -163,7 +186,7 @@ def _current_stage(path: Path = CURRENT_STAGE_PATH) -> dict[str, Any]:
 def current_step5d_program(path: Path = CURRENT_STAGE_PATH) -> str:
     current = _current_stage(path)
     program = str(current.get("program") or current.get("current_stage_id") or "")
-    if program.startswith(("step5d_strict_rnn_liveprep_", "step5d_strict_rnn_ablation_")):
+    if program.startswith(("step5d_strict_rnn_liveprep_", "step5d_strict_rnn_ablation_", "step5d_strict_rnn_no_contact_p0_")):
         return program
     return STEP5D_LIVEPREP_V20_STAGE_ID
 
@@ -172,6 +195,8 @@ def controller_target_for(program: str, current: dict[str, Any] | None = None) -
     payload = current if current is not None else _current_stage()
     if payload.get("program") == program and payload.get("controller_target"):
         return str(payload["controller_target"])
+    if program == STEP5D_NO_CONTACT_P0_STAGE_ID:
+        return f"/programs/andyl/kunwei/step5/step5d/{program}.urp"
     return f"/programs/andyl/kunwei/step5/{program}.urp"
 
 
@@ -188,6 +213,13 @@ def speedl_orientation_policy(program: str) -> str | None:
 
 
 def stage25_0_register_contract(program: str) -> str:
+    if program == STEP5D_NO_CONTACT_P0_STAGE_ID:
+        return (
+            "no-contact P0: Stage25.95 first requires bridge-cleared 37..47, then "
+            f"Stage25.0 accepts 47={STEP5D_STAGE25_JOINT_LAYOUT_CODE:g} joint qd0..qd5 for TP speedj "
+            f"or 47={STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:g} Cartesian speedl for diagnostics; "
+            "43 cmd_valid; 44 path_time; 45 force_error; 46 pose/orientation_error."
+        )
     prefix = (
         "v25/v26/v27/v28: 37..42 cartesian vx/vy/vz/wx/wy/wz when "
         f"47={STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:g}; "
@@ -218,6 +250,8 @@ def stage25_0_register_contract(program: str) -> str:
 
 
 def stage25_success_target_s(program: str) -> float | None:
+    if program == STEP5D_NO_CONTACT_P0_STAGE_ID:
+        return 1.0
     if program == STEP5D_ABLATION_V28_STAGE_ID:
         return STEP5D_STAGE25_V28_FULL_RUN_TARGET_S
     if program == STEP5D_ABLATION_V27_STAGE_ID:
@@ -226,6 +260,8 @@ def stage25_success_target_s(program: str) -> float | None:
 
 
 def stage25_runtime_limit_s(program: str) -> float | None:
+    if program == STEP5D_NO_CONTACT_P0_STAGE_ID:
+        return 1.0
     if program == STEP5D_ABLATION_V28_STAGE_ID:
         return STEP5D_STAGE25_V28_RUNTIME_LIMIT_S
     if program == STEP5D_ABLATION_V27_STAGE_ID:
@@ -234,6 +270,19 @@ def stage25_runtime_limit_s(program: str) -> float | None:
 
 
 def default_preload_gate(program: str) -> Step5dPreloadGate:
+    if program == STEP5D_NO_CONTACT_P0_STAGE_ID:
+        return Step5dPreloadGate(
+            filtered_min_n=0.0,
+            filtered_max_n=2.0,
+            raw_min_n=0.0,
+            raw_max_n=2.0,
+            force_norm_max_n=5.0,
+            hold_s=0.0,
+            timeout_s=1.0,
+            recovery_normal_load_min_n=0.0,
+            recovery_normal_load_max_n=2.0,
+            force_norm_stop_n=5.0,
+        )
     if uses_step5b_speedl_live_source(program):
         return Step5dPreloadGate(
             filtered_min_n=5.0,
@@ -332,7 +381,11 @@ def resolve_runtime_interface(
     protocol_profile = runtime_protocol_profile(root)
     protocol_params = protocol_profile["parameters"]
     protocol_limits = protocol_profile["safety_limits"]
-    if uses_step5b_speedl_live_source(selected):
+    if selected == STEP5D_NO_CONTACT_P0_STAGE_ID:
+        trusted_normal_default_n = 2.0
+        trusted_force_default_n = 5.0
+        trusted_torque_default_nm = 3.0
+    elif uses_step5b_speedl_live_source(selected):
         trusted_normal_default_n = STEP5D_V27_STEP5B_ENVELOPE_NORMAL_GUARD_N
         trusted_force_default_n = STEP5D_V27_STEP5B_ENVELOPE_FORCE_GUARD_N
         trusted_torque_default_nm = STEP5D_V27_STEP5B_ENVELOPE_TORQUE_GUARD_NM
@@ -344,12 +397,14 @@ def resolve_runtime_interface(
         trusted_normal_default_n = 100.0
         trusted_force_default_n = 100.0
         trusted_torque_default_nm = 4.0
-    stage25_control_mode = str(
-        env_map.get(
-            "STEP5D_STAGE25_CONTROL_MODE",
-            "speedl_cartesian_oracle"
-            if selected in STEP5D_ABLATION_STAGE_IDS
-            else "speedj_rnn_live",
+    stage25_control_mode = (
+        "speedj_rnn_live"
+        if selected == STEP5D_NO_CONTACT_P0_STAGE_ID
+        else str(
+            env_map.get(
+                "STEP5D_STAGE25_CONTROL_MODE",
+                "speedl_cartesian_oracle" if selected in STEP5D_ABLATION_STAGE_IDS else "speedj_rnn_live",
+            )
         )
     )
     if stage25_control_mode not in STEP5D_STAGE25_CONTROL_MODES:
@@ -357,78 +412,74 @@ def resolve_runtime_interface(
             "STEP5D_STAGE25_CONTROL_MODE must be one of "
             f"{', '.join(STEP5D_STAGE25_CONTROL_MODES)}: {stage25_control_mode!r}"
         )
-    gate = Step5dPreloadGate(
-        filtered_min_n=env_float(env_map, "STEP5D_PRELOAD_FILTERED_MIN_N", default_gate.filtered_min_n),
-        filtered_max_n=env_float(env_map, "STEP5D_PRELOAD_FILTERED_MAX_N", default_gate.filtered_max_n),
-        raw_min_n=env_float(env_map, "STEP5D_PRELOAD_RAW_MIN_N", default_gate.raw_min_n),
-        raw_max_n=env_float(env_map, "STEP5D_PRELOAD_RAW_MAX_N", default_gate.raw_max_n),
-        force_norm_max_n=env_float(env_map, "STEP5D_PRELOAD_FORCE_NORM_MAX_N", default_gate.force_norm_max_n),
-        hold_s=env_float(env_map, "STEP5D_PRELOAD_HOLD_S", default_gate.hold_s),
-        timeout_s=env_float(env_map, "STEP5D_PRELOAD_TIMEOUT_S", default_gate.timeout_s),
-        cmd_limit_m_s=env_float(env_map, "STEP5D_PRELOAD_CMD_LIMIT_M_S", default_gate.cmd_limit_m_s),
-        recovery_normal_load_min_n=env_float(
-            env_map,
-            "STEP5D_PRELOAD_RECOVERY_NORMAL_MIN_N",
-            default_gate.recovery_normal_load_min_n,
-        ),
-        recovery_normal_load_max_n=env_float(
-            env_map,
-            "STEP5D_PRELOAD_RECOVERY_NORMAL_MAX_N",
-            default_gate.recovery_normal_load_max_n,
-        ),
-        force_norm_stop_n=env_float(env_map, "STEP5D_PRELOAD_FORCE_NORM_STOP_N", default_gate.force_norm_stop_n),
-    )
-    bridge_defaults = Step5dBridgeDefaults(
-        duration_s=env_float(env_map, "STEP5D_DURATION_S", float(protocol_params["bridge_duration_s"]), legacy="BRIDGE_DURATION_S"),
-        target_force_n=env_float(env_map, "STEP5D_TARGET_FORCE_N", float(protocol_params["target_force_n"]), legacy="BRIDGE_TARGET_FORCE_N"),
-        force_p_gain=env_float(env_map, "STEP5D_FORCE_P_GAIN", float(protocol_params["force_p_gain"]), legacy="BRIDGE_FORCE_P_GAIN"),
-        force_i_gain=env_float(env_map, "STEP5D_FORCE_I_GAIN", float(protocol_params["force_i_gain"]), legacy="BRIDGE_FORCE_I_GAIN"),
-        force_damping=env_float(env_map, "STEP5D_FORCE_DAMPING", float(protocol_params["force_damping"]), legacy="BRIDGE_FORCE_DAMPING"),
-        integral_limit_n_s=env_float(
-            env_map,
-            "STEP5D_INTEGRAL_LIMIT_N_S",
-            float(protocol_params["integral_limit_n_s"]),
-            legacy="BRIDGE_INTEGRAL_LIMIT_N_S",
-        ),
-        normal_velocity_limit_m_s=env_float(
-            env_map,
-            "STEP5D_NORMAL_VELOCITY_LIMIT_M_S",
-            float(protocol_limits["normal_velocity_limit_m_s"]),
-            legacy="BRIDGE_NORMAL_VELOCITY_LIMIT_M_S",
-        ),
-        normal_filter_alpha=env_float(
-            env_map,
-            "STEP5D_NORMAL_FILTER_ALPHA",
-            float(protocol_params["normal_filter_alpha"]),
-            legacy="BRIDGE_NORMAL_FILTER_ALPHA",
-        ),
-        normal_min_force_n=env_float(
-            env_map,
-            "STEP5D_NORMAL_MIN_FORCE_N",
-            float(protocol_params["normal_filter_min_force_n"]),
-            legacy="BRIDGE_NORMAL_MIN_FORCE_N",
-        ),
-        total_linear_limit_m_s=env_float(
-            env_map,
-            "STEP5D_TOTAL_LINEAR_LIMIT_M_S",
-            float(protocol_limits["total_linear_limit_m_s"]),
-            legacy="BRIDGE_TOTAL_LINEAR_LIMIT_M_S",
-        ),
-        angular_limit_rad_s=env_float(
-            env_map,
-            "STEP5D_ANGULAR_LIMIT_RAD_S",
-            0.150 if selected == STEP5D_ABLATION_V25_STAGE_ID else float(protocol_limits["angular_limit_rad_s"]),
-            legacy="BRIDGE_ANGULAR_LIMIT_RAD_S",
-        ),
-        max_normal_force_n=env_float(env_map, "STEP5D_MAX_NORMAL_FORCE_N", trusted_normal_default_n, legacy="MAX_NORMAL_FORCE_N"),
-        max_force_norm_n=env_float(env_map, "STEP5D_MAX_FORCE_NORM_N", trusted_force_default_n, legacy="MAX_FORCE_NORM_N"),
-        max_torque_norm_nm=env_float(env_map, "STEP5D_MAX_TORQUE_NORM_NM", trusted_torque_default_nm, legacy="MAX_TORQUE_NORM_NM"),
-        baseline_s=env_float(env_map, "STEP5D_BASELINE_S", 5.0, legacy="BRIDGE_BASELINE_S"),
-        rezero_s=env_float(env_map, "STEP5D_REZERO_S", default_bridge_rezero_s(selected, root), legacy="BRIDGE_REZERO_S"),
-        rtde_hz=env_float(env_map, "STEP5D_RTDE_HZ", 500.0, legacy="BRIDGE_RTDE_HZ"),
-        sensor_stale_s=env_float(env_map, "STEP5D_SENSOR_STALE_S", 0.10, legacy="BRIDGE_SENSOR_STALE_S"),
-        socket_timeout_s=env_float(env_map, "STEP5D_SOCKET_TIMEOUT_S", 0.0, legacy="BRIDGE_SOCKET_TIMEOUT_S"),
-    )
+    if selected == STEP5D_NO_CONTACT_P0_STAGE_ID:
+        gate = default_gate
+    else:
+        gate = Step5dPreloadGate(
+            filtered_min_n=env_float(env_map, "STEP5D_PRELOAD_FILTERED_MIN_N", default_gate.filtered_min_n),
+            filtered_max_n=env_float(env_map, "STEP5D_PRELOAD_FILTERED_MAX_N", default_gate.filtered_max_n),
+            raw_min_n=env_float(env_map, "STEP5D_PRELOAD_RAW_MIN_N", default_gate.raw_min_n),
+            raw_max_n=env_float(env_map, "STEP5D_PRELOAD_RAW_MAX_N", default_gate.raw_max_n),
+            force_norm_max_n=env_float(env_map, "STEP5D_PRELOAD_FORCE_NORM_MAX_N", default_gate.force_norm_max_n),
+            hold_s=env_float(env_map, "STEP5D_PRELOAD_HOLD_S", default_gate.hold_s),
+            timeout_s=env_float(env_map, "STEP5D_PRELOAD_TIMEOUT_S", default_gate.timeout_s),
+            cmd_limit_m_s=env_float(env_map, "STEP5D_PRELOAD_CMD_LIMIT_M_S", default_gate.cmd_limit_m_s),
+            recovery_normal_load_min_n=env_float(
+                env_map,
+                "STEP5D_PRELOAD_RECOVERY_NORMAL_MIN_N",
+                default_gate.recovery_normal_load_min_n,
+            ),
+            recovery_normal_load_max_n=env_float(
+                env_map,
+                "STEP5D_PRELOAD_RECOVERY_NORMAL_MAX_N",
+                default_gate.recovery_normal_load_max_n,
+            ),
+            force_norm_stop_n=env_float(env_map, "STEP5D_PRELOAD_FORCE_NORM_STOP_N", default_gate.force_norm_stop_n),
+        )
+    if selected == STEP5D_NO_CONTACT_P0_STAGE_ID:
+        bridge_defaults = Step5dBridgeDefaults(
+            duration_s=STEP5D_NO_CONTACT_P0_DURATION_S,
+            target_force_n=STEP5D_NO_CONTACT_P0_TARGET_FORCE_N,
+            force_p_gain=STEP5D_NO_CONTACT_P0_FORCE_P_GAIN,
+            force_i_gain=STEP5D_NO_CONTACT_P0_FORCE_I_GAIN,
+            force_damping=STEP5D_NO_CONTACT_P0_FORCE_DAMPING,
+            integral_limit_n_s=STEP5D_NO_CONTACT_P0_INTEGRAL_LIMIT_N_S,
+            normal_velocity_limit_m_s=STEP5D_NO_CONTACT_P0_NORMAL_VELOCITY_LIMIT_M_S,
+            normal_filter_alpha=STEP5D_NO_CONTACT_P0_NORMAL_FILTER_ALPHA,
+            normal_min_force_n=STEP5D_NO_CONTACT_P0_NORMAL_MIN_FORCE_N,
+            total_linear_limit_m_s=STEP5D_NO_CONTACT_P0_TOTAL_LINEAR_LIMIT_M_S,
+            angular_limit_rad_s=STEP5D_NO_CONTACT_P0_ANGULAR_LIMIT_RAD_S,
+            max_normal_force_n=STEP5D_NO_CONTACT_P0_NORMAL_GUARD_N,
+            max_force_norm_n=STEP5D_NO_CONTACT_P0_FORCE_GUARD_N,
+            max_torque_norm_nm=STEP5D_NO_CONTACT_P0_TORQUE_GUARD_NM,
+            baseline_s=STEP5D_NO_CONTACT_P0_BASELINE_S,
+            rezero_s=STEP5D_NO_CONTACT_P0_REZERO_S,
+            rtde_hz=STEP5D_NO_CONTACT_P0_RTDE_HZ,
+            sensor_stale_s=STEP5D_NO_CONTACT_P0_SENSOR_STALE_S,
+            socket_timeout_s=STEP5D_NO_CONTACT_P0_SOCKET_TIMEOUT_S,
+        )
+    else:
+        bridge_defaults = Step5dBridgeDefaults(
+            duration_s=env_float(env_map, "STEP5D_DURATION_S", float(protocol_params["bridge_duration_s"]), legacy="BRIDGE_DURATION_S"),
+            target_force_n=env_float(env_map, "STEP5D_TARGET_FORCE_N", float(protocol_params["target_force_n"]), legacy="BRIDGE_TARGET_FORCE_N"),
+            force_p_gain=env_float(env_map, "STEP5D_FORCE_P_GAIN", float(protocol_params["force_p_gain"]), legacy="BRIDGE_FORCE_P_GAIN"),
+            force_i_gain=env_float(env_map, "STEP5D_FORCE_I_GAIN", float(protocol_params["force_i_gain"]), legacy="BRIDGE_FORCE_I_GAIN"),
+            force_damping=env_float(env_map, "STEP5D_FORCE_DAMPING", float(protocol_params["force_damping"]), legacy="BRIDGE_FORCE_DAMPING"),
+            integral_limit_n_s=env_float(env_map, "STEP5D_INTEGRAL_LIMIT_N_S", float(protocol_params["integral_limit_n_s"]), legacy="BRIDGE_INTEGRAL_LIMIT_N_S"),
+            normal_velocity_limit_m_s=env_float(env_map, "STEP5D_NORMAL_VELOCITY_LIMIT_M_S", float(protocol_limits["normal_velocity_limit_m_s"]), legacy="BRIDGE_NORMAL_VELOCITY_LIMIT_M_S"),
+            normal_filter_alpha=env_float(env_map, "STEP5D_NORMAL_FILTER_ALPHA", float(protocol_params["normal_filter_alpha"]), legacy="BRIDGE_NORMAL_FILTER_ALPHA"),
+            normal_min_force_n=env_float(env_map, "STEP5D_NORMAL_MIN_FORCE_N", float(protocol_params["normal_filter_min_force_n"]), legacy="BRIDGE_NORMAL_MIN_FORCE_N"),
+            total_linear_limit_m_s=env_float(env_map, "STEP5D_TOTAL_LINEAR_LIMIT_M_S", float(protocol_limits["total_linear_limit_m_s"]), legacy="BRIDGE_TOTAL_LINEAR_LIMIT_M_S"),
+            angular_limit_rad_s=env_float(env_map, "STEP5D_ANGULAR_LIMIT_RAD_S", 0.150 if selected == STEP5D_ABLATION_V25_STAGE_ID else float(protocol_limits["angular_limit_rad_s"]), legacy="BRIDGE_ANGULAR_LIMIT_RAD_S"),
+            max_normal_force_n=env_float(env_map, "STEP5D_MAX_NORMAL_FORCE_N", trusted_normal_default_n, legacy="MAX_NORMAL_FORCE_N"),
+            max_force_norm_n=env_float(env_map, "STEP5D_MAX_FORCE_NORM_N", trusted_force_default_n, legacy="MAX_FORCE_NORM_N"),
+            max_torque_norm_nm=env_float(env_map, "STEP5D_MAX_TORQUE_NORM_NM", trusted_torque_default_nm, legacy="MAX_TORQUE_NORM_NM"),
+            baseline_s=env_float(env_map, "STEP5D_BASELINE_S", 5.0, legacy="BRIDGE_BASELINE_S"),
+            rezero_s=env_float(env_map, "STEP5D_REZERO_S", default_bridge_rezero_s(selected, root), legacy="BRIDGE_REZERO_S"),
+            rtde_hz=env_float(env_map, "STEP5D_RTDE_HZ", 500.0, legacy="BRIDGE_RTDE_HZ"),
+            sensor_stale_s=env_float(env_map, "STEP5D_SENSOR_STALE_S", 0.10, legacy="BRIDGE_SENSOR_STALE_S"),
+            socket_timeout_s=env_float(env_map, "STEP5D_SOCKET_TIMEOUT_S", 0.0, legacy="BRIDGE_SOCKET_TIMEOUT_S"),
+        )
     validate_interface_values(gate, bridge_defaults)
     return Step5dRuntimeInterface(
         interface_class=STEP5D_INTERFACE_CLASS,
@@ -459,6 +510,7 @@ def resolve_runtime_interface(
             ),
             "stage25_success_target_s": stage25_success_target_s(selected),
             "stage25_runtime_limit_s": stage25_runtime_limit_s(selected),
+            "no_contact_p0_capture": selected == STEP5D_NO_CONTACT_P0_STAGE_ID,
             "no_ubuntu_motion": True,
             "no_zero_ftsensor": True,
             "no_kunwei_tare_or_config": True,

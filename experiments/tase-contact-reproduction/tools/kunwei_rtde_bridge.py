@@ -67,10 +67,32 @@ from step5d_runtime_interface import (  # noqa: E402
     STEP5D_ABLATION_V26_STAGE_ID,
     STEP5D_ABLATION_V27_STAGE_ID,
     STEP5D_ABLATION_V28_STAGE_ID,
+    STEP5D_NO_CONTACT_P0_STAGE_ID,
     STEP5D_LINE_ENTRY_PARAM_VALID_CODE,
     STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE,
     STEP5D_STAGE25_CONTROL_MODES,
     STEP5D_STAGE25_JOINT_LAYOUT_CODE,
+    STEP5D_NO_CONTACT_P0_BASELINE_S,
+    STEP5D_NO_CONTACT_P0_DURATION_S,
+    STEP5D_NO_CONTACT_P0_FORCE_GUARD_N,
+    STEP5D_NO_CONTACT_P0_ANGULAR_LIMIT_RAD_S,
+    STEP5D_NO_CONTACT_P0_FORCE_DAMPING,
+    STEP5D_NO_CONTACT_P0_FORCE_I_GAIN,
+    STEP5D_NO_CONTACT_P0_FORCE_P_GAIN,
+    STEP5D_NO_CONTACT_P0_INTEGRAL_LIMIT_N_S,
+    STEP5D_NO_CONTACT_P0_MOTION_LIMIT_M_S,
+    STEP5D_NO_CONTACT_P0_NORMAL_GUARD_N,
+    STEP5D_NO_CONTACT_P0_NORMAL_FILTER_ALPHA,
+    STEP5D_NO_CONTACT_P0_NORMAL_MIN_FORCE_N,
+    STEP5D_NO_CONTACT_P0_NORMAL_VELOCITY_LIMIT_M_S,
+    STEP5D_NO_CONTACT_P0_PRELOAD_TIMEOUT_S,
+    STEP5D_NO_CONTACT_P0_REZERO_S,
+    STEP5D_NO_CONTACT_P0_RTDE_HZ,
+    STEP5D_NO_CONTACT_P0_SENSOR_STALE_S,
+    STEP5D_NO_CONTACT_P0_SOCKET_TIMEOUT_S,
+    STEP5D_NO_CONTACT_P0_TARGET_FORCE_N,
+    STEP5D_NO_CONTACT_P0_TORQUE_GUARD_NM,
+    STEP5D_NO_CONTACT_P0_TOTAL_LINEAR_LIMIT_M_S,
 )
 from step6_eight import (  # noqa: E402
     PATH_DURATION_S as STEP6_PATH_DURATION_S,
@@ -474,6 +496,7 @@ STEP5D_LIVEPREP_STAGE_IDS = {
     STEP5D_ABLATION_V26_STAGE_ID,
     STEP5D_ABLATION_V27_STAGE_ID,
     STEP5D_ABLATION_V28_STAGE_ID,
+    STEP5D_NO_CONTACT_P0_STAGE_ID,
 }
 STEP5D_TCP_CAGE_PROFILES = {
     STEP5D_LIVEPREP_V15A_STAGE_ID,
@@ -3273,11 +3296,13 @@ def compute_bridge_values(
     step5d_liveprep_v26_profile = args.bridge_profile == STEP5D_ABLATION_V26_STAGE_ID
     step5d_liveprep_v27_profile = args.bridge_profile == STEP5D_ABLATION_V27_STAGE_ID
     step5d_liveprep_v28_profile = args.bridge_profile == STEP5D_ABLATION_V28_STAGE_ID
+    step5d_no_contact_p0_profile = args.bridge_profile == STEP5D_NO_CONTACT_P0_STAGE_ID
     step5d_step5b_speedl_live_profile = step5d_liveprep_v27_profile or step5d_liveprep_v28_profile
     step5d_ablation_profile = (
         step5d_liveprep_v25_profile
         or step5d_liveprep_v26_profile
         or step5d_step5b_speedl_live_profile
+        or step5d_no_contact_p0_profile
     )
     step5d_liveprep_v16_or_v17_profile = step5d_liveprep_v16_profile or step5d_liveprep_v17_profile
     step5d_liveprep_v18_or_v19_profile = step5d_liveprep_v18_profile or step5d_liveprep_v19_profile
@@ -3291,6 +3316,7 @@ def compute_bridge_values(
         or step5d_liveprep_v25_profile
         or step5d_liveprep_v26_profile
         or step5d_step5b_speedl_live_profile
+        or step5d_no_contact_p0_profile
     )
     step5d_liveprep_v17_or_newer_profile = step5d_liveprep_v17_profile or step5d_liveprep_v18_or_newer_profile
     if (
@@ -6183,15 +6209,59 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     if not args.step5d_stage25_control_mode:
         args.step5d_stage25_control_mode = (
             "speedl_cartesian_oracle"
-            if args.bridge_profile in STEP5D_ABLATION_STAGE_IDS
+            if args.bridge_profile in STEP5D_ABLATION_STAGE_IDS and args.bridge_profile != STEP5D_NO_CONTACT_P0_STAGE_ID
             else "speedj_rnn_live"
         )
+    if args.bridge_profile == STEP5D_NO_CONTACT_P0_STAGE_ID:
+        args.step5d_stage25_control_mode = "speedj_rnn_live"
     if args.step5d_stage25_control_mode not in STEP5D_STAGE25_CONTROL_MODES:
         raise SystemExit(
             "--step5d-stage25-control-mode must be one of "
             f"{', '.join(STEP5D_STAGE25_CONTROL_MODES)}"
         )
-    if args.bridge_profile in STEP5D_ABLATION_STAGE_IDS:
+    if args.bridge_profile == STEP5D_NO_CONTACT_P0_STAGE_ID:
+        args.duration_s = STEP5D_NO_CONTACT_P0_DURATION_S
+        args.baseline_s = STEP5D_NO_CONTACT_P0_BASELINE_S
+        args.rezero_s = STEP5D_NO_CONTACT_P0_REZERO_S
+        args.target_force_n = STEP5D_NO_CONTACT_P0_TARGET_FORCE_N
+        args.rtde_hz = STEP5D_NO_CONTACT_P0_RTDE_HZ
+        args.sensor_stale_s = STEP5D_NO_CONTACT_P0_SENSOR_STALE_S
+        args.socket_timeout_s = STEP5D_NO_CONTACT_P0_SOCKET_TIMEOUT_S
+        args.bridge_integrate_stage25_only = True
+        args.step4e_integrate_stage25_only = True
+        args.bridge_force_p_gain = STEP5D_NO_CONTACT_P0_FORCE_P_GAIN
+        args.step4e_force_p_gain = STEP5D_NO_CONTACT_P0_FORCE_P_GAIN
+        args.bridge_force_i_gain = STEP5D_NO_CONTACT_P0_FORCE_I_GAIN
+        args.step4e_force_i_gain = STEP5D_NO_CONTACT_P0_FORCE_I_GAIN
+        args.bridge_force_damping = STEP5D_NO_CONTACT_P0_FORCE_DAMPING
+        args.step4e_force_damping = STEP5D_NO_CONTACT_P0_FORCE_DAMPING
+        args.bridge_integral_limit_n_s = STEP5D_NO_CONTACT_P0_INTEGRAL_LIMIT_N_S
+        args.step4e_integral_limit_n_s = STEP5D_NO_CONTACT_P0_INTEGRAL_LIMIT_N_S
+        args.bridge_motion_limit_m_s = STEP5D_NO_CONTACT_P0_MOTION_LIMIT_M_S
+        args.step4e_motion_limit_m_s = STEP5D_NO_CONTACT_P0_MOTION_LIMIT_M_S
+        args.bridge_total_linear_limit_m_s = STEP5D_NO_CONTACT_P0_TOTAL_LINEAR_LIMIT_M_S
+        args.step4e_total_linear_limit_m_s = STEP5D_NO_CONTACT_P0_TOTAL_LINEAR_LIMIT_M_S
+        args.bridge_normal_velocity_limit_m_s = STEP5D_NO_CONTACT_P0_NORMAL_VELOCITY_LIMIT_M_S
+        args.step4e_normal_velocity_limit_m_s = STEP5D_NO_CONTACT_P0_NORMAL_VELOCITY_LIMIT_M_S
+        args.bridge_angular_limit_rad_s = STEP5D_NO_CONTACT_P0_ANGULAR_LIMIT_RAD_S
+        args.step4e_angular_limit_rad_s = STEP5D_NO_CONTACT_P0_ANGULAR_LIMIT_RAD_S
+        args.bridge_normal_filter_alpha = STEP5D_NO_CONTACT_P0_NORMAL_FILTER_ALPHA
+        args.step4e_normal_filter_alpha = STEP5D_NO_CONTACT_P0_NORMAL_FILTER_ALPHA
+        args.bridge_normal_follow_mode = "locked"
+        args.step4e_normal_follow_mode = "locked"
+        args.bridge_normal_min_force_n = STEP5D_NO_CONTACT_P0_NORMAL_MIN_FORCE_N
+        args.step4e_normal_min_force_n = STEP5D_NO_CONTACT_P0_NORMAL_MIN_FORCE_N
+        args.step5d_preload_filtered_min_n = 0.0
+        args.step5d_preload_filtered_max_n = STEP5D_NO_CONTACT_P0_NORMAL_GUARD_N
+        args.step5d_preload_raw_min_n = 0.0
+        args.step5d_preload_raw_max_n = STEP5D_NO_CONTACT_P0_NORMAL_GUARD_N
+        args.step5d_preload_force_norm_max_n = STEP5D_NO_CONTACT_P0_FORCE_GUARD_N
+        args.step5d_preload_hold_s = 0.0
+        args.step5d_preload_timeout_s = STEP5D_NO_CONTACT_P0_PRELOAD_TIMEOUT_S
+        args.max_normal_force_n = STEP5D_NO_CONTACT_P0_NORMAL_GUARD_N
+        args.max_force_norm_n = STEP5D_NO_CONTACT_P0_FORCE_GUARD_N
+        args.max_torque_norm_nm = STEP5D_NO_CONTACT_P0_TORQUE_GUARD_NM
+    elif args.bridge_profile in STEP5D_ABLATION_STAGE_IDS:
         def preload_default_was_not_supplied(flag: str, *env_names: str) -> bool:
             return flag not in argv_list and all(os.environ.get(name, "") == "" for name in env_names)
 
@@ -6304,6 +6374,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                 STEP5D_ABLATION_V26_STAGE_ID,
                 STEP5D_ABLATION_V27_STAGE_ID,
                 STEP5D_ABLATION_V28_STAGE_ID,
+                STEP5D_NO_CONTACT_P0_STAGE_ID,
             }
             else 0.30
         )
