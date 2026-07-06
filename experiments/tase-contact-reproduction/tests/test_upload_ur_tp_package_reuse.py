@@ -329,7 +329,7 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
         with redirect_stdout(out):
             result = upload.main(
                 [
-                    "step5d_strict_rnn_no_contact_p0_v1",
+                    "step5d_strict_rnn_no_contact_p0_v2",
                     "--local-dir",
                     str(ROOT / "programs" / "step5" / "step5d"),
                     "--dry-run",
@@ -340,13 +340,13 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
         manifest = manifest_from_upload_output(out.getvalue())
         self.assertEqual(manifest["target_dir"], "/programs/andyl/kunwei/step5")
         self.assertEqual(manifest["target_source"], "table")
-        self.assertEqual(manifest["target_resolution"]["row_id"], "step5d_strict_rnn_no_contact_p0_v1")
+        self.assertEqual(manifest["target_resolution"]["row_id"], "step5d_strict_rnn_no_contact_p0_v2")
 
     def test_upload_rejects_explicit_target_dir_without_override(self) -> None:
         with self.assertRaisesRegex(RuntimeError, "explicit --target-dir requires --override-table"):
             upload.main(
                 [
-                    "step5d_strict_rnn_no_contact_p0_v1",
+                    "step5d_strict_rnn_no_contact_p0_v2",
                     "--local-dir",
                     str(ROOT / "programs" / "step5" / "step5d"),
                     "--target-dir",
@@ -359,7 +359,7 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "--override-reason is required"):
             upload.main(
                 [
-                    "step5d_strict_rnn_no_contact_p0_v1",
+                    "step5d_strict_rnn_no_contact_p0_v2",
                     "--local-dir",
                     str(ROOT / "programs" / "step5" / "step5d"),
                     "--target-dir",
@@ -373,7 +373,7 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
         with redirect_stdout(out):
             result = upload.main(
                 [
-                    "step5d_strict_rnn_no_contact_p0_v1",
+                    "step5d_strict_rnn_no_contact_p0_v2",
                     "--local-dir",
                     str(ROOT / "programs" / "step5" / "step5d"),
                     "--target-dir",

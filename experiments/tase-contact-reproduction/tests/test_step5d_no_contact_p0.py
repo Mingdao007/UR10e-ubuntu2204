@@ -75,8 +75,9 @@ def good_rows() -> list[dict[str, str]]:
 
 class Step5dNoContactP0Test(unittest.TestCase):
     def test_no_contact_p0_package_enters_stage25_without_contact_acquire(self) -> None:
+        self.assertEqual(iface.STEP5D_NO_CONTACT_P0_STAGE_ID, "step5d_strict_rnn_no_contact_p0_v2")
         spec = liveprep.spec_for(iface.STEP5D_NO_CONTACT_P0_STAGE_ID)
-        stamp = "2026-07-06T2100HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V1"
+        stamp = "2026-07-06T2100HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V2"
         script = liveprep.build_script(
             stamp,
             "2026-07-06T21:00:00+08:00",
@@ -97,6 +98,9 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertIn("NO_CONTACT_P0_CAPTURE", script + txt)
         self.assertIn("write_output_float_register(35, 25.95)", script)
         self.assertIn("write_output_float_register(35, 25.0)", script)
+        self.assertIn("write_output_float_register(28, 0.0)", script)
+        self.assertIn("write_output_float_register(26, heartbeat)", script)
+        self.assertIn("write_output_float_register(27, sensor_ok)", script)
         self.assertIn("local joint_layout_code = 524.000", script)
         self.assertIn("speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]", script)
         self.assertIn("codex_wait_for_bridge_ready(60.0)", script)
@@ -289,10 +293,10 @@ class Step5dNoContactP0Test(unittest.TestCase):
 
         self.assertFalse(capture["capture_authorized"])
         self.assertFalse(capture["passed"])
-        self.assertEqual(capture["local_triplet"], "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v1")
+        self.assertEqual(capture["local_triplet"], "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v2")
         self.assertEqual(
             capture["controller_target"],
-            "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v1.urp",
+            "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v2.urp",
         )
         for ext, path in files.items():
             self.assertTrue(path.exists(), path)
@@ -303,7 +307,7 @@ class Step5dNoContactP0Test(unittest.TestCase):
             files[".script"].read_text(encoding="utf-8"),
             files[".txt"].read_text(encoding="utf-8"),
             files[".urp"].read_bytes(),
-            "STEP5D_STRICT_RNN_NO_CONTACT_P0_V1",
+            "STEP5D_STRICT_RNN_NO_CONTACT_P0_V2",
             spec,
         )
 
@@ -522,7 +526,7 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertIn("capture-ready", script)
         self.assertIn("capture-bridge", script)
         self.assertIn("LIVE STEP5D STRICT RNN NO CONTACT P0", script)
-        self.assertIn("step5d_strict_rnn_no_contact_p0_v1", script)
+        self.assertIn("step5d_strict_rnn_no_contact_p0_v2", script)
         self.assertIn("BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE=1", script)
         self.assertIn("verify_step5d_no_contact_p0.py", script)
         self.assertIn("step5d_no_contact_p0_summary", script)
@@ -609,7 +613,7 @@ out.write_text(json.dumps({{"ok": True}}), encoding="utf-8")
                 for line in (sandbox / "bridge_env.txt").read_text(encoding="utf-8").splitlines()
                 if "=" in line
             )
-            self.assertEqual(bridge_env["BRIDGE_PROFILE"], "step5d_strict_rnn_no_contact_p0_v1")
+            self.assertEqual(bridge_env["BRIDGE_PROFILE"], "step5d_strict_rnn_no_contact_p0_v2")
             self.assertEqual(bridge_env["BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE"], "1")
             self.assertEqual(bridge_env["BRIDGE_DURATION_S"], "180")
             self.assertEqual(bridge_env["BRIDGE_RTDE_HZ"], "500")

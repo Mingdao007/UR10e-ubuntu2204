@@ -108,8 +108,8 @@ ABLATION_SPECS = {
     ),
     STEP5D_NO_CONTACT_P0_STAGE_ID: Step5dAblationSpec(
         program_name=STEP5D_NO_CONTACT_P0_STAGE_ID,
-        version_label="no_contact_p0_v1",
-        stamp_token="STEP5D_STRICT_RNN_NO_CONTACT_P0_V1",
+        version_label="no_contact_p0_v2",
+        stamp_token="STEP5D_STRICT_RNN_NO_CONTACT_P0_V2",
         cartesian_angular_cap_rad_s=0.015,
         default_stage25_control_mode="speedj_rnn_live",
         stage25_success_target_s=STEP5D_STAGE25_V28_FULL_RUN_TARGET_S,
@@ -761,11 +761,14 @@ def codex_wait_for_bridge_ready(timeout_s):
   local heartbeat_seen = False
   while t_wait < timeout_s:
     local heartbeat = read_input_float_register(26)
+    local sensor_ok = read_input_float_register(27)
+    write_output_float_register(26, heartbeat)
+    write_output_float_register(27, sensor_ok)
     if heartbeat != last_heartbeat:
       heartbeat_seen = True
       last_heartbeat = heartbeat
     end
-    if heartbeat_seen and read_input_float_register(27) >= 0.5:
+    if heartbeat_seen and sensor_ok >= 0.5:
       return True
     end
     t_wait = t_wait + get_steptime()
@@ -796,6 +799,7 @@ end
 
 def codex_{spec.program_name}():
   write_output_float_register(35, 20.0)
+  write_output_float_register(28, 0.0)
   write_output_float_register(47, 0.0)
   local stop_reason = 0.0
   local bridge_ready = codex_wait_for_bridge_ready(60.0)

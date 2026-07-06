@@ -30,11 +30,11 @@ class CrossStepParameterTableTest(unittest.TestCase):
             shutil.copytree(ROOT / "config", tmp_root / "config")
             table_path = tmp_root / "config" / "step5_stage_table.json"
             table = validator.load_json(table_path)
-            row = next(row for row in table["stages"] if row.get("id") == "step5d_strict_rnn_no_contact_p0_v1")
+            row = next(row for row in table["stages"] if row.get("id") == "step5d_strict_rnn_no_contact_p0_v2")
             row["package_delivery"]["controller_dir"] = "/programs/andyl/kunwei/step5/step5d"
             row["package_delivery"][
                 "controller_target"
-            ] = "/programs/andyl/kunwei/step5/step5d/step5d_strict_rnn_no_contact_p0_v1.urp"
+            ] = "/programs/andyl/kunwei/step5/step5d/step5d_strict_rnn_no_contact_p0_v2.urp"
             table_path.write_text(json.dumps(table), encoding="utf-8")
 
             failures = validator.validate(tmp_root)

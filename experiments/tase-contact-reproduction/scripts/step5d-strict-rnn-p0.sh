@@ -7,7 +7,7 @@ ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 LIVEPREP_OPERATOR="${SCRIPT_DIR}/step5d-liveprep-operator.sh"
 BRIDGE_OPERATOR="${SCRIPT_DIR}/bridge-line-operator.sh"
 P0_VERIFIER="${ROOT}/tools/verify_step5d_no_contact_p0.py"
-P0_PROFILE="step5d_strict_rnn_no_contact_p0_v1"
+P0_PROFILE="step5d_strict_rnn_no_contact_p0_v2"
 P0_CONFIRM_TOKEN="LIVE STEP5D STRICT RNN NO CONTACT P0"
 
 usage() {
