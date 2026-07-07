@@ -72,6 +72,14 @@ def write_case(root: Path, *, delivery_mode: str | None = None, include_fresh: b
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
 
+def write_case_with_manifest_status(root: Path, status: str) -> None:
+    write_case(root)
+    manifest_path = root / f"runs/controller_readback_{PROGRAM}_fixture/manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["status"] = status
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+
 class CurrentStageReadbackGateTest(unittest.TestCase):
     def test_legacy_manifest_passes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -94,6 +102,20 @@ class CurrentStageReadbackGateTest(unittest.TestCase):
             write_case(root, delivery_mode="content_addressed_reuse", include_fresh=True)
             result = gate.verify(root, PROGRAM)
             self.assertEqual(result["delivery_mode"], "content_addressed_reuse")
+
+    def test_local_package_verified_manifest_cannot_be_current(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_case_with_manifest_status(root, "local package verified")
+            with self.assertRaisesRegex(RuntimeError, "manifest status is local package verified"):
+                gate.verify(root, PROGRAM)
+
+    def test_dry_run_manifest_cannot_be_current(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_case_with_manifest_status(root, "dry-run")
+            with self.assertRaisesRegex(RuntimeError, "manifest status is dry-run"):
+                gate.verify(root, PROGRAM)
 
 
 if __name__ == "__main__":
