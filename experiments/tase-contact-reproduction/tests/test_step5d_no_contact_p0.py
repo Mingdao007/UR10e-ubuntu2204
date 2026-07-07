@@ -889,6 +889,29 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertLessEqual(float(xdot[2]), 1e-12)
         self.assertFalse(np.allclose(xdot, legacy_base_clip))
 
+    def test_no_contact_p0_tcp_xy_cannot_create_base_upward_escape_at_live_pose(self) -> None:
+        rotation_base_from_tcp = np.asarray(
+            bridge.rotvec_to_matrix(3.066590466020342, 0.4823691970174541, 0.011593743710405745),
+            dtype=float,
+        )
+        raw_tcp = np.array([-0.000128420409, 0.0000626265109, 0.0, 0.0, 0.0, 0.0])
+        raw_base = twist_same_origin_to_base(raw_tcp, rotation_base_from_tcp)
+        self.assertGreater(float(raw_base[2]), 1e-6)
+
+        xdot, active, diagnostics = bridge.limit_step5d_no_contact_p0_xdot_components(
+            raw_base,
+            rotation_base_from_tcp=rotation_base_from_tcp,
+            return_diagnostics=True,
+        )
+
+        self.assertTrue(active)
+        self.assertTrue(diagnostics["valid"])
+        self.assertEqual(diagnostics["reason"], "ok")
+        self.assertTrue(diagnostics["base_down_correction_active"])
+        self.assertGreater(float(diagnostics["limited_tcp"][2]), 0.0)
+        self.assertLessEqual(float(diagnostics["limited_base"][2]), 1e-12)
+        self.assertLessEqual(float(xdot[2]), 1e-12)
+
     def test_no_contact_p0_xdot_limiter_requires_tcp_rotation(self) -> None:
         with self.assertRaisesRegex(ValueError, "rotation_base_from_tcp"):
             bridge.limit_step5d_no_contact_p0_xdot_components(

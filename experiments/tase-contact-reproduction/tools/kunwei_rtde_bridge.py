@@ -2582,16 +2582,32 @@ def limit_step5d_no_contact_p0_xdot_components(
     for idx in range(3, 6):
         limited_tcp[idx] = clamp(float(limited_tcp[idx]), -float(max_angular_rad_s), float(max_angular_rad_s))
     limited_base = twist_same_origin_to_base(limited_tcp, rotation)
+    base_down_correction_active = False
+    frame_valid = True
+    frame_reason = "ok"
+    if float(limited_base[2]) > 0.0:
+        tcp_z_to_base_z = float(rotation[2, 2])
+        if tcp_z_to_base_z < -1e-9:
+            needed_tcp_press = float(limited_base[2]) / -tcp_z_to_base_z
+            corrected_tcp_z = min(float(max_z_m_s), float(limited_tcp[2]) + needed_tcp_press)
+            if corrected_tcp_z > float(limited_tcp[2]):
+                limited_tcp[2] = corrected_tcp_z
+                limited_base = twist_same_origin_to_base(limited_tcp, rotation)
+                base_down_correction_active = True
+        if float(limited_base[2]) > 1e-12:
+            frame_valid = False
+            frame_reason = "base_z_upward_after_tcp_press_correction"
     active = bool(np.any(np.abs(limited_base - xdot) > 1e-9))
     diagnostics = {
-        "valid": True,
+        "valid": frame_valid,
         "mode": "tcp_same_origin_v1",
-        "reason": "ok",
+        "reason": frame_reason,
         "raw_base": xdot,
         "raw_tcp": raw_tcp,
         "limited_tcp": limited_tcp,
         "limited_base": limited_base,
         "tcp_press_speed_m_s": float(limited_tcp[2]),
+        "base_down_correction_active": base_down_correction_active,
     }
     return (limited_base, active, diagnostics) if return_diagnostics else (limited_base, active)
 
