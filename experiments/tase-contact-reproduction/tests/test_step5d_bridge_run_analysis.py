@@ -1293,6 +1293,65 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
         self.assertEqual(analysis["stage25_3_rows"], 4)
         self.assertAlmostEqual(analysis["stage25_3_duration_s"], 0.080)
 
+    def test_no_contact_p0_verifier_failure_overrides_entered_stage25_and_ignores_register30(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            (run_dir / "metadata.json").write_text(
+                json.dumps(
+                    {
+                        "args": {
+                            "bridge_profile": "step5d_strict_rnn_no_contact_p0_v4",
+                            "step5d_stage25_control_mode": "speedj_rnn_live",
+                        }
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            fieldnames = [
+                *FIELDNAMES,
+                "_step5d_stage25_control_mode",
+                "_step5d_stage25_echo_consumed",
+                "_step5d_intervention_reason",
+                "_step5d_outer_xdot_limited_approach_normal_m_s",
+                "_step5d_jqdot_raw_approach_normal_m_s",
+                "_step5d_jqdot_cmd_approach_normal_m_s",
+                "_step5d_constraint_residual_norm",
+                "_step5d_lambda_norm",
+                "_step5d_active_bounds_count",
+            ]
+            write_bridge_csv(
+                run_dir / "bridge_rtde_500hz.csv",
+                [
+                    {
+                        "t_monotonic_s": "1.000",
+                        "ur_output_double_register_30": "7",
+                        "ur_output_double_register_35": "25.0",
+                        "_step4e_normal_load_n": "0.300000",
+                        "_step5d_force_settle_filtered_normal_load_n": "",
+                        "force_norm_n": "0.800000",
+                        "_step5d_stage25_control_mode": "speedj_rnn_live",
+                        "_step5d_stage25_echo_consumed": "1",
+                        "_step5d_intervention_reason": "solver_warm_start,no_contact_p0_qdot_gate:approach_normal_tracking_error",
+                        "_step5d_outer_xdot_limited_approach_normal_m_s": "0.000100000",
+                        "_step5d_jqdot_raw_approach_normal_m_s": "0.000095000",
+                        "_step5d_jqdot_cmd_approach_normal_m_s": "-0.000300000",
+                        "_step5d_constraint_residual_norm": "0.000020000",
+                        "_step5d_lambda_norm": "0.012000000",
+                        "_step5d_active_bounds_count": "0",
+                    }
+                ],
+                fieldnames=fieldnames,
+            )
+
+            analysis = analyze_step5d_bridge_run.analyze_run_dir(run_dir)
+
+        self.assertEqual(analysis["classification"], "no_contact_p0_verifier_failed")
+        self.assertFalse(analysis["no_contact_p0_verifier"]["ok"])
+        self.assertIn("first_speedj_rnn_tick_cmd_press_unload_mismatch", analysis["no_contact_p0_verifier"]["blockers"])
+        self.assertIsNone(analysis["first_tp_stop_reason"])
+        self.assertIsNone(analysis["terminal_tp_stop_reason"])
+
     def test_csv_cli_infers_run_metadata_and_writes_analysis(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = Path(tmp) / "bridge_step5d_strict_rnn_liveprep_v24_20260705_000000"

@@ -18,12 +18,14 @@ from step5d_runtime_interface import (
     STEP5D_ABLATION_V27_STAGE_ID,
     STEP5D_ABLATION_V28_STAGE_ID,
     STEP5D_LIVEPREP_V24_STAGE_ID,
+    STEP5D_NO_CONTACT_P0_STAGE_ID,
     STEP5D_V27_SPEEDL_LIVE_CONTROL_SOURCE,
     Step5dPreloadGate,
     default_preload_gate,
     stage25_success_target_s,
     uses_step5b_speedl_live_source,
 )
+import verify_step5d_no_contact_p0
 
 
 ANALYSIS_FILENAME = "step5d_bridge_analysis.json"
@@ -98,6 +100,7 @@ def infer_step5d_profile(run_dir: Path | None, metadata: dict[str, Any]) -> str:
     if run_dir is not None:
         name = run_dir.name
         for profile in (
+            STEP5D_NO_CONTACT_P0_STAGE_ID,
             STEP5D_ABLATION_V28_STAGE_ID,
             STEP5D_ABLATION_V27_STAGE_ID,
             STEP5D_ABLATION_V26_STAGE_ID,
@@ -750,8 +753,16 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
     metadata = read_json(run_dir / METADATA_FILENAME) if run_dir is not None else {}
     stage25_control_mode = metadata_text(metadata, "step5d_stage25_control_mode")
     profile, gate = preload_gate_for(run_dir)
+    no_contact_p0_profile = profile == STEP5D_NO_CONTACT_P0_STAGE_ID
+    no_contact_p0_verifier = (
+        verify_step5d_no_contact_p0.verify_run_dir(run_dir if run_dir is not None else csv_path)
+        if no_contact_p0_profile
+        else None
+    )
     result = base_analysis(csv_path, run_dir, profile, gate)
     result["stage25_control_mode"] = stage25_control_mode
+    if no_contact_p0_verifier is not None:
+        result["no_contact_p0_verifier"] = no_contact_p0_verifier
     if not csv_path.exists():
         result.update(
             {
@@ -811,10 +822,11 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
             stage = finite_float(row.get("ur_output_double_register_35"))
             stop_reason = finite_float(row.get("ur_output_double_register_30"))
             stage20_status = finite_float(row.get("ur_output_double_register_36"))
-            if result["first_tp_stop_reason"] is None and math.isfinite(stop_reason) and stop_reason != 0.0:
-                result["first_tp_stop_reason"] = maybe_int(stop_reason)
-            if math.isfinite(stop_reason) and stop_reason != 0.0:
-                result["terminal_tp_stop_reason"] = maybe_int(stop_reason)
+            if not no_contact_p0_profile:
+                if result["first_tp_stop_reason"] is None and math.isfinite(stop_reason) and stop_reason != 0.0:
+                    result["first_tp_stop_reason"] = maybe_int(stop_reason)
+                if math.isfinite(stop_reason) and stop_reason != 0.0:
+                    result["terminal_tp_stop_reason"] = maybe_int(stop_reason)
             if stage_is(stage, 20.0):
                 result["stage20_bridge_ready_rows"] += 1
                 if math.isfinite(stage20_status):
@@ -904,7 +916,14 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
             stage25_control_mode = stage25_control_mode_from_rows(stage25_rows)
             result["stage25_control_mode"] = stage25_control_mode
 
-    if result["entered_stage25"]:
+    if no_contact_p0_verifier is not None and no_contact_p0_verifier.get("ok") is False:
+        result["classification"] = "no_contact_p0_verifier_failed"
+        result["acceptance_status"] = "failed_no_contact_p0_verifier"
+        result["next_action"] = (
+            "keep strict RNN contact live gated; fix P0 command-path evidence until "
+            "verify_step5d_no_contact_p0.py passes on the completed artifact"
+        )
+    elif result["entered_stage25"]:
         oscillation_reason = stage25_control_oscillation_reason(result["stage25_control_attribution"])
         if stage25_speedl_fix_success(profile, result, control_mode=stage25_control_mode):
             if profile == STEP5D_ABLATION_V28_STAGE_ID:

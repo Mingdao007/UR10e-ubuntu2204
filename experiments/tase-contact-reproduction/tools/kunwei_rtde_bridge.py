@@ -2589,6 +2589,10 @@ def step5d_no_contact_p0_qdot_acceptance_gate(
         "outer_approach_normal_m_s": outer_approach,
         "normal_tracking_error_m_s": normal_tracking_error,
     }
+    if not math.isfinite(float(residual_norm)):
+        return reject("nonfinite_residual_norm", **common)
+    if not math.isfinite(float(active_bounds_count)):
+        return reject("nonfinite_active_bounds_count", **common)
     if predicted_speed > float(max_tcp_speed_m_s):
         return reject("predicted_tcp_speed_exceeds_p0_cap", **common)
     if outer_approach > 0.0 and jqdot_approach <= 0.0:
@@ -4425,7 +4429,11 @@ def compute_bridge_values(
                         max_angular_rad_s=float(args.bridge_angular_limit_rad_s),
                     )
                 step5d_outer_xdot_joint_feasible = step5d_outer_xdot_limited
-                if (step5d_liveprep_v26_profile or step5d_step5b_speedl_live_profile) and step5d_stage25_control_mode != "speedl_cartesian_oracle":
+                if (
+                    step5d_liveprep_v26_profile
+                    or step5d_step5b_speedl_live_profile
+                    or step5d_no_contact_p0_profile
+                ) and step5d_stage25_control_mode != "speedl_cartesian_oracle":
                     step5d_outer_xdot_joint_feasible, step5d_xdot_feasibility_diagnostics = (
                         scale_step5d_xdot_for_joint_feasibility(
                             step5d_outer_xdot_limited,
@@ -4469,7 +4477,7 @@ def compute_bridge_values(
                     or step5d_liveprep_v15_profile
                     or (step5d_liveprep_online_cage_profile and not step5d_ablation_profile)
                     or (
-                        (step5d_liveprep_v26_profile or step5d_step5b_speedl_live_profile)
+                        (step5d_liveprep_v26_profile or step5d_step5b_speedl_live_profile or step5d_no_contact_p0_profile)
                         and step5d_stage25_control_mode != "speedl_cartesian_oracle"
                     )
                 ):
@@ -6789,8 +6797,6 @@ def main(argv: list[str] | None = None) -> int:
             "step4e_angular_limit_rad_s": args.bridge_angular_limit_rad_s,
         },
     }
-    write_json(metadata_path, metadata)
-
     sock: socket.socket | None = None
     rtde: RTDEBridgeClient | None = None
     rtde_input_recipe = 0
@@ -6838,16 +6844,56 @@ def main(argv: list[str] | None = None) -> int:
     zero_events: list[dict[str, Any]] = []
     buffer = bytearray()
     step4e_state = BridgeState()
+    step5d_runtime_prewarm = {
+        "enabled": args.bridge_profile in STEP5D_LIVEPREP_STAGE_IDS,
+        "status": "not_required",
+        "elapsed_s": 0.0,
+        "before_socket_connect": True,
+        "before_rtde_open": True,
+    }
+    if step5d_runtime_prewarm["enabled"]:
+        prewarm_start = time.perf_counter()
+        try:
+            ensure_step5d_liveprep_runtime(step4e_state, args)
+        except Exception as exc:
+            step5d_runtime_prewarm["status"] = "failed"
+            step5d_runtime_prewarm["error"] = rtde_error_name(exc)
+            step5d_runtime_prewarm["elapsed_s"] = time.perf_counter() - prewarm_start
+            metadata["step5d_liveprep_runtime_prewarm"] = step5d_runtime_prewarm
+            write_json(metadata_path, metadata)
+            raise
+        step5d_runtime_prewarm["elapsed_s"] = time.perf_counter() - prewarm_start
+        step5d_runtime_prewarm["status"] = (
+            "ok"
+            if step4e_state.step5d_model_bundle is not None
+            and step4e_state.step5d_tcp_offset_tool0 is not None
+            and step4e_state.step5d_solver is not None
+            else "incomplete"
+        )
+        if step5d_runtime_prewarm["status"] != "ok":
+            metadata["step5d_liveprep_runtime_prewarm"] = step5d_runtime_prewarm
+            write_json(metadata_path, metadata)
+            raise RuntimeError("Step5d liveprep runtime prewarm did not initialize model, TCP offset, and solver")
 
     next_write = start_mono
     write_period = 1.0 / args.rtde_hz
+    dashboard_watch_mode = (
+        "preflight_only_for_no_contact_p0"
+        if args.bridge_profile == STEP5D_NO_CONTACT_P0_STAGE_ID
+        else "runtime_dashboard_watch"
+    )
     dashboard_watch_enabled = (
         args.bridge_profile in STEP5D_LIVEPREP_STAGE_IDS
+        and args.bridge_profile != STEP5D_NO_CONTACT_P0_STAGE_ID
         and not args.skip_dashboard_preflight
         and not args.disable_dashboard_program_watch
     )
     dashboard_watch_saw_running = False
     next_dashboard_watch = start_mono
+    metadata["step5d_liveprep_runtime_prewarm"] = step5d_runtime_prewarm
+    metadata["dashboard_program_watch"]["enabled"] = dashboard_watch_enabled
+    metadata["dashboard_program_watch"]["mode"] = dashboard_watch_mode
+    write_json(metadata_path, metadata)
 
     try:
         sock = socket.create_connection((args.sensor_ip, args.sensor_port), timeout=args.connect_timeout_s)

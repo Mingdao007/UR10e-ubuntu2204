@@ -108,10 +108,25 @@ def _p0_fake_outer(*_args: object, **_kwargs: object) -> SimpleNamespace:
     )
 
 
+def _p0_large_outer(*_args: object, **_kwargs: object) -> SimpleNamespace:
+    return SimpleNamespace(
+        xdot_c=np.array([0.0100, 0.0000, 0.0000, 0.0150, 0.0, 0.0]),
+        next_state=Step5dOuterLoopState(),
+        diagnostics={
+            "outer_orientation_angle_rad": 0.0,
+            "e_f": 0.0,
+            "R_d_z_dot_R_cur_z": 1.0,
+            "force_sign_convention": "step5_step6_positive_normal_load",
+        },
+    )
+
+
 def _p0_no_contact_runtime_values(
     *,
     normal_acquired: bool,
     sensor_ok: float = 1.0,
+    outer_side_effect: object = _p0_fake_outer,
+    jacobian: np.ndarray | None = None,
 ) -> dict[str, float]:
     args = bridge.parse_args(
         [
@@ -138,9 +153,9 @@ def _p0_no_contact_runtime_values(
     state = _p0_no_contact_state(normal_acquired=normal_acquired)
     with (
         patch.object(bridge, "ensure_step5d_liveprep_runtime", _p0_fake_runtime),
-        patch.object(bridge, "step5d_tcp_jacobian_base", return_value=np.eye(6)),
+        patch.object(bridge, "step5d_tcp_jacobian_base", return_value=np.eye(6) if jacobian is None else jacobian),
         patch.object(bridge, "step5d_omega_bounds", return_value=(np.full(6, -0.05), np.full(6, 0.05))),
-        patch.object(bridge, "compute_step5d_outer_loop", side_effect=_p0_fake_outer),
+        patch.object(bridge, "compute_step5d_outer_loop", side_effect=outer_side_effect),
         patch.object(bridge, "rnn_target_state_from_outer_loop", return_value={"shadow": True}),
     ):
         return bridge.compute_bridge_values(
@@ -422,6 +437,28 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertEqual(tuple(gate["qdot"]), (0.0,) * 6)
         self.assertGreater(gate["predicted_tcp_speed_m_s"], 0.004)
 
+    def test_no_contact_p0_qdot_gate_rejects_nonfinite_residual_and_bounds(self) -> None:
+        for residual_norm, active_bounds_count, reason in (
+            (float("nan"), 0, "nonfinite_residual_norm"),
+            (0.0, float("nan"), "nonfinite_active_bounds_count"),
+        ):
+            with self.subTest(reason=reason):
+                gate = bridge.step5d_no_contact_p0_qdot_acceptance_gate(
+                    qdot=(0.0, 0.0, 0.00014, 0.0, 0.0, 0.0),
+                    jacobian=np.eye(6),
+                    outer_xdot_limited=(0.0, 0.0, 0.00015, 0.0, 0.0, 0.0),
+                    reaction_normal_b=(0.0, 0.0, -1.0),
+                    residual_norm=residual_norm,
+                    active_bounds_count=active_bounds_count,
+                    max_tcp_speed_m_s=0.004,
+                    max_normal_tracking_error_m_s=0.0005,
+                    max_residual_norm=0.001,
+                )
+
+                self.assertFalse(gate["accepted"])
+                self.assertEqual(gate["reason"], reason)
+                self.assertEqual(tuple(gate["qdot"]), (0.0,) * 6)
+
     def test_no_contact_p0_qdot_gate_allows_small_aligned_command(self) -> None:
         gate = bridge.step5d_no_contact_p0_qdot_acceptance_gate(
             qdot=(0.0, 0.0, 0.00014, 0.0, 0.0, 0.0),
@@ -438,6 +475,21 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertTrue(gate["accepted"])
         self.assertEqual(tuple(gate["qdot"]), (0.0, 0.0, 0.00014, 0.0, 0.0, 0.0))
         self.assertAlmostEqual(gate["normal_tracking_error_m_s"], 0.00001)
+
+    def test_no_contact_p0_scales_outer_xdot_for_joint_feasibility_before_rnn(self) -> None:
+        values = _p0_no_contact_runtime_values(
+            normal_acquired=True,
+            sensor_ok=1.0,
+            outer_side_effect=_p0_large_outer,
+            jacobian=np.eye(6) * 0.1,
+        )
+
+        self.assertEqual(values["step4e_controller_state"], bridge.STEP5D_STAGE25_JOINT_LAYOUT_CODE)
+        self.assertEqual(values["_step5d_stage25_control_mode"], "speedj_rnn_live")
+        self.assertEqual(values["_step5d_qdot_cap_rad_s"], 0.05)
+        self.assertGreater(values["_step5d_jinv_xdot_inf_over_qdot_cap"], 1.0)
+        self.assertLess(values["_step5d_xdot_feasibility_scale"], 1.0)
+        self.assertEqual(values["_step5d_xdot_feasibility_scale_active"], 1.0)
 
     def test_no_contact_p0_bridge_parse_args_uses_full_window_no_contact_defaults(self) -> None:
         args = bridge.parse_args(
