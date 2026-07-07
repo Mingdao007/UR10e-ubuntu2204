@@ -8,7 +8,7 @@ LIVEPREP_OPERATOR="${SCRIPT_DIR}/step5d-liveprep-operator.sh"
 BRIDGE_OPERATOR="${SCRIPT_DIR}/bridge-line-operator.sh"
 P0_VERIFIER="${ROOT}/tools/verify_step5d_no_contact_p0.py"
 STAGE_ENV_EXPORTER="${ROOT}/tools/export_stage_env.py"
-P0_PROFILE="step5d_strict_rnn_no_contact_p0_v5"
+P0_PROFILE="step5d_strict_rnn_no_contact_p0_v6"
 P0_CONFIRM_TOKEN="LIVE STEP5D STRICT RNN NO CONTACT P0"
 LATEST_RUN_POINTER="${ROOT}/runs/latest_run_pointer.json"
 
@@ -25,7 +25,7 @@ Boundary:
   - status/live-ready only report current Step5d runtime readiness.
   - capture-ready reports the dedicated no-contact P0 capture profile readiness.
   - capture-bridge starts the dedicated no-contact P0 bridge before Teach
-    Pendant Play after STEP5D_P0_CONFIRM is set exactly. Open the exact v5
+    Pendant Play after STEP5D_P0_CONFIRM is set exactly. Open the exact v6
     program on the Teach Pendant and keep it STOPPED; press Play only after
     the operator prints: [operator] P0 bridge armed: press TP Play now.
     it does not mark P0 passed.
@@ -47,20 +47,33 @@ current = json.loads(open(current_path, encoding="utf-8").read())
 table = json.loads(open(table_path, encoding="utf-8").read())
 capture = current.get("bridge_trigger", {}).get("no_contact_p0_capture", {})
 if capture.get("profile") != profile:
-    raise SystemExit(f"refusing no-contact P0: current capture profile is {capture.get('profile')}, expected {profile}")
+    raise SystemExit(
+        "refusing no-contact P0: current capture profile is "
+        f"{capture.get('profile')}, expected {profile}\\n"
+        "next: stop/reopen exact v6, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
+    )
 row = next((row for row in table.get("stages", []) if row.get("id") == profile), None)
 if row is None:
-    raise SystemExit(f"refusing no-contact P0: missing stage table row {profile}")
+    raise SystemExit(
+        f"refusing no-contact P0: missing stage table row {profile}\\n"
+        "next: stop/reopen exact v6, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
+    )
 delivery = row.get("package_delivery", {})
 guard = row.get("guard", {})
 target = capture.get("controller_target")
 controller_dir = str(PurePosixPath(str(target)).parent) if target else None
 manifest_rel = capture.get("controller_readback_manifest")
 if not manifest_rel:
-    raise SystemExit("refusing no-contact P0: capture missing controller_readback_manifest")
+    raise SystemExit(
+        "refusing no-contact P0: capture missing controller_readback_manifest\\n"
+        "next: stop/reopen exact v6, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
+    )
 manifest_path = Path(current_path).resolve().parent.parent / manifest_rel
 if not manifest_path.is_file():
-    raise SystemExit(f"refusing no-contact P0: manifest missing: {manifest_rel}")
+    raise SystemExit(
+        f"refusing no-contact P0: manifest missing: {manifest_rel}\\n"
+        "next: stop/reopen exact v6, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
+    )
 manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 validation = manifest.get("validation", {})
 checks = {
@@ -80,7 +93,10 @@ checks["validation target_dir"] = validation.get("target_dir") == controller_dir
 checks["validation script_node_path"] = validation.get("script_node_path") == f"{controller_dir}/{profile}.script"
 failed = [key for key, ok in checks.items() if not ok]
 if failed:
-    raise SystemExit(f"refusing no-contact P0: table/current mismatch: {failed}")
+    raise SystemExit(
+        f"refusing no-contact P0: table/current mismatch: {failed}\\n"
+        "next: stop/reopen exact v6, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
+    )
 print(f"[operator] P0 table preflight: program={profile}")
 print(f"[operator] P0 table preflight: controller_dir={controller_dir} controller_target={target}")
 print(
@@ -168,7 +184,7 @@ case "$1" in
     load_p0_stage_env
     "${BRIDGE_OPERATOR}" live-ready
     echo "Teach Pendant target: /programs/andyl/kunwei/step5/${P0_PROFILE}.urp"
-    echo "Open that exact v5 program on the Teach Pendant and keep it STOPPED."
+    echo "Open that exact v6 program on the Teach Pendant and keep it STOPPED."
     echo "Then run capture-bridge and press TP Play only after: [operator] P0 bridge armed: press TP Play now"
     ;;
   capture-bridge)
@@ -199,6 +215,7 @@ PY
     fi
     if [[ -z "${run_dir}" ]]; then
       echo "refusing to validate no-contact P0: bridge output run dir was not found"
+      echo "next: keep capture-bridge alive, check for runtime output path in logs, and rerun capture-bridge if needed"
       exit 24
     fi
     python3 "${P0_VERIFIER}" "${run_dir}" --output "${run_dir}/step5d_no_contact_p0_summary.json"

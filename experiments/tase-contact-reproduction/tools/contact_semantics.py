@@ -26,12 +26,35 @@ def finite_matrix3(values: Any, name: str) -> np.ndarray:
     return matrix
 
 
+def finite_vector6(values: Any, name: str) -> np.ndarray:
+    vector = np.asarray(values, dtype=float)
+    if vector.shape != (6,) or not np.all(np.isfinite(vector)):
+        raise ValueError(f"{name} must be a finite length-6 vector")
+    return vector
+
+
 def normalize_unit(values: Any, *, name: str, min_norm: float = DEFAULT_MIN_NORM) -> np.ndarray:
     vector = finite_vector3(values, name)
     norm = float(np.linalg.norm(vector))
     if norm < float(min_norm):
         raise ValueError(f"{name} norm is too small")
     return vector / norm
+
+
+def twist_same_origin_to_base(twist_local: Any, rotation_base_from_local: Any) -> np.ndarray:
+    """Re-express a TCP-origin twist from a local frame into base coordinates."""
+
+    twist = finite_vector6(twist_local, "twist_local")
+    rotation = finite_matrix3(rotation_base_from_local, "rotation_base_from_local")
+    return np.concatenate((rotation @ twist[:3], rotation @ twist[3:]))
+
+
+def twist_base_to_same_origin(twist_base: Any, rotation_base_from_local: Any) -> np.ndarray:
+    """Re-express a TCP-origin base-frame twist in the local frame."""
+
+    twist = finite_vector6(twist_base, "twist_base")
+    rotation = finite_matrix3(rotation_base_from_local, "rotation_base_from_local")
+    return np.concatenate((rotation.T @ twist[:3], rotation.T @ twist[3:]))
 
 
 def skew3(values: Any) -> np.ndarray:

@@ -32,9 +32,9 @@ class CrossStepParameterTableTest(unittest.TestCase):
         redundant = set(step5["bridge_startup_policy"]["applies_to_stage_ids"])
 
         self.assertEqual(derived, redundant)
-        self.assertEqual(len(derived), 8)
+        self.assertEqual(len(derived), 9)
         self.assertIn("step5d_strict_rnn_no_contact_p0_v4", derived)
-        self.assertIn("step5d_strict_rnn_no_contact_p0_v5", derived)
+        self.assertIn("step5d_strict_rnn_no_contact_p0_v6", derived)
         self.assertIn("step6_contact_eight_baseline_v2", derived)
 
     def test_triggerable_bridge_row_without_startup_policy_ref_fails_closed(self) -> None:
@@ -76,11 +76,11 @@ class CrossStepParameterTableTest(unittest.TestCase):
             shutil.copytree(ROOT / "config", tmp_root / "config")
             table_path = tmp_root / "config" / "step5_stage_table.json"
             table = validator.load_json(table_path)
-            row = next(row for row in table["stages"] if row.get("id") == "step5d_strict_rnn_no_contact_p0_v5")
+            row = next(row for row in table["stages"] if row.get("id") == "step5d_strict_rnn_no_contact_p0_v6")
             row["package_delivery"]["controller_dir"] = "/programs/andyl/kunwei/step5/step5d"
             row["package_delivery"][
                 "controller_target"
-            ] = "/programs/andyl/kunwei/step5/step5d/step5d_strict_rnn_no_contact_p0_v5.urp"
+            ] = "/programs/andyl/kunwei/step5/step5d/step5d_strict_rnn_no_contact_p0_v6.urp"
             table_path.write_text(json.dumps(table), encoding="utf-8")
 
             failures = validator.validate(tmp_root)
@@ -112,12 +112,12 @@ class CrossStepParameterTableTest(unittest.TestCase):
             tmp_root = Path(tmp)
             shutil.copytree(ROOT / "config", tmp_root / "config")
             table = validator.load_json(tmp_root / "config" / "step5_stage_table.json")
-            row = next(row for row in table["stages"] if row.get("id") == "step5d_strict_rnn_no_contact_p0_v5")
-            row["package_delivery"]["controller_readback_manifest"] = "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v5_LOCAL_PENDING_READBACK/manifest.json"
+            row = next(row for row in table["stages"] if row.get("id") == "step5d_strict_rnn_no_contact_p0_v6")
+            row["package_delivery"]["controller_readback_manifest"] = "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v6_LOCAL_PENDING_READBACK/manifest.json"
             (tmp_root / "config" / "step5_stage_table.json").write_text(json.dumps(table), encoding="utf-8")
             current = validator.load_json(tmp_root / "config" / "current_stage.json")
             current["bridge_trigger"]["no_contact_p0_capture"]["controller_readback_manifest"] = (
-                "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v5_LOCAL_PENDING_READBACK/bad_manifest.json"
+                "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v6_LOCAL_PENDING_READBACK/bad_manifest.json"
             )
             (tmp_root / "config" / "current_stage.json").write_text(json.dumps(current), encoding="utf-8")
             failures = validator.validate(tmp_root)

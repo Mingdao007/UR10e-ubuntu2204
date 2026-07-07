@@ -48,7 +48,11 @@ from capture_kunwei_kwr75_1khz import (  # noqa: E402
     pop_frames,
 )
 from _ur_common import RTDEClient, dashboard_exchange  # noqa: E402
-from contact_semantics import semantic_boundary_is_consistent  # noqa: E402
+from contact_semantics import (  # noqa: E402
+    semantic_boundary_is_consistent,
+    twist_base_to_same_origin,
+    twist_same_origin_to_base,
+)
 from step_pose_contract import PRE_CONTACT_GRAVITY_DOWN_CONTRACT_ID, contract_target_axis_base  # noqa: E402
 import step5c_calibrated_kinematics_audit as step5d_kin  # noqa: E402
 from step5_table import step5_path_reference  # noqa: E402
@@ -86,10 +90,14 @@ from step5d_runtime_interface import (  # noqa: E402
     STEP5D_NO_CONTACT_P0_NORMAL_MIN_FORCE_N,
     STEP5D_NO_CONTACT_P0_NORMAL_VELOCITY_LIMIT_M_S,
     STEP5D_NO_CONTACT_P0_PRELOAD_TIMEOUT_S,
+    STEP5D_NO_CONTACT_P0_EPSILON,
     STEP5D_NO_CONTACT_P0_QDOT_CAP_RAD_S,
     STEP5D_NO_CONTACT_P0_REZERO_S,
+    STEP5D_NO_CONTACT_P0_RNN_BACKEND,
+    STEP5D_NO_CONTACT_P0_RNN_INNER_ITERATIONS,
     STEP5D_NO_CONTACT_P0_RTDE_HZ,
     STEP5D_NO_CONTACT_P0_SENSOR_STALE_S,
+    STEP5D_NO_CONTACT_P0_SIGR_EXPONENT_R,
     STEP5D_NO_CONTACT_P0_SOCKET_TIMEOUT_S,
     STEP5D_NO_CONTACT_P0_TARGET_FORCE_N,
     STEP5D_NO_CONTACT_P0_TORQUE_GUARD_NM,
@@ -297,6 +305,11 @@ STEP5D_DIAG_FIELDS = [
     "_step5d_force_sign_convention",
     "_step5d_proj_input_form",
     "_step5d_lambda_update_form",
+    "_step5d_rnn_inner_iterations",
+    "_step5d_rnn_backend",
+    "_step5d_rnn_solve_wall_ms",
+    "_step5d_rnn_epsilon",
+    "_step5d_rnn_sigr_exponent_r",
     "_step5d_active_bounds_count",
     "_step5d_lambda_norm",
     *[f"_step5d_rnn_raw_qd{idx}_rad_s" for idx in range(6)],
@@ -307,6 +320,19 @@ STEP5D_DIAG_FIELDS = [
     "_step5d_p0_low_force_posture_active",
     "_step5d_p0_posture_gain_scale",
     "_step5d_p0_effective_ko",
+    "_step5d_p0_frame_transform_valid",
+    "_step5d_p0_frame_transform_mode",
+    "_step5d_p0_frame_transform_reason",
+    "_step5d_p0_limited_tcp_vx_m_s",
+    "_step5d_p0_limited_tcp_vy_m_s",
+    "_step5d_p0_limited_tcp_vz_m_s",
+    "_step5d_p0_limited_tcp_wx_rad_s",
+    "_step5d_p0_limited_tcp_wy_rad_s",
+    "_step5d_p0_limited_tcp_wz_rad_s",
+    "_step5d_p0_limited_base_vx_m_s",
+    "_step5d_p0_limited_base_vy_m_s",
+    "_step5d_p0_limited_base_vz_m_s",
+    "_step5d_p0_tcp_press_speed_m_s",
     "_step5d_contact_orientation_error_rad",
     "_step5d_outer_orientation_error_rad",
     "_step5d_R_d_z_dot_R_cur_z",
@@ -2520,10 +2546,12 @@ def limit_step5d_live_xdot(
 def limit_step5d_no_contact_p0_xdot_components(
     xdot_c: Any,
     *,
+    rotation_base_from_tcp: Any | None = None,
     max_xy_m_s: float = STEP5D_NO_CONTACT_P0_LINEAR_XY_COMPONENT_LIMIT_M_S,
     max_z_m_s: float = STEP5D_NO_CONTACT_P0_LINEAR_Z_COMPONENT_LIMIT_M_S,
     max_angular_rad_s: float = STEP5D_NO_CONTACT_P0_ANGULAR_COMPONENT_LIMIT_RAD_S,
-) -> tuple[np.ndarray, bool]:
+    return_diagnostics: bool = False,
+) -> tuple[np.ndarray, bool] | tuple[np.ndarray, bool, dict[str, Any]]:
     xdot = np.asarray(xdot_c, dtype=float)
     if xdot.shape != (6,) or not np.all(np.isfinite(xdot)):
         raise ValueError("P0 xdot_c must be a finite 6-vector")
@@ -2540,8 +2568,32 @@ def limit_step5d_no_contact_p0_xdot_components(
     )
     if np.any(~np.isfinite(caps)) or np.any(caps <= 0.0):
         raise ValueError("P0 component velocity caps must be finite and positive")
-    limited = np.clip(xdot, -caps, caps)
-    return limited, bool(np.any(np.abs(limited - xdot) > 1e-12))
+    if rotation_base_from_tcp is None:
+        raise ValueError("P0 xdot limiter requires rotation_base_from_tcp")
+
+    rotation = np.asarray(rotation_base_from_tcp, dtype=float)
+    if rotation.shape != (3, 3) or not np.all(np.isfinite(rotation)):
+        raise ValueError("P0 rotation_base_from_tcp must be a finite 3x3 matrix")
+    raw_tcp = twist_base_to_same_origin(xdot, rotation)
+    limited_tcp = raw_tcp.copy()
+    limited_tcp[0] = clamp(float(limited_tcp[0]), -float(max_xy_m_s), float(max_xy_m_s))
+    limited_tcp[1] = clamp(float(limited_tcp[1]), -float(max_xy_m_s), float(max_xy_m_s))
+    limited_tcp[2] = clamp(float(limited_tcp[2]), 0.0, float(max_z_m_s))
+    for idx in range(3, 6):
+        limited_tcp[idx] = clamp(float(limited_tcp[idx]), -float(max_angular_rad_s), float(max_angular_rad_s))
+    limited_base = twist_same_origin_to_base(limited_tcp, rotation)
+    active = bool(np.any(np.abs(limited_base - xdot) > 1e-9))
+    diagnostics = {
+        "valid": True,
+        "mode": "tcp_same_origin_v1",
+        "reason": "ok",
+        "raw_base": xdot,
+        "raw_tcp": raw_tcp,
+        "limited_tcp": limited_tcp,
+        "limited_base": limited_base,
+        "tcp_press_speed_m_s": float(limited_tcp[2]),
+    }
+    return (limited_base, active, diagnostics) if return_diagnostics else (limited_base, active)
 
 
 def smoothstep01(value: float) -> float:
@@ -2732,12 +2784,12 @@ def step5d_no_contact_p0_qdot_acceptance_gate(
     max_tcp_speed_m_s: float,
     max_normal_tracking_error_m_s: float,
     max_residual_norm: float,
+    max_base_upward_m_s: float = 1e-6,
 ) -> dict[str, Any]:
     qdot_values = np.asarray(qdot, dtype=float)
     J = np.asarray(jacobian, dtype=float)
     outer = np.asarray(outer_xdot_limited, dtype=float)
-    reaction = normalize3((float(reaction_normal_b[0]), float(reaction_normal_b[1]), float(reaction_normal_b[2])))
-    approach = np.asarray((-reaction[0], -reaction[1], -reaction[2]), dtype=float)
+    reaction_values = np.asarray(reaction_normal_b, dtype=float)
     zero_qdot = np.zeros(6, dtype=float)
 
     def reject(reason: str, **extra: Any) -> dict[str, Any]:
@@ -2749,9 +2801,11 @@ def step5d_no_contact_p0_qdot_acceptance_gate(
         or J.shape[1] != 6
         or J.shape[0] < 3
         or outer.shape != (6,)
+        or reaction_values.shape != (3,)
         or not np.all(np.isfinite(qdot_values))
         or not np.all(np.isfinite(J))
         or not np.all(np.isfinite(outer))
+        or not np.all(np.isfinite(reaction_values))
     ):
         return reject(
             "nonfinite_or_bad_shape",
@@ -2760,6 +2814,16 @@ def step5d_no_contact_p0_qdot_acceptance_gate(
             outer_approach_normal_m_s=math.nan,
             normal_tracking_error_m_s=math.nan,
         )
+    reaction = normalize3(tuple(float(value) for value in reaction_values.tolist()))
+    if not all(math.isfinite(float(value)) for value in reaction):
+        return reject(
+            "nonfinite_or_bad_shape",
+            predicted_tcp_speed_m_s=math.nan,
+            jqdot_approach_normal_m_s=math.nan,
+            outer_approach_normal_m_s=math.nan,
+            normal_tracking_error_m_s=math.nan,
+        )
+    approach = np.asarray((-reaction[0], -reaction[1], -reaction[2]), dtype=float)
     predicted_twist = J @ qdot_values
     predicted_speed = float(np.linalg.norm(predicted_twist[:3]))
     jqdot_approach = float(np.dot(predicted_twist[:3], approach))
@@ -2775,11 +2839,16 @@ def step5d_no_contact_p0_qdot_acceptance_gate(
         "jqdot_approach_normal_m_s": jqdot_approach,
         "outer_approach_normal_m_s": outer_approach,
         "normal_tracking_error_m_s": normal_tracking_error,
+        "predicted_base_vz_m_s": float(predicted_twist[2]),
     }
     if not math.isfinite(float(residual_norm)):
         return reject("nonfinite_residual_norm", **common)
     if not math.isfinite(float(active_bounds_count)):
         return reject("nonfinite_active_bounds_count", **common)
+    if outer_approach <= 0.0:
+        return reject("outer_approach_not_pressing", **common)
+    if float(predicted_twist[2]) > float(max_base_upward_m_s):
+        return reject("base_upward_escape", **common)
     if outer_approach > 0.0 and jqdot_approach <= 0.0:
         return reject("approach_normal_unload_mismatch", **common)
     if normal_tracking_error > float(max_normal_tracking_error_m_s):
@@ -2789,6 +2858,30 @@ def step5d_no_contact_p0_qdot_acceptance_gate(
     if float(active_bounds_count) > 0.0:
         return reject("active_bounds_exceeds_p0_limit", **common)
     return {"accepted": True, "reason": "ok", "qdot": qdot_values, **common}
+
+
+def step5d_p0_frame_diagnostic_values(diagnostics: dict[str, Any]) -> dict[str, Any]:
+    limited_tcp = np.asarray(diagnostics.get("limited_tcp", np.full(6, math.nan, dtype=float)), dtype=float)
+    limited_base = np.asarray(diagnostics.get("limited_base", np.full(6, math.nan, dtype=float)), dtype=float)
+    if limited_tcp.shape != (6,):
+        limited_tcp = np.full(6, math.nan, dtype=float)
+    if limited_base.shape != (6,):
+        limited_base = np.full(6, math.nan, dtype=float)
+    return {
+        "_step5d_p0_frame_transform_valid": 1.0 if bool(diagnostics.get("valid", False)) else 0.0,
+        "_step5d_p0_frame_transform_mode": str(diagnostics.get("mode", "")),
+        "_step5d_p0_frame_transform_reason": str(diagnostics.get("reason", "")),
+        "_step5d_p0_limited_tcp_vx_m_s": float(limited_tcp[0]),
+        "_step5d_p0_limited_tcp_vy_m_s": float(limited_tcp[1]),
+        "_step5d_p0_limited_tcp_vz_m_s": float(limited_tcp[2]),
+        "_step5d_p0_limited_tcp_wx_rad_s": float(limited_tcp[3]),
+        "_step5d_p0_limited_tcp_wy_rad_s": float(limited_tcp[4]),
+        "_step5d_p0_limited_tcp_wz_rad_s": float(limited_tcp[5]),
+        "_step5d_p0_limited_base_vx_m_s": float(limited_base[0]),
+        "_step5d_p0_limited_base_vy_m_s": float(limited_base[1]),
+        "_step5d_p0_limited_base_vz_m_s": float(limited_base[2]),
+        "_step5d_p0_tcp_press_speed_m_s": float(diagnostics.get("tcp_press_speed_m_s", math.nan)),
+    }
 
 
 def step5d_dls_qdot_oracle(
@@ -3160,6 +3253,8 @@ def ensure_step5d_liveprep_runtime(state: "BridgeState", args: argparse.Namespac
                 qdot_limit_rad_s=float(args.step5d_qdot_limit_rad_s),
                 epsilon=float(args.step5d_epsilon),
                 sigr_exponent_r=float(args.step5d_sigr_exponent_r),
+                inner_iterations=int(args.step5d_rnn_inner_iterations),
+                backend=str(args.step5d_rnn_backend),
             )
         )
 
@@ -4472,6 +4567,10 @@ def compute_bridge_values(
         step5d_raw_qdot_command: tuple[float, float, float, float, float, float] | None = None
         step5d_post_slew_qdot_command: tuple[float, float, float, float, float, float] | None = None
         step5d_stage25_command: tuple[float, float, float, float, float, float] | None = None
+        step5d_rejected_rnn_diagnostics: dict[str, Any] | None = None
+        step5d_rejected_solver_status = math.nan
+        step5d_rejected_residual_norm = math.nan
+        step5d_rejected_active_bounds_count = math.nan
         step5d_speedl_shadow_raw_linear_cmd: tuple[float, float, float] | None = None
         step5d_speedl_shadow_raw_angular_cmd: tuple[float, float, float] | None = None
         step5d_speedl_orientation_shadow_only = False
@@ -4487,6 +4586,14 @@ def compute_bridge_values(
             "active": False,
             "orientation_gain_scale": 1.0,
             "effective_ko": math.nan,
+        }
+        step5d_p0_frame_diagnostics: dict[str, Any] = {
+            "valid": False,
+            "mode": "",
+            "reason": "not_active",
+            "limited_tcp": np.full(6, math.nan, dtype=float),
+            "limited_base": np.full(6, math.nan, dtype=float),
+            "tcp_press_speed_m_s": math.nan,
         }
         step5d_intervention_reasons: list[str] = []
         step5d_predicted_twist = np.full(6, math.nan, dtype=float)
@@ -4610,6 +4717,11 @@ def compute_bridge_values(
                         normal_load_n=normal_load_n,
                         base_ko=base_step5d_ko,
                     )
+                step5d_x_pd_base = (float(desired_x), float(desired_y), float(pose[2]))
+                step5d_xdot_pd_base = (float(desired_velocity_xy[0]), float(desired_velocity_xy[1]), 0.0)
+                if step5d_no_contact_p0_profile:
+                    step5d_x_pd_base = (float(pose[0]), float(pose[1]), float(pose[2]))
+                    step5d_xdot_pd_base = (0.0, 0.0, 0.0)
                 step5d_outer_output = compute_step5d_outer_loop(
                     Step5dOuterLoopConfig(
                         kp=4.0,
@@ -4628,8 +4740,8 @@ def compute_bridge_values(
                         tcp_speed_base=tuple(float(value) for value in speed[:6]),  # type: ignore[arg-type]
                         force_tcp_n=force_t,
                         control_reaction_normal_base=tuple(float(value) for value in n_control_b),  # type: ignore[arg-type]
-                        x_pd_base=(float(desired_x), float(desired_y), float(pose[2])),
-                        xdot_pd_base=(float(desired_velocity_xy[0]), float(desired_velocity_xy[1]), 0.0),
+                        x_pd_base=step5d_x_pd_base,
+                        xdot_pd_base=step5d_xdot_pd_base,
                         dt_s=dt_s,
                         cmd_valid=True,
                     ),
@@ -4661,11 +4773,18 @@ def compute_bridge_values(
                 )
                 step5d_outer_xdot_limited = np.asarray(step5d_outer_output.xdot_c, dtype=float)
                 if step5d_no_contact_p0_profile:
-                    step5d_outer_xdot_limited, step5d_outer_xdot_limiter_active = (
-                        limit_step5d_no_contact_p0_xdot_components(
-                            step5d_outer_xdot_limited,
-                            max_angular_rad_s=float(args.bridge_angular_limit_rad_s),
-                        )
+                    (
+                        step5d_outer_xdot_limited,
+                        step5d_outer_xdot_limiter_active,
+                        step5d_p0_frame_diagnostics,
+                    ) = limit_step5d_no_contact_p0_xdot_components(
+                        step5d_outer_xdot_limited,
+                        rotation_base_from_tcp=rotvec_to_matrix(float(pose[3]), float(pose[4]), float(pose[5])),
+                        max_angular_rad_s=min(
+                            float(args.bridge_angular_limit_rad_s),
+                            STEP5D_NO_CONTACT_P0_ANGULAR_COMPONENT_LIMIT_RAD_S,
+                        ),
+                        return_diagnostics=True,
                     )
                 elif step5d_liveprep_guarded_profile:
                     step5d_outer_xdot_limited, step5d_outer_xdot_limiter_active = limit_step5d_live_xdot(
@@ -4919,7 +5038,37 @@ def compute_bridge_values(
                         max_residual_norm=1e-3,
                     )
                     if not bool(p0_qdot_gate["accepted"]):
+                        p0_limited_base = np.asarray(
+                            step5d_p0_frame_diagnostics.get("limited_base", np.full(6, math.nan, dtype=float)),
+                            dtype=float,
+                        )
+                        p0_tcp_press_speed = float(
+                            step5d_p0_frame_diagnostics.get("tcp_press_speed_m_s", math.nan)
+                        )
+                        p0_frame_escape = (
+                            p0_qdot_gate["reason"]
+                            in {"outer_approach_not_pressing", "base_upward_escape"}
+                            or (math.isfinite(p0_tcp_press_speed) and p0_tcp_press_speed <= 1e-12)
+                            or (
+                                p0_limited_base.shape == (6,)
+                                and math.isfinite(float(p0_limited_base[2]))
+                                and float(p0_limited_base[2]) > 1e-6
+                            )
+                        )
+                        if p0_frame_escape:
+                            step5d_intervention_reasons.append("p0_frame_transform:tcp_unload_or_upward_escape")
                         step5d_intervention_reasons.append(f"no_contact_p0_evidence:{p0_qdot_gate['reason']}")
+                        step5d_rejected_rnn_diagnostics = dict(step5d_result.diagnostics)
+                        step5d_rejected_solver_status = float(step5d_result.solver_status)
+                        step5d_rejected_residual_norm = float(step5d_result.residual_norm)
+                        step5d_rejected_active_bounds_count = float(
+                            sum(bool(value) for value in step5d_result.diagnostics["active_bounds_mask"])
+                        )
+                        step5d_qdot_command = tuple(float(value) for value in p0_qdot_gate["qdot"])
+                        step5d_raw_qdot_command = step5d_qdot_command
+                        step5d_post_slew_qdot_command = step5d_qdot_command
+                        step5d_stage25_command = None
+                        step5d_result = None
                 if step5d_ablation_profile:
                     if step5d_stage25_control_mode == "speedl_cartesian_oracle":
                         raw_stage25_command = tuple(float(value) for value in step5d_outer_xdot_limited.tolist())
@@ -5265,11 +5414,18 @@ def compute_bridge_values(
             values["_step5d_force_sign_convention"] = step5d_outer_output.diagnostics["force_sign_convention"]
             values["_step5d_proj_input_form"] = step5d_result.diagnostics["proj_input_form"]
             values["_step5d_lambda_update_form"] = step5d_result.diagnostics["lambda_update_form"]
+            values["_step5d_rnn_inner_iterations"] = float(step5d_result.diagnostics.get("inner_iterations", math.nan))
+            values["_step5d_rnn_backend"] = str(step5d_result.diagnostics.get("backend", ""))
+            values["_step5d_rnn_solve_wall_ms"] = float(step5d_result.diagnostics.get("solve_wall_ms", math.nan))
+            values["_step5d_rnn_epsilon"] = float(step5d_result.diagnostics.get("epsilon", math.nan))
+            values["_step5d_rnn_sigr_exponent_r"] = float(step5d_result.diagnostics.get("sigr_exponent_r", math.nan))
             values["_step5d_active_bounds_count"] = float(sum(bool(value) for value in step5d_result.diagnostics["active_bounds_mask"]))
             values["_step5d_p0_low_force_posture_policy"] = str(step5d_p0_posture_policy.get("policy", ""))
             values["_step5d_p0_low_force_posture_active"] = 1.0 if bool(step5d_p0_posture_policy.get("active", False)) else 0.0
             values["_step5d_p0_posture_gain_scale"] = float(step5d_p0_posture_policy.get("orientation_gain_scale", math.nan))
             values["_step5d_p0_effective_ko"] = float(step5d_p0_posture_policy.get("effective_ko", math.nan))
+            if step5d_no_contact_p0_profile:
+                values.update(step5d_p0_frame_diagnostic_values(step5d_p0_frame_diagnostics))
             values["_step5d_predicted_tcp_vx_m_s"] = float(step5d_predicted_twist[0])
             values["_step5d_predicted_tcp_vy_m_s"] = float(step5d_predicted_twist[1])
             values["_step5d_predicted_tcp_vz_m_s"] = float(step5d_predicted_twist[2])
@@ -5286,6 +5442,25 @@ def compute_bridge_values(
             values["_step5d_R_d_z_dot_R_cur_z"] = float(step5d_outer_output.diagnostics["R_d_z_dot_R_cur_z"])
             values["_step5d_semantic_gate_ok"] = 1.0
         elif step5d_joint_line_profile:
+            if step5d_intervention_reasons:
+                values["_step5d_intervention_reason"] = "|".join(step5d_intervention_reasons)
+            if step5d_no_contact_p0_profile:
+                values.update(step5d_p0_frame_diagnostic_values(step5d_p0_frame_diagnostics))
+            if step5d_rejected_rnn_diagnostics is not None:
+                values["_step5d_solver_status"] = step5d_rejected_solver_status
+                values["_step5d_constraint_residual_norm"] = step5d_rejected_residual_norm
+                values["_step5d_rnn_inner_iterations"] = float(
+                    step5d_rejected_rnn_diagnostics.get("inner_iterations", math.nan)
+                )
+                values["_step5d_rnn_backend"] = str(step5d_rejected_rnn_diagnostics.get("backend", ""))
+                values["_step5d_rnn_solve_wall_ms"] = float(
+                    step5d_rejected_rnn_diagnostics.get("solve_wall_ms", math.nan)
+                )
+                values["_step5d_rnn_epsilon"] = float(step5d_rejected_rnn_diagnostics.get("epsilon", math.nan))
+                values["_step5d_rnn_sigr_exponent_r"] = float(
+                    step5d_rejected_rnn_diagnostics.get("sigr_exponent_r", math.nan)
+                )
+                values["_step5d_active_bounds_count"] = step5d_rejected_active_bounds_count
             values["_step5d_engage_gate_ok"] = 1.0 if step5d_engage_gate_ok else 0.0
             values["_step5d_line_guard_ok"] = 1.0 if step5d_line_guard_ok else 0.0
             values["_step5d_line_guard_loss_s"] = state.step5d_line_guard_loss_s
@@ -6517,6 +6692,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--step5d-alpha-s-inv", type=float, default=1.0)
     parser.add_argument("--step5d-epsilon", type=float, default=0.022)
     parser.add_argument("--step5d-sigr-exponent-r", type=float, default=1.0)
+    parser.add_argument("--step5d-rnn-inner-iterations", type=int, default=1)
+    parser.add_argument("--step5d-rnn-backend", choices=("numpy", "cupy"), default="numpy")
     parser.add_argument(
         "--step5d-stage25-control-mode",
         default=os.environ.get("STEP5D_STAGE25_CONTROL_MODE", ""),
@@ -6645,6 +6822,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         args.step5d_preload_hold_s = 0.0
         args.step5d_preload_timeout_s = STEP5D_NO_CONTACT_P0_PRELOAD_TIMEOUT_S
         args.step5d_qdot_limit_rad_s = STEP5D_NO_CONTACT_P0_QDOT_CAP_RAD_S
+        args.step5d_epsilon = STEP5D_NO_CONTACT_P0_EPSILON
+        args.step5d_sigr_exponent_r = STEP5D_NO_CONTACT_P0_SIGR_EXPONENT_R
+        args.step5d_rnn_inner_iterations = STEP5D_NO_CONTACT_P0_RNN_INNER_ITERATIONS
+        args.step5d_rnn_backend = STEP5D_NO_CONTACT_P0_RNN_BACKEND
         args.max_normal_force_n = STEP5D_NO_CONTACT_P0_NORMAL_GUARD_N
         args.max_force_norm_n = STEP5D_NO_CONTACT_P0_FORCE_GUARD_N
         args.max_torque_norm_nm = STEP5D_NO_CONTACT_P0_TORQUE_GUARD_NM
@@ -6872,6 +7053,10 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("--step5d-epsilon must be positive")
     if not 0.0 < args.step5d_sigr_exponent_r <= 1.0:
         raise SystemExit("--step5d-sigr-exponent-r must be in (0, 1]")
+    if args.step5d_rnn_inner_iterations < 1:
+        raise SystemExit("--step5d-rnn-inner-iterations must be a positive integer")
+    if args.step5d_rnn_backend not in {"numpy", "cupy"}:
+        raise SystemExit("--step5d-rnn-backend must be numpy or cupy")
     if args.step5d_preload_filtered_min_n < 0.0 or args.step5d_preload_filtered_max_n < args.step5d_preload_filtered_min_n:
         raise SystemExit("--step5d-preload-filtered-* must define a nonnegative min<=max window")
     if args.step5d_preload_raw_min_n < 0.0 or args.step5d_preload_raw_max_n < args.step5d_preload_raw_min_n:

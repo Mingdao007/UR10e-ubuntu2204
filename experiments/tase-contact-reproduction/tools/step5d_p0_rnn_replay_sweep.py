@@ -29,6 +29,7 @@ from kunwei_rtde_bridge import (
     STEP5D_LIVEPREP_TRUTH_PATH,
     STEP5D_NO_CONTACT_P0_ANGULAR_LIMIT_RAD_S,
     limit_step5d_no_contact_p0_xdot_components,
+    rotvec_to_matrix,
     scale_step5d_xdot_for_joint_feasibility,
     step5d_no_contact_p0_low_force_posture_policy,
     step5d_kin,
@@ -39,10 +40,12 @@ from kunwei_rtde_bridge import (
 
 BRIDGE_CSV_FILENAME = "bridge_rtde_500hz.csv"
 STAGE_REGISTER = "ur_output_double_register_35"
-DEFAULT_R_VALUES = (1.0, 0.8, 0.6, 0.4)
-DEFAULT_EPSILON_VALUES = (0.022,)
-BASELINE_R = 1.0
-BASELINE_EPSILON = 0.022
+DEFAULT_R_VALUES = (1.0, 0.8, 0.6, 0.4, 0.2)
+DEFAULT_EPSILON_VALUES = (0.010,)
+BASELINE_R = 0.8
+BASELINE_EPSILON = 0.010
+BASELINE_INNER_ITERATIONS = 1024
+DEFAULT_BACKEND = "cupy"
 DEFAULT_QDOT_LIMIT_RAD_S = 0.15
 DEFAULT_ALIGNMENT_MEDIAN_MAX = 1e-4
 DEFAULT_ALIGNMENT_P99_MAX = 5e-4
@@ -309,6 +312,7 @@ def precompute_targets(stage25_rows: Sequence[dict[str, str]], csv_path: Path) -
         outer_state = outer_output.next_state
         xdot_limited, _ = limit_step5d_no_contact_p0_xdot_components(
             np.asarray(outer_output.xdot_c, dtype=float),
+            rotation_base_from_tcp=rotvec_to_matrix(float(pose[3]), float(pose[4]), float(pose[5])),
             max_angular_rad_s=STEP5D_NO_CONTACT_P0_ANGULAR_LIMIT_RAD_S,
         )
         xdot_feasible, feasibility = scale_step5d_xdot_for_joint_feasibility(
@@ -337,13 +341,22 @@ def precompute_targets(stage25_rows: Sequence[dict[str, str]], csv_path: Path) -
     return targets
 
 
-def replay_targets(targets: Sequence[dict[str, Any]], *, r: float, epsilon: float) -> dict[str, Any]:
+def replay_targets(
+    targets: Sequence[dict[str, Any]],
+    *,
+    r: float,
+    epsilon: float,
+    inner_iterations: int = BASELINE_INNER_ITERATIONS,
+    backend: str = DEFAULT_BACKEND,
+) -> dict[str, Any]:
     solver = StrictTaseRnnSolver(
         StrictRnnConfig(
             paper_truth_path=STEP5D_LIVEPREP_TRUTH_PATH,
             qdot_limit_rad_s=DEFAULT_QDOT_LIMIT_RAD_S,
             epsilon=epsilon,
             sigr_exponent_r=r,
+            inner_iterations=inner_iterations,
+            backend=backend,
         )
     )
     pending_warm_start = True
@@ -398,6 +411,8 @@ def replay_targets(targets: Sequence[dict[str, Any]], *, r: float, epsilon: floa
     return {
         "r": r,
         "epsilon": epsilon,
+        "inner_iterations": inner_iterations,
+        "backend": backend,
         "residual_norm": stats(residuals),
         "qdot_max_abs_rad_s": stats(qdot_max, threshold=DEFAULT_QDOT_LIMIT_RAD_S),
         "lambda_norm": stats(lambda_norms),
@@ -411,7 +426,14 @@ def replay_targets(targets: Sequence[dict[str, Any]], *, r: float, epsilon: floa
     }
 
 
-def run_sweep(csv_or_run_dir: Path, *, r_values: Sequence[float], epsilon_values: Sequence[float]) -> dict[str, Any]:
+def run_sweep(
+    csv_or_run_dir: Path,
+    *,
+    r_values: Sequence[float],
+    epsilon_values: Sequence[float],
+    inner_iterations: int = BASELINE_INNER_ITERATIONS,
+    backend: str = DEFAULT_BACKEND,
+) -> dict[str, Any]:
     csv_path = resolve_bridge_csv(csv_or_run_dir)
     if not csv_path.exists():
         raise FileNotFoundError(f"bridge CSV not found: {csv_path}")
@@ -419,7 +441,13 @@ def run_sweep(csv_or_run_dir: Path, *, r_values: Sequence[float], epsilon_values
     stage25_rows = select_stage25_rows(rows)
     targets = precompute_targets(stage25_rows, csv_path)
     runs = [
-        replay_targets(targets, r=float(r_value), epsilon=float(epsilon_value))
+        replay_targets(
+            targets,
+            r=float(r_value),
+            epsilon=float(epsilon_value),
+            inner_iterations=inner_iterations,
+            backend=backend,
+        )
         for epsilon_value in epsilon_values
         for r_value in r_values
     ]
@@ -432,7 +460,13 @@ def run_sweep(csv_or_run_dir: Path, *, r_values: Sequence[float], epsilon_values
         None,
     )
     if baseline is None:
-        baseline = replay_targets(targets, r=BASELINE_R, epsilon=BASELINE_EPSILON)
+        baseline = replay_targets(
+            targets,
+            r=BASELINE_R,
+            epsilon=BASELINE_EPSILON,
+            inner_iterations=inner_iterations,
+            backend=backend,
+        )
     baseline_logged_alignment_ok = bool(baseline.get("logged_alignment_ok"))
     posture_evidence = p0_posture_evidence_summary(targets)
     blockers = []
@@ -450,6 +484,9 @@ def run_sweep(csv_or_run_dir: Path, *, r_values: Sequence[float], epsilon_values
         "stage25_rows": len(stage25_rows),
         "replayed_rows": len(targets),
         "default_r_values": list(DEFAULT_R_VALUES),
+        "default_epsilon_values": list(DEFAULT_EPSILON_VALUES),
+        "inner_iterations": inner_iterations,
+        "backend": backend,
         "baseline": baseline,
         "runs": runs,
         "baseline_logged_alignment_ok": baseline_logged_alignment_ok,
@@ -476,9 +513,17 @@ def main() -> int:
     parser.add_argument("csv_or_run_dir", type=Path)
     parser.add_argument("--r-values", type=parse_csv_floats, default=DEFAULT_R_VALUES)
     parser.add_argument("--epsilon-values", type=parse_csv_floats, default=DEFAULT_EPSILON_VALUES)
+    parser.add_argument("--inner-iterations", type=int, default=BASELINE_INNER_ITERATIONS)
+    parser.add_argument("--backend", choices=("numpy", "cupy"), default=DEFAULT_BACKEND)
     args = parser.parse_args()
     try:
-        result = run_sweep(args.csv_or_run_dir, r_values=args.r_values, epsilon_values=args.epsilon_values)
+        result = run_sweep(
+            args.csv_or_run_dir,
+            r_values=args.r_values,
+            epsilon_values=args.epsilon_values,
+            inner_iterations=args.inner_iterations,
+            backend=args.backend,
+        )
     except Exception as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, indent=2, sort_keys=True), file=sys.stderr)
         return 2

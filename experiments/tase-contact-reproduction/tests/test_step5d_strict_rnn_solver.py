@@ -304,6 +304,52 @@ class Step5dStrictRnnSolverTest(unittest.TestCase):
             "lambda_state -= (dt / epsilon) * (J @ theta_dot_state - xdot_c)",
         )
 
+    def test_solve_runs_configured_inner_iterations_and_records_tuning(self) -> None:
+        truth = verified_truth_file()
+        self.addCleanup(lambda: Path(truth.name).unlink(missing_ok=True))
+        solver = StrictTaseRnnSolver(
+            StrictRnnConfig(
+                paper_truth_path=Path(truth.name),
+                inner_iterations=4,
+                epsilon=0.010,
+                sigr_exponent_r=0.8,
+                backend="numpy",
+            )
+        )
+        step_solver = StrictTaseRnnSolver(
+            StrictRnnConfig(
+                paper_truth_path=Path(truth.name),
+                epsilon=0.010,
+                sigr_exponent_r=0.8,
+                backend="numpy",
+            )
+        )
+        target_state = {
+            "J": np.eye(6),
+            "xdot_c": np.array([0.01, -0.005, 0.002, 0.001, 0.0, -0.001]),
+            "omega_minus": np.full(6, -0.15),
+            "omega_plus": np.full(6, 0.15),
+            "dt": 0.002,
+        }
+
+        result = solver.solve(actual_q=[0.0] * 6, actual_qd=[0.0] * 6, target_state=target_state)
+        for _ in range(4):
+            expected_diag = step_solver.step(**target_state)
+
+        np.testing.assert_allclose(result.qdot, expected_diag.theta_dot_state, atol=1e-12)
+        self.assertEqual(result.diagnostics["inner_iterations"], 4)
+        self.assertEqual(result.diagnostics["backend"], "numpy")
+        self.assertEqual(result.diagnostics["epsilon"], 0.010)
+        self.assertEqual(result.diagnostics["sigr_exponent_r"], 0.8)
+        self.assertGreaterEqual(result.diagnostics["solve_wall_ms"], 0.0)
+
+    def test_cupy_kernel_source_does_not_use_cuda_reserved_lambda_identifier(self) -> None:
+        source = inspect.getsource(strict_rnn.StrictTaseRnnSolver._cupy_solve_kernel)
+
+        self.assertIn("float* lambda_state", source)
+        self.assertNotIn("float* lambda,", source)
+        self.assertNotIn(" lambda[", source)
+
     def test_step_source_has_no_inverse_or_dls_fallback(self) -> None:
         source = inspect.getsource(strict_rnn.StrictTaseRnnSolver.step).lower()
         forbidden = ["pinv", "lstsq", "np.linalg.solve", "scipy", "osqp", "dls", "ik"]

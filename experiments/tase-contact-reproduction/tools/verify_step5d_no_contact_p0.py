@@ -31,10 +31,23 @@ DEFAULT_LOW_FORCE_POSTURE_BASE_KO = 5.0
 DEFAULT_MAX_LOW_FORCE_POSTURE_EFFECTIVE_KO = 0.010000001
 DEFAULT_MAX_LOW_FORCE_POSTURE_GAIN_SCALE = 0.002000001
 DEFAULT_LOW_FORCE_POSTURE_GAIN_EFFECTIVE_KO_TOL = 1e-6
+DEFAULT_MIN_STAGE25_ACCEPTED_DURATION_S = 60.0
+DEFAULT_STAGE25_ACCEPTED_DURATION_TOLERANCE_S = 0.05
+DEFAULT_MAX_P0_LIMITED_BASE_UPWARD_M_S = 1e-6
+DEFAULT_MAX_P0_LIMITED_TCP_XY_M_S = 0.010000001
+DEFAULT_MAX_P0_LIMITED_TCP_Z_M_S = 0.020000001
+DEFAULT_MAX_P0_LIMITED_TCP_ANGULAR_RAD_S = 0.015000001
+DEFAULT_MAX_STAGE25_ACCEPTED_ROW_GAP_S = 0.020
+DEFAULT_P0_RNN_BACKEND = "cupy"
+DEFAULT_P0_RNN_MIN_INNER_ITERATIONS = 1024
+DEFAULT_P0_RNN_EPSILON = 0.010
+DEFAULT_P0_RNN_SIGR_EXPONENT_R = 0.8
+DEFAULT_P0_RNN_PARAM_TOL = 1e-6
 STAGE25_TOLERANCE = 0.05
 INTEGER_TOLERANCE = 1e-9
 ENTRY_ECHO_WINDOW_ROWS = 8
 P0_LOW_FORCE_POSTURE_POLICY = "yuming_low_force_v1"
+P0_FRAME_TRANSFORM_MODE = "tcp_same_origin_v1"
 
 
 def finite_float(value: object) -> float | None:
@@ -120,6 +133,21 @@ def first_tick_summary(row: dict[str, str]) -> dict[str, Any]:
         "p0_low_force_posture_active": finite_int(row.get("_step5d_p0_low_force_posture_active")),
         "p0_posture_gain_scale": finite_float(row.get("_step5d_p0_posture_gain_scale")),
         "p0_effective_ko": finite_float(row.get("_step5d_p0_effective_ko")),
+        "p0_frame_transform_valid": finite_int(row.get("_step5d_p0_frame_transform_valid")),
+        "p0_frame_transform_mode": str(row.get("_step5d_p0_frame_transform_mode") or ""),
+        "p0_frame_transform_reason": str(row.get("_step5d_p0_frame_transform_reason") or ""),
+        "p0_limited_tcp_vx_m_s": finite_float(row.get("_step5d_p0_limited_tcp_vx_m_s")),
+        "p0_limited_tcp_vy_m_s": finite_float(row.get("_step5d_p0_limited_tcp_vy_m_s")),
+        "p0_limited_tcp_vz_m_s": finite_float(row.get("_step5d_p0_limited_tcp_vz_m_s")),
+        "p0_limited_tcp_wx_rad_s": finite_float(row.get("_step5d_p0_limited_tcp_wx_rad_s")),
+        "p0_limited_tcp_wy_rad_s": finite_float(row.get("_step5d_p0_limited_tcp_wy_rad_s")),
+        "p0_limited_tcp_wz_rad_s": finite_float(row.get("_step5d_p0_limited_tcp_wz_rad_s")),
+        "p0_limited_base_vz_m_s": finite_float(row.get("_step5d_p0_limited_base_vz_m_s")),
+        "p0_tcp_press_speed_m_s": finite_float(row.get("_step5d_p0_tcp_press_speed_m_s")),
+        "p0_rnn_inner_iterations": finite_int(row.get("_step5d_rnn_inner_iterations")),
+        "p0_rnn_backend": str(row.get("_step5d_rnn_backend") or ""),
+        "p0_rnn_epsilon": finite_float(row.get("_step5d_rnn_epsilon")),
+        "p0_rnn_sigr_exponent_r": finite_float(row.get("_step5d_rnn_sigr_exponent_r")),
     }
 
 
@@ -129,6 +157,10 @@ def row_cmd_valid(row: dict[str, str]) -> bool:
         if value is not None:
             return value > 0.5
     return False
+
+
+def row_stage25_consumed(row: dict[str, str]) -> bool:
+    return finite_int(row.get("_step5d_stage25_echo_consumed")) == 1
 
 
 def stage25_entry_window_summary(rows: list[dict[str, str]]) -> dict[str, Any]:
@@ -154,6 +186,38 @@ def qdot_cap_from_rows(rows: list[dict[str, str]], fallback: float) -> tuple[flo
     return float(fallback), "default"
 
 
+def accepted_duration_s(rows: list[dict[str, str]], *, max_gap_s: float) -> tuple[float | None, int, int]:
+    segments: list[tuple[float, float]] = []
+    current_start: float | None = None
+    current_prev: float | None = None
+    missing = 0
+    gaps = 0
+    for row in rows:
+        timestamp = finite_float(row.get("t_monotonic_s"))
+        if timestamp is None:
+            missing += 1
+            current_start = None
+            current_prev = None
+            continue
+        if current_start is None or current_prev is None:
+            current_start = timestamp
+            current_prev = timestamp
+            continue
+        if timestamp - current_prev > max_gap_s:
+            gaps += 1
+            segments.append((current_start, current_prev))
+            current_start = timestamp
+        else:
+            current_prev = timestamp
+            continue
+        current_prev = timestamp
+    if current_start is not None and current_prev is not None:
+        segments.append((current_start, current_prev))
+    if not segments:
+        return None, missing, gaps
+    return max((end - start for start, end in segments), default=0.0), missing, gaps
+
+
 def verify_rows(
     rows: list[dict[str, str]],
     *,
@@ -170,6 +234,17 @@ def verify_rows(
     low_force_posture_base_ko: float = DEFAULT_LOW_FORCE_POSTURE_BASE_KO,
     max_low_force_posture_effective_ko: float = DEFAULT_MAX_LOW_FORCE_POSTURE_EFFECTIVE_KO,
     max_low_force_posture_gain_scale: float = DEFAULT_MAX_LOW_FORCE_POSTURE_GAIN_SCALE,
+    min_stage25_accepted_duration_s: float = DEFAULT_MIN_STAGE25_ACCEPTED_DURATION_S,
+    stage25_accepted_duration_tolerance_s: float = DEFAULT_STAGE25_ACCEPTED_DURATION_TOLERANCE_S,
+    max_p0_limited_base_upward_m_s: float = DEFAULT_MAX_P0_LIMITED_BASE_UPWARD_M_S,
+    max_p0_limited_tcp_xy_m_s: float = DEFAULT_MAX_P0_LIMITED_TCP_XY_M_S,
+    max_p0_limited_tcp_z_m_s: float = DEFAULT_MAX_P0_LIMITED_TCP_Z_M_S,
+    max_p0_limited_tcp_angular_rad_s: float = DEFAULT_MAX_P0_LIMITED_TCP_ANGULAR_RAD_S,
+    max_stage25_accepted_row_gap_s: float = DEFAULT_MAX_STAGE25_ACCEPTED_ROW_GAP_S,
+    expected_p0_rnn_backend: str = DEFAULT_P0_RNN_BACKEND,
+    min_p0_rnn_inner_iterations: int = DEFAULT_P0_RNN_MIN_INNER_ITERATIONS,
+    expected_p0_rnn_epsilon: float = DEFAULT_P0_RNN_EPSILON,
+    expected_p0_rnn_sigr_exponent_r: float = DEFAULT_P0_RNN_SIGR_EXPONENT_R,
 ) -> dict[str, Any]:
     blockers: list[str] = []
     mode_rows = speedj_rnn_mode_rows(rows)
@@ -326,12 +401,39 @@ def verify_rows(
             blockers.append("first_lambda_norm_below_window_level")
 
     accepted_rows = [row for row in rnn_rows if row_cmd_valid(row)]
+    accepted_unconsumed_rows = sum(1 for row in accepted_rows if not row_stage25_consumed(row))
+    consumed_accepted_rows = [row for row in accepted_rows if row_stage25_consumed(row)]
     accepted_active_bounds_rows = 0
     accepted_high_residual_rows = 0
     accepted_rail_rows = 0
     accepted_qdot_missing_rows = 0
+    p0_frame_transform_missing_rows = 0
+    p0_frame_transform_invalid_rows = 0
+    p0_frame_transform_mode_bad_rows = 0
+    p0_limited_base_upward_rows = 0
+    p0_limited_tcp_unload_rows = 0
+    p0_limited_tcp_component_cap_rows = 0
+    p0_rnn_backend_bad_rows = 0
+    p0_rnn_tuning_missing_rows = 0
+    p0_rnn_inner_iterations_low_rows = 0
+    p0_rnn_epsilon_bad_rows = 0
+    p0_rnn_sigr_exponent_r_bad_rows = 0
     if not accepted_rows:
         blockers.append("no_accepted_speedj_rnn_live_rows")
+    if accepted_unconsumed_rows:
+        blockers.append("accepted_speedj_rnn_rows_not_consumed_by_stage25")
+    (
+        stage25_accepted_duration_s,
+        stage25_accepted_duration_missing_rows,
+        stage25_accepted_duration_gap_rows,
+    ) = accepted_duration_s(consumed_accepted_rows, max_gap_s=max_stage25_accepted_row_gap_s)
+    if min_stage25_accepted_duration_s > 0.0:
+        if stage25_accepted_duration_s is None:
+            blockers.append("stage25_accepted_duration_evidence_missing")
+        elif stage25_accepted_duration_s + stage25_accepted_duration_tolerance_s < min_stage25_accepted_duration_s:
+            blockers.append("stage25_accepted_duration_below_success_target")
+            if stage25_accepted_duration_gap_rows:
+                blockers.append("stage25_accepted_duration_continuity_gap")
     for row in accepted_rows:
         accepted_active_bounds = finite_int(row.get("_step5d_active_bounds_count"))
         if accepted_active_bounds is not None and accepted_active_bounds > max_active_bounds:
@@ -344,6 +446,66 @@ def verify_rows(
             accepted_qdot_missing_rows += 1
         elif accepted_qdot_max >= qdot_rail_threshold:
             accepted_rail_rows += 1
+
+        frame_valid = finite_int(row.get("_step5d_p0_frame_transform_valid"))
+        frame_mode = str(row.get("_step5d_p0_frame_transform_mode") or "")
+        tcp_vx = finite_float(row.get("_step5d_p0_limited_tcp_vx_m_s"))
+        tcp_vy = finite_float(row.get("_step5d_p0_limited_tcp_vy_m_s"))
+        tcp_vz = finite_float(row.get("_step5d_p0_limited_tcp_vz_m_s"))
+        tcp_wx = finite_float(row.get("_step5d_p0_limited_tcp_wx_rad_s"))
+        tcp_wy = finite_float(row.get("_step5d_p0_limited_tcp_wy_rad_s"))
+        tcp_wz = finite_float(row.get("_step5d_p0_limited_tcp_wz_rad_s"))
+        base_vz = finite_float(row.get("_step5d_p0_limited_base_vz_m_s"))
+        tcp_press = finite_float(row.get("_step5d_p0_tcp_press_speed_m_s"))
+        if (
+            frame_valid is None
+            or not frame_mode
+            or tcp_vx is None
+            or tcp_vy is None
+            or tcp_vz is None
+            or tcp_wx is None
+            or tcp_wy is None
+            or tcp_wz is None
+            or base_vz is None
+            or tcp_press is None
+        ):
+            p0_frame_transform_missing_rows += 1
+        else:
+            if frame_valid != 1:
+                p0_frame_transform_invalid_rows += 1
+            if frame_mode != P0_FRAME_TRANSFORM_MODE:
+                p0_frame_transform_mode_bad_rows += 1
+            if base_vz > max_p0_limited_base_upward_m_s:
+                p0_limited_base_upward_rows += 1
+            if tcp_vz < -INTEGER_TOLERANCE or tcp_press < -INTEGER_TOLERANCE:
+                p0_limited_tcp_unload_rows += 1
+            if (
+                abs(tcp_vx) > max_p0_limited_tcp_xy_m_s
+                or abs(tcp_vy) > max_p0_limited_tcp_xy_m_s
+                or tcp_vz > max_p0_limited_tcp_z_m_s
+                or abs(tcp_wx) > max_p0_limited_tcp_angular_rad_s
+                or abs(tcp_wy) > max_p0_limited_tcp_angular_rad_s
+                or abs(tcp_wz) > max_p0_limited_tcp_angular_rad_s
+            ):
+                p0_limited_tcp_component_cap_rows += 1
+
+        backend = str(row.get("_step5d_rnn_backend") or "")
+        inner_iterations = finite_int(row.get("_step5d_rnn_inner_iterations"))
+        epsilon = finite_float(row.get("_step5d_rnn_epsilon"))
+        sigr_exponent_r = finite_float(row.get("_step5d_rnn_sigr_exponent_r"))
+        if not backend or inner_iterations is None or epsilon is None or sigr_exponent_r is None:
+            p0_rnn_tuning_missing_rows += 1
+        if backend != expected_p0_rnn_backend:
+            p0_rnn_backend_bad_rows += 1
+        if inner_iterations is not None and inner_iterations < min_p0_rnn_inner_iterations:
+            p0_rnn_inner_iterations_low_rows += 1
+        if epsilon is not None and abs(epsilon - expected_p0_rnn_epsilon) > DEFAULT_P0_RNN_PARAM_TOL:
+            p0_rnn_epsilon_bad_rows += 1
+        if (
+            sigr_exponent_r is not None
+            and abs(sigr_exponent_r - expected_p0_rnn_sigr_exponent_r) > DEFAULT_P0_RNN_PARAM_TOL
+        ):
+            p0_rnn_sigr_exponent_r_bad_rows += 1
     if accepted_active_bounds_rows:
         blockers.append("accepted_speedj_rnn_tick_active_bounds_exceeds_limit")
     if accepted_high_residual_rows:
@@ -352,6 +514,28 @@ def verify_rows(
         blockers.append("accepted_speedj_rnn_tick_missing_qdot_max_abs")
     if accepted_rail_rows:
         blockers.append("accepted_speedj_rnn_tick_qdot_hits_rail")
+    if p0_frame_transform_missing_rows:
+        blockers.append("p0_frame_transform_evidence_missing")
+    if p0_frame_transform_invalid_rows:
+        blockers.append("p0_frame_transform_invalid")
+    if p0_frame_transform_mode_bad_rows:
+        blockers.append("p0_frame_transform_mode_mismatch")
+    if p0_limited_base_upward_rows:
+        blockers.append("p0_limited_base_vz_points_upward")
+    if p0_limited_tcp_unload_rows:
+        blockers.append("p0_limited_tcp_press_negative")
+    if p0_limited_tcp_component_cap_rows:
+        blockers.append("p0_limited_tcp_component_exceeds_cap")
+    if p0_rnn_tuning_missing_rows:
+        blockers.append("p0_rnn_tuning_evidence_missing")
+    if p0_rnn_backend_bad_rows:
+        blockers.append("p0_rnn_backend_not_cupy")
+    if p0_rnn_inner_iterations_low_rows:
+        blockers.append("p0_rnn_inner_iterations_below_min")
+    if p0_rnn_epsilon_bad_rows:
+        blockers.append("p0_rnn_epsilon_mismatch")
+    if p0_rnn_sigr_exponent_r_bad_rows:
+        blockers.append("p0_rnn_sigr_exponent_r_mismatch")
     accepted_command_rail_fraction = accepted_rail_rows / len(accepted_rows) if accepted_rows else 0.0
 
     return {
@@ -379,6 +563,19 @@ def verify_rows(
             "max_low_force_posture_effective_ko": max_low_force_posture_effective_ko,
             "max_low_force_posture_gain_scale": max_low_force_posture_gain_scale,
             "low_force_posture_gain_effective_ko_tol": DEFAULT_LOW_FORCE_POSTURE_GAIN_EFFECTIVE_KO_TOL,
+            "min_stage25_accepted_duration_s": min_stage25_accepted_duration_s,
+            "stage25_accepted_duration_tolerance_s": stage25_accepted_duration_tolerance_s,
+            "p0_frame_transform_mode": P0_FRAME_TRANSFORM_MODE,
+            "max_p0_limited_base_upward_m_s": max_p0_limited_base_upward_m_s,
+            "max_p0_limited_tcp_xy_m_s": max_p0_limited_tcp_xy_m_s,
+            "max_p0_limited_tcp_z_m_s": max_p0_limited_tcp_z_m_s,
+            "max_p0_limited_tcp_angular_rad_s": max_p0_limited_tcp_angular_rad_s,
+            "max_stage25_accepted_row_gap_s": max_stage25_accepted_row_gap_s,
+            "expected_p0_rnn_backend": expected_p0_rnn_backend,
+            "min_p0_rnn_inner_iterations": min_p0_rnn_inner_iterations,
+            "expected_p0_rnn_epsilon": expected_p0_rnn_epsilon,
+            "expected_p0_rnn_sigr_exponent_r": expected_p0_rnn_sigr_exponent_r,
+            "p0_rnn_param_tolerance": DEFAULT_P0_RNN_PARAM_TOL,
         },
         "metrics": {
             "max_normal_load_n": max_normal,
@@ -391,6 +588,11 @@ def verify_rows(
             "accepted_qdot_missing_rows": accepted_qdot_missing_rows,
             "accepted_qdot_rail_rows": accepted_rail_rows,
             "accepted_command_rail_fraction": accepted_command_rail_fraction,
+            "accepted_speedj_rnn_unconsumed_rows": accepted_unconsumed_rows,
+            "consumed_accepted_speedj_rnn_live_rows": len(consumed_accepted_rows),
+            "stage25_accepted_duration_s": stage25_accepted_duration_s,
+            "stage25_accepted_duration_missing_rows": stage25_accepted_duration_missing_rows,
+            "stage25_accepted_duration_gap_rows": stage25_accepted_duration_gap_rows,
             "low_force_posture_rows": len(low_force_posture_rows),
             "low_force_posture_missing_rows": low_force_posture_missing_rows,
             "low_force_posture_policy_bad_rows": low_force_posture_policy_bad_rows,
@@ -398,6 +600,17 @@ def verify_rows(
             "low_force_posture_effective_ko_bad_rows": low_force_posture_effective_ko_bad_rows,
             "low_force_posture_gain_scale_bad_rows": low_force_posture_gain_scale_bad_rows,
             "low_force_posture_gain_effective_ko_mismatch_rows": low_force_posture_gain_effective_ko_mismatch_rows,
+            "p0_frame_transform_missing_rows": p0_frame_transform_missing_rows,
+            "p0_frame_transform_invalid_rows": p0_frame_transform_invalid_rows,
+            "p0_frame_transform_mode_bad_rows": p0_frame_transform_mode_bad_rows,
+            "p0_limited_base_upward_rows": p0_limited_base_upward_rows,
+            "p0_limited_tcp_unload_rows": p0_limited_tcp_unload_rows,
+            "p0_limited_tcp_component_cap_rows": p0_limited_tcp_component_cap_rows,
+            "p0_rnn_tuning_missing_rows": p0_rnn_tuning_missing_rows,
+            "p0_rnn_backend_bad_rows": p0_rnn_backend_bad_rows,
+            "p0_rnn_inner_iterations_low_rows": p0_rnn_inner_iterations_low_rows,
+            "p0_rnn_epsilon_bad_rows": p0_rnn_epsilon_bad_rows,
+            "p0_rnn_sigr_exponent_r_bad_rows": p0_rnn_sigr_exponent_r_bad_rows,
         },
         "acceptance_scope": "offline_artifact_verification_only_not_live_run_claim",
     }
@@ -434,6 +647,21 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--low-force-posture-base-ko", type=float, default=DEFAULT_LOW_FORCE_POSTURE_BASE_KO)
     parser.add_argument("--max-low-force-posture-effective-ko", type=float, default=DEFAULT_MAX_LOW_FORCE_POSTURE_EFFECTIVE_KO)
     parser.add_argument("--max-low-force-posture-gain-scale", type=float, default=DEFAULT_MAX_LOW_FORCE_POSTURE_GAIN_SCALE)
+    parser.add_argument("--min-stage25-accepted-duration-s", type=float, default=DEFAULT_MIN_STAGE25_ACCEPTED_DURATION_S)
+    parser.add_argument("--max-p0-limited-base-upward-m-s", type=float, default=DEFAULT_MAX_P0_LIMITED_BASE_UPWARD_M_S)
+    parser.add_argument("--max-p0-limited-tcp-xy-m-s", type=float, default=DEFAULT_MAX_P0_LIMITED_TCP_XY_M_S)
+    parser.add_argument("--max-p0-limited-tcp-z-m-s", type=float, default=DEFAULT_MAX_P0_LIMITED_TCP_Z_M_S)
+    parser.add_argument("--max-p0-limited-tcp-angular-rad-s", type=float, default=DEFAULT_MAX_P0_LIMITED_TCP_ANGULAR_RAD_S)
+    parser.add_argument("--max-stage25-accepted-row-gap-s", type=float, default=DEFAULT_MAX_STAGE25_ACCEPTED_ROW_GAP_S)
+    parser.add_argument("--expected-p0-rnn-backend", choices=("numpy", "cupy"), default=DEFAULT_P0_RNN_BACKEND)
+    parser.add_argument("--min-p0-rnn-inner-iterations", type=int, default=DEFAULT_P0_RNN_MIN_INNER_ITERATIONS)
+    parser.add_argument("--expected-p0-rnn-epsilon", type=float, default=DEFAULT_P0_RNN_EPSILON)
+    parser.add_argument("--expected-p0-rnn-sigr-exponent-r", type=float, default=DEFAULT_P0_RNN_SIGR_EXPONENT_R)
+    parser.add_argument(
+        "--stage25-accepted-duration-tolerance-s",
+        type=float,
+        default=DEFAULT_STAGE25_ACCEPTED_DURATION_TOLERANCE_S,
+    )
     args = parser.parse_args(argv)
 
     result = verify_run_dir(
@@ -451,6 +679,17 @@ def main(argv: list[str] | None = None) -> int:
         low_force_posture_base_ko=args.low_force_posture_base_ko,
         max_low_force_posture_effective_ko=args.max_low_force_posture_effective_ko,
         max_low_force_posture_gain_scale=args.max_low_force_posture_gain_scale,
+        min_stage25_accepted_duration_s=args.min_stage25_accepted_duration_s,
+        stage25_accepted_duration_tolerance_s=args.stage25_accepted_duration_tolerance_s,
+        max_p0_limited_base_upward_m_s=args.max_p0_limited_base_upward_m_s,
+        max_p0_limited_tcp_xy_m_s=args.max_p0_limited_tcp_xy_m_s,
+        max_p0_limited_tcp_z_m_s=args.max_p0_limited_tcp_z_m_s,
+        max_p0_limited_tcp_angular_rad_s=args.max_p0_limited_tcp_angular_rad_s,
+        max_stage25_accepted_row_gap_s=args.max_stage25_accepted_row_gap_s,
+        expected_p0_rnn_backend=args.expected_p0_rnn_backend,
+        min_p0_rnn_inner_iterations=args.min_p0_rnn_inner_iterations,
+        expected_p0_rnn_epsilon=args.expected_p0_rnn_epsilon,
+        expected_p0_rnn_sigr_exponent_r=args.expected_p0_rnn_sigr_exponent_r,
     )
     payload = json.dumps(result, indent=2, sort_keys=True) + "\n"
     if args.output:

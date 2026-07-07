@@ -34,7 +34,7 @@ STEP5D_ABLATION_V25_STAGE_ID = "step5d_strict_rnn_ablation_v25"
 STEP5D_ABLATION_V26_STAGE_ID = "step5d_strict_rnn_ablation_v26"
 STEP5D_ABLATION_V27_STAGE_ID = "step5d_strict_rnn_ablation_v27"
 STEP5D_ABLATION_V28_STAGE_ID = "step5d_strict_rnn_ablation_v28"
-STEP5D_NO_CONTACT_P0_STAGE_ID = "step5d_strict_rnn_no_contact_p0_v5"
+STEP5D_NO_CONTACT_P0_STAGE_ID = "step5d_strict_rnn_no_contact_p0_v6"
 STEP5D_ABLATION_STAGE_IDS = (
     STEP5D_ABLATION_V25_STAGE_ID,
     STEP5D_ABLATION_V26_STAGE_ID,
@@ -143,6 +143,10 @@ _STAGE_ENV_MAP: tuple[tuple[str, str, object], ...] = (
     ("STEP5D_STAGE25_CONTROL_MODE", "guard.stage25_default_control_mode", _fmt_text),
     ("STEP5D_QDOT_LIMIT_RAD_S", "guard.qdot_cap_rad_s", lambda value: _fmt_float(value, 3)),
     ("STEP5D_QDOT_SLEW_RAD_S2", "guard.qdot_slew_rad_s2", lambda value: _fmt_float(value, 3)),
+    ("STEP5D_EPSILON", "guard.step5d_epsilon", lambda value: _fmt_float(value, 3)),
+    ("STEP5D_SIGR_EXPONENT_R", "guard.step5d_sigr_exponent_r", lambda value: _fmt_float(value, 3)),
+    ("STEP5D_RNN_INNER_ITERATIONS", "guard.step5d_rnn_inner_iterations", _fmt_int),
+    ("STEP5D_RNN_BACKEND", "guard.step5d_rnn_backend", _fmt_text),
     ("STEP5D_PRELOAD_FILTERED_MIN_N", "guard.line_entry_normal_load_min_n", lambda value: _fmt_float(value, 1)),
     ("STEP5D_PRELOAD_FILTERED_MAX_N", "guard.line_entry_normal_load_max_n", lambda value: _fmt_float(value, 1)),
     ("STEP5D_PRELOAD_RAW_MIN_N", "guard.line_entry_normal_load_min_n", lambda value: _fmt_float(value, 1)),
@@ -180,6 +184,10 @@ STEP5D_NO_CONTACT_P0_NORMAL_FILTER_ALPHA = float(_P0_ENV["BRIDGE_NORMAL_FILTER_A
 STEP5D_NO_CONTACT_P0_ANGULAR_LIMIT_RAD_S = float(_P0_ENV["BRIDGE_ANGULAR_LIMIT_RAD_S"])
 STEP5D_NO_CONTACT_P0_QDOT_CAP_RAD_S = float(_P0_ENV["STEP5D_QDOT_LIMIT_RAD_S"])
 STEP5D_NO_CONTACT_P0_QDOT_SLEW_RAD_S2 = float(_P0_ENV["STEP5D_QDOT_SLEW_RAD_S2"])
+STEP5D_NO_CONTACT_P0_EPSILON = float(_P0_ENV["STEP5D_EPSILON"])
+STEP5D_NO_CONTACT_P0_SIGR_EXPONENT_R = float(_P0_ENV["STEP5D_SIGR_EXPONENT_R"])
+STEP5D_NO_CONTACT_P0_RNN_INNER_ITERATIONS = int(_P0_ENV["STEP5D_RNN_INNER_ITERATIONS"])
+STEP5D_NO_CONTACT_P0_RNN_BACKEND = _P0_ENV["STEP5D_RNN_BACKEND"]
 STEP5D_NO_CONTACT_P0_NORMAL_MIN_FORCE_N = float(_P0_ENV["BRIDGE_NORMAL_MIN_FORCE_N"])
 STEP5D_NO_CONTACT_P0_PRELOAD_TIMEOUT_S = float(_P0_ENV["STEP5D_PRELOAD_TIMEOUT_S"])
 STEP5D_NO_CONTACT_P0_RTDE_HZ = float(_P0_ENV["BRIDGE_RTDE_HZ"])

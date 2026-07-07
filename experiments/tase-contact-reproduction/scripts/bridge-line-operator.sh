@@ -15,7 +15,8 @@ LONG_CHECK_TTL_S="${LONG_CHECK_TTL_S:-7200}"
 LONG_CHECK_CACHE="${LONG_CHECK_CACHE:-${RUN_ROOT}/.bridge_long_checks_cache.json}"
 STEP5D_RUNTIME_INTERFACE="${ROOT}/tools/step5d_runtime_interface.py"
 STEP5D_CURRENT_BINDING_GATE="${ROOT}/tools/verify_step5d_current_binding.py"
-STEP5D_NO_CONTACT_P0_PROFILE="step5d_strict_rnn_no_contact_p0_v5"
+STEP5D_NO_CONTACT_P0_PROFILE="step5d_strict_rnn_no_contact_p0_v6"
+STEP5D_CUPY_PYTHONPATH="${STEP5D_CUPY_PYTHONPATH:-/tmp/step5d_gpu_np124}"
 BRIDGE_PROFILE="${BRIDGE_PROFILE:-${STEP4E_VERSION:-v31}}"
 
 current_step5d_profile() {
@@ -739,6 +740,9 @@ require_bench_gate_cache() {
 ensure_no_existing_bridge() {
   if pgrep -f "${ROOT}/tools/kunwei_rtde_bridge.py" >/dev/null 2>&1; then
     echo "refusing: an existing Kunwei RTDE bridge process is already active"
+    if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
+      echo "next: stop existing bridge processes, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
+    fi
     pgrep -af "${ROOT}/tools/kunwei_rtde_bridge.py" || true
     exit 3
   fi
@@ -807,15 +811,40 @@ print(f"[operator] RTDE quick probe passed: {host}:30004")
 PY
 }
 
+p0_profile_active() {
+  [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]
+}
+
+preplay_stopped_required() {
+  p0_profile_active || [[ "${BRIDGE_REQUIRE_PREPLAY_STOPPED:-0}" == "1" ]]
+}
+
+p0_recovery_next_action() {
+  echo "next: stop/reopen exact v6, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
+}
+
+dashboard_recovery_next_action() {
+  if p0_profile_active; then
+    p0_recovery_next_action
+  else
+    echo "next: restore Dashboard readiness, keep the expected program loaded and stopped, then rerun the bridge"
+  fi
+}
+
 trigger_dashboard_check() {
   local rc=0
   dashboard_snapshot >/tmp/step4e_dash_snapshot.txt 2>&1 || rc="$?"
   cat /tmp/step4e_dash_snapshot.txt || true
   case "${rc}" in
     10)
-      if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
-        echo "refusing: TP program is already PLAYING before P0 bridge armed"
-        echo "next: stop/reopen exact v5, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
+      if preplay_stopped_required; then
+        if p0_profile_active; then
+          echo "refusing: TP program is already PLAYING before P0 bridge armed"
+          p0_recovery_next_action
+        else
+          echo "refusing: TP program is already running before bridge arm"
+          echo "next: stop the program, rerun the bridge with pre-Play ordering, then press Play after the bridge is ready"
+        fi
         return 24
       fi
       echo "[operator] expected program is already running; starting bridge late with already_running=1"
@@ -827,19 +856,22 @@ trigger_dashboard_check() {
       ;;
     20)
       echo "refusing: safety mode is not NORMAL"
+      dashboard_recovery_next_action
       return 20
       ;;
     21)
       if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
-        echo "refusing: loaded program is not exact P0 v5"
-        echo "next: stop/reopen exact v5, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
+        echo "refusing: loaded program is not exact P0 v6"
+        p0_recovery_next_action
       else
         echo "refusing: loaded program is not expected Step4e ${BRIDGE_MODE}"
+        dashboard_recovery_next_action
       fi
       return 21
       ;;
     *)
       echo "refusing: Dashboard state is not ready for fast bridge trigger (rc=${rc})"
+      dashboard_recovery_next_action
       return "${rc}"
       ;;
   esac
@@ -857,7 +889,7 @@ p0_pre_arm_dashboard_check() {
   case "${rc}" in
     10)
       echo "refusing: TP Play happened before P0 bridge armed"
-      echo "next: stop/reopen exact v5, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
+      echo "next: stop/reopen exact v6, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
       stop_bridge_process "${bridge_pid}" "TP Play happened before P0 bridge armed"
       return 24
       ;;
@@ -867,19 +899,19 @@ p0_pre_arm_dashboard_check() {
       ;;
     20)
       echo "refusing: safety mode is not NORMAL"
-      echo "next: stop/reopen exact v5, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
+      echo "next: stop/reopen exact v6, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
       stop_bridge_process "${bridge_pid}" "P0 pre-arm safety is not NORMAL"
       return 20
       ;;
     21)
-      echo "refusing: loaded program is not exact P0 v5"
-      echo "next: stop/reopen exact v5, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
+      echo "refusing: loaded program is not exact P0 v6"
+      echo "next: stop/reopen exact v6, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
       stop_bridge_process "${bridge_pid}" "P0 pre-arm loaded program mismatch"
       return 21
       ;;
     *)
       echo "refusing: Dashboard state is not ready for P0 bridge arm (rc=${rc})"
-      echo "next: stop/reopen exact v5, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
+      echo "next: stop/reopen exact v6, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
       stop_bridge_process "${bridge_pid}" "P0 pre-arm dashboard not ready"
       return "${rc}"
       ;;
@@ -1004,7 +1036,7 @@ PY
         stop_bridge_process "${bridge_pid}" "TP Play timeout"
         if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
           echo "refusing: P0 TP Play timeout after bridge armed"
-          echo "next: stop/reopen exact v5, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
+          echo "next: stop/reopen exact v6, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
           return 24
         fi
         return 0
@@ -1086,10 +1118,45 @@ maybe_start_background_push() {
   echo "[operator] background git push started: pid=$! log=${log}"
 }
 
+ensure_step5d_rnn_backend_ready() {
+  if [[ "${STEP5D_RNN_BACKEND:-numpy}" != "cupy" ]]; then
+    return 0
+  fi
+  if [[ -d "${STEP5D_CUPY_PYTHONPATH}/cupy" ]]; then
+    export PYTHONPATH="${STEP5D_CUPY_PYTHONPATH}${PYTHONPATH:+:${PYTHONPATH}}"
+  fi
+  local gpu_libs="${STEP5D_CUPY_PYTHONPATH}/nvidia/cuda_nvrtc/lib:${STEP5D_CUPY_PYTHONPATH}/nvidia/nvjitlink/lib:${STEP5D_CUPY_PYTHONPATH}/nvidia/cuda_runtime/lib"
+  if [[ -d "${STEP5D_CUPY_PYTHONPATH}/nvidia/cuda_nvrtc/lib" ]]; then
+    export LD_LIBRARY_PATH="${gpu_libs}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+  fi
+  if python3 - <<'PY' >/dev/null 2>&1
+import cupy as cp
+from cupy_backends.cuda.libs import nvrtc
+
+major, minor = nvrtc.getVersion()
+if (major, minor) < (12, 8):
+    raise RuntimeError(f"NVRTC {major}.{minor} is too old for sm_120 GPU RNN kernel")
+x = cp.zeros(1, dtype=cp.float32)
+kernel = cp.RawKernel('extern "C" __global__ void k(float* x){x[0]=1.0f;}', 'k')
+kernel((1,), (1,), (x,))
+cp.cuda.Stream.null.synchronize()
+if float(x.get()[0]) != 1.0:
+    raise RuntimeError("CuPy RawKernel smoke test failed")
+PY
+  then
+    echo "[operator] Step5d RNN backend cupy RawKernel ready via PYTHONPATH=${STEP5D_CUPY_PYTHONPATH}"
+    return 0
+  fi
+  echo "refusing: STEP5D_RNN_BACKEND=cupy but CuPy RawKernel preflight failed"
+  echo "next: restore /tmp/step5d_gpu_np124 with NumPy 1.24 + cupy-cuda12x + CUDA 12.9 libs, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
+  return 24
+}
+
 run_bridge_for_mode() {
   local out_dir="$1"
   local already_running="$2"
   mkdir -p "${out_dir}"
+  ensure_step5d_rnn_backend_ready || return "$?"
   local bridge_pid=""
   local stage25_only_args=()
   if [[ "${BRIDGE_STAGE25_ONLY}" == "1" ]]; then
@@ -1152,6 +1219,10 @@ run_bridge_for_mode() {
     --step5c-joint-model "${STEP5C_JOINT_MODEL}" \
     --step5c-joint-site "${STEP5C_JOINT_SITE}" \
     --step5d-stage25-control-mode "${STEP5D_STAGE25_CONTROL_MODE:-${STEP5D_STAGE25_CONTROL_MODE_DEFAULT}}" \
+    --step5d-epsilon "${STEP5D_EPSILON:-0.022}" \
+    --step5d-sigr-exponent-r "${STEP5D_SIGR_EXPONENT_R:-1.0}" \
+    --step5d-rnn-inner-iterations "${STEP5D_RNN_INNER_ITERATIONS:-1}" \
+    --step5d-rnn-backend "${STEP5D_RNN_BACKEND:-numpy}" \
     --step5d-preload-filtered-min-n "${STEP5D_PRELOAD_FILTERED_MIN_N:-${STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N}}" \
     --step5d-preload-filtered-max-n "${STEP5D_PRELOAD_FILTERED_MAX_N:-${STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N}}" \
     --step5d-preload-raw-min-n "${STEP5D_PRELOAD_RAW_MIN_N:-${STEP5D_DEFAULT_PRELOAD_RAW_MIN_N}}" \
@@ -1166,7 +1237,7 @@ run_bridge_for_mode() {
   if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
     if [[ "${output_started_rc}" != "0" ]]; then
       echo "refusing: P0 bridge output did not start before arm"
-      echo "next: stop/reopen exact v5, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
+      echo "next: stop/reopen exact v6, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
       stop_bridge_process "${bridge_pid}" "P0 output-start confirmation failed"
       wait "${bridge_pid}" || true
       trap - INT TERM EXIT
@@ -1234,7 +1305,7 @@ WARNING
     if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
       step5d_live_bridge_authorized
       echo "refusing: P0 capture requires bridge-before-Play; line-autowatch is disabled for no-contact P0"
-      echo "next: stop/reopen exact v5, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
+      echo "next: stop/reopen exact v6, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
       exit 24
     fi
     run_bench_gate_cached

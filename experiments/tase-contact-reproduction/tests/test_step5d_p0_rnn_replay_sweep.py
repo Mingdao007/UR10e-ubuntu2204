@@ -37,31 +37,36 @@ class Step5dP0RnnReplaySweepTest(unittest.TestCase):
         self.assertEqual(selected, [rows[1]])
 
     def test_default_sweep_includes_current_and_lower_sigr_exponents(self) -> None:
-        self.assertEqual(sweep.DEFAULT_R_VALUES, (1.0, 0.8, 0.6, 0.4))
+        self.assertEqual(sweep.DEFAULT_R_VALUES, (1.0, 0.8, 0.6, 0.4, 0.2))
+        self.assertEqual(sweep.DEFAULT_EPSILON_VALUES, (0.010,))
+        self.assertEqual(sweep.BASELINE_INNER_ITERATIONS, 1024)
+        self.assertEqual(sweep.DEFAULT_BACKEND, "cupy")
 
     def test_logged_alignment_requires_tight_r1_replay_error(self) -> None:
         self.assertTrue(sweep.replay_alignment_ok({"median": 6.6e-6, "p99": 1.9e-4}))
         self.assertFalse(sweep.replay_alignment_ok({"median": 0.003, "p99": 0.02}))
 
-    def test_run_sweep_always_validates_explicit_r1_baseline(self) -> None:
+    def test_run_sweep_always_validates_explicit_v6_baseline(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             csv_path = Path(tmp) / "bridge_rtde_500hz.csv"
             csv_path.write_text(
                 f"{sweep.STAGE_REGISTER},_step5d_constraint_residual_norm\n25.0,0.01\n",
                 encoding="utf-8",
             )
-            calls: list[tuple[float, float]] = []
+            calls: list[tuple[float, float, int, str]] = []
 
             def fake_precompute(stage25_rows, replay_csv_path):
                 self.assertEqual(len(stage25_rows), 1)
                 self.assertEqual(replay_csv_path, csv_path)
                 return [{"target": "continuous-state"}]
 
-            def fake_replay(_targets, *, r, epsilon):
-                calls.append((r, epsilon))
+            def fake_replay(_targets, *, r, epsilon, inner_iterations, backend):
+                calls.append((r, epsilon, inner_iterations, backend))
                 return {
                     "r": r,
                     "epsilon": epsilon,
+                    "inner_iterations": inner_iterations,
+                    "backend": backend,
                     "logged_alignment_ok": r == sweep.BASELINE_R and epsilon == sweep.BASELINE_EPSILON,
                 }
 
@@ -69,10 +74,16 @@ class Step5dP0RnnReplaySweepTest(unittest.TestCase):
                 mock.patch.object(sweep, "precompute_targets", side_effect=fake_precompute),
                 mock.patch.object(sweep, "replay_targets", side_effect=fake_replay),
             ):
-                result = sweep.run_sweep(csv_path, r_values=(0.8,), epsilon_values=(sweep.BASELINE_EPSILON,))
+                result = sweep.run_sweep(csv_path, r_values=(1.0,), epsilon_values=(sweep.BASELINE_EPSILON,))
 
-        self.assertEqual(calls, [(0.8, sweep.BASELINE_EPSILON), (sweep.BASELINE_R, sweep.BASELINE_EPSILON)])
-        self.assertEqual([(item["r"], item["epsilon"]) for item in result["runs"]], [(0.8, sweep.BASELINE_EPSILON)])
+        self.assertEqual(
+            calls,
+            [
+                (1.0, sweep.BASELINE_EPSILON, sweep.BASELINE_INNER_ITERATIONS, sweep.DEFAULT_BACKEND),
+                (sweep.BASELINE_R, sweep.BASELINE_EPSILON, sweep.BASELINE_INNER_ITERATIONS, sweep.DEFAULT_BACKEND),
+            ],
+        )
+        self.assertEqual([(item["r"], item["epsilon"]) for item in result["runs"]], [(1.0, sweep.BASELINE_EPSILON)])
         self.assertEqual((result["baseline"]["r"], result["baseline"]["epsilon"]), (sweep.BASELINE_R, sweep.BASELINE_EPSILON))
         self.assertTrue(result["baseline_logged_alignment_ok"])
         self.assertIn("no bridge start", result["safety_boundary"])
@@ -211,7 +222,9 @@ class Step5dP0RnnReplaySweepTest(unittest.TestCase):
         class FakeSolver:
             def __init__(self, config):
                 self.config = config
-                events.append(f"init:r={config.sigr_exponent_r}:eps={config.epsilon}")
+                events.append(
+                    f"init:r={config.sigr_exponent_r}:eps={config.epsilon}:inner={config.inner_iterations}:backend={config.backend}"
+                )
 
             def warm_start(self, **_kwargs):
                 events.append("warm_start")
@@ -248,8 +261,10 @@ class Step5dP0RnnReplaySweepTest(unittest.TestCase):
         with mock.patch.object(sweep, "StrictTaseRnnSolver", FakeSolver):
             result = sweep.replay_targets(targets, r=sweep.BASELINE_R, epsilon=sweep.BASELINE_EPSILON)
 
-        self.assertEqual(events[:2], ["init:r=1.0:eps=0.022", "warm_start"])
-        self.assertEqual(events.count("solve:r=1.0:eps=0.022"), 100)
+        self.assertEqual(events[:2], ["init:r=0.8:eps=0.01:inner=1024:backend=cupy", "warm_start"])
+        self.assertEqual(events.count("solve:r=0.8:eps=0.01"), 100)
+        self.assertEqual(result["inner_iterations"], 1024)
+        self.assertEqual(result["backend"], "cupy")
         self.assertEqual(result["residual_norm"]["n"], 100)
         self.assertEqual(result["active_bounds_rows"], 0)
         self.assertEqual(result["p0_low_force_posture_policy_counts"], {"yuming_low_force_v1": 100})

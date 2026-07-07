@@ -109,8 +109,8 @@ ABLATION_SPECS = {
     ),
     STEP5D_NO_CONTACT_P0_STAGE_ID: Step5dAblationSpec(
         program_name=STEP5D_NO_CONTACT_P0_STAGE_ID,
-        version_label="no_contact_p0_v5",
-        stamp_token="STEP5D_STRICT_RNN_NO_CONTACT_P0_V5",
+        version_label="no_contact_p0_v6",
+        stamp_token="STEP5D_STRICT_RNN_NO_CONTACT_P0_V6",
         cartesian_angular_cap_rad_s=0.015,
         default_stage25_control_mode="speedj_rnn_live",
         stage25_success_target_s=STEP5D_STAGE25_V28_FULL_RUN_TARGET_S,

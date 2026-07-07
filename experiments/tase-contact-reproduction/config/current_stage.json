@@ -982,7 +982,7 @@
         "targeted_unittest_result": "109 startup/upload/cross-step/analyzer/no-contact P0 targeted tests passed after v5 qdot-cap update",
         "full_unittest_result": "704 unittest-discover tests passed; ./check.sh passed 704 pytest tests with 1 warning",
         "diff_check": "git diff --check passed",
-        "no_contact_p0_tooling": "P0 v5 local diagnostic package and pre-Play bridge entrypoint are present: tools/verify_step5d_no_contact_p0.py, scripts/step5d-strict-rnn-p0.sh capture-ready/capture-bridge, programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v5.{script,txt,urp}. Controller target is /programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v5.urp; controller read-back and P0 capture remain pending."
+        "no_contact_p0_tooling": "P0 v6 local diagnostic package and pre-Play bridge entrypoint are present: tools/verify_step5d_no_contact_p0.py, scripts/step5d-strict-rnn-p0.sh capture-ready/capture-bridge, programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v6.{script,txt,urp}. Controller target is /programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v6.urp; controller read-back is verified and P0 capture remains pending."
       },
       "live_status": "blocked_until_no_contact_p0_and_explicit_live_trigger",
       "next_action": "verify no-contact P0 first tick has solver_warm_start and approach-normal J(q)qdot aligned with the outer command before any live strict RNN run"
@@ -997,22 +997,22 @@
     "zero_ftsensor_authorized": false,
     "blocked_reason": "v28 branch evidence is archived; strict RNN live retry remains blocked until no-contact P0 warm_start verification passes and still requires an explicit live trigger.",
     "no_contact_p0_capture": {
-      "profile": "step5d_strict_rnn_no_contact_p0_v5",
+      "profile": "step5d_strict_rnn_no_contact_p0_v6",
       "entrypoint": "scripts/step5d-strict-rnn-p0.sh capture-bridge",
       "confirm_token": "LIVE STEP5D STRICT RNN NO CONTACT P0",
-      "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v5.urp",
-      "local_triplet": "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v5",
-      "controller_readback_verified": false,
-      "controller_readback_dir": null,
-      "controller_readback_manifest": null,
-      "delivery_mode": "local_generated_pending_controller_readback",
-      "readback_source": "pending_controller_get",
+      "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v6.urp",
+      "local_triplet": "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v6",
+      "controller_readback_verified": true,
+      "controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v6_20260708_040314",
+      "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v6_20260708_040314/manifest.json",
+      "delivery_mode": "full_upload_readback",
+      "readback_source": "fresh_controller_get",
       "sha256": {
-        ".script": "437260d51bf7e810ecc3fb9baa83a3e5962a774ad9f2d3f3187e5cd685f2fd2c",
-        ".txt": "9946417821d619cd3e714a4202ee1e04c59c22aeca08df9c9779b87f126cc96f",
-        ".urp": "0c5a5aaed1ef5ec1791986b7f9d0ca46ddc0eaa00cc9e1c6dfa766f8fbe36fe1"
+        ".script": "5e1a077ef60a60893e6150d8ceb4560faac0b43ac3b34ffa53ca133daac202f3",
+        ".txt": "e878d08d3e65355e252ba1616057b446b730d764a04992b37d7af53f89ff2eaf",
+        ".urp": "ac63f34b35bf87874ad77f456c1780fadc617426ab0b9f614a04484ddc9585ab"
       },
-      "capture_authorized": false,
+      "capture_authorized": true,
       "passed": false,
       "summary_artifact": null
     },
@@ -1044,7 +1044,7 @@
   "notes": [
     "step5d_strict_rnn_ablation_v28 has cadence-clean speedl positive-control runs, DLS speedj layout-524 branch success, and historical RNN speedj short soft-hold failure evidence; older 054904/062908 speedl runs are retained as historical but excluded from current acceptance by the cadence gate.",
     "The RNN speedj failure root cause is attributed offline to solver cold-start at Stage25 lifecycle reset while preloaded; the current code applies a one-shot strict RNN warm_start at the next solve, but live strict RNN remains blocked pending no-contact P0 verification and explicit live authorization.",
-    "The no-contact P0 v5 TP package is generated locally with qdot_cap_rad_s=0.15 and bridge-side qdot slew disabled for P0; controller read-back and capture are pending. The v4 package/readback and v4 live artifact are retained as failed evidence only.",
+    "The no-contact P0 v6 TP package is controller read-back verified with epsilon=0.010, sig^r exponent r=0.8, 1024 RNN inner iterations, CuPy backend, qdot_cap_rad_s=0.15, and bridge-side qdot slew disabled for P0; capture is authorized but not passed. The v4/v5 package/readback artifacts are retained as historical evidence only.",
     "The previous v1 no-contact P0 live capture attempt is archived at runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v1_autowatch_20260706_235036 and failed with no_speedj_rnn_live_rows: output register 35 stayed at 20.0, Stage25 rows were 0, and bridge-side sensor_ok became ready before the TP stopped. v2 is a cache-bust and Stage20 wait-echo diagnostic package, not a passed P0 artifact.",
     "step5d_strict_rnn_ablation_v28 is controller read-back verified and selected as the current Step5d TP/script cage-primary diagnostic package.",
     "v28 keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
