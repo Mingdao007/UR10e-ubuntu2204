@@ -107,6 +107,9 @@ def fake_outer(*_args: object, **_kwargs: object) -> SimpleNamespace:
 
 
 def compute_ablation_values(program: str, mode: str, *, jacobian: np.ndarray | None = None) -> dict[str, object]:
+    args = ablation_args(program, mode)
+    state = acquired_state()
+    fake_runtime(state, args)
     latest_output = {
         "actual_TCP_pose": [0.49, 0.14, 0.02, math.pi, 0.0, 0.0],
         "actual_TCP_speed": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
@@ -115,18 +118,22 @@ def compute_ablation_values(program: str, mode: str, *, jacobian: np.ndarray | N
         "output_double_register_35": 25.0,
     }
     with (
-        patch.object(bridge, "ensure_step5d_liveprep_runtime", fake_runtime),
+        patch.object(
+            bridge,
+            "ensure_step5d_liveprep_runtime",
+            side_effect=AssertionError("hot path must use prewarmed Step5d runtime"),
+        ),
         patch.object(bridge, "step5d_tcp_jacobian_base", return_value=np.eye(6) if jacobian is None else jacobian),
         patch.object(bridge, "step5d_omega_bounds", return_value=(np.full(6, -0.05), np.full(6, 0.05))),
         patch.object(bridge, "compute_step5d_outer_loop", side_effect=fake_outer),
         patch.object(bridge, "rnn_target_state_from_outer_loop", return_value={"shadow": True}),
     ):
         return bridge.compute_bridge_values(
-            ablation_args(program, mode),
+            args,
             [0.0, 0.0, -12.0, 0.0, 0.0, 0.0],
             latest_output,
             1.0,
-            acquired_state(),
+            state,
             0.002,
         )
 

@@ -153,8 +153,13 @@ def _p0_no_contact_runtime_values(
         "output_double_register_35": 25.0,
     }
     state = _p0_no_contact_state(normal_acquired=normal_acquired)
+    _p0_fake_runtime(state, args)
     with (
-        patch.object(bridge, "ensure_step5d_liveprep_runtime", _p0_fake_runtime),
+        patch.object(
+            bridge,
+            "ensure_step5d_liveprep_runtime",
+            side_effect=AssertionError("hot path must use prewarmed Step5d runtime"),
+        ),
         patch.object(bridge, "step5d_tcp_jacobian_base", return_value=np.eye(6) if jacobian is None else jacobian),
         patch.object(bridge, "step5d_omega_bounds", return_value=(np.full(6, -0.05), np.full(6, 0.05))),
         patch.object(bridge, "compute_step5d_outer_loop", side_effect=outer_side_effect),

@@ -2958,6 +2958,28 @@ def ensure_step5d_liveprep_runtime(state: "BridgeState", args: argparse.Namespac
         )
 
 
+def step5d_liveprep_runtime_missing(state: "BridgeState", args: argparse.Namespace) -> list[str]:
+    missing: list[str] = []
+    if state.step5d_model_bundle is None:
+        missing.append("model_bundle")
+    if state.step5d_tcp_offset_tool0 is None:
+        missing.append("tcp_offset_tool0")
+    if state.step5d_solver is None:
+        missing.append("solver")
+    if args.bridge_profile in STEP5D_TCP_CAGE_PROFILES and state.step5d_tcp_cage is None:
+        missing.append("tcp_cage")
+    return missing
+
+
+def require_step5d_liveprep_runtime_prewarmed(state: "BridgeState", args: argparse.Namespace) -> None:
+    missing = step5d_liveprep_runtime_missing(state, args)
+    if missing:
+        raise RuntimeError(
+            "Step5d liveprep runtime is not prewarmed before 500Hz control loop: "
+            + ",".join(missing)
+        )
+
+
 def reset_step5d_solver_state_for_boundary(state: "BridgeState", boundary_key: str) -> None:
     if state.step5d_solver_lifecycle_key == boundary_key:
         return
@@ -3435,10 +3457,12 @@ def compute_bridge_values(
         or step5d_no_contact_p0_profile
     )
     if step5d_liveprep_profile:
-        try:
-            ensure_step5d_liveprep_runtime(state, args)
-        except (ValueError, RuntimeError) as exc:
-            values["_step5d_solver_error"] = f"warmup: {exc}"
+        missing_runtime = step5d_liveprep_runtime_missing(state, args)
+        if missing_runtime:
+            values["_step5d_solver_error"] = (
+                "prewarm: Step5d liveprep runtime missing before 500Hz control loop: "
+                + ",".join(missing_runtime)
+            )
     step6b_profile = args.bridge_profile in {"step6b_v1", "step6b_v2"}
     step6_stage_id = STEP6_CONTACT_EIGHT_STAGE_ID_V2 if args.bridge_profile == "step6b_v2" else STEP6_CONTACT_EIGHT_STAGE_ID
     angular_speedl_profile = (
@@ -4280,13 +4304,7 @@ def compute_bridge_values(
                     raise ValueError("missing RTDE actual_qd")
                 if not speed or len(speed) < 6:
                     raise ValueError("missing RTDE actual_TCP_speed")
-                ensure_step5d_liveprep_runtime(state, args)
-                if (
-                    state.step5d_model_bundle is None
-                    or state.step5d_tcp_offset_tool0 is None
-                    or state.step5d_solver is None
-                ):
-                    raise RuntimeError("Step5d liveprep runtime did not initialize")
+                require_step5d_liveprep_runtime_prewarmed(state, args)
                 if step5d_contact_safety_profile:
                     lifecycle_key = (
                         "stage25_pass_solver"
