@@ -547,6 +547,9 @@ STEP5D_V11_ACQUIRE_V_MAX_M_S = 0.0012
 STEP5D_V11_ACQUIRE_SLEW_M_S2 = 0.012
 STEP5D_V12_QDOT_LIMIT_RAD_S = 0.05
 STEP5D_V12_QDOT_SLEW_RAD_S2 = 0.20
+STEP5D_NO_CONTACT_P0_LINEAR_XY_COMPONENT_LIMIT_M_S = 0.010
+STEP5D_NO_CONTACT_P0_LINEAR_Z_COMPONENT_LIMIT_M_S = 0.020
+STEP5D_NO_CONTACT_P0_ANGULAR_COMPONENT_LIMIT_RAD_S = STEP5D_NO_CONTACT_P0_ANGULAR_LIMIT_RAD_S
 STEP5D_V12_GUARD_DT_MAX_S = 0.010
 STEP5D_V12_LINE_CONTACT_LOW_STOP_N = 0.5
 STEP5D_V12_LINE_CONTACT_MIN_N = 1.0
@@ -2502,6 +2505,33 @@ def limit_step5d_live_xdot(
     return limited, limiter_active
 
 
+def limit_step5d_no_contact_p0_xdot_components(
+    xdot_c: Any,
+    *,
+    max_xy_m_s: float = STEP5D_NO_CONTACT_P0_LINEAR_XY_COMPONENT_LIMIT_M_S,
+    max_z_m_s: float = STEP5D_NO_CONTACT_P0_LINEAR_Z_COMPONENT_LIMIT_M_S,
+    max_angular_rad_s: float = STEP5D_NO_CONTACT_P0_ANGULAR_COMPONENT_LIMIT_RAD_S,
+) -> tuple[np.ndarray, bool]:
+    xdot = np.asarray(xdot_c, dtype=float)
+    if xdot.shape != (6,) or not np.all(np.isfinite(xdot)):
+        raise ValueError("P0 xdot_c must be a finite 6-vector")
+    caps = np.asarray(
+        [
+            float(max_xy_m_s),
+            float(max_xy_m_s),
+            float(max_z_m_s),
+            float(max_angular_rad_s),
+            float(max_angular_rad_s),
+            float(max_angular_rad_s),
+        ],
+        dtype=float,
+    )
+    if np.any(~np.isfinite(caps)) or np.any(caps <= 0.0):
+        raise ValueError("P0 component velocity caps must be finite and positive")
+    limited = np.clip(xdot, -caps, caps)
+    return limited, bool(np.any(np.abs(limited - xdot) > 1e-12))
+
+
 def scale_step5d_xdot_for_joint_feasibility(
     xdot_c: Any,
     jacobian: Any,
@@ -2534,6 +2564,60 @@ def scale_step5d_xdot_for_joint_feasibility(
         "xdot_norm_pre_feasibility_scale": float(np.linalg.norm(xdot)),
         "xdot_norm_post_feasibility_scale": float(np.linalg.norm(scaled)),
         "xdot_feasibility_scale_active": bool(scale < 1.0 - 1e-12),
+    }
+
+
+def limit_step5d_no_contact_p0_qdot_command(
+    qdot: Sequence[float],
+    jacobian: Any,
+    *,
+    qdot_cap_rad_s: float = STEP5D_NO_CONTACT_P0_QDOT_CAP_RAD_S,
+    max_xy_m_s: float = STEP5D_NO_CONTACT_P0_LINEAR_XY_COMPONENT_LIMIT_M_S,
+    max_z_m_s: float = STEP5D_NO_CONTACT_P0_LINEAR_Z_COMPONENT_LIMIT_M_S,
+    max_angular_rad_s: float = STEP5D_NO_CONTACT_P0_ANGULAR_COMPONENT_LIMIT_RAD_S,
+) -> tuple[np.ndarray, dict[str, Any]]:
+    qdot_values = np.asarray(qdot, dtype=float)
+    J = np.asarray(jacobian, dtype=float)
+    if qdot_values.shape != (6,) or not np.all(np.isfinite(qdot_values)):
+        raise ValueError("P0 qdot command must be a finite 6-vector")
+    if J.ndim != 2 or J.shape[1] != 6 or J.shape[0] < 6 or not np.all(np.isfinite(J)):
+        raise ValueError("P0 Jacobian must be finite with six TCP twist rows")
+    qdot_cap = float(qdot_cap_rad_s)
+    caps = np.asarray(
+        [
+            float(max_xy_m_s),
+            float(max_xy_m_s),
+            float(max_z_m_s),
+            float(max_angular_rad_s),
+            float(max_angular_rad_s),
+            float(max_angular_rad_s),
+        ],
+        dtype=float,
+    )
+    if not math.isfinite(qdot_cap) or qdot_cap <= 0.0:
+        raise ValueError("P0 qdot cap must be finite and positive")
+    if np.any(~np.isfinite(caps)) or np.any(caps <= 0.0):
+        raise ValueError("P0 component velocity caps must be finite and positive")
+
+    joint_limited = np.clip(qdot_values, -qdot_cap, qdot_cap)
+    raw_twist = J @ joint_limited
+    component_scale = 1.0
+    for value, cap in zip(raw_twist[:6], caps):
+        abs_value = abs(float(value))
+        if abs_value > float(cap) and abs_value > 0.0:
+            component_scale = min(component_scale, float(cap) / abs_value)
+    limited = joint_limited * component_scale
+    limited_twist = J @ limited
+    return limited, {
+        "qdot_clip_active": bool(np.any(np.abs(joint_limited - qdot_values) > 1e-12)),
+        "component_clamp_active": bool(component_scale < 1.0 - 1e-12),
+        "component_clamp_scale": component_scale,
+        "raw_predicted_twist": raw_twist,
+        "limited_predicted_twist": limited_twist,
+        "max_xy_m_s": float(max_xy_m_s),
+        "max_z_m_s": float(max_z_m_s),
+        "max_angular_rad_s": float(max_angular_rad_s),
+        "qdot_cap_rad_s": qdot_cap,
     }
 
 
@@ -2607,6 +2691,7 @@ def step5d_no_contact_p0_qdot_acceptance_gate(
 
     if (
         qdot_values.shape != (6,)
+        or J.ndim != 2
         or J.shape[1] != 6
         or J.shape[0] < 3
         or outer.shape != (6,)
@@ -2628,6 +2713,11 @@ def step5d_no_contact_p0_qdot_acceptance_gate(
     normal_tracking_error = abs(jqdot_approach - outer_approach)
     common = {
         "predicted_tcp_speed_m_s": predicted_speed,
+        "predicted_tcp_speed_over_legacy_cap": (
+            bool(predicted_speed > float(max_tcp_speed_m_s))
+            if math.isfinite(float(max_tcp_speed_m_s)) and float(max_tcp_speed_m_s) > 0.0
+            else False
+        ),
         "jqdot_approach_normal_m_s": jqdot_approach,
         "outer_approach_normal_m_s": outer_approach,
         "normal_tracking_error_m_s": normal_tracking_error,
@@ -2636,8 +2726,6 @@ def step5d_no_contact_p0_qdot_acceptance_gate(
         return reject("nonfinite_residual_norm", **common)
     if not math.isfinite(float(active_bounds_count)):
         return reject("nonfinite_active_bounds_count", **common)
-    if predicted_speed > float(max_tcp_speed_m_s):
-        return reject("predicted_tcp_speed_exceeds_p0_cap", **common)
     if outer_approach > 0.0 and jqdot_approach <= 0.0:
         return reject("approach_normal_unload_mismatch", **common)
     if normal_tracking_error > float(max_normal_tracking_error_m_s):
@@ -4308,7 +4396,6 @@ def compute_bridge_values(
         step5d_raw_qdot_command: tuple[float, float, float, float, float, float] | None = None
         step5d_post_slew_qdot_command: tuple[float, float, float, float, float, float] | None = None
         step5d_stage25_command: tuple[float, float, float, float, float, float] | None = None
-        step5d_no_contact_p0_qdot_gate_ok = True
         step5d_speedl_shadow_raw_linear_cmd: tuple[float, float, float] | None = None
         step5d_speedl_shadow_raw_angular_cmd: tuple[float, float, float] | None = None
         step5d_speedl_orientation_shadow_only = False
@@ -4484,7 +4571,14 @@ def compute_bridge_values(
                     r=float(args.step5d_sigr_exponent_r),
                 )
                 step5d_outer_xdot_limited = np.asarray(step5d_outer_output.xdot_c, dtype=float)
-                if step5d_liveprep_guarded_profile:
+                if step5d_no_contact_p0_profile:
+                    step5d_outer_xdot_limited, step5d_outer_xdot_limiter_active = (
+                        limit_step5d_no_contact_p0_xdot_components(
+                            step5d_outer_xdot_limited,
+                            max_angular_rad_s=float(args.bridge_angular_limit_rad_s),
+                        )
+                    )
+                elif step5d_liveprep_guarded_profile:
                     step5d_outer_xdot_limited, step5d_outer_xdot_limiter_active = limit_step5d_live_xdot(
                         step5d_outer_xdot_limited,
                         max_linear_m_s=float(args.bridge_total_linear_limit_m_s),
@@ -4711,6 +4805,19 @@ def compute_bridge_values(
                     and step5d_outer_xdot_limited is not None
                     and step5d_result is not None
                 ):
+                    p0_qdot_limited, p0_qdot_limit_diagnostics = limit_step5d_no_contact_p0_qdot_command(
+                        step5d_qdot_command,
+                        jacobian,
+                        qdot_cap_rad_s=float(args.step5d_qdot_limit_rad_s),
+                        max_angular_rad_s=float(args.bridge_angular_limit_rad_s),
+                    )
+                    step5d_qdot_command = tuple(float(value) for value in p0_qdot_limited.tolist())
+                    step5d_predicted_twist = p0_qdot_limit_diagnostics["limited_predicted_twist"]
+                    step5d_predicted_tcp_speed_m_s = float(np.linalg.norm(step5d_predicted_twist[:3]))
+                    if p0_qdot_limit_diagnostics["qdot_clip_active"]:
+                        step5d_intervention_reasons.append("no_contact_p0_qdot_clipped")
+                    if p0_qdot_limit_diagnostics["component_clamp_active"]:
+                        step5d_intervention_reasons.append("no_contact_p0_component_velocity_clamped")
                     p0_qdot_gate = step5d_no_contact_p0_qdot_acceptance_gate(
                         qdot=step5d_qdot_command,
                         jacobian=jacobian,
@@ -4722,12 +4829,8 @@ def compute_bridge_values(
                         max_normal_tracking_error_m_s=5e-4,
                         max_residual_norm=1e-3,
                     )
-                    step5d_no_contact_p0_qdot_gate_ok = bool(p0_qdot_gate["accepted"])
-                    if not step5d_no_contact_p0_qdot_gate_ok:
-                        zero_qdot = tuple(float(value) for value in p0_qdot_gate["qdot"])
-                        step5d_qdot_command = zero_qdot
-                        step5d_intervention_reasons.append(f"no_contact_p0_qdot_gate:{p0_qdot_gate['reason']}")
-                        state.step5d_last_qdot = None
+                    if not bool(p0_qdot_gate["accepted"]):
+                        step5d_intervention_reasons.append(f"no_contact_p0_evidence:{p0_qdot_gate['reason']}")
                 if step5d_ablation_profile:
                     if step5d_stage25_control_mode == "speedl_cartesian_oracle":
                         raw_stage25_command = tuple(float(value) for value in step5d_outer_xdot_limited.tolist())
@@ -4841,7 +4944,6 @@ def compute_bridge_values(
                         or step5d_result is None
                         or step5d_outer_output is None
                         or step5d_stage25_command is None
-                        or not step5d_no_contact_p0_qdot_gate_ok
                         else 1.0,
                         path_time_s=progress,
                         force_error_n=register_force_error,

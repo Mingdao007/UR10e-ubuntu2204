@@ -1332,7 +1332,7 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
                         "force_norm_n": "0.800000",
                         "_step5d_stage25_control_mode": "speedj_rnn_live",
                         "_step5d_stage25_echo_consumed": "1",
-                        "_step5d_intervention_reason": "solver_warm_start,no_contact_p0_qdot_gate:approach_normal_tracking_error",
+                        "_step5d_intervention_reason": "solver_warm_start|no_contact_p0_evidence:approach_normal_tracking_error",
                         "_step5d_outer_xdot_limited_approach_normal_m_s": "0.000100000",
                         "_step5d_jqdot_raw_approach_normal_m_s": "0.000095000",
                         "_step5d_jqdot_cmd_approach_normal_m_s": "-0.000300000",

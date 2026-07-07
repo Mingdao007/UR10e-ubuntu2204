@@ -124,6 +124,19 @@ def _p0_large_outer(*_args: object, **_kwargs: object) -> SimpleNamespace:
     )
 
 
+def _p0_oversized_outer(*_args: object, **_kwargs: object) -> SimpleNamespace:
+    return SimpleNamespace(
+        xdot_c=np.array([0.0200, -0.0300, 0.0400, 0.0300, -0.0200, 0.0180]),
+        next_state=Step5dOuterLoopState(),
+        diagnostics={
+            "outer_orientation_angle_rad": 0.0,
+            "e_f": 0.0,
+            "R_d_z_dot_R_cur_z": 1.0,
+            "force_sign_convention": "step5_step6_positive_normal_load",
+        },
+    )
+
+
 def _p0_no_contact_runtime_values(
     *,
     normal_acquired: bool,
@@ -466,30 +479,56 @@ class Step5dNoContactP0Test(unittest.TestCase):
     def test_no_contact_p0_stage25_writer_operates_without_normal_acquired_when_sensor_ok(self) -> None:
         values = _p0_no_contact_runtime_values(normal_acquired=False, sensor_ok=1.0)
         self.assertEqual(values["step4e_controller_state"], bridge.STEP5D_STAGE25_JOINT_LAYOUT_CODE)
-        self.assertEqual(values["step4e_cmd_valid"], 0.0)
-        self.assertEqual(values["step4e_cmd_vx_m_s"], 0.0)
-        self.assertEqual(values["step4e_cmd_vy_m_s"], 0.0)
-        self.assertEqual(values["step4e_cmd_vz_m_s"], 0.0)
+        self.assertEqual(values["step4e_cmd_valid"], 1.0)
+        self.assertNotEqual(
+            (
+                values["step4e_cmd_vx_m_s"],
+                values["step4e_cmd_vy_m_s"],
+                values["step4e_cmd_vz_m_s"],
+            ),
+            (0.0, 0.0, 0.0),
+        )
+        self.assertLessEqual(abs(values["_step5d_predicted_tcp_vx_m_s"]), 0.010000001)
+        self.assertLessEqual(abs(values["_step5d_predicted_tcp_vy_m_s"]), 0.010000001)
+        self.assertLessEqual(abs(values["_step5d_predicted_tcp_vz_m_s"]), 0.020000001)
         self.assertEqual(values["_step5d_stage25_control_mode"], "speedj_rnn_live")
-        self.assertIn("no_contact_p0_qdot_gate", values["_step5d_intervention_reason"])
+        self.assertIn("no_contact_p0_component_velocity_clamped", values["_step5d_intervention_reason"])
+        self.assertNotIn("no_contact_p0_qdot_gate", values["_step5d_intervention_reason"])
 
-    def test_no_contact_p0_qdot_gate_blocks_tcp_escape_before_register_write(self) -> None:
+    def test_no_contact_p0_qdot_gate_does_not_reject_legacy_total_tcp_norm(self) -> None:
         gate = bridge.step5d_no_contact_p0_qdot_acceptance_gate(
-            qdot=(0.05, -0.05, 0.05, -0.05, -0.05, 0.05),
+            qdot=(0.0035, 0.0035, 0.0, 0.0, 0.0, 0.0),
             jacobian=np.eye(6),
-            outer_xdot_limited=(0.0, 0.0, 0.00015, 0.0, 0.0, 0.0),
+            outer_xdot_limited=(0.0035, 0.0035, 0.0, 0.0, 0.0, 0.0),
             reaction_normal_b=(0.0, 0.0, -1.0),
-            residual_norm=3.9,
-            active_bounds_count=6,
+            residual_norm=0.0001,
+            active_bounds_count=0,
             max_tcp_speed_m_s=0.004,
             max_normal_tracking_error_m_s=0.0005,
             max_residual_norm=0.001,
         )
 
-        self.assertFalse(gate["accepted"])
-        self.assertEqual(gate["reason"], "predicted_tcp_speed_exceeds_p0_cap")
-        self.assertEqual(tuple(gate["qdot"]), (0.0,) * 6)
+        self.assertTrue(gate["accepted"])
+        self.assertEqual(gate["reason"], "ok")
+        self.assertEqual(tuple(gate["qdot"]), (0.0035, 0.0035, 0.0, 0.0, 0.0, 0.0))
         self.assertGreater(gate["predicted_tcp_speed_m_s"], 0.004)
+
+    def test_no_contact_p0_qdot_component_clamp_has_no_total_tcp_norm_cap(self) -> None:
+        qdot, diagnostics = bridge.limit_step5d_no_contact_p0_qdot_command(
+            (0.30, -0.20, 0.040, 0.030, -0.020, 0.018),
+            np.eye(6),
+            qdot_cap_rad_s=0.15,
+        )
+        predicted = np.eye(6) @ qdot
+
+        self.assertTrue(diagnostics["component_clamp_active"])
+        self.assertTrue(diagnostics["qdot_clip_active"])
+        self.assertLessEqual(max(abs(float(value)) for value in qdot), 0.150000001)
+        self.assertLessEqual(abs(predicted[0]), 0.010000001)
+        self.assertLessEqual(abs(predicted[1]), 0.010000001)
+        self.assertLessEqual(abs(predicted[2]), 0.020000001)
+        self.assertLessEqual(max(abs(float(value)) for value in predicted[3:]), 0.015000001)
+        self.assertGreater(np.linalg.norm(predicted[:3]), 0.004)
 
     def test_no_contact_p0_qdot_gate_rejects_nonfinite_residual_and_bounds(self) -> None:
         for residual_norm, active_bounds_count, reason in (
@@ -530,7 +569,7 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertEqual(tuple(gate["qdot"]), (0.0, 0.0, 0.00014, 0.0, 0.0, 0.0))
         self.assertAlmostEqual(gate["normal_tracking_error_m_s"], 0.00001)
 
-    def test_no_contact_p0_scales_outer_xdot_for_joint_feasibility_before_rnn(self) -> None:
+    def test_no_contact_p0_keeps_component_capped_outer_xdot_before_joint_feasibility(self) -> None:
         values = _p0_no_contact_runtime_values(
             normal_acquired=True,
             sensor_ok=1.0,
@@ -542,12 +581,23 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertEqual(values["_step5d_stage25_control_mode"], "speedj_rnn_live")
         self.assertEqual(values["_step5d_qdot_cap_rad_s"], 0.15)
         self.assertGreater(values["_step5d_jinv_xdot_inf_over_qdot_cap"], 1.0)
-        self.assertEqual(values["_step5d_outer_xdot_limiter_active"], 1.0)
-        self.assertLessEqual(values["_step5d_outer_xdot_limited_norm"], 0.016)
+        self.assertEqual(values["_step5d_outer_xdot_limiter_active"], 0.0)
+        self.assertGreater(values["_step5d_outer_xdot_limited_norm"], 0.004)
+        self.assertAlmostEqual(
+            values["_step5d_outer_xdot_limited_norm"],
+            float(np.linalg.norm([0.010, 0.0, 0.0, 0.015, 0.0, 0.0])),
+        )
         self.assertIn("_step5d_outer_xdot_joint_feasible_norm", values)
         self.assertLess(values["_step5d_outer_xdot_joint_feasible_norm"], values["_step5d_outer_xdot_limited_norm"])
         self.assertLess(values["_step5d_xdot_feasibility_scale"], 1.0)
         self.assertEqual(values["_step5d_xdot_feasibility_scale_active"], 1.0)
+
+    def test_no_contact_p0_component_clamps_oversized_outer_xdot(self) -> None:
+        xdot, active = bridge.limit_step5d_no_contact_p0_xdot_components(_p0_oversized_outer().xdot_c)
+
+        self.assertTrue(active)
+        self.assertEqual(tuple(xdot), (0.010, -0.010, 0.020, 0.015, -0.015, 0.015))
+        self.assertGreater(np.linalg.norm(xdot[:3]), 0.004)
 
     def test_no_contact_p0_does_not_apply_bridge_side_qdot_slew(self) -> None:
         with patch.object(
@@ -795,21 +845,26 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertIn("non_stage25_speedj_rnn_live_rows_present", result["blockers"])
 
-    def test_fails_when_first_speedj_rnn_tick_was_not_consumed(self) -> None:
+    def test_allows_stage25_consumed_echo_after_entry_latency(self) -> None:
         rows = good_rows()
         rows[0]["_step5d_stage25_echo_consumed"] = "0"
+        rows[1]["_step5d_stage25_echo_consumed"] = "0.6"
+        rows[2]["_step5d_stage25_echo_consumed"] = "1"
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = Path(tmp)
             write_p0_run(run_dir, rows)
 
             result = p0.verify_run_dir(run_dir)
 
-        self.assertFalse(result["ok"])
-        self.assertIn("first_speedj_rnn_tick_not_consumed_by_stage25", result["blockers"])
+        self.assertTrue(result["ok"], result["blockers"])
+        self.assertNotIn("first_speedj_rnn_tick_not_consumed_by_stage25", result["blockers"])
+        self.assertEqual(result["entry_window"]["stage25_consumed_seen"], True)
 
-    def test_fails_when_first_speedj_rnn_tick_consumed_evidence_is_fractional(self) -> None:
+    def test_fails_when_entry_window_never_consumes_stage25_echo(self) -> None:
         rows = good_rows()
-        rows[0]["_step5d_stage25_echo_consumed"] = "0.6"
+        for row in rows:
+            row["_step5d_stage25_echo_consumed"] = "0"
+        rows[1]["_step5d_stage25_echo_consumed"] = "0.6"
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = Path(tmp)
             write_p0_run(run_dir, rows)
@@ -817,7 +872,7 @@ class Step5dNoContactP0Test(unittest.TestCase):
             result = p0.verify_run_dir(run_dir)
 
         self.assertFalse(result["ok"])
-        self.assertIn("first_speedj_rnn_tick_not_consumed_by_stage25", result["blockers"])
+        self.assertIn("stage25_entry_window_not_consumed_by_stage25", result["blockers"])
 
     def test_fails_when_run_is_not_no_contact(self) -> None:
         rows = good_rows()

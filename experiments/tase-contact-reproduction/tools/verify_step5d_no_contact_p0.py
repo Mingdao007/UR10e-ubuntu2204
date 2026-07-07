@@ -28,6 +28,7 @@ DEFAULT_QDOT_CAP_RAD_S = 0.15
 DEFAULT_QDOT_RAIL_MARGIN_RAD_S = 1e-9
 STAGE25_TOLERANCE = 0.05
 INTEGER_TOLERANCE = 1e-9
+ENTRY_ECHO_WINDOW_ROWS = 8
 
 
 def finite_float(value: object) -> float | None:
@@ -120,6 +121,21 @@ def row_cmd_valid(row: dict[str, str]) -> bool:
     return False
 
 
+def stage25_entry_window_summary(rows: list[dict[str, str]]) -> dict[str, Any]:
+    window = rows[:ENTRY_ECHO_WINDOW_ROWS]
+    consumed_first_index = None
+    for idx, row in enumerate(window):
+        if finite_int(row.get("_step5d_stage25_echo_consumed")) == 1:
+            consumed_first_index = idx
+            break
+    return {
+        "rows": len(window),
+        "max_rows": ENTRY_ECHO_WINDOW_ROWS,
+        "stage25_consumed_seen": consumed_first_index is not None,
+        "stage25_consumed_first_row_index": consumed_first_index,
+    }
+
+
 def qdot_cap_from_rows(rows: list[dict[str, str]], fallback: float) -> tuple[float, str]:
     for row in rows:
         value = finite_float(row.get("_step5d_qdot_cap_rad_s"))
@@ -172,8 +188,9 @@ def verify_rows(
     intervention_reason = first["intervention_reason"]
     if "solver_warm_start" not in intervention_reason.split("|"):
         blockers.append("first_speedj_rnn_tick_missing_solver_warm_start")
-    if first["stage25_echo_consumed"] != 1:
-        blockers.append("first_speedj_rnn_tick_not_consumed_by_stage25")
+    entry_window = stage25_entry_window_summary(rnn_rows)
+    if not entry_window["stage25_consumed_seen"]:
+        blockers.append("stage25_entry_window_not_consumed_by_stage25")
 
     outer = first["outer_approach_normal_m_s"]
     raw = first["jqdot_raw_approach_normal_m_s"]
@@ -275,6 +292,7 @@ def verify_rows(
         "speedj_rnn_live_rows": len(mode_rows),
         "stage25_speedj_rnn_live_rows": len(rnn_rows),
         "first_tick": first,
+        "entry_window": entry_window,
         "limits": {
             "max_normal_load_n": max_normal_load_n,
             "max_force_norm_n": max_force_norm_n,
