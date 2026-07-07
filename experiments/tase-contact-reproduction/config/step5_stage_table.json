@@ -234,7 +234,7 @@
       "step5d_strict_rnn_ablation_v27",
       "step6_contact_eight_baseline_v2",
       "step5d_strict_rnn_ablation_v28",
-      "step5d_strict_rnn_no_contact_p0_v2"
+      "step5d_strict_rnn_no_contact_p0_v3"
     ],
     "applies_to_stage_families": [
       "Step5b",
@@ -6908,7 +6908,7 @@
         "v28 is an ablation package with layout-tagged speedl/speedj Stage25.0 modes.",
         "v28 uses 50N raw-normal, 60N force-norm, 3Nm torque guard, and layout-tagged speedl/speedj Stage25.0.",
         "This current row has archived speedl positive-control 60 s evidence but is not a completed strict RNN reproduction claim; strict RNN live retry requires no-contact P0 warm_start verification plus explicit live authorization.",
-        "Strict RNN no-contact P0 gate package is controller read-back verified at runs/controller_readback_step5d_strict_rnn_no_contact_p0_v2_20260706_235815/manifest.json with target /programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v2.urp; P0 capture has not passed yet."
+        "Strict RNN no-contact P0 gate package is controller read-back verified at runs/controller_readback_step5d_strict_rnn_no_contact_p0_v3_20260707_083612/manifest.json with target /programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v3.urp; P0 capture has not passed yet."
       ],
       "live_run_evidence": null,
       "policy_refs": {
@@ -6970,7 +6970,7 @@
           "no TCP/payload write"
         ],
         "live_readiness_state": "controller_readback_verified_strict_rnn_live_blocked_pending_no_contact_p0_and_explicit_trigger",
-        "no_contact_p0_expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v2.urp",
+        "no_contact_p0_expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v3.urp",
         "no_contact_p0_confirm_env": "STEP5D_P0_CONFIRM",
         "no_contact_p0_confirm_token": "LIVE STEP5D STRICT RNN NO CONTACT P0",
         "no_contact_p0_entrypoint": "scripts/step5d-strict-rnn-p0.sh capture-bridge",
@@ -7022,26 +7022,26 @@
           ".urp": "518c12c4e2c4da95c404321f6d63e1855b18b9b29b5ed612839ada4e20149d4b"
         },
         "strict_rnn_no_contact_p0": {
-          "program_basename": "step5d_strict_rnn_no_contact_p0_v2",
+          "program_basename": "step5d_strict_rnn_no_contact_p0_v3",
           "local_program_dir": "programs/step5/step5d",
-          "local_triplet": "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v2.{script,txt,urp}",
-          "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v2.urp",
+          "local_triplet": "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v3.{script,txt,urp}",
+          "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v3.urp",
           "controller_dir": "/programs/andyl/kunwei/step5",
           "controller_readback_status": "verified_gate_package",
-          "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v2_20260706_235815/manifest.json",
+          "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v3_20260707_083612/manifest.json",
           "delivery_mode": "full_upload_readback",
           "readback_source": "fresh_controller_get",
           "sha256": {
-            ".script": "2baf14592809b3f7ca6c21d7e56fa4f97317297f2868547890a4a6f3c7d0f596",
-            ".txt": "1ddab6f04878460787df76efba0acb2fe36929b51aa386aeaef3ac2663f5f1fe",
-            ".urp": "133052bf2a1747b19e990b6d76a3a9b5c1e17a5190c129c252776011851a3e4f"
+            ".script": "072e5d4fd69516e59d715ac8c8a3c97a19a5896819188f2bfa430eea23db6757",
+            ".txt": "02dce4607ad0cecc873186194b201a86f405f10ec2f04494b1e1ae538712dc83",
+            ".urp": "83882bd83aa12edf41e484b0f391ef5e0d8f893705c9e78080564ed14f478319"
           },
           "p0_capture_passed": false
         }
       }
     },
     {
-      "id": "step5d_strict_rnn_no_contact_p0_v2",
+      "id": "step5d_strict_rnn_no_contact_p0_v3",
       "canonical_profile_ref": "Step5.step5d_rnn",
       "stage": "Step5d",
       "owner": "bridge+TP",
@@ -7122,22 +7122,22 @@
       },
       "success_condition": "P0 passes only when a captured artifact validates first Stage25 speedj_rnn_live tick solver_warm_start, layout 524 consumption, and approach-normal alignment; this is not a contact reproduction claim.",
       "local_delivery_evidence": {
-        "program_basename": "step5d_strict_rnn_no_contact_p0_v2",
+        "program_basename": "step5d_strict_rnn_no_contact_p0_v3",
         "local_program_dir": "programs/step5/step5d",
-        "local_triplet": "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v2.{script,txt,urp}",
-        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v2.urp",
+        "local_triplet": "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v3.{script,txt,urp}",
+        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v3.urp",
         "controller_dir": "/programs/andyl/kunwei/step5",
         "local_package_validated": true,
         "controller_readback_verified": true,
-        "controller_readback": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v2_20260706_235815/manifest.json",
+        "controller_readback": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v3_20260707_083612/manifest.json",
         "local_controller_readback_sha_match": true,
         "fetched_back_urp_internal_gate_pass": true,
         "sha256": {
-          ".script": "2baf14592809b3f7ca6c21d7e56fa4f97317297f2868547890a4a6f3c7d0f596",
-          ".txt": "1ddab6f04878460787df76efba0acb2fe36929b51aa386aeaef3ac2663f5f1fe",
-          ".urp": "133052bf2a1747b19e990b6d76a3a9b5c1e17a5190c129c252776011851a3e4f"
+          ".script": "072e5d4fd69516e59d715ac8c8a3c97a19a5896819188f2bfa430eea23db6757",
+          ".txt": "02dce4607ad0cecc873186194b201a86f405f10ec2f04494b1e1ae538712dc83",
+          ".urp": "83882bd83aa12edf41e484b0f391ef5e0d8f893705c9e78080564ed14f478319"
         },
-        "stamp": "2026-07-06T2357HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V2",
+        "stamp": "2026-07-07T0010HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V3",
         "installation_relative_path": "../../../default",
         "delivery_mode": "full_upload_readback"
       },
@@ -7151,7 +7151,7 @@
       },
       "notes": [
         "P0 is a no-contact gate package for v28 strict RNN warm_start evidence, not the current reproduction package.",
-        "Controller read-back verified at runs/controller_readback_step5d_strict_rnn_no_contact_p0_v2_20260706_235815/manifest.json with target /programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v2.urp.",
+        "Controller read-back verified at runs/controller_readback_step5d_strict_rnn_no_contact_p0_v3_20260707_083612/manifest.json with target /programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v3.urp.",
         "No-contact P0 capture has not passed yet.",
         "Previous v1 capture attempt is archived at runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v1_autowatch_20260706_235036 and failed before Stage25 with no_speedj_rnn_live_rows; v2 is a cache-bust and Stage20 wait-echo diagnostic package."
       ],
@@ -7167,7 +7167,7 @@
         "mode": "line-autowatch",
         "confirm_env": "STEP5D_P0_CONFIRM",
         "confirm_token": "LIVE STEP5D STRICT RNN NO CONTACT P0",
-        "expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v2.urp",
+        "expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v3.urp",
         "fast_trigger_requires_long_check_cache": true,
         "wait_for_play_s": 20,
         "baseline_s": 1.0,
@@ -7189,19 +7189,19 @@
         "stage25_runtime_limit_s": 65.0
       },
       "package_delivery": {
-        "program_basename": "step5d_strict_rnn_no_contact_p0_v2",
+        "program_basename": "step5d_strict_rnn_no_contact_p0_v3",
         "local_program_dir": "programs/step5/step5d",
-        "local_triplet": "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v2.{script,txt,urp}",
-        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v2.urp",
+        "local_triplet": "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v3.{script,txt,urp}",
+        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v3.urp",
         "controller_dir": "/programs/andyl/kunwei/step5",
         "controller_readback_status": "verified_gate_package",
-        "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v2_20260706_235815/manifest.json",
+        "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v3_20260707_083612/manifest.json",
         "delivery_mode": "full_upload_readback",
         "readback_source": "fresh_controller_get",
         "sha256": {
-          ".script": "2baf14592809b3f7ca6c21d7e56fa4f97317297f2868547890a4a6f3c7d0f596",
-          ".txt": "1ddab6f04878460787df76efba0acb2fe36929b51aa386aeaef3ac2663f5f1fe",
-          ".urp": "133052bf2a1747b19e990b6d76a3a9b5c1e17a5190c129c252776011851a3e4f"
+          ".script": "072e5d4fd69516e59d715ac8c8a3c97a19a5896819188f2bfa430eea23db6757",
+          ".txt": "02dce4607ad0cecc873186194b201a86f405f10ec2f04494b1e1ae538712dc83",
+          ".urp": "83882bd83aa12edf41e484b0f391ef5e0d8f893705c9e78080564ed14f478319"
         },
         "p0_capture_passed": false
       }

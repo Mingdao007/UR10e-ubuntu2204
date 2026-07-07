@@ -108,8 +108,8 @@ ABLATION_SPECS = {
     ),
     STEP5D_NO_CONTACT_P0_STAGE_ID: Step5dAblationSpec(
         program_name=STEP5D_NO_CONTACT_P0_STAGE_ID,
-        version_label="no_contact_p0_v2",
-        stamp_token="STEP5D_STRICT_RNN_NO_CONTACT_P0_V2",
+        version_label="no_contact_p0_v3",
+        stamp_token="STEP5D_STRICT_RNN_NO_CONTACT_P0_V3",
         cartesian_angular_cap_rad_s=0.015,
         default_stage25_control_mode="speedj_rnn_live",
         stage25_success_target_s=STEP5D_STAGE25_V28_FULL_RUN_TARGET_S,
@@ -759,21 +759,38 @@ def codex_wait_for_bridge_ready(timeout_s):
   local t_wait = 0.0
   local last_heartbeat = read_input_float_register(26)
   local heartbeat_seen = False
+  local heartbeat_seen_num = 0.0
+  local sensor_ok_seen_num = 0.0
+  write_output_float_register(29, t_wait)
+  write_output_float_register(30, heartbeat_seen_num)
+  write_output_float_register(31, sensor_ok_seen_num)
+  write_output_float_register(36, 20.00)
   while t_wait < timeout_s:
     local heartbeat = read_input_float_register(26)
     local sensor_ok = read_input_float_register(27)
     write_output_float_register(26, heartbeat)
     write_output_float_register(27, sensor_ok)
+    write_output_float_register(29, t_wait)
     if heartbeat != last_heartbeat:
       heartbeat_seen = True
+      heartbeat_seen_num = 1.0
       last_heartbeat = heartbeat
+      write_output_float_register(36, 20.01)
     end
+    if sensor_ok >= 0.5:
+      sensor_ok_seen_num = 1.0
+      write_output_float_register(36, 20.02)
+    end
+    write_output_float_register(30, heartbeat_seen_num)
+    write_output_float_register(31, sensor_ok_seen_num)
     if heartbeat_seen and sensor_ok >= 0.5:
+      write_output_float_register(36, 20.95)
       return True
     end
     t_wait = t_wait + get_steptime()
     sync()
   end
+  write_output_float_register(36, 20.90)
   return False
 end
 

@@ -7,7 +7,7 @@ ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 LIVEPREP_OPERATOR="${SCRIPT_DIR}/step5d-liveprep-operator.sh"
 BRIDGE_OPERATOR="${SCRIPT_DIR}/bridge-line-operator.sh"
 P0_VERIFIER="${ROOT}/tools/verify_step5d_no_contact_p0.py"
-P0_PROFILE="step5d_strict_rnn_no_contact_p0_v2"
+P0_PROFILE="step5d_strict_rnn_no_contact_p0_v3"
 P0_CONFIRM_TOKEN="LIVE STEP5D STRICT RNN NO CONTACT P0"
 
 usage() {
@@ -35,6 +35,7 @@ p0_table_preflight() {
   python3 - "${ROOT}/config/current_stage.json" "${ROOT}/config/step5_stage_table.json" "${P0_PROFILE}" <<'PY' || exit 24
 import json
 import sys
+from pathlib import Path
 from pathlib import PurePosixPath
 
 current_path, table_path, profile = sys.argv[1:4]
@@ -50,6 +51,14 @@ delivery = row.get("package_delivery", {})
 guard = row.get("guard", {})
 target = capture.get("controller_target")
 controller_dir = str(PurePosixPath(str(target)).parent) if target else None
+manifest_rel = capture.get("controller_readback_manifest")
+if not manifest_rel:
+    raise SystemExit("refusing no-contact P0: capture missing controller_readback_manifest")
+manifest_path = Path(current_path).resolve().parent.parent / manifest_rel
+if not manifest_path.is_file():
+    raise SystemExit(f"refusing no-contact P0: manifest missing: {manifest_rel}")
+manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+validation = manifest.get("validation", {})
 checks = {
     "controller_target": delivery.get("controller_target") == target,
     "controller_dir": delivery.get("controller_dir") == controller_dir,
@@ -57,6 +66,14 @@ checks = {
 }
 for ext in (".script", ".txt", ".urp"):
     checks[f"sha256 {ext}"] = delivery.get("sha256", {}).get(ext) == capture.get("sha256", {}).get(ext)
+for section in ("local", "controller", "readback"):
+    for ext in (".script", ".txt", ".urp"):
+        checks[f"manifest {section} sha256 {ext}"] = (
+            manifest.get("sha256", {}).get(section, {}).get(ext) == capture.get("sha256", {}).get(ext)
+        )
+checks["validation program"] = validation.get("program") == profile
+checks["validation target_dir"] = validation.get("target_dir") == controller_dir
+checks["validation script_node_path"] = validation.get("script_node_path") == f"{controller_dir}/{profile}.script"
 failed = [key for key, ok in checks.items() if not ok]
 if failed:
     raise SystemExit(f"refusing no-contact P0: table/current mismatch: {failed}")

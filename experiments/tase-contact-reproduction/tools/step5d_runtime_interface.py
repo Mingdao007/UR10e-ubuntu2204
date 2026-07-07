@@ -34,7 +34,7 @@ STEP5D_ABLATION_V25_STAGE_ID = "step5d_strict_rnn_ablation_v25"
 STEP5D_ABLATION_V26_STAGE_ID = "step5d_strict_rnn_ablation_v26"
 STEP5D_ABLATION_V27_STAGE_ID = "step5d_strict_rnn_ablation_v27"
 STEP5D_ABLATION_V28_STAGE_ID = "step5d_strict_rnn_ablation_v28"
-STEP5D_NO_CONTACT_P0_STAGE_ID = "step5d_strict_rnn_no_contact_p0_v2"
+STEP5D_NO_CONTACT_P0_STAGE_ID = "step5d_strict_rnn_no_contact_p0_v3"
 STEP5D_ABLATION_STAGE_IDS = (
     STEP5D_ABLATION_V25_STAGE_ID,
     STEP5D_ABLATION_V26_STAGE_ID,

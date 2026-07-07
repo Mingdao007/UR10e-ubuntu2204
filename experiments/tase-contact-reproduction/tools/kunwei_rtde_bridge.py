@@ -3419,7 +3419,7 @@ def compute_bridge_values(
         v29_profile or v30_profile or v31_profile or step5b_profile or step5c_contact_profile or step5d_liveprep_profile or step6b_profile
     ) and acquire_stage_active
     line_stage_active = args.bridge_mode == "line" and abs(robot_stage - 25.0) < 0.05
-    step5d_joint_line_profile = step5d_liveprep_profile and line_stage_active
+    step5d_joint_line_profile = (step5d_liveprep_profile or step5d_no_contact_p0_profile) and line_stage_active
     step5d_stage25_control_mode = (
         str(getattr(args, "step5d_stage25_control_mode", "speedl_cartesian_oracle"))
         if step5d_ablation_profile
@@ -3933,13 +3933,21 @@ def compute_bridge_values(
             force_abs >= args.bridge_min_force_for_control_n
             or (args.bridge_mode == "line" and state.normal_acquired)
             or line_grace_valid
+            or (step5d_no_contact_p0_profile and line_stage_active)
         )
+    if step5d_no_contact_p0_profile and args.bridge_mode == "line" and line_stage_active:
+        control_allowed = sensor_ok > 0.5
     if args.bridge_integrate_stage25_only and args.bridge_mode == "line" and not control_stage_active:
         control_allowed = False
     step5d_v8_pid_recovery_ok = True
     step5b_15n_trial_stop_reason = None
     if control_allowed:
-        if args.bridge_mode == "line" and not step5c_dryrun_profile and not state.normal_acquired:
+        if (
+            args.bridge_mode == "line"
+            and not step5c_dryrun_profile
+            and not (step5d_no_contact_p0_profile and line_stage_active)
+            and not state.normal_acquired
+        ):
             cmd = (0.0, 0.0, 0.0)
             orientation_cmd = (0.0, 0.0, 0.0)
         elif detached_profile and latch_stage_active:
@@ -4662,7 +4670,27 @@ def compute_bridge_values(
                 register_force_error = force_error
                 register_pose_error = orientation_error
                 register_status = joint_result.solver_status if joint_result is not None else STATUS_INVALID
-            if step5d_ablation_profile:
+            if step5d_no_contact_p0_profile:
+                values.update(
+                    step5d_stage25_register_values(
+                        step5d_stage25_command
+                        if step5d_stage25_command is not None
+                        else tuple(float(value) for value in (
+                            step5d_qdot_command if step5d_qdot_command is not None else (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+                        )),
+                        layout_tag=step5d_stage25_layout_tag,
+                        cmd_valid=0.0
+                        if args.bridge_mode == "preview"
+                        or step5d_result is None
+                        or step5d_outer_output is None
+                        or step5d_stage25_command is None
+                        else 1.0,
+                        path_time_s=progress,
+                        force_error_n=register_force_error,
+                        pose_or_orientation_error=register_pose_error,
+                    )
+                )
+            elif step5d_ablation_profile:
                 values.update(
                     step5d_stage25_register_values(
                         step5d_stage25_command

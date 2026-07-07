@@ -12,6 +12,9 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+import numpy as np
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,6 +25,7 @@ import build_step5d_liveprep as liveprep  # noqa: E402
 import kunwei_rtde_bridge as bridge  # noqa: E402
 import step5_table  # noqa: E402
 import step5d_runtime_interface as iface  # noqa: E402
+from step5d_paper_outer_loop import Step5dOuterLoopState  # noqa: E402
 
 
 P0_FIELDS = [
@@ -39,6 +43,114 @@ P0_FIELDS = [
     "_step5d_lambda_norm",
     "_step5d_active_bounds_count",
 ]
+
+
+def _p0_no_contact_state(*, normal_acquired: bool) -> bridge.BridgeState:
+    state = bridge.BridgeState()
+    state.normal_acquired = normal_acquired
+    state.latched_normal_b = (0.0, 0.0, 1.0)
+    state.filtered_normal_b = (0.0, 0.0, 1.0)
+    state.latched_normal_locked = True
+    state.step5d_tcp_cage = SimpleNamespace(
+        evaluate=lambda *_args, **_kwargs: {
+            "distance_m": 0.010,
+            "braking_margin_m": 0.010,
+            "signed_distance_m": 0.010,
+            "cell_index": 1.0,
+            "reason": "inside_test_cage",
+        }
+    )
+    return state
+
+
+def _p0_fake_runtime(state: bridge.BridgeState, _args: object) -> None:
+    state.step5d_model_bundle = SimpleNamespace(
+        model=SimpleNamespace(
+            lowerPositionLimit=np.full(6, -np.pi),
+            upperPositionLimit=np.full(6, np.pi),
+        )
+    )
+    state.step5d_tcp_offset_tool0 = np.zeros(3)
+
+    class FakeSolver:
+        def reset_state(self) -> None:
+            return None
+
+        def warm_start(self, **_kwargs: object) -> None:
+            return None
+
+        def solve(self, **_kwargs: object) -> SimpleNamespace:
+            return SimpleNamespace(
+                qdot=(0.020, 0.010, -0.010, 0.004, -0.003, 0.002),
+                solver_status=40.0,
+                residual_norm=0.012,
+                diagnostics={
+                    "lambda_state": np.array([3.0, 4.0, 0.0, 0.0, 0.0, 0.0]),
+                    "active_bounds_mask": [True, False, False, False, False, False],
+                    "proj_input_form": "J.T @ lambda_state",
+                    "lambda_update_form": "lambda_state -= (dt / epsilon) * (J @ theta_dot_state - xdot_c)",
+                },
+            )
+
+    state.step5d_solver = FakeSolver()
+
+
+def _p0_fake_outer(*_args: object, **_kwargs: object) -> SimpleNamespace:
+    return SimpleNamespace(
+        xdot_c=np.array([0.0010, 0.0015, -0.0020, 0.0100, -0.0200, 0.0300]),
+        next_state=Step5dOuterLoopState(),
+        diagnostics={
+            "outer_orientation_angle_rad": 0.0,
+            "e_f": 0.0,
+            "R_d_z_dot_R_cur_z": 1.0,
+            "force_sign_convention": "step5_step6_positive_normal_load",
+        },
+    )
+
+
+def _p0_no_contact_runtime_values(
+    *,
+    normal_acquired: bool,
+    sensor_ok: float = 1.0,
+) -> dict[str, float]:
+    args = bridge.parse_args(
+        [
+            "--no-start-command",
+            "--skip-dashboard-preflight",
+            "--bridge-mode",
+            "line",
+            "--bridge-profile",
+            iface.STEP5D_NO_CONTACT_P0_STAGE_ID,
+            "--bridge-path-shape",
+            "cycloid",
+            "--step5d-stage25-control-mode",
+            "speedj_rnn_live",
+        ]
+    )
+    latest_zeroed = [0.0, 0.0, -12.0, 0.0, 0.0, 0.0]
+    latest_output = {
+        "actual_TCP_pose": [0.49, 0.14, 0.02, np.pi, 0.0, 0.0],
+        "actual_TCP_speed": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "actual_q": [0.0] * 6,
+        "actual_qd": [0.0] * 6,
+        "output_double_register_35": 25.0,
+    }
+    state = _p0_no_contact_state(normal_acquired=normal_acquired)
+    with (
+        patch.object(bridge, "ensure_step5d_liveprep_runtime", _p0_fake_runtime),
+        patch.object(bridge, "step5d_tcp_jacobian_base", return_value=np.eye(6)),
+        patch.object(bridge, "step5d_omega_bounds", return_value=(np.full(6, -0.05), np.full(6, 0.05))),
+        patch.object(bridge, "compute_step5d_outer_loop", side_effect=_p0_fake_outer),
+        patch.object(bridge, "rnn_target_state_from_outer_loop", return_value={"shadow": True}),
+    ):
+        return bridge.compute_bridge_values(
+            args,
+            latest_zeroed,
+            latest_output,
+            sensor_ok,
+            state,
+            0.002,
+        )
 
 
 def write_p0_run(run_dir: Path, rows: list[dict[str, str]]) -> None:
@@ -75,9 +187,9 @@ def good_rows() -> list[dict[str, str]]:
 
 class Step5dNoContactP0Test(unittest.TestCase):
     def test_no_contact_p0_package_enters_stage25_without_contact_acquire(self) -> None:
-        self.assertEqual(iface.STEP5D_NO_CONTACT_P0_STAGE_ID, "step5d_strict_rnn_no_contact_p0_v2")
+        self.assertEqual(iface.STEP5D_NO_CONTACT_P0_STAGE_ID, "step5d_strict_rnn_no_contact_p0_v3")
         spec = liveprep.spec_for(iface.STEP5D_NO_CONTACT_P0_STAGE_ID)
-        stamp = "2026-07-06T2100HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V2"
+        stamp = "2026-07-07T0100HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V3"
         script = liveprep.build_script(
             stamp,
             "2026-07-06T21:00:00+08:00",
@@ -101,6 +213,11 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertIn("write_output_float_register(28, 0.0)", script)
         self.assertIn("write_output_float_register(26, heartbeat)", script)
         self.assertIn("write_output_float_register(27, sensor_ok)", script)
+        self.assertIn("write_output_float_register(29, t_wait)", script)
+        self.assertIn("write_output_float_register(30, heartbeat_seen_num)", script)
+        self.assertIn("write_output_float_register(31, sensor_ok_seen_num)", script)
+        self.assertIn("write_output_float_register(36, 20.95)", script)
+        self.assertIn("write_output_float_register(36, 20.90)", script)
         self.assertIn("local joint_layout_code = 524.000", script)
         self.assertIn("speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]", script)
         self.assertIn("codex_wait_for_bridge_ready(60.0)", script)
@@ -148,6 +265,19 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertEqual(ref["stage_id"], iface.STEP5D_NO_CONTACT_P0_STAGE_ID)
         self.assertEqual(ref["path_time_s"], 0.0)
         self.assertIn("desired_velocity_xy", ref)
+
+    def test_no_contact_p0_version_is_single_v3_across_current_runtime_wrapper_and_table(self) -> None:
+        wrapper = (ROOT / "scripts" / "step5d-strict-rnn-p0.sh").read_text(encoding="utf-8")
+        bridge_operator = (ROOT / "scripts" / "bridge-line-operator.sh").read_text(encoding="utf-8")
+        current = json.loads((ROOT / "config" / "current_stage.json").read_text(encoding="utf-8"))
+        stage = step5_table.step5_stage(iface.STEP5D_NO_CONTACT_P0_STAGE_ID)
+
+        self.assertEqual(iface.STEP5D_NO_CONTACT_P0_STAGE_ID, "step5d_strict_rnn_no_contact_p0_v3")
+        self.assertIn('P0_PROFILE="step5d_strict_rnn_no_contact_p0_v3"', wrapper)
+        self.assertIn('STEP5D_NO_CONTACT_P0_PROFILE="step5d_strict_rnn_no_contact_p0_v3"', bridge_operator)
+        self.assertEqual(current["bridge_trigger"]["no_contact_p0_capture"]["profile"], iface.STEP5D_NO_CONTACT_P0_STAGE_ID)
+        self.assertIn("P0_PROFILE", wrapper)
+        self.assertEqual(current["bridge_trigger"]["no_contact_p0_capture"]["controller_target"], stage["package_delivery"]["controller_target"])
 
     def test_no_contact_p0_runtime_interface_ignores_ambient_live_caps(self) -> None:
         runtime = iface.resolve_runtime_interface(
@@ -211,6 +341,12 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertEqual(runtime.bridge_defaults.total_linear_limit_m_s, 0.004)
         self.assertEqual(runtime.bridge_defaults.angular_limit_rad_s, 0.015)
         self.assertEqual(runtime.bridge_defaults.normal_min_force_n, 0.001)
+
+    def test_no_contact_p0_stage25_writer_operates_without_normal_acquired_when_sensor_ok(self) -> None:
+        values = _p0_no_contact_runtime_values(normal_acquired=False, sensor_ok=1.0)
+        self.assertEqual(values["step4e_controller_state"], bridge.STEP5D_STAGE25_JOINT_LAYOUT_CODE)
+        self.assertEqual(values["step4e_cmd_valid"], 1.0)
+        self.assertEqual(values["_step5d_stage25_control_mode"], "speedj_rnn_live")
 
     def test_no_contact_p0_bridge_parse_args_uses_full_window_no_contact_defaults(self) -> None:
         args = bridge.parse_args(
@@ -293,10 +429,10 @@ class Step5dNoContactP0Test(unittest.TestCase):
 
         self.assertFalse(capture["capture_authorized"])
         self.assertFalse(capture["passed"])
-        self.assertEqual(capture["local_triplet"], "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v2")
+        self.assertEqual(capture["local_triplet"], "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v3")
         self.assertEqual(
             capture["controller_target"],
-            "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v2.urp",
+            "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v3.urp",
         )
         for ext, path in files.items():
             self.assertTrue(path.exists(), path)
@@ -307,7 +443,7 @@ class Step5dNoContactP0Test(unittest.TestCase):
             files[".script"].read_text(encoding="utf-8"),
             files[".txt"].read_text(encoding="utf-8"),
             files[".urp"].read_bytes(),
-            "STEP5D_STRICT_RNN_NO_CONTACT_P0_V2",
+            "STEP5D_STRICT_RNN_NO_CONTACT_P0_V3",
             spec,
         )
 
@@ -526,7 +662,7 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertIn("capture-ready", script)
         self.assertIn("capture-bridge", script)
         self.assertIn("LIVE STEP5D STRICT RNN NO CONTACT P0", script)
-        self.assertIn("step5d_strict_rnn_no_contact_p0_v2", script)
+        self.assertIn("step5d_strict_rnn_no_contact_p0_v3", script)
         self.assertIn("BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE=1", script)
         self.assertIn("verify_step5d_no_contact_p0.py", script)
         self.assertIn("step5d_no_contact_p0_summary", script)
@@ -556,6 +692,11 @@ class Step5dNoContactP0Test(unittest.TestCase):
             tools_dir.mkdir()
             run_dir.mkdir()
             shutil.copytree(ROOT / "config", sandbox / "config")
+            p0_manifest_dir = sandbox / "runs" / "controller_readback_step5d_strict_rnn_no_contact_p0_v3_20260707_083612"
+            shutil.copytree(
+                ROOT / "runs" / "controller_readback_step5d_strict_rnn_no_contact_p0_v3_20260707_083612",
+                p0_manifest_dir,
+            )
             wrapper = scripts_dir / "step5d-strict-rnn-p0.sh"
             wrapper.write_text((ROOT / "scripts" / "step5d-strict-rnn-p0.sh").read_text(encoding="utf-8"), encoding="utf-8")
             wrapper.chmod(0o755)
@@ -613,7 +754,7 @@ out.write_text(json.dumps({{"ok": True}}), encoding="utf-8")
                 for line in (sandbox / "bridge_env.txt").read_text(encoding="utf-8").splitlines()
                 if "=" in line
             )
-            self.assertEqual(bridge_env["BRIDGE_PROFILE"], "step5d_strict_rnn_no_contact_p0_v2")
+            self.assertEqual(bridge_env["BRIDGE_PROFILE"], "step5d_strict_rnn_no_contact_p0_v3")
             self.assertEqual(bridge_env["BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE"], "1")
             self.assertEqual(bridge_env["BRIDGE_DURATION_S"], "180")
             self.assertEqual(bridge_env["BRIDGE_RTDE_HZ"], "500")
@@ -637,6 +778,114 @@ out.write_text(json.dumps({{"ok": True}}), encoding="utf-8")
             self.assertEqual(verifier_args, [str(run_dir), "--output", str(run_dir / "step5d_no_contact_p0_summary.json")])
             self.assertTrue((run_dir / "step5d_no_contact_p0_summary.json").exists())
             self.assertIn("Step5d no-contact P0 summary", completed.stdout)
+
+    def test_capture_ready_preflight_rejects_stale_no_contact_p0_profile(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            sandbox = Path(tmp)
+            scripts_dir = sandbox / "scripts"
+            shutil.copytree(ROOT / "scripts", scripts_dir)
+            shutil.copytree(ROOT / "tools", sandbox / "tools")
+            shutil.copytree(ROOT / "config", sandbox / "config")
+            wrapper = scripts_dir / "step5d-strict-rnn-p0.sh"
+            current_path = sandbox / "config" / "current_stage.json"
+            current = json.loads(current_path.read_text(encoding="utf-8"))
+            current["bridge_trigger"]["no_contact_p0_capture"]["profile"] = "step5d_strict_rnn_no_contact_p0_v2"
+            current_path.write_text(json.dumps(current), encoding="utf-8")
+
+            completed = subprocess.run(
+                [str(wrapper), "capture-ready"],
+                cwd=sandbox,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(completed.returncode, 24, completed.stdout + completed.stderr)
+            self.assertIn(
+                "refusing no-contact P0: current capture profile is step5d_strict_rnn_no_contact_p0_v2, expected step5d_strict_rnn_no_contact_p0_v3",
+                completed.stdout + completed.stderr,
+            )
+
+    def test_capture_ready_preflight_rejects_missing_no_contact_p0_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            sandbox = Path(tmp)
+            scripts_dir = sandbox / "scripts"
+            shutil.copytree(ROOT / "scripts", scripts_dir)
+            shutil.copytree(ROOT / "tools", sandbox / "tools")
+            shutil.copytree(ROOT / "config", sandbox / "config")
+            wrapper = scripts_dir / "step5d-strict-rnn-p0.sh"
+            current_path = sandbox / "config" / "current_stage.json"
+            current = json.loads(current_path.read_text(encoding="utf-8"))
+            current["bridge_trigger"]["no_contact_p0_capture"]["controller_readback_manifest"] = (
+                "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v3_20260707_083612/missing_manifest.json"
+            )
+            current_path.write_text(json.dumps(current), encoding="utf-8")
+
+            completed = subprocess.run(
+                [str(wrapper), "capture-ready"],
+                cwd=sandbox,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(completed.returncode, 24, completed.stdout + completed.stderr)
+            self.assertIn(
+                "refusing no-contact P0: manifest missing: runs/controller_readback_step5d_strict_rnn_no_contact_p0_v3_20260707_083612/missing_manifest.json",
+                completed.stdout + completed.stderr,
+            )
+
+    def test_capture_ready_preflight_rejects_incorrect_no_contact_p0_manifest_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            sandbox = Path(tmp)
+            scripts_dir = sandbox / "scripts"
+            shutil.copytree(ROOT / "scripts", scripts_dir)
+            shutil.copytree(ROOT / "tools", sandbox / "tools")
+            shutil.copytree(ROOT / "config", sandbox / "config")
+            p0_manifest_dir = sandbox / "runs" / "controller_readback_step5d_strict_rnn_no_contact_p0_v3_20260707_083612"
+            shutil.copytree(
+                ROOT / "runs" / "controller_readback_step5d_strict_rnn_no_contact_p0_v3_20260707_083612",
+                p0_manifest_dir,
+            )
+            wrapper = scripts_dir / "step5d-strict-rnn-p0.sh"
+            manifest_path = p0_manifest_dir / "manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["validation"]["program"] = "step5d_strict_rnn_no_contact_p0_bad"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+            completed = subprocess.run(
+                [str(wrapper), "capture-ready"],
+                cwd=sandbox,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(completed.returncode, 24, completed.stdout + completed.stderr)
+            self.assertIn(
+                "refusing no-contact P0: table/current mismatch: ['validation program']",
+                completed.stdout + completed.stderr,
+            )
+
+    def test_existing_failed_v3_artifact_is_still_rejected_with_no_speedj_rnn_live_rows(self) -> None:
+        run_dir = ROOT / "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v3_autowatch_20260707_084025"
+        completed = subprocess.run(
+            [
+                "python3",
+                str(ROOT / "tools" / "verify_step5d_no_contact_p0.py"),
+                str(run_dir),
+            ],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(completed.returncode, 24, completed.stdout + completed.stderr)
+        payload = json.loads(completed.stdout)
+        self.assertFalse(payload["ok"], payload)
+        self.assertIn("no_speedj_rnn_live_rows", payload["blockers"])
+        self.assertEqual(payload["speedj_rnn_live_rows"], 0)
 
     def test_capture_ready_hardens_no_contact_caps_against_ambient_env(self) -> None:
         env = os.environ.copy()
