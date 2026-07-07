@@ -256,6 +256,44 @@ def install_sandbox_p0_readback(config_root: Path, run_root: Path) -> Path:
 
 
 class Step5dNoContactP0Test(unittest.TestCase):
+    def test_bridge_run_manifest_and_latest_pointer_are_written_before_loop(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_dir = root / "runs" / "bridge_step5d_strict_rnn_no_contact_p0_v4_test"
+            run_dir.mkdir(parents=True)
+            pointer_path = root / "runs" / "latest_run_pointer.json"
+            args = SimpleNamespace(
+                output_dir=run_dir,
+                bridge_profile="step5d_strict_rnn_no_contact_p0_v4",
+                rtde_hz=500.0,
+                bridge_mode="line",
+            )
+
+            manifest = bridge.write_bridge_run_manifest(
+                args,
+                argv=["--bridge-profile", "step5d_strict_rnn_no_contact_p0_v4", "--rtde-hz", "500"],
+                pointer_path=pointer_path,
+            )
+
+            manifest_path = run_dir / "bridge_run_manifest.json"
+            self.assertTrue(manifest_path.is_file())
+            saved_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+            self.assertEqual(saved_manifest, manifest)
+            self.assertEqual(saved_manifest["schema"], "bridge_run_manifest.v1")
+            self.assertEqual(saved_manifest["run_dir"], str(run_dir.resolve()))
+            self.assertEqual(saved_manifest["profile"], "step5d_strict_rnn_no_contact_p0_v4")
+            self.assertEqual(saved_manifest["rtde_hz"], 500.0)
+            self.assertEqual(
+                saved_manifest["argv"],
+                ["--bridge-profile", "step5d_strict_rnn_no_contact_p0_v4", "--rtde-hz", "500"],
+            )
+            self.assertEqual(pointer["schema"], "bridge_latest_run_pointer.v1")
+            self.assertEqual(pointer["run_dir"], str(run_dir.resolve()))
+            self.assertEqual(pointer["profile"], "step5d_strict_rnn_no_contact_p0_v4")
+            self.assertEqual(pointer["manifest"], str(manifest_path))
+            self.assertGreaterEqual(pointer["started_at_epoch_s"], saved_manifest["started_at_epoch_s"])
+
     def test_no_contact_p0_package_enters_stage25_without_contact_acquire(self) -> None:
         self.assertEqual(iface.STEP5D_NO_CONTACT_P0_STAGE_ID, "step5d_strict_rnn_no_contact_p0_v4")
         spec = liveprep.spec_for(iface.STEP5D_NO_CONTACT_P0_STAGE_ID)
@@ -910,10 +948,10 @@ class Step5dNoContactP0Test(unittest.TestCase):
             sandbox = Path(tmp)
             scripts_dir = sandbox / "scripts"
             tools_dir = sandbox / "tools"
-            run_dir = sandbox / "run"
+            run_dir = sandbox / "runs" / "bridge_step5d_strict_rnn_no_contact_p0_v4_fake"
             scripts_dir.mkdir()
             tools_dir.mkdir()
-            run_dir.mkdir()
+            run_dir.mkdir(parents=True)
             shutil.copytree(ROOT / "config", sandbox / "config")
             install_sandbox_p0_readback(sandbox / "config", sandbox / "runs")
             wrapper = scripts_dir / "step5d-strict-rnn-p0.sh"
@@ -927,7 +965,33 @@ class Step5dNoContactP0Test(unittest.TestCase):
 set -euo pipefail
 env >"{sandbox / 'bridge_env.txt'}"
 printf '%s\\n' "$@" >"{sandbox / 'bridge_argv.txt'}"
-echo "[operator] bridge output: {run_dir}"
+python3 - <<'PY'
+import json
+import time
+from pathlib import Path
+
+run_dir = Path({str(run_dir)!r})
+manifest_path = run_dir / "bridge_run_manifest.json"
+started = time.time()
+manifest = {{
+    "schema": "bridge_run_manifest.v1",
+    "run_dir": str(run_dir),
+    "profile": "step5d_strict_rnn_no_contact_p0_v4",
+    "started_at_epoch_s": started,
+    "pid": 12345,
+    "argv": ["line-bridge-fast"],
+}}
+manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+pointer = {{
+    "schema": "bridge_latest_run_pointer.v1",
+    "run_dir": str(run_dir),
+    "profile": "step5d_strict_rnn_no_contact_p0_v4",
+    "started_at_epoch_s": started,
+    "pid": 12345,
+    "manifest": str(manifest_path),
+}}
+(Path({str(sandbox)!r}) / "runs" / "latest_run_pointer.json").write_text(json.dumps(pointer), encoding="utf-8")
+PY
 """,
                 encoding="utf-8",
             )
@@ -998,6 +1062,7 @@ out.write_text(json.dumps({{"ok": True}}), encoding="utf-8")
             verifier_args = (sandbox / "verifier_argv.txt").read_text(encoding="utf-8").splitlines()
             self.assertEqual(verifier_args, [str(run_dir), "--output", str(run_dir / "step5d_no_contact_p0_summary.json")])
             self.assertTrue((run_dir / "step5d_no_contact_p0_summary.json").exists())
+            self.assertNotIn("bridge output:", completed.stdout)
             self.assertIn("Step5d no-contact P0 summary", completed.stdout)
 
     def test_capture_ready_preflight_rejects_stale_no_contact_p0_profile(self) -> None:

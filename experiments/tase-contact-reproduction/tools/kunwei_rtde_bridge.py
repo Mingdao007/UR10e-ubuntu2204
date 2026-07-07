@@ -736,10 +736,51 @@ def default_output_dir() -> Path:
     return EXPERIMENT_ROOT / "runs" / f"bridge_{now_stamp()}"
 
 
+def bridge_run_pointer_path() -> Path:
+    return EXPERIMENT_ROOT / "runs" / "latest_run_pointer.json"
+
+
 def write_json(path: Path, payload: dict[str, Any]) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     tmp.replace(path)
+
+
+def write_bridge_run_manifest(
+    args: argparse.Namespace,
+    *,
+    argv: Sequence[str] | None = None,
+    pointer_path: Path | None = None,
+) -> dict[str, Any]:
+    run_dir = Path(args.output_dir).resolve()
+    started_at_epoch_s = time.time()
+    started_at = datetime.fromtimestamp(started_at_epoch_s).isoformat(timespec="seconds")
+    profile = str(getattr(args, "bridge_profile", ""))
+    manifest = {
+        "schema": "bridge_run_manifest.v1",
+        "run_dir": str(run_dir),
+        "profile": profile,
+        "started_at": started_at,
+        "started_at_epoch_s": started_at_epoch_s,
+        "pid": os.getpid(),
+        "argv": list(argv if argv is not None else sys.argv[1:]),
+        "rtde_hz": float(getattr(args, "rtde_hz", 0.0)),
+        "bridge_mode": str(getattr(args, "bridge_mode", getattr(args, "step4e_mode", ""))),
+    }
+    write_json(run_dir / "bridge_run_manifest.json", manifest)
+    pointer = {
+        "schema": "bridge_latest_run_pointer.v1",
+        "run_dir": str(run_dir),
+        "profile": profile,
+        "started_at": started_at,
+        "started_at_epoch_s": started_at_epoch_s,
+        "pid": os.getpid(),
+        "manifest": str(run_dir / "bridge_run_manifest.json"),
+    }
+    pointer_target = pointer_path or bridge_run_pointer_path()
+    pointer_target.parent.mkdir(parents=True, exist_ok=True)
+    write_json(pointer_target, pointer)
+    return manifest
 
 
 def csv_value(value: Any) -> str:
@@ -6653,6 +6694,7 @@ def main(argv: list[str] | None = None) -> int:
     raw_path = args.output_dir / "raw_frames.bin"
     metadata_path = args.output_dir / "metadata.json"
     summary_path = args.output_dir / "summary.json"
+    write_bridge_run_manifest(args, argv=list(argv if argv is not None else sys.argv[1:]))
     stop_signal: dict[str, str | None] = {"name": None}
 
     def request_stop(signum: int, _frame: Any) -> None:

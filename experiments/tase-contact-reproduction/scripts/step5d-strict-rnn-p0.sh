@@ -10,6 +10,7 @@ P0_VERIFIER="${ROOT}/tools/verify_step5d_no_contact_p0.py"
 STAGE_ENV_EXPORTER="${ROOT}/tools/export_stage_env.py"
 P0_PROFILE="step5d_strict_rnn_no_contact_p0_v4"
 P0_CONFIRM_TOKEN="LIVE STEP5D STRICT RNN NO CONTACT P0"
+LATEST_RUN_POINTER="${ROOT}/runs/latest_run_pointer.json"
 
 usage() {
   cat <<EOF
@@ -105,6 +106,50 @@ load_p0_stage_env() {
   set +a
 }
 
+latest_pointer_run_dir() {
+  local start_epoch="$1"
+  python3 - "${LATEST_RUN_POINTER}" "${P0_PROFILE}" "${start_epoch}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+pointer_path = Path(sys.argv[1])
+profile = sys.argv[2]
+start_epoch = float(sys.argv[3])
+if not pointer_path.is_file():
+    raise SystemExit(1)
+pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+if pointer.get("profile") != profile:
+    raise SystemExit(1)
+if float(pointer.get("started_at_epoch_s", 0.0)) < start_epoch:
+    raise SystemExit(1)
+run_dir = Path(str(pointer.get("run_dir", "")))
+manifest_path = Path(str(pointer.get("manifest", run_dir / "bridge_run_manifest.json")))
+if not run_dir.is_dir() or not manifest_path.is_file():
+    raise SystemExit(1)
+manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+if manifest.get("profile") != profile:
+    raise SystemExit(1)
+if Path(str(manifest.get("run_dir", ""))) != run_dir:
+    raise SystemExit(1)
+print(run_dir)
+PY
+}
+
+stdout_run_dir_fallback() {
+  local log_path="$1"
+  python3 - "${log_path}" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
+matches = re.findall(r"^\[operator\] bridge output:\s*(\S+)\s*$", text, flags=re.M)
+if matches:
+    print(matches[-1])
+PY
+}
+
 if [[ $# -lt 1 ]]; then
   usage
   exit 2
@@ -129,6 +174,11 @@ case "$1" in
     fi
     p0_table_preflight
     tmp_log="$(mktemp)"
+    bridge_start_epoch="$(python3 - <<'PY'
+import time
+print(f"{time.time():.6f}")
+PY
+)"
     cleanup() {
       rm -f "${tmp_log}"
     }
@@ -138,17 +188,10 @@ case "$1" in
     export BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE=1
     export BRIDGE_STAGE25_ONLY=1
     "${BRIDGE_OPERATOR}" line-bridge-fast | tee "${tmp_log}"
-    run_dir="$(python3 - "${tmp_log}" <<'PY'
-import re
-import sys
-from pathlib import Path
-
-text = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
-matches = re.findall(r"^\[operator\] bridge output:\s*(\S+)\s*$", text, flags=re.M)
-if matches:
-    print(matches[-1])
-PY
-)"
+    run_dir="$(latest_pointer_run_dir "${bridge_start_epoch}" || true)"
+    if [[ -z "${run_dir}" ]]; then
+      run_dir="$(stdout_run_dir_fallback "${tmp_log}")"
+    fi
     if [[ -z "${run_dir}" ]]; then
       echo "refusing to validate no-contact P0: bridge output run dir was not found"
       exit 24
