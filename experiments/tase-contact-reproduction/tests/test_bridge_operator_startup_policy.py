@@ -81,14 +81,41 @@ postprocess_run "{run_dir}"
         self.assertIn('STEP5D_DEFAULT_REZERO_S="${STEP5D_DEFAULT_REZERO_S:-${TASE_STEP5D_REZERO_S}}"', script)
         self.assertIn('STEP5D_REZERO_S="${STEP5D_REZERO_S:-${STEP5D_DEFAULT_REZERO_S:-1.0}}"', script)
         self.assertIn(
-            "v27/v28 defaults to Step5b envelope 50/60 N with torque guard 3.0 Nm",
+            "v27/v28/v29 defaults to Step5b envelope 50/60 N with torque guard 3.0 Nm",
             script,
         )
+        self.assertIn('STEP5D_VERSION}" == "step5d_strict_rnn_ablation_v29"', script)
+        self.assertIn('STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedj_rnn_live}"', script)
         self.assertIn('READBACK_GATE="${ROOT}/tools/verify_step5d_current_binding.py"', script)
         self.assertIn("current_step5d_version()", script)
         self.assertIn("require_live_bridge_authorization_gate", script)
         self.assertIn("--require-live-bridge-authorization", script)
         self.assertIn("--stage25-control-mode", script)
+        self.assertIn('STEP5D_EPSILON="${STEP5D_EPSILON:-0.010}"', script)
+        self.assertIn('STEP5D_SIGR_EXPONENT_R="${STEP5D_SIGR_EXPONENT_R:-0.800}"', script)
+        self.assertIn('STEP5D_RNN_INNER_ITERATIONS="${STEP5D_RNN_INNER_ITERATIONS:-1024}"', script)
+        self.assertIn('STEP5D_RNN_BACKEND="${STEP5D_RNN_BACKEND:-cupy}"', script)
+        self.assertIn('STEP5D_EPSILON="${STEP5D_EPSILON:-}"', script)
+        self.assertIn('STEP5D_RNN_BACKEND="${STEP5D_RNN_BACKEND:-}"', script)
+
+    def test_v29_bridge_operator_direct_profile_uses_strict_rnn_defaults(self) -> None:
+        script = f"""
+set -euo pipefail
+export BRIDGE_OPERATOR_SOURCE_ONLY=1
+export BRIDGE_PROFILE=step5d_strict_rnn_ablation_v29
+source "{ROOT / 'scripts' / 'bridge-line-operator.sh'}"
+printf '%s\\n' "$STEP5D_EPSILON" "$STEP5D_SIGR_EXPONENT_R" "$STEP5D_RNN_INNER_ITERATIONS" "$STEP5D_RNN_BACKEND"
+"""
+        completed = subprocess.run(
+            ["bash", "-lc", script],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        self.assertEqual(completed.stdout.splitlines()[-4:], ["0.010", "0.800", "1024", "cupy"])
 
     def test_step5d_contact_bridge_denies_speedj_rnn_live_before_bridge_start(self) -> None:
         env = os.environ.copy()

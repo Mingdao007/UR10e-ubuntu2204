@@ -505,10 +505,10 @@ class Step5dV15PermissiveRecoveryTest(unittest.TestCase):
         self.assertEqual(current["evidence"]["step5d_projector_root_cause_fix"]["status"], "present_in_worktree")
         self.assertFalse(current["bridge_trigger"]["bridge_has_started"])
         self.assertFalse(current["bridge_trigger"]["live_motion_authorized"])
-        self.assertIn("v28 branch evidence is archived", current["bridge_trigger"]["blocked_reason"])
-        self.assertIn("requires an explicit live trigger", current["bridge_trigger"]["blocked_reason"])
+        self.assertIn("v29 is a local-only contact strict RNN candidate", current["bridge_trigger"]["blocked_reason"])
+        self.assertIn("explicit live authorization", current["bridge_trigger"]["blocked_reason"])
         self.assertIn(
-            "TP program opened on controller read-back v28 package",
+            "v29 controller upload/readback must be completed and verified before selecting it as current",
             current["bridge_trigger"]["required_before_live"],
         )
         self.assertEqual(current["bridge_trigger"]["allowed_tokens"], ["LIVE STEP5D STRICT RNN LIVEPREP"])

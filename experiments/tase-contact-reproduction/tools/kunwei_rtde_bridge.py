@@ -72,6 +72,7 @@ from step5d_runtime_interface import (  # noqa: E402
     STEP5D_ABLATION_V26_STAGE_ID,
     STEP5D_ABLATION_V27_STAGE_ID,
     STEP5D_ABLATION_V28_STAGE_ID,
+    STEP5D_ABLATION_V29_STAGE_ID,
     STEP5D_NO_CONTACT_P0_STAGE_ID,
     STEP5D_LINE_ENTRY_PARAM_VALID_CODE,
     STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE,
@@ -334,6 +335,9 @@ STEP5D_DIAG_FIELDS = [
     "_step5d_p0_limited_base_vy_m_s",
     "_step5d_p0_limited_base_vz_m_s",
     "_step5d_p0_tcp_press_speed_m_s",
+    "_step5d_rnn_accepted",
+    "_step5d_rnn_reject_reason",
+    "_step5d_safe_hold_active",
     "_step5d_p0_rnn_accepted",
     "_step5d_p0_rnn_reject_reason",
     "_step5d_p0_safe_hold_active",
@@ -537,6 +541,7 @@ STEP5D_LIVEPREP_STAGE_IDS = {
     STEP5D_ABLATION_V26_STAGE_ID,
     STEP5D_ABLATION_V27_STAGE_ID,
     STEP5D_ABLATION_V28_STAGE_ID,
+    STEP5D_ABLATION_V29_STAGE_ID,
     STEP5D_NO_CONTACT_P0_STAGE_ID,
 }
 STEP5D_TCP_CAGE_PROFILES = {
@@ -554,6 +559,7 @@ STEP5D_TCP_CAGE_PROFILES = {
     STEP5D_ABLATION_V26_STAGE_ID,
     STEP5D_ABLATION_V27_STAGE_ID,
     STEP5D_ABLATION_V28_STAGE_ID,
+    STEP5D_ABLATION_V29_STAGE_ID,
 }
 STEP5D_SEMANTIC_ORIENTATION_TOLERANCE_RAD = math.radians(5.0)
 STEP5D_SEARCH_POSE_CONTRACT_ID = PRE_CONTACT_GRAVITY_DOWN_CONTRACT_ID
@@ -2910,6 +2916,100 @@ def step5d_no_contact_p0_qdot_acceptance_gate(
     }
 
 
+def step5d_v29_rnn_qdot_acceptance_gate(
+    *,
+    qdot: Sequence[float],
+    jacobian: Any,
+    outer_xdot_limited: Sequence[float],
+    reaction_normal_b: Sequence[float],
+    residual_norm: float,
+    active_bounds_count: int | float,
+    max_normal_tracking_error_m_s: float = 5e-4,
+    max_residual_norm: float = 1e-3,
+) -> dict[str, Any]:
+    qdot_values = np.asarray(qdot, dtype=float)
+    J = np.asarray(jacobian, dtype=float)
+    outer = np.asarray(outer_xdot_limited, dtype=float)
+    reaction_values = np.asarray(reaction_normal_b, dtype=float)
+    zero_qdot = np.zeros(6, dtype=float)
+
+    def reject(reason: str, *, safe_hold: bool = True, **extra: Any) -> dict[str, Any]:
+        return {
+            "accepted": False,
+            "reason": reason,
+            "qdot": zero_qdot,
+            "candidate_qdot": qdot_values,
+            "motion_action": "evidence_rejected_safe_hold" if safe_hold else "invalid_zero_qdot",
+            **extra,
+        }
+
+    if (
+        qdot_values.shape != (6,)
+        or J.ndim != 2
+        or J.shape[1] != 6
+        or J.shape[0] < 3
+        or outer.shape != (6,)
+        or reaction_values.shape != (3,)
+        or not np.all(np.isfinite(qdot_values))
+        or not np.all(np.isfinite(J))
+        or not np.all(np.isfinite(outer))
+        or not np.all(np.isfinite(reaction_values))
+    ):
+        return reject(
+            "nonfinite_or_bad_shape",
+            safe_hold=False,
+            predicted_tcp_speed_m_s=math.nan,
+            jqdot_approach_normal_m_s=math.nan,
+            outer_approach_normal_m_s=math.nan,
+            normal_tracking_error_m_s=math.nan,
+        )
+    reaction = normalize3(tuple(float(value) for value in reaction_values.tolist()))
+    if not all(math.isfinite(float(value)) for value in reaction):
+        return reject(
+            "nonfinite_or_bad_shape",
+            safe_hold=False,
+            predicted_tcp_speed_m_s=math.nan,
+            jqdot_approach_normal_m_s=math.nan,
+            outer_approach_normal_m_s=math.nan,
+            normal_tracking_error_m_s=math.nan,
+        )
+    approach = np.asarray((-reaction[0], -reaction[1], -reaction[2]), dtype=float)
+    predicted_twist = J @ qdot_values
+    predicted_speed = float(np.linalg.norm(predicted_twist[:3]))
+    jqdot_approach = float(np.dot(predicted_twist[:3], approach))
+    outer_approach = float(np.dot(outer[:3], approach))
+    normal_tracking_error = abs(jqdot_approach - outer_approach)
+    common = {
+        "predicted_tcp_speed_m_s": predicted_speed,
+        "jqdot_approach_normal_m_s": jqdot_approach,
+        "outer_approach_normal_m_s": outer_approach,
+        "normal_tracking_error_m_s": normal_tracking_error,
+        "predicted_base_vz_m_s": float(predicted_twist[2]),
+    }
+    if not math.isfinite(float(residual_norm)):
+        return reject("nonfinite_residual_norm", safe_hold=False, **common)
+    if not math.isfinite(float(active_bounds_count)):
+        return reject("nonfinite_active_bounds_count", safe_hold=False, **common)
+    if outer_approach <= 0.0:
+        return reject("outer_approach_not_pressing", **common)
+    if outer_approach > 0.0 and jqdot_approach <= 0.0:
+        return reject("approach_normal_unload_mismatch", **common)
+    if normal_tracking_error > float(max_normal_tracking_error_m_s):
+        return reject("approach_normal_tracking_error", **common)
+    if float(residual_norm) > float(max_residual_norm):
+        return reject("constraint_residual_norm_exceeds_v29_limit", **common)
+    if float(active_bounds_count) > 0.0:
+        return reject("active_bounds_exceeds_v29_limit", **common)
+    return {
+        "accepted": True,
+        "reason": "ok",
+        "qdot": qdot_values,
+        "candidate_qdot": qdot_values,
+        "motion_action": "execute_qdot",
+        **common,
+    }
+
+
 def step5d_p0_frame_diagnostic_values(diagnostics: dict[str, Any]) -> dict[str, Any]:
     limited_tcp = np.asarray(diagnostics.get("limited_tcp", np.full(6, math.nan, dtype=float)), dtype=float)
     limited_base = np.asarray(diagnostics.get("limited_base", np.full(6, math.nan, dtype=float)), dtype=float)
@@ -3736,8 +3836,9 @@ def compute_bridge_values(
     step5d_liveprep_v26_profile = args.bridge_profile == STEP5D_ABLATION_V26_STAGE_ID
     step5d_liveprep_v27_profile = args.bridge_profile == STEP5D_ABLATION_V27_STAGE_ID
     step5d_liveprep_v28_profile = args.bridge_profile == STEP5D_ABLATION_V28_STAGE_ID
+    step5d_liveprep_v29_profile = args.bridge_profile == STEP5D_ABLATION_V29_STAGE_ID
     step5d_no_contact_p0_profile = args.bridge_profile == STEP5D_NO_CONTACT_P0_STAGE_ID
-    step5d_step5b_speedl_live_profile = step5d_liveprep_v27_profile or step5d_liveprep_v28_profile
+    step5d_step5b_speedl_live_profile = step5d_liveprep_v27_profile or step5d_liveprep_v28_profile or step5d_liveprep_v29_profile
     step5d_ablation_profile = (
         step5d_liveprep_v25_profile
         or step5d_liveprep_v26_profile
@@ -3862,7 +3963,7 @@ def compute_bridge_values(
         v29_profile or v30_profile or v31_profile or step5b_profile or step5c_contact_profile or step5d_liveprep_profile or step6b_profile
     ) and acquire_stage_active
     line_stage_active = args.bridge_mode == "line" and abs(robot_stage - 25.0) < 0.05
-    step5d_joint_line_profile = (step5d_liveprep_profile or step5d_no_contact_p0_profile) and line_stage_active
+    step5d_joint_line_profile = (step5d_liveprep_profile or step5d_ablation_profile) and line_stage_active
     step5d_stage25_control_mode = (
         str(getattr(args, "step5d_stage25_control_mode", "speedl_cartesian_oracle"))
         if step5d_ablation_profile
@@ -4648,6 +4749,9 @@ def compute_bridge_values(
         step5d_p0_rnn_accepted = math.nan
         step5d_p0_rnn_reject_reason = "not_active"
         step5d_p0_safe_hold_active = math.nan
+        step5d_rnn_accepted = math.nan
+        step5d_rnn_reject_reason = "not_active"
+        step5d_safe_hold_active = math.nan
         step5d_cmd_valid_reason = "not_active"
         step5d_intervention_reasons: list[str] = []
         step5d_predicted_twist = np.full(6, math.nan, dtype=float)
@@ -5103,6 +5207,9 @@ def compute_bridge_values(
                         step5d_p0_rnn_accepted = 1.0
                         step5d_p0_rnn_reject_reason = "ok"
                         step5d_p0_safe_hold_active = 0.0
+                        step5d_rnn_accepted = 1.0
+                        step5d_rnn_reject_reason = "ok"
+                        step5d_safe_hold_active = 0.0
                         step5d_cmd_valid_reason = "rnn_accepted"
                         step5d_qdot_command = tuple(float(value) for value in p0_qdot_gate["qdot"])
                     else:
@@ -5134,13 +5241,58 @@ def compute_bridge_values(
                         )
                         step5d_p0_rnn_accepted = 0.0
                         step5d_p0_rnn_reject_reason = str(p0_qdot_gate["reason"])
+                        step5d_rnn_accepted = 0.0
+                        step5d_rnn_reject_reason = str(p0_qdot_gate["reason"])
                         step5d_qdot_command = tuple(float(value) for value in p0_qdot_gate["qdot"])
                         if p0_qdot_gate.get("motion_action") == "evidence_rejected_continue":
-                            step5d_p0_safe_hold_active = 0.0
+                            step5d_p0_safe_hold_active = 1.0
+                            step5d_safe_hold_active = 1.0
                             step5d_cmd_valid_reason = "p0_evidence_rejected_continue"
                         else:
                             step5d_p0_safe_hold_active = 0.0
+                            step5d_safe_hold_active = 0.0
                             step5d_cmd_valid_reason = "p0_invalid_reject"
+                            step5d_qdot_command = None
+                if (
+                    step5d_liveprep_v29_profile
+                    and step5d_stage25_control_mode == "speedj_rnn_live"
+                    and step5d_qdot_command is not None
+                    and step5d_outer_xdot_limited is not None
+                    and step5d_result is not None
+                ):
+                    v29_qdot_gate = step5d_v29_rnn_qdot_acceptance_gate(
+                        qdot=step5d_qdot_command,
+                        jacobian=jacobian,
+                        outer_xdot_limited=step5d_outer_xdot_limited,
+                        reaction_normal_b=n_control_b,
+                        residual_norm=float(step5d_result.residual_norm),
+                        active_bounds_count=sum(bool(value) for value in step5d_result.diagnostics["active_bounds_mask"]),
+                    )
+                    if bool(v29_qdot_gate["accepted"]):
+                        step5d_rnn_accepted = 1.0
+                        step5d_rnn_reject_reason = "ok"
+                        step5d_safe_hold_active = 0.0
+                        step5d_cmd_valid_reason = "rnn_accepted"
+                        step5d_qdot_command = tuple(float(value) for value in v29_qdot_gate["qdot"])
+                    else:
+                        step5d_intervention_reasons.append(f"rnn_evidence:{v29_qdot_gate['reason']}")
+                        step5d_rejected_rnn_diagnostics = dict(step5d_result.diagnostics)
+                        step5d_rejected_solver_status = float(step5d_result.solver_status)
+                        step5d_rejected_residual_norm = float(step5d_result.residual_norm)
+                        step5d_rejected_active_bounds_count = float(
+                            sum(bool(value) for value in step5d_result.diagnostics["active_bounds_mask"])
+                        )
+                        step5d_rnn_accepted = 0.0
+                        step5d_rnn_reject_reason = str(v29_qdot_gate["reason"])
+                        if v29_qdot_gate.get("motion_action") == "evidence_rejected_safe_hold":
+                            step5d_safe_hold_active = 1.0
+                            step5d_cmd_valid_reason = "rnn_evidence_rejected_safe_hold"
+                            step5d_qdot_command = tuple(float(value) for value in v29_qdot_gate["qdot"])
+                            step5d_post_slew_qdot_command = step5d_qdot_command
+                            state.step5d_last_qdot = None
+                        else:
+                            step5d_safe_hold_active = 0.0
+                            step5d_cmd_valid_reason = "rnn_invalid_reject"
                             step5d_qdot_command = None
                 if step5d_ablation_profile:
                     if step5d_stage25_control_mode == "speedl_cartesian_oracle":
@@ -5192,6 +5344,11 @@ def compute_bridge_values(
                     elif step5d_stage25_control_mode == "speedj_rnn_live":
                         if step5d_qdot_command is None:
                             raise RuntimeError("Step5d ablation RNN live mode has no qdot command")
+                        if math.isnan(float(step5d_rnn_accepted)):
+                            step5d_rnn_accepted = 1.0
+                            step5d_rnn_reject_reason = "ok"
+                            step5d_safe_hold_active = 0.0
+                            step5d_cmd_valid_reason = "rnn_accepted"
                         step5d_stage25_command = tuple(float(value) for value in step5d_qdot_command)
                         step5d_stage25_layout_tag = STEP5D_STAGE25_JOINT_LAYOUT_CODE
                     else:
@@ -5262,16 +5419,26 @@ def compute_bridge_values(
                     )
                 )
             elif step5d_ablation_profile:
+                step5d_ablation_stage25_command_ready = step5d_stage25_command is not None
+                step5d_ablation_safe_hold_valid = (
+                    step5d_liveprep_v29_profile
+                    and step5d_stage25_control_mode == "speedj_rnn_live"
+                    and step5d_cmd_valid_reason == "rnn_evidence_rejected_safe_hold"
+                    and step5d_qdot_command is not None
+                    and step5d_outer_output is not None
+                )
                 values.update(
                     step5d_stage25_register_values(
                         step5d_stage25_command
                         if step5d_stage25_command is not None
+                        else tuple(float(value) for value in step5d_qdot_command)
+                        if step5d_ablation_safe_hold_valid
                         else (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
                         layout_tag=step5d_stage25_layout_tag,
                         cmd_valid=0.0
                         if args.bridge_mode == "preview"
                         or step5d_outer_output is None
-                        or step5d_stage25_command is None
+                        or not (step5d_ablation_stage25_command_ready or step5d_ablation_safe_hold_valid)
                         else 1.0,
                         path_time_s=progress,
                         force_error_n=register_force_error,
@@ -5493,12 +5660,20 @@ def compute_bridge_values(
             values["_step5d_rnn_epsilon"] = float(step5d_result.diagnostics.get("epsilon", math.nan))
             values["_step5d_rnn_sigr_exponent_r"] = float(step5d_result.diagnostics.get("sigr_exponent_r", math.nan))
             values["_step5d_active_bounds_count"] = float(sum(bool(value) for value in step5d_result.diagnostics["active_bounds_mask"]))
+            if step5d_stage25_control_mode == "speedj_rnn_live":
+                values["_step5d_rnn_accepted"] = step5d_rnn_accepted
+                values["_step5d_rnn_reject_reason"] = step5d_rnn_reject_reason
+                values["_step5d_safe_hold_active"] = step5d_safe_hold_active
+                values["_step5d_cmd_valid_reason"] = step5d_cmd_valid_reason
             values["_step5d_p0_low_force_posture_policy"] = str(step5d_p0_posture_policy.get("policy", ""))
             values["_step5d_p0_low_force_posture_active"] = 1.0 if bool(step5d_p0_posture_policy.get("active", False)) else 0.0
             values["_step5d_p0_posture_gain_scale"] = float(step5d_p0_posture_policy.get("orientation_gain_scale", math.nan))
             values["_step5d_p0_effective_ko"] = float(step5d_p0_posture_policy.get("effective_ko", math.nan))
             if step5d_no_contact_p0_profile:
                 values.update(step5d_p0_frame_diagnostic_values(step5d_p0_frame_diagnostics))
+                values["_step5d_rnn_accepted"] = step5d_rnn_accepted
+                values["_step5d_rnn_reject_reason"] = step5d_rnn_reject_reason
+                values["_step5d_safe_hold_active"] = step5d_safe_hold_active
                 values["_step5d_p0_rnn_accepted"] = step5d_p0_rnn_accepted
                 values["_step5d_p0_rnn_reject_reason"] = step5d_p0_rnn_reject_reason
                 values["_step5d_p0_safe_hold_active"] = step5d_p0_safe_hold_active
@@ -5523,6 +5698,9 @@ def compute_bridge_values(
                 values["_step5d_intervention_reason"] = "|".join(step5d_intervention_reasons)
             if step5d_no_contact_p0_profile:
                 values.update(step5d_p0_frame_diagnostic_values(step5d_p0_frame_diagnostics))
+                values["_step5d_rnn_accepted"] = step5d_rnn_accepted
+                values["_step5d_rnn_reject_reason"] = step5d_rnn_reject_reason
+                values["_step5d_safe_hold_active"] = step5d_safe_hold_active
                 values["_step5d_p0_rnn_accepted"] = step5d_p0_rnn_accepted
                 values["_step5d_p0_rnn_reject_reason"] = step5d_p0_rnn_reject_reason
                 values["_step5d_p0_safe_hold_active"] = step5d_p0_safe_hold_active
@@ -6852,8 +7030,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     args.bridge_profile = args.step4e_version
     if not args.step5d_stage25_control_mode:
         args.step5d_stage25_control_mode = (
-            "speedl_cartesian_oracle"
-            if args.bridge_profile in STEP5D_ABLATION_STAGE_IDS and args.bridge_profile != STEP5D_NO_CONTACT_P0_STAGE_ID
+            "speedj_rnn_live"
+            if args.bridge_profile in {STEP5D_ABLATION_V29_STAGE_ID, STEP5D_NO_CONTACT_P0_STAGE_ID}
+            else "speedl_cartesian_oracle"
+            if args.bridge_profile in STEP5D_ABLATION_STAGE_IDS
             else "speedj_rnn_live"
         )
     if args.bridge_profile == STEP5D_NO_CONTACT_P0_STAGE_ID:
@@ -6914,7 +7094,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         def preload_default_was_not_supplied(flag: str, *env_names: str) -> bool:
             return flag not in argv_list and all(os.environ.get(name, "") == "" for name in env_names)
 
-        if args.bridge_profile in {STEP5D_ABLATION_V27_STAGE_ID, STEP5D_ABLATION_V28_STAGE_ID}:
+        if args.bridge_profile in {STEP5D_ABLATION_V27_STAGE_ID, STEP5D_ABLATION_V28_STAGE_ID, STEP5D_ABLATION_V29_STAGE_ID}:
             default_filtered_min_n = STEP5D_V27_ENTRY_FILTERED_NORMAL_LOAD_MIN_N
             default_filtered_max_n = STEP5D_V27_ENTRY_FILTERED_NORMAL_LOAD_MAX_N
             default_raw_min_n = STEP5D_V27_ENTRY_RAW_NORMAL_LOAD_MIN_N
@@ -7000,6 +7180,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ):
             args.bridge_angular_limit_rad_s = 0.150
             args.step4e_angular_limit_rad_s = 0.150
+        if args.bridge_profile == STEP5D_ABLATION_V29_STAGE_ID:
+            if "--step5d-epsilon" not in argv_list:
+                args.step5d_epsilon = STEP5D_NO_CONTACT_P0_EPSILON
+            if "--step5d-sigr-exponent-r" not in argv_list:
+                args.step5d_sigr_exponent_r = STEP5D_NO_CONTACT_P0_SIGR_EXPONENT_R
+            if "--step5d-rnn-inner-iterations" not in argv_list:
+                args.step5d_rnn_inner_iterations = STEP5D_NO_CONTACT_P0_RNN_INNER_ITERATIONS
+            if "--step5d-rnn-backend" not in argv_list:
+                args.step5d_rnn_backend = STEP5D_NO_CONTACT_P0_RNN_BACKEND
     if args.step5d_qdot_limit_rad_s is None:
         args.step5d_qdot_limit_rad_s = (
             STEP5D_V12_QDOT_LIMIT_RAD_S
@@ -7023,6 +7212,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                 STEP5D_ABLATION_V26_STAGE_ID,
                 STEP5D_ABLATION_V27_STAGE_ID,
                 STEP5D_ABLATION_V28_STAGE_ID,
+                STEP5D_ABLATION_V29_STAGE_ID,
                 STEP5D_NO_CONTACT_P0_STAGE_ID,
             }
             else 0.30

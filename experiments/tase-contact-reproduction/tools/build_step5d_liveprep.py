@@ -24,6 +24,7 @@ from step5d_runtime_interface import (
     STEP5D_ABLATION_V26_STAGE_ID,
     STEP5D_ABLATION_V27_STAGE_ID,
     STEP5D_ABLATION_V28_STAGE_ID,
+    STEP5D_ABLATION_V29_STAGE_ID,
     STEP5D_INTERFACE_CLASS,
     STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE,
     STEP5D_STAGE25_JOINT_LAYOUT_CODE,
@@ -104,6 +105,15 @@ ABLATION_SPECS = {
         stamp_token="STEP5D_STRICT_RNN_ABLATION_V28",
         cartesian_angular_cap_rad_s=0.015,
         default_stage25_control_mode="speedl_cartesian_oracle",
+        stage25_success_target_s=STEP5D_STAGE25_V28_FULL_RUN_TARGET_S,
+        stage25_runtime_limit_s=STEP5D_STAGE25_V28_RUNTIME_LIMIT_S,
+    ),
+    STEP5D_ABLATION_V29_STAGE_ID: Step5dAblationSpec(
+        program_name=STEP5D_ABLATION_V29_STAGE_ID,
+        version_label="v29",
+        stamp_token="STEP5D_STRICT_RNN_ABLATION_V29",
+        cartesian_angular_cap_rad_s=0.015,
+        default_stage25_control_mode="speedj_rnn_live",
         stage25_success_target_s=STEP5D_STAGE25_V28_FULL_RUN_TARGET_S,
         stage25_runtime_limit_s=STEP5D_STAGE25_V28_RUNTIME_LIMIT_S,
     ),
@@ -245,7 +255,7 @@ def qdot_cap_rad_s(spec: Step5dAblationSpec = DEFAULT_SPEC) -> float:
 
 
 def default_line_entry_config(spec: Step5dAblationSpec) -> LineEntryConfig:
-    if spec.version_label in {"v27", "v28"}:
+    if spec.version_label in {"v27", "v28", "v29"}:
         return LineEntryConfig(
             normal_load_min_n=V27_LINE_ENTRY_NORMAL_LOAD_MIN_N,
             normal_load_max_n=V27_LINE_ENTRY_NORMAL_LOAD_MAX_N,
@@ -318,19 +328,19 @@ def bridge_start_wait_timeout_s(spec: Step5dAblationSpec = DEFAULT_SPEC) -> floa
 
 
 def raw_normal_guard_n(spec: Step5dAblationSpec = DEFAULT_SPEC) -> float:
-    if spec.version_label == "v28":
+    if spec.version_label in {"v28", "v29"}:
         return 50.0
     return 35.0 if spec.version_label == "v27" else RAW_NORMAL_GUARD_N
 
 
 def force_norm_guard_n(spec: Step5dAblationSpec = DEFAULT_SPEC) -> float:
-    if spec.version_label == "v28":
+    if spec.version_label in {"v28", "v29"}:
         return 60.0
     return 35.0 if spec.version_label == "v27" else FORCE_NORM_GUARD_N
 
 
 def torque_norm_guard_nm(spec: Step5dAblationSpec = DEFAULT_SPEC) -> float:
-    return 3.0 if spec.version_label == "v28" else TORQUE_NORM_GUARD_NM
+    return 3.0 if spec.version_label in {"v28", "v29"} else TORQUE_NORM_GUARD_NM
 
 
 def _replace_exact(script: str, old: str, new: str) -> str:
@@ -1038,7 +1048,7 @@ def build_script(
     )
     script = script.replace(
         "25.0 uses desired_velocity + path_p_gain*(desired-actual) before normal projection and force-loop composition.",
-        "25.0 uses layout-tagged registers 37..42: Cartesian speedl oracle, DLS speedj oracle, or strict RNN speedj live; bridge owns calibrated Pinocchio/J(q), paper outer-loop computation, and RNN shadow diagnostics.",
+        "25.0 uses layout-tagged registers 37..42: Cartesian speedl oracle, DLS speedj oracle, or strict RNN speedj live; bridge owns calibrated Pinocchio/J(q), paper outer-loop computation, and strict RNN live diagnostics.",
     )
     script = script.replace(
         "TP_ROLE: executor_and_guard_only; Step5 trajectory reference is computed by the bridge.",
@@ -1229,7 +1239,7 @@ Boundary:
   row gap, and loop recv/compute/send/csv timing.
   Bridge control modes:
     {speedl_mode_description}
-    STEP5D_STAGE25_CONTROL_MODE=speedj_dls_oracle sends a DLS/Jacobian qdot oracle to speedj and keeps strict RNN shadow diagnostics.
+    STEP5D_STAGE25_CONTROL_MODE=speedj_dls_oracle sends a DLS/Jacobian qdot oracle to speedj for explicit fallback/debug comparison.
     STEP5D_STAGE25_CONTROL_MODE=speedj_rnn_live sends strict RNN qdot to speedj.
   {first_run}
   stop_request remains hard for operational over-load, cage margin exhaustion,
@@ -1355,11 +1365,11 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5d
         and "speedl_cartesian_oracle" in txt
         and "speedj_dls_oracle" in txt
         and "speedj_rnn_live" in txt
-        and "RNN is shadow-only" in txt
+        and ("strict RNN live candidate" in txt if spec.version_label == "v29" else "RNN is shadow-only" in txt)
         and "cage margin exhaustion" in script + txt
         and "stop_request" in script + txt,
         "Stage25 consumption instrumentation": (
-            spec.version_label not in {"v27", "v28"}
+            spec.version_label not in {"v27", "v28", "v29"}
             or (
                 "STAGE25_CADENCE_CONSUMPTION" in script
                 and "local stage25_command_consumed = 0" in script

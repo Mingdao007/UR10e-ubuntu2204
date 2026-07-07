@@ -26,6 +26,8 @@ V24 = "step5d_strict_rnn_liveprep_v24"
 V25 = "step5d_strict_rnn_ablation_v25"
 V26 = "step5d_strict_rnn_ablation_v26"
 V27 = "step5d_strict_rnn_ablation_v27"
+V28 = "step5d_strict_rnn_ablation_v28"
+V29 = "step5d_strict_rnn_ablation_v29"
 
 
 def _sha(data: bytes) -> str:
@@ -572,6 +574,50 @@ class Step5dCurrentPromotionTest(unittest.TestCase):
             )
             self.assertEqual(current["evidence"]["v26_controller_target"], f"{TARGET_DIR}/step5d/{V26}.urp")
             self.assertEqual(current["evidence"]["v27_local_triplet"], f"programs/step5/{V27}")
+
+    def test_promote_v29_records_contact_strict_rnn_live_without_p0_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            v26_dir, manifest_path = _write_v26_fixture(root)
+            promote.promote(root, V26, TARGET_DIR, v26_dir, manifest_path)
+            table_path = root / "config" / "step5_stage_table.json"
+            table = json.loads(table_path.read_text(encoding="utf-8"))
+            table["bridge_startup_policy"] = {
+                "observed_timing": {
+                    "current_step5d_tp_play_wait_max_s": 20,
+                }
+            }
+            table_path.write_text(json.dumps(table), encoding="utf-8")
+
+            v28_dir = root / "candidate_v28"
+            v28_sha = _write_triplet(v28_dir, V28, "v28")
+            v28_manifest = _write_readback(root, V28, v28_dir, v28_sha)
+            promote.promote(root, V28, TARGET_DIR, v28_dir, v28_manifest)
+
+            v29_dir = root / "candidate_v29"
+            v29_sha = _write_triplet(v29_dir, V29, "v29")
+            v29_manifest = _write_readback(root, V29, v29_dir, v29_sha)
+
+            result = promote.promote(root, V29, TARGET_DIR, v29_dir, v29_manifest)
+
+            self.assertTrue(result["ok"])
+            table = json.loads(table_path.read_text(encoding="utf-8"))
+            rows = {row["id"]: row for row in table["stages"]}
+            v29_row = rows[V29]
+            self.assertEqual(v29_row["runtime_interface_ref"]["stage25_default_control_mode"], "speedj_rnn_live")
+            self.assertEqual(v29_row["contact_policy"]["default_stage25_control_mode"], "speedj_rnn_live")
+            self.assertIn("strict RNN qdot", v29_row["contact_policy"]["stage25_contact_policy"])
+            self.assertIn("_step5d_rnn_accepted", v29_row["guard"]["runtime_diagnostics"])
+            self.assertIn("_step5d_safe_hold_active", v29_row["guard"]["runtime_diagnostics"])
+            self.assertNotIn("no_contact_p0_expected_program", v29_row["operator_lifecycle"])
+            self.assertNotIn("strict_rnn_no_contact_p0", json.dumps(v29_row))
+
+            current = json.loads((root / "config" / "current_stage.json").read_text(encoding="utf-8"))
+            self.assertEqual(current["program"], V29)
+            self.assertEqual(current["bridge_profile"]["stage25_control_mode"], "speedj_rnn_live")
+            self.assertIn("strict RNN", current["bridge_profile"]["stage25_speedj_live_source"])
+            self.assertNotIn("no_contact_p0_capture", current["bridge_trigger"])
+            self.assertIn("v29 defaults to speedj_rnn_live", current["notes"][2])
 
 
 if __name__ == "__main__":

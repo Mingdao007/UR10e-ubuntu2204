@@ -34,12 +34,14 @@ STEP5D_ABLATION_V25_STAGE_ID = "step5d_strict_rnn_ablation_v25"
 STEP5D_ABLATION_V26_STAGE_ID = "step5d_strict_rnn_ablation_v26"
 STEP5D_ABLATION_V27_STAGE_ID = "step5d_strict_rnn_ablation_v27"
 STEP5D_ABLATION_V28_STAGE_ID = "step5d_strict_rnn_ablation_v28"
+STEP5D_ABLATION_V29_STAGE_ID = "step5d_strict_rnn_ablation_v29"
 STEP5D_NO_CONTACT_P0_STAGE_ID = "step5d_strict_rnn_no_contact_p0_v7"
 STEP5D_ABLATION_STAGE_IDS = (
     STEP5D_ABLATION_V25_STAGE_ID,
     STEP5D_ABLATION_V26_STAGE_ID,
     STEP5D_ABLATION_V27_STAGE_ID,
     STEP5D_ABLATION_V28_STAGE_ID,
+    STEP5D_ABLATION_V29_STAGE_ID,
     STEP5D_NO_CONTACT_P0_STAGE_ID,
 )
 STEP5D_STAGE25_CONTROL_MODES = ("speedl_cartesian_oracle", "speedj_dls_oracle", "speedj_rnn_live")
@@ -316,7 +318,7 @@ def controller_target_for(program: str, current: dict[str, Any] | None = None) -
 
 
 def uses_step5b_speedl_live_source(program: str) -> bool:
-    return program in {STEP5D_ABLATION_V27_STAGE_ID, STEP5D_ABLATION_V28_STAGE_ID}
+    return program in {STEP5D_ABLATION_V27_STAGE_ID, STEP5D_ABLATION_V28_STAGE_ID, STEP5D_ABLATION_V29_STAGE_ID}
 
 
 def speedl_orientation_policy(program: str) -> str | None:
@@ -336,7 +338,7 @@ def stage25_0_register_contract(program: str) -> str:
             "43 cmd_valid; 44 path_time; 45 force_error; 46 pose/orientation_error."
         )
     prefix = (
-        "v25/v26/v27/v28: 37..42 cartesian vx/vy/vz/wx/wy/wz when "
+        "v25/v26/v27/v28/v29: 37..42 cartesian vx/vy/vz/wx/wy/wz when "
         f"47={STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:g}; "
     )
     suffix = (
@@ -353,6 +355,13 @@ def stage25_0_register_contract(program: str) -> str:
             + "Step5b/step4e orientation follow wx/wy/wz; Step5d paper/RNN outputs are logged as shadow diagnostics; "
             + suffix
         )
+    if program == STEP5D_ABLATION_V29_STAGE_ID:
+        return (
+            prefix
+            + "v29 defaults to strict RNN live speedj on layout 524 after the v28 contact envelope; "
+            + "speedl_cartesian_oracle and speedj_dls_oracle remain explicit debug/fallback modes; "
+            + suffix
+        )
     if program == STEP5D_ABLATION_V27_STAGE_ID:
         return (
             prefix
@@ -367,7 +376,7 @@ def stage25_0_register_contract(program: str) -> str:
 def stage25_success_target_s(program: str) -> float | None:
     if program == STEP5D_NO_CONTACT_P0_STAGE_ID:
         return STEP5D_STAGE25_V28_FULL_RUN_TARGET_S
-    if program == STEP5D_ABLATION_V28_STAGE_ID:
+    if program in {STEP5D_ABLATION_V28_STAGE_ID, STEP5D_ABLATION_V29_STAGE_ID}:
         return STEP5D_STAGE25_V28_FULL_RUN_TARGET_S
     if program == STEP5D_ABLATION_V27_STAGE_ID:
         return STEP5D_STAGE25_V27_FIX_VALIDATION_TARGET_S
@@ -377,7 +386,7 @@ def stage25_success_target_s(program: str) -> float | None:
 def stage25_runtime_limit_s(program: str) -> float | None:
     if program == STEP5D_NO_CONTACT_P0_STAGE_ID:
         return STEP5D_STAGE25_V28_RUNTIME_LIMIT_S
-    if program == STEP5D_ABLATION_V28_STAGE_ID:
+    if program in {STEP5D_ABLATION_V28_STAGE_ID, STEP5D_ABLATION_V29_STAGE_ID}:
         return STEP5D_STAGE25_V28_RUNTIME_LIMIT_S
     if program == STEP5D_ABLATION_V27_STAGE_ID:
         return STEP5D_STAGE25_V27_RUNTIME_LIMIT_S
@@ -518,7 +527,11 @@ def resolve_runtime_interface(
         else str(
             env_map.get(
                 "STEP5D_STAGE25_CONTROL_MODE",
-                "speedl_cartesian_oracle" if selected in STEP5D_ABLATION_STAGE_IDS else "speedj_rnn_live",
+                "speedj_rnn_live"
+                if selected == STEP5D_ABLATION_V29_STAGE_ID
+                else "speedl_cartesian_oracle"
+                if selected in STEP5D_ABLATION_STAGE_IDS
+                else "speedj_rnn_live",
             )
         )
     )
@@ -621,7 +634,11 @@ def resolve_runtime_interface(
             "stage25_cadence_max_gap_s": 0.020 if uses_step5b_speedl_live_source(selected) else None,
             "stage25_speedl_orientation_policy": speedl_orientation_policy(selected),
             "stage25_live_control_source": (
-                STEP5D_V27_SPEEDL_LIVE_CONTROL_SOURCE if uses_step5b_speedl_live_source(selected) else None
+                "strict_rnn_live_speedj"
+                if selected == STEP5D_ABLATION_V29_STAGE_ID
+                else STEP5D_V27_SPEEDL_LIVE_CONTROL_SOURCE
+                if uses_step5b_speedl_live_source(selected)
+                else None
             ),
             "stage25_success_target_s": stage25_success_target_s(selected),
             "stage25_runtime_limit_s": stage25_runtime_limit_s(selected),

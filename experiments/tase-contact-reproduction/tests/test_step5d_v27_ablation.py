@@ -29,6 +29,7 @@ from step5d_paper_outer_loop import Step5dOuterLoopState  # noqa: E402
 
 V27 = "step5d_strict_rnn_ablation_v27"
 V28 = "step5d_strict_rnn_ablation_v28"
+V29 = "step5d_strict_rnn_ablation_v29"
 
 
 def write_tcp_cage_source(path: Path, *, x: float, y: float, z: float) -> None:
@@ -172,6 +173,35 @@ class Step5dV27AblationTest(unittest.TestCase):
         self.assertEqual(args.max_force_norm_n, 60.0)
         self.assertEqual(args.max_torque_norm_nm, 3.0)
 
+    def test_bridge_parse_args_recognizes_v29_contact_strict_rnn_defaults(self) -> None:
+        args = bridge.parse_args(
+            [
+                "--no-start-command",
+                "--skip-dashboard-preflight",
+                "--bridge-mode",
+                "line",
+                "--bridge-profile",
+                V29,
+                "--bridge-path-shape",
+                "cycloid",
+            ]
+        )
+
+        self.assertEqual(args.bridge_profile, V29)
+        self.assertEqual(args.step5d_stage25_control_mode, "speedj_rnn_live")
+        self.assertEqual(args.step5d_preload_filtered_min_n, 5.0)
+        self.assertEqual(args.step5d_preload_filtered_max_n, 22.0)
+        self.assertEqual(args.step5d_preload_raw_min_n, 3.0)
+        self.assertEqual(args.step5d_preload_raw_max_n, 25.0)
+        self.assertEqual(args.step5d_preload_force_norm_max_n, 35.0)
+        self.assertEqual(args.max_normal_force_n, 50.0)
+        self.assertEqual(args.max_force_norm_n, 60.0)
+        self.assertEqual(args.max_torque_norm_nm, 3.0)
+        self.assertEqual(args.step5d_rnn_backend, "cupy")
+        self.assertEqual(args.step5d_rnn_inner_iterations, 1024)
+        self.assertEqual(args.step5d_sigr_exponent_r, 0.8)
+        self.assertEqual(args.step5d_qdot_limit_rad_s, 0.05)
+
     def test_v27_package_keeps_step5b_scaffold_min_delta_and_consumption_contract(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             local_dir = Path(tmp) / "v27"
@@ -235,6 +265,48 @@ class Step5dV27AblationTest(unittest.TestCase):
         self.assertIn("speedl_cartesian_oracle", script_text + txt_text)
         self.assertNotIn("step5d_strict_rnn_ablation_v27", script_text + txt_text)
 
+    def test_v29_package_is_contact_strict_rnn_live_candidate_without_p0_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            local_dir = Path(tmp) / "v29"
+            liveprep.write_outputs(
+                "2026-07-08T0700HKT_STEP5D_STRICT_RNN_ABLATION_V29",
+                "2026-07-08T07:00:00+08:00",
+                output_dir=local_dir,
+                local_only=True,
+                program=V29,
+            )
+            files = {ext: local_dir / f"{V29}{ext}" for ext in upload.EXTENSIONS}
+            result = upload.validate_package(
+                files,
+                V29,
+                liveprep.CONTROLLER_DIR,
+                require_exact_cached_script=True,
+            )
+            script_text = files[".script"].read_text(encoding="utf-8")
+            txt_text = files[".txt"].read_text(encoding="utf-8")
+
+        self.assertEqual(result["program"], V29)
+        self.assertEqual(liveprep.spec_for(V29).default_stage25_control_mode, "speedj_rnn_live")
+        self.assertIn("local line_success_progress_m = 60.000000000", script_text)
+        self.assertIn("local line_runtime_limit_s = 65.000", script_text)
+        self.assertIn("strict RNN live candidate", script_text + txt_text)
+        self.assertIn("# STAGE25_V29_SCAFFOLD: v28_envelope_strict_rnn_live_candidate_60s", script_text)
+        self.assertIn("Stage25.0 default bridge mode: STEP5D_STAGE25_CONTROL_MODE=speedj_rnn_live", txt_text)
+        self.assertIn("speedl_cartesian_oracle remains an explicit fallback/debug mode for v29", txt_text)
+        self.assertIn("speedj_rnn_live on layout 524", txt_text)
+        self.assertIn("--target-force-n 12.0", txt_text)
+        self.assertNotIn("NO_CONTACT_P0_CAPTURE", script_text + txt_text)
+        self.assertNotIn("step5d_strict_rnn_no_contact_p0", script_text + txt_text)
+        self.assertNotIn("step5d_strict_rnn_ablation_v28", script_text + txt_text)
+
+    def test_upload_validator_has_v29_allowlist_and_speedj_default(self) -> None:
+        source = (ROOT / "tools" / "upload_ur_tp_package.py").read_text(encoding="utf-8")
+
+        self.assertIn('"step5d_strict_rnn_ablation_v29"', source)
+        self.assertIn('expected_default_mode = "speedj_rnn_live" if version_label == "v29"', source)
+        self.assertIn('version_label in {"v28", "v29"}', source)
+        self.assertIn('version_label not in {"v27", "v28", "v29"}', source)
+
     def test_bridge_csv_fields_include_v27_stage25_timing_and_consumption(self) -> None:
         source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(encoding="utf-8")
 
@@ -267,6 +339,18 @@ class Step5dV27AblationTest(unittest.TestCase):
         )
         self.assertIn("Step5b/step4e orientation follow wx/wy/wz", runtime.register_contract["stage25_0"])
         self.assertNotIn("wx/wy/wz forced to 0", runtime.register_contract["stage25_0"])
+
+    def test_v29_runtime_interface_records_strict_rnn_live_source(self) -> None:
+        self.assertEqual(iface.STEP5D_ABLATION_V29_STAGE_ID, V29)
+        self.assertEqual(liveprep.spec_for(V29).program_name, V29)
+        runtime = iface.resolve_runtime_interface(program=V29, root=ROOT, env={})
+        self.assertEqual(runtime.stage25_control_mode, "speedj_rnn_live")
+        self.assertEqual(runtime.hard_contract["stage25_live_control_source"], "strict_rnn_live_speedj")
+        self.assertIn("strict RNN live", runtime.register_contract["stage25_0"])
+        self.assertIn("layout 524", runtime.register_contract["stage25_0"])
+
+    def test_v29_is_in_tcp_cage_contact_safety_profile(self) -> None:
+        self.assertIn(V29, bridge.STEP5D_TCP_CAGE_PROFILES)
 
     def test_v27_runtime_prewarm_builds_tcp_cage_before_stage25(self) -> None:
         args = bridge.parse_args(
@@ -391,6 +475,7 @@ class Step5dV27AblationTest(unittest.TestCase):
             bridge.STEP5D_ABLATION_V26_STAGE_ID,
             bridge.STEP5D_ABLATION_V27_STAGE_ID,
             bridge.STEP5D_ABLATION_V28_STAGE_ID,
+            bridge.STEP5D_ABLATION_V29_STAGE_ID,
         }
         source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(encoding="utf-8")
 
@@ -451,7 +536,7 @@ class Step5dV27AblationTest(unittest.TestCase):
             patch.object(bridge, "build_step5d_v15a_tcp_cage", side_effect=AssertionError("lazy cage build")),
             patch.object(bridge, "step5d_tcp_jacobian_base", return_value=np.eye(6)),
             patch.object(bridge, "step5d_omega_bounds", return_value=(np.full(6, -0.05), np.full(6, 0.05))),
-            patch.object(bridge, "compute_step5d_outer_loop", side_effect=fake_v27_outer),
+            patch.object(bridge, "compute_step5d_outer_loop", side_effect=fake_v27_outer_with_matching_orientation),
             patch.object(bridge, "rnn_target_state_from_outer_loop", return_value={"shadow": True}),
         ):
             fake_v27_runtime(state, args)
@@ -926,6 +1011,194 @@ class Step5dV27AblationTest(unittest.TestCase):
         np.testing.assert_allclose(warm_kwargs["xdot_c"], solve_target["xdot_c"])  # type: ignore[index]
         np.testing.assert_allclose(warm_kwargs["omega_minus"], solve_target["omega_minus"])  # type: ignore[index]
         np.testing.assert_allclose(warm_kwargs["omega_plus"], solve_target["omega_plus"])  # type: ignore[index]
+
+    def test_v29_speedj_rnn_live_exports_contact_acceptance_diagnostics(self) -> None:
+        args = bridge.parse_args(
+            [
+                "--no-start-command",
+                "--skip-dashboard-preflight",
+                "--bridge-mode",
+                "line",
+                "--bridge-profile",
+                V29,
+                "--bridge-path-shape",
+                "cycloid",
+            ]
+        )
+        latest_output = {
+            "actual_TCP_pose": [0.49, 0.14, 0.02, 3.14, 0.0, 0.0],
+            "actual_TCP_speed": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            "actual_q": [0.0] * 6,
+            "actual_qd": [0.0] * 6,
+            "output_double_register_35": 25.0,
+        }
+
+        state = acquired_v27_state()
+        fake_v27_runtime(state, args)
+        state.step5d_solver_lifecycle_key = "stage25_hold_zero_qdot:soft_low_contact_hold"
+        state.step5d_pending_solver_warm_start = False
+
+        class AcceptedSolver:
+            def reset_state(self) -> None:
+                return None
+
+            def warm_start(self, **_kwargs: object) -> None:
+                return None
+
+            def solve(self, **_kwargs: object) -> SimpleNamespace:
+                return SimpleNamespace(
+                    qdot=(0.0, 0.0, -0.0001, 0.0, 0.0, 0.0),
+                    solver_status=40.0,
+                    residual_norm=0.0002,
+                    diagnostics={
+                        "lambda_state": np.array([3.0, 4.0, 0.0, 0.0, 0.0, 0.0]),
+                        "active_bounds_mask": [False, False, False, False, False, False],
+                        "proj_input_form": "J.T @ lambda_state",
+                        "lambda_update_form": "lambda_state -= (dt / epsilon) * (J @ theta_dot_state - xdot_c)",
+                        "inner_iterations": 1024,
+                        "backend": "cupy",
+                        "solve_wall_ms": 0.25,
+                        "epsilon": 0.010,
+                        "sigr_exponent_r": 0.8,
+                    },
+                )
+
+        state.step5d_solver = AcceptedSolver()
+
+        def fake_v29_contact_outer(_config: object, _state: object, _inputs: object) -> SimpleNamespace:
+            return SimpleNamespace(
+                xdot_c=np.array([0.0, 0.0, -0.0001, 0.0, 0.0, 0.0]),
+                next_state=Step5dOuterLoopState(),
+                diagnostics={
+                    "outer_orientation_angle_rad": 0.001592653589793113,
+                    "e_f": 0.0,
+                    "R_d_z_dot_R_cur_z": -0.999998855,
+                    "force_sign_convention": "step5_step6_positive_normal_load",
+                },
+            )
+
+        with (
+            patch.object(bridge, "step5d_tcp_jacobian_base", return_value=np.eye(6)),
+            patch.object(bridge, "step5d_omega_bounds", return_value=(np.full(6, -0.05), np.full(6, 0.05))),
+            patch.object(bridge, "compute_step5d_outer_loop", side_effect=fake_v29_contact_outer),
+            patch.object(
+                bridge,
+                "rnn_target_state_from_outer_loop",
+                side_effect=lambda output, **kwargs: {"xdot_c": np.asarray(output.xdot_c, dtype=float), **kwargs},
+            ),
+        ):
+            values = bridge.compute_bridge_values(
+                args,
+                [0.0, 0.0, -12.0, 0.0, 0.0, 0.0],
+                latest_output,
+                1.0,
+                state,
+                0.002,
+            )
+
+        self.assertEqual(args.step5d_stage25_control_mode, "speedj_rnn_live")
+        self.assertEqual(values["_step5d_stage25_control_mode"], "speedj_rnn_live")
+        self.assertEqual(values["step4e_cmd_valid"], 1.0)
+        self.assertEqual(values["step4e_controller_state"], bridge.STEP5D_STAGE25_JOINT_LAYOUT_CODE)
+        self.assertEqual(values["_step5d_rnn_accepted"], 1.0)
+        self.assertEqual(values["_step5d_rnn_reject_reason"], "ok")
+        self.assertEqual(values["_step5d_safe_hold_active"], 0.0)
+        self.assertEqual(values["_step5d_cmd_valid_reason"], "rnn_accepted")
+        self.assertIn("solver_warm_start", values["_step5d_intervention_reason"])
+        self.assertTrue(np.isfinite(values["_step5d_lambda_norm"]))
+        self.assertTrue(np.isfinite(values["_step5d_constraint_residual_norm"]))
+
+    def test_v29_rnn_evidence_failure_keeps_cmd_valid_with_zero_qdot_safe_hold(self) -> None:
+        args = bridge.parse_args(
+            [
+                "--no-start-command",
+                "--skip-dashboard-preflight",
+                "--bridge-mode",
+                "line",
+                "--bridge-profile",
+                V29,
+                "--bridge-path-shape",
+                "cycloid",
+            ]
+        )
+        latest_output = {
+            "actual_TCP_pose": [0.49, 0.14, 0.02, 3.14, 0.0, 0.0],
+            "actual_TCP_speed": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            "actual_q": [0.0] * 6,
+            "actual_qd": [0.0] * 6,
+            "output_double_register_35": 25.0,
+        }
+
+        class ResidualRejectSolver:
+            def reset_state(self) -> None:
+                return None
+
+            def warm_start(self, **_kwargs: object) -> None:
+                return None
+
+            def solve(self, **_kwargs: object) -> SimpleNamespace:
+                return SimpleNamespace(
+                    qdot=(0.0, 0.0, -0.0001, 0.0, 0.0, 0.0),
+                    solver_status=40.0,
+                    residual_norm=0.050,
+                    diagnostics={
+                        "lambda_state": np.array([3.0, 4.0, 0.0, 0.0, 0.0, 0.0]),
+                        "active_bounds_mask": [False, False, False, False, False, False],
+                        "proj_input_form": "J.T @ lambda_state",
+                        "lambda_update_form": "lambda_state -= (dt / epsilon) * (J @ theta_dot_state - xdot_c)",
+                        "inner_iterations": 1024,
+                        "backend": "cupy",
+                        "solve_wall_ms": 0.25,
+                        "epsilon": 0.010,
+                        "sigr_exponent_r": 0.8,
+                    },
+                )
+
+        state = acquired_v27_state()
+        fake_v27_runtime(state, args)
+        state.step5d_solver = ResidualRejectSolver()
+
+        def fake_v29_contact_outer(_config: object, _state: object, _inputs: object) -> SimpleNamespace:
+            return SimpleNamespace(
+                xdot_c=np.array([0.0, 0.0, -0.0001, 0.0, 0.0, 0.0]),
+                next_state=Step5dOuterLoopState(),
+                diagnostics={
+                    "outer_orientation_angle_rad": 0.001592653589793113,
+                    "e_f": 0.0,
+                    "R_d_z_dot_R_cur_z": -0.999998855,
+                    "force_sign_convention": "step5_step6_positive_normal_load",
+                },
+            )
+
+        with (
+            patch.object(bridge, "step5d_tcp_jacobian_base", return_value=np.eye(6)),
+            patch.object(bridge, "step5d_omega_bounds", return_value=(np.full(6, -0.05), np.full(6, 0.05))),
+            patch.object(bridge, "compute_step5d_outer_loop", side_effect=fake_v29_contact_outer),
+            patch.object(
+                bridge,
+                "rnn_target_state_from_outer_loop",
+                side_effect=lambda output, **kwargs: {"xdot_c": np.asarray(output.xdot_c, dtype=float), **kwargs},
+            ),
+        ):
+            values = bridge.compute_bridge_values(
+                args,
+                [0.0, 0.0, -12.0, 0.0, 0.0, 0.0],
+                latest_output,
+                1.0,
+                state,
+                0.002,
+            )
+
+        self.assertEqual(values["step4e_cmd_valid"], 1.0)
+        self.assertEqual(values["step4e_controller_state"], bridge.STEP5D_STAGE25_JOINT_LAYOUT_CODE)
+        self.assertEqual((values["step4e_cmd_vx_m_s"], values["step4e_cmd_vy_m_s"], values["step4e_cmd_vz_m_s"]), (0.0, 0.0, 0.0))
+        self.assertEqual((values["step4e_cmd_wx_rad_s"], values["step4e_cmd_wy_rad_s"], values["step4e_cmd_wz_rad_s"]), (0.0, 0.0, 0.0))
+        self.assertEqual(values["_step5d_rnn_accepted"], 0.0)
+        self.assertEqual(values["_step5d_rnn_reject_reason"], "constraint_residual_norm_exceeds_v29_limit")
+        self.assertEqual(values["_step5d_safe_hold_active"], 1.0)
+        self.assertEqual(values["_step5d_cmd_valid_reason"], "rnn_evidence_rejected_safe_hold")
+        self.assertAlmostEqual(values["_step5d_constraint_residual_norm"], 0.050)
+        self.assertTrue(np.isfinite(values["_step5d_lambda_norm"]))
 
     def test_speedj_rnn_warm_start_failure_keeps_pending_fail_closed(self) -> None:
         class FailingWarmStartSolver:

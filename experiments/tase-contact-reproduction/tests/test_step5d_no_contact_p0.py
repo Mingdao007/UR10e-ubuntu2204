@@ -1103,7 +1103,8 @@ class Step5dNoContactP0Test(unittest.TestCase):
             self.assertEqual(capture["delivery_mode"], "full_upload_readback")
             self.assertIsNotNone(capture["controller_readback_manifest"])
         else:
-            self.assertFalse(capture["controller_readback_verified"])
+            self.assertTrue(capture["archived_not_gate_for_v29"])
+            self.assertEqual(capture["status"], "abandoned_archived_not_v29_gate")
         self.assertEqual(capture["local_triplet"], f"programs/step5/step5d/{P0_V7_STAGE_ID}")
         self.assertEqual(
             capture["controller_target"],
@@ -1193,6 +1194,9 @@ class Step5dNoContactP0Test(unittest.TestCase):
     def test_evidence_rejected_rows_keep_cmd_valid_and_fail_on_verifier_evidence(self) -> None:
         rows = good_rows()
         for row in rows:
+            row["_step5d_p0_rnn_accepted"] = "0"
+            row["_step5d_p0_rnn_reject_reason"] = "constraint_residual_norm_exceeds_p0_limit"
+            row["_step5d_p0_safe_hold_active"] = "1"
             row["_step5d_constraint_residual_norm"] = "0.003"
             row["step4e_cmd_valid"] = "1"
             row["_step5d_stage25_echo_consumed"] = "1"
@@ -1204,9 +1208,10 @@ class Step5dNoContactP0Test(unittest.TestCase):
 
         self.assertFalse(result["ok"])
         self.assertIn("first_speedj_rnn_tick_constraint_residual_norm_exceeds_limit", result["blockers"])
-        self.assertIn("accepted_speedj_rnn_tick_constraint_residual_norm_exceeds_limit", result["blockers"])
+        self.assertIn("no_accepted_speedj_rnn_live_rows", result["blockers"])
+        self.assertNotIn("accepted_speedj_rnn_tick_constraint_residual_norm_exceeds_limit", result["blockers"])
         self.assertNotIn("accepted_speedj_rnn_rows_not_consumed_by_stage25", result["blockers"])
-        self.assertEqual(result["metrics"]["accepted_speedj_rnn_live_rows"], len(rows))
+        self.assertEqual(result["metrics"]["accepted_speedj_rnn_live_rows"], 0)
 
     def test_fails_when_low_force_posture_evidence_is_missing(self) -> None:
         rows = good_rows()

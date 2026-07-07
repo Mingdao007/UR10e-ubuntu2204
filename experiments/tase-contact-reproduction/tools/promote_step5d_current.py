@@ -23,13 +23,15 @@ STEP5D_ABLATION_V25 = "step5d_strict_rnn_ablation_v25"
 STEP5D_ABLATION_V26 = "step5d_strict_rnn_ablation_v26"
 STEP5D_ABLATION_V27 = "step5d_strict_rnn_ablation_v27"
 STEP5D_ABLATION_V28 = "step5d_strict_rnn_ablation_v28"
+STEP5D_ABLATION_V29 = "step5d_strict_rnn_ablation_v29"
 STEP5D_ABLATION_PROGRAMS = {
     STEP5D_ABLATION_V25,
     STEP5D_ABLATION_V26,
     STEP5D_ABLATION_V27,
     STEP5D_ABLATION_V28,
+    STEP5D_ABLATION_V29,
 }
-STEP5D_STEP5B_SPEEDL_LIVE_PROGRAMS = {STEP5D_ABLATION_V27, STEP5D_ABLATION_V28}
+STEP5D_STEP5B_SPEEDL_LIVE_PROGRAMS = {STEP5D_ABLATION_V27, STEP5D_ABLATION_V28, STEP5D_ABLATION_V29}
 STEP5D_OPERATOR_PLAY_WAIT_S = 20
 
 
@@ -340,7 +342,7 @@ def update_previous_stage(
 
 def preload_gate(program: str) -> dict[str, float]:
     label = version_label(program)
-    if label not in {"v21", "v22", "v23", "v24", "v25", "v26", "v27", "v28"}:
+    if label not in {"v21", "v22", "v23", "v24", "v25", "v26", "v27", "v28", "v29"}:
         fail(f"preload gate defaults are not defined for {program}")
     gate = {
         "filtered_normal_load_min_n": 7.5,
@@ -403,11 +405,11 @@ def sensor_hard_guards(program: str) -> tuple[float, float, float]:
 
 
 def stage25_success_target_s(program: str) -> float:
-    return 60.0 if program == STEP5D_ABLATION_V28 else 10.0
+    return 60.0 if program in {STEP5D_ABLATION_V28, STEP5D_ABLATION_V29} else 10.0
 
 
 def stage25_runtime_limit_s(program: str) -> float:
-    return 65.0 if program == STEP5D_ABLATION_V28 else 15.0
+    return 65.0 if program in {STEP5D_ABLATION_V28, STEP5D_ABLATION_V29} else 15.0
 
 
 def build_current_stage_row(
@@ -421,7 +423,9 @@ def build_current_stage_row(
     stage25_target_s = stage25_success_target_s(program)
     stage25_limit_s = stage25_runtime_limit_s(program)
     stage25_default_mode = (
-        "speedl_cartesian_oracle"
+        "speedj_rnn_live"
+        if program == STEP5D_ABLATION_V29
+        else "speedl_cartesian_oracle"
         if program in STEP5D_ABLATION_PROGRAMS
         else None
     )
@@ -603,10 +607,16 @@ def build_current_stage_row(
                 "s=min(1,0.9*qdot_cap/||J^-1 xdot_c||inf) before strict RNN/DLS speedj modes"
             )
         if step5b_speedl_live:
-            guard["speedl_angular_live_command_policy"] = (
-                f"{label} bridge runtime forces wx/wy/wz to 0 for all Stage25.0 in "
-                "speedl_cartesian_oracle; limited raw angular remains diagnostic only"
-            )
+            if program == STEP5D_ABLATION_V29:
+                guard["speedj_rnn_live_command_policy"] = (
+                    "v29 bridge runtime sends strict RNN qdot to speedj layout 524 by default; "
+                    "speedl_cartesian_oracle and speedj_dls_oracle remain explicit debug/fallback modes"
+                )
+            else:
+                guard["speedl_angular_live_command_policy"] = (
+                    f"{label} bridge runtime forces wx/wy/wz to 0 for all Stage25.0 in "
+                    "speedl_cartesian_oracle; limited raw angular remains diagnostic only"
+                )
             diagnostics = guard.setdefault("runtime_diagnostics", [])
             for column in (
                 "_step5d_live_control_source",
@@ -620,6 +630,21 @@ def build_current_stage_row(
             ):
                 if column not in diagnostics:
                     diagnostics.append(column)
+            if program == STEP5D_ABLATION_V29:
+                for column in (
+                    "_step5d_rnn_accepted",
+                    "_step5d_rnn_reject_reason",
+                    "_step5d_safe_hold_active",
+                    "_step5d_cmd_valid_reason",
+                    "_step5d_rnn_inner_iterations",
+                    "_step5d_rnn_backend",
+                    "_step5d_rnn_epsilon",
+                    "_step5d_rnn_sigr_exponent_r",
+                    "_step5d_constraint_residual_norm",
+                    "_step5d_lambda_norm",
+                ):
+                    if column not in diagnostics:
+                        diagnostics.append(column)
             guard["stage25_cadence_max_gap_s"] = 0.020
             guard["stage25_command_consumption_echo_register"] = 47.0
     contact_policy = row.setdefault("contact_policy", {})
@@ -643,7 +668,9 @@ def build_current_stage_row(
                 ],
                 "default_stage25_control_mode": stage25_default_mode,
                 "speedl_cartesian_oracle_policy": (
-                    "Step5b speedl live vx/vy/vz is sent to TP speedl, live wx/wy/wz are forced to zero, "
+                    "v29 keeps speedl_cartesian_oracle as an explicit fallback/debug path; default live source is strict RNN speedj"
+                    if program == STEP5D_ABLATION_V29
+                    else "Step5b speedl live vx/vy/vz is sent to TP speedl, live wx/wy/wz are forced to zero, "
                     "and Step5d paper/RNN linear/angular outputs are shadow diagnostics only"
                     if step5b_speedl_live
                     else "paper outer-loop xdot_c is sent directly to TP speedl for Cartesian oracle diagnostics; "
@@ -655,6 +682,10 @@ def build_current_stage_row(
                 ),
                 "speedj_rnn_live_policy": (
                     "strict RNN qdot from feasibility-scaled xdot_c is sent to TP speedj after solver lambda/theta_dot "
+                    "reset on Stage25 lifecycle boundaries; evidence rejection records diagnostics and uses bounded hold "
+                    "without clearing cmd_valid unless a hard safety or command-contract violation occurs"
+                    if program == STEP5D_ABLATION_V29
+                    else "strict RNN qdot from feasibility-scaled xdot_c is sent to TP speedj after solver lambda/theta_dot "
                     "reset on Stage25 lifecycle boundaries"
                 ),
                 "force_control": True,
@@ -662,6 +693,8 @@ def build_current_stage_row(
                 "timing_policy": (
                     "step5b_v3_no_lift_no_25_2_no_second_search_with_gravity_down_search_and_target_centric_preload"
                     if program == STEP5D_ABLATION_V25
+                    else "step5d_v29_contact_strict_rnn_live_stage25_speedj_candidate_with_v28_envelope"
+                    if program == STEP5D_ABLATION_V29
                     else "step5b_v3_scaffold_min_delta_stage25_speedl_oracle_with_cadence_consumption_instrumentation"
                     if step5b_speedl_live
                     else "step5b_v3_no_lift_no_25_2_no_second_search_with_gravity_down_search_and_step5b_step6b_evidence_tube_preload"
@@ -723,15 +756,22 @@ def build_current_stage_row(
             f"uses {preload_basis} ({preload_policy}), "
             "Stage25.95 waits for bridge-cleared registers 37..47, and Stage25.0 selects "
             "Cartesian speedl or joint speedj from layout tag 47. v25/v26/v27/v28 default to "
-            "speedl_cartesian_oracle with strict RNN/J(q) shadow diagnostics; v26/v27/v28 keep "
-            "speedj_rnn_live as explicit follow-up modes with joint-feasibility-scaled xdot_c."
+            "speedl_cartesian_oracle with strict RNN/J(q) shadow diagnostics; v29 defaults to "
+            "speedj_rnn_live with speedl_cartesian_oracle and speedj_dls_oracle as explicit fallback/debug modes."
         )
         if step5b_speedl_live:
-            stage25_policy += (
-                f" {label} speedl_cartesian_oracle executes Step5b live vx/vy/vz, forces live wx/wy/wz to zero, "
-                "keeps Step5d paper/RNN linear/angular outputs shadow-only, and logs Stage25.0 cadence, "
-                "TP consumption echo, and bridge loop timing."
-            )
+            if program == STEP5D_ABLATION_V29:
+                stage25_policy += (
+                    " v29 speedj_rnn_live sends strict RNN qdot to TP speedj on layout 524 after "
+                    "solver warm-start; residual/lambda evidence failures are diagnostics unless a "
+                    "hard safety or command-contract violation occurs."
+                )
+            else:
+                stage25_policy += (
+                    f" {label} speedl_cartesian_oracle executes Step5b live vx/vy/vz, forces live wx/wy/wz to zero, "
+                    "keeps Step5d paper/RNN linear/angular outputs shadow-only, and logs Stage25.0 cadence, "
+                    "TP consumption echo, and bridge loop timing."
+                )
     contact_policy["stage25_contact_policy"] = stage25_policy
     if is_ablation:
         row["liveprep_gates"] = [
@@ -744,7 +784,7 @@ def build_current_stage_row(
                 f"force_norm <={entry_gate['force_norm_max_n']:g}N, and cmd_valid true for {entry_gate['required_s']:.3f} s"
             ),
             "Stage 25.95 clears registers 37..47 away from preload/cartesian/joint layout tags before Stage25.0 consumption",
-            "Stage25.0 register 47 selects 523.0 Cartesian speedl or 524.0 joint speedj; v25/v26/v27/v28 default to speedl_cartesian_oracle",
+            "Stage25.0 register 47 selects 523.0 Cartesian speedl or 524.0 joint speedj; v25/v26/v27/v28 default to speedl_cartesian_oracle and v29 defaults to speedj_rnn_live",
         ]
     else:
         row["liveprep_gates"] = [
@@ -794,6 +834,15 @@ def build_current_stage_row(
             }
         )
         operator.pop("live_retry_blocked_until", None)
+        if program == STEP5D_ABLATION_V29:
+            for stale_key in (
+                "no_contact_p0_expected_program",
+                "no_contact_p0_confirm_env",
+                "no_contact_p0_confirm_token",
+                "no_contact_p0_entrypoint",
+                "no_contact_p0_operator_mode",
+            ):
+                operator.pop(stale_key, None)
         operator["live_readiness_state"] = (
             f"controller_readback_verified_pending_explicit_{stage25_target_s:g}s_live_bridge_run"
         )
@@ -808,6 +857,8 @@ def build_current_stage_row(
                 "stage25_runtime_limit_s": stage25_limit_s,
             }
         )
+        if program == STEP5D_ABLATION_V29:
+            runtime_ref.pop("stage25_speedl_orientation_policy", None)
     row["notes"] = [
         f"{label} is controller read-back verified and selected as the current Step5d TP/script diagnostic package.",
         f"{label} keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
@@ -844,23 +895,33 @@ def build_current_stage_row(
         )
     analysis[f"{label}_controller_readback_manifest"] = manifest["manifest_path"]
     cadence = row.setdefault("cadence", {})
-    cadence["motion"] = "pending_live_60s_full_run" if program == STEP5D_ABLATION_V28 else "pending_live_diagnostic"
+    cadence["motion"] = (
+        "pending_live_60s_full_run"
+        if program in {STEP5D_ABLATION_V28, STEP5D_ABLATION_V29}
+        else "pending_live_diagnostic"
+    )
     lifecycle = row.setdefault("lifecycle", {})
     lifecycle.update(
         {
             "state": (
-                "current_v28_controller_readback_verified_pending_60s_full_run"
-                if program == STEP5D_ABLATION_V28
+                f"current_{label}_controller_readback_verified_pending_60s_full_run"
+                if program in {STEP5D_ABLATION_V28, STEP5D_ABLATION_V29}
                 else f"current_{label}_controller_readback_verified_pending_live_run"
             ),
             "current_candidate": True,
             "retained_evidence": False,
             "claim_status": (
                 "controller_readback_verified_pending_60s_live_run_not_reproduction_claim"
-                if program == STEP5D_ABLATION_V28
+                if program in {STEP5D_ABLATION_V28, STEP5D_ABLATION_V29}
                 else "controller_readback_verified_pending_live_run_not_reproduction_claim"
             ),
-            "supersedes": "step5d_strict_rnn_ablation_v27" if program == STEP5D_ABLATION_V28 else "step5d_strict_rnn_liveprep_v24",
+            "supersedes": (
+                "step5d_strict_rnn_ablation_v28"
+                if program == STEP5D_ABLATION_V29
+                else "step5d_strict_rnn_ablation_v27"
+                if program == STEP5D_ABLATION_V28
+                else "step5d_strict_rnn_liveprep_v24"
+            ),
         }
     )
     evidence_refs = row.setdefault("evidence_refs", {})
@@ -1064,6 +1125,7 @@ def update_current_stage(
     label = version_label(program)
     is_ablation = program in STEP5D_ABLATION_PROGRAMS
     step5b_speedl_live = program in STEP5D_STEP5B_SPEEDL_LIVE_PROGRAMS
+    stage25_default_mode = "speedj_rnn_live" if program == STEP5D_ABLATION_V29 else "speedl_cartesian_oracle"
     stage25_target_s = stage25_success_target_s(program)
     stage25_limit_s = stage25_runtime_limit_s(program)
     hard_raw_guard_n, hard_force_guard_n, hard_torque_guard_nm = sensor_hard_guards(program)
@@ -1107,7 +1169,7 @@ def update_current_stage(
             "TP writes stage 25.95 after preload; bridge writes zero command/cmd_valid=0 and a layout tag "
             "that is not 521/523/524 until TP observes registers 37..47 clear before Stage25.0 consumption"
         )
-        bridge["stage25_control_mode"] = "speedl_cartesian_oracle"
+        bridge["stage25_control_mode"] = stage25_default_mode
         bridge["stage25_layout_contract"] = {
             "cartesian_layout_tag": 523.0,
             "cartesian_registers": "37..42 vx/vy/vz/wx/wy/wz, TP executes speedl",
@@ -1128,14 +1190,27 @@ def update_current_stage(
         bridge["stage25_success_target_s"] = stage25_target_s
         bridge["stage25_runtime_limit_s"] = stage25_limit_s
         if step5b_speedl_live:
-            bridge["stage25_speedl_live_source"] = (
-                "Step5b speedl live vx/vy/vz; live wx/wy/wz forced to zero; Step5d paper/RNN outputs shadow-only"
-            )
-            bridge["stage25_speedl_orientation_policy"] = (
-                f"{label} bridge runtime uses Step5b speedl vx/vy/vz as the live command source "
-                "in speedl_cartesian_oracle; Step5d paper/RNN vx/vy/vz and wx/wy/wz are "
-                "shadow diagnostics, and live wx/wy/wz are forced to 0 for all Stage25.0."
-            )
+            if program == STEP5D_ABLATION_V29:
+                bridge["stage25_speedj_live_source"] = (
+                    "strict RNN qdot from feasibility-scaled xdot_c is sent to TP speedj on layout 524; "
+                    "speedl_cartesian_oracle and speedj_dls_oracle are explicit debug/fallback modes"
+                )
+                bridge["stage25_rnn_evidence_policy"] = (
+                    "RNN accepted rows require layout 524, cmd_valid=1, TP echo consumption, and "
+                    "_step5d_rnn_accepted=1; non-safety evidence rejection records diagnostics and "
+                    "uses bounded hold without treating the row as accepted evidence."
+                )
+                bridge.pop("stage25_speedl_live_source", None)
+                bridge.pop("stage25_speedl_orientation_policy", None)
+            else:
+                bridge["stage25_speedl_live_source"] = (
+                    "Step5b speedl live vx/vy/vz; live wx/wy/wz forced to zero; Step5d paper/RNN outputs shadow-only"
+                )
+                bridge["stage25_speedl_orientation_policy"] = (
+                    f"{label} bridge runtime uses Step5b speedl vx/vy/vz as the live command source "
+                    "in speedl_cartesian_oracle; Step5d paper/RNN vx/vy/vz and wx/wy/wz are "
+                    "shadow diagnostics, and live wx/wy/wz are forced to 0 for all Stage25.0."
+                )
             bridge["stage25_cadence_consumption_instrumentation"] = {
                 "max_row_gap_s": 0.020,
                 "tp_consumed_echo_register": 47,
@@ -1342,6 +1417,15 @@ def update_current_stage(
         "operator outside UR reach/cage boundary",
         f"TP program opened on controller read-back {label} package",
     ]
+    if program == STEP5D_ABLATION_V29:
+        trigger.pop("no_contact_p0_capture", None)
+        trigger["required_before_live"].extend(
+            [
+                "v29 package readback verified on controller",
+                "6 Codex + 1 fable5 offline audit accepted, or user waives that gate",
+                "explicit live/contact authorization for v29 speedj_rnn_live",
+            ]
+        )
     for retained in payload.get("retained_steps", []):
         if retained.get("step") == "Step5":
             retained["role"] = (
@@ -1352,7 +1436,7 @@ def update_current_stage(
         f"{program} is controller read-back verified and selected as the current Step5d TP/script cage-primary diagnostic package.",
         f"{label} keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
         (
-            f"{label} is an ablation package: v25/v26/v27/v28 default to speedl_cartesian_oracle, speedj_rnn_live is explicit follow-up, and preload is {entry_gate['filtered_normal_load_min_n']:g}-{entry_gate['filtered_normal_load_max_n']:g}N filtered with {entry_gate['raw_normal_load_min_n']:g}-{entry_gate['raw_normal_load_max_n']:g}N raw sanity."
+            f"{label} is an ablation package: v25/v26/v27/v28 default to speedl_cartesian_oracle; v29 defaults to speedj_rnn_live; preload is {entry_gate['filtered_normal_load_min_n']:g}-{entry_gate['filtered_normal_load_max_n']:g}N filtered with {entry_gate['raw_normal_load_min_n']:g}-{entry_gate['raw_normal_load_max_n']:g}N raw sanity."
             if is_ablation
             else
             f"{label} stops low-load/no-contact with zero qdot instead of executing active_reacquire_solver qdot, and uses Stage25.3 default preload 7.5-14N filtered with 7-15N raw sanity."

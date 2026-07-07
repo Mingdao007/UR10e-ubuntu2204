@@ -58,7 +58,7 @@
     "stage_id": "step5d_strict_rnn_reproduction_v1",
     "blocked": true,
     "paper_truth_config": "config/step5d_liveprep_solver_gate.json",
-    "reason": "v28 has cadence-clean 60s Step5b-speedl positive-control evidence (064317/070301/072843/074542) with Step5d paper/RNN outputs shadow-only, plus DLS speedj layout-524 success and RNN speedj short soft-hold failure evidence. The RNN failure root cause is now attributed offline to StrictTaseRnnSolver cold-start at the Stage25 lifecycle boundary while already preloaded; a warm_start patch is validated offline and the live bridge gate is hardened, but strict RNN live reproduction remains blocked pending no-contact P0 verification and explicit live authorization."
+    "reason": "v28 has cadence-clean 60s Step5b-speedl positive-control evidence (064317/070301/072843/074542) with Step5d paper/RNN outputs shadow-only, plus DLS speedj layout-524 success and historical RNN speedj short soft-hold failure evidence. The RNN failure root cause is attributed offline to StrictTaseRnnSolver cold-start at the Stage25 lifecycle boundary while already preloaded, and a warm_start patch is validated offline. v29 is now the local-only contact strict RNN candidate; live execution remains blocked until v29 controller upload/readback, owner audit, and explicit live/contact authorization."
   },
   "evidence": {
     "v11_escape_replay_summary": "runs/step5d_v11_escape_replay_20260615/summary.json",
@@ -900,7 +900,7 @@
       "normal_load_min_n": 8.67347747,
       "normal_load_max_n": 16.629442,
       "note": "third consecutive 60s full run; live orientation closed-loop converged 0.031->0.0007 rad by t=20s (3x faster than passive shadow-only convergence), live |w| peak 7.0 mrad/s (47% of cap, 0% saturation), force undisturbed at ~12N. v28 now reproduces the full Step5b behavior (linear + angular) with entry re-latch and the recalibrated paper outer loop in shadow.",
-      "next_action": "branch evidence now split into speedl positive control, speedj_dls_oracle layout-524 success, and historical speedj_rnn_live short soft-hold failure; strict RNN warm_start is validated offline, with no-contact P0 required before any live retry"
+      "next_action": "branch evidence now split into speedl positive control, speedj_dls_oracle layout-524 success, and historical speedj_rnn_live short soft-hold failure; strict RNN warm_start is validated offline, and v29 contact strict RNN remains local-only pending upload/readback, owner audit, and explicit live authorization"
     },
     "v28_20260706_branch_evidence_baseline": {
       "result": "branch_aware_stage25_evidence_baseline",
@@ -963,7 +963,7 @@
         ],
         "note": "RNN enters layout-524 speedj and is consumed, but J*qdot_cmd unloads along the approach normal while the outer loop requests press; raw normal load drops below 5N, contact safety holds, cmd_valid is withdrawn, and TP stops on command-valid loss."
       },
-      "next_action": "offline root cause is fixed by strict RNN lifecycle warm_start; run no-contact P0 verification before any strict RNN live retry"
+      "next_action": "offline root cause is fixed by strict RNN lifecycle warm_start; use the v29 contact strict RNN candidate path only after controller upload/readback, owner audit, and explicit live authorization"
     },
     "v28_20260706_rnn_warm_start_offline_fix": {
       "result": "offline_fix_validated_live_blocked",
@@ -982,10 +982,10 @@
         "targeted_unittest_result": "109 startup/upload/cross-step/analyzer/no-contact P0 targeted tests passed after v5 qdot-cap update",
         "full_unittest_result": "704 unittest-discover tests passed; ./check.sh passed 704 pytest tests with 1 warning",
         "diff_check": "git diff --check passed",
-        "no_contact_p0_tooling": "P0 v7 local diagnostic package and pre-Play bridge entrypoint are selected: tools/verify_step5d_no_contact_p0.py, scripts/step5d-strict-rnn-p0.sh capture-ready/capture-bridge, programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v7.{script,txt,urp}. Controller target is /programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v7.urp; controller read-back is verified at runs/controller_readback_step5d_strict_rnn_no_contact_p0_v7_20260708_055730/manifest.json and P0 capture remains pending."
+        "no_contact_p0_tooling": "P0 v7 tooling and controller read-back are retained as historical diagnostic evidence only; P0 capture is abandoned and is not a v29 gate."
       },
-      "live_status": "blocked_until_no_contact_p0_and_explicit_live_trigger",
-      "next_action": "verify no-contact P0 first tick has solver_warm_start and approach-normal J(q)qdot aligned with the outer command before any live strict RNN run"
+      "live_status": "blocked_until_v29_upload_readback_audit_and_explicit_live_authorization",
+      "next_action": "promote v29 only after controller upload/readback, owner audit, and explicit live/contact authorization; no-contact P0 is archived and not a v29 gate"
     }
   },
   "bridge_trigger": {
@@ -995,7 +995,7 @@
     "bridge_has_started": false,
     "live_motion_authorized": false,
     "zero_ftsensor_authorized": false,
-    "blocked_reason": "v28 branch evidence is archived; strict RNN live retry remains blocked until no-contact P0 warm_start verification passes and still requires an explicit live trigger.",
+    "blocked_reason": "v28 remains the controller read-back verified current package; v29 is a local-only contact strict RNN candidate pending controller upload/readback, owner audit, and explicit live authorization. No-contact P0 is archived and no longer gates v29.",
     "no_contact_p0_capture": {
       "profile": "step5d_strict_rnn_no_contact_p0_v7",
       "entrypoint": "scripts/step5d-strict-rnn-p0.sh capture-bridge",
@@ -1012,14 +1012,17 @@
         ".txt": "2d88b3f6d670a9eaf8790c50b4286b1000d9c4121ba65d0c4fcf3a2e3ead8663",
         ".urp": "e06d7da1949a2f76ab57e6786296a6f65e8c2a6808223fe95ef9709b687de251"
       },
-      "capture_authorized": true,
+      "capture_authorized": false,
       "passed": false,
-      "summary_artifact": null
+      "summary_artifact": null,
+      "archived_not_gate_for_v29": true,
+      "status": "abandoned_archived_not_v29_gate"
     },
     "required_before_live": [
-      "no-contact P0 strict RNN warm_start verification via step5d-strict-rnn-p0.sh validate-run: first tick logs solver_warm_start, approach-normal J(q)qdot aligns with the outer command, and active bounds/residual/lambda diagnostics are reviewed",
+      "v29 controller upload/readback must be completed and verified before selecting it as current",
+      "6 Codex + 1 fable5 offline audit accepted, or user waives that gate",
       "operator outside UR reach/cage boundary",
-      "TP program opened on controller read-back v28 package"
+      "explicit live/contact authorization for v29 speedj_rnn_live"
     ]
   },
   "retained_steps": [
@@ -1043,8 +1046,8 @@
   ],
   "notes": [
     "step5d_strict_rnn_ablation_v28 has cadence-clean speedl positive-control runs, DLS speedj layout-524 branch success, and historical RNN speedj short soft-hold failure evidence; older 054904/062908 speedl runs are retained as historical but excluded from current acceptance by the cadence gate.",
-    "The RNN speedj failure root cause is attributed offline to solver cold-start at Stage25 lifecycle reset while preloaded; the current code applies a one-shot strict RNN warm_start at the next solve, but live strict RNN remains blocked pending no-contact P0 verification and explicit live authorization.",
-    "The no-contact P0 v7 TP package is controller read-back verified at runs/controller_readback_step5d_strict_rnn_no_contact_p0_v7_20260708_055730/manifest.json and selected as the current no-contact P0 capture profile; capture is authorized but not passed.",
+    "The RNN speedj failure root cause is attributed offline to solver cold-start at Stage25 lifecycle reset while preloaded; the current code applies a one-shot strict RNN warm_start at the next solve, and v29 is the local-only contact strict RNN candidate pending controller upload/readback, owner audit, and explicit live/contact authorization.",
+    "The no-contact P0 v7 TP package is controller read-back verified at runs/controller_readback_step5d_strict_rnn_no_contact_p0_v7_20260708_055730/manifest.json but is now archived as historical diagnostic evidence and is not a v29 gate.",
     "The previous v1 no-contact P0 live capture attempt is archived at runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v1_autowatch_20260706_235036 and failed with no_speedj_rnn_live_rows: output register 35 stayed at 20.0, Stage25 rows were 0, and bridge-side sensor_ok became ready before the TP stopped. v2 is a cache-bust and Stage20 wait-echo diagnostic package, not a passed P0 artifact.",
     "step5d_strict_rnn_ablation_v28 is controller read-back verified and selected as the current Step5d TP/script cage-primary diagnostic package.",
     "v28 keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
@@ -1055,7 +1058,9 @@
     "This file is the single current pointer for UR/Kunwei package and bridge handoffs.",
     "TP program load/Play, robot motion, payload/TCP writes, and zero_ftsensor remain explicit live gates.",
     "Earlier Step5d live-prep packages remain retained evidence only.",
-    "P0 v3 live capture runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v3_autowatch_20260707_094544 is reclassified as stage20_bridge_ready_handshake_failed: TP stayed in Stage20 and never reached Stage25."
+    "P0 v3 live capture runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v3_autowatch_20260707_094544 is reclassified as stage20_bridge_ready_handshake_failed: TP stayed in Stage20 and never reached Stage25.",
+    "v29 local contact strict RNN candidate is generated but not uploaded/read-back; current_stage remains v28 until controller readback and explicit promotion.",
+    "No-contact P0 v7 is archived as historical diagnostic evidence and is not a gate for v29."
   ],
   "sha256": {
     ".script": "cb6a0c0e9ea3130396c95d346302e0a43f9b3cbd51e93d0698efd5596a7819b3",
@@ -1063,5 +1068,20 @@
     ".urp": "518c12c4e2c4da95c404321f6d63e1855b18b9b29b5ed612839ada4e20149d4b"
   },
   "delivery_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v28_20260706_052354/manifest.json",
-  "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v28_20260706_052354/manifest.json"
+  "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v28_20260706_052354/manifest.json",
+  "v29_contact_candidate": {
+    "profile": "step5d_strict_rnn_ablation_v29",
+    "local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v29",
+    "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v29.urp",
+    "local_candidate_marker": "programs/step5/step5d/.local_tp_candidate.json",
+    "sha256": {
+      ".script": "ff88cb56f5e28aa1cba495f5431b6f137269a1f04eb0414f80058fb8f7a0e9ff",
+      ".txt": "e4da90baceddb7e4ffbf46c3266ae1271d75f83364549de5d1fec66dfac680d4",
+      ".urp": "a0f26a974945f8de6b9ec21d96810b602746000a9aebc751cbdf380737a1ba0b"
+    },
+    "stage25_default_control_mode": "speedj_rnn_live",
+    "controller_readback_verified": false,
+    "live_authorized": false,
+    "p0_gate_required": false
+  }
 }

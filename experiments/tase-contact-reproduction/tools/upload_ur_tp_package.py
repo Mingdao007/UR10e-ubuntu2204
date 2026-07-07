@@ -183,7 +183,7 @@ def validate_local_candidate_marker(
     marker: dict,
     *,
     files: dict[str, Path],
-    program: str,
+    program: str | None = None,
     target_dir: str,
     local_sha: dict[str, str],
 ) -> None:
@@ -1062,10 +1062,11 @@ def validate_package(
         "step5d_strict_rnn_ablation_v26",
         "step5d_strict_rnn_ablation_v27",
         "step5d_strict_rnn_ablation_v28",
+        "step5d_strict_rnn_ablation_v29",
     }:
         version_label = program.rsplit("_", 1)[-1]
         expected_angular_cap = "0.150" if version_label == "v25" else "0.015"
-        expected_default_mode = "speedl_cartesian_oracle"
+        expected_default_mode = "speedj_rnn_live" if version_label == "v29" else "speedl_cartesian_oracle"
         if version_label == "v25":
             expected_preload_min = "10.500"
             expected_preload_max = "12.800"
@@ -1098,7 +1099,7 @@ def validate_package(
             expected_torque_guard_decimal = "4.0"
             expected_runtime_s = "15.000"
             expected_success_s = "10.000000000"
-        elif version_label == "v28":
+        elif version_label in {"v28", "v29"}:
             expected_preload_min = "5.000"
             expected_preload_max = "22.000"
             expected_raw_min_text = "3.0"
@@ -1178,7 +1179,7 @@ def validate_package(
                 and "speedj_dls_oracle" in txt
                 and "speedj_rnn_live" in txt
                 and expected_default_mode in txt
-                and "RNN is shadow-only" in txt
+                and ("strict RNN live candidate" in txt if version_label == "v29" else "RNN is shadow-only" in txt)
                 and "register 47=523.0" in txt
                 and "register 47=524.0" in txt,
                 f"step5d {version_label} contact safety": "STAGE25_CONTACT_SAFETY" in script
@@ -1205,11 +1206,13 @@ def validate_package(
                 f"step5d {version_label} Stage25 target window": f"local line_runtime_limit_s = {expected_runtime_s}" in script
                 and f"local line_success_progress_m = {expected_success_s}" in script,
                 f"step5d {version_label} v27 consumption instrumentation": (
-                    version_label not in {"v27", "v28"}
+                    version_label not in {"v27", "v28", "v29"}
                     or (
                         (
                             "# STAGE25_V27_SCAFFOLD: step5b_v3_scaffold_min_delta" in script
                             or "# STAGE25_V28_SCAFFOLD: v27_step5b_speedl_live_shadow_boundary_60s_full_run"
+                            in script
+                            or "# STAGE25_V29_SCAFFOLD: v28_envelope_strict_rnn_live_candidate_60s"
                             in script
                         )
                         and "STAGE25_CADENCE_CONSUMPTION" in script
@@ -1593,6 +1596,7 @@ def write_manifest(
     target_source: str = "table",
     target_resolution: dict | None = None,
     target_override_reason: str | None = None,
+    program: str | None = None,
 ) -> None:
     manifest = {
         "status": "dry-run" if dry_run else "controller read-back verified",
@@ -1625,7 +1629,7 @@ def write_manifest(
         manifest["fresh_controller_checked_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
     if readback_source is not None:
         manifest["readback_source"] = readback_source
-    if local_candidate_marker is not None:
+    if program is not None and local_candidate_marker is not None and local_candidate_marker.get("program") == program:
         manifest["promoted_from_local_candidate"] = {
             "marker_schema": local_candidate_marker.get("schema"),
             "semantic_fingerprint": local_candidate_marker.get("semantic_fingerprint"),
@@ -1696,7 +1700,7 @@ def main(argv: list[str] | None = None) -> int:
     files = triplet(args.local_dir, program)
     local_sha = package_sha(files)
     local_candidate_marker = load_local_candidate_marker(args.local_dir)
-    if local_candidate_marker is not None:
+    if local_candidate_marker is not None and local_candidate_marker.get("program") == program:
         validate_local_candidate_marker(
             local_candidate_marker,
             files=files,
@@ -1754,6 +1758,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.dry_run:
         write_manifest(
             readback_dir,
+            program=program,
             controller=args.controller,
             target_dir=target_dir,
             local_dir=args.local_dir,
@@ -1779,6 +1784,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     write_manifest(
         readback_dir,
+        program=program,
         controller=args.controller,
         target_dir=target_dir,
         local_dir=args.local_dir,

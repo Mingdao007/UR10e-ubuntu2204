@@ -85,7 +85,7 @@ if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
   MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-2}"
   MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-5}"
   MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-3.0}"
-elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v27" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v28" ]]; then
+elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v27" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v28" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" ]]; then
   MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-50}"
   MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-60}"
   MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-3.0}"
@@ -133,7 +133,7 @@ elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v26" ]]; then
   STEP5D_DEFAULT_PRELOAD_RAW_MIN_N="${STEP5D_DEFAULT_PRELOAD_RAW_MIN_N:-5.0}"
   STEP5D_DEFAULT_PRELOAD_RAW_MAX_N="${STEP5D_DEFAULT_PRELOAD_RAW_MAX_N:-20.0}"
   STEP5D_DEFAULT_PRELOAD_FORCE_NORM_MAX_N="${STEP5D_DEFAULT_PRELOAD_FORCE_NORM_MAX_N:-25.0}"
-elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v27" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v28" ]]; then
+elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v27" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v28" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" ]]; then
   STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N:-5.0}"
   STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N:-22.0}"
   STEP5D_DEFAULT_PRELOAD_RAW_MIN_N="${STEP5D_DEFAULT_PRELOAD_RAW_MIN_N:-3.0}"
@@ -158,6 +158,13 @@ elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v26" ]]; then
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v27" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v28" ]]; then
   STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedl_cartesian_oracle}"
   BRIDGE_ANGULAR_LIMIT_RAD_S="${BRIDGE_ANGULAR_LIMIT_RAD_S:-0.015}"
+elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" ]]; then
+  STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedj_rnn_live}"
+  BRIDGE_ANGULAR_LIMIT_RAD_S="${BRIDGE_ANGULAR_LIMIT_RAD_S:-0.015}"
+  STEP5D_EPSILON="${STEP5D_EPSILON:-0.010}"
+  STEP5D_SIGR_EXPONENT_R="${STEP5D_SIGR_EXPONENT_R:-0.800}"
+  STEP5D_RNN_INNER_ITERATIONS="${STEP5D_RNN_INNER_ITERATIONS:-1024}"
+  STEP5D_RNN_BACKEND="${STEP5D_RNN_BACKEND:-cupy}"
 else
   STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedj_rnn_live}"
   BRIDGE_ANGULAR_LIMIT_RAD_S="${BRIDGE_ANGULAR_LIMIT_RAD_S:-0.015}"
@@ -388,6 +395,8 @@ elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v27" ]]; then
   SEARCH_DESCRIPTION="Step5d v27 Step5b-scaffold speedl oracle diagnostic: 12N target, Step5b v3 scaffold minimal delta, 5-22N filtered preload with 3-25N raw sanity, Stage25.95 register clear, Stage25.0 Cartesian speedl oracle by default, Stage25 cadence/command-consumption instrumentation, 0.015 rad/s angular cap, and Step5b-envelope 50N/60N/3Nm bridge hard guards"
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v28" ]]; then
   SEARCH_DESCRIPTION="Step5d v28 60s full-run package: same successful v27 Step5b speedl live / Step5d shadow boundary, 12N target, 5-22N filtered preload with 3-25N raw sanity, Stage25.95 register clear, live angular zero, 0.015 rad/s shadow cap, and Step5b-envelope 50N/60N/3Nm bridge hard guards"
+elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" ]]; then
+  SEARCH_DESCRIPTION="Step5d v29 contact strict RNN live candidate: 12N target, 5-22N filtered preload with 3-25N raw sanity, Stage25.95 register clear, default speedj_rnn_live on layout 524, cupy/1024 inner iterations, and Step5b-envelope 50N/60N/3Nm bridge hard guards"
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v8" ]]; then
   SEARCH_DESCRIPTION="Retained Step5d v8 failure evidence: Stage 25.3 bridge force-PID settle used Cartesian registers 37..39 but low-load dropout below 0.5N could stop with reason 17 before Stage 25.0"
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v4" ]]; then

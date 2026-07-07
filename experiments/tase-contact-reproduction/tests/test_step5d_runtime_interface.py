@@ -92,6 +92,30 @@ class Step5dRuntimeInterfaceTest(unittest.TestCase):
         self.assertEqual(runtime.hard_contract["stage25_success_target_s"], 60.0)
         self.assertEqual(runtime.hard_contract["stage25_runtime_limit_s"], 65.0)
 
+    def test_v29_is_contact_strict_rnn_live_candidate_with_v28_contact_envelope(self) -> None:
+        runtime = iface.resolve_runtime_interface(program=iface.STEP5D_ABLATION_V29_STAGE_ID, root=ROOT, env={})
+
+        self.assertEqual(iface.STEP5D_ABLATION_V29_STAGE_ID, "step5d_strict_rnn_ablation_v29")
+        self.assertIn(iface.STEP5D_ABLATION_V29_STAGE_ID, iface.STEP5D_ABLATION_STAGE_IDS)
+        self.assertEqual(runtime.stage25_control_mode, "speedj_rnn_live")
+        self.assertEqual(runtime.preload_gate.filtered_min_n, 5.0)
+        self.assertEqual(runtime.preload_gate.filtered_max_n, 22.0)
+        self.assertEqual(runtime.preload_gate.raw_min_n, 3.0)
+        self.assertEqual(runtime.preload_gate.raw_max_n, 25.0)
+        self.assertEqual(runtime.preload_gate.force_norm_max_n, 35.0)
+        self.assertEqual(runtime.bridge_defaults.target_force_n, 12.0)
+        self.assertEqual(runtime.bridge_defaults.max_normal_force_n, 50.0)
+        self.assertEqual(runtime.bridge_defaults.max_force_norm_n, 60.0)
+        self.assertEqual(runtime.bridge_defaults.max_torque_norm_nm, 3.0)
+        self.assertEqual(runtime.bridge_defaults.angular_limit_rad_s, 0.015)
+        self.assertEqual(runtime.hard_contract["stage25_live_control_source"], "strict_rnn_live_speedj")
+        self.assertEqual(runtime.hard_contract["stage25_success_target_s"], 60.0)
+        self.assertEqual(runtime.hard_contract["stage25_runtime_limit_s"], 65.0)
+        self.assertFalse(runtime.hard_contract["no_contact_p0_capture"])
+        self.assertIn("v29", runtime.register_contract["stage25_0"])
+        self.assertIn("strict RNN live", runtime.register_contract["stage25_0"])
+        self.assertIn("layout 524", runtime.register_contract["stage25_0"])
+
     def test_live_ready_reports_actual_baseline_plus_rezero_budget(self) -> None:
         runtime = iface.resolve_runtime_interface(program=iface.STEP5D_ABLATION_V27_STAGE_ID, root=ROOT, env={})
 

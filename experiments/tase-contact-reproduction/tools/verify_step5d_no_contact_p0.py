@@ -181,6 +181,10 @@ def row_live_speedj_cmd(row: dict[str, str]) -> bool:
     return row_layout_524(row) and row_cmd_valid(row)
 
 
+def row_accepted_speedj_rnn_evidence(row: dict[str, str]) -> bool:
+    return row_live_speedj_cmd(row) and row_p0_rnn_accepted(row)
+
+
 def stage25_entry_window_summary(rows: list[dict[str, str]]) -> dict[str, Any]:
     window = rows[:ENTRY_ECHO_WINDOW_ROWS]
     consumed_first_index = None
@@ -427,12 +431,12 @@ def verify_rows(
         1 for row in rnn_rows if finite_int(row.get("_step5d_p0_rnn_accepted")) is None
     )
     accepted_candidate_rows = [
-        row for row in rnn_rows if row_live_speedj_cmd(row)
+        row for row in rnn_rows if row_accepted_speedj_rnn_evidence(row)
     ]
     accepted_unconsumed_rows = sum(
         1
         for idx, row in enumerate(rnn_rows)
-        if row_live_speedj_cmd(row)
+        if row_accepted_speedj_rnn_evidence(row)
         and not row_stage25_consumed(row)
         and first_consumed_rnn_index is not None
         and idx >= first_consumed_rnn_index

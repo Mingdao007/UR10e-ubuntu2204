@@ -18,6 +18,7 @@ from step5d_runtime_interface import (
     STEP5D_ABLATION_V26_STAGE_ID,
     STEP5D_ABLATION_V27_STAGE_ID,
     STEP5D_ABLATION_V28_STAGE_ID,
+    STEP5D_ABLATION_V29_STAGE_ID,
     STEP5D_LIVEPREP_V24_STAGE_ID,
     STEP5D_NO_CONTACT_P0_STAGE_ID,
     STEP5D_V27_SPEEDL_LIVE_CONTROL_SOURCE,
@@ -106,6 +107,7 @@ def infer_step5d_profile(run_dir: Path | None, metadata: dict[str, Any]) -> str:
             return no_contact_match.group(0)
         for profile in (
             STEP5D_NO_CONTACT_P0_STAGE_ID,
+            STEP5D_ABLATION_V29_STAGE_ID,
             STEP5D_ABLATION_V28_STAGE_ID,
             STEP5D_ABLATION_V27_STAGE_ID,
             STEP5D_ABLATION_V26_STAGE_ID,
@@ -521,6 +523,26 @@ def last_contact_safety_reason(rows: list[dict[str, str]]) -> str | None:
     return None
 
 
+def row_has_command_layout(row: dict[str, str], layout_tag: int) -> bool:
+    tag = finite_float(row.get("step4e_controller_state"))
+    return math.isfinite(tag) and maybe_int(tag) == layout_tag
+
+
+def longest_continuous_duration_s(times: list[float], *, max_gap_s: float) -> float:
+    finite_times = sorted(value for value in times if math.isfinite(value))
+    if len(finite_times) < 2:
+        return 0.0
+    best = 0.0
+    start = finite_times[0]
+    previous = finite_times[0]
+    for value in finite_times[1:]:
+        if value - previous > max_gap_s:
+            best = max(best, previous - start)
+            start = value
+        previous = value
+    return max(best, previous - start)
+
+
 def stage25_control_attribution(rows: list[dict[str, str]], metadata: dict[str, Any]) -> dict[str, Any]:
     normal_loads = finite_values(rows, "_step4e_normal_load_n")
     lambda_norms = finite_values(rows, "_step5d_lambda_norm")
@@ -562,6 +584,16 @@ def stage25_control_attribution(rows: list[dict[str, str]], metadata: dict[str, 
     elif has_force_hard_stop:
         control_oscillation_trigger = "force_norm_hard_stop"
     segment_diagnostics = stage25_segment_diagnostics(rows, angular_limit)
+    accepted_rnn_rows = [
+        row
+        for row in rows
+        if finite_float(row.get("_step5d_rnn_accepted")) >= 0.5
+        and finite_float(row.get("step4e_cmd_valid")) >= 0.5
+        and row_has_command_layout(row, STAGE25_JOINT_LAYOUT_TAG)
+        and finite_float(row.get("_step5d_stage25_echo_consumed")) >= 0.5
+    ]
+    accepted_rnn_times = [finite_float(row.get("t_monotonic_s")) for row in accepted_rnn_rows]
+    accepted_rnn_times = [value for value in accepted_rnn_times if math.isfinite(value)]
     return {
         "stage25_rows": len(rows),
         "entry_orientation_error_rad": first_finite(rows, "step4e_orientation_error_rad"),
@@ -614,6 +646,18 @@ def stage25_control_attribution(rows: list[dict[str, str]], metadata: dict[str, 
         "rnn_solver_eval_rows": len(lambda_norms),
         "rnn_lambda_norm_first": lambda_norms[0] if lambda_norms else None,
         "rnn_lambda_norm_last": lambda_norms[-1] if lambda_norms else None,
+        "rnn_accepted_rows": len(accepted_rnn_rows),
+        "rnn_accepted_duration_s": (
+            max(accepted_rnn_times) - min(accepted_rnn_times)
+            if len(accepted_rnn_times) >= 2
+            else 0.0
+        ),
+        "rnn_accepted_continuous_duration_s": longest_continuous_duration_s(
+            accepted_rnn_times,
+            max_gap_s=STAGE25_MAX_ROW_GAP_S,
+        ),
+        "rnn_reject_reason_counts": reason_counts(rows, "_step5d_rnn_reject_reason"),
+        "rnn_safe_hold_rows": sum(1 for value in finite_values(rows, "_step5d_safe_hold_active") if value >= 0.5),
         **approach_normal_tracking(rows),
     }
 
@@ -752,6 +796,38 @@ def stage25_speedj_dls_branch_success(profile: str, result: dict[str, Any], cont
         and normal_max <= STAGE25_SUCCESS_NORMAL_LOAD_MAX_N
         and math.isfinite(force_norm_max)
         and force_norm_max < 60.0
+    )
+
+
+def stage25_speedj_rnn_live_success(profile: str, result: dict[str, Any], control_mode: str | None) -> bool:
+    if profile != STEP5D_ABLATION_V29_STAGE_ID or control_mode != STAGE25_SPEEDJ_RNN_MODE:
+        return False
+    target_s = stage25_success_target_s(profile)
+    if target_s is None:
+        return False
+    attribution = result.get("stage25_control_attribution")
+    if not isinstance(attribution, dict):
+        return False
+    layout_counts = attribution.get("command_layout_tag_counts")
+    normal_min = finite_float(attribution.get("normal_load_min_n"))
+    normal_max = finite_float(attribution.get("normal_load_max_n"))
+    force_norm_max = finite_float(attribution.get("force_norm_max_n"))
+    accepted_duration_s = finite_float(attribution.get("rnn_accepted_continuous_duration_s"))
+    return (
+        int(result.get("stage25_rows") or 0) > 0
+        and accepted_duration_s >= target_s
+        and result.get("stage25_cadence_ok") is True
+        and result.get("terminal_tp_stop_reason") == 1
+        and isinstance(layout_counts, dict)
+        and int(layout_counts.get(str(STAGE25_JOINT_LAYOUT_TAG), 0))
+        >= int(result.get("stage25_rows") or 0) * STAGE25_SUCCESS_MIN_CONSUMPTION_RATIO
+        and math.isfinite(normal_min)
+        and normal_min >= STAGE25_SUCCESS_NORMAL_LOAD_MIN_N
+        and math.isfinite(normal_max)
+        and normal_max <= STAGE25_SUCCESS_NORMAL_LOAD_MAX_N
+        and math.isfinite(force_norm_max)
+        and force_norm_max < 60.0
+        and attribution.get("terminal_contact_safety_reason") is None
     )
 
 
@@ -1025,6 +1101,15 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
                 "archive this as speedj_dls_oracle branch evidence for layout-524/speedj stability; "
                 "keep it out of speedl full-run acceptance and compare RNN live qdot against DLS"
             )
+        elif stage25_speedj_rnn_live_success(profile, result, stage25_control_mode):
+            result["classification"] = "stage25_speedj_rnn_live_success"
+            result["fix_validation_status"] = "passed_60s_strict_rnn_live"
+            result["reproduction_status"] = "passed_60s_strict_rnn_live_candidate_run"
+            result["acceptance_status"] = "speedj_rnn_live_full_run_passed"
+            result["next_action"] = (
+                "archive v29 as strict RNN speedj live evidence; keep controller/package publication "
+                "and live claims gated by owner audit and explicit user authorization"
+            )
         elif stage25_speedj_rnn_short_soft_hold_failure(result, stage25_control_mode):
             attribution = result["stage25_control_attribution"]
             cold_start_evidence = isinstance(attribution, dict) and stage25_speedj_rnn_cold_start_evidence(attribution)
@@ -1049,7 +1134,11 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
                     "opposition or lambda-ramp evidence; inspect RNN solver evidence before attributing "
                     "root cause, and keep strict RNN live blocked pending no-contact P0 verification"
                 )
-        elif uses_step5b_speedl_live_source(profile) and stage25_control_mode not in {None, "", "speedl_cartesian_oracle"}:
+        elif (
+            uses_step5b_speedl_live_source(profile)
+            and profile != STEP5D_ABLATION_V29_STAGE_ID
+            and stage25_control_mode not in {None, "", "speedl_cartesian_oracle"}
+        ):
             result["classification"] = "stage25_control_mode_mismatch"
             result["acceptance_status"] = "excluded_from_speedl_acceptance"
             result["next_action"] = (

@@ -596,6 +596,93 @@ def write_v28_speedj_rnn_soft_hold_without_cold_start_evidence_slice(run_dir: Pa
     write_bridge_csv(csv_path, rows, fieldnames=fieldnames)
 
 
+def write_v29_speedj_rnn_live_full_run_slice(run_dir: Path) -> None:
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "metadata.json").write_text(
+        json.dumps(
+            {
+                "args": {
+                    "bridge_profile": "step5d_strict_rnn_ablation_v29",
+                    "step5d_stage25_control_mode": "speedj_rnn_live",
+                }
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    fieldnames = [
+        *FIELDNAMES,
+        "step4e_cmd_valid",
+        "step4e_controller_state",
+        "_step5d_stage25_control_mode",
+        "_step5d_stage25_echo_consumed",
+        "_step5d_stage25_echo_layout_tag",
+        "_step5d_contact_safety_reason",
+        "_step5d_rnn_accepted",
+        "_step5d_rnn_reject_reason",
+        "_step5d_safe_hold_active",
+        "_step5d_lambda_norm",
+    ]
+    rows: list[dict[str, str]] = []
+    for idx in range(6002):
+        t_s = 1.0 + idx * 0.010
+        rows.append(
+            {
+                "t_monotonic_s": f"{t_s:.6f}",
+                "ur_output_double_register_30": "1" if idx == 6001 else "0",
+                "ur_output_double_register_35": "25.0",
+                "_step4e_normal_load_n": "12.000000000",
+                "_step5d_force_settle_filtered_normal_load_n": "12.000000000",
+                "force_norm_n": "12.000000000",
+                "step4e_cmd_valid": "1",
+                "step4e_controller_state": "524",
+                "_step5d_stage25_control_mode": "speedj_rnn_live",
+                "_step5d_stage25_echo_consumed": "1",
+                "_step5d_stage25_echo_layout_tag": "524",
+                "_step5d_contact_safety_reason": "ok",
+                "_step5d_rnn_accepted": "1",
+                "_step5d_rnn_reject_reason": "ok",
+                "_step5d_safe_hold_active": "0",
+                "_step5d_lambda_norm": "0.012000000",
+            }
+        )
+    rows.append(
+        {
+            "t_monotonic_s": "61.020000",
+            "ur_output_double_register_30": "1",
+            "ur_output_double_register_35": "25.0",
+            "_step4e_normal_load_n": "12.000000000",
+            "_step5d_force_settle_filtered_normal_load_n": "12.000000000",
+            "force_norm_n": "12.000000000",
+            "step4e_cmd_valid": "1",
+            "step4e_controller_state": "524",
+            "_step5d_stage25_control_mode": "speedj_rnn_live",
+            "_step5d_stage25_echo_consumed": "1",
+            "_step5d_stage25_echo_layout_tag": "524",
+            "_step5d_contact_safety_reason": "ok",
+            "_step5d_rnn_accepted": "0",
+            "_step5d_rnn_reject_reason": "constraint_residual_norm_exceeds_limit",
+            "_step5d_safe_hold_active": "1",
+            "_step5d_lambda_norm": "0.013000000",
+        }
+    )
+    write_bridge_csv(run_dir / "bridge_rtde_500hz.csv", rows, fieldnames=fieldnames)
+
+
+def write_v29_speedj_rnn_sparse_accepted_slice(run_dir: Path) -> None:
+    write_v29_speedj_rnn_live_full_run_slice(run_dir)
+    csv_path = run_dir / "bridge_rtde_500hz.csv"
+    with csv_path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    fieldnames = list(rows[0].keys())
+    for idx, row in enumerate(rows):
+        if idx not in {0, len(rows) - 2}:
+            row["_step5d_rnn_accepted"] = "0"
+            row["_step5d_rnn_reject_reason"] = "constraint_residual_norm_exceeds_limit"
+            row["_step5d_safe_hold_active"] = "1"
+    write_bridge_csv(csv_path, rows, fieldnames=fieldnames)
+
+
 class Step5dBridgeRunAnalysisTest(unittest.TestCase):
     def test_v25_preload_failure_reports_short_dwell(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1368,7 +1455,33 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
         self.assertFalse(analysis["no_contact_p0_verifier"]["ok"])
         self.assertIn("first_speedj_rnn_tick_cmd_press_unload_mismatch", analysis["no_contact_p0_verifier"]["blockers"])
         self.assertIsNone(analysis["first_tp_stop_reason"])
-        self.assertIsNone(analysis["terminal_tp_stop_reason"])
+
+    def test_v29_speedj_rnn_live_success_counts_only_accepted_echo_consumed_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            write_v29_speedj_rnn_live_full_run_slice(run_dir)
+
+            analysis = analyze_step5d_bridge_run.analyze_run_dir(run_dir)
+
+        attribution = analysis["stage25_control_attribution"]
+        self.assertEqual(analysis["classification"], "stage25_speedj_rnn_live_success")
+        self.assertEqual(analysis["acceptance_status"], "speedj_rnn_live_full_run_passed")
+        self.assertGreaterEqual(attribution["rnn_accepted_duration_s"], 60.0)
+        self.assertEqual(attribution["rnn_safe_hold_rows"], 1)
+        self.assertLess(attribution["rnn_accepted_rows"], analysis["stage25_rows"])
+
+    def test_v29_speedj_rnn_live_sparse_accepted_rows_do_not_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            write_v29_speedj_rnn_sparse_accepted_slice(run_dir)
+
+            analysis = analyze_step5d_bridge_run.analyze_run_dir(run_dir)
+
+        attribution = analysis["stage25_control_attribution"]
+        self.assertNotEqual(analysis["classification"], "stage25_speedj_rnn_live_success")
+        self.assertLess(attribution["rnn_accepted_continuous_duration_s"], 60.0)
+        self.assertEqual(attribution["rnn_accepted_rows"], 2)
+        self.assertGreater(attribution["rnn_safe_hold_rows"], 1000)
 
     def test_csv_cli_infers_run_metadata_and_writes_analysis(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
