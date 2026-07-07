@@ -109,8 +109,8 @@ ABLATION_SPECS = {
     ),
     STEP5D_NO_CONTACT_P0_STAGE_ID: Step5dAblationSpec(
         program_name=STEP5D_NO_CONTACT_P0_STAGE_ID,
-        version_label="no_contact_p0_v6",
-        stamp_token="STEP5D_STRICT_RNN_NO_CONTACT_P0_V6",
+        version_label="no_contact_p0_v7",
+        stamp_token="STEP5D_STRICT_RNN_NO_CONTACT_P0_V7",
         cartesian_angular_cap_rad_s=0.015,
         default_stage25_control_mode="speedj_rnn_live",
         stage25_success_target_s=STEP5D_STAGE25_V28_FULL_RUN_TARGET_S,
@@ -1023,11 +1023,19 @@ def build_script(
             "PURPOSE: v31 contact search, first-contact normal latch, optional 4deg skip-lift/25.2 gate, otherwise lift and 25.2 attitude correction, 25.3 line-entry gate, then Step5 table-driven contact cycloid reference for 60 s.",
             "PURPOSE: v31 contact search, first-contact normal latch, no lift/25.2 attitude cycle and no second contact search, 25.3 line-entry gate, then Step5 table-driven contact cycloid reference for 60 s.",
         ),
-        f"PURPOSE: v31 contact search with Stage22/24 gravity-down pre-contact posture, first-contact normal latch, no lift/25.2 attitude cycle and no second contact search, 25.3 bridge deadband acquire into the {line_entry.normal_load_min_n:.1f}-{line_entry.normal_load_max_n:.1f}N filtered preload window with {line_entry.raw_sanity_min_n:.1f}-{line_entry.raw_sanity_max_n:.1f}N raw sanity and bridge-time preload parameter channel, 25.95 register clear barrier, then {spec.version_label} Step5d ablation Stage25.0 multi-layout speedl/speedj {('full-run' if spec.version_label == 'v28' else 'diagnostic')} for {spec.stage25_success_target_s:g} s.",
+        f"PURPOSE: v31 contact search with Stage22/24 gravity-down pre-contact posture, first-contact normal latch, no lift/25.2 attitude cycle and no second contact search, 25.3 bridge deadband acquire into the {line_entry.normal_load_min_n:.1f}-{line_entry.normal_load_max_n:.1f}N filtered preload window with {line_entry.raw_sanity_min_n:.1f}-{line_entry.raw_sanity_max_n:.1f}N raw sanity and bridge-time preload parameter channel, 25.95 register clear barrier, then {spec.version_label} Step5d ablation Stage25.0 multi-layout speedl/speedj {('strict RNN live candidate' if spec.version_label == 'v29' else 'full-run' if spec.version_label == 'v28' else 'diagnostic')} for {spec.stage25_success_target_s:g} s.",
         "purpose",
     )
     script = _force_gravity_down_search_pose(script)
     script = _speed_up_entry_and_first_search(script)
+    stage25_contact_safety_line = (
+        f"# STAGE25_CONTACT_SAFETY: {spec.version_label} bridge keeps {raw_guard:.0f}N normal/{force_guard:.0f}N force guards and {torque_guard:.1f}Nm torque guard; "
+        + (
+            "speedj_rnn_live is the default strict RNN live command source with layout 524, while speedl_cartesian_oracle/speedj_dls_oracle remain explicit debug/fallback modes.\n"
+            if spec.version_label == "v29"
+            else "speedl_cartesian_oracle may re-press within bounded low-load timers while RNN is shadow-only, while joint modes keep stricter low-load stopping and RNN/J(q) diagnostics.\n"
+        )
+    )
     script = script.replace(
         "25.0 uses desired_velocity + path_p_gain*(desired-actual) before normal projection and force-loop composition.",
         "25.0 uses layout-tagged registers 37..42: Cartesian speedl oracle, DLS speedj oracle, or strict RNN speedj live; bridge owns calibrated Pinocchio/J(q), paper outer-loop computation, and RNN shadow diagnostics.",
@@ -1038,7 +1046,7 @@ def build_script(
             f"TP_ROLE: multimode_executor_and_guard_only; Step5d {spec.version_label} command layout is computed by the bridge.\n"
             f"# REGISTER_CONTRACT: Stage 25.3 consumes 37..39 as Cartesian deadband-acquire vx/vy/vz, plus {spec.version_label} preload overrides in 40/41/42/44/46/47; Stage 25.95 requires bridge-cleared registers 37..47 before Stage 25.0. Stage 25.0 reads register 47 as layout tag: {STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:.1f}=Cartesian speedl vx/vy/vz/wx/wy/wz in 37..42, {STEP5D_STAGE25_JOINT_LAYOUT_CODE:.1f}=joint speedj qd0..qd5 in 37..42; 43 cmd_valid, 44 path_time_s.\n"
             "# PRECONTACT_POSE_CONTRACT: config/step_pose_contract_table.json pre_contact_search_gravity_down_v1; Stage22/24 TCP +Z targets base -Z using [pi,0,0].\n"
-            f"# STAGE25_CONTACT_SAFETY: {spec.version_label} bridge keeps {raw_guard:.0f}N normal/{force_guard:.0f}N force guards and {torque_guard:.1f}Nm torque guard; speedl_cartesian_oracle may re-press within bounded low-load timers while RNN is shadow-only, while joint modes keep stricter low-load stopping and RNN/J(q) diagnostics.\n"
+            f"{stage25_contact_safety_line}"
             "# FORCE_FRAME_CONTRACT: UR_FORCE_FRAME_CONTRACT.md; reaction normal for load, approach normal for posture."
         ),
     )
@@ -1057,6 +1065,15 @@ def build_script(
             (
                 "# FORCE_FRAME_CONTRACT: UR_FORCE_FRAME_CONTRACT.md; reaction normal for load, approach normal for posture.\n"
                 "# STAGE25_V28_SCAFFOLD: v27_step5b_speedl_live_shadow_boundary_60s_full_run"
+            ),
+            1,
+        )
+    if spec.version_label == "v29":
+        script = script.replace(
+            "# FORCE_FRAME_CONTRACT: UR_FORCE_FRAME_CONTRACT.md; reaction normal for load, approach normal for posture.",
+            (
+                "# FORCE_FRAME_CONTRACT: UR_FORCE_FRAME_CONTRACT.md; reaction normal for load, approach normal for posture.\n"
+                "# STAGE25_V29_SCAFFOLD: v28_envelope_strict_rnn_live_candidate_60s"
             ),
             1,
         )
@@ -1120,11 +1137,18 @@ Reference:
 """
     bridge_wait_timeout_s = bridge_start_wait_timeout_s(spec)
     line_entry = line_entry_config(spec)
-    speedl_mode_description = (
-        "STEP5D_STAGE25_CONTROL_MODE=speedl_cartesian_oracle keeps the proven Step5b speedl live force/linear source, forces live wx/wy/wz to zero, and records Step5d paper/RNN linear and angular outputs as shadow-only diagnostics; RNN is shadow-only in this mode."
-        if spec.version_label in {"v27", "v28"}
-        else "STEP5D_STAGE25_CONTROL_MODE=speedl_cartesian_oracle sends the paper outer-loop xdot_c directly to speedl; RNN is shadow-only and strict RNN/J(q) qdot is logged only as diagnostics."
-    )
+    if spec.version_label in {"v27", "v28"}:
+        speedl_mode_description = (
+            "STEP5D_STAGE25_CONTROL_MODE=speedl_cartesian_oracle keeps the proven Step5b speedl live force/linear source, forces live wx/wy/wz to zero, and records Step5d paper/RNN linear and angular outputs as shadow-only diagnostics; RNN is shadow-only in this mode."
+        )
+    elif spec.version_label == "v29":
+        speedl_mode_description = (
+            "STEP5D_STAGE25_CONTROL_MODE=speedl_cartesian_oracle remains an explicit fallback/debug mode for v29; the default v29 live command mode is speedj_rnn_live with strict RNN qdot on layout 524."
+        )
+    else:
+        speedl_mode_description = (
+            "STEP5D_STAGE25_CONTROL_MODE=speedl_cartesian_oracle sends the paper outer-loop xdot_c directly to speedl; RNN is shadow-only and strict RNN/J(q) qdot is logged only as diagnostics."
+        )
     if spec.version_label == "v25":
         first_run = (
             "First live run must use speedl_cartesian_oracle. Acceptance target is Stage25.0\n"
@@ -1143,6 +1167,13 @@ Reference:
             "v28 extends the successful v27 Step5b speedl live / Step5d shadow boundary to 60s:\n"
             "  Stage25.0 live vx/vy/vz remain the Step5b speedl force loop, live wx/wy/wz remain zero,\n"
             "  and Step5d paper/RNN linear/angular outputs remain shadow-only diagnostics."
+        )
+    elif spec.version_label == "v29":
+        first_run = (
+            "v29 is the contact-capable strict RNN live candidate:\n"
+            "  Stage25.0 defaults to speedj_rnn_live on layout 524 for 60 s, with solver_warm_start,\n"
+            "  lambda/residual/qdot diagnostics retained on every accepted or rejected row.\n"
+            "  speedl_cartesian_oracle and speedj_dls_oracle remain explicit debug/fallback modes."
         )
     else:
         first_run = (
@@ -1191,6 +1222,7 @@ Boundary:
   Stage 25.0 supports Cartesian speedl layout and joint speedj layout:
   register 47={STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:.1f} means 37..42 are vx/vy/vz/wx/wy/wz for TP speedl,
   while register 47={STEP5D_STAGE25_JOINT_LAYOUT_CODE:.1f} means 37..42 are qd0..qd5 for TP speedj.
+  Stage25.0 default bridge mode: STEP5D_STAGE25_CONTROL_MODE={spec.default_stage25_control_mode}.
   Stage25.0 cadence/command-consumption instrumentation: output register 47
   is 1 only when the TP loop accepts a current Stage25 command packet and
   reaches speedl/speedj; bridge CSV records echo tag, cmd_valid, command norm,
@@ -1461,6 +1493,13 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5d
                 and "STEP5D_STRICT_RNN_ABLATION_V27" not in script + txt + xml
             )
         ),
+        "no stale v28 ablation identity": (
+            spec.program_name == STEP5D_ABLATION_V28_STAGE_ID
+            or (
+                STEP5D_ABLATION_V28_STAGE_ID not in script + txt + xml
+                and "STEP5D_STRICT_RNN_ABLATION_V28" not in script + txt + xml
+            )
+        ),
         "low-load recovery does not stop": "or normal_load < line_entry_recovery_normal_load_min_n" not in script,
     }
     failed = [label for label, ok in checks.items() if not ok]
@@ -1541,13 +1580,15 @@ def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dic
         "stage25_success_target_s": spec.stage25_success_target_s,
         "stage25_runtime_limit_s": spec.stage25_runtime_limit_s,
         "scaffold_delta": (
-            "v27_step5b_speedl_live_shadow_boundary_60s_full_run"
+            "v29_strict_rnn_live_candidate_60s"
+            if spec.version_label == "v29"
+            else "v27_step5b_speedl_live_shadow_boundary_60s_full_run"
             if spec.version_label == "v28"
             else "step5b_v3_scaffold_min_delta_stage25_cartesian_speedl_oracle"
             if spec.version_label == "v27"
             else "step5b_v3_ablation_scaffold"
         ),
-        "stage25_consumption_instrumentation": spec.version_label in {"v27", "v28"},
+        "stage25_consumption_instrumentation": spec.version_label in {"v27", "v28", "v29"},
         "stage25_control_modes": [
             "speedl_cartesian_oracle",
             "speedj_dls_oracle",

@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 import export_stage_env  # noqa: E402
 
 
-P0_STAGE = "step5d_strict_rnn_no_contact_p0_v6"
+P0_STAGE = "step5d_strict_rnn_no_contact_p0_v7"
 
 
 class ExportStageEnvTest(unittest.TestCase):

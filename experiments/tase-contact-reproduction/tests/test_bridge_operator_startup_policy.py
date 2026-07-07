@@ -115,7 +115,7 @@ postprocess_run "{run_dir}"
     def test_no_contact_p0_capture_profile_has_separate_bridge_gate(self) -> None:
         script = read_script("bridge-line-operator.sh")
 
-        self.assertIn("step5d_strict_rnn_no_contact_p0_v6", script)
+        self.assertIn("step5d_strict_rnn_no_contact_p0_v7", script)
         self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/${BRIDGE_PROFILE}.urp"', script)
         self.assertIn("step5d_no_contact_p0_capture_authorized", script)
         self.assertIn("BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE", script)
@@ -162,7 +162,7 @@ postprocess_run "{run_dir}"
         script = f"""
 set -euo pipefail
 export BRIDGE_OPERATOR_SOURCE_ONLY=1
-export BRIDGE_PROFILE=step5d_strict_rnn_no_contact_p0_v6
+export BRIDGE_PROFILE=step5d_strict_rnn_no_contact_p0_v7
 export BRIDGE_DURATION_S=181
 export BRIDGE_FORCE_P_GAIN=0.002
 export BRIDGE_NORMAL_MIN_FORCE_N=0.002
@@ -228,7 +228,7 @@ cuda = _Cuda()
 set -euo pipefail
 unset PYTHONPATH
 export BRIDGE_OPERATOR_SOURCE_ONLY=1
-export BRIDGE_PROFILE=step5d_strict_rnn_no_contact_p0_v6
+export BRIDGE_PROFILE=step5d_strict_rnn_no_contact_p0_v7
 export STEP5D_RNN_BACKEND=cupy
 export STEP5D_CUPY_PYTHONPATH="{tmp}"
 source "{ROOT / 'scripts' / 'bridge-line-operator.sh'}"
@@ -261,7 +261,7 @@ PY
         env = os.environ.copy()
         env.update(
             {
-                "BRIDGE_PROFILE": "step5d_strict_rnn_no_contact_p0_v6",
+                "BRIDGE_PROFILE": "step5d_strict_rnn_no_contact_p0_v7",
                 "STEP5D_P0_CONFIRM": "LIVE STEP5D STRICT RNN NO CONTACT P0",
                 "BRIDGE_SKIP_BENCH_GATE": "1",
                 "BRIDGE_SKIP_LONG_CHECKS": "1",
@@ -286,7 +286,7 @@ PY
         env = os.environ.copy()
         env.update(
             {
-                "BRIDGE_PROFILE": "step5d_strict_rnn_no_contact_p0_v6",
+                "BRIDGE_PROFILE": "step5d_strict_rnn_no_contact_p0_v7",
                 "BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE": "1",
                 "BRIDGE_SKIP_BENCH_GATE": "1",
                 "BRIDGE_SKIP_LONG_CHECKS": "1",
@@ -313,7 +313,7 @@ PY
         env = os.environ.copy()
         env.update(
             {
-                "BRIDGE_PROFILE": "step5d_strict_rnn_no_contact_p0_v6",
+                "BRIDGE_PROFILE": "step5d_strict_rnn_no_contact_p0_v7",
                 "STEP5D_P0_CONFIRM": "LIVE STEP5D STRICT RNN NO CONTACT P0",
                 "BRIDGE_SKIP_BENCH_GATE": "1",
                 "BRIDGE_SKIP_LONG_CHECKS": "1",
@@ -340,7 +340,7 @@ PY
         env = os.environ.copy()
         env.update(
             {
-                "BRIDGE_PROFILE": "step5d_strict_rnn_no_contact_p0_v6",
+                "BRIDGE_PROFILE": "step5d_strict_rnn_no_contact_p0_v7",
                 "STEP5D_P0_CONFIRM": "LIVE STEP5D STRICT RNN NO CONTACT P0",
                 "BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE": "1",
                 "BRIDGE_SKIP_BENCH_GATE": "1",
@@ -369,10 +369,10 @@ PY
         script = f"""
 set -euo pipefail
 export BRIDGE_OPERATOR_SOURCE_ONLY=1
-export BRIDGE_PROFILE=step5d_strict_rnn_no_contact_p0_v6
+export BRIDGE_PROFILE=step5d_strict_rnn_no_contact_p0_v7
 source "{ROOT / 'scripts' / 'bridge-line-operator.sh'}"
 dashboard_snapshot() {{
-  printf '%s\\n' 'Program running: true' 'Loaded program: /programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v6.urp' 'PLAYING' 'Safetymode: NORMAL'
+  printf '%s\\n' 'Program running: true' 'Loaded program: /programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v7.urp' 'PLAYING' 'Safetymode: NORMAL'
   return 10
 }}
 set +e
@@ -424,7 +424,7 @@ printf 'rc=%s\\n' "$rc"
         self.assertEqual(completed.returncode, 0, output)
         self.assertIn("rc=10", output)
         self.assertIn("starting bridge late with already_running=1", output)
-        self.assertNotIn("exact v6", output)
+        self.assertNotIn("exact v7", output)
         self.assertNotIn("capture-bridge", output)
 
     def test_require_preplay_stopped_env_hard_refuses_non_p0_already_running(self) -> None:
@@ -457,7 +457,7 @@ printf 'rc=%s\\n' "$rc"
         self.assertIn("rc=24", output)
         self.assertIn("already running before bridge arm", output)
         self.assertNotIn("starting bridge late with already_running=1", output)
-        self.assertNotIn("exact v6", output)
+        self.assertNotIn("exact v7", output)
         self.assertNotIn("capture-bridge", output)
 
     def test_no_contact_p0_pre_arm_recheck_stops_bridge_if_played_early(self) -> None:
@@ -466,10 +466,10 @@ printf 'rc=%s\\n' "$rc"
             script = f"""
 set -euo pipefail
 export BRIDGE_OPERATOR_SOURCE_ONLY=1
-export BRIDGE_PROFILE=step5d_strict_rnn_no_contact_p0_v6
+export BRIDGE_PROFILE=step5d_strict_rnn_no_contact_p0_v7
 source "{ROOT / 'scripts' / 'bridge-line-operator.sh'}"
 dashboard_snapshot() {{
-  printf '%s\\n' 'Program running: true' 'Loaded program: /programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v6.urp' 'PLAYING' 'Safetymode: NORMAL'
+  printf '%s\\n' 'Program running: true' 'Loaded program: /programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v7.urp' 'PLAYING' 'Safetymode: NORMAL'
   return 10
 }}
 stop_bridge_process() {{
@@ -501,7 +501,7 @@ printf 'rc=%s\\n' "$rc"
             script = f"""
 set -euo pipefail
 export BRIDGE_OPERATOR_SOURCE_ONLY=1
-export BRIDGE_PROFILE=step5d_strict_rnn_no_contact_p0_v6
+export BRIDGE_PROFILE=step5d_strict_rnn_no_contact_p0_v7
 source "{ROOT / 'scripts' / 'bridge-line-operator.sh'}"
 dashboard_snapshot() {{
   printf '%s\\n' 'Program running: false' 'Loaded program: <unknown>' 'Safetymode: NORMAL'

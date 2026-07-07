@@ -118,7 +118,12 @@ def first_tick_summary(row: dict[str, str]) -> dict[str, Any]:
         "t_monotonic_s": finite_float(row.get("t_monotonic_s")),
         "stage": finite_float(row.get("ur_output_double_register_35")),
         "cmd_valid": finite_int(row.get("step4e_cmd_valid")),
+        "stage25_echo_layout_tag": finite_float(row.get("_step5d_stage25_echo_layout_tag")),
         "stage25_echo_consumed": finite_int(row.get("_step5d_stage25_echo_consumed")),
+        "p0_rnn_accepted": finite_int(row.get("_step5d_p0_rnn_accepted")),
+        "p0_rnn_reject_reason": str(row.get("_step5d_p0_rnn_reject_reason") or ""),
+        "p0_safe_hold_active": finite_int(row.get("_step5d_p0_safe_hold_active")),
+        "cmd_valid_reason": str(row.get("_step5d_cmd_valid_reason") or ""),
         "intervention_reason": str(row.get("_step5d_intervention_reason") or ""),
         "outer_approach_normal_m_s": finite_float(row.get("_step5d_outer_xdot_limited_approach_normal_m_s")),
         "jqdot_raw_approach_normal_m_s": finite_float(row.get("_step5d_jqdot_raw_approach_normal_m_s")),
@@ -161,6 +166,19 @@ def row_cmd_valid(row: dict[str, str]) -> bool:
 
 def row_stage25_consumed(row: dict[str, str]) -> bool:
     return finite_int(row.get("_step5d_stage25_echo_consumed")) == 1
+
+
+def row_layout_524(row: dict[str, str]) -> bool:
+    value = finite_float(row.get("_step5d_stage25_echo_layout_tag"))
+    return value is not None and abs(value - 524.0) <= 1e-3
+
+
+def row_p0_rnn_accepted(row: dict[str, str]) -> bool:
+    return finite_int(row.get("_step5d_p0_rnn_accepted")) == 1
+
+
+def row_live_speedj_cmd(row: dict[str, str]) -> bool:
+    return row_layout_524(row) and row_cmd_valid(row)
 
 
 def stage25_entry_window_summary(rows: list[dict[str, str]]) -> dict[str, Any]:
@@ -328,7 +346,8 @@ def verify_rows(
     low_force_posture_rows = [
         row
         for row in rnn_rows
-        if row_cmd_valid(row)
+        if row_live_speedj_cmd(row)
+        and row_stage25_consumed(row)
         and (finite_float(row.get("_step4e_normal_load_n")) is not None)
         and finite_float(row.get("_step4e_normal_load_n")) <= low_force_posture_load_n
     ]
@@ -400,9 +419,26 @@ def verify_rows(
         if lambda_ratio is not None and lambda_ratio < min_lambda_window_ratio:
             blockers.append("first_lambda_norm_below_window_level")
 
-    accepted_rows = [row for row in rnn_rows if row_cmd_valid(row)]
-    accepted_unconsumed_rows = sum(1 for row in accepted_rows if not row_stage25_consumed(row))
-    consumed_accepted_rows = [row for row in accepted_rows if row_stage25_consumed(row)]
+    first_consumed_rnn_index = next(
+        (idx for idx, row in enumerate(rnn_rows) if row_stage25_consumed(row)),
+        None,
+    )
+    missing_acceptance_rows = sum(
+        1 for row in rnn_rows if finite_int(row.get("_step5d_p0_rnn_accepted")) is None
+    )
+    accepted_candidate_rows = [
+        row for row in rnn_rows if row_live_speedj_cmd(row)
+    ]
+    accepted_unconsumed_rows = sum(
+        1
+        for idx, row in enumerate(rnn_rows)
+        if row_live_speedj_cmd(row)
+        and not row_stage25_consumed(row)
+        and first_consumed_rnn_index is not None
+        and idx >= first_consumed_rnn_index
+    )
+    consumed_accepted_rows = [row for row in accepted_candidate_rows if row_stage25_consumed(row)]
+    accepted_rows = consumed_accepted_rows
     accepted_active_bounds_rows = 0
     accepted_high_residual_rows = 0
     accepted_rail_rows = 0
@@ -418,6 +454,8 @@ def verify_rows(
     p0_rnn_inner_iterations_low_rows = 0
     p0_rnn_epsilon_bad_rows = 0
     p0_rnn_sigr_exponent_r_bad_rows = 0
+    if missing_acceptance_rows:
+        blockers.append("p0_rnn_acceptance_evidence_missing")
     if not accepted_rows:
         blockers.append("no_accepted_speedj_rnn_live_rows")
     if accepted_unconsumed_rows:
@@ -583,6 +621,8 @@ def verify_rows(
             "lambda_norm_first_to_window_ratio": lambda_ratio,
             "non_stage25_speedj_rnn_live_rows": non_stage25_mode_rows,
             "accepted_speedj_rnn_live_rows": len(accepted_rows),
+            "accepted_speedj_rnn_candidate_rows": len(accepted_candidate_rows),
+            "p0_rnn_acceptance_missing_rows": missing_acceptance_rows,
             "accepted_active_bounds_rows": accepted_active_bounds_rows,
             "accepted_high_residual_rows": accepted_high_residual_rows,
             "accepted_qdot_missing_rows": accepted_qdot_missing_rows,
