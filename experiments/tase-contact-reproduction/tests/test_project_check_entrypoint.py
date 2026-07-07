@@ -21,6 +21,7 @@ class ProjectCheckEntrypointTest(unittest.TestCase):
 
         text = check.read_text(encoding="utf-8")
         self.assertIn("tools/validate_tase_protocol_table.py", text)
+        self.assertIn("tools/validate_cross_step_parameter_table.py", text)
         self.assertIn("python3 -m pytest tests -q -p no:anyio", text)
         self.assertNotIn("/home/andy/.local/bin/check.sh", text)
 

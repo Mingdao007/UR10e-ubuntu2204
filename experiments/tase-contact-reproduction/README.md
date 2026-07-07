@@ -14,6 +14,20 @@ successful OnRobot evidence, but the live control path is:
 The scripts do not write UR TCP, UR payload, UR force zero, Kunwei tare, Kunwei
 filter, or Kunwei network configuration.
 
+## Delivery Check
+
+Before publishing, handoff, package delivery, or any live-trigger claim from
+this experiment root, run:
+
+```bash
+./check.sh
+```
+
+This local gate runs the protocol-table validator, cross-step stage-table
+validator, and the repository pytest suite with `-p no:anyio`. Passing it is an
+offline delivery precondition only; it does not authorize bridge start, TP Play,
+controller upload, or robot motion.
+
 ## Who Sends What
 
 Use a split-control workflow:
