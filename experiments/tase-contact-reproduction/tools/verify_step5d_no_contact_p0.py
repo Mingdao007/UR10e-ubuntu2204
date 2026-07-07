@@ -26,9 +26,15 @@ DEFAULT_MAX_NORMAL_TRACKING_ERROR_M_S = 5e-4
 DEFAULT_MIN_FIRST_OUTER_PRESS_M_S = 1e-9
 DEFAULT_QDOT_CAP_RAD_S = 0.15
 DEFAULT_QDOT_RAIL_MARGIN_RAD_S = 1e-9
+DEFAULT_LOW_FORCE_POSTURE_LOAD_N = 1.0
+DEFAULT_LOW_FORCE_POSTURE_BASE_KO = 5.0
+DEFAULT_MAX_LOW_FORCE_POSTURE_EFFECTIVE_KO = 0.010000001
+DEFAULT_MAX_LOW_FORCE_POSTURE_GAIN_SCALE = 0.002000001
+DEFAULT_LOW_FORCE_POSTURE_GAIN_EFFECTIVE_KO_TOL = 1e-6
 STAGE25_TOLERANCE = 0.05
 INTEGER_TOLERANCE = 1e-9
 ENTRY_ECHO_WINDOW_ROWS = 8
+P0_LOW_FORCE_POSTURE_POLICY = "yuming_low_force_v1"
 
 
 def finite_float(value: object) -> float | None:
@@ -110,6 +116,10 @@ def first_tick_summary(row: dict[str, str]) -> dict[str, Any]:
         "active_bounds_count": finite_int(row.get("_step5d_active_bounds_count")),
         "normal_load_n": finite_float(row.get("_step4e_normal_load_n")),
         "force_norm_n": finite_float(row.get("force_norm_n")),
+        "p0_low_force_posture_policy": str(row.get("_step5d_p0_low_force_posture_policy") or ""),
+        "p0_low_force_posture_active": finite_int(row.get("_step5d_p0_low_force_posture_active")),
+        "p0_posture_gain_scale": finite_float(row.get("_step5d_p0_posture_gain_scale")),
+        "p0_effective_ko": finite_float(row.get("_step5d_p0_effective_ko")),
     }
 
 
@@ -156,6 +166,10 @@ def verify_rows(
     min_first_outer_press_m_s: float = DEFAULT_MIN_FIRST_OUTER_PRESS_M_S,
     qdot_cap_rad_s: float = DEFAULT_QDOT_CAP_RAD_S,
     qdot_rail_margin_rad_s: float = DEFAULT_QDOT_RAIL_MARGIN_RAD_S,
+    low_force_posture_load_n: float = DEFAULT_LOW_FORCE_POSTURE_LOAD_N,
+    low_force_posture_base_ko: float = DEFAULT_LOW_FORCE_POSTURE_BASE_KO,
+    max_low_force_posture_effective_ko: float = DEFAULT_MAX_LOW_FORCE_POSTURE_EFFECTIVE_KO,
+    max_low_force_posture_gain_scale: float = DEFAULT_MAX_LOW_FORCE_POSTURE_GAIN_SCALE,
 ) -> dict[str, Any]:
     blockers: list[str] = []
     mode_rows = speedj_rnn_mode_rows(rows)
@@ -236,6 +250,50 @@ def verify_rows(
     if max_force is not None and max_force > max_force_norm_n:
         blockers.append("force_norm_exceeds_no_contact_limit")
 
+    low_force_posture_rows = [
+        row
+        for row in rnn_rows
+        if row_cmd_valid(row)
+        and (finite_float(row.get("_step4e_normal_load_n")) is not None)
+        and finite_float(row.get("_step4e_normal_load_n")) <= low_force_posture_load_n
+    ]
+    low_force_posture_missing_rows = 0
+    low_force_posture_inactive_rows = 0
+    low_force_posture_policy_bad_rows = 0
+    low_force_posture_effective_ko_bad_rows = 0
+    low_force_posture_gain_scale_bad_rows = 0
+    low_force_posture_gain_effective_ko_mismatch_rows = 0
+    for row in low_force_posture_rows:
+        policy = str(row.get("_step5d_p0_low_force_posture_policy") or "")
+        active = finite_int(row.get("_step5d_p0_low_force_posture_active"))
+        gain_scale = finite_float(row.get("_step5d_p0_posture_gain_scale"))
+        effective_ko = finite_float(row.get("_step5d_p0_effective_ko"))
+        if active is None or gain_scale is None or effective_ko is None or not policy:
+            low_force_posture_missing_rows += 1
+            continue
+        if policy != P0_LOW_FORCE_POSTURE_POLICY:
+            low_force_posture_policy_bad_rows += 1
+        if active != 1:
+            low_force_posture_inactive_rows += 1
+        if effective_ko > max_low_force_posture_effective_ko:
+            low_force_posture_effective_ko_bad_rows += 1
+        if gain_scale > max_low_force_posture_gain_scale:
+            low_force_posture_gain_scale_bad_rows += 1
+        if abs(gain_scale * low_force_posture_base_ko - effective_ko) > DEFAULT_LOW_FORCE_POSTURE_GAIN_EFFECTIVE_KO_TOL:
+            low_force_posture_gain_effective_ko_mismatch_rows += 1
+    if low_force_posture_rows and low_force_posture_missing_rows:
+        blockers.append("p0_low_force_posture_evidence_missing")
+    if low_force_posture_policy_bad_rows:
+        blockers.append("p0_low_force_posture_policy_mismatch")
+    if low_force_posture_inactive_rows:
+        blockers.append("p0_low_force_posture_not_active")
+    if low_force_posture_effective_ko_bad_rows:
+        blockers.append("p0_low_force_posture_effective_ko_exceeds_limit")
+    if low_force_posture_gain_scale_bad_rows:
+        blockers.append("p0_low_force_posture_gain_scale_exceeds_limit")
+    if low_force_posture_gain_effective_ko_mismatch_rows:
+        blockers.append("p0_low_force_posture_gain_scale_effective_ko_mismatch")
+
     residual = first["constraint_residual_norm"]
     if residual is None:
         blockers.append("first_speedj_rnn_tick_missing_constraint_residual_norm")
@@ -272,6 +330,8 @@ def verify_rows(
     accepted_high_residual_rows = 0
     accepted_rail_rows = 0
     accepted_qdot_missing_rows = 0
+    if not accepted_rows:
+        blockers.append("no_accepted_speedj_rnn_live_rows")
     for row in accepted_rows:
         accepted_active_bounds = finite_int(row.get("_step5d_active_bounds_count"))
         if accepted_active_bounds is not None and accepted_active_bounds > max_active_bounds:
@@ -314,6 +374,11 @@ def verify_rows(
             "qdot_cap_source": qdot_cap_source,
             "qdot_rail_margin_rad_s": qdot_rail_margin_rad_s,
             "qdot_rail_threshold_rad_s": qdot_rail_threshold,
+            "low_force_posture_load_n": low_force_posture_load_n,
+            "low_force_posture_base_ko": low_force_posture_base_ko,
+            "max_low_force_posture_effective_ko": max_low_force_posture_effective_ko,
+            "max_low_force_posture_gain_scale": max_low_force_posture_gain_scale,
+            "low_force_posture_gain_effective_ko_tol": DEFAULT_LOW_FORCE_POSTURE_GAIN_EFFECTIVE_KO_TOL,
         },
         "metrics": {
             "max_normal_load_n": max_normal,
@@ -326,6 +391,13 @@ def verify_rows(
             "accepted_qdot_missing_rows": accepted_qdot_missing_rows,
             "accepted_qdot_rail_rows": accepted_rail_rows,
             "accepted_command_rail_fraction": accepted_command_rail_fraction,
+            "low_force_posture_rows": len(low_force_posture_rows),
+            "low_force_posture_missing_rows": low_force_posture_missing_rows,
+            "low_force_posture_policy_bad_rows": low_force_posture_policy_bad_rows,
+            "low_force_posture_inactive_rows": low_force_posture_inactive_rows,
+            "low_force_posture_effective_ko_bad_rows": low_force_posture_effective_ko_bad_rows,
+            "low_force_posture_gain_scale_bad_rows": low_force_posture_gain_scale_bad_rows,
+            "low_force_posture_gain_effective_ko_mismatch_rows": low_force_posture_gain_effective_ko_mismatch_rows,
         },
         "acceptance_scope": "offline_artifact_verification_only_not_live_run_claim",
     }
@@ -358,6 +430,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--min-first-outer-press-m-s", type=float, default=DEFAULT_MIN_FIRST_OUTER_PRESS_M_S)
     parser.add_argument("--qdot-cap-rad-s", type=float, default=DEFAULT_QDOT_CAP_RAD_S)
     parser.add_argument("--qdot-rail-margin-rad-s", type=float, default=DEFAULT_QDOT_RAIL_MARGIN_RAD_S)
+    parser.add_argument("--low-force-posture-load-n", type=float, default=DEFAULT_LOW_FORCE_POSTURE_LOAD_N)
+    parser.add_argument("--low-force-posture-base-ko", type=float, default=DEFAULT_LOW_FORCE_POSTURE_BASE_KO)
+    parser.add_argument("--max-low-force-posture-effective-ko", type=float, default=DEFAULT_MAX_LOW_FORCE_POSTURE_EFFECTIVE_KO)
+    parser.add_argument("--max-low-force-posture-gain-scale", type=float, default=DEFAULT_MAX_LOW_FORCE_POSTURE_GAIN_SCALE)
     args = parser.parse_args(argv)
 
     result = verify_run_dir(
@@ -371,6 +447,10 @@ def main(argv: list[str] | None = None) -> int:
         min_first_outer_press_m_s=args.min_first_outer_press_m_s,
         qdot_cap_rad_s=args.qdot_cap_rad_s,
         qdot_rail_margin_rad_s=args.qdot_rail_margin_rad_s,
+        low_force_posture_load_n=args.low_force_posture_load_n,
+        low_force_posture_base_ko=args.low_force_posture_base_ko,
+        max_low_force_posture_effective_ko=args.max_low_force_posture_effective_ko,
+        max_low_force_posture_gain_scale=args.max_low_force_posture_gain_scale,
     )
     payload = json.dumps(result, indent=2, sort_keys=True) + "\n"
     if args.output:

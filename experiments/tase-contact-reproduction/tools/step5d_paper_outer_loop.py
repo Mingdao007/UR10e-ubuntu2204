@@ -58,6 +58,7 @@ def _matrix_tuple(values: np.ndarray) -> tuple[tuple[float, float, float], tuple
 class Step5dOuterLoopConfig:
     kp: float = 4.0
     ko: float = 5.0
+    orientation_gain_scale: float = 1.0
     kf: float = 1.0
     Md_scalar: float = 12.0
     Bd_scalar: float = 550.0
@@ -215,6 +216,11 @@ def compute_step5d_outer_loop(
     if Md <= 0.0:
         raise ValueError("Md_scalar must be positive")
     Bd = _finite_float(config.Bd_scalar, "Bd_scalar")
+    ko = _finite_float(config.ko, "ko")
+    orientation_gain_scale = _finite_float(config.orientation_gain_scale, "orientation_gain_scale")
+    if orientation_gain_scale < 0.0:
+        raise ValueError("orientation_gain_scale must be non-negative")
+    effective_ko = ko * orientation_gain_scale
     T_s = dt_s if config.delay_T_s is None else _finite_float(config.delay_T_s, "delay_T_s")
     if T_s < 0.0:
         raise ValueError("delay_T_s must be non-negative")
@@ -292,7 +298,7 @@ def compute_step5d_outer_loop(
     # desired-frame current-vs-desired error. Convert it to base frame and
     # negate it so the commanded angular velocity closes the approach-axis
     # error instead of amplifying it.
-    xdot_o = -float(config.ko) * (R_d @ e_o)
+    xdot_o = -effective_ko * (R_d @ e_o)
     xdot_c = np.concatenate((xdot_p, xdot_o))
     next_state = Step5dOuterLoopState(
         force_integral_n_s=float(force_integral),
@@ -332,6 +338,9 @@ def compute_step5d_outer_loop(
         "Q_cur": _tuple4(Q_cur),
         "e_qua": _tuple4(e_qua),
         "e_o": _tuple3(e_o),
+        "ko": ko,
+        "orientation_gain_scale": orientation_gain_scale,
+        "effective_ko": effective_ko,
         "xdot_p": _tuple3(xdot_p),
         "xdot_o": _tuple3(xdot_o),
         "xdot_c": _tuple6(xdot_c),

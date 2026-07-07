@@ -45,6 +45,10 @@ P0_FIELDS = [
     "_step5d_constraint_residual_norm",
     "_step5d_lambda_norm",
     "_step5d_active_bounds_count",
+    "_step5d_p0_low_force_posture_policy",
+    "_step5d_p0_low_force_posture_active",
+    "_step5d_p0_posture_gain_scale",
+    "_step5d_p0_effective_ko",
 ]
 
 
@@ -142,7 +146,10 @@ def _p0_no_contact_runtime_values(
     normal_acquired: bool,
     sensor_ok: float = 1.0,
     outer_side_effect: object = _p0_fake_outer,
+    rnn_target_side_effect: object | None = None,
     jacobian: np.ndarray | None = None,
+    latest_zeroed_override: list[float] | None = None,
+    solver: object | None = None,
 ) -> dict[str, float]:
     args = bridge.parse_args(
         [
@@ -158,7 +165,7 @@ def _p0_no_contact_runtime_values(
             "speedj_rnn_live",
         ]
     )
-    latest_zeroed = [0.0, 0.0, -12.0, 0.0, 0.0, 0.0]
+    latest_zeroed = [0.0, 0.0, -12.0, 0.0, 0.0, 0.0] if latest_zeroed_override is None else latest_zeroed_override
     latest_output = {
         "actual_TCP_pose": [0.49, 0.14, 0.02, np.pi, 0.0, 0.0],
         "actual_TCP_speed": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
@@ -168,6 +175,9 @@ def _p0_no_contact_runtime_values(
     }
     state = _p0_no_contact_state(normal_acquired=normal_acquired)
     _p0_fake_runtime(state, args)
+    if solver is not None:
+        state.step5d_solver = solver
+    rnn_target = {"shadow": True} if rnn_target_side_effect is None else rnn_target_side_effect
     with (
         patch.object(
             bridge,
@@ -177,7 +187,12 @@ def _p0_no_contact_runtime_values(
         patch.object(bridge, "step5d_tcp_jacobian_base", return_value=np.eye(6) if jacobian is None else jacobian),
         patch.object(bridge, "step5d_omega_bounds", return_value=(np.full(6, -0.15), np.full(6, 0.15))),
         patch.object(bridge, "compute_step5d_outer_loop", side_effect=outer_side_effect),
-        patch.object(bridge, "rnn_target_state_from_outer_loop", return_value={"shadow": True}),
+        patch.object(
+            bridge,
+            "rnn_target_state_from_outer_loop",
+            return_value=rnn_target if rnn_target_side_effect is None else None,
+            side_effect=None if rnn_target_side_effect is None else rnn_target_side_effect,
+        ),
     ):
         return bridge.compute_bridge_values(
             args,
@@ -219,6 +234,10 @@ def good_rows() -> list[dict[str, str]]:
                 "_step5d_constraint_residual_norm": "0.000020000",
                 "_step5d_lambda_norm": "0.012000000",
                 "_step5d_active_bounds_count": "0",
+                "_step5d_p0_low_force_posture_policy": "yuming_low_force_v1",
+                "_step5d_p0_low_force_posture_active": "1",
+                "_step5d_p0_posture_gain_scale": "0.002000000",
+                "_step5d_p0_effective_ko": "0.010000000",
             }
         )
     return rows
@@ -495,6 +514,96 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertIn("no_contact_p0_component_velocity_clamped", values["_step5d_intervention_reason"])
         self.assertNotIn("no_contact_p0_qdot_gate", values["_step5d_intervention_reason"])
 
+    def test_no_contact_p0_low_force_posture_policy_uses_yuming_scale(self) -> None:
+        low = bridge.step5d_no_contact_p0_low_force_posture_policy(normal_load_n=0.0, base_ko=5.0)
+        mid = bridge.step5d_no_contact_p0_low_force_posture_policy(normal_load_n=1.5, base_ko=5.0)
+        high = bridge.step5d_no_contact_p0_low_force_posture_policy(normal_load_n=2.0, base_ko=5.0)
+
+        self.assertEqual(low["policy"], "yuming_low_force_v1")
+        self.assertTrue(low["active"])
+        self.assertAlmostEqual(low["effective_ko"], 0.01)
+        self.assertAlmostEqual(low["orientation_gain_scale"], 0.002)
+        self.assertGreater(mid["effective_ko"], low["effective_ko"])
+        self.assertLess(mid["effective_ko"], high["effective_ko"])
+        self.assertFalse(high["active"])
+        self.assertAlmostEqual(high["effective_ko"], 5.0)
+        self.assertAlmostEqual(high["orientation_gain_scale"], 1.0)
+
+    def test_no_contact_p0_runtime_logs_posture_and_oracle_diagnostics(self) -> None:
+        values = _p0_no_contact_runtime_values(
+            normal_acquired=True,
+            sensor_ok=1.0,
+            latest_zeroed_override=[0.0, 0.0, -0.2, 0.0, 0.0, 0.0],
+        )
+
+        self.assertEqual(values["_step5d_p0_low_force_posture_policy"], "yuming_low_force_v1")
+        self.assertEqual(values["_step5d_p0_low_force_posture_active"], 1.0)
+        self.assertAlmostEqual(values["_step5d_p0_effective_ko"], 0.01)
+        self.assertAlmostEqual(values["_step5d_p0_posture_gain_scale"], 0.002)
+        self.assertIn("_step5d_oracle_residual_norm", values)
+        self.assertIn("_step5d_cmd_residual_norm", values)
+        self.assertIn("_step5d_rnn_vs_oracle_qdot_norm", values)
+        self.assertTrue(np.isfinite(values["_step5d_oracle_residual_norm"]))
+        self.assertTrue(np.isfinite(values["_step5d_cmd_residual_norm"]))
+
+    def test_no_contact_p0_low_force_posture_scale_reaches_rnn_target(self) -> None:
+        captured_scales: list[float] = []
+        captured_solver_targets: list[dict[str, object]] = []
+
+        def fake_outer(config, *_args: object, **_kwargs: object) -> SimpleNamespace:
+            captured_scales.append(float(config.orientation_gain_scale))
+            return SimpleNamespace(
+                xdot_c=np.array([0.001, 0.0, -0.002, 0.020, 0.0, 0.0]),
+                next_state=Step5dOuterLoopState(),
+                diagnostics={
+                    "outer_orientation_angle_rad": 0.0,
+                    "e_f": 0.0,
+                    "R_d_z_dot_R_cur_z": 1.0,
+                    "force_sign_convention": "step5_step6_positive_normal_load",
+                },
+            )
+
+        def fake_target(outer_output, **_kwargs: object) -> dict[str, object]:
+            return {"xdot_c": np.asarray(outer_output.xdot_c, dtype=float) * 100.0}
+
+        class CaptureSolver:
+            def reset_state(self) -> None:
+                return None
+
+            def warm_start(self, **_kwargs: object) -> None:
+                return None
+
+            def solve(self, *, target_state: dict[str, object], **_kwargs: object) -> SimpleNamespace:
+                captured_solver_targets.append(target_state)
+                return SimpleNamespace(
+                    qdot=(0.001, 0.0, -0.001, 0.002, 0.0, 0.0),
+                    solver_status=40.0,
+                    residual_norm=0.0001,
+                    diagnostics={
+                        "lambda_state": np.array([1.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+                        "active_bounds_mask": [False, False, False, False, False, False],
+                        "proj_input_form": "J.T @ lambda_state",
+                        "lambda_update_form": "lambda_state -= (dt / epsilon) * (J @ theta_dot_state - xdot_c)",
+                    },
+                )
+
+        _p0_no_contact_runtime_values(
+            normal_acquired=True,
+            latest_zeroed_override=[0.0, 0.0, -0.2, 0.0, 0.0, 0.0],
+            outer_side_effect=fake_outer,
+            rnn_target_side_effect=fake_target,
+            solver=CaptureSolver(),
+        )
+
+        self.assertEqual(len(captured_scales), 1)
+        self.assertAlmostEqual(captured_scales[0], 0.002)
+        self.assertEqual(len(captured_solver_targets), 1)
+        np.testing.assert_allclose(
+            np.asarray(captured_solver_targets[0]["xdot_c"], dtype=float),
+            np.array([0.001, 0.0, -0.002, 0.015, 0.0, 0.0]),
+            atol=1e-12,
+        )
+
     def test_no_contact_p0_qdot_gate_does_not_reject_legacy_total_tcp_norm(self) -> None:
         gate = bridge.step5d_no_contact_p0_qdot_acceptance_gate(
             qdot=(0.0035, 0.0035, 0.0, 0.0, 0.0, 0.0),
@@ -769,6 +878,47 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertEqual(result["first_tick"]["intervention_reason"], "solver_warm_start")
         self.assertGreater(result["first_tick"]["jqdot_raw_approach_normal_m_s"], 0.0)
         self.assertEqual(result["blockers"], [])
+
+    def test_fails_when_low_force_posture_evidence_is_missing(self) -> None:
+        rows = good_rows()
+        for row in rows:
+            row.pop("_step5d_p0_low_force_posture_active")
+            row.pop("_step5d_p0_posture_gain_scale")
+            row.pop("_step5d_p0_effective_ko")
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            write_p0_run(run_dir, rows)
+
+            result = p0.verify_run_dir(run_dir)
+
+        self.assertFalse(result["ok"])
+        self.assertIn("p0_low_force_posture_evidence_missing", result["blockers"])
+
+    def test_fails_when_low_force_posture_gain_scale_does_not_prove_weak_target(self) -> None:
+        rows = good_rows()
+        for row in rows:
+            row["_step5d_p0_posture_gain_scale"] = "1.000000000"
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            write_p0_run(run_dir, rows)
+
+            result = p0.verify_run_dir(run_dir)
+
+        self.assertFalse(result["ok"])
+        self.assertIn("p0_low_force_posture_gain_scale_exceeds_limit", result["blockers"])
+
+    def test_fails_when_no_accepted_speedj_rnn_rows_exist(self) -> None:
+        rows = good_rows()
+        for row in rows:
+            row["step4e_cmd_valid"] = "0"
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            write_p0_run(run_dir, rows)
+
+            result = p0.verify_run_dir(run_dir)
+
+        self.assertFalse(result["ok"])
+        self.assertIn("no_accepted_speedj_rnn_live_rows", result["blockers"])
 
     def test_fails_without_solver_warm_start_on_first_speedj_rnn_tick(self) -> None:
         rows = good_rows()
@@ -1362,7 +1512,7 @@ out.write_text(json.dumps({{"ok": True}}), encoding="utf-8")
             )
 
             self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
-            self.assertIn("[caps] total_linear=0.004m/s angular=0.015rad/s hard_force=2/5N torque=3Nm", completed.stdout)
+            self.assertIn("[caps] legacy_total_linear_debug=0.004m/s angular=0.015rad/s hard_force=2/5N torque=3Nm", completed.stdout)
             self.assertIn("[tuning] preload filtered=0..2N raw=0..2N force_norm<=5N hold=0s", completed.stdout)
 
 

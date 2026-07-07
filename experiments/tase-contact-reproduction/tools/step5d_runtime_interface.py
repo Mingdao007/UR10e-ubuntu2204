@@ -745,6 +745,7 @@ def live_ready_lines(interface: Step5dRuntimeInterface, cache: Mapping[str, Any]
     fp = "ok" if cache.get("fingerprint_ok") else "mismatch"
     gate = interface.preload_gate
     bridge = interface.bridge_defaults
+    linear_cap_label = "legacy_total_linear_debug" if interface.program == STEP5D_NO_CONTACT_P0_STAGE_ID else "total_linear"
     return [
         "[step5d][phase=live-bridge][rebuild=no][upload=no]",
         "[touches=kunwei+rtde]",
@@ -769,7 +770,7 @@ def live_ready_lines(interface: Step5dRuntimeInterface, cache: Mapping[str, Any]
         ),
         (
             "[caps] "
-            f"total_linear={bridge.total_linear_limit_m_s:g}m/s "
+            f"{linear_cap_label}={bridge.total_linear_limit_m_s:g}m/s "
             f"angular={bridge.angular_limit_rad_s:g}rad/s "
             f"hard_force={bridge.max_normal_force_n:g}/{bridge.max_force_norm_n:g}N "
             f"torque={bridge.max_torque_norm_nm:g}Nm"

@@ -77,6 +77,134 @@ class Step5dP0RnnReplaySweepTest(unittest.TestCase):
         self.assertTrue(result["baseline_logged_alignment_ok"])
         self.assertIn("no bridge start", result["safety_boundary"])
 
+    def test_run_sweep_marks_top_level_not_ok_when_baseline_alignment_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            csv_path = Path(tmp) / "bridge_rtde_500hz.csv"
+            csv_path.write_text(
+                f"{sweep.STAGE_REGISTER},_step5d_constraint_residual_norm\n25.0,0.01\n",
+                encoding="utf-8",
+            )
+
+            with (
+                mock.patch.object(sweep, "precompute_targets", return_value=[{"target": "continuous-state"}]),
+                mock.patch.object(
+                    sweep,
+                    "replay_targets",
+                    return_value={
+                        "r": sweep.BASELINE_R,
+                        "epsilon": sweep.BASELINE_EPSILON,
+                        "logged_alignment_ok": False,
+                    },
+                ),
+            ):
+                result = sweep.run_sweep(
+                    csv_path,
+                    r_values=(sweep.BASELINE_R,),
+                    epsilon_values=(sweep.BASELINE_EPSILON,),
+                )
+
+        self.assertFalse(result["ok"])
+        self.assertFalse(result["baseline_logged_alignment_ok"])
+        self.assertIn("baseline_logged_alignment_failed", result["blockers"])
+
+    def test_run_sweep_marks_top_level_not_ok_when_logged_posture_disagrees_with_expected_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            csv_path = Path(tmp) / "bridge_rtde_500hz.csv"
+            csv_path.write_text(
+                f"{sweep.STAGE_REGISTER},_step5d_constraint_residual_norm\n25.0,0.01\n",
+                encoding="utf-8",
+            )
+            target = {
+                "p0_posture": {
+                    "policy": "yuming_low_force_v1",
+                    "active": True,
+                    "orientation_gain_scale": 1.0,
+                    "effective_ko": 0.01,
+                },
+                "expected_p0_posture": {
+                    "policy": "yuming_low_force_v1",
+                    "active": True,
+                    "orientation_gain_scale": 0.002,
+                    "effective_ko": 0.01,
+                },
+            }
+
+            with (
+                mock.patch.object(sweep, "precompute_targets", return_value=[target]),
+                mock.patch.object(
+                    sweep,
+                    "replay_targets",
+                    return_value={
+                        "r": sweep.BASELINE_R,
+                        "epsilon": sweep.BASELINE_EPSILON,
+                        "logged_alignment_ok": True,
+                    },
+                ),
+            ):
+                result = sweep.run_sweep(
+                    csv_path,
+                    r_values=(sweep.BASELINE_R,),
+                    epsilon_values=(sweep.BASELINE_EPSILON,),
+                )
+
+        self.assertFalse(result["ok"])
+        self.assertTrue(result["baseline_logged_alignment_ok"])
+        self.assertIn("p0_low_force_posture_evidence_mismatch", result["blockers"])
+        self.assertEqual(result["p0_posture_evidence"]["mismatch_rows"], 1)
+
+    def test_main_returns_nonzero_when_top_level_ok_is_false_even_if_baseline_alignment_passes(self) -> None:
+        result = {
+            "ok": False,
+            "baseline_logged_alignment_ok": True,
+            "blockers": ["p0_low_force_posture_evidence_mismatch"],
+        }
+
+        with (
+            mock.patch.object(sys, "argv", ["step5d_p0_rnn_replay_sweep.py", "run-dir"]),
+            mock.patch.object(sweep, "run_sweep", return_value=result),
+        ):
+            self.assertEqual(sweep.main(), 3)
+
+    def test_logged_p0_posture_rejects_fractional_active_evidence(self) -> None:
+        row = {
+            "_step5d_p0_low_force_posture_policy": "yuming_low_force_v1",
+            "_step5d_p0_low_force_posture_active": "0.6",
+            "_step5d_p0_posture_gain_scale": "0.002",
+            "_step5d_p0_effective_ko": "0.01",
+        }
+
+        with self.assertRaisesRegex(RuntimeError, "_step5d_p0_low_force_posture_active"):
+            sweep.logged_p0_posture_from_row(row)
+
+    def test_precompute_targets_rejects_artifacts_without_logged_p0_posture_evidence(self) -> None:
+        row = {
+            "t_monotonic_s": "1.0",
+            **{f"ur_actual_q_{idx}": "0.0" for idx in range(6)},
+            **{f"ur_actual_qd_{idx}": "0.0" for idx in range(6)},
+            **{f"ur_actual_TCP_pose_{idx}": "0.0" for idx in range(6)},
+            **{f"ur_actual_TCP_speed_{idx}": "0.0" for idx in range(6)},
+            "_step4e_force_t_x": "0.0",
+            "_step4e_force_t_y": "0.0",
+            "_step4e_force_t_z": "0.0",
+            "_step4e_control_normal_b_x": "0.0",
+            "_step4e_control_normal_b_y": "0.0",
+            "_step4e_control_normal_b_z": "1.0",
+            "_step4e_desired_x_m": "0.0",
+            "_step4e_desired_y_m": "0.0",
+            "_step4e_desired_vx_m_s": "0.0",
+            "_step4e_desired_vy_m_s": "0.0",
+            "_step4e_normal_load_n": "0.2",
+            "_step5d_constraint_residual_norm": "0.01",
+        }
+
+        with mock.patch.object(
+            sweep.step5d_kin,
+            "build_calibrated_model",
+            side_effect=AssertionError("stale artifact must fail before model build"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "_step5d_p0_low_force_posture_policy"):
+                sweep.precompute_targets([row], Path("bridge_rtde_500hz.csv"))
+
     def test_replay_targets_warm_starts_and_aligns_against_logged_residual(self) -> None:
         events: list[str] = []
 
@@ -108,6 +236,12 @@ class Step5dP0RnnReplaySweepTest(unittest.TestCase):
             "q": [0.0] * 6,
             "qd": [0.0] * 6,
             "logged_residual": 0.01001,
+            "p0_posture": {
+                "policy": "yuming_low_force_v1",
+                "active": True,
+                "orientation_gain_scale": 0.002,
+                "effective_ko": 0.01,
+            },
         }
         targets = [target] * 100
 
@@ -118,6 +252,10 @@ class Step5dP0RnnReplaySweepTest(unittest.TestCase):
         self.assertEqual(events.count("solve:r=1.0:eps=0.022"), 100)
         self.assertEqual(result["residual_norm"]["n"], 100)
         self.assertEqual(result["active_bounds_rows"], 0)
+        self.assertEqual(result["p0_low_force_posture_policy_counts"], {"yuming_low_force_v1": 100})
+        self.assertEqual(result["p0_low_force_posture_active_rows"], 100)
+        self.assertAlmostEqual(result["p0_effective_ko"]["median"], 0.01)
+        self.assertAlmostEqual(result["p0_posture_gain_scale"]["median"], 0.002)
         self.assertTrue(result["logged_alignment_ok"])
 
 

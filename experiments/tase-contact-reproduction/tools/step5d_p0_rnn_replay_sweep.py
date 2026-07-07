@@ -30,6 +30,7 @@ from kunwei_rtde_bridge import (
     STEP5D_NO_CONTACT_P0_ANGULAR_LIMIT_RAD_S,
     limit_step5d_no_contact_p0_xdot_components,
     scale_step5d_xdot_for_joint_feasibility,
+    step5d_no_contact_p0_low_force_posture_policy,
     step5d_kin,
     step5d_omega_bounds,
     step5d_tcp_jacobian_base,
@@ -45,6 +46,13 @@ BASELINE_EPSILON = 0.022
 DEFAULT_QDOT_LIMIT_RAD_S = 0.15
 DEFAULT_ALIGNMENT_MEDIAN_MAX = 1e-4
 DEFAULT_ALIGNMENT_P99_MAX = 5e-4
+P0_POSTURE_EVIDENCE_TOL = 1e-9
+P0_POSTURE_FIELDS = (
+    "_step5d_p0_low_force_posture_policy",
+    "_step5d_p0_low_force_posture_active",
+    "_step5d_p0_posture_gain_scale",
+    "_step5d_p0_effective_ko",
+)
 
 
 def finite_float(value: Any, default: float = math.nan) -> float:
@@ -124,6 +132,71 @@ def _validate_required(row: dict[str, str], required: Sequence[str]) -> None:
         raise RuntimeError("bridge CSV missing required replay columns: " + ", ".join(sorted(missing)))
 
 
+def logged_p0_posture_from_row(row: dict[str, str]) -> dict[str, Any]:
+    _validate_required(row, P0_POSTURE_FIELDS)
+    policy = str(row.get("_step5d_p0_low_force_posture_policy") or "")
+    active = finite_float(row.get("_step5d_p0_low_force_posture_active"))
+    gain_scale = finite_float(row.get("_step5d_p0_posture_gain_scale"))
+    effective_ko = finite_float(row.get("_step5d_p0_effective_ko"))
+    missing_or_invalid = []
+    if not policy:
+        missing_or_invalid.append("_step5d_p0_low_force_posture_policy")
+    if not math.isfinite(active) or active not in (0.0, 1.0):
+        missing_or_invalid.append("_step5d_p0_low_force_posture_active")
+    if not math.isfinite(gain_scale):
+        missing_or_invalid.append("_step5d_p0_posture_gain_scale")
+    if not math.isfinite(effective_ko):
+        missing_or_invalid.append("_step5d_p0_effective_ko")
+    if missing_or_invalid:
+        raise RuntimeError(
+            "bridge CSV has invalid P0 low-force posture evidence: "
+            + ", ".join(sorted(missing_or_invalid))
+        )
+    return {
+        "policy": policy,
+        "active": bool(int(active)),
+        "orientation_gain_scale": gain_scale,
+        "effective_ko": effective_ko,
+    }
+
+
+def p0_posture_evidence_summary(targets: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    missing_rows = 0
+    mismatch_rows = 0
+    for target in targets:
+        logged = target.get("p0_posture")
+        expected = target.get("expected_p0_posture")
+        if not isinstance(logged, dict) or not isinstance(expected, dict):
+            missing_rows += 1
+            continue
+        if str(logged.get("policy", "")) != str(expected.get("policy", "")):
+            mismatch_rows += 1
+            continue
+        if bool(logged.get("active", False)) != bool(expected.get("active", False)):
+            mismatch_rows += 1
+            continue
+        logged_gain = finite_float(logged.get("orientation_gain_scale"))
+        expected_gain = finite_float(expected.get("orientation_gain_scale"))
+        logged_ko = finite_float(logged.get("effective_ko"))
+        expected_ko = finite_float(expected.get("effective_ko"))
+        if (
+            not math.isfinite(logged_gain)
+            or not math.isfinite(expected_gain)
+            or abs(logged_gain - expected_gain) > P0_POSTURE_EVIDENCE_TOL
+            or not math.isfinite(logged_ko)
+            or not math.isfinite(expected_ko)
+            or abs(logged_ko - expected_ko) > P0_POSTURE_EVIDENCE_TOL
+        ):
+            mismatch_rows += 1
+    return {
+        "ok": missing_rows == 0 and mismatch_rows == 0,
+        "rows": len(targets),
+        "missing_rows": missing_rows,
+        "mismatch_rows": mismatch_rows,
+        "tolerance": P0_POSTURE_EVIDENCE_TOL,
+    }
+
+
 def precompute_targets(stage25_rows: Sequence[dict[str, str]], csv_path: Path) -> list[dict[str, Any]]:
     if not stage25_rows:
         raise RuntimeError("bridge CSV has no Stage25 rows in ur_output_double_register_35")
@@ -142,7 +215,9 @@ def precompute_targets(stage25_rows: Sequence[dict[str, str]], csv_path: Path) -
         "_step4e_desired_y_m",
         "_step4e_desired_vx_m_s",
         "_step4e_desired_vy_m_s",
+        "_step4e_normal_load_n",
         "_step5d_constraint_residual_norm",
+        *P0_POSTURE_FIELDS,
     ]
     _validate_required(stage25_rows[0], required)
 
@@ -182,8 +257,26 @@ def precompute_targets(stage25_rows: Sequence[dict[str, str]], csv_path: Path) -
             alpha_s_inv=1.0,
             qdot_limit_rad_s=DEFAULT_QDOT_LIMIT_RAD_S,
         )
+        p0_posture = logged_p0_posture_from_row(row)
+        expected_p0_posture = step5d_no_contact_p0_low_force_posture_policy(
+            normal_load_n=finite_float(row.get("_step4e_normal_load_n"), 0.0),
+            base_ko=float(outer_config.ko),
+        )
         outer_output = compute_step5d_outer_loop(
-            outer_config,
+            Step5dOuterLoopConfig(
+                kp=outer_config.kp,
+                ko=outer_config.ko,
+                orientation_gain_scale=float(p0_posture["orientation_gain_scale"]),
+                kf=outer_config.kf,
+                Md_scalar=outer_config.Md_scalar,
+                Bd_scalar=outer_config.Bd_scalar,
+                force_target_n=outer_config.force_target_n,
+                force_integral_limit_n_s=outer_config.force_integral_limit_n_s,
+                min_force_norm_n=outer_config.min_force_norm_n,
+                control_reaction_normal_fallback_base=outer_config.control_reaction_normal_fallback_base,
+                delay_T_s=outer_config.delay_T_s,
+                force_sign_convention=outer_config.force_sign_convention,
+            ),
             outer_state,
             Step5dOuterLoopInputs(
                 tcp_pose_base=tuple(float(value) for value in pose),
@@ -235,6 +328,8 @@ def precompute_targets(stage25_rows: Sequence[dict[str, str]], csv_path: Path) -
                 "qd": qd,
                 "logged_residual": finite_float(row.get("_step5d_constraint_residual_norm")),
                 "feasibility_scale": float(feasibility["xdot_feasibility_scale"]),
+                "p0_posture": p0_posture,
+                "expected_p0_posture": expected_p0_posture,
             }
         )
     if not targets:
@@ -257,7 +352,19 @@ def replay_targets(targets: Sequence[dict[str, Any]], *, r: float, epsilon: floa
     active_bounds_rows = 0
     alignment_errors: list[float] = []
     lambda_norms: list[float] = []
+    posture_policy_counts: dict[str, int] = {}
+    posture_active_rows = 0
+    posture_gain_scales: list[float] = []
+    posture_effective_kos: list[float] = []
     for target in targets:
+        posture = target.get("p0_posture") or {}
+        policy = str(posture.get("policy", ""))
+        if policy:
+            posture_policy_counts[policy] = posture_policy_counts.get(policy, 0) + 1
+        if bool(posture.get("active", False)):
+            posture_active_rows += 1
+        posture_gain_scales.append(finite_float(posture.get("orientation_gain_scale")))
+        posture_effective_kos.append(finite_float(posture.get("effective_ko")))
         if pending_warm_start:
             solver.warm_start(
                 J=target["J"],
@@ -295,6 +402,10 @@ def replay_targets(targets: Sequence[dict[str, Any]], *, r: float, epsilon: floa
         "qdot_max_abs_rad_s": stats(qdot_max, threshold=DEFAULT_QDOT_LIMIT_RAD_S),
         "lambda_norm": stats(lambda_norms),
         "active_bounds_rows": active_bounds_rows,
+        "p0_low_force_posture_policy_counts": posture_policy_counts,
+        "p0_low_force_posture_active_rows": posture_active_rows,
+        "p0_posture_gain_scale": stats(posture_gain_scales),
+        "p0_effective_ko": stats(posture_effective_kos),
         "abs_error_vs_logged_residual": stats(alignment_errors),
         "logged_alignment_ok": replay_alignment_ok(stats(alignment_errors)),
     }
@@ -322,8 +433,18 @@ def run_sweep(csv_or_run_dir: Path, *, r_values: Sequence[float], epsilon_values
     )
     if baseline is None:
         baseline = replay_targets(targets, r=BASELINE_R, epsilon=BASELINE_EPSILON)
+    baseline_logged_alignment_ok = bool(baseline.get("logged_alignment_ok"))
+    posture_evidence = p0_posture_evidence_summary(targets)
+    blockers = []
+    if not baseline_logged_alignment_ok:
+        blockers.append("baseline_logged_alignment_failed")
+    if posture_evidence["missing_rows"]:
+        blockers.append("p0_low_force_posture_evidence_missing")
+    if posture_evidence["mismatch_rows"]:
+        blockers.append("p0_low_force_posture_evidence_mismatch")
     return {
-        "ok": True,
+        "ok": not blockers,
+        "blockers": blockers,
         "bridge_csv": str(csv_path),
         "stage_field": STAGE_REGISTER,
         "stage25_rows": len(stage25_rows),
@@ -331,7 +452,8 @@ def run_sweep(csv_or_run_dir: Path, *, r_values: Sequence[float], epsilon_values
         "default_r_values": list(DEFAULT_R_VALUES),
         "baseline": baseline,
         "runs": runs,
-        "baseline_logged_alignment_ok": bool(baseline.get("logged_alignment_ok")),
+        "baseline_logged_alignment_ok": baseline_logged_alignment_ok,
+        "p0_posture_evidence": posture_evidence,
         "safety_boundary": [
             "offline analysis only",
             "no bridge start",
@@ -361,7 +483,7 @@ def main() -> int:
         print(json.dumps({"ok": False, "error": str(exc)}, indent=2, sort_keys=True), file=sys.stderr)
         return 2
     print(json.dumps(result, indent=2, sort_keys=True))
-    return 0 if result["baseline_logged_alignment_ok"] else 3
+    return 0 if result["ok"] else 3
 
 
 if __name__ == "__main__":

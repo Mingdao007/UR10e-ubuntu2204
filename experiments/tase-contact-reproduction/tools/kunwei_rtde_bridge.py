@@ -222,6 +222,10 @@ STEP5D_DIAG_FIELDS = [
     "_step5d_xdot_norm_pre_feasibility_scale",
     "_step5d_xdot_norm_post_feasibility_scale",
     "_step5d_xdot_feasibility_scale_active",
+    "_step5d_oracle_residual_norm",
+    "_step5d_oracle_qdot_max_abs_rad_s",
+    "_step5d_cmd_residual_norm",
+    "_step5d_rnn_vs_oracle_qdot_norm",
     "_step5d_qdot_slew_limiter_active",
     "_step5d_engage_gate_ok",
     "_step5d_line_guard_ok",
@@ -299,6 +303,10 @@ STEP5D_DIAG_FIELDS = [
     *[f"_step5d_post_slew_qd{idx}_rad_s" for idx in range(6)],
     *[f"_step5d_active_bound_qd{idx}" for idx in range(6)],
     *[f"_step5d_lambda_state_{idx}" for idx in range(6)],
+    "_step5d_p0_low_force_posture_policy",
+    "_step5d_p0_low_force_posture_active",
+    "_step5d_p0_posture_gain_scale",
+    "_step5d_p0_effective_ko",
     "_step5d_contact_orientation_error_rad",
     "_step5d_outer_orientation_error_rad",
     "_step5d_R_d_z_dot_R_cur_z",
@@ -550,6 +558,10 @@ STEP5D_V12_QDOT_SLEW_RAD_S2 = 0.20
 STEP5D_NO_CONTACT_P0_LINEAR_XY_COMPONENT_LIMIT_M_S = 0.010
 STEP5D_NO_CONTACT_P0_LINEAR_Z_COMPONENT_LIMIT_M_S = 0.020
 STEP5D_NO_CONTACT_P0_ANGULAR_COMPONENT_LIMIT_RAD_S = STEP5D_NO_CONTACT_P0_ANGULAR_LIMIT_RAD_S
+STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_POLICY = "yuming_low_force_v1"
+STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_LOW_LOAD_N = 1.0
+STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_HIGH_LOAD_N = 2.0
+STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_KO = 0.01
 STEP5D_V12_GUARD_DT_MAX_S = 0.010
 STEP5D_V12_LINE_CONTACT_LOW_STOP_N = 0.5
 STEP5D_V12_LINE_CONTACT_MIN_N = 1.0
@@ -2532,6 +2544,48 @@ def limit_step5d_no_contact_p0_xdot_components(
     return limited, bool(np.any(np.abs(limited - xdot) > 1e-12))
 
 
+def smoothstep01(value: float) -> float:
+    x = min(max(float(value), 0.0), 1.0)
+    return x * x * (3.0 - 2.0 * x)
+
+
+def step5d_no_contact_p0_low_force_posture_policy(
+    *,
+    normal_load_n: float,
+    base_ko: float,
+    low_load_n: float = STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_LOW_LOAD_N,
+    high_load_n: float = STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_HIGH_LOAD_N,
+    low_ko: float = STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_KO,
+) -> dict[str, Any]:
+    base = float(base_ko)
+    load = float(normal_load_n)
+    low_load = float(low_load_n)
+    high_load = float(high_load_n)
+    weak = float(low_ko)
+    if not math.isfinite(base) or base <= 0.0:
+        raise ValueError("P0 posture base_ko must be finite and positive")
+    if not math.isfinite(load):
+        load = 0.0
+    if not math.isfinite(low_load) or not math.isfinite(high_load) or high_load <= low_load:
+        raise ValueError("P0 posture load schedule must be finite and increasing")
+    if not math.isfinite(weak) or weak < 0.0:
+        raise ValueError("P0 low-force posture ko must be finite and non-negative")
+    gamma = smoothstep01((max(0.0, load) - low_load) / (high_load - low_load))
+    effective_ko = weak * (1.0 - gamma) + base * gamma
+    return {
+        "policy": STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_POLICY,
+        "active": bool(gamma < 1.0 - 1e-12),
+        "normal_load_n": max(0.0, load),
+        "load_low_n": low_load,
+        "load_high_n": high_load,
+        "gamma": gamma,
+        "low_ko": weak,
+        "base_ko": base,
+        "effective_ko": effective_ko,
+        "orientation_gain_scale": effective_ko / base,
+    }
+
+
 def scale_step5d_xdot_for_joint_feasibility(
     xdot_c: Any,
     jacobian: Any,
@@ -2792,6 +2846,10 @@ def step5d_qdot_diagnostic_values(
         "_step5d_xdot_norm_pre_feasibility_scale": math.nan,
         "_step5d_xdot_norm_post_feasibility_scale": math.nan,
         "_step5d_xdot_feasibility_scale_active": math.nan,
+        "_step5d_oracle_residual_norm": math.nan,
+        "_step5d_oracle_qdot_max_abs_rad_s": math.nan,
+        "_step5d_cmd_residual_norm": math.nan,
+        "_step5d_rnn_vs_oracle_qdot_norm": math.nan,
     }
     for idx in range(6):
         diagnostics[f"_step5d_rnn_raw_qd{idx}_rad_s"] = math.nan
@@ -2813,6 +2871,16 @@ def step5d_qdot_diagnostic_values(
     outer_arr = None if outer_xdot_limited is None else np.asarray(outer_xdot_limited, dtype=float)
     if outer_arr is not None and outer_arr.shape == (6,) and np.all(np.isfinite(outer_arr)):
         diagnostics["_step5d_outer_xdot_limited_approach_normal_m_s"] = float(np.dot(outer_arr[:3], approach))
+        if J.shape == (6, 6) and np.all(np.isfinite(J)):
+            try:
+                oracle_qdot = np.linalg.solve(J, outer_arr)
+            except np.linalg.LinAlgError:
+                oracle_qdot = None
+            if oracle_qdot is not None and oracle_qdot.shape == (6,) and np.all(np.isfinite(oracle_qdot)):
+                diagnostics["_step5d_oracle_residual_norm"] = float(np.linalg.norm(J @ oracle_qdot - outer_arr))
+                diagnostics["_step5d_oracle_qdot_max_abs_rad_s"] = float(np.max(np.abs(oracle_qdot)))
+                if raw_arr is not None:
+                    diagnostics["_step5d_rnn_vs_oracle_qdot_norm"] = float(np.linalg.norm(raw_arr - oracle_qdot))
     if raw_arr is not None:
         for idx, value in enumerate(raw_arr):
             diagnostics[f"_step5d_rnn_raw_qd{idx}_rad_s"] = float(value)
@@ -2823,6 +2891,14 @@ def step5d_qdot_diagnostic_values(
         diagnostics["_step5d_jqdot_post_slew_approach_normal_m_s"] = float(np.dot((J @ post_slew_arr)[:3], approach))
     if final_arr is not None:
         diagnostics["_step5d_jqdot_cmd_approach_normal_m_s"] = float(np.dot((J @ final_arr)[:3], approach))
+        if (
+            outer_arr is not None
+            and outer_arr.shape == (6,)
+            and np.all(np.isfinite(outer_arr))
+            and J.shape == (6, 6)
+            and np.all(np.isfinite(J))
+        ):
+            diagnostics["_step5d_cmd_residual_norm"] = float(np.linalg.norm(J @ final_arr - outer_arr))
     if lambda_state is not None:
         lam = np.asarray(lambda_state, dtype=float)
         if lam.size > 0 and np.all(np.isfinite(lam)):
@@ -4406,6 +4482,12 @@ def compute_bridge_values(
             if step5d_ablation_profile
             else "speedj_rnn_live"
         )
+        step5d_p0_posture_policy = {
+            "policy": "",
+            "active": False,
+            "orientation_gain_scale": 1.0,
+            "effective_ko": math.nan,
+        }
         step5d_intervention_reasons: list[str] = []
         step5d_predicted_twist = np.full(6, math.nan, dtype=float)
         step5d_post_rnn_normal_guard = {
@@ -4522,10 +4604,17 @@ def compute_bridge_values(
                     if low_load_active_reacquire_reset
                     else state.step5d_outer_state
                 )
+                base_step5d_ko = STEP5D_V28_SHADOW_KO if step5d_step5b_speedl_live_profile else 5.0
+                if step5d_no_contact_p0_profile:
+                    step5d_p0_posture_policy = step5d_no_contact_p0_low_force_posture_policy(
+                        normal_load_n=normal_load_n,
+                        base_ko=base_step5d_ko,
+                    )
                 step5d_outer_output = compute_step5d_outer_loop(
                     Step5dOuterLoopConfig(
                         kp=4.0,
-                        ko=STEP5D_V28_SHADOW_KO if step5d_step5b_speedl_live_profile else 5.0,
+                        ko=base_step5d_ko,
+                        orientation_gain_scale=float(step5d_p0_posture_policy["orientation_gain_scale"]),
                         kf=1.0,
                         Md_scalar=STEP5D_V28_SHADOW_MD if step5d_step5b_speedl_live_profile else 12.0,
                         Bd_scalar=STEP5D_V28_SHADOW_BD if step5d_step5b_speedl_live_profile else 550.0,
@@ -5177,6 +5266,10 @@ def compute_bridge_values(
             values["_step5d_proj_input_form"] = step5d_result.diagnostics["proj_input_form"]
             values["_step5d_lambda_update_form"] = step5d_result.diagnostics["lambda_update_form"]
             values["_step5d_active_bounds_count"] = float(sum(bool(value) for value in step5d_result.diagnostics["active_bounds_mask"]))
+            values["_step5d_p0_low_force_posture_policy"] = str(step5d_p0_posture_policy.get("policy", ""))
+            values["_step5d_p0_low_force_posture_active"] = 1.0 if bool(step5d_p0_posture_policy.get("active", False)) else 0.0
+            values["_step5d_p0_posture_gain_scale"] = float(step5d_p0_posture_policy.get("orientation_gain_scale", math.nan))
+            values["_step5d_p0_effective_ko"] = float(step5d_p0_posture_policy.get("effective_ko", math.nan))
             values["_step5d_predicted_tcp_vx_m_s"] = float(step5d_predicted_twist[0])
             values["_step5d_predicted_tcp_vy_m_s"] = float(step5d_predicted_twist[1])
             values["_step5d_predicted_tcp_vz_m_s"] = float(step5d_predicted_twist[2])

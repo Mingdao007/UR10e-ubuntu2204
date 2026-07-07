@@ -202,6 +202,32 @@ class Step5dPaperOuterLoopTest(unittest.TestCase):
         old_positive_feedback = config.ko * error_base
         self.assertGreater(float(np.dot(old_positive_feedback, error_base)), 0.0)
 
+    def test_orientation_gain_scale_preserves_default_and_scales_only_angular_command(self) -> None:
+        pitch_rad = np.deg2rad(10.0)
+        inputs = self.make_inputs(
+            tcp_pose_base=(0.0, 0.0, 0.0, 0.0, pitch_rad, 0.0),
+            x_pd_base=(0.01, 0.0, 0.0),
+            xdot_pd_base=(0.002, 0.0, 0.0),
+            control_reaction_normal_base=(0.0, 0.0, -1.0),
+        )
+        default = compute_step5d_outer_loop(
+            Step5dOuterLoopConfig(kp=4.0, kf=0.0, ko=5.0, force_target_n=2.0),
+            Step5dOuterLoopState(),
+            inputs,
+        )
+        scaled = compute_step5d_outer_loop(
+            Step5dOuterLoopConfig(kp=4.0, kf=0.0, ko=5.0, orientation_gain_scale=0.2, force_target_n=2.0),
+            Step5dOuterLoopState(),
+            inputs,
+        )
+
+        np.testing.assert_allclose(scaled.xdot_p, default.xdot_p, atol=1e-12)
+        np.testing.assert_allclose(np.asarray(scaled.xdot_o), np.asarray(default.xdot_o) * 0.2, atol=1e-12)
+        self.assertAlmostEqual(default.diagnostics["orientation_gain_scale"], 1.0)
+        self.assertAlmostEqual(default.diagnostics["effective_ko"], 5.0)
+        self.assertAlmostEqual(scaled.diagnostics["orientation_gain_scale"], 0.2)
+        self.assertAlmostEqual(scaled.diagnostics["effective_ko"], 1.0)
+
     def test_invalid_command_freezes_outer_state(self) -> None:
         state = Step5dOuterLoopState(force_integral_n_s=1.0, xdot_p_prev_m_s=(0.01, 0.02, 0.03))
         output = compute_step5d_outer_loop(
