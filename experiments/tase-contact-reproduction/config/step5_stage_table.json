@@ -6908,7 +6908,7 @@
         "v28 is an ablation package with layout-tagged speedl/speedj Stage25.0 modes.",
         "v28 uses 50N raw-normal, 60N force-norm, 3Nm torque guard, and layout-tagged speedl/speedj Stage25.0.",
         "This current row has archived speedl positive-control 60 s evidence but is not a completed strict RNN reproduction claim; strict RNN live retry requires no-contact P0 warm_start verification plus explicit live authorization.",
-        "Strict RNN no-contact P0 v4 diagnostic package is locally generated with target /programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v4.urp; controller read-back is pending and P0 capture has not passed yet."
+        "Strict RNN no-contact P0 v4 diagnostic package is controller read-back verified at runs/controller_readback_step5d_strict_rnn_no_contact_p0_v4_20260707_100626/manifest.json with target /programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v4.urp; P0 capture has not passed yet."
       ],
       "live_run_evidence": null,
       "policy_refs": {
@@ -7027,10 +7027,10 @@
           "local_triplet": "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v4.{script,txt,urp}",
           "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v4.urp",
           "controller_dir": "/programs/andyl/kunwei/step5",
-          "controller_readback_status": "pending_controller_readback",
-          "controller_readback_manifest": null,
-          "delivery_mode": "local_generated_pending_controller_readback",
-          "readback_source": null,
+          "controller_readback_status": "verified_gate_package",
+          "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v4_20260707_100626/manifest.json",
+          "delivery_mode": "full_upload_readback",
+          "readback_source": "fresh_controller_get",
           "sha256": {
             ".script": "860e0f126d45e4c791a04b8a48b36d19feeffba651f708d6e6cc5bd5b57d90b7",
             ".txt": "a93a75ada8ed6beb9aca1fcd431cae352ba5beb585ae887f54e1f872a195b70c",
@@ -7050,7 +7050,7 @@
       "complete": false,
       "completion_target": false,
       "gate_for": "step5d_strict_rnn_ablation_v28",
-      "block_reason": "No-contact P0 v4 diagnostic package is locally generated; controller read-back is pending before capture can run.",
+      "block_reason": "No-contact P0 v4 diagnostic package is controller read-back verified; P0 capture has not passed yet.",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": false,
@@ -7111,8 +7111,8 @@
         "deadband_acquire_stage": null,
         "stage25_contact_policy": "No contact search or preload; TP waits for heartbeat and sensor_ok, Stage25.95 register clear, then 60 s Stage25.0 layout-tagged speedj/speedl command consumption in open air.",
         "live_authorization": "p0_capture_only_requires_STEP5D_P0_CONFIRM_not_full_live_authorization",
-        "tp_package_status": "local_generated_pending_controller_readback",
-        "controller_readback_status": "pending_controller_readback",
+        "tp_package_status": "generated_uploaded_readback_verified_gate_package",
+        "controller_readback_status": "verified_gate_package",
         "bridge_startup_policy_ref": "bridge_startup_policy",
         "stage25_control_modes": [
           "speedj_rnn_live"
@@ -7128,10 +7128,10 @@
         "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v4.urp",
         "controller_dir": "/programs/andyl/kunwei/step5",
         "local_package_validated": true,
-        "controller_readback_verified": false,
-        "controller_readback": "PENDING_CONTROLLER_READBACK",
-        "local_controller_readback_sha_match": false,
-        "fetched_back_urp_internal_gate_pass": false,
+        "controller_readback_verified": true,
+        "controller_readback": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v4_20260707_100626/manifest.json",
+        "local_controller_readback_sha_match": true,
+        "fetched_back_urp_internal_gate_pass": true,
         "sha256": {
           ".script": "860e0f126d45e4c791a04b8a48b36d19feeffba651f708d6e6cc5bd5b57d90b7",
           ".txt": "a93a75ada8ed6beb9aca1fcd431cae352ba5beb585ae887f54e1f872a195b70c",
@@ -7139,7 +7139,7 @@
         },
         "stamp": "2026-07-07T1000HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V4",
         "installation_relative_path": "../../../default",
-        "delivery_mode": "local_generated_pending_controller_readback"
+        "delivery_mode": "full_upload_readback"
       },
       "acceptance": {
         "package_generation_required": true,
@@ -7151,7 +7151,7 @@
       },
       "notes": [
         "P0 is a no-contact gate package for v28 strict RNN warm_start evidence, not the current reproduction package.",
-        "P0 v4 diagnostic package is locally generated; controller read-back is pending before P0 capture can run.",
+        "P0 v4 diagnostic package is controller read-back verified at runs/controller_readback_step5d_strict_rnn_no_contact_p0_v4_20260707_100626/manifest.json.",
         "No-contact P0 capture has not passed yet.",
         "Previous v1 capture attempt is archived at runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v1_autowatch_20260706_235036 and failed before Stage25 with no_speedj_rnn_live_rows; v2 is a cache-bust and Stage20 wait-echo diagnostic package.",
         "Previous v3 capture at runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v3_autowatch_20260707_094544 is reclassified as stage20_bridge_ready_handshake_failed; it never reached Stage25."
@@ -7180,7 +7180,7 @@
           "no TCP/payload write",
           "no contact search or preload"
         ],
-        "live_readiness_state": "local_generated_pending_controller_readback_before_p0_capture"
+        "live_readiness_state": "controller_readback_verified_p0_capture_pending"
       },
       "runtime_interface_ref": {
         "path": "tools/step5d_runtime_interface.py",
@@ -7195,10 +7195,10 @@
         "local_triplet": "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v4.{script,txt,urp}",
         "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v4.urp",
         "controller_dir": "/programs/andyl/kunwei/step5",
-        "controller_readback_status": "pending_controller_readback",
-        "controller_readback_manifest": null,
-        "delivery_mode": "local_generated_pending_controller_readback",
-        "readback_source": null,
+        "controller_readback_status": "verified_gate_package",
+        "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v4_20260707_100626/manifest.json",
+        "delivery_mode": "full_upload_readback",
+        "readback_source": "fresh_controller_get",
         "sha256": {
           ".script": "860e0f126d45e4c791a04b8a48b36d19feeffba651f708d6e6cc5bd5b57d90b7",
           ".txt": "a93a75ada8ed6beb9aca1fcd431cae352ba5beb585ae887f54e1f872a195b70c",
