@@ -4806,7 +4806,7 @@ def compute_bridge_values(
                         ),
                     )
                 outer_orientation_error_rad = float(step5d_outer_output.diagnostics["outer_orientation_angle_rad"])
-                if not semantic_boundary_is_consistent(
+                if not step5d_no_contact_p0_profile and not semantic_boundary_is_consistent(
                     contact_orientation_error_rad=orientation_error,
                     outer_orientation_error_rad=outer_orientation_error_rad,
                     tolerance_rad=STEP5D_SEMANTIC_ORIENTATION_TOLERANCE_RAD,

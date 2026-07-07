@@ -207,6 +207,7 @@ PY
     export BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE=1
     export BRIDGE_REQUIRE_PREPLAY_STOPPED=1
     export BRIDGE_STAGE25_ONLY=1
+    export WAIT_FOR_PLAY_S="${WAIT_FOR_PLAY_S:-20}"
     "${BRIDGE_OPERATOR}" prep-long-checks
     "${BRIDGE_OPERATOR}" line-bridge-fast | tee "${tmp_log}"
     run_dir="$(latest_pointer_run_dir "${bridge_start_epoch}" || true)"

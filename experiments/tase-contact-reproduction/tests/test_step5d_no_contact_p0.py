@@ -191,6 +191,7 @@ def _p0_no_contact_runtime_values(
     rnn_target_side_effect: object | None = None,
     jacobian: np.ndarray | None = None,
     latest_zeroed_override: list[float] | None = None,
+    tcp_pose_override: list[float] | None = None,
     solver: object | None = None,
 ) -> dict[str, float]:
     args = bridge.parse_args(
@@ -215,6 +216,8 @@ def _p0_no_contact_runtime_values(
         "actual_qd": [0.0] * 6,
         "output_double_register_35": 25.0,
     }
+    if tcp_pose_override is not None:
+        latest_output["actual_TCP_pose"] = tcp_pose_override
     state = _p0_no_contact_state(normal_acquired=normal_acquired)
     _p0_fake_runtime(state, args)
     if solver is not None:
@@ -614,6 +617,19 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertEqual(values["_step5d_stage25_control_mode"], "speedj_rnn_live")
         self.assertIn("no_contact_p0_component_velocity_clamped", values["_step5d_intervention_reason"])
         self.assertNotIn("no_contact_p0_qdot_gate", values["_step5d_intervention_reason"])
+
+    def test_no_contact_p0_ignores_contact_orientation_semantic_gate(self) -> None:
+        values = _p0_no_contact_runtime_values(
+            normal_acquired=False,
+            sensor_ok=1.0,
+            tcp_pose_override=[0.49, 0.14, 0.02, 0.0, 0.0, 0.0],
+        )
+
+        self.assertEqual(values["step4e_controller_state"], bridge.STEP5D_STAGE25_JOINT_LAYOUT_CODE)
+        self.assertEqual(values["step4e_cmd_valid"], 1.0)
+        self.assertEqual(values["_step5d_outer_orientation_error_rad"], 0.0)
+        self.assertGreater(values["_step5d_contact_orientation_error_rad"], bridge.STEP5D_SEMANTIC_ORIENTATION_TOLERANCE_RAD)
+        self.assertNotIn("Step5d semantic gate blocked", values.get("_step5d_solver_error", ""))
 
     def test_same_origin_twist_transform_uses_block_diagonal_rotation(self) -> None:
         rotation_base_from_tcp = np.diag([1.0, -1.0, -1.0])

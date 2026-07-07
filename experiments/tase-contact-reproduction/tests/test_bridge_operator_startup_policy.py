@@ -143,6 +143,7 @@ postprocess_run "{run_dir}"
         self.assertLess(prep_idx, bridge_idx)
         self.assertLess(export_idx, bridge_idx)
         self.assertIn('"${BRIDGE_OPERATOR}" line-bridge-fast', capture_body)
+        self.assertIn('export WAIT_FOR_PLAY_S="${WAIT_FOR_PLAY_S:-20}"', capture_body)
         self.assertNotIn('"${BRIDGE_OPERATOR}" line-autowatch', capture_body)
         self.assertNotIn("P0 bridge is running. Now press TP Play", capture_body)
         self.assertIn("set -euo pipefail", script)
