@@ -211,6 +211,7 @@ STEP5D_DIAG_FIELDS = [
     "_step5d_constraint_residual_norm",
     "_step5d_outer_xdot_norm",
     "_step5d_outer_xdot_limited_norm",
+    "_step5d_outer_xdot_joint_feasible_norm",
     "_step5d_outer_xdot_limiter_active",
     "_step5d_qdot_cap_rad_s",
     "_step5d_jinv_xdot_inf_rad_s",
@@ -3431,6 +3432,7 @@ def compute_bridge_values(
         or step5d_liveprep_v25_profile
         or step5d_liveprep_v26_profile
         or step5d_step5b_speedl_live_profile
+        or step5d_no_contact_p0_profile
     )
     if step5d_liveprep_profile:
         try:
@@ -4997,6 +4999,11 @@ def compute_bridge_values(
             values["_step5d_outer_xdot_limited_norm"] = (
                 float(np.linalg.norm(step5d_outer_xdot_limited)) if step5d_outer_xdot_limited is not None else values["_step5d_outer_xdot_norm"]
             )
+            values["_step5d_outer_xdot_joint_feasible_norm"] = (
+                float(np.linalg.norm(step5d_outer_xdot_joint_feasible))
+                if step5d_outer_xdot_joint_feasible is not None
+                else values["_step5d_outer_xdot_limited_norm"]
+            )
             values["_step5d_outer_xdot_limiter_active"] = 1.0 if step5d_outer_xdot_limiter_active else 0.0
             values["_step5d_qdot_slew_limiter_active"] = 1.0 if step5d_qdot_slew_limiter_active else 0.0
             values["_step5d_engage_gate_ok"] = 1.0 if step5d_engage_gate_ok else 0.0
@@ -6505,6 +6512,37 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return args
 
 
+def step5d_runtime_prewarm_metadata(bridge_profile: str) -> dict[str, Any]:
+    return {
+        "enabled": bridge_profile in STEP5D_LIVEPREP_STAGE_IDS,
+        "status": "not_required",
+        "elapsed_s": 0.0,
+        "before_socket_connect": True,
+        "before_rtde_open": True,
+    }
+
+
+def step5d_dashboard_watch_metadata(
+    bridge_profile: str,
+    *,
+    skip_dashboard_preflight: bool,
+    disable_dashboard_program_watch: bool,
+    timeout_s: float,
+) -> dict[str, Any]:
+    p0_profile = bridge_profile == STEP5D_NO_CONTACT_P0_STAGE_ID
+    return {
+        "enabled": (
+            bridge_profile in STEP5D_LIVEPREP_STAGE_IDS
+            and not p0_profile
+            and not skip_dashboard_preflight
+            and not disable_dashboard_program_watch
+        ),
+        "timeout_s": timeout_s,
+        "scope": "Step5d live-prep bridge exits after TP program stop or Play timeout",
+        "mode": "preflight_only_for_no_contact_p0" if p0_profile else "runtime_dashboard_watch",
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     if args.duration_s <= 0 or args.baseline_s < 0 or args.rtde_hz <= 0:
@@ -6657,13 +6695,12 @@ def main(argv: list[str] | None = None) -> int:
             "ramp_final_score_s": STEP5B_RAMP_FINAL_SCORE_S if step5b_ramp_trial_enabled(args) else None,
             "ramp_move_score_s": STEP5B_RAMP_MOVE_SCORE_S if step5b_ramp_trial_enabled(args) else None,
         },
-        "dashboard_program_watch": {
-            "enabled": args.bridge_profile in STEP5D_LIVEPREP_STAGE_IDS
-            and not args.skip_dashboard_preflight
-            and not args.disable_dashboard_program_watch,
-            "timeout_s": args.dashboard_program_watch_timeout_s,
-            "scope": "Step5d live-prep bridge exits after TP program stop or Play timeout",
-        },
+        "dashboard_program_watch": step5d_dashboard_watch_metadata(
+            args.bridge_profile,
+            skip_dashboard_preflight=args.skip_dashboard_preflight,
+            disable_dashboard_program_watch=args.disable_dashboard_program_watch,
+            timeout_s=args.dashboard_program_watch_timeout_s,
+        ),
         "step5d_preload_gate": {
             "profile": args.bridge_profile if args.bridge_profile in STEP5D_LIVEPREP_STAGE_IDS else None,
             "filtered_min_n": args.step5d_preload_filtered_min_n,
@@ -6844,13 +6881,7 @@ def main(argv: list[str] | None = None) -> int:
     zero_events: list[dict[str, Any]] = []
     buffer = bytearray()
     step4e_state = BridgeState()
-    step5d_runtime_prewarm = {
-        "enabled": args.bridge_profile in STEP5D_LIVEPREP_STAGE_IDS,
-        "status": "not_required",
-        "elapsed_s": 0.0,
-        "before_socket_connect": True,
-        "before_rtde_open": True,
-    }
+    step5d_runtime_prewarm = step5d_runtime_prewarm_metadata(args.bridge_profile)
     if step5d_runtime_prewarm["enabled"]:
         prewarm_start = time.perf_counter()
         try:
@@ -6877,22 +6908,17 @@ def main(argv: list[str] | None = None) -> int:
 
     next_write = start_mono
     write_period = 1.0 / args.rtde_hz
-    dashboard_watch_mode = (
-        "preflight_only_for_no_contact_p0"
-        if args.bridge_profile == STEP5D_NO_CONTACT_P0_STAGE_ID
-        else "runtime_dashboard_watch"
+    dashboard_watch = step5d_dashboard_watch_metadata(
+        args.bridge_profile,
+        skip_dashboard_preflight=args.skip_dashboard_preflight,
+        disable_dashboard_program_watch=args.disable_dashboard_program_watch,
+        timeout_s=args.dashboard_program_watch_timeout_s,
     )
-    dashboard_watch_enabled = (
-        args.bridge_profile in STEP5D_LIVEPREP_STAGE_IDS
-        and args.bridge_profile != STEP5D_NO_CONTACT_P0_STAGE_ID
-        and not args.skip_dashboard_preflight
-        and not args.disable_dashboard_program_watch
-    )
+    dashboard_watch_enabled = bool(dashboard_watch["enabled"])
     dashboard_watch_saw_running = False
     next_dashboard_watch = start_mono
     metadata["step5d_liveprep_runtime_prewarm"] = step5d_runtime_prewarm
-    metadata["dashboard_program_watch"]["enabled"] = dashboard_watch_enabled
-    metadata["dashboard_program_watch"]["mode"] = dashboard_watch_mode
+    metadata["dashboard_program_watch"].update(dashboard_watch)
     write_json(metadata_path, metadata)
 
     try:

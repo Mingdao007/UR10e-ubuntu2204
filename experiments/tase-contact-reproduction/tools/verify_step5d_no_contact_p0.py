@@ -24,6 +24,8 @@ DEFAULT_MAX_ACTIVE_BOUNDS = 0
 DEFAULT_MIN_LAMBDA_WINDOW_RATIO = 0.5
 DEFAULT_MAX_NORMAL_TRACKING_ERROR_M_S = 5e-4
 DEFAULT_MIN_FIRST_OUTER_PRESS_M_S = 1e-9
+DEFAULT_QDOT_CAP_RAD_S = 0.05
+DEFAULT_QDOT_RAIL_MARGIN_RAD_S = 1e-9
 STAGE25_TOLERANCE = 0.05
 INTEGER_TOLERANCE = 1e-9
 
@@ -95,17 +97,27 @@ def first_tick_summary(row: dict[str, str]) -> dict[str, Any]:
     return {
         "t_monotonic_s": finite_float(row.get("t_monotonic_s")),
         "stage": finite_float(row.get("ur_output_double_register_35")),
+        "cmd_valid": finite_int(row.get("step4e_cmd_valid")),
         "stage25_echo_consumed": finite_int(row.get("_step5d_stage25_echo_consumed")),
         "intervention_reason": str(row.get("_step5d_intervention_reason") or ""),
         "outer_approach_normal_m_s": finite_float(row.get("_step5d_outer_xdot_limited_approach_normal_m_s")),
         "jqdot_raw_approach_normal_m_s": finite_float(row.get("_step5d_jqdot_raw_approach_normal_m_s")),
         "jqdot_cmd_approach_normal_m_s": finite_float(row.get("_step5d_jqdot_cmd_approach_normal_m_s")),
+        "qdot_max_abs_rad_s": finite_float(row.get("_step5d_qdot_max_abs_rad_s")),
         "constraint_residual_norm": finite_float(row.get("_step5d_constraint_residual_norm")),
         "lambda_norm": finite_float(row.get("_step5d_lambda_norm")),
         "active_bounds_count": finite_int(row.get("_step5d_active_bounds_count")),
         "normal_load_n": finite_float(row.get("_step4e_normal_load_n")),
         "force_norm_n": finite_float(row.get("force_norm_n")),
     }
+
+
+def row_cmd_valid(row: dict[str, str]) -> bool:
+    for field in ("step4e_cmd_valid", "_step5d_stage25_echo_cmd_valid"):
+        value = finite_float(row.get(field))
+        if value is not None:
+            return value > 0.5
+    return False
 
 
 def verify_rows(
@@ -118,8 +130,11 @@ def verify_rows(
     min_lambda_window_ratio: float = DEFAULT_MIN_LAMBDA_WINDOW_RATIO,
     max_normal_tracking_error_m_s: float = DEFAULT_MAX_NORMAL_TRACKING_ERROR_M_S,
     min_first_outer_press_m_s: float = DEFAULT_MIN_FIRST_OUTER_PRESS_M_S,
+    qdot_cap_rad_s: float = DEFAULT_QDOT_CAP_RAD_S,
+    qdot_rail_margin_rad_s: float = DEFAULT_QDOT_RAIL_MARGIN_RAD_S,
 ) -> dict[str, Any]:
     blockers: list[str] = []
+    qdot_rail_threshold = float(qdot_cap_rad_s) - float(qdot_rail_margin_rad_s)
     mode_rows = speedj_rnn_mode_rows(rows)
     rnn_rows = speedj_rnn_stage25_rows(rows)
     if not mode_rows:
@@ -222,6 +237,28 @@ def verify_rows(
         if lambda_ratio is not None and lambda_ratio < min_lambda_window_ratio:
             blockers.append("first_lambda_norm_below_window_level")
 
+    accepted_rows = [row for row in rnn_rows if row_cmd_valid(row)]
+    accepted_active_bounds_rows = 0
+    accepted_high_residual_rows = 0
+    accepted_rail_rows = 0
+    for row in accepted_rows:
+        accepted_active_bounds = finite_int(row.get("_step5d_active_bounds_count"))
+        if accepted_active_bounds is not None and accepted_active_bounds > max_active_bounds:
+            accepted_active_bounds_rows += 1
+        accepted_residual = finite_float(row.get("_step5d_constraint_residual_norm"))
+        if accepted_residual is not None and accepted_residual > max_residual_norm:
+            accepted_high_residual_rows += 1
+        accepted_qdot_max = finite_float(row.get("_step5d_qdot_max_abs_rad_s"))
+        if accepted_qdot_max is not None and accepted_qdot_max >= qdot_rail_threshold:
+            accepted_rail_rows += 1
+    if accepted_active_bounds_rows:
+        blockers.append("accepted_speedj_rnn_tick_active_bounds_exceeds_limit")
+    if accepted_high_residual_rows:
+        blockers.append("accepted_speedj_rnn_tick_constraint_residual_norm_exceeds_limit")
+    if accepted_rail_rows:
+        blockers.append("accepted_speedj_rnn_tick_qdot_hits_rail")
+    accepted_command_rail_fraction = accepted_rail_rows / len(accepted_rows) if accepted_rows else 0.0
+
     return {
         "ok": not blockers,
         "blockers": blockers,
@@ -237,12 +274,20 @@ def verify_rows(
             "min_lambda_window_ratio": min_lambda_window_ratio,
             "max_normal_tracking_error_m_s": max_normal_tracking_error_m_s,
             "min_first_outer_press_m_s": min_first_outer_press_m_s,
+            "qdot_cap_rad_s": qdot_cap_rad_s,
+            "qdot_rail_margin_rad_s": qdot_rail_margin_rad_s,
+            "qdot_rail_threshold_rad_s": qdot_rail_threshold,
         },
         "metrics": {
             "max_normal_load_n": max_normal,
             "max_force_norm_n": max_force,
             "lambda_norm_first_to_window_ratio": lambda_ratio,
             "non_stage25_speedj_rnn_live_rows": non_stage25_mode_rows,
+            "accepted_speedj_rnn_live_rows": len(accepted_rows),
+            "accepted_active_bounds_rows": accepted_active_bounds_rows,
+            "accepted_high_residual_rows": accepted_high_residual_rows,
+            "accepted_qdot_rail_rows": accepted_rail_rows,
+            "accepted_command_rail_fraction": accepted_command_rail_fraction,
         },
         "acceptance_scope": "offline_artifact_verification_only_not_live_run_claim",
     }
@@ -273,6 +318,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--min-lambda-window-ratio", type=float, default=DEFAULT_MIN_LAMBDA_WINDOW_RATIO)
     parser.add_argument("--max-normal-tracking-error-m-s", type=float, default=DEFAULT_MAX_NORMAL_TRACKING_ERROR_M_S)
     parser.add_argument("--min-first-outer-press-m-s", type=float, default=DEFAULT_MIN_FIRST_OUTER_PRESS_M_S)
+    parser.add_argument("--qdot-cap-rad-s", type=float, default=DEFAULT_QDOT_CAP_RAD_S)
+    parser.add_argument("--qdot-rail-margin-rad-s", type=float, default=DEFAULT_QDOT_RAIL_MARGIN_RAD_S)
     args = parser.parse_args(argv)
 
     result = verify_run_dir(
@@ -284,6 +331,8 @@ def main(argv: list[str] | None = None) -> int:
         min_lambda_window_ratio=args.min_lambda_window_ratio,
         max_normal_tracking_error_m_s=args.max_normal_tracking_error_m_s,
         min_first_outer_press_m_s=args.min_first_outer_press_m_s,
+        qdot_cap_rad_s=args.qdot_cap_rad_s,
+        qdot_rail_margin_rad_s=args.qdot_rail_margin_rad_s,
     )
     payload = json.dumps(result, indent=2, sort_keys=True) + "\n"
     if args.output:

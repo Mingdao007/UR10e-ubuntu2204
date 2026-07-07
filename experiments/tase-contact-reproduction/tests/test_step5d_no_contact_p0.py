@@ -31,6 +31,7 @@ from step5d_paper_outer_loop import Step5dOuterLoopState  # noqa: E402
 P0_FIELDS = [
     "t_monotonic_s",
     "ur_output_double_register_35",
+    "step4e_cmd_valid",
     "_step4e_normal_load_n",
     "force_norm_n",
     "_step5d_stage25_control_mode",
@@ -39,6 +40,7 @@ P0_FIELDS = [
     "_step5d_outer_xdot_limited_approach_normal_m_s",
     "_step5d_jqdot_raw_approach_normal_m_s",
     "_step5d_jqdot_cmd_approach_normal_m_s",
+    "_step5d_qdot_max_abs_rad_s",
     "_step5d_constraint_residual_norm",
     "_step5d_lambda_norm",
     "_step5d_active_bounds_count",
@@ -184,6 +186,7 @@ def good_rows() -> list[dict[str, str]]:
             {
                 "t_monotonic_s": f"{1.0 + 0.002 * idx:.6f}",
                 "ur_output_double_register_35": "25.0",
+                "step4e_cmd_valid": "1",
                 "_step4e_normal_load_n": "0.300000",
                 "force_norm_n": "0.800000",
                 "_step5d_stage25_control_mode": "speedj_rnn_live",
@@ -192,6 +195,7 @@ def good_rows() -> list[dict[str, str]]:
                 "_step5d_outer_xdot_limited_approach_normal_m_s": "0.000100000",
                 "_step5d_jqdot_raw_approach_normal_m_s": "0.000095000",
                 "_step5d_jqdot_cmd_approach_normal_m_s": "0.000094000",
+                "_step5d_qdot_max_abs_rad_s": "0.000120000",
                 "_step5d_constraint_residual_norm": "0.000020000",
                 "_step5d_lambda_norm": "0.012000000",
                 "_step5d_active_bounds_count": "0",
@@ -488,8 +492,39 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertEqual(values["_step5d_stage25_control_mode"], "speedj_rnn_live")
         self.assertEqual(values["_step5d_qdot_cap_rad_s"], 0.05)
         self.assertGreater(values["_step5d_jinv_xdot_inf_over_qdot_cap"], 1.0)
+        self.assertEqual(values["_step5d_outer_xdot_limiter_active"], 1.0)
+        self.assertLessEqual(values["_step5d_outer_xdot_limited_norm"], 0.016)
+        self.assertIn("_step5d_outer_xdot_joint_feasible_norm", values)
+        self.assertLess(values["_step5d_outer_xdot_joint_feasible_norm"], values["_step5d_outer_xdot_limited_norm"])
         self.assertLess(values["_step5d_xdot_feasibility_scale"], 1.0)
         self.assertEqual(values["_step5d_xdot_feasibility_scale_active"], 1.0)
+
+    def test_no_contact_p0_prewarm_metadata_runs_before_rtde_open(self) -> None:
+        metadata = bridge.step5d_runtime_prewarm_metadata(iface.STEP5D_NO_CONTACT_P0_STAGE_ID)
+
+        self.assertTrue(metadata["enabled"])
+        self.assertEqual(metadata["status"], "not_required")
+        self.assertTrue(metadata["before_socket_connect"])
+        self.assertTrue(metadata["before_rtde_open"])
+
+    def test_no_contact_p0_dashboard_watch_is_preflight_only(self) -> None:
+        p0 = bridge.step5d_dashboard_watch_metadata(
+            iface.STEP5D_NO_CONTACT_P0_STAGE_ID,
+            skip_dashboard_preflight=False,
+            disable_dashboard_program_watch=False,
+            timeout_s=1.0,
+        )
+        liveprep = bridge.step5d_dashboard_watch_metadata(
+            bridge.STEP5D_LIVEPREP_V24_STAGE_ID,
+            skip_dashboard_preflight=False,
+            disable_dashboard_program_watch=False,
+            timeout_s=1.0,
+        )
+
+        self.assertFalse(p0["enabled"])
+        self.assertEqual(p0["mode"], "preflight_only_for_no_contact_p0")
+        self.assertTrue(liveprep["enabled"])
+        self.assertEqual(liveprep["mode"], "runtime_dashboard_watch")
 
     def test_no_contact_p0_bridge_parse_args_uses_full_window_no_contact_defaults(self) -> None:
         args = bridge.parse_args(
@@ -750,6 +785,27 @@ class Step5dNoContactP0Test(unittest.TestCase):
 
         self.assertFalse(result["ok"])
         self.assertIn("first_speedj_rnn_tick_missing_active_bounds_count", result["blockers"])
+
+    def test_fails_when_accepted_window_hits_rail_active_bounds_or_high_residual(self) -> None:
+        cases = [
+            ("_step5d_active_bounds_count", "1", "accepted_speedj_rnn_tick_active_bounds_exceeds_limit"),
+            ("_step5d_constraint_residual_norm", "0.003", "accepted_speedj_rnn_tick_constraint_residual_norm_exceeds_limit"),
+            ("_step5d_qdot_max_abs_rad_s", "0.050000000", "accepted_speedj_rnn_tick_qdot_hits_rail"),
+        ]
+        for field, value, blocker in cases:
+            with self.subTest(blocker=blocker):
+                rows = good_rows()
+                rows[1][field] = value
+                with tempfile.TemporaryDirectory() as tmp:
+                    run_dir = Path(tmp)
+                    write_p0_run(run_dir, rows)
+
+                    result = p0.verify_run_dir(run_dir)
+
+                self.assertFalse(result["ok"])
+                self.assertIn(blocker, result["blockers"])
+                self.assertIn("accepted_command_rail_fraction", result["metrics"])
+                self.assertEqual(result["limits"]["qdot_rail_threshold_rad_s"], 0.05 - 1e-9)
 
     def test_cli_writes_summary_json(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
