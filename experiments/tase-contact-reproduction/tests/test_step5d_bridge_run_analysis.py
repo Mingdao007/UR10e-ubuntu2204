@@ -1172,6 +1172,56 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
         self.assertEqual(analysis["classification"], "stage20_bridge_ready_handshake_failed")
         self.assertEqual(analysis["next_action"], "fix P0 bridge/TP lifecycle handshake before retrying capture")
 
+    def test_p0_joint_layout_uses_command_carrier_when_tp_echo_layout_is_absent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            (run_dir / "metadata.json").write_text(
+                json.dumps(
+                    {
+                        "args": {
+                            "bridge_profile": "step5d_strict_rnn_no_contact_p0_v4",
+                            "step5d_stage25_control_mode": "speedj_rnn_live",
+                        }
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            csv_path = run_dir / "bridge_rtde_500hz.csv"
+            fieldnames = [
+                *FIELDNAMES,
+                "step4e_cmd_valid",
+                "step4e_controller_state",
+                "_step5d_stage25_control_mode",
+                "_step5d_stage25_echo_consumed",
+                "_step5d_stage25_echo_layout_tag",
+            ]
+            write_bridge_csv(
+                csv_path,
+                [
+                    {
+                        "t_monotonic_s": "1.000",
+                        "ur_output_double_register_30": "0",
+                        "ur_output_double_register_35": "25.0",
+                        "_step4e_normal_load_n": "0.0",
+                        "_step5d_force_settle_filtered_normal_load_n": "",
+                        "force_norm_n": "0.1",
+                        "step4e_cmd_valid": "1",
+                        "step4e_controller_state": "524",
+                        "_step5d_stage25_control_mode": "speedj_rnn_live",
+                        "_step5d_stage25_echo_consumed": "1",
+                        "_step5d_stage25_echo_layout_tag": "0",
+                    }
+                ],
+                fieldnames=fieldnames,
+            )
+
+            analysis = analyze_step5d_bridge_run.analyze_run_dir(run_dir)
+
+        attribution = analysis["stage25_control_attribution"]
+        self.assertEqual(attribution["layout_tag_counts"], {"0": 1})
+        self.assertEqual(attribution["command_layout_tag_counts"], {"524": 1})
+
     def test_missing_required_columns_returns_explicit_classification(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = Path(tmp)

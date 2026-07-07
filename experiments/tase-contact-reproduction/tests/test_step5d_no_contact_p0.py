@@ -397,8 +397,47 @@ class Step5dNoContactP0Test(unittest.TestCase):
     def test_no_contact_p0_stage25_writer_operates_without_normal_acquired_when_sensor_ok(self) -> None:
         values = _p0_no_contact_runtime_values(normal_acquired=False, sensor_ok=1.0)
         self.assertEqual(values["step4e_controller_state"], bridge.STEP5D_STAGE25_JOINT_LAYOUT_CODE)
-        self.assertEqual(values["step4e_cmd_valid"], 1.0)
+        self.assertEqual(values["step4e_cmd_valid"], 0.0)
+        self.assertEqual(values["step4e_cmd_vx_m_s"], 0.0)
+        self.assertEqual(values["step4e_cmd_vy_m_s"], 0.0)
+        self.assertEqual(values["step4e_cmd_vz_m_s"], 0.0)
         self.assertEqual(values["_step5d_stage25_control_mode"], "speedj_rnn_live")
+        self.assertIn("no_contact_p0_qdot_gate", values["_step5d_intervention_reason"])
+
+    def test_no_contact_p0_qdot_gate_blocks_tcp_escape_before_register_write(self) -> None:
+        gate = bridge.step5d_no_contact_p0_qdot_acceptance_gate(
+            qdot=(0.05, -0.05, 0.05, -0.05, -0.05, 0.05),
+            jacobian=np.eye(6),
+            outer_xdot_limited=(0.0, 0.0, 0.00015, 0.0, 0.0, 0.0),
+            reaction_normal_b=(0.0, 0.0, -1.0),
+            residual_norm=3.9,
+            active_bounds_count=6,
+            max_tcp_speed_m_s=0.004,
+            max_normal_tracking_error_m_s=0.0005,
+            max_residual_norm=0.001,
+        )
+
+        self.assertFalse(gate["accepted"])
+        self.assertEqual(gate["reason"], "predicted_tcp_speed_exceeds_p0_cap")
+        self.assertEqual(tuple(gate["qdot"]), (0.0,) * 6)
+        self.assertGreater(gate["predicted_tcp_speed_m_s"], 0.004)
+
+    def test_no_contact_p0_qdot_gate_allows_small_aligned_command(self) -> None:
+        gate = bridge.step5d_no_contact_p0_qdot_acceptance_gate(
+            qdot=(0.0, 0.0, 0.00014, 0.0, 0.0, 0.0),
+            jacobian=np.eye(6),
+            outer_xdot_limited=(0.0, 0.0, 0.00015, 0.0, 0.0, 0.0),
+            reaction_normal_b=(0.0, 0.0, -1.0),
+            residual_norm=0.0001,
+            active_bounds_count=0,
+            max_tcp_speed_m_s=0.004,
+            max_normal_tracking_error_m_s=0.0005,
+            max_residual_norm=0.001,
+        )
+
+        self.assertTrue(gate["accepted"])
+        self.assertEqual(tuple(gate["qdot"]), (0.0, 0.0, 0.00014, 0.0, 0.0, 0.0))
+        self.assertAlmostEqual(gate["normal_tracking_error_m_s"], 0.00001)
 
     def test_no_contact_p0_bridge_parse_args_uses_full_window_no_contact_defaults(self) -> None:
         args = bridge.parse_args(

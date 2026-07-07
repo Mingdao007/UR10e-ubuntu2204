@@ -2540,6 +2540,68 @@ def limit_step5d_predicted_tcp_speed(
     return qdot_values * scale, predicted_speed_m_s, True
 
 
+def step5d_no_contact_p0_qdot_acceptance_gate(
+    *,
+    qdot: Sequence[float],
+    jacobian: Any,
+    outer_xdot_limited: Sequence[float],
+    reaction_normal_b: Sequence[float],
+    residual_norm: float,
+    active_bounds_count: int | float,
+    max_tcp_speed_m_s: float,
+    max_normal_tracking_error_m_s: float,
+    max_residual_norm: float,
+) -> dict[str, Any]:
+    qdot_values = np.asarray(qdot, dtype=float)
+    J = np.asarray(jacobian, dtype=float)
+    outer = np.asarray(outer_xdot_limited, dtype=float)
+    reaction = normalize3((float(reaction_normal_b[0]), float(reaction_normal_b[1]), float(reaction_normal_b[2])))
+    approach = np.asarray((-reaction[0], -reaction[1], -reaction[2]), dtype=float)
+    zero_qdot = np.zeros(6, dtype=float)
+
+    def reject(reason: str, **extra: Any) -> dict[str, Any]:
+        return {"accepted": False, "reason": reason, "qdot": zero_qdot, **extra}
+
+    if (
+        qdot_values.shape != (6,)
+        or J.shape[1] != 6
+        or J.shape[0] < 3
+        or outer.shape != (6,)
+        or not np.all(np.isfinite(qdot_values))
+        or not np.all(np.isfinite(J))
+        or not np.all(np.isfinite(outer))
+    ):
+        return reject(
+            "nonfinite_or_bad_shape",
+            predicted_tcp_speed_m_s=math.nan,
+            jqdot_approach_normal_m_s=math.nan,
+            outer_approach_normal_m_s=math.nan,
+            normal_tracking_error_m_s=math.nan,
+        )
+    predicted_twist = J @ qdot_values
+    predicted_speed = float(np.linalg.norm(predicted_twist[:3]))
+    jqdot_approach = float(np.dot(predicted_twist[:3], approach))
+    outer_approach = float(np.dot(outer[:3], approach))
+    normal_tracking_error = abs(jqdot_approach - outer_approach)
+    common = {
+        "predicted_tcp_speed_m_s": predicted_speed,
+        "jqdot_approach_normal_m_s": jqdot_approach,
+        "outer_approach_normal_m_s": outer_approach,
+        "normal_tracking_error_m_s": normal_tracking_error,
+    }
+    if predicted_speed > float(max_tcp_speed_m_s):
+        return reject("predicted_tcp_speed_exceeds_p0_cap", **common)
+    if outer_approach > 0.0 and jqdot_approach <= 0.0:
+        return reject("approach_normal_unload_mismatch", **common)
+    if normal_tracking_error > float(max_normal_tracking_error_m_s):
+        return reject("approach_normal_tracking_error", **common)
+    if float(residual_norm) > float(max_residual_norm):
+        return reject("constraint_residual_norm_exceeds_p0_limit", **common)
+    if float(active_bounds_count) > 0.0:
+        return reject("active_bounds_exceeds_p0_limit", **common)
+    return {"accepted": True, "reason": "ok", "qdot": qdot_values, **common}
+
+
 def step5d_dls_qdot_oracle(
     jacobian: Any,
     xdot_c: Sequence[float],
@@ -4174,6 +4236,7 @@ def compute_bridge_values(
         step5d_raw_qdot_command: tuple[float, float, float, float, float, float] | None = None
         step5d_post_slew_qdot_command: tuple[float, float, float, float, float, float] | None = None
         step5d_stage25_command: tuple[float, float, float, float, float, float] | None = None
+        step5d_no_contact_p0_qdot_gate_ok = True
         step5d_speedl_shadow_raw_linear_cmd: tuple[float, float, float] | None = None
         step5d_speedl_shadow_raw_angular_cmd: tuple[float, float, float] | None = None
         step5d_speedl_orientation_shadow_only = False
@@ -4571,6 +4634,30 @@ def compute_bridge_values(
                         step5d_qdot_command = tuple(float(value) for value in zero_qdot.tolist())
                         state.step5d_outer_state = Step5dOuterLoopState()
                         state.step5d_last_qdot = None
+                if (
+                    step5d_no_contact_p0_profile
+                    and step5d_stage25_control_mode == "speedj_rnn_live"
+                    and step5d_qdot_command is not None
+                    and step5d_outer_xdot_limited is not None
+                    and step5d_result is not None
+                ):
+                    p0_qdot_gate = step5d_no_contact_p0_qdot_acceptance_gate(
+                        qdot=step5d_qdot_command,
+                        jacobian=jacobian,
+                        outer_xdot_limited=step5d_outer_xdot_limited,
+                        reaction_normal_b=n_control_b,
+                        residual_norm=float(step5d_result.residual_norm),
+                        active_bounds_count=sum(bool(value) for value in step5d_result.diagnostics["active_bounds_mask"]),
+                        max_tcp_speed_m_s=float(args.bridge_total_linear_limit_m_s),
+                        max_normal_tracking_error_m_s=5e-4,
+                        max_residual_norm=1e-3,
+                    )
+                    step5d_no_contact_p0_qdot_gate_ok = bool(p0_qdot_gate["accepted"])
+                    if not step5d_no_contact_p0_qdot_gate_ok:
+                        zero_qdot = tuple(float(value) for value in p0_qdot_gate["qdot"])
+                        step5d_qdot_command = zero_qdot
+                        step5d_intervention_reasons.append(f"no_contact_p0_qdot_gate:{p0_qdot_gate['reason']}")
+                        state.step5d_last_qdot = None
                 if step5d_ablation_profile:
                     if step5d_stage25_control_mode == "speedl_cartesian_oracle":
                         raw_stage25_command = tuple(float(value) for value in step5d_outer_xdot_limited.tolist())
@@ -4684,6 +4771,7 @@ def compute_bridge_values(
                         or step5d_result is None
                         or step5d_outer_output is None
                         or step5d_stage25_command is None
+                        or not step5d_no_contact_p0_qdot_gate_ok
                         else 1.0,
                         path_time_s=progress,
                         force_error_n=register_force_error,
