@@ -7,6 +7,7 @@ ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 LIVEPREP_OPERATOR="${SCRIPT_DIR}/step5d-liveprep-operator.sh"
 BRIDGE_OPERATOR="${SCRIPT_DIR}/bridge-line-operator.sh"
 P0_VERIFIER="${ROOT}/tools/verify_step5d_no_contact_p0.py"
+STAGE_ENV_EXPORTER="${ROOT}/tools/export_stage_env.py"
 P0_PROFILE="step5d_strict_rnn_no_contact_p0_v4"
 P0_CONFIRM_TOKEN="LIVE STEP5D STRICT RNN NO CONTACT P0"
 
@@ -93,6 +94,17 @@ print(
 PY
 }
 
+load_p0_stage_env() {
+  local stage_env
+  if ! stage_env="$(python3 "${STAGE_ENV_EXPORTER}" "${P0_PROFILE}")"; then
+    echo "refusing no-contact P0: failed to export stage env for ${P0_PROFILE}" >&2
+    return 24
+  fi
+  set -a
+  eval "${stage_env}"
+  set +a
+}
+
 if [[ $# -lt 1 ]]; then
   usage
   exit 2
@@ -106,30 +118,8 @@ case "$1" in
   capture-ready)
     echo "Step5d strict RNN no-contact P0 capture readiness: no bridge is started by this command." >&2
     p0_table_preflight
-    BRIDGE_PROFILE="${P0_PROFILE}" \
-    BRIDGE_DURATION_S=180 \
-    BRIDGE_BASELINE_S=1 \
-    BRIDGE_REZERO_S=0.25 \
-    BRIDGE_RTDE_HZ=500 \
-    BRIDGE_SENSOR_STALE_S=0.10 \
-    BRIDGE_SOCKET_TIMEOUT_S=0.0 \
-    BRIDGE_TARGET_FORCE_N=1.0 \
-    BRIDGE_FORCE_P_GAIN=0.001 \
-    BRIDGE_FORCE_I_GAIN=0.00001 \
-    BRIDGE_FORCE_DAMPING=7.0 \
-    BRIDGE_INTEGRAL_LIMIT_N_S=1.0 \
-    MAX_NORMAL_FORCE_N=2 \
-    MAX_FORCE_NORM_N=5 \
-    MAX_TORQUE_NORM_NM=3.0 \
-    BRIDGE_NORMAL_FOLLOW_MODE=locked \
-    BRIDGE_NORMAL_FILTER_ALPHA=0.55 \
-    BRIDGE_NORMAL_MIN_FORCE_N=0.001 \
-    BRIDGE_MOTION_LIMIT_M_S=0.004 \
-    BRIDGE_TOTAL_LINEAR_LIMIT_M_S=0.004 \
-    BRIDGE_NORMAL_VELOCITY_LIMIT_M_S=0.003 \
-    BRIDGE_ANGULAR_LIMIT_RAD_S=0.015 \
-    STEP5D_STAGE25_CONTROL_MODE=speedj_rnn_live \
-      "${BRIDGE_OPERATOR}" live-ready
+    load_p0_stage_env
+    "${BRIDGE_OPERATOR}" live-ready
     echo "Teach Pendant target: /programs/andyl/kunwei/step5/${P0_PROFILE}.urp"
     ;;
   capture-bridge)
@@ -144,38 +134,10 @@ case "$1" in
     }
     trap cleanup EXIT
     echo "[operator] P0 bridge is running. Now press TP Play only after bridge output starts for /programs/andyl/kunwei/step5/${P0_PROFILE}.urp."
-    BRIDGE_PROFILE="${P0_PROFILE}" \
-    BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE=1 \
-    BRIDGE_STAGE25_ONLY=1 \
-    BRIDGE_DURATION_S=180 \
-    BRIDGE_BASELINE_S=1 \
-    BRIDGE_REZERO_S=0.25 \
-    BRIDGE_RTDE_HZ=500 \
-    BRIDGE_SENSOR_STALE_S=0.10 \
-    BRIDGE_SOCKET_TIMEOUT_S=0.0 \
-    BRIDGE_TARGET_FORCE_N=1.0 \
-    BRIDGE_FORCE_P_GAIN=0.001 \
-    BRIDGE_FORCE_I_GAIN=0.00001 \
-    BRIDGE_FORCE_DAMPING=7.0 \
-    BRIDGE_INTEGRAL_LIMIT_N_S=1.0 \
-    MAX_NORMAL_FORCE_N=2 \
-    MAX_FORCE_NORM_N=5 \
-    MAX_TORQUE_NORM_NM=3.0 \
-    BRIDGE_NORMAL_FOLLOW_MODE=locked \
-    BRIDGE_NORMAL_FILTER_ALPHA=0.55 \
-    BRIDGE_NORMAL_MIN_FORCE_N=0.001 \
-    BRIDGE_MOTION_LIMIT_M_S=0.004 \
-    BRIDGE_TOTAL_LINEAR_LIMIT_M_S=0.004 \
-    BRIDGE_NORMAL_VELOCITY_LIMIT_M_S=0.003 \
-    BRIDGE_ANGULAR_LIMIT_RAD_S=0.015 \
-    STEP5D_STAGE25_CONTROL_MODE=speedj_rnn_live \
-    STEP5D_PRELOAD_FILTERED_MIN_N=0.0 \
-    STEP5D_PRELOAD_FILTERED_MAX_N=2.0 \
-    STEP5D_PRELOAD_RAW_MIN_N=0.0 \
-    STEP5D_PRELOAD_RAW_MAX_N=2.0 \
-    STEP5D_PRELOAD_FORCE_NORM_MAX_N=5.0 \
-    STEP5D_PRELOAD_HOLD_S=0.0 \
-      "${BRIDGE_OPERATOR}" line-bridge-fast | tee "${tmp_log}"
+    load_p0_stage_env
+    export BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE=1
+    export BRIDGE_STAGE25_ONLY=1
+    "${BRIDGE_OPERATOR}" line-bridge-fast | tee "${tmp_log}"
     run_dir="$(python3 - "${tmp_log}" <<'PY'
 import re
 import sys

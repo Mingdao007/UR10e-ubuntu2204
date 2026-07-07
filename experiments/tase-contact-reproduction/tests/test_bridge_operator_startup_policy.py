@@ -140,6 +140,28 @@ postprocess_run "{run_dir}"
         self.assertNotIn('"${BRIDGE_OPERATOR}" line-autowatch', capture_body)
         self.assertIn("P0 bridge is running. Now press TP Play", capture_body)
 
+    def test_no_contact_p0_base_operator_preserves_exported_env(self) -> None:
+        script = f"""
+set -euo pipefail
+export BRIDGE_OPERATOR_SOURCE_ONLY=1
+export BRIDGE_PROFILE=step5d_strict_rnn_no_contact_p0_v4
+export BRIDGE_DURATION_S=181
+export BRIDGE_FORCE_P_GAIN=0.002
+export BRIDGE_NORMAL_MIN_FORCE_N=0.002
+source "{ROOT / 'scripts' / 'bridge-line-operator.sh'}"
+printf '%s\\n' "$BRIDGE_DURATION_S" "$BRIDGE_FORCE_P_GAIN" "$BRIDGE_NORMAL_MIN_FORCE_N"
+"""
+        completed = subprocess.run(
+            ["bash", "-lc", script],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        self.assertEqual(completed.stdout.splitlines()[-3:], ["181", "0.002", "0.002"])
+
     def test_step5d_workflow_upload_uses_table_resolved_target(self) -> None:
         script = read_script("step5d-workflow.sh")
         upload_calls = [line for line in script.splitlines() if 'python3 "${UPLOAD_TOOL}"' in line]

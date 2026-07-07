@@ -886,7 +886,10 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertIn("BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE=1", script)
         self.assertIn("verify_step5d_no_contact_p0.py", script)
         self.assertIn("step5d_no_contact_p0_summary", script)
-        self.assertIn("BRIDGE_DURATION_S=180", script)
+        self.assertIn("export_stage_env.py", script)
+        self.assertNotIn("BRIDGE_DURATION_S=180", script)
+        self.assertNotIn("BRIDGE_MOTION_LIMIT_M_S=0.004", script)
+        self.assertNotIn("BRIDGE_FORCE_I_GAIN=0.00001", script)
         self.assertNotIn("contact-bridge", script)
 
     def test_capture_bridge_refuses_without_p0_confirm_before_starting_bridge(self) -> None:
@@ -916,6 +919,8 @@ class Step5dNoContactP0Test(unittest.TestCase):
             wrapper = scripts_dir / "step5d-strict-rnn-p0.sh"
             wrapper.write_text((ROOT / "scripts" / "step5d-strict-rnn-p0.sh").read_text(encoding="utf-8"), encoding="utf-8")
             wrapper.chmod(0o755)
+            for helper in ("export_stage_env.py", "step5d_runtime_interface.py", "tase_protocol_table.py"):
+                shutil.copy2(ROOT / "tools" / helper, tools_dir / helper)
             bridge_spy = scripts_dir / "bridge-line-operator.sh"
             bridge_spy.write_text(
                 f"""#!/usr/bin/env bash

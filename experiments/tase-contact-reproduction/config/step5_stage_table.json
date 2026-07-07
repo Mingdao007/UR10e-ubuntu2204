@@ -7182,6 +7182,18 @@
         ],
         "live_readiness_state": "controller_readback_verified_p0_capture_pending"
       },
+      "bridge_runtime": {
+        "duration_s": 180.0,
+        "rtde_hz": 500.0,
+        "sensor_stale_s": 0.10,
+        "socket_timeout_s": 0.0,
+        "force_p_gain": 0.001,
+        "force_i_gain": 0.00001,
+        "force_damping": 7.0,
+        "integral_limit_n_s": 1.0,
+        "normal_follow_mode": "locked",
+        "normal_min_force_n": 0.001
+      },
       "runtime_interface_ref": {
         "path": "tools/step5d_runtime_interface.py",
         "interface_class": "tp_speedj_strict_rnn_liveprep_v1",

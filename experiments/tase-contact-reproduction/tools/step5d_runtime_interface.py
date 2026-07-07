@@ -57,27 +57,130 @@ STEP5D_STAGE25_V27_FIX_VALIDATION_TARGET_S = 10.0
 STEP5D_STAGE25_V28_FULL_RUN_TARGET_S = 60.0
 STEP5D_STAGE25_V27_RUNTIME_LIMIT_S = 15.0
 STEP5D_STAGE25_V28_RUNTIME_LIMIT_S = 65.0
-STEP5D_NO_CONTACT_P0_DURATION_S = 180.0
-STEP5D_NO_CONTACT_P0_TARGET_FORCE_N = 1.0
-STEP5D_NO_CONTACT_P0_BASELINE_S = 1.0
-STEP5D_NO_CONTACT_P0_REZERO_S = 0.25
-STEP5D_NO_CONTACT_P0_FORCE_P_GAIN = 0.001
-STEP5D_NO_CONTACT_P0_FORCE_I_GAIN = 0.00001
-STEP5D_NO_CONTACT_P0_FORCE_DAMPING = 7.0
-STEP5D_NO_CONTACT_P0_INTEGRAL_LIMIT_N_S = 1.0
-STEP5D_NO_CONTACT_P0_NORMAL_GUARD_N = 2.0
-STEP5D_NO_CONTACT_P0_FORCE_GUARD_N = 5.0
-STEP5D_NO_CONTACT_P0_TORQUE_GUARD_NM = 3.0
-STEP5D_NO_CONTACT_P0_MOTION_LIMIT_M_S = 0.004
-STEP5D_NO_CONTACT_P0_TOTAL_LINEAR_LIMIT_M_S = 0.004
-STEP5D_NO_CONTACT_P0_NORMAL_VELOCITY_LIMIT_M_S = 0.003
-STEP5D_NO_CONTACT_P0_NORMAL_FILTER_ALPHA = 0.55
-STEP5D_NO_CONTACT_P0_ANGULAR_LIMIT_RAD_S = 0.015
-STEP5D_NO_CONTACT_P0_NORMAL_MIN_FORCE_N = 0.001
-STEP5D_NO_CONTACT_P0_PRELOAD_TIMEOUT_S = 1.0
-STEP5D_NO_CONTACT_P0_RTDE_HZ = 500.0
-STEP5D_NO_CONTACT_P0_SENSOR_STALE_S = 0.10
-STEP5D_NO_CONTACT_P0_SOCKET_TIMEOUT_S = 0.0
+
+
+class StageEnvError(RuntimeError):
+    pass
+
+
+def _stage_finite_float(value: Any, label: str) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError) as exc:
+        raise StageEnvError(f"{label} must be a finite float: {value!r}") from exc
+    if not math.isfinite(parsed):
+        raise StageEnvError(f"{label} must be finite: {value!r}")
+    return parsed
+
+
+def _load_step5_stage_table(root: Path = EXPERIMENT_ROOT) -> dict[str, Any]:
+    return json.loads((root / "config" / "step5_stage_table.json").read_text(encoding="utf-8"))
+
+
+def _stage_row(stage_id: str, root: Path = EXPERIMENT_ROOT) -> dict[str, Any]:
+    table = _load_step5_stage_table(root)
+    row = next((row for row in table.get("stages", []) if row.get("id") == stage_id), None)
+    if row is None:
+        raise StageEnvError(f"missing stage table row: {stage_id}")
+    return row
+
+
+def _stage_field(row: dict[str, Any], dotted: str) -> Any:
+    value: Any = row
+    for part in dotted.split("."):
+        if not isinstance(value, dict) or part not in value:
+            raise StageEnvError(f"missing stage table field: {dotted}")
+        value = value[part]
+    if value is None:
+        raise StageEnvError(f"stage table field is null: {dotted}")
+    return value
+
+
+def _fmt_int(value: Any) -> str:
+    parsed = _stage_finite_float(value, "stage env integer")
+    if not parsed.is_integer():
+        raise StageEnvError(f"expected integer-valued stage env value: {value!r}")
+    return str(int(parsed))
+
+
+def _fmt_float(value: Any, places: int | None = None) -> str:
+    parsed = _stage_finite_float(value, "stage env float")
+    if places is None:
+        return str(parsed)
+    return f"{parsed:.{places}f}"
+
+
+def _fmt_text(value: Any) -> str:
+    text = str(value)
+    if not text or any(ch.isspace() for ch in text) or any(ch in "'\"`$\\;" for ch in text):
+        raise StageEnvError(f"unsafe shell env value: {text!r}")
+    return text
+
+
+_STAGE_ENV_MAP: tuple[tuple[str, str, object], ...] = (
+    ("BRIDGE_PROFILE", "id", _fmt_text),
+    ("BRIDGE_DURATION_S", "bridge_runtime.duration_s", _fmt_int),
+    ("BRIDGE_BASELINE_S", "operator_lifecycle.baseline_s", _fmt_int),
+    ("BRIDGE_REZERO_S", "operator_lifecycle.rezero_s", lambda value: _fmt_float(value, 2)),
+    ("BRIDGE_RTDE_HZ", "bridge_runtime.rtde_hz", _fmt_int),
+    ("BRIDGE_SENSOR_STALE_S", "bridge_runtime.sensor_stale_s", lambda value: _fmt_float(value, 2)),
+    ("BRIDGE_SOCKET_TIMEOUT_S", "bridge_runtime.socket_timeout_s", lambda value: _fmt_float(value, 1)),
+    ("BRIDGE_TARGET_FORCE_N", "guard.target_force_n", lambda value: _fmt_float(value, 1)),
+    ("BRIDGE_FORCE_P_GAIN", "bridge_runtime.force_p_gain", lambda value: _fmt_float(value, 3)),
+    ("BRIDGE_FORCE_I_GAIN", "bridge_runtime.force_i_gain", lambda value: _fmt_float(value, 5)),
+    ("BRIDGE_FORCE_DAMPING", "bridge_runtime.force_damping", lambda value: _fmt_float(value, 1)),
+    ("BRIDGE_INTEGRAL_LIMIT_N_S", "bridge_runtime.integral_limit_n_s", lambda value: _fmt_float(value, 1)),
+    ("MAX_NORMAL_FORCE_N", "guard.raw_normal_guard_n", _fmt_int),
+    ("MAX_FORCE_NORM_N", "guard.force_norm_guard_n", _fmt_int),
+    ("MAX_TORQUE_NORM_NM", "guard.torque_norm_guard_nm", lambda value: _fmt_float(value, 1)),
+    ("BRIDGE_NORMAL_FOLLOW_MODE", "bridge_runtime.normal_follow_mode", _fmt_text),
+    ("BRIDGE_NORMAL_FILTER_ALPHA", "guard.normal_load_filter_alpha", lambda value: _fmt_float(value, 2)),
+    ("BRIDGE_NORMAL_MIN_FORCE_N", "bridge_runtime.normal_min_force_n", lambda value: _fmt_float(value, 3)),
+    ("BRIDGE_MOTION_LIMIT_M_S", "guard.path_cap_m_s", lambda value: _fmt_float(value, 3)),
+    ("BRIDGE_TOTAL_LINEAR_LIMIT_M_S", "guard.total_linear_cap_m_s", lambda value: _fmt_float(value, 3)),
+    ("BRIDGE_NORMAL_VELOCITY_LIMIT_M_S", "guard.normal_velocity_cap_m_s", lambda value: _fmt_float(value, 3)),
+    ("BRIDGE_ANGULAR_LIMIT_RAD_S", "guard.attitude_cap_rad_s", lambda value: _fmt_float(value, 3)),
+    ("STEP5D_STAGE25_CONTROL_MODE", "guard.stage25_default_control_mode", _fmt_text),
+    ("STEP5D_PRELOAD_FILTERED_MIN_N", "guard.line_entry_normal_load_min_n", lambda value: _fmt_float(value, 1)),
+    ("STEP5D_PRELOAD_FILTERED_MAX_N", "guard.line_entry_normal_load_max_n", lambda value: _fmt_float(value, 1)),
+    ("STEP5D_PRELOAD_RAW_MIN_N", "guard.line_entry_normal_load_min_n", lambda value: _fmt_float(value, 1)),
+    ("STEP5D_PRELOAD_RAW_MAX_N", "guard.line_entry_normal_load_max_n", lambda value: _fmt_float(value, 1)),
+    ("STEP5D_PRELOAD_FORCE_NORM_MAX_N", "guard.force_norm_guard_n", lambda value: _fmt_float(value, 1)),
+    ("STEP5D_PRELOAD_HOLD_S", "guard.line_entry_required_s", lambda value: _fmt_float(value, 1)),
+    ("STEP5D_PRELOAD_TIMEOUT_S", "guard.line_entry_timeout_s", lambda value: _fmt_float(value, 1)),
+)
+
+
+def build_stage_env(stage_id: str, root: Path = EXPERIMENT_ROOT) -> dict[str, str]:
+    row = _stage_row(stage_id, root)
+    env: dict[str, str] = {}
+    for env_name, dotted, formatter in _STAGE_ENV_MAP:
+        env[env_name] = formatter(_stage_field(row, dotted))  # type: ignore[operator]
+    return env
+
+
+_P0_ENV = build_stage_env(STEP5D_NO_CONTACT_P0_STAGE_ID)
+STEP5D_NO_CONTACT_P0_DURATION_S = float(_P0_ENV["BRIDGE_DURATION_S"])
+STEP5D_NO_CONTACT_P0_TARGET_FORCE_N = float(_P0_ENV["BRIDGE_TARGET_FORCE_N"])
+STEP5D_NO_CONTACT_P0_BASELINE_S = float(_P0_ENV["BRIDGE_BASELINE_S"])
+STEP5D_NO_CONTACT_P0_REZERO_S = float(_P0_ENV["BRIDGE_REZERO_S"])
+STEP5D_NO_CONTACT_P0_FORCE_P_GAIN = float(_P0_ENV["BRIDGE_FORCE_P_GAIN"])
+STEP5D_NO_CONTACT_P0_FORCE_I_GAIN = float(_P0_ENV["BRIDGE_FORCE_I_GAIN"])
+STEP5D_NO_CONTACT_P0_FORCE_DAMPING = float(_P0_ENV["BRIDGE_FORCE_DAMPING"])
+STEP5D_NO_CONTACT_P0_INTEGRAL_LIMIT_N_S = float(_P0_ENV["BRIDGE_INTEGRAL_LIMIT_N_S"])
+STEP5D_NO_CONTACT_P0_NORMAL_GUARD_N = float(_P0_ENV["MAX_NORMAL_FORCE_N"])
+STEP5D_NO_CONTACT_P0_FORCE_GUARD_N = float(_P0_ENV["MAX_FORCE_NORM_N"])
+STEP5D_NO_CONTACT_P0_TORQUE_GUARD_NM = float(_P0_ENV["MAX_TORQUE_NORM_NM"])
+STEP5D_NO_CONTACT_P0_MOTION_LIMIT_M_S = float(_P0_ENV["BRIDGE_MOTION_LIMIT_M_S"])
+STEP5D_NO_CONTACT_P0_TOTAL_LINEAR_LIMIT_M_S = float(_P0_ENV["BRIDGE_TOTAL_LINEAR_LIMIT_M_S"])
+STEP5D_NO_CONTACT_P0_NORMAL_VELOCITY_LIMIT_M_S = float(_P0_ENV["BRIDGE_NORMAL_VELOCITY_LIMIT_M_S"])
+STEP5D_NO_CONTACT_P0_NORMAL_FILTER_ALPHA = float(_P0_ENV["BRIDGE_NORMAL_FILTER_ALPHA"])
+STEP5D_NO_CONTACT_P0_ANGULAR_LIMIT_RAD_S = float(_P0_ENV["BRIDGE_ANGULAR_LIMIT_RAD_S"])
+STEP5D_NO_CONTACT_P0_NORMAL_MIN_FORCE_N = float(_P0_ENV["BRIDGE_NORMAL_MIN_FORCE_N"])
+STEP5D_NO_CONTACT_P0_PRELOAD_TIMEOUT_S = float(_P0_ENV["STEP5D_PRELOAD_TIMEOUT_S"])
+STEP5D_NO_CONTACT_P0_RTDE_HZ = float(_P0_ENV["BRIDGE_RTDE_HZ"])
+STEP5D_NO_CONTACT_P0_SENSOR_STALE_S = float(_P0_ENV["BRIDGE_SENSOR_STALE_S"])
+STEP5D_NO_CONTACT_P0_SOCKET_TIMEOUT_S = float(_P0_ENV["BRIDGE_SOCKET_TIMEOUT_S"])
 
 STEP5D_PROTOCOL_FALLBACK_PROFILE = {
     "parameters": {
