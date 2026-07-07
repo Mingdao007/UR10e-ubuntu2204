@@ -683,8 +683,13 @@ class Step5dNoContactP0Test(unittest.TestCase):
         current = json.loads((ROOT / "config" / "current_stage.json").read_text(encoding="utf-8"))
         capture = current["bridge_trigger"]["no_contact_p0_capture"]
 
-        self.assertFalse(capture["capture_authorized"])
         self.assertFalse(capture["passed"])
+        if capture["capture_authorized"]:
+            self.assertTrue(capture["controller_readback_verified"])
+            self.assertEqual(capture["delivery_mode"], "full_upload_readback")
+            self.assertIsNotNone(capture["controller_readback_manifest"])
+        else:
+            self.assertFalse(capture["controller_readback_verified"])
         self.assertEqual(capture["local_triplet"], "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v5")
         self.assertEqual(
             capture["controller_target"],
@@ -983,7 +988,10 @@ class Step5dNoContactP0Test(unittest.TestCase):
                 f"""#!/usr/bin/env bash
 set -euo pipefail
 env >"{sandbox / 'bridge_env.txt'}"
-printf '%s\\n' "$@" >"{sandbox / 'bridge_argv.txt'}"
+printf '%s\\n' "$@" >>"{sandbox / 'bridge_argv.txt'}"
+if [[ "${{1:-}}" == "prep-long-checks" ]]; then
+  exit 0
+fi
 python3 - <<'PY'
 import json
 import time
@@ -1052,7 +1060,10 @@ out.write_text(json.dumps({{"ok": True}}), encoding="utf-8")
             )
 
             self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
-            self.assertEqual((sandbox / "bridge_argv.txt").read_text(encoding="utf-8").strip(), "line-bridge-fast")
+            self.assertEqual(
+                (sandbox / "bridge_argv.txt").read_text(encoding="utf-8").splitlines(),
+                ["prep-long-checks", "line-bridge-fast"],
+            )
             bridge_env = dict(
                 line.split("=", 1)
                 for line in (sandbox / "bridge_env.txt").read_text(encoding="utf-8").splitlines()
@@ -1060,6 +1071,7 @@ out.write_text(json.dumps({{"ok": True}}), encoding="utf-8")
             )
             self.assertEqual(bridge_env["BRIDGE_PROFILE"], "step5d_strict_rnn_no_contact_p0_v5")
             self.assertEqual(bridge_env["BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE"], "1")
+            self.assertEqual(bridge_env["BRIDGE_REQUIRE_PREPLAY_STOPPED"], "1")
             self.assertEqual(bridge_env["BRIDGE_DURATION_S"], "180")
             self.assertEqual(bridge_env["BRIDGE_RTDE_HZ"], "500")
             self.assertEqual(bridge_env["BRIDGE_SENSOR_STALE_S"], "0.10")

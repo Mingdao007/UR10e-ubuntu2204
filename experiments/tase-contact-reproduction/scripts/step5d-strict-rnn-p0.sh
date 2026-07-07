@@ -25,7 +25,9 @@ Boundary:
   - status/live-ready only report current Step5d runtime readiness.
   - capture-ready reports the dedicated no-contact P0 capture profile readiness.
   - capture-bridge starts the dedicated no-contact P0 bridge before Teach
-    Pendant Play after STEP5D_P0_CONFIRM is set exactly;
+    Pendant Play after STEP5D_P0_CONFIRM is set exactly. Open the exact v5
+    program on the Teach Pendant and keep it STOPPED; press Play only after
+    the operator prints: [operator] P0 bridge armed: press TP Play now.
     it does not mark P0 passed.
   - validate-run only checks an already captured bridge_rtde_500hz.csv artifact.
   - This wrapper never loads a program, presses Play, zeroes/tares force sensing,
@@ -166,6 +168,8 @@ case "$1" in
     load_p0_stage_env
     "${BRIDGE_OPERATOR}" live-ready
     echo "Teach Pendant target: /programs/andyl/kunwei/step5/${P0_PROFILE}.urp"
+    echo "Open that exact v5 program on the Teach Pendant and keep it STOPPED."
+    echo "Then run capture-bridge and press TP Play only after: [operator] P0 bridge armed: press TP Play now"
     ;;
   capture-bridge)
     if [[ "${STEP5D_P0_CONFIRM:-}" != "${P0_CONFIRM_TOKEN}" ]]; then
@@ -183,10 +187,11 @@ PY
       rm -f "${tmp_log}"
     }
     trap cleanup EXIT
-    echo "[operator] P0 bridge is running. Now press TP Play only after bridge output starts for /programs/andyl/kunwei/step5/${P0_PROFILE}.urp."
     load_p0_stage_env
     export BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE=1
+    export BRIDGE_REQUIRE_PREPLAY_STOPPED=1
     export BRIDGE_STAGE25_ONLY=1
+    "${BRIDGE_OPERATOR}" prep-long-checks
     "${BRIDGE_OPERATOR}" line-bridge-fast | tee "${tmp_log}"
     run_dir="$(latest_pointer_run_dir "${bridge_start_epoch}" || true)"
     if [[ -z "${run_dir}" ]]; then

@@ -808,13 +808,16 @@ PY
 }
 
 trigger_dashboard_check() {
-  local rc
-  set +e
-  dashboard_snapshot >/tmp/step4e_dash_snapshot.txt 2>&1
-  rc="$?"
+  local rc=0
+  dashboard_snapshot >/tmp/step4e_dash_snapshot.txt 2>&1 || rc="$?"
   cat /tmp/step4e_dash_snapshot.txt || true
   case "${rc}" in
     10)
+      if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
+        echo "refusing: TP program is already PLAYING before P0 bridge armed"
+        echo "next: stop/reopen exact v5, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
+        return 24
+      fi
       echo "[operator] expected program is already running; starting bridge late with already_running=1"
       return 10
       ;;
@@ -827,11 +830,57 @@ trigger_dashboard_check() {
       return 20
       ;;
     21)
-      echo "refusing: loaded program is not expected Step4e ${BRIDGE_MODE}"
+      if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
+        echo "refusing: loaded program is not exact P0 v5"
+        echo "next: stop/reopen exact v5, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
+      else
+        echo "refusing: loaded program is not expected Step4e ${BRIDGE_MODE}"
+      fi
       return 21
       ;;
     *)
       echo "refusing: Dashboard state is not ready for fast bridge trigger (rc=${rc})"
+      return "${rc}"
+      ;;
+  esac
+}
+
+p0_pre_arm_dashboard_check() {
+  local bridge_pid="$1"
+  if [[ "${BRIDGE_PROFILE}" != "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
+    return 0
+  fi
+
+  local rc=0
+  dashboard_snapshot >/tmp/step4e_dash_snapshot.txt 2>&1 || rc="$?"
+  cat /tmp/step4e_dash_snapshot.txt || true
+  case "${rc}" in
+    10)
+      echo "refusing: TP Play happened before P0 bridge armed"
+      echo "next: stop/reopen exact v5, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
+      stop_bridge_process "${bridge_pid}" "TP Play happened before P0 bridge armed"
+      return 24
+      ;;
+    11)
+      echo "[operator] P0 bridge armed: press TP Play now for ${EXPECTED_PROGRAM}"
+      return 0
+      ;;
+    20)
+      echo "refusing: safety mode is not NORMAL"
+      echo "next: stop/reopen exact v5, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
+      stop_bridge_process "${bridge_pid}" "P0 pre-arm safety is not NORMAL"
+      return 20
+      ;;
+    21)
+      echo "refusing: loaded program is not exact P0 v5"
+      echo "next: stop/reopen exact v5, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
+      stop_bridge_process "${bridge_pid}" "P0 pre-arm loaded program mismatch"
+      return 21
+      ;;
+    *)
+      echo "refusing: Dashboard state is not ready for P0 bridge arm (rc=${rc})"
+      echo "next: stop/reopen exact v5, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
+      stop_bridge_process "${bridge_pid}" "P0 pre-arm dashboard not ready"
       return "${rc}"
       ;;
   esac
@@ -953,6 +1002,11 @@ PY
       then
         echo "[operator] expected program did not start within ${WAIT_FOR_PLAY_S} s"
         stop_bridge_process "${bridge_pid}" "TP Play timeout"
+        if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
+          echo "refusing: P0 TP Play timeout after bridge armed"
+          echo "next: stop/reopen exact v5, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
+          return 24
+        fi
         return 0
       fi
     fi
@@ -1107,10 +1161,28 @@ run_bridge_for_mode() {
     --step5d-preload-timeout-s "${STEP5D_PRELOAD_TIMEOUT_S:-10.0}" \
     --output-dir "${out_dir}" &
   bridge_pid="$!"
-  wait_for_bridge_output_started "${out_dir}" "${bridge_pid}" || true
+  output_started_rc=0
+  wait_for_bridge_output_started "${out_dir}" "${bridge_pid}" || output_started_rc="$?"
+  if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
+    if [[ "${output_started_rc}" != "0" ]]; then
+      echo "refusing: P0 bridge output did not start before arm"
+      echo "next: stop/reopen exact v5, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
+      stop_bridge_process "${bridge_pid}" "P0 output-start confirmation failed"
+      wait "${bridge_pid}" || true
+      trap - INT TERM EXIT
+      return 24
+    fi
+    p0_pre_arm_dashboard_check "${bridge_pid}" || {
+      local pre_arm_rc="$?"
+      wait "${bridge_pid}" || true
+      trap - INT TERM EXIT
+      return "${pre_arm_rc}"
+    }
+  fi
   maybe_start_background_push "${out_dir}"
 
-  monitor_bridge "${bridge_pid}" "${already_running}" || true
+  local monitor_rc=0
+  monitor_bridge "${bridge_pid}" "${already_running}" || monitor_rc="$?"
   wait "${bridge_pid}" || true
   trap - INT TERM EXIT
 
@@ -1123,6 +1195,10 @@ run_bridge_for_mode() {
   fi
   [[ -f "${quiet_json}" ]] && cat "${quiet_json}"
   postprocess_run "${out_dir}"
+  if [[ "${monitor_rc}" != "0" ]]; then
+    return "${monitor_rc}"
+  fi
+  return 0
 }
 
 if [[ "${BRIDGE_OPERATOR_SOURCE_ONLY:-0}" == "1" ]]; then
@@ -1157,6 +1233,9 @@ The bridge will start automatically only after Dashboard reports that exact Step
 WARNING
     if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
       step5d_live_bridge_authorized
+      echo "refusing: P0 capture requires bridge-before-Play; line-autowatch is disabled for no-contact P0"
+      echo "next: stop/reopen exact v5, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
+      exit 24
     fi
     run_bench_gate_cached
     if [[ "${BRIDGE_PROFILE}" != "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then

@@ -136,9 +136,15 @@ postprocess_run "{run_dir}"
         capture_end = script.index("validate-run)", capture_start)
         capture_body = script[capture_start:capture_end]
 
+        prep_idx = capture_body.index('"${BRIDGE_OPERATOR}" prep-long-checks')
+        bridge_idx = capture_body.index('"${BRIDGE_OPERATOR}" line-bridge-fast')
+        export_idx = capture_body.index("BRIDGE_REQUIRE_PREPLAY_STOPPED=1")
+
+        self.assertLess(prep_idx, bridge_idx)
+        self.assertLess(export_idx, bridge_idx)
         self.assertIn('"${BRIDGE_OPERATOR}" line-bridge-fast', capture_body)
         self.assertNotIn('"${BRIDGE_OPERATOR}" line-autowatch', capture_body)
-        self.assertIn("P0 bridge is running. Now press TP Play", capture_body)
+        self.assertNotIn("P0 bridge is running. Now press TP Play", capture_body)
 
     def test_no_contact_p0_base_operator_preserves_exported_env(self) -> None:
         script = f"""
@@ -248,6 +254,101 @@ printf '%s\\n' "$BRIDGE_DURATION_S" "$BRIDGE_FORCE_P_GAIN" "$BRIDGE_NORMAL_MIN_F
         self.assertIn("no-contact P0 capture is not authorized", output)
         self.assertNotIn("skipping long bench gate", output)
         self.assertNotIn("RTDE quick probe passed", output)
+
+    def test_no_contact_p0_autowatch_refuses_even_when_capture_authorized(self) -> None:
+        env = os.environ.copy()
+        env.update(
+            {
+                "BRIDGE_PROFILE": "step5d_strict_rnn_no_contact_p0_v5",
+                "STEP5D_P0_CONFIRM": "LIVE STEP5D STRICT RNN NO CONTACT P0",
+                "BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE": "1",
+                "BRIDGE_SKIP_BENCH_GATE": "1",
+                "BRIDGE_SKIP_LONG_CHECKS": "1",
+                "AUTOWATCH_WAIT_FOR_PLAY_S": "0.01",
+                "LONG_CHECK_CACHE": str(Path(tempfile.gettempdir()) / "missing-step5d-p0-cache.json"),
+            }
+        )
+
+        completed = subprocess.run(
+            [str(ROOT / "scripts" / "bridge-line-operator.sh"), "line-autowatch"],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        output = completed.stdout + completed.stderr
+        self.assertEqual(completed.returncode, 24, output)
+        self.assertIn("P0 capture requires bridge-before-Play", output)
+        self.assertIn("rerun capture-bridge", output)
+        self.assertNotIn("RTDE quick probe passed", output)
+
+    def test_no_contact_p0_trigger_dashboard_already_running_is_hard_refusal(self) -> None:
+        script = f"""
+set -euo pipefail
+export BRIDGE_OPERATOR_SOURCE_ONLY=1
+export BRIDGE_PROFILE=step5d_strict_rnn_no_contact_p0_v5
+source "{ROOT / 'scripts' / 'bridge-line-operator.sh'}"
+dashboard_snapshot() {{
+  printf '%s\\n' 'Program running: true' 'Loaded program: /programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v5.urp' 'PLAYING' 'Safetymode: NORMAL'
+  return 10
+}}
+set +e
+trigger_dashboard_check
+rc="$?"
+set -e
+printf 'rc=%s\\n' "$rc"
+"""
+        completed = subprocess.run(
+            ["bash", "-lc", script],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        output = completed.stdout + completed.stderr
+        self.assertEqual(completed.returncode, 0, output)
+        self.assertIn("rc=24", output)
+        self.assertIn("TP program is already PLAYING before P0 bridge armed", output)
+        self.assertIn("rerun capture-bridge", output)
+        self.assertNotIn("starting bridge late with already_running=1", output)
+
+    def test_no_contact_p0_pre_arm_recheck_stops_bridge_if_played_early(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            stop_log = Path(tmp) / "stop.log"
+            script = f"""
+set -euo pipefail
+export BRIDGE_OPERATOR_SOURCE_ONLY=1
+export BRIDGE_PROFILE=step5d_strict_rnn_no_contact_p0_v5
+source "{ROOT / 'scripts' / 'bridge-line-operator.sh'}"
+dashboard_snapshot() {{
+  printf '%s\\n' 'Program running: true' 'Loaded program: /programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v5.urp' 'PLAYING' 'Safetymode: NORMAL'
+  return 10
+}}
+stop_bridge_process() {{
+  printf 'pid=%s reason=%s\\n' "$1" "$2" >"{stop_log}"
+}}
+set +e
+p0_pre_arm_dashboard_check 4242
+rc="$?"
+set -e
+printf 'rc=%s\\n' "$rc"
+"""
+            completed = subprocess.run(
+                ["bash", "-lc", script],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            output = completed.stdout + completed.stderr
+            self.assertEqual(completed.returncode, 0, output)
+            self.assertIn("rc=24", output)
+            self.assertIn("TP Play happened before P0 bridge armed", output)
+            self.assertEqual(stop_log.read_text(encoding="utf-8").strip(), "pid=4242 reason=TP Play happened before P0 bridge armed")
 
     def test_step5d_bridge_path_does_not_background_git_push(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
