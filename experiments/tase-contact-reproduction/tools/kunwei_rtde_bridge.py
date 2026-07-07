@@ -6279,7 +6279,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--step5d-qdot-limit-rad-s", type=float, default=None)
     parser.add_argument("--step5d-alpha-s-inv", type=float, default=1.0)
     parser.add_argument("--step5d-epsilon", type=float, default=0.022)
-    parser.add_argument("--step5d-sigr-exponent-r", type=float, default=0.2)
+    parser.add_argument("--step5d-sigr-exponent-r", type=float, default=1.0)
     parser.add_argument(
         "--step5d-stage25-control-mode",
         default=os.environ.get("STEP5D_STAGE25_CONTROL_MODE", ""),

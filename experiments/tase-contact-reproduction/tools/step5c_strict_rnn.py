@@ -32,7 +32,7 @@ class StrictRnnConfig:
     paper_truth_path: Path = PAPER_TRUTH_PATH
     qdot_limit_rad_s: float = 0.30
     epsilon: float = 0.022
-    sigr_exponent_r: float = 0.2
+    sigr_exponent_r: float = 1.0
 
 
 @dataclass(frozen=True)

@@ -512,6 +512,22 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertTrue(metadata["before_socket_connect"])
         self.assertTrue(metadata["before_rtde_open"])
 
+    def test_no_contact_p0_bridge_default_uses_second_author_linear_sigr(self) -> None:
+        args = bridge.parse_args(
+            [
+                "--no-start-command",
+                "--skip-dashboard-preflight",
+                "--bridge-mode",
+                "line",
+                "--bridge-profile",
+                iface.STEP5D_NO_CONTACT_P0_STAGE_ID,
+                "--bridge-path-shape",
+                "cycloid",
+            ]
+        )
+
+        self.assertEqual(args.step5d_sigr_exponent_r, 1.0)
+
     def test_no_contact_p0_dashboard_watch_is_preflight_only(self) -> None:
         p0 = bridge.step5d_dashboard_watch_metadata(
             iface.STEP5D_NO_CONTACT_P0_STAGE_ID,

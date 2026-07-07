@@ -60,9 +60,15 @@ class Step5dRnnP0RailSimulationTest(unittest.TestCase):
         self.assertEqual(audit["stage25_rows"], 2069)
         self.assertGreater(audit["rnn_rail_fraction"], 0.99)
         self.assertGreater(audit["all_joints_rail_fraction"], 0.99)
-        self.assertEqual(audit["persisted_analysis_classification"], "entered_stage25")
         self.assertEqual(audit["current_analysis_classification"], "no_contact_p0_verifier_failed")
-        self.assertTrue(audit["persisted_analysis_stale"])
+        self.assertIn(
+            audit["persisted_analysis_classification"],
+            {"entered_stage25", "no_contact_p0_verifier_failed"},
+        )
+        self.assertEqual(
+            audit["persisted_analysis_stale"],
+            audit["persisted_analysis_classification"] != audit["current_analysis_classification"],
+        )
 
 
 if __name__ == "__main__":

@@ -111,7 +111,7 @@ def eq23_discrete_sign_sensitivity_probe(*, steps: int = 2000) -> dict[str, Any]
     xdot = np.array([0.05, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=float)
     dt_s = 0.002
     epsilon = 0.022
-    r = 0.2
+    r = 1.0
     lower = np.full(6, -0.15)
     upper = np.full(6, 0.15)
     rows: list[dict[str, Any]] = []
@@ -188,7 +188,7 @@ def nonzero_command_stability_probe(*, steps: int = 2000) -> dict[str, Any]:
                 paper_truth_path=truth_path,
                 qdot_limit_rad_s=0.15,
                 epsilon=0.022,
-                sigr_exponent_r=0.2,
+                sigr_exponent_r=1.0,
             )
         )
         residuals: list[float] = []
@@ -202,7 +202,7 @@ def nonzero_command_stability_probe(*, steps: int = 2000) -> dict[str, Any]:
                 omega_plus=np.full(6, 0.15),
                 dt=0.002,
                 epsilon=0.022,
-                r=0.2,
+                r=1.0,
             )
             residuals.append(float(last_diag.constraint_residual_norm))
             hit_bound = hit_bound or any(last_diag.active_bounds_mask)
@@ -223,7 +223,7 @@ def nonzero_command_stability_probe(*, steps: int = 2000) -> dict[str, Any]:
             "steps": steps,
             "dt_s": 0.002,
             "epsilon": 0.022,
-            "r": 0.2,
+            "r": 1.0,
             "qdot_bound_rad_s": 0.15,
             "initial_residual_norm": residuals[0],
             "final_residual_norm": residuals[-1],
@@ -328,7 +328,7 @@ def field_rows(
         {
             "field": "production_sigr_exponent_r",
             "claim_tier": "virtual/software force-loop",
-            "status": "blocked_local_default_matches_example_not_production_selection",
+            "status": "blocked_local_second_author_linear_default_not_pdf_selection",
             "supports_strict_rnn_final_acceptance": False,
             "evidence": {
                 "local_sigr_exponent_r": assumptions.get("sigr_exponent_r"),

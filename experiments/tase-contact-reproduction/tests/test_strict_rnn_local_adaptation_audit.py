@@ -122,7 +122,7 @@ class StrictRnnLocalAdaptationAuditTest(unittest.TestCase):
                             "alpha_s_inv": 1.0,
                             "T_s": 0.002,
                             "qdot_limit_rad_s": 0.15,
-                            "sigr_exponent_r": 0.2,
+                            "sigr_exponent_r": 1.0,
                             "force_input": "synthetic_environment_on_tool_force_along_reaction_normal",
                             "contact_evidence": "not_claimed",
                         },

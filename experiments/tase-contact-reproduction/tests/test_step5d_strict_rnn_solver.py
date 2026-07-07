@@ -37,8 +37,36 @@ class Step5dStrictRnnSolverTest(unittest.TestCase):
         self.assertAlmostEqual(float(sigr(1.0, 0.5)), 1.0, places=12)
         self.assertAlmostEqual(float(sigr(-2.0, 0.2)), -(2.0**0.2), places=12)
         self.assertEqual(float(sigr(0.0, 0.5)), 0.0)
+        self.assertEqual(float(sigr(-0.123, 1.0)), -0.123)
         self.assertNotEqual(float(sigr(2.0, 0.5)), float(np.clip(2.0, -0.15, 0.15)))
         np.testing.assert_allclose(sigr(np.array([4.0, -9.0]), 0.5), np.array([2.0, -3.0]))
+
+    def test_default_sigr_exponent_matches_second_author_linear_rnn(self) -> None:
+        self.assertEqual(StrictRnnConfig().sigr_exponent_r, 1.0)
+
+    def test_r_equals_one_matches_second_author_linear_theta_update(self) -> None:
+        solver = self.make_solver()
+        solver.theta_dot_state = np.array([0.02, -0.01, 0.0, 0.004, -0.003, 0.002])
+        solver.lambda_state = np.array([0.04, -0.03, 0.02, -0.01, 0.005, -0.004])
+        jacobian = np.eye(6)
+        lower = np.full(6, -0.15)
+        upper = np.full(6, 0.15)
+        theta_before = solver.theta_dot_state.copy()
+        projected = np.clip(jacobian.T @ solver.lambda_state, lower, upper)
+
+        diag = solver.step(
+            J=jacobian,
+            xdot_c=np.zeros(6),
+            omega_minus=lower,
+            omega_plus=upper,
+            dt=0.002,
+            epsilon=0.020,
+        )
+
+        expected_theta = theta_before + (0.002 / 0.020) * (projected - theta_before)
+        np.testing.assert_allclose(diag.sigr_val, theta_before - projected, atol=1e-12)
+        np.testing.assert_allclose(diag.theta_dot_state, expected_theta, atol=1e-12)
+        self.assertEqual(diag.sigr_exponent_r, 1.0)
 
     def test_projection_is_elementwise_saturation(self) -> None:
         projected = project_omega(

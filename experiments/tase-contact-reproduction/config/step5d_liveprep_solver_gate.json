@@ -9,7 +9,7 @@
     "communication_delay_T_default_s": "dt_s",
     "force_sign_convention": "step5_step6_positive_normal_load",
     "qdot_limit_rad_s": 0.3,
-    "sigr_exponent_r": 0.2
+    "sigr_exponent_r": 1.0
   },
   "safety_boundary": [
     "enables strict RNN live-prep profile only",

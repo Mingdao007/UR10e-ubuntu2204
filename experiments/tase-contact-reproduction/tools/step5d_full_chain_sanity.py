@@ -157,7 +157,7 @@ def run_sanity(
     sample_limit: int = DEFAULT_SAMPLE_LIMIT,
     alpha_s_inv: float = DEFAULT_ALPHA_S_INV,
     qdot_limit_rad_s: float = DEFAULT_QDOT_LIMIT_RAD_S,
-    r: float = 0.2,
+    r: float = 1.0,
     epsilon: float = 0.022,
     dt_s: float = 0.002,
     use_recorded_position_error: bool = False,
