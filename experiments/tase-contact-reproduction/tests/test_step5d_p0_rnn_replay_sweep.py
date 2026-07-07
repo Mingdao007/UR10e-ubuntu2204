@@ -127,16 +127,16 @@ class Step5dP0RnnReplaySweepTest(unittest.TestCase):
             )
             target = {
                 "p0_posture": {
-                    "policy": "yuming_low_force_v1",
+                    "policy": "freeze_until_contact_v1",
                     "active": True,
                     "orientation_gain_scale": 1.0,
                     "effective_ko": 0.01,
                 },
                 "expected_p0_posture": {
-                    "policy": "yuming_low_force_v1",
+                    "policy": "freeze_until_contact_v1",
                     "active": True,
-                    "orientation_gain_scale": 0.002,
-                    "effective_ko": 0.01,
+                    "orientation_gain_scale": 0.0,
+                    "effective_ko": 0.0,
                 },
             }
 
@@ -178,10 +178,10 @@ class Step5dP0RnnReplaySweepTest(unittest.TestCase):
 
     def test_logged_p0_posture_rejects_fractional_active_evidence(self) -> None:
         row = {
-            "_step5d_p0_low_force_posture_policy": "yuming_low_force_v1",
+            "_step5d_p0_low_force_posture_policy": "freeze_until_contact_v1",
             "_step5d_p0_low_force_posture_active": "0.6",
-            "_step5d_p0_posture_gain_scale": "0.002",
-            "_step5d_p0_effective_ko": "0.01",
+            "_step5d_p0_posture_gain_scale": "0.0",
+            "_step5d_p0_effective_ko": "0.0",
         }
 
         with self.assertRaisesRegex(RuntimeError, "_step5d_p0_low_force_posture_active"):
@@ -250,10 +250,10 @@ class Step5dP0RnnReplaySweepTest(unittest.TestCase):
             "qd": [0.0] * 6,
             "logged_residual": 0.01001,
             "p0_posture": {
-                "policy": "yuming_low_force_v1",
+                "policy": "freeze_until_contact_v1",
                 "active": True,
-                "orientation_gain_scale": 0.002,
-                "effective_ko": 0.01,
+                "orientation_gain_scale": 0.0,
+                "effective_ko": 0.0,
             },
         }
         targets = [target] * 100
@@ -267,10 +267,10 @@ class Step5dP0RnnReplaySweepTest(unittest.TestCase):
         self.assertEqual(result["backend"], "cupy")
         self.assertEqual(result["residual_norm"]["n"], 100)
         self.assertEqual(result["active_bounds_rows"], 0)
-        self.assertEqual(result["p0_low_force_posture_policy_counts"], {"yuming_low_force_v1": 100})
+        self.assertEqual(result["p0_low_force_posture_policy_counts"], {"freeze_until_contact_v1": 100})
         self.assertEqual(result["p0_low_force_posture_active_rows"], 100)
-        self.assertAlmostEqual(result["p0_effective_ko"]["median"], 0.01)
-        self.assertAlmostEqual(result["p0_posture_gain_scale"]["median"], 0.002)
+        self.assertAlmostEqual(result["p0_effective_ko"]["median"], 0.0)
+        self.assertAlmostEqual(result["p0_posture_gain_scale"]["median"], 0.0)
         self.assertTrue(result["logged_alignment_ok"])
 
 

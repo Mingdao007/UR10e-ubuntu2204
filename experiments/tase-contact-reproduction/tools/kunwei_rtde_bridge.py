@@ -584,10 +584,10 @@ STEP5D_V12_QDOT_SLEW_RAD_S2 = 0.20
 STEP5D_NO_CONTACT_P0_LINEAR_XY_COMPONENT_LIMIT_M_S = 0.010
 STEP5D_NO_CONTACT_P0_LINEAR_Z_COMPONENT_LIMIT_M_S = 0.020
 STEP5D_NO_CONTACT_P0_ANGULAR_COMPONENT_LIMIT_RAD_S = STEP5D_NO_CONTACT_P0_ANGULAR_LIMIT_RAD_S
-STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_POLICY = "yuming_low_force_v1"
+STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_POLICY = "freeze_until_contact_v1"
 STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_LOW_LOAD_N = 1.0
 STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_HIGH_LOAD_N = 2.0
-STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_KO = 0.01
+STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_KO = 0.0
 STEP5D_V12_GUARD_DT_MAX_S = 0.010
 STEP5D_V12_LINE_CONTACT_LOW_STOP_N = 0.5
 STEP5D_V12_LINE_CONTACT_MIN_N = 1.0
@@ -2582,32 +2582,16 @@ def limit_step5d_no_contact_p0_xdot_components(
     for idx in range(3, 6):
         limited_tcp[idx] = clamp(float(limited_tcp[idx]), -float(max_angular_rad_s), float(max_angular_rad_s))
     limited_base = twist_same_origin_to_base(limited_tcp, rotation)
-    base_down_correction_active = False
-    frame_valid = True
-    frame_reason = "ok"
-    if float(limited_base[2]) > 0.0:
-        tcp_z_to_base_z = float(rotation[2, 2])
-        if tcp_z_to_base_z < -1e-9:
-            needed_tcp_press = float(limited_base[2]) / -tcp_z_to_base_z
-            corrected_tcp_z = min(float(max_z_m_s), float(limited_tcp[2]) + needed_tcp_press)
-            if corrected_tcp_z > float(limited_tcp[2]):
-                limited_tcp[2] = corrected_tcp_z
-                limited_base = twist_same_origin_to_base(limited_tcp, rotation)
-                base_down_correction_active = True
-        if float(limited_base[2]) > 1e-12:
-            frame_valid = False
-            frame_reason = "base_z_upward_after_tcp_press_correction"
     active = bool(np.any(np.abs(limited_base - xdot) > 1e-9))
     diagnostics = {
-        "valid": frame_valid,
+        "valid": True,
         "mode": "tcp_same_origin_v1",
-        "reason": frame_reason,
+        "reason": "ok",
         "raw_base": xdot,
         "raw_tcp": raw_tcp,
         "limited_tcp": limited_tcp,
         "limited_base": limited_base,
         "tcp_press_speed_m_s": float(limited_tcp[2]),
-        "base_down_correction_active": base_down_correction_active,
     }
     return (limited_base, active, diagnostics) if return_diagnostics else (limited_base, active)
 

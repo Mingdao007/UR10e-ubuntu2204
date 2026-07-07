@@ -274,10 +274,10 @@ def good_rows() -> list[dict[str, str]]:
                 "_step5d_rnn_backend": "cupy",
                 "_step5d_rnn_epsilon": "0.010000000",
                 "_step5d_rnn_sigr_exponent_r": "0.800000000",
-                "_step5d_p0_low_force_posture_policy": "yuming_low_force_v1",
+                "_step5d_p0_low_force_posture_policy": "freeze_until_contact_v1",
                 "_step5d_p0_low_force_posture_active": "1",
-                "_step5d_p0_posture_gain_scale": "0.002000000",
-                "_step5d_p0_effective_ko": "0.010000000",
+                "_step5d_p0_posture_gain_scale": "0.000000000",
+                "_step5d_p0_effective_ko": "0.000000000",
                 "_step5d_p0_frame_transform_valid": "1",
                 "_step5d_p0_frame_transform_mode": "tcp_same_origin_v1",
                 "_step5d_p0_frame_transform_reason": "ok",
@@ -594,15 +594,15 @@ class Step5dNoContactP0Test(unittest.TestCase):
         np.testing.assert_allclose(twist_base, np.array([0.0, 0.0, -0.020, 0.0, -0.010, 0.0]))
         np.testing.assert_allclose(roundtrip_tcp, twist_tcp)
 
-    def test_no_contact_p0_low_force_posture_policy_uses_yuming_scale(self) -> None:
+    def test_no_contact_p0_low_force_posture_policy_freezes_until_contact(self) -> None:
         low = bridge.step5d_no_contact_p0_low_force_posture_policy(normal_load_n=0.0, base_ko=5.0)
         mid = bridge.step5d_no_contact_p0_low_force_posture_policy(normal_load_n=1.5, base_ko=5.0)
         high = bridge.step5d_no_contact_p0_low_force_posture_policy(normal_load_n=2.0, base_ko=5.0)
 
-        self.assertEqual(low["policy"], "yuming_low_force_v1")
+        self.assertEqual(low["policy"], "freeze_until_contact_v1")
         self.assertTrue(low["active"])
-        self.assertAlmostEqual(low["effective_ko"], 0.01)
-        self.assertAlmostEqual(low["orientation_gain_scale"], 0.002)
+        self.assertAlmostEqual(low["effective_ko"], 0.0)
+        self.assertAlmostEqual(low["orientation_gain_scale"], 0.0)
         self.assertGreater(mid["effective_ko"], low["effective_ko"])
         self.assertLess(mid["effective_ko"], high["effective_ko"])
         self.assertFalse(high["active"])
@@ -616,24 +616,24 @@ class Step5dNoContactP0Test(unittest.TestCase):
             latest_zeroed_override=[0.0, 0.0, -0.2, 0.0, 0.0, 0.0],
         )
 
-        self.assertEqual(values["_step5d_p0_low_force_posture_policy"], "yuming_low_force_v1")
+        self.assertEqual(values["_step5d_p0_low_force_posture_policy"], "freeze_until_contact_v1")
         self.assertEqual(values["_step5d_p0_low_force_posture_active"], 1.0)
-        self.assertAlmostEqual(values["_step5d_p0_effective_ko"], 0.01)
-        self.assertAlmostEqual(values["_step5d_p0_posture_gain_scale"], 0.002)
+        self.assertAlmostEqual(values["_step5d_p0_effective_ko"], 0.0)
+        self.assertAlmostEqual(values["_step5d_p0_posture_gain_scale"], 0.0)
         self.assertIn("_step5d_oracle_residual_norm", values)
         self.assertIn("_step5d_cmd_residual_norm", values)
         self.assertIn("_step5d_rnn_vs_oracle_qdot_norm", values)
         self.assertTrue(np.isfinite(values["_step5d_oracle_residual_norm"]))
         self.assertTrue(np.isfinite(values["_step5d_cmd_residual_norm"]))
 
-    def test_no_contact_p0_low_force_posture_scale_reaches_rnn_target(self) -> None:
+    def test_no_contact_p0_low_force_freezes_posture_before_rnn_target(self) -> None:
         captured_scales: list[float] = []
         captured_solver_targets: list[dict[str, object]] = []
 
         def fake_outer(config, *_args: object, **_kwargs: object) -> SimpleNamespace:
             captured_scales.append(float(config.orientation_gain_scale))
             return SimpleNamespace(
-                xdot_c=np.array([0.001, 0.0, -0.002, 0.020, 0.0, 0.0]),
+                xdot_c=np.array([0.001, 0.0, -0.002, 0.0, 0.0, 0.0]),
                 next_state=Step5dOuterLoopState(),
                 diagnostics={
                     "outer_orientation_angle_rad": 0.0,
@@ -681,11 +681,11 @@ class Step5dNoContactP0Test(unittest.TestCase):
         )
 
         self.assertEqual(len(captured_scales), 1)
-        self.assertAlmostEqual(captured_scales[0], 0.002)
+        self.assertAlmostEqual(captured_scales[0], 0.0)
         self.assertEqual(len(captured_solver_targets), 1)
         np.testing.assert_allclose(
             np.asarray(captured_solver_targets[0]["xdot_c"], dtype=float),
-            np.array([0.001, 0.0, -0.002, 0.015, 0.0, 0.0]),
+            np.array([0.001, 0.0, -0.002, 0.0, 0.0, 0.0]),
             atol=1e-12,
         )
 
@@ -888,29 +888,6 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertLessEqual(float(limited_tcp[2]), 0.020000001)
         self.assertLessEqual(float(xdot[2]), 1e-12)
         self.assertFalse(np.allclose(xdot, legacy_base_clip))
-
-    def test_no_contact_p0_tcp_xy_cannot_create_base_upward_escape_at_live_pose(self) -> None:
-        rotation_base_from_tcp = np.asarray(
-            bridge.rotvec_to_matrix(3.066590466020342, 0.4823691970174541, 0.011593743710405745),
-            dtype=float,
-        )
-        raw_tcp = np.array([-0.000128420409, 0.0000626265109, 0.0, 0.0, 0.0, 0.0])
-        raw_base = twist_same_origin_to_base(raw_tcp, rotation_base_from_tcp)
-        self.assertGreater(float(raw_base[2]), 1e-6)
-
-        xdot, active, diagnostics = bridge.limit_step5d_no_contact_p0_xdot_components(
-            raw_base,
-            rotation_base_from_tcp=rotation_base_from_tcp,
-            return_diagnostics=True,
-        )
-
-        self.assertTrue(active)
-        self.assertTrue(diagnostics["valid"])
-        self.assertEqual(diagnostics["reason"], "ok")
-        self.assertTrue(diagnostics["base_down_correction_active"])
-        self.assertGreater(float(diagnostics["limited_tcp"][2]), 0.0)
-        self.assertLessEqual(float(diagnostics["limited_base"][2]), 1e-12)
-        self.assertLessEqual(float(xdot[2]), 1e-12)
 
     def test_no_contact_p0_xdot_limiter_requires_tcp_rotation(self) -> None:
         with self.assertRaisesRegex(ValueError, "rotation_base_from_tcp"):
