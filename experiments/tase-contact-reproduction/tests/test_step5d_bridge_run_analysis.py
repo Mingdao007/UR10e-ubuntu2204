@@ -1195,6 +1195,12 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
                 "_step5d_stage25_control_mode",
                 "_step5d_stage25_echo_consumed",
                 "_step5d_stage25_echo_layout_tag",
+                "step4e_cmd_vx_m_s",
+                "step4e_cmd_vy_m_s",
+                "step4e_cmd_vz_m_s",
+                "step4e_cmd_wx_rad_s",
+                "step4e_cmd_wy_rad_s",
+                "step4e_cmd_wz_rad_s",
             ]
             write_bridge_csv(
                 csv_path,
@@ -1211,6 +1217,12 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
                         "_step5d_stage25_control_mode": "speedj_rnn_live",
                         "_step5d_stage25_echo_consumed": "1",
                         "_step5d_stage25_echo_layout_tag": "0",
+                        "step4e_cmd_vx_m_s": "0.120",
+                        "step4e_cmd_vy_m_s": "0.060",
+                        "step4e_cmd_vz_m_s": "0.030",
+                        "step4e_cmd_wx_rad_s": "0.080",
+                        "step4e_cmd_wy_rad_s": "0.040",
+                        "step4e_cmd_wz_rad_s": "0.020",
                     }
                 ],
                 fieldnames=fieldnames,
@@ -1221,6 +1233,12 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
         attribution = analysis["stage25_control_attribution"]
         self.assertEqual(attribution["layout_tag_counts"], {"0": 1})
         self.assertEqual(attribution["command_layout_tag_counts"], {"524": 1})
+        self.assertIsNone(attribution["angular_cmd_norm_max_rad_s"])
+        self.assertEqual(attribution["angular_cmd_norm_source"], "unavailable_joint_qd_carrier")
+        self.assertEqual(attribution["angular_saturation_claim"], "unavailable_joint_layout")
+        self.assertIsNone(attribution["linear_vz_cmd_abs_max_m_s"])
+        self.assertEqual(attribution["linear_vz_cmd_source"], "unavailable_joint_qd_carrier")
+        self.assertEqual(attribution["linear_vz_claim"], "unavailable_joint_layout")
 
     def test_missing_required_columns_returns_explicit_classification(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

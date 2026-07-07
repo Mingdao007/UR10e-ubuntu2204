@@ -244,9 +244,16 @@ def load_rates(rows: list[dict[str, str]]) -> list[float]:
     return rates
 
 
+def row_is_joint_qd_carrier(row: dict[str, str]) -> bool:
+    command_layout = finite_float(row.get("step4e_controller_state"))
+    return math.isfinite(command_layout) and int(round(command_layout)) == STAGE25_JOINT_LAYOUT_TAG
+
+
 def angular_norms(rows: list[dict[str, str]]) -> list[float]:
     norms: list[float] = []
     for row in rows:
+        if row_is_joint_qd_carrier(row):
+            continue
         wx = finite_float(row.get("step4e_cmd_wx_rad_s"))
         wy = finite_float(row.get("step4e_cmd_wy_rad_s"))
         wz = finite_float(row.get("step4e_cmd_wz_rad_s"))
@@ -255,15 +262,62 @@ def angular_norms(rows: list[dict[str, str]]) -> list[float]:
     return norms
 
 
+def angular_command_source(rows: list[dict[str, str]], angular: list[float]) -> str:
+    command_layout_counts = numeric_tag_counts(rows, "step4e_controller_state")
+    if str(STAGE25_JOINT_LAYOUT_TAG) in command_layout_counts and str(STAGE25_CARTESIAN_LAYOUT_TAG) not in command_layout_counts:
+        return "unavailable_joint_qd_carrier"
+    if angular:
+        return "cartesian_step4e_cmd_w_fields"
+    return "unavailable_missing_cartesian_fields"
+
+
+def angular_saturation_claim(source: str) -> str:
+    if source == "unavailable_joint_qd_carrier":
+        return "unavailable_joint_layout"
+    if source == "cartesian_step4e_cmd_w_fields":
+        return "cartesian_angular_velocity"
+    return "unavailable_missing_fields"
+
+
 def linear_norms(rows: list[dict[str, str]]) -> list[float]:
     norms: list[float] = []
     for row in rows:
+        if row_is_joint_qd_carrier(row):
+            continue
         vx = finite_float(row.get("step4e_cmd_vx_m_s"))
         vy = finite_float(row.get("step4e_cmd_vy_m_s"))
         vz = finite_float(row.get("step4e_cmd_vz_m_s"))
         if math.isfinite(vx) and math.isfinite(vy) and math.isfinite(vz):
             norms.append(math.sqrt(vx * vx + vy * vy + vz * vz))
     return norms
+
+
+def cartesian_command_values(rows: list[dict[str, str]], key: str) -> list[float]:
+    values: list[float] = []
+    for row in rows:
+        if row_is_joint_qd_carrier(row):
+            continue
+        value = finite_float(row.get(key))
+        if math.isfinite(value):
+            values.append(value)
+    return values
+
+
+def cartesian_command_source(rows: list[dict[str, str]], values: list[float], *, field_group: str) -> str:
+    command_layout_counts = numeric_tag_counts(rows, "step4e_controller_state")
+    if str(STAGE25_JOINT_LAYOUT_TAG) in command_layout_counts and str(STAGE25_CARTESIAN_LAYOUT_TAG) not in command_layout_counts:
+        return "unavailable_joint_qd_carrier"
+    if values:
+        return field_group
+    return "unavailable_missing_cartesian_fields"
+
+
+def cartesian_command_claim(source: str) -> str:
+    if source == "unavailable_joint_qd_carrier":
+        return "unavailable_joint_layout"
+    if source.startswith("cartesian_"):
+        return "cartesian_velocity"
+    return "unavailable_missing_fields"
 
 
 def shadow_raw_angular_norms(rows: list[dict[str, str]]) -> list[float]:
@@ -332,6 +386,7 @@ def approach_normal_tracking(rows: list[dict[str, str]]) -> dict[str, Any]:
 def stage25_segment_metrics(rows: list[dict[str, str]], angular_limit: float) -> dict[str, Any]:
     angular = angular_norms(rows)
     linear = linear_norms(rows)
+    linear_vz = cartesian_command_values(rows, "step4e_cmd_vz_m_s")
     normal_loads = finite_values(rows, "_step4e_normal_load_n")
     force_norms = finite_values(rows, "force_norm_n")
     orientation = finite_values(rows, "step4e_orientation_error_rad")
@@ -348,7 +403,9 @@ def stage25_segment_metrics(rows: list[dict[str, str]], angular_limit: float) ->
         "force_norm_max_n": max_or_none(force_norms),
         "linear_cmd_norm_abs_max_m_s": max_or_none(linear),
         "linear_cmd_norm_mean_m_s": mean_or_none(linear),
-        "linear_vz_cmd_mean_m_s": mean_or_none(finite_values(rows, "step4e_cmd_vz_m_s")),
+        "linear_cmd_norm_source": cartesian_command_source(rows, linear, field_group="cartesian_step4e_cmd_v_fields"),
+        "linear_vz_cmd_mean_m_s": mean_or_none(linear_vz),
+        "linear_vz_cmd_source": cartesian_command_source(rows, linear_vz, field_group="cartesian_step4e_cmd_vz_field"),
         "linear_approach_cmd_mean_m_s": mean_or_none(
             finite_values(rows, "_step5d_outer_xdot_limited_approach_normal_m_s")
         ),
@@ -470,6 +527,7 @@ def stage25_control_attribution(rows: list[dict[str, str]], metadata: dict[str, 
     force_norms = finite_values(rows, "force_norm_n")
     rates = load_rates(rows)
     angular = angular_norms(rows)
+    linear_vz = cartesian_command_values(rows, "step4e_cmd_vz_m_s")
     shadow_angular = shadow_raw_angular_norms(rows)
     angular_limit = metadata_float(metadata, "bridge_angular_limit_rad_s", "step4e_angular_limit_rad_s")
     if not math.isfinite(angular_limit) and angular:
@@ -482,6 +540,8 @@ def stage25_control_attribution(rows: list[dict[str, str]], metadata: dict[str, 
     load_min = min_or_none(normal_loads)
     load_range = range_or_none(normal_loads)
     angular_saturation_ratio = 0.0 if not angular else saturated / len(angular)
+    angular_source = angular_command_source(rows, angular)
+    linear_vz_source = cartesian_command_source(rows, linear_vz, field_group="cartesian_step4e_cmd_vz_field")
     has_low_load_repress = int(contact_reason_counts.get("v25_speedl_low_load_repress_window", 0)) > 0
     has_low_load_timeout = int(contact_reason_counts.get("v25_speedl_hard_low_load_timeout", 0)) > 0
     has_force_hard_stop = int(contact_reason_counts.get("force_norm_hard_stop", 0)) > 0
@@ -509,6 +569,8 @@ def stage25_control_attribution(rows: list[dict[str, str]], metadata: dict[str, 
         "angular_limit_rad_s": angular_limit if math.isfinite(angular_limit) else None,
         "angular_cmd_norm_max_rad_s": max_or_none(angular),
         "angular_cmd_norm_mean_rad_s": mean_or_none(angular),
+        "angular_cmd_norm_source": angular_source,
+        "angular_saturation_claim": angular_saturation_claim(angular_source),
         "shadow_raw_angular_cmd_norm_max_rad_s": max_or_none(shadow_angular),
         "shadow_raw_angular_cmd_norm_mean_rad_s": mean_or_none(shadow_angular),
         "orientation_shadow_only_rows": sum(
@@ -516,8 +578,10 @@ def stage25_control_attribution(rows: list[dict[str, str]], metadata: dict[str, 
         ),
         "angular_saturation_rows": saturated,
         "angular_saturation_ratio": angular_saturation_ratio,
-        "linear_vz_cmd_abs_max_m_s": max_or_none([abs(value) for value in finite_values(rows, "step4e_cmd_vz_m_s")]),
-        "linear_vz_cmd_mean_m_s": mean_or_none(finite_values(rows, "step4e_cmd_vz_m_s")),
+        "linear_vz_cmd_abs_max_m_s": max_or_none([abs(value) for value in linear_vz]),
+        "linear_vz_cmd_mean_m_s": mean_or_none(linear_vz),
+        "linear_vz_cmd_source": linear_vz_source,
+        "linear_vz_claim": cartesian_command_claim(linear_vz_source),
         "linear_approach_cmd_abs_max_m_s": max_or_none(
             [abs(value) for value in finite_values(rows, "_step5d_outer_xdot_limited_approach_normal_m_s")]
         ),
