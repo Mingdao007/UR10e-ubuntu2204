@@ -234,7 +234,8 @@
       "step5d_strict_rnn_ablation_v27",
       "step6_contact_eight_baseline_v2",
       "step5d_strict_rnn_ablation_v28",
-      "step5d_strict_rnn_no_contact_p0_v4"
+      "step5d_strict_rnn_no_contact_p0_v4",
+      "step5d_strict_rnn_no_contact_p0_v5"
     ],
     "applies_to_stage_families": [
       "Step5b",
@@ -6970,7 +6971,7 @@
           "no TCP/payload write"
         ],
         "live_readiness_state": "controller_readback_verified_strict_rnn_live_blocked_pending_no_contact_p0_and_explicit_trigger",
-        "no_contact_p0_expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v4.urp",
+        "no_contact_p0_expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v5.urp",
         "no_contact_p0_confirm_env": "STEP5D_P0_CONFIRM",
         "no_contact_p0_confirm_token": "LIVE STEP5D STRICT RNN NO CONTACT P0",
         "no_contact_p0_entrypoint": "scripts/step5d-strict-rnn-p0.sh capture-bridge",
@@ -7022,19 +7023,19 @@
           ".urp": "518c12c4e2c4da95c404321f6d63e1855b18b9b29b5ed612839ada4e20149d4b"
         },
         "strict_rnn_no_contact_p0": {
-          "program_basename": "step5d_strict_rnn_no_contact_p0_v4",
+          "program_basename": "step5d_strict_rnn_no_contact_p0_v5",
           "local_program_dir": "programs/step5/step5d",
-          "local_triplet": "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v4.{script,txt,urp}",
-          "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v4.urp",
+          "local_triplet": "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v5.{script,txt,urp}",
+          "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v5.urp",
           "controller_dir": "/programs/andyl/kunwei/step5",
-          "controller_readback_status": "verified_gate_package",
-          "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v4_20260707_100626/manifest.json",
-          "delivery_mode": "full_upload_readback",
-          "readback_source": "fresh_controller_get",
+          "controller_readback_status": "local_generated_pending_controller_readback",
+          "controller_readback_manifest": null,
+          "delivery_mode": "local_generated_pending_controller_readback",
+          "readback_source": "pending_controller_get",
           "sha256": {
-            ".script": "860e0f126d45e4c791a04b8a48b36d19feeffba651f708d6e6cc5bd5b57d90b7",
-            ".txt": "a93a75ada8ed6beb9aca1fcd431cae352ba5beb585ae887f54e1f872a195b70c",
-            ".urp": "fdfdbfd0948d3b4c79f1a059b2be61019cb0ad0b8ec015b793cbac1dae608d9e"
+            ".script": "437260d51bf7e810ecc3fb9baa83a3e5962a774ad9f2d3f3187e5cd685f2fd2c",
+            ".txt": "9946417821d619cd3e714a4202ee1e04c59c22aeca08df9c9779b87f126cc96f",
+            ".urp": "0c5a5aaed1ef5ec1791986b7f9d0ca46ddc0eaa00cc9e1c6dfa766f8fbe36fe1"
           },
           "p0_capture_passed": false
         }
@@ -7046,11 +7047,11 @@
       "stage": "Step5d",
       "owner": "bridge+TP",
       "active": false,
-      "blocked": false,
+      "blocked": true,
       "complete": false,
       "completion_target": false,
       "gate_for": "step5d_strict_rnn_ablation_v28",
-      "block_reason": "No-contact P0 v4 diagnostic package is controller read-back verified; P0 capture has not passed yet.",
+      "block_reason": "Retained v4 no-contact P0 package failed verifier on 2026-07-07; superseded by v5 before any new capture.",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": false,
@@ -7154,7 +7155,8 @@
         "P0 v4 diagnostic package is controller read-back verified at runs/controller_readback_step5d_strict_rnn_no_contact_p0_v4_20260707_100626/manifest.json.",
         "No-contact P0 capture has not passed yet.",
         "Previous v1 capture attempt is archived at runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v1_autowatch_20260706_235036 and failed before Stage25 with no_speedj_rnn_live_rows; v2 is a cache-bust and Stage20 wait-echo diagnostic package.",
-        "Previous v3 capture at runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v3_autowatch_20260707_094544 is reclassified as stage20_bridge_ready_handshake_failed; it never reached Stage25."
+        "Previous v3 capture at runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v3_autowatch_20260707_094544 is reclassified as stage20_bridge_ready_handshake_failed; it never reached Stage25.",
+        "Superseded by step5d_strict_rnn_no_contact_p0_v5: qdot cap moved to 0.15 rad/s and bridge-side qdot slew is disabled for P0."
       ],
       "policy_refs": {
         "bridge_startup_policy": "bridge_startup_policy",
@@ -7185,10 +7187,10 @@
       "bridge_runtime": {
         "duration_s": 180.0,
         "rtde_hz": 500.0,
-        "sensor_stale_s": 0.10,
+        "sensor_stale_s": 0.1,
         "socket_timeout_s": 0.0,
         "force_p_gain": 0.001,
-        "force_i_gain": 0.00001,
+        "force_i_gain": 1e-05,
         "force_damping": 7.0,
         "integral_limit_n_s": 1.0,
         "normal_follow_mode": "locked",
@@ -7215,6 +7217,185 @@
           ".script": "860e0f126d45e4c791a04b8a48b36d19feeffba651f708d6e6cc5bd5b57d90b7",
           ".txt": "a93a75ada8ed6beb9aca1fcd431cae352ba5beb585ae887f54e1f872a195b70c",
           ".urp": "fdfdbfd0948d3b4c79f1a059b2be61019cb0ad0b8ec015b793cbac1dae608d9e"
+        },
+        "p0_capture_passed": false
+      }
+    },
+    {
+      "id": "step5d_strict_rnn_no_contact_p0_v5",
+      "canonical_profile_ref": "Step5.step5d_rnn",
+      "stage": "Step5d",
+      "owner": "bridge+TP",
+      "active": false,
+      "blocked": false,
+      "complete": false,
+      "completion_target": false,
+      "gate_for": "step5d_strict_rnn_ablation_v28",
+      "block_reason": "No-contact P0 v5 local diagnostic package is generated; controller read-back and P0 capture have not passed yet.",
+      "shape": "cycloid",
+      "frame": "config/step5_safe_frame.json",
+      "contact": false,
+      "bridge": true,
+      "joint_space": true,
+      "strict_rnn": true,
+      "fixed_base_z_m": null,
+      "duration_s": 60.0,
+      "amplitude_m": 0.015,
+      "phase_law": {
+        "type": "linear_time",
+        "omega_rad_s": 0.1,
+        "final_phase_rad": 6.0
+      },
+      "cadence": {
+        "reference_clock": "real_time_no_contact_p0_full_window_capture",
+        "motion": "no_contact_stage25_speedj_rnn_warm_start_capture",
+        "tp_hold_s": 0.002,
+        "end_hold_s": 0.0
+      },
+      "guard": {
+        "heartbeat_required": true,
+        "cmd_valid_required": true,
+        "qdot_cap_rad_s": 0.15,
+        "qdot_slew_rad_s2": 0.0,
+        "path_cap_m_s": 0.004,
+        "total_linear_cap_m_s": 0.004,
+        "normal_velocity_cap_m_s": 0.003,
+        "attitude_cap_rad_s": 0.015,
+        "raw_normal_guard_n": 2.0,
+        "force_norm_guard_n": 5.0,
+        "torque_norm_guard_nm": 3.0,
+        "line_entry_normal_load_min_n": 0.0,
+        "line_entry_normal_load_max_n": 2.0,
+        "line_entry_required_s": 0.0,
+        "line_entry_timeout_s": 1.0,
+        "runtime_limit_s": 65.0,
+        "target_force_n": 1.0,
+        "normal_load_filter_alpha": 0.55,
+        "line_entry_param_valid_code": 521.0,
+        "stage25_95_register_clear_required_s": 0.006,
+        "stage25_95_register_clear_timeout_s": 1.0,
+        "stage25_95_register_clear_zero_tol": 0.0005,
+        "stage25_cartesian_layout_tag": 523.0,
+        "stage25_joint_layout_tag": 524.0,
+        "stage25_default_control_mode": "speedj_rnn_live",
+        "stage25_runtime_limit_s": 65.0,
+        "stage25_success_target_s": 60.0
+      },
+      "contact_policy": {
+        "bridge_required": true,
+        "tp_role": "no_contact_stage25_executor_and_guard_only",
+        "reference_owner": "bridge",
+        "force_control": false,
+        "contact_search": false,
+        "timing_policy": "no_contact_p0_stage25_60s_warm_start_capture",
+        "virtual_clock_freeze": false,
+        "deadband_acquire_stage": null,
+        "stage25_contact_policy": "No contact search or preload; TP waits for heartbeat and sensor_ok, Stage25.95 register clear, then 60 s Stage25.0 layout-tagged speedj/speedl command consumption in open air.",
+        "live_authorization": "p0_capture_only_requires_STEP5D_P0_CONFIRM_not_full_live_authorization",
+        "tp_package_status": "generated_uploaded_readback_verified_gate_package",
+        "controller_readback_status": "verified_gate_package",
+        "bridge_startup_policy_ref": "bridge_startup_policy",
+        "stage25_control_modes": [
+          "speedj_rnn_live"
+        ],
+        "default_stage25_control_mode": "speedj_rnn_live",
+        "speedj_rnn_live_policy": "strict RNN qdot is sent to TP speedj after one-shot lifecycle warm_start; P0 uses pre-RNN xdot feasibility scaling with qdot_cap=0.15 and no bridge-side qdot slew; evidence must show solver_warm_start and approach-normal command alignment."
+      },
+      "success_condition": "P0 passes only when a captured artifact validates first Stage25 speedj_rnn_live tick solver_warm_start, layout 524 consumption, and approach-normal alignment; this is not a contact reproduction claim.",
+      "local_delivery_evidence": {
+        "program_basename": "step5d_strict_rnn_no_contact_p0_v5",
+        "local_program_dir": "programs/step5/step5d",
+        "local_triplet": "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v5.{script,txt,urp}",
+        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v5.urp",
+        "controller_dir": "/programs/andyl/kunwei/step5",
+        "local_package_validated": true,
+        "controller_readback_verified": false,
+        "controller_readback": null,
+        "local_controller_readback_sha_match": false,
+        "fetched_back_urp_internal_gate_pass": false,
+        "sha256": {
+          ".script": "437260d51bf7e810ecc3fb9baa83a3e5962a774ad9f2d3f3187e5cd685f2fd2c",
+          ".txt": "9946417821d619cd3e714a4202ee1e04c59c22aeca08df9c9779b87f126cc96f",
+          ".urp": "0c5a5aaed1ef5ec1791986b7f9d0ca46ddc0eaa00cc9e1c6dfa766f8fbe36fe1"
+        },
+        "stamp": "2026-07-07T1821HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V5",
+        "installation_relative_path": "../../../default",
+        "delivery_mode": "local_generated_pending_controller_readback",
+        "generated_at": "2026-07-07T18:21:26+08:00"
+      },
+      "acceptance": {
+        "package_generation_required": true,
+        "controller_readback_required": true,
+        "strict_rnn_no_contact_p0_required_before_live": true,
+        "strict_rnn_no_contact_p0_passed": false,
+        "live_bridge_authorization_required_after_p0": true,
+        "not_a_completed_reproduction_claim": true
+      },
+      "notes": [
+        "P0 v5 is a no-contact gate package for v28 strict RNN warm_start evidence, not the current reproduction package.",
+        "P0 v5 uses qdot_cap_rad_s=0.15 with pre-RNN xdot feasibility scaling and no bridge-side qdot slew; UR speedj acceleration remains conservative.",
+        "P0 v5 local package is pending controller upload/read-back and no-contact capture.",
+        "Previous v4 capture at runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v4_20260707_100803 is retained as no_contact_p0_verifier_failed evidence and must not be accepted as pass."
+      ],
+      "policy_refs": {
+        "bridge_startup_policy": "bridge_startup_policy",
+        "startup_gate_profile": "startup_gate_profiles.prepared_fast_bridge_v1",
+        "force_frame_contract": "UR_FORCE_FRAME_CONTRACT.md",
+        "runtime_interface": "tools/step5d_runtime_interface.py#tp_speedj_strict_rnn_liveprep_v1"
+      },
+      "operator_lifecycle": {
+        "entrypoint": "scripts/step5d-strict-rnn-p0.sh",
+        "base_operator": "scripts/bridge-line-operator.sh",
+        "mode": "line-bridge-fast",
+        "confirm_env": "STEP5D_P0_CONFIRM",
+        "confirm_token": "LIVE STEP5D STRICT RNN NO CONTACT P0",
+        "expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v5.urp",
+        "fast_trigger_requires_long_check_cache": true,
+        "wait_for_play_s": 20,
+        "baseline_s": 1.0,
+        "rezero_s": 0.25,
+        "operator_boundaries": [
+          "wrapper never loads a program or presses Play",
+          "no zero_ftsensor",
+          "no Kunwei tare/zero/config",
+          "no TCP/payload write",
+          "no contact search or preload"
+        ],
+        "live_readiness_state": "local_generated_pending_controller_readback_p0_capture_pending"
+      },
+      "bridge_runtime": {
+        "duration_s": 180.0,
+        "rtde_hz": 500.0,
+        "sensor_stale_s": 0.1,
+        "socket_timeout_s": 0.0,
+        "force_p_gain": 0.001,
+        "force_i_gain": 1e-05,
+        "force_damping": 7.0,
+        "integral_limit_n_s": 1.0,
+        "normal_follow_mode": "locked",
+        "normal_min_force_n": 0.001
+      },
+      "runtime_interface_ref": {
+        "path": "tools/step5d_runtime_interface.py",
+        "interface_class": "tp_speedj_strict_rnn_liveprep_v1",
+        "stage25_default_control_mode": "speedj_rnn_live",
+        "stage25_success_target_s": 60.0,
+        "stage25_runtime_limit_s": 65.0
+      },
+      "package_delivery": {
+        "program_basename": "step5d_strict_rnn_no_contact_p0_v5",
+        "local_program_dir": "programs/step5/step5d",
+        "local_triplet": "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v5.{script,txt,urp}",
+        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v5.urp",
+        "controller_dir": "/programs/andyl/kunwei/step5",
+        "controller_readback_status": "local_generated_pending_controller_readback",
+        "controller_readback_manifest": null,
+        "delivery_mode": "local_generated_pending_controller_readback",
+        "readback_source": "pending_controller_get",
+        "sha256": {
+          ".script": "437260d51bf7e810ecc3fb9baa83a3e5962a774ad9f2d3f3187e5cd685f2fd2c",
+          ".txt": "9946417821d619cd3e714a4202ee1e04c59c22aeca08df9c9779b87f126cc96f",
+          ".urp": "0c5a5aaed1ef5ec1791986b7f9d0ca46ddc0eaa00cc9e1c6dfa766f8fbe36fe1"
         },
         "p0_capture_passed": false
       }

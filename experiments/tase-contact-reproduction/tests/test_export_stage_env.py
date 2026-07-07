@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 import export_stage_env  # noqa: E402
 
 
-P0_STAGE = "step5d_strict_rnn_no_contact_p0_v4"
+P0_STAGE = "step5d_strict_rnn_no_contact_p0_v5"
 
 
 class ExportStageEnvTest(unittest.TestCase):
@@ -44,6 +44,8 @@ class ExportStageEnvTest(unittest.TestCase):
             "BRIDGE_NORMAL_VELOCITY_LIMIT_M_S": "0.003",
             "BRIDGE_ANGULAR_LIMIT_RAD_S": "0.015",
             "STEP5D_STAGE25_CONTROL_MODE": "speedj_rnn_live",
+            "STEP5D_QDOT_LIMIT_RAD_S": "0.150",
+            "STEP5D_QDOT_SLEW_RAD_S2": "0.000",
             "STEP5D_PRELOAD_FILTERED_MIN_N": "0.0",
             "STEP5D_PRELOAD_FILTERED_MAX_N": "2.0",
             "STEP5D_PRELOAD_RAW_MIN_N": "0.0",

@@ -7,6 +7,7 @@ import argparse
 import csv
 import json
 import math
+import re
 from collections import Counter
 from dataclasses import asdict
 from pathlib import Path
@@ -53,6 +54,7 @@ STAGE25_SPEEDJ_DLS_MODE = "speedj_dls_oracle"
 STAGE25_SPEEDJ_RNN_MODE = "speedj_rnn_live"
 STAGE25_CARTESIAN_LAYOUT_TAG = 523
 STAGE25_JOINT_LAYOUT_TAG = 524
+NO_CONTACT_P0_PROFILE_RE = re.compile(r"step5d_strict_rnn_no_contact_p0_v\d+")
 REQUIRED_COLUMNS = {
     "t_monotonic_s",
     "ur_output_double_register_30",
@@ -99,6 +101,9 @@ def infer_step5d_profile(run_dir: Path | None, metadata: dict[str, Any]) -> str:
                 return value
     if run_dir is not None:
         name = run_dir.name
+        no_contact_match = NO_CONTACT_P0_PROFILE_RE.search(name)
+        if no_contact_match:
+            return no_contact_match.group(0)
         for profile in (
             STEP5D_NO_CONTACT_P0_STAGE_ID,
             STEP5D_ABLATION_V28_STAGE_ID,
@@ -110,6 +115,10 @@ def infer_step5d_profile(run_dir: Path | None, metadata: dict[str, Any]) -> str:
             if profile in name:
                 return profile
     return STEP5D_ABLATION_V25_STAGE_ID
+
+
+def is_no_contact_p0_profile(profile: str) -> bool:
+    return bool(NO_CONTACT_P0_PROFILE_RE.fullmatch(profile))
 
 
 def preload_gate_for(run_dir: Path | None) -> tuple[str, Step5dPreloadGate]:
@@ -753,7 +762,7 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
     metadata = read_json(run_dir / METADATA_FILENAME) if run_dir is not None else {}
     stage25_control_mode = metadata_text(metadata, "step5d_stage25_control_mode")
     profile, gate = preload_gate_for(run_dir)
-    no_contact_p0_profile = profile == STEP5D_NO_CONTACT_P0_STAGE_ID
+    no_contact_p0_profile = is_no_contact_p0_profile(profile)
     no_contact_p0_verifier = (
         verify_step5d_no_contact_p0.verify_run_dir(run_dir if run_dir is not None else csv_path)
         if no_contact_p0_profile

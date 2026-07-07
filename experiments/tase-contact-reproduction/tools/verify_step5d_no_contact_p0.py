@@ -24,7 +24,7 @@ DEFAULT_MAX_ACTIVE_BOUNDS = 0
 DEFAULT_MIN_LAMBDA_WINDOW_RATIO = 0.5
 DEFAULT_MAX_NORMAL_TRACKING_ERROR_M_S = 5e-4
 DEFAULT_MIN_FIRST_OUTER_PRESS_M_S = 1e-9
-DEFAULT_QDOT_CAP_RAD_S = 0.05
+DEFAULT_QDOT_CAP_RAD_S = 0.15
 DEFAULT_QDOT_RAIL_MARGIN_RAD_S = 1e-9
 STAGE25_TOLERANCE = 0.05
 INTEGER_TOLERANCE = 1e-9
@@ -120,6 +120,14 @@ def row_cmd_valid(row: dict[str, str]) -> bool:
     return False
 
 
+def qdot_cap_from_rows(rows: list[dict[str, str]], fallback: float) -> tuple[float, str]:
+    for row in rows:
+        value = finite_float(row.get("_step5d_qdot_cap_rad_s"))
+        if value is not None and value > 0.0:
+            return value, "artifact:_step5d_qdot_cap_rad_s"
+    return float(fallback), "default"
+
+
 def verify_rows(
     rows: list[dict[str, str]],
     *,
@@ -134,7 +142,6 @@ def verify_rows(
     qdot_rail_margin_rad_s: float = DEFAULT_QDOT_RAIL_MARGIN_RAD_S,
 ) -> dict[str, Any]:
     blockers: list[str] = []
-    qdot_rail_threshold = float(qdot_cap_rad_s) - float(qdot_rail_margin_rad_s)
     mode_rows = speedj_rnn_mode_rows(rows)
     rnn_rows = speedj_rnn_stage25_rows(rows)
     if not mode_rows:
@@ -158,6 +165,8 @@ def verify_rows(
     non_stage25_mode_rows = len(mode_rows) - len(rnn_rows)
     if non_stage25_mode_rows:
         blockers.append("non_stage25_speedj_rnn_live_rows_present")
+    qdot_cap_rad_s, qdot_cap_source = qdot_cap_from_rows(rnn_rows, qdot_cap_rad_s)
+    qdot_rail_threshold = float(qdot_cap_rad_s) - float(qdot_rail_margin_rad_s)
 
     first = first_tick_summary(rnn_rows[0])
     intervention_reason = first["intervention_reason"]
@@ -275,6 +284,7 @@ def verify_rows(
             "max_normal_tracking_error_m_s": max_normal_tracking_error_m_s,
             "min_first_outer_press_m_s": min_first_outer_press_m_s,
             "qdot_cap_rad_s": qdot_cap_rad_s,
+            "qdot_cap_source": qdot_cap_source,
             "qdot_rail_margin_rad_s": qdot_rail_margin_rad_s,
             "qdot_rail_threshold_rad_s": qdot_rail_threshold,
         },

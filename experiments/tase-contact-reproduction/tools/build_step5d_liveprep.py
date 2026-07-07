@@ -50,6 +50,7 @@ class Step5dAblationSpec:
     source_stage_id: str = "step5d_strict_rnn_liveprep_v24"
     controller_dir: str = "/programs/andyl/kunwei/step5"
     no_contact_p0: bool = False
+    qdot_cap_rad_s: float = 0.050
 
     @property
     def stage_id(self) -> str:
@@ -108,14 +109,15 @@ ABLATION_SPECS = {
     ),
     STEP5D_NO_CONTACT_P0_STAGE_ID: Step5dAblationSpec(
         program_name=STEP5D_NO_CONTACT_P0_STAGE_ID,
-        version_label="no_contact_p0_v4",
-        stamp_token="STEP5D_STRICT_RNN_NO_CONTACT_P0_V4",
+        version_label="no_contact_p0_v5",
+        stamp_token="STEP5D_STRICT_RNN_NO_CONTACT_P0_V5",
         cartesian_angular_cap_rad_s=0.015,
         default_stage25_control_mode="speedj_rnn_live",
         stage25_success_target_s=STEP5D_STAGE25_V28_FULL_RUN_TARGET_S,
         stage25_runtime_limit_s=STEP5D_STAGE25_V28_RUNTIME_LIMIT_S,
         controller_dir="/programs/andyl/kunwei/step5",
         no_contact_p0=True,
+        qdot_cap_rad_s=0.150,
     ),
 }
 DEFAULT_SPEC = ABLATION_SPECS[STEP5D_ABLATION_V27_STAGE_ID]
@@ -238,6 +240,10 @@ def guard_value(spec: Step5dAblationSpec, key: str, default: float) -> float:
         return default
 
 
+def qdot_cap_rad_s(spec: Step5dAblationSpec = DEFAULT_SPEC) -> float:
+    return guard_value(spec, "qdot_cap_rad_s", spec.qdot_cap_rad_s)
+
+
 def default_line_entry_config(spec: Step5dAblationSpec) -> LineEntryConfig:
     if spec.version_label in {"v27", "v28"}:
         return LineEntryConfig(
@@ -348,7 +354,7 @@ def _replace_line_stage_with_stage25_multimode(script: str, spec: Step5dAblation
     local last_heartbeat2 = read_input_float_register(26)
     local stale_s2 = 0.0
     local t2 = 0.0
-    local qdot_cap_rad_s = {QDOT_CAP_RAD_S:.3f}
+    local qdot_cap_rad_s = {qdot_cap_rad_s(spec):.3f}
     local cartesian_linear_cap_m_s = {CARTESIAN_LINEAR_CAP_M_S:.3f}
     local cartesian_angular_cap_rad_s = {spec.cartesian_angular_cap_rad_s:.3f}
     local cartesian_accel_m_s2 = {LINE_ACCEL_M_S2:.3f}
@@ -879,7 +885,7 @@ def codex_{spec.program_name}():
     local last_heartbeat2 = read_input_float_register(26)
     local stale_s2 = 0.0
     local t2 = 0.0
-    local qdot_cap_rad_s = {QDOT_CAP_RAD_S:.3f}
+    local qdot_cap_rad_s = {qdot_cap_rad_s(spec):.3f}
     local cartesian_linear_cap_m_s = {CARTESIAN_LINEAR_CAP_M_S:.3f}
     local cartesian_angular_cap_rad_s = {spec.cartesian_angular_cap_rad_s:.3f}
     local cartesian_accel_m_s2 = {LINE_ACCEL_M_S2:.3f}
@@ -1102,7 +1108,7 @@ Bridge profile:
 Safety:
   speedl Cartesian linear cap: {CARTESIAN_LINEAR_CAP_M_S:.3f} m/s
   speedl Cartesian angular cap: {spec.cartesian_angular_cap_rad_s:.3f} rad/s
-  qdot cap: {QDOT_CAP_RAD_S:.3f} rad/s
+  qdot cap: {qdot_cap_rad_s(spec):.3f} rad/s
   speedj acceleration: {JOINT_ACCEL_RAD_S2:.3f} rad/s^2
   Raw normal guard: 2 N. Force norm guard: 5 N. Torque guard: 3.0 Nm.
   This package is not a bridge-start, TP-Play, upload, or live-contact authorization.
@@ -1211,7 +1217,7 @@ Bridge profile:
 Safety:
   speedl Cartesian linear cap: {CARTESIAN_LINEAR_CAP_M_S:.3f} m/s
   speedl Cartesian angular cap: {spec.cartesian_angular_cap_rad_s:.3f} rad/s
-  qdot cap: {QDOT_CAP_RAD_S:.3f} rad/s
+  qdot cap: {qdot_cap_rad_s(spec):.3f} rad/s
   speedj acceleration: {JOINT_ACCEL_RAD_S2:.3f} rad/s^2
   Raw normal guard: {raw_guard:.0f} N. Force norm guard: {force_guard:.0f} N. Torque guard: {torque_norm_guard_nm(spec):.1f} Nm.
   {raw_guard:.0f} N raw-normal/{force_guard:.0f} N force-norm and {torque_norm_guard_nm(spec):.1f} Nm torque are sensor hard guards only;
@@ -1312,7 +1318,7 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5d
         "speedj line control": "speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]" in script,
         "cartesian caps": f"local cartesian_linear_cap_m_s = {CARTESIAN_LINEAR_CAP_M_S:.3f}" in script
         and f"local cartesian_angular_cap_rad_s = {spec.cartesian_angular_cap_rad_s:.3f}" in script,
-        "qdot cap": f"local qdot_cap_rad_s = {QDOT_CAP_RAD_S:.3f}" in script,
+        "qdot cap": f"local qdot_cap_rad_s = {qdot_cap_rad_s(spec):.3f}" in script,
         "Stage25 ablation note": "STAGE25_CONTACT_SAFETY" in script
         and "speedl_cartesian_oracle" in txt
         and "speedj_dls_oracle" in txt
@@ -1484,7 +1490,7 @@ def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dic
             "program_family": "step5d_strict_rnn_no_contact_p0",
             "program": spec.program_name,
             "controller_dir": spec.controller_dir,
-            "qdot_cap_rad_s": QDOT_CAP_RAD_S,
+            "qdot_cap_rad_s": qdot_cap_rad_s(spec),
             "cartesian_linear_cap_m_s": CARTESIAN_LINEAR_CAP_M_S,
             "cartesian_angular_cap_rad_s": spec.cartesian_angular_cap_rad_s,
             "default_stage25_control_mode": spec.default_stage25_control_mode,
@@ -1522,7 +1528,7 @@ def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dic
         "source_stage_id": spec.source_stage_id,
         "pose_contract_id": POSE_CONTRACT_ID,
         "target_force_n": TARGET_FORCE_N,
-        "qdot_cap_rad_s": QDOT_CAP_RAD_S,
+        "qdot_cap_rad_s": qdot_cap_rad_s(spec),
         "cartesian_linear_cap_m_s": CARTESIAN_LINEAR_CAP_M_S,
         "cartesian_angular_cap_rad_s": spec.cartesian_angular_cap_rad_s,
         "default_stage25_control_mode": spec.default_stage25_control_mode,

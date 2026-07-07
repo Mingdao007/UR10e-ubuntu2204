@@ -34,7 +34,7 @@ STEP5D_ABLATION_V25_STAGE_ID = "step5d_strict_rnn_ablation_v25"
 STEP5D_ABLATION_V26_STAGE_ID = "step5d_strict_rnn_ablation_v26"
 STEP5D_ABLATION_V27_STAGE_ID = "step5d_strict_rnn_ablation_v27"
 STEP5D_ABLATION_V28_STAGE_ID = "step5d_strict_rnn_ablation_v28"
-STEP5D_NO_CONTACT_P0_STAGE_ID = "step5d_strict_rnn_no_contact_p0_v4"
+STEP5D_NO_CONTACT_P0_STAGE_ID = "step5d_strict_rnn_no_contact_p0_v5"
 STEP5D_ABLATION_STAGE_IDS = (
     STEP5D_ABLATION_V25_STAGE_ID,
     STEP5D_ABLATION_V26_STAGE_ID,
@@ -141,6 +141,8 @@ _STAGE_ENV_MAP: tuple[tuple[str, str, object], ...] = (
     ("BRIDGE_NORMAL_VELOCITY_LIMIT_M_S", "guard.normal_velocity_cap_m_s", lambda value: _fmt_float(value, 3)),
     ("BRIDGE_ANGULAR_LIMIT_RAD_S", "guard.attitude_cap_rad_s", lambda value: _fmt_float(value, 3)),
     ("STEP5D_STAGE25_CONTROL_MODE", "guard.stage25_default_control_mode", _fmt_text),
+    ("STEP5D_QDOT_LIMIT_RAD_S", "guard.qdot_cap_rad_s", lambda value: _fmt_float(value, 3)),
+    ("STEP5D_QDOT_SLEW_RAD_S2", "guard.qdot_slew_rad_s2", lambda value: _fmt_float(value, 3)),
     ("STEP5D_PRELOAD_FILTERED_MIN_N", "guard.line_entry_normal_load_min_n", lambda value: _fmt_float(value, 1)),
     ("STEP5D_PRELOAD_FILTERED_MAX_N", "guard.line_entry_normal_load_max_n", lambda value: _fmt_float(value, 1)),
     ("STEP5D_PRELOAD_RAW_MIN_N", "guard.line_entry_normal_load_min_n", lambda value: _fmt_float(value, 1)),
@@ -176,6 +178,8 @@ STEP5D_NO_CONTACT_P0_TOTAL_LINEAR_LIMIT_M_S = float(_P0_ENV["BRIDGE_TOTAL_LINEAR
 STEP5D_NO_CONTACT_P0_NORMAL_VELOCITY_LIMIT_M_S = float(_P0_ENV["BRIDGE_NORMAL_VELOCITY_LIMIT_M_S"])
 STEP5D_NO_CONTACT_P0_NORMAL_FILTER_ALPHA = float(_P0_ENV["BRIDGE_NORMAL_FILTER_ALPHA"])
 STEP5D_NO_CONTACT_P0_ANGULAR_LIMIT_RAD_S = float(_P0_ENV["BRIDGE_ANGULAR_LIMIT_RAD_S"])
+STEP5D_NO_CONTACT_P0_QDOT_CAP_RAD_S = float(_P0_ENV["STEP5D_QDOT_LIMIT_RAD_S"])
+STEP5D_NO_CONTACT_P0_QDOT_SLEW_RAD_S2 = float(_P0_ENV["STEP5D_QDOT_SLEW_RAD_S2"])
 STEP5D_NO_CONTACT_P0_NORMAL_MIN_FORCE_N = float(_P0_ENV["BRIDGE_NORMAL_MIN_FORCE_N"])
 STEP5D_NO_CONTACT_P0_PRELOAD_TIMEOUT_S = float(_P0_ENV["STEP5D_PRELOAD_TIMEOUT_S"])
 STEP5D_NO_CONTACT_P0_RTDE_HZ = float(_P0_ENV["BRIDGE_RTDE_HZ"])

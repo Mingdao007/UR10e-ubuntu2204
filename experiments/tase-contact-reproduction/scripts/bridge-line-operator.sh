@@ -15,7 +15,7 @@ LONG_CHECK_TTL_S="${LONG_CHECK_TTL_S:-7200}"
 LONG_CHECK_CACHE="${LONG_CHECK_CACHE:-${RUN_ROOT}/.bridge_long_checks_cache.json}"
 STEP5D_RUNTIME_INTERFACE="${ROOT}/tools/step5d_runtime_interface.py"
 STEP5D_CURRENT_BINDING_GATE="${ROOT}/tools/verify_step5d_current_binding.py"
-STEP5D_NO_CONTACT_P0_PROFILE="step5d_strict_rnn_no_contact_p0_v4"
+STEP5D_NO_CONTACT_P0_PROFILE="step5d_strict_rnn_no_contact_p0_v5"
 BRIDGE_PROFILE="${BRIDGE_PROFILE:-${STEP4E_VERSION:-v31}}"
 
 current_step5d_profile() {

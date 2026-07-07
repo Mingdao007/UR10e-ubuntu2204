@@ -115,7 +115,7 @@ postprocess_run "{run_dir}"
     def test_no_contact_p0_capture_profile_has_separate_bridge_gate(self) -> None:
         script = read_script("bridge-line-operator.sh")
 
-        self.assertIn("step5d_strict_rnn_no_contact_p0_v4", script)
+        self.assertIn("step5d_strict_rnn_no_contact_p0_v5", script)
         self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/${BRIDGE_PROFILE}.urp"', script)
         self.assertIn("step5d_no_contact_p0_capture_authorized", script)
         self.assertIn("BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE", script)
@@ -144,7 +144,7 @@ postprocess_run "{run_dir}"
         script = f"""
 set -euo pipefail
 export BRIDGE_OPERATOR_SOURCE_ONLY=1
-export BRIDGE_PROFILE=step5d_strict_rnn_no_contact_p0_v4
+export BRIDGE_PROFILE=step5d_strict_rnn_no_contact_p0_v5
 export BRIDGE_DURATION_S=181
 export BRIDGE_FORCE_P_GAIN=0.002
 export BRIDGE_NORMAL_MIN_FORCE_N=0.002
@@ -174,7 +174,7 @@ printf '%s\\n' "$BRIDGE_DURATION_S" "$BRIDGE_FORCE_P_GAIN" "$BRIDGE_NORMAL_MIN_F
         env = os.environ.copy()
         env.update(
             {
-                "BRIDGE_PROFILE": "step5d_strict_rnn_no_contact_p0_v4",
+                "BRIDGE_PROFILE": "step5d_strict_rnn_no_contact_p0_v5",
                 "STEP5D_P0_CONFIRM": "LIVE STEP5D STRICT RNN NO CONTACT P0",
                 "BRIDGE_SKIP_BENCH_GATE": "1",
                 "BRIDGE_SKIP_LONG_CHECKS": "1",
@@ -199,7 +199,7 @@ printf '%s\\n' "$BRIDGE_DURATION_S" "$BRIDGE_FORCE_P_GAIN" "$BRIDGE_NORMAL_MIN_F
         env = os.environ.copy()
         env.update(
             {
-                "BRIDGE_PROFILE": "step5d_strict_rnn_no_contact_p0_v4",
+                "BRIDGE_PROFILE": "step5d_strict_rnn_no_contact_p0_v5",
                 "BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE": "1",
                 "BRIDGE_SKIP_BENCH_GATE": "1",
                 "BRIDGE_SKIP_LONG_CHECKS": "1",
@@ -226,7 +226,7 @@ printf '%s\\n' "$BRIDGE_DURATION_S" "$BRIDGE_FORCE_P_GAIN" "$BRIDGE_NORMAL_MIN_F
         env = os.environ.copy()
         env.update(
             {
-                "BRIDGE_PROFILE": "step5d_strict_rnn_no_contact_p0_v4",
+                "BRIDGE_PROFILE": "step5d_strict_rnn_no_contact_p0_v5",
                 "STEP5D_P0_CONFIRM": "LIVE STEP5D STRICT RNN NO CONTACT P0",
                 "BRIDGE_SKIP_BENCH_GATE": "1",
                 "BRIDGE_SKIP_LONG_CHECKS": "1",

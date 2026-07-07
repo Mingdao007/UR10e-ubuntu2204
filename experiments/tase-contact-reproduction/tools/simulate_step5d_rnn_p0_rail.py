@@ -30,9 +30,11 @@ from step5c_strict_rnn import StrictRnnConfig, StrictTaseRnnSolver
 
 SCHEMA = "step5d_rnn_p0_rail_simulation_v1"
 SAFETY_BOUNDARY = "offline_only_no_robot_no_bridge_no_controller"
-QDOT_CAP_RAD_S = 0.05
+QDOT_CAP_RAD_S = 0.15
 QDOT_RAIL_MARGIN_RAD_S = 1e-9
 QDOT_RAIL_THRESHOLD_RAD_S = QDOT_CAP_RAD_S - QDOT_RAIL_MARGIN_RAD_S
+LEGACY_V4_QDOT_CAP_RAD_S = 0.05
+LEGACY_V4_QDOT_RAIL_THRESHOLD_RAD_S = LEGACY_V4_QDOT_CAP_RAD_S - QDOT_RAIL_MARGIN_RAD_S
 P0_LINEAR_LIMIT_M_S = 0.004
 P0_ANGULAR_LIMIT_RAD_S = 0.015
 DT_S = 0.002
@@ -84,10 +86,10 @@ def strict_solver(*, sigr_exponent_r: float = SIGR_EXPONENT_R) -> StrictTaseRnnS
         )
 
 
-def rail_row_fraction(values: list[float]) -> float:
+def rail_row_fraction(values: list[float], *, threshold_rad_s: float = QDOT_RAIL_THRESHOLD_RAD_S) -> float:
     if not values:
         return 0.0
-    return sum(1 for value in values if value >= QDOT_RAIL_THRESHOLD_RAD_S) / len(values)
+    return sum(1 for value in values if value >= threshold_rad_s) / len(values)
 
 
 def simulate_case(
@@ -262,7 +264,7 @@ def synthetic_payload(*, sigr_exponent_r: float = SIGR_EXPONENT_R) -> dict[str, 
     safe_xdot = np.asarray([0.0, 0.0, 0.0001, 0.003, 0.0, 0.0], dtype=float)
     oversized_xdot = np.asarray([0.020, 0.020, 0.020, 0.080, 0.080, 0.080], dtype=float)
     identity_jacobian = np.eye(6, dtype=float)
-    low_authority_jacobian = 0.1 * np.eye(6, dtype=float)
+    low_authority_jacobian = 0.02 * np.eye(6, dtype=float)
     sweep = {}
     for scale in (0.0, 0.25, 0.5, 1.0, 2.0):
         sweep[f"{scale:.2f}x"] = simulate_case(
@@ -350,6 +352,12 @@ def csv_audit(run_dir: Path) -> dict[str, Any]:
         "stage25_rows": len(rows),
         "qdot_rail_threshold_rad_s": QDOT_RAIL_THRESHOLD_RAD_S,
         "rnn_rail_fraction": rail_row_fraction(qdot_values),
+        "legacy_v4_qdot_cap_rad_s": LEGACY_V4_QDOT_CAP_RAD_S,
+        "legacy_v4_qdot_rail_threshold_rad_s": LEGACY_V4_QDOT_RAIL_THRESHOLD_RAD_S,
+        "legacy_v4_rnn_rail_fraction": rail_row_fraction(
+            qdot_values,
+            threshold_rad_s=LEGACY_V4_QDOT_RAIL_THRESHOLD_RAD_S,
+        ),
         "all_joints_rail_fraction": (
             sum(1 for value in active_bounds_values if value >= 5) / len(active_bounds_values)
             if active_bounds_values

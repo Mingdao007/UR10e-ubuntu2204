@@ -31,6 +31,7 @@ class Step5dRnnP0RailSimulationTest(unittest.TestCase):
         self.assertEqual(payload["schema"], "step5d_rnn_p0_rail_simulation_v1")
         self.assertEqual(payload["safety_boundary"], "offline_only_no_robot_no_bridge_no_controller")
         self.assertEqual(payload["sigr_exponent_r"], 1.0)
+        self.assertEqual(payload["qdot_cap_rad_s"], 0.15)
         self.assertEqual(payload["synthetic"]["p0_safe_warm_start"]["rnn_rail_fraction"], 0.0)
         self.assertEqual(payload["synthetic"]["p0_safe_warm_start"]["sigr_exponent_r"], 1.0)
         self.assertEqual(payload["synthetic"]["p0_safe_warm_start"]["active_bounds_count_first"], 0)
@@ -91,7 +92,10 @@ class Step5dRnnP0RailSimulationTest(unittest.TestCase):
         audit = payload["csv_audit"]
         self.assertEqual(audit["run_dir"], str(V4_RUN))
         self.assertEqual(audit["stage25_rows"], 2069)
-        self.assertGreater(audit["rnn_rail_fraction"], 0.99)
+        self.assertEqual(audit["qdot_rail_threshold_rad_s"], 0.15 - 1e-9)
+        self.assertEqual(audit["legacy_v4_qdot_rail_threshold_rad_s"], 0.05 - 1e-9)
+        self.assertEqual(audit["rnn_rail_fraction"], 0.0)
+        self.assertGreater(audit["legacy_v4_rnn_rail_fraction"], 0.99)
         self.assertGreater(audit["all_joints_rail_fraction"], 0.99)
         self.assertEqual(audit["current_analysis_classification"], "no_contact_p0_verifier_failed")
         self.assertIn(

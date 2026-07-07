@@ -86,6 +86,7 @@ from step5d_runtime_interface import (  # noqa: E402
     STEP5D_NO_CONTACT_P0_NORMAL_MIN_FORCE_N,
     STEP5D_NO_CONTACT_P0_NORMAL_VELOCITY_LIMIT_M_S,
     STEP5D_NO_CONTACT_P0_PRELOAD_TIMEOUT_S,
+    STEP5D_NO_CONTACT_P0_QDOT_CAP_RAD_S,
     STEP5D_NO_CONTACT_P0_REZERO_S,
     STEP5D_NO_CONTACT_P0_RTDE_HZ,
     STEP5D_NO_CONTACT_P0_SENSOR_STALE_S,
@@ -4538,7 +4539,7 @@ def compute_bridge_values(
                     or step5d_liveprep_v15_profile
                     or (step5d_liveprep_online_cage_profile and not step5d_ablation_profile)
                     or (
-                        (step5d_liveprep_v26_profile or step5d_step5b_speedl_live_profile or step5d_no_contact_p0_profile)
+                        (step5d_liveprep_v26_profile or step5d_step5b_speedl_live_profile)
                         and step5d_stage25_control_mode != "speedl_cartesian_oracle"
                     )
                 ):
@@ -6448,6 +6449,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         args.step5d_preload_force_norm_max_n = STEP5D_NO_CONTACT_P0_FORCE_GUARD_N
         args.step5d_preload_hold_s = 0.0
         args.step5d_preload_timeout_s = STEP5D_NO_CONTACT_P0_PRELOAD_TIMEOUT_S
+        args.step5d_qdot_limit_rad_s = STEP5D_NO_CONTACT_P0_QDOT_CAP_RAD_S
         args.max_normal_force_n = STEP5D_NO_CONTACT_P0_NORMAL_GUARD_N
         args.max_force_norm_n = STEP5D_NO_CONTACT_P0_FORCE_GUARD_N
         args.max_torque_norm_nm = STEP5D_NO_CONTACT_P0_TORQUE_GUARD_NM

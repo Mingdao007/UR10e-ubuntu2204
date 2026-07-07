@@ -8,7 +8,7 @@ LIVEPREP_OPERATOR="${SCRIPT_DIR}/step5d-liveprep-operator.sh"
 BRIDGE_OPERATOR="${SCRIPT_DIR}/bridge-line-operator.sh"
 P0_VERIFIER="${ROOT}/tools/verify_step5d_no_contact_p0.py"
 STAGE_ENV_EXPORTER="${ROOT}/tools/export_stage_env.py"
-P0_PROFILE="step5d_strict_rnn_no_contact_p0_v4"
+P0_PROFILE="step5d_strict_rnn_no_contact_p0_v5"
 P0_CONFIRM_TOKEN="LIVE STEP5D STRICT RNN NO CONTACT P0"
 LATEST_RUN_POINTER="${ROOT}/runs/latest_run_pointer.json"
 
