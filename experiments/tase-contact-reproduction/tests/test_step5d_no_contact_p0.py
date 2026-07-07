@@ -860,6 +860,38 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertNotIn("first_speedj_rnn_tick_not_consumed_by_stage25", result["blockers"])
         self.assertEqual(result["entry_window"]["stage25_consumed_seen"], True)
 
+    def test_allows_stage25_consumed_echo_at_entry_window_boundary(self) -> None:
+        rows = good_rows()
+        while len(rows) < p0.ENTRY_ECHO_WINDOW_ROWS:
+            rows.append(good_rows()[0] | {"t_monotonic_s": f"{1.0 + 0.002 * len(rows):.6f}"})
+        for row in rows:
+            row["_step5d_stage25_echo_consumed"] = "0"
+        rows[p0.ENTRY_ECHO_WINDOW_ROWS - 1]["_step5d_stage25_echo_consumed"] = "1"
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            write_p0_run(run_dir, rows)
+
+            result = p0.verify_run_dir(run_dir)
+
+        self.assertTrue(result["ok"], result["blockers"])
+        self.assertEqual(result["entry_window"]["stage25_consumed_first_row_index"], p0.ENTRY_ECHO_WINDOW_ROWS - 1)
+
+    def test_fails_when_stage25_consumed_echo_arrives_after_entry_window(self) -> None:
+        rows = good_rows()
+        while len(rows) <= p0.ENTRY_ECHO_WINDOW_ROWS:
+            rows.append(good_rows()[0] | {"t_monotonic_s": f"{1.0 + 0.002 * len(rows):.6f}"})
+        for row in rows:
+            row["_step5d_stage25_echo_consumed"] = "0"
+        rows[p0.ENTRY_ECHO_WINDOW_ROWS]["_step5d_stage25_echo_consumed"] = "1"
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            write_p0_run(run_dir, rows)
+
+            result = p0.verify_run_dir(run_dir)
+
+        self.assertFalse(result["ok"])
+        self.assertIn("stage25_entry_window_not_consumed_by_stage25", result["blockers"])
+
     def test_fails_when_entry_window_never_consumes_stage25_echo(self) -> None:
         rows = good_rows()
         for row in rows:
@@ -911,6 +943,33 @@ class Step5dNoContactP0Test(unittest.TestCase):
 
         self.assertFalse(result["ok"])
         self.assertIn("first_speedj_rnn_tick_missing_lambda_norm", result["blockers"])
+
+    def test_fails_when_qdot_cap_evidence_is_missing(self) -> None:
+        rows = good_rows()
+        for row in rows:
+            row["_step5d_qdot_cap_rad_s"] = ""
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            write_p0_run(run_dir, rows)
+
+            result = p0.verify_run_dir(run_dir)
+
+        self.assertFalse(result["ok"])
+        self.assertIn("qdot_cap_evidence_missing", result["blockers"])
+        self.assertEqual(result["limits"]["qdot_cap_source"], "default")
+
+    def test_fails_when_qdot_max_abs_evidence_is_missing(self) -> None:
+        rows = good_rows()
+        rows[0]["_step5d_qdot_max_abs_rad_s"] = ""
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            write_p0_run(run_dir, rows)
+
+            result = p0.verify_run_dir(run_dir)
+
+        self.assertFalse(result["ok"])
+        self.assertIn("first_speedj_rnn_tick_missing_qdot_max_abs", result["blockers"])
+        self.assertIn("accepted_speedj_rnn_tick_missing_qdot_max_abs", result["blockers"])
 
     def test_fails_when_active_bounds_evidence_is_fractional(self) -> None:
         rows = good_rows()

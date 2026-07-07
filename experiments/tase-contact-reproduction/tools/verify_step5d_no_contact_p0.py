@@ -182,6 +182,8 @@ def verify_rows(
     if non_stage25_mode_rows:
         blockers.append("non_stage25_speedj_rnn_live_rows_present")
     qdot_cap_rad_s, qdot_cap_source = qdot_cap_from_rows(rnn_rows, qdot_cap_rad_s)
+    if qdot_cap_source == "default":
+        blockers.append("qdot_cap_evidence_missing")
     qdot_rail_threshold = float(qdot_cap_rad_s) - float(qdot_rail_margin_rad_s)
 
     first = first_tick_summary(rnn_rows[0])
@@ -245,6 +247,8 @@ def verify_rows(
         blockers.append("first_speedj_rnn_tick_missing_active_bounds_count")
     elif active_bounds > max_active_bounds:
         blockers.append("first_speedj_rnn_tick_active_bounds_exceeds_limit")
+    if first["qdot_max_abs_rad_s"] is None:
+        blockers.append("first_speedj_rnn_tick_missing_qdot_max_abs")
 
     lambda_window = rnn_rows[:10]
     lambda_values, lambda_missing = finite_values(lambda_window, "_step5d_lambda_norm")
@@ -267,6 +271,7 @@ def verify_rows(
     accepted_active_bounds_rows = 0
     accepted_high_residual_rows = 0
     accepted_rail_rows = 0
+    accepted_qdot_missing_rows = 0
     for row in accepted_rows:
         accepted_active_bounds = finite_int(row.get("_step5d_active_bounds_count"))
         if accepted_active_bounds is not None and accepted_active_bounds > max_active_bounds:
@@ -275,12 +280,16 @@ def verify_rows(
         if accepted_residual is not None and accepted_residual > max_residual_norm:
             accepted_high_residual_rows += 1
         accepted_qdot_max = finite_float(row.get("_step5d_qdot_max_abs_rad_s"))
-        if accepted_qdot_max is not None and accepted_qdot_max >= qdot_rail_threshold:
+        if accepted_qdot_max is None:
+            accepted_qdot_missing_rows += 1
+        elif accepted_qdot_max >= qdot_rail_threshold:
             accepted_rail_rows += 1
     if accepted_active_bounds_rows:
         blockers.append("accepted_speedj_rnn_tick_active_bounds_exceeds_limit")
     if accepted_high_residual_rows:
         blockers.append("accepted_speedj_rnn_tick_constraint_residual_norm_exceeds_limit")
+    if accepted_qdot_missing_rows:
+        blockers.append("accepted_speedj_rnn_tick_missing_qdot_max_abs")
     if accepted_rail_rows:
         blockers.append("accepted_speedj_rnn_tick_qdot_hits_rail")
     accepted_command_rail_fraction = accepted_rail_rows / len(accepted_rows) if accepted_rows else 0.0
@@ -314,6 +323,7 @@ def verify_rows(
             "accepted_speedj_rnn_live_rows": len(accepted_rows),
             "accepted_active_bounds_rows": accepted_active_bounds_rows,
             "accepted_high_residual_rows": accepted_high_residual_rows,
+            "accepted_qdot_missing_rows": accepted_qdot_missing_rows,
             "accepted_qdot_rail_rows": accepted_rail_rows,
             "accepted_command_rail_fraction": accepted_command_rail_fraction,
         },
