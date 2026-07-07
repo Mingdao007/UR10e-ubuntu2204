@@ -2661,6 +2661,7 @@ def step5d_no_contact_p0_press_only_outer_output(
     xdot_c[:3] = approach * speed
     return SimpleNamespace(
         xdot_c=xdot_c,
+        cmd_valid=True,
         next_state=Step5dOuterLoopState(),
         diagnostics={
             "outer_orientation_angle_rad": 0.0,

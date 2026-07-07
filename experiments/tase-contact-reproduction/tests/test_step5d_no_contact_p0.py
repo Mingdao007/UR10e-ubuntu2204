@@ -656,6 +656,25 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertAlmostEqual(high["effective_ko"], 5.0)
         self.assertAlmostEqual(high["orientation_gain_scale"], 1.0)
 
+    def test_no_contact_p0_press_only_output_is_rnn_target_compatible(self) -> None:
+        outer = bridge.step5d_no_contact_p0_press_only_outer_output(
+            reaction_normal_b=(0.0, 0.0, 1.0),
+            force_error_n=0.0,
+        )
+
+        target = bridge.rnn_target_state_from_outer_loop(
+            outer,
+            J=np.eye(6),
+            omega_minus=np.full(6, -0.15),
+            omega_plus=np.full(6, 0.15),
+            dt_s=0.002,
+            epsilon=0.010,
+            r=0.8,
+        )
+
+        self.assertTrue(target["cmd_valid"])
+        np.testing.assert_allclose(target["xdot_c"], np.array([0.0, 0.0, -0.00015, 0.0, 0.0, 0.0]))
+
     def test_no_contact_p0_runtime_logs_posture_and_oracle_diagnostics(self) -> None:
         values = _p0_no_contact_runtime_values(
             normal_acquired=True,
