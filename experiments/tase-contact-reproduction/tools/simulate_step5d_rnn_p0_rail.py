@@ -37,7 +37,7 @@ P0_LINEAR_LIMIT_M_S = 0.004
 P0_ANGULAR_LIMIT_RAD_S = 0.015
 DT_S = 0.002
 EPSILON = 0.022
-SIGR_EXPONENT_R = 0.2
+SIGR_EXPONENT_R = StrictRnnConfig().sigr_exponent_r
 REACTION_NORMAL_B = (0.0, 0.0, -1.0)
 
 
@@ -69,14 +69,19 @@ def percentile(values: list[float], fraction: float) -> float | None:
     return ordered[index]
 
 
-def strict_solver() -> StrictTaseRnnSolver:
+def strict_solver(*, sigr_exponent_r: float = SIGR_EXPONENT_R) -> StrictTaseRnnSolver:
     with tempfile.TemporaryDirectory() as tmp:
         truth_path = Path(tmp) / "step5c_tase_paper_truth.json"
         truth_path.write_text(
             json.dumps({"strict_rnn_enabled": True, "pending_pdf_verify": [], "sections": {}}),
             encoding="utf-8",
         )
-        return StrictTaseRnnSolver(StrictRnnConfig(paper_truth_path=truth_path))
+        return StrictTaseRnnSolver(
+            StrictRnnConfig(
+                paper_truth_path=truth_path,
+                sigr_exponent_r=sigr_exponent_r,
+            )
+        )
 
 
 def rail_row_fraction(values: list[float]) -> float:
@@ -92,6 +97,7 @@ def simulate_case(
     jacobian: np.ndarray,
     apply_limiter: bool,
     apply_feasibility: bool,
+    sigr_exponent_r: float = SIGR_EXPONENT_R,
     warm_start_scale: float = 1.0,
     ticks: int = 20,
 ) -> dict[str, Any]:
@@ -130,7 +136,7 @@ def simulate_case(
         }
 
     dls_qdot = np.asarray(step5d_dls_qdot_oracle(jacobian, target_xdot, lower, upper), dtype=float)
-    solver = strict_solver()
+    solver = strict_solver(sigr_exponent_r=sigr_exponent_r)
     solver.warm_start(J=jacobian, xdot_c=target_xdot, omega_minus=lower, omega_plus=upper)
     solver.lambda_state *= float(warm_start_scale)
     solver.theta_dot_state *= float(warm_start_scale)
@@ -155,7 +161,7 @@ def simulate_case(
                 "omega_plus": upper,
                 "dt": DT_S,
                 "epsilon": EPSILON,
-                "r": SIGR_EXPONENT_R,
+                "r": sigr_exponent_r,
                 "cmd_valid": True,
             },
         )
@@ -193,6 +199,7 @@ def simulate_case(
     angular_norm = float(np.linalg.norm(target_xdot[3:]))
     return {
         "name": name,
+        "sigr_exponent_r": sigr_exponent_r,
         "ticks": ticks,
         "raw_xdot_norm": float(np.linalg.norm(raw_xdot)),
         "limited_xdot_norm": float(np.linalg.norm(limited_xdot)),
@@ -219,7 +226,39 @@ def simulate_case(
     }
 
 
-def synthetic_payload() -> dict[str, Any]:
+def r_sensitivity_case() -> dict[str, Any]:
+    xdot = np.asarray([0.0, 0.0, 0.0001, 0.003, 0.0, 0.0], dtype=float)
+    jacobian = np.eye(6, dtype=float)
+    lower = np.full(6, -QDOT_CAP_RAD_S, dtype=float)
+    upper = np.full(6, QDOT_CAP_RAD_S, dtype=float)
+    rows: dict[str, Any] = {}
+    for r in (0.2, 1.0):
+        solver = strict_solver(sigr_exponent_r=r)
+        solver.warm_start(J=jacobian, xdot_c=xdot, omega_minus=lower, omega_plus=upper)
+        solver.theta_dot_state = np.zeros(6, dtype=float)
+        theta_before = solver.theta_dot_state.copy()
+        diag = solver.step(
+            J=jacobian,
+            xdot_c=xdot,
+            omega_minus=lower,
+            omega_plus=upper,
+            dt=DT_S,
+            epsilon=EPSILON,
+            r=r,
+        )
+        theta_after = np.asarray(diag.theta_dot_state, dtype=float)
+        rows[f"r_{r:.1f}"] = {
+            "sigr_exponent_r": r,
+            "first_theta_delta_norm": float(np.linalg.norm(theta_after - theta_before)),
+            "first_theta_dot_norm": float(np.linalg.norm(theta_after)),
+            "active_bounds_count_first": int(sum(bool(value) for value in diag.active_bounds_mask)),
+            "constraint_residual_norm_first": float(diag.constraint_residual_norm),
+            "theta_dot_update_limited_count": int(sum(bool(value) for value in diag.theta_dot_update_limited_mask)),
+        }
+    return rows
+
+
+def synthetic_payload(*, sigr_exponent_r: float = SIGR_EXPONENT_R) -> dict[str, Any]:
     safe_xdot = np.asarray([0.0, 0.0, 0.0001, 0.003, 0.0, 0.0], dtype=float)
     oversized_xdot = np.asarray([0.020, 0.020, 0.020, 0.080, 0.080, 0.080], dtype=float)
     identity_jacobian = np.eye(6, dtype=float)
@@ -232,6 +271,7 @@ def synthetic_payload() -> dict[str, Any]:
             jacobian=identity_jacobian,
             apply_limiter=True,
             apply_feasibility=True,
+            sigr_exponent_r=sigr_exponent_r,
             warm_start_scale=scale,
             ticks=10,
         )
@@ -242,6 +282,7 @@ def synthetic_payload() -> dict[str, Any]:
             jacobian=identity_jacobian,
             apply_limiter=True,
             apply_feasibility=True,
+            sigr_exponent_r=sigr_exponent_r,
         ),
         "oversized_after_limiter": simulate_case(
             name="oversized_after_limiter",
@@ -249,6 +290,7 @@ def synthetic_payload() -> dict[str, Any]:
             jacobian=low_authority_jacobian,
             apply_limiter=True,
             apply_feasibility=True,
+            sigr_exponent_r=sigr_exponent_r,
         ),
         "oversized_without_limiter": simulate_case(
             name="oversized_without_limiter",
@@ -256,7 +298,9 @@ def synthetic_payload() -> dict[str, Any]:
             jacobian=low_authority_jacobian,
             apply_limiter=False,
             apply_feasibility=False,
+            sigr_exponent_r=sigr_exponent_r,
         ),
+        "r_sensitivity_cold_or_partial_warm_start": r_sensitivity_case(),
         "lambda_scale_sweep": sweep,
     }
 
@@ -323,14 +367,15 @@ def csv_audit(run_dir: Path) -> dict[str, Any]:
     }
 
 
-def build_payload(run_dir: Path | None) -> dict[str, Any]:
+def build_payload(run_dir: Path | None, *, sigr_exponent_r: float = SIGR_EXPONENT_R) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "schema": SCHEMA,
         "safety_boundary": SAFETY_BOUNDARY,
+        "sigr_exponent_r": sigr_exponent_r,
         "qdot_cap_rad_s": QDOT_CAP_RAD_S,
         "qdot_rail_margin_rad_s": QDOT_RAIL_MARGIN_RAD_S,
         "qdot_rail_threshold_rad_s": QDOT_RAIL_THRESHOLD_RAD_S,
-        "synthetic": synthetic_payload(),
+        "synthetic": synthetic_payload(sigr_exponent_r=sigr_exponent_r),
     }
     if run_dir is not None:
         payload["csv_audit"] = csv_audit(run_dir)
@@ -340,6 +385,12 @@ def build_payload(run_dir: Path | None) -> dict[str, Any]:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-dir", type=Path, help="Optional completed bridge run directory to audit")
+    parser.add_argument(
+        "--sigr-exponent-r",
+        type=float,
+        default=SIGR_EXPONENT_R,
+        help="Strict RNN sig^r exponent for synthetic cases; default follows production StrictRnnConfig",
+    )
     parser.add_argument("--output", type=Path, help="Optional JSON output path")
     parser.add_argument("--json", action="store_true", help="Print JSON payload to stdout")
     return parser.parse_args()
@@ -347,7 +398,9 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    payload = build_payload(args.run_dir)
+    if not 0.0 < args.sigr_exponent_r <= 1.0:
+        raise SystemExit("--sigr-exponent-r must be in (0, 1]")
+    payload = build_payload(args.run_dir, sigr_exponent_r=float(args.sigr_exponent_r))
     text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)

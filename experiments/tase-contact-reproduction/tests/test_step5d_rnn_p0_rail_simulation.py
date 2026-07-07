@@ -30,13 +30,46 @@ class Step5dRnnP0RailSimulationTest(unittest.TestCase):
         payload = json.loads(completed.stdout)
         self.assertEqual(payload["schema"], "step5d_rnn_p0_rail_simulation_v1")
         self.assertEqual(payload["safety_boundary"], "offline_only_no_robot_no_bridge_no_controller")
+        self.assertEqual(payload["sigr_exponent_r"], 1.0)
         self.assertEqual(payload["synthetic"]["p0_safe_warm_start"]["rnn_rail_fraction"], 0.0)
+        self.assertEqual(payload["synthetic"]["p0_safe_warm_start"]["sigr_exponent_r"], 1.0)
         self.assertEqual(payload["synthetic"]["p0_safe_warm_start"]["active_bounds_count_first"], 0)
         self.assertLessEqual(payload["synthetic"]["p0_safe_warm_start"]["constraint_residual_norm_first"], 1e-3)
         self.assertGreater(payload["synthetic"]["oversized_after_limiter"]["feasibility_scale_min"], 0.0)
         self.assertLess(payload["synthetic"]["oversized_after_limiter"]["feasibility_scale_min"], 1.0)
         self.assertGreaterEqual(payload["synthetic"]["oversized_without_limiter"]["rnn_rail_fraction"], 0.5)
         self.assertGreaterEqual(payload["synthetic"]["oversized_without_limiter"]["dls_rail_fraction"], 0.5)
+        sensitivity = payload["synthetic"]["r_sensitivity_cold_or_partial_warm_start"]
+        self.assertLess(
+            sensitivity["r_1.0"]["first_theta_delta_norm"],
+            sensitivity["r_0.2"]["first_theta_delta_norm"],
+        )
+        self.assertEqual(sensitivity["r_1.0"]["sigr_exponent_r"], 1.0)
+        self.assertEqual(sensitivity["r_0.2"]["sigr_exponent_r"], 0.2)
+
+    def test_explicit_sigr_exponent_r_0_2_is_recorded_as_sensitivity(self) -> None:
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "tools" / "simulate_step5d_rnn_p0_rail.py"),
+                "--sigr-exponent-r",
+                "0.2",
+                "--json",
+            ],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        payload = json.loads(completed.stdout)
+        self.assertEqual(payload["sigr_exponent_r"], 0.2)
+        self.assertEqual(payload["synthetic"]["p0_safe_warm_start"]["sigr_exponent_r"], 0.2)
+        self.assertEqual(
+            payload["synthetic"]["r_sensitivity_cold_or_partial_warm_start"]["r_0.2"]["sigr_exponent_r"],
+            0.2,
+        )
 
     def test_v4_run_dir_csv_audit_reports_rail_and_stale_analysis(self) -> None:
         completed = subprocess.run(
