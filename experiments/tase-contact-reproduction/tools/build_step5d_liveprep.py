@@ -108,8 +108,8 @@ ABLATION_SPECS = {
     ),
     STEP5D_NO_CONTACT_P0_STAGE_ID: Step5dAblationSpec(
         program_name=STEP5D_NO_CONTACT_P0_STAGE_ID,
-        version_label="no_contact_p0_v3",
-        stamp_token="STEP5D_STRICT_RNN_NO_CONTACT_P0_V3",
+        version_label="no_contact_p0_v4",
+        stamp_token="STEP5D_STRICT_RNN_NO_CONTACT_P0_V4",
         cartesian_angular_cap_rad_s=0.015,
         default_stage25_control_mode="speedj_rnn_live",
         stage25_success_target_s=STEP5D_STAGE25_V28_FULL_RUN_TARGET_S,
@@ -757,12 +757,12 @@ end
 
 def codex_wait_for_bridge_ready(timeout_s):
   local t_wait = 0.0
-  local last_heartbeat = read_input_float_register(26)
-  local heartbeat_seen = False
-  local heartbeat_seen_num = 0.0
+  local last_healthy_heartbeat = read_input_float_register(26)
+  local healthy_heartbeat_count = 0.0
+  local required_healthy_heartbeats = 2.0
   local sensor_ok_seen_num = 0.0
   write_output_float_register(29, t_wait)
-  write_output_float_register(30, heartbeat_seen_num)
+  write_output_float_register(30, healthy_heartbeat_count)
   write_output_float_register(31, sensor_ok_seen_num)
   write_output_float_register(36, 20.00)
   while t_wait < timeout_s:
@@ -771,19 +771,23 @@ def codex_wait_for_bridge_ready(timeout_s):
     write_output_float_register(26, heartbeat)
     write_output_float_register(27, sensor_ok)
     write_output_float_register(29, t_wait)
-    if heartbeat != last_heartbeat:
-      heartbeat_seen = True
-      heartbeat_seen_num = 1.0
-      last_heartbeat = heartbeat
-      write_output_float_register(36, 20.01)
-    end
     if sensor_ok >= 0.5:
       sensor_ok_seen_num = 1.0
-      write_output_float_register(36, 20.02)
+      if heartbeat != last_healthy_heartbeat:
+        healthy_heartbeat_count = healthy_heartbeat_count + 1.0
+        last_healthy_heartbeat = heartbeat
+        write_output_float_register(36, 20.01)
+      else:
+        write_output_float_register(36, 20.02)
+      end
+    else:
+      healthy_heartbeat_count = 0.0
+      last_healthy_heartbeat = heartbeat
+      write_output_float_register(36, 20.03)
     end
-    write_output_float_register(30, heartbeat_seen_num)
+    write_output_float_register(30, healthy_heartbeat_count)
     write_output_float_register(31, sensor_ok_seen_num)
-    if heartbeat_seen and sensor_ok >= 0.5:
+    if healthy_heartbeat_count >= required_healthy_heartbeats:
       write_output_float_register(36, 20.95)
       return True
     end
@@ -1260,6 +1264,10 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5d
             "register clear barrier": "local register_clear_required_s = 0.006" in script
             and "clear_cmd_valid < 0.5" in script
             and f"local register_clear_zero_tol = {QDOT_CLEAR_ZERO_TOL_RAD_S:.6f}" in script,
+            "healthy heartbeat bridge ready": "local healthy_heartbeat_count = 0.0" in script
+            and "local required_healthy_heartbeats = 2.0" in script
+            and "if healthy_heartbeat_count >= required_healthy_heartbeats:" in script
+            and "if heartbeat_seen and sensor_ok >= 0.5:" not in script,
             "no live settings write": "zero_ftsensor" not in script
             and "set_payload" not in script
             and "set_tcp" not in script,

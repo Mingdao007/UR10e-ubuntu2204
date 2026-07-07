@@ -1126,6 +1126,52 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
         self.assertEqual(analysis["stage25_3_rows"], 0)
         self.assertEqual(analysis["classification"], "no_tp_play_or_no_stage_echo")
 
+    def test_no_contact_p0_stage20_handshake_failure_is_explicit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            csv_path = run_dir / "bridge_rtde_500hz.csv"
+            fieldnames = [
+                *FIELDNAMES,
+                "ur_output_double_register_26",
+                "ur_output_double_register_27",
+                "ur_output_double_register_36",
+            ]
+            write_bridge_csv(
+                csv_path,
+                [
+                    {
+                        "t_monotonic_s": "1.000",
+                        "ur_output_double_register_30": "0",
+                        "ur_output_double_register_35": "20.0",
+                        "ur_output_double_register_26": "1481",
+                        "ur_output_double_register_27": "1",
+                        "ur_output_double_register_36": "20.02",
+                        "_step4e_normal_load_n": "0",
+                        "_step5d_force_settle_filtered_normal_load_n": "",
+                        "force_norm_n": "0.2",
+                    },
+                    {
+                        "t_monotonic_s": "1.600",
+                        "ur_output_double_register_30": "1",
+                        "ur_output_double_register_35": "20.0",
+                        "ur_output_double_register_26": "0",
+                        "ur_output_double_register_27": "0",
+                        "ur_output_double_register_36": "20.01",
+                        "_step4e_normal_load_n": "0",
+                        "_step5d_force_settle_filtered_normal_load_n": "",
+                        "force_norm_n": "0.2",
+                    },
+                ],
+                fieldnames=fieldnames,
+            )
+
+            analysis = analyze_step5d_bridge_run.analyze_run_dir(run_dir)
+
+        self.assertEqual(analysis["stage25_rows"], 0)
+        self.assertEqual(analysis["stage25_3_rows"], 0)
+        self.assertEqual(analysis["classification"], "stage20_bridge_ready_handshake_failed")
+        self.assertEqual(analysis["next_action"], "fix P0 bridge/TP lifecycle handshake before retrying capture")
+
     def test_missing_required_columns_returns_explicit_classification(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = Path(tmp)

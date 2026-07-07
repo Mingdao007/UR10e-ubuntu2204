@@ -7,7 +7,7 @@ ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 LIVEPREP_OPERATOR="${SCRIPT_DIR}/step5d-liveprep-operator.sh"
 BRIDGE_OPERATOR="${SCRIPT_DIR}/bridge-line-operator.sh"
 P0_VERIFIER="${ROOT}/tools/verify_step5d_no_contact_p0.py"
-P0_PROFILE="step5d_strict_rnn_no_contact_p0_v3"
+P0_PROFILE="step5d_strict_rnn_no_contact_p0_v4"
 P0_CONFIRM_TOKEN="LIVE STEP5D STRICT RNN NO CONTACT P0"
 
 usage() {
@@ -22,8 +22,8 @@ Usage:
 Boundary:
   - status/live-ready only report current Step5d runtime readiness.
   - capture-ready reports the dedicated no-contact P0 capture profile readiness.
-  - capture-bridge waits for Teach Pendant Play through the dedicated
-    no-contact P0 autowatch bridge path after STEP5D_P0_CONFIRM is set exactly;
+  - capture-bridge starts the dedicated no-contact P0 bridge before Teach
+    Pendant Play after STEP5D_P0_CONFIRM is set exactly;
     it does not mark P0 passed.
   - validate-run only checks an already captured bridge_rtde_500hz.csv artifact.
   - This wrapper never loads a program, presses Play, zeroes/tares force sensing,
@@ -143,6 +143,7 @@ case "$1" in
       rm -f "${tmp_log}"
     }
     trap cleanup EXIT
+    echo "[operator] P0 bridge is running. Now press TP Play only after bridge output starts for /programs/andyl/kunwei/step5/${P0_PROFILE}.urp."
     BRIDGE_PROFILE="${P0_PROFILE}" \
     BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE=1 \
     BRIDGE_STAGE25_ONLY=1 \
@@ -174,7 +175,7 @@ case "$1" in
     STEP5D_PRELOAD_RAW_MAX_N=2.0 \
     STEP5D_PRELOAD_FORCE_NORM_MAX_N=5.0 \
     STEP5D_PRELOAD_HOLD_S=0.0 \
-      "${BRIDGE_OPERATOR}" line-autowatch | tee "${tmp_log}"
+      "${BRIDGE_OPERATOR}" line-bridge-fast | tee "${tmp_log}"
     run_dir="$(python3 - "${tmp_log}" <<'PY'
 import re
 import sys

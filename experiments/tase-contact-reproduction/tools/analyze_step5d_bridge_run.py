@@ -727,6 +727,9 @@ def base_analysis(csv_path: Path, run_dir: Path | None, profile: str, gate: Step
         "stage25_control_attribution": {},
         "stage25_3_rows": 0,
         "stage25_3_duration_s": 0.0,
+        "stage20_bridge_ready_rows": 0,
+        "stage20_bridge_ready_statuses": [],
+        "stage20_bridge_ready_reached": False,
         "longest_preload_gate_dwell_s": 0.0,
         "required_preload_hold_s": gate.hold_s,
         "max_stage25_3_raw_normal_load_n": None,
@@ -766,6 +769,7 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
     stage25_previous_t: float | None = None
     ready_start_t: float | None = None
     stage25_rows: list[dict[str, str]] = []
+    stage20_statuses: set[float] = set()
 
     def close_stage25_3_segment() -> None:
         nonlocal stage25_3_segment_start_t, stage25_3_segment_last_t
@@ -805,10 +809,17 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
             t_s = finite_float(row.get("t_monotonic_s"))
             stage = finite_float(row.get("ur_output_double_register_35"))
             stop_reason = finite_float(row.get("ur_output_double_register_30"))
+            stage20_status = finite_float(row.get("ur_output_double_register_36"))
             if result["first_tp_stop_reason"] is None and math.isfinite(stop_reason) and stop_reason != 0.0:
                 result["first_tp_stop_reason"] = maybe_int(stop_reason)
             if math.isfinite(stop_reason) and stop_reason != 0.0:
                 result["terminal_tp_stop_reason"] = maybe_int(stop_reason)
+            if stage_is(stage, 20.0):
+                result["stage20_bridge_ready_rows"] += 1
+                if math.isfinite(stage20_status):
+                    stage20_statuses.add(stage20_status)
+                    if stage_is(stage20_status, 20.95):
+                        result["stage20_bridge_ready_reached"] = True
 
             if stage_is(stage, 25.0):
                 result["stage25_rows"] += 1
@@ -869,6 +880,7 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
 
     close_stage25_3_segment()
     close_stage25_segment()
+    result["stage20_bridge_ready_statuses"] = [maybe_int(value) for value in sorted(stage20_statuses)]
     if result["stage25_duration_s"] > 0.0:
         result["stage25_row_rate_hz"] = result["stage25_rows"] / result["stage25_duration_s"]
     if result["entered_stage25"]:
@@ -979,8 +991,12 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
             result["classification"] = "entered_stage25"
             result["next_action"] = "audit Stage25.0 behavior and acceptance evidence"
     elif result["stage25_3_rows"] == 0:
-        result["classification"] = "no_tp_play_or_no_stage_echo"
-        result["next_action"] = "check TP Play, loaded-program state, and stage echo before CSV diagnosis"
+        if result["stage20_bridge_ready_rows"] > 0 and not result["stage20_bridge_ready_reached"]:
+            result["classification"] = "stage20_bridge_ready_handshake_failed"
+            result["next_action"] = "fix P0 bridge/TP lifecycle handshake before retrying capture"
+        else:
+            result["classification"] = "no_tp_play_or_no_stage_echo"
+            result["next_action"] = "check TP Play, loaded-program state, and stage echo before CSV diagnosis"
     elif result["longest_preload_gate_dwell_s"] < result["required_preload_hold_s"]:
         result["classification"] = "no_stage25_preload_dwell_short"
         result["next_action"] = "diagnose Stage25.3 preload dwell/gate; do not treat this run as Stage25.0 acceptance"

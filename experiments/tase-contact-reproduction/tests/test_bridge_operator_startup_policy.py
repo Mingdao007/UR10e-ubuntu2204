@@ -115,7 +115,7 @@ postprocess_run "{run_dir}"
     def test_no_contact_p0_capture_profile_has_separate_bridge_gate(self) -> None:
         script = read_script("bridge-line-operator.sh")
 
-        self.assertIn("step5d_strict_rnn_no_contact_p0_v3", script)
+        self.assertIn("step5d_strict_rnn_no_contact_p0_v4", script)
         self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/${BRIDGE_PROFILE}.urp"', script)
         self.assertIn("step5d_no_contact_p0_capture_authorized", script)
         self.assertIn("BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE", script)
@@ -130,6 +130,16 @@ postprocess_run "{run_dir}"
         self.assertIn("sha256", script)
         self.assertIn("duration_s", script)
 
+    def test_no_contact_p0_capture_bridge_uses_preplay_bridge_route(self) -> None:
+        script = read_script("step5d-strict-rnn-p0.sh")
+        capture_start = script.index("capture-bridge)")
+        capture_end = script.index("validate-run)", capture_start)
+        capture_body = script[capture_start:capture_end]
+
+        self.assertIn('"${BRIDGE_OPERATOR}" line-bridge-fast', capture_body)
+        self.assertNotIn('"${BRIDGE_OPERATOR}" line-autowatch', capture_body)
+        self.assertIn("P0 bridge is running. Now press TP Play", capture_body)
+
     def test_step5d_workflow_upload_uses_table_resolved_target(self) -> None:
         script = read_script("step5d-workflow.sh")
         upload_calls = [line for line in script.splitlines() if 'python3 "${UPLOAD_TOOL}"' in line]
@@ -142,7 +152,7 @@ postprocess_run "{run_dir}"
         env = os.environ.copy()
         env.update(
             {
-                "BRIDGE_PROFILE": "step5d_strict_rnn_no_contact_p0_v3",
+                "BRIDGE_PROFILE": "step5d_strict_rnn_no_contact_p0_v4",
                 "STEP5D_P0_CONFIRM": "LIVE STEP5D STRICT RNN NO CONTACT P0",
                 "BRIDGE_SKIP_BENCH_GATE": "1",
                 "BRIDGE_SKIP_LONG_CHECKS": "1",
@@ -167,7 +177,7 @@ postprocess_run "{run_dir}"
         env = os.environ.copy()
         env.update(
             {
-                "BRIDGE_PROFILE": "step5d_strict_rnn_no_contact_p0_v3",
+                "BRIDGE_PROFILE": "step5d_strict_rnn_no_contact_p0_v4",
                 "BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE": "1",
                 "BRIDGE_SKIP_BENCH_GATE": "1",
                 "BRIDGE_SKIP_LONG_CHECKS": "1",
@@ -194,7 +204,7 @@ postprocess_run "{run_dir}"
         env = os.environ.copy()
         env.update(
             {
-                "BRIDGE_PROFILE": "step5d_strict_rnn_no_contact_p0_v3",
+                "BRIDGE_PROFILE": "step5d_strict_rnn_no_contact_p0_v4",
                 "STEP5D_P0_CONFIRM": "LIVE STEP5D STRICT RNN NO CONTACT P0",
                 "BRIDGE_SKIP_BENCH_GATE": "1",
                 "BRIDGE_SKIP_LONG_CHECKS": "1",

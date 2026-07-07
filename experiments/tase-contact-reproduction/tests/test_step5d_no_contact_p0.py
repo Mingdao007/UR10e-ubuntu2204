@@ -185,11 +185,57 @@ def good_rows() -> list[dict[str, str]]:
     return rows
 
 
+P0_V4_SHA256 = {
+    ".script": "860e0f126d45e4c791a04b8a48b36d19feeffba651f708d6e6cc5bd5b57d90b7",
+    ".txt": "a93a75ada8ed6beb9aca1fcd431cae352ba5beb585ae887f54e1f872a195b70c",
+    ".urp": "fdfdbfd0948d3b4c79f1a059b2be61019cb0ad0b8ec015b793cbac1dae608d9e",
+}
+
+
+def install_sandbox_p0_readback(config_root: Path, run_root: Path) -> Path:
+    manifest_rel = "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v4_test/manifest.json"
+    manifest_path = run_root / "controller_readback_step5d_strict_rnn_no_contact_p0_v4_test" / "manifest.json"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "validation": {
+                    "program": iface.STEP5D_NO_CONTACT_P0_STAGE_ID,
+                    "target_dir": "/programs/andyl/kunwei/step5",
+                    "script_node_path": f"/programs/andyl/kunwei/step5/{iface.STEP5D_NO_CONTACT_P0_STAGE_ID}.script",
+                },
+                "sha256": {
+                    "local": P0_V4_SHA256,
+                    "controller": P0_V4_SHA256,
+                    "readback": P0_V4_SHA256,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    current_path = config_root / "current_stage.json"
+    current = json.loads(current_path.read_text(encoding="utf-8"))
+    capture = current["bridge_trigger"]["no_contact_p0_capture"]
+    capture["controller_readback_manifest"] = manifest_rel
+    capture["controller_readback_verified"] = True
+    capture["sha256"] = P0_V4_SHA256
+    current_path.write_text(json.dumps(current), encoding="utf-8")
+
+    table_path = config_root / "step5_stage_table.json"
+    table = json.loads(table_path.read_text(encoding="utf-8"))
+    row = next(row for row in table["stages"] if row.get("id") == iface.STEP5D_NO_CONTACT_P0_STAGE_ID)
+    row["package_delivery"]["controller_readback_manifest"] = manifest_rel
+    row["package_delivery"]["controller_readback_status"] = "verified_gate_package"
+    row["package_delivery"]["sha256"] = P0_V4_SHA256
+    table_path.write_text(json.dumps(table), encoding="utf-8")
+    return manifest_path
+
+
 class Step5dNoContactP0Test(unittest.TestCase):
     def test_no_contact_p0_package_enters_stage25_without_contact_acquire(self) -> None:
-        self.assertEqual(iface.STEP5D_NO_CONTACT_P0_STAGE_ID, "step5d_strict_rnn_no_contact_p0_v3")
+        self.assertEqual(iface.STEP5D_NO_CONTACT_P0_STAGE_ID, "step5d_strict_rnn_no_contact_p0_v4")
         spec = liveprep.spec_for(iface.STEP5D_NO_CONTACT_P0_STAGE_ID)
-        stamp = "2026-07-07T0100HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V3"
+        stamp = "2026-07-07T1000HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V4"
         script = liveprep.build_script(
             stamp,
             "2026-07-06T21:00:00+08:00",
@@ -214,8 +260,14 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertIn("write_output_float_register(26, heartbeat)", script)
         self.assertIn("write_output_float_register(27, sensor_ok)", script)
         self.assertIn("write_output_float_register(29, t_wait)", script)
-        self.assertIn("write_output_float_register(30, heartbeat_seen_num)", script)
+        self.assertIn("write_output_float_register(30, healthy_heartbeat_count)", script)
         self.assertIn("write_output_float_register(31, sensor_ok_seen_num)", script)
+        self.assertIn("local healthy_heartbeat_count = 0.0", script)
+        self.assertIn("local required_healthy_heartbeats = 2.0", script)
+        self.assertIn("if sensor_ok >= 0.5:", script)
+        self.assertIn("if heartbeat != last_healthy_heartbeat:", script)
+        self.assertIn("if healthy_heartbeat_count >= required_healthy_heartbeats:", script)
+        self.assertNotIn("if heartbeat_seen and sensor_ok >= 0.5:", script)
         self.assertIn("write_output_float_register(36, 20.95)", script)
         self.assertIn("write_output_float_register(36, 20.90)", script)
         self.assertIn("local joint_layout_code = 524.000", script)
@@ -272,9 +324,9 @@ class Step5dNoContactP0Test(unittest.TestCase):
         current = json.loads((ROOT / "config" / "current_stage.json").read_text(encoding="utf-8"))
         stage = step5_table.step5_stage(iface.STEP5D_NO_CONTACT_P0_STAGE_ID)
 
-        self.assertEqual(iface.STEP5D_NO_CONTACT_P0_STAGE_ID, "step5d_strict_rnn_no_contact_p0_v3")
-        self.assertIn('P0_PROFILE="step5d_strict_rnn_no_contact_p0_v3"', wrapper)
-        self.assertIn('STEP5D_NO_CONTACT_P0_PROFILE="step5d_strict_rnn_no_contact_p0_v3"', bridge_operator)
+        self.assertEqual(iface.STEP5D_NO_CONTACT_P0_STAGE_ID, "step5d_strict_rnn_no_contact_p0_v4")
+        self.assertIn('P0_PROFILE="step5d_strict_rnn_no_contact_p0_v4"', wrapper)
+        self.assertIn('STEP5D_NO_CONTACT_P0_PROFILE="step5d_strict_rnn_no_contact_p0_v4"', bridge_operator)
         self.assertEqual(current["bridge_trigger"]["no_contact_p0_capture"]["profile"], iface.STEP5D_NO_CONTACT_P0_STAGE_ID)
         self.assertIn("P0_PROFILE", wrapper)
         self.assertEqual(current["bridge_trigger"]["no_contact_p0_capture"]["controller_target"], stage["package_delivery"]["controller_target"])
@@ -429,10 +481,10 @@ class Step5dNoContactP0Test(unittest.TestCase):
 
         self.assertFalse(capture["capture_authorized"])
         self.assertFalse(capture["passed"])
-        self.assertEqual(capture["local_triplet"], "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v3")
+        self.assertEqual(capture["local_triplet"], "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v4")
         self.assertEqual(
             capture["controller_target"],
-            "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v3.urp",
+            "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v4.urp",
         )
         for ext, path in files.items():
             self.assertTrue(path.exists(), path)
@@ -443,7 +495,7 @@ class Step5dNoContactP0Test(unittest.TestCase):
             files[".script"].read_text(encoding="utf-8"),
             files[".txt"].read_text(encoding="utf-8"),
             files[".urp"].read_bytes(),
-            "STEP5D_STRICT_RNN_NO_CONTACT_P0_V3",
+            "STEP5D_STRICT_RNN_NO_CONTACT_P0_V4",
             spec,
         )
 
@@ -662,7 +714,7 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertIn("capture-ready", script)
         self.assertIn("capture-bridge", script)
         self.assertIn("LIVE STEP5D STRICT RNN NO CONTACT P0", script)
-        self.assertIn("step5d_strict_rnn_no_contact_p0_v3", script)
+        self.assertIn("step5d_strict_rnn_no_contact_p0_v4", script)
         self.assertIn("BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE=1", script)
         self.assertIn("verify_step5d_no_contact_p0.py", script)
         self.assertIn("step5d_no_contact_p0_summary", script)
@@ -692,11 +744,7 @@ class Step5dNoContactP0Test(unittest.TestCase):
             tools_dir.mkdir()
             run_dir.mkdir()
             shutil.copytree(ROOT / "config", sandbox / "config")
-            p0_manifest_dir = sandbox / "runs" / "controller_readback_step5d_strict_rnn_no_contact_p0_v3_20260707_083612"
-            shutil.copytree(
-                ROOT / "runs" / "controller_readback_step5d_strict_rnn_no_contact_p0_v3_20260707_083612",
-                p0_manifest_dir,
-            )
+            install_sandbox_p0_readback(sandbox / "config", sandbox / "runs")
             wrapper = scripts_dir / "step5d-strict-rnn-p0.sh"
             wrapper.write_text((ROOT / "scripts" / "step5d-strict-rnn-p0.sh").read_text(encoding="utf-8"), encoding="utf-8")
             wrapper.chmod(0o755)
@@ -748,13 +796,13 @@ out.write_text(json.dumps({{"ok": True}}), encoding="utf-8")
             )
 
             self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
-            self.assertEqual((sandbox / "bridge_argv.txt").read_text(encoding="utf-8").strip(), "line-autowatch")
+            self.assertEqual((sandbox / "bridge_argv.txt").read_text(encoding="utf-8").strip(), "line-bridge-fast")
             bridge_env = dict(
                 line.split("=", 1)
                 for line in (sandbox / "bridge_env.txt").read_text(encoding="utf-8").splitlines()
                 if "=" in line
             )
-            self.assertEqual(bridge_env["BRIDGE_PROFILE"], "step5d_strict_rnn_no_contact_p0_v3")
+            self.assertEqual(bridge_env["BRIDGE_PROFILE"], "step5d_strict_rnn_no_contact_p0_v4")
             self.assertEqual(bridge_env["BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE"], "1")
             self.assertEqual(bridge_env["BRIDGE_DURATION_S"], "180")
             self.assertEqual(bridge_env["BRIDGE_RTDE_HZ"], "500")
@@ -802,7 +850,7 @@ out.write_text(json.dumps({{"ok": True}}), encoding="utf-8")
 
             self.assertEqual(completed.returncode, 24, completed.stdout + completed.stderr)
             self.assertIn(
-                "refusing no-contact P0: current capture profile is step5d_strict_rnn_no_contact_p0_v2, expected step5d_strict_rnn_no_contact_p0_v3",
+                "refusing no-contact P0: current capture profile is step5d_strict_rnn_no_contact_p0_v2, expected step5d_strict_rnn_no_contact_p0_v4",
                 completed.stdout + completed.stderr,
             )
 
@@ -817,7 +865,7 @@ out.write_text(json.dumps({{"ok": True}}), encoding="utf-8")
             current_path = sandbox / "config" / "current_stage.json"
             current = json.loads(current_path.read_text(encoding="utf-8"))
             current["bridge_trigger"]["no_contact_p0_capture"]["controller_readback_manifest"] = (
-                "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v3_20260707_083612/missing_manifest.json"
+                "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v4_LOCAL_PENDING_READBACK/missing_manifest.json"
             )
             current_path.write_text(json.dumps(current), encoding="utf-8")
 
@@ -831,7 +879,7 @@ out.write_text(json.dumps({{"ok": True}}), encoding="utf-8")
 
             self.assertEqual(completed.returncode, 24, completed.stdout + completed.stderr)
             self.assertIn(
-                "refusing no-contact P0: manifest missing: runs/controller_readback_step5d_strict_rnn_no_contact_p0_v3_20260707_083612/missing_manifest.json",
+                "refusing no-contact P0: manifest missing: runs/controller_readback_step5d_strict_rnn_no_contact_p0_v4_LOCAL_PENDING_READBACK/missing_manifest.json",
                 completed.stdout + completed.stderr,
             )
 
@@ -842,13 +890,8 @@ out.write_text(json.dumps({{"ok": True}}), encoding="utf-8")
             shutil.copytree(ROOT / "scripts", scripts_dir)
             shutil.copytree(ROOT / "tools", sandbox / "tools")
             shutil.copytree(ROOT / "config", sandbox / "config")
-            p0_manifest_dir = sandbox / "runs" / "controller_readback_step5d_strict_rnn_no_contact_p0_v3_20260707_083612"
-            shutil.copytree(
-                ROOT / "runs" / "controller_readback_step5d_strict_rnn_no_contact_p0_v3_20260707_083612",
-                p0_manifest_dir,
-            )
+            manifest_path = install_sandbox_p0_readback(sandbox / "config", sandbox / "runs")
             wrapper = scripts_dir / "step5d-strict-rnn-p0.sh"
-            manifest_path = p0_manifest_dir / "manifest.json"
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             manifest["validation"]["program"] = "step5d_strict_rnn_no_contact_p0_bad"
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
@@ -888,47 +931,54 @@ out.write_text(json.dumps({{"ok": True}}), encoding="utf-8")
         self.assertEqual(payload["speedj_rnn_live_rows"], 0)
 
     def test_capture_ready_hardens_no_contact_caps_against_ambient_env(self) -> None:
-        env = os.environ.copy()
-        env.update(
-            {
-                "BRIDGE_DURATION_S": "180",
-                "BRIDGE_TARGET_FORCE_N": "12",
-                "BRIDGE_BASELINE_S": "5",
-                "BRIDGE_REZERO_S": "1",
-                "BRIDGE_FORCE_P_GAIN": "0.9",
-                "BRIDGE_FORCE_I_GAIN": "0.8",
-                "BRIDGE_FORCE_DAMPING": "0.7",
-                "BRIDGE_INTEGRAL_LIMIT_N_S": "0.6",
-                "BRIDGE_NORMAL_FILTER_ALPHA": "0.99",
-                "BRIDGE_RTDE_HZ": "125",
-                "BRIDGE_SENSOR_STALE_S": "9",
-                "BRIDGE_SOCKET_TIMEOUT_S": "8",
-                "MAX_NORMAL_FORCE_N": "50",
-                "MAX_FORCE_NORM_N": "60",
-                "MAX_TORQUE_NORM_NM": "4",
-                "BRIDGE_MOTION_LIMIT_M_S": "0.5",
-                "BRIDGE_TOTAL_LINEAR_LIMIT_M_S": "0.006",
-                "BRIDGE_NORMAL_VELOCITY_LIMIT_M_S": "0.5",
-                "BRIDGE_ANGULAR_LIMIT_RAD_S": "1.5",
-                "BRIDGE_NORMAL_MIN_FORCE_N": "2",
-                "STEP5D_PRELOAD_FILTERED_MAX_N": "99",
-                "STEP5D_PRELOAD_TIMEOUT_S": "9",
-                "STEP5D_STAGE25_CONTROL_MODE": "speedl_cartesian_oracle",
-            }
-        )
+        with tempfile.TemporaryDirectory() as tmp:
+            sandbox = Path(tmp)
+            shutil.copytree(ROOT / "scripts", sandbox / "scripts")
+            shutil.copytree(ROOT / "tools", sandbox / "tools")
+            shutil.copytree(ROOT / "config", sandbox / "config")
+            install_sandbox_p0_readback(sandbox / "config", sandbox / "runs")
+            wrapper = sandbox / "scripts" / "step5d-strict-rnn-p0.sh"
+            env = os.environ.copy()
+            env.update(
+                {
+                    "BRIDGE_DURATION_S": "180",
+                    "BRIDGE_TARGET_FORCE_N": "12",
+                    "BRIDGE_BASELINE_S": "5",
+                    "BRIDGE_REZERO_S": "1",
+                    "BRIDGE_FORCE_P_GAIN": "0.9",
+                    "BRIDGE_FORCE_I_GAIN": "0.8",
+                    "BRIDGE_FORCE_DAMPING": "0.7",
+                    "BRIDGE_INTEGRAL_LIMIT_N_S": "0.6",
+                    "BRIDGE_NORMAL_FILTER_ALPHA": "0.99",
+                    "BRIDGE_RTDE_HZ": "125",
+                    "BRIDGE_SENSOR_STALE_S": "9",
+                    "BRIDGE_SOCKET_TIMEOUT_S": "8",
+                    "MAX_NORMAL_FORCE_N": "50",
+                    "MAX_FORCE_NORM_N": "60",
+                    "MAX_TORQUE_NORM_NM": "4",
+                    "BRIDGE_MOTION_LIMIT_M_S": "0.5",
+                    "BRIDGE_TOTAL_LINEAR_LIMIT_M_S": "0.006",
+                    "BRIDGE_NORMAL_VELOCITY_LIMIT_M_S": "0.5",
+                    "BRIDGE_ANGULAR_LIMIT_RAD_S": "1.5",
+                    "BRIDGE_NORMAL_MIN_FORCE_N": "2",
+                    "STEP5D_PRELOAD_FILTERED_MAX_N": "99",
+                    "STEP5D_PRELOAD_TIMEOUT_S": "9",
+                    "STEP5D_STAGE25_CONTROL_MODE": "speedl_cartesian_oracle",
+                }
+            )
 
-        completed = subprocess.run(
-            ["bash", str(ROOT / "scripts" / "step5d-strict-rnn-p0.sh"), "capture-ready"],
-            cwd=ROOT,
-            env=env,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
+            completed = subprocess.run(
+                ["bash", str(wrapper), "capture-ready"],
+                cwd=sandbox,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
 
-        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
-        self.assertIn("[caps] total_linear=0.004m/s angular=0.015rad/s hard_force=2/5N torque=3Nm", completed.stdout)
-        self.assertIn("[tuning] preload filtered=0..2N raw=0..2N force_norm<=5N hold=0s", completed.stdout)
+            self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+            self.assertIn("[caps] total_linear=0.004m/s angular=0.015rad/s hard_force=2/5N torque=3Nm", completed.stdout)
+            self.assertIn("[tuning] preload filtered=0..2N raw=0..2N force_norm<=5N hold=0s", completed.stdout)
 
 
 if __name__ == "__main__":
