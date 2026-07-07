@@ -32,6 +32,26 @@ def stage_by_id(table: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return {str(row.get("id")): row for row in table.get("stages", [])}
 
 
+def targets_bridge_startup_policy(ref: Any) -> bool:
+    text = str(ref or "")
+    return text == "bridge_startup_policy" or text.endswith("#bridge_startup_policy")
+
+
+def triggerable_bridge_row_requires_startup_policy(row: dict[str, Any]) -> bool:
+    operator = row.get("operator_lifecycle")
+    return row.get("bridge") is True and isinstance(operator, dict) and bool(operator.get("mode"))
+
+
+def derived_bridge_startup_policy_stage_ids(*tables: dict[str, Any]) -> list[str]:
+    stage_ids: list[str] = []
+    for table in tables:
+        for row in table.get("stages", []):
+            refs = row.get("policy_refs")
+            if isinstance(refs, dict) and targets_bridge_startup_policy(refs.get("bridge_startup_policy")):
+                stage_ids.append(str(row.get("id")))
+    return stage_ids
+
+
 def ref_exists(root: Path, table: dict[str, Any], ref: str) -> bool:
     if not ref:
         return False
@@ -89,27 +109,28 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         if gate.get("liveness_required") is True and gate.get("cacheable") is True:
             failures.append(f"live gate must not be cacheable: {gate.get('id')}")
 
-    required_stage_ids = {
-        "step5_contact_cycloid_baseline_v1",
-        "step5d_strict_rnn_ablation_v25",
-        "step5d_strict_rnn_ablation_v26",
-        "step6_contact_eight_baseline_v2",
-    }
     applies_to = set(step5.get("bridge_startup_policy", {}).get("applies_to_stage_ids", []))
-    missing_applies = sorted(required_stage_ids - applies_to)
-    if missing_applies:
-        failures.append("bridge_startup_policy.applies_to_stage_ids missing: " + ", ".join(missing_applies))
+    derived_applies_to = set(derived_bridge_startup_policy_stage_ids(step5, step6))
+    if applies_to != derived_applies_to:
+        missing = sorted(derived_applies_to - applies_to)
+        extra = sorted(applies_to - derived_applies_to)
+        if missing:
+            failures.append("bridge_startup_policy.applies_to_stage_ids missing derived refs: " + ", ".join(missing))
+        if extra:
+            failures.append("bridge_startup_policy.applies_to_stage_ids has stale refs: " + ", ".join(extra))
 
     for table_name, table, rows in (("step5", step5, step5_rows), ("step6", step6, step6_rows)):
         for row_id, row in rows.items():
             refs = row.get("policy_refs")
+            if triggerable_bridge_row_requires_startup_policy(row) and not (
+                isinstance(refs, dict) and targets_bridge_startup_policy(refs.get("bridge_startup_policy"))
+            ):
+                failures.append(f"{table_name}:{row_id} triggerable bridge row missing bridge_startup_policy ref")
             if not refs:
                 continue
             for key, ref in refs.items():
                 if not ref_exists(root, table, str(ref)):
                     failures.append(f"{table_name}:{row_id} policy_refs.{key} does not resolve: {ref}")
-            if row.get("bridge") is True and refs.get("bridge_startup_policy") is None:
-                failures.append(f"{table_name}:{row_id} bridge row missing bridge_startup_policy ref")
 
     current_row = step5_rows.get(str(current_stage_id))
     if current_row is None:

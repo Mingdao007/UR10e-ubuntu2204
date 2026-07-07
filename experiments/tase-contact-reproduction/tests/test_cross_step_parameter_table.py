@@ -24,6 +24,51 @@ class CrossStepParameterTableTest(unittest.TestCase):
         self.assertGreaterEqual(len(live_gates), 5)
         self.assertTrue(all(gate.get("cacheable") is False for gate in live_gates))
 
+    def test_bridge_startup_policy_stage_ids_are_derived_from_policy_refs(self) -> None:
+        step5 = validator.load_json(ROOT / "config" / "step5_stage_table.json")
+        step6 = validator.load_json(ROOT / "config" / "step6_stage_table.json")
+
+        derived = set(validator.derived_bridge_startup_policy_stage_ids(step5, step6))
+        redundant = set(step5["bridge_startup_policy"]["applies_to_stage_ids"])
+
+        self.assertEqual(derived, redundant)
+        self.assertEqual(len(derived), 7)
+        self.assertIn("step5d_strict_rnn_no_contact_p0_v4", derived)
+        self.assertIn("step6_contact_eight_baseline_v2", derived)
+
+    def test_triggerable_bridge_row_without_startup_policy_ref_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            shutil.copytree(ROOT / "config", tmp_root / "config")
+            table_path = tmp_root / "config" / "step5_stage_table.json"
+            table = validator.load_json(table_path)
+            table["stages"].append(
+                {
+                    "id": "step5d_strict_rnn_ablation_v99_test",
+                    "stage": "Step5d-test",
+                    "owner": "bridge+TP",
+                    "active": True,
+                    "shape": "cycloid",
+                    "frame": "config/step5_safe_frame.json",
+                    "contact": True,
+                    "bridge": True,
+                    "success_condition": "test-only triggerable bridge row",
+                    "operator_lifecycle": {
+                        "entrypoint": "scripts/step5d-liveprep-operator.sh",
+                        "base_operator": "scripts/bridge-line-operator.sh",
+                        "mode": "line-bridge-fast",
+                    },
+                }
+            )
+            table_path.write_text(json.dumps(table), encoding="utf-8")
+
+            failures = validator.validate(tmp_root)
+
+        self.assertTrue(
+            any("step5:step5d_strict_rnn_ablation_v99_test triggerable bridge row missing bridge_startup_policy ref" in failure for failure in failures),
+            failures,
+        )
+
     def test_no_contact_p0_delivery_must_match_current_capture_pointer(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_root = Path(tmp)

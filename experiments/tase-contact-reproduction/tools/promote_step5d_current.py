@@ -439,6 +439,10 @@ def build_current_stage_row(
         f"{stage25_target_s:g} s live bridge run; not a completed reproduction claim."
     )
     row["live_run_evidence"] = None
+    if is_ablation:
+        policy_refs = row.setdefault("policy_refs", {})
+        policy_refs["bridge_startup_policy"] = "bridge_startup_policy"
+        policy_refs["startup_gate_profile"] = "startup_gate_profiles.prepared_fast_bridge_v1"
     validation = manifest["validation"]
     sha = manifest["sha256"]["local"]
     controller_target = f"{manifest['target_dir']}/{program}.urp"
@@ -896,9 +900,6 @@ def upsert_stage(table: dict[str, Any], row: dict[str, Any], after_id: str | Non
 
 def update_bridge_startup_policy(table: dict[str, Any], program: str) -> None:
     startup = table.setdefault("bridge_startup_policy", {})
-    stage_ids = startup.setdefault("applies_to_stage_ids", [])
-    if isinstance(stage_ids, list) and program not in stage_ids:
-        stage_ids.append(program)
     observed = startup.setdefault("observed_timing", {})
     observed["current_step5d_tp_play_wait_max_s"] = STEP5D_OPERATOR_PLAY_WAIT_S
 

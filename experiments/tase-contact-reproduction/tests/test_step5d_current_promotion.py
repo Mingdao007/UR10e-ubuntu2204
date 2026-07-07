@@ -547,8 +547,9 @@ class Step5dCurrentPromotionTest(unittest.TestCase):
                 table["bridge_startup_policy"]["observed_timing"]["current_step5d_tp_play_wait_max_s"],
                 20,
             )
-            self.assertIn(V27, table["bridge_startup_policy"]["applies_to_stage_ids"])
             rows = {row["id"]: row for row in table["stages"]}
+            self.assertEqual(rows[V27]["policy_refs"]["bridge_startup_policy"], "bridge_startup_policy")
+            self.assertNotIn("applies_to_stage_ids", table["bridge_startup_policy"])
             self.assertEqual(rows[V27]["operator_lifecycle"]["wait_for_play_s"], 20)
             self.assertEqual(rows[V27]["operator_lifecycle"]["autowatch_wait_for_play_s"], 20)
             self.assertEqual(rows[V27]["guard"]["raw_normal_guard_n"], 50.0)
