@@ -119,12 +119,36 @@ class Step5dRuntimeInterfaceTest(unittest.TestCase):
         self.assertIn("strict RNN live", runtime.register_contract["stage25_0"])
         self.assertIn("layout 524", runtime.register_contract["stage25_0"])
 
-    def test_live_ready_reports_actual_baseline_plus_rezero_budget(self) -> None:
-        runtime = iface.resolve_runtime_interface(program=iface.STEP5D_ABLATION_V27_STAGE_ID, root=ROOT, env={})
+    def test_live_ready_without_authorization_never_claims_live_bridge(self) -> None:
+        runtime = iface.resolve_runtime_interface(program=iface.STEP5D_ABLATION_V29_STAGE_ID, root=ROOT, env={})
 
         lines = iface.live_ready_lines(runtime, {"state": "HIT", "age_s": 60.0, "ttl_s": 7200.0, "fingerprint_ok": True})
 
-        self.assertIn("[next] short checks ETA=1-3s, TP Play wait<=20s, baseline+rezero=5.25s", lines)
+        joined = "\n".join(lines)
+        self.assertIn("[step5d][phase=liveprep-blocked][rebuild=no][upload=no]", lines)
+        self.assertNotIn("phase=live-bridge", joined)
+        self.assertNotIn("TP Play wait", joined)
+
+    def test_live_ready_reports_awaiting_authorization_only_after_offline_readiness(self) -> None:
+        runtime = iface.resolve_runtime_interface(program=iface.STEP5D_ABLATION_V29_STAGE_ID, root=ROOT, env={})
+        readiness = {
+            "schema_version": "step5d_liveprep_readiness_v1",
+            "program": iface.STEP5D_ABLATION_V29_STAGE_ID,
+            "workflow_state": "awaiting_live_authorization",
+            "ready_for_explicit_live_authorization": True,
+            "blockers": [],
+        }
+
+        lines = iface.live_ready_lines(
+            runtime,
+            {"state": "HIT", "age_s": 60.0, "ttl_s": 7200.0, "fingerprint_ok": True},
+            readiness=readiness,
+        )
+
+        joined = "\n".join(lines)
+        self.assertIn("[step5d][phase=awaiting-live-authorization][rebuild=no][upload=no]", lines)
+        self.assertNotIn("phase=live-bridge", joined)
+        self.assertNotIn("TP Play wait", joined)
 
     def test_v29_live_ready_reports_readback_blocked_until_controller_delivery(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -146,6 +170,22 @@ class Step5dRuntimeInterfaceTest(unittest.TestCase):
         self.assertIn("controller read-back required before TP handoff", joined)
         self.assertNotIn("TP Play wait", joined)
         self.assertNotIn("phase=live-bridge", joined)
+
+    def test_v29_runtime_profile_is_pinned_in_interface_evidence(self) -> None:
+        runtime = iface.resolve_runtime_interface(program=iface.STEP5D_ABLATION_V29_STAGE_ID, root=ROOT, env={})
+
+        self.assertEqual(
+            runtime.hard_contract.get("runtime_profile"),
+            {
+                "backend": "cupy",
+                "inner_iterations": 1024,
+                "epsilon": 0.010,
+                "sigr_exponent_r": 0.8,
+                "qdot_cap_rad_s": 0.05,
+                "control_mode": "speedj_rnn_live",
+                "joint_layout_code": 524.0,
+            },
+        )
 
     def test_step5d_env_overrides_use_step5d_namespace(self) -> None:
         runtime = iface.resolve_runtime_interface(

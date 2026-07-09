@@ -1093,7 +1093,7 @@
       "operator outside UR reach/cage boundary",
       "TP program opened on controller read-back v29 package",
       "v29 package readback verified on controller",
-      "6 Codex + 1 fable5 offline audit accepted, or user waives that gate",
+      "live-prep milestone review accepted with control/claim, timing/runtime, and physical/operator safety lanes",
       "explicit live/contact authorization for v29 speedj_rnn_live"
     ]
   },
@@ -1145,8 +1145,24 @@
       ".urp": "a0f26a974945f8de6b9ec21d96810b602746000a9aebc751cbdf380737a1ba0b"
     },
     "stage25_default_control_mode": "speedj_rnn_live",
-    "controller_readback_verified": false,
+    "controller_readback_verified": true,
     "live_authorized": false,
     "p0_gate_required": false
+  },
+  "liveprep_status": {
+    "state": "blocked",
+    "readiness_artifact": "runs/step5d_v29_liveprep_offline_20260710_0317/liveprep_readiness.json",
+    "blockers": [
+      "synthetic_tick_timing_failed",
+      "milestone_review_not_accepted"
+    ]
+  },
+  "live_run_status": {
+    "state": "not_started",
+    "accepted_artifact": null
+  },
+  "reproduction_status": {
+    "state": "incomplete",
+    "accepted_artifact": null
   }
 }

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 from pathlib import PurePosixPath
 from typing import Any
@@ -96,6 +97,14 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
     current_stage_id = current.get("current_stage_id")
     current_program = current.get("program")
     current_target = current.get("controller_target")
+    flow_path = root / "STEP5_FLOW.md"
+    if not flow_path.is_file():
+        failures.append("STEP5_FLOW.md is missing")
+    else:
+        flow_summary = "\n".join(flow_path.read_text(encoding="utf-8").splitlines()[:30])
+        selected_match = re.search(r"currently selects\s+`([^`]+)`", flow_summary)
+        if selected_match is None or selected_match.group(1) != str(current_stage_id):
+            failures.append("STEP5_FLOW current summary does not match current_stage.json")
 
     profile_ref = step5.get("bridge_startup_policy", {}).get("startup_gate_profile_ref")
     if profile_ref != "startup_gate_profiles.prepared_fast_bridge_v1":
@@ -157,6 +166,39 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         for ext in (".script", ".txt", ".urp"):
             if delivery_sha.get(ext) != current_sha.get(ext):
                 failures.append(f"current row package sha mismatch for {ext}")
+        if str(current_stage_id) == "step5d_strict_rnn_ablation_v29":
+            acceptance = current_row.get("acceptance") or {}
+            local_delivery = current_row.get("local_delivery_evidence") or {}
+            candidate = current.get("v29_contact_candidate") or {}
+            if acceptance.get("controller_readback_verified") is not True:
+                failures.append("current v29 acceptance must mark controller readback verified")
+            if local_delivery.get("controller_readback_verified") is not True:
+                failures.append("current v29 local delivery must mark controller readback verified")
+            if candidate.get("controller_readback_verified") is not True:
+                failures.append("current v29 candidate must mark controller readback verified")
+            expected_profile = {
+                "backend": "cupy",
+                "inner_iterations": 1024,
+                "epsilon": 0.01,
+                "sigr_exponent_r": 0.8,
+                "qdot_cap_rad_s": 0.05,
+                "control_mode": "speedj_rnn_live",
+                "joint_layout_code": 524.0,
+            }
+            if current_row.get("runtime_profile") != expected_profile:
+                failures.append("current v29 runtime profile does not match the pinned live-prep profile")
+            expected_states = {
+                "liveprep_status": {"blocked", "awaiting_live_authorization"},
+                "live_run_status": {"not_started", "running", "accepted"},
+                "reproduction_status": {"incomplete", "complete"},
+            }
+            for field, allowed in expected_states.items():
+                current_state = current.get(field)
+                row_state = current_row.get(field)
+                if not isinstance(current_state, dict) or current_state.get("state") not in allowed:
+                    failures.append(f"current_stage.json {field}.state is missing or invalid")
+                if not isinstance(row_state, dict) or row_state.get("state") != current_state.get("state"):
+                    failures.append(f"current v29 {field}.state does not match current_stage.json")
 
     p0_capture = current.get("bridge_trigger", {}).get("no_contact_p0_capture", {})
     p0_profile = p0_capture.get("profile")

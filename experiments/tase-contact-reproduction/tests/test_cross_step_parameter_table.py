@@ -30,6 +30,35 @@ class CrossStepParameterTableTest(unittest.TestCase):
     def test_cross_step_parameter_table_contract_passes(self) -> None:
         self.assertEqual([], validator.validate(ROOT))
 
+    def test_step5_flow_current_summary_must_match_current_pointer(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            shutil.copytree(ROOT / "config", tmp_root / "config")
+            current = validator.load_json(ROOT / "config" / "current_stage.json")
+            flow = (ROOT / "STEP5_FLOW.md").read_text(encoding="utf-8")
+            (tmp_root / "STEP5_FLOW.md").write_text(
+                flow.replace(current["current_stage_id"], "step5d_strict_rnn_ablation_v99", 1),
+                encoding="utf-8",
+            )
+
+            failures = validator.validate(tmp_root)
+
+        self.assertTrue(
+            any("STEP5_FLOW current summary does not match current_stage.json" in failure for failure in failures),
+            failures,
+        )
+
+    def test_current_v29_readback_flags_and_claim_states_are_consistent(self) -> None:
+        current = validator.load_json(ROOT / "config" / "current_stage.json")
+        table = validator.load_json(ROOT / "config" / "step5_stage_table.json")
+        row = next(row for row in table["stages"] if row.get("id") == current["current_stage_id"])
+
+        self.assertTrue(row["acceptance"]["controller_readback_verified"])
+        self.assertTrue(current["v29_contact_candidate"]["controller_readback_verified"])
+        self.assertEqual(current["liveprep_status"]["state"], "blocked")
+        self.assertEqual(current["live_run_status"]["state"], "not_started")
+        self.assertEqual(current["reproduction_status"]["state"], "incomplete")
+
     def test_live_startup_gates_are_not_cacheable(self) -> None:
         table = validator.load_json(ROOT / "config" / "step5_stage_table.json")
         profile = validator.dotted_get(table, "startup_gate_profiles.prepared_fast_bridge_v1")

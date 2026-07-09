@@ -1,27 +1,28 @@
 # Step5 Flow
 
 `config/current_stage.json` currently selects
-`step5d_strict_rnn_ablation_v28` as the Step5d Local TP/script diagnostic
-package after controller upload and read-back verification at
-`runs/controller_readback_step5d_strict_rnn_ablation_v28_20260706_052354`.
-Step5d is the named completion target for the complete strict TASE RNN
-reproduction; v28 is still a diagnostic/ablation package, not a completed
-reproduction claim. v28 keeps the 12 N no-lift/no-25.2/no-second-search
-scaffold, Stage22/24 gravity-down pre-contact posture, 1.5x Stage22 entry movel
-and Stage24 far search, Stage25.3 release through the Step5b/Step6b evidence
-tube at filtered `5-22 N`, raw sanity `3-25 N`, force_norm `<=35 N`, and
-`0.100 s` dwell, then Stage25.95 clears
-registers `37..47` before Stage25.0 consumes layout-tagged Cartesian speedl or
-joint speedj commands. The retained v27 fix-validation run
+`step5d_strict_rnn_ablation_v29` as the read-back-verified Step5d Local
+TP/script package. Its controller evidence is
+`runs/controller_readback_step5d_strict_rnn_ablation_v29_20260710_014948`.
+v29 defaults Stage25.0 to strict-RNN `speedj` with layout `524`, CuPy backend,
+1024 inner iterations, epsilon `0.010`, finite-time exponent `r=0.8`, and a
+`0.05 rad/s` qdot cap. Stage25.3 retains the filtered `5-22 N`, raw `3-25 N`,
+force-norm `<=35 N`, and `0.100 s` evidence tube; Stage25.95 clears registers
+`37..47` before Stage25.0 command consumption.
+
+Package acceptance is not live-run acceptance and is not reproduction
+completion. v29 remains `liveprep_blocked` until the canonical offline timing,
+DLS-shadow, package-binding, and milestone-review artifact passes; after that
+it may advance only to `awaiting_live_authorization`. Bridge start, TP program
+load/Play, robot motion, payload/TCP writes, and `zero_ftsensor()` remain
+separate explicit live gates. The retained v27 fix-validation run
 `runs/bridge_step5d_strict_rnn_ablation_v27_20260706_045513` passed the 10 s
 Step5b-live / Step5d-shadow window: live `vx/vy/vz` came from the Step5b speedl
 controller, live `wx/wy/wz=0`, Step5d paper/RNN linear and angular outputs were
 shadow diagnostics, normal load stayed in the 10.05-14.44 N range, and command
 consumption ratio was about `0.998`. That is retained fix-validation evidence,
-not a 60 s reproduction claim. v28 uses the same bridge-runtime command-source
-boundary with Stage25 success target `60 s` and runtime limit `65 s`. Bridge
-start, TP program load/Play, robot motion, payload/TCP writes, and
-`zero_ftsensor()` remain separate explicit live gates.
+not a 60 s reproduction claim. v29 has a Stage25 success target of `60 s` and
+runtime limit of `65 s`; neither is exercised by offline live-prep.
 The full reproduction target remains separate and not complete.
 Step4f, Step4g, Step5b, and Step5d v1-v27 remain retained evidence packages
 only. The ROS2 source package for the current route is now
@@ -185,7 +186,8 @@ instead of preserving the later 22 s TP v3 timing.
 | `step5d_strict_rnn_ablation_v25` | bridge+TP | true | true | speedl Cartesian oracle with strict RNN shadow diagnostics | `v31_filtered_live` | Retained failed/live-attempt evidence: 12 N target, 10.5-12.8 N filtered preload with 9.5-13.5 N raw sanity, Stage25.95 register clear, layout-tagged Stage25 speedl/speedj, default `speedl_cartesian_oracle`; superseded by v26 tube. |
 | `step5d_strict_rnn_ablation_v26` | bridge+TP | true | true | speedl Cartesian oracle with strict RNN shadow diagnostics | `v31_filtered_live` | Retained read-back/live-attempt evidence: default `speedl_cartesian_oracle`, Stage25.3 Step5b/Step6b evidence tube filtered 7-18 N / raw 5-20 N, superseded by v27 wider tube and 35 N hard guards; not current. |
 | `step5d_strict_rnn_ablation_v27` | bridge+TP | true | true | Step5b speedl live / Step5d paper+RNN shadow | `v31_filtered_live` | Retained successful 10 s fix-validation evidence from `runs/bridge_step5d_strict_rnn_ablation_v27_20260706_045513`; not current and not a 60 s reproduction claim. The earlier 040900 force overshoot remains retained failure evidence for the old paper-linear-live path. |
-| `step5d_strict_rnn_ablation_v28` | bridge+TP | true | true | Step5b speedl live / Step5d paper+RNN shadow | `v31_filtered_live` | Current read-back verified 60 s full-run diagnostic package. Stage25.3 uses filtered 5-22 N / raw 3-25 N / force_norm <=35 N. Stage25.0 `speedl_cartesian_oracle` executes Step5b speedl `vx/vy/vz` live, forces `wx/wy/wz=0`, and records Step5d paper/RNN linear/angular outputs as shadow diagnostics. Controller read-back manifest: `runs/controller_readback_step5d_strict_rnn_ablation_v28_20260706_052354/manifest.json`. |
+| `step5d_strict_rnn_ablation_v28` | bridge+TP | true | true | Step5b speedl live / Step5d paper+RNN shadow | `v31_filtered_live` | Retained read-back verified diagnostic package, superseded by v29; not a completed reproduction claim. |
+| `step5d_strict_rnn_ablation_v29` | bridge+TP | true | true | strict TASE RNN speedj live | `v31_filtered_live` | Current read-back verified package. Offline live-prep requires the pinned CuPy/1024/epsilon 0.010/r 0.8/qdot 0.05 profile, full timing evidence, diagnostic-only DLS shadow, package binding, and milestone review. Passing these advances only to `awaiting_live_authorization`; no live run or reproduction is claimed. |
 | `step5d_ros2_remote_shadow_v1` | ROS2 offline | true | false | ROS2 shadow replay | `v31_filtered_live` input logs | Diagnostic-only Step5d policy replay: replays v15a/v14/v11 and Step5b/Step6b CSVs, removes long zero-qdot hold recovery, but is not live-ready and must follow Step5b plumbing validation. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |
 

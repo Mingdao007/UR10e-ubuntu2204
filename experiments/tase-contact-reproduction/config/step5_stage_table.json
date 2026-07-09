@@ -7218,6 +7218,15 @@
       "bridge": true,
       "joint_space": true,
       "strict_rnn": true,
+      "runtime_profile": {
+        "backend": "cupy",
+        "inner_iterations": 1024,
+        "epsilon": 0.01,
+        "sigr_exponent_r": 0.8,
+        "qdot_cap_rad_s": 0.05,
+        "control_mode": "speedj_rnn_live",
+        "joint_layout_code": 524.0
+      },
       "fixed_base_z_m": null,
       "duration_s": 60.0,
       "amplitude_m": 0.015,
@@ -7566,12 +7575,23 @@
         "package_generation_required": true,
         "local_package_validated": true,
         "controller_readback_required": true,
-        "controller_readback_verified": false,
+        "controller_readback_verified": true,
         "live_bridge_authorization_required": true,
-        "owner_audit_required_before_live": "6_codex_plus_1_fable5_or_user_waiver",
+        "owner_audit_required_before_live": "liveprep_milestone_three_lane_review",
         "strict_rnn_no_contact_p0_required_before_live": false,
         "strict_rnn_no_contact_p0_archived_not_gate_for_v29": true,
         "not_a_completed_reproduction_claim": true
+      },
+      "liveprep_status": {
+        "state": "blocked",
+        "readiness_source": "tools/step5d_liveprep_readiness.py",
+        "readiness_artifact": "runs/step5d_v29_liveprep_offline_20260710_0317/liveprep_readiness.json"
+      },
+      "live_run_status": {
+        "state": "not_started"
+      },
+      "reproduction_status": {
+        "state": "incomplete"
       },
       "notes": [
         "v29 is controller read-back verified and selected as the current Step5d TP/script diagnostic package.",

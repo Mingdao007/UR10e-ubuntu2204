@@ -158,6 +158,10 @@ class StrictTaseRnnSolver:
         self._cupy_kernel: Any | None = None
         self._cupy_theta_dot_state: Any | None = None
         self._cupy_lambda_state: Any | None = None
+        self._cupy_input_buffer: Any | None = None
+        self._cupy_work_buffer: Any | None = None
+        self._cupy_host_input: np.ndarray | None = None
+        self._cupy_host_work: np.ndarray | None = None
         if self.config.backend == "cupy":
             self._init_cupy_backend()
 
@@ -323,8 +327,14 @@ class StrictTaseRnnSolver:
         except Exception as exc:
             raise RuntimeError("Strict RNN backend 'cupy' requires importable CuPy before live bridge start") from exc
         self._cp = cp
-        self._cupy_theta_dot_state = cp.zeros(6, dtype=cp.float32)
-        self._cupy_lambda_state = cp.zeros(6, dtype=cp.float32)
+        # Fixed-size host/device staging removes all per-tick CuPy allocations
+        # and collapses result readback to one contiguous transfer.
+        self._cupy_input_buffer = cp.empty(54, dtype=cp.float32)
+        self._cupy_work_buffer = cp.zeros(48, dtype=cp.float32)
+        self._cupy_host_input = np.empty(54, dtype=np.float32)
+        self._cupy_host_work = np.empty(48, dtype=np.float32)
+        self._cupy_theta_dot_state = self._cupy_work_buffer[0:6]
+        self._cupy_lambda_state = self._cupy_work_buffer[6:12]
         self._precompile_cupy_backend()
 
     def _precompile_cupy_backend(self) -> None:
@@ -346,8 +356,15 @@ class StrictTaseRnnSolver:
     def _sync_cupy_state_from_numpy(self) -> None:
         if self._cp is None:
             return
-        self._cupy_theta_dot_state = self._cp.asarray(self.theta_dot_state, dtype=self._cp.float32)
-        self._cupy_lambda_state = self._cp.asarray(self.lambda_state, dtype=self._cp.float32)
+        if self._cupy_work_buffer is None or self._cupy_host_work is None:
+            raise RuntimeError("CuPy state buffers are not initialized")
+        np.copyto(self._cupy_host_work[0:6], self.theta_dot_state, casting="unsafe")
+        np.copyto(self._cupy_host_work[6:12], self.lambda_state, casting="unsafe")
+        self._cupy_work_buffer[0:12].set(self._cupy_host_work[0:12])
+        # State reset/warm-start is outside the 500 Hz loop.  Complete both
+        # host-to-device copies here so their deferred cost cannot leak into
+        # the first post-boundary solve tick.
+        self._cp.cuda.Stream.null.synchronize()
 
     def _cupy_solve_kernel(self) -> Any:
         if self._cupy_kernel is not None:
@@ -431,7 +448,15 @@ void strict_rnn_solve(
         return self._cupy_kernel
 
     def _solve_cupy(self, target_state: dict[str, Any]) -> StrictRnnStepDiagnostics:
-        if self._cp is None or self._cupy_theta_dot_state is None or self._cupy_lambda_state is None:
+        if (
+            self._cp is None
+            or self._cupy_theta_dot_state is None
+            or self._cupy_lambda_state is None
+            or self._cupy_input_buffer is None
+            or self._cupy_work_buffer is None
+            or self._cupy_host_input is None
+            or self._cupy_host_work is None
+        ):
             raise RuntimeError("CuPy backend is not initialized")
         cp = self._cp
         jacobian = _finite_matrix(target_state["J"], (6, 6), "J")
@@ -450,20 +475,25 @@ void strict_rnn_solve(
         if not math.isfinite(float(exponent)) or not 0.0 < float(exponent) <= 1.0:
             raise ValueError("sigr exponent r must be in (0, 1]")
 
-        proj_input = cp.empty(6, dtype=cp.float32)
-        projected = cp.empty(6, dtype=cp.float32)
-        sigr_arg = cp.empty(6, dtype=cp.float32)
-        sigr_val = cp.empty(6, dtype=cp.float32)
-        limited = cp.empty(6, dtype=cp.float32)
-        residual = cp.empty(6, dtype=cp.float32)
+        np.copyto(self._cupy_host_input[0:36], jacobian.reshape(36), casting="unsafe")
+        np.copyto(self._cupy_host_input[36:42], xdot, casting="unsafe")
+        np.copyto(self._cupy_host_input[42:48], lower, casting="unsafe")
+        np.copyto(self._cupy_host_input[48:54], upper, casting="unsafe")
+        self._cupy_input_buffer.set(self._cupy_host_input)
+        proj_input = self._cupy_work_buffer[12:18]
+        projected = self._cupy_work_buffer[18:24]
+        sigr_arg = self._cupy_work_buffer[24:30]
+        sigr_val = self._cupy_work_buffer[30:36]
+        limited = self._cupy_work_buffer[36:42]
+        residual = self._cupy_work_buffer[42:48]
         self._cupy_solve_kernel()(
             (1,),
             (1,),
             (
-                cp.asarray(jacobian, dtype=cp.float32).reshape(36),
-                cp.asarray(xdot, dtype=cp.float32),
-                cp.asarray(lower, dtype=cp.float32),
-                cp.asarray(upper, dtype=cp.float32),
+                self._cupy_input_buffer[0:36],
+                self._cupy_input_buffer[36:42],
+                self._cupy_input_buffer[42:48],
+                self._cupy_input_buffer[48:54],
                 self._cupy_theta_dot_state,
                 self._cupy_lambda_state,
                 proj_input,
@@ -480,14 +510,15 @@ void strict_rnn_solve(
             ),
         )
         cp.cuda.Stream.null.synchronize()
-        self.theta_dot_state = cp.asnumpy(self._cupy_theta_dot_state).astype(float)
-        self.lambda_state = cp.asnumpy(self._cupy_lambda_state).astype(float)
-        proj_input_np = cp.asnumpy(proj_input).astype(float)
-        projected_np = cp.asnumpy(projected).astype(float)
-        sigr_arg_np = cp.asnumpy(sigr_arg).astype(float)
-        sigr_val_np = cp.asnumpy(sigr_val).astype(float)
-        limited_np = cp.asnumpy(limited).astype(float)
-        residual_np = cp.asnumpy(residual).astype(float)
+        self._cupy_work_buffer.get(out=self._cupy_host_work)
+        np.copyto(self.theta_dot_state, self._cupy_host_work[0:6], casting="unsafe")
+        np.copyto(self.lambda_state, self._cupy_host_work[6:12], casting="unsafe")
+        proj_input_np = self._cupy_host_work[12:18]
+        projected_np = self._cupy_host_work[18:24]
+        sigr_arg_np = self._cupy_host_work[24:30]
+        sigr_val_np = self._cupy_host_work[30:36]
+        limited_np = self._cupy_host_work[36:42]
+        residual_np = self._cupy_host_work[42:48]
         active_bounds = np.isclose(projected_np, lower) | np.isclose(projected_np, upper)
         return StrictRnnStepDiagnostics(
             theta_dot_state=_tuple6(self.theta_dot_state),

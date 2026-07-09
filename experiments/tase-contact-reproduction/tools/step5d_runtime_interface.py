@@ -663,6 +663,19 @@ def resolve_runtime_interface(
             "stage25_runtime_limit_s": stage25_runtime_limit_s(selected),
             "controller_readback_required": controller_readback_required,
             "controller_readback_verified": controller_readback_verified,
+            "runtime_profile": (
+                {
+                    "backend": "cupy",
+                    "inner_iterations": 1024,
+                    "epsilon": 0.010,
+                    "sigr_exponent_r": 0.8,
+                    "qdot_cap_rad_s": 0.05,
+                    "control_mode": "speedj_rnn_live",
+                    "joint_layout_code": 524.0,
+                }
+                if selected == STEP5D_ABLATION_V29_STAGE_ID
+                else None
+            ),
             "no_contact_p0_capture": selected == STEP5D_NO_CONTACT_P0_STAGE_ID,
             "no_ubuntu_motion": True,
             "no_zero_ftsensor": True,
@@ -784,7 +797,12 @@ def long_check_cache_status(
     return status
 
 
-def live_ready_lines(interface: Step5dRuntimeInterface, cache: Mapping[str, Any]) -> list[str]:
+def live_ready_lines(
+    interface: Step5dRuntimeInterface,
+    cache: Mapping[str, Any],
+    *,
+    readiness: Mapping[str, Any] | None = None,
+) -> list[str]:
     age = cache.get("age_s")
     age_text = "n/a" if age is None else f"{float(age) / 60.0:.1f}m"
     ttl_text = f"{float(cache.get('ttl_s', DEFAULT_LONG_CHECK_TTL_S)) / 3600.0:.1f}h"
@@ -805,6 +823,37 @@ def live_ready_lines(interface: Step5dRuntimeInterface, cache: Mapping[str, Any]
                 "[tuning] stage25 "
                 f"mode={interface.stage25_control_mode} "
                 f"cartesian_tag={STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:g} "
+                f"joint_tag={STEP5D_STAGE25_JOINT_LAYOUT_CODE:g}"
+            ),
+        ]
+    if interface.program == STEP5D_ABLATION_V29_STAGE_ID:
+        offline_ready = bool(
+            isinstance(readiness, Mapping)
+            and readiness.get("schema_version") == "step5d_liveprep_readiness_v1"
+            and readiness.get("program") == interface.program
+            and readiness.get("workflow_state") == "awaiting_live_authorization"
+            and readiness.get("ready_for_explicit_live_authorization") is True
+            and not readiness.get("blockers")
+        )
+        phase = "awaiting-live-authorization" if offline_ready else "liveprep-blocked"
+        blockers = [] if readiness is None else list(readiness.get("blockers") or [])
+        next_line = (
+            "[next] offline live-prep accepted; separate explicit live/contact authorization is still required"
+            if offline_ready
+            else "[next] complete offline timing, DLS shadow, package binding, and milestone review"
+        )
+        if blockers:
+            next_line += "; blockers=" + ",".join(str(item) for item in blockers)
+        return [
+            f"[step5d][phase={phase}][rebuild=no][upload=no]",
+            "[touches=offline-evidence-only]",
+            f"[cache] long-check={cache.get('state', 'MISS')} age={age_text} ttl={ttl_text} fingerprint={fp}",
+            next_line,
+            (
+                "[tuning] stage25 "
+                f"mode={interface.stage25_control_mode} "
+                f"backend={interface.hard_contract['runtime_profile']['backend']} "
+                f"inner_iterations={interface.hard_contract['runtime_profile']['inner_iterations']} "
                 f"joint_tag={STEP5D_STAGE25_JOINT_LAYOUT_CODE:g}"
             ),
         ]
@@ -853,6 +902,15 @@ def main(argv: list[str] | None = None) -> int:
 
     interface = resolve_runtime_interface(program=args.program, root=args.root)
     cache = long_check_cache_status(args.long_check_cache, robot_host=args.robot_host, ttl_s=args.long_check_ttl_s)
+    readiness: dict[str, Any] | None = None
+    if interface.program == STEP5D_ABLATION_V29_STAGE_ID:
+        current = _current_stage(args.root / "config" / "current_stage.json")
+        artifact = (current.get("liveprep_status") or {}).get("readiness_artifact")
+        if artifact:
+            try:
+                readiness = json.loads((args.root / str(artifact)).read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                readiness = None
     if args.json or args.command == "interface-json":
         print(
             json.dumps(
@@ -865,7 +923,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
     else:
-        print("\n".join(live_ready_lines(interface, cache)))
+        print("\n".join(live_ready_lines(interface, cache, readiness=readiness)))
     return 0
 
 
