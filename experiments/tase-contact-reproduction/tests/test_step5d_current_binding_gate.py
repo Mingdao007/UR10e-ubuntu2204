@@ -237,7 +237,7 @@ class Step5dCurrentBindingGateTest(unittest.TestCase):
         self.assertEqual(len(result["local_triplet"]), 3)
         self.assertEqual(result["stage_table"]["id"], result["program"])
         self.assertTrue(result["stage_table"]["active"])
-        self.assertFalse(result["stage_table"]["blocked"])
+        self.assertTrue(result["stage_table"]["blocked"])
 
     def test_local_triplet_sha_mismatch_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
