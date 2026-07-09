@@ -3,7 +3,10 @@
 
 from __future__ import annotations
 
+import json
+import shutil
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -122,6 +125,27 @@ class Step5dRuntimeInterfaceTest(unittest.TestCase):
         lines = iface.live_ready_lines(runtime, {"state": "HIT", "age_s": 60.0, "ttl_s": 7200.0, "fingerprint_ok": True})
 
         self.assertIn("[next] short checks ETA=1-3s, TP Play wait<=20s, baseline+rezero=5.25s", lines)
+
+    def test_v29_live_ready_reports_readback_blocked_until_controller_delivery(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            shutil.copytree(ROOT / "config", tmp_root / "config")
+            table_path = tmp_root / "config" / "step5_stage_table.json"
+            table = json.loads(table_path.read_text(encoding="utf-8"))
+            row = next(row for row in table["stages"] if row.get("id") == iface.STEP5D_ABLATION_V29_STAGE_ID)
+            row["acceptance"]["controller_readback_verified"] = False
+            row["local_delivery_evidence"]["controller_readback_verified"] = False
+            row["package_delivery"]["controller_readback_verified"] = False
+            table_path.write_text(json.dumps(table), encoding="utf-8")
+            runtime = iface.resolve_runtime_interface(program=iface.STEP5D_ABLATION_V29_STAGE_ID, root=tmp_root, env={})
+
+        lines = iface.live_ready_lines(runtime, {"state": "HIT", "age_s": 60.0, "ttl_s": 7200.0, "fingerprint_ok": True})
+
+        joined = "\n".join(lines)
+        self.assertIn("[step5d][phase=readback-blocked][rebuild=no][upload=required]", lines)
+        self.assertIn("controller read-back required before TP handoff", joined)
+        self.assertNotIn("TP Play wait", joined)
+        self.assertNotIn("phase=live-bridge", joined)
 
     def test_step5d_env_overrides_use_step5d_namespace(self) -> None:
         runtime = iface.resolve_runtime_interface(

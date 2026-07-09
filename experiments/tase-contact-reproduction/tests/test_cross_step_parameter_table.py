@@ -12,6 +12,20 @@ sys.path.insert(0, str(ROOT / "tools"))
 import validate_cross_step_parameter_table as validator  # noqa: E402
 
 
+def add_no_contact_p0_capture_fixture(root: Path) -> None:
+    table = validator.load_json(root / "config" / "step5_stage_table.json")
+    current = validator.load_json(root / "config" / "current_stage.json")
+    row = next(row for row in table["stages"] if row.get("id") == "step5d_strict_rnn_no_contact_p0_v7")
+    delivery = row["package_delivery"]
+    current["bridge_trigger"]["no_contact_p0_capture"] = {
+        "profile": "step5d_strict_rnn_no_contact_p0_v7",
+        "controller_target": delivery["controller_target"],
+        "controller_readback_manifest": delivery["controller_readback_manifest"],
+        "sha256": delivery["sha256"],
+    }
+    (root / "config" / "current_stage.json").write_text(json.dumps(current), encoding="utf-8")
+
+
 class CrossStepParameterTableTest(unittest.TestCase):
     def test_cross_step_parameter_table_contract_passes(self) -> None:
         self.assertEqual([], validator.validate(ROOT))
@@ -75,6 +89,7 @@ class CrossStepParameterTableTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_root = Path(tmp)
             shutil.copytree(ROOT / "config", tmp_root / "config")
+            add_no_contact_p0_capture_fixture(tmp_root)
             table_path = tmp_root / "config" / "step5_stage_table.json"
             table = validator.load_json(table_path)
             row = next(row for row in table["stages"] if row.get("id") == "step5d_strict_rnn_no_contact_p0_v7")
@@ -95,6 +110,7 @@ class CrossStepParameterTableTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_root = Path(tmp)
             shutil.copytree(ROOT / "config", tmp_root / "config")
+            add_no_contact_p0_capture_fixture(tmp_root)
             current = validator.load_json(tmp_root / "config" / "current_stage.json")
             current["bridge_trigger"]["no_contact_p0_capture"]["profile"] = "step5d_strict_rnn_no_contact_p0_v2"
             (tmp_root / "config" / "current_stage.json").write_text(
@@ -112,6 +128,7 @@ class CrossStepParameterTableTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_root = Path(tmp)
             shutil.copytree(ROOT / "config", tmp_root / "config")
+            add_no_contact_p0_capture_fixture(tmp_root)
             table = validator.load_json(tmp_root / "config" / "step5_stage_table.json")
             row = next(row for row in table["stages"] if row.get("id") == "step5d_strict_rnn_no_contact_p0_v7")
             row["package_delivery"]["controller_readback_manifest"] = "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v7_LOCAL_PENDING_READBACK/manifest.json"

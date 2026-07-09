@@ -588,6 +588,7 @@ def stage25_control_attribution(rows: list[dict[str, str]], metadata: dict[str, 
         row
         for row in rows
         if finite_float(row.get("_step5d_rnn_accepted")) >= 0.5
+        and finite_float(row.get("_step5d_safe_hold_active")) < 0.5
         and finite_float(row.get("step4e_cmd_valid")) >= 0.5
         and row_has_command_layout(row, STAGE25_JOINT_LAYOUT_TAG)
         and finite_float(row.get("_step5d_stage25_echo_consumed")) >= 0.5

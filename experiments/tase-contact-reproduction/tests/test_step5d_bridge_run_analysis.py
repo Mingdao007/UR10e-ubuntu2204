@@ -1483,6 +1483,27 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
         self.assertEqual(attribution["rnn_accepted_rows"], 2)
         self.assertGreater(attribution["rnn_safe_hold_rows"], 1000)
 
+    def test_v29_speedj_rnn_live_safe_hold_rows_do_not_count_as_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            write_v29_speedj_rnn_live_full_run_slice(run_dir)
+            csv_path = run_dir / "bridge_rtde_500hz.csv"
+            with csv_path.open(newline="", encoding="utf-8") as handle:
+                rows = list(csv.DictReader(handle))
+            fieldnames = list(rows[0].keys())
+            for row in rows:
+                row["_step5d_rnn_accepted"] = "1"
+                row["_step5d_safe_hold_active"] = "1"
+                row["_step5d_rnn_reject_reason"] = "contradictory_safe_hold_fixture"
+            write_bridge_csv(csv_path, rows, fieldnames=fieldnames)
+
+            analysis = analyze_step5d_bridge_run.analyze_run_dir(run_dir)
+
+        attribution = analysis["stage25_control_attribution"]
+        self.assertNotEqual(analysis["classification"], "stage25_speedj_rnn_live_success")
+        self.assertEqual(attribution["rnn_accepted_rows"], 0)
+        self.assertGreater(attribution["rnn_safe_hold_rows"], 1000)
+
     def test_csv_cli_infers_run_metadata_and_writes_analysis(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = Path(tmp) / "bridge_step5d_strict_rnn_liveprep_v24_20260705_000000"

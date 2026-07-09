@@ -500,6 +500,25 @@ def resolve_runtime_interface(
     current_path = root / "config" / "current_stage.json"
     current = _current_stage(current_path)
     selected = program or current_step5d_program(current_path)
+    try:
+        selected_row = _stage_row(selected, root)
+    except StageEnvError:
+        selected_row = {}
+    selected_acceptance = selected_row.get("acceptance") if isinstance(selected_row, dict) else {}
+    selected_delivery = selected_row.get("local_delivery_evidence") if isinstance(selected_row, dict) else {}
+    selected_package_delivery = selected_row.get("package_delivery") if isinstance(selected_row, dict) else {}
+    controller_readback_verified = bool(
+        (isinstance(selected_acceptance, dict) and selected_acceptance.get("controller_readback_verified") is True)
+        or (isinstance(selected_delivery, dict) and selected_delivery.get("controller_readback_verified") is True)
+        or (
+            isinstance(selected_package_delivery, dict)
+            and selected_package_delivery.get("controller_readback_verified") is True
+        )
+    )
+    controller_readback_required = bool(
+        (isinstance(selected_acceptance, dict) and selected_acceptance.get("controller_readback_required") is True)
+        or not controller_readback_verified
+    )
     target = controller_target_for(selected, current)
     default_gate = default_preload_gate(selected)
     protocol_profile = runtime_protocol_profile(root)
@@ -642,6 +661,8 @@ def resolve_runtime_interface(
             ),
             "stage25_success_target_s": stage25_success_target_s(selected),
             "stage25_runtime_limit_s": stage25_runtime_limit_s(selected),
+            "controller_readback_required": controller_readback_required,
+            "controller_readback_verified": controller_readback_verified,
             "no_contact_p0_capture": selected == STEP5D_NO_CONTACT_P0_STAGE_ID,
             "no_ubuntu_motion": True,
             "no_zero_ftsensor": True,
@@ -771,6 +792,22 @@ def live_ready_lines(interface: Step5dRuntimeInterface, cache: Mapping[str, Any]
     gate = interface.preload_gate
     bridge = interface.bridge_defaults
     linear_cap_label = "legacy_total_linear_debug" if interface.program == STEP5D_NO_CONTACT_P0_STAGE_ID else "total_linear"
+    if (
+        interface.hard_contract.get("controller_readback_required") is True
+        and interface.hard_contract.get("controller_readback_verified") is not True
+    ):
+        return [
+            "[step5d][phase=readback-blocked][rebuild=no][upload=required]",
+            "[touches=controller-files-only]",
+            f"[cache] long-check={cache.get('state', 'MISS')} age={age_text} ttl={ttl_text} fingerprint={fp}",
+            f"[next] controller read-back required before TP handoff: {interface.controller_target}",
+            (
+                "[tuning] stage25 "
+                f"mode={interface.stage25_control_mode} "
+                f"cartesian_tag={STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:g} "
+                f"joint_tag={STEP5D_STAGE25_JOINT_LAYOUT_CODE:g}"
+            ),
+        ]
     return [
         "[step5d][phase=live-bridge][rebuild=no][upload=no]",
         "[touches=kunwei+rtde]",
