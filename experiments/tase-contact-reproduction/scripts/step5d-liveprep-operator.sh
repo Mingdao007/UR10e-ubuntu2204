@@ -91,6 +91,7 @@ elif [[ "${STEP5D_VERSION}" == "step5d_strict_rnn_ablation_v29" ]]; then
   STEP5D_SIGR_EXPONENT_R="${STEP5D_SIGR_EXPONENT_R:-0.800}"
   STEP5D_RNN_INNER_ITERATIONS="${STEP5D_RNN_INNER_ITERATIONS:-1024}"
   STEP5D_RNN_BACKEND="${STEP5D_RNN_BACKEND:-cupy}"
+  STEP5D_QDOT_LIMIT_RAD_S="${STEP5D_QDOT_LIMIT_RAD_S:-0.050}"
 else
   STEP5D_DEFAULT_ANGULAR_LIMIT_RAD_S="${STEP5D_DEFAULT_ANGULAR_LIMIT_RAD_S:-0.015}"
   STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedj_rnn_live}"
@@ -111,7 +112,7 @@ Boundary:
   - Bridge profile: ${STEP5D_VERSION}.
   - Force target defaults to 12.0 N, Step5/Step6 positive normal-load convention.
   - v25/v26/v27/v28/v29 Stage 25.0 uses register 47 layout tag: 523 Cartesian speedl vx/vy/vz/wx/wy/wz, 524 joint speedj qd0..qd5.
-  - v25/v26/v27/v28 first live mode defaults to STEP5D_STAGE25_CONTROL_MODE=speedl_cartesian_oracle; v29 defaults to speedj_rnn_live and keeps speedl_cartesian_oracle/speedj_dls_oracle as explicit fallback/debug modes.
+  - v25/v26/v27/v28 first live mode defaults to STEP5D_STAGE25_CONTROL_MODE=speedl_cartesian_oracle; v29 live authorization accepts only the exact speedj_rnn_live/cupy/1024/epsilon=0.010/r=0.800/qdot=0.050 profile.
   - v24 and older Stage 25.0: registers 37..42 are qd0..qd5 rad/s; TP executes speedj.
   - qdot cap: v12+ live-prep packages default to 0.05 rad/s; retained evidence packages may differ.
   - Raw normal/force guards: current v24/v25/v26 defaults to 25/25 N, v27/v28/v29 defaults to Step5b envelope 50/60 N with torque guard 3.0 Nm; retained v18-v23 evidence packages used 100/100/4.0.
@@ -149,6 +150,11 @@ require_live_bridge_authorization_gate() {
     --root "${ROOT}" \
     --program "${STEP5D_VERSION}" \
     --stage25-control-mode "$(selected_stage25_control_mode)" \
+    --rnn-backend "${STEP5D_RNN_BACKEND:-numpy}" \
+    --rnn-inner-iterations "${STEP5D_RNN_INNER_ITERATIONS:-1}" \
+    --epsilon "${STEP5D_EPSILON:-0.022}" \
+    --sigr-exponent-r "${STEP5D_SIGR_EXPONENT_R:-1.0}" \
+    --qdot-cap-rad-s "${STEP5D_QDOT_LIMIT_RAD_S:-0.050}" \
     --require-live-bridge-authorization
 }
 
@@ -208,6 +214,7 @@ case "$1" in
     STEP5D_SIGR_EXPONENT_R="${STEP5D_SIGR_EXPONENT_R:-}" \
     STEP5D_RNN_INNER_ITERATIONS="${STEP5D_RNN_INNER_ITERATIONS:-}" \
     STEP5D_RNN_BACKEND="${STEP5D_RNN_BACKEND:-}" \
+    STEP5D_QDOT_LIMIT_RAD_S="${STEP5D_QDOT_LIMIT_RAD_S:-}" \
     STEP5D_PRELOAD_FILTERED_MIN_N="${STEP5D_PRELOAD_FILTERED_MIN_N:-${STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N}}" \
     STEP5D_PRELOAD_FILTERED_MAX_N="${STEP5D_PRELOAD_FILTERED_MAX_N:-${STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N}}" \
     STEP5D_PRELOAD_RAW_MIN_N="${STEP5D_PRELOAD_RAW_MIN_N:-${STEP5D_DEFAULT_PRELOAD_RAW_MIN_N}}" \

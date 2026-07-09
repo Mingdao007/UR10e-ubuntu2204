@@ -56,6 +56,8 @@ class CrossStepParameterTableTest(unittest.TestCase):
         self.assertTrue(row["acceptance"]["controller_readback_verified"])
         self.assertTrue(current["v29_contact_candidate"]["controller_readback_verified"])
         self.assertEqual(current["liveprep_status"]["state"], "blocked")
+        self.assertTrue(row["blocked"])
+        self.assertEqual(row["blocked"], current["liveprep_status"]["state"] == "blocked")
         self.assertEqual(current["live_run_status"]["state"], "not_started")
         self.assertEqual(current["reproduction_status"]["state"], "incomplete")
 

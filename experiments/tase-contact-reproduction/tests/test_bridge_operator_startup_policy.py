@@ -91,6 +91,11 @@ postprocess_run "{run_dir}"
         self.assertIn("require_live_bridge_authorization_gate", script)
         self.assertIn("--require-live-bridge-authorization", script)
         self.assertIn("--stage25-control-mode", script)
+        self.assertIn("--rnn-backend", script)
+        self.assertIn("--rnn-inner-iterations", script)
+        self.assertIn("--epsilon", script)
+        self.assertIn("--sigr-exponent-r", script)
+        self.assertIn("--qdot-cap-rad-s", script)
         self.assertIn('STEP5D_EPSILON="${STEP5D_EPSILON:-0.010}"', script)
         self.assertIn('STEP5D_SIGR_EXPONENT_R="${STEP5D_SIGR_EXPONENT_R:-0.800}"', script)
         self.assertIn('STEP5D_RNN_INNER_ITERATIONS="${STEP5D_RNN_INNER_ITERATIONS:-1024}"', script)
@@ -117,6 +122,21 @@ printf '%s\\n' "$STEP5D_EPSILON" "$STEP5D_SIGR_EXPONENT_R" "$STEP5D_RNN_INNER_IT
         self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
         self.assertEqual(completed.stdout.splitlines()[-4:], ["0.010", "0.800", "1024", "cupy"])
 
+    def test_v29_direct_bridge_gate_receives_every_exact_profile_field(self) -> None:
+        script = read_script("bridge-line-operator.sh")
+        section = script.split("step5d_live_bridge_authorized()", 1)[1].split("refresh_bench_gate_cache()", 1)[0]
+
+        for flag in (
+            "--stage25-control-mode",
+            "--rnn-backend",
+            "--rnn-inner-iterations",
+            "--epsilon",
+            "--sigr-exponent-r",
+            "--qdot-cap-rad-s",
+        ):
+            self.assertIn(flag, section)
+        self.assertIn('--step5d-qdot-limit-rad-s "${STEP5D_QDOT_LIMIT_RAD_S:-0.050}"', script)
+
     def test_step5d_contact_bridge_denies_speedj_rnn_live_before_bridge_start(self) -> None:
         env = os.environ.copy()
         env.update(
@@ -136,7 +156,7 @@ printf '%s\\n' "$STEP5D_EPSILON" "$STEP5D_SIGR_EXPONENT_R" "$STEP5D_RNN_INNER_IT
         )
 
         self.assertEqual(completed.returncode, 24, completed.stdout + completed.stderr)
-        self.assertIn("live motion is not authorized", completed.stderr or completed.stdout)
+        self.assertIn("v29 liveprep is blocked", completed.stderr or completed.stdout)
         self.assertNotIn("bridge output:", completed.stdout)
 
     def test_no_contact_p0_capture_profile_has_separate_bridge_gate(self) -> None:

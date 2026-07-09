@@ -35,6 +35,10 @@ REVIEW_SOURCE_FILES = (
     "tools/step5c_strict_rnn.py",
     "tools/step5d_liveprep_readiness.py",
     "tools/step5d_runtime_interface.py",
+    "tools/verify_step5d_current_binding.py",
+    "tools/kunwei_rtde_bridge.py",
+    "scripts/step5d-liveprep-operator.sh",
+    "scripts/bridge-line-operator.sh",
 )
 
 
@@ -213,7 +217,18 @@ def run_synthetic_tick(
         if np.any(lower > upper):
             raise ValueError("invalid_bounds")
     except (TypeError, ValueError):
-        reason = "nonfinite_input" if not np.all(np.isfinite(np.asarray(xdot_c, dtype=float))) else "invalid_input"
+        try:
+            numeric_inputs = tuple(
+                np.asarray(values, dtype=float)
+                for values in (jacobian, xdot_c, omega_minus, omega_plus)
+            )
+            reason = (
+                "nonfinite_input"
+                if any(not np.all(np.isfinite(values)) for values in numeric_inputs)
+                else "invalid_input"
+            )
+        except (TypeError, ValueError):
+            reason = "invalid_input"
         return {"accepted": False, "reason": reason, "qdot": zero.tolist(), "wall_ms": (time.perf_counter() - started) * 1000.0}
     try:
         result = solver.solve(
@@ -525,11 +540,20 @@ def package_evidence(
     expected = dict(current.get("sha256") or {})
     delivery = row.get("package_delivery") if isinstance(row.get("package_delivery"), Mapping) else {}
     local = row.get("local_delivery_evidence") if isinstance(row.get("local_delivery_evidence"), Mapping) else {}
-    local_base = root / "programs" / "step5" / "step5d" / str(current.get("program"))
+    local_triplet = current.get("local_triplet")
+    local_base: Path | None = None
+    if isinstance(local_triplet, str) and local_triplet and not any(char in local_triplet for char in "*?[]{}"):
+        candidate = (root / local_triplet).resolve()
+        try:
+            candidate.relative_to(root.resolve())
+        except ValueError:
+            pass
+        else:
+            local_base = candidate
     observed: dict[str, str | None] = {}
     for extension in (".script", ".txt", ".urp"):
-        path = local_base.with_suffix(extension)
-        observed[extension] = _sha256(path) if path.is_file() else None
+        path = local_base.with_suffix(extension) if local_base is not None else None
+        observed[extension] = _sha256(path) if path is not None and path.is_file() else None
     hashes_match = bool(expected and observed == expected and delivery.get("sha256") == expected and local.get("sha256") == expected)
     pointer = str(current.get("controller_readback_manifest") or "")
     manifest_path = readback_manifest_path or (root / pointer)

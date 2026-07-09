@@ -165,6 +165,7 @@ elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" ]]; then
   STEP5D_SIGR_EXPONENT_R="${STEP5D_SIGR_EXPONENT_R:-0.800}"
   STEP5D_RNN_INNER_ITERATIONS="${STEP5D_RNN_INNER_ITERATIONS:-1024}"
   STEP5D_RNN_BACKEND="${STEP5D_RNN_BACKEND:-cupy}"
+  STEP5D_QDOT_LIMIT_RAD_S="${STEP5D_QDOT_LIMIT_RAD_S:-0.050}"
 else
   STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedj_rnn_live}"
   BRIDGE_ANGULAR_LIMIT_RAD_S="${BRIDGE_ANGULAR_LIMIT_RAD_S:-0.015}"
@@ -652,6 +653,11 @@ step5d_live_bridge_authorized() {
       --root "${ROOT}" \
       --program "${BRIDGE_PROFILE}" \
       --stage25-control-mode "${STEP5D_STAGE25_CONTROL_MODE:-${STEP5D_STAGE25_CONTROL_MODE_DEFAULT}}" \
+      --rnn-backend "${STEP5D_RNN_BACKEND:-numpy}" \
+      --rnn-inner-iterations "${STEP5D_RNN_INNER_ITERATIONS:-1}" \
+      --epsilon "${STEP5D_EPSILON:-0.022}" \
+      --sigr-exponent-r "${STEP5D_SIGR_EXPONENT_R:-1.0}" \
+      --qdot-cap-rad-s "${STEP5D_QDOT_LIMIT_RAD_S:-0.050}" \
       --require-live-bridge-authorization
   fi
 }
@@ -1228,6 +1234,7 @@ run_bridge_for_mode() {
     --step5c-joint-model "${STEP5C_JOINT_MODEL}" \
     --step5c-joint-site "${STEP5C_JOINT_SITE}" \
     --step5d-stage25-control-mode "${STEP5D_STAGE25_CONTROL_MODE:-${STEP5D_STAGE25_CONTROL_MODE_DEFAULT}}" \
+    --step5d-qdot-limit-rad-s "${STEP5D_QDOT_LIMIT_RAD_S:-0.050}" \
     --step5d-epsilon "${STEP5D_EPSILON:-0.022}" \
     --step5d-sigr-exponent-r "${STEP5D_SIGR_EXPONENT_R:-1.0}" \
     --step5d-rnn-inner-iterations "${STEP5D_RNN_INNER_ITERATIONS:-1}" \

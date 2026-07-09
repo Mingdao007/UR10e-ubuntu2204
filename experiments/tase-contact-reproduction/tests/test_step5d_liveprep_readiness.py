@@ -130,6 +130,77 @@ class Step5dLiveprepReadinessTest(unittest.TestCase):
         np.testing.assert_allclose(result["qdot"], np.zeros(6))
         self.assertLess(result["wall_ms"], 2.0)
 
+    def test_nonnumeric_and_bad_shape_synthetic_inputs_fail_closed_to_zero_qdot(self) -> None:
+        module = self.require_module()
+        cases = (
+            {"xdot_c": ["not-a-number"] * 6},
+            {"xdot_c": [0.0] * 5},
+            {"jacobian": [[0.0] * 6] * 5},
+            {"omega_minus": [0.0] * 5},
+        )
+        defaults = {
+            "jacobian": np.eye(6),
+            "xdot_c": np.zeros(6),
+            "omega_minus": np.full(6, -0.05),
+            "omega_plus": np.full(6, 0.05),
+        }
+        for case in cases:
+            with self.subTest(case=case):
+                inputs = {**defaults, **case}
+                result = module.run_synthetic_tick(
+                    FakeSolver(qdot=[0.01] * 6),
+                    profile={"epsilon": 0.01, "sigr_exponent_r": 0.8, "qdot_cap_rad_s": 0.05},
+                    **inputs,
+                )
+                self.assertFalse(result["accepted"])
+                self.assertEqual(result["reason"], "invalid_input")
+                np.testing.assert_allclose(result["qdot"], np.zeros(6))
+
+    def test_review_source_binding_covers_live_runtime_operator_and_bridge(self) -> None:
+        module = self.require_module()
+        self.assertTrue(
+            {
+                "tools/kunwei_rtde_bridge.py",
+                "tools/verify_step5d_current_binding.py",
+                "scripts/step5d-liveprep-operator.sh",
+                "scripts/bridge-line-operator.sh",
+            }.issubset(set(module.REVIEW_SOURCE_FILES))
+        )
+
+    def test_package_evidence_hashes_only_current_stage_local_triplet_stem(self) -> None:
+        module = self.require_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            program = "step5d_strict_rnn_ablation_v29"
+            declared_stem = root / "programs" / "step5" / program
+            decoy_stem = root / "programs" / "step5" / "step5d" / program
+            declared_stem.parent.mkdir(parents=True)
+            decoy_stem.parent.mkdir(parents=True)
+            expected = {}
+            payloads = ((".script", b"declared script"), (".txt", b"declared txt"), (".urp", b"declared urp"))
+            for extension, payload in payloads:
+                declared_stem.with_suffix(extension).write_bytes(payload)
+                expected[extension] = hashlib.sha256(payload).hexdigest()
+            current = {
+                "program": program,
+                "local_triplet": f"programs/step5/{program}",
+                "sha256": expected,
+            }
+            row = {
+                "package_delivery": {"sha256": expected},
+                "local_delivery_evidence": {"sha256": expected},
+            }
+
+            evidence = module.package_evidence(root, current, row)
+            self.assertTrue(evidence["package_hashes_match"])
+            self.assertEqual(evidence["observed_local_sha256"], expected)
+
+            for extension, payload in payloads:
+                decoy_stem.with_suffix(extension).write_bytes(payload)
+            declared_stem.with_suffix(".script").write_bytes(b"tampered declared script")
+            evidence = module.package_evidence(root, current, row)
+            self.assertFalse(evidence["package_hashes_match"])
+
     def test_canonical_benchmark_uses_calibrated_jacobian_and_v29_profile(self) -> None:
         module = self.require_module()
         benchmark = module.load_benchmark_contract(ROOT)

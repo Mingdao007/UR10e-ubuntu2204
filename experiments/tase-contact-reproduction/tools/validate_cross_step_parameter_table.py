@@ -199,6 +199,9 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
                     failures.append(f"current_stage.json {field}.state is missing or invalid")
                 if not isinstance(row_state, dict) or row_state.get("state") != current_state.get("state"):
                     failures.append(f"current v29 {field}.state does not match current_stage.json")
+            liveprep_state = current.get("liveprep_status", {}).get("state")
+            if current_row.get("blocked") is not (liveprep_state == "blocked"):
+                failures.append("current v29 blocked flag must match liveprep_status.state")
 
     p0_capture = current.get("bridge_trigger", {}).get("no_contact_p0_capture", {})
     p0_profile = p0_capture.get("profile")
