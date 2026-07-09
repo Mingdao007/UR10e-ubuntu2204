@@ -32,6 +32,22 @@ V28 = "step5d_strict_rnn_ablation_v28"
 V29 = "step5d_strict_rnn_ablation_v29"
 
 
+def raw_bridge_args(profile: str = V29, **overrides: object) -> SimpleNamespace:
+    values: dict[str, object] = {
+        "bridge_profile": profile,
+        "step5d_stage25_control_mode": "speedj_rnn_live",
+        "step5d_rnn_backend": "cupy",
+        "step5d_rnn_inner_iterations": 1024,
+        "step5d_epsilon": 0.01,
+        "step5d_sigr_exponent_r": 0.8,
+        "step5d_qdot_limit_rad_s": 0.05,
+        "skip_dashboard_preflight": False,
+        "robot_host": "192.0.2.10",
+    }
+    values.update(overrides)
+    return SimpleNamespace(**values)
+
+
 def write_tcp_cage_source(path: Path, *, x: float, y: float, z: float) -> None:
     path.write_text(
         "\n".join(
@@ -1528,6 +1544,7 @@ class Step5dV29RawBridgeAuthorizationGateTest(unittest.TestCase):
             step5d_epsilon=0.01,
             step5d_sigr_exponent_r=0.8,
             step5d_qdot_limit_rad_s=0.05,
+            skip_dashboard_preflight=False,
         )
         with patch.object(bridge, "verify_step5d_live_bridge_authorization", return_value={"ok": True}) as verify:
             result = bridge.require_v29_live_bridge_authorization(args)
@@ -1557,11 +1574,253 @@ class Step5dV29RawBridgeAuthorizationGateTest(unittest.TestCase):
             step5d_epsilon=0.01,
             step5d_sigr_exponent_r=0.8,
             step5d_qdot_limit_rad_s=0.05,
+            skip_dashboard_preflight=False,
         )
         with patch.object(bridge, "verify_step5d_live_bridge_authorization") as verify:
             with self.assertRaisesRegex(SystemExit, "speedj_rnn_live"):
                 bridge.require_v29_live_bridge_authorization(args)
         verify.assert_not_called()
+
+    def test_raw_profile_relabel_cannot_bypass_current_v29_binding(self) -> None:
+        args = raw_bridge_args(
+            V28,
+            step5d_stage25_control_mode="speedj_dls_oracle",
+            step5d_rnn_backend="numpy",
+            step5d_rnn_inner_iterations=1,
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "config").mkdir()
+            (root / "config" / "current_stage.json").write_text(
+                json.dumps({"program": V29, "current_stage_id": V29}), encoding="utf-8"
+            )
+            with patch.object(bridge, "verify_step5d_live_bridge_authorization") as verify:
+                with self.assertRaisesRegex(SystemExit, "profile relabel"):
+                    bridge.require_v29_live_bridge_authorization(args, root=root)
+        verify.assert_not_called()
+
+    def test_raw_bridge_fails_closed_when_current_stage_is_missing_or_malformed(self) -> None:
+        args = raw_bridge_args(V28)
+        payloads = [None, "{", "[]"]
+        for payload in payloads:
+            with self.subTest(payload=payload), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                (root / "config").mkdir()
+                if payload is not None:
+                    (root / "config" / "current_stage.json").write_text(payload, encoding="utf-8")
+                with patch.object(bridge, "verify_step5d_live_bridge_authorization") as verify:
+                    with self.assertRaisesRegex(SystemExit, "current-stage identity"):
+                        bridge.require_v29_live_bridge_authorization(args, root=root)
+                verify.assert_not_called()
+
+    def test_raw_bridge_rejects_inconsistent_current_identifiers(self) -> None:
+        args = raw_bridge_args(V28)
+        identities = [(V28, V29), (V29, V28), (V28, ""), ("", V28)]
+        for program, stage_id in identities:
+            with self.subTest(program=program, stage_id=stage_id), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                (root / "config").mkdir()
+                (root / "config" / "current_stage.json").write_text(
+                    json.dumps({"program": program, "current_stage_id": stage_id}), encoding="utf-8"
+                )
+                with patch.object(bridge, "verify_step5d_live_bridge_authorization") as verify:
+                    with self.assertRaisesRegex(SystemExit, "inconsistent"):
+                        bridge.require_v29_live_bridge_authorization(args, root=root)
+                verify.assert_not_called()
+
+    def test_raw_v29_cannot_skip_dashboard_program_identity(self) -> None:
+        args = SimpleNamespace(
+            bridge_profile=V29,
+            step5d_stage25_control_mode="speedj_rnn_live",
+            step5d_rnn_backend="cupy",
+            step5d_rnn_inner_iterations=1024,
+            step5d_epsilon=0.01,
+            step5d_sigr_exponent_r=0.8,
+            step5d_qdot_limit_rad_s=0.05,
+            skip_dashboard_preflight=True,
+        )
+        with patch.object(bridge, "verify_step5d_live_bridge_authorization") as verify:
+            with self.assertRaisesRegex(SystemExit, "Dashboard"):
+                bridge.require_v29_live_bridge_authorization(args)
+        verify.assert_not_called()
+
+    def test_v29_dashboard_preflight_binds_loaded_program_identity(self) -> None:
+        args = SimpleNamespace(bridge_profile=V29)
+        good = {
+            "programState": f"STOPPED </programs/andyl/kunwei/step5/{V29}.urp>",
+            "is in remote control": "Is in remote control: true",
+            "safetymode": "Safetymode: NORMAL",
+            "robotmode": "Robotmode: RUNNING",
+        }
+        self.assertIsNone(bridge.require_v29_dashboard_program_binding(args, good))
+        with self.assertRaisesRegex(SystemExit, "program identity"):
+            bridge.require_v29_dashboard_program_binding(
+                args,
+                {**good, "programState": f"STOPPED <{V28}.urp>"},
+            )
+
+    def test_v29_dashboard_preflight_rejects_fuzzy_or_ambiguous_states(self) -> None:
+        args = SimpleNamespace(bridge_profile=V29)
+        good = {
+            "programState": f"STOPPED </programs/{V29}.urp>",
+            "is in remote control": "Is in remote control: true",
+            "safetymode": "Safetymode: NORMAL",
+            "robotmode": "Robotmode: RUNNING",
+        }
+        cases = {
+            "prefixed_basename": {"programState": f"STOPPED <prefix_{V29}.urp>"},
+            "backup_suffix": {"programState": f"STOPPED <{V29}.urp.bak>"},
+            "ambiguous": {"programState": f"STOPPED <{V29}.urp> <{V28}.urp>"},
+            "false_remote": {"is in remote control": "Is in remote control: NOT TRUE"},
+            "false_safety": {"safetymode": "Safetymode: NOT_NORMAL"},
+            "false_robot": {"robotmode": "Robotmode: NOT_RUNNING"},
+            "missing_program": {"programState": ""},
+        }
+        for name, mutation in cases.items():
+            with self.subTest(name=name), self.assertRaises(SystemExit):
+                bridge.require_v29_dashboard_program_binding(args, {**good, **mutation})
+
+    def test_v29_dashboard_binding_runs_before_runtime_connections(self) -> None:
+        source = Path(bridge.__file__).read_text(encoding="utf-8")
+        binding_call = source.index("require_v29_dashboard_program_binding(args, dashboard)")
+        sensor_connect = source.index("socket.create_connection((args.sensor_ip, args.sensor_port)")
+        initial_rtde = source.index("open_rtde_bridge(args)", sensor_connect)
+        self.assertLess(binding_call, sensor_connect)
+        self.assertLess(binding_call, initial_rtde)
+
+    def test_v29_fail_stop_clears_motion_carriers_and_selects_sensor_fault(self) -> None:
+        values = {name: 0.03 for name in bridge.BRIDGE_INPUT_NAMES}
+        values.update({"sensor_ok": 1.0, "stop_request": 1.0})
+        bridge.apply_v29_fail_stop(values)
+        self.assertEqual(values["sensor_ok"], 0.0)
+        self.assertEqual(values["stop_request"], 0.0)
+        self.assertEqual(values["step4e_cmd_valid"], 0.0)
+        self.assertTrue(all(values[name] == 0.0 for name in bridge.BRIDGE_INPUT_NAMES[:6]))
+
+    def test_v29_fail_stop_prioritizes_hard_guard_and_preserves_first_reason(self) -> None:
+        selected = bridge.select_v29_fail_stop_reason(
+            None,
+            hard_guard_reason="force_norm_guard",
+            step4e_stop_request=True,
+            step4e_guard_reason="step5d_contact_safety:watchdog",
+        )
+        self.assertEqual(selected, "force_norm_guard")
+        self.assertEqual(
+            bridge.select_v29_fail_stop_reason(
+                selected,
+                hard_guard_reason="torque_norm_guard",
+                step4e_stop_request=True,
+                step4e_guard_reason="step5d_contact_safety:nonfinite",
+            ),
+            "force_norm_guard",
+        )
+
+    def test_v29_fail_stop_dashboard_uses_only_hardcoded_stop(self) -> None:
+        args = raw_bridge_args()
+        with patch.object(bridge, "dashboard_exchange", return_value={"stop": "Stopped"}) as exchange:
+            result = bridge.request_v29_fail_stop_dashboard_stop(args)
+        self.assertTrue(result["delivered"])
+        exchange.assert_called_once_with(
+            args.robot_host,
+            ["stop"],
+            timeout=bridge.STEP5D_V29_FAIL_STOP_DASHBOARD_TIMEOUT_S,
+        )
+        self.assertLess(bridge.STEP5D_V29_FAIL_STOP_DASHBOARD_TIMEOUT_S, 0.1)
+
+    def test_v29_fail_stop_dashboard_rejects_malformed_failed_or_exception_responses(self) -> None:
+        args = raw_bridge_args()
+        cases = [None, {}, {"stop": "Failed to execute: stop"}, OSError("offline"), RuntimeError("offline")]
+        for response in cases:
+            with self.subTest(response=type(response).__name__):
+                effect = response if isinstance(response, BaseException) else None
+                returned = None if isinstance(response, BaseException) else response
+                with patch.object(bridge, "dashboard_exchange", return_value=returned, side_effect=effect):
+                    result = bridge.request_v29_fail_stop_dashboard_stop(args)
+                self.assertFalse(result["delivered"])
+
+    @staticmethod
+    def _v29_fail_stop_state() -> dict[str, object]:
+        return {
+            "rtde_reason3_packets_sent": 0,
+            "first_rtde_packet_output_sequence": None,
+            "heartbeat_min_sent": None,
+            "heartbeat_max_sent": None,
+            "tp_reason3_observed": False,
+            "dashboard_stop_delivered": False,
+        }
+
+    def test_v29_reason3_ack_requires_post_packet_fresh_bound_echo(self) -> None:
+        state = self._v29_fail_stop_state()
+        stale = {
+            "output_double_register_26": 42.0,
+            "output_double_register_27": 0.0,
+            "output_double_register_28": 0.0,
+            "output_double_register_30": 3.0,
+        }
+        bridge.update_v29_fail_stop_tp_ack(state, output=stale, output_sequence=10)
+        self.assertFalse(state["tp_reason3_observed"])
+        bridge.record_v29_fail_stop_rtde_packet(state, heartbeat=9001.0, output_sequence=10)
+        bridge.update_v29_fail_stop_tp_ack(state, output=stale, output_sequence=10)
+        self.assertFalse(state["tp_reason3_observed"])
+        bridge.update_v29_fail_stop_tp_ack(state, output=stale, output_sequence=11)
+        self.assertFalse(state["tp_reason3_observed"])
+        fresh = {**stale, "output_double_register_26": 9001.0}
+        bridge.update_v29_fail_stop_tp_ack(state, output=fresh, output_sequence=11)
+        self.assertTrue(state["tp_reason3_observed"])
+        self.assertEqual(bridge.v29_fail_stop_termination_channel(state), "tp_reason3_echo")
+
+    def test_v29_fail_stop_requires_confirmed_channel_before_termination(self) -> None:
+        state = self._v29_fail_stop_state()
+        self.assertIsNone(bridge.v29_fail_stop_termination_channel(state))
+        state["dashboard_stop_delivered"] = True
+        self.assertEqual(bridge.v29_fail_stop_termination_channel(state), "dashboard_stop_ack")
+
+    def test_v29_runtime_timeouts_stay_below_tp_stale_limit(self) -> None:
+        self.assertLess(bridge.STEP5D_V29_RUNTIME_DASHBOARD_WATCH_TIMEOUT_S, 0.1)
+        self.assertLess(bridge.STEP5D_V29_FAIL_STOP_DASHBOARD_TIMEOUT_S, 0.1)
+        self.assertLess(bridge.STEP5D_V29_FAIL_STOP_RTDE_RECONNECT_TIMEOUT_S, 0.1)
+        source = Path(bridge.__file__).read_text(encoding="utf-8")
+        self.assertIn(
+            "if args.bridge_profile == STEP5D_ABLATION_V29_STAGE_ID\n                                else None",
+            source,
+        )
+
+    def test_v29_tp_reason3_is_non_autohome(self) -> None:
+        script = (ROOT / "programs" / "step5" / f"{V29}.script").read_text(encoding="utf-8")
+        guard = script.split("def codex_step4e_guard_stop_reason():", 1)[1].split(
+            "def codex_should_auto_home", 1
+        )[0]
+        self.assertLess(guard.index("if sensor_ok < 0.5:"), guard.index("elif stop_request > 0.5:"))
+        auto_home = script.split("def codex_should_auto_home(stop_reason):", 1)[1].split(
+            "def codex_echo_basic", 1
+        )[0]
+        self.assertNotIn("stop_reason == 3.0", auto_home)
+        for reason in (4, 5, 6, 7):
+            self.assertIn(f"stop_reason == {reason}.0", auto_home)
+
+    def test_v29_runtime_watch_latches_fail_stop_on_program_drift(self) -> None:
+        source = Path(bridge.__file__).read_text(encoding="utf-8")
+        watch = source.split("if dashboard_watch_enabled and not fail_stop_latched", 1)[1].split(
+            "sensor_recv_start", 1
+        )[0]
+        self.assertIn("v29_dashboard_program_identity_matches", watch)
+        self.assertIn('v29_safety_fail_stop["latched_reason"] = "dashboard_program_identity_drift"', watch)
+        self.assertIn("STEP5D_V29_RUNTIME_DASHBOARD_WATCH_TIMEOUT_S", watch)
+
+    def test_non_v29_hard_guard_stop_request_behavior_is_retained(self) -> None:
+        source = Path(bridge.__file__).read_text(encoding="utf-8")
+        block = source.split('if v29_safety_fail_stop["enabled"]:', 1)[1].split(
+            "rtde_connected = rtde is not None", 1
+        )[0]
+        historical = block.split("else:", 1)[1]
+        self.assertIn('bridge_values["stop_request"] = 1.0', historical)
+        self.assertIn("hard_guard_reason is not None", historical)
+
+    def test_v29_fail_stop_state_is_persisted_in_summary(self) -> None:
+        source = Path(bridge.__file__).read_text(encoding="utf-8")
+        summary = source.split('summary = {\n        "finished_at"', 1)[1]
+        self.assertIn('"v29_safety_fail_stop": {', summary)
+        self.assertIn('if key != "next_dashboard_stop_attempt_mono"', summary)
 
 
 if __name__ == "__main__":

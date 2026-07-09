@@ -221,6 +221,23 @@ def _write_v29_authorization_fixture(
     benchmark = _v29_benchmark_contract()
     benchmark_path = root / "config" / "step5d_v29_liveprep_benchmark.json"
     benchmark_path.write_text(json.dumps(benchmark), encoding="utf-8")
+    dependency_path = root / "external" / "fixture_runtime_helper.py"
+    dependency_path.parent.mkdir(parents=True)
+    dependency_path.write_text("VALUE = 1\n", encoding="utf-8")
+    dependency_contract = {
+        "schema_version": "step5d_v29_runtime_dependencies_v1",
+        "dependencies": [
+            {
+                "id": "fixture_runtime_helper",
+                "role": "fixture",
+                "path": str(dependency_path),
+                "sha256": _sha256(dependency_path.read_bytes()),
+            }
+        ],
+    }
+    (root / "config" / "step5d_v29_runtime_dependencies.json").write_text(
+        json.dumps(dependency_contract), encoding="utf-8"
+    )
     readiness_rel = "runs/step5d_v29_liveprep_fixture/liveprep_readiness.json"
     readback_rel = "runs/controller_readback_v29_fixture/manifest.json"
     readiness_path = root / readiness_rel
@@ -319,6 +336,7 @@ def _write_v29_authorization_fixture(
         "runtime_profile_match": True,
         "timing": _valid_v29_timing(),
         "dls_shadow": dls_shadow,
+        "runtime_dependencies": liveprep.runtime_dependency_evidence(dependency_contract),
         "review": {
             "schema_version": "step5d_liveprep_milestone_review_v1",
             "ok": True,
@@ -502,6 +520,9 @@ class Step5dCurrentBindingGateTest(unittest.TestCase):
             "artifact_live": lambda payload: payload.update({"live_motion_authorized": True}),
             "benchmark_hash": lambda payload: payload.update({"benchmark_contract_sha256": "f" * 64}),
             "workflow_hash": lambda payload: payload.update({"workflow_binding_sha256": "f" * 64}),
+            "runtime_dependency_hash": lambda payload: payload["runtime_dependencies"]["dependencies"][0].update(
+                {"sha256": "f" * 64}
+            ),
         }
         for name, mutate in mutations.items():
             with self.subTest(name=name), tempfile.TemporaryDirectory() as tmpdir:
@@ -532,6 +553,15 @@ class Step5dCurrentBindingGateTest(unittest.TestCase):
                 with mock.patch.object(gate, "reviewed_source_sha256", return_value="a" * 64):
                     with self.assertRaisesRegex(RuntimeError, "exact runtime profile"):
                         _verify_v29_authorization(root, **{key: value})
+
+    def test_v29_authorization_rejects_external_runtime_dependency_file_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            _write_v29_authorization_fixture(root)
+            (root / "external" / "fixture_runtime_helper.py").write_text("VALUE = 2\n", encoding="utf-8")
+            with mock.patch.object(gate, "reviewed_source_sha256", return_value="a" * 64):
+                with self.assertRaisesRegex(RuntimeError, "runtime_dependencies"):
+                    _verify_v29_authorization(root)
 
     def test_v29_authorization_accepts_exact_profile_and_bound_readiness(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

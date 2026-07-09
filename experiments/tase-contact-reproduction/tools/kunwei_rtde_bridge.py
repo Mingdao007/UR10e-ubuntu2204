@@ -16,6 +16,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import select
 import signal
 import socket
@@ -26,7 +27,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 import numpy as np
 import pinocchio as pin
@@ -564,6 +565,10 @@ STEP5D_TCP_CAGE_PROFILES = {
     STEP5D_ABLATION_V28_STAGE_ID,
     STEP5D_ABLATION_V29_STAGE_ID,
 }
+STEP5D_V29_FAIL_STOP_DASHBOARD_TIMEOUT_S = 0.04
+STEP5D_V29_FAIL_STOP_DASHBOARD_RETRY_S = 0.05
+STEP5D_V29_FAIL_STOP_RTDE_RECONNECT_TIMEOUT_S = 0.008
+STEP5D_V29_RUNTIME_DASHBOARD_WATCH_TIMEOUT_S = 0.02
 STEP5D_SEMANTIC_ORIENTATION_TOLERANCE_RAD = math.radians(5.0)
 STEP5D_SEARCH_POSE_CONTRACT_ID = PRE_CONTACT_GRAVITY_DOWN_CONTRACT_ID
 STEP5D_SEARCH_POSE_TARGET_AXIS_B = contract_target_axis_base(STEP5D_SEARCH_POSE_CONTRACT_ID)
@@ -6365,8 +6370,12 @@ class RTDEBridgeClient(RTDEClient):
         return {field: value for field, value in zip(OUTPUT_FIELDS, values)}
 
 
-def open_rtde_bridge(args: argparse.Namespace) -> tuple[RTDEBridgeClient, int, list[str], int, list[str]]:
-    rtde = RTDEBridgeClient(args.robot_host, timeout=args.connect_timeout_s)
+def open_rtde_bridge(
+    args: argparse.Namespace,
+    *,
+    timeout_s: float | None = None,
+) -> tuple[RTDEBridgeClient, int, list[str], int, list[str]]:
+    rtde = RTDEBridgeClient(args.robot_host, timeout=args.connect_timeout_s if timeout_s is None else timeout_s)
     rtde.__enter__()
     try:
         rtde.negotiate()
@@ -6485,6 +6494,123 @@ def guard_stop_reason(args: argparse.Namespace, bridge_values: dict[str, float])
         return "force_norm_guard"
     if bridge_values["torque_norm_nm"] > args.max_torque_norm_nm:
         return "torque_norm_guard"
+    return None
+
+
+def apply_v29_fail_stop(bridge_values: dict[str, float]) -> None:
+    """Select TP reason 3 and clear every motion carrier for a v29 safety stop."""
+    bridge_values["sensor_ok"] = 0.0
+    bridge_values["stop_request"] = 0.0
+    for name in BRIDGE_INPUT_NAMES[:6]:
+        bridge_values[name] = 0.0
+    bridge_values["step4e_cmd_valid"] = 0.0
+
+
+def request_v29_fail_stop_dashboard_stop(args: argparse.Namespace) -> dict[str, Any]:
+    """Attempt the hard-coded secondary stop channel; never raise into the fail-stop loop."""
+    result: dict[str, Any] = {
+        "attempted": True,
+        "delivered": False,
+        "response": "",
+        "error": "",
+    }
+    try:
+        response = dashboard_exchange(
+            args.robot_host,
+            ["stop"],
+            timeout=STEP5D_V29_FAIL_STOP_DASHBOARD_TIMEOUT_S,
+        )
+    except (OSError, RuntimeError, socket.timeout) as exc:
+        result["error"] = rtde_error_name(exc)
+        return result
+    if not isinstance(response, Mapping):
+        result["error"] = "invalid_dashboard_response"
+        return result
+    raw_response = str(response.get("stop") or "").strip()
+    normalized = raw_response.lower()
+    result["response"] = raw_response
+    result["delivered"] = normalized == "stopped" or normalized.startswith("stopped ") or normalized == "stopping"
+    return result
+
+
+def v29_tp_reason3_ack_observed(
+    output: Mapping[str, Any] | None,
+    *,
+    heartbeat_min: float | None,
+    heartbeat_max: float | None,
+) -> bool:
+    if not isinstance(output, Mapping):
+        return False
+    if heartbeat_min is None or heartbeat_max is None:
+        return False
+    try:
+        echoed_heartbeat = float(output.get("output_double_register_26"))
+        echoed_sensor_ok = float(output.get("output_double_register_27"))
+        echoed_stop_request = float(output.get("output_double_register_28"))
+        stop_reason = float(output.get("output_double_register_30"))
+    except (TypeError, ValueError):
+        return False
+    return (
+        heartbeat_min - 1e-6 <= echoed_heartbeat <= heartbeat_max + 1e-6
+        and abs(echoed_sensor_ok) <= 1e-6
+        and abs(echoed_stop_request) <= 1e-6
+        and abs(stop_reason - 3.0) <= 1e-6
+    )
+
+
+def select_v29_fail_stop_reason(
+    latched_reason: str | None,
+    *,
+    hard_guard_reason: str | None,
+    step4e_stop_request: bool,
+    step4e_guard_reason: str,
+) -> str | None:
+    if latched_reason is not None:
+        return latched_reason
+    if hard_guard_reason is not None:
+        return hard_guard_reason
+    if step4e_stop_request:
+        return step4e_guard_reason
+    return None
+
+
+def record_v29_fail_stop_rtde_packet(
+    state: dict[str, Any],
+    *,
+    heartbeat: float,
+    output_sequence: int,
+) -> None:
+    state["rtde_reason3_packets_sent"] += 1
+    if state["first_rtde_packet_output_sequence"] is None:
+        state["first_rtde_packet_output_sequence"] = output_sequence
+        state["heartbeat_min_sent"] = heartbeat
+    state["heartbeat_max_sent"] = heartbeat
+
+
+def update_v29_fail_stop_tp_ack(
+    state: dict[str, Any],
+    *,
+    output: Mapping[str, Any] | None,
+    output_sequence: int,
+) -> None:
+    first_packet_sequence = state["first_rtde_packet_output_sequence"]
+    if (
+        first_packet_sequence is not None
+        and output_sequence > first_packet_sequence
+        and v29_tp_reason3_ack_observed(
+            output,
+            heartbeat_min=state["heartbeat_min_sent"],
+            heartbeat_max=state["heartbeat_max_sent"],
+        )
+    ):
+        state["tp_reason3_observed"] = True
+
+
+def v29_fail_stop_termination_channel(state: Mapping[str, Any]) -> str | None:
+    if state.get("tp_reason3_observed") is True:
+        return "tp_reason3_echo"
+    if state.get("dashboard_stop_delivered") is True:
+        return "dashboard_stop_ack"
     return None
 
 
@@ -7254,15 +7380,35 @@ def step5d_dashboard_watch_metadata(
     }
 
 
-def require_v29_live_bridge_authorization(args: argparse.Namespace) -> dict[str, Any] | None:
+def require_v29_live_bridge_authorization(
+    args: argparse.Namespace,
+    *,
+    root: Path = EXPERIMENT_ROOT,
+) -> dict[str, Any] | None:
     """Apply the canonical v29 gate even when the raw bridge is invoked directly."""
-    if args.bridge_profile != STEP5D_ABLATION_V29_STAGE_ID:
+    try:
+        current = json.loads((root / "config" / "current_stage.json").read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise SystemExit(f"raw bridge cannot resolve current-stage identity: {exc}") from exc
+    if not isinstance(current, Mapping):
+        raise SystemExit("raw bridge cannot resolve current-stage identity: JSON root is not an object")
+    current_program = str(current.get("program") or "")
+    current_stage_id = str(current.get("current_stage_id") or "")
+    if not current_program or not current_stage_id or current_program != current_stage_id:
+        raise SystemExit("raw bridge refuses inconsistent current-stage identity")
+    current_is_v29 = current_program == STEP5D_ABLATION_V29_STAGE_ID
+    requested_is_v29 = args.bridge_profile == STEP5D_ABLATION_V29_STAGE_ID
+    if not current_is_v29 and not requested_is_v29:
         return None
+    if current_is_v29 and not requested_is_v29:
+        raise SystemExit("v29 raw bridge refuses profile relabel against the current-stage binding")
+    if getattr(args, "skip_dashboard_preflight", False):
+        raise SystemExit("v29 raw bridge requires Dashboard program-identity preflight")
     if args.step5d_stage25_control_mode != "speedj_rnn_live":
         raise SystemExit("v29 raw bridge requires speedj_rnn_live; DLS is not a runtime fallback")
     try:
         return verify_step5d_live_bridge_authorization(
-            EXPERIMENT_ROOT,
+            root,
             STEP5D_ABLATION_V29_STAGE_ID,
             args.step5d_stage25_control_mode,
             rnn_backend=args.step5d_rnn_backend,
@@ -7273,6 +7419,44 @@ def require_v29_live_bridge_authorization(args: argparse.Namespace) -> dict[str,
         )
     except RuntimeError as exc:
         raise SystemExit(str(exc)) from exc
+
+
+def dashboard_state_value(value: Any) -> str:
+    text = str(value or "").strip()
+    return text.rsplit(":", 1)[-1].strip().upper()
+
+
+def dashboard_loaded_program_basenames(value: Any) -> set[str]:
+    return {
+        Path(token).name.lower()
+        for token in re.findall(r"([^<>\s]+\.urp)(?=$|[>\s])", str(value or ""), flags=re.IGNORECASE)
+    }
+
+
+def v29_dashboard_program_identity_matches(value: Any) -> bool:
+    expected = f"{STEP5D_ABLATION_V29_STAGE_ID}.urp".lower()
+    return dashboard_loaded_program_basenames(value) == {expected}
+
+
+def require_v29_dashboard_program_binding(
+    args: argparse.Namespace,
+    dashboard: Mapping[str, Any] | None,
+) -> None:
+    if args.bridge_profile != STEP5D_ABLATION_V29_STAGE_ID:
+        return
+    if not isinstance(dashboard, Mapping):
+        raise SystemExit("v29 Dashboard preflight is missing")
+    remote_state = dashboard_state_value(dashboard.get("is in remote control"))
+    safety_state = dashboard_state_value(dashboard.get("safetymode"))
+    robot_state = dashboard_state_value(dashboard.get("robotmode"))
+    if not v29_dashboard_program_identity_matches(dashboard.get("programState")):
+        raise SystemExit("v29 Dashboard program identity does not match the current package")
+    if remote_state != "TRUE":
+        raise SystemExit("v29 Dashboard remote-control state is not true")
+    if safety_state != "NORMAL":
+        raise SystemExit("v29 Dashboard safety state is not NORMAL")
+    if robot_state != "RUNNING":
+        raise SystemExit("v29 Dashboard robot mode is not RUNNING")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -7389,6 +7573,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         if "NORMAL" not in dashboard.get("safetymode", ""):
             raise SystemExit(f"Dashboard safety not NORMAL: {dashboard}")
+        require_v29_dashboard_program_binding(args, dashboard)
 
     metadata = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -7405,6 +7590,14 @@ def main(argv: list[str] | None = None) -> int:
             "max_normal_force_n": args.max_normal_force_n,
             "max_force_norm_n": args.max_force_norm_n,
             "max_torque_norm_nm": args.max_torque_norm_nm,
+            "v29_bridge_safety_fail_stop": {
+                "primary": "RTDE sensor_ok=0, stop_request=0, zero motion carriers; TP selects non-auto-home reason 3",
+                "secondary": "hard-coded Dashboard stop command",
+                "break_condition": "TP reason 3 observed or Dashboard stop acknowledged",
+                "dashboard_timeout_s": STEP5D_V29_FAIL_STOP_DASHBOARD_TIMEOUT_S,
+                "rtde_reconnect_timeout_s": STEP5D_V29_FAIL_STOP_RTDE_RECONNECT_TIMEOUT_S,
+                "retry_s": STEP5D_V29_FAIL_STOP_DASHBOARD_RETRY_S,
+            },
         },
         "bias_estimator_logging_contract": {
             "source": "STARS-2024-001-inspired logging only; no online Kalman bias estimator is run here",
@@ -7595,7 +7788,11 @@ def main(argv: list[str] | None = None) -> int:
     latest_derived_kinematics = {field: math.nan for field in KINEMATIC_DERIVED_FIELDS}
     last_zero_request: float | None = None
     zero_request_epsilon = 1e-6
-    heartbeat = 0.0
+    heartbeat = (
+        float((time.time_ns() // 1_000_000) % 1_000_000_000)
+        if args.bridge_profile == STEP5D_ABLATION_V29_STAGE_ID
+        else 0.0
+    )
     stop_request = 0.0
     stop_reason = "duration"
     guard_reason: str | None = None
@@ -7605,6 +7802,7 @@ def main(argv: list[str] | None = None) -> int:
     bridge_writes = 0
     bridge_write_times: list[float] = []
     rtde_output_times: list[float] = []
+    rtde_output_sequence = 0
     echo_transition_times: list[float] = []
     rtde_reconnect_events: list[dict[str, Any]] = []
     next_rtde_reconnect_mono = start_mono
@@ -7617,6 +7815,38 @@ def main(argv: list[str] | None = None) -> int:
     trusted_torque_norms: list[float] = []
     startup_untrusted_spikes: list[dict[str, Any]] = []
     zero_events: list[dict[str, Any]] = []
+    v29_safety_fail_stop: dict[str, Any] = {
+        "enabled": args.bridge_profile == STEP5D_ABLATION_V29_STAGE_ID,
+        "latched_reason": None,
+        "rtde_reason3_packets_sent": 0,
+        "first_rtde_packet_output_sequence": None,
+        "heartbeat_min_sent": None,
+        "heartbeat_max_sent": None,
+        "tp_reason3_observed": False,
+        "dashboard_stop_delivered": False,
+        "termination_channel": None,
+        "dashboard_stop_attempts": 0,
+        "dashboard_stop_response": "",
+        "dashboard_stop_error": "",
+        "next_dashboard_stop_attempt_mono": start_mono,
+    }
+
+    def attempt_v29_fail_stop_dashboard(now_mono: float) -> None:
+        if (
+            v29_safety_fail_stop["latched_reason"] is None
+            or v29_safety_fail_stop["dashboard_stop_delivered"]
+            or now_mono < v29_safety_fail_stop["next_dashboard_stop_attempt_mono"]
+        ):
+            return
+        dashboard_stop = request_v29_fail_stop_dashboard_stop(args)
+        v29_safety_fail_stop["dashboard_stop_attempts"] += 1
+        v29_safety_fail_stop["dashboard_stop_response"] = dashboard_stop["response"]
+        v29_safety_fail_stop["dashboard_stop_error"] = dashboard_stop["error"]
+        v29_safety_fail_stop["dashboard_stop_delivered"] = dashboard_stop["delivered"]
+        v29_safety_fail_stop["next_dashboard_stop_attempt_mono"] = (
+            time.monotonic() + STEP5D_V29_FAIL_STOP_DASHBOARD_RETRY_S
+        )
+
     buffer = bytearray()
     step4e_state = BridgeState()
     step5d_runtime_prewarm = step5d_runtime_prewarm_metadata(args.bridge_profile)
@@ -7692,6 +7922,12 @@ def main(argv: list[str] | None = None) -> int:
             "sensor_age_s",
             *INPUT_NAMES,
             "guard_reason",
+            "v29_fail_stop_latched",
+            "v29_fail_stop_rtde_packets",
+            "v29_fail_stop_tp_reason3_observed",
+            "v29_fail_stop_dashboard_ack",
+            "v29_fail_stop_dashboard_attempts",
+            "v29_fail_stop_terminate",
             "baseline_ready",
             "baseline_epoch",
             *BIAS_BRIDGE_LOG_FIELDS,
@@ -7803,34 +8039,71 @@ def main(argv: list[str] | None = None) -> int:
                 loop_compute_s = 0.0
                 loop_rtde_send_s = 0.0
                 now = time.monotonic()
-                if stop_signal["name"] is not None:
+                fail_stop_latched = v29_safety_fail_stop["latched_reason"] is not None
+                if stop_signal["name"] is not None and not fail_stop_latched:
                     stop_reason = f"signal_{stop_signal['name'].lower()}"
                     break
-                if now - start_mono >= args.duration_s:
+                if now - start_mono >= args.duration_s and not fail_stop_latched:
                     stop_reason = "duration"
                     break
-                if dashboard_watch_enabled and now >= next_dashboard_watch:
-                    dash = dashboard_exchange(args.robot_host, ["running", "programState", "safetymode"])
-                    if "NORMAL" not in dash.get("safetymode", ""):
+                if dashboard_watch_enabled and not fail_stop_latched and now >= next_dashboard_watch:
+                    try:
+                        dash = dashboard_exchange(
+                            args.robot_host,
+                            ["running", "programState", "safetymode"],
+                            timeout=(
+                                STEP5D_V29_RUNTIME_DASHBOARD_WATCH_TIMEOUT_S
+                                if args.bridge_profile == STEP5D_ABLATION_V29_STAGE_ID
+                                else 3.0
+                            ),
+                        )
+                    except (OSError, RuntimeError, socket.timeout):
+                        if args.bridge_profile != STEP5D_ABLATION_V29_STAGE_ID:
+                            raise
+                        v29_safety_fail_stop["latched_reason"] = "dashboard_program_watch_unavailable"
+                        v29_safety_fail_stop["next_dashboard_stop_attempt_mono"] = (
+                            time.monotonic() + STEP5D_V29_FAIL_STOP_DASHBOARD_RETRY_S
+                        )
+                        fail_stop_latched = True
+                        dash = None
+                    if dash is not None and dashboard_state_value(dash.get("safetymode")) != "NORMAL":
                         stop_reason = "dashboard_safety_not_normal"
                         break
-                    running = "true" in dash.get("running", "").lower()
-                    stopped = "STOPPED" in dash.get("programState", "").upper()
-                    if running:
-                        dashboard_watch_saw_running = True
-                    elif dashboard_watch_saw_running and stopped:
-                        stop_reason = "dashboard_program_stopped"
-                        break
-                    elif not dashboard_watch_saw_running and stopped and now - start_mono >= args.dashboard_program_watch_timeout_s:
-                        stop_reason = "dashboard_play_timeout"
-                        break
+                    if (
+                        dash is not None
+                        and args.bridge_profile == STEP5D_ABLATION_V29_STAGE_ID
+                        and not v29_dashboard_program_identity_matches(dash.get("programState"))
+                    ):
+                        v29_safety_fail_stop["latched_reason"] = "dashboard_program_identity_drift"
+                        fail_stop_latched = True
+                    if dash is not None and not fail_stop_latched:
+                        running = dashboard_state_value(dash.get("running")) == "TRUE"
+                        stopped = dashboard_state_value(dash.get("programState")).startswith("STOPPED")
+                        if running:
+                            dashboard_watch_saw_running = True
+                        elif dashboard_watch_saw_running and stopped:
+                            stop_reason = "dashboard_program_stopped"
+                            break
+                        elif (
+                            not dashboard_watch_saw_running
+                            and stopped
+                            and now - start_mono >= args.dashboard_program_watch_timeout_s
+                        ):
+                            stop_reason = "dashboard_play_timeout"
+                            break
                     next_dashboard_watch = now + 0.25
 
+                if fail_stop_latched and rtde is None:
+                    attempt_v29_fail_stop_dashboard(now)
+
                 sensor_recv_start = time.perf_counter()
-                try:
-                    chunk = sock.recv(8192)
-                except (BlockingIOError, socket.timeout):
+                if fail_stop_latched:
                     chunk = b""
+                else:
+                    try:
+                        chunk = sock.recv(8192)
+                    except (BlockingIOError, socket.timeout):
+                        chunk = b""
                 loop_sensor_recv_s = time.perf_counter() - sensor_recv_start
                 if chunk:
                     buffer.extend(chunk)
@@ -7939,13 +8212,25 @@ def main(argv: list[str] | None = None) -> int:
                                 "frame_hex": frame.hex(),
                             }
                         )
-                elif sock.fileno() < 0:
+                elif sock.fileno() < 0 and not fail_stop_latched:
                     stop_reason = "socket_closed"
                     break
 
-                if args.write_rtde_inputs and rtde is None and now >= next_rtde_reconnect_mono:
+                if (
+                    args.write_rtde_inputs
+                    and rtde is None
+                    and now >= next_rtde_reconnect_mono
+                    and not v29_safety_fail_stop["dashboard_stop_delivered"]
+                ):
                     try:
-                        rtde, rtde_input_recipe, rtde_input_types, rtde_output_recipe, rtde_output_types = open_rtde_bridge(args)
+                        rtde, rtde_input_recipe, rtde_input_types, rtde_output_recipe, rtde_output_types = open_rtde_bridge(
+                            args,
+                            timeout_s=(
+                                STEP5D_V29_FAIL_STOP_RTDE_RECONNECT_TIMEOUT_S
+                                if args.bridge_profile == STEP5D_ABLATION_V29_STAGE_ID
+                                else None
+                            ),
+                        )
                         rtde_reconnect_events.append(
                             {
                                 "event": "reconnected",
@@ -7987,6 +8272,7 @@ def main(argv: list[str] | None = None) -> int:
                     else:
                         loop_rtde_recv_s = time.perf_counter() - rtde_recv_start
                     if sample is not None:
+                        rtde_output_sequence += 1
                         rtde_output_time = time.monotonic()
                         kinematics_dt_s = (
                             None
@@ -8052,14 +8338,18 @@ def main(argv: list[str] | None = None) -> int:
                         "mz_nm_zeroed": latest_zeroed[5],
                     }
                     compute_start = time.perf_counter()
-                    step4e_values = compute_bridge_values(
-                        args,
-                        latest_zeroed,
-                        latest_output,
-                        sensor_ok,
-                        step4e_state,
-                        write_period,
-                    )
+                    if fail_stop_latched:
+                        step4e_values = {name: 0.0 for name in BRIDGE_INPUT_NAMES}
+                        step4e_values["stop_request"] = 0.0
+                    else:
+                        step4e_values = compute_bridge_values(
+                            args,
+                            latest_zeroed,
+                            latest_output,
+                            sensor_ok,
+                            step4e_state,
+                            write_period,
+                        )
                     loop_compute_s = time.perf_counter() - compute_start
                     step4e_values["_bridge_loop_gap_s"] = 0.0 if not bridge_write_times else now - bridge_write_times[-1]
                     step4e_values["_bridge_loop_sensor_recv_s"] = loop_sensor_recv_s
@@ -8079,29 +8369,44 @@ def main(argv: list[str] | None = None) -> int:
                         force_norm_threshold_n=args.bias_contact_force_norm_threshold_n,
                     )
                     guard_reason = None
+                    terminate_after_write = False
                     step4e_stop_request = float(step4e_values.get("stop_request", 0.0)) > 0.5
-                    if step4e_stop_request:
-                        bridge_values["stop_request"] = 1.0
-                        stop_request = 1.0
-                        step5b_trial_reason = str(step4e_values.get("_step5b_15n_trial_stop_reason", ""))
-                        step5b_ramp_reason = str(step4e_values.get("_step5b_ramp_stop_reason", ""))
-                        if step5b_trial_reason.startswith("step5b_15n_trial:"):
-                            guard_reason = step5b_trial_reason
-                        elif step5b_ramp_reason.startswith("step5b_ramp_5_to_15:"):
-                            guard_reason = step5b_ramp_reason
-                        else:
-                            guard_reason = "step5d_contact_safety:" + str(
-                                step4e_values.get("_step5d_contact_safety_reason", "stop_request")
-                            )
-                        stop_reason = guard_reason
-                    if sensor_ok:
-                        hard_guard_reason = guard_stop_reason(args, bridge_values)
+                    step5b_trial_reason = str(step4e_values.get("_step5b_15n_trial_stop_reason", ""))
+                    step5b_ramp_reason = str(step4e_values.get("_step5b_ramp_stop_reason", ""))
+                    if step5b_trial_reason.startswith("step5b_15n_trial:"):
+                        step4e_guard_reason = step5b_trial_reason
+                    elif step5b_ramp_reason.startswith("step5b_ramp_5_to_15:"):
+                        step4e_guard_reason = step5b_ramp_reason
+                    else:
+                        step4e_guard_reason = "step5d_contact_safety:" + str(
+                            step4e_values.get("_step5d_contact_safety_reason", "stop_request")
+                        )
+                    hard_guard_reason = guard_stop_reason(args, bridge_values) if sensor_ok else None
+                    if v29_safety_fail_stop["enabled"]:
+                        v29_safety_fail_stop["latched_reason"] = select_v29_fail_stop_reason(
+                            v29_safety_fail_stop["latched_reason"],
+                            hard_guard_reason=hard_guard_reason,
+                            step4e_stop_request=step4e_stop_request,
+                            step4e_guard_reason=step4e_guard_reason,
+                        )
+                        if v29_safety_fail_stop["latched_reason"] is not None:
+                            guard_reason = str(v29_safety_fail_stop["latched_reason"])
+                            stop_reason = guard_reason
+                            stop_request = 0.0
+                            apply_v29_fail_stop(bridge_values)
+                    else:
+                        if step4e_stop_request:
+                            bridge_values["stop_request"] = 1.0
+                            stop_request = 1.0
+                            guard_reason = step4e_guard_reason
+                            stop_reason = guard_reason
                         if hard_guard_reason is not None:
                             bridge_values["stop_request"] = 1.0
                             stop_request = 1.0
                             guard_reason = hard_guard_reason
                             stop_reason = hard_guard_reason
                     rtde_connected = rtde is not None
+                    rtde_send_succeeded = False
                     if rtde is not None:
                         rtde_send_start = time.perf_counter()
                         try:
@@ -8126,6 +8431,24 @@ def main(argv: list[str] | None = None) -> int:
                             next_rtde_reconnect_mono = now + 0.05
                         else:
                             loop_rtde_send_s = time.perf_counter() - rtde_send_start
+                            rtde_send_succeeded = True
+                    if v29_safety_fail_stop["latched_reason"] is not None:
+                        if rtde_send_succeeded:
+                            record_v29_fail_stop_rtde_packet(
+                                v29_safety_fail_stop,
+                                heartbeat=float(bridge_values["heartbeat"]),
+                                output_sequence=rtde_output_sequence,
+                            )
+                        update_v29_fail_stop_tp_ack(
+                            v29_safety_fail_stop,
+                            output=latest_output,
+                            output_sequence=rtde_output_sequence,
+                        )
+                        attempt_v29_fail_stop_dashboard(time.monotonic())
+                        v29_safety_fail_stop["termination_channel"] = v29_fail_stop_termination_channel(
+                            v29_safety_fail_stop
+                        )
+                        terminate_after_write = v29_safety_fail_stop["termination_channel"] is not None
                     step4e_values["_bridge_loop_rtde_send_s"] = loop_rtde_send_s
                     row = {
                         "write_index": bridge_writes + 1,
@@ -8135,6 +8458,12 @@ def main(argv: list[str] | None = None) -> int:
                         **{key: csv_value(value) for key, value in bridge_values.items()},
                         **{key: csv_value(step4e_values.get(key, "")) for key in step4e_diag_fields},
                         "guard_reason": guard_reason or "",
+                        "v29_fail_stop_latched": int(v29_safety_fail_stop["latched_reason"] is not None),
+                        "v29_fail_stop_rtde_packets": v29_safety_fail_stop["rtde_reason3_packets_sent"],
+                        "v29_fail_stop_tp_reason3_observed": int(v29_safety_fail_stop["tp_reason3_observed"]),
+                        "v29_fail_stop_dashboard_ack": int(v29_safety_fail_stop["dashboard_stop_delivered"]),
+                        "v29_fail_stop_dashboard_attempts": v29_safety_fail_stop["dashboard_stop_attempts"],
+                        "v29_fail_stop_terminate": int(terminate_after_write),
                         "baseline_ready": int(baseline_ready),
                         "baseline_epoch": baseline_epoch,
                         "zero_event_id": baseline_epoch,
@@ -8160,7 +8489,7 @@ def main(argv: list[str] | None = None) -> int:
                     bridge_write_times.append(now)
                     heartbeat += 1.0
                     next_write += write_period
-                    if guard_reason is not None:
+                    if (not v29_safety_fail_stop["enabled"] and guard_reason is not None) or terminate_after_write:
                         break
     finally:
         if sock is not None and not args.no_stop_command:
@@ -8198,6 +8527,11 @@ def main(argv: list[str] | None = None) -> int:
         "zero_events": zero_events,
         "rtde_reconnect_events": rtde_reconnect_events,
         "rtde_reconnect_event_count": len(rtde_reconnect_events),
+        "v29_safety_fail_stop": {
+            key: value
+            for key, value in v29_safety_fail_stop.items()
+            if key != "next_dashboard_stop_attempt_mono"
+        },
         "baseline_si_offsets": dict(zip(BIAS_VECTOR_NAMES, baseline)),
         "bias_rate_estimate_si_per_s": dict(zip(BIAS_VECTOR_NAMES, bias_rate_estimate)),
         "bias_estimator_logging_contract": metadata["bias_estimator_logging_contract"],
