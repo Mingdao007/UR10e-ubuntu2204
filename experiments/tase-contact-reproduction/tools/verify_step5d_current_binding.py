@@ -15,7 +15,9 @@ from step5d_liveprep_readiness import (
     BENCHMARK_CONTRACT,
     READINESS_SCHEMA,
     load_benchmark_contract,
+    load_runtime_dependency_contract,
     reviewed_source_sha256,
+    runtime_dependency_evidence,
     validate_recorded_offline_evidence,
     validate_review_manifest,
     workflow_binding_sha256,
@@ -231,11 +233,13 @@ def _verify_v29_readiness(
         if benchmark.get("program") != selected or benchmark.get("runtime_profile") != V29_EXACT_RUNTIME_PROFILE:
             raise ValueError("benchmark identity mismatch")
         benchmark_sha256 = _sha256_file(root / BENCHMARK_CONTRACT)
+        current_runtime_dependencies = runtime_dependency_evidence(load_runtime_dependency_contract(root))
         recorded_evidence = validate_recorded_offline_evidence(
             readiness,
             benchmark,
             benchmark_contract_sha256=benchmark_sha256,
             expected_workflow_binding_sha256=workflow_binding_sha256(root),
+            expected_runtime_dependencies=current_runtime_dependencies,
         )
     except (OSError, KeyError, TypeError, ValueError):
         fail("v29 readiness recorded offline evidence is incomplete")

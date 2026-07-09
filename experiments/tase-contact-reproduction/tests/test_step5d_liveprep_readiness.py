@@ -163,6 +163,7 @@ class Step5dLiveprepReadinessTest(unittest.TestCase):
         self.assertTrue(
             {
                 "config/tase_protocol_table.json",
+                "config/step5d_v29_runtime_dependencies.json",
                 "config/step_pose_contract_table.json",
                 "config/step5_safe_frame.json",
                 "tools/contact_semantics.py",
@@ -180,6 +181,47 @@ class Step5dLiveprepReadinessTest(unittest.TestCase):
                 "scripts/bridge-line-operator.sh",
             }.issubset(set(module.REVIEW_SOURCE_FILES))
         )
+
+    def test_external_runtime_dependency_hashes_fail_closed_on_mutation(self) -> None:
+        module = self.require_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            dependency = root / "external_helper.py"
+            dependency.write_text("VALUE = 1\n", encoding="utf-8")
+            contract = {
+                "schema_version": "step5d_v29_runtime_dependencies_v1",
+                "dependencies": [
+                    {
+                        "id": "fixture_helper",
+                        "role": "fixture",
+                        "path": str(dependency),
+                        "sha256": hashlib.sha256(dependency.read_bytes()).hexdigest(),
+                    }
+                ],
+            }
+            evidence = module.runtime_dependency_evidence(contract)
+            self.assertTrue(evidence["ok"])
+            self.assertEqual(evidence["dependencies"], contract["dependencies"])
+
+            dependency.write_text("VALUE = 2\n", encoding="utf-8")
+            evidence = module.runtime_dependency_evidence(contract)
+            self.assertFalse(evidence["ok"])
+            self.assertEqual(evidence["mismatches"], ["fixture_helper"])
+
+    def test_runtime_dependency_contract_mutation_invalidates_review_source_hash(self) -> None:
+        module = self.require_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for relative in module.REVIEW_SOURCE_FILES:
+                destination = root / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(ROOT / relative, destination)
+            before = module.reviewed_source_sha256(root)
+            contract_path = root / module.RUNTIME_DEPENDENCY_CONTRACT
+            contract = json.loads(contract_path.read_text(encoding="utf-8"))
+            contract["dependencies"][0]["sha256"] = "f" * 64
+            contract_path.write_text(json.dumps(contract), encoding="utf-8")
+            self.assertNotEqual(module.reviewed_source_sha256(root), before)
 
     def test_review_source_hash_survives_only_workflow_authorization_transitions(self) -> None:
         module = self.require_module()

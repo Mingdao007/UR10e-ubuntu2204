@@ -27,11 +27,13 @@ from step5c_strict_rnn import StrictRnnConfig, StrictTaseRnnSolver
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
 BENCHMARK_CONTRACT = Path("config/step5d_v29_liveprep_benchmark.json")
+RUNTIME_DEPENDENCY_CONTRACT = Path("config/step5d_v29_runtime_dependencies.json")
 READINESS_SCHEMA = "step5d_liveprep_readiness_v1"
 REVIEW_SOURCE_FILES = (
     "config/current_stage.json",
     "config/step5_stage_table.json",
     "config/step5d_v29_liveprep_benchmark.json",
+    "config/step5d_v29_runtime_dependencies.json",
     "config/step5d_liveprep_solver_gate.json",
     "config/tase_protocol_table.json",
     "config/step_pose_contract_table.json",
@@ -89,6 +91,57 @@ def load_benchmark_contract(root: Path = EXPERIMENT_ROOT) -> dict[str, Any]:
     return payload
 
 
+def load_runtime_dependency_contract(root: Path = EXPERIMENT_ROOT) -> dict[str, Any]:
+    payload = _load_json(root / RUNTIME_DEPENDENCY_CONTRACT)
+    dependencies = payload.get("dependencies")
+    if payload.get("schema_version") != "step5d_v29_runtime_dependencies_v1":
+        raise ValueError("unsupported Step5d runtime dependency schema")
+    if not isinstance(dependencies, list) or not dependencies:
+        raise ValueError("Step5d runtime dependency contract is empty")
+    ids: set[str] = set()
+    for dependency in dependencies:
+        if not isinstance(dependency, Mapping):
+            raise ValueError("Step5d runtime dependency entry is invalid")
+        dependency_id = dependency.get("id")
+        path = dependency.get("path")
+        sha256 = dependency.get("sha256")
+        if not isinstance(dependency_id, str) or not dependency_id or dependency_id in ids:
+            raise ValueError("Step5d runtime dependency id is missing or duplicated")
+        if not isinstance(path, str) or not Path(path).is_absolute():
+            raise ValueError(f"Step5d runtime dependency path is not absolute: {dependency_id}")
+        if (
+            not isinstance(sha256, str)
+            or len(sha256) != 64
+            or any(character not in "0123456789abcdef" for character in sha256)
+        ):
+            raise ValueError(f"Step5d runtime dependency sha256 is invalid: {dependency_id}")
+        ids.add(dependency_id)
+    return payload
+
+
+def runtime_dependency_evidence(contract: Mapping[str, Any]) -> dict[str, Any]:
+    dependencies = contract.get("dependencies") if isinstance(contract.get("dependencies"), list) else []
+    mismatches: list[str] = []
+    recorded: list[dict[str, Any]] = []
+    for raw in dependencies:
+        if not isinstance(raw, Mapping):
+            mismatches.append("invalid_entry")
+            continue
+        dependency = dict(raw)
+        dependency_id = str(dependency.get("id") or "invalid_entry")
+        path = Path(str(dependency.get("path") or ""))
+        expected = dependency.get("sha256")
+        if path.is_symlink() or not path.is_file() or _sha256(path) != expected:
+            mismatches.append(dependency_id)
+        recorded.append(dependency)
+    return {
+        "schema_version": contract.get("schema_version"),
+        "ok": bool(recorded and not mismatches),
+        "dependencies": recorded,
+        "mismatches": mismatches,
+    }
+
+
 def derive_workflow_state(
     *,
     package_ready: bool,
@@ -134,6 +187,13 @@ def evaluate_offline_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]:
         blockers.append("controller_readback_not_verified")
     if evidence.get("package_hashes_match") is not True:
         blockers.append("package_hash_mismatch")
+    runtime_dependencies = (
+        evidence.get("runtime_dependencies")
+        if isinstance(evidence.get("runtime_dependencies"), Mapping)
+        else {}
+    )
+    if runtime_dependencies.get("ok") is not True:
+        blockers.append("runtime_dependency_hash_mismatch")
     review = evidence.get("review") if isinstance(evidence.get("review"), Mapping) else {}
     if review.get("ok") is not True:
         blockers.append("milestone_review_not_accepted")
@@ -465,6 +525,7 @@ def validate_recorded_offline_evidence(
     *,
     benchmark_contract_sha256: str | None = None,
     expected_workflow_binding_sha256: str | None = None,
+    expected_runtime_dependencies: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Recompute readiness primitives; summary ``pass`` booleans are not sufficient."""
     errors: list[str] = []
@@ -484,6 +545,14 @@ def validate_recorded_offline_evidence(
         errors.append("calibration_hash")
     if payload.get("calibrated_source") != contract.get("calibrated_source"):
         errors.append("calibrated_source")
+    if (
+        expected_runtime_dependencies is not None
+        and (
+            expected_runtime_dependencies.get("ok") is not True
+            or payload.get("runtime_dependencies") != expected_runtime_dependencies
+        )
+    ):
+        errors.append("runtime_dependencies")
     if payload.get("live_motion_authorized") is not False or payload.get("bridge_has_started") is not False:
         errors.append("pre_live_state")
 
@@ -554,12 +623,14 @@ def validate_recorded_offline_evidence(
         and number_at_most(safe_hold, "p99_ms", thresholds.get("safe_hold_p99_max_ms"))
         and number_at_most(safe_hold, "max_ms", deadline_ms, strict=True)
     )
-    if timing.get("ok") is not True or timing.get("quick_mode") is not False or not micro_ok:
+    if timing.get("quick_mode") is not False or not micro_ok:
         errors.append("microbenchmark")
     if not synthetic_ok:
         errors.append("synthetic_tick")
     if not safe_ok:
         errors.append("safe_hold")
+    if timing.get("ok") is not True:
+        errors.append("timing_aggregate")
 
     shadow = payload.get("dls_shadow") if isinstance(payload.get("dls_shadow"), Mapping) else {}
     shadow_ok = False
@@ -871,6 +942,7 @@ def build_readiness(
     package = package_evidence(root, current, row, readback_manifest_path=readback_manifest_path)
     timing = dict(benchmark_result["timing"])
     dls_shadow = dict(benchmark_result["dls_shadow"])
+    runtime_dependencies = runtime_dependency_evidence(load_runtime_dependency_contract(root))
     expected_review_source = reviewed_source_sha256(root)
     bound_review = dict(review)
     bound_review["expected_source_sha256"] = expected_review_source
@@ -881,6 +953,7 @@ def build_readiness(
         "runtime_profile_match": runtime_profile_match,
         "timing": timing,
         "dls_shadow": dls_shadow,
+        "runtime_dependencies": runtime_dependencies,
         "review": bound_review,
         **package,
     }
@@ -914,6 +987,7 @@ def build_readiness(
         "runtime_profile_match": runtime_profile_match,
         "timing": timing,
         "dls_shadow": dls_shadow,
+        "runtime_dependencies": runtime_dependencies,
         "review": bound_review,
         "controller_readback_verified": package["controller_readback_verified"],
         "controller_readback_manifest": package["controller_readback_manifest"],
