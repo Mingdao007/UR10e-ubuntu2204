@@ -61,6 +61,39 @@ class CrossStepParameterTableTest(unittest.TestCase):
         self.assertEqual(current["live_run_status"]["state"], "not_started")
         self.assertEqual(current["reproduction_status"]["state"], "incomplete")
 
+    def test_awaiting_v29_requires_matching_readiness_pointer_and_sha(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            shutil.copytree(ROOT / "config", tmp_root / "config")
+            shutil.copy2(ROOT / "STEP5_FLOW.md", tmp_root / "STEP5_FLOW.md")
+            current_path = tmp_root / "config" / "current_stage.json"
+            table_path = tmp_root / "config" / "step5_stage_table.json"
+            current = validator.load_json(current_path)
+            table = validator.load_json(table_path)
+            row = next(item for item in table["stages"] if item.get("id") == current["current_stage_id"])
+            current["liveprep_status"] = {
+                "state": "awaiting_live_authorization",
+                "readiness_artifact": "runs/final/liveprep_readiness.json",
+                "blockers": [],
+            }
+            row["blocked"] = False
+            row["liveprep_status"] = {
+                "state": "awaiting_live_authorization",
+                "readiness_artifact": "runs/final/liveprep_readiness.json",
+            }
+            current_path.write_text(json.dumps(current), encoding="utf-8")
+            table_path.write_text(json.dumps(table), encoding="utf-8")
+
+            failures = validator.validate(tmp_root)
+            self.assertTrue(any("readiness sha" in failure for failure in failures), failures)
+
+            current["liveprep_status"]["readiness_sha256"] = "a" * 64
+            row["liveprep_status"]["readiness_sha256"] = "a" * 64
+            current_path.write_text(json.dumps(current), encoding="utf-8")
+            table_path.write_text(json.dumps(table), encoding="utf-8")
+            failures = validator.validate(tmp_root)
+            self.assertFalse(any("readiness sha" in failure for failure in failures), failures)
+
     def test_live_startup_gates_are_not_cacheable(self) -> None:
         table = validator.load_json(ROOT / "config" / "step5_stage_table.json")
         profile = validator.dotted_get(table, "startup_gate_profiles.prepared_fast_bridge_v1")

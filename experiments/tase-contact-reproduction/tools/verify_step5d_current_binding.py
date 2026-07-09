@@ -12,9 +12,13 @@ from pathlib import Path
 from typing import Any
 
 from step5d_liveprep_readiness import (
+    BENCHMARK_CONTRACT,
     READINESS_SCHEMA,
+    load_benchmark_contract,
     reviewed_source_sha256,
+    validate_recorded_offline_evidence,
     validate_review_manifest,
+    workflow_binding_sha256,
 )
 from step5d_runtime_interface import resolve_runtime_interface
 from verify_current_stage_readback import EXPERIMENT_ROOT, fail, load_json, verify
@@ -196,6 +200,12 @@ def _verify_v29_readiness(
         fail("v29 stage row does not bind the exact runtime profile")
 
     readiness_path = _confined_regular_file(root, liveprep.get("readiness_artifact"), "v29 readiness artifact")
+    readiness_sha256 = _sha256_file(readiness_path)
+    if (
+        liveprep.get("readiness_sha256") != readiness_sha256
+        or row_liveprep.get("readiness_sha256") != readiness_sha256
+    ):
+        fail("v29 readiness artifact hash does not match current_stage and stage row")
     try:
         readiness = load_json(readiness_path)
     except (OSError, UnicodeError, json.JSONDecodeError):
@@ -215,6 +225,25 @@ def _verify_v29_readiness(
         or readiness.get("runtime_profile") != V29_EXACT_RUNTIME_PROFILE
     ):
         fail("v29 readiness artifact does not bind the exact runtime profile")
+
+    try:
+        benchmark = load_benchmark_contract(root)
+        if benchmark.get("program") != selected or benchmark.get("runtime_profile") != V29_EXACT_RUNTIME_PROFILE:
+            raise ValueError("benchmark identity mismatch")
+        benchmark_sha256 = _sha256_file(root / BENCHMARK_CONTRACT)
+        recorded_evidence = validate_recorded_offline_evidence(
+            readiness,
+            benchmark,
+            benchmark_contract_sha256=benchmark_sha256,
+            expected_workflow_binding_sha256=workflow_binding_sha256(root),
+        )
+    except (OSError, KeyError, TypeError, ValueError):
+        fail("v29 readiness recorded offline evidence is incomplete")
+    if recorded_evidence.get("ok") is not True:
+        fail(
+            "v29 readiness recorded offline evidence is invalid: "
+            + ",".join(str(item) for item in recorded_evidence.get("errors", []))
+        )
 
     expected_package_sha = current.get("sha256")
     if not isinstance(expected_package_sha, dict) or readiness.get("package_sha256") != expected_package_sha:
@@ -246,6 +275,7 @@ def _verify_v29_readiness(
         fail("v29 readiness reviewed source hash is stale")
     return {
         "path": _relative(root, readiness_path),
+        "artifact_sha256": readiness_sha256,
         "workflow_state": readiness["workflow_state"],
         "reviewed_source_sha256": expected_source_sha,
         "package_sha256": expected_package_sha,

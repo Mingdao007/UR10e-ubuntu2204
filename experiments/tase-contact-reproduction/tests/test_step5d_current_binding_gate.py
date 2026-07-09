@@ -11,11 +11,14 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import numpy as np
+
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 import verify_step5d_current_binding as gate  # noqa: E402
+import step5d_liveprep_readiness as liveprep  # noqa: E402
 
 
 PROGRAM = "step5d_strict_rnn_liveprep_v99"
@@ -30,6 +33,96 @@ V29_PROFILE = {
     "control_mode": "speedj_rnn_live",
     "joint_layout_code": 524.0,
 }
+
+
+def _v29_benchmark_contract() -> dict:
+    return {
+        "schema_version": "step5d_v29_liveprep_benchmark_v1",
+        "program": V29_PROGRAM,
+        "calibration_hash": "fixture_calibration_hash",
+        "calibrated_source": {"run_csv": "fixture.csv", "write_index": 1},
+        "runtime_profile": V29_PROFILE,
+        "jacobian_base_tcp": np.eye(6).tolist(),
+        "approach_normal_base": [1.0, 0.0, 0.0],
+        "reaction_normal_base": [-1.0, 0.0, 0.0],
+        "representative_xdot_c": [0.001, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "thresholds": {
+            "solver_samples": 10000,
+            "first_post_warm_max_ms": 1.75,
+            "solver_p99_max_ms": 1.5,
+            "deadline_ms": 2.0,
+            "synthetic_duration_s": 60.0,
+            "synthetic_frequency_hz": 500.0,
+            "synthetic_p99_max_ms": 1.8,
+            "safe_hold_samples": 10000,
+            "safe_hold_p99_max_ms": 2.0,
+        },
+        "safety_boundary": [
+            "offline compute only",
+            "no bridge start",
+            "no controller write",
+            "no TP Play",
+            "no zero_ftsensor",
+            "no robot motion",
+        ],
+    }
+
+
+def _valid_v29_timing() -> dict:
+    return {
+        "ok": True,
+        "quick_mode": False,
+        "microbenchmark": {
+            "pass": True,
+            "samples": 10000,
+            "precompile_ms": 400.0,
+            "precompile_outside_loop": True,
+            "first_post_warm_ms": 1.2,
+            "p50_ms": 1.1,
+            "p99_ms": 1.4,
+            "max_ms": 1.9,
+            "accepted_count": 10000,
+            "rejected_count": 0,
+            "rejection_reasons": [],
+            "deadline_miss_count": 0,
+        },
+        "synthetic_tick": {
+            "pass": True,
+            "samples": 30000,
+            "duration_s": 60.001,
+            "requested_duration_s": 60.0,
+            "frequency_hz": 500.0,
+            "deadline_paced": True,
+            "accepted_count": 30000,
+            "p50_ms": 1.2,
+            "p99_ms": 1.7,
+            "max_ms": 1.9,
+            "compute_deadline_miss_count": 0,
+            "schedule_overrun_count": 0,
+            "max_schedule_lateness_ms": 0.0,
+            "deadline_miss_count": 0,
+        },
+        "safe_hold": {
+            "pass": True,
+            "samples": 10000,
+            "zero_qdot_count": 10000,
+            "p99_ms": 0.1,
+            "max_ms": 0.2,
+            "deadline_miss_count": 0,
+        },
+    }
+
+
+def _rebind_v29_readiness_sha(root: Path, readiness_path: Path) -> None:
+    readiness_sha256 = _sha256(readiness_path.read_bytes())
+    current_path = root / "config" / "current_stage.json"
+    table_path = root / "config" / "step5_stage_table.json"
+    current = json.loads(current_path.read_text(encoding="utf-8"))
+    table = json.loads(table_path.read_text(encoding="utf-8"))
+    current["liveprep_status"]["readiness_sha256"] = readiness_sha256
+    table["stages"][0]["liveprep_status"]["readiness_sha256"] = readiness_sha256
+    current_path.write_text(json.dumps(current), encoding="utf-8")
+    table_path.write_text(json.dumps(table), encoding="utf-8")
 
 
 def _sha256(data: bytes) -> str:
@@ -125,6 +218,9 @@ def _write_v29_authorization_fixture(
     readiness_workflow_state: str | None = None,
 ) -> None:
     (root / "config").mkdir(parents=True)
+    benchmark = _v29_benchmark_contract()
+    benchmark_path = root / "config" / "step5d_v29_liveprep_benchmark.json"
+    benchmark_path.write_text(json.dumps(benchmark), encoding="utf-8")
     readiness_rel = "runs/step5d_v29_liveprep_fixture/liveprep_readiness.json"
     readback_rel = "runs/controller_readback_v29_fixture/manifest.json"
     readiness_path = root / readiness_rel
@@ -169,21 +265,44 @@ def _write_v29_authorization_fixture(
     review_lanes = []
     for lane_id in ("control_claim", "timing_runtime", "physical_operator_safety"):
         lane_artifact = readiness_path.parent / f"{lane_id}.md"
-        lane_runtime = readiness_path.parent / f"{lane_id}.jsonl"
+        lane_runtime = readiness_path.parent / f"{lane_id}.json"
         lane_artifact.write_text(f"# {lane_id}\n\nACCEPTED\n", encoding="utf-8")
-        lane_runtime.write_text('{"model":"gpt-5.6-sol","reasoning_effort":"max"}\n', encoding="utf-8")
+        lane_artifact_sha = _sha256(lane_artifact.read_bytes())
+        lane_runtime.write_text(
+            json.dumps(
+                {
+                    "schema_version": "step5d_reviewer_runtime_evidence_v1",
+                    "model": "gpt-5.6-sol",
+                    "reasoning_effort": "max",
+                    "sandbox": "read-only",
+                    "exit_code": 0,
+                    "artifact": lane_artifact.name,
+                    "artifact_sha256": lane_artifact_sha,
+                }
+            ),
+            encoding="utf-8",
+        )
         review_lanes.append(
             {
                 "id": lane_id,
                 "result": "accepted",
                 "artifact": lane_artifact.name,
-                "artifact_sha256": _sha256(lane_artifact.read_bytes()),
+                "artifact_sha256": lane_artifact_sha,
                 "model": "gpt-5.6-sol",
                 "reasoning_effort": "max",
                 "runtime_evidence": lane_runtime.name,
                 "runtime_evidence_sha256": _sha256(lane_runtime.read_bytes()),
             }
         )
+    qdot_rnn = np.array([0.001, 0.0, 0.0, 0.0, 0.0, 0.0])
+    dls_shadow = liveprep.build_dls_shadow(
+        jacobian=np.asarray(benchmark["jacobian_base_tcp"], dtype=float),
+        xdot_c=np.asarray(benchmark["representative_xdot_c"], dtype=float),
+        qdot_rnn=qdot_rnn,
+        omega_minus=np.full(6, -V29_PROFILE["qdot_cap_rad_s"]),
+        omega_plus=np.full(6, V29_PROFILE["qdot_cap_rad_s"]),
+        approach_normal=np.asarray(benchmark["approach_normal_base"], dtype=float),
+    )
     readiness = {
         "schema_version": "step5d_liveprep_readiness_v1",
         "program": V29_PROGRAM,
@@ -192,8 +311,14 @@ def _write_v29_authorization_fixture(
         or ("awaiting_live_authorization" if readiness_ready else "liveprep_blocked"),
         "ready_for_explicit_live_authorization": readiness_ready,
         "blockers": blockers,
+        "benchmark_contract_sha256": _sha256(benchmark_path.read_bytes()),
+        "workflow_binding_sha256": liveprep.workflow_binding_sha256(root),
+        "calibration_hash": benchmark["calibration_hash"],
+        "calibrated_source": benchmark["calibrated_source"],
         "runtime_profile": V29_PROFILE,
         "runtime_profile_match": True,
+        "timing": _valid_v29_timing(),
+        "dls_shadow": dls_shadow,
         "review": {
             "schema_version": "step5d_liveprep_milestone_review_v1",
             "ok": True,
@@ -206,8 +331,21 @@ def _write_v29_authorization_fixture(
         "controller_readback_manifest": readback_rel,
         "controller_readback_manifest_sha256": _sha256(readback_path.read_bytes()),
         "package_hashes_match": True,
+        "live_motion_authorized": False,
+        "bridge_has_started": False,
+        "claims": {
+            "package_accepted": True,
+            "live_run_accepted": False,
+            "reproduction_complete": False,
+        },
+        "safety_boundary": benchmark["safety_boundary"],
     }
     readiness_path.write_text(json.dumps(readiness), encoding="utf-8")
+    readiness_sha256 = _sha256(readiness_path.read_bytes())
+    current["liveprep_status"]["readiness_sha256"] = readiness_sha256
+    stage_table["stages"][0]["liveprep_status"]["readiness_sha256"] = readiness_sha256
+    (root / "config" / "current_stage.json").write_text(json.dumps(current), encoding="utf-8")
+    (root / "config" / "step5_stage_table.json").write_text(json.dumps(stage_table), encoding="utf-8")
 
 
 def _verify_v29_authorization(root: Path, **overrides):  # noqa: ANN003
@@ -303,6 +441,18 @@ class Step5dCurrentBindingGateTest(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "reviewed source"):
                     _verify_v29_authorization(root)
 
+    def test_v29_authorization_requires_current_and_stage_bound_readiness_sha(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            _write_v29_authorization_fixture(root)
+            current_path = root / "config" / "current_stage.json"
+            current = json.loads(current_path.read_text(encoding="utf-8"))
+            current["liveprep_status"]["readiness_sha256"] = "f" * 64
+            current_path.write_text(json.dumps(current), encoding="utf-8")
+
+            with self.assertRaisesRegex(RuntimeError, "readiness artifact hash"):
+                _verify_v29_authorization(root)
+
     def test_v29_authorization_rejects_nonempty_blockers_and_stale_hash_bindings(self) -> None:
         mutations = {
             "blockers": lambda root, payload: payload.update({"blockers": ["timing_failed"]}),
@@ -326,8 +476,44 @@ class Step5dCurrentBindingGateTest(unittest.TestCase):
                 readiness = json.loads(readiness_path.read_text(encoding="utf-8"))
                 mutate(root, readiness)
                 readiness_path.write_text(json.dumps(readiness), encoding="utf-8")
+                _rebind_v29_readiness_sha(root, readiness_path)
                 with mock.patch.object(gate, "reviewed_source_sha256", return_value="a" * 64):
                     with self.assertRaisesRegex(RuntimeError, patterns[name]):
+                        _verify_v29_authorization(root)
+
+    def test_v29_authorization_recomputes_recorded_timing_dls_and_claim_boundaries(self) -> None:
+        mutations = {
+            "missing_timing": lambda payload: payload.pop("timing"),
+            "quick_mode": lambda payload: payload["timing"].update({"quick_mode": True}),
+            "micro_first": lambda payload: payload["timing"]["microbenchmark"].update(
+                {"first_post_warm_ms": 1.80}
+            ),
+            "synthetic_schedule": lambda payload: payload["timing"]["synthetic_tick"].update(
+                {"schedule_overrun_count": 1, "deadline_miss_count": 1}
+            ),
+            "safe_hold_nonzero": lambda payload: payload["timing"]["safe_hold"].update(
+                {"zero_qdot_count": 9999}
+            ),
+            "dls_recompute": lambda payload: payload["dls_shadow"]["twist_rnn"].__setitem__(0, 0.02),
+            "runtime_fallback": lambda payload: payload["dls_shadow"].update(
+                {"runtime_fallback_allowed": True}
+            ),
+            "live_claim": lambda payload: payload["claims"].update({"live_run_accepted": True}),
+            "artifact_live": lambda payload: payload.update({"live_motion_authorized": True}),
+            "benchmark_hash": lambda payload: payload.update({"benchmark_contract_sha256": "f" * 64}),
+            "workflow_hash": lambda payload: payload.update({"workflow_binding_sha256": "f" * 64}),
+        }
+        for name, mutate in mutations.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmpdir:
+                root = Path(tmpdir)
+                _write_v29_authorization_fixture(root)
+                readiness_path = root / "runs/step5d_v29_liveprep_fixture/liveprep_readiness.json"
+                readiness = json.loads(readiness_path.read_text(encoding="utf-8"))
+                mutate(readiness)
+                readiness_path.write_text(json.dumps(readiness), encoding="utf-8")
+                _rebind_v29_readiness_sha(root, readiness_path)
+                with mock.patch.object(gate, "reviewed_source_sha256", return_value="a" * 64):
+                    with self.assertRaisesRegex(RuntimeError, "recorded offline evidence"):
                         _verify_v29_authorization(root)
 
     def test_v29_authorization_rejects_runtime_profile_overrides(self) -> None:

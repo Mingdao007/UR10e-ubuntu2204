@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import importlib.util
 import hashlib
+import json
 import math
+import shutil
 import sys
 import tempfile
 import unittest
@@ -160,12 +162,71 @@ class Step5dLiveprepReadinessTest(unittest.TestCase):
         module = self.require_module()
         self.assertTrue(
             {
+                "config/tase_protocol_table.json",
+                "config/step_pose_contract_table.json",
+                "config/step5_safe_frame.json",
+                "tools/contact_semantics.py",
                 "tools/kunwei_rtde_bridge.py",
+                "tools/step_pose_contract.py",
+                "tools/step5_table.py",
+                "tools/step5c_calibrated_kinematics_audit.py",
+                "tools/step5d_paper_outer_loop.py",
+                "tools/tase_protocol_table.py",
+                "tools/verify_current_stage_readback.py",
                 "tools/verify_step5d_current_binding.py",
+                "tools/analyze_step5d_bridge_run.py",
+                "tools/summarize_stage_frequency.py",
                 "scripts/step5d-liveprep-operator.sh",
                 "scripts/bridge-line-operator.sh",
             }.issubset(set(module.REVIEW_SOURCE_FILES))
         )
+
+    def test_review_source_hash_survives_only_workflow_authorization_transitions(self) -> None:
+        module = self.require_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for relative in module.REVIEW_SOURCE_FILES:
+                destination = root / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(ROOT / relative, destination)
+            before = module.reviewed_source_sha256(root)
+            binding_before = module.workflow_binding_sha256(root)
+
+            current_path = root / "config" / "current_stage.json"
+            current = json.loads(current_path.read_text(encoding="utf-8"))
+            current["status"] = "live_authorized"
+            current["updated_at"] = "2099-01-01T00:00:00Z"
+            current["liveprep_status"] = {
+                "state": "awaiting_live_authorization",
+                "readiness_artifact": "runs/final/liveprep_readiness.json",
+                "readiness_sha256": "a" * 64,
+                "blockers": [],
+            }
+            current["live_run_status"] = {"state": "not_started"}
+            current["bridge_trigger"]["live_motion_authorized"] = True
+            current["bridge_trigger"]["bridge_has_started"] = False
+            current["v29_contact_candidate"]["live_authorized"] = True
+            current_path.write_text(json.dumps(current), encoding="utf-8")
+
+            table_path = root / "config" / "step5_stage_table.json"
+            table = json.loads(table_path.read_text(encoding="utf-8"))
+            row = next(item for item in table["stages"] if item.get("id") == "step5d_strict_rnn_ablation_v29")
+            row["blocked"] = False
+            row["block_reason"] = None
+            row["liveprep_status"] = {
+                "state": "awaiting_live_authorization",
+                "readiness_artifact": "runs/final/liveprep_readiness.json",
+                "readiness_sha256": "a" * 64,
+            }
+            table_path.write_text(json.dumps(table), encoding="utf-8")
+
+            self.assertEqual(module.reviewed_source_sha256(root), before)
+            self.assertEqual(module.workflow_binding_sha256(root), binding_before)
+
+            current["bridge_profile"]["step5d_qdot_limit_rad_s"] = 0.06
+            current_path.write_text(json.dumps(current), encoding="utf-8")
+            self.assertNotEqual(module.reviewed_source_sha256(root), before)
+            self.assertNotEqual(module.workflow_binding_sha256(root), binding_before)
 
     def test_package_evidence_hashes_only_current_stage_local_triplet_stem(self) -> None:
         module = self.require_module()
@@ -259,9 +320,15 @@ class Step5dLiveprepReadinessTest(unittest.TestCase):
             for lane in ("control_claim", "timing_runtime", "physical_operator_safety"):
                 artifact = root / f"{lane}.md"
                 artifact.write_text(f"# {lane}\n\nACCEPTED\n", encoding="utf-8")
-                runtime_evidence = root / f"{lane}.jsonl"
+                artifact_sha256 = hashlib.sha256(artifact.read_bytes()).hexdigest()
+                runtime_evidence = root / f"{lane}.json"
                 runtime_evidence.write_text(
-                    '{"model":"gpt-5.6-sol","reasoning_effort":"max"}\n',
+                    (
+                        '{"schema_version":"step5d_reviewer_runtime_evidence_v1",'
+                        '"model":"gpt-5.6-sol","reasoning_effort":"max",'
+                        '"sandbox":"read-only","exit_code":0,'
+                        f'"artifact":"{artifact.name}","artifact_sha256":"{artifact_sha256}"}}\n'
+                    ),
                     encoding="utf-8",
                 )
                 lanes.append(
@@ -269,7 +336,7 @@ class Step5dLiveprepReadinessTest(unittest.TestCase):
                         "id": lane,
                         "result": "accepted",
                         "artifact": artifact.name,
-                        "artifact_sha256": hashlib.sha256(artifact.read_bytes()).hexdigest(),
+                        "artifact_sha256": artifact_sha256,
                         "model": "gpt-5.6-sol",
                         "reasoning_effort": "max",
                         "runtime_evidence": runtime_evidence.name,
@@ -284,6 +351,22 @@ class Step5dLiveprepReadinessTest(unittest.TestCase):
             }
             self.assertTrue(module.validate_review_manifest(payload, manifest_dir=root)["ok"])
             payload["lanes"][0]["artifact_sha256"] = "b" * 64
+            self.assertFalse(module.validate_review_manifest(payload, manifest_dir=root)["ok"])
+
+            payload["lanes"][0]["artifact_sha256"] = hashlib.sha256(
+                (root / payload["lanes"][0]["artifact"]).read_bytes()
+            ).hexdigest()
+            runtime_path = root / payload["lanes"][0]["runtime_evidence"]
+            runtime_path.write_text(
+                (
+                    '{"schema_version":"step5d_reviewer_runtime_evidence_v1",'
+                    '"model":"other","reasoning_effort":"max","sandbox":"read-only",'
+                    '"exit_code":0,"artifact":"control_claim.md",'
+                    f'"artifact_sha256":"{payload["lanes"][0]["artifact_sha256"]}"}}\n'
+                ),
+                encoding="utf-8",
+            )
+            payload["lanes"][0]["runtime_evidence_sha256"] = hashlib.sha256(runtime_path.read_bytes()).hexdigest()
             self.assertFalse(module.validate_review_manifest(payload, manifest_dir=root)["ok"])
 
 
