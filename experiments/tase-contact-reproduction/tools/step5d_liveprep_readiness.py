@@ -9,6 +9,7 @@ as a runtime command fallback.
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import math
@@ -32,11 +33,23 @@ REVIEW_SOURCE_FILES = (
     "config/step5_stage_table.json",
     "config/step5d_v29_liveprep_benchmark.json",
     "config/step5d_liveprep_solver_gate.json",
+    "config/tase_protocol_table.json",
+    "config/step_pose_contract_table.json",
+    "config/step5_safe_frame.json",
+    "tools/contact_semantics.py",
+    "tools/step_pose_contract.py",
+    "tools/step5_table.py",
+    "tools/step5c_calibrated_kinematics_audit.py",
     "tools/step5c_strict_rnn.py",
+    "tools/step5d_paper_outer_loop.py",
     "tools/step5d_liveprep_readiness.py",
     "tools/step5d_runtime_interface.py",
+    "tools/tase_protocol_table.py",
+    "tools/verify_current_stage_readback.py",
     "tools/verify_step5d_current_binding.py",
     "tools/kunwei_rtde_bridge.py",
+    "tools/analyze_step5d_bridge_run.py",
+    "tools/summarize_stage_frequency.py",
     "scripts/step5d-liveprep-operator.sh",
     "scripts/bridge-line-operator.sh",
 )
@@ -439,24 +452,231 @@ def run_offline_benchmark(root: Path, contract: Mapping[str, Any], *, quick: boo
     return {"timing": timing, "dls_shadow": shadow}
 
 
-def _review_file_matches(
+def _recorded_number(value: Any) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    parsed = float(value)
+    return parsed if math.isfinite(parsed) else None
+
+
+def validate_recorded_offline_evidence(
+    payload: Mapping[str, Any],
+    contract: Mapping[str, Any],
+    *,
+    benchmark_contract_sha256: str | None = None,
+    expected_workflow_binding_sha256: str | None = None,
+) -> dict[str, Any]:
+    """Recompute readiness primitives; summary ``pass`` booleans are not sufficient."""
+    errors: list[str] = []
+    thresholds = contract.get("thresholds") if isinstance(contract.get("thresholds"), Mapping) else {}
+    profile = contract.get("runtime_profile") if isinstance(contract.get("runtime_profile"), Mapping) else {}
+
+    if payload.get("runtime_profile_match") is not True or payload.get("runtime_profile") != profile:
+        errors.append("runtime_profile")
+    if benchmark_contract_sha256 is not None and payload.get("benchmark_contract_sha256") != benchmark_contract_sha256:
+        errors.append("benchmark_contract_sha256")
+    if (
+        expected_workflow_binding_sha256 is not None
+        and payload.get("workflow_binding_sha256") != expected_workflow_binding_sha256
+    ):
+        errors.append("workflow_binding_sha256")
+    if payload.get("calibration_hash") != contract.get("calibration_hash"):
+        errors.append("calibration_hash")
+    if payload.get("calibrated_source") != contract.get("calibrated_source"):
+        errors.append("calibrated_source")
+    if payload.get("live_motion_authorized") is not False or payload.get("bridge_has_started") is not False:
+        errors.append("pre_live_state")
+
+    claims = payload.get("claims") if isinstance(payload.get("claims"), Mapping) else {}
+    if claims != {
+        "package_accepted": True,
+        "live_run_accepted": False,
+        "reproduction_complete": False,
+    }:
+        errors.append("claim_boundary")
+    required_safety = set(str(item) for item in contract.get("safety_boundary", []))
+    recorded_safety = payload.get("safety_boundary")
+    if not isinstance(recorded_safety, list) or not required_safety.issubset({str(item) for item in recorded_safety}):
+        errors.append("safety_boundary")
+
+    timing = payload.get("timing") if isinstance(payload.get("timing"), Mapping) else {}
+    micro = timing.get("microbenchmark") if isinstance(timing.get("microbenchmark"), Mapping) else {}
+    synthetic = timing.get("synthetic_tick") if isinstance(timing.get("synthetic_tick"), Mapping) else {}
+    safe_hold = timing.get("safe_hold") if isinstance(timing.get("safe_hold"), Mapping) else {}
+    deadline_ms = _recorded_number(thresholds.get("deadline_ms"))
+    solver_samples = int(thresholds.get("solver_samples", 0))
+    duration_s = _recorded_number(thresholds.get("synthetic_duration_s"))
+    frequency_hz = _recorded_number(thresholds.get("synthetic_frequency_hz"))
+    synthetic_samples = int((duration_s or 0.0) * (frequency_hz or 0.0))
+    safe_samples = int(thresholds.get("safe_hold_samples", 0))
+
+    def number_at_most(container: Mapping[str, Any], key: str, limit: Any, *, strict: bool = False) -> bool:
+        value = _recorded_number(container.get(key))
+        bound = _recorded_number(limit)
+        return value is not None and bound is not None and (value < bound if strict else value <= bound)
+
+    micro_ok = bool(
+        micro.get("pass") is True
+        and micro.get("samples") == solver_samples
+        and micro.get("precompile_outside_loop") is True
+        and micro.get("accepted_count") == solver_samples
+        and micro.get("rejected_count") == 0
+        and micro.get("rejection_reasons") == []
+        and micro.get("deadline_miss_count") == 0
+        and number_at_most(micro, "first_post_warm_ms", thresholds.get("first_post_warm_max_ms"))
+        and number_at_most(micro, "p99_ms", thresholds.get("solver_p99_max_ms"))
+        and number_at_most(micro, "max_ms", deadline_ms, strict=True)
+        and _recorded_number(micro.get("precompile_ms")) is not None
+        and _recorded_number(micro.get("p50_ms")) is not None
+    )
+    synthetic_ok = bool(
+        synthetic.get("pass") is True
+        and synthetic.get("samples") == synthetic_samples
+        and synthetic.get("requested_duration_s") == duration_s
+        and frequency_hz is not None
+        and synthetic.get("frequency_hz") == frequency_hz
+        and synthetic.get("deadline_paced") is True
+        and synthetic.get("accepted_count") == synthetic_samples
+        and synthetic.get("compute_deadline_miss_count") == 0
+        and synthetic.get("schedule_overrun_count") == 0
+        and synthetic.get("deadline_miss_count") == 0
+        and (_recorded_number(synthetic.get("duration_s")) or -math.inf) >= (duration_s or math.inf)
+        and number_at_most(synthetic, "p99_ms", thresholds.get("synthetic_p99_max_ms"))
+        and number_at_most(synthetic, "max_ms", deadline_ms, strict=True)
+        and _recorded_number(synthetic.get("p50_ms")) is not None
+        and _recorded_number(synthetic.get("max_schedule_lateness_ms")) is not None
+    )
+    safe_ok = bool(
+        safe_hold.get("pass") is True
+        and safe_hold.get("samples") == safe_samples
+        and safe_hold.get("zero_qdot_count") == safe_samples
+        and safe_hold.get("deadline_miss_count") == 0
+        and number_at_most(safe_hold, "p99_ms", thresholds.get("safe_hold_p99_max_ms"))
+        and number_at_most(safe_hold, "max_ms", deadline_ms, strict=True)
+    )
+    if timing.get("ok") is not True or timing.get("quick_mode") is not False or not micro_ok:
+        errors.append("microbenchmark")
+    if not synthetic_ok:
+        errors.append("synthetic_tick")
+    if not safe_ok:
+        errors.append("safe_hold")
+
+    shadow = payload.get("dls_shadow") if isinstance(payload.get("dls_shadow"), Mapping) else {}
+    shadow_ok = False
+    try:
+        qdot_rnn = _finite_vector(shadow.get("qdot_rnn"), 6, "qdot_rnn")
+        cap = float(profile["qdot_cap_rad_s"])
+        recomputed = build_dls_shadow(
+            jacobian=contract["jacobian_base_tcp"],
+            xdot_c=contract["representative_xdot_c"],
+            qdot_rnn=qdot_rnn,
+            omega_minus=np.full(6, -cap),
+            omega_plus=np.full(6, cap),
+            approach_normal=contract["approach_normal_base"],
+            damping=1e-4,
+        )
+        vector_fields = ("qdot_dls", "qdot_rnn", "twist_dls", "twist_rnn")
+        scalar_fields = (
+            "damping",
+            "dls_residual_norm",
+            "rnn_residual_norm",
+            "qdot_delta_norm",
+            "desired_approach_normal_m_s",
+            "dls_approach_normal_m_s",
+            "rnn_approach_normal_m_s",
+        )
+        boolean_fields = (
+            "ok",
+            "pass",
+            "diagnostic_only",
+            "runtime_fallback_allowed",
+            "dls_bounds_ok",
+            "rnn_bounds_ok",
+            "dls_normal_sign_consistent",
+            "normal_sign_consistent",
+        )
+        shadow_ok = bool(
+            all(
+                np.allclose(
+                    _finite_vector(shadow.get(field), 6, field),
+                    np.asarray(recomputed[field], dtype=float),
+                    rtol=1e-9,
+                    atol=1e-12,
+                )
+                for field in vector_fields
+            )
+            and all(
+                _recorded_number(shadow.get(field)) is not None
+                and math.isclose(float(shadow[field]), float(recomputed[field]), rel_tol=1e-9, abs_tol=1e-12)
+                for field in scalar_fields
+            )
+            and all(shadow.get(field) is recomputed[field] for field in boolean_fields)
+            and shadow.get("dls_saturated_mask") == recomputed["dls_saturated_mask"]
+            and shadow.get("ok") is True
+            and shadow.get("pass") is True
+            and shadow.get("diagnostic_only") is True
+            and shadow.get("runtime_fallback_allowed") is False
+        )
+    except (KeyError, TypeError, ValueError, np.linalg.LinAlgError):
+        shadow_ok = False
+    if not shadow_ok:
+        errors.append("dls_shadow")
+
+    return {"ok": not errors, "errors": errors}
+
+
+def _review_file_path(
     raw_path: Any,
     expected_sha256: Any,
     *,
     manifest_dir: Path | None,
-) -> bool:
+) -> Path | None:
     if manifest_dir is None or not isinstance(raw_path, str) or not raw_path:
-        return False
+        return None
     if not isinstance(expected_sha256, str) or len(expected_sha256) != 64:
-        return False
+        return None
     base = manifest_dir.resolve()
     candidate = Path(raw_path)
     candidate = (base / candidate).resolve() if not candidate.is_absolute() else candidate.resolve()
     try:
         candidate.relative_to(base)
     except ValueError:
+        return None
+    if not candidate.is_file() or candidate.is_symlink() or _sha256(candidate) != expected_sha256:
+        return None
+    return candidate
+
+
+def _review_file_matches(
+    raw_path: Any,
+    expected_sha256: Any,
+    *,
+    manifest_dir: Path | None,
+) -> bool:
+    return _review_file_path(raw_path, expected_sha256, manifest_dir=manifest_dir) is not None
+
+
+def _runtime_evidence_matches(lane: Mapping[str, Any], *, manifest_dir: Path | None) -> bool:
+    runtime_path = _review_file_path(
+        lane.get("runtime_evidence"),
+        lane.get("runtime_evidence_sha256"),
+        manifest_dir=manifest_dir,
+    )
+    if runtime_path is None:
         return False
-    return candidate.is_file() and not candidate.is_symlink() and _sha256(candidate) == expected_sha256
+    try:
+        runtime = _load_json(runtime_path)
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return False
+    return bool(
+        runtime.get("schema_version") == "step5d_reviewer_runtime_evidence_v1"
+        and runtime.get("model") == lane.get("model") == "gpt-5.6-sol"
+        and runtime.get("reasoning_effort") == lane.get("reasoning_effort") == "max"
+        and runtime.get("sandbox") == "read-only"
+        and runtime.get("exit_code") == 0
+        and runtime.get("artifact") == lane.get("artifact")
+        and runtime.get("artifact_sha256") == lane.get("artifact_sha256")
+    )
 
 
 def validate_review_manifest(
@@ -485,11 +705,7 @@ def validate_review_manifest(
                 lane.get("artifact_sha256"),
                 manifest_dir=manifest_dir,
             )
-            and _review_file_matches(
-                lane.get("runtime_evidence"),
-                lane.get("runtime_evidence_sha256"),
-                manifest_dir=manifest_dir,
-            )
+            and _runtime_evidence_matches(lane, manifest_dir=manifest_dir)
             for lane in lanes
         )
     )
@@ -519,13 +735,63 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _canonical_review_source(relative: str, payload: bytes) -> bytes:
+    """Keep live behavior bindings in review scope without hashing workflow transitions."""
+    if relative not in {"config/current_stage.json", "config/step5_stage_table.json"}:
+        return payload
+    decoded = json.loads(payload.decode("utf-8"))
+    canonical = copy.deepcopy(decoded)
+    if relative == "config/current_stage.json":
+        for key in ("status", "updated_at", "liveprep_status", "live_run_status", "reproduction_status"):
+            canonical.pop(key, None)
+        trigger = canonical.get("bridge_trigger")
+        if isinstance(trigger, dict):
+            for key in (
+                "blocked_reason",
+                "bridge_has_started",
+                "live_motion_authorized",
+                "zero_ftsensor_authorized",
+            ):
+                trigger.pop(key, None)
+        candidate = canonical.get("v29_contact_candidate")
+        if isinstance(candidate, dict):
+            candidate.pop("live_authorized", None)
+    else:
+        stages = canonical.get("stages") if isinstance(canonical.get("stages"), list) else []
+        for row in stages:
+            if not isinstance(row, dict) or row.get("id") != "step5d_strict_rnn_ablation_v29":
+                continue
+            for key in (
+                "blocked",
+                "block_reason",
+                "complete",
+                "live_run_evidence",
+                "live_run_status",
+                "liveprep_status",
+                "reproduction_status",
+            ):
+                row.pop(key, None)
+    return json.dumps(canonical, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+
+
+def workflow_binding_sha256(root: Path) -> str:
+    digest = hashlib.sha256()
+    for relative in ("config/current_stage.json", "config/step5_stage_table.json"):
+        path = root / relative
+        digest.update(relative.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(_canonical_review_source(relative, path.read_bytes()))
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
 def reviewed_source_sha256(root: Path) -> str:
     digest = hashlib.sha256()
     for relative in REVIEW_SOURCE_FILES:
         path = root / relative
         digest.update(relative.encode("utf-8"))
         digest.update(b"\0")
-        digest.update(path.read_bytes())
+        digest.update(_canonical_review_source(relative, path.read_bytes()))
         digest.update(b"\0")
     return digest.hexdigest()
 
@@ -640,6 +906,10 @@ def build_readiness(
         "live_motion_authorized": live_authorized,
         "bridge_has_started": bridge_started,
         "package_sha256": package["package_sha256"],
+        "benchmark_contract_sha256": _sha256(root / BENCHMARK_CONTRACT),
+        "workflow_binding_sha256": workflow_binding_sha256(root),
+        "calibration_hash": benchmark.get("calibration_hash"),
+        "calibrated_source": benchmark.get("calibrated_source"),
         "runtime_profile": profile,
         "runtime_profile_match": runtime_profile_match,
         "timing": timing,

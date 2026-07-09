@@ -59,6 +59,9 @@ import step5c_calibrated_kinematics_audit as step5d_kin  # noqa: E402
 from step5_table import step5_path_reference  # noqa: E402
 from step5c_dls_joint_solver import JointSolverConfig, STATUS_INVALID, Step5cDlsJointSolver  # noqa: E402
 from step5c_strict_rnn import StrictRnnConfig, StrictTaseRnnSolver  # noqa: E402
+from verify_step5d_current_binding import (  # noqa: E402
+    verify_live_bridge_authorization as verify_step5d_live_bridge_authorization,
+)
 from step5d_paper_outer_loop import (  # noqa: E402
     Step5dOuterLoopConfig,
     Step5dOuterLoopInputs,
@@ -7251,6 +7254,27 @@ def step5d_dashboard_watch_metadata(
     }
 
 
+def require_v29_live_bridge_authorization(args: argparse.Namespace) -> dict[str, Any] | None:
+    """Apply the canonical v29 gate even when the raw bridge is invoked directly."""
+    if args.bridge_profile != STEP5D_ABLATION_V29_STAGE_ID:
+        return None
+    if args.step5d_stage25_control_mode != "speedj_rnn_live":
+        raise SystemExit("v29 raw bridge requires speedj_rnn_live; DLS is not a runtime fallback")
+    try:
+        return verify_step5d_live_bridge_authorization(
+            EXPERIMENT_ROOT,
+            STEP5D_ABLATION_V29_STAGE_ID,
+            args.step5d_stage25_control_mode,
+            rnn_backend=args.step5d_rnn_backend,
+            rnn_inner_iterations=args.step5d_rnn_inner_iterations,
+            epsilon=args.step5d_epsilon,
+            sigr_exponent_r=args.step5d_sigr_exponent_r,
+            qdot_cap_rad_s=args.step5d_qdot_limit_rad_s,
+        )
+    except RuntimeError as exc:
+        raise SystemExit(str(exc)) from exc
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     if args.duration_s <= 0 or args.baseline_s < 0 or args.rtde_hz <= 0:
@@ -7339,6 +7363,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.dashboard_program_watch_timeout_s <= 0.0:
         raise SystemExit("--dashboard-program-watch-timeout-s must be positive")
     validate_step5b_15n_trial_args(args)
+    require_v29_live_bridge_authorization(args)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     sensor_csv_path = args.output_dir / "kunwei_sensor_1khz.csv"

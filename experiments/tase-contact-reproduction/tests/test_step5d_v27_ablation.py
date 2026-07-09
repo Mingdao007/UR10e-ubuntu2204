@@ -1518,5 +1518,51 @@ class Step5dSolverWarmStartLifecycleTest(unittest.TestCase):
         np.testing.assert_allclose(jacobian @ state.step5d_solver.theta_dot_state, xdot_c, atol=1e-6)
 
 
+class Step5dV29RawBridgeAuthorizationGateTest(unittest.TestCase):
+    def test_raw_v29_bridge_revalidates_exact_live_authorization_before_side_effects(self) -> None:
+        args = SimpleNamespace(
+            bridge_profile=V29,
+            step5d_stage25_control_mode="speedj_rnn_live",
+            step5d_rnn_backend="cupy",
+            step5d_rnn_inner_iterations=1024,
+            step5d_epsilon=0.01,
+            step5d_sigr_exponent_r=0.8,
+            step5d_qdot_limit_rad_s=0.05,
+        )
+        with patch.object(bridge, "verify_step5d_live_bridge_authorization", return_value={"ok": True}) as verify:
+            result = bridge.require_v29_live_bridge_authorization(args)
+
+        self.assertEqual(result, {"ok": True})
+        verify.assert_called_once_with(
+            bridge.EXPERIMENT_ROOT,
+            V29,
+            "speedj_rnn_live",
+            rnn_backend="cupy",
+            rnn_inner_iterations=1024,
+            epsilon=0.01,
+            sigr_exponent_r=0.8,
+            qdot_cap_rad_s=0.05,
+        )
+        main_source = Path(bridge.__file__).read_text(encoding="utf-8")
+        call = "require_v29_live_bridge_authorization(args)"
+        self.assertIn(call, main_source)
+        self.assertLess(main_source.index(call), main_source.index("args.output_dir.mkdir"))
+
+    def test_raw_v29_bridge_rejects_dls_mode_before_authorization(self) -> None:
+        args = SimpleNamespace(
+            bridge_profile=V29,
+            step5d_stage25_control_mode="speedj_dls_oracle",
+            step5d_rnn_backend="cupy",
+            step5d_rnn_inner_iterations=1024,
+            step5d_epsilon=0.01,
+            step5d_sigr_exponent_r=0.8,
+            step5d_qdot_limit_rad_s=0.05,
+        )
+        with patch.object(bridge, "verify_step5d_live_bridge_authorization") as verify:
+            with self.assertRaisesRegex(SystemExit, "speedj_rnn_live"):
+                bridge.require_v29_live_bridge_authorization(args)
+        verify.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

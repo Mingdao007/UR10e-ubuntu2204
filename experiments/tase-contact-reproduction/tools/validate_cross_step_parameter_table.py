@@ -202,6 +202,18 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             liveprep_state = current.get("liveprep_status", {}).get("state")
             if current_row.get("blocked") is not (liveprep_state == "blocked"):
                 failures.append("current v29 blocked flag must match liveprep_status.state")
+            current_liveprep = current.get("liveprep_status") or {}
+            row_liveprep = current_row.get("liveprep_status") or {}
+            if row_liveprep.get("readiness_artifact") != current_liveprep.get("readiness_artifact"):
+                failures.append("current v29 readiness artifact pointer does not match current_stage.json")
+            if liveprep_state == "awaiting_live_authorization":
+                readiness_sha = current_liveprep.get("readiness_sha256")
+                if (
+                    not isinstance(readiness_sha, str)
+                    or re.fullmatch(r"[0-9a-f]{64}", readiness_sha) is None
+                    or row_liveprep.get("readiness_sha256") != readiness_sha
+                ):
+                    failures.append("current v29 awaiting state requires a matching readiness sha")
 
     p0_capture = current.get("bridge_trigger", {}).get("no_contact_p0_capture", {})
     p0_profile = p0_capture.get("profile")
