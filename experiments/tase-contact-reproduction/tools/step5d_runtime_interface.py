@@ -35,6 +35,7 @@ STEP5D_ABLATION_V26_STAGE_ID = "step5d_strict_rnn_ablation_v26"
 STEP5D_ABLATION_V27_STAGE_ID = "step5d_strict_rnn_ablation_v27"
 STEP5D_ABLATION_V28_STAGE_ID = "step5d_strict_rnn_ablation_v28"
 STEP5D_ABLATION_V29_STAGE_ID = "step5d_strict_rnn_ablation_v29"
+STEP5D_ABLATION_V30_STAGE_ID = "step5d_strict_rnn_ablation_v30"
 STEP5D_NO_CONTACT_P0_STAGE_ID = "step5d_strict_rnn_no_contact_p0_v7"
 STEP5D_ABLATION_STAGE_IDS = (
     STEP5D_ABLATION_V25_STAGE_ID,
@@ -42,6 +43,7 @@ STEP5D_ABLATION_STAGE_IDS = (
     STEP5D_ABLATION_V27_STAGE_ID,
     STEP5D_ABLATION_V28_STAGE_ID,
     STEP5D_ABLATION_V29_STAGE_ID,
+    STEP5D_ABLATION_V30_STAGE_ID,
     STEP5D_NO_CONTACT_P0_STAGE_ID,
 )
 STEP5D_STAGE25_CONTROL_MODES = ("speedl_cartesian_oracle", "speedj_dls_oracle", "speedj_rnn_live")
@@ -312,13 +314,20 @@ def controller_target_for(program: str, current: dict[str, Any] | None = None) -
     payload = current if current is not None else _current_stage()
     if payload.get("program") == program and payload.get("controller_target"):
         return str(payload["controller_target"])
+    if program == STEP5D_ABLATION_V30_STAGE_ID:
+        return "LOCAL_ONLY_NOT_DELIVERED"
     if program == STEP5D_NO_CONTACT_P0_STAGE_ID:
         return f"/programs/andyl/kunwei/step5/{program}.urp"
     return f"/programs/andyl/kunwei/step5/{program}.urp"
 
 
 def uses_step5b_speedl_live_source(program: str) -> bool:
-    return program in {STEP5D_ABLATION_V27_STAGE_ID, STEP5D_ABLATION_V28_STAGE_ID, STEP5D_ABLATION_V29_STAGE_ID}
+    return program in {
+        STEP5D_ABLATION_V27_STAGE_ID,
+        STEP5D_ABLATION_V28_STAGE_ID,
+        STEP5D_ABLATION_V29_STAGE_ID,
+        STEP5D_ABLATION_V30_STAGE_ID,
+    }
 
 
 def speedl_orientation_policy(program: str) -> str | None:
@@ -338,7 +347,7 @@ def stage25_0_register_contract(program: str) -> str:
             "43 cmd_valid; 44 path_time; 45 force_error; 46 pose/orientation_error."
         )
     prefix = (
-        "v25/v26/v27/v28/v29: 37..42 cartesian vx/vy/vz/wx/wy/wz when "
+        "v25/v26/v27/v28/v29/v30: 37..42 cartesian vx/vy/vz/wx/wy/wz when "
         f"47={STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:g}; "
     )
     suffix = (
@@ -355,11 +364,17 @@ def stage25_0_register_contract(program: str) -> str:
             + "Step5b/step4e orientation follow wx/wy/wz; Step5d paper/RNN outputs are logged as shadow diagnostics; "
             + suffix
         )
-    if program == STEP5D_ABLATION_V29_STAGE_ID:
+    if program in {STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID}:
+        route = "strict RNN live speedj" if program == STEP5D_ABLATION_V29_STAGE_ID else "strict RNN offline-candidate speedj"
+        alternatives = (
+            "speedl_cartesian_oracle and speedj_dls_oracle are offline shadow/diagnostic only and forbidden as runtime fallback; "
+            if program == STEP5D_ABLATION_V30_STAGE_ID
+            else "speedl_cartesian_oracle and speedj_dls_oracle remain explicit debug/fallback modes; "
+        )
         return (
             prefix
-            + "v29 defaults to strict RNN live speedj on layout 524 after the v28 contact envelope; "
-            + "speedl_cartesian_oracle and speedj_dls_oracle remain explicit debug/fallback modes; "
+            + f"{program.rsplit('_', 1)[-1]} defaults to {route} on layout 524 after the v28 contact envelope; "
+            + alternatives
             + suffix
         )
     if program == STEP5D_ABLATION_V27_STAGE_ID:
@@ -376,7 +391,7 @@ def stage25_0_register_contract(program: str) -> str:
 def stage25_success_target_s(program: str) -> float | None:
     if program == STEP5D_NO_CONTACT_P0_STAGE_ID:
         return STEP5D_STAGE25_V28_FULL_RUN_TARGET_S
-    if program in {STEP5D_ABLATION_V28_STAGE_ID, STEP5D_ABLATION_V29_STAGE_ID}:
+    if program in {STEP5D_ABLATION_V28_STAGE_ID, STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID}:
         return STEP5D_STAGE25_V28_FULL_RUN_TARGET_S
     if program == STEP5D_ABLATION_V27_STAGE_ID:
         return STEP5D_STAGE25_V27_FIX_VALIDATION_TARGET_S
@@ -386,7 +401,7 @@ def stage25_success_target_s(program: str) -> float | None:
 def stage25_runtime_limit_s(program: str) -> float | None:
     if program == STEP5D_NO_CONTACT_P0_STAGE_ID:
         return STEP5D_STAGE25_V28_RUNTIME_LIMIT_S
-    if program in {STEP5D_ABLATION_V28_STAGE_ID, STEP5D_ABLATION_V29_STAGE_ID}:
+    if program in {STEP5D_ABLATION_V28_STAGE_ID, STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID}:
         return STEP5D_STAGE25_V28_RUNTIME_LIMIT_S
     if program == STEP5D_ABLATION_V27_STAGE_ID:
         return STEP5D_STAGE25_V27_RUNTIME_LIMIT_S
@@ -547,7 +562,7 @@ def resolve_runtime_interface(
             env_map.get(
                 "STEP5D_STAGE25_CONTROL_MODE",
                 "speedj_rnn_live"
-                if selected == STEP5D_ABLATION_V29_STAGE_ID
+                if selected in {STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID}
                 else "speedl_cartesian_oracle"
                 if selected in STEP5D_ABLATION_STAGE_IDS
                 else "speedj_rnn_live",
@@ -654,7 +669,7 @@ def resolve_runtime_interface(
             "stage25_speedl_orientation_policy": speedl_orientation_policy(selected),
             "stage25_live_control_source": (
                 "strict_rnn_live_speedj"
-                if selected == STEP5D_ABLATION_V29_STAGE_ID
+                if selected in {STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID}
                 else STEP5D_V27_SPEEDL_LIVE_CONTROL_SOURCE
                 if uses_step5b_speedl_live_source(selected)
                 else None
@@ -673,7 +688,7 @@ def resolve_runtime_interface(
                     "control_mode": "speedj_rnn_live",
                     "joint_layout_code": 524.0,
                 }
-                if selected == STEP5D_ABLATION_V29_STAGE_ID
+                if selected in {STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID}
                 else None
             ),
             "no_contact_p0_capture": selected == STEP5D_NO_CONTACT_P0_STAGE_ID,
@@ -681,6 +696,7 @@ def resolve_runtime_interface(
             "no_zero_ftsensor": True,
             "no_kunwei_tare_or_config": True,
             "no_tcp_payload_write": True,
+            "offline_candidate": selected == STEP5D_ABLATION_V30_STAGE_ID,
         },
     )
 
@@ -811,6 +827,14 @@ def live_ready_lines(
     gate = interface.preload_gate
     bridge = interface.bridge_defaults
     linear_cap_label = "legacy_total_linear_debug" if interface.program == STEP5D_NO_CONTACT_P0_STAGE_ID else "total_linear"
+    if interface.program == STEP5D_ABLATION_V30_STAGE_ID:
+        return [
+            "[step5d][phase=v30-offline-candidate][rebuild=no][upload=no]",
+            "[touches=offline-evidence-only]",
+            f"[cache] long-check={cache.get('state', 'MISS')} age={age_text} ttl={ttl_text} fingerprint={fp}",
+            "[next] complete v29 replay, 500Hz timing, package hash, and milestone review; current pointer remains v29",
+            "[authorization] controller upload/readback, bridge start, TP Play, and live motion are not authorized",
+        ]
     if (
         interface.hard_contract.get("controller_readback_required") is True
         and interface.hard_contract.get("controller_readback_verified") is not True

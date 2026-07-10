@@ -1,0 +1,853 @@
+{
+  "authorization": {
+    "bridge_start_authorized": false,
+    "controller_upload_authorized": false,
+    "live_motion_authorized": false,
+    "tp_play_authorized": false
+  },
+  "blockers": [
+    "current_source_solver_10k_ran_but_60s_paced_runtime_shaped_not_run",
+    "milestone_reviews_incomplete_or_blocking",
+    "runtime_shaped_60s_500hz_acceptance_not_run",
+    "runtime_shaped_safe_hold_acceptance_not_run",
+    "system_level_host_driver_timing_outliers_unresolved",
+    "timing_acceptance_failed"
+  ],
+  "claim_boundary": {
+    "allowed_claim": "inactive v30 offline candidate with partial replay/timing evidence",
+    "live_accepted": false,
+    "package_accepted": false,
+    "reproduction_complete": false
+  },
+  "control_pipeline": {
+    "dls_shadow_command_inert_test": "tests/test_step5d_v30_control_contract.py",
+    "dls_shadow_runtime_fallback_allowed": false,
+    "normal_contract": "n_reaction = -n_approach in one canonical command frame",
+    "path": "Step5dObservation -> StrictRnnControlPolicy -> ControlCandidate -> step5d_v30_contract_pipeline -> DLS shadow -> SafetyEnvelope -> RegisterCommand -> DeferredV30Diagnostics"
+  },
+  "current_pointer": {
+    "program": "step5d_strict_rnn_ablation_v29",
+    "v30_is_current": false
+  },
+  "generated_at": "2026-07-11T01:40:00+08:00",
+  "package": {
+    "local_only": true,
+    "marker_path": "programs/step5/step5d/.step5d_strict_rnn_ablation_v30.local_candidate.json",
+    "marker_sha256": "48933463f56e865fd523c73496d6b86665d78fe94adf99ea689cac44d806ef48",
+    "not_delivered": true,
+    "semantic_fingerprint": "3327a9400ad98123dfe170285c824f842aec49297776e34aa2c0777b0b2353ab",
+    "triplet_sha256": {
+      ".script": "bcd5c92514b8c06160712e3d794e7a7f3998711172ef40f4428987cdf4dbf86e",
+      ".txt": "1dce8644b1fa1963171d50f92fd5dee2fd9f2e04014a53ad6cfeb020ff4aa635",
+      ".urp": "a23cea18e53c0f475f4bc725a4594f076a3546b6f85ae0593d42338d4b1998b9"
+    }
+  },
+  "profile": {
+    "backend": "cupy",
+    "control_hz": 500.0,
+    "epsilon": 0.01,
+    "hard_deadline_ms": 2.0,
+    "inner_iterations": 1024,
+    "qdot_cap_rad_s": 0.05,
+    "sigr_exponent_r": 0.8
+  },
+  "replay": {
+    "acceptance_pass": true,
+    "accepted_ratio": 1.0,
+    "nonfinite_rows": 0,
+    "normal_mismatch_rows": 0,
+    "path": "config/step5d_v30_replay_summary.json",
+    "qdot_over_bound_rows": 0,
+    "sha256": "9fd3e5614de9f520e509578d3bfbf199d4d7db7263d351f5cda41ec0333dcbf9"
+  },
+  "review_manifest": {
+    "milestone_status": "incomplete_blocking",
+    "path": "config/step5d_v30_milestone_reviews.json",
+    "sha256": "df28791a0999a8809ae6adb97ae8737f7bee74cbb509ed41f9c740fd88c12bcb"
+  },
+  "reviews": {
+    "codex_control_claim_high": {
+      "actual_model": "GPT-5-based Codex; exact serving deployment suffix unavailable",
+      "findings": {
+        "p0": [],
+        "p1": [
+          "strict-RNN solver status was not checked by SafetyEnvelope",
+          "phase-1 directional VIC was described as energy-bound/passive without an energy tank or passivity observer/controller",
+          "compact evidence ClaimState was not cross-checked against top-level offline authorization gates"
+        ],
+        "p2": [
+          "direct-torque manifest limit values were not compared with controller/oracle constants",
+          "v30 delivery block lacked a direct negative test",
+          "external rehash proves identity only and cannot validate scientific/live claims"
+        ]
+      },
+      "post_review_disposition": {
+        "all_code_findings_addressed": true,
+        "independent_post_fix_rereview_performed": false,
+        "resolutions": [
+          "SafetyEnvelope now accepts only strict-RNN status 40.0 and invalid-status register output is negative-tested",
+          "VIC claim downgraded to bounded/slew-limited/non-increasing; passivity explicitly remains unestablished",
+          "offline ClaimState promotion is cross-gated and negative-tested",
+          "direct-torque manifest limits are exactly matched to the URScript/oracle constants",
+          "inactive v30 delivery rejection is directly tested",
+          "external rehash remains identity-only with claim_validation_ready=false"
+        ]
+      },
+      "requested_effort": "high",
+      "requested_model": "gpt-5.6-sol",
+      "status": "completed_blocked_at_review"
+    },
+    "codex_timing_runtime_high": {
+      "actual_model": "GPT-5-based Codex; exact serving deployment suffix unavailable",
+      "findings": {
+        "p0": [],
+        "p1": [
+          "DBIL paced selector did not require explicit selection eligibility or approximately rate-times-duration tick coverage"
+        ],
+        "p2": [
+          "summarize_preaggregated could pass when expected source and artifact bindings were omitted"
+        ]
+      },
+      "post_review_disposition": {
+        "all_code_findings_addressed": true,
+        "independent_post_fix_rereview_performed": false,
+        "resolutions": [
+          "paced selector now requires selection_eligible=true, coherent 60-second duration, and approximately rate-times-duration scheduled ticks",
+          "legacy paced artifact is retained as rejection evidence but marked provenance-ineligible for rate selection",
+          "preaggregated timing acceptance now fails closed when any expected binding is omitted"
+        ]
+      },
+      "requested_effort": "high",
+      "requested_model": "gpt-5.6-sol",
+      "status": "completed_blocked_at_review"
+    },
+    "fable5_physical_operator_safety_high": {
+      "attempted_command_surface": "Claude CLI",
+      "failure": "Not logged in; Claude CLI requested /login",
+      "requested_effort": "high",
+      "requested_model": "claude-fable-5",
+      "status": "unavailable_not_logged_in"
+    }
+  },
+  "schema_version": "step5d_v30_offline_readiness_v1",
+  "source_contract": {
+    "aggregator_sha256": {
+      "path": "tools/step5d_v30_timing.py",
+      "sha256": "695709069eb1da9361b4c1a6401536dd532dc8d7eb9871a235908ccbaa7bba3b"
+    },
+    "bridge_sha256": {
+      "path": "tools/kunwei_rtde_bridge.py",
+      "sha256": "02bd1c6e07424b3bd5b634bb249bb776d6d36c0748bdb8b2df02f9a24bbd547f"
+    },
+    "bundler_sha256": {
+      "path": "tools/build_step5d_v30_remote_timing_bundle.py",
+      "sha256": "320960ed2cf836f939b0a65e0cf7c602e6f58e9e4f35a7f9df87fc4cab4abd73"
+    },
+    "contact_semantics_sha256": {
+      "path": "tools/contact_semantics.py",
+      "sha256": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e"
+    },
+    "control_contract_sha256": {
+      "path": "tools/step5d_control_contract.py",
+      "sha256": "66619a2cfc7bc67e38637b94ab3433530e77351a719ba496153220ba30183b28"
+    },
+    "harness_sha256": {
+      "path": "tools/run_step5d_v30_remote_timing.py",
+      "sha256": "0613abe2e6a793906fe58b6a96c085f2c38af50f7ab7dce7cd949abb67ca1046"
+    },
+    "kinematics_sha256": {
+      "path": "tools/step5c_calibrated_kinematics_audit.py",
+      "sha256": "5454af16db870350759372ab42583a4f339c71e32f9190679987b3addf6e14fa"
+    },
+    "outer_loop_sha256": {
+      "path": "tools/step5d_paper_outer_loop.py",
+      "sha256": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08"
+    },
+    "readiness_builder_sha256": {
+      "path": "tools/build_step5d_v30_offline_readiness.py",
+      "sha256": "cf8a5a148186bd4fc40117e21c8952aa96bc608f55e6bcccea6062234bfc52c4"
+    },
+    "runtime_interface_sha256": {
+      "path": "tools/step5d_runtime_interface.py",
+      "sha256": "e815615ab3686bd17b800177ab9661bec9ec5b173d290b48e06b2b7f09cda092"
+    },
+    "solver_sha256": {
+      "path": "tools/step5c_strict_rnn.py",
+      "sha256": "629782ec5ce0c9aadeb04894b8424427cf44410843b603e6f29f3af82b6be304"
+    }
+  },
+  "status": "v30_offline_blocked",
+  "timing": {
+    "acceptance_decision_source": "per-artifact recomputation from one hash-bound raw artifact; the aggregate summary is diagnostic only",
+    "acceptance_raw_evidence": null,
+    "diagnostic_conclusion": "The current-source 10,000-solve run keeps low steady p99, but uncensored >=2 ms host/driver completion outliers remain; no 60 s paced runtime-shaped pass exists.",
+    "diagnostic_summary_blockers": [
+      "full_tick_deferred_diagnostics_incomplete",
+      "full_tick_insufficient_samples",
+      "full_tick_not_paced_500hz",
+      "full_tick_wall_duration_not_60s",
+      "independent_absolute_500hz_pacing_provenance_missing",
+      "remote_timing_aggregator_sha256_does_not_match_local_source",
+      "remote_timing_aggregator_sha256_missing",
+      "remote_timing_artifact_binding_missing",
+      "remote_timing_bridge_sha256_does_not_match_local_source",
+      "remote_timing_bridge_sha256_missing",
+      "remote_timing_bundler_sha256_does_not_match_local_source",
+      "remote_timing_bundler_sha256_missing",
+      "remote_timing_calibration_yaml_artifact_unbound",
+      "remote_timing_contact_semantics_sha256_does_not_match_local_source",
+      "remote_timing_contact_semantics_sha256_missing",
+      "remote_timing_control_contract_sha256_does_not_match_local_source",
+      "remote_timing_control_contract_sha256_missing",
+      "remote_timing_harness_sha256_does_not_match_local_source",
+      "remote_timing_kinematics_sha256_does_not_match_local_source",
+      "remote_timing_kinematics_sha256_missing",
+      "remote_timing_paper_truth_artifact_unbound",
+      "remote_timing_paper_truth_sha_mismatch",
+      "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+      "remote_timing_readiness_builder_sha256_missing",
+      "remote_timing_replay_csv_artifact_unbound",
+      "remote_timing_replay_csv_sha_mismatch",
+      "remote_timing_runtime_interface_sha256_does_not_match_local_source",
+      "remote_timing_runtime_interface_sha256_missing",
+      "remote_timing_solver_sha256_does_not_match_local_source",
+      "remote_timing_stage_table_artifact_unbound",
+      "remote_timing_ur_xacro_artifact_unbound",
+      "safe_hold_deferred_diagnostics_incomplete",
+      "safe_hold_insufficient_samples",
+      "safe_hold_runtime_rejection_path_incomplete",
+      "safe_hold_schedule_deadline_miss_count_missing",
+      "safe_hold_schedule_max_lateness_missing_or_invalid",
+      "safe_hold_wall_duration_not_60s",
+      "solver_deadline_miss",
+      "solver_max_reaches_2ms_deadline",
+      "v30_runtime_contract_path_not_proven"
+    ],
+    "diagnostic_summary_reported_overall_pass": false,
+    "history": [
+      {
+        "acceptance_eligible": false,
+        "acceptance_evaluation": {
+          "blockers": [
+            "cupy_dedicated_stream_not_proven",
+            "cupy_host_staging_not_pinned",
+            "cupy_parallel_serial_equivalence_not_proven",
+            "full_tick_deadline_miss",
+            "full_tick_deferred_diagnostics_incomplete",
+            "full_tick_max_reaches_2ms_deadline",
+            "full_tick_p99_exceeds_limit",
+            "full_tick_schedule_deadline_miss",
+            "full_tick_schedule_max_lateness_missing_or_invalid",
+            "independent_absolute_500hz_pacing_provenance_missing",
+            "remote_timing_aggregator_sha256_does_not_match_local_source",
+            "remote_timing_aggregator_sha256_missing",
+            "remote_timing_artifact_binding_missing",
+            "remote_timing_bridge_sha256_does_not_match_local_source",
+            "remote_timing_bridge_sha256_missing",
+            "remote_timing_bundler_sha256_does_not_match_local_source",
+            "remote_timing_bundler_sha256_missing",
+            "remote_timing_calibration_yaml_artifact_unbound",
+            "remote_timing_contact_semantics_sha256_does_not_match_local_source",
+            "remote_timing_contact_semantics_sha256_missing",
+            "remote_timing_control_contract_sha256_does_not_match_local_source",
+            "remote_timing_control_contract_sha256_missing",
+            "remote_timing_harness_sha256_does_not_match_local_source",
+            "remote_timing_harness_sha256_missing",
+            "remote_timing_kinematics_sha256_does_not_match_local_source",
+            "remote_timing_kinematics_sha256_missing",
+            "remote_timing_outer_loop_sha256_does_not_match_local_source",
+            "remote_timing_outer_loop_sha256_missing",
+            "remote_timing_paper_truth_artifact_unbound",
+            "remote_timing_paper_truth_sha_mismatch",
+            "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+            "remote_timing_readiness_builder_sha256_missing",
+            "remote_timing_replay_csv_artifact_unbound",
+            "remote_timing_replay_csv_sha_mismatch",
+            "remote_timing_runtime_interface_sha256_does_not_match_local_source",
+            "remote_timing_runtime_interface_sha256_missing",
+            "remote_timing_solver_sha256_does_not_match_local_source",
+            "remote_timing_solver_sha256_missing",
+            "remote_timing_source_bundle_unbound",
+            "remote_timing_stage_table_artifact_unbound",
+            "remote_timing_ur_xacro_artifact_unbound",
+            "safe_hold_deferred_diagnostics_incomplete",
+            "safe_hold_runtime_rejection_path_incomplete",
+            "safe_hold_schedule_deadline_miss_count_missing",
+            "safe_hold_schedule_max_lateness_missing_or_invalid",
+            "safe_hold_wall_duration_not_60s",
+            "solver_deadline_miss",
+            "solver_max_reaches_2ms_deadline",
+            "v30_runtime_contract_path_not_proven"
+          ],
+          "elapsed_full_tick_wall_s": 60.01068966696039,
+          "elapsed_safe_hold_wall_s": null,
+          "first_post_warm_ms": 1.241939957253635,
+          "full_tick": {
+            "deadline_miss_count": 67,
+            "max_ms": 51.30619904957712,
+            "mean_ms": 1.6955816307376759,
+            "nonfinite_count": 0,
+            "p95_ms": 1.9000235537532717,
+            "p99_ms": 1.9548013259191066,
+            "samples": 30000
+          },
+          "full_tick_schedule_deadline_miss_count": 5551,
+          "pacing_provenance": null,
+          "raw_sha256": "99da10fb7141964c78d50f397b9816b10922394c19c8f62f2e6a3293361f401c",
+          "recomputed_from_single_hash_bound_raw_artifact": true,
+          "safe_hold": {
+            "deadline_miss_count": 0,
+            "max_ms": 0.019507016986608505,
+            "mean_ms": 0.00836312270257622,
+            "nonfinite_count": 0,
+            "p95_ms": 0.008465023711323738,
+            "p99_ms": 0.009196926839649677,
+            "samples": 30000
+          },
+          "safe_hold_schedule_deadline_miss_count": 0,
+          "solver": {
+            "deadline_miss_count": 11,
+            "max_ms": 53.1962129753083,
+            "mean_ms": 1.1975865463376976,
+            "nonfinite_count": 0,
+            "p95_ms": 1.2227650324348356,
+            "p99_ms": 1.2980744382366538,
+            "samples": 10000
+          }
+        },
+        "artifact_binding": null,
+        "classification": "failed_hard_solver_deadline",
+        "component_diagnostics": null,
+        "elapsed_full_tick_wall_s": 60.01068966696039,
+        "full_tick": {
+          "compute_deadline_miss_count": 67,
+          "max_ms": 51.30619904957712,
+          "mean_ms": 1.6955816307376759,
+          "nonfinite_count": 0,
+          "p95_ms": 1.9000235537532717,
+          "p99_ms": 1.9548013259191066,
+          "samples": 30000
+        },
+        "paced_500hz": true,
+        "path": "config/step5d_v30_timing_raw.json",
+        "role": "preoptimization_full_attempt",
+        "runtime_path": null,
+        "safe_hold": {
+          "compute_deadline_miss_count": 0,
+          "max_ms": 0.019507016986608505,
+          "mean_ms": 0.00836312270257622,
+          "nonfinite_count": 0,
+          "p95_ms": 0.008465023711323738,
+          "p99_ms": 0.009196926839649677,
+          "samples": 30000
+        },
+        "sha256": "99da10fb7141964c78d50f397b9816b10922394c19c8f62f2e6a3293361f401c",
+        "solver": {
+          "compute_deadline_miss_count": 11,
+          "max_ms": 53.1962129753083,
+          "mean_ms": 1.1975865463376976,
+          "nonfinite_count": 0,
+          "p95_ms": 1.2227650324348356,
+          "p99_ms": 1.2980744382366538,
+          "samples": 10000
+        },
+        "source_binding": null
+      },
+      {
+        "acceptance_eligible": false,
+        "acceptance_evaluation": {
+          "blockers": [
+            "full_tick_deferred_diagnostics_incomplete",
+            "full_tick_insufficient_samples",
+            "full_tick_not_paced_500hz",
+            "full_tick_wall_duration_not_60s",
+            "independent_absolute_500hz_pacing_provenance_missing",
+            "remote_timing_aggregator_sha256_does_not_match_local_source",
+            "remote_timing_aggregator_sha256_missing",
+            "remote_timing_artifact_binding_missing",
+            "remote_timing_bridge_sha256_does_not_match_local_source",
+            "remote_timing_bridge_sha256_missing",
+            "remote_timing_bundler_sha256_does_not_match_local_source",
+            "remote_timing_bundler_sha256_missing",
+            "remote_timing_calibration_yaml_artifact_unbound",
+            "remote_timing_contact_semantics_sha256_does_not_match_local_source",
+            "remote_timing_contact_semantics_sha256_missing",
+            "remote_timing_control_contract_sha256_does_not_match_local_source",
+            "remote_timing_control_contract_sha256_missing",
+            "remote_timing_harness_sha256_does_not_match_local_source",
+            "remote_timing_kinematics_sha256_does_not_match_local_source",
+            "remote_timing_kinematics_sha256_missing",
+            "remote_timing_paper_truth_artifact_unbound",
+            "remote_timing_paper_truth_sha_mismatch",
+            "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+            "remote_timing_readiness_builder_sha256_missing",
+            "remote_timing_replay_csv_artifact_unbound",
+            "remote_timing_replay_csv_sha_mismatch",
+            "remote_timing_runtime_interface_sha256_does_not_match_local_source",
+            "remote_timing_runtime_interface_sha256_missing",
+            "remote_timing_solver_sha256_does_not_match_local_source",
+            "remote_timing_stage_table_artifact_unbound",
+            "remote_timing_ur_xacro_artifact_unbound",
+            "safe_hold_deferred_diagnostics_incomplete",
+            "safe_hold_insufficient_samples",
+            "safe_hold_runtime_rejection_path_incomplete",
+            "safe_hold_schedule_deadline_miss_count_missing",
+            "safe_hold_schedule_max_lateness_missing_or_invalid",
+            "safe_hold_wall_duration_not_60s",
+            "solver_deadline_miss",
+            "solver_max_reaches_2ms_deadline",
+            "v30_runtime_contract_path_not_proven"
+          ],
+          "elapsed_full_tick_wall_s": 0.013623762992210686,
+          "elapsed_safe_hold_wall_s": null,
+          "first_post_warm_ms": 0.6746579892933369,
+          "full_tick": {
+            "deadline_miss_count": 0,
+            "max_ms": 0.9989169193431735,
+            "mean_ms": 0.6800820003263652,
+            "nonfinite_count": 0,
+            "p95_ms": 0.7185397029388698,
+            "p99_ms": 0.9428414760623124,
+            "samples": 20
+          },
+          "full_tick_schedule_deadline_miss_count": 0,
+          "pacing_provenance": null,
+          "raw_sha256": "4b665607e7af9fceea23a6ec77e1ce5503558fab18c33eabdbba60220bb92944",
+          "recomputed_from_single_hash_bound_raw_artifact": true,
+          "safe_hold": {
+            "deadline_miss_count": 0,
+            "max_ms": 0.009166891686618328,
+            "mean_ms": 0.007431028643622994,
+            "nonfinite_count": 0,
+            "p95_ms": 0.008244533091783524,
+            "p99_ms": 0.008982419967651365,
+            "samples": 20
+          },
+          "safe_hold_schedule_deadline_miss_count": 0,
+          "solver": {
+            "deadline_miss_count": 3,
+            "max_ms": 48.71722299139947,
+            "mean_ms": 0.3929833586444147,
+            "nonfinite_count": 0,
+            "p95_ms": 0.40370962233282626,
+            "p99_ms": 0.41634223656728864,
+            "samples": 10000
+          }
+        },
+        "artifact_binding": null,
+        "classification": "failed_hard_solver_deadline",
+        "component_diagnostics": null,
+        "elapsed_full_tick_wall_s": 0.013623762992210686,
+        "full_tick": {
+          "compute_deadline_miss_count": 0,
+          "max_ms": 0.9989169193431735,
+          "mean_ms": 0.6800820003263652,
+          "nonfinite_count": 0,
+          "p95_ms": 0.7185397029388698,
+          "p99_ms": 0.9428414760623124,
+          "samples": 20
+        },
+        "paced_500hz": false,
+        "path": "config/step5d_v30_optimized_solver_10k_raw.json",
+        "role": "six_lane_optimized_solver_10k_with_20_tick_smoke",
+        "runtime_path": null,
+        "safe_hold": {
+          "compute_deadline_miss_count": 0,
+          "max_ms": 0.009166891686618328,
+          "mean_ms": 0.007431028643622994,
+          "nonfinite_count": 0,
+          "p95_ms": 0.008244533091783524,
+          "p99_ms": 0.008982419967651365,
+          "samples": 20
+        },
+        "sha256": "4b665607e7af9fceea23a6ec77e1ce5503558fab18c33eabdbba60220bb92944",
+        "solver": {
+          "compute_deadline_miss_count": 3,
+          "max_ms": 48.71722299139947,
+          "mean_ms": 0.3929833586444147,
+          "nonfinite_count": 0,
+          "p95_ms": 0.40370962233282626,
+          "p99_ms": 0.41634223656728864,
+          "samples": 10000
+        },
+        "source_binding": {
+          "delivery": "stdin_bundle",
+          "harness_sha256": "08c84dd0070ae794677430abcf0afbd89d73f74a43b21f798ab29dc14dcbdd1f",
+          "outer_loop_sha256": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
+          "solver_sha256": "2616bc00b418f2d1ab9162908d94775f87c8c764201221578e23b5f13ef53530"
+        }
+      },
+      {
+        "acceptance_eligible": false,
+        "acceptance_evaluation": {
+          "blockers": [
+            "cupy_dedicated_stream_not_proven",
+            "cupy_host_staging_not_pinned",
+            "cupy_parallel_serial_equivalence_not_proven",
+            "full_tick_deferred_diagnostics_incomplete",
+            "full_tick_insufficient_samples",
+            "full_tick_not_paced_500hz",
+            "full_tick_runtime_acceptance_path_incomplete",
+            "full_tick_schedule_deadline_miss_count_missing",
+            "full_tick_schedule_max_lateness_missing_or_invalid",
+            "full_tick_wall_duration_not_60s",
+            "independent_absolute_500hz_pacing_provenance_missing",
+            "remote_runtime_profile_mismatch",
+            "remote_timing_aggregator_sha256_does_not_match_local_source",
+            "remote_timing_aggregator_sha256_missing",
+            "remote_timing_bundler_sha256_does_not_match_local_source",
+            "remote_timing_bundler_sha256_missing",
+            "remote_timing_calibration_yaml_artifact_unbound",
+            "remote_timing_control_contract_sha256_does_not_match_local_source",
+            "remote_timing_harness_sha256_does_not_match_local_source",
+            "remote_timing_paper_truth_artifact_unbound",
+            "remote_timing_paper_truth_sha_mismatch",
+            "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+            "remote_timing_readiness_builder_sha256_missing",
+            "remote_timing_replay_csv_artifact_unbound",
+            "remote_timing_replay_csv_sha_mismatch",
+            "remote_timing_stage_table_artifact_unbound",
+            "remote_timing_ur_xacro_artifact_unbound",
+            "safe_hold_deferred_diagnostics_incomplete",
+            "safe_hold_insufficient_samples",
+            "safe_hold_runtime_rejection_path_incomplete",
+            "safe_hold_schedule_deadline_miss_count_missing",
+            "safe_hold_schedule_max_lateness_missing_or_invalid",
+            "safe_hold_wall_duration_not_60s",
+            "solver_deadline_miss",
+            "solver_max_reaches_2ms_deadline",
+            "v30_runtime_contract_path_not_proven"
+          ],
+          "elapsed_full_tick_wall_s": null,
+          "elapsed_safe_hold_wall_s": null,
+          "first_post_warm_ms": 0.9029689244925976,
+          "full_tick": {
+            "deadline_miss_count": 0,
+            "max_ms": 1.208521076478064,
+            "mean_ms": 0.8236381632741541,
+            "nonfinite_count": 0,
+            "p95_ms": null,
+            "p99_ms": 1.143379202112555,
+            "samples": 20
+          },
+          "full_tick_schedule_deadline_miss_count": 0,
+          "pacing_provenance": null,
+          "raw_sha256": "81f94d23ffc985febb2402c2963547cb0110ddf7905d7781d6b52ed1937e49c2",
+          "recomputed_from_single_hash_bound_raw_artifact": true,
+          "safe_hold": {
+            "deadline_miss_count": 0,
+            "max_ms": 0.8448109729215503,
+            "mean_ms": 0.7959769398439676,
+            "nonfinite_count": 0,
+            "p95_ms": null,
+            "p99_ms": 0.838230331428349,
+            "samples": 20
+          },
+          "safe_hold_schedule_deadline_miss_count": 0,
+          "solver": {
+            "deadline_miss_count": 3,
+            "max_ms": 49.03676896356046,
+            "mean_ms": 0.3927230048808269,
+            "nonfinite_count": 0,
+            "p95_ms": 0.39273545844480395,
+            "p99_ms": 0.41639917995780706,
+            "samples": 10000
+          }
+        },
+        "artifact_binding": {
+          "calibration_yaml_sha256": "029aad03affc0cf60fc4274029463e683dc04b709f3a5e849f693d1c70409be8",
+          "paper_truth_sha256": "e4eb35d23de9018addf1918a0fbaa04aeb85222cd4cfc2024225fee2220d8555",
+          "remote_stage_table_sha256": "0910873eed35411dad0739e2b15cd3742e21075c4623b3f184552096726fc5f2",
+          "replay_csv_sha256": "be6a84fe0eebc3df18ebb511874673cb3ee44832ba16335cd4de7a10f3260335",
+          "replay_csv_size": 43700470,
+          "ur_xacro_sha256": "618ece26935c6cd146114374abc45142cc858420567005eed2713681ae55694c"
+        },
+        "classification": "failed_hard_solver_deadline",
+        "component_diagnostics": null,
+        "elapsed_full_tick_wall_s": null,
+        "full_tick": {
+          "compute_deadline_miss_count": 0,
+          "max_ms": 1.208521076478064,
+          "mean_ms": 0.8236381632741541,
+          "nonfinite_count": 0,
+          "p99_ms": 1.143379202112555,
+          "samples": 20
+        },
+        "paced_500hz": false,
+        "path": "config/step5d_v30_current_source_solver_10k_raw.json",
+        "role": "current_source_solver_10k_with_20_tick_runtime_smoke",
+        "runtime_path": "Step5dObservation->StrictRnnControlPolicy->ControlCandidate->step5d_v30_contract_pipeline->DLS-shadow->SafetyEnvelope->RegisterCommand->DeferredV30Diagnostics",
+        "safe_hold": {
+          "compute_deadline_miss_count": 0,
+          "max_ms": 0.8448109729215503,
+          "mean_ms": 0.7959769398439676,
+          "nonfinite_count": 0,
+          "p99_ms": 0.838230331428349,
+          "samples": 20
+        },
+        "sha256": "81f94d23ffc985febb2402c2963547cb0110ddf7905d7781d6b52ed1937e49c2",
+        "solver": {
+          "compute_deadline_miss_count": 3,
+          "max_ms": 49.03676896356046,
+          "mean_ms": 0.3927230048808269,
+          "nonfinite_count": 0,
+          "p95_ms": 0.39273545844480395,
+          "p99_ms": 0.41639917995780706,
+          "samples": 10000
+        },
+        "source_binding": {
+          "bridge_sha256": "02bd1c6e07424b3bd5b634bb249bb776d6d36c0748bdb8b2df02f9a24bbd547f",
+          "contact_semantics_sha256": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
+          "control_contract_sha256": "f2b09c6d6170fda37218f2d5fa7235606be14b55fd8033a0e15798bd4d4f00cb",
+          "delivery": "stdin_bundle",
+          "harness_sha256": "7cfafa7ad0f24ca59a764be75a175e93a7f35754a55d448a9ffd59c560f304b4",
+          "kinematics_sha256": "5454af16db870350759372ab42583a4f339c71e32f9190679987b3addf6e14fa",
+          "outer_loop_sha256": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
+          "runtime_interface_sha256": "e815615ab3686bd17b800177ab9661bec9ec5b173d290b48e06b2b7f09cda092",
+          "solver_sha256": "629782ec5ce0c9aadeb04894b8424427cf44410843b603e6f29f3af82b6be304"
+        }
+      },
+      {
+        "acceptance_eligible": false,
+        "acceptance_evaluation": {
+          "blockers": [
+            "cupy_dedicated_stream_not_proven",
+            "cupy_host_staging_not_pinned",
+            "cupy_precompile_not_proven_outside_loop",
+            "first_post_warm_exceeds_1p75_ms",
+            "full_tick_insufficient_samples",
+            "full_tick_not_paced_500hz",
+            "full_tick_schedule_deadline_miss_count_missing",
+            "full_tick_schedule_max_lateness_missing_or_invalid",
+            "full_tick_wall_duration_not_60s",
+            "independent_absolute_500hz_pacing_provenance_missing",
+            "remote_timing_aggregator_sha256_does_not_match_local_source",
+            "remote_timing_aggregator_sha256_missing",
+            "remote_timing_bundler_sha256_does_not_match_local_source",
+            "remote_timing_bundler_sha256_missing",
+            "remote_timing_calibration_yaml_artifact_unbound",
+            "remote_timing_control_contract_sha256_does_not_match_local_source",
+            "remote_timing_harness_sha256_does_not_match_local_source",
+            "remote_timing_paper_truth_artifact_unbound",
+            "remote_timing_paper_truth_sha_mismatch",
+            "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+            "remote_timing_readiness_builder_sha256_missing",
+            "remote_timing_replay_csv_artifact_unbound",
+            "remote_timing_replay_csv_sha_mismatch",
+            "remote_timing_schema_mismatch",
+            "remote_timing_stage_table_artifact_unbound",
+            "remote_timing_ur_xacro_artifact_unbound",
+            "safe_hold_insufficient_samples",
+            "safe_hold_schedule_deadline_miss_count_missing",
+            "safe_hold_schedule_max_lateness_missing_or_invalid",
+            "safe_hold_wall_duration_not_60s",
+            "solver_insufficient_samples",
+            "solver_max_reaches_2ms_deadline",
+            "solver_p99_exceeds_limit",
+            "solver_summary_missing",
+            "v30_runtime_contract_path_not_proven"
+          ],
+          "elapsed_full_tick_wall_s": null,
+          "elapsed_safe_hold_wall_s": null,
+          "first_post_warm_ms": null,
+          "full_tick": {
+            "deadline_miss_count": 0,
+            "max_ms": 1.219936995767057,
+            "mean_ms": 0.9368865052238107,
+            "nonfinite_count": 0,
+            "p95_ms": 1.0081553889904173,
+            "p99_ms": 1.1775806744117288,
+            "samples": 20
+          },
+          "full_tick_schedule_deadline_miss_count": 0,
+          "pacing_provenance": null,
+          "raw_sha256": "f16dcd0a435a004cc5f7477efb0fe98eac04ade7871a68b895fb35a93cdeae76",
+          "recomputed_from_single_hash_bound_raw_artifact": true,
+          "safe_hold": {
+            "deadline_miss_count": 0,
+            "max_ms": 0.989816035144031,
+            "mean_ms": 0.897852354682982,
+            "nonfinite_count": 0,
+            "p95_ms": 0.9893685695715249,
+            "p99_ms": 0.9897265420295298,
+            "samples": 20
+          },
+          "safe_hold_schedule_deadline_miss_count": 0,
+          "solver": {
+            "deadline_miss_count": 0,
+            "max_ms": null,
+            "mean_ms": null,
+            "nonfinite_count": 0,
+            "p95_ms": null,
+            "p99_ms": null,
+            "samples": 0
+          }
+        },
+        "artifact_binding": {
+          "calibration_yaml_sha256": "029aad03affc0cf60fc4274029463e683dc04b709f3a5e849f693d1c70409be8",
+          "paper_truth_sha256": "e4eb35d23de9018addf1918a0fbaa04aeb85222cd4cfc2024225fee2220d8555",
+          "remote_stage_table_sha256": "0910873eed35411dad0739e2b15cd3742e21075c4623b3f184552096726fc5f2",
+          "replay_csv_sha256": "be6a84fe0eebc3df18ebb511874673cb3ee44832ba16335cd4de7a10f3260335",
+          "replay_csv_size": 43700470,
+          "ur_xacro_sha256": "618ece26935c6cd146114374abc45142cc858420567005eed2713681ae55694c"
+        },
+        "classification": "diagnostic_only_not_acceptance",
+        "component_diagnostics": null,
+        "elapsed_full_tick_wall_s": null,
+        "full_tick": {
+          "compute_deadline_miss_count": 0,
+          "max_ms": 1.219936995767057,
+          "mean_ms": 0.9368865052238107,
+          "nonfinite_count": 0,
+          "p95_ms": 1.0081553889904173,
+          "p99_ms": 1.1775806744117288,
+          "samples": 20
+        },
+        "paced_500hz": false,
+        "path": "config/step5d_v30_runtime_shaped_smoke.json",
+        "role": "runtime_shaped_smoke_not_acceptance",
+        "runtime_path": "Step5dObservation->StrictRnnControlPolicy->ControlCandidate->step5d_v30_contract_pipeline->DLS-shadow->SafetyEnvelope->RegisterCommand->DeferredV30Diagnostics",
+        "safe_hold": {
+          "compute_deadline_miss_count": 0,
+          "max_ms": 0.989816035144031,
+          "mean_ms": 0.897852354682982,
+          "nonfinite_count": 0,
+          "p95_ms": 0.9893685695715249,
+          "p99_ms": 0.9897265420295298,
+          "samples": 20
+        },
+        "sha256": "f16dcd0a435a004cc5f7477efb0fe98eac04ade7871a68b895fb35a93cdeae76",
+        "solver": {},
+        "source_binding": {
+          "bridge_sha256": "02bd1c6e07424b3bd5b634bb249bb776d6d36c0748bdb8b2df02f9a24bbd547f",
+          "contact_semantics_sha256": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
+          "control_contract_sha256": "f2b09c6d6170fda37218f2d5fa7235606be14b55fd8033a0e15798bd4d4f00cb",
+          "delivery": "stdin_bundle",
+          "harness_sha256": "7cfafa7ad0f24ca59a764be75a175e93a7f35754a55d448a9ffd59c560f304b4",
+          "kinematics_sha256": "5454af16db870350759372ab42583a4f339c71e32f9190679987b3addf6e14fa",
+          "outer_loop_sha256": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
+          "runtime_interface_sha256": "e815615ab3686bd17b800177ab9661bec9ec5b173d290b48e06b2b7f09cda092",
+          "solver_sha256": "629782ec5ce0c9aadeb04894b8424427cf44410843b603e6f29f3af82b6be304"
+        }
+      },
+      {
+        "acceptance_eligible": false,
+        "acceptance_evaluation": {
+          "blockers": [
+            "cupy_dedicated_stream_not_proven",
+            "cupy_host_staging_not_pinned",
+            "cupy_parallel_serial_equivalence_not_proven",
+            "cupy_precompile_not_proven_outside_loop",
+            "first_post_warm_exceeds_1p75_ms",
+            "full_tick_deferred_diagnostics_incomplete",
+            "full_tick_insufficient_samples",
+            "full_tick_max_reaches_2ms_deadline",
+            "full_tick_not_paced_500hz",
+            "full_tick_p99_exceeds_limit",
+            "full_tick_schedule_deadline_miss_count_missing",
+            "full_tick_schedule_max_lateness_missing_or_invalid",
+            "full_tick_summary_missing",
+            "full_tick_wall_duration_not_60s",
+            "independent_absolute_500hz_pacing_provenance_missing",
+            "remote_runtime_profile_mismatch",
+            "remote_timing_aggregator_sha256_does_not_match_local_source",
+            "remote_timing_aggregator_sha256_missing",
+            "remote_timing_artifact_binding_missing",
+            "remote_timing_bundler_sha256_does_not_match_local_source",
+            "remote_timing_bundler_sha256_missing",
+            "remote_timing_calibration_yaml_artifact_unbound",
+            "remote_timing_contact_semantics_sha256_does_not_match_local_source",
+            "remote_timing_contact_semantics_sha256_missing",
+            "remote_timing_control_contract_sha256_does_not_match_local_source",
+            "remote_timing_harness_sha256_does_not_match_local_source",
+            "remote_timing_kinematics_sha256_does_not_match_local_source",
+            "remote_timing_kinematics_sha256_missing",
+            "remote_timing_outer_loop_sha256_does_not_match_local_source",
+            "remote_timing_outer_loop_sha256_missing",
+            "remote_timing_paper_truth_artifact_unbound",
+            "remote_timing_paper_truth_sha_mismatch",
+            "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+            "remote_timing_readiness_builder_sha256_missing",
+            "remote_timing_replay_csv_artifact_unbound",
+            "remote_timing_replay_csv_sha_mismatch",
+            "remote_timing_runtime_interface_sha256_does_not_match_local_source",
+            "remote_timing_runtime_interface_sha256_missing",
+            "remote_timing_schema_mismatch",
+            "remote_timing_source_bundle_unbound",
+            "remote_timing_stage_table_artifact_unbound",
+            "remote_timing_ur_xacro_artifact_unbound",
+            "safe_hold_deferred_diagnostics_incomplete",
+            "safe_hold_insufficient_samples",
+            "safe_hold_max_reaches_2ms_deadline",
+            "safe_hold_p99_exceeds_limit",
+            "safe_hold_schedule_deadline_miss_count_missing",
+            "safe_hold_schedule_max_lateness_missing_or_invalid",
+            "safe_hold_summary_missing",
+            "safe_hold_wall_duration_not_60s",
+            "solver_insufficient_samples",
+            "solver_max_reaches_2ms_deadline",
+            "solver_p99_exceeds_limit",
+            "solver_summary_missing",
+            "v30_runtime_contract_path_not_proven"
+          ],
+          "elapsed_full_tick_wall_s": null,
+          "elapsed_safe_hold_wall_s": null,
+          "first_post_warm_ms": null,
+          "full_tick": {
+            "deadline_miss_count": 0,
+            "max_ms": null,
+            "mean_ms": null,
+            "nonfinite_count": 0,
+            "p95_ms": null,
+            "p99_ms": null,
+            "samples": 0
+          },
+          "full_tick_schedule_deadline_miss_count": 0,
+          "pacing_provenance": null,
+          "raw_sha256": "a06ea0c56440f5dcfe2a9939a74cc3574a56cd2ab109983f599923a03e55d2bf",
+          "recomputed_from_single_hash_bound_raw_artifact": true,
+          "safe_hold": {
+            "deadline_miss_count": 0,
+            "max_ms": null,
+            "mean_ms": null,
+            "nonfinite_count": 0,
+            "p95_ms": null,
+            "p99_ms": null,
+            "samples": 0
+          },
+          "safe_hold_schedule_deadline_miss_count": 0,
+          "solver": {
+            "deadline_miss_count": 0,
+            "max_ms": null,
+            "mean_ms": null,
+            "nonfinite_count": 0,
+            "p95_ms": null,
+            "p99_ms": null,
+            "samples": 0
+          }
+        },
+        "artifact_binding": null,
+        "classification": "diagnostic_only_not_acceptance",
+        "component_diagnostics": null,
+        "elapsed_full_tick_wall_s": null,
+        "full_tick": {},
+        "paced_500hz": null,
+        "path": "config/step5d_v30_component_diagnostic_summary.json",
+        "role": "component_diagnostic_not_acceptance",
+        "runtime_path": null,
+        "safe_hold": {},
+        "sha256": "a06ea0c56440f5dcfe2a9939a74cc3574a56cd2ab109983f599923a03e55d2bf",
+        "solver": {},
+        "source_binding": {
+          "bridge_sha256": "02bd1c6e07424b3bd5b634bb249bb776d6d36c0748bdb8b2df02f9a24bbd547f",
+          "control_contract_sha256": "f2b09c6d6170fda37218f2d5fa7235606be14b55fd8033a0e15798bd4d4f00cb",
+          "harness_sha256": "7cfafa7ad0f24ca59a764be75a175e93a7f35754a55d448a9ffd59c560f304b4",
+          "solver_sha256": "629782ec5ce0c9aadeb04894b8424427cf44410843b603e6f29f3af82b6be304"
+        }
+      }
+    ],
+    "overall_pass": false,
+    "summary_path": "config/step5d_v30_timing_summary.json",
+    "summary_sha256": "efa41a9ebe9b7062a587b0c0ba29d96576b9a06a1ab3385c807a150e27a3da6b"
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "cupy_dedicated_stream": true,
+  "cupy_host_staging_pinned": true,
+  "cupy_parallel_equivalence": {
+    "bitwise_equal": true,
+    "compared_float32_values_per_sample": 48,
+    "inner_iterations": 1024,
+    "max_abs_difference": 0.0,
+    "parallel_block_threads": 6,
+    "samples": 100,
+    "serial_reference_threads": 1
+  },
+  "cupy_precompile_ms": 716.5407539578155,
+  "cupy_stream_priority": null,
+  "cupy_stream_priority_capability": "unsupported_by_cupy_13_6",
+  "elapsed_full_tick_wall_s": 0.013623762992210686,
+  "first_post_warm_ms": 0.6746579892933369,
+  "full_tick": {
+    "compute_deadline_miss_count": 0,
+    "max_ms": 0.9989169193431735,
+    "mean_ms": 0.6800820003263652,
+    "nonfinite_count": 0,
+    "p95_ms": 0.7185397029388698,
+    "p99_ms": 0.9428414760623124,
+    "samples": 20
+  },
+  "full_tick_reason_counts": {
+    "ok": 20
+  },
+  "full_tick_schedule_deadline_miss_count": 0,
+  "full_tick_schedule_max_lateness_ms": 0.0,
+  "model_prepare_ms": 1080.3606059635058,
+  "paced_500hz": false,
+  "precompile_outside_control_loop": true,
+  "profile": {
+    "backend": "cupy",
+    "control_hz": 500.0,
+    "epsilon": 0.01,
+    "inner_iterations": 1024,
+    "qdot_cap_rad_s": 0.05,
+    "sigr_exponent_r": 0.8
+  },
+  "safe_hold": {
+    "compute_deadline_miss_count": 0,
+    "max_ms": 0.009166891686618328,
+    "mean_ms": 0.007431028643622994,
+    "nonfinite_count": 0,
+    "p95_ms": 0.008244533091783524,
+    "p99_ms": 0.008982419967651365,
+    "samples": 20
+  },
+  "safety_boundary": [
+    "read-only source evidence",
+    "stdout JSON only",
+    "no RTDE connection",
+    "no Dashboard connection",
+    "no controller write",
+    "no bridge start",
+    "no motion authorization"
+  ],
+  "schema_version": "step5d_v30_remote_timing_raw_v1",
+  "solver": {
+    "compute_deadline_miss_count": 3,
+    "max_ms": 48.71722299139947,
+    "mean_ms": 0.3929833586444147,
+    "nonfinite_count": 0,
+    "p95_ms": 0.40370962233282626,
+    "p99_ms": 0.41634223656728864,
+    "samples": 10000
+  },
+  "source_binding": {
+    "delivery": "stdin_bundle",
+    "harness_sha256": "08c84dd0070ae794677430abcf0afbd89d73f74a43b21f798ab29dc14dcbdd1f",
+    "outer_loop_sha256": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
+    "solver_sha256": "2616bc00b418f2d1ab9162908d94775f87c8c764201221578e23b5f13ef53530"
+  },
+  "source_csv": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v29_20260710_104820/bridge_rtde_500hz.csv",
+  "source_rows": 5604
+}

@@ -1,0 +1,25 @@
+{
+  "controller_urp": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v30.urp",
+  "generated_at": "2026-07-11T01:00:00+08:00",
+  "local_only": true,
+  "not_delivered": true,
+  "program": "step5d_strict_rnn_ablation_v30",
+  "safety_boundary": [
+    "local candidate only",
+    "no controller upload",
+    "no controller read-back",
+    "not current_stage",
+    "do not open on Teach Pendant",
+    "no live bridge"
+  ],
+  "schema": "ur_tp_local_candidate_v1",
+  "semantic_fingerprint": "3327a9400ad98123dfe170285c824f842aec49297776e34aa2c0777b0b2353ab",
+  "sha256": {
+    ".script": "bcd5c92514b8c06160712e3d794e7a7f3998711172ef40f4428987cdf4dbf86e",
+    ".txt": "1dce8644b1fa1963171d50f92fd5dee2fd9f2e04014a53ad6cfeb020ff4aa635",
+    ".urp": "a23cea18e53c0f475f4bc725a4594f076a3546b6f85ae0593d42338d4b1998b9"
+  },
+  "stamp": "2026-07-11T0100HKT_STEP5D_STRICT_RNN_ABLATION_V30",
+  "status": "local package verified",
+  "target_dir": "/programs/andyl/kunwei/step5"
+}

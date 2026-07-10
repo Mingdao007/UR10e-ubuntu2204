@@ -1,3 +1,4 @@
+import hashlib
 import json
 import sys
 import shutil
@@ -60,6 +61,66 @@ class CrossStepParameterTableTest(unittest.TestCase):
         self.assertEqual(row["blocked"], current["liveprep_status"]["state"] == "blocked")
         self.assertEqual(current["live_run_status"]["state"], "not_started")
         self.assertEqual(current["reproduction_status"]["state"], "incomplete")
+
+    def test_canonical_protocol_current_program_and_mode_are_not_stale(self) -> None:
+        current = validator.load_json(ROOT / "config" / "current_stage.json")
+        table = validator.load_json(ROOT / "config" / "step5_stage_table.json")
+        protocol = validator.load_json(ROOT / "config" / "tase_protocol_table.json")
+        row = next(item for item in table["stages"] if item.get("id") == current["current_stage_id"])
+        profile = protocol["experiment_profiles"]["Step5.step5d_rnn"]
+
+        self.assertEqual(profile["current_program"], current["program"])
+        self.assertEqual(profile["stage25_default_control_mode"], row["guard"]["stage25_default_control_mode"])
+
+    def test_validator_detects_stale_canonical_protocol_pointer(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            shutil.copytree(ROOT / "config", tmp_root / "config")
+            shutil.copy2(ROOT / "STEP5_FLOW.md", tmp_root / "STEP5_FLOW.md")
+            protocol_path = tmp_root / "config" / "tase_protocol_table.json"
+            protocol = validator.load_json(protocol_path)
+            protocol["experiment_profiles"]["Step5.step5d_rnn"]["current_program"] = "step5d_strict_rnn_ablation_v27"
+            protocol_path.write_text(json.dumps(protocol), encoding="utf-8")
+
+            failures = validator.validate(tmp_root)
+
+        self.assertIn("canonical Step5d current_program does not match current_stage.json", failures)
+
+    def test_v30_offline_candidate_cannot_claim_controller_delivery(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            shutil.copytree(ROOT / "config", tmp_root / "config")
+            shutil.copytree(ROOT / "programs", tmp_root / "programs")
+            shutil.copy2(ROOT / "STEP5_FLOW.md", tmp_root / "STEP5_FLOW.md")
+            table_path = tmp_root / "config" / "step5_stage_table.json"
+            table = validator.load_json(table_path)
+            v30 = next(item for item in table["stages"] if item.get("id") == "step5d_strict_rnn_ablation_v30")
+            v30["package_delivery"]["controller_target"] = "/programs/forbidden.urp"
+            table_path.write_text(json.dumps(table), encoding="utf-8")
+
+            failures = validator.validate(tmp_root)
+
+        self.assertIn("v30 offline candidate must have no controller delivery claim", failures)
+
+    def test_v30_stage_binds_current_source_solver_10k_hard_failure(self) -> None:
+        table = validator.load_json(ROOT / "config" / "step5_stage_table.json")
+        v30 = next(
+            item
+            for item in table["stages"]
+            if item.get("id") == "step5d_strict_rnn_ablation_v30"
+        )
+        evidence = v30["local_analysis_evidence"]
+        raw_path = ROOT / evidence["current_source_solver_10k_raw"]
+        raw = validator.load_json(raw_path)
+
+        self.assertEqual(
+            hashlib.sha256(raw_path.read_bytes()).hexdigest(),
+            evidence["current_source_solver_10k_raw_sha256"],
+        )
+        self.assertEqual(raw["classification"], "failed_hard_solver_deadline")
+        self.assertFalse(raw["acceptance_eligible"])
+        self.assertEqual(raw["solver"]["samples"], 10_000)
+        self.assertGreater(raw["solver"]["compute_deadline_miss_count"], 0)
 
     def test_awaiting_v29_requires_matching_readiness_pointer_and_sha(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

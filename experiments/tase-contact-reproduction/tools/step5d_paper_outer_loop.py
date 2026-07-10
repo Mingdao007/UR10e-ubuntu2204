@@ -203,7 +203,16 @@ def compute_step5d_outer_loop(
     config: Step5dOuterLoopConfig,
     state: Step5dOuterLoopState,
     inputs: Step5dOuterLoopInputs,
+    *,
+    include_diagnostics: bool | str = True,
 ) -> Step5dOuterLoopOutput:
+    """Compute one paper-form outer-loop update.
+
+    ``include_diagnostics=False`` preserves the exact control calculation and
+    state transition while omitting diagnostics.  ``"compact"`` retains only
+    the fixed safety/log scalars used by the v30 bridge.  Full diagnostics
+    remain the default for offline analysis and existing callers.
+    """
     tcp_pose = _finite_array(inputs.tcp_pose_base, (6,), "tcp_pose_base")
     tcp_speed = _finite_array(inputs.tcp_speed_base, (6,), "tcp_speed_base")
     force_tcp = _finite_array(inputs.force_tcp_n, (3,), "force_tcp_n")
@@ -304,50 +313,66 @@ def compute_step5d_outer_loop(
         force_integral_n_s=float(force_integral),
         xdot_p_prev_m_s=_tuple3(xdot_p),
     )
-    diagnostics = {
-        "cmd_valid": True,
-        "force_sign_convention": config.force_sign_convention,
-        "control_normal_valid": control_normal_valid,
-        "force_norm_n": force_norm_n,
-        "control_normal_input_norm": control_normal_input_norm,
-        "x_p": _tuple3(x_p),
-        "x_pd": _tuple3(x_pd),
-        "xdot_pd": _tuple3(xdot_pd),
-        "e_p": _tuple3(e_p),
-        "force_tcp": _tuple3(force_tcp),
-        "force_base": _tuple3(force_base),
-        "control_reaction_normal_base": _tuple3(control_reaction_normal_base),
-        "approach_normal_base": _tuple3(approach_normal_base),
-        "orientation_target_axis_base": _tuple3(approach_normal_base),
-        "R_d_z_dot_R_cur_z": float(np.dot(R_d[:, 2], R_cur[:, 2])),
-        "outer_orientation_angle_rad": outer_orientation_angle_rad,
-        "R_d": _matrix_tuple(R_d),
-        "Phi_E": _matrix_tuple(Phi_E),
-        "Phi_bar_E": _matrix_tuple(Phi_bar_E),
-        "Phi_O": _matrix_tuple(Phi_O),
-        "Phi_bar_O": _matrix_tuple(Phi_bar_O),
-        "normal_load_n": normal_load_n,
-        "force_load_n": normal_load_n,
-        "e_f": e_f,
-        "force_integral_n_s": float(force_integral),
-        "xddot_p": _tuple3(xddot_p),
-        "xdot_force_candidate": _tuple3(xdot_force_candidate),
-        "motion_component": _tuple3(motion_component),
-        "force_component": _tuple3(force_component),
-        "Q_d": _tuple4(Q_d),
-        "Q_cur": _tuple4(Q_cur),
-        "e_qua": _tuple4(e_qua),
-        "e_o": _tuple3(e_o),
-        "ko": ko,
-        "orientation_gain_scale": orientation_gain_scale,
-        "effective_ko": effective_ko,
-        "xdot_p": _tuple3(xdot_p),
-        "xdot_o": _tuple3(xdot_o),
-        "xdot_c": _tuple6(xdot_c),
-        "dt_s": dt_s,
-        "T_s": T_s,
-        "tcp_speed_base": _tuple6(tcp_speed),
-    }
+    if include_diagnostics is True:
+        diagnostics = {
+            "cmd_valid": True,
+            "force_sign_convention": config.force_sign_convention,
+            "control_normal_valid": control_normal_valid,
+            "force_norm_n": force_norm_n,
+            "control_normal_input_norm": control_normal_input_norm,
+            "x_p": _tuple3(x_p),
+            "x_pd": _tuple3(x_pd),
+            "xdot_pd": _tuple3(xdot_pd),
+            "e_p": _tuple3(e_p),
+            "force_tcp": _tuple3(force_tcp),
+            "force_base": _tuple3(force_base),
+            "control_reaction_normal_base": _tuple3(control_reaction_normal_base),
+            "approach_normal_base": _tuple3(approach_normal_base),
+            "orientation_target_axis_base": _tuple3(approach_normal_base),
+            "R_d_z_dot_R_cur_z": float(np.dot(R_d[:, 2], R_cur[:, 2])),
+            "outer_orientation_angle_rad": outer_orientation_angle_rad,
+            "R_d": _matrix_tuple(R_d),
+            "Phi_E": _matrix_tuple(Phi_E),
+            "Phi_bar_E": _matrix_tuple(Phi_bar_E),
+            "Phi_O": _matrix_tuple(Phi_O),
+            "Phi_bar_O": _matrix_tuple(Phi_bar_O),
+            "normal_load_n": normal_load_n,
+            "force_load_n": normal_load_n,
+            "e_f": e_f,
+            "force_integral_n_s": float(force_integral),
+            "xddot_p": _tuple3(xddot_p),
+            "xdot_force_candidate": _tuple3(xdot_force_candidate),
+            "motion_component": _tuple3(motion_component),
+            "force_component": _tuple3(force_component),
+            "Q_d": _tuple4(Q_d),
+            "Q_cur": _tuple4(Q_cur),
+            "e_qua": _tuple4(e_qua),
+            "e_o": _tuple3(e_o),
+            "ko": ko,
+            "orientation_gain_scale": orientation_gain_scale,
+            "effective_ko": effective_ko,
+            "xdot_p": _tuple3(xdot_p),
+            "xdot_o": _tuple3(xdot_o),
+            "xdot_c": _tuple6(xdot_c),
+            "dt_s": dt_s,
+            "T_s": T_s,
+            "tcp_speed_base": _tuple6(tcp_speed),
+        }
+    elif include_diagnostics == "compact":
+        diagnostics = {
+            "force_sign_convention": config.force_sign_convention,
+            "normal_load_n": normal_load_n,
+            "e_f": e_f,
+            "outer_orientation_angle_rad": outer_orientation_angle_rad,
+            "R_d_z_dot_R_cur_z": float(np.dot(R_d[:, 2], R_cur[:, 2])),
+        }
+    elif include_diagnostics is False:
+        # Do not construct logging tuples/matrices in the 500 Hz hot path.
+        # Safety metrics are recomputed from canonical numeric buffers by the
+        # SafetyEnvelope, so an empty payload cannot weaken a guard.
+        diagnostics = {}
+    else:
+        raise ValueError("include_diagnostics must be true, false, or 'compact'")
     return Step5dOuterLoopOutput(
         xdot_p=_tuple3(xdot_p),
         xdot_o=_tuple3(xdot_o),
