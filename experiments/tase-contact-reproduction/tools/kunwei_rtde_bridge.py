@@ -7469,6 +7469,38 @@ def require_v29_realtime_scheduler(args: argparse.Namespace) -> None:
         )
 
 
+def require_v29_runtime_guard_policy(args: argparse.Namespace) -> None:
+    """Reject v29 raw-bridge arguments that effectively disable mandatory guards."""
+    if args.bridge_profile != STEP5D_ABLATION_V29_STAGE_ID:
+        return
+    finite_fields = {
+        "max_normal_force_n": args.max_normal_force_n,
+        "max_force_norm_n": args.max_force_norm_n,
+        "max_torque_norm_nm": args.max_torque_norm_nm,
+        "sensor_stale_s": args.sensor_stale_s,
+        "dashboard_program_watch_timeout_s": args.dashboard_program_watch_timeout_s,
+    }
+    nonfinite = [name for name, value in finite_fields.items() if not math.isfinite(float(value))]
+    if nonfinite:
+        raise SystemExit(f"v29 raw bridge requires finite mandatory guard values: {', '.join(sorted(nonfinite))}")
+    bounds = {
+        "max_normal_force_n": (args.max_normal_force_n, STEP5D_V27_SENSOR_NORMAL_HARD_STOP_N),
+        "max_force_norm_n": (args.max_force_norm_n, STEP5D_V27_SENSOR_FORCE_HARD_STOP_N),
+        "max_torque_norm_nm": (args.max_torque_norm_nm, STEP5D_V27_SENSOR_TORQUE_HARD_STOP_NM),
+        "sensor_stale_s": (args.sensor_stale_s, 0.10),
+        "dashboard_program_watch_timeout_s": (args.dashboard_program_watch_timeout_s, 45.0),
+    }
+    over_limit = [
+        f"{name}={value:g}>{limit:g}"
+        for name, (value, limit) in bounds.items()
+        if float(value) > float(limit)
+    ]
+    if over_limit:
+        raise SystemExit(
+            "v29 raw bridge refuses guard values above policy bounds: " + ", ".join(sorted(over_limit))
+        )
+
+
 def runtime_scheduler_metadata() -> dict[str, Any]:
     scheduler = os.sched_getscheduler(0)
     names = {
@@ -7619,6 +7651,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.dashboard_program_watch_timeout_s <= 0.0:
         raise SystemExit("--dashboard-program-watch-timeout-s must be positive")
     validate_step5b_15n_trial_args(args)
+    require_v29_runtime_guard_policy(args)
     require_v29_live_bridge_authorization(args)
     require_v29_realtime_scheduler(args)
 
@@ -8114,12 +8147,16 @@ def main(argv: list[str] | None = None) -> int:
             write_json(
                 ready_path,
                 {
+                    "ready_schema": "v29_bridge_ready_v1",
                     "ok": True,
+                    "pid": os.getpid(),
+                    "launch_nonce": os.getenv("STEP5D_BRIDGE_LAUNCH_NONCE", ""),
                     "bridge_profile": args.bridge_profile,
                     "rtde_hz": args.rtde_hz,
                     "runtime_scheduler": metadata["runtime_scheduler"],
                     "prewarm_status": step5d_runtime_prewarm["status"],
                     "rtde_connected": rtde is not None,
+                    "output_dir": str(args.output_dir),
                 },
             )
 

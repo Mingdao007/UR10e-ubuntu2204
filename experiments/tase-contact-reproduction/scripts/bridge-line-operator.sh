@@ -1133,9 +1133,57 @@ PY
   fi
 }
 
+v29_bridge_ready_sentinel_valid() {
+  local ready="$1"
+  local bridge_pid="$2"
+  local launch_nonce="$3"
+  python3 - "$ready" "$bridge_pid" "$launch_nonce" <<'PY'
+import json
+import math
+import sys
+from pathlib import Path
+
+ready = Path(sys.argv[1])
+expected_pid = int(sys.argv[2])
+expected_nonce = sys.argv[3]
+if not expected_nonce:
+    raise SystemExit(1)
+try:
+    payload = json.loads(ready.read_text(encoding="utf-8"))
+except Exception:
+    raise SystemExit(1)
+if payload.get("ready_schema") != "v29_bridge_ready_v1":
+    raise SystemExit(1)
+if payload.get("ok") is not True:
+    raise SystemExit(1)
+if payload.get("pid") != expected_pid:
+    raise SystemExit(1)
+if payload.get("launch_nonce") != expected_nonce:
+    raise SystemExit(1)
+if payload.get("bridge_profile") != "step5d_strict_rnn_ablation_v29":
+    raise SystemExit(1)
+try:
+    rtde_hz = float(payload.get("rtde_hz"))
+except (TypeError, ValueError):
+    raise SystemExit(1)
+if not math.isclose(rtde_hz, 500.0, rel_tol=0.0, abs_tol=1e-9):
+    raise SystemExit(1)
+scheduler = payload.get("runtime_scheduler")
+if not isinstance(scheduler, dict):
+    raise SystemExit(1)
+if scheduler.get("policy") != "SCHED_FIFO" or scheduler.get("priority") != 20:
+    raise SystemExit(1)
+if payload.get("prewarm_status") != "ok":
+    raise SystemExit(1)
+if payload.get("rtde_connected") is not True:
+    raise SystemExit(1)
+PY
+}
+
 wait_for_bridge_output_started() {
   local out_dir="$1"
   local bridge_pid="$2"
+  local launch_nonce="$3"
   local bridge_csv="${out_dir}/bridge_rtde_500hz.csv"
   local metadata="${out_dir}/metadata.json"
   local ready="${out_dir}/bridge_ready.json"
@@ -1150,7 +1198,8 @@ wait_for_bridge_output_started() {
       fi
       return 1
     fi
-    if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" && -s "${ready}" ]]; then
+    if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" && -s "${ready}" ]] \
+      && v29_bridge_ready_sentinel_valid "${ready}" "${bridge_pid}" "${launch_nonce}"; then
       echo "[operator] v29 bridge startup confirmed: ${ready}"
       return 0
     fi
@@ -1239,10 +1288,17 @@ run_bridge_for_mode() {
   ensure_step5d_rnn_backend_ready || return "$?"
   local bridge_pid=""
   local child_rc=0
+  local launch_nonce=""
   BRIDGE_EARLY_EXIT_RC=""
   local bridge_launcher=(python3)
   if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" ]]; then
     bridge_launcher=(chrt -f 20 python3)
+    rm -f "${out_dir}/bridge_ready.json"
+    launch_nonce="$(python3 - <<'PY'
+import uuid
+print(uuid.uuid4().hex)
+PY
+)"
     echo "[operator] v29 bridge launcher: SCHED_FIFO priority 20"
   fi
   local stage25_only_args=()
@@ -1256,7 +1312,7 @@ run_bridge_for_mode() {
   }
   trap cleanup INT TERM EXIT
 
-  "${bridge_launcher[@]}" "${ROOT}/tools/kunwei_rtde_bridge.py" \
+  STEP5D_BRIDGE_LAUNCH_NONCE="${launch_nonce}" "${bridge_launcher[@]}" "${ROOT}/tools/kunwei_rtde_bridge.py" \
     --allow-kunwei-stream-command \
     --write-rtde-inputs \
     --baseline-s "${BRIDGE_BASELINE_S}" \
@@ -1321,7 +1377,7 @@ run_bridge_for_mode() {
     --output-dir "${out_dir}" &
   bridge_pid="$!"
   output_started_rc=0
-  wait_for_bridge_output_started "${out_dir}" "${bridge_pid}" || output_started_rc="$?"
+  wait_for_bridge_output_started "${out_dir}" "${bridge_pid}" "${launch_nonce}" || output_started_rc="$?"
   if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" ]]; then
     if [[ "${output_started_rc}" != "0" ]]; then
       echo "refusing: mandatory bridge startup confirmation failed for ${BRIDGE_PROFILE}"

@@ -216,9 +216,28 @@ source "{ROOT / 'scripts' / 'bridge-line-operator.sh'}"
                     "bash",
                     "-lc",
                     common
-                    + f'''(sleep 0.1; printf '{{"ok":true}}\n' > "{run_dir / 'bridge_ready.json'}"; sleep 0.2) &
+                    + f'''STEP5D_BRIDGE_LAUNCH_NONCE=test-nonce python3 - "{run_dir / 'bridge_ready.json'}" <<'PY' &
+import json
+import os
+import sys
+import time
+from pathlib import Path
+
+Path(sys.argv[1]).write_text(json.dumps({{
+    "ready_schema": "v29_bridge_ready_v1",
+    "ok": True,
+    "pid": os.getpid(),
+    "launch_nonce": os.environ["STEP5D_BRIDGE_LAUNCH_NONCE"],
+    "bridge_profile": "step5d_strict_rnn_ablation_v29",
+    "rtde_hz": 500.0,
+    "runtime_scheduler": {{"policy": "SCHED_FIFO", "priority": 20}},
+    "prewarm_status": "ok",
+    "rtde_connected": True,
+}}), encoding="utf-8")
+time.sleep(0.2)
+PY
 pid=$!
-wait_for_bridge_output_started "{run_dir}" "$pid"
+wait_for_bridge_output_started "{run_dir}" "$pid" test-nonce
 wait "$pid"
 ''',
                 ],
@@ -230,6 +249,47 @@ wait "$pid"
             self.assertEqual(success.returncode, 0, success.stdout + success.stderr)
             self.assertIn("v29 bridge startup confirmed", success.stdout)
 
+            stale = subprocess.run(
+                [
+                    "bash",
+                    "-lc",
+                    common
+                    + f'''set +e
+(sleep 0.2) &
+pid=$!
+python3 - "{run_dir / 'bridge_ready.json'}" "$pid" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+Path(sys.argv[1]).write_text(json.dumps({{
+    "ready_schema": "v29_bridge_ready_v1",
+    "ok": True,
+    "pid": int(sys.argv[2]),
+    "launch_nonce": "old-nonce",
+    "bridge_profile": "step5d_strict_rnn_ablation_v29",
+    "rtde_hz": 500.0,
+    "runtime_scheduler": {{"policy": "SCHED_FIFO", "priority": 20}},
+    "prewarm_status": "ok",
+    "rtde_connected": True,
+}}), encoding="utf-8")
+PY
+wait_for_bridge_output_started "{run_dir}" "$pid" new-nonce
+startup_rc=$?
+wait "$pid"
+set -e
+printf 'startup_rc=%s\n' "$startup_rc"
+test "$startup_rc" -eq 1
+''',
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(stale.returncode, 0, stale.stdout + stale.stderr)
+            self.assertIn("startup_rc=1", stale.stdout)
+
             early = subprocess.run(
                 [
                     "bash",
@@ -238,7 +298,7 @@ wait "$pid"
                     + '''set +e
 (exit 77) &
 pid=$!
-wait_for_bridge_output_started "''' + str(run_dir) + '''" "$pid"
+wait_for_bridge_output_started "''' + str(run_dir) + '''" "$pid" early-nonce
 startup_rc=$?
 set -e
 printf 'startup_rc=%s child_rc=%s\n' "$startup_rc" "$BRIDGE_EARLY_EXIT_RC"
@@ -343,7 +403,7 @@ test "$BRIDGE_EARLY_EXIT_RC" -eq 77
         run_end = script.index("maybe_start_background_push", run_start)
         run_body = script[run_start:run_end]
 
-        wait_idx = run_body.index('wait_for_bridge_output_started "${out_dir}" "${bridge_pid}"')
+        wait_idx = run_body.index('wait_for_bridge_output_started "${out_dir}" "${bridge_pid}" "${launch_nonce}"')
         pre_arm_idx = run_body.index('p0_pre_arm_dashboard_check "${bridge_pid}"')
 
         self.assertLess(wait_idx, pre_arm_idx)

@@ -44,6 +44,11 @@ def raw_bridge_args(profile: str = V29, **overrides: object) -> SimpleNamespace:
         "skip_dashboard_preflight": False,
         "disable_dashboard_program_watch": False,
         "robot_host": "192.0.2.10",
+        "max_normal_force_n": 50.0,
+        "max_force_norm_n": 60.0,
+        "max_torque_norm_nm": 3.0,
+        "sensor_stale_s": 0.10,
+        "dashboard_program_watch_timeout_s": 45.0,
     }
     values.update(overrides)
     return SimpleNamespace(**values)
@@ -247,6 +252,20 @@ class Step5dV27AblationTest(unittest.TestCase):
         self.assertEqual(args.step5d_rnn_inner_iterations, 1024)
         self.assertEqual(args.step5d_sigr_exponent_r, 0.8)
         self.assertEqual(args.step5d_qdot_limit_rad_s, 0.05)
+
+    def test_v29_raw_bridge_rejects_disabled_runtime_guard_values(self) -> None:
+        bridge.require_v29_runtime_guard_policy(raw_bridge_args())
+        bad_values = [
+            {"max_normal_force_n": math.inf},
+            {"max_force_norm_n": 60.1},
+            {"max_torque_norm_nm": 3.1},
+            {"sensor_stale_s": 0.101},
+            {"dashboard_program_watch_timeout_s": math.inf},
+        ]
+        for overrides in bad_values:
+            with self.subTest(overrides=overrides):
+                with self.assertRaises(SystemExit):
+                    bridge.require_v29_runtime_guard_policy(raw_bridge_args(**overrides))
 
     def test_v27_package_keeps_step5b_scaffold_min_delta_and_consumption_contract(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
