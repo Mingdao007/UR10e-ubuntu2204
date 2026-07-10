@@ -1,0 +1,10 @@
+# Public datasets, generated statistics, checkpoints, and run evidence stay external.
+data/
+checkpoints/
+runs/
+evidence/*
+!evidence/offline_evidence_index.json
+!evidence/external_rehash_verification.json
+*.npz
+*.pt
+*.pth
