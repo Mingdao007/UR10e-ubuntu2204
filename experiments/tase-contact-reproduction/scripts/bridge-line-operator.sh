@@ -655,6 +655,12 @@ step5d_no_contact_p0_capture_authorized() {
   fi
 }
 
+v29_pending_audit_override_authorized() {
+  [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" ]] \
+    && [[ "${STEP5D_ALLOW_PENDING_OFFLINE_AUDIT:-0}" == "1" ]] \
+    && [[ "${STEP5D_CONFIRM:-}" == "LIVE STEP5D STRICT RNN LIVEPREP" ]]
+}
+
 step5d_live_bridge_authorized() {
   if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
     step5d_no_contact_p0_capture_authorized
@@ -671,7 +677,7 @@ step5d_live_bridge_authorized() {
       --sigr-exponent-r "${STEP5D_SIGR_EXPONENT_R:-1.0}"
       --qdot-cap-rad-s "${STEP5D_QDOT_LIMIT_RAD_S:-0.050}"
     )
-    if [[ "${STEP5D_ALLOW_PENDING_OFFLINE_AUDIT:-0}" != "1" ]]; then
+    if ! v29_pending_audit_override_authorized; then
       gate_args+=(--require-live-bridge-authorization)
     fi
     python3 "${STEP5D_CURRENT_BINDING_GATE}" "${gate_args[@]}"
@@ -745,7 +751,22 @@ PY
   else
     local rc="$?"
     rm -f "${tmp}"
+    rm -f "${LONG_CHECK_CACHE}"
     return "${rc}"
+  fi
+}
+
+require_v29_realtime_launcher_policy() {
+  if [[ "${BRIDGE_PROFILE}" != "step5d_strict_rnn_ablation_v29" ]]; then
+    return 0
+  fi
+  if ! command -v chrt >/dev/null 2>&1; then
+    echo "refusing v29 bridge: chrt is required for SCHED_FIFO priority 20"
+    return 24
+  fi
+  if [[ "${STEP5D_RT_PRIORITY:-20}" != "20" ]]; then
+    echo "refusing v29 bridge: STEP5D_RT_PRIORITY must be exactly 20"
+    return 24
   fi
 }
 
@@ -1117,13 +1138,27 @@ wait_for_bridge_output_started() {
   local bridge_pid="$2"
   local bridge_csv="${out_dir}/bridge_rtde_500hz.csv"
   local metadata="${out_dir}/metadata.json"
+  local ready="${out_dir}/bridge_ready.json"
   local i
   for i in $(seq 1 30); do
     if ! kill -0 "${bridge_pid}" 2>/dev/null; then
       echo "[operator] bridge process exited before output-start confirmation"
+      if wait "${bridge_pid}"; then
+        BRIDGE_EARLY_EXIT_RC=0
+      else
+        BRIDGE_EARLY_EXIT_RC="$?"
+      fi
       return 1
     fi
+    if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" && -s "${ready}" ]]; then
+      echo "[operator] v29 bridge startup confirmed: ${ready}"
+      return 0
+    fi
     if [[ -s "${bridge_csv}" || -s "${metadata}" ]]; then
+      if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" ]]; then
+        sleep 0.1
+        continue
+      fi
       echo "[operator] bridge output started: ${out_dir}"
       return 0
     fi
@@ -1199,13 +1234,16 @@ PY
 run_bridge_for_mode() {
   local out_dir="$1"
   local already_running="$2"
+  require_v29_realtime_launcher_policy || return "$?"
   mkdir -p "${out_dir}"
   ensure_step5d_rnn_backend_ready || return "$?"
   local bridge_pid=""
+  local child_rc=0
+  BRIDGE_EARLY_EXIT_RC=""
   local bridge_launcher=(python3)
-  if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" ]] && command -v chrt >/dev/null 2>&1; then
-    bridge_launcher=(chrt -f "${STEP5D_RT_PRIORITY:-20}" python3)
-    echo "[operator] v29 bridge launcher: SCHED_FIFO priority ${STEP5D_RT_PRIORITY:-20}"
+  if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" ]]; then
+    bridge_launcher=(chrt -f 20 python3)
+    echo "[operator] v29 bridge launcher: SCHED_FIFO priority 20"
   fi
   local stage25_only_args=()
   if [[ "${BRIDGE_STAGE25_ONLY}" == "1" ]]; then
@@ -1284,15 +1322,27 @@ run_bridge_for_mode() {
   bridge_pid="$!"
   output_started_rc=0
   wait_for_bridge_output_started "${out_dir}" "${bridge_pid}" || output_started_rc="$?"
-  if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
+  if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" ]]; then
     if [[ "${output_started_rc}" != "0" ]]; then
-      echo "refusing: P0 bridge output did not start before arm"
-      echo "next: stop/reopen exact v7, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
-      stop_bridge_process "${bridge_pid}" "P0 output-start confirmation failed"
-      wait "${bridge_pid}" || true
+      echo "refusing: mandatory bridge startup confirmation failed for ${BRIDGE_PROFILE}"
+      stop_bridge_process "${bridge_pid}" "mandatory output-start confirmation failed"
+      if [[ -n "${BRIDGE_EARLY_EXIT_RC}" ]]; then
+        child_rc="${BRIDGE_EARLY_EXIT_RC}"
+      else
+        if wait "${bridge_pid}"; then
+          child_rc=0
+        else
+          child_rc="$?"
+        fi
+      fi
       trap - INT TERM EXIT
+      if [[ "${child_rc}" != "0" ]]; then
+        return "${child_rc}"
+      fi
       return 24
     fi
+  fi
+  if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
     p0_pre_arm_dashboard_check "${bridge_pid}" || {
       local pre_arm_rc="$?"
       wait "${bridge_pid}" || true
@@ -1304,7 +1354,11 @@ run_bridge_for_mode() {
 
   local monitor_rc=0
   monitor_bridge "${bridge_pid}" "${already_running}" || monitor_rc="$?"
-  wait "${bridge_pid}" || true
+  if wait "${bridge_pid}"; then
+    child_rc=0
+  else
+    child_rc="$?"
+  fi
   trap - INT TERM EXIT
 
   echo "[operator] bridge output: ${out_dir}"
@@ -1318,6 +1372,10 @@ run_bridge_for_mode() {
   postprocess_run "${out_dir}"
   if [[ "${monitor_rc}" != "0" ]]; then
     return "${monitor_rc}"
+  fi
+  if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" && "${child_rc}" != "0" ]]; then
+    echo "refusing: v29 bridge child exited with rc=${child_rc}"
+    return "${child_rc}"
   fi
   return 0
 }
@@ -1374,7 +1432,7 @@ WARNING
     if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
       step5d_live_bridge_authorized
     fi
-    if [[ "${STEP5D_ALLOW_PENDING_OFFLINE_AUDIT:-0}" == "1" ]]; then
+    if v29_pending_audit_override_authorized; then
       echo "[operator] explicit user override: skipping offline readiness publication gate"
     else
       step5d_live_ready

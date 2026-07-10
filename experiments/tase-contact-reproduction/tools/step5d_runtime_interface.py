@@ -777,6 +777,7 @@ def long_check_cache_status(
         payload.get("ok") is True
         and payload.get("robot_host") == robot_host
         and gate.get("ok") is True
+        and not gate.get("issues")
         and gate.get("robot_host") == robot_host
         and gate.get("same_subnet") is True
         and gate.get("device") == "enp3s0"

@@ -19,6 +19,7 @@ class BridgeOperatorStartupPolicyTest(unittest.TestCase):
             root = Path(tmp)
             bench_gate = root / "bench_gate.py"
             cache = root / "long-check-cache.json"
+            cache.write_text('{"ok": true, "seed": "must be invalidated"}\n', encoding="utf-8")
             bench_gate.write_text(
                 'print(\'{"ok": false, "issues": ["robot_ping_failed"]}\')\n',
                 encoding="utf-8",
@@ -134,6 +135,10 @@ postprocess_run "{run_dir}"
         self.assertIn('STEP5D_RNN_INNER_ITERATIONS="${STEP5D_RNN_INNER_ITERATIONS:-1024}"', script)
         self.assertIn('STEP5D_RNN_BACKEND="${STEP5D_RNN_BACKEND:-cupy}"', script)
         self.assertIn('STEP5D_ALLOW_PENDING_OFFLINE_AUDIT="${STEP5D_ALLOW_PENDING_OFFLINE_AUDIT:-1}"', script)
+        self.assertIn(
+            '[[ "${STEP5D_VERSION}" == "step5d_strict_rnn_ablation_v29"',
+            script,
+        )
         self.assertIn('STEP5D_EPSILON="${STEP5D_EPSILON:-}"', script)
         self.assertIn('STEP5D_RNN_BACKEND="${STEP5D_RNN_BACKEND:-}"', script)
 
@@ -160,7 +165,100 @@ printf '%s\\n' "$STEP5D_EPSILON" "$STEP5D_SIGR_EXPONENT_R" "$STEP5D_RNN_INNER_IT
         script = read_script("bridge-line-operator.sh")
         self.assertIn("/opt/ros/humble/local/lib/python3.10/dist-packages", script)
         self.assertIn("/opt/ros/humble/lib/python3.10/site-packages", script)
-        self.assertIn('bridge_launcher=(chrt -f "${STEP5D_RT_PRIORITY:-20}" python3)', script)
+        self.assertIn('bridge_launcher=(chrt -f 20 python3)', script)
+        self.assertIn("require_v29_realtime_launcher_policy", script)
+
+    def test_v29_realtime_launcher_policy_fails_without_chrt_or_exact_priority(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            fake_bin = Path(tmp)
+            fake_chrt = fake_bin / "chrt"
+            fake_chrt.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+            fake_chrt.chmod(0o755)
+            common = f'''
+set -euo pipefail
+export BRIDGE_OPERATOR_SOURCE_ONLY=1
+export BRIDGE_PROFILE=step5d_strict_rnn_ablation_v29
+source "{ROOT / 'scripts' / 'bridge-line-operator.sh'}"
+'''
+            missing = subprocess.run(
+                ["bash", "-lc", common + "PATH=/nonexistent; require_v29_realtime_launcher_policy"],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(missing.returncode, 24, missing.stdout + missing.stderr)
+            wrong = subprocess.run(
+                [
+                    "bash",
+                    "-lc",
+                    common
+                    + f"PATH={fake_bin}; STEP5D_RT_PRIORITY=19; require_v29_realtime_launcher_policy",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(wrong.returncode, 24, wrong.stdout + wrong.stderr)
+
+    def test_v29_startup_confirmation_requires_ready_sentinel_and_preserves_early_rc(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            common = f'''
+set -euo pipefail
+export BRIDGE_OPERATOR_SOURCE_ONLY=1
+export BRIDGE_PROFILE=step5d_strict_rnn_ablation_v29
+source "{ROOT / 'scripts' / 'bridge-line-operator.sh'}"
+'''
+            success = subprocess.run(
+                [
+                    "bash",
+                    "-lc",
+                    common
+                    + f'''(sleep 0.1; printf '{{"ok":true}}\n' > "{run_dir / 'bridge_ready.json'}"; sleep 0.2) &
+pid=$!
+wait_for_bridge_output_started "{run_dir}" "$pid"
+wait "$pid"
+''',
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(success.returncode, 0, success.stdout + success.stderr)
+            self.assertIn("v29 bridge startup confirmed", success.stdout)
+
+            early = subprocess.run(
+                [
+                    "bash",
+                    "-lc",
+                    common
+                    + '''set +e
+(exit 77) &
+pid=$!
+wait_for_bridge_output_started "''' + str(run_dir) + '''" "$pid"
+startup_rc=$?
+set -e
+printf 'startup_rc=%s child_rc=%s\n' "$startup_rc" "$BRIDGE_EARLY_EXIT_RC"
+test "$startup_rc" -eq 1
+test "$BRIDGE_EARLY_EXIT_RC" -eq 77
+''',
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(early.returncode, 0, early.stdout + early.stderr)
+            self.assertIn("child_rc=77", early.stdout)
+
+    def test_v29_operator_propagates_child_exit_and_requires_ready_file(self) -> None:
+        script = read_script("bridge-line-operator.sh")
+        self.assertIn('local ready="${out_dir}/bridge_ready.json"', script)
+        self.assertIn('BRIDGE_EARLY_EXIT_RC="$?"', script)
+        self.assertIn('return "${child_rc}"', script)
 
     def test_v29_direct_bridge_gate_receives_every_exact_profile_field(self) -> None:
         script = read_script("bridge-line-operator.sh")

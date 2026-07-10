@@ -187,14 +187,15 @@ case "$1" in
       exit 40
     fi
     require_current_stage_readback_gate
-    if [[ "${STEP5D_ALLOW_PENDING_OFFLINE_AUDIT:-0}" == "1" ]]; then
-      echo "[operator] explicit user override: milestone review and offline timing remain pending; runtime safety gates stay active"
-    else
-      require_live_bridge_authorization_gate
-    fi
     if [[ "${STEP5D_CONFIRM:-}" != "LIVE STEP5D STRICT RNN LIVEPREP" ]]; then
       echo "refusing live Step5d bridge start: set STEP5D_CONFIRM='LIVE STEP5D STRICT RNN LIVEPREP'"
       exit 40
+    fi
+    if [[ "${STEP5D_VERSION}" == "step5d_strict_rnn_ablation_v29" \
+      && "${STEP5D_ALLOW_PENDING_OFFLINE_AUDIT:-0}" == "1" ]]; then
+      echo "[operator] explicit user override: milestone review and offline timing remain pending; runtime safety gates stay active"
+    else
+      require_live_bridge_authorization_gate
     fi
     BRIDGE_PROFILE="${STEP5D_VERSION}" \
     BRIDGE_DURATION_S="${BRIDGE_DURATION_S:-${STEP5D_DURATION_S:-${TASE_STEP5D_BRIDGE_DURATION_S}}}" \

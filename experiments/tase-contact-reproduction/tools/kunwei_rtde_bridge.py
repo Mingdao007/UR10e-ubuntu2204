@@ -353,6 +353,9 @@ STEP5D_DIAG_FIELDS = [
     "_step5d_semantic_gate_ok",
     "_step5d_solver_error",
     "_bridge_loop_gap_s",
+    "_bridge_loop_deadline_lateness_s",
+    "_bridge_loop_missed_slots",
+    "_bridge_loop_deadline_miss_total",
     "_bridge_loop_sensor_recv_s",
     "_bridge_loop_rtde_recv_s",
     "_bridge_loop_compute_s",
@@ -570,6 +573,8 @@ STEP5D_V29_FAIL_STOP_DASHBOARD_TIMEOUT_S = 0.04
 STEP5D_V29_FAIL_STOP_DASHBOARD_RETRY_S = 0.05
 STEP5D_V29_FAIL_STOP_RTDE_RECONNECT_TIMEOUT_S = 0.008
 STEP5D_V29_RUNTIME_DASHBOARD_WATCH_TIMEOUT_S = 0.02
+STEP5D_V29_LIVE_CONFIRMATION = "LIVE STEP5D STRICT RNN LIVEPREP"
+STEP5D_V29_RT_PRIORITY = 20
 STEP5D_SEMANTIC_ORIENTATION_TOLERANCE_RAD = math.radians(5.0)
 STEP5D_SEARCH_POSE_CONTRACT_ID = PRE_CONTACT_GRAVITY_DOWN_CONTRACT_ID
 STEP5D_SEARCH_POSE_TARGET_AXIS_B = contract_target_axis_base(STEP5D_SEARCH_POSE_CONTRACT_ID)
@@ -7413,9 +7418,11 @@ def require_v29_live_bridge_authorization(
         raise SystemExit("v29 raw bridge refuses profile relabel against the current-stage binding")
     if getattr(args, "skip_dashboard_preflight", False):
         raise SystemExit("v29 raw bridge requires Dashboard program-identity preflight")
+    if getattr(args, "disable_dashboard_program_watch", False):
+        raise SystemExit("v29 raw bridge requires the Dashboard program runtime watchdog")
     if args.step5d_stage25_control_mode != "speedj_rnn_live":
         raise SystemExit("v29 raw bridge requires speedj_rnn_live; DLS is not a runtime fallback")
-    if os.getenv("STEP5D_ALLOW_PENDING_OFFLINE_AUDIT", "0") == "1":
+    if v29_pending_audit_override_authorized(args):
         if (
             args.step5d_rnn_backend != "cupy"
             or args.step5d_rnn_inner_iterations != 1024
@@ -7438,6 +7445,51 @@ def require_v29_live_bridge_authorization(
         )
     except RuntimeError as exc:
         raise SystemExit(str(exc)) from exc
+
+
+def v29_pending_audit_override_authorized(args: argparse.Namespace) -> bool:
+    """Bind the narrow offline-audit exception to exact v29 live consent."""
+    return (
+        args.bridge_profile == STEP5D_ABLATION_V29_STAGE_ID
+        and os.getenv("STEP5D_ALLOW_PENDING_OFFLINE_AUDIT", "0") == "1"
+        and os.getenv("STEP5D_CONFIRM", "") == STEP5D_V29_LIVE_CONFIRMATION
+    )
+
+
+def require_v29_realtime_scheduler(args: argparse.Namespace) -> None:
+    """Fail closed unless v29 is actually executing under FIFO/20."""
+    if args.bridge_profile != STEP5D_ABLATION_V29_STAGE_ID:
+        return
+    scheduler = os.sched_getscheduler(0)
+    priority = os.sched_getparam(0).sched_priority
+    if scheduler != os.SCHED_FIFO or priority != STEP5D_V29_RT_PRIORITY:
+        raise SystemExit(
+            "v29 raw bridge requires effective SCHED_FIFO priority exactly 20 "
+            f"(scheduler={scheduler}, priority={priority})"
+        )
+
+
+def runtime_scheduler_metadata() -> dict[str, Any]:
+    scheduler = os.sched_getscheduler(0)
+    names = {
+        getattr(os, "SCHED_OTHER", -1): "SCHED_OTHER",
+        getattr(os, "SCHED_FIFO", -2): "SCHED_FIFO",
+        getattr(os, "SCHED_RR", -3): "SCHED_RR",
+    }
+    return {
+        "policy": names.get(scheduler, f"UNKNOWN_{scheduler}"),
+        "policy_value": scheduler,
+        "priority": os.sched_getparam(0).sched_priority,
+    }
+
+
+def advance_periodic_deadline(deadline: float, now: float, period: float) -> tuple[float, int, float]:
+    """Advance to the first future slot without burst catch-up."""
+    if period <= 0.0:
+        raise ValueError("period must be positive")
+    lateness = max(0.0, now - deadline)
+    missed_slots = max(0, int(math.floor(lateness / period)))
+    return deadline + (missed_slots + 1) * period, missed_slots, lateness
 
 
 def dashboard_state_value(value: Any) -> str:
@@ -7470,7 +7522,7 @@ def require_v29_dashboard_program_binding(
     robot_state = dashboard_state_value(dashboard.get("robotmode"))
     if not v29_dashboard_program_identity_matches(dashboard.get("programState")):
         raise SystemExit("v29 Dashboard program identity does not match the current package")
-    allow_tp_local = os.getenv("STEP5D_ALLOW_PENDING_OFFLINE_AUDIT", "0") == "1"
+    allow_tp_local = v29_pending_audit_override_authorized(args)
     if remote_state != "TRUE" and not (allow_tp_local and remote_state == "FALSE"):
         raise SystemExit("v29 Dashboard remote-control state is not true")
     if safety_state != "NORMAL":
@@ -7568,6 +7620,7 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("--dashboard-program-watch-timeout-s must be positive")
     validate_step5b_15n_trial_args(args)
     require_v29_live_bridge_authorization(args)
+    require_v29_realtime_scheduler(args)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     sensor_csv_path = args.output_dir / "kunwei_sensor_1khz.csv"
@@ -7599,6 +7652,7 @@ def main(argv: list[str] | None = None) -> int:
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "args": {key: str(value) if isinstance(value, Path) else value for key, value in vars(args).items()},
         "dashboard_preflight": dashboard,
+        "runtime_scheduler": runtime_scheduler_metadata(),
         "safety_boundary": [
             "no URScript upload or program start",
             "no robot motion command from Python",
@@ -7896,6 +7950,9 @@ def main(argv: list[str] | None = None) -> int:
 
     next_write = start_mono
     write_period = 1.0 / args.rtde_hz
+    write_deadline_missed_slots = 0
+    write_deadline_overrun_events = 0
+    write_deadline_max_lateness_s = 0.0
     dashboard_watch = step5d_dashboard_watch_metadata(
         args.bridge_profile,
         skip_dashboard_preflight=args.skip_dashboard_preflight,
@@ -8052,6 +8109,19 @@ def main(argv: list[str] | None = None) -> int:
             sensor_writer.writeheader()
             bridge_writer.writeheader()
             last_csv_write_s = 0.0
+            next_write = time.monotonic()
+            ready_path = args.output_dir / "bridge_ready.json"
+            write_json(
+                ready_path,
+                {
+                    "ok": True,
+                    "bridge_profile": args.bridge_profile,
+                    "rtde_hz": args.rtde_hz,
+                    "runtime_scheduler": metadata["runtime_scheduler"],
+                    "prewarm_status": step5d_runtime_prewarm["status"],
+                    "rtde_connected": rtde is not None,
+                },
+            )
 
             while True:
                 loop_sensor_recv_s = 0.0
@@ -8340,6 +8410,15 @@ def main(argv: list[str] | None = None) -> int:
 
                 now = time.monotonic()
                 if now >= next_write:
+                    next_write, missed_slots, deadline_lateness_s = advance_periodic_deadline(
+                        next_write,
+                        now,
+                        write_period,
+                    )
+                    write_deadline_missed_slots += missed_slots
+                    if missed_slots > 0:
+                        write_deadline_overrun_events += 1
+                    write_deadline_max_lateness_s = max(write_deadline_max_lateness_s, deadline_lateness_s)
                     sensor_age = math.inf if latest_frame_time is None else now - latest_frame_time
                     sensor_ok = 1.0 if baseline_ready and sensor_age <= args.sensor_stale_s and parse_errors == 0 else 0.0
                     bridge_values = {
@@ -8372,6 +8451,9 @@ def main(argv: list[str] | None = None) -> int:
                         )
                     loop_compute_s = time.perf_counter() - compute_start
                     step4e_values["_bridge_loop_gap_s"] = 0.0 if not bridge_write_times else now - bridge_write_times[-1]
+                    step4e_values["_bridge_loop_deadline_lateness_s"] = deadline_lateness_s
+                    step4e_values["_bridge_loop_missed_slots"] = missed_slots
+                    step4e_values["_bridge_loop_deadline_miss_total"] = write_deadline_missed_slots
                     step4e_values["_bridge_loop_sensor_recv_s"] = loop_sensor_recv_s
                     step4e_values["_bridge_loop_rtde_recv_s"] = loop_rtde_recv_s
                     step4e_values["_bridge_loop_compute_s"] = loop_compute_s
@@ -8508,7 +8590,6 @@ def main(argv: list[str] | None = None) -> int:
                     bridge_writes += 1
                     bridge_write_times.append(now)
                     heartbeat += 1.0
-                    next_write += write_period
                     if (not v29_safety_fail_stop["enabled"] and guard_reason is not None) or terminate_after_write:
                         break
     finally:
@@ -8535,6 +8616,13 @@ def main(argv: list[str] | None = None) -> int:
         "samples": samples,
         "bridge_writes": bridge_writes,
         "bridge_write_timing": interval_stats(bridge_write_times),
+        "bridge_write_deadline": {
+            "policy": "skip_missed_slots_no_burst_catchup",
+            "period_s": write_period,
+            "missed_slots": write_deadline_missed_slots,
+            "overrun_events": write_deadline_overrun_events,
+            "max_lateness_s": write_deadline_max_lateness_s,
+        },
         "rtde_output_timing": interval_stats(rtde_output_times),
         "echo_heartbeat_transitions": interval_stats(echo_transition_times),
         "last_echo_heartbeat": last_echo_heartbeat,
