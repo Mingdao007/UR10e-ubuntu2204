@@ -1565,6 +1565,30 @@ class Step5dV29RawBridgeAuthorizationGateTest(unittest.TestCase):
         self.assertIn(call, main_source)
         self.assertLess(main_source.index(call), main_source.index("args.output_dir.mkdir"))
 
+    def test_raw_v29_pending_audit_override_keeps_exact_profile_and_binding(self) -> None:
+        args = raw_bridge_args(V29)
+        with (
+            patch.dict(os.environ, {"STEP5D_ALLOW_PENDING_OFFLINE_AUDIT": "1"}),
+            patch.object(bridge, "verify_step5d_binding", return_value={"ok": True}) as verify_binding,
+            patch.object(bridge, "verify_step5d_live_bridge_authorization") as verify_live,
+        ):
+            result = bridge.require_v29_live_bridge_authorization(args)
+        self.assertEqual(result, {"ok": True})
+        verify_binding.assert_called_once_with(bridge.EXPERIMENT_ROOT, V29)
+        verify_live.assert_not_called()
+
+        for field, bad_value in (
+            ("step5d_rnn_backend", "numpy"),
+            ("step5d_rnn_inner_iterations", 512),
+            ("step5d_epsilon", 0.02),
+            ("step5d_sigr_exponent_r", 1.0),
+            ("step5d_qdot_limit_rad_s", 0.1),
+        ):
+            bad_args = raw_bridge_args(V29, **{field: bad_value})
+            with patch.dict(os.environ, {"STEP5D_ALLOW_PENDING_OFFLINE_AUDIT": "1"}):
+                with self.assertRaisesRegex(SystemExit, "exact cupy/1024"):
+                    bridge.require_v29_live_bridge_authorization(bad_args)
+
     def test_raw_v29_bridge_rejects_dls_mode_before_authorization(self) -> None:
         args = SimpleNamespace(
             bridge_profile=V29,
@@ -1658,6 +1682,9 @@ class Step5dV29RawBridgeAuthorizationGateTest(unittest.TestCase):
                 args,
                 {**good, "programState": f"STOPPED <{V28}.urp>"},
             )
+        tp_local = {**good, "is in remote control": "Is in remote control: false"}
+        with patch.dict(os.environ, {"STEP5D_ALLOW_PENDING_OFFLINE_AUDIT": "1"}):
+            self.assertIsNone(bridge.require_v29_dashboard_program_binding(args, tp_local))
 
     def test_v29_dashboard_preflight_rejects_fuzzy_or_ambiguous_states(self) -> None:
         args = SimpleNamespace(bridge_profile=V29)

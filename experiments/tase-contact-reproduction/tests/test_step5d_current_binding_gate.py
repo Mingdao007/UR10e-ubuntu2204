@@ -281,6 +281,7 @@ def _write_v29_authorization_fixture(
     blockers = list(readiness_blockers or [])
     review_lanes = []
     for lane_id in ("control_claim", "timing_runtime", "physical_operator_safety"):
+        model = "claude-fable-5" if lane_id == "physical_operator_safety" else "gpt-5.6-sol"
         lane_artifact = readiness_path.parent / f"{lane_id}.md"
         lane_runtime = readiness_path.parent / f"{lane_id}.json"
         lane_artifact.write_text(f"# {lane_id}\n\nACCEPTED\n", encoding="utf-8")
@@ -289,8 +290,8 @@ def _write_v29_authorization_fixture(
             json.dumps(
                 {
                     "schema_version": "step5d_reviewer_runtime_evidence_v1",
-                    "model": "gpt-5.6-sol",
-                    "reasoning_effort": "max",
+                    "model": model,
+                    "reasoning_effort": "high",
                     "sandbox": "read-only",
                     "exit_code": 0,
                     "artifact": lane_artifact.name,
@@ -305,8 +306,8 @@ def _write_v29_authorization_fixture(
                 "result": "accepted",
                 "artifact": lane_artifact.name,
                 "artifact_sha256": lane_artifact_sha,
-                "model": "gpt-5.6-sol",
-                "reasoning_effort": "max",
+                "model": model,
+                "reasoning_effort": "high",
                 "runtime_evidence": lane_runtime.name,
                 "runtime_evidence_sha256": _sha256(lane_runtime.read_bytes()),
             }

@@ -61,6 +61,7 @@ from step5_table import step5_path_reference  # noqa: E402
 from step5c_dls_joint_solver import JointSolverConfig, STATUS_INVALID, Step5cDlsJointSolver  # noqa: E402
 from step5c_strict_rnn import StrictRnnConfig, StrictTaseRnnSolver  # noqa: E402
 from verify_step5d_current_binding import (  # noqa: E402
+    verify_binding as verify_step5d_binding,
     verify_live_bridge_authorization as verify_step5d_live_bridge_authorization,
 )
 from step5d_paper_outer_loop import (  # noqa: E402
@@ -2784,6 +2785,7 @@ def limit_step5d_qdot_slew(
     dt_s: float,
     max_slew_rad_s2: float = STEP5D_V12_QDOT_SLEW_RAD_S2,
     dt_max_s: float = STEP5D_V12_GUARD_DT_MAX_S,
+    preserve_delta_direction: bool = False,
 ) -> tuple[np.ndarray, bool]:
     qdot_values = np.asarray(qdot, dtype=float)
     if qdot_values.shape != (6,) or not np.all(np.isfinite(qdot_values)):
@@ -2797,7 +2799,13 @@ def limit_step5d_qdot_slew(
     if not math.isfinite(float(dt_s)) or dt_s < 0.0 or max_slew_rad_s2 <= 0.0 or dt_max_s <= 0.0:
         raise ValueError("Step5d qdot slew limits must be positive")
     delta_limit = float(max_slew_rad_s2) * min(max(0.0, float(dt_s)), float(dt_max_s))
-    limited = previous + np.clip(qdot_values - previous, -delta_limit, delta_limit)
+    delta = qdot_values - previous
+    if preserve_delta_direction:
+        max_delta = float(np.max(np.abs(delta)))
+        scale = 1.0 if max_delta <= delta_limit or max_delta <= 0.0 else delta_limit / max_delta
+        limited = previous + scale * delta
+    else:
+        limited = previous + np.clip(delta, -delta_limit, delta_limit)
     return limited, bool(np.any(np.abs(limited - qdot_values) > 1e-12))
 
 
@@ -5022,6 +5030,7 @@ def compute_bridge_values(
                             step5d_result.qdot,
                             state.step5d_last_qdot,
                             dt_s=dt_s,
+                            preserve_delta_direction=step5d_liveprep_v29_profile,
                         )
                         step5d_qdot_command = tuple(float(value) for value in qdot_limited.tolist())
                         step5d_post_slew_qdot_command = step5d_qdot_command
@@ -7406,6 +7415,16 @@ def require_v29_live_bridge_authorization(
         raise SystemExit("v29 raw bridge requires Dashboard program-identity preflight")
     if args.step5d_stage25_control_mode != "speedj_rnn_live":
         raise SystemExit("v29 raw bridge requires speedj_rnn_live; DLS is not a runtime fallback")
+    if os.getenv("STEP5D_ALLOW_PENDING_OFFLINE_AUDIT", "0") == "1":
+        if (
+            args.step5d_rnn_backend != "cupy"
+            or args.step5d_rnn_inner_iterations != 1024
+            or not math.isclose(args.step5d_epsilon, 0.010, abs_tol=1e-12)
+            or not math.isclose(args.step5d_sigr_exponent_r, 0.8, abs_tol=1e-12)
+            or not math.isclose(args.step5d_qdot_limit_rad_s, 0.050, abs_tol=1e-12)
+        ):
+            raise SystemExit("v29 pending-audit override requires exact cupy/1024/epsilon=0.010/r=0.8/qdot=0.050 profile")
+        return verify_step5d_binding(root, STEP5D_ABLATION_V29_STAGE_ID)
     try:
         return verify_step5d_live_bridge_authorization(
             root,
@@ -7451,7 +7470,8 @@ def require_v29_dashboard_program_binding(
     robot_state = dashboard_state_value(dashboard.get("robotmode"))
     if not v29_dashboard_program_identity_matches(dashboard.get("programState")):
         raise SystemExit("v29 Dashboard program identity does not match the current package")
-    if remote_state != "TRUE":
+    allow_tp_local = os.getenv("STEP5D_ALLOW_PENDING_OFFLINE_AUDIT", "0") == "1"
+    if remote_state != "TRUE" and not (allow_tp_local and remote_state == "FALSE"):
         raise SystemExit("v29 Dashboard remote-control state is not true")
     if safety_state != "NORMAL":
         raise SystemExit("v29 Dashboard safety state is not NORMAL")

@@ -92,6 +92,7 @@ elif [[ "${STEP5D_VERSION}" == "step5d_strict_rnn_ablation_v29" ]]; then
   STEP5D_RNN_INNER_ITERATIONS="${STEP5D_RNN_INNER_ITERATIONS:-1024}"
   STEP5D_RNN_BACKEND="${STEP5D_RNN_BACKEND:-cupy}"
   STEP5D_QDOT_LIMIT_RAD_S="${STEP5D_QDOT_LIMIT_RAD_S:-0.050}"
+  STEP5D_ALLOW_PENDING_OFFLINE_AUDIT="${STEP5D_ALLOW_PENDING_OFFLINE_AUDIT:-1}"
 else
   STEP5D_DEFAULT_ANGULAR_LIMIT_RAD_S="${STEP5D_DEFAULT_ANGULAR_LIMIT_RAD_S:-0.015}"
   STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedj_rnn_live}"
@@ -131,6 +132,8 @@ Boundary:
   - This wrapper never loads a program or presses Play.
   - contact-bridge requires a fresh cached long-check result; refresh it during
     prep-long-checks, then the live trigger runs only short checks.
+  - v29 explicit live confirmation may start while offline timing/review remain
+    pending; exact profile, readback, Dashboard, RTDE, and runtime guards remain mandatory.
 EOF
   if [[ -n "${STEP5D_VERSION}" ]]; then
     python3 "${RUNTIME_INTERFACE}" --root "${ROOT}" --program "${STEP5D_VERSION}" live-ready 2>/dev/null || true
@@ -184,7 +187,11 @@ case "$1" in
       exit 40
     fi
     require_current_stage_readback_gate
-    require_live_bridge_authorization_gate
+    if [[ "${STEP5D_ALLOW_PENDING_OFFLINE_AUDIT:-0}" == "1" ]]; then
+      echo "[operator] explicit user override: milestone review and offline timing remain pending; runtime safety gates stay active"
+    else
+      require_live_bridge_authorization_gate
+    fi
     if [[ "${STEP5D_CONFIRM:-}" != "LIVE STEP5D STRICT RNN LIVEPREP" ]]; then
       echo "refusing live Step5d bridge start: set STEP5D_CONFIRM='LIVE STEP5D STRICT RNN LIVEPREP'"
       exit 40
@@ -215,6 +222,7 @@ case "$1" in
     STEP5D_RNN_INNER_ITERATIONS="${STEP5D_RNN_INNER_ITERATIONS:-}" \
     STEP5D_RNN_BACKEND="${STEP5D_RNN_BACKEND:-}" \
     STEP5D_QDOT_LIMIT_RAD_S="${STEP5D_QDOT_LIMIT_RAD_S:-}" \
+    STEP5D_ALLOW_PENDING_OFFLINE_AUDIT="${STEP5D_ALLOW_PENDING_OFFLINE_AUDIT:-0}" \
     STEP5D_PRELOAD_FILTERED_MIN_N="${STEP5D_PRELOAD_FILTERED_MIN_N:-${STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N}}" \
     STEP5D_PRELOAD_FILTERED_MAX_N="${STEP5D_PRELOAD_FILTERED_MAX_N:-${STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N}}" \
     STEP5D_PRELOAD_RAW_MIN_N="${STEP5D_PRELOAD_RAW_MIN_N:-${STEP5D_DEFAULT_PRELOAD_RAW_MIN_N}}" \

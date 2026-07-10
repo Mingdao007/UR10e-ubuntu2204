@@ -360,6 +360,7 @@ class Step5dLiveprepReadinessTest(unittest.TestCase):
             root = Path(tmp)
             lanes = []
             for lane in ("control_claim", "timing_runtime", "physical_operator_safety"):
+                model = "claude-fable-5" if lane == "physical_operator_safety" else "gpt-5.6-sol"
                 artifact = root / f"{lane}.md"
                 artifact.write_text(f"# {lane}\n\nACCEPTED\n", encoding="utf-8")
                 artifact_sha256 = hashlib.sha256(artifact.read_bytes()).hexdigest()
@@ -367,7 +368,7 @@ class Step5dLiveprepReadinessTest(unittest.TestCase):
                 runtime_evidence.write_text(
                     (
                         '{"schema_version":"step5d_reviewer_runtime_evidence_v1",'
-                        '"model":"gpt-5.6-sol","reasoning_effort":"max",'
+                        f'"model":"{model}","reasoning_effort":"high",'
                         '"sandbox":"read-only","exit_code":0,'
                         f'"artifact":"{artifact.name}","artifact_sha256":"{artifact_sha256}"}}\n'
                     ),
@@ -379,8 +380,8 @@ class Step5dLiveprepReadinessTest(unittest.TestCase):
                         "result": "accepted",
                         "artifact": artifact.name,
                         "artifact_sha256": artifact_sha256,
-                        "model": "gpt-5.6-sol",
-                        "reasoning_effort": "max",
+                        "model": model,
+                        "reasoning_effort": "high",
                         "runtime_evidence": runtime_evidence.name,
                         "runtime_evidence_sha256": hashlib.sha256(runtime_evidence.read_bytes()).hexdigest(),
                     }
@@ -402,7 +403,7 @@ class Step5dLiveprepReadinessTest(unittest.TestCase):
             runtime_path.write_text(
                 (
                     '{"schema_version":"step5d_reviewer_runtime_evidence_v1",'
-                    '"model":"other","reasoning_effort":"max","sandbox":"read-only",'
+                    '"model":"other","reasoning_effort":"high","sandbox":"read-only",'
                     '"exit_code":0,"artifact":"control_claim.md",'
                     f'"artifact_sha256":"{payload["lanes"][0]["artifact_sha256"]}"}}\n'
                 ),

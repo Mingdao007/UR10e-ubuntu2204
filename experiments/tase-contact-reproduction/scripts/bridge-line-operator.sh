@@ -595,7 +595,19 @@ select_mode() {
 }
 
 run_bench_gate() {
-  python3 "${BENCH_GATE}" --include-kunwei --json-only
+  local output
+  if ! output="$(python3 "${BENCH_GATE}" --include-kunwei --json-only)"; then
+    printf '%s\n' "${output}"
+    return 24
+  fi
+  printf '%s\n' "${output}"
+  python3 -c '
+import json
+import sys
+gate = json.load(sys.stdin)
+if not isinstance(gate, dict) or gate.get("ok") is not True or gate.get("issues"):
+    raise SystemExit(24)
+' <<<"${output}"
 }
 
 long_gate_cache_valid() {
@@ -649,16 +661,20 @@ step5d_live_bridge_authorized() {
     return 0
   fi
   if [[ "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_* ]]; then
-    python3 "${STEP5D_CURRENT_BINDING_GATE}" \
-      --root "${ROOT}" \
-      --program "${BRIDGE_PROFILE}" \
-      --stage25-control-mode "${STEP5D_STAGE25_CONTROL_MODE:-${STEP5D_STAGE25_CONTROL_MODE_DEFAULT}}" \
-      --rnn-backend "${STEP5D_RNN_BACKEND:-numpy}" \
-      --rnn-inner-iterations "${STEP5D_RNN_INNER_ITERATIONS:-1}" \
-      --epsilon "${STEP5D_EPSILON:-0.022}" \
-      --sigr-exponent-r "${STEP5D_SIGR_EXPONENT_R:-1.0}" \
-      --qdot-cap-rad-s "${STEP5D_QDOT_LIMIT_RAD_S:-0.050}" \
-      --require-live-bridge-authorization
+    local gate_args=(
+      --root "${ROOT}"
+      --program "${BRIDGE_PROFILE}"
+      --stage25-control-mode "${STEP5D_STAGE25_CONTROL_MODE:-${STEP5D_STAGE25_CONTROL_MODE_DEFAULT}}"
+      --rnn-backend "${STEP5D_RNN_BACKEND:-numpy}"
+      --rnn-inner-iterations "${STEP5D_RNN_INNER_ITERATIONS:-1}"
+      --epsilon "${STEP5D_EPSILON:-0.022}"
+      --sigr-exponent-r "${STEP5D_SIGR_EXPONENT_R:-1.0}"
+      --qdot-cap-rad-s "${STEP5D_QDOT_LIMIT_RAD_S:-0.050}"
+    )
+    if [[ "${STEP5D_ALLOW_PENDING_OFFLINE_AUDIT:-0}" != "1" ]]; then
+      gate_args+=(--require-live-bridge-authorization)
+    fi
+    python3 "${STEP5D_CURRENT_BINDING_GATE}" "${gate_args[@]}"
   fi
 }
 
@@ -726,10 +742,11 @@ print(f"[operator] long-check cache refreshed: {cache}")
 PY
     rm -f "${tmp}"
     return 0
+  else
+    local rc="$?"
+    rm -f "${tmp}"
+    return "${rc}"
   fi
-  local rc="$?"
-  rm -f "${tmp}"
-  return "${rc}"
 }
 
 run_bench_gate_cached() {
@@ -1137,6 +1154,18 @@ ensure_step5d_rnn_backend_ready() {
   if [[ "${STEP5D_RNN_BACKEND:-numpy}" != "cupy" ]]; then
     return 0
   fi
+  local ros_python_path
+  for ros_python_path in \
+    /opt/ros/humble/local/lib/python3.10/dist-packages \
+    /opt/ros/humble/lib/python3.10/site-packages
+  do
+    if [[ -d "${ros_python_path}" ]]; then
+      export PYTHONPATH="${ros_python_path}${PYTHONPATH:+:${PYTHONPATH}}"
+    fi
+  done
+  if [[ -d /opt/ros/humble/lib ]]; then
+    export LD_LIBRARY_PATH="/opt/ros/humble/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+  fi
   if [[ -d "${STEP5D_CUPY_PYTHONPATH}/cupy" ]]; then
     export PYTHONPATH="${STEP5D_CUPY_PYTHONPATH}${PYTHONPATH:+:${PYTHONPATH}}"
   fi
@@ -1173,6 +1202,11 @@ run_bridge_for_mode() {
   mkdir -p "${out_dir}"
   ensure_step5d_rnn_backend_ready || return "$?"
   local bridge_pid=""
+  local bridge_launcher=(python3)
+  if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" ]] && command -v chrt >/dev/null 2>&1; then
+    bridge_launcher=(chrt -f "${STEP5D_RT_PRIORITY:-20}" python3)
+    echo "[operator] v29 bridge launcher: SCHED_FIFO priority ${STEP5D_RT_PRIORITY:-20}"
+  fi
   local stage25_only_args=()
   if [[ "${BRIDGE_STAGE25_ONLY}" == "1" ]]; then
     stage25_only_args+=(--bridge-integrate-stage25-only)
@@ -1184,7 +1218,7 @@ run_bridge_for_mode() {
   }
   trap cleanup INT TERM EXIT
 
-  python3 "${ROOT}/tools/kunwei_rtde_bridge.py" \
+  "${bridge_launcher[@]}" "${ROOT}/tools/kunwei_rtde_bridge.py" \
     --allow-kunwei-stream-command \
     --write-rtde-inputs \
     --baseline-s "${BRIDGE_BASELINE_S}" \
@@ -1340,7 +1374,11 @@ WARNING
     if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
       step5d_live_bridge_authorized
     fi
-    step5d_live_ready
+    if [[ "${STEP5D_ALLOW_PENDING_OFFLINE_AUDIT:-0}" == "1" ]]; then
+      echo "[operator] explicit user override: skipping offline readiness publication gate"
+    else
+      step5d_live_ready
+    fi
     require_bench_gate_cache
     if [[ "${BRIDGE_PROFILE}" != "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
       step5d_live_bridge_authorized

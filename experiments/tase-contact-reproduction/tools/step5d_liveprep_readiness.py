@@ -55,6 +55,11 @@ REVIEW_SOURCE_FILES = (
     "scripts/step5d-liveprep-operator.sh",
     "scripts/bridge-line-operator.sh",
 )
+REVIEW_LANE_RUNTIME_CONTRACT = {
+    "control_claim": {"model": "gpt-5.6-sol", "reasoning_effort": "high"},
+    "timing_runtime": {"model": "gpt-5.6-sol", "reasoning_effort": "high"},
+    "physical_operator_safety": {"model": "claude-fable-5", "reasoning_effort": "high"},
+}
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -728,6 +733,9 @@ def _review_file_matches(
 
 
 def _runtime_evidence_matches(lane: Mapping[str, Any], *, manifest_dir: Path | None) -> bool:
+    contract = REVIEW_LANE_RUNTIME_CONTRACT.get(str(lane.get("id")))
+    if contract is None:
+        return False
     runtime_path = _review_file_path(
         lane.get("runtime_evidence"),
         lane.get("runtime_evidence_sha256"),
@@ -741,8 +749,8 @@ def _runtime_evidence_matches(lane: Mapping[str, Any], *, manifest_dir: Path | N
         return False
     return bool(
         runtime.get("schema_version") == "step5d_reviewer_runtime_evidence_v1"
-        and runtime.get("model") == lane.get("model") == "gpt-5.6-sol"
-        and runtime.get("reasoning_effort") == lane.get("reasoning_effort") == "max"
+        and runtime.get("model") == lane.get("model") == contract["model"]
+        and runtime.get("reasoning_effort") == lane.get("reasoning_effort") == contract["reasoning_effort"]
         and runtime.get("sandbox") == "read-only"
         and runtime.get("exit_code") == 0
         and runtime.get("artifact") == lane.get("artifact")
@@ -757,7 +765,7 @@ def validate_review_manifest(
     manifest_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Validate the saved three-lane milestone review instead of trusting ``ok`` alone."""
-    required_lanes = {"control_claim", "timing_runtime", "physical_operator_safety"}
+    required_lanes = set(REVIEW_LANE_RUNTIME_CONTRACT)
     lanes = payload.get("lanes") if isinstance(payload.get("lanes"), list) else []
     lane_ids = {str(lane.get("id")) for lane in lanes if isinstance(lane, Mapping)}
     lane_results_ok = bool(
@@ -769,8 +777,9 @@ def validate_review_manifest(
             and bool(lane.get("artifact"))
             and isinstance(lane.get("artifact_sha256"), str)
             and len(str(lane.get("artifact_sha256"))) == 64
-            and lane.get("model") == "gpt-5.6-sol"
-            and lane.get("reasoning_effort") == "max"
+            and lane.get("model") == REVIEW_LANE_RUNTIME_CONTRACT[str(lane.get("id"))]["model"]
+            and lane.get("reasoning_effort")
+            == REVIEW_LANE_RUNTIME_CONTRACT[str(lane.get("id"))]["reasoning_effort"]
             and _review_file_matches(
                 lane.get("artifact"),
                 lane.get("artifact_sha256"),

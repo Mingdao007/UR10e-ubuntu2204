@@ -754,6 +754,17 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         )
         self.assertTrue(qdot_active)
         self.assertLessEqual(max(abs(float(value)) for value in qdot_limited), 0.002 + 1e-12)
+        direction_preserving, direction_active = bridge.limit_step5d_qdot_slew(
+            [0.05, 0.01, 0.0, 0.0, 0.0, 0.0],
+            None,
+            dt_s=0.100,
+            preserve_delta_direction=True,
+        )
+        direction_test_jacobian = np.eye(6)
+        direction_test_jacobian[0, :2] = [1.0, -2.0]
+        self.assertTrue(direction_active)
+        self.assertGreater(float((direction_test_jacobian @ direction_preserving)[0]), 0.0)
+        np.testing.assert_allclose(direction_preserving[:2], [0.002, 0.0004], atol=1e-12)
         self.assertTrue(bridge.step5d_contact_window_ready(normal_load_n=8.0, force_norm_n=24.9, min_normal_load_n=v8_min, max_normal_load_n=v8_max, max_force_norm_n=v8_force_max))
         self.assertFalse(bridge.step5d_contact_window_ready(normal_load_n=20.0, force_norm_n=20.0, min_normal_load_n=v8_min, max_normal_load_n=v8_max, max_force_norm_n=v8_force_max))
         self.assertFalse(bridge.step5d_contact_window_ready(normal_load_n=30.0, force_norm_n=30.0, min_normal_load_n=v8_min, max_normal_load_n=v8_max, max_force_norm_n=v8_force_max))
