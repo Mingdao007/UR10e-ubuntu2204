@@ -8666,7 +8666,10 @@
         "deadline_overrun_stale_tick_command": "exact_zero_qdot_not_consumed",
         "deadline_overrun_next_fresh_tick_may_recover": true,
         "heartbeat_stale_stop_s": 0.006,
-        "hard_realtime_claim_requires_zero_deadline_miss": true
+        "hard_realtime_claim_requires_zero_deadline_miss": true,
+        "bounded_tail_miss_ratio_max": 0.0002,
+        "bounded_tail_lateness_max_ms": 0.5,
+        "bounded_tail_max_consecutive_misses": 2
       },
       "contact_policy": {
         "bridge_required": true,
@@ -8851,7 +8854,10 @@
         "deadline_overrun_stale_tick_command": "exact_zero_qdot_not_consumed",
         "deadline_overrun_next_fresh_tick_may_recover": true,
         "heartbeat_stale_stop_s": 0.006,
-        "hard_realtime_claim_requires_zero_deadline_miss": true
+        "hard_realtime_claim_requires_zero_deadline_miss": true,
+        "bounded_tail_miss_ratio_max": 0.0002,
+        "bounded_tail_lateness_max_ms": 0.5,
+        "bounded_tail_max_consecutive_misses": 2
       },
       "contact_policy": {
         "bridge_required": false,
@@ -8976,7 +8982,7 @@
         "component_diagnostic": "config/step5d_v30_component_diagnostic_summary.json",
         "component_diagnostic_sha256": "a06ea0c56440f5dcfe2a9939a74cc3574a56cd2ab109983f599923a03e55d2bf",
         "offline_readiness": "config/step5d_v30_offline_readiness.json",
-        "offline_readiness_sha256": "9970a4566f665fe5a49f2843c10b7ed010f3e8c2fc1189ab971af05cb29f76c8",
+        "offline_readiness_sha256": "bef741c17fdb47f75dde068aea4e47ce5229144cedfbbfdfab17af5988881bbf",
         "milestone_reviews": "config/step5d_v30_milestone_reviews.json",
         "milestone_reviews_sha256": "df28791a0999a8809ae6adb97ae8737f7bee74cbb509ed41f9c740fd88c12bcb",
         "timing_source_contract": {
@@ -8999,9 +9005,9 @@
           "bundler": "tools/build_step5d_v30_remote_timing_bundle.py",
           "bundler_sha256": "320960ed2cf836f939b0a65e0cf7c602e6f58e9e4f35a7f9df87fc4cab4abd73",
           "aggregator": "tools/step5d_v30_timing.py",
-          "aggregator_sha256": "dc733e685cbe7408a4f7b22e8c384e32e38e76e21805187c7765bbc8413c0905",
+          "aggregator_sha256": "2f8e750c19163278d1c1253fb3b3cdd74c5aeaa1f7c17a005f13ef26df333519",
           "readiness_builder": "tools/build_step5d_v30_offline_readiness.py",
-          "readiness_builder_sha256": "54bc9eb53f5022ef401f7b02931392d1ed990d87ee9fce0d4e386c58b86b0e35"
+          "readiness_builder_sha256": "8cc6c1b19cfc8b7086fd09f1af00b39eb010796b3d08f74b7831536a609826f3"
         }
       },
       "success_condition": "v30_offline_ready only after the complete v29 replay accepts at least 99% with zero normal mismatch/nonfinite/qdot-bound rows, 10,000-solve and 60 s 500 Hz timing gates pass, the inactive package hashes validate, and review blockers are zero. This does not promote current_stage or authorize live motion."

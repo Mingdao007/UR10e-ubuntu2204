@@ -497,6 +497,8 @@ def build(*, generated_at: str) -> dict[str, Any]:
         "deadline_overrun_policy": {
             "hard_realtime_claim_requires_zero_deadline_miss": True,
             "bounded_tail_candidate_ratio_max": 0.0002,
+            "bounded_tail_lateness_max_ms": 0.5,
+            "bounded_tail_max_consecutive_misses": 2,
             "late_candidate_publish_policy": "same_heartbeat_exact_zero_qdot",
             "tp_stale_tick_policy": "not_consumed_exact_zero_qdot",
             "continuous_stale_stop_s": 0.006,

@@ -330,6 +330,23 @@ class Step5dV30TimingTest(unittest.TestCase):
         self.assertTrue(
             absorbed["deadline_robustness"]["degraded_fail_closed_pass"]
         )
+        payload["deadline_miss_diagnostics"]["full_tick_schedule"][
+            "max_consecutive"
+        ] = 3
+        clustered = summarize_preaggregated(
+            payload,
+            expected_source_binding={
+                field: "1" * 64 for field in SOURCE_BINDING_FILES
+            },
+            expected_replay_sha256="2" * 64,
+            expected_paper_truth_sha256="2" * 64,
+        )
+        self.assertFalse(
+            clustered["deadline_robustness"]["timing_degraded_candidate"]
+        )
+        payload["deadline_miss_diagnostics"]["full_tick_schedule"][
+            "max_consecutive"
+        ] = 2
         payload["full_tick"]["compute_deadline_miss_count"] = 7
         payload["full_tick_schedule_deadline_miss_count"] = 7
         payload["deadline_miss_diagnostics"]["full_tick_compute"].update(

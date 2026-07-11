@@ -25,6 +25,8 @@ control result, but a late host candidate must keep the previous heartbeat,
 publish exact-zero qdot, and be reported unconsumed by TP; the next fresh tick
 may recover, while heartbeat staleness beyond 0.006 s stops. Until this path is
 executed in URSim or on the controller, it is offline/static preparation only.
+The offline bounded-tail classifier is capped at 0.02% misses, at most two
+consecutive missed slots, and no more than 0.5 ms schedule lateness.
 
 1. `step5d_strict_rnn_no_contact_p0_v8` passes one Review v2 `1+1` gate and
    sequential same-fingerprint `2 -> 10 -> 60 s` canaries; only the final

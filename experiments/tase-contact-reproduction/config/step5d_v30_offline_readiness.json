@@ -35,6 +35,8 @@
   },
   "deadline_overrun_policy": {
     "bounded_tail_candidate_ratio_max": 0.0002,
+    "bounded_tail_lateness_max_ms": 0.5,
+    "bounded_tail_max_consecutive_misses": 2,
     "claim_boundary": "offline package/static preparation only; no controller timing or motion proof",
     "continuous_stale_stop_s": 0.006,
     "controller_or_ursim_execution_verified": false,
@@ -139,7 +141,7 @@
   "source_contract": {
     "aggregator_sha256": {
       "path": "tools/step5d_v30_timing.py",
-      "sha256": "dc733e685cbe7408a4f7b22e8c384e32e38e76e21805187c7765bbc8413c0905"
+      "sha256": "2f8e750c19163278d1c1253fb3b3cdd74c5aeaa1f7c17a005f13ef26df333519"
     },
     "bridge_sha256": {
       "path": "tools/kunwei_rtde_bridge.py",
@@ -171,7 +173,7 @@
     },
     "readiness_builder_sha256": {
       "path": "tools/build_step5d_v30_offline_readiness.py",
-      "sha256": "54bc9eb53f5022ef401f7b02931392d1ed990d87ee9fce0d4e386c58b86b0e35"
+      "sha256": "8cc6c1b19cfc8b7086fd09f1af00b39eb010796b3d08f74b7831536a609826f3"
     },
     "runtime_interface_sha256": {
       "path": "tools/step5d_runtime_interface.py",

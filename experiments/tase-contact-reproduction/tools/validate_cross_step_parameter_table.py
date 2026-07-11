@@ -628,6 +628,9 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             or p0_guard.get("heartbeat_stale_stop_s") != 0.006
             or p0_guard.get("hard_realtime_claim_requires_zero_deadline_miss")
             is not True
+            or p0_guard.get("bounded_tail_miss_ratio_max") != 0.0002
+            or p0_guard.get("bounded_tail_lateness_max_ms") != 0.5
+            or p0_guard.get("bounded_tail_max_consecutive_misses") != 2
         ):
             failures.append("P0 v8 deadline-overrun fail-closed policy is invalid")
         if (
@@ -850,6 +853,9 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             or v30_guard.get("heartbeat_stale_stop_s") != 0.006
             or v30_guard.get("hard_realtime_claim_requires_zero_deadline_miss")
             is not True
+            or v30_guard.get("bounded_tail_miss_ratio_max") != 0.0002
+            or v30_guard.get("bounded_tail_lateness_max_ms") != 0.5
+            or v30_guard.get("bounded_tail_max_consecutive_misses") != 2
         ):
             failures.append("v30 deadline-overrun fail-closed policy is invalid")
         failures.extend(_validate_local_triplet(root, label="v30", delivery=delivery))

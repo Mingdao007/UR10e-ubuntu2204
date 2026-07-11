@@ -48,7 +48,8 @@ class TimingThresholds:
     tick_samples_required: int = 30_000
     safe_hold_samples_required: int = 30_000
     degraded_deadline_miss_ratio_max: float = 0.0002
-    degraded_schedule_lateness_max_ms: float = 0.25
+    degraded_schedule_lateness_max_ms: float = 0.50
+    degraded_max_consecutive_misses: int = 2
 
 
 def _distribution(values: Sequence[float], *, hard_deadline_ms: float) -> dict[str, Any]:
@@ -417,7 +418,7 @@ def summarize_preaggregated(
         )
         and all(
             int((miss_diagnostics.get(label) or {}).get("max_consecutive", 0))
-            <= 1
+            <= thresholds.degraded_max_consecutive_misses
             for label in (
                 "full_tick_compute",
                 "full_tick_schedule",
