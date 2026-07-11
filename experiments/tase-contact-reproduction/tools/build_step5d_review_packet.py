@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,10 @@ from step5d_review_v2 import (
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_POLICY = ROOT / "config" / "step5d_review_policy_v2.json"
+DIFF_HEADER_RE = re.compile(r"^diff --git a/(.+) b/(.+)$")
+HUNK_HEADER_RE = re.compile(
+    r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(?: ?(.*))?$"
+)
 
 
 def _normalized_symbols(value: Any, root: Path) -> list[dict[str, str]]:
@@ -129,17 +134,64 @@ def _bindings_for_component(
     return bind_files(root, [str(value) for value in values])
 
 
-def _review_index(spec: dict[str, Any], root: Path) -> dict[str, Any] | None:
-    value = spec.get("review_index_path")
-    if not value:
-        return None
-    path, _ = _safe_relative(root, str(value))
+def _review_index(root: Path) -> tuple[dict[str, Any] | None, str]:
+    value = root / "config" / "step5d_review_index_v2.json"
+    path, relative = _safe_relative(root, str(value))
     if not path.is_file():
-        return None
+        return None, relative
     payload = load_json(path)
     if payload.get("schema_version") != SCHEMA_INDEX:
         raise ValueError("review index has unsupported schema")
-    return payload
+    return payload, relative
+
+
+def _changed_hunks(
+    spec: dict[str, Any], root: Path
+) -> tuple[dict[str, Any] | None, list[str]]:
+    value = spec.get("changed_hunks")
+    if value is None:
+        return None, []
+    if not isinstance(value, dict) or not value.get("patch_path"):
+        return None, ["changed_hunks_patch_path_missing"]
+    patch_path, relative = _safe_relative(root, str(value["patch_path"]))
+    binding = bind_files(root, [relative])[0]
+    blockers: list[str] = []
+    if not binding["exists"]:
+        return {"patch": binding, "hunks": []}, [f"changed_hunks_patch_missing:{relative}"]
+    expected_sha256 = value.get("patch_sha256")
+    if expected_sha256 is not None and expected_sha256 != binding["sha256"]:
+        blockers.append("changed_hunks_patch_sha256_mismatch")
+
+    current_path: str | None = None
+    hunks: list[dict[str, Any]] = []
+    for line in patch_path.read_text(encoding="utf-8").splitlines():
+        diff_match = DIFF_HEADER_RE.match(line)
+        if diff_match:
+            old_path, new_path = diff_match.groups()
+            current_path = new_path if new_path != "/dev/null" else old_path
+            try:
+                _, current_path = _safe_relative(root, current_path)
+            except ValueError:
+                blockers.append("changed_hunks_patch_path_escapes_root")
+                current_path = None
+            continue
+        hunk_match = HUNK_HEADER_RE.match(line)
+        if hunk_match and current_path:
+            old_start, old_count, new_start, new_count, context = hunk_match.groups()
+            hunks.append(
+                {
+                    "path": current_path,
+                    "old_start": int(old_start),
+                    "old_count": int(old_count or "1"),
+                    "new_start": int(new_start),
+                    "new_count": int(new_count or "1"),
+                    "context": context or "",
+                    "header": line,
+                }
+            )
+    if not hunks:
+        blockers.append("changed_hunks_patch_has_no_hunks")
+    return {"patch": binding, "hunks": hunks}, blockers
 
 
 def _evidence_role_path(value: Any) -> str | None:
@@ -151,7 +203,10 @@ def _evidence_role_path(value: Any) -> str | None:
 
 
 def build_packet(
-    spec: dict[str, Any], *, root: Path = ROOT, policy_path: Path = DEFAULT_POLICY
+    spec: dict[str, Any],
+    *,
+    root: Path = ROOT,
+    policy_path: Path = DEFAULT_POLICY,
 ) -> dict[str, Any]:
     root = root.resolve()
     policy_path = policy_path.resolve()
@@ -164,6 +219,7 @@ def build_packet(
     risk_flags = sorted(set(str(value) for value in spec.get("risk_flags", [])))
     changed_symbols = _normalized_symbols(spec.get("changed_symbols"), root)
     tests = _normalized_tests(spec.get("tests"), required_lane_set, root)
+    changed_hunks, changed_hunk_blockers = _changed_hunks(spec, root)
     state_snapshot, state_source = _state_resolver(spec, root)
     claims = normalize_paths(spec.get("claims"), root)
     if claims is None:
@@ -193,6 +249,7 @@ def build_packet(
         "base_commit": base_commit,
         "head_commit": head_commit,
         "changed_symbols": changed_symbols,
+        "changed_hunks": changed_hunks,
         "files": bindings["code"],
     }
     package_payload = {
@@ -241,6 +298,13 @@ def build_packet(
     composite_sha256 = canonical_sha256(composite_payload)
 
     blockers: list[str] = []
+    blockers.extend(changed_hunk_blockers)
+    code_binding_paths = {item["path"] for item in bindings["code"]}
+    for hunk_path in sorted(
+        {str(item["path"]) for item in (changed_hunks or {}).get("hunks", [])}
+        - code_binding_paths
+    ):
+        blockers.append(f"changed_hunk_path_not_bound_as_code:{hunk_path}")
     if not validate_commit(base_commit):
         blockers.append("base_commit_not_full_sha1")
     if not validate_commit(head_commit):
@@ -270,6 +334,14 @@ def build_packet(
     blockers.extend(f"unknown_risk_flag:{value}" for value in unknown_risk_flags)
     if review_class_id.startswith("ordinary_") and risk_flags:
         blockers.append("ordinary_0_plus_0_cannot_carry_review_risk_flags")
+    code_change_declared = bool(bindings["code"] or changed_symbols)
+    if (
+        review_class.get("full_review_required") is True
+        and base_commit != head_commit
+        and code_change_declared
+        and changed_hunks is None
+    ):
+        blockers.append("changed_hunks_patch_missing_for_code_change")
     if review_class.get("full_review_required") and evidence_frozen and not bindings["evidence"]:
         blockers.append("frozen_review_has_no_evidence_files")
     if review_class.get("requires_package_identity") is True and not package_identity:
@@ -317,9 +389,15 @@ def build_packet(
             for symbol in changed_symbols
             if path_matches_any(symbol["path"], contract["file_globs"])
         ]
+        allowed_hunks = [
+            hunk
+            for hunk in (changed_hunks or {}).get("hunks", [])
+            if path_matches_any(hunk["path"], contract["file_globs"])
+        ]
         lane_packets[lane_id] = {
             "allowlisted_files": allowed_files,
             "changed_symbols": allowed_symbols,
+            "changed_hunks": allowed_hunks,
             "focused_tests": lane_tests,
             "max_focused_tests": maximum_tests,
         }
@@ -329,7 +407,9 @@ def build_packet(
     if full_review_required and not evidence_frozen:
         freeze_blockers.append("evidence_not_frozen")
     prior_full_reviews = []
-    review_index = _review_index(spec, root)
+    review_index, review_index_relative = _review_index(root)
+    if full_review_required and review_index is None:
+        freeze_blockers.append("canonical_review_index_missing")
     if review_index:
         prior_full_reviews = [
             record
@@ -407,6 +487,7 @@ def build_packet(
         "risk_flags": risk_flags,
         "state_resolver": state_snapshot,
         "changed_symbols": changed_symbols,
+        "changed_hunks": changed_hunks,
         "tests": tests,
         "claims": claims,
         "package_identity": package_identity,
@@ -417,6 +498,8 @@ def build_packet(
         "review_start_allowed": any(item["start_allowed"] for item in invocation_plan),
         "invocation_plan": invocation_plan,
         "prior_full_review_count_for_fingerprint": len(prior_full_reviews),
+        "review_index_path": review_index_relative,
+        "review_index_present": review_index is not None,
         "blockers": sorted(set(blockers)),
         "freeze_blockers": sorted(set(freeze_blockers)),
         "review_start_blockers": sorted(set(review_start_blockers)),

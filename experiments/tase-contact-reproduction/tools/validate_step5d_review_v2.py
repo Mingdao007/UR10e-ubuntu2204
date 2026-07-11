@@ -8,6 +8,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from build_step5d_review_packet import _changed_hunks
+from build_step5d_v29_review_state_projection import validate_for_packet as validate_v29_projection
 from step5d_review_v2 import (
     SCHEMA_INDEX,
     SCHEMA_MANIFEST,
@@ -20,26 +22,39 @@ from step5d_review_v2 import (
     path_matches_any,
     policy_review_class,
     requested_lane_contract,
+    reviewer_lane_schema_issues,
     review_findings,
     validate_commit,
+    waiver_validation_issues,
 )
 
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_POLICY = ROOT / "config" / "step5d_review_policy_v2.json"
+DEFAULT_REVIEW_INDEX = ROOT / "config" / "step5d_review_index_v2.json"
+DEFAULT_LANE_SCHEMA = ROOT / "config" / "reviews" / "reviewer_lane_result.schema.json"
 
 
 def _component_payload(component: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in component.items() if key != "sha256"}
 
 
-def _binding_issues(bindings: Any, root: Path, prefix: str) -> list[str]:
+def _binding_issues(
+    bindings: Any,
+    root: Path,
+    prefix: str,
+    *,
+    immutable_paths: set[str] | None = None,
+) -> list[str]:
     if not isinstance(bindings, list):
         return [f"{prefix}_bindings_not_list"]
     issues: list[str] = []
+    immutable_paths = immutable_paths or set()
     for binding in bindings:
         if not isinstance(binding, dict) or not binding.get("path"):
             issues.append(f"{prefix}_binding_invalid")
+            continue
+        if str(binding["path"]) in immutable_paths:
             continue
         try:
             current = bind_files(root, [str(binding["path"])])[0]
@@ -53,7 +68,12 @@ def _binding_issues(bindings: Any, root: Path, prefix: str) -> list[str]:
 
 
 def validate_packet(
-    packet: dict[str, Any], *, root: Path = ROOT, policy: dict[str, Any] | None = None
+    packet: dict[str, Any],
+    *,
+    root: Path = ROOT,
+    policy: dict[str, Any] | None = None,
+    immutable_paths: set[str] | None = None,
+    archived_policy_binding: bool = False,
 ) -> dict[str, Any]:
     root = root.resolve()
     policy = policy or load_json(DEFAULT_POLICY)
@@ -97,20 +117,30 @@ def validate_packet(
         if fingerprints.get(name) != digest:
             issues.append(f"packet_fingerprint_mismatch:{name}")
         if name in {"code", "package", "evidence"}:
-            issues.extend(_binding_issues(component.get("files"), root, name))
+            issues.extend(
+                _binding_issues(
+                    component.get("files"),
+                    root,
+                    name,
+                    immutable_paths=immutable_paths,
+                )
+            )
 
     policy_component = components.get("policy") or {}
     policy_path = policy_component.get("path")
-    if policy_path:
+    if not policy_path:
+        issues.append("packet_policy_path_missing")
+    elif not archived_policy_binding:
         try:
             binding = bind_files(root, [str(policy_path)])[0]
             if binding.get("sha256") != policy_component.get("file_sha256"):
                 issues.append("packet_policy_file_changed")
         except ValueError:
             issues.append("packet_policy_path_escapes_root")
-    else:
-        issues.append("packet_policy_path_missing")
-    if policy_component.get("canonical_sha256") != canonical_sha256(policy):
+    if (
+        not archived_policy_binding
+        and policy_component.get("canonical_sha256") != canonical_sha256(policy)
+    ):
         issues.append("packet_policy_canonical_digest_mismatch")
 
     evidence_component = components.get("evidence") or {}
@@ -121,6 +151,8 @@ def validate_packet(
             issues.append(f"packet_top_level_code_binding_mismatch:{field}")
     if packet.get("changed_symbols") != code_component.get("changed_symbols"):
         issues.append("packet_top_level_changed_symbols_mismatch")
+    if packet.get("changed_hunks") != code_component.get("changed_hunks"):
+        issues.append("packet_top_level_changed_hunks_mismatch")
     if packet.get("package_identity") != package_component.get("identity"):
         issues.append("packet_top_level_package_identity_mismatch")
     if packet.get("evidence_roles") != evidence_component.get("roles"):
@@ -158,7 +190,49 @@ def validate_packet(
             issues.append(f"packet_evidence_role_sha256_mismatch:{role}")
     resolver_source = evidence_component.get("state_resolver_source") or {}
     if resolver_source.get("kind") == "file":
-        issues.extend(_binding_issues([resolver_source], root, "state_resolver"))
+        issues.extend(
+            _binding_issues(
+                [resolver_source],
+                root,
+                "state_resolver",
+                immutable_paths=immutable_paths,
+            )
+        )
+
+    changed_hunks = code_component.get("changed_hunks")
+    code_change_declared = bool(code_component.get("files") or code_component.get("changed_symbols"))
+    if (
+        review_class.get("full_review_required") is True
+        and code_component.get("base_commit") != code_component.get("head_commit")
+        and code_change_declared
+        and not isinstance(changed_hunks, dict)
+        and not archived_policy_binding
+    ):
+        issues.append("packet_changed_hunks_missing_for_code_change")
+    if isinstance(changed_hunks, dict):
+        patch_binding = changed_hunks.get("patch") or {}
+        rebuilt, rebuild_blockers = _changed_hunks(
+            {
+                "changed_hunks": {
+                    "patch_path": patch_binding.get("path"),
+                    "patch_sha256": patch_binding.get("sha256"),
+                }
+            },
+            root,
+        )
+        issues.extend(f"packet_{value}" for value in rebuild_blockers)
+        if rebuilt != changed_hunks:
+            issues.append("packet_changed_hunks_binding_mismatch")
+        code_binding_paths = {
+            str(item.get("path"))
+            for item in code_component.get("files", [])
+            if isinstance(item, dict) and item.get("path")
+        }
+        for hunk_path in sorted(
+            {str(item.get("path")) for item in changed_hunks.get("hunks", [])}
+            - code_binding_paths
+        ):
+            issues.append(f"packet_changed_hunk_path_not_bound_as_code:{hunk_path}")
 
     composite_payload = {
         "workflow": packet.get("workflow"),
@@ -200,11 +274,18 @@ def validate_packet(
             for symbol in changed_symbols
             if path_matches_any(str(symbol.get("path")), contract["file_globs"])
         ]
+        expected_hunks = [
+            hunk
+            for hunk in (changed_hunks or {}).get("hunks", [])
+            if path_matches_any(str(hunk.get("path")), contract["file_globs"])
+        ]
         expected_tests = [test for test in tests if lane_id in test.get("lanes", [])]
         if (lane_packet or {}).get("allowlisted_files") != expected_files:
             issues.append(f"packet_lane_allowlist_mismatch:{lane_id}")
         if (lane_packet or {}).get("changed_symbols") != expected_symbols:
             issues.append(f"packet_lane_changed_symbols_mismatch:{lane_id}")
+        if (lane_packet or {}).get("changed_hunks", []) != expected_hunks:
+            issues.append(f"packet_lane_changed_hunks_mismatch:{lane_id}")
         if (lane_packet or {}).get("focused_tests") != expected_tests:
             issues.append(f"packet_lane_focused_tests_mismatch:{lane_id}")
     if not review_class.get("full_review_required"):
@@ -212,6 +293,14 @@ def validate_packet(
             issues.append("ordinary_0_plus_0_has_reviewer_invocation")
         if packet.get("review_due") is True:
             issues.append("ordinary_0_plus_0_marked_review_due")
+    canonical_index_relative = "config/step5d_review_index_v2.json"
+    if review_class.get("full_review_required") and not archived_policy_binding:
+        if packet.get("review_index_path") != canonical_index_relative:
+            issues.append("packet_canonical_review_index_path_mismatch")
+        if packet.get("review_index_present") is not True:
+            issues.append("packet_canonical_review_index_missing")
+        if not (root / canonical_index_relative).is_file():
+            issues.append("canonical_review_index_missing")
 
     risk_flags = packet.get("risk_flags") or []
     expected_contracts = {
@@ -238,12 +327,21 @@ def validate_packet(
         if not expected:
             issues.append(f"packet_invocation_unknown_lane:{lane_id}")
             continue
-        for field in (
+        invocation_fields = [
             "provider",
             "requested_model",
             "requested_effort",
             "timeout_seconds",
-        ):
+        ]
+        if not archived_policy_binding:
+            invocation_fields.extend(
+                [
+                    "effort_escalation_reasons",
+                    "attempt_limit",
+                    "automatic_restart",
+                ]
+            )
+        for field in invocation_fields:
             if invocation.get(field) != expected.get(field):
                 issues.append(f"packet_invocation_contract_mismatch:{lane_id}:{field}")
         expected_availability = (
@@ -301,21 +399,13 @@ def validate_packet(
 def _waiver_valid(
     waiver: Any, packet: dict[str, Any], policy: dict[str, Any]
 ) -> tuple[bool, list[str]]:
-    if not isinstance(waiver, dict):
-        return False, ["fable5_waiver_missing"]
-    issues: list[str] = []
-    waiver_policy = policy["waiver"]
-    if waiver.get("provider") != waiver_policy["allowed_provider"]:
-        issues.append("waiver_provider_mismatch")
-    if waiver.get("lane") != waiver_policy["allowed_lane"]:
-        issues.append("waiver_lane_mismatch")
-    if waiver.get("composite_fingerprint") != packet["fingerprints"]["composite"]:
-        issues.append("waiver_fingerprint_mismatch")
-    if waiver.get("authorized_by") != "user" or waiver.get("explicit") is not True:
-        issues.append("waiver_not_explicit_user_authorization")
-    for field in ("waiver_id", "issued_at", "authorization_evidence", "reason"):
-        if not waiver.get(field):
-            issues.append(f"waiver_field_missing:{field}")
+    issues = waiver_validation_issues(
+        waiver,
+        composite_fingerprint=str(packet["fingerprints"]["composite"]),
+        workflow=str(packet.get("workflow", "")),
+        milestone=str(packet.get("milestone", "")),
+        policy=policy,
+    )
     return not issues, issues
 
 
@@ -325,12 +415,21 @@ def _lane_contract_issues(
     expected: dict[str, Any],
     *,
     policy: dict[str, Any],
+    enforce_current_schema: bool = True,
 ) -> list[str]:
     issues: list[str] = []
-    for field in ("requested_model", "requested_effort", "timeout_seconds"):
+    if enforce_current_schema:
+        issues.extend(
+            f"{value}:{lane_id}"
+            for value in reviewer_lane_schema_issues(lane, load_json(DEFAULT_LANE_SCHEMA))
+        )
+    contract_fields = ["requested_model", "requested_effort", "timeout_seconds"]
+    if enforce_current_schema:
+        contract_fields.append("effort_escalation_reasons")
+    for field in contract_fields:
         if lane.get(field) != expected.get(field):
             issues.append(f"lane_contract_mismatch:{lane_id}:{field}")
-    allowed_statuses = {"pass", "block", "unavailable", "unavailable_timeout", "timeout"}
+    allowed_statuses = {"pass", "block", "unavailable", "unavailable_timeout"}
     if lane.get("status") not in allowed_statuses:
         issues.append(f"lane_status_invalid:{lane_id}")
     if lane.get("status") == "pass":
@@ -346,10 +445,20 @@ def _lane_contract_issues(
     elapsed = lane.get("elapsed_seconds")
     if not isinstance(elapsed, (int, float)) or elapsed < 0:
         issues.append(f"lane_elapsed_invalid:{lane_id}")
-    elif float(elapsed) > timeout:
+    elif lane.get("status") != "unavailable_timeout" and float(elapsed) > timeout:
         issues.append(f"lane_timeout_exceeded:{lane_id}")
-    if lane.get("status") == "timeout":
-        issues.append(f"lane_timed_out:{lane_id}")
+    if enforce_current_schema:
+        if lane.get("attempt_count") != expected.get("attempt_limit"):
+            issues.append(f"lane_attempt_count_not_one:{lane_id}")
+        if lane.get("automatic_restart") != expected.get("automatic_restart"):
+            issues.append(f"lane_automatic_restart_not_false:{lane_id}")
+    if lane.get("status") == "unavailable_timeout":
+        if not isinstance(elapsed, (int, float)) or float(elapsed) < timeout:
+            issues.append(f"lane_timeout_not_reached:{lane_id}")
+        elif float(elapsed) > timeout + 5.0:
+            issues.append(f"lane_timeout_shutdown_exceeded_tolerance:{lane_id}")
+        if lane.get("timeout_disposition") != "unavailable":
+            issues.append(f"lane_timeout_disposition_invalid:{lane_id}")
     return issues
 
 
@@ -530,6 +639,8 @@ def _full_manifest_outcome(
     manifest: dict[str, Any],
     packet: dict[str, Any],
     policy: dict[str, Any],
+    *,
+    legacy_archived: bool = False,
 ) -> tuple[list[str], list[str]]:
     issues: list[str] = []
     expected_lane_ids = set(packet.get("lanes") or {})
@@ -543,7 +654,15 @@ def _full_manifest_outcome(
         if not isinstance(lane, dict):
             continue
         expected = requested_lane_contract(policy, lane_id, risk_flags)
-        issues.extend(_lane_contract_issues(lane_id, lane, expected, policy=policy))
+        issues.extend(
+            _lane_contract_issues(
+                lane_id,
+                lane,
+                expected,
+                policy=policy,
+                enforce_current_schema=not legacy_archived,
+            )
+        )
         if lane.get("status") != "pass":
             if (
                 expected["provider"] == "fable5"
@@ -565,6 +684,8 @@ def _targeted_closer_outcome(
     source_packet: dict[str, Any] | None,
     packet: dict[str, Any],
     policy: dict[str, Any],
+    *,
+    legacy_archived: bool = False,
 ) -> tuple[list[str], list[str]]:
     if source is None:
         return ["targeted_closer_source_manifest_missing"], []
@@ -605,7 +726,15 @@ def _targeted_closer_outcome(
             issues.append(f"targeted_closer_unknown_lane:{lane_id}")
             continue
         expected = requested_lane_contract(policy, lane_id, risk_flags)
-        issues.extend(_lane_contract_issues(lane_id, lane, expected, policy=policy))
+        issues.extend(
+            _lane_contract_issues(
+                lane_id,
+                lane,
+                expected,
+                policy=policy,
+                enforce_current_schema=not legacy_archived,
+            )
+        )
         if lane.get("status") != "pass":
             issues.append(f"targeted_closer_lane_not_pass:{lane_id}")
 
@@ -664,8 +793,46 @@ def validate_manifest(
     manifest_sha256: str | None = None,
 ) -> dict[str, Any]:
     policy = policy or load_json(DEFAULT_POLICY)
-    packet_validation = validate_packet(packet, root=root, policy=policy)
+    index_issues: list[str] = []
+    canonical_index_path = root / "config" / "step5d_review_index_v2.json"
+    canonical_index = (
+        load_json(canonical_index_path) if canonical_index_path.is_file() else None
+    )
+    if review_index is None:
+        review_index = canonical_index
+    elif canonical_index is None:
+        index_issues.append("canonical_review_index_missing")
+    elif review_index != canonical_index:
+        index_issues.append("review_index_not_canonical")
+    legacy_archived = False
+    immutable_paths: set[str] = set()
+    projection_issues: list[str] = []
+    projection_path = root / "config/reviews/v29_baseline_review_v2_state_projection.json"
+    if (
+        packet.get("workflow") == "v29"
+        and packet.get("milestone") == "baseline_re_review"
+        and projection_path.is_file()
+    ):
+        projection = load_json(projection_path)
+        if packet.get("fingerprints", {}).get("composite") == projection.get(
+            "reviewed_composite_fingerprint"
+        ):
+            legacy_archived = True
+            projection_ok, projection_issues, immutable_paths = validate_v29_projection(
+                packet, root=root
+            )
+            if not projection_ok and not projection_issues:
+                projection_issues = ["v29_immutable_state_projection_invalid"]
+    packet_validation = validate_packet(
+        packet,
+        root=root,
+        policy=policy,
+        immutable_paths=immutable_paths,
+        archived_policy_binding=legacy_archived,
+    )
     issues = [f"packet_invalid:{value}" for value in packet_validation["issues"]]
+    issues.extend(index_issues)
+    issues.extend(projection_issues)
     if manifest.get("schema_version") != SCHEMA_MANIFEST:
         issues.append("manifest_schema_mismatch")
     if "invalidation_reason" not in manifest:
@@ -678,7 +845,7 @@ def validate_manifest(
     if manifest.get("composite_fingerprint") != fingerprint:
         issues.append("manifest_composite_fingerprint_mismatch")
     component_fingerprints = manifest.get("component_fingerprints")
-    if component_fingerprints is not None and component_fingerprints != {
+    if component_fingerprints != {
         name: packet.get("fingerprints", {}).get(name)
         for name in ("code", "evidence", "package", "policy")
     }:
@@ -689,17 +856,32 @@ def validate_manifest(
     if mode == "full" and packet.get("review_due") is not True:
         issues.append("full_review_not_due")
     if mode == "full":
+        if review_index is None:
+            issues.append("canonical_review_index_missing")
         issues.extend(_prior_full_review_issues(review_index, str(fingerprint), manifest_sha256))
-        outcome_issues, backlog = _full_manifest_outcome(manifest, packet, policy)
+        outcome_issues, backlog = _full_manifest_outcome(
+            manifest, packet, policy, legacy_archived=legacy_archived
+        )
     else:
         outcome_issues, backlog = _targeted_closer_outcome(
-            manifest, source_manifest, source_packet, packet, policy
+            manifest,
+            source_manifest,
+            source_packet,
+            packet,
+            policy,
+            legacy_archived=legacy_archived,
         )
     issues.extend(outcome_issues)
     invalidation_reason = manifest.get("invalidation_reason")
     if "manifest_composite_fingerprint_mismatch" in issues and not invalidation_reason:
         issues.append("fingerprint_mismatch_without_invalidation_reason")
     accepted = not issues
+    review_class = str(packet.get("review_class", ""))
+    pre_live_classes = {
+        "p0_v8_pre_live",
+        "v29_contact_pre_live",
+        "v30_contact_pre_live",
+    }
     return {
         "schema_version": "ur10e_review_validation_v2",
         "accepted": accepted,
@@ -709,7 +891,10 @@ def validate_manifest(
         "same_fingerprint_full_review_unique": (
             "duplicate_full_review_for_composite_fingerprint" not in issues
         ),
-        "review_gate_satisfied_for_live_authorization": accepted,
+        "review_gate_satisfied_for_milestone": accepted,
+        "live_authorization_review_prerequisite_satisfied": (
+            accepted and review_class in pre_live_classes
+        ),
         "live_motion_authorized": False,
         "blockers": sorted(set(issues)),
         "nonblocking_p2_backlog": sorted(set(backlog)),
@@ -723,7 +908,7 @@ def main() -> int:
     parser.add_argument("--manifest", required=True, type=Path)
     parser.add_argument("--experiment-root", type=Path, default=ROOT)
     parser.add_argument("--policy", type=Path, default=DEFAULT_POLICY)
-    parser.add_argument("--review-index", type=Path)
+    parser.add_argument("--review-index", type=Path, default=DEFAULT_REVIEW_INDEX)
     parser.add_argument("--source-manifest", type=Path)
     parser.add_argument("--source-packet", type=Path)
     parser.add_argument("--output", type=Path)
@@ -735,7 +920,7 @@ def main() -> int:
         load_json(args.packet),
         root=args.experiment_root,
         policy=policy,
-        review_index=load_json(args.review_index) if args.review_index else None,
+        review_index=load_json(args.review_index) if args.review_index.is_file() else None,
         source_manifest=load_json(args.source_manifest) if args.source_manifest else None,
         source_packet=load_json(args.source_packet) if args.source_packet else None,
         manifest_sha256=file_sha256(args.manifest),

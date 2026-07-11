@@ -15,11 +15,13 @@ from step5d_review_v2 import (
     load_json,
     relative_path,
     review_findings,
+    waiver_validation_issues,
 )
 
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = ROOT / "config" / "step5d_review_index_v2.json"
+DEFAULT_POLICY = ROOT / "config" / "step5d_review_policy_v2.json"
 HISTORICAL_ARTIFACTS = (
     {
         "id": "v30_milestone_reviews_v1",
@@ -61,7 +63,9 @@ def _historical_entry(root: Path, descriptor: dict[str, str]) -> dict[str, Any]:
     }
 
 
-def _review_entry(root: Path, value: str | Path) -> dict[str, Any]:
+def _review_entry(
+    root: Path, value: str | Path, policy: dict[str, Any]
+) -> dict[str, Any]:
     path, relative = relative_path(root, value)
     payload = load_json(path)
     if payload.get("schema_version") != SCHEMA_MANIFEST:
@@ -81,6 +85,25 @@ def _review_entry(root: Path, value: str | Path) -> dict[str, Any]:
         for lane_id, lane in sorted((payload.get("lanes") or {}).items())
         if isinstance(lane, dict)
     }
+    waiver_issues = waiver_validation_issues(
+        payload.get("waiver"),
+        composite_fingerprint=str(payload.get("composite_fingerprint", "")),
+        workflow=str(payload.get("workflow", "")),
+        milestone=str(payload.get("milestone", "")),
+        policy=policy,
+    )
+    waiver_valid = not waiver_issues
+    waived_lane = str((payload.get("waiver") or {}).get("lane", ""))
+    lane_gate_pass = bool(lane_verdicts) and all(
+        verdict == "pass"
+        or (
+            lane_id == waived_lane
+            and str((payload.get("lanes") or {}).get(lane_id, {}).get("status", ""))
+            .startswith("unavailable")
+            and waiver_valid
+        )
+        for lane_id, verdict in lane_verdicts.items()
+    )
     blocking_open = sum(
         1
         for finding in findings
@@ -89,8 +112,7 @@ def _review_entry(root: Path, value: str | Path) -> dict[str, Any]:
     )
     gate_status = (
         "pass"
-        if lane_verdicts
-        and all(verdict == "pass" for verdict in lane_verdicts.values())
+        if lane_gate_pass
         and blocking_open == 0
         else "block"
     )
@@ -108,6 +130,7 @@ def _review_entry(root: Path, value: str | Path) -> dict[str, Any]:
         "blocking_open_finding_count": blocking_open,
         "lane_verdicts": lane_verdicts,
         "gate_status": gate_status,
+        "waiver_applied": waiver_valid and waived_lane in lane_verdicts,
         "invalidation_reason": payload.get("invalidation_reason"),
     }
 
@@ -115,9 +138,10 @@ def _review_entry(root: Path, value: str | Path) -> dict[str, Any]:
 def build(
     *, root: Path = ROOT, review_manifests: Iterable[str | Path] = ()
 ) -> dict[str, Any]:
+    policy = load_json(DEFAULT_POLICY)
     historical = [_historical_entry(root, item) for item in HISTORICAL_ARTIFACTS]
     reviews = sorted(
-        (_review_entry(root, value) for value in review_manifests),
+        (_review_entry(root, value, policy) for value in review_manifests),
         key=lambda item: item["path"],
     )
     full_by_fingerprint: dict[str, list[str]] = {}

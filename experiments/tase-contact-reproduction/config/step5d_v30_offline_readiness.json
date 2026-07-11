@@ -111,7 +111,7 @@
     "packet": null,
     "policy_id": "ur10e_review_policy_v2",
     "policy_path": "config/step5d_review_policy_v2.json",
-    "policy_sha256": "6f94c804be381af5aa0facb9fef66fdff3d7222f9870cb96aaf5db060da55e0e",
+    "policy_sha256": "c0c59063c79e70c24d76358ffbca581858ee91a0e8a65622946ca5632892ea2c",
     "required_stack": "2+1",
     "status": "not_due"
   },
@@ -151,7 +151,7 @@
     },
     "readiness_builder_sha256": {
       "path": "tools/build_step5d_v30_offline_readiness.py",
-      "sha256": "81ad5fb3baed132ce3e9afcf6e8a87c523c45f142377ea0c314c58ea1498c6c0"
+      "sha256": "009d07957fc1003e6ef51100004e8a2f71ea3936470f3c9b55d1029582e4f591"
     },
     "runtime_interface_sha256": {
       "path": "tools/step5d_runtime_interface.py",
@@ -159,7 +159,7 @@
     },
     "solver_sha256": {
       "path": "tools/step5c_strict_rnn.py",
-      "sha256": "629782ec5ce0c9aadeb04894b8424427cf44410843b603e6f29f3af82b6be304"
+      "sha256": "edd3a52653023537693dc907541a2e28a562892e17e4bff695885adc5fba82bc"
     }
   },
   "status": "v30_offline_blocked",
@@ -494,6 +494,7 @@
             "remote_timing_replay_csv_artifact_unbound",
             "remote_timing_replay_csv_sha_mismatch",
             "remote_timing_runtime_interface_sha256_does_not_match_local_source",
+            "remote_timing_solver_sha256_does_not_match_local_source",
             "remote_timing_stage_table_artifact_unbound",
             "remote_timing_ur_xacro_artifact_unbound",
             "safe_hold_deferred_diagnostics_incomplete",
@@ -625,6 +626,7 @@
             "remote_timing_replay_csv_sha_mismatch",
             "remote_timing_runtime_interface_sha256_does_not_match_local_source",
             "remote_timing_schema_mismatch",
+            "remote_timing_solver_sha256_does_not_match_local_source",
             "remote_timing_stage_table_artifact_unbound",
             "remote_timing_ur_xacro_artifact_unbound",
             "safe_hold_insufficient_samples",
@@ -764,6 +766,7 @@
             "remote_timing_runtime_interface_sha256_does_not_match_local_source",
             "remote_timing_runtime_interface_sha256_missing",
             "remote_timing_schema_mismatch",
+            "remote_timing_solver_sha256_does_not_match_local_source",
             "remote_timing_source_bundle_unbound",
             "remote_timing_stage_table_artifact_unbound",
             "remote_timing_ur_xacro_artifact_unbound",

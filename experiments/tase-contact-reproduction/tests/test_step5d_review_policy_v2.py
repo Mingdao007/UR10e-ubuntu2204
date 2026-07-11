@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -16,17 +17,20 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 import build_step5d_review_index_v2 as index_builder  # noqa: E402
 import build_step5d_review_packet as packet_builder  # noqa: E402
+import build_step5d_v29_review_state_projection as v29_projection  # noqa: E402
 import validate_step5d_review_v2 as validator  # noqa: E402
 from step5d_review_v2 import (  # noqa: E402
     canonical_sha256,
     file_sha256,
     full_review_index_projection_sha256,
+    reviewer_lane_schema_issues,
 )
 
 
 CODE_FILE = "tools/step5d_control_contract.py"
 PACKAGE_FILE = "programs/step5/step5d/step5d_strict_rnn_ablation_v30.script"
 EVIDENCE_FILE = "config/step5d_v30_replay_summary.json"
+PATCH_FILE = "tests/fixtures/review_v2_control.patch"
 BASE = "1" * 40
 HEAD = "2" * 40
 
@@ -52,6 +56,7 @@ def base_spec(
         "changed_symbols": [
             {"path": CODE_FILE, "symbol": "SafetyEnvelope.evaluate"}
         ],
+        "changed_hunks": {"patch_path": PATCH_FILE},
         "tests": [
             {
                 "id": "control_contract",
@@ -110,7 +115,11 @@ def passing_lane(invocation: dict, *, status: str = "pass", findings=None) -> di
         "requested_effort": invocation["requested_effort"],
         "timeout_seconds": invocation["timeout_seconds"],
         "elapsed_seconds": 12.0 if status == "pass" else 0.0,
+        "effort_escalation_reasons": invocation["effort_escalation_reasons"],
+        "attempt_count": 1,
+        "automatic_restart": False,
         "findings": findings or [],
+        "summary": "test lane fixture",
     }
     if status == "pass":
         lane["actual_model"] = invocation["requested_model"]
@@ -134,6 +143,10 @@ def full_manifest(packet: dict) -> dict:
         "required_stack": packet["required_stack"],
         "review_mode": "full",
         "composite_fingerprint": packet["fingerprints"]["composite"],
+        "component_fingerprints": {
+            name: packet["fingerprints"][name]
+            for name in ("code", "evidence", "package", "policy")
+        },
         "lanes": lanes,
         "invalidation_reason": None,
     }
@@ -263,8 +276,13 @@ class Step5dReviewPolicyV2Test(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            spec["review_index_path"] = str(index_path.relative_to(ROOT))
-            second = packet_builder.build_packet(spec)
+            index_payload = json.loads(index_path.read_text(encoding="utf-8"))
+            with mock.patch.object(
+                packet_builder,
+                "_review_index",
+                return_value=(index_payload, "config/step5d_review_index_v2.json"),
+            ):
+                second = packet_builder.build_packet(spec)
 
         self.assertEqual(first["fingerprints"], second["fingerprints"])
         self.assertFalse(second["review_due"])
@@ -287,6 +305,9 @@ class Step5dReviewPolicyV2Test(unittest.TestCase):
                 "severity": "P2",
                 "status": "backlog",
                 "backlog_ref": "backlog://ur10e/P2-LOG-DOC",
+                "title": "diagnostic log documentation",
+                "evidence": "test fixture",
+                "resolution": None,
             }
         ]
 
@@ -304,14 +325,31 @@ class Step5dReviewPolicyV2Test(unittest.TestCase):
             if item["provider"] == "codex"
         )
         manifest["lanes"][control_lane]["actual_effort"] = "max"
-        manifest["lanes"][control_lane]["elapsed_seconds"] = 721
-        manifest["lanes"][control_lane]["status"] = "timeout"
+        mismatch = validator.validate_manifest(manifest, packet)
 
+        self.assertFalse(mismatch["accepted"])
+        self.assertIn(
+            f"lane_actual_effort_mismatch:{control_lane}", mismatch["blockers"]
+        )
+
+        manifest = full_manifest(packet)
+        manifest["lanes"][control_lane].update(
+            {
+                "status": "unavailable_timeout",
+                "verdict": "unavailable_timeout",
+                "actual_model": None,
+                "actual_effort": None,
+                "elapsed_seconds": 720,
+                "timeout_disposition": "unavailable",
+            }
+        )
         result = validator.validate_manifest(manifest, packet)
 
         self.assertFalse(result["accepted"])
-        self.assertIn(f"lane_timeout_exceeded:{control_lane}", result["blockers"])
-        self.assertIn(f"lane_timed_out:{control_lane}", result["blockers"])
+        self.assertIn(
+            f"lane_not_pass:{control_lane}:unavailable_timeout", result["blockers"]
+        )
+        self.assertNotIn(f"lane_timeout_not_reached:{control_lane}", result["blockers"])
 
     def test_fingerprint_bound_user_waiver_only_covers_missing_fable_lane(self) -> None:
         packet = packet_builder.build_packet(base_spec(fable_status="unavailable_not_logged_in"))
@@ -329,6 +367,9 @@ class Step5dReviewPolicyV2Test(unittest.TestCase):
             "waiver_id": "user-waiver-test",
             "provider": "fable5",
             "lane": "physical_operator_safety",
+            "scope": "one_missing_fable5_lane_for_one_fingerprint",
+            "workflow": packet["workflow"],
+            "milestone": packet["milestone"],
             "composite_fingerprint": packet["fingerprints"]["composite"],
             "authorized_by": "user",
             "explicit": True,
@@ -382,6 +423,10 @@ class Step5dReviewPolicyV2Test(unittest.TestCase):
             "required_stack": packet["required_stack"],
             "review_mode": "targeted_closer",
             "composite_fingerprint": packet["fingerprints"]["composite"],
+            "component_fingerprints": {
+                name: packet["fingerprints"][name]
+                for name in ("code", "evidence", "package", "policy")
+            },
             "targeted_closer": {
                 "source_manifest_sha256": canonical_sha256(source),
                 "finding_ids": ["P1-NORMAL-FRAME"],
@@ -395,7 +440,10 @@ class Step5dReviewPolicyV2Test(unittest.TestCase):
                             "id": "P1-NORMAL-FRAME",
                             "severity": "P1",
                             "status": "closed",
+                            "title": "normal frame closure",
+                            "evidence": "canonical frame test",
                             "resolution": "canonical frame test and guard now pass",
+                            "backlog_ref": None,
                         }
                     ],
                 )
@@ -460,7 +508,10 @@ class Step5dReviewPolicyV2Test(unittest.TestCase):
                             "id": "P1-STATE",
                             "severity": "P1",
                             "status": "closed",
+                            "title": "state closure",
+                            "evidence": "bound state snapshot",
                             "resolution": "bound state snapshot corrected",
+                            "backlog_ref": None,
                         }
                     ],
                 )
@@ -500,6 +551,10 @@ class Step5dReviewPolicyV2Test(unittest.TestCase):
             "required_stack": target_packet["required_stack"],
             "review_mode": "targeted_closer",
             "composite_fingerprint": target_packet["fingerprints"]["composite"],
+            "component_fingerprints": {
+                name: target_packet["fingerprints"][name]
+                for name in ("code", "evidence", "package", "policy")
+            },
             "targeted_closer": {
                 "source_manifest_sha256": canonical_sha256(source),
                 "finding_ids": ["P1-PACKAGE"],
@@ -522,7 +577,10 @@ class Step5dReviewPolicyV2Test(unittest.TestCase):
                             "id": "P1-PACKAGE",
                             "severity": "P1",
                             "status": "closed",
+                            "title": "package closure",
+                            "evidence": "package identity changed",
                             "resolution": "package changed",
+                            "backlog_ref": None,
                         }
                     ],
                 )
@@ -563,6 +621,10 @@ class Step5dReviewPolicyV2Test(unittest.TestCase):
             "required_stack": packet["required_stack"],
             "review_mode": "targeted_closer",
             "composite_fingerprint": packet["fingerprints"]["composite"],
+            "component_fingerprints": {
+                name: packet["fingerprints"][name]
+                for name in ("code", "evidence", "package", "policy")
+            },
             "targeted_closer": {
                 "source_manifest_sha256": canonical_sha256(source),
                 "finding_ids": [],
@@ -601,6 +663,7 @@ class Step5dReviewPolicyV2Test(unittest.TestCase):
         )
 
         self.assertFalse(result["accepted"])
+        self.assertIn("review_index_not_canonical", result["blockers"])
         self.assertIn(
             "duplicate_full_review_for_composite_fingerprint", result["blockers"]
         )
@@ -690,6 +753,156 @@ class Step5dReviewPolicyV2Test(unittest.TestCase):
         self.assertIn(
             "fingerprint_mismatch_without_invalidation_reason", result["blockers"]
         )
+
+    def test_changed_hunks_are_patch_hash_bound_and_lane_projected(self) -> None:
+        packet = packet_builder.build_packet(base_spec())
+        patch = packet["changed_hunks"]["patch"]
+        self.assertEqual(patch["path"], PATCH_FILE)
+        self.assertEqual(patch["sha256"], file_sha256(ROOT / PATCH_FILE))
+        self.assertEqual(packet["components"]["code"]["changed_hunks"], packet["changed_hunks"])
+        lane = packet["lanes"]["control_timing_claim"]
+        self.assertEqual(len(lane["changed_hunks"]), 1)
+        self.assertEqual(lane["changed_hunks"][0]["path"], CODE_FILE)
+
+    def test_full_review_fails_closed_without_canonical_index(self) -> None:
+        with mock.patch.object(
+            packet_builder,
+            "_review_index",
+            return_value=(None, "config/step5d_review_index_v2.json"),
+        ):
+            packet = packet_builder.build_packet(base_spec())
+        self.assertFalse(packet["review_due"])
+        self.assertIn("canonical_review_index_missing", packet["freeze_blockers"])
+
+    def test_component_fingerprints_are_required_exact(self) -> None:
+        packet = packet_builder.build_packet(base_spec())
+        manifest = full_manifest(packet)
+        del manifest["component_fingerprints"]
+        result = validator.validate_manifest(manifest, packet)
+        self.assertFalse(result["accepted"])
+        self.assertIn("manifest_component_fingerprints_mismatch", result["blockers"])
+
+    def test_explicit_user_max_records_structured_escalation_reason(self) -> None:
+        spec = contact_spec()
+        spec["risk_flags"] = ["explicit_user_max"]
+        packet = packet_builder.build_packet(spec)
+        for lane in packet["invocation_plan"]:
+            if lane["provider"] == "codex":
+                self.assertEqual(lane["requested_effort"], "max")
+                self.assertEqual(
+                    lane["effort_escalation_reasons"], ["explicit_user_max"]
+                )
+            else:
+                self.assertEqual(lane["requested_effort"], "high")
+                self.assertEqual(lane["effort_escalation_reasons"], [])
+
+    def test_provider_neutral_lane_schema_accepts_fable_timeout(self) -> None:
+        schema = json.loads(
+            (ROOT / "config/reviews/reviewer_lane_result.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        packet = packet_builder.build_packet(base_spec())
+        self.assertTrue(
+            all(item["attempt_limit"] == 1 for item in packet["invocation_plan"])
+        )
+        self.assertTrue(
+            all(item["automatic_restart"] is False for item in packet["invocation_plan"])
+        )
+        codex = passing_lane(packet["invocation_plan"][0])
+        self.assertEqual(reviewer_lane_schema_issues(codex, schema), [])
+        fable_invocation = next(
+            item for item in packet["invocation_plan"] if item["provider"] == "fable5"
+        )
+        fable_timeout = passing_lane(fable_invocation, status="unavailable_timeout")
+        fable_timeout["elapsed_seconds"] = 720
+        fable_timeout["timeout_disposition"] = "unavailable"
+        self.assertEqual(reviewer_lane_schema_issues(fable_timeout, schema), [])
+        fable_timeout["unexpected"] = True
+        self.assertIn(
+            "lane_schema_additional_property:unexpected",
+            reviewer_lane_schema_issues(fable_timeout, schema),
+        )
+        codex["automatic_restart"] = True
+        self.assertIn(
+            "lane_schema_const:automatic_restart",
+            reviewer_lane_schema_issues(codex, schema),
+        )
+
+    def test_waiver_requires_scope_workflow_milestone_and_indexes_as_pass(self) -> None:
+        packet = packet_builder.build_packet(
+            base_spec(fable_status="unavailable_not_logged_in")
+        )
+        manifest = full_manifest(packet)
+        fable_lane = next(
+            item["lane"]
+            for item in packet["invocation_plan"]
+            if item["provider"] == "fable5"
+        )
+        invocation = next(
+            item for item in packet["invocation_plan"] if item["lane"] == fable_lane
+        )
+        manifest["lanes"][fable_lane] = passing_lane(invocation, status="unavailable")
+        manifest["waiver"] = {
+            "waiver_id": "user-waiver-schema-test",
+            "provider": "fable5",
+            "lane": "physical_operator_safety",
+            "scope": "one_missing_fable5_lane_for_one_fingerprint",
+            "workflow": packet["workflow"],
+            "milestone": packet["milestone"],
+            "composite_fingerprint": packet["fingerprints"]["composite"],
+            "authorized_by": "user",
+            "explicit": True,
+            "issued_at": "2026-07-11T00:00:00+08:00",
+            "authorization_evidence": "explicit test fixture",
+            "reason": "Fable5 unavailable after preflight",
+        }
+        accepted = validator.validate_manifest(manifest, packet)
+        self.assertTrue(accepted["accepted"], accepted["blockers"])
+        with tempfile.TemporaryDirectory(dir=ROOT) as temp:
+            path = Path(temp) / "waived.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            index = index_builder.build(review_manifests=[path.relative_to(ROOT)])
+        entry = next(item for item in index["v2_reviews"] if item["path"].endswith("waived.json"))
+        self.assertEqual(entry["gate_status"], "pass")
+        self.assertTrue(entry["waiver_applied"])
+        manifest["waiver"]["scope"] = "wrong"
+        rejected = validator.validate_manifest(manifest, packet)
+        self.assertIn("waiver_scope_mismatch", rejected["blockers"])
+
+    def test_v29_archived_review_uses_immutable_projection(self) -> None:
+        tracked = v29_projection.build()
+        self.assertEqual(tracked["blockers"], [])
+        self.assertTrue(tracked["current_projection_matches_reviewed"])
+        packet = json.loads(
+            (ROOT / "config/reviews/v29_baseline_review_v2_closer_packet.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        manifest = json.loads(
+            (ROOT / "config/reviews/v29_baseline_review_v2_closer_manifest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        source_packet = json.loads(
+            (ROOT / "config/reviews/v29_baseline_review_v2_packet.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        source_manifest = json.loads(
+            (ROOT / "config/reviews/v29_baseline_review_v2_manifest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        result = validator.validate_manifest(
+            manifest,
+            packet,
+            source_manifest=source_manifest,
+            source_packet=source_packet,
+        )
+        self.assertTrue(result["accepted"], result["blockers"])
+        self.assertTrue(result["review_gate_satisfied_for_milestone"])
+        self.assertFalse(result["live_authorization_review_prerequisite_satisfied"])
 
 
 if __name__ == "__main__":

@@ -11,6 +11,7 @@ from pathlib import Path
 from pathlib import PurePosixPath
 from typing import Any
 
+from build_step5d_v29_review_state_projection import build as build_v29_review_projection
 from step5d_review_v2 import full_review_index_projection_sha256
 from tase_protocol_table import resolve_experiment_profile
 
@@ -541,6 +542,18 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             != indexed_v29_closer.get("composite_fingerprint")
         ):
             failures.append("v29 baseline targeted closer validation/index mismatch")
+    v29_projection_path = (
+        root / "config/reviews/v29_baseline_review_v2_state_projection.json"
+    )
+    if not v29_projection_path.is_file():
+        failures.append("v29 immutable Review v2 state projection is missing")
+    else:
+        tracked_v29_projection = load_json(v29_projection_path)
+        rebuilt_v29_projection = build_v29_review_projection(root=root)
+        if tracked_v29_projection != rebuilt_v29_projection:
+            failures.append("v29 immutable Review v2 state projection drift")
+        if rebuilt_v29_projection.get("blockers"):
+            failures.append("v29 reviewed state no longer matches immutable projection")
 
     p0_capture = current.get("bridge_trigger", {}).get("no_contact_p0_capture", {})
     p0_profile = p0_capture.get("profile")

@@ -69,6 +69,7 @@
       "required_stack": "1+0",
       "review_mode": "targeted_closer",
       "sha256": "5ddb1e14e1f6ba84e3fdef6a3cd77b1acb1e738cca708c7cd1c2b37d032b0acf",
+      "waiver_applied": false,
       "workflow": "v29"
     },
     {
@@ -95,6 +96,7 @@
       "required_stack": "1+0",
       "review_mode": "full",
       "sha256": "59415371e0d39a232af1fdc0896947b517d6858081b439d0d8727dd3799112d8",
+      "waiver_applied": false,
       "workflow": "v29"
     }
   ]

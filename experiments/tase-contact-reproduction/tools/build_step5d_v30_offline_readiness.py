@@ -171,7 +171,12 @@ def review_v2_gate(row: dict[str, Any]) -> dict[str, Any]:
     packet = load(packet_path)
     manifest = load(manifest_path)
     packet_result = validate_packet(packet, root=ROOT)
-    manifest_result = validate_manifest(manifest, packet, root=ROOT)
+    manifest_result = validate_manifest(
+        manifest,
+        packet,
+        root=ROOT,
+        manifest_sha256=sha256(manifest_path),
+    )
     result.update(
         {
             "packet_sha256": sha256(packet_path),

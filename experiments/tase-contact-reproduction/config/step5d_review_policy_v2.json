@@ -15,6 +15,7 @@
     "evidence_freeze_required": true,
     "full_review_limit_per_composite_fingerprint": 1,
     "lane_timeout_seconds": 720,
+    "lane_attempt_limit": 1,
     "target_total_wall_seconds": 900,
     "lanes_run_in_parallel": true,
     "max_focused_tests_per_lane": 3,
@@ -44,7 +45,8 @@
     "major_safety_change",
     "major_force_frame_change",
     "reviewer_disagreement",
-    "final_reproduction_claim"
+    "final_reproduction_claim",
+    "explicit_user_max"
   ],
   "fingerprint_invalidation": {
     "code": "reselect_full_stack_when_control_or_safety_scope_changes",
