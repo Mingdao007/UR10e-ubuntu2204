@@ -718,7 +718,8 @@ def summarize_preaggregated(
         )
     )
     degraded_timing_candidate = bool(
-        not degraded_unrelated_blockers
+        blockers
+        and not degraded_unrelated_blockers
         and miss_diagnostics_valid
         and normalized["solver"]["deadline_miss_count"] == 0
         and normalized["full_tick"]["deadline_miss_count"]

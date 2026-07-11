@@ -294,6 +294,10 @@ def timing_history_entry(
             "blockers": evaluation.get("blockers", []),
             "first_post_warm_ms": evaluation.get("first_post_warm_ms"),
             "solver": evaluation.get("solver"),
+            "solver_batch_reentry": evaluation.get("solver_batch_reentry"),
+            "solver_batch_reentry_evidence": evaluation.get(
+                "solver_batch_reentry_evidence"
+            ),
             "full_tick": evaluation.get("full_tick"),
             "safe_hold": evaluation.get("safe_hold"),
             "full_tick_schedule_deadline_miss_count": evaluation.get(
@@ -559,7 +563,7 @@ def build(*, generated_at: str) -> dict[str, Any]:
                     "selected_inner_iterations"
                 ),
                 "classification": profile_selection.get("classification"),
-                "formal_timing_satisfied": False,
+                "formal_timing_satisfied": bool(acceptance_entries),
             },
             "summary_path": str(timing_summary_path.relative_to(ROOT)),
             "summary_sha256": sha256(timing_summary_path),

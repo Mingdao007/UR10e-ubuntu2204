@@ -305,13 +305,13 @@
     },
     {
       "immutable": true,
-      "path": "config/step5d_p0_v8_offline_simulation_diagnostic.json",
+      "path": "config/step5d_p0_v8_offline_simulation_diagnostic_pre_rnn512_e55c574.json",
       "sha256": "4d5c7bf409a8c6cdc5abf6cfa7a6804799d35c2efb5fe969f6827aae2167ce46",
       "status": "historical_superseded_by_v30_rnn512_profile_selection"
     },
     {
       "immutable": true,
-      "path": "config/step5d_p0_v8_offline_simulation_state.json",
+      "path": "config/step5d_p0_v8_offline_simulation_state_pre_rnn512_e55c574.json",
       "sha256": "a6b6fbd833980107ba583ed65690ceb394a558c999409a1dc5d5eb0dc21b32a1",
       "status": "historical_superseded_by_v30_rnn512_profile_selection"
     }

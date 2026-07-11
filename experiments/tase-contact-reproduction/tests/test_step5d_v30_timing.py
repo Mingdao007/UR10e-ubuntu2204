@@ -571,6 +571,9 @@ class Step5dV30TimingTest(unittest.TestCase):
             result["runtime_scheduling_classification"],
             "production_sched_fifo_priority_20",
         )
+        self.assertFalse(
+            result["deadline_robustness"]["timing_degraded_candidate"]
+        )
 
         tampered_reentry = json.loads(json.dumps(payload))
         tampered_reentry["solver_batch_reentry_ms"][98] = 0.7

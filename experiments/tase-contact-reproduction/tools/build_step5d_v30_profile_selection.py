@@ -44,8 +44,14 @@ HISTORICAL_PRE_512_EVIDENCE = (
     "config/step5d_v30_rnn128_00d64f5_formal_timing_raw.json",
     "config/step5d_v30_current_source_solver_10k_raw.json",
     "config/step5d_v30_timing_summary.json",
-    "config/step5d_p0_v8_offline_simulation_diagnostic.json",
-    "config/step5d_p0_v8_offline_simulation_state.json",
+    (
+        "config/step5d_p0_v8_offline_simulation_diagnostic_"
+        "pre_rnn512_e55c574.json"
+    ),
+    (
+        "config/step5d_p0_v8_offline_simulation_state_"
+        "pre_rnn512_e55c574.json"
+    ),
 )
 
 

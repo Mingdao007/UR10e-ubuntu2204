@@ -66,6 +66,40 @@ class Step5dV30ProfileSelectionTest(unittest.TestCase):
         )
         self.assertFalse(payload["claim_boundary"]["v30_offline_ready"])
 
+    def test_pre_512_p0_evidence_uses_immutable_versioned_archives(self) -> None:
+        payload = selection.build()
+        historical = {
+            row["path"]: row
+            for row in payload["historical_pre_512_evidence"]
+        }
+        expected = {
+            (
+                "config/step5d_p0_v8_offline_simulation_diagnostic_"
+                "pre_rnn512_e55c574.json"
+            ): "4d5c7bf409a8c6cdc5abf6cfa7a6804799d35c2efb5fe969f6827aae2167ce46",
+            (
+                "config/step5d_p0_v8_offline_simulation_state_"
+                "pre_rnn512_e55c574.json"
+            ): "a6b6fbd833980107ba583ed65690ceb394a558c999409a1dc5d5eb0dc21b32a1",
+        }
+
+        for path, expected_sha256 in expected.items():
+            self.assertIn(path, historical)
+            self.assertEqual(historical[path]["sha256"], expected_sha256)
+            self.assertTrue(historical[path]["immutable"])
+            self.assertEqual(
+                historical[path]["status"],
+                "historical_superseded_by_v30_rnn512_profile_selection",
+            )
+        self.assertNotIn(
+            "config/step5d_p0_v8_offline_simulation_diagnostic.json",
+            historical,
+        )
+        self.assertNotIn(
+            "config/step5d_p0_v8_offline_simulation_state.json",
+            historical,
+        )
+
 
 if __name__ == "__main__":
     raise SystemExit(unittest.main())

@@ -8984,7 +8984,7 @@
         "imported_v29_manifest_sha256": "3cd461c9a1a94aa1ef7d7bb40642928fe74f607765148cf7b0bd45ebc73db4e6",
         "v29_replay": "config/step5d_v30_replay_summary.json",
         "profile_selection": "config/step5d_v30_profile_selection.json",
-        "profile_selection_sha256": "7d0f8640ee36d01bd1780c12ec59393109ae0ab3ad084a7c65ce4ec7ef193037",
+        "profile_selection_sha256": "7df2f006edbe6210668eaa39ff2a3d85e03ac2bf9e81cd509aebeab57aa1b906",
         "profile_selection_status": "canonical_rnn512_selected_diagnostic_only_formal_timing_pending",
         "timing_raw": "config/step5d_v30_rnn128_00d64f5_formal_timing_raw.json",
         "timing_raw_sha256": "c2a858f7f84b7e746ce17f30fd88f4c71fef11edbdf3cd3a26b3907b1442f073",
@@ -9017,13 +9017,13 @@
           "bridge": "tools/kunwei_rtde_bridge.py",
           "bridge_sha256": "d128a275a00ef68236acd917e5fae4dfe5fa9662dcc068cd92000c877c9d7747",
           "harness": "tools/run_step5d_v30_remote_timing.py",
-          "harness_sha256": "e6d6d4b43eb4cae16745eb809bac19a81e138c96cfa9e7fe668de363b16ce010",
+          "harness_sha256": "671f3d0b8c8391a28c5fecea686dafa78e75136253bb460683cefa971be49846",
           "bundler": "tools/build_step5d_v30_remote_timing_bundle.py",
           "bundler_sha256": "320960ed2cf836f939b0a65e0cf7c602e6f58e9e4f35a7f9df87fc4cab4abd73",
           "aggregator": "tools/step5d_v30_timing.py",
-          "aggregator_sha256": "84df773eed90acc8dbab466fc80384afbd54f74e76e096ef66ea3cf96a91ca2b",
+          "aggregator_sha256": "28c48149abd678c5e8debb55b0ec4300f2ef87d15c9481c000599cec5da2e4ff",
           "readiness_builder": "tools/build_step5d_v30_offline_readiness.py",
-          "readiness_builder_sha256": "0ab47b42264ac8949aad51e8e40eac58c62dbdd9630e8231deff9dd93fd9ebaf"
+          "readiness_builder_sha256": "d5f857fbc597c7b568d5270d300430d59c12d1923940e6633a4b21c8caddebde"
         }
       },
       "success_condition": "v30_offline_ready only after the complete v29 replay accepts at least 99% with zero normal mismatch/nonfinite/qdot-bound rows; 10,000-solve and 60 s 500 Hz timing pass either the zero-miss hard-real-time route or the bounded-tail route with matching URSim/controller exact-zero stale-hold proof; inactive package hashes validate; and review blockers are zero. This does not promote current_stage or authorize live motion."
