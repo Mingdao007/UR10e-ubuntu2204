@@ -976,7 +976,7 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             ):
                 failures.append("v30 strict-RNN profile selection sha mismatch")
             if evidence.get("profile_selection_status") != (
-                "canonical_rnn512_selected_diagnostic_only_formal_timing_pending"
+                "canonical_rnn512_selected_formal_timing_passed"
             ):
                 failures.append("v30 strict-RNN profile selection status is invalid")
         for label, path, expected_sha in (

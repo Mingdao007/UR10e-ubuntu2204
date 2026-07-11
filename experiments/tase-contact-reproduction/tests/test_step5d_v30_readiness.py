@@ -72,16 +72,17 @@ class Step5dV30ReadinessTest(unittest.TestCase):
         )
         self.assertFalse(history["runtime_shaped_smoke_not_acceptance"]["acceptance_eligible"])
         self.assertFalse(history["component_diagnostic_not_acceptance"]["acceptance_eligible"])
-        self.assertIn("runtime_shaped_60s_500hz_acceptance_not_run", payload["blockers"])
+        self.assertNotIn(
+            "runtime_shaped_60s_500hz_acceptance_not_run", payload["blockers"]
+        )
         current_bound = payload["timing"]["current_source_evidence"]
-        if current_bound is None:
-            self.assertIn("current_source_solver_10k_not_run", payload["blockers"])
-        else:
-            self.assertNotIn("current_source_solver_10k_not_run", payload["blockers"])
-            self.assertEqual(
-                current_bound["sha256"],
-                hashlib.sha256((ROOT / current_bound["path"]).read_bytes()).hexdigest(),
-            )
+        self.assertIsNotNone(current_bound)
+        self.assertTrue(current_bound["acceptance_eligible"])
+        self.assertNotIn("current_source_solver_10k_not_run", payload["blockers"])
+        self.assertEqual(
+            current_bound["sha256"],
+            hashlib.sha256((ROOT / current_bound["path"]).read_bytes()).hexdigest(),
+        )
         self.assertNotIn(
             "current_runtime_source_bound_full_timing_not_run", payload["blockers"]
         )
@@ -115,7 +116,16 @@ class Step5dV30ReadinessTest(unittest.TestCase):
             "per-artifact recomputation from one hash-bound raw artifact; "
             "the aggregate summary is diagnostic only",
         )
-        self.assertIsNone(payload["timing"]["acceptance_raw_evidence"])
+        self.assertTrue(payload["timing"]["hard_realtime_pass"])
+        self.assertTrue(
+            payload["timing"]["profile_selection"]["formal_timing_satisfied"]
+        )
+        acceptance_raw = payload["timing"]["acceptance_raw_evidence"]
+        self.assertIsNotNone(acceptance_raw)
+        self.assertEqual(
+            acceptance_raw["sha256"],
+            hashlib.sha256((ROOT / acceptance_raw["path"]).read_bytes()).hexdigest(),
+        )
         self.assertTrue(payload["package"]["binding_valid"])
         self.assertFalse(payload["package"]["controller_readback_verified"])
         self.assertFalse(payload["p0_v8_gate"]["passed"])
