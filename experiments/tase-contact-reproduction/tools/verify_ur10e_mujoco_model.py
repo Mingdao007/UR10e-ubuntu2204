@@ -124,7 +124,11 @@ def verify(
     ):
         blockers.append("base_from_mujoco_world_rotation_manifest_mismatch")
 
-    velocity_binding = (manifest.get("outputs") or {}).get("velocity") or {}
+    velocity_binding = (
+        (manifest.get("outputs") or {}).get("no_contact_velocity")
+        or (manifest.get("outputs") or {}).get("velocity")
+        or {}
+    )
     issue = _verify_binding(velocity_binding, bundle_dir=bundle_dir)
     if issue:
         blockers.append(issue)
@@ -149,6 +153,13 @@ def verify(
         not model.actuator(index).name.startswith("velocity_") for index in range(model.nu)
     ):
         blockers.append("velocity_actuator_lane_invalid")
+    no_contact_scene = manifest.get("no_contact_scene") or {}
+    if (
+        no_contact_scene.get("output_key") != "no_contact_velocity"
+        or no_contact_scene.get("native_contact_enabled") is not True
+        or float(no_contact_scene.get("minimum_remaining_clearance_m", -1.0)) <= 0.0
+    ):
+        blockers.append("p0_no_contact_scene_contract_invalid")
 
     site_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, "active_tcp_site")
     if site_id < 0:

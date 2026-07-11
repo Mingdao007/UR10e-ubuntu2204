@@ -164,6 +164,41 @@ class Ur10eDigitalTwinModelTest(unittest.TestCase):
         )
         self.assertFalse(config()["claim_boundary"]["live_accepted"])
 
+    def test_p0_no_contact_scene_retracts_surface_without_disabling_collision(self) -> None:
+        contact = ET.fromstring(
+            patch_mjcf(
+                canonical_mjcf(),
+                config=config(),
+                urdf_text=fixed_urdf(),
+                actuator_mode="velocity",
+                scene_id="contact",
+            )
+        )
+        no_contact = ET.fromstring(
+            patch_mjcf(
+                canonical_mjcf(),
+                config=config(),
+                urdf_text=fixed_urdf(),
+                actuator_mode="velocity",
+                scene_id="p0_no_contact",
+            )
+        )
+
+        contact_position = np.fromstring(
+            contact.find(".//body[@name='step5_surface']").attrib["pos"], sep=" "
+        )
+        no_contact_position = np.fromstring(
+            no_contact.find(".//body[@name='step5_surface']").attrib["pos"], sep=" "
+        )
+        expected_offset = np.asarray(
+            config()["surface"]["p0_no_contact_scene"]["translation_offset_m"]
+        )
+        np.testing.assert_allclose(no_contact_position - contact_position, expected_offset)
+        collision = no_contact.find(".//geom[@name='step5_surface_collision']")
+        self.assertEqual(collision.attrib["contype"], "1")
+        self.assertEqual(collision.attrib["conaffinity"], "1")
+        self.assertIsNotNone(no_contact.find("./contact/pair[@name='eoat_surface_pair']"))
+
     def test_integer_schedule_is_frozen(self) -> None:
         rates = config()["rates_hz"]
         self.assertEqual(rates, {"physics": 2000, "control": 500, "dbil": 200})

@@ -35,6 +35,7 @@ JOINT_NAMES = (
     "wrist_3_joint",
 )
 VELOCITY_MODEL = "ur10e_p0_velocity.xml"
+CONTACT_VELOCITY_MODEL = "ur10e_contact_velocity.xml"
 TORQUE_MODEL = "ur10e_vic_torque_surrogate.xml"
 
 
@@ -120,6 +121,18 @@ def validate_inputs(config: Mapping[str, Any]) -> None:
     surface_mesh = _resolve_repo_path(str(surface.get("mesh") or ""))
     if not surface_mesh.is_file() or sha256_path(surface_mesh) != surface.get("mesh_sha256"):
         raise ValueError("surface mesh hash mismatch")
+    no_contact_scene = surface.get("p0_no_contact_scene") or {}
+    no_contact_offset = np.asarray(
+        no_contact_scene.get("translation_offset_m"), dtype=float
+    )
+    if (
+        no_contact_offset.shape != (3,)
+        or not np.all(np.isfinite(no_contact_offset))
+        or no_contact_scene.get("collision_enabled") is not True
+        or float(no_contact_scene.get("minimum_initial_clearance_m", 0.0)) <= 0.0
+        or float(no_contact_scene.get("max_canary_approach_m", 0.0)) <= 0.0
+    ):
+        raise ValueError("P0 no-contact scene contract is invalid")
     variant_id = str(config.get("active_variant") or "")
     variant = (config.get("variants") or {}).get(variant_id)
     if not isinstance(variant, Mapping):
@@ -273,11 +286,14 @@ def patch_mjcf(
     config: Mapping[str, Any],
     urdf_text: str,
     actuator_mode: str,
+    scene_id: str = "contact",
 ) -> str:
     if actuator_mode not in {"velocity", "torque_surrogate"}:
         raise ValueError("actuator_mode must be velocity or torque_surrogate")
     root = ET.fromstring(canonical_mjcf)
-    root.attrib["model"] = f"ur10e_digital_twin_{actuator_mode}"
+    if scene_id not in {"contact", "p0_no_contact"}:
+        raise ValueError(f"unsupported MuJoCo scene: {scene_id}")
+    root.attrib["model"] = f"ur10e_digital_twin_{actuator_mode}_{scene_id}"
     compiler = root.find("compiler")
     if compiler is None:
         compiler = ET.SubElement(root, "compiler")
@@ -367,10 +383,28 @@ def patch_mjcf(
     ET.SubElement(eoat, "site", {"name": "contact_pad_touch_site", "type": "box", "pos": "0 0 0.122", "size": "0.026 0.026 0.005", "rgba": "0.8 0.3 0.1 0.08", "group": "4"})
 
     surface = config["surface"]
+    surface_position = np.asarray(surface["world_pose_xyz_m"], dtype=float)
+    if scene_id == "p0_no_contact":
+        no_contact_scene = surface.get("p0_no_contact_scene") or {}
+        surface_offset = np.asarray(
+            no_contact_scene.get("translation_offset_m"), dtype=float
+        )
+        if surface_offset.shape != (3,) or not np.all(np.isfinite(surface_offset)):
+            raise ValueError("P0 no-contact surface offset must be a finite 3-vector")
+        if no_contact_scene.get("collision_enabled") is not True:
+            raise ValueError("P0 no-contact scene must retain native collision")
+        surface_position = surface_position + surface_offset
     ET.SubElement(asset, "mesh", {"name": "step5_surface_mesh", "file": "assets/contact_surface/two_piece_surface_smooth_v11_3mm_thick.stl", "scale": "0.001 0.001 0.001"})
     ET.SubElement(worldbody, "geom", {"name": "ground_plane", "type": "plane", "pos": "0 0 -0.08", "size": "2 2 0.02", "rgba": "0.70 0.68 0.63 1", "contype": "1", "conaffinity": "1"})
     ET.SubElement(worldbody, "geom", {"name": "work_table", "type": "box", "pos": "0.46 0.13 -0.045", "size": "0.40 0.32 0.035", "rgba": "0.42 0.38 0.33 1", "contype": "1", "conaffinity": "1"})
-    surface_body = ET.SubElement(worldbody, "body", {"name": "step5_surface", "pos": " ".join(str(value) for value in surface["world_pose_xyz_m"])})
+    surface_body = ET.SubElement(
+        worldbody,
+        "body",
+        {
+            "name": "step5_surface",
+            "pos": " ".join(f"{float(value):.12g}" for value in surface_position),
+        },
+    )
     mesh_pose = surface["mesh_pose_xyz_rpy"]
     mesh_quat = matrix_to_quat_wxyz(rpy_matrix(mesh_pose[3:6]))
     # The tracked STL is a visual source.  MuJoCo mesh contact would silently
@@ -663,21 +697,54 @@ def build(
     denylist = config["legacy_denylist"]
     outputs: dict[str, dict[str, object]] = {}
     model_stats: dict[str, dict[str, object]] = {}
-    for mode, filename in (("velocity", VELOCITY_MODEL), ("torque_surrogate", TORQUE_MODEL)):
-        xml_text = patch_mjcf(canonical_portable, config=config, urdf_text=resolved_urdf, actuator_mode=mode)
+    model_variants = (
+        ("no_contact_velocity", "velocity", "p0_no_contact", VELOCITY_MODEL),
+        ("contact_velocity", "velocity", "contact", CONTACT_VELOCITY_MODEL),
+        ("torque_surrogate", "torque_surrogate", "contact", TORQUE_MODEL),
+    )
+    for output_key, actuator_mode, scene_id, filename in model_variants:
+        xml_text = patch_mjcf(
+            canonical_portable,
+            config=config,
+            urdf_text=resolved_urdf,
+            actuator_mode=actuator_mode,
+            scene_id=scene_id,
+        )
         for token in denylist["tokens"]:
             if str(token) in xml_text:
                 raise ValueError(f"generated MJCF contains denied legacy token: {token}")
         path = output_dir / filename
         path.write_text(xml_text + "\n", encoding="utf-8")
         model = mujoco.MjModel.from_xml_path(str(path))
-        model_stats[mode] = _validate_model(model, mode=mode)
-        outputs[mode] = binding(
+        model_stats[output_key] = _validate_model(model, mode=actuator_mode)
+        outputs[output_key] = binding(
             path,
-            role=f"mujoco_{mode}_plant",
-            claim_level=("geometry_provisional" if mode == "velocity" else "torque_physics_surrogate_not_direct_torque_reproduction"),
+            role=f"mujoco_{output_key}_plant",
+            claim_level=(
+                "geometry_provisional_no_contact_falsification"
+                if output_key == "no_contact_velocity"
+                else "geometry_provisional"
+                if actuator_mode == "velocity"
+                else "torque_physics_surrogate_not_direct_torque_reproduction"
+            ),
             relative_to=output_dir,
         )
+
+    no_contact_config = config["surface"]["p0_no_contact_scene"]
+    no_contact_offset = np.abs(
+        np.asarray(no_contact_config["translation_offset_m"], dtype=float)
+    )
+    # Conservative axis-aligned clearance for the 52 mm square pad against
+    # the 180 x 100 mm retained surface proxy.  Native collision remains on;
+    # the retraction is a hash-bound no-contact falsification scene, not a
+    # hidden collision disable.
+    half_extent_sum = np.asarray((0.026 + 0.09, 0.026 + 0.05, 0.005 + 0.0040224195))
+    initial_clearance_m = float(np.max(no_contact_offset - half_extent_sum))
+    required_clearance_m = float(no_contact_config["minimum_initial_clearance_m"])
+    travel_budget_m = float(no_contact_config["max_canary_approach_m"])
+    remaining_clearance_m = initial_clearance_m - travel_budget_m
+    if initial_clearance_m < required_clearance_m or remaining_clearance_m <= 0.0:
+        raise ValueError("P0 no-contact scene clearance budget is insufficient")
 
     urdf_path = output_dir / "calibrated_ur10e.urdf"
     urdf_path.write_text(portable_urdf, encoding="utf-8")
@@ -774,6 +841,18 @@ def build(
         "vendored_assets": vendored_assets,
         "outputs": outputs,
         "model_stats": model_stats,
+        "no_contact_scene": {
+            "id": no_contact_config["id"],
+            "mode": "surface_translation_with_native_collision",
+            "output_key": "no_contact_velocity",
+            "translation_offset_m": no_contact_config["translation_offset_m"],
+            "initial_clearance_m": initial_clearance_m,
+            "required_initial_clearance_m": required_clearance_m,
+            "commanded_travel_budget_m": travel_budget_m,
+            "minimum_remaining_clearance_m": remaining_clearance_m,
+            "native_contact_enabled": True,
+            "claim": no_contact_config["claim"],
+        },
         "rates_hz": config["rates_hz"],
         "integer_schedule": {"physics_per_control": 4, "physics_per_dbil": 10},
         "active_variant": config["active_variant"],
@@ -786,6 +865,7 @@ def build(
             "production_tcp_site": "production_tcp_wrench_site",
             "raw_sensor_semantics": "parent_to_child_constraint_wrench_in_site_frame",
             "external_wrench_mapping": "force_external_tcp=-force_raw_tcp; torque_external_tcp=-torque_raw_tcp",
+            "simulated_tare": "initial-free-space raw constraint wrench is subtracted by the adapter; this is not a bench zero-FT claim or operation",
             "physical_sensor_to_tcp_shift_evidence": "MuJoCo production_tcp_wrench_site performs the moment shift; physical site remains lineage-only",
             "claim": "simulated wrench only; Kunwei Fz sign still requires independent bench calibration",
         },

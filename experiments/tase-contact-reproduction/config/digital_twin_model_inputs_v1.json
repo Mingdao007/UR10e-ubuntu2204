@@ -94,7 +94,19 @@
     "friction_nominal": 1.0,
     "contact_stiffness_nominal_n_m": 1000000.0,
     "contact_damping_nominal_n_s_m": 100.0,
-    "parameter_claim": "falsification_only_until_material_and_full_2d_surface_calibration"
+    "parameter_claim": "falsification_only_until_material_and_full_2d_surface_calibration",
+    "p0_no_contact_scene": {
+      "id": "p0_v8_surface_retracted_x_250mm",
+      "translation_offset_m": [
+        0.25,
+        0.0,
+        0.0
+      ],
+      "collision_enabled": true,
+      "minimum_initial_clearance_m": 0.1,
+      "max_canary_approach_m": 0.00975,
+      "claim": "hash_bound_no_contact_falsification_scene_not_bench_geometry"
+    }
   },
   "rates_hz": {
     "physics": 2000,

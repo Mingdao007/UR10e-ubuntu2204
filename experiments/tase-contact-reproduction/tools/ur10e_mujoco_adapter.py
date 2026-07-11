@@ -92,6 +92,20 @@ def wrench_tcp_to_base(
     return tuple(float(value) for value in values)  # type: ignore[return-value]
 
 
+def subtract_simulated_tare(
+    raw_sensor: Sequence[float], initial_free_space_raw: Sequence[float]
+) -> np.ndarray:
+    """Apply the simulator-only initial free-space tare in raw sensor space."""
+
+    raw = np.asarray(raw_sensor, dtype=float)
+    tare = np.asarray(initial_free_space_raw, dtype=float)
+    if raw.shape != (3,) or tare.shape != (3,) or not (
+        np.all(np.isfinite(raw)) and np.all(np.isfinite(tare))
+    ):
+        raise ValueError("simulated tare inputs must be finite 3-vectors")
+    return raw - tare
+
+
 @dataclass(frozen=True)
 class NativeContactRow:
     geom1: str
@@ -105,7 +119,12 @@ class NativeContactRow:
 class MuJoCoVelocityPlant:
     """2 kHz velocity-servo plant with 500 Hz state/command interface."""
 
-    def __init__(self, manifest_path: Path) -> None:
+    def __init__(
+        self,
+        manifest_path: Path,
+        *,
+        output_key: str = "no_contact_velocity",
+    ) -> None:
         import mujoco
         import pinocchio as pin
 
@@ -119,7 +138,19 @@ class MuJoCoVelocityPlant:
         self.manifest = json.loads(self.manifest_path.read_text(encoding="utf-8"))
         if self.manifest.get("schema") != "ur10e_mujoco_model_bundle_v1":
             raise ValueError("MuJoCo model manifest schema is invalid")
-        velocity = self.manifest["outputs"]["velocity"]
+        self.output_key = str(output_key)
+        velocity = (self.manifest.get("outputs") or {}).get(self.output_key)
+        if not isinstance(velocity, Mapping):
+            raise ValueError(f"MuJoCo model output is missing: {self.output_key}")
+        if self.output_key == "no_contact_velocity":
+            no_contact_scene = self.manifest.get("no_contact_scene") or {}
+            if (
+                no_contact_scene.get("output_key") != self.output_key
+                or no_contact_scene.get("native_contact_enabled") is not True
+                or float(no_contact_scene.get("minimum_remaining_clearance_m", -1.0))
+                <= 0.0
+            ):
+                raise ValueError("MuJoCo P0 no-contact scene binding is invalid")
         self.model_path = self.bundle_dir / velocity["path"]
         if sha256_path(self.model_path) != velocity["sha256"]:
             raise ValueError("MuJoCo velocity model hash mismatch")
@@ -186,7 +217,8 @@ class MuJoCoVelocityPlant:
                 "mujoco_world(base_link)->base",
                 "base->tool0(calibrated_pinocchio)",
                 "tool0->active_tcp(manifest)",
-                "production_tcp_wrench_raw->external_tcp(sign_flip)",
+                "production_tcp_wrench_raw->simulated_initial_tare",
+                "tare_compensated_raw->external_tcp(sign_flip)",
                 "external_tcp->base(rotation)",
             ),
             sha256=self._frame_lineage_sha256(),
@@ -200,7 +232,8 @@ class MuJoCoVelocityPlant:
             "base_from_world": self.base_from_world.tolist(),
             "tcp_offset": self.tcp_offset.tolist(),
             "calibration_hash": self.manifest["calibration_hash"],
-            "model_sha256": self.manifest["outputs"]["velocity"]["sha256"],
+            "model_output_key": self.output_key,
+            "model_sha256": self.manifest["outputs"][self.output_key]["sha256"],
             "wrench_mapping": self.manifest["wrench_contract"],
         }
         return hashlib.sha256(
@@ -211,6 +244,8 @@ class MuJoCoVelocityPlant:
         self.mujoco.mj_resetDataKeyframe(self.model, self.data, 0)
         self.data.ctrl[:] = 0.0
         self.mujoco.mj_forward(self.model, self.data)
+        self._tare_force_raw = self._sensor(self.force_sensor_id)
+        self._tare_torque_raw = self._sensor(self.torque_sensor_id)
 
     def _sensor(self, sensor_id: int) -> np.ndarray:
         address = int(self.model.sensor_adr[sensor_id])
@@ -278,9 +313,11 @@ class MuJoCoVelocityPlant:
         twist_base = jacobian @ qd
         raw_force = self._sensor(self.force_sensor_id)
         raw_torque = self._sensor(self.torque_sensor_id)
+        compensated_force = subtract_simulated_tare(raw_force, self._tare_force_raw)
+        compensated_torque = subtract_simulated_tare(raw_torque, self._tare_torque_raw)
         external_force_tcp, external_torque_tcp = external_wrench_at_tcp(
-            raw_force,
-            raw_torque,
+            compensated_force,
+            compensated_torque,
             rotation_tcp_from_sensor=np.eye(3),
             sensor_to_tcp_sensor_m=np.zeros(3),
         )
@@ -331,7 +368,7 @@ class MuJoCoVelocityPlant:
             approach_normal=(0.0, 0.0, -1.0),
             frame_lineage=self.frame_lineage,
             calibration_hash=str(self.manifest["calibration_hash"]),
-            model_hash=str(self.manifest["outputs"]["velocity"]["sha256"]),
+            model_hash=str(self.manifest["outputs"][self.output_key]["sha256"]),
             omega_minus=tuple(float(value) for value in lower),  # type: ignore[arg-type]
             omega_plus=tuple(float(value) for value in upper),  # type: ignore[arg-type]
             path_time_s=float(self.data.time),
@@ -346,6 +383,11 @@ class MuJoCoVelocityPlant:
                 "normal_load_n": normal_load,
                 "raw_parent_to_child_force_sensor": raw_force.tolist(),
                 "raw_parent_to_child_torque_sensor": raw_torque.tolist(),
+                "simulated_tare_force_raw": self._tare_force_raw.tolist(),
+                "simulated_tare_torque_raw": self._tare_torque_raw.tolist(),
+                "tare_compensated_force_raw": compensated_force.tolist(),
+                "tare_compensated_torque_raw": compensated_torque.tolist(),
+                "simulated_tare_is_not_bench_zero_ft": True,
                 "external_force_tcp": external_force_tcp.tolist(),
                 "external_torque_tcp": external_torque_tcp.tolist(),
                 "target": {

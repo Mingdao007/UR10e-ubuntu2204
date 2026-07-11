@@ -66,6 +66,14 @@ class Ur10eMujocoAdapterTest(unittest.TestCase):
 
         self.assertEqual(wrench, (1.0, -2.0, -3.0, 4.0, -5.0, -6.0))
 
+    def test_simulated_tare_removes_initial_free_space_constraint_load(self) -> None:
+        compensated = adapter.subtract_simulated_tare(
+            (0.2, -0.1, 3.592422),
+            (0.2, -0.1, 3.592422),
+        )
+
+        np.testing.assert_array_equal(compensated, np.zeros(3))
+
     def test_engine_plugin_never_calls_solver_or_safety_envelope(self) -> None:
         source = inspect.getsource(adapter)
 
