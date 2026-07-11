@@ -1904,7 +1904,7 @@ class Step5dV29RawBridgeAuthorizationGateTest(unittest.TestCase):
     def test_v29_dashboard_binding_runs_before_runtime_connections(self) -> None:
         source = Path(bridge.__file__).read_text(encoding="utf-8")
         authorization_call = source.index("require_v29_live_bridge_authorization(args)")
-        scheduler_call = source.index("require_v29_realtime_scheduler(args)")
+        scheduler_call = source.index("require_step5d_realtime_scheduler(args)")
         output_dir_create = source.index("args.output_dir.mkdir")
         binding_call = source.index("require_v29_dashboard_program_binding(args, dashboard)")
         sensor_connect = source.index("socket.create_connection((args.sensor_ip, args.sensor_port)")
