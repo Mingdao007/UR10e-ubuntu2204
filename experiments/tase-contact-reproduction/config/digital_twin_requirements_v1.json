@@ -1,0 +1,109 @@
+{
+  "schema": "ur10e_digital_twin_requirements_v1",
+  "generated_from_commit": "19f7dca",
+  "workflow_state": "liveprep_blocked",
+  "current_program": "step5d_strict_rnn_ablation_v29",
+  "v30_active": false,
+  "live_motion_authorized": false,
+  "safety_boundary": {
+    "controller_upload": false,
+    "bridge_start": false,
+    "tp_play": false,
+    "zero_ft": false,
+    "robot_motion": false,
+    "network_or_credential_mutation": false
+  },
+  "requirements": [
+    {
+      "id": "single_production_simulator_adapter",
+      "status": "implementation_in_progress",
+      "owner": "tools/step5d_simulator_adapter.py",
+      "acceptance": "Every engine maps state into Step5dObservation and consumes only the RegisterCommand output of the shared strict-RNN production pipeline."
+    },
+    {
+      "id": "p0_v8_2_10_60",
+      "status": "not_run",
+      "owner": "tools/run_step5d_p0_v8_sim.py",
+      "acceptance": "Same frozen fingerprint completes deterministic 2, 10, and 60 second 500 Hz phases with all nominal counters zero and exact-zero fault holds."
+    },
+    {
+      "id": "fresh_calibrated_mujoco_plant",
+      "status": "blocked",
+      "blockers": [
+        "eoat_variant_unresolved_current_kunwei_122p1_vs_v13_direct_flange_85",
+        "combined_eoat_mass_cog_inertia_unvalidated",
+        "ur_description_xacro_and_mesh_hashes_not_pinned",
+        "kunwei_fz_sign_not_independently_calibrated"
+      ],
+      "forbidden_inputs": [
+        "experiments/archive/legacy/tase-mujoco-reproduction-2026-05-23/assets/mjcf/ur10e_nominal.xml",
+        "tcp_site_unverified_85mm",
+        "f186a335c39d74979b62ea32eacbe15a8a893baab110ae3fa2bdd5db07f065d5"
+      ]
+    },
+    {
+      "id": "gazebo_v2_native_contact",
+      "status": "blocked",
+      "blockers": [
+        "legacy_controller_manager_update_rate_100_hz",
+        "legacy_position_controller_only",
+        "fortress_and_harmonic_abi_not_separated",
+        "native_attached_robot_contact_ft_not_captured"
+      ],
+      "required_version_lane": "Fortress 6.18.0 + ign_ros2_control 0.7.19 unless a separate Harmonic lane is explicitly generated"
+    },
+    {
+      "id": "visual_observer_four_views",
+      "status": "not_run",
+      "required_views": ["wide", "oblique", "close", "contact"],
+      "claim_boundary": "visual evidence cannot increase physics or control claims"
+    },
+    {
+      "id": "cross_engine_and_domain_randomization",
+      "status": "not_run",
+      "claim_boundary": "unvalidated random parameters are robustness/falsification evidence only"
+    },
+    {
+      "id": "ursim_5_11_protocol",
+      "status": "blocked",
+      "blockers": ["digest_bound_ursim_image_absent", "docker_service_inactive"],
+      "claim_ceiling": "p0_ursim_protocol_pass"
+    },
+    {
+      "id": "ursim_5_23_direct_torque_software",
+      "status": "blocked",
+      "blockers": ["digest_bound_ursim_image_absent", "docker_service_inactive"],
+      "claim_ceiling": "direct_torque_ursim_software_pass"
+    },
+    {
+      "id": "vic_simulation_active_dbil_shadow",
+      "status": "partial",
+      "blockers": [
+        "fixed_scripted_deterministic_policies_not_simulation_active",
+        "dbil_active_manifest_path_not_unconditionally_rejected",
+        "directional_adaptor_rotation_default_not_fixed"
+      ]
+    },
+    {
+      "id": "timing_separation",
+      "status": "partial",
+      "blockers": [
+        "sim_time_500_hz_evidence_not_run",
+        "ubuntu_wall_paced_500_hz_acceptance_not_passed",
+        "rtf_not_reported"
+      ]
+    },
+    {
+      "id": "unified_evidence_and_claims",
+      "status": "implementation_in_progress",
+      "required_claims": [
+        "p0_sim_physics_pass",
+        "p0_ursim_protocol_pass",
+        "contact_sim_pass",
+        "direct_torque_ursim_software_pass",
+        "v30_offline_ready"
+      ],
+      "non_equivalence": "offline/sim pass != package accepted != live accepted != reproduction complete"
+    }
+  ]
+}

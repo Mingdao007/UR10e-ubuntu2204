@@ -97,14 +97,18 @@ class Step5dV30ProfileTest(unittest.TestCase):
 
     def test_v30_bridge_source_uses_contract_pipeline_but_refuses_live_start(self) -> None:
         source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(encoding="utf-8")
+        contract_source = (ROOT / "tools" / "step5d_control_contract.py").read_text(
+            encoding="utf-8"
+        )
 
         self.assertIn("from step5d_control_contract import", source)
         self.assertIn("observation_v30 = Step5dObservation(", source)
         self.assertIn("raw_candidate_v30 = state.step5d_v30_policy.compute(", source)
         self.assertIn("step5d_v30_contract_pipeline(", source)
-        self.assertIn("dls_shadow = compute_dls_shadow(", source)
-        self.assertIn("command = decision_to_register_command(", source)
-        self.assertIn("deferred_diagnostics.record(", source)
+        self.assertIn("shared_step5d_v30_contract_pipeline(", source)
+        self.assertIn("dls_shadow = compute_dls_shadow(", contract_source)
+        self.assertIn("command = decision_to_register_command(", contract_source)
+        self.assertIn("deferred_diagnostics.record(", contract_source)
         self.assertIn("v30 raw bridge is an inactive offline candidate", source)
 
 

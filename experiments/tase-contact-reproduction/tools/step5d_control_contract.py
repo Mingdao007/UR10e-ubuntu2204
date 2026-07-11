@@ -18,6 +18,8 @@ import numpy as np
 JOINT_LAYOUT_CODE = 524.0
 STRICT_RNN_SOLVER_OK_STATUS = 40.0
 ZERO6 = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+V30_QDOT_SLEW_RAD_S2 = 0.20
+V30_GUARD_DT_MAX_S = 0.010
 
 
 Vector3 = tuple[float, float, float]
@@ -229,6 +231,21 @@ class RegisterCommand:
             }
         )
         return values
+
+
+@dataclass(frozen=True)
+class Step5dControlStepResult:
+    """One auditable production control step shared by bridge and simulators.
+
+    Only ``register_command.qdot`` is eligible to reach a command sink.  The
+    DLS result is deliberately evidence-only and has no command conversion.
+    """
+
+    raw_candidate: ControlCandidate
+    candidate: ControlCandidate
+    dls_shadow: DlsShadowEvidence | None
+    decision: SafetyDecision
+    register_command: RegisterCommand
 
 
 def _finite_array(values: Any, shape: tuple[int, ...]) -> np.ndarray | None:
@@ -491,6 +508,168 @@ def decision_to_register_command(
         layout_code=JOINT_LAYOUT_CODE,
         stop_request=stop,
         decision_reason=decision.reason,
+    )
+
+
+def fail_closed_control_step(
+    observation: Step5dObservation,
+    *,
+    reason: str,
+    deferred_diagnostics: "DeferredV30Diagnostics",
+    solver_status: str = "invalid",
+) -> Step5dControlStepResult:
+    """Create and record an exact-zero structural failure result."""
+
+    failure = ControlCandidate(
+        qdot=ZERO6,
+        predicted_twist=ZERO6,
+        residual_norm=math.inf,
+        active_bounds_count=0,
+        frame_id=observation.command_frame or "invalid",
+        solver_status=solver_status,
+        diagnostics={"contract_failure": reason},
+    )
+    decision = SafetyDecision(
+        accepted=False,
+        action="stop",
+        reason=reason,
+        qdot=ZERO6,
+        metrics={},
+    )
+    command = decision_to_register_command(observation, decision)
+    if command.qdot != ZERO6:
+        raise RuntimeError("fail-closed control step did not produce exact zero")
+    if not deferred_diagnostics.record(
+        observation,
+        failure,
+        decision,
+        command,
+        None,
+    ):
+        raise RuntimeError("v30 deferred diagnostics capacity exhausted")
+    return Step5dControlStepResult(
+        raw_candidate=failure,
+        candidate=failure,
+        dls_shadow=None,
+        decision=decision,
+        register_command=command,
+    )
+
+
+def step5d_v30_contract_pipeline(
+    observation: Step5dObservation,
+    raw_candidate: ControlCandidate,
+    *,
+    previous_qdot: Vector6 | None,
+    safety_envelope: SafetyEnvelope,
+    deferred_diagnostics: "DeferredV30Diagnostics",
+    max_slew_rad_s2: float = V30_QDOT_SLEW_RAD_S2,
+    dt_max_s: float = V30_GUARD_DT_MAX_S,
+) -> Step5dControlStepResult:
+    """Exact candidate -> slew -> DLS-shadow -> safety -> register seam.
+
+    This is intentionally engine- and transport-independent.  The live bridge,
+    wall-clock harness, MuJoCo adapter, and Gazebo adapter must call this same
+    function rather than reproducing its logic.
+    """
+
+    try:
+        candidate = apply_direction_preserving_slew(
+            observation,
+            raw_candidate,
+            previous_qdot=previous_qdot or ZERO6,
+            dt_s=float(observation.dt_s),
+            max_slew_rad_s2=float(max_slew_rad_s2),
+            dt_max_s=float(dt_max_s),
+            copy_diagnostics=False,
+        )
+        decision = safety_envelope.evaluate(observation, candidate)
+        try:
+            dls_shadow = compute_dls_shadow(observation, candidate)
+        except (ValueError, np.linalg.LinAlgError, FloatingPointError, OverflowError):
+            if decision.accepted:
+                raise
+            # A candidate already rejected by the authoritative SafetyEnvelope
+            # must remain rejected with its specific reason.  Missing DLS
+            # evidence cannot become a fallback or mask a normal/frame guard.
+            dls_shadow = None
+    except (
+        ValueError,
+        RuntimeError,
+        np.linalg.LinAlgError,
+        FloatingPointError,
+        OverflowError,
+        AttributeError,
+        TypeError,
+    ) as exc:
+        return fail_closed_control_step(
+            observation,
+            reason=f"v30_contract_structural_failure:{type(exc).__name__}",
+            deferred_diagnostics=deferred_diagnostics,
+            solver_status=str(getattr(raw_candidate, "solver_status", "invalid")),
+        )
+    command = decision_to_register_command(observation, decision)
+    if not decision.accepted and command.qdot != ZERO6:
+        raise RuntimeError("rejected v30 candidate did not produce exact zero")
+    if not deferred_diagnostics.record(
+        observation,
+        candidate,
+        decision,
+        command,
+        dls_shadow,
+    ):
+        raise RuntimeError("v30 deferred diagnostics capacity exhausted")
+    return Step5dControlStepResult(
+        raw_candidate=raw_candidate,
+        candidate=candidate,
+        dls_shadow=dls_shadow,
+        decision=decision,
+        register_command=command,
+    )
+
+
+def step5d_v30_control_step(
+    observation: Step5dObservation,
+    policy: ControlPolicy,
+    *,
+    previous_qdot: Vector6 | None,
+    safety_envelope: SafetyEnvelope,
+    deferred_diagnostics: "DeferredV30Diagnostics",
+    max_slew_rad_s2: float = V30_QDOT_SLEW_RAD_S2,
+    dt_max_s: float = V30_GUARD_DT_MAX_S,
+) -> Step5dControlStepResult:
+    """Run policy and production contract as one fail-closed operation.
+
+    A policy exception, missing return value, wrong type, or malformed output
+    cannot escape before an exact-zero stop command and evidence row exist.
+    """
+
+    try:
+        raw_candidate = policy.compute(observation)
+        if not isinstance(raw_candidate, ControlCandidate):
+            raise TypeError("ControlPolicy must return ControlCandidate")
+    except (
+        ValueError,
+        RuntimeError,
+        np.linalg.LinAlgError,
+        FloatingPointError,
+        OverflowError,
+        AttributeError,
+        TypeError,
+    ) as exc:
+        return fail_closed_control_step(
+            observation,
+            reason=f"strict_rnn_policy_failure:{type(exc).__name__}",
+            deferred_diagnostics=deferred_diagnostics,
+        )
+    return step5d_v30_contract_pipeline(
+        observation,
+        raw_candidate,
+        previous_qdot=previous_qdot,
+        safety_envelope=safety_envelope,
+        deferred_diagnostics=deferred_diagnostics,
+        max_slew_rad_s2=max_slew_rad_s2,
+        dt_max_s=dt_max_s,
     )
 
 

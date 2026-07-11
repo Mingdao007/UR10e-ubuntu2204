@@ -123,7 +123,7 @@
     },
     "bridge_sha256": {
       "path": "tools/kunwei_rtde_bridge.py",
-      "sha256": "7a3989c6a4c960041718b2291b42719741d0de280cb2a19eebaebdad7b1c6fff"
+      "sha256": "c4eda22dbb25eb8981483e7ce8296fa2e25ecd9129821b6395a955bfed7e9443"
     },
     "bundler_sha256": {
       "path": "tools/build_step5d_v30_remote_timing_bundle.py",
@@ -135,7 +135,7 @@
     },
     "control_contract_sha256": {
       "path": "tools/step5d_control_contract.py",
-      "sha256": "c3c44c1892d2063a40df1636adee6216c121e69f1774310354917b730d745875"
+      "sha256": "04aea0098748b50d0a96b5b2acaecb2f5626bfe265bcf4219e9669ca076be335"
     },
     "harness_sha256": {
       "path": "tools/run_step5d_v30_remote_timing.py",

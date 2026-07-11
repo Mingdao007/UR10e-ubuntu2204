@@ -71,6 +71,12 @@ from step5d_paper_outer_loop import (  # noqa: E402
     compute_step5d_outer_loop,
     rnn_target_state_from_outer_loop,
 )
+from step5d_p0_v8_control_core import (  # noqa: E402
+    limit_p0_xdot_components as shared_limit_p0_xdot_components,
+    low_force_posture_policy as shared_low_force_posture_policy,
+    press_only_outer_output as shared_press_only_outer_output,
+    scale_xdot_for_joint_feasibility as shared_scale_xdot_for_joint_feasibility,
+)
 from step5d_control_contract import (  # noqa: E402
     ControlCandidate,
     DeferredV30Diagnostics,
@@ -81,6 +87,7 @@ from step5d_control_contract import (  # noqa: E402
     apply_direction_preserving_slew,
     compute_dls_shadow,
     decision_to_register_command,
+    step5d_v30_contract_pipeline as shared_step5d_v30_contract_pipeline,
 )
 from step5d_p0_v8_gate import (  # noqa: E402
     CANARY_PHASES_S as STEP5D_P0_V8_CANARY_PHASES_S,
@@ -2644,48 +2651,16 @@ def limit_step5d_no_contact_p0_xdot_components(
     max_angular_rad_s: float = STEP5D_NO_CONTACT_P0_ANGULAR_COMPONENT_LIMIT_RAD_S,
     return_diagnostics: bool = False,
 ) -> tuple[np.ndarray, bool] | tuple[np.ndarray, bool, dict[str, Any]]:
-    xdot = np.asarray(xdot_c, dtype=float)
-    if xdot.shape != (6,) or not np.all(np.isfinite(xdot)):
-        raise ValueError("P0 xdot_c must be a finite 6-vector")
-    caps = np.asarray(
-        [
-            float(max_xy_m_s),
-            float(max_xy_m_s),
-            float(max_z_m_s),
-            float(max_angular_rad_s),
-            float(max_angular_rad_s),
-            float(max_angular_rad_s),
-        ],
-        dtype=float,
-    )
-    if np.any(~np.isfinite(caps)) or np.any(caps <= 0.0):
-        raise ValueError("P0 component velocity caps must be finite and positive")
     if rotation_base_from_tcp is None:
         raise ValueError("P0 xdot limiter requires rotation_base_from_tcp")
-
-    rotation = np.asarray(rotation_base_from_tcp, dtype=float)
-    if rotation.shape != (3, 3) or not np.all(np.isfinite(rotation)):
-        raise ValueError("P0 rotation_base_from_tcp must be a finite 3x3 matrix")
-    raw_tcp = twist_base_to_same_origin(xdot, rotation)
-    limited_tcp = raw_tcp.copy()
-    limited_tcp[0] = clamp(float(limited_tcp[0]), -float(max_xy_m_s), float(max_xy_m_s))
-    limited_tcp[1] = clamp(float(limited_tcp[1]), -float(max_xy_m_s), float(max_xy_m_s))
-    limited_tcp[2] = clamp(float(limited_tcp[2]), 0.0, float(max_z_m_s))
-    for idx in range(3, 6):
-        limited_tcp[idx] = clamp(float(limited_tcp[idx]), -float(max_angular_rad_s), float(max_angular_rad_s))
-    limited_base = twist_same_origin_to_base(limited_tcp, rotation)
-    active = bool(np.any(np.abs(limited_base - xdot) > 1e-9))
-    diagnostics = {
-        "valid": True,
-        "mode": "tcp_same_origin_v1",
-        "reason": "ok",
-        "raw_base": xdot,
-        "raw_tcp": raw_tcp,
-        "limited_tcp": limited_tcp,
-        "limited_base": limited_base,
-        "tcp_press_speed_m_s": float(limited_tcp[2]),
-    }
-    return (limited_base, active, diagnostics) if return_diagnostics else (limited_base, active)
+    return shared_limit_p0_xdot_components(
+        xdot_c,
+        rotation_base_from_tcp=rotation_base_from_tcp,
+        max_xy_m_s=max_xy_m_s,
+        max_z_m_s=max_z_m_s,
+        max_angular_rad_s=max_angular_rad_s,
+        return_diagnostics=return_diagnostics,
+    )
 
 
 def smoothstep01(value: float) -> float:
@@ -2702,33 +2677,14 @@ def step5d_no_contact_p0_low_force_posture_policy(
     low_ko: float = STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_KO,
     policy: str = STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_POLICY,
 ) -> dict[str, Any]:
-    base = float(base_ko)
-    load = float(normal_load_n)
-    low_load = float(low_load_n)
-    high_load = float(high_load_n)
-    weak = float(low_ko)
-    if not math.isfinite(base) or base <= 0.0:
-        raise ValueError("P0 posture base_ko must be finite and positive")
-    if not math.isfinite(load):
-        load = 0.0
-    if not math.isfinite(low_load) or not math.isfinite(high_load) or high_load <= low_load:
-        raise ValueError("P0 posture load schedule must be finite and increasing")
-    if not math.isfinite(weak) or weak < 0.0:
-        raise ValueError("P0 low-force posture ko must be finite and non-negative")
-    gamma = smoothstep01((max(0.0, load) - low_load) / (high_load - low_load))
-    effective_ko = weak * (1.0 - gamma) + base * gamma
-    return {
-        "policy": str(policy),
-        "active": bool(gamma < 1.0 - 1e-12),
-        "normal_load_n": max(0.0, load),
-        "load_low_n": low_load,
-        "load_high_n": high_load,
-        "gamma": gamma,
-        "low_ko": weak,
-        "base_ko": base,
-        "effective_ko": effective_ko,
-        "orientation_gain_scale": effective_ko / base,
-    }
+    return shared_low_force_posture_policy(
+        normal_load_n=normal_load_n,
+        base_ko=base_ko,
+        low_load_n=low_load_n,
+        high_load_n=high_load_n,
+        low_ko=low_ko,
+        policy=policy,
+    )
 
 
 def step5d_no_contact_p0_press_only_outer_output(
@@ -2737,27 +2693,10 @@ def step5d_no_contact_p0_press_only_outer_output(
     force_error_n: float,
     press_speed_m_s: float = STEP5D_NO_CONTACT_P0_PRESS_ONLY_SPEED_M_S,
 ) -> SimpleNamespace:
-    reaction = normalize3(tuple(float(value) for value in reaction_normal_b))
-    if not all(math.isfinite(float(value)) for value in reaction):
-        raise ValueError("P0 press-only target requires a finite reaction_normal_b")
-    speed = float(press_speed_m_s)
-    if not math.isfinite(speed) or speed <= 0.0:
-        raise ValueError("P0 press-only speed must be finite and positive")
-    approach = np.asarray((-reaction[0], -reaction[1], -reaction[2]), dtype=float)
-    xdot_c = np.zeros(6, dtype=float)
-    xdot_c[:3] = approach * speed
-    return SimpleNamespace(
-        xdot_c=xdot_c,
-        cmd_valid=True,
-        next_state=Step5dOuterLoopState(),
-        diagnostics={
-            "outer_orientation_angle_rad": 0.0,
-            "e_f": float(force_error_n) if math.isfinite(float(force_error_n)) else 0.0,
-            "R_d_z_dot_R_cur_z": 1.0,
-            "force_sign_convention": "step5_step6_positive_normal_load",
-            "no_contact_p0_target_policy": "press_only_v1",
-            "no_contact_p0_press_speed_m_s": speed,
-        },
+    return shared_press_only_outer_output(
+        reaction_normal_b=reaction_normal_b,
+        force_error_n=force_error_n,
+        press_speed_m_s=press_speed_m_s,
     )
 
 
@@ -2768,32 +2707,12 @@ def scale_step5d_xdot_for_joint_feasibility(
     qdot_cap_rad_s: float,
     safety: float = 0.9,
 ) -> tuple[np.ndarray, dict[str, Any]]:
-    xdot = np.asarray(xdot_c, dtype=float)
-    J = np.asarray(jacobian, dtype=float)
-    cap = float(qdot_cap_rad_s)
-    safety_factor = float(safety)
-    if xdot.shape != (6,) or J.shape != (6, 6) or not np.all(np.isfinite(xdot)) or not np.all(np.isfinite(J)):
-        raise ValueError("Step5d feasibility scaling expects finite 6-vector xdot and 6x6 Jacobian")
-    if not math.isfinite(cap) or cap <= 0.0:
-        raise ValueError("Step5d qdot cap must be finite and positive")
-    if not math.isfinite(safety_factor) or not 0.0 < safety_factor <= 1.0:
-        raise ValueError("Step5d feasibility safety factor must be in (0, 1]")
-    qdot_required = np.linalg.solve(J, xdot)
-    if qdot_required.shape != (6,) or not np.all(np.isfinite(qdot_required)):
-        raise ValueError("Step5d feasibility solve produced nonfinite qdot")
-    required_inf = float(np.max(np.abs(qdot_required)))
-    scale = 1.0 if required_inf <= 0.0 else min(1.0, safety_factor * cap / required_inf)
-    scaled = xdot * scale
-    return scaled, {
-        "qdot_cap_rad_s": cap,
-        "jinv_xdot_inf_rad_s": required_inf,
-        "jinv_xdot_inf_over_qdot_cap": required_inf / cap,
-        "jinv_xdot_solve_status": "ok",
-        "xdot_feasibility_scale": scale,
-        "xdot_norm_pre_feasibility_scale": float(np.linalg.norm(xdot)),
-        "xdot_norm_post_feasibility_scale": float(np.linalg.norm(scaled)),
-        "xdot_feasibility_scale_active": bool(scale < 1.0 - 1e-12),
-    }
+    return shared_scale_xdot_for_joint_feasibility(
+        xdot_c,
+        jacobian,
+        qdot_cap_rad_s=qdot_cap_rad_s,
+        safety=safety,
+    )
 
 
 def limit_step5d_no_contact_p0_qdot_command(
@@ -3161,51 +3080,25 @@ def step5d_v30_contract_pipeline(
     candidate reaches ``SafetyEnvelope`` and ``RegisterCommand``.
     """
 
-    try:
-        candidate = apply_direction_preserving_slew(
-            observation,
-            raw_candidate,
-            previous_qdot=(
-                tuple(float(value) for value in previous_qdot)
-                if previous_qdot is not None
-                else (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-            ),
-            dt_s=float(observation.dt_s),
-            max_slew_rad_s2=STEP5D_V12_QDOT_SLEW_RAD_S2,
-            dt_max_s=STEP5D_V12_GUARD_DT_MAX_S,
-            copy_diagnostics=False,
-        )
-        dls_shadow = compute_dls_shadow(observation, candidate)
-        decision = safety_envelope.evaluate(observation, candidate)
-    except (ValueError, RuntimeError, np.linalg.LinAlgError, FloatingPointError, OverflowError) as exc:
-        failure_reason = f"v30_contract_structural_failure:{type(exc).__name__}"
-        candidate = ControlCandidate(
-            qdot=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
-            predicted_twist=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
-            residual_norm=math.inf,
-            active_bounds_count=0,
-            frame_id=observation.command_frame or "invalid",
-            solver_status=str(raw_candidate.solver_status),
-            diagnostics={"contract_failure": failure_reason},
-        )
-        dls_shadow = None
-        decision = SafetyDecision(
-            accepted=False,
-            action="stop",
-            reason=failure_reason,
-            qdot=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
-            metrics={},
-        )
-    command = decision_to_register_command(observation, decision)
-    if not deferred_diagnostics.record(
+    shared = shared_step5d_v30_contract_pipeline(
         observation,
-        candidate,
-        decision,
-        command,
-        dls_shadow,
-    ):
-        raise RuntimeError("v30 deferred diagnostics capacity exhausted")
-    return candidate, dls_shadow, decision, command
+        raw_candidate,
+        previous_qdot=(
+            tuple(float(value) for value in previous_qdot)
+            if previous_qdot is not None
+            else None
+        ),
+        safety_envelope=safety_envelope,
+        deferred_diagnostics=deferred_diagnostics,
+        max_slew_rad_s2=STEP5D_V12_QDOT_SLEW_RAD_S2,
+        dt_max_s=STEP5D_V12_GUARD_DT_MAX_S,
+    )
+    return (
+        shared.candidate,
+        shared.dls_shadow,
+        shared.decision,
+        shared.register_command,
+    )
 
 
 def step5d_qdot_diagnostic_values(
