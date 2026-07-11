@@ -45,7 +45,7 @@
         {
           "role": "p0_package_validator",
           "path": "experiments/tase-contact-reproduction/tools/build_step5d_liveprep.py",
-          "sha256": "247e60571e9cb7fc6ba2dc2b6205cde829cce4a59f0b4e85599bd057b4327d94"
+          "sha256": "06e91a49c6e558dc61aa57dd0047098bf9de42b2dfc33f65b7f36b1c59bcaa1c"
         },
         {
           "role": "p0_runtime_contract",
