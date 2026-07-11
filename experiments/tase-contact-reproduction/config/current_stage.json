@@ -1231,6 +1231,16 @@
       "claim_effect": "diagnostic_only_no_promotion",
       "historical_artifacts": [
         {
+          "status": "historical_superseded_by_v3_production_path_prewarm",
+          "summary_artifact": "config/step5d_p0_v8_rnn512_91de37b_cold_start_v2_diagnostic.json",
+          "summary_sha256": "9ee7d9995f630689f73a24f965a852a6528b55dfbf700dbfaf0f0dff1cc96093",
+          "state_artifact": "config/step5d_p0_v8_rnn512_91de37b_cold_start_v2_state.json",
+          "state_sha256": "14b71f51de4c352f68f11a99b438f08d140f630d57deb64a0b53e2b57bf79a5e",
+          "source_run_manifest_sha256": "b4aa84309a699cd2d4543f0b6239d22a1777746e14ecdcb28afbd79b70aaaf89",
+          "cold_2s_control_deadline_miss_count": 25,
+          "acceptance_eligible": false
+        },
+        {
           "status": "historical_superseded_measurement_scope",
           "summary_artifact": "config/step5d_p0_v8_rnn512_d0de3ac_combined_scope_v1_diagnostic.json",
           "summary_sha256": "11637e0cc5c98e74df934b599cae9b788f51c5080aecfd95f543a4c6bd38bd34",

@@ -827,6 +827,66 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
                         "acceptance_eligible": False,
                     }
                 )
+            cold_summary_rel = (
+                "config/step5d_p0_v8_rnn512_91de37b_"
+                "cold_start_v2_diagnostic.json"
+            )
+            cold_state_rel = (
+                "config/step5d_p0_v8_rnn512_91de37b_"
+                "cold_start_v2_state.json"
+            )
+            cold_summary_path = root / cold_summary_rel
+            cold_state_path = root / cold_state_rel
+            if not cold_summary_path.is_file() or not cold_state_path.is_file():
+                failures.append("P0 v8 historical cold-start v2 evidence is missing")
+            else:
+                cold_summary = load_json(cold_summary_path)
+                cold_state = load_json(cold_state_path)
+                failures.extend(
+                    f"P0 v8 historical cold diagnostic invalid: {item}"
+                    for item in validate_p0_offline_diagnostic(cold_summary)
+                )
+                failures.extend(
+                    f"P0 v8 historical cold state invalid: {item}"
+                    for item in validate_p0_offline_state_binding(
+                        cold_state,
+                        summary=cold_summary,
+                    )
+                )
+                cold_run = cold_summary.get("run_binding") or {}
+                cold_phases = cold_summary.get("phases") or []
+                cold_2s_misses = (
+                    ((cold_phases[0].get("control_hard_500hz") or {}).get(
+                        "deadline_miss_count"
+                    ))
+                    if cold_phases and isinstance(cold_phases[0], dict)
+                    else None
+                )
+                if (
+                    file_sha256(cold_summary_path)
+                    != "9ee7d9995f630689f73a24f965a852a6528b55dfbf700dbfaf0f0dff1cc96093"
+                    or file_sha256(cold_state_path)
+                    != "14b71f51de4c352f68f11a99b438f08d140f630d57deb64a0b53e2b57bf79a5e"
+                    or cold_run.get("sha256")
+                    != "b4aa84309a699cd2d4543f0b6239d22a1777746e14ecdcb28afbd79b70aaaf89"
+                    or cold_2s_misses != 25
+                ):
+                    failures.append(
+                        "P0 v8 historical cold-start v2 evidence drifted"
+                    )
+                expected_historical_artifacts.insert(
+                    0,
+                    {
+                        "status": "historical_superseded_by_v3_production_path_prewarm",
+                        "summary_artifact": cold_summary_rel,
+                        "summary_sha256": file_sha256(cold_summary_path),
+                        "state_artifact": cold_state_rel,
+                        "state_sha256": file_sha256(cold_state_path),
+                        "source_run_manifest_sha256": cold_run.get("sha256"),
+                        "cold_2s_control_deadline_miss_count": cold_2s_misses,
+                        "acceptance_eligible": False,
+                    },
+                )
             expected_pointer = {
                 "status": offline_state.get("status"),
                 "summary_artifact": summary_rel,

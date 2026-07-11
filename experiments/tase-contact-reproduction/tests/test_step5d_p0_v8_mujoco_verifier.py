@@ -857,7 +857,11 @@ class Step5dP0V8MujocoVerifierTest(unittest.TestCase):
         )
 
     def test_historical_cold_diagnostic_bytes_and_run_binding_are_immutable(self) -> None:
-        path = ROOT / "config" / "step5d_p0_v8_offline_simulation_diagnostic.json"
+        path = (
+            ROOT
+            / "config"
+            / "step5d_p0_v8_rnn512_91de37b_cold_start_v2_diagnostic.json"
+        )
         payload = json.loads(path.read_text(encoding="utf-8"))
 
         self.assertEqual(
