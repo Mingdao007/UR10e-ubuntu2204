@@ -11,8 +11,14 @@ remains byte-for-byte evidence only.
 
 The successor `step5d_strict_rnn_ablation_v30` is an inactive offline
 candidate. It keeps CuPy, epsilon `0.010`, finite-time exponent `r=0.8`, qdot
-cap `0.05 rad/s`, and uses the 128-iteration candidate selected after the
-32-iteration formal run worsened full-tick tail timing. It retains the canonical
+cap `0.05 rad/s`, and now uses the 512-iteration candidate. A source-bound
+SCHED_FIFO/20 diagnostic sweep compared 128/256/512: 128 executed 333/500
+ticks with 167 normal-sign mismatches, 256 executed 461/500 with 39 mismatches,
+and 512 executed 500/500 with zero mismatch while keeping solver p99 about
+`0.248 ms` and full-tick p99/max about `0.700/0.914 ms`. Selection requires
+zero normal-sign mismatch before timing speed; it did not simply choose the
+fastest profile. The 128 artifacts remain immutable historical evidence marked
+superseded by `config/step5d_v30_profile_selection.json`. It retains the canonical
 `n_reaction = -n_approach`, `SafetyEnvelope`, solver status `40`, and DLS as
 shadow-only with no runtime fallback. Manifest-bound v30 upload/readback
 preparation may occur before P0, but v30 cannot become current, start a bridge,
@@ -38,6 +44,11 @@ consecutive missed slots, and no more than 0.5 ms schedule lateness.
    budgets remain within the limits above.
 3. The v30 package/readback hashes and evidence are frozen.
 4. The current composite fingerprint passes one Review v2 `2+1` gate.
+
+The v30/P0 production runtime and formal timing harness share one scheduler
+contract: `SCHED_FIFO` priority `20`. The 10,000-solve microbenchmark yields
+for an unmeasured `2 ms` after each 100 solves to avoid Linux RT throttling;
+the 500 Hz full-tick and safe-hold loops keep their original pacing unchanged.
 
 The latest hash-bound MuJoCo offline diagnostic completed all three simulated
 `2 -> 10 -> 60 s` phases through the shared production control path. Every

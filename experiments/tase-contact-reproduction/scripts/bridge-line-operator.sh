@@ -153,6 +153,11 @@ fi
 if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
   STEP5D_STAGE25_CONTROL_MODE_DEFAULT="speedj_rnn_live"
   BRIDGE_ANGULAR_LIMIT_RAD_S="${BRIDGE_ANGULAR_LIMIT_RAD_S:-0.015}"
+  STEP5D_EPSILON="${STEP5D_EPSILON:-0.010}"
+  STEP5D_SIGR_EXPONENT_R="${STEP5D_SIGR_EXPONENT_R:-0.800}"
+  STEP5D_RNN_INNER_ITERATIONS="${STEP5D_RNN_INNER_ITERATIONS:-512}"
+  STEP5D_RNN_BACKEND="${STEP5D_RNN_BACKEND:-cupy}"
+  STEP5D_QDOT_LIMIT_RAD_S="${STEP5D_QDOT_LIMIT_RAD_S:-0.050}"
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v25" ]]; then
   STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedl_cartesian_oracle}"
   BRIDGE_ANGULAR_LIMIT_RAD_S="${BRIDGE_ANGULAR_LIMIT_RAD_S:-0.150}"
@@ -168,6 +173,14 @@ elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" ]]; then
   STEP5D_EPSILON="${STEP5D_EPSILON:-0.010}"
   STEP5D_SIGR_EXPONENT_R="${STEP5D_SIGR_EXPONENT_R:-0.800}"
   STEP5D_RNN_INNER_ITERATIONS="${STEP5D_RNN_INNER_ITERATIONS:-1024}"
+  STEP5D_RNN_BACKEND="${STEP5D_RNN_BACKEND:-cupy}"
+  STEP5D_QDOT_LIMIT_RAD_S="${STEP5D_QDOT_LIMIT_RAD_S:-0.050}"
+elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v30" ]]; then
+  STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedj_rnn_live}"
+  BRIDGE_ANGULAR_LIMIT_RAD_S="${BRIDGE_ANGULAR_LIMIT_RAD_S:-0.015}"
+  STEP5D_EPSILON="${STEP5D_EPSILON:-0.010}"
+  STEP5D_SIGR_EXPONENT_R="${STEP5D_SIGR_EXPONENT_R:-0.800}"
+  STEP5D_RNN_INNER_ITERATIONS="${STEP5D_RNN_INNER_ITERATIONS:-512}"
   STEP5D_RNN_BACKEND="${STEP5D_RNN_BACKEND:-cupy}"
   STEP5D_QDOT_LIMIT_RAD_S="${STEP5D_QDOT_LIMIT_RAD_S:-0.050}"
 else
@@ -760,18 +773,28 @@ PY
   fi
 }
 
-require_v29_realtime_launcher_policy() {
-  if [[ "${BRIDGE_PROFILE}" != "step5d_strict_rnn_ablation_v29" ]]; then
+requires_step5d_realtime_launcher() {
+  [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" \
+    || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v30" \
+    || "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]
+}
+
+require_step5d_realtime_launcher_policy() {
+  if ! requires_step5d_realtime_launcher; then
     return 0
   fi
   if ! command -v chrt >/dev/null 2>&1; then
-    echo "refusing v29 bridge: chrt is required for SCHED_FIFO priority 20"
+    echo "refusing v29/v30/P0 bridge: chrt is required for SCHED_FIFO priority 20"
     return 24
   fi
   if [[ "${STEP5D_RT_PRIORITY:-20}" != "20" ]]; then
-    echo "refusing v29 bridge: STEP5D_RT_PRIORITY must be exactly 20"
+    echo "refusing v29/v30/P0 bridge: STEP5D_RT_PRIORITY must be exactly 20"
     return 24
   fi
+}
+
+require_v29_realtime_launcher_policy() {
+  require_step5d_realtime_launcher_policy
 }
 
 run_bench_gate_cached() {
@@ -1287,7 +1310,7 @@ PY
 run_bridge_for_mode() {
   local out_dir="$1"
   local already_running="$2"
-  require_v29_realtime_launcher_policy || return "$?"
+  require_step5d_realtime_launcher_policy || return "$?"
   mkdir -p "${out_dir}"
   ensure_step5d_rnn_backend_ready || return "$?"
   local bridge_pid=""
@@ -1295,15 +1318,17 @@ run_bridge_for_mode() {
   local launch_nonce=""
   BRIDGE_EARLY_EXIT_RC=""
   local bridge_launcher=(python3)
-  if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" ]]; then
+  if requires_step5d_realtime_launcher; then
     bridge_launcher=(chrt -f 20 python3)
+    echo "[operator] v29/v30/P0 bridge launcher: SCHED_FIFO priority 20"
+  fi
+  if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" ]]; then
     rm -f "${out_dir}/bridge_ready.json"
     launch_nonce="$(python3 - <<'PY'
 import uuid
 print(uuid.uuid4().hex)
 PY
 )"
-    echo "[operator] v29 bridge launcher: SCHED_FIFO priority 20"
   fi
   local stage25_only_args=()
   if [[ "${BRIDGE_STAGE25_ONLY}" == "1" ]]; then

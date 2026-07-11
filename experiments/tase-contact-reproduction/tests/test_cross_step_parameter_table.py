@@ -37,6 +37,24 @@ class CrossStepParameterTableTest(unittest.TestCase):
     def test_cross_step_parameter_table_contract_passes(self) -> None:
         self.assertEqual([], validator.validate(ROOT))
 
+    def test_v30_profile_selection_hash_drift_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            copy_project_fixture(tmp_root)
+            selection_path = (
+                tmp_root / "config" / "step5d_v30_profile_selection.json"
+            )
+            selection = validator.load_json(selection_path)
+            selection["decision"] = "tampered"
+            selection_path.write_text(json.dumps(selection), encoding="utf-8")
+
+            failures = validator.validate(tmp_root)
+
+        self.assertIn(
+            "v30 strict-RNN profile selection sha mismatch",
+            failures,
+        )
+
     def test_step5_flow_current_summary_must_match_current_pointer(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_root = Path(tmp)

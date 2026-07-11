@@ -41,7 +41,7 @@ from step5d_v30_timing import (  # noqa: E402
 class Step5dV30TimingTest(unittest.TestCase):
     def test_inner_iteration_override_is_explicitly_diagnostic_and_bound(self) -> None:
         canonical = remote_timing.build_profile_selection(None)
-        explicit_canonical = remote_timing.build_profile_selection(128)
+        explicit_canonical = remote_timing.build_profile_selection(512)
         candidate = remote_timing.build_profile_selection(256)
 
         self.assertTrue(canonical["acceptance_profile_eligible"])
@@ -168,6 +168,17 @@ class Step5dV30TimingTest(unittest.TestCase):
         self.assertIn("step5d_v30_contract_pipeline(", source)
         self.assertIn("step5d_tcp_jacobian_base(model_bundle, q, tcp_offset)", source)
         self.assertIn("print(json.dumps(payload", source)
+        self.assertIn('"nvidia-smi"', source)
+        self.assertIn('"gpu_device"', source)
+        solver_loop = source[
+            source.index("for index in range(args.solver_samples):") :
+            source.index("first_post_warm_ms =")
+        ]
+        self.assertIn("time.sleep(SOLVER_BATCH_YIELD_S)", solver_loop)
+        self.assertLess(
+            solver_loop.index("time.sleep(SOLVER_BATCH_YIELD_S)"),
+            solver_loop.index("started = time.perf_counter()"),
+        )
         full_loop = source[
             source.index("for index in range(args.tick_samples):") :
             source.index("full_tick_elapsed_wall_s =")
@@ -189,7 +200,7 @@ class Step5dV30TimingTest(unittest.TestCase):
         ]
         self.assertNotIn("build_slew_compatible_reference(", safe_hold_loop)
         self.assertIn("policy.compute(observation)", safe_hold_loop)
-        for forbidden in ("RTDEClient", "dashboard_exchange", "socket.connect", "subprocess", "write_text", "write_bytes"):
+        for forbidden in ("RTDEClient", "dashboard_exchange", "socket.connect", "write_text", "write_bytes"):
             self.assertNotIn(forbidden, source)
 
     def test_deferred_summary_proves_execute_path_and_reference_ramp(self) -> None:
@@ -341,6 +352,7 @@ class Step5dV30TimingTest(unittest.TestCase):
                 for name in (
                     "replay_csv",
                     "paper_truth",
+                    "profile_selection",
                     "stage_table",
                     "calibration_yaml",
                     "ur_xacro",
@@ -348,7 +360,7 @@ class Step5dV30TimingTest(unittest.TestCase):
             },
             "profile": {
                 "backend": "cupy",
-                "inner_iterations": 128,
+                "inner_iterations": 512,
                 "epsilon": 0.01,
                 "sigr_exponent_r": 0.8,
                 "qdot_cap_rad_s": 0.05,
@@ -367,6 +379,15 @@ class Step5dV30TimingTest(unittest.TestCase):
             "cupy_precompile_ms": 430.0,
             "model_prepare_ms": 20.0,
             "first_post_warm_ms": 1.7,
+            "solver_microbenchmark_pacing": {
+                "mode": "unmeasured_fixed_batch_yield",
+                "batch_size": 100,
+                "yield_s": 0.002,
+                "yield_included_in_single_solve_latency": False,
+                "reason": "avoid_linux_sched_fifo_runtime_throttling_during_10k_stress",
+                "full_tick_loop_affected": False,
+                "safe_hold_loop_affected": False,
+            },
             "solver": {"samples": 10000, "nonfinite_count": 0, "mean_ms": 1.2, "p95_ms": 1.3, "p99_ms": 1.4, "max_ms": 1.7, "compute_deadline_miss_count": 0},
             "full_tick": {"samples": 30000, "nonfinite_count": 0, "mean_ms": 1.5, "p95_ms": 1.6, "p99_ms": 1.7, "max_ms": 1.9, "compute_deadline_miss_count": 0},
             "safe_hold": {"samples": 30000, "nonfinite_count": 0, "mean_ms": 0.05, "p95_ms": 0.06, "p99_ms": 0.07, "max_ms": 0.1, "compute_deadline_miss_count": 0},
@@ -399,6 +420,43 @@ class Step5dV30TimingTest(unittest.TestCase):
                     "OMP_NUM_THREADS": "1",
                     "MKL_NUM_THREADS": "1",
                     "NUMEXPR_NUM_THREADS": "1",
+                },
+            },
+            "gpu_device": {
+                "device_id": 0,
+                "name": "NVIDIA RTX 5070 Ti",
+                "compute_capability": [12, 0],
+                "total_memory_bytes": 17171480576,
+            },
+            "nvidia_smi": {
+                "capture_scope": "outside_measured_solver_and_500hz_loops",
+                "start": {
+                    "ok": True,
+                    "values": {
+                        "driver_version": "595.71.05",
+                        "name": "NVIDIA RTX 5070 Ti",
+                        "pci.bus_id": "00000000:01:00.0",
+                        "clocks.current.sm": "210",
+                        "clocks.current.memory": "405",
+                        "temperature.gpu": "35",
+                        "utilization.gpu": "0",
+                        "power.draw": "20.0",
+                        "persistence_mode": "Enabled",
+                    },
+                },
+                "end": {
+                    "ok": True,
+                    "values": {
+                        "driver_version": "595.71.05",
+                        "name": "NVIDIA RTX 5070 Ti",
+                        "pci.bus_id": "00000000:01:00.0",
+                        "clocks.current.sm": "210",
+                        "clocks.current.memory": "405",
+                        "temperature.gpu": "36",
+                        "utilization.gpu": "0",
+                        "power.draw": "21.0",
+                        "persistence_mode": "Enabled",
+                    },
                 },
             },
             "pacing_provenance": {
@@ -471,15 +529,15 @@ class Step5dV30TimingTest(unittest.TestCase):
             wrong_scheduler_result["blockers"],
         )
 
-        diagnostic_128 = json.loads(json.dumps(payload))
-        diagnostic_128["profile_selection"] = (
-            remote_timing.build_profile_selection(128)
+        diagnostic_512 = json.loads(json.dumps(payload))
+        diagnostic_512["profile_selection"] = (
+            remote_timing.build_profile_selection(512)
         )
-        diagnostic_128["profile_sha256"] = diagnostic_128[
+        diagnostic_512["profile_sha256"] = diagnostic_512[
             "profile_selection"
         ]["effective_profile_sha256"]
         diagnostic_result = summarize_preaggregated(
-            diagnostic_128,
+            diagnostic_512,
             expected_source_binding={
                 field: "1" * 64 for field in SOURCE_BINDING_FILES
             },
@@ -622,7 +680,7 @@ class Step5dV30TimingTest(unittest.TestCase):
                     "ur_xacro",
                 )
             },
-            "profile": {"backend": "cupy", "inner_iterations": 128, "epsilon": 0.01, "sigr_exponent_r": 0.8, "qdot_cap_rad_s": 0.05, "control_hz": 500.0},
+            "profile": {"backend": "cupy", "inner_iterations": 512, "epsilon": 0.01, "sigr_exponent_r": 0.8, "qdot_cap_rad_s": 0.05, "control_hz": 500.0},
             "precompile_outside_control_loop": True,
             "cupy_host_staging_pinned": True,
             "cupy_dedicated_stream": True,
@@ -708,7 +766,7 @@ class Step5dV30TimingTest(unittest.TestCase):
             },
             "profile": {
                 "backend": "cupy",
-                "inner_iterations": 128,
+                "inner_iterations": 512,
                 "epsilon": 0.01,
                 "sigr_exponent_r": 0.8,
                 "qdot_cap_rad_s": 0.05,

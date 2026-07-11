@@ -161,6 +161,36 @@ printf '%s\\n' "$STEP5D_EPSILON" "$STEP5D_SIGR_EXPONENT_R" "$STEP5D_RNN_INNER_IT
         self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
         self.assertEqual(completed.stdout.splitlines()[-4:], ["0.010", "0.800", "1024", "cupy"])
 
+    def test_v30_and_p0_operator_profiles_export_canonical_rnn512(self) -> None:
+        for profile in (
+            "step5d_strict_rnn_ablation_v30",
+            "step5d_strict_rnn_no_contact_p0_v8",
+        ):
+            script = f"""
+set -euo pipefail
+export BRIDGE_OPERATOR_SOURCE_ONLY=1
+export BRIDGE_PROFILE={profile}
+source "{ROOT / 'scripts' / 'bridge-line-operator.sh'}"
+printf '%s\\n' "$STEP5D_EPSILON" "$STEP5D_SIGR_EXPONENT_R" "$STEP5D_RNN_INNER_ITERATIONS" "$STEP5D_RNN_BACKEND" "$STEP5D_QDOT_LIMIT_RAD_S"
+"""
+            completed = subprocess.run(
+                ["bash", "-lc", script],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(
+                completed.returncode,
+                0,
+                profile + "\n" + completed.stdout + completed.stderr,
+            )
+            self.assertEqual(
+                completed.stdout.splitlines()[-5:],
+                ["0.010", "0.800", "512", "cupy", "0.050"],
+            )
+
     def test_v29_bridge_operator_binds_ros_python_and_realtime_launcher(self) -> None:
         script = read_script("bridge-line-operator.sh")
         self.assertIn("/opt/ros/humble/local/lib/python3.10/dist-packages", script)

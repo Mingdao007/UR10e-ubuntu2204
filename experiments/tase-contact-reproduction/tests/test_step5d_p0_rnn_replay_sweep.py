@@ -39,7 +39,7 @@ class Step5dP0RnnReplaySweepTest(unittest.TestCase):
     def test_default_sweep_includes_current_and_lower_sigr_exponents(self) -> None:
         self.assertEqual(sweep.DEFAULT_R_VALUES, (1.0, 0.8, 0.6, 0.4, 0.2))
         self.assertEqual(sweep.DEFAULT_EPSILON_VALUES, (0.010,))
-        self.assertEqual(sweep.BASELINE_INNER_ITERATIONS, 1024)
+        self.assertEqual(sweep.BASELINE_INNER_ITERATIONS, 512)
         self.assertEqual(sweep.DEFAULT_BACKEND, "cupy")
 
     def test_logged_alignment_requires_tight_r1_replay_error(self) -> None:
@@ -261,9 +261,9 @@ class Step5dP0RnnReplaySweepTest(unittest.TestCase):
         with mock.patch.object(sweep, "StrictTaseRnnSolver", FakeSolver):
             result = sweep.replay_targets(targets, r=sweep.BASELINE_R, epsilon=sweep.BASELINE_EPSILON)
 
-        self.assertEqual(events[:2], ["init:r=0.8:eps=0.01:inner=1024:backend=cupy", "warm_start"])
+        self.assertEqual(events[:2], ["init:r=0.8:eps=0.01:inner=512:backend=cupy", "warm_start"])
         self.assertEqual(events.count("solve:r=0.8:eps=0.01"), 100)
-        self.assertEqual(result["inner_iterations"], 1024)
+        self.assertEqual(result["inner_iterations"], 512)
         self.assertEqual(result["backend"], "cupy")
         self.assertEqual(result["residual_norm"]["n"], 100)
         self.assertEqual(result["active_bounds_rows"], 0)

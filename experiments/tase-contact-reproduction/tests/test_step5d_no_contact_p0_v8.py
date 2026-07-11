@@ -99,7 +99,11 @@ class Step5dNoContactP0V8Test(unittest.TestCase):
 
         self.assertEqual(runtime.program, PROFILE)
         self.assertEqual(runtime.hard_contract["runtime_profile"]["qdot_cap_rad_s"], 0.05)
-        self.assertEqual(runtime.hard_contract["runtime_profile"]["inner_iterations"], 128)
+        self.assertEqual(runtime.hard_contract["runtime_profile"]["inner_iterations"], 512)
+        self.assertEqual(
+            runtime.hard_contract["runtime_scheduler"],
+            {"policy": "SCHED_FIFO", "priority": 20},
+        )
         self.assertTrue(runtime.hard_contract["v30_control_contract"])
         self.assertTrue(runtime.hard_contract["offline_candidate"])
         self.assertEqual(runtime.controller_target, "LOCAL_ONLY_NOT_DELIVERED")

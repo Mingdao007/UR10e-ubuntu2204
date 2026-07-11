@@ -132,6 +132,7 @@ from step5d_runtime_interface import (  # noqa: E402
     STEP5D_NO_CONTACT_P0_REZERO_S,
     STEP5D_NO_CONTACT_P0_RNN_BACKEND,
     STEP5D_NO_CONTACT_P0_RNN_INNER_ITERATIONS,
+    STEP5D_NO_CONTACT_P0_V8_RNN_INNER_ITERATIONS,
     STEP5D_NO_CONTACT_P0_RTDE_HZ,
     STEP5D_NO_CONTACT_P0_SENSOR_STALE_S,
     STEP5D_NO_CONTACT_P0_SIGR_EXPONENT_R,
@@ -139,6 +140,7 @@ from step5d_runtime_interface import (  # noqa: E402
     STEP5D_NO_CONTACT_P0_TARGET_FORCE_N,
     STEP5D_NO_CONTACT_P0_TORQUE_GUARD_NM,
     STEP5D_NO_CONTACT_P0_TOTAL_LINEAR_LIMIT_M_S,
+    STEP5D_V30_RNN_INNER_ITERATIONS,
     is_no_contact_p0_stage,
     uses_v30_control_contract,
 )
@@ -620,7 +622,8 @@ STEP5D_V29_FAIL_STOP_DASHBOARD_RETRY_S = 0.05
 STEP5D_V29_FAIL_STOP_RTDE_RECONNECT_TIMEOUT_S = 0.008
 STEP5D_V29_RUNTIME_DASHBOARD_WATCH_TIMEOUT_S = 0.02
 STEP5D_V29_LIVE_CONFIRMATION = "LIVE STEP5D STRICT RNN LIVEPREP"
-STEP5D_V29_RT_PRIORITY = 20
+STEP5D_RT_PRIORITY = 20
+STEP5D_V29_RT_PRIORITY = STEP5D_RT_PRIORITY
 STEP5D_SEMANTIC_ORIENTATION_TOLERANCE_RAD = math.radians(5.0)
 STEP5D_SEARCH_POSE_CONTRACT_ID = PRE_CONTACT_GRAVITY_DOWN_CONTRACT_ID
 STEP5D_SEARCH_POSE_TARGET_AXIS_B = contract_target_axis_base(STEP5D_SEARCH_POSE_CONTRACT_ID)
@@ -7648,6 +7651,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         args.max_torque_norm_nm = STEP5D_NO_CONTACT_P0_TORQUE_GUARD_NM
         if args.bridge_profile == STEP5D_NO_CONTACT_P0_V8_STAGE_ID:
             args.step5d_qdot_limit_rad_s = 0.050
+            args.step5d_rnn_inner_iterations = (
+                STEP5D_NO_CONTACT_P0_V8_RNN_INNER_ITERATIONS
+            )
     elif args.bridge_profile in STEP5D_ABLATION_STAGE_IDS:
         def preload_default_was_not_supplied(flag: str, *env_names: str) -> bool:
             return flag not in argv_list and all(os.environ.get(name, "") == "" for name in env_names)
@@ -7752,7 +7758,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             if "--step5d-sigr-exponent-r" not in argv_list:
                 args.step5d_sigr_exponent_r = STEP5D_NO_CONTACT_P0_SIGR_EXPONENT_R
             if "--step5d-rnn-inner-iterations" not in argv_list:
-                args.step5d_rnn_inner_iterations = STEP5D_NO_CONTACT_P0_RNN_INNER_ITERATIONS
+                args.step5d_rnn_inner_iterations = (
+                    STEP5D_V30_RNN_INNER_ITERATIONS
+                    if args.bridge_profile == STEP5D_ABLATION_V30_STAGE_ID
+                    else STEP5D_NO_CONTACT_P0_RNN_INNER_ITERATIONS
+                )
             if "--step5d-rnn-backend" not in argv_list:
                 args.step5d_rnn_backend = STEP5D_NO_CONTACT_P0_RNN_BACKEND
     if args.step5d_qdot_limit_rad_s is None:
@@ -7906,17 +7916,31 @@ def v29_pending_audit_override_authorized(args: argparse.Namespace) -> bool:
     )
 
 
-def require_v29_realtime_scheduler(args: argparse.Namespace) -> None:
-    """Fail closed unless v29 is actually executing under FIFO/20."""
-    if args.bridge_profile != STEP5D_ABLATION_V29_STAGE_ID:
+def requires_step5d_realtime_scheduler(bridge_profile: str) -> bool:
+    return bridge_profile in {
+        STEP5D_ABLATION_V29_STAGE_ID,
+        STEP5D_ABLATION_V30_STAGE_ID,
+        *STEP5D_NO_CONTACT_P0_STAGE_IDS,
+    }
+
+
+def require_step5d_realtime_scheduler(args: argparse.Namespace) -> None:
+    """Fail closed unless v29/v30/P0 executes under production FIFO/20."""
+    if not requires_step5d_realtime_scheduler(args.bridge_profile):
         return
     scheduler = os.sched_getscheduler(0)
     priority = os.sched_getparam(0).sched_priority
-    if scheduler != os.SCHED_FIFO or priority != STEP5D_V29_RT_PRIORITY:
+    if scheduler != os.SCHED_FIFO or priority != STEP5D_RT_PRIORITY:
         raise SystemExit(
-            "v29 raw bridge requires effective SCHED_FIFO priority exactly 20 "
+            "v29/v30/P0 raw bridge requires effective SCHED_FIFO priority exactly 20 "
             f"(scheduler={scheduler}, priority={priority})"
         )
+
+
+def require_v29_realtime_scheduler(args: argparse.Namespace) -> None:
+    """Backward-compatible name for the shared v29/v30/P0 scheduler gate."""
+
+    require_step5d_realtime_scheduler(args)
 
 
 def require_v29_runtime_guard_policy(args: argparse.Namespace) -> None:
@@ -8103,7 +8127,7 @@ def main(argv: list[str] | None = None) -> int:
     validate_step5b_15n_trial_args(args)
     require_v29_runtime_guard_policy(args)
     require_v29_live_bridge_authorization(args)
-    require_v29_realtime_scheduler(args)
+    require_step5d_realtime_scheduler(args)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     sensor_csv_path = args.output_dir / "kunwei_sensor_1khz.csv"

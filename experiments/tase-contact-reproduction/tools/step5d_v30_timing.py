@@ -180,7 +180,7 @@ def summarize_timing(
 
     return {
         "schema_version": "step5d_v30_timing_v1",
-        "profile": "cupy/128/epsilon=0.010/r=0.8/qdot_cap=0.05",
+        "profile": "cupy/512/epsilon=0.010/r=0.8/qdot_cap=0.05",
         "precompile_policy": "must_complete_before_control_loop",
         "thresholds": asdict(thresholds),
         "first_post_warm_ms": float(first_post_warm_ms),
@@ -213,7 +213,7 @@ def summarize_preaggregated(
 
     expected_profile = {
         "backend": "cupy",
-        "inner_iterations": 128,
+        "inner_iterations": 512,
         "epsilon": 0.010,
         "sigr_exponent_r": 0.8,
         "qdot_cap_rad_s": 0.05,
@@ -280,10 +280,67 @@ def summarize_preaggregated(
             blockers.append("remote_timing_diagnostic_profile_override")
     if payload.get("precompile_outside_control_loop") is not True:
         blockers.append("cupy_precompile_not_proven_outside_loop")
+    if payload.get("solver_microbenchmark_pacing") != {
+        "mode": "unmeasured_fixed_batch_yield",
+        "batch_size": 100,
+        "yield_s": 0.002,
+        "yield_included_in_single_solve_latency": False,
+        "reason": "avoid_linux_sched_fifo_runtime_throttling_during_10k_stress",
+        "full_tick_loop_affected": False,
+        "safe_hold_loop_affected": False,
+    }:
+        blockers.append("solver_microbenchmark_unmeasured_batch_yield_unbound")
     if payload.get("cupy_host_staging_pinned") is not True:
         blockers.append("cupy_host_staging_not_pinned")
     if payload.get("cupy_dedicated_stream") is not True:
         blockers.append("cupy_dedicated_stream_not_proven")
+    gpu_device = payload.get("gpu_device")
+    if not (
+        isinstance(gpu_device, dict)
+        and isinstance(gpu_device.get("device_id"), int)
+        and isinstance(gpu_device.get("name"), str)
+        and bool(gpu_device.get("name"))
+        and isinstance(gpu_device.get("compute_capability"), list)
+        and len(gpu_device["compute_capability"]) == 2
+        and all(isinstance(value, int) for value in gpu_device["compute_capability"])
+        and isinstance(gpu_device.get("total_memory_bytes"), int)
+        and gpu_device["total_memory_bytes"] > 0
+    ):
+        blockers.append("runtime_gpu_device_identity_unbound")
+    nvidia_smi = payload.get("nvidia_smi")
+    if not (
+        isinstance(nvidia_smi, dict)
+        and nvidia_smi.get("capture_scope")
+        == "outside_measured_solver_and_500hz_loops"
+        and all(
+            isinstance(nvidia_smi.get(boundary), dict)
+            and nvidia_smi[boundary].get("ok") is True
+            and isinstance(nvidia_smi[boundary].get("values"), dict)
+            and all(
+                nvidia_smi[boundary]["values"].get(field) not in (None, "")
+                for field in (
+                    "driver_version",
+                    "name",
+                    "pci.bus_id",
+                    "clocks.current.sm",
+                    "clocks.current.memory",
+                    "temperature.gpu",
+                    "utilization.gpu",
+                    "power.draw",
+                    "persistence_mode",
+                )
+            )
+            for boundary in ("start", "end")
+        )
+        and nvidia_smi["start"]["values"].get("driver_version")
+        == nvidia_smi["end"]["values"].get("driver_version")
+        and nvidia_smi["start"]["values"].get("name")
+        == nvidia_smi["end"]["values"].get("name")
+        == gpu_device.get("name")
+        and nvidia_smi["start"]["values"].get("pci.bus_id")
+        == nvidia_smi["end"]["values"].get("pci.bus_id")
+    ):
+        blockers.append("runtime_nvidia_smi_start_end_unbound")
     parallel_equivalence = payload.get("cupy_parallel_equivalence")
     if (
         not isinstance(parallel_equivalence, dict)
@@ -312,6 +369,7 @@ def summarize_preaggregated(
     for label, binding in (
         ("replay_csv", replay_binding),
         ("paper_truth", paper_binding),
+        ("profile_selection", artifact_binding.get("profile_selection") or {}),
         ("stage_table", artifact_binding.get("stage_table") or {}),
         ("calibration_yaml", artifact_binding.get("calibration_yaml") or {}),
         ("ur_xacro", artifact_binding.get("ur_xacro") or {}),
@@ -613,6 +671,9 @@ def summarize_preaggregated(
         "cupy_parallel_equivalence": parallel_equivalence,
         "model_prepare_ms": payload.get("model_prepare_ms"),
         "first_post_warm_ms": first_post_warm,
+        "solver_microbenchmark_pacing": payload.get(
+            "solver_microbenchmark_pacing"
+        ),
         "solver": normalized["solver"],
         "full_tick": normalized["full_tick"],
         "safe_hold": normalized["safe_hold"],
@@ -624,6 +685,8 @@ def summarize_preaggregated(
         ),
         "pacing_provenance": payload.get("pacing_provenance"),
         "runtime_environment": runtime_environment,
+        "gpu_device": gpu_device or {},
+        "nvidia_smi": nvidia_smi or {},
         "runtime_scheduling_classification": (
             "production_sched_fifo_priority_20"
             if production_fifo_priority_proven

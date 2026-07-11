@@ -20,6 +20,7 @@ import json
 import math
 import os
 import resource
+import subprocess
 import sys
 import time
 from dataclasses import dataclass
@@ -31,7 +32,7 @@ import numpy as np
 
 PROFILE = {
     "backend": "cupy",
-    "inner_iterations": 128,
+    "inner_iterations": 512,
     "epsilon": 0.010,
     "sigr_exponent_r": 0.8,
     "qdot_cap_rad_s": 0.05,
@@ -40,6 +41,8 @@ PROFILE = {
 DIAGNOSTIC_INNER_ITERATION_CHOICES = (128, 256, 512)
 DEADLINE_MS = 2.0
 DEADLINE_EVENT_CAPACITY = 64
+SOLVER_BATCH_SIZE = 100
+SOLVER_BATCH_YIELD_S = 0.002
 THREAD_ENV_NAMES = (
     "OPENBLAS_NUM_THREADS",
     "OMP_NUM_THREADS",
@@ -84,7 +87,7 @@ def build_profile_selection(
     """Bind canonical, requested, and solver-effective profiles distinctly.
 
     Passing ``--inner-iterations`` is always a diagnostic sweep request, even
-    when the requested value is the canonical 128.  This prevents an explicit
+    when the requested value is the canonical 512.  This prevents an explicit
     sweep run from being reused as formal readiness evidence by filename or by
     an otherwise identical effective profile.
     """
@@ -391,6 +394,89 @@ def runtime_environment() -> dict[str, Any]:
     }
 
 
+def gpu_device_metadata() -> dict[str, Any]:
+    """Capture stable CuPy device identity outside every measured loop."""
+
+    cupy_module = sys.modules.get("cupy")
+    if cupy_module is None:
+        raise RuntimeError("CuPy device metadata requires the loaded cupy module")
+    device_id = int(cupy_module.cuda.runtime.getDevice())
+    properties = cupy_module.cuda.runtime.getDeviceProperties(device_id)
+
+    def property_value(name: str) -> Any:
+        return properties.get(name, properties.get(name.encode("ascii")))
+
+    raw_name = property_value("name")
+    name = (
+        raw_name.decode("utf-8", errors="replace")
+        if isinstance(raw_name, bytes)
+        else str(raw_name or "")
+    ).strip("\x00")
+    return {
+        "device_id": device_id,
+        "name": name,
+        "compute_capability": [
+            int(property_value("major")),
+            int(property_value("minor")),
+        ],
+        "total_memory_bytes": int(property_value("totalGlobalMem")),
+        "pci_bus_id": int(property_value("pciBusID")),
+        "pci_device_id": int(property_value("pciDeviceID")),
+    }
+
+
+NVIDIA_SMI_FIELDS = (
+    "driver_version",
+    "name",
+    "pci.bus_id",
+    "clocks.current.sm",
+    "clocks.current.memory",
+    "temperature.gpu",
+    "utilization.gpu",
+    "power.draw",
+    "persistence_mode",
+)
+
+
+def nvidia_smi_snapshot(device_id: int) -> dict[str, Any]:
+    """Capture one bounded nvidia-smi snapshot outside measured loops."""
+
+    command = [
+        "nvidia-smi",
+        "--id",
+        str(int(device_id)),
+        f"--query-gpu={','.join(NVIDIA_SMI_FIELDS)}",
+        "--format=csv,noheader,nounits",
+    ]
+    try:
+        completed = subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5.0,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {
+            "ok": False,
+            "command": command,
+            "error_type": type(exc).__name__,
+        }
+    rows = [row.strip() for row in completed.stdout.splitlines() if row.strip()]
+    values = [value.strip() for value in rows[0].split(",")] if rows else []
+    ok = completed.returncode == 0 and len(rows) == 1 and len(values) == len(
+        NVIDIA_SMI_FIELDS
+    )
+    return {
+        "ok": ok,
+        "command": command,
+        "returncode": int(completed.returncode),
+        "fields": list(NVIDIA_SMI_FIELDS),
+        "values": dict(zip(NVIDIA_SMI_FIELDS, values)) if ok else {},
+        "stderr": completed.stderr.strip(),
+    }
+
+
 def deferred_control_summary(
     buffer: Any,
     deferred_fields: Sequence[str],
@@ -567,6 +653,12 @@ def main() -> int:
             "path": str(root / "config" / "step5d_liveprep_solver_gate.json"),
             "sha256": sha256_path(root / "config" / "step5d_liveprep_solver_gate.json"),
         },
+        "profile_selection": {
+            "path": str(root / "config" / "step5d_v30_profile_selection.json"),
+            "sha256": sha256_path(
+                root / "config" / "step5d_v30_profile_selection.json"
+            ),
+        },
         "stage_table": {
             "path": str(root / "config" / "step5_stage_table.json"),
             "sha256": sha256_path(root / "config" / "step5_stage_table.json"),
@@ -623,6 +715,8 @@ def main() -> int:
     ):
         raise RuntimeError("v30 timing requires block-6/serial startup equivalence")
     cupy_precompile_ms = (time.perf_counter() - solver_started) * 1000.0
+    gpu_device = gpu_device_metadata()
+    nvidia_smi_start = nvidia_smi_snapshot(gpu_device["device_id"])
 
     config = Step5dOuterLoopConfig(
         kp=4.0,
@@ -800,6 +894,11 @@ def main() -> int:
     gc.disable()
     try:
         for index in range(args.solver_samples):
+            if index and index % SOLVER_BATCH_SIZE == 0:
+                # Keep the full-speed microbenchmark from exhausting Linux's
+                # realtime runtime budget. This yield is outside the measured
+                # single-solve interval; the 500 Hz full/safe loops are unchanged.
+                time.sleep(SOLVER_BATCH_YIELD_S)
             started = time.perf_counter()
             solver.solve(actual_q=first_q, actual_qd=first_qd, target_state=first_target)
             solver_ms[index] = (time.perf_counter() - started) * 1000.0
@@ -1008,6 +1107,7 @@ def main() -> int:
     finally:
         if gc_was_enabled:
             gc.enable()
+    nvidia_smi_end = nvidia_smi_snapshot(gpu_device["device_id"])
 
     component_diagnostics: dict[str, Any] | None = None
     if component_samples:
@@ -1069,6 +1169,12 @@ def main() -> int:
         "profile_sha256": profile_selection["effective_profile_sha256"],
         "profile_selection": profile_selection,
         "runtime_environment": runtime_environment(),
+        "gpu_device": gpu_device,
+        "nvidia_smi": {
+            "capture_scope": "outside_measured_solver_and_500hz_loops",
+            "start": nvidia_smi_start,
+            "end": nvidia_smi_end,
+        },
         "source_binding": source_binding,
         "artifact_binding": artifact_binding,
         "source_csv": str(replay_csv),
@@ -1083,6 +1189,15 @@ def main() -> int:
         "cupy_component_diagnostics": component_diagnostics,
         "precompile_outside_control_loop": True,
         "first_post_warm_ms": first_post_warm_ms,
+        "solver_microbenchmark_pacing": {
+            "mode": "unmeasured_fixed_batch_yield",
+            "batch_size": SOLVER_BATCH_SIZE,
+            "yield_s": SOLVER_BATCH_YIELD_S,
+            "yield_included_in_single_solve_latency": False,
+            "reason": "avoid_linux_sched_fifo_runtime_throttling_during_10k_stress",
+            "full_tick_loop_affected": False,
+            "safe_hold_loop_affected": False,
+        },
         "solver": distribution(solver_ms),
         "full_tick": distribution(full_tick_ms),
         "safe_hold": distribution(safe_hold_ms),

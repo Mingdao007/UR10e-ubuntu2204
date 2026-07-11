@@ -191,6 +191,8 @@ def build_stage_env(stage_id: str, root: Path = EXPERIMENT_ROOT) -> dict[str, st
 
 
 _P0_ENV = build_stage_env(STEP5D_NO_CONTACT_P0_STAGE_ID)
+_P0_V8_ENV = build_stage_env(STEP5D_NO_CONTACT_P0_V8_STAGE_ID)
+_V30_ROW = _stage_row(STEP5D_ABLATION_V30_STAGE_ID)
 STEP5D_NO_CONTACT_P0_DURATION_S = float(_P0_ENV["BRIDGE_DURATION_S"])
 STEP5D_NO_CONTACT_P0_TARGET_FORCE_N = float(_P0_ENV["BRIDGE_TARGET_FORCE_N"])
 STEP5D_NO_CONTACT_P0_BASELINE_S = float(_P0_ENV["BRIDGE_BASELINE_S"])
@@ -213,6 +215,12 @@ STEP5D_NO_CONTACT_P0_EPSILON = float(_P0_ENV["STEP5D_EPSILON"])
 STEP5D_NO_CONTACT_P0_SIGR_EXPONENT_R = float(_P0_ENV["STEP5D_SIGR_EXPONENT_R"])
 STEP5D_NO_CONTACT_P0_RNN_INNER_ITERATIONS = int(_P0_ENV["STEP5D_RNN_INNER_ITERATIONS"])
 STEP5D_NO_CONTACT_P0_RNN_BACKEND = _P0_ENV["STEP5D_RNN_BACKEND"]
+STEP5D_NO_CONTACT_P0_V8_RNN_INNER_ITERATIONS = int(
+    _P0_V8_ENV["STEP5D_RNN_INNER_ITERATIONS"]
+)
+STEP5D_V30_RNN_INNER_ITERATIONS = int(
+    _stage_field(_V30_ROW, "runtime_profile.inner_iterations")
+)
 STEP5D_NO_CONTACT_P0_NORMAL_MIN_FORCE_N = float(_P0_ENV["BRIDGE_NORMAL_MIN_FORCE_N"])
 STEP5D_NO_CONTACT_P0_PRELOAD_TIMEOUT_S = float(_P0_ENV["STEP5D_PRELOAD_TIMEOUT_S"])
 STEP5D_NO_CONTACT_P0_RTDE_HZ = float(_P0_ENV["BRIDGE_RTDE_HZ"])
@@ -734,13 +742,18 @@ def resolve_runtime_interface(
                 if selected == STEP5D_ABLATION_V29_STAGE_ID
                 else {
                     "backend": "cupy",
-                    "inner_iterations": 128,
+                    "inner_iterations": 512,
                     "epsilon": 0.010,
                     "sigr_exponent_r": 0.8,
                     "qdot_cap_rad_s": 0.05,
                     "control_mode": "speedj_rnn_live",
                     "joint_layout_code": 524.0,
                 }
+                if selected in STEP5D_V30_CONTROL_CONTRACT_STAGE_IDS
+                else None
+            ),
+            "runtime_scheduler": (
+                {"policy": "SCHED_FIFO", "priority": 20}
                 if selected in STEP5D_V30_CONTROL_CONTRACT_STAGE_IDS
                 else None
             ),

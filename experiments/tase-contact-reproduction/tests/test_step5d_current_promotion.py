@@ -433,12 +433,16 @@ class Step5dCurrentPromotionTest(unittest.TestCase):
                         "active": False,
                         "runtime_profile": {
                             "backend": "cupy",
-                            "inner_iterations": 128,
+                            "inner_iterations": 512,
                             "epsilon": 0.01,
                             "sigr_exponent_r": 0.8,
                             "qdot_cap_rad_s": 0.05,
                             "control_mode": "speedj_rnn_live",
                             "joint_layout_code": 524.0,
+                        },
+                        "runtime_scheduler": {
+                            "policy": "SCHED_FIFO",
+                            "priority": 20,
                         },
                         "contact_policy": {
                             "dls_shadow_only": True,
@@ -481,12 +485,16 @@ class Step5dCurrentPromotionTest(unittest.TestCase):
                     "blocked": True,
                     "runtime_profile": {
                         "backend": "cupy",
-                        "inner_iterations": 128,
+                        "inner_iterations": 512,
                         "epsilon": 0.01,
                         "sigr_exponent_r": 0.8,
                         "qdot_cap_rad_s": 0.05,
                         "control_mode": "speedj_rnn_live",
                         "joint_layout_code": 524.0,
+                    },
+                    "runtime_scheduler": {
+                        "policy": "SCHED_FIFO",
+                        "priority": 20,
                     },
                     "contact_policy": {
                         "dls_shadow_only": True,

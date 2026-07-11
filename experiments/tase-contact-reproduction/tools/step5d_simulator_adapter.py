@@ -42,12 +42,12 @@ P0_V8_DBIL_HZ = 200
 P0_V8_QDOT_CAP_RAD_S = 0.05
 P0_V8_EPSILON = 0.010
 P0_V8_SIGR_EXPONENT_R = 0.8
-# Review-v2 timing recovery revision.  The frozen 1024-iteration evidence stays
-# historical. The current P0/v30 candidate returns to the 128-step profile:
-# the 32-step formal Ubuntu run reduced solver time but increased full-tick and
-# schedule misses, so it remains negative selection evidence. qdot and every
-# safety gate are unchanged.
-P0_V8_INNER_ITERATIONS = 128
+# The frozen v29 1024-iteration and earlier v30/P0 128-iteration artifacts stay
+# historical. A source-bound SCHED_FIFO/20 sweep selected 512 because it alone
+# produced 500/500 execute ticks with zero normal-sign mismatch while remaining
+# below the solver/full-tick timing thresholds. qdot and every safety gate are
+# unchanged.
+P0_V8_INNER_ITERATIONS = 512
 P0_V8_FORCE_GUARD_N = 5.0
 P0_V8_TORQUE_GUARD_NM = 3.0
 P0_V8_SENSOR_STALE_S = 0.100

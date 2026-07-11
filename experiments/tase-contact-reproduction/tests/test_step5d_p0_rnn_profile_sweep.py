@@ -18,7 +18,7 @@ class Step5dP0RnnProfileSweepTest(unittest.TestCase):
 
         self.assertEqual(rows[0], sweep.RnnProfile(**sweep.BASELINE))
         self.assertEqual(len(rows), 2)
-        self.assertEqual(rows[1].inner_iterations, 512)
+        self.assertEqual(rows[1].inner_iterations, 1024)
 
     def test_profile_changes_only_rnn_parameters(self) -> None:
         payload = sweep.RnnProfile(256, 0.005, 0.6).payload()

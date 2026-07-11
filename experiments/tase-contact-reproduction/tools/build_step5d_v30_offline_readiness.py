@@ -208,6 +208,7 @@ def timing_history_entry(
     expected_source_binding: dict[str, str],
     expected_replay_sha256: str,
     expected_paper_truth_sha256: str,
+    expected_profile_selection_sha256: str | None = None,
 ) -> dict[str, Any]:
     payload = load(path)
     solver = payload.get("solver") or {}
@@ -229,6 +230,18 @@ def timing_history_entry(
         )
     )
     acceptance_eligible = evaluation.get("acceptance_eligible") is True
+    selection_binding = (
+        (payload.get("artifact_binding") or {}).get("profile_selection") or {}
+    )
+    selection_binding_matches_current = (
+        expected_profile_selection_sha256 is None
+        or selection_binding.get("sha256") == expected_profile_selection_sha256
+    )
+    if not selection_binding_matches_current:
+        acceptance_eligible = False
+        evaluation.setdefault("blockers", []).append(
+            "remote_timing_profile_selection_sha_mismatch"
+        )
     classification = (
         "failed_hard_solver_deadline"
         if hard_solver_failure
@@ -239,10 +252,28 @@ def timing_history_entry(
         )
     )
     raw_sha256 = sha256(path)
+    raw_profile = payload.get("profile")
+    profile = raw_profile if isinstance(raw_profile, dict) else {}
+    inner_iterations = profile.get("inner_iterations")
+    evidence_status = (
+        "historical_superseded_by_v30_rnn512_profile_selection"
+        if not isinstance(raw_profile, dict) or inner_iterations not in {256, 512}
+        else "diagnostic_not_selected_by_v30_rnn512_profile_selection"
+        if inner_iterations == 256
+        else "diagnostic_selection_evidence_not_formal_timing"
+        if (payload.get("profile_selection") or {}).get(
+            "diagnostic_override_requested"
+        )
+        is True
+        else "current_canonical_profile_candidate"
+    )
     return {
         "role": role,
         "path": str(path.relative_to(ROOT)),
         "sha256": raw_sha256,
+        "profile": raw_profile,
+        "profile_selection": payload.get("profile_selection"),
+        "evidence_status": evidence_status,
         "source_binding": payload.get("source_binding"),
         "artifact_binding": payload.get("artifact_binding"),
         "solver": solver,
@@ -254,6 +285,9 @@ def timing_history_entry(
         "component_diagnostics": payload.get("cupy_component_diagnostics"),
         "classification": classification,
         "acceptance_eligible": acceptance_eligible,
+        "profile_selection_binding_matches_current": (
+            selection_binding_matches_current
+        ),
         "acceptance_evaluation": {
             "recomputed_from_single_hash_bound_raw_artifact": True,
             "raw_sha256": raw_sha256,
@@ -288,6 +322,10 @@ def build(*, generated_at: str) -> dict[str, Any]:
     replay = load(replay_path)
     timing_summary_path = ROOT / "config" / "step5d_v30_timing_summary.json"
     timing_summary = load(timing_summary_path)
+    profile_selection_path = (
+        ROOT / "config" / "step5d_v30_profile_selection.json"
+    )
+    profile_selection = load(profile_selection_path)
     marker_path = (
         ROOT
         / "programs"
@@ -336,6 +374,10 @@ def build(*, generated_at: str) -> dict[str, Any]:
             "step5d_v30_rnn*_formal_timing_raw.json",
             "parameter_selected_formal_timing_candidate",
         ),
+        (
+            "step5d_v30_rnn*_profile_sweep_raw.json",
+            "parameter_profile_selection_diagnostic_not_acceptance",
+        ),
     ):
         history_paths.extend((path, role) for path in sorted((ROOT / "config").glob(pattern)))
     history = [
@@ -345,6 +387,7 @@ def build(*, generated_at: str) -> dict[str, Any]:
             expected_source_binding=expected_source_binding,
             expected_replay_sha256=expected_replay_sha256,
             expected_paper_truth_sha256=expected_paper_truth_sha256,
+            expected_profile_selection_sha256=sha256(profile_selection_path),
         )
         for path, role in history_paths
         if path.is_file()
@@ -374,6 +417,22 @@ def build(*, generated_at: str) -> dict[str, Any]:
         )
     )
     blockers: list[str] = []
+    if (
+        profile_selection.get("selected_inner_iterations") != 512
+        or (profile_selection.get("selected_profile") or {}).get("epsilon")
+        != 0.010
+        or (profile_selection.get("selected_profile") or {}).get(
+            "sigr_exponent_r"
+        )
+        != 0.8
+        or (profile_selection.get("selected_profile") or {}).get(
+            "qdot_cap_rad_s"
+        )
+        != 0.05
+        or (profile_selection.get("selected_profile") or {}).get("backend")
+        != "cupy"
+    ):
+        blockers.append("v30_rnn512_profile_selection_invalid")
     if replay.get("acceptance_pass") is not True:
         blockers.append("v29_replay_acceptance_incomplete")
     hard_acceptance_entries = [
@@ -464,7 +523,7 @@ def build(*, generated_at: str) -> dict[str, Any]:
         "status": status,
         "profile": {
             "backend": "cupy",
-            "inner_iterations": 128,
+            "inner_iterations": 512,
             "epsilon": 0.010,
             "sigr_exponent_r": 0.8,
             "qdot_cap_rad_s": 0.05,
@@ -493,6 +552,15 @@ def build(*, generated_at: str) -> dict[str, Any]:
             "qdot_over_bound_rows": replay.get("qdot_over_bound_rows"),
         },
         "timing": {
+            "profile_selection": {
+                "path": str(profile_selection_path.relative_to(ROOT)),
+                "sha256": sha256(profile_selection_path),
+                "selected_inner_iterations": profile_selection.get(
+                    "selected_inner_iterations"
+                ),
+                "classification": profile_selection.get("classification"),
+                "formal_timing_satisfied": False,
+            },
             "summary_path": str(timing_summary_path.relative_to(ROOT)),
             "summary_sha256": sha256(timing_summary_path),
             "overall_pass": bool(acceptance_entries),

@@ -8616,7 +8616,7 @@
       "duration_s": 60.0,
       "runtime_profile": {
         "backend": "cupy",
-        "inner_iterations": 128,
+        "inner_iterations": 512,
         "epsilon": 0.01,
         "sigr_exponent_r": 0.8,
         "qdot_cap_rad_s": 0.05,
@@ -8628,6 +8628,10 @@
         "control_contract": "Step5dObservation->SlewCompatibleReference->StrictRnnControlPolicy->ControlCandidate->SafetyEnvelope->RegisterCommand",
         "dls_shadow_only": true,
         "dls_runtime_fallback_allowed": false
+      },
+      "runtime_scheduler": {
+        "policy": "SCHED_FIFO",
+        "priority": 20
       },
       "guard": {
         "heartbeat_required": true,
@@ -8659,7 +8663,7 @@
         "stage25_success_target_s": 60.0,
         "step5d_epsilon": 0.01,
         "step5d_sigr_exponent_r": 0.8,
-        "step5d_rnn_inner_iterations": 128,
+        "step5d_rnn_inner_iterations": 512,
         "step5d_rnn_backend": "cupy",
         "normal_contract": "n_reaction = -n_approach",
         "dls_runtime_fallback_allowed": false,
@@ -8808,12 +8812,16 @@
       },
       "runtime_profile": {
         "backend": "cupy",
-        "inner_iterations": 128,
+        "inner_iterations": 512,
         "epsilon": 0.01,
         "sigr_exponent_r": 0.8,
         "qdot_cap_rad_s": 0.05,
         "control_mode": "speedj_rnn_live",
         "joint_layout_code": 524.0
+      },
+      "runtime_scheduler": {
+        "policy": "SCHED_FIFO",
+        "priority": 20
       },
       "guard": {
         "heartbeat_required": true,
@@ -8848,6 +8856,10 @@
         "stage25_command_consumption_min_ratio": 0.98,
         "stage25_success_target_s": 60.0,
         "stage25_runtime_limit_s": 65.0,
+        "step5d_epsilon": 0.01,
+        "step5d_sigr_exponent_r": 0.8,
+        "step5d_rnn_inner_iterations": 512,
+        "step5d_rnn_backend": "cupy",
         "normal_contract": "n_reaction = -n_approach",
         "normal_comparison_frame": "declared command frame after explicit rotation",
         "dls_runtime_fallback_allowed": false,
@@ -8971,8 +8983,12 @@
         "imported_v29_manifest": "config/step5d_v29_imported_evidence_manifest.json",
         "imported_v29_manifest_sha256": "3cd461c9a1a94aa1ef7d7bb40642928fe74f607765148cf7b0bd45ebc73db4e6",
         "v29_replay": "config/step5d_v30_replay_summary.json",
+        "profile_selection": "config/step5d_v30_profile_selection.json",
+        "profile_selection_sha256": "7d0f8640ee36d01bd1780c12ec59393109ae0ab3ad084a7c65ce4ec7ef193037",
+        "profile_selection_status": "canonical_rnn512_selected_diagnostic_only_formal_timing_pending",
         "timing_raw": "config/step5d_v30_rnn128_00d64f5_formal_timing_raw.json",
         "timing_raw_sha256": "c2a858f7f84b7e746ce17f30fd88f4c71fef11edbdf3cd3a26b3907b1442f073",
+        "timing_raw_status": "historical_superseded_by_v30_rnn512_profile_selection",
         "current_source_solver_10k_raw": "config/step5d_v30_current_source_solver_10k_raw.json",
         "current_source_solver_10k_raw_sha256": "81f94d23ffc985febb2402c2963547cb0110ddf7905d7781d6b52ed1937e49c2",
         "timing": "config/step5d_v30_timing_summary.json",
@@ -8993,21 +9009,21 @@
           "outer_loop": "tools/step5d_paper_outer_loop.py",
           "outer_loop_sha256": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
           "control_contract": "tools/step5d_control_contract.py",
-          "control_contract_sha256": "b64947b0100ff73d1f717ad3d9793f9680a0ae27f26efdd118d6ca5e788cc77b",
+          "control_contract_sha256": "53c8a7ae4060a4ebce0415a21b1993636a4fdd0d4894bc80d1f719c03ab19423",
           "runtime_interface": "tools/step5d_runtime_interface.py",
-          "runtime_interface_sha256": "834df962defe97f383e1a753dd7e559981a88cefcf176e0774c030dfdfdb59ac",
+          "runtime_interface_sha256": "b0856a338c5ba05d012ad1100aba8a72c10ec99595aceeebcc54ea475e17e8c4",
           "kinematics": "tools/step5c_calibrated_kinematics_audit.py",
           "kinematics_sha256": "5454af16db870350759372ab42583a4f339c71e32f9190679987b3addf6e14fa",
           "bridge": "tools/kunwei_rtde_bridge.py",
-          "bridge_sha256": "fd437f3a7dbd962673d344a602893307902ed94b21380b20eed7ce20debd5baa",
+          "bridge_sha256": "d128a275a00ef68236acd917e5fae4dfe5fa9662dcc068cd92000c877c9d7747",
           "harness": "tools/run_step5d_v30_remote_timing.py",
-          "harness_sha256": "a317ab257f50537b5da17f7239cf0db84cbbac214aae3034a134709dea89b308",
+          "harness_sha256": "e6d6d4b43eb4cae16745eb809bac19a81e138c96cfa9e7fe668de363b16ce010",
           "bundler": "tools/build_step5d_v30_remote_timing_bundle.py",
           "bundler_sha256": "320960ed2cf836f939b0a65e0cf7c602e6f58e9e4f35a7f9df87fc4cab4abd73",
           "aggregator": "tools/step5d_v30_timing.py",
-          "aggregator_sha256": "2f8e750c19163278d1c1253fb3b3cdd74c5aeaa1f7c17a005f13ef26df333519",
+          "aggregator_sha256": "84df773eed90acc8dbab466fc80384afbd54f74e76e096ef66ea3cf96a91ca2b",
           "readiness_builder": "tools/build_step5d_v30_offline_readiness.py",
-          "readiness_builder_sha256": "8cc6c1b19cfc8b7086fd09f1af00b39eb010796b3d08f74b7831536a609826f3"
+          "readiness_builder_sha256": "0ab47b42264ac8949aad51e8e40eac58c62dbdd9630e8231deff9dd93fd9ebaf"
         }
       },
       "success_condition": "v30_offline_ready only after the complete v29 replay accepts at least 99% with zero normal mismatch/nonfinite/qdot-bound rows; 10,000-solve and 60 s 500 Hz timing pass either the zero-miss hard-real-time route or the bounded-tail route with matching URSim/controller exact-zero stale-hold proof; inactive package hashes validate; and review blockers are zero. This does not promote current_stage or authorize live motion."

@@ -27,7 +27,7 @@ from ur10e_mujoco_adapter import MuJoCoVelocityPlant
 
 
 BASELINE = {
-    "inner_iterations": 1024,
+    "inner_iterations": 512,
     "epsilon": 0.010,
     "sigr_exponent_r": 0.8,
 }
@@ -291,11 +291,11 @@ def run(
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model-manifest", type=Path, required=True)
-    parser.add_argument("--iterations", type=parse_ints, default=(32, 64, 128, 256, 512))
+    parser.add_argument("--iterations", type=parse_ints, default=(128, 256, 512))
     parser.add_argument(
-        "--epsilon-values", type=parse_floats, default=(0.005, 0.010)
+        "--epsilon-values", type=parse_floats, default=(0.010,)
     )
-    parser.add_argument("--r-values", type=parse_floats, default=(0.6, 0.8, 1.0))
+    parser.add_argument("--r-values", type=parse_floats, default=(0.8,))
     parser.add_argument("--duration-s", type=float, default=2.0)
     parser.add_argument("--paced", action="store_true")
     parser.add_argument("--output", type=Path)

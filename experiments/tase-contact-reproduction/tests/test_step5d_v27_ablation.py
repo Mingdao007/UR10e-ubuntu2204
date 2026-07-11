@@ -30,6 +30,8 @@ from step5d_paper_outer_loop import Step5dOuterLoopState  # noqa: E402
 V27 = "step5d_strict_rnn_ablation_v27"
 V28 = "step5d_strict_rnn_ablation_v28"
 V29 = "step5d_strict_rnn_ablation_v29"
+V30 = "step5d_strict_rnn_ablation_v30"
+P0_V8 = "step5d_strict_rnn_no_contact_p0_v8"
 
 
 def raw_bridge_args(profile: str = V29, **overrides: object) -> SimpleNamespace:
@@ -252,6 +254,27 @@ class Step5dV27AblationTest(unittest.TestCase):
         self.assertEqual(args.step5d_rnn_inner_iterations, 1024)
         self.assertEqual(args.step5d_sigr_exponent_r, 0.8)
         self.assertEqual(args.step5d_qdot_limit_rad_s, 0.05)
+
+    def test_bridge_parse_args_binds_v30_and_p0_v8_to_512(self) -> None:
+        for profile in (V30, P0_V8):
+            with self.subTest(profile=profile):
+                args = bridge.parse_args(
+                    [
+                        "--no-start-command",
+                        "--skip-dashboard-preflight",
+                        "--bridge-mode",
+                        "line",
+                        "--bridge-profile",
+                        profile,
+                        "--bridge-path-shape",
+                        "cycloid",
+                    ]
+                )
+                self.assertEqual(args.step5d_rnn_backend, "cupy")
+                self.assertEqual(args.step5d_rnn_inner_iterations, 512)
+                self.assertEqual(args.step5d_epsilon, 0.010)
+                self.assertEqual(args.step5d_sigr_exponent_r, 0.8)
+                self.assertEqual(args.step5d_qdot_limit_rad_s, 0.05)
 
     def test_v29_raw_bridge_rejects_disabled_runtime_guard_values(self) -> None:
         bridge.require_v29_runtime_guard_policy(raw_bridge_args())
@@ -1714,6 +1737,19 @@ class Step5dV29RawBridgeAuthorizationGateTest(unittest.TestCase):
                 self.assertRaisesRegex(SystemExit, "SCHED_FIFO priority exactly 20"),
             ):
                 bridge.require_v29_realtime_scheduler(args)
+
+    def test_v30_and_p0_v8_share_production_fifo_priority_20(self) -> None:
+        with (
+            patch.object(os, "sched_getscheduler", return_value=os.SCHED_FIFO),
+            patch.object(os, "sched_getparam", return_value=os.sched_param(20)),
+        ):
+            for profile in (V30, P0_V8):
+                with self.subTest(profile=profile):
+                    self.assertIsNone(
+                        bridge.require_step5d_realtime_scheduler(
+                            raw_bridge_args(profile)
+                        )
+                    )
 
     def test_runtime_scheduler_metadata_records_effective_policy_and_priority(self) -> None:
         with (

@@ -495,6 +495,7 @@ def _write_v30_evidence_fixture(root: Path) -> tuple[dict, dict]:
         "active": True,
         "blocked": False,
         "runtime_profile": dict(gate.V30_EXACT_RUNTIME_PROFILE),
+        "runtime_scheduler": {"policy": "SCHED_FIFO", "priority": 20},
         "contact_policy": {
             "dls_shadow_only": True,
             "dls_fallback_allowed": False,
@@ -658,7 +659,7 @@ class Step5dCurrentBindingGateTest(unittest.TestCase):
             profile = {
                 "stage25_control_mode": "speedj_rnn_live",
                 "rnn_backend": "cupy",
-                "rnn_inner_iterations": 128,
+                "rnn_inner_iterations": 512,
                 "epsilon": 0.01,
                 "sigr_exponent_r": 0.8,
                 "qdot_cap_rad_s": 0.05,

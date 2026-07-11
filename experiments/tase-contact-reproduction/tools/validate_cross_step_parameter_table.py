@@ -601,7 +601,7 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         failures.extend(p0_delivery_failures)
         expected_p0_runtime = {
             "backend": "cupy",
-            "inner_iterations": 128,
+            "inner_iterations": 512,
             "epsilon": 0.01,
             "sigr_exponent_r": 0.8,
             "qdot_cap_rad_s": 0.05,
@@ -617,6 +617,11 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         for field, expected in expected_p0_runtime.items():
             if runtime.get(field) != expected:
                 failures.append(f"P0 v8 runtime profile mismatch: {field}")
+        if p0_v8_row.get("runtime_scheduler") != {
+            "policy": "SCHED_FIFO",
+            "priority": 20,
+        }:
+            failures.append("P0 v8 runtime scheduler must be SCHED_FIFO/20")
         p0_guard = p0_v8_row.get("guard") or {}
         if p0_guard.get("stage25_allowed_layout_tags") != [524.0]:
             failures.append("P0 v8 must allow only Stage25 layout 524")
@@ -833,7 +838,7 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             failures.append("v30 canary stop register must remain disabled and unarmed offline")
         expected_runtime = {
             "backend": "cupy",
-            "inner_iterations": 128,
+            "inner_iterations": 512,
             "epsilon": 0.01,
             "sigr_exponent_r": 0.8,
             "qdot_cap_rad_s": 0.05,
@@ -842,6 +847,11 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         }
         if v30.get("runtime_profile") != expected_runtime:
             failures.append("v30 runtime profile does not match the pinned strict-RNN profile")
+        if v30.get("runtime_scheduler") != {
+            "policy": "SCHED_FIFO",
+            "priority": 20,
+        }:
+            failures.append("v30 runtime scheduler must be SCHED_FIFO/20")
         if v30.get("guard", {}).get("dls_runtime_fallback_allowed") is not False:
             failures.append("v30 must forbid DLS runtime fallback")
         v30_guard = v30.get("guard") or {}
@@ -911,6 +921,9 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         evidence = v30.get("local_analysis_evidence") or {}
         imported_manifest_path = root / str(evidence.get("imported_v29_manifest") or "")
         replay_path = root / str(evidence.get("v29_replay") or "")
+        profile_selection_path = root / str(
+            evidence.get("profile_selection") or ""
+        )
         timing_raw_path = root / str(evidence.get("timing_raw") or "")
         current_source_solver_path = root / str(
             evidence.get("current_source_solver_10k_raw") or ""
@@ -940,6 +953,32 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
                 or replay.get("semantic_contract_invalid_rows") != 0
             ):
                 failures.append("v30 canonical v29 replay acceptance is incomplete")
+        if not profile_selection_path.is_file():
+            failures.append("v30 strict-RNN profile selection evidence is missing")
+        else:
+            profile_selection = load_json(profile_selection_path)
+            if (
+                profile_selection.get("classification")
+                != "diagnostic_selection_not_formal_timing"
+                or profile_selection.get("selected_inner_iterations") != 512
+                or (profile_selection.get("selected_profile") or {}).get(
+                    "inner_iterations"
+                )
+                != 512
+                or (profile_selection.get("claim_boundary") or {}).get(
+                    "v30_offline_ready"
+                )
+                is not False
+            ):
+                failures.append("v30 strict-RNN profile selection contract is invalid")
+            if file_sha256(profile_selection_path) != evidence.get(
+                "profile_selection_sha256"
+            ):
+                failures.append("v30 strict-RNN profile selection sha mismatch")
+            if evidence.get("profile_selection_status") != (
+                "canonical_rnn512_selected_diagnostic_only_formal_timing_pending"
+            ):
+                failures.append("v30 strict-RNN profile selection status is invalid")
         for label, path, expected_sha in (
             ("raw timing", timing_raw_path, evidence.get("timing_raw_sha256")),
             (
