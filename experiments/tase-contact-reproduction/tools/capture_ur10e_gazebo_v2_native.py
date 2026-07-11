@@ -13,6 +13,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -31,17 +32,36 @@ if str(PACKAGE) not in sys.path:
     sys.path.insert(0, str(PACKAGE))
 
 from ur10e_example_controllers.ur10e_gazebo_v2 import (  # noqa: E402
+    ACTIVE_TCP_LINK,
     EOAT_CONTACT_COLLISION,
     EOAT_FIXED_JOINT,
     NATIVE_CONTACT_TOPIC,
     NATIVE_FT_TOPIC,
     backend_spec,
+    configure_robot_description,
     probe_fortress_abi,
 )
 
 
 WORLD_NAME = "ur10e_gazebo_v2_fortress"
 POSE_TOPIC = f"/world/{WORLD_NAME}/pose/info"
+RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+RUNTIME_BLOCKERS = (
+    "production_step5d_adapter_runtime_node_not_implemented",
+    "concurrent_camera_capture_not_implemented",
+)
+REQUIRED_BINDING_FILES = {
+    "world": PACKAGE / "worlds" / "ur10e_gazebo_v2_fortress.sdf",
+    "velocity_controller": PACKAGE / "config" / "gazebo_v2_velocity_controllers.yaml",
+    "effort_surrogate_controller": PACKAGE / "config" / "gazebo_v2_effort_surrogate_controllers.yaml",
+    "initial_positions": PACKAGE / "config" / "gazebo_v2_initial_positions.yaml",
+    "gazebo_v2_code": PACKAGE / "ur10e_example_controllers" / "ur10e_gazebo_v2.py",
+    "gazebo_matrix_code": PACKAGE / "ur10e_example_controllers" / "ur10e_gazebo_matrix_runner.py",
+    "launch": PACKAGE / "launch" / "ur10e_gazebo_v2_fortress.launch.py",
+    "lane_contract": EXPERIMENT_ROOT / "config" / "gazebo_v2_lane_contract.json",
+    "tick_schema": EXPERIMENT_ROOT / "config" / "schemas" / "ur10e_gazebo_v2_tick_v1.schema.json",
+    "eoat_visual_proxy": PACKAGE / "meshes" / "eoat" / "ur5e_ksm8n_ball_transfer_tool_v13_assembly.stl",
+}
 
 
 def _now() -> str:
@@ -54,6 +74,80 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _validate_run_id(value: str) -> str:
+    if not RUN_ID_PATTERN.fullmatch(value):
+        raise ValueError("run_id must match [A-Za-z0-9][A-Za-z0-9._-]{0,127}")
+    return value
+
+
+def _copy_binding(source: Path, target: Path, *, source_id: str) -> dict[str, Any]:
+    if not source.is_file():
+        raise FileNotFoundError(f"Gazebo v2 binding source missing ({source_id}): {source}")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, target)
+    return {
+        "source_id": source_id,
+        "source_path": str(source),
+        "artifact_path": str(target),
+        "size": target.stat().st_size,
+        "sha256": _sha256(target),
+    }
+
+
+def build_model_bindings(run_dir: Path, *, backend: str) -> dict[str, Any]:
+    """Materialize portable source/model inputs and bind the exact generated URDF."""
+
+    try:
+        from ament_index_python.packages import get_package_share_directory
+        from ur10e_example_controllers.ur10e_gazebo_matrix_runner import generate_sim_robot_description
+    except ImportError as exc:  # pragma: no cover - exercised on the Ubuntu ROS host
+        raise RuntimeError("ROS package index/xacro runtime unavailable for Gazebo model binding") from exc
+
+    calibration = WORKSPACE / "src" / "ur10e_bringup" / "config" / "ur10e_calibration.yaml"
+    if not calibration.is_file():
+        calibration = Path(get_package_share_directory("ur10e_bringup")) / "config" / "ur10e_calibration.yaml"
+    xacro_path = Path(get_package_share_directory("ur_description")) / "urdf" / "ur.urdf.xacro"
+    selected = backend_spec(backend)
+    controllers = PACKAGE / "config" / selected.controllers_filename
+    initial_positions = PACKAGE / "config" / "gazebo_v2_initial_positions.yaml"
+    generated = generate_sim_robot_description(
+        controllers_yaml=controllers,
+        initial_positions_yaml=initial_positions,
+        calibration_yaml=calibration,
+        xacro_path=xacro_path,
+    )
+    generated = configure_robot_description(generated, backend=backend)
+
+    binding_dir = run_dir / "model_bindings"
+    generated_path = binding_dir / "generated_robot_description.urdf"
+    generated_path.parent.mkdir(parents=True, exist_ok=True)
+    generated_path.write_text(generated, encoding="utf-8")
+    files = dict(REQUIRED_BINDING_FILES)
+    files.update({"calibration": calibration, "ur_xacro": xacro_path})
+    rows: dict[str, dict[str, Any]] = {}
+    for source_id, source in sorted(files.items()):
+        suffix = "".join(source.suffixes) or ".bin"
+        rows[source_id] = _copy_binding(source, binding_dir / f"{source_id}{suffix}", source_id=source_id)
+        rows[source_id]["artifact_path"] = str(Path(rows[source_id]["artifact_path"]).relative_to(run_dir))
+    generated_row = {
+        "source_id": "generated_urdf",
+        "source_path": "generated_in_process",
+        "artifact_path": str(generated_path.relative_to(run_dir)),
+        "size": generated_path.stat().st_size,
+        "sha256": _sha256(generated_path),
+    }
+    composite_material = "\n".join(
+        f"{source_id}:{row['sha256']}" for source_id, row in sorted({**rows, "generated_urdf": generated_row}.items())
+    )
+    return {
+        "schema": "ur10e_gazebo_v2_model_bindings_v1",
+        "backend": backend,
+        "generated_urdf": generated_row,
+        "files": rows,
+        "composite_sha256": hashlib.sha256(composite_material.encode("utf-8")).hexdigest(),
+    }
 
 
 def _json_messages(text: str) -> tuple[list[dict[str, Any]], list[str]]:
@@ -169,6 +263,11 @@ def normalize_contact_messages(text: str, *, run_id: str) -> tuple[list[dict[str
                     "surface_collision": surface_collision,
                     "selected_body_side": selected_side,
                     "native_wrench": native_wrench,
+                    "native_wrench_frame": "gazebo_contact_message_frame_unbound",
+                    "comparison_frame": None,
+                    "comparison_convention": None,
+                    "comparison_wrench_on_eoat": None,
+                    "reaction_normal": None,
                 }
             )
     return rows, issues
@@ -197,6 +296,11 @@ def normalize_ft_messages(text: str, *, run_id: str) -> tuple[list[dict[str, Any
                 "frame": "child",
                 "measure_direction": "child_to_parent",
                 "native_wrench": force + torque,
+                "native_wrench_frame": "eoat_joint_child",
+                "comparison_frame": None,
+                "comparison_convention": None,
+                "comparison_wrench_on_eoat": None,
+                "reaction_normal": None,
             }
         )
     return rows, issues
@@ -225,7 +329,12 @@ def controller_inventory(text: str, *, backend: str) -> dict[str, Any]:
     }
 
 
-def tf_lineage_from_pose_info(text: str, *, run_id: str) -> dict[str, Any]:
+def tf_lineage_from_pose_info(
+    text: str,
+    *,
+    run_id: str,
+    generated_urdf_sha256: str | None = None,
+) -> dict[str, Any]:
     messages, parse_issues = _json_messages(text)
     names = {
         str(pose.get("name") or "")
@@ -233,36 +342,42 @@ def tf_lineage_from_pose_info(text: str, *, run_id: str) -> dict[str, Any]:
         for pose in (message.get("pose") or [])
         if isinstance(pose, Mapping)
     }
-    base_link_present = any(name.endswith("::base_link") or name == "base_link" for name in names)
-    frames = {
-        "gazebo_world": {"parent": None, "source": "gazebo_world"},
-        "base_link": {
-            "parent": "gazebo_world",
-            "source": "gazebo_pose_info" if base_link_present else "missing_runtime_pose_info",
-        },
-        "base": {
-            "parent": "base_link",
-            "source": "calibrated_urdf_fixed_joint",
-            "rpy_rad": [0.0, 0.0, math.pi],
-        },
-        "base_link_inertia": {"parent": "base_link", "source": "calibrated_urdf_kinematic_tree"},
-        "shoulder_link": {"parent": "base_link_inertia", "source": "calibrated_urdf_kinematic_tree"},
-        "upper_arm_link": {"parent": "shoulder_link", "source": "calibrated_urdf_kinematic_tree"},
-        "forearm_link": {"parent": "upper_arm_link", "source": "calibrated_urdf_kinematic_tree"},
-        "wrist_1_link": {"parent": "forearm_link", "source": "calibrated_urdf_kinematic_tree"},
-        "wrist_2_link": {"parent": "wrist_1_link", "source": "calibrated_urdf_kinematic_tree"},
-        "wrist_3_link": {"parent": "wrist_2_link", "source": "calibrated_urdf_kinematic_tree"},
-        "flange": {"parent": "wrist_3_link", "source": "calibrated_urdf_kinematic_tree"},
-        "tool0": {"parent": "flange", "source": "calibrated_urdf_kinematic_tree"},
-        "real_aligned_eoat_visual_stack": {"parent": "tool0", "source": "attached_robot_description"},
-        "active_tcp": {"parent": "tool0", "source": "active_tcp_offset_contract"},
+    expected = (
+        "base_link",
+        "base",
+        "base_link_inertia",
+        "shoulder_link",
+        "upper_arm_link",
+        "forearm_link",
+        "wrist_1_link",
+        "wrist_2_link",
+        "wrist_3_link",
+        "flange",
+        "tool0",
+        "real_aligned_eoat_visual_stack",
+        ACTIVE_TCP_LINK,
+    )
+
+    def matches(frame: str) -> list[str]:
+        return sorted(name for name in names if name == frame or name.endswith(f"::{frame}"))
+
+    runtime_entities = {
+        frame: {
+            "present": bool(matches(frame)),
+            "matches": matches(frame),
+            "source": "gazebo_pose_info" if matches(frame) else "missing_runtime_pose_info",
+        }
+        for frame in expected
     }
     return {
-        "schema": "ur10e_gazebo_v2_tf_lineage_v1",
+        "schema": "ur10e_gazebo_v2_runtime_lineage_v2",
         "run_id": run_id,
-        "runtime_base_link_pose_present": base_link_present,
+        "generated_urdf_sha256": generated_urdf_sha256,
         "pose_info_parse_issues": parse_issues,
-        "frames": frames,
+        "required_runtime_entities": list(expected),
+        "runtime_entities": runtime_entities,
+        "all_required_runtime_entities_present": all(row["present"] for row in runtime_entities.values()),
+        "static_parentage_source": "manifest_bound_generated_urdf_not_runtime_pose_inference",
     }
 
 
@@ -281,12 +396,22 @@ def _terminate(process: subprocess.Popen[str]) -> None:
         process.wait(timeout=5.0)
 
 
-def capture(run_dir: Path, *, backend: str, duration_s: float, tick_trace: Path | None) -> Path:
+def capture(
+    run_dir: Path,
+    *,
+    backend: str,
+    duration_s: float,
+    tick_trace: Path | None,
+    run_id: str | None = None,
+) -> Path:
     if duration_s <= 0.0:
         raise ValueError("duration_s must be positive")
     selected = backend_spec(backend)
     run_dir.mkdir(parents=True, exist_ok=False)
-    run_id = f"gazebo-v2-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{uuid.uuid4().hex[:8]}"
+    run_id = _validate_run_id(
+        run_id or f"gazebo-v2-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{uuid.uuid4().hex[:8]}"
+    )
+    model_bindings = build_model_bindings(run_dir, backend=backend)
     abi = probe_fortress_abi()
     if not abi["pass"]:
         raise RuntimeError("Fortress ABI preflight failed: " + json.dumps(abi, sort_keys=True))
@@ -336,7 +461,11 @@ def capture(run_dir: Path, *, backend: str, duration_s: float, tick_trace: Path 
 
     contact_rows, contact_issues = normalize_contact_messages(raw_paths["contact"].read_text(encoding="utf-8"), run_id=run_id)
     ft_rows, ft_issues = normalize_ft_messages(raw_paths["ft"].read_text(encoding="utf-8"), run_id=run_id)
-    tf_lineage = tf_lineage_from_pose_info(raw_paths["pose"].read_text(encoding="utf-8"), run_id=run_id)
+    tf_lineage = tf_lineage_from_pose_info(
+        raw_paths["pose"].read_text(encoding="utf-8"),
+        run_id=run_id,
+        generated_urdf_sha256=str(model_bindings["generated_urdf"]["sha256"]),
+    )
     _write_jsonl(run_dir / "native_contact.jsonl", contact_rows)
     _write_jsonl(run_dir / "native_ft.jsonl", ft_rows)
     (run_dir / "tf_lineage.json").write_text(json.dumps(tf_lineage, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -344,9 +473,9 @@ def capture(run_dir: Path, *, backend: str, duration_s: float, tick_trace: Path 
         shutil.copy2(tick_trace, run_dir / "tick_trace.jsonl")
 
     artifacts = {}
-    for path in sorted(run_dir.iterdir()):
+    for path in sorted(run_dir.rglob("*")):
         if path.is_file():
-            artifacts[path.name] = {"size": path.stat().st_size, "sha256": _sha256(path)}
+            artifacts[str(path.relative_to(run_dir))] = {"size": path.stat().st_size, "sha256": _sha256(path)}
     manifest = {
         "schema": "ur10e_gazebo_v2_capture_manifest_v1",
         "run_id": run_id,
@@ -354,6 +483,8 @@ def capture(run_dir: Path, *, backend: str, duration_s: float, tick_trace: Path 
         "backend_fidelity": selected.fidelity,
         "engine_family": "Gazebo Fortress",
         "engine_major": 6,
+        "world_name": WORLD_NAME,
+        "world_pose_topic_present": POSE_TOPIC in topics,
         "ros2_control_plugin": "libign_ros2_control-system.so",
         "abi_preflight": abi,
         "started_at": started_at,
@@ -364,7 +495,10 @@ def capture(run_dir: Path, *, backend: str, duration_s: float, tick_trace: Path 
         "topics": topics_by_name,
         "normalization_issues": {"contact": contact_issues, "ft": ft_issues},
         "normalized_counts": {"contact": len(contact_rows), "ft": len(ft_rows)},
+        "model_bindings": model_bindings,
         "artifacts": artifacts,
+        "runtime_blockers": list(RUNTIME_BLOCKERS),
+        "gazebo_runtime_pass": False,
         "claim_boundary": {
             "offline_capture_only": True,
             "live_motion_authorized": False,
@@ -383,12 +517,18 @@ def main() -> int:
     parser.add_argument("--backend", choices=("velocity", "effort_surrogate"), default="velocity")
     parser.add_argument("--duration-s", type=float, default=2.0)
     parser.add_argument("--tick-trace", type=Path, default=None)
+    parser.add_argument(
+        "--run-id",
+        default=None,
+        help="Externally coordinated run id shared with the production tick writer.",
+    )
     args = parser.parse_args()
     path = capture(
         args.run_dir.resolve(),
         backend=args.backend,
         duration_s=args.duration_s,
         tick_trace=args.tick_trace.resolve() if args.tick_trace else None,
+        run_id=args.run_id,
     )
     print(path)
     return 0

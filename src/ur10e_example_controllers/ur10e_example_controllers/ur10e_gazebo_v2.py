@@ -34,6 +34,9 @@ FORBIDDEN_PLUGIN = "libgz_ros2_control-system.so"
 EOAT_LINK = "real_aligned_eoat_visual_stack"
 EOAT_FIXED_JOINT = "real_aligned_eoat_visual_stack_joint"
 EOAT_CONTACT_COLLISION = "eoat_contact_pad_collision"
+ACTIVE_TCP_LINK = "active_tcp"
+ACTIVE_TCP_JOINT = "active_tcp_joint"
+ACTIVE_TCP_OFFSET_TOOL0_M = (0.0000018186503701174852, 0.00000022293003722353485, 0.12209917288991741)
 NATIVE_CONTACT_TOPIC = "/ur10e/gazebo_v2/native_contact"
 NATIVE_FT_TOPIC = "/ur10e/gazebo_v2/native_ft"
 TICK_SCHEMA = "ur10e_gazebo_v2_tick_v1"
@@ -89,6 +92,11 @@ def configure_robot_description(robot_description: str, *, backend: str) -> str:
         raise ValueError(f"robot description missing attached EOAT link {EOAT_LINK}")
     if root.find(f"./joint[@name='{EOAT_FIXED_JOINT}']") is None:
         raise ValueError(f"robot description missing attached EOAT joint {EOAT_FIXED_JOINT}")
+    if root.find(f"./link[@name='{ACTIVE_TCP_LINK}']") is None:
+        raise ValueError(f"robot description missing active TCP link {ACTIVE_TCP_LINK}")
+    active_tcp_joint = root.find(f"./joint[@name='{ACTIVE_TCP_JOINT}']")
+    if active_tcp_joint is None:
+        raise ValueError(f"robot description missing active TCP joint {ACTIVE_TCP_JOINT}")
 
     controls = root.findall("./ros2_control")
     if len(controls) != 1:
@@ -207,6 +215,34 @@ def audit_robot_description(robot_description: str, *, backend: str) -> dict[str
         if _text(sensor, "./force_torque/measure_direction") != "child_to_parent":
             blockers.append("native_ft_direction_mismatch")
 
+    active_tcp_joint = root.find(f"./joint[@name='{ACTIVE_TCP_JOINT}']")
+    active_tcp_origin = active_tcp_joint.find("./origin") if active_tcp_joint is not None else None
+    active_tcp_extension = root.find(f"./gazebo[@reference='{ACTIVE_TCP_JOINT}']")
+    if root.find(f"./link[@name='{ACTIVE_TCP_LINK}']") is None:
+        blockers.append("active_tcp_link_missing")
+    if active_tcp_joint is None:
+        blockers.append("active_tcp_joint_missing")
+    else:
+        parent = active_tcp_joint.find("./parent")
+        child = active_tcp_joint.find("./child")
+        if parent is None or parent.attrib.get("link") != "tool0":
+            blockers.append("active_tcp_parent_not_tool0")
+        if child is None or child.attrib.get("link") != ACTIVE_TCP_LINK:
+            blockers.append("active_tcp_child_mismatch")
+        if active_tcp_origin is None or active_tcp_origin.attrib.get("rpy") != "0 0 0":
+            blockers.append("active_tcp_rotation_mismatch")
+        else:
+            try:
+                xyz = tuple(float(value) for value in active_tcp_origin.attrib.get("xyz", "").split())
+            except ValueError:
+                xyz = ()
+            if len(xyz) != 3 or any(
+                abs(actual - expected) > 1e-15 for actual, expected in zip(xyz, ACTIVE_TCP_OFFSET_TOOL0_M)
+            ):
+                blockers.append("active_tcp_offset_mismatch")
+    if active_tcp_extension is None or _text(active_tcp_extension, "./preserveFixedJoint") != "true":
+        blockers.append("active_tcp_fixed_joint_not_preserved")
+
     return {
         "schema": "ur10e_gazebo_v2_robot_description_audit_v1",
         "pass": not blockers,
@@ -216,6 +252,12 @@ def audit_robot_description(robot_description: str, *, backend: str) -> dict[str
         "command_interface_inventory": interface_inventory,
         "contact_sensor_attachment": {"link": EOAT_LINK, "collision": EOAT_CONTACT_COLLISION},
         "ft_sensor_attachment": {"joint": EOAT_FIXED_JOINT, "frame": "child", "direction": "child_to_parent"},
+        "active_tcp": {
+            "link": ACTIVE_TCP_LINK,
+            "joint": ACTIVE_TCP_JOINT,
+            "parent": "tool0",
+            "offset_tool0_m": list(ACTIVE_TCP_OFFSET_TOOL0_M),
+        },
         "geometry": {
             "fidelity": EOAT_GEOMETRY_FIDELITY,
             "current_bench_cad_hash_bound": False,
@@ -405,6 +447,13 @@ def validate_tick_record(record: Mapping[str, Any]) -> list[str]:
             issues.append("rejected_command_not_exact_zero")
     if action == "accept" and candidate.get("valid") is not True:
         issues.append("accepted_candidate_not_valid")
+    if action == "accept" and command.get("applied") is not True:
+        issues.append("accepted_command_not_applied")
+    if action == "accept" and _finite_vector6(command_values) and _finite_vector6(candidate.get("values")):
+        if tuple(float(value) for value in command_values) != tuple(
+            float(value) for value in candidate.get("values", ())
+        ):
+            issues.append("accepted_command_candidate_mismatch")
     return issues
 
 

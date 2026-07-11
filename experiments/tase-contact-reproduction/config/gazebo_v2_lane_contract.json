@@ -63,6 +63,15 @@
     "active_tcp_offset_z_m": 0.12209917288991741,
     "promotion_effect": "blocks_current_bench_geometry_equivalence_and_p0_simulator_physics_acceptance"
   },
+  "runtime_implementation": {
+    "production_step5d_adapter_node_implemented": false,
+    "concurrent_camera_capture_implemented": false,
+    "gazebo_runtime_pass": false,
+    "blockers": [
+      "production_step5d_adapter_runtime_node_not_implemented",
+      "concurrent_camera_capture_not_implemented"
+    ]
+  },
   "frame_lineage": {
     "world": "gazebo_world",
     "spawn_root": "base_link",
@@ -70,6 +79,8 @@
     "tool": "tool0",
     "physical_ft": "real_aligned_eoat_visual_stack_joint_child",
     "active_tcp": "active_tcp",
+    "active_tcp_joint": "active_tcp_joint",
+    "active_tcp_offset_tool0_m": [0.0000018186503701174852, 0.00000022293003722353485, 0.12209917288991741],
     "base_to_world_rpy_rad": [0.0, 0.0, 3.141592653589793],
     "required_runtime_entities": ["base_link", "base", "base_link_inertia", "shoulder_link", "upper_arm_link", "forearm_link", "wrist_1_link", "wrist_2_link", "wrist_3_link", "flange", "tool0", "real_aligned_eoat_visual_stack", "active_tcp"],
     "control_base_to_active_tcp_tree_path": ["base", "base_link", "base_link_inertia", "shoulder_link", "upper_arm_link", "forearm_link", "wrist_1_link", "wrist_2_link", "wrist_3_link", "flange", "tool0", "active_tcp"]

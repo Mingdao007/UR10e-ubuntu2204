@@ -103,6 +103,8 @@ EOAT_REAL_MESH_SCALED_BBOX_M = {
     "center": [0.000001695, 0.0, 0.03695],
 }
 ACTIVE_TCP_FRAME = "base_to_active_tcp"
+ACTIVE_TCP_LINK = "active_tcp"
+ACTIVE_TCP_JOINT = "active_tcp_joint"
 TOOL0_FRAME = "base_to_tool0"
 GAZEBO_WORLD_FRAME = "gazebo_world"
 BASE_TO_GAZEBO_WORLD_RPY = (0.0, 0.0, math.pi)
@@ -196,11 +198,12 @@ def add_real_aligned_eoat_visual_stack(robot_description: str) -> str:
     """Attach the local STL EOAT mesh as the primary visual, with simplified collisions."""
 
     root = ET.fromstring(robot_description)
-    if root.find(f"./link[@name='{EOAT_VISUAL_LINK}']") is not None:
-        return robot_description
     tool0 = root.find("./link[@name='tool0']")
     if tool0 is None:
         raise RuntimeError("generated URDF is missing tool0 link for EOAT visual stack")
+    if root.find(f"./link[@name='{EOAT_VISUAL_LINK}']") is not None:
+        _append_active_tcp_frame(root)
+        return ET.tostring(root, encoding="unicode")
 
     link = ET.Element("link", {"name": EOAT_VISUAL_LINK})
     _append_visual_proxy_inertial(link)
@@ -275,7 +278,27 @@ def add_real_aligned_eoat_visual_stack(robot_description: str) -> str:
 
     root.append(link)
     root.append(joint)
+    _append_active_tcp_frame(root)
     return ET.tostring(root, encoding="unicode")
+
+
+def _append_active_tcp_frame(root: ET.Element) -> None:
+    if root.find(f"./link[@name='{ACTIVE_TCP_LINK}']") is not None:
+        return
+    tcp_link = ET.Element("link", {"name": ACTIVE_TCP_LINK})
+    tcp_joint = ET.Element("joint", {"name": ACTIVE_TCP_JOINT, "type": "fixed"})
+    ET.SubElement(tcp_joint, "parent", {"link": "tool0"})
+    ET.SubElement(tcp_joint, "child", {"link": ACTIVE_TCP_LINK})
+    ET.SubElement(
+        tcp_joint,
+        "origin",
+        {"xyz": " ".join(f"{value:.17g}" for value in ACTIVE_TCP_OFFSET_TOOL0_M), "rpy": "0 0 0"},
+    )
+    tcp_gazebo = ET.Element("gazebo", {"reference": ACTIVE_TCP_JOINT})
+    ET.SubElement(tcp_gazebo, "preserveFixedJoint").text = "true"
+    root.append(tcp_link)
+    root.append(tcp_joint)
+    root.append(tcp_gazebo)
 
 
 def _append_visual_proxy_inertial(link: ET.Element) -> None:

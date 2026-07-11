@@ -32,11 +32,14 @@ if str(PACKAGE) not in sys.path:
     sys.path.insert(0, str(PACKAGE))
 
 from ur10e_example_controllers.ur10e_gazebo_v2 import (  # noqa: E402
+    ACTIVE_TCP_LINK,
+    ACTIVE_TCP_OFFSET_TOOL0_M,
     EOAT_CONTACT_COLLISION,
     EOAT_FIXED_JOINT,
     EOAT_GEOMETRY_FIDELITY,
     NATIVE_CONTACT_TOPIC,
     NATIVE_FT_TOPIC,
+    audit_robot_description,
     backend_spec,
     validate_tick_record,
 )
@@ -53,6 +56,29 @@ REQUIRED_MANUAL_CHECKS = (
 )
 CORRELATION_TOLERANCE_S = 0.004
 EXPECTED_CONTROL_PERIOD_S = 0.002
+TICK_SCHEMA_PATH = EXPERIMENT_ROOT / "config" / "schemas" / "ur10e_gazebo_v2_tick_v1.schema.json"
+REQUIRED_BINDING_IDS = frozenset(
+    {
+        "world",
+        "velocity_controller",
+        "effort_surrogate_controller",
+        "initial_positions",
+        "gazebo_v2_code",
+        "gazebo_matrix_code",
+        "launch",
+        "lane_contract",
+        "tick_schema",
+        "eoat_visual_proxy",
+        "calibration",
+        "ur_xacro",
+    }
+)
+RUNTIME_IMPLEMENTATION_BLOCKERS = frozenset(
+    {
+        "production_step5d_adapter_runtime_node_not_implemented",
+        "concurrent_camera_capture_not_implemented",
+    }
+)
 
 
 def sha256_file(path: Path) -> str:
@@ -108,12 +134,118 @@ def _vector6(value: Any) -> list[float] | None:
     return [float(item) for item in value]
 
 
+def _vector3(value: Any) -> list[float] | None:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes, bytearray)) or len(value) != 3:
+        return None
+    if not all(_finite(item) for item in value):
+        return None
+    return [float(item) for item in value]
+
+
+def _unit3(value: Any) -> list[float] | None:
+    vector = _vector3(value)
+    if vector is None:
+        return None
+    norm = math.sqrt(sum(item * item for item in vector))
+    if norm <= 1e-12:
+        return None
+    return [item / norm for item in vector]
+
+
+def _dot3(left: Sequence[float], right: Sequence[float]) -> float:
+    return sum(float(a) * float(b) for a, b in zip(left[:3], right[:3]))
+
+
 def _force_norm(wrench: Sequence[float]) -> float:
     return math.sqrt(sum(float(value) ** 2 for value in wrench[:3]))
 
 
 def _dedupe(values: Iterable[str]) -> list[str]:
     return list(dict.fromkeys(values))
+
+
+def _schema_type_matches(value: Any, expected: str) -> bool:
+    if expected == "object":
+        return isinstance(value, Mapping)
+    if expected == "array":
+        return isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray))
+    if expected == "string":
+        return isinstance(value, str)
+    if expected == "integer":
+        return isinstance(value, int) and not isinstance(value, bool)
+    if expected == "number":
+        return _finite(value)
+    if expected == "boolean":
+        return isinstance(value, bool)
+    return False
+
+
+def _resolve_local_ref(root: Mapping[str, Any], ref: str) -> Mapping[str, Any] | None:
+    if not ref.startswith("#/"):
+        return None
+    value: Any = root
+    for token in ref[2:].split("/"):
+        token = token.replace("~1", "/").replace("~0", "~")
+        if not isinstance(value, Mapping) or token not in value:
+            return None
+        value = value[token]
+    return value if isinstance(value, Mapping) else None
+
+
+def _json_schema_issues(value: Any, schema: Mapping[str, Any], root: Mapping[str, Any], path: str) -> list[str]:
+    issues: list[str] = []
+    ref = schema.get("$ref")
+    if isinstance(ref, str):
+        resolved = _resolve_local_ref(root, ref)
+        if resolved is None:
+            return [f"{path}:unresolved_ref:{ref}"]
+        return _json_schema_issues(value, resolved, root, path)
+    expected = schema.get("type")
+    if isinstance(expected, str) and not _schema_type_matches(value, expected):
+        return [f"{path}:type_not_{expected}"]
+    if "const" in schema and value != schema["const"]:
+        issues.append(f"{path}:const_mismatch")
+    enum = schema.get("enum")
+    if isinstance(enum, Sequence) and value not in enum:
+        issues.append(f"{path}:enum_mismatch")
+    if isinstance(value, str) and isinstance(schema.get("minLength"), int) and len(value) < schema["minLength"]:
+        issues.append(f"{path}:min_length")
+    if _finite(value) and _finite(schema.get("minimum")) and float(value) < float(schema["minimum"]):
+        issues.append(f"{path}:minimum")
+    if isinstance(value, Mapping):
+        required = schema.get("required") if isinstance(schema.get("required"), Sequence) else ()
+        for key in required:
+            if key not in value:
+                issues.append(f"{path}.{key}:required")
+        if isinstance(schema.get("minProperties"), int) and len(value) < schema["minProperties"]:
+            issues.append(f"{path}:min_properties")
+        properties = schema.get("properties") if isinstance(schema.get("properties"), Mapping) else {}
+        if schema.get("additionalProperties") is False:
+            for key in value:
+                if key not in properties:
+                    issues.append(f"{path}.{key}:additional_property")
+        for key, child_schema in properties.items():
+            if key in value and isinstance(child_schema, Mapping):
+                issues.extend(_json_schema_issues(value[key], child_schema, root, f"{path}.{key}"))
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        if isinstance(schema.get("minItems"), int) and len(value) < schema["minItems"]:
+            issues.append(f"{path}:min_items")
+        if isinstance(schema.get("maxItems"), int) and len(value) > schema["maxItems"]:
+            issues.append(f"{path}:max_items")
+        child_schema = schema.get("items")
+        if isinstance(child_schema, Mapping):
+            for index, item in enumerate(value):
+                issues.extend(_json_schema_issues(item, child_schema, root, f"{path}[{index}]"))
+    return issues
+
+
+def validate_tick_json_schema(
+    record: Mapping[str, Any],
+    *,
+    schema_path: Path = TICK_SCHEMA_PATH,
+) -> list[str]:
+    schema = load_json(schema_path)
+    return _json_schema_issues(record, schema, schema, "$")
 
 
 def validate_contact_rows(rows: Sequence[Mapping[str, Any]], *, run_id: str) -> list[str]:
@@ -177,63 +309,133 @@ def contact_ft_correlation(
     ft_rows: Sequence[Mapping[str, Any]],
     *,
     tolerance_s: float = CORRELATION_TOLERANCE_S,
+    tick_window: tuple[float, float] | None = None,
 ) -> dict[str, Any]:
     pairs: list[dict[str, Any]] = []
-    for contact in contacts:
+    issues: list[str] = []
+    ordered_contacts = sorted(
+        (row for row in contacts if _finite(row.get("sim_time_s"))),
+        key=lambda row: float(row["sim_time_s"]),
+    )
+    ordered_ft = sorted(
+        (row for row in ft_rows if _finite(row.get("sim_time_s"))),
+        key=lambda row: float(row["sim_time_s"]),
+    )
+    last_ft_index = -1
+    for contact_index, contact in enumerate(ordered_contacts):
         if not _finite(contact.get("sim_time_s")):
             continue
-        contact_wrench = _vector6(contact.get("native_wrench"))
-        if contact_wrench is None:
-            continue
         stamp = float(contact["sim_time_s"])
-        candidates = [row for row in ft_rows if _finite(row.get("sim_time_s"))]
-        if not candidates:
+        if tick_window is None or not (tick_window[0] <= stamp <= tick_window[1]):
+            issues.append(f"contact[{contact_index}]:outside_tick_window")
             continue
-        nearest = min(candidates, key=lambda row: abs(float(row["sim_time_s"]) - stamp))
-        ft_wrench = _vector6(nearest.get("native_wrench"))
-        if ft_wrench is None:
+        candidates = [
+            (index, row)
+            for index, row in enumerate(ordered_ft)
+            if index > last_ft_index
+            and tick_window[0] <= float(row["sim_time_s"]) <= tick_window[1]
+            and abs(float(row["sim_time_s"]) - stamp) <= tolerance_s
+        ]
+        if not candidates:
+            issues.append(f"contact[{contact_index}]:unique_ft_pair_missing")
+            continue
+        nearest_index, nearest = min(candidates, key=lambda item: abs(float(item[1]["sim_time_s"]) - stamp))
+        last_ft_index = nearest_index
+        contact_frame = str(contact.get("comparison_frame") or "")
+        ft_frame = str(nearest.get("comparison_frame") or "")
+        if not contact_frame or contact_frame != ft_frame:
+            issues.append(f"contact[{contact_index}]:comparison_frame_missing_or_mismatch")
+            continue
+        if (
+            contact.get("comparison_convention") != "force_on_eoat_along_reaction_normal"
+            or nearest.get("comparison_convention") != "force_on_eoat_along_reaction_normal"
+        ):
+            issues.append(f"contact[{contact_index}]:comparison_convention_mismatch")
+            continue
+        contact_wrench = _vector6(contact.get("comparison_wrench_on_eoat"))
+        ft_wrench = _vector6(nearest.get("comparison_wrench_on_eoat"))
+        contact_normal = _unit3(contact.get("reaction_normal"))
+        ft_normal = _unit3(nearest.get("reaction_normal"))
+        if contact_wrench is None or ft_wrench is None:
+            issues.append(f"contact[{contact_index}]:same_frame_wrench_missing")
+            continue
+        if contact_normal is None or ft_normal is None:
+            issues.append(f"contact[{contact_index}]:reaction_normal_missing")
+            continue
+        normal_alignment = _dot3(contact_normal, ft_normal)
+        if normal_alignment < 1.0 - 1e-6:
+            issues.append(f"contact[{contact_index}]:reaction_normal_mismatch")
             continue
         delta = abs(float(nearest["sim_time_s"]) - stamp)
-        if delta > tolerance_s:
+        contact_projection = _dot3(contact_wrench, contact_normal)
+        ft_projection = _dot3(ft_wrench, contact_normal)
+        if contact_projection <= 0.0 or ft_projection <= 0.0:
+            issues.append(f"contact[{contact_index}]:reaction_normal_sign_mismatch")
             continue
-        contact_norm = _force_norm(contact_wrench)
-        ft_norm = _force_norm(ft_wrench)
-        if contact_norm <= 0.0 or ft_norm <= 0.0:
+        contact_force_norm = _force_norm(contact_wrench)
+        ft_force_norm = _force_norm(ft_wrench)
+        if contact_force_norm <= 0.0 or ft_force_norm <= 0.0:
+            issues.append(f"contact[{contact_index}]:comparison_force_zero")
+            continue
+        force_direction_cosine = _dot3(contact_wrench, ft_wrench) / (contact_force_norm * ft_force_norm)
+        if force_direction_cosine < 0.8:
+            issues.append(f"contact[{contact_index}]:force_direction_mismatch")
             continue
         pairs.append(
             {
                 "contact_sim_time_s": stamp,
                 "ft_sim_time_s": float(nearest["sim_time_s"]),
                 "delta_s": delta,
-                "contact_force_norm_n": contact_norm,
-                "ft_force_norm_n": ft_norm,
-                "norm_ratio": ft_norm / contact_norm,
+                "comparison_frame": contact_frame,
+                "reaction_normal": contact_normal,
+                "contact_normal_force_n": contact_projection,
+                "ft_normal_force_n": ft_projection,
+                "normal_force_ratio": ft_projection / contact_projection,
+                "force_direction_cosine": force_direction_cosine,
             }
         )
-    ratios = [row["norm_ratio"] for row in pairs]
+    for index, row in enumerate(ordered_ft):
+        stamp = float(row["sim_time_s"])
+        if tick_window is None or not (tick_window[0] <= stamp <= tick_window[1]):
+            issues.append(f"ft[{index}]:outside_tick_window")
+    ratios = [row["normal_force_ratio"] for row in pairs]
     ratio_spread = None
     if ratios:
         mean = sum(ratios) / len(ratios)
         ratio_spread = max(abs(value - mean) for value in ratios) / max(abs(mean), 1e-12)
-    passed = len(pairs) >= 2 and ratio_spread is not None and ratio_spread <= 0.25
+    if len(pairs) < 2:
+        issues.append("unique_same_frame_pair_count_below_2")
+    if ratio_spread is None or ratio_spread > 0.25:
+        issues.append("normal_force_ratio_spread_exceeds_0p25")
+    issues = _dedupe(issues)
+    passed = not issues
     return {
         "pass": passed,
         "pair_count": len(pairs),
         "tolerance_s": tolerance_s,
-        "basis": "same-run nearest sim-time pair plus rotation-invariant force-norm ratio consistency",
-        "norm_ratio_relative_spread": ratio_spread,
+        "basis": "unique monotonic same-tick-window pairs; common frame; force-on-EOAT convention; reaction-normal sign and vector-direction checks",
+        "normal_force_ratio_relative_spread": ratio_spread,
         "pairs": pairs,
+        "issues": issues,
         "blockers": [] if passed else ["native_contact_ft_correlation_not_proven"],
     }
 
 
-def validate_tick_rows(rows: Sequence[Mapping[str, Any]], *, run_id: str, backend: str) -> list[str]:
+def validate_tick_rows(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    run_id: str,
+    backend: str,
+    schema_path: Path = TICK_SCHEMA_PATH,
+) -> list[str]:
     issues: list[str] = []
     if not rows:
         return ["tick_rows_zero"]
     previous_sequence: int | None = None
     previous_time: float | None = None
     for index, row in enumerate(rows):
+        for issue in validate_tick_json_schema(row, schema_path=schema_path):
+            issues.append(f"tick[{index}]:json_schema:{issue}")
         for issue in validate_tick_record(row):
             issues.append(f"tick[{index}]:{issue}")
         if row.get("run_id") != run_id:
@@ -255,47 +457,189 @@ def validate_tick_rows(rows: Sequence[Mapping[str, Any]], *, run_id: str, backen
     return issues
 
 
-def validate_tf_lineage(payload: Mapping[str, Any], *, run_id: str) -> list[str]:
+def validate_tf_lineage(
+    payload: Mapping[str, Any],
+    *,
+    run_id: str,
+    generated_urdf_sha256: str,
+) -> list[str]:
     issues: list[str] = []
     if payload.get("run_id") != run_id:
         issues.append("tf_lineage:run_id_mismatch")
-    if payload.get("runtime_base_link_pose_present") is not True:
-        issues.append("tf_lineage:runtime_base_link_pose_missing")
+    if payload.get("schema") != "ur10e_gazebo_v2_runtime_lineage_v2":
+        issues.append("tf_lineage:schema_mismatch")
+    if payload.get("generated_urdf_sha256") != generated_urdf_sha256:
+        issues.append("tf_lineage:generated_urdf_hash_mismatch")
     if payload.get("pose_info_parse_issues"):
         issues.append("tf_lineage:pose_info_parse_issues_present")
-    frames = payload.get("frames") if isinstance(payload.get("frames"), Mapping) else {}
-    expected_parents = {
-        "gazebo_world": None,
-        "base_link": "gazebo_world",
-        "base": "base_link",
-        "base_link_inertia": "base_link",
-        "shoulder_link": "base_link_inertia",
-        "upper_arm_link": "shoulder_link",
-        "forearm_link": "upper_arm_link",
-        "wrist_1_link": "forearm_link",
-        "wrist_2_link": "wrist_1_link",
-        "wrist_3_link": "wrist_2_link",
-        "flange": "wrist_3_link",
-        "tool0": "flange",
-        "real_aligned_eoat_visual_stack": "tool0",
-        "active_tcp": "tool0",
+    expected = {
+        "base_link",
+        "base",
+        "base_link_inertia",
+        "shoulder_link",
+        "upper_arm_link",
+        "forearm_link",
+        "wrist_1_link",
+        "wrist_2_link",
+        "wrist_3_link",
+        "flange",
+        "tool0",
+        "real_aligned_eoat_visual_stack",
+        ACTIVE_TCP_LINK,
     }
-    for frame, parent in expected_parents.items():
-        row = frames.get(frame) if isinstance(frames, Mapping) else None
+    declared = payload.get("required_runtime_entities")
+    if not isinstance(declared, Sequence) or isinstance(declared, (str, bytes, bytearray)) or set(declared) != expected:
+        issues.append("tf_lineage:required_runtime_entity_set_mismatch")
+    entities = payload.get("runtime_entities") if isinstance(payload.get("runtime_entities"), Mapping) else {}
+    for frame in sorted(expected):
+        row = entities.get(frame) if isinstance(entities, Mapping) else None
         if not isinstance(row, Mapping):
             issues.append(f"tf_lineage:missing:{frame}")
-        elif row.get("parent") != parent:
-            issues.append(f"tf_lineage:parent_mismatch:{frame}")
-        elif not str(row.get("source") or "") or str(row.get("source") or "").startswith("missing_"):
-            issues.append(f"tf_lineage:source_missing:{frame}")
-    base_row = frames.get("base") if isinstance(frames, Mapping) else None
-    rpy = base_row.get("rpy_rad") if isinstance(base_row, Mapping) else None
+        elif row.get("present") is not True or not row.get("matches") or row.get("source") != "gazebo_pose_info":
+            issues.append(f"tf_lineage:runtime_entity_not_observed:{frame}")
+    if payload.get("all_required_runtime_entities_present") is not True:
+        issues.append("tf_lineage:all_required_runtime_entities_not_present")
+    if payload.get("static_parentage_source") != "manifest_bound_generated_urdf_not_runtime_pose_inference":
+        issues.append("tf_lineage:static_parentage_provenance_mismatch")
+    return issues
+
+
+def _resolve_artifact_path(run_dir: Path, value: Any) -> Path | None:
+    if not isinstance(value, str) or not value:
+        return None
+    relative = Path(value)
+    if relative.is_absolute():
+        return None
+    resolved = (run_dir / relative).resolve()
     try:
-        base_rotation_valid = isinstance(rpy, Sequence) and len(rpy) == 3 and abs(float(rpy[2]) - math.pi) <= 1e-9
-    except (TypeError, ValueError):
-        base_rotation_valid = False
-    if not base_rotation_valid:
-        issues.append("tf_lineage:base_to_base_link_rotation_mismatch")
+        resolved.relative_to(run_dir.resolve())
+    except ValueError:
+        return None
+    return resolved
+
+
+def _validate_bound_file(run_dir: Path, row: Mapping[str, Any], *, prefix: str) -> tuple[list[str], Path | None]:
+    issues: list[str] = []
+    path = _resolve_artifact_path(run_dir, row.get("artifact_path"))
+    if path is None:
+        return [f"{prefix}:artifact_path_invalid"], None
+    if not path.is_file():
+        return [f"{prefix}:artifact_missing"], path
+    if row.get("size") != path.stat().st_size:
+        issues.append(f"{prefix}:size_mismatch")
+    if row.get("sha256") != sha256_file(path):
+        issues.append(f"{prefix}:sha256_mismatch")
+    return issues, path
+
+
+def validate_model_bindings(
+    run_dir: Path,
+    payload: Mapping[str, Any],
+    *,
+    backend: str,
+) -> tuple[list[str], dict[str, Any]]:
+    issues: list[str] = []
+    if payload.get("schema") != "ur10e_gazebo_v2_model_bindings_v1":
+        issues.append("model_bindings:schema_mismatch")
+    if payload.get("backend") != backend:
+        issues.append("model_bindings:backend_mismatch")
+    files = payload.get("files") if isinstance(payload.get("files"), Mapping) else {}
+    missing = REQUIRED_BINDING_IDS - set(files)
+    for source_id in sorted(missing):
+        issues.append(f"model_bindings:missing:{source_id}")
+    verified_rows: dict[str, Mapping[str, Any]] = {}
+    for source_id, row in files.items():
+        if not isinstance(row, Mapping):
+            issues.append(f"model_bindings:{source_id}:row_invalid")
+            continue
+        if row.get("source_id") != source_id:
+            issues.append(f"model_bindings:{source_id}:source_id_mismatch")
+        row_issues, _ = _validate_bound_file(run_dir, row, prefix=f"model_bindings:{source_id}")
+        issues.extend(row_issues)
+        verified_rows[str(source_id)] = row
+    generated = payload.get("generated_urdf") if isinstance(payload.get("generated_urdf"), Mapping) else {}
+    if generated.get("source_id") != "generated_urdf":
+        issues.append("model_bindings:generated_urdf:source_id_mismatch")
+    generated_issues, generated_path = _validate_bound_file(
+        run_dir,
+        generated,
+        prefix="model_bindings:generated_urdf",
+    )
+    issues.extend(generated_issues)
+    if generated_path is not None and generated_path.is_file():
+        try:
+            description = generated_path.read_text(encoding="utf-8")
+            audit = audit_robot_description(description, backend=backend)
+        except (OSError, ValueError) as exc:
+            audit = {"pass": False, "blockers": [f"generated_urdf_audit_exception:{type(exc).__name__}"]}
+        if not audit.get("pass"):
+            issues.extend(f"model_bindings:generated_urdf:{value}" for value in audit.get("blockers", []))
+    else:
+        audit = {"pass": False, "blockers": ["generated_urdf_missing"]}
+    material_rows = dict(verified_rows)
+    if generated:
+        material_rows["generated_urdf"] = generated
+    material = "\n".join(
+        f"{source_id}:{row.get('sha256')}" for source_id, row in sorted(material_rows.items())
+    )
+    composite = hashlib.sha256(material.encode("utf-8")).hexdigest()
+    if payload.get("composite_sha256") != composite:
+        issues.append("model_bindings:composite_sha256_mismatch")
+    return issues, {
+        "composite_sha256": composite,
+        "generated_urdf_sha256": generated.get("sha256"),
+        "world_sha256": files.get("world", {}).get("sha256") if isinstance(files.get("world"), Mapping) else None,
+        "eoat_visual_proxy_sha256": files.get("eoat_visual_proxy", {}).get("sha256")
+        if isinstance(files.get("eoat_visual_proxy"), Mapping)
+        else None,
+        "calibration_sha256": files.get("calibration", {}).get("sha256")
+        if isinstance(files.get("calibration"), Mapping)
+        else None,
+        "ur_xacro_sha256": files.get("ur_xacro", {}).get("sha256")
+        if isinstance(files.get("ur_xacro"), Mapping)
+        else None,
+        "controller_sha256": files.get(
+            "velocity_controller" if backend == "velocity" else "effort_surrogate_controller", {}
+        ).get("sha256")
+        if isinstance(
+            files.get("velocity_controller" if backend == "velocity" else "effort_surrogate_controller"),
+            Mapping,
+        )
+        else None,
+        "code_sha256": files.get("gazebo_v2_code", {}).get("sha256")
+        if isinstance(files.get("gazebo_v2_code"), Mapping)
+        else None,
+        "audit": audit,
+    }
+
+
+def validate_capture_artifacts(run_dir: Path, rows: Any) -> list[str]:
+    issues: list[str] = []
+    if not isinstance(rows, Mapping):
+        return ["capture_artifacts:not_object"]
+    required = {
+        "native_contact.raw.jsonl",
+        "native_ft.raw.jsonl",
+        "pose_info.raw.jsonl",
+        "native_contact.jsonl",
+        "native_ft.jsonl",
+        "tf_lineage.json",
+        "tick_trace.jsonl",
+    }
+    for name in sorted(required - set(rows)):
+        issues.append(f"capture_artifacts:missing:{name}")
+    for name, row in rows.items():
+        if not isinstance(name, str) or not isinstance(row, Mapping):
+            issues.append("capture_artifacts:row_invalid")
+            continue
+        path = _resolve_artifact_path(run_dir, name)
+        if path is None or not path.is_file():
+            issues.append(f"capture_artifacts:{name}:missing_or_invalid_path")
+            continue
+        if row.get("size") != path.stat().st_size:
+            issues.append(f"capture_artifacts:{name}:size_mismatch")
+        if row.get("sha256") != sha256_file(path):
+            issues.append(f"capture_artifacts:{name}:sha256_mismatch")
     return issues
 
 
@@ -327,6 +671,7 @@ def camera_png_metadata(path: Path) -> dict[str, Any]:
     offset = 8
     saw_idat = False
     saw_iend = False
+    idat_payloads: list[bytes] = []
     while offset + 12 <= len(data):
         length = struct.unpack(">I", data[offset : offset + 4])[0]
         chunk_type = data[offset + 4 : offset + 8]
@@ -348,6 +693,7 @@ def camera_png_metadata(path: Path) -> dict[str, Any]:
             result["width"], result["height"] = struct.unpack(">II", chunk[:8])
         elif chunk_type == b"IDAT":
             saw_idat = True
+            idat_payloads.append(chunk)
         elif chunk_type == b"IEND":
             saw_iend = True
             break
@@ -360,6 +706,18 @@ def camera_png_metadata(path: Path) -> dict[str, Any]:
         result["blockers"].append("png_idat_missing")
     if not saw_iend:
         result["blockers"].append("png_iend_missing")
+    if idat_payloads:
+        try:
+            decoded = zlib.decompress(b"".join(idat_payloads))
+        except zlib.error:
+            decoded = b""
+            result["blockers"].append("png_idat_decompression_failed")
+        if decoded:
+            nonzero_fraction = sum(value != 0 for value in decoded) / len(decoded)
+            result["decoded_nonzero_fraction"] = nonzero_fraction
+            result["decoded_byte_diversity"] = len(set(decoded))
+            if nonzero_fraction < 0.001 or len(set(decoded)) < 4:
+                result["blockers"].append("png_content_near_blank")
     result["blockers"] = _dedupe(result["blockers"])
     result["valid"] = not result["blockers"]
     return result
@@ -380,22 +738,25 @@ def build_observer_review(
     blockers: list[str] = []
     if camera_manifest.get("run_id") != run_id:
         blockers.append("camera_manifest_run_id_mismatch")
+    camera_manifest_sha256 = sha256_file(camera_manifest_path) if camera_manifest_path.is_file() else None
     views = camera_manifest.get("views") if isinstance(camera_manifest.get("views"), Mapping) else {}
     view_rows: dict[str, Any] = {}
     for name in REQUIRED_VIEWS:
         row = views.get(name) if isinstance(views, Mapping) else None
         path_value = row.get("path") if isinstance(row, Mapping) else None
-        path = Path(str(path_value)) if path_value else None
-        if path is not None and not path.is_absolute():
-            path = run_dir / path
+        path = _resolve_artifact_path(run_dir, path_value)
         image = camera_png_metadata(path) if path and path.is_file() else {"valid": False, "width": None, "height": None, "blockers": ["image_missing"]}
+        topic_valid = isinstance(row, Mapping) and row.get("topic") == f"/ur10e/gazebo_v2/camera/{name}"
+        declared_sha = row.get("sha256") if isinstance(row, Mapping) else None
+        actual_sha = sha256_file(path) if path and path.is_file() else None
+        hash_valid = bool(actual_sha and declared_sha == actual_sha)
         sim_time_s = row.get("sim_time_s") if isinstance(row, Mapping) else None
         time_valid = bool(
             sim_time_window is not None
             and _finite(sim_time_s)
             and sim_time_window[0] <= float(sim_time_s) <= sim_time_window[1]
         )
-        valid = bool(image["valid"] and time_valid)
+        valid = bool(image["valid"] and time_valid and topic_valid and hash_valid)
         view_rows[name] = {
             "topic": f"/ur10e/gazebo_v2/camera/{name}",
             "path": str(path) if path else None,
@@ -405,7 +766,9 @@ def build_observer_review(
             "image_blockers": image["blockers"],
             "sim_time_s": sim_time_s,
             "same_tick_window": time_valid,
-            "sha256": sha256_file(path) if valid and path is not None else None,
+            "topic_bound": topic_valid,
+            "hash_bound": hash_valid,
+            "sha256": actual_sha if valid else None,
         }
         if not valid:
             blockers.append(f"observer_view_missing:{name}")
@@ -415,6 +778,14 @@ def build_observer_review(
         blockers.append("observer_reviewer_missing")
     if not str(checks.get("reviewed_at") or ""):
         blockers.append("observer_reviewed_at_missing")
+    if checks.get("review_lane") != "independent_observer":
+        blockers.append("observer_review_lane_not_independent")
+    if checks.get("camera_manifest_sha256") != camera_manifest_sha256:
+        blockers.append("observer_camera_manifest_hash_mismatch")
+    declared_view_hashes = checks.get("view_sha256") if isinstance(checks.get("view_sha256"), Mapping) else {}
+    for name, row in view_rows.items():
+        if declared_view_hashes.get(name) != row.get("sha256") or row.get("sha256") is None:
+            blockers.append(f"observer_view_hash_mismatch:{name}")
     manual = checks.get("checks") if isinstance(checks.get("checks"), Mapping) else {}
     for name in REQUIRED_MANUAL_CHECKS:
         if manual.get(name) is not True:
@@ -433,11 +804,19 @@ def build_observer_review(
         "sim_time_window": list(sim_time_window) if sim_time_window is not None else None,
         "reviewer": checks.get("reviewer"),
         "reviewed_at": checks.get("reviewed_at"),
+        "review_lane": checks.get("review_lane"),
+        "camera_manifest_sha256": camera_manifest_sha256,
         "manual_checks": {name: manual.get(name) is True for name in REQUIRED_MANUAL_CHECKS},
         "native_contact_ft_same_run_pass": native_same_run_pass,
         "tf_lineage_pass": tf_lineage_pass,
         "blockers": blockers,
-        "forbidden_claims": ["real bench/live contact", "live acceptance", "reproduction completion"],
+        "forbidden_claims": [
+            "Gazebo production-runtime acceptance",
+            "current bench geometry equivalence",
+            "real bench/live contact",
+            "live acceptance",
+            "reproduction completion",
+        ],
     }
 
 
@@ -456,29 +835,86 @@ def build_evidence(run_dir: Path) -> tuple[Path, Path]:
     tf_payload = load_json(tf_path) if tf_path.is_file() else {}
 
     blockers: list[str] = []
+    if manifest.get("schema") != "ur10e_gazebo_v2_capture_manifest_v1":
+        blockers.append("capture_manifest_schema_mismatch")
     if not run_id:
         blockers.append("capture_manifest_run_id_missing")
     if manifest.get("engine_family") != "Gazebo Fortress":
         blockers.append("capture_manifest_engine_not_fortress")
     if manifest.get("engine_major") != 6:
         blockers.append("capture_manifest_engine_major_not_6")
+    if manifest.get("world_name") != "ur10e_gazebo_v2_fortress" or manifest.get("world_pose_topic_present") is not True:
+        blockers.append("capture_manifest_runtime_world_identity_not_proven")
     if manifest.get("ros2_control_plugin") != "libign_ros2_control-system.so":
         blockers.append("capture_manifest_ros2_control_plugin_mismatch")
+    if manifest.get("backend_fidelity") != backend_row.fidelity:
+        blockers.append("capture_manifest_backend_fidelity_mismatch")
+    abi = manifest.get("abi_preflight") if isinstance(manifest.get("abi_preflight"), Mapping) else {}
+    version = abi.get("version") if isinstance(abi.get("version"), Sequence) else None
+    plugin_paths = abi.get("plugin_paths") if isinstance(abi.get("plugin_paths"), Sequence) else ()
+    plugin_names = {Path(str(path)).name for path in plugin_paths}
+    if (
+        abi.get("pass") is not True
+        or not version
+        or version[0] != 6
+        or "libign_ros2_control-system.so" not in plugin_names
+        or "libgz_ros2_control-system.so" in plugin_names
+        or not str(abi.get("spawn_package_prefix") or "")
+    ):
+        blockers.append("capture_manifest_abi_preflight_not_passed")
+    controller = manifest.get("controller_inventory") if isinstance(manifest.get("controller_inventory"), Mapping) else {}
+    if (
+        controller.get("pass") is not True
+        or controller.get("selected") != backend_row.controller_name
+        or controller.get("selected_active") is not True
+        or controller.get("joint_state_broadcaster_active") is not True
+        or controller.get("other_active") is not False
+    ):
+        blockers.append("capture_manifest_controller_inventory_not_passed")
     if manifest.get("simultaneous_backend_active") is not False:
         blockers.append("backend_exclusivity_not_proven")
+    normalization = manifest.get("normalization_issues") if isinstance(manifest.get("normalization_issues"), Mapping) else {}
+    if normalization.get("contact") != [] or normalization.get("ft") != []:
+        blockers.append("capture_manifest_normalization_issues_present")
+    model_payload = manifest.get("model_bindings") if isinstance(manifest.get("model_bindings"), Mapping) else {}
+    model_issues, model_hashes = validate_model_bindings(run_dir, model_payload, backend=backend)
+    blockers.extend(model_issues)
+    blockers.extend(validate_capture_artifacts(run_dir, manifest.get("artifacts")))
     blockers.extend(contact_parse_issues + ft_parse_issues + tick_parse_issues)
     blockers.extend(validate_contact_rows(contacts, run_id=run_id))
     blockers.extend(validate_ft_rows(ft_rows, run_id=run_id))
-    blockers.extend(validate_tick_rows(ticks, run_id=run_id, backend=backend))
-    tf_issues = validate_tf_lineage(tf_payload, run_id=run_id)
+    model_files = model_payload.get("files") if isinstance(model_payload.get("files"), Mapping) else {}
+    tick_schema_row = model_files.get("tick_schema") if isinstance(model_files.get("tick_schema"), Mapping) else {}
+    bound_tick_schema_path = _resolve_artifact_path(run_dir, tick_schema_row.get("artifact_path"))
+    tick_schema_path = bound_tick_schema_path if bound_tick_schema_path and bound_tick_schema_path.is_file() else TICK_SCHEMA_PATH
+    tick_issues = validate_tick_rows(ticks, run_id=run_id, backend=backend, schema_path=tick_schema_path)
+    blockers.extend(tick_issues)
+    generated_urdf_sha256 = str(model_hashes.get("generated_urdf_sha256") or "")
+    tf_issues = validate_tf_lineage(
+        tf_payload,
+        run_id=run_id,
+        generated_urdf_sha256=generated_urdf_sha256,
+    )
     blockers.extend(tf_issues)
-    correlation = contact_ft_correlation(contacts, ft_rows)
+    finite_tick_times = [float(row["sim_time_s"]) for row in ticks if _finite(row.get("sim_time_s"))]
+    sim_time_window = (min(finite_tick_times), max(finite_tick_times)) if finite_tick_times else None
+    correlation = contact_ft_correlation(contacts, ft_rows, tick_window=sim_time_window)
     blockers.extend(correlation["blockers"])
     blockers = _dedupe(blockers)
     native_same_run_pass = not blockers
-
-    finite_tick_times = [float(row["sim_time_s"]) for row in ticks if _finite(row.get("sim_time_s"))]
-    sim_time_window = (min(finite_tick_times), max(finite_tick_times)) if finite_tick_times else None
+    raw_runtime_blockers = manifest.get("runtime_blockers")
+    runtime_blockers = (
+        [str(value) for value in raw_runtime_blockers if str(value)]
+        if isinstance(raw_runtime_blockers, Sequence) and not isinstance(raw_runtime_blockers, (str, bytes, bytearray))
+        else ["capture_manifest_runtime_blockers_invalid"]
+    )
+    for required in sorted(RUNTIME_IMPLEMENTATION_BLOCKERS):
+        if required not in runtime_blockers:
+            runtime_blockers.append(f"required_runtime_blocker_not_declared:{required}")
+    if manifest.get("gazebo_runtime_pass") is not False:
+        runtime_blockers.append("capture_manifest_gazebo_runtime_pass_must_be_false_until_runtime_implementation")
+    runtime_blockers = _dedupe(runtime_blockers)
+    gazebo_runtime_pass = False
 
     observer = build_observer_review(
         run_dir,
@@ -510,8 +946,12 @@ def build_evidence(run_dir: Path) -> tuple[Path, Path]:
         "engine": {
             "family": manifest.get("engine_family"),
             "major": manifest.get("engine_major"),
+            "version": abi.get("version"),
             "ros2_control_plugin": manifest.get("ros2_control_plugin"),
+            "ros2_control_plugin_paths": abi.get("plugin_paths"),
+            "ros_gz_sim_prefix": abi.get("spawn_package_prefix"),
         },
+        "model_bindings": model_hashes,
         "rates_hz": {"physics": 2000, "controller": 500},
         "geometry": {
             "fidelity": EOAT_GEOMETRY_FIDELITY,
@@ -523,11 +963,13 @@ def build_evidence(run_dir: Path) -> tuple[Path, Path]:
         "native_contact_ft_same_run_pass": native_same_run_pass,
         "correlation": correlation,
         "tf_lineage_pass": not tf_issues,
-        "tick_schema_pass": not validate_tick_rows(ticks, run_id=run_id, backend=backend),
+        "tick_schema_pass": not tick_issues,
         "observer_review_path": str(observer_path),
         "observer_review_pass": observer["viewer_level_pass"],
         "artifacts": artifacts,
         "blockers": blockers,
+        "runtime_blockers": runtime_blockers,
+        "gazebo_runtime_pass": gazebo_runtime_pass,
         "claim_boundary": {
             "allowed": "offline native Gazebo contact/FT evidence only" if native_same_run_pass else "tooling_only",
             "real_robot_motion": False,
@@ -538,6 +980,7 @@ def build_evidence(run_dir: Path) -> tuple[Path, Path]:
             "virtual_surface_force_used": False,
             "current_bench_geometry_equivalence": False,
             "p0_simulator_physics_acceptance": False,
+            "gazebo_production_runtime_acceptance": False,
         },
         "authorization": {
             "live_motion_authorized": False,
@@ -560,7 +1003,11 @@ def main() -> int:
     evidence = load_json(evidence_path)
     observer = load_json(observer_path)
     print(json.dumps({"evidence": str(evidence_path), "observer_review": str(observer_path)}, sort_keys=True))
-    if args.strict and not (evidence["native_contact_ft_same_run_pass"] and observer["viewer_level_pass"]):
+    if args.strict and not (
+        evidence["native_contact_ft_same_run_pass"]
+        and observer["viewer_level_pass"]
+        and evidence["gazebo_runtime_pass"]
+    ):
         return 1
     return 0
 

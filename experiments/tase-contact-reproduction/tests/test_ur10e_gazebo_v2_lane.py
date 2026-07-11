@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import hashlib
 import json
-import math
 import struct
 import sys
 import tempfile
@@ -35,11 +35,21 @@ TICK_SCHEMA = ROOT / "config" / "schemas" / "ur10e_gazebo_v2_tick_v1.schema.json
 
 def _robot_fixture() -> str:
     root = ET.Element("robot", {"name": "fixture"})
-    for name in ("tool0", lane.EOAT_LINK):
+    for name in ("tool0", lane.EOAT_LINK, lane.ACTIVE_TCP_LINK):
         ET.SubElement(root, "link", {"name": name})
     fixed = ET.SubElement(root, "joint", {"name": lane.EOAT_FIXED_JOINT, "type": "fixed"})
     ET.SubElement(fixed, "parent", {"link": "tool0"})
     ET.SubElement(fixed, "child", {"link": lane.EOAT_LINK})
+    tcp_fixed = ET.SubElement(root, "joint", {"name": lane.ACTIVE_TCP_JOINT, "type": "fixed"})
+    ET.SubElement(tcp_fixed, "parent", {"link": "tool0"})
+    ET.SubElement(tcp_fixed, "child", {"link": lane.ACTIVE_TCP_LINK})
+    ET.SubElement(
+        tcp_fixed,
+        "origin",
+        {"xyz": " ".join(str(value) for value in lane.ACTIVE_TCP_OFFSET_TOOL0_M), "rpy": "0 0 0"},
+    )
+    tcp_gazebo = ET.SubElement(root, "gazebo", {"reference": lane.ACTIVE_TCP_JOINT})
+    ET.SubElement(tcp_gazebo, "preserveFixedJoint").text = "true"
     control = ET.SubElement(root, "ros2_control", {"name": "ur", "type": "system"})
     hardware = ET.SubElement(control, "hardware")
     ET.SubElement(hardware, "plugin").text = "ign_ros2_control/IgnitionSystem"
@@ -95,15 +105,74 @@ def _png_chunk(kind: bytes, data: bytes) -> bytes:
     return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
 
 
-def _write_valid_png(path: Path, *, width: int = 640, height: int = 360) -> None:
+def _write_valid_png(path: Path, *, width: int = 640, height: int = 360, blank: bool = False) -> None:
     ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
-    scanlines = b"".join(b"\x00" + b"\x00\x00\x00" * width for _ in range(height))
+    if blank:
+        scanlines = b"".join(b"\x00" + b"\x00\x00\x00" * width for _ in range(height))
+    else:
+        scanlines = b"".join(
+            b"\x00"
+            + b"".join(bytes(((x + y) % 256, (2 * x + y) % 256, (x + 3 * y) % 256)) for x in range(width))
+            for y in range(height)
+        )
     path.write_bytes(
         b"\x89PNG\r\n\x1a\n"
         + _png_chunk(b"IHDR", ihdr)
         + _png_chunk(b"IDAT", zlib.compress(scanlines))
         + _png_chunk(b"IEND", b"")
     )
+
+
+def _sha(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _model_binding_fixture(run_dir: Path, *, backend: str) -> dict[str, object]:
+    binding_dir = run_dir / "model_bindings"
+    binding_dir.mkdir()
+    generated = lane.configure_robot_description(_robot_fixture(), backend=backend)
+    generated_path = binding_dir / "generated_robot_description.urdf"
+    generated_path.write_text(generated, encoding="utf-8")
+    rows: dict[str, dict[str, object]] = {}
+    for source_id in sorted(evidence.REQUIRED_BINDING_IDS):
+        path = binding_dir / f"{source_id}.txt"
+        path.write_text(
+            TICK_SCHEMA.read_text(encoding="utf-8") if source_id == "tick_schema" else f"fixture:{source_id}\n",
+            encoding="utf-8",
+        )
+        rows[source_id] = {
+            "source_id": source_id,
+            "source_path": f"fixture:{source_id}",
+            "artifact_path": str(path.relative_to(run_dir)),
+            "size": path.stat().st_size,
+            "sha256": _sha(path),
+        }
+    generated_row = {
+        "source_id": "generated_urdf",
+        "source_path": "generated_in_fixture",
+        "artifact_path": str(generated_path.relative_to(run_dir)),
+        "size": generated_path.stat().st_size,
+        "sha256": _sha(generated_path),
+    }
+    material = "\n".join(
+        f"{source_id}:{row['sha256']}"
+        for source_id, row in sorted({**rows, "generated_urdf": generated_row}.items())
+    )
+    return {
+        "schema": "ur10e_gazebo_v2_model_bindings_v1",
+        "backend": backend,
+        "generated_urdf": generated_row,
+        "files": rows,
+        "composite_sha256": hashlib.sha256(material.encode()).hexdigest(),
+    }
+
+
+def _capture_artifacts(run_dir: Path, names: list[str]) -> dict[str, dict[str, object]]:
+    result: dict[str, dict[str, object]] = {}
+    for name in names:
+        path = run_dir / name
+        result[name] = {"size": path.stat().st_size, "sha256": _sha(path)}
+    return result
 
 
 class GazeboV2LaneTest(unittest.TestCase):
@@ -118,6 +187,13 @@ class GazeboV2LaneTest(unittest.TestCase):
                     for joint in root.findall("./ros2_control/joint")
                 }
                 self.assertTrue(audit["pass"], audit["blockers"])
+                active_joint = root.find(f"./joint[@name='{lane.ACTIVE_TCP_JOINT}']")
+                self.assertIsNotNone(root.find(f"./link[@name='{lane.ACTIVE_TCP_LINK}']"))
+                self.assertIsNotNone(active_joint)
+                self.assertEqual(
+                    [float(value) for value in active_joint.find("origin").attrib["xyz"].split()],
+                    list(lane.ACTIVE_TCP_OFFSET_TOOL0_M),
+                )
                 self.assertEqual(set(interfaces), set(lane.JOINT_NAMES))
                 self.assertTrue(all(values == [interface] for values in interfaces.values()))
                 self.assertEqual(
@@ -182,6 +258,11 @@ class GazeboV2LaneTest(unittest.TestCase):
         self.assertFalse(contract["sensor_attachment"]["virtual_surface_force_allowed"])
         self.assertFalse(contract["geometry"]["current_bench_cad_hash_bound"])
         self.assertFalse(contract["geometry"]["mass_cog_inertia_calibrated"])
+        self.assertFalse(contract["runtime_implementation"]["gazebo_runtime_pass"])
+        self.assertEqual(
+            contract["frame_lineage"]["active_tcp_offset_tool0_m"],
+            list(lane.ACTIVE_TCP_OFFSET_TOOL0_M),
+        )
         self.assertFalse(contract["authorization"]["live_motion_authorized"])
         self.assertEqual(schema["properties"]["schema"]["const"], lane.TICK_SCHEMA)
         self.assertIn('["ign", "gazebo"', source)
@@ -203,6 +284,76 @@ class GazeboV2LaneTest(unittest.TestCase):
         issues = lane.validate_tick_record(rejected)
         self.assertIn("candidate.virtual_surface_force_forbidden", issues)
         self.assertIn("rejected_command_not_exact_zero", issues)
+
+        not_applied = _tick("run-a", 0)
+        not_applied["command"]["applied"] = False  # type: ignore[index]
+        self.assertIn("accepted_command_not_applied", lane.validate_tick_record(not_applied))
+        mismatch = _tick("run-a", 0)
+        mismatch["candidate"]["values"] = [0.001] * 6  # type: ignore[index]
+        self.assertIn("accepted_command_candidate_mismatch", lane.validate_tick_record(mismatch))
+
+        extra = _tick("run-a", 0)
+        extra["undeclared"] = True
+        schema_issues = evidence.validate_tick_json_schema(extra)
+        self.assertIn("$.undeclared:additional_property", schema_issues)
+
+    def test_run_id_and_runtime_lineage_are_fail_closed(self) -> None:
+        self.assertEqual(native_capture._validate_run_id("gazebo-v2-shared.001"), "gazebo-v2-shared.001")
+        with self.assertRaises(ValueError):
+            native_capture._validate_run_id("../escape")
+        legacy_declarative = {
+            "run_id": "r1",
+            "runtime_base_link_pose_present": True,
+            "frames": {lane.ACTIVE_TCP_LINK: {"parent": "tool0", "source": "contract"}},
+        }
+        issues = evidence.validate_tf_lineage(
+            legacy_declarative,
+            run_id="r1",
+            generated_urdf_sha256="a" * 64,
+        )
+        self.assertIn("tf_lineage:schema_mismatch", issues)
+        self.assertIn(f"tf_lineage:missing:{lane.ACTIVE_TCP_LINK}", issues)
+
+    def test_contact_ft_pairing_rejects_reuse_window_frame_and_sign(self) -> None:
+        contacts = [
+            {
+                "sim_time_s": stamp,
+                "comparison_frame": "base",
+                "comparison_convention": "force_on_eoat_along_reaction_normal",
+                "comparison_wrench_on_eoat": [0.0, 0.0, force, 0.0, 0.0, 0.0],
+                "reaction_normal": [0.0, 0.0, 1.0],
+            }
+            for stamp, force in ((0.0, 2.0), (0.002, 3.0))
+        ]
+        one_ft = [
+            {
+                "sim_time_s": 0.001,
+                "comparison_frame": "base",
+                "comparison_convention": "force_on_eoat_along_reaction_normal",
+                "comparison_wrench_on_eoat": [0.0, 0.0, 2.4, 0.0, 0.0, 0.0],
+                "reaction_normal": [0.0, 0.0, 1.0],
+            }
+        ]
+        reused = evidence.contact_ft_correlation(contacts, one_ft, tick_window=(0.0, 0.004))
+        self.assertFalse(reused["pass"])
+        self.assertIn("unique_same_frame_pair_count_below_2", reused["issues"])
+
+        wrong = [dict(row) for row in one_ft for _ in range(2)]
+        wrong[0].update({"sim_time_s": 0.0, "comparison_frame": "tool0"})
+        wrong[1].update(
+            {
+                "sim_time_s": 0.002,
+                "comparison_wrench_on_eoat": [0.0, 0.0, -3.6, 0.0, 0.0, 0.0],
+            }
+        )
+        rejected = evidence.contact_ft_correlation(contacts, wrong, tick_window=(0.0, 0.004))
+        self.assertFalse(rejected["pass"])
+        self.assertTrue(any("comparison_frame_missing_or_mismatch" in value for value in rejected["issues"]))
+        self.assertTrue(any("reaction_normal_sign_mismatch" in value for value in rejected["issues"]))
+
+        outside = evidence.contact_ft_correlation(contacts, one_ft, tick_window=(0.003, 0.004))
+        self.assertFalse(outside["pass"])
+        self.assertTrue(any("outside_tick_window" in value for value in outside["issues"]))
 
     def test_native_transport_normalizer_preserves_attached_body_and_sensor_contract(self) -> None:
         raw_contact = json.dumps(
@@ -253,23 +404,37 @@ class GazeboV2LaneTest(unittest.TestCase):
         self.assertTrue(inventory["pass"])
         self.assertFalse(inventory["simultaneous_backend_active"])
 
+    def test_observer_rejects_structurally_valid_blank_png(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="gazebo_v2_blank_") as tmp:
+            path = Path(tmp) / "blank.png"
+            _write_valid_png(path, blank=True)
+            metadata = evidence.camera_png_metadata(path)
+        self.assertFalse(metadata["valid"])
+        self.assertIn("png_content_near_blank", metadata["blockers"])
+
+    def test_model_and_capture_hash_binding_reject_tampering(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="gazebo_v2_binding_") as tmp:
+            run_dir = Path(tmp)
+            bindings = _model_binding_fixture(run_dir, backend="velocity")
+            generated = run_dir / str(bindings["generated_urdf"]["artifact_path"])
+            generated.write_text(generated.read_text(encoding="utf-8") + "<!-- tampered -->\n", encoding="utf-8")
+            issues, _ = evidence.validate_model_bindings(run_dir, bindings, backend="velocity")
+            self.assertIn("model_bindings:generated_urdf:size_mismatch", issues)
+            self.assertIn("model_bindings:generated_urdf:sha256_mismatch", issues)
+
+            artifact = run_dir / "tick_trace.jsonl"
+            artifact.write_text("{}\n", encoding="utf-8")
+            row = {"tick_trace.jsonl": {"size": artifact.stat().st_size, "sha256": _sha(artifact)}}
+            artifact.write_text("{\"changed\": true}\n", encoding="utf-8")
+            artifact_issues = evidence.validate_capture_artifacts(run_dir, row)
+        self.assertIn("capture_artifacts:tick_trace.jsonl:size_mismatch", artifact_issues)
+        self.assertIn("capture_artifacts:tick_trace.jsonl:sha256_mismatch", artifact_issues)
+
     def test_same_run_evidence_and_observer_review_positive_fixture(self) -> None:
         with tempfile.TemporaryDirectory(prefix="gazebo_v2_lane_test_") as tmp:
             run_dir = Path(tmp)
             run_id = "gazebo-v2-fixture"
-            (run_dir / "capture_manifest.json").write_text(
-                json.dumps(
-                    {
-                        "run_id": run_id,
-                        "backend": "velocity",
-                        "engine_family": "Gazebo Fortress",
-                        "engine_major": 6,
-                        "ros2_control_plugin": lane.IGN_ROS2_CONTROL_PLUGIN,
-                        "simultaneous_backend_active": False,
-                    }
-                ),
-                encoding="utf-8",
-            )
+            model_bindings = _model_binding_fixture(run_dir, backend="velocity")
             _write_jsonl(run_dir / "tick_trace.jsonl", [_tick(run_id, index) for index in range(3)])
             contacts = [
                 {
@@ -280,6 +445,10 @@ class GazeboV2LaneTest(unittest.TestCase):
                     "contact_collision": f"ur10e_gazebo_v2::{lane.EOAT_LINK}::{lane.EOAT_CONTACT_COLLISION}",
                     "surface_collision": "step5_contact_surface::surface::collision",
                     "native_wrench": [0.0, 0.0, force, 0.0, 0.0, 0.0],
+                    "comparison_frame": "base",
+                    "comparison_convention": "force_on_eoat_along_reaction_normal",
+                    "comparison_wrench_on_eoat": [0.0, 0.0, force, 0.0, 0.0, 0.0],
+                    "reaction_normal": [0.0, 0.0, 1.0],
                 }
                 for stamp, force in ((0.0, 2.0), (0.002, 3.0))
             ]
@@ -293,43 +462,64 @@ class GazeboV2LaneTest(unittest.TestCase):
                     "frame": "child",
                     "measure_direction": "child_to_parent",
                     "native_wrench": [0.0, 0.0, force * 1.2, 0.0, 0.0, 0.0],
+                    "comparison_frame": "base",
+                    "comparison_convention": "force_on_eoat_along_reaction_normal",
+                    "comparison_wrench_on_eoat": [0.0, 0.0, force * 1.2, 0.0, 0.0, 0.0],
+                    "reaction_normal": [0.0, 0.0, 1.0],
                 }
                 for stamp, force in ((0.0, 2.0), (0.002, 3.0))
             ]
             _write_jsonl(run_dir / "native_contact.jsonl", contacts)
             _write_jsonl(run_dir / "native_ft.jsonl", ft_rows)
-            frames = {
-                "gazebo_world": {"parent": None, "source": "gazebo_world"},
-                "base_link": {"parent": "gazebo_world", "source": "gazebo_pose_info"},
-                "base": {"parent": "base_link", "source": "robot_state_publisher", "rpy_rad": [0.0, 0.0, math.pi]},
-                "base_link_inertia": {"parent": "base_link", "source": "robot_state_publisher"},
-                "shoulder_link": {"parent": "base_link_inertia", "source": "robot_state_publisher"},
-                "upper_arm_link": {"parent": "shoulder_link", "source": "robot_state_publisher"},
-                "forearm_link": {"parent": "upper_arm_link", "source": "robot_state_publisher"},
-                "wrist_1_link": {"parent": "forearm_link", "source": "robot_state_publisher"},
-                "wrist_2_link": {"parent": "wrist_1_link", "source": "robot_state_publisher"},
-                "wrist_3_link": {"parent": "wrist_2_link", "source": "robot_state_publisher"},
-                "flange": {"parent": "wrist_3_link", "source": "robot_state_publisher"},
-                "tool0": {"parent": "flange", "source": "robot_state_publisher"},
-                lane.EOAT_LINK: {"parent": "tool0", "source": "robot_state_publisher"},
-                "active_tcp": {"parent": "tool0", "source": "calibrated_tcp_contract"},
-            }
+            required_entities = [
+                "base_link",
+                "base",
+                "base_link_inertia",
+                "shoulder_link",
+                "upper_arm_link",
+                "forearm_link",
+                "wrist_1_link",
+                "wrist_2_link",
+                "wrist_3_link",
+                "flange",
+                "tool0",
+                lane.EOAT_LINK,
+                lane.ACTIVE_TCP_LINK,
+            ]
             (run_dir / "tf_lineage.json").write_text(
                 json.dumps(
                     {
+                        "schema": "ur10e_gazebo_v2_runtime_lineage_v2",
                         "run_id": run_id,
-                        "runtime_base_link_pose_present": True,
+                        "generated_urdf_sha256": model_bindings["generated_urdf"]["sha256"],
                         "pose_info_parse_issues": [],
-                        "frames": frames,
+                        "required_runtime_entities": required_entities,
+                        "runtime_entities": {
+                            name: {
+                                "present": True,
+                                "matches": [f"ur10e_gazebo_v2::{name}"],
+                                "source": "gazebo_pose_info",
+                            }
+                            for name in required_entities
+                        },
+                        "all_required_runtime_entities_present": True,
+                        "static_parentage_source": "manifest_bound_generated_urdf_not_runtime_pose_inference",
                     }
                 ),
                 encoding="utf-8",
             )
+            for name in ("native_contact.raw.jsonl", "native_ft.raw.jsonl", "pose_info.raw.jsonl"):
+                (run_dir / name).write_text("{}\n", encoding="utf-8")
             views: dict[str, dict[str, object]] = {}
             for name in evidence.REQUIRED_VIEWS:
                 path = run_dir / f"{name}.png"
                 _write_valid_png(path)
-                views[name] = {"path": path.name, "sim_time_s": 0.002}
+                views[name] = {
+                    "path": path.name,
+                    "topic": f"/ur10e/gazebo_v2/camera/{name}",
+                    "sim_time_s": 0.002,
+                    "sha256": _sha(path),
+                }
             (run_dir / "camera_manifest.json").write_text(
                 json.dumps({"run_id": run_id, "views": views}), encoding="utf-8"
             )
@@ -339,11 +529,56 @@ class GazeboV2LaneTest(unittest.TestCase):
                         "run_id": run_id,
                         "reviewer": "fixture-independent-observer",
                         "reviewed_at": "2026-07-11T00:00:00Z",
+                        "review_lane": "independent_observer",
+                        "camera_manifest_sha256": _sha(run_dir / "camera_manifest.json"),
+                        "view_sha256": {name: row["sha256"] for name, row in views.items()},
                         "checks": {name: True for name in evidence.REQUIRED_MANUAL_CHECKS},
                     }
                 ),
                 encoding="utf-8",
             )
+            artifact_names = [
+                "native_contact.raw.jsonl",
+                "native_ft.raw.jsonl",
+                "pose_info.raw.jsonl",
+                "native_contact.jsonl",
+                "native_ft.jsonl",
+                "tf_lineage.json",
+                "tick_trace.jsonl",
+            ] + [
+                str(path.relative_to(run_dir)) for path in sorted((run_dir / "model_bindings").iterdir())
+            ]
+            manifest = {
+                "schema": "ur10e_gazebo_v2_capture_manifest_v1",
+                "run_id": run_id,
+                "backend": "velocity",
+                "backend_fidelity": lane.backend_spec("velocity").fidelity,
+                "engine_family": "Gazebo Fortress",
+                "engine_major": 6,
+                "world_name": "ur10e_gazebo_v2_fortress",
+                "world_pose_topic_present": True,
+                "ros2_control_plugin": lane.IGN_ROS2_CONTROL_PLUGIN,
+                "abi_preflight": {
+                    "pass": True,
+                    "version": [6, 18, 0],
+                    "plugin_paths": ["/fixture/libign_ros2_control-system.so"],
+                    "spawn_package_prefix": "/fixture/ros_gz_sim",
+                },
+                "controller_inventory": {
+                    "pass": True,
+                    "selected": lane.backend_spec("velocity").controller_name,
+                    "selected_active": True,
+                    "joint_state_broadcaster_active": True,
+                    "other_active": False,
+                },
+                "simultaneous_backend_active": False,
+                "normalization_issues": {"contact": [], "ft": []},
+                "model_bindings": model_bindings,
+                "artifacts": _capture_artifacts(run_dir, artifact_names),
+                "runtime_blockers": sorted(evidence.RUNTIME_IMPLEMENTATION_BLOCKERS),
+                "gazebo_runtime_pass": False,
+            }
+            (run_dir / "capture_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
             evidence_path, observer_path = evidence.build_evidence(run_dir)
             payload = json.loads(evidence_path.read_text(encoding="utf-8"))
@@ -352,6 +587,8 @@ class GazeboV2LaneTest(unittest.TestCase):
         self.assertTrue(payload["native_contact_ft_same_run_pass"], payload["blockers"])
         self.assertTrue(payload["correlation"]["pass"])
         self.assertTrue(observer["viewer_level_pass"], observer["blockers"])
+        self.assertFalse(payload["gazebo_runtime_pass"])
+        self.assertEqual(set(payload["runtime_blockers"]), evidence.RUNTIME_IMPLEMENTATION_BLOCKERS)
         self.assertFalse(payload["claim_boundary"]["live_acceptance"])
         self.assertFalse(payload["claim_boundary"]["reproduction_complete"])
 
