@@ -1,0 +1,94 @@
+{
+  "schema_version": "step5d_v30_milestone_reviews_v1",
+  "generated_at": "2026-07-11T03:20:00+08:00",
+  "review_policy": {
+    "codex_count": 2,
+    "codex_requested_model": "gpt-5.6-sol",
+    "codex_requested_effort": "high",
+    "fable5_count": 1,
+    "fable5_requested_effort": "high",
+    "hourly_review_enabled": false,
+    "additional_review_rounds_after_this_manifest": false
+  },
+  "reviewers": {
+    "codex_control_claim_high": {
+      "actual_model": "GPT-5-based Codex; exact serving deployment suffix unavailable",
+      "findings": {
+        "p0": [],
+        "p1": [
+          "strict-RNN solver status was not checked by SafetyEnvelope",
+          "phase-1 directional VIC was described as energy-bound/passive without an energy tank or passivity observer/controller",
+          "compact evidence ClaimState was not cross-checked against top-level offline authorization gates"
+        ],
+        "p2": [
+          "direct-torque manifest limit values were not compared with controller/oracle constants",
+          "v30 delivery block lacked a direct negative test",
+          "external rehash proves identity only and cannot validate scientific/live claims"
+        ]
+      },
+      "post_review_disposition": {
+        "all_code_findings_addressed": true,
+        "independent_post_fix_rereview_performed": false,
+        "resolutions": [
+          "SafetyEnvelope now accepts only strict-RNN status 40.0 and invalid-status register output is negative-tested",
+          "VIC claim downgraded to bounded/slew-limited/non-increasing; passivity explicitly remains unestablished",
+          "offline ClaimState promotion is cross-gated and negative-tested",
+          "direct-torque manifest limits are exactly matched to the URScript/oracle constants",
+          "inactive v30 delivery rejection is directly tested",
+          "external rehash remains identity-only with claim_validation_ready=false"
+        ]
+      },
+      "requested_effort": "high",
+      "requested_model": "gpt-5.6-sol",
+      "status": "completed_blocked_at_review"
+    },
+    "codex_timing_runtime_high": {
+      "actual_model": "GPT-5-based Codex; exact serving deployment suffix unavailable",
+      "findings": {
+        "p0": [],
+        "p1": [
+          "DBIL paced selector did not require explicit selection eligibility or approximately rate-times-duration tick coverage"
+        ],
+        "p2": [
+          "summarize_preaggregated could pass when expected source and artifact bindings were omitted"
+        ]
+      },
+      "post_review_disposition": {
+        "all_code_findings_addressed": true,
+        "independent_post_fix_rereview_performed": false,
+        "resolutions": [
+          "paced selector now requires selection_eligible=true, coherent 60-second duration, and approximately rate-times-duration scheduled ticks",
+          "legacy paced artifact is retained as rejection evidence but marked provenance-ineligible for rate selection",
+          "preaggregated timing acceptance now fails closed when any expected binding is omitted"
+        ]
+      },
+      "requested_effort": "high",
+      "requested_model": "gpt-5.6-sol",
+      "status": "completed_blocked_at_review"
+    },
+    "fable5_physical_operator_safety_high": {
+      "attempted_command_surface": "Claude CLI",
+      "failure": "Not logged in; Claude CLI requested /login",
+      "requested_effort": "high",
+      "requested_model": "claude-fable-5",
+      "status": "unavailable_not_logged_in"
+    }
+  },
+  "milestone_gate": {
+    "awaiting_live_authorization_allowed": false,
+    "blockers": [
+      "Fable5 physical/operator safety review is absent and needs a later supplement or explicit user waiver",
+      "post-review code fixes have root test coverage but no independent post-fix reviewer pass",
+      "offline timing and platform blockers remain"
+    ],
+    "status": "incomplete_blocking"
+  },
+  "safety_boundary": {
+    "bridge_started": false,
+    "controller_modified": false,
+    "live_motion_authorized": false,
+    "robot_motion_produced": false,
+    "tp_play_pressed": false,
+    "zero_ft_performed": false
+  }
+}

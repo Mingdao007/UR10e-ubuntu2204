@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -31,6 +32,14 @@ def dotted_get(payload: dict[str, Any], dotted: str) -> Any:
 
 def stage_by_id(table: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return {str(row.get("id")): row for row in table.get("stages", [])}
+
+
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def targets_bridge_startup_policy(ref: Any) -> bool:
@@ -92,11 +101,15 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
     step5 = load_json(root / "config" / "step5_stage_table.json")
     step6 = load_json(root / "config" / "step6_stage_table.json")
     current = load_json(root / "config" / "current_stage.json")
+    protocol = load_json(root / "config" / "tase_protocol_table.json")
     step5_rows = stage_by_id(step5)
     step6_rows = stage_by_id(step6)
     current_stage_id = current.get("current_stage_id")
     current_program = current.get("program")
     current_target = current.get("controller_target")
+    canonical_step5d = protocol.get("experiment_profiles", {}).get("Step5.step5d_rnn", {})
+    if canonical_step5d.get("current_program") != current_program:
+        failures.append("canonical Step5d current_program does not match current_stage.json")
     flow_path = root / "STEP5_FLOW.md"
     if not flow_path.is_file():
         failures.append("STEP5_FLOW.md is missing")
@@ -166,6 +179,9 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         for ext in (".script", ".txt", ".urp"):
             if delivery_sha.get(ext) != current_sha.get(ext):
                 failures.append(f"current row package sha mismatch for {ext}")
+        current_mode = current_row.get("guard", {}).get("stage25_default_control_mode")
+        if canonical_step5d.get("stage25_default_control_mode") != current_mode:
+            failures.append("canonical Step5d control mode does not match current stage row")
         if str(current_stage_id) == "step5d_strict_rnn_ablation_v29":
             acceptance = current_row.get("acceptance") or {}
             local_delivery = current_row.get("local_delivery_evidence") or {}
@@ -244,6 +260,229 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             binding = row.get("current_binding")
             if binding and binding.get("is_current") is True and row_id != current_stage_id:
                 failures.append(f"{table_name}:{row_id} incorrectly claims global current binding")
+
+    v30 = step5_rows.get("step5d_strict_rnn_ablation_v30")
+    if v30 is None:
+        failures.append("inactive v30 offline candidate row is missing")
+    else:
+        delivery = v30.get("package_delivery") or {}
+        if v30.get("active") is not False or v30.get("bridge") is not False:
+            failures.append("v30 offline candidate must remain inactive with bridge=false")
+        if v30.get("current_binding", {}).get("is_current") is not False:
+            failures.append("v30 offline candidate must not claim current binding")
+        if (
+            delivery.get("controller_target") is not None
+            or delivery.get("controller_uploaded") is not False
+            or delivery.get("controller_readback_verified") is not False
+        ):
+            failures.append("v30 offline candidate must have no controller delivery claim")
+        canary = v30.get("canary_stop_register") or {}
+        if canary.get("enabled") is not False or canary.get("armed") is not False:
+            failures.append("v30 canary stop register must remain disabled and unarmed offline")
+        expected_runtime = {
+            "backend": "cupy",
+            "inner_iterations": 1024,
+            "epsilon": 0.01,
+            "sigr_exponent_r": 0.8,
+            "qdot_cap_rad_s": 0.05,
+            "control_mode": "speedj_rnn_live",
+            "joint_layout_code": 524.0,
+        }
+        if v30.get("runtime_profile") != expected_runtime:
+            failures.append("v30 runtime profile does not match the pinned strict-RNN profile")
+        if v30.get("guard", {}).get("dls_runtime_fallback_allowed") is not False:
+            failures.append("v30 must forbid DLS runtime fallback")
+        triplet = delivery.get("local_triplet")
+        hashes = delivery.get("sha256") or {}
+        for ext in (".script", ".txt", ".urp"):
+            path = root / f"{triplet}{ext}"
+            expected_hash = hashes.get(ext)
+            if not path.is_file():
+                failures.append(f"v30 local package file is missing: {path.relative_to(root)}")
+            elif not isinstance(expected_hash, str) or file_sha256(path) != expected_hash:
+                failures.append(f"v30 local package sha mismatch for {ext}")
+        evidence = v30.get("local_analysis_evidence") or {}
+        imported_manifest_path = root / str(evidence.get("imported_v29_manifest") or "")
+        replay_path = root / str(evidence.get("v29_replay") or "")
+        timing_raw_path = root / str(evidence.get("timing_raw") or "")
+        current_source_solver_path = root / str(
+            evidence.get("current_source_solver_10k_raw") or ""
+        )
+        timing_path = root / str(evidence.get("timing") or "")
+        if not imported_manifest_path.is_file():
+            failures.append("v30 imported v29 evidence manifest is missing")
+        else:
+            imported = load_json(imported_manifest_path)
+            if imported.get("copy_complete") is not True or imported.get("blockers") != []:
+                failures.append("v30 imported v29 evidence copy/hash binding is incomplete")
+            if file_sha256(imported_manifest_path) != evidence.get("imported_v29_manifest_sha256"):
+                failures.append("v30 imported v29 evidence manifest sha mismatch")
+            for name, item in (imported.get("files") or {}).items():
+                if item.get("source_local_sha256_match") is not True:
+                    failures.append(f"v30 imported v29 source/local sha mismatch: {name}")
+        if not replay_path.is_file():
+            failures.append("v30 canonical v29 replay summary is missing")
+        else:
+            replay = load_json(replay_path)
+            if (
+                replay.get("acceptance_pass") is not True
+                or float(replay.get("accepted_ratio", 0.0)) < 0.99
+                or replay.get("normal_mismatch_rows") != 0
+                or replay.get("nonfinite_rows") != 0
+                or replay.get("qdot_over_bound_rows") != 0
+                or replay.get("semantic_contract_invalid_rows") != 0
+            ):
+                failures.append("v30 canonical v29 replay acceptance is incomplete")
+        for label, path, expected_sha in (
+            ("raw timing", timing_raw_path, evidence.get("timing_raw_sha256")),
+            (
+                "current-source solver 10k",
+                current_source_solver_path,
+                evidence.get("current_source_solver_10k_raw_sha256"),
+            ),
+            ("timing summary", timing_path, evidence.get("timing_sha256")),
+        ):
+            if not path.is_file():
+                failures.append(f"v30 {label} evidence is missing")
+            elif not isinstance(expected_sha, str) or file_sha256(path) != expected_sha:
+                failures.append(f"v30 {label} evidence sha mismatch")
+        if current_source_solver_path.is_file():
+            current_source_solver = load_json(current_source_solver_path)
+            solver_metrics = current_source_solver.get("solver") or {}
+            if current_source_solver.get("classification") != "failed_hard_solver_deadline":
+                failures.append(
+                    "v30 current-source solver 10k must retain failed_hard_solver_deadline classification"
+                )
+            if current_source_solver.get("acceptance_eligible") is not False:
+                failures.append(
+                    "v30 current-source solver 10k must remain acceptance_eligible=false"
+                )
+            if (
+                int(solver_metrics.get("samples", 0) or 0) != 10_000
+                or int(solver_metrics.get("compute_deadline_miss_count", 0) or 0) <= 0
+                or float(solver_metrics.get("max_ms", 0.0) or 0.0) < 2.0
+            ):
+                failures.append(
+                    "v30 current-source solver 10k hard-deadline evidence is inconsistent"
+                )
+        source_contract = evidence.get("timing_source_contract") or {}
+        source_fields = (
+            ("contact_semantics", "contact_semantics_sha256"),
+            ("solver", "solver_sha256"),
+            ("outer_loop", "outer_loop_sha256"),
+            ("control_contract", "control_contract_sha256"),
+            ("runtime_interface", "runtime_interface_sha256"),
+            ("kinematics", "kinematics_sha256"),
+            ("bridge", "bridge_sha256"),
+            ("harness", "harness_sha256"),
+            ("bundler", "bundler_sha256"),
+            ("aggregator", "aggregator_sha256"),
+            ("readiness_builder", "readiness_builder_sha256"),
+        )
+        for path_field, sha_field in source_fields:
+            source_path = root / str(source_contract.get(path_field) or "")
+            if not source_path.is_file():
+                failures.append(f"v30 timing source is missing: {path_field}")
+            elif file_sha256(source_path) != source_contract.get(sha_field):
+                failures.append(f"v30 timing source sha mismatch: {path_field}")
+        if timing_path.is_file() and timing_raw_path.is_file():
+            timing = load_json(timing_path)
+            offline_status = v30.get("offline_acceptance", {}).get("status")
+            timing_pass = timing.get("overall_pass") is True
+            if timing_pass and offline_status != "v30_offline_ready":
+                failures.append("passing v30 timing must set offline status to v30_offline_ready")
+            if not timing_pass and offline_status != "v30_offline_blocked":
+                failures.append("failing v30 timing must keep offline status v30_offline_blocked")
+            if not timing_pass and not timing.get("blockers"):
+                failures.append("failing v30 timing must preserve explicit blockers")
+            input_evidence = timing.get("input_evidence") or {}
+            if input_evidence.get("sha256") != file_sha256(timing_raw_path):
+                failures.append("v30 timing summary is not bound to tracked raw timing evidence")
+            source_binding = timing.get("source_binding") or {}
+            if source_binding and timing_pass:
+                for _, sha_field in source_fields:
+                    if source_binding.get(sha_field) != source_contract.get(sha_field):
+                        failures.append(f"v30 timing bundle source sha mismatch: {sha_field}")
+            elif timing_pass:
+                failures.append("passing v30 timing requires an stdin source bundle binding")
+        for label, path_field, sha_field in (
+            ("runtime-shaped smoke", "runtime_shaped_smoke", "runtime_shaped_smoke_sha256"),
+            ("component diagnostic", "component_diagnostic", "component_diagnostic_sha256"),
+            ("offline readiness", "offline_readiness", "offline_readiness_sha256"),
+        ):
+            evidence_path = root / str(evidence.get(path_field) or "")
+            if not evidence_path.is_file():
+                failures.append(f"v30 {label} evidence is missing")
+            elif file_sha256(evidence_path) != evidence.get(sha_field):
+                failures.append(f"v30 {label} evidence sha mismatch")
+        readiness_path = root / str(evidence.get("offline_readiness") or "")
+        if readiness_path.is_file():
+            readiness = load_json(readiness_path)
+            readiness_status = readiness.get("status")
+            if readiness_status not in {"v30_offline_ready", "v30_offline_blocked"}:
+                failures.append("v30 offline readiness has an invalid status")
+            if readiness_status != v30.get("offline_acceptance", {}).get("status"):
+                failures.append("v30 stage/readiness offline status mismatch")
+            if readiness_status == "v30_offline_blocked" and not readiness.get("blockers"):
+                failures.append("blocked v30 readiness must preserve explicit blockers")
+            authorization = readiness.get("authorization") or {}
+            if any(authorization.get(field) is not False for field in (
+                "live_motion_authorized",
+                "controller_upload_authorized",
+                "bridge_start_authorized",
+                "tp_play_authorized",
+            )):
+                failures.append("v30 offline readiness must deny all live/controller authorization")
+            claim = readiness.get("claim_boundary") or {}
+            if any(claim.get(field) is not False for field in (
+                "package_accepted",
+                "live_accepted",
+                "reproduction_complete",
+            )):
+                failures.append("v30 readiness crosses the offline claim boundary")
+            history_roles = {
+                str(item.get("role"))
+                for item in (readiness.get("timing", {}).get("history") or [])
+            }
+            required_roles = {
+                "six_lane_optimized_solver_10k_with_20_tick_smoke",
+                "current_source_solver_10k_with_20_tick_runtime_smoke",
+                "runtime_shaped_smoke_not_acceptance",
+                "component_diagnostic_not_acceptance",
+            }
+            if not required_roles.issubset(history_roles):
+                failures.append("v30 readiness timing history is incomplete")
+            current_source_history = next(
+                (
+                    item
+                    for item in (readiness.get("timing", {}).get("history") or [])
+                    if item.get("role")
+                    == "current_source_solver_10k_with_20_tick_runtime_smoke"
+                ),
+                None,
+            )
+            if current_source_history is not None:
+                acceptance_evaluation = current_source_history.get(
+                    "acceptance_evaluation"
+                ) or {}
+                if (
+                    current_source_history.get("path")
+                    != evidence.get("current_source_solver_10k_raw")
+                    or current_source_history.get("sha256")
+                    != evidence.get("current_source_solver_10k_raw_sha256")
+                    or current_source_history.get("classification")
+                    != "failed_hard_solver_deadline"
+                    or current_source_history.get("acceptance_eligible") is not False
+                    or acceptance_evaluation.get(
+                        "recomputed_from_single_hash_bound_raw_artifact"
+                    )
+                    is not True
+                    or acceptance_evaluation.get("raw_sha256")
+                    != evidence.get("current_source_solver_10k_raw_sha256")
+                ):
+                    failures.append(
+                        "v30 readiness current-source solver 10k binding is inconsistent"
+                    )
 
     step6_v2 = step6_rows.get("step6_contact_eight_baseline_v2")
     if not step6_v2:

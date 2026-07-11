@@ -1,0 +1,158 @@
+{
+  "backend_status": {
+    "direct_torque_5_23": {
+      "manifest_sha256": "6dfd16d582234f9b24e95bf8f3e29e492fbc2eb5a037fb83eaae83e8fedd9567",
+      "status": "offline_uninvoked_template_ursim_pending",
+      "template_sha256": "1f8c4f8e96890988ce698e2c473428368932050bda40355880d19de5201fa3ff"
+    },
+    "velocity_admittance_5_11": {
+      "activation_ready": false,
+      "binding_manifest_sha256": "4fa6840abd43e6fd576ee55369fb812f4a14c8029395de0e9b5a895d2bff4d33",
+      "reason": "pure Step5b core is hash-bound, but its ROS2 live-runner acceptance artifact is false",
+      "status": "offline_surrogate_shadow_only"
+    }
+  },
+  "blockers": [
+    "the upstream-faithful SLERP/cross-attention core is implemented and tested, but no faithful full-data checkpoint has been trained",
+    "the retained portable_component_ddpm_v0 subset checkpoint is not upstream-faithful and has 0.06365 m position RMSE",
+    "all independently paced 200/100/50 Hz 60-second trials failed their deadlines; DBIL must remain shadow-only",
+    "the retained paced timing artifact predates the explicit selection_eligible field and is provenance-ineligible under the current fail-closed selector",
+    "phase-1 directional VIC is bounded/non-increasing only; passivity is not established without a future energy tank or passivity observer/controller",
+    "v27/v29 retained traces lack a sensor calibration hash and explicit task ZFT, so their four-policy results are diagnostic and claim-invalid",
+    "Step5b ROS2 live-runner acceptance remains false; the 5.11 surrogate cannot become command-capable",
+    "PolyScope 5.23+ URSim syntax/runtime/timing validation has not passed",
+    "physical controller version must be re-probed next week",
+    "fresh live/contact authorization is required for every active experiment"
+  ],
+  "claim_state": {
+    "acceptance_status": "not_evaluated",
+    "authorization_status": "not_requested",
+    "package_status": "offline_scaffold_ready",
+    "reproduction_status": "not_claimed",
+    "run_status": "offline_completed"
+  },
+  "compact_evidence": {
+    "default_validation_scope": "tracked schema and current source bindings only",
+    "external_artifact_default_status": "not rehashed unless UR10E_VIC_EVIDENCE_ROOT is supplied",
+    "external_bundle_root_env": "UR10E_VIC_EVIDENCE_ROOT",
+    "locator_only_is_claim_validation": false,
+    "tracked_index": "evidence/offline_evidence_index.json"
+  },
+  "dbil_active_enabled": false,
+  "dbil_full_public_conversion": {
+    "dataset_sha256": "8ae903a7c8ca36122bca8c995380aaa56be6a66bf236301aa39eb22868593e67",
+    "manifest_sha256": "4a12543b7f60219596ec06a572d7b12705ead6880114420569b72fd520ccdf59",
+    "sample_count": 54292,
+    "source_files": 20,
+    "split_counts": {
+      "application": 598,
+      "test": 9336,
+      "train": 37866,
+      "validation": 6492
+    },
+    "stats_sha256": "e82037d6b7efbb1559566502ddf11693cb58e3d9852c2e0af1341b094c4bafe5",
+    "upstream_binding_verified": true,
+    "upstream_commit": "8c05a4d4aca8012927a9fdf5bfcd8313247f6a30"
+  },
+  "dbil_public_subset_training": {
+    "checkpoint_sha256": "e0fc6af12d9138e1556cea409418b83b5c046ed779010fb4eda65a3a61e085a8",
+    "dataset_sha256": "53608cd80a28f6f509d22ab3e5ad1fd96374f27ba775fcdfbf7a2df6d9e5c79b",
+    "epochs": 20,
+    "final_loss": 0.3436946998014021,
+    "metrics": {
+      "orientation_rmse_deg": 0.690001074151687,
+      "position_rmse_m": 0.06365456356617565,
+      "samples": 128,
+      "sha256": "9e5695508428fb44a6d3615920b5a5d55f893f83f56b93b1ac4524e98e15fa6e"
+    },
+    "stats_sha256": "52b2614ba395a4dae13e8b60ecda4e80c8edd4f882b793e4f62c087a33473db4",
+    "training_result_sha256": "27d29bcab5363efdbb53c7cfc83643f2b7b3067fe3b5062aed8e2f4c5a17d13c",
+    "training_samples": 2689,
+    "variant": "portable_component_ddpm_v0"
+  },
+  "dbil_timing": {
+    "existing_unpaced_60s": {
+      "all_200_100_50_rejected": true,
+      "diagnostic_only": true,
+      "p99_s": 0.08506380024366082,
+      "selection_eligible": false,
+      "sha256": "695136f5899836cced545ddf8e69f5bf9cb5a240ddbe80246c65ce17608cf8b4"
+    },
+    "paced_3x60s": {
+      "artifact_sha256": "ce58ec9d10956f03c08ce2f6f83f1e82e007a004ef48abe064324be0abe414cc",
+      "nonfinite_outputs": 0,
+      "provenance": "independent_wall_clock_paced_trials_v1",
+      "rate_results": {
+        "100": {
+          "accepted": false,
+          "deadline_misses": 6000,
+          "latency_max_s": 0.07953258400084451,
+          "latency_p99_s": 0.06461906105570961
+        },
+        "200": {
+          "accepted": false,
+          "deadline_misses": 11997,
+          "latency_max_s": 0.062468582997098565,
+          "latency_p99_s": 0.05800956999941262
+        },
+        "50": {
+          "accepted": false,
+          "deadline_misses": 2999,
+          "latency_max_s": 0.08403933397494256,
+          "latency_p99_s": 0.07680257401749259
+        }
+      },
+      "result": "all_rates_failed_provenance_ineligible",
+      "selection_eligible": false,
+      "selected_rate_hz": null
+    },
+    "paced_harness": "implemented_unit_tested_and_executed",
+    "paced_result": "all_paced_rates_failed_provenance_ineligible_shadow_only",
+    "selected_rate_hz": null,
+    "shadow_only": true
+  },
+  "live_motion_authorized": false,
+  "source_bindings": {
+    "binding_scope": "current validator sources; not historical artifact producer provenance",
+    "evidence_validator_sha256": "909fe670066bcf10c542a0373ae183b144a2a60c3c3425eaf28d59764bc27ebb",
+    "inference_sha256": "5997cf5470a935fecd5674f893770b1f518d7e1fc6b84ee6b4f23185d51022df",
+    "timing_sha256": "5d957f05b40344327a8a442fe173276be5e31d74d38d95c01e0d0738e36f1606"
+  },
+  "schema_version": 2,
+  "status": "offline_scaffold",
+  "trace_shadow_evidence": {
+    "claim_evidence_valid": false,
+    "reason_invalid": "missing sensor calibration hash and explicit task ZFT",
+    "v27": {
+      "ablation_sha256": "05388dca6da646af94d89e8d01e5a2be145f0474ff33453658d60b507d599fe5",
+      "actual_command_kind": "step5b_twist",
+      "baseline_command_bitwise_unchanged": true,
+      "dataset_sha256": "fc5bdddc3373e7a314d71a6c3eb756aaf2c171820ff3b665ddf95a1ff2a86ecd",
+      "manifest_sha256": "d3b16dc3f1757b2e578e4e416f00185e0c059c30d6f7d6ba4a2589ebb7dbcc9a",
+      "observations": 6356,
+      "source_csv_sha256": "84b597942ca9e06cc93348f86d009d188e0c14f6f70e9921fa98f3fbd8447b3f"
+    },
+    "v29": {
+      "ablation_sha256": "f5c210e62f6d59211822ebb028224a4606b003470ca3e33f4d04d3a28aa883aa",
+      "actual_command_kind": "step5b_twist",
+      "baseline_command_bitwise_unchanged": true,
+      "dataset_sha256": "abd11be656f1ccdfa255eddb0977d6f4f553c5f09ea1f8ab7d35a4128af44490",
+      "manifest_sha256": "3c7813b42fde5aec00e97e5e190838b68faeffa2749d244096edc7a24868ec0c",
+      "observations": 9034,
+      "source_csv_sha256": "be6a84fe0eebc3df18ebb511874673cb3ee44832ba16335cd4de7a10f3260335"
+    }
+  },
+  "upstream_faithful_core": {
+    "checkpoint_trained": false,
+    "status": "implemented_and_unit_tested",
+    "variant": "upstream_slerp_cross_attention_v1"
+  },
+  "ursim_probe": {
+    "checked_at": "2026-07-11T00:30:38+08:00",
+    "mac_container_runtime": "docker_and_podman_not_found",
+    "ubuntu_classification": "ssh_reachable",
+    "ubuntu_container_runtime": "docker_29.6.1_present",
+    "ubuntu_ursim_image": "not_found",
+    "runtime_validation": "blocked"
+  }
+}

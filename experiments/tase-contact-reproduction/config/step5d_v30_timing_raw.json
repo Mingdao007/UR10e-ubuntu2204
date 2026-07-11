@@ -1,0 +1,59 @@
+{
+  "cupy_precompile_ms": 489.11800899077207,
+  "elapsed_full_tick_wall_s": 60.01068966696039,
+  "first_post_warm_ms": 1.241939957253635,
+  "full_tick": {
+    "compute_deadline_miss_count": 67,
+    "max_ms": 51.30619904957712,
+    "mean_ms": 1.6955816307376759,
+    "nonfinite_count": 0,
+    "p95_ms": 1.9000235537532717,
+    "p99_ms": 1.9548013259191066,
+    "samples": 30000
+  },
+  "full_tick_reason_counts": {
+    "ok": 30000
+  },
+  "full_tick_schedule_deadline_miss_count": 5551,
+  "model_prepare_ms": 1080.6048479862511,
+  "paced_500hz": true,
+  "precompile_outside_control_loop": true,
+  "profile": {
+    "backend": "cupy",
+    "control_hz": 500.0,
+    "epsilon": 0.01,
+    "inner_iterations": 1024,
+    "qdot_cap_rad_s": 0.05,
+    "sigr_exponent_r": 0.8
+  },
+  "safe_hold": {
+    "compute_deadline_miss_count": 0,
+    "max_ms": 0.019507016986608505,
+    "mean_ms": 0.00836312270257622,
+    "nonfinite_count": 0,
+    "p95_ms": 0.008465023711323738,
+    "p99_ms": 0.009196926839649677,
+    "samples": 30000
+  },
+  "safety_boundary": [
+    "read-only source evidence",
+    "stdout JSON only",
+    "no RTDE connection",
+    "no Dashboard connection",
+    "no controller write",
+    "no bridge start",
+    "no motion authorization"
+  ],
+  "schema_version": "step5d_v30_remote_timing_raw_v1",
+  "solver": {
+    "compute_deadline_miss_count": 11,
+    "max_ms": 53.1962129753083,
+    "mean_ms": 1.1975865463376976,
+    "nonfinite_count": 0,
+    "p95_ms": 1.2227650324348356,
+    "p99_ms": 1.2980744382366538,
+    "samples": 10000
+  },
+  "source_csv": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v29_20260710_104820/bridge_rtde_500hz.csv",
+  "source_rows": 5604
+}

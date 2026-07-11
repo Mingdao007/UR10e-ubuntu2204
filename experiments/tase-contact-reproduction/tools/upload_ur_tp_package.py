@@ -166,8 +166,12 @@ def triplet(local_dir: Path, program: str) -> dict[str, Path]:
     return files
 
 
-def load_local_candidate_marker(local_dir: Path) -> dict | None:
-    marker_path = local_dir / LOCAL_CANDIDATE_MARKER
+def load_local_candidate_marker(local_dir: Path, program: str | None = None) -> dict | None:
+    marker_path = (
+        local_dir / f".{program}.local_candidate.json"
+        if program and (local_dir / f".{program}.local_candidate.json").is_file()
+        else local_dir / LOCAL_CANDIDATE_MARKER
+    )
     if not marker_path.is_file():
         return None
     try:
@@ -177,6 +181,21 @@ def load_local_candidate_marker(local_dir: Path) -> dict | None:
     if marker.get("local_only") is not True:
         die(f"local candidate marker does not declare local_only=true: {marker_path}")
     return marker
+
+
+def enforce_offline_candidate_delivery_block(program: str, *, root: Path = EXPERIMENT_ROOT) -> None:
+    """Do not let CLI overrides bypass an inactive offline package boundary."""
+
+    table = load_json_if_present(root / "config" / "step5_stage_table.json")
+    row = next((item for item in table.get("stages", []) if item.get("id") == program), None)
+    if not isinstance(row, dict):
+        return
+    delivery = row.get("package_delivery") or {}
+    if delivery.get("status") == "local_offline_candidate_only":
+        die(
+            f"refusing controller delivery for inactive offline candidate {program}; "
+            "table status must be changed by a separately authorized promotion workflow first"
+        )
 
 
 def validate_local_candidate_marker(
@@ -1681,6 +1700,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     program = normalize_program(args.program)
+    enforce_offline_candidate_delivery_block(program)
     table_resolution = resolve_table_target(program, required=not args.override_table)
     target_source = "table"
     target_override_reason = None
@@ -1699,7 +1719,7 @@ def main(argv: list[str] | None = None) -> int:
         target_dir = table_resolution["controller_dir"]
     files = triplet(args.local_dir, program)
     local_sha = package_sha(files)
-    local_candidate_marker = load_local_candidate_marker(args.local_dir)
+    local_candidate_marker = load_local_candidate_marker(args.local_dir, program)
     if local_candidate_marker is not None and local_candidate_marker.get("program") == program:
         validate_local_candidate_marker(
             local_candidate_marker,

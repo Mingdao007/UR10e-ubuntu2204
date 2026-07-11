@@ -160,14 +160,14 @@
       "safety_limits": "step5d_v27_safety_v1",
       "evidence_profile": "step5b_v3_success",
       "runtime_family": "step5d_rnn",
-      "current_program": "step5d_strict_rnn_ablation_v27",
-      "stage25_default_control_mode": "speedl_cartesian_oracle",
+      "current_program": "step5d_strict_rnn_ablation_v29",
+      "stage25_default_control_mode": "speedj_rnn_live",
       "current_evidence": {
-        "latest_failed_retained": "runs/bridge_step5d_strict_rnn_ablation_v27_20260706_040900/step5d_bridge_analysis.json",
-        "result": "failed_retained_fix_validation_evidence_not_acceptance",
-        "classification": "stage25_control_force_oscillation/force_norm_hard_stop",
-        "evidence_classification": "old_v27_paper_outer_linear_live_gain_mismatch_force_norm_hard_stop",
-        "live_retry_blocked_until": "offline copy-Step5b-live / Step5d-shadow fix audit plus explicit user authorization"
+        "latest_failed_retained": "runs/imported_v29_20260710_104820/summary.json",
+        "result": "failed_retained_not_live_accepted_not_reproduction_complete",
+        "classification": "stage25_cadence_or_consumption_failure",
+        "evidence_classification": "v29_strict_rnn_all_candidates_safe_held_approach_normal_unload_mismatch",
+        "live_retry_blocked_until": "v30 offline replay, timing and review gates pass plus explicit live authorization"
       }
     },
     "Step6.no_contact_eight": {

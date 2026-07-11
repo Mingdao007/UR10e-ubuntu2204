@@ -29,6 +29,33 @@ def manifest_from_upload_output(output: str) -> dict:
 
 
 class UploadUrTpPackageReuseTest(unittest.TestCase):
+    def test_v30_offline_candidate_refuses_even_dry_run_override_delivery(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "inactive offline candidate"):
+            upload.main(
+                [
+                    "step5d_strict_rnn_ablation_v30",
+                    "--dry-run",
+                    "--override-table",
+                    "--override-reason",
+                    "forbidden-test",
+                    "--target-dir",
+                    "/programs/andyl/kunwei/step5",
+                    "--local-dir",
+                    str(ROOT / "programs" / "step5" / "step5d"),
+                ]
+            )
+
+    def test_v30_program_specific_local_candidate_marker_is_discovered(self) -> None:
+        marker = upload.load_local_candidate_marker(
+            ROOT / "programs" / "step5" / "step5d",
+            "step5d_strict_rnn_ablation_v30",
+        )
+
+        self.assertIsNotNone(marker)
+        assert marker is not None
+        self.assertTrue(marker["local_only"])
+        self.assertTrue(marker["not_delivered"])
+
     def test_upload_validator_checks_installation_relative_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             output_dir = Path(tmp)

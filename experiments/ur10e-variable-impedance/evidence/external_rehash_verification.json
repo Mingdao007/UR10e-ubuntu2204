@@ -1,0 +1,31 @@
+{
+  "artifact_integrity_verified": true,
+  "claim_validation_ready": false,
+  "claim_validation_status": "requires_separate_domain_claim_validator",
+  "external_bundle_root_env": "UR10E_VIC_EVIDENCE_ROOT",
+  "external_rehash_performed": true,
+  "mismatched_roles": [],
+  "missing_roles": [],
+  "source_index_sha256": "ae91c9c1c1def1ead9757b413f8636acd94de8aab8d42e6b2ac3efd85df8cf82",
+  "status": "verified_all_external_artifacts",
+  "verified_at": "2026-07-11T02:15:00+08:00",
+  "verified_roles": [
+    "full_public_dataset",
+    "full_public_manifest",
+    "full_public_stats",
+    "subset_checkpoint",
+    "subset_dataset",
+    "subset_manifest",
+    "subset_metrics",
+    "subset_stats",
+    "subset_timing_paced_3x60s",
+    "subset_timing_unpaced",
+    "subset_training_curve",
+    "v27_shadow_ablation",
+    "v27_trace_dataset",
+    "v27_trace_manifest",
+    "v29_shadow_ablation",
+    "v29_trace_dataset",
+    "v29_trace_manifest"
+  ]
+}

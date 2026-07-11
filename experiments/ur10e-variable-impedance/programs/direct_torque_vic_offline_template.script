@@ -1,0 +1,382 @@
+# OFFLINE TEMPLATE ONLY. DO NOT UPLOAD OR EXECUTE WITHOUT A FRESH LIVE GATE.
+# Bound manifest: ../config/direct_torque_rtde_layout.json
+# Requires PolyScope >= 5.23.0 and successful URSim syntax/runtime validation.
+# direct_torque() adds gravity compensation internally; tau below excludes gravity.
+
+def vic_finite(value, limit):
+  return value == value and abs(value) <= limit
+end
+
+def vic_read_six(start_register):
+  return [read_input_float_register(start_register),
+          read_input_float_register(start_register + 1),
+          read_input_float_register(start_register + 2),
+          read_input_float_register(start_register + 3),
+          read_input_float_register(start_register + 4),
+          read_input_float_register(start_register + 5)]
+end
+
+def vic_norm3(values, start_index):
+  return sqrt(values[start_index] * values[start_index] +
+              values[start_index + 1] * values[start_index + 1] +
+              values[start_index + 2] * values[start_index + 2])
+end
+
+def vic_damping_matches_sqrt(stiffness, damping):
+  local virtual_mass = [2.0, 2.0, 2.0, 0.2, 0.2, 0.2]
+  local axis = 0
+  while axis < 6:
+    local expected = 2.0 * sqrt(stiffness[axis] * virtual_mass[axis])
+    if abs(damping[axis] - expected) > 0.05:
+      return False
+    end
+    axis = axis + 1
+  end
+  return True
+end
+
+def vic_input_valid(eq, stiffness, damping):
+  local stiffness_min = [25.0, 25.0, 25.0, 0.5, 0.5, 0.5]
+  local stiffness_max = [1000.0, 1000.0, 1000.0, 60.0, 60.0, 60.0]
+  local damping_max = [200.0, 200.0, 200.0, 30.0, 30.0, 30.0]
+  local index = 0
+  while index < 6:
+    if not vic_finite(eq[index], 10.0):
+      return False
+    elif not vic_finite(stiffness[index], stiffness_max[index]):
+      return False
+    elif stiffness[index] < stiffness_min[index]:
+      return False
+    elif not vic_finite(damping[index], damping_max[index]):
+      return False
+    elif damping[index] < 0.0:
+      return False
+    end
+    index = index + 1
+  end
+  # First active version varies translation only.  Orientation impedance is
+  # locked to the reviewed fixed baseline on the controller, not just host-side.
+  if abs(stiffness[3] - 30.0) > 0.000001 or abs(stiffness[4] - 30.0) > 0.000001 or abs(stiffness[5] - 30.0) > 0.000001:
+    return False
+  end
+  return vic_damping_matches_sqrt(stiffness, damping)
+end
+
+def vic_initial_baseline(stiffness):
+  local baseline = [600.0, 600.0, 600.0, 30.0, 30.0, 30.0]
+  local index = 0
+  while index < 6:
+    if abs(stiffness[index] - baseline[index]) > 0.000001:
+      return False
+    end
+    index = index + 1
+  end
+  return True
+end
+
+def vic_stiffness_transition_valid(stiffness, last_stiffness, dt):
+  local max_slew_per_s = [400.0, 400.0, 400.0, 20.0, 20.0, 20.0]
+  local index = 0
+  while index < 6:
+    local decrease = last_stiffness[index] - stiffness[index]
+    if decrease < -0.000001 or decrease > max_slew_per_s[index] * dt + 0.000001:
+      return False
+    end
+    index = index + 1
+  end
+  return True
+end
+
+def vic_equilibrium_transition_valid(eq, last_eq, locked_orientation, dt):
+  local index = 0
+  while index < 3:
+    if abs(eq[index] - last_eq[index]) > 0.05 * dt + 0.000001:
+      return False
+    end
+    index = index + 1
+  end
+  while index < 6:
+    if abs(eq[index] - locked_orientation[index - 3]) > 0.000001:
+      return False
+    end
+    index = index + 1
+  end
+  return True
+end
+
+def vic_release_ready(eq):
+  local actual_pose = get_actual_tcp_pose()
+  local target_pose = p[eq[0], eq[1], eq[2], eq[3], eq[4], eq[5]]
+  local error = pose_sub(target_pose, actual_pose)
+  local wrench = get_tcp_force()
+  return vic_norm3(error, 0) <= 0.002 and vic_norm3(wrench, 0) <= 2.0 and vic_norm3(wrench, 3) <= 0.2
+end
+
+def vic_runtime_guard_ok():
+  local wrench = get_tcp_force()
+  if vic_norm3(wrench, 0) > 50.0 or vic_norm3(wrench, 3) > 3.0:
+    return False
+  end
+  local pose = get_actual_tcp_pose()
+  local xyz_min = [0.30, 0.00, -0.02]
+  local xyz_max = [0.55, 0.20, 0.12]
+  local axis = 0
+  while axis < 3:
+    if not vic_finite(pose[axis], 10.0) or pose[axis] < xyz_min[axis] or pose[axis] > xyz_max[axis]:
+      return False
+    end
+    axis = axis + 1
+  end
+  local q = get_actual_joint_positions()
+  local qd = get_actual_joint_speeds()
+  local q_min = [0.40, -2.00, -3.00, -0.80, 1.30, -1.50]
+  local q_max = [0.90, -1.20, -2.20, -0.20, 1.80, -0.70]
+  local joint = 0
+  while joint < 6:
+    if not vic_finite(q[joint], 7.0) or q[joint] < q_min[joint] or q[joint] > q_max[joint] or not vic_finite(qd[joint], 1.0):
+      return False
+    end
+    joint = joint + 1
+  end
+  return True
+end
+
+def vic_compute_tau(eq, stiffness, damping):
+  local actual_pose = get_actual_tcp_pose()
+  local actual_twist = get_actual_tcp_speed()
+  local target_pose = p[eq[0], eq[1], eq[2], eq[3], eq[4], eq[5]]
+  local error = pose_sub(target_pose, actual_pose)
+  local error_max = [0.05, 0.05, 0.05, 0.35, 0.35, 0.35]
+  local wrench_command = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  local axis = 0
+  while axis < 6:
+    if not vic_finite(error[axis], error_max[axis]):
+      return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    end
+    wrench_command[axis] = stiffness[axis] * error[axis] - damping[axis] * actual_twist[axis]
+    axis = axis + 1
+  end
+
+  local q = get_actual_joint_positions()
+  local qd = get_actual_joint_speeds()
+  local jacobian = get_jacobian(q)
+  local coriolis = get_coriolis_and_centrifugal_torques(q, qd)
+  local joint_damping = [1.5, 1.5, 1.2, 0.3, 0.3, 0.2]
+  local tau_limit = [20.0, 20.0, 20.0, 8.0, 8.0, 8.0]
+  local tau = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  local joint = 0
+  while joint < 6:
+    local value = coriolis[joint] - joint_damping[joint] * qd[joint]
+    axis = 0
+    while axis < 6:
+      value = value + jacobian[axis, joint] * wrench_command[axis]
+      axis = axis + 1
+    end
+    if not vic_finite(value, tau_limit[joint]):
+      return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    end
+    tau[joint] = value
+    joint = joint + 1
+  end
+  return [1.0, tau[0], tau[1], tau[2], tau[3], tau[4], tau[5]]
+end
+
+def vic_safe_exit_tick():
+  local q = get_actual_joint_positions()
+  local qd = get_actual_joint_speeds()
+  local coriolis = get_coriolis_and_centrifugal_torques(q, qd)
+  local joint_damping = [1.5, 1.5, 1.2, 0.3, 0.3, 0.2]
+  local tau = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  local joint = 0
+  while joint < 6:
+    if not vic_finite(q[joint], 7.0) or not vic_finite(qd[joint], 1.0) or not vic_finite(coriolis[joint], 20.0):
+      return False
+    end
+    tau[joint] = coriolis[joint] - joint_damping[joint] * qd[joint]
+    if not vic_finite(tau[joint], 20.0):
+      return False
+    end
+    joint = joint + 1
+  end
+  direct_torque(tau)
+  return True
+end
+
+def ur10e_vic_direct_torque_offline_template():
+  local MODE_ARMED = 1
+  local STATE_WAITING = 0
+  local STATE_ZERO_STARTUP = 1
+  local STATE_TORQUE = 2
+  local STATE_SAFE_EXIT = 3
+  local FAULT_NONE = 0
+  local FAULT_STALE = 1
+  local FAULT_INPUT = 2
+  local FAULT_SEQUENCE = 3
+  local FAULT_PACKET = 4
+  local FAULT_RUNTIME_GUARD = 5
+  local FAULT_SLEW = 6
+  local FAULT_RELEASE = 7
+  local FAULT_LEASE = 8
+  local heartbeat_timeout_ticks = 10
+  local zero_startup_ticks = 5
+  local safe_exit_ticks = 5
+  local last_sequence = 0
+  local lease_id = 0
+  local last_eq = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  local locked_orientation = [0.0, 0.0, 0.0]
+  local last_stiffness = [600.0, 600.0, 600.0, 30.0, 30.0, 30.0]
+  local stale_ticks = 0
+  local torque_active = False
+  local zero_startup_count = 0
+  local safe_exit_count = 0
+
+  write_output_integer_register(24, STATE_WAITING)
+  write_output_integer_register(25, last_sequence)
+  write_output_integer_register(26, FAULT_NONE)
+  write_output_integer_register(27, 0)
+
+  while True:
+    # Host writes payload/heartbeat/lease first and sequence last.  A stable
+    # sequence before and after all reads is the controller-side packet commit.
+    local sequence_before = read_input_integer_register(25)
+    local mode = read_input_integer_register(24)
+    local heartbeat = read_input_integer_register(26)
+    local packet_lease = read_input_integer_register(27)
+
+    local eq = vic_read_six(24)
+    local stiffness = vic_read_six(30)
+    local damping = vic_read_six(36)
+    local sequence_after = read_input_integer_register(25)
+    local sequence = sequence_after
+    local coherent_packet = sequence_before == sequence_after and heartbeat == sequence
+    local sequence_ok = sequence == last_sequence + 1 and sequence > 0
+    local lease_ok = packet_lease > 0 and (lease_id == 0 or packet_lease == lease_id)
+    if coherent_packet and sequence_ok:
+      stale_ticks = 0
+    else:
+      stale_ticks = stale_ticks + 1
+    end
+
+    local input_ok = vic_input_valid(eq, stiffness, damping)
+    local heartbeat_ok = stale_ticks <= heartbeat_timeout_ticks
+    local first_packet = last_sequence == 0
+    local stiffness_ok = (first_packet and vic_initial_baseline(stiffness)) or ((not first_packet) and vic_stiffness_transition_valid(stiffness, last_stiffness, get_steptime()))
+    local eq_ok = first_packet or vic_equilibrium_transition_valid(eq, last_eq, locked_orientation, get_steptime())
+    # Release/reset is checked exactly once, when a new run restores baseline.
+    # It is deliberately not re-evaluated after contact begins.
+    local release_ok = True
+    if first_packet:
+      release_ok = vic_release_ready(eq)
+    end
+    local runtime_ok = vic_runtime_guard_ok()
+    local armed = mode == MODE_ARMED and coherent_packet and input_ok and stiffness_ok and eq_ok and sequence_ok and heartbeat_ok and release_ok and runtime_ok and lease_ok
+
+    if armed:
+      if first_packet:
+        lease_id = packet_lease
+        locked_orientation = [eq[3], eq[4], eq[5]]
+      end
+      if zero_startup_count < zero_startup_ticks:
+        # Enter direct-torque mode through zero-wrench/joint-damping ticks;
+        # never jump from position mode directly to a nonzero Cartesian wrench.
+        if not vic_safe_exit_tick():
+          stopj(10.0)
+          return
+        end
+        torque_active = True
+        zero_startup_count = zero_startup_count + 1
+        safe_exit_count = 0
+        last_sequence = sequence
+        last_eq = eq
+        last_stiffness = stiffness
+        write_output_integer_register(24, STATE_ZERO_STARTUP)
+        write_output_integer_register(25, sequence)
+        write_output_integer_register(26, FAULT_NONE)
+        write_output_integer_register(27, lease_id)
+        write_output_float_register(24, 0.0)
+        write_output_float_register(25, get_steptime())
+      else:
+        local result = vic_compute_tau(eq, stiffness, damping)
+        if result[0] > 0.5:
+        local tau = [result[1], result[2], result[3], result[4], result[5], result[6]]
+        local max_abs_tau = 0.0
+        local tau_index = 0
+        while tau_index < 6:
+          if abs(tau[tau_index]) > max_abs_tau:
+            max_abs_tau = abs(tau[tau_index])
+          end
+          tau_index = tau_index + 1
+        end
+        direct_torque(tau)
+        torque_active = True
+        safe_exit_count = 0
+        last_sequence = sequence
+        last_eq = eq
+        last_stiffness = stiffness
+        write_output_integer_register(24, STATE_TORQUE)
+        write_output_integer_register(25, sequence)
+        write_output_integer_register(26, FAULT_NONE)
+        write_output_integer_register(27, lease_id)
+        write_output_float_register(24, max_abs_tau)
+        write_output_float_register(25, get_steptime())
+        else:
+          input_ok = False
+        end
+      end
+    end
+
+    if not armed or not input_ok:
+      if torque_active:
+        write_output_integer_register(24, STATE_SAFE_EXIT)
+        if not heartbeat_ok:
+          write_output_integer_register(26, FAULT_STALE)
+        elif not coherent_packet:
+          write_output_integer_register(26, FAULT_PACKET)
+        elif not sequence_ok:
+          write_output_integer_register(26, FAULT_SEQUENCE)
+        elif not lease_ok:
+          write_output_integer_register(26, FAULT_LEASE)
+        elif not release_ok:
+          write_output_integer_register(26, FAULT_RELEASE)
+        elif not runtime_ok:
+          write_output_integer_register(26, FAULT_RUNTIME_GUARD)
+        elif not stiffness_ok or not eq_ok:
+          write_output_integer_register(26, FAULT_SLEW)
+        else:
+          write_output_integer_register(26, FAULT_INPUT)
+        end
+        if not vic_safe_exit_tick():
+          stopj(10.0)
+          return
+        end
+        safe_exit_count = safe_exit_count + 1
+        if safe_exit_count >= safe_exit_ticks:
+          stopj(10.0)
+          return
+        end
+      else:
+        write_output_integer_register(24, STATE_WAITING)
+        if mode == MODE_ARMED:
+          if not coherent_packet:
+            write_output_integer_register(26, FAULT_PACKET)
+          elif not lease_ok:
+            write_output_integer_register(26, FAULT_LEASE)
+          elif not release_ok:
+            write_output_integer_register(26, FAULT_RELEASE)
+          elif not runtime_ok:
+            write_output_integer_register(26, FAULT_RUNTIME_GUARD)
+          elif not stiffness_ok or not eq_ok:
+            write_output_integer_register(26, FAULT_SLEW)
+          elif not sequence_ok:
+            write_output_integer_register(26, FAULT_SEQUENCE)
+          else:
+            write_output_integer_register(26, FAULT_INPUT)
+          end
+        end
+        sync()
+      end
+    end
+  end
+end
+
+# Intentionally no invocation. A reviewed TP/URSim wrapper must call this function.
