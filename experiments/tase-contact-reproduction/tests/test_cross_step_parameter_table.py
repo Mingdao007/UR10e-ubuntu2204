@@ -322,20 +322,25 @@ class CrossStepParameterTableTest(unittest.TestCase):
         state = validator.load_json(ROOT / pointer["state_artifact"])
 
         self.assertEqual(pointer, row["offline_simulation_diagnostic"])
-        self.assertEqual(pointer["status"], "bound_diagnostic_complete")
+        self.assertEqual(pointer["status"], "bound_timing_blocked")
         self.assertTrue(pointer["control_path_diagnostic_pass"])
         self.assertTrue(pointer["all_required_faults_exact_zero"])
         self.assertEqual(
             pointer["timing_scope_status"],
             "current_control_hard_500hz_measurement_scope",
         )
-        self.assertTrue(pointer["offline_control_timing_pass"])
+        self.assertFalse(pointer["offline_control_timing_pass"])
         self.assertFalse(pointer["simulator_cycle_500hz_diagnostic_pass"])
         self.assertFalse(pointer["p0_sim_physics_pass"])
         self.assertEqual(pointer["controller_canaries_completed"], [])
         self.assertEqual(state["controller_canaries"]["completed"], [])
         self.assertFalse(state["evidence_frozen"])
         self.assertFalse(summary["claims"]["p0_v8_passed"])
+        self.assertEqual(
+            summary["diagnostic"]["source_result"],
+            "control_diagnostic_pass_control_hard_500hz_blocked",
+        )
+        self.assertFalse(summary["diagnostic"]["offline_control_timing_pass"])
         historical = pointer["historical_artifacts"]
         self.assertEqual(len(historical), 2)
         self.assertEqual(

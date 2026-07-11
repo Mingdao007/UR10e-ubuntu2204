@@ -18,6 +18,7 @@ from build_step5d_p0_v8_offline_diagnostic import (  # noqa: E402
     EVIDENCE_SCHEMA_V1,
     EVIDENCE_SCHEMA_V2,
     EVIDENCE_SCHEMA_V3,
+    EVIDENCE_SCHEMA_V4,
     FALSE_CLAIMS,
     HISTORICAL_TIMING_SCOPE_STATUS,
     NUMERIC_THREAD_ENV_CONTRACT_V2,
@@ -26,6 +27,7 @@ from build_step5d_p0_v8_offline_diagnostic import (  # noqa: E402
     RUN_SCHEMA_V1,
     RUN_SCHEMA_V2,
     RUN_SCHEMA_V3,
+    RUN_SCHEMA_V4,
     SIMULATOR_SCOPE_V2,
     TIMING_SCOPE_VERSION_V2,
     bound_state_binding,
@@ -35,7 +37,10 @@ from build_step5d_p0_v8_offline_diagnostic import (  # noqa: E402
     validate_diagnostic,
     validate_state_binding,
 )
-from verify_step5d_p0_v8_mujoco import expected_prewarm_contract  # noqa: E402
+from verify_step5d_p0_v8_mujoco import (  # noqa: E402
+    expected_deadline_command_contract,
+    expected_prewarm_contract,
+)
 
 
 SOURCE_SHA = "1" * 64
@@ -376,6 +381,153 @@ def split_summary(
     )
 
 
+def v4_summary(*, misses: tuple[int, int, int] = (40, 369, 198)) -> dict:
+    prewarm_binding = {
+        "schema": "step5d_p0_v8_production_path_prewarm_v1",
+        "path": "production_path_prewarm.json",
+        "sha256": "9" * 64,
+        "size_bytes": 2_000,
+        "source_composite_sha256": SOURCE_SHA,
+        "execute_tick_count": 1_000,
+        "pacing_hz": 500,
+        "paced": True,
+        "pass": True,
+    }
+    evidence = []
+    for index, (duration, miss_count) in enumerate(
+        zip((2.0, 10.0, 60.0), misses)
+    ):
+        row = split_phase_evidence(
+            index,
+            duration,
+            control_pass=False,
+            prewarm_binding=prewarm_binding,
+        )
+        row["schema"] = EVIDENCE_SCHEMA_V4
+        runtime = row["source_binding"]["runtime_timing_environment"]
+        runtime["deadline_command_contract"] = expected_deadline_command_contract()
+        row["control_contract"].update(
+            {
+                "deadline_command_contract_version": "pre_write_exact_zero_stop_v1",
+                "deadline_classification_point": (
+                    "after_adapter_step_before_plant_write"
+                ),
+                "deadline_comparison": "control_elapsed_ms_gte_deadline",
+                "deadline_ms": 2.0,
+                "deadline_rejection_action": "stop",
+                "deadline_rejection_reason": "control_deadline_miss_ge_2ms",
+                "deadline_rejection_qdot": [0.0] * 6,
+                "deadline_rejection_cmd_valid": False,
+                "deadline_rejection_stop_request": True,
+                "deadline_rejection_may_satisfy_timing_gate": False,
+            }
+        )
+        tick_count = int(duration * 500)
+        row["nominal"].update(
+            {
+                "accepted_tick_count": tick_count - miss_count,
+                "stop_count": miss_count,
+                "control_deadline_miss_count": miss_count,
+                "exact_zero_rejection_count": miss_count,
+                "deadline_rejection_count": miss_count,
+                "deadline_zero_rejection_count": miss_count,
+                "nonzero_rejection_count": 0,
+                "control_path_diagnostic_pass": True,
+            }
+        )
+        row["control_hard_500hz"].update(
+            {
+                "p50_ms": 0.5,
+                "p95_ms": 0.7,
+                "p99_ms": 0.755,
+                "max_ms": 4.0 + index,
+                "deadline_miss_count": miss_count,
+                "p99_within_limit": True,
+                "max_within_deadline": False,
+                "pass": False,
+            }
+        )
+        evidence.append(row)
+    phase_results = [
+        {
+            "duration_s": duration,
+            "deadline_miss_count": miss_count,
+            "pass": False,
+        }
+        for duration, miss_count in zip((2.0, 10.0, 60.0), misses)
+    ]
+    simulator_results = [
+        {
+            "duration_s": duration,
+            "cycle_compute_deadline_miss_count": row[
+                "simulator_cycle_diagnostic"
+            ]["cycle_compute_deadline_miss_count"],
+            "absolute_deadline_miss_count": row[
+                "simulator_cycle_diagnostic"
+            ]["absolute_deadline_miss_count"],
+            "meets_500hz_diagnostic": False,
+        }
+        for duration, row in zip((2.0, 10.0, 60.0), evidence)
+    ]
+    rows = [
+        {
+            "duration_s": duration,
+            "sequence_index": index,
+            "evidence_path": f"phase_{index}/evidence.json",
+            "evidence_sha256": str(index + 6) * 64,
+            "evidence_size_bytes": 1000 + index,
+            "structurally_valid": True,
+            "validation_blockers": [],
+            "control_path_diagnostic_pass": True,
+        }
+        for index, duration in enumerate((2.0, 10.0, 60.0))
+    ]
+    manifest_v4 = {
+        "schema": RUN_SCHEMA_V4,
+        "generated_at": "2026-07-12T08:00:00+00:00",
+        "source_composite_sha256": SOURCE_SHA,
+        "canonical_phase_sequence_complete": True,
+        "production_path_prewarm": prewarm_binding,
+        "phases": rows,
+        "result": "control_diagnostic_pass_control_hard_500hz_blocked",
+        "control_hard_500hz_gate": {
+            "scope": CONTROL_SCOPE_V2,
+            "required_phase_duration_s": 60.0,
+            "deadline_ms": 2.0,
+            "p99_limit_ms": 1.8,
+            "requires_zero_deadline_misses": True,
+            "requires_prefault": True,
+            "phase_results": phase_results,
+            "complete_sequence_evaluated": True,
+            "pass": False,
+        },
+        "simulator_cycle_diagnostic": {
+            "scope": SIMULATOR_SCOPE_V2,
+            "diagnostic_only": True,
+            "phase_results": simulator_results,
+        },
+        "blockers": [
+            "geometry_provisional_no_p0_physics_claim",
+            "control_hard_500hz_gate_failed_60s",
+        ],
+    }
+    return build_diagnostic(
+        manifest_v4,
+        evidence,
+        run_manifest_binding={
+            "path": "runs/v4/run_manifest.json",
+            "sha256": RUN_SHA,
+            "size_bytes": 3700,
+        },
+        source_host="andy7",
+        model_manifest_binding={
+            "path": "runs/models/model_manifest.json",
+            "sha256": MODEL_MANIFEST_SHA,
+            "size_bytes": 17000,
+        },
+    )
+
+
 def rehash(payload: dict) -> None:
     payload["diagnostic_sha256"] = canonical_sha256(
         {key: value for key, value in payload.items() if key != "diagnostic_sha256"}
@@ -520,6 +672,59 @@ class Step5dP0V8OfflineDiagnosticTest(unittest.TestCase):
             "phases[0].prewarm_trace_boundary:invalid",
             validate_diagnostic(payload),
         )
+
+    def test_v4_deadline_absorption_is_control_pass_but_timing_blocked(self) -> None:
+        payload = v4_summary()
+
+        self.assertEqual(validate_diagnostic(payload), [])
+        self.assertEqual(
+            payload["diagnostic"]["source_result"],
+            "control_diagnostic_pass_control_hard_500hz_blocked",
+        )
+        self.assertTrue(payload["diagnostic"]["all_control_paths_diagnostic_pass"])
+        self.assertFalse(payload["diagnostic"]["offline_control_timing_pass"])
+        self.assertIn("offline_control_timing_failed", payload["blockers"])
+        self.assertEqual(
+            bound_state_binding(
+                payload,
+                summary_artifact="config/p0-v8-v4.json",
+                summary_sha256="a" * 64,
+            )["status"],
+            "bound_timing_blocked",
+        )
+        for row, misses in zip(payload["phases"], (40, 369, 198)):
+            counters = row["control_counters"]
+            self.assertEqual(
+                counters["accepted_tick_count"],
+                counters["tick_count"] - misses,
+            )
+            self.assertEqual(counters["stop_count"], misses)
+            self.assertEqual(counters["exact_zero_rejection_count"], misses)
+            self.assertEqual(counters["deadline_rejection_count"], misses)
+            self.assertEqual(counters["deadline_zero_rejection_count"], misses)
+            self.assertEqual(counters["nonzero_rejection_count"], 0)
+            self.assertTrue(row["control_path_diagnostic_pass"])
+            self.assertFalse(row["control_hard_500hz"]["pass"])
+
+    def test_v4_rejects_nonzero_or_mismatched_deadline_projection(self) -> None:
+        payload = v4_summary()
+        payload["phases"][2]["control_counters"]["nonzero_rejection_count"] = 1
+        payload["phases"][2]["control_counters"]["accepted_tick_count"] += 1
+        rehash(payload)
+
+        blockers = validate_diagnostic(payload)
+
+        self.assertIn(
+            "phases[2].deadline_fail_closed_counters:mismatch",
+            blockers,
+        )
+
+    def test_v4_fail_closed_absorption_cannot_promote_timing_pass(self) -> None:
+        payload = v4_summary()
+        payload["diagnostic"]["offline_control_timing_pass"] = True
+        rehash(payload)
+
+        self.assertIn("diagnostic:projection_mismatch", validate_diagnostic(payload))
 
     def test_v1_pass_never_satisfies_current_control_timing(self) -> None:
         payload = summary(final_timing_pass=True)

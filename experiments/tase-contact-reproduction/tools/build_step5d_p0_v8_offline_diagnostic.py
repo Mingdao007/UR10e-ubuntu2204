@@ -19,9 +19,11 @@ STATE_SCHEMA = "step5d_p0_v8_offline_simulation_state_binding_v1"
 EVIDENCE_SCHEMA_V1 = "ur10e_simulation_evidence_v1"
 EVIDENCE_SCHEMA_V2 = "ur10e_simulation_evidence_v2"
 EVIDENCE_SCHEMA_V3 = "ur10e_simulation_evidence_v3"
+EVIDENCE_SCHEMA_V4 = "ur10e_simulation_evidence_v4"
 RUN_SCHEMA_V1 = "step5d_p0_v8_mujoco_run_v1"
 RUN_SCHEMA_V2 = "step5d_p0_v8_mujoco_run_v2"
 RUN_SCHEMA_V3 = "step5d_p0_v8_mujoco_run_v3"
+RUN_SCHEMA_V4 = "step5d_p0_v8_mujoco_run_v4"
 TIMING_SCOPE_VERSION_V2 = "p0_v8_timing_lane_split_v2"
 CONTROL_SCOPE_V2 = "simulator_state_ready_to_adapter_step_complete"
 SIMULATOR_SCOPE_V2 = (
@@ -44,12 +46,19 @@ PHASES_S = (2.0, 10.0, 60.0)
 SHA256_RE = re.compile(r"[0-9a-f]{64}")
 ZERO_COUNTERS = (
     "safe_hold_count",
-    "stop_count",
     "missed_sequence_count",
     "nonfinite_output_count",
     "qdot_bound_violation_count",
     "unexpected_contact_count",
     "cage_collision_count",
+)
+LEGACY_ZERO_COUNTERS = ("stop_count", *ZERO_COUNTERS)
+V4_DEADLINE_COUNTERS = (
+    "stop_count",
+    "exact_zero_rejection_count",
+    "deadline_rejection_count",
+    "deadline_zero_rejection_count",
+    "nonzero_rejection_count",
 )
 FALSE_CLAIMS = {
     "p0_sim_physics_pass": False,
@@ -128,6 +137,7 @@ def _timing_scope_classification(
     current_schema_pair = (
         (RUN_SCHEMA_V2, EVIDENCE_SCHEMA_V2),
         (RUN_SCHEMA_V3, EVIDENCE_SCHEMA_V3),
+        (RUN_SCHEMA_V4, EVIDENCE_SCHEMA_V4),
     )
     if not evidence_schemas or not any(
         run_schema == expected_run
@@ -187,8 +197,11 @@ def _timing_scope_classification(
             or simulator_timing.get("diagnostic_only") is not True
         ):
             failures.append(f"phases[{index}].simulator_cycle_binding:invalid")
-    if run_schema == RUN_SCHEMA_V3:
-        from verify_step5d_p0_v8_mujoco import expected_prewarm_contract
+    if run_schema in {RUN_SCHEMA_V3, RUN_SCHEMA_V4}:
+        from verify_step5d_p0_v8_mujoco import (
+            expected_deadline_command_contract,
+            expected_prewarm_contract,
+        )
 
         prewarm = manifest.get("production_path_prewarm")
         expected_prewarm_binding = {
@@ -227,6 +240,37 @@ def _timing_scope_classification(
                 }.items()
             ):
                 failures.append(f"phases[{index}].measured_trace_boundary:invalid")
+            if run_schema == RUN_SCHEMA_V4:
+                if runtime.get(
+                    "deadline_command_contract"
+                ) != expected_deadline_command_contract():
+                    failures.append(
+                        f"phases[{index}].deadline_command_contract:invalid"
+                    )
+                if not isinstance(control_contract, Mapping) or any(
+                    control_contract.get(field) != expected
+                    for field, expected in {
+                        "deadline_command_contract_version": (
+                            "pre_write_exact_zero_stop_v1"
+                        ),
+                        "deadline_classification_point": (
+                            "after_adapter_step_before_plant_write"
+                        ),
+                        "deadline_comparison": "control_elapsed_ms_gte_deadline",
+                        "deadline_ms": 2.0,
+                        "deadline_rejection_action": "stop",
+                        "deadline_rejection_reason": (
+                            "control_deadline_miss_ge_2ms"
+                        ),
+                        "deadline_rejection_qdot": [0.0] * 6,
+                        "deadline_rejection_cmd_valid": False,
+                        "deadline_rejection_stop_request": True,
+                        "deadline_rejection_may_satisfy_timing_gate": False,
+                    }.items()
+                ):
+                    failures.append(
+                        f"phases[{index}].deadline_control_contract:invalid"
+                    )
     gate = manifest.get("control_hard_500hz_gate")
     if not isinstance(gate, Mapping) or (
         gate.get("scope") != CONTROL_SCOPE_V2
@@ -301,7 +345,11 @@ def _phase_summary(
             for key in (
                 "tick_count",
                 "accepted_tick_count",
-                *ZERO_COUNTERS,
+                *LEGACY_ZERO_COUNTERS,
+                "exact_zero_rejection_count",
+                "deadline_rejection_count",
+                "deadline_zero_rejection_count",
+                "nonzero_rejection_count",
                 "max_qdot_abs_rad_s",
                 "control_deadline_miss_count",
                 "cycle_compute_deadline_miss_count",
@@ -333,6 +381,11 @@ def _phase_summary(
                 )
                 else None
             ),
+            "deadline_command_contract": (
+                dict(runtime["deadline_command_contract"])
+                if isinstance(runtime.get("deadline_command_contract"), Mapping)
+                else None
+            ),
             "measured_samples_excluded": control_contract.get(
                 "measured_samples_excluded"
             ),
@@ -341,6 +394,32 @@ def _phase_summary(
             ),
             "measured_sequence_restarts_at_zero": control_contract.get(
                 "measured_sequence_restarts_at_zero"
+            ),
+            "deadline_command_contract_version": control_contract.get(
+                "deadline_command_contract_version"
+            ),
+            "deadline_classification_point": control_contract.get(
+                "deadline_classification_point"
+            ),
+            "deadline_comparison": control_contract.get("deadline_comparison"),
+            "deadline_ms": control_contract.get("deadline_ms"),
+            "deadline_rejection_action": control_contract.get(
+                "deadline_rejection_action"
+            ),
+            "deadline_rejection_reason": control_contract.get(
+                "deadline_rejection_reason"
+            ),
+            "deadline_rejection_qdot": control_contract.get(
+                "deadline_rejection_qdot"
+            ),
+            "deadline_rejection_cmd_valid": control_contract.get(
+                "deadline_rejection_cmd_valid"
+            ),
+            "deadline_rejection_stop_request": control_contract.get(
+                "deadline_rejection_stop_request"
+            ),
+            "deadline_rejection_may_satisfy_timing_gate": control_contract.get(
+                "deadline_rejection_may_satisfy_timing_gate"
             ),
         },
         "control_hard_500hz": dict(control_hard),
@@ -594,6 +673,9 @@ def validate_diagnostic(payload: Mapping[str, object]) -> list[str]:
         ) or (
             run_schema == RUN_SCHEMA_V3
             and evidence_schemas == [EVIDENCE_SCHEMA_V3] * 3
+        ) or (
+            run_schema == RUN_SCHEMA_V4
+            and evidence_schemas == [EVIDENCE_SCHEMA_V4] * 3
         )
         if not valid_current_schema:
             failures.append("timing_evidence.current_schema_binding:invalid")
@@ -603,7 +685,7 @@ def validate_diagnostic(payload: Mapping[str, object]) -> list[str]:
     else:
         failures.append("timing_evidence.current_scope_binding:failed")
     projected_prewarm = timing_evidence.get("production_path_prewarm")
-    if run_schema == RUN_SCHEMA_V3:
+    if run_schema in {RUN_SCHEMA_V3, RUN_SCHEMA_V4}:
         if not isinstance(projected_prewarm, Mapping):
             failures.append("timing_evidence.production_path_prewarm:missing")
             projected_prewarm = {}
@@ -649,7 +731,9 @@ def validate_diagnostic(payload: Mapping[str, object]) -> list[str]:
         if row.get("sequence_index") != index:
             failures.append(f"phases[{index}].sequence_index:mismatch")
         expected_evidence_schema = (
-            EVIDENCE_SCHEMA_V3
+            EVIDENCE_SCHEMA_V4
+            if run_schema == RUN_SCHEMA_V4
+            else EVIDENCE_SCHEMA_V3
             if run_schema == RUN_SCHEMA_V3
             else EVIDENCE_SCHEMA_V2
             if timing_scope_status == CURRENT_TIMING_SCOPE_STATUS
@@ -657,7 +741,9 @@ def validate_diagnostic(payload: Mapping[str, object]) -> list[str]:
         )
         if row.get("evidence_schema") != expected_evidence_schema:
             failures.append(f"phases[{index}].evidence_schema:mismatch")
-        if run_schema == RUN_SCHEMA_V3 and row.get("prewarm_binding") != projected_prewarm:
+        if run_schema in {RUN_SCHEMA_V3, RUN_SCHEMA_V4} and row.get(
+            "prewarm_binding"
+        ) != projected_prewarm:
             failures.append(f"phases[{index}].prewarm_binding:mismatch")
         if row.get("structurally_valid") is not True or row.get("validation_blockers") != []:
             failures.append(f"phases[{index}].structural_validation:failed")
@@ -672,10 +758,37 @@ def validate_diagnostic(payload: Mapping[str, object]) -> list[str]:
         if not isinstance(counters, Mapping):
             failures.append(f"phases[{index}].control_counters:invalid")
         else:
-            if counters.get("tick_count") != expected_ticks or counters.get("accepted_tick_count") != expected_ticks:
-                failures.append(f"phases[{index}].accepted_ticks:mismatch")
-            if any(counters.get(field) != 0 for field in ZERO_COUNTERS):
-                failures.append(f"phases[{index}].control_counter:nonzero")
+            if counters.get("tick_count") != expected_ticks:
+                failures.append(f"phases[{index}].tick_count:mismatch")
+            if run_schema == RUN_SCHEMA_V4:
+                miss_count = _int(counters.get("control_deadline_miss_count"))
+                if miss_count is None or miss_count < 0 or miss_count > expected_ticks:
+                    failures.append(f"phases[{index}].deadline_count:invalid")
+                else:
+                    expected_deadline_counters = {
+                        "accepted_tick_count": expected_ticks - miss_count,
+                        "stop_count": miss_count,
+                        "exact_zero_rejection_count": miss_count,
+                        "deadline_rejection_count": miss_count,
+                        "deadline_zero_rejection_count": miss_count,
+                        "nonzero_rejection_count": 0,
+                    }
+                    if any(
+                        counters.get(field) != expected
+                        for field, expected in expected_deadline_counters.items()
+                    ):
+                        failures.append(
+                            f"phases[{index}].deadline_fail_closed_counters:mismatch"
+                        )
+                if any(counters.get(field) != 0 for field in ZERO_COUNTERS):
+                    failures.append(f"phases[{index}].control_counter:nonzero")
+            else:
+                if counters.get("accepted_tick_count") != expected_ticks:
+                    failures.append(f"phases[{index}].accepted_ticks:mismatch")
+                if any(
+                    counters.get(field) != 0 for field in LEGACY_ZERO_COUNTERS
+                ):
+                    failures.append(f"phases[{index}].control_counter:nonzero")
             max_qdot = _finite(counters.get("max_qdot_abs_rad_s"))
             if max_qdot is None or max_qdot > 0.05 + 1e-12:
                 failures.append(f"phases[{index}].max_qdot:invalid")
@@ -700,8 +813,11 @@ def validate_diagnostic(payload: Mapping[str, object]) -> list[str]:
                 or binding.get("trace_buffers_prefaulted") is not True
             ):
                 failures.append(f"phases[{index}].timing_scope_binding:invalid")
-            if run_schema == RUN_SCHEMA_V3:
-                from verify_step5d_p0_v8_mujoco import expected_prewarm_contract
+            if run_schema in {RUN_SCHEMA_V3, RUN_SCHEMA_V4}:
+                from verify_step5d_p0_v8_mujoco import (
+                    expected_deadline_command_contract,
+                    expected_prewarm_contract,
+                )
 
                 if not isinstance(binding, Mapping) or (
                     binding.get("production_path_prewarm_contract")
@@ -712,6 +828,29 @@ def validate_diagnostic(payload: Mapping[str, object]) -> list[str]:
                 ):
                     failures.append(
                         f"phases[{index}].prewarm_trace_boundary:invalid"
+                    )
+                if run_schema == RUN_SCHEMA_V4 and (
+                    not isinstance(binding, Mapping)
+                    or binding.get("deadline_command_contract")
+                    != expected_deadline_command_contract()
+                    or binding.get("deadline_command_contract_version")
+                    != "pre_write_exact_zero_stop_v1"
+                    or binding.get("deadline_classification_point")
+                    != "after_adapter_step_before_plant_write"
+                    or binding.get("deadline_comparison")
+                    != "control_elapsed_ms_gte_deadline"
+                    or binding.get("deadline_ms") != 2.0
+                    or binding.get("deadline_rejection_action") != "stop"
+                    or binding.get("deadline_rejection_reason")
+                    != "control_deadline_miss_ge_2ms"
+                    or binding.get("deadline_rejection_qdot") != [0.0] * 6
+                    or binding.get("deadline_rejection_cmd_valid") is not False
+                    or binding.get("deadline_rejection_stop_request") is not True
+                    or binding.get("deadline_rejection_may_satisfy_timing_gate")
+                    is not False
+                ):
+                    failures.append(
+                        f"phases[{index}].deadline_trace_boundary:invalid"
                     )
             control_timing = row.get("control_hard_500hz")
             if not isinstance(control_timing, Mapping):

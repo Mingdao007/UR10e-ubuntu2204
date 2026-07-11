@@ -67,47 +67,42 @@ diagnostics, not discarded outliers and not members of the 10,000-sample
 steady solver distribution to which the 2 ms solver gate applies. A hard
 500 Hz claim still independently requires zero full-tick deadline misses; the
 500 Hz full-tick and safe-hold loops keep their original pacing unchanged.
-The required raw timing schema is now `step5d_v30_remote_timing_raw_v2`;
-pre-v2 formal candidates cannot satisfy the current aggregator binding.
+The required raw timing schema is now `step5d_v30_remote_timing_raw_v3`.
+It retains indexed elapsed-time arrays for all 10,000 solver, 30,000 full-tick,
+and 30,000 safe-hold samples; the independent validator recomputes every
+distribution and miss count. Pre-v3 compact formal candidates cannot satisfy
+the current aggregator binding.
 
 The current formal artifact is
-`config/step5d_v30_rnn512_3335153_cpu11_13_14_15_formal_timing_raw.json`
-(SHA-256 `bdc3d7008a0a1d7ac009044c0678590f747c9f7ee227908d994a1366f99d8637`).
-The 10,000-solve p99/max were `0.276/0.607 ms`; the 60 s full-tick p99/max
-were `1.271/1.825 ms`; and the independent 60 s safe-hold p99/max were
-`1.225/1.774 ms`. All three compute-miss counts and both paced schedule-miss
+`config/step5d_v30_rnn512_8b33661_formal_timing_raw.json`
+(SHA-256 `7ce4728225ad4cbccea5cbe1afd86db6604c5c0c5860bd653fc8f171aeb23371`).
+The 10,000-solve p99/max were `0.275/0.531 ms`; the 60 s full-tick p99/max
+were `1.252/1.828 ms`; and the independent 60 s safe-hold p99/max were
+`1.203/1.680 ms`. All three compute-miss counts and both paced schedule-miss
 counts were zero. This closes only the v30 offline host timing gate: it does
 not pass P0 controller canaries, freeze controller readback, authorize a
 bridge, or establish a live/contact claim.
 
-The latest source-bound MuJoCo offline diagnostic completed all three simulated
-`2 -> 10 -> 60 s` phases through the shared production control path. Every
-nominal tick was accepted and all required injected faults produced exact-zero
-commands. The cold 2 s phase retained 25 hard-control misses, while the 10 s
-and final continuous 60 s phases had zero; final 60 s hard-control timing was
-p99 `1.265 ms`, max `1.433 ms`. MuJoCo oracle/physics/release timing remains a
-separate diagnostic lane and did not meet 500 Hz, so no simulator-physics or
-controller-timing claim is made. The offline state is
-`bound_diagnostic_complete`, but the separate controller canary list remains
-empty, P0 is not passed, evidence is not frozen, and Review v2 `1+1` is still
-`not_due`. The prior combined-scope v1 artifact is hash-bound as
-`historical_superseded_measurement_scope` and cannot satisfy this gate.
-
-The current P0 MuJoCo diagnostic uses the v3 evidence contract. Before the measured
+The current source-bound P0 MuJoCo diagnostic uses the v4 evidence contract.
+Before the measured
 `2 -> 10 -> 60 s` sequence it must complete exactly 1,000 source-bound,
 unmeasured, no-output production-path execute ticks paced at 500 Hz. The lane
 still crosses `SafetyEnvelope`, DLS-shadow, layout-524 `RegisterCommand`, and
 `SimulationCommand`, but never calls the plant command sink. Actual release
 intervals and burst count are retained; solver, control-adapter, and simulator
 state are then reset before measured sequence zero. Prewarm samples cannot be
-discarded measured samples or satisfy a timing/P0 claim. The v2 cold artifact
-and its 25 misses remain byte-immutable historical diagnostic evidence.
-The isolated v3 run completed with a valid prewarm and a final continuous
-60-second control lane at p99 0.684 ms, max 0.794 ms, and zero 2 ms deadline
-misses. The shorter 2/10-second phases retained their 74/23 cold or clock-ramp
-misses instead of hiding them; only the final 60-second lane satisfies the
-current hard timing gate. An earlier v3 attempt overlapped a headless Gazebo
-process and is retained as rejected contention evidence. Geometry remains
+discarded measured samples or satisfy a timing/P0 claim.
+
+For v4, every measured control duration at or beyond 2 ms is classified before
+the command sink and replaced by exact-zero qdot plus `stop_request=1`. The
+original candidate, full timing sample, and miss remain in the trace. In the
+latest isolated run the 2/10/60-second phases retained `40/369/198` misses;
+every one became an exact-zero stop and the nonzero-rejection count was zero.
+The final 60-second p99 was `0.799 ms`, but its max was `5.408 ms`, so the
+fail-closed control-path diagnostic passes while the hard timing gate remains
+failed. The canonical offline state is therefore `bound_timing_blocked`, not a
+P0 pass. The earlier v3 zero-miss 60-second result remains historical evidence
+for its older fingerprint and cannot satisfy the v4 gate. Geometry remains
 provisional, controller canaries have not run, and no simulator result can set
 P0 live passed or promote v30.
 
@@ -296,7 +291,7 @@ instead of preserving the later 22 s TP v3 timing.
 | `step5d_strict_rnn_ablation_v27` | bridge+TP | true | true | Step5b speedl live / Step5d paper+RNN shadow | `v31_filtered_live` | Retained successful 10 s fix-validation evidence from `runs/bridge_step5d_strict_rnn_ablation_v27_20260706_045513`; not current and not a 60 s reproduction claim. The earlier 040900 force overshoot remains retained failure evidence for the old paper-linear-live path. |
 | `step5d_strict_rnn_ablation_v28` | bridge+TP | true | true | Step5b speedl live / Step5d paper+RNN shadow | `v31_filtered_live` | Retained read-back verified diagnostic package, superseded by v29; not a completed reproduction claim. |
 | `step5d_strict_rnn_ablation_v29` | frozen fallback | true | false | strict TASE RNN speedj | `v31_filtered_live` | Current pointer is retained only because it is the last read-back-verified package. A future reactivation requires fresh readback/timing fingerprint, Review v2 `2+1`, and explicit live/contact authorization. |
-| `step5d_strict_rnn_no_contact_p0_v8` | offline P0 gate | false | false | v30 strict-RNN contract | none | Inactive layout-524-only package. The source-bound MuJoCo v2 diagnostic passed the final 60 s hard-control lane with zero misses; the slower simulator cycle is diagnostic-only and cannot promote P0. After readback and one fingerprint-bound Review v2 `1+1`, separate controller canaries may run under explicit no-contact authorization; only the final continuous 60 s controller verifier artifact passes P0. |
+| `step5d_strict_rnn_no_contact_p0_v8` | offline P0 gate | false | false | v30 strict-RNN contract | none | Inactive layout-524-only package. The current MuJoCo v4 diagnostic proves every late tick is converted to exact-zero stop before the sink, but the final 60 s retained 198 misses and remains `bound_timing_blocked`; the slower simulator cycle is diagnostic-only and cannot promote P0. After a future passing offline window, readback, and one fingerprint-bound Review v2 `1+1`, separate controller canaries may run under explicit no-contact authorization; only the final continuous 60 s controller verifier artifact passes P0. |
 | `step5d_strict_rnn_ablation_v30` | offline contact-control prep | true | false | strict TASE RNN speedj; DLS shadow-only | `v31_filtered_live` | Inactive candidate. Source-bound RNN512 10k/60s/60s hard timing now passes with zero misses. Current promotion still requires live-runtime prewarm integration, P0 v8 controller canaries, frozen package/readback, and current-fingerprint Review v2 `2+1`; contact still requires separate authorization. |
 | `step5d_ros2_remote_shadow_v1` | ROS2 offline | true | false | ROS2 shadow replay | `v31_filtered_live` input logs | Diagnostic-only Step5d policy replay: replays v15a/v14/v11 and Step5b/Step6b CSVs, removes long zero-qdot hold recovery, but is not live-ready and must follow Step5b plumbing validation. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |
