@@ -3,8 +3,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import inspect
+import io
 import json
 import subprocess
 import sys
@@ -37,6 +39,54 @@ from step5d_v30_timing import (  # noqa: E402
 
 
 class Step5dV30TimingTest(unittest.TestCase):
+    def test_inner_iteration_override_is_explicitly_diagnostic_and_bound(self) -> None:
+        canonical = remote_timing.build_profile_selection(None)
+        explicit_canonical = remote_timing.build_profile_selection(128)
+        candidate = remote_timing.build_profile_selection(256)
+
+        self.assertTrue(canonical["acceptance_profile_eligible"])
+        self.assertFalse(canonical["diagnostic_override_requested"])
+        self.assertEqual(canonical["effective_profile"], remote_timing.PROFILE)
+        self.assertFalse(explicit_canonical["acceptance_profile_eligible"])
+        self.assertTrue(explicit_canonical["diagnostic_override_requested"])
+        self.assertEqual(
+            explicit_canonical["effective_profile_sha256"],
+            canonical["effective_profile_sha256"],
+        )
+        self.assertNotEqual(
+            explicit_canonical["selection_sha256"],
+            canonical["selection_sha256"],
+        )
+        self.assertEqual(candidate["effective_profile"]["inner_iterations"], 256)
+        self.assertEqual(candidate["effective_profile"]["epsilon"], 0.010)
+        self.assertEqual(candidate["effective_profile"]["sigr_exponent_r"], 0.8)
+        self.assertEqual(candidate["effective_profile"]["qdot_cap_rad_s"], 0.05)
+        self.assertEqual(candidate["effective_profile"]["backend"], "cupy")
+        self.assertFalse(
+            candidate["fixed_contract"]["dls_runtime_fallback_allowed"]
+        )
+
+    def test_inner_iteration_cli_allows_only_the_bounded_sweep(self) -> None:
+        parser = remote_timing.build_argument_parser()
+        for iterations in (128, 256, 512):
+            args = parser.parse_args(
+                ["--replay-csv", "trace.csv", "--inner-iterations", str(iterations)]
+            )
+            self.assertEqual(args.inner_iterations, iterations)
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            parser.parse_args(
+                ["--replay-csv", "trace.csv", "--inner-iterations", "1024"]
+            )
+
+    def test_solver_effective_profile_mismatch_fails_closed(self) -> None:
+        effective = dict(remote_timing.PROFILE)
+        effective["inner_iterations"] = 512
+        with self.assertRaisesRegex(ValueError, "solver-effective"):
+            remote_timing.build_profile_selection(
+                256,
+                effective_profile=effective,
+            )
+
     def test_synthetic_raw_arrays_are_diagnostic_without_provenance(self) -> None:
         summary = summarize_timing(
             solver_ms=[1.2] * 9_999 + [1.7],
@@ -158,6 +208,8 @@ class Step5dV30TimingTest(unittest.TestCase):
         numeric[:, field["accepted"]] = 1.0
         numeric[:, field["reference_ramp_scale"]] = (0.25, 1.0)
         numeric[:, field["reference_ramp_active"]] = (1.0, 0.0)
+        numeric[:, field["desired_approach_m_s"]] = 0.001
+        numeric[:, field["predicted_approach_m_s"]] = (-0.0001, 0.0009)
         numeric[0, field["raw_desired_twist_0"]] = 1.0
         numeric[0, field["governed_desired_twist_0"]] = 0.25
         numeric[1, field["raw_desired_twist_0"]] = 1.0
@@ -180,6 +232,9 @@ class Step5dV30TimingTest(unittest.TestCase):
             summary["raw_to_governed_twist_error_norm"]["max"],
             0.75,
         )
+        self.assertEqual(summary["normal_sign_mismatch"]["total_count"], 1)
+        self.assertTrue(summary["normal_sign_mismatch"]["first_tick"])
+        self.assertEqual(summary["normal_sign_mismatch"]["first_index"], 0)
 
     def test_cupy_staging_is_fixed_and_page_locked(self) -> None:
         source = inspect.getsource(strict_rnn.StrictTaseRnnSolver._init_cupy_backend)
@@ -322,11 +377,18 @@ class Step5dV30TimingTest(unittest.TestCase):
             "paced_500hz": True,
             "runtime_environment": {
                 "nice": 0,
-                "scheduler_policy": 0,
+                "scheduler_policy": 1,
+                "scheduler_priority": 20,
+                "scheduler_limits": {"rtprio": [99, 99]},
                 "cpu_affinity": [0, 1],
                 "python_executable": "/usr/bin/python3",
                 "python_version": "3.10.12",
                 "pythonpath": "/tmp/step5d_gpu_np124",
+                "cuda": {
+                    "runtime_version": 12090,
+                    "driver_version": 13020,
+                    "nvrtc_version": [12, 9],
+                },
                 "versions": {
                     "numpy": "1.24.4",
                     "cupy": "13.6.0",
@@ -372,6 +434,10 @@ class Step5dV30TimingTest(unittest.TestCase):
             "safe_hold_deferred_diagnostics": {"count": 30000, "overflowed": False},
             "safety_boundary": ["no bridge start"],
         }
+        payload["profile_selection"] = remote_timing.build_profile_selection(None)
+        payload["profile_sha256"] = payload["profile_selection"][
+            "effective_profile_sha256"
+        ]
 
         result = summarize_preaggregated(
             payload,
@@ -383,6 +449,53 @@ class Step5dV30TimingTest(unittest.TestCase):
         self.assertTrue(result["overall_pass"])
         self.assertEqual(result["solver"]["samples"], 10000)
         self.assertEqual(result["full_tick"]["deadline_miss_count"], 0)
+        self.assertEqual(
+            result["runtime_scheduling_classification"],
+            "production_sched_fifo_priority_20",
+        )
+
+        wrong_scheduler = json.loads(json.dumps(payload))
+        wrong_scheduler["runtime_environment"].update(
+            {"nice": 19, "scheduler_policy": 2, "scheduler_priority": 1}
+        )
+        wrong_scheduler_result = summarize_preaggregated(
+            wrong_scheduler,
+            expected_source_binding={
+                field: "1" * 64 for field in SOURCE_BINDING_FILES
+            },
+            expected_replay_sha256="2" * 64,
+            expected_paper_truth_sha256="2" * 64,
+        )
+        self.assertIn(
+            "runtime_timing_process_priority_degraded",
+            wrong_scheduler_result["blockers"],
+        )
+
+        diagnostic_128 = json.loads(json.dumps(payload))
+        diagnostic_128["profile_selection"] = (
+            remote_timing.build_profile_selection(128)
+        )
+        diagnostic_128["profile_sha256"] = diagnostic_128[
+            "profile_selection"
+        ]["effective_profile_sha256"]
+        diagnostic_result = summarize_preaggregated(
+            diagnostic_128,
+            expected_source_binding={
+                field: "1" * 64 for field in SOURCE_BINDING_FILES
+            },
+            expected_replay_sha256="2" * 64,
+            expected_paper_truth_sha256="2" * 64,
+        )
+        self.assertFalse(diagnostic_result["overall_pass"])
+        self.assertIn(
+            "remote_timing_diagnostic_profile_override",
+            diagnostic_result["blockers"],
+        )
+        self.assertFalse(
+            diagnostic_result["deadline_robustness"][
+                "timing_degraded_candidate"
+            ]
+        )
 
         no_execute = json.loads(json.dumps(payload))
         no_execute["full_tick_reason_counts"] = {
@@ -536,11 +649,18 @@ class Step5dV30TimingTest(unittest.TestCase):
             "paced_500hz": True,
             "runtime_environment": {
                 "nice": 0,
-                "scheduler_policy": 0,
+                "scheduler_policy": 1,
+                "scheduler_priority": 20,
+                "scheduler_limits": {"rtprio": [99, 99]},
                 "cpu_affinity": [0, 1],
                 "python_executable": "/usr/bin/python3",
                 "python_version": "3.10.12",
                 "pythonpath": "/tmp/step5d_gpu_np124",
+                "cuda": {
+                    "runtime_version": 12090,
+                    "driver_version": 13020,
+                    "nvrtc_version": [12, 9],
+                },
                 "versions": {
                     "numpy": "1.24.4",
                     "cupy": "13.6.0",
@@ -612,11 +732,18 @@ class Step5dV30TimingTest(unittest.TestCase):
             "paced_500hz": True,
             "runtime_environment": {
                 "nice": 0,
-                "scheduler_policy": 0,
+                "scheduler_policy": 1,
+                "scheduler_priority": 20,
+                "scheduler_limits": {"rtprio": [99, 99]},
                 "cpu_affinity": [0, 1],
                 "python_executable": "/usr/bin/python3",
                 "python_version": "3.10.12",
                 "pythonpath": "/tmp/step5d_gpu_np124",
+                "cuda": {
+                    "runtime_version": 12090,
+                    "driver_version": 13020,
+                    "nvrtc_version": [12, 9],
+                },
                 "versions": {
                     "numpy": "1.24.4",
                     "cupy": "13.6.0",

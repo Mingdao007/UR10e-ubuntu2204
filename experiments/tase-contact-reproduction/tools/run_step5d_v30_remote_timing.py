@@ -15,9 +15,11 @@ import argparse
 import csv
 import gc
 import hashlib
+import importlib.metadata
 import json
 import math
 import os
+import resource
 import sys
 import time
 from dataclasses import dataclass
@@ -35,6 +37,7 @@ PROFILE = {
     "qdot_cap_rad_s": 0.05,
     "control_hz": 500.0,
 }
+DIAGNOSTIC_INNER_ITERATION_CHOICES = (128, 256, 512)
 DEADLINE_MS = 2.0
 DEADLINE_EVENT_CAPACITY = 64
 THREAD_ENV_NAMES = (
@@ -60,6 +63,105 @@ class PreparedReplayRow:
     desired_y_m: float
     desired_vx_m_s: float
     desired_vy_m_s: float
+
+
+def profile_sha256(profile: Mapping[str, Any]) -> str:
+    """Fingerprint one exact runtime profile without path or host metadata."""
+
+    encoded = json.dumps(
+        dict(profile),
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def build_profile_selection(
+    requested_inner_iterations: int | None,
+    *,
+    effective_profile: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Bind canonical, requested, and solver-effective profiles distinctly.
+
+    Passing ``--inner-iterations`` is always a diagnostic sweep request, even
+    when the requested value is the canonical 128.  This prevents an explicit
+    sweep run from being reused as formal readiness evidence by filename or by
+    an otherwise identical effective profile.
+    """
+
+    if (
+        requested_inner_iterations is not None
+        and int(requested_inner_iterations)
+        not in DIAGNOSTIC_INNER_ITERATION_CHOICES
+    ):
+        choices = ", ".join(str(value) for value in DIAGNOSTIC_INNER_ITERATION_CHOICES)
+        raise ValueError(f"inner_iterations diagnostic override must be one of: {choices}")
+    canonical_profile = dict(PROFILE)
+    requested_profile = dict(canonical_profile)
+    if requested_inner_iterations is not None:
+        requested_profile["inner_iterations"] = int(requested_inner_iterations)
+    effective = (
+        dict(requested_profile)
+        if effective_profile is None
+        else dict(effective_profile)
+    )
+    if effective != requested_profile:
+        raise ValueError(
+            "solver-effective runtime profile does not match the requested profile"
+        )
+    diagnostic_override = requested_inner_iterations is not None
+    selection: dict[str, Any] = {
+        "schema_version": "step5d_v30_timing_profile_selection_v1",
+        "mode": (
+            "diagnostic_inner_iterations_sweep"
+            if diagnostic_override
+            else "canonical_formal_candidate"
+        ),
+        "diagnostic_override_requested": diagnostic_override,
+        "acceptance_profile_eligible": not diagnostic_override,
+        "canonical_profile": canonical_profile,
+        "canonical_profile_sha256": profile_sha256(canonical_profile),
+        "requested_profile": requested_profile,
+        "requested_profile_sha256": profile_sha256(requested_profile),
+        "effective_profile": effective,
+        "effective_profile_sha256": profile_sha256(effective),
+        "fixed_contract": {
+            "backend": "cupy",
+            "epsilon": 0.010,
+            "sigr_exponent_r": 0.8,
+            "qdot_cap_rad_s": 0.05,
+            "control_hz": 500.0,
+            "safety_gates_unchanged": True,
+            "dls_runtime_fallback_allowed": False,
+        },
+    }
+    selection["selection_sha256"] = profile_sha256(selection)
+    return selection
+
+
+def build_argument_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--experiment-root", type=Path, default=Path.cwd())
+    parser.add_argument("--replay-csv", type=Path, required=True)
+    parser.add_argument("--solver-samples", type=int, default=10_000)
+    parser.add_argument("--tick-samples", type=int, default=30_000)
+    parser.add_argument("--safe-hold-samples", type=int, default=30_000)
+    parser.add_argument("--component-diagnostic-samples", type=int, default=0)
+    parser.add_argument("--component-outlier-threshold-ms", type=float, default=2.0)
+    parser.add_argument("--component-outlier-ring-size", type=int, default=32)
+    parser.add_argument("--pace-500hz", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--include-raw-samples", action="store_true")
+    parser.add_argument(
+        "--inner-iterations",
+        type=int,
+        choices=DIAGNOSTIC_INNER_ITERATION_CHOICES,
+        default=None,
+        help=(
+            "diagnostic-only strict-RNN override; any explicit value marks "
+            "the artifact ineligible for formal readiness"
+        ),
+    )
+    return parser
 
 
 def finite(row: Mapping[str, str], key: str) -> float:
@@ -214,16 +316,71 @@ def runtime_environment() -> dict[str, Any]:
     except (AttributeError, OSError):
         scheduler_policy = None
     try:
+        scheduler_priority: int | None = int(os.sched_getparam(0).sched_priority)
+    except (AttributeError, OSError):
+        scheduler_priority = None
+    try:
         nice_value: int | None = int(os.getpriority(os.PRIO_PROCESS, 0))
     except (AttributeError, OSError):
         nice_value = None
+    cupy_module = sys.modules.get("cupy")
+    try:
+        cuda_runtime_version: int | None = int(
+            cupy_module.cuda.runtime.runtimeGetVersion()
+        )
+        cuda_driver_version: int | None = int(
+            cupy_module.cuda.runtime.driverGetVersion()
+        )
+    except (AttributeError, RuntimeError):
+        cuda_runtime_version = None
+        cuda_driver_version = None
+    try:
+        from cupy_backends.cuda.libs import nvrtc
+
+        nvrtc_version: list[int] | None = [int(value) for value in nvrtc.getVersion()]
+    except (ImportError, RuntimeError):
+        nvrtc_version = None
+
+    def package_version(name: str) -> str | None:
+        try:
+            return importlib.metadata.version(name)
+        except importlib.metadata.PackageNotFoundError:
+            return None
+
+    def rlimit(name: str) -> list[int] | None:
+        identifier = getattr(resource, name, None)
+        if identifier is None:
+            return None
+        soft, hard = resource.getrlimit(identifier)
+        return [int(soft), int(hard)]
+
     return {
         "nice": nice_value,
         "scheduler_policy": scheduler_policy,
+        "scheduler_policy_name": {
+            getattr(os, "SCHED_OTHER", 0): "SCHED_OTHER",
+            getattr(os, "SCHED_FIFO", 1): "SCHED_FIFO",
+            getattr(os, "SCHED_RR", 2): "SCHED_RR",
+        }.get(scheduler_policy, "unknown"),
+        "scheduler_priority": scheduler_priority,
+        "scheduler_limits": {
+            "rtprio": rlimit("RLIMIT_RTPRIO"),
+            "rttime_us": rlimit("RLIMIT_RTTIME"),
+            "memlock_bytes": rlimit("RLIMIT_MEMLOCK"),
+        },
         "cpu_affinity": affinity,
         "python_executable": sys.executable,
         "python_version": sys.version.split()[0],
         "pythonpath": os.environ.get("PYTHONPATH"),
+        "ld_library_path": os.environ.get("LD_LIBRARY_PATH"),
+        "cuda": {
+            "runtime_version": cuda_runtime_version,
+            "driver_version": cuda_driver_version,
+            "nvrtc_version": nvrtc_version,
+            "runtime_package": package_version("nvidia-cuda-runtime-cu12"),
+            "nvrtc_package": package_version("nvidia-cuda-nvrtc-cu12"),
+            "nvjitlink_package": package_version("nvidia-nvjitlink-cu12"),
+        },
         "versions": {
             name: str(getattr(sys.modules.get(name), "__version__", "unavailable"))
             for name in ("numpy", "cupy", "pinocchio")
@@ -256,6 +413,13 @@ def deferred_control_summary(
         raw_desired - governed_desired,
         axis=1,
     )
+    desired_approach = values[:, field["desired_approach_m_s"]]
+    predicted_approach = values[:, field["predicted_approach_m_s"]]
+    normal_sign_mismatch = np.logical_and(
+        desired_approach > 0.0,
+        predicted_approach <= 0.0,
+    )
+    mismatch_indices = np.flatnonzero(normal_sign_mismatch)
     execute_count = sum(
         action == "execute" for action in buffer.actions[: buffer.count]
     )
@@ -282,6 +446,19 @@ def deferred_control_summary(
         "raw_to_governed_twist_error_norm": value_distribution(
             raw_to_governed_error
         ),
+        "normal_sign_mismatch": {
+            "total_count": int(mismatch_indices.size),
+            "first_tick": bool(normal_sign_mismatch[0]) if buffer.count else False,
+            "first_10_ticks_count": int(
+                np.count_nonzero(normal_sign_mismatch[:10])
+            ),
+            "first_50_ticks_count": int(
+                np.count_nonzero(normal_sign_mismatch[:50])
+            ),
+            "first_index": (
+                int(mismatch_indices[0]) if mismatch_indices.size else None
+            ),
+        },
         "residual_norm": value_distribution(
             values[:, field["residual_norm"]]
         ),
@@ -295,17 +472,7 @@ def deferred_control_summary(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--experiment-root", type=Path, default=Path.cwd())
-    parser.add_argument("--replay-csv", type=Path, required=True)
-    parser.add_argument("--solver-samples", type=int, default=10_000)
-    parser.add_argument("--tick-samples", type=int, default=30_000)
-    parser.add_argument("--safe-hold-samples", type=int, default=30_000)
-    parser.add_argument("--component-diagnostic-samples", type=int, default=0)
-    parser.add_argument("--component-outlier-threshold-ms", type=float, default=2.0)
-    parser.add_argument("--component-outlier-ring-size", type=int, default=32)
-    parser.add_argument("--pace-500hz", action=argparse.BooleanOptionalAction, default=True)
-    parser.add_argument("--include-raw-samples", action="store_true")
+    parser = build_argument_parser()
     args = parser.parse_args()
     if args.solver_samples < 1 or args.tick_samples < 1 or args.safe_hold_samples < 1:
         raise SystemExit("solver/tick/safe-hold sample counts must be positive")
@@ -313,6 +480,9 @@ def main() -> int:
         raise SystemExit("component diagnostic sample count must be non-negative")
     if args.component_outlier_threshold_ms <= 0.0 or args.component_outlier_ring_size < 1:
         raise SystemExit("component outlier threshold/ring size must be positive")
+    requested_profile = build_profile_selection(
+        args.inner_iterations
+    )["requested_profile"]
 
     root = args.experiment_root.resolve()
     tools_dir = root / "tools"
@@ -422,12 +592,24 @@ def main() -> int:
     solver = StrictTaseRnnSolver(
         StrictRnnConfig(
             paper_truth_path=root / "config" / "step5d_liveprep_solver_gate.json",
-            qdot_limit_rad_s=PROFILE["qdot_cap_rad_s"],
-            epsilon=PROFILE["epsilon"],
-            sigr_exponent_r=PROFILE["sigr_exponent_r"],
-            inner_iterations=PROFILE["inner_iterations"],
-            backend=PROFILE["backend"],
+            qdot_limit_rad_s=requested_profile["qdot_cap_rad_s"],
+            epsilon=requested_profile["epsilon"],
+            sigr_exponent_r=requested_profile["sigr_exponent_r"],
+            inner_iterations=requested_profile["inner_iterations"],
+            backend=requested_profile["backend"],
         )
+    )
+    effective_profile = {
+        "backend": solver.config.backend,
+        "inner_iterations": int(solver.config.inner_iterations),
+        "epsilon": float(solver.config.epsilon),
+        "sigr_exponent_r": float(solver.config.sigr_exponent_r),
+        "qdot_cap_rad_s": float(solver.config.qdot_limit_rad_s),
+        "control_hz": float(requested_profile["control_hz"]),
+    }
+    profile_selection = build_profile_selection(
+        args.inner_iterations,
+        effective_profile=effective_profile,
     )
     if not solver.cupy_host_staging_pinned:
         raise RuntimeError("v30 timing requires page-locked CuPy host staging")
@@ -481,7 +663,7 @@ def main() -> int:
             model_bundle.model.lowerPositionLimit,
             model_bundle.model.upperPositionLimit,
             alpha_s_inv=1.0,
-            qdot_limit_rad_s=PROFILE["qdot_cap_rad_s"],
+            qdot_limit_rad_s=effective_profile["qdot_cap_rad_s"],
         )
         limited, _ = limit_step5d_live_xdot(
             np.asarray(outer.xdot_c, dtype=float),
@@ -491,7 +673,7 @@ def main() -> int:
         feasible, _ = scale_step5d_xdot_for_joint_feasibility(
             limited,
             jacobian,
-            qdot_cap_rad_s=PROFILE["qdot_cap_rad_s"],
+            qdot_cap_rad_s=effective_profile["qdot_cap_rad_s"],
             safety=0.9,
         )
         target = rnn_target_state_from_outer_loop(
@@ -500,8 +682,8 @@ def main() -> int:
             omega_minus=lower,
             omega_plus=upper,
             dt_s=0.002,
-            epsilon=PROFILE["epsilon"],
-            r=PROFILE["sigr_exponent_r"],
+            epsilon=effective_profile["epsilon"],
+            r=effective_profile["sigr_exponent_r"],
         )
         target["xdot_c"] = feasible
         return outer, q, qd, jacobian, row.reaction, target
@@ -607,7 +789,7 @@ def main() -> int:
     component_outlier_total = 0
     policy = StrictRnnControlPolicy(solver)
     safety_envelope = SafetyEnvelope(
-        qdot_cap_rad_s=PROFILE["qdot_cap_rad_s"],
+        qdot_cap_rad_s=effective_profile["qdot_cap_rad_s"],
         max_normal_tracking_error_m_s=5e-4,
         max_residual_norm=1e-3,
     )
@@ -658,7 +840,7 @@ def main() -> int:
         full_tick_schedule_max_lateness_ms = 0.0
         full_tick_reason_counts: dict[str, int] = {}
         schedule_start = time.perf_counter()
-        period_s = 1.0 / PROFILE["control_hz"]
+        period_s = 1.0 / effective_profile["control_hz"]
         for index in range(args.tick_samples):
             release = schedule_start + index * period_s
             if args.pace_500hz and index:
@@ -883,7 +1065,9 @@ def main() -> int:
 
     payload: dict[str, Any] = {
         "schema_version": "step5d_v30_remote_timing_raw_v1",
-        "profile": PROFILE,
+        "profile": effective_profile,
+        "profile_sha256": profile_selection["effective_profile_sha256"],
+        "profile_selection": profile_selection,
         "runtime_environment": runtime_environment(),
         "source_binding": source_binding,
         "artifact_binding": artifact_binding,
@@ -962,8 +1146,8 @@ def main() -> int:
         "paced_500hz": bool(args.pace_500hz),
         "pacing_provenance": {
             "clock": "time.perf_counter",
-            "control_hz": PROFILE["control_hz"],
-            "period_s": 1.0 / PROFILE["control_hz"],
+            "control_hz": effective_profile["control_hz"],
+            "period_s": 1.0 / effective_profile["control_hz"],
             "full_tick_release_policy": "absolute",
             "safe_hold_release_policy": "independent_absolute",
         },

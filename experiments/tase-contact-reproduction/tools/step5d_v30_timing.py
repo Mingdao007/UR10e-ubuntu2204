@@ -230,6 +230,54 @@ def summarize_preaggregated(
         blockers.append("remote_timing_schema_mismatch")
     if payload.get("profile") != expected_profile:
         blockers.append("remote_runtime_profile_mismatch")
+    profile_selection = payload.get("profile_selection")
+    if not isinstance(profile_selection, dict):
+        profile_selection = {}
+        blockers.append("remote_timing_profile_selection_missing")
+    else:
+        selection_without_sha = dict(profile_selection)
+        selection_sha = selection_without_sha.pop("selection_sha256", None)
+        computed_selection_sha = hashlib.sha256(
+            json.dumps(
+                selection_without_sha,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        effective_profile_sha = hashlib.sha256(
+            json.dumps(
+                payload.get("profile"),
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        if (
+            profile_selection.get("schema_version")
+            != "step5d_v30_timing_profile_selection_v1"
+            or profile_selection.get("canonical_profile") != expected_profile
+            or profile_selection.get("canonical_profile_sha256")
+            != hashlib.sha256(
+                json.dumps(
+                    expected_profile,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest()
+            or profile_selection.get("requested_profile") != payload.get("profile")
+            or profile_selection.get("requested_profile_sha256")
+            != effective_profile_sha
+            or profile_selection.get("effective_profile") != payload.get("profile")
+            or profile_selection.get("effective_profile_sha256")
+            != effective_profile_sha
+            or payload.get("profile_sha256") != effective_profile_sha
+            or selection_sha != computed_selection_sha
+        ):
+            blockers.append("remote_timing_profile_selection_binding_invalid")
+        if (
+            profile_selection.get("diagnostic_override_requested") is True
+            or profile_selection.get("acceptance_profile_eligible") is not True
+        ):
+            blockers.append("remote_timing_diagnostic_profile_override")
     if payload.get("precompile_outside_control_loop") is not True:
         blockers.append("cupy_precompile_not_proven_outside_loop")
     if payload.get("cupy_host_staging_pinned") is not True:
@@ -351,8 +399,33 @@ def summarize_preaggregated(
         runtime_environment = {}
         blockers.append("runtime_timing_environment_missing")
     nice_value = runtime_environment.get("nice")
-    if not isinstance(nice_value, int) or nice_value > 0:
+    scheduler_policy = runtime_environment.get("scheduler_policy")
+    scheduler_priority = runtime_environment.get("scheduler_priority")
+    production_fifo_priority_proven = bool(
+        scheduler_policy == 1
+        and scheduler_priority == 20
+    )
+    if not production_fifo_priority_proven:
         blockers.append("runtime_timing_process_priority_degraded")
+    scheduler_limits = runtime_environment.get("scheduler_limits")
+    rtprio_limits = (
+        scheduler_limits.get("rtprio")
+        if isinstance(scheduler_limits, dict)
+        else None
+    )
+    if not (
+        isinstance(rtprio_limits, list)
+        and len(rtprio_limits) == 2
+        and all(isinstance(value, int) for value in rtprio_limits)
+        and min(rtprio_limits) >= 20
+    ):
+        blockers.append("runtime_realtime_limits_unbound")
+    cuda_environment = runtime_environment.get("cuda")
+    if not isinstance(cuda_environment, dict) or any(
+        cuda_environment.get(name) in (None, "")
+        for name in ("runtime_version", "driver_version", "nvrtc_version")
+    ):
+        blockers.append("runtime_cuda_versions_unbound")
     if runtime_environment.get("thread_environment") != EXPECTED_THREAD_ENVIRONMENT:
         blockers.append("runtime_timing_thread_environment_unbound")
     runtime_versions = runtime_environment.get("versions")
@@ -527,7 +600,10 @@ def summarize_preaggregated(
         "source_schema_version": payload.get("schema_version"),
         "source_binding": source_binding,
         "artifact_binding": artifact_binding,
-        "profile": expected_profile,
+        "profile": payload.get("profile"),
+        "expected_profile": expected_profile,
+        "profile_sha256": payload.get("profile_sha256"),
+        "profile_selection": profile_selection or {},
         "precompile_policy": "completed_before_control_loop",
         "cupy_precompile_ms": payload.get("cupy_precompile_ms"),
         "cupy_host_staging_pinned": payload.get("cupy_host_staging_pinned"),
@@ -548,6 +624,11 @@ def summarize_preaggregated(
         ),
         "pacing_provenance": payload.get("pacing_provenance"),
         "runtime_environment": runtime_environment,
+        "runtime_scheduling_classification": (
+            "production_sched_fifo_priority_20"
+            if production_fifo_priority_proven
+            else "degraded_or_unbound"
+        ),
         "elapsed_full_tick_wall_s": elapsed,
         "elapsed_safe_hold_wall_s": safe_hold_elapsed,
         "full_tick_reason_counts": payload.get("full_tick_reason_counts", {}),
