@@ -85,12 +85,19 @@ def render(manifest_path: Path, output_dir: Path) -> dict[str, object]:
     data = mujoco.MjData(model)
     mujoco.mj_resetDataKeyframe(model, data, 0)
     mujoco.mj_forward(model, data)
-    model.vis.headlight.ambient[:] = (0.45, 0.45, 0.45)
-    model.vis.headlight.diffuse[:] = (0.75, 0.75, 0.75)
-    model.vis.headlight.specular[:] = (0.15, 0.15, 0.15)
+    model.vis.headlight.ambient[:] = (0.12, 0.12, 0.12)
+    model.vis.headlight.diffuse[:] = (0.42, 0.42, 0.42)
+    model.vis.headlight.specular[:] = (0.05, 0.05, 0.05)
+    if model.nlight:
+        model.light_ambient[:] = np.minimum(model.light_ambient, 0.08)
+        model.light_diffuse[:] *= 0.35
+        model.light_specular[:] *= 0.20
     tcp = np.asarray(data.site_xpos[model.site("active_tcp_site").id], dtype=float)
     surface = np.asarray(data.xpos[model.body("step5_surface").id], dtype=float)
-    contact_focus = 0.5 * (tcp + surface)
+    probe = np.asarray(
+        data.geom_xpos[model.geom("eoat_contact_probe_collision").id], dtype=float
+    )
+    contact_focus = 0.55 * probe + 0.45 * surface
     view_specs = {
         "wide": {
             "lookat": np.asarray((-0.22, -0.05, 0.28)),
@@ -106,19 +113,23 @@ def render(manifest_path: Path, output_dir: Path) -> dict[str, object]:
         },
         "close": {
             "lookat": 0.65 * tcp + 0.35 * surface + np.asarray((0.0, 0.0, 0.05)),
-            "distance": 0.52,
+            "distance": 0.60,
             "azimuth": 135.0,
-            "elevation": -18.0,
+            "elevation": -20.0,
         },
         "contact": {
             "lookat": contact_focus,
-            "distance": 0.24,
-            "azimuth": 125.0,
-            "elevation": -8.0,
+            "distance": 0.36,
+            "azimuth": 105.0,
+            "elevation": -16.0,
         },
     }
     output_dir.mkdir(parents=True)
     renderer = mujoco.Renderer(model, height=720, width=1280)
+    scene_option = mujoco.MjvOption()
+    mujoco.mjv_defaultOption(scene_option)
+    scene_option.flags[mujoco.mjtVisFlag.mjVIS_CONTACTPOINT] = True
+    scene_option.flags[mujoco.mjtVisFlag.mjVIS_CONTACTFORCE] = True
     views: list[dict[str, object]] = []
     try:
         for camera in CAMERAS:
@@ -131,7 +142,7 @@ def render(manifest_path: Path, output_dir: Path) -> dict[str, object]:
             observer.distance = float(spec["distance"])
             observer.azimuth = float(spec["azimuth"])
             observer.elevation = float(spec["elevation"])
-            renderer.update_scene(data, camera=observer)
+            renderer.update_scene(data, camera=observer, scene_option=scene_option)
             path = output_dir / f"{camera}.png"
             Image.fromarray(renderer.render()).save(path)
             views.append(
@@ -147,11 +158,19 @@ def render(manifest_path: Path, output_dir: Path) -> dict[str, object]:
     finally:
         renderer.close()
 
+    contacts = [
+        {
+            "geom1": model.geom(data.contact[index].geom1).name,
+            "geom2": model.geom(data.contact[index].geom2).name,
+            "distance_m": float(data.contact[index].dist),
+        }
+        for index in range(data.ncon)
+    ]
     blockers = [
         "current_kunwei_stack_full_cad_missing",
         "eoat_mass_cog_inertia_unvalidated",
         "bench_fixture_geometry_missing",
-        "contact_view_does_not_show_native_contact",
+        "native_contact_uses_provisional_probe_collision_not_current_cad",
         "provisional_collision_primitives_are_not_visual_acceptance_geometry",
     ]
     review: dict[str, object] = {
@@ -162,6 +181,7 @@ def render(manifest_path: Path, output_dir: Path) -> dict[str, object]:
         "model_output_key": "contact_velocity",
         "model_sha256": output_binding["sha256"],
         "native_contact_count": int(data.ncon),
+        "native_contacts": contacts,
         "measured_active_tcp_xyz_m": tcp.tolist(),
         "measured_surface_body_xyz_m": surface.tolist(),
         "measured_tcp_surface_xy_error_m": float(np.linalg.norm(tcp[:2] - surface[:2])),
