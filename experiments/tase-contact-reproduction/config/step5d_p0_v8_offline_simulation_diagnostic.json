@@ -32,8 +32,8 @@
     "source_result": "diagnostic_pass",
     "timing_scope_status": "current_control_hard_500hz_measurement_scope"
   },
-  "diagnostic_sha256": "8871817024d1478f50ed38189b396987e2bc48192b9974bba45525fd530c4ee0",
-  "generated_at": "2026-07-11T19:06:19.733138+00:00",
+  "diagnostic_sha256": "9fde86243a8e6bba09e5a44b28a42191301cb6f228c6a2a4429d338141b2d3e3",
+  "generated_at": "2026-07-11T20:39:37.868901+00:00",
   "model_binding": {
     "engine": "mujoco",
     "engine_version": "3.8.1",
@@ -48,11 +48,11 @@
   "phases": [
     {
       "control_counters": {
-        "absolute_deadline_miss_count": 104,
+        "absolute_deadline_miss_count": 217,
         "accepted_tick_count": 1000,
         "cage_collision_count": 0,
-        "control_deadline_miss_count": 25,
-        "cycle_compute_deadline_miss_count": 26,
+        "control_deadline_miss_count": 74,
+        "cycle_compute_deadline_miss_count": 75,
         "max_qdot_abs_rad_s": 0.00044349522795528173,
         "missed_sequence_count": 0,
         "nonfinite_output_count": 0,
@@ -63,14 +63,14 @@
         "unexpected_contact_count": 0
       },
       "control_hard_500hz": {
-        "deadline_miss_count": 25,
+        "deadline_miss_count": 74,
         "deadline_ms": 2.0,
-        "max_ms": 5.097336135804653,
+        "max_ms": 4.645850043743849,
         "max_within_deadline": false,
-        "p50_ms": 0.5574370734393597,
-        "p95_ms": 0.7456009625457225,
+        "p50_ms": 0.6269394652917981,
+        "p95_ms": 3.474071936216205,
         "p99_limit_ms": 1.8,
-        "p99_ms": 4.6751112677156925,
+        "p99_ms": 3.6734684580005705,
         "p99_within_limit": false,
         "paced": true,
         "pass": false,
@@ -83,10 +83,10 @@
       "duration_s": 2.0,
       "evidence": {
         "path": "phase_0_2s/evidence.json",
-        "sha256": "70d3f41c49f347e8dcb8ef3a4c996c5044f1fcd0283aeaf5e96669e40a61ccb1",
-        "size_bytes": 18084
+        "sha256": "fa00d0f219e82390825cae519d6f268b6d7c59475e86e6d7b9bf6e1f78aa19fc",
+        "size_bytes": 19355
       },
-      "evidence_schema": "ur10e_simulation_evidence_v2",
+      "evidence_schema": "ur10e_simulation_evidence_v3",
       "fault_injection": {
         "all_required_faults_exact_zero": true,
         "fault_count": 18,
@@ -131,54 +131,85 @@
           "wrong_frame"
         ]
       },
+      "prewarm_binding": {
+        "execute_tick_count": 1000,
+        "paced": true,
+        "pacing_hz": 500,
+        "pass": true,
+        "path": "production_path_prewarm.json",
+        "schema": "step5d_p0_v8_production_path_prewarm_v1",
+        "sha256": "e1c72f5e2dcc08a0d4913725303b216ce93f6796b416eeab1155d48623219e61",
+        "size_bytes": 2615,
+        "source_composite_sha256": "519e77287c3d9129f319d23e294ac4eed20bed6a7495e9ce5dc709ded151db72"
+      },
       "sequence_index": 0,
       "simulator_cycle_diagnostic": {
-        "absolute_deadline_miss_count": 104,
+        "absolute_deadline_miss_count": 217,
         "absolute_finish_lateness_ms": {
-          "max_ms": 3.7610498256981373,
+          "max_ms": 3.1581749208271503,
           "p50_ms": 0.0,
-          "p95_ms": 1.8719490617513657,
-          "p99_ms": 3.5279083624482155
+          "p95_ms": 2.0673759165219963,
+          "p99_ms": 2.29854793054983
         },
         "command_apply_and_physics_ms": {
-          "max_ms": 0.059240031987428665,
-          "p50_ms": 0.04573492333292961,
-          "p95_ms": 0.04687984474003315,
-          "p99_ms": 0.050716670230031013
+          "max_ms": 0.06431015208363533,
+          "p50_ms": 0.0439969589933753,
+          "p95_ms": 0.04557819338515401,
+          "p99_ms": 0.04891975549980995
         },
-        "cycle_compute_deadline_miss_count": 26,
+        "cycle_compute_deadline_miss_count": 75,
         "cycle_wall_ms": {
-          "max_ms": 5.760188912972808,
-          "p50_ms": 1.1307299137115479,
-          "p95_ms": 1.8710036878474057,
-          "p99_ms": 5.527446335181594
+          "max_ms": 5.157998995855451,
+          "p50_ms": 1.19210802949965,
+          "p95_ms": 4.048380570020527,
+          "p99_ms": 4.298054310493171
         },
         "diagnostic_only": true,
         "meets_500hz_diagnostic": false,
         "oracle_snapshot_ms": {
-          "max_ms": 1.2541639152914286,
-          "p50_ms": 0.529731041751802,
-          "p95_ms": 1.0735848103649914,
-          "p99_ms": 1.0870900261215866
+          "max_ms": 1.1833661701530218,
+          "p50_ms": 0.5145135801285505,
+          "p95_ms": 1.0591591475531459,
+          "p99_ms": 1.0764812608249485
         },
         "physics_substeps_per_control_tick": 4,
         "release_lateness_ms": {
-          "max_ms": 3.77893284894526,
-          "p50_ms": 0.00046403147280216217,
-          "p95_ms": 1.888859877362847,
-          "p99_ms": 3.546264572069049
+          "max_ms": 3.1752970535308123,
+          "p50_ms": 0.0004901085048913956,
+          "p95_ms": 2.085806441027671,
+          "p99_ms": 2.3165525565855205
         },
         "samples": 1000,
         "scope": "release_to_oracle_snapshot_to_adapter_step_to_command_apply_and_four_physics_substeps"
       },
-      "source_composite_sha256": "8b2c48e0cba7941f0778450075207adf2a8ce5fc63836a00ecb730eb20cc2562",
+      "source_composite_sha256": "519e77287c3d9129f319d23e294ac4eed20bed6a7495e9ce5dc709ded151db72",
       "structurally_valid": true,
       "timing_scope_binding": {
+        "measured_samples_excluded": 0,
+        "measured_sequence_restarts_at_zero": true,
         "numeric_thread_environment": {
           "MKL_NUM_THREADS": "1",
           "NUMEXPR_NUM_THREADS": "1",
           "OMP_NUM_THREADS": "1",
           "OPENBLAS_NUM_THREADS": "1"
+        },
+        "prewarm_samples_in_control_trace": 0,
+        "production_path_prewarm_contract": {
+          "burst_tolerance_s": 5e-05,
+          "command_sink_write_allowed": false,
+          "complete_production_path": true,
+          "control_hz": 500,
+          "control_path": "SimulatorState->Step5dObservation->StrictRnnControlPolicy->step5d_v30_contract_pipeline->SafetyEnvelope->RegisterCommand->SimulationCommand",
+          "dls_shadow_only": true,
+          "execute_ticks": 1000,
+          "measured_samples_may_be_discarded": false,
+          "mode": "source_bound_unmeasured_no_output_500hz",
+          "paced": true,
+          "pacing_strategy": "previous_tick_start_plus_2ms_no_catch_up",
+          "register_command_generated": true,
+          "safety_envelope_exercised": true,
+          "schema": "step5d_p0_v8_production_path_prewarm_v1",
+          "timing_acceptance_eligible": false
         },
         "timing_scope_contract": {
           "control_hard_500hz": "simulator_state_ready_to_adapter_step_complete",
@@ -198,11 +229,11 @@
     },
     {
       "control_counters": {
-        "absolute_deadline_miss_count": 221,
+        "absolute_deadline_miss_count": 71,
         "accepted_tick_count": 5000,
         "cage_collision_count": 0,
-        "control_deadline_miss_count": 0,
-        "cycle_compute_deadline_miss_count": 114,
+        "control_deadline_miss_count": 23,
+        "cycle_compute_deadline_miss_count": 31,
         "max_qdot_abs_rad_s": 0.00044349522795528173,
         "missed_sequence_count": 0,
         "nonfinite_output_count": 0,
@@ -213,17 +244,17 @@
         "unexpected_contact_count": 0
       },
       "control_hard_500hz": {
-        "deadline_miss_count": 0,
+        "deadline_miss_count": 23,
         "deadline_ms": 2.0,
-        "max_ms": 1.429300056770444,
-        "max_within_deadline": true,
-        "p50_ms": 0.546116498298943,
-        "p95_ms": 0.6837370223365724,
+        "max_ms": 3.96076706238091,
+        "max_within_deadline": false,
+        "p50_ms": 0.5298824980854988,
+        "p95_ms": 0.672126072458923,
         "p99_limit_ms": 1.8,
-        "p99_ms": 1.2859403691254558,
+        "p99_ms": 0.7513860706239941,
         "p99_within_limit": true,
         "paced": true,
-        "pass": true,
+        "pass": false,
         "prefault_required": true,
         "prefault_verified": true,
         "samples": 5000,
@@ -233,10 +264,10 @@
       "duration_s": 10.0,
       "evidence": {
         "path": "phase_1_10s/evidence.json",
-        "sha256": "3eb4f329ec9979a691d2177a996bfccad99ab3ecd6ad86e8db28122a9bc00fd7",
-        "size_bytes": 18032
+        "sha256": "5f323446d8675d6d2e6c883a1c0f95509fe29e8c0c66aaf63c26f2f09410d9e8",
+        "size_bytes": 19348
       },
-      "evidence_schema": "ur10e_simulation_evidence_v2",
+      "evidence_schema": "ur10e_simulation_evidence_v3",
       "fault_injection": {
         "all_required_faults_exact_zero": true,
         "fault_count": 18,
@@ -281,54 +312,85 @@
           "wrong_frame"
         ]
       },
+      "prewarm_binding": {
+        "execute_tick_count": 1000,
+        "paced": true,
+        "pacing_hz": 500,
+        "pass": true,
+        "path": "production_path_prewarm.json",
+        "schema": "step5d_p0_v8_production_path_prewarm_v1",
+        "sha256": "e1c72f5e2dcc08a0d4913725303b216ce93f6796b416eeab1155d48623219e61",
+        "size_bytes": 2615,
+        "source_composite_sha256": "519e77287c3d9129f319d23e294ac4eed20bed6a7495e9ce5dc709ded151db72"
+      },
       "sequence_index": 1,
       "simulator_cycle_diagnostic": {
-        "absolute_deadline_miss_count": 221,
+        "absolute_deadline_miss_count": 71,
         "absolute_finish_lateness_ms": {
-          "max_ms": 27.82758162356913,
+          "max_ms": 3.0404748395085335,
           "p50_ms": 0.0,
           "p95_ms": 0.0,
-          "p99_ms": 15.528625780716538
+          "p99_ms": 0.42926297057420126
         },
         "command_apply_and_physics_ms": {
-          "max_ms": 0.19047409296035767,
-          "p50_ms": 0.04561501555144787,
-          "p95_ms": 0.04931291332468391,
-          "p99_ms": 0.13974984409287572
+          "max_ms": 0.07312698289752007,
+          "p50_ms": 0.04361197352409363,
+          "p95_ms": 0.04441291093826294,
+          "p99_ms": 0.04658719291910529
         },
-        "cycle_compute_deadline_miss_count": 114,
+        "cycle_compute_deadline_miss_count": 31,
         "cycle_wall_ms": {
-          "max_ms": 3.3633490093052387,
-          "p50_ms": 1.1147339828312397,
-          "p95_ms": 1.7654704628512263,
-          "p99_ms": 2.9238702449947596
+          "max_ms": 5.0394979771226645,
+          "p50_ms": 1.075057894922793,
+          "p95_ms": 1.7323976499028504,
+          "p99_ms": 1.8543699081055822
         },
         "diagnostic_only": true,
         "meets_500hz_diagnostic": false,
         "oracle_snapshot_ms": {
-          "max_ms": 1.7999589908868074,
-          "p50_ms": 0.5207790527492762,
-          "p95_ms": 1.0565684526227415,
-          "p99_ms": 1.5046643349342053
+          "max_ms": 1.5251960139721632,
+          "p50_ms": 0.4992750473320484,
+          "p95_ms": 1.03331645950675,
+          "p99_ms": 1.0600038524717095
         },
         "physics_substeps_per_control_tick": 4,
         "release_lateness_ms": {
-          "max_ms": 27.84416195936501,
-          "p50_ms": 0.0004777684807777405,
-          "p95_ms": 0.001586473081260922,
-          "p99_ms": 15.582266603596509
+          "max_ms": 3.0583080369979143,
+          "p50_ms": 0.00047800131142139435,
+          "p95_ms": 0.001262000296264887,
+          "p99_ms": 0.45084628975018975
         },
         "samples": 5000,
         "scope": "release_to_oracle_snapshot_to_adapter_step_to_command_apply_and_four_physics_substeps"
       },
-      "source_composite_sha256": "8b2c48e0cba7941f0778450075207adf2a8ce5fc63836a00ecb730eb20cc2562",
+      "source_composite_sha256": "519e77287c3d9129f319d23e294ac4eed20bed6a7495e9ce5dc709ded151db72",
       "structurally_valid": true,
       "timing_scope_binding": {
+        "measured_samples_excluded": 0,
+        "measured_sequence_restarts_at_zero": true,
         "numeric_thread_environment": {
           "MKL_NUM_THREADS": "1",
           "NUMEXPR_NUM_THREADS": "1",
           "OMP_NUM_THREADS": "1",
           "OPENBLAS_NUM_THREADS": "1"
+        },
+        "prewarm_samples_in_control_trace": 0,
+        "production_path_prewarm_contract": {
+          "burst_tolerance_s": 5e-05,
+          "command_sink_write_allowed": false,
+          "complete_production_path": true,
+          "control_hz": 500,
+          "control_path": "SimulatorState->Step5dObservation->StrictRnnControlPolicy->step5d_v30_contract_pipeline->SafetyEnvelope->RegisterCommand->SimulationCommand",
+          "dls_shadow_only": true,
+          "execute_ticks": 1000,
+          "measured_samples_may_be_discarded": false,
+          "mode": "source_bound_unmeasured_no_output_500hz",
+          "paced": true,
+          "pacing_strategy": "previous_tick_start_plus_2ms_no_catch_up",
+          "register_command_generated": true,
+          "safety_envelope_exercised": true,
+          "schema": "step5d_p0_v8_production_path_prewarm_v1",
+          "timing_acceptance_eligible": false
         },
         "timing_scope_contract": {
           "control_hard_500hz": "simulator_state_ready_to_adapter_step_complete",
@@ -348,11 +410,11 @@
     },
     {
       "control_counters": {
-        "absolute_deadline_miss_count": 840,
+        "absolute_deadline_miss_count": 54,
         "accepted_tick_count": 30000,
         "cage_collision_count": 0,
         "control_deadline_miss_count": 0,
-        "cycle_compute_deadline_miss_count": 439,
+        "cycle_compute_deadline_miss_count": 34,
         "max_qdot_abs_rad_s": 0.00044349522795528173,
         "missed_sequence_count": 0,
         "nonfinite_output_count": 0,
@@ -365,12 +427,12 @@
       "control_hard_500hz": {
         "deadline_miss_count": 0,
         "deadline_ms": 2.0,
-        "max_ms": 1.4326460659503937,
+        "max_ms": 0.793506158515811,
         "max_within_deadline": true,
-        "p50_ms": 0.5493174539878964,
-        "p95_ms": 0.6823300034739077,
+        "p50_ms": 0.5328778643161058,
+        "p95_ms": 0.6628221133723855,
         "p99_limit_ms": 1.8,
-        "p99_ms": 1.2654549162834883,
+        "p99_ms": 0.6844921573065221,
         "p99_within_limit": true,
         "paced": true,
         "pass": true,
@@ -383,10 +445,10 @@
       "duration_s": 60.0,
       "evidence": {
         "path": "phase_2_60s/evidence.json",
-        "sha256": "1ddd8924acc5f8bafe5226d9aeb45d0caec4d0a00c7313ca91ef77ea82c5e903",
-        "size_bytes": 18044
+        "sha256": "624cd44d8e5498376bcda138492a84662279db06029f232c673462faf9ee3f86",
+        "size_bytes": 19304
       },
-      "evidence_schema": "ur10e_simulation_evidence_v2",
+      "evidence_schema": "ur10e_simulation_evidence_v3",
       "fault_injection": {
         "all_required_faults_exact_zero": true,
         "fault_count": 18,
@@ -431,54 +493,85 @@
           "wrong_frame"
         ]
       },
+      "prewarm_binding": {
+        "execute_tick_count": 1000,
+        "paced": true,
+        "pacing_hz": 500,
+        "pass": true,
+        "path": "production_path_prewarm.json",
+        "schema": "step5d_p0_v8_production_path_prewarm_v1",
+        "sha256": "e1c72f5e2dcc08a0d4913725303b216ce93f6796b416eeab1155d48623219e61",
+        "size_bytes": 2615,
+        "source_composite_sha256": "519e77287c3d9129f319d23e294ac4eed20bed6a7495e9ce5dc709ded151db72"
+      },
       "sequence_index": 2,
       "simulator_cycle_diagnostic": {
-        "absolute_deadline_miss_count": 840,
+        "absolute_deadline_miss_count": 54,
         "absolute_finish_lateness_ms": {
-          "max_ms": 31.887701014056802,
+          "max_ms": 0.4384887870401144,
           "p50_ms": 0.0,
           "p95_ms": 0.0,
-          "p99_ms": 13.79710268694906
+          "p99_ms": 0.0
         },
         "command_apply_and_physics_ms": {
-          "max_ms": 0.17521600238978863,
-          "p50_ms": 0.04579499363899231,
-          "p95_ms": 0.04672701470553875,
-          "p99_ms": 0.13739624526351688
+          "max_ms": 0.07505109533667564,
+          "p50_ms": 0.043872045353055,
+          "p95_ms": 0.04465297097340226,
+          "p99_ms": 0.04668697016313672
         },
-        "cycle_compute_deadline_miss_count": 439,
+        "cycle_compute_deadline_miss_count": 34,
         "cycle_wall_ms": {
-          "max_ms": 3.3826050348579884,
-          "p50_ms": 1.117669977247715,
-          "p95_ms": 1.7646144493483007,
-          "p99_ms": 2.8788590198382735
+          "max_ms": 2.360299928113818,
+          "p50_ms": 1.0822471231222153,
+          "p95_ms": 1.7287270165979862,
+          "p99_ms": 1.7591656558215618
         },
         "diagnostic_only": true,
         "meets_500hz_diagnostic": false,
         "oracle_snapshot_ms": {
-          "max_ms": 1.7960930708795786,
-          "p50_ms": 0.5214998964220285,
-          "p95_ms": 1.0519779869355261,
-          "p99_ms": 1.476879499386996
+          "max_ms": 1.5580679755657911,
+          "p50_ms": 0.5030520260334015,
+          "p95_ms": 1.0340358247049153,
+          "p99_ms": 1.0538843157701194
         },
         "physics_substeps_per_control_tick": 4,
         "release_lateness_ms": {
-          "max_ms": 31.94242320023477,
-          "p50_ms": 0.0004831235855817795,
-          "p95_ms": 0.0013742130249738687,
-          "p99_ms": 13.814367244485691
+          "max_ms": 0.4653800278902054,
+          "p50_ms": 0.00048778019845485687,
+          "p95_ms": 0.005201995372772215,
+          "p99_ms": 0.009117899462580677
         },
         "samples": 30000,
         "scope": "release_to_oracle_snapshot_to_adapter_step_to_command_apply_and_four_physics_substeps"
       },
-      "source_composite_sha256": "8b2c48e0cba7941f0778450075207adf2a8ce5fc63836a00ecb730eb20cc2562",
+      "source_composite_sha256": "519e77287c3d9129f319d23e294ac4eed20bed6a7495e9ce5dc709ded151db72",
       "structurally_valid": true,
       "timing_scope_binding": {
+        "measured_samples_excluded": 0,
+        "measured_sequence_restarts_at_zero": true,
         "numeric_thread_environment": {
           "MKL_NUM_THREADS": "1",
           "NUMEXPR_NUM_THREADS": "1",
           "OMP_NUM_THREADS": "1",
           "OPENBLAS_NUM_THREADS": "1"
+        },
+        "prewarm_samples_in_control_trace": 0,
+        "production_path_prewarm_contract": {
+          "burst_tolerance_s": 5e-05,
+          "command_sink_write_allowed": false,
+          "complete_production_path": true,
+          "control_hz": 500,
+          "control_path": "SimulatorState->Step5dObservation->StrictRnnControlPolicy->step5d_v30_contract_pipeline->SafetyEnvelope->RegisterCommand->SimulationCommand",
+          "dls_shadow_only": true,
+          "execute_ticks": 1000,
+          "measured_samples_may_be_discarded": false,
+          "mode": "source_bound_unmeasured_no_output_500hz",
+          "paced": true,
+          "pacing_strategy": "previous_tick_start_plus_2ms_no_catch_up",
+          "register_command_generated": true,
+          "safety_envelope_exercised": true,
+          "schema": "step5d_p0_v8_production_path_prewarm_v1",
+          "timing_acceptance_eligible": false
         },
         "timing_scope_contract": {
           "control_hard_500hz": "simulator_state_ready_to_adapter_step_complete",
@@ -499,17 +592,17 @@
   ],
   "profile": "step5d_strict_rnn_no_contact_p0_v8",
   "run_binding": {
-    "path": "runs/p0_v8_mujoco_20260712T0340HKT_rnn512_fifo20_singlethread_v2_final/run_manifest.json",
-    "sha256": "b4aa84309a699cd2d4543f0b6239d22a1777746e14ecdcb28afbd79b70aaaf89",
-    "size_bytes": 4447
+    "path": "runs/p0_v8_mujoco_20260712T0439HKT_rnn512_fifo20_v3_prewarm_isolated/run_manifest.json",
+    "sha256": "256ade02772cfb257caae9d536f5f6b312eb6935fe1600fe9a519d5d2bbb2a26",
+    "size_bytes": 4875
   },
   "schema": "step5d_p0_v8_offline_simulation_diagnostic_v1",
   "source_binding": {
-    "base_commit": "a3079834db9edbf334a7a9f031a6e7e50be928b9",
+    "base_commit": "a14423b4ef1040847189b9cf5d275d83d97dcef0",
     "frame_lineage_sha256": "f9aa5ff44e9c0140be64ecb6421efd3514ab24d35787c7c310a8a44a83156051",
-    "head_commit": "a3079834db9edbf334a7a9f031a6e7e50be928b9",
+    "head_commit": "a14423b4ef1040847189b9cf5d275d83d97dcef0",
     "host": "andy7",
-    "source_composite_sha256": "8b2c48e0cba7941f0778450075207adf2a8ce5fc63836a00ecb730eb20cc2562"
+    "source_composite_sha256": "519e77287c3d9129f319d23e294ac4eed20bed6a7495e9ce5dc709ded151db72"
   },
   "state_projection": {
     "controller_canaries": {
@@ -534,14 +627,14 @@
       "pass": true,
       "phase_results": [
         {
-          "deadline_miss_count": 25,
+          "deadline_miss_count": 74,
           "duration_s": 2.0,
           "pass": false
         },
         {
-          "deadline_miss_count": 0,
+          "deadline_miss_count": 23,
           "duration_s": 10.0,
-          "pass": true
+          "pass": false
         },
         {
           "deadline_miss_count": 0,
@@ -556,29 +649,40 @@
     },
     "historical_combined_scope_timing_gate": null,
     "phase_evidence_schemas": [
-      "ur10e_simulation_evidence_v2",
-      "ur10e_simulation_evidence_v2",
-      "ur10e_simulation_evidence_v2"
+      "ur10e_simulation_evidence_v3",
+      "ur10e_simulation_evidence_v3",
+      "ur10e_simulation_evidence_v3"
     ],
-    "run_manifest_schema": "step5d_p0_v8_mujoco_run_v2",
+    "production_path_prewarm": {
+      "execute_tick_count": 1000,
+      "paced": true,
+      "pacing_hz": 500,
+      "pass": true,
+      "path": "production_path_prewarm.json",
+      "schema": "step5d_p0_v8_production_path_prewarm_v1",
+      "sha256": "e1c72f5e2dcc08a0d4913725303b216ce93f6796b416eeab1155d48623219e61",
+      "size_bytes": 2615,
+      "source_composite_sha256": "519e77287c3d9129f319d23e294ac4eed20bed6a7495e9ce5dc709ded151db72"
+    },
+    "run_manifest_schema": "step5d_p0_v8_mujoco_run_v3",
     "simulator_cycle_diagnostic": {
       "diagnostic_only": true,
       "phase_results": [
         {
-          "absolute_deadline_miss_count": 104,
-          "cycle_compute_deadline_miss_count": 26,
+          "absolute_deadline_miss_count": 217,
+          "cycle_compute_deadline_miss_count": 75,
           "duration_s": 2.0,
           "meets_500hz_diagnostic": false
         },
         {
-          "absolute_deadline_miss_count": 221,
-          "cycle_compute_deadline_miss_count": 114,
+          "absolute_deadline_miss_count": 71,
+          "cycle_compute_deadline_miss_count": 31,
           "duration_s": 10.0,
           "meets_500hz_diagnostic": false
         },
         {
-          "absolute_deadline_miss_count": 840,
-          "cycle_compute_deadline_miss_count": 439,
+          "absolute_deadline_miss_count": 54,
+          "cycle_compute_deadline_miss_count": 34,
           "duration_s": 60.0,
           "meets_500hz_diagnostic": false
         }

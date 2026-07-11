@@ -33,7 +33,7 @@
   "schema": "step5d_p0_v8_offline_simulation_state_binding_v1",
   "status": "bound_diagnostic_complete",
   "summary_artifact": "config/step5d_p0_v8_offline_simulation_diagnostic.json",
-  "summary_sha256": "9ee7d9995f630689f73a24f965a852a6528b55dfbf700dbfaf0f0dff1cc96093",
+  "summary_sha256": "aa0a94f4ad38b6496d4b38707e87339ea13dd560e3a998507796017b33f3e9a2",
   "v29_frozen_fallback": true,
   "v30_active": false,
   "workflow_state": "liveprep_blocked"

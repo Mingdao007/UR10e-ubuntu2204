@@ -93,6 +93,24 @@ empty, P0 is not passed, evidence is not frozen, and Review v2 `1+1` is still
 `not_due`. The prior combined-scope v1 artifact is hash-bound as
 `historical_superseded_measurement_scope` and cannot satisfy this gate.
 
+The current P0 MuJoCo diagnostic uses the v3 evidence contract. Before the measured
+`2 -> 10 -> 60 s` sequence it must complete exactly 1,000 source-bound,
+unmeasured, no-output production-path execute ticks paced at 500 Hz. The lane
+still crosses `SafetyEnvelope`, DLS-shadow, layout-524 `RegisterCommand`, and
+`SimulationCommand`, but never calls the plant command sink. Actual release
+intervals and burst count are retained; solver, control-adapter, and simulator
+state are then reset before measured sequence zero. Prewarm samples cannot be
+discarded measured samples or satisfy a timing/P0 claim. The v2 cold artifact
+and its 25 misses remain byte-immutable historical diagnostic evidence.
+The isolated v3 run completed with a valid prewarm and a final continuous
+60-second control lane at p99 0.684 ms, max 0.794 ms, and zero 2 ms deadline
+misses. The shorter 2/10-second phases retained their 74/23 cold or clock-ramp
+misses instead of hiding them; only the final 60-second lane satisfies the
+current hard timing gate. An earlier v3 attempt overlapped a headless Gazebo
+process and is retained as rejected contention evidence. Geometry remains
+provisional, controller canaries have not run, and no simulator result can set
+P0 live passed or promote v30.
+
 Review v2 uses deterministic validation only (`0+0`) for ordinary coding,
 commit, push, and handoff. A direction change uses `1+0`; P0 v8 pre-live uses
 `1+1`; v29/v30 contact pre-live uses `2+1`. Codex defaults to
