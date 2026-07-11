@@ -3,8 +3,10 @@
   "claim_boundary": "offline immutable preparation only; static contract validation is not URSim protocol execution",
   "runtime_environment": {
     "container_service": "inactive",
-    "image_inventory": "not_found",
-    "probe_source": "read-only Ubuntu environment audit 2026-07-11",
+    "container_socket": "active_enabled",
+    "socket_access": "denied_for_andy",
+    "image_inventory": "unverified_no_socket_permission",
+    "probe_source": "read-only Ubuntu environment audit 2026-07-12",
     "mutation_authorized": false
   },
   "lanes": [
@@ -19,7 +21,7 @@
         "digest_required": true,
         "digest": null,
         "reference": null,
-        "availability": "not_found"
+        "availability": "unverified_no_socket_permission"
       },
       "bindings": [
         {
@@ -45,12 +47,12 @@
         {
           "role": "p0_package_validator",
           "path": "experiments/tase-contact-reproduction/tools/build_step5d_liveprep.py",
-          "sha256": "bdf34309aba4231a8c2e90168ea81e59f333b450405d3dfbd491967facffb7ff"
+          "sha256": "bab0af7c20a626e74c6d81258bd777b5f1998010a565c4a5281e7412ddd9bc52"
         },
         {
           "role": "p0_runtime_contract",
           "path": "experiments/tase-contact-reproduction/tools/step5d_runtime_interface.py",
-          "sha256": "834df962defe97f383e1a753dd7e559981a88cefcf176e0774c030dfdfdb59ac"
+          "sha256": "b0856a338c5ba05d012ad1100aba8a72c10ec99595aceeebcc54ea475e17e8c4"
         }
       ],
       "required_runtime_checks": [
@@ -73,7 +75,7 @@
         "digest_required": true,
         "digest": null,
         "reference": null,
-        "availability": "not_found"
+        "availability": "unverified_no_socket_permission"
       },
       "bindings": [
         {

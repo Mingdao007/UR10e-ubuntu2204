@@ -12,6 +12,7 @@
     "availability",
     "protocol_execution_performed",
     "claim_boundary",
+    "runtime_environment",
     "lanes",
     "claims",
     "live_motion_authorized",
@@ -27,6 +28,26 @@
     "availability": {"const": "unavailable"},
     "protocol_execution_performed": {"const": false},
     "claim_boundary": {"type": "string", "minLength": 1},
+    "runtime_environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "container_service",
+        "container_socket",
+        "socket_access",
+        "image_inventory",
+        "probe_source",
+        "mutation_authorized"
+      ],
+      "properties": {
+        "container_service": {"const": "inactive"},
+        "container_socket": {"const": "active_enabled"},
+        "socket_access": {"const": "denied_for_andy"},
+        "image_inventory": {"const": "unverified_no_socket_permission"},
+        "probe_source": {"type": "string", "minLength": 1},
+        "mutation_authorized": {"const": false}
+      }
+    },
     "lanes": {
       "type": "array",
       "minItems": 2,
@@ -108,7 +129,7 @@
             "digest_required": {"const": true},
             "digest": {"type": "null"},
             "reference": {"type": "null"},
-            "availability": {"const": "not_found"}
+            "availability": {"const": "unverified_no_socket_permission"}
           }
         },
         "bindings": {
@@ -132,7 +153,7 @@
         "status": {"const": "blocked"},
         "blockers": {
           "type": "array",
-          "minItems": 3,
+          "minItems": 4,
           "uniqueItems": true,
           "items": {"type": "string", "minLength": 1}
         }

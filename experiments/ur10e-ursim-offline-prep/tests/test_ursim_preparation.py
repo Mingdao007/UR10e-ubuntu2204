@@ -30,6 +30,16 @@ class URSimPreparationTests(unittest.TestCase):
         self.assertEqual(first["availability"], "unavailable")
         self.assertFalse(first["protocol_execution_performed"])
         self.assertEqual(
+            first["runtime_environment"]["image_inventory"],
+            "unverified_no_socket_permission",
+        )
+        self.assertEqual(
+            first["runtime_environment"]["container_socket"], "active_enabled"
+        )
+        self.assertEqual(
+            first["runtime_environment"]["socket_access"], "denied_for_andy"
+        )
+        self.assertEqual(
             first["claims"],
             {
                 "p0_ursim_protocol_pass": False,
@@ -49,12 +59,17 @@ class URSimPreparationTests(unittest.TestCase):
             self.assertFalse(lane["protocol_pass"])
             self.assertIsNone(lane["image"]["digest"])
             self.assertIsNone(lane["image"]["reference"])
+            self.assertEqual(
+                lane["image"]["availability"],
+                "unverified_no_socket_permission",
+            )
             self.assertTrue(all(lane["static_contract"].values()))
             self.assertEqual(
                 set(lane["blockers"]),
                 {
                     "container_service_inactive",
-                    "digest_bound_ursim_image_absent",
+                    "docker_socket_permission_denied",
+                    "digest_bound_ursim_image_unverified",
                     "ursim_runtime_evidence_absent",
                 },
             )
@@ -122,6 +137,13 @@ class URSimPreparationTests(unittest.TestCase):
                 invented_runtime, self.spec_path, REPOSITORY_ROOT
             )
 
+        invented_inventory = deepcopy(manifest)
+        invented_inventory["runtime_environment"]["image_inventory"] = "not_found"
+        with self.assertRaisesRegex(ValueError, "runtime environment gate drifted"):
+            verifier.verify_manifest(
+                invented_inventory, self.spec_path, REPOSITORY_ROOT
+            )
+
     def test_missing_image_cannot_be_replaced_by_an_unverified_digest(self) -> None:
         mutated = deepcopy(self.spec)
         mutated["lanes"][0]["image"] = {
@@ -130,7 +152,9 @@ class URSimPreparationTests(unittest.TestCase):
             "reference": "unverified/ursim@sha256:" + "a" * 64,
             "availability": "claimed",
         }
-        with self.assertRaisesRegex(ValueError, "records the absent image"):
+        with self.assertRaisesRegex(
+            ValueError, "records an unverified image inventory"
+        ):
             builder.validate_spec(mutated)
 
     def test_binding_hash_and_path_drift_fail_closed(self) -> None:
@@ -171,6 +195,10 @@ class URSimPreparationTests(unittest.TestCase):
         self.assertFalse(lane["protocol_pass"]["const"])
         self.assertEqual(lane["runtime_status"]["const"], "unavailable")
         self.assertEqual(lane["image"]["properties"]["digest"]["type"], "null")
+        self.assertEqual(
+            lane["image"]["properties"]["availability"]["const"],
+            "unverified_no_socket_permission",
+        )
 
     def test_tools_have_no_container_or_live_mutation_surface(self) -> None:
         sources = "\n".join(

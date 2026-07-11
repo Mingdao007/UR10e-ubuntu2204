@@ -9,10 +9,13 @@ This directory defines two immutable, offline-only URSim preparation lanes:
   safe-exit preparation.
 
 The exact software versions are pinned, while both required image digests are
-explicitly unresolved because the audited Ubuntu host has an inactive Docker
-service and no URSim image. The v1 manifest schema therefore permits only
-`status=blocked`, `availability=unavailable`, and false protocol claims. Static
-source validation cannot be promoted into URSim execution evidence.
+explicitly unresolved. On the 2026-07-12 read-only Ubuntu probe,
+`docker.service` was inactive, `docker.socket` was active/enabled, and user
+`andy` had no socket permission. The image inventory is therefore
+`unverified_no_socket_permission`, not a proven image absence. The v1 manifest
+schema permits only `status=blocked`, `availability=unavailable`, and false
+protocol claims. Static source validation cannot be promoted into URSim
+execution evidence.
 
 The builder performs local read-only hashing plus existing P0 package/runtime
 and VIC backend-oracle validation. It has no container, network, controller, or

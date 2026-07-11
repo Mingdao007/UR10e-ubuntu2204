@@ -24,6 +24,14 @@ def validate_manifest_shape(payload: Mapping[str, Any]) -> None:
         raise ValueError("static preparation cannot claim protocol execution")
     if not SHA256_RE.fullmatch(str(payload.get("spec_sha256", ""))):
         raise ValueError("invalid lane spec hash")
+    environment = payload.get("runtime_environment")
+    if not isinstance(environment, Mapping):
+        raise ValueError("runtime environment is missing")
+    for key, expected in builder.RUNTIME_ENVIRONMENT_REQUIRED.items():
+        if environment.get(key) != expected:
+            raise ValueError(f"runtime environment gate drifted: {key}")
+    if not str(environment.get("probe_source") or ""):
+        raise ValueError("runtime environment probe source is missing")
     claims = payload.get("claims")
     if claims != {
         "p0_ursim_protocol_pass": False,
@@ -53,15 +61,11 @@ def validate_manifest_shape(payload: Mapping[str, Any]) -> None:
             "digest_required": True,
             "digest": None,
             "reference": None,
-            "availability": "not_found",
+            "availability": builder.IMAGE_AVAILABILITY,
         }:
-            raise ValueError(f"absent digest-bound image gate drifted: {lane.get('id')}")
+            raise ValueError(f"unverified digest-bound image gate drifted: {lane.get('id')}")
         blockers = set(lane.get("blockers", ()))
-        required_blockers = {
-            "container_service_inactive",
-            "digest_bound_ursim_image_absent",
-            "ursim_runtime_evidence_absent",
-        }
+        required_blockers = set(builder.RUNTIME_BLOCKERS)
         if blockers != required_blockers:
             raise ValueError(f"lane blockers drifted: {lane.get('id')}")
         static_contract = lane.get("static_contract")

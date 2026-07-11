@@ -26,6 +26,20 @@ TORQUE_LANE = "ursim_5_23_direct_torque_software"
 LANE_IDS = (P0_LANE, TORQUE_LANE)
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 VERSION_RE = re.compile(r"^5\.[0-9]+(?:\.[0-9]+){1,2}$")
+IMAGE_AVAILABILITY = "unverified_no_socket_permission"
+RUNTIME_ENVIRONMENT_REQUIRED = {
+    "container_service": "inactive",
+    "container_socket": "active_enabled",
+    "socket_access": "denied_for_andy",
+    "image_inventory": IMAGE_AVAILABILITY,
+    "mutation_authorized": False,
+}
+RUNTIME_BLOCKERS = (
+    "container_service_inactive",
+    "docker_socket_permission_denied",
+    "digest_bound_ursim_image_unverified",
+    "ursim_runtime_evidence_absent",
+)
 
 
 def repository_root() -> Path:
@@ -65,14 +79,11 @@ def validate_spec(payload: Mapping[str, Any]) -> None:
     environment = payload.get("runtime_environment")
     if not isinstance(environment, Mapping):
         raise ValueError("runtime_environment is required")
-    expected_environment = {
-        "container_service": "inactive",
-        "image_inventory": "not_found",
-        "mutation_authorized": False,
-    }
-    for key, expected in expected_environment.items():
+    for key, expected in RUNTIME_ENVIRONMENT_REQUIRED.items():
         if environment.get(key) != expected:
             raise ValueError(f"runtime environment gate drifted: {key}")
+    if not str(environment.get("probe_source") or ""):
+        raise ValueError("runtime environment probe source is required")
 
     lanes = payload.get("lanes")
     if not isinstance(lanes, list) or len(lanes) != 2:
@@ -98,10 +109,10 @@ def validate_spec(payload: Mapping[str, Any]) -> None:
         if (
             image.get("digest") is not None
             or image.get("reference") is not None
-            or image.get("availability") != "not_found"
+            or image.get("availability") != IMAGE_AVAILABILITY
         ):
             raise ValueError(
-                "preparation v1 records the absent image; executed evidence needs a new manifest"
+                "preparation v1 records an unverified image inventory; executed evidence needs a new manifest"
             )
         bindings = lane.get("bindings")
         if not isinstance(bindings, list) or not bindings:
@@ -381,11 +392,7 @@ def build_manifest(spec_path: Path, root: Path | None = None) -> dict[str, Any]:
                 "runtime_status": "unavailable",
                 "protocol_pass": False,
                 "status": "blocked",
-                "blockers": [
-                    "container_service_inactive",
-                    "digest_bound_ursim_image_absent",
-                    "ursim_runtime_evidence_absent",
-                ],
+                "blockers": list(RUNTIME_BLOCKERS),
             }
         )
     return {
@@ -396,6 +403,7 @@ def build_manifest(spec_path: Path, root: Path | None = None) -> dict[str, Any]:
         "availability": "unavailable",
         "protocol_execution_performed": False,
         "claim_boundary": payload["claim_boundary"],
+        "runtime_environment": payload["runtime_environment"],
         "lanes": results,
         "claims": {
             "p0_ursim_protocol_pass": False,
