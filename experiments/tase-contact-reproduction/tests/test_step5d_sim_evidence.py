@@ -74,6 +74,8 @@ def payload() -> dict[str, object]:
             "unexpected_contact_count": 0,
             "cage_collision_count": 0,
             "deadline_miss_count": 0,
+            "compute_deadline_miss_count": 0,
+            "absolute_deadline_miss_count": 0,
             "max_qdot_abs_rad_s": 0.0004,
             "exact_zero_rejection_count": 0,
         },
@@ -124,6 +126,12 @@ class Step5dSimEvidenceTest(unittest.TestCase):
         self.assertEqual(schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
         self.assertEqual(schema["properties"]["claim_boundary"]["properties"]["live_accepted"]["const"], False)
         self.assertEqual(schema["properties"]["wall_timing"]["properties"]["deadline_ms"]["const"], 2.0)
+        self.assertEqual(
+            schema["properties"]["wall_timing"]["properties"][
+                "deadline_accounting"
+            ]["const"],
+            "compute_elapsed_and_absolute_release_deadline_v2",
+        )
 
     def test_valid_deterministic_packet_has_no_schema_or_claim_blockers(self) -> None:
         self.assertEqual(validate_evidence(payload()), [])
@@ -157,9 +165,12 @@ class Step5dSimEvidenceTest(unittest.TestCase):
         changed = payload()
         nominal = changed["nominal"]
         assert isinstance(nominal, dict)
-        nominal["deadline_miss_count"] = 3
+        nominal["deadline_miss_count"] = 2
+        nominal["compute_deadline_miss_count"] = 3
+        nominal["absolute_deadline_miss_count"] = 2
         changed["wall_timing"] = {
             "scope": "read_state_to_shared_control_to_four_physics_substeps",
+            "deadline_accounting": "compute_elapsed_and_absolute_release_deadline_v2",
             "paced": True,
             "samples": 1_000,
             "deadline_ms": 2.0,
@@ -168,9 +179,24 @@ class Step5dSimEvidenceTest(unittest.TestCase):
             "p95_ms": 1.4,
             "p99_ms": 1.9,
             "max_ms": 2.4,
-            "deadline_miss_count": 3,
+            "deadline_miss_count": 2,
+            "compute_deadline_miss_count": 3,
+            "absolute_deadline_miss_count": 2,
+            "release_lateness_ms": {
+                "p50_ms": 0.0,
+                "p95_ms": 0.1,
+                "p99_ms": 0.2,
+                "max_ms": 0.3,
+            },
+            "absolute_finish_lateness_ms": {
+                "p50_ms": 0.0,
+                "p95_ms": 0.0,
+                "p99_ms": 0.1,
+                "max_ms": 0.4,
+            },
             "p99_within_limit": False,
             "max_within_deadline": False,
+            "absolute_finish_within_deadline": False,
             "pass": False,
         }
 
@@ -180,6 +206,7 @@ class Step5dSimEvidenceTest(unittest.TestCase):
         changed = payload()
         changed["wall_timing"] = {
             "scope": "read_state_to_shared_control_to_four_physics_substeps",
+            "deadline_accounting": "compute_elapsed_and_absolute_release_deadline_v2",
             "paced": False,
             "samples": 1_000,
             "deadline_ms": 2.0,
@@ -189,8 +216,23 @@ class Step5dSimEvidenceTest(unittest.TestCase):
             "p99_ms": 1.9,
             "max_ms": 2.4,
             "deadline_miss_count": 0,
+            "compute_deadline_miss_count": 0,
+            "absolute_deadline_miss_count": 0,
+            "release_lateness_ms": {
+                "p50_ms": 0.0,
+                "p95_ms": 0.0,
+                "p99_ms": 0.0,
+                "max_ms": 0.0,
+            },
+            "absolute_finish_lateness_ms": {
+                "p50_ms": 0.0,
+                "p95_ms": 0.0,
+                "p99_ms": 0.0,
+                "max_ms": 0.0,
+            },
             "p99_within_limit": True,
             "max_within_deadline": True,
+            "absolute_finish_within_deadline": True,
             "pass": True,
         }
 
@@ -198,8 +240,40 @@ class Step5dSimEvidenceTest(unittest.TestCase):
 
         self.assertIn("wall_timing.p99_within_limit:mismatch", blockers)
         self.assertIn("wall_timing.max_within_deadline:mismatch", blockers)
-        self.assertIn("wall_timing.deadline_miss_count:max_inconsistent", blockers)
+        self.assertIn(
+            "wall_timing.compute_deadline_miss_count:max_inconsistent",
+            blockers,
+        )
         self.assertIn("wall_timing.pass:mismatch", blockers)
+
+    def test_legacy_compute_only_timing_is_not_acceptance_eligible(self) -> None:
+        changed = payload()
+        changed["wall_timing"] = {
+            "scope": "read_state_to_shared_control_to_four_physics_substeps",
+            "paced": True,
+            "samples": 1_000,
+            "deadline_ms": 2.0,
+            "p99_limit_ms": 1.8,
+            "p50_ms": 0.9,
+            "p95_ms": 1.0,
+            "p99_ms": 1.1,
+            "max_ms": 1.2,
+            "deadline_miss_count": 0,
+            "p99_within_limit": True,
+            "max_within_deadline": True,
+            "pass": True,
+        }
+
+        blockers = validate_evidence(changed)
+
+        self.assertIn(
+            "wall_timing.deadline_accounting:legacy_compute_only_or_invalid",
+            blockers,
+        )
+        self.assertIn(
+            "wall_timing.absolute_deadline_miss_count:invalid",
+            blockers,
+        )
 
     def test_sim_pass_cannot_promote_package_live_or_reproduction(self) -> None:
         changed = payload()

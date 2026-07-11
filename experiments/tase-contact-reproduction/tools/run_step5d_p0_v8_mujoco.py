@@ -124,7 +124,8 @@ class NominalPhaseResult:
     qdot_bound_violation_count: int
     unexpected_contact_count: int
     cage_collision_count: int
-    deadline_miss_count: int
+    compute_deadline_miss_count: int
+    absolute_deadline_miss_count: int
     max_qdot_abs_rad_s: float
     exact_zero_rejection_count: int
     physics_tick_count: int
@@ -135,6 +136,8 @@ class NominalPhaseResult:
     first_sequence: int
     last_sequence: int
     compute_ms: np.ndarray
+    release_lateness_ms: np.ndarray
+    absolute_finish_lateness_ms: np.ndarray
     sim_time_s: np.ndarray
     qdot: np.ndarray
     command_jacobian: np.ndarray
@@ -486,6 +489,8 @@ def run_nominal_phase(
     adapter = make_adapter(policy, capacity=tick_count)
 
     compute_ms = np.empty(tick_count, dtype=np.float64)
+    release_lateness_ms = np.empty(tick_count, dtype=np.float64)
+    absolute_finish_lateness_ms = np.empty(tick_count, dtype=np.float64)
     sim_time_s = np.empty(tick_count, dtype=np.float64)
     qdot = np.empty((tick_count, 6), dtype=np.float64)
     command_jacobian = np.empty((tick_count, 6, 6), dtype=np.float64)
@@ -506,19 +511,24 @@ def run_nominal_phase(
     over_cap = 0
     contacts = 0
     collisions = 0
-    deadline_misses = 0
+    compute_deadline_misses = 0
+    absolute_deadline_misses = 0
     exact_zero_rejections = 0
     physics_tick = 0
     dbil_ticks = 0
-    wall_start = time.perf_counter()
     sim_start = float(first_state.sim_time_s)
 
     gc_was_enabled = gc.isenabled()
     gc.collect()
     gc.disable()
+    # The absolute 500 Hz schedule starts only after the one-off collection and
+    # GC disable transition.  Starting it before gc.collect() silently made the
+    # first releases late while the old compute-only counter hid that lateness.
+    wall_start = time.perf_counter()
     try:
         for index in range(tick_count):
             release = wall_start + index / P0_V8_CONTROL_HZ
+            absolute_deadline = release + 1.0 / P0_V8_CONTROL_HZ
             if pace_wall_clock and index:
                 wait_until(release)
             started = time.perf_counter()
@@ -528,10 +538,18 @@ def run_nominal_phase(
             )
             result = adapter.step(state)
             plant.write_command(result.simulation_command)
-            elapsed_ms = (time.perf_counter() - started) * 1000.0
+            finished = time.perf_counter()
+            elapsed_ms = (finished - started) * 1000.0
+            release_lateness = max(0.0, (started - release) * 1000.0)
+            absolute_finish_lateness = max(
+                0.0,
+                (finished - absolute_deadline) * 1000.0,
+            )
 
             values = np.asarray(result.simulation_command.qdot, dtype=float)
             compute_ms[index] = elapsed_ms
+            release_lateness_ms[index] = release_lateness
+            absolute_finish_lateness_ms[index] = absolute_finish_lateness
             sim_time_s[index] = state.sim_time_s
             qdot[index, :] = values
             command_jacobian[index, :, :] = np.asarray(
@@ -562,7 +580,8 @@ def run_nominal_phase(
             collisions += int(
                 state.cage_collision_count != 0 or not state.tcp_inside_cage
             )
-            deadline_misses += int(elapsed_ms >= 2.0)
+            compute_deadline_misses += int(elapsed_ms >= 2.0)
+            absolute_deadline_misses += int(absolute_finish_lateness > 0.0)
             exact_zero_rejections += int(
                 not result.control.decision.accepted
                 and result.simulation_command.qdot != ZERO6
@@ -589,7 +608,8 @@ def run_nominal_phase(
         qdot_bound_violation_count=over_cap,
         unexpected_contact_count=contacts,
         cage_collision_count=collisions,
-        deadline_miss_count=deadline_misses,
+        compute_deadline_miss_count=compute_deadline_misses,
+        absolute_deadline_miss_count=absolute_deadline_misses,
         max_qdot_abs_rad_s=float(np.max(np.abs(qdot))),
         exact_zero_rejection_count=exact_zero_rejections,
         physics_tick_count=physics_tick,
@@ -600,6 +620,8 @@ def run_nominal_phase(
         first_sequence=0,
         last_sequence=tick_count - 1,
         compute_ms=compute_ms,
+        release_lateness_ms=release_lateness_ms,
+        absolute_finish_lateness_ms=absolute_finish_lateness_ms,
         sim_time_s=sim_time_s,
         qdot=qdot,
         command_jacobian=command_jacobian,
@@ -812,6 +834,15 @@ def percentile(values: np.ndarray, quantile: float) -> float:
     return float(np.percentile(values, quantile))
 
 
+def timing_distribution(values: np.ndarray) -> dict[str, float]:
+    return {
+        "p50_ms": percentile(values, 50),
+        "p95_ms": percentile(values, 95),
+        "p99_ms": percentile(values, 99),
+        "max_ms": float(np.max(values)),
+    }
+
+
 def wall_timing(nominal: NominalPhaseResult, *, paced: bool) -> dict[str, object]:
     p50_ms = percentile(nominal.compute_ms, 50)
     p95_ms = percentile(nominal.compute_ms, 95)
@@ -819,14 +850,21 @@ def wall_timing(nominal: NominalPhaseResult, *, paced: bool) -> dict[str, object
     max_ms = float(np.max(nominal.compute_ms))
     p99_within_limit = p99_ms <= 1.80
     max_within_deadline = max_ms < 2.0
+    release_lateness = timing_distribution(nominal.release_lateness_ms)
+    absolute_finish_lateness = timing_distribution(
+        nominal.absolute_finish_lateness_ms
+    )
+    absolute_finish_within_deadline = nominal.absolute_deadline_miss_count == 0
     passed = (
         paced
-        and nominal.deadline_miss_count == 0
+        and nominal.compute_deadline_miss_count == 0
+        and nominal.absolute_deadline_miss_count == 0
         and p99_within_limit
         and max_within_deadline
     )
     return {
         "scope": "read_state_to_shared_control_to_four_physics_substeps",
+        "deadline_accounting": "compute_elapsed_and_absolute_release_deadline_v2",
         "paced": bool(paced),
         "samples": nominal.tick_count,
         "deadline_ms": 2.0,
@@ -835,9 +873,17 @@ def wall_timing(nominal: NominalPhaseResult, *, paced: bool) -> dict[str, object
         "p95_ms": p95_ms,
         "p99_ms": p99_ms,
         "max_ms": max_ms,
-        "deadline_miss_count": nominal.deadline_miss_count,
+        # Canonical deadline_miss_count is the absolute release-deadline count.
+        # The explicit compute counter preserves the former elapsed-only metric
+        # without allowing it to masquerade as schedule evidence.
+        "deadline_miss_count": nominal.absolute_deadline_miss_count,
+        "compute_deadline_miss_count": nominal.compute_deadline_miss_count,
+        "absolute_deadline_miss_count": nominal.absolute_deadline_miss_count,
+        "release_lateness_ms": release_lateness,
+        "absolute_finish_lateness_ms": absolute_finish_lateness,
         "p99_within_limit": p99_within_limit,
         "max_within_deadline": max_within_deadline,
+        "absolute_finish_within_deadline": absolute_finish_within_deadline,
         "pass": passed,
     }
 
@@ -865,6 +911,8 @@ def write_phase_artifacts(
         sequence=np.arange(nominal.tick_count, dtype=np.int64),
         sim_time_s=nominal.sim_time_s,
         compute_ms=nominal.compute_ms,
+        release_lateness_ms=nominal.release_lateness_ms,
+        absolute_finish_lateness_ms=nominal.absolute_finish_lateness_ms,
         qdot=nominal.qdot,
         command_jacobian=nominal.command_jacobian,
         desired_twist=nominal.desired_twist,
@@ -941,7 +989,9 @@ def write_phase_artifacts(
             "qdot_bound_violation_count": nominal.qdot_bound_violation_count,
             "unexpected_contact_count": nominal.unexpected_contact_count,
             "cage_collision_count": nominal.cage_collision_count,
-            "deadline_miss_count": nominal.deadline_miss_count,
+            "deadline_miss_count": nominal.absolute_deadline_miss_count,
+            "compute_deadline_miss_count": nominal.compute_deadline_miss_count,
+            "absolute_deadline_miss_count": nominal.absolute_deadline_miss_count,
             "max_qdot_abs_rad_s": nominal.max_qdot_abs_rad_s,
             "exact_zero_rejection_count": nominal.exact_zero_rejection_count,
             "control_path_diagnostic_pass": nominal.control_path_pass,
@@ -1049,6 +1099,7 @@ def main() -> int:
         blockers = validate_evidence(evidence, artifact_root=evidence_path.parent)
         phase_valid = not blockers
         all_valid &= phase_valid
+        phase_timing = wall_timing(nominal, paced=args.pace_wall_clock)
         phase_entries.append(
             {
                 "duration_s": spec.duration_s,
@@ -1059,9 +1110,13 @@ def main() -> int:
                 "structurally_valid": phase_valid,
                 "validation_blockers": blockers,
                 "control_path_diagnostic_pass": nominal.control_path_pass,
-                "wall_timing_pass": wall_timing(
-                    nominal, paced=args.pace_wall_clock
-                )["pass"],
+                "compute_deadline_miss_count": phase_timing[
+                    "compute_deadline_miss_count"
+                ],
+                "absolute_deadline_miss_count": phase_timing[
+                    "absolute_deadline_miss_count"
+                ],
+                "wall_timing_pass": phase_timing["pass"],
             }
         )
 
@@ -1080,12 +1135,21 @@ def main() -> int:
     )
     timing_gate = {
         "scope": "separate_wall_timing_acceptance",
+        "deadline_accounting": "compute_elapsed_and_absolute_release_deadline_v2",
         "required_phase_duration_s": 60.0,
         "deadline_ms": 2.0,
         "p99_limit_ms": 1.80,
+        "requires_zero_compute_deadline_misses": True,
+        "requires_zero_absolute_deadline_misses": True,
         "phase_results": [
             {
                 "duration_s": entry["duration_s"],
+                "compute_deadline_miss_count": entry[
+                    "compute_deadline_miss_count"
+                ],
+                "absolute_deadline_miss_count": entry[
+                    "absolute_deadline_miss_count"
+                ],
                 "pass": entry["wall_timing_pass"],
             }
             for entry in phase_entries

@@ -84,9 +84,10 @@
     },
     "wall_timing": {
       "type": "object",
-      "required": ["scope", "paced", "samples", "deadline_ms", "p99_limit_ms", "p50_ms", "p95_ms", "p99_ms", "max_ms", "deadline_miss_count", "p99_within_limit", "max_within_deadline", "pass"],
+      "required": ["scope", "deadline_accounting", "paced", "samples", "deadline_ms", "p99_limit_ms", "p50_ms", "p95_ms", "p99_ms", "max_ms", "deadline_miss_count", "compute_deadline_miss_count", "absolute_deadline_miss_count", "release_lateness_ms", "absolute_finish_lateness_ms", "p99_within_limit", "max_within_deadline", "absolute_finish_within_deadline", "pass"],
       "properties": {
         "scope": {"const": "read_state_to_shared_control_to_four_physics_substeps"},
+        "deadline_accounting": {"const": "compute_elapsed_and_absolute_release_deadline_v2"},
         "paced": {"type": "boolean"},
         "samples": {"type": "integer", "minimum": 1},
         "deadline_ms": {"const": 2.0},
@@ -96,14 +97,39 @@
         "p99_ms": {"type": "number", "minimum": 0},
         "max_ms": {"type": "number", "minimum": 0},
         "deadline_miss_count": {"type": "integer", "minimum": 0},
+        "compute_deadline_miss_count": {"type": "integer", "minimum": 0},
+        "absolute_deadline_miss_count": {"type": "integer", "minimum": 0},
+        "release_lateness_ms": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["p50_ms", "p95_ms", "p99_ms", "max_ms"],
+          "properties": {
+            "p50_ms": {"type": "number", "minimum": 0},
+            "p95_ms": {"type": "number", "minimum": 0},
+            "p99_ms": {"type": "number", "minimum": 0},
+            "max_ms": {"type": "number", "minimum": 0}
+          }
+        },
+        "absolute_finish_lateness_ms": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["p50_ms", "p95_ms", "p99_ms", "max_ms"],
+          "properties": {
+            "p50_ms": {"type": "number", "minimum": 0},
+            "p95_ms": {"type": "number", "minimum": 0},
+            "p99_ms": {"type": "number", "minimum": 0},
+            "max_ms": {"type": "number", "minimum": 0}
+          }
+        },
         "p99_within_limit": {"type": "boolean"},
         "max_within_deadline": {"type": "boolean"},
+        "absolute_finish_within_deadline": {"type": "boolean"},
         "pass": {"type": "boolean"}
       }
     },
     "nominal": {
       "type": "object",
-      "required": ["tick_count", "accepted_tick_count", "safe_hold_count", "stop_count", "missed_sequence_count", "nonfinite_output_count", "qdot_bound_violation_count", "unexpected_contact_count", "cage_collision_count", "deadline_miss_count", "max_qdot_abs_rad_s", "exact_zero_rejection_count"],
+      "required": ["tick_count", "accepted_tick_count", "safe_hold_count", "stop_count", "missed_sequence_count", "nonfinite_output_count", "qdot_bound_violation_count", "unexpected_contact_count", "cage_collision_count", "deadline_miss_count", "compute_deadline_miss_count", "absolute_deadline_miss_count", "max_qdot_abs_rad_s", "exact_zero_rejection_count"],
       "properties": {
         "tick_count": {"type": "integer", "minimum": 1},
         "accepted_tick_count": {"type": "integer", "minimum": 0},
@@ -115,6 +141,8 @@
         "unexpected_contact_count": {"type": "integer", "minimum": 0},
         "cage_collision_count": {"type": "integer", "minimum": 0},
         "deadline_miss_count": {"type": "integer", "minimum": 0},
+        "compute_deadline_miss_count": {"type": "integer", "minimum": 0},
+        "absolute_deadline_miss_count": {"type": "integer", "minimum": 0},
         "max_qdot_abs_rad_s": {"type": "number", "minimum": 0},
         "exact_zero_rejection_count": {"type": "integer", "minimum": 0}
       }

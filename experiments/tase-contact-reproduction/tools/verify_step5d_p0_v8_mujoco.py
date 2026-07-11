@@ -64,6 +64,7 @@ def _trace_blockers(
         with np.load(path, allow_pickle=False) as trace:
             required = {
                 "sequence", "sim_time_s", "compute_ms", "qdot", "accepted",
+                "release_lateness_ms", "absolute_finish_lateness_ms",
                 "action", "reason", "deferred_numeric", "deferred_reason",
                 "deferred_action", "command_jacobian", "desired_twist",
                 "reaction_normal", "approach_normal", "wrench",
@@ -76,6 +77,12 @@ def _trace_blockers(
             sequence = np.asarray(trace["sequence"])
             sim_time = np.asarray(trace["sim_time_s"], dtype=float)
             compute = np.asarray(trace["compute_ms"], dtype=float)
+            release_lateness = np.asarray(
+                trace["release_lateness_ms"], dtype=float
+            )
+            absolute_finish_lateness = np.asarray(
+                trace["absolute_finish_lateness_ms"], dtype=float
+            )
             qdot = np.asarray(trace["qdot"], dtype=float)
             jacobian = np.asarray(trace["command_jacobian"], dtype=float)
             desired = np.asarray(trace["desired_twist"], dtype=float)
@@ -105,18 +112,52 @@ def _trace_blockers(
     if not compute_valid:
         blockers.append("trace:compute_timing_invalid")
     else:
+        release_valid = (
+            release_lateness.shape == (tick_count,)
+            and np.all(np.isfinite(release_lateness))
+            and not np.any(release_lateness < 0.0)
+        )
+        absolute_finish_valid = (
+            absolute_finish_lateness.shape == (tick_count,)
+            and np.all(np.isfinite(absolute_finish_lateness))
+            and not np.any(absolute_finish_lateness < 0.0)
+        )
+        if not release_valid:
+            blockers.append("trace:release_lateness_invalid")
+        if not absolute_finish_valid:
+            blockers.append("trace:absolute_finish_lateness_invalid")
         wall = evidence.get("wall_timing")
         if not isinstance(wall, Mapping):
             blockers.append("trace:wall_timing_missing")
-        else:
+        elif release_valid and absolute_finish_valid:
+            def distribution(values: np.ndarray) -> dict[str, float]:
+                return {
+                    "p50_ms": float(np.percentile(values, 50)),
+                    "p95_ms": float(np.percentile(values, 95)),
+                    "p99_ms": float(np.percentile(values, 99)),
+                    "max_ms": float(np.max(values)),
+                }
+
             actual = {
                 "samples": tick_count,
                 "p50_ms": float(np.percentile(compute, 50)),
                 "p95_ms": float(np.percentile(compute, 95)),
                 "p99_ms": float(np.percentile(compute, 99)),
                 "max_ms": float(np.max(compute)),
-                "deadline_miss_count": int(np.count_nonzero(compute >= 2.0)),
+                "compute_deadline_miss_count": int(
+                    np.count_nonzero(compute >= 2.0)
+                ),
+                "absolute_deadline_miss_count": int(
+                    np.count_nonzero(absolute_finish_lateness > 0.0)
+                ),
+                "release_lateness_ms": distribution(release_lateness),
+                "absolute_finish_lateness_ms": distribution(
+                    absolute_finish_lateness
+                ),
             }
+            actual["deadline_miss_count"] = actual[
+                "absolute_deadline_miss_count"
+            ]
             for field in ("p50_ms", "p95_ms", "p99_ms", "max_ms"):
                 try:
                     declared = float(wall[field])
@@ -127,17 +168,45 @@ def _trace_blockers(
                     blockers.append(f"trace:wall_timing.{field}:trace_mismatch")
             if wall.get("samples") != actual["samples"]:
                 blockers.append("trace:wall_timing.samples:trace_mismatch")
-            if wall.get("deadline_miss_count") != actual["deadline_miss_count"]:
-                blockers.append("trace:wall_timing.deadline_miss_count:trace_mismatch")
-            if nominal.get("deadline_miss_count") != actual["deadline_miss_count"]:
-                blockers.append("trace:deadline_count_mismatch")
+            for field in (
+                "deadline_miss_count",
+                "compute_deadline_miss_count",
+                "absolute_deadline_miss_count",
+            ):
+                if wall.get(field) != actual[field]:
+                    blockers.append(
+                        f"trace:wall_timing.{field}:trace_mismatch"
+                    )
+                if nominal.get(field) != actual[field]:
+                    blockers.append(f"trace:{field}:nominal_mismatch")
+            for field in (
+                "release_lateness_ms",
+                "absolute_finish_lateness_ms",
+            ):
+                declared_distribution = wall.get(field)
+                if not isinstance(declared_distribution, Mapping):
+                    blockers.append(f"trace:wall_timing.{field}:invalid")
+                    continue
+                for statistic, value in actual[field].items():
+                    try:
+                        declared = float(declared_distribution[statistic])
+                    except (KeyError, TypeError, ValueError):
+                        blockers.append(
+                            f"trace:wall_timing.{field}.{statistic}:invalid"
+                        )
+                        continue
+                    if not math.isclose(declared, value, abs_tol=1e-9):
+                        blockers.append(
+                            f"trace:wall_timing.{field}.{statistic}:trace_mismatch"
+                        )
             threshold_claimed = (
                 wall.get("pass") is True
                 if require_timing_threshold is None
                 else require_timing_threshold
             )
             if threshold_claimed and (
-                actual["deadline_miss_count"] != 0
+                actual["compute_deadline_miss_count"] != 0
+                or actual["absolute_deadline_miss_count"] != 0
                 or actual["p99_ms"] > 1.80
                 or actual["max_ms"] >= 2.0
             ):
@@ -291,11 +360,36 @@ def validate_run_manifest(
                     blockers.append(f"phases[{index}].sim_clock.drift_s:nonzero")
         wall = evidence.get("wall_timing")
         wall_pass = wall.get("pass") if isinstance(wall, Mapping) else None
+        wall_compute_misses = (
+            wall.get("compute_deadline_miss_count")
+            if isinstance(wall, Mapping)
+            else None
+        )
+        wall_absolute_misses = (
+            wall.get("absolute_deadline_miss_count")
+            if isinstance(wall, Mapping)
+            else None
+        )
         if not isinstance(wall_pass, bool):
             blockers.append(f"phases[{index}].wall_timing.pass:not_boolean")
         if row.get("wall_timing_pass") is not wall_pass:
             blockers.append(f"phases[{index}].wall_timing_pass:mismatch")
-        observed_timing.append({"duration_s": actual[index], "pass": wall_pass})
+        if row.get("compute_deadline_miss_count") != wall_compute_misses:
+            blockers.append(
+                f"phases[{index}].compute_deadline_miss_count:mismatch"
+            )
+        if row.get("absolute_deadline_miss_count") != wall_absolute_misses:
+            blockers.append(
+                f"phases[{index}].absolute_deadline_miss_count:mismatch"
+            )
+        observed_timing.append(
+            {
+                "duration_s": actual[index],
+                "compute_deadline_miss_count": wall_compute_misses,
+                "absolute_deadline_miss_count": wall_absolute_misses,
+                "pass": wall_pass,
+            }
+        )
         faults = evidence.get("faults")
         if isinstance(faults, Sequence):
             for fault in faults:
@@ -336,9 +430,12 @@ def validate_run_manifest(
     else:
         expected_gate = {
             "scope": "separate_wall_timing_acceptance",
+            "deadline_accounting": "compute_elapsed_and_absolute_release_deadline_v2",
             "required_phase_duration_s": 60.0,
             "deadline_ms": 2.0,
             "p99_limit_ms": 1.80,
+            "requires_zero_compute_deadline_misses": True,
+            "requires_zero_absolute_deadline_misses": True,
             "phase_results": observed_timing,
             "complete_sequence_evaluated": complete,
             "pass": expected_timing_pass,

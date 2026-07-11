@@ -137,6 +137,10 @@ class Step5dP0V8MujocoRunnerTest(unittest.TestCase):
         self.assertEqual(result.first_sequence, 0)
         self.assertEqual(result.last_sequence, 2)
         self.assertTrue(np.all(result.qdot[:, 2] == 0.0001))
+        self.assertEqual(result.release_lateness_ms.shape, (3,))
+        self.assertEqual(result.absolute_finish_lateness_ms.shape, (3,))
+        self.assertTrue(np.all(result.release_lateness_ms >= 0.0))
+        self.assertTrue(np.all(result.absolute_finish_lateness_ms >= 0.0))
         self.assertEqual(result.deferred.count, 3)
         self.assertEqual(gc.isenabled(), gc_before)
 
@@ -148,19 +152,61 @@ class Step5dP0V8MujocoRunnerTest(unittest.TestCase):
         )
         slow = replace(
             result,
-            deadline_miss_count=result.tick_count,
+            compute_deadline_miss_count=result.tick_count,
+            absolute_deadline_miss_count=result.tick_count,
             compute_ms=np.full(result.tick_count, 2.5),
+            absolute_finish_lateness_ms=np.full(result.tick_count, 0.5),
         )
 
         self.assertTrue(slow.control_path_pass)
         timing = runner.wall_timing(slow, paced=True)
         self.assertFalse(timing["pass"])
         self.assertEqual(timing["deadline_miss_count"], result.tick_count)
+        self.assertEqual(
+            timing["compute_deadline_miss_count"], result.tick_count
+        )
+        self.assertEqual(
+            timing["absolute_deadline_miss_count"], result.tick_count
+        )
         self.assertFalse(timing["p99_within_limit"])
         self.assertFalse(timing["max_within_deadline"])
         broken_sequence = replace(result, last_sequence=result.tick_count)
         self.assertFalse(broken_sequence.control_path_pass)
         self.assertFalse(runner.wall_timing(result, paced=False)["pass"])
+
+    def test_absolute_release_deadline_blocks_even_when_compute_is_fast(self) -> None:
+        result = runner.run_nominal_phase(
+            plant=FakePlant(),
+            solver=FakeSolver(),
+            spec=runner.PhaseSpec(duration_s=0.006, sequence_index=0),
+        )
+        schedule_late = replace(
+            result,
+            compute_deadline_miss_count=0,
+            absolute_deadline_miss_count=result.tick_count,
+            compute_ms=np.full(result.tick_count, 0.5),
+            release_lateness_ms=np.full(result.tick_count, 1.75),
+            absolute_finish_lateness_ms=np.full(result.tick_count, 0.25),
+        )
+
+        timing = runner.wall_timing(schedule_late, paced=True)
+
+        self.assertTrue(timing["p99_within_limit"])
+        self.assertTrue(timing["max_within_deadline"])
+        self.assertEqual(timing["compute_deadline_miss_count"], 0)
+        self.assertEqual(
+            timing["absolute_deadline_miss_count"], result.tick_count
+        )
+        self.assertFalse(timing["absolute_finish_within_deadline"])
+        self.assertFalse(timing["pass"])
+
+    def test_absolute_schedule_starts_after_one_off_gc_collection(self) -> None:
+        source = inspect.getsource(runner.run_nominal_phase)
+
+        self.assertLess(
+            source.index("gc.collect()"),
+            source.index("wall_start = time.perf_counter()"),
+        )
 
     def test_runtime_timing_environment_binds_scheduler_affinity_and_capabilities(self) -> None:
         with (

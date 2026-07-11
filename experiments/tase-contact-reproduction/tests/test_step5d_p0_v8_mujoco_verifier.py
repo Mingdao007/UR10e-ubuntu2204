@@ -67,11 +67,14 @@ class Step5dP0V8MujocoVerifierTest(unittest.TestCase):
     def _wall_timing(
         count: int, value_ms: float, *, paced: bool = True
     ) -> dict[str, object]:
-        misses = count if value_ms >= 2.0 else 0
+        compute_misses = count if value_ms >= 2.0 else 0
+        absolute_lateness_ms = max(0.0, value_ms - 2.0)
+        absolute_misses = count if absolute_lateness_ms > 0.0 else 0
         p99_ok = value_ms <= 1.8
         max_ok = value_ms < 2.0
         return {
             "scope": "read_state_to_shared_control_to_four_physics_substeps",
+            "deadline_accounting": "compute_elapsed_and_absolute_release_deadline_v2",
             "paced": paced,
             "samples": count,
             "deadline_ms": 2.0,
@@ -80,10 +83,31 @@ class Step5dP0V8MujocoVerifierTest(unittest.TestCase):
             "p95_ms": value_ms,
             "p99_ms": value_ms,
             "max_ms": value_ms,
-            "deadline_miss_count": misses,
+            "deadline_miss_count": absolute_misses,
+            "compute_deadline_miss_count": compute_misses,
+            "absolute_deadline_miss_count": absolute_misses,
+            "release_lateness_ms": {
+                "p50_ms": 0.0,
+                "p95_ms": 0.0,
+                "p99_ms": 0.0,
+                "max_ms": 0.0,
+            },
+            "absolute_finish_lateness_ms": {
+                "p50_ms": absolute_lateness_ms,
+                "p95_ms": absolute_lateness_ms,
+                "p99_ms": absolute_lateness_ms,
+                "max_ms": absolute_lateness_ms,
+            },
             "p99_within_limit": p99_ok,
             "max_within_deadline": max_ok,
-            "pass": paced and misses == 0 and p99_ok and max_ok,
+            "absolute_finish_within_deadline": absolute_misses == 0,
+            "pass": (
+                paced
+                and compute_misses == 0
+                and absolute_misses == 0
+                and p99_ok
+                and max_ok
+            ),
         }
 
     def setUp(self) -> None:
@@ -96,6 +120,8 @@ class Step5dP0V8MujocoVerifierTest(unittest.TestCase):
             sequence=np.arange(count, dtype=np.int64),
             sim_time_s=np.arange(count, dtype=float) * 0.002,
             compute_ms=np.full(count, 0.5),
+            release_lateness_ms=np.zeros(count),
+            absolute_finish_lateness_ms=np.zeros(count),
             qdot=np.zeros((count, 6)),
             command_jacobian=np.repeat(np.eye(6)[None, :, :], count, axis=0),
             desired_twist=np.repeat(
@@ -121,7 +147,12 @@ class Step5dP0V8MujocoVerifierTest(unittest.TestCase):
             deferred_action=np.asarray(["execute"] * count, dtype="<U96"),
         )
         self.evidence = {
-            "nominal": {"tick_count": count, "deadline_miss_count": 0},
+            "nominal": {
+                "tick_count": count,
+                "deadline_miss_count": 0,
+                "compute_deadline_miss_count": 0,
+                "absolute_deadline_miss_count": 0,
+            },
             "wall_timing": self._wall_timing(count, 0.5),
             "artifacts": [
                 {"role": "control_trace_npz", "path": self.trace.name}
@@ -157,8 +188,29 @@ class Step5dP0V8MujocoVerifierTest(unittest.TestCase):
 
         blockers = _trace_blockers(self.evidence, self.root)
 
-        self.assertIn("trace:deadline_count_mismatch", blockers)
+        self.assertIn(
+            "trace:compute_deadline_miss_count:nominal_mismatch",
+            blockers,
+        )
         self.assertIn("trace:qdot_over_cap", blockers)
+
+    def test_trace_detects_absolute_release_deadline_tamper(self) -> None:
+        with np.load(self.trace, allow_pickle=False) as values:
+            payload = {name: values[name] for name in values.files}
+        payload["release_lateness_ms"][2] = 1.75
+        payload["absolute_finish_lateness_ms"][2] = 0.25
+        np.savez_compressed(self.trace, **payload)
+
+        blockers = _trace_blockers(self.evidence, self.root)
+
+        self.assertIn(
+            "trace:absolute_deadline_miss_count:nominal_mismatch",
+            blockers,
+        )
+        self.assertIn(
+            "trace:wall_timing.absolute_finish_lateness_ms.max_ms:trace_mismatch",
+            blockers,
+        )
 
     def test_trace_enforces_full_tick_p99_budget(self) -> None:
         with np.load(self.trace, allow_pickle=False) as values:
@@ -206,6 +258,11 @@ class Step5dP0V8MujocoVerifierTest(unittest.TestCase):
                 sequence=np.arange(count, dtype=np.int64),
                 sim_time_s=np.arange(count, dtype=float) * 0.002,
                 compute_ms=np.full(count, timing_value_ms),
+                release_lateness_ms=np.zeros(count),
+                absolute_finish_lateness_ms=np.full(
+                    count,
+                    max(0.0, timing_value_ms - 2.0),
+                ),
                 qdot=np.zeros((count, 6)),
                 command_jacobian=np.repeat(np.eye(6)[None, :, :], count, axis=0),
                 desired_twist=np.repeat(
@@ -257,6 +314,12 @@ class Step5dP0V8MujocoVerifierTest(unittest.TestCase):
                     "tick_count": count,
                     "accepted_tick_count": count,
                     "deadline_miss_count": timing["deadline_miss_count"],
+                    "compute_deadline_miss_count": timing[
+                        "compute_deadline_miss_count"
+                    ],
+                    "absolute_deadline_miss_count": timing[
+                        "absolute_deadline_miss_count"
+                    ],
                     "control_path_diagnostic_pass": True,
                     "sim_clock": {
                         "physics_tick_count": int(duration * 2_000),
@@ -297,11 +360,26 @@ class Step5dP0V8MujocoVerifierTest(unittest.TestCase):
                     "structurally_valid": True,
                     "validation_blockers": [],
                     "control_path_diagnostic_pass": True,
+                    "compute_deadline_miss_count": timing[
+                        "compute_deadline_miss_count"
+                    ],
+                    "absolute_deadline_miss_count": timing[
+                        "absolute_deadline_miss_count"
+                    ],
                     "wall_timing_pass": timing["pass"],
                 }
             )
         phase_timing = [
-            {"duration_s": row["duration_s"], "pass": row["wall_timing_pass"]}
+            {
+                "duration_s": row["duration_s"],
+                "compute_deadline_miss_count": row[
+                    "compute_deadline_miss_count"
+                ],
+                "absolute_deadline_miss_count": row[
+                    "absolute_deadline_miss_count"
+                ],
+                "pass": row["wall_timing_pass"],
+            }
             for row in phases
         ]
         final_pass = bool(phase_timing[-1]["pass"])
@@ -314,9 +392,12 @@ class Step5dP0V8MujocoVerifierTest(unittest.TestCase):
             "phases": phases,
             "timing_gate": {
                 "scope": "separate_wall_timing_acceptance",
+                "deadline_accounting": "compute_elapsed_and_absolute_release_deadline_v2",
                 "required_phase_duration_s": 60.0,
                 "deadline_ms": 2.0,
                 "p99_limit_ms": 1.8,
+                "requires_zero_compute_deadline_misses": True,
+                "requires_zero_absolute_deadline_misses": True,
                 "phase_results": phase_timing,
                 "complete_sequence_evaluated": True,
                 "pass": final_pass,

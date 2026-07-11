@@ -101,6 +101,28 @@ def _mapping(payload: Mapping[str, object], field: str, blockers: list[str]) -> 
     return value
 
 
+def _timing_distribution(
+    value: object,
+    field: str,
+    blockers: list[str],
+) -> tuple[float, float, float, float] | None:
+    if not isinstance(value, Mapping):
+        blockers.append(f"{field}:missing_or_not_object")
+        return None
+    parsed = tuple(
+        _number(value.get(name))
+        for name in ("p50_ms", "p95_ms", "p99_ms", "max_ms")
+    )
+    if any(item is None or item < 0.0 for item in parsed):
+        blockers.append(f"{field}:invalid")
+        return None
+    p50_ms, p95_ms, p99_ms, max_ms = parsed
+    assert None not in (p50_ms, p95_ms, p99_ms, max_ms)
+    if not p50_ms <= p95_ms <= p99_ms <= max_ms:
+        blockers.append(f"{field}:not_monotonic")
+    return p50_ms, p95_ms, p99_ms, max_ms
+
+
 def validate_evidence(
     payload: Mapping[str, object],
     *,
@@ -173,8 +195,28 @@ def validate_evidence(
         if _integer(nominal.get(field)) != 0:
             blockers.append(f"nominal.{field}:must_be_zero")
     deadline_miss_count = _integer(nominal.get("deadline_miss_count"))
+    compute_deadline_miss_count = _integer(
+        nominal.get("compute_deadline_miss_count")
+    )
+    absolute_deadline_miss_count = _integer(
+        nominal.get("absolute_deadline_miss_count")
+    )
     if deadline_miss_count is None or deadline_miss_count < 0:
         blockers.append("nominal.deadline_miss_count:must_be_nonnegative_integer")
+    if compute_deadline_miss_count is None or compute_deadline_miss_count < 0:
+        blockers.append(
+            "nominal.compute_deadline_miss_count:must_be_nonnegative_integer"
+        )
+    if absolute_deadline_miss_count is None or absolute_deadline_miss_count < 0:
+        blockers.append(
+            "nominal.absolute_deadline_miss_count:must_be_nonnegative_integer"
+        )
+    if (
+        deadline_miss_count is not None
+        and absolute_deadline_miss_count is not None
+        and deadline_miss_count != absolute_deadline_miss_count
+    ):
+        blockers.append("nominal.deadline_miss_count:absolute_alias_mismatch")
     max_qdot = _number(nominal.get("max_qdot_abs_rad_s"))
     if max_qdot is None or max_qdot > P0_V8_QDOT_CAP_RAD_S + 1e-12:
         blockers.append("nominal.max_qdot_abs_rad_s:invalid_or_over_cap")
@@ -193,6 +235,13 @@ def validate_evidence(
         wall = wall_value
         if wall.get("scope") != "read_state_to_shared_control_to_four_physics_substeps":
             blockers.append("wall_timing.scope:invalid")
+        if (
+            wall.get("deadline_accounting")
+            != "compute_elapsed_and_absolute_release_deadline_v2"
+        ):
+            blockers.append(
+                "wall_timing.deadline_accounting:legacy_compute_only_or_invalid"
+            )
         if not isinstance(wall.get("paced"), bool):
             blockers.append("wall_timing.paced:not_boolean")
         if _integer(wall.get("samples")) != tick_count:
@@ -221,16 +270,91 @@ def validate_evidence(
             if wall.get("max_within_deadline") is not expected_max:
                 blockers.append("wall_timing.max_within_deadline:mismatch")
             wall_misses = _integer(wall.get("deadline_miss_count"))
+            wall_compute_misses = _integer(
+                wall.get("compute_deadline_miss_count")
+            )
+            wall_absolute_misses = _integer(
+                wall.get("absolute_deadline_miss_count")
+            )
             if wall_misses is None or wall_misses < 0:
                 blockers.append("wall_timing.deadline_miss_count:invalid")
-            else:
+            if wall_compute_misses is None or wall_compute_misses < 0:
+                blockers.append("wall_timing.compute_deadline_miss_count:invalid")
+            if wall_absolute_misses is None or wall_absolute_misses < 0:
+                blockers.append("wall_timing.absolute_deadline_miss_count:invalid")
+
+            release_lateness = _timing_distribution(
+                wall.get("release_lateness_ms"),
+                "wall_timing.release_lateness_ms",
+                blockers,
+            )
+            absolute_finish_lateness = _timing_distribution(
+                wall.get("absolute_finish_lateness_ms"),
+                "wall_timing.absolute_finish_lateness_ms",
+                blockers,
+            )
+            expected_absolute_finish = (
+                wall_absolute_misses == 0
+                if wall_absolute_misses is not None
+                else None
+            )
+            if (
+                expected_absolute_finish is not None
+                and wall.get("absolute_finish_within_deadline")
+                is not expected_absolute_finish
+            ):
+                blockers.append(
+                    "wall_timing.absolute_finish_within_deadline:mismatch"
+                )
+            if (
+                absolute_finish_lateness is not None
+                and wall_absolute_misses is not None
+                and ((absolute_finish_lateness[3] == 0.0) is not (wall_absolute_misses == 0))
+            ):
+                blockers.append(
+                    "wall_timing.absolute_deadline_miss_count:lateness_inconsistent"
+                )
+            if wall_misses is not None and wall_absolute_misses is not None:
+                if wall_misses != wall_absolute_misses:
+                    blockers.append(
+                        "wall_timing.deadline_miss_count:absolute_alias_mismatch"
+                    )
                 if wall_misses != deadline_miss_count:
                     blockers.append("wall_timing.deadline_miss_count:nominal_mismatch")
-                if (wall_misses == 0) is not expected_max:
-                    blockers.append("wall_timing.deadline_miss_count:max_inconsistent")
+            if (
+                wall_compute_misses is not None
+                and wall_compute_misses != compute_deadline_miss_count
+            ):
+                blockers.append(
+                    "wall_timing.compute_deadline_miss_count:nominal_mismatch"
+                )
+            if (
+                wall_absolute_misses is not None
+                and wall_absolute_misses != absolute_deadline_miss_count
+            ):
+                blockers.append(
+                    "wall_timing.absolute_deadline_miss_count:nominal_mismatch"
+                )
+            if (
+                wall_compute_misses is not None
+                and (wall_compute_misses == 0) is not expected_max
+            ):
+                blockers.append(
+                    "wall_timing.compute_deadline_miss_count:max_inconsistent"
+                )
+            if release_lateness is not None:
+                # Parsed for integrity; release lateness alone is not a miss if
+                # the absolute finish still meets that tick's deadline.
+                pass
+            if (
+                wall_misses is not None
+                and wall_compute_misses is not None
+                and wall_absolute_misses is not None
+            ):
                 expected_pass = (
                     wall.get("paced") is True
-                    and wall_misses == 0
+                    and wall_compute_misses == 0
+                    and wall_absolute_misses == 0
                     and expected_p99
                     and expected_max
                 )
