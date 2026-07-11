@@ -75,11 +75,17 @@ from step5d_control_contract import (  # noqa: E402
     ControlCandidate,
     DeferredV30Diagnostics,
     SafetyEnvelope,
+    SafetyDecision,
     Step5dObservation,
     StrictRnnControlPolicy,
     apply_direction_preserving_slew,
     compute_dls_shadow,
     decision_to_register_command,
+)
+from step5d_p0_v8_gate import (  # noqa: E402
+    CANARY_PHASES_S as STEP5D_P0_V8_CANARY_PHASES_S,
+    authorize_canary as authorize_p0_v8_canary,
+    validate_canary_phase as validate_p0_v8_canary_phase,
 )
 from step5d_runtime_interface import (  # noqa: E402
     STEP5D_ABLATION_STAGE_IDS,
@@ -90,6 +96,9 @@ from step5d_runtime_interface import (  # noqa: E402
     STEP5D_ABLATION_V29_STAGE_ID,
     STEP5D_ABLATION_V30_STAGE_ID,
     STEP5D_NO_CONTACT_P0_STAGE_ID,
+    STEP5D_NO_CONTACT_P0_STAGE_IDS,
+    STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
+    STEP5D_V30_CONTROL_CONTRACT_STAGE_IDS,
     STEP5D_LINE_ENTRY_PARAM_VALID_CODE,
     STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE,
     STEP5D_STAGE25_CONTROL_MODES,
@@ -120,6 +129,8 @@ from step5d_runtime_interface import (  # noqa: E402
     STEP5D_NO_CONTACT_P0_TARGET_FORCE_N,
     STEP5D_NO_CONTACT_P0_TORQUE_GUARD_NM,
     STEP5D_NO_CONTACT_P0_TOTAL_LINEAR_LIMIT_M_S,
+    is_no_contact_p0_stage,
+    uses_v30_control_contract,
 )
 from step6_eight import (  # noqa: E402
     PATH_DURATION_S as STEP6_PATH_DURATION_S,
@@ -357,6 +368,16 @@ STEP5D_DIAG_FIELDS = [
     "_step5d_p0_rnn_accepted",
     "_step5d_p0_rnn_reject_reason",
     "_step5d_p0_safe_hold_active",
+    "_step5d_p0_v8_contract_active",
+    "_step5d_p0_v8_canary_phase_s",
+    "_step5d_p0_v8_canary_stop_active",
+    "_step5d_dls_shadow_present",
+    "_step5d_dls_shadow_runtime_fallback_allowed",
+    "_step5d_dls_shadow_normal_sign_difference",
+    "_step5d_dls_shadow_residual_norm",
+    "_step5d_dls_shadow_saturation_count",
+    "_step5d_dls_shadow_qdot_delta_norm",
+    "_step5d_dls_shadow_twist_delta_norm",
     "_step5d_cmd_valid_reason",
     "_step5d_contact_orientation_error_rad",
     "_step5d_outer_orientation_error_rad",
@@ -562,7 +583,7 @@ STEP5D_LIVEPREP_STAGE_IDS = {
     STEP5D_ABLATION_V28_STAGE_ID,
     STEP5D_ABLATION_V29_STAGE_ID,
     STEP5D_ABLATION_V30_STAGE_ID,
-    STEP5D_NO_CONTACT_P0_STAGE_ID,
+    *STEP5D_NO_CONTACT_P0_STAGE_IDS,
 }
 STEP5D_TCP_CAGE_PROFILES = {
     STEP5D_LIVEPREP_V15A_STAGE_ID,
@@ -626,6 +647,8 @@ STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_POLICY = "freeze_until_contact_v1"
 STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_LOW_LOAD_N = 1.0
 STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_HIGH_LOAD_N = 2.0
 STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_KO = 0.0
+STEP5D_NO_CONTACT_P0_V8_LOW_FORCE_POSTURE_POLICY = "weak_posture_v2"
+STEP5D_NO_CONTACT_P0_V8_LOW_FORCE_POSTURE_KO = 0.01
 STEP5D_V12_GUARD_DT_MAX_S = 0.010
 STEP5D_V12_LINE_CONTACT_LOW_STOP_N = 0.5
 STEP5D_V12_LINE_CONTACT_MIN_N = 1.0
@@ -826,6 +849,14 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     tmp.replace(path)
 
 
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def write_bridge_run_manifest(
     args: argparse.Namespace,
     *,
@@ -847,6 +878,29 @@ def write_bridge_run_manifest(
         "rtde_hz": float(getattr(args, "rtde_hz", 0.0)),
         "bridge_mode": str(getattr(args, "bridge_mode", getattr(args, "step4e_mode", ""))),
     }
+    if profile == STEP5D_NO_CONTACT_P0_V8_STAGE_ID:
+        current = json.loads(
+            (EXPERIMENT_ROOT / "config" / "current_stage.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        candidate = current.get("p0_v8_candidate") or {}
+        capture = (current.get("bridge_trigger") or {}).get(
+            "no_contact_p0_v8_capture"
+        ) or {}
+        policy_path = EXPERIMENT_ROOT / "config" / "step5d_review_policy_v2.json"
+        manifest["p0_v8_canary"] = {
+            "phase_s": float(getattr(args, "step5d_stop_register_canary_s", 0.0)),
+            "composite_fingerprint": candidate.get("composite_fingerprint"),
+            "review_manifest": (candidate.get("review_v2") or {}).get("manifest"),
+            "package_sha256": capture.get("sha256"),
+            "review_policy_sha256": file_sha256(policy_path),
+            "prior_canaries": candidate.get("completed_canaries") or [],
+            "terminal": {
+                "stop_request_sent": False,
+                "tp_stop_acknowledged": False,
+            },
+        }
     write_json(run_dir / "bridge_run_manifest.json", manifest)
     pointer = {
         "schema": "bridge_latest_run_pointer.v1",
@@ -2646,6 +2700,7 @@ def step5d_no_contact_p0_low_force_posture_policy(
     low_load_n: float = STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_LOW_LOAD_N,
     high_load_n: float = STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_HIGH_LOAD_N,
     low_ko: float = STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_KO,
+    policy: str = STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_POLICY,
 ) -> dict[str, Any]:
     base = float(base_ko)
     load = float(normal_load_n)
@@ -2663,7 +2718,7 @@ def step5d_no_contact_p0_low_force_posture_policy(
     gamma = smoothstep01((max(0.0, load) - low_load) / (high_load - low_load))
     effective_ko = weak * (1.0 - gamma) + base * gamma
     return {
-        "policy": STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_POLICY,
+        "policy": str(policy),
         "active": bool(gamma < 1.0 - 1e-12),
         "normal_load_n": max(0.0, load),
         "load_low_n": low_load,
@@ -3106,21 +3161,41 @@ def step5d_v30_contract_pipeline(
     candidate reaches ``SafetyEnvelope`` and ``RegisterCommand``.
     """
 
-    candidate = apply_direction_preserving_slew(
-        observation,
-        raw_candidate,
-        previous_qdot=(
-            tuple(float(value) for value in previous_qdot)
-            if previous_qdot is not None
-            else (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-        ),
-        dt_s=float(observation.dt_s),
-        max_slew_rad_s2=STEP5D_V12_QDOT_SLEW_RAD_S2,
-        dt_max_s=STEP5D_V12_GUARD_DT_MAX_S,
-        copy_diagnostics=False,
-    )
-    dls_shadow = compute_dls_shadow(observation, candidate)
-    decision = safety_envelope.evaluate(observation, candidate)
+    try:
+        candidate = apply_direction_preserving_slew(
+            observation,
+            raw_candidate,
+            previous_qdot=(
+                tuple(float(value) for value in previous_qdot)
+                if previous_qdot is not None
+                else (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+            ),
+            dt_s=float(observation.dt_s),
+            max_slew_rad_s2=STEP5D_V12_QDOT_SLEW_RAD_S2,
+            dt_max_s=STEP5D_V12_GUARD_DT_MAX_S,
+            copy_diagnostics=False,
+        )
+        dls_shadow = compute_dls_shadow(observation, candidate)
+        decision = safety_envelope.evaluate(observation, candidate)
+    except (ValueError, RuntimeError, np.linalg.LinAlgError, FloatingPointError, OverflowError) as exc:
+        failure_reason = f"v30_contract_structural_failure:{type(exc).__name__}"
+        candidate = ControlCandidate(
+            qdot=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+            predicted_twist=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+            residual_norm=math.inf,
+            active_bounds_count=0,
+            frame_id=observation.command_frame or "invalid",
+            solver_status=str(raw_candidate.solver_status),
+            diagnostics={"contract_failure": failure_reason},
+        )
+        dls_shadow = None
+        decision = SafetyDecision(
+            accepted=False,
+            action="stop",
+            reason=failure_reason,
+            qdot=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+            metrics={},
+        )
     command = decision_to_register_command(observation, decision)
     if not deferred_diagnostics.record(
         observation,
@@ -3483,12 +3558,12 @@ def ensure_step5d_liveprep_runtime(state: "BridgeState", args: argparse.Namespac
             )
         )
     if (
-        args.bridge_profile == STEP5D_ABLATION_V30_STAGE_ID
+        uses_v30_control_contract(args.bridge_profile)
         and state.step5d_v30_deferred_diagnostics is None
     ):
         state.step5d_v30_deferred_diagnostics = DeferredV30Diagnostics(capacity=33_000)
     if (
-        args.bridge_profile == STEP5D_ABLATION_V30_STAGE_ID
+        uses_v30_control_contract(args.bridge_profile)
         and state.step5d_v30_policy is None
     ):
         if state.step5d_solver is None:
@@ -3505,12 +3580,12 @@ def step5d_liveprep_runtime_missing(state: "BridgeState", args: argparse.Namespa
     if state.step5d_solver is None:
         missing.append("solver")
     if (
-        args.bridge_profile == STEP5D_ABLATION_V30_STAGE_ID
+        uses_v30_control_contract(args.bridge_profile)
         and state.step5d_v30_deferred_diagnostics is None
     ):
         missing.append("v30_deferred_diagnostics")
     if (
-        args.bridge_profile == STEP5D_ABLATION_V30_STAGE_ID
+        uses_v30_control_contract(args.bridge_profile)
         and state.step5d_v30_policy is None
     ):
         missing.append("v30_control_policy")
@@ -3943,7 +4018,11 @@ def compute_bridge_values(
     step5d_liveprep_v28_profile = args.bridge_profile == STEP5D_ABLATION_V28_STAGE_ID
     step5d_liveprep_v29_profile = args.bridge_profile == STEP5D_ABLATION_V29_STAGE_ID
     step5d_liveprep_v30_profile = args.bridge_profile == STEP5D_ABLATION_V30_STAGE_ID
-    step5d_no_contact_p0_profile = args.bridge_profile == STEP5D_NO_CONTACT_P0_STAGE_ID
+    step5d_no_contact_p0_profile = is_no_contact_p0_stage(args.bridge_profile)
+    step5d_no_contact_p0_v8_profile = (
+        args.bridge_profile == STEP5D_NO_CONTACT_P0_V8_STAGE_ID
+    )
+    step5d_v30_contract_profile = uses_v30_control_contract(args.bridge_profile)
     step5d_step5b_speedl_live_profile = (
         step5d_liveprep_v27_profile
         or step5d_liveprep_v28_profile
@@ -4866,6 +4945,9 @@ def compute_bridge_values(
         step5d_v30_register_command: Any | None = None
         observation_v30: Step5dObservation | None = None
         raw_candidate_v30: ControlCandidate | None = None
+        candidate_v30: ControlCandidate | None = None
+        dls_shadow_v30: Any | None = None
+        decision_v30: Any | None = None
         step5d_cmd_valid_reason = "not_active"
         step5d_intervention_reasons: list[str] = []
         step5d_predicted_twist = np.full(6, math.nan, dtype=float)
@@ -4988,6 +5070,16 @@ def compute_bridge_values(
                     step5d_p0_posture_policy = step5d_no_contact_p0_low_force_posture_policy(
                         normal_load_n=normal_load_n,
                         base_ko=base_step5d_ko,
+                        low_ko=(
+                            STEP5D_NO_CONTACT_P0_V8_LOW_FORCE_POSTURE_KO
+                            if step5d_no_contact_p0_v8_profile
+                            else STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_KO
+                        ),
+                        policy=(
+                            STEP5D_NO_CONTACT_P0_V8_LOW_FORCE_POSTURE_POLICY
+                            if step5d_no_contact_p0_v8_profile
+                            else STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_POLICY
+                        ),
                     )
                 step5d_x_pd_base = (float(desired_x), float(desired_y), float(pose[2]))
                 step5d_xdot_pd_base = (float(desired_velocity_xy[0]), float(desired_velocity_xy[1]), 0.0)
@@ -4995,11 +5087,69 @@ def compute_bridge_values(
                     step5d_x_pd_base = (float(pose[0]), float(pose[1]), float(pose[2]))
                     step5d_xdot_pd_base = (0.0, 0.0, 0.0)
                 if step5d_no_contact_p0_profile:
-                    step5d_outer_output = step5d_no_contact_p0_press_only_outer_output(
+                    press_only_output = step5d_no_contact_p0_press_only_outer_output(
                         reaction_normal_b=n_control_b,
                         force_error_n=force_error,
                     )
+                    if step5d_no_contact_p0_v8_profile:
+                        posture_output = compute_step5d_outer_loop(
+                            Step5dOuterLoopConfig(
+                                kp=0.0,
+                                ko=base_step5d_ko,
+                                orientation_gain_scale=float(
+                                    step5d_p0_posture_policy["orientation_gain_scale"]
+                                ),
+                                kf=0.0,
+                                Md_scalar=12.0,
+                                Bd_scalar=550.0,
+                                force_target_n=0.0,
+                                delay_T_s=dt_s,
+                                force_sign_convention="step5_step6_positive_normal_load",
+                            ),
+                            Step5dOuterLoopState(),
+                            Step5dOuterLoopInputs(
+                                tcp_pose_base=tuple(float(value) for value in pose[:6]),  # type: ignore[arg-type]
+                                tcp_speed_base=tuple(float(value) for value in speed[:6]),  # type: ignore[arg-type]
+                                force_tcp_n=force_t,
+                                control_reaction_normal_base=tuple(float(value) for value in n_control_b),  # type: ignore[arg-type]
+                                x_pd_base=step5d_x_pd_base,
+                                xdot_pd_base=step5d_xdot_pd_base,
+                                dt_s=dt_s,
+                                cmd_valid=True,
+                            ),
+                            include_diagnostics=True,
+                        )
+                        p0_v8_xdot = np.asarray(posture_output.xdot_c, dtype=float)
+                        p0_v8_xdot[:3] = np.asarray(
+                            press_only_output.xdot_c[:3], dtype=float
+                        )
+                        p0_v8_diagnostics = dict(posture_output.diagnostics)
+                        p0_v8_diagnostics.update(press_only_output.diagnostics)
+                        p0_v8_diagnostics.update(
+                            {
+                                "effective_ko": float(
+                                    step5d_p0_posture_policy["effective_ko"]
+                                ),
+                                "orientation_gain_scale": float(
+                                    step5d_p0_posture_policy["orientation_gain_scale"]
+                                ),
+                                "no_contact_p0_target_policy": "press_plus_weak_posture_v2",
+                            }
+                        )
+                        step5d_outer_output = SimpleNamespace(
+                            xdot_c=p0_v8_xdot,
+                            cmd_valid=True,
+                            next_state=Step5dOuterLoopState(),
+                            diagnostics=p0_v8_diagnostics,
+                        )
+                    else:
+                        step5d_outer_output = press_only_output
                 else:
+                    step5d_outer_call_kwargs = (
+                        {"include_diagnostics": "compact"}
+                        if step5d_v30_contract_profile
+                        else {}
+                    )
                     step5d_outer_output = compute_step5d_outer_loop(
                         Step5dOuterLoopConfig(
                             kp=4.0,
@@ -5023,9 +5173,7 @@ def compute_bridge_values(
                             dt_s=dt_s,
                             cmd_valid=True,
                         ),
-                        include_diagnostics=(
-                            "compact" if step5d_liveprep_v30_profile else True
-                        ),
+                        **step5d_outer_call_kwargs,
                     )
                 outer_orientation_error_rad = float(step5d_outer_output.diagnostics["outer_orientation_angle_rad"])
                 if not step5d_no_contact_p0_profile and not semantic_boundary_is_consistent(
@@ -5095,7 +5243,7 @@ def compute_bridge_values(
                         }
                     )
                 target_state["xdot_c"] = step5d_outer_xdot_joint_feasible
-                if step5d_liveprep_v30_profile:
+                if step5d_v30_contract_profile:
                     reaction_v30 = tuple(float(value) for value in n_control_b)
                     observation_v30 = Step5dObservation(
                         sequence=state.step5d_v30_sequence,
@@ -5135,7 +5283,7 @@ def compute_bridge_values(
                         omega_plus=omega_plus,
                     ):
                         step5d_intervention_reasons.append("solver_warm_start")
-                    if step5d_liveprep_v30_profile:
+                    if step5d_v30_contract_profile:
                         if state.step5d_v30_policy is None or observation_v30 is None:
                             raise RuntimeError("v30 ControlPolicy was not prewarmed")
                         raw_candidate_v30 = state.step5d_v30_policy.compute(
@@ -5164,7 +5312,7 @@ def compute_bridge_values(
                     step5d_raw_qdot_command = tuple(float(value) for value in step5d_result.qdot)
                     step5d_post_slew_qdot_command = step5d_raw_qdot_command
                 if (
-                    not step5d_liveprep_v30_profile
+                    not step5d_v30_contract_profile
                     and (
                         step5d_liveprep_v12_profile
                         or step5d_liveprep_v13_profile
@@ -5184,7 +5332,7 @@ def compute_bridge_values(
                             dt_s=dt_s,
                             preserve_delta_direction=(
                                 step5d_liveprep_v29_profile
-                                or step5d_liveprep_v30_profile
+                                or step5d_v30_contract_profile
                             ),
                         )
                         step5d_qdot_command = tuple(float(value) for value in qdot_limited.tolist())
@@ -5344,6 +5492,7 @@ def compute_bridge_values(
                         state.step5d_last_qdot = None
                 if (
                     step5d_no_contact_p0_profile
+                    and not step5d_no_contact_p0_v8_profile
                     and step5d_stage25_control_mode == "speedj_rnn_live"
                     and step5d_qdot_command is not None
                     and step5d_outer_xdot_limited is not None
@@ -5426,7 +5575,7 @@ def compute_bridge_values(
                             step5d_cmd_valid_reason = "p0_invalid_reject"
                             step5d_qdot_command = None
                 if (
-                    step5d_liveprep_v30_profile
+                    step5d_v30_contract_profile
                     and step5d_stage25_control_mode == "speedj_rnn_live"
                     and step5d_qdot_command is not None
                     and step5d_outer_xdot_joint_feasible is not None
@@ -5458,6 +5607,12 @@ def compute_bridge_values(
                     state.step5d_v30_sequence += 1
                     step5d_qdot_command = step5d_v30_register_command.qdot
                     step5d_post_slew_qdot_command = step5d_qdot_command
+                    step5d_predicted_twist = np.asarray(
+                        candidate_v30.predicted_twist, dtype=float
+                    )
+                    step5d_predicted_tcp_speed_m_s = float(
+                        np.linalg.norm(step5d_predicted_twist[:3])
+                    )
                     if decision_v30.accepted:
                         state.step5d_last_qdot = np.asarray(
                             decision_v30.qdot,
@@ -5485,6 +5640,14 @@ def compute_bridge_values(
                         if decision_v30.action == "stop":
                             step5d_contact_safety_stop = True
                             step5d_engage_gate_ok = False
+                    if step5d_no_contact_p0_v8_profile:
+                        step5d_p0_rnn_accepted = step5d_rnn_accepted
+                        step5d_p0_rnn_reject_reason = step5d_rnn_reject_reason
+                        step5d_p0_safe_hold_active = step5d_safe_hold_active
+                        if not decision_v30.accepted:
+                            step5d_intervention_reasons.append(
+                                f"p0_v8_contract:{decision_v30.reason}"
+                            )
                 if (
                     step5d_liveprep_v29_profile
                     and step5d_stage25_control_mode == "speedj_rnn_live"
@@ -5630,7 +5793,7 @@ def compute_bridge_values(
                 register_force_error = force_error
                 register_pose_error = orientation_error
                 register_status = joint_result.solver_status if joint_result is not None else STATUS_INVALID
-            if step5d_no_contact_p0_profile:
+            if step5d_no_contact_p0_profile and not step5d_no_contact_p0_v8_profile:
                 values.update(
                     step5d_stage25_register_values(
                         step5d_stage25_command
@@ -5651,7 +5814,7 @@ def compute_bridge_values(
                     )
                 )
             elif (
-                step5d_liveprep_v30_profile
+                step5d_v30_contract_profile
                 and step5d_v30_register_command is not None
             ):
                 values.update(
@@ -5680,7 +5843,7 @@ def compute_bridge_values(
                 step5d_ablation_safe_hold_valid = (
                     (
                         step5d_liveprep_v29_profile
-                        or step5d_liveprep_v30_profile
+                        or step5d_v30_contract_profile
                     )
                     and step5d_stage25_control_mode == "speedj_rnn_live"
                     and step5d_cmd_valid_reason == "rnn_evidence_rejected_safe_hold"
@@ -5906,6 +6069,10 @@ def compute_bridge_values(
             )
             values["_step5d_outer_xdot_limiter_active"] = 1.0 if step5d_outer_xdot_limiter_active else 0.0
             values["_step5d_qdot_slew_limiter_active"] = 1.0 if step5d_qdot_slew_limiter_active else 0.0
+            if candidate_v30 is not None:
+                values["_step5d_constraint_residual_norm"] = float(
+                    candidate_v30.residual_norm
+                )
             values["_step5d_engage_gate_ok"] = 1.0 if step5d_engage_gate_ok else 0.0
             values["_step5d_line_guard_ok"] = 1.0 if step5d_line_guard_ok else 0.0
             values["_step5d_line_guard_loss_s"] = state.step5d_line_guard_loss_s
@@ -5937,7 +6104,30 @@ def compute_bridge_values(
                 values["_step5d_p0_rnn_accepted"] = step5d_p0_rnn_accepted
                 values["_step5d_p0_rnn_reject_reason"] = step5d_p0_rnn_reject_reason
                 values["_step5d_p0_safe_hold_active"] = step5d_p0_safe_hold_active
+                values["_step5d_p0_v8_contract_active"] = (
+                    1.0 if step5d_no_contact_p0_v8_profile else 0.0
+                )
                 values["_step5d_cmd_valid_reason"] = step5d_cmd_valid_reason
+            if dls_shadow_v30 is not None:
+                values["_step5d_dls_shadow_present"] = 1.0
+                values["_step5d_dls_shadow_runtime_fallback_allowed"] = (
+                    1.0 if dls_shadow_v30.runtime_fallback_allowed else 0.0
+                )
+                values["_step5d_dls_shadow_normal_sign_difference"] = (
+                    1.0 if dls_shadow_v30.normal_sign_difference else 0.0
+                )
+                values["_step5d_dls_shadow_residual_norm"] = float(
+                    dls_shadow_v30.residual_norm
+                )
+                values["_step5d_dls_shadow_saturation_count"] = float(
+                    dls_shadow_v30.saturation_count
+                )
+                values["_step5d_dls_shadow_qdot_delta_norm"] = float(
+                    dls_shadow_v30.qdot_delta_norm
+                )
+                values["_step5d_dls_shadow_twist_delta_norm"] = float(
+                    dls_shadow_v30.twist_delta_norm
+                )
             values["_step5d_predicted_tcp_vx_m_s"] = float(step5d_predicted_twist[0])
             values["_step5d_predicted_tcp_vy_m_s"] = float(step5d_predicted_twist[1])
             values["_step5d_predicted_tcp_vz_m_s"] = float(step5d_predicted_twist[2])
@@ -6210,6 +6400,31 @@ def compute_bridge_values(
     values["_step4e_contact_offset_y_m"] = contact_offset_y
     if speed and len(speed) >= 6:
         values["_step4e_actual_speed_norm_m_s"] = norm3([float(speed[0]), float(speed[1]), float(speed[2])])
+    if step5d_no_contact_p0_v8_profile:
+        canary_phase_s = float(args.step5d_stop_register_canary_s)
+        values["_step5d_p0_v8_contract_active"] = 1.0
+        values["_step5d_p0_v8_canary_phase_s"] = canary_phase_s
+        values["_step5d_p0_v8_canary_stop_active"] = 0.0
+        if (
+            canary_phase_s > 0.0
+            and line_stage_active
+            and state.step5d_active_stage25_s >= canary_phase_s
+        ):
+            values.update(
+                step5d_stage25_register_values(
+                    (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+                    layout_tag=STEP5D_STAGE25_JOINT_LAYOUT_CODE,
+                    cmd_valid=1.0,
+                    path_time_s=state.step5d_active_stage25_s,
+                    force_error_n=force_error,
+                    pose_or_orientation_error=orientation_error,
+                )
+            )
+            values["stop_request"] = 1.0
+            values["_step5d_p0_v8_canary_stop_active"] = 1.0
+            values["_step5d_contact_safety_reason"] = (
+                f"p0_v8_canary_{canary_phase_s:g}s_complete"
+            )
     return values
 
 
@@ -7404,6 +7619,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="disable Step5d live-prep Dashboard watchdog that exits after TP stop/play timeout",
     )
     parser.add_argument("--dashboard-program-watch-timeout-s", type=float, default=45.0)
+    parser.add_argument(
+        "--step5d-stop-register-canary-s",
+        type=float,
+        default=env_float("STEP5D_STOP_REGISTER_CANARY_S", 0.0),
+        help="disabled by default; P0 v8 permits only Stage25 phases 2, 10, or 60 seconds",
+    )
     args = parser.parse_args(argv)
     for key, value in list(vars(args).items()):
         if key.startswith("step4e_"):
@@ -7415,20 +7636,20 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             if args.bridge_profile in {
                 STEP5D_ABLATION_V29_STAGE_ID,
                 STEP5D_ABLATION_V30_STAGE_ID,
-                STEP5D_NO_CONTACT_P0_STAGE_ID,
+                *STEP5D_NO_CONTACT_P0_STAGE_IDS,
             }
             else "speedl_cartesian_oracle"
             if args.bridge_profile in STEP5D_ABLATION_STAGE_IDS
             else "speedj_rnn_live"
         )
-    if args.bridge_profile == STEP5D_NO_CONTACT_P0_STAGE_ID:
+    if is_no_contact_p0_stage(args.bridge_profile):
         args.step5d_stage25_control_mode = "speedj_rnn_live"
     if args.step5d_stage25_control_mode not in STEP5D_STAGE25_CONTROL_MODES:
         raise SystemExit(
             "--step5d-stage25-control-mode must be one of "
             f"{', '.join(STEP5D_STAGE25_CONTROL_MODES)}"
         )
-    if args.bridge_profile == STEP5D_NO_CONTACT_P0_STAGE_ID:
+    if is_no_contact_p0_stage(args.bridge_profile):
         args.duration_s = STEP5D_NO_CONTACT_P0_DURATION_S
         args.baseline_s = STEP5D_NO_CONTACT_P0_BASELINE_S
         args.rezero_s = STEP5D_NO_CONTACT_P0_REZERO_S
@@ -7475,6 +7696,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         args.max_normal_force_n = STEP5D_NO_CONTACT_P0_NORMAL_GUARD_N
         args.max_force_norm_n = STEP5D_NO_CONTACT_P0_FORCE_GUARD_N
         args.max_torque_norm_nm = STEP5D_NO_CONTACT_P0_TORQUE_GUARD_NM
+        if args.bridge_profile == STEP5D_NO_CONTACT_P0_V8_STAGE_ID:
+            args.step5d_qdot_limit_rad_s = 0.050
     elif args.bridge_profile in STEP5D_ABLATION_STAGE_IDS:
         def preload_default_was_not_supplied(flag: str, *env_names: str) -> bool:
             return flag not in argv_list and all(os.environ.get(name, "") == "" for name in env_names)
@@ -7607,10 +7830,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                 STEP5D_ABLATION_V28_STAGE_ID,
                 STEP5D_ABLATION_V29_STAGE_ID,
                 STEP5D_ABLATION_V30_STAGE_ID,
-                STEP5D_NO_CONTACT_P0_STAGE_ID,
+                *STEP5D_NO_CONTACT_P0_STAGE_IDS,
             }
             else 0.30
         )
+    try:
+        args.step5d_stop_register_canary_s = validate_p0_v8_canary_phase(
+            args.bridge_profile,
+            args.step5d_stop_register_canary_s,
+        )
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
     return args
 
 
@@ -7631,7 +7861,7 @@ def step5d_dashboard_watch_metadata(
     disable_dashboard_program_watch: bool,
     timeout_s: float,
 ) -> dict[str, Any]:
-    p0_profile = bridge_profile == STEP5D_NO_CONTACT_P0_STAGE_ID
+    p0_profile = is_no_contact_p0_stage(bridge_profile)
     return {
         "enabled": (
             bridge_profile in STEP5D_LIVEPREP_STAGE_IDS
@@ -7643,6 +7873,16 @@ def step5d_dashboard_watch_metadata(
         "scope": "Step5d live-prep bridge exits after TP program stop or Play timeout",
         "mode": "preflight_only_for_no_contact_p0" if p0_profile else "runtime_dashboard_watch",
     }
+
+
+def require_p0_v8_canary_authorization(
+    args: argparse.Namespace,
+    current: Mapping[str, Any],
+) -> dict[str, Any]:
+    try:
+        return authorize_p0_v8_canary(args, current)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
 
 
 def require_v29_live_bridge_authorization(
@@ -7662,6 +7902,10 @@ def require_v29_live_bridge_authorization(
         raise SystemExit(f"raw bridge cannot resolve current-stage identity: {exc}") from exc
     if not isinstance(current, Mapping):
         raise SystemExit("raw bridge cannot resolve current-stage identity: JSON root is not an object")
+    if args.bridge_profile == STEP5D_NO_CONTACT_P0_V8_STAGE_ID:
+        return require_p0_v8_canary_authorization(args, current)
+    if args.bridge_profile == STEP5D_NO_CONTACT_P0_STAGE_ID:
+        raise SystemExit("P0 v7 is frozen historical evidence; use the P0 v8 workflow")
     current_program = str(current.get("program") or "")
     current_stage_id = str(current.get("current_stage_id") or "")
     if not current_program or not current_stage_id or current_program != current_stage_id:
@@ -8159,6 +8403,8 @@ def main(argv: list[str] | None = None) -> int:
     stop_request = 0.0
     stop_reason = "duration"
     guard_reason: str | None = None
+    p0_v8_canary_stop_sent_at: float | None = None
+    p0_v8_canary_tp_acknowledged = False
     parse_errors = 0
     dropped_sync_bytes = 0
     samples = 0
@@ -8670,6 +8916,20 @@ def main(argv: list[str] | None = None) -> int:
                         previous_kinematics_output = sample
                         previous_kinematics_time = rtde_output_time
                         latest_output = sample
+                        if p0_v8_canary_stop_sent_at is not None:
+                            try:
+                                p0_stop_echo = float(
+                                    sample.get("output_double_register_28", 0.0)
+                                )
+                                p0_stage_echo = float(
+                                    sample.get("output_double_register_35", 0.0)
+                                )
+                            except (TypeError, ValueError):
+                                p0_stop_echo = 0.0
+                                p0_stage_echo = 0.0
+                            p0_v8_canary_tp_acknowledged = (
+                                p0_stop_echo > 0.5 or abs(p0_stage_echo - 26.0) < 0.05
+                            )
                         rtde_output_times.append(rtde_output_time)
                         echo = sample.get("output_double_register_26")
                         if echo is not None:
@@ -8883,7 +9143,24 @@ def main(argv: list[str] | None = None) -> int:
                     bridge_writes += 1
                     bridge_write_times.append(now)
                     heartbeat += 1.0
-                    if (not v29_safety_fail_stop["enabled"] and guard_reason is not None) or terminate_after_write:
+                    p0_v8_canary_guard = bool(
+                        args.bridge_profile == STEP5D_NO_CONTACT_P0_V8_STAGE_ID
+                        and guard_reason is not None
+                        and "p0_v8_canary_" in guard_reason
+                    )
+                    if p0_v8_canary_guard:
+                        if p0_v8_canary_stop_sent_at is None:
+                            p0_v8_canary_stop_sent_at = now
+                        if p0_v8_canary_tp_acknowledged:
+                            stop_reason = "p0_v8_canary_tp_stop_acknowledged"
+                            break
+                        if now - p0_v8_canary_stop_sent_at >= 1.0:
+                            stop_reason = "p0_v8_canary_tp_stop_ack_timeout"
+                            break
+                    elif (
+                        not v29_safety_fail_stop["enabled"]
+                        and guard_reason is not None
+                    ) or terminate_after_write:
                         break
     finally:
         if sock is not None and not args.no_stop_command:
@@ -8974,7 +9251,27 @@ def main(argv: list[str] | None = None) -> int:
         summary["step5b_ramp_5_to_15_sentinel"] = trial_summary
         summary["paths"]["step5b_ramp_5_to_15_sentinel_summary_json"] = trial_summary["paths"]["trial_summary_json"]
         summary["paths"]["step5b_ramp_5_to_15_sentinel_summary_md"] = trial_summary["paths"]["trial_summary_md"]
+    if args.bridge_profile == STEP5D_NO_CONTACT_P0_V8_STAGE_ID:
+        summary["p0_v8_canary"] = {
+            "phase_s": float(args.step5d_stop_register_canary_s),
+            "stop_request_sent": p0_v8_canary_stop_sent_at is not None,
+            "tp_stop_acknowledged": p0_v8_canary_tp_acknowledged,
+            "stop_request_first_sent_monotonic_s": p0_v8_canary_stop_sent_at,
+        }
     write_json(summary_path, summary)
+    if args.bridge_profile == STEP5D_NO_CONTACT_P0_V8_STAGE_ID:
+        manifest_path = args.output_dir / "bridge_run_manifest.json"
+        run_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        canary_manifest = run_manifest.get("p0_v8_canary") or {}
+        canary_manifest["terminal"] = {
+            "stop_request_sent": p0_v8_canary_stop_sent_at is not None,
+            "tp_stop_acknowledged": p0_v8_canary_tp_acknowledged,
+            "stop_reason": stop_reason,
+        }
+        canary_manifest["summary_sha256"] = file_sha256(summary_path)
+        run_manifest["p0_v8_canary"] = canary_manifest
+        run_manifest["finished_at"] = summary["finished_at"]
+        write_json(manifest_path, run_manifest)
     print(json.dumps(summary, indent=2, sort_keys=True))
     return 0 if samples > 0 and parse_errors == 0 else 3
 

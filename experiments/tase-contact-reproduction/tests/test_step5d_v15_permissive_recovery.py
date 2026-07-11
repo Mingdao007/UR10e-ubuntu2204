@@ -374,7 +374,10 @@ class Step5dV15PermissiveRecoveryTest(unittest.TestCase):
                 "torque_norm_nm": expected_torque_guard_nm,
             },
         )
-        self.assertIn("controller_readback_verified", current["status"])
+        self.assertEqual(
+            current["status"],
+            "v29_frozen_fallback_v30_blocked_by_p0_v8_timing_readback_and_review_v2",
+        )
         if current["program"] == "step5d_strict_rnn_liveprep_v24":
             self.assertEqual(current_candidate["guard"]["line_entry_normal_load_min_n"], 7.5)
             self.assertEqual(current_candidate["guard"]["line_entry_normal_load_max_n"], 14.0)
@@ -507,8 +510,8 @@ class Step5dV15PermissiveRecoveryTest(unittest.TestCase):
         self.assertEqual(current["evidence"]["step5d_projector_root_cause_fix"]["status"], "present_in_worktree")
         self.assertFalse(current["bridge_trigger"]["bridge_has_started"])
         self.assertFalse(current["bridge_trigger"]["live_motion_authorized"])
-        self.assertIn("v29 package delivery is complete and controller read-back verified", current["bridge_trigger"]["blocked_reason"])
-        self.assertIn("explicit live trigger", current["bridge_trigger"]["blocked_reason"])
+        self.assertIn("v29 is frozen fallback evidence", current["bridge_trigger"]["blocked_reason"])
+        self.assertIn("explicit live/contact authorization", current["bridge_trigger"]["blocked_reason"])
         self.assertIn(
             "v29 package readback verified on controller",
             current["bridge_trigger"]["required_before_live"],

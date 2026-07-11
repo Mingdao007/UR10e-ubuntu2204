@@ -29,17 +29,79 @@ def manifest_from_upload_output(output: str) -> dict:
 
 
 class UploadUrTpPackageReuseTest(unittest.TestCase):
-    def test_v30_offline_candidate_refuses_even_dry_run_override_delivery(self) -> None:
-        with self.assertRaisesRegex(RuntimeError, "inactive offline candidate"):
-            upload.main(
+    def test_v30_inactive_candidate_allows_manifest_bound_dry_run_without_promotion(self) -> None:
+        out = io.StringIO()
+        with redirect_stdout(out):
+            result = upload.main(
                 [
                     "step5d_strict_rnn_ablation_v30",
                     "--dry-run",
-                    "--override-table",
-                    "--override-reason",
-                    "forbidden-test",
-                    "--target-dir",
-                    "/programs/andyl/kunwei/step5",
+                    "--local-dir",
+                    str(ROOT / "programs" / "step5" / "step5d"),
+                    "--controller-helper",
+                    str(ROOT / "tools" / "upload_ur_tp_package.py"),
+                ]
+            )
+
+        self.assertEqual(result, 0)
+        manifest = manifest_from_upload_output(out.getvalue())
+        self.assertEqual(manifest["target_dir"], "/programs/andyl/kunwei/step5")
+        self.assertFalse(manifest["promotion_performed"])
+        self.assertEqual(
+            manifest["inactive_candidate_delivery"]["policy"],
+            "manifest_bound_inactive_prelive_delivery_v1",
+        )
+        self.assertFalse(manifest["inactive_candidate_delivery"]["program_start_performed"])
+        self.assertFalse(manifest["inactive_candidate_delivery"]["bridge_start_performed"])
+
+    def test_p0_v8_target_resolves_from_current_planned_capture_target(self) -> None:
+        resolution = upload.resolve_table_target(
+            "step5d_strict_rnn_no_contact_p0_v8",
+            root=ROOT,
+            local_dir=ROOT / "programs" / "step5" / "step5d",
+        )
+
+        self.assertIsNotNone(resolution)
+        assert resolution is not None
+        self.assertEqual(resolution["controller_dir"], "/programs/andyl/kunwei/step5")
+        self.assertEqual(
+            resolution["controller_target"],
+            "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v8.urp",
+        )
+        self.assertEqual(
+            resolution["source"],
+            "config/current_stage.json#bridge_trigger.no_contact_p0_v8_capture",
+        )
+
+    def test_other_offline_candidate_stays_blocked(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "config").mkdir()
+            (root / "config" / "step5_stage_table.json").write_text(
+                json.dumps(
+                    {
+                        "stages": [
+                            {
+                                "id": "step5d_future_offline_candidate",
+                                "package_delivery": {"status": "local_offline_candidate_only"},
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(RuntimeError, "inactive offline candidate"):
+                upload.enforce_offline_candidate_delivery_block(
+                    "step5d_future_offline_candidate",
+                    root=root,
+                )
+
+    def test_v30_non_dry_delivery_requires_inactive_prelive_flag(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "--allow-inactive-prelive-delivery"):
+            upload.main(
+                [
+                    "step5d_strict_rnn_ablation_v30",
                     "--local-dir",
                     str(ROOT / "programs" / "step5" / "step5d"),
                 ]

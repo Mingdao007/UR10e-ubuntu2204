@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "updated_at": "2026-07-10T01:50:08+08:00",
+  "updated_at": "2026-07-11T11:30:00+08:00",
   "current_step": "Step5d",
   "current_stage_id": "step5d_strict_rnn_ablation_v29",
   "program": "step5d_strict_rnn_ablation_v29",
@@ -53,12 +53,12 @@
     "stage25_speedj_live_source": "strict RNN qdot from feasibility-scaled xdot_c is sent to TP speedj on layout 524; speedl_cartesian_oracle and speedj_dls_oracle are explicit debug/fallback modes",
     "stage25_rnn_evidence_policy": "RNN accepted rows require layout 524, cmd_valid=1, TP echo consumption, and _step5d_rnn_accepted=1; non-safety evidence rejection records diagnostics and uses bounded hold without treating the row as accepted evidence."
   },
-  "status": "step5d_strict_rnn_ablation_v29_controller_readback_verified_pending_live_bridge_run_not_reproduction_claim",
+  "status": "v29_frozen_fallback_v30_blocked_by_p0_v8_timing_readback_and_review_v2",
   "strict_rnn_status": {
     "stage_id": "step5d_strict_rnn_reproduction_v1",
     "blocked": true,
     "paper_truth_config": "config/step5d_liveprep_solver_gate.json",
-    "reason": "v29 TP/script cage-primary diagnostic package is generated, uploaded, and controller read-back verified. Full Step5d reproduction remains incomplete until a successful live run completes."
+    "reason": "v29 is the last controller-readback-verified package but is frozen fallback evidence. v30 remains offline and blocked by P0 v8, timing/safe-hold, readback freeze, Review v2, and separate live/contact authorization."
   },
   "evidence": {
     "v11_escape_replay_summary": "runs/step5d_v11_escape_replay_20260615/summary.json",
@@ -1066,7 +1066,7 @@
     "bridge_has_started": false,
     "live_motion_authorized": false,
     "zero_ftsensor_authorized": false,
-    "blocked_reason": "v29 package delivery is complete and controller read-back verified; live bridge start is outside this offline/package action and still requires an explicit live trigger.",
+    "blocked_reason": "v29 is frozen fallback evidence. No bridge start is allowed without fresh readback/timing fingerprints, a new Review v2 2+1 gate, and explicit live/contact authorization.",
     "no_contact_p0_capture": {
       "profile": "step5d_strict_rnn_no_contact_p0_v7",
       "entrypoint": "scripts/step5d-strict-rnn-p0.sh capture-bridge",
@@ -1089,11 +1089,34 @@
       "archived_not_gate_for_v29": true,
       "status": "abandoned_archived_not_v29_gate"
     },
+    "no_contact_p0_v8_capture": {
+      "profile": "step5d_strict_rnn_no_contact_p0_v8",
+      "entrypoint": "scripts/step5d-strict-rnn-p0-v8.sh capture-bridge PHASE_S",
+      "confirm_token": "LIVE STEP5D STRICT RNN NO CONTACT P0 V8",
+      "planned_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v8.urp",
+      "controller_target": null,
+      "local_triplet": "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v8",
+      "local_candidate_marker": "programs/step5/step5d/.step5d_strict_rnn_no_contact_p0_v8.local_candidate.json",
+      "controller_uploaded": false,
+      "controller_readback_verified": false,
+      "controller_readback_manifest": null,
+      "delivery_mode": "local_offline_candidate_only",
+      "sha256": {
+        ".script": "ca70d2a2a83c7e1547771f46568e3d2dd2edf076b4ed237b5e99cb0b05f6cb14",
+        ".txt": "7bcdb8602615d850b87e2d0b5290b8e6c7dd9fe9a2c234896982ebc0c5966c4a",
+        ".urp": "2434c49f1d7567a9e19ab9e9c0208b1b476e5f09fa7a28f4a791d987c7f509f2"
+      },
+      "capture_authorized": false,
+      "passed": false,
+      "summary_artifact": null,
+      "status": "offline_package_only_not_reviewed_not_delivered"
+    },
     "required_before_live": [
       "operator outside UR reach/cage boundary",
       "TP program opened on controller read-back v29 package",
       "v29 package readback verified on controller",
-      "live-prep milestone review accepted with control/claim, timing/runtime, and physical/operator safety lanes",
+      "fresh v29 readback and timing fingerprint if fallback reactivation is requested",
+      "new Review v2 2+1 contact pre-live gate for that fresh fingerprint",
       "explicit live/contact authorization for v29 speedj_rnn_live"
     ]
   },
@@ -1117,11 +1140,12 @@
     }
   ],
   "notes": [
-    "step5d_strict_rnn_ablation_v29 is controller read-back verified and selected as the current Step5d TP/script cage-primary diagnostic package.",
+    "step5d_strict_rnn_ablation_v29 is controller read-back verified and remains the current pointer only as a frozen fallback.",
     "v29 keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
     "v29 is an ablation package: v25/v26/v27/v28 default to speedl_cartesian_oracle; v29 defaults to speedj_rnn_live; preload is 5-22N filtered with 3-25N raw sanity.",
     "v29 uses Stage25.95 register-clear barrier plus layout tag 523.0 for Cartesian speedl and 524.0 for joint speedj.",
-    "v29 Stage25 success target is 60s with a 65s runtime limit.",
+    "v29 cannot be reactivated without a fresh readback/timing fingerprint, Review v2 2+1, and new live/contact authorization.",
+    "v30 is an inactive offline candidate and cannot become current until P0 v8, timing/safe-hold, package/readback freeze, and Review v2 2+1 pass.",
     "No v23 post-RNN normal-direction guard is active for this package.",
     "This file is the single current pointer for UR/Kunwei package and bridge handoffs.",
     "TP program load/Play, robot motion, payload/TCP writes, and zero_ftsensor remain explicit live gates.",
@@ -1147,7 +1171,60 @@
     "stage25_default_control_mode": "speedj_rnn_live",
     "controller_readback_verified": true,
     "live_authorized": false,
-    "p0_gate_required": false
+    "p0_gate_required": false,
+    "frozen_fallback": true,
+    "review_v2_baseline_rereview": {
+      "required_stack": "1+0",
+      "status": "blocked_evidence_not_portable_in_sparse_worktree",
+      "manifest": null
+    },
+    "future_reactivation_requires": [
+      "fresh controller readback and timing fingerprint",
+      "Review v2 2+1 contact pre-live gate",
+      "new explicit live/contact authorization"
+    ]
+  },
+  "p0_v8_candidate": {
+    "profile": "step5d_strict_rnn_no_contact_p0_v8",
+    "gate_for": "step5d_strict_rnn_ablation_v30",
+    "state": "offline_package_ready",
+    "package_sha256": {
+      ".script": "ca70d2a2a83c7e1547771f46568e3d2dd2edf076b4ed237b5e99cb0b05f6cb14",
+      ".txt": "7bcdb8602615d850b87e2d0b5290b8e6c7dd9fe9a2c234896982ebc0c5966c4a",
+      ".urp": "2434c49f1d7567a9e19ab9e9c0208b1b476e5f09fa7a28f4a791d987c7f509f2"
+    },
+    "semantic_fingerprint": "f52f6cb909dd388e77f7b32b9d10b29905e6fc37d5bf02a1ac4fccadb197ebec",
+    "evidence_frozen": false,
+    "composite_fingerprint": null,
+    "review_v2": {
+      "policy_id": "ur10e_review_policy_v2",
+      "milestone": "p0_v8_pre_live",
+      "required_stack": "1+1",
+      "status": "not_due",
+      "composite_fingerprint": null,
+      "manifest": null
+    },
+    "canary_policy": {
+      "enabled": false,
+      "allowed_phases_s": [2.0, 10.0, 60.0],
+      "sequential_same_fingerprint_required": true,
+      "final_continuous_phase_s": 60.0
+    },
+    "completed_canaries": [],
+    "p0_v8_passed": false,
+    "passed_artifact": null,
+    "claim_boundary": {
+      "package_accepted": false,
+      "no_contact_p0_accepted": false,
+      "contact_live_accepted": false,
+      "reproduction_complete": false
+    },
+    "blockers": [
+      "controller_readback_missing",
+      "evidence_not_frozen",
+      "review_v2_1_plus_1_not_run",
+      "2_10_60_second_canaries_not_run"
+    ]
   },
   "liveprep_status": {
     "state": "blocked",

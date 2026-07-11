@@ -36,7 +36,20 @@ STEP5D_ABLATION_V27_STAGE_ID = "step5d_strict_rnn_ablation_v27"
 STEP5D_ABLATION_V28_STAGE_ID = "step5d_strict_rnn_ablation_v28"
 STEP5D_ABLATION_V29_STAGE_ID = "step5d_strict_rnn_ablation_v29"
 STEP5D_ABLATION_V30_STAGE_ID = "step5d_strict_rnn_ablation_v30"
-STEP5D_NO_CONTACT_P0_STAGE_ID = "step5d_strict_rnn_no_contact_p0_v7"
+STEP5D_NO_CONTACT_P0_V7_STAGE_ID = "step5d_strict_rnn_no_contact_p0_v7"
+STEP5D_NO_CONTACT_P0_V8_STAGE_ID = "step5d_strict_rnn_no_contact_p0_v8"
+# Compatibility name for the immutable v7 evidence path.  New work must use
+# STEP5D_NO_CONTACT_P0_V8_STAGE_ID explicitly so historical v7 evidence is not
+# silently reinterpreted under the v30 control contract.
+STEP5D_NO_CONTACT_P0_STAGE_ID = STEP5D_NO_CONTACT_P0_V7_STAGE_ID
+STEP5D_NO_CONTACT_P0_STAGE_IDS = (
+    STEP5D_NO_CONTACT_P0_V7_STAGE_ID,
+    STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
+)
+STEP5D_V30_CONTROL_CONTRACT_STAGE_IDS = (
+    STEP5D_ABLATION_V30_STAGE_ID,
+    STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
+)
 STEP5D_ABLATION_STAGE_IDS = (
     STEP5D_ABLATION_V25_STAGE_ID,
     STEP5D_ABLATION_V26_STAGE_ID,
@@ -44,7 +57,7 @@ STEP5D_ABLATION_STAGE_IDS = (
     STEP5D_ABLATION_V28_STAGE_ID,
     STEP5D_ABLATION_V29_STAGE_ID,
     STEP5D_ABLATION_V30_STAGE_ID,
-    STEP5D_NO_CONTACT_P0_STAGE_ID,
+    *STEP5D_NO_CONTACT_P0_STAGE_IDS,
 )
 STEP5D_STAGE25_CONTROL_MODES = ("speedl_cartesian_oracle", "speedj_dls_oracle", "speedj_rnn_live")
 STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE = 523.0
@@ -98,6 +111,14 @@ def _stage_field(row: dict[str, Any], dotted: str) -> Any:
     if value is None:
         raise StageEnvError(f"stage table field is null: {dotted}")
     return value
+
+
+def is_no_contact_p0_stage(program: str) -> bool:
+    return program in STEP5D_NO_CONTACT_P0_STAGE_IDS
+
+
+def uses_v30_control_contract(program: str) -> bool:
+    return program in STEP5D_V30_CONTROL_CONTRACT_STAGE_IDS
 
 
 def _fmt_int(value: Any) -> str:
@@ -310,13 +331,25 @@ def current_step5d_program(path: Path = CURRENT_STAGE_PATH) -> str:
     return STEP5D_LIVEPREP_V20_STAGE_ID
 
 
-def controller_target_for(program: str, current: dict[str, Any] | None = None) -> str:
+def controller_target_for(
+    program: str,
+    current: dict[str, Any] | None = None,
+    root: Path = EXPERIMENT_ROOT,
+) -> str:
     payload = current if current is not None else _current_stage()
     if payload.get("program") == program and payload.get("controller_target"):
         return str(payload["controller_target"])
-    if program == STEP5D_ABLATION_V30_STAGE_ID:
+    try:
+        row_target = (_stage_row(program, root).get("package_delivery") or {}).get(
+            "controller_target"
+        )
+    except StageEnvError:
+        row_target = None
+    if isinstance(row_target, str) and row_target:
+        return row_target
+    if program in {STEP5D_ABLATION_V30_STAGE_ID, STEP5D_NO_CONTACT_P0_V8_STAGE_ID}:
         return "LOCAL_ONLY_NOT_DELIVERED"
-    if program == STEP5D_NO_CONTACT_P0_STAGE_ID:
+    if is_no_contact_p0_stage(program):
         return f"/programs/andyl/kunwei/step5/{program}.urp"
     return f"/programs/andyl/kunwei/step5/{program}.urp"
 
@@ -339,7 +372,13 @@ def speedl_orientation_policy(program: str) -> str | None:
 
 
 def stage25_0_register_contract(program: str) -> str:
-    if program == STEP5D_NO_CONTACT_P0_STAGE_ID:
+    if program == STEP5D_NO_CONTACT_P0_V8_STAGE_ID:
+        return (
+            "no-contact P0 v8: Stage25.95 first requires bridge-cleared 37..47, then "
+            f"Stage25.0 accepts only 47={STEP5D_STAGE25_JOINT_LAYOUT_CODE:g} joint qd0..qd5 for TP speedj; "
+            "strict-RNN is the only command source and DLS is shadow-only"
+        )
+    if program == STEP5D_NO_CONTACT_P0_V7_STAGE_ID:
         return (
             "no-contact P0: Stage25.95 first requires bridge-cleared 37..47, then "
             f"Stage25.0 accepts 47={STEP5D_STAGE25_JOINT_LAYOUT_CODE:g} joint qd0..qd5 for TP speedj "
@@ -389,7 +428,7 @@ def stage25_0_register_contract(program: str) -> str:
 
 
 def stage25_success_target_s(program: str) -> float | None:
-    if program == STEP5D_NO_CONTACT_P0_STAGE_ID:
+    if is_no_contact_p0_stage(program):
         return STEP5D_STAGE25_V28_FULL_RUN_TARGET_S
     if program in {STEP5D_ABLATION_V28_STAGE_ID, STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID}:
         return STEP5D_STAGE25_V28_FULL_RUN_TARGET_S
@@ -399,7 +438,7 @@ def stage25_success_target_s(program: str) -> float | None:
 
 
 def stage25_runtime_limit_s(program: str) -> float | None:
-    if program == STEP5D_NO_CONTACT_P0_STAGE_ID:
+    if is_no_contact_p0_stage(program):
         return STEP5D_STAGE25_V28_RUNTIME_LIMIT_S
     if program in {STEP5D_ABLATION_V28_STAGE_ID, STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID}:
         return STEP5D_STAGE25_V28_RUNTIME_LIMIT_S
@@ -409,7 +448,7 @@ def stage25_runtime_limit_s(program: str) -> float | None:
 
 
 def default_preload_gate(program: str) -> Step5dPreloadGate:
-    if program == STEP5D_NO_CONTACT_P0_STAGE_ID:
+    if is_no_contact_p0_stage(program):
         return Step5dPreloadGate(
             filtered_min_n=0.0,
             filtered_max_n=2.0,
@@ -534,12 +573,12 @@ def resolve_runtime_interface(
         (isinstance(selected_acceptance, dict) and selected_acceptance.get("controller_readback_required") is True)
         or not controller_readback_verified
     )
-    target = controller_target_for(selected, current)
+    target = controller_target_for(selected, current, root)
     default_gate = default_preload_gate(selected)
     protocol_profile = runtime_protocol_profile(root)
     protocol_params = protocol_profile["parameters"]
     protocol_limits = protocol_profile["safety_limits"]
-    if selected == STEP5D_NO_CONTACT_P0_STAGE_ID:
+    if is_no_contact_p0_stage(selected):
         trusted_normal_default_n = 2.0
         trusted_force_default_n = 5.0
         trusted_torque_default_nm = 3.0
@@ -557,7 +596,7 @@ def resolve_runtime_interface(
         trusted_torque_default_nm = 4.0
     stage25_control_mode = (
         "speedj_rnn_live"
-        if selected == STEP5D_NO_CONTACT_P0_STAGE_ID
+        if is_no_contact_p0_stage(selected)
         else str(
             env_map.get(
                 "STEP5D_STAGE25_CONTROL_MODE",
@@ -574,7 +613,7 @@ def resolve_runtime_interface(
             "STEP5D_STAGE25_CONTROL_MODE must be one of "
             f"{', '.join(STEP5D_STAGE25_CONTROL_MODES)}: {stage25_control_mode!r}"
         )
-    if selected == STEP5D_NO_CONTACT_P0_STAGE_ID:
+    if is_no_contact_p0_stage(selected):
         gate = default_gate
     else:
         gate = Step5dPreloadGate(
@@ -598,27 +637,28 @@ def resolve_runtime_interface(
             ),
             force_norm_stop_n=env_float(env_map, "STEP5D_PRELOAD_FORCE_NORM_STOP_N", default_gate.force_norm_stop_n),
         )
-    if selected == STEP5D_NO_CONTACT_P0_STAGE_ID:
+    if is_no_contact_p0_stage(selected):
+        p0_env = build_stage_env(selected, root)
         bridge_defaults = Step5dBridgeDefaults(
-            duration_s=STEP5D_NO_CONTACT_P0_DURATION_S,
-            target_force_n=STEP5D_NO_CONTACT_P0_TARGET_FORCE_N,
-            force_p_gain=STEP5D_NO_CONTACT_P0_FORCE_P_GAIN,
-            force_i_gain=STEP5D_NO_CONTACT_P0_FORCE_I_GAIN,
-            force_damping=STEP5D_NO_CONTACT_P0_FORCE_DAMPING,
-            integral_limit_n_s=STEP5D_NO_CONTACT_P0_INTEGRAL_LIMIT_N_S,
-            normal_velocity_limit_m_s=STEP5D_NO_CONTACT_P0_NORMAL_VELOCITY_LIMIT_M_S,
-            normal_filter_alpha=STEP5D_NO_CONTACT_P0_NORMAL_FILTER_ALPHA,
-            normal_min_force_n=STEP5D_NO_CONTACT_P0_NORMAL_MIN_FORCE_N,
-            total_linear_limit_m_s=STEP5D_NO_CONTACT_P0_TOTAL_LINEAR_LIMIT_M_S,
-            angular_limit_rad_s=STEP5D_NO_CONTACT_P0_ANGULAR_LIMIT_RAD_S,
-            max_normal_force_n=STEP5D_NO_CONTACT_P0_NORMAL_GUARD_N,
-            max_force_norm_n=STEP5D_NO_CONTACT_P0_FORCE_GUARD_N,
-            max_torque_norm_nm=STEP5D_NO_CONTACT_P0_TORQUE_GUARD_NM,
-            baseline_s=STEP5D_NO_CONTACT_P0_BASELINE_S,
-            rezero_s=STEP5D_NO_CONTACT_P0_REZERO_S,
-            rtde_hz=STEP5D_NO_CONTACT_P0_RTDE_HZ,
-            sensor_stale_s=STEP5D_NO_CONTACT_P0_SENSOR_STALE_S,
-            socket_timeout_s=STEP5D_NO_CONTACT_P0_SOCKET_TIMEOUT_S,
+            duration_s=float(p0_env["BRIDGE_DURATION_S"]),
+            target_force_n=float(p0_env["BRIDGE_TARGET_FORCE_N"]),
+            force_p_gain=float(p0_env["BRIDGE_FORCE_P_GAIN"]),
+            force_i_gain=float(p0_env["BRIDGE_FORCE_I_GAIN"]),
+            force_damping=float(p0_env["BRIDGE_FORCE_DAMPING"]),
+            integral_limit_n_s=float(p0_env["BRIDGE_INTEGRAL_LIMIT_N_S"]),
+            normal_velocity_limit_m_s=float(p0_env["BRIDGE_NORMAL_VELOCITY_LIMIT_M_S"]),
+            normal_filter_alpha=float(p0_env["BRIDGE_NORMAL_FILTER_ALPHA"]),
+            normal_min_force_n=float(p0_env["BRIDGE_NORMAL_MIN_FORCE_N"]),
+            total_linear_limit_m_s=float(p0_env["BRIDGE_TOTAL_LINEAR_LIMIT_M_S"]),
+            angular_limit_rad_s=float(p0_env["BRIDGE_ANGULAR_LIMIT_RAD_S"]),
+            max_normal_force_n=float(p0_env["MAX_NORMAL_FORCE_N"]),
+            max_force_norm_n=float(p0_env["MAX_FORCE_NORM_N"]),
+            max_torque_norm_nm=float(p0_env["MAX_TORQUE_NORM_NM"]),
+            baseline_s=float(p0_env["BRIDGE_BASELINE_S"]),
+            rezero_s=float(p0_env["BRIDGE_REZERO_S"]),
+            rtde_hz=float(p0_env["BRIDGE_RTDE_HZ"]),
+            sensor_stale_s=float(p0_env["BRIDGE_SENSOR_STALE_S"]),
+            socket_timeout_s=float(p0_env["BRIDGE_SOCKET_TIMEOUT_S"]),
         )
     else:
         bridge_defaults = Step5dBridgeDefaults(
@@ -669,7 +709,10 @@ def resolve_runtime_interface(
             "stage25_speedl_orientation_policy": speedl_orientation_policy(selected),
             "stage25_live_control_source": (
                 "strict_rnn_live_speedj"
-                if selected in {STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID}
+                if selected in {
+                    STEP5D_ABLATION_V29_STAGE_ID,
+                    *STEP5D_V30_CONTROL_CONTRACT_STAGE_IDS,
+                }
                 else STEP5D_V27_SPEEDL_LIVE_CONTROL_SOURCE
                 if uses_step5b_speedl_live_source(selected)
                 else None
@@ -688,15 +731,20 @@ def resolve_runtime_interface(
                     "control_mode": "speedj_rnn_live",
                     "joint_layout_code": 524.0,
                 }
-                if selected in {STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID}
+                if selected in {
+                    STEP5D_ABLATION_V29_STAGE_ID,
+                    *STEP5D_V30_CONTROL_CONTRACT_STAGE_IDS,
+                }
                 else None
             ),
-            "no_contact_p0_capture": selected == STEP5D_NO_CONTACT_P0_STAGE_ID,
+            "no_contact_p0_capture": is_no_contact_p0_stage(selected),
+            "v30_control_contract": uses_v30_control_contract(selected),
             "no_ubuntu_motion": True,
             "no_zero_ftsensor": True,
             "no_kunwei_tare_or_config": True,
             "no_tcp_payload_write": True,
-            "offline_candidate": selected == STEP5D_ABLATION_V30_STAGE_ID,
+            "offline_candidate": selected
+            in {STEP5D_ABLATION_V30_STAGE_ID, STEP5D_NO_CONTACT_P0_V8_STAGE_ID},
         },
     )
 
@@ -826,7 +874,7 @@ def live_ready_lines(
     fp = "ok" if cache.get("fingerprint_ok") else "mismatch"
     gate = interface.preload_gate
     bridge = interface.bridge_defaults
-    linear_cap_label = "legacy_total_linear_debug" if interface.program == STEP5D_NO_CONTACT_P0_STAGE_ID else "total_linear"
+    linear_cap_label = "legacy_total_linear_debug" if is_no_contact_p0_stage(interface.program) else "total_linear"
     if interface.program == STEP5D_ABLATION_V30_STAGE_ID:
         return [
             "[step5d][phase=v30-offline-candidate][rebuild=no][upload=no]",

@@ -2,16 +2,20 @@
   "authorization": {
     "bridge_start_authorized": false,
     "controller_upload_authorized": false,
+    "delivery_preparation_allowed": true,
     "live_motion_authorized": false,
     "tp_play_authorized": false
   },
   "blockers": [
     "current_source_solver_10k_ran_but_60s_paced_runtime_shaped_not_run",
-    "milestone_reviews_incomplete_or_blocking",
+    "p0_v8_final_60s_not_passed",
+    "p0_v8_passed_artifact_missing",
+    "review_v2_not_due_until_evidence_freeze",
     "runtime_shaped_60s_500hz_acceptance_not_run",
     "runtime_shaped_safe_hold_acceptance_not_run",
     "system_level_host_driver_timing_outliers_unresolved",
-    "timing_acceptance_failed"
+    "timing_acceptance_failed",
+    "v30_controller_readback_not_frozen"
   ],
   "claim_boundary": {
     "allowed_claim": "inactive v30 offline candidate with partial replay/timing evidence",
@@ -30,7 +34,30 @@
     "v30_is_current": false
   },
   "generated_at": "2026-07-11T01:40:00+08:00",
+  "historical_review": {
+    "counts_as_review_v2": false,
+    "path": "config/step5d_v30_milestone_reviews.json",
+    "sha256": "df28791a0999a8809ae6adb97ae8737f7bee74cbb509ed41f9c740fd88c12bcb",
+    "status": "historical_superseded_by_review_policy_v2"
+  },
+  "p0_v8_gate": {
+    "blockers": [
+      "p0_v8_final_60s_not_passed",
+      "p0_v8_passed_artifact_missing"
+    ],
+    "composite_fingerprint": null,
+    "passed": false,
+    "passed_artifact": null,
+    "passed_artifact_sha256": null,
+    "profile": "step5d_strict_rnn_no_contact_p0_v8"
+  },
   "package": {
+    "binding_blockers": [],
+    "binding_valid": true,
+    "controller_readback_manifest": null,
+    "controller_readback_manifest_sha256": null,
+    "controller_readback_verified": false,
+    "delivery_preparation_allowed_before_p0_v8": true,
     "local_only": true,
     "marker_path": "programs/step5/step5d/.step5d_strict_rnn_ablation_v30.local_candidate.json",
     "marker_sha256": "48933463f56e865fd523c73496d6b86665d78fe94adf99ea689cac44d806ef48",
@@ -60,76 +87,35 @@
     "qdot_over_bound_rows": 0,
     "sha256": "9fd3e5614de9f520e509578d3bfbf199d4d7db7263d351f5cda41ec0333dcbf9"
   },
-  "review_manifest": {
-    "milestone_status": "incomplete_blocking",
-    "path": "config/step5d_v30_milestone_reviews.json",
-    "sha256": "df28791a0999a8809ae6adb97ae8737f7bee74cbb509ed41f9c740fd88c12bcb"
+  "review_v2": {
+    "accepted": false,
+    "blockers": [
+      "review_v2_packet_or_manifest_missing"
+    ],
+    "composite_fingerprint": null,
+    "deterministic_freeze_blockers": [
+      "current_source_solver_10k_ran_but_60s_paced_runtime_shaped_not_run",
+      "p0_v8_final_60s_not_passed",
+      "p0_v8_passed_artifact_missing",
+      "runtime_shaped_60s_500hz_acceptance_not_run",
+      "runtime_shaped_safe_hold_acceptance_not_run",
+      "system_level_host_driver_timing_outliers_unresolved",
+      "timing_acceptance_failed",
+      "v30_controller_readback_not_frozen"
+    ],
+    "evidence_freeze_ready": false,
+    "evidence_frozen": false,
+    "index_path": "config/step5d_review_index_v2.json",
+    "index_sha256": "15df105e2281d337c124690b1cf1eb1eff350db176382f528ce0ed759c53f4c6",
+    "manifest": null,
+    "packet": null,
+    "policy_id": "ur10e_review_policy_v2",
+    "policy_path": "config/step5d_review_policy_v2.json",
+    "policy_sha256": "83a4e85c73dc8279f07aba36abe75dac52b5c971712b027016b437c6e989556b",
+    "required_stack": "2+1",
+    "status": "not_due"
   },
-  "reviews": {
-    "codex_control_claim_high": {
-      "actual_model": "GPT-5-based Codex; exact serving deployment suffix unavailable",
-      "findings": {
-        "p0": [],
-        "p1": [
-          "strict-RNN solver status was not checked by SafetyEnvelope",
-          "phase-1 directional VIC was described as energy-bound/passive without an energy tank or passivity observer/controller",
-          "compact evidence ClaimState was not cross-checked against top-level offline authorization gates"
-        ],
-        "p2": [
-          "direct-torque manifest limit values were not compared with controller/oracle constants",
-          "v30 delivery block lacked a direct negative test",
-          "external rehash proves identity only and cannot validate scientific/live claims"
-        ]
-      },
-      "post_review_disposition": {
-        "all_code_findings_addressed": true,
-        "independent_post_fix_rereview_performed": false,
-        "resolutions": [
-          "SafetyEnvelope now accepts only strict-RNN status 40.0 and invalid-status register output is negative-tested",
-          "VIC claim downgraded to bounded/slew-limited/non-increasing; passivity explicitly remains unestablished",
-          "offline ClaimState promotion is cross-gated and negative-tested",
-          "direct-torque manifest limits are exactly matched to the URScript/oracle constants",
-          "inactive v30 delivery rejection is directly tested",
-          "external rehash remains identity-only with claim_validation_ready=false"
-        ]
-      },
-      "requested_effort": "high",
-      "requested_model": "gpt-5.6-sol",
-      "status": "completed_blocked_at_review"
-    },
-    "codex_timing_runtime_high": {
-      "actual_model": "GPT-5-based Codex; exact serving deployment suffix unavailable",
-      "findings": {
-        "p0": [],
-        "p1": [
-          "DBIL paced selector did not require explicit selection eligibility or approximately rate-times-duration tick coverage"
-        ],
-        "p2": [
-          "summarize_preaggregated could pass when expected source and artifact bindings were omitted"
-        ]
-      },
-      "post_review_disposition": {
-        "all_code_findings_addressed": true,
-        "independent_post_fix_rereview_performed": false,
-        "resolutions": [
-          "paced selector now requires selection_eligible=true, coherent 60-second duration, and approximately rate-times-duration scheduled ticks",
-          "legacy paced artifact is retained as rejection evidence but marked provenance-ineligible for rate selection",
-          "preaggregated timing acceptance now fails closed when any expected binding is omitted"
-        ]
-      },
-      "requested_effort": "high",
-      "requested_model": "gpt-5.6-sol",
-      "status": "completed_blocked_at_review"
-    },
-    "fable5_physical_operator_safety_high": {
-      "attempted_command_surface": "Claude CLI",
-      "failure": "Not logged in; Claude CLI requested /login",
-      "requested_effort": "high",
-      "requested_model": "claude-fable-5",
-      "status": "unavailable_not_logged_in"
-    }
-  },
-  "schema_version": "step5d_v30_offline_readiness_v1",
+  "schema_version": "step5d_v30_offline_readiness_v2",
   "source_contract": {
     "aggregator_sha256": {
       "path": "tools/step5d_v30_timing.py",
@@ -137,7 +123,7 @@
     },
     "bridge_sha256": {
       "path": "tools/kunwei_rtde_bridge.py",
-      "sha256": "02bd1c6e07424b3bd5b634bb249bb776d6d36c0748bdb8b2df02f9a24bbd547f"
+      "sha256": "7a3989c6a4c960041718b2291b42719741d0de280cb2a19eebaebdad7b1c6fff"
     },
     "bundler_sha256": {
       "path": "tools/build_step5d_v30_remote_timing_bundle.py",
@@ -149,7 +135,7 @@
     },
     "control_contract_sha256": {
       "path": "tools/step5d_control_contract.py",
-      "sha256": "66619a2cfc7bc67e38637b94ab3433530e77351a719ba496153220ba30183b28"
+      "sha256": "c3c44c1892d2063a40df1636adee6216c121e69f1774310354917b730d745875"
     },
     "harness_sha256": {
       "path": "tools/run_step5d_v30_remote_timing.py",
@@ -165,11 +151,11 @@
     },
     "readiness_builder_sha256": {
       "path": "tools/build_step5d_v30_offline_readiness.py",
-      "sha256": "cf8a5a148186bd4fc40117e21c8952aa96bc608f55e6bcccea6062234bfc52c4"
+      "sha256": "6452ee81f502aa960cafd3f241b9c770a9aa7c45d01fc8c9b966d0afe905dd06"
     },
     "runtime_interface_sha256": {
       "path": "tools/step5d_runtime_interface.py",
-      "sha256": "e815615ab3686bd17b800177ab9661bec9ec5b173d290b48e06b2b7f09cda092"
+      "sha256": "c7a836b8a05ad30807ca41c8d4db3b8875a805746fcd8d64d1107dbe943f9190"
     },
     "solver_sha256": {
       "path": "tools/step5c_strict_rnn.py",
@@ -495,6 +481,7 @@
             "remote_runtime_profile_mismatch",
             "remote_timing_aggregator_sha256_does_not_match_local_source",
             "remote_timing_aggregator_sha256_missing",
+            "remote_timing_bridge_sha256_does_not_match_local_source",
             "remote_timing_bundler_sha256_does_not_match_local_source",
             "remote_timing_bundler_sha256_missing",
             "remote_timing_calibration_yaml_artifact_unbound",
@@ -506,6 +493,7 @@
             "remote_timing_readiness_builder_sha256_missing",
             "remote_timing_replay_csv_artifact_unbound",
             "remote_timing_replay_csv_sha_mismatch",
+            "remote_timing_runtime_interface_sha256_does_not_match_local_source",
             "remote_timing_stage_table_artifact_unbound",
             "remote_timing_ur_xacro_artifact_unbound",
             "safe_hold_deferred_diagnostics_incomplete",
@@ -623,6 +611,7 @@
             "independent_absolute_500hz_pacing_provenance_missing",
             "remote_timing_aggregator_sha256_does_not_match_local_source",
             "remote_timing_aggregator_sha256_missing",
+            "remote_timing_bridge_sha256_does_not_match_local_source",
             "remote_timing_bundler_sha256_does_not_match_local_source",
             "remote_timing_bundler_sha256_missing",
             "remote_timing_calibration_yaml_artifact_unbound",
@@ -634,6 +623,7 @@
             "remote_timing_readiness_builder_sha256_missing",
             "remote_timing_replay_csv_artifact_unbound",
             "remote_timing_replay_csv_sha_mismatch",
+            "remote_timing_runtime_interface_sha256_does_not_match_local_source",
             "remote_timing_schema_mismatch",
             "remote_timing_stage_table_artifact_unbound",
             "remote_timing_ur_xacro_artifact_unbound",
@@ -753,6 +743,7 @@
             "remote_timing_aggregator_sha256_does_not_match_local_source",
             "remote_timing_aggregator_sha256_missing",
             "remote_timing_artifact_binding_missing",
+            "remote_timing_bridge_sha256_does_not_match_local_source",
             "remote_timing_bundler_sha256_does_not_match_local_source",
             "remote_timing_bundler_sha256_missing",
             "remote_timing_calibration_yaml_artifact_unbound",

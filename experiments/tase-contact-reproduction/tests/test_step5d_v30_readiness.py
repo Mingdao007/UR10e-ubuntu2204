@@ -25,6 +25,9 @@ class Step5dV30ReadinessTest(unittest.TestCase):
         rebuilt = readiness_builder.build(generated_at=tracked["generated_at"])
 
         self.assertEqual(rebuilt, tracked)
+        self.assertEqual(
+            tracked["schema_version"], "step5d_v30_offline_readiness_v2"
+        )
         self.assertEqual(tracked["status"], readiness_builder.STATUS_BLOCKED)
         self.assertNotEqual(tracked["status"], readiness_builder.STATUS_READY)
 
@@ -86,7 +89,11 @@ class Step5dV30ReadinessTest(unittest.TestCase):
             )
         )
 
-        self.assertTrue(all(value is False for value in payload["authorization"].values()))
+        self.assertFalse(payload["authorization"]["live_motion_authorized"])
+        self.assertFalse(payload["authorization"]["bridge_start_authorized"])
+        self.assertFalse(payload["authorization"]["tp_play_authorized"])
+        self.assertFalse(payload["authorization"]["controller_upload_authorized"])
+        self.assertTrue(payload["authorization"]["delivery_preparation_allowed"])
         self.assertFalse(payload["current_pointer"]["v30_is_current"])
         self.assertTrue(all(
             payload["claim_boundary"][field] is False
@@ -99,6 +106,18 @@ class Step5dV30ReadinessTest(unittest.TestCase):
             "the aggregate summary is diagnostic only",
         )
         self.assertIsNone(payload["timing"]["acceptance_raw_evidence"])
+        self.assertTrue(payload["package"]["binding_valid"])
+        self.assertFalse(payload["package"]["controller_readback_verified"])
+        self.assertFalse(payload["p0_v8_gate"]["passed"])
+        self.assertIn(
+            "p0_v8_final_60s_not_passed", payload["p0_v8_gate"]["blockers"]
+        )
+        self.assertEqual(
+            payload["historical_review"]["status"],
+            "historical_superseded_by_review_policy_v2",
+        )
+        for key in ("policy_path", "policy_sha256", "index_path", "index_sha256"):
+            self.assertIn(key, payload["review_v2"])
         for field in (
             "bundler_sha256",
             "aggregator_sha256",

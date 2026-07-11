@@ -23,11 +23,15 @@ from step5d_liveprep_readiness import (
     workflow_binding_sha256,
 )
 from step5d_runtime_interface import resolve_runtime_interface
+from step5d_review_v2 import file_sha256 as review_file_sha256
+from validate_step5d_review_v2 import validate_manifest as validate_review_v2_manifest
+from validate_step5d_review_v2 import validate_packet as validate_review_v2_packet
 from verify_current_stage_readback import EXPERIMENT_ROOT, fail, load_json, verify
 
 
 STEP5D_PACKAGE_PREFIXES = ("step5d_strict_rnn_liveprep_", "step5d_strict_rnn_ablation_")
 STEP5D_ABLATION_V29 = "step5d_strict_rnn_ablation_v29"
+STEP5D_ABLATION_V30 = "step5d_strict_rnn_ablation_v30"
 V29_EXACT_RUNTIME_PROFILE: dict[str, Any] = {
     "backend": "cupy",
     "inner_iterations": 1024,
@@ -37,6 +41,11 @@ V29_EXACT_RUNTIME_PROFILE: dict[str, Any] = {
     "control_mode": "speedj_rnn_live",
     "joint_layout_code": 524.0,
 }
+V30_EXACT_RUNTIME_PROFILE = dict(V29_EXACT_RUNTIME_PROFILE)
+V30_READINESS = "config/step5d_v30_offline_readiness.json"
+V30_REVIEW_POLICY = "config/step5d_review_policy_v2.json"
+V30_REVIEW_INDEX = "config/step5d_review_index_v2.json"
+P0_V8_PROFILE = "step5d_strict_rnn_no_contact_p0_v8"
 
 
 def _relative(root: Path, path: Path) -> str:
@@ -148,6 +157,340 @@ def _confined_regular_file(root: Path, raw_path: Any, label: str) -> Path:
     return resolved
 
 
+def _hash_bound_json(
+    root: Path,
+    raw_path: Any,
+    label: str,
+    *,
+    expected_sha256: Any = None,
+) -> tuple[Path, dict[str, Any], str]:
+    path = _confined_regular_file(root, raw_path, label)
+    actual_sha256 = _sha256_file(path)
+    if expected_sha256 is not None and expected_sha256 != actual_sha256:
+        fail(f"{label} sha256 is stale")
+    try:
+        payload = load_json(path)
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        fail(f"{label} is not valid JSON")
+    if not isinstance(payload, dict):
+        fail(f"{label} is not a JSON object")
+    return path, payload, actual_sha256
+
+
+def _finite_number(value: Any, label: str) -> float:
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        fail(f"v30 timing {label} is missing or non-numeric")
+    if not math.isfinite(result):
+        fail(f"v30 timing {label} is nonfinite")
+    return result
+
+
+def _zero_counter(container: dict[str, Any], label: str, *keys: str) -> None:
+    for key in keys:
+        if key in container:
+            if _finite_number(container.get(key), f"{label}.{key}") != 0.0:
+                fail(f"v30 timing {label}.{key} must be zero")
+            return
+    fail(f"v30 timing {label} deadline/nonfinite counter is missing")
+
+
+def _verify_v30_timing_raw(root: Path, timing: dict[str, Any]) -> dict[str, Any]:
+    evidence = timing.get("acceptance_raw_evidence")
+    if not isinstance(evidence, dict):
+        fail("v30 timing acceptance_raw_evidence is missing")
+    raw_path, raw, raw_sha256 = _hash_bound_json(
+        root,
+        evidence.get("path"),
+        "v30 timing acceptance raw evidence",
+        expected_sha256=evidence.get("sha256"),
+    )
+    if raw.get("paced_500hz") is not True:
+        fail("v30 timing raw evidence is not paced at 500 Hz")
+    solver = raw.get("solver")
+    full_tick = raw.get("full_tick")
+    safe_hold = raw.get("safe_hold")
+    if not all(isinstance(item, dict) for item in (solver, full_tick, safe_hold)):
+        fail("v30 timing raw evidence is missing solver/full_tick/safe_hold sections")
+    assert isinstance(solver, dict) and isinstance(full_tick, dict) and isinstance(safe_hold, dict)
+
+    if _finite_number(solver.get("samples"), "solver.samples") < 10_000:
+        fail("v30 timing solver evidence has fewer than 10,000 samples")
+    first_post_warm = raw.get("first_post_warm_ms", solver.get("first_post_warm_ms"))
+    if _finite_number(first_post_warm, "solver.first_post_warm_ms") > 1.75:
+        fail("v30 timing solver first post-warm exceeds 1.75 ms")
+    if _finite_number(solver.get("p99_ms"), "solver.p99_ms") > 1.50:
+        fail("v30 timing solver p99 exceeds 1.50 ms")
+    if _finite_number(solver.get("max_ms"), "solver.max_ms") >= 2.0:
+        fail("v30 timing solver max reaches the 2.00 ms deadline")
+    _zero_counter(solver, "solver", "compute_deadline_miss_count", "deadline_miss_count")
+    _zero_counter(solver, "solver", "nonfinite_count")
+
+    if _finite_number(full_tick.get("samples"), "full_tick.samples") < 30_000:
+        fail("v30 timing full tick evidence has fewer than 30,000 samples")
+    if _finite_number(raw.get("elapsed_full_tick_wall_s"), "elapsed_full_tick_wall_s") < 60.0:
+        fail("v30 timing full tick evidence is shorter than 60 seconds")
+    if _finite_number(full_tick.get("p99_ms"), "full_tick.p99_ms") > 1.80:
+        fail("v30 timing full tick p99 exceeds 1.80 ms")
+    if _finite_number(full_tick.get("max_ms"), "full_tick.max_ms") >= 2.0:
+        fail("v30 timing full tick max reaches the 2.00 ms deadline")
+    _zero_counter(full_tick, "full_tick", "compute_deadline_miss_count", "deadline_miss_count")
+    _zero_counter(full_tick, "full_tick", "nonfinite_count")
+    _zero_counter(raw, "full_tick_schedule", "full_tick_schedule_deadline_miss_count")
+
+    if _finite_number(safe_hold.get("samples"), "safe_hold.samples") < 30_000:
+        fail("v30 timing safe-hold evidence has fewer than 30,000 samples")
+    if _finite_number(raw.get("elapsed_safe_hold_wall_s"), "elapsed_safe_hold_wall_s") < 60.0:
+        fail("v30 timing safe-hold evidence is shorter than 60 seconds")
+    if _finite_number(safe_hold.get("p99_ms"), "safe_hold.p99_ms") >= 2.0:
+        fail("v30 timing safe-hold p99 reaches the 2.00 ms deadline")
+    if _finite_number(safe_hold.get("max_ms"), "safe_hold.max_ms") >= 2.0:
+        fail("v30 timing safe-hold max reaches the 2.00 ms deadline")
+    _zero_counter(safe_hold, "safe_hold", "compute_deadline_miss_count", "deadline_miss_count")
+    _zero_counter(safe_hold, "safe_hold", "nonfinite_count")
+    _zero_counter(raw, "safe_hold_schedule", "safe_hold_schedule_deadline_miss_count")
+    return {
+        "path": _relative(root, raw_path),
+        "sha256": raw_sha256,
+        "solver_samples": int(_finite_number(solver.get("samples"), "solver.samples")),
+        "full_tick_samples": int(_finite_number(full_tick.get("samples"), "full_tick.samples")),
+        "safe_hold_samples": int(_finite_number(safe_hold.get("samples"), "safe_hold.samples")),
+    }
+
+
+def _verify_v30_review_v2(
+    root: Path,
+    stage_entry: dict[str, Any],
+    readiness_review: dict[str, Any],
+) -> dict[str, Any]:
+    stage_review = stage_entry.get("review_v2")
+    if not isinstance(stage_review, dict):
+        fail("v30 Review v2 stage gate is missing")
+    if stage_review.get("required_stack") != "2+1":
+        fail("v30 Review v2 gate must require stack 2+1")
+    if stage_review.get("evidence_frozen") is not True:
+        fail("v30 Review v2 evidence is not frozen")
+    if readiness_review.get("accepted") is not True:
+        fail("v30 Review v2 current composite is not accepted")
+    if readiness_review.get("required_stack") not in (None, "2+1"):
+        fail("v30 readiness Review v2 stack is not 2+1")
+    if readiness_review.get("evidence_freeze_ready") is not True:
+        fail("v30 readiness deterministic evidence freeze is incomplete")
+    if readiness_review.get("deterministic_freeze_blockers") not in (None, []):
+        fail("v30 readiness deterministic evidence freeze has blockers")
+
+    packet_rel = stage_review.get("packet") or readiness_review.get("packet")
+    manifest_rel = stage_review.get("manifest") or readiness_review.get("manifest")
+    packet_path, packet, packet_sha256 = _hash_bound_json(
+        root,
+        packet_rel,
+        "v30 Review v2 packet",
+        expected_sha256=readiness_review.get("packet_sha256"),
+    )
+    manifest_path, manifest, manifest_sha256 = _hash_bound_json(
+        root,
+        manifest_rel,
+        "v30 Review v2 manifest",
+        expected_sha256=readiness_review.get("manifest_sha256"),
+    )
+    policy_path, policy, policy_sha256 = _hash_bound_json(
+        root,
+        readiness_review.get("policy_path") or V30_REVIEW_POLICY,
+        "v30 Review v2 policy",
+        expected_sha256=readiness_review.get("policy_sha256"),
+    )
+    index_path, review_index, index_sha256 = _hash_bound_json(
+        root,
+        readiness_review.get("index_path") or V30_REVIEW_INDEX,
+        "v30 Review v2 index",
+        expected_sha256=readiness_review.get("index_sha256"),
+    )
+    composite = (packet.get("fingerprints") or {}).get("composite")
+    if (
+        packet.get("workflow") != "v30"
+        or packet.get("milestone") != "contact_pre_live"
+        or packet.get("required_stack") != "2+1"
+        or packet.get("evidence_frozen") is not True
+    ):
+        fail("v30 Review v2 packet is not the frozen contact pre-live 2+1 packet")
+    if not isinstance(composite, str) or len(composite) != 64:
+        fail("v30 Review v2 composite fingerprint is invalid")
+    if stage_review.get("composite_fingerprint") != composite:
+        fail("v30 Review v2 stage composite fingerprint is stale")
+    if readiness_review.get("composite_fingerprint") != composite:
+        fail("v30 readiness Review v2 composite fingerprint is stale")
+
+    packet_result = validate_review_v2_packet(packet, root=root, policy=policy)
+    source_manifest = None
+    if manifest.get("review_mode") == "targeted_closer":
+        source_rel = stage_review.get("source_manifest") or readiness_review.get("source_manifest")
+        _, source_manifest, _ = _hash_bound_json(
+            root,
+            source_rel,
+            "v30 Review v2 targeted closer source manifest",
+            expected_sha256=readiness_review.get("source_manifest_sha256"),
+        )
+    manifest_result = validate_review_v2_manifest(
+        manifest,
+        packet,
+        root=root,
+        policy=policy,
+        review_index=review_index,
+        source_manifest=source_manifest,
+        manifest_sha256=review_file_sha256(manifest_path),
+    )
+    if packet_result.get("ok") is not True:
+        fail("v30 Review v2 packet validation failed")
+    if manifest_result.get("accepted") is not True:
+        fail("v30 Review v2 manifest validation failed")
+    return {
+        "packet": _relative(root, packet_path),
+        "packet_sha256": packet_sha256,
+        "manifest": _relative(root, manifest_path),
+        "manifest_sha256": manifest_sha256,
+        "policy": _relative(root, policy_path),
+        "policy_sha256": policy_sha256,
+        "index": _relative(root, index_path),
+        "index_sha256": index_sha256,
+        "composite_fingerprint": composite,
+        "review_mode": manifest.get("review_mode"),
+    }
+
+
+def verify_v30_evidence_freeze(
+    root: Path,
+    current: dict[str, Any] | None = None,
+    stage_entry: dict[str, Any] | None = None,
+    *,
+    expected_package_sha256: dict[str, str] | None = None,
+    expected_readback_manifest: str | None = None,
+) -> dict[str, Any]:
+    """Revalidate the frozen v30 promotion/live-prep evidence without authorizing motion."""
+
+    current = current or load_json(root / "config" / "current_stage.json")
+    if stage_entry is None:
+        table = load_json(root / str(current.get("stage_table_path") or "config/step5_stage_table.json"))
+        stage_entry = next(
+            (row for row in table.get("stages", []) if row.get("id") == STEP5D_ABLATION_V30),
+            None,
+        )
+    if not isinstance(stage_entry, dict):
+        fail("v30 stage row is missing")
+    if stage_entry.get("runtime_profile") != V30_EXACT_RUNTIME_PROFILE:
+        fail("v30 stage row does not bind the exact CuPy/1024/epsilon=0.01/r=0.8/qdot=0.05 profile")
+    contact_policy = stage_entry.get("contact_policy") or {}
+    guard = stage_entry.get("guard") or {}
+    if (
+        contact_policy.get("dls_shadow_only") is not True
+        or contact_policy.get("dls_fallback_allowed") is not False
+        or guard.get("dls_runtime_fallback_allowed") is not False
+    ):
+        fail("v30 promotion requires DLS shadow-only with runtime fallback disabled")
+
+    p0_current = current.get("p0_v8_candidate")
+    p0_gate = stage_entry.get("p0_v8_gate")
+    if not isinstance(p0_current, dict) or not isinstance(p0_gate, dict):
+        fail("v30 promotion requires the P0 v8 gate")
+    if p0_current.get("p0_v8_passed") is not True or p0_gate.get("passed") is not True:
+        fail("v30 promotion requires P0 v8 final continuous 60 second pass")
+    p0_artifact_rel = p0_gate.get("passed_artifact") or p0_current.get("passed_artifact")
+    if p0_artifact_rel != p0_current.get("passed_artifact"):
+        fail("v30 P0 v8 passed artifact pointers disagree")
+    p0_expected_sha = p0_gate.get("passed_artifact_sha256") or p0_current.get("passed_artifact_sha256")
+    if not p0_expected_sha:
+        fail("v30 P0 v8 passed artifact is not hash-bound")
+    p0_path, p0_artifact, p0_sha256 = _hash_bound_json(
+        root,
+        p0_artifact_rel,
+        "P0 v8 passed artifact",
+        expected_sha256=p0_expected_sha,
+    )
+    if (
+        p0_artifact.get("ok") is not True
+        or p0_artifact.get("canary_passed") is not True
+        or p0_artifact.get("p0_v8_passed") is not True
+        or not math.isclose(_finite_number(p0_artifact.get("phase_s"), "P0 v8 phase_s"), 60.0)
+        or p0_artifact.get("blockers") != []
+    ):
+        fail("v30 promotion requires a clean final continuous 60 second P0 v8 artifact")
+    p0_fingerprint = (p0_artifact.get("binding") or {}).get("composite_fingerprint")
+    if p0_fingerprint != p0_current.get("composite_fingerprint"):
+        fail("v30 P0 v8 artifact composite fingerprint is stale")
+    if p0_gate.get("composite_fingerprint") not in (None, p0_fingerprint):
+        fail("v30 P0 v8 stage fingerprint is stale")
+
+    analysis = stage_entry.get("local_analysis_evidence") or {}
+    readiness_rel = analysis.get("offline_readiness") or V30_READINESS
+    readiness_path, readiness, readiness_sha256 = _hash_bound_json(
+        root,
+        readiness_rel,
+        "v30 offline readiness artifact",
+        expected_sha256=analysis.get("offline_readiness_sha256"),
+    )
+    if readiness.get("status") != "v30_offline_ready" or readiness.get("blockers") != []:
+        fail("v30 offline readiness is blocked")
+    readiness_p0 = readiness.get("p0_v8_gate") or {}
+    if (
+        readiness_p0.get("passed") is not True
+        or readiness_p0.get("passed_artifact") != p0_artifact_rel
+        or readiness_p0.get("composite_fingerprint") != p0_fingerprint
+    ):
+        fail("v30 readiness P0 v8 binding is stale")
+
+    delivery = stage_entry.get("package_delivery") or {}
+    package = readiness.get("package") or {}
+    if delivery.get("controller_readback_verified") is not True:
+        fail("v30 controller readback is not frozen")
+    package_sha256 = delivery.get("sha256")
+    if not isinstance(package_sha256, dict) or package.get("triplet_sha256") != package_sha256:
+        fail("v30 readiness package hashes do not match the stage row")
+    if expected_package_sha256 is not None and package_sha256 != expected_package_sha256:
+        fail("v30 promotion manifest package hashes do not match frozen evidence")
+    readback_rel = delivery.get("controller_readback_manifest")
+    if expected_readback_manifest is not None and readback_rel != expected_readback_manifest:
+        fail("v30 promotion manifest does not match the frozen controller readback")
+    if package.get("controller_readback_verified") is not True:
+        fail("v30 readiness does not accept controller readback")
+    if package.get("controller_readback_manifest") != readback_rel:
+        fail("v30 readiness controller readback pointer is stale")
+    readback_expected_sha = delivery.get("controller_readback_manifest_sha256") or package.get(
+        "controller_readback_manifest_sha256"
+    )
+    if not readback_expected_sha:
+        fail("v30 controller readback manifest is not hash-bound")
+    readback_path, _, readback_sha256 = _hash_bound_json(
+        root,
+        readback_rel,
+        "v30 controller readback manifest",
+        expected_sha256=readback_expected_sha,
+    )
+
+    timing = readiness.get("timing")
+    if not isinstance(timing, dict) or timing.get("overall_pass") is not True:
+        fail("v30 60 second timing/safe-hold acceptance is not complete")
+    timing_result = _verify_v30_timing_raw(root, timing)
+    review = _verify_v30_review_v2(root, stage_entry, readiness.get("review_v2") or {})
+    return {
+        "ok": True,
+        "program": STEP5D_ABLATION_V30,
+        "readiness": _relative(root, readiness_path),
+        "readiness_sha256": readiness_sha256,
+        "p0_v8": {
+            "artifact": _relative(root, p0_path),
+            "artifact_sha256": p0_sha256,
+            "composite_fingerprint": p0_fingerprint,
+        },
+        "timing": timing_result,
+        "package_sha256": package_sha256,
+        "controller_readback_manifest": _relative(root, readback_path),
+        "controller_readback_manifest_sha256": readback_sha256,
+        "review_v2": review,
+        "derived_current_promotion_allowed": True,
+        "live_motion_authorized": False,
+    }
+
+
 def _exact_v29_runtime_profile(
     *,
     stage25_control_mode: str | None,
@@ -156,6 +499,7 @@ def _exact_v29_runtime_profile(
     epsilon: float | None,
     sigr_exponent_r: float | None,
     qdot_cap_rad_s: float | None,
+    profile_label: str = "v29",
 ) -> dict[str, Any]:
     try:
         iteration_value = float(rnn_inner_iterations) if rnn_inner_iterations is not None else None
@@ -171,10 +515,10 @@ def _exact_v29_runtime_profile(
             "joint_layout_code": 524.0,
         }
     except (TypeError, ValueError):
-        fail("v29 live bridge requires the exact runtime profile")
+        fail(f"{profile_label} live bridge requires the exact runtime profile")
     if observed != V29_EXACT_RUNTIME_PROFILE:
         fail(
-            "v29 live bridge requires the exact runtime profile "
+            f"{profile_label} live bridge requires the exact runtime profile "
             "speedj_rnn_live/cupy/1024/epsilon=0.01/r=0.8/qdot=0.05"
         )
     return observed
@@ -319,6 +663,17 @@ def verify_live_bridge_authorization(
             qdot_cap_rad_s=qdot_cap_rad_s,
         )
         readiness = _verify_v29_readiness(root, current, stage_entry, selected)
+    elif selected == STEP5D_ABLATION_V30:
+        runtime_profile = _exact_v29_runtime_profile(
+            stage25_control_mode=stage25_control_mode,
+            rnn_backend=rnn_backend,
+            rnn_inner_iterations=rnn_inner_iterations,
+            epsilon=epsilon,
+            sigr_exponent_r=sigr_exponent_r,
+            qdot_cap_rad_s=qdot_cap_rad_s,
+            profile_label="v30",
+        )
+        readiness = verify_v30_evidence_freeze(root, current, stage_entry)
     p0_required = _stage_bool(
         stage_entry,
         "strict_rnn_no_contact_p0_required_before_live",
@@ -330,6 +685,9 @@ def verify_live_bridge_authorization(
         "strict_rnn_no_contact_p0_verified",
         "no_contact_symbol_verification_passed",
     )
+    if selected == STEP5D_ABLATION_V30 and isinstance(readiness, dict):
+        p0_required = True
+        p0_passed = bool((readiness.get("p0_v8") or {}).get("artifact"))
     live_motion_authorized = trigger.get("live_motion_authorized") is True
     if not live_motion_authorized:
         fail("live motion is not authorized by current_stage.bridge_trigger.live_motion_authorized")

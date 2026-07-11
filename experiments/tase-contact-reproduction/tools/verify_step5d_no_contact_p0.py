@@ -256,6 +256,8 @@ def verify_rows(
     low_force_posture_base_ko: float = DEFAULT_LOW_FORCE_POSTURE_BASE_KO,
     max_low_force_posture_effective_ko: float = DEFAULT_MAX_LOW_FORCE_POSTURE_EFFECTIVE_KO,
     max_low_force_posture_gain_scale: float = DEFAULT_MAX_LOW_FORCE_POSTURE_GAIN_SCALE,
+    expected_low_force_posture_policy: str = P0_LOW_FORCE_POSTURE_POLICY,
+    expected_low_force_posture_effective_ko: float | None = None,
     min_stage25_accepted_duration_s: float = DEFAULT_MIN_STAGE25_ACCEPTED_DURATION_S,
     stage25_accepted_duration_tolerance_s: float = DEFAULT_STAGE25_ACCEPTED_DURATION_TOLERANCE_S,
     max_p0_limited_base_upward_m_s: float = DEFAULT_MAX_P0_LIMITED_BASE_UPWARD_M_S,
@@ -369,11 +371,15 @@ def verify_rows(
         if active is None or gain_scale is None or effective_ko is None or not policy:
             low_force_posture_missing_rows += 1
             continue
-        if policy != P0_LOW_FORCE_POSTURE_POLICY:
+        if policy != expected_low_force_posture_policy:
             low_force_posture_policy_bad_rows += 1
         if active != 1:
             low_force_posture_inactive_rows += 1
-        if effective_ko > max_low_force_posture_effective_ko:
+        if (
+            expected_low_force_posture_effective_ko is not None
+            and abs(effective_ko - expected_low_force_posture_effective_ko)
+            > DEFAULT_LOW_FORCE_POSTURE_GAIN_EFFECTIVE_KO_TOL
+        ) or effective_ko > max_low_force_posture_effective_ko:
             low_force_posture_effective_ko_bad_rows += 1
         if gain_scale > max_low_force_posture_gain_scale:
             low_force_posture_gain_scale_bad_rows += 1
@@ -604,6 +610,8 @@ def verify_rows(
             "low_force_posture_base_ko": low_force_posture_base_ko,
             "max_low_force_posture_effective_ko": max_low_force_posture_effective_ko,
             "max_low_force_posture_gain_scale": max_low_force_posture_gain_scale,
+            "expected_low_force_posture_policy": expected_low_force_posture_policy,
+            "expected_low_force_posture_effective_ko": expected_low_force_posture_effective_ko,
             "low_force_posture_gain_effective_ko_tol": DEFAULT_LOW_FORCE_POSTURE_GAIN_EFFECTIVE_KO_TOL,
             "min_stage25_accepted_duration_s": min_stage25_accepted_duration_s,
             "stage25_accepted_duration_tolerance_s": stage25_accepted_duration_tolerance_s,

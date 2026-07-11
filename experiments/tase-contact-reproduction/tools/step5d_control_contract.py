@@ -422,7 +422,8 @@ def apply_direction_preserving_slew(
     qdot = _finite_array(candidate.qdot, (6,))
     previous = _finite_array(previous_qdot, (6,))
     jacobian = _finite_array(observation.jacobian, (6, 6))
-    if qdot is None or previous is None or jacobian is None:
+    desired = _finite_array(observation.desired_twist, (6,))
+    if qdot is None or previous is None or jacobian is None or desired is None:
         raise ValueError("slew inputs must be finite six-dimensional values")
     if (
         not math.isfinite(float(dt_s))
@@ -452,6 +453,7 @@ def apply_direction_preserving_slew(
         candidate,
         qdot=tuple(float(value) for value in limited),  # type: ignore[arg-type]
         predicted_twist=tuple(float(value) for value in predicted),  # type: ignore[arg-type]
+        residual_norm=float(np.linalg.norm(predicted - desired)),
         diagnostics=diagnostics,
     )
 
@@ -468,13 +470,24 @@ def decision_to_register_command(
     """
 
     stop = decision.action == "stop"
+
+    def finite_or_zero(value: Any) -> float:
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            return 0.0
+        return parsed if math.isfinite(parsed) else 0.0
+
+    heartbeat = finite_or_zero(observation.sequence)
+    if heartbeat < 0.0:
+        heartbeat = 0.0
     return RegisterCommand(
-        heartbeat=float(observation.sequence),
+        heartbeat=heartbeat,
         qdot=decision.qdot if decision.accepted else ZERO6,
         cmd_valid=decision.accepted or decision.action == "safe_hold",
-        path_time_s=float(observation.path_time_s),
-        force_error_n=float(observation.force_error_n),
-        orientation_error_rad=float(observation.orientation_error_rad),
+        path_time_s=finite_or_zero(observation.path_time_s),
+        force_error_n=finite_or_zero(observation.force_error_n),
+        orientation_error_rad=finite_or_zero(observation.orientation_error_rad),
         layout_code=JOINT_LAYOUT_CODE,
         stop_request=stop,
         decision_reason=decision.reason,

@@ -21,6 +21,7 @@ from step5d_control_contract import (  # noqa: E402
     ControlCandidate,
     ControlPolicy,
     DeferredV30Diagnostics,
+    SafetyDecision,
     SafetyEnvelope,
     Step5dObservation,
     StrictRnnControlPolicy,
@@ -217,7 +218,43 @@ class Step5dV30ControlContractTest(unittest.TestCase):
         self.assertLess(float((jacobian @ component_clipped)[2]), 0.0)
         self.assertGreater(slewed.predicted_twist[2], 0.0)
         self.assertTrue(slewed.diagnostics["slew_active"])
+        self.assertAlmostEqual(
+            slewed.residual_norm,
+            float(
+                np.linalg.norm(
+                    np.asarray(slewed.predicted_twist)
+                    - np.asarray(obs.desired_twist)
+                )
+            ),
+        )
+        self.assertNotEqual(slewed.residual_norm, raw.residual_norm)
         self.assertTrue(decision.accepted)
+
+    def test_register_command_sanitizes_nonfinite_diagnostic_scalars(self) -> None:
+        obs = observation(
+            sequence=-7,
+            path_time_s=math.nan,
+            force_error_n=math.inf,
+            orientation_error_rad=-math.inf,
+        )
+        decision = SafetyDecision(
+            accepted=False,
+            action="stop",
+            reason="synthetic_structural_failure",
+            qdot=(math.nan,) * 6,
+            metrics={},
+        )
+
+        command = decision_to_register_command(obs, decision)
+        registers = command.as_register_values()
+
+        self.assertEqual(command.heartbeat, 0.0)
+        self.assertEqual(command.qdot, (0.0,) * 6)
+        self.assertEqual(command.path_time_s, 0.0)
+        self.assertEqual(command.force_error_n, 0.0)
+        self.assertEqual(command.orientation_error_rad, 0.0)
+        self.assertTrue(command.stop_request)
+        self.assertTrue(all(math.isfinite(value) for value in registers.values()))
 
     def test_deferred_diagnostics_is_bounded_lossless_and_fail_closed(self) -> None:
         obs = observation()
