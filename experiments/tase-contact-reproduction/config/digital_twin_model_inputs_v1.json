@@ -19,6 +19,29 @@
     "xacro_path": "/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro",
     "initial_positions_yaml": "src/ur10e_example_controllers/config/gazebo_matrix_initial_positions.yaml",
     "initial_positions_yaml_sha256": "5a4bffd53597c9e436f16ec1d474b4bd614b01a0a12eeb1ac3b54e5f8c478eb4",
+    "initial_state": {
+      "source": "v29 first speedj_rnn_live Stage25 row",
+      "source_manifest": "experiments/tase-contact-reproduction/config/step5d_v29_remote_evidence_sha256.json",
+      "source_manifest_sha256": "c43f74e5d5e842e347eee915df83b44429c120cb42416ea2a48c12f95775cfa8",
+      "source_csv_sha256": "be6a84fe0eebc3df18ebb511874673cb3ee44832ba16335cd4de7a10f3260335",
+      "write_index": 14426,
+      "q": [
+        0.6102393865585327,
+        -1.7801138363280238,
+        -2.525437831878662,
+        -0.4061522048762818,
+        1.5725568532943726,
+        -0.9584739843951624
+      ],
+      "tcp_pose_base": [
+        0.4877918275124068,
+        0.12932878998673886,
+        0.017740363012625646,
+        -3.141575908677934,
+        0.000030131370907626014,
+        0.000008761324002251835
+      ]
+    },
     "joint_order": [
       "shoulder_pan_joint",
       "shoulder_lift_joint",

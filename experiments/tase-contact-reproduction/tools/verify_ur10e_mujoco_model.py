@@ -22,11 +22,11 @@ if str(TOOLS) not in sys.path:
 from build_ur10e_digital_twin_model import (  # noqa: E402
     JOINT_NAMES,
     _load_json,
+    fixed_transform,
     sha256_path,
 )
 
 
-BASE_FROM_MUJOCO_WORLD = np.diag((-1.0, -1.0, 1.0))
 FK_POSITION_TOLERANCE_M = 2e-6
 FK_ROTATION_TOLERANCE_RAD = 2e-6
 JACOBIAN_MAX_ABS_TOLERANCE = 2e-6
@@ -38,23 +38,33 @@ def rotation_angle(rotation: np.ndarray) -> float:
     return math.acos(max(-1.0, min(1.0, cosine)))
 
 
-def mujoco_site_pose_in_command_frame(data: Any, site_id: int) -> tuple[np.ndarray, np.ndarray]:
+def mujoco_site_pose_in_command_frame(
+    data: Any,
+    site_id: int,
+    base_from_world: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
     position_world = np.asarray(data.site_xpos[site_id], dtype=float)
     rotation_world = np.asarray(data.site_xmat[site_id], dtype=float).reshape(3, 3)
     return (
-        BASE_FROM_MUJOCO_WORLD @ position_world,
-        BASE_FROM_MUJOCO_WORLD @ rotation_world,
+        base_from_world @ position_world,
+        base_from_world @ rotation_world,
     )
 
 
-def mujoco_site_jacobian_in_command_frame(model: Any, data: Any, site_id: int) -> np.ndarray:
+def mujoco_site_jacobian_in_command_frame(
+    model: Any,
+    data: Any,
+    site_id: int,
+    base_from_world: np.ndarray,
+) -> np.ndarray:
     import mujoco
+    import pinocchio as pin
 
     linear = np.empty((3, model.nv), dtype=float)
     angular = np.empty((3, model.nv), dtype=float)
     mujoco.mj_jacSite(model, data, linear, angular, site_id)
     return np.vstack(
-        (BASE_FROM_MUJOCO_WORLD @ linear, BASE_FROM_MUJOCO_WORLD @ angular)
+        (base_from_world @ linear, base_from_world @ angular)
     )
 
 
@@ -99,6 +109,20 @@ def verify(
     issue = _verify_binding(generated_urdf, bundle_dir=bundle_dir)
     if issue:
         blockers.append(issue)
+    urdf_path = Path(str(generated_urdf.get("path") or ""))
+    if not urdf_path.is_absolute():
+        urdf_path = bundle_dir / urdf_path
+    urdf_text = urdf_path.read_text(encoding="utf-8") if urdf_path.is_file() else ""
+    base_from_world = fixed_transform(urdf_text, "base_link", "base")[:3, :3].T
+    if not np.allclose(base_from_world @ base_from_world.T, np.eye(3), atol=1e-12):
+        blockers.append("base_from_mujoco_world_rotation_invalid")
+    manifest_rotation = np.asarray(
+        manifest.get("base_from_mujoco_world_rotation"), dtype=float
+    )
+    if manifest_rotation.shape != (3, 3) or not np.allclose(
+        manifest_rotation, base_from_world, atol=1e-12
+    ):
+        blockers.append("base_from_mujoco_world_rotation_manifest_mismatch")
 
     velocity_binding = (manifest.get("outputs") or {}).get("velocity") or {}
     issue = _verify_binding(velocity_binding, bundle_dir=bundle_dir)
@@ -129,7 +153,16 @@ def verify(
     site_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, "active_tcp_site")
     if site_id < 0:
         raise ValueError("active_tcp_site is missing")
-    calibrated = kinematics.build_calibrated_model()
+    pin_model = pin.buildModelFromUrdf(str(urdf_path))
+    calibrated = kinematics.CalibratedModel(
+        model=pin_model,
+        data=pin_model.createData(),
+        urdf_text=urdf_text,
+        calibration_hash=str(manifest.get("calibration_hash") or ""),
+        base_frame_id=pin_model.getFrameId("base"),
+        tool0_frame_id=pin_model.getFrameId("tool0"),
+        flange_frame_id=pin_model.getFrameId("flange"),
+    )
     tcp_offset = np.asarray(manifest["active_tcp_offset_tool0_m"], dtype=float)
     initial_q = np.asarray(model.key_qpos[0], dtype=float)
     rng = np.random.default_rng(seed)
@@ -157,20 +190,26 @@ def verify(
         q = initial_q + rng.uniform(-0.35, 0.35, size=6)
         data.qpos[:] = q
         mujoco.mj_forward(model, data)
-        mj_position, mj_rotation = mujoco_site_pose_in_command_frame(data, site_id)
+        mj_position, mj_rotation = mujoco_site_pose_in_command_frame(
+            data, site_id, base_from_world
+        )
         tool0 = kinematics.base_to_tool0(calibrated, q)
         pin_position = tool0.translation + tool0.rotation @ tcp_offset
         pin_rotation = tool0.rotation
         position_errors.append(float(np.linalg.norm(mj_position - pin_position)))
         rotation_errors.append(rotation_angle(pin_rotation.T @ mj_rotation))
-        mj_jacobian = mujoco_site_jacobian_in_command_frame(model, data, site_id)
+        mj_jacobian = mujoco_site_jacobian_in_command_frame(
+            model, data, site_id, base_from_world
+        )
         pin_jacobian = step5d_tcp_jacobian_base(calibrated, q, tcp_offset)
         jacobian_errors.append(float(np.max(np.abs(mj_jacobian - pin_jacobian))))
 
     q = initial_q.copy()
     data.qpos[:] = q
     mujoco.mj_forward(model, data)
-    base_position, _ = mujoco_site_pose_in_command_frame(data, site_id)
+    base_position, _ = mujoco_site_pose_in_command_frame(
+        data, site_id, base_from_world
+    )
     command_jacobian = step5d_tcp_jacobian_base(calibrated, q, tcp_offset)
     delta = 1e-6
     for joint_index in range(6):
@@ -179,7 +218,9 @@ def verify(
             perturbed[joint_index] += sign * delta
             data.qpos[:] = perturbed
             mujoco.mj_forward(model, data)
-            position, _ = mujoco_site_pose_in_command_frame(data, site_id)
+            position, _ = mujoco_site_pose_in_command_frame(
+                data, site_id, base_from_world
+            )
             observed = (position - base_position) / (sign * delta)
             expected = command_jacobian[:3, joint_index]
             observed_norm = float(np.linalg.norm(observed))
@@ -211,7 +252,7 @@ def verify(
         "seed": int(seed),
         "command_frame": "base",
         "mujoco_world_frame": "base_link",
-        "base_from_mujoco_world_rotation": BASE_FROM_MUJOCO_WORLD.tolist(),
+        "base_from_mujoco_world_rotation": base_from_world.tolist(),
         "command_jacobian_source": "calibrated_pinocchio",
         "mujoco_jacobian_role": "independent_oracle_only",
         "metrics": {

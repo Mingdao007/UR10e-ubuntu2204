@@ -102,6 +102,20 @@ def validate_inputs(config: Mapping[str, Any]) -> None:
             raise FileNotFoundError(f"{label} input missing: {path}")
         if sha256_path(path) != expected:
             raise ValueError(f"{label} input hash mismatch")
+    initial_state = robot.get("initial_state") or {}
+    initial_manifest = _resolve_repo_path(str(initial_state.get("source_manifest") or ""))
+    if (
+        not initial_manifest.is_file()
+        or sha256_path(initial_manifest) != initial_state.get("source_manifest_sha256")
+    ):
+        raise ValueError("v29 initial-state source manifest hash mismatch")
+    remote_hashes = _load_json(initial_manifest).get("sha256") or {}
+    if remote_hashes.get("bridge_rtde_500hz.csv") != initial_state.get("source_csv_sha256"):
+        raise ValueError("v29 initial-state CSV hash binding mismatch")
+    q = np.asarray(initial_state.get("q"), dtype=float)
+    tcp_pose = np.asarray(initial_state.get("tcp_pose_base"), dtype=float)
+    if q.shape != (6,) or tcp_pose.shape != (6,) or not np.all(np.isfinite(q)) or not np.all(np.isfinite(tcp_pose)):
+        raise ValueError("v29 initial-state q/TCP pose must be finite 6-vectors")
     surface = config.get("surface") or {}
     surface_mesh = _resolve_repo_path(str(surface.get("mesh") or ""))
     if not surface_mesh.is_file() or sha256_path(surface_mesh) != surface.get("mesh_sha256"):
@@ -267,7 +281,9 @@ def patch_mjcf(
     compiler = root.find("compiler")
     if compiler is None:
         compiler = ET.SubElement(root, "compiler")
-    compiler.attrib.update({"angle": "radian", "autolimits": "true", "balanceinertia": "true"})
+    compiler.attrib.update(
+        {"angle": "radian", "autolimits": "true", "fusestatic": "false"}
+    )
     option = root.find("option")
     if option is None:
         option = ET.SubElement(root, "option")
@@ -347,6 +363,8 @@ def patch_mjcf(
     tcp = [float(value) for value in variant["active_tcp_offset_tool0_m"]]
     ET.SubElement(eoat, "site", {"name": "active_tcp_site", "pos": " ".join(f"{value:.12g}" for value in tcp), "size": "0.004", "rgba": "0.9 0.2 0.1 1", "group": "4"})
     ET.SubElement(eoat, "site", {"name": "kunwei_ft_sensor_site", "pos": "0 0 0.022", "size": "0.006", "rgba": "0.2 0.4 0.9 0.35", "group": "4"})
+    ET.SubElement(eoat, "site", {"name": "production_tcp_wrench_site", "pos": " ".join(f"{value:.12g}" for value in tcp), "size": "0.003", "rgba": "0.9 0.7 0.1 0.25", "group": "4"})
+    ET.SubElement(eoat, "site", {"name": "contact_pad_touch_site", "type": "box", "pos": "0 0 0.122", "size": "0.026 0.026 0.005", "rgba": "0.8 0.3 0.1 0.08", "group": "4"})
 
     surface = config["surface"]
     ET.SubElement(asset, "mesh", {"name": "step5_surface_mesh", "file": "assets/contact_surface/two_piece_surface_smooth_v11_3mm_thick.stl", "scale": "0.001 0.001 0.001"})
@@ -355,20 +373,43 @@ def patch_mjcf(
     surface_body = ET.SubElement(worldbody, "body", {"name": "step5_surface", "pos": " ".join(str(value) for value in surface["world_pose_xyz_m"])})
     mesh_pose = surface["mesh_pose_xyz_rpy"]
     mesh_quat = matrix_to_quat_wxyz(rpy_matrix(mesh_pose[3:6]))
+    # The tracked STL is a visual source.  MuJoCo mesh contact would silently
+    # convexify its 91k-face, partly concave geometry, so it is never used as
+    # the physics collision.  Until a calibrated heightfield/convex
+    # decomposition exists, native contact uses the explicit retained Gazebo
+    # box and remains geometry-provisional.
     ET.SubElement(
         surface_body,
         "geom",
         {
-            "name": "step5_surface_collision",
+            "name": "step5_surface_visual",
             "type": "mesh",
             "mesh": "step5_surface_mesh",
             "pos": " ".join(str(value) for value in mesh_pose[:3]),
             "quat": " ".join(f"{value:.12g}" for value in mesh_quat),
             "rgba": "0.10 0.46 0.49 1",
+            "contype": "0",
+            "conaffinity": "0",
+            "group": "1",
+        },
+    )
+    ET.SubElement(
+        surface_body,
+        "geom",
+        {
+            "name": "step5_surface_collision",
+            "type": "box",
+            "pos": "0 0 0",
+            "size": "0.09 0.05 0.0040224195",
+            "rgba": "0.10 0.46 0.49 0.12",
             "contype": "1",
             "conaffinity": "1",
-            "friction": "1.0 0.01 0.001",
-            "solref": "0.002 1",
+            "group": "3",
+            "friction": f"{float(surface['friction_nominal']):.12g} 0.01 0.001",
+            "solref": (
+                f"{-float(surface['contact_stiffness_nominal_n_m']):.12g} "
+                f"{-float(surface['contact_damping_nominal_n_s_m']):.12g}"
+            ),
             "solimp": "0.95 0.99 0.001",
         },
     )
@@ -382,7 +423,22 @@ def patch_mjcf(
         ET.SubElement(worldbody, "camera", {"name": f"observer_{name}", "pos": " ".join(str(value) for value in position), "quat": " ".join(f"{value:.12g}" for value in _look_at_quat(position, target)), "fovy": "42" if name != "contact" else "34"})
 
     contact = ET.SubElement(root, "contact")
-    ET.SubElement(contact, "pair", {"name": "eoat_surface_pair", "geom1": "eoat_contact_pad_collision", "geom2": "step5_surface_collision", "condim": "4", "friction": "1.0 0.01 0.001", "solref": "0.002 1", "solimp": "0.95 0.99 0.001"})
+    ET.SubElement(
+        contact,
+        "pair",
+        {
+            "name": "eoat_surface_pair",
+            "geom1": "eoat_contact_pad_collision",
+            "geom2": "step5_surface_collision",
+            "condim": "4",
+            "friction": f"{float(surface['friction_nominal']):.12g} 0.01 0.001",
+            "solref": (
+                f"{-float(surface['contact_stiffness_nominal_n_m']):.12g} "
+                f"{-float(surface['contact_damping_nominal_n_s_m']):.12g}"
+            ),
+            "solimp": "0.95 0.99 0.001",
+        },
+    )
 
     actuator = ET.SubElement(root, "actuator")
     torque_limits = (330.0, 330.0, 150.0, 54.0, 54.0, 54.0)
@@ -400,9 +456,11 @@ def patch_mjcf(
     ET.SubElement(sensor, "framequat", {"name": "active_tcp_quaternion", "objtype": "site", "objname": "active_tcp_site"})
     ET.SubElement(sensor, "framelinvel", {"name": "active_tcp_linear_velocity", "objtype": "site", "objname": "active_tcp_site"})
     ET.SubElement(sensor, "frameangvel", {"name": "active_tcp_angular_velocity", "objtype": "site", "objname": "active_tcp_site"})
-    ET.SubElement(sensor, "force", {"name": "kunwei_force", "site": "kunwei_ft_sensor_site"})
-    ET.SubElement(sensor, "torque", {"name": "kunwei_torque", "site": "kunwei_ft_sensor_site"})
-    ET.SubElement(sensor, "touch", {"name": "contact_pad_touch", "site": "active_tcp_site"})
+    ET.SubElement(sensor, "force", {"name": "kunwei_force_raw", "site": "kunwei_ft_sensor_site"})
+    ET.SubElement(sensor, "torque", {"name": "kunwei_torque_raw", "site": "kunwei_ft_sensor_site"})
+    ET.SubElement(sensor, "force", {"name": "production_tcp_force_raw", "site": "production_tcp_wrench_site"})
+    ET.SubElement(sensor, "torque", {"name": "production_tcp_torque_raw", "site": "production_tcp_wrench_site"})
+    ET.SubElement(sensor, "touch", {"name": "contact_pad_touch", "site": "contact_pad_touch_site"})
 
     initial = config["initial_q"]
     keyframe = ET.SubElement(root, "keyframe")
@@ -486,7 +544,19 @@ def _validate_model(model: Any, *, mode: str) -> dict[str, object]:
         raise ValueError(f"MuJoCo model shape mismatch nq={model.nq} nv={model.nv} nu={model.nu}")
     if not math.isclose(float(model.opt.timestep), 0.0005, abs_tol=1e-12):
         raise ValueError("MuJoCo physics timestep is not 0.5 ms")
-    required_sites = {"active_tcp_site", "kunwei_ft_sensor_site"}
+    for body_index in range(1, model.nbody):
+        inertia = sorted(float(value) for value in model.body_inertia[body_index])
+        if inertia[2] > inertia[0] + inertia[1] + 1e-12:
+            raise ValueError(
+                f"MuJoCo body inertia violates triangle inequality: "
+                f"{model.body(body_index).name} {inertia}"
+            )
+    required_sites = {
+        "active_tcp_site",
+        "kunwei_ft_sensor_site",
+        "production_tcp_wrench_site",
+        "contact_pad_touch_site",
+    }
     sites = {model.site(index).name for index in range(model.nsite)}
     if not required_sites.issubset(sites):
         raise ValueError("MuJoCo model is missing TCP/FT sites")
@@ -495,7 +565,13 @@ def _validate_model(model: Any, *, mode: str) -> dict[str, object]:
     if any(not name.startswith(expected_prefix) for name in actuator_names):
         raise ValueError("MuJoCo actuator modes are not mutually exclusive")
     sensor_names = {model.sensor(index).name for index in range(model.nsensor)}
-    if not {"kunwei_force", "kunwei_torque", "contact_pad_touch"}.issubset(sensor_names):
+    if not {
+        "kunwei_force_raw",
+        "kunwei_torque_raw",
+        "production_tcp_force_raw",
+        "production_tcp_torque_raw",
+        "contact_pad_touch",
+    }.issubset(sensor_names):
         raise ValueError("MuJoCo model is missing force/torque/contact sensors")
     return {
         "nq": model.nq,
@@ -523,8 +599,6 @@ def build(
     import mujoco
     import pinocchio
     import xacro
-    import yaml
-
     import step5c_calibrated_kinematics_audit as kinematics
 
     config = _load_json(inputs_path)
@@ -541,8 +615,7 @@ def build(
     resolved_urdf = urdf_text.replace("package://ur_description/", f"{package_root}/")
     if "package://" in resolved_urdf:
         raise ValueError("calibrated URDF retains unresolved package URI")
-    initial_payload = yaml.safe_load(_resolve_repo_path(robot["initial_positions_yaml"]).read_text(encoding="utf-8"))
-    config["initial_q"] = [float(initial_payload[name]) for name in JOINT_NAMES]
+    config["initial_q"] = [float(value) for value in robot["initial_state"]["q"]]
 
     source_model = mujoco.MjModel.from_xml_string(resolved_urdf)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -554,6 +627,38 @@ def build(
     surface_mesh = _resolve_repo_path(config["surface"]["mesh"])
     vendored_assets = _vendor_assets(canonical_root, output_dir, urdf_meshes, surface_mesh)
     canonical_portable = ET.tostring(canonical_root, encoding="unicode")
+
+    portable_urdf_root = ET.fromstring(resolved_urdf)
+    for mesh in portable_urdf_root.findall(".//mesh"):
+        source = Path(str(mesh.attrib.get("filename") or ""))
+        if source.suffix.lower() == ".stl":
+            mesh.attrib["filename"] = f"assets/ur_description/{source.stem}.stl"
+        else:
+            # MuJoCo/Pinocchio command and oracle paths require only collision
+            # meshes.  Drop nonportable visual mesh nodes from the portable
+            # flattened URDF rather than retaining /opt or package:// paths.
+            parent = next(
+                (
+                    visual
+                    for visual in portable_urdf_root.findall(".//visual")
+                    if mesh in list(visual.iter())
+                ),
+                None,
+            )
+            if parent is not None:
+                link = next(
+                    (
+                        candidate
+                        for candidate in portable_urdf_root.findall("link")
+                        if parent in list(candidate)
+                    ),
+                    None,
+                )
+                if link is not None:
+                    link.remove(parent)
+    portable_urdf = ET.tostring(portable_urdf_root, encoding="unicode")
+    if any(token in portable_urdf for token in ("/opt/", "/home/", "package://")):
+        raise ValueError("portable flattened URDF retains host-specific paths")
 
     denylist = config["legacy_denylist"]
     outputs: dict[str, dict[str, object]] = {}
@@ -575,7 +680,7 @@ def build(
         )
 
     urdf_path = output_dir / "calibrated_ur10e.urdf"
-    urdf_path.write_text(resolved_urdf, encoding="utf-8")
+    urdf_path.write_text(portable_urdf, encoding="utf-8")
     source_bindings = [
         _vendor_source(
             inputs_path,
@@ -604,6 +709,16 @@ def build(
             output_dir=output_dir,
             role="initial_joint_state",
             claim_level="offline_initialization",
+        ),
+        _vendor_source(
+            _resolve_repo_path(robot["initial_state"]["source_manifest"]),
+            output_dir
+            / "sources"
+            / "experiment"
+            / "step5d_v29_remote_evidence_sha256.json",
+            output_dir=output_dir,
+            role="v29_stage25_initial_state_source_manifest",
+            claim_level="hash_bound_remote_read_only_evidence",
         ),
     ]
     package_xml = package_root / "package.xml"
@@ -663,10 +778,28 @@ def build(
         "integer_schedule": {"physics_per_control": 4, "physics_per_dbil": 10},
         "active_variant": config["active_variant"],
         "active_tcp_offset_tool0_m": config["variants"][config["active_variant"]]["active_tcp_offset_tool0_m"],
+        "base_from_mujoco_world_rotation": fixed_transform(
+            resolved_urdf, "base_link", "base"
+        )[:3, :3].T.tolist(),
+        "wrench_contract": {
+            "physical_sensor_site": "kunwei_ft_sensor_site",
+            "production_tcp_site": "production_tcp_wrench_site",
+            "raw_sensor_semantics": "parent_to_child_constraint_wrench_in_site_frame",
+            "external_wrench_mapping": "force_external_tcp=-force_raw_tcp; torque_external_tcp=-torque_raw_tcp",
+            "physical_sensor_to_tcp_shift_evidence": "MuJoCo production_tcp_wrench_site performs the moment shift; physical site remains lineage-only",
+            "claim": "simulated wrench only; Kunwei Fz sign still requires independent bench calibration",
+        },
         "command_jacobian_source": "calibrated_pinocchio_only",
         "mujoco_fk_jacobian_role": "independent_oracle_only_never_command_source",
         "velocity_plant_claim": "geometry_provisional offline physics",
         "torque_plant_claim": "torque-physics surrogate; not UR direct_torque reproduction",
+        "surface_collision_model": "retained_flat_box_geometry_provisional; tracked STL visual only",
+        "surface_contact_parameters": {
+            "format": "MuJoCo direct negative solref stiffness/damping",
+            "stiffness_n_m": config["surface"]["contact_stiffness_nominal_n_m"],
+            "damping_n_s_m": config["surface"]["contact_damping_nominal_n_s_m"],
+            "claim": config["surface"]["parameter_claim"],
+        },
         "claim_boundary": config["claim_boundary"],
         "blockers": config["blockers"],
         "safety_boundary": [
