@@ -35,6 +35,12 @@ EXPECTED_PACING_PROVENANCE = {
     "full_tick_release_policy": "absolute",
     "safe_hold_release_policy": "independent_absolute",
 }
+EXPECTED_THREAD_ENVIRONMENT = {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    "NUMEXPR_NUM_THREADS": "1",
+}
 
 
 @dataclass(frozen=True)
@@ -340,6 +346,15 @@ def summarize_preaggregated(
         blockers.append("full_tick_not_paced_500hz")
     if payload.get("pacing_provenance") != EXPECTED_PACING_PROVENANCE:
         blockers.append("independent_absolute_500hz_pacing_provenance_missing")
+    runtime_environment = payload.get("runtime_environment")
+    if not isinstance(runtime_environment, dict):
+        runtime_environment = {}
+        blockers.append("runtime_timing_environment_missing")
+    nice_value = runtime_environment.get("nice")
+    if not isinstance(nice_value, int) or nice_value > 0:
+        blockers.append("runtime_timing_process_priority_degraded")
+    if runtime_environment.get("thread_environment") != EXPECTED_THREAD_ENVIRONMENT:
+        blockers.append("runtime_timing_thread_environment_unbound")
     if payload.get("runtime_path_source") != "kunwei_rtde_bridge.step5d_v30_contract_pipeline":
         blockers.append("v30_runtime_contract_path_not_proven")
     for label, expected_count in (
@@ -525,6 +540,7 @@ def summarize_preaggregated(
             "safe_hold_schedule_max_lateness_ms"
         ),
         "pacing_provenance": payload.get("pacing_provenance"),
+        "runtime_environment": runtime_environment,
         "elapsed_full_tick_wall_s": elapsed,
         "elapsed_safe_hold_wall_s": safe_hold_elapsed,
         "full_tick_reason_counts": payload.get("full_tick_reason_counts", {}),

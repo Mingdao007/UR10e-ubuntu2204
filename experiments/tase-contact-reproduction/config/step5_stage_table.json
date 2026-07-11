@@ -8625,7 +8625,7 @@
         "joint_layout_code": 524.0,
         "solver_ok_status": 40.0,
         "normal_contract": "n_reaction = -n_approach",
-        "control_contract": "Step5dObservation->StrictRnnControlPolicy->ControlCandidate->SafetyEnvelope->RegisterCommand",
+        "control_contract": "Step5dObservation->SlewCompatibleReference->StrictRnnControlPolicy->ControlCandidate->SafetyEnvelope->RegisterCommand",
         "dls_shadow_only": true,
         "dls_runtime_fallback_allowed": false
       },
@@ -8982,7 +8982,7 @@
         "component_diagnostic": "config/step5d_v30_component_diagnostic_summary.json",
         "component_diagnostic_sha256": "a06ea0c56440f5dcfe2a9939a74cc3574a56cd2ab109983f599923a03e55d2bf",
         "offline_readiness": "config/step5d_v30_offline_readiness.json",
-        "offline_readiness_sha256": "21721603465218dcb3dcd78f621ba76888c46cf59230c81b59ff6a5e2a312b54",
+        "offline_readiness_sha256": "c57d0778e98aed91560c384a20cebbf9c976427c9b9dee897e626f499745581c",
         "milestone_reviews": "config/step5d_v30_milestone_reviews.json",
         "milestone_reviews_sha256": "df28791a0999a8809ae6adb97ae8737f7bee74cbb509ed41f9c740fd88c12bcb",
         "timing_source_contract": {
@@ -9010,7 +9010,7 @@
           "readiness_builder_sha256": "8cc6c1b19cfc8b7086fd09f1af00b39eb010796b3d08f74b7831536a609826f3"
         }
       },
-      "success_condition": "v30_offline_ready only after the complete v29 replay accepts at least 99% with zero normal mismatch/nonfinite/qdot-bound rows, 10,000-solve and 60 s 500 Hz timing gates pass, the inactive package hashes validate, and review blockers are zero. This does not promote current_stage or authorize live motion."
+      "success_condition": "v30_offline_ready only after the complete v29 replay accepts at least 99% with zero normal mismatch/nonfinite/qdot-bound rows; 10,000-solve and 60 s 500 Hz timing pass either the zero-miss hard-real-time route or the bounded-tail route with matching URSim/controller exact-zero stale-hold proof; inactive package hashes validate; and review blockers are zero. This does not promote current_stage or authorize live motion."
     },
     {
       "id": "step5d_strict_rnn_reproduction_v1",

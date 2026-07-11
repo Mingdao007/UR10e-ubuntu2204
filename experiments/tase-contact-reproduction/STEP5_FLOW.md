@@ -32,7 +32,10 @@ consecutive missed slots, and no more than 0.5 ms schedule lateness.
    sequential same-fingerprint `2 -> 10 -> 60 s` canaries; only the final
    continuous `60 s` verifier artifact passes P0.
 2. v30 has a complete 10,000-solve and 60 s / 500 Hz timing plus safe-hold
-   pass, with zero deadline misses.
+   pass. Hard real-time acceptance requires zero deadline misses; the bounded
+   rare-tail route is acceptable only after matching URSim/controller evidence
+   proves repeated-heartbeat exact-zero hold and the miss/consecutive/lateness
+   budgets remain within the limits above.
 3. The v30 package/readback hashes and evidence are frozen.
 4. The current composite fingerprint passes one Review v2 `2+1` gate.
 

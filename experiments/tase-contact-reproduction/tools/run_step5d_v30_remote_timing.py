@@ -17,6 +17,7 @@ import gc
 import hashlib
 import json
 import math
+import os
 import sys
 import time
 from dataclasses import dataclass
@@ -36,6 +37,12 @@ PROFILE = {
 }
 DEADLINE_MS = 2.0
 DEADLINE_EVENT_CAPACITY = 64
+THREAD_ENV_NAMES = (
+    "OPENBLAS_NUM_THREADS",
+    "OMP_NUM_THREADS",
+    "MKL_NUM_THREADS",
+    "NUMEXPR_NUM_THREADS",
+)
 
 
 @dataclass(frozen=True)
@@ -192,6 +199,31 @@ def value_distribution(values: Sequence[float]) -> dict[str, Any]:
         "mean": float(np.mean(finite_values)) if finite_values.size else None,
         "p99": float(np.percentile(finite_values, 99)) if finite_values.size else None,
         "max": float(np.max(finite_values)) if finite_values.size else None,
+    }
+
+
+def runtime_environment() -> dict[str, Any]:
+    """Bind the process scheduling context used for wall-clock evidence."""
+
+    try:
+        affinity: list[int] | None = sorted(int(value) for value in os.sched_getaffinity(0))
+    except (AttributeError, OSError):
+        affinity = None
+    try:
+        scheduler_policy: int | None = int(os.sched_getscheduler(0))
+    except (AttributeError, OSError):
+        scheduler_policy = None
+    try:
+        nice_value: int | None = int(os.getpriority(os.PRIO_PROCESS, 0))
+    except (AttributeError, OSError):
+        nice_value = None
+    return {
+        "nice": nice_value,
+        "scheduler_policy": scheduler_policy,
+        "cpu_affinity": affinity,
+        "thread_environment": {
+            name: os.environ.get(name) for name in THREAD_ENV_NAMES
+        },
     }
 
 
@@ -845,6 +877,7 @@ def main() -> int:
     payload: dict[str, Any] = {
         "schema_version": "step5d_v30_remote_timing_raw_v1",
         "profile": PROFILE,
+        "runtime_environment": runtime_environment(),
         "source_binding": source_binding,
         "artifact_binding": artifact_binding,
         "source_csv": str(replay_csv),

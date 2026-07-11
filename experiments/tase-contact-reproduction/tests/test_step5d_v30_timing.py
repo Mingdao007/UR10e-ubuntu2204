@@ -320,6 +320,17 @@ class Step5dV30TimingTest(unittest.TestCase):
             "safe_hold_schedule_deadline_miss_count": 0,
             "safe_hold_schedule_max_lateness_ms": 0.0,
             "paced_500hz": True,
+            "runtime_environment": {
+                "nice": 0,
+                "scheduler_policy": 0,
+                "cpu_affinity": [0, 1],
+                "thread_environment": {
+                    "OPENBLAS_NUM_THREADS": "1",
+                    "OMP_NUM_THREADS": "1",
+                    "MKL_NUM_THREADS": "1",
+                    "NUMEXPR_NUM_THREADS": "1",
+                },
+            },
             "pacing_provenance": {
                 "clock": "time.perf_counter",
                 "control_hz": 500.0,
@@ -515,6 +526,17 @@ class Step5dV30TimingTest(unittest.TestCase):
             "full_tick_deferred_diagnostics": {"count": 30000, "overflowed": False},
             "safe_hold_deferred_diagnostics": {"count": 30000, "overflowed": False},
             "paced_500hz": True,
+            "runtime_environment": {
+                "nice": 0,
+                "scheduler_policy": 0,
+                "cpu_affinity": [0, 1],
+                "thread_environment": {
+                    "OPENBLAS_NUM_THREADS": "1",
+                    "OMP_NUM_THREADS": "1",
+                    "MKL_NUM_THREADS": "1",
+                    "NUMEXPR_NUM_THREADS": "1",
+                },
+            },
             "pacing_provenance": {
                 "clock": "time.perf_counter",
                 "control_hz": 500.0,
@@ -572,6 +594,17 @@ class Step5dV30TimingTest(unittest.TestCase):
             "full_tick_schedule_deadline_miss_count": 0,
             "full_tick_schedule_max_lateness_ms": 0.0,
             "paced_500hz": True,
+            "runtime_environment": {
+                "nice": 0,
+                "scheduler_policy": 0,
+                "cpu_affinity": [0, 1],
+                "thread_environment": {
+                    "OPENBLAS_NUM_THREADS": "1",
+                    "OMP_NUM_THREADS": "1",
+                    "MKL_NUM_THREADS": "1",
+                    "NUMEXPR_NUM_THREADS": "1",
+                },
+            },
             "elapsed_full_tick_wall_s": 60.0,
             "full_tick_reason_counts": {"ok": 30000},
             "safe_hold_reason_counts": {"outer_approach_not_pressing": 30000},

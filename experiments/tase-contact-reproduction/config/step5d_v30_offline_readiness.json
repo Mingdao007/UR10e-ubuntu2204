@@ -139,7 +139,7 @@
   "source_contract": {
     "aggregator_sha256": {
       "path": "tools/step5d_v30_timing.py",
-      "sha256": "00bdb181c72daa4a40455160f1f768f61d74356e9509d926b6ac6e547b325b87"
+      "sha256": "20d4dbb6e500dedec26c24e0b4e164e78aa00974940c0725db63f0ec60249ef9"
     },
     "bridge_sha256": {
       "path": "tools/kunwei_rtde_bridge.py",
@@ -159,7 +159,7 @@
     },
     "harness_sha256": {
       "path": "tools/run_step5d_v30_remote_timing.py",
-      "sha256": "6db64d20a9e8c1720914a6c5541f2574baedaa03c319c62bc51a29522a154483"
+      "sha256": "0563bbb5493da42aa6ffa0e65540e4b30af5ca812a7d05510247ea895cc7cf26"
     },
     "kinematics_sha256": {
       "path": "tools/step5c_calibrated_kinematics_audit.py",
@@ -247,6 +247,9 @@
             "remote_timing_source_bundle_unbound",
             "remote_timing_stage_table_artifact_unbound",
             "remote_timing_ur_xacro_artifact_unbound",
+            "runtime_timing_environment_missing",
+            "runtime_timing_process_priority_degraded",
+            "runtime_timing_thread_environment_unbound",
             "safe_hold_deferred_diagnostics_incomplete",
             "safe_hold_runtime_rejection_path_incomplete",
             "safe_hold_schedule_deadline_miss_count_missing",
@@ -308,6 +311,9 @@
               "remote_timing_source_bundle_unbound",
               "remote_timing_stage_table_artifact_unbound",
               "remote_timing_ur_xacro_artifact_unbound",
+              "runtime_timing_environment_missing",
+              "runtime_timing_process_priority_degraded",
+              "runtime_timing_thread_environment_unbound",
               "safe_hold_deferred_diagnostics_incomplete",
               "safe_hold_runtime_rejection_path_incomplete",
               "safe_hold_schedule_deadline_miss_count_missing",
@@ -430,6 +436,9 @@
             "remote_timing_solver_sha256_does_not_match_local_source",
             "remote_timing_stage_table_artifact_unbound",
             "remote_timing_ur_xacro_artifact_unbound",
+            "runtime_timing_environment_missing",
+            "runtime_timing_process_priority_degraded",
+            "runtime_timing_thread_environment_unbound",
             "safe_hold_deferred_diagnostics_incomplete",
             "safe_hold_insufficient_samples",
             "safe_hold_runtime_rejection_path_incomplete",
@@ -485,6 +494,9 @@
               "remote_timing_solver_sha256_does_not_match_local_source",
               "remote_timing_stage_table_artifact_unbound",
               "remote_timing_ur_xacro_artifact_unbound",
+              "runtime_timing_environment_missing",
+              "runtime_timing_process_priority_degraded",
+              "runtime_timing_thread_environment_unbound",
               "safe_hold_deferred_diagnostics_incomplete",
               "safe_hold_insufficient_samples",
               "safe_hold_runtime_rejection_path_incomplete",
@@ -611,6 +623,9 @@
             "remote_timing_solver_sha256_does_not_match_local_source",
             "remote_timing_stage_table_artifact_unbound",
             "remote_timing_ur_xacro_artifact_unbound",
+            "runtime_timing_environment_missing",
+            "runtime_timing_process_priority_degraded",
+            "runtime_timing_thread_environment_unbound",
             "safe_hold_deferred_diagnostics_incomplete",
             "safe_hold_insufficient_samples",
             "safe_hold_runtime_rejection_path_incomplete",
@@ -664,6 +679,9 @@
               "remote_timing_solver_sha256_does_not_match_local_source",
               "remote_timing_stage_table_artifact_unbound",
               "remote_timing_ur_xacro_artifact_unbound",
+              "runtime_timing_environment_missing",
+              "runtime_timing_process_priority_degraded",
+              "runtime_timing_thread_environment_unbound",
               "safe_hold_deferred_diagnostics_incomplete",
               "safe_hold_insufficient_samples",
               "safe_hold_runtime_rejection_path_incomplete",
@@ -800,6 +818,9 @@
             "remote_timing_solver_sha256_does_not_match_local_source",
             "remote_timing_stage_table_artifact_unbound",
             "remote_timing_ur_xacro_artifact_unbound",
+            "runtime_timing_environment_missing",
+            "runtime_timing_process_priority_degraded",
+            "runtime_timing_thread_environment_unbound",
             "safe_hold_insufficient_samples",
             "safe_hold_schedule_deadline_miss_count_missing",
             "safe_hold_schedule_max_lateness_missing_or_invalid",
@@ -853,6 +874,9 @@
               "remote_timing_solver_sha256_does_not_match_local_source",
               "remote_timing_stage_table_artifact_unbound",
               "remote_timing_ur_xacro_artifact_unbound",
+              "runtime_timing_environment_missing",
+              "runtime_timing_process_priority_degraded",
+              "runtime_timing_thread_environment_unbound",
               "safe_hold_insufficient_samples",
               "safe_hold_schedule_deadline_miss_count_missing",
               "safe_hold_schedule_max_lateness_missing_or_invalid",
@@ -997,6 +1021,9 @@
             "remote_timing_source_bundle_unbound",
             "remote_timing_stage_table_artifact_unbound",
             "remote_timing_ur_xacro_artifact_unbound",
+            "runtime_timing_environment_missing",
+            "runtime_timing_process_priority_degraded",
+            "runtime_timing_thread_environment_unbound",
             "safe_hold_deferred_diagnostics_incomplete",
             "safe_hold_insufficient_samples",
             "safe_hold_max_reaches_2ms_deadline",
@@ -1067,6 +1094,9 @@
               "remote_timing_source_bundle_unbound",
               "remote_timing_stage_table_artifact_unbound",
               "remote_timing_ur_xacro_artifact_unbound",
+              "runtime_timing_environment_missing",
+              "runtime_timing_process_priority_degraded",
+              "runtime_timing_thread_environment_unbound",
               "safe_hold_deferred_diagnostics_incomplete",
               "safe_hold_insufficient_samples",
               "safe_hold_p99_exceeds_limit",
@@ -1151,6 +1181,9 @@
             "remote_timing_control_contract_sha256_does_not_match_local_source",
             "remote_timing_harness_sha256_does_not_match_local_source",
             "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+            "runtime_timing_environment_missing",
+            "runtime_timing_process_priority_degraded",
+            "runtime_timing_thread_environment_unbound",
             "safe_hold_deadline_miss",
             "safe_hold_max_reaches_2ms_deadline",
             "safe_hold_schedule_deadline_miss"
@@ -1173,7 +1206,10 @@
               "remote_timing_bridge_sha256_does_not_match_local_source",
               "remote_timing_control_contract_sha256_does_not_match_local_source",
               "remote_timing_harness_sha256_does_not_match_local_source",
-              "remote_timing_readiness_builder_sha256_does_not_match_local_source"
+              "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+              "runtime_timing_environment_missing",
+              "runtime_timing_process_priority_degraded",
+              "runtime_timing_thread_environment_unbound"
             ]
           },
           "elapsed_full_tick_wall_s": 59.99886084103491,
@@ -1420,7 +1456,10 @@
             "remote_timing_bridge_sha256_does_not_match_local_source",
             "remote_timing_control_contract_sha256_does_not_match_local_source",
             "remote_timing_harness_sha256_does_not_match_local_source",
-            "remote_timing_readiness_builder_sha256_does_not_match_local_source"
+            "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+            "runtime_timing_environment_missing",
+            "runtime_timing_process_priority_degraded",
+            "runtime_timing_thread_environment_unbound"
           ],
           "deadline_robustness": {
             "claim_boundary": "bounded tail latency candidate only; not a 500 Hz hard-real-time claim",
@@ -1479,7 +1518,10 @@
               "remote_timing_bridge_sha256_does_not_match_local_source",
               "remote_timing_control_contract_sha256_does_not_match_local_source",
               "remote_timing_harness_sha256_does_not_match_local_source",
-              "remote_timing_readiness_builder_sha256_does_not_match_local_source"
+              "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+              "runtime_timing_environment_missing",
+              "runtime_timing_process_priority_degraded",
+              "runtime_timing_thread_environment_unbound"
             ]
           },
           "elapsed_full_tick_wall_s": 59.99862010299694,
@@ -1611,7 +1653,10 @@
             "remote_timing_bridge_sha256_does_not_match_local_source",
             "remote_timing_control_contract_sha256_does_not_match_local_source",
             "remote_timing_harness_sha256_does_not_match_local_source",
-            "remote_timing_readiness_builder_sha256_does_not_match_local_source"
+            "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+            "runtime_timing_environment_missing",
+            "runtime_timing_process_priority_degraded",
+            "runtime_timing_thread_environment_unbound"
           ],
           "deadline_robustness": {
             "claim_boundary": "bounded tail latency candidate only; not a 500 Hz hard-real-time claim",
@@ -1631,7 +1676,10 @@
               "remote_timing_bridge_sha256_does_not_match_local_source",
               "remote_timing_control_contract_sha256_does_not_match_local_source",
               "remote_timing_harness_sha256_does_not_match_local_source",
-              "remote_timing_readiness_builder_sha256_does_not_match_local_source"
+              "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+              "runtime_timing_environment_missing",
+              "runtime_timing_process_priority_degraded",
+              "runtime_timing_thread_environment_unbound"
             ]
           },
           "elapsed_full_tick_wall_s": 59.99893727700692,
@@ -1767,6 +1815,9 @@
             "remote_timing_harness_sha256_does_not_match_local_source",
             "remote_timing_readiness_builder_sha256_does_not_match_local_source",
             "remote_timing_runtime_interface_sha256_does_not_match_local_source",
+            "runtime_timing_environment_missing",
+            "runtime_timing_process_priority_degraded",
+            "runtime_timing_thread_environment_unbound",
             "safe_hold_deadline_miss",
             "safe_hold_max_reaches_2ms_deadline",
             "safe_hold_schedule_deadline_miss",
@@ -1795,6 +1846,9 @@
               "remote_timing_harness_sha256_does_not_match_local_source",
               "remote_timing_readiness_builder_sha256_does_not_match_local_source",
               "remote_timing_runtime_interface_sha256_does_not_match_local_source",
+              "runtime_timing_environment_missing",
+              "runtime_timing_process_priority_degraded",
+              "runtime_timing_thread_environment_unbound",
               "solver_deadline_miss",
               "solver_max_reaches_2ms_deadline"
             ]
