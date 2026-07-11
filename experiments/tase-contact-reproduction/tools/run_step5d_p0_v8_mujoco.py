@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import gc
 import hashlib
 import json
 import math
@@ -400,51 +401,66 @@ def run_nominal_phase(
     wall_start = time.perf_counter()
     sim_start = float(first_state.sim_time_s)
 
-    for index in range(tick_count):
-        release = wall_start + index / P0_V8_CONTROL_HZ
-        if pace_wall_clock and index:
-            wait_until(release)
-        started = time.perf_counter()
-        state = plant.read_state(
-            sequence=index,
-            wall_time_s=time.perf_counter() - wall_start,
-        )
-        result = adapter.step(state)
-        plant.write_command(result.simulation_command)
-        elapsed_ms = (time.perf_counter() - started) * 1000.0
+    gc_was_enabled = gc.isenabled()
+    gc.collect()
+    gc.disable()
+    try:
+        for index in range(tick_count):
+            release = wall_start + index / P0_V8_CONTROL_HZ
+            if pace_wall_clock and index:
+                wait_until(release)
+            started = time.perf_counter()
+            state = plant.read_state(
+                sequence=index,
+                wall_time_s=time.perf_counter() - wall_start,
+            )
+            result = adapter.step(state)
+            plant.write_command(result.simulation_command)
+            elapsed_ms = (time.perf_counter() - started) * 1000.0
 
-        values = np.asarray(result.simulation_command.qdot, dtype=float)
-        compute_ms[index] = elapsed_ms
-        sim_time_s[index] = state.sim_time_s
-        qdot[index, :] = values
-        command_jacobian[index, :, :] = np.asarray(state.command_jacobian, dtype=float)
-        desired_twist[index, :] = np.asarray(state.desired_twist, dtype=float)
-        reaction_normal[index, :] = np.asarray(state.reaction_normal, dtype=float)
-        approach_normal[index, :] = np.asarray(state.approach_normal, dtype=float)
-        wrench[index, :] = np.asarray(state.wrench, dtype=float)
-        native_contact_count[index] = int(state.native_contact_count)
-        cage_collision_count_per_tick[index] = int(state.cage_collision_count)
-        tcp_inside_cage[index] = 1 if state.tcp_inside_cage else 0
-        accepted[index] = 1 if result.control.decision.accepted else 0
-        actions[index] = result.control.decision.action
-        reasons[index] = result.control.decision.reason
-        safe_holds += int(result.control.decision.action == "safe_hold")
-        stops += int(result.control.decision.action == "stop")
-        nonfinite += int(not np.all(np.isfinite(values)))
-        over_cap += int(
-            np.all(np.isfinite(values))
-            and float(np.max(np.abs(values))) > P0_V8_QDOT_CAP_RAD_S + 1e-12
-        )
-        contacts += int(state.native_contact_count != 0)
-        collisions += int(state.cage_collision_count != 0 or not state.tcp_inside_cage)
-        deadline_misses += int(elapsed_ms >= 2.0)
-        exact_zero_rejections += int(
-            not result.control.decision.accepted
-            and result.simulation_command.qdot != ZERO6
-        )
-        for substep in range(schedule.control_stride):
-            dbil_ticks += int(schedule.is_dbil_tick(physics_tick + substep))
-        physics_tick += schedule.control_stride
+            values = np.asarray(result.simulation_command.qdot, dtype=float)
+            compute_ms[index] = elapsed_ms
+            sim_time_s[index] = state.sim_time_s
+            qdot[index, :] = values
+            command_jacobian[index, :, :] = np.asarray(
+                state.command_jacobian, dtype=float
+            )
+            desired_twist[index, :] = np.asarray(state.desired_twist, dtype=float)
+            reaction_normal[index, :] = np.asarray(
+                state.reaction_normal, dtype=float
+            )
+            approach_normal[index, :] = np.asarray(
+                state.approach_normal, dtype=float
+            )
+            wrench[index, :] = np.asarray(state.wrench, dtype=float)
+            native_contact_count[index] = int(state.native_contact_count)
+            cage_collision_count_per_tick[index] = int(state.cage_collision_count)
+            tcp_inside_cage[index] = 1 if state.tcp_inside_cage else 0
+            accepted[index] = 1 if result.control.decision.accepted else 0
+            actions[index] = result.control.decision.action
+            reasons[index] = result.control.decision.reason
+            safe_holds += int(result.control.decision.action == "safe_hold")
+            stops += int(result.control.decision.action == "stop")
+            nonfinite += int(not np.all(np.isfinite(values)))
+            over_cap += int(
+                np.all(np.isfinite(values))
+                and float(np.max(np.abs(values))) > P0_V8_QDOT_CAP_RAD_S + 1e-12
+            )
+            contacts += int(state.native_contact_count != 0)
+            collisions += int(
+                state.cage_collision_count != 0 or not state.tcp_inside_cage
+            )
+            deadline_misses += int(elapsed_ms >= 2.0)
+            exact_zero_rejections += int(
+                not result.control.decision.accepted
+                and result.simulation_command.qdot != ZERO6
+            )
+            for substep in range(schedule.control_stride):
+                dbil_ticks += int(schedule.is_dbil_tick(physics_tick + substep))
+            physics_tick += schedule.control_stride
+    finally:
+        if gc_was_enabled:
+            gc.enable()
 
     final_state = plant.read_state(
         sequence=tick_count,
@@ -807,6 +823,8 @@ def write_phase_artifacts(
             "dls_shadow_only": True,
             "exact_zero_rejection": True,
             "same_production_code": True,
+            "hot_loop_gc_disabled": True,
+            "gc_state_restored_after_loop": True,
         },
         "claims": {
             "p0_sim_physics_pass": False,

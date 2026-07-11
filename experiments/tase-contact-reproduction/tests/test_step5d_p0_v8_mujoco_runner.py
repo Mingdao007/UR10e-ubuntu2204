@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import inspect
+import gc
 import math
 import sys
 import unittest
@@ -111,6 +112,7 @@ class Step5dP0V8MujocoRunnerTest(unittest.TestCase):
     def test_short_fake_phase_uses_integer_schedule_and_shared_adapter(self) -> None:
         plant = FakePlant()
         solver = FakeSolver()
+        gc_before = gc.isenabled()
 
         result = runner.run_nominal_phase(
             plant=plant,
@@ -128,6 +130,7 @@ class Step5dP0V8MujocoRunnerTest(unittest.TestCase):
         self.assertEqual(result.last_sequence, 2)
         self.assertTrue(np.all(result.qdot[:, 2] == 0.0001))
         self.assertEqual(result.deferred.count, 3)
+        self.assertEqual(gc.isenabled(), gc_before)
 
     def test_fault_matrix_is_complete_and_every_rejection_is_exact_zero(self) -> None:
         rows = runner.run_fault_matrix(plant=FakePlant(), solver=FakeSolver())
