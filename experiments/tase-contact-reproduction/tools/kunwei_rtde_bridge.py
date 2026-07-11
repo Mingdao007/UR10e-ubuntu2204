@@ -1131,7 +1131,12 @@ def _step5d_tcp_cage_source_fingerprint(
     for path in paths:
         stat = path.stat()
         try:
-            path_id = str(path.resolve().relative_to(EXPERIMENT_ROOT.resolve()))
+            # Preserve the experiment-relative locator even when a clean
+            # worktree overlays immutable archived runs with symlinks.  Size,
+            # mtime, and the optional content hash still bind the target; a
+            # resolved absolute path would make the same evidence cache
+            # non-portable solely because its storage root changed.
+            path_id = str(path.relative_to(EXPERIMENT_ROOT))
         except ValueError:
             path_id = str(path.resolve())
         row = {

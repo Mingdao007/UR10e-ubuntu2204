@@ -27,6 +27,12 @@ def add_no_contact_p0_capture_fixture(root: Path) -> None:
     (root / "config" / "current_stage.json").write_text(json.dumps(current), encoding="utf-8")
 
 
+def copy_project_fixture(destination: Path) -> None:
+    """Preserve optional archive symlinks instead of following 14 GB runs."""
+
+    shutil.copytree(ROOT, destination, dirs_exist_ok=True, symlinks=True)
+
+
 class CrossStepParameterTableTest(unittest.TestCase):
     def test_cross_step_parameter_table_contract_passes(self) -> None:
         self.assertEqual([], validator.validate(ROOT))
@@ -168,7 +174,7 @@ class CrossStepParameterTableTest(unittest.TestCase):
     def test_v30_current_promotion_is_blocked_until_p0_review_timing_and_readback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_root = Path(tmp)
-            shutil.copytree(ROOT, tmp_root, dirs_exist_ok=True)
+            copy_project_fixture(tmp_root)
             current_path = tmp_root / "config" / "current_stage.json"
             current = validator.load_json(current_path)
             current["current_stage_id"] = validator.V30_PROGRAM
@@ -186,7 +192,7 @@ class CrossStepParameterTableTest(unittest.TestCase):
     def test_inactive_v30_accepts_manifest_bound_upload_and_readback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_root = Path(tmp)
-            shutil.copytree(ROOT, tmp_root, dirs_exist_ok=True)
+            copy_project_fixture(tmp_root)
             table_path = tmp_root / "config" / "step5_stage_table.json"
             table = validator.load_json(table_path)
             v30 = next(
@@ -251,7 +257,7 @@ class CrossStepParameterTableTest(unittest.TestCase):
     def test_v30_p0_gate_cannot_drift_from_current_candidate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_root = Path(tmp)
-            shutil.copytree(ROOT, tmp_root, dirs_exist_ok=True)
+            copy_project_fixture(tmp_root)
             table_path = tmp_root / "config" / "step5_stage_table.json"
             table = validator.load_json(table_path)
             v30 = next(
@@ -267,7 +273,7 @@ class CrossStepParameterTableTest(unittest.TestCase):
     def test_p0_v8_layout_hash_and_fingerprint_are_cross_checked(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_root = Path(tmp)
-            shutil.copytree(ROOT, tmp_root, dirs_exist_ok=True)
+            copy_project_fixture(tmp_root)
             table_path = tmp_root / "config" / "step5_stage_table.json"
             table = validator.load_json(table_path)
             p0_v8 = next(
@@ -311,7 +317,7 @@ class CrossStepParameterTableTest(unittest.TestCase):
     def test_p0_v8_offline_diagnostic_hash_drift_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_root = Path(tmp)
-            shutil.copytree(ROOT, tmp_root, dirs_exist_ok=True)
+            copy_project_fixture(tmp_root)
             current = validator.load_json(tmp_root / "config" / "current_stage.json")
             pointer = current["p0_v8_candidate"]["offline_simulation_diagnostic"]
             summary_path = tmp_root / pointer["summary_artifact"]
@@ -330,7 +336,7 @@ class CrossStepParameterTableTest(unittest.TestCase):
     def test_review_v2_index_detects_historical_evidence_hash_drift(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_root = Path(tmp)
-            shutil.copytree(ROOT, tmp_root, dirs_exist_ok=True)
+            copy_project_fixture(tmp_root)
             historical = tmp_root / "config" / "step5d_v30_milestone_reviews.json"
             historical.write_text(historical.read_text(encoding="utf-8") + "\n", encoding="utf-8")
 

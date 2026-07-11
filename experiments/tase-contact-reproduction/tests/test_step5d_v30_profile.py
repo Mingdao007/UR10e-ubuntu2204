@@ -54,7 +54,10 @@ class Step5dV30ProfileTest(unittest.TestCase):
 
         self.assertTrue(result["local_only"])
         self.assertIn("STEP5D_STRICT_RNN_ABLATION_V30", script)
-        self.assertIn("STAGE25_V30_SCAFFOLD", script)
+        self.assertIn(
+            "# STAGE25_V30_SCAFFOLD: v29_minimal_fix_frame_aware_normal_contract_60s",
+            script,
+        )
         self.assertIn("v30 is an inactive local-only strict RNN candidate", txt)
         self.assertIn("DLS shadow diagnostics only", script + txt)
         self.assertIn("PURPOSE: v30 contact search", script)

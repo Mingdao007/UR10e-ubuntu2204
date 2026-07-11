@@ -8968,7 +8968,7 @@
         "component_diagnostic": "config/step5d_v30_component_diagnostic_summary.json",
         "component_diagnostic_sha256": "a06ea0c56440f5dcfe2a9939a74cc3574a56cd2ab109983f599923a03e55d2bf",
         "offline_readiness": "config/step5d_v30_offline_readiness.json",
-        "offline_readiness_sha256": "140e74fd9f3af20b6c938e2c7c2f7514826da1679466e1ec1c328f03bc7f0dd9",
+        "offline_readiness_sha256": "0884be5ecf6d0553e98c0afa0a54f230a283436e6ddf52914d4834a82cd3b011",
         "milestone_reviews": "config/step5d_v30_milestone_reviews.json",
         "milestone_reviews_sha256": "df28791a0999a8809ae6adb97ae8737f7bee74cbb509ed41f9c740fd88c12bcb",
         "timing_source_contract": {
@@ -8985,7 +8985,7 @@
           "kinematics": "tools/step5c_calibrated_kinematics_audit.py",
           "kinematics_sha256": "5454af16db870350759372ab42583a4f339c71e32f9190679987b3addf6e14fa",
           "bridge": "tools/kunwei_rtde_bridge.py",
-          "bridge_sha256": "1c98d23e9584e9f5929cbb189c638ea4f697029e55a7a13f6ded72585dd49ffd",
+          "bridge_sha256": "755cc4016c77c593ee92257c6d65d2f3c550dbfe0da96ba7563e88ddbcf73a3b",
           "harness": "tools/run_step5d_v30_remote_timing.py",
           "harness_sha256": "0613abe2e6a793906fe58b6a96c085f2c38af50f7ab7dce7cd949abb67ca1046",
           "bundler": "tools/build_step5d_v30_remote_timing_bundle.py",

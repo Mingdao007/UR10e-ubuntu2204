@@ -1164,11 +1164,16 @@ def build_script(
             1,
         )
     if spec.strict_rnn_live_candidate:
+        scaffold_lineage = (
+            "v28_envelope_strict_rnn_live_candidate_60s"
+            if spec.version_label == "v29"
+            else "v29_minimal_fix_frame_aware_normal_contract_60s"
+        )
         script = script.replace(
             "# FORCE_FRAME_CONTRACT: UR_FORCE_FRAME_CONTRACT.md; reaction normal for load, approach normal for posture.",
             (
                 "# FORCE_FRAME_CONTRACT: UR_FORCE_FRAME_CONTRACT.md; reaction normal for load, approach normal for posture.\n"
-                f"# STAGE25_{spec.version_label.upper()}_SCAFFOLD: v29_minimal_fix_frame_aware_normal_contract_60s"
+                f"# STAGE25_{spec.version_label.upper()}_SCAFFOLD: {scaffold_lineage}"
             ),
             1,
         )

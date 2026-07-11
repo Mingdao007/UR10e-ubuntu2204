@@ -356,6 +356,10 @@ class Step5dV27AblationTest(unittest.TestCase):
         self.assertIn("local line_runtime_limit_s = 65.000", script_text)
         self.assertIn("strict RNN live candidate", script_text + txt_text)
         self.assertIn("# STAGE25_V29_SCAFFOLD: v28_envelope_strict_rnn_live_candidate_60s", script_text)
+        self.assertNotIn(
+            "# STAGE25_V29_SCAFFOLD: v29_minimal_fix_frame_aware_normal_contract_60s",
+            script_text,
+        )
         self.assertIn("Stage25.0 default bridge mode: STEP5D_STAGE25_CONTROL_MODE=speedj_rnn_live", txt_text)
         self.assertIn("speedl_cartesian_oracle remains an explicit fallback/debug mode for v29", txt_text)
         self.assertIn("speedj_rnn_live on layout 524", txt_text)
