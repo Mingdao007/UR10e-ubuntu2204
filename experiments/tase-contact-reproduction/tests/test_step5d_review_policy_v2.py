@@ -17,7 +17,11 @@ sys.path.insert(0, str(ROOT / "tools"))
 import build_step5d_review_index_v2 as index_builder  # noqa: E402
 import build_step5d_review_packet as packet_builder  # noqa: E402
 import validate_step5d_review_v2 as validator  # noqa: E402
-from step5d_review_v2 import canonical_sha256, file_sha256  # noqa: E402
+from step5d_review_v2 import (  # noqa: E402
+    canonical_sha256,
+    file_sha256,
+    full_review_index_projection_sha256,
+)
 
 
 CODE_FILE = "tools/step5d_control_contract.py"
@@ -639,6 +643,16 @@ class Step5dReviewPolicyV2Test(unittest.TestCase):
         self.assertEqual(rebuilt, tracked)
         self.assertEqual(tracked["blockers"], [])
         self.assertEqual(tracked["duplicate_full_review_fingerprints"], {})
+        full_only = copy.deepcopy(tracked)
+        full_only["v2_reviews"] = [
+            item
+            for item in tracked["v2_reviews"]
+            if item.get("review_mode") == "full"
+        ]
+        self.assertEqual(
+            full_review_index_projection_sha256(tracked),
+            full_review_index_projection_sha256(full_only),
+        )
         for entry in tracked["v2_reviews"]:
             path = ROOT / entry["path"]
             self.assertEqual(file_sha256(path), entry["sha256"])

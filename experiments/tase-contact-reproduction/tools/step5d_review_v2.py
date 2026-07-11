@@ -16,6 +16,18 @@ SCHEMA_PACKET = "ur10e_review_packet_v2"
 SCHEMA_MANIFEST = "ur10e_review_manifest_v2"
 SCHEMA_INDEX = "ur10e_review_index_v2"
 HEX_COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
+FULL_REVIEW_INDEX_ENTRY_FIELDS = (
+    "bytes",
+    "composite_fingerprint",
+    "finding_counts",
+    "invalidation_reason",
+    "milestone",
+    "path",
+    "required_stack",
+    "review_mode",
+    "sha256",
+    "workflow",
+)
 
 
 def canonical_json_bytes(value: Any) -> bytes:
@@ -155,3 +167,38 @@ def review_findings(manifest: dict[str, Any]) -> list[dict[str, Any]]:
             if isinstance(raw, dict):
                 findings.append({**raw, "lane": lane_id})
     return findings
+
+
+def full_review_index_projection(index: dict[str, Any]) -> dict[str, Any]:
+    """Project the index to the immutable full-review uniqueness surface.
+
+    Targeted closers are hash-bound directly by their source/target manifests.
+    They must not invalidate an unrelated workflow's frozen readiness artifact.
+    """
+
+    return {
+        "blockers": index.get("blockers", []),
+        "duplicate_full_review_fingerprints": index.get(
+            "duplicate_full_review_fingerprints", {}
+        ),
+        "full_review_count_by_composite_fingerprint": index.get(
+            "full_review_count_by_composite_fingerprint", {}
+        ),
+        "historical_artifacts": index.get("historical_artifacts", []),
+        "policy_id": index.get("policy_id"),
+        "schema_version": index.get("schema_version"),
+        "v2_reviews": [
+            {
+                field: item.get(field)
+                for field in FULL_REVIEW_INDEX_ENTRY_FIELDS
+                if field in item
+            }
+            for item in index.get("v2_reviews", [])
+            if isinstance(item, dict) and item.get("review_mode") == "full"
+        ],
+    }
+
+
+def full_review_index_projection_sha256(index: dict[str, Any]) -> str:
+    rendered = json.dumps(full_review_index_projection(index), indent=2, sort_keys=True)
+    return hashlib.sha256((rendered + "\n").encode("utf-8")).hexdigest()

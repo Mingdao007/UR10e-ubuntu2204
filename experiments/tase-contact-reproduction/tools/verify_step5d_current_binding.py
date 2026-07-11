@@ -23,7 +23,10 @@ from step5d_liveprep_readiness import (
     workflow_binding_sha256,
 )
 from step5d_runtime_interface import resolve_runtime_interface
-from step5d_review_v2 import file_sha256 as review_file_sha256
+from step5d_review_v2 import (
+    file_sha256 as review_file_sha256,
+    full_review_index_projection_sha256,
+)
 from validate_step5d_review_v2 import validate_manifest as validate_review_v2_manifest
 from validate_step5d_review_v2 import validate_packet as validate_review_v2_packet
 from verify_current_stage_readback import EXPERIMENT_ROOT, fail, load_json, verify
@@ -300,12 +303,15 @@ def _verify_v30_review_v2(
         "v30 Review v2 policy",
         expected_sha256=readiness_review.get("policy_sha256"),
     )
-    index_path, review_index, index_sha256 = _hash_bound_json(
+    index_path, review_index, _index_file_sha256 = _hash_bound_json(
         root,
         readiness_review.get("index_path") or V30_REVIEW_INDEX,
         "v30 Review v2 index",
-        expected_sha256=readiness_review.get("index_sha256"),
+        expected_sha256=None,
     )
+    index_sha256 = full_review_index_projection_sha256(review_index)
+    if index_sha256 != readiness_review.get("index_sha256"):
+        fail("v30 Review v2 full-review index projection hash mismatch")
     composite = (packet.get("fingerprints") or {}).get("composite")
     if (
         packet.get("workflow") != "v30"

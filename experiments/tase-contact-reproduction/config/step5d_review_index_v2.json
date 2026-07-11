@@ -46,6 +46,33 @@
   "schema_version": "ur10e_review_index_v2",
   "v2_reviews": [
     {
+      "blocking_open_finding_count": 0,
+      "bytes": 4521,
+      "composite_fingerprint": "9d6b00ba760a617086dca5db4bae74b0867f899bc7b7cf7e6d0ac8d742505ea0",
+      "finding_counts": {
+        "P0": 0,
+        "P1": 2,
+        "P2": 0
+      },
+      "finding_status_counts": {
+        "backlog": 0,
+        "closed": 2,
+        "open": 0
+      },
+      "gate_status": "pass",
+      "invalidation_reason": "lane_scoped_finding_fix_changed_code_and_evidence_fingerprints",
+      "lane_verdicts": {
+        "control_claim": "pass"
+      },
+      "milestone": "baseline_re_review",
+      "path": "config/reviews/v29_baseline_review_v2_closer_manifest.json",
+      "required_stack": "1+0",
+      "review_mode": "targeted_closer",
+      "sha256": "5ddb1e14e1f6ba84e3fdef6a3cd77b1acb1e738cca708c7cd1c2b37d032b0acf",
+      "workflow": "v29"
+    },
+    {
+      "blocking_open_finding_count": 2,
       "bytes": 3592,
       "composite_fingerprint": "b24176554e5ad6cf553a2781318f27a6b6ad2e3909539ac849f889d8ac76d040",
       "finding_counts": {
@@ -53,7 +80,16 @@
         "P1": 2,
         "P2": 0
       },
+      "finding_status_counts": {
+        "backlog": 0,
+        "closed": 0,
+        "open": 2
+      },
+      "gate_status": "block",
       "invalidation_reason": null,
+      "lane_verdicts": {
+        "control_claim": "block"
+      },
       "milestone": "baseline_re_review",
       "path": "config/reviews/v29_baseline_review_v2_manifest.json",
       "required_stack": "1+0",

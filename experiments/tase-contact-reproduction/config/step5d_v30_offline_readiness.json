@@ -151,7 +151,7 @@
     },
     "readiness_builder_sha256": {
       "path": "tools/build_step5d_v30_offline_readiness.py",
-      "sha256": "6452ee81f502aa960cafd3f241b9c770a9aa7c45d01fc8c9b966d0afe905dd06"
+      "sha256": "81ad5fb3baed132ce3e9afcf6e8a87c523c45f142377ea0c314c58ea1498c6c0"
     },
     "runtime_interface_sha256": {
       "path": "tools/step5d_runtime_interface.py",

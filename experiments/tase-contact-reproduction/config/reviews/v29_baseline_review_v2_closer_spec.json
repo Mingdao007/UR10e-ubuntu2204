@@ -1,0 +1,105 @@
+{
+  "base_commit": "11c691c704b1692820401059b618e9b6034f89aa",
+  "changed_symbols": [
+    {
+      "path": "config/current_stage.json",
+      "symbol": "v29_contact_candidate.review_v2_baseline_rereview"
+    },
+    {
+      "path": "config/step5_stage_table.json",
+      "symbol": "step5d_strict_rnn_ablation_v29.review_v2_and_local_package_paths"
+    }
+  ],
+  "claims": {
+    "live_accepted": false,
+    "package_accepted": true,
+    "reproduction_complete": false
+  },
+  "evidence_frozen": true,
+  "evidence_roles": {
+    "portable_evidence": "config/step5d_v29_imported_evidence_manifest.json"
+  },
+  "files": {
+    "code": [],
+    "evidence": [
+      "config/current_stage.json",
+      "config/step5_stage_table.json",
+      "config/step5d_v29_imported_evidence_manifest.json",
+      "config/step5d_v29_remote_evidence_sha256.json",
+      "config/step5d_v30_replay_summary.json"
+    ],
+    "package": [
+      "programs/step5/step5d/step5d_strict_rnn_ablation_v29.script",
+      "programs/step5/step5d/step5d_strict_rnn_ablation_v29.txt",
+      "programs/step5/step5d/step5d_strict_rnn_ablation_v29.urp"
+    ]
+  },
+  "head_commit": "7e6e5278d8c7ce0a13ce5b444918d89eb3d23a58",
+  "milestone": "baseline_re_review",
+  "package_identity": {
+    "controller_readback_verified_historical": true,
+    "frozen_fallback": true,
+    "program": "step5d_strict_rnn_ablation_v29",
+    "sha256": {
+      ".script": "ff88cb56f5e28aa1cba495f5431b6f137269a1f04eb0414f80058fb8f7a0e9ff",
+      ".txt": "e4da90baceddb7e4ffbf46c3266ae1271d75f83364549de5d1fec66dfac680d4",
+      ".urp": "a0f26a974945f8de6b9ec21d96810b602746000a9aebc751cbdf380737a1ba0b"
+    }
+  },
+  "review_index_path": "config/step5d_review_index_v2.json",
+  "risk_flags": [],
+  "state_resolver": {
+    "bridge_has_started": false,
+    "controller_readback_verified_historical": true,
+    "current_program": "step5d_strict_rnn_ablation_v29",
+    "fixed_findings": [
+      "V29-CC-001",
+      "V29-CC-002"
+    ],
+    "live_authorized": false,
+    "liveprep_state": "blocked",
+    "reproduction_state": "incomplete",
+    "review_result_source": "config/step5d_review_index_v2.json",
+    "source_manifest": "config/reviews/v29_baseline_review_v2_manifest.json",
+    "workflow_state": "frozen_fallback"
+  },
+  "tests": [
+    {
+      "command": "python3 tools/validate_cross_step_parameter_table.py",
+      "evidence": {
+        "result": "cross-step parameter table validation passed"
+      },
+      "id": "cross_step_contract",
+      "lanes": [
+        "control_claim"
+      ],
+      "path": "tests/test_cross_step_parameter_table.py",
+      "status": "pass"
+    },
+    {
+      "command": "python3 -m pytest -q tests/test_step5d_v27_ablation.py::Step5dV27AblationTest::test_v29_rnn_evidence_failure_keeps_cmd_valid_with_zero_qdot_safe_hold",
+      "evidence": {
+        "result": "pass"
+      },
+      "id": "v29_rejection_safe_hold",
+      "lanes": [
+        "control_claim"
+      ],
+      "path": "tests/test_step5d_v27_ablation.py",
+      "status": "pass"
+    },
+    {
+      "command": "python3 -m pytest -q tests/test_step5d_v27_ablation.py::Step5dV27AblationTest::test_v29_speedj_rnn_live_exports_contact_acceptance_diagnostics",
+      "evidence": {
+        "result": "pass"
+      },
+      "id": "v29_control_diagnostics",
+      "lanes": [
+        "control_claim"
+      ],
+      "path": "tests/test_step5d_v27_ablation.py",
+      "status": "pass"
+    }
+  ],
+  "workflow": "v29"
+}

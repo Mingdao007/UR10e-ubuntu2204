@@ -1,0 +1,13 @@
+{
+  "accepted": true,
+  "blockers": [],
+  "composite_fingerprint": "9d6b00ba760a617086dca5db4bae74b0867f899bc7b7cf7e6d0ac8d742505ea0",
+  "invalidation_reason": "lane_scoped_finding_fix_changed_code_and_evidence_fingerprints",
+  "live_motion_authorized": false,
+  "nonblocking_p2_backlog": [],
+  "packet_valid": true,
+  "review_gate_satisfied_for_live_authorization": true,
+  "review_mode": "targeted_closer",
+  "same_fingerprint_full_review_unique": true,
+  "schema_version": "ur10e_review_validation_v2"
+}

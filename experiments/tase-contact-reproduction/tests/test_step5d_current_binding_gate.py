@@ -562,7 +562,9 @@ def _write_v30_evidence_fixture(root: Path) -> tuple[dict, dict]:
             "policy_path": policy_rel,
             "policy_sha256": _sha256((root / policy_rel).read_bytes()),
             "index_path": index_rel,
-            "index_sha256": _sha256((root / index_rel).read_bytes()),
+            "index_sha256": gate.full_review_index_projection_sha256(
+                json.loads((root / index_rel).read_text(encoding="utf-8"))
+            ),
         },
     }
     readiness_path.write_text(json.dumps(readiness), encoding="utf-8")

@@ -67,10 +67,33 @@ def _review_entry(root: Path, value: str | Path) -> dict[str, Any]:
     if payload.get("schema_version") != SCHEMA_MANIFEST:
         raise ValueError(f"not a Review v2 manifest: {relative}")
     severities = {"P0": 0, "P1": 0, "P2": 0}
-    for finding in review_findings(payload):
+    statuses = {"open": 0, "backlog": 0, "closed": 0}
+    findings = review_findings(payload)
+    for finding in findings:
         severity = finding.get("severity")
         if severity in severities:
             severities[str(severity)] += 1
+        status = finding.get("status")
+        if status in statuses:
+            statuses[str(status)] += 1
+    lane_verdicts = {
+        str(lane_id): lane.get("verdict")
+        for lane_id, lane in sorted((payload.get("lanes") or {}).items())
+        if isinstance(lane, dict)
+    }
+    blocking_open = sum(
+        1
+        for finding in findings
+        if finding.get("severity") in {"P0", "P1"}
+        and finding.get("status") != "closed"
+    )
+    gate_status = (
+        "pass"
+        if lane_verdicts
+        and all(verdict == "pass" for verdict in lane_verdicts.values())
+        and blocking_open == 0
+        else "block"
+    )
     return {
         "path": relative,
         "sha256": file_sha256(path),
@@ -81,6 +104,10 @@ def _review_entry(root: Path, value: str | Path) -> dict[str, Any]:
         "required_stack": payload.get("required_stack"),
         "composite_fingerprint": payload.get("composite_fingerprint"),
         "finding_counts": severities,
+        "finding_status_counts": statuses,
+        "blocking_open_finding_count": blocking_open,
+        "lane_verdicts": lane_verdicts,
+        "gate_status": gate_status,
         "invalidation_reason": payload.get("invalidation_reason"),
     }
 

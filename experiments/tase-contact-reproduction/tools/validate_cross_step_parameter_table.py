@@ -11,6 +11,7 @@ from pathlib import Path
 from pathlib import PurePosixPath
 from typing import Any
 
+from step5d_review_v2 import full_review_index_projection_sha256
 from tase_protocol_table import resolve_experiment_profile
 
 
@@ -505,6 +506,41 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         or indexed_v29_source.get("review_mode") != "full"
     ):
         failures.append("v29 baseline source review is not bound in Review v2 index")
+    indexed_v29_closer = next(
+        (
+            item
+            for item in (review_index.get("v2_reviews") or [])
+            if isinstance(item, dict)
+            and item.get("path")
+            == "config/reviews/v29_baseline_review_v2_closer_manifest.json"
+        ),
+        None,
+    )
+    if (
+        not indexed_v29_closer
+        or indexed_v29_closer.get("workflow") != "v29"
+        or indexed_v29_closer.get("milestone") != "baseline_re_review"
+        or indexed_v29_closer.get("required_stack") != "1+0"
+        or indexed_v29_closer.get("review_mode") != "targeted_closer"
+        or indexed_v29_closer.get("gate_status") != "pass"
+        or indexed_v29_closer.get("blocking_open_finding_count") != 0
+    ):
+        failures.append("v29 baseline targeted closer is not accepted in Review v2 index")
+    v29_closer_validation_path = (
+        root / "config/reviews/v29_baseline_review_v2_closer_validation.json"
+    )
+    if not v29_closer_validation_path.is_file():
+        failures.append("v29 baseline targeted closer validation is missing")
+    else:
+        v29_closer_validation = load_json(v29_closer_validation_path)
+        if (
+            v29_closer_validation.get("accepted") is not True
+            or v29_closer_validation.get("blockers")
+            or not indexed_v29_closer
+            or v29_closer_validation.get("composite_fingerprint")
+            != indexed_v29_closer.get("composite_fingerprint")
+        ):
+            failures.append("v29 baseline targeted closer validation/index mismatch")
 
     p0_capture = current.get("bridge_trigger", {}).get("no_contact_p0_capture", {})
     p0_profile = p0_capture.get("profile")
@@ -933,10 +969,15 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             )
             for label, relative, path_field, sha_field in expected_review_sources:
                 source_path = root / relative
+                expected_sha = (
+                    full_review_index_projection_sha256(load_json(source_path))
+                    if label == "index" and source_path.is_file()
+                    else file_sha256(source_path) if source_path.is_file() else None
+                )
                 if (
                     readiness_review.get(path_field) != relative
                     or not source_path.is_file()
-                    or readiness_review.get(sha_field) != file_sha256(source_path)
+                    or readiness_review.get(sha_field) != expected_sha
                 ):
                     failures.append(f"v30 readiness Review v2 {label} hash binding mismatch")
             history_roles = {

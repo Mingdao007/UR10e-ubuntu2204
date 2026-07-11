@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from step5d_v30_timing import SOURCE_BINDING_FILES, summarize_preaggregated
+from step5d_review_v2 import full_review_index_projection_sha256
 from validate_step5d_review_v2 import validate_manifest, validate_packet
 
 
@@ -338,6 +339,7 @@ def build(*, generated_at: str) -> dict[str, Any]:
     legacy_review_path = ROOT / "config" / "step5d_v30_milestone_reviews.json"
     review_policy_path = ROOT / "config" / "step5d_review_policy_v2.json"
     review_index_path = ROOT / "config" / "step5d_review_index_v2.json"
+    review_index = load(review_index_path)
     current_review = review_v2_gate(v30_row)
     blockers: list[str] = []
     if replay.get("acceptance_pass") is not True:
@@ -485,7 +487,7 @@ def build(*, generated_at: str) -> dict[str, Any]:
             "policy_path": str(review_policy_path.relative_to(ROOT)),
             "policy_sha256": sha256(review_policy_path),
             "index_path": str(review_index_path.relative_to(ROOT)),
-            "index_sha256": sha256(review_index_path),
+            "index_sha256": full_review_index_projection_sha256(review_index),
         },
         "historical_review": {
             "path": str(legacy_review_path.relative_to(ROOT)),
