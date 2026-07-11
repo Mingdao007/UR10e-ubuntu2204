@@ -18,6 +18,9 @@ setup(
                 "config/guarded_contact_recovery_shadow.yaml",
                 "config/gazebo_matrix_controllers.yaml",
                 "config/gazebo_matrix_initial_positions.yaml",
+                "config/gazebo_v2_velocity_controllers.yaml",
+                "config/gazebo_v2_effort_surrogate_controllers.yaml",
+                "config/gazebo_v2_initial_positions.yaml",
             ],
         ),
         (
@@ -28,6 +31,7 @@ setup(
                 "launch/guarded_contact_recovery_shadow.launch.py",
                 "launch/step5b_simulation_mvp.launch.py",
                 "launch/ur10e_gazebo_matrix.launch.py",
+                "launch/ur10e_gazebo_v2_fortress.launch.py",
                 "launch/canonical_simulated_ft_runtime.launch.py",
             ],
         ),
@@ -35,6 +39,7 @@ setup(
             f"share/{package_name}/worlds",
             [
                 "worlds/step5_table_world.sdf",
+                "worlds/ur10e_gazebo_v2_fortress.sdf",
             ],
         ),
         (
