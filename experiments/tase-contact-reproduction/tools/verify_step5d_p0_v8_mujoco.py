@@ -37,7 +37,12 @@ def sha256_path(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _trace_blockers(evidence: Mapping[str, object], phase_dir: Path) -> list[str]:
+def _trace_blockers(
+    evidence: Mapping[str, object],
+    phase_dir: Path,
+    *,
+    require_timing_threshold: bool | None = None,
+) -> list[str]:
     blockers: list[str] = []
     artifacts = evidence.get("artifacts")
     if not isinstance(artifacts, Sequence):
@@ -92,12 +97,51 @@ def _trace_blockers(evidence: Mapping[str, object], phase_dir: Path) -> list[str
         blockers.append("trace:sim_time_invalid")
     elif tick_count > 1 and not np.allclose(np.diff(sim_time), 1.0 / P0_V8_CONTROL_HZ, atol=1e-12, rtol=0.0):
         blockers.append("trace:sim_time_not_exact_500hz")
-    if compute.shape != (tick_count,) or not np.all(np.isfinite(compute)) or np.any(compute < 0.0):
+    compute_valid = (
+        compute.shape == (tick_count,)
+        and np.all(np.isfinite(compute))
+        and not np.any(compute < 0.0)
+    )
+    if not compute_valid:
         blockers.append("trace:compute_timing_invalid")
-    elif int(np.count_nonzero(compute >= 2.0)) != int(nominal.get("deadline_miss_count") or 0):
-        blockers.append("trace:deadline_count_mismatch")
-    elif float(np.percentile(compute, 99)) > 1.80:
-        blockers.append("trace:compute_p99_over_1p80ms")
+    else:
+        wall = evidence.get("wall_timing")
+        if not isinstance(wall, Mapping):
+            blockers.append("trace:wall_timing_missing")
+        else:
+            actual = {
+                "samples": tick_count,
+                "p50_ms": float(np.percentile(compute, 50)),
+                "p95_ms": float(np.percentile(compute, 95)),
+                "p99_ms": float(np.percentile(compute, 99)),
+                "max_ms": float(np.max(compute)),
+                "deadline_miss_count": int(np.count_nonzero(compute >= 2.0)),
+            }
+            for field in ("p50_ms", "p95_ms", "p99_ms", "max_ms"):
+                try:
+                    declared = float(wall[field])
+                except (KeyError, TypeError, ValueError):
+                    blockers.append(f"trace:wall_timing.{field}:invalid")
+                    continue
+                if not math.isclose(declared, actual[field], abs_tol=1e-9):
+                    blockers.append(f"trace:wall_timing.{field}:trace_mismatch")
+            if wall.get("samples") != actual["samples"]:
+                blockers.append("trace:wall_timing.samples:trace_mismatch")
+            if wall.get("deadline_miss_count") != actual["deadline_miss_count"]:
+                blockers.append("trace:wall_timing.deadline_miss_count:trace_mismatch")
+            if nominal.get("deadline_miss_count") != actual["deadline_miss_count"]:
+                blockers.append("trace:deadline_count_mismatch")
+            threshold_claimed = (
+                wall.get("pass") is True
+                if require_timing_threshold is None
+                else require_timing_threshold
+            )
+            if threshold_claimed and (
+                actual["deadline_miss_count"] != 0
+                or actual["p99_ms"] > 1.80
+                or actual["max_ms"] >= 2.0
+            ):
+                blockers.append("trace:claimed_wall_timing_pass_but_threshold_failed")
     if qdot.shape != (tick_count, 6) or not np.all(np.isfinite(qdot)):
         blockers.append("trace:qdot_invalid")
     elif float(np.max(np.abs(qdot))) > P0_V8_QDOT_CAP_RAD_S + 1e-12:
@@ -185,12 +229,17 @@ def validate_run_manifest(
     )
     if actual != expected:
         blockers.append("phases:not_canonical_2_10_60_sequence")
+    observed_timing: list[dict[str, object]] = []
     for index, row in enumerate(phases):
         if not isinstance(row, Mapping):
             blockers.append(f"phases[{index}]:not_object")
             continue
         if row.get("sequence_index") != index:
             blockers.append(f"phases[{index}].sequence_index:mismatch")
+        if row.get("structurally_valid") is not True:
+            blockers.append(f"phases[{index}].structurally_valid:false")
+        if row.get("validation_blockers") != []:
+            blockers.append(f"phases[{index}].validation_blockers:not_empty")
         relpath = str(row.get("evidence_path") or "")
         evidence_path = (root / relpath).resolve()
         try:
@@ -240,6 +289,13 @@ def validate_run_manifest(
                 drift = clock.get("drift_s")
                 if not isinstance(drift, (int, float)) or abs(float(drift)) > 1e-9:
                     blockers.append(f"phases[{index}].sim_clock.drift_s:nonzero")
+        wall = evidence.get("wall_timing")
+        wall_pass = wall.get("pass") if isinstance(wall, Mapping) else None
+        if not isinstance(wall_pass, bool):
+            blockers.append(f"phases[{index}].wall_timing.pass:not_boolean")
+        if row.get("wall_timing_pass") is not wall_pass:
+            blockers.append(f"phases[{index}].wall_timing_pass:mismatch")
+        observed_timing.append({"duration_s": actual[index], "pass": wall_pass})
         faults = evidence.get("faults")
         if isinstance(faults, Sequence):
             for fault in faults:
@@ -252,7 +308,11 @@ def validate_run_manifest(
                     )
         blockers.extend(
             f"phases[{index}].{item}"
-            for item in _trace_blockers(evidence, evidence_path.parent)
+            for item in _trace_blockers(
+                evidence,
+                evidence_path.parent,
+                require_timing_threshold=row.get("wall_timing_pass") is True,
+            )
         )
     if require_complete and payload.get("canonical_phase_sequence_complete") is not True:
         blockers.append("canonical_phase_sequence_complete:false")
@@ -264,13 +324,48 @@ def validate_run_manifest(
         blockers.append("claims:non_promotion_boundary_mismatch")
     if payload.get("claim_boundary") != simulation_claim_boundary():
         blockers.append("claim_boundary:non_promotion_boundary_mismatch")
-    expected_result = (
-        "diagnostic_pass"
-        if len(phases) == len(P0_V8_CANARY_PHASES_S)
-        else "diagnostic_partial_pass"
+    complete = len(phases) == len(P0_V8_CANARY_PHASES_S)
+    final_timing = next(
+        (row.get("pass") for row in observed_timing if row.get("duration_s") == 60.0),
+        False,
     )
+    expected_timing_pass = bool(complete and final_timing is True)
+    timing_gate = payload.get("timing_gate")
+    if not isinstance(timing_gate, Mapping):
+        blockers.append("timing_gate:missing_or_not_object")
+    else:
+        expected_gate = {
+            "scope": "separate_wall_timing_acceptance",
+            "required_phase_duration_s": 60.0,
+            "deadline_ms": 2.0,
+            "p99_limit_ms": 1.80,
+            "phase_results": observed_timing,
+            "complete_sequence_evaluated": complete,
+            "pass": expected_timing_pass,
+        }
+        if dict(timing_gate) != expected_gate:
+            blockers.append("timing_gate:verdict_mismatch")
+    control_pass = all(
+        isinstance(row, Mapping)
+        and row.get("control_path_diagnostic_pass") is True
+        for row in phases
+    )
+    if control_pass and complete and expected_timing_pass:
+        expected_result = "diagnostic_pass"
+    elif control_pass and complete:
+        expected_result = "control_diagnostic_pass_timing_blocked"
+    elif control_pass:
+        expected_result = "diagnostic_partial_pass"
+    else:
+        expected_result = "diagnostic_fail"
     if payload.get("result") != expected_result:
         blockers.append(f"result:expected_{expected_result}")
+    declared_blockers = payload.get("blockers")
+    if not isinstance(declared_blockers, list):
+        blockers.append("blockers:missing_or_not_array")
+    elif expected_result == "control_diagnostic_pass_timing_blocked":
+        if "wall_timing_gate_failed_60s" not in declared_blockers:
+            blockers.append("blockers:wall_timing_gate_failed_60s_missing")
     return sorted(set(blockers))
 
 

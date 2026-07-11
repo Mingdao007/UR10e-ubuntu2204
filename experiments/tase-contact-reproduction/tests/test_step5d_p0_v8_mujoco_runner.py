@@ -5,11 +5,14 @@ from __future__ import annotations
 
 import inspect
 import gc
+import json
 import math
 import sys
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 import numpy as np
 
@@ -30,6 +33,10 @@ IDENTITY6 = tuple(
 class FakeSolver:
     def __init__(self) -> None:
         self.config = SimpleNamespace(epsilon=0.010, sigr_exponent_r=0.8)
+        self._cp = SimpleNamespace(__version__="fake-cupy")
+        self.cupy_busy_poll_completion = True
+        self.cupy_host_staging_pinned = True
+        self.cupy_dedicated_stream = True
         self.reset_count = 0
         self.warm_count = 0
 
@@ -59,6 +66,7 @@ class FakePlant:
     def __init__(self) -> None:
         self.time_s = 0.0
         self.commands: list[object] = []
+        self.mujoco = SimpleNamespace(__version__="fake-mujoco")
         self.manifest = {
             "calibration_hash": "calib_test",
             "outputs": {"no_contact_velocity": {"sha256": "2" * 64}},
@@ -124,13 +132,83 @@ class Step5dP0V8MujocoRunnerTest(unittest.TestCase):
         self.assertEqual(result.physics_tick_count, 12)
         self.assertEqual(result.dbil_tick_count, 2)
         self.assertEqual(result.accepted_tick_count, 3)
-        self.assertTrue(result.passed)
+        self.assertTrue(result.control_path_pass)
         self.assertEqual(result.sim_time_drift_s, 0.0)
         self.assertEqual(result.first_sequence, 0)
         self.assertEqual(result.last_sequence, 2)
         self.assertTrue(np.all(result.qdot[:, 2] == 0.0001))
         self.assertEqual(result.deferred.count, 3)
         self.assertEqual(gc.isenabled(), gc_before)
+
+    def test_wall_timing_failure_does_not_erase_control_path_pass(self) -> None:
+        result = runner.run_nominal_phase(
+            plant=FakePlant(),
+            solver=FakeSolver(),
+            spec=runner.PhaseSpec(duration_s=0.006, sequence_index=0),
+        )
+        slow = replace(
+            result,
+            deadline_miss_count=result.tick_count,
+            compute_ms=np.full(result.tick_count, 2.5),
+        )
+
+        self.assertTrue(slow.control_path_pass)
+        timing = runner.wall_timing(slow, paced=True)
+        self.assertFalse(timing["pass"])
+        self.assertEqual(timing["deadline_miss_count"], result.tick_count)
+        self.assertFalse(timing["p99_within_limit"])
+        self.assertFalse(timing["max_within_deadline"])
+        broken_sequence = replace(result, last_sequence=result.tick_count)
+        self.assertFalse(broken_sequence.control_path_pass)
+        self.assertFalse(runner.wall_timing(result, paced=False)["pass"])
+
+    def test_runtime_timing_environment_binds_scheduler_affinity_and_capabilities(self) -> None:
+        with (
+            mock.patch.object(runner.os, "sched_getaffinity", return_value={2, 4}, create=True),
+            mock.patch.object(runner.os, "sched_getscheduler", return_value=0, create=True),
+            mock.patch.object(
+                runner.os,
+                "sched_getparam",
+                return_value=SimpleNamespace(sched_priority=7),
+                create=True,
+            ),
+            mock.patch.dict(
+                runner.os.environ,
+                {
+                    "OPENBLAS_NUM_THREADS": "1",
+                    "OMP_NUM_THREADS": "2",
+                    "MKL_NUM_THREADS": "3",
+                    "NUMEXPR_NUM_THREADS": "4",
+                },
+                clear=False,
+            ),
+        ):
+            environment = runner.runtime_timing_environment(
+                plant=FakePlant(),
+                solver=FakeSolver(),
+                pace_wall_clock=True,
+            )
+
+        self.assertEqual(environment["process_affinity"]["cpu_ids"], [2, 4])
+        self.assertEqual(environment["process_scheduler"]["priority"], 7)
+        self.assertEqual(environment["thread_environment"]["OMP_NUM_THREADS"], "2")
+        self.assertEqual(environment["versions"]["cupy"], "fake-cupy")
+        self.assertEqual(environment["versions"]["mujoco"], "fake-mujoco")
+        self.assertTrue(environment["capabilities"]["busy_poll_completion"])
+        self.assertTrue(environment["paced_wall_clock"])
+        changed = json.loads(json.dumps(environment))
+        changed["process_affinity"]["cpu_ids"] = [2]
+        self.assertNotEqual(
+            runner.canonical_sha256(environment),
+            runner.canonical_sha256(changed),
+        )
+        changed_scheduler = json.loads(json.dumps(environment))
+        changed_scheduler["process_scheduler"]["policy_name"] = "SCHED_FIFO"
+        changed_scheduler["process_scheduler"]["priority"] = 20
+        self.assertNotEqual(
+            runner.canonical_sha256(environment),
+            runner.canonical_sha256(changed_scheduler),
+        )
 
     def test_fault_matrix_is_complete_and_every_rejection_is_exact_zero(self) -> None:
         rows = runner.run_fault_matrix(plant=FakePlant(), solver=FakeSolver())

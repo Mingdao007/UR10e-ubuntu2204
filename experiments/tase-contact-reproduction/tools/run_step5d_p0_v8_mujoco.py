@@ -14,6 +14,8 @@ import gc
 import hashlib
 import json
 import math
+import os
+import platform
 import subprocess
 import time
 from dataclasses import dataclass
@@ -78,7 +80,10 @@ SOURCE_FILES = (
     "tools/step5d_simulator_adapter.py",
     "tools/ur10e_mujoco_adapter.py",
     "tools/run_step5d_p0_v8_mujoco.py",
+    "tools/verify_step5d_sim_evidence.py",
+    "tools/verify_step5d_p0_v8_mujoco.py",
     "config/step5d_liveprep_solver_gate.json",
+    "config/schemas/ur10e_simulation_evidence_v1.schema.json",
 )
 
 
@@ -146,19 +151,51 @@ class NominalPhaseResult:
     deferred: DeferredV30Diagnostics
 
     @property
-    def passed(self) -> bool:
+    def control_path_pass(self) -> bool:
+        """Control/safety verdict; wall-clock timing is a separate gate."""
+
         return (
             self.accepted_tick_count == self.tick_count
+            and self.first_sequence == 0
+            and self.last_sequence == self.tick_count - 1
+            and self.physics_tick_count
+            == self.tick_count * (P0_V8_PHYSICS_HZ // P0_V8_CONTROL_HZ)
+            and self.dbil_tick_count
+            == (
+                (self.physics_tick_count - 1)
+                // (P0_V8_PHYSICS_HZ // P0_V8_DBIL_HZ)
+                + 1
+            )
+            and self.accepted.shape == (self.tick_count,)
+            and bool(np.all(self.accepted == 1))
+            and self.actions.shape == (self.tick_count,)
+            and bool(np.all(self.actions == "execute"))
+            and self.reasons.shape == (self.tick_count,)
+            and bool(np.all(self.reasons == "ok"))
             and self.safe_hold_count == 0
             and self.stop_count == 0
             and self.nonfinite_output_count == 0
             and self.qdot_bound_violation_count == 0
+            and self.qdot.shape == (self.tick_count, 6)
+            and bool(np.all(np.isfinite(self.qdot)))
+            and self.max_qdot_abs_rad_s <= P0_V8_QDOT_CAP_RAD_S + 1e-12
             and self.unexpected_contact_count == 0
             and self.cage_collision_count == 0
-            and self.deadline_miss_count == 0
             and self.exact_zero_rejection_count == 0
             and abs(self.sim_time_drift_s) <= 1e-9
-            and float(np.percentile(self.compute_ms, 99)) <= 1.80
+            and self.sim_time_s.shape == (self.tick_count,)
+            and bool(np.all(np.isfinite(self.sim_time_s)))
+            and (
+                self.tick_count == 1
+                or bool(
+                    np.allclose(
+                        np.diff(self.sim_time_s),
+                        1.0 / P0_V8_CONTROL_HZ,
+                        atol=1e-12,
+                        rtol=0.0,
+                    )
+                )
+            )
         )
 
 
@@ -202,7 +239,9 @@ def build_source_binding(
     *,
     root: Path,
     plant: VelocityPlant,
+    solver: Any,
     no_contact_lane: Mapping[str, object],
+    pace_wall_clock: bool,
 ) -> dict[str, object]:
     source_hashes = {
         relpath: sha256_path(root / relpath)
@@ -225,9 +264,80 @@ def build_source_binding(
         ).frame_lineage.sha256,
         "source_file_sha256": source_hashes,
         "no_contact_lane": dict(no_contact_lane),
+        "runtime_timing_environment": runtime_timing_environment(
+            plant=plant,
+            solver=solver,
+            pace_wall_clock=pace_wall_clock,
+        ),
     }
     source["composite_sha256"] = source_composite_sha256(source)
     return source
+
+
+def runtime_timing_environment(
+    *,
+    plant: VelocityPlant,
+    solver: Any,
+    pace_wall_clock: bool,
+) -> dict[str, object]:
+    """Fingerprint process-local scheduling and numeric runtime capabilities."""
+
+    try:
+        affinity: dict[str, object] = {
+            "available": True,
+            "cpu_ids": sorted(int(value) for value in os.sched_getaffinity(0)),
+        }
+    except (AttributeError, OSError) as exc:
+        affinity = {"available": False, "error_type": type(exc).__name__}
+    try:
+        scheduler_value = int(os.sched_getscheduler(0))
+        scheduler_names = {
+            int(value): name
+            for name in ("SCHED_OTHER", "SCHED_FIFO", "SCHED_RR", "SCHED_BATCH", "SCHED_IDLE")
+            if (value := getattr(os, name, None)) is not None
+        }
+        scheduler: dict[str, object] = {
+            "available": True,
+            "policy": scheduler_value,
+            "policy_name": scheduler_names.get(scheduler_value, "unknown"),
+            "priority": int(os.sched_getparam(0).sched_priority),
+        }
+    except (AttributeError, OSError) as exc:
+        scheduler = {"available": False, "error_type": type(exc).__name__}
+    cupy_module = getattr(solver, "_cp", None)
+    mujoco_module = getattr(plant, "mujoco", None)
+    thread_env_names = (
+        "OPENBLAS_NUM_THREADS",
+        "OMP_NUM_THREADS",
+        "MKL_NUM_THREADS",
+        "NUMEXPR_NUM_THREADS",
+    )
+    return {
+        "paced_wall_clock": bool(pace_wall_clock),
+        "process_affinity": affinity,
+        "process_scheduler": scheduler,
+        "thread_environment": {
+            name: os.environ.get(name) for name in thread_env_names
+        },
+        "versions": {
+            "python": platform.python_version(),
+            "python_implementation": platform.python_implementation(),
+            "numpy": np.__version__,
+            "cupy": str(getattr(cupy_module, "__version__", "unavailable")),
+            "mujoco": str(getattr(mujoco_module, "__version__", "unavailable")),
+        },
+        "capabilities": {
+            "busy_poll_completion": bool(
+                getattr(solver, "cupy_busy_poll_completion", False)
+            ),
+            "pinned_host_staging": bool(
+                getattr(solver, "cupy_host_staging_pinned", False)
+            ),
+            "dedicated_nonblocking_stream": bool(
+                getattr(solver, "cupy_dedicated_stream", False)
+            ),
+        },
+    }
 
 
 def require_hash_bound_no_contact_lane(
@@ -702,6 +812,36 @@ def percentile(values: np.ndarray, quantile: float) -> float:
     return float(np.percentile(values, quantile))
 
 
+def wall_timing(nominal: NominalPhaseResult, *, paced: bool) -> dict[str, object]:
+    p50_ms = percentile(nominal.compute_ms, 50)
+    p95_ms = percentile(nominal.compute_ms, 95)
+    p99_ms = percentile(nominal.compute_ms, 99)
+    max_ms = float(np.max(nominal.compute_ms))
+    p99_within_limit = p99_ms <= 1.80
+    max_within_deadline = max_ms < 2.0
+    passed = (
+        paced
+        and nominal.deadline_miss_count == 0
+        and p99_within_limit
+        and max_within_deadline
+    )
+    return {
+        "scope": "read_state_to_shared_control_to_four_physics_substeps",
+        "paced": bool(paced),
+        "samples": nominal.tick_count,
+        "deadline_ms": 2.0,
+        "p99_limit_ms": 1.80,
+        "p50_ms": p50_ms,
+        "p95_ms": p95_ms,
+        "p99_ms": p99_ms,
+        "max_ms": max_ms,
+        "deadline_miss_count": nominal.deadline_miss_count,
+        "p99_within_limit": p99_within_limit,
+        "max_within_deadline": max_within_deadline,
+        "pass": passed,
+    }
+
+
 def phase_dir_name(spec: PhaseSpec) -> str:
     return f"phase_{spec.sequence_index}_{int(spec.duration_s)}s"
 
@@ -715,6 +855,7 @@ def write_phase_artifacts(
     source_binding: Mapping[str, object],
     base_state: SimulatorState,
     plant_manifest: Mapping[str, Any],
+    pace_wall_clock: bool,
 ) -> tuple[Path, dict[str, object]]:
     phase_dir = output_dir / phase_dir_name(spec)
     phase_dir.mkdir(parents=True, exist_ok=False)
@@ -755,12 +896,14 @@ def write_phase_artifacts(
             "physics_provenance", "geometry_provisional"
         )
     )
+    timing = wall_timing(nominal, paced=pace_wall_clock)
     blockers = sorted(
         set(str(value) for value in plant_manifest.get("blockers", []))
         | {
             "p0_sim_physics_pass_false_geometry_provisional",
             "offline_simulation_cannot_promote_live_state",
         }
+        | ({"wall_timing_gate_failed"} if timing["pass"] is not True else set())
     )
     evidence: dict[str, object] = {
         "schema": "ur10e_simulation_evidence_v1",
@@ -787,6 +930,7 @@ def write_phase_artifacts(
             "sequence_index": spec.sequence_index,
             "same_fingerprint_as_previous": spec.sequence_index > 0,
         },
+        "wall_timing": timing,
         "nominal": {
             "tick_count": nominal.tick_count,
             "accepted_tick_count": nominal.accepted_tick_count,
@@ -800,14 +944,7 @@ def write_phase_artifacts(
             "deadline_miss_count": nominal.deadline_miss_count,
             "max_qdot_abs_rad_s": nominal.max_qdot_abs_rad_s,
             "exact_zero_rejection_count": nominal.exact_zero_rejection_count,
-            "control_path_diagnostic_pass": nominal.passed,
-            "compute_timing_ms": {
-                "first": float(nominal.compute_ms[0]),
-                "p50": percentile(nominal.compute_ms, 50),
-                "p95": percentile(nominal.compute_ms, 95),
-                "p99": percentile(nominal.compute_ms, 99),
-                "max": float(np.max(nominal.compute_ms)),
-            },
+            "control_path_diagnostic_pass": nominal.control_path_pass,
             "sim_clock": {
                 "physics_tick_count": nominal.physics_tick_count,
                 "control_tick_count": nominal.tick_count,
@@ -878,12 +1015,14 @@ def main() -> int:
         output_key="no_contact_velocity",
     )
     no_contact_lane = require_hash_bound_no_contact_lane(plant)
+    solver = make_solver(root)
     source_binding = build_source_binding(
         root=root,
         plant=plant,
+        solver=solver,
         no_contact_lane=no_contact_lane,
+        pace_wall_clock=args.pace_wall_clock,
     )
-    solver = make_solver(root)
     output_dir.mkdir(parents=True)
     phase_entries: list[dict[str, object]] = []
     all_valid = True
@@ -905,6 +1044,7 @@ def main() -> int:
             source_binding=source_binding,
             base_state=base_state,
             plant_manifest=plant.manifest,
+            pace_wall_clock=args.pace_wall_clock,
         )
         blockers = validate_evidence(evidence, artifact_root=evidence_path.parent)
         phase_valid = not blockers
@@ -918,14 +1058,55 @@ def main() -> int:
                 "evidence_size_bytes": evidence_path.stat().st_size,
                 "structurally_valid": phase_valid,
                 "validation_blockers": blockers,
-                "control_path_diagnostic_pass": nominal.passed,
+                "control_path_diagnostic_pass": nominal.control_path_pass,
+                "wall_timing_pass": wall_timing(
+                    nominal, paced=args.pace_wall_clock
+                )["pass"],
             }
         )
 
     complete = len(specs) == len(P0_V8_CANARY_PHASES_S)
-    diagnostic_pass = all_valid and all(
+    control_diagnostic_pass = all_valid and all(
         bool(entry["control_path_diagnostic_pass"]) for entry in phase_entries
     )
+    final_60_entry = next(
+        (entry for entry in phase_entries if entry["duration_s"] == 60.0),
+        None,
+    )
+    timing_gate_pass = bool(
+        complete
+        and final_60_entry is not None
+        and final_60_entry["wall_timing_pass"] is True
+    )
+    timing_gate = {
+        "scope": "separate_wall_timing_acceptance",
+        "required_phase_duration_s": 60.0,
+        "deadline_ms": 2.0,
+        "p99_limit_ms": 1.80,
+        "phase_results": [
+            {
+                "duration_s": entry["duration_s"],
+                "pass": entry["wall_timing_pass"],
+            }
+            for entry in phase_entries
+        ],
+        "complete_sequence_evaluated": complete,
+        "pass": timing_gate_pass,
+    }
+    if control_diagnostic_pass and complete and timing_gate_pass:
+        result = "diagnostic_pass"
+    elif control_diagnostic_pass and complete:
+        result = "control_diagnostic_pass_timing_blocked"
+    elif control_diagnostic_pass:
+        result = "diagnostic_partial_pass"
+    else:
+        result = "diagnostic_fail"
+    manifest_blockers = (
+        set(str(value) for value in plant.manifest.get("blockers", []))
+        | {"geometry_provisional_no_p0_physics_claim"}
+    )
+    if control_diagnostic_pass and complete and not timing_gate_pass:
+        manifest_blockers.add("wall_timing_gate_failed_60s")
     manifest = {
         "schema": "step5d_p0_v8_mujoco_run_v1",
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -933,26 +1114,20 @@ def main() -> int:
         "source_composite_sha256": source_binding["composite_sha256"],
         "canonical_phase_sequence_complete": complete,
         "phases": phase_entries,
-        "result": (
-            "diagnostic_pass" if diagnostic_pass and complete
-            else "diagnostic_partial_pass" if diagnostic_pass
-            else "diagnostic_fail"
-        ),
+        "timing_gate": timing_gate,
+        "result": result,
         "claims": {
             "p0_sim_physics_pass": False,
             "live_accepted": False,
             "reproduction_complete": False,
         },
         "claim_boundary": simulation_claim_boundary(),
-        "blockers": sorted(
-            set(str(value) for value in plant.manifest.get("blockers", []))
-            | {"geometry_provisional_no_p0_physics_claim"}
-        ),
+        "blockers": sorted(manifest_blockers),
     }
     manifest_path = output_dir / "run_manifest.json"
     write_json(manifest_path, manifest)
     print(json.dumps({"manifest": str(manifest_path), **manifest}, indent=2, sort_keys=True))
-    return 0 if diagnostic_pass else 3
+    return 0 if control_diagnostic_pass else 3
 
 
 if __name__ == "__main__":

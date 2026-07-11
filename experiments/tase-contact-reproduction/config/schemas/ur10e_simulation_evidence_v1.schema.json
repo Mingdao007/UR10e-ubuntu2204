@@ -58,7 +58,8 @@
         "composite_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "calibration_hash": {"type": "string", "minLength": 1},
         "model_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-        "frame_lineage_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        "frame_lineage_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "runtime_timing_environment": {"type": "object"}
       }
     },
     "schedule": {
@@ -79,6 +80,25 @@
         "duration_s": {"enum": [2.0, 10.0, 60.0]},
         "sequence_index": {"enum": [0, 1, 2]},
         "same_fingerprint_as_previous": {"type": "boolean"}
+      }
+    },
+    "wall_timing": {
+      "type": "object",
+      "required": ["scope", "paced", "samples", "deadline_ms", "p99_limit_ms", "p50_ms", "p95_ms", "p99_ms", "max_ms", "deadline_miss_count", "p99_within_limit", "max_within_deadline", "pass"],
+      "properties": {
+        "scope": {"const": "read_state_to_shared_control_to_four_physics_substeps"},
+        "paced": {"type": "boolean"},
+        "samples": {"type": "integer", "minimum": 1},
+        "deadline_ms": {"const": 2.0},
+        "p99_limit_ms": {"const": 1.8},
+        "p50_ms": {"type": "number", "minimum": 0},
+        "p95_ms": {"type": "number", "minimum": 0},
+        "p99_ms": {"type": "number", "minimum": 0},
+        "max_ms": {"type": "number", "minimum": 0},
+        "deadline_miss_count": {"type": "integer", "minimum": 0},
+        "p99_within_limit": {"type": "boolean"},
+        "max_within_deadline": {"type": "boolean"},
+        "pass": {"type": "boolean"}
       }
     },
     "nominal": {

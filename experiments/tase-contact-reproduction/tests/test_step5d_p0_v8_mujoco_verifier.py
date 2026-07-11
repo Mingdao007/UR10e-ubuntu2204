@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 from step5d_simulator_adapter import simulation_claim_boundary  # noqa: E402
 from step5d_control_contract import V30_DEFERRED_NUMERIC_FIELDS  # noqa: E402
 from test_step5d_sim_evidence import payload as base_evidence  # noqa: E402
+from verify_step5d_sim_evidence import source_composite_sha256  # noqa: E402
 from verify_step5d_p0_v8_mujoco import (  # noqa: E402
     _trace_blockers,
     validate_run_manifest,
@@ -27,6 +28,64 @@ from verify_step5d_p0_v8_mujoco import (  # noqa: E402
 
 
 class Step5dP0V8MujocoVerifierTest(unittest.TestCase):
+    @staticmethod
+    def _bind_runtime_environment(evidence: dict[str, object]) -> str:
+        source = evidence["source_binding"]
+        assert isinstance(source, dict)
+        source["runtime_timing_environment"] = {
+            "paced_wall_clock": True,
+            "process_affinity": {"available": True, "cpu_ids": [0]},
+            "process_scheduler": {
+                "available": True,
+                "policy": 0,
+                "policy_name": "SCHED_OTHER",
+                "priority": 0,
+            },
+            "thread_environment": {
+                "OPENBLAS_NUM_THREADS": "1",
+                "OMP_NUM_THREADS": None,
+                "MKL_NUM_THREADS": None,
+                "NUMEXPR_NUM_THREADS": None,
+            },
+            "versions": {
+                "python": "3.10.0",
+                "python_implementation": "CPython",
+                "numpy": "1.24.4",
+                "cupy": "13.6.0",
+                "mujoco": "3.8.1",
+            },
+            "capabilities": {
+                "busy_poll_completion": True,
+                "pinned_host_staging": True,
+                "dedicated_nonblocking_stream": True,
+            },
+        }
+        source["composite_sha256"] = source_composite_sha256(source)
+        return str(source["composite_sha256"])
+
+    @staticmethod
+    def _wall_timing(
+        count: int, value_ms: float, *, paced: bool = True
+    ) -> dict[str, object]:
+        misses = count if value_ms >= 2.0 else 0
+        p99_ok = value_ms <= 1.8
+        max_ok = value_ms < 2.0
+        return {
+            "scope": "read_state_to_shared_control_to_four_physics_substeps",
+            "paced": paced,
+            "samples": count,
+            "deadline_ms": 2.0,
+            "p99_limit_ms": 1.8,
+            "p50_ms": value_ms,
+            "p95_ms": value_ms,
+            "p99_ms": value_ms,
+            "max_ms": value_ms,
+            "deadline_miss_count": misses,
+            "p99_within_limit": p99_ok,
+            "max_within_deadline": max_ok,
+            "pass": paced and misses == 0 and p99_ok and max_ok,
+        }
+
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
@@ -63,6 +122,7 @@ class Step5dP0V8MujocoVerifierTest(unittest.TestCase):
         )
         self.evidence = {
             "nominal": {"tick_count": count, "deadline_miss_count": 0},
+            "wall_timing": self._wall_timing(count, 0.5),
             "artifacts": [
                 {"role": "control_trace_npz", "path": self.trace.name}
             ],
@@ -105,31 +165,47 @@ class Step5dP0V8MujocoVerifierTest(unittest.TestCase):
             payload = {name: values[name] for name in values.files}
         payload["compute_ms"][:] = 1.81
         np.savez_compressed(self.trace, **payload)
+        self.evidence["wall_timing"] = self._wall_timing(4, 1.81)
 
-        blockers = _trace_blockers(self.evidence, self.root)
+        blockers = _trace_blockers(
+            self.evidence,
+            self.root,
+            require_timing_threshold=False,
+        )
 
-        self.assertIn("trace:compute_p99_over_1p80ms", blockers)
+        self.assertEqual(blockers, [])
+        claimed = _trace_blockers(
+            self.evidence,
+            self.root,
+            require_timing_threshold=True,
+        )
+        self.assertIn(
+            "trace:claimed_wall_timing_pass_but_threshold_failed",
+            claimed,
+        )
 
     @staticmethod
     def _sha256(path: Path) -> str:
         return hashlib.sha256(path.read_bytes()).hexdigest()
 
-    def _build_full_bundle(self) -> tuple[Path, dict[str, object]]:
+    def _build_full_bundle(
+        self, *, final_timing_pass: bool = True
+    ) -> tuple[Path, dict[str, object]]:
         phases: list[dict[str, object]] = []
         seed = base_evidence()
-        seed_source = seed["source_binding"]
-        assert isinstance(seed_source, dict)
-        fingerprint = str(seed_source["composite_sha256"])
+        fingerprint = self._bind_runtime_environment(seed)
         for index, duration in enumerate((2.0, 10.0, 60.0)):
             phase_dir = self.root / f"phase_{index}_{int(duration)}s"
             phase_dir.mkdir()
             count = int(duration * 500)
+            timing_value_ms = 0.5 if final_timing_pass or duration != 60.0 else 2.5
+            timing = self._wall_timing(count, timing_value_ms)
             trace = phase_dir / "control_trace.npz"
             np.savez_compressed(
                 trace,
                 sequence=np.arange(count, dtype=np.int64),
                 sim_time_s=np.arange(count, dtype=float) * 0.002,
-                compute_ms=np.full(count, 0.5),
+                compute_ms=np.full(count, timing_value_ms),
                 qdot=np.zeros((count, 6)),
                 command_jacobian=np.repeat(np.eye(6)[None, :, :], count, axis=0),
                 desired_twist=np.repeat(
@@ -165,7 +241,10 @@ class Step5dP0V8MujocoVerifierTest(unittest.TestCase):
             }
             source = evidence["source_binding"]
             assert isinstance(source, dict)
-            self.assertEqual(source["composite_sha256"], fingerprint)
+            self.assertEqual(
+                self._bind_runtime_environment(evidence),
+                fingerprint,
+            )
             evidence["phase"] = {
                 "duration_s": duration,
                 "sequence_index": index,
@@ -177,6 +256,7 @@ class Step5dP0V8MujocoVerifierTest(unittest.TestCase):
                 {
                     "tick_count": count,
                     "accepted_tick_count": count,
+                    "deadline_miss_count": timing["deadline_miss_count"],
                     "control_path_diagnostic_pass": True,
                     "sim_clock": {
                         "physics_tick_count": int(duration * 2_000),
@@ -190,6 +270,7 @@ class Step5dP0V8MujocoVerifierTest(unittest.TestCase):
                     },
                 }
             )
+            evidence["wall_timing"] = timing
             evidence["artifacts"] = [
                 {
                     "role": "control_trace_npz",
@@ -216,8 +297,14 @@ class Step5dP0V8MujocoVerifierTest(unittest.TestCase):
                     "structurally_valid": True,
                     "validation_blockers": [],
                     "control_path_diagnostic_pass": True,
+                    "wall_timing_pass": timing["pass"],
                 }
             )
+        phase_timing = [
+            {"duration_s": row["duration_s"], "pass": row["wall_timing_pass"]}
+            for row in phases
+        ]
+        final_pass = bool(phase_timing[-1]["pass"])
         manifest: dict[str, object] = {
             "schema": "step5d_p0_v8_mujoco_run_v1",
             "generated_at": "2026-07-11T00:00:00+00:00",
@@ -225,14 +312,30 @@ class Step5dP0V8MujocoVerifierTest(unittest.TestCase):
             "source_composite_sha256": fingerprint,
             "canonical_phase_sequence_complete": True,
             "phases": phases,
-            "result": "diagnostic_pass",
+            "timing_gate": {
+                "scope": "separate_wall_timing_acceptance",
+                "required_phase_duration_s": 60.0,
+                "deadline_ms": 2.0,
+                "p99_limit_ms": 1.8,
+                "phase_results": phase_timing,
+                "complete_sequence_evaluated": True,
+                "pass": final_pass,
+            },
+            "result": (
+                "diagnostic_pass"
+                if final_pass
+                else "control_diagnostic_pass_timing_blocked"
+            ),
             "claims": {
                 "p0_sim_physics_pass": False,
                 "live_accepted": False,
                 "reproduction_complete": False,
             },
             "claim_boundary": simulation_claim_boundary(),
-            "blockers": ["geometry_provisional_no_p0_physics_claim"],
+            "blockers": [
+                "geometry_provisional_no_p0_physics_claim",
+                *([] if final_pass else ["wall_timing_gate_failed_60s"]),
+            ],
         }
         return self.root / "run_manifest.json", manifest
 
@@ -258,6 +361,22 @@ class Step5dP0V8MujocoVerifierTest(unittest.TestCase):
         blockers = validate_run_manifest(manifest, root=self.root, require_complete=True)
 
         self.assertIn("phases[1].fingerprint:mismatch", blockers)
+
+    def test_full_chain_control_pass_remains_valid_when_timing_is_blocked(self) -> None:
+        _path, manifest = self._build_full_bundle(final_timing_pass=False)
+
+        blockers = validate_run_manifest(
+            manifest,
+            root=self.root,
+            require_complete=True,
+        )
+
+        self.assertEqual(blockers, [])
+        self.assertEqual(
+            manifest["result"],
+            "control_diagnostic_pass_timing_blocked",
+        )
+        self.assertIn("wall_timing_gate_failed_60s", manifest["blockers"])
 
 
 if __name__ == "__main__":

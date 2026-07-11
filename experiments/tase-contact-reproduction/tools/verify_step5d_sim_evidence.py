@@ -50,7 +50,6 @@ ZERO_COUNT_FIELDS = (
     "qdot_bound_violation_count",
     "unexpected_contact_count",
     "cage_collision_count",
-    "deadline_miss_count",
     "exact_zero_rejection_count",
 )
 
@@ -173,9 +172,125 @@ def validate_evidence(
     for field in ZERO_COUNT_FIELDS:
         if _integer(nominal.get(field)) != 0:
             blockers.append(f"nominal.{field}:must_be_zero")
+    deadline_miss_count = _integer(nominal.get("deadline_miss_count"))
+    if deadline_miss_count is None or deadline_miss_count < 0:
+        blockers.append("nominal.deadline_miss_count:must_be_nonnegative_integer")
     max_qdot = _number(nominal.get("max_qdot_abs_rad_s"))
     if max_qdot is None or max_qdot > P0_V8_QDOT_CAP_RAD_S + 1e-12:
         blockers.append("nominal.max_qdot_abs_rad_s:invalid_or_over_cap")
+
+    wall_value = payload.get("wall_timing")
+    wall_required = (
+        engine_name == "mujoco"
+        and engine.get("lane") == "p0_v8_no_contact_air_motion"
+    )
+    if wall_value is None:
+        if wall_required:
+            blockers.append("wall_timing:missing")
+    elif not isinstance(wall_value, Mapping):
+        blockers.append("wall_timing:not_object")
+    else:
+        wall = wall_value
+        if wall.get("scope") != "read_state_to_shared_control_to_four_physics_substeps":
+            blockers.append("wall_timing.scope:invalid")
+        if not isinstance(wall.get("paced"), bool):
+            blockers.append("wall_timing.paced:not_boolean")
+        if _integer(wall.get("samples")) != tick_count:
+            blockers.append("wall_timing.samples:mismatch")
+        deadline_ms = _number(wall.get("deadline_ms"))
+        p99_limit_ms = _number(wall.get("p99_limit_ms"))
+        if deadline_ms != 2.0:
+            blockers.append("wall_timing.deadline_ms:expected_2")
+        if p99_limit_ms != 1.80:
+            blockers.append("wall_timing.p99_limit_ms:expected_1p80")
+        timing_values = [
+            _number(wall.get(field))
+            for field in ("p50_ms", "p95_ms", "p99_ms", "max_ms")
+        ]
+        if any(value is None or value < 0.0 for value in timing_values):
+            blockers.append("wall_timing.distribution:invalid")
+        else:
+            p50_ms, p95_ms, p99_ms, max_ms = timing_values
+            assert None not in (p50_ms, p95_ms, p99_ms, max_ms)
+            if not p50_ms <= p95_ms <= p99_ms <= max_ms:
+                blockers.append("wall_timing.distribution:not_monotonic")
+            expected_p99 = p99_ms <= 1.80
+            expected_max = max_ms < 2.0
+            if wall.get("p99_within_limit") is not expected_p99:
+                blockers.append("wall_timing.p99_within_limit:mismatch")
+            if wall.get("max_within_deadline") is not expected_max:
+                blockers.append("wall_timing.max_within_deadline:mismatch")
+            wall_misses = _integer(wall.get("deadline_miss_count"))
+            if wall_misses is None or wall_misses < 0:
+                blockers.append("wall_timing.deadline_miss_count:invalid")
+            else:
+                if wall_misses != deadline_miss_count:
+                    blockers.append("wall_timing.deadline_miss_count:nominal_mismatch")
+                if (wall_misses == 0) is not expected_max:
+                    blockers.append("wall_timing.deadline_miss_count:max_inconsistent")
+                expected_pass = (
+                    wall.get("paced") is True
+                    and wall_misses == 0
+                    and expected_p99
+                    and expected_max
+                )
+                if wall.get("pass") is not expected_pass:
+                    blockers.append("wall_timing.pass:mismatch")
+
+    if wall_required:
+        runtime = source.get("runtime_timing_environment")
+        if not isinstance(runtime, Mapping):
+            blockers.append("source_binding.runtime_timing_environment:missing")
+        else:
+            if isinstance(wall_value, Mapping) and (
+                runtime.get("paced_wall_clock") is not wall_value.get("paced")
+            ):
+                blockers.append(
+                    "source_binding.runtime_timing_environment.paced_wall_clock:mismatch"
+                )
+            for field in ("process_affinity", "process_scheduler"):
+                value = runtime.get(field)
+                if not isinstance(value, Mapping) or not isinstance(
+                    value.get("available"), bool
+                ):
+                    blockers.append(
+                        f"source_binding.runtime_timing_environment.{field}:invalid"
+                    )
+            thread_environment = runtime.get("thread_environment")
+            thread_names = (
+                "OPENBLAS_NUM_THREADS",
+                "OMP_NUM_THREADS",
+                "MKL_NUM_THREADS",
+                "NUMEXPR_NUM_THREADS",
+            )
+            if not isinstance(thread_environment, Mapping) or any(
+                name not in thread_environment
+                or not isinstance(thread_environment.get(name), (str, type(None)))
+                for name in thread_names
+            ):
+                blockers.append(
+                    "source_binding.runtime_timing_environment.thread_environment:invalid"
+                )
+            versions = runtime.get("versions")
+            if not isinstance(versions, Mapping) or any(
+                not str(versions.get(name) or "")
+                for name in ("python", "python_implementation", "numpy", "cupy", "mujoco")
+            ):
+                blockers.append(
+                    "source_binding.runtime_timing_environment.versions:invalid"
+                )
+            capabilities = runtime.get("capabilities")
+            if not isinstance(capabilities, Mapping) or any(
+                capabilities.get(name) is not True
+                for name in (
+                    "busy_poll_completion",
+                    "pinned_host_staging",
+                    "dedicated_nonblocking_stream",
+                )
+            ):
+                blockers.append(
+                    "source_binding.runtime_timing_environment.capabilities:invalid"
+                )
 
     faults = payload.get("faults")
     seen_faults: set[str] = set()
