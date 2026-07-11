@@ -28,6 +28,7 @@ P0_REQUIRED_FAULTS = {
     "normal_mismatch",
     "sequence_duplicate",
     "sequence_gap",
+    "sequence_reordered",
     "watchdog_stale",
     "missing_observation",
     "missing_policy_output",
@@ -37,6 +38,9 @@ P0_REQUIRED_FAULTS = {
     "packet_drop",
     "unexpected_contact",
     "cage_collision",
+    "tcp_outside_cage",
+    "force_guard",
+    "torque_guard",
 }
 ZERO_COUNT_FIELDS = (
     "safe_hold_count",
