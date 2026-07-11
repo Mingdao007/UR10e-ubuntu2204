@@ -337,12 +337,30 @@ class CrossStepParameterTableTest(unittest.TestCase):
         self.assertFalse(state["evidence_frozen"])
         self.assertFalse(summary["claims"]["p0_v8_passed"])
         historical = pointer["historical_artifacts"]
-        self.assertEqual(len(historical), 1)
+        self.assertEqual(len(historical), 2)
         self.assertEqual(
             historical[0]["status"],
+            "historical_superseded_by_v3_production_path_prewarm",
+        )
+        self.assertEqual(
+            historical[0]["summary_sha256"],
+            "9ee7d9995f630689f73a24f965a852a6528b55dfbf700dbfaf0f0dff1cc96093",
+        )
+        self.assertEqual(
+            historical[0]["state_sha256"],
+            "14b71f51de4c352f68f11a99b438f08d140f630d57deb64a0b53e2b57bf79a5e",
+        )
+        self.assertEqual(
+            historical[0]["source_run_manifest_sha256"],
+            "b4aa84309a699cd2d4543f0b6239d22a1777746e14ecdcb28afbd79b70aaaf89",
+        )
+        self.assertEqual(historical[0]["cold_2s_control_deadline_miss_count"], 25)
+        self.assertFalse(historical[0]["acceptance_eligible"])
+        self.assertEqual(
+            historical[1]["status"],
             "historical_superseded_measurement_scope",
         )
-        self.assertFalse(historical[0]["acceptance_eligible"])
+        self.assertFalse(historical[1]["acceptance_eligible"])
 
     def test_p0_v8_offline_diagnostic_hash_drift_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
