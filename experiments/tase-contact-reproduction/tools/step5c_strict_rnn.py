@@ -161,6 +161,7 @@ class StrictTaseRnnSolver:
         self._cupy_stream_priority: int | None = None
         self._cupy_stream_priority_capability = "not_applicable"
         self._cupy_component_events: tuple[Any, Any, Any, Any] | None = None
+        self._cupy_completion_event: Any | None = None
         self._last_cupy_component_timing: dict[str, float] | None = None
         self._cupy_theta_dot_state: Any | None = None
         self._cupy_lambda_state: Any | None = None
@@ -400,6 +401,7 @@ class StrictTaseRnnSolver:
             cp.cuda.Event(),
             cp.cuda.Event(),
         )
+        self._cupy_completion_event = cp.cuda.Event()
         # Fixed-size host/device staging removes all per-tick CuPy allocations
         # and collapses result readback to one contiguous transfer.  The host
         # arrays are page-locked to avoid a possible CUDA-driver staging copy.
@@ -446,6 +448,15 @@ class StrictTaseRnnSolver:
         return bool(
             self.config.backend == "cupy"
             and self._cupy_stream is not None
+        )
+
+    @property
+    def cupy_busy_poll_completion(self) -> bool:
+        """Whether normal solves use the preallocated event completion path."""
+
+        return bool(
+            self.config.backend == "cupy"
+            and self._cupy_completion_event is not None
         )
 
     @property
@@ -870,11 +881,23 @@ void strict_rnn_solve_serial_reference(
                 "cupy_component_wall_ms": (time.perf_counter() - component_started) * 1000.0,
             }
         else:
+            if self._cupy_completion_event is None:
+                raise RuntimeError("CuPy completion event is not initialized")
             self._cupy_work_buffer.get(
                 out=self._cupy_host_work,
                 stream=self._cupy_stream,
-                blocking=True,
+                blocking=False,
             )
+            self._cupy_completion_event.record(self._cupy_stream)
+            # cudaMemcpy(..., blocking=True) sleeps in the driver and the
+            # Ubuntu PREEMPT_RT scheduler can wake this thread 4-10 ms late
+            # even though CUDA event timing shows the kernel itself below
+            # 0.4 ms.  Polling one preallocated completion event preserves the
+            # exact H2D/kernel/D2H sequence and result bytes while avoiding
+            # scheduler wake-up latency.  No allocation, extra iteration, or
+            # algorithm change occurs in the 500 Hz loop.
+            while not self._cupy_completion_event.query():
+                pass
         np.copyto(self.theta_dot_state, self._cupy_host_work[0:6], casting="unsafe")
         np.copyto(self.lambda_state, self._cupy_host_work[6:12], casting="unsafe")
         proj_input_np = self._cupy_host_work[12:18]

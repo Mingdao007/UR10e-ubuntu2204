@@ -311,6 +311,8 @@ def make_solver(root: Path) -> StrictTaseRnnSolver:
         raise RuntimeError("P0 v8 requires page-locked CuPy host staging")
     if not solver.cupy_dedicated_stream:
         raise RuntimeError("P0 v8 requires the dedicated nonblocking CuPy stream")
+    if not solver.cupy_busy_poll_completion:
+        raise RuntimeError("P0 v8 requires preallocated CuPy event completion")
     equivalence = solver.cupy_parallel_equivalence or {}
     if (
         equivalence.get("bitwise_equal") is not True
