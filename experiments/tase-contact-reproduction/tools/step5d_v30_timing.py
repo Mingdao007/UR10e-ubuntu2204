@@ -41,6 +41,31 @@ EXPECTED_THREAD_ENVIRONMENT = {
     "MKL_NUM_THREADS": "1",
     "NUMEXPR_NUM_THREADS": "1",
 }
+EXPECTED_PROHIBITED_NETWORK_AUDIT_EVENTS = [
+    "socket.bind",
+    "socket.connect",
+    "socket.getaddrinfo",
+    "socket.sendto",
+]
+EXPECTED_PIPELINE_WARMUP = {
+    "outside_measured_loops": True,
+    "commands_published": False,
+    "clock": "time.perf_counter",
+    "control_hz": 500.0,
+    "release_policy": "independent_absolute_per_branch",
+    "execute_samples": 1_000,
+    "execute_count": 1_000,
+    "safe_hold_samples": 100,
+    "safe_hold_count": 100,
+    "deferred_diagnostics_complete": True,
+    "solver_state_reset_after": True,
+    "control_state_reset_after": True,
+    "post_warmup_sleep_s": 0.0,
+    "measurement_follows_immediately": True,
+    "schedule_misses_acceptance_scope": (
+        "diagnostic_only_outside_measured_loops"
+    ),
+}
 SOLVER_BATCH_SIZE = 100
 SOLVER_BATCH_REENTRY_SAMPLES = 99
 SOLVER_BATCH_REENTRY_BOUNDARIES = list(range(100, 10_000, 100))
@@ -299,6 +324,128 @@ def summarize_preaggregated(
             blockers.append("remote_timing_diagnostic_profile_override")
     if payload.get("precompile_outside_control_loop") is not True:
         blockers.append("cupy_precompile_not_proven_outside_loop")
+    pipeline_warmup = payload.get("unmeasured_pipeline_warmup")
+    warmup_elapsed = (
+        pipeline_warmup.get("elapsed_wall_s")
+        if isinstance(pipeline_warmup, dict)
+        else None
+    )
+    warmup_execute_elapsed = (
+        pipeline_warmup.get("execute_elapsed_wall_s")
+        if isinstance(pipeline_warmup, dict)
+        else None
+    )
+    warmup_safe_elapsed = (
+        pipeline_warmup.get("safe_hold_elapsed_wall_s")
+        if isinstance(pipeline_warmup, dict)
+        else None
+    )
+    warmup_contract_proven = bool(
+        isinstance(pipeline_warmup, dict)
+        and all(
+            pipeline_warmup.get(field) is EXPECTED_PIPELINE_WARMUP[field]
+            for field in (
+                "outside_measured_loops",
+                "commands_published",
+                "deferred_diagnostics_complete",
+                "solver_state_reset_after",
+                "control_state_reset_after",
+                "measurement_follows_immediately",
+            )
+        )
+        and all(
+            type(pipeline_warmup.get(field)) is int
+            and pipeline_warmup[field] == EXPECTED_PIPELINE_WARMUP[field]
+            for field in (
+                "execute_samples",
+                "execute_count",
+                "safe_hold_samples",
+                "safe_hold_count",
+            )
+        )
+        and all(
+            isinstance(pipeline_warmup.get(field), str)
+            and pipeline_warmup[field] == EXPECTED_PIPELINE_WARMUP[field]
+            for field in (
+                "clock",
+                "release_policy",
+                "schedule_misses_acceptance_scope",
+            )
+        )
+        and all(
+            isinstance(pipeline_warmup.get(field), (int, float))
+            and not isinstance(pipeline_warmup.get(field), bool)
+            and math.isclose(
+                float(pipeline_warmup[field]),
+                float(EXPECTED_PIPELINE_WARMUP[field]),
+                rel_tol=0.0,
+                abs_tol=0.0,
+            )
+            for field in ("control_hz", "post_warmup_sleep_s")
+        )
+        and isinstance(warmup_elapsed, (int, float))
+        and not isinstance(warmup_elapsed, bool)
+        and math.isfinite(float(warmup_elapsed))
+        and float(warmup_elapsed)
+        >= (
+            (EXPECTED_PIPELINE_WARMUP["execute_samples"] - 1)
+            / EXPECTED_PIPELINE_WARMUP["control_hz"]
+            + (EXPECTED_PIPELINE_WARMUP["safe_hold_samples"] - 1)
+            / EXPECTED_PIPELINE_WARMUP["control_hz"]
+        )
+        and all(
+            isinstance(pipeline_warmup.get(field), (int, float))
+            and not isinstance(pipeline_warmup.get(field), bool)
+            and math.isfinite(float(pipeline_warmup[field]))
+            and float(pipeline_warmup[field]) >= 0.0
+            for field in (
+                "execute_elapsed_wall_s",
+                "safe_hold_elapsed_wall_s",
+            )
+        )
+        and float(warmup_execute_elapsed)
+        >= (EXPECTED_PIPELINE_WARMUP["execute_samples"] - 1) / 500.0
+        and float(warmup_safe_elapsed)
+        >= (EXPECTED_PIPELINE_WARMUP["safe_hold_samples"] - 1) / 500.0
+        and math.isclose(
+            float(warmup_elapsed),
+            float(warmup_execute_elapsed) + float(warmup_safe_elapsed),
+            rel_tol=1e-12,
+            abs_tol=1e-12,
+        )
+        and all(
+            type(pipeline_warmup.get(field)) is int
+            and int(pipeline_warmup[field]) >= 0
+            for field in (
+                "execute_schedule_deadline_miss_count",
+                "safe_hold_schedule_deadline_miss_count",
+            )
+        )
+        and all(
+            isinstance(pipeline_warmup.get(field), (int, float))
+            and not isinstance(pipeline_warmup.get(field), bool)
+            and math.isfinite(float(pipeline_warmup[field]))
+            and float(pipeline_warmup[field]) >= 0.0
+            for field in (
+                "execute_schedule_max_lateness_ms",
+                "safe_hold_schedule_max_lateness_ms",
+            )
+        )
+        and pipeline_warmup["execute_schedule_deadline_miss_count"]
+        <= EXPECTED_PIPELINE_WARMUP["execute_samples"]
+        and pipeline_warmup["safe_hold_schedule_deadline_miss_count"]
+        <= EXPECTED_PIPELINE_WARMUP["safe_hold_samples"]
+        and (
+            pipeline_warmup["execute_schedule_deadline_miss_count"] == 0
+        )
+        == (float(pipeline_warmup["execute_schedule_max_lateness_ms"]) == 0.0)
+        and (
+            pipeline_warmup["safe_hold_schedule_deadline_miss_count"] == 0
+        )
+        == (float(pipeline_warmup["safe_hold_schedule_max_lateness_ms"]) == 0.0)
+    )
+    if not warmup_contract_proven:
+        blockers.append("full_pipeline_warmup_contract_missing_or_invalid")
     if (
         payload.get("solver_microbenchmark_pacing")
         != EXPECTED_SOLVER_MICROBENCHMARK_PACING
@@ -568,6 +715,15 @@ def summarize_preaggregated(
     )
     if not production_fifo_priority_proven:
         blockers.append("runtime_timing_process_priority_degraded")
+    network_transport_tripwire = payload.get("network_transport_tripwire")
+    if not (
+        isinstance(network_transport_tripwire, dict)
+        and network_transport_tripwire.get("installed") is True
+        and network_transport_tripwire.get("prohibited_events")
+        == EXPECTED_PROHIBITED_NETWORK_AUDIT_EVENTS
+        and network_transport_tripwire.get("violations") == []
+    ):
+        blockers.append("offline_network_transport_tripwire_unproven")
     scheduler_limits = runtime_environment.get("scheduler_limits")
     rtprio_limits = (
         scheduler_limits.get("rtprio")
@@ -581,6 +737,20 @@ def summarize_preaggregated(
         and min(rtprio_limits) >= 20
     ):
         blockers.append("runtime_realtime_limits_unbound")
+    sched_rt_bandwidth = runtime_environment.get("linux_sched_rt_bandwidth")
+    if not (
+        isinstance(sched_rt_bandwidth, dict)
+        and type(sched_rt_bandwidth.get("period_us")) is int
+        and sched_rt_bandwidth["period_us"] > 0
+        and type(sched_rt_bandwidth.get("runtime_us")) is int
+        and (
+            sched_rt_bandwidth["runtime_us"] == -1
+            or 0 < sched_rt_bandwidth["runtime_us"]
+            <= sched_rt_bandwidth["period_us"]
+        )
+        and sched_rt_bandwidth.get("capture") == "read_only_procfs"
+    ):
+        blockers.append("runtime_sched_rt_bandwidth_unbound")
     cuda_environment = runtime_environment.get("cuda")
     if not isinstance(cuda_environment, dict) or any(
         cuda_environment.get(name) in (None, "")
@@ -765,6 +935,10 @@ def summarize_preaggregated(
         "profile_sha256": payload.get("profile_sha256"),
         "profile_selection": profile_selection or {},
         "precompile_policy": "completed_before_control_loop",
+        "unmeasured_pipeline_warmup": (
+            pipeline_warmup if isinstance(pipeline_warmup, dict) else {}
+        ),
+        "pipeline_warmup_contract_proven": warmup_contract_proven,
         "cupy_precompile_ms": payload.get("cupy_precompile_ms"),
         "cupy_host_staging_pinned": payload.get("cupy_host_staging_pinned"),
         "cupy_dedicated_stream": payload.get("cupy_dedicated_stream"),
@@ -808,6 +982,11 @@ def summarize_preaggregated(
         ),
         "pacing_provenance": payload.get("pacing_provenance"),
         "runtime_environment": runtime_environment,
+        "network_transport_tripwire": (
+            network_transport_tripwire
+            if isinstance(network_transport_tripwire, dict)
+            else {}
+        ),
         "gpu_device": gpu_device or {},
         "nvidia_smi": nvidia_smi or {},
         "runtime_scheduling_classification": (

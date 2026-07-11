@@ -43,11 +43,20 @@ DEADLINE_MS = 2.0
 DEADLINE_EVENT_CAPACITY = 64
 SOLVER_BATCH_SIZE = 100
 SOLVER_BATCH_YIELD_S = 0.002
+PIPELINE_WARMUP_SAMPLES = 1000
+SAFE_HOLD_WARMUP_SAMPLES = 100
+PIPELINE_WARMUP_CONTROL_HZ = 500.0
 THREAD_ENV_NAMES = (
     "OPENBLAS_NUM_THREADS",
     "OMP_NUM_THREADS",
     "MKL_NUM_THREADS",
     "NUMEXPR_NUM_THREADS",
+)
+PROHIBITED_NETWORK_AUDIT_EVENTS = (
+    "socket.bind",
+    "socket.connect",
+    "socket.getaddrinfo",
+    "socket.sendto",
 )
 
 
@@ -307,6 +316,22 @@ def value_distribution(values: Sequence[float]) -> dict[str, Any]:
     }
 
 
+def install_network_transport_tripwire() -> list[str]:
+    """Fail before any controller/network transport can be used."""
+
+    violations: list[str] = []
+
+    def reject_network_transport(event: str, _args: tuple[Any, ...]) -> None:
+        if event in PROHIBITED_NETWORK_AUDIT_EVENTS:
+            violations.append(event)
+            raise RuntimeError(
+                f"offline timing harness prohibited network event: {event}"
+            )
+
+    sys.addaudithook(reject_network_transport)
+    return violations
+
+
 def runtime_environment() -> dict[str, Any]:
     """Bind the process scheduling context used for wall-clock evidence."""
 
@@ -357,6 +382,12 @@ def runtime_environment() -> dict[str, Any]:
         soft, hard = resource.getrlimit(identifier)
         return [int(soft), int(hard)]
 
+    def proc_int(path: str) -> int | None:
+        try:
+            return int(Path(path).read_text(encoding="utf-8").strip())
+        except (OSError, ValueError):
+            return None
+
     return {
         "nice": nice_value,
         "scheduler_policy": scheduler_policy,
@@ -370,6 +401,11 @@ def runtime_environment() -> dict[str, Any]:
             "rtprio": rlimit("RLIMIT_RTPRIO"),
             "rttime_us": rlimit("RLIMIT_RTTIME"),
             "memlock_bytes": rlimit("RLIMIT_MEMLOCK"),
+        },
+        "linux_sched_rt_bandwidth": {
+            "period_us": proc_int("/proc/sys/kernel/sched_rt_period_us"),
+            "runtime_us": proc_int("/proc/sys/kernel/sched_rt_runtime_us"),
+            "capture": "read_only_procfs",
         },
         "cpu_affinity": affinity,
         "python_executable": sys.executable,
@@ -560,6 +596,7 @@ def deferred_control_summary(
 def main() -> int:
     parser = build_argument_parser()
     args = parser.parse_args()
+    network_transport_violations = install_network_transport_tripwire()
     if args.solver_samples < 1 or args.tick_samples < 1 or args.safe_hold_samples < 1:
         raise SystemExit("solver/tick/safe-hold sample counts must be positive")
     if args.component_diagnostic_samples < 0:
@@ -915,6 +952,7 @@ def main() -> int:
     )
     full_tick_deferred = DeferredV30Diagnostics(capacity=args.tick_samples)
     safe_hold_deferred = DeferredV30Diagnostics(capacity=args.safe_hold_samples)
+    pipeline_warmup_summary: dict[str, Any] = {}
     gc_was_enabled = gc.isenabled()
     gc.collect()
     gc.disable()
@@ -983,6 +1021,85 @@ def main() -> int:
                     component_outlier_values[slot, :] = component_values[index, :]
                     component_outlier_total += 1
 
+        # Warm the complete production-shaped execute and safe-hold branches,
+        # not just the CuPy kernel.  No command leaves this process.  Pace both
+        # branches at 500 Hz so warmup cannot exhaust Linux RT bandwidth; start
+        # the measured loop immediately afterward so the GPU remains warm.
+        warmup_started = time.perf_counter()
+        warmup_period_s = 1.0 / PIPELINE_WARMUP_CONTROL_HZ
+        warmup_execute_schedule_miss_count = 0
+        warmup_execute_schedule_max_lateness_ms = 0.0
+        solver.reset_state()
+        warmup_outer_state = Step5dOuterLoopState()
+        warmup_previous_qdot: (
+            tuple[float, float, float, float, float, float] | None
+        ) = None
+        warmup_deferred = DeferredV30Diagnostics(capacity=PIPELINE_WARMUP_SAMPLES)
+        warmup_execute_count = 0
+        warmup_schedule_start = time.perf_counter()
+        for index in range(PIPELINE_WARMUP_SAMPLES):
+            warmup_release = warmup_schedule_start + index * warmup_period_s
+            if index:
+                wait_until(warmup_release)
+            row = prepared_rows[index % len(prepared_rows)]
+            outer, q, qd, jacobian, reaction, target = tick_inputs(
+                row,
+                warmup_outer_state,
+            )
+            warmup_outer_state = outer.next_state
+            observation = contract_observation(
+                row=row,
+                outer=outer,
+                q=q,
+                qd=qd,
+                jacobian=jacobian,
+                reaction=reaction,
+                target=target,
+                sequence=index,
+                timestamp_s=time.perf_counter(),
+            )
+            governed_observation = build_slew_compatible_reference(
+                observation,
+                previous_qdot=warmup_previous_qdot,
+            )
+            if index == 0:
+                solver.warm_start(
+                    J=governed_observation.jacobian,
+                    xdot_c=governed_observation.desired_twist,
+                    omega_minus=governed_observation.omega_minus,
+                    omega_plus=governed_observation.omega_plus,
+                )
+            raw_candidate = policy.compute(governed_observation)
+            _candidate, _dls_shadow, decision, command = step5d_v30_contract_pipeline(
+                governed_observation,
+                raw_candidate,
+                previous_qdot=warmup_previous_qdot,
+                safety_envelope=safety_envelope,
+                deferred_diagnostics=warmup_deferred,
+            )
+            register_values = command.as_register_values()
+            if (
+                not decision.accepted
+                or decision.action != "execute"
+                or register_values[47] != 524.0
+                or register_values[43] != 1.0
+            ):
+                raise RuntimeError("unmeasured execute-path warmup failed")
+            warmup_previous_qdot = decision.qdot
+            warmup_execute_count += 1
+            warmup_lateness_ms = max(
+                0.0,
+                (time.perf_counter() - (warmup_release + warmup_period_s))
+                * 1000.0,
+            )
+            if warmup_lateness_ms > 0.0:
+                warmup_execute_schedule_miss_count += 1
+                warmup_execute_schedule_max_lateness_ms = max(
+                    warmup_execute_schedule_max_lateness_ms,
+                    warmup_lateness_ms,
+                )
+
+        warmup_execute_elapsed_wall_s = time.perf_counter() - warmup_started
         solver.reset_state()
         outer_state = Step5dOuterLoopState()
         previous_qdot: tuple[float, float, float, float, float, float] | None = None
@@ -1069,6 +1186,120 @@ def main() -> int:
                 full_schedule_consecutive = 0
 
         full_tick_elapsed_wall_s = time.perf_counter() - schedule_start
+
+        safe_warmup_started = time.perf_counter()
+        warmup_safe_schedule_miss_count = 0
+        warmup_safe_schedule_max_lateness_ms = 0.0
+        solver.reset_state()
+        warmup_safe_outer_state = Step5dOuterLoopState()
+        warmup_safe_deferred = DeferredV30Diagnostics(
+            capacity=SAFE_HOLD_WARMUP_SAMPLES
+        )
+        warmup_safe_hold_count = 0
+        safe_warmup_schedule_start = time.perf_counter()
+        for index in range(SAFE_HOLD_WARMUP_SAMPLES):
+            safe_warmup_release = (
+                safe_warmup_schedule_start + index * warmup_period_s
+            )
+            if index:
+                wait_until(safe_warmup_release)
+            row = prepared_rows[index % len(prepared_rows)]
+            outer, q, qd, jacobian, reaction, target = tick_inputs(
+                row,
+                warmup_safe_outer_state,
+            )
+            warmup_safe_outer_state = outer.next_state
+            if index == 0:
+                solver.warm_start(
+                    J=jacobian,
+                    xdot_c=target["xdot_c"],
+                    omega_minus=target["omega_minus"],
+                    omega_plus=target["omega_plus"],
+                )
+            observation = contract_observation(
+                row=row,
+                outer=outer,
+                q=q,
+                qd=qd,
+                jacobian=jacobian,
+                reaction=reaction,
+                target=target,
+                sequence=index,
+                timestamp_s=time.perf_counter(),
+                force_nonpressing_desired=True,
+            )
+            raw_candidate = policy.compute(observation)
+            _candidate, _dls_shadow, decision, command = step5d_v30_contract_pipeline(
+                observation,
+                raw_candidate,
+                previous_qdot=None,
+                safety_envelope=safety_envelope,
+                deferred_diagnostics=warmup_safe_deferred,
+            )
+            register_values = command.as_register_values()
+            if (
+                decision.accepted is not False
+                or decision.action != "safe_hold"
+                or command.qdot != (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+                or register_values[43] != 1.0
+                or register_values[28] != 0.0
+                or register_values[47] != 524.0
+            ):
+                raise RuntimeError("unmeasured safe-hold warmup failed")
+            warmup_safe_hold_count += 1
+            warmup_safe_lateness_ms = max(
+                0.0,
+                (time.perf_counter() - (safe_warmup_release + warmup_period_s))
+                * 1000.0,
+            )
+            if warmup_safe_lateness_ms > 0.0:
+                warmup_safe_schedule_miss_count += 1
+                warmup_safe_schedule_max_lateness_ms = max(
+                    warmup_safe_schedule_max_lateness_ms,
+                    warmup_safe_lateness_ms,
+                )
+        warmup_safe_elapsed_wall_s = time.perf_counter() - safe_warmup_started
+        pipeline_warmup_summary = {
+            "outside_measured_loops": True,
+            "commands_published": False,
+            "clock": "time.perf_counter",
+            "control_hz": PIPELINE_WARMUP_CONTROL_HZ,
+            "release_policy": "independent_absolute_per_branch",
+            "execute_samples": PIPELINE_WARMUP_SAMPLES,
+            "execute_count": warmup_execute_count,
+            "execute_schedule_deadline_miss_count": (
+                warmup_execute_schedule_miss_count
+            ),
+            "execute_schedule_max_lateness_ms": (
+                warmup_execute_schedule_max_lateness_ms
+            ),
+            "safe_hold_samples": SAFE_HOLD_WARMUP_SAMPLES,
+            "safe_hold_count": warmup_safe_hold_count,
+            "safe_hold_schedule_deadline_miss_count": (
+                warmup_safe_schedule_miss_count
+            ),
+            "safe_hold_schedule_max_lateness_ms": (
+                warmup_safe_schedule_max_lateness_ms
+            ),
+            "deferred_diagnostics_complete": (
+                warmup_deferred.count == PIPELINE_WARMUP_SAMPLES
+                and not warmup_deferred.overflowed
+                and warmup_safe_deferred.count == SAFE_HOLD_WARMUP_SAMPLES
+                and not warmup_safe_deferred.overflowed
+            ),
+            "solver_state_reset_after": True,
+            "control_state_reset_after": True,
+            "execute_elapsed_wall_s": warmup_execute_elapsed_wall_s,
+            "safe_hold_elapsed_wall_s": warmup_safe_elapsed_wall_s,
+            "elapsed_wall_s": (
+                warmup_execute_elapsed_wall_s + warmup_safe_elapsed_wall_s
+            ),
+            "post_warmup_sleep_s": 0.0,
+            "measurement_follows_immediately": True,
+            "schedule_misses_acceptance_scope": (
+                "diagnostic_only_outside_measured_loops"
+            ),
+        }
 
         solver.reset_state()
         outer_state = Step5dOuterLoopState()
@@ -1221,6 +1452,11 @@ def main() -> int:
         "profile_sha256": profile_selection["effective_profile_sha256"],
         "profile_selection": profile_selection,
         "runtime_environment": runtime_environment(),
+        "network_transport_tripwire": {
+            "installed": True,
+            "prohibited_events": list(PROHIBITED_NETWORK_AUDIT_EVENTS),
+            "violations": list(network_transport_violations),
+        },
         "gpu_device": gpu_device,
         "nvidia_smi": {
             "capture_scope": "outside_measured_solver_and_500hz_loops",
@@ -1240,6 +1476,7 @@ def main() -> int:
         "cupy_parallel_equivalence": parallel_equivalence,
         "cupy_component_diagnostics": component_diagnostics,
         "precompile_outside_control_loop": True,
+        "unmeasured_pipeline_warmup": pipeline_warmup_summary,
         "first_post_warm_ms": first_post_warm_ms,
         "solver_microbenchmark_pacing": {
             "mode": "unmeasured_fixed_batch_yield_with_measured_reentry",

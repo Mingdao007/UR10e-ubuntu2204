@@ -31,6 +31,7 @@ from step5d_paper_outer_loop import (  # noqa: E402
     compute_step5d_outer_loop,
 )
 from step5d_v30_timing import (  # noqa: E402
+    EXPECTED_PIPELINE_WARMUP,
     EXPECTED_SOLVER_MICROBENCHMARK_PACING,
     SOURCE_BINDING_FILES,
     SOLVER_BATCH_REENTRY_BOUNDARIES,
@@ -160,7 +161,7 @@ class Step5dV30TimingTest(unittest.TestCase):
             "raw_array_timing_missing_acceptance_provenance", result["blockers"]
         )
 
-    def test_remote_harness_is_stdout_only_and_has_no_robot_transport_import(self) -> None:
+    def test_remote_harness_is_stdout_only_and_prohibits_transport_use(self) -> None:
         source = inspect.getsource(remote_timing)
 
         self.assertIn("--solver-samples", source)
@@ -183,6 +184,15 @@ class Step5dV30TimingTest(unittest.TestCase):
         self.assertIn('"reference_ramp_active_count"', source)
         self.assertIn('"raw_to_governed_twist_error_norm"', source)
         self.assertIn('"execute_path_proven"', source)
+        self.assertIn('"unmeasured_pipeline_warmup"', source)
+        self.assertIn('"commands_published": False', source)
+        self.assertIn('"control_state_reset_after": True', source)
+        self.assertIn("wait_until(warmup_release)", source)
+        self.assertIn("wait_until(safe_warmup_release)", source)
+        self.assertIn('"post_warmup_sleep_s": 0.0', source)
+        self.assertIn('"measurement_follows_immediately": True', source)
+        self.assertIn("sys.addaudithook(reject_network_transport)", source)
+        self.assertIn('"network_transport_tripwire"', source)
         self.assertIn("step5d_v30_contract_pipeline(", source)
         self.assertIn("step5d_tcp_jacobian_base(model_bundle, q, tcp_offset)", source)
         self.assertIn("print(json.dumps(payload", source)
@@ -226,7 +236,13 @@ class Step5dV30TimingTest(unittest.TestCase):
         ]
         self.assertNotIn("build_slew_compatible_reference(", safe_hold_loop)
         self.assertIn("policy.compute(observation)", safe_hold_loop)
-        for forbidden in ("RTDEClient", "dashboard_exchange", "socket.connect", "write_text", "write_bytes"):
+        for forbidden in (
+            "RTDEClient(",
+            "dashboard_exchange(",
+            ".connect(",
+            "write_text",
+            "write_bytes",
+        ):
             self.assertNotIn(forbidden, source)
 
     def test_deferred_summary_proves_execute_path_and_reference_ramp(self) -> None:
@@ -393,6 +409,16 @@ class Step5dV30TimingTest(unittest.TestCase):
                 "control_hz": 500.0,
             },
             "precompile_outside_control_loop": True,
+            "unmeasured_pipeline_warmup": {
+                **EXPECTED_PIPELINE_WARMUP,
+                "execute_elapsed_wall_s": 2.0,
+                "safe_hold_elapsed_wall_s": 0.2,
+                "elapsed_wall_s": 2.2,
+                "execute_schedule_deadline_miss_count": 3,
+                "execute_schedule_max_lateness_ms": 4.2,
+                "safe_hold_schedule_deadline_miss_count": 0,
+                "safe_hold_schedule_max_lateness_ms": 0.0,
+            },
             "cupy_host_staging_pinned": True,
             "cupy_dedicated_stream": True,
             "cupy_stream_priority": -1,
@@ -438,6 +464,11 @@ class Step5dV30TimingTest(unittest.TestCase):
                 "scheduler_policy": 1,
                 "scheduler_priority": 20,
                 "scheduler_limits": {"rtprio": [99, 99]},
+                "linux_sched_rt_bandwidth": {
+                    "period_us": 1000000,
+                    "runtime_us": 950000,
+                    "capture": "read_only_procfs",
+                },
                 "cpu_affinity": [0, 1],
                 "python_executable": "/usr/bin/python3",
                 "python_version": "3.10.12",
@@ -531,6 +562,16 @@ class Step5dV30TimingTest(unittest.TestCase):
                 "safe_hold_schedule": {"total": 0, "retained_indices": [], "overflowed": False, "max_consecutive": 0},
             },
             "runtime_path_source": "kunwei_rtde_bridge.step5d_v30_contract_pipeline",
+            "network_transport_tripwire": {
+                "installed": True,
+                "prohibited_events": [
+                    "socket.bind",
+                    "socket.connect",
+                    "socket.getaddrinfo",
+                    "socket.sendto",
+                ],
+                "violations": [],
+            },
             "full_tick_deferred_diagnostics": {"count": 30000, "overflowed": False},
             "safe_hold_deferred_diagnostics": {"count": 30000, "overflowed": False},
             "safety_boundary": ["no bridge start"],
@@ -548,6 +589,7 @@ class Step5dV30TimingTest(unittest.TestCase):
         )
 
         self.assertTrue(result["overall_pass"])
+        self.assertTrue(result["pipeline_warmup_contract_proven"])
         self.assertEqual(result["solver"]["samples"], 10000)
         self.assertEqual(result["solver_batch_reentry"]["samples"], 99)
         self.assertEqual(result["solver_batch_reentry"]["deadline_miss_count"], 1)
@@ -574,6 +616,78 @@ class Step5dV30TimingTest(unittest.TestCase):
         self.assertFalse(
             result["deadline_robustness"]["timing_degraded_candidate"]
         )
+
+        no_warmup = json.loads(json.dumps(payload))
+        no_warmup.pop("unmeasured_pipeline_warmup")
+        no_warmup_result = summarize_preaggregated(
+            no_warmup,
+            expected_source_binding={
+                field: "1" * 64 for field in SOURCE_BINDING_FILES
+            },
+            expected_replay_sha256="2" * 64,
+            expected_paper_truth_sha256="2" * 64,
+        )
+        self.assertFalse(no_warmup_result["overall_pass"])
+        self.assertIn(
+            "full_pipeline_warmup_contract_missing_or_invalid",
+            no_warmup_result["blockers"],
+        )
+
+        type_confused_warmup = json.loads(json.dumps(payload))
+        type_confused_warmup["unmeasured_pipeline_warmup"].update(
+            {
+                "outside_measured_loops": 1,
+                "commands_published": 0,
+                "execute_count": 1000.0,
+            }
+        )
+        type_confused_result = summarize_preaggregated(
+            type_confused_warmup,
+            expected_source_binding={
+                field: "1" * 64 for field in SOURCE_BINDING_FILES
+            },
+            expected_replay_sha256="2" * 64,
+            expected_paper_truth_sha256="2" * 64,
+        )
+        self.assertIn(
+            "full_pipeline_warmup_contract_missing_or_invalid",
+            type_confused_result["blockers"],
+        )
+
+        invalid_warmups = {
+            "nan_elapsed": {"elapsed_wall_s": float("nan")},
+            "physically_too_short": {
+                "execute_elapsed_wall_s": 1.0,
+                "safe_hold_elapsed_wall_s": 0.1,
+                "elapsed_wall_s": 1.1,
+            },
+            "reset_not_proven": {"solver_state_reset_after": False},
+            "schedule_count_overflow": {
+                "execute_schedule_deadline_miss_count": 1001,
+                "execute_schedule_max_lateness_ms": 1.0,
+            },
+        }
+        for label, mutation in invalid_warmups.items():
+            with self.subTest(warmup_tamper=label):
+                tampered = json.loads(json.dumps(payload))
+                tampered["unmeasured_pipeline_warmup"].update(mutation)
+                tampered_result = summarize_preaggregated(
+                    tampered,
+                    expected_source_binding={
+                        field: "1" * 64 for field in SOURCE_BINDING_FILES
+                    },
+                    expected_replay_sha256="2" * 64,
+                    expected_paper_truth_sha256="2" * 64,
+                )
+                self.assertIn(
+                    "full_pipeline_warmup_contract_missing_or_invalid",
+                    tampered_result["blockers"],
+                )
+                self.assertFalse(
+                    tampered_result["deadline_robustness"][
+                        "timing_degraded_candidate"
+                    ]
+                )
 
         tampered_reentry = json.loads(json.dumps(payload))
         tampered_reentry["solver_batch_reentry_ms"][98] = 0.7
