@@ -1,0 +1,46 @@
+{
+  "blockers": [],
+  "duplicate_full_review_fingerprints": {},
+  "full_review_count_by_composite_fingerprint": {},
+  "historical_artifacts": [
+    {
+      "bytes": 4111,
+      "counts_as_review_v2": false,
+      "id": "v30_milestone_reviews_v1",
+      "immutable": true,
+      "next_review_class": "v30_contact_pre_live",
+      "original_schema_version": "step5d_v30_milestone_reviews_v1",
+      "path": "config/step5d_v30_milestone_reviews.json",
+      "sha256": "df28791a0999a8809ae6adb97ae8737f7bee74cbb509ed41f9c740fd88c12bcb",
+      "status": "historical_superseded_by_review_policy_v2",
+      "workflow": "v30"
+    },
+    {
+      "bytes": 2434,
+      "counts_as_review_v2": false,
+      "id": "v29_imported_evidence_manifest_v1",
+      "immutable": true,
+      "next_review_class": "v29_baseline_re_review",
+      "original_schema_version": "step5d_imported_evidence_v1",
+      "path": "config/step5d_v29_imported_evidence_manifest.json",
+      "sha256": "3cd461c9a1a94aa1ef7d7bb40642928fe74f607765148cf7b0bd45ebc73db4e6",
+      "status": "historical_superseded_by_review_policy_v2",
+      "workflow": "v29"
+    },
+    {
+      "bytes": 969,
+      "counts_as_review_v2": false,
+      "id": "v29_remote_evidence_sha256_v1",
+      "immutable": true,
+      "next_review_class": "v29_baseline_re_review",
+      "original_schema_version": "step5d_remote_evidence_sha256_v1",
+      "path": "config/step5d_v29_remote_evidence_sha256.json",
+      "sha256": "c43f74e5d5e842e347eee915df83b44429c120cb42416ea2a48c12f95775cfa8",
+      "status": "historical_superseded_by_review_policy_v2",
+      "workflow": "v29"
+    }
+  ],
+  "policy_id": "ur10e_review_policy_v2",
+  "schema_version": "ur10e_review_index_v2",
+  "v2_reviews": []
+}
