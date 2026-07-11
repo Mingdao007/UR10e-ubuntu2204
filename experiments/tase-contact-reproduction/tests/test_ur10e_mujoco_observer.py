@@ -35,6 +35,7 @@ class Ur10eMujocoObserverTest(unittest.TestCase):
                 "schema": "ur10e_mujoco_observer_review_v1",
                 "views": views,
                 "overall_pass": False,
+                "measured_tcp_surface_xy_error_m": 0.0,
                 "blockers": ["current_kunwei_stack_full_cad_missing"],
                 "claim_boundary": {
                     "visual_acceptance_pass": False,
@@ -48,6 +49,12 @@ class Ur10eMujocoObserverTest(unittest.TestCase):
             payload["overall_pass"] = True
             self.assertIn(
                 "provisional_scene_must_not_pass_visual_acceptance",
+                validate_review(payload, root),
+            )
+            payload["overall_pass"] = False
+            payload["measured_tcp_surface_xy_error_m"] = 1.0
+            self.assertIn(
+                "tcp_surface_model_xy_alignment_invalid",
                 validate_review(payload, root),
             )
 

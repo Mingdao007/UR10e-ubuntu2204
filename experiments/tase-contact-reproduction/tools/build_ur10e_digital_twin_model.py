@@ -121,6 +121,25 @@ def validate_inputs(config: Mapping[str, Any]) -> None:
     surface_mesh = _resolve_repo_path(str(surface.get("mesh") or ""))
     if not surface_mesh.is_file() or sha256_path(surface_mesh) != surface.get("mesh_sha256"):
         raise ValueError("surface mesh hash mismatch")
+    surface_source = _resolve_repo_path(str(surface.get("pose_source") or "").split(":", 1)[0])
+    if (
+        not surface_source.is_file()
+        or sha256_path(surface_source) != surface.get("pose_source_sha256")
+    ):
+        raise ValueError("surface pose source hash mismatch")
+    source_pose_base = np.asarray(surface.get("source_pose_xyz_base_m"), dtype=float)
+    world_pose = np.asarray(surface.get("world_pose_xyz_m"), dtype=float)
+    if (
+        surface.get("pose_source_frame") != "base"
+        or surface.get("model_pose_frame") != "gazebo_world"
+        or surface.get("base_to_model_xyz_rule") != "[-base_x,-base_y,base_z]"
+        or source_pose_base.shape != (3,)
+        or world_pose.shape != (3,)
+        or not np.all(np.isfinite(source_pose_base))
+        or not np.all(np.isfinite(world_pose))
+        or not np.allclose(world_pose, base_xyz_to_gazebo_world(source_pose_base), atol=1e-12)
+    ):
+        raise ValueError("surface base-to-model frame contract is invalid")
     no_contact_scene = surface.get("p0_no_contact_scene") or {}
     no_contact_offset = np.asarray(
         no_contact_scene.get("translation_offset_m"), dtype=float
@@ -128,6 +147,7 @@ def validate_inputs(config: Mapping[str, Any]) -> None:
     if (
         no_contact_offset.shape != (3,)
         or not np.all(np.isfinite(no_contact_offset))
+        or no_contact_scene.get("translation_offset_frame") != "gazebo_world"
         or no_contact_scene.get("collision_enabled") is not True
         or float(no_contact_scene.get("minimum_initial_clearance_m", 0.0)) <= 0.0
         or float(no_contact_scene.get("max_canary_approach_m", 0.0)) <= 0.0
@@ -150,6 +170,13 @@ def validate_inputs(config: Mapping[str, Any]) -> None:
     ):
         if claim.get(field) is not False:
             raise ValueError(f"model input claim boundary crosses {field}")
+
+
+def base_xyz_to_gazebo_world(values: Sequence[float]) -> np.ndarray:
+    xyz = np.asarray(values, dtype=float)
+    if xyz.shape != (3,) or not np.all(np.isfinite(xyz)):
+        raise ValueError("base xyz must be a finite 3-vector")
+    return np.asarray((-xyz[0], -xyz[1], xyz[2]), dtype=float)
 
 
 def rpy_matrix(rpy: Sequence[float]) -> np.ndarray:
@@ -383,7 +410,8 @@ def patch_mjcf(
     ET.SubElement(eoat, "site", {"name": "contact_pad_touch_site", "type": "box", "pos": "0 0 0.122", "size": "0.026 0.026 0.005", "rgba": "0.8 0.3 0.1 0.08", "group": "4"})
 
     surface = config["surface"]
-    surface_position = np.asarray(surface["world_pose_xyz_m"], dtype=float)
+    base_surface_position = np.asarray(surface["world_pose_xyz_m"], dtype=float)
+    surface_position = base_surface_position.copy()
     if scene_id == "p0_no_contact":
         no_contact_scene = surface.get("p0_no_contact_scene") or {}
         surface_offset = np.asarray(
@@ -396,7 +424,43 @@ def patch_mjcf(
         surface_position = surface_position + surface_offset
     ET.SubElement(asset, "mesh", {"name": "step5_surface_mesh", "file": "assets/contact_surface/two_piece_surface_smooth_v11_3mm_thick.stl", "scale": "0.001 0.001 0.001"})
     ET.SubElement(worldbody, "geom", {"name": "ground_plane", "type": "plane", "pos": "0 0 -0.08", "size": "2 2 0.02", "rgba": "0.70 0.68 0.63 1", "contype": "1", "conaffinity": "1"})
-    ET.SubElement(worldbody, "geom", {"name": "work_table", "type": "box", "pos": "0.46 0.13 -0.045", "size": "0.40 0.32 0.035", "rgba": "0.42 0.38 0.33 1", "contype": "1", "conaffinity": "1"})
+    ET.SubElement(
+        worldbody,
+        "geom",
+        {
+            "name": "work_table",
+            "type": "box",
+            "pos": f"{base_surface_position[0]:.12g} {base_surface_position[1]:.12g} -0.045",
+            "size": "0.40 0.32 0.035",
+            "rgba": "0.42 0.38 0.33 1",
+            "contype": "1",
+            "conaffinity": "1",
+        },
+    )
+    ET.SubElement(
+        worldbody,
+        "light",
+        {
+            "name": "observer_key_light",
+            "pos": "0.2 -0.7 1.8",
+            "dir": "-0.25 0.25 -1",
+            "directional": "true",
+            "diffuse": "0.9 0.9 0.9",
+            "specular": "0.2 0.2 0.2",
+        },
+    )
+    ET.SubElement(
+        worldbody,
+        "light",
+        {
+            "name": "observer_fill_light",
+            "pos": "-1.0 0.6 1.0",
+            "dir": "0.5 -0.3 -0.6",
+            "directional": "true",
+            "diffuse": "0.45 0.45 0.5",
+            "specular": "0.05 0.05 0.05",
+        },
+    )
     surface_body = ET.SubElement(
         worldbody,
         "body",
@@ -448,11 +512,12 @@ def patch_mjcf(
         },
     )
 
+    surface_x, surface_y = (float(base_surface_position[0]), float(base_surface_position[1]))
     for name, position, target in (
-        ("wide", (1.35, -1.05, 0.95), (0.35, 0.10, 0.25)),
-        ("oblique", (0.95, 0.85, 0.65), (0.38, 0.10, 0.20)),
-        ("close", (0.58, -0.30, 0.34), (0.35, 0.08, 0.16)),
-        ("contact", (0.53, 0.00, 0.16), (0.45, 0.12, 0.05)),
+        ("wide", (0.9, -1.2, 0.95), (-0.22, -0.05, 0.28)),
+        ("oblique", (-1.05, 0.75, 0.72), (-0.26, -0.06, 0.24)),
+        ("close", (surface_x + 0.38, surface_y - 0.48, 0.32), (surface_x, surface_y, 0.10)),
+        ("contact", (surface_x + 0.24, surface_y - 0.30, 0.10), (surface_x, surface_y, 0.014)),
     ):
         ET.SubElement(worldbody, "camera", {"name": f"observer_{name}", "pos": " ".join(str(value) for value in position), "quat": " ".join(f"{value:.12g}" for value in _look_at_quat(position, target)), "fovy": "42" if name != "contact" else "34"})
 
@@ -730,6 +795,28 @@ def build(
             relative_to=output_dir,
         )
 
+    contact_model = mujoco.MjModel.from_xml_path(str(output_dir / CONTACT_VELOCITY_MODEL))
+    contact_data = mujoco.MjData(contact_model)
+    mujoco.mj_resetDataKeyframe(contact_model, contact_data, 0)
+    mujoco.mj_forward(contact_model, contact_data)
+    tcp_site_id = contact_model.site("active_tcp_site").id
+    surface_body_id = contact_model.body("step5_surface").id
+    measured_tcp_model = np.asarray(contact_data.site_xpos[tcp_site_id], dtype=float)
+    measured_surface_model = np.asarray(contact_data.xpos[surface_body_id], dtype=float)
+    expected_tcp_model = base_xyz_to_gazebo_world(
+        config["robot"]["initial_state"]["tcp_pose_base"][:3]
+    )
+    expected_surface_model = np.asarray(config["surface"]["world_pose_xyz_m"], dtype=float)
+    tcp_error_m = float(np.linalg.norm(measured_tcp_model - expected_tcp_model))
+    surface_error_m = float(np.linalg.norm(measured_surface_model - expected_surface_model))
+    tcp_surface_xy_error_m = float(
+        np.linalg.norm(measured_tcp_model[:2] - measured_surface_model[:2])
+    )
+    if tcp_error_m > 2e-6:
+        raise ValueError("MuJoCo active TCP does not satisfy the base-to-world frame contract")
+    if surface_error_m > 1e-12 or tcp_surface_xy_error_m > 5e-6:
+        raise ValueError("MuJoCo contact surface is not aligned with the initial TCP in model XY")
+
     no_contact_config = config["surface"]["p0_no_contact_scene"]
     no_contact_offset = np.abs(
         np.asarray(no_contact_config["translation_offset_m"], dtype=float)
@@ -846,6 +933,7 @@ def build(
             "mode": "surface_translation_with_native_collision",
             "output_key": "no_contact_velocity",
             "translation_offset_m": no_contact_config["translation_offset_m"],
+            "translation_offset_frame": no_contact_config["translation_offset_frame"],
             "initial_clearance_m": initial_clearance_m,
             "required_initial_clearance_m": required_clearance_m,
             "commanded_travel_budget_m": travel_budget_m,
@@ -857,6 +945,18 @@ def build(
         "integer_schedule": {"physics_per_control": 4, "physics_per_dbil": 10},
         "active_variant": config["active_variant"],
         "active_tcp_offset_tool0_m": config["variants"][config["active_variant"]]["active_tcp_offset_tool0_m"],
+        "frame_alignment": {
+            "model_frame": "gazebo_world",
+            "source_control_frame": "base",
+            "base_to_model_xyz_rule": "[-base_x,-base_y,base_z]",
+            "expected_tcp_model_xyz_m": expected_tcp_model.tolist(),
+            "measured_tcp_model_xyz_m": measured_tcp_model.tolist(),
+            "tcp_transform_error_m": tcp_error_m,
+            "expected_surface_model_xyz_m": expected_surface_model.tolist(),
+            "measured_surface_model_xyz_m": measured_surface_model.tolist(),
+            "surface_transform_error_m": surface_error_m,
+            "tcp_surface_xy_error_m": tcp_surface_xy_error_m,
+        },
         "base_from_mujoco_world_rotation": fixed_transform(
             resolved_urdf, "base_link", "base"
         )[:3, :3].T.tolist(),

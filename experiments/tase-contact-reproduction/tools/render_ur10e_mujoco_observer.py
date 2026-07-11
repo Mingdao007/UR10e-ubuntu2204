@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 from datetime import datetime, timezone
 from pathlib import Path
@@ -53,6 +54,14 @@ def validate_review(payload: Mapping[str, object], root: Path) -> list[str]:
     declared = payload.get("blockers")
     if not isinstance(declared, list) or not declared:
         blockers.append("visual_blockers_missing")
+    alignment = payload.get("measured_tcp_surface_xy_error_m")
+    if (
+        not isinstance(alignment, (int, float))
+        or isinstance(alignment, bool)
+        or not math.isfinite(float(alignment))
+        or float(alignment) > 5e-6
+    ):
+        blockers.append("tcp_surface_model_xy_alignment_invalid")
     return sorted(set(blockers))
 
 
@@ -69,19 +78,60 @@ def render(manifest_path: Path, output_dir: Path) -> dict[str, object]:
 
     os.environ.setdefault("MUJOCO_GL", "egl")
     import mujoco
+    import numpy as np
     from PIL import Image
 
     model = mujoco.MjModel.from_xml_path(str(model_path))
     data = mujoco.MjData(model)
     mujoco.mj_resetDataKeyframe(model, data, 0)
     mujoco.mj_forward(model, data)
+    model.vis.headlight.ambient[:] = (0.45, 0.45, 0.45)
+    model.vis.headlight.diffuse[:] = (0.75, 0.75, 0.75)
+    model.vis.headlight.specular[:] = (0.15, 0.15, 0.15)
+    tcp = np.asarray(data.site_xpos[model.site("active_tcp_site").id], dtype=float)
+    surface = np.asarray(data.xpos[model.body("step5_surface").id], dtype=float)
+    contact_focus = 0.5 * (tcp + surface)
+    view_specs = {
+        "wide": {
+            "lookat": np.asarray((-0.22, -0.05, 0.28)),
+            "distance": 1.55,
+            "azimuth": 135.0,
+            "elevation": -24.0,
+        },
+        "oblique": {
+            "lookat": np.asarray((-0.26, -0.06, 0.24)),
+            "distance": 1.15,
+            "azimuth": -55.0,
+            "elevation": -22.0,
+        },
+        "close": {
+            "lookat": 0.65 * tcp + 0.35 * surface + np.asarray((0.0, 0.0, 0.05)),
+            "distance": 0.52,
+            "azimuth": 135.0,
+            "elevation": -18.0,
+        },
+        "contact": {
+            "lookat": contact_focus,
+            "distance": 0.24,
+            "azimuth": 125.0,
+            "elevation": -8.0,
+        },
+    }
     output_dir.mkdir(parents=True)
     renderer = mujoco.Renderer(model, height=720, width=1280)
     views: list[dict[str, object]] = []
     try:
         for camera in CAMERAS:
-            camera_name = f"observer_{camera}"
-            renderer.update_scene(data, camera=camera_name)
+            camera_name = f"observer_{camera}_dynamic"
+            spec = view_specs[camera]
+            observer = mujoco.MjvCamera()
+            mujoco.mjv_defaultCamera(observer)
+            observer.type = mujoco.mjtCamera.mjCAMERA_FREE
+            observer.lookat[:] = spec["lookat"]
+            observer.distance = float(spec["distance"])
+            observer.azimuth = float(spec["azimuth"])
+            observer.elevation = float(spec["elevation"])
+            renderer.update_scene(data, camera=observer)
             path = output_dir / f"{camera}.png"
             Image.fromarray(renderer.render()).save(path)
             views.append(
@@ -112,6 +162,9 @@ def render(manifest_path: Path, output_dir: Path) -> dict[str, object]:
         "model_output_key": "contact_velocity",
         "model_sha256": output_binding["sha256"],
         "native_contact_count": int(data.ncon),
+        "measured_active_tcp_xyz_m": tcp.tolist(),
+        "measured_surface_body_xyz_m": surface.tolist(),
+        "measured_tcp_surface_xy_error_m": float(np.linalg.norm(tcp[:2] - surface[:2])),
         "views": views,
         "checks": {
             "robot_identifiable": True,

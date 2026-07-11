@@ -87,7 +87,13 @@
   "surface": {
     "mesh": "src/ur10e_example_controllers/meshes/contact_surface/two_piece_surface_smooth_v11_3mm_thick.stl",
     "mesh_sha256": "c68d176a88260f7845f102c1dc6e9a60549d7c270738d1757050c0d79036c1cc",
-    "world_pose_xyz_m": [0.487795411149049, 0.12932679270060748, 0.0040224195],
+    "pose_source": "experiments/tase-contact-reproduction/config/step5_safe_frame.json:basis.origin_xy_m",
+    "pose_source_sha256": "e0e4cda8c07d68161ff448223626b46d0eef903973d74e1af0483bf110aecfa4",
+    "pose_source_frame": "base",
+    "model_pose_frame": "gazebo_world",
+    "base_to_model_xyz_rule": "[-base_x,-base_y,base_z]",
+    "source_pose_xyz_base_m": [0.487795411149049, 0.12932679270060748, 0.0040224195],
+    "world_pose_xyz_m": [-0.487795411149049, -0.12932679270060748, 0.0040224195],
     "mesh_pose_xyz_rpy": [0.0364678879, 0.075, -0.0968663777, 1.5707963267948966, 0.0, 0.0],
     "reaction_normal": [0.0, 0.0, 1.0],
     "approach_normal": [0.0, 0.0, -1.0],
@@ -102,6 +108,7 @@
         0.0,
         0.0
       ],
+      "translation_offset_frame": "gazebo_world",
       "collision_enabled": true,
       "minimum_initial_clearance_m": 0.1,
       "max_canary_approach_m": 0.00975,

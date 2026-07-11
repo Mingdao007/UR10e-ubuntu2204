@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 from build_ur10e_digital_twin_model import (  # noqa: E402
     JOINT_NAMES,
+    base_xyz_to_gazebo_world,
     box_diagonal_inertia,
     fixed_transform,
     patch_mjcf,
@@ -93,6 +94,14 @@ class Ur10eDigitalTwinModelTest(unittest.TestCase):
         self.assertFalse(boundary["calibrated_physics_claim_allowed"])
         self.assertFalse(boundary["p0_sim_physics_pass_allowed"])
         self.assertEqual(value["active_variant"], "current_kunwei_stack_122p1_geometry_provisional")
+        surface = value["surface"]
+        np.testing.assert_allclose(
+            surface["world_pose_xyz_m"],
+            base_xyz_to_gazebo_world(surface["source_pose_xyz_base_m"]),
+            atol=1e-12,
+        )
+        self.assertEqual(surface["pose_source_frame"], "base")
+        self.assertEqual(surface["model_pose_frame"], "gazebo_world")
 
     def test_tool0_fixed_transform_is_rigid_and_not_guessed_tcp(self) -> None:
         transform = fixed_transform(fixed_urdf(), "wrist_3_link", "tool0")
@@ -194,6 +203,13 @@ class Ur10eDigitalTwinModelTest(unittest.TestCase):
             config()["surface"]["p0_no_contact_scene"]["translation_offset_m"]
         )
         np.testing.assert_allclose(no_contact_position - contact_position, expected_offset)
+        self.assertLess(contact_position[0], 0.0)
+        self.assertLess(contact_position[1], 0.0)
+        np.testing.assert_allclose(
+            contact_position,
+            base_xyz_to_gazebo_world(config()["surface"]["source_pose_xyz_base_m"]),
+            atol=1e-12,
+        )
         collision = no_contact.find(".//geom[@name='step5_surface_collision']")
         self.assertEqual(collision.attrib["contype"], "1")
         self.assertEqual(collision.attrib["conaffinity"], "1")
