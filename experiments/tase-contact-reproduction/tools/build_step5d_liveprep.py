@@ -1469,11 +1469,15 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5d
                 else f"register 47={STEP5D_STAGE25_JOINT_LAYOUT_CODE:.1f}" in txt
             ),
             "speedj line control": "speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]" in script,
-            "deadline overrun stale-command hold": "DEADLINE_OVERRUN_HOLD" in script
-            and "local heartbeat_fresh = False" in script
-            and "if not heartbeat_fresh:" in script
-            and "speedj([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]" in script
-            and "A repeated heartbeat is never consumed" in txt,
+            "deadline overrun stale-command hold": (
+                "DEADLINE_OVERRUN_HOLD" in script
+                and "local heartbeat_fresh = False" in script
+                and "if not heartbeat_fresh:" in script
+                and "speedj([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]" in script
+                and "A repeated heartbeat is never consumed" in txt
+                if spec.uses_v30_control_contract
+                else True
+            ),
             "layout policy": (
                 "speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy, cmd_wz]" not in script
                 and "not joint_layout_ok" in script

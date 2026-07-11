@@ -376,7 +376,7 @@ class Step5dV15PermissiveRecoveryTest(unittest.TestCase):
         )
         self.assertEqual(
             current["status"],
-            "v29_frozen_fallback_v30_blocked_by_p0_v8_timing_readback_and_review_v2",
+            "v29_frozen_fallback_v30_offline_timing_pass_liveprep_blocked",
         )
         if current["program"] == "step5d_strict_rnn_liveprep_v24":
             self.assertEqual(current_candidate["guard"]["line_entry_normal_load_min_n"], 7.5)
