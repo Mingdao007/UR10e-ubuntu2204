@@ -8,6 +8,7 @@ from .contracts import (
     PoseSample,
     RunManifest,
 )
+from .simulation import SimulatorTickResult, VICSimulatorAdapter
 
 __all__ = [
     "ArtifactBinding",
@@ -16,4 +17,6 @@ __all__ = [
     "ImpedanceProposal",
     "PoseSample",
     "RunManifest",
+    "SimulatorTickResult",
+    "VICSimulatorAdapter",
 ]

@@ -114,7 +114,10 @@ class ScriptedPhasePolicy:
         for phase in self.phases:
             if elapsed >= phase.start_s:
                 selected = phase
-        desired = tuple(value * selected.stiffness_scale for value in self.baseline)
+        desired = tuple(
+            value * selected.stiffness_scale if index < 3 else value
+            for index, value in enumerate(self.baseline)
+        )
         dt_s = self.nominal_dt_s
         if self._last_timestamp_s is not None:
             dt_s = max(self.nominal_dt_s, observation.timestamp_s - self._last_timestamp_s)
@@ -156,7 +159,7 @@ class DirectionalStiffnessAdaptor:
         *,
         denominator_epsilon: float = 1e-8,
         zero_error_threshold: float = 1e-6,
-        adapt_rotation: bool = True,
+        adapt_rotation: bool = False,
     ) -> None:
         self.bounds = bounds
         self.baseline = _validated_baseline(baseline, bounds)
@@ -164,7 +167,11 @@ class DirectionalStiffnessAdaptor:
             raise ValueError("denominator epsilon and zero-error threshold must be positive")
         self.denominator_epsilon = denominator_epsilon
         self.zero_error_threshold = zero_error_threshold
-        self.adapt_rotation = adapt_rotation
+        if adapt_rotation:
+            raise ValueError(
+                "phase-1 VIC fixes orientation and adapts translational stiffness only"
+            )
+        self.adapt_rotation = False
 
     def estimate(
         self,

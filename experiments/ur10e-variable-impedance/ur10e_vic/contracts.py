@@ -150,10 +150,13 @@ class ImpedanceProposal:
             raise ValueError("age_s must be finite and non-negative")
         if not self.source.strip():
             raise ValueError("source must be non-empty")
-        if self.valid and self.source.startswith("dbil") and not _SHA256_RE.fullmatch(
+        is_dbil = self.source.lower().startswith("dbil")
+        if self.valid and is_dbil and not _SHA256_RE.fullmatch(
             self.model_hash
         ):
             raise ValueError("valid DBIL proposals require a lowercase SHA-256 model hash")
+        if is_dbil and not self.shadow_only:
+            raise ValueError("DBIL proposals are permanently shadow-only")
         object.__setattr__(self, "stiffness", stiffness)
         object.__setattr__(self, "damping", damping)
 
@@ -269,12 +272,10 @@ class RunManifest:
                 )
         if self.backend_fidelity == "surrogate" and self.claim_level == "true_torque_live":
             raise ValueError("a surrogate backend cannot claim true torque control")
-        if (
-            self.execution_mode == "active"
-            and "dbil" in self.profile.lower()
-            and not self.dbil_active_enabled
-        ):
-            raise ValueError("DBIL active mode is disabled by default")
+        if self.dbil_active_enabled:
+            raise ValueError("DBIL active mode is permanently disabled")
+        if self.execution_mode == "active" and "dbil" in self.profile.lower():
+            raise ValueError("DBIL profiles are permanently shadow-only")
         object.__setattr__(self, "artifacts", artifacts)
 
 

@@ -122,8 +122,27 @@ class ProposalSupervisor:
             raise ValueError("the first scaffold fixes stale hold to exactly two periods")
         self.model_period_s = model_period_s
         self.hold_periods = hold_periods
+        self._fixed_orientation_stiffness = self.current_stiffness[3:]
         self._last_valid: ImpedanceProposal | None = None
         self._last_valid_time_s: float | None = None
+
+    def _phase1_stiffness(
+        self,
+        desired: Sequence[float],
+        dt_s: float,
+    ) -> tuple[float, ...]:
+        """Apply translational-only phase-1 limits and lock rotational K."""
+
+        desired_values = _six(desired, "desired")
+        phase1_desired = desired_values[:3] + self._fixed_orientation_stiffness
+        limited = limit_stiffness(
+            phase1_desired,
+            self.current_stiffness,
+            dt_s,
+            self.bounds,
+            allow_increase=False,
+        )
+        return limited[:3] + self._fixed_orientation_stiffness
 
     def step(
         self,
@@ -141,15 +160,13 @@ class ProposalSupervisor:
             and incoming.age_s <= self.model_period_s
             and incoming.generated_at_s <= now_s
             and now_s - incoming.generated_at_s <= self.model_period_s
+            and incoming.stiffness[3:] == self._fixed_orientation_stiffness
         )
         if fresh:
             assert incoming is not None
-            self.current_stiffness = limit_stiffness(
+            self.current_stiffness = self._phase1_stiffness(
                 incoming.stiffness,
-                self.current_stiffness,
                 dt_s,
-                self.bounds,
-                allow_increase=False,
             )
             accepted = ImpedanceProposal(
                 generated_at_s=incoming.generated_at_s,
@@ -185,16 +202,13 @@ class ProposalSupervisor:
             )
             return SupervisionDecision(held, "hold", False, "within_two_model_periods")
 
-        self.current_stiffness = limit_stiffness(
-            self.bounds.safe_low,
-            self.current_stiffness,
+        self.current_stiffness = self._phase1_stiffness(
+            self.bounds.safe_low[:3] + self._fixed_orientation_stiffness,
             dt_s,
-            self.bounds,
-            allow_increase=False,
         )
         at_safe_low = all(
             self.current_stiffness[index] <= self.bounds.safe_low[index] + 1e-12
-            for index in range(6)
+            for index in range(3)
         )
         failed = ImpedanceProposal(
             generated_at_s=now_s,

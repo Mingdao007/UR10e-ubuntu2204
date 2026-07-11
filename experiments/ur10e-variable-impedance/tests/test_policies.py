@@ -39,6 +39,10 @@ class PolicyTests(unittest.TestCase):
         self.assertTrue(
             all(new <= old for old, new in zip(before.stiffness, after.stiffness))
         )
+        self.assertEqual(before.stiffness[3:], after.stiffness[3:])
+
+        with self.assertRaisesRegex(ValueError, "translational stiffness only"):
+            DirectionalStiffnessAdaptor(self.bounds, adapt_rotation=True)
 
     def test_nominal_and_dbil_use_identical_directional_adaptor(self) -> None:
         item = observation()
@@ -49,6 +53,7 @@ class PolicyTests(unittest.TestCase):
             DirectionalStiffnessAdaptor(self.bounds), _Predictor()
         ).propose(item)
         self.assertEqual(deterministic.stiffness, dbil.stiffness)
+        self.assertEqual(deterministic.stiffness[3:], (30.0, 30.0, 30.0))
         self.assertEqual(dbil.source, "dbil_shadow")
         self.assertTrue(dbil.shadow_only)
 

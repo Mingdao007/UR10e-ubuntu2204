@@ -42,8 +42,8 @@ class ConstraintTests(unittest.TestCase):
         proposal = ImpedanceProposal(
             generated_at_s=0.0,
             s_zft=self.zft,
-            stiffness=(500.0, 500.0, 500.0, 20.0, 20.0, 20.0),
-            damping=derive_damping((500, 500, 500, 20, 20, 20), self.bounds),
+            stiffness=(500.0, 500.0, 500.0, 30.0, 30.0, 30.0),
+            damping=derive_damping((500, 500, 500, 30, 30, 30), self.bounds),
             confidence=1.0,
             age_s=0.0,
             source="fixed",
@@ -77,6 +77,27 @@ class ConstraintTests(unittest.TestCase):
         self.assertTrue(decision.request_stop)
         self.assertFalse(decision.proposal.valid)
         self.assertEqual(decision.mode, "damping_only")
+
+    def test_phase1_supervisor_rejects_rotational_stiffness_change(self) -> None:
+        initial = (600.0, 600.0, 600.0, 30.0, 30.0, 30.0)
+        supervisor = ProposalSupervisor(initial, self.bounds, 0.005)
+        changed = (500.0, 500.0, 500.0, 29.0, 30.0, 30.0)
+        proposal = ImpedanceProposal(
+            generated_at_s=0.0,
+            s_zft=self.zft,
+            stiffness=changed,
+            damping=derive_damping(changed, self.bounds),
+            confidence=1.0,
+            age_s=0.0,
+            source="scripted_phase:0.000000",
+            model_hash="",
+        )
+        decision = supervisor.step(
+            proposal, now_s=0.0, dt_s=0.005, fallback_zft=self.zft
+        )
+        self.assertTrue(decision.request_stop)
+        self.assertEqual(decision.mode, "damping_only")
+        self.assertEqual(decision.proposal.stiffness[3:], initial[3:])
 
 
 if __name__ == "__main__":

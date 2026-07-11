@@ -35,6 +35,17 @@ established output command without consulting the proposal. The v27/v29
 evidence compares the same actual command stream through shadow-off and
 computed-shadow-on mux calls; it does not hash a copied “after” array.
 
+`VICSimulatorAdapter` adds an offline-only capability boundary for joint
+simulation. Fixed, scripted, and deterministic VIC may be made
+`simulation_active` only by an explicit constructor capability; policies stay
+shadow-safe and the adapter grants command capability after supervision. Exact
+policy-type matching prevents `DBILShadowPolicy` from inheriting this ability.
+DBIL active is rejected independently by proposal, run-manifest, DBIL config,
+and simulator-adapter contracts. Phase 1 changes translational K only;
+rotational K and the orientation command remain fixed. Full-adapter tests pack
+the validity bit and six actual-command `float64` values and compare shadow off
+versus shadow on bit-for-bit.
+
 ## Backend claim boundary
 
 - `velocity_admittance_surrogate` cannot invent a Cartesian controller from K/D.
@@ -188,10 +199,11 @@ PYTHON_BIN=/path/to/torch-enabled-python bash check.sh
 
 They cover quaternion sign/SLERP invariance, contracts and claim states, K/D
 PSD/bounds/slew, two-period stale failover, capability-separated muxing, all
-four policies, stable Step5b binding, 5.23 controller packet-state oracle and
-template guards, dataset/compact-evidence portability, upstream core, and the
-independently paced rate harness. They do not replace URSim or physical-bench
-validation.
+four policies, fixed-orientation/translational-only phase-1 VIC, the full
+offline simulator adapter and actual-command bit invariance, stable Step5b
+binding, 5.23 controller packet-state oracle and template guards,
+dataset/compact-evidence portability, upstream core, and the independently
+paced rate harness. They do not replace URSim or physical-bench validation.
 
 ## Sources
 

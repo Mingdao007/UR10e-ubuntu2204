@@ -58,6 +58,20 @@ class ContractTests(unittest.TestCase):
                 valid=True,
             )
 
+        with self.assertRaisesRegex(ValueError, "permanently shadow-only"):
+            ImpedanceProposal(
+                generated_at_s=0.0,
+                s_zft=PoseSample((0, 0, 0), (1, 0, 0, 0)),
+                stiffness=(1,) * 6,
+                damping=(1,) * 6,
+                confidence=1.0,
+                age_s=0.0,
+                source="DBIL_shadow",
+                model_hash="b" * 64,
+                valid=True,
+                shadow_only=False,
+            )
+
     def test_command_requires_exactly_one_backend_vector(self) -> None:
         with self.assertRaisesRegex(ValueError, "exactly one"):
             BackendCommand(
@@ -117,6 +131,30 @@ class ContractTests(unittest.TestCase):
                 execution_mode="shadow",
                 claim_level="shadow_evidence",
                 artifacts=(package,),
+            )
+        dataset = ArtifactBinding("dataset", "data.npz", "b" * 64)
+        checkpoint = ArtifactBinding("checkpoint", "model.pt", "c" * 64)
+        with self.assertRaisesRegex(ValueError, "permanently disabled"):
+            RunManifest(
+                experiment_id="bad-dbil-active-flag",
+                controller_software="simulator",
+                profile="dbil_shadow",
+                backend_fidelity="surrogate",
+                execution_mode="shadow",
+                claim_level="shadow_evidence",
+                artifacts=(package, dataset, checkpoint),
+                dbil_active_enabled=True,
+            )
+        with self.assertRaisesRegex(ValueError, "permanently shadow-only"):
+            RunManifest(
+                experiment_id="bad-dbil-active-run",
+                controller_software="simulator",
+                profile="dbil_active",
+                backend_fidelity="surrogate",
+                execution_mode="active",
+                claim_level="surrogate_live",
+                artifacts=(package, dataset, checkpoint),
+                live_authorized=True,
             )
 
 
