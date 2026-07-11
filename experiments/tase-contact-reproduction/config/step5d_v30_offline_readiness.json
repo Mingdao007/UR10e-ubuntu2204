@@ -111,7 +111,7 @@
     "packet": null,
     "policy_id": "ur10e_review_policy_v2",
     "policy_path": "config/step5d_review_policy_v2.json",
-    "policy_sha256": "83a4e85c73dc8279f07aba36abe75dac52b5c971712b027016b437c6e989556b",
+    "policy_sha256": "6f94c804be381af5aa0facb9fef66fdff3d7222f9870cb96aaf5db060da55e0e",
     "required_stack": "2+1",
     "status": "not_due"
   },

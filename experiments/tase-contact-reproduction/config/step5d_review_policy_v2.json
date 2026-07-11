@@ -201,6 +201,7 @@
         "tools/*bridge*",
         "tools/*solver*",
         "config/*evidence*",
+        "config/*replay*",
         "config/*stage*",
         "config/*readiness*",
         "programs/step5/step5d/*"
