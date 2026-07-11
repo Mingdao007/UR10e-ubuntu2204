@@ -72,6 +72,8 @@ from step5d_paper_outer_loop import (  # noqa: E402
     rnn_target_state_from_outer_loop,
 )
 from step5d_p0_v8_control_core import (  # noqa: E402
+    P0V8Target,
+    build_p0_v8_target as shared_build_p0_v8_target,
     limit_p0_xdot_components as shared_limit_p0_xdot_components,
     low_force_posture_policy as shared_low_force_posture_policy,
     press_only_outer_output as shared_press_only_outer_output,
@@ -654,8 +656,6 @@ STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_POLICY = "freeze_until_contact_v1"
 STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_LOW_LOAD_N = 1.0
 STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_HIGH_LOAD_N = 2.0
 STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_KO = 0.0
-STEP5D_NO_CONTACT_P0_V8_LOW_FORCE_POSTURE_POLICY = "weak_posture_v2"
-STEP5D_NO_CONTACT_P0_V8_LOW_FORCE_POSTURE_KO = 0.01
 STEP5D_V12_GUARD_DT_MAX_S = 0.010
 STEP5D_V12_LINE_CONTACT_LOW_STOP_N = 0.5
 STEP5D_V12_LINE_CONTACT_MIN_N = 1.0
@@ -4832,6 +4832,7 @@ def compute_bridge_values(
         step5d_p0_rnn_accepted = math.nan
         step5d_p0_rnn_reject_reason = "not_active"
         step5d_p0_safe_hold_active = math.nan
+        step5d_p0_v8_target: P0V8Target | None = None
         step5d_rnn_accepted = math.nan
         step5d_rnn_reject_reason = "not_active"
         step5d_safe_hold_active = math.nan
@@ -4959,20 +4960,12 @@ def compute_bridge_values(
                     else state.step5d_outer_state
                 )
                 base_step5d_ko = STEP5D_V28_SHADOW_KO if step5d_step5b_speedl_live_profile else 5.0
-                if step5d_no_contact_p0_profile:
+                if step5d_no_contact_p0_profile and not step5d_no_contact_p0_v8_profile:
                     step5d_p0_posture_policy = step5d_no_contact_p0_low_force_posture_policy(
                         normal_load_n=normal_load_n,
                         base_ko=base_step5d_ko,
-                        low_ko=(
-                            STEP5D_NO_CONTACT_P0_V8_LOW_FORCE_POSTURE_KO
-                            if step5d_no_contact_p0_v8_profile
-                            else STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_KO
-                        ),
-                        policy=(
-                            STEP5D_NO_CONTACT_P0_V8_LOW_FORCE_POSTURE_POLICY
-                            if step5d_no_contact_p0_v8_profile
-                            else STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_POLICY
-                        ),
+                        low_ko=STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_KO,
+                        policy=STEP5D_NO_CONTACT_P0_LOW_FORCE_POSTURE_POLICY,
                     )
                 step5d_x_pd_base = (float(desired_x), float(desired_y), float(pose[2]))
                 step5d_xdot_pd_base = (float(desired_velocity_xy[0]), float(desired_velocity_xy[1]), 0.0)
@@ -4980,63 +4973,30 @@ def compute_bridge_values(
                     step5d_x_pd_base = (float(pose[0]), float(pose[1]), float(pose[2]))
                     step5d_xdot_pd_base = (0.0, 0.0, 0.0)
                 if step5d_no_contact_p0_profile:
-                    press_only_output = step5d_no_contact_p0_press_only_outer_output(
-                        reaction_normal_b=n_control_b,
-                        force_error_n=force_error,
-                    )
                     if step5d_no_contact_p0_v8_profile:
-                        posture_output = compute_step5d_outer_loop(
-                            Step5dOuterLoopConfig(
-                                kp=0.0,
-                                ko=base_step5d_ko,
-                                orientation_gain_scale=float(
-                                    step5d_p0_posture_policy["orientation_gain_scale"]
-                                ),
-                                kf=0.0,
-                                Md_scalar=12.0,
-                                Bd_scalar=550.0,
-                                force_target_n=0.0,
-                                delay_T_s=dt_s,
-                                force_sign_convention="step5_step6_positive_normal_load",
-                            ),
-                            Step5dOuterLoopState(),
-                            Step5dOuterLoopInputs(
-                                tcp_pose_base=tuple(float(value) for value in pose[:6]),  # type: ignore[arg-type]
-                                tcp_speed_base=tuple(float(value) for value in speed[:6]),  # type: ignore[arg-type]
-                                force_tcp_n=force_t,
-                                control_reaction_normal_base=tuple(float(value) for value in n_control_b),  # type: ignore[arg-type]
-                                x_pd_base=step5d_x_pd_base,
-                                xdot_pd_base=step5d_xdot_pd_base,
-                                dt_s=dt_s,
-                                cmd_valid=True,
-                            ),
-                            include_diagnostics=True,
+                        step5d_p0_v8_target = shared_build_p0_v8_target(
+                            tcp_pose_base=tuple(float(value) for value in pose[:6]),
+                            tcp_speed_base=tuple(float(value) for value in speed[:6]),
+                            force_tcp_n=force_t,
+                            reaction_normal_b=tuple(float(value) for value in n_control_b),
+                            normal_load_n=normal_load_n,
+                            force_error_n=force_error,
+                            jacobian=jacobian,
+                            dt_s=dt_s,
+                            qdot_cap_rad_s=float(args.step5d_qdot_limit_rad_s),
                         )
-                        p0_v8_xdot = np.asarray(posture_output.xdot_c, dtype=float)
-                        p0_v8_xdot[:3] = np.asarray(
-                            press_only_output.xdot_c[:3], dtype=float
-                        )
-                        p0_v8_diagnostics = dict(posture_output.diagnostics)
-                        p0_v8_diagnostics.update(press_only_output.diagnostics)
-                        p0_v8_diagnostics.update(
-                            {
-                                "effective_ko": float(
-                                    step5d_p0_posture_policy["effective_ko"]
-                                ),
-                                "orientation_gain_scale": float(
-                                    step5d_p0_posture_policy["orientation_gain_scale"]
-                                ),
-                                "no_contact_p0_target_policy": "press_plus_weak_posture_v2",
-                            }
-                        )
+                        step5d_p0_posture_policy = dict(step5d_p0_v8_target.posture_policy)
                         step5d_outer_output = SimpleNamespace(
-                            xdot_c=p0_v8_xdot,
+                            xdot_c=np.asarray(step5d_p0_v8_target.raw_outer_twist, dtype=float),
                             cmd_valid=True,
                             next_state=Step5dOuterLoopState(),
-                            diagnostics=p0_v8_diagnostics,
+                            diagnostics=dict(step5d_p0_v8_target.outer_diagnostics),
                         )
                     else:
-                        step5d_outer_output = press_only_output
+                        step5d_outer_output = step5d_no_contact_p0_press_only_outer_output(
+                            reaction_normal_b=n_control_b,
+                            force_error_n=force_error,
+                        )
                 else:
                     step5d_outer_call_kwargs = (
                         {"include_diagnostics": "compact"}
@@ -5094,7 +5054,20 @@ def compute_bridge_values(
                     r=float(args.step5d_sigr_exponent_r),
                 )
                 step5d_outer_xdot_limited = np.asarray(step5d_outer_output.xdot_c, dtype=float)
-                if step5d_no_contact_p0_profile:
+                if step5d_no_contact_p0_v8_profile:
+                    if step5d_p0_v8_target is None:
+                        raise RuntimeError("shared P0 v8 target was not built")
+                    step5d_outer_xdot_limited = np.asarray(
+                        step5d_p0_v8_target.limited_twist,
+                        dtype=float,
+                    )
+                    step5d_outer_xdot_limiter_active = bool(
+                        step5d_p0_v8_target.limiter_active
+                    )
+                    step5d_p0_frame_diagnostics = dict(
+                        step5d_p0_v8_target.frame_diagnostics
+                    )
+                elif step5d_no_contact_p0_profile:
                     (
                         step5d_outer_xdot_limited,
                         step5d_outer_xdot_limiter_active,
@@ -5115,7 +5088,17 @@ def compute_bridge_values(
                         max_angular_rad_s=float(args.bridge_angular_limit_rad_s),
                     )
                 step5d_outer_xdot_joint_feasible = step5d_outer_xdot_limited
-                if (
+                if step5d_no_contact_p0_v8_profile:
+                    if step5d_p0_v8_target is None:
+                        raise RuntimeError("shared P0 v8 target was not built")
+                    step5d_outer_xdot_joint_feasible = np.asarray(
+                        step5d_p0_v8_target.desired_twist,
+                        dtype=float,
+                    )
+                    step5d_xdot_feasibility_diagnostics = dict(
+                        step5d_p0_v8_target.feasibility_diagnostics
+                    )
+                elif (
                     step5d_liveprep_v26_profile
                     or step5d_step5b_speedl_live_profile
                     or step5d_no_contact_p0_profile

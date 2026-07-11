@@ -167,10 +167,13 @@ class StrictTaseRnnSolver:
         self._cupy_lambda_state: Any | None = None
         self._cupy_input_buffer: Any | None = None
         self._cupy_work_buffer: Any | None = None
+        self._cupy_input_views: tuple[Any, Any, Any, Any] | None = None
+        self._cupy_work_views: tuple[Any, Any, Any, Any, Any, Any, Any, Any] | None = None
         self._cupy_host_input_owner: Any | None = None
         self._cupy_host_work_owner: Any | None = None
         self._cupy_host_input: np.ndarray | None = None
         self._cupy_host_work: np.ndarray | None = None
+        self._cupy_host_input_views: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None = None
         self._cupy_parallel_equivalence: dict[str, Any] | None = None
         if self.config.backend == "cupy":
             self._init_cupy_backend()
@@ -424,8 +427,24 @@ class StrictTaseRnnSolver:
             dtype=np.float32,
             count=48,
         )
-        self._cupy_theta_dot_state = self._cupy_work_buffer[0:6]
-        self._cupy_lambda_state = self._cupy_work_buffer[6:12]
+        self._cupy_input_views = (
+            self._cupy_input_buffer[0:36],
+            self._cupy_input_buffer[36:42],
+            self._cupy_input_buffer[42:48],
+            self._cupy_input_buffer[48:54],
+        )
+        self._cupy_work_views = tuple(
+            self._cupy_work_buffer[start : start + 6]
+            for start in range(0, 48, 6)
+        )  # type: ignore[assignment]
+        self._cupy_host_input_views = (
+            self._cupy_host_input[0:36].reshape(6, 6),
+            self._cupy_host_input[36:42],
+            self._cupy_host_input[42:48],
+            self._cupy_host_input[48:54],
+        )
+        self._cupy_theta_dot_state = self._cupy_work_views[0]
+        self._cupy_lambda_state = self._cupy_work_views[1]
         self._precompile_cupy_backend()
         self._cupy_parallel_equivalence = self.validate_cupy_parallel_equivalence(samples=100)
 
@@ -782,13 +801,28 @@ void strict_rnn_solve_serial_reference(
             or self._cupy_lambda_state is None
             or self._cupy_input_buffer is None
             or self._cupy_work_buffer is None
+            or self._cupy_input_views is None
+            or self._cupy_work_views is None
             or self._cupy_host_input is None
             or self._cupy_host_work is None
+            or self._cupy_host_input_views is None
             or self._cupy_stream is None
             or (capture_components and self._cupy_component_events is None)
         ):
             raise RuntimeError("CuPy backend is not initialized")
         cp = self._cp
+        input_j, input_xdot, input_lower, input_upper = self._cupy_input_views
+        (
+            _theta_state,
+            _lambda_state,
+            proj_input,
+            projected,
+            sigr_arg,
+            sigr_val,
+            limited,
+            residual,
+        ) = self._cupy_work_views
+        host_j, host_xdot, host_lower, host_upper = self._cupy_host_input_views
         jacobian = _finite_matrix(target_state["J"], (6, 6), "J")
         xdot = _finite_array(target_state["xdot_c"], 6, "xdot_c")
         lower = _finite_array(target_state["omega_minus"], 6, "omega_minus")
@@ -807,10 +841,10 @@ void strict_rnn_solve_serial_reference(
 
         component_started = time.perf_counter()
         pack_started = time.perf_counter()
-        np.copyto(self._cupy_host_input[0:36], jacobian.reshape(36), casting="unsafe")
-        np.copyto(self._cupy_host_input[36:42], xdot, casting="unsafe")
-        np.copyto(self._cupy_host_input[42:48], lower, casting="unsafe")
-        np.copyto(self._cupy_host_input[48:54], upper, casting="unsafe")
+        np.copyto(host_j, jacobian, casting="unsafe")
+        np.copyto(host_xdot, xdot, casting="unsafe")
+        np.copyto(host_lower, lower, casting="unsafe")
+        np.copyto(host_upper, upper, casting="unsafe")
         cpu_pack_ms = (time.perf_counter() - pack_started) * 1000.0
         if capture_components:
             assert self._cupy_component_events is not None
@@ -824,21 +858,15 @@ void strict_rnn_solve_serial_reference(
         h2d_enqueue_ms = (time.perf_counter() - h2d_enqueue_started) * 1000.0
         if capture_components:
             event_h2d.record(self._cupy_stream)
-        proj_input = self._cupy_work_buffer[12:18]
-        projected = self._cupy_work_buffer[18:24]
-        sigr_arg = self._cupy_work_buffer[24:30]
-        sigr_val = self._cupy_work_buffer[30:36]
-        limited = self._cupy_work_buffer[36:42]
-        residual = self._cupy_work_buffer[42:48]
         kernel_enqueue_started = time.perf_counter()
         self._cupy_solve_kernel()(
             (1,),
             (6,),
             (
-                self._cupy_input_buffer[0:36],
-                self._cupy_input_buffer[36:42],
-                self._cupy_input_buffer[42:48],
-                self._cupy_input_buffer[48:54],
+                input_j,
+                input_xdot,
+                input_lower,
+                input_upper,
                 self._cupy_theta_dot_state,
                 self._cupy_lambda_state,
                 proj_input,

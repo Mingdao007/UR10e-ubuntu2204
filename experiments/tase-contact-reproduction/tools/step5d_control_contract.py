@@ -143,6 +143,7 @@ def compute_dls_shadow(
     strict_rnn_candidate: ControlCandidate,
     *,
     damping: float = 1e-4,
+    _workspace: _ControlTickWorkspace | None = None,
 ) -> DlsShadowEvidence:
     """Compute same-input DLS evidence without producing a command.
 
@@ -150,14 +151,23 @@ def compute_dls_shadow(
     fallback.  This function may support warm-start/shadow diagnostics only.
     """
 
-    jacobian = _finite_array(observation.jacobian, (6, 6))
-    desired = _finite_array(observation.desired_twist, (6,))
-    lower = _finite_array(observation.omega_minus, (6,))
-    upper = _finite_array(observation.omega_plus, (6,))
-    strict_qdot = _finite_array(strict_rnn_candidate.qdot, (6,))
-    _reaction, approach, _frame_transform_applied, normal_error = (
-        _canonical_normals_in_command_frame(observation)
-    )
+    if _workspace is not None and _workspace.candidate_qdot is not None:
+        jacobian = _workspace.jacobian
+        desired = _workspace.desired
+        lower = _workspace.lower
+        upper = _workspace.upper
+        strict_qdot = _workspace.candidate_qdot
+        approach = _workspace.approach
+        normal_error = None
+    else:
+        jacobian = _finite_array(observation.jacobian, (6, 6))
+        desired = _finite_array(observation.desired_twist, (6,))
+        lower = _finite_array(observation.omega_minus, (6,))
+        upper = _finite_array(observation.omega_plus, (6,))
+        strict_qdot = _finite_array(strict_rnn_candidate.qdot, (6,))
+        _reaction, approach, _frame_transform_applied, normal_error = (
+            _canonical_normals_in_command_frame(observation)
+        )
     if normal_error is not None:
         raise ValueError(f"DLS shadow normal contract invalid: {normal_error}")
     if any(value is None for value in (jacobian, desired, lower, upper, strict_qdot, approach)):
@@ -307,6 +317,92 @@ def _canonical_normals_in_command_frame(
     return reaction, approach, frame_transform_applied, None
 
 
+@dataclass
+class _ControlTickWorkspace:
+    """Validated arrays shared only within one production control tick.
+
+    Public helpers still validate independently when called on their own.  The
+    combined production pipeline builds this workspace once, then reuses the
+    exact same finite arrays through slew, SafetyEnvelope, and DLS shadow.  A
+    malformed input declines the fast path and is re-evaluated by the original
+    fail-closed helper sequence so rejection reasons cannot drift.
+    """
+
+    q: np.ndarray
+    qd: np.ndarray
+    pose: np.ndarray
+    tcp_twist: np.ndarray
+    wrench: np.ndarray
+    jacobian: np.ndarray
+    desired: np.ndarray
+    lower: np.ndarray
+    upper: np.ndarray
+    raw_qdot: np.ndarray
+    previous_qdot: np.ndarray
+    reaction: np.ndarray
+    approach: np.ndarray
+    frame_transform_applied: float
+    candidate_qdot: np.ndarray | None = None
+    candidate_twist: np.ndarray | None = None
+
+
+def _prepare_control_tick_workspace(
+    observation: Step5dObservation,
+    raw_candidate: ControlCandidate,
+    previous_qdot: Vector6,
+) -> _ControlTickWorkspace | None:
+    arrays = (
+        _finite_array(observation.q, (6,)),
+        _finite_array(observation.qd, (6,)),
+        _finite_array(observation.tcp_pose, (6,)),
+        _finite_array(observation.tcp_twist, (6,)),
+        _finite_array(observation.wrench, (6,)),
+        _finite_array(observation.jacobian, (6, 6)),
+        _finite_array(observation.desired_twist, (6,)),
+        _finite_array(observation.omega_minus, (6,)),
+        _finite_array(observation.omega_plus, (6,)),
+        _finite_array(raw_candidate.qdot, (6,)),
+        _finite_array(previous_qdot, (6,)),
+    )
+    if any(value is None for value in arrays):
+        return None
+    reaction, approach, frame_transform_applied, normal_error = (
+        _canonical_normals_in_command_frame(observation)
+    )
+    if normal_error is not None or reaction is None or approach is None:
+        return None
+    (
+        q,
+        qd,
+        pose,
+        tcp_twist,
+        wrench,
+        jacobian,
+        desired,
+        lower,
+        upper,
+        raw_qdot,
+        previous,
+    ) = arrays
+    assert all(value is not None for value in arrays)
+    return _ControlTickWorkspace(
+        q=q,  # type: ignore[arg-type]
+        qd=qd,  # type: ignore[arg-type]
+        pose=pose,  # type: ignore[arg-type]
+        tcp_twist=tcp_twist,  # type: ignore[arg-type]
+        wrench=wrench,  # type: ignore[arg-type]
+        jacobian=jacobian,  # type: ignore[arg-type]
+        desired=desired,  # type: ignore[arg-type]
+        lower=lower,  # type: ignore[arg-type]
+        upper=upper,  # type: ignore[arg-type]
+        raw_qdot=raw_qdot,  # type: ignore[arg-type]
+        previous_qdot=previous,  # type: ignore[arg-type]
+        reaction=reaction,
+        approach=approach,
+        frame_transform_applied=frame_transform_applied,
+    )
+
+
 @dataclass(frozen=True)
 class SafetyEnvelope:
     qdot_cap_rad_s: float = 0.05
@@ -315,18 +411,39 @@ class SafetyEnvelope:
     normal_contract_tolerance: float = 1e-6
     predicted_twist_tolerance: float = 1e-8
 
-    def evaluate(self, observation: Step5dObservation, candidate: ControlCandidate) -> SafetyDecision:
+    def evaluate(
+        self,
+        observation: Step5dObservation,
+        candidate: ControlCandidate,
+        *,
+        _workspace: _ControlTickWorkspace | None = None,
+    ) -> SafetyDecision:
         """Validate one candidate and return execute/hold/stop fail-closed state."""
 
-        q = _finite_array(observation.q, (6,))
-        qd = _finite_array(observation.qd, (6,))
-        pose = _finite_array(observation.tcp_pose, (6,))
-        tcp_twist = _finite_array(observation.tcp_twist, (6,))
-        wrench = _finite_array(observation.wrench, (6,))
-        J = _finite_array(observation.jacobian, (6, 6))
-        desired = _finite_array(observation.desired_twist, (6,))
-        qdot = _finite_array(candidate.qdot, (6,))
-        claimed_twist = _finite_array(candidate.predicted_twist, (6,))
+        if (
+            _workspace is not None
+            and _workspace.candidate_qdot is not None
+            and _workspace.candidate_twist is not None
+        ):
+            q = _workspace.q
+            qd = _workspace.qd
+            pose = _workspace.pose
+            tcp_twist = _workspace.tcp_twist
+            wrench = _workspace.wrench
+            J = _workspace.jacobian
+            desired = _workspace.desired
+            qdot = _workspace.candidate_qdot
+            claimed_twist = _workspace.candidate_twist
+        else:
+            q = _finite_array(observation.q, (6,))
+            qd = _finite_array(observation.qd, (6,))
+            pose = _finite_array(observation.tcp_pose, (6,))
+            tcp_twist = _finite_array(observation.tcp_twist, (6,))
+            wrench = _finite_array(observation.wrench, (6,))
+            J = _finite_array(observation.jacobian, (6, 6))
+            desired = _finite_array(observation.desired_twist, (6,))
+            qdot = _finite_array(candidate.qdot, (6,))
+            claimed_twist = _finite_array(candidate.predicted_twist, (6,))
         finite_scalars = (
             observation.timestamp_s,
             observation.path_time_s,
@@ -355,12 +472,23 @@ class SafetyEnvelope:
         assert J is not None and desired is not None and qdot is not None and claimed_twist is not None
         if not observation.command_frame or candidate.frame_id != observation.command_frame:
             return self._decision(False, "stop", "candidate_frame_mismatch")
-        reaction, approach, frame_transform_applied, normal_error = (
-            _canonical_normals_in_command_frame(
-                observation,
-                normal_contract_tolerance=self.normal_contract_tolerance,
+        if _workspace is not None:
+            reaction = _workspace.reaction
+            approach = _workspace.approach
+            frame_transform_applied = _workspace.frame_transform_applied
+            normal_error = None
+            if (
+                float(np.linalg.norm(reaction + approach))
+                > self.normal_contract_tolerance
+            ):
+                normal_error = "normal_contract_mismatch"
+        else:
+            reaction, approach, frame_transform_applied, normal_error = (
+                _canonical_normals_in_command_frame(
+                    observation,
+                    normal_contract_tolerance=self.normal_contract_tolerance,
+                )
             )
-        )
         if normal_error is not None:
             return self._decision(
                 False,
@@ -428,6 +556,7 @@ def apply_direction_preserving_slew(
     max_slew_rad_s2: float = 0.2,
     dt_max_s: float = 0.02,
     copy_diagnostics: bool = True,
+    _workspace: _ControlTickWorkspace | None = None,
 ) -> ControlCandidate:
     """Scale the whole qdot delta, then recompute Jqdot in the command frame.
 
@@ -436,10 +565,16 @@ def apply_direction_preserving_slew(
     returned candidate still has to pass :class:`SafetyEnvelope` again.
     """
 
-    qdot = _finite_array(candidate.qdot, (6,))
-    previous = _finite_array(previous_qdot, (6,))
-    jacobian = _finite_array(observation.jacobian, (6, 6))
-    desired = _finite_array(observation.desired_twist, (6,))
+    if _workspace is not None:
+        qdot = _workspace.raw_qdot
+        previous = _workspace.previous_qdot
+        jacobian = _workspace.jacobian
+        desired = _workspace.desired
+    else:
+        qdot = _finite_array(candidate.qdot, (6,))
+        previous = _finite_array(previous_qdot, (6,))
+        jacobian = _finite_array(observation.jacobian, (6, 6))
+        desired = _finite_array(observation.desired_twist, (6,))
     if qdot is None or previous is None or jacobian is None or desired is None:
         raise ValueError("slew inputs must be finite six-dimensional values")
     if (
@@ -457,6 +592,9 @@ def apply_direction_preserving_slew(
     scale = 1.0 if max_delta <= delta_limit or max_delta <= 0.0 else delta_limit / max_delta
     limited = previous + scale * delta
     predicted = jacobian @ limited
+    if _workspace is not None:
+        _workspace.candidate_qdot = limited
+        _workspace.candidate_twist = predicted
     diagnostics = dict(candidate.diagnostics) if copy_diagnostics else {}
     diagnostics.update(
         {
@@ -574,18 +712,33 @@ def step5d_v30_contract_pipeline(
     """
 
     try:
+        prior = previous_qdot or ZERO6
+        workspace = _prepare_control_tick_workspace(
+            observation,
+            raw_candidate,
+            prior,
+        )
         candidate = apply_direction_preserving_slew(
             observation,
             raw_candidate,
-            previous_qdot=previous_qdot or ZERO6,
+            previous_qdot=prior,
             dt_s=float(observation.dt_s),
             max_slew_rad_s2=float(max_slew_rad_s2),
             dt_max_s=float(dt_max_s),
             copy_diagnostics=False,
+            _workspace=workspace,
         )
-        decision = safety_envelope.evaluate(observation, candidate)
+        decision = safety_envelope.evaluate(
+            observation,
+            candidate,
+            _workspace=workspace,
+        )
         try:
-            dls_shadow = compute_dls_shadow(observation, candidate)
+            dls_shadow = compute_dls_shadow(
+                observation,
+                candidate,
+                _workspace=workspace,
+            )
         except (ValueError, np.linalg.LinAlgError, FloatingPointError, OverflowError):
             if decision.accepted:
                 raise
@@ -723,18 +876,23 @@ class DeferredV30Diagnostics:
         self._field_index = {
             name: index for index, name in enumerate(V30_DEFERRED_NUMERIC_FIELDS)
         }
-        self._qdot_indices = tuple(self._field_index[f"qdot_{index}"] for index in range(6))
-        self._predicted_indices = tuple(
-            self._field_index[f"predicted_twist_{index}"] for index in range(6)
+        self._qdot_slice = slice(
+            self._field_index["qdot_0"], self._field_index["qdot_5"] + 1
         )
-        self._dls_qdot_indices = tuple(
-            self._field_index[f"dls_shadow_qdot_{index}"] for index in range(6)
+        self._predicted_slice = slice(
+            self._field_index["predicted_twist_0"],
+            self._field_index["predicted_twist_5"] + 1,
         )
-        self._dls_twist_indices = tuple(
-            self._field_index[f"dls_shadow_twist_{index}"] for index in range(6)
+        self._dls_qdot_slice = slice(
+            self._field_index["dls_shadow_qdot_0"],
+            self._field_index["dls_shadow_qdot_5"] + 1,
         )
-        self._register_qdot_indices = tuple(
-            self._field_index[f"register_{37 + index}"] for index in range(6)
+        self._dls_twist_slice = slice(
+            self._field_index["dls_shadow_twist_0"],
+            self._field_index["dls_shadow_twist_5"] + 1,
+        )
+        self._register_qdot_slice = slice(
+            self._field_index["register_37"], self._field_index["register_42"] + 1
         )
 
     def record(
@@ -766,13 +924,11 @@ class DeferredV30Diagnostics:
         row[field["predicted_approach_m_s"]] = float(
             decision.metrics.get("predicted_approach_m_s", math.nan)
         )
-        for index, value in enumerate(candidate.qdot):
-            row[self._qdot_indices[index]] = float(value)
-        for index, value in enumerate(candidate.predicted_twist):
-            row[self._predicted_indices[index]] = float(value)
+        row[self._qdot_slice] = candidate.qdot
+        row[self._predicted_slice] = candidate.predicted_twist
         if dls_shadow is None:
-            for index in (*self._dls_qdot_indices, *self._dls_twist_indices):
-                row[index] = math.nan
+            row[self._dls_qdot_slice] = math.nan
+            row[self._dls_twist_slice] = math.nan
             row[field["dls_shadow_residual_norm"]] = math.nan
             row[field["dls_shadow_saturation_count"]] = math.nan
             row[field["dls_shadow_qdot_delta_norm"]] = math.nan
@@ -781,10 +937,8 @@ class DeferredV30Diagnostics:
         else:
             if dls_shadow.runtime_fallback_allowed:
                 raise ValueError("DLS shadow must never be a runtime fallback")
-            for index, value in enumerate(dls_shadow.qdot):
-                row[self._dls_qdot_indices[index]] = float(value)
-            for index, value in enumerate(dls_shadow.predicted_twist):
-                row[self._dls_twist_indices[index]] = float(value)
+            row[self._dls_qdot_slice] = dls_shadow.qdot
+            row[self._dls_twist_slice] = dls_shadow.predicted_twist
             row[field["dls_shadow_residual_norm"]] = dls_shadow.residual_norm
             row[field["dls_shadow_saturation_count"]] = float(
                 dls_shadow.saturation_count
@@ -796,8 +950,7 @@ class DeferredV30Diagnostics:
             )
         row[field["register_26"]] = command.heartbeat
         row[field["register_28"]] = 1.0 if command.stop_request else 0.0
-        for index, value in enumerate(command.qdot):
-            row[self._register_qdot_indices[index]] = float(value)
+        row[self._register_qdot_slice] = command.qdot
         row[field["register_43"]] = 1.0 if command.cmd_valid else 0.0
         row[field["register_44"]] = command.path_time_s
         row[field["register_45"]] = command.force_error_n
