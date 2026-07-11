@@ -358,6 +358,43 @@ def summarize_preaggregated(
     full_reasons = payload.get("full_tick_reason_counts") or {}
     if int(full_reasons.get("ok", 0) or 0) != normalized["full_tick"]["samples"]:
         blockers.append("full_tick_runtime_acceptance_path_incomplete")
+    full_control = payload.get("full_tick_control_diagnostics")
+    if not isinstance(full_control, dict) or not (
+        full_control.get("samples") == normalized["full_tick"]["samples"]
+        and full_control.get("accepted_count") == normalized["full_tick"]["samples"]
+        and full_control.get("execute_count") == normalized["full_tick"]["samples"]
+        and full_control.get("safe_hold_count") == 0
+        and full_control.get("execute_path_proven") is True
+    ):
+        blockers.append("full_tick_execute_path_evidence_incomplete")
+    ramp_scale = (
+        full_control.get("reference_ramp_scale", {})
+        if isinstance(full_control, dict)
+        else {}
+    )
+    ramp_error = (
+        full_control.get("raw_to_governed_twist_error_norm", {})
+        if isinstance(full_control, dict)
+        else {}
+    )
+    ramp_active_count = (
+        full_control.get("reference_ramp_active_count")
+        if isinstance(full_control, dict)
+        else None
+    )
+    if not (
+        isinstance(ramp_active_count, int)
+        and 0 < ramp_active_count <= normalized["full_tick"]["samples"]
+        and isinstance(ramp_scale, dict)
+        and isinstance(ramp_scale.get("min"), (int, float))
+        and 0.0 < float(ramp_scale["min"]) <= 1.0
+        and isinstance(ramp_scale.get("max"), (int, float))
+        and 0.0 < float(ramp_scale["max"]) <= 1.0
+        and isinstance(ramp_error, dict)
+        and isinstance(ramp_error.get("max"), (int, float))
+        and float(ramp_error["max"]) > 0.0
+    ):
+        blockers.append("full_tick_reference_ramp_evidence_incomplete")
     elapsed = payload.get("elapsed_full_tick_wall_s")
     if not isinstance(elapsed, (int, float)) or not 59.5 <= float(elapsed) <= 75.0:
         blockers.append("full_tick_wall_duration_not_60s")
@@ -383,7 +420,6 @@ def summarize_preaggregated(
         "safe_hold_deadline_miss",
         "safe_hold_max_reaches_2ms_deadline",
         "safe_hold_schedule_deadline_miss",
-        "full_tick_runtime_acceptance_path_incomplete",
     }
     degraded_unrelated_blockers = sorted(
         set(blockers) - allowed_degraded_blockers
@@ -492,6 +528,10 @@ def summarize_preaggregated(
         "elapsed_full_tick_wall_s": elapsed,
         "elapsed_safe_hold_wall_s": safe_hold_elapsed,
         "full_tick_reason_counts": payload.get("full_tick_reason_counts", {}),
+        "full_tick_control_diagnostics": full_control or {},
+        "safe_hold_control_diagnostics": payload.get(
+            "safe_hold_control_diagnostics", {}
+        ),
         "thresholds": asdict(thresholds),
         "blockers": sorted(set(blockers)),
         "overall_pass": acceptance_eligible,

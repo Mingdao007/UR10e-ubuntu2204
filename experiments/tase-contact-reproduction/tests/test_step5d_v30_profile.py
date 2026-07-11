@@ -175,6 +175,133 @@ class Step5dV30ProfileTest(unittest.TestCase):
         self.assertEqual(values["heartbeat"], 17.0)
         self.assertEqual(values["stop_request"], 3.0)
 
+    def test_v30_publish_history_requires_fresh_successful_rtde_send(self) -> None:
+        source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(
+            encoding="utf-8"
+        )
+        tree = ast.parse(source)
+        function = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.FunctionDef)
+            and node.name == "finalize_step5d_publish_history"
+        )
+        namespace: dict[str, object] = {}
+        exec(
+            compile(
+                ast.Module(body=[function], type_ignores=[]),
+                "<finalize_step5d_publish_history>",
+                "exec",
+            ),
+            namespace,
+        )
+        finalize = namespace["finalize_step5d_publish_history"]
+
+        class RecordingSolver:
+            def __init__(self) -> None:
+                self.reset_count = 0
+
+            def reset_state(self) -> None:
+                self.reset_count += 1
+
+        class State:
+            def __init__(self) -> None:
+                self.step5d_solver = RecordingSolver()
+                self.step5d_last_qdot = (0.01,) * 6
+                self.step5d_pending_solver_warm_start = False
+
+        sent = State()
+        self.assertTrue(
+            finalize(
+                sent,
+                v30_contract_profile=True,
+                deadline_overrun_hold_active=False,
+                rtde_send_succeeded=True,
+            )
+        )
+        self.assertEqual(sent.step5d_solver.reset_count, 0)
+        self.assertEqual(sent.step5d_last_qdot, (0.01,) * 6)
+        self.assertFalse(sent.step5d_pending_solver_warm_start)
+
+        for label, deadline_overrun, send_succeeded in (
+            ("deadline_overrun", True, True),
+            ("rtde_send_failure_or_disconnected", False, False),
+        ):
+            with self.subTest(label=label):
+                unpublished = State()
+                self.assertFalse(
+                    finalize(
+                        unpublished,
+                        v30_contract_profile=True,
+                        deadline_overrun_hold_active=deadline_overrun,
+                        rtde_send_succeeded=send_succeeded,
+                    )
+                )
+                self.assertEqual(unpublished.step5d_solver.reset_count, 1)
+                self.assertIsNone(unpublished.step5d_last_qdot)
+                self.assertTrue(
+                    unpublished.step5d_pending_solver_warm_start
+                )
+
+        frozen_v29 = State()
+        self.assertTrue(
+            finalize(
+                frozen_v29,
+                v30_contract_profile=False,
+                deadline_overrun_hold_active=False,
+                rtde_send_succeeded=False,
+            )
+        )
+        self.assertEqual(frozen_v29.step5d_solver.reset_count, 0)
+        self.assertEqual(frozen_v29.step5d_last_qdot, (0.01,) * 6)
+        self.assertFalse(frozen_v29.step5d_pending_solver_warm_start)
+
+    def test_v30_heartbeat_advances_from_publish_history_result(self) -> None:
+        source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(
+            encoding="utf-8"
+        )
+        send_index = source.index("rtde.send_input_sample(")
+        finalize_index = source.index(
+            "fresh_candidate_published = finalize_step5d_publish_history(",
+            send_index,
+        )
+        advance_index = source.index(
+            "if fresh_candidate_published:",
+            finalize_index,
+        )
+        heartbeat_index = source.index("heartbeat += 1.0", advance_index)
+
+        self.assertLess(send_index, finalize_index)
+        self.assertLess(finalize_index, advance_index)
+        self.assertLess(advance_index, heartbeat_index)
+
+    def test_v30_reference_is_governed_before_warm_start_and_policy(self) -> None:
+        source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(
+            encoding="utf-8"
+        )
+        observation_index = source.index("observation_v30 = Step5dObservation(")
+        governor_index = source.index(
+            "observation_v30 = build_slew_compatible_reference(",
+            observation_index,
+        )
+        warm_start_index = source.index(
+            "apply_step5d_solver_warm_start_if_pending(",
+            governor_index,
+        )
+        policy_index = source.index(
+            "state.step5d_v30_policy.compute(",
+            warm_start_index,
+        )
+        governed_target_index = source.index(
+            'xdot_c=np.asarray(target_state["xdot_c"], dtype=float)',
+            warm_start_index,
+        )
+
+        self.assertLess(observation_index, governor_index)
+        self.assertLess(governor_index, warm_start_index)
+        self.assertLess(warm_start_index, governed_target_index)
+        self.assertLess(governed_target_index, policy_index)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -26,8 +26,10 @@ from step5d_control_contract import (  # noqa: E402
     Step5dObservation,
     StrictRnnControlPolicy,
     apply_direction_preserving_slew,
+    build_slew_compatible_reference,
     compute_dls_shadow,
     decision_to_register_command,
+    step5d_v30_control_step,
 )
 
 
@@ -66,7 +68,175 @@ def candidate(**overrides: object) -> ControlCandidate:
     return ControlCandidate(**values)  # type: ignore[arg-type]
 
 
+class FollowGovernedReferencePolicy:
+    """Identity-J fixture that exposes exactly which reference it received."""
+
+    def __init__(self, *, negate: bool = False) -> None:
+        self.negate = negate
+        self.last_observation: Step5dObservation | None = None
+
+    def compute(self, obs: Step5dObservation) -> ControlCandidate:
+        self.last_observation = obs
+        desired = np.asarray(obs.desired_twist, dtype=float)
+        qdot = -desired if self.negate else desired
+        predicted = np.asarray(obs.jacobian, dtype=float) @ qdot
+        return ControlCandidate(
+            qdot=tuple(float(value) for value in qdot),  # type: ignore[arg-type]
+            predicted_twist=tuple(float(value) for value in predicted),  # type: ignore[arg-type]
+            residual_norm=float(np.linalg.norm(predicted - desired)),
+            active_bounds_count=0,
+            frame_id=obs.command_frame,
+            solver_status=str(STRICT_RNN_SOLVER_OK_STATUS),
+            diagnostics={"active_bounds_mask": (False,) * 6},
+        )
+
+
 class Step5dV30ControlContractTest(unittest.TestCase):
+    def test_slew_compatible_reference_governs_large_startup_target_before_policy(self) -> None:
+        raw_desired = (0.0, 0.0, 0.0002, 0.012, 0.0, 0.0)
+        obs = observation(
+            desired_twist=raw_desired,
+            omega_minus=(-0.05,) * 6,
+            omega_plus=(0.05,) * 6,
+            dt_s=0.002,
+        )
+
+        governed = build_slew_compatible_reference(
+            obs,
+            previous_qdot=None,
+        )
+
+        self.assertEqual(governed.raw_desired_twist, raw_desired)
+        self.assertEqual(governed.reference_prior_qdot, (0.0,) * 6)
+        self.assertTrue(governed.reference_ramp_active)
+        self.assertAlmostEqual(governed.reference_ramp_scale, 1.0 / 30.0)
+        self.assertLessEqual(max(abs(value) for value in governed.desired_twist), 0.0004)
+        self.assertGreater(governed.desired_twist[2], 0.0)
+
+    def test_control_step_executes_first_ramped_tick_and_records_governance(self) -> None:
+        raw_desired = (0.0, 0.0, 0.0002, 0.012, 0.0, 0.0)
+        obs = observation(
+            desired_twist=raw_desired,
+            omega_minus=(-0.05,) * 6,
+            omega_plus=(0.05,) * 6,
+            dt_s=0.002,
+        )
+        policy = FollowGovernedReferencePolicy()
+        deferred = DeferredV30Diagnostics(capacity=2)
+
+        first = step5d_v30_control_step(
+            obs,
+            policy,
+            previous_qdot=None,
+            safety_envelope=SafetyEnvelope(max_residual_norm=1e-3),
+            deferred_diagnostics=deferred,
+        )
+        second = step5d_v30_control_step(
+            obs,
+            policy,
+            previous_qdot=first.decision.qdot,
+            safety_envelope=SafetyEnvelope(max_residual_norm=1e-3),
+            deferred_diagnostics=deferred,
+        )
+
+        self.assertTrue(first.decision.accepted)
+        self.assertEqual(first.decision.reason, "ok")
+        self.assertLessEqual(first.candidate.residual_norm, 1e-3)
+        self.assertAlmostEqual(max(abs(value) for value in first.decision.qdot), 0.0004)
+        self.assertTrue(second.decision.accepted)
+        self.assertAlmostEqual(max(abs(value) for value in second.decision.qdot), 0.0008)
+        fields = deferred._field_index
+        np.testing.assert_allclose(
+            deferred.numeric[0, fields["raw_desired_twist_0"] : fields["raw_desired_twist_5"] + 1],
+            raw_desired,
+        )
+        np.testing.assert_allclose(
+            deferred.numeric[0, fields["reference_prior_qdot_0"] : fields["reference_prior_qdot_5"] + 1],
+            np.zeros(6),
+        )
+        self.assertEqual(deferred.numeric[0, fields["reference_ramp_active"]], 1.0)
+        self.assertAlmostEqual(
+            deferred.numeric[0, fields["reference_ramp_scale"]],
+            1.0 / 30.0,
+        )
+
+    def test_rejected_candidate_is_not_used_as_next_reference_history(self) -> None:
+        obs = observation(
+            desired_twist=(0.0, 0.0, 0.0002, 0.012, 0.0, 0.0),
+            omega_minus=(-0.05,) * 6,
+            omega_plus=(0.05,) * 6,
+            dt_s=0.002,
+        )
+        rejected = step5d_v30_control_step(
+            obs,
+            FollowGovernedReferencePolicy(negate=True),
+            previous_qdot=None,
+            safety_envelope=SafetyEnvelope(),
+            deferred_diagnostics=DeferredV30Diagnostics(capacity=1),
+        )
+        recovering_policy = FollowGovernedReferencePolicy()
+        recovered = step5d_v30_control_step(
+            obs,
+            recovering_policy,
+            previous_qdot=None,
+            safety_envelope=SafetyEnvelope(),
+            deferred_diagnostics=DeferredV30Diagnostics(capacity=1),
+        )
+
+        self.assertFalse(rejected.decision.accepted)
+        self.assertEqual(rejected.register_command.qdot, (0.0,) * 6)
+        self.assertTrue(recovered.decision.accepted)
+        assert recovering_policy.last_observation is not None
+        self.assertEqual(
+            recovering_policy.last_observation.reference_prior_qdot,
+            (0.0,) * 6,
+        )
+        self.assertAlmostEqual(max(abs(value) for value in recovered.decision.qdot), 0.0004)
+
+    def test_nonpressing_raw_reference_remains_fail_closed(self) -> None:
+        obs = observation(
+            desired_twist=(0.0, 0.0, -0.0002, 0.012, 0.0, 0.0),
+            omega_minus=(-0.05,) * 6,
+            omega_plus=(0.05,) * 6,
+            dt_s=0.002,
+        )
+        prior = (0.0, 0.0, 0.0004, 0.0004, 0.0, 0.0)
+
+        result = step5d_v30_control_step(
+            obs,
+            FollowGovernedReferencePolicy(),
+            previous_qdot=prior,
+            safety_envelope=SafetyEnvelope(),
+            deferred_diagnostics=DeferredV30Diagnostics(capacity=1),
+        )
+
+        self.assertFalse(result.decision.accepted)
+        self.assertEqual(result.decision.reason, "outer_approach_not_pressing")
+        self.assertEqual(result.register_command.qdot, (0.0,) * 6)
+
+    def test_singular_reference_jacobian_stops_exact_zero_before_policy(self) -> None:
+        obs = observation(
+            jacobian=((0.0,) * 6,) * 6,
+            desired_twist=(0.0, 0.0, 0.0002, 0.012, 0.0, 0.0),
+            omega_minus=(-0.05,) * 6,
+            omega_plus=(0.05,) * 6,
+        )
+        policy = FollowGovernedReferencePolicy()
+
+        result = step5d_v30_control_step(
+            obs,
+            policy,
+            previous_qdot=None,
+            safety_envelope=SafetyEnvelope(),
+            deferred_diagnostics=DeferredV30Diagnostics(capacity=1),
+        )
+
+        self.assertFalse(result.decision.accepted)
+        self.assertEqual(result.decision.action, "stop")
+        self.assertIn("LinAlgError", result.decision.reason)
+        self.assertEqual(result.register_command.qdot, (0.0,) * 6)
+        self.assertIsNone(policy.last_observation)
+
     def test_strict_rnn_policy_implements_public_control_policy(self) -> None:
         class FakeSolver:
             config = SimpleNamespace(epsilon=0.01, sigr_exponent_r=0.8)
@@ -191,12 +361,33 @@ class Step5dV30ControlContractTest(unittest.TestCase):
                 predicted_twist=(0.051, 0.0, 0.0, 0.0, 0.0, 0.0),
             ),
         )
-        over_residual = envelope.evaluate(observation(), candidate(residual_norm=1.1e-3))
+        residual_qdot = (1.1e-3, 0.0, 0.001, 0.0, 0.0, 0.0)
+        over_residual = envelope.evaluate(
+            observation(),
+            candidate(
+                qdot=residual_qdot,
+                predicted_twist=residual_qdot,
+                residual_norm=1.1e-3,
+            ),
+        )
 
         self.assertEqual(over_bound.reason, "qdot_bound_exceeded")
         self.assertEqual(over_bound.action, "stop")
         self.assertEqual(over_residual.reason, "constraint_residual_norm_exceeded")
         self.assertEqual(over_residual.action, "safe_hold")
+
+    def test_safety_envelope_recomputes_residual_and_stops_false_claim(self) -> None:
+        proposal = candidate(
+            qdot=(1.1e-3, 0.0, 0.001, 0.0, 0.0, 0.0),
+            predicted_twist=(1.1e-3, 0.0, 0.001, 0.0, 0.0, 0.0),
+            residual_norm=0.0,
+        )
+
+        decision = SafetyEnvelope().evaluate(observation(), proposal)
+
+        self.assertFalse(decision.accepted)
+        self.assertEqual(decision.action, "stop")
+        self.assertEqual(decision.reason, "constraint_residual_contract_mismatch")
 
     def test_direction_preserving_slew_does_not_create_component_clip_unload(self) -> None:
         jacobian = np.eye(6)

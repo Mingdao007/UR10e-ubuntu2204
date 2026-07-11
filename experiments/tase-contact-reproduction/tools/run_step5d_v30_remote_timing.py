@@ -195,6 +195,66 @@ def value_distribution(values: Sequence[float]) -> dict[str, Any]:
     }
 
 
+def deferred_control_summary(
+    buffer: Any,
+    deferred_fields: Sequence[str],
+) -> dict[str, Any]:
+    """Summarize command-path and reference-ramp evidence after the loop."""
+
+    field = {name: index for index, name in enumerate(deferred_fields)}
+    values = buffer.numeric[: buffer.count]
+    accepted = values[:, field["accepted"]]
+    ramp_active = values[:, field["reference_ramp_active"]]
+    raw_desired = values[
+        :,
+        field["raw_desired_twist_0"] : field["raw_desired_twist_5"] + 1,
+    ]
+    governed_desired = values[
+        :,
+        field["governed_desired_twist_0"] : field["governed_desired_twist_5"] + 1,
+    ]
+    raw_to_governed_error = np.linalg.norm(
+        raw_desired - governed_desired,
+        axis=1,
+    )
+    execute_count = sum(
+        action == "execute" for action in buffer.actions[: buffer.count]
+    )
+    safe_hold_count = sum(
+        action == "safe_hold" for action in buffer.actions[: buffer.count]
+    )
+    accepted_count = int(np.count_nonzero(accepted == 1.0))
+    return {
+        "samples": int(buffer.count),
+        "accepted_count": accepted_count,
+        "execute_count": int(execute_count),
+        "safe_hold_count": int(safe_hold_count),
+        "execute_path_proven": bool(
+            buffer.count > 0
+            and accepted_count == buffer.count
+            and execute_count == buffer.count
+        ),
+        "reference_ramp_active_count": int(
+            np.count_nonzero(ramp_active == 1.0)
+        ),
+        "reference_ramp_scale": value_distribution(
+            values[:, field["reference_ramp_scale"]]
+        ),
+        "raw_to_governed_twist_error_norm": value_distribution(
+            raw_to_governed_error
+        ),
+        "residual_norm": value_distribution(
+            values[:, field["residual_norm"]]
+        ),
+        "desired_approach_m_s": value_distribution(
+            values[:, field["desired_approach_m_s"]]
+        ),
+        "predicted_approach_m_s": value_distribution(
+            values[:, field["predicted_approach_m_s"]]
+        ),
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--experiment-root", type=Path, default=Path.cwd())
@@ -228,6 +288,7 @@ def main() -> int:
         rnn_target_state_from_outer_loop,
     )
     from step5d_control_contract import (
+        build_slew_compatible_reference,
         ControlCandidate,
         DeferredV30Diagnostics,
         SafetyEnvelope,
@@ -567,13 +628,6 @@ def main() -> int:
             tick_started = time.perf_counter()
             outer, q, qd, jacobian, reaction, target = tick_inputs(row, outer_state)
             outer_state = outer.next_state
-            if index == 0:
-                solver.warm_start(
-                    J=jacobian,
-                    xdot_c=target["xdot_c"],
-                    omega_minus=target["omega_minus"],
-                    omega_plus=target["omega_plus"],
-                )
             observation = contract_observation(
                 row=row,
                 outer=outer,
@@ -585,9 +639,20 @@ def main() -> int:
                 sequence=index,
                 timestamp_s=tick_started,
             )
-            raw_candidate = policy.compute(observation)
-            candidate, _dls_shadow, decision, command = step5d_v30_contract_pipeline(
+            governed_observation = build_slew_compatible_reference(
                 observation,
+                previous_qdot=previous_qdot,
+            )
+            if index == 0:
+                solver.warm_start(
+                    J=governed_observation.jacobian,
+                    xdot_c=governed_observation.desired_twist,
+                    omega_minus=governed_observation.omega_minus,
+                    omega_plus=governed_observation.omega_plus,
+                )
+            raw_candidate = policy.compute(governed_observation)
+            candidate, _dls_shadow, decision, command = step5d_v30_contract_pipeline(
+                governed_observation,
                 raw_candidate,
                 previous_qdot=previous_qdot,
                 safety_envelope=safety_envelope,
@@ -760,27 +825,6 @@ def main() -> int:
             },
         }
 
-    deferred_field = {
-        name: index for index, name in enumerate(V30_DEFERRED_NUMERIC_FIELDS)
-    }
-
-    def deferred_control_summary(buffer: Any) -> dict[str, Any]:
-        values = buffer.numeric[: buffer.count]
-        accepted = values[:, deferred_field["accepted"]]
-        return {
-            "samples": int(buffer.count),
-            "accepted_count": int(np.count_nonzero(accepted == 1.0)),
-            "residual_norm": value_distribution(
-                values[:, deferred_field["residual_norm"]]
-            ),
-            "desired_approach_m_s": value_distribution(
-                values[:, deferred_field["desired_approach_m_s"]]
-            ),
-            "predicted_approach_m_s": value_distribution(
-                values[:, deferred_field["predicted_approach_m_s"]]
-            ),
-        }
-
     def miss_event_summary(
         indices: np.ndarray,
         total: int,
@@ -824,8 +868,14 @@ def main() -> int:
         "safe_hold_schedule_max_lateness_ms": safe_hold_schedule_max_lateness_ms,
         "full_tick_reason_counts": dict(sorted(full_tick_reason_counts.items())),
         "safe_hold_reason_counts": dict(sorted(safe_hold_reason_counts.items())),
-        "full_tick_control_diagnostics": deferred_control_summary(full_tick_deferred),
-        "safe_hold_control_diagnostics": deferred_control_summary(safe_hold_deferred),
+        "full_tick_control_diagnostics": deferred_control_summary(
+            full_tick_deferred,
+            V30_DEFERRED_NUMERIC_FIELDS,
+        ),
+        "safe_hold_control_diagnostics": deferred_control_summary(
+            safe_hold_deferred,
+            V30_DEFERRED_NUMERIC_FIELDS,
+        ),
         "deadline_miss_diagnostics": {
             "solver_compute": miss_event_summary(
                 solver_miss_indices,
@@ -853,7 +903,8 @@ def main() -> int:
             ),
         },
         "runtime_path": (
-            "Step5dObservation->StrictRnnControlPolicy->ControlCandidate->"
+            "Step5dObservation->SlewCompatibleReference->"
+            "StrictRnnControlPolicy->ControlCandidate->"
             "step5d_v30_contract_pipeline->SafetyEnvelope->RegisterCommand->"
             "DeferredV30Diagnostics"
         ),

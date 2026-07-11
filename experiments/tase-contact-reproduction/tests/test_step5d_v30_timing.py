@@ -11,6 +11,9 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+
+import numpy as np
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -109,12 +112,74 @@ class Step5dV30TimingTest(unittest.TestCase):
         self.assertIn('"accepted_count"', source)
         self.assertIn('"deadline_miss_diagnostics"', source)
         self.assertIn('"max_consecutive"', source)
-        self.assertIn("policy.compute(observation)", source)
+        self.assertIn('"reference_ramp_active_count"', source)
+        self.assertIn('"raw_to_governed_twist_error_norm"', source)
+        self.assertIn('"execute_path_proven"', source)
         self.assertIn("step5d_v30_contract_pipeline(", source)
         self.assertIn("step5d_tcp_jacobian_base(model_bundle, q, tcp_offset)", source)
         self.assertIn("print(json.dumps(payload", source)
+        full_loop = source[
+            source.index("for index in range(args.tick_samples):") :
+            source.index("full_tick_elapsed_wall_s =")
+        ]
+        self.assertIn("build_slew_compatible_reference(", full_loop)
+        self.assertIn("policy.compute(governed_observation)", full_loop)
+        self.assertIn("step5d_v30_contract_pipeline(\n                governed_observation", full_loop)
+        self.assertLess(
+            full_loop.index("build_slew_compatible_reference("),
+            full_loop.index("solver.warm_start("),
+        )
+        self.assertLess(
+            full_loop.index("build_slew_compatible_reference("),
+            full_loop.index("policy.compute(governed_observation)"),
+        )
+        safe_hold_loop = source[
+            source.index("for index in range(args.safe_hold_samples):") :
+            source.index("safe_hold_elapsed_wall_s =")
+        ]
+        self.assertNotIn("build_slew_compatible_reference(", safe_hold_loop)
+        self.assertIn("policy.compute(observation)", safe_hold_loop)
         for forbidden in ("RTDEClient", "dashboard_exchange", "socket.connect", "subprocess", "write_text", "write_bytes"):
             self.assertNotIn(forbidden, source)
+
+    def test_deferred_summary_proves_execute_path_and_reference_ramp(self) -> None:
+        fields = (
+            "accepted",
+            "reference_ramp_active",
+            "reference_ramp_scale",
+            "residual_norm",
+            "desired_approach_m_s",
+            "predicted_approach_m_s",
+            *(f"raw_desired_twist_{index}" for index in range(6)),
+            *(f"governed_desired_twist_{index}" for index in range(6)),
+        )
+        field = {name: index for index, name in enumerate(fields)}
+        numeric = np.zeros((2, len(fields)), dtype=float)
+        numeric[:, field["accepted"]] = 1.0
+        numeric[:, field["reference_ramp_scale"]] = (0.25, 1.0)
+        numeric[:, field["reference_ramp_active"]] = (1.0, 0.0)
+        numeric[0, field["raw_desired_twist_0"]] = 1.0
+        numeric[0, field["governed_desired_twist_0"]] = 0.25
+        numeric[1, field["raw_desired_twist_0"]] = 1.0
+        numeric[1, field["governed_desired_twist_0"]] = 1.0
+        buffer = SimpleNamespace(
+            count=2,
+            numeric=numeric,
+            actions=["execute", "execute"],
+        )
+
+        summary = remote_timing.deferred_control_summary(buffer, fields)
+
+        self.assertEqual(summary["accepted_count"], 2)
+        self.assertEqual(summary["execute_count"], 2)
+        self.assertEqual(summary["safe_hold_count"], 0)
+        self.assertTrue(summary["execute_path_proven"])
+        self.assertEqual(summary["reference_ramp_active_count"], 1)
+        self.assertEqual(summary["reference_ramp_scale"]["min"], 0.25)
+        self.assertEqual(
+            summary["raw_to_governed_twist_error_norm"]["max"],
+            0.75,
+        )
 
     def test_cupy_staging_is_fixed_and_page_locked(self) -> None:
         source = inspect.getsource(strict_rnn.StrictTaseRnnSolver._init_cupy_backend)
@@ -266,6 +331,16 @@ class Step5dV30TimingTest(unittest.TestCase):
             "elapsed_safe_hold_wall_s": 60.0,
             "full_tick_reason_counts": {"ok": 30000},
             "safe_hold_reason_counts": {"outer_approach_not_pressing": 30000},
+            "full_tick_control_diagnostics": {
+                "samples": 30000,
+                "accepted_count": 30000,
+                "execute_count": 30000,
+                "safe_hold_count": 0,
+                "execute_path_proven": True,
+                "reference_ramp_active_count": 113,
+                "reference_ramp_scale": {"min": 0.01, "max": 1.0},
+                "raw_to_governed_twist_error_norm": {"max": 0.012},
+            },
             "deadline_miss_diagnostics": {
                 "solver_compute": {"total": 0, "retained_indices": [], "overflowed": False},
                 "full_tick_compute": {"total": 0, "retained_indices": [], "overflowed": False, "max_consecutive": 0},
@@ -289,6 +364,31 @@ class Step5dV30TimingTest(unittest.TestCase):
         self.assertTrue(result["overall_pass"])
         self.assertEqual(result["solver"]["samples"], 10000)
         self.assertEqual(result["full_tick"]["deadline_miss_count"], 0)
+
+        no_execute = json.loads(json.dumps(payload))
+        no_execute["full_tick_reason_counts"] = {
+            "constraint_residual_norm_exceeded": 30000
+        }
+        no_execute["full_tick_control_diagnostics"].update(
+            {
+                "accepted_count": 0,
+                "execute_count": 0,
+                "safe_hold_count": 30000,
+                "execute_path_proven": False,
+            }
+        )
+        control_rejected = summarize_preaggregated(
+            no_execute,
+            expected_source_binding={
+                field: "1" * 64 for field in SOURCE_BINDING_FILES
+            },
+            expected_replay_sha256="2" * 64,
+            expected_paper_truth_sha256="2" * 64,
+        )
+        self.assertFalse(control_rejected["overall_pass"])
+        self.assertFalse(
+            control_rejected["deadline_robustness"]["timing_degraded_candidate"]
+        )
 
         payload["full_tick"]["compute_deadline_miss_count"] = 5
         payload["full_tick"]["max_ms"] = 2.16

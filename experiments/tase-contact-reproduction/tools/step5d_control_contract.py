@@ -50,6 +50,10 @@ class Step5dObservation:
     omega_minus: Vector6 = ZERO6
     omega_plus: Vector6 = ZERO6
     dt_s: float = 0.002
+    raw_desired_twist: Vector6 | None = None
+    reference_prior_qdot: Vector6 = ZERO6
+    reference_ramp_scale: float = 1.0
+    reference_ramp_active: bool = False
 
 
 @dataclass(frozen=True)
@@ -317,6 +321,113 @@ def _canonical_normals_in_command_frame(
     return reaction, approach, frame_transform_applied, None
 
 
+def build_slew_compatible_reference(
+    observation: Step5dObservation,
+    *,
+    previous_qdot: Vector6 | None,
+    max_slew_rad_s2: float = V30_QDOT_SLEW_RAD_S2,
+    dt_max_s: float = V30_GUARD_DT_MAX_S,
+) -> Step5dObservation:
+    """Govern a pressing twist before the strict-RNN solve.
+
+    The post-policy slew guard compares against the last accepted command.  A
+    large outer-loop target cannot be solved first and then slewed toward zero
+    while retaining the original Cartesian residual: that creates a permanent
+    reject-from-zero loop.  This helper instead interpolates in joint-command
+    space, then maps the governed command through the same Jacobian so the RNN,
+    post-slew residual, and SafetyEnvelope share one current reference.
+
+    ``previous_qdot`` must therefore be the last accepted command, never a
+    rejected proposal.  Non-pressing or already-invalid normal/frame and bound
+    cases are left unchanged for the authoritative SafetyEnvelope to reject
+    with its existing reason.  No DLS result is used here.
+    """
+
+    jacobian = _finite_array(observation.jacobian, (6, 6))
+    raw_desired = _finite_array(
+        observation.raw_desired_twist
+        if observation.raw_desired_twist is not None
+        else observation.desired_twist,
+        (6,),
+    )
+    prior = _finite_array(
+        ZERO6 if previous_qdot is None else previous_qdot,
+        (6,),
+    )
+    lower = _finite_array(observation.omega_minus, (6,))
+    upper = _finite_array(observation.omega_plus, (6,))
+    if any(value is None for value in (jacobian, raw_desired, prior, lower, upper)):
+        raise ValueError("reference ramp inputs must be finite canonical arrays")
+    if (
+        not math.isfinite(float(observation.dt_s))
+        or observation.dt_s <= 0.0
+        or not math.isfinite(float(max_slew_rad_s2))
+        or max_slew_rad_s2 <= 0.0
+        or not math.isfinite(float(dt_max_s))
+        or dt_max_s <= 0.0
+    ):
+        raise ValueError("reference ramp timing and rate must be finite and positive")
+    assert jacobian is not None and raw_desired is not None
+    assert prior is not None and lower is not None and upper is not None
+    if np.any(lower > upper):
+        raise ValueError("reference ramp bounds are invalid")
+
+    raw_tuple = tuple(float(value) for value in raw_desired)
+    prior_tuple = tuple(float(value) for value in prior)
+
+    def unchanged() -> Step5dObservation:
+        return replace(
+            observation,
+            desired_twist=raw_tuple,  # type: ignore[arg-type]
+            raw_desired_twist=raw_tuple,  # type: ignore[arg-type]
+            reference_prior_qdot=prior_tuple,  # type: ignore[arg-type]
+            reference_ramp_scale=1.0,
+            reference_ramp_active=False,
+        )
+
+    _reaction, approach, _frame_transform_applied, normal_error = (
+        _canonical_normals_in_command_frame(observation)
+    )
+    if normal_error is not None or approach is None:
+        return unchanged()
+    if float(np.dot(raw_desired[:3], approach)) <= 0.0:
+        return unchanged()
+
+    goal = np.linalg.solve(jacobian, raw_desired)
+    if goal.shape != (6,) or not np.all(np.isfinite(goal)):
+        raise ValueError("reference ramp inverse solve produced nonfinite qdot")
+    bounds_tolerance = 1e-12
+    if (
+        np.any(prior < lower - bounds_tolerance)
+        or np.any(prior > upper + bounds_tolerance)
+        or np.any(goal < lower - bounds_tolerance)
+        or np.any(goal > upper + bounds_tolerance)
+    ):
+        return unchanged()
+
+    delta = goal - prior
+    delta_limit = float(max_slew_rad_s2) * min(
+        float(observation.dt_s),
+        float(dt_max_s),
+    )
+    max_delta = float(np.max(np.abs(delta)))
+    scale = (
+        1.0
+        if max_delta <= delta_limit or max_delta <= 0.0
+        else delta_limit / max_delta
+    )
+    reference_qdot = prior + scale * delta
+    governed_desired = jacobian @ reference_qdot
+    return replace(
+        observation,
+        desired_twist=tuple(float(value) for value in governed_desired),  # type: ignore[arg-type]
+        raw_desired_twist=raw_tuple,  # type: ignore[arg-type]
+        reference_prior_qdot=prior_tuple,  # type: ignore[arg-type]
+        reference_ramp_scale=scale,
+        reference_ramp_active=scale < 1.0,
+    )
+
+
 @dataclass
 class _ControlTickWorkspace:
     """Validated arrays shared only within one production control tick.
@@ -500,6 +611,7 @@ class SafetyEnvelope:
         computed_twist = J @ qdot
         if not np.allclose(computed_twist, claimed_twist, atol=self.predicted_twist_tolerance, rtol=0.0):
             return self._decision(False, "stop", "predicted_twist_contract_mismatch")
+        computed_residual = float(np.linalg.norm(computed_twist - desired))
         qdot_max = float(np.max(np.abs(qdot)))
         if qdot_max > float(self.qdot_cap_rad_s) + 1e-12:
             return self._decision(False, "stop", "qdot_bound_exceeded", qdot_max_abs_rad_s=qdot_max)
@@ -512,7 +624,7 @@ class SafetyEnvelope:
             "predicted_approach_m_s": predicted_approach,
             "normal_tracking_error_m_s": normal_tracking_error,
             "qdot_max_abs_rad_s": qdot_max,
-            "residual_norm": float(candidate.residual_norm),
+            "residual_norm": computed_residual,
             "active_bounds_count": float(candidate.active_bounds_count),
             "frame_transform_applied": frame_transform_applied,
         }
@@ -522,7 +634,20 @@ class SafetyEnvelope:
             return self._decision(False, "safe_hold", "approach_normal_unload_mismatch", **metrics)
         if normal_tracking_error > float(self.max_normal_tracking_error_m_s):
             return self._decision(False, "safe_hold", "approach_normal_tracking_error", **metrics)
-        if float(candidate.residual_norm) > float(self.max_residual_norm):
+        if not math.isclose(
+            computed_residual,
+            float(candidate.residual_norm),
+            rel_tol=0.0,
+            abs_tol=self.predicted_twist_tolerance,
+        ):
+            return self._decision(
+                False,
+                "stop",
+                "constraint_residual_contract_mismatch",
+                computed_residual_norm=computed_residual,
+                claimed_residual_norm=float(candidate.residual_norm),
+            )
+        if computed_residual > float(self.max_residual_norm):
             return self._decision(False, "safe_hold", "constraint_residual_norm_exceeded", **metrics)
         if int(candidate.active_bounds_count) > 0:
             return self._decision(False, "safe_hold", "active_bounds_present", **metrics)
@@ -797,8 +922,15 @@ def step5d_v30_control_step(
     cannot escape before an exact-zero stop command and evidence row exist.
     """
 
+    governed_observation = observation
     try:
-        raw_candidate = policy.compute(observation)
+        governed_observation = build_slew_compatible_reference(
+            observation,
+            previous_qdot=previous_qdot,
+            max_slew_rad_s2=max_slew_rad_s2,
+            dt_max_s=dt_max_s,
+        )
+        raw_candidate = policy.compute(governed_observation)
         if not isinstance(raw_candidate, ControlCandidate):
             raise TypeError("ControlPolicy must return ControlCandidate")
     except (
@@ -811,12 +943,12 @@ def step5d_v30_control_step(
         TypeError,
     ) as exc:
         return fail_closed_control_step(
-            observation,
+            governed_observation,
             reason=f"strict_rnn_policy_failure:{type(exc).__name__}",
             deferred_diagnostics=deferred_diagnostics,
         )
     return step5d_v30_contract_pipeline(
-        observation,
+        governed_observation,
         raw_candidate,
         previous_qdot=previous_qdot,
         safety_envelope=safety_envelope,
@@ -839,6 +971,11 @@ V30_DEFERRED_NUMERIC_FIELDS = (
     "active_bounds_count",
     "desired_approach_m_s",
     "predicted_approach_m_s",
+    "reference_ramp_scale",
+    "reference_ramp_active",
+    *(f"raw_desired_twist_{index}" for index in range(6)),
+    *(f"governed_desired_twist_{index}" for index in range(6)),
+    *(f"reference_prior_qdot_{index}" for index in range(6)),
     *(f"qdot_{index}" for index in range(6)),
     *(f"predicted_twist_{index}" for index in range(6)),
     *(f"dls_shadow_qdot_{index}" for index in range(6)),
@@ -878,6 +1015,18 @@ class DeferredV30Diagnostics:
         }
         self._qdot_slice = slice(
             self._field_index["qdot_0"], self._field_index["qdot_5"] + 1
+        )
+        self._raw_desired_slice = slice(
+            self._field_index["raw_desired_twist_0"],
+            self._field_index["raw_desired_twist_5"] + 1,
+        )
+        self._governed_desired_slice = slice(
+            self._field_index["governed_desired_twist_0"],
+            self._field_index["governed_desired_twist_5"] + 1,
+        )
+        self._reference_prior_qdot_slice = slice(
+            self._field_index["reference_prior_qdot_0"],
+            self._field_index["reference_prior_qdot_5"] + 1,
         )
         self._predicted_slice = slice(
             self._field_index["predicted_twist_0"],
@@ -924,6 +1073,19 @@ class DeferredV30Diagnostics:
         row[field["predicted_approach_m_s"]] = float(
             decision.metrics.get("predicted_approach_m_s", math.nan)
         )
+        row[field["reference_ramp_scale"]] = float(
+            observation.reference_ramp_scale
+        )
+        row[field["reference_ramp_active"]] = (
+            1.0 if observation.reference_ramp_active else 0.0
+        )
+        row[self._raw_desired_slice] = (
+            observation.raw_desired_twist
+            if observation.raw_desired_twist is not None
+            else observation.desired_twist
+        )
+        row[self._governed_desired_slice] = observation.desired_twist
+        row[self._reference_prior_qdot_slice] = observation.reference_prior_qdot
         row[self._qdot_slice] = candidate.qdot
         row[self._predicted_slice] = candidate.predicted_twist
         if dls_shadow is None:

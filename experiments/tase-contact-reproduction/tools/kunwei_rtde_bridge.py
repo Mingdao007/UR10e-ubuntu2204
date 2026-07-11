@@ -87,6 +87,7 @@ from step5d_control_contract import (  # noqa: E402
     Step5dObservation,
     StrictRnnControlPolicy,
     apply_direction_preserving_slew,
+    build_slew_compatible_reference,
     compute_dls_shadow,
     decision_to_register_command,
     step5d_v30_contract_pipeline as shared_step5d_v30_contract_pipeline,
@@ -5158,11 +5159,27 @@ def compute_bridge_values(
                         omega_plus=tuple(float(value) for value in omega_plus),  # type: ignore[arg-type]
                         dt_s=float(dt_s),
                     )
+                    observation_v30 = build_slew_compatible_reference(
+                        observation_v30,
+                        previous_qdot=(
+                            tuple(float(value) for value in state.step5d_last_qdot)
+                            if state.step5d_last_qdot is not None
+                            else None
+                        ),
+                    )
+                    # Warm-start and the strict-RNN solve must see the same
+                    # slew-compatible reference later checked by the
+                    # SafetyEnvelope.  The raw outer reference remains bound
+                    # in observation_v30.raw_desired_twist for evidence.
+                    target_state["xdot_c"] = np.asarray(
+                        observation_v30.desired_twist,
+                        dtype=float,
+                    )
                 try:
                     if step5d_stage25_control_mode == "speedj_rnn_live" and apply_step5d_solver_warm_start_if_pending(
                         state,
                         jacobian=jacobian,
-                        xdot_c=step5d_outer_xdot_joint_feasible,
+                        xdot_c=np.asarray(target_state["xdot_c"], dtype=float),
                         omega_minus=omega_minus,
                         omega_plus=omega_plus,
                     ):
@@ -6871,6 +6888,39 @@ def apply_step5d_deadline_overrun_hold(bridge_values: dict[str, float]) -> None:
         bridge_values[name] = 0.0
     bridge_values["step4e_cmd_valid"] = 1.0
     bridge_values["step4e_controller_state"] = STEP5D_STAGE25_JOINT_LAYOUT_CODE
+
+
+def finalize_step5d_publish_history(
+    state: "BridgeState",
+    *,
+    v30_contract_profile: bool,
+    deadline_overrun_hold_active: bool,
+    rtde_send_succeeded: bool,
+) -> bool:
+    """Commit v30 command history only after a fresh RTDE packet is sent.
+
+    ``compute_bridge_values`` necessarily computes the next candidate before
+    the RTDE write and therefore updates the in-memory solver/qdot history
+    optimistically.  A deadline hold publishes a repeated-heartbeat zero
+    packet, while a failed or absent RTDE connection publishes nothing.  None
+    of those outcomes may become the previous command for the next solve.
+
+    Older profiles intentionally keep their historical bookkeeping semantics;
+    this rollback contract is scoped to the inactive v30/P0 control contract.
+    """
+
+    if not v30_contract_profile:
+        return not deadline_overrun_hold_active
+    fresh_candidate_published = bool(
+        rtde_send_succeeded and not deadline_overrun_hold_active
+    )
+    if fresh_candidate_published:
+        return True
+    if state.step5d_solver is not None:
+        state.step5d_solver.reset_state()
+    state.step5d_last_qdot = None
+    state.step5d_pending_solver_warm_start = True
+    return False
 
 
 def request_v29_fail_stop_dashboard_stop(args: argparse.Namespace) -> dict[str, Any]:
@@ -9065,7 +9115,15 @@ def main(argv: list[str] | None = None) -> int:
                     last_csv_write_s = time.perf_counter() - csv_write_start
                     bridge_writes += 1
                     bridge_write_times.append(now)
-                    if not deadline_overrun_hold_active:
+                    fresh_candidate_published = finalize_step5d_publish_history(
+                        step4e_state,
+                        v30_contract_profile=uses_v30_control_contract(
+                            args.bridge_profile
+                        ),
+                        deadline_overrun_hold_active=deadline_overrun_hold_active,
+                        rtde_send_succeeded=rtde_send_succeeded,
+                    )
+                    if fresh_candidate_published:
                         last_published_heartbeat = heartbeat
                         heartbeat += 1.0
                     p0_v8_canary_guard = bool(
