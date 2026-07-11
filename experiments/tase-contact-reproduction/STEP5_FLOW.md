@@ -47,8 +47,16 @@ consecutive missed slots, and no more than 0.5 ms schedule lateness.
 
 The v30/P0 production runtime and formal timing harness share one scheduler
 contract: `SCHED_FIFO` priority `20`. The 10,000-solve microbenchmark yields
-for an unmeasured `2 ms` after each 100 solves to avoid Linux RT throttling;
-the 500 Hz full-tick and safe-hold loops keep their original pacing unchanged.
+for an unmeasured `2 ms` after each 100 steady solves to avoid Linux RT
+throttling. After each of the 99 yields at steady-sample boundaries
+`100..9900`, the harness times one separate solver batch-reentry and retains
+all 99 raw values plus their miss indices. These reentries are explicit
+diagnostics, not discarded outliers and not members of the 10,000-sample
+steady solver distribution to which the 2 ms solver gate applies. A hard
+500 Hz claim still independently requires zero full-tick deadline misses; the
+500 Hz full-tick and safe-hold loops keep their original pacing unchanged.
+The required raw timing schema is now `step5d_v30_remote_timing_raw_v2`;
+pre-v2 formal candidates cannot satisfy the current aggregator binding.
 
 The latest hash-bound MuJoCo offline diagnostic completed all three simulated
 `2 -> 10 -> 60 s` phases through the shared production control path. Every

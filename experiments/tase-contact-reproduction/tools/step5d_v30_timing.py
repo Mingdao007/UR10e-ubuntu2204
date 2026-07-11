@@ -41,6 +41,25 @@ EXPECTED_THREAD_ENVIRONMENT = {
     "MKL_NUM_THREADS": "1",
     "NUMEXPR_NUM_THREADS": "1",
 }
+SOLVER_BATCH_SIZE = 100
+SOLVER_BATCH_REENTRY_SAMPLES = 99
+SOLVER_BATCH_REENTRY_BOUNDARIES = list(range(100, 10_000, 100))
+EXPECTED_SOLVER_MICROBENCHMARK_PACING = {
+    "mode": "unmeasured_fixed_batch_yield_with_measured_reentry",
+    "batch_size": SOLVER_BATCH_SIZE,
+    "yield_s": 0.002,
+    "yield_included_in_single_solve_latency": False,
+    "steady_samples": 10_000,
+    "steady_samples_per_batch": SOLVER_BATCH_SIZE,
+    "measured_reentry_after_each_yield": True,
+    "reentry_samples": SOLVER_BATCH_REENTRY_SAMPLES,
+    "reentry_sample_boundaries": SOLVER_BATCH_REENTRY_BOUNDARIES,
+    "reentry_included_in_steady_solver_summary": False,
+    "all_reentry_samples_retained_raw": True,
+    "reason": "avoid_linux_sched_fifo_runtime_throttling_during_10k_stress",
+    "full_tick_loop_affected": False,
+    "safe_hold_loop_affected": False,
+}
 
 
 @dataclass(frozen=True)
@@ -127,7 +146,7 @@ def summarize_timing(
 
         compact.update(
             {
-                "schema_version": "step5d_v30_remote_timing_raw_v1",
+                "schema_version": "step5d_v30_remote_timing_raw_v2",
                 "first_post_warm_ms": float(first_post_warm_ms),
                 "solver": remote_distribution(solver),
                 "full_tick": remote_distribution(tick),
@@ -226,7 +245,7 @@ def summarize_preaggregated(
         blockers.append("remote_timing_expected_replay_sha256_missing")
     if expected_paper_truth_sha256 is None:
         blockers.append("remote_timing_expected_paper_truth_sha256_missing")
-    if payload.get("schema_version") != "step5d_v30_remote_timing_raw_v1":
+    if payload.get("schema_version") != "step5d_v30_remote_timing_raw_v2":
         blockers.append("remote_timing_schema_mismatch")
     if payload.get("profile") != expected_profile:
         blockers.append("remote_runtime_profile_mismatch")
@@ -280,16 +299,11 @@ def summarize_preaggregated(
             blockers.append("remote_timing_diagnostic_profile_override")
     if payload.get("precompile_outside_control_loop") is not True:
         blockers.append("cupy_precompile_not_proven_outside_loop")
-    if payload.get("solver_microbenchmark_pacing") != {
-        "mode": "unmeasured_fixed_batch_yield",
-        "batch_size": 100,
-        "yield_s": 0.002,
-        "yield_included_in_single_solve_latency": False,
-        "reason": "avoid_linux_sched_fifo_runtime_throttling_during_10k_stress",
-        "full_tick_loop_affected": False,
-        "safe_hold_loop_affected": False,
-    }:
-        blockers.append("solver_microbenchmark_unmeasured_batch_yield_unbound")
+    if (
+        payload.get("solver_microbenchmark_pacing")
+        != EXPECTED_SOLVER_MICROBENCHMARK_PACING
+    ):
+        blockers.append("solver_microbenchmark_batch_reentry_pacing_unbound")
     if payload.get("cupy_host_staging_pinned") is not True:
         blockers.append("cupy_host_staging_not_pinned")
     if payload.get("cupy_dedicated_stream") is not True:
@@ -420,6 +434,95 @@ def summarize_preaggregated(
         maximum = result["max_ms"]
         if not isinstance(maximum, (int, float)) or not math.isfinite(float(maximum)) or float(maximum) >= thresholds.hard_deadline_ms:
             blockers.append(f"{label}_max_reaches_2ms_deadline")
+
+    reentry_raw_source = payload.get("solver_batch_reentry_ms")
+    reentry_raw_valid = bool(
+        isinstance(reentry_raw_source, list)
+        and all(
+            isinstance(value, (int, float)) and not isinstance(value, bool)
+            for value in reentry_raw_source
+        )
+    )
+    if not reentry_raw_valid:
+        blockers.append("solver_batch_reentry_raw_missing_or_invalid")
+        reentry_raw: list[float] = []
+    else:
+        reentry_raw = [float(value) for value in reentry_raw_source]
+    if len(reentry_raw) != SOLVER_BATCH_REENTRY_SAMPLES:
+        blockers.append("solver_batch_reentry_sample_count_invalid")
+
+    computed_reentry = _distribution(
+        reentry_raw,
+        hard_deadline_ms=thresholds.hard_deadline_ms,
+    )
+    reentry_source = payload.get("solver_batch_reentry")
+    if not isinstance(reentry_source, dict):
+        reentry_source = {}
+        blockers.append("solver_batch_reentry_summary_missing")
+    reentry = {
+        "samples": int(reentry_source.get("samples", 0) or 0),
+        "nonfinite_count": int(reentry_source.get("nonfinite_count", 0) or 0),
+        "mean_ms": reentry_source.get("mean_ms"),
+        "p95_ms": reentry_source.get("p95_ms"),
+        "p99_ms": reentry_source.get("p99_ms"),
+        "max_ms": reentry_source.get("max_ms"),
+        "deadline_miss_count": int(
+            reentry_source.get("compute_deadline_miss_count", 0) or 0
+        ),
+    }
+    computed_reentry_summary = {
+        "samples": computed_reentry["samples"],
+        "nonfinite_count": computed_reentry["nonfinite_count"],
+        "mean_ms": computed_reentry["mean_ms"],
+        "p95_ms": computed_reentry["p95_ms"],
+        "p99_ms": computed_reentry["p99_ms"],
+        "max_ms": computed_reentry["max_ms"],
+        "deadline_miss_count": computed_reentry["deadline_miss_count"],
+    }
+
+    def distribution_value_matches(left: Any, right: Any) -> bool:
+        if left is None or right is None:
+            return left is right
+        if isinstance(left, (int, float)) and isinstance(right, (int, float)):
+            return math.isclose(
+                float(left),
+                float(right),
+                rel_tol=1e-12,
+                abs_tol=1e-12,
+            )
+        return left == right
+
+    if not all(
+        distribution_value_matches(reentry.get(field), expected)
+        for field, expected in computed_reentry_summary.items()
+    ):
+        blockers.append("solver_batch_reentry_summary_binding_mismatch")
+    if computed_reentry["nonfinite_count"]:
+        blockers.append("solver_batch_reentry_nonfinite_timing")
+
+    reentry_miss_indices = [
+        index
+        for index, value in enumerate(reentry_raw)
+        if math.isfinite(value) and value >= thresholds.hard_deadline_ms
+    ]
+    miss_diagnostics = payload.get("deadline_miss_diagnostics")
+    miss_diagnostics = (
+        miss_diagnostics if isinstance(miss_diagnostics, dict) else {}
+    )
+    reentry_miss_diagnostics = miss_diagnostics.get(
+        "solver_batch_reentry_compute"
+    )
+    reentry_miss_diagnostics_valid = bool(
+        isinstance(reentry_miss_diagnostics, dict)
+        and reentry_miss_diagnostics.get("total") == len(reentry_miss_indices)
+        and reentry_miss_diagnostics.get("retained_indices")
+        == reentry_miss_indices
+        and reentry_miss_diagnostics.get("capacity")
+        == SOLVER_BATCH_REENTRY_SAMPLES
+        and reentry_miss_diagnostics.get("overflowed") is False
+    )
+    if not reentry_miss_diagnostics_valid:
+        blockers.append("solver_batch_reentry_miss_diagnostics_unbound")
 
     first_post_warm = payload.get("first_post_warm_ms")
     if (
@@ -587,12 +690,9 @@ def summarize_preaggregated(
     )
     full_lateness = payload.get("full_tick_schedule_max_lateness_ms")
     safe_lateness = payload.get("safe_hold_schedule_max_lateness_ms")
-    miss_diagnostics = payload.get("deadline_miss_diagnostics")
-    miss_diagnostics = (
-        miss_diagnostics if isinstance(miss_diagnostics, dict) else {}
-    )
     expected_miss_totals = {
         "solver_compute": normalized["solver"]["deadline_miss_count"],
+        "solver_batch_reentry_compute": reentry["deadline_miss_count"],
         "full_tick_compute": normalized["full_tick"]["deadline_miss_count"],
         "full_tick_schedule": schedule_misses,
         "safe_hold_compute": normalized["safe_hold"]["deadline_miss_count"],
@@ -605,6 +705,7 @@ def summarize_preaggregated(
             and miss_diagnostics[label].get("overflowed") is False
             for label, expected in expected_miss_totals.items()
         )
+        and reentry_miss_diagnostics_valid
         and all(
             int((miss_diagnostics.get(label) or {}).get("max_consecutive", 0))
             <= thresholds.degraded_max_consecutive_misses
@@ -675,6 +776,27 @@ def summarize_preaggregated(
             "solver_microbenchmark_pacing"
         ),
         "solver": normalized["solver"],
+        "solver_batch_reentry": reentry,
+        "solver_batch_reentry_evidence": {
+            "raw_samples_bound": bool(
+                reentry_raw_valid
+                and len(reentry_raw) == SOLVER_BATCH_REENTRY_SAMPLES
+                and not computed_reentry["nonfinite_count"]
+                and reentry_miss_diagnostics_valid
+            ),
+            "samples": len(reentry_raw),
+            "steady_sample_boundaries": SOLVER_BATCH_REENTRY_BOUNDARIES,
+            "deadline_miss_indices": reentry_miss_indices,
+            "deadline_miss_count": len(reentry_miss_indices),
+            "hard_solver_deadline_gate_applied": False,
+            "steady_solver_hard_deadline_gate_applied": True,
+            "full_tick_zero_miss_required_for_hard_acceptance": True,
+            "acceptance_scope": (
+                "diagnostic_only; every post-yield reentry is retained but the "
+                "2 ms hard solver gate applies to the separate 10,000 steady "
+                "samples"
+            ),
+        },
         "full_tick": normalized["full_tick"],
         "safe_hold": normalized["safe_hold"],
         "full_tick_schedule_deadline_miss_count": schedule_misses,
@@ -715,7 +837,9 @@ def summarize_preaggregated(
             "safe_hold_miss_budget": degraded_safe_budget,
             "unrelated_blockers": degraded_unrelated_blockers,
             "claim_boundary": (
-                "bounded tail latency candidate only; not a 500 Hz hard-real-time claim"
+                "the 2 ms solver gate applies to 10,000 steady samples; all 99 "
+                "post-yield reentries remain explicit diagnostics, and a hard "
+                "500 Hz claim still requires zero full-tick deadline misses"
             ),
         },
         "safety_boundary": payload.get("safety_boundary", []),

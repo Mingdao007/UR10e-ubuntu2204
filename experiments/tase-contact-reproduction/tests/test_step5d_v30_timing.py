@@ -31,7 +31,10 @@ from step5d_paper_outer_loop import (  # noqa: E402
     compute_step5d_outer_loop,
 )
 from step5d_v30_timing import (  # noqa: E402
+    EXPECTED_SOLVER_MICROBENCHMARK_PACING,
     SOURCE_BINDING_FILES,
+    SOLVER_BATCH_REENTRY_BOUNDARIES,
+    SOLVER_BATCH_REENTRY_SAMPLES,
     TimingThresholds,
     summarize_preaggregated,
     summarize_timing,
@@ -39,6 +42,19 @@ from step5d_v30_timing import (  # noqa: E402
 
 
 class Step5dV30TimingTest(unittest.TestCase):
+    def test_formal_solver_batch_reentry_contract_is_exact(self) -> None:
+        self.assertEqual(remote_timing.SOLVER_BATCH_SIZE, 100)
+        self.assertEqual(SOLVER_BATCH_REENTRY_SAMPLES, 99)
+        self.assertEqual(len(SOLVER_BATCH_REENTRY_BOUNDARIES), 99)
+        self.assertEqual(SOLVER_BATCH_REENTRY_BOUNDARIES[0], 100)
+        self.assertEqual(SOLVER_BATCH_REENTRY_BOUNDARIES[-1], 9900)
+        self.assertEqual(
+            EXPECTED_SOLVER_MICROBENCHMARK_PACING[
+                "reentry_sample_boundaries"
+            ],
+            list(range(100, 10_000, 100)),
+        )
+
     def test_inner_iteration_override_is_explicitly_diagnostic_and_bound(self) -> None:
         canonical = remote_timing.build_profile_selection(None)
         explicit_canonical = remote_timing.build_profile_selection(512)
@@ -161,6 +177,8 @@ class Step5dV30TimingTest(unittest.TestCase):
         self.assertIn('"full_tick_control_diagnostics"', source)
         self.assertIn('"accepted_count"', source)
         self.assertIn('"deadline_miss_diagnostics"', source)
+        self.assertIn('"solver_batch_reentry_ms"', source)
+        self.assertIn('"solver_batch_reentry_compute"', source)
         self.assertIn('"max_consecutive"', source)
         self.assertIn('"reference_ramp_active_count"', source)
         self.assertIn('"raw_to_governed_twist_error_norm"', source)
@@ -177,7 +195,15 @@ class Step5dV30TimingTest(unittest.TestCase):
         self.assertIn("time.sleep(SOLVER_BATCH_YIELD_S)", solver_loop)
         self.assertLess(
             solver_loop.index("time.sleep(SOLVER_BATCH_YIELD_S)"),
-            solver_loop.index("started = time.perf_counter()"),
+            solver_loop.index("reentry_started = time.perf_counter()"),
+        )
+        self.assertLess(
+            solver_loop.index("reentry_started = time.perf_counter()"),
+            solver_loop.index("steady_started = time.perf_counter()"),
+        )
+        self.assertIn(
+            "solver_batch_reentry_count = (args.solver_samples - 1) // SOLVER_BATCH_SIZE",
+            source,
         )
         full_loop = source[
             source.index("for index in range(args.tick_samples):") :
@@ -340,9 +366,9 @@ class Step5dV30TimingTest(unittest.TestCase):
         self.assertEqual(compact.cmd_valid, full.cmd_valid)
         self.assertEqual(compact.diagnostics, {})
 
-    def test_compact_remote_payload_is_accepted_without_raw_samples(self) -> None:
+    def test_compact_remote_payload_is_accepted_without_steady_raw_samples(self) -> None:
         payload = {
-            "schema_version": "step5d_v30_remote_timing_raw_v1",
+            "schema_version": "step5d_v30_remote_timing_raw_v2",
             "source_binding": {
                 "delivery": "stdin_bundle",
                 **{field: "1" * 64 for field in SOURCE_BINDING_FILES},
@@ -380,15 +406,26 @@ class Step5dV30TimingTest(unittest.TestCase):
             "model_prepare_ms": 20.0,
             "first_post_warm_ms": 1.7,
             "solver_microbenchmark_pacing": {
-                "mode": "unmeasured_fixed_batch_yield",
+                "mode": "unmeasured_fixed_batch_yield_with_measured_reentry",
                 "batch_size": 100,
                 "yield_s": 0.002,
                 "yield_included_in_single_solve_latency": False,
+                "steady_samples": 10000,
+                "steady_samples_per_batch": 100,
+                "measured_reentry_after_each_yield": True,
+                "reentry_samples": 99,
+                "reentry_sample_boundaries": list(range(100, 10000, 100)),
+                "reentry_included_in_steady_solver_summary": False,
+                "all_reentry_samples_retained_raw": True,
                 "reason": "avoid_linux_sched_fifo_runtime_throttling_during_10k_stress",
                 "full_tick_loop_affected": False,
                 "safe_hold_loop_affected": False,
             },
             "solver": {"samples": 10000, "nonfinite_count": 0, "mean_ms": 1.2, "p95_ms": 1.3, "p99_ms": 1.4, "max_ms": 1.7, "compute_deadline_miss_count": 0},
+            "solver_batch_reentry_ms": [0.8] * 98 + [2.1],
+            "solver_batch_reentry": remote_timing.distribution(
+                [0.8] * 98 + [2.1]
+            ),
             "full_tick": {"samples": 30000, "nonfinite_count": 0, "mean_ms": 1.5, "p95_ms": 1.6, "p99_ms": 1.7, "max_ms": 1.9, "compute_deadline_miss_count": 0},
             "safe_hold": {"samples": 30000, "nonfinite_count": 0, "mean_ms": 0.05, "p95_ms": 0.06, "p99_ms": 0.07, "max_ms": 0.1, "compute_deadline_miss_count": 0},
             "full_tick_schedule_deadline_miss_count": 0,
@@ -482,6 +519,12 @@ class Step5dV30TimingTest(unittest.TestCase):
             },
             "deadline_miss_diagnostics": {
                 "solver_compute": {"total": 0, "retained_indices": [], "overflowed": False},
+                "solver_batch_reentry_compute": {
+                    "total": 1,
+                    "retained_indices": [98],
+                    "capacity": 99,
+                    "overflowed": False,
+                },
                 "full_tick_compute": {"total": 0, "retained_indices": [], "overflowed": False, "max_consecutive": 0},
                 "full_tick_schedule": {"total": 0, "retained_indices": [], "overflowed": False, "max_consecutive": 0},
                 "safe_hold_compute": {"total": 0, "retained_indices": [], "overflowed": False, "max_consecutive": 0},
@@ -506,10 +549,47 @@ class Step5dV30TimingTest(unittest.TestCase):
 
         self.assertTrue(result["overall_pass"])
         self.assertEqual(result["solver"]["samples"], 10000)
+        self.assertEqual(result["solver_batch_reentry"]["samples"], 99)
+        self.assertEqual(result["solver_batch_reentry"]["deadline_miss_count"], 1)
+        self.assertEqual(
+            result["solver_batch_reentry_evidence"]["deadline_miss_indices"],
+            [98],
+        )
+        self.assertTrue(result["solver_batch_reentry_evidence"]["raw_samples_bound"])
+        self.assertFalse(
+            result["solver_batch_reentry_evidence"][
+                "hard_solver_deadline_gate_applied"
+            ]
+        )
+        self.assertTrue(
+            result["solver_batch_reentry_evidence"][
+                "full_tick_zero_miss_required_for_hard_acceptance"
+            ]
+        )
         self.assertEqual(result["full_tick"]["deadline_miss_count"], 0)
         self.assertEqual(
             result["runtime_scheduling_classification"],
             "production_sched_fifo_priority_20",
+        )
+
+        tampered_reentry = json.loads(json.dumps(payload))
+        tampered_reentry["solver_batch_reentry_ms"][98] = 0.7
+        tampered_result = summarize_preaggregated(
+            tampered_reentry,
+            expected_source_binding={
+                field: "1" * 64 for field in SOURCE_BINDING_FILES
+            },
+            expected_replay_sha256="2" * 64,
+            expected_paper_truth_sha256="2" * 64,
+        )
+        self.assertFalse(tampered_result["overall_pass"])
+        self.assertIn(
+            "solver_batch_reentry_summary_binding_mismatch",
+            tampered_result["blockers"],
+        )
+        self.assertIn(
+            "solver_batch_reentry_miss_diagnostics_unbound",
+            tampered_result["blockers"],
         )
 
         wrong_scheduler = json.loads(json.dumps(payload))
@@ -665,7 +745,7 @@ class Step5dV30TimingTest(unittest.TestCase):
 
     def test_compact_remote_payload_fails_on_schedule_miss(self) -> None:
         payload = {
-            "schema_version": "step5d_v30_remote_timing_raw_v1",
+            "schema_version": "step5d_v30_remote_timing_raw_v2",
             "source_binding": {
                 "delivery": "stdin_bundle",
                 **{field: "1" * 64 for field in SOURCE_BINDING_FILES},
@@ -749,7 +829,7 @@ class Step5dV30TimingTest(unittest.TestCase):
 
     def test_compact_remote_payload_requires_independent_safe_hold_schedule(self) -> None:
         payload = {
-            "schema_version": "step5d_v30_remote_timing_raw_v1",
+            "schema_version": "step5d_v30_remote_timing_raw_v2",
             "source_binding": {
                 "delivery": "stdin_bundle",
                 **{field: "1" * 64 for field in SOURCE_BINDING_FILES},

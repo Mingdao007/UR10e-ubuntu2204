@@ -837,14 +837,24 @@ def main() -> int:
     # Avoid list growth and cyclic-GC scans in the measured loops.  Reference
     # counting remains active; the previous GC state is always restored.
     solver_ms = np.empty(args.solver_samples, dtype=np.float64)
+    solver_batch_reentry_count = (args.solver_samples - 1) // SOLVER_BATCH_SIZE
+    solver_batch_reentry_ms = np.empty(
+        solver_batch_reentry_count,
+        dtype=np.float64,
+    )
     full_tick_ms = np.empty(args.tick_samples, dtype=np.float64)
     safe_hold_ms = np.empty(args.safe_hold_samples, dtype=np.float64)
     solver_miss_indices = np.empty(DEADLINE_EVENT_CAPACITY, dtype=np.int64)
+    solver_batch_reentry_miss_indices = np.empty(
+        solver_batch_reentry_count,
+        dtype=np.int64,
+    )
     full_compute_miss_indices = np.empty(DEADLINE_EVENT_CAPACITY, dtype=np.int64)
     full_schedule_miss_indices = np.empty(DEADLINE_EVENT_CAPACITY, dtype=np.int64)
     safe_compute_miss_indices = np.empty(DEADLINE_EVENT_CAPACITY, dtype=np.int64)
     safe_schedule_miss_indices = np.empty(DEADLINE_EVENT_CAPACITY, dtype=np.int64)
     solver_miss_total = 0
+    solver_batch_reentry_miss_total = 0
     full_compute_miss_total = 0
     full_schedule_miss_total = 0
     safe_compute_miss_total = 0
@@ -893,19 +903,44 @@ def main() -> int:
     gc.collect()
     gc.disable()
     try:
+        solver_batch_reentry_index = 0
         for index in range(args.solver_samples):
             if index and index % SOLVER_BATCH_SIZE == 0:
                 # Keep the full-speed microbenchmark from exhausting Linux's
-                # realtime runtime budget. This yield is outside the measured
-                # single-solve interval; the 500 Hz full/safe loops are unchanged.
+                # realtime runtime budget.  The yield itself remains outside
+                # every solve interval.  The first solve after each yield is
+                # timed and retained separately as batch-reentry evidence; it
+                # is not silently discarded or mixed into the 10k steady
+                # solver samples below.  The 500 Hz full/safe loops are
+                # unchanged.
                 time.sleep(SOLVER_BATCH_YIELD_S)
-            started = time.perf_counter()
+                reentry_started = time.perf_counter()
+                solver.solve(
+                    actual_q=first_q,
+                    actual_qd=first_qd,
+                    target_state=first_target,
+                )
+                solver_batch_reentry_ms[solver_batch_reentry_index] = (
+                    time.perf_counter() - reentry_started
+                ) * 1000.0
+                if (
+                    solver_batch_reentry_ms[solver_batch_reentry_index]
+                    >= DEADLINE_MS
+                ):
+                    solver_batch_reentry_miss_indices[
+                        solver_batch_reentry_miss_total
+                    ] = solver_batch_reentry_index
+                    solver_batch_reentry_miss_total += 1
+                solver_batch_reentry_index += 1
+            steady_started = time.perf_counter()
             solver.solve(actual_q=first_q, actual_qd=first_qd, target_state=first_target)
-            solver_ms[index] = (time.perf_counter() - started) * 1000.0
+            solver_ms[index] = (time.perf_counter() - steady_started) * 1000.0
             if solver_ms[index] >= DEADLINE_MS:
                 if solver_miss_total < DEADLINE_EVENT_CAPACITY:
                     solver_miss_indices[solver_miss_total] = index
                 solver_miss_total += 1
+        if solver_batch_reentry_index != solver_batch_reentry_count:
+            raise RuntimeError("solver batch-reentry accounting mismatch")
         first_post_warm_ms = float(solver_ms[0])
 
         if component_samples:
@@ -1150,21 +1185,22 @@ def main() -> int:
         indices: np.ndarray,
         total: int,
         *,
+        capacity: int = DEADLINE_EVENT_CAPACITY,
         max_consecutive: int | None = None,
     ) -> dict[str, Any]:
-        retained = min(int(total), DEADLINE_EVENT_CAPACITY)
+        retained = min(int(total), int(capacity))
         result = {
             "total": int(total),
             "retained_indices": indices[:retained].tolist(),
-            "capacity": DEADLINE_EVENT_CAPACITY,
-            "overflowed": int(total) > DEADLINE_EVENT_CAPACITY,
+            "capacity": int(capacity),
+            "overflowed": int(total) > int(capacity),
         }
         if max_consecutive is not None:
             result["max_consecutive"] = int(max_consecutive)
         return result
 
     payload: dict[str, Any] = {
-        "schema_version": "step5d_v30_remote_timing_raw_v1",
+        "schema_version": "step5d_v30_remote_timing_raw_v2",
         "profile": effective_profile,
         "profile_sha256": profile_selection["effective_profile_sha256"],
         "profile_selection": profile_selection,
@@ -1190,15 +1226,30 @@ def main() -> int:
         "precompile_outside_control_loop": True,
         "first_post_warm_ms": first_post_warm_ms,
         "solver_microbenchmark_pacing": {
-            "mode": "unmeasured_fixed_batch_yield",
+            "mode": "unmeasured_fixed_batch_yield_with_measured_reentry",
             "batch_size": SOLVER_BATCH_SIZE,
             "yield_s": SOLVER_BATCH_YIELD_S,
             "yield_included_in_single_solve_latency": False,
+            "steady_samples": int(args.solver_samples),
+            "steady_samples_per_batch": SOLVER_BATCH_SIZE,
+            "measured_reentry_after_each_yield": True,
+            "reentry_samples": int(solver_batch_reentry_count),
+            "reentry_sample_boundaries": list(
+                range(
+                    SOLVER_BATCH_SIZE,
+                    args.solver_samples,
+                    SOLVER_BATCH_SIZE,
+                )
+            ),
+            "reentry_included_in_steady_solver_summary": False,
+            "all_reentry_samples_retained_raw": True,
             "reason": "avoid_linux_sched_fifo_runtime_throttling_during_10k_stress",
             "full_tick_loop_affected": False,
             "safe_hold_loop_affected": False,
         },
         "solver": distribution(solver_ms),
+        "solver_batch_reentry": distribution(solver_batch_reentry_ms),
+        "solver_batch_reentry_ms": solver_batch_reentry_ms.tolist(),
         "full_tick": distribution(full_tick_ms),
         "safe_hold": distribution(safe_hold_ms),
         "full_tick_schedule_deadline_miss_count": full_tick_schedule_deadline_miss_count,
@@ -1219,6 +1270,11 @@ def main() -> int:
             "solver_compute": miss_event_summary(
                 solver_miss_indices,
                 solver_miss_total,
+            ),
+            "solver_batch_reentry_compute": miss_event_summary(
+                solver_batch_reentry_miss_indices,
+                solver_batch_reentry_miss_total,
+                capacity=solver_batch_reentry_count,
             ),
             "full_tick_compute": miss_event_summary(
                 full_compute_miss_indices,

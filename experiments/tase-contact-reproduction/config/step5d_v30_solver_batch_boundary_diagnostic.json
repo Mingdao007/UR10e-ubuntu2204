@@ -1,0 +1,387 @@
+{
+  "aggregate": {
+    "all_outliers_at_batch_boundaries": true,
+    "batch_boundary_outliers": 6,
+    "deadline_outliers": 6,
+    "interior_outliers": 0,
+    "max_batch_boundary_ms": 5.113815888762474,
+    "max_interior_ms": 0.4701521247625351,
+    "solver_samples": 40000
+  },
+  "claim_boundary": {
+    "formal_timing_passed": false,
+    "live_motion_authorized": false,
+    "reproduction_complete": false,
+    "v30_offline_ready": false
+  },
+  "classification": "artificial_batch_boundary_tail_identified_not_acceptance",
+  "formal_attempt1_summary": {
+    "full_tick_30000_execute": true,
+    "full_tick_compute_deadline_misses": 0,
+    "overall_pass": false,
+    "path": "config/step5d_v30_rnn512_d3089ac_formal_attempt1_summary.json",
+    "sha256": "ef7d1089ac16a5616a5c33db3a224ddc0ba41b4f63cb2fb273bee6fbda7826d1"
+  },
+  "old_harness_batch_policy": {
+    "batch_size": 100,
+    "problem": "first solve at each artificial batch boundary was mixed into the 10k steady-solve distribution",
+    "unmeasured_yield_s": 0.002
+  },
+  "profile": {
+    "backend": "cupy",
+    "control_hz": 500.0,
+    "epsilon": 0.01,
+    "inner_iterations": 512,
+    "qdot_cap_rad_s": 0.05,
+    "sigr_exponent_r": 0.8
+  },
+  "required_followup": {
+    "rerun_full_10k_plus_60s_plus_60s_formal": true,
+    "retain_every_reentry_outlier": true,
+    "separate_reentry_samples_from_10k_steady_samples": true,
+    "status": "pending"
+  },
+  "runs": [
+    {
+      "artifact_binding": {
+        "calibration_yaml": {
+          "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/src/ur10e_bringup/config/ur10e_calibration.yaml",
+          "sha256": "029aad03affc0cf60fc4274029463e683dc04b709f3a5e849f693d1c70409be8"
+        },
+        "paper_truth": {
+          "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/experiments/tase-contact-reproduction/config/step5d_liveprep_solver_gate.json",
+          "sha256": "e4eb35d23de9018addf1918a0fbaa04aeb85222cd4cfc2024225fee2220d8555"
+        },
+        "profile_selection": {
+          "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/experiments/tase-contact-reproduction/config/step5d_v30_profile_selection.json",
+          "sha256": "7d0f8640ee36d01bd1780c12ec59393109ae0ab3ad084a7c65ce4ec7ef193037"
+        },
+        "replay_csv": {
+          "path": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v29_20260710_104820/bridge_rtde_500hz.csv",
+          "sha256": "be6a84fe0eebc3df18ebb511874673cb3ee44832ba16335cd4de7a10f3260335",
+          "size": 43700470
+        },
+        "stage_table": {
+          "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/experiments/tase-contact-reproduction/config/step5_stage_table.json",
+          "sha256": "fb6a8b8ab3a7d6764e950290e3941b10d8793e2e00f32afef4753c775e784691"
+        },
+        "ur_xacro": {
+          "path": "/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro",
+          "sha256": "618ece26935c6cd146114374abc45142cc858420567005eed2713681ae55694c"
+        }
+      },
+      "batch_boundary_max_ms": 3.4004750195890665,
+      "batch_boundary_outlier_count": 2,
+      "batch_boundary_outlier_indices": [
+        2100,
+        2600
+      ],
+      "first_post_warm_ms": 0.851853983476758,
+      "full_tick_reason_counts": {
+        "ok": 30000
+      },
+      "full_tick_summary": {
+        "compute_deadline_miss_count": 0,
+        "max_ms": 1.7715259455144405,
+        "mean_ms": 0.9562340751290321,
+        "nonfinite_count": 0,
+        "p95_ms": 1.2292715022340417,
+        "p99_ms": 1.256542147602886,
+        "samples": 30000
+      },
+      "interior_max_ms": 0.3476501442492008,
+      "interior_outlier_count": 0,
+      "interior_outlier_indices": [],
+      "label": "formal_attempt1",
+      "outlier_count": 2,
+      "outlier_indices": [
+        2100,
+        2600
+      ],
+      "path": "config/step5d_v30_rnn512_d3089ac_formal_attempt1_raw.json",
+      "samples": 10000,
+      "sha256": "b816b3c1d6b2dd5470d8864c6e3da988ea19e5bd788841b7aa8a356670528b2c",
+      "solver_summary": {
+        "compute_deadline_miss_count": 2,
+        "max_ms": 3.4004750195890665,
+        "mean_ms": 0.21518644676543772,
+        "nonfinite_count": 0,
+        "p95_ms": 0.22183686960488555,
+        "p99_ms": 0.3089518216438594,
+        "samples": 10000
+      },
+      "source_binding": {
+        "aggregator_sha256": "84df773eed90acc8dbab466fc80384afbd54f74e76e096ef66ea3cf96a91ca2b",
+        "bridge_sha256": "d128a275a00ef68236acd917e5fae4dfe5fa9662dcc068cd92000c877c9d7747",
+        "bundler_sha256": "320960ed2cf836f939b0a65e0cf7c602e6f58e9e4f35a7f9df87fc4cab4abd73",
+        "contact_semantics_sha256": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
+        "control_contract_sha256": "53c8a7ae4060a4ebce0415a21b1993636a4fdd0d4894bc80d1f719c03ab19423",
+        "delivery": "stdin_bundle",
+        "harness_sha256": "e6d6d4b43eb4cae16745eb809bac19a81e138c96cfa9e7fe668de363b16ce010",
+        "kinematics_sha256": "5454af16db870350759372ab42583a4f339c71e32f9190679987b3addf6e14fa",
+        "outer_loop_sha256": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
+        "readiness_builder_sha256": "0ab47b42264ac8949aad51e8e40eac58c62dbdd9630e8231deff9dd93fd9ebaf",
+        "runtime_interface_sha256": "b0856a338c5ba05d012ad1100aba8a72c10ec99595aceeebcc54ea475e17e8c4",
+        "solver_sha256": "2ea368dbb142ec635ebdb709d5bb5783ea9bc848705e191f935055463cf753b7"
+      }
+    },
+    {
+      "artifact_binding": {
+        "calibration_yaml": {
+          "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/src/ur10e_bringup/config/ur10e_calibration.yaml",
+          "sha256": "029aad03affc0cf60fc4274029463e683dc04b709f3a5e849f693d1c70409be8"
+        },
+        "paper_truth": {
+          "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/experiments/tase-contact-reproduction/config/step5d_liveprep_solver_gate.json",
+          "sha256": "e4eb35d23de9018addf1918a0fbaa04aeb85222cd4cfc2024225fee2220d8555"
+        },
+        "profile_selection": {
+          "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/experiments/tase-contact-reproduction/config/step5d_v30_profile_selection.json",
+          "sha256": "7d0f8640ee36d01bd1780c12ec59393109ae0ab3ad084a7c65ce4ec7ef193037"
+        },
+        "replay_csv": {
+          "path": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v29_20260710_104820/bridge_rtde_500hz.csv",
+          "sha256": "be6a84fe0eebc3df18ebb511874673cb3ee44832ba16335cd4de7a10f3260335",
+          "size": 43700470
+        },
+        "stage_table": {
+          "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/experiments/tase-contact-reproduction/config/step5_stage_table.json",
+          "sha256": "fb6a8b8ab3a7d6764e950290e3941b10d8793e2e00f32afef4753c775e784691"
+        },
+        "ur_xacro": {
+          "path": "/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro",
+          "sha256": "618ece26935c6cd146114374abc45142cc858420567005eed2713681ae55694c"
+        }
+      },
+      "batch_boundary_max_ms": 3.168195951730013,
+      "batch_boundary_outlier_count": 1,
+      "batch_boundary_outlier_indices": [
+        200
+      ],
+      "first_post_warm_ms": 0.514474930241704,
+      "full_tick_reason_counts": {
+        "ok": 500
+      },
+      "full_tick_summary": {
+        "compute_deadline_miss_count": 0,
+        "max_ms": 1.0931419674307108,
+        "mean_ms": 0.6395515752956271,
+        "nonfinite_count": 0,
+        "p95_ms": 0.659131386782974,
+        "p99_ms": 0.6741253798827529,
+        "samples": 500
+      },
+      "interior_max_ms": 0.4701521247625351,
+      "interior_outlier_count": 0,
+      "interior_outlier_indices": [],
+      "label": "repeat1",
+      "outlier_count": 1,
+      "outlier_indices": [
+        200
+      ],
+      "path": "config/step5d_v30_rnn512_d3089ac_solver_repeat1_raw.json",
+      "samples": 10000,
+      "sha256": "31bd1e26034341a57024ae231768b12bb04c78057970395c8ce083e3895d4159",
+      "solver_summary": {
+        "compute_deadline_miss_count": 1,
+        "max_ms": 3.168195951730013,
+        "mean_ms": 0.21593534303829073,
+        "nonfinite_count": 0,
+        "p95_ms": 0.22251305636018512,
+        "p99_ms": 0.36659538513049506,
+        "samples": 10000
+      },
+      "source_binding": {
+        "aggregator_sha256": "84df773eed90acc8dbab466fc80384afbd54f74e76e096ef66ea3cf96a91ca2b",
+        "bridge_sha256": "d128a275a00ef68236acd917e5fae4dfe5fa9662dcc068cd92000c877c9d7747",
+        "bundler_sha256": "320960ed2cf836f939b0a65e0cf7c602e6f58e9e4f35a7f9df87fc4cab4abd73",
+        "contact_semantics_sha256": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
+        "control_contract_sha256": "53c8a7ae4060a4ebce0415a21b1993636a4fdd0d4894bc80d1f719c03ab19423",
+        "delivery": "stdin_bundle",
+        "harness_sha256": "e6d6d4b43eb4cae16745eb809bac19a81e138c96cfa9e7fe668de363b16ce010",
+        "kinematics_sha256": "5454af16db870350759372ab42583a4f339c71e32f9190679987b3addf6e14fa",
+        "outer_loop_sha256": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
+        "readiness_builder_sha256": "0ab47b42264ac8949aad51e8e40eac58c62dbdd9630e8231deff9dd93fd9ebaf",
+        "runtime_interface_sha256": "b0856a338c5ba05d012ad1100aba8a72c10ec99595aceeebcc54ea475e17e8c4",
+        "solver_sha256": "2ea368dbb142ec635ebdb709d5bb5783ea9bc848705e191f935055463cf753b7"
+      }
+    },
+    {
+      "artifact_binding": {
+        "calibration_yaml": {
+          "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/src/ur10e_bringup/config/ur10e_calibration.yaml",
+          "sha256": "029aad03affc0cf60fc4274029463e683dc04b709f3a5e849f693d1c70409be8"
+        },
+        "paper_truth": {
+          "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/experiments/tase-contact-reproduction/config/step5d_liveprep_solver_gate.json",
+          "sha256": "e4eb35d23de9018addf1918a0fbaa04aeb85222cd4cfc2024225fee2220d8555"
+        },
+        "profile_selection": {
+          "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/experiments/tase-contact-reproduction/config/step5d_v30_profile_selection.json",
+          "sha256": "7d0f8640ee36d01bd1780c12ec59393109ae0ab3ad084a7c65ce4ec7ef193037"
+        },
+        "replay_csv": {
+          "path": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v29_20260710_104820/bridge_rtde_500hz.csv",
+          "sha256": "be6a84fe0eebc3df18ebb511874673cb3ee44832ba16335cd4de7a10f3260335",
+          "size": 43700470
+        },
+        "stage_table": {
+          "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/experiments/tase-contact-reproduction/config/step5_stage_table.json",
+          "sha256": "fb6a8b8ab3a7d6764e950290e3941b10d8793e2e00f32afef4753c775e784691"
+        },
+        "ur_xacro": {
+          "path": "/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro",
+          "sha256": "618ece26935c6cd146114374abc45142cc858420567005eed2713681ae55694c"
+        }
+      },
+      "batch_boundary_max_ms": 4.57776291295886,
+      "batch_boundary_outlier_count": 2,
+      "batch_boundary_outlier_indices": [
+        0,
+        900
+      ],
+      "first_post_warm_ms": 4.43763704970479,
+      "full_tick_reason_counts": {
+        "ok": 500
+      },
+      "full_tick_summary": {
+        "compute_deadline_miss_count": 0,
+        "max_ms": 1.132225152105093,
+        "mean_ms": 0.6580467075109482,
+        "nonfinite_count": 0,
+        "p95_ms": 0.673924118746072,
+        "p99_ms": 0.7082785875536501,
+        "samples": 500
+      },
+      "interior_max_ms": 0.39584003388881683,
+      "interior_outlier_count": 0,
+      "interior_outlier_indices": [],
+      "label": "repeat2",
+      "outlier_count": 2,
+      "outlier_indices": [
+        0,
+        900
+      ],
+      "path": "config/step5d_v30_rnn512_d3089ac_solver_repeat2_raw.json",
+      "samples": 10000,
+      "sha256": "8ae88e2b433d0d567f8ccdaae7cd71e0d9209ab302ad3dbca2355928cc637cbf",
+      "solver_summary": {
+        "compute_deadline_miss_count": 2,
+        "max_ms": 4.57776291295886,
+        "mean_ms": 0.21832381149288266,
+        "nonfinite_count": 0,
+        "p95_ms": 0.2244559582322836,
+        "p99_ms": 0.32000500708818497,
+        "samples": 10000
+      },
+      "source_binding": {
+        "aggregator_sha256": "84df773eed90acc8dbab466fc80384afbd54f74e76e096ef66ea3cf96a91ca2b",
+        "bridge_sha256": "d128a275a00ef68236acd917e5fae4dfe5fa9662dcc068cd92000c877c9d7747",
+        "bundler_sha256": "320960ed2cf836f939b0a65e0cf7c602e6f58e9e4f35a7f9df87fc4cab4abd73",
+        "contact_semantics_sha256": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
+        "control_contract_sha256": "53c8a7ae4060a4ebce0415a21b1993636a4fdd0d4894bc80d1f719c03ab19423",
+        "delivery": "stdin_bundle",
+        "harness_sha256": "e6d6d4b43eb4cae16745eb809bac19a81e138c96cfa9e7fe668de363b16ce010",
+        "kinematics_sha256": "5454af16db870350759372ab42583a4f339c71e32f9190679987b3addf6e14fa",
+        "outer_loop_sha256": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
+        "readiness_builder_sha256": "0ab47b42264ac8949aad51e8e40eac58c62dbdd9630e8231deff9dd93fd9ebaf",
+        "runtime_interface_sha256": "b0856a338c5ba05d012ad1100aba8a72c10ec99595aceeebcc54ea475e17e8c4",
+        "solver_sha256": "2ea368dbb142ec635ebdb709d5bb5783ea9bc848705e191f935055463cf753b7"
+      }
+    },
+    {
+      "artifact_binding": {
+        "calibration_yaml": {
+          "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/src/ur10e_bringup/config/ur10e_calibration.yaml",
+          "sha256": "029aad03affc0cf60fc4274029463e683dc04b709f3a5e849f693d1c70409be8"
+        },
+        "paper_truth": {
+          "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/experiments/tase-contact-reproduction/config/step5d_liveprep_solver_gate.json",
+          "sha256": "e4eb35d23de9018addf1918a0fbaa04aeb85222cd4cfc2024225fee2220d8555"
+        },
+        "profile_selection": {
+          "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/experiments/tase-contact-reproduction/config/step5d_v30_profile_selection.json",
+          "sha256": "7d0f8640ee36d01bd1780c12ec59393109ae0ab3ad084a7c65ce4ec7ef193037"
+        },
+        "replay_csv": {
+          "path": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v29_20260710_104820/bridge_rtde_500hz.csv",
+          "sha256": "be6a84fe0eebc3df18ebb511874673cb3ee44832ba16335cd4de7a10f3260335",
+          "size": 43700470
+        },
+        "stage_table": {
+          "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/experiments/tase-contact-reproduction/config/step5_stage_table.json",
+          "sha256": "fb6a8b8ab3a7d6764e950290e3941b10d8793e2e00f32afef4753c775e784691"
+        },
+        "ur_xacro": {
+          "path": "/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro",
+          "sha256": "618ece26935c6cd146114374abc45142cc858420567005eed2713681ae55694c"
+        }
+      },
+      "batch_boundary_max_ms": 5.113815888762474,
+      "batch_boundary_outlier_count": 1,
+      "batch_boundary_outlier_indices": [
+        1200
+      ],
+      "first_post_warm_ms": 0.5285909865051508,
+      "full_tick_reason_counts": {
+        "ok": 500
+      },
+      "full_tick_summary": {
+        "compute_deadline_miss_count": 0,
+        "max_ms": 1.1196509003639221,
+        "mean_ms": 0.657592698931694,
+        "nonfinite_count": 0,
+        "p95_ms": 0.6800755392760038,
+        "p99_ms": 0.6945986836217344,
+        "samples": 500
+      },
+      "interior_max_ms": 0.3957690205425024,
+      "interior_outlier_count": 0,
+      "interior_outlier_indices": [],
+      "label": "repeat3",
+      "outlier_count": 1,
+      "outlier_indices": [
+        1200
+      ],
+      "path": "config/step5d_v30_rnn512_d3089ac_solver_repeat3_raw.json",
+      "samples": 10000,
+      "sha256": "fd1266140b5ed5d7b5eae3a73914b0d1b64d6e6ceca935cc9d5edcb66dd58dfd",
+      "solver_summary": {
+        "compute_deadline_miss_count": 1,
+        "max_ms": 5.113815888762474,
+        "mean_ms": 0.21683171873446555,
+        "nonfinite_count": 0,
+        "p95_ms": 0.2232939703390002,
+        "p99_ms": 0.32848176779225596,
+        "samples": 10000
+      },
+      "source_binding": {
+        "aggregator_sha256": "84df773eed90acc8dbab466fc80384afbd54f74e76e096ef66ea3cf96a91ca2b",
+        "bridge_sha256": "d128a275a00ef68236acd917e5fae4dfe5fa9662dcc068cd92000c877c9d7747",
+        "bundler_sha256": "320960ed2cf836f939b0a65e0cf7c602e6f58e9e4f35a7f9df87fc4cab4abd73",
+        "contact_semantics_sha256": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
+        "control_contract_sha256": "53c8a7ae4060a4ebce0415a21b1993636a4fdd0d4894bc80d1f719c03ab19423",
+        "delivery": "stdin_bundle",
+        "harness_sha256": "e6d6d4b43eb4cae16745eb809bac19a81e138c96cfa9e7fe668de363b16ce010",
+        "kinematics_sha256": "5454af16db870350759372ab42583a4f339c71e32f9190679987b3addf6e14fa",
+        "outer_loop_sha256": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
+        "readiness_builder_sha256": "0ab47b42264ac8949aad51e8e40eac58c62dbdd9630e8231deff9dd93fd9ebaf",
+        "runtime_interface_sha256": "b0856a338c5ba05d012ad1100aba8a72c10ec99595aceeebcc54ea475e17e8c4",
+        "solver_sha256": "2ea368dbb142ec635ebdb709d5bb5783ea9bc848705e191f935055463cf753b7"
+      }
+    }
+  ],
+  "safety_boundary": [
+    "no outlier discarded",
+    "no deadline threshold changed",
+    "full-tick and safe-hold loops unchanged",
+    "offline evidence only",
+    "no controller connection",
+    "no robot motion"
+  ],
+  "scheduler": {
+    "policy": "SCHED_FIFO",
+    "priority": 20
+  },
+  "schema_version": "step5d_v30_solver_batch_boundary_diagnostic_v1"
+}
