@@ -76,6 +76,24 @@
       "timing_provenance": "legacy_independent_wall_clock_paced_trials_v1_missing_selection_eligible"
     },
     {
+      "bundle_relative_path": "inference-paced-200-100-50-3x60s-v3-raw.json",
+      "bytes": 3849716,
+      "claim_level": "throughput_rejection_evidence",
+      "role": "subset_timing_paced_3x60s_v3_raw",
+      "selection_eligible": false,
+      "sha256": "f76d5f5eeffa7f64100388c3581f4bf4b6b8a8754ee16fa81f2d72cbb39a366b",
+      "timing_provenance": "raw_per_tick_independent_wall_clock_paced_trials_v2_candidate"
+    },
+    {
+      "bundle_relative_path": "inference-paced-200-100-50-3x60s-v3-selection.json",
+      "bytes": 2557,
+      "claim_level": "throughput_rejection_evidence",
+      "role": "subset_timing_paced_3x60s_v3_selection",
+      "selection_eligible": true,
+      "sha256": "8016099e3520b24274d1bc2843998ee346c9870eac75b3ce1707f3bb4a9239b5",
+      "timing_provenance": "independently_recomputed_hash_bound_selection_manifest_v2"
+    },
+    {
       "bundle_relative_path": "v27-trace-v2/v27-ur-observations.npz",
       "bytes": 1783973,
       "claim_level": "diagnostic_shadow_only",
@@ -132,30 +150,79 @@
   },
   "dbil_active_enabled": false,
   "external_artifact_verification": {
-    "artifact_count": 17,
+    "artifact_count": 19,
     "claim_validation_requires_all_present_and_hash_match": true,
     "default_sparse_checkout_status": "not_rehashed_unless_external_root_is_supplied",
     "hash_origin": "local_rehash_when_locator_manifest_was_captured"
   },
   "external_bundle_root_env": "UR10E_VIC_EVIDENCE_ROOT",
+  "evidence_tracks": {
+    "paced_timing": {
+      "current_selected": {
+        "active_enabled": false,
+        "candidate_role": "subset_timing_paced_3x60s_v3_raw",
+        "selected_rate_hz": null,
+        "selection_eligible": true,
+        "selection_manifest_role": "subset_timing_paced_3x60s_v3_selection",
+        "shadow_only": true,
+        "status": "validated_all_rates_rejected"
+      },
+      "historical": [
+        {
+          "artifact_role": "subset_timing_paced_3x60s",
+          "selection_eligible": false,
+          "status": "historical_rejection_provenance_ineligible"
+        }
+      ]
+    },
+    "trace_shadow": {
+      "current_selected": null,
+      "historical": [
+        {
+          "ablation_role": "v27_shadow_ablation",
+          "dataset_role": "v27_trace_dataset",
+          "manifest_role": "v27_trace_manifest",
+          "status": "historical_diagnostic_lineage_incomplete"
+        },
+        {
+          "ablation_role": "v29_shadow_ablation",
+          "dataset_role": "v29_trace_dataset",
+          "manifest_role": "v29_trace_manifest",
+          "status": "historical_diagnostic_lineage_incomplete"
+        }
+      ]
+    }
+  },
   "implementation_bindings": [
     {
       "binding_scope": "current_validator_not_historical_producer",
       "repository_relative_path": "ur10e_vic/dbil/inference.py",
       "role": "inference_source",
-      "sha256": "5997cf5470a935fecd5674f893770b1f518d7e1fc6b84ee6b4f23185d51022df"
+      "sha256": "352fdb0d2526a2e7898365cfb729533448a2296676996d5d1909025988de4c1a"
     },
     {
       "binding_scope": "current_validator_not_historical_producer",
       "repository_relative_path": "ur10e_vic/dbil/timing.py",
       "role": "timing_source",
-      "sha256": "5d957f05b40344327a8a442fe173276be5e31d74d38d95c01e0d0738e36f1606"
+      "sha256": "1b09e7370599d85616336d9c5807987647b03845c5cc0027cb84e52cd7c7d117"
     },
     {
       "binding_scope": "current_validator_not_historical_producer",
       "repository_relative_path": "ur10e_vic/evidence.py",
       "role": "evidence_validator_source",
-      "sha256": "909fe670066bcf10c542a0373ae183b144a2a60c3c3425eaf28d59764bc27ebb"
+      "sha256": "7d48bdc9a51665f4ab722ea7ceb55d8ea456e43530c4140dc4a5e1e98c6563f0"
+    },
+    {
+      "binding_scope": "current_validator_not_historical_producer",
+      "repository_relative_path": "ur10e_vic/trace.py",
+      "role": "trace_converter_source",
+      "sha256": "c512522024349450445499f1bcb5c309e9f6f8f1122dbbb2afc4880c1df825b4"
+    },
+    {
+      "binding_scope": "current_validator_not_historical_producer",
+      "repository_relative_path": "ur10e_vic/cli.py",
+      "role": "cli_source",
+      "sha256": "ecd79a0d75f4bdb57c05d06b5236cbad8c5e73bc4beba17463faee0de85d817e"
     }
   ],
   "live_motion_authorized": false,
@@ -164,7 +231,7 @@
     "locator_only_is_claim_validation": false,
     "role": "cryptographic_locator_manifest"
   },
-  "paced_timing": {
+  "historical_paced_timing": {
     "artifact_sha256": "ce58ec9d10956f03c08ce2f6f83f1e82e007a004ef48abe064324be0abe414cc",
     "harness": "implemented_and_unit_tested",
     "nonfinite_outputs": 0,
@@ -193,6 +260,38 @@
     "selected_rate_hz": null,
     "shadow_only": true
   },
+  "current_paced_timing": {
+    "candidate_payload_sha256": "c6d2236fe1381023380d5c181e8ea760dd266d84f120a7649b90ff4d7db15e6f",
+    "candidate_sha256": "f76d5f5eeffa7f64100388c3581f4bf4b6b8a8754ee16fa81f2d72cbb39a366b",
+    "checkpoint_variant": "portable_component_ddpm_v0",
+    "device": "Apple Metal Performance Shaders",
+    "nonfinite_outputs": 0,
+    "rate_results": {
+      "100": {
+        "accepted": false,
+        "deadline_misses": 5994,
+        "latency_p99_s": 0.07010014278203015
+      },
+      "200": {
+        "accepted": false,
+        "deadline_misses": 11995,
+        "latency_p99_s": 0.05931518377037721
+      },
+      "50": {
+        "accepted": false,
+        "deadline_misses": 3000,
+        "latency_p99_s": 0.07429158677929082,
+        "note": "value is independently recomputed in the bound selection artifact"
+      }
+    },
+    "result": "all_paced_rates_failed_validated_shadow_only",
+    "selected_rate_hz": null,
+    "selection_eligible": true,
+    "selection_manifest_sha256": "8016099e3520b24274d1bc2843998ee346c9870eac75b3ce1707f3bb4a9239b5",
+    "shadow_only": true,
+    "scope": "portable subset checkpoint on Mac MPS; not an upstream-faithful or Ubuntu RTX timing claim",
+    "validator_source_sha256": "1b09e7370599d85616336d9c5807987647b03845c5cc0027cb84e52cd7c7d117"
+  },
   "public_data_scope": {
     "application_windows": 598,
     "dataset_windows": 54292,
@@ -205,7 +304,7 @@
     "usable_source_files": 20,
     "validation_windows": 6492
   },
-  "schema_version": 2,
+  "schema_version": 3,
   "subset_training_scope": {
     "checkpoint_variant": "portable_component_ddpm_v0",
     "epochs": 20,
@@ -215,11 +314,11 @@
     "training_samples": 2689,
     "upstream_faithful_checkpoint": false
   },
-  "trace_scope": {
+  "historical_trace_scope": {
     "actual_command_kind": "step5b_twist",
     "claim_evidence_valid": false,
     "frame_transform_contract_sha256": "2d54d55e65700d7a1ce99a61d5fe9284cd5d1177bfed38dfb7d1cdf556613952",
-    "reason_invalid": "sensor calibration hash and task ZFT were absent from retained v27/v29 bundles",
+    "reason_invalid": "sensor-calibration lineage and explicit time-indexed task-ZFT artifacts were absent from retained v27/v29 bundles",
     "v27": {
       "observations": 6356,
       "shadow_command_bitwise_unchanged": true,

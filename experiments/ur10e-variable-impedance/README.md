@@ -129,7 +129,9 @@ python3 -m ur10e_vic.cli convert-ur-trace \
   --dataset-output /external/evidence/v29-observations.npz \
   --manifest-output /external/evidence/v29-observations-manifest.json \
   --command-kind step5b_twist \
-  --frame-transform-sha256 FRAME_CONTRACT_SHA256
+  --calibration-artifact /external/evidence/sensor-calibration-lineage.json \
+  --frame-transform-artifact /external/evidence/wrench-frame-transform.json \
+  --task-zft-artifact /external/evidence/time-indexed-task-zft.json
 python3 -m ur10e_vic.cli ablate-ur-trace \
   --dataset /external/evidence/v29-observations.npz \
   --checkpoint /external/checkpoints/dbil-seed42.pt \
@@ -144,7 +146,13 @@ python3 -m ur10e_vic.cli benchmark-rates \
   --stats-sha256 STATS_SHA256 \
   --observation-json /external/evidence/observation.json \
   --duration-per-rate-s 60 \
-  --output /external/evidence/paced-200-100-50.json
+  --output /external/evidence/paced-200-100-50-candidate.json
+python3 -m ur10e_vic.cli select-rate \
+  --evidence /external/evidence/paced-200-100-50-candidate.json \
+  --checkpoint /external/checkpoints/dbil-seed42.pt \
+  --stats /external/evidence/parkour-stats.json \
+  --observation-json /external/evidence/observation.json \
+  --output /external/evidence/paced-200-100-50-selection.json
 ```
 
 Training and inference require a separate PyTorch environment; PyTorch is not
@@ -162,10 +170,18 @@ earlier five-log subset: 10,431 windows, 2,689 training windows, and 20 MPS
 epochs. Full-data conversion is not full-data training and neither is a paper
 or hardware reproduction.
 
-The independently paced 200/100/50 Hz trials each ran for at least 60 seconds.
-All three failed: p99 latency was 58.010/64.619/76.803 ms with
-11,997/6,000/2,999 deadline misses respectively; all outputs remained finite.
-No model rate is selected and DBIL remains shadow-only.
+The timing producer now writes every scheduled release/start/end/nonfinite flag
+and always marks its output as an unvalidated candidate. A separate validator
+rehashes checkpoint/statistics/observation/harness sources, binds runtime/device,
+recomputes p99 and deadline misses from raw ticks, and only then emits a
+selection manifest. The current raw-per-tick Mac MPS trials each ran for at
+least 60 seconds and the independent validator accepted their provenance.
+All three still failed: p99 latency was 59.315/70.100/74.292 ms at
+200/100/50 Hz, with 11,995/5,994/3,000 deadline misses respectively; all
+outputs remained finite. No model rate is selected and DBIL remains
+shadow-only. This is evidence for the portable subset checkpoint on Mac MPS,
+not an upstream-faithful checkpoint or Ubuntu RTX result. The older paced
+artifact remains immutable historical rejection evidence.
 The older free-running 60-second benchmark is retained only as an unpaced
 throughput diagnostic and is never selection-eligible. `select-rate` accepts
 only the complete paced bundle schema with all three independent trials; a
@@ -174,10 +190,18 @@ generic list of rate/duration/p99/miss records is rejected.
 The v27/v29 adapter resamples bridge evidence to 200 Hz, uses shortest-arc
 quaternion SLERP, rotates both force and moment from TCP to base, and preserves
 actual `step4e_cmd_* + cmd_valid` with zero-order hold. Missing commands fail
-conversion rather than becoming zero. Both retained traces lack an independent
-sensor-calibration hash, calibrated Jacobian, and explicit task ZFT. Therefore
+conversion rather than becoming zero. Claim-valid lineage is artifact-path-first:
+the converter itself rehashes a sensor-calibration-lineage artifact, a wrench
+frame-transform artifact, and a time-indexed task-ZFT artifact covering the full
+trace. Bare SHA strings or a constant pose remain diagnostic-only. Artifact
+identity proves lineage, not the metrological accuracy of a calibration. Both
+retained traces lack an independent sensor-calibration-lineage artifact and an
+explicit time-indexed task-ZFT artifact. Therefore
 their 64-window four-policy runs are diagnostic only: each showed the actual
 command bytes/validity bit-for-bit unchanged, while `claim_valid_proposals=0`.
+A calibrated Jacobian is additionally required before using a converted trace
+for a velocity-backend control claim, but is not invented as a prerequisite
+for proposal-only shadow evidence.
 
 Portable tracked hashes and scopes live in
 `evidence/offline_evidence_index.json`; external files are resolved relative to
@@ -186,7 +210,9 @@ traces present, but that default validation proves only locator schema and
 current validator-source bindings. It does not claim an external artifact
 rehash or scientific/live claim validation. Supplying the external root enables
 an explicit rehash; matching hashes still do not cross the separate claim-state
-gates.
+gates. Evidence schema v3 keeps historical entries immutable and uses separate
+`current_selected` timing/trace pointers, so a validated future result can
+supersede history without rewriting it or hard-coding a failed outcome.
 
 ## Validation
 

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+import platform
+import sys
 import time
-from typing import Any
+from typing import Any, Mapping
 
 import numpy as np
 
@@ -13,7 +15,11 @@ from ..policies import DBILPrediction
 from .config import DBILConfig
 from .dataset import DatasetArrays, DatasetStats, SPLIT_NAMES, sha256_file
 from .model import ConditionalDiffusionTransformer, require_torch, sample_s_zft
-from .timing import RATE_CANDIDATES_HZ, TimingEvidence, select_model_rate_hz
+from .timing import (
+    RATE_CANDIDATES_HZ,
+    RAW_CANDIDATE_STATUS,
+    RAW_PACED_TIMING_SCHEMA_VERSION,
+)
 
 
 class TorchDBILShadowPredictor:
@@ -53,6 +59,7 @@ class TorchDBILShadowPredictor:
         self.model.to(self.device)
         self.model.eval()
         self.model_hash = expected_checkpoint_sha256
+        self.stats_hash = expected_stats_sha256
 
     def predict_window_arrays(
         self, pose_history: np.ndarray, wrench_history: np.ndarray
@@ -96,6 +103,30 @@ def _synchronize(device: Any) -> None:
         framework.mps.synchronize()
     elif device.type == "cuda":
         framework.cuda.synchronize(device)
+
+
+def _runtime_binding(device: Any) -> dict[str, str]:
+    try:
+        framework = require_torch()
+    except RuntimeError:
+        framework = None
+    device_type = str(device.type)
+    if device_type == "cuda" and framework is not None:
+        device_name = str(framework.cuda.get_device_name(device))
+    elif device_type == "mps":
+        device_name = "Apple Metal Performance Shaders"
+    else:
+        device_name = platform.processor() or platform.machine() or "cpu"
+    return {
+        "python_version": platform.python_version(),
+        "platform": platform.platform(),
+        "torch_version": (
+            str(framework.__version__) if framework is not None else "unavailable_test_double"
+        ),
+        "device_type": device_type,
+        "device_name": device_name,
+        "python_executable": sys.executable,
+    }
 
 
 def benchmark_shadow_predictor(
@@ -165,16 +196,15 @@ def benchmark_paced_shadow_predictor(
     *,
     duration_per_rate_s: float = 60.0,
     warmup_iterations: int = 5,
+    artifact_bindings: Mapping[str, Any],
 ) -> dict[str, object]:
-    """Run 200/100/50 Hz as three independently paced wall-clock trials."""
+    """Produce raw 200/100/50 Hz timing; never self-authorize selection."""
 
     if duration_per_rate_s < 60.0:
         raise ValueError("each paced DBIL rate trial must run at least 60 seconds")
     if warmup_iterations < 1:
         raise ValueError("warmup_iterations must be positive")
     rate_results: list[dict[str, object]] = []
-    evidence: list[TimingEvidence] = []
-    total_nonfinite = 0
     for rate in RATE_CANDIDATES_HZ:
         for _ in range(warmup_iterations):
             predictor.predict(observation)
@@ -184,6 +214,7 @@ def benchmark_paced_shadow_predictor(
         deadline_misses = 0
         skipped_releases = 0
         nonfinite_outputs = 0
+        raw_ticks: list[dict[str, object]] = []
         started = time.perf_counter()
         ends = started + duration_per_rate_s
         tick = 0
@@ -195,56 +226,86 @@ def benchmark_paced_shadow_predictor(
                 now = time.perf_counter()
             elif now >= release + period:
                 skipped = int((now - release) // period)
+                for skipped_index in range(tick, tick + skipped):
+                    raw_ticks.append(
+                        {
+                            "tick_index": skipped_index,
+                            "release_s": started + skipped_index * period,
+                            "start_s": None,
+                            "end_s": None,
+                            "nonfinite_output": None,
+                        }
+                    )
                 skipped_releases += skipped
                 deadline_misses += skipped
                 tick += skipped
                 release = started + tick * period
             tick_started = time.perf_counter()
+            if tick_started < release:
+                time.sleep(release - tick_started)
+                tick_started = time.perf_counter()
             prediction = predictor.predict(observation)
             _synchronize(predictor.device)
             finished = time.perf_counter()
             latencies.append(finished - tick_started)
             deadline_misses += int(finished >= release + period)
             values = prediction.s_zft.position_m + prediction.s_zft.quaternion_wxyz
-            nonfinite_outputs += int(not np.isfinite(values).all())
+            nonfinite = bool(not np.isfinite(values).all())
+            nonfinite_outputs += int(nonfinite)
+            raw_ticks.append(
+                {
+                    "tick_index": tick,
+                    "release_s": release,
+                    "start_s": tick_started,
+                    "end_s": finished,
+                    "nonfinite_output": nonfinite,
+                }
+            )
             tick += 1
-        actual_duration = time.perf_counter() - started
+        ended = time.perf_counter()
+        actual_duration = ended - started
         latency_array = np.asarray(latencies, dtype=float)
         p99 = float(np.quantile(latency_array, 0.99))
-        item = TimingEvidence(
-            rate_hz=rate,
-            duration_s=actual_duration,
-            p99_latency_s=p99,
-            deadline_misses=deadline_misses,
-        )
-        evidence.append(item)
-        total_nonfinite += nonfinite_outputs
         rate_results.append(
             {
                 "rate_hz": rate,
-                "duration_s": actual_duration,
                 "period_s": period,
-                "scheduled_ticks": tick,
-                "executed_ticks": len(latencies),
-                "skipped_releases": skipped_releases,
-                "deadline_misses": deadline_misses,
-                "nonfinite_outputs": nonfinite_outputs,
-                "latency_first_s": float(latency_array[0]),
-                "latency_p50_s": float(np.quantile(latency_array, 0.50)),
-                "latency_p99_s": p99,
-                "latency_max_s": float(latency_array.max()),
-                "accepted": item.accepted and nonfinite_outputs == 0,
+                "trial_started_s": started,
+                "trial_ended_s": ended,
+                "raw_ticks": raw_ticks,
+                "producer_summary": {
+                    "rate_hz": rate,
+                    "duration_s": actual_duration,
+                    "period_s": period,
+                    "scheduled_ticks": tick,
+                    "executed_ticks": len(latencies),
+                    "skipped_releases": skipped_releases,
+                    "deadline_misses": deadline_misses,
+                    "nonfinite_outputs": nonfinite_outputs,
+                    "latency_first_s": float(latency_array[0]),
+                    "latency_p50_s": float(np.quantile(latency_array, 0.50)),
+                    "latency_p99_s": p99,
+                    "latency_max_s": float(latency_array.max()),
+                    "accepted": (
+                        deadline_misses == 0
+                        and p99 <= 0.8 * period
+                        and nonfinite_outputs == 0
+                    ),
+                },
             }
         )
-    selected = select_model_rate_hz(evidence) if total_nonfinite == 0 else None
+    bindings = dict(artifact_bindings)
+    bindings["runtime"] = _runtime_binding(predictor.device)
     return {
-        "schema_version": 1,
+        "schema_version": RAW_PACED_TIMING_SCHEMA_VERSION,
         "timing_mode": "independent_wall_clock_paced_trials",
+        "candidate_status": RAW_CANDIDATE_STATUS,
         "duration_per_rate_s": duration_per_rate_s,
         "device": str(predictor.device),
+        "artifact_bindings": bindings,
         "rate_results": rate_results,
-        "selected_rate_hz": selected,
-        "selection_eligible": True,
+        "selected_rate_hz": None,
+        "selection_eligible": False,
         "shadow_only": True,
         "active_enabled": False,
     }

@@ -15,10 +15,9 @@
   "blockers": [
     "the upstream-faithful SLERP/cross-attention core is implemented and tested, but no faithful full-data checkpoint has been trained",
     "the retained portable_component_ddpm_v0 subset checkpoint is not upstream-faithful and has 0.06365 m position RMSE",
-    "all independently paced 200/100/50 Hz 60-second trials failed their deadlines; DBIL must remain shadow-only",
-    "the retained paced timing artifact predates the explicit selection_eligible field and is provenance-ineligible under the current fail-closed selector",
+    "the independently validated Mac MPS 200/100/50 Hz 60-second trials all failed their deadlines; no DBIL model rate is selected and DBIL must remain shadow-only",
     "phase-1 directional VIC is bounded/non-increasing only; passivity is not established without a future energy tank or passivity observer/controller",
-    "v27/v29 retained traces lack a sensor calibration hash and explicit task ZFT, so their four-policy results are diagnostic and claim-invalid",
+    "v27/v29 retained traces lack a hash-bound sensor-calibration lineage artifact and explicit time-indexed task-ZFT artifact, so their four-policy results are diagnostic and claim-invalid",
     "Step5b ROS2 live-runner acceptance remains false; the 5.11 surrogate cannot become command-capable",
     "PolyScope 5.23+ URSim syntax/runtime/timing validation has not passed",
     "physical controller version must be re-probed next week",
@@ -39,6 +38,20 @@
     "tracked_index": "evidence/offline_evidence_index.json"
   },
   "dbil_active_enabled": false,
+  "evidence_governance": {
+    "schema_version": 3,
+    "timing_current_selected": {
+      "active_enabled": false,
+      "candidate_sha256": "f76d5f5eeffa7f64100388c3581f4bf4b6b8a8754ee16fa81f2d72cbb39a366b",
+      "selected_rate_hz": null,
+      "selection_eligible": true,
+      "selection_manifest_sha256": "8016099e3520b24274d1bc2843998ee346c9870eac75b3ce1707f3bb4a9239b5",
+      "shadow_only": true,
+      "status": "validated_all_rates_rejected"
+    },
+    "trace_current_selected": null,
+    "historical_results_can_be_superseded_only_by_validated_hash_bound_pointers": true
+  },
   "dbil_full_public_conversion": {
     "dataset_sha256": "8ae903a7c8ca36122bca8c995380aaa56be6a66bf236301aa39eb22868593e67",
     "manifest_sha256": "4a12543b7f60219596ec06a572d7b12705ead6880114420569b72fd520ccdf59",
@@ -78,7 +91,7 @@
       "selection_eligible": false,
       "sha256": "695136f5899836cced545ddf8e69f5bf9cb5a240ddbe80246c65ce17608cf8b4"
     },
-    "paced_3x60s": {
+    "historical_paced_3x60s": {
       "artifact_sha256": "ce58ec9d10956f03c08ce2f6f83f1e82e007a004ef48abe064324be0abe414cc",
       "nonfinite_outputs": 0,
       "provenance": "independent_wall_clock_paced_trials_v1",
@@ -106,23 +119,56 @@
       "selection_eligible": false,
       "selected_rate_hz": null
     },
+    "current_paced_3x60s": {
+      "active_enabled": false,
+      "candidate_payload_sha256": "c6d2236fe1381023380d5c181e8ea760dd266d84f120a7649b90ff4d7db15e6f",
+      "candidate_sha256": "f76d5f5eeffa7f64100388c3581f4bf4b6b8a8754ee16fa81f2d72cbb39a366b",
+      "device": "Apple Metal Performance Shaders",
+      "nonfinite_outputs": 0,
+      "provenance": "raw_per_tick_candidate_plus_independently_recomputed_selection_manifest_v2",
+      "rate_results": {
+        "100": {
+          "accepted": false,
+          "deadline_misses": 5994,
+          "latency_p99_s": 0.07010014278203015
+        },
+        "200": {
+          "accepted": false,
+          "deadline_misses": 11995,
+          "latency_p99_s": 0.05931518377037721
+        },
+        "50": {
+          "accepted": false,
+          "deadline_misses": 3000,
+          "latency_p99_s": 0.07429158677929082
+        }
+      },
+      "scope": "portable_component_ddpm_v0 subset checkpoint on Mac MPS; not upstream-faithful or Ubuntu RTX evidence",
+      "selected_rate_hz": null,
+      "selection_eligible": true,
+      "selection_manifest_sha256": "8016099e3520b24274d1bc2843998ee346c9870eac75b3ce1707f3bb4a9239b5",
+      "shadow_only": true,
+      "validator_source_sha256": "1b09e7370599d85616336d9c5807987647b03845c5cc0027cb84e52cd7c7d117"
+    },
     "paced_harness": "implemented_unit_tested_and_executed",
-    "paced_result": "all_paced_rates_failed_provenance_ineligible_shadow_only",
+    "paced_result": "all_paced_rates_failed_independently_validated_shadow_only",
     "selected_rate_hz": null,
     "shadow_only": true
   },
   "live_motion_authorized": false,
   "source_bindings": {
     "binding_scope": "current validator sources; not historical artifact producer provenance",
-    "evidence_validator_sha256": "909fe670066bcf10c542a0373ae183b144a2a60c3c3425eaf28d59764bc27ebb",
-    "inference_sha256": "5997cf5470a935fecd5674f893770b1f518d7e1fc6b84ee6b4f23185d51022df",
-    "timing_sha256": "5d957f05b40344327a8a442fe173276be5e31d74d38d95c01e0d0738e36f1606"
+    "cli_sha256": "ecd79a0d75f4bdb57c05d06b5236cbad8c5e73bc4beba17463faee0de85d817e",
+    "evidence_validator_sha256": "7d48bdc9a51665f4ab722ea7ceb55d8ea456e43530c4140dc4a5e1e98c6563f0",
+    "inference_sha256": "352fdb0d2526a2e7898365cfb729533448a2296676996d5d1909025988de4c1a",
+    "timing_sha256": "1b09e7370599d85616336d9c5807987647b03845c5cc0027cb84e52cd7c7d117",
+    "trace_converter_sha256": "c512522024349450445499f1bcb5c309e9f6f8f1122dbbb2afc4880c1df825b4"
   },
   "schema_version": 2,
   "status": "offline_scaffold",
   "trace_shadow_evidence": {
     "claim_evidence_valid": false,
-    "reason_invalid": "missing sensor calibration hash and explicit task ZFT",
+    "reason_invalid": "missing hash-bound sensor-calibration lineage and explicit time-indexed task-ZFT artifacts",
     "v27": {
       "ablation_sha256": "05388dca6da646af94d89e8d01e5a2be145f0474ff33453658d60b507d599fe5",
       "actual_command_kind": "step5b_twist",
@@ -148,11 +194,12 @@
     "variant": "upstream_slerp_cross_attention_v1"
   },
   "ursim_probe": {
-    "checked_at": "2026-07-11T00:30:38+08:00",
+    "checked_at": "2026-07-12T00:00:00+08:00",
     "mac_container_runtime": "docker_and_podman_not_found",
     "ubuntu_classification": "ssh_reachable",
     "ubuntu_container_runtime": "docker_29.6.1_present",
-    "ubuntu_ursim_image": "not_found",
+    "ubuntu_docker_socket_access": "denied_for_andy",
+    "ubuntu_ursim_image": "unverified_no_socket_permission",
     "runtime_validation": "blocked"
   }
 }

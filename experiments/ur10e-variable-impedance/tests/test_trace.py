@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import csv
+import hashlib
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -146,6 +148,100 @@ class TraceTests(unittest.TestCase):
                     root / "trace.npz",
                     root / "manifest.json",
                 )
+
+    def test_artifact_bound_lineage_and_time_indexed_zft_are_verified(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "bridge.csv"
+            self._write_trace(source)
+            calibration = root / "sensor-calibration.json"
+            calibration.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "artifact_role": "sensor_calibration_lineage",
+                        "sensor_id": "kunwei-test",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            transform = root / "wrench-frame.json"
+            transform.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "artifact_role": "wrench_frame_transform",
+                        "source_frame": "tcp",
+                        "target_frame": "base",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            zft = root / "task-zft.json"
+            zft.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "artifact_role": "time_indexed_task_zft",
+                        "samples": [
+                            {"timestamp_s": 0.0, "pose": [0, 0, 0, 1, 0, 0, 0]},
+                            {"timestamp_s": 0.2, "pose": [0.02, 0, 0, 1, 0, 0, 0]},
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            dataset = root / "trace.npz"
+            result = convert_ur_bridge_trace(
+                source,
+                dataset,
+                root / "manifest.json",
+                calibration_artifact=calibration,
+                frame_transform_artifact=transform,
+                task_zft_artifact=zft,
+            )
+            self.assertTrue(result["lineage_verified"])
+            self.assertTrue(result["task_zft_verified"])
+            self.assertEqual(
+                result["artifact_bindings"]["sensor_calibration_lineage"]["sha256"],
+                hashlib.sha256(calibration.read_bytes()).hexdigest(),
+            )
+            trace = load_ur_trace_dataset(dataset)
+            self.assertTrue(trace.lineage_verified)
+            self.assertTrue(trace.task_zft_verified)
+            self.assertGreater(
+                trace.nominal_zft[-1, 0] - trace.nominal_zft[0, 0], 0.0
+            )
+            short_payload = json.loads(zft.read_text(encoding="utf-8"))
+            short_payload["samples"][-1]["timestamp_s"] = 0.1
+            zft.write_text(json.dumps(short_payload), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "does not cover"):
+                convert_ur_bridge_trace(
+                    source,
+                    root / "short-trace.npz",
+                    root / "short-manifest.json",
+                    calibration_artifact=calibration,
+                    frame_transform_artifact=transform,
+                    task_zft_artifact=zft,
+                )
+
+    def test_legacy_sha_and_constant_zft_remain_diagnostic(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "bridge.csv"
+            self._write_trace(source)
+            result = convert_ur_bridge_trace(
+                source,
+                root / "trace.npz",
+                root / "manifest.json",
+                calibration_sha256="a" * 64,
+                frame_transform_sha256="b" * 64,
+                task_zft=(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0),
+            )
+            self.assertFalse(result["lineage_verified"])
+            self.assertFalse(result["task_zft_verified"])
+            self.assertIn("diagnostic_unverified", result["calibration_hash"])
+            self.assertIn("diagnostic only", result["nominal_zft_status"])
 
 
 if __name__ == "__main__":

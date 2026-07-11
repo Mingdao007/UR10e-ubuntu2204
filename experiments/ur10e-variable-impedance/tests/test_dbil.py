@@ -23,6 +23,7 @@ from ur10e_vic.dbil.inference import (
 )
 from ur10e_vic.dbil.timing import (
     TimingEvidence,
+    build_paced_timing_selection_manifest,
     parse_independent_paced_timing,
     select_model_rate_hz,
 )
@@ -58,6 +59,8 @@ class DBILTests(unittest.TestCase):
         clock = FakeClock()
 
         class FakePredictor:
+            latency_s = 0.03
+
             class Device:
                 type = "cpu"
 
@@ -68,7 +71,7 @@ class DBILTests(unittest.TestCase):
 
             def predict(self, item):
                 del item
-                clock.now += 0.03
+                clock.now += self.latency_s
                 return DBILPrediction(
                     PoseSample((0.0, 0.0, 0.0), (1.0, 0.0, 0.0, 0.0)),
                     1.0,
@@ -87,12 +90,33 @@ class DBILTests(unittest.TestCase):
                 observation(),
                 duration_per_rate_s=60.0,
                 warmup_iterations=1,
+                artifact_bindings={
+                    "checkpoint_sha256": "a" * 64,
+                    "stats_sha256": "b" * 64,
+                    "observation_sha256": "c" * 64,
+                    "harness_source_sha256": "d" * 64,
+                },
             )
             unpaced = benchmark_shadow_predictor(
                 FakePredictor(),
                 observation(),
                 duration_s=60.0,
                 warmup_iterations=1,
+            )
+            clock.now = 0.0
+            fast_predictor = FakePredictor()
+            fast_predictor.latency_s = 0.001
+            fast_result = benchmark_paced_shadow_predictor(
+                fast_predictor,
+                observation(),
+                duration_per_rate_s=60.0,
+                warmup_iterations=1,
+                artifact_bindings={
+                    "checkpoint_sha256": "a" * 64,
+                    "stats_sha256": "b" * 64,
+                    "observation_sha256": "c" * 64,
+                    "harness_source_sha256": "d" * 64,
+                },
             )
         finally:
             inference_module.time.perf_counter = original_perf
@@ -103,10 +127,47 @@ class DBILTests(unittest.TestCase):
             [200, 100, 50],
         )
         self.assertTrue(
-            all(item["duration_s"] >= 60.0 for item in result["rate_results"])
+            all(
+                item["producer_summary"]["duration_s"] >= 60.0
+                for item in result["rate_results"]
+            )
         )
-        self.assertGreater(result["rate_results"][0]["skipped_releases"], 0)
+        self.assertGreater(
+            result["rate_results"][0]["producer_summary"]["skipped_releases"],
+            0,
+        )
         self.assertIsNone(result["selected_rate_hz"])
+        self.assertFalse(result["selection_eligible"])
+        self.assertEqual(result["candidate_status"], "unvalidated_candidate")
+        self.assertTrue(result["rate_results"][0]["raw_ticks"])
+        expected_bindings = dict(result["artifact_bindings"])
+        selection = build_paced_timing_selection_manifest(
+            result, expected_bindings=expected_bindings
+        )
+        self.assertEqual(selection["validation_status"], "validated_selection_manifest")
+        self.assertTrue(selection["selection_eligible"])
+        self.assertIsNone(selection["selected_rate_hz"])
+        fast_selection = build_paced_timing_selection_manifest(
+            fast_result, expected_bindings=fast_result["artifact_bindings"]
+        )
+        self.assertEqual(fast_selection["selected_rate_hz"], 200)
+        tampered = json.loads(json.dumps(result))
+        executed = next(
+            tick
+            for tick in tampered["rate_results"][2]["raw_ticks"]
+            if tick["end_s"] is not None
+        )
+        executed["end_s"] += 0.01
+        with self.assertRaisesRegex(ValueError, "producer timing summary mismatch"):
+            build_paced_timing_selection_manifest(
+                tampered, expected_bindings=expected_bindings
+            )
+        wrong_bindings = dict(expected_bindings)
+        wrong_bindings["checkpoint_sha256"] = "e" * 64
+        with self.assertRaisesRegex(ValueError, "checkpoint_sha256"):
+            build_paced_timing_selection_manifest(
+                result, expected_bindings=wrong_bindings
+            )
         self.assertTrue(result["shadow_only"])
         self.assertEqual(unpaced["timing_mode"], "unpaced_throughput_diagnostic")
         self.assertFalse(unpaced["selection_eligible"])
@@ -265,8 +326,9 @@ class DBILTests(unittest.TestCase):
                 }
             )
         payload = {
-            "schema_version": 1,
+            "schema_version": 2,
             "timing_mode": "independent_wall_clock_paced_trials",
+            "validation_status": "validated_selection_manifest",
             "duration_per_rate_s": 60.0,
             "rate_results": rates,
             "selected_rate_hz": 100,
@@ -276,6 +338,8 @@ class DBILTests(unittest.TestCase):
         }
         bundle = parse_independent_paced_timing(payload)
         self.assertEqual(bundle.selected_rate_hz, 100)
+        with self.assertRaisesRegex(ValueError, "legacy paced timing"):
+            parse_independent_paced_timing({**payload, "schema_version": 1})
         with self.assertRaisesRegex(ValueError, "paced timing bundle object"):
             parse_independent_paced_timing(
                 [

@@ -41,7 +41,7 @@ def _sha256_file(path: Path) -> str:
 
 def validate_compact_evidence_index(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
-    if payload.get("schema_version") != 2:
+    if payload.get("schema_version") != 3:
         raise ValueError("unsupported compact evidence schema")
     if payload.get("external_bundle_root_env") != "UR10E_VIC_EVIDENCE_ROOT":
         raise ValueError("portable evidence root environment binding drifted")
@@ -112,6 +112,8 @@ def validate_compact_evidence_index(path: Path) -> dict[str, Any]:
         "inference_source",
         "timing_source",
         "evidence_validator_source",
+        "trace_converter_source",
+        "cli_source",
     }
     binding_roles: set[str] = set()
     for binding in bindings:
@@ -129,39 +131,59 @@ def validate_compact_evidence_index(path: Path) -> dict[str, Any]:
         raise ValueError("implementation source bindings are incomplete")
     if payload.get("public_data_scope", {}).get("usable_source_files") != 20:
         raise ValueError("full public conversion must bind 20 usable files")
-    if payload.get("trace_scope", {}).get("claim_evidence_valid") is not False:
-        raise ValueError("historical traces lack calibration/task-ZFT claim lineage")
-    paced = payload.get("paced_timing", {})
-    if (
-        paced.get("result")
-        != "all_paced_rates_failed_provenance_ineligible_shadow_only"
-        or paced.get("selected_rate_hz") is not None
-        or paced.get("selection_eligible") is not False
-        or paced.get("shadow_only") is not True
-        or paced.get("nonfinite_outputs") != 0
-    ):
-        raise ValueError("paced timing must retain the all-failed shadow-only result")
-    if any(
-        item.get("accepted") is not False or item.get("deadline_misses", 0) <= 0
-        for item in paced.get("rate_results", {}).values()
-    ) or set(paced.get("rate_results", {})) != {"200", "100", "50"}:
-        raise ValueError("paced timing must bind rejected 200/100/50 Hz trials")
-    timing_artifacts = {item["role"]: item for item in artifacts}
-    if (
-        timing_artifacts["subset_timing_unpaced"].get("selection_eligible")
-        is not False
-        or timing_artifacts["subset_timing_unpaced"].get("timing_provenance")
-        != "unpaced_throughput_diagnostic"
-        or timing_artifacts["subset_timing_paced_3x60s"].get(
-            "selection_eligible"
-        )
-        is not False
-        or timing_artifacts["subset_timing_paced_3x60s"].get(
-            "timing_provenance"
-        )
-        != "legacy_independent_wall_clock_paced_trials_v1_missing_selection_eligible"
-    ):
-        raise ValueError("timing artifact selection provenance drifted")
+    roles_to_artifacts = {item["role"]: item for item in artifacts}
+    tracks = payload.get("evidence_tracks")
+    if not isinstance(tracks, dict) or set(tracks) != {"paced_timing", "trace_shadow"}:
+        raise ValueError("evidence v3 requires timing and trace selection tracks")
+    timing_track = tracks["paced_timing"]
+    trace_track = tracks["trace_shadow"]
+    if not isinstance(timing_track, dict) or not isinstance(trace_track, dict):
+        raise ValueError("evidence v3 tracks must be objects")
+    timing_history = timing_track.get("historical")
+    if not isinstance(timing_history, list):
+        raise ValueError("timing history must be a list")
+    for entry in timing_history:
+        if not isinstance(entry, dict) or entry.get("artifact_role") not in roles_to_artifacts:
+            raise ValueError("historical timing pointer is invalid")
+        if not str(entry.get("status", "")).startswith("historical_"):
+            raise ValueError("historical timing status is ambiguous")
+    selected_timing = timing_track.get("current_selected")
+    if selected_timing is not None:
+        if not isinstance(selected_timing, dict):
+            raise ValueError("current timing selection must be an object")
+        if (
+            selected_timing.get("candidate_role") not in roles_to_artifacts
+            or selected_timing.get("selection_manifest_role") not in roles_to_artifacts
+            or selected_timing.get("selection_eligible") is not True
+            or selected_timing.get("selected_rate_hz") not in {200, 100, 50, None}
+            or selected_timing.get("shadow_only") is not True
+            or selected_timing.get("active_enabled") is not False
+        ):
+            raise ValueError("current timing selection pointer is invalid")
+    trace_history = trace_track.get("historical")
+    if not isinstance(trace_history, list):
+        raise ValueError("trace history must be a list")
+    for entry in trace_history:
+        if not isinstance(entry, dict) or any(
+            entry.get(name) not in roles_to_artifacts
+            for name in ("dataset_role", "manifest_role", "ablation_role")
+        ):
+            raise ValueError("historical trace pointer is invalid")
+        if not str(entry.get("status", "")).startswith("historical_"):
+            raise ValueError("historical trace status is ambiguous")
+    selected_trace = trace_track.get("current_selected")
+    if selected_trace is not None:
+        if not isinstance(selected_trace, dict) or any(
+            selected_trace.get(name) not in roles_to_artifacts
+            for name in ("dataset_role", "manifest_role", "ablation_role")
+        ):
+            raise ValueError("current trace selection pointer is invalid")
+        if (
+            selected_trace.get("claim_evidence_valid") is not True
+            or selected_trace.get("shadow_only") is not True
+            or selected_trace.get("active_enabled") is not False
+        ):
+            raise ValueError("current trace selection did not retain claim gates")
     return payload
 
 

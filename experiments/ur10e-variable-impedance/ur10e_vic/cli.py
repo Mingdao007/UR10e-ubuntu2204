@@ -17,8 +17,9 @@ from .dbil.inference import (
     benchmark_shadow_predictor,
     evaluate_shadow_predictor,
 )
+from .dbil import inference as inference_module
 from .dbil.model import train_checkpoint
-from .dbil.timing import parse_independent_paced_timing
+from .dbil.timing import build_paced_timing_selection_manifest
 from .trace import (
     convert_ur_bridge_trace,
     load_ur_trace_dataset,
@@ -155,6 +156,9 @@ def _build_parser() -> argparse.ArgumentParser:
     trace.add_argument("--calibration-sha256")
     trace.add_argument("--frame-transform-sha256")
     trace.add_argument("--task-zft-json", type=Path)
+    trace.add_argument("--calibration-artifact", type=Path)
+    trace.add_argument("--frame-transform-artifact", type=Path)
+    trace.add_argument("--task-zft-artifact", type=Path)
 
     ablation = commands.add_parser("ablate-ur-trace")
     ablation.add_argument("--dataset", type=Path, required=True)
@@ -168,6 +172,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
     timing = commands.add_parser("select-rate")
     timing.add_argument("--evidence", type=Path, required=True)
+    timing.add_argument("--checkpoint", type=Path, required=True)
+    timing.add_argument("--stats", type=Path, required=True)
+    timing.add_argument("--observation-json", type=Path, required=True)
+    timing.add_argument("--output", type=Path)
     return parser
 
 
@@ -215,6 +223,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             calibration_sha256=args.calibration_sha256,
             frame_transform_sha256=args.frame_transform_sha256,
             task_zft=task_zft,
+            calibration_artifact=args.calibration_artifact,
+            frame_transform_artifact=args.frame_transform_artifact,
+            task_zft_artifact=args.task_zft_artifact,
         )
     elif args.command == "ablate-ur-trace":
         predictor = TorchDBILShadowPredictor(
@@ -261,11 +272,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             payload = json.loads(args.observation_json.read_text(encoding="utf-8"))
             observation = _observation_from_mapping(payload)
         if args.command == "benchmark-rates":
+            assert inference_module.__file__ is not None
             result = benchmark_paced_shadow_predictor(
                 predictor,
                 observation,
                 duration_per_rate_s=args.duration_per_rate_s,
                 warmup_iterations=args.warmup_iterations,
+                artifact_bindings={
+                    "checkpoint_sha256": sha256_file(args.checkpoint),
+                    "stats_sha256": sha256_file(args.stats),
+                    "observation_sha256": sha256_file(args.observation_json),
+                    "harness_source_sha256": sha256_file(
+                        Path(inference_module.__file__)
+                    ),
+                },
             )
             result["model_hash"] = predictor.model_hash
             args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -296,15 +316,24 @@ def main(argv: Sequence[str] | None = None) -> int:
             }
     else:
         payload = json.loads(args.evidence.read_text(encoding="utf-8"))
-        bundle = parse_independent_paced_timing(payload)
-        selected = bundle.selected_rate_hz
-        result = {
-            "selected_rate_hz": selected,
-            "timing_provenance": bundle.provenance,
-            "provenance_verified": True,
-            "shadow_only": True,
-            "active_enabled": False,
-        }
+        assert inference_module.__file__ is not None
+        result = build_paced_timing_selection_manifest(
+            payload,
+            expected_bindings={
+                "checkpoint_sha256": sha256_file(args.checkpoint),
+                "stats_sha256": sha256_file(args.stats),
+                "observation_sha256": sha256_file(args.observation_json),
+                "harness_source_sha256": sha256_file(
+                    Path(inference_module.__file__)
+                ),
+            },
+        )
+        if args.output is not None:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(
+                json.dumps(result, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
 
