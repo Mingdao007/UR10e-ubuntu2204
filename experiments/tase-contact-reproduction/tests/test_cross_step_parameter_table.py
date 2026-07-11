@@ -286,6 +286,47 @@ class CrossStepParameterTableTest(unittest.TestCase):
         )
         self.assertIn("P0 v8 marker/package hash/fingerprint binding mismatch", failures)
 
+    def test_p0_v8_offline_diagnostic_is_hash_bound_without_controller_promotion(self) -> None:
+        current = validator.load_json(ROOT / "config" / "current_stage.json")
+        table = validator.load_json(ROOT / "config" / "step5_stage_table.json")
+        row = next(
+            item for item in table["stages"]
+            if item.get("id") == validator.P0_V8_PROGRAM
+        )
+        pointer = current["p0_v8_candidate"]["offline_simulation_diagnostic"]
+        summary = validator.load_json(ROOT / pointer["summary_artifact"])
+        state = validator.load_json(ROOT / pointer["state_artifact"])
+
+        self.assertEqual(pointer, row["offline_simulation_diagnostic"])
+        self.assertEqual(pointer["status"], "bound_timing_blocked")
+        self.assertTrue(pointer["control_path_diagnostic_pass"])
+        self.assertTrue(pointer["all_required_faults_exact_zero"])
+        self.assertFalse(pointer["wall_timing_gate_pass"])
+        self.assertFalse(pointer["p0_sim_physics_pass"])
+        self.assertEqual(pointer["controller_canaries_completed"], [])
+        self.assertEqual(state["controller_canaries"]["completed"], [])
+        self.assertFalse(state["evidence_frozen"])
+        self.assertFalse(summary["claims"]["p0_v8_passed"])
+
+    def test_p0_v8_offline_diagnostic_hash_drift_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            shutil.copytree(ROOT, tmp_root, dirs_exist_ok=True)
+            current = validator.load_json(tmp_root / "config" / "current_stage.json")
+            pointer = current["p0_v8_candidate"]["offline_simulation_diagnostic"]
+            summary_path = tmp_root / pointer["summary_artifact"]
+            summary_path.write_text(
+                summary_path.read_text(encoding="utf-8") + "\n",
+                encoding="utf-8",
+            )
+
+            failures = validator.validate(tmp_root)
+
+        self.assertIn(
+            "P0 v8 offline-simulation pointer is stale or does not preserve the non-promotion boundary",
+            failures,
+        )
+
     def test_review_v2_index_detects_historical_evidence_hash_drift(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_root = Path(tmp)

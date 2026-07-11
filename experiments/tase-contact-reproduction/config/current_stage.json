@@ -1214,6 +1214,20 @@
       "sequential_same_fingerprint_required": true,
       "final_continuous_phase_s": 60.0
     },
+    "offline_simulation_diagnostic": {
+      "status": "bound_timing_blocked",
+      "summary_artifact": "config/step5d_p0_v8_offline_simulation_diagnostic.json",
+      "summary_sha256": "4d5c7bf409a8c6cdc5abf6cfa7a6804799d35c2efb5fe969f6827aae2167ce46",
+      "state_artifact": "config/step5d_p0_v8_offline_simulation_state.json",
+      "state_sha256": "a6b6fbd833980107ba583ed65690ceb394a558c999409a1dc5d5eb0dc21b32a1",
+      "source_run_manifest_sha256": "b7277b81e1d2168c185a016d66fa035a225442ee6a4c8c0d5638d513c7b32230",
+      "control_path_diagnostic_pass": true,
+      "all_required_faults_exact_zero": true,
+      "wall_timing_gate_pass": false,
+      "p0_sim_physics_pass": false,
+      "controller_canaries_completed": [],
+      "claim_effect": "diagnostic_only_no_promotion"
+    },
     "completed_canaries": [],
     "p0_v8_passed": false,
     "passed_artifact": null,
@@ -1227,7 +1241,8 @@
       "controller_readback_missing",
       "evidence_not_frozen",
       "review_v2_1_plus_1_not_run",
-      "2_10_60_second_canaries_not_run"
+      "2_10_60_second_canaries_not_run",
+      "offline_simulation_wall_timing_failed"
     ]
   },
   "liveprep_status": {

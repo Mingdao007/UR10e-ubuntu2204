@@ -1875,8 +1875,11 @@ out.write_text(json.dumps({{"ok": True}}), encoding="utf-8")
                 completed.stdout + completed.stderr,
             )
 
-    def test_existing_failed_v3_artifact_is_still_rejected_with_no_speedj_rnn_live_rows(self) -> None:
-        run_dir = ROOT / "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v3_autowatch_20260707_084025"
+    def test_portable_failed_v3_projection_is_rejected_with_no_speedj_rnn_live_rows(self) -> None:
+        # The original v3 run is retained outside sparse worktrees.  This
+        # tracked projection preserves the decisive failure field so the
+        # regression remains portable and deterministic.
+        run_dir = ROOT / "tests" / "fixtures" / "p0_v3_no_speedj"
         completed = subprocess.run(
             [
                 "python3",

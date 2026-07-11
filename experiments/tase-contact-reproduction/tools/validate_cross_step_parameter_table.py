@@ -12,6 +12,10 @@ from pathlib import PurePosixPath
 from typing import Any
 
 from build_step5d_v29_review_state_projection import build as build_v29_review_projection
+from build_step5d_p0_v8_offline_diagnostic import (
+    validate_diagnostic as validate_p0_offline_diagnostic,
+    validate_state_binding as validate_p0_offline_state_binding,
+)
 from step5d_review_v2 import full_review_index_projection_sha256
 from tase_protocol_table import resolve_experiment_profile
 
@@ -698,6 +702,69 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
                 != stage_review.get("composite_fingerprint")
             ):
                 failures.append("accepted P0 v8 Review v2 manifest is not current-fingerprint indexed")
+
+        offline_pointer = p0_v8_candidate.get("offline_simulation_diagnostic") or {}
+        stage_offline_pointer = p0_v8_row.get("offline_simulation_diagnostic") or {}
+        if stage_offline_pointer != offline_pointer:
+            failures.append(
+                "P0 v8 offline-simulation diagnostic pointer differs between current state and stage table"
+            )
+        summary_rel = offline_pointer.get("summary_artifact")
+        state_rel = offline_pointer.get("state_artifact")
+        summary_path = root / str(summary_rel or "")
+        state_path = root / str(state_rel or "")
+        if not summary_path.is_file() or not state_path.is_file():
+            failures.append("P0 v8 offline-simulation summary/state artifact is missing")
+        else:
+            summary = load_json(summary_path)
+            offline_state = load_json(state_path)
+            summary_failures = validate_p0_offline_diagnostic(summary)
+            state_failures = validate_p0_offline_state_binding(
+                offline_state,
+                summary=summary,
+            )
+            failures.extend(
+                f"P0 v8 offline diagnostic invalid: {item}"
+                for item in summary_failures
+            )
+            failures.extend(
+                f"P0 v8 offline state invalid: {item}"
+                for item in state_failures
+            )
+            diagnostic = summary.get("diagnostic") or {}
+            expected_pointer = {
+                "status": offline_state.get("status"),
+                "summary_artifact": summary_rel,
+                "summary_sha256": file_sha256(summary_path),
+                "state_artifact": state_rel,
+                "state_sha256": file_sha256(state_path),
+                "source_run_manifest_sha256": (
+                    summary.get("run_binding") or {}
+                ).get("sha256"),
+                "control_path_diagnostic_pass": diagnostic.get(
+                    "all_control_paths_diagnostic_pass"
+                ),
+                "all_required_faults_exact_zero": diagnostic.get(
+                    "all_required_faults_exact_zero"
+                ),
+                "wall_timing_gate_pass": diagnostic.get(
+                    "wall_timing_gate_pass"
+                ),
+                "p0_sim_physics_pass": (summary.get("claims") or {}).get(
+                    "p0_sim_physics_pass"
+                ),
+                "controller_canaries_completed": (
+                    (summary.get("state_projection") or {}).get(
+                        "controller_canaries"
+                    )
+                    or {}
+                ).get("completed"),
+                "claim_effect": "diagnostic_only_no_promotion",
+            }
+            if offline_pointer != expected_pointer:
+                failures.append(
+                    "P0 v8 offline-simulation pointer is stale or does not preserve the non-promotion boundary"
+                )
 
         p0_passed = p0_v8_candidate.get("p0_v8_passed") is True
         if (p0_v8_row.get("acceptance") or {}).get("p0_v8_passed") is not p0_passed:

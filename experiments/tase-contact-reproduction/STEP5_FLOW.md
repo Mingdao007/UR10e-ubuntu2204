@@ -25,6 +25,15 @@ or run contact until all of the following are frozen and pass:
 3. The v30 package/readback hashes and evidence are frozen.
 4. The current composite fingerprint passes one Review v2 `2+1` gate.
 
+The latest hash-bound MuJoCo offline diagnostic completed all three simulated
+`2 -> 10 -> 60 s` phases through the shared production control path. Every
+nominal tick was accepted and all required injected faults produced exact-zero
+commands, but the 60 s paced run missed the unchanged 2 ms wall deadline.
+It is therefore recorded as `control_diagnostic_pass_timing_blocked`, with
+`p0_sim_physics_pass=false`. These are simulator diagnostics only: the separate
+controller canary list remains empty, P0 is not passed, evidence is not frozen,
+and Review v2 `1+1` is still `not_due`.
+
 Review v2 uses deterministic validation only (`0+0`) for ordinary coding,
 commit, push, and handoff. A direction change uses `1+0`; P0 v8 pre-live uses
 `1+1`; v29/v30 contact pre-live uses `2+1`. Codex defaults to
@@ -210,7 +219,7 @@ instead of preserving the later 22 s TP v3 timing.
 | `step5d_strict_rnn_ablation_v27` | bridge+TP | true | true | Step5b speedl live / Step5d paper+RNN shadow | `v31_filtered_live` | Retained successful 10 s fix-validation evidence from `runs/bridge_step5d_strict_rnn_ablation_v27_20260706_045513`; not current and not a 60 s reproduction claim. The earlier 040900 force overshoot remains retained failure evidence for the old paper-linear-live path. |
 | `step5d_strict_rnn_ablation_v28` | bridge+TP | true | true | Step5b speedl live / Step5d paper+RNN shadow | `v31_filtered_live` | Retained read-back verified diagnostic package, superseded by v29; not a completed reproduction claim. |
 | `step5d_strict_rnn_ablation_v29` | frozen fallback | true | false | strict TASE RNN speedj | `v31_filtered_live` | Current pointer is retained only because it is the last read-back-verified package. A future reactivation requires fresh readback/timing fingerprint, Review v2 `2+1`, and explicit live/contact authorization. |
-| `step5d_strict_rnn_no_contact_p0_v8` | offline P0 gate | false | false | v30 strict-RNN contract | none | Inactive layout-524-only package. After readback and one fingerprint-bound Review v2 `1+1`, sequential 2/10/60 s canaries may run under explicit no-contact authorization; only the final continuous 60 s verifier artifact passes P0. |
+| `step5d_strict_rnn_no_contact_p0_v8` | offline P0 gate | false | false | v30 strict-RNN contract | none | Inactive layout-524-only package. The hash-bound MuJoCo 2/10/60 diagnostic passed control/fault exact-zero checks but failed wall timing and cannot promote P0. After readback and one fingerprint-bound Review v2 `1+1`, separate controller canaries may run under explicit no-contact authorization; only the final continuous 60 s controller verifier artifact passes P0. |
 | `step5d_strict_rnn_ablation_v30` | offline contact-control prep | true | false | strict TASE RNN speedj; DLS shadow-only | `v31_filtered_live` | Inactive candidate. Upload/readback preparation may precede P0, but current promotion requires P0 v8, 60 s timing/safe-hold, frozen package/readback, and current-fingerprint Review v2 `2+1`; contact still requires separate authorization. |
 | `step5d_ros2_remote_shadow_v1` | ROS2 offline | true | false | ROS2 shadow replay | `v31_filtered_live` input logs | Diagnostic-only Step5d policy replay: replays v15a/v14/v11 and Step5b/Step6b CSVs, removes long zero-qdot hold recovery, but is not live-ready and must follow Step5b plumbing validation. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |

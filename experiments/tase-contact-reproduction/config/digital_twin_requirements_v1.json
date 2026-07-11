@@ -1,6 +1,6 @@
 {
   "schema": "ur10e_digital_twin_requirements_v1",
-  "generated_from_commit": "19f7dca",
+  "source_evidence_commit": "e55c574ba97f30ffe3da381d66bd62c8d6ff8d52",
   "workflow_state": "liveprep_blocked",
   "current_program": "step5d_strict_rnn_ablation_v29",
   "v30_active": false,
@@ -16,24 +16,50 @@
   "requirements": [
     {
       "id": "single_production_simulator_adapter",
-      "status": "implementation_in_progress",
+      "status": "partial_runtime_coverage",
       "owner": "tools/step5d_simulator_adapter.py",
-      "acceptance": "Every engine maps state into Step5dObservation and consumes only the RegisterCommand output of the shared strict-RNN production pipeline."
+      "acceptance": "Every engine maps state into Step5dObservation and consumes only the RegisterCommand output of the shared strict-RNN production pipeline.",
+      "verified": [
+        "MuJoCo and the future bridge consume the same build_p0_v8_target and strict-RNN contract pipeline",
+        "DLS remains shadow-only and SafetyEnvelope remains fail-closed"
+      ],
+      "blockers": [
+        "gazebo_v2_runtime_adapter_node_not_implemented",
+        "ursim_runtime_lane_not_available"
+      ]
     },
     {
       "id": "p0_v8_2_10_60",
-      "status": "not_run",
-      "owner": "tools/run_step5d_p0_v8_sim.py",
-      "acceptance": "Same frozen fingerprint completes deterministic 2, 10, and 60 second 500 Hz phases with all nominal counters zero and exact-zero fault holds."
+      "status": "control_diagnostic_pass_timing_blocked",
+      "owner": "tools/run_step5d_p0_v8_mujoco.py",
+      "acceptance": "Same frozen fingerprint completes deterministic 2, 10, and 60 second 500 Hz phases with all nominal counters zero and exact-zero fault holds.",
+      "summary_artifact": "config/step5d_p0_v8_offline_simulation_diagnostic.json",
+      "summary_sha256": "4d5c7bf409a8c6cdc5abf6cfa7a6804799d35c2efb5fe969f6827aae2167ce46",
+      "control_and_fault_path_pass": true,
+      "wall_timing_pass": false,
+      "p0_sim_physics_pass": false,
+      "controller_canaries_completed": [],
+      "blockers": [
+        "offline_simulation_wall_timing_failed",
+        "geometry_provisional_no_p0_physics_claim",
+        "controller_canaries_not_run"
+      ]
     },
     {
       "id": "fresh_calibrated_mujoco_plant",
-      "status": "blocked",
+      "status": "calibrated_kinematics_geometry_provisional",
       "blockers": [
-        "eoat_variant_unresolved_current_kunwei_122p1_vs_v13_direct_flange_85",
         "combined_eoat_mass_cog_inertia_unvalidated",
-        "ur_description_xacro_and_mesh_hashes_not_pinned",
-        "kunwei_fz_sign_not_independently_calibrated"
+        "current_kunwei_stack_full_cad_missing",
+        "kunwei_fz_sign_not_independently_calibrated",
+        "surface_full_2d_geometry_not_calibrated",
+        "surface_material_contact_parameters_unvalidated"
+      ],
+      "model_manifest_sha256": "8ba6c41b0daac2dfaf92bbd628fe29a8e1ec332bfb1bd712a757b4ddbf391613",
+      "active_tcp_offset_tool0_m": [
+        0.0000018186503701174852,
+        0.00000022293003722353485,
+        0.12209917288991741
       ],
       "forbidden_inputs": [
         "experiments/archive/legacy/tase-mujoco-reproduction-2026-05-23/assets/mjcf/ur10e_nominal.xml",
@@ -43,25 +69,40 @@
     },
     {
       "id": "gazebo_v2_native_contact",
-      "status": "blocked",
+      "status": "static_lane_ready_runtime_blocked",
       "blockers": [
-        "legacy_controller_manager_update_rate_100_hz",
-        "legacy_position_controller_only",
-        "fortress_and_harmonic_abi_not_separated",
-        "native_attached_robot_contact_ft_not_captured"
+        "gazebo_v2_runtime_adapter_node_not_implemented",
+        "native_attached_robot_contact_ft_not_captured",
+        "same_run_visual_and_tick_evidence_not_captured"
       ],
-      "required_version_lane": "Fortress 6.18.0 + ign_ros2_control 0.7.19 unless a separate Harmonic lane is explicitly generated"
+      "required_version_lane": "Fortress 6.18.0 + ign_ros2_control 0.7.19 unless a separate Harmonic lane is explicitly generated",
+      "abi_preflight_pass": true,
+      "package_build_pass": true,
+      "runtime_claim": false
     },
     {
       "id": "visual_observer_four_views",
-      "status": "not_run",
+      "status": "mujoco_views_captured_visual_acceptance_blocked",
       "required_views": ["wide", "oblique", "close", "contact"],
-      "claim_boundary": "visual evidence cannot increase physics or control claims"
+      "claim_boundary": "visual evidence cannot increase physics or control claims",
+      "observer_review_sha256": "936237d3ab7324c78110bfc18a46f7fdb35246dc2744263c72e13f487d79d426",
+      "blockers": [
+        "kunwei_and_sensor_geometry_is_a_provisional_proxy",
+        "gazebo_four_view_same_run_capture_missing",
+        "bench_photo_overlay_unavailable"
+      ]
     },
     {
       "id": "cross_engine_and_domain_randomization",
-      "status": "not_run",
-      "claim_boundary": "unvalidated random parameters are robustness/falsification evidence only"
+      "status": "static_falsification_plan_ready_runtime_blocked",
+      "claim_boundary": "unvalidated random parameters are robustness/falsification evidence only",
+      "scenario_count": 37,
+      "evidence_sha256": "b90c351715cdc3562f49c8402b5f82f98c0bf8722316a3321f21dd4154ce606f",
+      "blockers": [
+        "gazebo_runtime_evidence_missing",
+        "cross_engine_contact_equivalence_not_proven",
+        "domain_randomization_scenarios_not_executed"
+      ]
     },
     {
       "id": "ursim_5_11_protocol",
@@ -77,25 +118,29 @@
     },
     {
       "id": "vic_simulation_active_dbil_shadow",
-      "status": "partial",
+      "status": "offline_contracts_pass_dbil_shadow_only",
       "blockers": [
-        "fixed_scripted_deterministic_policies_not_simulation_active",
-        "dbil_active_manifest_path_not_unconditionally_rejected",
-        "directional_adaptor_rotation_default_not_fixed"
-      ]
+        "dbil_200_100_50hz_paced_inference_timing_failed",
+        "dbil_active_disabled",
+        "task_zft_and_ur10e_calibration_hash_missing"
+      ],
+      "deterministic_policies_simulation_active": true,
+      "dbil_shadow_command_bitwise_inert": true,
+      "dbil_active": false
     },
     {
       "id": "timing_separation",
-      "status": "partial",
+      "status": "sim_time_pass_wall_timing_failed",
       "blockers": [
-        "sim_time_500_hz_evidence_not_run",
         "ubuntu_wall_paced_500_hz_acceptance_not_passed",
         "rtf_not_reported"
-      ]
+      ],
+      "sim_time_tick_miss_count": 0,
+      "wall_timing_artifact": "config/step5d_p0_v8_offline_simulation_diagnostic.json"
     },
     {
       "id": "unified_evidence_and_claims",
-      "status": "implementation_in_progress",
+      "status": "implemented_offline_claims_fail_closed",
       "required_claims": [
         "p0_sim_physics_pass",
         "p0_ursim_protocol_pass",
