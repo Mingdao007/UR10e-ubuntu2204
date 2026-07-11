@@ -1006,6 +1006,12 @@ class DeferredV30Diagnostics:
             (self.capacity, len(V30_DEFERRED_NUMERIC_FIELDS)),
             dtype=np.float64,
         )
+        # ``np.empty`` reserves virtual address space but does not guarantee
+        # that every backing page is resident. First-touch page faults inside
+        # a 500 Hz loop can masquerade as controller latency, so materialize
+        # this bounded evidence buffer before the caller enters its loop.
+        self.numeric.fill(0.0)
+        self.prefaulted = True
         self.reasons: list[str | None] = [None] * self.capacity
         self.actions: list[str | None] = [None] * self.capacity
         self.count = 0

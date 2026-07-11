@@ -22,6 +22,10 @@ from step5d_control_contract import V30_DEFERRED_NUMERIC_FIELDS  # noqa: E402
 from test_step5d_sim_evidence import payload as base_evidence  # noqa: E402
 from verify_step5d_sim_evidence import source_composite_sha256  # noqa: E402
 from verify_step5d_p0_v8_mujoco import (  # noqa: E402
+    CONTROL_HARD_SCOPE,
+    SIMULATOR_CYCLE_SCOPE,
+    TIMING_SCOPE_VERSION,
+    TRACE_PREFAULT_STRATEGY,
     _trace_blockers,
     validate_run_manifest,
 )
@@ -420,6 +424,178 @@ class Step5dP0V8MujocoVerifierTest(unittest.TestCase):
         }
         return self.root / "run_manifest.json", manifest
 
+    @staticmethod
+    def _distribution(values: np.ndarray) -> dict[str, float]:
+        return {
+            "p50_ms": float(np.percentile(values, 50)),
+            "p95_ms": float(np.percentile(values, 95)),
+            "p99_ms": float(np.percentile(values, 99)),
+            "max_ms": float(np.max(values)),
+        }
+
+    def _build_full_bundle_v2(self) -> tuple[Path, dict[str, object]]:
+        manifest_path, manifest = self._build_full_bundle()
+        phases = manifest["phases"]
+        assert isinstance(phases, list)
+        fingerprint: str | None = None
+        control_rows: list[dict[str, object]] = []
+        cycle_rows: list[dict[str, object]] = []
+        for phase in phases:
+            assert isinstance(phase, dict)
+            evidence_path = self.root / str(phase["evidence_path"])
+            evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+            trace_path = evidence_path.parent / "control_trace.npz"
+            with np.load(trace_path, allow_pickle=False) as trace:
+                arrays = {name: trace[name] for name in trace.files}
+            control = np.asarray(arrays.pop("compute_ms"), dtype=float)
+            count = control.shape[0]
+            oracle = np.full(count, 0.1)
+            physics = np.full(count, 0.2)
+            cycle = oracle + control + physics
+            arrays.update(
+                {
+                    "control_compute_ms": control,
+                    "oracle_snapshot_ms": oracle,
+                    "command_apply_and_physics_ms": physics,
+                    "cycle_wall_ms": cycle,
+                }
+            )
+            np.savez_compressed(trace_path, **arrays)
+
+            source = evidence["source_binding"]
+            assert isinstance(source, dict)
+            runtime = source["runtime_timing_environment"]
+            assert isinstance(runtime, dict)
+            runtime["timing_scope_contract"] = {
+                "version": TIMING_SCOPE_VERSION,
+                "control_hard_500hz": CONTROL_HARD_SCOPE,
+                "simulator_cycle_diagnostic": SIMULATOR_CYCLE_SCOPE,
+            }
+            runtime["trace_prefault"] = {
+                "required": True,
+                "completed": True,
+                "strategy": TRACE_PREFAULT_STRATEGY,
+            }
+            source["composite_sha256"] = source_composite_sha256(source)
+            if fingerprint is None:
+                fingerprint = str(source["composite_sha256"])
+            self.assertEqual(source["composite_sha256"], fingerprint)
+
+            control_timing = {
+                "scope": CONTROL_HARD_SCOPE,
+                "paced": True,
+                "samples": count,
+                "deadline_ms": 2.0,
+                "p99_limit_ms": 1.8,
+                **self._distribution(control),
+                "deadline_miss_count": 0,
+                "p99_within_limit": True,
+                "max_within_deadline": True,
+                "prefault_required": True,
+                "prefault_verified": True,
+                "pass": True,
+            }
+            cycle_timing = {
+                "scope": SIMULATOR_CYCLE_SCOPE,
+                "diagnostic_only": True,
+                "samples": count,
+                "physics_substeps_per_control_tick": 4,
+                "oracle_snapshot_ms": self._distribution(oracle),
+                "command_apply_and_physics_ms": self._distribution(physics),
+                "cycle_wall_ms": self._distribution(cycle),
+                "release_lateness_ms": self._distribution(
+                    np.asarray(arrays["release_lateness_ms"], dtype=float)
+                ),
+                "absolute_finish_lateness_ms": self._distribution(
+                    np.asarray(arrays["absolute_finish_lateness_ms"], dtype=float)
+                ),
+                "cycle_compute_deadline_miss_count": 0,
+                "absolute_deadline_miss_count": 0,
+                "meets_500hz_diagnostic": True,
+            }
+            evidence["schema"] = "ur10e_simulation_evidence_v2"
+            evidence.pop("wall_timing")
+            evidence["control_hard_500hz"] = control_timing
+            evidence["simulator_cycle_diagnostic"] = cycle_timing
+            nominal = evidence["nominal"]
+            assert isinstance(nominal, dict)
+            nominal.pop("deadline_miss_count")
+            nominal.pop("compute_deadline_miss_count")
+            nominal["control_deadline_miss_count"] = 0
+            nominal["cycle_compute_deadline_miss_count"] = 0
+            nominal["absolute_deadline_miss_count"] = 0
+            contract = evidence["control_contract"]
+            assert isinstance(contract, dict)
+            contract["timing_scope_version"] = TIMING_SCOPE_VERSION
+            contract["trace_buffers_prefaulted"] = True
+            artifact = evidence["artifacts"][0]
+            artifact["sha256"] = self._sha256(trace_path)
+            artifact["size_bytes"] = trace_path.stat().st_size
+            evidence_path.write_text(
+                json.dumps(evidence, sort_keys=True), encoding="utf-8"
+            )
+            phase["evidence_sha256"] = self._sha256(evidence_path)
+            phase["evidence_size_bytes"] = evidence_path.stat().st_size
+            phase.pop("compute_deadline_miss_count")
+            phase.pop("wall_timing_pass")
+            phase["control_hard_500hz_pass"] = True
+            phase["control_deadline_miss_count"] = 0
+            phase["simulator_cycle_meets_500hz_diagnostic"] = True
+            phase["cycle_compute_deadline_miss_count"] = 0
+            phase["absolute_deadline_miss_count"] = 0
+            duration = phase["duration_s"]
+            control_rows.append(
+                {"duration_s": duration, "deadline_miss_count": 0, "pass": True}
+            )
+            cycle_rows.append(
+                {
+                    "duration_s": duration,
+                    "cycle_compute_deadline_miss_count": 0,
+                    "absolute_deadline_miss_count": 0,
+                    "meets_500hz_diagnostic": True,
+                }
+            )
+        assert fingerprint is not None
+        manifest["schema"] = "step5d_p0_v8_mujoco_run_v2"
+        manifest["source_composite_sha256"] = fingerprint
+        manifest.pop("timing_gate")
+        manifest["control_hard_500hz_gate"] = {
+            "scope": CONTROL_HARD_SCOPE,
+            "required_phase_duration_s": 60.0,
+            "deadline_ms": 2.0,
+            "p99_limit_ms": 1.8,
+            "requires_zero_deadline_misses": True,
+            "requires_prefault": True,
+            "phase_results": control_rows,
+            "complete_sequence_evaluated": True,
+            "pass": True,
+        }
+        manifest["simulator_cycle_diagnostic"] = {
+            "scope": SIMULATOR_CYCLE_SCOPE,
+            "diagnostic_only": True,
+            "phase_results": cycle_rows,
+        }
+        manifest["result"] = "diagnostic_pass"
+        manifest["blockers"] = ["geometry_provisional_no_p0_physics_claim"]
+        return manifest_path, manifest
+
+    def _rebind_phase_evidence(
+        self,
+        manifest: dict[str, object],
+        index: int,
+        evidence: dict[str, object],
+    ) -> Path:
+        phases = manifest["phases"]
+        assert isinstance(phases, list) and isinstance(phases[index], dict)
+        phase = phases[index]
+        evidence_path = self.root / str(phase["evidence_path"])
+        evidence_path.write_text(
+            json.dumps(evidence, sort_keys=True), encoding="utf-8"
+        )
+        phase["evidence_sha256"] = self._sha256(evidence_path)
+        phase["evidence_size_bytes"] = evidence_path.stat().st_size
+        return evidence_path
+
     def test_full_chain_requires_one_fingerprint_and_claim_non_promotion(self) -> None:
         _path, manifest = self._build_full_bundle()
 
@@ -458,6 +634,94 @@ class Step5dP0V8MujocoVerifierTest(unittest.TestCase):
             "control_diagnostic_pass_timing_blocked",
         )
         self.assertIn("wall_timing_gate_failed_60s", manifest["blockers"])
+
+    def test_v2_full_chain_clean_fixture_passes(self) -> None:
+        _path, manifest = self._build_full_bundle_v2()
+
+        self.assertEqual(
+            validate_run_manifest(manifest, root=self.root, require_complete=True),
+            [],
+        )
+
+    def test_v2_rejects_raw_control_timing_tamper_after_rebinding(self) -> None:
+        _path, manifest = self._build_full_bundle_v2()
+        phases = manifest["phases"]
+        assert isinstance(phases, list) and isinstance(phases[0], dict)
+        evidence_path = self.root / str(phases[0]["evidence_path"])
+        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+        trace_path = evidence_path.parent / "control_trace.npz"
+        with np.load(trace_path, allow_pickle=False) as trace:
+            arrays = {name: trace[name].copy() for name in trace.files}
+        arrays["control_compute_ms"][0] = 2.1
+        np.savez_compressed(trace_path, **arrays)
+        artifact = evidence["artifacts"][0]
+        artifact["sha256"] = self._sha256(trace_path)
+        artifact["size_bytes"] = trace_path.stat().st_size
+        self._rebind_phase_evidence(manifest, 0, evidence)
+
+        blockers = validate_run_manifest(
+            manifest, root=self.root, require_complete=True
+        )
+
+        self.assertTrue(
+            any("control_hard_500hz" in item and "trace_mismatch" in item for item in blockers),
+            blockers,
+        )
+
+    def test_v2_rejects_scope_and_prefault_binding_tamper(self) -> None:
+        _path, manifest = self._build_full_bundle_v2()
+        phases = manifest["phases"]
+        assert isinstance(phases, list) and isinstance(phases[0], dict)
+        evidence_path = self.root / str(phases[0]["evidence_path"])
+        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+        source = evidence["source_binding"]
+        runtime = source["runtime_timing_environment"]
+        runtime["timing_scope_contract"]["control_hard_500hz"] = "wrong_scope"
+        runtime["trace_prefault"]["completed"] = False
+        source["composite_sha256"] = source_composite_sha256(source)
+        self._rebind_phase_evidence(manifest, 0, evidence)
+
+        blockers = validate_run_manifest(
+            manifest, root=self.root, require_complete=True
+        )
+
+        self.assertTrue(any("timing_scope_contract:invalid" in item for item in blockers), blockers)
+        self.assertTrue(any("trace_prefault:invalid" in item for item in blockers), blockers)
+
+    def test_v2_run_rejects_mixed_v1_phase_evidence(self) -> None:
+        _path, manifest = self._build_full_bundle_v2()
+        phases = manifest["phases"]
+        assert isinstance(phases, list) and isinstance(phases[0], dict)
+        evidence_path = self.root / str(phases[0]["evidence_path"])
+        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+        control = evidence.pop("control_hard_500hz")
+        evidence.pop("simulator_cycle_diagnostic")
+        evidence["schema"] = "ur10e_simulation_evidence_v1"
+        evidence["wall_timing"] = self._wall_timing(
+            int(control["samples"]), float(control["p50_ms"])
+        )
+        nominal = evidence["nominal"]
+        nominal["deadline_miss_count"] = 0
+        nominal["compute_deadline_miss_count"] = 0
+        nominal["absolute_deadline_miss_count"] = 0
+        trace_path = evidence_path.parent / "control_trace.npz"
+        with np.load(trace_path, allow_pickle=False) as trace:
+            arrays = {name: trace[name].copy() for name in trace.files}
+        arrays["compute_ms"] = arrays.pop("control_compute_ms")
+        arrays.pop("oracle_snapshot_ms")
+        arrays.pop("command_apply_and_physics_ms")
+        arrays.pop("cycle_wall_ms")
+        np.savez_compressed(trace_path, **arrays)
+        artifact = evidence["artifacts"][0]
+        artifact["sha256"] = self._sha256(trace_path)
+        artifact["size_bytes"] = trace_path.stat().st_size
+        self._rebind_phase_evidence(manifest, 0, evidence)
+
+        blockers = validate_run_manifest(
+            manifest, root=self.root, require_complete=True
+        )
+
+        self.assertTrue(any("trace:missing_arrays" in item for item in blockers), blockers)
 
 
 if __name__ == "__main__":

@@ -13,8 +13,18 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 from build_step5d_p0_v8_offline_diagnostic import (  # noqa: E402
+    CONTROL_SCOPE_V2,
+    CURRENT_TIMING_SCOPE_STATUS,
+    EVIDENCE_SCHEMA_V1,
+    EVIDENCE_SCHEMA_V2,
     FALSE_CLAIMS,
+    HISTORICAL_TIMING_SCOPE_STATUS,
     P0_REQUIRED_FAULTS,
+    PREFAULT_STRATEGY_V2,
+    RUN_SCHEMA_V1,
+    RUN_SCHEMA_V2,
+    SIMULATOR_SCOPE_V2,
+    TIMING_SCOPE_VERSION_V2,
     bound_state_binding,
     build_diagnostic,
     canonical_sha256,
@@ -38,6 +48,7 @@ def phase_evidence(index: int, duration_s: float, *, timing_pass: bool = False) 
     p99_ms = 1.2 if timing_pass else 2.2 + index
     max_ms = 1.4 if timing_pass else 2.5 + index
     return {
+        "schema": EVIDENCE_SCHEMA_V1,
         "source_binding": {
             "base_commit": "abcdef0123456789",
             "head_commit": "abcdef0123456789",
@@ -127,7 +138,7 @@ def manifest(*, final_timing_pass: bool = False) -> dict:
             }
         )
     return {
-        "schema": "step5d_p0_v8_mujoco_run_v1",
+        "schema": RUN_SCHEMA_V1,
         "generated_at": "2026-07-11T08:00:00+00:00",
         "source_composite_sha256": SOURCE_SHA,
         "canonical_phase_sequence_complete": True,
@@ -171,6 +182,159 @@ def summary(*, final_timing_pass: bool = False) -> dict:
     )
 
 
+def split_phase_evidence(
+    index: int,
+    duration_s: float,
+    *,
+    control_pass: bool = True,
+    simulator_fast: bool = False,
+) -> dict:
+    evidence = phase_evidence(index, duration_s)
+    evidence["schema"] = EVIDENCE_SCHEMA_V2
+    evidence.pop("wall_timing")
+    evidence["source_binding"]["runtime_timing_environment"] = {
+        "trace_prefault": {
+            "required": True,
+            "completed": True,
+            "strategy": PREFAULT_STRATEGY_V2,
+        },
+        "timing_scope_contract": {
+            "version": TIMING_SCOPE_VERSION_V2,
+            "control_hard_500hz": CONTROL_SCOPE_V2,
+            "simulator_cycle_diagnostic": SIMULATOR_SCOPE_V2,
+        },
+    }
+    evidence["control_contract"] = {
+        "timing_scope_version": TIMING_SCOPE_VERSION_V2,
+        "trace_buffers_prefaulted": True,
+    }
+    ticks = int(duration_s * 500)
+    control_misses = 0 if control_pass else 1
+    evidence["nominal"].update(
+        {
+            "control_deadline_miss_count": control_misses,
+            "cycle_compute_deadline_miss_count": 0 if simulator_fast else index + 1,
+            "absolute_deadline_miss_count": 0 if simulator_fast else index + 2,
+        }
+    )
+    evidence["control_hard_500hz"] = {
+        "scope": CONTROL_SCOPE_V2,
+        "paced": True,
+        "samples": ticks,
+        "deadline_ms": 2.0,
+        "p99_limit_ms": 1.8,
+        "p50_ms": 0.4,
+        "p95_ms": 0.6,
+        "p99_ms": 0.7 if control_pass else 1.9,
+        "max_ms": 0.9 if control_pass else 2.1,
+        "deadline_miss_count": control_misses,
+        "p99_within_limit": control_pass,
+        "max_within_deadline": control_pass,
+        "prefault_required": True,
+        "prefault_verified": True,
+        "pass": control_pass,
+    }
+    slow = 0.8 if simulator_fast else 2.4 + index
+    distribution = {
+        "p50_ms": 0.2,
+        "p95_ms": 0.4,
+        "p99_ms": 0.6 if simulator_fast else slow - 0.1,
+        "max_ms": 0.7 if simulator_fast else slow,
+    }
+    evidence["simulator_cycle_diagnostic"] = {
+        "scope": SIMULATOR_SCOPE_V2,
+        "diagnostic_only": True,
+        "samples": ticks,
+        "physics_substeps_per_control_tick": 4,
+        "oracle_snapshot_ms": dict(distribution),
+        "command_apply_and_physics_ms": dict(distribution),
+        "cycle_wall_ms": dict(distribution),
+        "release_lateness_ms": dict(distribution),
+        "absolute_finish_lateness_ms": dict(distribution),
+        "cycle_compute_deadline_miss_count": 0 if simulator_fast else index + 1,
+        "absolute_deadline_miss_count": 0 if simulator_fast else index + 2,
+        "meets_500hz_diagnostic": simulator_fast,
+    }
+    return evidence
+
+
+def split_summary(*, final_control_pass: bool = True) -> dict:
+    evidence = [
+        split_phase_evidence(
+            index,
+            duration,
+            control_pass=final_control_pass or index < 2,
+        )
+        for index, duration in enumerate((2.0, 10.0, 60.0))
+    ]
+    control_results = [
+        {
+            "duration_s": duration,
+            "deadline_miss_count": row["control_hard_500hz"]["deadline_miss_count"],
+            "pass": row["control_hard_500hz"]["pass"],
+        }
+        for duration, row in zip((2.0, 10.0, 60.0), evidence)
+    ]
+    simulator_results = [
+        {
+            "duration_s": duration,
+            "cycle_compute_deadline_miss_count": row["simulator_cycle_diagnostic"]["cycle_compute_deadline_miss_count"],
+            "absolute_deadline_miss_count": row["simulator_cycle_diagnostic"]["absolute_deadline_miss_count"],
+            "meets_500hz_diagnostic": False,
+        }
+        for duration, row in zip((2.0, 10.0, 60.0), evidence)
+    ]
+    rows = [
+        {
+            "duration_s": duration,
+            "sequence_index": index,
+            "evidence_path": f"phase_{index}/evidence.json",
+            "evidence_sha256": str(index + 6) * 64,
+            "evidence_size_bytes": 1000 + index,
+            "structurally_valid": True,
+            "validation_blockers": [],
+            "control_path_diagnostic_pass": True,
+        }
+        for index, duration in enumerate((2.0, 10.0, 60.0))
+    ]
+    manifest_v2 = {
+        "schema": RUN_SCHEMA_V2,
+        "generated_at": "2026-07-12T08:00:00+00:00",
+        "source_composite_sha256": SOURCE_SHA,
+        "canonical_phase_sequence_complete": True,
+        "phases": rows,
+        "result": (
+            "diagnostic_pass"
+            if final_control_pass
+            else "control_diagnostic_pass_control_hard_500hz_blocked"
+        ),
+        "control_hard_500hz_gate": {
+            "scope": CONTROL_SCOPE_V2,
+            "required_phase_duration_s": 60.0,
+            "deadline_ms": 2.0,
+            "p99_limit_ms": 1.8,
+            "requires_zero_deadline_misses": True,
+            "requires_prefault": True,
+            "phase_results": control_results,
+            "complete_sequence_evaluated": True,
+            "pass": final_control_pass,
+        },
+        "simulator_cycle_diagnostic": {
+            "scope": SIMULATOR_SCOPE_V2,
+            "diagnostic_only": True,
+            "phase_results": simulator_results,
+        },
+        "blockers": ["geometry_provisional_no_p0_physics_claim"],
+    }
+    return build_diagnostic(
+        manifest_v2,
+        evidence,
+        run_manifest_binding={"path": "runs/v2/run_manifest.json", "sha256": RUN_SHA, "size_bytes": 3700},
+        source_host="andy7",
+        model_manifest_binding={"path": "runs/models/model_manifest.json", "sha256": MODEL_MANIFEST_SHA, "size_bytes": 17000},
+    )
+
+
 def rehash(payload: dict) -> None:
     payload["diagnostic_sha256"] = canonical_sha256(
         {key: value for key, value in payload.items() if key != "diagnostic_sha256"}
@@ -188,13 +352,17 @@ class Step5dP0V8OfflineDiagnosticTest(unittest.TestCase):
         )
         self.assertTrue(payload["diagnostic"]["all_control_paths_diagnostic_pass"])
         self.assertTrue(payload["diagnostic"]["all_required_faults_exact_zero"])
-        self.assertFalse(payload["diagnostic"]["wall_timing_gate_pass"])
+        self.assertFalse(payload["diagnostic"]["offline_control_timing_pass"])
+        self.assertEqual(
+            payload["diagnostic"]["timing_scope_status"],
+            HISTORICAL_TIMING_SCOPE_STATUS,
+        )
         self.assertEqual(payload["claims"], FALSE_CLAIMS)
         self.assertEqual(
             payload["state_projection"]["controller_canaries"],
             {"completed": [], "p0_v8_passed": False},
         )
-        self.assertIn("offline_simulation_wall_timing_failed", payload["blockers"])
+        self.assertIn("current_control_timing_evidence_missing", payload["blockers"])
 
     def test_hashes_and_each_phase_metrics_are_bound(self) -> None:
         payload = summary()
@@ -231,7 +399,8 @@ class Step5dP0V8OfflineDiagnosticTest(unittest.TestCase):
         payload = summary(final_timing_pass=True)
 
         self.assertEqual(validate_diagnostic(payload), [])
-        self.assertTrue(payload["diagnostic"]["wall_timing_gate_pass"])
+        self.assertTrue(payload["diagnostic"]["historical_combined_scope_timing_pass"])
+        self.assertFalse(payload["diagnostic"]["offline_control_timing_pass"])
         self.assertEqual(payload["claims"], FALSE_CLAIMS)
         self.assertIn("geometry_provisional_no_p0_physics_claim", payload["blockers"])
         self.assertIn("controller_canaries_not_run", payload["blockers"])
@@ -255,10 +424,83 @@ class Step5dP0V8OfflineDiagnosticTest(unittest.TestCase):
         )
 
         self.assertEqual(validate_state_binding(binding, summary=payload), [])
-        self.assertEqual(binding["status"], "bound_timing_blocked")
+        self.assertEqual(binding["status"], "bound_timing_scope_superseded")
         self.assertEqual(binding["controller_canaries"]["completed"], [])
         self.assertFalse(binding["claims"]["p0_v8_passed"])
-        self.assertIn("offline_simulation_wall_timing_failed", binding["blockers"])
+        self.assertIn("current_control_timing_evidence_missing", binding["blockers"])
+
+    def test_v2_control_pass_is_current_even_when_simulator_cycle_is_slow(self) -> None:
+        payload = split_summary()
+
+        self.assertEqual(validate_diagnostic(payload), [])
+        self.assertEqual(
+            payload["diagnostic"]["timing_scope_status"],
+            CURRENT_TIMING_SCOPE_STATUS,
+        )
+        self.assertTrue(payload["diagnostic"]["offline_control_timing_pass"])
+        self.assertFalse(
+            payload["phases"][2]["simulator_cycle_diagnostic"][
+                "meets_500hz_diagnostic"
+            ]
+        )
+        self.assertNotIn("offline_control_timing_failed", payload["blockers"])
+
+    def test_v2_control_failure_blocks_offline_control_timing(self) -> None:
+        payload = split_summary(final_control_pass=False)
+
+        self.assertEqual(validate_diagnostic(payload), [])
+        self.assertFalse(payload["diagnostic"]["offline_control_timing_pass"])
+        self.assertIn("offline_control_timing_failed", payload["blockers"])
+
+    def test_v1_pass_never_satisfies_current_control_timing(self) -> None:
+        payload = summary(final_timing_pass=True)
+
+        self.assertEqual(validate_diagnostic(payload), [])
+        self.assertEqual(
+            payload["diagnostic"]["timing_scope_status"],
+            HISTORICAL_TIMING_SCOPE_STATUS,
+        )
+        self.assertFalse(payload["diagnostic"]["offline_control_timing_pass"])
+
+    def test_v2_prefault_or_source_tamper_fails_closed(self) -> None:
+        payload = split_summary()
+        payload["phases"][1]["timing_scope_binding"]["trace_prefault"][
+            "completed"
+        ] = False
+        payload["phases"][2]["source_composite_sha256"] = "a" * 64
+        rehash(payload)
+
+        blockers = validate_diagnostic(payload)
+
+        self.assertIn("phases[1].timing_scope_binding:invalid", blockers)
+        self.assertIn("phases[2].source_composite_sha256:mismatch", blockers)
+
+    def test_v2_simulator_realtime_claim_must_match_each_miss_counter(self) -> None:
+        for cycle_misses, absolute_misses in ((1, 0), (0, 1)):
+            with self.subTest(
+                cycle_misses=cycle_misses,
+                absolute_misses=absolute_misses,
+            ):
+                payload = split_summary()
+                phase = payload["phases"][2]
+                simulator = phase["simulator_cycle_diagnostic"]
+                counters = phase["control_counters"]
+                manifest_projection = payload["timing_evidence"][
+                    "simulator_cycle_diagnostic"
+                ]["phase_results"][2]
+                for target in (simulator, counters, manifest_projection):
+                    target["cycle_compute_deadline_miss_count"] = cycle_misses
+                    target["absolute_deadline_miss_count"] = absolute_misses
+                simulator["meets_500hz_diagnostic"] = True
+                manifest_projection["meets_500hz_diagnostic"] = True
+                rehash(payload)
+
+                blockers = validate_diagnostic(payload)
+
+                self.assertIn(
+                    "phases[2].simulator_cycle_diagnostic:inconsistent",
+                    blockers,
+                )
 
     def test_unbound_state_rejects_hidden_simulator_promotion(self) -> None:
         binding = copy.deepcopy(unbound_state_binding())

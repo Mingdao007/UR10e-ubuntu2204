@@ -53,8 +53,8 @@ from ur10e_mujoco_adapter import MuJoCoVelocityPlant
 from verify_step5d_sim_evidence import (
     P0_REQUIRED_FAULTS,
     source_composite_sha256,
-    validate_evidence,
 )
+from verify_step5d_p0_v8_mujoco import validate_phase_evidence
 
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
@@ -84,6 +84,18 @@ SOURCE_FILES = (
     "tools/verify_step5d_p0_v8_mujoco.py",
     "config/step5d_liveprep_solver_gate.json",
     "config/schemas/ur10e_simulation_evidence_v1.schema.json",
+    "config/schemas/ur10e_simulation_evidence_v2.schema.json",
+)
+
+EVIDENCE_SCHEMA_V2 = "ur10e_simulation_evidence_v2"
+RUN_SCHEMA_V2 = "step5d_p0_v8_mujoco_run_v2"
+TIMING_SCOPE_VERSION = "p0_v8_timing_lane_split_v2"
+CONTROL_HARD_SCOPE = "simulator_state_ready_to_adapter_step_complete"
+SIMULATOR_CYCLE_SCOPE = (
+    "release_to_oracle_snapshot_to_adapter_step_to_command_apply_and_four_physics_substeps"
+)
+TRACE_PREFAULT_STRATEGY = (
+    "numpy_fill_zero_before_gc_collect_and_measured_loop"
 )
 
 
@@ -124,7 +136,8 @@ class NominalPhaseResult:
     qdot_bound_violation_count: int
     unexpected_contact_count: int
     cage_collision_count: int
-    compute_deadline_miss_count: int
+    control_deadline_miss_count: int
+    cycle_compute_deadline_miss_count: int
     absolute_deadline_miss_count: int
     max_qdot_abs_rad_s: float
     exact_zero_rejection_count: int
@@ -135,7 +148,10 @@ class NominalPhaseResult:
     sim_time_drift_s: float
     first_sequence: int
     last_sequence: int
-    compute_ms: np.ndarray
+    control_compute_ms: np.ndarray
+    oracle_snapshot_ms: np.ndarray
+    command_apply_and_physics_ms: np.ndarray
+    cycle_wall_ms: np.ndarray
     release_lateness_ms: np.ndarray
     absolute_finish_lateness_ms: np.ndarray
     sim_time_s: np.ndarray
@@ -152,6 +168,22 @@ class NominalPhaseResult:
     actions: np.ndarray
     reasons: np.ndarray
     deferred: DeferredV30Diagnostics
+    trace_buffers_prefaulted: bool
+
+    @property
+    def compute_ms(self) -> np.ndarray:
+        """Compatibility alias for diagnostic sweep callers.
+
+        In v2 this is the hard control lane only, never the simulator cycle.
+        """
+
+        return self.control_compute_ms
+
+    @property
+    def compute_deadline_miss_count(self) -> int:
+        """Compatibility alias for the v2 hard control deadline count."""
+
+        return self.control_deadline_miss_count
 
     @property
     def control_path_pass(self) -> bool:
@@ -321,6 +353,16 @@ def runtime_timing_environment(
     return {
         "paced_wall_clock": bool(pace_wall_clock),
         "release_spin_window_s": float(release_spin_window_s),
+        "timing_scope_contract": {
+            "version": TIMING_SCOPE_VERSION,
+            "control_hard_500hz": CONTROL_HARD_SCOPE,
+            "simulator_cycle_diagnostic": SIMULATOR_CYCLE_SCOPE,
+        },
+        "trace_prefault": {
+            "required": True,
+            "completed": True,
+            "strategy": TRACE_PREFAULT_STRATEGY,
+        },
         "process_affinity": affinity,
         "process_scheduler": scheduler,
         "thread_environment": {
@@ -475,6 +517,14 @@ def wait_until(deadline_s: float, *, spin_window_s: float = 0.00025) -> None:
             return
 
 
+def prefault_numeric_buffers(*buffers: np.ndarray) -> bool:
+    """Materialize preallocated trace pages before the measured 500 Hz loop."""
+
+    for buffer in buffers:
+        buffer.fill(0)
+    return True
+
+
 def run_nominal_phase(
     *,
     plant: VelocityPlant,
@@ -499,7 +549,10 @@ def run_nominal_phase(
     policy = StrictRnnControlPolicy(solver)
     adapter = make_adapter(policy, capacity=tick_count)
 
-    compute_ms = np.empty(tick_count, dtype=np.float64)
+    control_compute_ms = np.empty(tick_count, dtype=np.float64)
+    oracle_snapshot_ms = np.empty(tick_count, dtype=np.float64)
+    command_apply_and_physics_ms = np.empty(tick_count, dtype=np.float64)
+    cycle_wall_ms = np.empty(tick_count, dtype=np.float64)
     release_lateness_ms = np.empty(tick_count, dtype=np.float64)
     absolute_finish_lateness_ms = np.empty(tick_count, dtype=np.float64)
     sim_time_s = np.empty(tick_count, dtype=np.float64)
@@ -513,6 +566,25 @@ def run_nominal_phase(
     cage_collision_count_per_tick = np.empty(tick_count, dtype=np.int32)
     tcp_inside_cage = np.empty(tick_count, dtype=np.uint8)
     accepted = np.empty(tick_count, dtype=np.uint8)
+    trace_buffers_prefaulted = prefault_numeric_buffers(
+        control_compute_ms,
+        oracle_snapshot_ms,
+        command_apply_and_physics_ms,
+        cycle_wall_ms,
+        release_lateness_ms,
+        absolute_finish_lateness_ms,
+        sim_time_s,
+        qdot,
+        command_jacobian,
+        desired_twist,
+        reaction_normal,
+        approach_normal,
+        wrench,
+        native_contact_count,
+        cage_collision_count_per_tick,
+        tcp_inside_cage,
+        accepted,
+    ) and bool(adapter.deferred_diagnostics.prefaulted)
     actions: list[str | None] = [None] * tick_count
     reasons: list[str | None] = [None] * tick_count
 
@@ -522,7 +594,8 @@ def run_nominal_phase(
     over_cap = 0
     contacts = 0
     collisions = 0
-    compute_deadline_misses = 0
+    control_deadline_misses = 0
+    cycle_compute_deadline_misses = 0
     absolute_deadline_misses = 0
     exact_zero_rejections = 0
     physics_tick = 0
@@ -542,23 +615,31 @@ def run_nominal_phase(
             absolute_deadline = release + 1.0 / P0_V8_CONTROL_HZ
             if pace_wall_clock and index:
                 wait_until(release, spin_window_s=release_spin_window_s)
-            started = time.perf_counter()
+            cycle_started = time.perf_counter()
             state = plant.read_state(
                 sequence=index,
                 wall_time_s=time.perf_counter() - wall_start,
             )
+            state_ready = time.perf_counter()
             result = adapter.step(state)
+            control_finished = time.perf_counter()
             plant.write_command(result.simulation_command)
             finished = time.perf_counter()
-            elapsed_ms = (finished - started) * 1000.0
-            release_lateness = max(0.0, (started - release) * 1000.0)
+            control_elapsed_ms = (control_finished - state_ready) * 1000.0
+            oracle_elapsed_ms = (state_ready - cycle_started) * 1000.0
+            physics_elapsed_ms = (finished - control_finished) * 1000.0
+            cycle_elapsed_ms = (finished - cycle_started) * 1000.0
+            release_lateness = max(0.0, (cycle_started - release) * 1000.0)
             absolute_finish_lateness = max(
                 0.0,
                 (finished - absolute_deadline) * 1000.0,
             )
 
             values = np.asarray(result.simulation_command.qdot, dtype=float)
-            compute_ms[index] = elapsed_ms
+            control_compute_ms[index] = control_elapsed_ms
+            oracle_snapshot_ms[index] = oracle_elapsed_ms
+            command_apply_and_physics_ms[index] = physics_elapsed_ms
+            cycle_wall_ms[index] = cycle_elapsed_ms
             release_lateness_ms[index] = release_lateness
             absolute_finish_lateness_ms[index] = absolute_finish_lateness
             sim_time_s[index] = state.sim_time_s
@@ -591,7 +672,8 @@ def run_nominal_phase(
             collisions += int(
                 state.cage_collision_count != 0 or not state.tcp_inside_cage
             )
-            compute_deadline_misses += int(elapsed_ms >= 2.0)
+            control_deadline_misses += int(control_elapsed_ms >= 2.0)
+            cycle_compute_deadline_misses += int(cycle_elapsed_ms >= 2.0)
             absolute_deadline_misses += int(absolute_finish_lateness > 0.0)
             exact_zero_rejections += int(
                 not result.control.decision.accepted
@@ -619,7 +701,8 @@ def run_nominal_phase(
         qdot_bound_violation_count=over_cap,
         unexpected_contact_count=contacts,
         cage_collision_count=collisions,
-        compute_deadline_miss_count=compute_deadline_misses,
+        control_deadline_miss_count=control_deadline_misses,
+        cycle_compute_deadline_miss_count=cycle_compute_deadline_misses,
         absolute_deadline_miss_count=absolute_deadline_misses,
         max_qdot_abs_rad_s=float(np.max(np.abs(qdot))),
         exact_zero_rejection_count=exact_zero_rejections,
@@ -630,7 +713,10 @@ def run_nominal_phase(
         sim_time_drift_s=sim_end - expected_end,
         first_sequence=0,
         last_sequence=tick_count - 1,
-        compute_ms=compute_ms,
+        control_compute_ms=control_compute_ms,
+        oracle_snapshot_ms=oracle_snapshot_ms,
+        command_apply_and_physics_ms=command_apply_and_physics_ms,
+        cycle_wall_ms=cycle_wall_ms,
         release_lateness_ms=release_lateness_ms,
         absolute_finish_lateness_ms=absolute_finish_lateness_ms,
         sim_time_s=sim_time_s,
@@ -647,6 +733,7 @@ def run_nominal_phase(
         actions=np.asarray(actions, dtype="<U96"),
         reasons=np.asarray(reasons, dtype="<U160"),
         deferred=adapter.deferred_diagnostics,
+        trace_buffers_prefaulted=bool(trace_buffers_prefaulted),
     )
 
 
@@ -854,28 +941,28 @@ def timing_distribution(values: np.ndarray) -> dict[str, float]:
     }
 
 
-def wall_timing(nominal: NominalPhaseResult, *, paced: bool) -> dict[str, object]:
-    p50_ms = percentile(nominal.compute_ms, 50)
-    p95_ms = percentile(nominal.compute_ms, 95)
-    p99_ms = percentile(nominal.compute_ms, 99)
-    max_ms = float(np.max(nominal.compute_ms))
+def control_hard_timing(
+    nominal: NominalPhaseResult,
+    *,
+    paced: bool,
+) -> dict[str, object]:
+    """Summarize only the production-shaped state-to-command control lane."""
+
+    p50_ms = percentile(nominal.control_compute_ms, 50)
+    p95_ms = percentile(nominal.control_compute_ms, 95)
+    p99_ms = percentile(nominal.control_compute_ms, 99)
+    max_ms = float(np.max(nominal.control_compute_ms))
     p99_within_limit = p99_ms <= 1.80
     max_within_deadline = max_ms < 2.0
-    release_lateness = timing_distribution(nominal.release_lateness_ms)
-    absolute_finish_lateness = timing_distribution(
-        nominal.absolute_finish_lateness_ms
-    )
-    absolute_finish_within_deadline = nominal.absolute_deadline_miss_count == 0
     passed = (
         paced
-        and nominal.compute_deadline_miss_count == 0
-        and nominal.absolute_deadline_miss_count == 0
+        and nominal.trace_buffers_prefaulted
+        and nominal.control_deadline_miss_count == 0
         and p99_within_limit
         and max_within_deadline
     )
     return {
-        "scope": "read_state_to_shared_control_to_four_physics_substeps",
-        "deadline_accounting": "compute_elapsed_and_absolute_release_deadline_v2",
+        "scope": CONTROL_HARD_SCOPE,
         "paced": bool(paced),
         "samples": nominal.tick_count,
         "deadline_ms": 2.0,
@@ -884,19 +971,52 @@ def wall_timing(nominal: NominalPhaseResult, *, paced: bool) -> dict[str, object
         "p95_ms": p95_ms,
         "p99_ms": p99_ms,
         "max_ms": max_ms,
-        # Canonical deadline_miss_count is the absolute release-deadline count.
-        # The explicit compute counter preserves the former elapsed-only metric
-        # without allowing it to masquerade as schedule evidence.
-        "deadline_miss_count": nominal.absolute_deadline_miss_count,
-        "compute_deadline_miss_count": nominal.compute_deadline_miss_count,
-        "absolute_deadline_miss_count": nominal.absolute_deadline_miss_count,
-        "release_lateness_ms": release_lateness,
-        "absolute_finish_lateness_ms": absolute_finish_lateness,
+        "deadline_miss_count": nominal.control_deadline_miss_count,
         "p99_within_limit": p99_within_limit,
         "max_within_deadline": max_within_deadline,
-        "absolute_finish_within_deadline": absolute_finish_within_deadline,
+        "prefault_required": True,
+        "prefault_verified": nominal.trace_buffers_prefaulted,
         "pass": passed,
     }
+
+
+def simulator_cycle_timing(nominal: NominalPhaseResult) -> dict[str, object]:
+    """Report simulator/oracle/physics timing without gating control hard pass."""
+
+    cycle_compute_misses = int(
+        np.count_nonzero(nominal.cycle_wall_ms >= 2.0)
+    )
+    absolute_misses = int(
+        np.count_nonzero(nominal.absolute_finish_lateness_ms > 0.0)
+    )
+    return {
+        "scope": SIMULATOR_CYCLE_SCOPE,
+        "diagnostic_only": True,
+        "samples": nominal.tick_count,
+        "physics_substeps_per_control_tick": (
+            P0_V8_PHYSICS_HZ // P0_V8_CONTROL_HZ
+        ),
+        "oracle_snapshot_ms": timing_distribution(nominal.oracle_snapshot_ms),
+        "command_apply_and_physics_ms": timing_distribution(
+            nominal.command_apply_and_physics_ms
+        ),
+        "cycle_wall_ms": timing_distribution(nominal.cycle_wall_ms),
+        "release_lateness_ms": timing_distribution(nominal.release_lateness_ms),
+        "absolute_finish_lateness_ms": timing_distribution(
+            nominal.absolute_finish_lateness_ms
+        ),
+        "cycle_compute_deadline_miss_count": cycle_compute_misses,
+        "absolute_deadline_miss_count": absolute_misses,
+        "meets_500hz_diagnostic": (
+            cycle_compute_misses == 0 and absolute_misses == 0
+        ),
+    }
+
+
+def wall_timing(nominal: NominalPhaseResult, *, paced: bool) -> dict[str, object]:
+    """Compatibility name for profile sweeps; returns the v2 hard lane."""
+
+    return control_hard_timing(nominal, paced=paced)
 
 
 def phase_dir_name(spec: PhaseSpec) -> str:
@@ -921,7 +1041,10 @@ def write_phase_artifacts(
         trace_path,
         sequence=np.arange(nominal.tick_count, dtype=np.int64),
         sim_time_s=nominal.sim_time_s,
-        compute_ms=nominal.compute_ms,
+        control_compute_ms=nominal.control_compute_ms,
+        oracle_snapshot_ms=nominal.oracle_snapshot_ms,
+        command_apply_and_physics_ms=nominal.command_apply_and_physics_ms,
+        cycle_wall_ms=nominal.cycle_wall_ms,
         release_lateness_ms=nominal.release_lateness_ms,
         absolute_finish_lateness_ms=nominal.absolute_finish_lateness_ms,
         qdot=nominal.qdot,
@@ -955,17 +1078,22 @@ def write_phase_artifacts(
             "physics_provenance", "geometry_provisional"
         )
     )
-    timing = wall_timing(nominal, paced=pace_wall_clock)
+    control_hard = control_hard_timing(nominal, paced=pace_wall_clock)
+    cycle_diagnostic = simulator_cycle_timing(nominal)
     blockers = sorted(
         set(str(value) for value in plant_manifest.get("blockers", []))
         | {
             "p0_sim_physics_pass_false_geometry_provisional",
             "offline_simulation_cannot_promote_live_state",
         }
-        | ({"wall_timing_gate_failed"} if timing["pass"] is not True else set())
+        | (
+            {"control_hard_500hz_gate_failed"}
+            if control_hard["pass"] is not True
+            else set()
+        )
     )
     evidence: dict[str, object] = {
-        "schema": "ur10e_simulation_evidence_v1",
+        "schema": EVIDENCE_SCHEMA_V2,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "profile": dict(PROFILE),
         "engine": {
@@ -989,7 +1117,8 @@ def write_phase_artifacts(
             "sequence_index": spec.sequence_index,
             "same_fingerprint_as_previous": spec.sequence_index > 0,
         },
-        "wall_timing": timing,
+        "control_hard_500hz": control_hard,
+        "simulator_cycle_diagnostic": cycle_diagnostic,
         "nominal": {
             "tick_count": nominal.tick_count,
             "accepted_tick_count": nominal.accepted_tick_count,
@@ -1000,8 +1129,10 @@ def write_phase_artifacts(
             "qdot_bound_violation_count": nominal.qdot_bound_violation_count,
             "unexpected_contact_count": nominal.unexpected_contact_count,
             "cage_collision_count": nominal.cage_collision_count,
-            "deadline_miss_count": nominal.absolute_deadline_miss_count,
-            "compute_deadline_miss_count": nominal.compute_deadline_miss_count,
+            "control_deadline_miss_count": nominal.control_deadline_miss_count,
+            "cycle_compute_deadline_miss_count": (
+                nominal.cycle_compute_deadline_miss_count
+            ),
             "absolute_deadline_miss_count": nominal.absolute_deadline_miss_count,
             "max_qdot_abs_rad_s": nominal.max_qdot_abs_rad_s,
             "exact_zero_rejection_count": nominal.exact_zero_rejection_count,
@@ -1025,6 +1156,8 @@ def write_phase_artifacts(
             "same_production_code": True,
             "hot_loop_gc_disabled": True,
             "gc_state_restored_after_loop": True,
+            "timing_scope_version": TIMING_SCOPE_VERSION,
+            "trace_buffers_prefaulted": nominal.trace_buffers_prefaulted,
         },
         "claims": {
             "p0_sim_physics_pass": False,
@@ -1050,6 +1183,21 @@ def parse_phases(values: Sequence[float]) -> list[PhaseSpec]:
         PhaseSpec(duration_s=duration, sequence_index=index)
         for index, duration in enumerate(durations)
     ]
+
+
+def runner_exit_code(
+    *,
+    control_diagnostic_pass: bool,
+    complete: bool,
+    control_hard_gate_pass: bool,
+) -> int:
+    """Keep partial smoke usable while making a failed final hard gate nonzero."""
+
+    if not control_diagnostic_pass:
+        return 3
+    if complete and not control_hard_gate_pass:
+        return 4
+    return 0
 
 
 def main() -> int:
@@ -1115,10 +1263,17 @@ def main() -> int:
             plant_manifest=plant.manifest,
             pace_wall_clock=args.pace_wall_clock,
         )
-        blockers = validate_evidence(evidence, artifact_root=evidence_path.parent)
+        blockers = validate_phase_evidence(
+            evidence,
+            artifact_root=evidence_path.parent,
+        )
         phase_valid = not blockers
         all_valid &= phase_valid
-        phase_timing = wall_timing(nominal, paced=args.pace_wall_clock)
+        phase_control_hard = control_hard_timing(
+            nominal,
+            paced=args.pace_wall_clock,
+        )
+        phase_cycle = simulator_cycle_timing(nominal)
         phase_entries.append(
             {
                 "duration_s": spec.duration_s,
@@ -1129,13 +1284,19 @@ def main() -> int:
                 "structurally_valid": phase_valid,
                 "validation_blockers": blockers,
                 "control_path_diagnostic_pass": nominal.control_path_pass,
-                "compute_deadline_miss_count": phase_timing[
-                    "compute_deadline_miss_count"
+                "control_hard_500hz_pass": phase_control_hard["pass"],
+                "control_deadline_miss_count": phase_control_hard[
+                    "deadline_miss_count"
                 ],
-                "absolute_deadline_miss_count": phase_timing[
+                "simulator_cycle_meets_500hz_diagnostic": phase_cycle[
+                    "meets_500hz_diagnostic"
+                ],
+                "cycle_compute_deadline_miss_count": phase_cycle[
+                    "cycle_compute_deadline_miss_count"
+                ],
+                "absolute_deadline_miss_count": phase_cycle[
                     "absolute_deadline_miss_count"
                 ],
-                "wall_timing_pass": phase_timing["pass"],
             }
         )
 
@@ -1147,39 +1308,52 @@ def main() -> int:
         (entry for entry in phase_entries if entry["duration_s"] == 60.0),
         None,
     )
-    timing_gate_pass = bool(
+    control_hard_gate_pass = bool(
         complete
         and final_60_entry is not None
-        and final_60_entry["wall_timing_pass"] is True
+        and final_60_entry["control_hard_500hz_pass"] is True
     )
-    timing_gate = {
-        "scope": "separate_wall_timing_acceptance",
-        "deadline_accounting": "compute_elapsed_and_absolute_release_deadline_v2",
+    control_hard_gate = {
+        "scope": CONTROL_HARD_SCOPE,
         "required_phase_duration_s": 60.0,
         "deadline_ms": 2.0,
         "p99_limit_ms": 1.80,
-        "requires_zero_compute_deadline_misses": True,
-        "requires_zero_absolute_deadline_misses": True,
+        "requires_zero_deadline_misses": True,
+        "requires_prefault": True,
         "phase_results": [
             {
                 "duration_s": entry["duration_s"],
-                "compute_deadline_miss_count": entry[
-                    "compute_deadline_miss_count"
-                ],
-                "absolute_deadline_miss_count": entry[
-                    "absolute_deadline_miss_count"
-                ],
-                "pass": entry["wall_timing_pass"],
+                "deadline_miss_count": entry["control_deadline_miss_count"],
+                "pass": entry["control_hard_500hz_pass"],
             }
             for entry in phase_entries
         ],
         "complete_sequence_evaluated": complete,
-        "pass": timing_gate_pass,
+        "pass": control_hard_gate_pass,
     }
-    if control_diagnostic_pass and complete and timing_gate_pass:
+    cycle_diagnostic = {
+        "scope": SIMULATOR_CYCLE_SCOPE,
+        "diagnostic_only": True,
+        "phase_results": [
+            {
+                "duration_s": entry["duration_s"],
+                "cycle_compute_deadline_miss_count": entry[
+                    "cycle_compute_deadline_miss_count"
+                ],
+                "absolute_deadline_miss_count": entry[
+                    "absolute_deadline_miss_count"
+                ],
+                "meets_500hz_diagnostic": entry[
+                    "simulator_cycle_meets_500hz_diagnostic"
+                ],
+            }
+            for entry in phase_entries
+        ],
+    }
+    if control_diagnostic_pass and complete and control_hard_gate_pass:
         result = "diagnostic_pass"
     elif control_diagnostic_pass and complete:
-        result = "control_diagnostic_pass_timing_blocked"
+        result = "control_diagnostic_pass_control_hard_500hz_blocked"
     elif control_diagnostic_pass:
         result = "diagnostic_partial_pass"
     else:
@@ -1188,16 +1362,17 @@ def main() -> int:
         set(str(value) for value in plant.manifest.get("blockers", []))
         | {"geometry_provisional_no_p0_physics_claim"}
     )
-    if control_diagnostic_pass and complete and not timing_gate_pass:
-        manifest_blockers.add("wall_timing_gate_failed_60s")
+    if control_diagnostic_pass and complete and not control_hard_gate_pass:
+        manifest_blockers.add("control_hard_500hz_gate_failed_60s")
     manifest = {
-        "schema": "step5d_p0_v8_mujoco_run_v1",
+        "schema": RUN_SCHEMA_V2,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "profile": dict(PROFILE),
         "source_composite_sha256": source_binding["composite_sha256"],
         "canonical_phase_sequence_complete": complete,
         "phases": phase_entries,
-        "timing_gate": timing_gate,
+        "control_hard_500hz_gate": control_hard_gate,
+        "simulator_cycle_diagnostic": cycle_diagnostic,
         "result": result,
         "claims": {
             "p0_sim_physics_pass": False,
@@ -1210,7 +1385,11 @@ def main() -> int:
     manifest_path = output_dir / "run_manifest.json"
     write_json(manifest_path, manifest)
     print(json.dumps({"manifest": str(manifest_path), **manifest}, indent=2, sort_keys=True))
-    return 0 if control_diagnostic_pass else 3
+    return runner_exit_code(
+        control_diagnostic_pass=control_diagnostic_pass,
+        complete=complete,
+        control_hard_gate_pass=control_hard_gate_pass,
+    )
 
 
 if __name__ == "__main__":

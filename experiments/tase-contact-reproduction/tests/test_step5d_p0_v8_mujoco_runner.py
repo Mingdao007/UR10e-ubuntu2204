@@ -117,6 +117,42 @@ class FakePlant:
 
 
 class Step5dP0V8MujocoRunnerTest(unittest.TestCase):
+    def test_runner_exit_code_requires_final_hard_control_gate(self) -> None:
+        self.assertEqual(
+            runner.runner_exit_code(
+                control_diagnostic_pass=True,
+                complete=False,
+                control_hard_gate_pass=False,
+            ),
+            0,
+        )
+        self.assertEqual(
+            runner.runner_exit_code(
+                control_diagnostic_pass=True,
+                complete=True,
+                control_hard_gate_pass=False,
+            ),
+            4,
+        )
+        self.assertEqual(
+            runner.runner_exit_code(
+                control_diagnostic_pass=False,
+                complete=True,
+                control_hard_gate_pass=True,
+            ),
+            3,
+        )
+
+    def test_prefault_numeric_buffers_materializes_all_entries(self) -> None:
+        first = np.empty((17, 74), dtype=np.float64)
+        second = np.empty((17, 6, 6), dtype=np.float64)
+
+        completed = runner.prefault_numeric_buffers(first, second)
+
+        self.assertTrue(completed)
+        self.assertTrue(np.array_equal(first, np.zeros_like(first)))
+        self.assertTrue(np.array_equal(second, np.zeros_like(second)))
+
     def test_release_spin_window_is_bounded_by_one_control_period(self) -> None:
         plant = FakePlant()
         solver = FakeSolver()
@@ -150,6 +186,11 @@ class Step5dP0V8MujocoRunnerTest(unittest.TestCase):
         self.assertTrue(np.all(result.qdot[:, 2] == 0.0001))
         self.assertEqual(result.release_lateness_ms.shape, (3,))
         self.assertEqual(result.absolute_finish_lateness_ms.shape, (3,))
+        self.assertEqual(result.control_compute_ms.shape, (3,))
+        self.assertEqual(result.oracle_snapshot_ms.shape, (3,))
+        self.assertEqual(result.command_apply_and_physics_ms.shape, (3,))
+        self.assertEqual(result.cycle_wall_ms.shape, (3,))
+        self.assertTrue(result.trace_buffers_prefaulted)
         self.assertTrue(np.all(result.release_lateness_ms >= 0.0))
         self.assertTrue(np.all(result.absolute_finish_lateness_ms >= 0.0))
         self.assertEqual(result.deferred.count, 3)
@@ -163,53 +204,67 @@ class Step5dP0V8MujocoRunnerTest(unittest.TestCase):
         )
         slow = replace(
             result,
-            compute_deadline_miss_count=result.tick_count,
-            absolute_deadline_miss_count=result.tick_count,
-            compute_ms=np.full(result.tick_count, 2.5),
-            absolute_finish_lateness_ms=np.full(result.tick_count, 0.5),
+            control_deadline_miss_count=result.tick_count,
+            control_compute_ms=np.full(result.tick_count, 2.5),
         )
 
         self.assertTrue(slow.control_path_pass)
-        timing = runner.wall_timing(slow, paced=True)
+        timing = runner.control_hard_timing(slow, paced=True)
         self.assertFalse(timing["pass"])
         self.assertEqual(timing["deadline_miss_count"], result.tick_count)
-        self.assertEqual(
-            timing["compute_deadline_miss_count"], result.tick_count
-        )
-        self.assertEqual(
-            timing["absolute_deadline_miss_count"], result.tick_count
-        )
         self.assertFalse(timing["p99_within_limit"])
         self.assertFalse(timing["max_within_deadline"])
         broken_sequence = replace(result, last_sequence=result.tick_count)
         self.assertFalse(broken_sequence.control_path_pass)
         self.assertFalse(runner.wall_timing(result, paced=False)["pass"])
 
-    def test_absolute_release_deadline_blocks_even_when_compute_is_fast(self) -> None:
+    def test_slow_physics_is_diagnostic_and_does_not_pollute_control_hard(self) -> None:
         result = runner.run_nominal_phase(
             plant=FakePlant(),
             solver=FakeSolver(),
             spec=runner.PhaseSpec(duration_s=0.006, sequence_index=0),
         )
-        schedule_late = replace(
+        slow_physics = replace(
             result,
-            compute_deadline_miss_count=0,
+            control_deadline_miss_count=0,
+            cycle_compute_deadline_miss_count=result.tick_count,
             absolute_deadline_miss_count=result.tick_count,
-            compute_ms=np.full(result.tick_count, 0.5),
+            control_compute_ms=np.full(result.tick_count, 0.5),
+            oracle_snapshot_ms=np.full(result.tick_count, 0.1),
+            command_apply_and_physics_ms=np.full(result.tick_count, 2.5),
+            cycle_wall_ms=np.full(result.tick_count, 3.1),
             release_lateness_ms=np.full(result.tick_count, 1.75),
-            absolute_finish_lateness_ms=np.full(result.tick_count, 0.25),
+            absolute_finish_lateness_ms=np.full(result.tick_count, 2.85),
         )
 
-        timing = runner.wall_timing(schedule_late, paced=True)
+        control = runner.control_hard_timing(slow_physics, paced=True)
+        cycle = runner.simulator_cycle_timing(slow_physics)
 
-        self.assertTrue(timing["p99_within_limit"])
-        self.assertTrue(timing["max_within_deadline"])
-        self.assertEqual(timing["compute_deadline_miss_count"], 0)
+        self.assertTrue(control["pass"])
+        self.assertEqual(control["deadline_miss_count"], 0)
+        self.assertFalse(cycle["meets_500hz_diagnostic"])
         self.assertEqual(
-            timing["absolute_deadline_miss_count"], result.tick_count
+            cycle["cycle_compute_deadline_miss_count"],
+            result.tick_count,
         )
-        self.assertFalse(timing["absolute_finish_within_deadline"])
-        self.assertFalse(timing["pass"])
+
+    def test_unprefaulted_or_slow_control_fails_hard_lane(self) -> None:
+        result = runner.run_nominal_phase(
+            plant=FakePlant(),
+            solver=FakeSolver(),
+            spec=runner.PhaseSpec(duration_s=0.006, sequence_index=0),
+        )
+        slow = replace(
+            result,
+            control_deadline_miss_count=result.tick_count,
+            control_compute_ms=np.full(result.tick_count, 2.1),
+        )
+        unprefaulted = replace(result, trace_buffers_prefaulted=False)
+
+        self.assertFalse(runner.control_hard_timing(slow, paced=True)["pass"])
+        self.assertFalse(
+            runner.control_hard_timing(unprefaulted, paced=True)["pass"]
+        )
 
     def test_absolute_schedule_starts_after_one_off_gc_collection(self) -> None:
         source = inspect.getsource(runner.run_nominal_phase)

@@ -481,6 +481,10 @@ class Step5dV30ControlContractTest(unittest.TestCase):
         command = decision_to_register_command(obs, decision)
         deferred = DeferredV30Diagnostics(capacity=2)
 
+        self.assertTrue(
+            np.array_equal(deferred.numeric, np.zeros_like(deferred.numeric))
+        )
+        self.assertTrue(deferred.prefaulted)
         self.assertTrue(deferred.record(obs, proposal, decision, command))
         self.assertTrue(deferred.record(obs, proposal, decision, command))
         self.assertFalse(deferred.record(obs, proposal, decision, command))

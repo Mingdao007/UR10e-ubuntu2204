@@ -890,6 +890,22 @@ def main() -> int:
         (outlier_ring_size, len(component_fields)),
         dtype=np.float64,
     )
+    for buffer in (
+        solver_ms,
+        solver_batch_reentry_ms,
+        full_tick_ms,
+        safe_hold_ms,
+        solver_miss_indices,
+        solver_batch_reentry_miss_indices,
+        full_compute_miss_indices,
+        full_schedule_miss_indices,
+        safe_compute_miss_indices,
+        safe_schedule_miss_indices,
+        component_values,
+        component_outlier_indices,
+        component_outlier_values,
+    ):
+        buffer.fill(0)
     component_outlier_total = 0
     policy = StrictRnnControlPolicy(solver)
     safety_envelope = SafetyEnvelope(

@@ -750,6 +750,17 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
                 for item in state_failures
             )
             diagnostic = summary.get("diagnostic") or {}
+            simulator_rows = (
+                ((summary.get("timing_evidence") or {}).get(
+                    "simulator_cycle_diagnostic"
+                ) or {}).get("phase_results")
+                or []
+            )
+            simulator_cycle_500hz_diagnostic_pass = bool(simulator_rows) and all(
+                isinstance(row, dict)
+                and row.get("meets_500hz_diagnostic") is True
+                for row in simulator_rows
+            )
             expected_pointer = {
                 "status": offline_state.get("status"),
                 "summary_artifact": summary_rel,
@@ -765,8 +776,14 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
                 "all_required_faults_exact_zero": diagnostic.get(
                     "all_required_faults_exact_zero"
                 ),
-                "wall_timing_gate_pass": diagnostic.get(
-                    "wall_timing_gate_pass"
+                "timing_scope_status": diagnostic.get(
+                    "timing_scope_status"
+                ),
+                "offline_control_timing_pass": diagnostic.get(
+                    "offline_control_timing_pass"
+                ),
+                "simulator_cycle_500hz_diagnostic_pass": (
+                    simulator_cycle_500hz_diagnostic_pass
                 ),
                 "p0_sim_physics_pass": (summary.get("claims") or {}).get(
                     "p0_sim_physics_pass"
@@ -975,9 +992,10 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
                 "profile_selection_sha256"
             ):
                 failures.append("v30 strict-RNN profile selection sha mismatch")
-            if evidence.get("profile_selection_status") != (
-                "canonical_rnn512_selected_formal_timing_passed"
-            ):
+            if evidence.get("profile_selection_status") not in {
+                "canonical_rnn512_selected_formal_timing_passed",
+                "canonical_rnn512_selected_formal_timing_rerun_pending_after_prefault",
+            }:
                 failures.append("v30 strict-RNN profile selection status is invalid")
         for label, path, expected_sha in (
             ("raw timing", timing_raw_path, evidence.get("timing_raw_sha256")),
@@ -1039,12 +1057,20 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             if input_evidence.get("sha256") != file_sha256(timing_raw_path):
                 failures.append("v30 timing summary is not bound to tracked raw timing evidence")
             source_binding = timing.get("source_binding") or {}
-            if source_binding and timing_pass:
+            timing_is_current = (
+                evidence.get("timing_raw_status")
+                == "current_canonical_rnn512_hard_realtime_pass"
+            )
+            if timing_is_current and source_binding and timing_pass:
                 for _, sha_field in source_fields:
                     if source_binding.get(sha_field) != source_contract.get(sha_field):
                         failures.append(f"v30 timing bundle source sha mismatch: {sha_field}")
-            elif timing_pass:
+            elif timing_is_current and timing_pass:
                 failures.append("passing v30 timing requires an stdin source bundle binding")
+            elif timing_is_current and not timing_pass:
+                failures.append("current v30 timing status requires a passing timing summary")
+            elif offline_status != "v30_offline_blocked":
+                failures.append("superseded v30 timing must keep offline status blocked")
         for label, path_field, sha_field in (
             ("runtime-shaped smoke", "runtime_shaped_smoke", "runtime_shaped_smoke_sha256"),
             ("component diagnostic", "component_diagnostic", "component_diagnostic_sha256"),
@@ -1059,6 +1085,46 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         if readiness_path.is_file():
             readiness = load_json(readiness_path)
             readiness_status = readiness.get("status")
+            readiness_timing = readiness.get("timing") or {}
+            readiness_acceptance_raw = (
+                readiness_timing.get("acceptance_raw_evidence") or {}
+            )
+            readiness_current_source = (
+                readiness_timing.get("current_source_evidence") or {}
+            )
+            timing_is_current = (
+                evidence.get("timing_raw_status")
+                == "current_canonical_rnn512_hard_realtime_pass"
+            )
+            if (
+                readiness_acceptance_raw.get("path")
+                != evidence.get("timing_raw")
+                or readiness_acceptance_raw.get("sha256")
+                != evidence.get("timing_raw_sha256")
+            ):
+                failures.append(
+                    "v30 readiness selected timing artifact does not match the stage pointer"
+                )
+            if timing_is_current:
+                if (
+                    readiness_timing.get("overall_pass") is not True
+                    or readiness_timing.get("hard_realtime_pass") is not True
+                    or readiness_current_source.get("acceptance_eligible") is not True
+                ):
+                    failures.append(
+                        "current v30 timing status requires readiness hard-realtime acceptance"
+                    )
+            elif any(
+                value is True
+                for value in (
+                    readiness_timing.get("overall_pass"),
+                    readiness_timing.get("hard_realtime_pass"),
+                    readiness_current_source.get("acceptance_eligible"),
+                )
+            ):
+                failures.append(
+                    "superseded v30 timing must not remain acceptance-eligible in readiness"
+                )
             if readiness_status not in {"v30_offline_ready", "v30_offline_blocked"}:
                 failures.append("v30 offline readiness has an invalid status")
             if readiness_status != v30.get("offline_acceptance", {}).get("status"):
