@@ -162,7 +162,10 @@ class DualSensorTotalWrenchAuditTest(unittest.TestCase):
         self.assertFalse(payload["same_run_dual_sensor_observation_proven"])
         self.assertIn("total_contact_wrench:not_proven", payload["blockers"])
         self.assertIn("same_run_dual_sensor_observation:not_proven", payload["blockers"])
-        self.assertIn("required_surfaces:cross_run:", " ".join(payload["validation_issues"]))
+        self.assertIn(
+            "same_run_concurrent_dual_sensor_observation.surfaces:missing:",
+            " ".join(payload["validation_issues"]),
+        )
         self.assertFalse(payload["live_authorization"]["robot_motion_authorized"])
 
     def test_accepts_complete_same_run_fixture(self) -> None:
