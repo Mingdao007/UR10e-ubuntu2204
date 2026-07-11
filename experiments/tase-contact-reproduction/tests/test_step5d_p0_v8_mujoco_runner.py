@@ -117,6 +117,17 @@ class FakePlant:
 
 
 class Step5dP0V8MujocoRunnerTest(unittest.TestCase):
+    def test_release_spin_window_is_bounded_by_one_control_period(self) -> None:
+        plant = FakePlant()
+        solver = FakeSolver()
+        with self.assertRaisesRegex(ValueError, "spin window"):
+            runner.run_nominal_phase(
+                plant=plant,
+                solver=solver,
+                spec=runner.PhaseSpec(duration_s=2.0, sequence_index=0),
+                release_spin_window_s=0.0021,
+            )
+
     def test_short_fake_phase_uses_integer_schedule_and_shared_adapter(self) -> None:
         plant = FakePlant()
         solver = FakeSolver()
@@ -233,6 +244,7 @@ class Step5dP0V8MujocoRunnerTest(unittest.TestCase):
                 plant=FakePlant(),
                 solver=FakeSolver(),
                 pace_wall_clock=True,
+                release_spin_window_s=0.002,
             )
 
         self.assertEqual(environment["process_affinity"]["cpu_ids"], [2, 4])
@@ -242,6 +254,7 @@ class Step5dP0V8MujocoRunnerTest(unittest.TestCase):
         self.assertEqual(environment["versions"]["mujoco"], "fake-mujoco")
         self.assertTrue(environment["capabilities"]["busy_poll_completion"])
         self.assertTrue(environment["paced_wall_clock"])
+        self.assertEqual(environment["release_spin_window_s"], 0.002)
         changed = json.loads(json.dumps(environment))
         changed["process_affinity"]["cpu_ids"] = [2]
         self.assertNotEqual(

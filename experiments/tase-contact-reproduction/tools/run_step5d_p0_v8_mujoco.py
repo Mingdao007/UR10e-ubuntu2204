@@ -245,6 +245,7 @@ def build_source_binding(
     solver: Any,
     no_contact_lane: Mapping[str, object],
     pace_wall_clock: bool,
+    release_spin_window_s: float,
 ) -> dict[str, object]:
     source_hashes = {
         relpath: sha256_path(root / relpath)
@@ -271,6 +272,7 @@ def build_source_binding(
             plant=plant,
             solver=solver,
             pace_wall_clock=pace_wall_clock,
+            release_spin_window_s=release_spin_window_s,
         ),
     }
     source["composite_sha256"] = source_composite_sha256(source)
@@ -282,6 +284,7 @@ def runtime_timing_environment(
     plant: VelocityPlant,
     solver: Any,
     pace_wall_clock: bool,
+    release_spin_window_s: float,
 ) -> dict[str, object]:
     """Fingerprint process-local scheduling and numeric runtime capabilities."""
 
@@ -317,6 +320,7 @@ def runtime_timing_environment(
     )
     return {
         "paced_wall_clock": bool(pace_wall_clock),
+        "release_spin_window_s": float(release_spin_window_s),
         "process_affinity": affinity,
         "process_scheduler": scheduler,
         "thread_environment": {
@@ -477,9 +481,16 @@ def run_nominal_phase(
     solver: Any,
     spec: PhaseSpec,
     pace_wall_clock: bool = False,
+    release_spin_window_s: float = 0.00025,
 ) -> NominalPhaseResult:
     """Run one phase with no I/O or dynamically growing tick log in the loop."""
 
+    if (
+        not math.isfinite(float(release_spin_window_s))
+        or release_spin_window_s < 0.0
+        or release_spin_window_s > 1.0 / P0_V8_CONTROL_HZ
+    ):
+        raise ValueError("release spin window must be within one 500 Hz period")
     schedule = IntegerRateSchedule()
     tick_count = spec.tick_count
     plant.reset()
@@ -530,7 +541,7 @@ def run_nominal_phase(
             release = wall_start + index / P0_V8_CONTROL_HZ
             absolute_deadline = release + 1.0 / P0_V8_CONTROL_HZ
             if pace_wall_clock and index:
-                wait_until(release)
+                wait_until(release, spin_window_s=release_spin_window_s)
             started = time.perf_counter()
             state = plant.read_state(
                 sequence=index,
@@ -1052,6 +1063,12 @@ def main() -> int:
         default=False,
         help="pace releases at 500 Hz; sim-time counters remain authoritative",
     )
+    parser.add_argument(
+        "--release-spin-window-s",
+        type=float,
+        default=0.00025,
+        help="busy-spin tail before each paced release; max is one 2 ms period",
+    )
     args = parser.parse_args()
 
     root = EXPERIMENT_ROOT.resolve()
@@ -1072,6 +1089,7 @@ def main() -> int:
         solver=solver,
         no_contact_lane=no_contact_lane,
         pace_wall_clock=args.pace_wall_clock,
+        release_spin_window_s=args.release_spin_window_s,
     )
     output_dir.mkdir(parents=True)
     phase_entries: list[dict[str, object]] = []
@@ -1082,6 +1100,7 @@ def main() -> int:
             solver=solver,
             spec=spec,
             pace_wall_clock=args.pace_wall_clock,
+            release_spin_window_s=args.release_spin_window_s,
         )
         faults = run_fault_matrix(plant=plant, solver=solver)
         plant.reset()
