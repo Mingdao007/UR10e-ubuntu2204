@@ -58,7 +58,6 @@ def mujoco_site_jacobian_in_command_frame(
     base_from_world: np.ndarray,
 ) -> np.ndarray:
     import mujoco
-    import pinocchio as pin
 
     linear = np.empty((3, model.nv), dtype=float)
     angular = np.empty((3, model.nv), dtype=float)
@@ -91,6 +90,7 @@ def verify(
     seed: int,
 ) -> dict[str, Any]:
     import mujoco
+    import pinocchio as pin
 
     import step5c_calibrated_kinematics_audit as kinematics
     from kunwei_rtde_bridge import step5d_tcp_jacobian_base
