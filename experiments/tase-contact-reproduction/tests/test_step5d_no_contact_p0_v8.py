@@ -77,6 +77,13 @@ class Step5dNoContactP0V8Test(unittest.TestCase):
         self.assertIn("local qdot_cap_rad_s = 0.050", script)
         self.assertIn("Low-load effective_ko is 0.01", txt)
         self.assertIn("DLS shadow-only", script + txt)
+        self.assertIn("DEADLINE_OVERRUN_HOLD", script)
+        self.assertIn("if not heartbeat_fresh:", script)
+        self.assertIn(
+            "speedj([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]", script
+        )
+        self.assertIn("A repeated heartbeat is never consumed", txt)
+        self.assertIn("if stale_s2 > 0.006:", script)
 
         spec = liveprep.spec_for(PROFILE)
         liveprep.validate_package(
@@ -92,7 +99,7 @@ class Step5dNoContactP0V8Test(unittest.TestCase):
 
         self.assertEqual(runtime.program, PROFILE)
         self.assertEqual(runtime.hard_contract["runtime_profile"]["qdot_cap_rad_s"], 0.05)
-        self.assertEqual(runtime.hard_contract["runtime_profile"]["inner_iterations"], 32)
+        self.assertEqual(runtime.hard_contract["runtime_profile"]["inner_iterations"], 128)
         self.assertTrue(runtime.hard_contract["v30_control_contract"])
         self.assertTrue(runtime.hard_contract["offline_candidate"])
         self.assertEqual(runtime.controller_target, "LOCAL_ONLY_NOT_DELIVERED")

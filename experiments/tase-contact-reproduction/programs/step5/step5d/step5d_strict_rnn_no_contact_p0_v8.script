@@ -166,19 +166,25 @@ def codex_step5d_strict_rnn_no_contact_p0_v8():
       local cmd_wy = cmd_qd4
       local cmd_wz = cmd_qd5
       local loop_dt2 = get_steptime()
+      local heartbeat_fresh = False
       if heartbeat2 == last_heartbeat2:
         stale_s2 = stale_s2 + loop_dt2
       else:
         stale_s2 = 0.0
         last_heartbeat2 = heartbeat2
+        heartbeat_fresh = True
       end
       t2 = t2 + loop_dt2
       stop_reason = codex_step5d_no_contact_p0_guard_stop_reason()
-      if stale_s2 > 0.100:
+      if stale_s2 > 0.006:
         stop_reason = 2.0
       end
       if stop_reason == 0.0:
-        if cmd_valid < 0.5 or not joint_layout_ok:
+        # DEADLINE_OVERRUN_HOLD: never consume or replay a stale host qdot.
+        if not heartbeat_fresh:
+          write_output_float_register(47, stage25_command_consumed)
+          speedj([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], joint_accel_rad_s2, 0.002)
+        elif cmd_valid < 0.5 or not joint_layout_ok:
           write_output_float_register(47, stage25_command_consumed)
           if t2 < cmd_valid_grace_s:
             sync()

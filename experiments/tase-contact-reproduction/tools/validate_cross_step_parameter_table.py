@@ -601,7 +601,7 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         failures.extend(p0_delivery_failures)
         expected_p0_runtime = {
             "backend": "cupy",
-            "inner_iterations": 32,
+            "inner_iterations": 128,
             "epsilon": 0.01,
             "sigr_exponent_r": 0.8,
             "qdot_cap_rad_s": 0.05,
@@ -620,6 +620,16 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         p0_guard = p0_v8_row.get("guard") or {}
         if p0_guard.get("stage25_allowed_layout_tags") != [524.0]:
             failures.append("P0 v8 must allow only Stage25 layout 524")
+        if (
+            p0_guard.get("deadline_overrun_stale_tick_command")
+            != "exact_zero_qdot_not_consumed"
+            or p0_guard.get("deadline_overrun_next_fresh_tick_may_recover")
+            is not True
+            or p0_guard.get("heartbeat_stale_stop_s") != 0.006
+            or p0_guard.get("hard_realtime_claim_requires_zero_deadline_miss")
+            is not True
+        ):
+            failures.append("P0 v8 deadline-overrun fail-closed policy is invalid")
         if (
             p0_v8_row.get("contact") is not False
             or p0_guard.get("dls_runtime_fallback_allowed") is not False
@@ -820,7 +830,7 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             failures.append("v30 canary stop register must remain disabled and unarmed offline")
         expected_runtime = {
             "backend": "cupy",
-            "inner_iterations": 32,
+            "inner_iterations": 128,
             "epsilon": 0.01,
             "sigr_exponent_r": 0.8,
             "qdot_cap_rad_s": 0.05,
@@ -831,6 +841,17 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             failures.append("v30 runtime profile does not match the pinned strict-RNN profile")
         if v30.get("guard", {}).get("dls_runtime_fallback_allowed") is not False:
             failures.append("v30 must forbid DLS runtime fallback")
+        v30_guard = v30.get("guard") or {}
+        if (
+            v30_guard.get("deadline_overrun_stale_tick_command")
+            != "exact_zero_qdot_not_consumed"
+            or v30_guard.get("deadline_overrun_next_fresh_tick_may_recover")
+            is not True
+            or v30_guard.get("heartbeat_stale_stop_s") != 0.006
+            or v30_guard.get("hard_realtime_claim_requires_zero_deadline_miss")
+            is not True
+        ):
+            failures.append("v30 deadline-overrun fail-closed policy is invalid")
         failures.extend(_validate_local_triplet(root, label="v30", delivery=delivery))
 
         p0_gate = v30.get("p0_v8_gate") or {}

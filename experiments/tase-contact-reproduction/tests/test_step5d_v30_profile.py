@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import sys
 import tempfile
@@ -65,6 +66,12 @@ class Step5dV30ProfileTest(unittest.TestCase):
         self.assertIn("forbids DLS runtime fallback", txt)
         self.assertNotIn("remain explicit debug/fallback modes", script + txt)
         self.assertNotIn("explicit fallback/debug mode for v30", script + txt)
+        self.assertIn("DEADLINE_OVERRUN_HOLD", script)
+        self.assertIn("if not heartbeat_fresh:", script)
+        self.assertIn(
+            "speedj([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]", script
+        )
+        self.assertIn("a repeated heartbeat is never consumed", txt)
         self.assertTrue(marker["local_only"])
         self.assertTrue(marker["not_delivered"])
         self.assertIn("no live bridge", marker["safety_boundary"])
@@ -113,6 +120,60 @@ class Step5dV30ProfileTest(unittest.TestCase):
         self.assertIn("command = decision_to_register_command(", contract_source)
         self.assertIn("deferred_diagnostics.record(", contract_source)
         self.assertIn("v30 raw bridge is an inactive offline candidate", source)
+        self.assertIn("apply_step5d_deadline_overrun_hold(bridge_values)", source)
+        overrun_index = source.index("deadline_overrun_hold_active = bool(")
+        self.assertLess(
+            overrun_index,
+            source.index("rtde.send_input_sample(", overrun_index),
+        )
+
+    def test_deadline_overrun_hold_clears_motion_without_masking_stop(self) -> None:
+        source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(
+            encoding="utf-8"
+        )
+        tree = ast.parse(source)
+        function = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.FunctionDef)
+            and node.name == "apply_step5d_deadline_overrun_hold"
+        )
+        namespace = {
+            "BRIDGE_INPUT_NAMES": [
+                *(f"carrier_{index}" for index in range(6)),
+                "step4e_cmd_valid",
+            ],
+            "STEP5D_STAGE25_JOINT_LAYOUT_CODE": 524.0,
+        }
+        exec(
+            compile(
+                ast.Module(body=[function], type_ignores=[]),
+                "<deadline_overrun_hold>",
+                "exec",
+            ),
+            namespace,
+        )
+        values = {
+            **{f"carrier_{index}": 0.02 for index in range(6)},
+            "step4e_cmd_valid": 0.0,
+            "step4e_controller_state": 0.0,
+            "heartbeat": 17.0,
+            "stop_request": 3.0,
+        }
+
+        namespace["apply_step5d_deadline_overrun_hold"](values)
+
+        self.assertEqual(
+            [values[f"carrier_{index}"] for index in range(6)],
+            [0.0] * 6,
+        )
+        self.assertEqual(values["step4e_cmd_valid"], 1.0)
+        self.assertEqual(
+            values["step4e_controller_state"],
+            524.0,
+        )
+        self.assertEqual(values["heartbeat"], 17.0)
+        self.assertEqual(values["stop_request"], 3.0)
 
 
 if __name__ == "__main__":

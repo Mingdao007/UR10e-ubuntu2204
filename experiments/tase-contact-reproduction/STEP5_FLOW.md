@@ -11,12 +11,20 @@ remains byte-for-byte evidence only.
 
 The successor `step5d_strict_rnn_ablation_v30` is an inactive offline
 candidate. It keeps CuPy, epsilon `0.010`, finite-time exponent `r=0.8`, qdot
-cap `0.05 rad/s`, and uses a 32-iteration profile selected by replay against
-the frozen 1024-iteration baseline. It retains the canonical
+cap `0.05 rad/s`, and uses the 128-iteration candidate selected after the
+32-iteration formal run worsened full-tick tail timing. It retains the canonical
 `n_reaction = -n_approach`, `SafetyEnvelope`, solver status `40`, and DLS as
 shadow-only with no runtime fallback. Manifest-bound v30 upload/readback
 preparation may occur before P0, but v30 cannot become current, start a bridge,
 or run contact until all of the following are frozen and pass:
+
+Wall-clock evidence has two non-interchangeable classifications. A strict
+500 Hz hard-real-time claim still requires zero samples at or beyond 2 ms. A
+bounded rare-tail candidate may be retained instead of discarding the entire
+control result, but a late host candidate must keep the previous heartbeat,
+publish exact-zero qdot, and be reported unconsumed by TP; the next fresh tick
+may recover, while heartbeat staleness beyond 0.006 s stops. Until this path is
+executed in URSim or on the controller, it is offline/static preparation only.
 
 1. `step5d_strict_rnn_no_contact_p0_v8` passes one Review v2 `1+1` gate and
    sequential same-fingerprint `2 -> 10 -> 60 s` canaries; only the final

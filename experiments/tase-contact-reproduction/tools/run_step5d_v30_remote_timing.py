@@ -28,12 +28,14 @@ import numpy as np
 
 PROFILE = {
     "backend": "cupy",
-    "inner_iterations": 32,
+    "inner_iterations": 128,
     "epsilon": 0.010,
     "sigr_exponent_r": 0.8,
     "qdot_cap_rad_s": 0.05,
     "control_hz": 500.0,
 }
+DEADLINE_MS = 2.0
+DEADLINE_EVENT_CAPACITY = 64
 
 
 @dataclass(frozen=True)
@@ -461,6 +463,24 @@ def main() -> int:
     solver_ms = np.empty(args.solver_samples, dtype=np.float64)
     full_tick_ms = np.empty(args.tick_samples, dtype=np.float64)
     safe_hold_ms = np.empty(args.safe_hold_samples, dtype=np.float64)
+    solver_miss_indices = np.empty(DEADLINE_EVENT_CAPACITY, dtype=np.int64)
+    full_compute_miss_indices = np.empty(DEADLINE_EVENT_CAPACITY, dtype=np.int64)
+    full_schedule_miss_indices = np.empty(DEADLINE_EVENT_CAPACITY, dtype=np.int64)
+    safe_compute_miss_indices = np.empty(DEADLINE_EVENT_CAPACITY, dtype=np.int64)
+    safe_schedule_miss_indices = np.empty(DEADLINE_EVENT_CAPACITY, dtype=np.int64)
+    solver_miss_total = 0
+    full_compute_miss_total = 0
+    full_schedule_miss_total = 0
+    safe_compute_miss_total = 0
+    safe_schedule_miss_total = 0
+    full_compute_consecutive = 0
+    full_compute_max_consecutive = 0
+    full_schedule_consecutive = 0
+    full_schedule_max_consecutive = 0
+    safe_compute_consecutive = 0
+    safe_compute_max_consecutive = 0
+    safe_schedule_consecutive = 0
+    safe_schedule_max_consecutive = 0
     component_fields = (
         "cpu_pack_ms",
         "h2d_enqueue_ms",
@@ -501,6 +521,10 @@ def main() -> int:
             started = time.perf_counter()
             solver.solve(actual_q=first_q, actual_qd=first_qd, target_state=first_target)
             solver_ms[index] = (time.perf_counter() - started) * 1000.0
+            if solver_ms[index] >= DEADLINE_MS:
+                if solver_miss_total < DEADLINE_EVENT_CAPACITY:
+                    solver_miss_indices[solver_miss_total] = index
+                solver_miss_total += 1
         first_post_warm_ms = float(solver_ms[0])
 
         if component_samples:
@@ -578,14 +602,35 @@ def main() -> int:
             )
             finished = time.perf_counter()
             full_tick_ms[index] = (finished - tick_started) * 1000.0
+            if full_tick_ms[index] >= DEADLINE_MS:
+                if full_compute_miss_total < DEADLINE_EVENT_CAPACITY:
+                    full_compute_miss_indices[full_compute_miss_total] = index
+                full_compute_miss_total += 1
+                full_compute_consecutive += 1
+                full_compute_max_consecutive = max(
+                    full_compute_max_consecutive,
+                    full_compute_consecutive,
+                )
+            else:
+                full_compute_consecutive = 0
             deadline = release + period_s
             lateness_ms = max(0.0, (finished - deadline) * 1000.0)
             if lateness_ms > 0.0:
+                if full_schedule_miss_total < DEADLINE_EVENT_CAPACITY:
+                    full_schedule_miss_indices[full_schedule_miss_total] = index
+                full_schedule_miss_total += 1
+                full_schedule_consecutive += 1
+                full_schedule_max_consecutive = max(
+                    full_schedule_max_consecutive,
+                    full_schedule_consecutive,
+                )
                 full_tick_schedule_deadline_miss_count += 1
                 full_tick_schedule_max_lateness_ms = max(
                     full_tick_schedule_max_lateness_ms,
                     lateness_ms,
                 )
+            else:
+                full_schedule_consecutive = 0
 
         full_tick_elapsed_wall_s = time.perf_counter() - schedule_start
 
@@ -644,14 +689,35 @@ def main() -> int:
             )
             finished = time.perf_counter()
             safe_hold_ms[index] = (finished - started) * 1000.0
+            if safe_hold_ms[index] >= DEADLINE_MS:
+                if safe_compute_miss_total < DEADLINE_EVENT_CAPACITY:
+                    safe_compute_miss_indices[safe_compute_miss_total] = index
+                safe_compute_miss_total += 1
+                safe_compute_consecutive += 1
+                safe_compute_max_consecutive = max(
+                    safe_compute_max_consecutive,
+                    safe_compute_consecutive,
+                )
+            else:
+                safe_compute_consecutive = 0
             deadline = release + period_s
             lateness_ms = max(0.0, (finished - deadline) * 1000.0)
             if lateness_ms > 0.0:
+                if safe_schedule_miss_total < DEADLINE_EVENT_CAPACITY:
+                    safe_schedule_miss_indices[safe_schedule_miss_total] = index
+                safe_schedule_miss_total += 1
+                safe_schedule_consecutive += 1
+                safe_schedule_max_consecutive = max(
+                    safe_schedule_max_consecutive,
+                    safe_schedule_consecutive,
+                )
                 safe_hold_schedule_deadline_miss_count += 1
                 safe_hold_schedule_max_lateness_ms = max(
                     safe_hold_schedule_max_lateness_ms,
                     lateness_ms,
                 )
+            else:
+                safe_schedule_consecutive = 0
         safe_hold_elapsed_wall_s = time.perf_counter() - safe_hold_schedule_start
     finally:
         if gc_was_enabled:
@@ -715,6 +781,23 @@ def main() -> int:
             ),
         }
 
+    def miss_event_summary(
+        indices: np.ndarray,
+        total: int,
+        *,
+        max_consecutive: int | None = None,
+    ) -> dict[str, Any]:
+        retained = min(int(total), DEADLINE_EVENT_CAPACITY)
+        result = {
+            "total": int(total),
+            "retained_indices": indices[:retained].tolist(),
+            "capacity": DEADLINE_EVENT_CAPACITY,
+            "overflowed": int(total) > DEADLINE_EVENT_CAPACITY,
+        }
+        if max_consecutive is not None:
+            result["max_consecutive"] = int(max_consecutive)
+        return result
+
     payload: dict[str, Any] = {
         "schema_version": "step5d_v30_remote_timing_raw_v1",
         "profile": PROFILE,
@@ -743,6 +826,32 @@ def main() -> int:
         "safe_hold_reason_counts": dict(sorted(safe_hold_reason_counts.items())),
         "full_tick_control_diagnostics": deferred_control_summary(full_tick_deferred),
         "safe_hold_control_diagnostics": deferred_control_summary(safe_hold_deferred),
+        "deadline_miss_diagnostics": {
+            "solver_compute": miss_event_summary(
+                solver_miss_indices,
+                solver_miss_total,
+            ),
+            "full_tick_compute": miss_event_summary(
+                full_compute_miss_indices,
+                full_compute_miss_total,
+                max_consecutive=full_compute_max_consecutive,
+            ),
+            "full_tick_schedule": miss_event_summary(
+                full_schedule_miss_indices,
+                full_schedule_miss_total,
+                max_consecutive=full_schedule_max_consecutive,
+            ),
+            "safe_hold_compute": miss_event_summary(
+                safe_compute_miss_indices,
+                safe_compute_miss_total,
+                max_consecutive=safe_compute_max_consecutive,
+            ),
+            "safe_hold_schedule": miss_event_summary(
+                safe_schedule_miss_indices,
+                safe_schedule_miss_total,
+                max_consecutive=safe_schedule_max_consecutive,
+            ),
+        },
         "runtime_path": (
             "Step5dObservation->StrictRnnControlPolicy->ControlCandidate->"
             "step5d_v30_contract_pipeline->SafetyEnvelope->RegisterCommand->"

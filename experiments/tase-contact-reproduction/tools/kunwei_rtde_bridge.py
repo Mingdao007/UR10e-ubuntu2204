@@ -397,6 +397,9 @@ STEP5D_DIAG_FIELDS = [
     "_bridge_loop_deadline_lateness_s",
     "_bridge_loop_missed_slots",
     "_bridge_loop_deadline_miss_total",
+    "_bridge_loop_deadline_overrun_hold",
+    "_bridge_loop_deadline_overrun_hold_total",
+    "_bridge_loop_deadline_overrun_consecutive",
     "_bridge_loop_sensor_recv_s",
     "_bridge_loop_rtde_recv_s",
     "_bridge_loop_compute_s",
@@ -6854,6 +6857,22 @@ def apply_v29_fail_stop(bridge_values: dict[str, float]) -> None:
     bridge_values["step4e_cmd_valid"] = 0.0
 
 
+def apply_step5d_deadline_overrun_hold(bridge_values: dict[str, float]) -> None:
+    """Publish a same-heartbeat exact-zero packet after a missed host deadline.
+
+    The matching v30/P0 TP program treats an unchanged heartbeat as a stale
+    packet, reports command-consumed=0, and executes zero qdot.  Keeping the
+    layout and cmd-valid carriers explicit prevents a late candidate from
+    leaking through any alternate interpretation; this is not a timing-pass
+    claim and does not relax the hard 2 ms gate.
+    """
+
+    for name in BRIDGE_INPUT_NAMES[:6]:
+        bridge_values[name] = 0.0
+    bridge_values["step4e_cmd_valid"] = 1.0
+    bridge_values["step4e_controller_state"] = STEP5D_STAGE25_JOINT_LAYOUT_CODE
+
+
 def request_v29_fail_stop_dashboard_stop(args: argparse.Namespace) -> dict[str, Any]:
     """Attempt the hard-coded secondary stop channel; never raise into the fail-stop loop."""
     result: dict[str, Any] = {
@@ -8281,6 +8300,9 @@ def main(argv: list[str] | None = None) -> int:
         if args.bridge_profile == STEP5D_ABLATION_V29_STAGE_ID
         else 0.0
     )
+    last_published_heartbeat = heartbeat
+    deadline_overrun_hold_total = 0
+    deadline_overrun_consecutive = 0
     stop_request = 0.0
     stop_reason = "duration"
     guard_reason: str | None = None
@@ -8941,6 +8963,26 @@ def main(argv: list[str] | None = None) -> int:
                             stop_request = 1.0
                             guard_reason = hard_guard_reason
                             stop_reason = hard_guard_reason
+                    deadline_overrun_hold_active = bool(
+                        uses_v30_control_contract(args.bridge_profile)
+                        and time.monotonic() >= next_write
+                    )
+                    if deadline_overrun_hold_active:
+                        deadline_overrun_hold_total += 1
+                        deadline_overrun_consecutive += 1
+                        bridge_values["heartbeat"] = last_published_heartbeat
+                        apply_step5d_deadline_overrun_hold(bridge_values)
+                    else:
+                        deadline_overrun_consecutive = 0
+                    step4e_values["_bridge_loop_deadline_overrun_hold"] = (
+                        1.0 if deadline_overrun_hold_active else 0.0
+                    )
+                    step4e_values["_bridge_loop_deadline_overrun_hold_total"] = float(
+                        deadline_overrun_hold_total
+                    )
+                    step4e_values["_bridge_loop_deadline_overrun_consecutive"] = float(
+                        deadline_overrun_consecutive
+                    )
                     rtde_connected = rtde is not None
                     rtde_send_succeeded = False
                     if rtde is not None:
@@ -9023,7 +9065,9 @@ def main(argv: list[str] | None = None) -> int:
                     last_csv_write_s = time.perf_counter() - csv_write_start
                     bridge_writes += 1
                     bridge_write_times.append(now)
-                    heartbeat += 1.0
+                    if not deadline_overrun_hold_active:
+                        last_published_heartbeat = heartbeat
+                        heartbeat += 1.0
                     p0_v8_canary_guard = bool(
                         args.bridge_profile == STEP5D_NO_CONTACT_P0_V8_STAGE_ID
                         and guard_reason is not None

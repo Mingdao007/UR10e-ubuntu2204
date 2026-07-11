@@ -107,6 +107,8 @@ class Step5dV30TimingTest(unittest.TestCase):
         self.assertIn('include_diagnostics="compact"', source)
         self.assertIn('"full_tick_control_diagnostics"', source)
         self.assertIn('"accepted_count"', source)
+        self.assertIn('"deadline_miss_diagnostics"', source)
+        self.assertIn('"max_consecutive"', source)
         self.assertIn("policy.compute(observation)", source)
         self.assertIn("step5d_v30_contract_pipeline(", source)
         self.assertIn("step5d_tcp_jacobian_base(model_bundle, q, tcp_offset)", source)
@@ -226,7 +228,7 @@ class Step5dV30TimingTest(unittest.TestCase):
             },
             "profile": {
                 "backend": "cupy",
-                "inner_iterations": 32,
+                "inner_iterations": 128,
                 "epsilon": 0.01,
                 "sigr_exponent_r": 0.8,
                 "qdot_cap_rad_s": 0.05,
@@ -264,6 +266,13 @@ class Step5dV30TimingTest(unittest.TestCase):
             "elapsed_safe_hold_wall_s": 60.0,
             "full_tick_reason_counts": {"ok": 30000},
             "safe_hold_reason_counts": {"outer_approach_not_pressing": 30000},
+            "deadline_miss_diagnostics": {
+                "solver_compute": {"total": 0, "retained_indices": [], "overflowed": False},
+                "full_tick_compute": {"total": 0, "retained_indices": [], "overflowed": False, "max_consecutive": 0},
+                "full_tick_schedule": {"total": 0, "retained_indices": [], "overflowed": False, "max_consecutive": 0},
+                "safe_hold_compute": {"total": 0, "retained_indices": [], "overflowed": False, "max_consecutive": 0},
+                "safe_hold_schedule": {"total": 0, "retained_indices": [], "overflowed": False, "max_consecutive": 0},
+            },
             "runtime_path_source": "kunwei_rtde_bridge.step5d_v30_contract_pipeline",
             "full_tick_deferred_diagnostics": {"count": 30000, "overflowed": False},
             "safe_hold_deferred_diagnostics": {"count": 30000, "overflowed": False},
@@ -280,6 +289,66 @@ class Step5dV30TimingTest(unittest.TestCase):
         self.assertTrue(result["overall_pass"])
         self.assertEqual(result["solver"]["samples"], 10000)
         self.assertEqual(result["full_tick"]["deadline_miss_count"], 0)
+
+        payload["full_tick"]["compute_deadline_miss_count"] = 5
+        payload["full_tick"]["max_ms"] = 2.16
+        payload["full_tick_schedule_deadline_miss_count"] = 5
+        payload["full_tick_schedule_max_lateness_ms"] = 0.17
+        payload["deadline_miss_diagnostics"]["full_tick_compute"].update(
+            {"total": 5, "retained_indices": [10, 20, 30, 40, 50], "max_consecutive": 1}
+        )
+        payload["deadline_miss_diagnostics"]["full_tick_schedule"].update(
+            {"total": 5, "retained_indices": [10, 20, 30, 40, 50], "max_consecutive": 1}
+        )
+        degraded = summarize_preaggregated(
+            payload,
+            expected_source_binding={
+                field: "1" * 64 for field in SOURCE_BINDING_FILES
+            },
+            expected_replay_sha256="2" * 64,
+            expected_paper_truth_sha256="2" * 64,
+        )
+        self.assertFalse(degraded["overall_pass"])
+        self.assertTrue(
+            degraded["deadline_robustness"]["timing_degraded_candidate"]
+        )
+        self.assertFalse(
+            degraded["deadline_robustness"]["degraded_fail_closed_pass"]
+        )
+        payload["controller_stale_hold_fault_evidence"] = {
+            "pass": True,
+            "stale_tick_command": "exact_zero_qdot_not_consumed",
+        }
+        absorbed = summarize_preaggregated(
+            payload,
+            expected_source_binding={
+                field: "1" * 64 for field in SOURCE_BINDING_FILES
+            },
+            expected_replay_sha256="2" * 64,
+            expected_paper_truth_sha256="2" * 64,
+        )
+        self.assertTrue(
+            absorbed["deadline_robustness"]["degraded_fail_closed_pass"]
+        )
+        payload["full_tick"]["compute_deadline_miss_count"] = 7
+        payload["full_tick_schedule_deadline_miss_count"] = 7
+        payload["deadline_miss_diagnostics"]["full_tick_compute"].update(
+            {"total": 7, "retained_indices": [10, 20, 30, 40, 50, 60, 70]}
+        )
+        payload["deadline_miss_diagnostics"]["full_tick_schedule"].update(
+            {"total": 7, "retained_indices": [10, 20, 30, 40, 50, 60, 70]}
+        )
+        rejected_tail = summarize_preaggregated(
+            payload,
+            expected_source_binding={
+                field: "1" * 64 for field in SOURCE_BINDING_FILES
+            },
+            expected_replay_sha256="2" * 64,
+            expected_paper_truth_sha256="2" * 64,
+        )
+        self.assertFalse(
+            rejected_tail["deadline_robustness"]["timing_degraded_candidate"]
+        )
 
         unbound = summarize_preaggregated(payload)
         self.assertFalse(unbound["overall_pass"])
@@ -304,7 +373,7 @@ class Step5dV30TimingTest(unittest.TestCase):
                     "ur_xacro",
                 )
             },
-            "profile": {"backend": "cupy", "inner_iterations": 32, "epsilon": 0.01, "sigr_exponent_r": 0.8, "qdot_cap_rad_s": 0.05, "control_hz": 500.0},
+            "profile": {"backend": "cupy", "inner_iterations": 128, "epsilon": 0.01, "sigr_exponent_r": 0.8, "qdot_cap_rad_s": 0.05, "control_hz": 500.0},
             "precompile_outside_control_loop": True,
             "cupy_host_staging_pinned": True,
             "cupy_dedicated_stream": True,
@@ -364,7 +433,7 @@ class Step5dV30TimingTest(unittest.TestCase):
             },
             "profile": {
                 "backend": "cupy",
-                "inner_iterations": 32,
+                "inner_iterations": 128,
                 "epsilon": 0.01,
                 "sigr_exponent_r": 0.8,
                 "qdot_cap_rad_s": 0.05,

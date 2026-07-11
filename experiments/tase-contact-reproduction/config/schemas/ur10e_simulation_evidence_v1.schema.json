@@ -29,7 +29,7 @@
       "properties": {
         "id": {"const": "step5d_strict_rnn_no_contact_p0_v8"},
         "backend": {"const": "cupy"},
-        "inner_iterations": {"const": 32},
+        "inner_iterations": {"const": 128},
         "epsilon": {"const": 0.01},
         "sigr_exponent_r": {"const": 0.8},
         "qdot_cap_rad_s": {"const": 0.05},

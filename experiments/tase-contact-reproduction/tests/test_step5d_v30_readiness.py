@@ -100,6 +100,12 @@ class Step5dV30ReadinessTest(unittest.TestCase):
             for field in ("package_accepted", "live_accepted", "reproduction_complete")
         ))
         self.assertFalse(payload["control_pipeline"]["dls_shadow_runtime_fallback_allowed"])
+        deadline = payload["deadline_overrun_policy"]
+        self.assertTrue(deadline["hard_realtime_claim_requires_zero_deadline_miss"])
+        self.assertTrue(deadline["package_static_prepared"])
+        self.assertEqual(deadline["continuous_stale_stop_s"], 0.006)
+        self.assertFalse(deadline["controller_or_ursim_execution_verified"])
+        self.assertFalse(deadline["degraded_fail_closed_claim_allowed"])
         self.assertEqual(
             payload["timing"]["acceptance_decision_source"],
             "per-artifact recomputation from one hash-bound raw artifact; "

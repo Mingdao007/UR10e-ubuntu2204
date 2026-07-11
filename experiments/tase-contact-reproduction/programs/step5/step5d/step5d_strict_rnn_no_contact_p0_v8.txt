@@ -23,6 +23,8 @@ Boundary:
   Stage25.0 command-consumption instrumentation: output register 47 is 1 only
   when the TP loop accepts a current Stage25 command packet and reaches
   speedl/speedj.
+  A repeated heartbeat is never consumed: TP executes an exact-zero qdot
+  command for that tick; heartbeat staleness beyond 0.006 s remains a stop.
 
 Bridge profile:
   --step4e-version step5d_strict_rnn_no_contact_p0_v8 --step4e-path-shape cycloid

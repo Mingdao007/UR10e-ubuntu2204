@@ -275,6 +275,7 @@ def timing_history_entry(
                 "elapsed_safe_hold_wall_s"
             ),
             "pacing_provenance": evaluation.get("pacing_provenance"),
+            "deadline_robustness": evaluation.get("deadline_robustness"),
         },
     }
 
@@ -354,6 +355,24 @@ def build(*, generated_at: str) -> dict[str, Any]:
     review_index_path = ROOT / "config" / "step5d_review_index_v2.json"
     review_index = load(review_index_path)
     current_review = review_v2_gate(v30_row)
+    v30_script_path = (
+        ROOT / "programs" / "step5" / "step5d" / f"{V30_PROFILE}.script"
+    )
+    p0_script_path = (
+        ROOT / "programs" / "step5" / "step5d" / f"{P0_V8_PROFILE}.script"
+    )
+    v30_script = v30_script_path.read_text(encoding="utf-8")
+    p0_script = p0_script_path.read_text(encoding="utf-8")
+    deadline_overrun_static_prepared = all(
+        token in script
+        for script in (v30_script, p0_script)
+        for token in (
+            "DEADLINE_OVERRUN_HOLD",
+            "if not heartbeat_fresh:",
+            "speedj([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]",
+            "if stale_s2 > 0.006:",
+        )
+    )
     blockers: list[str] = []
     if replay.get("acceptance_pass") is not True:
         blockers.append("v29_replay_acceptance_incomplete")
@@ -378,6 +397,8 @@ def build(*, generated_at: str) -> dict[str, Any]:
             blockers.append("runtime_shaped_safe_hold_acceptance_not_run")
     if not acceptance_entries:
         blockers.append("runtime_shaped_60s_500hz_acceptance_not_run")
+    if not deadline_overrun_static_prepared:
+        blockers.append("deadline_overrun_tp_zero_hold_not_prepared")
     hard_deadline_evidence = current_source or next(
         (entry for entry in history if entry["role"].startswith("six_lane_optimized")),
         None,
@@ -408,7 +429,7 @@ def build(*, generated_at: str) -> dict[str, Any]:
         "status": status,
         "profile": {
             "backend": "cupy",
-            "inner_iterations": 32,
+            "inner_iterations": 128,
             "epsilon": 0.010,
             "sigr_exponent_r": 0.8,
             "qdot_cap_rad_s": 0.05,
@@ -472,6 +493,28 @@ def build(*, generated_at: str) -> dict[str, Any]:
             "dls_shadow_runtime_fallback_allowed": False,
             "dls_shadow_command_inert_test": "tests/test_step5d_v30_control_contract.py",
             "normal_contract": "n_reaction = -n_approach in one canonical command frame",
+        },
+        "deadline_overrun_policy": {
+            "hard_realtime_claim_requires_zero_deadline_miss": True,
+            "bounded_tail_candidate_ratio_max": 0.0002,
+            "late_candidate_publish_policy": "same_heartbeat_exact_zero_qdot",
+            "tp_stale_tick_policy": "not_consumed_exact_zero_qdot",
+            "continuous_stale_stop_s": 0.006,
+            "next_fresh_tick_may_recover": True,
+            "package_static_prepared": deadline_overrun_static_prepared,
+            "v30_script": {
+                "path": str(v30_script_path.relative_to(ROOT)),
+                "sha256": sha256(v30_script_path),
+            },
+            "p0_v8_script": {
+                "path": str(p0_script_path.relative_to(ROOT)),
+                "sha256": sha256(p0_script_path),
+            },
+            "controller_or_ursim_execution_verified": False,
+            "degraded_fail_closed_claim_allowed": False,
+            "claim_boundary": (
+                "offline package/static preparation only; no controller timing or motion proof"
+            ),
         },
         "package": {
             "marker_path": str(marker_path.relative_to(ROOT)),

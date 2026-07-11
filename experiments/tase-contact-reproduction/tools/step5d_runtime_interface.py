@@ -734,7 +734,7 @@ def resolve_runtime_interface(
                 if selected == STEP5D_ABLATION_V29_STAGE_ID
                 else {
                     "backend": "cupy",
-                    "inner_iterations": 32,
+                    "inner_iterations": 128,
                     "epsilon": 0.010,
                     "sigr_exponent_r": 0.8,
                     "qdot_cap_rad_s": 0.05,

@@ -539,6 +539,7 @@ def codex_step5d_strict_rnn_ablation_v30():
       local cmd_wy = cmd_qd4
       local cmd_wz = cmd_qd5
       local loop_dt = get_steptime()
+      local heartbeat_fresh = False
       final_progress_m = progress_s
       if cmd_valid >= 0.5 and (cartesian_layout_ok or joint_layout_ok):
         saw_cmd_valid = 1
@@ -551,6 +552,7 @@ def codex_step5d_strict_rnn_ablation_v30():
       else:
         stale_s2 = 0.0
         last_heartbeat2 = heartbeat2
+        heartbeat_fresh = True
       end
       t2 = t2 + loop_dt
       if progress_s >= line_success_progress_m:
@@ -559,13 +561,17 @@ def codex_step5d_strict_rnn_ablation_v30():
         end_hold_s = 0.0
       end
       codex_echo_step4e(stop_reason)
-      if stale_s2 > 0.100:
+      if stale_s2 > 0.006:
         stop_reason = 2.0
       else:
         stop_reason = codex_step4e_guard_stop_reason()
       end
       if stop_reason == 0.0:
-        if cmd_valid < 0.5 or not (cartesian_layout_ok or joint_layout_ok):
+        # DEADLINE_OVERRUN_HOLD: never consume or replay a stale host qdot.
+        if not heartbeat_fresh:
+          write_output_float_register(47, stage25_command_consumed)
+          speedj([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], joint_accel_rad_s2, line_hold_s)
+        elif cmd_valid < 0.5 or not (cartesian_layout_ok or joint_layout_ok):
           write_output_float_register(47, stage25_command_consumed)
           if saw_cmd_valid == 0 and t2 < cmd_valid_grace_s:
             sync()

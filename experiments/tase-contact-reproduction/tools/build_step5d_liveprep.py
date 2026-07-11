@@ -185,6 +185,7 @@ BRIDGE_NORMAL_FILTER_ALPHA = float(_STEP5D_PARAMS["normal_filter_alpha"])
 QDOT_CAP_RAD_S = 0.050
 QDOT_CLEAR_ZERO_TOL_RAD_S = 0.0005
 JOINT_ACCEL_RAD_S2 = 0.050
+STAGE25_HEARTBEAT_STALE_STOP_S = 0.006
 CARTESIAN_LINEAR_CAP_M_S = float(_STEP5D_LIMITS["speedl_linear_cap_m_s"])
 CARTESIAN_ANGULAR_CAP_RAD_S = float(_STEP5D_LIMITS["speedl_angular_cap_rad_s"])
 LINE_RUNTIME_LIMIT_S = float(_STEP5D_PARAMS["line_runtime_limit_s"])
@@ -394,6 +395,15 @@ def _replace_first_present(script: str, old_candidates: tuple[str, ...], new: st
 def _replace_line_stage_with_stage25_multimode(script: str, spec: Step5dAblationSpec = DEFAULT_SPEC) -> str:
     start = script.index("  if stop_reason == 0.0:\n    write_output_float_register(35, 25.0)")
     end = script.index("\n\n  if codex_should_auto_home(stop_reason):", start)
+    freshness_hold = ""
+    validity_keyword = "if"
+    if spec.uses_v30_control_contract:
+        freshness_hold = f"""        # DEADLINE_OVERRUN_HOLD: never consume or replay a stale host qdot.
+        if not heartbeat_fresh:
+          write_output_float_register(47, stage25_command_consumed)
+          speedj([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], joint_accel_rad_s2, line_hold_s)
+"""
+        validity_keyword = "elif"
     block = f"""  if stop_reason == 0.0:
     write_output_float_register(35, 25.0)
     local last_heartbeat2 = read_input_float_register(26)
@@ -429,6 +439,7 @@ def _replace_line_stage_with_stage25_multimode(script: str, spec: Step5dAblation
       local cmd_wy = cmd_qd4
       local cmd_wz = cmd_qd5
       local loop_dt = get_steptime()
+      local heartbeat_fresh = False
       final_progress_m = progress_s
       if cmd_valid >= 0.5 and (cartesian_layout_ok or joint_layout_ok):
         saw_cmd_valid = 1
@@ -441,6 +452,7 @@ def _replace_line_stage_with_stage25_multimode(script: str, spec: Step5dAblation
       else:
         stale_s2 = 0.0
         last_heartbeat2 = heartbeat2
+        heartbeat_fresh = True
       end
       t2 = t2 + loop_dt
       if progress_s >= line_success_progress_m:
@@ -449,13 +461,13 @@ def _replace_line_stage_with_stage25_multimode(script: str, spec: Step5dAblation
         end_hold_s = 0.0
       end
       codex_echo_step4e(stop_reason)
-      if stale_s2 > 0.100:
+      if stale_s2 > {STAGE25_HEARTBEAT_STALE_STOP_S:.3f}:
         stop_reason = 2.0
       else:
         stop_reason = codex_step4e_guard_stop_reason()
       end
       if stop_reason == 0.0:
-        if cmd_valid < 0.5 or not (cartesian_layout_ok or joint_layout_ok):
+{freshness_hold}        {validity_keyword} cmd_valid < 0.5 or not (cartesian_layout_ok or joint_layout_ok):
           write_output_float_register(47, stage25_command_consumed)
           if saw_cmd_valid == 0 and t2 < cmd_valid_grace_s:
             sync()
@@ -959,19 +971,25 @@ def codex_{spec.program_name}():
       local cmd_wy = cmd_qd4
       local cmd_wz = cmd_qd5
       local loop_dt2 = get_steptime()
+      local heartbeat_fresh = False
       if heartbeat2 == last_heartbeat2:
         stale_s2 = stale_s2 + loop_dt2
       else:
         stale_s2 = 0.0
         last_heartbeat2 = heartbeat2
+        heartbeat_fresh = True
       end
       t2 = t2 + loop_dt2
       stop_reason = codex_step5d_no_contact_p0_guard_stop_reason()
-      if stale_s2 > 0.100:
+      if stale_s2 > {STAGE25_HEARTBEAT_STALE_STOP_S:.3f}:
         stop_reason = 2.0
       end
       if stop_reason == 0.0:
-        if cmd_valid < 0.5 or not (cartesian_layout_ok or joint_layout_ok):
+        # DEADLINE_OVERRUN_HOLD: never consume or replay a stale host qdot.
+        if not heartbeat_fresh:
+          write_output_float_register(47, stage25_command_consumed)
+          speedj([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], joint_accel_rad_s2, 0.002)
+        elif cmd_valid < 0.5 or not (cartesian_layout_ok or joint_layout_ok):
           write_output_float_register(47, stage25_command_consumed)
           if t2 < cmd_valid_grace_s:
             sync()
@@ -1235,6 +1253,8 @@ Boundary:
   Stage25.0 command-consumption instrumentation: output register 47 is 1 only
   when the TP loop accepts a current Stage25 command packet and reaches
   speedl/speedj.
+  A repeated heartbeat is never consumed: TP executes an exact-zero qdot
+  command for that tick; heartbeat staleness beyond 0.006 s remains a stop.
 
 Bridge profile:
   --step4e-version {spec.bridge_version} --step4e-path-shape cycloid
@@ -1366,6 +1386,8 @@ Boundary:
   is 1 only when the TP loop accepts a current Stage25 command packet and
   reaches speedl/speedj; bridge CSV records echo tag, cmd_valid, command norm,
   row gap, and loop recv/compute/send/csv timing.
+  For v30, a repeated heartbeat is never consumed: TP executes an exact-zero
+  qdot command for that tick; heartbeat staleness beyond 0.006 s remains a stop.
   Bridge control modes:
     {speedl_mode_description}
     {dls_mode_description}
@@ -1447,6 +1469,11 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5d
                 else f"register 47={STEP5D_STAGE25_JOINT_LAYOUT_CODE:.1f}" in txt
             ),
             "speedj line control": "speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]" in script,
+            "deadline overrun stale-command hold": "DEADLINE_OVERRUN_HOLD" in script
+            and "local heartbeat_fresh = False" in script
+            and "if not heartbeat_fresh:" in script
+            and "speedj([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]" in script
+            and "A repeated heartbeat is never consumed" in txt,
             "layout policy": (
                 "speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy, cmd_wz]" not in script
                 and "not joint_layout_ok" in script
@@ -1543,6 +1570,16 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5d
                 and "local stage25_command_consumed = 0" in script
                 and "write_output_float_register(47, stage25_command_consumed)" in script
                 and "Stage25.0 cadence/command-consumption instrumentation" in txt
+            )
+        ),
+        "v30 deadline overrun stale-command hold": (
+            spec.version_label != "v30"
+            or (
+                "DEADLINE_OVERRUN_HOLD" in script
+                and "local heartbeat_fresh = False" in script
+                and "if not heartbeat_fresh:" in script
+                and "speedj([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]" in script
+                and "For v30, a repeated heartbeat is never consumed" in txt
             )
         ),
         "gravity-down pose contract": f"PRECONTACT_POSE_CONTRACT: {POSE_CONTRACT_ID}" in script
@@ -1727,6 +1764,15 @@ def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dic
             ),
             "register_clear_zero_tol": QDOT_CLEAR_ZERO_TOL_RAD_S,
             "joint_accel_rad_s2": JOINT_ACCEL_RAD_S2,
+            "deadline_overrun_policy": (
+                {
+                    "stale_tick_command": "exact_zero_qdot_not_consumed",
+                    "recovery": "next_fresh_heartbeat",
+                    "continuous_stale_stop_s": STAGE25_HEARTBEAT_STALE_STOP_S,
+                }
+                if spec.uses_v30_control_contract
+                else None
+            ),
             "cartesian_accel_m_s2": LINE_ACCEL_M_S2,
             "stage25_success_target_s": spec.stage25_success_target_s,
             "stage25_runtime_limit_s": spec.stage25_runtime_limit_s,
@@ -1770,6 +1816,15 @@ def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dic
         "default_stage25_control_mode": spec.default_stage25_control_mode,
         "register_clear_zero_tol": QDOT_CLEAR_ZERO_TOL_RAD_S,
         "joint_accel_rad_s2": JOINT_ACCEL_RAD_S2,
+        "deadline_overrun_policy": (
+            {
+                "stale_tick_command": "exact_zero_qdot_not_consumed",
+                "recovery": "next_fresh_heartbeat",
+                "continuous_stale_stop_s": STAGE25_HEARTBEAT_STALE_STOP_S,
+            }
+            if spec.version_label == "v30"
+            else None
+        ),
         "cartesian_accel_m_s2": LINE_ACCEL_M_S2,
         "raw_normal_guard_n": raw_guard,
         "force_norm_guard_n": force_guard,

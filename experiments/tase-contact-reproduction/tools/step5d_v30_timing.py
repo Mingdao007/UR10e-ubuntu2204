@@ -47,6 +47,8 @@ class TimingThresholds:
     solver_samples_required: int = 10_000
     tick_samples_required: int = 30_000
     safe_hold_samples_required: int = 30_000
+    degraded_deadline_miss_ratio_max: float = 0.0002
+    degraded_schedule_lateness_max_ms: float = 0.25
 
 
 def _distribution(values: Sequence[float], *, hard_deadline_ms: float) -> dict[str, Any]:
@@ -171,7 +173,7 @@ def summarize_timing(
 
     return {
         "schema_version": "step5d_v30_timing_v1",
-        "profile": "cupy/32/epsilon=0.010/r=0.8/qdot_cap=0.05",
+        "profile": "cupy/128/epsilon=0.010/r=0.8/qdot_cap=0.05",
         "precompile_policy": "must_complete_before_control_loop",
         "thresholds": asdict(thresholds),
         "first_post_warm_ms": float(first_post_warm_ms),
@@ -204,7 +206,7 @@ def summarize_preaggregated(
 
     expected_profile = {
         "backend": "cupy",
-        "inner_iterations": 32,
+        "inner_iterations": 128,
         "epsilon": 0.010,
         "sigr_exponent_r": 0.8,
         "qdot_cap_rad_s": 0.05,
@@ -373,6 +375,84 @@ def summarize_preaggregated(
         )
     )
     acceptance_eligible = not blockers
+    allowed_degraded_blockers = {
+        "full_tick_deadline_miss",
+        "full_tick_max_reaches_2ms_deadline",
+        "full_tick_schedule_deadline_miss",
+        "safe_hold_deadline_miss",
+        "safe_hold_max_reaches_2ms_deadline",
+        "safe_hold_schedule_deadline_miss",
+        "full_tick_runtime_acceptance_path_incomplete",
+    }
+    degraded_unrelated_blockers = sorted(
+        set(blockers) - allowed_degraded_blockers
+    )
+    degraded_full_budget = math.floor(
+        thresholds.tick_samples_required
+        * thresholds.degraded_deadline_miss_ratio_max
+    )
+    degraded_safe_budget = math.floor(
+        thresholds.safe_hold_samples_required
+        * thresholds.degraded_deadline_miss_ratio_max
+    )
+    full_lateness = payload.get("full_tick_schedule_max_lateness_ms")
+    safe_lateness = payload.get("safe_hold_schedule_max_lateness_ms")
+    miss_diagnostics = payload.get("deadline_miss_diagnostics")
+    miss_diagnostics = (
+        miss_diagnostics if isinstance(miss_diagnostics, dict) else {}
+    )
+    expected_miss_totals = {
+        "solver_compute": normalized["solver"]["deadline_miss_count"],
+        "full_tick_compute": normalized["full_tick"]["deadline_miss_count"],
+        "full_tick_schedule": schedule_misses,
+        "safe_hold_compute": normalized["safe_hold"]["deadline_miss_count"],
+        "safe_hold_schedule": safe_hold_schedule_misses,
+    }
+    miss_diagnostics_valid = bool(
+        all(
+            isinstance(miss_diagnostics.get(label), dict)
+            and miss_diagnostics[label].get("total") == expected
+            and miss_diagnostics[label].get("overflowed") is False
+            for label, expected in expected_miss_totals.items()
+        )
+        and all(
+            int((miss_diagnostics.get(label) or {}).get("max_consecutive", 0))
+            <= 1
+            for label in (
+                "full_tick_compute",
+                "full_tick_schedule",
+                "safe_hold_compute",
+                "safe_hold_schedule",
+            )
+        )
+    )
+    degraded_timing_candidate = bool(
+        not degraded_unrelated_blockers
+        and miss_diagnostics_valid
+        and normalized["solver"]["deadline_miss_count"] == 0
+        and normalized["full_tick"]["deadline_miss_count"]
+        <= degraded_full_budget
+        and normalized["safe_hold"]["deadline_miss_count"]
+        <= degraded_safe_budget
+        and schedule_misses <= degraded_full_budget
+        and safe_hold_schedule_misses <= degraded_safe_budget
+        and isinstance(full_lateness, (int, float))
+        and float(full_lateness)
+        <= thresholds.degraded_schedule_lateness_max_ms
+        and isinstance(safe_lateness, (int, float))
+        and float(safe_lateness)
+        <= thresholds.degraded_schedule_lateness_max_ms
+    )
+    stale_hold_evidence = payload.get("controller_stale_hold_fault_evidence")
+    stale_hold_proven = bool(
+        isinstance(stale_hold_evidence, dict)
+        and stale_hold_evidence.get("pass") is True
+        and stale_hold_evidence.get("stale_tick_command")
+        == "exact_zero_qdot_not_consumed"
+    )
+    degraded_fail_closed_pass = bool(
+        degraded_timing_candidate and stale_hold_proven
+    )
     classification = (
         "failed_hard_solver_deadline"
         if hard_solver_failure
@@ -416,6 +496,20 @@ def summarize_preaggregated(
         "overall_pass": acceptance_eligible,
         "acceptance_eligible": acceptance_eligible,
         "classification": classification,
+        "deadline_robustness": {
+            "hard_realtime_pass": acceptance_eligible,
+            "timing_degraded_candidate": degraded_timing_candidate,
+            "degraded_fail_closed_pass": degraded_fail_closed_pass,
+            "controller_stale_hold_proven": stale_hold_proven,
+            "miss_index_diagnostics_valid": miss_diagnostics_valid,
+            "deadline_miss_diagnostics": miss_diagnostics,
+            "compute_miss_budget": degraded_full_budget,
+            "safe_hold_miss_budget": degraded_safe_budget,
+            "unrelated_blockers": degraded_unrelated_blockers,
+            "claim_boundary": (
+                "bounded tail latency candidate only; not a 500 Hz hard-real-time claim"
+            ),
+        },
         "safety_boundary": payload.get("safety_boundary", []),
     }
 
