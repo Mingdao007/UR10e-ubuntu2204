@@ -46,14 +46,29 @@ def sha256_path(path: Path) -> str:
     return digest.hexdigest()
 
 
-def binding(path: Path, *, role: str, claim_level: str) -> dict[str, object]:
-    return {
+def binding(
+    path: Path,
+    *,
+    role: str,
+    claim_level: str,
+    relative_to: Path | None = None,
+    origin_path: Path | None = None,
+) -> dict[str, object]:
+    rendered_path = (
+        str(path.resolve().relative_to(relative_to.resolve()))
+        if relative_to is not None
+        else str(path)
+    )
+    value: dict[str, object] = {
         "role": role,
-        "path": str(path),
+        "path": rendered_path,
         "size_bytes": path.stat().st_size,
         "sha256": sha256_path(path),
         "claim_level": claim_level,
     }
+    if origin_path is not None:
+        value["origin_path"] = str(origin_path)
+    return value
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -281,6 +296,13 @@ def patch_mjcf(
         geom.attrib.setdefault("group", "2")
         geom.attrib.setdefault("contype", "1")
         geom.attrib.setdefault("conaffinity", "1")
+    # The imported fixed base mesh slightly overlaps the first moving-link
+    # collision mesh in the authoritative URDF.  Keep it visible but remove it
+    # from contact generation; otherwise a no-contact P0 run starts with four
+    # false base/shoulder contacts.
+    for geom in worldbody.findall("geom"):
+        geom.attrib["contype"] = "0"
+        geom.attrib["conaffinity"] = "0"
     for body in worldbody.iter("body"):
         body.attrib["gravcomp"] = "1"
     for joint in worldbody.iter("joint"):
@@ -413,12 +435,47 @@ def _vendor_assets(canonical_root: ET.Element, output_dir: Path, urdf_meshes: It
         destination = destination_root / f"{name}{source.suffix.lower()}"
         shutil.copy2(source, destination)
         mesh.attrib["file"] = str(destination.relative_to(output_dir))
-        assets.append(binding(destination, role=f"vendored_ur_mesh:{name}", claim_level="calibrated_robot_geometry"))
+        assets.append(
+            binding(
+                destination,
+                role=f"vendored_ur_mesh:{name}",
+                claim_level="calibrated_robot_geometry",
+                relative_to=output_dir,
+                origin_path=source,
+            )
+        )
     surface_destination = output_dir / "assets" / "contact_surface" / surface_mesh.name
     surface_destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(surface_mesh, surface_destination)
-    assets.append(binding(surface_destination, role="vendored_contact_surface_mesh", claim_level="geometry_only"))
+    assets.append(
+        binding(
+            surface_destination,
+            role="vendored_contact_surface_mesh",
+            claim_level="geometry_only",
+            relative_to=output_dir,
+            origin_path=surface_mesh,
+        )
+    )
     return assets
+
+
+def _vendor_source(
+    source: Path,
+    destination: Path,
+    *,
+    output_dir: Path,
+    role: str,
+    claim_level: str,
+) -> dict[str, object]:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, destination)
+    return binding(
+        destination,
+        role=role,
+        claim_level=claim_level,
+        relative_to=output_dir,
+        origin_path=source,
+    )
 
 
 def _validate_model(model: Any, *, mode: str) -> dict[str, object]:
@@ -514,27 +571,77 @@ def build(
             path,
             role=f"mujoco_{mode}_plant",
             claim_level=("geometry_provisional" if mode == "velocity" else "torque_physics_surrogate_not_direct_torque_reproduction"),
+            relative_to=output_dir,
         )
 
     urdf_path = output_dir / "calibrated_ur10e.urdf"
     urdf_path.write_text(resolved_urdf, encoding="utf-8")
     source_bindings = [
-        binding(inputs_path, role="digital_twin_input_manifest", claim_level="source"),
-        binding(calibration, role="controller_calibration_yaml", claim_level="controller_calibrated"),
-        binding(xacro_path, role="ur_description_entry_xacro", claim_level="package_pinned_by_hash"),
-        binding(_resolve_repo_path(robot["initial_positions_yaml"]), role="initial_joint_state", claim_level="offline_initialization"),
-        binding(surface_mesh, role="contact_surface_source", claim_level="geometry_only"),
+        _vendor_source(
+            inputs_path,
+            output_dir / "sources" / "experiment" / inputs_path.name,
+            output_dir=output_dir,
+            role="digital_twin_input_manifest",
+            claim_level="source",
+        ),
+        _vendor_source(
+            calibration,
+            output_dir / "sources" / "experiment" / calibration.name,
+            output_dir=output_dir,
+            role="controller_calibration_yaml",
+            claim_level="controller_calibrated",
+        ),
+        _vendor_source(
+            xacro_path,
+            output_dir / "sources" / "ur_description" / "urdf" / xacro_path.name,
+            output_dir=output_dir,
+            role="ur_description_entry_xacro",
+            claim_level="package_pinned_by_hash",
+        ),
+        _vendor_source(
+            _resolve_repo_path(robot["initial_positions_yaml"]),
+            output_dir / "sources" / "experiment" / "gazebo_matrix_initial_positions.yaml",
+            output_dir=output_dir,
+            role="initial_joint_state",
+            claim_level="offline_initialization",
+        ),
     ]
     package_xml = package_root / "package.xml"
     if package_xml.is_file():
-        source_bindings.append(binding(package_xml, role="ur_description_package_manifest", claim_level="package_pinned_by_hash"))
+        source_bindings.append(
+            _vendor_source(
+                package_xml,
+                output_dir / "sources" / "ur_description" / "package.xml",
+                output_dir=output_dir,
+                role="ur_description_package_manifest",
+                claim_level="package_pinned_by_hash",
+            )
+        )
     for path in sorted((package_root / "urdf").rglob("*.xacro")):
-        source_bindings.append(binding(path, role="ur_description_xacro_dependency", claim_level="package_pinned_by_hash"))
+        source_bindings.append(
+            _vendor_source(
+                path,
+                output_dir
+                / "sources"
+                / "ur_description"
+                / "urdf"
+                / path.relative_to(package_root / "urdf"),
+                output_dir=output_dir,
+                role="ur_description_xacro_dependency",
+                claim_level="package_pinned_by_hash",
+            )
+        )
 
     manifest = {
         "schema": "ur10e_mujoco_model_bundle_v1",
         "generated_at": generated_at,
-        "builder": binding(Path(__file__), role="builder", claim_level="source"),
+        "builder": {
+            "path": str(Path(__file__).resolve().relative_to(REPO_ROOT.resolve())),
+            "size_bytes": Path(__file__).stat().st_size,
+            "sha256": sha256_path(Path(__file__)),
+            "role": "builder",
+            "claim_level": "source",
+        },
         "environment": {
             "mujoco": mujoco.__version__,
             "pinocchio": pinocchio.__version__,
@@ -542,7 +649,12 @@ def build(
             "numpy": np.__version__,
         },
         "calibration_hash": calibration_hash,
-        "generated_urdf": binding(urdf_path, role="calibrated_flattened_urdf", claim_level="controller_calibrated_robot_geometry"),
+        "generated_urdf": binding(
+            urdf_path,
+            role="calibrated_flattened_urdf",
+            claim_level="controller_calibrated_robot_geometry",
+            relative_to=output_dir,
+        ),
         "source_bindings": source_bindings,
         "vendored_assets": vendored_assets,
         "outputs": outputs,
