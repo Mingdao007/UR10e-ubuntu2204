@@ -1,0 +1,107 @@
+{
+  "schema": "ur10e_ursim_lane_spec_v1",
+  "claim_boundary": "offline immutable preparation only; static contract validation is not URSim protocol execution",
+  "runtime_environment": {
+    "container_service": "inactive",
+    "image_inventory": "not_found",
+    "probe_source": "read-only Ubuntu environment audit 2026-07-11",
+    "mutation_authorized": false
+  },
+  "lanes": [
+    {
+      "id": "ursim_5_11_p0_layout524_protocol",
+      "claim_id": "p0_ursim_protocol_pass",
+      "polyscope_version": {
+        "constraint": "exact",
+        "value": "5.11.9.1010452"
+      },
+      "image": {
+        "digest_required": true,
+        "digest": null,
+        "reference": null,
+        "availability": "not_found"
+      },
+      "bindings": [
+        {
+          "role": "p0_v8_script",
+          "path": "experiments/tase-contact-reproduction/programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v8.script",
+          "sha256": "ca70d2a2a83c7e1547771f46568e3d2dd2edf076b4ed237b5e99cb0b05f6cb14"
+        },
+        {
+          "role": "p0_v8_txt",
+          "path": "experiments/tase-contact-reproduction/programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v8.txt",
+          "sha256": "7bcdb8602615d850b87e2d0b5290b8e6c7dd9fe9a2c234896982ebc0c5966c4a"
+        },
+        {
+          "role": "p0_v8_urp",
+          "path": "experiments/tase-contact-reproduction/programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v8.urp",
+          "sha256": "2434c49f1d7567a9e19ab9e9c0208b1b476e5f09fa7a28f4a791d987c7f509f2"
+        },
+        {
+          "role": "p0_v8_candidate_manifest",
+          "path": "experiments/tase-contact-reproduction/programs/step5/step5d/.step5d_strict_rnn_no_contact_p0_v8.local_candidate.json",
+          "sha256": "afde01d929b5699c5e3d5b910488986d922ac7c0e23c890cbd7e7aa3b0ef440b"
+        },
+        {
+          "role": "p0_package_validator",
+          "path": "experiments/tase-contact-reproduction/tools/build_step5d_liveprep.py",
+          "sha256": "247e60571e9cb7fc6ba2dc2b6205cde829cce4a59f0b4e85599bd057b4327d94"
+        },
+        {
+          "role": "p0_runtime_contract",
+          "path": "experiments/tase-contact-reproduction/tools/step5d_runtime_interface.py",
+          "sha256": "c7a836b8a05ad30807ca41c8d4db3b8875a805746fcd8d64d1107dbe943f9190"
+        }
+      ],
+      "required_runtime_checks": [
+        "urscript_parser_load",
+        "rtde_register_roundtrip",
+        "layout524_accept_and_wrong_layout_reject",
+        "heartbeat_stale_fault",
+        "speedj_one_tick",
+        "speedj_safe_exit"
+      ]
+    },
+    {
+      "id": "ursim_5_23_direct_torque_software",
+      "claim_id": "direct_torque_ursim_software_pass",
+      "polyscope_version": {
+        "constraint": "exact",
+        "value": "5.23.0"
+      },
+      "image": {
+        "digest_required": true,
+        "digest": null,
+        "reference": null,
+        "availability": "not_found"
+      },
+      "bindings": [
+        {
+          "role": "direct_torque_template",
+          "path": "experiments/ur10e-variable-impedance/programs/direct_torque_vic_offline_template.script",
+          "sha256": "1f8c4f8e96890988ce698e2c473428368932050bda40355880d19de5201fa3ff"
+        },
+        {
+          "role": "direct_torque_rtde_layout",
+          "path": "experiments/ur10e-variable-impedance/config/direct_torque_rtde_layout.json",
+          "sha256": "6dfd16d582234f9b24e95bf8f3e29e492fbc2eb5a037fb83eaae83e8fedd9567"
+        },
+        {
+          "role": "vic_backend_oracle",
+          "path": "experiments/ur10e-variable-impedance/ur10e_vic/backends.py",
+          "sha256": "2d7dafa49152f26270e63be2de227c8a0263a5e7acdbd643ad1ae1a34360d4a5"
+        }
+      ],
+      "required_runtime_checks": [
+        "direct_torque_urscript_parser_load",
+        "rtde_register_roundtrip",
+        "coherent_sequence_commit",
+        "frozen_gap_mixed_sequence_faults",
+        "heartbeat_stale_fault",
+        "zero_damping_startup",
+        "direct_torque_one_tick",
+        "zero_damping_safe_exit"
+      ]
+    }
+  ]
+}
