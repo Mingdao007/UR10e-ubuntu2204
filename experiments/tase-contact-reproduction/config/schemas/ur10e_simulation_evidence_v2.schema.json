@@ -44,7 +44,7 @@
         "frame_lineage_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "runtime_timing_environment": {
           "type": "object",
-          "required": ["timing_scope_contract", "trace_prefault"],
+          "required": ["timing_scope_contract", "trace_prefault", "thread_environment"],
           "properties": {
             "timing_scope_contract": {
               "const": {
@@ -58,6 +58,14 @@
                 "required": true,
                 "completed": true,
                 "strategy": "numpy_fill_zero_before_gc_collect_and_measured_loop"
+              }
+            },
+            "thread_environment": {
+              "const": {
+                "OPENBLAS_NUM_THREADS": "1",
+                "OMP_NUM_THREADS": "1",
+                "MKL_NUM_THREADS": "1",
+                "NUMEXPR_NUM_THREADS": "1"
               }
             }
           }

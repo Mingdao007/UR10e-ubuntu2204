@@ -40,6 +40,12 @@ SIMULATOR_CYCLE_SCOPE = (
 TRACE_PREFAULT_STRATEGY = (
     "numpy_fill_zero_before_gc_collect_and_measured_loop"
 )
+NUMERIC_THREAD_ENV_CONTRACT = {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    "NUMEXPR_NUM_THREADS": "1",
+}
 SHA256_RE = re.compile(r"[0-9a-f]{64}")
 
 
@@ -908,6 +914,10 @@ def validate_v2_evidence(
     }
     if prefault != expected_prefault:
         blockers.append("source_binding.runtime_timing_environment.trace_prefault:invalid")
+    if runtime.get("thread_environment") != NUMERIC_THREAD_ENV_CONTRACT:
+        blockers.append(
+            "source_binding.runtime_timing_environment.thread_environment:invalid"
+        )
     control_contract = payload.get("control_contract")
     if not isinstance(control_contract, Mapping):
         blockers.append("control_contract:missing")

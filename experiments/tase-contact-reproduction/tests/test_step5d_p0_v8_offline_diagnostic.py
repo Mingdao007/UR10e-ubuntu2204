@@ -19,6 +19,7 @@ from build_step5d_p0_v8_offline_diagnostic import (  # noqa: E402
     EVIDENCE_SCHEMA_V2,
     FALSE_CLAIMS,
     HISTORICAL_TIMING_SCOPE_STATUS,
+    NUMERIC_THREAD_ENV_CONTRACT_V2,
     P0_REQUIRED_FAULTS,
     PREFAULT_STRATEGY_V2,
     RUN_SCHEMA_V1,
@@ -193,6 +194,7 @@ def split_phase_evidence(
     evidence["schema"] = EVIDENCE_SCHEMA_V2
     evidence.pop("wall_timing")
     evidence["source_binding"]["runtime_timing_environment"] = {
+        "thread_environment": dict(NUMERIC_THREAD_ENV_CONTRACT_V2),
         "trace_prefault": {
             "required": True,
             "completed": True,
@@ -467,6 +469,9 @@ class Step5dP0V8OfflineDiagnosticTest(unittest.TestCase):
         payload["phases"][1]["timing_scope_binding"]["trace_prefault"][
             "completed"
         ] = False
+        payload["phases"][1]["timing_scope_binding"][
+            "numeric_thread_environment"
+        ]["OMP_NUM_THREADS"] = "2"
         payload["phases"][2]["source_composite_sha256"] = "a" * 64
         rehash(payload)
 

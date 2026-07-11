@@ -117,6 +117,22 @@ class FakePlant:
 
 
 class Step5dP0V8MujocoRunnerTest(unittest.TestCase):
+    def test_numeric_thread_environment_is_fail_closed(self) -> None:
+        with mock.patch.dict(
+            runner.os.environ,
+            runner.NUMERIC_THREAD_ENV_CONTRACT,
+            clear=True,
+        ):
+            self.assertEqual(
+                runner.require_numeric_thread_environment(),
+                runner.NUMERIC_THREAD_ENV_CONTRACT,
+            )
+        invalid = dict(runner.NUMERIC_THREAD_ENV_CONTRACT)
+        invalid["OPENBLAS_NUM_THREADS"] = "2"
+        with mock.patch.dict(runner.os.environ, invalid, clear=True):
+            with self.assertRaisesRegex(RuntimeError, "thread counts all set to 1"):
+                runner.require_numeric_thread_environment()
+
     def test_runner_exit_code_requires_final_hard_control_gate(self) -> None:
         self.assertEqual(
             runner.runner_exit_code(

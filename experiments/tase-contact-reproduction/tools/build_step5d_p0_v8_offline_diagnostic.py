@@ -26,6 +26,12 @@ SIMULATOR_SCOPE_V2 = (
     "release_to_oracle_snapshot_to_adapter_step_to_command_apply_and_four_physics_substeps"
 )
 PREFAULT_STRATEGY_V2 = "numpy_fill_zero_before_gc_collect_and_measured_loop"
+NUMERIC_THREAD_ENV_CONTRACT_V2 = {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    "NUMEXPR_NUM_THREADS": "1",
+}
 CURRENT_TIMING_SCOPE_STATUS = "current_control_hard_500hz_measurement_scope"
 HISTORICAL_TIMING_SCOPE_STATUS = "historical_superseded_measurement_scope"
 INVALID_TIMING_SCOPE_STATUS = "invalid_or_mixed_measurement_scope"
@@ -135,6 +141,9 @@ def _timing_scope_classification(
         timing_contract = (
             runtime.get("timing_scope_contract") if isinstance(runtime, Mapping) else None
         )
+        thread_environment = (
+            runtime.get("thread_environment") if isinstance(runtime, Mapping) else None
+        )
         control_contract = evidence.get("control_contract")
         control_timing = evidence.get("control_hard_500hz")
         simulator_timing = evidence.get("simulator_cycle_diagnostic")
@@ -152,6 +161,8 @@ def _timing_scope_classification(
             for key, expected in expected_contract.items()
         ):
             failures.append(f"phases[{index}].timing_scope_contract:invalid")
+        if thread_environment != NUMERIC_THREAD_ENV_CONTRACT_V2:
+            failures.append(f"phases[{index}].numeric_thread_environment:invalid")
         if not isinstance(control_contract, Mapping) or (
             control_contract.get("timing_scope_version") != TIMING_SCOPE_VERSION_V2
             or control_contract.get("trace_buffers_prefaulted") is not True
@@ -253,6 +264,11 @@ def _phase_summary(
             "timing_scope_contract": (
                 dict(runtime["timing_scope_contract"])
                 if isinstance(runtime.get("timing_scope_contract"), Mapping)
+                else None
+            ),
+            "numeric_thread_environment": (
+                dict(runtime["thread_environment"])
+                if isinstance(runtime.get("thread_environment"), Mapping)
                 else None
             ),
             "timing_scope_version": control_contract.get("timing_scope_version"),
@@ -568,6 +584,8 @@ def validate_diagnostic(payload: Mapping[str, object]) -> list[str]:
             if not isinstance(binding, Mapping) or (
                 binding.get("trace_prefault") != expected_prefault
                 or binding.get("timing_scope_contract") != expected_contract
+                or binding.get("numeric_thread_environment")
+                != NUMERIC_THREAD_ENV_CONTRACT_V2
                 or binding.get("timing_scope_version") != TIMING_SCOPE_VERSION_V2
                 or binding.get("trace_buffers_prefaulted") is not True
             ):

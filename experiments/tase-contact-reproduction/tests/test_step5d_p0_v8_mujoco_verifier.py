@@ -47,9 +47,9 @@ class Step5dP0V8MujocoVerifierTest(unittest.TestCase):
             },
             "thread_environment": {
                 "OPENBLAS_NUM_THREADS": "1",
-                "OMP_NUM_THREADS": None,
-                "MKL_NUM_THREADS": None,
-                "NUMEXPR_NUM_THREADS": None,
+                "OMP_NUM_THREADS": "1",
+                "MKL_NUM_THREADS": "1",
+                "NUMEXPR_NUM_THREADS": "1",
             },
             "versions": {
                 "python": "3.10.0",
@@ -678,6 +678,7 @@ class Step5dP0V8MujocoVerifierTest(unittest.TestCase):
         runtime = source["runtime_timing_environment"]
         runtime["timing_scope_contract"]["control_hard_500hz"] = "wrong_scope"
         runtime["trace_prefault"]["completed"] = False
+        runtime["thread_environment"]["OPENBLAS_NUM_THREADS"] = "2"
         source["composite_sha256"] = source_composite_sha256(source)
         self._rebind_phase_evidence(manifest, 0, evidence)
 
@@ -687,6 +688,7 @@ class Step5dP0V8MujocoVerifierTest(unittest.TestCase):
 
         self.assertTrue(any("timing_scope_contract:invalid" in item for item in blockers), blockers)
         self.assertTrue(any("trace_prefault:invalid" in item for item in blockers), blockers)
+        self.assertTrue(any("thread_environment:invalid" in item for item in blockers), blockers)
 
     def test_v2_run_rejects_mixed_v1_phase_evidence(self) -> None:
         _path, manifest = self._build_full_bundle_v2()

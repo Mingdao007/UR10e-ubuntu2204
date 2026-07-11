@@ -97,6 +97,12 @@ SIMULATOR_CYCLE_SCOPE = (
 TRACE_PREFAULT_STRATEGY = (
     "numpy_fill_zero_before_gc_collect_and_measured_loop"
 )
+NUMERIC_THREAD_ENV_CONTRACT = {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    "NUMEXPR_NUM_THREADS": "1",
+}
 
 
 class VelocityPlant(Protocol):
@@ -344,12 +350,6 @@ def runtime_timing_environment(
         scheduler = {"available": False, "error_type": type(exc).__name__}
     cupy_module = getattr(solver, "_cp", None)
     mujoco_module = getattr(plant, "mujoco", None)
-    thread_env_names = (
-        "OPENBLAS_NUM_THREADS",
-        "OMP_NUM_THREADS",
-        "MKL_NUM_THREADS",
-        "NUMEXPR_NUM_THREADS",
-    )
     return {
         "paced_wall_clock": bool(pace_wall_clock),
         "release_spin_window_s": float(release_spin_window_s),
@@ -366,7 +366,7 @@ def runtime_timing_environment(
         "process_affinity": affinity,
         "process_scheduler": scheduler,
         "thread_environment": {
-            name: os.environ.get(name) for name in thread_env_names
+            name: os.environ.get(name) for name in NUMERIC_THREAD_ENV_CONTRACT
         },
         "versions": {
             "python": platform.python_version(),
@@ -387,6 +387,19 @@ def runtime_timing_environment(
             ),
         },
     }
+
+
+def require_numeric_thread_environment() -> dict[str, str]:
+    """Refuse timing runs that can create RT-throttling BLAS worker pools."""
+
+    observed = {
+        name: os.environ.get(name) for name in NUMERIC_THREAD_ENV_CONTRACT
+    }
+    if observed != NUMERIC_THREAD_ENV_CONTRACT:
+        raise RuntimeError(
+            "P0 v8 timing requires OPENBLAS/OMP/MKL/NUMEXPR thread counts all set to 1"
+        )
+    return dict(NUMERIC_THREAD_ENV_CONTRACT)
 
 
 def require_hash_bound_no_contact_lane(
@@ -1219,6 +1232,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    require_numeric_thread_environment()
     root = EXPERIMENT_ROOT.resolve()
     output_dir = args.output_dir.resolve()
     if output_dir.exists():
