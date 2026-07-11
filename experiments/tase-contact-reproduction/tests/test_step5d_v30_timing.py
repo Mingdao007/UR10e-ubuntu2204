@@ -324,6 +324,14 @@ class Step5dV30TimingTest(unittest.TestCase):
                 "nice": 0,
                 "scheduler_policy": 0,
                 "cpu_affinity": [0, 1],
+                "python_executable": "/usr/bin/python3",
+                "python_version": "3.10.12",
+                "pythonpath": "/tmp/step5d_gpu_np124",
+                "versions": {
+                    "numpy": "1.24.4",
+                    "cupy": "13.6.0",
+                    "pinocchio": "2.6.21",
+                },
                 "thread_environment": {
                     "OPENBLAS_NUM_THREADS": "1",
                     "OMP_NUM_THREADS": "1",
@@ -530,6 +538,14 @@ class Step5dV30TimingTest(unittest.TestCase):
                 "nice": 0,
                 "scheduler_policy": 0,
                 "cpu_affinity": [0, 1],
+                "python_executable": "/usr/bin/python3",
+                "python_version": "3.10.12",
+                "pythonpath": "/tmp/step5d_gpu_np124",
+                "versions": {
+                    "numpy": "1.24.4",
+                    "cupy": "13.6.0",
+                    "pinocchio": "2.6.21",
+                },
                 "thread_environment": {
                     "OPENBLAS_NUM_THREADS": "1",
                     "OMP_NUM_THREADS": "1",
@@ -598,6 +614,14 @@ class Step5dV30TimingTest(unittest.TestCase):
                 "nice": 0,
                 "scheduler_policy": 0,
                 "cpu_affinity": [0, 1],
+                "python_executable": "/usr/bin/python3",
+                "python_version": "3.10.12",
+                "pythonpath": "/tmp/step5d_gpu_np124",
+                "versions": {
+                    "numpy": "1.24.4",
+                    "cupy": "13.6.0",
+                    "pinocchio": "2.6.21",
+                },
                 "thread_environment": {
                     "OPENBLAS_NUM_THREADS": "1",
                     "OMP_NUM_THREADS": "1",

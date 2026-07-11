@@ -221,6 +221,13 @@ def runtime_environment() -> dict[str, Any]:
         "nice": nice_value,
         "scheduler_policy": scheduler_policy,
         "cpu_affinity": affinity,
+        "python_executable": sys.executable,
+        "python_version": sys.version.split()[0],
+        "pythonpath": os.environ.get("PYTHONPATH"),
+        "versions": {
+            name: str(getattr(sys.modules.get(name), "__version__", "unavailable"))
+            for name in ("numpy", "cupy", "pinocchio")
+        },
         "thread_environment": {
             name: os.environ.get(name) for name in THREAD_ENV_NAMES
         },

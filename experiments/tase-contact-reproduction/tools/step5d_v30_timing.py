@@ -355,6 +355,13 @@ def summarize_preaggregated(
         blockers.append("runtime_timing_process_priority_degraded")
     if runtime_environment.get("thread_environment") != EXPECTED_THREAD_ENVIRONMENT:
         blockers.append("runtime_timing_thread_environment_unbound")
+    runtime_versions = runtime_environment.get("versions")
+    if not isinstance(runtime_versions, dict) or any(
+        not isinstance(runtime_versions.get(name), str)
+        or runtime_versions.get(name) in {"", "unavailable"}
+        for name in ("numpy", "cupy", "pinocchio")
+    ):
+        blockers.append("runtime_numeric_versions_unbound")
     if payload.get("runtime_path_source") != "kunwei_rtde_bridge.step5d_v30_contract_pipeline":
         blockers.append("v30_runtime_contract_path_not_proven")
     for label, expected_count in (
