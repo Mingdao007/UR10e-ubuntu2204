@@ -167,7 +167,6 @@ def verify(evidence_path: Path) -> dict[str, Any]:
         for key in (
             "mujoco_runtime_evidence_present",
             "gazebo_runtime_evidence_present",
-            "numeric_tcp_equivalence_proven",
             "eoat_dynamics_equivalence_proven",
             "native_contact_same_run_equivalence_proven",
             "contact_equivalence_pass",
@@ -176,6 +175,10 @@ def verify(evidence_path: Path) -> dict[str, Any]:
         ):
             if comparison.get(key) is not False:
                 issues.append(f"runtime_equivalence_not_false:{key}")
+        if comparison.get("numeric_tcp_equivalence_proven") is not True:
+            issues.append("static_numeric_tcp_equivalence_not_proven")
+        if comparison.get("static_numeric_tcp_contract_match") is not True:
+            issues.append("static_numeric_tcp_contract_mismatch")
     blockers = evidence.get("blockers")
     if not isinstance(blockers, list):
         issues.append("blockers_invalid")

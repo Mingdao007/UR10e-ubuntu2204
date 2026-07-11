@@ -45,7 +45,6 @@ RUNTIME_BLOCKERS = (
     "cross_engine_timing_equivalence_not_proven",
     "domain_randomization_scenarios_not_executed",
     "randomization_parameters_uncalibrated_falsification_only",
-    "gazebo_active_tcp_numeric_transform_not_bound_in_static_contract",
     "gazebo_eoat_mass_cog_inertia_not_bound_in_static_contract",
 )
 
@@ -297,6 +296,14 @@ def validate_gazebo_contract(contract: Mapping[str, Any]) -> list[str]:
     entities = lineage.get("required_runtime_entities") if isinstance(lineage, Mapping) else None
     if not isinstance(entities, list) or "active_tcp" not in entities:
         issues.append("gazebo_active_tcp_frame_missing")
+    tcp = lineage.get("active_tcp_offset_tool0_m") if isinstance(lineage, Mapping) else None
+    if (
+        not isinstance(tcp, list)
+        or len(tcp) != 3
+        or not all(_finite(value) for value in tcp)
+        or lineage.get("active_tcp_joint") != "active_tcp_joint"
+    ):
+        issues.append("gazebo_active_tcp_numeric_transform_invalid")
     authorization = contract.get("authorization")
     if not isinstance(authorization, Mapping):
         issues.append("gazebo_authorization_invalid")
@@ -456,8 +463,20 @@ def build_evidence_payload(
     gazebo_rates = gazebo.get("rates_hz") if isinstance(gazebo.get("rates_hz"), Mapping) else {}
     physics_rate_match = mujoco_rates.get("physics") == gazebo_rates.get("physics") == 2000
     control_rate_match = mujoco_rates.get("control") == gazebo_rates.get("controller") == 500
+    mujoco_tcp = mujoco.get("active_tcp_offset_tool0_m")
+    gazebo_lineage = gazebo.get("frame_lineage") if isinstance(gazebo.get("frame_lineage"), Mapping) else {}
+    gazebo_tcp = gazebo_lineage.get("active_tcp_offset_tool0_m")
+    tcp_contract_match = bool(
+        isinstance(mujoco_tcp, list)
+        and isinstance(gazebo_tcp, list)
+        and len(mujoco_tcp) == len(gazebo_tcp) == 3
+        and all(_finite(value) for value in mujoco_tcp + gazebo_tcp)
+        and all(abs(float(left) - float(right)) <= 1e-15 for left, right in zip(mujoco_tcp, gazebo_tcp))
+    )
     static_issues = config_issues + mujoco_issues + gazebo_issues
-    static_contract_pass = not static_issues and physics_rate_match and control_rate_match
+    static_contract_pass = (
+        not static_issues and physics_rate_match and control_rate_match and tcp_contract_match
+    )
     declared_model_blockers = [
         f"mujoco_model:{value}"
         for value in mujoco.get("blockers", [])
@@ -467,6 +486,7 @@ def build_evidence_payload(
         [f"static_input:{issue}" for issue in static_issues]
         + ([] if physics_rate_match else ["cross_engine_static_physics_rate_mismatch"])
         + ([] if control_rate_match else ["cross_engine_static_control_rate_mismatch"])
+        + ([] if tcp_contract_match else ["cross_engine_static_tcp_contract_mismatch"])
         + declared_model_blockers
         + list(RUNTIME_BLOCKERS)
     )
@@ -512,10 +532,11 @@ def build_evidence_payload(
                 "static_match": control_rate_match,
             },
             "static_rate_contract_match": physics_rate_match and control_rate_match,
+            "static_numeric_tcp_contract_match": tcp_contract_match,
             "static_input_contract_consistency_pass": static_contract_pass,
             "mujoco_runtime_evidence_present": False,
             "gazebo_runtime_evidence_present": False,
-            "numeric_tcp_equivalence_proven": False,
+            "numeric_tcp_equivalence_proven": tcp_contract_match,
             "eoat_dynamics_equivalence_proven": False,
             "native_contact_same_run_equivalence_proven": False,
             "contact_equivalence_pass": False,
@@ -537,6 +558,7 @@ def build_evidence_payload(
         },
         "claims": {
             "static_rate_contract_match": physics_rate_match and control_rate_match,
+            "static_numeric_tcp_contract_match": tcp_contract_match,
             "seeded_falsification_plan_generated": True,
             "cross_engine_contact_equivalence": False,
             "cross_engine_timing_equivalence": False,

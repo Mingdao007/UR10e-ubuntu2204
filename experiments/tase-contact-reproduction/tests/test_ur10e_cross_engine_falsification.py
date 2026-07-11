@@ -43,7 +43,11 @@ def _model_fixture(root: Path) -> Path:
         "rates_hz": {"physics": 2000, "control": 500, "dbil": 200},
         "integer_schedule": {"physics_per_control": 4, "physics_per_dbil": 10},
         "outputs": outputs,
-        "active_tcp_offset_tool0_m": [0.0, 0.0, 0.12209917288991741],
+        "active_tcp_offset_tool0_m": [
+            0.0000018186503701174852,
+            0.00000022293003722353485,
+            0.12209917288991741,
+        ],
         "no_contact_scene": {"native_contact_enabled": True},
         "claim_boundary": {
             "calibrated_physics_claim_allowed": False,
@@ -154,6 +158,10 @@ class CrossEngineFalsificationTest(unittest.TestCase):
                 "falsification_plan_ready_runtime_equivalence_blocked",
             )
             self.assertTrue(evidence["engine_comparison"]["static_rate_contract_match"])
+            self.assertTrue(
+                evidence["engine_comparison"]["static_numeric_tcp_contract_match"]
+            )
+            self.assertTrue(evidence["engine_comparison"]["numeric_tcp_equivalence_proven"])
             self.assertFalse(evidence["engine_comparison"]["contact_equivalence_pass"])
             self.assertFalse(evidence["engine_comparison"]["timing_equivalence_pass"])
             self.assertFalse(evidence["domain_randomization"]["robustness_pass"])
