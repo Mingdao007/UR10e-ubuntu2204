@@ -69,6 +69,9 @@ class URSimPreparationTests(unittest.TestCase):
             lane["static_contract"]["layout524_payload_registers_declared"]
         )
         self.assertTrue(lane["static_contract"]["heartbeat_stale_guard_static"])
+        self.assertTrue(
+            lane["static_contract"]["deadline_overrun_zero_hold_static"]
+        )
         self.assertTrue(lane["static_contract"]["bounded_speedj_tick_static"])
         self.assertTrue(lane["static_contract"]["speedj_safe_exit_static"])
         self.assertIn("urscript_parser_load", lane["required_runtime_checks"])

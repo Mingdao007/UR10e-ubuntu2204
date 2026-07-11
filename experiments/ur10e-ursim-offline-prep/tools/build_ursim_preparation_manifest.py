@@ -215,8 +215,15 @@ def _p0_static_contract(paths: Mapping[str, Path], root: Path) -> dict[str, bool
         ),
         "heartbeat_stale_guard_static": bool(
             "local last_heartbeat2 = read_input_float_register(26)" in script
-            and "if stale_s2 > 0.100" in script
+            and "if stale_s2 > 0.006" in script
             and "stop_reason = 2.0" in script
+        ),
+        "deadline_overrun_zero_hold_static": bool(
+            "DEADLINE_OVERRUN_HOLD" in script
+            and "if not heartbeat_fresh:" in script
+            and "speedj([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]" in script
+            and "write_output_float_register(47, stage25_command_consumed)"
+            in script
         ),
         "bounded_speedj_tick_static": bool(
             "local qdot_cap_rad_s = 0.050" in script

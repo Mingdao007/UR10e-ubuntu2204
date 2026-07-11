@@ -25,32 +25,32 @@
         {
           "role": "p0_v8_script",
           "path": "experiments/tase-contact-reproduction/programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v8.script",
-          "sha256": "ca70d2a2a83c7e1547771f46568e3d2dd2edf076b4ed237b5e99cb0b05f6cb14"
+          "sha256": "16d94d48795cba7a278f47007d099057217ff3135e151a73620deb6197651df2"
         },
         {
           "role": "p0_v8_txt",
           "path": "experiments/tase-contact-reproduction/programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v8.txt",
-          "sha256": "7bcdb8602615d850b87e2d0b5290b8e6c7dd9fe9a2c234896982ebc0c5966c4a"
+          "sha256": "6280768807ab74336f098b5a5e34d1e4e76f3f2d036262f53e4bbcc52bbb3cf6"
         },
         {
           "role": "p0_v8_urp",
           "path": "experiments/tase-contact-reproduction/programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v8.urp",
-          "sha256": "2434c49f1d7567a9e19ab9e9c0208b1b476e5f09fa7a28f4a791d987c7f509f2"
+          "sha256": "3fa7b08a42b7fe9c0385ad9761e95ea52c1b47167e268b41d0e3211d56df897f"
         },
         {
           "role": "p0_v8_candidate_manifest",
           "path": "experiments/tase-contact-reproduction/programs/step5/step5d/.step5d_strict_rnn_no_contact_p0_v8.local_candidate.json",
-          "sha256": "afde01d929b5699c5e3d5b910488986d922ac7c0e23c890cbd7e7aa3b0ef440b"
+          "sha256": "8cec07e2dc4ad0cfaa8e1885635a0d4fd729d9d59fca11cccf803f001658e580"
         },
         {
           "role": "p0_package_validator",
           "path": "experiments/tase-contact-reproduction/tools/build_step5d_liveprep.py",
-          "sha256": "06e91a49c6e558dc61aa57dd0047098bf9de42b2dfc33f65b7f36b1c59bcaa1c"
+          "sha256": "bdf34309aba4231a8c2e90168ea81e59f333b450405d3dfbd491967facffb7ff"
         },
         {
           "role": "p0_runtime_contract",
           "path": "experiments/tase-contact-reproduction/tools/step5d_runtime_interface.py",
-          "sha256": "c7a836b8a05ad30807ca41c8d4db3b8875a805746fcd8d64d1107dbe943f9190"
+          "sha256": "834df962defe97f383e1a753dd7e559981a88cefcf176e0774c030dfdfdb59ac"
         }
       ],
       "required_runtime_checks": [
