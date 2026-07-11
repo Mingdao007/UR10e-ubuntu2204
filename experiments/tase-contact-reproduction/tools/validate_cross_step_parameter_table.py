@@ -17,6 +17,7 @@ from tase_protocol_table import resolve_experiment_profile
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_EXTENSIONS = (".script", ".txt", ".urp")
 P0_V8_PROGRAM = "step5d_strict_rnn_no_contact_p0_v8"
+V29_PROGRAM = "step5d_strict_rnn_ablation_v29"
 V30_PROGRAM = "step5d_strict_rnn_ablation_v30"
 REVIEW_POLICY_ID = "ur10e_review_policy_v2"
 
@@ -451,11 +452,59 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
 
     v29_candidate = current.get("v29_contact_candidate") or {}
     v29_baseline_review = v29_candidate.get("review_v2_baseline_rereview") or {}
+    v29_row = step5_rows.get(V29_PROGRAM) or {}
+    v29_row_review = v29_row.get("review_v2") or {}
     if (
         v29_candidate.get("frozen_fallback") is not True
         or v29_baseline_review.get("required_stack") != "1+0"
     ):
         failures.append("v29 frozen fallback / Review v2 1+0 baseline binding is invalid")
+    expected_v29_local = f"programs/step5/step5d/{V29_PROGRAM}"
+    if (
+        current.get("local_triplet") != expected_v29_local
+        or v29_candidate.get("local_triplet") != expected_v29_local
+    ):
+        failures.append("v29 local triplet must use the canonical nested step5d path")
+    expected_v29_triplet = f"{expected_v29_local}.{{script,txt,urp}}"
+    for binding_name in ("local_delivery_evidence", "package_delivery"):
+        binding = v29_row.get(binding_name) or {}
+        if (
+            binding.get("local_program_dir") != "programs/step5/step5d"
+            or binding.get("local_triplet") != expected_v29_triplet
+        ):
+            failures.append(f"v29 {binding_name} local package path is inconsistent")
+    expected_v29_review = {
+        "policy_id": REVIEW_POLICY_ID,
+        "milestone": "v29_baseline_re_review",
+        "required_stack": "1+0",
+        "status": "resolved_by_review_index",
+        "evidence_frozen": True,
+        "manifest_source": "config/step5d_review_index_v2.json",
+        "source_review_manifest": "config/reviews/v29_baseline_review_v2_manifest.json",
+    }
+    for field, expected in expected_v29_review.items():
+        if (
+            v29_baseline_review.get(field) != expected
+            or v29_row_review.get(field) != expected
+        ):
+            failures.append(f"v29 Review v2 externalized binding mismatch: {field}")
+    source_review_path = expected_v29_review["source_review_manifest"]
+    indexed_v29_source = next(
+        (
+            item
+            for item in (review_index.get("v2_reviews") or [])
+            if isinstance(item, dict) and item.get("path") == source_review_path
+        ),
+        None,
+    )
+    if (
+        not indexed_v29_source
+        or indexed_v29_source.get("workflow") != "v29"
+        or indexed_v29_source.get("milestone") != "baseline_re_review"
+        or indexed_v29_source.get("required_stack") != "1+0"
+        or indexed_v29_source.get("review_mode") != "full"
+    ):
+        failures.append("v29 baseline source review is not bound in Review v2 index")
 
     p0_capture = current.get("bridge_trigger", {}).get("no_contact_p0_capture", {})
     p0_profile = p0_capture.get("profile")

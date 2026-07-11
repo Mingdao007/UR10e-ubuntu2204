@@ -106,7 +106,7 @@
     "evidence_freeze_ready": false,
     "evidence_frozen": false,
     "index_path": "config/step5d_review_index_v2.json",
-    "index_sha256": "15df105e2281d337c124690b1cf1eb1eff350db176382f528ce0ed759c53f4c6",
+    "index_sha256": "3a5212131dad0afc0e2b027a83b312f7fc311a916d5b56ede7e715a47e05219c",
     "manifest": null,
     "packet": null,
     "policy_id": "ur10e_review_policy_v2",

@@ -400,6 +400,132 @@ def _prior_full_review_issues(
     return ["duplicate_full_review_for_composite_fingerprint"] if duplicates else []
 
 
+def _source_packet_integrity_issues(packet: dict[str, Any]) -> list[str]:
+    """Validate archived packet fingerprints without rereading changed files."""
+
+    issues: list[str] = []
+    components = packet.get("components") or {}
+    fingerprints = packet.get("fingerprints") or {}
+    names = ("code", "package", "evidence", "policy")
+    recomputed: dict[str, str] = {}
+    for name in names:
+        component = components.get(name)
+        if not isinstance(component, dict):
+            issues.append(f"source_packet_component_missing:{name}")
+            continue
+        digest = component_digest(_component_payload(component))
+        recomputed[name] = digest
+        if component.get("sha256") != digest or fingerprints.get(name) != digest:
+            issues.append(f"source_packet_component_digest_mismatch:{name}")
+    composite = canonical_sha256(
+        {
+            "workflow": packet.get("workflow"),
+            "milestone": packet.get("milestone"),
+            "review_class": packet.get("review_class"),
+            "component_sha256": {
+                name: recomputed.get(name) for name in sorted(names)
+            },
+        }
+    )
+    if fingerprints.get("composite") != composite:
+        issues.append("source_packet_composite_fingerprint_mismatch")
+    return issues
+
+
+def _changed_binding_paths(source: Any, target: Any) -> set[str]:
+    def by_path(value: Any) -> dict[str, tuple[Any, Any, Any]]:
+        if not isinstance(value, list):
+            return {}
+        return {
+            str(item.get("path")): (
+                item.get("exists"),
+                item.get("bytes"),
+                item.get("sha256"),
+            )
+            for item in value
+            if isinstance(item, dict) and item.get("path")
+        }
+
+    source_map = by_path(source)
+    target_map = by_path(target)
+    return {
+        path
+        for path in set(source_map) | set(target_map)
+        if source_map.get(path) != target_map.get(path)
+    }
+
+
+def _fingerprint_transition_issues(
+    source: dict[str, Any],
+    source_packet: dict[str, Any] | None,
+    packet: dict[str, Any],
+    manifest: dict[str, Any],
+    target_lanes: set[str],
+) -> list[str]:
+    source_fingerprint = source.get("composite_fingerprint")
+    target_fingerprint = packet.get("fingerprints", {}).get("composite")
+    if source_fingerprint == target_fingerprint:
+        return []
+    issues: list[str] = []
+    closer = manifest.get("targeted_closer") or {}
+    transition = closer.get("fingerprint_transition") or {}
+    if source_packet is None:
+        return ["targeted_closer_source_packet_missing_for_fingerprint_transition"]
+    issues.extend(_source_packet_integrity_issues(source_packet))
+    if source_packet.get("fingerprints", {}).get("composite") != source_fingerprint:
+        issues.append("targeted_closer_source_packet_manifest_fingerprint_mismatch")
+    if transition.get("kind") != "targeted_finding_fix":
+        issues.append("targeted_closer_fingerprint_transition_kind_invalid")
+    if transition.get("source_composite_fingerprint") != source_fingerprint:
+        issues.append("targeted_closer_transition_source_fingerprint_mismatch")
+    if transition.get("target_composite_fingerprint") != target_fingerprint:
+        issues.append("targeted_closer_transition_target_fingerprint_mismatch")
+    if not manifest.get("invalidation_reason"):
+        issues.append("targeted_closer_fingerprint_transition_missing_invalidation_reason")
+
+    source_components = source_packet.get("components") or {}
+    target_components = packet.get("components") or {}
+    for component in ("policy", "package"):
+        if source_packet.get("fingerprints", {}).get(component) != packet.get(
+            "fingerprints", {}
+        ).get(component):
+            issues.append(f"targeted_closer_requires_full_review:{component}_changed")
+
+    allowed_paths = {
+        str(path)
+        for lane_id in target_lanes
+        for path in (packet.get("lanes", {}).get(lane_id) or {}).get(
+            "allowlisted_files", []
+        )
+    }
+    for component in ("code", "evidence"):
+        source_component = source_components.get(component) or {}
+        target_component = target_components.get(component) or {}
+        for path in sorted(
+            _changed_binding_paths(
+                source_component.get("files"), target_component.get("files")
+            )
+        ):
+            if path not in allowed_paths:
+                issues.append(
+                    f"targeted_closer_changed_file_outside_target_lane:{component}:{path}"
+                )
+    source_code = source_components.get("code") or {}
+    target_code = target_components.get("code") or {}
+    for symbol in target_code.get("changed_symbols", []):
+        if isinstance(symbol, dict) and symbol.get("path") not in allowed_paths:
+            issues.append(
+                "targeted_closer_changed_symbol_outside_target_lane:"
+                f"{symbol.get('path')}::{symbol.get('symbol')}"
+            )
+    source_evidence = source_components.get("evidence") or {}
+    target_evidence = target_components.get("evidence") or {}
+    for field in ("claims", "roles"):
+        if source_evidence.get(field) != target_evidence.get(field):
+            issues.append(f"targeted_closer_requires_full_review:evidence_{field}_changed")
+    return issues
+
+
 def _full_manifest_outcome(
     manifest: dict[str, Any],
     packet: dict[str, Any],
@@ -436,6 +562,7 @@ def _full_manifest_outcome(
 def _targeted_closer_outcome(
     manifest: dict[str, Any],
     source: dict[str, Any] | None,
+    source_packet: dict[str, Any] | None,
     packet: dict[str, Any],
     policy: dict[str, Any],
 ) -> tuple[list[str], list[str]]:
@@ -446,9 +573,6 @@ def _targeted_closer_outcome(
     closer = manifest.get("targeted_closer") or {}
     if closer.get("source_manifest_sha256") != source_hash:
         issues.append("targeted_closer_source_hash_mismatch")
-    fingerprint = packet["fingerprints"]["composite"]
-    if source.get("composite_fingerprint") != fingerprint:
-        issues.append("targeted_closer_source_fingerprint_mismatch")
     target_finding_ids = sorted(set(str(value) for value in closer.get("finding_ids", [])))
     supplemental_lanes = sorted(
         set(str(value) for value in closer.get("supplemental_lanes", []))
@@ -470,6 +594,11 @@ def _targeted_closer_outcome(
     manifest_lanes = manifest.get("lanes") or {}
     if set(manifest_lanes) != target_lanes:
         issues.append("targeted_closer_lane_scope_mismatch")
+    issues.extend(
+        _fingerprint_transition_issues(
+            source, source_packet, packet, manifest, target_lanes
+        )
+    )
     risk_flags = packet.get("risk_flags") or []
     for lane_id, lane in manifest_lanes.items():
         if lane_id not in packet.get("lanes", {}):
@@ -531,6 +660,7 @@ def validate_manifest(
     policy: dict[str, Any] | None = None,
     review_index: dict[str, Any] | None = None,
     source_manifest: dict[str, Any] | None = None,
+    source_packet: dict[str, Any] | None = None,
     manifest_sha256: str | None = None,
 ) -> dict[str, Any]:
     policy = policy or load_json(DEFAULT_POLICY)
@@ -547,6 +677,12 @@ def validate_manifest(
     fingerprint = packet.get("fingerprints", {}).get("composite")
     if manifest.get("composite_fingerprint") != fingerprint:
         issues.append("manifest_composite_fingerprint_mismatch")
+    component_fingerprints = manifest.get("component_fingerprints")
+    if component_fingerprints is not None and component_fingerprints != {
+        name: packet.get("fingerprints", {}).get(name)
+        for name in ("code", "evidence", "package", "policy")
+    }:
+        issues.append("manifest_component_fingerprints_mismatch")
     mode = manifest.get("review_mode")
     if mode not in {"full", "targeted_closer"}:
         issues.append("manifest_review_mode_invalid")
@@ -557,7 +693,7 @@ def validate_manifest(
         outcome_issues, backlog = _full_manifest_outcome(manifest, packet, policy)
     else:
         outcome_issues, backlog = _targeted_closer_outcome(
-            manifest, source_manifest, packet, policy
+            manifest, source_manifest, source_packet, packet, policy
         )
     issues.extend(outcome_issues)
     invalidation_reason = manifest.get("invalidation_reason")
@@ -589,6 +725,7 @@ def main() -> int:
     parser.add_argument("--policy", type=Path, default=DEFAULT_POLICY)
     parser.add_argument("--review-index", type=Path)
     parser.add_argument("--source-manifest", type=Path)
+    parser.add_argument("--source-packet", type=Path)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     policy = load_json(args.policy)
@@ -600,6 +737,7 @@ def main() -> int:
         policy=policy,
         review_index=load_json(args.review_index) if args.review_index else None,
         source_manifest=load_json(args.source_manifest) if args.source_manifest else None,
+        source_packet=load_json(args.source_packet) if args.source_packet else None,
         manifest_sha256=file_sha256(args.manifest),
     )
     rendered = json.dumps(result, indent=2, sort_keys=True) + "\n"

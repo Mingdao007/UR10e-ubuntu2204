@@ -406,6 +406,139 @@ class Step5dReviewPolicyV2Test(unittest.TestCase):
         self.assertTrue(result["accepted"], result["blockers"])
         self.assertEqual(result["review_mode"], "targeted_closer")
 
+    def test_targeted_closer_accepts_lane_scoped_evidence_fingerprint_change(self) -> None:
+        source_spec = base_spec()
+        source_packet = packet_builder.build_packet(source_spec)
+        source = full_manifest(source_packet)
+        lane_id = source_packet["invocation_plan"][0]["lane"]
+        source["lanes"][lane_id]["status"] = "block"
+        source["lanes"][lane_id]["verdict"] = "block"
+        source["lanes"][lane_id]["findings"] = [
+            {"id": "P1-STATE", "severity": "P1", "status": "open"}
+        ]
+
+        target_spec = copy.deepcopy(source_spec)
+        target_spec["head_commit"] = "3" * 40
+        target_spec["state_resolver"]["blockers"] = []
+        target_packet = packet_builder.build_packet(target_spec)
+        invocation = target_packet["invocation_plan"][0]
+        closer = {
+            "schema_version": "ur10e_review_manifest_v2",
+            "policy_id": target_packet["policy_id"],
+            "workflow": target_packet["workflow"],
+            "milestone": target_packet["milestone"],
+            "required_stack": target_packet["required_stack"],
+            "review_mode": "targeted_closer",
+            "composite_fingerprint": target_packet["fingerprints"]["composite"],
+            "component_fingerprints": {
+                name: target_packet["fingerprints"][name]
+                for name in ("code", "evidence", "package", "policy")
+            },
+            "targeted_closer": {
+                "source_manifest_sha256": canonical_sha256(source),
+                "finding_ids": ["P1-STATE"],
+                "supplemental_lanes": [],
+                "fingerprint_transition": {
+                    "kind": "targeted_finding_fix",
+                    "source_composite_fingerprint": source_packet["fingerprints"][
+                        "composite"
+                    ],
+                    "target_composite_fingerprint": target_packet["fingerprints"][
+                        "composite"
+                    ],
+                },
+            },
+            "lanes": {
+                lane_id: passing_lane(
+                    invocation,
+                    findings=[
+                        {
+                            "id": "P1-STATE",
+                            "severity": "P1",
+                            "status": "closed",
+                            "resolution": "bound state snapshot corrected",
+                        }
+                    ],
+                )
+            },
+            "invalidation_reason": "lane_scoped_finding_fix_changed_evidence",
+        }
+
+        result = validator.validate_manifest(
+            closer,
+            target_packet,
+            source_manifest=source,
+            source_packet=source_packet,
+        )
+
+        self.assertTrue(result["accepted"], result["blockers"])
+
+    def test_targeted_closer_rejects_package_fingerprint_change(self) -> None:
+        source_spec = base_spec()
+        source_packet = packet_builder.build_packet(source_spec)
+        source = full_manifest(source_packet)
+        lane_id = source_packet["invocation_plan"][0]["lane"]
+        source["lanes"][lane_id]["status"] = "block"
+        source["lanes"][lane_id]["verdict"] = "block"
+        source["lanes"][lane_id]["findings"] = [
+            {"id": "P1-PACKAGE", "severity": "P1", "status": "open"}
+        ]
+        target_spec = copy.deepcopy(source_spec)
+        target_spec["head_commit"] = "3" * 40
+        target_spec["package_identity"]["manifest_sha256"] = "4" * 64
+        target_packet = packet_builder.build_packet(target_spec)
+        invocation = target_packet["invocation_plan"][0]
+        closer = {
+            "schema_version": "ur10e_review_manifest_v2",
+            "policy_id": target_packet["policy_id"],
+            "workflow": target_packet["workflow"],
+            "milestone": target_packet["milestone"],
+            "required_stack": target_packet["required_stack"],
+            "review_mode": "targeted_closer",
+            "composite_fingerprint": target_packet["fingerprints"]["composite"],
+            "targeted_closer": {
+                "source_manifest_sha256": canonical_sha256(source),
+                "finding_ids": ["P1-PACKAGE"],
+                "supplemental_lanes": [],
+                "fingerprint_transition": {
+                    "kind": "targeted_finding_fix",
+                    "source_composite_fingerprint": source_packet["fingerprints"][
+                        "composite"
+                    ],
+                    "target_composite_fingerprint": target_packet["fingerprints"][
+                        "composite"
+                    ],
+                },
+            },
+            "lanes": {
+                lane_id: passing_lane(
+                    invocation,
+                    findings=[
+                        {
+                            "id": "P1-PACKAGE",
+                            "severity": "P1",
+                            "status": "closed",
+                            "resolution": "package changed",
+                        }
+                    ],
+                )
+            },
+            "invalidation_reason": "finding_fix_changed_package",
+        }
+
+        result = validator.validate_manifest(
+            closer,
+            target_packet,
+            source_manifest=source,
+            source_packet=source_packet,
+        )
+
+        self.assertFalse(result["accepted"])
+        self.assertIn(
+            "targeted_closer_requires_full_review:package_changed",
+            result["blockers"],
+        )
+
     def test_unavailable_fable_lane_can_be_supplemented_without_full_rerun(self) -> None:
         packet = packet_builder.build_packet(
             base_spec(fable_status="unavailable_not_logged_in")
@@ -497,10 +630,18 @@ class Step5dReviewPolicyV2Test(unittest.TestCase):
                 encoding="utf-8"
             )
         )
-        rebuilt = index_builder.build()
+        rebuilt = index_builder.build(
+            review_manifests=[
+                item["path"] for item in tracked.get("v2_reviews", [])
+            ]
+        )
 
         self.assertEqual(rebuilt, tracked)
-        self.assertEqual(tracked["v2_reviews"], [])
+        self.assertEqual(tracked["blockers"], [])
+        self.assertEqual(tracked["duplicate_full_review_fingerprints"], {})
+        for entry in tracked["v2_reviews"]:
+            path = ROOT / entry["path"]
+            self.assertEqual(file_sha256(path), entry["sha256"])
         for entry in tracked["historical_artifacts"]:
             path = ROOT / entry["path"]
             self.assertEqual(file_sha256(path), entry["sha256"])

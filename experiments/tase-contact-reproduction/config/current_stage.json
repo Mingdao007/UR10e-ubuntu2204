@@ -8,7 +8,7 @@
   "stage_table_path": "config/step5_stage_table.json",
   "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v29.urp",
   "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v29.script",
-  "local_triplet": "programs/step5/step5d_strict_rnn_ablation_v29",
+  "local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v29",
   "bridge_profile": {
     "step4e_version": "step5d_strict_rnn_ablation_v29",
     "step4e_path_shape": "cycloid",
@@ -993,7 +993,7 @@
     "v29_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_ablation_v29_20260710_014948",
     "v29_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v29_20260710_014948/manifest.json",
     "v29_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v29.urp",
-    "v29_local_triplet": "programs/step5/step5d_strict_rnn_ablation_v29",
+    "v29_local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v29",
     "v29_delivery_status": "controller read-back verified",
     "v29_preload_gate": {
       "filtered_normal_load_min_n": 5.0,
@@ -1174,9 +1174,13 @@
     "p0_gate_required": false,
     "frozen_fallback": true,
     "review_v2_baseline_rereview": {
+      "policy_id": "ur10e_review_policy_v2",
+      "milestone": "v29_baseline_re_review",
       "required_stack": "1+0",
-      "status": "blocked_evidence_not_portable_in_sparse_worktree",
-      "manifest": null
+      "status": "resolved_by_review_index",
+      "evidence_frozen": true,
+      "manifest_source": "config/step5d_review_index_v2.json",
+      "source_review_manifest": "config/reviews/v29_baseline_review_v2_manifest.json"
     },
     "future_reactivation_requires": [
       "fresh controller readback and timing fingerprint",

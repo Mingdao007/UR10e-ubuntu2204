@@ -1,7 +1,9 @@
 {
   "blockers": [],
   "duplicate_full_review_fingerprints": {},
-  "full_review_count_by_composite_fingerprint": {},
+  "full_review_count_by_composite_fingerprint": {
+    "b24176554e5ad6cf553a2781318f27a6b6ad2e3909539ac849f889d8ac76d040": 1
+  },
   "historical_artifacts": [
     {
       "bytes": 4111,
@@ -42,5 +44,22 @@
   ],
   "policy_id": "ur10e_review_policy_v2",
   "schema_version": "ur10e_review_index_v2",
-  "v2_reviews": []
+  "v2_reviews": [
+    {
+      "bytes": 3592,
+      "composite_fingerprint": "b24176554e5ad6cf553a2781318f27a6b6ad2e3909539ac849f889d8ac76d040",
+      "finding_counts": {
+        "P0": 0,
+        "P1": 2,
+        "P2": 0
+      },
+      "invalidation_reason": null,
+      "milestone": "baseline_re_review",
+      "path": "config/reviews/v29_baseline_review_v2_manifest.json",
+      "required_stack": "1+0",
+      "review_mode": "full",
+      "sha256": "59415371e0d39a232af1fdc0896947b517d6858081b439d0d8727dd3799112d8",
+      "workflow": "v29"
+    }
+  ]
 }

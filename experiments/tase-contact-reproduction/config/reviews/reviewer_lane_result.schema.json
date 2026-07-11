@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "actual_effort": {
+      "const": "high",
+      "type": "string"
+    },
+    "actual_model": {
+      "const": "gpt-5.6-sol",
+      "type": "string"
+    },
+    "findings": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "backlog_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "resolution": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "severity": {
+            "enum": [
+              "P0",
+              "P1",
+              "P2"
+            ]
+          },
+          "status": {
+            "enum": [
+              "open",
+              "backlog",
+              "closed"
+            ]
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "severity",
+          "status",
+          "title",
+          "evidence",
+          "resolution",
+          "backlog_ref"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "status": {
+      "enum": [
+        "pass",
+        "block"
+      ]
+    },
+    "summary": {
+      "type": "string"
+    },
+    "verdict": {
+      "enum": [
+        "pass",
+        "block"
+      ]
+    }
+  },
+  "required": [
+    "status",
+    "verdict",
+    "actual_model",
+    "actual_effort",
+    "findings",
+    "summary"
+  ],
+  "type": "object"
+}
