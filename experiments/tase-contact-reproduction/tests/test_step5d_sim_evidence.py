@@ -35,7 +35,7 @@ def payload() -> dict[str, object]:
         "profile": {
             "id": "step5d_strict_rnn_no_contact_p0_v8",
             "backend": "cupy",
-            "inner_iterations": 1_024,
+            "inner_iterations": 128,
             "epsilon": 0.010,
             "sigr_exponent_r": 0.8,
             "qdot_cap_rad_s": 0.05,
@@ -153,7 +153,7 @@ class Step5dSimEvidenceTest(unittest.TestCase):
         profile = changed["profile"]
         nominal = changed["nominal"]
         assert isinstance(profile, dict) and isinstance(nominal, dict)
-        profile["inner_iterations"] = 512
+        profile["inner_iterations"] = 64
         nominal["missed_sequence_count"] = 1
 
         blockers = validate_evidence(changed)

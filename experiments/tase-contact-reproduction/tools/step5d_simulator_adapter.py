@@ -42,7 +42,11 @@ P0_V8_DBIL_HZ = 200
 P0_V8_QDOT_CAP_RAD_S = 0.05
 P0_V8_EPSILON = 0.010
 P0_V8_SIGR_EXPONENT_R = 0.8
-P0_V8_INNER_ITERATIONS = 1_024
+# Review-v2 timing recovery revision.  The frozen 1024-iteration evidence stays
+# historical; the current P0/v30 candidate uses the user-authorized 128-step
+# profile selected by the offline sweep.  qdot and every safety gate are
+# unchanged.
+P0_V8_INNER_ITERATIONS = 128
 P0_V8_FORCE_GUARD_N = 5.0
 P0_V8_TORQUE_GUARD_NM = 3.0
 P0_V8_SENSOR_STALE_S = 0.100

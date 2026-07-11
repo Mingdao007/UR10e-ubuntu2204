@@ -1202,7 +1202,7 @@ def update_v30_current_stage(
         "joint_layout_code": 524.0,
         "runtime_profile": {
             "backend": "cupy",
-            "inner_iterations": 1024,
+            "inner_iterations": 128,
             "epsilon": 0.01,
             "sigr_exponent_r": 0.8,
             "qdot_cap_rad_s": 0.05,

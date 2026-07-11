@@ -224,7 +224,7 @@ class Step5dV30TimingTest(unittest.TestCase):
             },
             "profile": {
                 "backend": "cupy",
-                "inner_iterations": 1024,
+                "inner_iterations": 128,
                 "epsilon": 0.01,
                 "sigr_exponent_r": 0.8,
                 "qdot_cap_rad_s": 0.05,
@@ -302,7 +302,7 @@ class Step5dV30TimingTest(unittest.TestCase):
                     "ur_xacro",
                 )
             },
-            "profile": {"backend": "cupy", "inner_iterations": 1024, "epsilon": 0.01, "sigr_exponent_r": 0.8, "qdot_cap_rad_s": 0.05, "control_hz": 500.0},
+            "profile": {"backend": "cupy", "inner_iterations": 128, "epsilon": 0.01, "sigr_exponent_r": 0.8, "qdot_cap_rad_s": 0.05, "control_hz": 500.0},
             "precompile_outside_control_loop": True,
             "cupy_host_staging_pinned": True,
             "cupy_dedicated_stream": True,
@@ -362,7 +362,7 @@ class Step5dV30TimingTest(unittest.TestCase):
             },
             "profile": {
                 "backend": "cupy",
-                "inner_iterations": 1024,
+                "inner_iterations": 128,
                 "epsilon": 0.01,
                 "sigr_exponent_r": 0.8,
                 "qdot_cap_rad_s": 0.05,

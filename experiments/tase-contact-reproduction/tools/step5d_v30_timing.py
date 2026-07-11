@@ -171,7 +171,7 @@ def summarize_timing(
 
     return {
         "schema_version": "step5d_v30_timing_v1",
-        "profile": "cupy/1024/epsilon=0.010/r=0.8/qdot_cap=0.05",
+        "profile": "cupy/128/epsilon=0.010/r=0.8/qdot_cap=0.05",
         "precompile_policy": "must_complete_before_control_loop",
         "thresholds": asdict(thresholds),
         "first_post_warm_ms": float(first_post_warm_ms),
@@ -204,7 +204,7 @@ def summarize_preaggregated(
 
     expected_profile = {
         "backend": "cupy",
-        "inner_iterations": 1024,
+        "inner_iterations": 128,
         "epsilon": 0.010,
         "sigr_exponent_r": 0.8,
         "qdot_cap_rad_s": 0.05,

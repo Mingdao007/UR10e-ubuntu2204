@@ -28,7 +28,7 @@ import numpy as np
 
 PROFILE = {
     "backend": "cupy",
-    "inner_iterations": 1024,
+    "inner_iterations": 128,
     "epsilon": 0.010,
     "sigr_exponent_r": 0.8,
     "qdot_cap_rad_s": 0.05,
@@ -72,6 +72,19 @@ def vector(row: Mapping[str, str], prefix: str, length: int) -> np.ndarray:
     return np.asarray([finite(row, f"{prefix}{index}") for index in range(length)], dtype=float)
 
 
+def _is_compatible_source_row(row: Mapping[str, str]) -> bool:
+    """Accept historical CuPy observations without inheriting their iteration count."""
+
+    try:
+        return (
+            row.get("_step5d_rnn_backend") == "cupy"
+            and math.isclose(float(row.get("_step5d_rnn_epsilon") or 0.0), 0.010)
+            and math.isclose(float(row.get("_step5d_rnn_sigr_exponent_r") or 0.0), 0.8)
+        )
+    except (TypeError, ValueError):
+        return False
+
+
 def load_rows(path: Path) -> list[dict[str, str]]:
     with path.open(newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
@@ -90,14 +103,9 @@ def load_rows(path: Path) -> list[dict[str, str]]:
     missing = sorted(required - set(rows[0] if rows else ()))
     if missing:
         raise RuntimeError(f"replay CSV missing required columns: {missing}")
-    selected = [
-        row
-        for row in rows
-        if row.get("_step5d_rnn_backend") == "cupy"
-        and int(float(row.get("_step5d_rnn_inner_iterations") or 0)) == 1024
-    ]
+    selected = [row for row in rows if _is_compatible_source_row(row)]
     if not selected:
-        raise RuntimeError("replay CSV has no CuPy/1024 strict-RNN rows")
+        raise RuntimeError("replay CSV has no compatible CuPy/epsilon=0.010/r=0.8 observation rows")
     return selected
 
 

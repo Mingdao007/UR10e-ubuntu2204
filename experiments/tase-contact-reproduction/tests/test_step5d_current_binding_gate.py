@@ -658,7 +658,7 @@ class Step5dCurrentBindingGateTest(unittest.TestCase):
             profile = {
                 "stage25_control_mode": "speedj_rnn_live",
                 "rnn_backend": "cupy",
-                "rnn_inner_iterations": 1024,
+                "rnn_inner_iterations": 128,
                 "epsilon": 0.01,
                 "sigr_exponent_r": 0.8,
                 "qdot_cap_rad_s": 0.05,

@@ -74,7 +74,7 @@
     "control_hz": 500.0,
     "epsilon": 0.01,
     "hard_deadline_ms": 2.0,
-    "inner_iterations": 1024,
+    "inner_iterations": 128,
     "qdot_cap_rad_s": 0.05,
     "sigr_exponent_r": 0.8
   },
@@ -119,7 +119,7 @@
   "source_contract": {
     "aggregator_sha256": {
       "path": "tools/step5d_v30_timing.py",
-      "sha256": "695709069eb1da9361b4c1a6401536dd532dc8d7eb9871a235908ccbaa7bba3b"
+      "sha256": "f192d63882596a3f623785cd016cab3c9ebd25d2d1dd1fc99753c200821c23d2"
     },
     "bridge_sha256": {
       "path": "tools/kunwei_rtde_bridge.py",
@@ -139,7 +139,7 @@
     },
     "harness_sha256": {
       "path": "tools/run_step5d_v30_remote_timing.py",
-      "sha256": "0613abe2e6a793906fe58b6a96c085f2c38af50f7ab7dce7cd949abb67ca1046"
+      "sha256": "93976af996bbef5a001b0dcdb0e210963691b5dea9bcd58b758f868074bafaac"
     },
     "kinematics_sha256": {
       "path": "tools/step5c_calibrated_kinematics_audit.py",
@@ -151,11 +151,11 @@
     },
     "readiness_builder_sha256": {
       "path": "tools/build_step5d_v30_offline_readiness.py",
-      "sha256": "009d07957fc1003e6ef51100004e8a2f71ea3936470f3c9b55d1029582e4f591"
+      "sha256": "5814b889c49deb065e64703998d8e0a12daef578047757771839d2b9ba1ee869"
     },
     "runtime_interface_sha256": {
       "path": "tools/step5d_runtime_interface.py",
-      "sha256": "c7a836b8a05ad30807ca41c8d4db3b8875a805746fcd8d64d1107dbe943f9190"
+      "sha256": "834df962defe97f383e1a753dd7e559981a88cefcf176e0774c030dfdfdb59ac"
     },
     "solver_sha256": {
       "path": "tools/step5c_strict_rnn.py",
@@ -225,6 +225,7 @@
             "full_tick_schedule_deadline_miss",
             "full_tick_schedule_max_lateness_missing_or_invalid",
             "independent_absolute_500hz_pacing_provenance_missing",
+            "remote_runtime_profile_mismatch",
             "remote_timing_aggregator_sha256_does_not_match_local_source",
             "remote_timing_aggregator_sha256_missing",
             "remote_timing_artifact_binding_missing",
@@ -348,6 +349,7 @@
             "full_tick_not_paced_500hz",
             "full_tick_wall_duration_not_60s",
             "independent_absolute_500hz_pacing_provenance_missing",
+            "remote_runtime_profile_mismatch",
             "remote_timing_aggregator_sha256_does_not_match_local_source",
             "remote_timing_aggregator_sha256_missing",
             "remote_timing_artifact_binding_missing",
@@ -610,6 +612,7 @@
             "full_tick_schedule_max_lateness_missing_or_invalid",
             "full_tick_wall_duration_not_60s",
             "independent_absolute_500hz_pacing_provenance_missing",
+            "remote_runtime_profile_mismatch",
             "remote_timing_aggregator_sha256_does_not_match_local_source",
             "remote_timing_aggregator_sha256_missing",
             "remote_timing_bridge_sha256_does_not_match_local_source",

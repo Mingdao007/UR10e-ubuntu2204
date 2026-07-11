@@ -44,7 +44,10 @@ V29_EXACT_RUNTIME_PROFILE: dict[str, Any] = {
     "control_mode": "speedj_rnn_live",
     "joint_layout_code": 524.0,
 }
-V30_EXACT_RUNTIME_PROFILE = dict(V29_EXACT_RUNTIME_PROFILE)
+V30_EXACT_RUNTIME_PROFILE: dict[str, Any] = {
+    **V29_EXACT_RUNTIME_PROFILE,
+    "inner_iterations": 128,
+}
 V30_READINESS = "config/step5d_v30_offline_readiness.json"
 V30_REVIEW_POLICY = "config/step5d_review_policy_v2.json"
 V30_REVIEW_INDEX = "config/step5d_review_index_v2.json"
@@ -384,7 +387,7 @@ def verify_v30_evidence_freeze(
     if not isinstance(stage_entry, dict):
         fail("v30 stage row is missing")
     if stage_entry.get("runtime_profile") != V30_EXACT_RUNTIME_PROFILE:
-        fail("v30 stage row does not bind the exact CuPy/1024/epsilon=0.01/r=0.8/qdot=0.05 profile")
+        fail("v30 stage row does not bind the exact CuPy/128/epsilon=0.01/r=0.8/qdot=0.05 profile")
     contact_policy = stage_entry.get("contact_policy") or {}
     guard = stage_entry.get("guard") or {}
     if (
@@ -522,10 +525,19 @@ def _exact_v29_runtime_profile(
         }
     except (TypeError, ValueError):
         fail(f"{profile_label} live bridge requires the exact runtime profile")
-    if observed != V29_EXACT_RUNTIME_PROFILE:
+    expected = (
+        V30_EXACT_RUNTIME_PROFILE
+        if profile_label == "v30"
+        else V29_EXACT_RUNTIME_PROFILE
+    )
+    if observed != expected:
         fail(
             f"{profile_label} live bridge requires the exact runtime profile "
-            "speedj_rnn_live/cupy/1024/epsilon=0.01/r=0.8/qdot=0.05"
+            + (
+                "speedj_rnn_live/cupy/128/epsilon=0.01/r=0.8/qdot=0.05"
+                if profile_label == "v30"
+                else "speedj_rnn_live/cupy/1024/epsilon=0.01/r=0.8/qdot=0.05"
+            )
         )
     return observed
 

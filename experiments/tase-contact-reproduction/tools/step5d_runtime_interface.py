@@ -731,10 +731,17 @@ def resolve_runtime_interface(
                     "control_mode": "speedj_rnn_live",
                     "joint_layout_code": 524.0,
                 }
-                if selected in {
-                    STEP5D_ABLATION_V29_STAGE_ID,
-                    *STEP5D_V30_CONTROL_CONTRACT_STAGE_IDS,
+                if selected == STEP5D_ABLATION_V29_STAGE_ID
+                else {
+                    "backend": "cupy",
+                    "inner_iterations": 128,
+                    "epsilon": 0.010,
+                    "sigr_exponent_r": 0.8,
+                    "qdot_cap_rad_s": 0.05,
+                    "control_mode": "speedj_rnn_live",
+                    "joint_layout_code": 524.0,
                 }
+                if selected in STEP5D_V30_CONTROL_CONTRACT_STAGE_IDS
                 else None
             ),
             "no_contact_p0_capture": is_no_contact_p0_stage(selected),

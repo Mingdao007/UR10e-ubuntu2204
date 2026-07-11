@@ -601,7 +601,7 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         failures.extend(p0_delivery_failures)
         expected_p0_runtime = {
             "backend": "cupy",
-            "inner_iterations": 1024,
+            "inner_iterations": 128,
             "epsilon": 0.01,
             "sigr_exponent_r": 0.8,
             "qdot_cap_rad_s": 0.05,
@@ -820,7 +820,7 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             failures.append("v30 canary stop register must remain disabled and unarmed offline")
         expected_runtime = {
             "backend": "cupy",
-            "inner_iterations": 1024,
+            "inner_iterations": 128,
             "epsilon": 0.01,
             "sigr_exponent_r": 0.8,
             "qdot_cap_rad_s": 0.05,

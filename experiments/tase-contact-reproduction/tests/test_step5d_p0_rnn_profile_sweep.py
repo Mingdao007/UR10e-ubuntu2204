@@ -65,6 +65,32 @@ class Step5dP0RnnProfileSweepTest(unittest.TestCase):
         self.assertIs(sweep.choose(rows, require_timing=False), rows[0])
         self.assertIs(sweep.choose(rows, require_timing=True), rows[1])
 
+    def test_choose_prefers_minimal_parameter_drift_over_timing_noise(self) -> None:
+        changed = {
+            "quality_eligible": True,
+            "timing_eligible": True,
+            "wall_timing": {"p99_ms": 0.70, "max_ms": 0.90},
+            "profile": {
+                "inner_iterations": 128,
+                "epsilon": 0.005,
+                "sigr_exponent_r": 1.0,
+            },
+        }
+        minimal = {
+            "quality_eligible": True,
+            "timing_eligible": True,
+            "wall_timing": {"p99_ms": 0.80, "max_ms": 1.00},
+            "profile": {
+                "inner_iterations": 128,
+                "epsilon": 0.010,
+                "sigr_exponent_r": 0.8,
+            },
+        }
+
+        self.assertIs(
+            sweep.choose([changed, minimal], require_timing=True), minimal
+        )
+
 
 if __name__ == "__main__":
     raise SystemExit(unittest.main())

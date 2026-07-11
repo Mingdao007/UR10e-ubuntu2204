@@ -215,11 +215,14 @@ def choose(rows: Iterable[dict[str, Any]], *, require_timing: bool) -> dict[str,
     return min(
         eligible,
         key=lambda row: (
+            abs(float(row["profile"]["epsilon"]) - float(BASELINE["epsilon"])),
+            abs(
+                float(row["profile"]["sigr_exponent_r"])
+                - float(BASELINE["sigr_exponent_r"])
+            ),
             float(row["wall_timing"]["p99_ms"]),
             float(row["wall_timing"]["max_ms"]),
             int(row["profile"]["inner_iterations"]),
-            float(row["profile"]["epsilon"]),
-            float(row["profile"]["sigr_exponent_r"]),
         ),
     )
 
