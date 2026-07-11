@@ -134,9 +134,12 @@ def _append_native_contact_sensor(root: ET.Element) -> None:
     sensor = ET.SubElement(extension, "sensor", {"name": "gazebo_v2_native_contact", "type": "contact"})
     ET.SubElement(sensor, "always_on").text = "true"
     ET.SubElement(sensor, "update_rate").text = "500"
-    ET.SubElement(sensor, "topic").text = NATIVE_CONTACT_TOPIC
     contact = ET.SubElement(sensor, "contact")
     ET.SubElement(contact, "collision").text = EOAT_CONTACT_COLLISION
+    # Fortress' contact sensor reads <topic> from the <contact> block.  A
+    # sensor-level topic is ignored and silently falls back to the scoped ECM
+    # topic, which breaks the manifest-bound transport identity.
+    ET.SubElement(contact, "topic").text = NATIVE_CONTACT_TOPIC
 
 
 def _append_native_ft_sensor(root: ET.Element) -> None:
@@ -193,7 +196,7 @@ def audit_robot_description(robot_description: str, *, backend: str) -> dict[str
         blockers.append("attached_native_contact_sensor_count_not_one")
     else:
         sensor = contact_extensions[0].find("./sensor[@name='gazebo_v2_native_contact']")
-        if _text(sensor, "./topic") != NATIVE_CONTACT_TOPIC:
+        if _text(sensor, "./contact/topic") != NATIVE_CONTACT_TOPIC:
             blockers.append("native_contact_topic_mismatch")
         if _text(sensor, "./contact/collision") != EOAT_CONTACT_COLLISION:
             blockers.append("native_contact_collision_mismatch")
@@ -220,6 +223,8 @@ def audit_robot_description(robot_description: str, *, backend: str) -> dict[str
     active_tcp_extension = root.find(f"./gazebo[@reference='{ACTIVE_TCP_JOINT}']")
     if root.find(f"./link[@name='{ACTIVE_TCP_LINK}']") is None:
         blockers.append("active_tcp_link_missing")
+    elif root.find(f"./link[@name='{ACTIVE_TCP_LINK}']/inertial") is None:
+        blockers.append("active_tcp_inertial_missing")
     if active_tcp_joint is None:
         blockers.append("active_tcp_joint_missing")
     else:

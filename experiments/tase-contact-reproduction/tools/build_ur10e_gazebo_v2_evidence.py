@@ -43,6 +43,10 @@ from ur10e_example_controllers.ur10e_gazebo_v2 import (  # noqa: E402
     backend_spec,
     validate_tick_record,
 )
+from ur10e_gazebo_v2_runtime_adapter import (  # noqa: E402
+    RUNTIME_SCHEMA,
+    validate_runtime_manifest,
+)
 
 
 SCHEMA = "ur10e_gazebo_v2_same_run_evidence_v1"
@@ -833,6 +837,8 @@ def build_evidence(run_dir: Path) -> tuple[Path, Path]:
     ticks, tick_parse_issues = load_jsonl(run_dir / "tick_trace.jsonl")
     tf_path = run_dir / "tf_lineage.json"
     tf_payload = load_json(tf_path) if tf_path.is_file() else {}
+    runtime_manifest_path = run_dir / "runtime_manifest.json"
+    runtime_manifest = load_json(runtime_manifest_path) if runtime_manifest_path.is_file() else {}
 
     blockers: list[str] = []
     if manifest.get("schema") != "ur10e_gazebo_v2_capture_manifest_v1":
@@ -908,13 +914,24 @@ def build_evidence(run_dir: Path) -> tuple[Path, Path]:
         if isinstance(raw_runtime_blockers, Sequence) and not isinstance(raw_runtime_blockers, (str, bytes, bytearray))
         else ["capture_manifest_runtime_blockers_invalid"]
     )
-    for required in sorted(RUNTIME_IMPLEMENTATION_BLOCKERS):
-        if required not in runtime_blockers:
-            runtime_blockers.append(f"required_runtime_blocker_not_declared:{required}")
-    if manifest.get("gazebo_runtime_pass") is not False:
-        runtime_blockers.append("capture_manifest_gazebo_runtime_pass_must_be_false_until_runtime_implementation")
+    external_runtime = manifest.get("external_runtime_artifacts") is True
+    runtime_issues: list[str]
+    if external_runtime:
+        runtime_issues = validate_runtime_manifest(run_dir, runtime_manifest, run_id=run_id, backend=backend)
+        runtime_blockers.extend(runtime_issues)
+        if manifest.get("runtime_manifest_path") != "runtime_manifest.json":
+            runtime_blockers.append("capture_manifest_runtime_path_mismatch")
+        if manifest.get("gazebo_runtime_pass") is not True:
+            runtime_blockers.append("capture_manifest_runtime_candidate_not_passed")
+    else:
+        runtime_issues = ["runtime_manifest:not_external_coordinated_runtime"]
+        for required in sorted(RUNTIME_IMPLEMENTATION_BLOCKERS):
+            if required not in runtime_blockers:
+                runtime_blockers.append(f"required_runtime_blocker_not_declared:{required}")
+        if manifest.get("gazebo_runtime_pass") is not False:
+            runtime_blockers.append("capture_manifest_legacy_runtime_pass_must_be_false")
     runtime_blockers = _dedupe(runtime_blockers)
-    gazebo_runtime_pass = False
+    gazebo_runtime_pass = bool(external_runtime and not runtime_blockers and native_same_run_pass)
 
     observer = build_observer_review(
         run_dir,
@@ -966,6 +983,9 @@ def build_evidence(run_dir: Path) -> tuple[Path, Path]:
         "tick_schema_pass": not tick_issues,
         "observer_review_path": str(observer_path),
         "observer_review_pass": observer["viewer_level_pass"],
+        "runtime_manifest_path": str(runtime_manifest_path),
+        "runtime_manifest_schema": runtime_manifest.get("schema"),
+        "runtime_manifest_pass": not runtime_issues and runtime_manifest.get("schema") == RUNTIME_SCHEMA,
         "artifacts": artifacts,
         "blockers": blockers,
         "runtime_blockers": runtime_blockers,

@@ -1,6 +1,6 @@
 {
   "schema": "ur10e_digital_twin_requirements_v1",
-  "source_evidence_commit": "33351534d68846ee90ab0ea30b6627671244fe38",
+  "source_evidence_commit": "8b8055136509590d1335403254c5cd6a968f1978",
   "workflow_state": "liveprep_blocked",
   "current_program": "step5d_strict_rnn_ablation_v29",
   "v30_active": false,
@@ -20,11 +20,11 @@
       "owner": "tools/step5d_simulator_adapter.py",
       "acceptance": "Every engine maps state into Step5dObservation and consumes only the RegisterCommand output of the shared strict-RNN production pipeline.",
       "verified": [
-        "MuJoCo and the future bridge consume the same build_p0_v8_target and strict-RNN contract pipeline",
+        "MuJoCo and the Gazebo velocity runtime tooling consume the same build_p0_v8_target and strict-RNN contract pipeline",
         "DLS remains shadow-only and SafetyEnvelope remains fail-closed"
       ],
       "blockers": [
-        "gazebo_v2_runtime_adapter_node_not_implemented",
+        "gazebo_v2_runtime_execution_not_passed",
         "ursim_runtime_lane_not_available"
       ]
     },
@@ -34,11 +34,23 @@
       "owner": "tools/run_step5d_p0_v8_mujoco.py",
       "acceptance": "Same frozen fingerprint completes deterministic 2, 10, and 60 second 500 Hz phases with all nominal counters zero and exact-zero fault holds.",
       "summary_artifact": "config/step5d_p0_v8_offline_simulation_diagnostic.json",
-      "summary_sha256": "9ee7d9995f630689f73a24f965a852a6528b55dfbf700dbfaf0f0dff1cc96093",
+      "summary_sha256": "aa0a94f4ad38b6496d4b38707e87339ea13dd560e3a998507796017b33f3e9a2",
       "control_and_fault_path_pass": true,
       "offline_control_timing_pass": true,
-      "final_60s_control_p99_ms": 1.2654549162834883,
-      "final_60s_control_max_ms": 1.4326460659503937,
+      "production_path_prewarm": {
+        "execute_ticks": 1000,
+        "paced_hz": 500,
+        "no_output": true,
+        "pass": true,
+        "sha256": "e1c72f5e2dcc08a0d4913725303b216ce93f6796b416eeab1155d48623219e61"
+      },
+      "short_phase_timing_diagnostic": {
+        "2s_deadline_misses": 74,
+        "10s_deadline_misses": 23,
+        "classification": "retained_cold_or_gpu_clock_ramp_outliers_not_discarded"
+      },
+      "final_60s_control_p99_ms": 0.6844921573065221,
+      "final_60s_control_max_ms": 0.793506158515811,
       "final_60s_control_deadline_miss_count": 0,
       "simulator_cycle_500hz_diagnostic_pass": false,
       "p0_sim_physics_pass": false,
@@ -95,15 +107,18 @@
     },
     {
       "id": "gazebo_v2_native_contact",
-      "status": "static_lane_ready_runtime_blocked",
+      "status": "runtime_tooling_ready_execution_failed",
       "blockers": [
-        "gazebo_v2_runtime_adapter_node_not_implemented",
+        "velocity_controller_inventory_readiness_not_observed",
+        "runtime_10s_tick_and_command_response_evidence_missing",
         "native_attached_robot_contact_ft_not_captured",
         "same_run_visual_and_tick_evidence_not_captured"
       ],
       "required_version_lane": "Fortress 6.18.0 + ign_ros2_control 0.7.19 unless a separate Harmonic lane is explicitly generated",
       "abi_preflight_pass": true,
       "package_build_pass": true,
+      "runtime_tooling_tests_pass": true,
+      "runtime_attempt_blocker": "velocity_controller_not_ready_or_not_exclusive",
       "runtime_claim": false
     },
     {
@@ -133,23 +148,35 @@
     {
       "id": "ursim_5_11_protocol",
       "status": "blocked",
-      "blockers": ["digest_bound_ursim_image_absent", "docker_service_inactive"],
+      "blockers": [
+        "container_service_inactive",
+        "docker_socket_permission_denied",
+        "digest_bound_ursim_image_unverified",
+        "ursim_runtime_evidence_absent"
+      ],
       "claim_ceiling": "p0_ursim_protocol_pass"
     },
     {
       "id": "ursim_5_23_direct_torque_software",
       "status": "blocked",
-      "blockers": ["digest_bound_ursim_image_absent", "docker_service_inactive"],
+      "blockers": [
+        "container_service_inactive",
+        "docker_socket_permission_denied",
+        "digest_bound_ursim_image_unverified",
+        "ursim_runtime_evidence_absent"
+      ],
       "claim_ceiling": "direct_torque_ursim_software_pass"
     },
     {
       "id": "vic_simulation_active_dbil_shadow",
       "status": "offline_contracts_pass_dbil_shadow_only",
       "blockers": [
-        "dbil_200_100_50hz_paced_inference_timing_failed",
+        "dbil_portable_subset_mac_mps_200_100_50hz_paced_inference_timing_failed",
         "dbil_active_disabled",
-        "task_zft_and_ur10e_calibration_hash_missing"
+        "sensor_calibration_lineage_and_time_indexed_task_zft_artifacts_missing"
       ],
+      "timing_selection_manifest_sha256": "8016099e3520b24274d1bc2843998ee346c9870eac75b3ce1707f3bb4a9239b5",
+      "selected_rate_hz": null,
       "deterministic_policies_simulation_active": true,
       "dbil_shadow_command_bitwise_inert": true,
       "dbil_active": false
@@ -158,6 +185,7 @@
       "id": "timing_separation",
       "status": "control_hard_pass_simulator_cycle_diagnostic_slow",
       "blockers": [
+        "short_2s_10s_cold_or_clock_ramp_outliers_retained",
         "mujoco_oracle_and_physics_cycle_not_500hz_acceptance_evidence",
         "rtf_not_reported"
       ],

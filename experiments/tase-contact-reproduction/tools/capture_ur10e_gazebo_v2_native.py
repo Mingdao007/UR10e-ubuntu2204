@@ -403,15 +403,36 @@ def capture(
     duration_s: float,
     tick_trace: Path | None,
     run_id: str | None = None,
+    external_runtime_artifacts: bool = False,
+    allow_existing_run_dir: bool = False,
 ) -> Path:
     if duration_s <= 0.0:
         raise ValueError("duration_s must be positive")
     selected = backend_spec(backend)
-    run_dir.mkdir(parents=True, exist_ok=False)
+    if allow_existing_run_dir:
+        run_dir.mkdir(parents=True, exist_ok=True)
+        conflicts = [
+            name
+            for name in (
+                "capture_manifest.json",
+                "native_contact.raw.jsonl",
+                "native_ft.raw.jsonl",
+                "pose_info.raw.jsonl",
+            )
+            if (run_dir / name).exists()
+        ]
+        if conflicts:
+            raise FileExistsError(f"existing run directory has capture conflicts: {conflicts}")
+    else:
+        run_dir.mkdir(parents=True, exist_ok=False)
     run_id = _validate_run_id(
         run_id or f"gazebo-v2-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{uuid.uuid4().hex[:8]}"
     )
     model_bindings = build_model_bindings(run_dir, backend=backend)
+    (run_dir / "model_bindings.json").write_text(
+        json.dumps(model_bindings, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     abi = probe_fortress_abi()
     if not abi["pass"]:
         raise RuntimeError("Fortress ABI preflight failed: " + json.dumps(abi, sort_keys=True))
@@ -449,6 +470,20 @@ def capture(
                 text=True,
                 start_new_session=True,
             )
+        (run_dir / "capture_ready.json").write_text(
+            json.dumps(
+                {
+                    "schema": "ur10e_gazebo_v2_capture_ready_v1",
+                    "run_id": run_id,
+                    "started_at": started_at,
+                    "topics": topics_by_name,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
         deadline = time.monotonic() + duration_s
         while time.monotonic() < deadline:
             time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
@@ -466,11 +501,38 @@ def capture(
         run_id=run_id,
         generated_urdf_sha256=str(model_bindings["generated_urdf"]["sha256"]),
     )
-    _write_jsonl(run_dir / "native_contact.jsonl", contact_rows)
-    _write_jsonl(run_dir / "native_ft.jsonl", ft_rows)
+    if not external_runtime_artifacts:
+        _write_jsonl(run_dir / "native_contact.jsonl", contact_rows)
+        _write_jsonl(run_dir / "native_ft.jsonl", ft_rows)
     (run_dir / "tf_lineage.json").write_text(json.dumps(tf_lineage, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     if tick_trace is not None:
-        shutil.copy2(tick_trace, run_dir / "tick_trace.jsonl")
+        destination = run_dir / "tick_trace.jsonl"
+        if tick_trace.resolve() != destination.resolve():
+            shutil.copy2(tick_trace, destination)
+
+    runtime_manifest_path = run_dir / "runtime_manifest.json"
+    runtime_manifest: dict[str, Any] = {}
+    if external_runtime_artifacts and runtime_manifest_path.is_file():
+        value = json.loads(runtime_manifest_path.read_text(encoding="utf-8"))
+        runtime_manifest = value if isinstance(value, dict) else {}
+    runtime_blockers = list(RUNTIME_BLOCKERS)
+    runtime_candidate = False
+    if external_runtime_artifacts:
+        runtime_blockers = [str(value) for value in runtime_manifest.get("blockers", [])]
+        if runtime_manifest.get("status") != "complete":
+            runtime_blockers.append("runtime_manifest_not_complete")
+        required_runtime_files = (
+            "runtime_manifest.json",
+            "tick_trace.jsonl",
+            "native_contact.jsonl",
+            "native_ft.jsonl",
+            "camera_manifest.json",
+        )
+        for name in required_runtime_files:
+            if not (run_dir / name).is_file():
+                runtime_blockers.append(f"runtime_artifact_missing:{name}")
+        runtime_blockers = list(dict.fromkeys(runtime_blockers))
+        runtime_candidate = not runtime_blockers
 
     artifacts = {}
     for path in sorted(run_dir.rglob("*")):
@@ -494,11 +556,16 @@ def capture(
         "simultaneous_backend_active": inventory["simultaneous_backend_active"],
         "topics": topics_by_name,
         "normalization_issues": {"contact": contact_issues, "ft": ft_issues},
-        "normalized_counts": {"contact": len(contact_rows), "ft": len(ft_rows)},
+        "normalized_counts": {
+            "contact": _jsonl_row_count(run_dir / "native_contact.jsonl"),
+            "ft": _jsonl_row_count(run_dir / "native_ft.jsonl"),
+        },
         "model_bindings": model_bindings,
         "artifacts": artifacts,
-        "runtime_blockers": list(RUNTIME_BLOCKERS),
-        "gazebo_runtime_pass": False,
+        "external_runtime_artifacts": external_runtime_artifacts,
+        "runtime_manifest_path": "runtime_manifest.json" if runtime_manifest_path.is_file() else None,
+        "runtime_blockers": runtime_blockers,
+        "gazebo_runtime_pass": runtime_candidate,
         "claim_boundary": {
             "offline_capture_only": True,
             "live_motion_authorized": False,
@@ -509,6 +576,12 @@ def capture(
     manifest_path = run_dir / "capture_manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return manifest_path
+
+
+def _jsonl_row_count(path: Path) -> int:
+    if not path.is_file():
+        return 0
+    return sum(1 for line in path.read_text(encoding="utf-8").splitlines() if line.strip())
 
 
 def main() -> int:
@@ -522,6 +595,16 @@ def main() -> int:
         default=None,
         help="Externally coordinated run id shared with the production tick writer.",
     )
+    parser.add_argument(
+        "--external-runtime-artifacts",
+        action="store_true",
+        help="Keep canonical rows, tick trace, cameras, and runtime manifest written by the coordinated runtime node.",
+    )
+    parser.add_argument(
+        "--allow-existing-run-dir",
+        action="store_true",
+        help="Allow a coordinated supervisor to pre-create an otherwise capture-clean run directory.",
+    )
     args = parser.parse_args()
     path = capture(
         args.run_dir.resolve(),
@@ -529,6 +612,8 @@ def main() -> int:
         duration_s=args.duration_s,
         tick_trace=args.tick_trace.resolve() if args.tick_trace else None,
         run_id=args.run_id,
+        external_runtime_artifacts=args.external_runtime_artifacts,
+        allow_existing_run_dir=args.allow_existing_run_dir,
     )
     print(path)
     return 0

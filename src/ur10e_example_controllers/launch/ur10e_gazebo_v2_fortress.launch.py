@@ -4,7 +4,7 @@ import json
 import os
 from pathlib import Path
 
-from ament_index_python.packages import get_package_share_directory
+from ament_index_python.packages import get_package_prefix, get_package_share_directory
 from launch import LaunchContext, LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, OpaqueFunction, SetEnvironmentVariable, TimerAction
 from launch.substitutions import LaunchConfiguration
@@ -65,7 +65,9 @@ def _robot_actions(
         Node(
             package="robot_state_publisher",
             executable="robot_state_publisher",
-            name="gazebo_v2_robot_state_publisher",
+            # ign_ros2_control 0.7.x resolves the default
+            # /robot_state_publisher/get_parameters service by node name.
+            name="robot_state_publisher",
             output="screen",
             parameters=[{"robot_description": robot_description, "use_sim_time": True}],
         ),
@@ -138,6 +140,11 @@ def generate_launch_description() -> LaunchDescription:
         ]
     )
     resource_path = os.pathsep.join(dict.fromkeys(resource_entries))
+    plugin_entries = [
+        entry for entry in os.environ.get("IGN_GAZEBO_SYSTEM_PLUGIN_PATH", "").split(os.pathsep) if entry
+    ]
+    plugin_entries.append(str(Path(get_package_prefix("ign_ros2_control")) / "lib"))
+    plugin_path = os.pathsep.join(dict.fromkeys(plugin_entries))
 
     return LaunchDescription(
         [
@@ -171,6 +178,7 @@ def generate_launch_description() -> LaunchDescription:
                 description="Fortress-only v2 world.",
             ),
             SetEnvironmentVariable("IGN_GAZEBO_RESOURCE_PATH", resource_path),
+            SetEnvironmentVariable("IGN_GAZEBO_SYSTEM_PLUGIN_PATH", plugin_path),
             OpaqueFunction(
                 function=_gazebo_actions,
                 args=[run_gazebo, headless, world_path, abi_preflight],

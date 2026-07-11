@@ -64,12 +64,15 @@
     "promotion_effect": "blocks_current_bench_geometry_equivalence_and_p0_simulator_physics_acceptance"
   },
   "runtime_implementation": {
-    "production_step5d_adapter_node_implemented": false,
-    "concurrent_camera_capture_implemented": false,
+    "production_step5d_adapter_node_implemented": true,
+    "concurrent_camera_capture_implemented": true,
+    "same_run_supervisor_implemented": true,
+    "tooling_status": "runtime_tooling_ready_execution_failed",
     "gazebo_runtime_pass": false,
     "blockers": [
-      "production_step5d_adapter_runtime_node_not_implemented",
-      "concurrent_camera_capture_not_implemented"
+      "velocity_controller_inventory_readiness_not_observed",
+      "runtime_10s_tick_and_command_response_evidence_missing",
+      "same_run_native_contact_ft_tick_camera_evidence_missing"
     ]
   },
   "frame_lineage": {

@@ -24,6 +24,7 @@ sys.path.insert(0, str(TOOLS))
 from ur10e_example_controllers import ur10e_gazebo_v2 as lane  # noqa: E402
 import build_ur10e_gazebo_v2_evidence as evidence  # noqa: E402
 import capture_ur10e_gazebo_v2_native as native_capture  # noqa: E402
+import ur10e_gazebo_v2_runtime_adapter as runtime_adapter  # noqa: E402
 
 
 CONFIG = PACKAGE / "config"
@@ -36,7 +37,15 @@ TICK_SCHEMA = ROOT / "config" / "schemas" / "ur10e_gazebo_v2_tick_v1.schema.json
 def _robot_fixture() -> str:
     root = ET.Element("robot", {"name": "fixture"})
     for name in ("tool0", lane.EOAT_LINK, lane.ACTIVE_TCP_LINK):
-        ET.SubElement(root, "link", {"name": name})
+        link = ET.SubElement(root, "link", {"name": name})
+        if name == lane.ACTIVE_TCP_LINK:
+            inertial = ET.SubElement(link, "inertial")
+            ET.SubElement(inertial, "mass", {"value": "1e-6"})
+            ET.SubElement(
+                inertial,
+                "inertia",
+                {"ixx": "1e-12", "ixy": "0", "ixz": "0", "iyy": "1e-12", "iyz": "0", "izz": "1e-12"},
+            )
     fixed = ET.SubElement(root, "joint", {"name": lane.EOAT_FIXED_JOINT, "type": "fixed"})
     ET.SubElement(fixed, "parent", {"link": "tool0"})
     ET.SubElement(fixed, "child", {"link": lane.EOAT_LINK})
@@ -197,7 +206,7 @@ class GazeboV2LaneTest(unittest.TestCase):
                 self.assertEqual(set(interfaces), set(lane.JOINT_NAMES))
                 self.assertTrue(all(values == [interface] for values in interfaces.values()))
                 self.assertEqual(
-                    root.find("./gazebo/sensor[@name='gazebo_v2_native_contact']/topic").text,
+                    root.find("./gazebo/sensor[@name='gazebo_v2_native_contact']/contact/topic").text,
                     lane.NATIVE_CONTACT_TOPIC,
                 )
                 self.assertEqual(
@@ -258,6 +267,18 @@ class GazeboV2LaneTest(unittest.TestCase):
         self.assertFalse(contract["sensor_attachment"]["virtual_surface_force_allowed"])
         self.assertFalse(contract["geometry"]["current_bench_cad_hash_bound"])
         self.assertFalse(contract["geometry"]["mass_cog_inertia_calibrated"])
+        self.assertTrue(
+            contract["runtime_implementation"][
+                "production_step5d_adapter_node_implemented"
+            ]
+        )
+        self.assertTrue(
+            contract["runtime_implementation"]["concurrent_camera_capture_implemented"]
+        )
+        self.assertEqual(
+            contract["runtime_implementation"]["tooling_status"],
+            "runtime_tooling_ready_execution_failed",
+        )
         self.assertFalse(contract["runtime_implementation"]["gazebo_runtime_pass"])
         self.assertEqual(
             contract["frame_lineage"]["active_tcp_offset_tool0_m"],
@@ -272,6 +293,9 @@ class GazeboV2LaneTest(unittest.TestCase):
         self.assertNotIn("/opt/ros/humble", source)
         self.assertIn('get_package_share_directory("ur10e_bringup")', source)
         self.assertIn('get_package_share_directory("ur_description")', source)
+        self.assertIn('get_package_prefix("ign_ros2_control")', source)
+        self.assertIn('SetEnvironmentVariable("IGN_GAZEBO_SYSTEM_PLUGIN_PATH"', source)
+        self.assertIn('name="robot_state_publisher"', source)
 
     def test_tick_semantics_fail_closed(self) -> None:
         row = _tick("run-a", 0)
@@ -584,11 +608,68 @@ class GazeboV2LaneTest(unittest.TestCase):
             payload = json.loads(evidence_path.read_text(encoding="utf-8"))
             observer = json.loads(observer_path.read_text(encoding="utf-8"))
 
+            runtime_bindings = runtime_adapter.materialize_source_bindings(run_dir)
+            runtime_manifest = {
+                "schema": runtime_adapter.RUNTIME_SCHEMA,
+                "run_id": run_id,
+                "backend": "velocity",
+                "status": "complete",
+                "profile": {
+                    "id": runtime_adapter.PROFILE_ID,
+                    "backend": "cupy",
+                    "inner_iterations": 512,
+                    "epsilon": 0.010,
+                    "sigr_exponent_r": 0.8,
+                    "qdot_cap_rad_s": 0.05,
+                    "dls_runtime_fallback_allowed": False,
+                },
+                "prewarm": {
+                    "complete": True,
+                    "branch": "unmeasured_execute_path_no_command_publish",
+                    "execute_count": runtime_adapter.PREWARM_EXECUTE_COUNT,
+                    "required_execute_count": runtime_adapter.PREWARM_EXECUTE_COUNT,
+                    "commands_published": False,
+                    "solver_state_reset_after": True,
+                },
+                "source_bindings": runtime_bindings,
+                "counters": {
+                    "tick_count": 3,
+                    "command_publish_count": 3,
+                    "command_response_count": 3,
+                    "native_ft_row_count": 2,
+                    "native_contact_row_count": 2,
+                    "camera_view_count": 4,
+                    "sequence_gap_count": 0,
+                    "period_miss_count": 0,
+                    "nonfinite_count": 0,
+                    "command_publish_failure_count": 0,
+                    "command_response_mismatch_count": 0,
+                    "rejected_nonzero_command_count": 0,
+                },
+                "all_rejected_commands_exact_zero": True,
+                "controller_delivery_proven": True,
+                "blockers": [],
+            }
+            (run_dir / "runtime_manifest.json").write_text(json.dumps(runtime_manifest), encoding="utf-8")
+            manifest.update(
+                {
+                    "external_runtime_artifacts": True,
+                    "runtime_manifest_path": "runtime_manifest.json",
+                    "runtime_blockers": [],
+                    "gazebo_runtime_pass": True,
+                }
+            )
+            (run_dir / "capture_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+            runtime_evidence_path, _ = evidence.build_evidence(run_dir)
+            runtime_payload = json.loads(runtime_evidence_path.read_text(encoding="utf-8"))
+
         self.assertTrue(payload["native_contact_ft_same_run_pass"], payload["blockers"])
         self.assertTrue(payload["correlation"]["pass"])
         self.assertTrue(observer["viewer_level_pass"], observer["blockers"])
         self.assertFalse(payload["gazebo_runtime_pass"])
         self.assertEqual(set(payload["runtime_blockers"]), evidence.RUNTIME_IMPLEMENTATION_BLOCKERS)
+        self.assertTrue(runtime_payload["runtime_manifest_pass"], runtime_payload["runtime_blockers"])
+        self.assertTrue(runtime_payload["gazebo_runtime_pass"], runtime_payload["runtime_blockers"])
         self.assertFalse(payload["claim_boundary"]["live_acceptance"])
         self.assertFalse(payload["claim_boundary"]["reproduction_complete"])
 

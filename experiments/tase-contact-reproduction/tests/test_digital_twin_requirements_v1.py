@@ -57,7 +57,14 @@ class DigitalTwinRequirementsV1Test(unittest.TestCase):
 
         self.assertEqual(
             rows["gazebo_v2_native_contact"]["status"],
-            "static_lane_ready_runtime_blocked",
+            "runtime_tooling_ready_execution_failed",
+        )
+        self.assertTrue(
+            rows["gazebo_v2_native_contact"]["runtime_tooling_tests_pass"]
+        )
+        self.assertEqual(
+            rows["gazebo_v2_native_contact"]["runtime_attempt_blocker"],
+            "velocity_controller_not_ready_or_not_exclusive",
         )
         self.assertFalse(rows["gazebo_v2_native_contact"]["runtime_claim"])
         self.assertEqual(

@@ -286,6 +286,21 @@ def _append_active_tcp_frame(root: ET.Element) -> None:
     if root.find(f"./link[@name='{ACTIVE_TCP_LINK}']") is not None:
         return
     tcp_link = ET.Element("link", {"name": ACTIVE_TCP_LINK})
+    inertial = ET.SubElement(tcp_link, "inertial")
+    ET.SubElement(inertial, "origin", {"xyz": "0 0 0", "rpy": "0 0 0"})
+    ET.SubElement(inertial, "mass", {"value": "1e-6"})
+    ET.SubElement(
+        inertial,
+        "inertia",
+        {
+            "ixx": "1e-12",
+            "ixy": "0",
+            "ixz": "0",
+            "iyy": "1e-12",
+            "iyz": "0",
+            "izz": "1e-12",
+        },
+    )
     tcp_joint = ET.Element("joint", {"name": ACTIVE_TCP_JOINT, "type": "fixed"})
     ET.SubElement(tcp_joint, "parent", {"link": "tool0"})
     ET.SubElement(tcp_joint, "child", {"link": ACTIVE_TCP_LINK})
