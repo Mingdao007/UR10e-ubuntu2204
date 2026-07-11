@@ -98,10 +98,13 @@ class Step5dP0HotPathEquivalenceTest(unittest.TestCase):
         )
 
         self.assertEqual(optimized, reference)
+        self.assertEqual(
+            optimized_deferred.numeric[:1].dtype,
+            reference_deferred.numeric[:1].dtype,
+        )
         np.testing.assert_array_equal(
             optimized_deferred.numeric[:1],
             reference_deferred.numeric[:1],
-            strict=True,
         )
         self.assertEqual(optimized_deferred.reasons, reference_deferred.reasons)
         self.assertEqual(optimized_deferred.actions, reference_deferred.actions)
