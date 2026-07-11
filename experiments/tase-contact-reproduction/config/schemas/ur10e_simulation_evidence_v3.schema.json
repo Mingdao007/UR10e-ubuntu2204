@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ur10e_simulation_evidence_v3.schema.json",
+  "title": "UR10e P0 v8 simulation evidence with source-bound production-path prewarm",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "generated_at", "profile", "engine", "source_binding",
+    "schedule", "phase", "prewarm_binding", "control_hard_500hz",
+    "simulator_cycle_diagnostic", "nominal", "faults",
+    "control_contract", "claims", "claim_boundary", "artifacts", "blockers"
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "distribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["p50_ms", "p95_ms", "p99_ms", "max_ms"],
+      "properties": {
+        "p50_ms": {"type": "number", "minimum": 0},
+        "p95_ms": {"type": "number", "minimum": 0},
+        "p99_ms": {"type": "number", "minimum": 0},
+        "max_ms": {"type": "number", "minimum": 0}
+      }
+    },
+    "prewarm_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema", "path", "sha256", "size_bytes",
+        "source_composite_sha256", "execute_tick_count",
+        "pacing_hz", "paced", "pass"
+      ],
+      "properties": {
+        "schema": {"const": "step5d_p0_v8_production_path_prewarm_v1"},
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "size_bytes": {"type": "integer", "minimum": 1},
+        "source_composite_sha256": {"$ref": "#/$defs/sha256"},
+        "execute_tick_count": {"const": 1000},
+        "pacing_hz": {"const": 500},
+        "paced": {"const": true},
+        "pass": {"const": true}
+      }
+    }
+  },
+  "properties": {
+    "schema": {"const": "ur10e_simulation_evidence_v3"},
+    "generated_at": {"type": "string", "minLength": 1},
+    "profile": {"type": "object"},
+    "engine": {"type": "object"},
+    "source_binding": {
+      "type": "object",
+      "required": [
+        "base_commit", "head_commit", "composite_sha256",
+        "calibration_hash", "model_sha256", "frame_lineage_sha256",
+        "runtime_timing_environment"
+      ],
+      "properties": {
+        "base_commit": {"type": "string", "minLength": 7},
+        "head_commit": {"type": "string", "minLength": 7},
+        "composite_sha256": {"$ref": "#/$defs/sha256"},
+        "calibration_hash": {"type": "string", "minLength": 1},
+        "model_sha256": {"$ref": "#/$defs/sha256"},
+        "frame_lineage_sha256": {"$ref": "#/$defs/sha256"},
+        "runtime_timing_environment": {
+          "type": "object",
+          "required": [
+            "timing_scope_contract", "production_path_prewarm_contract",
+            "trace_prefault", "thread_environment"
+          ],
+          "properties": {
+            "timing_scope_contract": {
+              "const": {
+                "version": "p0_v8_timing_lane_split_v2",
+                "control_hard_500hz": "simulator_state_ready_to_adapter_step_complete",
+                "simulator_cycle_diagnostic": "release_to_oracle_snapshot_to_adapter_step_to_command_apply_and_four_physics_substeps"
+              }
+            },
+            "production_path_prewarm_contract": {
+              "const": {
+                "schema": "step5d_p0_v8_production_path_prewarm_v1",
+                "mode": "source_bound_unmeasured_no_output_500hz",
+                "execute_ticks": 1000,
+                "control_hz": 500,
+                "paced": true,
+                "pacing_strategy": "previous_tick_start_plus_2ms_no_catch_up",
+                "burst_tolerance_s": 0.00005,
+                "control_path": "SimulatorState->Step5dObservation->StrictRnnControlPolicy->step5d_v30_contract_pipeline->SafetyEnvelope->RegisterCommand->SimulationCommand",
+                "complete_production_path": true,
+                "safety_envelope_exercised": true,
+                "dls_shadow_only": true,
+                "register_command_generated": true,
+                "command_sink_write_allowed": false,
+                "timing_acceptance_eligible": false,
+                "measured_samples_may_be_discarded": false
+              }
+            },
+            "trace_prefault": {
+              "const": {
+                "required": true,
+                "completed": true,
+                "strategy": "numpy_fill_zero_before_gc_collect_and_measured_loop"
+              }
+            },
+            "thread_environment": {
+              "const": {
+                "OPENBLAS_NUM_THREADS": "1",
+                "OMP_NUM_THREADS": "1",
+                "MKL_NUM_THREADS": "1",
+                "NUMEXPR_NUM_THREADS": "1"
+              }
+            }
+          }
+        }
+      }
+    },
+    "schedule": {"type": "object"},
+    "phase": {"type": "object"},
+    "prewarm_binding": {"$ref": "#/$defs/prewarm_binding"},
+    "control_hard_500hz": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope", "paced", "samples", "deadline_ms", "p99_limit_ms",
+        "p50_ms", "p95_ms", "p99_ms", "max_ms", "deadline_miss_count",
+        "p99_within_limit", "max_within_deadline", "prefault_required",
+        "prefault_verified", "pass"
+      ],
+      "properties": {
+        "scope": {"const": "simulator_state_ready_to_adapter_step_complete"},
+        "paced": {"type": "boolean"},
+        "samples": {"type": "integer", "minimum": 1},
+        "deadline_ms": {"const": 2.0},
+        "p99_limit_ms": {"const": 1.8},
+        "p50_ms": {"type": "number", "minimum": 0},
+        "p95_ms": {"type": "number", "minimum": 0},
+        "p99_ms": {"type": "number", "minimum": 0},
+        "max_ms": {"type": "number", "minimum": 0},
+        "deadline_miss_count": {"type": "integer", "minimum": 0},
+        "p99_within_limit": {"type": "boolean"},
+        "max_within_deadline": {"type": "boolean"},
+        "prefault_required": {"const": true},
+        "prefault_verified": {"const": true},
+        "pass": {"type": "boolean"}
+      }
+    },
+    "simulator_cycle_diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope", "diagnostic_only", "samples",
+        "physics_substeps_per_control_tick", "oracle_snapshot_ms",
+        "command_apply_and_physics_ms", "cycle_wall_ms",
+        "release_lateness_ms", "absolute_finish_lateness_ms",
+        "cycle_compute_deadline_miss_count", "absolute_deadline_miss_count",
+        "meets_500hz_diagnostic"
+      ],
+      "properties": {
+        "scope": {"const": "release_to_oracle_snapshot_to_adapter_step_to_command_apply_and_four_physics_substeps"},
+        "diagnostic_only": {"const": true},
+        "samples": {"type": "integer", "minimum": 1},
+        "physics_substeps_per_control_tick": {"const": 4},
+        "oracle_snapshot_ms": {"$ref": "#/$defs/distribution"},
+        "command_apply_and_physics_ms": {"$ref": "#/$defs/distribution"},
+        "cycle_wall_ms": {"$ref": "#/$defs/distribution"},
+        "release_lateness_ms": {"$ref": "#/$defs/distribution"},
+        "absolute_finish_lateness_ms": {"$ref": "#/$defs/distribution"},
+        "cycle_compute_deadline_miss_count": {"type": "integer", "minimum": 0},
+        "absolute_deadline_miss_count": {"type": "integer", "minimum": 0},
+        "meets_500hz_diagnostic": {"type": "boolean"}
+      }
+    },
+    "nominal": {"type": "object"},
+    "faults": {"type": "array", "items": {"type": "object"}},
+    "control_contract": {
+      "type": "object",
+      "required": [
+        "timing_scope_version", "trace_buffers_prefaulted",
+        "measured_samples_excluded", "prewarm_samples_in_control_trace",
+        "measured_sequence_restarts_at_zero"
+      ],
+      "properties": {
+        "timing_scope_version": {"const": "p0_v8_timing_lane_split_v2"},
+        "trace_buffers_prefaulted": {"const": true},
+        "measured_samples_excluded": {"const": 0},
+        "prewarm_samples_in_control_trace": {"const": 0},
+        "measured_sequence_restarts_at_zero": {"const": true}
+      }
+    },
+    "claims": {"type": "object"},
+    "claim_boundary": {"type": "object"},
+    "artifacts": {"type": "array", "items": {"type": "object"}},
+    "blockers": {"type": "array", "items": {"type": "string"}}
+  }
+}

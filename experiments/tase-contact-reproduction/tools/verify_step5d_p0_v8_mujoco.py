@@ -18,8 +18,12 @@ from step5d_simulator_adapter import (
     P0_V8_CANARY_PHASES_S,
     P0_V8_CONTROL_HZ,
     P0_V8_DBIL_HZ,
+    P0_V8_EFFECTIVE_KO,
+    P0_V8_EPSILON,
+    P0_V8_INNER_ITERATIONS,
     P0_V8_PHYSICS_HZ,
     P0_V8_QDOT_CAP_RAD_S,
+    P0_V8_SIGR_EXPONENT_R,
     simulation_claim_boundary,
 )
 from verify_step5d_sim_evidence import (
@@ -30,12 +34,25 @@ from verify_step5d_sim_evidence import (
 
 RUN_SCHEMA_V1 = "step5d_p0_v8_mujoco_run_v1"
 RUN_SCHEMA_V2 = "step5d_p0_v8_mujoco_run_v2"
+RUN_SCHEMA_V3 = "step5d_p0_v8_mujoco_run_v3"
 EVIDENCE_SCHEMA_V1 = "ur10e_simulation_evidence_v1"
 EVIDENCE_SCHEMA_V2 = "ur10e_simulation_evidence_v2"
+EVIDENCE_SCHEMA_V3 = "ur10e_simulation_evidence_v3"
 TIMING_SCOPE_VERSION = "p0_v8_timing_lane_split_v2"
 CONTROL_HARD_SCOPE = "simulator_state_ready_to_adapter_step_complete"
 SIMULATOR_CYCLE_SCOPE = (
     "release_to_oracle_snapshot_to_adapter_step_to_command_apply_and_four_physics_substeps"
+)
+PREWARM_SCHEMA = "step5d_p0_v8_production_path_prewarm_v1"
+PREWARM_EXECUTE_TICKS = 1_000
+PREWARM_CONTROL_HZ = P0_V8_CONTROL_HZ
+PREWARM_MODE = "source_bound_unmeasured_no_output_500hz"
+PREWARM_PACING_STRATEGY = "previous_tick_start_plus_2ms_no_catch_up"
+PREWARM_BURST_TOLERANCE_S = 0.00005
+CONTROL_PATH = (
+    "SimulatorState->Step5dObservation->StrictRnnControlPolicy->"
+    "step5d_v30_contract_pipeline->SafetyEnvelope->RegisterCommand->"
+    "SimulationCommand"
 )
 TRACE_PREFAULT_STRATEGY = (
     "numpy_fill_zero_before_gc_collect_and_measured_loop"
@@ -55,6 +72,235 @@ def sha256_path(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def expected_prewarm_contract() -> dict[str, object]:
+    return {
+        "schema": PREWARM_SCHEMA,
+        "mode": PREWARM_MODE,
+        "execute_ticks": PREWARM_EXECUTE_TICKS,
+        "control_hz": PREWARM_CONTROL_HZ,
+        "paced": True,
+        "pacing_strategy": PREWARM_PACING_STRATEGY,
+        "burst_tolerance_s": PREWARM_BURST_TOLERANCE_S,
+        "control_path": CONTROL_PATH,
+        "complete_production_path": True,
+        "safety_envelope_exercised": True,
+        "dls_shadow_only": True,
+        "register_command_generated": True,
+        "command_sink_write_allowed": False,
+        "timing_acceptance_eligible": False,
+        "measured_samples_may_be_discarded": False,
+    }
+
+
+def expected_prewarm_profile() -> dict[str, object]:
+    return {
+        "id": "step5d_strict_rnn_no_contact_p0_v8",
+        "backend": "cupy",
+        "inner_iterations": P0_V8_INNER_ITERATIONS,
+        "epsilon": P0_V8_EPSILON,
+        "sigr_exponent_r": P0_V8_SIGR_EXPONENT_R,
+        "qdot_cap_rad_s": P0_V8_QDOT_CAP_RAD_S,
+        "effective_ko": P0_V8_EFFECTIVE_KO,
+        "dls_runtime_fallback_allowed": False,
+    }
+
+
+def validate_prewarm_evidence(payload: Mapping[str, object]) -> list[str]:
+    """Require a complete, unmeasured, no-output production-path prewarm."""
+
+    blockers: list[str] = []
+    expected_top_level = {
+        "schema",
+        "generated_at",
+        "source_composite_sha256",
+        "profile",
+        "contract",
+        "result",
+        "reset",
+        "claim_boundary",
+    }
+    if set(payload) != expected_top_level:
+        blockers.append("top_level_fields:invalid")
+    if payload.get("schema") != PREWARM_SCHEMA:
+        blockers.append("schema:invalid")
+    if not isinstance(payload.get("generated_at"), str) or not payload.get(
+        "generated_at"
+    ):
+        blockers.append("generated_at:invalid")
+    if SHA256_RE.fullmatch(str(payload.get("source_composite_sha256") or "")) is None:
+        blockers.append("source_composite_sha256:invalid")
+    if payload.get("profile") != expected_prewarm_profile():
+        blockers.append("profile:invalid")
+    if payload.get("contract") != expected_prewarm_contract():
+        blockers.append("contract:invalid")
+    result = payload.get("result")
+    expected_result = {
+        "execute_tick_count": PREWARM_EXECUTE_TICKS,
+        "accepted_tick_count": PREWARM_EXECUTE_TICKS,
+        "safe_hold_count": 0,
+        "stop_count": 0,
+        "nonfinite_output_count": 0,
+        "qdot_bound_violation_count": 0,
+        "dls_shadow_count": PREWARM_EXECUTE_TICKS,
+        "dls_runtime_fallback_count": 0,
+        "register_command_generation_count": PREWARM_EXECUTE_TICKS,
+        "command_sink_write_count": 0,
+        "first_sequence": 0,
+        "last_sequence": PREWARM_EXECUTE_TICKS - 1,
+        "release_wait_count": PREWARM_EXECUTE_TICKS - 1,
+        "deferred_diagnostic_count": PREWARM_EXECUTE_TICKS,
+        "pacing_hz": PREWARM_CONTROL_HZ,
+        "paced": True,
+        "unmeasured": True,
+        "no_output": True,
+        "timing_acceptance_eligible": False,
+        "measured_sample_count": 0,
+        "pass": True,
+    }
+    dynamic_timing_fields = {
+        "first_release_elapsed_s",
+        "last_release_elapsed_s",
+        "elapsed_release_span_s",
+        "min_inter_release_s",
+        "max_inter_release_s",
+        "burst_interval_count",
+    }
+    if not isinstance(result, Mapping):
+        blockers.append("result:invalid")
+    else:
+        for field, expected in expected_result.items():
+            observed = result.get(field)
+            if isinstance(expected, bool):
+                matches = observed is expected
+            elif isinstance(expected, int):
+                matches = (
+                    isinstance(observed, int)
+                    and not isinstance(observed, bool)
+                    and observed == expected
+                )
+            else:
+                matches = observed == expected
+            if not matches:
+                blockers.append(f"result.{field}:invalid")
+        unexpected = set(result) - set(expected_result) - dynamic_timing_fields
+        missing = dynamic_timing_fields - set(result)
+        if unexpected:
+            blockers.append("result:unexpected_fields")
+        if missing:
+            blockers.append("result:timing_fields_missing")
+        timing: dict[str, float] = {}
+        for field in dynamic_timing_fields - {"burst_interval_count"}:
+            try:
+                value = float(result[field])
+            except (KeyError, TypeError, ValueError):
+                blockers.append(f"result.{field}:invalid")
+                continue
+            if not math.isfinite(value) or value < 0.0:
+                blockers.append(f"result.{field}:invalid")
+            timing[field] = value
+        burst_count = result.get("burst_interval_count")
+        if (
+            not isinstance(burst_count, int)
+            or isinstance(burst_count, bool)
+            or burst_count != 0
+        ):
+            blockers.append("result.burst_interval_count:invalid")
+        if len(timing) == len(dynamic_timing_fields) - 1:
+            first = timing["first_release_elapsed_s"]
+            last = timing["last_release_elapsed_s"]
+            span = timing["elapsed_release_span_s"]
+            minimum = timing["min_inter_release_s"]
+            maximum = timing["max_inter_release_s"]
+            if last < first or not math.isclose(
+                span,
+                last - first,
+                abs_tol=1e-12,
+            ):
+                blockers.append("result.release_span:invalid")
+            minimum_allowed = (
+                1.0 / PREWARM_CONTROL_HZ - PREWARM_BURST_TOLERANCE_S
+            )
+            if minimum < minimum_allowed or maximum < minimum:
+                blockers.append("result.inter_release_pacing:invalid")
+            if span < (PREWARM_EXECUTE_TICKS - 1) * minimum_allowed:
+                blockers.append("result.release_span:too_short")
+    expected_reset = {
+        "simulator_state_reset_after_prewarm": True,
+        "solver_state_reset_after_prewarm": True,
+        "control_adapter_discarded_after_prewarm": True,
+        "measured_phase_first_sequence": 0,
+        "post_reset_unmeasured_execute_tick_count": 0,
+        "next_action": "measured_canonical_2_10_60_sequence",
+    }
+    if payload.get("reset") != expected_reset:
+        blockers.append("reset:invalid")
+    expected_boundary = {
+        "prewarm_is_not_measured_timing_evidence": True,
+        "prewarm_is_not_p0_pass": True,
+        "prewarm_is_not_live_acceptance": True,
+    }
+    if payload.get("claim_boundary") != expected_boundary:
+        blockers.append("claim_boundary:invalid")
+    return sorted(set(blockers))
+
+
+def validate_prewarm_binding(
+    binding: object,
+    *,
+    root: Path,
+    source_composite_sha256_value: str,
+) -> tuple[list[str], Mapping[str, object] | None]:
+    blockers: list[str] = []
+    if not isinstance(binding, Mapping):
+        return ["production_path_prewarm:missing_or_not_object"], None
+    expected_binding = {
+        "schema": PREWARM_SCHEMA,
+        "source_composite_sha256": source_composite_sha256_value,
+        "execute_tick_count": PREWARM_EXECUTE_TICKS,
+        "pacing_hz": PREWARM_CONTROL_HZ,
+        "paced": True,
+        "pass": True,
+    }
+    for field, expected in expected_binding.items():
+        if binding.get(field) != expected:
+            blockers.append(f"production_path_prewarm.{field}:invalid")
+    expected_fields = {
+        *expected_binding,
+        "path",
+        "sha256",
+        "size_bytes",
+    }
+    if set(binding) != expected_fields:
+        blockers.append("production_path_prewarm.fields:invalid")
+    path = (root / str(binding.get("path") or "")).resolve()
+    try:
+        path.relative_to(root.resolve())
+    except ValueError:
+        blockers.append("production_path_prewarm.path:escape")
+        return sorted(set(blockers)), None
+    if not path.is_file():
+        blockers.append("production_path_prewarm.path:missing")
+        return sorted(set(blockers)), None
+    if path.stat().st_size != binding.get("size_bytes"):
+        blockers.append("production_path_prewarm.size_bytes:mismatch")
+    if sha256_path(path) != binding.get("sha256"):
+        blockers.append("production_path_prewarm.sha256:mismatch")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        blockers.append(
+            f"production_path_prewarm.unreadable:{type(exc).__name__}"
+        )
+        return sorted(set(blockers)), None
+    blockers.extend(
+        f"production_path_prewarm.{item}"
+        for item in validate_prewarm_evidence(payload)
+    )
+    if payload.get("source_composite_sha256") != source_composite_sha256_value:
+        blockers.append("production_path_prewarm.source_composite_sha256:mismatch")
+    return sorted(set(blockers)), payload
 
 
 def _trace_blockers_v1(
@@ -1033,11 +1279,84 @@ def validate_v2_evidence(
     return sorted(set(blockers))
 
 
+def validate_v3_evidence(
+    payload: Mapping[str, object],
+    *,
+    artifact_root: Path | None = None,
+) -> list[str]:
+    compatibility = dict(payload)
+    compatibility["schema"] = EVIDENCE_SCHEMA_V2
+    blockers = list(
+        validate_v2_evidence(
+            compatibility,
+            artifact_root=artifact_root,
+        )
+    )
+    source = payload.get("source_binding")
+    runtime = (
+        source.get("runtime_timing_environment")
+        if isinstance(source, Mapping)
+        else None
+    )
+    contract = (
+        runtime.get("production_path_prewarm_contract")
+        if isinstance(runtime, Mapping)
+        else None
+    )
+    if contract != expected_prewarm_contract():
+        blockers.append(
+            "source_binding.runtime_timing_environment."
+            "production_path_prewarm_contract:invalid"
+        )
+    fingerprint = (
+        str(source.get("composite_sha256") or "")
+        if isinstance(source, Mapping)
+        else ""
+    )
+    binding = payload.get("prewarm_binding")
+    if not isinstance(binding, Mapping):
+        blockers.append("prewarm_binding:missing_or_not_object")
+    else:
+        expected = {
+            "schema": PREWARM_SCHEMA,
+            "source_composite_sha256": fingerprint,
+            "execute_tick_count": PREWARM_EXECUTE_TICKS,
+            "pacing_hz": PREWARM_CONTROL_HZ,
+            "paced": True,
+            "pass": True,
+        }
+        for field, value in expected.items():
+            if binding.get(field) != value:
+                blockers.append(f"prewarm_binding.{field}:invalid")
+        if SHA256_RE.fullmatch(str(binding.get("sha256") or "")) is None:
+            blockers.append("prewarm_binding.sha256:invalid")
+        if not str(binding.get("path") or ""):
+            blockers.append("prewarm_binding.path:invalid")
+        size = binding.get("size_bytes")
+        if not isinstance(size, int) or isinstance(size, bool) or size <= 0:
+            blockers.append("prewarm_binding.size_bytes:invalid")
+    control_contract = payload.get("control_contract")
+    if not isinstance(control_contract, Mapping):
+        blockers.append("control_contract:missing")
+    else:
+        expected_measured_boundary = {
+            "measured_samples_excluded": 0,
+            "prewarm_samples_in_control_trace": 0,
+            "measured_sequence_restarts_at_zero": True,
+        }
+        for field, value in expected_measured_boundary.items():
+            if control_contract.get(field) != value:
+                blockers.append(f"control_contract.{field}:invalid")
+    return sorted(set(blockers))
+
+
 def validate_phase_evidence(
     payload: Mapping[str, object],
     *,
     artifact_root: Path | None = None,
 ) -> list[str]:
+    if payload.get("schema") == EVIDENCE_SCHEMA_V3:
+        return validate_v3_evidence(payload, artifact_root=artifact_root)
     if payload.get("schema") == EVIDENCE_SCHEMA_V2:
         return validate_v2_evidence(payload, artifact_root=artifact_root)
     return validate_v1_evidence(payload, artifact_root=artifact_root)
@@ -1241,12 +1560,59 @@ def _validate_run_manifest_v2(
     return sorted(set(blockers))
 
 
+def _validate_run_manifest_v3(
+    payload: Mapping[str, object],
+    *,
+    root: Path,
+    require_complete: bool = True,
+) -> list[str]:
+    compatibility = dict(payload)
+    compatibility["schema"] = RUN_SCHEMA_V2
+    compatibility.pop("production_path_prewarm", None)
+    blockers = list(
+        _validate_run_manifest_v2(
+            compatibility,
+            root=root,
+            require_complete=require_complete,
+        )
+    )
+    fingerprint = str(payload.get("source_composite_sha256") or "")
+    prewarm_binding = payload.get("production_path_prewarm")
+    prewarm_blockers, _prewarm_payload = validate_prewarm_binding(
+        prewarm_binding,
+        root=root,
+        source_composite_sha256_value=fingerprint,
+    )
+    blockers.extend(prewarm_blockers)
+    phases = payload.get("phases")
+    if isinstance(prewarm_binding, Mapping) and isinstance(phases, Sequence):
+        for index, row in enumerate(phases):
+            if not isinstance(row, Mapping):
+                continue
+            evidence_path = (root / str(row.get("evidence_path") or "")).resolve()
+            if not evidence_path.is_file():
+                continue
+            try:
+                evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if evidence.get("prewarm_binding") != prewarm_binding:
+                blockers.append(f"phases[{index}].prewarm_binding:mismatch")
+    return sorted(set(blockers))
+
+
 def validate_run_manifest(
     payload: Mapping[str, object],
     *,
     root: Path,
     require_complete: bool = True,
 ) -> list[str]:
+    if payload.get("schema") == RUN_SCHEMA_V3:
+        return _validate_run_manifest_v3(
+            payload,
+            root=root,
+            require_complete=require_complete,
+        )
     if payload.get("schema") == RUN_SCHEMA_V2:
         return _validate_run_manifest_v2(
             payload,
@@ -1274,9 +1640,13 @@ def main() -> int:
     )
     result = {
         "schema": (
-            "step5d_p0_v8_mujoco_verification_v2"
-            if payload.get("schema") == RUN_SCHEMA_V2
-            else "step5d_p0_v8_mujoco_verification_v1"
+            "step5d_p0_v8_mujoco_verification_v3"
+            if payload.get("schema") == RUN_SCHEMA_V3
+            else (
+                "step5d_p0_v8_mujoco_verification_v2"
+                if payload.get("schema") == RUN_SCHEMA_V2
+                else "step5d_p0_v8_mujoco_verification_v1"
+            )
         ),
         "manifest": str(manifest_path),
         "valid": not blockers,

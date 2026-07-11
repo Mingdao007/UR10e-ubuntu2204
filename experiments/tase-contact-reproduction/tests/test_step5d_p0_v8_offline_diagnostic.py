@@ -17,6 +17,7 @@ from build_step5d_p0_v8_offline_diagnostic import (  # noqa: E402
     CURRENT_TIMING_SCOPE_STATUS,
     EVIDENCE_SCHEMA_V1,
     EVIDENCE_SCHEMA_V2,
+    EVIDENCE_SCHEMA_V3,
     FALSE_CLAIMS,
     HISTORICAL_TIMING_SCOPE_STATUS,
     NUMERIC_THREAD_ENV_CONTRACT_V2,
@@ -24,6 +25,7 @@ from build_step5d_p0_v8_offline_diagnostic import (  # noqa: E402
     PREFAULT_STRATEGY_V2,
     RUN_SCHEMA_V1,
     RUN_SCHEMA_V2,
+    RUN_SCHEMA_V3,
     SIMULATOR_SCOPE_V2,
     TIMING_SCOPE_VERSION_V2,
     bound_state_binding,
@@ -33,6 +35,7 @@ from build_step5d_p0_v8_offline_diagnostic import (  # noqa: E402
     validate_diagnostic,
     validate_state_binding,
 )
+from verify_step5d_p0_v8_mujoco import expected_prewarm_contract  # noqa: E402
 
 
 SOURCE_SHA = "1" * 64
@@ -189,6 +192,7 @@ def split_phase_evidence(
     *,
     control_pass: bool = True,
     simulator_fast: bool = False,
+    prewarm_binding: dict | None = None,
 ) -> dict:
     evidence = phase_evidence(index, duration_s)
     evidence["schema"] = EVIDENCE_SCHEMA_V2
@@ -257,15 +261,48 @@ def split_phase_evidence(
         "absolute_deadline_miss_count": 0 if simulator_fast else index + 2,
         "meets_500hz_diagnostic": simulator_fast,
     }
+    if prewarm_binding is not None:
+        evidence["schema"] = EVIDENCE_SCHEMA_V3
+        evidence["prewarm_binding"] = copy.deepcopy(prewarm_binding)
+        evidence["source_binding"]["runtime_timing_environment"][
+            "production_path_prewarm_contract"
+        ] = expected_prewarm_contract()
+        evidence["control_contract"].update(
+            {
+                "measured_samples_excluded": 0,
+                "prewarm_samples_in_control_trace": 0,
+                "measured_sequence_restarts_at_zero": True,
+            }
+        )
     return evidence
 
 
-def split_summary(*, final_control_pass: bool = True) -> dict:
+def split_summary(
+    *,
+    final_control_pass: bool = True,
+    with_prewarm: bool = False,
+) -> dict:
+    prewarm_binding = (
+        {
+            "schema": "step5d_p0_v8_production_path_prewarm_v1",
+            "path": "production_path_prewarm.json",
+            "sha256": "9" * 64,
+            "size_bytes": 2_000,
+            "source_composite_sha256": SOURCE_SHA,
+            "execute_tick_count": 1_000,
+            "pacing_hz": 500,
+            "paced": True,
+            "pass": True,
+        }
+        if with_prewarm
+        else None
+    )
     evidence = [
         split_phase_evidence(
             index,
             duration,
             control_pass=final_control_pass or index < 2,
+            prewarm_binding=prewarm_binding,
         )
         for index, duration in enumerate((2.0, 10.0, 60.0))
     ]
@@ -300,7 +337,7 @@ def split_summary(*, final_control_pass: bool = True) -> dict:
         for index, duration in enumerate((2.0, 10.0, 60.0))
     ]
     manifest_v2 = {
-        "schema": RUN_SCHEMA_V2,
+        "schema": RUN_SCHEMA_V3 if with_prewarm else RUN_SCHEMA_V2,
         "generated_at": "2026-07-12T08:00:00+00:00",
         "source_composite_sha256": SOURCE_SHA,
         "canonical_phase_sequence_complete": True,
@@ -328,6 +365,8 @@ def split_summary(*, final_control_pass: bool = True) -> dict:
         },
         "blockers": ["geometry_provisional_no_p0_physics_claim"],
     }
+    if prewarm_binding is not None:
+        manifest_v2["production_path_prewarm"] = prewarm_binding
     return build_diagnostic(
         manifest_v2,
         evidence,
@@ -453,6 +492,34 @@ class Step5dP0V8OfflineDiagnosticTest(unittest.TestCase):
         self.assertEqual(validate_diagnostic(payload), [])
         self.assertFalse(payload["diagnostic"]["offline_control_timing_pass"])
         self.assertIn("offline_control_timing_failed", payload["blockers"])
+
+    def test_v3_prewarm_binding_survives_offline_projection(self) -> None:
+        payload = split_summary(with_prewarm=True)
+
+        self.assertEqual(validate_diagnostic(payload), [])
+        self.assertEqual(
+            payload["timing_evidence"]["run_manifest_schema"],
+            RUN_SCHEMA_V3,
+        )
+        self.assertTrue(
+            payload["timing_evidence"]["production_path_prewarm"]["pass"]
+        )
+        self.assertTrue(
+            all(
+                row["prewarm_binding"]
+                == payload["timing_evidence"]["production_path_prewarm"]
+                for row in payload["phases"]
+            )
+        )
+
+        payload["phases"][0]["timing_scope_binding"][
+            "measured_samples_excluded"
+        ] = 1
+        rehash(payload)
+        self.assertIn(
+            "phases[0].prewarm_trace_boundary:invalid",
+            validate_diagnostic(payload),
+        )
 
     def test_v1_pass_never_satisfies_current_control_timing(self) -> None:
         payload = summary(final_timing_pass=True)

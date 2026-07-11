@@ -23,10 +23,17 @@ from test_step5d_sim_evidence import payload as base_evidence  # noqa: E402
 from verify_step5d_sim_evidence import source_composite_sha256  # noqa: E402
 from verify_step5d_p0_v8_mujoco import (  # noqa: E402
     CONTROL_HARD_SCOPE,
+    EVIDENCE_SCHEMA_V3,
+    PREWARM_CONTROL_HZ,
+    PREWARM_EXECUTE_TICKS,
+    PREWARM_SCHEMA,
+    RUN_SCHEMA_V3,
     SIMULATOR_CYCLE_SCOPE,
     TIMING_SCOPE_VERSION,
     TRACE_PREFAULT_STRATEGY,
     _trace_blockers,
+    expected_prewarm_contract,
+    expected_prewarm_profile,
     validate_run_manifest,
 )
 
@@ -579,6 +586,140 @@ class Step5dP0V8MujocoVerifierTest(unittest.TestCase):
         manifest["blockers"] = ["geometry_provisional_no_p0_physics_claim"]
         return manifest_path, manifest
 
+    def _build_full_bundle_v3(self) -> tuple[Path, dict[str, object]]:
+        manifest_path, manifest = self._build_full_bundle_v2()
+        phases = manifest["phases"]
+        assert isinstance(phases, list)
+        fingerprint: str | None = None
+        evidence_rows: list[tuple[Path, dict[str, object], dict[str, object]]] = []
+        for phase in phases:
+            assert isinstance(phase, dict)
+            evidence_path = self.root / str(phase["evidence_path"])
+            evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+            source = evidence["source_binding"]
+            assert isinstance(source, dict)
+            runtime = source["runtime_timing_environment"]
+            assert isinstance(runtime, dict)
+            runtime["production_path_prewarm_contract"] = (
+                expected_prewarm_contract()
+            )
+            source["composite_sha256"] = source_composite_sha256(source)
+            if fingerprint is None:
+                fingerprint = str(source["composite_sha256"])
+            self.assertEqual(source["composite_sha256"], fingerprint)
+            evidence["schema"] = EVIDENCE_SCHEMA_V3
+            control_contract = evidence["control_contract"]
+            assert isinstance(control_contract, dict)
+            control_contract.update(
+                {
+                    "measured_samples_excluded": 0,
+                    "prewarm_samples_in_control_trace": 0,
+                    "measured_sequence_restarts_at_zero": True,
+                }
+            )
+            evidence_rows.append((evidence_path, evidence, phase))
+        assert fingerprint is not None
+        prewarm = {
+            "schema": PREWARM_SCHEMA,
+            "generated_at": "2026-07-12T00:00:00+00:00",
+            "source_composite_sha256": fingerprint,
+            "profile": expected_prewarm_profile(),
+            "contract": expected_prewarm_contract(),
+            "result": {
+                "execute_tick_count": PREWARM_EXECUTE_TICKS,
+                "accepted_tick_count": PREWARM_EXECUTE_TICKS,
+                "safe_hold_count": 0,
+                "stop_count": 0,
+                "nonfinite_output_count": 0,
+                "qdot_bound_violation_count": 0,
+                "dls_shadow_count": PREWARM_EXECUTE_TICKS,
+                "dls_runtime_fallback_count": 0,
+                "register_command_generation_count": PREWARM_EXECUTE_TICKS,
+                "command_sink_write_count": 0,
+                "first_sequence": 0,
+                "last_sequence": PREWARM_EXECUTE_TICKS - 1,
+                "release_wait_count": PREWARM_EXECUTE_TICKS - 1,
+                "deferred_diagnostic_count": PREWARM_EXECUTE_TICKS,
+                "first_release_elapsed_s": 0.0,
+                "last_release_elapsed_s": 1.998,
+                "elapsed_release_span_s": 1.998,
+                "min_inter_release_s": 0.002,
+                "max_inter_release_s": 0.002,
+                "burst_interval_count": 0,
+                "pacing_hz": PREWARM_CONTROL_HZ,
+                "paced": True,
+                "unmeasured": True,
+                "no_output": True,
+                "timing_acceptance_eligible": False,
+                "measured_sample_count": 0,
+                "pass": True,
+            },
+            "reset": {
+                "simulator_state_reset_after_prewarm": True,
+                "solver_state_reset_after_prewarm": True,
+                "control_adapter_discarded_after_prewarm": True,
+                "measured_phase_first_sequence": 0,
+                "post_reset_unmeasured_execute_tick_count": 0,
+                "next_action": "measured_canonical_2_10_60_sequence",
+            },
+            "claim_boundary": {
+                "prewarm_is_not_measured_timing_evidence": True,
+                "prewarm_is_not_p0_pass": True,
+                "prewarm_is_not_live_acceptance": True,
+            },
+        }
+        prewarm_path = self.root / "production_path_prewarm.json"
+        prewarm_path.write_text(
+            json.dumps(prewarm, sort_keys=True),
+            encoding="utf-8",
+        )
+        binding = {
+            "schema": PREWARM_SCHEMA,
+            "path": prewarm_path.name,
+            "sha256": self._sha256(prewarm_path),
+            "size_bytes": prewarm_path.stat().st_size,
+            "source_composite_sha256": fingerprint,
+            "execute_tick_count": PREWARM_EXECUTE_TICKS,
+            "pacing_hz": PREWARM_CONTROL_HZ,
+            "paced": True,
+            "pass": True,
+        }
+        for evidence_path, evidence, phase in evidence_rows:
+            evidence["prewarm_binding"] = dict(binding)
+            evidence_path.write_text(
+                json.dumps(evidence, sort_keys=True),
+                encoding="utf-8",
+            )
+            phase["evidence_sha256"] = self._sha256(evidence_path)
+            phase["evidence_size_bytes"] = evidence_path.stat().st_size
+        manifest["schema"] = RUN_SCHEMA_V3
+        manifest["source_composite_sha256"] = fingerprint
+        manifest["production_path_prewarm"] = binding
+        return manifest_path, manifest
+
+    def _rebind_prewarm(
+        self,
+        manifest: dict[str, object],
+        prewarm: dict[str, object],
+    ) -> None:
+        prewarm_path = self.root / "production_path_prewarm.json"
+        prewarm_path.write_text(
+            json.dumps(prewarm, sort_keys=True),
+            encoding="utf-8",
+        )
+        binding = manifest["production_path_prewarm"]
+        assert isinstance(binding, dict)
+        binding["sha256"] = self._sha256(prewarm_path)
+        binding["size_bytes"] = prewarm_path.stat().st_size
+        phases = manifest["phases"]
+        assert isinstance(phases, list)
+        for index, phase in enumerate(phases):
+            assert isinstance(phase, dict)
+            evidence_path = self.root / str(phase["evidence_path"])
+            evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+            evidence["prewarm_binding"] = dict(binding)
+            self._rebind_phase_evidence(manifest, index, evidence)
+
     def _rebind_phase_evidence(
         self,
         manifest: dict[str, object],
@@ -641,6 +782,98 @@ class Step5dP0V8MujocoVerifierTest(unittest.TestCase):
         self.assertEqual(
             validate_run_manifest(manifest, root=self.root, require_complete=True),
             [],
+        )
+
+    def test_v3_full_chain_requires_bound_prewarm(self) -> None:
+        _path, manifest = self._build_full_bundle_v3()
+
+        self.assertEqual(
+            validate_run_manifest(manifest, root=self.root, require_complete=True),
+            [],
+        )
+
+        manifest.pop("production_path_prewarm")
+        blockers = validate_run_manifest(
+            manifest,
+            root=self.root,
+            require_complete=True,
+        )
+        self.assertIn(
+            "production_path_prewarm:missing_or_not_object",
+            blockers,
+        )
+
+    def test_v3_rejects_rehashed_prewarm_count_and_pacing_tamper(self) -> None:
+        _path, manifest = self._build_full_bundle_v3()
+        prewarm_path = self.root / "production_path_prewarm.json"
+        prewarm = json.loads(prewarm_path.read_text(encoding="utf-8"))
+        result = prewarm["result"]
+        assert isinstance(result, dict)
+        result["execute_tick_count"] = PREWARM_EXECUTE_TICKS - 1
+        result["min_inter_release_s"] = 0.0
+        result["burst_interval_count"] = 1
+        self._rebind_prewarm(manifest, prewarm)
+
+        blockers = validate_run_manifest(
+            manifest,
+            root=self.root,
+            require_complete=True,
+        )
+
+        self.assertIn(
+            "production_path_prewarm.result.execute_tick_count:invalid",
+            blockers,
+        )
+        self.assertIn(
+            "production_path_prewarm.result.burst_interval_count:invalid",
+            blockers,
+        )
+        self.assertIn(
+            "production_path_prewarm.result.inter_release_pacing:invalid",
+            blockers,
+        )
+
+    def test_v3_rejects_measured_sample_discard_claim(self) -> None:
+        _path, manifest = self._build_full_bundle_v3()
+        phases = manifest["phases"]
+        assert isinstance(phases, list) and isinstance(phases[0], dict)
+        evidence_path = self.root / str(phases[0]["evidence_path"])
+        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+        evidence["control_contract"]["measured_samples_excluded"] = 1
+        self._rebind_phase_evidence(manifest, 0, evidence)
+
+        blockers = validate_run_manifest(
+            manifest,
+            root=self.root,
+            require_complete=True,
+        )
+
+        self.assertTrue(
+            any(
+                "control_contract.measured_samples_excluded:invalid" in item
+                for item in blockers
+            ),
+            blockers,
+        )
+
+    def test_historical_cold_diagnostic_bytes_and_run_binding_are_immutable(self) -> None:
+        path = ROOT / "config" / "step5d_p0_v8_offline_simulation_diagnostic.json"
+        payload = json.loads(path.read_text(encoding="utf-8"))
+
+        self.assertEqual(
+            self._sha256(path),
+            "9ee7d9995f630689f73a24f965a852a6528b55dfbf700dbfaf0f0dff1cc96093",
+        )
+        self.assertEqual(
+            payload["run_binding"]["sha256"],
+            "b4aa84309a699cd2d4543f0b6239d22a1777746e14ecdcb28afbd79b70aaaf89",
+        )
+        self.assertEqual(payload["phases"][0]["duration_s"], 2.0)
+        self.assertEqual(
+            payload["phases"][0]["control_hard_500hz"][
+                "deadline_miss_count"
+            ],
+            25,
         )
 
     def test_v2_rejects_raw_control_timing_tamper_after_rebinding(self) -> None:

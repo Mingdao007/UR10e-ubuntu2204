@@ -18,8 +18,10 @@ SCHEMA = "step5d_p0_v8_offline_simulation_diagnostic_v1"
 STATE_SCHEMA = "step5d_p0_v8_offline_simulation_state_binding_v1"
 EVIDENCE_SCHEMA_V1 = "ur10e_simulation_evidence_v1"
 EVIDENCE_SCHEMA_V2 = "ur10e_simulation_evidence_v2"
+EVIDENCE_SCHEMA_V3 = "ur10e_simulation_evidence_v3"
 RUN_SCHEMA_V1 = "step5d_p0_v8_mujoco_run_v1"
 RUN_SCHEMA_V2 = "step5d_p0_v8_mujoco_run_v2"
+RUN_SCHEMA_V3 = "step5d_p0_v8_mujoco_run_v3"
 TIMING_SCOPE_VERSION_V2 = "p0_v8_timing_lane_split_v2"
 CONTROL_SCOPE_V2 = "simulator_state_ready_to_adapter_step_complete"
 SIMULATOR_SCOPE_V2 = (
@@ -123,8 +125,14 @@ def _timing_scope_classification(
         schema == EVIDENCE_SCHEMA_V1 for schema in evidence_schemas
     ):
         return HISTORICAL_TIMING_SCOPE_STATUS, []
-    if run_schema != RUN_SCHEMA_V2 or not evidence_schemas or not all(
-        schema == EVIDENCE_SCHEMA_V2 for schema in evidence_schemas
+    current_schema_pair = (
+        (RUN_SCHEMA_V2, EVIDENCE_SCHEMA_V2),
+        (RUN_SCHEMA_V3, EVIDENCE_SCHEMA_V3),
+    )
+    if not evidence_schemas or not any(
+        run_schema == expected_run
+        and all(schema == expected_evidence for schema in evidence_schemas)
+        for expected_run, expected_evidence in current_schema_pair
     ):
         return INVALID_TIMING_SCOPE_STATUS, ["timing_scope_schema_binding:invalid_or_mixed"]
 
@@ -179,6 +187,46 @@ def _timing_scope_classification(
             or simulator_timing.get("diagnostic_only") is not True
         ):
             failures.append(f"phases[{index}].simulator_cycle_binding:invalid")
+    if run_schema == RUN_SCHEMA_V3:
+        from verify_step5d_p0_v8_mujoco import expected_prewarm_contract
+
+        prewarm = manifest.get("production_path_prewarm")
+        expected_prewarm_binding = {
+            "schema": "step5d_p0_v8_production_path_prewarm_v1",
+            "source_composite_sha256": manifest.get("source_composite_sha256"),
+            "execute_tick_count": 1_000,
+            "pacing_hz": 500,
+            "paced": True,
+            "pass": True,
+        }
+        if not isinstance(prewarm, Mapping) or any(
+            prewarm.get(field) != expected
+            for field, expected in expected_prewarm_binding.items()
+        ):
+            failures.append("production_path_prewarm.binding:invalid")
+        for index, evidence in enumerate(phase_evidence):
+            source = evidence.get("source_binding")
+            runtime = (
+                source.get("runtime_timing_environment")
+                if isinstance(source, Mapping)
+                else None
+            )
+            control_contract = evidence.get("control_contract")
+            if evidence.get("prewarm_binding") != prewarm:
+                failures.append(f"phases[{index}].prewarm_binding:mismatch")
+            if not isinstance(runtime, Mapping) or runtime.get(
+                "production_path_prewarm_contract"
+            ) != expected_prewarm_contract():
+                failures.append(f"phases[{index}].prewarm_contract:invalid")
+            if not isinstance(control_contract, Mapping) or any(
+                control_contract.get(field) != expected
+                for field, expected in {
+                    "measured_samples_excluded": 0,
+                    "prewarm_samples_in_control_trace": 0,
+                    "measured_sequence_restarts_at_zero": True,
+                }.items()
+            ):
+                failures.append(f"phases[{index}].measured_trace_boundary:invalid")
     gate = manifest.get("control_hard_500hz_gate")
     if not isinstance(gate, Mapping) or (
         gate.get("scope") != CONTROL_SCOPE_V2
@@ -233,6 +281,11 @@ def _phase_summary(
         "duration_s": manifest_row.get("duration_s"),
         "sequence_index": manifest_row.get("sequence_index"),
         "source_composite_sha256": source.get("composite_sha256"),
+        "prewarm_binding": (
+            dict(evidence["prewarm_binding"])
+            if isinstance(evidence.get("prewarm_binding"), Mapping)
+            else None
+        ),
         "evidence": {
             "path": manifest_row.get("evidence_path"),
             "sha256": manifest_row.get("evidence_sha256"),
@@ -273,6 +326,22 @@ def _phase_summary(
             ),
             "timing_scope_version": control_contract.get("timing_scope_version"),
             "trace_buffers_prefaulted": control_contract.get("trace_buffers_prefaulted"),
+            "production_path_prewarm_contract": (
+                dict(runtime["production_path_prewarm_contract"])
+                if isinstance(
+                    runtime.get("production_path_prewarm_contract"), Mapping
+                )
+                else None
+            ),
+            "measured_samples_excluded": control_contract.get(
+                "measured_samples_excluded"
+            ),
+            "prewarm_samples_in_control_trace": control_contract.get(
+                "prewarm_samples_in_control_trace"
+            ),
+            "measured_sequence_restarts_at_zero": control_contract.get(
+                "measured_sequence_restarts_at_zero"
+            ),
         },
         "control_hard_500hz": dict(control_hard),
         "simulator_cycle_diagnostic": dict(simulator_cycle),
@@ -386,6 +455,11 @@ def build_diagnostic(
             "phase_evidence_schemas": [
                 evidence.get("schema") for evidence in phase_evidence
             ],
+            "production_path_prewarm": (
+                dict(manifest["production_path_prewarm"])
+                if isinstance(manifest.get("production_path_prewarm"), Mapping)
+                else None
+            ),
             "control_hard_500hz_gate": (
                 dict(control_hard_gate)
                 if isinstance(control_hard_gate, Mapping)
@@ -514,13 +588,45 @@ def validate_diagnostic(payload: Mapping[str, object]) -> list[str]:
     run_schema = timing_evidence.get("run_manifest_schema")
     evidence_schemas = timing_evidence.get("phase_evidence_schemas")
     if timing_scope_status == CURRENT_TIMING_SCOPE_STATUS:
-        if run_schema != RUN_SCHEMA_V2 or evidence_schemas != [EVIDENCE_SCHEMA_V2] * 3:
+        valid_current_schema = (
+            run_schema == RUN_SCHEMA_V2
+            and evidence_schemas == [EVIDENCE_SCHEMA_V2] * 3
+        ) or (
+            run_schema == RUN_SCHEMA_V3
+            and evidence_schemas == [EVIDENCE_SCHEMA_V3] * 3
+        )
+        if not valid_current_schema:
             failures.append("timing_evidence.current_schema_binding:invalid")
     elif timing_scope_status == HISTORICAL_TIMING_SCOPE_STATUS:
         if run_schema != RUN_SCHEMA_V1 or evidence_schemas != [EVIDENCE_SCHEMA_V1] * 3:
             failures.append("timing_evidence.historical_schema_binding:invalid")
     else:
         failures.append("timing_evidence.current_scope_binding:failed")
+    projected_prewarm = timing_evidence.get("production_path_prewarm")
+    if run_schema == RUN_SCHEMA_V3:
+        if not isinstance(projected_prewarm, Mapping):
+            failures.append("timing_evidence.production_path_prewarm:missing")
+            projected_prewarm = {}
+        failures.extend(
+            _binding_blockers(
+                projected_prewarm,
+                "timing_evidence.production_path_prewarm",
+            )
+        )
+        for field, expected in {
+            "schema": "step5d_p0_v8_production_path_prewarm_v1",
+            "source_composite_sha256": source.get("source_composite_sha256"),
+            "execute_tick_count": 1_000,
+            "pacing_hz": 500,
+            "paced": True,
+            "pass": True,
+        }.items():
+            if projected_prewarm.get(field) != expected:
+                failures.append(
+                    f"timing_evidence.production_path_prewarm.{field}:invalid"
+                )
+    elif projected_prewarm is not None:
+        failures.append("timing_evidence.production_path_prewarm:unexpected")
 
     phases_value = payload.get("phases")
     phases = (
@@ -543,12 +649,16 @@ def validate_diagnostic(payload: Mapping[str, object]) -> list[str]:
         if row.get("sequence_index") != index:
             failures.append(f"phases[{index}].sequence_index:mismatch")
         expected_evidence_schema = (
-            EVIDENCE_SCHEMA_V2
+            EVIDENCE_SCHEMA_V3
+            if run_schema == RUN_SCHEMA_V3
+            else EVIDENCE_SCHEMA_V2
             if timing_scope_status == CURRENT_TIMING_SCOPE_STATUS
             else EVIDENCE_SCHEMA_V1
         )
         if row.get("evidence_schema") != expected_evidence_schema:
             failures.append(f"phases[{index}].evidence_schema:mismatch")
+        if run_schema == RUN_SCHEMA_V3 and row.get("prewarm_binding") != projected_prewarm:
+            failures.append(f"phases[{index}].prewarm_binding:mismatch")
         if row.get("structurally_valid") is not True or row.get("validation_blockers") != []:
             failures.append(f"phases[{index}].structural_validation:failed")
         failures.extend(_binding_blockers(row.get("evidence"), f"phases[{index}].evidence"))
@@ -590,6 +700,19 @@ def validate_diagnostic(payload: Mapping[str, object]) -> list[str]:
                 or binding.get("trace_buffers_prefaulted") is not True
             ):
                 failures.append(f"phases[{index}].timing_scope_binding:invalid")
+            if run_schema == RUN_SCHEMA_V3:
+                from verify_step5d_p0_v8_mujoco import expected_prewarm_contract
+
+                if not isinstance(binding, Mapping) or (
+                    binding.get("production_path_prewarm_contract")
+                    != expected_prewarm_contract()
+                    or binding.get("measured_samples_excluded") != 0
+                    or binding.get("prewarm_samples_in_control_trace") != 0
+                    or binding.get("measured_sequence_restarts_at_zero") is not True
+                ):
+                    failures.append(
+                        f"phases[{index}].prewarm_trace_boundary:invalid"
+                    )
             control_timing = row.get("control_hard_500hz")
             if not isinstance(control_timing, Mapping):
                 failures.append(f"phases[{index}].control_hard_500hz:invalid")

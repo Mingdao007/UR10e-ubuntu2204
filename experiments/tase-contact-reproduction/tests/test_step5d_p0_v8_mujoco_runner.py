@@ -117,6 +117,57 @@ class FakePlant:
 
 
 class Step5dP0V8MujocoRunnerTest(unittest.TestCase):
+    def test_production_path_prewarm_is_fixed_paced_complete_and_no_output(self) -> None:
+        plant = FakePlant()
+        solver = FakeSolver()
+        clock = [0.0, *[
+            index / runner.PREWARM_CONTROL_HZ
+            for index in range(runner.PREWARM_EXECUTE_TICKS)
+        ]]
+        with (
+            mock.patch.object(runner, "wait_until") as wait_until,
+            mock.patch.object(runner.time, "perf_counter", side_effect=clock),
+        ):
+            result = runner.run_production_path_prewarm(
+                plant=plant,
+                solver=solver,
+            )
+
+        self.assertTrue(result.passed)
+        self.assertEqual(
+            result.execute_tick_count,
+            runner.PREWARM_EXECUTE_TICKS,
+        )
+        self.assertEqual(
+            result.accepted_tick_count,
+            runner.PREWARM_EXECUTE_TICKS,
+        )
+        self.assertEqual(
+            result.dls_shadow_count,
+            runner.PREWARM_EXECUTE_TICKS,
+        )
+        self.assertEqual(result.dls_runtime_fallback_count, 0)
+        self.assertEqual(result.command_sink_write_count, 0)
+        self.assertEqual(result.register_command_generation_count, 1000)
+        self.assertEqual(plant.commands, [])
+        self.assertEqual(wait_until.call_count, runner.PREWARM_EXECUTE_TICKS - 1)
+        self.assertEqual(
+            result.deferred_diagnostic_count,
+            runner.PREWARM_EXECUTE_TICKS,
+        )
+        self.assertEqual(result.burst_interval_count, 0)
+        self.assertAlmostEqual(result.min_inter_release_s, 0.002)
+        self.assertAlmostEqual(result.elapsed_release_span_s, 1.998)
+
+        reset = runner.reset_after_production_path_prewarm(
+            plant=plant,
+            solver=solver,
+        )
+        self.assertTrue(reset["simulator_state_reset_after_prewarm"])
+        self.assertTrue(reset["solver_state_reset_after_prewarm"])
+        self.assertEqual(reset["post_reset_unmeasured_execute_tick_count"], 0)
+        self.assertEqual(plant.commands, [])
+
     def test_numeric_thread_environment_is_fail_closed(self) -> None:
         with mock.patch.dict(
             runner.os.environ,

@@ -27,6 +27,7 @@ import numpy as np
 
 from step5c_strict_rnn import StrictRnnConfig, StrictTaseRnnSolver
 from step5d_control_contract import (
+    JOINT_LAYOUT_CODE,
     STRICT_RNN_SOLVER_OK_STATUS,
     ZERO6,
     ControlCandidate,
@@ -55,6 +56,7 @@ from verify_step5d_sim_evidence import (
     source_composite_sha256,
 )
 from verify_step5d_p0_v8_mujoco import validate_phase_evidence
+from verify_step5d_p0_v8_mujoco import validate_prewarm_evidence
 
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
@@ -85,15 +87,23 @@ SOURCE_FILES = (
     "config/step5d_liveprep_solver_gate.json",
     "config/schemas/ur10e_simulation_evidence_v1.schema.json",
     "config/schemas/ur10e_simulation_evidence_v2.schema.json",
+    "config/schemas/ur10e_simulation_evidence_v3.schema.json",
+    "config/schemas/step5d_p0_v8_production_path_prewarm_v1.schema.json",
 )
 
-EVIDENCE_SCHEMA_V2 = "ur10e_simulation_evidence_v2"
-RUN_SCHEMA_V2 = "step5d_p0_v8_mujoco_run_v2"
+EVIDENCE_SCHEMA_V3 = "ur10e_simulation_evidence_v3"
+RUN_SCHEMA_V3 = "step5d_p0_v8_mujoco_run_v3"
 TIMING_SCOPE_VERSION = "p0_v8_timing_lane_split_v2"
 CONTROL_HARD_SCOPE = "simulator_state_ready_to_adapter_step_complete"
 SIMULATOR_CYCLE_SCOPE = (
     "release_to_oracle_snapshot_to_adapter_step_to_command_apply_and_four_physics_substeps"
 )
+PREWARM_SCHEMA = "step5d_p0_v8_production_path_prewarm_v1"
+PREWARM_EXECUTE_TICKS = 1_000
+PREWARM_CONTROL_HZ = P0_V8_CONTROL_HZ
+PREWARM_MODE = "source_bound_unmeasured_no_output_500hz"
+PREWARM_PACING_STRATEGY = "previous_tick_start_plus_2ms_no_catch_up"
+PREWARM_BURST_TOLERANCE_S = 0.00005
 TRACE_PREFAULT_STRATEGY = (
     "numpy_fill_zero_before_gc_collect_and_measured_loop"
 )
@@ -130,6 +140,52 @@ class PhaseSpec:
         if rounded < 1 or not math.isclose(value, rounded, abs_tol=1e-9):
             raise ValueError("phase duration must contain an integer number of 500 Hz ticks")
         return rounded
+
+
+@dataclass(frozen=True)
+class ProductionPathPrewarmResult:
+    execute_tick_count: int
+    accepted_tick_count: int
+    safe_hold_count: int
+    stop_count: int
+    nonfinite_output_count: int
+    qdot_bound_violation_count: int
+    dls_shadow_count: int
+    dls_runtime_fallback_count: int
+    register_command_generation_count: int
+    command_sink_write_count: int
+    first_sequence: int
+    last_sequence: int
+    release_wait_count: int
+    deferred_diagnostic_count: int
+    first_release_elapsed_s: float
+    last_release_elapsed_s: float
+    elapsed_release_span_s: float
+    min_inter_release_s: float
+    max_inter_release_s: float
+    burst_interval_count: int
+
+    @property
+    def passed(self) -> bool:
+        return (
+            self.execute_tick_count == PREWARM_EXECUTE_TICKS
+            and self.accepted_tick_count == PREWARM_EXECUTE_TICKS
+            and self.safe_hold_count == 0
+            and self.stop_count == 0
+            and self.nonfinite_output_count == 0
+            and self.qdot_bound_violation_count == 0
+            and self.dls_shadow_count == PREWARM_EXECUTE_TICKS
+            and self.dls_runtime_fallback_count == 0
+            and self.register_command_generation_count == PREWARM_EXECUTE_TICKS
+            and self.command_sink_write_count == 0
+            and self.first_sequence == 0
+            and self.last_sequence == PREWARM_EXECUTE_TICKS - 1
+            and self.release_wait_count == PREWARM_EXECUTE_TICKS - 1
+            and self.deferred_diagnostic_count == PREWARM_EXECUTE_TICKS
+            and self.burst_interval_count == 0
+            and self.min_inter_release_s
+            >= 1.0 / PREWARM_CONTROL_HZ - PREWARM_BURST_TOLERANCE_S
+        )
 
 
 @dataclass(frozen=True)
@@ -358,6 +414,23 @@ def runtime_timing_environment(
             "control_hard_500hz": CONTROL_HARD_SCOPE,
             "simulator_cycle_diagnostic": SIMULATOR_CYCLE_SCOPE,
         },
+        "production_path_prewarm_contract": {
+            "schema": PREWARM_SCHEMA,
+            "mode": PREWARM_MODE,
+            "execute_ticks": PREWARM_EXECUTE_TICKS,
+            "control_hz": PREWARM_CONTROL_HZ,
+            "paced": True,
+            "pacing_strategy": PREWARM_PACING_STRATEGY,
+            "burst_tolerance_s": PREWARM_BURST_TOLERANCE_S,
+            "control_path": CONTROL_PATH,
+            "complete_production_path": True,
+            "safety_envelope_exercised": True,
+            "dls_shadow_only": True,
+            "register_command_generated": True,
+            "command_sink_write_allowed": False,
+            "timing_acceptance_eligible": False,
+            "measured_samples_may_be_discarded": False,
+        },
         "trace_prefault": {
             "required": True,
             "completed": True,
@@ -538,6 +611,230 @@ def prefault_numeric_buffers(*buffers: np.ndarray) -> bool:
     return True
 
 
+def run_production_path_prewarm(
+    *,
+    plant: VelocityPlant,
+    solver: Any,
+    release_spin_window_s: float = 0.00025,
+) -> ProductionPathPrewarmResult:
+    """Exercise 1,000 complete control ticks without writing a plant command.
+
+    This is deliberately not a discarded prefix of the measured trace.  It has
+    its own adapter, sequence, diagnostics buffer, and fixed 500 Hz pacing.  A
+    generated RegisterCommand/SimulationCommand proves the production seam was
+    crossed, while omitting ``plant.write_command`` keeps the prewarm no-output.
+    """
+
+    if (
+        not math.isfinite(float(release_spin_window_s))
+        or release_spin_window_s < 0.0
+        or release_spin_window_s > 1.0 / PREWARM_CONTROL_HZ
+    ):
+        raise ValueError("prewarm spin window must be within one 500 Hz period")
+    plant.reset()
+    base_state = plant.read_state(sequence=0, wall_time_s=0.0)
+    warm_solver(solver, base_state)
+    adapter = make_adapter(
+        StrictRnnControlPolicy(solver),
+        capacity=PREWARM_EXECUTE_TICKS,
+    )
+    accepted = 0
+    safe_holds = 0
+    stops = 0
+    nonfinite = 0
+    over_cap = 0
+    dls_shadows = 0
+    dls_fallbacks = 0
+    register_commands = 0
+    release_waits = 0
+    release_elapsed_s = np.empty(PREWARM_EXECUTE_TICKS, dtype=np.float64)
+    previous_tick_started: float | None = None
+    wall_start = time.perf_counter()
+    gc_was_enabled = gc.isenabled()
+    gc.collect()
+    gc.disable()
+    try:
+        for index in range(PREWARM_EXECUTE_TICKS):
+            if previous_tick_started is not None:
+                wait_until(
+                    previous_tick_started + 1.0 / PREWARM_CONTROL_HZ,
+                    spin_window_s=release_spin_window_s,
+                )
+                release_waits += 1
+            tick_started = time.perf_counter()
+            elapsed_s = tick_started - wall_start
+            release_elapsed_s[index] = elapsed_s
+            state = dataclasses.replace(
+                base_state,
+                sequence=index,
+                sim_time_s=(
+                    float(base_state.sim_time_s) + index / PREWARM_CONTROL_HZ
+                ),
+                wall_time_s=elapsed_s,
+                path_time_s=(
+                    float(base_state.path_time_s) + index / PREWARM_CONTROL_HZ
+                ),
+            )
+            result = adapter.step(state)
+            values = np.asarray(result.simulation_command.qdot, dtype=float)
+            accepted += int(result.control.decision.accepted)
+            safe_holds += int(result.control.decision.action == "safe_hold")
+            stops += int(result.control.decision.action == "stop")
+            nonfinite += int(not np.all(np.isfinite(values)))
+            over_cap += int(
+                np.all(np.isfinite(values))
+                and float(np.max(np.abs(values)))
+                > P0_V8_QDOT_CAP_RAD_S + 1e-12
+            )
+            shadow = result.control.dls_shadow
+            dls_shadows += int(shadow is not None)
+            dls_fallbacks += int(
+                shadow is not None and shadow.runtime_fallback_allowed
+            )
+            register = result.control.register_command
+            register_values = register.as_register_values()
+            expected_indices = {
+                26,
+                28,
+                *range(37, 43),
+                *range(43, 48),
+            }
+            register_commands += int(
+                set(register_values) == expected_indices
+                and all(
+                    math.isfinite(float(value))
+                    for value in register_values.values()
+                )
+                and register.layout_code == JOINT_LAYOUT_CODE
+                and register.heartbeat == float(index)
+                and register.cmd_valid is True
+                and register.stop_request is False
+                and register.qdot == result.control.decision.qdot
+                and register.qdot == result.simulation_command.qdot
+            )
+            # No plant.write_command call is allowed in this prewarm lane.
+            previous_tick_started = tick_started
+    finally:
+        if gc_was_enabled:
+            gc.enable()
+    intervals = np.diff(release_elapsed_s)
+    minimum_interval = float(np.min(intervals))
+    maximum_interval = float(np.max(intervals))
+    return ProductionPathPrewarmResult(
+        execute_tick_count=PREWARM_EXECUTE_TICKS,
+        accepted_tick_count=accepted,
+        safe_hold_count=safe_holds,
+        stop_count=stops,
+        nonfinite_output_count=nonfinite,
+        qdot_bound_violation_count=over_cap,
+        dls_shadow_count=dls_shadows,
+        dls_runtime_fallback_count=dls_fallbacks,
+        register_command_generation_count=register_commands,
+        command_sink_write_count=0,
+        first_sequence=0,
+        last_sequence=PREWARM_EXECUTE_TICKS - 1,
+        release_wait_count=release_waits,
+        deferred_diagnostic_count=adapter.deferred_diagnostics.count,
+        first_release_elapsed_s=float(release_elapsed_s[0]),
+        last_release_elapsed_s=float(release_elapsed_s[-1]),
+        elapsed_release_span_s=float(
+            release_elapsed_s[-1] - release_elapsed_s[0]
+        ),
+        min_inter_release_s=minimum_interval,
+        max_inter_release_s=maximum_interval,
+        burst_interval_count=int(
+            np.count_nonzero(
+                intervals
+                < 1.0 / PREWARM_CONTROL_HZ - PREWARM_BURST_TOLERANCE_S
+            )
+        ),
+    )
+
+
+def reset_after_production_path_prewarm(
+    *,
+    plant: VelocityPlant,
+    solver: Any,
+) -> dict[str, object]:
+    """Reset every stateful prewarm owner before measured sequence zero."""
+
+    plant.reset()
+    solver.reset_state()
+    return {
+        "simulator_state_reset_after_prewarm": True,
+        "solver_state_reset_after_prewarm": True,
+        "control_adapter_discarded_after_prewarm": True,
+        "measured_phase_first_sequence": 0,
+        "post_reset_unmeasured_execute_tick_count": 0,
+        "next_action": "measured_canonical_2_10_60_sequence",
+    }
+
+
+def prewarm_artifact_payload(
+    *,
+    result: ProductionPathPrewarmResult,
+    source_binding: Mapping[str, object],
+    reset_state: Mapping[str, object],
+) -> dict[str, object]:
+    runtime = source_binding.get("runtime_timing_environment")
+    contract = (
+        runtime.get("production_path_prewarm_contract")
+        if isinstance(runtime, Mapping)
+        else None
+    )
+    return {
+        "schema": PREWARM_SCHEMA,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "source_composite_sha256": source_binding.get("composite_sha256"),
+        "profile": dict(PROFILE),
+        "contract": dict(contract) if isinstance(contract, Mapping) else {},
+        "result": {
+            **dataclasses.asdict(result),
+            "pacing_hz": PREWARM_CONTROL_HZ,
+            "paced": True,
+            "unmeasured": True,
+            "no_output": True,
+            "timing_acceptance_eligible": False,
+            "measured_sample_count": 0,
+            "pass": result.passed,
+        },
+        "reset": dict(reset_state),
+        "claim_boundary": {
+            "prewarm_is_not_measured_timing_evidence": True,
+            "prewarm_is_not_p0_pass": True,
+            "prewarm_is_not_live_acceptance": True,
+        },
+    }
+
+
+def write_production_path_prewarm_artifact(
+    *,
+    output_dir: Path,
+    result: ProductionPathPrewarmResult,
+    source_binding: Mapping[str, object],
+    reset_state: Mapping[str, object],
+) -> tuple[Path, dict[str, object], dict[str, object]]:
+    payload = prewarm_artifact_payload(
+        result=result,
+        source_binding=source_binding,
+        reset_state=reset_state,
+    )
+    path = output_dir / "production_path_prewarm.json"
+    write_json(path, payload)
+    binding = {
+        "schema": PREWARM_SCHEMA,
+        "path": path.name,
+        "sha256": sha256_path(path),
+        "size_bytes": path.stat().st_size,
+        "source_composite_sha256": source_binding.get("composite_sha256"),
+        "execute_tick_count": result.execute_tick_count,
+        "pacing_hz": PREWARM_CONTROL_HZ,
+        "paced": True,
+        "pass": result.passed,
+    }
+    return path, payload, binding
+
+
 def run_nominal_phase(
     *,
     plant: VelocityPlant,
@@ -545,6 +842,7 @@ def run_nominal_phase(
     spec: PhaseSpec,
     pace_wall_clock: bool = False,
     release_spin_window_s: float = 0.00025,
+    plant_already_reset: bool = False,
 ) -> NominalPhaseResult:
     """Run one phase with no I/O or dynamically growing tick log in the loop."""
 
@@ -556,7 +854,8 @@ def run_nominal_phase(
         raise ValueError("release spin window must be within one 500 Hz period")
     schedule = IntegerRateSchedule()
     tick_count = spec.tick_count
-    plant.reset()
+    if not plant_already_reset:
+        plant.reset()
     first_state = plant.read_state(sequence=0, wall_time_s=0.0)
     warm_solver(solver, first_state)
     policy = StrictRnnControlPolicy(solver)
@@ -1046,6 +1345,7 @@ def write_phase_artifacts(
     base_state: SimulatorState,
     plant_manifest: Mapping[str, Any],
     pace_wall_clock: bool,
+    prewarm_binding: Mapping[str, object],
 ) -> tuple[Path, dict[str, object]]:
     phase_dir = output_dir / phase_dir_name(spec)
     phase_dir.mkdir(parents=True, exist_ok=False)
@@ -1106,7 +1406,7 @@ def write_phase_artifacts(
         )
     )
     evidence: dict[str, object] = {
-        "schema": EVIDENCE_SCHEMA_V2,
+        "schema": EVIDENCE_SCHEMA_V3,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "profile": dict(PROFILE),
         "engine": {
@@ -1130,6 +1430,7 @@ def write_phase_artifacts(
             "sequence_index": spec.sequence_index,
             "same_fingerprint_as_previous": spec.sequence_index > 0,
         },
+        "prewarm_binding": dict(prewarm_binding),
         "control_hard_500hz": control_hard,
         "simulator_cycle_diagnostic": cycle_diagnostic,
         "nominal": {
@@ -1171,6 +1472,9 @@ def write_phase_artifacts(
             "gc_state_restored_after_loop": True,
             "timing_scope_version": TIMING_SCOPE_VERSION,
             "trace_buffers_prefaulted": nominal.trace_buffers_prefaulted,
+            "measured_samples_excluded": 0,
+            "prewarm_samples_in_control_trace": 0,
+            "measured_sequence_restarts_at_zero": True,
         },
         "claims": {
             "p0_sim_physics_pass": False,
@@ -1254,6 +1558,28 @@ def main() -> int:
         release_spin_window_s=args.release_spin_window_s,
     )
     output_dir.mkdir(parents=True)
+    prewarm_result = run_production_path_prewarm(
+        plant=plant,
+        solver=solver,
+        release_spin_window_s=args.release_spin_window_s,
+    )
+    reset_state = reset_after_production_path_prewarm(
+        plant=plant,
+        solver=solver,
+    )
+    prewarm_path, prewarm_payload, prewarm_binding = (
+        write_production_path_prewarm_artifact(
+            output_dir=output_dir,
+            result=prewarm_result,
+            source_binding=source_binding,
+            reset_state=reset_state,
+        )
+    )
+    prewarm_blockers = validate_prewarm_evidence(prewarm_payload)
+    if prewarm_blockers:
+        raise RuntimeError(
+            "production-path prewarm failed: " + "; ".join(prewarm_blockers)
+        )
     phase_entries: list[dict[str, object]] = []
     all_valid = True
     for spec in specs:
@@ -1263,6 +1589,7 @@ def main() -> int:
             spec=spec,
             pace_wall_clock=args.pace_wall_clock,
             release_spin_window_s=args.release_spin_window_s,
+            plant_already_reset=spec.sequence_index == 0,
         )
         faults = run_fault_matrix(plant=plant, solver=solver)
         plant.reset()
@@ -1276,6 +1603,7 @@ def main() -> int:
             base_state=base_state,
             plant_manifest=plant.manifest,
             pace_wall_clock=args.pace_wall_clock,
+            prewarm_binding=prewarm_binding,
         )
         blockers = validate_phase_evidence(
             evidence,
@@ -1379,10 +1707,11 @@ def main() -> int:
     if control_diagnostic_pass and complete and not control_hard_gate_pass:
         manifest_blockers.add("control_hard_500hz_gate_failed_60s")
     manifest = {
-        "schema": RUN_SCHEMA_V2,
+        "schema": RUN_SCHEMA_V3,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "profile": dict(PROFILE),
         "source_composite_sha256": source_binding["composite_sha256"],
+        "production_path_prewarm": prewarm_binding,
         "canonical_phase_sequence_complete": complete,
         "phases": phase_entries,
         "control_hard_500hz_gate": control_hard_gate,
