@@ -8606,7 +8606,7 @@
       "complete": false,
       "completion_target": false,
       "gate_for": "step5d_strict_rnn_ablation_v30",
-      "block_reason": "Inactive local-only P0 v8 candidate. The offline MuJoCo 2/10/60 control/fault diagnostic passed but wall timing failed; separate controller upload/readback, Review v2 1+1, and controller no-contact canaries are not complete.",
+      "block_reason": "Inactive local-only P0 v8 candidate. The source-bound MuJoCo sequence passed the final continuous 60 s hard-control lane with zero deadline misses; the slower simulator cycle remains diagnostic-only. Controller upload/readback, Review v2 1+1, and controller no-contact canaries are not complete.",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": false,
@@ -8746,18 +8746,32 @@
         "status": "not_due"
       },
       "offline_simulation_diagnostic": {
-        "status": "bound_timing_blocked",
+        "status": "bound_diagnostic_complete",
         "summary_artifact": "config/step5d_p0_v8_offline_simulation_diagnostic.json",
-        "summary_sha256": "4d5c7bf409a8c6cdc5abf6cfa7a6804799d35c2efb5fe969f6827aae2167ce46",
+        "summary_sha256": "9ee7d9995f630689f73a24f965a852a6528b55dfbf700dbfaf0f0dff1cc96093",
         "state_artifact": "config/step5d_p0_v8_offline_simulation_state.json",
-        "state_sha256": "a6b6fbd833980107ba583ed65690ceb394a558c999409a1dc5d5eb0dc21b32a1",
-        "source_run_manifest_sha256": "b7277b81e1d2168c185a016d66fa035a225442ee6a4c8c0d5638d513c7b32230",
+        "state_sha256": "14b71f51de4c352f68f11a99b438f08d140f630d57deb64a0b53e2b57bf79a5e",
+        "source_run_manifest_sha256": "b4aa84309a699cd2d4543f0b6239d22a1777746e14ecdcb28afbd79b70aaaf89",
         "control_path_diagnostic_pass": true,
         "all_required_faults_exact_zero": true,
-        "wall_timing_gate_pass": false,
+        "timing_scope_status": "current_control_hard_500hz_measurement_scope",
+        "offline_control_timing_pass": true,
+        "simulator_cycle_500hz_diagnostic_pass": false,
         "p0_sim_physics_pass": false,
         "controller_canaries_completed": [],
-        "claim_effect": "diagnostic_only_no_promotion"
+        "claim_effect": "diagnostic_only_no_promotion",
+        "historical_artifacts": [
+          {
+            "status": "historical_superseded_measurement_scope",
+            "summary_artifact": "config/step5d_p0_v8_rnn512_d0de3ac_combined_scope_v1_diagnostic.json",
+            "summary_sha256": "11637e0cc5c98e74df934b599cae9b788f51c5080aecfd95f543a4c6bd38bd34",
+            "state_artifact": "config/step5d_p0_v8_rnn512_d0de3ac_combined_scope_v1_state.json",
+            "state_sha256": "689ffa3e96dabbe8fd574d90f6ab68088a4eed70eecc3598ebe7b7e8dc44042f",
+            "source_run_manifest_sha256": "85e32862353bd29a07147ab2a07bda13269bdc3b07b4d8c22936d76309531717",
+            "timing_scope": "read_state_to_shared_control_to_four_physics_substeps",
+            "acceptance_eligible": false
+          }
+        ]
       },
       "canary_stop_register": {
         "enabled": false,
@@ -8789,7 +8803,7 @@
       "blocked": true,
       "complete": false,
       "completion_target": false,
-      "block_reason": "Inactive v30 candidate. The control/deferred buffers now pre-touch bounded memory before the loop, so the prior formal timing remains historical and a source-bound rerun is pending. Manifest-bound upload/readback preparation is allowed, but current promotion, bridge start, and contact run remain blocked until timing, P0 v8, package/readback freeze, Review v2 2+1, and explicit live authorization pass.",
+      "block_reason": "Inactive v30 candidate. Source-bound Ubuntu hard-control timing now passes with the canonical RNN512 profile, fixed single-thread numeric runtime, lane-local paced no-output prewarm, SCHED_FIFO/20, and CPU affinity 11,13,14,15. This is offline evidence only: live-runtime prewarm integration, P0 v8 controller canaries, package/readback freeze, Review v2 2+1, and explicit live/contact authorization still block current promotion, bridge start, and contact run.",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": true,
@@ -8821,7 +8835,21 @@
       },
       "runtime_scheduler": {
         "policy": "SCHED_FIFO",
-        "priority": 20
+        "priority": 20,
+        "formal_evidence_cpu_affinity": [11, 13, 14, 15],
+        "live_cpu_affinity": null,
+        "affinity_reprobe_required_before_live": true,
+        "numeric_thread_count": 1,
+        "linux_sched_rt_period_us": 1000000,
+        "linux_sched_rt_runtime_us": 950000,
+        "offline_pipeline_prewarm": {
+          "execute_samples": 1000,
+          "safe_hold_samples": 100,
+          "control_hz": 500.0,
+          "commands_published": false,
+          "measurement_follows_immediately": true,
+          "live_runtime_integration_verified": false
+        }
       },
       "guard": {
         "heartbeat_required": true,
@@ -8985,20 +9013,36 @@
         "v29_replay": "config/step5d_v30_replay_summary.json",
         "profile_selection": "config/step5d_v30_profile_selection.json",
         "profile_selection_sha256": "7df2f006edbe6210668eaa39ff2a3d85e03ac2bf9e81cd509aebeab57aa1b906",
-        "profile_selection_status": "canonical_rnn512_selected_formal_timing_rerun_pending_after_prefault",
-        "timing_raw": "config/step5d_v30_rnn512_e026afd_formal_timing_raw.json",
-        "timing_raw_sha256": "9900daf0b4da17569d35338cb346554e03f328e3e6f77f7293e050d2caf3da46",
-        "timing_raw_status": "historical_superseded_by_prefault_source_change",
+        "profile_selection_status": "canonical_rnn512_selected_formal_timing_passed",
+        "timing_raw": "config/step5d_v30_rnn512_3335153_cpu11_13_14_15_formal_timing_raw.json",
+        "timing_raw_sha256": "bdc3d7008a0a1d7ac009044c0678590f747c9f7ee227908d994a1366f99d8637",
+        "timing_raw_status": "current_canonical_rnn512_hard_realtime_pass",
         "current_source_solver_10k_raw": "config/step5d_v30_current_source_solver_10k_raw.json",
         "current_source_solver_10k_raw_sha256": "81f94d23ffc985febb2402c2963547cb0110ddf7905d7781d6b52ed1937e49c2",
-        "timing": "config/step5d_v30_rnn512_e026afd_formal_timing_summary.json",
-        "timing_sha256": "f2e986d516fa899bff091f1387111b41ec903803e5050293b82bd11de3f4cbbc",
+        "timing": "config/step5d_v30_rnn512_3335153_cpu11_13_14_15_formal_timing_summary.json",
+        "timing_sha256": "ad1ae5ca719e9d4072a20f4982f148b5e1914e4fc7853c200bdaea77af8463d2",
+        "timing_acceptance_mode": "hard_realtime_zero_miss",
+        "timing_metrics": {
+          "solver_samples": 10000,
+          "solver_p99_ms": 0.27596824336797005,
+          "solver_max_ms": 0.6070979870855808,
+          "full_tick_samples": 30000,
+          "full_tick_p99_ms": 1.2713555339723823,
+          "full_tick_max_ms": 1.8250120338052511,
+          "full_tick_compute_deadline_misses": 0,
+          "full_tick_schedule_deadline_misses": 0,
+          "safe_hold_samples": 30000,
+          "safe_hold_p99_ms": 1.225039532873779,
+          "safe_hold_max_ms": 1.7736249137669802,
+          "safe_hold_compute_deadline_misses": 0,
+          "safe_hold_schedule_deadline_misses": 0
+        },
         "runtime_shaped_smoke": "config/step5d_v30_runtime_shaped_smoke.json",
         "runtime_shaped_smoke_sha256": "f16dcd0a435a004cc5f7477efb0fe98eac04ade7871a68b895fb35a93cdeae76",
         "component_diagnostic": "config/step5d_v30_component_diagnostic_summary.json",
         "component_diagnostic_sha256": "a06ea0c56440f5dcfe2a9939a74cc3574a56cd2ab109983f599923a03e55d2bf",
         "offline_readiness": "config/step5d_v30_offline_readiness.json",
-        "offline_readiness_sha256": "4fe899dca518c0abc1a88f37aff064f2488f012fb826a5d4a7b0b53e7ebd6cee",
+        "offline_readiness_sha256": "a2c78d8e2e548a3df352b4f5af8278457e020f62a99171c3b43e4540f2ccbab6",
         "milestone_reviews": "config/step5d_v30_milestone_reviews.json",
         "milestone_reviews_sha256": "df28791a0999a8809ae6adb97ae8737f7bee74cbb509ed41f9c740fd88c12bcb",
         "timing_source_contract": {
@@ -9017,13 +9061,13 @@
           "bridge": "tools/kunwei_rtde_bridge.py",
           "bridge_sha256": "d128a275a00ef68236acd917e5fae4dfe5fa9662dcc068cd92000c877c9d7747",
           "harness": "tools/run_step5d_v30_remote_timing.py",
-          "harness_sha256": "50b5733ac585e7dc3852d87217590bda49523c6e8287f2c6c893a401fcdba458",
+          "harness_sha256": "215ad168047d3970b43721ceff1710708e5f9c217b86102203a5d06d66a1dcd9",
           "bundler": "tools/build_step5d_v30_remote_timing_bundle.py",
           "bundler_sha256": "320960ed2cf836f939b0a65e0cf7c602e6f58e9e4f35a7f9df87fc4cab4abd73",
           "aggregator": "tools/step5d_v30_timing.py",
-          "aggregator_sha256": "28c48149abd678c5e8debb55b0ec4300f2ef87d15c9481c000599cec5da2e4ff",
+          "aggregator_sha256": "b308105a2f78e476cc224e7887e181d3c791dcebd68500006675e8d31945dd4b",
           "readiness_builder": "tools/build_step5d_v30_offline_readiness.py",
-          "readiness_builder_sha256": "d5f857fbc597c7b568d5270d300430d59c12d1923940e6633a4b21c8caddebde"
+          "readiness_builder_sha256": "0ef91885da5f319f330e6f6f4dab644662004014afd44de6136ab60d7496aee9"
         }
       },
       "success_condition": "v30_offline_ready only after the complete v29 replay accepts at least 99% with zero normal mismatch/nonfinite/qdot-bound rows; 10,000-solve and 60 s 500 Hz timing pass either the zero-miss hard-real-time route or the bounded-tail route with matching URSim/controller exact-zero stale-hold proof; inactive package hashes validate; and review blockers are zero. This does not promote current_stage or authorize live motion."

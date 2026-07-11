@@ -7,6 +7,7 @@
     "tp_play_authorized": false
   },
   "blockers": [
+    "live_runtime_prewarm_not_integrated_or_verified",
     "p0_v8_final_60s_not_passed",
     "p0_v8_passed_artifact_missing",
     "review_v2_not_due_until_evidence_freeze",
@@ -50,7 +51,7 @@
       "sha256": "a6f0e586145eb701af72f92d21bb648b13169adf8198529ff8aea8e704b8e1d6"
     }
   },
-  "generated_at": "2026-07-12T01:58:00+08:00",
+  "generated_at": "2026-07-12T03:45:00+08:00",
   "historical_review": {
     "counts_as_review_v2": false,
     "path": "config/step5d_v30_milestone_reviews.json",
@@ -111,6 +112,7 @@
     ],
     "composite_fingerprint": null,
     "deterministic_freeze_blockers": [
+      "live_runtime_prewarm_not_integrated_or_verified",
       "p0_v8_final_60s_not_passed",
       "p0_v8_passed_artifact_missing",
       "v30_controller_readback_not_frozen"
@@ -127,11 +129,24 @@
     "required_stack": "2+1",
     "status": "not_due"
   },
+  "runtime_prewarm": {
+    "claim_boundary": "offline no-output prewarm evidence does not prove that the future live bridge performs the same prewarm before authorization",
+    "live_runtime_integration_verified": false,
+    "offline_timing_contract": {
+      "commands_published": false,
+      "control_hz": 500.0,
+      "execute_samples": 1000,
+      "live_runtime_integration_verified": false,
+      "measurement_follows_immediately": true,
+      "safe_hold_samples": 100
+    },
+    "offline_timing_contract_proven": true
+  },
   "schema_version": "step5d_v30_offline_readiness_v2",
   "source_contract": {
     "aggregator_sha256": {
       "path": "tools/step5d_v30_timing.py",
-      "sha256": "28c48149abd678c5e8debb55b0ec4300f2ef87d15c9481c000599cec5da2e4ff"
+      "sha256": "b308105a2f78e476cc224e7887e181d3c791dcebd68500006675e8d31945dd4b"
     },
     "bridge_sha256": {
       "path": "tools/kunwei_rtde_bridge.py",
@@ -147,11 +162,11 @@
     },
     "control_contract_sha256": {
       "path": "tools/step5d_control_contract.py",
-      "sha256": "53c8a7ae4060a4ebce0415a21b1993636a4fdd0d4894bc80d1f719c03ab19423"
+      "sha256": "d75b5f93c0c63750ff5dffbb52aa77dc55da2e678d8a716b70efd9400b6fbe2e"
     },
     "harness_sha256": {
       "path": "tools/run_step5d_v30_remote_timing.py",
-      "sha256": "671f3d0b8c8391a28c5fecea686dafa78e75136253bb460683cefa971be49846"
+      "sha256": "215ad168047d3970b43721ceff1710708e5f9c217b86102203a5d06d66a1dcd9"
     },
     "kinematics_sha256": {
       "path": "tools/step5c_calibrated_kinematics_audit.py",
@@ -163,7 +178,7 @@
     },
     "readiness_builder_sha256": {
       "path": "tools/build_step5d_v30_offline_readiness.py",
-      "sha256": "d5f857fbc597c7b568d5270d300430d59c12d1923940e6633a4b21c8caddebde"
+      "sha256": "0ef91885da5f319f330e6f6f4dab644662004014afd44de6136ab60d7496aee9"
     },
     "runtime_interface_sha256": {
       "path": "tools/step5d_runtime_interface.py",
@@ -179,15 +194,15 @@
     "acceptance_decision_source": "per-artifact recomputation from one hash-bound raw artifact; the aggregate summary is diagnostic only",
     "acceptance_mode": "hard_realtime",
     "acceptance_raw_evidence": {
-      "path": "config/step5d_v30_rnn512_e026afd_formal_timing_raw.json",
-      "sha256": "9900daf0b4da17569d35338cb346554e03f328e3e6f77f7293e050d2caf3da46"
+      "path": "config/step5d_v30_rnn512_3335153_cpu11_13_14_15_formal_timing_raw.json",
+      "sha256": "bdc3d7008a0a1d7ac009044c0678590f747c9f7ee227908d994a1366f99d8637"
     },
     "bounded_tail_fail_closed_pass": false,
     "current_source_evidence": {
       "acceptance_eligible": true,
       "degraded_fail_closed_pass": false,
-      "path": "config/step5d_v30_rnn512_e026afd_formal_timing_raw.json",
-      "sha256": "9900daf0b4da17569d35338cb346554e03f328e3e6f77f7293e050d2caf3da46"
+      "path": "config/step5d_v30_rnn512_3335153_cpu11_13_14_15_formal_timing_raw.json",
+      "sha256": "bdc3d7008a0a1d7ac009044c0678590f747c9f7ee227908d994a1366f99d8637"
     },
     "diagnostic_conclusion": "Timing acceptance is recomputed from versioned raw artifacts bound to the selected profile and current sources. Historical attempts remain diagnostic and cannot satisfy the current gate.",
     "diagnostic_summary_blockers": [
@@ -206,6 +221,7 @@
             "cupy_dedicated_stream_not_proven",
             "cupy_host_staging_not_pinned",
             "cupy_parallel_serial_equivalence_not_proven",
+            "full_pipeline_warmup_contract_missing_or_invalid",
             "full_tick_deadline_miss",
             "full_tick_deferred_diagnostics_incomplete",
             "full_tick_execute_path_evidence_incomplete",
@@ -215,6 +231,7 @@
             "full_tick_schedule_deadline_miss",
             "full_tick_schedule_max_lateness_missing_or_invalid",
             "independent_absolute_500hz_pacing_provenance_missing",
+            "offline_network_transport_tripwire_unproven",
             "remote_runtime_profile_mismatch",
             "remote_timing_aggregator_sha256_does_not_match_local_source",
             "remote_timing_aggregator_sha256_missing",
@@ -255,6 +272,7 @@
             "runtime_numeric_versions_unbound",
             "runtime_nvidia_smi_start_end_unbound",
             "runtime_realtime_limits_unbound",
+            "runtime_sched_rt_bandwidth_unbound",
             "runtime_timing_environment_missing",
             "runtime_timing_process_priority_degraded",
             "runtime_timing_thread_environment_unbound",
@@ -287,12 +305,14 @@
               "cupy_dedicated_stream_not_proven",
               "cupy_host_staging_not_pinned",
               "cupy_parallel_serial_equivalence_not_proven",
+              "full_pipeline_warmup_contract_missing_or_invalid",
               "full_tick_deferred_diagnostics_incomplete",
               "full_tick_execute_path_evidence_incomplete",
               "full_tick_p99_exceeds_limit",
               "full_tick_reference_ramp_evidence_incomplete",
               "full_tick_schedule_max_lateness_missing_or_invalid",
               "independent_absolute_500hz_pacing_provenance_missing",
+              "offline_network_transport_tripwire_unproven",
               "remote_runtime_profile_mismatch",
               "remote_timing_aggregator_sha256_does_not_match_local_source",
               "remote_timing_aggregator_sha256_missing",
@@ -333,6 +353,7 @@
               "runtime_numeric_versions_unbound",
               "runtime_nvidia_smi_start_end_unbound",
               "runtime_realtime_limits_unbound",
+              "runtime_sched_rt_bandwidth_unbound",
               "runtime_timing_environment_missing",
               "runtime_timing_process_priority_degraded",
               "runtime_timing_thread_environment_unbound",
@@ -365,6 +386,7 @@
           },
           "full_tick_schedule_deadline_miss_count": 5551,
           "pacing_provenance": null,
+          "pipeline_warmup_contract_proven": false,
           "raw_sha256": "99da10fb7141964c78d50f397b9816b10922394c19c8f62f2e6a3293361f401c",
           "recomputed_from_single_hash_bound_raw_artifact": true,
           "safe_hold": {
@@ -505,7 +527,8 @@
               9900
             ],
             "steady_solver_hard_deadline_gate_applied": true
-          }
+          },
+          "unmeasured_pipeline_warmup": {}
         },
         "artifact_binding": null,
         "classification": "failed_hard_solver_deadline",
@@ -560,6 +583,7 @@
         "acceptance_eligible": false,
         "acceptance_evaluation": {
           "blockers": [
+            "full_pipeline_warmup_contract_missing_or_invalid",
             "full_tick_deferred_diagnostics_incomplete",
             "full_tick_execute_path_evidence_incomplete",
             "full_tick_insufficient_samples",
@@ -567,6 +591,7 @@
             "full_tick_reference_ramp_evidence_incomplete",
             "full_tick_wall_duration_not_60s",
             "independent_absolute_500hz_pacing_provenance_missing",
+            "offline_network_transport_tripwire_unproven",
             "remote_runtime_profile_mismatch",
             "remote_timing_aggregator_sha256_does_not_match_local_source",
             "remote_timing_aggregator_sha256_missing",
@@ -602,6 +627,7 @@
             "runtime_numeric_versions_unbound",
             "runtime_nvidia_smi_start_end_unbound",
             "runtime_realtime_limits_unbound",
+            "runtime_sched_rt_bandwidth_unbound",
             "runtime_timing_environment_missing",
             "runtime_timing_process_priority_degraded",
             "runtime_timing_thread_environment_unbound",
@@ -632,6 +658,7 @@
             "safe_hold_miss_budget": 6,
             "timing_degraded_candidate": false,
             "unrelated_blockers": [
+              "full_pipeline_warmup_contract_missing_or_invalid",
               "full_tick_deferred_diagnostics_incomplete",
               "full_tick_execute_path_evidence_incomplete",
               "full_tick_insufficient_samples",
@@ -639,6 +666,7 @@
               "full_tick_reference_ramp_evidence_incomplete",
               "full_tick_wall_duration_not_60s",
               "independent_absolute_500hz_pacing_provenance_missing",
+              "offline_network_transport_tripwire_unproven",
               "remote_runtime_profile_mismatch",
               "remote_timing_aggregator_sha256_does_not_match_local_source",
               "remote_timing_aggregator_sha256_missing",
@@ -674,6 +702,7 @@
               "runtime_numeric_versions_unbound",
               "runtime_nvidia_smi_start_end_unbound",
               "runtime_realtime_limits_unbound",
+              "runtime_sched_rt_bandwidth_unbound",
               "runtime_timing_environment_missing",
               "runtime_timing_process_priority_degraded",
               "runtime_timing_thread_environment_unbound",
@@ -707,6 +736,7 @@
           },
           "full_tick_schedule_deadline_miss_count": 0,
           "pacing_provenance": null,
+          "pipeline_warmup_contract_proven": false,
           "raw_sha256": "4b665607e7af9fceea23a6ec77e1ce5503558fab18c33eabdbba60220bb92944",
           "recomputed_from_single_hash_bound_raw_artifact": true,
           "safe_hold": {
@@ -847,7 +877,8 @@
               9900
             ],
             "steady_solver_hard_deadline_gate_applied": true
-          }
+          },
+          "unmeasured_pipeline_warmup": {}
         },
         "artifact_binding": null,
         "classification": "failed_hard_solver_deadline",
@@ -910,6 +941,7 @@
             "cupy_dedicated_stream_not_proven",
             "cupy_host_staging_not_pinned",
             "cupy_parallel_serial_equivalence_not_proven",
+            "full_pipeline_warmup_contract_missing_or_invalid",
             "full_tick_deferred_diagnostics_incomplete",
             "full_tick_execute_path_evidence_incomplete",
             "full_tick_insufficient_samples",
@@ -920,6 +952,7 @@
             "full_tick_schedule_max_lateness_missing_or_invalid",
             "full_tick_wall_duration_not_60s",
             "independent_absolute_500hz_pacing_provenance_missing",
+            "offline_network_transport_tripwire_unproven",
             "remote_runtime_profile_mismatch",
             "remote_timing_aggregator_sha256_does_not_match_local_source",
             "remote_timing_aggregator_sha256_missing",
@@ -947,6 +980,7 @@
             "runtime_numeric_versions_unbound",
             "runtime_nvidia_smi_start_end_unbound",
             "runtime_realtime_limits_unbound",
+            "runtime_sched_rt_bandwidth_unbound",
             "runtime_timing_environment_missing",
             "runtime_timing_process_priority_degraded",
             "runtime_timing_thread_environment_unbound",
@@ -980,6 +1014,7 @@
               "cupy_dedicated_stream_not_proven",
               "cupy_host_staging_not_pinned",
               "cupy_parallel_serial_equivalence_not_proven",
+              "full_pipeline_warmup_contract_missing_or_invalid",
               "full_tick_deferred_diagnostics_incomplete",
               "full_tick_execute_path_evidence_incomplete",
               "full_tick_insufficient_samples",
@@ -990,6 +1025,7 @@
               "full_tick_schedule_max_lateness_missing_or_invalid",
               "full_tick_wall_duration_not_60s",
               "independent_absolute_500hz_pacing_provenance_missing",
+              "offline_network_transport_tripwire_unproven",
               "remote_runtime_profile_mismatch",
               "remote_timing_aggregator_sha256_does_not_match_local_source",
               "remote_timing_aggregator_sha256_missing",
@@ -1017,6 +1053,7 @@
               "runtime_numeric_versions_unbound",
               "runtime_nvidia_smi_start_end_unbound",
               "runtime_realtime_limits_unbound",
+              "runtime_sched_rt_bandwidth_unbound",
               "runtime_timing_environment_missing",
               "runtime_timing_process_priority_degraded",
               "runtime_timing_thread_environment_unbound",
@@ -1050,6 +1087,7 @@
           },
           "full_tick_schedule_deadline_miss_count": 0,
           "pacing_provenance": null,
+          "pipeline_warmup_contract_proven": false,
           "raw_sha256": "81f94d23ffc985febb2402c2963547cb0110ddf7905d7781d6b52ed1937e49c2",
           "recomputed_from_single_hash_bound_raw_artifact": true,
           "safe_hold": {
@@ -1190,7 +1228,8 @@
               9900
             ],
             "steady_solver_hard_deadline_gate_applied": true
-          }
+          },
+          "unmeasured_pipeline_warmup": {}
         },
         "artifact_binding": {
           "calibration_yaml_sha256": "029aad03affc0cf60fc4274029463e683dc04b709f3a5e849f693d1c70409be8",
@@ -1265,6 +1304,7 @@
             "cupy_host_staging_not_pinned",
             "cupy_precompile_not_proven_outside_loop",
             "first_post_warm_exceeds_1p75_ms",
+            "full_pipeline_warmup_contract_missing_or_invalid",
             "full_tick_execute_path_evidence_incomplete",
             "full_tick_insufficient_samples",
             "full_tick_not_paced_500hz",
@@ -1273,6 +1313,7 @@
             "full_tick_schedule_max_lateness_missing_or_invalid",
             "full_tick_wall_duration_not_60s",
             "independent_absolute_500hz_pacing_provenance_missing",
+            "offline_network_transport_tripwire_unproven",
             "remote_runtime_profile_mismatch",
             "remote_timing_aggregator_sha256_does_not_match_local_source",
             "remote_timing_aggregator_sha256_missing",
@@ -1300,6 +1341,7 @@
             "runtime_numeric_versions_unbound",
             "runtime_nvidia_smi_start_end_unbound",
             "runtime_realtime_limits_unbound",
+            "runtime_sched_rt_bandwidth_unbound",
             "runtime_timing_environment_missing",
             "runtime_timing_process_priority_degraded",
             "runtime_timing_thread_environment_unbound",
@@ -1334,6 +1376,7 @@
               "cupy_host_staging_not_pinned",
               "cupy_precompile_not_proven_outside_loop",
               "first_post_warm_exceeds_1p75_ms",
+              "full_pipeline_warmup_contract_missing_or_invalid",
               "full_tick_execute_path_evidence_incomplete",
               "full_tick_insufficient_samples",
               "full_tick_not_paced_500hz",
@@ -1342,6 +1385,7 @@
               "full_tick_schedule_max_lateness_missing_or_invalid",
               "full_tick_wall_duration_not_60s",
               "independent_absolute_500hz_pacing_provenance_missing",
+              "offline_network_transport_tripwire_unproven",
               "remote_runtime_profile_mismatch",
               "remote_timing_aggregator_sha256_does_not_match_local_source",
               "remote_timing_aggregator_sha256_missing",
@@ -1369,6 +1413,7 @@
               "runtime_numeric_versions_unbound",
               "runtime_nvidia_smi_start_end_unbound",
               "runtime_realtime_limits_unbound",
+              "runtime_sched_rt_bandwidth_unbound",
               "runtime_timing_environment_missing",
               "runtime_timing_process_priority_degraded",
               "runtime_timing_thread_environment_unbound",
@@ -1402,6 +1447,7 @@
           },
           "full_tick_schedule_deadline_miss_count": 0,
           "pacing_provenance": null,
+          "pipeline_warmup_contract_proven": false,
           "raw_sha256": "f16dcd0a435a004cc5f7477efb0fe98eac04ade7871a68b895fb35a93cdeae76",
           "recomputed_from_single_hash_bound_raw_artifact": true,
           "safe_hold": {
@@ -1542,7 +1588,8 @@
               9900
             ],
             "steady_solver_hard_deadline_gate_applied": true
-          }
+          },
+          "unmeasured_pipeline_warmup": {}
         },
         "artifact_binding": {
           "calibration_yaml_sha256": "029aad03affc0cf60fc4274029463e683dc04b709f3a5e849f693d1c70409be8",
@@ -1611,6 +1658,7 @@
             "cupy_parallel_serial_equivalence_not_proven",
             "cupy_precompile_not_proven_outside_loop",
             "first_post_warm_exceeds_1p75_ms",
+            "full_pipeline_warmup_contract_missing_or_invalid",
             "full_tick_deferred_diagnostics_incomplete",
             "full_tick_execute_path_evidence_incomplete",
             "full_tick_insufficient_samples",
@@ -1623,6 +1671,7 @@
             "full_tick_summary_missing",
             "full_tick_wall_duration_not_60s",
             "independent_absolute_500hz_pacing_provenance_missing",
+            "offline_network_transport_tripwire_unproven",
             "remote_runtime_profile_mismatch",
             "remote_timing_aggregator_sha256_does_not_match_local_source",
             "remote_timing_aggregator_sha256_missing",
@@ -1659,6 +1708,7 @@
             "runtime_numeric_versions_unbound",
             "runtime_nvidia_smi_start_end_unbound",
             "runtime_realtime_limits_unbound",
+            "runtime_sched_rt_bandwidth_unbound",
             "runtime_timing_environment_missing",
             "runtime_timing_process_priority_degraded",
             "runtime_timing_thread_environment_unbound",
@@ -1698,6 +1748,7 @@
               "cupy_parallel_serial_equivalence_not_proven",
               "cupy_precompile_not_proven_outside_loop",
               "first_post_warm_exceeds_1p75_ms",
+              "full_pipeline_warmup_contract_missing_or_invalid",
               "full_tick_deferred_diagnostics_incomplete",
               "full_tick_execute_path_evidence_incomplete",
               "full_tick_insufficient_samples",
@@ -1709,6 +1760,7 @@
               "full_tick_summary_missing",
               "full_tick_wall_duration_not_60s",
               "independent_absolute_500hz_pacing_provenance_missing",
+              "offline_network_transport_tripwire_unproven",
               "remote_runtime_profile_mismatch",
               "remote_timing_aggregator_sha256_does_not_match_local_source",
               "remote_timing_aggregator_sha256_missing",
@@ -1745,6 +1797,7 @@
               "runtime_numeric_versions_unbound",
               "runtime_nvidia_smi_start_end_unbound",
               "runtime_realtime_limits_unbound",
+              "runtime_sched_rt_bandwidth_unbound",
               "runtime_timing_environment_missing",
               "runtime_timing_process_priority_degraded",
               "runtime_timing_thread_environment_unbound",
@@ -1781,6 +1834,7 @@
           },
           "full_tick_schedule_deadline_miss_count": 0,
           "pacing_provenance": null,
+          "pipeline_warmup_contract_proven": false,
           "raw_sha256": "a06ea0c56440f5dcfe2a9939a74cc3574a56cd2ab109983f599923a03e55d2bf",
           "recomputed_from_single_hash_bound_raw_artifact": true,
           "safe_hold": {
@@ -1921,7 +1975,8 @@
               9900
             ],
             "steady_solver_hard_deadline_gate_applied": true
-          }
+          },
+          "unmeasured_pipeline_warmup": {}
         },
         "artifact_binding": null,
         "classification": "diagnostic_only_not_acceptance",
@@ -1950,12 +2005,14 @@
         "acceptance_eligible": false,
         "acceptance_evaluation": {
           "blockers": [
+            "full_pipeline_warmup_contract_missing_or_invalid",
             "full_tick_deadline_miss",
             "full_tick_execute_path_evidence_incomplete",
             "full_tick_max_reaches_2ms_deadline",
             "full_tick_reference_ramp_evidence_incomplete",
             "full_tick_runtime_acceptance_path_incomplete",
             "full_tick_schedule_deadline_miss",
+            "offline_network_transport_tripwire_unproven",
             "remote_runtime_profile_mismatch",
             "remote_timing_aggregator_sha256_does_not_match_local_source",
             "remote_timing_bridge_sha256_does_not_match_local_source",
@@ -1971,6 +2028,7 @@
             "runtime_numeric_versions_unbound",
             "runtime_nvidia_smi_start_end_unbound",
             "runtime_realtime_limits_unbound",
+            "runtime_sched_rt_bandwidth_unbound",
             "runtime_timing_environment_missing",
             "runtime_timing_process_priority_degraded",
             "runtime_timing_thread_environment_unbound",
@@ -1995,9 +2053,11 @@
             "safe_hold_miss_budget": 6,
             "timing_degraded_candidate": false,
             "unrelated_blockers": [
+              "full_pipeline_warmup_contract_missing_or_invalid",
               "full_tick_execute_path_evidence_incomplete",
               "full_tick_reference_ramp_evidence_incomplete",
               "full_tick_runtime_acceptance_path_incomplete",
+              "offline_network_transport_tripwire_unproven",
               "remote_runtime_profile_mismatch",
               "remote_timing_aggregator_sha256_does_not_match_local_source",
               "remote_timing_bridge_sha256_does_not_match_local_source",
@@ -2013,6 +2073,7 @@
               "runtime_numeric_versions_unbound",
               "runtime_nvidia_smi_start_end_unbound",
               "runtime_realtime_limits_unbound",
+              "runtime_sched_rt_bandwidth_unbound",
               "runtime_timing_environment_missing",
               "runtime_timing_process_priority_degraded",
               "runtime_timing_thread_environment_unbound",
@@ -2043,6 +2104,7 @@
             "period_s": 0.002,
             "safe_hold_release_policy": "independent_absolute"
           },
+          "pipeline_warmup_contract_proven": false,
           "raw_sha256": "feebf5165fce017a586eead27bc6b6a5c1819521651bab992bddda4647849633",
           "recomputed_from_single_hash_bound_raw_artifact": true,
           "safe_hold": {
@@ -2183,7 +2245,8 @@
               9900
             ],
             "steady_solver_hard_deadline_gate_applied": true
-          }
+          },
+          "unmeasured_pipeline_warmup": {}
         },
         "artifact_binding": {
           "calibration_yaml": {
@@ -2388,12 +2451,14 @@
         "acceptance_eligible": false,
         "acceptance_evaluation": {
           "blockers": [
+            "full_pipeline_warmup_contract_missing_or_invalid",
             "full_tick_deadline_miss",
             "full_tick_execute_path_evidence_incomplete",
             "full_tick_max_reaches_2ms_deadline",
             "full_tick_reference_ramp_evidence_incomplete",
             "full_tick_runtime_acceptance_path_incomplete",
             "full_tick_schedule_deadline_miss",
+            "offline_network_transport_tripwire_unproven",
             "remote_runtime_profile_mismatch",
             "remote_timing_aggregator_sha256_does_not_match_local_source",
             "remote_timing_bridge_sha256_does_not_match_local_source",
@@ -2409,6 +2474,7 @@
             "runtime_numeric_versions_unbound",
             "runtime_nvidia_smi_start_end_unbound",
             "runtime_realtime_limits_unbound",
+            "runtime_sched_rt_bandwidth_unbound",
             "runtime_timing_environment_missing",
             "runtime_timing_process_priority_degraded",
             "runtime_timing_thread_environment_unbound",
@@ -2469,9 +2535,11 @@
             "safe_hold_miss_budget": 6,
             "timing_degraded_candidate": false,
             "unrelated_blockers": [
+              "full_pipeline_warmup_contract_missing_or_invalid",
               "full_tick_execute_path_evidence_incomplete",
               "full_tick_reference_ramp_evidence_incomplete",
               "full_tick_runtime_acceptance_path_incomplete",
+              "offline_network_transport_tripwire_unproven",
               "remote_runtime_profile_mismatch",
               "remote_timing_aggregator_sha256_does_not_match_local_source",
               "remote_timing_bridge_sha256_does_not_match_local_source",
@@ -2487,6 +2555,7 @@
               "runtime_numeric_versions_unbound",
               "runtime_nvidia_smi_start_end_unbound",
               "runtime_realtime_limits_unbound",
+              "runtime_sched_rt_bandwidth_unbound",
               "runtime_timing_environment_missing",
               "runtime_timing_process_priority_degraded",
               "runtime_timing_thread_environment_unbound",
@@ -2517,6 +2586,7 @@
             "period_s": 0.002,
             "safe_hold_release_policy": "independent_absolute"
           },
+          "pipeline_warmup_contract_proven": false,
           "raw_sha256": "c2a858f7f84b7e746ce17f30fd88f4c71fef11edbdf3cd3a26b3907b1442f073",
           "recomputed_from_single_hash_bound_raw_artifact": true,
           "safe_hold": {
@@ -2657,7 +2727,8 @@
               9900
             ],
             "steady_solver_hard_deadline_gate_applied": true
-          }
+          },
+          "unmeasured_pipeline_warmup": {}
         },
         "artifact_binding": {
           "calibration_yaml": {
@@ -2747,12 +2818,14 @@
         "acceptance_eligible": false,
         "acceptance_evaluation": {
           "blockers": [
+            "full_pipeline_warmup_contract_missing_or_invalid",
             "full_tick_deadline_miss",
             "full_tick_execute_path_evidence_incomplete",
             "full_tick_max_reaches_2ms_deadline",
             "full_tick_reference_ramp_evidence_incomplete",
             "full_tick_runtime_acceptance_path_incomplete",
             "full_tick_schedule_deadline_miss",
+            "offline_network_transport_tripwire_unproven",
             "remote_runtime_profile_mismatch",
             "remote_timing_aggregator_sha256_does_not_match_local_source",
             "remote_timing_bridge_sha256_does_not_match_local_source",
@@ -2768,6 +2841,7 @@
             "runtime_numeric_versions_unbound",
             "runtime_nvidia_smi_start_end_unbound",
             "runtime_realtime_limits_unbound",
+            "runtime_sched_rt_bandwidth_unbound",
             "runtime_timing_environment_missing",
             "runtime_timing_process_priority_degraded",
             "runtime_timing_thread_environment_unbound",
@@ -2789,9 +2863,11 @@
             "safe_hold_miss_budget": 6,
             "timing_degraded_candidate": false,
             "unrelated_blockers": [
+              "full_pipeline_warmup_contract_missing_or_invalid",
               "full_tick_execute_path_evidence_incomplete",
               "full_tick_reference_ramp_evidence_incomplete",
               "full_tick_runtime_acceptance_path_incomplete",
+              "offline_network_transport_tripwire_unproven",
               "remote_runtime_profile_mismatch",
               "remote_timing_aggregator_sha256_does_not_match_local_source",
               "remote_timing_bridge_sha256_does_not_match_local_source",
@@ -2807,6 +2883,7 @@
               "runtime_numeric_versions_unbound",
               "runtime_nvidia_smi_start_end_unbound",
               "runtime_realtime_limits_unbound",
+              "runtime_sched_rt_bandwidth_unbound",
               "runtime_timing_environment_missing",
               "runtime_timing_process_priority_degraded",
               "runtime_timing_thread_environment_unbound",
@@ -2837,6 +2914,7 @@
             "period_s": 0.002,
             "safe_hold_release_policy": "independent_absolute"
           },
+          "pipeline_warmup_contract_proven": false,
           "raw_sha256": "7546593c58c3b6a76ad4455cd0c3a73e310008a112dacff941aa02db6f22ac55",
           "recomputed_from_single_hash_bound_raw_artifact": true,
           "safe_hold": {
@@ -2977,7 +3055,8 @@
               9900
             ],
             "steady_solver_hard_deadline_gate_applied": true
-          }
+          },
+          "unmeasured_pipeline_warmup": {}
         },
         "artifact_binding": {
           "calibration_yaml": {
@@ -3068,12 +3147,14 @@
         "acceptance_evaluation": {
           "blockers": [
             "first_post_warm_exceeds_1p75_ms",
+            "full_pipeline_warmup_contract_missing_or_invalid",
             "full_tick_deadline_miss",
             "full_tick_execute_path_evidence_incomplete",
             "full_tick_max_reaches_2ms_deadline",
             "full_tick_reference_ramp_evidence_incomplete",
             "full_tick_runtime_acceptance_path_incomplete",
             "full_tick_schedule_deadline_miss",
+            "offline_network_transport_tripwire_unproven",
             "remote_runtime_profile_mismatch",
             "remote_timing_aggregator_sha256_does_not_match_local_source",
             "remote_timing_bridge_sha256_does_not_match_local_source",
@@ -3089,6 +3170,7 @@
             "runtime_numeric_versions_unbound",
             "runtime_nvidia_smi_start_end_unbound",
             "runtime_realtime_limits_unbound",
+            "runtime_sched_rt_bandwidth_unbound",
             "runtime_timing_environment_missing",
             "runtime_timing_process_priority_degraded",
             "runtime_timing_thread_environment_unbound",
@@ -3116,9 +3198,11 @@
             "timing_degraded_candidate": false,
             "unrelated_blockers": [
               "first_post_warm_exceeds_1p75_ms",
+              "full_pipeline_warmup_contract_missing_or_invalid",
               "full_tick_execute_path_evidence_incomplete",
               "full_tick_reference_ramp_evidence_incomplete",
               "full_tick_runtime_acceptance_path_incomplete",
+              "offline_network_transport_tripwire_unproven",
               "remote_runtime_profile_mismatch",
               "remote_timing_aggregator_sha256_does_not_match_local_source",
               "remote_timing_bridge_sha256_does_not_match_local_source",
@@ -3134,6 +3218,7 @@
               "runtime_numeric_versions_unbound",
               "runtime_nvidia_smi_start_end_unbound",
               "runtime_realtime_limits_unbound",
+              "runtime_sched_rt_bandwidth_unbound",
               "runtime_timing_environment_missing",
               "runtime_timing_process_priority_degraded",
               "runtime_timing_thread_environment_unbound",
@@ -3166,6 +3251,7 @@
             "period_s": 0.002,
             "safe_hold_release_policy": "independent_absolute"
           },
+          "pipeline_warmup_contract_proven": false,
           "raw_sha256": "920bf08ab2b6ec697116cf4f5da615a7e329ef434bfdfa5abf6d02f77234c886",
           "recomputed_from_single_hash_bound_raw_artifact": true,
           "safe_hold": {
@@ -3306,7 +3392,8 @@
               9900
             ],
             "steady_solver_hard_deadline_gate_applied": true
-          }
+          },
+          "unmeasured_pipeline_warmup": {}
         },
         "artifact_binding": {
           "calibration_yaml": {
@@ -3433,7 +3520,7 @@
                 "capacity": 99,
                 "overflowed": false,
                 "retained_indices": [
-                  22
+                  2
                 ],
                 "total": 1
               },
@@ -3450,6 +3537,400 @@
             "safe_hold_miss_budget": 6,
             "timing_degraded_candidate": false,
             "unrelated_blockers": []
+          },
+          "elapsed_full_tick_wall_s": 59.99876292212866,
+          "elapsed_safe_hold_wall_s": 59.99871312105097,
+          "first_post_warm_ms": 0.6070979870855808,
+          "full_tick": {
+            "deadline_miss_count": 0,
+            "max_ms": 1.8250120338052511,
+            "mean_ms": 0.9358633906425288,
+            "nonfinite_count": 0,
+            "p95_ms": 1.2322616297751665,
+            "p99_ms": 1.2713555339723823,
+            "samples": 30000
+          },
+          "full_tick_schedule_deadline_miss_count": 0,
+          "pacing_provenance": {
+            "clock": "time.perf_counter",
+            "control_hz": 500.0,
+            "full_tick_release_policy": "absolute",
+            "period_s": 0.002,
+            "safe_hold_release_policy": "independent_absolute"
+          },
+          "pipeline_warmup_contract_proven": true,
+          "raw_sha256": "bdc3d7008a0a1d7ac009044c0678590f747c9f7ee227908d994a1366f99d8637",
+          "recomputed_from_single_hash_bound_raw_artifact": true,
+          "safe_hold": {
+            "deadline_miss_count": 0,
+            "max_ms": 1.7736249137669802,
+            "mean_ms": 0.9104427775445705,
+            "nonfinite_count": 0,
+            "p95_ms": 1.1863345629535615,
+            "p99_ms": 1.225039532873779,
+            "samples": 30000
+          },
+          "safe_hold_schedule_deadline_miss_count": 0,
+          "solver": {
+            "deadline_miss_count": 0,
+            "max_ms": 0.6070979870855808,
+            "mean_ms": 0.21270001926459373,
+            "nonfinite_count": 0,
+            "p95_ms": 0.2232578699477017,
+            "p99_ms": 0.27596824336797005,
+            "samples": 10000
+          },
+          "solver_batch_reentry": {
+            "deadline_miss_count": 1,
+            "max_ms": 3.611993044614792,
+            "mean_ms": 0.5794629581611265,
+            "nonfinite_count": 0,
+            "p95_ms": 0.8078597486019133,
+            "p99_ms": 0.9019648330286035,
+            "samples": 99
+          },
+          "solver_batch_reentry_evidence": {
+            "acceptance_scope": "diagnostic_only; every post-yield reentry is retained but the 2 ms hard solver gate applies to the separate 10,000 steady samples",
+            "deadline_miss_count": 1,
+            "deadline_miss_indices": [
+              2
+            ],
+            "full_tick_zero_miss_required_for_hard_acceptance": true,
+            "hard_solver_deadline_gate_applied": false,
+            "raw_samples_bound": true,
+            "samples": 99,
+            "steady_sample_boundaries": [
+              100,
+              200,
+              300,
+              400,
+              500,
+              600,
+              700,
+              800,
+              900,
+              1000,
+              1100,
+              1200,
+              1300,
+              1400,
+              1500,
+              1600,
+              1700,
+              1800,
+              1900,
+              2000,
+              2100,
+              2200,
+              2300,
+              2400,
+              2500,
+              2600,
+              2700,
+              2800,
+              2900,
+              3000,
+              3100,
+              3200,
+              3300,
+              3400,
+              3500,
+              3600,
+              3700,
+              3800,
+              3900,
+              4000,
+              4100,
+              4200,
+              4300,
+              4400,
+              4500,
+              4600,
+              4700,
+              4800,
+              4900,
+              5000,
+              5100,
+              5200,
+              5300,
+              5400,
+              5500,
+              5600,
+              5700,
+              5800,
+              5900,
+              6000,
+              6100,
+              6200,
+              6300,
+              6400,
+              6500,
+              6600,
+              6700,
+              6800,
+              6900,
+              7000,
+              7100,
+              7200,
+              7300,
+              7400,
+              7500,
+              7600,
+              7700,
+              7800,
+              7900,
+              8000,
+              8100,
+              8200,
+              8300,
+              8400,
+              8500,
+              8600,
+              8700,
+              8800,
+              8900,
+              9000,
+              9100,
+              9200,
+              9300,
+              9400,
+              9500,
+              9600,
+              9700,
+              9800,
+              9900
+            ],
+            "steady_solver_hard_deadline_gate_applied": true
+          },
+          "unmeasured_pipeline_warmup": {
+            "clock": "time.perf_counter",
+            "commands_published": false,
+            "control_hz": 500.0,
+            "control_state_reset_after": true,
+            "deferred_diagnostics_complete": true,
+            "elapsed_wall_s": 2.198023342061788,
+            "execute_count": 1000,
+            "execute_elapsed_wall_s": 1.9988487609662116,
+            "execute_samples": 1000,
+            "execute_schedule_deadline_miss_count": 0,
+            "execute_schedule_max_lateness_ms": 0.0,
+            "measurement_follows_immediately": true,
+            "outside_measured_loops": true,
+            "post_warmup_sleep_s": 0.0,
+            "release_policy": "independent_absolute_per_branch",
+            "safe_hold_count": 100,
+            "safe_hold_elapsed_wall_s": 0.1991745810955763,
+            "safe_hold_samples": 100,
+            "safe_hold_schedule_deadline_miss_count": 0,
+            "safe_hold_schedule_max_lateness_ms": 0.0,
+            "schedule_misses_acceptance_scope": "diagnostic_only_outside_measured_loops",
+            "solver_state_reset_after": true
+          }
+        },
+        "artifact_binding": {
+          "calibration_yaml": {
+            "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/src/ur10e_bringup/config/ur10e_calibration.yaml",
+            "sha256": "029aad03affc0cf60fc4274029463e683dc04b709f3a5e849f693d1c70409be8"
+          },
+          "paper_truth": {
+            "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/experiments/tase-contact-reproduction/config/step5d_liveprep_solver_gate.json",
+            "sha256": "e4eb35d23de9018addf1918a0fbaa04aeb85222cd4cfc2024225fee2220d8555"
+          },
+          "profile_selection": {
+            "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/experiments/tase-contact-reproduction/config/step5d_v30_profile_selection.json",
+            "sha256": "7df2f006edbe6210668eaa39ff2a3d85e03ac2bf9e81cd509aebeab57aa1b906"
+          },
+          "replay_csv": {
+            "path": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v29_20260710_104820/bridge_rtde_500hz.csv",
+            "sha256": "be6a84fe0eebc3df18ebb511874673cb3ee44832ba16335cd4de7a10f3260335",
+            "size": 43700470
+          },
+          "stage_table": {
+            "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/experiments/tase-contact-reproduction/config/step5_stage_table.json",
+            "sha256": "bbb8d57ecbbd100c7b5a0a7aef13b54bc5d4e58092e95a27fd3d040ed6da9690"
+          },
+          "ur_xacro": {
+            "path": "/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro",
+            "sha256": "618ece26935c6cd146114374abc45142cc858420567005eed2713681ae55694c"
+          }
+        },
+        "classification": "acceptance_eligible",
+        "component_diagnostics": null,
+        "elapsed_full_tick_wall_s": 59.99876292212866,
+        "evidence_status": "current_canonical_profile_candidate",
+        "full_tick": {
+          "compute_deadline_miss_count": 0,
+          "max_ms": 1.8250120338052511,
+          "mean_ms": 0.9358633906425288,
+          "nonfinite_count": 0,
+          "p95_ms": 1.2322616297751665,
+          "p99_ms": 1.2713555339723823,
+          "samples": 30000
+        },
+        "paced_500hz": true,
+        "path": "config/step5d_v30_rnn512_3335153_cpu11_13_14_15_formal_timing_raw.json",
+        "profile": {
+          "backend": "cupy",
+          "control_hz": 500.0,
+          "epsilon": 0.01,
+          "inner_iterations": 512,
+          "qdot_cap_rad_s": 0.05,
+          "sigr_exponent_r": 0.8
+        },
+        "profile_selection": {
+          "acceptance_profile_eligible": true,
+          "canonical_profile": {
+            "backend": "cupy",
+            "control_hz": 500.0,
+            "epsilon": 0.01,
+            "inner_iterations": 512,
+            "qdot_cap_rad_s": 0.05,
+            "sigr_exponent_r": 0.8
+          },
+          "canonical_profile_sha256": "3d811171fc46b66ad0c74be1060925ad2cae3650d3ae1db7544d0bf47dd9292a",
+          "diagnostic_override_requested": false,
+          "effective_profile": {
+            "backend": "cupy",
+            "control_hz": 500.0,
+            "epsilon": 0.01,
+            "inner_iterations": 512,
+            "qdot_cap_rad_s": 0.05,
+            "sigr_exponent_r": 0.8
+          },
+          "effective_profile_sha256": "3d811171fc46b66ad0c74be1060925ad2cae3650d3ae1db7544d0bf47dd9292a",
+          "fixed_contract": {
+            "backend": "cupy",
+            "control_hz": 500.0,
+            "dls_runtime_fallback_allowed": false,
+            "epsilon": 0.01,
+            "qdot_cap_rad_s": 0.05,
+            "safety_gates_unchanged": true,
+            "sigr_exponent_r": 0.8
+          },
+          "mode": "canonical_formal_candidate",
+          "requested_profile": {
+            "backend": "cupy",
+            "control_hz": 500.0,
+            "epsilon": 0.01,
+            "inner_iterations": 512,
+            "qdot_cap_rad_s": 0.05,
+            "sigr_exponent_r": 0.8
+          },
+          "requested_profile_sha256": "3d811171fc46b66ad0c74be1060925ad2cae3650d3ae1db7544d0bf47dd9292a",
+          "schema_version": "step5d_v30_timing_profile_selection_v1",
+          "selection_sha256": "f5dc8480e944c7622fb567d3a924e34ca251aab7b55297b40388781d83eb05f3"
+        },
+        "profile_selection_binding_matches_current": true,
+        "role": "parameter_selected_formal_timing_candidate",
+        "runtime_path": "Step5dObservation->SlewCompatibleReference->StrictRnnControlPolicy->ControlCandidate->step5d_v30_contract_pipeline->SafetyEnvelope->RegisterCommand->DeferredV30Diagnostics",
+        "safe_hold": {
+          "compute_deadline_miss_count": 0,
+          "max_ms": 1.7736249137669802,
+          "mean_ms": 0.9104427775445705,
+          "nonfinite_count": 0,
+          "p95_ms": 1.1863345629535615,
+          "p99_ms": 1.225039532873779,
+          "samples": 30000
+        },
+        "sha256": "bdc3d7008a0a1d7ac009044c0678590f747c9f7ee227908d994a1366f99d8637",
+        "solver": {
+          "compute_deadline_miss_count": 0,
+          "max_ms": 0.6070979870855808,
+          "mean_ms": 0.21270001926459373,
+          "nonfinite_count": 0,
+          "p95_ms": 0.2232578699477017,
+          "p99_ms": 0.27596824336797005,
+          "samples": 10000
+        },
+        "source_binding": {
+          "aggregator_sha256": "b308105a2f78e476cc224e7887e181d3c791dcebd68500006675e8d31945dd4b",
+          "bridge_sha256": "d128a275a00ef68236acd917e5fae4dfe5fa9662dcc068cd92000c877c9d7747",
+          "bundler_sha256": "320960ed2cf836f939b0a65e0cf7c602e6f58e9e4f35a7f9df87fc4cab4abd73",
+          "contact_semantics_sha256": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
+          "control_contract_sha256": "d75b5f93c0c63750ff5dffbb52aa77dc55da2e678d8a716b70efd9400b6fbe2e",
+          "delivery": "stdin_bundle",
+          "harness_sha256": "215ad168047d3970b43721ceff1710708e5f9c217b86102203a5d06d66a1dcd9",
+          "kinematics_sha256": "5454af16db870350759372ab42583a4f339c71e32f9190679987b3addf6e14fa",
+          "outer_loop_sha256": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
+          "readiness_builder_sha256": "0ef91885da5f319f330e6f6f4dab644662004014afd44de6136ab60d7496aee9",
+          "runtime_interface_sha256": "b0856a338c5ba05d012ad1100aba8a72c10ec99595aceeebcc54ea475e17e8c4",
+          "solver_sha256": "2ea368dbb142ec635ebdb709d5bb5783ea9bc848705e191f935055463cf753b7"
+        }
+      },
+      {
+        "acceptance_eligible": false,
+        "acceptance_evaluation": {
+          "blockers": [
+            "full_pipeline_warmup_contract_missing_or_invalid",
+            "offline_network_transport_tripwire_unproven",
+            "remote_timing_aggregator_sha256_does_not_match_local_source",
+            "remote_timing_control_contract_sha256_does_not_match_local_source",
+            "remote_timing_harness_sha256_does_not_match_local_source",
+            "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+            "runtime_sched_rt_bandwidth_unbound"
+          ],
+          "deadline_robustness": {
+            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics, and a hard 500 Hz claim still requires zero full-tick deadline misses",
+            "compute_miss_budget": 6,
+            "controller_stale_hold_proven": false,
+            "deadline_miss_diagnostics": {
+              "full_tick_compute": {
+                "capacity": 64,
+                "max_consecutive": 0,
+                "overflowed": false,
+                "retained_indices": [],
+                "total": 0
+              },
+              "full_tick_schedule": {
+                "capacity": 64,
+                "max_consecutive": 0,
+                "overflowed": false,
+                "retained_indices": [],
+                "total": 0
+              },
+              "safe_hold_compute": {
+                "capacity": 64,
+                "max_consecutive": 0,
+                "overflowed": false,
+                "retained_indices": [],
+                "total": 0
+              },
+              "safe_hold_schedule": {
+                "capacity": 64,
+                "max_consecutive": 0,
+                "overflowed": false,
+                "retained_indices": [],
+                "total": 0
+              },
+              "solver_batch_reentry_compute": {
+                "capacity": 99,
+                "overflowed": false,
+                "retained_indices": [
+                  22
+                ],
+                "total": 1
+              },
+              "solver_compute": {
+                "capacity": 64,
+                "overflowed": false,
+                "retained_indices": [],
+                "total": 0
+              }
+            },
+            "degraded_fail_closed_pass": false,
+            "hard_realtime_pass": false,
+            "miss_index_diagnostics_valid": true,
+            "safe_hold_miss_budget": 6,
+            "timing_degraded_candidate": false,
+            "unrelated_blockers": [
+              "full_pipeline_warmup_contract_missing_or_invalid",
+              "offline_network_transport_tripwire_unproven",
+              "remote_timing_aggregator_sha256_does_not_match_local_source",
+              "remote_timing_control_contract_sha256_does_not_match_local_source",
+              "remote_timing_harness_sha256_does_not_match_local_source",
+              "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+              "runtime_sched_rt_bandwidth_unbound"
+            ]
           },
           "elapsed_full_tick_wall_s": 59.99877364607528,
           "elapsed_safe_hold_wall_s": 59.99910192703828,
@@ -3471,6 +3952,7 @@
             "period_s": 0.002,
             "safe_hold_release_policy": "independent_absolute"
           },
+          "pipeline_warmup_contract_proven": false,
           "raw_sha256": "9900daf0b4da17569d35338cb346554e03f328e3e6f77f7293e050d2caf3da46",
           "recomputed_from_single_hash_bound_raw_artifact": true,
           "safe_hold": {
@@ -3613,7 +4095,8 @@
               9900
             ],
             "steady_solver_hard_deadline_gate_applied": true
-          }
+          },
+          "unmeasured_pipeline_warmup": {}
         },
         "artifact_binding": {
           "calibration_yaml": {
@@ -3642,7 +4125,7 @@
             "sha256": "618ece26935c6cd146114374abc45142cc858420567005eed2713681ae55694c"
           }
         },
-        "classification": "acceptance_eligible",
+        "classification": "diagnostic_only_not_acceptance",
         "component_diagnostics": null,
         "elapsed_full_tick_wall_s": 59.99877364607528,
         "evidence_status": "current_canonical_profile_candidate",
@@ -3749,6 +4232,7 @@
         "acceptance_eligible": false,
         "acceptance_evaluation": {
           "blockers": [
+            "full_pipeline_warmup_contract_missing_or_invalid",
             "full_tick_deadline_miss",
             "full_tick_execute_path_evidence_incomplete",
             "full_tick_insufficient_samples",
@@ -3756,9 +4240,11 @@
             "full_tick_not_paced_500hz",
             "full_tick_runtime_acceptance_path_incomplete",
             "full_tick_wall_duration_not_60s",
+            "offline_network_transport_tripwire_unproven",
             "remote_runtime_profile_mismatch",
             "remote_timing_aggregator_sha256_does_not_match_local_source",
             "remote_timing_bridge_sha256_does_not_match_local_source",
+            "remote_timing_control_contract_sha256_does_not_match_local_source",
             "remote_timing_diagnostic_profile_override",
             "remote_timing_harness_sha256_does_not_match_local_source",
             "remote_timing_profile_selection_artifact_unbound",
@@ -3768,6 +4254,7 @@
             "remote_timing_schema_mismatch",
             "runtime_gpu_device_identity_unbound",
             "runtime_nvidia_smi_start_end_unbound",
+            "runtime_sched_rt_bandwidth_unbound",
             "safe_hold_deadline_miss",
             "safe_hold_insufficient_samples",
             "safe_hold_max_reaches_2ms_deadline",
@@ -3833,14 +4320,17 @@
             "safe_hold_miss_budget": 6,
             "timing_degraded_candidate": false,
             "unrelated_blockers": [
+              "full_pipeline_warmup_contract_missing_or_invalid",
               "full_tick_execute_path_evidence_incomplete",
               "full_tick_insufficient_samples",
               "full_tick_not_paced_500hz",
               "full_tick_runtime_acceptance_path_incomplete",
               "full_tick_wall_duration_not_60s",
+              "offline_network_transport_tripwire_unproven",
               "remote_runtime_profile_mismatch",
               "remote_timing_aggregator_sha256_does_not_match_local_source",
               "remote_timing_bridge_sha256_does_not_match_local_source",
+              "remote_timing_control_contract_sha256_does_not_match_local_source",
               "remote_timing_diagnostic_profile_override",
               "remote_timing_harness_sha256_does_not_match_local_source",
               "remote_timing_profile_selection_artifact_unbound",
@@ -3850,6 +4340,7 @@
               "remote_timing_schema_mismatch",
               "runtime_gpu_device_identity_unbound",
               "runtime_nvidia_smi_start_end_unbound",
+              "runtime_sched_rt_bandwidth_unbound",
               "safe_hold_insufficient_samples",
               "safe_hold_wall_duration_not_60s",
               "solver_batch_reentry_miss_diagnostics_unbound",
@@ -3880,6 +4371,7 @@
             "period_s": 0.002,
             "safe_hold_release_policy": "independent_absolute"
           },
+          "pipeline_warmup_contract_proven": false,
           "raw_sha256": "5127e6516c9f038d90bbf234f43d4efd9a692ab72c0e87aaf967cb3128c878af",
           "recomputed_from_single_hash_bound_raw_artifact": true,
           "safe_hold": {
@@ -4020,7 +4512,8 @@
               9900
             ],
             "steady_solver_hard_deadline_gate_applied": true
-          }
+          },
+          "unmeasured_pipeline_warmup": {}
         },
         "artifact_binding": {
           "calibration_yaml": {
@@ -4152,14 +4645,17 @@
         "acceptance_eligible": false,
         "acceptance_evaluation": {
           "blockers": [
+            "full_pipeline_warmup_contract_missing_or_invalid",
             "full_tick_execute_path_evidence_incomplete",
             "full_tick_insufficient_samples",
             "full_tick_not_paced_500hz",
             "full_tick_runtime_acceptance_path_incomplete",
             "full_tick_wall_duration_not_60s",
+            "offline_network_transport_tripwire_unproven",
             "remote_runtime_profile_mismatch",
             "remote_timing_aggregator_sha256_does_not_match_local_source",
             "remote_timing_bridge_sha256_does_not_match_local_source",
+            "remote_timing_control_contract_sha256_does_not_match_local_source",
             "remote_timing_diagnostic_profile_override",
             "remote_timing_harness_sha256_does_not_match_local_source",
             "remote_timing_profile_selection_artifact_unbound",
@@ -4169,6 +4665,7 @@
             "remote_timing_schema_mismatch",
             "runtime_gpu_device_identity_unbound",
             "runtime_nvidia_smi_start_end_unbound",
+            "runtime_sched_rt_bandwidth_unbound",
             "safe_hold_insufficient_samples",
             "safe_hold_wall_duration_not_60s",
             "solver_batch_reentry_miss_diagnostics_unbound",
@@ -4225,14 +4722,17 @@
             "safe_hold_miss_budget": 6,
             "timing_degraded_candidate": false,
             "unrelated_blockers": [
+              "full_pipeline_warmup_contract_missing_or_invalid",
               "full_tick_execute_path_evidence_incomplete",
               "full_tick_insufficient_samples",
               "full_tick_not_paced_500hz",
               "full_tick_runtime_acceptance_path_incomplete",
               "full_tick_wall_duration_not_60s",
+              "offline_network_transport_tripwire_unproven",
               "remote_runtime_profile_mismatch",
               "remote_timing_aggregator_sha256_does_not_match_local_source",
               "remote_timing_bridge_sha256_does_not_match_local_source",
+              "remote_timing_control_contract_sha256_does_not_match_local_source",
               "remote_timing_diagnostic_profile_override",
               "remote_timing_harness_sha256_does_not_match_local_source",
               "remote_timing_profile_selection_artifact_unbound",
@@ -4242,6 +4742,7 @@
               "remote_timing_schema_mismatch",
               "runtime_gpu_device_identity_unbound",
               "runtime_nvidia_smi_start_end_unbound",
+              "runtime_sched_rt_bandwidth_unbound",
               "safe_hold_insufficient_samples",
               "safe_hold_wall_duration_not_60s",
               "solver_batch_reentry_miss_diagnostics_unbound",
@@ -4272,6 +4773,7 @@
             "period_s": 0.002,
             "safe_hold_release_policy": "independent_absolute"
           },
+          "pipeline_warmup_contract_proven": false,
           "raw_sha256": "a9f9a9d979db48ecff3e4d4d56c83236a1397d44c946455bf8a869c8f5cd4d96",
           "recomputed_from_single_hash_bound_raw_artifact": true,
           "safe_hold": {
@@ -4412,7 +4914,8 @@
               9900
             ],
             "steady_solver_hard_deadline_gate_applied": true
-          }
+          },
+          "unmeasured_pipeline_warmup": {}
         },
         "artifact_binding": {
           "calibration_yaml": {
@@ -4544,11 +5047,14 @@
         "acceptance_eligible": false,
         "acceptance_evaluation": {
           "blockers": [
+            "full_pipeline_warmup_contract_missing_or_invalid",
             "full_tick_insufficient_samples",
             "full_tick_not_paced_500hz",
             "full_tick_wall_duration_not_60s",
+            "offline_network_transport_tripwire_unproven",
             "remote_timing_aggregator_sha256_does_not_match_local_source",
             "remote_timing_bridge_sha256_does_not_match_local_source",
+            "remote_timing_control_contract_sha256_does_not_match_local_source",
             "remote_timing_diagnostic_profile_override",
             "remote_timing_harness_sha256_does_not_match_local_source",
             "remote_timing_profile_selection_artifact_unbound",
@@ -4558,6 +5064,7 @@
             "remote_timing_schema_mismatch",
             "runtime_gpu_device_identity_unbound",
             "runtime_nvidia_smi_start_end_unbound",
+            "runtime_sched_rt_bandwidth_unbound",
             "safe_hold_insufficient_samples",
             "safe_hold_wall_duration_not_60s",
             "solver_batch_reentry_miss_diagnostics_unbound",
@@ -4614,11 +5121,14 @@
             "safe_hold_miss_budget": 6,
             "timing_degraded_candidate": false,
             "unrelated_blockers": [
+              "full_pipeline_warmup_contract_missing_or_invalid",
               "full_tick_insufficient_samples",
               "full_tick_not_paced_500hz",
               "full_tick_wall_duration_not_60s",
+              "offline_network_transport_tripwire_unproven",
               "remote_timing_aggregator_sha256_does_not_match_local_source",
               "remote_timing_bridge_sha256_does_not_match_local_source",
+              "remote_timing_control_contract_sha256_does_not_match_local_source",
               "remote_timing_diagnostic_profile_override",
               "remote_timing_harness_sha256_does_not_match_local_source",
               "remote_timing_profile_selection_artifact_unbound",
@@ -4628,6 +5138,7 @@
               "remote_timing_schema_mismatch",
               "runtime_gpu_device_identity_unbound",
               "runtime_nvidia_smi_start_end_unbound",
+              "runtime_sched_rt_bandwidth_unbound",
               "safe_hold_insufficient_samples",
               "safe_hold_wall_duration_not_60s",
               "solver_batch_reentry_miss_diagnostics_unbound",
@@ -4658,6 +5169,7 @@
             "period_s": 0.002,
             "safe_hold_release_policy": "independent_absolute"
           },
+          "pipeline_warmup_contract_proven": false,
           "raw_sha256": "1baad564d35d31a46b61ffb565f081233c57b92d09a49271275491980ca38998",
           "recomputed_from_single_hash_bound_raw_artifact": true,
           "safe_hold": {
@@ -4798,7 +5310,8 @@
               9900
             ],
             "steady_solver_hard_deadline_gate_applied": true
-          }
+          },
+          "unmeasured_pipeline_warmup": {}
         },
         "artifact_binding": {
           "calibration_yaml": {

@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "updated_at": "2026-07-11T11:30:00+08:00",
+  "updated_at": "2026-07-12T03:45:00+08:00",
   "current_step": "Step5d",
   "current_stage_id": "step5d_strict_rnn_ablation_v29",
   "program": "step5d_strict_rnn_ablation_v29",
@@ -53,12 +53,12 @@
     "stage25_speedj_live_source": "strict RNN qdot from feasibility-scaled xdot_c is sent to TP speedj on layout 524; speedl_cartesian_oracle and speedj_dls_oracle are explicit debug/fallback modes",
     "stage25_rnn_evidence_policy": "RNN accepted rows require layout 524, cmd_valid=1, TP echo consumption, and _step5d_rnn_accepted=1; non-safety evidence rejection records diagnostics and uses bounded hold without treating the row as accepted evidence."
   },
-  "status": "v29_frozen_fallback_v30_blocked_by_p0_v8_timing_readback_and_review_v2",
+  "status": "v29_frozen_fallback_v30_offline_timing_pass_liveprep_blocked",
   "strict_rnn_status": {
     "stage_id": "step5d_strict_rnn_reproduction_v1",
     "blocked": true,
     "paper_truth_config": "config/step5d_liveprep_solver_gate.json",
-    "reason": "v29 is the last controller-readback-verified package but is frozen fallback evidence. v30 remains offline and blocked by P0 v8, timing/safe-hold, readback freeze, Review v2, and separate live/contact authorization."
+    "reason": "v29 is the last controller-readback-verified package but is frozen fallback evidence. v30 now has source-bound Ubuntu hard-control timing evidence, but remains offline and blocked by live-runtime prewarm integration, P0 v8 controller canaries, readback freeze, Review v2, and separate live/contact authorization."
   },
   "evidence": {
     "v11_escape_replay_summary": "runs/step5d_v11_escape_replay_20260615/summary.json",
@@ -1145,7 +1145,7 @@
     "v29 is an ablation package: v25/v26/v27/v28 default to speedl_cartesian_oracle; v29 defaults to speedj_rnn_live; preload is 5-22N filtered with 3-25N raw sanity.",
     "v29 uses Stage25.95 register-clear barrier plus layout tag 523.0 for Cartesian speedl and 524.0 for joint speedj.",
     "v29 cannot be reactivated without a fresh readback/timing fingerprint, Review v2 2+1, and new live/contact authorization.",
-    "v30 is an inactive offline candidate and cannot become current until P0 v8, timing/safe-hold, package/readback freeze, and Review v2 2+1 pass.",
+    "v30 is an inactive offline candidate. Its canonical RNN512 hard-control timing passes, but it cannot become current until live-runtime prewarm integration, P0 v8 controller canaries, package/readback freeze, and Review v2 2+1 pass.",
     "No v23 post-RNN normal-direction guard is active for this package.",
     "This file is the single current pointer for UR/Kunwei package and bridge handoffs.",
     "TP program load/Play, robot motion, payload/TCP writes, and zero_ftsensor remain explicit live gates.",
@@ -1191,7 +1191,7 @@
   "p0_v8_candidate": {
     "profile": "step5d_strict_rnn_no_contact_p0_v8",
     "gate_for": "step5d_strict_rnn_ablation_v30",
-    "state": "offline_package_ready",
+    "state": "offline_control_diagnostic_complete",
     "package_sha256": {
       ".script": "16d94d48795cba7a278f47007d099057217ff3135e151a73620deb6197651df2",
       ".txt": "6280768807ab74336f098b5a5e34d1e4e76f3f2d036262f53e4bbcc52bbb3cf6",
@@ -1215,18 +1215,32 @@
       "final_continuous_phase_s": 60.0
     },
     "offline_simulation_diagnostic": {
-      "status": "bound_timing_blocked",
+      "status": "bound_diagnostic_complete",
       "summary_artifact": "config/step5d_p0_v8_offline_simulation_diagnostic.json",
-      "summary_sha256": "4d5c7bf409a8c6cdc5abf6cfa7a6804799d35c2efb5fe969f6827aae2167ce46",
+      "summary_sha256": "9ee7d9995f630689f73a24f965a852a6528b55dfbf700dbfaf0f0dff1cc96093",
       "state_artifact": "config/step5d_p0_v8_offline_simulation_state.json",
-      "state_sha256": "a6b6fbd833980107ba583ed65690ceb394a558c999409a1dc5d5eb0dc21b32a1",
-      "source_run_manifest_sha256": "b7277b81e1d2168c185a016d66fa035a225442ee6a4c8c0d5638d513c7b32230",
+      "state_sha256": "14b71f51de4c352f68f11a99b438f08d140f630d57deb64a0b53e2b57bf79a5e",
+      "source_run_manifest_sha256": "b4aa84309a699cd2d4543f0b6239d22a1777746e14ecdcb28afbd79b70aaaf89",
       "control_path_diagnostic_pass": true,
       "all_required_faults_exact_zero": true,
-      "wall_timing_gate_pass": false,
+      "timing_scope_status": "current_control_hard_500hz_measurement_scope",
+      "offline_control_timing_pass": true,
+      "simulator_cycle_500hz_diagnostic_pass": false,
       "p0_sim_physics_pass": false,
       "controller_canaries_completed": [],
-      "claim_effect": "diagnostic_only_no_promotion"
+      "claim_effect": "diagnostic_only_no_promotion",
+      "historical_artifacts": [
+        {
+          "status": "historical_superseded_measurement_scope",
+          "summary_artifact": "config/step5d_p0_v8_rnn512_d0de3ac_combined_scope_v1_diagnostic.json",
+          "summary_sha256": "11637e0cc5c98e74df934b599cae9b788f51c5080aecfd95f543a4c6bd38bd34",
+          "state_artifact": "config/step5d_p0_v8_rnn512_d0de3ac_combined_scope_v1_state.json",
+          "state_sha256": "689ffa3e96dabbe8fd574d90f6ab68088a4eed70eecc3598ebe7b7e8dc44042f",
+          "source_run_manifest_sha256": "85e32862353bd29a07147ab2a07bda13269bdc3b07b4d8c22936d76309531717",
+          "timing_scope": "read_state_to_shared_control_to_four_physics_substeps",
+          "acceptance_eligible": false
+        }
+      ]
     },
     "completed_canaries": [],
     "p0_v8_passed": false,
@@ -1241,9 +1255,64 @@
       "controller_readback_missing",
       "evidence_not_frozen",
       "review_v2_1_plus_1_not_run",
-      "2_10_60_second_canaries_not_run",
-      "offline_simulation_wall_timing_failed"
+      "controller_2_10_60_second_canaries_not_run"
     ]
+  },
+  "v30_candidate": {
+    "profile": "step5d_strict_rnn_ablation_v30",
+    "state": "offline_hard_timing_pass_liveprep_blocked",
+    "current": false,
+    "runtime_profile": {
+      "backend": "cupy",
+      "inner_iterations": 512,
+      "epsilon": 0.01,
+      "sigr_exponent_r": 0.8,
+      "qdot_cap_rad_s": 0.05,
+      "control_hz": 500.0
+    },
+    "timing": {
+      "acceptance_mode": "hard_realtime_zero_miss",
+      "source_commit": "3335153",
+      "cpu_affinity": [11, 13, 14, 15],
+      "raw_artifact": "config/step5d_v30_rnn512_3335153_cpu11_13_14_15_formal_timing_raw.json",
+      "raw_sha256": "bdc3d7008a0a1d7ac009044c0678590f747c9f7ee227908d994a1366f99d8637",
+      "summary_artifact": "config/step5d_v30_rnn512_3335153_cpu11_13_14_15_formal_timing_summary.json",
+      "summary_sha256": "ad1ae5ca719e9d4072a20f4982f148b5e1914e4fc7853c200bdaea77af8463d2",
+      "solver_p99_ms": 0.27596824336797005,
+      "solver_max_ms": 0.6070979870855808,
+      "full_tick_p99_ms": 1.2713555339723823,
+      "full_tick_max_ms": 1.8250120338052511,
+      "safe_hold_p99_ms": 1.225039532873779,
+      "safe_hold_max_ms": 1.7736249137669802,
+      "compute_deadline_misses": 0,
+      "schedule_deadline_misses": 0
+    },
+    "offline_prewarm": {
+      "execute_samples": 1000,
+      "safe_hold_samples": 100,
+      "control_hz": 500.0,
+      "commands_published": false,
+      "network_transport_violations": 0,
+      "live_runtime_integration_verified": false
+    },
+    "offline_readiness": {
+      "artifact": "config/step5d_v30_offline_readiness.json",
+      "sha256": "a2c78d8e2e548a3df352b4f5af8278457e020f62a99171c3b43e4540f2ccbab6",
+      "status": "v30_offline_blocked"
+    },
+    "blockers": [
+      "live_runtime_prewarm_not_integrated_or_verified",
+      "p0_v8_final_60s_not_passed",
+      "p0_v8_passed_artifact_missing",
+      "review_v2_not_due_until_evidence_freeze",
+      "v30_controller_readback_not_frozen"
+    ],
+    "claim_boundary": {
+      "offline_timing_pass": true,
+      "package_accepted": false,
+      "live_accepted": false,
+      "reproduction_complete": false
+    }
   },
   "liveprep_status": {
     "state": "blocked",

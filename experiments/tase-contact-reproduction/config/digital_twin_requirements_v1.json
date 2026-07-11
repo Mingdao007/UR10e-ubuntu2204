@@ -1,6 +1,6 @@
 {
   "schema": "ur10e_digital_twin_requirements_v1",
-  "source_evidence_commit": "e55c574ba97f30ffe3da381d66bd62c8d6ff8d52",
+  "source_evidence_commit": "33351534d68846ee90ab0ea30b6627671244fe38",
   "workflow_state": "liveprep_blocked",
   "current_program": "step5d_strict_rnn_ablation_v29",
   "v30_active": false,
@@ -30,17 +30,20 @@
     },
     {
       "id": "p0_v8_2_10_60",
-      "status": "control_diagnostic_pass_timing_blocked",
+      "status": "offline_control_diagnostic_complete_controller_canaries_pending",
       "owner": "tools/run_step5d_p0_v8_mujoco.py",
       "acceptance": "Same frozen fingerprint completes deterministic 2, 10, and 60 second 500 Hz phases with all nominal counters zero and exact-zero fault holds.",
       "summary_artifact": "config/step5d_p0_v8_offline_simulation_diagnostic.json",
-      "summary_sha256": "4d5c7bf409a8c6cdc5abf6cfa7a6804799d35c2efb5fe969f6827aae2167ce46",
+      "summary_sha256": "9ee7d9995f630689f73a24f965a852a6528b55dfbf700dbfaf0f0dff1cc96093",
       "control_and_fault_path_pass": true,
-      "wall_timing_pass": false,
+      "offline_control_timing_pass": true,
+      "final_60s_control_p99_ms": 1.2654549162834883,
+      "final_60s_control_max_ms": 1.4326460659503937,
+      "final_60s_control_deadline_miss_count": 0,
+      "simulator_cycle_500hz_diagnostic_pass": false,
       "p0_sim_physics_pass": false,
       "controller_canaries_completed": [],
       "blockers": [
-        "offline_simulation_wall_timing_failed",
         "geometry_provisional_no_p0_physics_claim",
         "controller_canaries_not_run"
       ]
@@ -66,6 +69,29 @@
         "tcp_site_unverified_85mm",
         "f186a335c39d74979b62ea32eacbe15a8a893baab110ae3fa2bdd5db07f065d5"
       ]
+    },
+    {
+      "id": "v30_formal_host_timing",
+      "status": "offline_hard_realtime_pass_live_runtime_prewarm_pending",
+      "profile": "cupy/512/epsilon=0.010/r=0.8/qdot_cap=0.05",
+      "raw_artifact": "config/step5d_v30_rnn512_3335153_cpu11_13_14_15_formal_timing_raw.json",
+      "raw_sha256": "bdc3d7008a0a1d7ac009044c0678590f747c9f7ee227908d994a1366f99d8637",
+      "summary_artifact": "config/step5d_v30_rnn512_3335153_cpu11_13_14_15_formal_timing_summary.json",
+      "summary_sha256": "ad1ae5ca719e9d4072a20f4982f148b5e1914e4fc7853c200bdaea77af8463d2",
+      "cpu_affinity": [11, 13, 14, 15],
+      "solver_p99_ms": 0.27596824336797005,
+      "solver_max_ms": 0.6070979870855808,
+      "full_tick_p99_ms": 1.2713555339723823,
+      "full_tick_max_ms": 1.8250120338052511,
+      "safe_hold_p99_ms": 1.225039532873779,
+      "safe_hold_max_ms": 1.7736249137669802,
+      "compute_deadline_miss_count": 0,
+      "schedule_deadline_miss_count": 0,
+      "offline_prewarm_proven": true,
+      "blockers": [
+        "live_runtime_prewarm_not_integrated_or_verified"
+      ],
+      "claim_boundary": "offline host timing pass only; no controller, bridge, motion, package acceptance, or live acceptance claim"
     },
     {
       "id": "gazebo_v2_native_contact",
@@ -130,13 +156,15 @@
     },
     {
       "id": "timing_separation",
-      "status": "sim_time_pass_wall_timing_failed",
+      "status": "control_hard_pass_simulator_cycle_diagnostic_slow",
       "blockers": [
-        "ubuntu_wall_paced_500_hz_acceptance_not_passed",
+        "mujoco_oracle_and_physics_cycle_not_500hz_acceptance_evidence",
         "rtf_not_reported"
       ],
       "sim_time_tick_miss_count": 0,
-      "wall_timing_artifact": "config/step5d_p0_v8_offline_simulation_diagnostic.json"
+      "control_timing_artifact": "config/step5d_p0_v8_offline_simulation_diagnostic.json",
+      "control_hard_500hz_pass": true,
+      "simulator_cycle_diagnostic_only": true
     },
     {
       "id": "unified_evidence_and_claims",

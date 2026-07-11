@@ -38,15 +38,27 @@ consecutive missed slots, and no more than 0.5 ms schedule lateness.
    sequential same-fingerprint `2 -> 10 -> 60 s` canaries; only the final
    continuous `60 s` verifier artifact passes P0.
 2. v30 has a complete 10,000-solve and 60 s / 500 Hz timing plus safe-hold
-   pass. Hard real-time acceptance requires zero deadline misses; the bounded
-   rare-tail route is acceptable only after matching URSim/controller evidence
-   proves repeated-heartbeat exact-zero hold and the miss/consecutive/lateness
-   budgets remain within the limits above.
+   pass. This offline condition is now satisfied by the source-bound RNN512
+   hard-real-time artifact; the bounded-tail route was not needed. A future
+   changed fingerprint must pass the same gate again.
 3. The v30 package/readback hashes and evidence are frozen.
 4. The current composite fingerprint passes one Review v2 `2+1` gate.
 
 The v30/P0 production runtime and formal timing harness share one scheduler
-contract: `SCHED_FIFO` priority `20`. The 10,000-solve microbenchmark yields
+contract: `SCHED_FIFO` priority `20`, with `OPENBLAS_NUM_THREADS`,
+`OMP_NUM_THREADS`, `MKL_NUM_THREADS`, and `NUMEXPR_NUM_THREADS` all fixed to
+`1`. Leaving the numeric worker pools unbounded made the combined MuJoCo
+process consume the Linux `950000/1000000 us` RT budget and produced periodic
+about-50 ms throttling; the v2 verifier now rejects that runtime environment
+instead of blaming the RNN profile. The accepted Ubuntu run additionally binds
+CPU affinity `11,13,14,15`. Before each measured branch, the harness runs the
+same production-shaped path without a command sink: execute `1000` ticks at
+500 Hz immediately before the full-tick lane, and safe-hold `100` ticks at
+500 Hz immediately before its lane. Both branches reset solver/control state
+before measurement, and a Python audit-hook tripwire rejects network transport.
+This prewarm is part of offline timing evidence only; equivalent no-output
+prewarm is not yet integrated or verified in the future live bridge and remains
+a readiness blocker. The 10,000-solve microbenchmark yields
 for an unmeasured `2 ms` after each 100 steady solves to avoid Linux RT
 throttling. After each of the 99 yields at steady-sample boundaries
 `100..9900`, the harness times one separate solver batch-reentry and retains
@@ -58,14 +70,28 @@ steady solver distribution to which the 2 ms solver gate applies. A hard
 The required raw timing schema is now `step5d_v30_remote_timing_raw_v2`;
 pre-v2 formal candidates cannot satisfy the current aggregator binding.
 
-The latest hash-bound MuJoCo offline diagnostic completed all three simulated
+The current formal artifact is
+`config/step5d_v30_rnn512_3335153_cpu11_13_14_15_formal_timing_raw.json`
+(SHA-256 `bdc3d7008a0a1d7ac009044c0678590f747c9f7ee227908d994a1366f99d8637`).
+The 10,000-solve p99/max were `0.276/0.607 ms`; the 60 s full-tick p99/max
+were `1.271/1.825 ms`; and the independent 60 s safe-hold p99/max were
+`1.225/1.774 ms`. All three compute-miss counts and both paced schedule-miss
+counts were zero. This closes only the v30 offline host timing gate: it does
+not pass P0 controller canaries, freeze controller readback, authorize a
+bridge, or establish a live/contact claim.
+
+The latest source-bound MuJoCo offline diagnostic completed all three simulated
 `2 -> 10 -> 60 s` phases through the shared production control path. Every
 nominal tick was accepted and all required injected faults produced exact-zero
-commands, but the 60 s paced run missed the unchanged 2 ms wall deadline.
-It is therefore recorded as `control_diagnostic_pass_timing_blocked`, with
-`p0_sim_physics_pass=false`. These are simulator diagnostics only: the separate
-controller canary list remains empty, P0 is not passed, evidence is not frozen,
-and Review v2 `1+1` is still `not_due`.
+commands. The cold 2 s phase retained 25 hard-control misses, while the 10 s
+and final continuous 60 s phases had zero; final 60 s hard-control timing was
+p99 `1.265 ms`, max `1.433 ms`. MuJoCo oracle/physics/release timing remains a
+separate diagnostic lane and did not meet 500 Hz, so no simulator-physics or
+controller-timing claim is made. The offline state is
+`bound_diagnostic_complete`, but the separate controller canary list remains
+empty, P0 is not passed, evidence is not frozen, and Review v2 `1+1` is still
+`not_due`. The prior combined-scope v1 artifact is hash-bound as
+`historical_superseded_measurement_scope` and cannot satisfy this gate.
 
 Review v2 uses deterministic validation only (`0+0`) for ordinary coding,
 commit, push, and handoff. A direction change uses `1+0`; P0 v8 pre-live uses
@@ -252,8 +278,8 @@ instead of preserving the later 22 s TP v3 timing.
 | `step5d_strict_rnn_ablation_v27` | bridge+TP | true | true | Step5b speedl live / Step5d paper+RNN shadow | `v31_filtered_live` | Retained successful 10 s fix-validation evidence from `runs/bridge_step5d_strict_rnn_ablation_v27_20260706_045513`; not current and not a 60 s reproduction claim. The earlier 040900 force overshoot remains retained failure evidence for the old paper-linear-live path. |
 | `step5d_strict_rnn_ablation_v28` | bridge+TP | true | true | Step5b speedl live / Step5d paper+RNN shadow | `v31_filtered_live` | Retained read-back verified diagnostic package, superseded by v29; not a completed reproduction claim. |
 | `step5d_strict_rnn_ablation_v29` | frozen fallback | true | false | strict TASE RNN speedj | `v31_filtered_live` | Current pointer is retained only because it is the last read-back-verified package. A future reactivation requires fresh readback/timing fingerprint, Review v2 `2+1`, and explicit live/contact authorization. |
-| `step5d_strict_rnn_no_contact_p0_v8` | offline P0 gate | false | false | v30 strict-RNN contract | none | Inactive layout-524-only package. The hash-bound MuJoCo 2/10/60 diagnostic passed control/fault exact-zero checks but failed wall timing and cannot promote P0. After readback and one fingerprint-bound Review v2 `1+1`, separate controller canaries may run under explicit no-contact authorization; only the final continuous 60 s controller verifier artifact passes P0. |
-| `step5d_strict_rnn_ablation_v30` | offline contact-control prep | true | false | strict TASE RNN speedj; DLS shadow-only | `v31_filtered_live` | Inactive candidate. Upload/readback preparation may precede P0, but current promotion requires P0 v8, 60 s timing/safe-hold, frozen package/readback, and current-fingerprint Review v2 `2+1`; contact still requires separate authorization. |
+| `step5d_strict_rnn_no_contact_p0_v8` | offline P0 gate | false | false | v30 strict-RNN contract | none | Inactive layout-524-only package. The source-bound MuJoCo v2 diagnostic passed the final 60 s hard-control lane with zero misses; the slower simulator cycle is diagnostic-only and cannot promote P0. After readback and one fingerprint-bound Review v2 `1+1`, separate controller canaries may run under explicit no-contact authorization; only the final continuous 60 s controller verifier artifact passes P0. |
+| `step5d_strict_rnn_ablation_v30` | offline contact-control prep | true | false | strict TASE RNN speedj; DLS shadow-only | `v31_filtered_live` | Inactive candidate. Source-bound RNN512 10k/60s/60s hard timing now passes with zero misses. Current promotion still requires live-runtime prewarm integration, P0 v8 controller canaries, frozen package/readback, and current-fingerprint Review v2 `2+1`; contact still requires separate authorization. |
 | `step5d_ros2_remote_shadow_v1` | ROS2 offline | true | false | ROS2 shadow replay | `v31_filtered_live` input logs | Diagnostic-only Step5d policy replay: replays v15a/v14/v11 and Step5b/Step6b CSVs, removes long zero-qdot hold recovery, but is not live-ready and must follow Step5b plumbing validation. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |
 

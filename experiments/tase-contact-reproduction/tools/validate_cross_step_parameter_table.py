@@ -761,6 +761,72 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
                 and row.get("meets_500hz_diagnostic") is True
                 for row in simulator_rows
             )
+            historical_summary_rel = (
+                "config/step5d_p0_v8_rnn512_d0de3ac_"
+                "combined_scope_v1_diagnostic.json"
+            )
+            historical_state_rel = (
+                "config/step5d_p0_v8_rnn512_d0de3ac_"
+                "combined_scope_v1_state.json"
+            )
+            historical_summary_path = root / historical_summary_rel
+            historical_state_path = root / historical_state_rel
+            expected_historical_artifacts: list[dict[str, Any]] = []
+            if not historical_summary_path.is_file() or not historical_state_path.is_file():
+                failures.append("P0 v8 historical combined-scope evidence is missing")
+            else:
+                historical_summary = load_json(historical_summary_path)
+                historical_state = load_json(historical_state_path)
+                failures.extend(
+                    f"P0 v8 historical diagnostic invalid: {item}"
+                    for item in validate_p0_offline_diagnostic(historical_summary)
+                )
+                failures.extend(
+                    f"P0 v8 historical state invalid: {item}"
+                    for item in validate_p0_offline_state_binding(
+                        historical_state,
+                        summary=historical_summary,
+                    )
+                )
+                historical_diagnostic = historical_summary.get("diagnostic") or {}
+                historical_run = historical_summary.get("run_binding") or {}
+                historical_phases = historical_summary.get("phases") or []
+                historical_scopes = {
+                    str((row.get("wall_timing") or {}).get("scope"))
+                    for row in historical_phases
+                    if isinstance(row, dict)
+                }
+                historical_scope = (
+                    "read_state_to_shared_control_to_four_physics_substeps"
+                )
+                if (
+                    historical_diagnostic.get("timing_scope_status")
+                    != "historical_superseded_measurement_scope"
+                    or historical_diagnostic.get("offline_control_timing_pass")
+                    is not False
+                    or historical_state.get("status")
+                    != "bound_timing_scope_superseded"
+                    or historical_scopes != {historical_scope}
+                    or historical_state.get("summary_artifact")
+                    != historical_summary_rel
+                    or historical_state.get("summary_sha256")
+                    != file_sha256(historical_summary_path)
+                ):
+                    failures.append(
+                        "P0 v8 historical combined-scope evidence can satisfy a current gate"
+                    )
+                expected_historical_artifacts.append(
+                    {
+                        "status": "historical_superseded_measurement_scope",
+                        "summary_artifact": historical_summary_rel,
+                        "summary_sha256": file_sha256(historical_summary_path),
+                        "state_artifact": historical_state_rel,
+                        "state_sha256": file_sha256(historical_state_path),
+                        "source_run_manifest_sha256": historical_run.get("sha256"),
+                        "timing_scope": historical_scope,
+                        "acceptance_eligible": False,
+                    }
+                )
             expected_pointer = {
                 "status": offline_state.get("status"),
                 "summary_artifact": summary_rel,
@@ -795,6 +861,7 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
                     or {}
                 ).get("completed"),
                 "claim_effect": "diagnostic_only_no_promotion",
+                "historical_artifacts": expected_historical_artifacts,
             }
             if offline_pointer != expected_pointer:
                 failures.append(
@@ -864,11 +931,30 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         }
         if v30.get("runtime_profile") != expected_runtime:
             failures.append("v30 runtime profile does not match the pinned strict-RNN profile")
-        if v30.get("runtime_scheduler") != {
-            "policy": "SCHED_FIFO",
-            "priority": 20,
-        }:
+        runtime_scheduler = v30.get("runtime_scheduler") or {}
+        if (
+            runtime_scheduler.get("policy") != "SCHED_FIFO"
+            or runtime_scheduler.get("priority") != 20
+        ):
             failures.append("v30 runtime scheduler must be SCHED_FIFO/20")
+        offline_prewarm = runtime_scheduler.get("offline_pipeline_prewarm") or {}
+        if (
+            runtime_scheduler.get("formal_evidence_cpu_affinity")
+            != [11, 13, 14, 15]
+            or runtime_scheduler.get("live_cpu_affinity") is not None
+            or runtime_scheduler.get("affinity_reprobe_required_before_live")
+            is not True
+            or runtime_scheduler.get("numeric_thread_count") != 1
+            or runtime_scheduler.get("linux_sched_rt_period_us") != 1_000_000
+            or runtime_scheduler.get("linux_sched_rt_runtime_us") != 950_000
+            or offline_prewarm.get("execute_samples") != 1_000
+            or offline_prewarm.get("safe_hold_samples") != 100
+            or offline_prewarm.get("control_hz") != 500.0
+            or offline_prewarm.get("commands_published") is not False
+            or offline_prewarm.get("measurement_follows_immediately") is not True
+            or offline_prewarm.get("live_runtime_integration_verified") is not False
+        ):
+            failures.append("v30 offline scheduler/prewarm provenance is invalid")
         if v30.get("guard", {}).get("dls_runtime_fallback_allowed") is not False:
             failures.append("v30 must forbid DLS runtime fallback")
         v30_guard = v30.get("guard") or {}
