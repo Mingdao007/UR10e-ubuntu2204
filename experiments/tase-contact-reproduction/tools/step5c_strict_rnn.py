@@ -896,7 +896,7 @@ void strict_rnn_solve_serial_reference(
             # exact H2D/kernel/D2H sequence and result bytes while avoiding
             # scheduler wake-up latency.  No allocation, extra iteration, or
             # algorithm change occurs in the 500 Hz loop.
-            while not self._cupy_completion_event.query():
+            while not self._cupy_completion_event.done:
                 pass
         np.copyto(self.theta_dot_state, self._cupy_host_work[0:6], casting="unsafe")
         np.copyto(self.lambda_state, self._cupy_host_work[6:12], casting="unsafe")
