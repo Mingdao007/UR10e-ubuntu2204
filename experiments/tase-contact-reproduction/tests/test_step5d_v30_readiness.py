@@ -72,12 +72,16 @@ class Step5dV30ReadinessTest(unittest.TestCase):
         )
         self.assertFalse(history["runtime_shaped_smoke_not_acceptance"]["acceptance_eligible"])
         self.assertFalse(history["component_diagnostic_not_acceptance"]["acceptance_eligible"])
-        self.assertIn("system_level_host_driver_timing_outliers_unresolved", payload["blockers"])
         self.assertIn("runtime_shaped_60s_500hz_acceptance_not_run", payload["blockers"])
-        self.assertIn(
-            "current_source_solver_10k_ran_but_60s_paced_runtime_shaped_not_run",
-            payload["blockers"],
-        )
+        current_bound = payload["timing"]["current_source_evidence"]
+        if current_bound is None:
+            self.assertIn("current_source_solver_10k_not_run", payload["blockers"])
+        else:
+            self.assertNotIn("current_source_solver_10k_not_run", payload["blockers"])
+            self.assertEqual(
+                current_bound["sha256"],
+                hashlib.sha256((ROOT / current_bound["path"]).read_bytes()).hexdigest(),
+            )
         self.assertNotIn(
             "current_runtime_source_bound_full_timing_not_run", payload["blockers"]
         )

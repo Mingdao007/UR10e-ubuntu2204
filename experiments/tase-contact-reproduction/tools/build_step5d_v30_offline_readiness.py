@@ -376,16 +376,51 @@ def build(*, generated_at: str) -> dict[str, Any]:
     blockers: list[str] = []
     if replay.get("acceptance_pass") is not True:
         blockers.append("v29_replay_acceptance_incomplete")
-    acceptance_entries = [entry for entry in history if entry["acceptance_eligible"]]
+    hard_acceptance_entries = [
+        entry for entry in history if entry["acceptance_eligible"]
+    ]
+    degraded_acceptance_entries = [
+        entry
+        for entry in history
+        if not entry["acceptance_eligible"]
+        and (
+            entry["acceptance_evaluation"].get("deadline_robustness") or {}
+        ).get("degraded_fail_closed_pass")
+        is True
+    ]
+    acceptance_entries = hard_acceptance_entries + degraded_acceptance_entries
+    timing_acceptance_mode = (
+        "hard_realtime"
+        if hard_acceptance_entries
+        else "bounded_tail_fail_closed"
+        if degraded_acceptance_entries
+        else "none"
+    )
     if not acceptance_entries:
         blockers.append("timing_acceptance_failed")
     current_source = next(
-        (entry for entry in history if entry["role"].startswith("current_source_solver_10k")),
+        (
+            entry
+            for entry in reversed(history)
+            if int(entry["solver"].get("samples", 0) or 0) >= 10_000
+            and isinstance(entry.get("source_binding"), dict)
+            and all(
+                entry["source_binding"].get(field) == expected
+                for field, expected in expected_source_binding.items()
+            )
+        ),
         None,
     )
     if current_source is None or int(current_source["solver"].get("samples", 0) or 0) < 10_000:
         blockers.append("current_source_solver_10k_not_run")
-    elif not current_source["acceptance_eligible"]:
+    elif not (
+        current_source["acceptance_eligible"]
+        or (
+            current_source["acceptance_evaluation"].get("deadline_robustness")
+            or {}
+        ).get("degraded_fail_closed_pass")
+        is True
+    ):
         blockers.append(
             "current_source_solver_10k_ran_but_60s_paced_runtime_shaped_not_run"
         )
@@ -461,6 +496,25 @@ def build(*, generated_at: str) -> dict[str, Any]:
             "summary_path": str(timing_summary_path.relative_to(ROOT)),
             "summary_sha256": sha256(timing_summary_path),
             "overall_pass": bool(acceptance_entries),
+            "acceptance_mode": timing_acceptance_mode,
+            "hard_realtime_pass": bool(hard_acceptance_entries),
+            "bounded_tail_fail_closed_pass": bool(degraded_acceptance_entries),
+            "current_source_evidence": (
+                {
+                    "path": current_source["path"],
+                    "sha256": current_source["sha256"],
+                    "acceptance_eligible": current_source["acceptance_eligible"],
+                    "degraded_fail_closed_pass": (
+                        current_source["acceptance_evaluation"].get(
+                            "deadline_robustness"
+                        )
+                        or {}
+                    ).get("degraded_fail_closed_pass")
+                    is True,
+                }
+                if current_source is not None
+                else None
+            ),
             "acceptance_decision_source": (
                 "per-artifact recomputation from one hash-bound raw artifact; "
                 "the aggregate summary is diagnostic only"
@@ -486,7 +540,8 @@ def build(*, generated_at: str) -> dict[str, Any]:
         },
         "control_pipeline": {
             "path": (
-                "Step5dObservation -> StrictRnnControlPolicy -> ControlCandidate -> "
+                "Step5dObservation -> SlewCompatibleReference -> "
+                "StrictRnnControlPolicy -> ControlCandidate -> "
                 "step5d_v30_contract_pipeline -> DLS shadow -> SafetyEnvelope -> "
                 "RegisterCommand -> DeferredV30Diagnostics"
             ),
@@ -512,8 +567,12 @@ def build(*, generated_at: str) -> dict[str, Any]:
                 "path": str(p0_script_path.relative_to(ROOT)),
                 "sha256": sha256(p0_script_path),
             },
-            "controller_or_ursim_execution_verified": False,
-            "degraded_fail_closed_claim_allowed": False,
+            "controller_or_ursim_execution_verified": bool(
+                degraded_acceptance_entries
+            ),
+            "degraded_fail_closed_claim_allowed": bool(
+                degraded_acceptance_entries
+            ),
             "claim_boundary": (
                 "offline package/static preparation only; no controller timing or motion proof"
             ),

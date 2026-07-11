@@ -160,6 +160,33 @@ class Step5dV30ControlContractTest(unittest.TestCase):
             1.0 / 30.0,
         )
 
+    def test_reference_ramp_converges_without_exceeding_joint_slew(self) -> None:
+        raw_desired = (0.0, 0.0, 0.0002, 0.045, 0.0, 0.0)
+        obs = observation(
+            desired_twist=raw_desired,
+            omega_minus=(-0.05,) * 6,
+            omega_plus=(0.05,) * 6,
+            dt_s=0.002,
+        )
+        previous: tuple[float, ...] | None = None
+
+        for _ in range(113):
+            governed = build_slew_compatible_reference(
+                obs,
+                previous_qdot=previous,  # type: ignore[arg-type]
+            )
+            current = np.asarray(governed.desired_twist, dtype=float)
+            prior = np.zeros(6) if previous is None else np.asarray(previous)
+            self.assertLessEqual(
+                float(np.max(np.abs(current - prior))),
+                0.0004 + 1e-12,
+            )
+            self.assertGreater(current[2], 0.0)
+            previous = tuple(float(value) for value in current)
+
+        np.testing.assert_allclose(previous, raw_desired, atol=1e-12)
+        self.assertFalse(governed.reference_ramp_active)
+
     def test_rejected_candidate_is_not_used_as_next_reference_history(self) -> None:
         obs = observation(
             desired_twist=(0.0, 0.0, 0.0002, 0.012, 0.0, 0.0),

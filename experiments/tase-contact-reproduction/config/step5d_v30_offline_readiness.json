@@ -7,12 +7,11 @@
     "tp_play_authorized": false
   },
   "blockers": [
-    "current_source_solver_10k_ran_but_60s_paced_runtime_shaped_not_run",
+    "current_source_solver_10k_not_run",
     "p0_v8_final_60s_not_passed",
     "p0_v8_passed_artifact_missing",
     "review_v2_not_due_until_evidence_freeze",
     "runtime_shaped_60s_500hz_acceptance_not_run",
-    "runtime_shaped_safe_hold_acceptance_not_run",
     "system_level_host_driver_timing_outliers_unresolved",
     "timing_acceptance_failed",
     "v30_controller_readback_not_frozen"
@@ -27,7 +26,7 @@
     "dls_shadow_command_inert_test": "tests/test_step5d_v30_control_contract.py",
     "dls_shadow_runtime_fallback_allowed": false,
     "normal_contract": "n_reaction = -n_approach in one canonical command frame",
-    "path": "Step5dObservation -> StrictRnnControlPolicy -> ControlCandidate -> step5d_v30_contract_pipeline -> DLS shadow -> SafetyEnvelope -> RegisterCommand -> DeferredV30Diagnostics"
+    "path": "Step5dObservation -> SlewCompatibleReference -> StrictRnnControlPolicy -> ControlCandidate -> step5d_v30_contract_pipeline -> DLS shadow -> SafetyEnvelope -> RegisterCommand -> DeferredV30Diagnostics"
   },
   "current_pointer": {
     "program": "step5d_strict_rnn_ablation_v29",
@@ -116,11 +115,10 @@
     ],
     "composite_fingerprint": null,
     "deterministic_freeze_blockers": [
-      "current_source_solver_10k_ran_but_60s_paced_runtime_shaped_not_run",
+      "current_source_solver_10k_not_run",
       "p0_v8_final_60s_not_passed",
       "p0_v8_passed_artifact_missing",
       "runtime_shaped_60s_500hz_acceptance_not_run",
-      "runtime_shaped_safe_hold_acceptance_not_run",
       "system_level_host_driver_timing_outliers_unresolved",
       "timing_acceptance_failed",
       "v30_controller_readback_not_frozen"
@@ -141,11 +139,11 @@
   "source_contract": {
     "aggregator_sha256": {
       "path": "tools/step5d_v30_timing.py",
-      "sha256": "2f8e750c19163278d1c1253fb3b3cdd74c5aeaa1f7c17a005f13ef26df333519"
+      "sha256": "00bdb181c72daa4a40455160f1f768f61d74356e9509d926b6ac6e547b325b87"
     },
     "bridge_sha256": {
       "path": "tools/kunwei_rtde_bridge.py",
-      "sha256": "fd437f3a7dbd962673d344a602893307902ed94b21380b20eed7ce20debd5baa"
+      "sha256": "647a53512f6c8cf4cc62088bf0b8608485c19d44432de94492ffea8ca02e5b6e"
     },
     "bundler_sha256": {
       "path": "tools/build_step5d_v30_remote_timing_bundle.py",
@@ -157,11 +155,11 @@
     },
     "control_contract_sha256": {
       "path": "tools/step5d_control_contract.py",
-      "sha256": "b64947b0100ff73d1f717ad3d9793f9680a0ae27f26efdd118d6ca5e788cc77b"
+      "sha256": "53c8a7ae4060a4ebce0415a21b1993636a4fdd0d4894bc80d1f719c03ab19423"
     },
     "harness_sha256": {
       "path": "tools/run_step5d_v30_remote_timing.py",
-      "sha256": "a317ab257f50537b5da17f7239cf0db84cbbac214aae3034a134709dea89b308"
+      "sha256": "6db64d20a9e8c1720914a6c5541f2574baedaa03c319c62bc51a29522a154483"
     },
     "kinematics_sha256": {
       "path": "tools/step5c_calibrated_kinematics_audit.py",
@@ -173,7 +171,7 @@
     },
     "readiness_builder_sha256": {
       "path": "tools/build_step5d_v30_offline_readiness.py",
-      "sha256": "8cc6c1b19cfc8b7086fd09f1af00b39eb010796b3d08f74b7831536a609826f3"
+      "sha256": "213d45b90e380fe25105457bdb663562ebaf8547fed2b1eaaee86558c7a390cf"
     },
     "runtime_interface_sha256": {
       "path": "tools/step5d_runtime_interface.py",
@@ -187,7 +185,10 @@
   "status": "v30_offline_blocked",
   "timing": {
     "acceptance_decision_source": "per-artifact recomputation from one hash-bound raw artifact; the aggregate summary is diagnostic only",
+    "acceptance_mode": "none",
     "acceptance_raw_evidence": null,
+    "bounded_tail_fail_closed_pass": false,
+    "current_source_evidence": null,
     "diagnostic_conclusion": "Timing acceptance is recomputed from versioned raw artifacts bound to the selected profile and current sources. Historical attempts remain diagnostic and cannot satisfy the current gate.",
     "diagnostic_summary_blockers": [
       "full_tick_deadline_miss",
@@ -196,6 +197,7 @@
       "full_tick_schedule_deadline_miss"
     ],
     "diagnostic_summary_reported_overall_pass": false,
+    "hard_realtime_pass": false,
     "history": [
       {
         "acceptance_eligible": false,
@@ -206,8 +208,10 @@
             "cupy_parallel_serial_equivalence_not_proven",
             "full_tick_deadline_miss",
             "full_tick_deferred_diagnostics_incomplete",
+            "full_tick_execute_path_evidence_incomplete",
             "full_tick_max_reaches_2ms_deadline",
             "full_tick_p99_exceeds_limit",
+            "full_tick_reference_ramp_evidence_incomplete",
             "full_tick_schedule_deadline_miss",
             "full_tick_schedule_max_lateness_missing_or_invalid",
             "independent_absolute_500hz_pacing_provenance_missing",
@@ -267,7 +271,9 @@
               "cupy_host_staging_not_pinned",
               "cupy_parallel_serial_equivalence_not_proven",
               "full_tick_deferred_diagnostics_incomplete",
+              "full_tick_execute_path_evidence_incomplete",
               "full_tick_p99_exceeds_limit",
+              "full_tick_reference_ramp_evidence_incomplete",
               "full_tick_schedule_max_lateness_missing_or_invalid",
               "independent_absolute_500hz_pacing_provenance_missing",
               "remote_runtime_profile_mismatch",
@@ -391,8 +397,10 @@
         "acceptance_evaluation": {
           "blockers": [
             "full_tick_deferred_diagnostics_incomplete",
+            "full_tick_execute_path_evidence_incomplete",
             "full_tick_insufficient_samples",
             "full_tick_not_paced_500hz",
+            "full_tick_reference_ramp_evidence_incomplete",
             "full_tick_wall_duration_not_60s",
             "independent_absolute_500hz_pacing_provenance_missing",
             "remote_runtime_profile_mismatch",
@@ -444,8 +452,10 @@
             "timing_degraded_candidate": false,
             "unrelated_blockers": [
               "full_tick_deferred_diagnostics_incomplete",
+              "full_tick_execute_path_evidence_incomplete",
               "full_tick_insufficient_samples",
               "full_tick_not_paced_500hz",
+              "full_tick_reference_ramp_evidence_incomplete",
               "full_tick_wall_duration_not_60s",
               "independent_absolute_500hz_pacing_provenance_missing",
               "remote_runtime_profile_mismatch",
@@ -573,8 +583,10 @@
             "cupy_host_staging_not_pinned",
             "cupy_parallel_serial_equivalence_not_proven",
             "full_tick_deferred_diagnostics_incomplete",
+            "full_tick_execute_path_evidence_incomplete",
             "full_tick_insufficient_samples",
             "full_tick_not_paced_500hz",
+            "full_tick_reference_ramp_evidence_incomplete",
             "full_tick_runtime_acceptance_path_incomplete",
             "full_tick_schedule_deadline_miss_count_missing",
             "full_tick_schedule_max_lateness_missing_or_invalid",
@@ -624,8 +636,11 @@
               "cupy_host_staging_not_pinned",
               "cupy_parallel_serial_equivalence_not_proven",
               "full_tick_deferred_diagnostics_incomplete",
+              "full_tick_execute_path_evidence_incomplete",
               "full_tick_insufficient_samples",
               "full_tick_not_paced_500hz",
+              "full_tick_reference_ramp_evidence_incomplete",
+              "full_tick_runtime_acceptance_path_incomplete",
               "full_tick_schedule_deadline_miss_count_missing",
               "full_tick_schedule_max_lateness_missing_or_invalid",
               "full_tick_wall_duration_not_60s",
@@ -757,8 +772,10 @@
             "cupy_host_staging_not_pinned",
             "cupy_precompile_not_proven_outside_loop",
             "first_post_warm_exceeds_1p75_ms",
+            "full_tick_execute_path_evidence_incomplete",
             "full_tick_insufficient_samples",
             "full_tick_not_paced_500hz",
+            "full_tick_reference_ramp_evidence_incomplete",
             "full_tick_schedule_deadline_miss_count_missing",
             "full_tick_schedule_max_lateness_missing_or_invalid",
             "full_tick_wall_duration_not_60s",
@@ -808,8 +825,10 @@
               "cupy_host_staging_not_pinned",
               "cupy_precompile_not_proven_outside_loop",
               "first_post_warm_exceeds_1p75_ms",
+              "full_tick_execute_path_evidence_incomplete",
               "full_tick_insufficient_samples",
               "full_tick_not_paced_500hz",
+              "full_tick_reference_ramp_evidence_incomplete",
               "full_tick_schedule_deadline_miss_count_missing",
               "full_tick_schedule_max_lateness_missing_or_invalid",
               "full_tick_wall_duration_not_60s",
@@ -938,10 +957,12 @@
             "cupy_precompile_not_proven_outside_loop",
             "first_post_warm_exceeds_1p75_ms",
             "full_tick_deferred_diagnostics_incomplete",
+            "full_tick_execute_path_evidence_incomplete",
             "full_tick_insufficient_samples",
             "full_tick_max_reaches_2ms_deadline",
             "full_tick_not_paced_500hz",
             "full_tick_p99_exceeds_limit",
+            "full_tick_reference_ramp_evidence_incomplete",
             "full_tick_schedule_deadline_miss_count_missing",
             "full_tick_schedule_max_lateness_missing_or_invalid",
             "full_tick_summary_missing",
@@ -1007,9 +1028,11 @@
               "cupy_precompile_not_proven_outside_loop",
               "first_post_warm_exceeds_1p75_ms",
               "full_tick_deferred_diagnostics_incomplete",
+              "full_tick_execute_path_evidence_incomplete",
               "full_tick_insufficient_samples",
               "full_tick_not_paced_500hz",
               "full_tick_p99_exceeds_limit",
+              "full_tick_reference_ramp_evidence_incomplete",
               "full_tick_schedule_deadline_miss_count_missing",
               "full_tick_schedule_max_lateness_missing_or_invalid",
               "full_tick_summary_missing",
@@ -1118,11 +1141,14 @@
         "acceptance_evaluation": {
           "blockers": [
             "full_tick_deadline_miss",
+            "full_tick_execute_path_evidence_incomplete",
             "full_tick_max_reaches_2ms_deadline",
+            "full_tick_reference_ramp_evidence_incomplete",
             "full_tick_runtime_acceptance_path_incomplete",
             "full_tick_schedule_deadline_miss",
             "remote_timing_aggregator_sha256_does_not_match_local_source",
             "remote_timing_bridge_sha256_does_not_match_local_source",
+            "remote_timing_control_contract_sha256_does_not_match_local_source",
             "remote_timing_harness_sha256_does_not_match_local_source",
             "remote_timing_readiness_builder_sha256_does_not_match_local_source",
             "safe_hold_deadline_miss",
@@ -1140,8 +1166,12 @@
             "safe_hold_miss_budget": 6,
             "timing_degraded_candidate": false,
             "unrelated_blockers": [
+              "full_tick_execute_path_evidence_incomplete",
+              "full_tick_reference_ramp_evidence_incomplete",
+              "full_tick_runtime_acceptance_path_incomplete",
               "remote_timing_aggregator_sha256_does_not_match_local_source",
               "remote_timing_bridge_sha256_does_not_match_local_source",
+              "remote_timing_control_contract_sha256_does_not_match_local_source",
               "remote_timing_harness_sha256_does_not_match_local_source",
               "remote_timing_readiness_builder_sha256_does_not_match_local_source"
             ]
@@ -1381,9 +1411,16 @@
         "acceptance_evaluation": {
           "blockers": [
             "full_tick_deadline_miss",
+            "full_tick_execute_path_evidence_incomplete",
             "full_tick_max_reaches_2ms_deadline",
+            "full_tick_reference_ramp_evidence_incomplete",
             "full_tick_runtime_acceptance_path_incomplete",
-            "full_tick_schedule_deadline_miss"
+            "full_tick_schedule_deadline_miss",
+            "remote_timing_aggregator_sha256_does_not_match_local_source",
+            "remote_timing_bridge_sha256_does_not_match_local_source",
+            "remote_timing_control_contract_sha256_does_not_match_local_source",
+            "remote_timing_harness_sha256_does_not_match_local_source",
+            "remote_timing_readiness_builder_sha256_does_not_match_local_source"
           ],
           "deadline_robustness": {
             "claim_boundary": "bounded tail latency candidate only; not a 500 Hz hard-real-time claim",
@@ -1433,8 +1470,17 @@
             "hard_realtime_pass": false,
             "miss_index_diagnostics_valid": true,
             "safe_hold_miss_budget": 6,
-            "timing_degraded_candidate": true,
-            "unrelated_blockers": []
+            "timing_degraded_candidate": false,
+            "unrelated_blockers": [
+              "full_tick_execute_path_evidence_incomplete",
+              "full_tick_reference_ramp_evidence_incomplete",
+              "full_tick_runtime_acceptance_path_incomplete",
+              "remote_timing_aggregator_sha256_does_not_match_local_source",
+              "remote_timing_bridge_sha256_does_not_match_local_source",
+              "remote_timing_control_contract_sha256_does_not_match_local_source",
+              "remote_timing_harness_sha256_does_not_match_local_source",
+              "remote_timing_readiness_builder_sha256_does_not_match_local_source"
+            ]
           },
           "elapsed_full_tick_wall_s": 59.99862010299694,
           "elapsed_safe_hold_wall_s": 59.99876200908329,
@@ -1556,11 +1602,14 @@
         "acceptance_evaluation": {
           "blockers": [
             "full_tick_deadline_miss",
+            "full_tick_execute_path_evidence_incomplete",
             "full_tick_max_reaches_2ms_deadline",
+            "full_tick_reference_ramp_evidence_incomplete",
             "full_tick_runtime_acceptance_path_incomplete",
             "full_tick_schedule_deadline_miss",
             "remote_timing_aggregator_sha256_does_not_match_local_source",
             "remote_timing_bridge_sha256_does_not_match_local_source",
+            "remote_timing_control_contract_sha256_does_not_match_local_source",
             "remote_timing_harness_sha256_does_not_match_local_source",
             "remote_timing_readiness_builder_sha256_does_not_match_local_source"
           ],
@@ -1575,8 +1624,12 @@
             "safe_hold_miss_budget": 6,
             "timing_degraded_candidate": false,
             "unrelated_blockers": [
+              "full_tick_execute_path_evidence_incomplete",
+              "full_tick_reference_ramp_evidence_incomplete",
+              "full_tick_runtime_acceptance_path_incomplete",
               "remote_timing_aggregator_sha256_does_not_match_local_source",
               "remote_timing_bridge_sha256_does_not_match_local_source",
+              "remote_timing_control_contract_sha256_does_not_match_local_source",
               "remote_timing_harness_sha256_does_not_match_local_source",
               "remote_timing_readiness_builder_sha256_does_not_match_local_source"
             ]
@@ -1702,12 +1755,15 @@
           "blockers": [
             "first_post_warm_exceeds_1p75_ms",
             "full_tick_deadline_miss",
+            "full_tick_execute_path_evidence_incomplete",
             "full_tick_max_reaches_2ms_deadline",
+            "full_tick_reference_ramp_evidence_incomplete",
             "full_tick_runtime_acceptance_path_incomplete",
             "full_tick_schedule_deadline_miss",
             "remote_runtime_profile_mismatch",
             "remote_timing_aggregator_sha256_does_not_match_local_source",
             "remote_timing_bridge_sha256_does_not_match_local_source",
+            "remote_timing_control_contract_sha256_does_not_match_local_source",
             "remote_timing_harness_sha256_does_not_match_local_source",
             "remote_timing_readiness_builder_sha256_does_not_match_local_source",
             "remote_timing_runtime_interface_sha256_does_not_match_local_source",
@@ -1729,9 +1785,13 @@
             "timing_degraded_candidate": false,
             "unrelated_blockers": [
               "first_post_warm_exceeds_1p75_ms",
+              "full_tick_execute_path_evidence_incomplete",
+              "full_tick_reference_ramp_evidence_incomplete",
+              "full_tick_runtime_acceptance_path_incomplete",
               "remote_runtime_profile_mismatch",
               "remote_timing_aggregator_sha256_does_not_match_local_source",
               "remote_timing_bridge_sha256_does_not_match_local_source",
+              "remote_timing_control_contract_sha256_does_not_match_local_source",
               "remote_timing_harness_sha256_does_not_match_local_source",
               "remote_timing_readiness_builder_sha256_does_not_match_local_source",
               "remote_timing_runtime_interface_sha256_does_not_match_local_source",
