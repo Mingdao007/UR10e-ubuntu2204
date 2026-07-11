@@ -1690,6 +1690,57 @@ def runner_exit_code(
     return 0
 
 
+def run_nominal_measurement_sequence(
+    *,
+    plant: VelocityPlant,
+    solver: Any,
+    specs: Sequence[PhaseSpec],
+    pace_wall_clock: bool,
+    release_spin_window_s: float,
+) -> list[tuple[PhaseSpec, NominalPhaseResult]]:
+    """Complete every nominal phase before any fault work or artifact I/O.
+
+    Each phase still owns an independent plant reset and sequence-zero trace.
+    Keeping only the bounded in-memory results here avoids fault injection and
+    compressed NPZ/JSON writes between the 2, 10, and 60 second GPU lanes.
+    """
+
+    measured: list[tuple[PhaseSpec, NominalPhaseResult]] = []
+    for spec in specs:
+        measured.append(
+            (
+                spec,
+                run_nominal_phase(
+                    plant=plant,
+                    solver=solver,
+                    spec=spec,
+                    pace_wall_clock=pace_wall_clock,
+                    release_spin_window_s=release_spin_window_s,
+                    plant_already_reset=spec.sequence_index == 0,
+                ),
+            )
+        )
+    return measured
+
+
+def final_60_control_hard_gate_pass(
+    phase_entries: Sequence[Mapping[str, object]],
+    *,
+    complete: bool,
+) -> bool:
+    """Accept timing only from the original complete 60 second phase."""
+
+    final_60_entry = next(
+        (entry for entry in phase_entries if entry.get("duration_s") == 60.0),
+        None,
+    )
+    return bool(
+        complete
+        and final_60_entry is not None
+        and final_60_entry.get("control_hard_500hz_pass") is True
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model-manifest", type=Path, required=True)
@@ -1753,17 +1804,19 @@ def main() -> int:
         raise RuntimeError(
             "production-path prewarm failed: " + "; ".join(prewarm_blockers)
         )
+    nominal_phase_results = run_nominal_measurement_sequence(
+        plant=plant,
+        solver=solver,
+        specs=specs,
+        pace_wall_clock=args.pace_wall_clock,
+        release_spin_window_s=args.release_spin_window_s,
+    )
+
+    # Measured GPU work is now complete.  Fault matrices and artifact I/O stay
+    # outside every nominal loop and remain independent for each phase.
     phase_entries: list[dict[str, object]] = []
     all_valid = True
-    for spec in specs:
-        nominal = run_nominal_phase(
-            plant=plant,
-            solver=solver,
-            spec=spec,
-            pace_wall_clock=args.pace_wall_clock,
-            release_spin_window_s=args.release_spin_window_s,
-            plant_already_reset=spec.sequence_index == 0,
-        )
+    for spec, nominal in nominal_phase_results:
         faults = run_fault_matrix(plant=plant, solver=solver)
         plant.reset()
         base_state = plant.read_state(sequence=0, wall_time_s=0.0)
@@ -1824,14 +1877,9 @@ def main() -> int:
     control_diagnostic_pass = all_valid and all(
         bool(entry["control_path_diagnostic_pass"]) for entry in phase_entries
     )
-    final_60_entry = next(
-        (entry for entry in phase_entries if entry["duration_s"] == 60.0),
-        None,
-    )
-    control_hard_gate_pass = bool(
-        complete
-        and final_60_entry is not None
-        and final_60_entry["control_hard_500hz_pass"] is True
+    control_hard_gate_pass = final_60_control_hard_gate_pass(
+        phase_entries,
+        complete=complete,
     )
     control_hard_gate = {
         "scope": CONTROL_HARD_SCOPE,

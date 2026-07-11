@@ -121,6 +121,81 @@ class FakePlant:
 
 
 class Step5dP0V8MujocoRunnerTest(unittest.TestCase):
+    def test_all_nominal_measurements_finish_before_faults_or_artifact_io(self) -> None:
+        specs = [
+            runner.PhaseSpec(duration_s=duration, sequence_index=index)
+            for index, duration in enumerate((2.0, 10.0, 60.0))
+        ]
+        results = [mock.sentinel.phase_2, mock.sentinel.phase_10, mock.sentinel.phase_60]
+        with (
+            mock.patch.object(
+                runner,
+                "run_nominal_phase",
+                side_effect=results,
+            ) as nominal,
+            mock.patch.object(
+                runner,
+                "run_fault_matrix",
+                side_effect=AssertionError("fault matrix entered during measurement"),
+            ) as faults,
+            mock.patch.object(
+                runner,
+                "write_phase_artifacts",
+                side_effect=AssertionError("artifact I/O entered during measurement"),
+            ) as artifact_io,
+        ):
+            measured = runner.run_nominal_measurement_sequence(
+                plant=FakePlant(),
+                solver=FakeSolver(),
+                specs=specs,
+                pace_wall_clock=True,
+                release_spin_window_s=0.00025,
+            )
+
+        self.assertEqual([result for _spec, result in measured], results)
+        self.assertEqual(nominal.call_count, 3)
+        self.assertEqual(
+            [call.kwargs["plant_already_reset"] for call in nominal.call_args_list],
+            [True, False, False],
+        )
+        self.assertEqual(
+            [call.kwargs["spec"].sequence_index for call in nominal.call_args_list],
+            [0, 1, 2],
+        )
+        faults.assert_not_called()
+        artifact_io.assert_not_called()
+        main_source = inspect.getsource(runner.main)
+        self.assertLess(
+            main_source.index("nominal_phase_results = run_nominal_measurement_sequence"),
+            main_source.index("for spec, nominal in nominal_phase_results"),
+        )
+        self.assertNotIn(
+            "run_fault_matrix",
+            inspect.getsource(runner.run_nominal_measurement_sequence),
+        )
+        self.assertNotIn(
+            "write_phase_artifacts",
+            inspect.getsource(runner.run_nominal_measurement_sequence),
+        )
+
+    def test_final_hard_gate_uses_only_complete_original_60_second_phase(self) -> None:
+        entries = [
+            {"duration_s": 2.0, "control_hard_500hz_pass": False},
+            {"duration_s": 10.0, "control_hard_500hz_pass": False},
+            {"duration_s": 60.0, "control_hard_500hz_pass": True},
+        ]
+
+        self.assertTrue(
+            runner.final_60_control_hard_gate_pass(entries, complete=True)
+        )
+        self.assertFalse(
+            runner.final_60_control_hard_gate_pass(entries, complete=False)
+        )
+        entries[-1]["control_hard_500hz_pass"] = False
+        self.assertFalse(
+            runner.final_60_control_hard_gate_pass(entries, complete=True)
+        )
+
     def test_deadline_is_classified_before_sink_as_exact_zero_stop(self) -> None:
         command = SimulationCommand(
             engine="mujoco",
