@@ -293,6 +293,12 @@ def timing_history_entry(
             "raw_sha256": raw_sha256,
             "blockers": evaluation.get("blockers", []),
             "first_post_warm_ms": evaluation.get("first_post_warm_ms"),
+            "unmeasured_pipeline_warmup": evaluation.get(
+                "unmeasured_pipeline_warmup"
+            ),
+            "pipeline_warmup_contract_proven": evaluation.get(
+                "pipeline_warmup_contract_proven"
+            ),
             "solver": evaluation.get("solver"),
             "solver_batch_reentry": evaluation.get("solver_batch_reentry"),
             "solver_batch_reentry_evidence": evaluation.get(
@@ -497,6 +503,18 @@ def build(*, generated_at: str) -> dict[str, Any]:
         blockers.append("runtime_shaped_60s_500hz_acceptance_not_run")
     if not deadline_overrun_static_prepared:
         blockers.append("deadline_overrun_tp_zero_hold_not_prepared")
+    offline_prewarm = (
+        (v30_row.get("runtime_scheduler") or {}).get(
+            "offline_pipeline_prewarm"
+        )
+        or {}
+    )
+    live_runtime_prewarm_verified = bool(
+        isinstance(offline_prewarm, dict)
+        and offline_prewarm.get("live_runtime_integration_verified") is True
+    )
+    if not live_runtime_prewarm_verified:
+        blockers.append("live_runtime_prewarm_not_integrated_or_verified")
     hard_deadline_evidence = current_source or next(
         (entry for entry in history if entry["role"].startswith("six_lane_optimized")),
         None,
@@ -620,6 +638,23 @@ def build(*, generated_at: str) -> dict[str, Any]:
             "dls_shadow_runtime_fallback_allowed": False,
             "dls_shadow_command_inert_test": "tests/test_step5d_v30_control_contract.py",
             "normal_contract": "n_reaction = -n_approach in one canonical command frame",
+        },
+        "runtime_prewarm": {
+            "offline_timing_contract": offline_prewarm,
+            "offline_timing_contract_proven": bool(
+                acceptance_entries
+                and (
+                    acceptance_entries[0]["acceptance_evaluation"].get(
+                        "pipeline_warmup_contract_proven"
+                    )
+                    is True
+                )
+            ),
+            "live_runtime_integration_verified": live_runtime_prewarm_verified,
+            "claim_boundary": (
+                "offline no-output prewarm evidence does not prove that the "
+                "future live bridge performs the same prewarm before authorization"
+            ),
         },
         "deadline_overrun_policy": {
             "hard_realtime_claim_requires_zero_deadline_miss": True,

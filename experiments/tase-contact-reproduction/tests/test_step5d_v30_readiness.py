@@ -126,6 +126,16 @@ class Step5dV30ReadinessTest(unittest.TestCase):
             acceptance_raw["sha256"],
             hashlib.sha256((ROOT / acceptance_raw["path"]).read_bytes()).hexdigest(),
         )
+        self.assertTrue(
+            payload["runtime_prewarm"]["offline_timing_contract_proven"]
+        )
+        self.assertFalse(
+            payload["runtime_prewarm"]["live_runtime_integration_verified"]
+        )
+        self.assertIn(
+            "live_runtime_prewarm_not_integrated_or_verified",
+            payload["blockers"],
+        )
         self.assertTrue(payload["package"]["binding_valid"])
         self.assertFalse(payload["package"]["controller_readback_verified"])
         self.assertFalse(payload["p0_v8_gate"]["passed"])
