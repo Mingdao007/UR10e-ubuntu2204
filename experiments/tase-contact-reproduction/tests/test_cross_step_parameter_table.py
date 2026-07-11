@@ -86,7 +86,7 @@ class CrossStepParameterTableTest(unittest.TestCase):
 
         self.assertIn("canonical Step5d current_program does not match current_stage.json", failures)
 
-    def test_v30_offline_candidate_cannot_claim_controller_delivery(self) -> None:
+    def test_v30_rejects_partial_controller_delivery_claim(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_root = Path(tmp)
             shutil.copytree(ROOT / "config", tmp_root / "config")
@@ -100,7 +100,205 @@ class CrossStepParameterTableTest(unittest.TestCase):
 
             failures = validator.validate(tmp_root)
 
-        self.assertIn("v30 offline candidate must have no controller delivery claim", failures)
+        self.assertIn(
+            "v30 inactive package controller delivery must be entirely offline or a "
+            "complete manifest-bound upload+readback",
+            failures,
+        )
+
+    def test_manifest_bound_delivery_accepts_offline_or_complete_readback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            program = "step5d_strict_rnn_ablation_v30"
+            local_base = root / "programs" / program
+            local_base.parent.mkdir(parents=True)
+            hashes = {}
+            for ext in validator.PACKAGE_EXTENSIONS:
+                path = local_base.with_suffix(ext)
+                path.write_bytes(f"{program}{ext}".encode())
+                hashes[ext] = validator.file_sha256(path)
+            delivery = {
+                "program_basename": program,
+                "local_triplet": str(local_base.relative_to(root)),
+                "sha256": hashes,
+                "controller_target": None,
+                "controller_uploaded": False,
+                "controller_readback_verified": False,
+                "controller_readback_manifest": None,
+            }
+            state, failures = validator._validate_manifest_bound_delivery(
+                root, label="v30 inactive package", delivery=delivery
+            )
+            self.assertEqual("offline", state)
+            self.assertEqual([], failures)
+
+            target_dir = "/programs/andyl/kunwei/step5"
+            readback_dir = root / "runs" / "controller_readback_v30_test"
+            readback_dir.mkdir(parents=True)
+            for ext in validator.PACKAGE_EXTENSIONS:
+                shutil.copy2(local_base.with_suffix(ext), readback_dir / f"{program}{ext}")
+            target = f"{target_dir}/{program}.urp"
+            manifest = {
+                "status": "controller read-back verified",
+                "target_dir": target_dir,
+                "validation": {"program": program, "target_dir": target_dir},
+                "target_resolution": {"controller_target": target},
+                "sha256": {
+                    "local": hashes,
+                    "controller": hashes,
+                    "readback": hashes,
+                },
+            }
+            manifest_path = readback_dir / "manifest.json"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            delivery.update(
+                {
+                    "controller_target": target,
+                    "controller_uploaded": True,
+                    "controller_readback_verified": True,
+                    "controller_readback_manifest": str(manifest_path.relative_to(root)),
+                }
+            )
+            state, failures = validator._validate_manifest_bound_delivery(
+                root, label="v30 inactive package", delivery=delivery
+            )
+            self.assertEqual("delivered", state)
+            self.assertEqual([], failures)
+
+    def test_v30_current_promotion_is_blocked_until_p0_review_timing_and_readback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            shutil.copytree(ROOT, tmp_root, dirs_exist_ok=True)
+            current_path = tmp_root / "config" / "current_stage.json"
+            current = validator.load_json(current_path)
+            current["current_stage_id"] = validator.V30_PROGRAM
+            current["program"] = validator.V30_PROGRAM
+            current_path.write_text(json.dumps(current), encoding="utf-8")
+
+            failures = validator.validate(tmp_root)
+
+        self.assertIn(
+            "v30 current promotion requires P0 v8, manifest-bound readback, ready "
+            "timing/safe-hold, and accepted Review v2 2+1",
+            failures,
+        )
+
+    def test_inactive_v30_accepts_manifest_bound_upload_and_readback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            shutil.copytree(ROOT, tmp_root, dirs_exist_ok=True)
+            table_path = tmp_root / "config" / "step5_stage_table.json"
+            table = validator.load_json(table_path)
+            v30 = next(
+                row for row in table["stages"] if row.get("id") == validator.V30_PROGRAM
+            )
+            delivery = v30["package_delivery"]
+            hashes = delivery["sha256"]
+            target_dir = "/programs/andyl/kunwei/step5"
+            target = f"{target_dir}/{validator.V30_PROGRAM}.urp"
+            readback_dir = tmp_root / "runs" / "controller_readback_v30_test"
+            readback_dir.mkdir(parents=True)
+            local_base = tmp_root / delivery["local_triplet"]
+            for ext in validator.PACKAGE_EXTENSIONS:
+                shutil.copy2(
+                    local_base.with_suffix(ext),
+                    readback_dir / f"{validator.V30_PROGRAM}{ext}",
+                )
+            manifest_path = readback_dir / "manifest.json"
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "status": "controller read-back verified",
+                        "target_dir": target_dir,
+                        "validation": {
+                            "program": validator.V30_PROGRAM,
+                            "target_dir": target_dir,
+                        },
+                        "target_resolution": {"controller_target": target},
+                        "sha256": {
+                            "local": hashes,
+                            "controller": hashes,
+                            "readback": hashes,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            delivery.update(
+                {
+                    "controller_target": target,
+                    "controller_uploaded": True,
+                    "controller_readback_verified": True,
+                    "controller_readback_manifest": str(manifest_path.relative_to(tmp_root)),
+                }
+            )
+            readiness_path = tmp_root / v30["local_analysis_evidence"]["offline_readiness"]
+            readiness = validator.load_json(readiness_path)
+            readiness["package"]["controller_readback_verified"] = True
+            readiness["package"]["controller_readback_manifest"] = str(
+                manifest_path.relative_to(tmp_root)
+            )
+            readiness_path.write_text(json.dumps(readiness), encoding="utf-8")
+            v30["local_analysis_evidence"]["offline_readiness_sha256"] = (
+                validator.file_sha256(readiness_path)
+            )
+            table_path.write_text(json.dumps(table), encoding="utf-8")
+
+            failures = validator.validate(tmp_root)
+
+        self.assertEqual([], failures)
+
+    def test_v30_p0_gate_cannot_drift_from_current_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            shutil.copytree(ROOT, tmp_root, dirs_exist_ok=True)
+            table_path = tmp_root / "config" / "step5_stage_table.json"
+            table = validator.load_json(table_path)
+            v30 = next(
+                row for row in table["stages"] if row.get("id") == validator.V30_PROGRAM
+            )
+            v30["p0_v8_gate"]["passed"] = True
+            table_path.write_text(json.dumps(table), encoding="utf-8")
+
+            failures = validator.validate(tmp_root)
+
+        self.assertIn("v30 P0 v8 gate is inconsistent with current_stage.json", failures)
+
+    def test_p0_v8_layout_hash_and_fingerprint_are_cross_checked(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            shutil.copytree(ROOT, tmp_root, dirs_exist_ok=True)
+            table_path = tmp_root / "config" / "step5_stage_table.json"
+            table = validator.load_json(table_path)
+            p0_v8 = next(
+                row for row in table["stages"] if row.get("id") == validator.P0_V8_PROGRAM
+            )
+            p0_v8["guard"]["stage25_allowed_layout_tags"] = [523.0, 524.0]
+            p0_v8["package_delivery"]["semantic_fingerprint"] = "0" * 64
+            table_path.write_text(json.dumps(table), encoding="utf-8")
+
+            failures = validator.validate(tmp_root)
+
+        self.assertIn("P0 v8 must allow only Stage25 layout 524", failures)
+        self.assertIn(
+            "P0 v8 current-stage semantic fingerprint does not match stage table",
+            failures,
+        )
+        self.assertIn("P0 v8 marker/package hash/fingerprint binding mismatch", failures)
+
+    def test_review_v2_index_detects_historical_evidence_hash_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            shutil.copytree(ROOT, tmp_root, dirs_exist_ok=True)
+            historical = tmp_root / "config" / "step5d_v30_milestone_reviews.json"
+            historical.write_text(historical.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+
+            failures = validator.validate(tmp_root)
+
+        self.assertIn(
+            "Review v2 historical evidence hash/size mismatch: config/step5d_v30_milestone_reviews.json",
+            failures,
+        )
 
     def test_v30_stage_binds_current_source_solver_10k_hard_failure(self) -> None:
         table = validator.load_json(ROOT / "config" / "step5_stage_table.json")

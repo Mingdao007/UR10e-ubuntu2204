@@ -335,7 +335,7 @@ test "$BRIDGE_EARLY_EXIT_RC" -eq 77
             self.assertIn(flag, section)
         self.assertIn('--step5d-qdot-limit-rad-s "${STEP5D_QDOT_LIMIT_RAD_S:-0.050}"', script)
 
-    def test_step5d_contact_bridge_override_still_requires_fresh_long_check_before_start(self) -> None:
+    def test_step5d_contact_bridge_override_cannot_bypass_frozen_v29_state(self) -> None:
         missing_cache = Path(tempfile.gettempdir()) / "missing-step5d-v29-live-cache.json"
         missing_cache.unlink(missing_ok=True)
         env = os.environ.copy()
@@ -357,8 +357,7 @@ test "$BRIDGE_EARLY_EXIT_RC" -eq 77
         )
 
         self.assertEqual(completed.returncode, 24, completed.stdout + completed.stderr)
-        self.assertIn("long-check cache", completed.stderr or completed.stdout)
-        self.assertIn("explicit user override", completed.stdout)
+        self.assertIn("v29_frozen_fallback", completed.stderr or completed.stdout)
         self.assertNotIn("bridge output:", completed.stdout)
 
     def test_no_contact_p0_capture_profile_has_separate_bridge_gate(self) -> None:

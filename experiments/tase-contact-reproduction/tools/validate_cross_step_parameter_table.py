@@ -11,10 +11,16 @@ from pathlib import Path
 from pathlib import PurePosixPath
 from typing import Any
 
+from step5d_review_v2 import full_review_index_projection_sha256
 from tase_protocol_table import resolve_experiment_profile
 
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
+PACKAGE_EXTENSIONS = (".script", ".txt", ".urp")
+P0_V8_PROGRAM = "step5d_strict_rnn_no_contact_p0_v8"
+V29_PROGRAM = "step5d_strict_rnn_ablation_v29"
+V30_PROGRAM = "step5d_strict_rnn_ablation_v30"
+REVIEW_POLICY_ID = "ur10e_review_policy_v2"
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -40,6 +46,218 @@ def file_sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def is_sha256(value: Any) -> bool:
+    return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
+
+
+def _validate_local_triplet(
+    root: Path,
+    *,
+    label: str,
+    delivery: dict[str, Any],
+) -> list[str]:
+    failures: list[str] = []
+    triplet = delivery.get("local_triplet")
+    hashes = delivery.get("sha256") or {}
+    if not isinstance(triplet, str) or not triplet:
+        return [f"{label} local_triplet is missing"]
+    for ext in PACKAGE_EXTENSIONS:
+        path = root / f"{triplet}{ext}"
+        expected_hash = hashes.get(ext)
+        if not path.is_file():
+            failures.append(f"{label} local package file is missing: {path.relative_to(root)}")
+        elif not is_sha256(expected_hash) or file_sha256(path) != expected_hash:
+            failures.append(f"{label} local package sha mismatch for {ext}")
+    return failures
+
+
+def _validate_manifest_bound_delivery(
+    root: Path,
+    *,
+    label: str,
+    delivery: dict[str, Any],
+) -> tuple[str, list[str]]:
+    """Accept one of two complete states: local-only, or uploaded+read back.
+
+    A partially populated controller claim is rejected.  The delivered state is
+    bound to the tracked triplet through the read-back manifest and the copied
+    read-back files; it does not imply current/live/bridge authorization.
+    """
+
+    failures: list[str] = []
+    target = delivery.get("controller_target")
+    uploaded = delivery.get("controller_uploaded")
+    verified = delivery.get("controller_readback_verified")
+    manifest_rel = delivery.get("controller_readback_manifest")
+    offline = (
+        target is None
+        and uploaded is False
+        and verified is False
+        and manifest_rel in (None, "")
+    )
+    delivered = (
+        isinstance(target, str)
+        and bool(target)
+        and uploaded is True
+        and verified is True
+        and isinstance(manifest_rel, str)
+        and bool(manifest_rel)
+    )
+    if offline:
+        return "offline", failures
+    if not delivered:
+        failures.append(
+            f"{label} controller delivery must be entirely offline or a complete manifest-bound upload+readback"
+        )
+        return "invalid", failures
+
+    program = delivery.get("program_basename")
+    expected_target = (
+        str(PurePosixPath(str(target)).parent / f"{program}.urp")
+        if isinstance(program, str) and program
+        else None
+    )
+    if target != expected_target:
+        failures.append(f"{label} controller target does not match its program basename")
+    manifest_path = root / str(manifest_rel)
+    if not manifest_path.is_file():
+        failures.append(f"{label} controller readback manifest is missing")
+        return "delivered", failures
+    try:
+        manifest = load_json(manifest_path)
+    except (OSError, json.JSONDecodeError):
+        failures.append(f"{label} controller readback manifest is invalid JSON")
+        return "delivered", failures
+
+    target_dir = str(PurePosixPath(str(target)).parent)
+    validation = manifest.get("validation") or {}
+    if manifest.get("status") != "controller read-back verified":
+        failures.append(f"{label} controller readback manifest status is not verified")
+    if manifest.get("target_dir") != target_dir:
+        failures.append(f"{label} controller readback manifest target_dir mismatch")
+    if validation.get("program") != program or validation.get("target_dir") != target_dir:
+        failures.append(f"{label} controller readback manifest program/target binding mismatch")
+    target_resolution = manifest.get("target_resolution") or {}
+    if target_resolution and target_resolution.get("controller_target") != target:
+        failures.append(f"{label} controller readback manifest target-resolution mismatch")
+    hashes = delivery.get("sha256") or {}
+    manifest_hashes = manifest.get("sha256") or {}
+    for channel in ("local", "controller", "readback"):
+        if manifest_hashes.get(channel) != hashes:
+            failures.append(f"{label} controller readback manifest {channel} sha mismatch")
+    for ext in PACKAGE_EXTENSIONS:
+        readback_file = manifest_path.parent / f"{program}{ext}"
+        if not readback_file.is_file():
+            failures.append(f"{label} controller readback file is missing for {ext}")
+        elif file_sha256(readback_file) != hashes.get(ext):
+            failures.append(f"{label} controller readback file sha mismatch for {ext}")
+    return "delivered", failures
+
+
+def _validate_review_v2_sources(
+    root: Path,
+) -> tuple[dict[str, Any], dict[str, Any], list[str]]:
+    failures: list[str] = []
+    policy_path = root / "config" / "step5d_review_policy_v2.json"
+    index_path = root / "config" / "step5d_review_index_v2.json"
+    if not policy_path.is_file():
+        failures.append("Review v2 policy file is missing")
+        policy: dict[str, Any] = {}
+    else:
+        policy = load_json(policy_path)
+        if (
+            policy.get("schema_version") != REVIEW_POLICY_ID
+            or policy.get("policy_id") != REVIEW_POLICY_ID
+        ):
+            failures.append("Review v2 policy schema/policy_id mismatch")
+        codex_defaults = (policy.get("defaults") or {}).get("codex") or {}
+        if (
+            codex_defaults.get("model") != "gpt-5.6-sol"
+            or codex_defaults.get("reasoning_effort") != "high"
+        ):
+            failures.append("Review v2 Codex default must be gpt-5.6-sol/high")
+        expected_stacks = {
+            "ordinary_development": "0+0",
+            "ordinary_handoff": "0+0",
+            "direction_change": "1+0",
+            "p0_v8_pre_live": "1+1",
+            "v29_baseline_re_review": "1+0",
+            "v29_contact_pre_live": "2+1",
+            "v30_contact_pre_live": "2+1",
+            "p0_v8_post_run": "1+0",
+            "contact_post_run": "1+1",
+        }
+        classes = policy.get("review_classes") or {}
+        for class_id, stack in expected_stacks.items():
+            if (classes.get(class_id) or {}).get("stack") != stack:
+                failures.append(f"Review v2 stack mismatch: {class_id}")
+        execution = policy.get("execution") or {}
+        if (
+            execution.get("evidence_freeze_required") is not True
+            or execution.get("full_review_limit_per_composite_fingerprint") != 1
+            or execution.get("ordinary_work_produces_reviewer_invocation") is not False
+        ):
+            failures.append("Review v2 evidence-freeze/single-review/ordinary-0+0 policy mismatch")
+    if not index_path.is_file():
+        failures.append("Review v2 index file is missing")
+        index: dict[str, Any] = {}
+    else:
+        index = load_json(index_path)
+        if (
+            index.get("schema_version") != "ur10e_review_index_v2"
+            or index.get("policy_id") != REVIEW_POLICY_ID
+        ):
+            failures.append("Review v2 index schema/policy_id mismatch")
+        if index.get("blockers") or index.get("duplicate_full_review_fingerprints"):
+            failures.append("Review v2 index contains duplicate/full-review blockers")
+        historical = index.get("historical_artifacts") or []
+        expected_history = {
+            "config/step5d_v30_milestone_reviews.json",
+            "config/step5d_v29_imported_evidence_manifest.json",
+            "config/step5d_v29_remote_evidence_sha256.json",
+        }
+        actual_history = {
+            str(item.get("path")) for item in historical if isinstance(item, dict)
+        }
+        if actual_history != expected_history:
+            failures.append("Review v2 historical evidence set is incomplete or stale")
+        for item in historical:
+            if not isinstance(item, dict):
+                failures.append("Review v2 historical evidence entry is invalid")
+                continue
+            path = root / str(item.get("path") or "")
+            if (
+                item.get("immutable") is not True
+                or item.get("counts_as_review_v2") is not False
+                or item.get("status") != "historical_superseded_by_review_policy_v2"
+            ):
+                failures.append(f"Review v2 historical evidence flags are invalid: {item.get('path')}")
+            if not path.is_file():
+                failures.append(f"Review v2 historical evidence file is missing: {item.get('path')}")
+            elif (
+                file_sha256(path) != item.get("sha256")
+                or path.stat().st_size != item.get("bytes")
+            ):
+                failures.append(
+                    f"Review v2 historical evidence hash/size mismatch: {item.get('path')}"
+                )
+        for item in index.get("v2_reviews") or []:
+            if not isinstance(item, dict):
+                failures.append("Review v2 manifest index entry is invalid")
+                continue
+            path = root / str(item.get("path") or "")
+            if not path.is_file():
+                failures.append(f"Review v2 manifest is missing: {item.get('path')}")
+            elif (
+                file_sha256(path) != item.get("sha256")
+                or path.stat().st_size != item.get("bytes")
+            ):
+                failures.append(
+                    f"Review v2 manifest hash/size mismatch: {item.get('path')}"
+                )
+    return policy, index, failures
 
 
 def targets_bridge_startup_policy(ref: Any) -> bool:
@@ -104,6 +322,8 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
     protocol = load_json(root / "config" / "tase_protocol_table.json")
     step5_rows = stage_by_id(step5)
     step6_rows = stage_by_id(step6)
+    _review_policy, review_index, review_source_failures = _validate_review_v2_sources(root)
+    failures.extend(review_source_failures)
     current_stage_id = current.get("current_stage_id")
     current_program = current.get("program")
     current_target = current.get("controller_target")
@@ -231,6 +451,97 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
                 ):
                     failures.append("current v29 awaiting state requires a matching readiness sha")
 
+    v29_candidate = current.get("v29_contact_candidate") or {}
+    v29_baseline_review = v29_candidate.get("review_v2_baseline_rereview") or {}
+    v29_row = step5_rows.get(V29_PROGRAM) or {}
+    v29_row_review = v29_row.get("review_v2") or {}
+    if (
+        v29_candidate.get("frozen_fallback") is not True
+        or v29_baseline_review.get("required_stack") != "1+0"
+    ):
+        failures.append("v29 frozen fallback / Review v2 1+0 baseline binding is invalid")
+    expected_v29_local = f"programs/step5/step5d/{V29_PROGRAM}"
+    if (
+        current.get("local_triplet") != expected_v29_local
+        or v29_candidate.get("local_triplet") != expected_v29_local
+    ):
+        failures.append("v29 local triplet must use the canonical nested step5d path")
+    expected_v29_triplet = f"{expected_v29_local}.{{script,txt,urp}}"
+    for binding_name in ("local_delivery_evidence", "package_delivery"):
+        binding = v29_row.get(binding_name) or {}
+        if (
+            binding.get("local_program_dir") != "programs/step5/step5d"
+            or binding.get("local_triplet") != expected_v29_triplet
+        ):
+            failures.append(f"v29 {binding_name} local package path is inconsistent")
+    expected_v29_review = {
+        "policy_id": REVIEW_POLICY_ID,
+        "milestone": "v29_baseline_re_review",
+        "required_stack": "1+0",
+        "status": "resolved_by_review_index",
+        "evidence_frozen": True,
+        "manifest_source": "config/step5d_review_index_v2.json",
+        "source_review_manifest": "config/reviews/v29_baseline_review_v2_manifest.json",
+    }
+    for field, expected in expected_v29_review.items():
+        if (
+            v29_baseline_review.get(field) != expected
+            or v29_row_review.get(field) != expected
+        ):
+            failures.append(f"v29 Review v2 externalized binding mismatch: {field}")
+    source_review_path = expected_v29_review["source_review_manifest"]
+    indexed_v29_source = next(
+        (
+            item
+            for item in (review_index.get("v2_reviews") or [])
+            if isinstance(item, dict) and item.get("path") == source_review_path
+        ),
+        None,
+    )
+    if (
+        not indexed_v29_source
+        or indexed_v29_source.get("workflow") != "v29"
+        or indexed_v29_source.get("milestone") != "baseline_re_review"
+        or indexed_v29_source.get("required_stack") != "1+0"
+        or indexed_v29_source.get("review_mode") != "full"
+    ):
+        failures.append("v29 baseline source review is not bound in Review v2 index")
+    indexed_v29_closer = next(
+        (
+            item
+            for item in (review_index.get("v2_reviews") or [])
+            if isinstance(item, dict)
+            and item.get("path")
+            == "config/reviews/v29_baseline_review_v2_closer_manifest.json"
+        ),
+        None,
+    )
+    if (
+        not indexed_v29_closer
+        or indexed_v29_closer.get("workflow") != "v29"
+        or indexed_v29_closer.get("milestone") != "baseline_re_review"
+        or indexed_v29_closer.get("required_stack") != "1+0"
+        or indexed_v29_closer.get("review_mode") != "targeted_closer"
+        or indexed_v29_closer.get("gate_status") != "pass"
+        or indexed_v29_closer.get("blocking_open_finding_count") != 0
+    ):
+        failures.append("v29 baseline targeted closer is not accepted in Review v2 index")
+    v29_closer_validation_path = (
+        root / "config/reviews/v29_baseline_review_v2_closer_validation.json"
+    )
+    if not v29_closer_validation_path.is_file():
+        failures.append("v29 baseline targeted closer validation is missing")
+    else:
+        v29_closer_validation = load_json(v29_closer_validation_path)
+        if (
+            v29_closer_validation.get("accepted") is not True
+            or v29_closer_validation.get("blockers")
+            or not indexed_v29_closer
+            or v29_closer_validation.get("composite_fingerprint")
+            != indexed_v29_closer.get("composite_fingerprint")
+        ):
+            failures.append("v29 baseline targeted closer validation/index mismatch")
+
     p0_capture = current.get("bridge_trigger", {}).get("no_contact_p0_capture", {})
     p0_profile = p0_capture.get("profile")
     if p0_profile:
@@ -255,29 +566,177 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
                 if p0_delivery_sha.get(ext) != p0_capture_sha.get(ext):
                     failures.append(f"strict RNN no-contact P0 package sha mismatch for {ext}")
 
+    p0_v8_row = step5_rows.get(P0_V8_PROGRAM)
+    p0_v8_capture = current.get("bridge_trigger", {}).get("no_contact_p0_v8_capture") or {}
+    p0_v8_candidate = current.get("p0_v8_candidate") or {}
+    if p0_v8_row is None:
+        failures.append("P0 v8 stage row is missing")
+    else:
+        p0_delivery = p0_v8_row.get("package_delivery") or {}
+        p0_hashes = p0_delivery.get("sha256") or {}
+        p0_fingerprint = p0_delivery.get("semantic_fingerprint")
+        failures.extend(_validate_local_triplet(root, label="P0 v8", delivery=p0_delivery))
+        p0_delivery_state, p0_delivery_failures = _validate_manifest_bound_delivery(
+            root,
+            label="P0 v8",
+            delivery=p0_delivery,
+        )
+        failures.extend(p0_delivery_failures)
+        expected_p0_runtime = {
+            "backend": "cupy",
+            "inner_iterations": 1024,
+            "epsilon": 0.01,
+            "sigr_exponent_r": 0.8,
+            "qdot_cap_rad_s": 0.05,
+            "control_mode": "speedj_rnn_live",
+            "joint_layout_code": 524.0,
+            "effective_ko": 0.01,
+            "normal_contract": "n_reaction = -n_approach",
+            "solver_ok_status": 40.0,
+            "dls_shadow_only": True,
+            "dls_runtime_fallback_allowed": False,
+        }
+        runtime = p0_v8_row.get("runtime_profile") or {}
+        for field, expected in expected_p0_runtime.items():
+            if runtime.get(field) != expected:
+                failures.append(f"P0 v8 runtime profile mismatch: {field}")
+        p0_guard = p0_v8_row.get("guard") or {}
+        if p0_guard.get("stage25_allowed_layout_tags") != [524.0]:
+            failures.append("P0 v8 must allow only Stage25 layout 524")
+        if (
+            p0_v8_row.get("contact") is not False
+            or p0_guard.get("dls_runtime_fallback_allowed") is not False
+            or (p0_v8_row.get("contact_policy") or {}).get("speedl_runtime_allowed") is not False
+        ):
+            failures.append("P0 v8 no-contact/layout524/DLS-shadow-only boundary is invalid")
+        if not is_sha256(p0_fingerprint):
+            failures.append("P0 v8 semantic fingerprint is missing or invalid")
+        if (
+            p0_v8_capture.get("profile") != P0_V8_PROGRAM
+            or p0_v8_candidate.get("profile") != P0_V8_PROGRAM
+        ):
+            failures.append("P0 v8 current-stage capture/candidate profile mismatch")
+        if p0_v8_candidate.get("package_sha256") != p0_hashes:
+            failures.append("P0 v8 current-stage candidate package hashes do not match stage table")
+        if p0_v8_capture.get("sha256") != p0_hashes:
+            failures.append("P0 v8 current-stage capture package hashes do not match stage table")
+        if p0_v8_candidate.get("semantic_fingerprint") != p0_fingerprint:
+            failures.append("P0 v8 current-stage semantic fingerprint does not match stage table")
+        for field in (
+            "controller_target",
+            "controller_uploaded",
+            "controller_readback_verified",
+            "controller_readback_manifest",
+            "local_triplet",
+        ):
+            if p0_v8_capture.get(field) != p0_delivery.get(field):
+                failures.append(f"P0 v8 current-stage capture delivery mismatch: {field}")
+        if p0_delivery_state == "offline" and (
+            p0_v8_row.get("active") is not False or p0_v8_row.get("bridge") is not False
+        ):
+            failures.append("offline P0 v8 candidate must remain inactive with bridge=false")
+
+        marker_rel = p0_v8_capture.get("local_candidate_marker")
+        marker_path = root / str(marker_rel or "")
+        if not marker_path.is_file():
+            failures.append("P0 v8 local-candidate marker is missing")
+        else:
+            marker = load_json(marker_path)
+            if (
+                marker.get("program") != P0_V8_PROGRAM
+                or marker.get("sha256") != p0_hashes
+                or marker.get("semantic_fingerprint") != p0_fingerprint
+            ):
+                failures.append("P0 v8 marker/package hash/fingerprint binding mismatch")
+
+        stage_review = p0_v8_row.get("review_v2") or {}
+        candidate_review = p0_v8_candidate.get("review_v2") or {}
+        expected_review_fields = {
+            "policy_id": REVIEW_POLICY_ID,
+            "milestone": "p0_v8_pre_live",
+            "required_stack": "1+1",
+        }
+        for field, expected in expected_review_fields.items():
+            if stage_review.get(field) != expected or candidate_review.get(field) != expected:
+                failures.append(f"P0 v8 Review v2 binding mismatch: {field}")
+        if stage_review.get("status") != candidate_review.get("status"):
+            failures.append("P0 v8 Review v2 status mismatch between stage and current candidate")
+        if stage_review.get("composite_fingerprint") != candidate_review.get(
+            "composite_fingerprint"
+        ):
+            failures.append("P0 v8 Review v2 composite fingerprint mismatch")
+        if stage_review.get("evidence_frozen") is not (
+            p0_v8_candidate.get("evidence_frozen") is True
+        ):
+            failures.append("P0 v8 evidence-freeze state mismatch")
+        if stage_review.get("status") == "accepted":
+            indexed = next(
+                (
+                    item
+                    for item in (review_index.get("v2_reviews") or [])
+                    if isinstance(item, dict) and item.get("path") == stage_review.get("manifest")
+                ),
+                None,
+            )
+            if (
+                not indexed
+                or indexed.get("required_stack") != "1+1"
+                or indexed.get("composite_fingerprint")
+                != stage_review.get("composite_fingerprint")
+            ):
+                failures.append("accepted P0 v8 Review v2 manifest is not current-fingerprint indexed")
+
+        p0_passed = p0_v8_candidate.get("p0_v8_passed") is True
+        if (p0_v8_row.get("acceptance") or {}).get("p0_v8_passed") is not p0_passed:
+            failures.append("P0 v8 pass state mismatch between stage and current candidate")
+        if p0_v8_capture.get("passed") is not p0_passed:
+            failures.append("P0 v8 capture pass state mismatch")
+        if p0_passed:
+            final_canary = any(
+                isinstance(item, dict)
+                and isinstance(item.get("phase_s"), (int, float))
+                and float(item["phase_s"]) == 60.0
+                and item.get("canary_passed") is True
+                and item.get("composite_fingerprint")
+                == stage_review.get("composite_fingerprint")
+                for item in (p0_v8_candidate.get("completed_canaries") or [])
+            )
+            if not p0_v8_candidate.get("passed_artifact") or not final_canary:
+                failures.append("P0 v8 passed requires a final continuous 60 second artifact")
+            if stage_review.get("status") != "accepted" or not is_sha256(
+                stage_review.get("composite_fingerprint")
+            ):
+                failures.append("P0 v8 passed requires accepted fingerprint-bound Review v2 1+1")
+
     for table_name, rows in (("step5", step5_rows), ("step6", step6_rows)):
         for row_id, row in rows.items():
             binding = row.get("current_binding")
             if binding and binding.get("is_current") is True and row_id != current_stage_id:
                 failures.append(f"{table_name}:{row_id} incorrectly claims global current binding")
 
-    v30 = step5_rows.get("step5d_strict_rnn_ablation_v30")
+    v30 = step5_rows.get(V30_PROGRAM)
     if v30 is None:
         failures.append("inactive v30 offline candidate row is missing")
     else:
         delivery = v30.get("package_delivery") or {}
-        if v30.get("active") is not False or v30.get("bridge") is not False:
-            failures.append("v30 offline candidate must remain inactive with bridge=false")
-        if v30.get("current_binding", {}).get("is_current") is not False:
-            failures.append("v30 offline candidate must not claim current binding")
-        if (
-            delivery.get("controller_target") is not None
-            or delivery.get("controller_uploaded") is not False
-            or delivery.get("controller_readback_verified") is not False
-        ):
-            failures.append("v30 offline candidate must have no controller delivery claim")
+        v30_is_current = current_stage_id == V30_PROGRAM or current_program == V30_PROGRAM
+        if not v30_is_current:
+            if v30.get("active") is not False or v30.get("bridge") is not False:
+                failures.append("inactive v30 candidate must remain inactive with bridge=false")
+            if v30.get("current_binding", {}).get("is_current") is not False:
+                failures.append("inactive v30 candidate must not claim current binding")
+        delivery_state, delivery_failures = _validate_manifest_bound_delivery(
+            root,
+            label="v30 inactive package",
+            delivery=delivery,
+        )
+        failures.extend(delivery_failures)
+        if delivery.get("delivery_preparation_allowed_before_p0_v8") is not True:
+            failures.append("v30 package delivery preparation must remain allowed before P0 v8")
         canary = v30.get("canary_stop_register") or {}
-        if canary.get("enabled") is not False or canary.get("armed") is not False:
+        if not v30_is_current and (
+            canary.get("enabled") is not False or canary.get("armed") is not False
+        ):
             failures.append("v30 canary stop register must remain disabled and unarmed offline")
         expected_runtime = {
             "backend": "cupy",
@@ -292,15 +751,56 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             failures.append("v30 runtime profile does not match the pinned strict-RNN profile")
         if v30.get("guard", {}).get("dls_runtime_fallback_allowed") is not False:
             failures.append("v30 must forbid DLS runtime fallback")
-        triplet = delivery.get("local_triplet")
-        hashes = delivery.get("sha256") or {}
-        for ext in (".script", ".txt", ".urp"):
-            path = root / f"{triplet}{ext}"
-            expected_hash = hashes.get(ext)
-            if not path.is_file():
-                failures.append(f"v30 local package file is missing: {path.relative_to(root)}")
-            elif not isinstance(expected_hash, str) or file_sha256(path) != expected_hash:
-                failures.append(f"v30 local package sha mismatch for {ext}")
+        failures.extend(_validate_local_triplet(root, label="v30", delivery=delivery))
+
+        p0_gate = v30.get("p0_v8_gate") or {}
+        p0_passed = p0_v8_candidate.get("p0_v8_passed") is True
+        if (
+            p0_gate.get("profile") != P0_V8_PROGRAM
+            or p0_gate.get("passed") is not p0_passed
+            or p0_gate.get("passed_artifact") != p0_v8_candidate.get("passed_artifact")
+            or p0_gate.get("package_upload_readback_may_precede_p0") is not True
+            or any(
+                p0_gate.get(field) is not True
+                for field in (
+                    "required_before_bridge_start",
+                    "required_before_contact_run",
+                    "required_before_current_promotion",
+                )
+            )
+        ):
+            failures.append("v30 P0 v8 gate is inconsistent with current_stage.json")
+        promotion = v30.get("promotion_gate") or {}
+        if not p0_passed and any(
+            promotion.get(field) is not False
+            for field in (
+                "current_promotion_allowed",
+                "bridge_start_allowed",
+                "contact_run_allowed",
+            )
+        ):
+            failures.append("v30 promotion/bridge/contact cannot open before P0 v8 passes")
+
+        review = v30.get("review_v2") or {}
+        if (
+            review.get("policy_id") != REVIEW_POLICY_ID
+            or review.get("milestone") != "v30_contact_pre_live"
+            or review.get("required_stack") != "2+1"
+            or review.get("legacy_status") != "historical_superseded_by_review_policy_v2"
+        ):
+            failures.append("v30 Review v2 policy/milestone/stack binding is invalid")
+        historical_by_path = {
+            str(item.get("path")): item
+            for item in (review_index.get("historical_artifacts") or [])
+            if isinstance(item, dict)
+        }
+        legacy_path = review.get("legacy_manifest")
+        legacy = historical_by_path.get(str(legacy_path))
+        legacy_file = root / str(legacy_path or "")
+        if not legacy or legacy.get("sha256") != (
+            file_sha256(legacy_file) if legacy_file.is_file() else None
+        ):
+            failures.append("v30 legacy review evidence is not hash-bound by Review v2 index")
         evidence = v30.get("local_analysis_evidence") or {}
         imported_manifest_path = root / str(evidence.get("imported_v29_manifest") or "")
         replay_path = root / str(evidence.get("v29_replay") or "")
@@ -440,6 +940,46 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
                 "reproduction_complete",
             )):
                 failures.append("v30 readiness crosses the offline claim boundary")
+            readiness_package = readiness.get("package") or {}
+            expected_readback = delivery_state == "delivered"
+            if (
+                readiness_package.get("controller_readback_verified")
+                is not expected_readback
+                or readiness_package.get("controller_readback_manifest")
+                != delivery.get("controller_readback_manifest")
+                or readiness_package.get("semantic_fingerprint")
+                != delivery.get("semantic_fingerprint")
+                or readiness_package.get("triplet_sha256") != delivery.get("sha256")
+            ):
+                failures.append("v30 stage/readiness package delivery binding mismatch")
+            readiness_review = readiness.get("review_v2") or {}
+            expected_review_sources = (
+                (
+                    "policy",
+                    "config/step5d_review_policy_v2.json",
+                    "policy_path",
+                    "policy_sha256",
+                ),
+                (
+                    "index",
+                    "config/step5d_review_index_v2.json",
+                    "index_path",
+                    "index_sha256",
+                ),
+            )
+            for label, relative, path_field, sha_field in expected_review_sources:
+                source_path = root / relative
+                expected_sha = (
+                    full_review_index_projection_sha256(load_json(source_path))
+                    if label == "index" and source_path.is_file()
+                    else file_sha256(source_path) if source_path.is_file() else None
+                )
+                if (
+                    readiness_review.get(path_field) != relative
+                    or not source_path.is_file()
+                    or readiness_review.get(sha_field) != expected_sha
+                ):
+                    failures.append(f"v30 readiness Review v2 {label} hash binding mismatch")
             history_roles = {
                 str(item.get("role"))
                 for item in (readiness.get("timing", {}).get("history") or [])
@@ -483,6 +1023,47 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
                     failures.append(
                         "v30 readiness current-source solver 10k binding is inconsistent"
                     )
+
+            review_accepted = (
+                review.get("status") == "accepted"
+                and review.get("evidence_frozen") is True
+                and is_sha256(review.get("composite_fingerprint"))
+                and readiness_review.get("accepted") is True
+                and readiness_review.get("composite_fingerprint")
+                == review.get("composite_fingerprint")
+            )
+            if review.get("status") == "accepted":
+                manifest_rel = review.get("manifest")
+                indexed = next(
+                    (
+                        item
+                        for item in (review_index.get("v2_reviews") or [])
+                        if isinstance(item, dict) and item.get("path") == manifest_rel
+                    ),
+                    None,
+                )
+                if (
+                    not indexed
+                    or indexed.get("composite_fingerprint")
+                    != review.get("composite_fingerprint")
+                    or indexed.get("required_stack") != "2+1"
+                ):
+                    failures.append("accepted v30 Review v2 manifest is not current-fingerprint indexed")
+
+            promotion_claimed = promotion.get("current_promotion_allowed") is True
+            if v30_is_current or promotion_claimed:
+                if not (
+                    p0_passed
+                    and delivery_state == "delivered"
+                    and readiness_status == "v30_offline_ready"
+                    and review_accepted
+                ):
+                    failures.append(
+                        "v30 current promotion requires P0 v8, manifest-bound "
+                        "readback, ready timing/safe-hold, and accepted Review v2 2+1"
+                    )
+            if v30_is_current and promotion.get("current_promotion_allowed") is not True:
+                failures.append("current v30 must have current_promotion_allowed=true")
 
     step6_v2 = step6_rows.get("step6_contact_eight_baseline_v2")
     if not step6_v2:

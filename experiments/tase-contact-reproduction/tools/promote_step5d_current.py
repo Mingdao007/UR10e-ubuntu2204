@@ -12,6 +12,8 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from verify_step5d_current_binding import verify_v30_evidence_freeze
+
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
 EXTENSIONS = (".script", ".txt", ".urp")
@@ -24,6 +26,7 @@ STEP5D_ABLATION_V26 = "step5d_strict_rnn_ablation_v26"
 STEP5D_ABLATION_V27 = "step5d_strict_rnn_ablation_v27"
 STEP5D_ABLATION_V28 = "step5d_strict_rnn_ablation_v28"
 STEP5D_ABLATION_V29 = "step5d_strict_rnn_ablation_v29"
+STEP5D_ABLATION_V30 = "step5d_strict_rnn_ablation_v30"
 STEP5D_ABLATION_PROGRAMS = {
     STEP5D_ABLATION_V25,
     STEP5D_ABLATION_V26,
@@ -31,7 +34,11 @@ STEP5D_ABLATION_PROGRAMS = {
     STEP5D_ABLATION_V28,
     STEP5D_ABLATION_V29,
 }
-STEP5D_STEP5B_SPEEDL_LIVE_PROGRAMS = {STEP5D_ABLATION_V27, STEP5D_ABLATION_V28, STEP5D_ABLATION_V29}
+STEP5D_STEP5B_SPEEDL_LIVE_PROGRAMS = {
+    STEP5D_ABLATION_V27,
+    STEP5D_ABLATION_V28,
+    STEP5D_ABLATION_V29,
+}
 STEP5D_OPERATOR_PLAY_WAIT_S = 20
 
 
@@ -1008,6 +1015,256 @@ def normalize_retained_stage_metadata(table: dict[str, Any], current_program: st
                 binding["controller_target"] = archived_controller_target(target)
 
 
+def freeze_v29_fallback_for_v30(table: dict[str, Any]) -> None:
+    """Retire the current pointer without rewriting or relocating frozen v29 evidence."""
+
+    row = find_stage(table, STEP5D_ABLATION_V29)
+    if row is None:
+        fail("v29 frozen fallback row is missing before v30 promotion")
+    row["active"] = False
+    row["blocked"] = True
+    row["complete"] = False
+    row["completion_target"] = False
+    row["block_reason"] = (
+        "Frozen v29 fallback retained byte-for-byte as historical package/readback evidence; "
+        "v30 is current only after its independent P0 v8, timing, readback, and Review v2 gates."
+    )
+    binding = row.setdefault("current_binding", {})
+    binding["is_current"] = False
+    binding["flow_claim_status"] = "frozen_fallback_not_current"
+    lifecycle = row.setdefault("lifecycle", {})
+    lifecycle["current_candidate"] = False
+    lifecycle["retained_evidence"] = True
+    lifecycle["state"] = "frozen_v29_fallback_superseded_by_v30_current_pointer"
+    lifecycle["claim_status"] = "frozen_fallback_not_live_accepted_not_reproduction_complete"
+    lifecycle["superseded_by"] = STEP5D_ABLATION_V30
+
+
+def build_v30_current_stage_row(
+    base_row: dict[str, Any],
+    manifest: dict[str, Any],
+) -> dict[str, Any]:
+    """Promote pointer/readback state while preserving the frozen v30 control contract."""
+
+    row = copy.deepcopy(base_row)
+    program = STEP5D_ABLATION_V30
+    sha = manifest["sha256"]["local"]
+    validation = manifest["validation"]
+    controller_target = f"{manifest['target_dir']}/{program}.urp"
+    readback_manifest = manifest["manifest_path"]
+    prior_delivery = base_row.get("package_delivery") or {}
+    row.update(
+        {
+            "id": program,
+            "active": True,
+            "blocked": False,
+            "complete": False,
+            "completion_target": True,
+            "bridge": False,
+            "block_reason": (
+                "v30 is the current controller-readback-verified package after frozen P0 v8, "
+                "60-second timing/safe-hold, and Review v2 2+1 acceptance; bridge/contact still "
+                "require explicit live authorization."
+            ),
+            "success_condition": (
+                "Current package acceptance is not live acceptance or reproduction completion; "
+                "a separately authorized contact run remains required."
+            ),
+        }
+    )
+    row["local_delivery_evidence"] = {
+        "program_basename": program,
+        "local_program_dir": str(STEP5D_CURRENT_DIR),
+        "local_triplet": f"{STEP5D_CURRENT_DIR}/{program}.{{script,txt,urp}}",
+        "controller_target": controller_target,
+        "controller_dir": manifest["target_dir"],
+        "local_package_validated": True,
+        "controller_readback_verified": True,
+        "controller_readback": readback_manifest,
+        "local_controller_readback_sha_match": True,
+        "sha256": sha,
+        "stamp": validation.get("stamp"),
+        "installation_relative_path": validation.get("installation_relative_path"),
+        "delivery_mode": manifest.get("delivery_mode", "full_upload_readback"),
+    }
+    row["package_delivery"] = {
+        "status": "controller_readback_verified_current",
+        "program_basename": program,
+        "local_program_dir": str(STEP5D_CURRENT_DIR),
+        "local_triplet": f"{STEP5D_CURRENT_DIR}/{program}.{{script,txt,urp}}",
+        "controller_target": controller_target,
+        "controller_dir": manifest["target_dir"],
+        "controller_uploaded": True,
+        "controller_readback_verified": True,
+        "controller_readback_manifest": readback_manifest,
+        "delivery_mode": manifest.get("delivery_mode", "full_upload_readback"),
+        "semantic_fingerprint": prior_delivery.get("semantic_fingerprint"),
+        "delivery_preparation_allowed_before_p0_v8": True,
+        "sha256": sha,
+    }
+    row["current_binding"] = {
+        "source": "config/current_stage.json",
+        "is_current": True,
+        "stage_id": program,
+        "program": program,
+        "controller_target": controller_target,
+        "controller_readback_status": "verified_current",
+        "controller_readback_manifest": readback_manifest,
+        "flow_claim_status": "package_current_live_not_authorized_not_reproduction_complete",
+    }
+    contact_policy = row.setdefault("contact_policy", {})
+    contact_policy.update(
+        {
+            "bridge_required": True,
+            "tp_role": "strict_rnn_layout524_executor_and_guard_only",
+            "reference_owner": "v30_control_contract",
+            "live_authorization": "explicit_live_contact_authorization_required",
+            "default_stage25_control_mode": "speedj_rnn_live",
+            "dls_shadow_only": True,
+            "dls_fallback_allowed": False,
+        }
+    )
+    operator = row.setdefault("operator_lifecycle", {})
+    operator["expected_program"] = controller_target
+    operator["live_readiness_state"] = "current_package_ready_pending_explicit_live_authorization"
+    p0_gate = row.setdefault("p0_v8_gate", {})
+    p0_gate["passed"] = True
+    acceptance = row.setdefault("acceptance", {})
+    acceptance["strict_rnn_no_contact_p0_passed"] = True
+    acceptance["p0_v8_passed"] = True
+    review = row.setdefault("review_v2", {})
+    review["status"] = "accepted"
+    review["evidence_frozen"] = True
+    promotion_gate = row.setdefault("promotion_gate", {})
+    promotion_gate.update(
+        {
+            "current_promotion_allowed": True,
+            "bridge_start_allowed": False,
+            "contact_run_allowed": False,
+        }
+    )
+    offline = row.setdefault("offline_acceptance", {})
+    offline["status"] = "v30_offline_ready"
+    lifecycle = row.setdefault("lifecycle", {})
+    lifecycle.update(
+        {
+            "state": "current_v30_awaiting_explicit_live_authorization",
+            "current_candidate": True,
+            "retained_evidence": False,
+            "claim_status": "package_current_live_not_accepted_not_reproduction_complete",
+            "supersedes": STEP5D_ABLATION_V29,
+        }
+    )
+    row["claim_boundary"] = {
+        "package_accepted": True,
+        "live_accepted": False,
+        "reproduction_complete": False,
+    }
+    return row
+
+
+def update_v30_current_stage(
+    current: dict[str, Any],
+    manifest: dict[str, Any],
+    promotion_evidence: dict[str, Any],
+) -> dict[str, Any]:
+    payload = copy.deepcopy(current)
+    program = STEP5D_ABLATION_V30
+    target_dir = manifest["target_dir"]
+    sha = manifest["sha256"]["local"]
+    payload.update(
+        {
+            "updated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "current_step": "Step5d",
+            "current_stage_id": program,
+            "program": program,
+            "controller_target": f"{target_dir}/{program}.urp",
+            "controller_script": f"{target_dir}/{program}.script",
+            "local_triplet": f"{STEP5D_CURRENT_DIR}/{program}",
+            "delivery_manifest": manifest["manifest_path"],
+            "controller_readback_manifest": manifest["manifest_path"],
+            "status": "v30_current_package_accepted_awaiting_explicit_live_authorization",
+            "sha256": sha,
+            "v30_promotion_evidence": promotion_evidence,
+            "liveprep_status": {
+                "state": "awaiting_live_authorization",
+                "package_accepted": True,
+                "live_accepted": False,
+                "reproduction_complete": False,
+            },
+            "live_run_status": {"state": "not_started", "accepted": False},
+            "reproduction_status": {"state": "incomplete", "complete": False},
+        }
+    )
+    payload["bridge_profile"] = {
+        "step4e_version": program,
+        "stage25_control_mode": "speedj_rnn_live",
+        "joint_layout_code": 524.0,
+        "runtime_profile": {
+            "backend": "cupy",
+            "inner_iterations": 1024,
+            "epsilon": 0.01,
+            "sigr_exponent_r": 0.8,
+            "qdot_cap_rad_s": 0.05,
+        },
+        "control_contract": (
+            "Step5dObservation->StrictRnnControlPolicy->ControlCandidate->"
+            "SafetyEnvelope->RegisterCommand"
+        ),
+        "normal_contract": "n_reaction = -n_approach in one canonical command frame",
+        "dls_shadow_only": True,
+        "dls_runtime_fallback_allowed": False,
+        "stage25_success_target_s": 60.0,
+        "stage25_runtime_limit_s": 65.0,
+    }
+    trigger = payload.setdefault("bridge_trigger", {})
+    trigger.update(
+        {
+            "bridge_has_started": False,
+            "live_motion_authorized": False,
+            "blocked_reason": (
+                "v30 is current and package-accepted; bridge/contact remains blocked until a new "
+                "explicit live/contact authorization."
+            ),
+            "required_before_live": [
+                "operator outside UR reach/cage boundary",
+                "TP program opened on controller-readback-verified v30 package",
+                "v30 package/readback and frozen evidence fingerprint remain current",
+                "P0 v8 final continuous 60 second artifact remains accepted",
+                "Review v2 current composite 2+1 remains accepted",
+                "explicit live/contact authorization for v30 speedj_rnn_live",
+            ],
+        }
+    )
+    evidence = payload.setdefault("evidence", {})
+    evidence.update(
+        {
+            "v30_local_package_validated": True,
+            "v30_controller_readback_verified": True,
+            "v30_controller_readback_manifest": manifest["manifest_path"],
+            "v30_controller_target": f"{target_dir}/{program}.urp",
+            "v30_local_triplet": f"{STEP5D_CURRENT_DIR}/{program}",
+            "v30_sha256": sha,
+            "v30_review_v2_composite_fingerprint": promotion_evidence["review_v2"][
+                "composite_fingerprint"
+            ],
+            "sha256": sha,
+        }
+    )
+    payload["strict_rnn_status"] = {
+        "reason": (
+            "v30 package/readback, P0 v8, timing/safe-hold, and Review v2 are accepted; "
+            "live/contact run and reproduction remain incomplete."
+        )
+    }
+    payload["notes"] = [
+        "v30 current promotion did not authorize bridge start, TP Play, contact, or robot motion.",
+        "DLS remains shadow-only and cannot be a strict-RNN runtime fallback.",
+        "package accepted != live accepted != reproduction complete.",
+    ]
+    return payload
+
+
 def v27_fix_validation_analysis() -> dict[str, Any]:
     return {
         "run_dir": "runs/bridge_step5d_strict_rnn_ablation_v27_20260706_045513",
@@ -1409,6 +1666,7 @@ def update_current_stage(
     )
     trigger = payload.setdefault("bridge_trigger", {})
     trigger["bridge_has_started"] = False
+    trigger["live_motion_authorized"] = False
     trigger["blocked_reason"] = (
         f"{label} package delivery is complete and controller read-back verified; live bridge start "
         "is outside this offline/package action and still requires an explicit live trigger."
@@ -1479,23 +1737,48 @@ def promote(root: Path, program: str, target_dir: str, local_dir: Path, manifest
         fail(f"refusing non-Step5d TP package: {program}")
     manifest_path = manifest_path or latest_manifest(root, program)
     manifest = validate_manifest(root, program, target_dir, manifest_path)
-    formal_files = ensure_formal_local_triplet(root, program, local_dir, manifest["sha256"]["local"])
     current_path = root / "config" / "current_stage.json"
     table_path = root / "config" / "step5_stage_table.json"
     current = load_json(current_path)
     table = load_json(table_path)
+    target_row = find_stage(table, program)
+    promotion_evidence = None
+    if program == STEP5D_ABLATION_V30:
+        promotion_evidence = verify_v30_evidence_freeze(
+            root,
+            current,
+            target_row,
+            expected_package_sha256=manifest["sha256"]["local"],
+            expected_readback_manifest=manifest["manifest_path"],
+        )
+    formal_files = ensure_formal_local_triplet(root, program, local_dir, manifest["sha256"]["local"])
     previous = current.get("program") or current.get("current_stage_id")
     previous_row = find_stage(table, str(previous)) if previous else None
-    target_row = find_stage(table, program)
     base_row = copy.deepcopy(target_row or previous_row or {"stage": "Step5d", "owner": "bridge+TP"})
     if previous and previous != program:
-        update_previous_stage(root, table, str(previous), current, program)
-    current_row = build_current_stage_row(base_row, program, manifest)
+        if program == STEP5D_ABLATION_V30 and previous == STEP5D_ABLATION_V29:
+            freeze_v29_fallback_for_v30(table)
+        else:
+            update_previous_stage(root, table, str(previous), current, program)
+    if program == STEP5D_ABLATION_V30:
+        if not isinstance(promotion_evidence, dict):
+            fail("v30 promotion evidence unexpectedly missing after validation")
+        current_row = build_v30_current_stage_row(base_row, manifest)
+        package_delivery = current_row.setdefault("package_delivery", {})
+        package_delivery["controller_readback_manifest_sha256"] = sha256_file(
+            root / manifest["manifest_path"]
+        )
+    else:
+        current_row = build_current_stage_row(base_row, program, manifest)
     upsert_stage(table, current_row, after_id=str(previous) if previous else None)
     update_bridge_startup_policy(table, program)
     normalize_retained_stage_metadata(table, program)
     normalize_v27_fix_validation_metadata(root, table, program)
-    new_current = update_current_stage(root, current, program, manifest)
+    if program == STEP5D_ABLATION_V30:
+        assert isinstance(promotion_evidence, dict)
+        new_current = update_v30_current_stage(current, manifest, promotion_evidence)
+    else:
+        new_current = update_current_stage(root, current, program, manifest)
     write_json(table_path, table)
     write_json(current_path, new_current)
     return {
@@ -1506,6 +1789,7 @@ def promote(root: Path, program: str, target_dir: str, local_dir: Path, manifest
         "formal_local_triplet": [rel(root, path) for path in formal_files.values()],
         "current_stage": rel(root, current_path),
         "stage_table": rel(root, table_path),
+        "promotion_evidence": promotion_evidence,
     }
 
 

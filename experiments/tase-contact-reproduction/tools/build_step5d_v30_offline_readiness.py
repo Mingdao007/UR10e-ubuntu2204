@@ -11,12 +11,17 @@ from pathlib import Path
 from typing import Any
 
 from step5d_v30_timing import SOURCE_BINDING_FILES, summarize_preaggregated
+from step5d_review_v2 import full_review_index_projection_sha256
+from validate_step5d_review_v2 import validate_manifest, validate_packet
 
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = ROOT / "config" / "step5d_v30_offline_readiness.json"
 STATUS_READY = "v30_offline_ready"
 STATUS_BLOCKED = "v30_offline_blocked"
+V30_PROFILE = "step5d_strict_rnn_ablation_v30"
+P0_V8_PROFILE = "step5d_strict_rnn_no_contact_p0_v8"
+EXTENSIONS = (".script", ".txt", ".urp")
 
 
 def sha256(path: Path) -> str:
@@ -25,6 +30,170 @@ def sha256(path: Path) -> str:
 
 def load(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def stage_row(stage_id: str) -> dict[str, Any]:
+    table = load(ROOT / "config" / "step5_stage_table.json")
+    row = next(
+        (item for item in table.get("stages", []) if item.get("id") == stage_id),
+        None,
+    )
+    if not isinstance(row, dict):
+        raise ValueError(f"missing Step5 stage row: {stage_id}")
+    return row
+
+
+def validate_inactive_package_delivery(
+    row: dict[str, Any], marker: dict[str, Any]
+) -> dict[str, Any]:
+    """Bind the inactive triplet and, when present, its controller readback."""
+
+    blockers: list[str] = []
+    delivery = row.get("package_delivery") or {}
+    marker_sha = marker.get("sha256") or {}
+    expected_sha = {
+        ext: sha256(ROOT / "programs" / "step5" / "step5d" / f"{V30_PROFILE}{ext}")
+        for ext in EXTENSIONS
+    }
+    if marker.get("program") != V30_PROFILE or marker.get("local_only") is not True:
+        blockers.append("v30_local_package_boundary_invalid")
+    if marker_sha != expected_sha or delivery.get("sha256") != expected_sha:
+        blockers.append("v30_package_hash_binding_invalid")
+    if marker.get("semantic_fingerprint") != delivery.get("semantic_fingerprint"):
+        blockers.append("v30_semantic_fingerprint_mismatch")
+
+    readback_verified = delivery.get("controller_readback_verified") is True
+    manifest_rel = delivery.get("controller_readback_manifest")
+    manifest_sha256 = None
+    if readback_verified:
+        if delivery.get("controller_uploaded") is not True:
+            blockers.append("v30_readback_without_upload_state")
+        if not manifest_rel:
+            blockers.append("v30_controller_readback_manifest_missing")
+        else:
+            manifest_path = ROOT / str(manifest_rel)
+            if not manifest_path.is_file():
+                blockers.append("v30_controller_readback_manifest_unavailable")
+            else:
+                manifest_sha256 = sha256(manifest_path)
+                manifest = load(manifest_path)
+                manifest_sha = manifest.get("sha256") or {}
+                validation = manifest.get("validation") or {}
+                target = delivery.get("controller_target")
+                expected_target = f"/programs/andyl/kunwei/step5/{V30_PROFILE}.urp"
+                if (
+                    manifest.get("status") != "controller read-back verified"
+                    or validation.get("program") != V30_PROFILE
+                    or target != expected_target
+                    or validation.get("script_node_path")
+                    != f"/programs/andyl/kunwei/step5/{V30_PROFILE}.script"
+                    or manifest_sha.get("local") != expected_sha
+                    or manifest_sha.get("controller") != expected_sha
+                    or manifest_sha.get("readback") != expected_sha
+                ):
+                    blockers.append("v30_controller_readback_binding_invalid")
+        if delivery.get("status") not in {
+            "controller_readback_verified_inactive",
+            "inactive_controller_readback_verified",
+        }:
+            blockers.append("v30_controller_readback_status_invalid")
+    elif manifest_rel or delivery.get("controller_uploaded") is True:
+        blockers.append("v30_partial_delivery_state_inconsistent")
+
+    return {
+        "valid": not blockers,
+        "blockers": sorted(set(blockers)),
+        "triplet_sha256": expected_sha,
+        "controller_readback_verified": readback_verified and not blockers,
+        "controller_readback_manifest": manifest_rel,
+        "controller_readback_manifest_sha256": manifest_sha256,
+    }
+
+
+def validate_p0_v8_gate(current: dict[str, Any]) -> dict[str, Any]:
+    candidate = current.get("p0_v8_candidate") or {}
+    artifact_rel = candidate.get("passed_artifact")
+    blockers: list[str] = []
+    if candidate.get("profile") != P0_V8_PROFILE:
+        blockers.append("p0_v8_profile_mismatch")
+    if candidate.get("p0_v8_passed") is not True:
+        blockers.append("p0_v8_final_60s_not_passed")
+    artifact_sha256 = None
+    if not artifact_rel:
+        blockers.append("p0_v8_passed_artifact_missing")
+    else:
+        artifact_path = ROOT / str(artifact_rel)
+        if not artifact_path.is_file():
+            blockers.append("p0_v8_passed_artifact_unavailable")
+        else:
+            artifact_sha256 = sha256(artifact_path)
+            artifact = load(artifact_path)
+            if (
+                artifact.get("p0_v8_passed") is not True
+                or float(artifact.get("phase_s", 0.0) or 0.0) != 60.0
+                or (artifact.get("binding") or {}).get("composite_fingerprint")
+                != candidate.get("composite_fingerprint")
+            ):
+                blockers.append("p0_v8_passed_artifact_binding_invalid")
+    return {
+        "profile": candidate.get("profile"),
+        "passed": not blockers,
+        "passed_artifact": artifact_rel,
+        "passed_artifact_sha256": artifact_sha256,
+        "composite_fingerprint": candidate.get("composite_fingerprint"),
+        "blockers": sorted(set(blockers)),
+    }
+
+
+def review_v2_gate(row: dict[str, Any]) -> dict[str, Any]:
+    gate = row.get("review_v2") or {}
+    packet_rel = gate.get("packet")
+    manifest_rel = gate.get("manifest")
+    result = {
+        "policy_id": "ur10e_review_policy_v2",
+        "required_stack": "2+1",
+        "status": str(gate.get("status") or "not_due"),
+        "evidence_frozen": gate.get("evidence_frozen") is True,
+        "composite_fingerprint": gate.get("composite_fingerprint"),
+        "packet": packet_rel,
+        "manifest": manifest_rel,
+        "accepted": False,
+        "blockers": [],
+    }
+    if not packet_rel or not manifest_rel:
+        result["blockers"].append("review_v2_packet_or_manifest_missing")
+        return result
+    packet_path = ROOT / str(packet_rel)
+    manifest_path = ROOT / str(manifest_rel)
+    if not packet_path.is_file() or not manifest_path.is_file():
+        result["blockers"].append("review_v2_packet_or_manifest_unavailable")
+        return result
+    packet = load(packet_path)
+    manifest = load(manifest_path)
+    packet_result = validate_packet(packet, root=ROOT)
+    manifest_result = validate_manifest(manifest, packet, root=ROOT)
+    result.update(
+        {
+            "packet_sha256": sha256(packet_path),
+            "manifest_sha256": sha256(manifest_path),
+            "packet_validation": packet_result,
+            "manifest_validation": manifest_result,
+        }
+    )
+    fingerprint = (packet.get("fingerprints") or {}).get("composite")
+    if fingerprint != gate.get("composite_fingerprint"):
+        result["blockers"].append("review_v2_composite_fingerprint_stale")
+    result["blockers"].extend(packet_result.get("issues", []))
+    result["blockers"].extend(manifest_result.get("blockers", []))
+    result["blockers"] = sorted(set(result["blockers"]))
+    if result["evidence_frozen"] is not True:
+        result["blockers"].append("review_v2_manifest_without_evidence_freeze")
+    if gate.get("status") != "accepted":
+        result["blockers"].append("review_v2_stage_status_not_accepted")
+    result["blockers"] = sorted(set(result["blockers"]))
+    result["accepted"] = not result["blockers"] and manifest_result.get("accepted") is True
+    result["status"] = "accepted" if result["accepted"] else "blocked"
+    return result
 
 
 def timing_history_entry(
@@ -107,6 +276,8 @@ def timing_history_entry(
 
 def build(*, generated_at: str) -> dict[str, Any]:
     current = load(ROOT / "config" / "current_stage.json")
+    v30_row = stage_row("step5d_strict_rnn_ablation_v30")
+    p0_v8 = validate_p0_v8_gate(current)
     replay_path = ROOT / "config" / "step5d_v30_replay_summary.json"
     replay = load(replay_path)
     timing_summary_path = ROOT / "config" / "step5d_v30_timing_summary.json"
@@ -165,13 +336,11 @@ def build(*, generated_at: str) -> dict[str, Any]:
         if path.is_file()
     ]
 
-    review_manifest_path = ROOT / "config" / "step5d_v30_milestone_reviews.json"
-    review_manifest = load(review_manifest_path) if review_manifest_path.is_file() else {}
-    reviews = review_manifest.get("reviewers") or {
-        "codex_control_claim_high": {"status": "pending"},
-        "codex_timing_runtime_high": {"status": "pending"},
-        "fable5_physical_operator_safety_high": {"status": "pending"},
-    }
+    legacy_review_path = ROOT / "config" / "step5d_v30_milestone_reviews.json"
+    review_policy_path = ROOT / "config" / "step5d_review_policy_v2.json"
+    review_index_path = ROOT / "config" / "step5d_review_index_v2.json"
+    review_index = load(review_index_path)
+    current_review = review_v2_gate(v30_row)
     blockers: list[str] = []
     if replay.get("acceptance_pass") is not True:
         blockers.append("v29_replay_acceptance_incomplete")
@@ -204,15 +373,24 @@ def build(*, generated_at: str) -> dict[str, Any]:
         hard_deadline_evidence["solver"].get("compute_deadline_miss_count", 0) or 0
     ):
         blockers.append("system_level_host_driver_timing_outliers_unresolved")
-    if marker.get("local_only") is not True or marker.get("not_delivered") is not True:
-        blockers.append("v30_local_package_boundary_invalid")
-    if any(review.get("status") != "pass" for review in reviews.values()):
-        blockers.append("milestone_reviews_incomplete_or_blocking")
+    delivery = v30_row.get("package_delivery") or {}
+    package_validation = validate_inactive_package_delivery(v30_row, marker)
+    readback_verified = package_validation["controller_readback_verified"] is True
+    blockers.extend(package_validation["blockers"])
+    if not readback_verified:
+        blockers.append("v30_controller_readback_not_frozen")
+    blockers.extend(p0_v8["blockers"])
+    deterministic_blockers = sorted(set(blockers))
+    evidence_frozen = not deterministic_blockers
+    if not evidence_frozen:
+        blockers.append("review_v2_not_due_until_evidence_freeze")
+    elif not current_review["accepted"]:
+        blockers.append("review_v2_2_plus_1_not_accepted_for_current_fingerprint")
     blockers = sorted(set(blockers))
     status = STATUS_READY if not blockers else STATUS_BLOCKED
 
     return {
-        "schema_version": "step5d_v30_offline_readiness_v1",
+        "schema_version": "step5d_v30_offline_readiness_v2",
         "generated_at": generated_at,
         "status": status,
         "profile": {
@@ -234,6 +412,7 @@ def build(*, generated_at: str) -> dict[str, Any]:
             "controller_upload_authorized": False,
             "bridge_start_authorized": False,
             "tp_play_authorized": False,
+            "delivery_preparation_allowed": True,
         },
         "replay": {
             "path": str(replay_path.relative_to(ROOT)),
@@ -286,17 +465,35 @@ def build(*, generated_at: str) -> dict[str, Any]:
             "marker_sha256": sha256(marker_path),
             "local_only": marker.get("local_only"),
             "not_delivered": marker.get("not_delivered"),
+            "controller_readback_verified": readback_verified,
+            "controller_readback_manifest": delivery.get(
+                "controller_readback_manifest"
+            ),
+            "controller_readback_manifest_sha256": package_validation[
+                "controller_readback_manifest_sha256"
+            ],
+            "binding_valid": package_validation["valid"],
+            "binding_blockers": package_validation["blockers"],
+            "delivery_preparation_allowed_before_p0_v8": True,
             "semantic_fingerprint": marker.get("semantic_fingerprint"),
-            "triplet_sha256": marker.get("sha256"),
+            "triplet_sha256": package_validation["triplet_sha256"],
         },
         "source_contract": source_hashes,
-        "reviews": reviews,
-        "review_manifest": {
-            "path": str(review_manifest_path.relative_to(ROOT)),
-            "sha256": sha256(review_manifest_path),
-            "milestone_status": review_manifest.get("milestone_gate", {}).get(
-                "status", "missing"
-            ),
+        "p0_v8_gate": p0_v8,
+        "review_v2": {
+            **current_review,
+            "evidence_freeze_ready": evidence_frozen,
+            "deterministic_freeze_blockers": deterministic_blockers,
+            "policy_path": str(review_policy_path.relative_to(ROOT)),
+            "policy_sha256": sha256(review_policy_path),
+            "index_path": str(review_index_path.relative_to(ROOT)),
+            "index_sha256": full_review_index_projection_sha256(review_index),
+        },
+        "historical_review": {
+            "path": str(legacy_review_path.relative_to(ROOT)),
+            "sha256": sha256(legacy_review_path),
+            "status": "historical_superseded_by_review_policy_v2",
+            "counts_as_review_v2": False,
         },
         "blockers": blockers,
         "claim_boundary": {

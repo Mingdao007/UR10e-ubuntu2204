@@ -525,8 +525,21 @@ class Step5dNoContactP0Test(unittest.TestCase):
         capture = current["bridge_trigger"]["no_contact_p0_capture"]
 
         self.assertEqual(iface.STEP5D_NO_CONTACT_P0_STAGE_ID, P0_V7_STAGE_ID)
-        self.assertIn(f'P0_PROFILE="{P0_V7_STAGE_ID}"', wrapper)
-        self.assertIn(f'STEP5D_NO_CONTACT_P0_PROFILE="{P0_V7_STAGE_ID}"', bridge_operator)
+        self.assertIn(
+            f'P0_PROFILE="${{STEP5D_P0_PROFILE_OVERRIDE:-{P0_V7_STAGE_ID}}}"',
+            wrapper,
+        )
+        self.assertIn(
+            f'STEP5D_NO_CONTACT_P0_PROFILE="{P0_V7_STAGE_ID}"',
+            bridge_operator,
+        )
+        v8_wrapper = (ROOT / "scripts" / "step5d-strict-rnn-p0-v8.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            'STEP5D_P0_PROFILE_OVERRIDE="step5d_strict_rnn_no_contact_p0_v8"',
+            v8_wrapper,
+        )
         self.assertEqual(capture["profile"], iface.STEP5D_NO_CONTACT_P0_STAGE_ID)
         self.assertIn("P0_PROFILE", wrapper)
         self.assertEqual(capture["controller_target"], stage["package_delivery"]["controller_target"])

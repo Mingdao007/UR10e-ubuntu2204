@@ -1,0 +1,71 @@
+{
+  "component_fingerprints": {
+    "code": "5a1b2cf9cc9d80ac214963ba6fbb531237d448e2b68123cde90c8eb26063fd17",
+    "evidence": "5eccfc2676d44e43211bcef8e4fe167c1565b69fd4c9afd26e0f250f6c5e26b5",
+    "package": "95bf63da574f34396847e55cd589cbef0e80ae7b872aebeb09e303d79c091c17",
+    "policy": "38db1ff4b6cbc3eff93cda8e25e46f31a6d64178b5803e687958e71d3b395841"
+  },
+  "composite_fingerprint": "9d6b00ba760a617086dca5db4bae74b0867f899bc7b7cf7e6d0ac8d742505ea0",
+  "invalidation_reason": "lane_scoped_finding_fix_changed_code_and_evidence_fingerprints",
+  "lanes": {
+    "control_claim": {
+      "actual_effort": "high",
+      "actual_model": "gpt-5.6-sol",
+      "elapsed_seconds": 37.90731382369995,
+      "findings": [
+        {
+          "backlog_ref": null,
+          "evidence": "Between 11c691c704b1692820401059b618e9b6034f89aa and 7e6e5278d8c7ce0a13ce5b444918d89eb3d23a58, config/current_stage.json corrects both v29 local-triplet bindings to programs/step5/step5d/step5d_strict_rnn_ablation_v29, and config/step5_stage_table.json corrects both local_program_dir/local_triplet records to the same nested directory. The unchanged package hashes remain those accepted by the source review.",
+          "id": "V29-CC-001",
+          "resolution": "All reviewed v29 package-path bindings now consistently identify the authoritative nested programs/step5/step5d triplet without changing package identity or acceptance boundaries.",
+          "severity": "P1",
+          "status": "closed",
+          "title": "Bound v29 package paths agree"
+        },
+        {
+          "backlog_ref": null,
+          "evidence": "The changed v29 Review v2 records now set evidence_frozen=true, replace the stale non-portable/null-manifest state with resolved_by_review_index and explicit review-index/source-manifest pointers, and retain frozen_fallback, live_authorized=false, fresh controller readback and timing fingerprint, future Review v2 2+1, new explicit live/contact authorization, and incomplete 60-second reproduction requirements.",
+          "id": "V29-CC-002",
+          "resolution": "The bound v29 records now agree with the portable frozen-review state while preserving separate package, live/contact authorization, fresh-readback/timing, future 2+1, and reproduction-completion gates.",
+          "severity": "P1",
+          "status": "closed",
+          "title": "Bound Review v2 state agrees with the frozen portable packet"
+        }
+      ],
+      "invocation_id": "019f4f73-e0b6-7bd1-b8da-2841a88470bc",
+      "packet_path": "config/reviews/v29_baseline_review_v2_closer_packet.json",
+      "packet_sha256": "80b639b048de486adabdbe64d51397e028a3c70ee8bf865fc524cc73d6c1f742",
+      "raw_output_path": "config/reviews/v29_baseline_review_v2_closer_raw_control_claim.json",
+      "raw_output_sha256": "dab7127543c1302c20de7447fccdd4c765f10d5187af42f2ceb1a18523e23c58",
+      "requested_effort": "high",
+      "requested_model": "gpt-5.6-sol",
+      "scope_note": "Targeted closer inspected the source/target review artifacts and only the two allowlisted changed state files; no controller, remote host, bridge, or motion surface was accessed.",
+      "status": "pass",
+      "summary": "Both targeted P1 findings are closed. The reviewed hunks correct the v29 package paths and frozen Review v2 state without weakening frozen-fallback or future live/contact and reproduction boundaries; unchanged hashes, replay semantics, and focused-test results are reused from the source review.",
+      "timeout_seconds": 720,
+      "verdict": "pass"
+    }
+  },
+  "milestone": "baseline_re_review",
+  "policy_id": "ur10e_review_policy_v2",
+  "required_stack": "1+0",
+  "review_class": "v29_baseline_re_review",
+  "review_mode": "targeted_closer",
+  "schema_version": "ur10e_review_manifest_v2",
+  "targeted_closer": {
+    "finding_ids": [
+      "V29-CC-001",
+      "V29-CC-002"
+    ],
+    "fingerprint_transition": {
+      "kind": "targeted_finding_fix",
+      "source_composite_fingerprint": "b24176554e5ad6cf553a2781318f27a6b6ad2e3909539ac849f889d8ac76d040",
+      "target_composite_fingerprint": "9d6b00ba760a617086dca5db4bae74b0867f899bc7b7cf7e6d0ac8d742505ea0"
+    },
+    "source_manifest_file_sha256": "59415371e0d39a232af1fdc0896947b517d6858081b439d0d8727dd3799112d8",
+    "source_manifest_sha256": "c9ea016dd54b14fd3151268aee08410ec34671184d674ac7ad2ce7f98dbe6537",
+    "source_packet_sha256": "09deb2b9ebc6c0637af316dd2b9a6c940144941d07de131b8c5cfbac0266f75c",
+    "supplemental_lanes": []
+  },
+  "workflow": "v29"
+}

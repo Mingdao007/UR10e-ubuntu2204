@@ -16,6 +16,7 @@ LONG_CHECK_CACHE="${LONG_CHECK_CACHE:-${RUN_ROOT}/.bridge_long_checks_cache.json
 STEP5D_RUNTIME_INTERFACE="${ROOT}/tools/step5d_runtime_interface.py"
 STEP5D_CURRENT_BINDING_GATE="${ROOT}/tools/verify_step5d_current_binding.py"
 STEP5D_NO_CONTACT_P0_PROFILE="step5d_strict_rnn_no_contact_p0_v7"
+STEP5D_NO_CONTACT_P0_CONFIRM_TOKEN="${STEP5D_P0_CONFIRM_TOKEN_OVERRIDE:-LIVE STEP5D STRICT RNN NO CONTACT P0}"
 STEP5D_CUPY_PYTHONPATH="${STEP5D_CUPY_PYTHONPATH:-/tmp/step5d_gpu_np124}"
 BRIDGE_PROFILE="${BRIDGE_PROFILE:-${STEP4E_VERSION:-v31}}"
 
@@ -67,6 +68,9 @@ case "${BRIDGE_PROFILE}" in
     BRIDGE_PROFILE="step6b_v2"
     ;;
 esac
+if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_no_contact_p0_v8" ]]; then
+  STEP5D_NO_CONTACT_P0_PROFILE="${BRIDGE_PROFILE}"
+fi
 BRIDGE_DURATION_S="${BRIDGE_DURATION_S:-${STEP5D_DURATION_S:-180}}"
 BRIDGE_BASELINE_S="${BRIDGE_BASELINE_S:-${STEP5D_BASELINE_S:-5}}"
 BRIDGE_REZERO_S="${BRIDGE_REZERO_S:-${STEP5D_REZERO_S:-1}}"
@@ -644,8 +648,8 @@ step5d_live_ready() {
 
 step5d_no_contact_p0_capture_authorized() {
   if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
-    if [[ "${STEP5D_P0_CONFIRM:-}" != "LIVE STEP5D STRICT RNN NO CONTACT P0" ]]; then
-      echo "refusing: no-contact P0 capture requires STEP5D_P0_CONFIRM='LIVE STEP5D STRICT RNN NO CONTACT P0'"
+    if [[ "${STEP5D_P0_CONFIRM:-}" != "${STEP5D_NO_CONTACT_P0_CONFIRM_TOKEN}" ]]; then
+      echo "refusing: no-contact P0 capture requires STEP5D_P0_CONFIRM='${STEP5D_NO_CONTACT_P0_CONFIRM_TOKEN}'"
       exit 40
     fi
     if [[ "${BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE:-0}" != "1" ]]; then
@@ -1367,6 +1371,7 @@ PY
     --step5d-sigr-exponent-r "${STEP5D_SIGR_EXPONENT_R:-1.0}" \
     --step5d-rnn-inner-iterations "${STEP5D_RNN_INNER_ITERATIONS:-1}" \
     --step5d-rnn-backend "${STEP5D_RNN_BACKEND:-numpy}" \
+    --step5d-stop-register-canary-s "${STEP5D_STOP_REGISTER_CANARY_S:-0}" \
     --step5d-preload-filtered-min-n "${STEP5D_PRELOAD_FILTERED_MIN_N:-${STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N}}" \
     --step5d-preload-filtered-max-n "${STEP5D_PRELOAD_FILTERED_MAX_N:-${STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N}}" \
     --step5d-preload-raw-min-n "${STEP5D_PRELOAD_RAW_MIN_N:-${STEP5D_DEFAULT_PRELOAD_RAW_MIN_N}}" \
@@ -1451,7 +1456,8 @@ if [[ "${mode}" == "live-ready" || "${mode}" == "status" ]]; then
 fi
 select_mode "${mode}"
 CONFIRM_TOKEN="${CONFIRM_LABEL:-${BRIDGE_MODE}}"
-CONFIRM_TOKEN="${CONFIRM_TOKEN^^}"
+CONFIRM_TOKEN="$(printf '%s' "${CONFIRM_TOKEN}" | tr '[:lower:]' '[:upper:]')"
+BRIDGE_PROFILE_CONFIRM_TOKEN="$(printf '%s' "${BRIDGE_PROFILE}" | tr '[:lower:]' '[:upper:]')"
 
 case "${mode}" in
   *-autowatch)
@@ -1530,10 +1536,10 @@ Motion/control:
   attitude proxy = bounded wx/wy velocity command, gain = ${BRIDGE_ORIENTATION_GAIN}, angular limit = ${BRIDGE_ANGULAR_LIMIT_RAD_S} rad/s, wx sign = ${BRIDGE_ORIENTATION_WX_SIGN}, wy sign = ${BRIDGE_ORIENTATION_WY_SIGN}, yaw frozen
   normal follow = ${BRIDGE_NORMAL_FOLLOW_MODE}, tau = ${BRIDGE_NORMAL_FILTER_TAU_S}s, max rate = ${BRIDGE_NORMAL_MAX_RATE_RAD_S} rad/s, min force = ${BRIDGE_NORMAL_MIN_FORCE_N} N, gate = ${BRIDGE_NORMAL_MAX_ANGLE_FROM_LATCH_DEG} deg, friction projection = ${BRIDGE_NORMAL_FRICTION_PROJECTION}
 
-Type START_BRIDGE_${CONFIRM_TOKEN}_${BRIDGE_PROFILE^^} to continue:
+Type START_BRIDGE_${CONFIRM_TOKEN}_${BRIDGE_PROFILE_CONFIRM_TOKEN} to continue:
 WARNING
     read -r confirm
-    if [[ "${confirm}" != "START_BRIDGE_${CONFIRM_TOKEN}_${BRIDGE_PROFILE^^}" ]]; then
+    if [[ "${confirm}" != "START_BRIDGE_${CONFIRM_TOKEN}_${BRIDGE_PROFILE_CONFIRM_TOKEN}" ]]; then
       echo "aborted"
       exit 2
     fi

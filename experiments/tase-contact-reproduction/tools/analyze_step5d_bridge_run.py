@@ -21,6 +21,7 @@ from step5d_runtime_interface import (
     STEP5D_ABLATION_V29_STAGE_ID,
     STEP5D_LIVEPREP_V24_STAGE_ID,
     STEP5D_NO_CONTACT_P0_STAGE_ID,
+    STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
     STEP5D_V27_SPEEDL_LIVE_CONTROL_SOURCE,
     Step5dPreloadGate,
     default_preload_gate,
@@ -28,6 +29,7 @@ from step5d_runtime_interface import (
     uses_step5b_speedl_live_source,
 )
 import verify_step5d_no_contact_p0
+import verify_step5d_no_contact_p0_v8
 
 
 ANALYSIS_FILENAME = "step5d_bridge_analysis.json"
@@ -121,6 +123,51 @@ def infer_step5d_profile(run_dir: Path | None, metadata: dict[str, Any]) -> str:
 
 def is_no_contact_p0_profile(profile: str) -> bool:
     return bool(NO_CONTACT_P0_PROFILE_RE.fullmatch(profile))
+
+
+def no_contact_p0_verification(
+    profile: str,
+    *,
+    run_dir: Path | None,
+    csv_path: Path,
+) -> tuple[dict[str, Any] | None, float | None, str | None]:
+    if not is_no_contact_p0_profile(profile):
+        return None, None, None
+    if profile != STEP5D_NO_CONTACT_P0_V8_STAGE_ID:
+        return (
+            verify_step5d_no_contact_p0.verify_run_dir(run_dir if run_dir is not None else csv_path),
+            None,
+            "verify_step5d_no_contact_p0.py",
+        )
+    if run_dir is None:
+        return (
+            {"ok": False, "canary_passed": False, "p0_v8_passed": False, "blockers": ["run_dir_missing"]},
+            None,
+            "verify_step5d_no_contact_p0_v8.py",
+        )
+    manifest = read_json(run_dir / "bridge_run_manifest.json")
+    phase_s = finite_float((manifest.get("p0_v8_canary") or {}).get("phase_s"))
+    if not any(math.isclose(phase_s, allowed, abs_tol=1e-9) for allowed in verify_step5d_no_contact_p0_v8.PHASES_S):
+        return (
+            {
+                "ok": False,
+                "canary_passed": False,
+                "p0_v8_passed": False,
+                "blockers": ["bridge_run_manifest_canary_phase_missing_or_invalid"],
+            },
+            None,
+            "verify_step5d_no_contact_p0_v8.py",
+        )
+    try:
+        verified = verify_step5d_no_contact_p0_v8.verify(run_dir, phase_s=phase_s)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        verified = {
+            "ok": False,
+            "canary_passed": False,
+            "p0_v8_passed": False,
+            "blockers": [f"p0_v8_verifier_error:{type(exc).__name__}"],
+        }
+    return verified, phase_s, "verify_step5d_no_contact_p0_v8.py"
 
 
 def preload_gate_for(run_dir: Path | None) -> tuple[str, Step5dPreloadGate]:
@@ -904,15 +951,16 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
     stage25_control_mode = metadata_text(metadata, "step5d_stage25_control_mode")
     profile, gate = preload_gate_for(run_dir)
     no_contact_p0_profile = is_no_contact_p0_profile(profile)
-    no_contact_p0_verifier = (
-        verify_step5d_no_contact_p0.verify_run_dir(run_dir if run_dir is not None else csv_path)
-        if no_contact_p0_profile
-        else None
+    no_contact_p0_verifier, no_contact_p0_v8_phase_s, no_contact_p0_verifier_tool = (
+        no_contact_p0_verification(profile, run_dir=run_dir, csv_path=csv_path)
     )
     result = base_analysis(csv_path, run_dir, profile, gate)
     result["stage25_control_mode"] = stage25_control_mode
     if no_contact_p0_verifier is not None:
         result["no_contact_p0_verifier"] = no_contact_p0_verifier
+        result["no_contact_p0_verifier_tool"] = no_contact_p0_verifier_tool
+    if profile == STEP5D_NO_CONTACT_P0_V8_STAGE_ID:
+        result["no_contact_p0_v8_phase_s"] = no_contact_p0_v8_phase_s
     if not csv_path.exists():
         result.update(
             {
@@ -1067,12 +1115,49 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
             result["stage25_control_mode"] = stage25_control_mode
 
     if no_contact_p0_verifier is not None and no_contact_p0_verifier.get("ok") is False:
-        result["classification"] = "no_contact_p0_verifier_failed"
-        result["acceptance_status"] = "failed_no_contact_p0_verifier"
+        result["classification"] = (
+            "p0_v8_canary_verifier_failed"
+            if profile == STEP5D_NO_CONTACT_P0_V8_STAGE_ID
+            else "no_contact_p0_verifier_failed"
+        )
+        result["acceptance_status"] = (
+            "failed_p0_v8_canary_verifier"
+            if profile == STEP5D_NO_CONTACT_P0_V8_STAGE_ID
+            else "failed_no_contact_p0_verifier"
+        )
         result["next_action"] = (
             "keep strict RNN contact live gated; fix P0 command-path evidence until "
-            "verify_step5d_no_contact_p0.py passes on the completed artifact"
+            f"{no_contact_p0_verifier_tool} passes on the completed artifact"
         )
+    elif profile == STEP5D_NO_CONTACT_P0_V8_STAGE_ID and no_contact_p0_verifier is not None:
+        phase_s = float(no_contact_p0_v8_phase_s or 0.0)
+        canary_passed = no_contact_p0_verifier.get("canary_passed") is True
+        p0_passed = no_contact_p0_verifier.get("p0_v8_passed") is True
+        if math.isclose(phase_s, 60.0, abs_tol=1e-9) and p0_passed:
+            result["classification"] = "p0_v8_passed"
+            result["fix_validation_status"] = "passed_60s_no_contact_p0_v8"
+            result["reproduction_status"] = "contact_run_not_started"
+            result["acceptance_status"] = "p0_v8_60s_p0_passed"
+            result["next_action"] = (
+                "bind this 60 s P0 v8 artifact to the frozen fingerprint; v30 contact remains gated by "
+                "timing/readback, Review v2 2+1, and explicit live/contact authorization"
+            )
+        elif canary_passed and any(
+            math.isclose(phase_s, allowed, abs_tol=1e-9) for allowed in (2.0, 10.0)
+        ):
+            result["classification"] = "p0_v8_canary_passed"
+            result["fix_validation_status"] = f"passed_{phase_s:g}s_no_contact_canary"
+            result["reproduction_status"] = "p0_v8_not_complete"
+            result["acceptance_status"] = "p0_v8_canary_passed_not_p0_complete"
+            next_phase_s = 10 if math.isclose(phase_s, 2.0, abs_tol=1e-9) else 60
+            result["next_action"] = (
+                f"retain the fingerprint-bound {phase_s:g} s canary and run the sequential "
+                f"{next_phase_s} s P0 v8 phase only after its authorization gate"
+            )
+        else:
+            result["classification"] = "p0_v8_verifier_claim_mismatch"
+            result["acceptance_status"] = "failed_p0_v8_claim_boundary"
+            result["next_action"] = "keep v30 gated; reconcile the P0 v8 verifier phase and claim fields"
     elif result["entered_stage25"]:
         oscillation_reason = stage25_control_oscillation_reason(result["stage25_control_attribution"])
         if stage25_speedl_fix_success(profile, result, control_mode=stage25_control_mode):

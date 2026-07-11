@@ -23,6 +23,7 @@ import step5d_liveprep_readiness as liveprep  # noqa: E402
 
 PROGRAM = "step5d_strict_rnn_liveprep_v99"
 V29_PROGRAM = "step5d_strict_rnn_ablation_v29"
+V30_PROGRAM = "step5d_strict_rnn_ablation_v30"
 TARGET_DIR = "/programs/andyl/kunwei/step5"
 V29_PROFILE = {
     "backend": "cupy",
@@ -381,20 +382,299 @@ def _verify_v29_authorization(root: Path, **overrides):  # noqa: ANN003
         return gate.verify_live_bridge_authorization(root, V29_PROGRAM, **profile)
 
 
+def _write_v30_evidence_fixture(root: Path) -> tuple[dict, dict]:
+    config = root / "config"
+    config.mkdir(parents=True)
+    p0_fingerprint = "1" * 64
+    review_fingerprint = "2" * 64
+    triplet_sha = {
+        ".script": "a" * 64,
+        ".txt": "b" * 64,
+        ".urp": "c" * 64,
+    }
+
+    p0_rel = "runs/p0_v8_60s/verification.json"
+    p0_path = root / p0_rel
+    p0_path.parent.mkdir(parents=True)
+    p0_path.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "canary_passed": True,
+                "p0_v8_passed": True,
+                "phase_s": 60.0,
+                "blockers": [],
+                "binding": {"composite_fingerprint": p0_fingerprint},
+            }
+        ),
+        encoding="utf-8",
+    )
+    readback_rel = f"runs/controller_readback_{V30_PROGRAM}_fixture/manifest.json"
+    readback_path = root / readback_rel
+    readback_path.parent.mkdir(parents=True)
+    readback_path.write_text('{"status":"controller read-back verified"}\n', encoding="utf-8")
+    timing_rel = "runs/v30_timing/acceptance_raw.json"
+    timing_path = root / timing_rel
+    timing_path.parent.mkdir(parents=True)
+    timing_path.write_text(
+        json.dumps(
+            {
+                "paced_500hz": True,
+                "first_post_warm_ms": 1.2,
+                "elapsed_full_tick_wall_s": 60.1,
+                "elapsed_safe_hold_wall_s": 60.1,
+                "full_tick_schedule_deadline_miss_count": 0,
+                "safe_hold_schedule_deadline_miss_count": 0,
+                "solver": {
+                    "samples": 10000,
+                    "p99_ms": 1.4,
+                    "max_ms": 1.8,
+                    "compute_deadline_miss_count": 0,
+                    "nonfinite_count": 0,
+                },
+                "full_tick": {
+                    "samples": 30000,
+                    "p99_ms": 1.7,
+                    "max_ms": 1.9,
+                    "compute_deadline_miss_count": 0,
+                    "nonfinite_count": 0,
+                },
+                "safe_hold": {
+                    "samples": 30000,
+                    "p99_ms": 0.1,
+                    "max_ms": 0.2,
+                    "compute_deadline_miss_count": 0,
+                    "nonfinite_count": 0,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    policy_rel = "config/step5d_review_policy_v2.json"
+    index_rel = "config/step5d_review_index_v2.json"
+    packet_rel = "runs/v30_review/packet.json"
+    manifest_rel = "runs/v30_review/manifest.json"
+    (root / packet_rel).parent.mkdir(parents=True)
+    (root / policy_rel).write_text('{"policy_id":"ur10e_review_policy_v2"}\n', encoding="utf-8")
+    (root / index_rel).write_text(
+        '{"schema_version":"ur10e_review_index_v2","v2_reviews":[]}\n',
+        encoding="utf-8",
+    )
+    (root / packet_rel).write_text(
+        json.dumps(
+            {
+                "workflow": "v30",
+                "milestone": "contact_pre_live",
+                "required_stack": "2+1",
+                "evidence_frozen": True,
+                "fingerprints": {"composite": review_fingerprint},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (root / manifest_rel).write_text(
+        json.dumps({"review_mode": "full", "composite_fingerprint": review_fingerprint}),
+        encoding="utf-8",
+    )
+
+    current = {
+        "current_stage_id": V30_PROGRAM,
+        "program": V30_PROGRAM,
+        "stage_table_path": "config/step5_stage_table.json",
+        "bridge_trigger": {"live_motion_authorized": False},
+        "p0_v8_candidate": {
+            "profile": gate.P0_V8_PROFILE,
+            "p0_v8_passed": True,
+            "passed_artifact": p0_rel,
+            "passed_artifact_sha256": _sha256(p0_path.read_bytes()),
+            "composite_fingerprint": p0_fingerprint,
+        },
+    }
+    row = {
+        "id": V30_PROGRAM,
+        "active": True,
+        "blocked": False,
+        "runtime_profile": dict(gate.V30_EXACT_RUNTIME_PROFILE),
+        "contact_policy": {
+            "dls_shadow_only": True,
+            "dls_fallback_allowed": False,
+        },
+        "guard": {"dls_runtime_fallback_allowed": False},
+        "p0_v8_gate": {
+            "passed": True,
+            "passed_artifact": p0_rel,
+            "passed_artifact_sha256": _sha256(p0_path.read_bytes()),
+            "composite_fingerprint": p0_fingerprint,
+        },
+        "package_delivery": {
+            "controller_readback_verified": True,
+            "controller_readback_manifest": readback_rel,
+            "controller_readback_manifest_sha256": _sha256(readback_path.read_bytes()),
+            "sha256": triplet_sha,
+        },
+        "review_v2": {
+            "required_stack": "2+1",
+            "evidence_frozen": True,
+            "composite_fingerprint": review_fingerprint,
+            "packet": packet_rel,
+            "manifest": manifest_rel,
+        },
+        "promotion_gate": {"current_promotion_allowed": False},
+        "acceptance": {
+            "strict_rnn_no_contact_p0_required_before_live": True,
+            "strict_rnn_no_contact_p0_passed": True,
+        },
+    }
+    readiness_rel = "config/step5d_v30_offline_readiness.json"
+    readiness_path = root / readiness_rel
+    readiness = {
+        "schema_version": "step5d_v30_offline_readiness_v2",
+        "status": "v30_offline_ready",
+        "blockers": [],
+        "p0_v8_gate": {
+            "passed": True,
+            "passed_artifact": p0_rel,
+            "composite_fingerprint": p0_fingerprint,
+        },
+        "package": {
+            "triplet_sha256": triplet_sha,
+            "controller_readback_verified": True,
+            "controller_readback_manifest": readback_rel,
+            "controller_readback_manifest_sha256": _sha256(readback_path.read_bytes()),
+        },
+        "timing": {
+            "overall_pass": True,
+            "acceptance_raw_evidence": {
+                "path": timing_rel,
+                "sha256": _sha256(timing_path.read_bytes()),
+            },
+        },
+        "review_v2": {
+            "accepted": True,
+            "required_stack": "2+1",
+            "evidence_freeze_ready": True,
+            "deterministic_freeze_blockers": [],
+            "composite_fingerprint": review_fingerprint,
+            "packet": packet_rel,
+            "packet_sha256": _sha256((root / packet_rel).read_bytes()),
+            "manifest": manifest_rel,
+            "manifest_sha256": _sha256((root / manifest_rel).read_bytes()),
+            "policy_path": policy_rel,
+            "policy_sha256": _sha256((root / policy_rel).read_bytes()),
+            "index_path": index_rel,
+            "index_sha256": gate.full_review_index_projection_sha256(
+                json.loads((root / index_rel).read_text(encoding="utf-8"))
+            ),
+        },
+    }
+    readiness_path.write_text(json.dumps(readiness), encoding="utf-8")
+    row["local_analysis_evidence"] = {
+        "offline_readiness": readiness_rel,
+        "offline_readiness_sha256": _sha256(readiness_path.read_bytes()),
+    }
+    (config / "current_stage.json").write_text(json.dumps(current), encoding="utf-8")
+    (config / "step5_stage_table.json").write_text(
+        json.dumps({"stages": [row]}), encoding="utf-8"
+    )
+    return current, row
+
+
 class Step5dCurrentBindingGateTest(unittest.TestCase):
-    def test_current_stage_readback_and_runtime_binding_pass(self) -> None:
-        result = gate.verify_binding(ROOT)
+    def test_frozen_v29_current_pointer_is_not_a_live_binding(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "current status is not read-back verified"):
+            gate.verify_binding(ROOT)
+
+    def test_v30_evidence_freeze_accepts_without_live_authorization(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            current, row = _write_v30_evidence_fixture(root)
+            with mock.patch.object(gate, "validate_review_v2_packet", return_value={"ok": True}), mock.patch.object(
+                gate,
+                "validate_review_v2_manifest",
+                return_value={"accepted": True},
+            ):
+                result = gate.verify_v30_evidence_freeze(root, current, row)
 
         self.assertTrue(result["ok"])
-        self.assertTrue(
-            result["program"].startswith(("step5d_strict_rnn_liveprep_", "step5d_strict_rnn_ablation_"))
-        )
-        self.assertIn("controller_readback_step5d_strict_rnn_", result["manifest"])
-        self.assertEqual(result["runtime_interface"]["program"], result["program"])
-        self.assertEqual(len(result["local_triplet"]), 3)
-        self.assertEqual(result["stage_table"]["id"], result["program"])
-        self.assertTrue(result["stage_table"]["active"])
-        self.assertTrue(result["stage_table"]["blocked"])
+        self.assertFalse(result["live_motion_authorized"])
+        self.assertTrue(result["derived_current_promotion_allowed"])
+        self.assertEqual(result["timing"]["full_tick_samples"], 30000)
+        self.assertEqual(result["review_v2"]["composite_fingerprint"], "2" * 64)
+
+    def test_v30_evidence_freeze_rejects_failed_p0_v8(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            current, row = _write_v30_evidence_fixture(root)
+            current["p0_v8_candidate"]["p0_v8_passed"] = False
+            with self.assertRaisesRegex(RuntimeError, "P0 v8 final continuous 60 second pass"):
+                gate.verify_v30_evidence_freeze(root, current, row)
+
+    def test_v30_evidence_freeze_rejects_safe_hold_deadline_miss(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            current, row = _write_v30_evidence_fixture(root)
+            readiness_path = root / "config/step5d_v30_offline_readiness.json"
+            readiness = json.loads(readiness_path.read_text(encoding="utf-8"))
+            raw_path = root / readiness["timing"]["acceptance_raw_evidence"]["path"]
+            raw = json.loads(raw_path.read_text(encoding="utf-8"))
+            raw["safe_hold"]["compute_deadline_miss_count"] = 1
+            raw_path.write_text(json.dumps(raw), encoding="utf-8")
+            readiness["timing"]["acceptance_raw_evidence"]["sha256"] = _sha256(raw_path.read_bytes())
+            readiness_path.write_text(json.dumps(readiness), encoding="utf-8")
+            row["local_analysis_evidence"]["offline_readiness_sha256"] = _sha256(
+                readiness_path.read_bytes()
+            )
+            with self.assertRaisesRegex(RuntimeError, "safe_hold.compute_deadline_miss_count must be zero"):
+                gate.verify_v30_evidence_freeze(root, current, row)
+
+    def test_v30_evidence_freeze_rejects_review_v2_validation_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            current, row = _write_v30_evidence_fixture(root)
+            with mock.patch.object(gate, "validate_review_v2_packet", return_value={"ok": True}), mock.patch.object(
+                gate,
+                "validate_review_v2_manifest",
+                return_value={"accepted": False, "blockers": ["lane_not_pass"]},
+            ):
+                with self.assertRaisesRegex(RuntimeError, "Review v2 manifest validation failed"):
+                    gate.verify_v30_evidence_freeze(root, current, row)
+
+    def test_v30_evidence_freeze_rejects_promotion_manifest_hash_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            current, row = _write_v30_evidence_fixture(root)
+            with self.assertRaisesRegex(RuntimeError, "promotion manifest package hashes"):
+                gate.verify_v30_evidence_freeze(
+                    root,
+                    current,
+                    row,
+                    expected_package_sha256={".script": "f" * 64},
+                )
+
+    def test_v30_live_bridge_still_requires_explicit_authorization(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            current, row = _write_v30_evidence_fixture(root)
+            profile = {
+                "stage25_control_mode": "speedj_rnn_live",
+                "rnn_backend": "cupy",
+                "rnn_inner_iterations": 1024,
+                "epsilon": 0.01,
+                "sigr_exponent_r": 0.8,
+                "qdot_cap_rad_s": 0.05,
+            }
+            with mock.patch.object(gate, "verify_binding", return_value={"ok": True, "program": V30_PROGRAM}), mock.patch.object(
+                gate, "verify_v30_evidence_freeze", return_value={"ok": True, "p0_v8": {"artifact": "p0.json"}}
+            ):
+                with self.assertRaisesRegex(RuntimeError, "live motion is not authorized"):
+                    gate.verify_live_bridge_authorization(root, V30_PROGRAM, **profile)
+                current["bridge_trigger"]["live_motion_authorized"] = True
+                (root / "config/current_stage.json").write_text(json.dumps(current), encoding="utf-8")
+                result = gate.verify_live_bridge_authorization(root, V30_PROGRAM, **profile)
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["live_motion_authorized"])
+        self.assertTrue(result["strict_rnn_no_contact_p0_passed"])
 
     def test_local_triplet_sha_mismatch_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

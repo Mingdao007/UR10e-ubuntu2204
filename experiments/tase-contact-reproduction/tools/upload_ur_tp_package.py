@@ -32,6 +32,12 @@ DEFAULT_HELPER = Path(
 )
 EXTENSIONS = (".script", ".txt", ".urp")
 LOCAL_CANDIDATE_MARKER = ".local_tp_candidate.json"
+INACTIVE_PRELIVE_DELIVERY_PROGRAMS = frozenset(
+    {
+        "step5d_strict_rnn_ablation_v30",
+        "step5d_strict_rnn_no_contact_p0_v8",
+    }
+)
 
 
 def die(message: str) -> None:
@@ -96,7 +102,13 @@ def _target_resolution(
     }
 
 
-def resolve_table_target(program: str, *, root: Path = EXPERIMENT_ROOT, required: bool = True) -> dict | None:
+def resolve_table_target(
+    program: str,
+    *,
+    root: Path = EXPERIMENT_ROOT,
+    required: bool = True,
+    local_dir: Path | None = None,
+) -> dict | None:
     current = load_json_if_present(root / "config" / "current_stage.json")
     table = load_json_if_present(root / "config" / "step5_stage_table.json")
 
@@ -111,16 +123,17 @@ def resolve_table_target(program: str, *, root: Path = EXPERIMENT_ROOT, required
         if resolution is not None:
             return resolution
 
-    capture = current.get("bridge_trigger", {}).get("no_contact_p0_capture", {})
-    if capture.get("profile") == program:
-        resolution = _target_resolution(
-            target=capture.get("controller_target"),
-            target_dir=None,
-            row_id=program,
-            source="config/current_stage.json#bridge_trigger.no_contact_p0_capture",
-        )
-        if resolution is not None:
-            return resolution
+    for capture_key in ("no_contact_p0_v8_capture", "no_contact_p0_capture"):
+        capture = current.get("bridge_trigger", {}).get(capture_key, {})
+        if capture.get("profile") == program:
+            resolution = _target_resolution(
+                target=capture.get("controller_target") or capture.get("planned_controller_target"),
+                target_dir=None,
+                row_id=program,
+                source=f"config/current_stage.json#bridge_trigger.{capture_key}",
+            )
+            if resolution is not None:
+                return resolution
 
     for row in table.get("stages", []):
         row_id = str(row.get("id") or "")
@@ -138,10 +151,25 @@ def resolve_table_target(program: str, *, root: Path = EXPERIMENT_ROOT, required
             continue
         for section in sections:
             resolution = _target_resolution(
-                target=section.get("controller_target") or section.get("expected_program"),
+                target=(
+                    section.get("controller_target")
+                    or section.get("planned_controller_target")
+                    or section.get("expected_program")
+                ),
                 target_dir=section.get("controller_dir"),
                 row_id=row_id,
                 source=f"config/step5_stage_table.json#stages[id={row_id}]",
+            )
+            if resolution is not None:
+                return resolution
+    if local_dir is not None and program in INACTIVE_PRELIVE_DELIVERY_PROGRAMS:
+        marker = load_local_candidate_marker(local_dir, program)
+        if marker is not None and marker.get("program") == program:
+            resolution = _target_resolution(
+                target=marker.get("controller_urp"),
+                target_dir=marker.get("target_dir"),
+                row_id=program,
+                source=f"{local_dir}/.{program}.local_candidate.json",
             )
             if resolution is not None:
                 return resolution
@@ -183,19 +211,87 @@ def load_local_candidate_marker(local_dir: Path, program: str | None = None) -> 
     return marker
 
 
-def enforce_offline_candidate_delivery_block(program: str, *, root: Path = EXPERIMENT_ROOT) -> None:
-    """Do not let CLI overrides bypass an inactive offline package boundary."""
+def enforce_offline_candidate_delivery_block(
+    program: str,
+    *,
+    root: Path = EXPERIMENT_ROOT,
+) -> dict | None:
+    """Return the exact inactive-delivery policy or reject non-allowlisted candidates."""
 
     table = load_json_if_present(root / "config" / "step5_stage_table.json")
     row = next((item for item in table.get("stages", []) if item.get("id") == program), None)
     if not isinstance(row, dict):
-        return
+        return None
     delivery = row.get("package_delivery") or {}
     if delivery.get("status") == "local_offline_candidate_only":
-        die(
-            f"refusing controller delivery for inactive offline candidate {program}; "
-            "table status must be changed by a separately authorized promotion workflow first"
-        )
+        if program not in INACTIVE_PRELIVE_DELIVERY_PROGRAMS:
+            die(f"refusing controller delivery for inactive offline candidate {program}")
+        if program == "step5d_strict_rnn_ablation_v30" and delivery.get(
+            "delivery_preparation_allowed_before_p0_v8"
+        ) is not True:
+            die("v30 inactive package delivery preparation is not enabled by the stage table")
+        if program == "step5d_strict_rnn_no_contact_p0_v8" and row.get("gate_for") != (
+            "step5d_strict_rnn_ablation_v30"
+        ):
+            die("P0 v8 inactive package is not bound as the v30 pre-live gate")
+        return {
+            "program": program,
+            "status": "inactive_prelive_delivery_preparation",
+            "stage_row": row,
+            "package_delivery": delivery,
+            "promotion_performed": False,
+            "program_start_performed": False,
+            "bridge_start_performed": False,
+        }
+    return None
+
+
+def validate_inactive_candidate_delivery_binding(
+    policy: dict,
+    marker: dict,
+    *,
+    program: str,
+    target_dir: str,
+    local_sha: dict[str, str],
+    root: Path = EXPERIMENT_ROOT,
+) -> dict:
+    """Bind an inactive upload/read-back preparation to table, marker, bytes, and target."""
+
+    row = policy["stage_row"]
+    delivery = policy["package_delivery"]
+    if delivery.get("program_basename") != program:
+        die("inactive candidate stage-table program basename mismatch")
+    if delivery.get("sha256") != local_sha:
+        die("inactive candidate stage-table sha256 does not match current package")
+    if delivery.get("semantic_fingerprint") != marker.get("semantic_fingerprint"):
+        die("inactive candidate marker/stage-table semantic fingerprint mismatch")
+    marker_target = str(marker.get("controller_urp") or "")
+    expected_target = str(PurePosixPath(target_dir) / f"{program}.urp")
+    if marker_target != expected_target:
+        die(f"inactive candidate marker controller_urp is {marker_target!r}, expected {expected_target!r}")
+    planned_target = str(delivery.get("planned_controller_target") or "")
+    if planned_target and planned_target != expected_target:
+        die("inactive candidate stage-table planned controller target mismatch")
+    current = load_json_if_present(root / "config" / "current_stage.json")
+    if program in {
+        str(current.get("program") or ""),
+        str(current.get("current_stage_id") or ""),
+    }:
+        die("inactive candidate delivery preparation cannot target the current program")
+    current_binding = row.get("current_binding") or {}
+    if current_binding.get("is_current") is True:
+        die("inactive candidate stage-table current binding must remain false")
+    return {
+        "policy": "manifest_bound_inactive_prelive_delivery_v1",
+        "program": program,
+        "stage_status": delivery.get("status"),
+        "semantic_fingerprint": marker.get("semantic_fingerprint"),
+        "package_sha256": local_sha,
+        "controller_target": expected_target,
+        "promotion_performed": False,
+        "program_start_performed": False,
+        "bridge_start_performed": False,
+    }
 
 
 def validate_local_candidate_marker(
@@ -1379,8 +1475,8 @@ def run(cmd: list[str], *, dry_run: bool, capture: bool = False) -> str:
     return ""
 
 
-def helper_cmd(helper: Path, *args: str) -> list[str]:
-    if not helper.is_file():
+def helper_cmd(helper: Path, *args: str, require_exists: bool = True) -> list[str]:
+    if require_exists and not helper.is_file():
         die(f"controller helper not found: {helper}")
     return [sys.executable, str(helper), *args]
 
@@ -1400,7 +1496,10 @@ def package_sha(files: dict[str, Path]) -> dict[str, str]:
 def remote_sha256(helper: Path, remote_paths: list[str], *, dry_run: bool) -> dict[str, str]:
     if dry_run:
         for remote_path in remote_paths:
-            run(helper_cmd(helper, "run", "--", "sha256sum", remote_path), dry_run=True)
+            run(
+                helper_cmd(helper, "run", "--", "sha256sum", remote_path, require_exists=False),
+                dry_run=True,
+            )
         return {}
     output = run(
         helper_cmd(helper, "run", "--", "sha256sum", *remote_paths),
@@ -1558,27 +1657,30 @@ def upload_and_readback(
     if controller != DEFAULT_CONTROLLER:
         die(f"{Path(__file__).name} uses the bench helper for {DEFAULT_CONTROLLER}; got {controller!r}")
 
-    run(helper_cmd(helper, "run", "--", "mkdir", "-p", target_dir), dry_run=dry_run)
+    def command(*parts: str) -> list[str]:
+        return helper_cmd(helper, *parts, require_exists=not dry_run)
+
+    run(command("run", "--", "mkdir", "-p", target_dir), dry_run=dry_run)
     remote_paths = remote_paths_for(files, target_dir)
     for ext in EXTENSIONS:
         remote_path = controller_path(target_dir, files[ext].name)
-        run(helper_cmd(helper, "put", str(files[ext]), remote_path), dry_run=dry_run)
+        run(command("put", str(files[ext]), remote_path), dry_run=dry_run)
 
-    run(helper_cmd(helper, "run", "--", "chown", "1000:1000", *remote_paths), dry_run=dry_run)
-    run(helper_cmd(helper, "run", "--", "chmod", "664", *remote_paths), dry_run=dry_run)
-    run(helper_cmd(helper, "run", "--", "ls", "-l", *remote_paths), dry_run=dry_run)
+    run(command("run", "--", "chown", "1000:1000", *remote_paths), dry_run=dry_run)
+    run(command("run", "--", "chmod", "664", *remote_paths), dry_run=dry_run)
+    run(command("run", "--", "ls", "-l", *remote_paths), dry_run=dry_run)
     controller_sha = remote_sha256(helper, remote_paths, dry_run=dry_run)
 
     if dry_run:
         for ext in EXTENSIONS:
             remote_path = controller_path(target_dir, files[ext].name)
-            run(helper_cmd(helper, "get", remote_path, str(readback_dir / files[ext].name)), dry_run=True)
+            run(command("get", remote_path, str(readback_dir / files[ext].name)), dry_run=True)
         return {}
 
     readback_dir.mkdir(parents=True, exist_ok=False)
     for ext in EXTENSIONS:
         remote_path = controller_path(target_dir, files[ext].name)
-        run(helper_cmd(helper, "get", remote_path, str(readback_dir / files[ext].name)), dry_run=False)
+        run(command("get", remote_path, str(readback_dir / files[ext].name)), dry_run=False)
 
     local_sha = package_sha(files)
     readback_sha = {ext: sha256(readback_dir / path.name) for ext, path in files.items()}
@@ -1616,6 +1718,7 @@ def write_manifest(
     target_resolution: dict | None = None,
     target_override_reason: str | None = None,
     program: str | None = None,
+    inactive_candidate_delivery: dict | None = None,
 ) -> None:
     manifest = {
         "status": "dry-run" if dry_run else "controller read-back verified",
@@ -1648,7 +1751,10 @@ def write_manifest(
         manifest["fresh_controller_checked_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
     if readback_source is not None:
         manifest["readback_source"] = readback_source
-    if program is not None and local_candidate_marker is not None and local_candidate_marker.get("program") == program:
+    if inactive_candidate_delivery is not None:
+        manifest["inactive_candidate_delivery"] = inactive_candidate_delivery
+        manifest["promotion_performed"] = False
+    elif program is not None and local_candidate_marker is not None and local_candidate_marker.get("program") == program:
         manifest["promoted_from_local_candidate"] = {
             "marker_schema": local_candidate_marker.get("schema"),
             "semantic_fingerprint": local_candidate_marker.get("semantic_fingerprint"),
@@ -1695,13 +1801,25 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--allow-local-candidate-promote",
         action="store_true",
-        help="explicitly promote a directory marked local_only=true; ignored for --dry-run",
+        help="legacy explicit delivery flag for a local-only candidate; does not change current-stage state",
+    )
+    parser.add_argument(
+        "--allow-inactive-prelive-delivery",
+        action="store_true",
+        help=(
+            "allow exact manifest-bound upload/read-back preparation for inactive v30 or P0 v8; "
+            "never promotes, loads, starts, or opens a bridge"
+        ),
     )
     args = parser.parse_args(argv)
 
     program = normalize_program(args.program)
-    enforce_offline_candidate_delivery_block(program)
-    table_resolution = resolve_table_target(program, required=not args.override_table)
+    inactive_delivery_policy = enforce_offline_candidate_delivery_block(program)
+    table_resolution = resolve_table_target(
+        program,
+        required=not args.override_table,
+        local_dir=args.local_dir,
+    )
     target_source = "table"
     target_override_reason = None
     if args.target_dir:
@@ -1720,6 +1838,7 @@ def main(argv: list[str] | None = None) -> int:
     files = triplet(args.local_dir, program)
     local_sha = package_sha(files)
     local_candidate_marker = load_local_candidate_marker(args.local_dir, program)
+    inactive_candidate_delivery: dict | None = None
     if local_candidate_marker is not None and local_candidate_marker.get("program") == program:
         validate_local_candidate_marker(
             local_candidate_marker,
@@ -1728,11 +1847,26 @@ def main(argv: list[str] | None = None) -> int:
             target_dir=target_dir,
             local_sha=local_sha,
         )
-        if not args.dry_run and not args.allow_local_candidate_promote:
+        if inactive_delivery_policy is not None:
+            inactive_candidate_delivery = validate_inactive_candidate_delivery_binding(
+                inactive_delivery_policy,
+                local_candidate_marker,
+                program=program,
+                target_dir=target_dir,
+                local_sha=local_sha,
+            )
+        if not args.dry_run and inactive_delivery_policy is not None and not args.allow_inactive_prelive_delivery:
+            die(
+                "refusing inactive pre-live package upload/read-back without "
+                "--allow-inactive-prelive-delivery"
+            )
+        if not args.dry_run and inactive_delivery_policy is None and not args.allow_local_candidate_promote:
             die(
                 "refusing to upload local-only TP candidate without "
                 "--allow-local-candidate-promote; run a local dev-loop dry-run or promote explicitly"
             )
+    elif inactive_delivery_policy is not None:
+        die("inactive pre-live delivery requires the exact program-specific local candidate marker")
     local_validation = validate_package(files, program, target_dir, require_exact_cached_script=True)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     readback_dir = args.readback_root / f"controller_readback_{program}_{stamp}"
@@ -1792,6 +1926,7 @@ def main(argv: list[str] | None = None) -> int:
             target_source=target_source,
             target_resolution=table_resolution,
             target_override_reason=target_override_reason,
+            inactive_candidate_delivery=inactive_candidate_delivery,
         )
         return 0
 
@@ -1819,6 +1954,7 @@ def main(argv: list[str] | None = None) -> int:
         target_source=target_source,
         target_resolution=table_resolution,
         target_override_reason=target_override_reason,
+        inactive_candidate_delivery=inactive_candidate_delivery,
     )
     if reused_from_manifest is None:
         print(f"controller read-back verified: {readback_dir}")

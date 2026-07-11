@@ -82,12 +82,18 @@ class Step5dV30ProfileTest(unittest.TestCase):
         self.assertIn("upload=no", rendered)
         self.assertNotIn("phase=live-bridge", rendered)
 
-    def test_v30_delivery_block_cannot_be_bypassed_by_cli_override_flags(self) -> None:
-        with self.assertRaisesRegex(RuntimeError, "inactive offline candidate"):
-            upload.enforce_offline_candidate_delivery_block(
-                interface.STEP5D_ABLATION_V30_STAGE_ID,
-                root=ROOT,
-            )
+    def test_v30_delivery_is_inactive_preparation_not_current_promotion(self) -> None:
+        policy = upload.enforce_offline_candidate_delivery_block(
+            interface.STEP5D_ABLATION_V30_STAGE_ID,
+            root=ROOT,
+        )
+
+        self.assertIsNotNone(policy)
+        assert policy is not None
+        self.assertEqual(policy["status"], "inactive_prelive_delivery_preparation")
+        self.assertFalse(policy["promotion_performed"])
+        self.assertFalse(policy["program_start_performed"])
+        self.assertFalse(policy["bridge_start_performed"])
 
     def test_v30_bridge_source_uses_contract_pipeline_but_refuses_live_start(self) -> None:
         source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(encoding="utf-8")
