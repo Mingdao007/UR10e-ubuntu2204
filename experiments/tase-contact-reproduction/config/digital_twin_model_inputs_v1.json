@@ -1,0 +1,97 @@
+{
+  "schema": "ur10e_digital_twin_model_inputs_v1",
+  "active_variant": "current_kunwei_stack_122p1_geometry_provisional",
+  "legacy_denylist": {
+    "sha256": [
+      "f186a335c39d74979b62ea32eacbe15a8a893baab110ae3fa2bdd5db07f065d5"
+    ],
+    "tokens": [
+      "tcp_site_unverified_85mm",
+      "eoat_v13_tcp_guess",
+      "ur10e_nominal.xml"
+    ]
+  },
+  "robot": {
+    "type": "ur10e",
+    "calibration_yaml": "src/ur10e_bringup/config/ur10e_calibration.yaml",
+    "calibration_yaml_sha256": "029aad03affc0cf60fc4274029463e683dc04b709f3a5e849f693d1c70409be8",
+    "calibration_hash": "calib_7367377276742883610",
+    "xacro_path": "/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro",
+    "initial_positions_yaml": "src/ur10e_example_controllers/config/gazebo_matrix_initial_positions.yaml",
+    "initial_positions_yaml_sha256": "5a4bffd53597c9e436f16ec1d474b4bd614b01a0a12eeb1ac3b54e5f8c478eb4",
+    "joint_order": [
+      "shoulder_pan_joint",
+      "shoulder_lift_joint",
+      "elbow_joint",
+      "wrist_1_joint",
+      "wrist_2_joint",
+      "wrist_3_joint"
+    ]
+  },
+  "variants": {
+    "current_kunwei_stack_122p1_geometry_provisional": {
+      "status": "geometry_provisional_robustness_only",
+      "active_tcp_offset_tool0_m": [
+        0.0000018186503701174852,
+        0.00000022293003722353485,
+        0.12209917288991741
+      ],
+      "tcp_source": "step5c calibrated Pinocchio/RTDE inference; norm gate 0.1218-0.1224 m",
+      "mass_interval_kg": [0.331, 0.4014],
+      "mass_nominal_kg": 0.3662,
+      "mass_source": "pending portable import of bench scale evidence; used only for seeded robustness",
+      "cog_nominal_tool0_m": [0.0, 0.0, 0.06105],
+      "inertia_model": "bounding_box_estimate_0p10_by_0p10_by_0p1221_m",
+      "visual_model": "gray_primitives_for_current_kunwei_sensor_adapter_tool_stack",
+      "collision_model": "seven_named_conservative_primitives",
+      "claim_ceiling": "geometry_provisional"
+    },
+    "v13_direct_flange_85_separate_not_current": {
+      "status": "separate_visual_reference_not_current_stack",
+      "contact_point_from_flange_m": 0.085,
+      "mesh": "src/ur10e_example_controllers/meshes/eoat/ur5e_ksm8n_ball_transfer_tool_v13_assembly.stl",
+      "mesh_sha256": "0abffc1633959513ff2a6a0e4fbf71a4082af0abc028c860e38da04436fe9778",
+      "known_missing": [
+        "purchased_KSM_8N_geometry",
+        "assembled_mass",
+        "assembled_COG",
+        "assembled_inertia",
+        "UR10e_current_stack_transform"
+      ],
+      "claim_ceiling": "visual_reference_only"
+    }
+  },
+  "surface": {
+    "mesh": "src/ur10e_example_controllers/meshes/contact_surface/two_piece_surface_smooth_v11_3mm_thick.stl",
+    "mesh_sha256": "c68d176a88260f7845f102c1dc6e9a60549d7c270738d1757050c0d79036c1cc",
+    "world_pose_xyz_m": [0.487795411149049, 0.12932679270060748, 0.0040224195],
+    "mesh_pose_xyz_rpy": [0.0364678879, 0.075, -0.0968663777, 1.5707963267948966, 0.0, 0.0],
+    "reaction_normal": [0.0, 0.0, 1.0],
+    "approach_normal": [0.0, 0.0, -1.0],
+    "friction_nominal": 1.0,
+    "contact_stiffness_nominal_n_m": 1000000.0,
+    "contact_damping_nominal_n_s_m": 100.0,
+    "parameter_claim": "falsification_only_until_material_and_full_2d_surface_calibration"
+  },
+  "rates_hz": {
+    "physics": 2000,
+    "control": 500,
+    "dbil": 200
+  },
+  "claim_boundary": {
+    "physics_provenance": "geometry_provisional",
+    "calibrated_physics_claim_allowed": false,
+    "p0_sim_physics_pass_allowed": false,
+    "live_motion_authorized": false,
+    "package_accepted": false,
+    "live_accepted": false,
+    "reproduction_complete": false
+  },
+  "blockers": [
+    "combined_eoat_mass_cog_inertia_unvalidated",
+    "current_kunwei_stack_full_cad_missing",
+    "kunwei_fz_sign_not_independently_calibrated",
+    "surface_material_contact_parameters_unvalidated",
+    "surface_full_2d_geometry_not_calibrated"
+  ]
+}
