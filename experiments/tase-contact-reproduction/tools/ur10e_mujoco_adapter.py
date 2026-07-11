@@ -409,10 +409,8 @@ class MuJoCoVelocityPlant:
         if not np.all(np.isfinite(values)) or np.max(np.abs(values)) > P0_V8_QDOT_CAP_RAD_S + 1e-12:
             raise ValueError("MuJoCo velocity command is nonfinite or over qdot cap")
         self.data.ctrl[:] = values
-        # MuJoCo's native nstep overload executes the same four 0.5 ms physics
-        # substeps while avoiding four separate Python/C crossings in every
-        # 500 Hz control tick.
-        self.mujoco.mj_step(self.model, self.data, nstep=4)
+        for _ in range(4):
+            self.mujoco.mj_step(self.model, self.data)
 
     def contact_rows(self) -> list[NativeContactRow]:
         return self._native_contacts()

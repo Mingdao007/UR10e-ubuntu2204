@@ -18,14 +18,6 @@ import ur10e_mujoco_adapter as adapter  # noqa: E402
 
 
 class Ur10eMujocoAdapterTest(unittest.TestCase):
-    def test_velocity_sink_uses_one_native_four_substep_call(self) -> None:
-        source = (ROOT / "tools" / "ur10e_mujoco_adapter.py").read_text(
-            encoding="utf-8"
-        )
-
-        self.assertIn("mj_step(self.model, self.data, nstep=4)", source)
-        self.assertNotIn("for _ in range(4):", source)
-
     def test_raw_parent_child_force_is_negated_to_external_reaction(self) -> None:
         force, torque = adapter.external_wrench_at_tcp(
             (0.0, 0.0, -10.0),
