@@ -5,10 +5,13 @@ from __future__ import annotations
 
 import ast
 import json
+import math
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
+from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,6 +20,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 import build_step5d_liveprep as build  # noqa: E402
 import step5d_runtime_interface as interface  # noqa: E402
 import upload_ur_tp_package as upload  # noqa: E402
+from step5d_control_contract import RegisterCommand  # noqa: E402
 
 
 class Step5dV30ProfileTest(unittest.TestCase):
@@ -113,7 +117,8 @@ class Step5dV30ProfileTest(unittest.TestCase):
 
         self.assertIn("from step5d_control_contract import", source)
         self.assertIn("observation_v30 = Step5dObservation(", source)
-        self.assertIn("raw_candidate_v30 = state.step5d_v30_policy.compute(", source)
+        self.assertIn("control_step_v30 = step5d_v30_bridge_control_step(", source)
+        self.assertIn("shared_step5d_v30_control_step(", source)
         self.assertIn("step5d_v30_contract_pipeline(", source)
         self.assertIn("shared_step5d_v30_contract_pipeline(", source)
         self.assertIn("dls_shadow = compute_dls_shadow(", contract_source)
@@ -279,28 +284,232 @@ class Step5dV30ProfileTest(unittest.TestCase):
         source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(
             encoding="utf-8"
         )
+        contract_source = (ROOT / "tools" / "step5d_control_contract.py").read_text(
+            encoding="utf-8"
+        )
         observation_index = source.index("observation_v30 = Step5dObservation(")
-        governor_index = source.index(
-            "observation_v30 = build_slew_compatible_reference(",
+        control_step_index = source.index(
+            "control_step_v30 = step5d_v30_bridge_control_step(",
             observation_index,
         )
-        warm_start_index = source.index(
-            "apply_step5d_solver_warm_start_if_pending(",
+        prepare_argument_index = source.index(
+            "prepare_policy=prepare_v30_policy",
+            control_step_index,
+        )
+        seam_start = contract_source.index("def step5d_v30_control_step(")
+        governor_index = contract_source.index(
+            "governed_observation = build_slew_compatible_reference(",
+            seam_start,
+        )
+        prepare_index = contract_source.index(
+            "prepare_policy(governed_observation)",
             governor_index,
         )
-        policy_index = source.index(
-            "state.step5d_v30_policy.compute(",
-            warm_start_index,
-        )
-        governed_target_index = source.index(
-            'xdot_c=np.asarray(target_state["xdot_c"], dtype=float)',
-            warm_start_index,
+        policy_index = contract_source.index(
+            "policy.compute(governed_observation)",
+            prepare_index,
         )
 
-        self.assertLess(observation_index, governor_index)
-        self.assertLess(governor_index, warm_start_index)
-        self.assertLess(warm_start_index, governed_target_index)
-        self.assertLess(governed_target_index, policy_index)
+        self.assertLess(observation_index, control_step_index)
+        self.assertLess(control_step_index, prepare_argument_index)
+        self.assertLess(governor_index, prepare_index)
+        self.assertLess(prepare_index, policy_index)
+
+    def test_v30_exception_stop_publish_precedes_break_and_transport_close(self) -> None:
+        source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(
+            encoding="utf-8"
+        )
+        compute_index = source.index("step4e_values = compute_bridge_values(")
+        publish_index = source.index(
+            "publish_step5d_v30_exception_stop(",
+            compute_index,
+        )
+        break_index = source.index("break", publish_index)
+        finally_index = source.index("finally:", break_index)
+        close_index = source.index("close_rtde_bridge(rtde)", finally_index)
+
+        self.assertLess(compute_index, publish_index)
+        self.assertLess(publish_index, break_index)
+        self.assertLess(break_index, finally_index)
+        self.assertLess(finally_index, close_index)
+
+    def test_exception_stop_packet_is_exact_zero_layout_524_and_sent_first(self) -> None:
+        source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(
+            encoding="utf-8"
+        )
+        tree = ast.parse(source)
+        functions = [
+            node
+            for node in tree.body
+            if isinstance(node, ast.FunctionDef)
+            and node.name
+            in {
+                "build_step5d_v30_exception_stop_packet",
+                "publish_step5d_v30_exception_stop",
+            }
+        ]
+        base_names = [
+            "normal_force_n",
+            "force_norm_n",
+            "heartbeat",
+            "sensor_ok",
+            "stop_request",
+            "target_force_n",
+            "torque_norm_nm",
+            "fx_n_zeroed",
+            "fy_n_zeroed",
+            "fz_n_zeroed",
+            "mx_nm_zeroed",
+            "my_nm_zeroed",
+            "mz_nm_zeroed",
+        ]
+        bridge_names = [
+            *(f"carrier_{index}" for index in range(6)),
+            "step4e_cmd_valid",
+            "step4e_progress_m",
+            "step4e_force_error_n",
+            "step4e_orientation_error_rad",
+            "step4e_controller_state",
+        ]
+        namespace: dict[str, Any] = {
+            "Any": Any,
+            "RegisterCommand": RegisterCommand,
+            "math": math,
+            "time": time,
+            "STEP5D_STAGE25_JOINT_LAYOUT_CODE": 524.0,
+            "INPUT_FIELDS": [
+                *(f"input_double_register_{index}" for index in range(24, 37)),
+                *(f"input_double_register_{index}" for index in range(37, 48)),
+            ],
+            "INPUT_NAMES": base_names + bridge_names,
+            "BRIDGE_INPUT_NAMES": bridge_names,
+            "rtde_error_name": lambda exc: f"{type(exc).__name__}: {exc}",
+        }
+        exec(
+            compile(
+                ast.Module(body=functions, type_ignores=[]),
+                "<v30_exception_stop>",
+                "exec",
+            ),
+            namespace,
+        )
+        call_order: list[str] = []
+
+        class RecordingRTDE:
+            def send_input_sample(
+                self,
+                _recipe_id: int,
+                _type_names: list[str],
+                values: list[float],
+            ) -> None:
+                call_order.append("send")
+                self.values = values
+
+        class InjectedPolicyFailure(Exception):
+            pass
+
+        rtde = RecordingRTDE()
+        command, packet, event = namespace[
+            "publish_step5d_v30_exception_stop"
+        ](
+            rtde,
+            recipe_id=1,
+            type_names=["DOUBLE"] * len(namespace["INPUT_NAMES"]),
+            heartbeat=17.0,
+            original_error=InjectedPolicyFailure("synthetic policy failure"),
+        )
+        call_order.append("close")
+
+        self.assertEqual(call_order, ["send", "close"])
+        self.assertIsNotNone(command)
+        self.assertIsNotNone(packet)
+        assert command is not None and packet is not None
+        self.assertEqual(command.qdot, (0.0,) * 6)
+        self.assertFalse(command.cmd_valid)
+        self.assertEqual(command.layout_code, 524.0)
+        self.assertTrue(command.stop_request)
+        self.assertEqual([packet[name] for name in bridge_names[:6]], [0.0] * 6)
+        self.assertEqual(packet["step4e_cmd_valid"], 0.0)
+        self.assertEqual(packet["step4e_controller_state"], 524.0)
+        self.assertEqual(packet["stop_request"], 1.0)
+        self.assertTrue(event["stop_publish_succeeded"])
+        self.assertIn("InjectedPolicyFailure", event["original_error"])
+
+    def test_exception_stop_publish_failure_records_both_errors(self) -> None:
+        source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(
+            encoding="utf-8"
+        )
+        tree = ast.parse(source)
+        functions = [
+            node
+            for node in tree.body
+            if isinstance(node, ast.FunctionDef)
+            and node.name
+            in {
+                "build_step5d_v30_exception_stop_packet",
+                "publish_step5d_v30_exception_stop",
+            }
+        ]
+        input_names = [
+            "normal_force_n",
+            "force_norm_n",
+            "heartbeat",
+            "sensor_ok",
+            "stop_request",
+            "target_force_n",
+            "torque_norm_nm",
+            "fx_n_zeroed",
+            "fy_n_zeroed",
+            "fz_n_zeroed",
+            "mx_nm_zeroed",
+            "my_nm_zeroed",
+            "mz_nm_zeroed",
+            *(f"carrier_{index}" for index in range(6)),
+            "step4e_cmd_valid",
+            "step4e_progress_m",
+            "step4e_force_error_n",
+            "step4e_orientation_error_rad",
+            "step4e_controller_state",
+        ]
+        namespace: dict[str, Any] = {
+            "Any": Any,
+            "RegisterCommand": RegisterCommand,
+            "math": math,
+            "time": time,
+            "STEP5D_STAGE25_JOINT_LAYOUT_CODE": 524.0,
+            "INPUT_FIELDS": [f"input_double_register_{index}" for index in range(24, 48)],
+            "INPUT_NAMES": input_names,
+            "BRIDGE_INPUT_NAMES": input_names[13:],
+            "rtde_error_name": lambda exc: f"{type(exc).__name__}: {exc}",
+        }
+        exec(
+            compile(
+                ast.Module(body=functions, type_ignores=[]),
+                "<v30_exception_stop_failure>",
+                "exec",
+            ),
+            namespace,
+        )
+
+        class FailingRTDE:
+            def send_input_sample(self, *_args: object) -> None:
+                raise OSError("synthetic stop transport failure")
+
+        command, packet, event = namespace[
+            "publish_step5d_v30_exception_stop"
+        ](
+            FailingRTDE(),
+            recipe_id=1,
+            type_names=["DOUBLE"] * len(input_names),
+            heartbeat=3.0,
+            original_error=RuntimeError("synthetic reference failure"),
+        )
+
+        self.assertIsNotNone(command)
+        self.assertIsNotNone(packet)
+        self.assertFalse(event["stop_publish_succeeded"])
+        self.assertIn("RuntimeError: synthetic reference failure", event["original_error"])
+        self.assertIn("OSError: synthetic stop transport failure", event["stop_publish_error"])
 
 
 if __name__ == "__main__":

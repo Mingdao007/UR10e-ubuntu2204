@@ -16,6 +16,7 @@ import json
 import math
 import os
 import platform
+import struct
 import subprocess
 import time
 from dataclasses import dataclass
@@ -46,6 +47,7 @@ from step5d_simulator_adapter import (
     P0_V8_QDOT_CAP_RAD_S,
     P0_V8_SIGR_EXPONENT_R,
     IntegerRateSchedule,
+    SimulationCommand,
     SimulatorState,
     Step5dSimulatorAdapter,
     simulation_claim_boundary,
@@ -88,11 +90,12 @@ SOURCE_FILES = (
     "config/schemas/ur10e_simulation_evidence_v1.schema.json",
     "config/schemas/ur10e_simulation_evidence_v2.schema.json",
     "config/schemas/ur10e_simulation_evidence_v3.schema.json",
+    "config/schemas/ur10e_simulation_evidence_v4.schema.json",
     "config/schemas/step5d_p0_v8_production_path_prewarm_v1.schema.json",
 )
 
-EVIDENCE_SCHEMA_V3 = "ur10e_simulation_evidence_v3"
-RUN_SCHEMA_V3 = "step5d_p0_v8_mujoco_run_v3"
+EVIDENCE_SCHEMA_V4 = "ur10e_simulation_evidence_v4"
+RUN_SCHEMA_V4 = "step5d_p0_v8_mujoco_run_v4"
 TIMING_SCOPE_VERSION = "p0_v8_timing_lane_split_v2"
 CONTROL_HARD_SCOPE = "simulator_state_ready_to_adapter_step_complete"
 SIMULATOR_CYCLE_SCOPE = (
@@ -104,6 +107,9 @@ PREWARM_CONTROL_HZ = P0_V8_CONTROL_HZ
 PREWARM_MODE = "source_bound_unmeasured_no_output_500hz"
 PREWARM_PACING_STRATEGY = "previous_tick_start_plus_2ms_no_catch_up"
 PREWARM_BURST_TOLERANCE_S = 0.00005
+CONTROL_DEADLINE_MS = 2.0
+CONTROL_DEADLINE_REASON = "control_deadline_miss_ge_2ms"
+DEADLINE_COMMAND_CONTRACT_VERSION = "pre_write_exact_zero_stop_v1"
 TRACE_PREFAULT_STRATEGY = (
     "numpy_fill_zero_before_gc_collect_and_measured_loop"
 )
@@ -203,6 +209,9 @@ class NominalPhaseResult:
     absolute_deadline_miss_count: int
     max_qdot_abs_rad_s: float
     exact_zero_rejection_count: int
+    deadline_rejection_count: int
+    deadline_zero_rejection_count: int
+    nonzero_rejection_count: int
     physics_tick_count: int
     dbil_tick_count: int
     sim_time_start_s: float
@@ -227,6 +236,9 @@ class NominalPhaseResult:
     cage_collision_count_per_tick: np.ndarray
     tcp_inside_cage: np.ndarray
     accepted: np.ndarray
+    deadline_rejected: np.ndarray
+    command_stop_request: np.ndarray
+    command_bytes_sha256: np.ndarray
     actions: np.ndarray
     reasons: np.ndarray
     deferred: DeferredV30Diagnostics
@@ -249,10 +261,28 @@ class NominalPhaseResult:
 
     @property
     def control_path_pass(self) -> bool:
-        """Control/safety verdict; wall-clock timing is a separate gate."""
+        """Control/safety verdict; deadline acceptance remains a separate gate.
+
+        A measured deadline miss is allowed here only when that exact sample was
+        replaced by the explicit zero/stop command before the plant sink.  It
+        still fails :func:`control_hard_timing` and therefore cannot make a
+        failed 2 s or 10 s timing phase pass.
+        """
+
+        late = self.control_compute_ms >= CONTROL_DEADLINE_MS
+        expected_accepted = np.logical_not(late).astype(np.uint8)
+        expected_actions = np.where(late, "stop", "execute")
+        expected_reasons = np.where(late, CONTROL_DEADLINE_REASON, "ok")
+        deferred_actions = np.asarray(
+            self.deferred.actions[: self.deferred.count], dtype="<U96"
+        )
+        deferred_reasons = np.asarray(
+            self.deferred.reasons[: self.deferred.count], dtype="<U160"
+        )
 
         return (
-            self.accepted_tick_count == self.tick_count
+            self.accepted_tick_count
+            == self.tick_count - self.control_deadline_miss_count
             and self.first_sequence == 0
             and self.last_sequence == self.tick_count - 1
             and self.physics_tick_count
@@ -264,13 +294,13 @@ class NominalPhaseResult:
                 + 1
             )
             and self.accepted.shape == (self.tick_count,)
-            and bool(np.all(self.accepted == 1))
+            and bool(np.array_equal(self.accepted, expected_accepted))
             and self.actions.shape == (self.tick_count,)
-            and bool(np.all(self.actions == "execute"))
+            and bool(np.array_equal(self.actions, expected_actions))
             and self.reasons.shape == (self.tick_count,)
-            and bool(np.all(self.reasons == "ok"))
+            and bool(np.array_equal(self.reasons, expected_reasons))
             and self.safe_hold_count == 0
-            and self.stop_count == 0
+            and self.stop_count == self.control_deadline_miss_count
             and self.nonfinite_output_count == 0
             and self.qdot_bound_violation_count == 0
             and self.qdot.shape == (self.tick_count, 6)
@@ -278,7 +308,35 @@ class NominalPhaseResult:
             and self.max_qdot_abs_rad_s <= P0_V8_QDOT_CAP_RAD_S + 1e-12
             and self.unexpected_contact_count == 0
             and self.cage_collision_count == 0
-            and self.exact_zero_rejection_count == 0
+            and self.exact_zero_rejection_count
+            == self.control_deadline_miss_count
+            and self.deadline_rejection_count
+            == self.control_deadline_miss_count
+            and self.deadline_zero_rejection_count
+            == self.control_deadline_miss_count
+            and self.nonzero_rejection_count == 0
+            and self.deadline_rejected.shape == (self.tick_count,)
+            and bool(
+                np.array_equal(
+                    self.deadline_rejected,
+                    late.astype(np.uint8),
+                )
+            )
+            and self.command_stop_request.shape == (self.tick_count,)
+            and bool(
+                np.array_equal(
+                    self.command_stop_request,
+                    late.astype(np.uint8),
+                )
+            )
+            and self.command_bytes_sha256.shape == (self.tick_count,)
+            and bool(np.all(np.char.str_len(self.command_bytes_sha256) == 64))
+            and bool(np.all(self.qdot[late] == 0.0))
+            and self.deferred.count == self.tick_count
+            and deferred_actions.shape == (self.tick_count,)
+            and bool(np.all(deferred_actions == "execute"))
+            and deferred_reasons.shape == (self.tick_count,)
+            and bool(np.all(deferred_reasons == "ok"))
             and abs(self.sim_time_drift_s) <= 1e-9
             and self.sim_time_s.shape == (self.tick_count,)
             and bool(np.all(np.isfinite(self.sim_time_s)))
@@ -413,6 +471,19 @@ def runtime_timing_environment(
             "version": TIMING_SCOPE_VERSION,
             "control_hard_500hz": CONTROL_HARD_SCOPE,
             "simulator_cycle_diagnostic": SIMULATOR_CYCLE_SCOPE,
+        },
+        "deadline_command_contract": {
+            "version": DEADLINE_COMMAND_CONTRACT_VERSION,
+            "classification_point": "after_adapter_step_before_plant_write",
+            "deadline_ms": CONTROL_DEADLINE_MS,
+            "comparison": "control_elapsed_ms_gte_deadline",
+            "late_action": "stop",
+            "late_reason": CONTROL_DEADLINE_REASON,
+            "late_qdot": list(ZERO6),
+            "late_cmd_valid": False,
+            "late_stop_request": True,
+            "measured_samples_may_be_discarded": False,
+            "deadline_rejection_may_satisfy_timing_gate": False,
         },
         "production_path_prewarm_contract": {
             "schema": PREWARM_SCHEMA,
@@ -609,6 +680,56 @@ def prefault_numeric_buffers(*buffers: np.ndarray) -> bool:
     for buffer in buffers:
         buffer.fill(0)
     return True
+
+
+def simulation_command_sha256(
+    qdot: Sequence[float],
+    *,
+    cmd_valid: bool,
+    stop_request: bool,
+) -> str:
+    """Hash the exact command payload used by ``SimulationCommand``."""
+
+    values = tuple(float(value) for value in qdot)
+    if len(values) != 6 or any(not math.isfinite(value) for value in values):
+        raise ValueError("simulation command hash requires six finite qdot values")
+    encoded = struct.pack("<6d??", *values, bool(cmd_valid), bool(stop_request))
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def classify_control_deadline(
+    command: SimulationCommand,
+    *,
+    control_elapsed_ms: float,
+) -> tuple[SimulationCommand, bool]:
+    """Replace a late candidate with an exact-zero stop before sink write.
+
+    The measured duration is never altered or discarded.  A value exactly on
+    the 2 ms boundary is late by contract.  Nonfinite timing is also rejected
+    fail-closed; the trace verifier will independently reject that timing as
+    malformed rather than allowing it to masquerade as a valid sample.
+    """
+
+    elapsed = float(control_elapsed_ms)
+    late = not math.isfinite(elapsed) or elapsed >= CONTROL_DEADLINE_MS
+    if not late:
+        return command, False
+    return (
+        dataclasses.replace(
+            command,
+            qdot=ZERO6,
+            accepted=False,
+            action="stop",
+            reason=CONTROL_DEADLINE_REASON,
+            stop_request=True,
+            command_bytes_sha256=simulation_command_sha256(
+                ZERO6,
+                cmd_valid=False,
+                stop_request=True,
+            ),
+        ),
+        True,
+    )
 
 
 def run_production_path_prewarm(
@@ -878,6 +999,9 @@ def run_nominal_phase(
     cage_collision_count_per_tick = np.empty(tick_count, dtype=np.int32)
     tcp_inside_cage = np.empty(tick_count, dtype=np.uint8)
     accepted = np.empty(tick_count, dtype=np.uint8)
+    deadline_rejected = np.empty(tick_count, dtype=np.uint8)
+    command_stop_request = np.empty(tick_count, dtype=np.uint8)
+    command_bytes_sha256 = np.full(tick_count, "", dtype="<U64")
     trace_buffers_prefaulted = prefault_numeric_buffers(
         control_compute_ms,
         oracle_snapshot_ms,
@@ -896,6 +1020,8 @@ def run_nominal_phase(
         cage_collision_count_per_tick,
         tcp_inside_cage,
         accepted,
+        deadline_rejected,
+        command_stop_request,
     ) and bool(adapter.deferred_diagnostics.prefaulted)
     actions: list[str | None] = [None] * tick_count
     reasons: list[str | None] = [None] * tick_count
@@ -910,6 +1036,9 @@ def run_nominal_phase(
     cycle_compute_deadline_misses = 0
     absolute_deadline_misses = 0
     exact_zero_rejections = 0
+    deadline_rejections = 0
+    deadline_zero_rejections = 0
+    nonzero_rejections = 0
     physics_tick = 0
     dbil_ticks = 0
     sim_start = float(first_state.sim_time_s)
@@ -935,9 +1064,13 @@ def run_nominal_phase(
             state_ready = time.perf_counter()
             result = adapter.step(state)
             control_finished = time.perf_counter()
-            plant.write_command(result.simulation_command)
-            finished = time.perf_counter()
             control_elapsed_ms = (control_finished - state_ready) * 1000.0
+            command, was_deadline_rejected = classify_control_deadline(
+                result.simulation_command,
+                control_elapsed_ms=control_elapsed_ms,
+            )
+            plant.write_command(command)
+            finished = time.perf_counter()
             oracle_elapsed_ms = (state_ready - cycle_started) * 1000.0
             physics_elapsed_ms = (finished - control_finished) * 1000.0
             cycle_elapsed_ms = (finished - cycle_started) * 1000.0
@@ -947,7 +1080,7 @@ def run_nominal_phase(
                 (finished - absolute_deadline) * 1000.0,
             )
 
-            values = np.asarray(result.simulation_command.qdot, dtype=float)
+            values = np.asarray(command.qdot, dtype=float)
             control_compute_ms[index] = control_elapsed_ms
             oracle_snapshot_ms[index] = oracle_elapsed_ms
             command_apply_and_physics_ms[index] = physics_elapsed_ms
@@ -970,11 +1103,14 @@ def run_nominal_phase(
             native_contact_count[index] = int(state.native_contact_count)
             cage_collision_count_per_tick[index] = int(state.cage_collision_count)
             tcp_inside_cage[index] = 1 if state.tcp_inside_cage else 0
-            accepted[index] = 1 if result.control.decision.accepted else 0
-            actions[index] = result.control.decision.action
-            reasons[index] = result.control.decision.reason
-            safe_holds += int(result.control.decision.action == "safe_hold")
-            stops += int(result.control.decision.action == "stop")
+            accepted[index] = 1 if command.accepted else 0
+            deadline_rejected[index] = 1 if was_deadline_rejected else 0
+            command_stop_request[index] = 1 if command.stop_request else 0
+            command_bytes_sha256[index] = command.command_bytes_sha256
+            actions[index] = command.action
+            reasons[index] = command.reason
+            safe_holds += int(command.action == "safe_hold")
+            stops += int(command.action == "stop")
             nonfinite += int(not np.all(np.isfinite(values)))
             over_cap += int(
                 np.all(np.isfinite(values))
@@ -987,9 +1123,18 @@ def run_nominal_phase(
             control_deadline_misses += int(control_elapsed_ms >= 2.0)
             cycle_compute_deadline_misses += int(cycle_elapsed_ms >= 2.0)
             absolute_deadline_misses += int(absolute_finish_lateness > 0.0)
-            exact_zero_rejections += int(
-                not result.control.decision.accepted
-                and result.simulation_command.qdot != ZERO6
+            rejected = not command.accepted
+            exact_zero = command.qdot == ZERO6
+            exact_zero_rejections += int(rejected and exact_zero)
+            nonzero_rejections += int(rejected and not exact_zero)
+            deadline_rejections += int(was_deadline_rejected)
+            deadline_zero_rejections += int(
+                was_deadline_rejected
+                and rejected
+                and exact_zero
+                and command.action == "stop"
+                and command.reason == CONTROL_DEADLINE_REASON
+                and command.stop_request
             )
             for substep in range(schedule.control_stride):
                 dbil_ticks += int(schedule.is_dbil_tick(physics_tick + substep))
@@ -1018,6 +1163,9 @@ def run_nominal_phase(
         absolute_deadline_miss_count=absolute_deadline_misses,
         max_qdot_abs_rad_s=float(np.max(np.abs(qdot))),
         exact_zero_rejection_count=exact_zero_rejections,
+        deadline_rejection_count=deadline_rejections,
+        deadline_zero_rejection_count=deadline_zero_rejections,
+        nonzero_rejection_count=nonzero_rejections,
         physics_tick_count=physics_tick,
         dbil_tick_count=dbil_ticks,
         sim_time_start_s=sim_start,
@@ -1042,6 +1190,9 @@ def run_nominal_phase(
         cage_collision_count_per_tick=cage_collision_count_per_tick,
         tcp_inside_cage=tcp_inside_cage,
         accepted=accepted,
+        deadline_rejected=deadline_rejected,
+        command_stop_request=command_stop_request,
+        command_bytes_sha256=command_bytes_sha256,
         actions=np.asarray(actions, dtype="<U96"),
         reasons=np.asarray(reasons, dtype="<U160"),
         deferred=adapter.deferred_diagnostics,
@@ -1370,6 +1521,9 @@ def write_phase_artifacts(
         cage_collision_count=nominal.cage_collision_count_per_tick,
         tcp_inside_cage=nominal.tcp_inside_cage,
         accepted=nominal.accepted,
+        deadline_rejected=nominal.deadline_rejected,
+        command_stop_request=nominal.command_stop_request,
+        command_bytes_sha256=nominal.command_bytes_sha256,
         action=nominal.actions,
         reason=nominal.reasons,
         deferred_numeric=nominal.deferred.numeric[: nominal.deferred.count],
@@ -1406,7 +1560,7 @@ def write_phase_artifacts(
         )
     )
     evidence: dict[str, object] = {
-        "schema": EVIDENCE_SCHEMA_V3,
+        "schema": EVIDENCE_SCHEMA_V4,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "profile": dict(PROFILE),
         "engine": {
@@ -1450,6 +1604,11 @@ def write_phase_artifacts(
             "absolute_deadline_miss_count": nominal.absolute_deadline_miss_count,
             "max_qdot_abs_rad_s": nominal.max_qdot_abs_rad_s,
             "exact_zero_rejection_count": nominal.exact_zero_rejection_count,
+            "deadline_rejection_count": nominal.deadline_rejection_count,
+            "deadline_zero_rejection_count": (
+                nominal.deadline_zero_rejection_count
+            ),
+            "nonzero_rejection_count": nominal.nonzero_rejection_count,
             "control_path_diagnostic_pass": nominal.control_path_pass,
             "sim_clock": {
                 "physics_tick_count": nominal.physics_tick_count,
@@ -1475,6 +1634,20 @@ def write_phase_artifacts(
             "measured_samples_excluded": 0,
             "prewarm_samples_in_control_trace": 0,
             "measured_sequence_restarts_at_zero": True,
+            "deadline_command_contract_version": (
+                DEADLINE_COMMAND_CONTRACT_VERSION
+            ),
+            "deadline_classification_point": (
+                "after_adapter_step_before_plant_write"
+            ),
+            "deadline_comparison": "control_elapsed_ms_gte_deadline",
+            "deadline_ms": CONTROL_DEADLINE_MS,
+            "deadline_rejection_action": "stop",
+            "deadline_rejection_reason": CONTROL_DEADLINE_REASON,
+            "deadline_rejection_qdot": list(ZERO6),
+            "deadline_rejection_cmd_valid": False,
+            "deadline_rejection_stop_request": True,
+            "deadline_rejection_may_satisfy_timing_gate": False,
         },
         "claims": {
             "p0_sim_physics_pass": False,
@@ -1630,6 +1803,11 @@ def main() -> int:
                 "control_deadline_miss_count": phase_control_hard[
                     "deadline_miss_count"
                 ],
+                "deadline_rejection_count": nominal.deadline_rejection_count,
+                "deadline_zero_rejection_count": (
+                    nominal.deadline_zero_rejection_count
+                ),
+                "nonzero_rejection_count": nominal.nonzero_rejection_count,
                 "simulator_cycle_meets_500hz_diagnostic": phase_cycle[
                     "meets_500hz_diagnostic"
                 ],
@@ -1707,7 +1885,7 @@ def main() -> int:
     if control_diagnostic_pass and complete and not control_hard_gate_pass:
         manifest_blockers.add("control_hard_500hz_gate_failed_60s")
     manifest = {
-        "schema": RUN_SCHEMA_V3,
+        "schema": RUN_SCHEMA_V4,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "profile": dict(PROFILE),
         "source_composite_sha256": source_binding["composite_sha256"],

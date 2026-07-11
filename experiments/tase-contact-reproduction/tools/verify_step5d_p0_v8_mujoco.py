@@ -8,6 +8,7 @@ import hashlib
 import json
 import math
 import re
+import struct
 from pathlib import Path
 from typing import Mapping, Sequence
 
@@ -35,9 +36,11 @@ from verify_step5d_sim_evidence import (
 RUN_SCHEMA_V1 = "step5d_p0_v8_mujoco_run_v1"
 RUN_SCHEMA_V2 = "step5d_p0_v8_mujoco_run_v2"
 RUN_SCHEMA_V3 = "step5d_p0_v8_mujoco_run_v3"
+RUN_SCHEMA_V4 = "step5d_p0_v8_mujoco_run_v4"
 EVIDENCE_SCHEMA_V1 = "ur10e_simulation_evidence_v1"
 EVIDENCE_SCHEMA_V2 = "ur10e_simulation_evidence_v2"
 EVIDENCE_SCHEMA_V3 = "ur10e_simulation_evidence_v3"
+EVIDENCE_SCHEMA_V4 = "ur10e_simulation_evidence_v4"
 TIMING_SCOPE_VERSION = "p0_v8_timing_lane_split_v2"
 CONTROL_HARD_SCOPE = "simulator_state_ready_to_adapter_step_complete"
 SIMULATOR_CYCLE_SCOPE = (
@@ -49,6 +52,9 @@ PREWARM_CONTROL_HZ = P0_V8_CONTROL_HZ
 PREWARM_MODE = "source_bound_unmeasured_no_output_500hz"
 PREWARM_PACING_STRATEGY = "previous_tick_start_plus_2ms_no_catch_up"
 PREWARM_BURST_TOLERANCE_S = 0.00005
+CONTROL_DEADLINE_MS = 2.0
+CONTROL_DEADLINE_REASON = "control_deadline_miss_ge_2ms"
+DEADLINE_COMMAND_CONTRACT_VERSION = "pre_write_exact_zero_stop_v1"
 CONTROL_PATH = (
     "SimulatorState->Step5dObservation->StrictRnnControlPolicy->"
     "step5d_v30_contract_pipeline->SafetyEnvelope->RegisterCommand->"
@@ -64,6 +70,22 @@ NUMERIC_THREAD_ENV_CONTRACT = {
     "NUMEXPR_NUM_THREADS": "1",
 }
 SHA256_RE = re.compile(r"[0-9a-f]{64}")
+
+
+def expected_deadline_command_contract() -> dict[str, object]:
+    return {
+        "version": DEADLINE_COMMAND_CONTRACT_VERSION,
+        "classification_point": "after_adapter_step_before_plant_write",
+        "deadline_ms": CONTROL_DEADLINE_MS,
+        "comparison": "control_elapsed_ms_gte_deadline",
+        "late_action": "stop",
+        "late_reason": CONTROL_DEADLINE_REASON,
+        "late_qdot": [0.0] * 6,
+        "late_cmd_valid": False,
+        "late_stop_request": True,
+        "measured_samples_may_be_discarded": False,
+        "deadline_rejection_may_satisfy_timing_gate": False,
+    }
 
 
 def sha256_path(path: Path) -> str:
@@ -581,6 +603,7 @@ def _trace_blockers_v2(
     require_timing_threshold: bool | None = None,
 ) -> list[str]:
     blockers: list[str] = []
+    deadline_fail_closed = evidence.get("schema") == EVIDENCE_SCHEMA_V4
     artifacts = evidence.get("artifacts")
     if not isinstance(artifacts, Sequence):
         return ["trace:artifact_array_missing"]
@@ -628,6 +651,14 @@ def _trace_blockers_v2(
                 "cage_collision_count",
                 "tcp_inside_cage",
             }
+            if deadline_fail_closed:
+                required.update(
+                    {
+                        "deadline_rejected",
+                        "command_stop_request",
+                        "command_bytes_sha256",
+                    }
+                )
             missing = required - set(trace.files)
             if missing:
                 return [f"trace:missing_arrays:{','.join(sorted(missing))}"]
@@ -650,6 +681,16 @@ def _trace_blockers_v2(
             action = np.asarray(trace["action"])
             reason = np.asarray(trace["reason"])
             deferred = np.asarray(trace["deferred_numeric"], dtype=float)
+            deferred_reason = np.asarray(trace["deferred_reason"])
+            deferred_action = np.asarray(trace["deferred_action"])
+            if deadline_fail_closed:
+                deadline_rejected = np.asarray(trace["deadline_rejected"])
+                command_stop_request = np.asarray(trace["command_stop_request"])
+                command_bytes_sha256 = np.asarray(trace["command_bytes_sha256"])
+            else:
+                deadline_rejected = np.empty(0, dtype=np.uint8)
+                command_stop_request = np.empty(0, dtype=np.uint8)
+                command_bytes_sha256 = np.empty(0, dtype="<U64")
     except (OSError, ValueError, KeyError) as exc:
         return [f"trace:unreadable:{type(exc).__name__}"]
 
@@ -676,6 +717,7 @@ def _trace_blockers_v2(
         ):
             blockers.append(f"trace:{name}:invalid")
             timing_valid = False
+    late_mask: np.ndarray | None = None
     if timing_valid:
         control = values["control_compute_ms"]
         oracle = values["oracle_snapshot_ms"]
@@ -688,7 +730,8 @@ def _trace_blockers_v2(
         # perf_counter rounding after conversion to milliseconds.
         if np.any(cycle + 1e-6 < oracle + control + physics):
             blockers.append("trace:timing_intervals_not_nested")
-        control_misses = int(np.count_nonzero(control >= 2.0))
+        late_mask = control >= CONTROL_DEADLINE_MS
+        control_misses = int(np.count_nonzero(late_mask))
         cycle_misses = int(np.count_nonzero(cycle >= 2.0))
         absolute_misses = int(np.count_nonzero(finish_late > 0.0))
         control_declared = evidence.get("control_hard_500hz")
@@ -787,12 +830,85 @@ def _trace_blockers_v2(
         blockers.append("trace:qdot_invalid")
     elif float(np.max(np.abs(qdot))) > P0_V8_QDOT_CAP_RAD_S + 1e-12:
         blockers.append("trace:qdot_over_cap")
-    if accepted.shape != (tick_count,) or not np.all(accepted == 1):
-        blockers.append("trace:not_all_accepted")
-    if action.shape != (tick_count,) or not np.all(action == "execute"):
-        blockers.append("trace:action_not_all_execute")
-    if reason.shape != (tick_count,) or not np.all(reason == "ok"):
-        blockers.append("trace:reason_not_all_ok")
+    if deadline_fail_closed and late_mask is not None:
+        expected_accepted = np.logical_not(late_mask).astype(np.uint8)
+        expected_action = np.where(late_mask, "stop", "execute")
+        expected_reason = np.where(late_mask, CONTROL_DEADLINE_REASON, "ok")
+        expected_stop = late_mask.astype(np.uint8)
+        if deadline_rejected.shape != (tick_count,) or not np.array_equal(
+            deadline_rejected,
+            expected_stop,
+        ):
+            blockers.append("trace:deadline_rejected_mask:mismatch")
+        if accepted.shape != (tick_count,) or not np.array_equal(
+            accepted,
+            expected_accepted,
+        ):
+            blockers.append("trace:deadline_acceptance_mask:mismatch")
+        if action.shape != (tick_count,) or not np.array_equal(
+            action,
+            expected_action,
+        ):
+            blockers.append("trace:deadline_action:mismatch")
+        if reason.shape != (tick_count,) or not np.array_equal(
+            reason,
+            expected_reason,
+        ):
+            blockers.append("trace:deadline_reason:mismatch")
+        if command_stop_request.shape != (tick_count,) or not np.array_equal(
+            command_stop_request,
+            expected_stop,
+        ):
+            blockers.append("trace:deadline_stop_request:mismatch")
+        if qdot.shape == (tick_count, 6) and np.any(qdot[late_mask] != 0.0):
+            blockers.append("trace:deadline_rejection_command_not_exact_zero")
+        if command_bytes_sha256.shape != (tick_count,):
+            blockers.append("trace:command_bytes_sha256:invalid")
+        elif qdot.shape == (tick_count, 6):
+            expected_hashes = np.asarray(
+                [
+                    hashlib.sha256(
+                        struct.pack(
+                            "<6d??",
+                            *(float(value) for value in qdot[index]),
+                            bool(accepted[index]),
+                            bool(command_stop_request[index]),
+                        )
+                    ).hexdigest()
+                    for index in range(tick_count)
+                ],
+                dtype="<U64",
+            )
+            if not np.array_equal(command_bytes_sha256, expected_hashes):
+                blockers.append("trace:command_bytes_sha256:mismatch")
+        deadline_count = int(np.count_nonzero(late_mask))
+        expected_summary = {
+            "accepted_tick_count": tick_count - deadline_count,
+            "safe_hold_count": 0,
+            "stop_count": deadline_count,
+            "exact_zero_rejection_count": deadline_count,
+            "deadline_rejection_count": deadline_count,
+            "deadline_zero_rejection_count": deadline_count,
+            "nonzero_rejection_count": 0,
+        }
+        for field, expected in expected_summary.items():
+            if nominal.get(field) != expected:
+                blockers.append(f"trace:{field}:nominal_mismatch")
+        if deferred_action.shape != (tick_count,) or not np.all(
+            deferred_action == "execute"
+        ):
+            blockers.append("trace:adapter_action_not_all_execute")
+        if deferred_reason.shape != (tick_count,) or not np.all(
+            deferred_reason == "ok"
+        ):
+            blockers.append("trace:adapter_reason_not_all_ok")
+    else:
+        if accepted.shape != (tick_count,) or not np.all(accepted == 1):
+            blockers.append("trace:not_all_accepted")
+        if action.shape != (tick_count,) or not np.all(action == "execute"):
+            blockers.append("trace:action_not_all_execute")
+        if reason.shape != (tick_count,) or not np.all(reason == "ok"):
+            blockers.append("trace:reason_not_all_ok")
     if deferred.shape[0] != tick_count or not np.all(np.isfinite(deferred[:, :12])):
         blockers.append("trace:deferred_diagnostics_invalid")
     if jacobian.shape != (tick_count, 6, 6) or not np.all(np.isfinite(jacobian)):
@@ -833,19 +949,31 @@ def _trace_blockers_v2(
         field = {
             name: index for index, name in enumerate(V30_DEFERRED_NUMERIC_FIELDS)
         }
-        predicted = np.einsum("nij,nj->ni", jacobian, qdot)
         deferred_qdot = deferred[:, [field[f"qdot_{i}"] for i in range(6)]]
+        predicted = np.einsum("nij,nj->ni", jacobian, deferred_qdot)
         deferred_predicted = deferred[
             :, [field[f"predicted_twist_{i}"] for i in range(6)]
         ]
         register_qdot = deferred[
             :, [field[f"register_{37 + i}"] for i in range(6)]
         ]
-        if not (
-            np.array_equal(qdot, deferred_qdot)
-            and np.array_equal(qdot, register_qdot)
-            and np.allclose(predicted, deferred_predicted, atol=1e-12, rtol=0.0)
-        ):
+        candidate_chain_valid = (
+            np.array_equal(deferred_qdot, register_qdot)
+            and np.allclose(
+                predicted,
+                deferred_predicted,
+                atol=1e-12,
+                rtol=0.0,
+            )
+        )
+        applied_chain_valid = np.array_equal(qdot, deferred_qdot)
+        if deadline_fail_closed and late_mask is not None:
+            on_time = np.logical_not(late_mask)
+            applied_chain_valid = bool(
+                np.array_equal(qdot[on_time], deferred_qdot[on_time])
+                and np.all(qdot[late_mask] == 0.0)
+            )
+        if not (candidate_chain_valid and applied_chain_valid):
             blockers.append("trace:production_command_chain_mismatch")
     else:
         blockers.append("trace:production_command_chain_unverifiable")
@@ -858,7 +986,7 @@ def _trace_blockers(
     *,
     require_timing_threshold: bool | None = None,
 ) -> list[str]:
-    if evidence.get("schema") == EVIDENCE_SCHEMA_V2:
+    if evidence.get("schema") in {EVIDENCE_SCHEMA_V2, EVIDENCE_SCHEMA_V4}:
         return _trace_blockers_v2(
             evidence,
             phase_dir,
@@ -1350,11 +1478,111 @@ def validate_v3_evidence(
     return sorted(set(blockers))
 
 
+def validate_v4_evidence(
+    payload: Mapping[str, object],
+    *,
+    artifact_root: Path | None = None,
+) -> list[str]:
+    """Validate pre-write deadline rejection without weakening timing gates."""
+
+    compatibility = dict(payload)
+    compatibility["schema"] = EVIDENCE_SCHEMA_V3
+    nominal_value = payload.get("nominal")
+    if isinstance(nominal_value, Mapping):
+        legacy_nominal = dict(nominal_value)
+        tick_count = legacy_nominal.get("tick_count")
+        legacy_nominal.update(
+            {
+                "accepted_tick_count": tick_count,
+                "safe_hold_count": 0,
+                "stop_count": 0,
+                "exact_zero_rejection_count": 0,
+            }
+        )
+        compatibility["nominal"] = legacy_nominal
+    blockers = list(
+        validate_v3_evidence(
+            compatibility,
+            artifact_root=artifact_root,
+        )
+    )
+    if payload.get("schema") != EVIDENCE_SCHEMA_V4:
+        blockers.append("schema:invalid_v4")
+
+    source = payload.get("source_binding")
+    runtime = (
+        source.get("runtime_timing_environment")
+        if isinstance(source, Mapping)
+        else None
+    )
+    if not isinstance(runtime, Mapping) or runtime.get(
+        "deadline_command_contract"
+    ) != expected_deadline_command_contract():
+        blockers.append(
+            "source_binding.runtime_timing_environment."
+            "deadline_command_contract:invalid"
+        )
+
+    nominal = payload.get("nominal")
+    if not isinstance(nominal, Mapping):
+        blockers.append("nominal:missing")
+    else:
+        tick_count = nominal.get("tick_count")
+        misses = nominal.get("control_deadline_miss_count")
+        if (
+            not isinstance(tick_count, int)
+            or isinstance(tick_count, bool)
+            or tick_count < 1
+            or not isinstance(misses, int)
+            or isinstance(misses, bool)
+            or misses < 0
+            or misses > tick_count
+        ):
+            blockers.append("nominal.deadline_counts:invalid")
+        else:
+            expected = {
+                "accepted_tick_count": tick_count - misses,
+                "safe_hold_count": 0,
+                "stop_count": misses,
+                "exact_zero_rejection_count": misses,
+                "deadline_rejection_count": misses,
+                "deadline_zero_rejection_count": misses,
+                "nonzero_rejection_count": 0,
+            }
+            for field, value in expected.items():
+                if nominal.get(field) != value:
+                    blockers.append(f"nominal.{field}:deadline_contract_mismatch")
+
+    control_contract = payload.get("control_contract")
+    expected_control_contract = {
+        "deadline_command_contract_version": DEADLINE_COMMAND_CONTRACT_VERSION,
+        "deadline_classification_point": "after_adapter_step_before_plant_write",
+        "deadline_comparison": "control_elapsed_ms_gte_deadline",
+        "deadline_ms": CONTROL_DEADLINE_MS,
+        "deadline_rejection_action": "stop",
+        "deadline_rejection_reason": CONTROL_DEADLINE_REASON,
+        "deadline_rejection_qdot": [0.0] * 6,
+        "deadline_rejection_cmd_valid": False,
+        "deadline_rejection_stop_request": True,
+        "deadline_rejection_may_satisfy_timing_gate": False,
+        "measured_samples_excluded": 0,
+    }
+    if not isinstance(control_contract, Mapping):
+        blockers.append("control_contract:missing")
+    else:
+        for field, value in expected_control_contract.items():
+            if control_contract.get(field) != value:
+                blockers.append(f"control_contract.{field}:invalid")
+    return sorted(set(blockers))
+
+
 def validate_phase_evidence(
     payload: Mapping[str, object],
     *,
     artifact_root: Path | None = None,
 ) -> list[str]:
+    if payload.get("schema") == EVIDENCE_SCHEMA_V4:
+        return validate_v4_evidence(payload, artifact_root=artifact_root)
     if payload.get("schema") == EVIDENCE_SCHEMA_V3:
         return validate_v3_evidence(payload, artifact_root=artifact_root)
     if payload.get("schema") == EVIDENCE_SCHEMA_V2:
@@ -1601,12 +1829,58 @@ def _validate_run_manifest_v3(
     return sorted(set(blockers))
 
 
+def _validate_run_manifest_v4(
+    payload: Mapping[str, object],
+    *,
+    root: Path,
+    require_complete: bool = True,
+) -> list[str]:
+    compatibility = dict(payload)
+    compatibility["schema"] = RUN_SCHEMA_V3
+    blockers = list(
+        _validate_run_manifest_v3(
+            compatibility,
+            root=root,
+            require_complete=require_complete,
+        )
+    )
+    phases = payload.get("phases")
+    if isinstance(phases, Sequence) and not isinstance(phases, (str, bytes)):
+        for index, row in enumerate(phases):
+            if not isinstance(row, Mapping):
+                continue
+            evidence_path = (root / str(row.get("evidence_path") or "")).resolve()
+            if not evidence_path.is_file():
+                continue
+            try:
+                evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            nominal = evidence.get("nominal")
+            if not isinstance(nominal, Mapping):
+                continue
+            for field in (
+                "deadline_rejection_count",
+                "deadline_zero_rejection_count",
+                "nonzero_rejection_count",
+            ):
+                if row.get(field) != nominal.get(field):
+                    blockers.append(f"phases[{index}].{field}:mismatch")
+    return sorted(set(blockers))
+
+
 def validate_run_manifest(
     payload: Mapping[str, object],
     *,
     root: Path,
     require_complete: bool = True,
 ) -> list[str]:
+    if payload.get("schema") == RUN_SCHEMA_V4:
+        return _validate_run_manifest_v4(
+            payload,
+            root=root,
+            require_complete=require_complete,
+        )
     if payload.get("schema") == RUN_SCHEMA_V3:
         return _validate_run_manifest_v3(
             payload,
@@ -1641,7 +1915,7 @@ def main() -> int:
     result = {
         "schema": (
             "step5d_p0_v8_mujoco_verification_v3"
-            if payload.get("schema") == RUN_SCHEMA_V3
+            if payload.get("schema") in {RUN_SCHEMA_V3, RUN_SCHEMA_V4}
             else (
                 "step5d_p0_v8_mujoco_verification_v2"
                 if payload.get("schema") == RUN_SCHEMA_V2

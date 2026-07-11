@@ -8,6 +8,7 @@ import sys
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import numpy as np
 
@@ -262,6 +263,85 @@ class Step5dV30ControlContractTest(unittest.TestCase):
         self.assertEqual(result.decision.action, "stop")
         self.assertIn("LinAlgError", result.decision.reason)
         self.assertEqual(result.register_command.qdot, (0.0,) * 6)
+        self.assertIsNone(policy.last_observation)
+
+    def test_injected_reference_builder_exception_returns_layout_524_stop(self) -> None:
+        class InjectedReferenceFailure(Exception):
+            pass
+
+        deferred = DeferredV30Diagnostics(capacity=1)
+        with patch(
+            "step5d_control_contract.build_slew_compatible_reference",
+            side_effect=InjectedReferenceFailure("synthetic reference failure"),
+        ):
+            result = step5d_v30_control_step(
+                observation(),
+                FollowGovernedReferencePolicy(),
+                previous_qdot=None,
+                safety_envelope=SafetyEnvelope(),
+                deferred_diagnostics=deferred,
+            )
+
+        self.assertFalse(result.decision.accepted)
+        self.assertEqual(result.decision.action, "stop")
+        self.assertIn("InjectedReferenceFailure", result.decision.reason)
+        self.assertEqual(result.register_command.qdot, (0.0,) * 6)
+        self.assertFalse(result.register_command.cmd_valid)
+        self.assertEqual(result.register_command.layout_code, JOINT_LAYOUT_CODE)
+        self.assertTrue(result.register_command.stop_request)
+        self.assertEqual(result.register_command.as_register_values()[28], 1.0)
+        self.assertEqual(deferred.count, 1)
+
+    def test_injected_policy_exception_returns_layout_524_stop(self) -> None:
+        class InjectedPolicyFailure(Exception):
+            pass
+
+        class FailingPolicy:
+            def compute(self, _obs: Step5dObservation) -> ControlCandidate:
+                raise InjectedPolicyFailure("synthetic strict-RNN failure")
+
+        deferred = DeferredV30Diagnostics(capacity=1)
+        result = step5d_v30_control_step(
+            observation(),
+            FailingPolicy(),
+            previous_qdot=None,
+            safety_envelope=SafetyEnvelope(),
+            deferred_diagnostics=deferred,
+        )
+
+        self.assertFalse(result.decision.accepted)
+        self.assertEqual(result.decision.action, "stop")
+        self.assertIn("InjectedPolicyFailure", result.decision.reason)
+        self.assertEqual(result.register_command.qdot, (0.0,) * 6)
+        self.assertFalse(result.register_command.cmd_valid)
+        self.assertEqual(result.register_command.layout_code, JOINT_LAYOUT_CODE)
+        self.assertTrue(result.register_command.stop_request)
+        self.assertEqual(result.register_command.as_register_values()[28], 1.0)
+        self.assertEqual(deferred.count, 1)
+
+    def test_injected_warm_start_exception_stops_before_policy(self) -> None:
+        class InjectedWarmStartFailure(Exception):
+            pass
+
+        policy = FollowGovernedReferencePolicy()
+
+        def failing_prepare(_obs: Step5dObservation) -> None:
+            raise InjectedWarmStartFailure("synthetic warm-start failure")
+
+        result = step5d_v30_control_step(
+            observation(),
+            policy,
+            previous_qdot=None,
+            safety_envelope=SafetyEnvelope(),
+            deferred_diagnostics=DeferredV30Diagnostics(capacity=1),
+            prepare_policy=failing_prepare,
+        )
+
+        self.assertFalse(result.decision.accepted)
+        self.assertIn("InjectedWarmStartFailure", result.decision.reason)
+        self.assertEqual(result.register_command.qdot, (0.0,) * 6)
+        self.assertEqual(result.register_command.layout_code, JOINT_LAYOUT_CODE)
+        self.assertTrue(result.register_command.stop_request)
         self.assertIsNone(policy.last_observation)
 
     def test_strict_rnn_policy_implements_public_control_policy(self) -> None:

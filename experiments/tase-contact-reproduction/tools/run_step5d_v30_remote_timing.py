@@ -43,6 +43,10 @@ DEADLINE_MS = 2.0
 DEADLINE_EVENT_CAPACITY = 64
 SOLVER_BATCH_SIZE = 100
 SOLVER_BATCH_YIELD_S = 0.002
+FORMAL_SOLVER_SAMPLES = 10_000
+FORMAL_TICK_SAMPLES = 30_000
+FORMAL_SAFE_HOLD_SAMPLES = 30_000
+RAW_TIMING_SAMPLES_SCHEMA = "step5d_v30_indexed_raw_timing_samples_v1"
 PIPELINE_WARMUP_SAMPLES = 1000
 SAFE_HOLD_WARMUP_SAMPLES = 100
 PIPELINE_WARMUP_CONTROL_HZ = 500.0
@@ -155,14 +159,25 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--experiment-root", type=Path, default=Path.cwd())
     parser.add_argument("--replay-csv", type=Path, required=True)
-    parser.add_argument("--solver-samples", type=int, default=10_000)
-    parser.add_argument("--tick-samples", type=int, default=30_000)
-    parser.add_argument("--safe-hold-samples", type=int, default=30_000)
+    parser.add_argument("--solver-samples", type=int, default=FORMAL_SOLVER_SAMPLES)
+    parser.add_argument("--tick-samples", type=int, default=FORMAL_TICK_SAMPLES)
+    parser.add_argument(
+        "--safe-hold-samples",
+        type=int,
+        default=FORMAL_SAFE_HOLD_SAMPLES,
+    )
     parser.add_argument("--component-diagnostic-samples", type=int, default=0)
     parser.add_argument("--component-outlier-threshold-ms", type=float, default=2.0)
     parser.add_argument("--component-outlier-ring-size", type=int, default=32)
     parser.add_argument("--pace-500hz", action=argparse.BooleanOptionalAction, default=True)
-    parser.add_argument("--include-raw-samples", action="store_true")
+    parser.add_argument(
+        "--include-raw-samples",
+        action="store_true",
+        help=(
+            "retain indexed raw arrays for a diagnostic-size run; canonical "
+            "512/10k/30k/30k formal runs always retain them"
+        ),
+    )
     parser.add_argument(
         "--inner-iterations",
         type=int,
@@ -294,10 +309,60 @@ def distribution(values: Sequence[float], deadline_ms: float = 2.0) -> dict[str,
         "samples": int(array.size),
         "nonfinite_count": int(array.size - finite_values.size),
         "mean_ms": float(np.mean(finite_values)) if finite_values.size else None,
+        "p50_ms": float(np.percentile(finite_values, 50)) if finite_values.size else None,
         "p95_ms": float(np.percentile(finite_values, 95)) if finite_values.size else None,
         "p99_ms": float(np.percentile(finite_values, 99)) if finite_values.size else None,
         "max_ms": float(np.max(finite_values)) if finite_values.size else None,
         "compute_deadline_miss_count": int(np.count_nonzero(finite_values >= deadline_ms)),
+    }
+
+
+def formal_acceptance_raw_capture_required(
+    *,
+    profile_selection: Mapping[str, Any],
+    solver_samples: int,
+    tick_samples: int,
+    safe_hold_samples: int,
+    paced_500hz: bool,
+) -> bool:
+    """Return whether this invocation has the exact formal timing shape."""
+
+    return bool(
+        profile_selection.get("acceptance_profile_eligible") is True
+        and profile_selection.get("diagnostic_override_requested") is False
+        and int(solver_samples) == FORMAL_SOLVER_SAMPLES
+        and int(tick_samples) == FORMAL_TICK_SAMPLES
+        and int(safe_hold_samples) == FORMAL_SAFE_HOLD_SAMPLES
+        and paced_500hz
+    )
+
+
+def indexed_raw_timing_samples(
+    *,
+    solver_ms: Sequence[float],
+    full_tick_ms: Sequence[float],
+    safe_hold_ms: Sequence[float],
+) -> dict[str, Any]:
+    """Serialize every measured sample once, with explicit contiguous order."""
+
+    def lane(values: Sequence[float]) -> dict[str, Any]:
+        array = np.asarray(values, dtype=np.float64).reshape(-1)
+        return {
+            "declared_count": int(array.size),
+            "sample_indices": list(range(int(array.size))),
+            "elapsed_ms": [float(value) for value in array],
+        }
+
+    return {
+        "schema_version": RAW_TIMING_SAMPLES_SCHEMA,
+        "units": "ms",
+        "ordering": "zero_based_measurement_sequence_contiguous",
+        "retention": "all_measured_samples_no_discard",
+        "lanes": {
+            "solver": lane(solver_ms),
+            "full_tick": lane(full_tick_ms),
+            "safe_hold": lane(safe_hold_ms),
+        },
     }
 
 
@@ -1446,8 +1511,18 @@ def main() -> int:
             result["max_consecutive"] = int(max_consecutive)
         return result
 
+    formal_raw_capture_required = formal_acceptance_raw_capture_required(
+        profile_selection=profile_selection,
+        solver_samples=args.solver_samples,
+        tick_samples=args.tick_samples,
+        safe_hold_samples=args.safe_hold_samples,
+        paced_500hz=bool(args.pace_500hz),
+    )
+    raw_capture_included = bool(
+        formal_raw_capture_required or args.include_raw_samples
+    )
     payload: dict[str, Any] = {
-        "schema_version": "step5d_v30_remote_timing_raw_v2",
+        "schema_version": "step5d_v30_remote_timing_raw_v3",
         "profile": effective_profile,
         "profile_sha256": profile_selection["effective_profile_sha256"],
         "profile_selection": profile_selection,
@@ -1577,6 +1652,17 @@ def main() -> int:
         },
         "elapsed_full_tick_wall_s": full_tick_elapsed_wall_s,
         "elapsed_safe_hold_wall_s": safe_hold_elapsed_wall_s,
+        "raw_sample_capture": {
+            "formal_acceptance_required": formal_raw_capture_required,
+            "explicit_diagnostic_request": bool(args.include_raw_samples),
+            "included": raw_capture_included,
+            "format": RAW_TIMING_SAMPLES_SCHEMA,
+            "expected_formal_counts": {
+                "solver": FORMAL_SOLVER_SAMPLES,
+                "full_tick": FORMAL_TICK_SAMPLES,
+                "safe_hold": FORMAL_SAFE_HOLD_SAMPLES,
+            },
+        },
         "safety_boundary": [
             "read-only source evidence",
             "stdout JSON only",
@@ -1587,13 +1673,11 @@ def main() -> int:
             "no motion authorization",
         ],
     }
-    if args.include_raw_samples:
-        payload.update(
-            {
-                "solver_ms": solver_ms.tolist(),
-                "tick_ms": full_tick_ms.tolist(),
-                "safe_hold_ms": safe_hold_ms.tolist(),
-            }
+    if raw_capture_included:
+        payload["raw_timing_samples"] = indexed_raw_timing_samples(
+            solver_ms=solver_ms,
+            full_tick_ms=full_tick_ms,
+            safe_hold_ms=safe_hold_ms,
         )
     print(json.dumps(payload, separators=(",", ":"), sort_keys=True))
     return 0

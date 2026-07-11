@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field, replace
-from typing import Any, Mapping, Protocol, runtime_checkable
+from typing import Any, Callable, Mapping, Protocol, runtime_checkable
 
 import numpy as np
 
@@ -913,6 +913,7 @@ def step5d_v30_control_step(
     previous_qdot: Vector6 | None,
     safety_envelope: SafetyEnvelope,
     deferred_diagnostics: "DeferredV30Diagnostics",
+    prepare_policy: Callable[[Step5dObservation], None] | None = None,
     max_slew_rad_s2: float = V30_QDOT_SLEW_RAD_S2,
     dt_max_s: float = V30_GUARD_DT_MAX_S,
 ) -> Step5dControlStepResult:
@@ -930,18 +931,12 @@ def step5d_v30_control_step(
             max_slew_rad_s2=max_slew_rad_s2,
             dt_max_s=dt_max_s,
         )
+        if prepare_policy is not None:
+            prepare_policy(governed_observation)
         raw_candidate = policy.compute(governed_observation)
         if not isinstance(raw_candidate, ControlCandidate):
             raise TypeError("ControlPolicy must return ControlCandidate")
-    except (
-        ValueError,
-        RuntimeError,
-        np.linalg.LinAlgError,
-        FloatingPointError,
-        OverflowError,
-        AttributeError,
-        TypeError,
-    ) as exc:
+    except Exception as exc:
         return fail_closed_control_step(
             governed_observation,
             reason=f"strict_rnn_policy_failure:{type(exc).__name__}",

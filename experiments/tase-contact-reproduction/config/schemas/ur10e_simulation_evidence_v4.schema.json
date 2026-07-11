@@ -1,0 +1,241 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ur10e_simulation_evidence_v4.schema.json",
+  "title": "UR10e P0 v8 simulation evidence with pre-write deadline rejection",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "generated_at", "profile", "engine", "source_binding",
+    "schedule", "phase", "prewarm_binding", "control_hard_500hz",
+    "simulator_cycle_diagnostic", "nominal", "faults",
+    "control_contract", "claims", "claim_boundary", "artifacts", "blockers"
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "zero6": {
+      "type": "array",
+      "prefixItems": [
+        {"const": 0.0}, {"const": 0.0}, {"const": 0.0},
+        {"const": 0.0}, {"const": 0.0}, {"const": 0.0}
+      ],
+      "items": false,
+      "minItems": 6,
+      "maxItems": 6
+    },
+    "distribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["p50_ms", "p95_ms", "p99_ms", "max_ms"],
+      "properties": {
+        "p50_ms": {"type": "number", "minimum": 0},
+        "p95_ms": {"type": "number", "minimum": 0},
+        "p99_ms": {"type": "number", "minimum": 0},
+        "max_ms": {"type": "number", "minimum": 0}
+      }
+    },
+    "deadline_command_contract": {
+      "const": {
+        "version": "pre_write_exact_zero_stop_v1",
+        "classification_point": "after_adapter_step_before_plant_write",
+        "deadline_ms": 2.0,
+        "comparison": "control_elapsed_ms_gte_deadline",
+        "late_action": "stop",
+        "late_reason": "control_deadline_miss_ge_2ms",
+        "late_qdot": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "late_cmd_valid": false,
+        "late_stop_request": true,
+        "measured_samples_may_be_discarded": false,
+        "deadline_rejection_may_satisfy_timing_gate": false
+      }
+    },
+    "prewarm_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema", "path", "sha256", "size_bytes",
+        "source_composite_sha256", "execute_tick_count",
+        "pacing_hz", "paced", "pass"
+      ],
+      "properties": {
+        "schema": {"const": "step5d_p0_v8_production_path_prewarm_v1"},
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "size_bytes": {"type": "integer", "minimum": 1},
+        "source_composite_sha256": {"$ref": "#/$defs/sha256"},
+        "execute_tick_count": {"const": 1000},
+        "pacing_hz": {"const": 500},
+        "paced": {"const": true},
+        "pass": {"const": true}
+      }
+    }
+  },
+  "properties": {
+    "schema": {"const": "ur10e_simulation_evidence_v4"},
+    "generated_at": {"type": "string", "minLength": 1},
+    "profile": {"type": "object"},
+    "engine": {"type": "object"},
+    "source_binding": {
+      "type": "object",
+      "required": [
+        "base_commit", "head_commit", "composite_sha256",
+        "calibration_hash", "model_sha256", "frame_lineage_sha256",
+        "runtime_timing_environment"
+      ],
+      "properties": {
+        "base_commit": {"type": "string", "minLength": 7},
+        "head_commit": {"type": "string", "minLength": 7},
+        "composite_sha256": {"$ref": "#/$defs/sha256"},
+        "calibration_hash": {"type": "string", "minLength": 1},
+        "model_sha256": {"$ref": "#/$defs/sha256"},
+        "frame_lineage_sha256": {"$ref": "#/$defs/sha256"},
+        "runtime_timing_environment": {
+          "type": "object",
+          "required": [
+            "timing_scope_contract", "deadline_command_contract",
+            "production_path_prewarm_contract", "trace_prefault",
+            "thread_environment"
+          ],
+          "properties": {
+            "timing_scope_contract": {
+              "const": {
+                "version": "p0_v8_timing_lane_split_v2",
+                "control_hard_500hz": "simulator_state_ready_to_adapter_step_complete",
+                "simulator_cycle_diagnostic": "release_to_oracle_snapshot_to_adapter_step_to_command_apply_and_four_physics_substeps"
+              }
+            },
+            "deadline_command_contract": {
+              "$ref": "#/$defs/deadline_command_contract"
+            },
+            "trace_prefault": {
+              "const": {
+                "required": true,
+                "completed": true,
+                "strategy": "numpy_fill_zero_before_gc_collect_and_measured_loop"
+              }
+            },
+            "thread_environment": {
+              "const": {
+                "OPENBLAS_NUM_THREADS": "1",
+                "OMP_NUM_THREADS": "1",
+                "MKL_NUM_THREADS": "1",
+                "NUMEXPR_NUM_THREADS": "1"
+              }
+            }
+          }
+        }
+      }
+    },
+    "schedule": {"type": "object"},
+    "phase": {"type": "object"},
+    "prewarm_binding": {"$ref": "#/$defs/prewarm_binding"},
+    "control_hard_500hz": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope", "paced", "samples", "deadline_ms", "p99_limit_ms",
+        "p50_ms", "p95_ms", "p99_ms", "max_ms", "deadline_miss_count",
+        "p99_within_limit", "max_within_deadline", "prefault_required",
+        "prefault_verified", "pass"
+      ],
+      "properties": {
+        "scope": {"const": "simulator_state_ready_to_adapter_step_complete"},
+        "paced": {"type": "boolean"},
+        "samples": {"type": "integer", "minimum": 1},
+        "deadline_ms": {"const": 2.0},
+        "p99_limit_ms": {"const": 1.8},
+        "p50_ms": {"type": "number", "minimum": 0},
+        "p95_ms": {"type": "number", "minimum": 0},
+        "p99_ms": {"type": "number", "minimum": 0},
+        "max_ms": {"type": "number", "minimum": 0},
+        "deadline_miss_count": {"type": "integer", "minimum": 0},
+        "p99_within_limit": {"type": "boolean"},
+        "max_within_deadline": {"type": "boolean"},
+        "prefault_required": {"const": true},
+        "prefault_verified": {"const": true},
+        "pass": {"type": "boolean"}
+      }
+    },
+    "simulator_cycle_diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope", "diagnostic_only", "samples",
+        "physics_substeps_per_control_tick", "oracle_snapshot_ms",
+        "command_apply_and_physics_ms", "cycle_wall_ms",
+        "release_lateness_ms", "absolute_finish_lateness_ms",
+        "cycle_compute_deadline_miss_count", "absolute_deadline_miss_count",
+        "meets_500hz_diagnostic"
+      ],
+      "properties": {
+        "scope": {"const": "release_to_oracle_snapshot_to_adapter_step_to_command_apply_and_four_physics_substeps"},
+        "diagnostic_only": {"const": true},
+        "samples": {"type": "integer", "minimum": 1},
+        "physics_substeps_per_control_tick": {"const": 4},
+        "oracle_snapshot_ms": {"$ref": "#/$defs/distribution"},
+        "command_apply_and_physics_ms": {"$ref": "#/$defs/distribution"},
+        "cycle_wall_ms": {"$ref": "#/$defs/distribution"},
+        "release_lateness_ms": {"$ref": "#/$defs/distribution"},
+        "absolute_finish_lateness_ms": {"$ref": "#/$defs/distribution"},
+        "cycle_compute_deadline_miss_count": {"type": "integer", "minimum": 0},
+        "absolute_deadline_miss_count": {"type": "integer", "minimum": 0},
+        "meets_500hz_diagnostic": {"type": "boolean"}
+      }
+    },
+    "nominal": {
+      "type": "object",
+      "required": [
+        "tick_count", "accepted_tick_count", "safe_hold_count", "stop_count",
+        "control_deadline_miss_count", "exact_zero_rejection_count",
+        "deadline_rejection_count", "deadline_zero_rejection_count",
+        "nonzero_rejection_count", "control_path_diagnostic_pass"
+      ],
+      "properties": {
+        "tick_count": {"type": "integer", "minimum": 1},
+        "accepted_tick_count": {"type": "integer", "minimum": 0},
+        "safe_hold_count": {"const": 0},
+        "stop_count": {"type": "integer", "minimum": 0},
+        "control_deadline_miss_count": {"type": "integer", "minimum": 0},
+        "exact_zero_rejection_count": {"type": "integer", "minimum": 0},
+        "deadline_rejection_count": {"type": "integer", "minimum": 0},
+        "deadline_zero_rejection_count": {"type": "integer", "minimum": 0},
+        "nonzero_rejection_count": {"const": 0},
+        "control_path_diagnostic_pass": {"type": "boolean"}
+      }
+    },
+    "faults": {"type": "array", "items": {"type": "object"}},
+    "control_contract": {
+      "type": "object",
+      "required": [
+        "timing_scope_version", "trace_buffers_prefaulted",
+        "measured_samples_excluded", "prewarm_samples_in_control_trace",
+        "measured_sequence_restarts_at_zero",
+        "deadline_command_contract_version", "deadline_classification_point",
+        "deadline_comparison", "deadline_ms", "deadline_rejection_action",
+        "deadline_rejection_reason", "deadline_rejection_qdot",
+        "deadline_rejection_cmd_valid", "deadline_rejection_stop_request",
+        "deadline_rejection_may_satisfy_timing_gate"
+      ],
+      "properties": {
+        "timing_scope_version": {"const": "p0_v8_timing_lane_split_v2"},
+        "trace_buffers_prefaulted": {"const": true},
+        "measured_samples_excluded": {"const": 0},
+        "prewarm_samples_in_control_trace": {"const": 0},
+        "measured_sequence_restarts_at_zero": {"const": true},
+        "deadline_command_contract_version": {"const": "pre_write_exact_zero_stop_v1"},
+        "deadline_classification_point": {"const": "after_adapter_step_before_plant_write"},
+        "deadline_comparison": {"const": "control_elapsed_ms_gte_deadline"},
+        "deadline_ms": {"const": 2.0},
+        "deadline_rejection_action": {"const": "stop"},
+        "deadline_rejection_reason": {"const": "control_deadline_miss_ge_2ms"},
+        "deadline_rejection_qdot": {"$ref": "#/$defs/zero6"},
+        "deadline_rejection_cmd_valid": {"const": false},
+        "deadline_rejection_stop_request": {"const": true},
+        "deadline_rejection_may_satisfy_timing_gate": {"const": false}
+      }
+    },
+    "claims": {"type": "object"},
+    "claim_boundary": {"type": "object"},
+    "artifacts": {"type": "array", "items": {"type": "object"}},
+    "blockers": {"type": "array", "items": {"type": "string"}}
+  }
+}

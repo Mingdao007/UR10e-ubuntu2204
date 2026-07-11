@@ -21,7 +21,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 from step5d_control_contract import STRICT_RNN_SOLVER_OK_STATUS, ZERO6  # noqa: E402
-from step5d_simulator_adapter import FrameLineage, SimulatorState  # noqa: E402
+from step5d_simulator_adapter import (  # noqa: E402
+    FrameLineage,
+    SimulationCommand,
+    SimulatorState,
+)
 import run_step5d_p0_v8_mujoco as runner  # noqa: E402
 
 
@@ -117,6 +121,49 @@ class FakePlant:
 
 
 class Step5dP0V8MujocoRunnerTest(unittest.TestCase):
+    def test_deadline_is_classified_before_sink_as_exact_zero_stop(self) -> None:
+        command = SimulationCommand(
+            engine="mujoco",
+            sequence=7,
+            mode="joint_velocity",
+            qdot=(0.0, 0.0, 0.0001, 0.0, 0.0, 0.0),
+            accepted=True,
+            action="execute",
+            reason="ok",
+            stop_request=False,
+            command_bytes_sha256=runner.simulation_command_sha256(
+                (0.0, 0.0, 0.0001, 0.0, 0.0, 0.0),
+                cmd_valid=True,
+                stop_request=False,
+            ),
+        )
+
+        on_time, rejected = runner.classify_control_deadline(
+            command,
+            control_elapsed_ms=1.999999,
+        )
+        late, late_rejected = runner.classify_control_deadline(
+            command,
+            control_elapsed_ms=2.0,
+        )
+
+        self.assertIs(on_time, command)
+        self.assertFalse(rejected)
+        self.assertTrue(late_rejected)
+        self.assertEqual(late.qdot, ZERO6)
+        self.assertFalse(late.accepted)
+        self.assertEqual(late.action, "stop")
+        self.assertEqual(late.reason, runner.CONTROL_DEADLINE_REASON)
+        self.assertTrue(late.stop_request)
+        self.assertEqual(
+            late.command_bytes_sha256,
+            runner.simulation_command_sha256(
+                ZERO6,
+                cmd_valid=False,
+                stop_request=True,
+            ),
+        )
+
     def test_production_path_prewarm_is_fixed_paced_complete_and_no_output(self) -> None:
         plant = FakePlant()
         solver = FakeSolver()
@@ -275,7 +322,7 @@ class Step5dP0V8MujocoRunnerTest(unittest.TestCase):
             control_compute_ms=np.full(result.tick_count, 2.5),
         )
 
-        self.assertTrue(slow.control_path_pass)
+        self.assertFalse(slow.control_path_pass)
         timing = runner.control_hard_timing(slow, paced=True)
         self.assertFalse(timing["pass"])
         self.assertEqual(timing["deadline_miss_count"], result.tick_count)
@@ -284,6 +331,57 @@ class Step5dP0V8MujocoRunnerTest(unittest.TestCase):
         broken_sequence = replace(result, last_sequence=result.tick_count)
         self.assertFalse(broken_sequence.control_path_pass)
         self.assertFalse(runner.wall_timing(result, paced=False)["pass"])
+
+    def test_contained_deadline_miss_keeps_sample_but_not_timing_pass(self) -> None:
+        result = runner.run_nominal_phase(
+            plant=FakePlant(),
+            solver=FakeSolver(),
+            spec=runner.PhaseSpec(duration_s=0.006, sequence_index=0),
+        )
+        control_ms = np.asarray((0.5, 2.0, 0.5), dtype=float)
+        qdot = result.qdot.copy()
+        qdot[1, :] = 0.0
+        accepted = np.asarray((1, 0, 1), dtype=np.uint8)
+        stop_request = np.asarray((0, 1, 0), dtype=np.uint8)
+        hashes = np.asarray(
+            [
+                runner.simulation_command_sha256(
+                    qdot[index],
+                    cmd_valid=bool(accepted[index]),
+                    stop_request=bool(stop_request[index]),
+                )
+                for index in range(3)
+            ],
+            dtype="<U64",
+        )
+        contained = replace(
+            result,
+            accepted_tick_count=2,
+            stop_count=1,
+            control_deadline_miss_count=1,
+            max_qdot_abs_rad_s=float(np.max(np.abs(qdot))),
+            exact_zero_rejection_count=1,
+            deadline_rejection_count=1,
+            deadline_zero_rejection_count=1,
+            nonzero_rejection_count=0,
+            control_compute_ms=control_ms,
+            qdot=qdot,
+            accepted=accepted,
+            deadline_rejected=np.asarray((0, 1, 0), dtype=np.uint8),
+            command_stop_request=stop_request,
+            command_bytes_sha256=hashes,
+            actions=np.asarray(("execute", "stop", "execute"), dtype="<U96"),
+            reasons=np.asarray(
+                ("ok", runner.CONTROL_DEADLINE_REASON, "ok"),
+                dtype="<U160",
+            ),
+        )
+
+        self.assertTrue(contained.control_path_pass)
+        timing = runner.control_hard_timing(contained, paced=True)
+        self.assertFalse(timing["pass"])
+        self.assertEqual(timing["deadline_miss_count"], 1)
+        self.assertEqual(timing["samples"], 3)
 
     def test_slow_physics_is_diagnostic_and_does_not_pollute_control_hard(self) -> None:
         result = runner.run_nominal_phase(

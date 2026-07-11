@@ -27,7 +27,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 import numpy as np
 import pinocchio as pin
@@ -82,15 +82,16 @@ from step5d_p0_v8_control_core import (  # noqa: E402
 from step5d_control_contract import (  # noqa: E402
     ControlCandidate,
     DeferredV30Diagnostics,
+    RegisterCommand,
     SafetyEnvelope,
     SafetyDecision,
     Step5dObservation,
     StrictRnnControlPolicy,
     apply_direction_preserving_slew,
-    build_slew_compatible_reference,
     compute_dls_shadow,
     decision_to_register_command,
     step5d_v30_contract_pipeline as shared_step5d_v30_contract_pipeline,
+    step5d_v30_control_step as shared_step5d_v30_control_step,
 )
 from step5d_p0_v8_gate import (  # noqa: E402
     CANARY_PHASES_S as STEP5D_P0_V8_CANARY_PHASES_S,
@@ -3113,6 +3114,39 @@ def step5d_v30_contract_pipeline(
     )
 
 
+def step5d_v30_bridge_control_step(
+    observation: Step5dObservation,
+    policy: StrictRnnControlPolicy,
+    *,
+    previous_qdot: Sequence[float] | None,
+    safety_envelope: SafetyEnvelope,
+    deferred_diagnostics: DeferredV30Diagnostics,
+    prepare_policy: Callable[[Step5dObservation], None] | None = None,
+) -> Any:
+    """Run reference governance, warm-start, policy, and contract fail-closed.
+
+    This is the future v30 bridge's single production seam.  Reference
+    governance and strict-RNN exceptions are converted into a layout-524
+    exact-zero stop ``RegisterCommand`` before the transport loop can tear
+    down.
+    """
+
+    return shared_step5d_v30_control_step(
+        observation,
+        policy,
+        previous_qdot=(
+            tuple(float(value) for value in previous_qdot)
+            if previous_qdot is not None
+            else None
+        ),
+        safety_envelope=safety_envelope,
+        deferred_diagnostics=deferred_diagnostics,
+        prepare_policy=prepare_policy,
+        max_slew_rad_s2=STEP5D_V12_QDOT_SLEW_RAD_S2,
+        dt_max_s=STEP5D_V12_GUARD_DT_MAX_S,
+    )
+
+
 def step5d_qdot_diagnostic_values(
     *,
     jacobian: Any,
@@ -3701,6 +3735,102 @@ def step5d_stage25_register_values(
     for idx, value in enumerate(command_values):
         values[BRIDGE_INPUT_NAMES[idx]] = value
     return values
+
+
+def build_step5d_v30_exception_stop_packet(
+    *,
+    heartbeat: float,
+    original_error: BaseException,
+) -> tuple[RegisterCommand, dict[str, float]]:
+    """Build one finite manifest-bound layout-524 emergency packet."""
+
+    try:
+        safe_heartbeat = float(heartbeat)
+    except (TypeError, ValueError):
+        safe_heartbeat = 0.0
+    if not math.isfinite(safe_heartbeat) or safe_heartbeat < 0.0:
+        safe_heartbeat = 0.0
+    command = RegisterCommand(
+        heartbeat=safe_heartbeat,
+        qdot=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+        cmd_valid=False,
+        path_time_s=0.0,
+        force_error_n=0.0,
+        orientation_error_rad=0.0,
+        layout_code=STEP5D_STAGE25_JOINT_LAYOUT_CODE,
+        stop_request=True,
+        decision_reason=f"v30_bridge_exception:{type(original_error).__name__}",
+    )
+    packet = {name: 0.0 for name in INPUT_NAMES}
+    input_name_by_register = {
+        int(field.rsplit("_", 1)[1]): name
+        for field, name in zip(INPUT_FIELDS, INPUT_NAMES)
+    }
+    register_values = command.as_register_values()
+    missing = sorted(set(register_values) - set(input_name_by_register))
+    if missing:
+        raise RuntimeError(
+            "v30 exception stop command is not bound to the active RTDE manifest: "
+            + ",".join(str(value) for value in missing)
+        )
+    for register, value in register_values.items():
+        packet[input_name_by_register[register]] = float(value)
+    if (
+        any(packet[name] != 0.0 for name in BRIDGE_INPUT_NAMES[:6])
+        or packet["step4e_cmd_valid"] != 0.0
+        or packet["step4e_controller_state"] != STEP5D_STAGE25_JOINT_LAYOUT_CODE
+        or packet["stop_request"] != 1.0
+    ):
+        raise RuntimeError("v30 exception packet is not exact-zero layout-524 stop")
+    return command, packet
+
+
+def publish_step5d_v30_exception_stop(
+    rtde: Any,
+    *,
+    recipe_id: int,
+    type_names: list[str],
+    heartbeat: float,
+    original_error: BaseException,
+) -> tuple[RegisterCommand | None, dict[str, float] | None, dict[str, Any]]:
+    """Attempt one stop packet and return a durable, non-silent outcome row."""
+
+    event: dict[str, Any] = {
+        "event": "v30_control_exception_fail_closed_publish",
+        "at_monotonic_s": time.monotonic(),
+        "original_error": rtde_error_name(original_error),
+        "stop_publish_succeeded": False,
+        "stop_publish_error": "",
+    }
+    try:
+        command, packet = build_step5d_v30_exception_stop_packet(
+            heartbeat=heartbeat,
+            original_error=original_error,
+        )
+    except Exception as publish_error:
+        event["stop_publish_error"] = rtde_error_name(publish_error)
+        return None, None, event
+    event["stop_command"] = {
+        "heartbeat": command.heartbeat,
+        "qdot": list(command.qdot),
+        "cmd_valid": command.cmd_valid,
+        "layout_code": command.layout_code,
+        "stop_request": command.stop_request,
+        "decision_reason": command.decision_reason,
+    }
+    try:
+        if rtde is None:
+            raise RuntimeError("RTDE transport unavailable for v30 exception stop")
+        rtde.send_input_sample(
+            recipe_id,
+            type_names,
+            [packet[name] for name in INPUT_NAMES],
+        )
+    except Exception as publish_error:
+        event["stop_publish_error"] = rtde_error_name(publish_error)
+        return command, packet, event
+    event["stop_publish_succeeded"] = True
+    return command, packet, event
 
 
 class BridgeState:
@@ -4849,6 +4979,7 @@ def compute_bridge_values(
         step5d_rnn_reject_reason = "not_active"
         step5d_safe_hold_active = math.nan
         step5d_v30_register_command: Any | None = None
+        control_step_v30: Any | None = None
         observation_v30: Step5dObservation | None = None
         raw_candidate_v30: ControlCandidate | None = None
         candidate_v30: ControlCandidate | None = None
@@ -5162,44 +5293,62 @@ def compute_bridge_values(
                         omega_plus=tuple(float(value) for value in omega_plus),  # type: ignore[arg-type]
                         dt_s=float(dt_s),
                     )
-                    observation_v30 = build_slew_compatible_reference(
-                        observation_v30,
-                        previous_qdot=(
-                            tuple(float(value) for value in state.step5d_last_qdot)
-                            if state.step5d_last_qdot is not None
-                            else None
-                        ),
-                    )
-                    # Warm-start and the strict-RNN solve must see the same
-                    # slew-compatible reference later checked by the
-                    # SafetyEnvelope.  The raw outer reference remains bound
-                    # in observation_v30.raw_desired_twist for evidence.
-                    target_state["xdot_c"] = np.asarray(
-                        observation_v30.desired_twist,
-                        dtype=float,
-                    )
                 try:
-                    if step5d_stage25_control_mode == "speedj_rnn_live" and apply_step5d_solver_warm_start_if_pending(
-                        state,
-                        jacobian=jacobian,
-                        xdot_c=np.asarray(target_state["xdot_c"], dtype=float),
-                        omega_minus=omega_minus,
-                        omega_plus=omega_plus,
-                    ):
-                        step5d_intervention_reasons.append("solver_warm_start")
                     if step5d_v30_contract_profile:
                         if state.step5d_v30_policy is None or observation_v30 is None:
                             raise RuntimeError("v30 ControlPolicy was not prewarmed")
-                        raw_candidate_v30 = state.step5d_v30_policy.compute(
-                            observation_v30
+                        if state.step5d_v30_deferred_diagnostics is None:
+                            raise RuntimeError("v30 deferred diagnostics were not preallocated")
+
+                        def prepare_v30_policy(governed: Step5dObservation) -> None:
+                            if (
+                                step5d_stage25_control_mode == "speedj_rnn_live"
+                                and apply_step5d_solver_warm_start_if_pending(
+                                    state,
+                                    jacobian=np.asarray(governed.jacobian, dtype=float),
+                                    xdot_c=np.asarray(governed.desired_twist, dtype=float),
+                                    omega_minus=np.asarray(governed.omega_minus, dtype=float),
+                                    omega_plus=np.asarray(governed.omega_plus, dtype=float),
+                                )
+                            ):
+                                step5d_intervention_reasons.append("solver_warm_start")
+
+                        control_step_v30 = step5d_v30_bridge_control_step(
+                            observation_v30,
+                            state.step5d_v30_policy,
+                            previous_qdot=state.step5d_last_qdot,
+                            safety_envelope=state.step5d_v30_safety_envelope,
+                            deferred_diagnostics=state.step5d_v30_deferred_diagnostics,
+                            prepare_policy=prepare_v30_policy,
                         )
+                        raw_candidate_v30 = control_step_v30.raw_candidate
+                        candidate_v30 = control_step_v30.candidate
+                        dls_shadow_v30 = control_step_v30.dls_shadow
+                        decision_v30 = control_step_v30.decision
+                        step5d_v30_register_command = control_step_v30.register_command
+                        raw_diagnostics = dict(raw_candidate_v30.diagnostics)
+                        raw_diagnostics.setdefault("active_bounds_mask", (False,) * 6)
+                        raw_diagnostics.setdefault("proj_input_form", "unavailable_fail_closed")
+                        raw_diagnostics.setdefault("lambda_update_form", "unavailable_fail_closed")
+                        try:
+                            bridge_solver_status = float(raw_candidate_v30.solver_status)
+                        except (TypeError, ValueError):
+                            bridge_solver_status = STATUS_INVALID
                         step5d_result = SimpleNamespace(
                             qdot=raw_candidate_v30.qdot,
-                            solver_status=float(raw_candidate_v30.solver_status),
+                            solver_status=bridge_solver_status,
                             residual_norm=raw_candidate_v30.residual_norm,
-                            diagnostics=raw_candidate_v30.diagnostics,
+                            diagnostics=raw_diagnostics,
                         )
                     else:
+                        if step5d_stage25_control_mode == "speedj_rnn_live" and apply_step5d_solver_warm_start_if_pending(
+                            state,
+                            jacobian=jacobian,
+                            xdot_c=np.asarray(target_state["xdot_c"], dtype=float),
+                            omega_minus=omega_minus,
+                            omega_plus=omega_plus,
+                        ):
+                            step5d_intervention_reasons.append("solver_warm_start")
                         step5d_result = state.step5d_solver.solve(
                             actual_q=q,
                             actual_qd=qd,
@@ -5486,25 +5635,17 @@ def compute_bridge_values(
                     and step5d_outer_output is not None
                     and step5d_result is not None
                 ):
-                    if observation_v30 is None or raw_candidate_v30 is None:
+                    if (
+                        observation_v30 is None
+                        or raw_candidate_v30 is None
+                        or candidate_v30 is None
+                        or decision_v30 is None
+                        or step5d_v30_register_command is None
+                        or control_step_v30 is None
+                    ):
                         raise RuntimeError(
-                            "v30 Observation->ControlPolicy->Candidate path was not executed"
+                            "v30 shared fail-closed control step was not executed"
                         )
-                    candidate_v30 = raw_candidate_v30
-                    if state.step5d_v30_deferred_diagnostics is None:
-                        raise RuntimeError("v30 deferred diagnostics were not preallocated")
-                    (
-                        candidate_v30,
-                        dls_shadow_v30,
-                        decision_v30,
-                        step5d_v30_register_command,
-                    ) = step5d_v30_contract_pipeline(
-                        observation_v30,
-                        candidate_v30,
-                        previous_qdot=state.step5d_last_qdot,
-                        safety_envelope=state.step5d_v30_safety_envelope,
-                        deferred_diagnostics=state.step5d_v30_deferred_diagnostics,
-                    )
                     step5d_qdot_slew_limiter_active = bool(
                         candidate_v30.diagnostics.get("slew_active", False)
                     )
@@ -8971,14 +9112,37 @@ def main(argv: list[str] | None = None) -> int:
                         step4e_values = {name: 0.0 for name in BRIDGE_INPUT_NAMES}
                         step4e_values["stop_request"] = 0.0
                     else:
-                        step4e_values = compute_bridge_values(
-                            args,
-                            latest_zeroed,
-                            latest_output,
-                            sensor_ok,
-                            step4e_state,
-                            write_period,
-                        )
+                        try:
+                            step4e_values = compute_bridge_values(
+                                args,
+                                latest_zeroed,
+                                latest_output,
+                                sensor_ok,
+                                step4e_state,
+                                write_period,
+                            )
+                        except Exception as control_error:
+                            if not uses_v30_control_contract(args.bridge_profile):
+                                raise
+                            _stop_command, _stop_packet, stop_publish_event = (
+                                publish_step5d_v30_exception_stop(
+                                    rtde,
+                                    recipe_id=rtde_input_recipe,
+                                    type_names=rtde_input_types,
+                                    heartbeat=heartbeat,
+                                    original_error=control_error,
+                                )
+                            )
+                            stop_publish_event["count"] = len(rtde_reconnect_events) + 1
+                            rtde_reconnect_events.append(stop_publish_event)
+                            if stop_publish_event["stop_publish_succeeded"]:
+                                stop_reason = "v30_control_exception_stop_published"
+                            else:
+                                stop_reason = (
+                                    "v30_control_exception_stop_publish_failed:"
+                                    + str(stop_publish_event["stop_publish_error"])
+                                )
+                            break
                     loop_compute_s = time.perf_counter() - compute_start
                     step4e_values["_bridge_loop_gap_s"] = 0.0 if not bridge_write_times else now - bridge_write_times[-1]
                     step4e_values["_bridge_loop_deadline_lateness_s"] = deadline_lateness_s

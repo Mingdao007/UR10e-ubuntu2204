@@ -95,6 +95,46 @@ class Step5dV30TimingTest(unittest.TestCase):
                 ["--replay-csv", "trace.csv", "--inner-iterations", "1024"]
             )
 
+    def test_formal_capture_cannot_omit_complete_raw_samples(self) -> None:
+        canonical = remote_timing.build_profile_selection(None)
+        diagnostic = remote_timing.build_profile_selection(512)
+
+        self.assertTrue(
+            remote_timing.formal_acceptance_raw_capture_required(
+                profile_selection=canonical,
+                solver_samples=10_000,
+                tick_samples=30_000,
+                safe_hold_samples=30_000,
+                paced_500hz=True,
+            )
+        )
+        self.assertFalse(
+            remote_timing.formal_acceptance_raw_capture_required(
+                profile_selection=diagnostic,
+                solver_samples=10_000,
+                tick_samples=30_000,
+                safe_hold_samples=30_000,
+                paced_500hz=True,
+            )
+        )
+        self.assertFalse(
+            remote_timing.formal_acceptance_raw_capture_required(
+                profile_selection=canonical,
+                solver_samples=9_999,
+                tick_samples=30_000,
+                safe_hold_samples=30_000,
+                paced_500hz=True,
+            )
+        )
+
+        raw = remote_timing.indexed_raw_timing_samples(
+            solver_ms=[0.1, 0.2],
+            full_tick_ms=[0.3],
+            safe_hold_ms=[0.4],
+        )
+        self.assertEqual(raw["lanes"]["solver"]["sample_indices"], [0, 1])
+        self.assertEqual(raw["lanes"]["solver"]["elapsed_ms"], [0.1, 0.2])
+
     def test_solver_effective_profile_mismatch_fails_closed(self) -> None:
         effective = dict(remote_timing.PROFILE)
         effective["inner_iterations"] = 512
@@ -198,6 +238,9 @@ class Step5dV30TimingTest(unittest.TestCase):
         self.assertIn("print(json.dumps(payload", source)
         self.assertIn('"nvidia-smi"', source)
         self.assertIn('"gpu_device"', source)
+        self.assertIn('"step5d_v30_remote_timing_raw_v3"', source)
+        self.assertIn("formal_acceptance_raw_capture_required(", source)
+        self.assertIn('payload["raw_timing_samples"]', source)
         solver_loop = source[
             source.index("for index in range(args.solver_samples):") :
             source.index("first_post_warm_ms =")
@@ -382,9 +425,12 @@ class Step5dV30TimingTest(unittest.TestCase):
         self.assertEqual(compact.cmd_valid, full.cmd_valid)
         self.assertEqual(compact.diagnostics, {})
 
-    def test_compact_remote_payload_is_accepted_without_steady_raw_samples(self) -> None:
+    def test_remote_payload_is_accepted_only_with_complete_indexed_raw_samples(self) -> None:
+        solver_ms = [1.7] + [1.2] * 9_999
+        full_tick_ms = [1.5] * 30_000
+        safe_hold_ms = [0.05] * 30_000
         payload = {
-            "schema_version": "step5d_v30_remote_timing_raw_v2",
+            "schema_version": "step5d_v30_remote_timing_raw_v3",
             "source_binding": {
                 "delivery": "stdin_bundle",
                 **{field: "1" * 64 for field in SOURCE_BINDING_FILES},
@@ -447,13 +493,13 @@ class Step5dV30TimingTest(unittest.TestCase):
                 "full_tick_loop_affected": False,
                 "safe_hold_loop_affected": False,
             },
-            "solver": {"samples": 10000, "nonfinite_count": 0, "mean_ms": 1.2, "p95_ms": 1.3, "p99_ms": 1.4, "max_ms": 1.7, "compute_deadline_miss_count": 0},
+            "solver": remote_timing.distribution(solver_ms),
             "solver_batch_reentry_ms": [0.8] * 98 + [2.1],
             "solver_batch_reentry": remote_timing.distribution(
                 [0.8] * 98 + [2.1]
             ),
-            "full_tick": {"samples": 30000, "nonfinite_count": 0, "mean_ms": 1.5, "p95_ms": 1.6, "p99_ms": 1.7, "max_ms": 1.9, "compute_deadline_miss_count": 0},
-            "safe_hold": {"samples": 30000, "nonfinite_count": 0, "mean_ms": 0.05, "p95_ms": 0.06, "p99_ms": 0.07, "max_ms": 0.1, "compute_deadline_miss_count": 0},
+            "full_tick": remote_timing.distribution(full_tick_ms),
+            "safe_hold": remote_timing.distribution(safe_hold_ms),
             "full_tick_schedule_deadline_miss_count": 0,
             "full_tick_schedule_max_lateness_ms": 0.0,
             "safe_hold_schedule_deadline_miss_count": 0,
@@ -574,6 +620,22 @@ class Step5dV30TimingTest(unittest.TestCase):
             },
             "full_tick_deferred_diagnostics": {"count": 30000, "overflowed": False},
             "safe_hold_deferred_diagnostics": {"count": 30000, "overflowed": False},
+            "raw_sample_capture": {
+                "formal_acceptance_required": True,
+                "explicit_diagnostic_request": False,
+                "included": True,
+                "format": remote_timing.RAW_TIMING_SAMPLES_SCHEMA,
+                "expected_formal_counts": {
+                    "solver": 10_000,
+                    "full_tick": 30_000,
+                    "safe_hold": 30_000,
+                },
+            },
+            "raw_timing_samples": remote_timing.indexed_raw_timing_samples(
+                solver_ms=solver_ms,
+                full_tick_ms=full_tick_ms,
+                safe_hold_ms=safe_hold_ms,
+            ),
             "safety_boundary": ["no bridge start"],
         }
         payload["profile_selection"] = remote_timing.build_profile_selection(None)
@@ -591,6 +653,24 @@ class Step5dV30TimingTest(unittest.TestCase):
         self.assertTrue(result["overall_pass"])
         self.assertTrue(result["pipeline_warmup_contract_proven"])
         self.assertEqual(result["solver"]["samples"], 10000)
+        self.assertEqual(result["solver"]["p50_ms"], 1.2)
+        self.assertEqual(
+            result["solver"]["p95_ms"],
+            remote_timing.distribution(solver_ms)["p95_ms"],
+        )
+        self.assertEqual(
+            result["solver"]["p99_ms"],
+            remote_timing.distribution(solver_ms)["p99_ms"],
+        )
+        self.assertEqual(result["solver"]["max_ms"], 1.7)
+        self.assertTrue(
+            result["raw_timing_evidence"]["summary_recomputed_independently"]
+        )
+        self.assertTrue(
+            result["raw_timing_evidence"]["lanes"]["full_tick"][
+                "exact_count_proven"
+            ]
+        )
         self.assertEqual(result["solver_batch_reentry"]["samples"], 99)
         self.assertEqual(result["solver_batch_reentry"]["deadline_miss_count"], 1)
         self.assertEqual(
@@ -616,6 +696,100 @@ class Step5dV30TimingTest(unittest.TestCase):
         self.assertFalse(
             result["deadline_robustness"]["timing_degraded_candidate"]
         )
+
+        drifted_summary = json.loads(json.dumps(payload))
+        drifted_summary["solver"]["p50_ms"] += 0.01
+        drifted_result = summarize_preaggregated(
+            drifted_summary,
+            expected_source_binding={
+                field: "1" * 64 for field in SOURCE_BINDING_FILES
+            },
+            expected_replay_sha256="2" * 64,
+            expected_paper_truth_sha256="2" * 64,
+        )
+        self.assertFalse(drifted_result["overall_pass"])
+        self.assertIn(
+            "solver_summary_binding_mismatch",
+            drifted_result["blockers"],
+        )
+
+        deleted_sample = json.loads(json.dumps(payload))
+        deleted_lane = deleted_sample["raw_timing_samples"]["lanes"]["full_tick"]
+        deleted_lane["sample_indices"].pop()
+        deleted_lane["elapsed_ms"].pop()
+        deleted_result = summarize_preaggregated(
+            deleted_sample,
+            expected_source_binding={
+                field: "1" * 64 for field in SOURCE_BINDING_FILES
+            },
+            expected_replay_sha256="2" * 64,
+            expected_paper_truth_sha256="2" * 64,
+        )
+        self.assertFalse(deleted_result["overall_pass"])
+        self.assertIn(
+            "full_tick_raw_sample_count_invalid",
+            deleted_result["blockers"],
+        )
+        self.assertIn(
+            "full_tick_summary_binding_mismatch",
+            deleted_result["blockers"],
+        )
+
+        reordered_sample = json.loads(json.dumps(payload))
+        reordered_indices = reordered_sample["raw_timing_samples"]["lanes"][
+            "safe_hold"
+        ]["sample_indices"]
+        reordered_indices[0], reordered_indices[1] = (
+            reordered_indices[1],
+            reordered_indices[0],
+        )
+        reordered_result = summarize_preaggregated(
+            reordered_sample,
+            expected_source_binding={
+                field: "1" * 64 for field in SOURCE_BINDING_FILES
+            },
+            expected_replay_sha256="2" * 64,
+            expected_paper_truth_sha256="2" * 64,
+        )
+        self.assertFalse(reordered_result["overall_pass"])
+        self.assertIn(
+            "safe_hold_raw_sample_order_invalid",
+            reordered_result["blockers"],
+        )
+
+        drifted_first = json.loads(json.dumps(payload))
+        drifted_first["first_post_warm_ms"] = 1.6
+        drifted_first_result = summarize_preaggregated(
+            drifted_first,
+            expected_source_binding={
+                field: "1" * 64 for field in SOURCE_BINDING_FILES
+            },
+            expected_replay_sha256="2" * 64,
+            expected_paper_truth_sha256="2" * 64,
+        )
+        self.assertFalse(drifted_first_result["overall_pass"])
+        self.assertIn(
+            "first_post_warm_summary_binding_mismatch",
+            drifted_first_result["blockers"],
+        )
+
+        nonfinite_raw = json.loads(json.dumps(payload))
+        nonfinite_solver = nonfinite_raw["raw_timing_samples"]["lanes"][
+            "solver"
+        ]["elapsed_ms"]
+        nonfinite_solver[10] = float("nan")
+        nonfinite_raw["solver"] = remote_timing.distribution(nonfinite_solver)
+        nonfinite_result = summarize_preaggregated(
+            nonfinite_raw,
+            expected_source_binding={
+                field: "1" * 64 for field in SOURCE_BINDING_FILES
+            },
+            expected_replay_sha256="2" * 64,
+            expected_paper_truth_sha256="2" * 64,
+        )
+        self.assertFalse(nonfinite_result["overall_pass"])
+        self.assertEqual(nonfinite_result["solver"]["nonfinite_count"], 1)
+        self.assertIn("solver_nonfinite_timing", nonfinite_result["blockers"])
 
         no_warmup = json.loads(json.dumps(payload))
         no_warmup.pop("unmeasured_pipeline_warmup")
@@ -777,8 +951,12 @@ class Step5dV30TimingTest(unittest.TestCase):
             control_rejected["deadline_robustness"]["timing_degraded_candidate"]
         )
 
-        payload["full_tick"]["compute_deadline_miss_count"] = 5
-        payload["full_tick"]["max_ms"] = 2.16
+        full_tick_raw = payload["raw_timing_samples"]["lanes"]["full_tick"][
+            "elapsed_ms"
+        ]
+        for miss_index in (10, 20, 30, 40, 50):
+            full_tick_raw[miss_index] = 2.16
+        payload["full_tick"] = remote_timing.distribution(full_tick_raw)
         payload["full_tick_schedule_deadline_miss_count"] = 5
         payload["full_tick_schedule_max_lateness_ms"] = 0.17
         payload["deadline_miss_diagnostics"]["full_tick_compute"].update(
@@ -834,7 +1012,9 @@ class Step5dV30TimingTest(unittest.TestCase):
         payload["deadline_miss_diagnostics"]["full_tick_schedule"][
             "max_consecutive"
         ] = 2
-        payload["full_tick"]["compute_deadline_miss_count"] = 7
+        for miss_index in (60, 70):
+            full_tick_raw[miss_index] = 2.16
+        payload["full_tick"] = remote_timing.distribution(full_tick_raw)
         payload["full_tick_schedule_deadline_miss_count"] = 7
         payload["deadline_miss_diagnostics"]["full_tick_compute"].update(
             {"total": 7, "retained_indices": [10, 20, 30, 40, 50, 60, 70]}

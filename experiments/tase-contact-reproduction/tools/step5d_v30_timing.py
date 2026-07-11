@@ -69,6 +69,7 @@ EXPECTED_PIPELINE_WARMUP = {
 SOLVER_BATCH_SIZE = 100
 SOLVER_BATCH_REENTRY_SAMPLES = 99
 SOLVER_BATCH_REENTRY_BOUNDARIES = list(range(100, 10_000, 100))
+RAW_TIMING_SAMPLES_SCHEMA = "step5d_v30_indexed_raw_timing_samples_v1"
 EXPECTED_SOLVER_MICROBENCHMARK_PACING = {
     "mode": "unmeasured_fixed_batch_yield_with_measured_reentry",
     "batch_size": SOLVER_BATCH_SIZE,
@@ -112,6 +113,7 @@ def _distribution(values: Sequence[float], *, hard_deadline_ms: float) -> dict[s
         "nonfinite_count": int(raw.size - finite.size),
         "deadline_miss_count": int(np.count_nonzero(finite >= hard_deadline_ms)),
         "mean_ms": None,
+        "p50_ms": None,
         "p95_ms": None,
         "p99_ms": None,
         "max_ms": None,
@@ -120,12 +122,86 @@ def _distribution(values: Sequence[float], *, hard_deadline_ms: float) -> dict[s
         result.update(
             {
                 "mean_ms": float(np.mean(finite)),
+                "p50_ms": float(np.percentile(finite, 50)),
                 "p95_ms": float(np.percentile(finite, 95)),
                 "p99_ms": float(np.percentile(finite, 99)),
                 "max_ms": float(np.max(finite)),
             }
         )
     return result
+
+
+def _indexed_raw_lane(
+    payload: Mapping[str, Any],
+    *,
+    label: str,
+    expected_count: int,
+    blockers: list[str],
+) -> tuple[list[float], bool, bool]:
+    """Decode one complete raw lane and prove exact count plus sample order."""
+
+    raw_root = payload.get("raw_timing_samples")
+    if not isinstance(raw_root, dict):
+        blockers.append("raw_timing_samples_missing_or_invalid")
+        return [], False, False
+    lanes = raw_root.get("lanes")
+    if (
+        raw_root.get("schema_version") != RAW_TIMING_SAMPLES_SCHEMA
+        or raw_root.get("units") != "ms"
+        or raw_root.get("ordering")
+        != "zero_based_measurement_sequence_contiguous"
+        or raw_root.get("retention") != "all_measured_samples_no_discard"
+        or not isinstance(lanes, dict)
+    ):
+        blockers.append("raw_timing_samples_contract_invalid")
+    if not isinstance(lanes, dict):
+        return [], False, False
+    lane = lanes.get(label)
+    if not isinstance(lane, dict):
+        blockers.append(f"{label}_raw_samples_missing_or_invalid")
+        return [], False, False
+    indices = lane.get("sample_indices")
+    values = lane.get("elapsed_ms")
+    indices_valid = bool(
+        isinstance(indices, list)
+        and all(type(value) is int for value in indices)
+    )
+    values_valid = bool(
+        isinstance(values, list)
+        and all(
+            isinstance(value, (int, float)) and not isinstance(value, bool)
+            for value in values
+        )
+    )
+    if not indices_valid or not values_valid:
+        blockers.append(f"{label}_raw_samples_missing_or_invalid")
+        return [], False, False
+    raw_values = [float(value) for value in values]
+    count_valid = bool(
+        type(lane.get("declared_count")) is int
+        and lane["declared_count"] == expected_count
+        and len(indices) == expected_count
+        and len(raw_values) == expected_count
+    )
+    if not count_valid:
+        blockers.append(f"{label}_raw_sample_count_invalid")
+    order_valid = bool(indices == list(range(len(indices))))
+    if not order_valid:
+        blockers.append(f"{label}_raw_sample_order_invalid")
+    return raw_values, count_valid, order_valid
+
+
+def _timing_value_matches(left: Any, right: Any) -> bool:
+    if left is None or right is None:
+        return left is right
+    if isinstance(left, (int, float)) and isinstance(right, (int, float)):
+        return math.isclose(
+            float(left),
+            float(right),
+            rel_tol=1e-12,
+            abs_tol=1e-12,
+        )
+    return left == right
 
 
 def summarize_timing(
@@ -163,6 +239,7 @@ def summarize_timing(
                 "samples": result["samples"],
                 "nonfinite_count": result["nonfinite_count"],
                 "mean_ms": result["mean_ms"],
+                "p50_ms": result["p50_ms"],
                 "p95_ms": result["p95_ms"],
                 "p99_ms": result["p99_ms"],
                 "max_ms": result["max_ms"],
@@ -171,11 +248,40 @@ def summarize_timing(
 
         compact.update(
             {
-                "schema_version": "step5d_v30_remote_timing_raw_v2",
+                "schema_version": "step5d_v30_remote_timing_raw_v3",
                 "first_post_warm_ms": float(first_post_warm_ms),
                 "solver": remote_distribution(solver),
                 "full_tick": remote_distribution(tick),
                 "safe_hold": remote_distribution(safe_hold),
+                "raw_sample_capture": {
+                    "formal_acceptance_required": True,
+                    "explicit_diagnostic_request": False,
+                    "included": True,
+                    "format": RAW_TIMING_SAMPLES_SCHEMA,
+                    "expected_formal_counts": {
+                        "solver": thresholds.solver_samples_required,
+                        "full_tick": thresholds.tick_samples_required,
+                        "safe_hold": thresholds.safe_hold_samples_required,
+                    },
+                },
+                "raw_timing_samples": {
+                    "schema_version": RAW_TIMING_SAMPLES_SCHEMA,
+                    "units": "ms",
+                    "ordering": "zero_based_measurement_sequence_contiguous",
+                    "retention": "all_measured_samples_no_discard",
+                    "lanes": {
+                        label: {
+                            "declared_count": len(values),
+                            "sample_indices": list(range(len(values))),
+                            "elapsed_ms": [float(value) for value in values],
+                        }
+                        for label, values in (
+                            ("solver", solver_ms),
+                            ("full_tick", tick_ms),
+                            ("safe_hold", safe_hold_ms),
+                        )
+                    },
+                },
             }
         )
         return summarize_preaggregated(
@@ -253,7 +359,7 @@ def summarize_preaggregated(
     expected_replay_sha256: str | None = None,
     expected_paper_truth_sha256: str | None = None,
 ) -> dict[str, Any]:
-    """Validate the compact stdout payload from the read-only Ubuntu harness."""
+    """Independently validate the complete raw stdout timing evidence."""
 
     expected_profile = {
         "backend": "cupy",
@@ -270,7 +376,7 @@ def summarize_preaggregated(
         blockers.append("remote_timing_expected_replay_sha256_missing")
     if expected_paper_truth_sha256 is None:
         blockers.append("remote_timing_expected_paper_truth_sha256_missing")
-    if payload.get("schema_version") != "step5d_v30_remote_timing_raw_v2":
+    if payload.get("schema_version") != "step5d_v30_remote_timing_raw_v3":
         blockers.append("remote_timing_schema_mismatch")
     if payload.get("profile") != expected_profile:
         blockers.append("remote_runtime_profile_mismatch")
@@ -547,26 +653,108 @@ def summarize_preaggregated(
     if expected_paper_truth_sha256 is not None and paper_binding.get("sha256") != expected_paper_truth_sha256:
         blockers.append("remote_timing_paper_truth_sha_mismatch")
 
+    expected_raw_counts = {
+        "solver": thresholds.solver_samples_required,
+        "full_tick": thresholds.tick_samples_required,
+        "safe_hold": thresholds.safe_hold_samples_required,
+    }
+    raw_capture = payload.get("raw_sample_capture")
+    formal_capture_expected = bool(
+        isinstance(profile_selection, dict)
+        and profile_selection.get("acceptance_profile_eligible") is True
+        and profile_selection.get("diagnostic_override_requested") is False
+    )
+    raw_capture_contract_valid = bool(
+        isinstance(raw_capture, dict)
+        and type(raw_capture.get("formal_acceptance_required")) is bool
+        and raw_capture.get("formal_acceptance_required")
+        is formal_capture_expected
+        and type(raw_capture.get("explicit_diagnostic_request")) is bool
+        and type(raw_capture.get("included")) is bool
+        and raw_capture.get("format") == RAW_TIMING_SAMPLES_SCHEMA
+        and raw_capture.get("expected_formal_counts") == expected_raw_counts
+        and (
+            not formal_capture_expected
+            or raw_capture.get("included") is True
+        )
+    )
+    if not raw_capture_contract_valid:
+        blockers.append("raw_sample_capture_contract_invalid")
+
     normalized: dict[str, dict[str, Any]] = {}
+    raw_lane_evidence: dict[str, dict[str, Any]] = {}
+    raw_values_by_lane: dict[str, list[float]] = {}
     for label, required, p99_limit in (
         ("solver", thresholds.solver_samples_required, thresholds.solver_p99_max_ms),
         ("full_tick", thresholds.tick_samples_required, thresholds.full_tick_p99_max_ms),
         ("safe_hold", thresholds.safe_hold_samples_required, thresholds.safe_hold_p99_max_ms),
     ):
+        raw_values, count_valid, order_valid = _indexed_raw_lane(
+            payload,
+            label=label,
+            expected_count=required,
+            blockers=blockers,
+        )
+        raw_values_by_lane[label] = raw_values
+        computed = _distribution(
+            raw_values,
+            hard_deadline_ms=thresholds.hard_deadline_ms,
+        )
+        result = {
+            "samples": computed["samples"],
+            "finite_samples": computed["finite_samples"],
+            "nonfinite_count": computed["nonfinite_count"],
+            "mean_ms": computed["mean_ms"],
+            "p50_ms": computed["p50_ms"],
+            "p95_ms": computed["p95_ms"],
+            "p99_ms": computed["p99_ms"],
+            "max_ms": computed["max_ms"],
+            "deadline_miss_count": computed["deadline_miss_count"],
+        }
+        normalized[label] = result
+        raw_lane_evidence[label] = {
+            "samples": result["samples"],
+            "exact_count_proven": count_valid,
+            "contiguous_order_proven": order_valid,
+        }
         source = payload.get(label)
         if not isinstance(source, dict):
             source = {}
             blockers.append(f"{label}_summary_missing")
-        result = {
-            "samples": int(source.get("samples", 0) or 0),
-            "nonfinite_count": int(source.get("nonfinite_count", 0) or 0),
+        reported = {
+            "samples": source.get("samples"),
+            "nonfinite_count": source.get("nonfinite_count"),
             "mean_ms": source.get("mean_ms"),
+            "p50_ms": source.get("p50_ms"),
             "p95_ms": source.get("p95_ms"),
             "p99_ms": source.get("p99_ms"),
             "max_ms": source.get("max_ms"),
-            "deadline_miss_count": int(source.get("compute_deadline_miss_count", 0) or 0),
+            "deadline_miss_count": source.get("compute_deadline_miss_count"),
         }
-        normalized[label] = result
+        reported_types_valid = bool(
+            type(reported["samples"]) is int
+            and type(reported["nonfinite_count"]) is int
+            and type(reported["deadline_miss_count"]) is int
+            and all(
+                value is None
+                or (
+                    isinstance(value, (int, float))
+                    and not isinstance(value, bool)
+                )
+                for value in (
+                    reported["mean_ms"],
+                    reported["p50_ms"],
+                    reported["p95_ms"],
+                    reported["p99_ms"],
+                    reported["max_ms"],
+                )
+            )
+        )
+        if not reported_types_valid or not all(
+            _timing_value_matches(reported.get(field), result[field])
+            for field in reported
+        ):
+            blockers.append(f"{label}_summary_binding_mismatch")
         if result["samples"] < required:
             blockers.append(f"{label}_insufficient_samples")
         elif result["samples"] > required:
@@ -610,6 +798,7 @@ def summarize_preaggregated(
         "samples": int(reentry_source.get("samples", 0) or 0),
         "nonfinite_count": int(reentry_source.get("nonfinite_count", 0) or 0),
         "mean_ms": reentry_source.get("mean_ms"),
+        "p50_ms": reentry_source.get("p50_ms"),
         "p95_ms": reentry_source.get("p95_ms"),
         "p99_ms": reentry_source.get("p99_ms"),
         "max_ms": reentry_source.get("max_ms"),
@@ -621,26 +810,15 @@ def summarize_preaggregated(
         "samples": computed_reentry["samples"],
         "nonfinite_count": computed_reentry["nonfinite_count"],
         "mean_ms": computed_reentry["mean_ms"],
+        "p50_ms": computed_reentry["p50_ms"],
         "p95_ms": computed_reentry["p95_ms"],
         "p99_ms": computed_reentry["p99_ms"],
         "max_ms": computed_reentry["max_ms"],
         "deadline_miss_count": computed_reentry["deadline_miss_count"],
     }
 
-    def distribution_value_matches(left: Any, right: Any) -> bool:
-        if left is None or right is None:
-            return left is right
-        if isinstance(left, (int, float)) and isinstance(right, (int, float)):
-            return math.isclose(
-                float(left),
-                float(right),
-                rel_tol=1e-12,
-                abs_tol=1e-12,
-            )
-        return left == right
-
     if not all(
-        distribution_value_matches(reentry.get(field), expected)
+        _timing_value_matches(reentry.get(field), expected)
         for field, expected in computed_reentry_summary.items()
     ):
         blockers.append("solver_batch_reentry_summary_binding_mismatch")
@@ -671,9 +849,18 @@ def summarize_preaggregated(
     if not reentry_miss_diagnostics_valid:
         blockers.append("solver_batch_reentry_miss_diagnostics_unbound")
 
-    first_post_warm = payload.get("first_post_warm_ms")
+    reported_first_post_warm = payload.get("first_post_warm_ms")
+    solver_raw_values = raw_values_by_lane.get("solver", [])
+    first_post_warm = solver_raw_values[0] if solver_raw_values else None
+    if not (
+        isinstance(reported_first_post_warm, (int, float))
+        and not isinstance(reported_first_post_warm, bool)
+        and _timing_value_matches(reported_first_post_warm, first_post_warm)
+    ):
+        blockers.append("first_post_warm_summary_binding_mismatch")
     if (
         not isinstance(first_post_warm, (int, float))
+        or isinstance(first_post_warm, bool)
         or not math.isfinite(float(first_post_warm))
         or float(first_post_warm) > thresholds.first_post_warm_max_ms
     ):
@@ -950,6 +1137,18 @@ def summarize_preaggregated(
         "solver_microbenchmark_pacing": payload.get(
             "solver_microbenchmark_pacing"
         ),
+        "raw_timing_evidence": {
+            "schema_version": RAW_TIMING_SAMPLES_SCHEMA,
+            "capture_contract_valid": raw_capture_contract_valid,
+            "all_samples_retained": bool(
+                isinstance(payload.get("raw_timing_samples"), dict)
+                and payload["raw_timing_samples"].get("retention")
+                == "all_measured_samples_no_discard"
+            ),
+            "lanes": raw_lane_evidence,
+            "summary_recomputed_independently": True,
+            "first_post_warm_recomputed_from_solver_sample_zero": True,
+        },
         "solver": normalized["solver"],
         "solver_batch_reentry": reentry,
         "solver_batch_reentry_evidence": {

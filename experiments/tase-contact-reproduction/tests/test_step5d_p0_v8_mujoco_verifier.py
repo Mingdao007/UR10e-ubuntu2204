@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import struct
 import sys
 import tempfile
 import unittest
@@ -23,6 +24,8 @@ from test_step5d_sim_evidence import payload as base_evidence  # noqa: E402
 from verify_step5d_sim_evidence import source_composite_sha256  # noqa: E402
 from verify_step5d_p0_v8_mujoco import (  # noqa: E402
     CONTROL_HARD_SCOPE,
+    CONTROL_DEADLINE_REASON,
+    EVIDENCE_SCHEMA_V4,
     EVIDENCE_SCHEMA_V3,
     PREWARM_CONTROL_HZ,
     PREWARM_EXECUTE_TICKS,
@@ -39,6 +42,130 @@ from verify_step5d_p0_v8_mujoco import (  # noqa: E402
 
 
 class Step5dP0V8MujocoVerifierTest(unittest.TestCase):
+    def _write_v4_deadline_trace(self) -> dict[str, object]:
+        count = 4
+        control = np.asarray((0.5, 2.1, 0.5, 0.5), dtype=float)
+        oracle = np.full(count, 0.1)
+        physics = np.full(count, 0.2)
+        cycle = oracle + control + physics
+        release = np.zeros(count)
+        finish_late = np.maximum(0.0, cycle - 2.0)
+        late = control >= 2.0
+        candidate_qdot = np.zeros((count, 6))
+        candidate_qdot[:, 2] = 0.0001
+        applied_qdot = candidate_qdot.copy()
+        applied_qdot[late, :] = 0.0
+        accepted = np.logical_not(late).astype(np.uint8)
+        stop = late.astype(np.uint8)
+        field = {
+            name: index for index, name in enumerate(V30_DEFERRED_NUMERIC_FIELDS)
+        }
+        deferred = np.zeros((count, len(V30_DEFERRED_NUMERIC_FIELDS)))
+        deferred[:, field["accepted"]] = 1.0
+        deferred[:, field["cmd_valid"]] = 1.0
+        deferred[:, [field[f"qdot_{i}"] for i in range(6)]] = candidate_qdot
+        deferred[:, [field[f"predicted_twist_{i}"] for i in range(6)]] = candidate_qdot
+        deferred[:, [field[f"register_{37 + i}"] for i in range(6)]] = candidate_qdot
+        hashes = np.asarray(
+            [
+                hashlib.sha256(
+                    struct.pack(
+                        "<6d??",
+                        *(float(value) for value in applied_qdot[index]),
+                        bool(accepted[index]),
+                        bool(stop[index]),
+                    )
+                ).hexdigest()
+                for index in range(count)
+            ],
+            dtype="<U64",
+        )
+        np.savez_compressed(
+            self.trace,
+            sequence=np.arange(count, dtype=np.int64),
+            sim_time_s=np.arange(count, dtype=float) * 0.002,
+            control_compute_ms=control,
+            oracle_snapshot_ms=oracle,
+            command_apply_and_physics_ms=physics,
+            cycle_wall_ms=cycle,
+            release_lateness_ms=release,
+            absolute_finish_lateness_ms=finish_late,
+            qdot=applied_qdot,
+            command_jacobian=np.repeat(np.eye(6)[None, :, :], count, axis=0),
+            desired_twist=np.repeat(
+                np.asarray(((0.0, 0.0, 0.0001, 0.0, 0.0, 0.0),)),
+                count,
+                axis=0,
+            ),
+            reaction_normal=np.repeat(
+                np.asarray(((0.0, 0.0, -1.0),)), count, axis=0
+            ),
+            approach_normal=np.repeat(
+                np.asarray(((0.0, 0.0, 1.0),)), count, axis=0
+            ),
+            wrench=np.zeros((count, 6)),
+            native_contact_count=np.zeros(count, dtype=np.int32),
+            cage_collision_count=np.zeros(count, dtype=np.int32),
+            tcp_inside_cage=np.ones(count, dtype=np.uint8),
+            accepted=accepted,
+            deadline_rejected=stop,
+            command_stop_request=stop,
+            command_bytes_sha256=hashes,
+            action=np.where(late, "stop", "execute").astype("<U96"),
+            reason=np.where(late, CONTROL_DEADLINE_REASON, "ok").astype("<U160"),
+            deferred_numeric=deferred,
+            deferred_reason=np.asarray(["ok"] * count, dtype="<U160"),
+            deferred_action=np.asarray(["execute"] * count, dtype="<U96"),
+        )
+
+        def distribution(values: np.ndarray) -> dict[str, float]:
+            return {
+                "p50_ms": float(np.percentile(values, 50)),
+                "p95_ms": float(np.percentile(values, 95)),
+                "p99_ms": float(np.percentile(values, 99)),
+                "max_ms": float(np.max(values)),
+            }
+
+        return {
+            "schema": EVIDENCE_SCHEMA_V4,
+            "source_binding": {
+                "runtime_timing_environment": {"paced_wall_clock": True}
+            },
+            "nominal": {
+                "tick_count": count,
+                "accepted_tick_count": 3,
+                "safe_hold_count": 0,
+                "stop_count": 1,
+                "control_deadline_miss_count": 1,
+                "cycle_compute_deadline_miss_count": 1,
+                "absolute_deadline_miss_count": 1,
+                "exact_zero_rejection_count": 1,
+                "deadline_rejection_count": 1,
+                "deadline_zero_rejection_count": 1,
+                "nonzero_rejection_count": 0,
+            },
+            "control_hard_500hz": {
+                "scope": CONTROL_HARD_SCOPE,
+                "samples": count,
+                "deadline_miss_count": 1,
+                **distribution(control),
+                "pass": False,
+            },
+            "simulator_cycle_diagnostic": {
+                "scope": SIMULATOR_CYCLE_SCOPE,
+                "oracle_snapshot_ms": distribution(oracle),
+                "command_apply_and_physics_ms": distribution(physics),
+                "cycle_wall_ms": distribution(cycle),
+                "release_lateness_ms": distribution(release),
+                "absolute_finish_lateness_ms": distribution(finish_late),
+                "cycle_compute_deadline_miss_count": 1,
+                "absolute_deadline_miss_count": 1,
+            },
+            "artifacts": [
+                {"role": "control_trace_npz", "path": self.trace.name}
+            ],
+        }
+
     @staticmethod
     def _bind_runtime_environment(evidence: dict[str, object]) -> str:
         source = evidence["source_binding"]
@@ -175,6 +302,35 @@ class Step5dP0V8MujocoVerifierTest(unittest.TestCase):
 
     def test_trace_accepts_contiguous_exact_500hz_execution(self) -> None:
         self.assertEqual(_trace_blockers(self.evidence, self.root), [])
+
+    def test_v4_trace_accepts_only_bound_zero_stop_for_late_sample(self) -> None:
+        evidence = self._write_v4_deadline_trace()
+
+        blockers = _trace_blockers(
+            evidence,
+            self.root,
+            require_timing_threshold=False,
+        )
+
+        self.assertEqual(blockers, [])
+        self.assertFalse(evidence["control_hard_500hz"]["pass"])
+
+    def test_v4_trace_rejects_nonzero_late_output_and_reason_tamper(self) -> None:
+        evidence = self._write_v4_deadline_trace()
+        with np.load(self.trace, allow_pickle=False) as values:
+            payload = {name: values[name] for name in values.files}
+        payload["qdot"][1, 2] = 0.0001
+        payload["reason"][1] = "ok"
+        np.savez_compressed(self.trace, **payload)
+
+        blockers = _trace_blockers(
+            evidence,
+            self.root,
+            require_timing_threshold=False,
+        )
+
+        self.assertIn("trace:deadline_rejection_command_not_exact_zero", blockers)
+        self.assertIn("trace:deadline_reason:mismatch", blockers)
 
     def test_trace_detects_sequence_and_exact_execution_tamper(self) -> None:
         with np.load(self.trace, allow_pickle=False) as values:
