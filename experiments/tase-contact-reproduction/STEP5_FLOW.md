@@ -10,8 +10,9 @@ and explicit live/contact authorization. Its historical controller evidence at
 remains byte-for-byte evidence only.
 
 The successor `step5d_strict_rnn_ablation_v30` is an inactive offline
-candidate. It keeps CuPy, 1024 iterations, epsilon `0.010`, finite-time
-exponent `r=0.8`, qdot cap `0.05 rad/s`, canonical
+candidate. It keeps CuPy, epsilon `0.010`, finite-time exponent `r=0.8`, qdot
+cap `0.05 rad/s`, and uses a 32-iteration profile selected by replay against
+the frozen 1024-iteration baseline. It retains the canonical
 `n_reaction = -n_approach`, `SafetyEnvelope`, solver status `40`, and DLS as
 shadow-only with no runtime fallback. Manifest-bound v30 upload/readback
 preparation may occur before P0, but v30 cannot become current, start a bridge,

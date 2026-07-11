@@ -291,7 +291,7 @@ def run(
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model-manifest", type=Path, required=True)
-    parser.add_argument("--iterations", type=parse_ints, default=(128, 256, 512))
+    parser.add_argument("--iterations", type=parse_ints, default=(32, 64, 128, 256, 512))
     parser.add_argument(
         "--epsilon-values", type=parse_floats, default=(0.005, 0.010)
     )

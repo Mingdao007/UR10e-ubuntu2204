@@ -28,7 +28,7 @@ import numpy as np
 
 PROFILE = {
     "backend": "cupy",
-    "inner_iterations": 128,
+    "inner_iterations": 32,
     "epsilon": 0.010,
     "sigr_exponent_r": 0.8,
     "qdot_cap_rad_s": 0.05,
@@ -178,6 +178,21 @@ def distribution(values: Sequence[float], deadline_ms: float = 2.0) -> dict[str,
     }
 
 
+def value_distribution(values: Sequence[float]) -> dict[str, Any]:
+    """Summarize deferred control evidence after leaving the measured loop."""
+
+    array = np.asarray(values, dtype=float)
+    finite_values = array[np.isfinite(array)]
+    return {
+        "samples": int(array.size),
+        "nonfinite_count": int(array.size - finite_values.size),
+        "min": float(np.min(finite_values)) if finite_values.size else None,
+        "mean": float(np.mean(finite_values)) if finite_values.size else None,
+        "p99": float(np.percentile(finite_values, 99)) if finite_values.size else None,
+        "max": float(np.max(finite_values)) if finite_values.size else None,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--experiment-root", type=Path, default=Path.cwd())
@@ -216,6 +231,7 @@ def main() -> int:
         SafetyEnvelope,
         Step5dObservation,
         StrictRnnControlPolicy,
+        V30_DEFERRED_NUMERIC_FIELDS,
     )
     from kunwei_rtde_bridge import (
         limit_step5d_live_xdot,
@@ -678,6 +694,27 @@ def main() -> int:
             },
         }
 
+    deferred_field = {
+        name: index for index, name in enumerate(V30_DEFERRED_NUMERIC_FIELDS)
+    }
+
+    def deferred_control_summary(buffer: Any) -> dict[str, Any]:
+        values = buffer.numeric[: buffer.count]
+        accepted = values[:, deferred_field["accepted"]]
+        return {
+            "samples": int(buffer.count),
+            "accepted_count": int(np.count_nonzero(accepted == 1.0)),
+            "residual_norm": value_distribution(
+                values[:, deferred_field["residual_norm"]]
+            ),
+            "desired_approach_m_s": value_distribution(
+                values[:, deferred_field["desired_approach_m_s"]]
+            ),
+            "predicted_approach_m_s": value_distribution(
+                values[:, deferred_field["predicted_approach_m_s"]]
+            ),
+        }
+
     payload: dict[str, Any] = {
         "schema_version": "step5d_v30_remote_timing_raw_v1",
         "profile": PROFILE,
@@ -704,6 +741,8 @@ def main() -> int:
         "safe_hold_schedule_max_lateness_ms": safe_hold_schedule_max_lateness_ms,
         "full_tick_reason_counts": dict(sorted(full_tick_reason_counts.items())),
         "safe_hold_reason_counts": dict(sorted(safe_hold_reason_counts.items())),
+        "full_tick_control_diagnostics": deferred_control_summary(full_tick_deferred),
+        "safe_hold_control_diagnostics": deferred_control_summary(safe_hold_deferred),
         "runtime_path": (
             "Step5dObservation->StrictRnnControlPolicy->ControlCandidate->"
             "step5d_v30_contract_pipeline->SafetyEnvelope->RegisterCommand->"

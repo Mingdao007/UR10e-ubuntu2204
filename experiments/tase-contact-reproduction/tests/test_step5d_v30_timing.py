@@ -105,6 +105,8 @@ class Step5dV30TimingTest(unittest.TestCase):
         self.assertIn('"safe_hold_schedule_deadline_miss_count"', source)
         self.assertIn('"elapsed_safe_hold_wall_s"', source)
         self.assertIn('include_diagnostics="compact"', source)
+        self.assertIn('"full_tick_control_diagnostics"', source)
+        self.assertIn('"accepted_count"', source)
         self.assertIn("policy.compute(observation)", source)
         self.assertIn("step5d_v30_contract_pipeline(", source)
         self.assertIn("step5d_tcp_jacobian_base(model_bundle, q, tcp_offset)", source)
@@ -224,7 +226,7 @@ class Step5dV30TimingTest(unittest.TestCase):
             },
             "profile": {
                 "backend": "cupy",
-                "inner_iterations": 128,
+                "inner_iterations": 32,
                 "epsilon": 0.01,
                 "sigr_exponent_r": 0.8,
                 "qdot_cap_rad_s": 0.05,
@@ -302,7 +304,7 @@ class Step5dV30TimingTest(unittest.TestCase):
                     "ur_xacro",
                 )
             },
-            "profile": {"backend": "cupy", "inner_iterations": 128, "epsilon": 0.01, "sigr_exponent_r": 0.8, "qdot_cap_rad_s": 0.05, "control_hz": 500.0},
+            "profile": {"backend": "cupy", "inner_iterations": 32, "epsilon": 0.01, "sigr_exponent_r": 0.8, "qdot_cap_rad_s": 0.05, "control_hz": 500.0},
             "precompile_outside_control_loop": True,
             "cupy_host_staging_pinned": True,
             "cupy_dedicated_stream": True,
@@ -362,7 +364,7 @@ class Step5dV30TimingTest(unittest.TestCase):
             },
             "profile": {
                 "backend": "cupy",
-                "inner_iterations": 128,
+                "inner_iterations": 32,
                 "epsilon": 0.01,
                 "sigr_exponent_r": 0.8,
                 "qdot_cap_rad_s": 0.05,

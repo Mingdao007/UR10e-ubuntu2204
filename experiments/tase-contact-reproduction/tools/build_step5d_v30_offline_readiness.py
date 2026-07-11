@@ -327,6 +327,14 @@ def build(*, generated_at: str) -> dict[str, Any]:
     for pattern, role in (
         ("step5d_v30_runtime*_smoke.json", "runtime_shaped_smoke_not_acceptance"),
         ("step5d_v30_component_diagnostic*.json", "component_diagnostic_not_acceptance"),
+        (
+            "step5d_v30_rnn*_component_diagnostic_raw.json",
+            "parameter_profile_component_diagnostic_not_acceptance",
+        ),
+        (
+            "step5d_v30_rnn*_formal_timing_raw.json",
+            "parameter_selected_formal_timing_candidate",
+        ),
     ):
         history_paths.extend((path, role) for path in sorted((ROOT / "config").glob(pattern)))
     history = [
@@ -400,7 +408,7 @@ def build(*, generated_at: str) -> dict[str, Any]:
         "status": status,
         "profile": {
             "backend": "cupy",
-            "inner_iterations": 128,
+            "inner_iterations": 32,
             "epsilon": 0.010,
             "sigr_exponent_r": 0.8,
             "qdot_cap_rad_s": 0.05,
@@ -450,9 +458,9 @@ def build(*, generated_at: str) -> dict[str, Any]:
             "diagnostic_summary_blockers": timing_summary.get("blockers", []),
             "history": history,
             "diagnostic_conclusion": (
-                "The current-source 10,000-solve run keeps low steady p99, but uncensored "
-                ">=2 ms host/driver completion outliers remain; no 60 s paced "
-                "runtime-shaped pass exists."
+                "Timing acceptance is recomputed from versioned raw artifacts bound to "
+                "the selected profile and current sources. Historical attempts remain "
+                "diagnostic and cannot satisfy the current gate."
             ),
         },
         "control_pipeline": {
