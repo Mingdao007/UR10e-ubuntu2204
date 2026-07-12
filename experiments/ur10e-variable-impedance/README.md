@@ -147,6 +147,22 @@ packet/filter oracle run. It proves shadow command invariance and selected
 fail-closed transitions in Python; it is explicitly not URSim, wall-clock
 500 Hz, or hardware evidence.
 
+## Exact PolyScope 5.25.2 URSim protocol
+
+`config/ursim_5_25_2_protocol.json` binds the exact URSim image reference,
+Direct Torque V2 template, RTDE layout, ordered protocol steps, and the 60-second
+500 Hz acceptance thresholds. `tools/run_ursim_5_25_2_protocol.py` defaults to
+a transport-free dry run. Even with `--execute`, it only evaluates a separately
+captured, fingerprint-matched loopback URSim result; it cannot start Docker,
+pull an image, open a controller socket, or connect to the physical robot.
+
+The current Mac/Ubuntu environment has no accessible 5.25.2 runtime, so this
+lane is `deterministic_tested`, not `simulation_run`. A future runtime adapter
+must prove parser load, RTDE roundtrip, zero-input hold, filter/torque cadence,
+heartbeat/sequence/missed-tick controlled stops, and 30,000 ticks with p99 at
+most 1.8 ms and max strictly below 2 ms. Missing runtime evidence remains a
+blocker rather than being converted into a synthetic pass.
+
 ## Conditional controller upgrade
 
 `config/controller_5_25_2_upgrade_preflight.json` records the 2026-07-14

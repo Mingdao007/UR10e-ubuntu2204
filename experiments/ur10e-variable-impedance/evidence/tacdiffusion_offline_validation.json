@@ -1,12 +1,12 @@
 {
   "schema": "ur10e_tacdiffusion_offline_validation_v1",
-  "generated_at": "2026-07-13T02:08:00+08:00",
+  "generated_at": "2026-07-13T02:38:00+08:00",
   "branch": "agent/ur10e-tacdiffusion-20260713",
   "base_commit": "efedcf141ea17f61194c1b2f0f7d20c5c816fe0b",
   "highest_stage": "deterministic_tested",
   "validation": {
     "variable_impedance_check_passed": true,
-    "variable_impedance_test_count": 85,
+    "variable_impedance_test_count": 91,
     "python_3_9_dependency_light_passed": true,
     "python_3_9_optional_tests_skipped": 3,
     "torch_2_11_mps_model_smoke_passed": true,
@@ -22,7 +22,10 @@
     "secret_scan_passed": true,
     "tase_protocol_validator_passed": true,
     "tase_cross_step_validator_passed": true,
-    "tase_full_pytest_status": "mac_dependency_blocked; rerun in isolated Ubuntu ROS2 validation worktree after push"
+    "tase_full_pytest_status": "Ubuntu topic and base each 1031 passed, 1 skipped, 71 identical Git-external portability failures; topic-only failures 0",
+    "ursim_5_25_2_protocol_spec_validated": true,
+    "ursim_runtime_adapter_hash_bound": false,
+    "ursim_protocol_execution_performed": false
   },
   "review_policy": {
     "stack": "0+0",
@@ -31,7 +34,7 @@
   },
   "remaining_blockers": [
     "controller upgrade preflight and physical 5.25.2 readback have not run",
-    "URSim 5.25.2 syntax/runtime/60-second timing has not run",
+    "URSim 5.25.2 runtime adapter is not implemented/hash-bound and syntax/runtime/60-second timing has not run",
     "no hardware-verified expert F_ff dataset exists",
     "no retained UR10e-trained checkpoint or real 50/100/200/500 Hz timing selection exists",
     "no live or contact authorization exists",
@@ -43,10 +46,12 @@
     {"path": "config/mainline_reconciliation_20260713.json", "sha256": "758922a16f89472c22baaaee7eedc0ef4fb18567f8ca1502537a9733f9889aaf"},
     {"path": "config/tacdiffusion_experiment_plan.json", "sha256": "ec2d76c62b42fca5b069a6bb60b51d38dee9fccf1a6bb40e4ace97131244770e"},
     {"path": "config/tacdiffusion_upstream_lock.json", "sha256": "29a1dee5252a2e6ea0dab5e7ef51daba64575eb1b4912417a22545bed932e2ca"},
-    {"path": "config/validation_ledger.json", "sha256": "9b15fbb6c49ec90e103419a5a6f18d47d4b00aab8faed2a1a429e25ca65fa902"},
+    {"path": "config/ursim_5_25_2_protocol.json", "sha256": "7ebe1a3ce7c80a880c915272b9e8552a9546004bdcb69ea381bb09dcdf680ac0"},
+    {"path": "config/validation_ledger.json", "sha256": "542e9eeb9242f032d3ffaa1e0304070bc1e17be6696d2721ac79fb3cb72afa67"},
     {"path": "programs/direct_torque_vic_offline_template.script", "sha256": "da74aea300ce3594bde5f8fb46a08349a05b125a6c75f89df39db225ded4b427"},
     {"path": "ur10e_vic/backends.py", "sha256": "b6b1443ab0dcddee8903c156a23a2679b9fc03d5ba93a9b962bbf98ee645420e"},
     {"path": "ur10e_vic/controller_upgrade.py", "sha256": "98790598b2997f35f9a9ba6255b506507599b58b66401b9997b47d9fd82e3eb4"},
+    {"path": "ur10e_vic/ursim_protocol.py", "sha256": "f747112aac4816114856f69f26097ecfc2d74d5042738970845312442ee7c086"},
     {"path": "ur10e_vic/tacdiffusion/__init__.py", "sha256": "61f0185331366284b328d75ff0d602343481780d43328474cd7f2b82c710bb0a"},
     {"path": "ur10e_vic/tacdiffusion/benchmark.py", "sha256": "eabffddbeda2d21ab9898761d9b141aff65adb877bc17c4d170d9894bc9baf47"},
     {"path": "ur10e_vic/tacdiffusion/cli.py", "sha256": "bdb2f64504a1953ca6a113786640c7726ed543d374dce2b68c528e30550d29af"},
@@ -57,10 +62,13 @@
     {"path": "ur10e_vic/tacdiffusion/signals.py", "sha256": "55d9e746f922f88a7d12a8ab7c3ba07f9a60c1c3b24eddb2961e6e62864e2bdc"},
     {"path": "ur10e_vic/tacdiffusion/timing.py", "sha256": "b4f3f1be3b35e6a050fbe4284899c135c681fa54d1a0464688710e83b17e4a60"},
     {"path": "tools/run_tacdiffusion_synthetic_canary.py", "sha256": "493e2430048576ccfdd8204b7ca2f07f2813c84bdc32b0144ef61cea15aa78e1"},
+    {"path": "tools/run_ursim_5_25_2_protocol.py", "sha256": "e9fff14080b1f5616ee5b039c32e593d7a8c01ca467fc1a10970fe7f5ef85790"},
     {"path": "tools/validate_controller_5_25_2_upgrade.py", "sha256": "9454d8185a06a2c70d402d0a2d54238f7574bac95e29f506003d2ce2eab68fc8"},
+    {"path": "tests/test_ursim_protocol.py", "sha256": "fd0a9984b24b81ee10a4fd9341d13d9b8eb1b1dc3465068cd877fb5f455a2c7b"},
     {"path": "evidence/tacdiffusion_synthetic_canary_60s.json", "sha256": "33439afabf637356365819c37d57d6d3750364b2e5b7ee06dcd6685cf362a98c"},
     {"path": "docs/TACDIFFUSION_UR10E_MAINLINE.md", "sha256": "f3e9fcfb965693ea3e0fbd0af98b898cfbde84ac02bd59471e9bcf365f95e513"},
-    {"path": "README.md", "sha256": "b6b115cbc5cfe49b8272a182384bbfb05c2ad63865b11baed1585f1a86bfedb0"}
+    {"path": "OFFLINE_READINESS.json", "sha256": "70d062d3c3d4837c4341864256c6745b3840472aab1321e40810e40c81a2eabb"},
+    {"path": "README.md", "sha256": "69b0355608fb1e83fd4a3202a9aa71a8c5537e5b3bc2c76df2a301bdac4d696c"}
   ],
   "simulation_run": false,
   "ursim_run": false,

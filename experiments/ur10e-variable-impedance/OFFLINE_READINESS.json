@@ -210,12 +210,16 @@
     "variant": "upstream_slerp_cross_attention_v1"
   },
   "ursim_probe": {
-    "checked_at": "2026-07-12T00:00:00+08:00",
+    "checked_at": "2026-07-13T02:24:00+08:00",
     "mac_container_runtime": "docker_and_podman_not_found",
     "ubuntu_classification": "ssh_reachable",
     "ubuntu_container_runtime": "docker_29.6.1_present",
+    "ubuntu_docker_daemon": "inactive_disabled",
     "ubuntu_docker_socket_access": "denied_for_andy",
     "ubuntu_ursim_image": "unverified_no_socket_permission",
-    "runtime_validation": "blocked"
+    "runtime_validation": "blocked_no_accessible_5_25_2_runtime",
+    "exact_5_25_2_protocol_spec": "implemented_and_deterministic_tested",
+    "protocol_execution_performed": false,
+    "simulation_run": false
   }
 }

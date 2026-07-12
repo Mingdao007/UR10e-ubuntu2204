@@ -64,6 +64,19 @@
         "evidence/tacdiffusion_synthetic_canary_60s.json",
         "evidence/tacdiffusion_offline_validation.json"
       ]
+    },
+    "ursim_5_25_2_protocol": {
+      "implemented": true,
+      "deterministic_tested": true,
+      "simulation_run": false,
+      "hardware_run": false,
+      "evidence": [
+        "config/ursim_5_25_2_protocol.json",
+        "ur10e_vic/ursim_protocol.py",
+        "tools/run_ursim_5_25_2_protocol.py",
+        "tests/test_ursim_protocol.py",
+        "evidence/tacdiffusion_offline_validation.json"
+      ]
     }
   },
   "independent_acceptance_domains": {
@@ -99,7 +112,7 @@
     },
     "URSim": {
       "policy": "independent acceptance",
-      "current_stage": null,
+      "current_stage": "deterministic_tested",
       "canonical_external_evidence_required": true
     },
     "TacDiffusion": {
