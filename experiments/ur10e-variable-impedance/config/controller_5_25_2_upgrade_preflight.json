@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "checkpoint_date": "2026-07-14",
+  "execution_state": "offline_plan_only_awaiting_physical_preflight",
+  "controller_verified": false,
+  "historical_controller_version": "5.11.9",
+  "target_controller_version": "5.25.2",
+  "offline_design_assumption": {
+    "polyscope": "5.25.2",
+    "control_api": "direct_torque_v2",
+    "control_rate_hz": 500,
+    "may_establish_hardware_readiness": false
+  },
+  "direct_torque_version_note": "Direct Torque Control V2 was introduced in 5.25.1 and is inherited by the 5.25.2 target release.",
+  "official_sources": {
+    "software_update": "https://www.universal-robots.com/manuals/EN/HTML/SW5_25/Content/prod-serv-man/E-series/serv-man-update.htm",
+    "release_notes_5_25": "https://www.universal-robots.com/articles/ur/release-notes/release-note-software-version-525x/"
+  },
+  "upgrade_route": {
+    "direct_update_eligible_if_probe_confirms_version_at_least": "5.5.0",
+    "downgrade_allowed": false,
+    "fallback_version": null,
+    "fallback_to_5_23_allowed": false,
+    "upgrade_is_conditional": true
+  },
+  "readonly_preflight": [
+    "read controller and robot serial numbers",
+    "read current PolyScope version",
+    "confirm Safety state is NORMAL",
+    "read TCP and payload including center of gravity",
+    "read calibration identity and checksum where available",
+    "inventory installed URCaps and versions",
+    "determine whether PROFIsafe is installed or configured",
+    "inventory programs, installations, safety configuration, network, Dashboard, and RTDE state"
+  ],
+  "backup_requirements": {
+    "complete_system_backup": true,
+    "support_file": true,
+    "separate_exports": [
+      "/programs",
+      "installation",
+      "safety_configuration",
+      "calibration",
+      "urcap_inventory"
+    ],
+    "sha256_manifest_required": true,
+    "backup_readability_check_required": true,
+    "fat32_usb_required": true,
+    "urup_sha256_must_match_official_source": true
+  },
+  "mandatory_stop_conditions": [
+    "controller or robot identity does not match the expected bench",
+    "complete backup or Support File is missing or unreadable",
+    "any backup or URUP checksum is missing or mismatched",
+    "an installed URCap is incompatible with 5.25.2 or compatibility is unresolved",
+    "PROFIsafe use is detected and the 5.25.0 active-low outgoing-signal breaking change is not explicitly reconciled",
+    "Safety is not NORMAL before maintenance",
+    "the official update path does not apply to the probed current version"
+  ],
+  "installation_boundary": {
+    "controller_upgrade_after_all_preflight_passes": true,
+    "controller_reboot_expected": true,
+    "power_on_motors_only_as_required_for_firmware_update": true,
+    "play_program": false,
+    "start_bridge": false,
+    "send_torque": false,
+    "zero_force_torque": false,
+    "produce_robot_motion": false
+  },
+  "post_upgrade_readback_acceptance": [
+    "PolyScope reports exactly 5.25.2",
+    "Safety is NORMAL",
+    "serials, installation, calibration, TCP, payload, and safety configuration match the signed backup manifest",
+    "OnRobot, External Control, and every other inventoried URCap load without incompatibility",
+    "Dashboard, RTDE, and network readback pass",
+    "direct_torque V2, Jacobian, and dynamics APIs are present",
+    "no program is played and no bridge or torque session is started during verification"
+  ],
+  "controller_verified_transition": "set true only after every post-upgrade readback item has hash-bound evidence",
+  "current_round_prohibitions": [
+    "controller connection for mutation",
+    "controller upload",
+    "bridge start",
+    "TP Play",
+    "force-torque zero",
+    "network mutation",
+    "robot motion"
+  ]
+}

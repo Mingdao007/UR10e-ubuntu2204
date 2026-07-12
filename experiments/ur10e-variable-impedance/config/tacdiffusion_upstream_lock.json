@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "project": "TacDiffusion",
+  "paper": {
+    "arxiv_id": "2409.11047",
+    "version": "v2",
+    "updated": "2025-03-06",
+    "publication_note": "7 pages; accepted to ICRA 2025",
+    "url": "https://arxiv.org/abs/2409.11047v2",
+    "pdf_sha256": "63ee2bffa80d3b4419bedc796ccc9cc03af4b7d31bb912cfa51e455b7f2b6bb5"
+  },
+  "repository": {
+    "url": "https://github.com/popnut123/TacDiffusion",
+    "commit": "6a5567c829c54b7d03164cf40779d2451de4099e",
+    "license_status": "noncommercial_notice_in_readme_not_standard_spdx",
+    "license_notice": "No commercial use!",
+    "license_file_present": false,
+    "source_hashes_sha256": {
+      "README.md": "d39469d832bfa64ddb5bc99df2c38512878a81e962d7dfe5f0de925b06f9d533",
+      "helper_functions/data_split.py": "2a954bae249e2b290a05ca3297f97595bf7a74f85e54720f6a5f0a6320aa4caa",
+      "helper_functions/models.py": "9b1d4677d3657a2f8f83e21a5b8892e48d4b6acdc53df92bb509b85bdc2fa243",
+      "1_model_train.py": "0faca42d410a4b967b3a940cd85bb42d67ea43845084a6428c96898f2791cb3a",
+      "4_model_remote_control.py": "5945950b54ed3a30d77c8664c8573b71907fb58c683e753edeb1d41132f6b123",
+      "5_manipulator_remote_control.py": "0c6e21897a25aa749bdff312b90056636fc5cf24b9a4d06d732268520437bb1a",
+      "requirements.txt": "62606a301dfd0ddc6ceb633f8c85cb6af3de1fef0f6b791c2717b162e92703d7"
+    }
+  },
+  "upstream_dataset_schema": {
+    "serialization": "pickle_state_and_action_files",
+    "split_behavior": "upstream_random_split",
+    "ur10e_port_policy": "do_not_reuse_upstream_split_state; create independent episode-grouped hash-bound manifests"
+  },
+  "portable_scope": {
+    "source_code_reuse_allowed": false,
+    "implementation_method": "clean_room_from_published_equations_and_declared_dimensions",
+    "allowed": [
+      "diffusion_model_structure",
+      "force_domain_observation_and_action_schema",
+      "dynamic_filter_equations",
+      "offline_training_and_inference_concepts"
+    ],
+    "excluded": [
+      "Franka-specific MIOS integration",
+      "upstream Docker runtime",
+      "upstream UDP controller",
+      "Panda pretrained result as UR10e zero-shot evidence"
+    ]
+  },
+  "reference_model_configuration": {
+    "diffusion": "DDPM",
+    "denoising_steps": 50,
+    "mlp_hidden_width": 512,
+    "condition_uses_current_and_previous_observation": true,
+    "dynamic_filter": {
+      "alpha": 0.9,
+      "beta": 0.3
+    }
+  },
+  "claim_boundary": "UR10e 500 Hz force-domain diffusion adaptation; not Panda 1 kHz exact reproduction",
+  "active_control_enabled": false
+}

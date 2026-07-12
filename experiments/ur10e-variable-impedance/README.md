@@ -5,8 +5,9 @@ learning scaffold. It is deliberately separate from
 `experiments/tase-contact-reproduction/` and does not change the v29/v30
 package pointer, controller, bridge, network, FT zero, or robot state.
 
-Current status: `offline_scaffold`; `live_motion_authorized=false`;
-`dbil_active_enabled=false`.
+Current status: `offline_scaffold`; `controller_verified=false`;
+`live_motion_authorized=false`; `dbil_active_enabled=false`;
+`tacdiffusion_active_enabled=false`.
 
 ## Control surfaces
 
@@ -55,23 +56,112 @@ versus shadow on bit-for-bit.
   DLS. The current Step5b ROS2 live-runner acceptance artifact is false, so the
   checked-in binding keeps this route command-disabled. It is always labelled
   `backend_fidelity=surrogate`; it is not true torque impedance.
-- `direct_torque_vic_offline_template.script` is a hash-bound PolyScope 5.23+
-  template. It contains the local 500 Hz formula
-  `tau = J^T(K e - D xdot) + coriolis - joint_damping*qd`; gravity is excluded
-  because `direct_torque()` compensates gravity internally. The template has no
-  invocation, defaults to disabled, and has no upload/network path.
-- The 5.23 template is not executable on the last recorded 5.11.9 controller.
-  It remains blocked until a matching URSim validates syntax, one-tick runtime,
-  heartbeat exit, and timing. An actual controller upgrade is outside this repo.
+- `direct_torque_vic_offline_template.script` is now a hash-bound PolyScope
+  5.25.2 Direct Torque V2 design target. It contains the local 500 Hz formula
+  `tau = J^T(F_ff + K e - D xdot) + coriolis - joint_damping*qd`; gravity is
+  excluded because `direct_torque()` compensates gravity internally. The
+  template has no invocation, defaults to disabled, and has no upload/network
+  path.
+- The 5.25.2 template is not executable on the last recorded 5.11.9 controller.
+  It remains blocked until the conditional upgrade, fresh readback, and matching
+  URSim validation cover syntax, one-tick runtime, heartbeat exit, and timing.
+  `controller_verified` remains false in every checked-in artifact.
 
-The RTDE manifest binds exactly 18 input doubles (equilibrium pose, K, D), plus
-integer mode/sequence/heartbeat/exclusive lease. Sequence is the packet commit:
+The RTDE manifest binds exactly 24 input doubles (equilibrium pose, K, D, and raw
+six-axis `F_df`), plus integer control/model mode, sequence, period, frame token,
+heartbeat, and exclusive lease. Sequence is the packet commit:
 the controller reads it before and after the payload, requires both reads and
 heartbeat to match, and requires exact `+1` advancement. Controller-side gates
 also enforce K bounds/down-slew, `D=2*zeta*sqrt(K*M)`, translation-only VIC,
 fixed orientation, equilibrium slew, new-run release/baseline reset, zero-wrench
 startup ticks, force/torque/TCP-cage/joint guards, and finite bounded damping
 exit torque. A frozen, mixed, gapped, or lease-switched packet fails closed.
+
+Raw model output is filtered locally with the paper's second-order equation at
+500 Hz. A proposal may be held for at most two declared model periods. Stale,
+gapped, nonfinite, out-of-bounds, or wrong-frame input monotonically removes only
+feed-forward force that was actually applied before entering damping and a
+controlled stop. Shadow mode computes and reports the filter state but routes
+exact zero feed-forward force to the torque path, including during fault exit.
+The checked-in template has a hash-bound compile-time
+`model_active_allowed=false`; host registers alone cannot enable model-active
+torque.
+
+## TacDiffusion force-domain lane
+
+The new `ur10e_vic.tacdiffusion` module is part of this experiment rather than a
+second control stack. Its force-only observation is 36D: current and previous
+external wrench, internal wrench, and end-effector twist, all in one explicitly
+bound TCP frame. Kunwei input is converted to SI, transformed with a calibrated
+sensor-to-TCP lineage, and causally sampled from the retained 1 kHz stream onto
+the 500 Hz control grid. The raw 1 kHz stream remains independent safety input.
+
+Internal wrench is reconstructed from the preceding tick's applied no-gravity
+joint torque, Jacobian, Coriolis term, and joint damping. It has no external
+wrench argument, so the Kunwei signal cannot be copied into the internal channel.
+`actual_current_as_torque` is accepted only as a separate shadow comparison.
+
+Formal datasets use episode-grouped, non-pickled NPZ files with 36D condition,
+6D expert `F_ff`, episode identity, frozen split, frame/calibration lineage, and
+artifact hashes. Every episode manifest must bind the exact
+`polyscope-5.25.2-direct-torque-v2-500hz` profile and its controller readback
+hash, and its declared sample count must match the dataset. v27/v29 traces stay
+pipeline-only and cannot be promoted into expert labels. Data collection is
+staged at 50 episodes, 200 episodes, and an optional 1500 episodes only when the
+frozen validation curve still improves.
+
+The first portable model is a clean-room DDPM MLP design pinned to 50 denoising
+steps, hidden width 512, current-plus-previous conditioning, and seed 42. The
+runtime stays inactive and shadow-only until real expert data, checkpoint, and
+independent timing evidence exist. Rates 50/100/200/500 Hz must each be tested
+for 60 seconds; the selector accepts only the highest rate with zero deadline
+misses, zero nonfinite output, and p99 no greater than 80% of its period.
+
+The only allowed eventual claim is **UR10e 500 Hz force-domain diffusion
+adaptation**. It is not a Panda 1 kHz exact reproduction or Panda-to-UR10e
+zero-shot result.
+
+The portable CLI has no controller transport. Typical offline commands are:
+
+```bash
+python3 -m ur10e_vic.tacdiffusion.cli validate-dataset \
+  --dataset /external/ur10e-expert.npz \
+  --manifest /external/ur10e-expert-manifest.json \
+  --trace-manifest /external/episode-001.json
+python3 -m ur10e_vic.tacdiffusion.cli train \
+  --dataset /external/ur10e-expert.npz \
+  --dataset-manifest /external/ur10e-expert-manifest.json \
+  --trace-manifest /external/episode-001.json \
+  --checkpoint /external/tacdiffusion.pt \
+  --checkpoint-manifest /external/tacdiffusion-checkpoint.json
+python3 -m ur10e_vic.tacdiffusion.cli benchmark \
+  --checkpoint /external/tacdiffusion.pt \
+  --checkpoint-manifest /external/tacdiffusion-checkpoint.json \
+  --condition-json /external/condition.json \
+  --duration-per-rate-s 60 \
+  --output /external/tacdiffusion-timing-raw.json
+```
+
+`evidence/tacdiffusion_synthetic_canary_60s.json` is a 30,000-tick logical
+packet/filter oracle run. It proves shadow command invariance and selected
+fail-closed transitions in Python; it is explicitly not URSim, wall-clock
+500 Hz, or hardware evidence.
+
+## Conditional controller upgrade
+
+`config/controller_5_25_2_upgrade_preflight.json` records the 2026-07-14
+checkpoint. `tools/validate_controller_5_25_2_upgrade.py` evaluates captured
+preflight and post-upgrade JSON without containing any controller transport.
+Preflight requires complete backup/Support File/exports, official URUP hash,
+FAT32 media, URCap compatibility, and explicit PROFIsafe breaking-change review.
+Post-upgrade readback must preserve installation/safety/calibration/URCap hashes,
+report exactly 5.25.2, and expose Dashboard, RTDE, network, Direct Torque V2,
+Jacobian, and dynamics APIs without Play, bridge, torque, or motion.
+
+Mainline reconciliation is independently recorded in
+`config/mainline_reconciliation_20260713.json`: the dirty Ubuntu checkout remains
+untouched, while its binary patch, untracked archive, per-path hashes, and
+migration decisions live in the external handoff bundle.
 
 ## Portable DBIL workflow
 
@@ -225,11 +315,12 @@ PYTHON_BIN=/path/to/torch-enabled-python bash check.sh
 
 They cover quaternion sign/SLERP invariance, contracts and claim states, K/D
 PSD/bounds/slew, two-period stale failover, capability-separated muxing, all
-four policies, fixed-orientation/translational-only phase-1 VIC, the full
+four VIC policies, fixed-orientation/translational-only phase-1 VIC, the full
 offline simulator adapter and actual-command bit invariance, stable Step5b
-binding, 5.23 controller packet-state oracle and template guards,
-dataset/compact-evidence portability, upstream core, and the independently
-paced rate harness. They do not replace URSim or physical-bench validation.
+binding, the 5.25.2 Direct Torque V2 packet-state oracle and template guards,
+TacDiffusion SI/frame/causal/internal-wrench/filter/data/model contracts,
+dataset/compact-evidence portability, upstream DBIL core, and independent
+paced-rate selectors. They do not replace URSim or physical-bench validation.
 
 ## Sources
 
@@ -242,3 +333,9 @@ paced rate harness. They do not replace URSim or physical-bench validation.
   and official manuals for [`direct_torque()`](https://www.universal-robots.com/manuals/EN/HTML/SW5_23/Content/prod-scriptmanual/all_scripts/direct_torque.htm),
   [`get_jacobian(q, tcp)`](https://www.universal-robots.com/manuals/EN/HTML/SW5_23/Content/prod-scriptmanual/all_scripts/get_jacobian.htm),
   and [`get_coriolis_and_centrifugal_torques(q, qd)`](https://www.universal-robots.com/manuals/EN/HTML/SW5_23/Content/prod-scriptmanual/all_scripts/get_coriolis_and_centrifugal_torques.htm).
+- Wu et al., *TacDiffusion: Force-domain Diffusion Policy for Precise Tactile
+  Manipulation*, [arXiv:2409.11047v2](https://arxiv.org/abs/2409.11047v2), and
+  the pinned [official implementation](https://github.com/popnut123/TacDiffusion).
+- Universal Robots [PolyScope 5.25 release notes](https://www.universal-robots.com/articles/ur/release-notes/release-note-software-version-525x/),
+  [software update procedure](https://www.universal-robots.com/manuals/EN/HTML/SW5_25/Content/prod-serv-man/E-series/serv-man-update.htm), and the
+  5.25 [`direct_torque()` manual](https://www.universal-robots.com/manuals/EN/HTML/SW5_25/Content/prod-scriptmanual/all_scripts/direct_torque.htm).

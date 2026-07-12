@@ -1,9 +1,11 @@
 {
   "backend_status": {
-    "direct_torque_5_23": {
-      "manifest_sha256": "6dfd16d582234f9b24e95bf8f3e29e492fbc2eb5a037fb83eaae83e8fedd9567",
-      "status": "offline_uninvoked_template_ursim_pending",
-      "template_sha256": "1f8c4f8e96890988ce698e2c473428368932050bda40355880d19de5201fa3ff"
+    "direct_torque_5_25_2_v2": {
+      "controller_verified": false,
+      "manifest_sha256": "d4558a2ec20ecd4fc85ecc7ddb30bfe7fb3bcc75232dd66ce57affbe6109bc7d",
+      "model_active_authorized": false,
+      "status": "offline_uninvoked_template_ursim_and_upgrade_readback_pending",
+      "template_sha256": "da74aea300ce3594bde5f8fb46a08349a05b125a6c75f89df39db225ded4b427"
     },
     "velocity_admittance_5_11": {
       "activation_ready": false,
@@ -19,8 +21,9 @@
     "phase-1 directional VIC is bounded/non-increasing only; passivity is not established without a future energy tank or passivity observer/controller",
     "v27/v29 retained traces lack a hash-bound sensor-calibration lineage artifact and explicit time-indexed task-ZFT artifact, so their four-policy results are diagnostic and claim-invalid",
     "Step5b ROS2 live-runner acceptance remains false; the 5.11 surrogate cannot become command-capable",
-    "PolyScope 5.23+ URSim syntax/runtime/timing validation has not passed",
-    "physical controller version must be re-probed next week",
+    "PolyScope 5.25.2 URSim syntax/runtime/timing validation has not passed",
+    "physical controller remains historically 5.11.9 and controller_verified=false until the conditional 5.25.2 upgrade and fresh readback",
+    "TacDiffusion has no hardware-verified expert F_ff dataset, trained UR10e checkpoint, or independently validated 50/100/200/500 Hz timing selection",
     "fresh live/contact authorization is required for every active experiment"
   ],
   "claim_state": {
@@ -38,6 +41,7 @@
     "tracked_index": "evidence/offline_evidence_index.json"
   },
   "dbil_active_enabled": false,
+  "controller_verified": false,
   "evidence_governance": {
     "schema_version": 3,
     "timing_current_selected": {
@@ -156,6 +160,18 @@
     "shadow_only": true
   },
   "live_motion_authorized": false,
+  "tacdiffusion": {
+    "active_enabled": false,
+    "claim": "UR10e 500 Hz force-domain diffusion adaptation",
+    "controller_target": "PolyScope 5.25.2 Direct Torque V2",
+    "current_stage": "deterministic_tested",
+    "deterministic_validation": "passed_python3_9_and_torch_2_11_mps_smoke",
+    "hardware_run": false,
+    "model_rate_selected_hz": null,
+    "simulation_run": false,
+    "vision_enabled": false
+  },
+  "tacdiffusion_active_enabled": false,
   "source_bindings": {
     "binding_scope": "current validator sources; not historical artifact producer provenance",
     "cli_sha256": "ecd79a0d75f4bdb57c05d06b5236cbad8c5e73bc4beba17463faee0de85d817e",

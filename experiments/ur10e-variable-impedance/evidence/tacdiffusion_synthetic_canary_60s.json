@@ -1,0 +1,28 @@
+{
+  "accepted_ratio": 1.0,
+  "accepted_ticks": 30000,
+  "claim_boundary": "UR10e 500 Hz force-domain diffusion adaptation preparation only",
+  "controller_verified": false,
+  "deterministic_test_pass": true,
+  "hardware_run": false,
+  "live_motion_authorized": false,
+  "logical_control_rate_hz": 500,
+  "logical_duration_s": 60.0,
+  "logical_ticks": 30000,
+  "max_diagnostic_filter_abs": 1.0042910622240753,
+  "model_active_fault_reason": "model_active_not_authorized",
+  "model_period_us": 5000,
+  "model_rate_hz": 200,
+  "schema": "ur10e_tacdiffusion_logical_synthetic_canary_v1",
+  "scope": "Python packet/filter oracle; not URSim, wall-clock control timing, or hardware evidence",
+  "shadow_command_mismatches": 0,
+  "simulation_run": false,
+  "source_bindings": {
+    "backend_source_sha256": "b6b1443ab0dcddee8903c156a23a2679b9fc03d5ba93a9b962bbf98ee645420e",
+    "canary_source_sha256": "493e2430048576ccfdd8204b7ca2f07f2813c84bdc32b0144ef61cea15aa78e1",
+    "layout_sha256": "d4558a2ec20ecd4fc85ecc7ddb30bfe7fb3bcc75232dd66ce57affbe6109bc7d",
+    "template_sha256": "da74aea300ce3594bde5f8fb46a08349a05b125a6c75f89df39db225ded4b427"
+  },
+  "stale_fault_reason": "model_stale_over_two_periods",
+  "wall_clock_compute_s": 1.021344708
+}

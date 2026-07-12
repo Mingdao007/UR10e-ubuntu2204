@@ -137,8 +137,9 @@
     }
   ],
   "backend_status": {
-    "direct_torque_5_23": "hash_bound_uninvoked_template; URSim pending",
+    "direct_torque_5_25_2_v2": "hash_bound_uninvoked_template; controller_verified=false; model_active_authorized=false; upgrade readback and URSim pending",
     "step5b_5_11": "pure-core hash bound; activation acceptance false",
+    "tacdiffusion": "force-only contracts/model/filter implemented; real expert data, timing selection, URSim, and hardware acceptance pending",
     "velocity_surrogate": "shadow backend rejects shadow_only and active path remains capability-disabled"
   },
   "claim_state": {
