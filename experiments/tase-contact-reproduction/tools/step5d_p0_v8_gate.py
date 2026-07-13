@@ -9,7 +9,7 @@ from typing import Any, Mapping
 
 
 PROFILE = "step5d_strict_rnn_no_contact_p0_v8"
-CANARY_PHASES_S = (2.0, 10.0, 60.0)
+CANARY_PHASES_S = (60.0,)
 USER_REVIEW_WAIVER_STATUS = "waived_by_user"
 
 
@@ -46,12 +46,12 @@ def validate_canary_phase(profile: str, phase_s: float, *, allow_disabled: bool 
     if profile != PROFILE:
         raise ValueError("--step5d-stop-register-canary-s is restricted to P0 v8")
     if not any(math.isclose(phase, allowed, abs_tol=1e-9) for allowed in CANARY_PHASES_S):
-        raise ValueError("P0 v8 stop-register canary phase must be exactly 2, 10, or 60 seconds")
+        raise ValueError("P0 v8 stop-register canary phase must be exactly 60 seconds")
     return phase
 
 
 def authorize_canary(args: Any, current: Mapping[str, Any]) -> dict[str, Any]:
-    """Validate frozen review/readback state and sequential same-fingerprint phases."""
+    """Validate frozen review/readback state for one continuous 60 s canary."""
 
     candidate = current.get("p0_v8_candidate")
     capture = (current.get("bridge_trigger") or {}).get("no_contact_p0_v8_capture")
@@ -74,19 +74,6 @@ def authorize_canary(args: Any, current: Mapping[str, Any]) -> dict[str, Any]:
     if candidate.get("evidence_frozen") is not True:
         raise ValueError("P0 v8 review may run only after evidence freeze")
     phase = validate_canary_phase(PROFILE, getattr(args, "step5d_stop_register_canary_s", 0.0), allow_disabled=False)
-    completed = candidate.get("completed_canaries") or []
-    required_previous = () if phase == 2.0 else (2.0,) if phase == 10.0 else (2.0, 10.0)
-    for required_phase in required_previous:
-        if not any(
-            isinstance(item, Mapping)
-            and math.isclose(float(item.get("phase_s", -1.0)), required_phase, abs_tol=1e-9)
-            and item.get("composite_fingerprint") == fingerprint
-            and item.get("canary_passed") is True
-            for item in completed
-        ):
-            raise ValueError(
-                f"P0 v8 {phase:g}s canary requires prior {required_phase:g}s pass on the same fingerprint"
-            )
     return {
         "profile": PROFILE,
         "phase_s": phase,

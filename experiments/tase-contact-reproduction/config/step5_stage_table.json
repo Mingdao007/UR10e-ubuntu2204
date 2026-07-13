@@ -8615,7 +8615,7 @@
       "complete": false,
       "completion_target": false,
       "gate_for": "step5d_strict_rnn_ablation_v30",
-      "block_reason": "Inactive P0 v8 candidate pending regenerated controller upload/readback and sequential 2/10/60 s no-contact canaries. Review v3 assigns this no-contact pre-live work 0+0, while all deterministic canaries remain mandatory. A completed guard-approved GPU qdot publishes even after the nominal 2 ms release; while no new accepted qdot is available, TP continues the last accepted qdot without a zero-qdot injection for at most 250 ms. Hard guards, solver exceptions, stop requests, and staleness beyond 250 ms remain fail-closed.",
+      "block_reason": "Inactive P0 v8 candidate pending regenerated controller upload/readback and one continuous 60 s no-contact canary. Review v3 assigns this no-contact pre-live work 0+0, while the deterministic canary remains mandatory. A completed guard-approved GPU qdot publishes even after the nominal 2 ms release; while no new accepted qdot is available, TP continues the last accepted qdot without a zero-qdot injection for at most 250 ms. Hard guards, solver exceptions, stop requests, and staleness beyond 250 ms remain fail-closed.",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": false,
@@ -8829,11 +8829,11 @@
         "enabled": false,
         "armed": false,
         "input_double_register": 28,
-        "allowed_phases_s": [2.0, 10.0, 60.0],
+        "allowed_phases_s": [60.0],
         "completed_phases_s": [],
-        "sequential_same_fingerprint_required": true,
+        "single_continuous_phase_required": true,
         "p0_pass_requires_final_continuous_phase_s": 60.0,
-        "policy": "At the Stage25 elapsed deadline host sends exact zero qdot with cmd_valid=true and stop_request=1; 2/10 seconds are canary-only."
+        "policy": "At 60 seconds of qualified Stage25 consumption the host sends exact zero qdot with cmd_valid=true and stop_request=1."
       },
       "acceptance": {
         "package_generation_required": true,
@@ -8844,7 +8844,7 @@
         "p0_v8_passed": false,
         "not_a_completed_reproduction_claim": true
       },
-      "success_condition": "P0 v8 passes only after one frozen composite fingerprint completes sequential 2/10/60 second canaries, with the final continuous 60 second artifact passing the v8 deterministic verifier. Review v3 is 0+0 here; this is not contact acceptance or reproduction completion."
+      "success_condition": "P0 v8 passes only after one frozen composite fingerprint completes one continuous 60 second canary whose artifact passes the v8 deterministic verifier. Review v3 is 0+0 here; this is not contact acceptance or reproduction completion."
     },
     {
       "id": "step5d_strict_rnn_ablation_v30",

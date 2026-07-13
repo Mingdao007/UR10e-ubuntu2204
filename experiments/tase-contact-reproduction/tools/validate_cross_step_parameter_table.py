@@ -731,6 +731,24 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         ):
             failures.append("P0 v8 evidence-freeze state mismatch")
 
+        expected_canary_policy = {
+            "enabled": True,
+            "allowed_phases_s": [60.0],
+            "single_continuous_run_required": True,
+            "final_continuous_phase_s": 60.0,
+        }
+        if p0_v8_candidate.get("canary_policy") != expected_canary_policy:
+            failures.append("P0 v8 candidate must require one continuous 60 second canary")
+        stage_canary = p0_v8_row.get("canary_stop_register") or {}
+        expected_stage_canary_fields = {
+            "allowed_phases_s": [60.0],
+            "single_continuous_phase_required": True,
+            "p0_pass_requires_final_continuous_phase_s": 60.0,
+        }
+        for field, expected in expected_stage_canary_fields.items():
+            if stage_canary.get(field) != expected:
+                failures.append(f"P0 v8 stage canary policy mismatch: {field}")
+
         offline_pointer = p0_v8_candidate.get("offline_simulation_diagnostic") or {}
         stage_offline_pointer = p0_v8_row.get("offline_simulation_diagnostic") or {}
         if stage_offline_pointer != offline_pointer:

@@ -249,21 +249,34 @@ class Step5dNoContactP0V8Test(unittest.TestCase):
         )
         self.assertEqual(runtime.controller_target, expected_target)
         self.assertIn("accepts only 47=524", runtime.register_contract["stage25_0"])
+        self.assertEqual(
+            json.loads(
+                (ROOT / "config" / "current_stage.json").read_text(encoding="utf-8")
+            )["p0_v8_candidate"]["canary_policy"],
+            {
+                "enabled": True,
+                "allowed_phases_s": [60.0],
+                "single_continuous_run_required": True,
+                "final_continuous_phase_s": 60.0,
+            },
+        )
 
     def test_parser_gate_allows_only_explicit_v8_canary_phases(self) -> None:
         self.assertEqual(gate.validate_canary_phase(PROFILE, 0.0), 0.0)
-        self.assertEqual(gate.validate_canary_phase(PROFILE, 10.0), 10.0)
-        with self.assertRaisesRegex(ValueError, "exactly 2, 10, or 60"):
-            gate.validate_canary_phase(PROFILE, 3.0)
+        self.assertEqual(gate.validate_canary_phase(PROFILE, 60.0), 60.0)
+        with self.assertRaisesRegex(ValueError, "exactly 60"):
+            gate.validate_canary_phase(PROFILE, 10.0)
+        with self.assertRaisesRegex(ValueError, "exactly 60"):
+            gate.validate_canary_phase(PROFILE, 2.0)
         with self.assertRaisesRegex(ValueError, "restricted to P0 v8"):
-            gate.validate_canary_phase("step5d_strict_rnn_ablation_v29", 2.0)
+            gate.validate_canary_phase("step5d_strict_rnn_ablation_v29", 60.0)
         bridge_source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(
             encoding="utf-8"
         )
         self.assertIn("validate_p0_v8_canary_phase(", bridge_source)
         self.assertIn("authorize_p0_v8_canary(args, current)", bridge_source)
 
-    def test_canary_authorization_is_fingerprint_and_sequence_bound(self) -> None:
+    def test_canary_authorization_is_fingerprint_bound_for_direct_60s(self) -> None:
         fingerprint = "a" * 64
         current = {
             "p0_v8_candidate": {
@@ -285,19 +298,17 @@ class Step5dNoContactP0V8Test(unittest.TestCase):
                 }
             },
         }
-        args = SimpleNamespace(step5d_stop_register_canary_s=10.0)
-
-        with self.assertRaisesRegex(ValueError, "requires prior 2s pass"):
-            gate.authorize_canary(args, current)
         current["p0_v8_candidate"]["completed_canaries"] = [
             {
                 "phase_s": 2.0,
-                "composite_fingerprint": fingerprint,
+                "composite_fingerprint": "f" * 64,
                 "canary_passed": True,
             }
         ]
+        args = SimpleNamespace(step5d_stop_register_canary_s=60.0)
+
         result = gate.authorize_canary(args, current)
-        self.assertEqual(result["phase_s"], 10.0)
+        self.assertEqual(result["phase_s"], 60.0)
         self.assertEqual(result["composite_fingerprint"], fingerprint)
 
     def test_canary_authorization_accepts_explicit_bound_user_review_waiver(self) -> None:
@@ -332,10 +343,10 @@ class Step5dNoContactP0V8Test(unittest.TestCase):
                 }
             },
         }
-        args = SimpleNamespace(step5d_stop_register_canary_s=2.0)
+        args = SimpleNamespace(step5d_stop_register_canary_s=60.0)
 
         result = gate.authorize_canary(args, current)
-        self.assertEqual(result["phase_s"], 2.0)
+        self.assertEqual(result["phase_s"], 60.0)
         self.assertEqual(result["composite_fingerprint"], fingerprint)
         current["p0_v8_candidate"]["review_v2"]["waiver"]["explicit"] = False
         with self.assertRaisesRegex(ValueError, "explicit bound user waiver"):
@@ -344,13 +355,13 @@ class Step5dNoContactP0V8Test(unittest.TestCase):
     def test_contract_rows_require_dls_shadow_but_never_use_it_as_fallback(self) -> None:
         rows = [accepted_contract_row(), accepted_contract_row(terminal=True)]
 
-        blockers, metrics = verifier.validate_contract_rows(rows, phase_s=2.0)
+        blockers, metrics = verifier.validate_contract_rows(rows, phase_s=60.0)
 
         self.assertEqual(blockers, [])
         self.assertEqual(metrics["consumption_ratio"], 1.0)
         self.assertEqual(metrics["terminal_rows"], 1)
         rows[0]["_step5d_dls_shadow_runtime_fallback_allowed"] = "1"
-        blockers, _ = verifier.validate_contract_rows(rows, phase_s=2.0)
+        blockers, _ = verifier.validate_contract_rows(rows, phase_s=60.0)
         self.assertIn("dls_runtime_fallback_observed", blockers)
 
 

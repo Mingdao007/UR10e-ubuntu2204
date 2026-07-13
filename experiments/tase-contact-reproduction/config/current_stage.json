@@ -1227,8 +1227,8 @@
     },
     "canary_policy": {
       "enabled": true,
-      "allowed_phases_s": [2.0, 10.0, 60.0],
-      "sequential_same_fingerprint_required": true,
+      "allowed_phases_s": [60.0],
+      "single_continuous_run_required": true,
       "final_continuous_phase_s": 60.0
     },
     "offline_simulation_diagnostic": {
@@ -1281,7 +1281,7 @@
       "reproduction_complete": false
     },
     "blockers": [
-      "controller_2_10_60_second_canaries_not_run"
+      "controller_continuous_60_second_canary_not_run"
     ]
   },
   "v30_candidate": {

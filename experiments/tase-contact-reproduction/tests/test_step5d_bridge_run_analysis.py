@@ -1457,12 +1457,8 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
         self.assertIn("first_speedj_rnn_tick_cmd_press_unload_mismatch", analysis["no_contact_p0_verifier"]["blockers"])
         self.assertIsNone(analysis["first_tp_stop_reason"])
 
-    def test_p0_v8_analyzer_uses_manifest_phase_and_keeps_short_canaries_out_of_p0_claim(self) -> None:
-        cases = (
-            (2.0, True, False, "p0_v8_canary_passed", "p0_v8_canary_passed_not_p0_complete"),
-            (10.0, True, False, "p0_v8_canary_passed", "p0_v8_canary_passed_not_p0_complete"),
-            (60.0, True, True, "p0_v8_passed", "p0_v8_60s_p0_passed"),
-        )
+    def test_p0_v8_analyzer_accepts_only_direct_60s_manifest_phase(self) -> None:
+        cases = ((60.0, True, True, "p0_v8_passed", "p0_v8_60s_p0_passed"),)
         for phase_s, canary_passed, p0_passed, classification, acceptance in cases:
             with self.subTest(phase_s=phase_s), tempfile.TemporaryDirectory() as tmp:
                 run_dir = Path(tmp)
@@ -1521,9 +1517,41 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
                 self.assertEqual(analysis["no_contact_p0_v8_phase_s"], phase_s)
                 self.assertEqual(analysis["classification"], classification)
                 self.assertEqual(analysis["acceptance_status"], acceptance)
-                if phase_s < 60.0:
-                    self.assertNotEqual(analysis["classification"], "p0_v8_passed")
-                    self.assertEqual(analysis["reproduction_status"], "p0_v8_not_complete")
+
+    def test_p0_v8_analyzer_rejects_retired_short_manifest_phases(self) -> None:
+        for phase_s in (2.0, 10.0):
+            with self.subTest(phase_s=phase_s), tempfile.TemporaryDirectory() as tmp:
+                run_dir = Path(tmp)
+                (run_dir / "bridge_run_manifest.json").write_text(
+                    json.dumps(
+                        {
+                            "profile": "step5d_strict_rnn_no_contact_p0_v8",
+                            "p0_v8_canary": {"phase_s": phase_s},
+                        }
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+                with patch.object(
+                    analyze_step5d_bridge_run.verify_step5d_no_contact_p0_v8,
+                    "verify",
+                ) as verifier:
+                    result, observed_phase, tool = (
+                        analyze_step5d_bridge_run.no_contact_p0_verification(
+                            "step5d_strict_rnn_no_contact_p0_v8",
+                            run_dir=run_dir,
+                            csv_path=run_dir / "bridge_rtde_500hz.csv",
+                        )
+                    )
+
+                verifier.assert_not_called()
+                self.assertIsNone(observed_phase)
+                self.assertEqual(tool, "verify_step5d_no_contact_p0_v8.py")
+                assert result is not None
+                self.assertIn(
+                    "bridge_run_manifest_canary_phase_missing_or_invalid",
+                    result["blockers"],
+                )
 
     def test_p0_v8_analyzer_fails_closed_when_manifest_phase_is_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

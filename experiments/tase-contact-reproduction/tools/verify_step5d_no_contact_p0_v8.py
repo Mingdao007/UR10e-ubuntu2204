@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify one manifest-bound P0 v8 2/10/60 second no-contact canary."""
+"""Verify one manifest-bound P0 v8 continuous 60 second no-contact canary."""
 
 from __future__ import annotations
 
@@ -8,14 +8,14 @@ import hashlib
 import json
 import math
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 import verify_step5d_no_contact_p0 as legacy
 
 
 ROOT = Path(__file__).resolve().parents[1]
 PROFILE = "step5d_strict_rnn_no_contact_p0_v8"
-PHASES_S = (2.0, 10.0, 60.0)
+PHASES_S = (60.0,)
 PACKAGE_BASE = ROOT / "programs" / "step5" / "step5d" / PROFILE
 POLICY_PATH = ROOT / "config" / "step5d_review_policy_v2.json"
 CURRENT_PATH = ROOT / "config" / "current_stage.json"
@@ -52,14 +52,6 @@ def phase_equal(left: object, right: float) -> bool:
         return math.isclose(float(left), right, abs_tol=1e-9)
     except (TypeError, ValueError):
         return False
-
-
-def required_prior_phases(phase_s: float) -> tuple[float, ...]:
-    if phase_s == 2.0:
-        return ()
-    if phase_s == 10.0:
-        return (2.0,)
-    return (2.0, 10.0)
 
 
 def validate_bindings(
@@ -126,16 +118,6 @@ def validate_bindings(
         blockers.append("current_fingerprint_mismatch")
     if capture.get("sha256") != package_sha:
         blockers.append("current_package_hash_mismatch")
-    for required in required_prior_phases(phase_s):
-        if not any(
-            isinstance(item, Mapping)
-            and phase_equal(item.get("phase_s"), required)
-            and item.get("composite_fingerprint") == fingerprint
-            and item.get("canary_passed") is True
-            for item in (canary.get("prior_canaries") or [])
-        ):
-            blockers.append(f"prior_{required:g}s_canary_missing_or_stale")
-
     details.update(
         {
             "manifest": str(manifest_path),
