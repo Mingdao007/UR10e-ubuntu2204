@@ -1199,13 +1199,13 @@
     },
     "semantic_fingerprint": "81ecf9f765092f5d5c9176a14ac9619253edd67b438b3b64cc4da291d09cb5e1",
     "evidence_frozen": true,
-    "composite_fingerprint": "cffbe6576b33c53e76d84e3d6d2f0a79d793142c9b5349fc1449212d41d4c5f4",
+    "composite_fingerprint": "61642f4a965a15c786c30d2412a35fcd7d7a6bdb46d1e7c92cad661519af1e5d",
     "review_v2": {
       "policy_id": "ur10e_review_policy_v2",
       "milestone": "p0_v8_pre_live",
       "required_stack": "1+1",
       "status": "waived_by_user",
-      "composite_fingerprint": "cffbe6576b33c53e76d84e3d6d2f0a79d793142c9b5349fc1449212d41d4c5f4",
+      "composite_fingerprint": "61642f4a965a15c786c30d2412a35fcd7d7a6bdb46d1e7c92cad661519af1e5d",
       "manifest": null,
       "waiver": {
         "waiver_id": "p0-v8-direct-bridge-20260714-045229",
@@ -1213,7 +1213,7 @@
         "authorized_by": "user",
         "explicit": true,
         "scope": "p0_v8_pre_live_review",
-        "composite_fingerprint": "cffbe6576b33c53e76d84e3d6d2f0a79d793142c9b5349fc1449212d41d4c5f4",
+        "composite_fingerprint": "61642f4a965a15c786c30d2412a35fcd7d7a6bdb46d1e7c92cad661519af1e5d",
         "authorization_evidence": "直接开bridge吧 不要再review了",
         "reason": "User explicitly waived the P0 v8 pre-live review and directly authorized bridge startup."
       }
@@ -1324,7 +1324,7 @@
     },
     "offline_readiness": {
       "artifact": "config/step5d_v30_offline_readiness.json",
-      "sha256": "400765f5f8cff50c71fa5994e6720ccee513f7fea66410ec77e0f7cee3e23f15",
+      "sha256": "be4e339ebc10469021d6b1f699f56a1803229068df10bfa2066e2d8b72711873",
       "status": "v30_offline_blocked"
     },
     "blockers": [

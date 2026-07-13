@@ -1217,8 +1217,12 @@ wait_for_bridge_output_started() {
   local bridge_csv="${out_dir}/bridge_rtde_500hz.csv"
   local metadata="${out_dir}/metadata.json"
   local ready="${out_dir}/bridge_ready.json"
+  local max_checks=30
+  if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
+    max_checks=150
+  fi
   local i
-  for i in $(seq 1 30); do
+  for i in $(seq 1 "${max_checks}"); do
     if ! kill -0 "${bridge_pid}" 2>/dev/null; then
       echo "[operator] bridge process exited before output-start confirmation"
       if wait "${bridge_pid}"; then
@@ -1247,7 +1251,7 @@ wait_for_bridge_output_started() {
     fi
     sleep 0.1
   done
-  echo "[operator] bridge output not observed within 3s; continuing monitor"
+  echo "[operator] bridge output not observed within startup window; continuing monitor"
   return 1
 }
 
@@ -1340,7 +1344,7 @@ run_bridge_for_mode() {
     bridge_launcher=(chrt -f 20 python3)
     echo "[operator] v29/v30/P0 bridge launcher: SCHED_FIFO priority 20"
   fi
-  if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" ]]; then
+  if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" || "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
     rm -f "${out_dir}/bridge_ready.json"
     launch_nonce="$(python3 - <<'PY'
 import uuid
