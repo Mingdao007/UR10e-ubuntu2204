@@ -1648,7 +1648,7 @@ class Step5dV29RawBridgeAuthorizationGateTest(unittest.TestCase):
         self.assertIn(call, main_source)
         self.assertLess(main_source.index(call), main_source.index("args.output_dir.mkdir"))
 
-    def test_raw_v29_pending_audit_override_keeps_exact_profile_and_binding(self) -> None:
+    def test_raw_v29_pending_audit_override_is_removed(self) -> None:
         args = raw_bridge_args(V29)
         with (
             patch.dict(
@@ -1658,62 +1658,16 @@ class Step5dV29RawBridgeAuthorizationGateTest(unittest.TestCase):
                     "STEP5D_CONFIRM": bridge.STEP5D_V29_LIVE_CONFIRMATION,
                 },
             ),
-            patch.object(bridge, "verify_step5d_binding", return_value={"ok": True}) as verify_binding,
-            patch.object(bridge, "verify_step5d_live_bridge_authorization") as verify_live,
+            patch.object(
+                bridge,
+                "verify_step5d_live_bridge_authorization",
+                return_value={"ok": True},
+            ) as verify_live,
         ):
             result = bridge.require_v29_live_bridge_authorization(args)
         self.assertEqual(result, {"ok": True})
-        verify_binding.assert_called_once_with(bridge.EXPERIMENT_ROOT, V29)
-        verify_live.assert_not_called()
-
-        for field, bad_value in (
-            ("step5d_rnn_backend", "numpy"),
-            ("step5d_rnn_inner_iterations", 512),
-            ("step5d_epsilon", 0.02),
-            ("step5d_sigr_exponent_r", 1.0),
-            ("step5d_qdot_limit_rad_s", 0.1),
-        ):
-            bad_args = raw_bridge_args(V29, **{field: bad_value})
-            with patch.dict(
-                os.environ,
-                {
-                    "STEP5D_ALLOW_PENDING_OFFLINE_AUDIT": "1",
-                    "STEP5D_CONFIRM": bridge.STEP5D_V29_LIVE_CONFIRMATION,
-                },
-            ):
-                with self.assertRaisesRegex(SystemExit, "exact cupy/1024"):
-                    bridge.require_v29_live_bridge_authorization(bad_args)
-
-    def test_raw_v29_pending_audit_override_requires_exact_confirmation(self) -> None:
-        args = raw_bridge_args(V29)
-        for token in (None, "", "wrong token"):
-            env = {"STEP5D_ALLOW_PENDING_OFFLINE_AUDIT": "1"}
-            if token is not None:
-                env["STEP5D_CONFIRM"] = token
-            with (
-                self.subTest(token=token),
-                patch.dict(os.environ, env, clear=True),
-                patch.object(bridge, "verify_step5d_binding") as verify_binding,
-                patch.object(
-                    bridge,
-                    "verify_step5d_live_bridge_authorization",
-                    return_value={"ok": True},
-                ) as verify_live,
-            ):
-                self.assertEqual(bridge.require_v29_live_bridge_authorization(args), {"ok": True})
-            verify_binding.assert_not_called()
-            verify_live.assert_called_once()
-
-    def test_pending_audit_override_never_applies_to_non_v29(self) -> None:
-        args = raw_bridge_args(V28)
-        with patch.dict(
-            os.environ,
-            {
-                "STEP5D_ALLOW_PENDING_OFFLINE_AUDIT": "1",
-                "STEP5D_CONFIRM": bridge.STEP5D_V29_LIVE_CONFIRMATION,
-            },
-        ):
-            self.assertFalse(bridge.v29_pending_audit_override_authorized(args))
+        verify_live.assert_called_once()
+        self.assertFalse(hasattr(bridge, "v29_pending_audit_override_authorized"))
 
     def test_raw_v29_cannot_disable_dashboard_runtime_watch(self) -> None:
         args = raw_bridge_args(V29, disable_dashboard_program_watch=True)
@@ -1855,16 +1809,10 @@ class Step5dV29RawBridgeAuthorizationGateTest(unittest.TestCase):
                 {**good, "programState": f"STOPPED <{V28}.urp>"},
             )
         tp_local = {**good, "is in remote control": "Is in remote control: false"}
-        with patch.dict(
-            os.environ,
-            {
-                "STEP5D_ALLOW_PENDING_OFFLINE_AUDIT": "1",
-                "STEP5D_CONFIRM": bridge.STEP5D_V29_LIVE_CONFIRMATION,
-            },
-        ):
-            self.assertIsNone(bridge.require_v29_dashboard_program_binding(args, tp_local))
+        with self.assertRaisesRegex(SystemExit, "remote-control"):
+            bridge.require_v29_dashboard_program_binding(args, tp_local)
 
-    def test_v29_tp_local_dashboard_exception_requires_exact_confirmation(self) -> None:
+    def test_v29_tp_local_dashboard_state_is_always_rejected(self) -> None:
         args = raw_bridge_args(V29)
         tp_local = {
             "programState": f"STOPPED </programs/{V29}.urp>",
@@ -1872,13 +1820,8 @@ class Step5dV29RawBridgeAuthorizationGateTest(unittest.TestCase):
             "safetymode": "Safetymode: NORMAL",
             "robotmode": "Robotmode: RUNNING",
         }
-        with patch.dict(
-            os.environ,
-            {"STEP5D_ALLOW_PENDING_OFFLINE_AUDIT": "1", "STEP5D_CONFIRM": "wrong"},
-            clear=True,
-        ):
-            with self.assertRaisesRegex(SystemExit, "remote-control"):
-                bridge.require_v29_dashboard_program_binding(args, tp_local)
+        with self.assertRaisesRegex(SystemExit, "remote-control"):
+            bridge.require_v29_dashboard_program_binding(args, tp_local)
 
     def test_v29_dashboard_preflight_rejects_fuzzy_or_ambiguous_states(self) -> None:
         args = SimpleNamespace(bridge_profile=V29)

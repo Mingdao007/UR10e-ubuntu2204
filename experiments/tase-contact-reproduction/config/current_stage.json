@@ -58,7 +58,7 @@
     "stage_id": "step5d_strict_rnn_reproduction_v1",
     "blocked": true,
     "paper_truth_config": "config/step5d_liveprep_solver_gate.json",
-    "reason": "v29 is the last controller-readback-verified package but is frozen fallback evidence. v30 now has source-bound Ubuntu hard-control timing evidence, but remains offline and blocked by live-runtime prewarm integration, P0 v8 controller canaries, readback freeze, Review v2, and separate live/contact authorization."
+    "reason": "v29 is the last controller-readback-verified package but is frozen fallback evidence. v30 now has source-bound Ubuntu hard-control timing evidence, but remains offline and blocked by live-runtime prewarm integration, P0 v8 controller canaries, readback freeze, Review v3, and separate live/contact authorization."
   },
   "evidence": {
     "v11_escape_replay_summary": "runs/step5d_v11_escape_replay_20260615/summary.json",
@@ -1066,7 +1066,7 @@
     "bridge_has_started": false,
     "live_motion_authorized": false,
     "zero_ftsensor_authorized": false,
-    "blocked_reason": "v29 is frozen fallback evidence. No bridge start is allowed without fresh readback/timing fingerprints, a new Review v2 2+1 gate, and explicit live/contact authorization.",
+    "blocked_reason": "v29 is frozen fallback evidence. No bridge start is allowed without fresh readback/timing fingerprints, one Review v3 1+1 gate (or valid degraded 1+0), and explicit live/contact authorization.",
     "no_contact_p0_capture": {
       "profile": "step5d_strict_rnn_no_contact_p0_v7",
       "entrypoint": "scripts/step5d-strict-rnn-p0.sh capture-bridge",
@@ -1116,7 +1116,7 @@
       "TP program opened on controller read-back v29 package",
       "v29 package readback verified on controller",
       "fresh v29 readback and timing fingerprint if fallback reactivation is requested",
-      "new Review v2 2+1 contact pre-live gate for that fresh fingerprint",
+      "one Review v3 1+1 contact pre-live gate (or valid degraded 1+0) for that fresh fingerprint",
       "explicit live/contact authorization for v29 speedj_rnn_live"
     ]
   },
@@ -1144,7 +1144,7 @@
     "v29 keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
     "v29 is an ablation package: v25/v26/v27/v28 default to speedl_cartesian_oracle; v29 defaults to speedj_rnn_live; preload is 5-22N filtered with 3-25N raw sanity.",
     "v29 uses Stage25.95 register-clear barrier plus layout tag 523.0 for Cartesian speedl and 524.0 for joint speedj.",
-    "v29 cannot be reactivated without a fresh readback/timing fingerprint, Review v2 2+1, and new live/contact authorization.",
+    "v29 cannot be reactivated without a fresh readback/timing fingerprint, one Review v3 1+1 gate (or valid degraded 1+0), and new live/contact authorization.",
     "v30 is an inactive offline candidate. Its fresh source-bound RNN512 timing passes the bounded last-command-hold route under the 1.5 ms schedule-lateness gate; hard-real-time remains false. P0 canaries and live-runtime prewarm verification remain outstanding.",
     "No v23 post-RNN normal-direction guard is active for this package.",
     "This file is the single current pointer for UR/Kunwei package and bridge handoffs.",
@@ -1217,6 +1217,13 @@
         "authorization_evidence": "不再做人工 review；只使用确定性验证。",
         "reason": "User explicitly waived another artificial review for the one-batch P0 v8 repair fingerprint."
       }
+    },
+    "review_v3": {
+      "policy_id": "ur10e_review_policy_v3",
+      "milestone": "p0_v8_pre_live",
+      "required_stack": "0+0",
+      "status": "not_required",
+      "deterministic_canaries_still_required": true
     },
     "canary_policy": {
       "enabled": true,
@@ -1291,26 +1298,26 @@
     },
     "timing": {
       "acceptance_mode": "bounded_last_command_hold",
-      "source_commit": "working_tree_bridge_97f7cd2",
+      "source_commit": "review_v3_final_frozen_source",
       "cpu_affinity": [11, 13, 14, 15],
-      "raw_artifact": "config/step5d_v30_rnn512_final_97f7cd2_formal_timing_raw.json",
-      "raw_sha256": "53441070112a89b30b00713f5c5edd54acbd07649a266b1ced8997e67283c495",
-      "summary_artifact": "config/step5d_v30_rnn512_final_97f7cd2_formal_timing_summary.json",
-      "summary_sha256": "e0a725f9f623a7b1410ea18556a000d310da5ed96fad7a5ae67cbe6083a87b90",
-      "solver_p99_ms": 0.2650067014110391,
-      "solver_max_ms": 0.5453810008475557,
-      "full_tick_p99_ms": 1.3578648082693685,
-      "full_tick_max_ms": 2.4419610017503146,
-      "safe_hold_p99_ms": 1.05548684026871,
-      "safe_hold_max_ms": 1.9258850006735884,
+      "raw_artifact": "config/step5d_v30_rnn512_review_v3_final_formal_timing_raw.json",
+      "raw_sha256": "5933825c956f79e045f601660cd21a65d44f508496eb32e5121f9877b3ca6e88",
+      "summary_artifact": "config/step5d_v30_rnn512_review_v3_final_formal_timing_summary.json",
+      "summary_sha256": "1c0d8378ccd56f08df9327f5f7fab95d188a7aec122f0f18c71bd03daa6ffd7a",
+      "solver_p99_ms": 0.2989414113835665,
+      "solver_max_ms": 0.5273169990687165,
+      "full_tick_p99_ms": 1.342233810755715,
+      "full_tick_max_ms": 2.5138850032817572,
+      "safe_hold_p99_ms": 1.159570498020912,
+      "safe_hold_max_ms": 1.7382730002282187,
       "compute_deadline_misses": 6,
-      "schedule_deadline_misses": 6,
-      "full_tick_schedule_max_lateness_ms": 0.44440199781092815,
+      "schedule_deadline_misses": 12,
+      "full_tick_schedule_max_lateness_ms": 0.5555060015467461,
       "safe_hold_compute_deadline_misses": 0,
       "safe_hold_schedule_deadline_misses": 0,
       "safe_hold_schedule_max_lateness_ms": 0,
       "deadline_miss_ratio": 0.0002,
-      "max_consecutive_deadline_misses": 1,
+      "max_consecutive_deadline_misses": 2,
       "hard_realtime_pass": false,
       "bounded_last_command_hold_pass": true
     },
@@ -1324,14 +1331,21 @@
     },
     "offline_readiness": {
       "artifact": "config/step5d_v30_offline_readiness.json",
-      "sha256": "0f342ef8023c8e7dddd4fde26f567b8f2b223cdb3d60f4e51deeca732139e186",
+      "sha256": "61e136c417dacdd22a344e788cc6d5b78709bac213fdcbe2e268a6b8c12360ac",
       "status": "v30_offline_blocked"
+    },
+    "review_v3": {
+      "policy_id": "ur10e_review_policy_v3",
+      "milestone": "v30_contact_pre_live",
+      "required_stack": "1+1",
+      "effective_stack_allowed": ["1+1", "1+0"],
+      "status": "not_due"
     },
     "blockers": [
       "live_runtime_prewarm_not_integrated_or_verified",
       "p0_v8_final_60s_not_passed",
       "p0_v8_passed_artifact_missing",
-      "review_v2_not_due_until_evidence_freeze"
+      "review_v3_not_due_until_evidence_freeze"
     ],
     "claim_boundary": {
       "offline_timing_pass": true,

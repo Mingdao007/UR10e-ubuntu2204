@@ -1,0 +1,75 @@
+{
+  "schema_version": "ur10e_review_policy_v3",
+  "policy_id": "ur10e_review_policy_v3",
+  "execution": {
+    "ordinary_work_produces_reviewer_invocation": false,
+    "full_review_limit_per_composite_fingerprint": 1,
+    "targeted_closer_after_finding_fix": true,
+    "lanes_run_in_parallel": true,
+    "fable5_preflight_timeout_seconds": 20,
+    "review_lane_timeout_seconds": 300,
+    "total_gate_timeout_seconds": 330,
+    "fable5_degraded_statuses": [
+      "unavailable",
+      "unavailable_error",
+      "unavailable_not_installed",
+      "unavailable_not_logged_in",
+      "timeout",
+      "model_unverified"
+    ],
+    "degraded_effective_stack": "1+0",
+    "codex_lane_may_degrade": false
+  },
+  "severity": {
+    "P0": {"blocks": true, "closure": "targeted_closer_required"},
+    "P1": {"blocks": true, "closure": "targeted_closer_required"},
+    "P2": {"blocks": false, "closure": "backlog"}
+  },
+  "workflow_milestone_map": {
+    "ordinary": {
+      "development": "ordinary_zero",
+      "handoff": "ordinary_zero",
+      "package": "ordinary_zero",
+      "commit_push": "ordinary_zero"
+    },
+    "direction_change": {"evidence_freeze": "direction_folded_zero"},
+    "p0_v8": {"pre_live": "p0_no_contact_zero", "post_run": "ordinary_zero"},
+    "v29": {"contact_pre_live": "contact_pre_live", "post_run": "ordinary_zero"},
+    "v30": {"contact_pre_live": "contact_pre_live", "post_run": "ordinary_zero"}
+  },
+  "review_classes": {
+    "ordinary_zero": {
+      "stack": "0+0",
+      "full_review_required": false,
+      "lanes": []
+    },
+    "direction_folded_zero": {
+      "stack": "0+0",
+      "full_review_required": false,
+      "merge_into_next_contact_composite_fingerprint": true,
+      "lanes": []
+    },
+    "p0_no_contact_zero": {
+      "stack": "0+0",
+      "full_review_required": false,
+      "deterministic_live_gates_still_required": true,
+      "lanes": []
+    },
+    "contact_pre_live": {
+      "stack": "1+1",
+      "full_review_required": true,
+      "evidence_freeze_required": true,
+      "requires_package_identity": true,
+      "lanes": ["control_timing_claim", "physical_operator_safety"]
+    }
+  },
+  "lanes": {
+    "control_timing_claim": {"provider": "codex", "required": true},
+    "physical_operator_safety": {"provider": "fable5", "required": true}
+  },
+  "authorization_boundary": {
+    "deterministic_live_gates_never_degrade": true,
+    "explicit_user_live_contact_authorization_never_degrades": true,
+    "tailscale_realtime_control_allowed": false
+  }
+}

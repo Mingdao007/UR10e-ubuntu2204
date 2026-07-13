@@ -8237,16 +8237,6 @@ def require_v29_live_bridge_authorization(
         raise SystemExit("v29 raw bridge requires the Dashboard program runtime watchdog")
     if args.step5d_stage25_control_mode != "speedj_rnn_live":
         raise SystemExit("v29 raw bridge requires speedj_rnn_live; DLS is not a runtime fallback")
-    if v29_pending_audit_override_authorized(args):
-        if (
-            args.step5d_rnn_backend != "cupy"
-            or args.step5d_rnn_inner_iterations != 1024
-            or not math.isclose(args.step5d_epsilon, 0.010, abs_tol=1e-12)
-            or not math.isclose(args.step5d_sigr_exponent_r, 0.8, abs_tol=1e-12)
-            or not math.isclose(args.step5d_qdot_limit_rad_s, 0.050, abs_tol=1e-12)
-        ):
-            raise SystemExit("v29 pending-audit override requires exact cupy/1024/epsilon=0.010/r=0.8/qdot=0.050 profile")
-        return verify_step5d_binding(root, STEP5D_ABLATION_V29_STAGE_ID)
     try:
         return verify_step5d_live_bridge_authorization(
             root,
@@ -8260,15 +8250,6 @@ def require_v29_live_bridge_authorization(
         )
     except RuntimeError as exc:
         raise SystemExit(str(exc)) from exc
-
-
-def v29_pending_audit_override_authorized(args: argparse.Namespace) -> bool:
-    """Bind the narrow offline-audit exception to exact v29 live consent."""
-    return (
-        args.bridge_profile == STEP5D_ABLATION_V29_STAGE_ID
-        and os.getenv("STEP5D_ALLOW_PENDING_OFFLINE_AUDIT", "0") == "1"
-        and os.getenv("STEP5D_CONFIRM", "") == STEP5D_V29_LIVE_CONFIRMATION
-    )
 
 
 def requires_step5d_realtime_scheduler(bridge_profile: str) -> bool:
@@ -8418,8 +8399,7 @@ def require_v29_dashboard_program_binding(
     robot_state = dashboard_state_value(dashboard.get("robotmode"))
     if not v29_dashboard_program_identity_matches(dashboard.get("programState")):
         raise SystemExit("v29 Dashboard program identity does not match the current package")
-    allow_tp_local = v29_pending_audit_override_authorized(args)
-    if remote_state != "TRUE" and not (allow_tp_local and remote_state == "FALSE"):
+    if remote_state != "TRUE":
         raise SystemExit("v29 Dashboard remote-control state is not true")
     if safety_state != "NORMAL":
         raise SystemExit("v29 Dashboard safety state is not NORMAL")

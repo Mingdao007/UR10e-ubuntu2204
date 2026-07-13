@@ -7211,7 +7211,7 @@
       "blocked": true,
       "complete": false,
       "completion_target": true,
-      "block_reason": "Current pointer remains on the last read-back-verified v29 package, but v29 is a frozen fallback. Any reactivation requires fresh readback/timing fingerprints, Review v2 2+1, and new live/contact authorization.",
+      "block_reason": "Current pointer remains on the last read-back-verified v29 package, but v29 is a frozen fallback. Any reactivation requires fresh readback/timing fingerprints, Review v3 1+1 (or valid degraded 1+0), and new live/contact authorization.",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": true,
@@ -7452,6 +7452,15 @@
         "manifest_source": "config/step5d_review_index_v2.json",
         "source_review_manifest": "config/reviews/v29_baseline_review_v2_manifest.json",
         "future_reactivation_required_stack": "2+1"
+      },
+      "review_v3": {
+        "policy_id": "ur10e_review_policy_v3",
+        "milestone": "v29_contact_pre_live",
+        "required_stack": "1+1",
+        "evidence_frozen": false,
+        "composite_fingerprint": null,
+        "manifest": null,
+        "status": "not_due_until_future_reactivation"
       },
       "success_condition": "v29 remains frozen fallback evidence. A baseline Review v2 1+0 may re-review portable historical evidence; any future live reactivation instead requires fresh readback/timing fingerprint, Review v2 2+1, and explicit live/contact authorization.",
       "local_analysis_evidence": {
@@ -8606,7 +8615,7 @@
       "complete": false,
       "completion_target": false,
       "gate_for": "step5d_strict_rnn_ablation_v30",
-      "block_reason": "Inactive P0 v8 candidate pending regenerated controller upload/readback and sequential 2/10/60 s no-contact canaries. A completed guard-approved GPU qdot publishes even after the nominal 2 ms release; while no new accepted qdot is available, TP continues the last accepted qdot without a zero-qdot injection for at most 250 ms. Hard guards, solver exceptions, stop requests, and staleness beyond 250 ms remain fail-closed.",
+      "block_reason": "Inactive P0 v8 candidate pending regenerated controller upload/readback and sequential 2/10/60 s no-contact canaries. Review v3 assigns this no-contact pre-live work 0+0, while all deterministic canaries remain mandatory. A completed guard-approved GPU qdot publishes even after the nominal 2 ms release; while no new accepted qdot is available, TP continues the last accepted qdot without a zero-qdot injection for at most 250 ms. Hard guards, solver exceptions, stop requests, and staleness beyond 250 ms remain fail-closed.",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": false,
@@ -8766,6 +8775,16 @@
           "reason": "User explicitly waived another artificial review for the one-batch P0 v8 repair fingerprint."
         }
       },
+      "review_v3": {
+        "policy_id": "ur10e_review_policy_v3",
+        "milestone": "p0_v8_pre_live",
+        "required_stack": "0+0",
+        "evidence_frozen": true,
+        "composite_fingerprint": "61642f4a965a15c786c30d2412a35fcd7d7a6bdb46d1e7c92cad661519af1e5d",
+        "manifest": null,
+        "status": "not_required",
+        "deterministic_gates_still_required": true
+      },
       "offline_simulation_diagnostic": {
         "status": "bound_diagnostic_complete",
         "summary_artifact": "config/step5d_p0_v8_offline_simulation_diagnostic.json",
@@ -8825,7 +8844,7 @@
         "p0_v8_passed": false,
         "not_a_completed_reproduction_claim": true
       },
-      "success_condition": "P0 v8 passes only after one frozen composite fingerprint completes Review v2 1+1 and sequential 2/10/60 second canaries, with the final continuous 60 second artifact passing the v8 deterministic verifier. This is not contact acceptance or reproduction completion."
+      "success_condition": "P0 v8 passes only after one frozen composite fingerprint completes sequential 2/10/60 second canaries, with the final continuous 60 second artifact passing the v8 deterministic verifier. Review v3 is 0+0 here; this is not contact acceptance or reproduction completion."
     },
     {
       "id": "step5d_strict_rnn_ablation_v30",
@@ -8836,7 +8855,7 @@
       "blocked": true,
       "complete": false,
       "completion_target": false,
-      "block_reason": "Inactive v30 candidate with controller upload/readback verified. Source-bound Ubuntu timing passes the bounded last-command-hold route with the canonical RNN512 profile and the 1.5 ms schedule-lateness bound; hard-real-time remains false. Live-runtime prewarm verification, P0 v8 controller canaries, Review v2 2+1, and explicit live/contact authorization still block current promotion and contact run.",
+      "block_reason": "Inactive v30 candidate with controller upload/readback verified. Source-bound Ubuntu timing passes the bounded last-command-hold route with the canonical RNN512 profile and the 1.5 ms schedule-lateness bound; hard-real-time remains false. Live-runtime prewarm verification, P0 v8 controller canaries, Review v3 1+1 (or valid degraded 1+0), and explicit live/contact authorization still block current promotion and contact run.",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": true,
@@ -9030,6 +9049,15 @@
         "legacy_status": "historical_superseded_by_review_policy_v2",
         "status": "not_due"
       },
+      "review_v3": {
+        "policy_id": "ur10e_review_policy_v3",
+        "milestone": "v30_contact_pre_live",
+        "required_stack": "1+1",
+        "evidence_frozen": false,
+        "composite_fingerprint": null,
+        "manifest": null,
+        "status": "not_due"
+      },
       "promotion_gate": {
         "current_promotion_allowed": false,
         "bridge_start_allowed": false,
@@ -9038,7 +9066,7 @@
           "P0 v8 final continuous 60 second verifier pass",
           "60 second 500 Hz timing and safe-hold pass",
           "manifest-bound package/controller readback freeze",
-          "current composite fingerprint Review v2 2+1 pass",
+          "current composite fingerprint Review v3 1+1 pass or valid degraded 1+0",
           "new explicit live/contact authorization"
         ]
       },
@@ -9064,30 +9092,30 @@
         "v29_replay": "config/step5d_v30_replay_summary.json",
         "profile_selection": "config/step5d_v30_profile_selection.json",
         "profile_selection_sha256": "7df2f006edbe6210668eaa39ff2a3d85e03ac2bf9e81cd509aebeab57aa1b906",
-        "profile_selection_status": "canonical_rnn512_selected_formal_timing_rerun_pending_after_prefault",
-        "timing_raw": "config/step5d_v30_rnn512_final_97f7cd2_formal_timing_raw.json",
-        "timing_raw_sha256": "53441070112a89b30b00713f5c5edd54acbd07649a266b1ced8997e67283c495",
-        "timing_raw_status": "historical_superseded_by_p0_v8_event_pacing_fix",
+        "profile_selection_status": "canonical_rnn512_selected_formal_timing_passed_bounded_last_command_hold",
+        "timing_raw": "config/step5d_v30_rnn512_review_v3_final_formal_timing_raw.json",
+        "timing_raw_sha256": "5933825c956f79e045f601660cd21a65d44f508496eb32e5121f9877b3ca6e88",
+        "timing_raw_status": "current_canonical_rnn512_bounded_last_command_hold_pass",
         "current_source_solver_10k_raw": "config/step5d_v30_current_source_solver_10k_raw.json",
         "current_source_solver_10k_raw_sha256": "81f94d23ffc985febb2402c2963547cb0110ddf7905d7781d6b52ed1937e49c2",
-        "timing": "config/step5d_v30_rnn512_final_97f7cd2_formal_timing_summary.json",
-        "timing_sha256": "e0a725f9f623a7b1410ea18556a000d310da5ed96fad7a5ae67cbe6083a87b90",
+        "timing": "config/step5d_v30_rnn512_review_v3_final_formal_timing_summary.json",
+        "timing_sha256": "1c0d8378ccd56f08df9327f5f7fab95d188a7aec122f0f18c71bd03daa6ffd7a",
         "timing_acceptance_mode": "bounded_last_command_hold",
         "timing_metrics": {
           "solver_samples": 10000,
-          "solver_p99_ms": 0.2650067014110391,
-          "solver_max_ms": 0.5453810008475557,
+          "solver_p99_ms": 0.2989414113835665,
+          "solver_max_ms": 0.5273169990687165,
           "full_tick_samples": 30000,
-          "full_tick_p99_ms": 1.3578648082693685,
-          "full_tick_max_ms": 2.4419610017503146,
+          "full_tick_p99_ms": 1.342233810755715,
+          "full_tick_max_ms": 2.5138850032817572,
           "full_tick_compute_deadline_misses": 6,
-          "full_tick_schedule_deadline_misses": 6,
-          "full_tick_schedule_max_lateness_ms": 0.44440199781092815,
+          "full_tick_schedule_deadline_misses": 12,
+          "full_tick_schedule_max_lateness_ms": 0.5555060015467461,
           "full_tick_deadline_miss_ratio": 0.0002,
-          "full_tick_max_consecutive_deadline_misses": 1,
+          "full_tick_max_consecutive_deadline_misses": 2,
           "safe_hold_samples": 30000,
-          "safe_hold_p99_ms": 1.05548684026871,
-          "safe_hold_max_ms": 1.9258850006735884,
+          "safe_hold_p99_ms": 1.159570498020912,
+          "safe_hold_max_ms": 1.7382730002282187,
           "safe_hold_compute_deadline_misses": 0,
           "safe_hold_schedule_deadline_misses": 0,
           "safe_hold_schedule_max_lateness_ms": 0,
@@ -9099,7 +9127,7 @@
         "component_diagnostic": "config/step5d_v30_component_diagnostic_summary.json",
         "component_diagnostic_sha256": "a06ea0c56440f5dcfe2a9939a74cc3574a56cd2ab109983f599923a03e55d2bf",
         "offline_readiness": "config/step5d_v30_offline_readiness.json",
-        "offline_readiness_sha256": "8df8b14a4bfb17a7390bea9b12accee1ed493b645b6a6dc916b33cb3c171db59",
+        "offline_readiness_sha256": "61e136c417dacdd22a344e788cc6d5b78709bac213fdcbe2e268a6b8c12360ac",
         "milestone_reviews": "config/step5d_v30_milestone_reviews.json",
         "milestone_reviews_sha256": "df28791a0999a8809ae6adb97ae8737f7bee74cbb509ed41f9c740fd88c12bcb",
         "timing_source_contract": {
@@ -9116,7 +9144,7 @@
           "kinematics": "tools/step5c_calibrated_kinematics_audit.py",
           "kinematics_sha256": "5454af16db870350759372ab42583a4f339c71e32f9190679987b3addf6e14fa",
           "bridge": "tools/kunwei_rtde_bridge.py",
-          "bridge_sha256": "ced84ccc35ad6bff0c7cb782784e1511a9a08b1488c82f1f8dfc9a723737ea38",
+          "bridge_sha256": "ca5b5da9624716900dbebf22ad46dee438e85e5d4e8acca17fbf844a185fe2db",
           "harness": "tools/run_step5d_v30_remote_timing.py",
           "harness_sha256": "c83e7cafa7d8a9be6b687e21996d4f650e9bef63209b2f935bffec875ae72333",
           "bundler": "tools/build_step5d_v30_remote_timing_bundle.py",
@@ -9124,7 +9152,7 @@
           "aggregator": "tools/step5d_v30_timing.py",
           "aggregator_sha256": "da56886cc53f1ebb05438fecaaf1b98980f8e89bbbd5de43fe0dd0b1571b8d97",
           "readiness_builder": "tools/build_step5d_v30_offline_readiness.py",
-          "readiness_builder_sha256": "f97b78d6b528275a40b87f0b59ca04c916ff0ca523cc77c97aa89ebc8c666661"
+          "readiness_builder_sha256": "7a800c94d490bdc6d3ec0728a64487f97b0f25c90081d6da06c8be82c26c1cee"
         }
       },
       "success_condition": "v30_offline_ready only after the complete v29 replay accepts at least 99% with zero normal mismatch/nonfinite/qdot-bound rows; 10,000-solve and 60 s 500 Hz timing pass either the zero-miss hard-real-time route or the bounded last-command-hold route (late candidate discarded, <=1% held ticks, <=10 consecutive held ticks, stop dominance proven); inactive package hashes validate; and review blockers are zero. This does not promote current_stage or authorize live motion."

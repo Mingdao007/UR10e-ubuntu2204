@@ -676,12 +676,6 @@ step5d_no_contact_p0_capture_authorized() {
   fi
 }
 
-v29_pending_audit_override_authorized() {
-  [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" ]] \
-    && [[ "${STEP5D_ALLOW_PENDING_OFFLINE_AUDIT:-0}" == "1" ]] \
-    && [[ "${STEP5D_CONFIRM:-}" == "LIVE STEP5D STRICT RNN LIVEPREP" ]]
-}
-
 step5d_live_bridge_authorized() {
   if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
     step5d_no_contact_p0_capture_authorized
@@ -698,9 +692,7 @@ step5d_live_bridge_authorized() {
       --sigr-exponent-r "${STEP5D_SIGR_EXPONENT_R:-1.0}"
       --qdot-cap-rad-s "${STEP5D_QDOT_LIMIT_RAD_S:-0.050}"
     )
-    if ! v29_pending_audit_override_authorized; then
-      gate_args+=(--require-live-bridge-authorization)
-    fi
+    gate_args+=(--require-live-bridge-authorization)
     python3 "${STEP5D_CURRENT_BINDING_GATE}" "${gate_args[@]}"
   fi
 }
@@ -1619,11 +1611,7 @@ WARNING
     if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
       step5d_live_bridge_authorized
     fi
-    if v29_pending_audit_override_authorized; then
-      echo "[operator] explicit user override: skipping offline readiness publication gate"
-    else
-      step5d_live_ready
-    fi
+    step5d_live_ready
     require_bench_gate_cache
     if [[ "${BRIDGE_PROFILE}" != "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
       step5d_live_bridge_authorized

@@ -11,8 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from step5d_v30_timing import SOURCE_BINDING_FILES, summarize_preaggregated
-from step5d_review_v2 import full_review_index_projection_sha256
-from validate_step5d_review_v2 import validate_manifest, validate_packet
+from step5d_review_v3 import resolve as resolve_review_v3
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -145,59 +144,29 @@ def validate_p0_v8_gate(current: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def review_v2_gate(row: dict[str, Any]) -> dict[str, Any]:
-    gate = row.get("review_v2") or {}
-    packet_rel = gate.get("packet")
+def review_v3_gate(
+    row: dict[str, Any], *, evidence_frozen: bool | None = None
+) -> dict[str, Any]:
+    gate = dict(row.get("review_v3") or {})
+    if evidence_frozen is not None:
+        gate["evidence_frozen"] = evidence_frozen
     manifest_rel = gate.get("manifest")
-    result = {
-        "policy_id": "ur10e_review_policy_v2",
-        "required_stack": "2+1",
-        "status": str(gate.get("status") or "not_due"),
-        "evidence_frozen": gate.get("evidence_frozen") is True,
-        "composite_fingerprint": gate.get("composite_fingerprint"),
-        "packet": packet_rel,
-        "manifest": manifest_rel,
-        "accepted": False,
-        "blockers": [],
-    }
-    if not packet_rel or not manifest_rel:
-        result["blockers"].append("review_v2_packet_or_manifest_missing")
-        return result
-    packet_path = ROOT / str(packet_rel)
-    manifest_path = ROOT / str(manifest_rel)
-    if not packet_path.is_file() or not manifest_path.is_file():
-        result["blockers"].append("review_v2_packet_or_manifest_unavailable")
-        return result
-    packet = load(packet_path)
-    manifest = load(manifest_path)
-    packet_result = validate_packet(packet, root=ROOT)
-    manifest_result = validate_manifest(
-        manifest,
-        packet,
-        root=ROOT,
-        manifest_sha256=sha256(manifest_path),
+    manifest_path = ROOT / str(manifest_rel) if manifest_rel else None
+    manifest = (
+        load(manifest_path)
+        if manifest_path is not None and manifest_path.is_file()
+        else None
     )
-    result.update(
-        {
-            "packet_sha256": sha256(packet_path),
-            "manifest_sha256": sha256(manifest_path),
-            "packet_validation": packet_result,
-            "manifest_validation": manifest_result,
-        }
+    result = resolve_review_v3(
+        workflow="v30",
+        milestone="contact_pre_live",
+        gate=gate,
+        manifest=manifest,
     )
-    fingerprint = (packet.get("fingerprints") or {}).get("composite")
-    if fingerprint != gate.get("composite_fingerprint"):
-        result["blockers"].append("review_v2_composite_fingerprint_stale")
-    result["blockers"].extend(packet_result.get("issues", []))
-    result["blockers"].extend(manifest_result.get("blockers", []))
-    result["blockers"] = sorted(set(result["blockers"]))
-    if result["evidence_frozen"] is not True:
-        result["blockers"].append("review_v2_manifest_without_evidence_freeze")
-    if gate.get("status") != "accepted":
-        result["blockers"].append("review_v2_stage_status_not_accepted")
-    result["blockers"] = sorted(set(result["blockers"]))
-    result["accepted"] = not result["blockers"] and manifest_result.get("accepted") is True
-    result["status"] = "accepted" if result["accepted"] else "blocked"
+    result["evidence_frozen"] = gate.get("evidence_frozen") is True
+    result["manifest"] = manifest_rel
+    if manifest_path is not None and manifest_path.is_file():
+        result["manifest_sha256"] = sha256(manifest_path)
     return result
 
 
@@ -404,10 +373,8 @@ def build(*, generated_at: str) -> dict[str, Any]:
     ]
 
     legacy_review_path = ROOT / "config" / "step5d_v30_milestone_reviews.json"
-    review_policy_path = ROOT / "config" / "step5d_review_policy_v2.json"
-    review_index_path = ROOT / "config" / "step5d_review_index_v2.json"
-    review_index = load(review_index_path)
-    current_review = review_v2_gate(v30_row)
+    review_policy_path = ROOT / "config" / "step5d_review_policy_v3.json"
+    review_index_path = ROOT / "config" / "step5d_review_index_v3.json"
     v30_script_path = (
         ROOT / "programs" / "step5" / "step5d" / f"{V30_PROFILE}.script"
     )
@@ -570,15 +537,16 @@ def build(*, generated_at: str) -> dict[str, Any]:
     blockers.extend(p0_v8["blockers"])
     deterministic_blockers = sorted(set(blockers))
     evidence_frozen = not deterministic_blockers
+    current_review = review_v3_gate(v30_row, evidence_frozen=evidence_frozen)
     if not evidence_frozen:
-        blockers.append("review_v2_not_due_until_evidence_freeze")
+        blockers.append("review_v3_not_due_until_evidence_freeze")
     elif not current_review["accepted"]:
-        blockers.append("review_v2_2_plus_1_not_accepted_for_current_fingerprint")
+        blockers.append("review_v3_1_plus_1_not_accepted_for_current_fingerprint")
     blockers = sorted(set(blockers))
     status = STATUS_READY if not blockers else STATUS_BLOCKED
 
     return {
-        "schema_version": "step5d_v30_offline_readiness_v2",
+        "schema_version": "step5d_v30_offline_readiness_v3",
         "generated_at": generated_at,
         "status": status,
         "profile": {
@@ -752,20 +720,22 @@ def build(*, generated_at: str) -> dict[str, Any]:
         "numeric_sanity": numeric_sanity,
         "source_contract": source_hashes,
         "p0_v8_gate": p0_v8,
-        "review_v2": {
+        "review_v3": {
             **current_review,
             "evidence_freeze_ready": evidence_frozen,
             "deterministic_freeze_blockers": deterministic_blockers,
             "policy_path": str(review_policy_path.relative_to(ROOT)),
             "policy_sha256": sha256(review_policy_path),
             "index_path": str(review_index_path.relative_to(ROOT)),
-            "index_sha256": full_review_index_projection_sha256(review_index),
+            "index_sha256": sha256(review_index_path),
         },
         "historical_review": {
             "path": str(legacy_review_path.relative_to(ROOT)),
             "sha256": sha256(legacy_review_path),
-            "status": "historical_superseded_by_review_policy_v2",
-            "counts_as_review_v2": False,
+            "status": "historical_preserved_with_review_v2_after_review_v3_migration",
+            "review_v2_policy_path": "config/step5d_review_policy_v2.json",
+            "review_v2_index_path": "config/step5d_review_index_v2.json",
+            "counts_as_review_v3": False,
         },
         "blockers": blockers,
         "claim_boundary": {

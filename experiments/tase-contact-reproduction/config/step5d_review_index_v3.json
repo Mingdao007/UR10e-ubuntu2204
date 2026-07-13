@@ -1,0 +1,14 @@
+{
+  "schema_version": "ur10e_review_index_v3",
+  "policy_id": "ur10e_review_policy_v3",
+  "full_review_count_by_composite_fingerprint": {},
+  "review_records": [],
+  "historical_review_v2": {
+    "immutable": true,
+    "policy_path": "config/step5d_review_policy_v2.json",
+    "policy_sha256": "c0c59063c79e70c24d76358ffbca581858ee91a0e8a65622946ca5632892ea2c",
+    "index_path": "config/step5d_review_index_v2.json",
+    "index_sha256": "aaee9a5be0e04d029e191bf59979080cbacf97b4a5e622bbac53d6def4f30b1a",
+    "status": "historical_preserved_not_rewritten"
+  }
+}

@@ -1027,7 +1027,7 @@ def freeze_v29_fallback_for_v30(table: dict[str, Any]) -> None:
     row["completion_target"] = False
     row["block_reason"] = (
         "Frozen v29 fallback retained byte-for-byte as historical package/readback evidence; "
-        "v30 is current only after its independent P0 v8, timing, readback, and Review v2 gates."
+        "v30 is current only after its independent P0 v8, timing, readback, and Review v3 gate."
     )
     binding = row.setdefault("current_binding", {})
     binding["is_current"] = False
@@ -1063,7 +1063,7 @@ def build_v30_current_stage_row(
             "bridge": False,
             "block_reason": (
                 "v30 is the current controller-readback-verified package after frozen P0 v8, "
-                "60-second timing/safe-hold, and Review v2 2+1 acceptance; bridge/contact still "
+                "60-second timing/safe-hold, and Review v3 1+1 or valid degraded 1+0 acceptance; bridge/contact still "
                 "require explicit live authorization."
             ),
             "success_condition": (
@@ -1132,7 +1132,7 @@ def build_v30_current_stage_row(
     acceptance = row.setdefault("acceptance", {})
     acceptance["strict_rnn_no_contact_p0_passed"] = True
     acceptance["p0_v8_passed"] = True
-    review = row.setdefault("review_v2", {})
+    review = row.setdefault("review_v3", {})
     review["status"] = "accepted"
     review["evidence_frozen"] = True
     promotion_gate = row.setdefault("promotion_gate", {})
@@ -1232,7 +1232,7 @@ def update_v30_current_stage(
                 "TP program opened on controller-readback-verified v30 package",
                 "v30 package/readback and frozen evidence fingerprint remain current",
                 "P0 v8 final continuous 60 second artifact remains accepted",
-                "Review v2 current composite 2+1 remains accepted",
+                "Review v3 current composite 1+1 or valid degraded 1+0 remains accepted",
                 "explicit live/contact authorization for v30 speedj_rnn_live",
             ],
         }
@@ -1246,7 +1246,7 @@ def update_v30_current_stage(
             "v30_controller_target": f"{target_dir}/{program}.urp",
             "v30_local_triplet": f"{STEP5D_CURRENT_DIR}/{program}",
             "v30_sha256": sha,
-            "v30_review_v2_composite_fingerprint": promotion_evidence["review_v2"][
+            "v30_review_v3_composite_fingerprint": promotion_evidence["review_v3"][
                 "composite_fingerprint"
             ],
             "sha256": sha,
@@ -1254,7 +1254,7 @@ def update_v30_current_stage(
     )
     payload["strict_rnn_status"] = {
         "reason": (
-            "v30 package/readback, P0 v8, timing/safe-hold, and Review v2 are accepted; "
+            "v30 package/readback, P0 v8, timing/safe-hold, and Review v3 are accepted; "
             "live/contact run and reproduction remain incomplete."
         )
     }

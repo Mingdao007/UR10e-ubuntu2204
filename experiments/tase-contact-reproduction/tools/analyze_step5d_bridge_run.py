@@ -1140,7 +1140,7 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
             result["acceptance_status"] = "p0_v8_60s_p0_passed"
             result["next_action"] = (
                 "bind this 60 s P0 v8 artifact to the frozen fingerprint; v30 contact remains gated by "
-                "timing/readback, Review v2 2+1, and explicit live/contact authorization"
+                "timing/readback, Review v3 1+1 or valid degraded 1+0, and explicit live/contact authorization"
             )
         elif canary_passed and any(
             math.isclose(phase_s, allowed, abs_tol=1e-9) for allowed in (2.0, 10.0)

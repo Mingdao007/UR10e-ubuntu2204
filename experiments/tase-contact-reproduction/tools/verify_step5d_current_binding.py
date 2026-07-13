@@ -23,12 +23,7 @@ from step5d_liveprep_readiness import (
     workflow_binding_sha256,
 )
 from step5d_runtime_interface import resolve_runtime_interface
-from step5d_review_v2 import (
-    file_sha256 as review_file_sha256,
-    full_review_index_projection_sha256,
-)
-from validate_step5d_review_v2 import validate_manifest as validate_review_v2_manifest
-from validate_step5d_review_v2 import validate_packet as validate_review_v2_packet
+from step5d_review_v3 import resolve as resolve_review_v3
 from verify_current_stage_readback import EXPERIMENT_ROOT, fail, load_json, verify
 
 
@@ -49,8 +44,8 @@ V30_EXACT_RUNTIME_PROFILE: dict[str, Any] = {
     "inner_iterations": 512,
 }
 V30_READINESS = "config/step5d_v30_offline_readiness.json"
-V30_REVIEW_POLICY = "config/step5d_review_policy_v2.json"
-V30_REVIEW_INDEX = "config/step5d_review_index_v2.json"
+V30_REVIEW_POLICY = "config/step5d_review_policy_v3.json"
+V30_REVIEW_INDEX = "config/step5d_review_index_v3.json"
 P0_V8_PROFILE = "step5d_strict_rnn_no_contact_p0_v8"
 
 
@@ -265,97 +260,62 @@ def _verify_v30_timing_raw(root: Path, timing: dict[str, Any]) -> dict[str, Any]
     }
 
 
-def _verify_v30_review_v2(
+def _verify_v30_review_v3(
     root: Path,
     stage_entry: dict[str, Any],
     readiness_review: dict[str, Any],
 ) -> dict[str, Any]:
-    stage_review = stage_entry.get("review_v2")
+    stage_review = stage_entry.get("review_v3")
     if not isinstance(stage_review, dict):
-        fail("v30 Review v2 stage gate is missing")
-    if stage_review.get("required_stack") != "2+1":
-        fail("v30 Review v2 gate must require stack 2+1")
+        fail("v30 Review v3 stage gate is missing")
+    if stage_review.get("required_stack") != "1+1":
+        fail("v30 Review v3 gate must require stack 1+1")
     if stage_review.get("evidence_frozen") is not True:
-        fail("v30 Review v2 evidence is not frozen")
+        fail("v30 Review v3 evidence is not frozen")
     if readiness_review.get("accepted") is not True:
-        fail("v30 Review v2 current composite is not accepted")
-    if readiness_review.get("required_stack") not in (None, "2+1"):
-        fail("v30 readiness Review v2 stack is not 2+1")
+        fail("v30 Review v3 current composite is not accepted")
+    if readiness_review.get("required_stack") not in (None, "1+1"):
+        fail("v30 readiness Review v3 stack is not 1+1")
     if readiness_review.get("evidence_freeze_ready") is not True:
         fail("v30 readiness deterministic evidence freeze is incomplete")
     if readiness_review.get("deterministic_freeze_blockers") not in (None, []):
         fail("v30 readiness deterministic evidence freeze has blockers")
 
-    packet_rel = stage_review.get("packet") or readiness_review.get("packet")
     manifest_rel = stage_review.get("manifest") or readiness_review.get("manifest")
-    packet_path, packet, packet_sha256 = _hash_bound_json(
-        root,
-        packet_rel,
-        "v30 Review v2 packet",
-        expected_sha256=readiness_review.get("packet_sha256"),
-    )
     manifest_path, manifest, manifest_sha256 = _hash_bound_json(
         root,
         manifest_rel,
-        "v30 Review v2 manifest",
+        "v30 Review v3 manifest",
         expected_sha256=readiness_review.get("manifest_sha256"),
     )
     policy_path, policy, policy_sha256 = _hash_bound_json(
         root,
         readiness_review.get("policy_path") or V30_REVIEW_POLICY,
-        "v30 Review v2 policy",
+        "v30 Review v3 policy",
         expected_sha256=readiness_review.get("policy_sha256"),
     )
-    index_path, review_index, _index_file_sha256 = _hash_bound_json(
+    index_path, review_index, index_sha256 = _hash_bound_json(
         root,
         readiness_review.get("index_path") or V30_REVIEW_INDEX,
-        "v30 Review v2 index",
-        expected_sha256=None,
+        "v30 Review v3 index",
+        expected_sha256=readiness_review.get("index_sha256"),
     )
-    index_sha256 = full_review_index_projection_sha256(review_index)
-    if index_sha256 != readiness_review.get("index_sha256"):
-        fail("v30 Review v2 full-review index projection hash mismatch")
-    composite = (packet.get("fingerprints") or {}).get("composite")
-    if (
-        packet.get("workflow") != "v30"
-        or packet.get("milestone") != "contact_pre_live"
-        or packet.get("required_stack") != "2+1"
-        or packet.get("evidence_frozen") is not True
-    ):
-        fail("v30 Review v2 packet is not the frozen contact pre-live 2+1 packet")
+    composite = stage_review.get("composite_fingerprint")
     if not isinstance(composite, str) or len(composite) != 64:
-        fail("v30 Review v2 composite fingerprint is invalid")
-    if stage_review.get("composite_fingerprint") != composite:
-        fail("v30 Review v2 stage composite fingerprint is stale")
+        fail("v30 Review v3 composite fingerprint is invalid")
     if readiness_review.get("composite_fingerprint") != composite:
-        fail("v30 readiness Review v2 composite fingerprint is stale")
-
-    packet_result = validate_review_v2_packet(packet, root=root, policy=policy)
-    source_manifest = None
-    if manifest.get("review_mode") == "targeted_closer":
-        source_rel = stage_review.get("source_manifest") or readiness_review.get("source_manifest")
-        _, source_manifest, _ = _hash_bound_json(
-            root,
-            source_rel,
-            "v30 Review v2 targeted closer source manifest",
-            expected_sha256=readiness_review.get("source_manifest_sha256"),
-        )
-    manifest_result = validate_review_v2_manifest(
-        manifest,
-        packet,
-        root=root,
+        fail("v30 readiness Review v3 composite fingerprint is stale")
+    resolved = resolve_review_v3(
+        workflow="v30",
+        milestone="contact_pre_live",
+        gate={"evidence_frozen": True, "composite_fingerprint": composite},
+        manifest=manifest,
         policy=policy,
-        review_index=review_index,
-        source_manifest=source_manifest,
-        manifest_sha256=review_file_sha256(manifest_path),
+        index=review_index,
     )
-    if packet_result.get("ok") is not True:
-        fail("v30 Review v2 packet validation failed")
-    if manifest_result.get("accepted") is not True:
-        fail("v30 Review v2 manifest validation failed")
+    if resolved.get("accepted") is not True:
+        fail("v30 Review v3 manifest validation failed")
     return {
-        "packet": _relative(root, packet_path),
-        "packet_sha256": packet_sha256,
         "manifest": _relative(root, manifest_path),
         "manifest_sha256": manifest_sha256,
         "policy": _relative(root, policy_path),
@@ -364,6 +324,8 @@ def _verify_v30_review_v2(
         "index_sha256": index_sha256,
         "composite_fingerprint": composite,
         "review_mode": manifest.get("review_mode"),
+        "effective_stack": resolved.get("effective_stack"),
+        "degraded_review": resolved.get("degraded_review"),
     }
 
 
@@ -484,7 +446,7 @@ def verify_v30_evidence_freeze(
     if not isinstance(timing, dict) or timing.get("overall_pass") is not True:
         fail("v30 60 second timing/safe-hold acceptance is not complete")
     timing_result = _verify_v30_timing_raw(root, timing)
-    review = _verify_v30_review_v2(root, stage_entry, readiness.get("review_v2") or {})
+    review = _verify_v30_review_v3(root, stage_entry, readiness.get("review_v3") or {})
     return {
         "ok": True,
         "program": STEP5D_ABLATION_V30,
@@ -499,7 +461,7 @@ def verify_v30_evidence_freeze(
         "package_sha256": package_sha256,
         "controller_readback_manifest": _relative(root, readback_path),
         "controller_readback_manifest_sha256": readback_sha256,
-        "review_v2": review,
+        "review_v3": review,
         "derived_current_promotion_allowed": True,
         "live_motion_authorized": False,
     }

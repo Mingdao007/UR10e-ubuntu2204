@@ -203,7 +203,7 @@ class CrossStepParameterTableTest(unittest.TestCase):
 
         self.assertIn(
             "v30 current promotion requires P0 v8, manifest-bound readback, ready "
-            "timing/safe-hold, and accepted Review v2 2+1",
+            "timing/safe-hold, and accepted Review v3 1+1 or valid degraded 1+0",
             failures,
         )
 

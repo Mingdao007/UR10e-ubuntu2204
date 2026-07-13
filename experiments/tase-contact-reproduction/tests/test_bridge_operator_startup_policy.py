@@ -147,7 +147,7 @@ postprocess_run "{run_dir}"
         self.assertIn('STEP5D_SIGR_EXPONENT_R="${STEP5D_SIGR_EXPONENT_R:-0.800}"', script)
         self.assertIn('STEP5D_RNN_INNER_ITERATIONS="${STEP5D_RNN_INNER_ITERATIONS:-1024}"', script)
         self.assertIn('STEP5D_RNN_BACKEND="${STEP5D_RNN_BACKEND:-cupy}"', script)
-        self.assertIn('STEP5D_ALLOW_PENDING_OFFLINE_AUDIT="${STEP5D_ALLOW_PENDING_OFFLINE_AUDIT:-1}"', script)
+        self.assertNotIn("STEP5D_ALLOW_PENDING_OFFLINE_AUDIT", script)
         self.assertIn(
             '[[ "${STEP5D_VERSION}" == "step5d_strict_rnn_ablation_v29"',
             script,

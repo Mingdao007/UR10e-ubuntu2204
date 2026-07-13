@@ -502,7 +502,7 @@ class Step5dCurrentPromotionTest(unittest.TestCase):
                     },
                     "guard": {"dls_runtime_fallback_allowed": False},
                     "p0_v8_gate": {"passed": True},
-                    "review_v2": {"required_stack": "2+1", "evidence_frozen": True},
+                    "review_v3": {"required_stack": "1+1", "evidence_frozen": True},
                     "promotion_gate": {"current_promotion_allowed": True},
                 }
             )
@@ -515,7 +515,7 @@ class Step5dCurrentPromotionTest(unittest.TestCase):
             frozen = {
                 "ok": True,
                 "program": V30,
-                "review_v2": {"composite_fingerprint": "2" * 64},
+                "review_v3": {"composite_fingerprint": "2" * 64},
                 "live_motion_authorized": False,
             }
 

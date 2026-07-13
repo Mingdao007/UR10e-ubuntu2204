@@ -16,7 +16,6 @@ from build_step5d_p0_v8_offline_diagnostic import (
     validate_diagnostic as validate_p0_offline_diagnostic,
     validate_state_binding as validate_p0_offline_state_binding,
 )
-from step5d_review_v2 import full_review_index_projection_sha256
 from tase_protocol_table import resolve_experiment_profile
 
 
@@ -26,6 +25,7 @@ P0_V8_PROGRAM = "step5d_strict_rnn_no_contact_p0_v8"
 V29_PROGRAM = "step5d_strict_rnn_ablation_v29"
 V30_PROGRAM = "step5d_strict_rnn_ablation_v30"
 REVIEW_POLICY_ID = "ur10e_review_policy_v2"
+REVIEW_V3_POLICY_ID = "ur10e_review_policy_v3"
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -329,6 +329,24 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
     step6_rows = stage_by_id(step6)
     _review_policy, review_index, review_source_failures = _validate_review_v2_sources(root)
     failures.extend(review_source_failures)
+    review_v3_policy_path = root / "config/step5d_review_policy_v3.json"
+    review_v3_index_path = root / "config/step5d_review_index_v3.json"
+    review_v3_policy = load_json(review_v3_policy_path) if review_v3_policy_path.is_file() else {}
+    review_v3_index = load_json(review_v3_index_path) if review_v3_index_path.is_file() else {}
+    if (
+        review_v3_policy.get("schema_version") != REVIEW_V3_POLICY_ID
+        or review_v3_policy.get("policy_id") != REVIEW_V3_POLICY_ID
+        or review_v3_index.get("schema_version") != "ur10e_review_index_v3"
+        or review_v3_index.get("policy_id") != REVIEW_V3_POLICY_ID
+    ):
+        failures.append("Review v3 policy/index binding is invalid")
+    execution_v3 = review_v3_policy.get("execution") or {}
+    if (
+        execution_v3.get("fable5_preflight_timeout_seconds") != 20
+        or execution_v3.get("review_lane_timeout_seconds") != 300
+        or execution_v3.get("total_gate_timeout_seconds") != 330
+    ):
+        failures.append("Review v3 timeout contract must be 20/300/330 seconds")
     current_stage_id = current.get("current_stage_id")
     current_program = current.get("program")
     current_target = current.get("controller_target")
@@ -697,63 +715,21 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             ):
                 failures.append("P0 v8 marker/package hash/fingerprint binding mismatch")
 
-        stage_review = p0_v8_row.get("review_v2") or {}
-        candidate_review = p0_v8_candidate.get("review_v2") or {}
+        stage_review = p0_v8_row.get("review_v3") or {}
+        candidate_review = p0_v8_candidate.get("review_v3") or {}
         expected_review_fields = {
-            "policy_id": REVIEW_POLICY_ID,
+            "policy_id": REVIEW_V3_POLICY_ID,
             "milestone": "p0_v8_pre_live",
-            "required_stack": "1+1",
+            "required_stack": "0+0",
+            "status": "not_required",
         }
         for field, expected in expected_review_fields.items():
             if stage_review.get(field) != expected or candidate_review.get(field) != expected:
-                failures.append(f"P0 v8 Review v2 binding mismatch: {field}")
-        if stage_review.get("status") != candidate_review.get("status"):
-            failures.append("P0 v8 Review v2 status mismatch between stage and current candidate")
-        if stage_review.get("composite_fingerprint") != candidate_review.get(
-            "composite_fingerprint"
-        ):
-            failures.append("P0 v8 Review v2 composite fingerprint mismatch")
+                failures.append(f"P0 v8 Review v3 binding mismatch: {field}")
         if stage_review.get("evidence_frozen") is not (
             p0_v8_candidate.get("evidence_frozen") is True
         ):
             failures.append("P0 v8 evidence-freeze state mismatch")
-        if stage_review.get("status") == "accepted":
-            indexed = next(
-                (
-                    item
-                    for item in (review_index.get("v2_reviews") or [])
-                    if isinstance(item, dict) and item.get("path") == stage_review.get("manifest")
-                ),
-                None,
-            )
-            if (
-                not indexed
-                or indexed.get("required_stack") != "1+1"
-                or indexed.get("composite_fingerprint")
-                != stage_review.get("composite_fingerprint")
-            ):
-                failures.append("accepted P0 v8 Review v2 manifest is not current-fingerprint indexed")
-        elif stage_review.get("status") == "waived_by_user":
-            waiver = stage_review.get("waiver") or {}
-            fingerprint = stage_review.get("composite_fingerprint")
-            if (
-                candidate_review.get("waiver") != waiver
-                or not is_sha256(fingerprint)
-                or waiver.get("authorized_by") != "user"
-                or waiver.get("explicit") is not True
-                or waiver.get("scope") != "p0_v8_pre_live_review"
-                or waiver.get("composite_fingerprint") != fingerprint
-                or not all(
-                    waiver.get(field)
-                    for field in (
-                        "waiver_id",
-                        "issued_at",
-                        "authorization_evidence",
-                        "reason",
-                    )
-                )
-            ):
-                failures.append("P0 v8 explicit user review waiver is invalid")
 
         offline_pointer = p0_v8_candidate.get("offline_simulation_diagnostic") or {}
         stage_offline_pointer = p0_v8_row.get("offline_simulation_diagnostic") or {}
@@ -983,10 +959,8 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             )
             if not p0_v8_candidate.get("passed_artifact") or not final_canary:
                 failures.append("P0 v8 passed requires a final continuous 60 second artifact")
-            if stage_review.get("status") != "accepted" or not is_sha256(
-                stage_review.get("composite_fingerprint")
-            ):
-                failures.append("P0 v8 passed requires accepted fingerprint-bound Review v2 1+1")
+            if stage_review.get("status") != "not_required":
+                failures.append("P0 v8 Review v3 must remain 0+0/not_required")
 
     for table_name, rows in (("step5", step5_rows), ("step6", step6_rows)):
         for row_id, row in rows.items():
@@ -1103,20 +1077,20 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         ):
             failures.append("v30 promotion/bridge/contact cannot open before P0 v8 passes")
 
-        review = v30.get("review_v2") or {}
+        review = v30.get("review_v3") or {}
         if (
-            review.get("policy_id") != REVIEW_POLICY_ID
+            review.get("policy_id") != REVIEW_V3_POLICY_ID
             or review.get("milestone") != "v30_contact_pre_live"
-            or review.get("required_stack") != "2+1"
-            or review.get("legacy_status") != "historical_superseded_by_review_policy_v2"
+            or review.get("required_stack") != "1+1"
         ):
-            failures.append("v30 Review v2 policy/milestone/stack binding is invalid")
+            failures.append("v30 Review v3 policy/milestone/stack binding is invalid")
+        legacy_review = v30.get("review_v2") or {}
         historical_by_path = {
             str(item.get("path")): item
             for item in (review_index.get("historical_artifacts") or [])
             if isinstance(item, dict)
         }
-        legacy_path = review.get("legacy_manifest")
+        legacy_path = legacy_review.get("legacy_manifest")
         legacy = historical_by_path.get(str(legacy_path))
         legacy_file = root / str(legacy_path or "")
         if not legacy or legacy.get("sha256") != (
@@ -1399,34 +1373,30 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
                 or readiness_numeric.get("overall_pass") is not True
             ):
                 failures.append("v30 numeric sanity hash binding mismatch")
-            readiness_review = readiness.get("review_v2") or {}
+            readiness_review = readiness.get("review_v3") or {}
             expected_review_sources = (
                 (
                     "policy",
-                    "config/step5d_review_policy_v2.json",
+                    "config/step5d_review_policy_v3.json",
                     "policy_path",
                     "policy_sha256",
                 ),
                 (
                     "index",
-                    "config/step5d_review_index_v2.json",
+                    "config/step5d_review_index_v3.json",
                     "index_path",
                     "index_sha256",
                 ),
             )
             for label, relative, path_field, sha_field in expected_review_sources:
                 source_path = root / relative
-                expected_sha = (
-                    full_review_index_projection_sha256(load_json(source_path))
-                    if label == "index" and source_path.is_file()
-                    else file_sha256(source_path) if source_path.is_file() else None
-                )
+                expected_sha = file_sha256(source_path) if source_path.is_file() else None
                 if (
                     readiness_review.get(path_field) != relative
                     or not source_path.is_file()
                     or readiness_review.get(sha_field) != expected_sha
                 ):
-                    failures.append(f"v30 readiness Review v2 {label} hash binding mismatch")
+                    failures.append(f"v30 readiness Review v3 {label} hash binding mismatch")
             history_roles = {
                 str(item.get("role"))
                 for item in (readiness.get("timing", {}).get("history") or [])
@@ -1475,24 +1445,17 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
                 and readiness_review.get("accepted") is True
                 and readiness_review.get("composite_fingerprint")
                 == review.get("composite_fingerprint")
+                and readiness_review.get("effective_stack") in {"1+1", "1+0"}
             )
             if review.get("status") == "accepted":
-                manifest_rel = review.get("manifest")
-                indexed = next(
-                    (
-                        item
-                        for item in (review_index.get("v2_reviews") or [])
-                        if isinstance(item, dict) and item.get("path") == manifest_rel
-                    ),
-                    None,
+                count = int(
+                    (review_v3_index.get("full_review_count_by_composite_fingerprint") or {}).get(
+                        review.get("composite_fingerprint"), 0
+                    )
+                    or 0
                 )
-                if (
-                    not indexed
-                    or indexed.get("composite_fingerprint")
-                    != review.get("composite_fingerprint")
-                    or indexed.get("required_stack") != "2+1"
-                ):
-                    failures.append("accepted v30 Review v2 manifest is not current-fingerprint indexed")
+                if count != 1:
+                    failures.append("accepted v30 Review v3 fingerprint must have exactly one full review")
 
             promotion_claimed = promotion.get("current_promotion_allowed") is True
             if v30_is_current or promotion_claimed:
@@ -1504,7 +1467,7 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
                 ):
                     failures.append(
                         "v30 current promotion requires P0 v8, manifest-bound "
-                        "readback, ready timing/safe-hold, and accepted Review v2 2+1"
+                        "readback, ready timing/safe-hold, and accepted Review v3 1+1 or valid degraded 1+0"
                     )
             if v30_is_current and promotion.get("current_promotion_allowed") is not True:
                 failures.append("current v30 must have current_promotion_allowed=true")
