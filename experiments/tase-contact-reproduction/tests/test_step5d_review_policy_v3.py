@@ -12,10 +12,46 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
-from step5d_review_v3 import resolve  # noqa: E402
+from step5d_review_v3 import canonical_composite, resolve  # noqa: E402
 
 
-FINGERPRINT = "a" * 64
+BINDING = {
+    "package_triplet": "1" * 64,
+    "controller_readback": "2" * 64,
+    "timing_raw": "3" * 64,
+    "timing_summary": "4" * 64,
+    "source_fingerprint": "5" * 64,
+    "effective_operator_config": "6" * 64,
+}
+FINGERPRINT = canonical_composite(BINDING)
+
+
+def lane(provider: str, status: str = "pass") -> dict:
+    payload = {
+        "provider": provider,
+        "requested_model": "gpt-5.6-sol" if provider == "codex" else "claude-fable-5",
+        "actual_model": "gpt-5.6-sol" if provider == "codex" else "claude-fable-5",
+        "effort": "xhigh",
+        "runtime_evidence_sha256": "7" * 64,
+        "started_at": "2026-07-14T00:00:00Z",
+        "ended_at": "2026-07-14T00:00:01Z",
+        "status": status,
+        "findings": [],
+    }
+    if provider == "fable5":
+        payload["exact_model_verified"] = status == "pass"
+        if status != "pass":
+            payload["degraded_transcript"] = {
+                "path": "runs/fable.txt", "sha256": "8" * 64, "status": status,
+            }
+    return payload
+
+
+def index() -> dict:
+    return {
+        "full_review_count_by_composite_fingerprint": {FINGERPRINT: 1},
+        "review_records": [{"review_mode": "full", "composite_fingerprint": FINGERPRINT}],
+    }
 
 
 def manifest(fable_status: str = "pass") -> dict:
@@ -23,18 +59,10 @@ def manifest(fable_status: str = "pass") -> dict:
         "schema_version": "ur10e_review_manifest_v3",
         "review_mode": "full",
         "composite_fingerprint": FINGERPRINT,
+        "composite_binding": BINDING,
         "lanes": {
-            "control_timing_claim": {
-                "provider": "codex",
-                "status": "pass",
-                "findings": [],
-            },
-            "physical_operator_safety": {
-                "provider": "fable5",
-                "status": fable_status,
-                "exact_model_verified": fable_status == "pass",
-                "findings": [],
-            },
+            "control_timing_claim": lane("codex"),
+            "physical_operator_safety": lane("fable5", fable_status),
         },
     }
 
@@ -64,7 +92,7 @@ class Step5dReviewPolicyV3Test(unittest.TestCase):
             milestone="contact_pre_live",
             gate={"evidence_frozen": True, "composite_fingerprint": FINGERPRINT},
             manifest=manifest(),
-            index={"full_review_count_by_composite_fingerprint": {FINGERPRINT: 1}},
+            index=index(),
         )
         self.assertTrue(result["accepted"])
         self.assertEqual(result["effective_stack"], "1+1")
@@ -76,7 +104,7 @@ class Step5dReviewPolicyV3Test(unittest.TestCase):
             milestone="contact_pre_live",
             gate={"evidence_frozen": True, "composite_fingerprint": FINGERPRINT},
             manifest=manifest("timeout"),
-            index={"full_review_count_by_composite_fingerprint": {FINGERPRINT: 1}},
+            index=index(),
         )
         self.assertTrue(result["accepted"])
         self.assertTrue(result["degraded_review"])
@@ -93,6 +121,7 @@ class Step5dReviewPolicyV3Test(unittest.TestCase):
             milestone="contact_pre_live",
             gate={"evidence_frozen": True, "composite_fingerprint": FINGERPRINT},
             manifest=candidate,
+            index=index(),
         )
         self.assertFalse(result["accepted"])
         self.assertIn("codex_control_timing_claim_not_passed", result["blockers"])
@@ -106,6 +135,38 @@ class Step5dReviewPolicyV3Test(unittest.TestCase):
         self.assertEqual(execution["fable5_preflight_timeout_seconds"], 20)
         self.assertEqual(execution["review_lane_timeout_seconds"], 300)
         self.assertEqual(execution["total_gate_timeout_seconds"], 330)
+
+    def test_adversarial_manifest_contracts_fail_closed(self) -> None:
+        cases = []
+        count_zero = index()
+        count_zero["full_review_count_by_composite_fingerprint"][FINGERPRINT] = 0
+        cases.append((manifest(), count_zero, "full_review_count_must_equal_one"))
+        fake_degraded = manifest("timeout")
+        fake_degraded["lanes"]["physical_operator_safety"].pop("degraded_transcript")
+        cases.append((fake_degraded, index(), "fable_degraded_transcript_missing_or_invalid"))
+        missing_model = manifest()
+        missing_model["lanes"]["control_timing_claim"].pop("actual_model")
+        cases.append((missing_model, index(), "codex_lane_runtime_contract_invalid"))
+        mismatch = manifest()
+        mismatch["composite_binding"] = {**BINDING, "package_triplet": "9" * 64}
+        cases.append((mismatch, index(), "review_v3_composite_not_recomputed_from_binding"))
+        for candidate, review_index, blocker in cases:
+            with self.subTest(blocker=blocker):
+                result = resolve(
+                    workflow="v30", milestone="contact_pre_live",
+                    gate={"evidence_frozen": True, "composite_fingerprint": FINGERPRINT},
+                    manifest=candidate, index=review_index,
+                )
+                self.assertFalse(result["accepted"])
+                self.assertIn(blocker, result["blockers"])
+
+    def test_non_hex_fingerprint_is_rejected(self) -> None:
+        result = resolve(
+            workflow="v30", milestone="contact_pre_live",
+            gate={"evidence_frozen": True, "composite_fingerprint": "z" * 64},
+            manifest=manifest(), index=index(),
+        )
+        self.assertIn("composite_fingerprint_invalid", result["blockers"])
 
 
 if __name__ == "__main__":
