@@ -10,8 +10,7 @@
     "live_runtime_prewarm_not_integrated_or_verified",
     "p0_v8_final_60s_not_passed",
     "p0_v8_passed_artifact_missing",
-    "review_v2_not_due_until_evidence_freeze",
-    "v30_controller_readback_not_frozen"
+    "review_v2_not_due_until_evidence_freeze"
   ],
   "claim_boundary": {
     "allowed_claim": "inactive v30 offline candidate with partial replay/timing evidence",
@@ -51,7 +50,7 @@
       "sha256": "a6f0e586145eb701af72f92d21bb648b13169adf8198529ff8aea8e704b8e1d6"
     }
   },
-  "generated_at": "2026-07-14T02:15:00+08:00",
+  "generated_at": "2026-07-14T02:53:15+08:00",
   "historical_review": {
     "counts_as_review_v2": false,
     "path": "config/step5d_v30_milestone_reviews.json",
@@ -82,9 +81,9 @@
   "package": {
     "binding_blockers": [],
     "binding_valid": true,
-    "controller_readback_manifest": null,
-    "controller_readback_manifest_sha256": null,
-    "controller_readback_verified": false,
+    "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v30_20260714_025315/manifest.json",
+    "controller_readback_manifest_sha256": "132326c036037f14d23eb010ab3562b813f4528719e01eefb8185cb693eae507",
+    "controller_readback_verified": true,
     "delivery_preparation_allowed_before_p0_v8": true,
     "local_only": true,
     "marker_path": "programs/step5/step5d/.step5d_strict_rnn_ablation_v30.local_candidate.json",
@@ -124,8 +123,7 @@
     "deterministic_freeze_blockers": [
       "live_runtime_prewarm_not_integrated_or_verified",
       "p0_v8_final_60s_not_passed",
-      "p0_v8_passed_artifact_missing",
-      "v30_controller_readback_not_frozen"
+      "p0_v8_passed_artifact_missing"
     ],
     "evidence_freeze_ready": false,
     "evidence_frozen": false,

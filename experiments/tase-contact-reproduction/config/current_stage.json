@@ -1094,13 +1094,13 @@
       "entrypoint": "scripts/step5d-strict-rnn-p0-v8.sh capture-bridge PHASE_S",
       "confirm_token": "LIVE STEP5D STRICT RNN NO CONTACT P0 V8",
       "planned_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v8.urp",
-      "controller_target": null,
+      "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v8.urp",
       "local_triplet": "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v8",
       "local_candidate_marker": "programs/step5/step5d/.step5d_strict_rnn_no_contact_p0_v8.local_candidate.json",
-      "controller_uploaded": false,
-      "controller_readback_verified": false,
-      "controller_readback_manifest": null,
-      "delivery_mode": "local_offline_candidate_only",
+      "controller_uploaded": true,
+      "controller_readback_verified": true,
+      "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v8_20260714_025315/manifest.json",
+      "delivery_mode": "full_upload_readback",
       "sha256": {
         ".script": "16d94d48795cba7a278f47007d099057217ff3135e151a73620deb6197651df2",
         ".txt": "6280768807ab74336f098b5a5e34d1e4e76f3f2d036262f53e4bbcc52bbb3cf6",
@@ -1109,7 +1109,7 @@
       "capture_authorized": false,
       "passed": false,
       "summary_artifact": null,
-      "status": "offline_package_only_not_reviewed_not_delivered"
+      "status": "controller_readback_verified_pending_review_and_canaries"
     },
     "required_before_live": [
       "operator outside UR reach/cage boundary",
@@ -1191,7 +1191,7 @@
   "p0_v8_candidate": {
     "profile": "step5d_strict_rnn_no_contact_p0_v8",
     "gate_for": "step5d_strict_rnn_ablation_v30",
-    "state": "offline_control_diagnostic_complete_pending_readback_review_canaries",
+    "state": "offline_control_diagnostic_complete_readback_verified_pending_review_canaries",
     "package_sha256": {
       ".script": "16d94d48795cba7a278f47007d099057217ff3135e151a73620deb6197651df2",
       ".txt": "6280768807ab74336f098b5a5e34d1e4e76f3f2d036262f53e4bbcc52bbb3cf6",
@@ -1256,13 +1256,12 @@
     "p0_v8_passed": false,
     "passed_artifact": null,
     "claim_boundary": {
-      "package_accepted": false,
+      "package_accepted": true,
       "no_contact_p0_accepted": false,
       "contact_live_accepted": false,
       "reproduction_complete": false
     },
     "blockers": [
-      "controller_readback_missing",
       "evidence_not_frozen",
       "review_v2_1_plus_1_not_run",
       "controller_2_10_60_second_canaries_not_run"
@@ -1270,7 +1269,7 @@
   },
   "v30_candidate": {
     "profile": "step5d_strict_rnn_ablation_v30",
-    "state": "offline_hard_timing_pass_liveprep_blocked",
+    "state": "offline_hard_timing_pass_package_readback_verified_liveprep_blocked",
     "current": false,
     "runtime_profile": {
       "backend": "cupy",
@@ -1307,19 +1306,18 @@
     },
     "offline_readiness": {
       "artifact": "config/step5d_v30_offline_readiness.json",
-      "sha256": "bcea276374d2b92322386eee6e511e8a2e62e0bb7fdeec07d384c1f46bbe94b1",
+      "sha256": "135d030276a79ce48c5fda7f01776bfdb182020f3fa138268b5a5961d662de2a",
       "status": "v30_offline_blocked"
     },
     "blockers": [
       "live_runtime_prewarm_not_integrated_or_verified",
       "p0_v8_final_60s_not_passed",
       "p0_v8_passed_artifact_missing",
-      "review_v2_not_due_until_evidence_freeze",
-      "v30_controller_readback_not_frozen"
+      "review_v2_not_due_until_evidence_freeze"
     ],
     "claim_boundary": {
       "offline_timing_pass": true,
-      "package_accepted": false,
+      "package_accepted": true,
       "live_accepted": false,
       "reproduction_complete": false
     }

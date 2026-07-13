@@ -139,7 +139,12 @@ class Step5dV30ReadinessTest(unittest.TestCase):
             payload["blockers"],
         )
         self.assertTrue(payload["package"]["binding_valid"])
-        self.assertFalse(payload["package"]["controller_readback_verified"])
+        self.assertTrue(payload["package"]["controller_readback_verified"])
+        readback_manifest = ROOT / payload["package"]["controller_readback_manifest"]
+        self.assertEqual(
+            payload["package"]["controller_readback_manifest_sha256"],
+            hashlib.sha256(readback_manifest.read_bytes()).hexdigest(),
+        )
         self.assertFalse(payload["p0_v8_gate"]["passed"])
         self.assertIn(
             "p0_v8_final_60s_not_passed", payload["p0_v8_gate"]["blockers"]

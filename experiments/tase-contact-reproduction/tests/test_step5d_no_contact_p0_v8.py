@@ -106,7 +106,10 @@ class Step5dNoContactP0V8Test(unittest.TestCase):
         )
         self.assertTrue(runtime.hard_contract["v30_control_contract"])
         self.assertTrue(runtime.hard_contract["offline_candidate"])
-        self.assertEqual(runtime.controller_target, "LOCAL_ONLY_NOT_DELIVERED")
+        self.assertEqual(
+            runtime.controller_target,
+            "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v8.urp",
+        )
         self.assertIn("accepts only 47=524", runtime.register_contract["stage25_0"])
 
     def test_parser_gate_allows_only_explicit_v8_canary_phases(self) -> None:

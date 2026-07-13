@@ -33,9 +33,18 @@ class Step5dV30ProfileTest(unittest.TestCase):
         self.assertFalse(v30["active"])
         self.assertTrue(v30["blocked"])
         self.assertFalse(v30["current_binding"]["is_current"])
-        self.assertIsNone(v30["package_delivery"]["controller_target"])
-        self.assertFalse(v30["package_delivery"]["controller_uploaded"])
-        self.assertFalse(v30["package_delivery"]["controller_readback_verified"])
+        delivery = v30["package_delivery"]
+        self.assertEqual(delivery["status"], "controller_readback_verified_inactive")
+        self.assertEqual(
+            delivery["controller_target"],
+            "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v30.urp",
+        )
+        self.assertTrue(delivery["controller_uploaded"])
+        self.assertTrue(delivery["controller_readback_verified"])
+        self.assertEqual(
+            delivery["controller_readback_manifest"],
+            "runs/controller_readback_step5d_strict_rnn_ablation_v30_20260714_025315/manifest.json",
+        )
         self.assertFalse(v30["canary_stop_register"]["enabled"])
         self.assertFalse(v30["canary_stop_register"]["armed"])
         self.assertEqual(v30["canary_stop_register"]["phases_s"], [2.0, 10.0, 60.0])
@@ -90,24 +99,38 @@ class Step5dV30ProfileTest(unittest.TestCase):
         lines = interface.live_ready_lines(runtime, {"state": "MISS", "fingerprint_ok": False})
         rendered = "\n".join(lines)
 
-        self.assertEqual(runtime.controller_target, "LOCAL_ONLY_NOT_DELIVERED")
+        self.assertEqual(
+            runtime.controller_target,
+            "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v30.urp",
+        )
         self.assertTrue(runtime.hard_contract["offline_candidate"])
+        self.assertTrue(runtime.hard_contract["controller_readback_verified"])
         self.assertIn("phase=v30-offline-candidate", rendered)
         self.assertIn("upload=no", rendered)
         self.assertNotIn("phase=live-bridge", rendered)
 
-    def test_v30_delivery_is_inactive_preparation_not_current_promotion(self) -> None:
+    def test_v30_completed_delivery_remains_inactive_not_current_promotion(self) -> None:
         policy = upload.enforce_offline_candidate_delivery_block(
             interface.STEP5D_ABLATION_V30_STAGE_ID,
             root=ROOT,
         )
 
-        self.assertIsNotNone(policy)
-        assert policy is not None
-        self.assertEqual(policy["status"], "inactive_prelive_delivery_preparation")
-        self.assertFalse(policy["promotion_performed"])
-        self.assertFalse(policy["program_start_performed"])
-        self.assertFalse(policy["bridge_start_performed"])
+        self.assertIsNone(policy)
+        table = json.loads(
+            (ROOT / "config" / "step5_stage_table.json").read_text(encoding="utf-8")
+        )
+        v30 = next(
+            row
+            for row in table["stages"]
+            if row.get("id") == interface.STEP5D_ABLATION_V30_STAGE_ID
+        )
+        self.assertEqual(
+            v30["package_delivery"]["status"],
+            "controller_readback_verified_inactive",
+        )
+        self.assertFalse(v30["promotion_gate"]["current_promotion_allowed"])
+        self.assertFalse(v30["promotion_gate"]["bridge_start_allowed"])
+        self.assertFalse(v30["promotion_gate"]["contact_run_allowed"])
 
     def test_v30_bridge_source_uses_contract_pipeline_but_refuses_live_start(self) -> None:
         source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(encoding="utf-8")
