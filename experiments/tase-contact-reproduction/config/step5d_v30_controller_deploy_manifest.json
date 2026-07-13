@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "basename": "step5d_strict_rnn_ablation_v30",
+  "controller_directory": "/programs/andyl/kunwei/step5",
+  "artifacts": [
+    {
+      "filename": "step5d_strict_rnn_ablation_v30.script",
+      "source": "../programs/step5/step5d/step5d_strict_rnn_ablation_v30.script",
+      "sha256": "a6f0e586145eb701af72f92d21bb648b13169adf8198529ff8aea8e704b8e1d6"
+    },
+    {
+      "filename": "step5d_strict_rnn_ablation_v30.txt",
+      "source": "../programs/step5/step5d/step5d_strict_rnn_ablation_v30.txt",
+      "sha256": "3b8a389dcb1a5eb19a6ccfbf5782d4a6d450fafe414972f2defe48b0ba3178f7"
+    },
+    {
+      "filename": "step5d_strict_rnn_ablation_v30.urp",
+      "source": "../programs/step5/step5d/step5d_strict_rnn_ablation_v30.urp",
+      "sha256": "a7388b0fc6c686a886adc736e9307057174585f9edae6cf25f4cd31003280508"
+    }
+  ]
+}
