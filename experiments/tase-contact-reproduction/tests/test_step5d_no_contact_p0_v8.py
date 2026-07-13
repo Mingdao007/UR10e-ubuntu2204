@@ -210,6 +210,47 @@ class Step5dNoContactP0V8Test(unittest.TestCase):
         self.assertEqual(result["phase_s"], 10.0)
         self.assertEqual(result["composite_fingerprint"], fingerprint)
 
+    def test_canary_authorization_accepts_explicit_bound_user_review_waiver(self) -> None:
+        fingerprint = "b" * 64
+        current = {
+            "p0_v8_candidate": {
+                "evidence_frozen": True,
+                "composite_fingerprint": fingerprint,
+                "completed_canaries": [],
+                "review_v2": {
+                    "status": "waived_by_user",
+                    "composite_fingerprint": fingerprint,
+                    "manifest": None,
+                    "waiver": {
+                        "waiver_id": "user-direct-bridge-20260714",
+                        "issued_at": "2026-07-14T05:00:00+08:00",
+                        "authorized_by": "user",
+                        "explicit": True,
+                        "scope": "p0_v8_pre_live_review",
+                        "composite_fingerprint": fingerprint,
+                        "authorization_evidence": "直接开bridge吧 不要再review了",
+                        "reason": "user explicitly waived the pre-live review",
+                    },
+                },
+            },
+            "bridge_trigger": {
+                "no_contact_p0_v8_capture": {
+                    "profile": PROFILE,
+                    "controller_readback_verified": True,
+                    "capture_authorized": True,
+                    "sha256": {".script": "1" * 64},
+                }
+            },
+        }
+        args = SimpleNamespace(step5d_stop_register_canary_s=2.0)
+
+        result = gate.authorize_canary(args, current)
+        self.assertEqual(result["phase_s"], 2.0)
+        self.assertEqual(result["composite_fingerprint"], fingerprint)
+        current["p0_v8_candidate"]["review_v2"]["waiver"]["explicit"] = False
+        with self.assertRaisesRegex(ValueError, "explicit bound user waiver"):
+            gate.authorize_canary(args, current)
+
     def test_contract_rows_require_dls_shadow_but_never_use_it_as_fallback(self) -> None:
         rows = [accepted_contract_row(), accepted_contract_row(terminal=True)]
 

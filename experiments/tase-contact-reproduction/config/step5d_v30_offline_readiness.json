@@ -53,7 +53,7 @@
       "sha256": "0f12722ddd54a2fc7676c2c79f0b1d596d1952aac10b06694bef46417a9ff992"
     }
   },
-  "generated_at": "2026-07-14T04:42:00+08:00",
+  "generated_at": "2026-07-14T04:52:29+08:00",
   "historical_review": {
     "counts_as_review_v2": false,
     "path": "config/step5d_v30_milestone_reviews.json",
@@ -75,7 +75,7 @@
       "p0_v8_final_60s_not_passed",
       "p0_v8_passed_artifact_missing"
     ],
-    "composite_fingerprint": null,
+    "composite_fingerprint": "07e3e62377693106c9d250713087750014f1bb285cf2abcf0625113b3c507598",
     "passed": false,
     "passed_artifact": null,
     "passed_artifact_sha256": null,

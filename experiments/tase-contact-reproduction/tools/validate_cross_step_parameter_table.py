@@ -724,6 +724,27 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
                 != stage_review.get("composite_fingerprint")
             ):
                 failures.append("accepted P0 v8 Review v2 manifest is not current-fingerprint indexed")
+        elif stage_review.get("status") == "waived_by_user":
+            waiver = stage_review.get("waiver") or {}
+            fingerprint = stage_review.get("composite_fingerprint")
+            if (
+                candidate_review.get("waiver") != waiver
+                or not is_sha256(fingerprint)
+                or waiver.get("authorized_by") != "user"
+                or waiver.get("explicit") is not True
+                or waiver.get("scope") != "p0_v8_pre_live_review"
+                or waiver.get("composite_fingerprint") != fingerprint
+                or not all(
+                    waiver.get(field)
+                    for field in (
+                        "waiver_id",
+                        "issued_at",
+                        "authorization_evidence",
+                        "reason",
+                    )
+                )
+            ):
+                failures.append("P0 v8 explicit user review waiver is invalid")
 
         offline_pointer = p0_v8_candidate.get("offline_simulation_diagnostic") or {}
         stage_offline_pointer = p0_v8_row.get("offline_simulation_diagnostic") or {}

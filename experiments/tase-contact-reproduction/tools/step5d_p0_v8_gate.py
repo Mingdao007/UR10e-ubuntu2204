@@ -10,6 +10,28 @@ from typing import Any, Mapping
 
 PROFILE = "step5d_strict_rnn_no_contact_p0_v8"
 CANARY_PHASES_S = (2.0, 10.0, 60.0)
+USER_REVIEW_WAIVER_STATUS = "waived_by_user"
+
+
+def review_authorized(review: Mapping[str, Any], fingerprint: str) -> bool:
+    """Accept one bound Review v2 result or an explicit user review waiver."""
+
+    if review.get("status") == "accepted":
+        return review.get("composite_fingerprint") == fingerprint
+    waiver = review.get("waiver")
+    return bool(
+        review.get("status") == USER_REVIEW_WAIVER_STATUS
+        and review.get("composite_fingerprint") == fingerprint
+        and isinstance(waiver, Mapping)
+        and waiver.get("authorized_by") == "user"
+        and waiver.get("explicit") is True
+        and waiver.get("scope") == "p0_v8_pre_live_review"
+        and waiver.get("composite_fingerprint") == fingerprint
+        and waiver.get("waiver_id")
+        and waiver.get("issued_at")
+        and waiver.get("authorization_evidence")
+        and waiver.get("reason")
+    )
 
 
 def validate_canary_phase(profile: str, phase_s: float, *, allow_disabled: bool = True) -> float:
@@ -42,13 +64,13 @@ def authorize_canary(args: Any, current: Mapping[str, Any]) -> dict[str, Any]:
     if capture.get("capture_authorized") is not True:
         raise ValueError("P0 v8 requires explicit no-contact live-motion authorization")
     review = candidate.get("review_v2")
-    if not isinstance(review, Mapping) or review.get("status") != "accepted":
-        raise ValueError("P0 v8 requires an accepted Review v2 1+1 gate")
     fingerprint = str(candidate.get("composite_fingerprint") or "")
     if re.fullmatch(r"[0-9a-f]{64}", fingerprint) is None:
         raise ValueError("P0 v8 composite fingerprint is missing or invalid")
-    if review.get("composite_fingerprint") != fingerprint:
-        raise ValueError("P0 v8 review fingerprint does not match current evidence")
+    if not isinstance(review, Mapping) or not review_authorized(review, fingerprint):
+        raise ValueError(
+            "P0 v8 requires an accepted Review v2 1+1 gate or an explicit bound user waiver"
+        )
     if candidate.get("evidence_frozen") is not True:
         raise ValueError("P0 v8 review may run only after evidence freeze")
     phase = validate_canary_phase(PROFILE, getattr(args, "step5d_stop_register_canary_s", 0.0), allow_disabled=False)
