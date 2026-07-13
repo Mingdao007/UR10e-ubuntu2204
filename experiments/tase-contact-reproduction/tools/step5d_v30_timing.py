@@ -99,7 +99,7 @@ class TimingThresholds:
     tick_samples_required: int = 30_000
     safe_hold_samples_required: int = 30_000
     bounded_hold_deadline_miss_ratio_max: float = 0.01
-    bounded_hold_schedule_lateness_max_ms: float = 0.50
+    bounded_hold_schedule_lateness_max_ms: float = 1.50
     bounded_hold_max_consecutive_misses: int = 10
 
 

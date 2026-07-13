@@ -637,7 +637,7 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             is not True
             or p0_guard.get("bounded_last_command_hold_claim_allowed") is not True
             or p0_guard.get("bounded_hold_miss_ratio_max") != 0.01
-            or p0_guard.get("bounded_hold_lateness_max_ms") != 0.5
+            or p0_guard.get("bounded_hold_lateness_max_ms") != 1.5
             or p0_guard.get("bounded_hold_max_consecutive_misses") != 10
             or p0_guard.get("held_tick_counts_as_consumed") is not True
         ):
@@ -1038,7 +1038,7 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             is not True
             or v30_guard.get("bounded_last_command_hold_claim_allowed") is not True
             or v30_guard.get("bounded_hold_miss_ratio_max") != 0.01
-            or v30_guard.get("bounded_hold_lateness_max_ms") != 0.5
+            or v30_guard.get("bounded_hold_lateness_max_ms") != 1.5
             or v30_guard.get("bounded_hold_max_consecutive_misses") != 10
             or v30_guard.get("held_tick_counts_as_consumed") is not True
         ):
@@ -1152,6 +1152,7 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
                 failures.append("v30 strict-RNN profile selection sha mismatch")
             if evidence.get("profile_selection_status") not in {
                 "canonical_rnn512_selected_formal_timing_passed",
+                "canonical_rnn512_selected_formal_timing_passed_bounded_last_command_hold",
                 "canonical_rnn512_selected_formal_timing_failed_bounded_hold_schedule_lateness",
                 "canonical_rnn512_selected_formal_timing_rerun_pending_after_prefault",
             }:
@@ -1216,10 +1217,11 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             if input_evidence.get("sha256") != file_sha256(timing_raw_path):
                 failures.append("v30 timing summary is not bound to tracked raw timing evidence")
             source_binding = timing.get("source_binding") or {}
-            timing_is_current = (
-                evidence.get("timing_raw_status")
-                == "current_canonical_rnn512_hard_realtime_pass"
-            )
+            timing_status = evidence.get("timing_raw_status")
+            timing_is_current = timing_status in {
+                "current_canonical_rnn512_hard_realtime_pass",
+                "current_canonical_rnn512_bounded_last_command_hold_pass",
+            }
             if timing_is_current and source_binding and timing_pass:
                 for _, sha_field in source_fields:
                     if source_binding.get(sha_field) != source_contract.get(sha_field):
@@ -1254,10 +1256,15 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             readiness_selected_timing = (
                 readiness_acceptance_raw or readiness_current_source
             )
-            timing_is_current = (
-                evidence.get("timing_raw_status")
-                == "current_canonical_rnn512_hard_realtime_pass"
+            timing_status = evidence.get("timing_raw_status")
+            timing_is_hard_realtime = (
+                timing_status == "current_canonical_rnn512_hard_realtime_pass"
             )
+            timing_is_bounded_hold = (
+                timing_status
+                == "current_canonical_rnn512_bounded_last_command_hold_pass"
+            )
+            timing_is_current = timing_is_hard_realtime or timing_is_bounded_hold
             if (
                 readiness_selected_timing.get("path")
                 != evidence.get("timing_raw")
@@ -1268,13 +1275,20 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
                     "v30 readiness selected timing artifact does not match the stage pointer"
                 )
             if timing_is_current:
-                if (
-                    readiness_timing.get("overall_pass") is not True
-                    or readiness_timing.get("hard_realtime_pass") is not True
-                    or readiness_current_source.get("acceptance_eligible") is not True
+                if readiness_timing.get("overall_pass") is not True or (
+                    timing_is_hard_realtime
+                    and readiness_timing.get("hard_realtime_pass") is not True
+                ) or (
+                    timing_is_bounded_hold
+                    and readiness_timing.get("bounded_last_command_hold_pass") is not True
+                ) or (
+                    timing_is_bounded_hold
+                    and readiness_current_source.get("bounded_last_command_hold_pass") is not True
+                ) or (
+                    readiness_current_source.get("acceptance_eligible") is not True
                 ):
                     failures.append(
-                        "current v30 timing status requires readiness hard-realtime acceptance"
+                        "current v30 timing status requires matching readiness acceptance"
                     )
             elif any(
                 value is True

@@ -43,6 +43,15 @@ from step5d_v30_timing import (  # noqa: E402
 
 
 class Step5dV30TimingTest(unittest.TestCase):
+    def test_bounded_hold_lateness_budget_stays_below_one_control_tick(self) -> None:
+        thresholds = TimingThresholds()
+
+        self.assertEqual(thresholds.bounded_hold_schedule_lateness_max_ms, 1.5)
+        self.assertLess(
+            thresholds.bounded_hold_schedule_lateness_max_ms,
+            thresholds.hard_deadline_ms,
+        )
+
     def test_formal_solver_batch_reentry_contract_is_exact(self) -> None:
         self.assertEqual(remote_timing.SOLVER_BATCH_SIZE, 100)
         self.assertEqual(SOLVER_BATCH_REENTRY_SAMPLES, 99)

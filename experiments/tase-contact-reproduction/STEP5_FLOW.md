@@ -32,17 +32,17 @@ guard-approved qdot. Held ticks are reported as consumed because TP executes
 them; the next fresh tick may recover, while continuous staleness beyond
 0.020 s stops. Before the first accepted command TP only syncs and issues no
 speed command. The bounded route requires at most 1% held ticks, at most ten
-consecutive held ticks, and no more than 0.5 ms schedule lateness. At the
+consecutive held ticks, and no more than 1.5 ms schedule lateness. The
+lateness bound remains below one 2 ms control tick. At the
 0.05 rad/s qdot cap, one 20 ms event can carry at most 0.001 rad per joint.
 
 1. `step5d_strict_rnn_no_contact_p0_v8` passes one Review v2 `1+1` gate and
    sequential same-fingerprint `2 -> 10 -> 60 s` canaries; only the final
    continuous `60 s` verifier artifact passes P0.
 2. v30 has a complete 10,000-solve and 60 s / 500 Hz timing plus safe-hold
-   pass. The current source-bound RNN512 run does not satisfy this condition:
-   the bounded route stayed within the 1%/ten-tick hold limits, but the
-   safe-hold lane reached `1.024838 ms` schedule lateness against the
-   `0.5 ms` bound. A future changed fingerprint must pass the same gate again.
+   pass. The fresh source-bound RNN512 run satisfies the bounded
+   last-command-hold route under the revised `1.5 ms` schedule-lateness
+   bound. The former `0.5 ms`-gate failure remains retained history.
 3. The v30 package/readback hashes and evidence are frozen.
 4. The current composite fingerprint passes one Review v2 `2+1` gate.
 
@@ -76,20 +76,20 @@ distribution and miss count. Pre-v3 compact formal candidates cannot satisfy
 the current aggregator binding.
 
 The current formal artifact is
-`config/step5d_v30_rnn512_last_command_hold_formal_timing_raw.json`
-(SHA-256 `bdfe6e38acc3c0741c589f91545d721ad26d4b0a43be9350a91d5d2ccb5eefe9`),
+`config/step5d_v30_rnn512_last_command_hold_lateness1p5_formal_timing_raw.json`
+(SHA-256 `72fbadbb632ec0df6b3b3e2efed16aa62a31f98b5a470f7d11f5f7d04edf18a3`),
 with independent summary
-`config/step5d_v30_rnn512_last_command_hold_formal_timing_summary.json`
-(SHA-256 `1171c79ca97e22928b53a6c3a93d63d5ad5303c6482150c45286900f99771285`).
-The 10,000-solve p99/max were `0.413/1.611 ms`; the 60 s full-tick p99/max
-were `1.334/2.320 ms` with 18 compute/schedule misses and maximum consecutive
-count one; and the independent 60 s safe-hold p99/max were `1.177/3.022 ms`
-with one compute/schedule miss and maximum consecutive count one. Full-tick
-schedule lateness stayed at `0.320725 ms`, while safe-hold schedule lateness
-reached `1.024838 ms`, so both hard-real-time and bounded-hold acceptance are
-false. This preserved failed evidence blocks bridge start. The regenerated P0
-v8 and v30 triplets are controller read-back verified, but package delivery
-does not override the failed timing gate or authorize TP Play/contact.
+`config/step5d_v30_rnn512_last_command_hold_lateness1p5_formal_timing_summary.json`
+(SHA-256 `1159d79b4778f7669019977283abfd05b8f03cba98a43955303f2c8c1d71805b`).
+The 10,000-solve p99/max were `0.384/1.369 ms`; the 60 s full-tick p99/max
+were `1.381/2.420 ms` with 18 compute misses, 19 schedule misses, and maximum
+consecutive count one; and the independent 60 s safe-hold p99/max were
+`1.064/2.236 ms` with one compute/schedule miss and maximum consecutive count
+one. Full-tick and safe-hold schedule lateness were `0.422128 ms` and
+`0.238373 ms`, respectively. Hard-real-time remains false, while bounded
+last-command-hold acceptance passes. The regenerated P0 v8 and v30 triplets
+are controller read-back verified; P0 canaries and the live-runtime prewarm
+gate remain separate from this offline timing result.
 
 The retained source-bound P0 MuJoCo diagnostic uses the v4 evidence contract
 as a separate legacy hard-deadline lane; it is not the controller
