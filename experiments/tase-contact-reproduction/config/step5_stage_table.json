@@ -8606,7 +8606,7 @@
       "complete": false,
       "completion_target": false,
       "gate_for": "step5d_strict_rnn_ablation_v30",
-      "block_reason": "Inactive P0 v8 candidate with controller upload/readback verified and the pre-live Review v2 explicitly waived by the user for fingerprint 07e3e62377693106c9d250713087750014f1bb285cf2abcf0625113b3c507598. Sequential 2/10/60 s no-contact canaries remain. A late 2 ms candidate is skipped while TP continues the last successfully published guard-approved qdot for at most 20 ms; hard-real-time remains a separate zero-miss claim.",
+      "block_reason": "Inactive P0 v8 candidate with controller upload/readback verified and the pre-live Review v2 explicitly waived by the user for fingerprint d22555c22b6f9db2f746a48fb2b0b17986e0be982bd4855406b82a513980f4fa. Sequential 2/10/60 s no-contact canaries remain. A late 2 ms candidate is skipped while TP continues the last successfully published guard-approved qdot for at most 20 ms; hard-real-time remains a separate zero-miss claim.",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": false,
@@ -8746,7 +8746,7 @@
         "milestone": "p0_v8_pre_live",
         "required_stack": "1+1",
         "evidence_frozen": true,
-        "composite_fingerprint": "07e3e62377693106c9d250713087750014f1bb285cf2abcf0625113b3c507598",
+        "composite_fingerprint": "d22555c22b6f9db2f746a48fb2b0b17986e0be982bd4855406b82a513980f4fa",
         "manifest": null,
         "status": "waived_by_user",
         "waiver": {
@@ -8755,7 +8755,7 @@
           "authorized_by": "user",
           "explicit": true,
           "scope": "p0_v8_pre_live_review",
-          "composite_fingerprint": "07e3e62377693106c9d250713087750014f1bb285cf2abcf0625113b3c507598",
+          "composite_fingerprint": "d22555c22b6f9db2f746a48fb2b0b17986e0be982bd4855406b82a513980f4fa",
           "authorization_evidence": "直接开bridge吧 不要再review了",
           "reason": "User explicitly waived the P0 v8 pre-live review and directly authorized bridge startup."
         }
@@ -9093,7 +9093,7 @@
         "component_diagnostic": "config/step5d_v30_component_diagnostic_summary.json",
         "component_diagnostic_sha256": "a06ea0c56440f5dcfe2a9939a74cc3574a56cd2ab109983f599923a03e55d2bf",
         "offline_readiness": "config/step5d_v30_offline_readiness.json",
-        "offline_readiness_sha256": "7b37469b3d2e2d915ac5787083c04dc56a236462a21e2970bac951ee2bee358f",
+        "offline_readiness_sha256": "1f1d346e48052644980f922149ac42c9ba2fb0c7c9a280ec7c7f5e5aa3d8fecf",
         "milestone_reviews": "config/step5d_v30_milestone_reviews.json",
         "milestone_reviews_sha256": "df28791a0999a8809ae6adb97ae8737f7bee74cbb509ed41f9c740fd88c12bcb",
         "timing_source_contract": {

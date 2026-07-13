@@ -1161,11 +1161,12 @@ PY
   fi
 }
 
-v29_bridge_ready_sentinel_valid() {
+step5d_bridge_ready_sentinel_valid() {
   local ready="$1"
   local bridge_pid="$2"
   local launch_nonce="$3"
-  python3 - "$ready" "$bridge_pid" "$launch_nonce" <<'PY'
+  local expected_profile="$4"
+  python3 - "$ready" "$bridge_pid" "$launch_nonce" "$expected_profile" <<'PY'
 import json
 import math
 import sys
@@ -1174,6 +1175,7 @@ from pathlib import Path
 ready = Path(sys.argv[1])
 expected_pid = int(sys.argv[2])
 expected_nonce = sys.argv[3]
+expected_profile = sys.argv[4]
 if not expected_nonce:
     raise SystemExit(1)
 try:
@@ -1188,7 +1190,7 @@ if payload.get("pid") != expected_pid:
     raise SystemExit(1)
 if payload.get("launch_nonce") != expected_nonce:
     raise SystemExit(1)
-if payload.get("bridge_profile") != "step5d_strict_rnn_ablation_v29":
+if payload.get("bridge_profile") != expected_profile:
     raise SystemExit(1)
 try:
     rtde_hz = float(payload.get("rtde_hz"))
@@ -1226,13 +1228,17 @@ wait_for_bridge_output_started() {
       fi
       return 1
     fi
-    if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" && -s "${ready}" ]] \
-      && v29_bridge_ready_sentinel_valid "${ready}" "${bridge_pid}" "${launch_nonce}"; then
-      echo "[operator] v29 bridge startup confirmed: ${ready}"
+    if [[ ( "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" || "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ) && -s "${ready}" ]] \
+      && step5d_bridge_ready_sentinel_valid "${ready}" "${bridge_pid}" "${launch_nonce}" "${BRIDGE_PROFILE}"; then
+      if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" ]]; then
+        echo "[operator] v29 bridge startup confirmed: ${ready}"
+      else
+        echo "[operator] P0 bridge startup confirmed: ${ready}"
+      fi
       return 0
     fi
     if [[ -s "${bridge_csv}" || -s "${metadata}" ]]; then
-      if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" ]]; then
+      if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" || "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
         sleep 0.1
         continue
       fi
