@@ -186,6 +186,7 @@ def _p0_upward_outer(*_args: object, **_kwargs: object) -> SimpleNamespace:
 def _p0_no_contact_runtime_values(
     *,
     normal_acquired: bool,
+    profile: str = iface.STEP5D_NO_CONTACT_P0_STAGE_ID,
     sensor_ok: float = 1.0,
     outer_side_effect: object = _p0_fake_outer,
     rnn_target_side_effect: object | None = None,
@@ -201,7 +202,7 @@ def _p0_no_contact_runtime_values(
             "--bridge-mode",
             "line",
             "--bridge-profile",
-            iface.STEP5D_NO_CONTACT_P0_STAGE_ID,
+            profile,
             "--bridge-path-shape",
             "cycloid",
             "--step5d-stage25-control-mode",
@@ -247,6 +248,13 @@ def _p0_no_contact_runtime_values(
             state,
             0.002,
         )
+
+
+def _p0_v8_runtime_values() -> dict[str, float]:
+    return _p0_no_contact_runtime_values(
+        normal_acquired=False,
+        profile=iface.STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
+    )
 
 
 def write_p0_run(run_dir: Path, rows: list[dict[str, str]]) -> None:
@@ -368,6 +376,13 @@ def install_sandbox_p0_readback(config_root: Path, run_root: Path) -> Path:
 
 
 class Step5dNoContactP0Test(unittest.TestCase):
+    def test_p0_v8_stage_has_complete_cycloid_reference_for_bridge_setup(self) -> None:
+        values = _p0_v8_runtime_values()
+
+        self.assertIn("step4e_cmd_valid", values)
+        self.assertEqual(values["_step5d_p0_v8_contract_active"], 1.0)
+        self.assertNotIn("amplitude_m", values.get("_step5d_solver_error", ""))
+
     def test_bridge_run_manifest_and_latest_pointer_are_written_before_loop(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

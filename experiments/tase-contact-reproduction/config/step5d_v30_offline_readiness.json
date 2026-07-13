@@ -75,7 +75,7 @@
       "p0_v8_final_60s_not_passed",
       "p0_v8_passed_artifact_missing"
     ],
-    "composite_fingerprint": "d22555c22b6f9db2f746a48fb2b0b17986e0be982bd4855406b82a513980f4fa",
+    "composite_fingerprint": "cffbe6576b33c53e76d84e3d6d2f0a79d793142c9b5349fc1449212d41d4c5f4",
     "passed": false,
     "passed_artifact": null,
     "passed_artifact_sha256": null,

@@ -617,6 +617,13 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         for field, expected in expected_p0_runtime.items():
             if runtime.get(field) != expected:
                 failures.append(f"P0 v8 runtime profile mismatch: {field}")
+        if (
+            p0_v8_row.get("duration_s") != 60.0
+            or p0_v8_row.get("amplitude_m") != 0.015
+            or p0_v8_row.get("phase_law")
+            != {"type": "linear_time", "omega_rad_s": 0.1, "final_phase_rad": 6.0}
+        ):
+            failures.append("P0 v8 cycloid reference contract is incomplete")
         if p0_v8_row.get("runtime_scheduler") != {
             "policy": "SCHED_FIFO",
             "priority": 20,
