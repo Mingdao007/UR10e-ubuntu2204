@@ -24,7 +24,9 @@ class Step5dV30ReadinessTest(unittest.TestCase):
 
         rebuilt = readiness_builder.build(generated_at=tracked["generated_at"])
 
-        self.assertEqual(rebuilt, tracked)
+        tracked_builder_projection = dict(tracked)
+        tracked_builder_projection.pop("numeric_sanity", None)
+        self.assertEqual(rebuilt, tracked_builder_projection)
         self.assertEqual(
             tracked["schema_version"], "step5d_v30_offline_readiness_v2"
         )
@@ -142,6 +144,14 @@ class Step5dV30ReadinessTest(unittest.TestCase):
         self.assertIn(
             "p0_v8_final_60s_not_passed", payload["p0_v8_gate"]["blockers"]
         )
+        numeric = payload["numeric_sanity"]
+        numeric_path = ROOT / numeric["path"]
+        self.assertEqual(
+            numeric["sha256"], hashlib.sha256(numeric_path.read_bytes()).hexdigest()
+        )
+        self.assertTrue(numeric["exact_profile_bound"])
+        self.assertTrue(numeric["package_hashes_bound"])
+        self.assertTrue(numeric["overall_pass"])
         self.assertEqual(
             payload["historical_review"]["status"],
             "historical_superseded_by_review_policy_v2",

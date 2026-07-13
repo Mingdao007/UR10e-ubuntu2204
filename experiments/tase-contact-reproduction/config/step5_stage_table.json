@@ -8746,16 +8746,16 @@
         "status": "not_due"
       },
       "offline_simulation_diagnostic": {
-        "status": "bound_timing_blocked",
+        "status": "bound_diagnostic_complete",
         "summary_artifact": "config/step5d_p0_v8_offline_simulation_diagnostic.json",
-        "summary_sha256": "ca6a77f3ddbebfece0ace63e0b468bf1614a684c283a5adeb0a9cdfa45c66f68",
+        "summary_sha256": "61c78fde75807fb29ad49bd52004faac4c53294ebfabca1f84a99f78efb32f77",
         "state_artifact": "config/step5d_p0_v8_offline_simulation_state.json",
-        "state_sha256": "3891303d66ca1ba883d8eafb453819822eaf4c5c21947677648f97e2be02082d",
-        "source_run_manifest_sha256": "92d47d42ecc3d51ac6904cf2954e4e7cb79826c663ac0bd88065d81d2c51cba0",
+        "state_sha256": "2da1ee854c850d58885ec1b516c0c419622bef07568405d544aa696b63624bcc",
+        "source_run_manifest_sha256": "f946a7549869abb803c9fc668448d279983648799d78084cba2590648f32f493",
         "control_path_diagnostic_pass": true,
         "all_required_faults_exact_zero": true,
         "timing_scope_status": "current_control_hard_500hz_measurement_scope",
-        "offline_control_timing_pass": false,
+        "offline_control_timing_pass": true,
         "simulator_cycle_500hz_diagnostic_pass": false,
         "p0_sim_physics_pass": false,
         "controller_canaries_completed": [],
@@ -8813,7 +8813,7 @@
       "blocked": true,
       "complete": false,
       "completion_target": false,
-      "block_reason": "Inactive v30 candidate. Source-bound Ubuntu hard-control timing now passes with the canonical RNN512 profile, fixed single-thread numeric runtime, lane-local paced no-output prewarm, SCHED_FIFO/20, and CPU affinity 11,13,14,15. This is offline evidence only: live-runtime prewarm integration, P0 v8 controller canaries, package/readback freeze, Review v2 2+1, and explicit live/contact authorization still block current promotion, bridge start, and contact run.",
+      "block_reason": "Inactive v30 candidate. Source-bound Ubuntu hard-control timing and exact-profile structural numeric sanity pass with the canonical RNN512 profile, fixed single-thread numeric runtime, lane-local paced no-output prewarm, SCHED_FIFO/20, and CPU affinity 11,13,14,15. This is offline evidence only: live-runtime prewarm verification, P0 v8 controller canaries, package/readback freeze, Review v2 2+1, and explicit live/contact authorization still block current promotion, bridge start, and contact run.",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": true,
@@ -8842,6 +8842,17 @@
         "qdot_cap_rad_s": 0.05,
         "control_mode": "speedj_rnn_live",
         "joint_layout_code": 524.0
+      },
+      "numeric_sanity": {
+        "status": "offline_structural_pass",
+        "artifact": "config/step5d_v30_numeric_sanity.json",
+        "sha256": "71a7c9561edf131ddf8805673c283212fb918f0a87a297645c43a506d788799f",
+        "source_full_chain_artifact": "/home/andy/codex_handoffs/step5d-v30-numeric-sanity-20260714/step5d_numeric_sanity.json",
+        "source_full_chain_sha256": "1e794bd63d03802405fa798d74fe21ccfaee3ebadbe33880e978630069c6fe92",
+        "exact_profile_bound": true,
+        "package_hashes_bound": true,
+        "overall_pass": true,
+        "claim_effect": "offline_structural_sanity_only_no_live_promotion"
       },
       "runtime_scheduler": {
         "policy": "SCHED_FIFO",
@@ -9052,7 +9063,7 @@
         "component_diagnostic": "config/step5d_v30_component_diagnostic_summary.json",
         "component_diagnostic_sha256": "a06ea0c56440f5dcfe2a9939a74cc3574a56cd2ab109983f599923a03e55d2bf",
         "offline_readiness": "config/step5d_v30_offline_readiness.json",
-        "offline_readiness_sha256": "76d04ee7408bae60d37ef7dc40dd7e7c0d404a1afd7c971f07fb3ca975515014",
+        "offline_readiness_sha256": "bcea276374d2b92322386eee6e511e8a2e62e0bb7fdeec07d384c1f46bbe94b1",
         "milestone_reviews": "config/step5d_v30_milestone_reviews.json",
         "milestone_reviews_sha256": "df28791a0999a8809ae6adb97ae8737f7bee74cbb509ed41f9c740fd88c12bcb",
         "timing_source_contract": {

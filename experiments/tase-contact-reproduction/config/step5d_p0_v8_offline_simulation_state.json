@@ -1,14 +1,12 @@
 {
   "blockers": [
     "combined_eoat_mass_cog_inertia_unvalidated",
-    "control_hard_500hz_gate_failed_60s",
     "controller_canaries_not_run",
     "controller_readback_missing",
     "current_kunwei_stack_full_cad_missing",
     "evidence_not_frozen",
     "geometry_provisional_no_p0_physics_claim",
     "kunwei_fz_sign_not_independently_calibrated",
-    "offline_control_timing_failed",
     "offline_simulation_cannot_promote_live_state",
     "surface_full_2d_geometry_not_calibrated",
     "surface_material_contact_parameters_unvalidated"
@@ -33,9 +31,9 @@
   "evidence_frozen": false,
   "planned_summary_artifact": "config/step5d_p0_v8_offline_simulation_diagnostic.json",
   "schema": "step5d_p0_v8_offline_simulation_state_binding_v1",
-  "status": "bound_timing_blocked",
-  "summary_artifact": "experiments/tase-contact-reproduction/config/step5d_p0_v8_offline_simulation_diagnostic.json",
-  "summary_sha256": "ca6a77f3ddbebfece0ace63e0b468bf1614a684c283a5adeb0a9cdfa45c66f68",
+  "status": "bound_diagnostic_complete",
+  "summary_artifact": "config/step5d_p0_v8_offline_simulation_diagnostic.json",
+  "summary_sha256": "61c78fde75807fb29ad49bd52004faac4c53294ebfabca1f84a99f78efb32f77",
   "v29_frozen_fallback": true,
   "v30_active": false,
   "workflow_state": "liveprep_blocked"

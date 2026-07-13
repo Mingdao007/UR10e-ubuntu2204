@@ -51,12 +51,22 @@
       "sha256": "a6f0e586145eb701af72f92d21bb648b13169adf8198529ff8aea8e704b8e1d6"
     }
   },
-  "generated_at": "2026-07-11T22:05:00Z",
+  "generated_at": "2026-07-14T02:15:00+08:00",
   "historical_review": {
     "counts_as_review_v2": false,
     "path": "config/step5d_v30_milestone_reviews.json",
     "sha256": "df28791a0999a8809ae6adb97ae8737f7bee74cbb509ed41f9c740fd88c12bcb",
     "status": "historical_superseded_by_review_policy_v2"
+  },
+  "numeric_sanity": {
+    "claim_effect": "offline_structural_sanity_only_no_live_promotion",
+    "exact_profile_bound": true,
+    "overall_pass": true,
+    "package_hashes_bound": true,
+    "path": "config/step5d_v30_numeric_sanity.json",
+    "sha256": "71a7c9561edf131ddf8805673c283212fb918f0a87a297645c43a506d788799f",
+    "source_full_chain_artifact": "/home/andy/codex_handoffs/step5d-v30-numeric-sanity-20260714/step5d_numeric_sanity.json",
+    "source_full_chain_sha256": "1e794bd63d03802405fa798d74fe21ccfaee3ebadbe33880e978630069c6fe92"
   },
   "p0_v8_gate": {
     "blockers": [

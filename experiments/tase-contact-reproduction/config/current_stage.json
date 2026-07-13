@@ -1191,7 +1191,7 @@
   "p0_v8_candidate": {
     "profile": "step5d_strict_rnn_no_contact_p0_v8",
     "gate_for": "step5d_strict_rnn_ablation_v30",
-    "state": "offline_control_diagnostic_timing_blocked",
+    "state": "offline_control_diagnostic_complete_pending_readback_review_canaries",
     "package_sha256": {
       ".script": "16d94d48795cba7a278f47007d099057217ff3135e151a73620deb6197651df2",
       ".txt": "6280768807ab74336f098b5a5e34d1e4e76f3f2d036262f53e4bbcc52bbb3cf6",
@@ -1215,16 +1215,16 @@
       "final_continuous_phase_s": 60.0
     },
     "offline_simulation_diagnostic": {
-      "status": "bound_timing_blocked",
+      "status": "bound_diagnostic_complete",
       "summary_artifact": "config/step5d_p0_v8_offline_simulation_diagnostic.json",
-      "summary_sha256": "ca6a77f3ddbebfece0ace63e0b468bf1614a684c283a5adeb0a9cdfa45c66f68",
+      "summary_sha256": "61c78fde75807fb29ad49bd52004faac4c53294ebfabca1f84a99f78efb32f77",
       "state_artifact": "config/step5d_p0_v8_offline_simulation_state.json",
-      "state_sha256": "3891303d66ca1ba883d8eafb453819822eaf4c5c21947677648f97e2be02082d",
-      "source_run_manifest_sha256": "92d47d42ecc3d51ac6904cf2954e4e7cb79826c663ac0bd88065d81d2c51cba0",
+      "state_sha256": "2da1ee854c850d58885ec1b516c0c419622bef07568405d544aa696b63624bcc",
+      "source_run_manifest_sha256": "f946a7549869abb803c9fc668448d279983648799d78084cba2590648f32f493",
       "control_path_diagnostic_pass": true,
       "all_required_faults_exact_zero": true,
       "timing_scope_status": "current_control_hard_500hz_measurement_scope",
-      "offline_control_timing_pass": false,
+      "offline_control_timing_pass": true,
       "simulator_cycle_500hz_diagnostic_pass": false,
       "p0_sim_physics_pass": false,
       "controller_canaries_completed": [],
@@ -1264,7 +1264,6 @@
     "blockers": [
       "controller_readback_missing",
       "evidence_not_frozen",
-      "offline_control_timing_failed",
       "review_v2_1_plus_1_not_run",
       "controller_2_10_60_second_canaries_not_run"
     ]
@@ -1308,7 +1307,7 @@
     },
     "offline_readiness": {
       "artifact": "config/step5d_v30_offline_readiness.json",
-      "sha256": "76d04ee7408bae60d37ef7dc40dd7e7c0d404a1afd7c971f07fb3ca975515014",
+      "sha256": "bcea276374d2b92322386eee6e511e8a2e62e0bb7fdeec07d384c1f46bbe94b1",
       "status": "v30_offline_blocked"
     },
     "blockers": [

@@ -1304,6 +1304,41 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
                 or readiness_package.get("triplet_sha256") != delivery.get("sha256")
             ):
                 failures.append("v30 stage/readiness package delivery binding mismatch")
+            numeric = v30.get("numeric_sanity") or {}
+            readiness_numeric = readiness.get("numeric_sanity") or {}
+            numeric_path = root / str(numeric.get("artifact") or "")
+            numeric_payload = load_json(numeric_path) if numeric_path.is_file() else {}
+            numeric_full_chain = numeric_payload.get("full_chain") or {}
+            numeric_full_chain_path = Path(
+                str(numeric_full_chain.get("artifact") or "")
+            )
+            if (
+                not numeric_path.is_file()
+                or numeric.get("sha256") != file_sha256(numeric_path)
+                or numeric_payload.get("stage_id") != v30.get("id")
+                or numeric_payload.get("overall_pass") is not True
+                or numeric_payload.get("profile") != v30.get("runtime_profile")
+                or (numeric_payload.get("package") or {}).get("sha256")
+                != delivery.get("sha256")
+                or not numeric_full_chain_path.is_file()
+                or numeric_full_chain.get("sha256")
+                != file_sha256(numeric_full_chain_path)
+                or numeric_full_chain.get("overall_pass") is not True
+                or (numeric_payload.get("gates") or {}).get("exact_profile_bound")
+                is not True
+                or (numeric_payload.get("gates") or {}).get("package_hashes_bound")
+                is not True
+                or readiness_numeric.get("path") != numeric.get("artifact")
+                or readiness_numeric.get("sha256") != numeric.get("sha256")
+                or readiness_numeric.get("source_full_chain_artifact")
+                != numeric.get("source_full_chain_artifact")
+                or readiness_numeric.get("source_full_chain_sha256")
+                != numeric.get("source_full_chain_sha256")
+                or readiness_numeric.get("exact_profile_bound") is not True
+                or readiness_numeric.get("package_hashes_bound") is not True
+                or readiness_numeric.get("overall_pass") is not True
+            ):
+                failures.append("v30 numeric sanity hash binding mismatch")
             readiness_review = readiness.get("review_v2") or {}
             expected_review_sources = (
                 (
