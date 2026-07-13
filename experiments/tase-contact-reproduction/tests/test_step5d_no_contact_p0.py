@@ -567,6 +567,16 @@ class Step5dNoContactP0Test(unittest.TestCase):
             'STEP5D_P0_PROFILE_OVERRIDE="step5d_strict_rnn_no_contact_p0_v8"',
             v8_wrapper,
         )
+        self.assertIn('STEP5D_P0_PHASE_S="60"', v8_wrapper)
+        self.assertNotIn("2|10|60", v8_wrapper)
+        self.assertNotIn("capture-bridge PHASE_S", v8_wrapper)
+        v8_capture = current["bridge_trigger"]["no_contact_p0_v8_capture"]
+        v8_stage = step5_table.step5_stage("step5d_strict_rnn_no_contact_p0_v8")
+        self.assertEqual(
+            v8_capture["entrypoint"],
+            "scripts/step5d-strict-rnn-p0-v8.sh capture-bridge",
+        )
+        self.assertEqual(v8_stage["operator_lifecycle"]["canary_phase_s"], 60.0)
         self.assertEqual(capture["profile"], iface.STEP5D_NO_CONTACT_P0_STAGE_ID)
         self.assertIn("P0_PROFILE", wrapper)
         self.assertEqual(capture["controller_target"], stage["package_delivery"]["controller_target"])
@@ -1741,6 +1751,39 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertNotIn("BRIDGE_MOTION_LIMIT_M_S=0.004", script)
         self.assertNotIn("BRIDGE_FORCE_I_GAIN=0.00001", script)
         self.assertNotIn("contact-bridge", script)
+
+    def test_v8_operator_exposes_direct_60_and_rejects_retired_phase_args(self) -> None:
+        wrapper = ROOT / "scripts" / "step5d-strict-rnn-p0-v8.sh"
+        help_result = subprocess.run(
+            ["bash", str(wrapper), "--help"],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(help_result.returncode, 0, help_result.stdout + help_result.stderr)
+        self.assertIn("always runs one continuous 60 second canary", help_result.stdout)
+        self.assertNotIn("capture-ready PHASE_S", help_result.stdout)
+        for argv in (
+            ["capture-ready", "2"],
+            ["capture-bridge", "10"],
+            ["validate-run", "runs/fake", "2"],
+        ):
+            with self.subTest(argv=argv):
+                completed = subprocess.run(
+                    ["bash", str(wrapper), *argv],
+                    cwd=ROOT,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(
+                    completed.returncode,
+                    2,
+                    completed.stdout + completed.stderr,
+                )
+                self.assertNotIn("bridge output:", completed.stdout + completed.stderr)
 
     def test_capture_bridge_refuses_without_p0_confirm_before_starting_bridge(self) -> None:
         completed = subprocess.run(

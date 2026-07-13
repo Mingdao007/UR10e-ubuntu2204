@@ -1091,7 +1091,7 @@
     },
     "no_contact_p0_v8_capture": {
       "profile": "step5d_strict_rnn_no_contact_p0_v8",
-      "entrypoint": "scripts/step5d-strict-rnn-p0-v8.sh capture-bridge PHASE_S",
+      "entrypoint": "scripts/step5d-strict-rnn-p0-v8.sh capture-bridge",
       "confirm_token": "LIVE STEP5D STRICT RNN NO CONTACT P0 V8",
       "planned_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v8.urp",
       "controller_target": null,

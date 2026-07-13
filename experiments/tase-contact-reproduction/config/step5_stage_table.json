@@ -8710,6 +8710,7 @@
         "entrypoint": "scripts/step5d-strict-rnn-p0-v8.sh",
         "base_operator": "scripts/bridge-line-operator.sh",
         "mode": "line-bridge-fast",
+        "canary_phase_s": 60.0,
         "confirm_env": "STEP5D_P0_CONFIRM",
         "confirm_token": "LIVE STEP5D STRICT RNN NO CONTACT P0 V8",
         "expected_program": null,
