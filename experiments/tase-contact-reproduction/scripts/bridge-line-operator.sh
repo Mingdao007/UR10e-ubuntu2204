@@ -18,6 +18,7 @@ STEP5D_CURRENT_BINDING_GATE="${ROOT}/tools/verify_step5d_current_binding.py"
 STEP5D_NO_CONTACT_P0_PROFILE="step5d_strict_rnn_no_contact_p0_v7"
 STEP5D_NO_CONTACT_P0_CONFIRM_TOKEN="${STEP5D_P0_CONFIRM_TOKEN_OVERRIDE:-LIVE STEP5D STRICT RNN NO CONTACT P0}"
 STEP5D_CUPY_PYTHONPATH="${STEP5D_CUPY_PYTHONPATH:-/tmp/step5d_gpu_np124}"
+STEP5D_CUDA_PYTHONPATH="${STEP5D_CUDA_PYTHONPATH:-/tmp/step5d_cuda129}"
 BRIDGE_PROFILE="${BRIDGE_PROFILE:-${STEP4E_VERSION:-v31}}"
 
 current_step5d_profile() {
@@ -1280,8 +1281,15 @@ ensure_step5d_rnn_backend_ready() {
   if [[ -d "${STEP5D_CUPY_PYTHONPATH}/cupy" ]]; then
     export PYTHONPATH="${STEP5D_CUPY_PYTHONPATH}${PYTHONPATH:+:${PYTHONPATH}}"
   fi
-  local gpu_libs="${STEP5D_CUPY_PYTHONPATH}/nvidia/cuda_nvrtc/lib:${STEP5D_CUPY_PYTHONPATH}/nvidia/nvjitlink/lib:${STEP5D_CUPY_PYTHONPATH}/nvidia/cuda_runtime/lib"
-  if [[ -d "${STEP5D_CUPY_PYTHONPATH}/nvidia/cuda_nvrtc/lib" ]]; then
+  if [[ -d "${STEP5D_CUDA_PYTHONPATH}/nvidia" ]]; then
+    export PYTHONPATH="${STEP5D_CUDA_PYTHONPATH}${PYTHONPATH:+:${PYTHONPATH}}"
+  fi
+  local gpu_lib_root="${STEP5D_CUPY_PYTHONPATH}"
+  if [[ -d "${STEP5D_CUDA_PYTHONPATH}/nvidia/cuda_nvrtc/lib" ]]; then
+    gpu_lib_root="${STEP5D_CUDA_PYTHONPATH}"
+  fi
+  local gpu_libs="${gpu_lib_root}/nvidia/cuda_nvrtc/lib:${gpu_lib_root}/nvidia/nvjitlink/lib:${gpu_lib_root}/nvidia/cuda_runtime/lib"
+  if [[ -d "${gpu_lib_root}/nvidia/cuda_nvrtc/lib" ]]; then
     export LD_LIBRARY_PATH="${gpu_libs}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
   fi
   if python3 - <<'PY' >/dev/null 2>&1
@@ -1299,7 +1307,7 @@ if float(x.get()[0]) != 1.0:
     raise RuntimeError("CuPy RawKernel smoke test failed")
 PY
   then
-    echo "[operator] Step5d RNN backend cupy RawKernel ready via PYTHONPATH=${STEP5D_CUPY_PYTHONPATH}"
+    echo "[operator] Step5d RNN backend cupy RawKernel ready via PYTHONPATH=${STEP5D_CUPY_PYTHONPATH}:${STEP5D_CUDA_PYTHONPATH}"
     return 0
   fi
   echo "refusing: STEP5D_RNN_BACKEND=cupy but CuPy RawKernel preflight failed"
