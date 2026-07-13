@@ -818,12 +818,12 @@ require_bench_gate_cache() {
 }
 
 ensure_no_existing_bridge() {
-  if pgrep -f "${ROOT}/tools/kunwei_rtde_bridge.py" >/dev/null 2>&1; then
+  if pgrep -f "${ROOT}/tools/(kunwei_rtde_bridge|step5d_p0_v8_bridge)\\.py" >/dev/null 2>&1; then
     echo "refusing: an existing Kunwei RTDE bridge process is already active"
     if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
       echo "next: stop existing bridge processes, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
     fi
-    pgrep -af "${ROOT}/tools/kunwei_rtde_bridge.py" || true
+    pgrep -af "${ROOT}/tools/(kunwei_rtde_bridge|step5d_p0_v8_bridge)\\.py" || true
     exit 3
   fi
 }
@@ -1318,6 +1318,10 @@ run_bridge_for_mode() {
   local launch_nonce=""
   BRIDGE_EARLY_EXIT_RC=""
   local bridge_launcher=(python3)
+  local bridge_entrypoint="${ROOT}/tools/kunwei_rtde_bridge.py"
+  if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_no_contact_p0_v8" ]]; then
+    bridge_entrypoint="${ROOT}/tools/step5d_p0_v8_bridge.py"
+  fi
   if requires_step5d_realtime_launcher; then
     bridge_launcher=(chrt -f 20 python3)
     echo "[operator] v29/v30/P0 bridge launcher: SCHED_FIFO priority 20"
@@ -1341,7 +1345,7 @@ PY
   }
   trap cleanup INT TERM EXIT
 
-  STEP5D_BRIDGE_LAUNCH_NONCE="${launch_nonce}" "${bridge_launcher[@]}" "${ROOT}/tools/kunwei_rtde_bridge.py" \
+  STEP5D_BRIDGE_LAUNCH_NONCE="${launch_nonce}" "${bridge_launcher[@]}" "${bridge_entrypoint}" \
     --allow-kunwei-stream-command \
     --write-rtde-inputs \
     --baseline-s "${BRIDGE_BASELINE_S}" \

@@ -8606,7 +8606,7 @@
       "complete": false,
       "completion_target": false,
       "gate_for": "step5d_strict_rnn_ablation_v30",
-      "block_reason": "Inactive P0 v8 candidate with controller upload/readback verified. The source-bound MuJoCo sequence passed the final continuous 60 s hard-control lane with zero deadline misses; the slower simulator cycle remains diagnostic-only. Review v2 1+1 and controller no-contact canaries are not complete.",
+      "block_reason": "Inactive P0 v8 candidate pending regenerated controller upload/readback and no-contact canaries. A late 2 ms candidate is skipped while TP continues the last successfully published guard-approved qdot for at most 20 ms; hard-real-time remains a separate zero-miss claim.",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": false,
@@ -8667,13 +8667,17 @@
         "step5d_rnn_backend": "cupy",
         "normal_contract": "n_reaction = -n_approach",
         "dls_runtime_fallback_allowed": false,
-        "deadline_overrun_stale_tick_command": "exact_zero_qdot_not_consumed",
+        "deadline_overrun_stale_tick_command": "last_published_guard_approved_qdot_consumed",
+        "deadline_overrun_late_candidate_policy": "discard_without_publish",
         "deadline_overrun_next_fresh_tick_may_recover": true,
-        "heartbeat_stale_stop_s": 0.006,
+        "heartbeat_stale_stop_s": 0.02,
         "hard_realtime_claim_requires_zero_deadline_miss": true,
-        "bounded_tail_miss_ratio_max": 0.0002,
-        "bounded_tail_lateness_max_ms": 0.5,
-        "bounded_tail_max_consecutive_misses": 2
+        "bounded_last_command_hold_claim_allowed": true,
+        "bounded_hold_miss_ratio_max": 0.01,
+        "bounded_hold_lateness_max_ms": 0.5,
+        "bounded_hold_max_consecutive_misses": 10,
+        "held_tick_counts_as_consumed": true,
+        "max_per_event_stale_joint_displacement_rad": 0.001
       },
       "contact_policy": {
         "bridge_required": true,
@@ -8727,15 +8731,15 @@
         "controller_dir": "/programs/andyl/kunwei/step5",
         "controller_uploaded": true,
         "controller_readback_verified": true,
-        "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v8_20260714_025315/manifest.json",
-        "semantic_fingerprint": "37dfbc9dc7a4bc8148902e4b7b1a85130dccb5a073ca2184b03cae7aba005f57",
+        "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v8_20260714_041843/manifest.json",
+        "semantic_fingerprint": "81ecf9f765092f5d5c9176a14ac9619253edd67b438b3b64cc4da291d09cb5e1",
         "sha256": {
-          ".script": "16d94d48795cba7a278f47007d099057217ff3135e151a73620deb6197651df2",
-          ".txt": "6280768807ab74336f098b5a5e34d1e4e76f3f2d036262f53e4bbcc52bbb3cf6",
-          ".urp": "3fa7b08a42b7fe9c0385ad9761e95ea52c1b47167e268b41d0e3211d56df897f"
+          ".script": "98998d6f4c2998bf61815b54b0444ea9ac367dce8746b6903b5bc0fb847f6786",
+          ".txt": "5960e03219134a85571384f73e06e51b3743c3f72ccf8272c7c4e74021e27668",
+          ".urp": "b25fc9d67174db1f920bf3ed496fef47409fbfb7c9dae2364cc94a8545f5b64b"
         },
-        "stamp": "2026-07-11T1115HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V8",
-        "generated_at": "2026-07-11T11:15:00+08:00"
+        "stamp": "2026-07-14T0335HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V8",
+        "generated_at": "2026-07-14T03:35:01+08:00"
       },
       "review_v2": {
         "policy_id": "ur10e_review_policy_v2",
@@ -8760,7 +8764,9 @@
         "simulator_cycle_500hz_diagnostic_pass": false,
         "p0_sim_physics_pass": false,
         "controller_canaries_completed": [],
-        "claim_effect": "diagnostic_only_no_promotion",
+        "deadline_policy_scope": "legacy_simulator_hard_deadline_lane_not_controller_hold_acceptance",
+        "bounded_last_command_hold_acceptance_eligible": false,
+        "claim_effect": "hard_zero_miss_diagnostic_only_no_promotion",
         "historical_artifacts": [
           {
             "status": "historical_superseded_by_v3_production_path_prewarm",
@@ -8847,7 +8853,7 @@
       "numeric_sanity": {
         "status": "offline_structural_pass",
         "artifact": "config/step5d_v30_numeric_sanity.json",
-        "sha256": "71a7c9561edf131ddf8805673c283212fb918f0a87a297645c43a506d788799f",
+        "sha256": "383cd7f8da7e2b863bc91501a64ec7199898a5993c2ee355d9a25a2ff17b4eb4",
         "source_full_chain_artifact": "/home/andy/codex_handoffs/step5d-v30-numeric-sanity-20260714/step5d_numeric_sanity.json",
         "source_full_chain_sha256": "1e794bd63d03802405fa798d74fe21ccfaee3ebadbe33880e978630069c6fe92",
         "exact_profile_bound": true,
@@ -8913,13 +8919,17 @@
         "normal_contract": "n_reaction = -n_approach",
         "normal_comparison_frame": "declared command frame after explicit rotation",
         "dls_runtime_fallback_allowed": false,
-        "deadline_overrun_stale_tick_command": "exact_zero_qdot_not_consumed",
+        "deadline_overrun_stale_tick_command": "last_published_guard_approved_qdot_consumed",
+        "deadline_overrun_late_candidate_policy": "discard_without_publish",
         "deadline_overrun_next_fresh_tick_may_recover": true,
-        "heartbeat_stale_stop_s": 0.006,
+        "heartbeat_stale_stop_s": 0.02,
         "hard_realtime_claim_requires_zero_deadline_miss": true,
-        "bounded_tail_miss_ratio_max": 0.0002,
-        "bounded_tail_lateness_max_ms": 0.5,
-        "bounded_tail_max_consecutive_misses": 2
+        "bounded_last_command_hold_claim_allowed": true,
+        "bounded_hold_miss_ratio_max": 0.01,
+        "bounded_hold_lateness_max_ms": 0.5,
+        "bounded_hold_max_consecutive_misses": 10,
+        "held_tick_counts_as_consumed": true,
+        "max_per_event_stale_joint_displacement_rad": 0.001
       },
       "contact_policy": {
         "bridge_required": false,
@@ -8964,13 +8974,13 @@
         "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v30.urp",
         "controller_uploaded": true,
         "controller_readback_verified": true,
-        "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v30_20260714_025315/manifest.json",
+        "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v30_20260714_041851/manifest.json",
         "delivery_preparation_allowed_before_p0_v8": true,
-        "semantic_fingerprint": "3b3e404b301595be126eea37cf3dd25b97c01c731d5f754563ac9dc530f81b27",
+        "semantic_fingerprint": "d19cf4eed85f5709dba1b314b55026125258ddbe6e06fd22f7933a9efcdd55c9",
         "sha256": {
-          ".script": "a6f0e586145eb701af72f92d21bb648b13169adf8198529ff8aea8e704b8e1d6",
-          ".txt": "3b8a389dcb1a5eb19a6ccfbf5782d4a6d450fafe414972f2defe48b0ba3178f7",
-          ".urp": "a7388b0fc6c686a886adc736e9307057174585f9edae6cf25f4cd31003280508"
+          ".script": "0f12722ddd54a2fc7676c2c79f0b1d596d1952aac10b06694bef46417a9ff992",
+          ".txt": "9af1f70bed739c4387afab2a8f65ffe2857575db001d4b9f0ee53e23f1eeff09",
+          ".urp": "2f57065326ba0c956d49a622c5d9039bd4607571073c6a7da0311b7436448617"
         }
       },
       "canary_stop_register": {
@@ -9026,7 +9036,9 @@
         "solver_p99_max_ms": 1.5,
         "full_tick_p99_max_ms": 1.8,
         "hard_deadline_ms": 2.0,
-        "deadline_miss_max": 0
+        "hard_realtime_deadline_miss_max": 0,
+        "bounded_hold_deadline_miss_ratio_max": 0.01,
+        "bounded_hold_max_consecutive_misses": 10
       },
       "local_analysis_evidence": {
         "revisit_ledger": "config/step5d_v30_revisit_ledger.json",
@@ -9036,36 +9048,41 @@
         "v29_replay": "config/step5d_v30_replay_summary.json",
         "profile_selection": "config/step5d_v30_profile_selection.json",
         "profile_selection_sha256": "7df2f006edbe6210668eaa39ff2a3d85e03ac2bf9e81cd509aebeab57aa1b906",
-        "profile_selection_status": "canonical_rnn512_selected_formal_timing_passed",
-        "timing_raw": "config/step5d_v30_rnn512_8b33661_formal_timing_raw.json",
-        "timing_raw_sha256": "7ce4728225ad4cbccea5cbe1afd86db6604c5c0c5860bd653fc8f171aeb23371",
-        "timing_raw_status": "current_canonical_rnn512_hard_realtime_pass",
+        "profile_selection_status": "canonical_rnn512_selected_formal_timing_failed_bounded_hold_schedule_lateness",
+        "timing_raw": "config/step5d_v30_rnn512_last_command_hold_formal_timing_raw.json",
+        "timing_raw_sha256": "bdfe6e38acc3c0741c589f91545d721ad26d4b0a43be9350a91d5d2ccb5eefe9",
+        "timing_raw_status": "current_canonical_rnn512_bounded_hold_lateness_failed",
         "current_source_solver_10k_raw": "config/step5d_v30_current_source_solver_10k_raw.json",
         "current_source_solver_10k_raw_sha256": "81f94d23ffc985febb2402c2963547cb0110ddf7905d7781d6b52ed1937e49c2",
-        "timing": "config/step5d_v30_rnn512_8b33661_formal_timing_summary.json",
-        "timing_sha256": "c583dc4066528a97108a487da1e3fef3feac1fc97a2945fc72fefff57e8fab7b",
-        "timing_acceptance_mode": "hard_realtime_zero_miss",
+        "timing": "config/step5d_v30_rnn512_last_command_hold_formal_timing_summary.json",
+        "timing_sha256": "1171c79ca97e22928b53a6c3a93d63d5ad5303c6482150c45286900f99771285",
+        "timing_acceptance_mode": "failed_bounded_hold_schedule_lateness",
         "timing_metrics": {
           "solver_samples": 10000,
-          "solver_p99_ms": 0.27499455492943525,
-          "solver_max_ms": 0.5309730768203735,
+          "solver_p99_ms": 0.4128184085493559,
+          "solver_max_ms": 1.6106969997053966,
           "full_tick_samples": 30000,
-          "full_tick_p99_ms": 1.251991840545088,
-          "full_tick_max_ms": 1.8276688642799854,
-          "full_tick_compute_deadline_misses": 0,
-          "full_tick_schedule_deadline_misses": 0,
+          "full_tick_p99_ms": 1.3343213195184924,
+          "full_tick_max_ms": 2.3198650014819577,
+          "full_tick_compute_deadline_misses": 18,
+          "full_tick_schedule_deadline_misses": 18,
+          "full_tick_deadline_miss_ratio": 0.0006,
+          "full_tick_max_consecutive_deadline_misses": 1,
           "safe_hold_samples": 30000,
-          "safe_hold_p99_ms": 1.202890151180327,
-          "safe_hold_max_ms": 1.6797720454633236,
-          "safe_hold_compute_deadline_misses": 0,
-          "safe_hold_schedule_deadline_misses": 0
+          "safe_hold_p99_ms": 1.1774742366833348,
+          "safe_hold_max_ms": 3.02201000158675,
+          "safe_hold_compute_deadline_misses": 1,
+          "safe_hold_schedule_deadline_misses": 1,
+          "safe_hold_schedule_max_lateness_ms": 1.0248379985569045,
+          "hard_realtime_pass": false,
+          "bounded_last_command_hold_pass": false
         },
         "runtime_shaped_smoke": "config/step5d_v30_runtime_shaped_smoke.json",
         "runtime_shaped_smoke_sha256": "f16dcd0a435a004cc5f7477efb0fe98eac04ade7871a68b895fb35a93cdeae76",
         "component_diagnostic": "config/step5d_v30_component_diagnostic_summary.json",
         "component_diagnostic_sha256": "a06ea0c56440f5dcfe2a9939a74cc3574a56cd2ab109983f599923a03e55d2bf",
         "offline_readiness": "config/step5d_v30_offline_readiness.json",
-        "offline_readiness_sha256": "135d030276a79ce48c5fda7f01776bfdb182020f3fa138268b5a5961d662de2a",
+        "offline_readiness_sha256": "9c19728533809ff13e541ad6005161e54ec332c6884ce3b42988da21ff34e80b",
         "milestone_reviews": "config/step5d_v30_milestone_reviews.json",
         "milestone_reviews_sha256": "df28791a0999a8809ae6adb97ae8737f7bee74cbb509ed41f9c740fd88c12bcb",
         "timing_source_contract": {
@@ -9082,18 +9099,18 @@
           "kinematics": "tools/step5c_calibrated_kinematics_audit.py",
           "kinematics_sha256": "5454af16db870350759372ab42583a4f339c71e32f9190679987b3addf6e14fa",
           "bridge": "tools/kunwei_rtde_bridge.py",
-          "bridge_sha256": "c0ce3813bcac898df1044f3b3fd348fa50e308e58081b92866e9de3aba697be6",
+          "bridge_sha256": "4a875b27cfe4091217b1c9765f7b7a1ac856bbb6eadd0e800339839ed8d060f8",
           "harness": "tools/run_step5d_v30_remote_timing.py",
-          "harness_sha256": "e6e173ffad967dae41be28e18d09214e36151f794b807317b7aab6996be02302",
+          "harness_sha256": "c83e7cafa7d8a9be6b687e21996d4f650e9bef63209b2f935bffec875ae72333",
           "bundler": "tools/build_step5d_v30_remote_timing_bundle.py",
           "bundler_sha256": "320960ed2cf836f939b0a65e0cf7c602e6f58e9e4f35a7f9df87fc4cab4abd73",
           "aggregator": "tools/step5d_v30_timing.py",
-          "aggregator_sha256": "8af7096dfcbf7cce6469591074d9c07c93aeafcea30eb9e0b52e784037138882",
+          "aggregator_sha256": "d4a694f0268560d4430a7b0c2ec30e046813b2ff4c4885da031cf176d557168e",
           "readiness_builder": "tools/build_step5d_v30_offline_readiness.py",
-          "readiness_builder_sha256": "0ef91885da5f319f330e6f6f4dab644662004014afd44de6136ab60d7496aee9"
+          "readiness_builder_sha256": "d5f59d378cdac1f9ea914f2bcef88dc2b751e717ccf684440929859d2426c39d"
         }
       },
-      "success_condition": "v30_offline_ready only after the complete v29 replay accepts at least 99% with zero normal mismatch/nonfinite/qdot-bound rows; 10,000-solve and 60 s 500 Hz timing pass either the zero-miss hard-real-time route or the bounded-tail route with matching URSim/controller exact-zero stale-hold proof; inactive package hashes validate; and review blockers are zero. This does not promote current_stage or authorize live motion."
+      "success_condition": "v30_offline_ready only after the complete v29 replay accepts at least 99% with zero normal mismatch/nonfinite/qdot-bound rows; 10,000-solve and 60 s 500 Hz timing pass either the zero-miss hard-real-time route or the bounded last-command-hold route (late candidate discarded, <=1% held ticks, <=10 consecutive held ticks, stop dominance proven); inactive package hashes validate; and review blockers are zero. This does not promote current_stage or authorize live motion."
     },
     {
       "id": "step5d_strict_rnn_reproduction_v1",

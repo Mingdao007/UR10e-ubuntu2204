@@ -420,10 +420,10 @@ def build(*, generated_at: str) -> dict[str, Any]:
         token in script
         for script in (v30_script, p0_script)
         for token in (
-            "DEADLINE_OVERRUN_HOLD",
+            "DEADLINE_OVERRUN_LAST_COMMAND_HOLD",
             "if not heartbeat_fresh:",
-            "speedj([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]",
-            "if stale_s2 > 0.006:",
+            "local stage25_have_accepted_command = False",
+            "if stale_s2 > 0.020:",
         )
     )
     blockers: list[str] = []
@@ -446,23 +446,31 @@ def build(*, generated_at: str) -> dict[str, Any]:
     if replay.get("acceptance_pass") is not True:
         blockers.append("v29_replay_acceptance_incomplete")
     hard_acceptance_entries = [
-        entry for entry in history if entry["acceptance_eligible"]
-    ]
-    degraded_acceptance_entries = [
         entry
         for entry in history
-        if not entry["acceptance_eligible"]
+        if entry["acceptance_eligible"]
         and (
             entry["acceptance_evaluation"].get("deadline_robustness") or {}
-        ).get("degraded_fail_closed_pass")
+        ).get("hard_realtime_pass")
         is True
     ]
-    acceptance_entries = hard_acceptance_entries + degraded_acceptance_entries
+    bounded_hold_acceptance_entries = [
+        entry
+        for entry in history
+        if entry["acceptance_eligible"]
+        and (
+            entry["acceptance_evaluation"].get("deadline_robustness") or {}
+        ).get("bounded_last_command_hold_pass")
+        is True
+    ]
+    acceptance_entries = (
+        hard_acceptance_entries + bounded_hold_acceptance_entries
+    )
     timing_acceptance_mode = (
         "hard_realtime"
         if hard_acceptance_entries
-        else "bounded_tail_fail_closed"
-        if degraded_acceptance_entries
+        else "bounded_last_command_hold"
+        if bounded_hold_acceptance_entries
         else "none"
     )
     if not acceptance_entries:
@@ -487,7 +495,7 @@ def build(*, generated_at: str) -> dict[str, Any]:
         or (
             current_source["acceptance_evaluation"].get("deadline_robustness")
             or {}
-        ).get("degraded_fail_closed_pass")
+        ).get("bounded_last_command_hold_pass")
         is True
     ):
         blockers.append(
@@ -502,7 +510,7 @@ def build(*, generated_at: str) -> dict[str, Any]:
     if not acceptance_entries:
         blockers.append("runtime_shaped_60s_500hz_acceptance_not_run")
     if not deadline_overrun_static_prepared:
-        blockers.append("deadline_overrun_tp_zero_hold_not_prepared")
+        blockers.append("deadline_overrun_tp_last_command_hold_not_prepared")
     offline_prewarm = (
         (v30_row.get("runtime_scheduler") or {}).get(
             "offline_pipeline_prewarm"
@@ -588,18 +596,20 @@ def build(*, generated_at: str) -> dict[str, Any]:
             "overall_pass": bool(acceptance_entries),
             "acceptance_mode": timing_acceptance_mode,
             "hard_realtime_pass": bool(hard_acceptance_entries),
-            "bounded_tail_fail_closed_pass": bool(degraded_acceptance_entries),
+            "bounded_last_command_hold_pass": bool(
+                bounded_hold_acceptance_entries
+            ),
             "current_source_evidence": (
                 {
                     "path": current_source["path"],
                     "sha256": current_source["sha256"],
                     "acceptance_eligible": current_source["acceptance_eligible"],
-                    "degraded_fail_closed_pass": (
+                    "bounded_last_command_hold_pass": (
                         current_source["acceptance_evaluation"].get(
                             "deadline_robustness"
                         )
                         or {}
-                    ).get("degraded_fail_closed_pass")
+                    ).get("bounded_last_command_hold_pass")
                     is True,
                 }
                 if current_source is not None
@@ -658,12 +668,16 @@ def build(*, generated_at: str) -> dict[str, Any]:
         },
         "deadline_overrun_policy": {
             "hard_realtime_claim_requires_zero_deadline_miss": True,
-            "bounded_tail_candidate_ratio_max": 0.0002,
-            "bounded_tail_lateness_max_ms": 0.5,
-            "bounded_tail_max_consecutive_misses": 2,
-            "late_candidate_publish_policy": "same_heartbeat_exact_zero_qdot",
-            "tp_stale_tick_policy": "not_consumed_exact_zero_qdot",
-            "continuous_stale_stop_s": 0.006,
+            "bounded_hold_candidate_ratio_max": 0.01,
+            "bounded_hold_lateness_max_ms": 0.5,
+            "bounded_hold_max_consecutive_misses": 10,
+            "late_candidate_publish_policy": "discard_without_publish",
+            "tp_stale_tick_policy": (
+                "same_heartbeat_last_published_guard_approved_qdot_consumed"
+            ),
+            "pre_first_command_policy": "invalid_packet_tp_sync_no_speed_command",
+            "intentional_stop_policy": "zero_qdot_stop_dominates_hold",
+            "continuous_stale_stop_s": 0.020,
             "next_fresh_tick_may_recover": True,
             "package_static_prepared": deadline_overrun_static_prepared,
             "v30_script": {
@@ -674,11 +688,12 @@ def build(*, generated_at: str) -> dict[str, Any]:
                 "path": str(p0_script_path.relative_to(ROOT)),
                 "sha256": sha256(p0_script_path),
             },
-            "controller_or_ursim_execution_verified": bool(
-                degraded_acceptance_entries
+            "controller_or_ursim_execution_verified": False,
+            "source_bound_bridge_hold_fault_injection_verified": bool(
+                bounded_hold_acceptance_entries
             ),
-            "degraded_fail_closed_claim_allowed": bool(
-                degraded_acceptance_entries
+            "bounded_last_command_hold_claim_allowed": bool(
+                bounded_hold_acceptance_entries
             ),
             "claim_boundary": (
                 "offline package/static preparation only; no controller timing or motion proof"

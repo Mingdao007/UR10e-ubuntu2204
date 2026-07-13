@@ -20,6 +20,9 @@ PACKAGE_BASE = ROOT / "programs" / "step5" / "step5d" / PROFILE
 POLICY_PATH = ROOT / "config" / "step5d_review_policy_v2.json"
 CURRENT_PATH = ROOT / "config" / "current_stage.json"
 CONSUMPTION_MIN_RATIO = 0.98
+DEADLINE_HOLD_MAX_RATIO = 0.01
+DEADLINE_HOLD_MAX_CONSECUTIVE_S = 0.020
+CONTROL_PERIOD_S = 0.002
 SOLVER_OK_STATUS = 40.0
 
 
@@ -181,7 +184,21 @@ def validate_contract_rows(
     dls_fallback_rows = 0
     dls_sign_mismatch_rows = 0
     nonfinite_rows = 0
+    deadline_hold_rows = 0
+    deadline_hold_max_consecutive = 0
     for row in nonterminal_rows:
+        deadline_hold_active = legacy.finite_int(
+            row.get("_bridge_loop_deadline_overrun_hold")
+        ) == 1
+        if deadline_hold_active:
+            deadline_hold_rows += 1
+        deadline_hold_max_consecutive = max(
+            deadline_hold_max_consecutive,
+            legacy.finite_int(
+                row.get("_bridge_loop_deadline_overrun_consecutive")
+            )
+            or 0,
+        )
         if legacy.finite_int(row.get("_step5d_p0_rnn_accepted")) != 1:
             rejected_rows += 1
         if legacy.finite_int(row.get("_step5d_p0_safe_hold_active")) not in {0}:
@@ -222,6 +239,16 @@ def validate_contract_rows(
         blockers.append("dls_shadow_normal_sign_mismatch")
     if nonfinite_rows:
         blockers.append("p0_v8_nonfinite_evidence_rows")
+    deadline_hold_ratio = (
+        deadline_hold_rows / len(nonterminal_rows) if nonterminal_rows else 0.0
+    )
+    deadline_hold_max_consecutive_s = (
+        deadline_hold_max_consecutive * CONTROL_PERIOD_S
+    )
+    if deadline_hold_ratio > DEADLINE_HOLD_MAX_RATIO:
+        blockers.append("deadline_hold_ratio_above_0p01")
+    if deadline_hold_max_consecutive_s > DEADLINE_HOLD_MAX_CONSECUTIVE_S:
+        blockers.append("deadline_hold_consecutive_above_0p020s")
 
     terminal_zero_bad_rows = 0
     terminal_stop_bad_rows = 0
@@ -258,6 +285,9 @@ def validate_contract_rows(
         "terminal_rows": len(terminal_rows),
         "rejected_rows": rejected_rows,
         "safe_hold_rows": safe_hold_rows,
+        "deadline_hold_rows": deadline_hold_rows,
+        "deadline_hold_ratio": deadline_hold_ratio,
+        "deadline_hold_max_consecutive_s": deadline_hold_max_consecutive_s,
         "solver_status_bad_rows": solver_status_bad_rows,
         "dls_missing_rows": dls_missing_rows,
         "dls_fallback_rows": dls_fallback_rows,

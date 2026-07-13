@@ -1,5 +1,5 @@
-# VERSION: 2026-07-11T1115HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V8
-# GENERATED_AT_LOCAL: 2026-07-11T11:15:00+08:00
+# VERSION: 2026-07-14T0335HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V8
+# GENERATED_AT_LOCAL: 2026-07-14T03:35:01+08:00
 # PURPOSE: NO_CONTACT_P0_CAPTURE; no contact search, no preload, no zero/tare, direct Stage25 strict RNN warm-start capture.
 # TP_ROLE: no_contact_stage25_executor_and_guard_only; bridge computes Step5d strict RNN speedj command.
 # REGISTER_CONTRACT: Stage 25.95 requires bridge-cleared registers 37..47 before Stage25.0. Stage25.0 accepts only register 47=524.0 with joint speedj qd0..qd5; 43 cmd_valid, 44 path_time_s. DLS is shadow-only and has no runtime command path.
@@ -147,7 +147,10 @@ def codex_step5d_strict_rnn_no_contact_p0_v8():
     local cmd_valid_grace_s = 1.000
     local stage25_runtime_limit_s = 65.000
     local stage25_command_consumed = 0
+    local stage25_have_accepted_command = False
     while stop_reason == 0.0:
+      stage25_command_consumed = 0
+      write_output_float_register(47, stage25_command_consumed)
       local heartbeat2 = read_input_float_register(26)
       local cmd_valid = read_input_float_register(43)
       local stage25_layout_tag = read_input_float_register(47)
@@ -176,28 +179,33 @@ def codex_step5d_strict_rnn_no_contact_p0_v8():
       end
       t2 = t2 + loop_dt2
       stop_reason = codex_step5d_no_contact_p0_guard_stop_reason()
-      if stale_s2 > 0.006:
+      if stale_s2 > 0.020:
         stop_reason = 2.0
       end
       if stop_reason == 0.0:
-        # DEADLINE_OVERRUN_HOLD: never consume or replay a stale host qdot.
+        # DEADLINE_OVERRUN_LAST_COMMAND_HOLD: bounded zero-order hold.
         if not heartbeat_fresh:
-          write_output_float_register(47, stage25_command_consumed)
-          speedj([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], joint_accel_rad_s2, 0.002)
+          if stage25_have_accepted_command and cmd_valid >= 0.5 and joint_layout_ok and codex_abs(cmd_qd0) <= qdot_cap_rad_s and codex_abs(cmd_qd1) <= qdot_cap_rad_s and codex_abs(cmd_qd2) <= qdot_cap_rad_s and codex_abs(cmd_qd3) <= qdot_cap_rad_s and codex_abs(cmd_qd4) <= qdot_cap_rad_s and codex_abs(cmd_qd5) <= qdot_cap_rad_s:
+            stage25_command_consumed = 1
+            write_output_float_register(47, stage25_command_consumed)
+            speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5], joint_accel_rad_s2, 0.002)
+          else:
+            sync()
+          end
         elif cmd_valid < 0.5 or not joint_layout_ok:
-          write_output_float_register(47, stage25_command_consumed)
           if t2 < cmd_valid_grace_s:
             sync()
           else:
             stop_reason = 12.0
           end
+        elif cartesian_layout_ok and (codex_abs(cmd_vx) > cartesian_linear_cap_m_s or codex_abs(cmd_vy) > cartesian_linear_cap_m_s or codex_abs(cmd_vz) > cartesian_linear_cap_m_s or codex_abs(cmd_wx) > cartesian_angular_cap_rad_s or codex_abs(cmd_wy) > cartesian_angular_cap_rad_s or codex_abs(cmd_wz) > cartesian_angular_cap_rad_s):
+          stop_reason = 13.0
         elif joint_layout_ok and (codex_abs(cmd_qd0) > qdot_cap_rad_s or codex_abs(cmd_qd1) > qdot_cap_rad_s or codex_abs(cmd_qd2) > qdot_cap_rad_s or codex_abs(cmd_qd3) > qdot_cap_rad_s or codex_abs(cmd_qd4) > qdot_cap_rad_s or codex_abs(cmd_qd5) > qdot_cap_rad_s):
-          write_output_float_register(47, stage25_command_consumed)
           stop_reason = 13.0
         elif t2 >= stage25_runtime_limit_s:
-          write_output_float_register(47, stage25_command_consumed)
           stop_reason = 1.0
         else:
+          stage25_have_accepted_command = True
           stage25_command_consumed = 1
           write_output_float_register(47, stage25_command_consumed)
           speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5], joint_accel_rad_s2, 0.002)

@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 import build_step5d_liveprep as liveprep  # noqa: E402
 import step5d_p0_v8_gate as gate  # noqa: E402
+import step5d_p0_v8_bridge as p0_bridge  # noqa: E402
 import step5d_runtime_interface as interface  # noqa: E402
 import verify_step5d_no_contact_p0_v8 as verifier  # noqa: E402
 
@@ -55,6 +56,34 @@ def accepted_contract_row(*, terminal: bool = False) -> dict[str, str]:
 
 
 class Step5dNoContactP0V8Test(unittest.TestCase):
+    def test_qualified_canary_clock_resets_across_unconsumed_tick(self) -> None:
+        state = p0_bridge.base.BridgeState()
+
+        self.assertEqual(
+            p0_bridge.update_qualified_consumed_time(
+                state, consumed=True, now_s=10.000
+            ),
+            0.0,
+        )
+        self.assertAlmostEqual(
+            p0_bridge.update_qualified_consumed_time(
+                state, consumed=True, now_s=10.002
+            ),
+            0.002,
+        )
+        self.assertEqual(
+            p0_bridge.update_qualified_consumed_time(
+                state, consumed=False, now_s=10.004
+            ),
+            0.0,
+        )
+        self.assertEqual(
+            p0_bridge.update_qualified_consumed_time(
+                state, consumed=True, now_s=10.006
+            ),
+            0.0,
+        )
+
     def test_generated_triplet_is_hash_bound_and_joint_layout_only(self) -> None:
         stem = ROOT / "programs" / "step5" / "step5d" / PROFILE
         marker_path = stem.parent / f".{PROFILE}.local_candidate.json"
@@ -77,13 +106,32 @@ class Step5dNoContactP0V8Test(unittest.TestCase):
         self.assertIn("local qdot_cap_rad_s = 0.050", script)
         self.assertIn("Low-load effective_ko is 0.01", txt)
         self.assertIn("DLS shadow-only", script + txt)
-        self.assertIn("DEADLINE_OVERRUN_HOLD", script)
+        self.assertIn("DEADLINE_OVERRUN_LAST_COMMAND_HOLD", script)
         self.assertIn("if not heartbeat_fresh:", script)
+        self.assertIn("local stage25_have_accepted_command = False", script)
+        self.assertIn("stage25_have_accepted_command = True", script)
         self.assertIn(
-            "speedj([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]", script
+            "stage25_command_consumed = 0\n      write_output_float_register(47, stage25_command_consumed)",
+            script,
         )
-        self.assertIn("A repeated heartbeat is never consumed", txt)
-        self.assertIn("if stale_s2 > 0.006:", script)
+        self.assertIn(
+            "else:\n            sync()\n          end\n        elif cmd_valid < 0.5",
+            script,
+        )
+        self.assertIn("reuses only the last", txt)
+        self.assertIn("if stale_s2 > 0.020:", script)
+
+        bridge_source = (ROOT / "tools" / "step5d_p0_v8_bridge.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "qualified_s >= requested_phase_s",
+            bridge_source,
+        )
+        self.assertNotIn(
+            "state.step5d_active_stage25_s >= canary_phase_s",
+            bridge_source,
+        )
 
         spec = liveprep.spec_for(PROFILE)
         liveprep.validate_package(

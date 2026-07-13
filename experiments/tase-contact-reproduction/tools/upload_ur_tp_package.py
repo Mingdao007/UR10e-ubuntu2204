@@ -18,6 +18,7 @@ import shutil
 import shlex
 import subprocess
 import sys
+import tempfile
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path, PurePosixPath
@@ -223,7 +224,10 @@ def enforce_offline_candidate_delivery_block(
     if not isinstance(row, dict):
         return None
     delivery = row.get("package_delivery") or {}
-    if delivery.get("status") == "local_offline_candidate_only":
+    if delivery.get("status") in {
+        "local_offline_candidate_only",
+        "controller_readback_verified_inactive",
+    }:
         if program not in INACTIVE_PRELIVE_DELIVERY_PROGRAMS:
             die(f"refusing controller delivery for inactive offline candidate {program}")
         if program == "step5d_strict_rnn_ablation_v30" and delivery.get(
@@ -1493,30 +1497,81 @@ def package_sha(files: dict[str, Path]) -> dict[str, str]:
     return {ext: sha256(path) for ext, path in files.items()}
 
 
-def remote_sha256(helper: Path, remote_paths: list[str], *, dry_run: bool) -> dict[str, str]:
-    if dry_run:
-        for remote_path in remote_paths:
-            run(
-                helper_cmd(helper, "run", "--", "sha256sum", remote_path, require_exists=False),
-                dry_run=True,
+def readback_controller_sha256(
+    helper: Path,
+    files: dict[str, Path],
+    program: str,
+    target_dir: str,
+    *,
+    local_sha: dict[str, str],
+) -> dict[str, str] | None:
+    """Verify the remote triplet through the manifest-bound readback surface."""
+    manifest = {
+        "schema_version": 1,
+        "basename": program,
+        "controller_directory": target_dir,
+        "artifacts": [
+            {
+                "filename": files[ext].name,
+                "source": str(files[ext].resolve()),
+                "sha256": local_sha[ext],
+            }
+            for ext in EXTENSIONS
+        ],
+    }
+    with tempfile.TemporaryDirectory(prefix="ur10e-tp-reuse-probe-") as tmp:
+        tmp_path = Path(tmp)
+        manifest_path = tmp_path / "readback-manifest.json"
+        output_dir = tmp_path / "readback"
+        manifest_path.write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        command = helper_cmd(
+            helper,
+            "readback",
+            "--manifest",
+            str(manifest_path),
+            "--output-dir",
+            str(output_dir),
+        )
+        printable = " ".join(shlex.quote(part) for part in command)
+        print(f"RUN {printable}")
+        try:
+            completed = subprocess.run(
+                command,
+                check=False,
+                text=True,
+                capture_output=True,
             )
-        return {}
-    output = run(
-        helper_cmd(helper, "run", "--", "sha256sum", *remote_paths),
-        dry_run=False,
-        capture=True,
-    )
-    shas: dict[str, str] = {}
-    for line in output.splitlines():
-        match = re.match(r"^([0-9a-fA-F]{64})\s+(.+)$", line.strip())
-        if not match:
-            continue
-        digest, path = match.groups()
-        shas[path] = digest.lower()
-    missing = [path for path in remote_paths if path not in shas]
-    if missing:
-        die(f"could not parse controller sha256sum for: {missing}")
-    return shas
+        except OSError as exc:
+            die(f"controller readback helper failed to start: {exc}")
+        if completed.stderr:
+            sys.stderr.write(completed.stderr)
+        if completed.returncode != 0:
+            print(
+                "Manifest-bound controller readback did not match the reusable "
+                "triplet; falling back to full upload/read-back."
+            )
+            return None
+        try:
+            payload = json.loads(completed.stdout.strip().splitlines()[-1])
+        except (IndexError, json.JSONDecodeError):
+            print(
+                "Manifest-bound controller readback returned no parseable result; "
+                "falling back to full upload/read-back."
+            )
+            return None
+        if payload.get("ok") is not True:
+            return None
+        by_name = {
+            item.get("filename"): item.get("sha256")
+            for item in payload.get("files", [])
+            if isinstance(item, dict)
+        }
+        if any(by_name.get(files[ext].name) != local_sha[ext] for ext in EXTENSIONS):
+            return None
+        return {ext: by_name[files[ext].name] for ext in EXTENSIONS}
 
 
 def manifest_matches_package(
@@ -1620,17 +1675,14 @@ def reuse_readback_if_remote_sha_matches(
         return None
 
     manifest_path, _manifest = reusable
-    remote_paths = remote_paths_for(files, target_dir)
-    controller_sha = remote_sha256(helper, remote_paths, dry_run=False)
-    controller_sha_by_ext = {
-        ext: controller_sha[controller_path(target_dir, files[ext].name)] for ext in EXTENSIONS
-    }
-    remote_mismatches = [ext for ext in EXTENSIONS if controller_sha_by_ext[ext] != local_sha[ext]]
-    if remote_mismatches:
-        print(
-            "Controller SHA does not match reusable read-back; "
-            f"falling back to full upload/read-back for: {remote_mismatches}"
-        )
+    controller_sha_by_ext = readback_controller_sha256(
+        helper,
+        files,
+        program,
+        target_dir,
+        local_sha=local_sha,
+    )
+    if controller_sha_by_ext is None:
         return None
 
     readback_dir.mkdir(parents=True, exist_ok=False)
@@ -1657,45 +1709,89 @@ def upload_and_readback(
     if controller != DEFAULT_CONTROLLER:
         die(f"{Path(__file__).name} uses the bench helper for {DEFAULT_CONTROLLER}; got {controller!r}")
 
-    def command(*parts: str) -> list[str]:
-        return helper_cmd(helper, *parts, require_exists=not dry_run)
-
-    run(command("run", "--", "mkdir", "-p", target_dir), dry_run=dry_run)
-    remote_paths = remote_paths_for(files, target_dir)
-    for ext in EXTENSIONS:
-        remote_path = controller_path(target_dir, files[ext].name)
-        run(command("put", str(files[ext]), remote_path), dry_run=dry_run)
-
-    run(command("run", "--", "chown", "1000:1000", *remote_paths), dry_run=dry_run)
-    run(command("run", "--", "chmod", "664", *remote_paths), dry_run=dry_run)
-    run(command("run", "--", "ls", "-l", *remote_paths), dry_run=dry_run)
-    controller_sha = remote_sha256(helper, remote_paths, dry_run=dry_run)
-
-    if dry_run:
-        for ext in EXTENSIONS:
-            remote_path = controller_path(target_dir, files[ext].name)
-            run(command("get", remote_path, str(readback_dir / files[ext].name)), dry_run=True)
-        return {}
-
-    readback_dir.mkdir(parents=True, exist_ok=False)
-    for ext in EXTENSIONS:
-        remote_path = controller_path(target_dir, files[ext].name)
-        run(command("get", remote_path, str(readback_dir / files[ext].name)), dry_run=False)
-
     local_sha = package_sha(files)
+    manifest = {
+        "schema_version": 1,
+        "basename": program,
+        "controller_directory": target_dir,
+        "artifacts": [
+            {
+                "filename": files[ext].name,
+                "source": str(files[ext].resolve()),
+                "sha256": local_sha[ext],
+            }
+            for ext in EXTENSIONS
+        ],
+    }
+    with tempfile.TemporaryDirectory(prefix="ur10e-tp-deploy-") as tmp:
+        manifest_path = Path(tmp) / "deploy-manifest.json"
+        manifest_path.write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        deploy_output = run(
+            helper_cmd(
+                helper,
+                "deploy-triplet",
+                "--manifest",
+                str(manifest_path),
+                "--confirm-deploy",
+                require_exists=not dry_run,
+            ),
+            dry_run=dry_run,
+            capture=not dry_run,
+        )
+        if dry_run:
+            run(
+                helper_cmd(
+                    helper,
+                    "readback",
+                    "--manifest",
+                    str(manifest_path),
+                    "--output-dir",
+                    str(readback_dir),
+                    require_exists=False,
+                ),
+                dry_run=True,
+            )
+            return {}
+        deploy_result = json.loads(deploy_output.strip().splitlines()[-1])
+        if deploy_result.get("ok") is not True:
+            die("controller helper did not verify deployed triplet")
+        readback_dir.mkdir(parents=True, exist_ok=False)
+        readback_output = run(
+            helper_cmd(
+                helper,
+                "readback",
+                "--manifest",
+                str(manifest_path),
+                "--output-dir",
+                str(readback_dir),
+            ),
+            dry_run=False,
+            capture=True,
+        )
+        readback_result = json.loads(readback_output.strip().splitlines()[-1])
+        if readback_result.get("ok") is not True:
+            die("controller helper did not verify fetched-back triplet")
+
     readback_sha = {ext: sha256(readback_dir / path.name) for ext, path in files.items()}
     mismatches = [ext for ext in EXTENSIONS if local_sha[ext] != readback_sha[ext]]
     if mismatches:
         die(f"controller read-back SHA mismatch for: {mismatches}")
+    controller_sha_by_name = {
+        item["filename"]: item["sha256"]
+        for item in deploy_result.get("verified_readback", [])
+        if isinstance(item, dict)
+    }
     remote_mismatches = [
-        ext
-        for ext in EXTENSIONS
-        if controller_sha[controller_path(target_dir, files[ext].name)] != local_sha[ext]
+        ext for ext in EXTENSIONS
+        if controller_sha_by_name.get(files[ext].name) != local_sha[ext]
     ]
     if remote_mismatches:
         die(f"controller sha256sum mismatch for: {remote_mismatches}")
     controller_sha_by_ext = {
-        ext: controller_sha[controller_path(target_dir, files[ext].name)] for ext in EXTENSIONS
+        ext: controller_sha_by_name[files[ext].name] for ext in EXTENSIONS
     }
     return {"local": local_sha, "controller": controller_sha_by_ext, "readback": readback_sha}
 

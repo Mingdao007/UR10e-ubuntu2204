@@ -25,22 +25,24 @@ preparation may occur before P0, but v30 cannot become current, start a bridge,
 or run contact until all of the following are frozen and pass:
 
 Wall-clock evidence has two non-interchangeable classifications. A strict
-500 Hz hard-real-time claim still requires zero samples at or beyond 2 ms. A
-bounded rare-tail candidate may be retained instead of discarding the entire
-control result, but a late host candidate must keep the previous heartbeat,
-publish exact-zero qdot, and be reported unconsumed by TP; the next fresh tick
-may recover, while heartbeat staleness beyond 0.006 s stops. Until this path is
-executed in URSim or on the controller, it is offline/static preparation only.
-The offline bounded-tail classifier is capped at 0.02% misses, at most two
-consecutive missed slots, and no more than 0.5 ms schedule lateness.
+500 Hz hard-real-time claim still requires zero samples at or beyond 2 ms. For
+the bounded last-command-hold route, a late host candidate is discarded, the
+heartbeat remains unchanged, and TP continues the last successfully published
+guard-approved qdot. Held ticks are reported as consumed because TP executes
+them; the next fresh tick may recover, while continuous staleness beyond
+0.020 s stops. Before the first accepted command TP only syncs and issues no
+speed command. The bounded route requires at most 1% held ticks, at most ten
+consecutive held ticks, and no more than 0.5 ms schedule lateness. At the
+0.05 rad/s qdot cap, one 20 ms event can carry at most 0.001 rad per joint.
 
 1. `step5d_strict_rnn_no_contact_p0_v8` passes one Review v2 `1+1` gate and
    sequential same-fingerprint `2 -> 10 -> 60 s` canaries; only the final
    continuous `60 s` verifier artifact passes P0.
 2. v30 has a complete 10,000-solve and 60 s / 500 Hz timing plus safe-hold
-   pass. This offline condition is now satisfied by the source-bound RNN512
-   hard-real-time artifact; the bounded-tail route was not needed. A future
-   changed fingerprint must pass the same gate again.
+   pass. The current source-bound RNN512 run does not satisfy this condition:
+   the bounded route stayed within the 1%/ten-tick hold limits, but the
+   safe-hold lane reached `1.024838 ms` schedule lateness against the
+   `0.5 ms` bound. A future changed fingerprint must pass the same gate again.
 3. The v30 package/readback hashes and evidence are frozen.
 4. The current composite fingerprint passes one Review v2 `2+1` gate.
 
@@ -74,16 +76,24 @@ distribution and miss count. Pre-v3 compact formal candidates cannot satisfy
 the current aggregator binding.
 
 The current formal artifact is
-`config/step5d_v30_rnn512_8b33661_formal_timing_raw.json`
-(SHA-256 `7ce4728225ad4cbccea5cbe1afd86db6604c5c0c5860bd653fc8f171aeb23371`).
-The 10,000-solve p99/max were `0.275/0.531 ms`; the 60 s full-tick p99/max
-were `1.252/1.828 ms`; and the independent 60 s safe-hold p99/max were
-`1.203/1.680 ms`. All three compute-miss counts and both paced schedule-miss
-counts were zero. This closes only the v30 offline host timing gate: it does
-not pass P0 controller canaries, freeze controller readback, authorize a
-bridge, or establish a live/contact claim.
+`config/step5d_v30_rnn512_last_command_hold_formal_timing_raw.json`
+(SHA-256 `bdfe6e38acc3c0741c589f91545d721ad26d4b0a43be9350a91d5d2ccb5eefe9`),
+with independent summary
+`config/step5d_v30_rnn512_last_command_hold_formal_timing_summary.json`
+(SHA-256 `1171c79ca97e22928b53a6c3a93d63d5ad5303c6482150c45286900f99771285`).
+The 10,000-solve p99/max were `0.413/1.611 ms`; the 60 s full-tick p99/max
+were `1.334/2.320 ms` with 18 compute/schedule misses and maximum consecutive
+count one; and the independent 60 s safe-hold p99/max were `1.177/3.022 ms`
+with one compute/schedule miss and maximum consecutive count one. Full-tick
+schedule lateness stayed at `0.320725 ms`, while safe-hold schedule lateness
+reached `1.024838 ms`, so both hard-real-time and bounded-hold acceptance are
+false. This preserved failed evidence blocks bridge start. The regenerated P0
+v8 and v30 triplets are controller read-back verified, but package delivery
+does not override the failed timing gate or authorize TP Play/contact.
 
-The current source-bound P0 MuJoCo diagnostic uses the v4 evidence contract.
+The retained source-bound P0 MuJoCo diagnostic uses the v4 evidence contract
+as a separate legacy hard-deadline lane; it is not the controller
+last-command-hold acceptance path.
 Before the measured
 `2 -> 10 -> 60 s` sequence it must complete exactly 1,000 source-bound,
 unmeasured, no-output production-path execute ticks paced at 500 Hz. The lane
@@ -291,8 +301,8 @@ instead of preserving the later 22 s TP v3 timing.
 | `step5d_strict_rnn_ablation_v27` | bridge+TP | true | true | Step5b speedl live / Step5d paper+RNN shadow | `v31_filtered_live` | Retained successful 10 s fix-validation evidence from `runs/bridge_step5d_strict_rnn_ablation_v27_20260706_045513`; not current and not a 60 s reproduction claim. The earlier 040900 force overshoot remains retained failure evidence for the old paper-linear-live path. |
 | `step5d_strict_rnn_ablation_v28` | bridge+TP | true | true | Step5b speedl live / Step5d paper+RNN shadow | `v31_filtered_live` | Retained read-back verified diagnostic package, superseded by v29; not a completed reproduction claim. |
 | `step5d_strict_rnn_ablation_v29` | frozen fallback | true | false | strict TASE RNN speedj | `v31_filtered_live` | Current pointer is retained only because it is the last read-back-verified package. A future reactivation requires fresh readback/timing fingerprint, Review v2 `2+1`, and explicit live/contact authorization. |
-| `step5d_strict_rnn_no_contact_p0_v8` | offline P0 gate | false | false | v30 strict-RNN contract | none | Inactive layout-524-only package. The current MuJoCo v4 diagnostic proves every late tick is converted to exact-zero stop before the sink, but the final 60 s retained 198 misses and remains `bound_timing_blocked`; the slower simulator cycle is diagnostic-only and cannot promote P0. After a future passing offline window, readback, and one fingerprint-bound Review v2 `1+1`, separate controller canaries may run under explicit no-contact authorization; only the final continuous 60 s controller verifier artifact passes P0. |
-| `step5d_strict_rnn_ablation_v30` | offline contact-control prep | true | false | strict TASE RNN speedj; DLS shadow-only | `v31_filtered_live` | Inactive candidate. Source-bound RNN512 10k/60s/60s hard timing now passes with zero misses. Current promotion still requires live-runtime prewarm integration, P0 v8 controller canaries, frozen package/readback, and current-fingerprint Review v2 `2+1`; contact still requires separate authorization. |
+| `step5d_strict_rnn_no_contact_p0_v8` | offline P0 gate | false | false | v30 strict-RNN contract | none | Inactive layout-524-only package. Deadline overruns skip the late candidate and hold the last successfully published qdot for at most 20 ms; held ticks count toward canary time but must remain at most 1% overall and ten consecutive ticks. Regenerated package readback and sequential 2/10/60 s controller canaries remain required. |
+| `step5d_strict_rnn_ablation_v30` | offline contact-control prep | true | false | strict TASE RNN speedj; DLS shadow-only | `v31_filtered_live` | Inactive candidate using the same bounded last-command-hold contract as P0 v8. Hard-real-time remains a distinct zero-miss claim; bounded readiness requires the 1%/20 ms limits, live-runtime prewarm integration, P0 v8 controller canaries, and frozen package/readback. Contact still requires separate authorization. |
 | `step5d_ros2_remote_shadow_v1` | ROS2 offline | true | false | ROS2 shadow replay | `v31_filtered_live` input logs | Diagnostic-only Step5d policy replay: replays v15a/v14/v11 and Step5b/Step6b CSVs, removes long zero-qdot hold recovery, but is not live-ready and must follow Step5b plumbing validation. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |
 

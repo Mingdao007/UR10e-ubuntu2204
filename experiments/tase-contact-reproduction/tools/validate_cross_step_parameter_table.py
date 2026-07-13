@@ -627,17 +627,21 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             failures.append("P0 v8 must allow only Stage25 layout 524")
         if (
             p0_guard.get("deadline_overrun_stale_tick_command")
-            != "exact_zero_qdot_not_consumed"
+            != "last_published_guard_approved_qdot_consumed"
+            or p0_guard.get("deadline_overrun_late_candidate_policy")
+            != "discard_without_publish"
             or p0_guard.get("deadline_overrun_next_fresh_tick_may_recover")
             is not True
-            or p0_guard.get("heartbeat_stale_stop_s") != 0.006
+            or p0_guard.get("heartbeat_stale_stop_s") != 0.02
             or p0_guard.get("hard_realtime_claim_requires_zero_deadline_miss")
             is not True
-            or p0_guard.get("bounded_tail_miss_ratio_max") != 0.0002
-            or p0_guard.get("bounded_tail_lateness_max_ms") != 0.5
-            or p0_guard.get("bounded_tail_max_consecutive_misses") != 2
+            or p0_guard.get("bounded_last_command_hold_claim_allowed") is not True
+            or p0_guard.get("bounded_hold_miss_ratio_max") != 0.01
+            or p0_guard.get("bounded_hold_lateness_max_ms") != 0.5
+            or p0_guard.get("bounded_hold_max_consecutive_misses") != 10
+            or p0_guard.get("held_tick_counts_as_consumed") is not True
         ):
-            failures.append("P0 v8 deadline-overrun fail-closed policy is invalid")
+            failures.append("P0 v8 bounded last-command hold policy is invalid")
         if (
             p0_v8_row.get("contact") is not False
             or p0_guard.get("dls_runtime_fallback_allowed") is not False
@@ -920,7 +924,11 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
                     )
                     or {}
                 ).get("completed"),
-                "claim_effect": "diagnostic_only_no_promotion",
+                "deadline_policy_scope": (
+                    "legacy_simulator_hard_deadline_lane_not_controller_hold_acceptance"
+                ),
+                "bounded_last_command_hold_acceptance_eligible": False,
+                "claim_effect": "hard_zero_miss_diagnostic_only_no_promotion",
                 "historical_artifacts": expected_historical_artifacts,
             }
             if offline_pointer != expected_pointer:
@@ -1020,17 +1028,21 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         v30_guard = v30.get("guard") or {}
         if (
             v30_guard.get("deadline_overrun_stale_tick_command")
-            != "exact_zero_qdot_not_consumed"
+            != "last_published_guard_approved_qdot_consumed"
+            or v30_guard.get("deadline_overrun_late_candidate_policy")
+            != "discard_without_publish"
             or v30_guard.get("deadline_overrun_next_fresh_tick_may_recover")
             is not True
-            or v30_guard.get("heartbeat_stale_stop_s") != 0.006
+            or v30_guard.get("heartbeat_stale_stop_s") != 0.02
             or v30_guard.get("hard_realtime_claim_requires_zero_deadline_miss")
             is not True
-            or v30_guard.get("bounded_tail_miss_ratio_max") != 0.0002
-            or v30_guard.get("bounded_tail_lateness_max_ms") != 0.5
-            or v30_guard.get("bounded_tail_max_consecutive_misses") != 2
+            or v30_guard.get("bounded_last_command_hold_claim_allowed") is not True
+            or v30_guard.get("bounded_hold_miss_ratio_max") != 0.01
+            or v30_guard.get("bounded_hold_lateness_max_ms") != 0.5
+            or v30_guard.get("bounded_hold_max_consecutive_misses") != 10
+            or v30_guard.get("held_tick_counts_as_consumed") is not True
         ):
-            failures.append("v30 deadline-overrun fail-closed policy is invalid")
+            failures.append("v30 bounded last-command hold policy is invalid")
         failures.extend(_validate_local_triplet(root, label="v30", delivery=delivery))
 
         p0_gate = v30.get("p0_v8_gate") or {}
@@ -1140,6 +1152,7 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
                 failures.append("v30 strict-RNN profile selection sha mismatch")
             if evidence.get("profile_selection_status") not in {
                 "canonical_rnn512_selected_formal_timing_passed",
+                "canonical_rnn512_selected_formal_timing_failed_bounded_hold_schedule_lateness",
                 "canonical_rnn512_selected_formal_timing_rerun_pending_after_prefault",
             }:
                 failures.append("v30 strict-RNN profile selection status is invalid")
@@ -1238,14 +1251,17 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             readiness_current_source = (
                 readiness_timing.get("current_source_evidence") or {}
             )
+            readiness_selected_timing = (
+                readiness_acceptance_raw or readiness_current_source
+            )
             timing_is_current = (
                 evidence.get("timing_raw_status")
                 == "current_canonical_rnn512_hard_realtime_pass"
             )
             if (
-                readiness_acceptance_raw.get("path")
+                readiness_selected_timing.get("path")
                 != evidence.get("timing_raw")
-                or readiness_acceptance_raw.get("sha256")
+                or readiness_selected_timing.get("sha256")
                 != evidence.get("timing_raw_sha256")
             ):
                 failures.append(

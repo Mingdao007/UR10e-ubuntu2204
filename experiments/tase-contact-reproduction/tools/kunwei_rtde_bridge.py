@@ -7018,20 +7018,55 @@ def apply_v29_fail_stop(bridge_values: dict[str, float]) -> None:
     bridge_values["step4e_cmd_valid"] = 0.0
 
 
-def apply_step5d_deadline_overrun_hold(bridge_values: dict[str, float]) -> None:
-    """Publish a same-heartbeat exact-zero packet after a missed host deadline.
+STEP5D_HELD_COMMAND_NAMES = (
+    *BRIDGE_INPUT_NAMES[:6],
+    "step4e_cmd_valid",
+    "step4e_progress_m",
+    "step4e_force_error_n",
+    "step4e_orientation_error_rad",
+    "step4e_controller_state",
+)
 
-    The matching v30/P0 TP program treats an unchanged heartbeat as a stale
-    packet, reports command-consumed=0, and executes zero qdot.  Keeping the
-    layout and cmd-valid carriers explicit prevents a late candidate from
-    leaking through any alternate interpretation; this is not a timing-pass
-    claim and does not relax the hard 2 ms gate.
+
+def apply_step5d_deadline_overrun_hold(
+    bridge_values: dict[str, float],
+    last_published_command: Mapping[str, float],
+) -> None:
+    """Publish updated guards with the last accepted command and heartbeat.
+
+    The matching v30/P0 TP program treats an unchanged heartbeat as a bounded
+    zero-order hold.  Motion carriers come only from the last successfully
+    published packet; current force/safety fields remain fresh.  Before the
+    first accepted packet the caller emits an invalid startup packet instead.
+    This records rather than hides a missed 2 ms deadline.
     """
+
+    for name in STEP5D_HELD_COMMAND_NAMES:
+        bridge_values[name] = float(last_published_command.get(name, 0.0))
+
+
+def apply_step5d_explicit_stop_packet(bridge_values: dict[str, float]) -> None:
+    """Make a v30/P0 stop packet unambiguously zero-motion and layout-524."""
 
     for name in BRIDGE_INPUT_NAMES[:6]:
         bridge_values[name] = 0.0
-    bridge_values["step4e_cmd_valid"] = 1.0
-    bridge_values["step4e_controller_state"] = STEP5D_STAGE25_JOINT_LAYOUT_CODE
+    bridge_values["step4e_cmd_valid"] = 0.0
+    bridge_values["step4e_controller_state"] = float(
+        STEP5D_STAGE25_JOINT_LAYOUT_CODE
+    )
+
+
+def apply_step5d_unpublished_startup_packet(
+    bridge_values: dict[str, float],
+) -> None:
+    """Invalidate a missed pre-first-command slot so the TP only calls sync()."""
+
+    for name in BRIDGE_INPUT_NAMES[:6]:
+        bridge_values[name] = 0.0
+    bridge_values["step4e_cmd_valid"] = 0.0
+    bridge_values["step4e_controller_state"] = float(
+        STEP5D_STAGE25_JOINT_LAYOUT_CODE
+    )
 
 
 def finalize_step5d_publish_history(
@@ -7040,14 +7075,20 @@ def finalize_step5d_publish_history(
     v30_contract_profile: bool,
     deadline_overrun_hold_active: bool,
     rtde_send_succeeded: bool,
+    command_publishable: bool,
+    last_published_command: Mapping[str, float] | None,
+    last_published_sequence: int,
 ) -> bool:
     """Commit v30 command history only after a fresh RTDE packet is sent.
 
     ``compute_bridge_values`` necessarily computes the next candidate before
     the RTDE write and therefore updates the in-memory solver/qdot history
-    optimistically.  A deadline hold publishes a repeated-heartbeat zero
-    packet, while a failed or absent RTDE connection publishes nothing.  None
-    of those outcomes may become the previous command for the next solve.
+    optimistically.  A deadline overrun discards that late candidate and may
+    publish the previous command under the previous heartbeat; a stop packet
+    or failed/absent RTDE connection also publishes no fresh command.  None of
+    those outcomes may become the previous command for the next solve.  The
+    solver history is restored to the actual last published qdot so the next
+    fresh solve ramps from what the TP really held, not from zero.
 
     Older profiles intentionally keep their historical bookkeeping semantics;
     this rollback contract is scoped to the inactive v30/P0 control contract.
@@ -7056,13 +7097,26 @@ def finalize_step5d_publish_history(
     if not v30_contract_profile:
         return not deadline_overrun_hold_active
     fresh_candidate_published = bool(
-        rtde_send_succeeded and not deadline_overrun_hold_active
+        rtde_send_succeeded
+        and not deadline_overrun_hold_active
+        and command_publishable
     )
     if fresh_candidate_published:
         return True
     if state.step5d_solver is not None:
         state.step5d_solver.reset_state()
-    state.step5d_last_qdot = None
+    if (
+        last_published_command is not None
+        and float(last_published_command.get("step4e_cmd_valid", 0.0)) > 0.5
+        and float(last_published_command.get("step4e_controller_state", 0.0))
+        == float(STEP5D_STAGE25_JOINT_LAYOUT_CODE)
+    ):
+        state.step5d_last_qdot = tuple(
+            float(last_published_command[name]) for name in BRIDGE_INPUT_NAMES[:6]
+        )
+    else:
+        state.step5d_last_qdot = None
+    state.step5d_v30_sequence = int(last_published_sequence)
     state.step5d_pending_solver_warm_start = True
     return False
 
@@ -8516,6 +8570,7 @@ def main(argv: list[str] | None = None) -> int:
         else 0.0
     )
     last_published_heartbeat = heartbeat
+    last_published_step5d_command: dict[str, float] | None = None
     deadline_overrun_hold_total = 0
     deadline_overrun_consecutive = 0
     stop_request = 0.0
@@ -8576,6 +8631,7 @@ def main(argv: list[str] | None = None) -> int:
 
     buffer = bytearray()
     step4e_state = BridgeState()
+    last_published_step5d_sequence = step4e_state.step5d_v30_sequence
     step5d_runtime_prewarm = step5d_runtime_prewarm_metadata(args.bridge_profile)
     if step5d_runtime_prewarm["enabled"]:
         prewarm_start = time.perf_counter()
@@ -9201,17 +9257,51 @@ def main(argv: list[str] | None = None) -> int:
                             stop_request = 1.0
                             guard_reason = hard_guard_reason
                             stop_reason = hard_guard_reason
-                    deadline_overrun_hold_active = bool(
+                    deadline_overrun_detected = bool(
                         uses_v30_control_contract(args.bridge_profile)
                         and time.monotonic() >= next_write
                     )
+                    stop_dominant = bool(
+                        uses_v30_control_contract(args.bridge_profile)
+                        and (
+                            guard_reason is not None
+                            or float(bridge_values.get("stop_request", 0.0)) > 0.5
+                        )
+                    )
+                    deadline_overrun_hold_active = bool(
+                        deadline_overrun_detected
+                        and not stop_dominant
+                        and last_published_step5d_command is not None
+                    )
+                    command_publishable = bool(
+                        uses_v30_control_contract(args.bridge_profile)
+                        and not deadline_overrun_detected
+                        and not stop_dominant
+                        and float(bridge_values.get("step4e_cmd_valid", 0.0)) > 0.5
+                        and float(
+                            bridge_values.get("step4e_controller_state", 0.0)
+                        )
+                        == float(STEP5D_STAGE25_JOINT_LAYOUT_CODE)
+                    )
+                    if stop_dominant:
+                        apply_step5d_explicit_stop_packet(bridge_values)
                     if deadline_overrun_hold_active:
                         deadline_overrun_hold_total += 1
                         deadline_overrun_consecutive += 1
                         bridge_values["heartbeat"] = last_published_heartbeat
-                        apply_step5d_deadline_overrun_hold(bridge_values)
+                        apply_step5d_deadline_overrun_hold(
+                            bridge_values,
+                            last_published_step5d_command,
+                        )
                     else:
                         deadline_overrun_consecutive = 0
+                        if (
+                            uses_v30_control_contract(args.bridge_profile)
+                            and not stop_dominant
+                            and not command_publishable
+                        ):
+                            bridge_values["heartbeat"] = last_published_heartbeat
+                            apply_step5d_unpublished_startup_packet(bridge_values)
                     step4e_values["_bridge_loop_deadline_overrun_hold"] = (
                         1.0 if deadline_overrun_hold_active else 0.0
                     )
@@ -9310,9 +9400,19 @@ def main(argv: list[str] | None = None) -> int:
                         ),
                         deadline_overrun_hold_active=deadline_overrun_hold_active,
                         rtde_send_succeeded=rtde_send_succeeded,
+                        command_publishable=command_publishable,
+                        last_published_command=last_published_step5d_command,
+                        last_published_sequence=last_published_step5d_sequence,
                     )
                     if fresh_candidate_published:
-                        last_published_heartbeat = heartbeat
+                        last_published_step5d_command = {
+                            name: float(bridge_values.get(name, 0.0))
+                            for name in STEP5D_HELD_COMMAND_NAMES
+                        }
+                        last_published_heartbeat = float(bridge_values["heartbeat"])
+                        last_published_step5d_sequence = (
+                            step4e_state.step5d_v30_sequence
+                        )
                         heartbeat += 1.0
                     p0_v8_canary_guard = bool(
                         args.bridge_profile == STEP5D_NO_CONTACT_P0_V8_STAGE_ID

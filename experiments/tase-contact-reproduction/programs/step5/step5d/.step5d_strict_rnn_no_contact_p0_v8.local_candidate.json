@@ -1,6 +1,6 @@
 {
   "controller_urp": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v8.urp",
-  "generated_at": "2026-07-11T11:15:00+08:00",
+  "generated_at": "2026-07-14T03:35:01+08:00",
   "local_only": true,
   "not_delivered": true,
   "program": "step5d_strict_rnn_no_contact_p0_v8",
@@ -13,13 +13,13 @@
     "no live bridge"
   ],
   "schema": "ur_tp_local_candidate_v1",
-  "semantic_fingerprint": "37dfbc9dc7a4bc8148902e4b7b1a85130dccb5a073ca2184b03cae7aba005f57",
+  "semantic_fingerprint": "81ecf9f765092f5d5c9176a14ac9619253edd67b438b3b64cc4da291d09cb5e1",
   "sha256": {
-    ".script": "16d94d48795cba7a278f47007d099057217ff3135e151a73620deb6197651df2",
-    ".txt": "6280768807ab74336f098b5a5e34d1e4e76f3f2d036262f53e4bbcc52bbb3cf6",
-    ".urp": "3fa7b08a42b7fe9c0385ad9761e95ea52c1b47167e268b41d0e3211d56df897f"
+    ".script": "98998d6f4c2998bf61815b54b0444ea9ac367dce8746b6903b5bc0fb847f6786",
+    ".txt": "5960e03219134a85571384f73e06e51b3743c3f72ccf8272c7c4e74021e27668",
+    ".urp": "b25fc9d67174db1f920bf3ed496fef47409fbfb7c9dae2364cc94a8545f5b64b"
   },
-  "stamp": "2026-07-11T1115HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V8",
+  "stamp": "2026-07-14T0335HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V8",
   "status": "local package verified",
   "target_dir": "/programs/andyl/kunwei/step5"
 }

@@ -319,12 +319,11 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
                 files=files,
             )
             readback_dir = readback_root / f"controller_readback_{program}_20260702_120100"
-            remote_sha = {
-                upload.controller_path(target_dir, files[ext].name): local_sha[ext]
-                for ext in upload.EXTENSIONS
-            }
-
-            with patch.object(upload, "remote_sha256", return_value=remote_sha) as remote:
+            with patch.object(
+                upload,
+                "readback_controller_sha256",
+                return_value=local_sha,
+            ) as remote:
                 result = upload.reuse_readback_if_remote_sha_matches(
                     files,
                     program,
@@ -363,13 +362,7 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
                 target_dir=target_dir,
                 files=files,
             )
-            remote_sha = {
-                upload.controller_path(target_dir, files[ext].name): local_sha[ext]
-                for ext in upload.EXTENSIONS
-            }
-            remote_sha[upload.controller_path(target_dir, files[".urp"].name)] = "0" * 64
-
-            with patch.object(upload, "remote_sha256", return_value=remote_sha):
+            with patch.object(upload, "readback_controller_sha256", return_value=None):
                 result = upload.reuse_readback_if_remote_sha_matches(
                     files,
                     program,

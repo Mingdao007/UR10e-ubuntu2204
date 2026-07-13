@@ -186,6 +186,7 @@ QDOT_CAP_RAD_S = 0.050
 QDOT_CLEAR_ZERO_TOL_RAD_S = 0.0005
 JOINT_ACCEL_RAD_S2 = 0.050
 STAGE25_HEARTBEAT_STALE_STOP_S = 0.006
+STAGE25_V30_STALE_COMMAND_HOLD_S = 0.020
 CARTESIAN_LINEAR_CAP_M_S = float(_STEP5D_LIMITS["speedl_linear_cap_m_s"])
 CARTESIAN_ANGULAR_CAP_RAD_S = float(_STEP5D_LIMITS["speedl_angular_cap_rad_s"])
 LINE_RUNTIME_LIMIT_S = float(_STEP5D_PARAMS["line_runtime_limit_s"])
@@ -398,12 +399,27 @@ def _replace_line_stage_with_stage25_multimode(script: str, spec: Step5dAblation
     freshness_hold = ""
     validity_keyword = "if"
     if spec.uses_v30_control_contract:
-        freshness_hold = f"""        # DEADLINE_OVERRUN_HOLD: never consume or replay a stale host qdot.
+        freshness_hold = f"""        # DEADLINE_OVERRUN_LAST_COMMAND_HOLD: bounded zero-order hold.
         if not heartbeat_fresh:
-          write_output_float_register(47, stage25_command_consumed)
-          speedj([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], joint_accel_rad_s2, line_hold_s)
+          if stage25_have_accepted_command and cmd_valid >= 0.5 and cartesian_layout_ok and codex_abs(cmd_vx) <= cartesian_linear_cap_m_s and codex_abs(cmd_vy) <= cartesian_linear_cap_m_s and codex_abs(cmd_vz) <= cartesian_linear_cap_m_s and codex_abs(cmd_wx) <= cartesian_angular_cap_rad_s and codex_abs(cmd_wy) <= cartesian_angular_cap_rad_s and codex_abs(cmd_wz) <= cartesian_angular_cap_rad_s:
+            stage25_command_consumed = 1
+            write_output_float_register(47, stage25_command_consumed)
+            speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy, cmd_wz], cartesian_accel_m_s2, line_hold_s)
+          elif stage25_have_accepted_command and cmd_valid >= 0.5 and joint_layout_ok and codex_abs(cmd_qd0) <= qdot_cap_rad_s and codex_abs(cmd_qd1) <= qdot_cap_rad_s and codex_abs(cmd_qd2) <= qdot_cap_rad_s and codex_abs(cmd_qd3) <= qdot_cap_rad_s and codex_abs(cmd_qd4) <= qdot_cap_rad_s and codex_abs(cmd_qd5) <= qdot_cap_rad_s:
+            stage25_command_consumed = 1
+            write_output_float_register(47, stage25_command_consumed)
+            speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5], joint_accel_rad_s2, line_hold_s)
+          else:
+            write_output_float_register(47, stage25_command_consumed)
+            sync()
+          end
 """
         validity_keyword = "elif"
+    heartbeat_stale_stop_s = (
+        STAGE25_V30_STALE_COMMAND_HOLD_S
+        if spec.uses_v30_control_contract
+        else STAGE25_HEARTBEAT_STALE_STOP_S
+    )
     block = f"""  if stop_reason == 0.0:
     write_output_float_register(35, 25.0)
     local last_heartbeat2 = read_input_float_register(26)
@@ -416,6 +432,7 @@ def _replace_line_stage_with_stage25_multimode(script: str, spec: Step5dAblation
     local joint_accel_rad_s2 = {JOINT_ACCEL_RAD_S2:.3f}
     local cartesian_layout_code = {STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:.3f}
     local joint_layout_code = {STEP5D_STAGE25_JOINT_LAYOUT_CODE:.3f}
+    local stage25_have_accepted_command = False
     # STAGE25_CADENCE_CONSUMPTION: output register 47 is 1 only when this
     # TP loop accepts a current Stage25 command packet and reaches speedl/speedj.
     while stop_reason == 0.0:
@@ -461,7 +478,7 @@ def _replace_line_stage_with_stage25_multimode(script: str, spec: Step5dAblation
         end_hold_s = 0.0
       end
       codex_echo_step4e(stop_reason)
-      if stale_s2 > {STAGE25_HEARTBEAT_STALE_STOP_S:.3f}:
+      if stale_s2 > {heartbeat_stale_stop_s:.3f}:
         stop_reason = 2.0
       else:
         stop_reason = codex_step4e_guard_stop_reason()
@@ -489,10 +506,12 @@ def _replace_line_stage_with_stage25_multimode(script: str, spec: Step5dAblation
           write_output_float_register(47, stage25_command_consumed)
           stop_reason = 10.0
         elif cartesian_layout_ok:
+          stage25_have_accepted_command = True
           stage25_command_consumed = 1
           write_output_float_register(47, stage25_command_consumed)
           speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy, cmd_wz], cartesian_accel_m_s2, line_hold_s)
         else:
+          stage25_have_accepted_command = True
           stage25_command_consumed = 1
           write_output_float_register(47, stage25_command_consumed)
           speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5], joint_accel_rad_s2, line_hold_s)
@@ -952,7 +971,10 @@ def codex_{spec.program_name}():
     local cmd_valid_grace_s = 1.000
     local stage25_runtime_limit_s = {spec.stage25_runtime_limit_s:.3f}
     local stage25_command_consumed = 0
+    local stage25_have_accepted_command = False
     while stop_reason == 0.0:
+      stage25_command_consumed = 0
+      write_output_float_register(47, stage25_command_consumed)
       local heartbeat2 = read_input_float_register(26)
       local cmd_valid = read_input_float_register(43)
       local stage25_layout_tag = read_input_float_register(47)
@@ -981,35 +1003,37 @@ def codex_{spec.program_name}():
       end
       t2 = t2 + loop_dt2
       stop_reason = codex_step5d_no_contact_p0_guard_stop_reason()
-      if stale_s2 > {STAGE25_HEARTBEAT_STALE_STOP_S:.3f}:
+      if stale_s2 > {STAGE25_V30_STALE_COMMAND_HOLD_S:.3f}:
         stop_reason = 2.0
       end
       if stop_reason == 0.0:
-        # DEADLINE_OVERRUN_HOLD: never consume or replay a stale host qdot.
+        # DEADLINE_OVERRUN_LAST_COMMAND_HOLD: bounded zero-order hold.
         if not heartbeat_fresh:
-          write_output_float_register(47, stage25_command_consumed)
-          speedj([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], joint_accel_rad_s2, 0.002)
+          if stage25_have_accepted_command and cmd_valid >= 0.5 and joint_layout_ok and codex_abs(cmd_qd0) <= qdot_cap_rad_s and codex_abs(cmd_qd1) <= qdot_cap_rad_s and codex_abs(cmd_qd2) <= qdot_cap_rad_s and codex_abs(cmd_qd3) <= qdot_cap_rad_s and codex_abs(cmd_qd4) <= qdot_cap_rad_s and codex_abs(cmd_qd5) <= qdot_cap_rad_s:
+            stage25_command_consumed = 1
+            write_output_float_register(47, stage25_command_consumed)
+            speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5], joint_accel_rad_s2, 0.002)
+          else:
+            sync()
+          end
         elif cmd_valid < 0.5 or not (cartesian_layout_ok or joint_layout_ok):
-          write_output_float_register(47, stage25_command_consumed)
           if t2 < cmd_valid_grace_s:
             sync()
           else:
             stop_reason = 12.0
           end
         elif cartesian_layout_ok and (codex_abs(cmd_vx) > cartesian_linear_cap_m_s or codex_abs(cmd_vy) > cartesian_linear_cap_m_s or codex_abs(cmd_vz) > cartesian_linear_cap_m_s or codex_abs(cmd_wx) > cartesian_angular_cap_rad_s or codex_abs(cmd_wy) > cartesian_angular_cap_rad_s or codex_abs(cmd_wz) > cartesian_angular_cap_rad_s):
-          write_output_float_register(47, stage25_command_consumed)
           stop_reason = 13.0
         elif joint_layout_ok and (codex_abs(cmd_qd0) > qdot_cap_rad_s or codex_abs(cmd_qd1) > qdot_cap_rad_s or codex_abs(cmd_qd2) > qdot_cap_rad_s or codex_abs(cmd_qd3) > qdot_cap_rad_s or codex_abs(cmd_qd4) > qdot_cap_rad_s or codex_abs(cmd_qd5) > qdot_cap_rad_s):
-          write_output_float_register(47, stage25_command_consumed)
           stop_reason = 13.0
         elif t2 >= stage25_runtime_limit_s:
-          write_output_float_register(47, stage25_command_consumed)
           stop_reason = 1.0
         elif cartesian_layout_ok:
           stage25_command_consumed = 1
           write_output_float_register(47, stage25_command_consumed)
           speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy, cmd_wz], cartesian_accel_m_s2, 0.002)
         else:
+          stage25_have_accepted_command = True
           stage25_command_consumed = 1
           write_output_float_register(47, stage25_command_consumed)
           speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5], joint_accel_rad_s2, 0.002)
@@ -1253,8 +1277,10 @@ Boundary:
   Stage25.0 command-consumption instrumentation: output register 47 is 1 only
   when the TP loop accepts a current Stage25 command packet and reaches
   speedl/speedj.
-  A repeated heartbeat is never consumed: TP executes an exact-zero qdot
-  command for that tick; heartbeat staleness beyond 0.006 s remains a stop.
+  After the first accepted command, a repeated heartbeat reuses only the last
+  guard-approved qdot for at most {STAGE25_V30_STALE_COMMAND_HOLD_S:.3f} s;
+  before the first accepted command TP only syncs and sends no speed command. The bridge records
+  every replay and a longer stale interval remains a stop.
 
 Bridge profile:
   --step4e-version {spec.bridge_version} --step4e-path-shape cycloid
@@ -1386,8 +1412,10 @@ Boundary:
   is 1 only when the TP loop accepts a current Stage25 command packet and
   reaches speedl/speedj; bridge CSV records echo tag, cmd_valid, command norm,
   row gap, and loop recv/compute/send/csv timing.
-  For v30, a repeated heartbeat is never consumed: TP executes an exact-zero
-  qdot command for that tick; heartbeat staleness beyond 0.006 s remains a stop.
+  For v30, after the first accepted command a repeated heartbeat reuses only
+  the last guard-approved command for at most {STAGE25_V30_STALE_COMMAND_HOLD_S:.3f} s;
+  before the first accepted command TP only syncs and sends no speed command. The bridge records
+  every replay and a longer stale interval remains a stop.
   Bridge control modes:
     {speedl_mode_description}
     {dls_mode_description}
@@ -1470,11 +1498,12 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5d
             ),
             "speedj line control": "speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]" in script,
             "deadline overrun stale-command hold": (
-                "DEADLINE_OVERRUN_HOLD" in script
+                "DEADLINE_OVERRUN_LAST_COMMAND_HOLD" in script
                 and "local heartbeat_fresh = False" in script
                 and "if not heartbeat_fresh:" in script
-                and "speedj([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]" in script
-                and "A repeated heartbeat is never consumed" in txt
+                and "stage25_have_accepted_command" in script
+                and "speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]" in script
+                and "reuses only the last" in txt
                 if spec.uses_v30_control_contract
                 else True
             ),
@@ -1579,11 +1608,11 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5d
         "v30 deadline overrun stale-command hold": (
             spec.version_label != "v30"
             or (
-                "DEADLINE_OVERRUN_HOLD" in script
+                "DEADLINE_OVERRUN_LAST_COMMAND_HOLD" in script
                 and "local heartbeat_fresh = False" in script
                 and "if not heartbeat_fresh:" in script
-                and "speedj([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]" in script
-                and "For v30, a repeated heartbeat is never consumed" in txt
+                and "speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5]" in script
+                and "For v30, after the first accepted command" in txt
             )
         ),
         "gravity-down pose contract": f"PRECONTACT_POSE_CONTRACT: {POSE_CONTRACT_ID}" in script
@@ -1770,9 +1799,13 @@ def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dic
             "joint_accel_rad_s2": JOINT_ACCEL_RAD_S2,
             "deadline_overrun_policy": (
                 {
-                    "stale_tick_command": "exact_zero_qdot_not_consumed",
+                    "stale_tick_command": "last_published_guard_approved_qdot_consumed",
+                    "late_candidate_policy": "discard_without_publish",
                     "recovery": "next_fresh_heartbeat",
-                    "continuous_stale_stop_s": STAGE25_HEARTBEAT_STALE_STOP_S,
+                    "continuous_stale_stop_s": STAGE25_V30_STALE_COMMAND_HOLD_S,
+                    "held_tick_counts_as_consumed": True,
+                    "hold_ratio_max": 0.01,
+                    "max_consecutive_hold_ticks": 10,
                 }
                 if spec.uses_v30_control_contract
                 else None
@@ -1822,9 +1855,13 @@ def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dic
         "joint_accel_rad_s2": JOINT_ACCEL_RAD_S2,
         "deadline_overrun_policy": (
             {
-                "stale_tick_command": "exact_zero_qdot_not_consumed",
+                "stale_tick_command": "last_published_guard_approved_qdot_consumed",
+                "late_candidate_policy": "discard_without_publish",
                 "recovery": "next_fresh_heartbeat",
-                "continuous_stale_stop_s": STAGE25_HEARTBEAT_STALE_STOP_S,
+                "continuous_stale_stop_s": STAGE25_V30_STALE_COMMAND_HOLD_S,
+                "held_tick_counts_as_consumed": True,
+                "hold_ratio_max": 0.01,
+                "max_consecutive_hold_ticks": 10,
             }
             if spec.version_label == "v30"
             else None

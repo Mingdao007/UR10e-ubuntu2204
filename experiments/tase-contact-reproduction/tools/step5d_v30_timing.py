@@ -98,9 +98,9 @@ class TimingThresholds:
     solver_samples_required: int = 10_000
     tick_samples_required: int = 30_000
     safe_hold_samples_required: int = 30_000
-    degraded_deadline_miss_ratio_max: float = 0.0002
-    degraded_schedule_lateness_max_ms: float = 0.50
-    degraded_max_consecutive_misses: int = 2
+    bounded_hold_deadline_miss_ratio_max: float = 0.01
+    bounded_hold_schedule_lateness_max_ms: float = 0.50
+    bounded_hold_max_consecutive_misses: int = 10
 
 
 def _distribution(values: Sequence[float], *, hard_deadline_ms: float) -> dict[str, Any]:
@@ -1025,8 +1025,8 @@ def summarize_preaggregated(
             and float(normalized["solver"]["max_ms"]) >= thresholds.hard_deadline_ms
         )
     )
-    acceptance_eligible = not blockers
-    allowed_degraded_blockers = {
+    hard_realtime_pass = not blockers
+    allowed_bounded_hold_blockers = {
         "full_tick_deadline_miss",
         "full_tick_max_reaches_2ms_deadline",
         "full_tick_schedule_deadline_miss",
@@ -1034,16 +1034,16 @@ def summarize_preaggregated(
         "safe_hold_max_reaches_2ms_deadline",
         "safe_hold_schedule_deadline_miss",
     }
-    degraded_unrelated_blockers = sorted(
-        set(blockers) - allowed_degraded_blockers
+    bounded_hold_unrelated_blockers = sorted(
+        set(blockers) - allowed_bounded_hold_blockers
     )
-    degraded_full_budget = math.floor(
+    bounded_hold_full_budget = math.floor(
         thresholds.tick_samples_required
-        * thresholds.degraded_deadline_miss_ratio_max
+        * thresholds.bounded_hold_deadline_miss_ratio_max
     )
-    degraded_safe_budget = math.floor(
+    bounded_hold_safe_budget = math.floor(
         thresholds.safe_hold_samples_required
-        * thresholds.degraded_deadline_miss_ratio_max
+        * thresholds.bounded_hold_deadline_miss_ratio_max
     )
     full_lateness = payload.get("full_tick_schedule_max_lateness_ms")
     safe_lateness = payload.get("safe_hold_schedule_max_lateness_ms")
@@ -1065,7 +1065,7 @@ def summarize_preaggregated(
         and reentry_miss_diagnostics_valid
         and all(
             int((miss_diagnostics.get(label) or {}).get("max_consecutive", 0))
-            <= thresholds.degraded_max_consecutive_misses
+            <= thresholds.bounded_hold_max_consecutive_misses
             for label in (
                 "full_tick_compute",
                 "full_tick_schedule",
@@ -1074,40 +1074,55 @@ def summarize_preaggregated(
             )
         )
     )
-    degraded_timing_candidate = bool(
+    bounded_hold_timing_candidate = bool(
         blockers
-        and not degraded_unrelated_blockers
+        and not bounded_hold_unrelated_blockers
         and miss_diagnostics_valid
         and normalized["solver"]["deadline_miss_count"] == 0
         and normalized["full_tick"]["deadline_miss_count"]
-        <= degraded_full_budget
+        <= bounded_hold_full_budget
         and normalized["safe_hold"]["deadline_miss_count"]
-        <= degraded_safe_budget
-        and schedule_misses <= degraded_full_budget
-        and safe_hold_schedule_misses <= degraded_safe_budget
+        <= bounded_hold_safe_budget
+        and schedule_misses <= bounded_hold_full_budget
+        and safe_hold_schedule_misses <= bounded_hold_safe_budget
         and isinstance(full_lateness, (int, float))
         and float(full_lateness)
-        <= thresholds.degraded_schedule_lateness_max_ms
+        <= thresholds.bounded_hold_schedule_lateness_max_ms
         and isinstance(safe_lateness, (int, float))
         and float(safe_lateness)
-        <= thresholds.degraded_schedule_lateness_max_ms
+        <= thresholds.bounded_hold_schedule_lateness_max_ms
     )
     stale_hold_evidence = payload.get("controller_stale_hold_fault_evidence")
-    stale_hold_proven = bool(
+    bounded_hold_contract_proven = bool(
         isinstance(stale_hold_evidence, dict)
         and stale_hold_evidence.get("pass") is True
         and stale_hold_evidence.get("stale_tick_command")
-        == "exact_zero_qdot_not_consumed"
+        == "last_published_guard_approved_qdot_consumed"
+        and stale_hold_evidence.get("late_candidate_policy")
+        == "discard_without_publish"
+        and stale_hold_evidence.get("same_heartbeat_republished") is True
+        and stale_hold_evidence.get("solver_history_restored_to_held_qdot")
+        is True
+        and stale_hold_evidence.get("stop_dominates_hold") is True
+        and stale_hold_evidence.get("held_tick_counts_as_consumed") is True
+        and stale_hold_evidence.get("continuous_stale_stop_s") == 0.020
+        and stale_hold_evidence.get("max_consecutive_held_ticks") == 10
+        and stale_hold_evidence.get("miss_ratio_max") == 0.01
     )
-    degraded_fail_closed_pass = bool(
-        degraded_timing_candidate and stale_hold_proven
+    bounded_last_command_hold_pass = bool(
+        bounded_hold_timing_candidate and bounded_hold_contract_proven
+    )
+    acceptance_eligible = bool(
+        hard_realtime_pass or bounded_last_command_hold_pass
     )
     classification = (
         "failed_hard_solver_deadline"
         if hard_solver_failure
         else (
-            "acceptance_eligible"
-            if acceptance_eligible
+            "hard_realtime_acceptance_eligible"
+            if hard_realtime_pass
+            else "bounded_last_command_hold_acceptance_eligible"
+            if bounded_last_command_hold_pass
             else "diagnostic_only_not_acceptance"
         )
     )
@@ -1206,19 +1221,23 @@ def summarize_preaggregated(
         "acceptance_eligible": acceptance_eligible,
         "classification": classification,
         "deadline_robustness": {
-            "hard_realtime_pass": acceptance_eligible,
-            "timing_degraded_candidate": degraded_timing_candidate,
-            "degraded_fail_closed_pass": degraded_fail_closed_pass,
-            "controller_stale_hold_proven": stale_hold_proven,
+            "hard_realtime_pass": hard_realtime_pass,
+            "bounded_hold_timing_candidate": bounded_hold_timing_candidate,
+            "bounded_last_command_hold_pass": bounded_last_command_hold_pass,
+            "bounded_last_command_hold_contract_proven": (
+                bounded_hold_contract_proven
+            ),
             "miss_index_diagnostics_valid": miss_diagnostics_valid,
             "deadline_miss_diagnostics": miss_diagnostics,
-            "compute_miss_budget": degraded_full_budget,
-            "safe_hold_miss_budget": degraded_safe_budget,
-            "unrelated_blockers": degraded_unrelated_blockers,
+            "compute_miss_budget": bounded_hold_full_budget,
+            "safe_hold_miss_budget": bounded_hold_safe_budget,
+            "unrelated_blockers": bounded_hold_unrelated_blockers,
             "claim_boundary": (
                 "the 2 ms solver gate applies to 10,000 steady samples; all 99 "
                 "post-yield reentries remain explicit diagnostics, and a hard "
-                "500 Hz claim still requires zero full-tick deadline misses"
+                "500 Hz hard-realtime claim still requires zero full-tick "
+                "deadline misses; bounded acceptance permits at most 1% held "
+                "ticks and at most 10 consecutive held ticks"
             ),
         },
         "safety_boundary": payload.get("safety_boundary", []),

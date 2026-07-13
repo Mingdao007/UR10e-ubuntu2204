@@ -1,6 +1,6 @@
 {
   "schema_version": "step5d_v30_numeric_sanity_v1",
-  "generated_at": "2026-07-14T02:09:31+08:00",
+  "generated_at": "2026-07-14T04:19:00+08:00",
   "stage_id": "step5d_strict_rnn_ablation_v30",
   "overall_pass": true,
   "profile": {
@@ -15,11 +15,11 @@
   "package": {
     "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v30.urp",
     "sha256": {
-      ".script": "a6f0e586145eb701af72f92d21bb648b13169adf8198529ff8aea8e704b8e1d6",
-      ".txt": "3b8a389dcb1a5eb19a6ccfbf5782d4a6d450fafe414972f2defe48b0ba3178f7",
-      ".urp": "a7388b0fc6c686a886adc736e9307057174585f9edae6cf25f4cd31003280508"
+      ".script": "0f12722ddd54a2fc7676c2c79f0b1d596d1952aac10b06694bef46417a9ff992",
+      ".txt": "9af1f70bed739c4387afab2a8f65ffe2857575db001d4b9f0ee53e23f1eeff09",
+      ".urp": "2f57065326ba0c956d49a622c5d9039bd4607571073c6a7da0311b7436448617"
     },
-    "local_triplet_validation": "/home/andy/codex_handoffs/step5d-v30-tp-local-validation-20260714.json"
+    "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v30_20260714_041851/manifest.json"
   },
   "trajectory": {
     "formula": "x=0.015*(0.1*t-sin(0.1*t)); y=0.015*(1-cos(0.1*t))",
@@ -38,8 +38,13 @@
     "raw_normal_guard_n": 50.0,
     "force_norm_guard_n": 60.0,
     "torque_norm_guard_nm": 3.0,
-    "heartbeat_stale_stop_s": 0.006,
-    "repeated_heartbeat_action": "exact_zero_qdot_not_consumed"
+    "heartbeat_stale_stop_s": 0.02,
+    "repeated_heartbeat_action": "last_published_guard_approved_qdot_consumed",
+    "late_candidate_policy": "discard_without_publish",
+    "bounded_hold_miss_ratio_max": 0.01,
+    "bounded_hold_max_consecutive_misses": 10,
+    "held_tick_counts_as_consumed": true,
+    "stop_dominates_hold": true
   },
   "full_chain": {
     "artifact": "/home/andy/codex_handoffs/step5d-v30-numeric-sanity-20260714/step5d_numeric_sanity.json",
@@ -67,8 +72,8 @@
   },
   "claim_boundary": {
     "offline_structural_sanity_only": true,
-    "controller_uploaded": false,
-    "controller_readback_verified": false,
+    "controller_uploaded": true,
+    "controller_readback_verified": true,
     "live_motion_authorized": false,
     "contact_accepted": false,
     "v30_current": false

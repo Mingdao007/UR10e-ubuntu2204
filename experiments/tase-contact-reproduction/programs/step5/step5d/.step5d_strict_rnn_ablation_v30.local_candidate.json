@@ -13,11 +13,11 @@
     "no live bridge"
   ],
   "schema": "ur_tp_local_candidate_v1",
-  "semantic_fingerprint": "3b3e404b301595be126eea37cf3dd25b97c01c731d5f754563ac9dc530f81b27",
+  "semantic_fingerprint": "d19cf4eed85f5709dba1b314b55026125258ddbe6e06fd22f7933a9efcdd55c9",
   "sha256": {
-    ".script": "a6f0e586145eb701af72f92d21bb648b13169adf8198529ff8aea8e704b8e1d6",
-    ".txt": "3b8a389dcb1a5eb19a6ccfbf5782d4a6d450fafe414972f2defe48b0ba3178f7",
-    ".urp": "a7388b0fc6c686a886adc736e9307057174585f9edae6cf25f4cd31003280508"
+    ".script": "0f12722ddd54a2fc7676c2c79f0b1d596d1952aac10b06694bef46417a9ff992",
+    ".txt": "9af1f70bed739c4387afab2a8f65ffe2857575db001d4b9f0ee53e23f1eeff09",
+    ".urp": "2f57065326ba0c956d49a622c5d9039bd4607571073c6a7da0311b7436448617"
   },
   "stamp": "2026-07-11T0100HKT_STEP5D_STRICT_RNN_ABLATION_V30",
   "status": "local package verified",

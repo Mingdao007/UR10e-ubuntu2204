@@ -516,6 +516,7 @@ def codex_step5d_strict_rnn_ablation_v30():
     local joint_accel_rad_s2 = 0.050
     local cartesian_layout_code = 523.000
     local joint_layout_code = 524.000
+    local stage25_have_accepted_command = False
     # STAGE25_CADENCE_CONSUMPTION: output register 47 is 1 only when this
     # TP loop accepts a current Stage25 command packet and reaches speedl/speedj.
     while stop_reason == 0.0:
@@ -561,16 +562,26 @@ def codex_step5d_strict_rnn_ablation_v30():
         end_hold_s = 0.0
       end
       codex_echo_step4e(stop_reason)
-      if stale_s2 > 0.006:
+      if stale_s2 > 0.020:
         stop_reason = 2.0
       else:
         stop_reason = codex_step4e_guard_stop_reason()
       end
       if stop_reason == 0.0:
-        # DEADLINE_OVERRUN_HOLD: never consume or replay a stale host qdot.
+        # DEADLINE_OVERRUN_LAST_COMMAND_HOLD: bounded zero-order hold.
         if not heartbeat_fresh:
-          write_output_float_register(47, stage25_command_consumed)
-          speedj([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], joint_accel_rad_s2, line_hold_s)
+          if stage25_have_accepted_command and cmd_valid >= 0.5 and cartesian_layout_ok and codex_abs(cmd_vx) <= cartesian_linear_cap_m_s and codex_abs(cmd_vy) <= cartesian_linear_cap_m_s and codex_abs(cmd_vz) <= cartesian_linear_cap_m_s and codex_abs(cmd_wx) <= cartesian_angular_cap_rad_s and codex_abs(cmd_wy) <= cartesian_angular_cap_rad_s and codex_abs(cmd_wz) <= cartesian_angular_cap_rad_s:
+            stage25_command_consumed = 1
+            write_output_float_register(47, stage25_command_consumed)
+            speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy, cmd_wz], cartesian_accel_m_s2, line_hold_s)
+          elif stage25_have_accepted_command and cmd_valid >= 0.5 and joint_layout_ok and codex_abs(cmd_qd0) <= qdot_cap_rad_s and codex_abs(cmd_qd1) <= qdot_cap_rad_s and codex_abs(cmd_qd2) <= qdot_cap_rad_s and codex_abs(cmd_qd3) <= qdot_cap_rad_s and codex_abs(cmd_qd4) <= qdot_cap_rad_s and codex_abs(cmd_qd5) <= qdot_cap_rad_s:
+            stage25_command_consumed = 1
+            write_output_float_register(47, stage25_command_consumed)
+            speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5], joint_accel_rad_s2, line_hold_s)
+          else:
+            write_output_float_register(47, stage25_command_consumed)
+            sync()
+          end
         elif cmd_valid < 0.5 or not (cartesian_layout_ok or joint_layout_ok):
           write_output_float_register(47, stage25_command_consumed)
           if saw_cmd_valid == 0 and t2 < cmd_valid_grace_s:
@@ -593,10 +604,12 @@ def codex_step5d_strict_rnn_ablation_v30():
           write_output_float_register(47, stage25_command_consumed)
           stop_reason = 10.0
         elif cartesian_layout_ok:
+          stage25_have_accepted_command = True
           stage25_command_consumed = 1
           write_output_float_register(47, stage25_command_consumed)
           speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy, cmd_wz], cartesian_accel_m_s2, line_hold_s)
         else:
+          stage25_have_accepted_command = True
           stage25_command_consumed = 1
           write_output_float_register(47, stage25_command_consumed)
           speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5], joint_accel_rad_s2, line_hold_s)

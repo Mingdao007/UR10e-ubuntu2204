@@ -11,7 +11,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -43,7 +43,7 @@ class Step5dV30ProfileTest(unittest.TestCase):
         self.assertTrue(delivery["controller_readback_verified"])
         self.assertEqual(
             delivery["controller_readback_manifest"],
-            "runs/controller_readback_step5d_strict_rnn_ablation_v30_20260714_025315/manifest.json",
+            "runs/controller_readback_step5d_strict_rnn_ablation_v30_20260714_041851/manifest.json",
         )
         self.assertFalse(v30["canary_stop_register"]["enabled"])
         self.assertFalse(v30["canary_stop_register"]["armed"])
@@ -79,12 +79,14 @@ class Step5dV30ProfileTest(unittest.TestCase):
         self.assertIn("forbids DLS runtime fallback", txt)
         self.assertNotIn("remain explicit debug/fallback modes", script + txt)
         self.assertNotIn("explicit fallback/debug mode for v30", script + txt)
-        self.assertIn("DEADLINE_OVERRUN_HOLD", script)
+        self.assertIn("DEADLINE_OVERRUN_LAST_COMMAND_HOLD", script)
         self.assertIn("if not heartbeat_fresh:", script)
+        self.assertIn("local stage25_have_accepted_command = False", script)
         self.assertIn(
-            "speedj([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]", script
+            "write_output_float_register(47, stage25_command_consumed)\n            sync()",
+            script,
         )
-        self.assertIn("a repeated heartbeat is never consumed", txt)
+        self.assertIn("reuses only", txt)
         self.assertTrue(marker["local_only"])
         self.assertTrue(marker["not_delivered"])
         self.assertIn("no live bridge", marker["safety_boundary"])
@@ -115,7 +117,12 @@ class Step5dV30ProfileTest(unittest.TestCase):
             root=ROOT,
         )
 
-        self.assertIsNone(policy)
+        self.assertIsNotNone(policy)
+        assert policy is not None
+        self.assertEqual(policy["status"], "inactive_prelive_delivery_preparation")
+        self.assertFalse(policy["promotion_performed"])
+        self.assertFalse(policy["program_start_performed"])
+        self.assertFalse(policy["bridge_start_performed"])
         table = json.loads(
             (ROOT / "config" / "step5_stage_table.json").read_text(encoding="utf-8")
         )
@@ -148,14 +155,18 @@ class Step5dV30ProfileTest(unittest.TestCase):
         self.assertIn("command = decision_to_register_command(", contract_source)
         self.assertIn("deferred_diagnostics.record(", contract_source)
         self.assertIn("v30 raw bridge is an inactive offline candidate", source)
-        self.assertIn("apply_step5d_deadline_overrun_hold(bridge_values)", source)
-        overrun_index = source.index("deadline_overrun_hold_active = bool(")
+        self.assertIn(
+            "apply_step5d_deadline_overrun_hold(\n                            bridge_values,",
+            source,
+        )
+        overrun_index = source.index("deadline_overrun_detected = bool(")
         self.assertLess(
             overrun_index,
             source.index("rtde.send_input_sample(", overrun_index),
         )
+        self.assertIn("if stop_dominant:\n                        apply_step5d_explicit_stop_packet", source)
 
-    def test_deadline_overrun_hold_clears_motion_without_masking_stop(self) -> None:
+    def test_deadline_overrun_hold_reuses_last_command_without_masking_stop(self) -> None:
         source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(
             encoding="utf-8"
         )
@@ -167,11 +178,12 @@ class Step5dV30ProfileTest(unittest.TestCase):
             and node.name == "apply_step5d_deadline_overrun_hold"
         )
         namespace = {
-            "BRIDGE_INPUT_NAMES": [
+            "Mapping": Mapping,
+            "STEP5D_HELD_COMMAND_NAMES": (
                 *(f"carrier_{index}" for index in range(6)),
                 "step4e_cmd_valid",
-            ],
-            "STEP5D_STAGE25_JOINT_LAYOUT_CODE": 524.0,
+                "step4e_controller_state",
+            ),
         }
         exec(
             compile(
@@ -189,11 +201,16 @@ class Step5dV30ProfileTest(unittest.TestCase):
             "stop_request": 3.0,
         }
 
-        namespace["apply_step5d_deadline_overrun_hold"](values)
+        held = {
+            **{f"carrier_{index}": 0.01 * (index + 1) for index in range(6)},
+            "step4e_cmd_valid": 1.0,
+            "step4e_controller_state": 524.0,
+        }
+        namespace["apply_step5d_deadline_overrun_hold"](values, held)
 
         self.assertEqual(
             [values[f"carrier_{index}"] for index in range(6)],
-            [0.0] * 6,
+            [held[f"carrier_{index}"] for index in range(6)],
         )
         self.assertEqual(values["step4e_cmd_valid"], 1.0)
         self.assertEqual(
@@ -214,7 +231,11 @@ class Step5dV30ProfileTest(unittest.TestCase):
             if isinstance(node, ast.FunctionDef)
             and node.name == "finalize_step5d_publish_history"
         )
-        namespace: dict[str, object] = {}
+        namespace: dict[str, object] = {
+            "Mapping": Mapping,
+            "BRIDGE_INPUT_NAMES": tuple(f"carrier_{index}" for index in range(6)),
+            "STEP5D_STAGE25_JOINT_LAYOUT_CODE": 524,
+        }
         exec(
             compile(
                 ast.Module(body=[function], type_ignores=[]),
@@ -237,6 +258,13 @@ class Step5dV30ProfileTest(unittest.TestCase):
                 self.step5d_solver = RecordingSolver()
                 self.step5d_last_qdot = (0.01,) * 6
                 self.step5d_pending_solver_warm_start = False
+                self.step5d_v30_sequence = 8
+
+        held_command = {
+            **{f"carrier_{index}": 0.02 * (index + 1) for index in range(6)},
+            "step4e_cmd_valid": 1.0,
+            "step4e_controller_state": 524.0,
+        }
 
         sent = State()
         self.assertTrue(
@@ -245,6 +273,9 @@ class Step5dV30ProfileTest(unittest.TestCase):
                 v30_contract_profile=True,
                 deadline_overrun_hold_active=False,
                 rtde_send_succeeded=True,
+                command_publishable=True,
+                last_published_command=held_command,
+                last_published_sequence=7,
             )
         )
         self.assertEqual(sent.step5d_solver.reset_count, 0)
@@ -263,10 +294,17 @@ class Step5dV30ProfileTest(unittest.TestCase):
                         v30_contract_profile=True,
                         deadline_overrun_hold_active=deadline_overrun,
                         rtde_send_succeeded=send_succeeded,
+                        command_publishable=not deadline_overrun,
+                        last_published_command=held_command,
+                        last_published_sequence=7,
                     )
                 )
                 self.assertEqual(unpublished.step5d_solver.reset_count, 1)
-                self.assertIsNone(unpublished.step5d_last_qdot)
+                self.assertEqual(
+                    unpublished.step5d_last_qdot,
+                    tuple(held_command[f"carrier_{index}"] for index in range(6)),
+                )
+                self.assertEqual(unpublished.step5d_v30_sequence, 7)
                 self.assertTrue(
                     unpublished.step5d_pending_solver_warm_start
                 )
@@ -278,11 +316,29 @@ class Step5dV30ProfileTest(unittest.TestCase):
                 v30_contract_profile=False,
                 deadline_overrun_hold_active=False,
                 rtde_send_succeeded=False,
+                command_publishable=False,
+                last_published_command=None,
+                last_published_sequence=7,
             )
         )
         self.assertEqual(frozen_v29.step5d_solver.reset_count, 0)
         self.assertEqual(frozen_v29.step5d_last_qdot, (0.01,) * 6)
         self.assertFalse(frozen_v29.step5d_pending_solver_warm_start)
+
+        startup_miss = State()
+        self.assertFalse(
+            finalize(
+                startup_miss,
+                v30_contract_profile=True,
+                deadline_overrun_hold_active=False,
+                rtde_send_succeeded=True,
+                command_publishable=False,
+                last_published_command=None,
+                last_published_sequence=0,
+            )
+        )
+        self.assertIsNone(startup_miss.step5d_last_qdot)
+        self.assertEqual(startup_miss.step5d_v30_sequence, 0)
 
     def test_v30_heartbeat_advances_from_publish_history_result(self) -> None:
         source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(

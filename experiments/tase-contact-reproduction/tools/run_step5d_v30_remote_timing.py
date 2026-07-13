@@ -40,7 +40,7 @@ PROFILE = {
 }
 DIAGNOSTIC_INNER_ITERATION_CHOICES = (128, 256, 512)
 DEADLINE_MS = 2.0
-DEADLINE_EVENT_CAPACITY = 64
+DEADLINE_EVENT_CAPACITY = 512
 SOLVER_BATCH_SIZE = 100
 SOLVER_BATCH_YIELD_S = 0.002
 FORMAL_SOLVER_SAMPLES = 10_000
@@ -658,6 +658,106 @@ def deferred_control_summary(
     }
 
 
+def exercise_bounded_last_command_hold_contract(
+    *,
+    apply_hold: Any,
+    apply_stop: Any,
+    apply_startup: Any,
+    finalize_history: Any,
+    carrier_names: Sequence[str],
+    joint_layout_code: float,
+) -> dict[str, Any]:
+    """Exercise the source-bound publish/hold/stop seam without controller I/O."""
+
+    held_qdot = tuple(0.005 * (index + 1) for index in range(6))
+    held_command = {
+        **dict(zip(carrier_names, held_qdot)),
+        "step4e_cmd_valid": 1.0,
+        "step4e_progress_m": 0.123,
+        "step4e_force_error_n": -0.5,
+        "step4e_orientation_error_rad": 0.01,
+        "step4e_controller_state": float(joint_layout_code),
+    }
+    late_packet = {
+        **{name: -0.04 for name in carrier_names},
+        "step4e_cmd_valid": 1.0,
+        "step4e_progress_m": 0.456,
+        "step4e_force_error_n": 0.75,
+        "step4e_orientation_error_rad": 0.02,
+        "step4e_controller_state": float(joint_layout_code),
+        "heartbeat": 11.0,
+        "stop_request": 0.0,
+    }
+    apply_hold(late_packet, held_command)
+
+    class RecordingSolver:
+        def __init__(self) -> None:
+            self.reset_count = 0
+
+        def reset_state(self) -> None:
+            self.reset_count += 1
+
+    class State:
+        def __init__(self) -> None:
+            self.step5d_solver = RecordingSolver()
+            self.step5d_last_qdot = (-0.04,) * 6
+            self.step5d_pending_solver_warm_start = False
+            self.step5d_v30_sequence = 12
+
+    state = State()
+    published = finalize_history(
+        state,
+        v30_contract_profile=True,
+        deadline_overrun_hold_active=True,
+        rtde_send_succeeded=True,
+        command_publishable=False,
+        last_published_command=held_command,
+        last_published_sequence=11,
+    )
+
+    stop_packet = {
+        **{name: 0.04 for name in carrier_names},
+        "step4e_cmd_valid": 1.0,
+        "step4e_controller_state": 0.0,
+        "heartbeat": 12.0,
+        "stop_request": 1.0,
+    }
+    apply_stop(stop_packet)
+    startup_packet = dict(stop_packet)
+    startup_packet["stop_request"] = 0.0
+    apply_startup(startup_packet)
+    pass_gate = bool(
+        not published
+        and tuple(float(late_packet[name]) for name in carrier_names) == held_qdot
+        and late_packet["heartbeat"] == 11.0
+        and state.step5d_last_qdot == held_qdot
+        and state.step5d_v30_sequence == 11
+        and state.step5d_solver.reset_count == 1
+        and all(float(stop_packet[name]) == 0.0 for name in carrier_names)
+        and stop_packet["step4e_cmd_valid"] == 0.0
+        and stop_packet["step4e_controller_state"] == float(joint_layout_code)
+        and stop_packet["stop_request"] == 1.0
+        and all(float(startup_packet[name]) == 0.0 for name in carrier_names)
+        and startup_packet["step4e_cmd_valid"] == 0.0
+    )
+    return {
+        "pass": pass_gate,
+        "stale_tick_command": "last_published_guard_approved_qdot_consumed",
+        "late_candidate_policy": "discard_without_publish",
+        "same_heartbeat_republished": late_packet["heartbeat"] == 11.0,
+        "solver_history_restored_to_held_qdot": state.step5d_last_qdot == held_qdot,
+        "stop_dominates_hold": bool(
+            stop_packet["stop_request"] == 1.0
+            and all(float(stop_packet[name]) == 0.0 for name in carrier_names)
+        ),
+        "pre_first_command_policy": "invalid_packet_tp_sync_no_speed_command",
+        "held_tick_counts_as_consumed": True,
+        "continuous_stale_stop_s": 0.020,
+        "max_consecutive_held_ticks": 10,
+        "miss_ratio_max": 0.01,
+    }
+
+
 def main() -> int:
     parser = build_argument_parser()
     args = parser.parse_args()
@@ -694,11 +794,27 @@ def main() -> int:
         V30_DEFERRED_NUMERIC_FIELDS,
     )
     from kunwei_rtde_bridge import (
+        BRIDGE_INPUT_NAMES,
+        STEP5D_STAGE25_JOINT_LAYOUT_CODE,
+        apply_step5d_deadline_overrun_hold,
+        apply_step5d_explicit_stop_packet,
+        apply_step5d_unpublished_startup_packet,
+        finalize_step5d_publish_history,
         limit_step5d_live_xdot,
         scale_step5d_xdot_for_joint_feasibility,
         step5d_omega_bounds,
         step5d_tcp_jacobian_base,
         step5d_v30_contract_pipeline,
+    )
+    controller_stale_hold_fault_evidence = (
+        exercise_bounded_last_command_hold_contract(
+            apply_hold=apply_step5d_deadline_overrun_hold,
+            apply_stop=apply_step5d_explicit_stop_packet,
+            apply_startup=apply_step5d_unpublished_startup_packet,
+            finalize_history=finalize_step5d_publish_history,
+            carrier_names=BRIDGE_INPUT_NAMES[:6],
+            joint_layout_code=float(STEP5D_STAGE25_JOINT_LAYOUT_CODE),
+        )
     )
 
     module_sha_fields = {
@@ -1625,6 +1741,9 @@ def main() -> int:
                 max_consecutive=safe_schedule_max_consecutive,
             ),
         },
+        "controller_stale_hold_fault_evidence": (
+            controller_stale_hold_fault_evidence
+        ),
         "runtime_path": (
             "Step5dObservation->SlewCompatibleReference->"
             "StrictRnnControlPolicy->ControlCandidate->"

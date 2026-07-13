@@ -1099,12 +1099,12 @@
       "local_candidate_marker": "programs/step5/step5d/.step5d_strict_rnn_no_contact_p0_v8.local_candidate.json",
       "controller_uploaded": true,
       "controller_readback_verified": true,
-      "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v8_20260714_025315/manifest.json",
+      "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v8_20260714_041843/manifest.json",
       "delivery_mode": "full_upload_readback",
       "sha256": {
-        ".script": "16d94d48795cba7a278f47007d099057217ff3135e151a73620deb6197651df2",
-        ".txt": "6280768807ab74336f098b5a5e34d1e4e76f3f2d036262f53e4bbcc52bbb3cf6",
-        ".urp": "3fa7b08a42b7fe9c0385ad9761e95ea52c1b47167e268b41d0e3211d56df897f"
+        ".script": "98998d6f4c2998bf61815b54b0444ea9ac367dce8746b6903b5bc0fb847f6786",
+        ".txt": "5960e03219134a85571384f73e06e51b3743c3f72ccf8272c7c4e74021e27668",
+        ".urp": "b25fc9d67174db1f920bf3ed496fef47409fbfb7c9dae2364cc94a8545f5b64b"
       },
       "capture_authorized": false,
       "passed": false,
@@ -1145,7 +1145,7 @@
     "v29 is an ablation package: v25/v26/v27/v28 default to speedl_cartesian_oracle; v29 defaults to speedj_rnn_live; preload is 5-22N filtered with 3-25N raw sanity.",
     "v29 uses Stage25.95 register-clear barrier plus layout tag 523.0 for Cartesian speedl and 524.0 for joint speedj.",
     "v29 cannot be reactivated without a fresh readback/timing fingerprint, Review v2 2+1, and new live/contact authorization.",
-    "v30 is an inactive offline candidate. Its canonical RNN512 hard-control timing passes, but it cannot become current until live-runtime prewarm integration, P0 v8 controller canaries, package/readback freeze, and Review v2 2+1 pass.",
+    "v30 is an inactive offline candidate. Its final source-bound RNN512 timing does not pass: 18/30000 full-tick misses and 1/30000 safe-hold miss were individually bounded with maximum consecutive 1, but safe-hold schedule lateness reached 1.025 ms versus the 0.5 ms gate. It cannot start a bridge or become current.",
     "No v23 post-RNN normal-direction guard is active for this package.",
     "This file is the single current pointer for UR/Kunwei package and bridge handoffs.",
     "TP program load/Play, robot motion, payload/TCP writes, and zero_ftsensor remain explicit live gates.",
@@ -1193,11 +1193,11 @@
     "gate_for": "step5d_strict_rnn_ablation_v30",
     "state": "offline_control_diagnostic_complete_readback_verified_pending_review_canaries",
     "package_sha256": {
-      ".script": "16d94d48795cba7a278f47007d099057217ff3135e151a73620deb6197651df2",
-      ".txt": "6280768807ab74336f098b5a5e34d1e4e76f3f2d036262f53e4bbcc52bbb3cf6",
-      ".urp": "3fa7b08a42b7fe9c0385ad9761e95ea52c1b47167e268b41d0e3211d56df897f"
+      ".script": "98998d6f4c2998bf61815b54b0444ea9ac367dce8746b6903b5bc0fb847f6786",
+      ".txt": "5960e03219134a85571384f73e06e51b3743c3f72ccf8272c7c4e74021e27668",
+      ".urp": "b25fc9d67174db1f920bf3ed496fef47409fbfb7c9dae2364cc94a8545f5b64b"
     },
-    "semantic_fingerprint": "37dfbc9dc7a4bc8148902e4b7b1a85130dccb5a073ca2184b03cae7aba005f57",
+    "semantic_fingerprint": "81ecf9f765092f5d5c9176a14ac9619253edd67b438b3b64cc4da291d09cb5e1",
     "evidence_frozen": false,
     "composite_fingerprint": null,
     "review_v2": {
@@ -1228,7 +1228,9 @@
       "simulator_cycle_500hz_diagnostic_pass": false,
       "p0_sim_physics_pass": false,
       "controller_canaries_completed": [],
-      "claim_effect": "diagnostic_only_no_promotion",
+      "deadline_policy_scope": "legacy_simulator_hard_deadline_lane_not_controller_hold_acceptance",
+      "bounded_last_command_hold_acceptance_eligible": false,
+      "claim_effect": "hard_zero_miss_diagnostic_only_no_promotion",
       "historical_artifacts": [
         {
           "status": "historical_superseded_by_v3_production_path_prewarm",
@@ -1269,7 +1271,7 @@
   },
   "v30_candidate": {
     "profile": "step5d_strict_rnn_ablation_v30",
-    "state": "offline_hard_timing_pass_package_readback_verified_liveprep_blocked",
+    "state": "offline_timing_failed_package_readback_verified_liveprep_blocked",
     "current": false,
     "runtime_profile": {
       "backend": "cupy",
@@ -1280,21 +1282,28 @@
       "control_hz": 500.0
     },
     "timing": {
-      "acceptance_mode": "hard_realtime_zero_miss",
-      "source_commit": "8b33661",
+      "acceptance_mode": "failed_bounded_hold_schedule_lateness",
+      "source_commit": "working_tree_last_command_hold",
       "cpu_affinity": [11, 13, 14, 15],
-      "raw_artifact": "config/step5d_v30_rnn512_8b33661_formal_timing_raw.json",
-      "raw_sha256": "7ce4728225ad4cbccea5cbe1afd86db6604c5c0c5860bd653fc8f171aeb23371",
-      "summary_artifact": "config/step5d_v30_rnn512_8b33661_formal_timing_summary.json",
-      "summary_sha256": "c583dc4066528a97108a487da1e3fef3feac1fc97a2945fc72fefff57e8fab7b",
-      "solver_p99_ms": 0.27499455492943525,
-      "solver_max_ms": 0.5309730768203735,
-      "full_tick_p99_ms": 1.251991840545088,
-      "full_tick_max_ms": 1.8276688642799854,
-      "safe_hold_p99_ms": 1.202890151180327,
-      "safe_hold_max_ms": 1.6797720454633236,
-      "compute_deadline_misses": 0,
-      "schedule_deadline_misses": 0
+      "raw_artifact": "config/step5d_v30_rnn512_last_command_hold_formal_timing_raw.json",
+      "raw_sha256": "bdfe6e38acc3c0741c589f91545d721ad26d4b0a43be9350a91d5d2ccb5eefe9",
+      "summary_artifact": "config/step5d_v30_rnn512_last_command_hold_formal_timing_summary.json",
+      "summary_sha256": "1171c79ca97e22928b53a6c3a93d63d5ad5303c6482150c45286900f99771285",
+      "solver_p99_ms": 0.4128184085493559,
+      "solver_max_ms": 1.6106969997053966,
+      "full_tick_p99_ms": 1.3343213195184924,
+      "full_tick_max_ms": 2.3198650014819577,
+      "safe_hold_p99_ms": 1.1774742366833348,
+      "safe_hold_max_ms": 3.02201000158675,
+      "compute_deadline_misses": 18,
+      "schedule_deadline_misses": 18,
+      "safe_hold_compute_deadline_misses": 1,
+      "safe_hold_schedule_deadline_misses": 1,
+      "safe_hold_schedule_max_lateness_ms": 1.0248379985569045,
+      "deadline_miss_ratio": 0.0006,
+      "max_consecutive_deadline_misses": 1,
+      "hard_realtime_pass": false,
+      "bounded_last_command_hold_pass": false
     },
     "offline_prewarm": {
       "execute_samples": 1000,
@@ -1306,7 +1315,7 @@
     },
     "offline_readiness": {
       "artifact": "config/step5d_v30_offline_readiness.json",
-      "sha256": "135d030276a79ce48c5fda7f01776bfdb182020f3fa138268b5a5961d662de2a",
+      "sha256": "9c19728533809ff13e541ad6005161e54ec332c6884ce3b42988da21ff34e80b",
       "status": "v30_offline_blocked"
     },
     "blockers": [
@@ -1316,7 +1325,7 @@
       "review_v2_not_due_until_evidence_freeze"
     ],
     "claim_boundary": {
-      "offline_timing_pass": true,
+      "offline_timing_pass": false,
       "package_accepted": true,
       "live_accepted": false,
       "reproduction_complete": false

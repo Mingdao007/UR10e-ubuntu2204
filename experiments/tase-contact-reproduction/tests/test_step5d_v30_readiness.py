@@ -74,12 +74,14 @@ class Step5dV30ReadinessTest(unittest.TestCase):
         )
         self.assertFalse(history["runtime_shaped_smoke_not_acceptance"]["acceptance_eligible"])
         self.assertFalse(history["component_diagnostic_not_acceptance"]["acceptance_eligible"])
-        self.assertNotIn(
+        self.assertIn("timing_acceptance_failed", payload["blockers"])
+        self.assertIn(
             "runtime_shaped_60s_500hz_acceptance_not_run", payload["blockers"]
         )
         current_bound = payload["timing"]["current_source_evidence"]
         self.assertIsNotNone(current_bound)
-        self.assertTrue(current_bound["acceptance_eligible"])
+        self.assertFalse(current_bound["acceptance_eligible"])
+        self.assertFalse(current_bound["bounded_last_command_hold_pass"])
         self.assertNotIn("current_source_solver_10k_not_run", payload["blockers"])
         self.assertEqual(
             current_bound["sha256"],
@@ -110,25 +112,40 @@ class Step5dV30ReadinessTest(unittest.TestCase):
         deadline = payload["deadline_overrun_policy"]
         self.assertTrue(deadline["hard_realtime_claim_requires_zero_deadline_miss"])
         self.assertTrue(deadline["package_static_prepared"])
-        self.assertEqual(deadline["continuous_stale_stop_s"], 0.006)
+        self.assertEqual(deadline["continuous_stale_stop_s"], 0.020)
+        self.assertEqual(deadline["bounded_hold_candidate_ratio_max"], 0.01)
+        self.assertEqual(deadline["bounded_hold_max_consecutive_misses"], 10)
+        self.assertEqual(
+            deadline["late_candidate_publish_policy"],
+            "discard_without_publish",
+        )
+        self.assertEqual(
+            deadline["tp_stale_tick_policy"],
+            "same_heartbeat_last_published_guard_approved_qdot_consumed",
+        )
         self.assertFalse(deadline["controller_or_ursim_execution_verified"])
-        self.assertFalse(deadline["degraded_fail_closed_claim_allowed"])
+        self.assertFalse(
+            deadline["source_bound_bridge_hold_fault_injection_verified"]
+        )
+        self.assertFalse(deadline["bounded_last_command_hold_claim_allowed"])
         self.assertEqual(
             payload["timing"]["acceptance_decision_source"],
             "per-artifact recomputation from one hash-bound raw artifact; "
             "the aggregate summary is diagnostic only",
         )
-        self.assertTrue(payload["timing"]["hard_realtime_pass"])
-        self.assertTrue(
+        self.assertFalse(payload["timing"]["hard_realtime_pass"])
+        self.assertFalse(payload["timing"]["bounded_last_command_hold_pass"])
+        self.assertFalse(
             payload["timing"]["profile_selection"]["formal_timing_satisfied"]
         )
         acceptance_raw = payload["timing"]["acceptance_raw_evidence"]
-        self.assertIsNotNone(acceptance_raw)
+        self.assertIsNone(acceptance_raw)
+        current_source = payload["timing"]["current_source_evidence"]
         self.assertEqual(
-            acceptance_raw["sha256"],
-            hashlib.sha256((ROOT / acceptance_raw["path"]).read_bytes()).hexdigest(),
+            current_source["sha256"],
+            hashlib.sha256((ROOT / current_source["path"]).read_bytes()).hexdigest(),
         )
-        self.assertTrue(
+        self.assertFalse(
             payload["runtime_prewarm"]["offline_timing_contract_proven"]
         )
         self.assertFalse(

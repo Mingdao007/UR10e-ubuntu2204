@@ -40,8 +40,10 @@ Boundary:
   is 1 only when the TP loop accepts a current Stage25 command packet and
   reaches speedl/speedj; bridge CSV records echo tag, cmd_valid, command norm,
   row gap, and loop recv/compute/send/csv timing.
-  For v30, a repeated heartbeat is never consumed: TP executes an exact-zero
-  qdot command for that tick; heartbeat staleness beyond 0.006 s remains a stop.
+  For v30, after the first accepted command a repeated heartbeat reuses only
+  the last guard-approved command for at most 0.020 s;
+  before the first accepted command TP only syncs and sends no speed command. The bridge records
+  every replay and a longer stale interval remains a stop.
   Bridge control modes:
     STEP5D_STAGE25_CONTROL_MODE=speedl_cartesian_oracle is offline shadow/diagnostic only for v30 and cannot be selected as a runtime fallback; the only future live command mode is speedj_rnn_live.
     STEP5D_STAGE25_CONTROL_MODE=speedj_dls_oracle computes DLS shadow diagnostics only; v30 forbids sending DLS qdot to TP and forbids DLS runtime fallback.

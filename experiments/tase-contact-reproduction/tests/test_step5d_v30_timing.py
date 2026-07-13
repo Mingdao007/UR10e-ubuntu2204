@@ -694,7 +694,7 @@ class Step5dV30TimingTest(unittest.TestCase):
             "production_sched_fifo_priority_20",
         )
         self.assertFalse(
-            result["deadline_robustness"]["timing_degraded_candidate"]
+            result["deadline_robustness"]["bounded_hold_timing_candidate"]
         )
 
         drifted_summary = json.loads(json.dumps(payload))
@@ -859,7 +859,7 @@ class Step5dV30TimingTest(unittest.TestCase):
                 )
                 self.assertFalse(
                     tampered_result["deadline_robustness"][
-                        "timing_degraded_candidate"
+                        "bounded_hold_timing_candidate"
                     ]
                 )
 
@@ -922,7 +922,7 @@ class Step5dV30TimingTest(unittest.TestCase):
         )
         self.assertFalse(
             diagnostic_result["deadline_robustness"][
-                "timing_degraded_candidate"
+                "bounded_hold_timing_candidate"
             ]
         )
 
@@ -948,24 +948,36 @@ class Step5dV30TimingTest(unittest.TestCase):
         )
         self.assertFalse(control_rejected["overall_pass"])
         self.assertFalse(
-            control_rejected["deadline_robustness"]["timing_degraded_candidate"]
+            control_rejected["deadline_robustness"][
+                "bounded_hold_timing_candidate"
+            ]
         )
 
         full_tick_raw = payload["raw_timing_samples"]["lanes"]["full_tick"][
             "elapsed_ms"
         ]
-        for miss_index in (10, 20, 30, 40, 50):
+        miss_indices = list(range(100, 110)) + list(range(200, 29200, 100))
+        self.assertEqual(len(miss_indices), 300)
+        for miss_index in miss_indices:
             full_tick_raw[miss_index] = 2.16
         payload["full_tick"] = remote_timing.distribution(full_tick_raw)
-        payload["full_tick_schedule_deadline_miss_count"] = 5
+        payload["full_tick_schedule_deadline_miss_count"] = 300
         payload["full_tick_schedule_max_lateness_ms"] = 0.17
         payload["deadline_miss_diagnostics"]["full_tick_compute"].update(
-            {"total": 5, "retained_indices": [10, 20, 30, 40, 50], "max_consecutive": 1}
+            {
+                "total": 300,
+                "retained_indices": miss_indices,
+                "max_consecutive": 10,
+            }
         )
         payload["deadline_miss_diagnostics"]["full_tick_schedule"].update(
-            {"total": 5, "retained_indices": [10, 20, 30, 40, 50], "max_consecutive": 1}
+            {
+                "total": 300,
+                "retained_indices": miss_indices,
+                "max_consecutive": 10,
+            }
         )
-        degraded = summarize_preaggregated(
+        bounded_without_contract = summarize_preaggregated(
             payload,
             expected_source_binding={
                 field: "1" * 64 for field in SOURCE_BINDING_FILES
@@ -973,18 +985,30 @@ class Step5dV30TimingTest(unittest.TestCase):
             expected_replay_sha256="2" * 64,
             expected_paper_truth_sha256="2" * 64,
         )
-        self.assertFalse(degraded["overall_pass"])
+        self.assertFalse(bounded_without_contract["overall_pass"])
         self.assertTrue(
-            degraded["deadline_robustness"]["timing_degraded_candidate"]
+            bounded_without_contract["deadline_robustness"][
+                "bounded_hold_timing_candidate"
+            ]
         )
         self.assertFalse(
-            degraded["deadline_robustness"]["degraded_fail_closed_pass"]
+            bounded_without_contract["deadline_robustness"][
+                "bounded_last_command_hold_pass"
+            ]
         )
         payload["controller_stale_hold_fault_evidence"] = {
             "pass": True,
-            "stale_tick_command": "exact_zero_qdot_not_consumed",
+            "stale_tick_command": "last_published_guard_approved_qdot_consumed",
+            "late_candidate_policy": "discard_without_publish",
+            "same_heartbeat_republished": True,
+            "solver_history_restored_to_held_qdot": True,
+            "stop_dominates_hold": True,
+            "held_tick_counts_as_consumed": True,
+            "continuous_stale_stop_s": 0.020,
+            "max_consecutive_held_ticks": 10,
+            "miss_ratio_max": 0.01,
         }
-        absorbed = summarize_preaggregated(
+        bounded = summarize_preaggregated(
             payload,
             expected_source_binding={
                 field: "1" * 64 for field in SOURCE_BINDING_FILES
@@ -992,12 +1016,14 @@ class Step5dV30TimingTest(unittest.TestCase):
             expected_replay_sha256="2" * 64,
             expected_paper_truth_sha256="2" * 64,
         )
+        self.assertTrue(bounded["overall_pass"])
+        self.assertFalse(bounded["deadline_robustness"]["hard_realtime_pass"])
         self.assertTrue(
-            absorbed["deadline_robustness"]["degraded_fail_closed_pass"]
+            bounded["deadline_robustness"]["bounded_last_command_hold_pass"]
         )
         payload["deadline_miss_diagnostics"]["full_tick_schedule"][
             "max_consecutive"
-        ] = 3
+        ] = 11
         clustered = summarize_preaggregated(
             payload,
             expected_source_binding={
@@ -1007,20 +1033,20 @@ class Step5dV30TimingTest(unittest.TestCase):
             expected_paper_truth_sha256="2" * 64,
         )
         self.assertFalse(
-            clustered["deadline_robustness"]["timing_degraded_candidate"]
+            clustered["deadline_robustness"]["bounded_hold_timing_candidate"]
         )
         payload["deadline_miss_diagnostics"]["full_tick_schedule"][
             "max_consecutive"
-        ] = 2
-        for miss_index in (60, 70):
-            full_tick_raw[miss_index] = 2.16
+        ] = 10
+        full_tick_raw[29999] = 2.16
+        miss_indices.append(29999)
         payload["full_tick"] = remote_timing.distribution(full_tick_raw)
-        payload["full_tick_schedule_deadline_miss_count"] = 7
+        payload["full_tick_schedule_deadline_miss_count"] = 301
         payload["deadline_miss_diagnostics"]["full_tick_compute"].update(
-            {"total": 7, "retained_indices": [10, 20, 30, 40, 50, 60, 70]}
+            {"total": 301, "retained_indices": miss_indices}
         )
         payload["deadline_miss_diagnostics"]["full_tick_schedule"].update(
-            {"total": 7, "retained_indices": [10, 20, 30, 40, 50, 60, 70]}
+            {"total": 301, "retained_indices": miss_indices}
         )
         rejected_tail = summarize_preaggregated(
             payload,
@@ -1031,7 +1057,9 @@ class Step5dV30TimingTest(unittest.TestCase):
             expected_paper_truth_sha256="2" * 64,
         )
         self.assertFalse(
-            rejected_tail["deadline_robustness"]["timing_degraded_candidate"]
+            rejected_tail["deadline_robustness"][
+                "bounded_hold_timing_candidate"
+            ]
         )
 
         unbound = summarize_preaggregated(payload)
