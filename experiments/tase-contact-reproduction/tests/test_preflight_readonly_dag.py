@@ -51,7 +51,12 @@ class PreflightReadonlyDagTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, mock.patch.object(
             preflight, "run_command", side_effect=command
         ), mock.patch.object(
-            preflight, "dashboard_exchange", return_value={"robotmode": "RUNNING"}
+            preflight, "dashboard_exchange", return_value={
+                "remote_control": True,
+                "safetymode": "NORMAL",
+                "robotmode": "RUNNING",
+                "programState": "STOPPED",
+            }
         ), mock.patch.object(
             preflight, "read_rtde_once", return_value=rtde
         ), mock.patch.object(

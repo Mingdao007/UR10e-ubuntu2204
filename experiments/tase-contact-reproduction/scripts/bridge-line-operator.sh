@@ -1509,22 +1509,36 @@ PY
   [[ -f "${quiet_json}" ]] && cat "${quiet_json}"
   python3 - "${out_dir}" "${child_rc}" "${monitor_rc}" <<'PY'
 import json
+import hashlib
 import os
+import secrets
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 run_dir = Path(sys.argv[1]).resolve()
+marker = run_dir / ".capture_complete.json"
+source_files = []
+for path in sorted(run_dir.rglob("*")):
+    if path.is_file() and path != marker:
+        source_files.append({
+            "path": str(path.relative_to(run_dir)),
+            "size": path.stat().st_size,
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        })
 payload = {
-    "schema_version": "step5d_capture_completion_v1",
+    "schema_version": "ur10e_capture_closure_v2",
     "capture_closed": True,
     "immutable": True,
     "completed_at": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
     "bridge_child_exit_code": int(sys.argv[2]),
     "monitor_exit_code": int(sys.argv[3]),
     "source_run": str(run_dir),
+    "closure_nonce": secrets.token_hex(16),
+    "exit_codes": {"bridge_child": int(sys.argv[2]), "monitor": int(sys.argv[3])},
+    "capture_succeeded": int(sys.argv[2]) == 0 and int(sys.argv[3]) == 0,
+    "source_files": source_files,
 }
-marker = run_dir / ".capture_complete.json"
 temporary = marker.with_suffix(".json.tmp")
 temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 os.replace(temporary, marker)
@@ -1553,7 +1567,7 @@ run_bridge_for_mode() {
   flock -u "${throughput_fd}"
   exec {throughput_fd}>&-
   if [[ -f "$1/.capture_complete.json" ]]; then
-    postprocess_run "$1"
+    postprocess_run "$1" || rc="$?"
   fi
   return "${rc}"
 }

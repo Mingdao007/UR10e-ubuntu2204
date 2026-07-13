@@ -14,6 +14,9 @@ import os
 import subprocess
 import threading
 import time
+import uuid
+import hashlib
+from contextlib import contextmanager
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -167,6 +170,90 @@ class FileLease:
             fcntl.flock(self._handle.fileno(), fcntl.LOCK_UN)
             self._handle.close()
             self._handle = None
+
+
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+class CrossProcessWeightedLease:
+    """Atomic weighted lease whose stale records are reclaimed only for dead PIDs."""
+
+    def __init__(self, root: Path, lane: str, *, capacity: float, tokens: float,
+                 task: str, device: str | None = None, timeout_s: float = 300.0) -> None:
+        if tokens <= 0 or tokens > capacity:
+            raise ValueError(f"invalid {lane} token request {tokens}/{capacity}")
+        self.root, self.lane, self.capacity, self.tokens = root, lane, capacity, tokens
+        self.task, self.device, self.timeout_s = task, device, timeout_s
+        self.lease_id = uuid.uuid4().hex
+
+    @property
+    def _state(self) -> Path:
+        suffix = f"-{self.device}" if self.device is not None else ""
+        return self.root / f"{self.lane}{suffix}.json"
+
+    def _locked(self) -> tuple[Any, list[dict[str, Any]]]:
+        self.root.mkdir(parents=True, exist_ok=True)
+        handle = (self._state.with_suffix(".lock")).open("a+")
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            records = json.loads(self._state.read_text()) if self._state.is_file() else []
+        except (OSError, json.JSONDecodeError):
+            records = []
+        records = [row for row in records if isinstance(row, dict) and _pid_alive(int(row.get("pid", -1)))]
+        return handle, records
+
+    def _write_unlock(self, handle: Any, records: list[dict[str, Any]]) -> None:
+        temporary = self._state.with_suffix(".json.tmp")
+        temporary.write_text(json.dumps(records, indent=2, sort_keys=True) + "\n")
+        temporary.replace(self._state)
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        handle.close()
+
+    def __enter__(self) -> "CrossProcessWeightedLease":
+        deadline = time.monotonic() + self.timeout_s
+        while True:
+            handle, records = self._locked()
+            if sum(float(row["tokens"]) for row in records) + self.tokens <= self.capacity:
+                records.append({"lease_id": self.lease_id, "pid": os.getpid(), "task": self.task,
+                                "tokens": self.tokens, "device": self.device, "created_at": utc_now()})
+                self._write_unlock(handle, records)
+                return self
+            self._write_unlock(handle, records)
+            if time.monotonic() >= deadline:
+                raise TimeoutError(f"timed out acquiring {self.lane} lease for {self.task}")
+            time.sleep(0.02)
+
+    def __exit__(self, *_: object) -> None:
+        handle, records = self._locked()
+        self._write_unlock(handle, [row for row in records if row.get("lease_id") != self.lease_id])
+
+
+def exclusive_lane(profile: ResourceProfile, lane: str, task: str, *, blocking: bool = True) -> FileLease:
+    return FileLease(profile.lock_root / f"{lane}.lock", exclusive=True, blocking=blocking)
+
+
+def tp_transaction_lease(profile: ResourceProfile, task: str) -> FileLease:
+    return exclusive_lane(profile, "tp-deploy-readback-sha-promotion", task)
+
+
+def writer_lease(profile: ResourceProfile, task: str) -> FileLease:
+    return exclusive_lane(profile, "live-writer-throughput", task)
+
+
+def observer_endpoint_lease(profile: ResourceProfile, endpoint: str, task: str) -> FileLease:
+    safe = endpoint.replace("/", "_").replace(":", "_")
+    return exclusive_lane(profile, f"observer-{safe}", task)
+
+
+def gazebo_headless_lease(profile: ResourceProfile, task: str) -> CrossProcessWeightedLease:
+    return CrossProcessWeightedLease(profile.lock_root, "gazebo-headless", capacity=2, tokens=1, task=task)
 
 
 def throughput_lease(
@@ -325,8 +412,10 @@ class TaskRunner:
         if len(by_id) != len(tasks):
             raise ValueError("duplicate task ids")
         output_dirs = [task.output_dir.resolve() for task in tasks]
-        if len(set(output_dirs)) != len(output_dirs):
-            raise ValueError("task output directories must not overlap")
+        for index, left in enumerate(output_dirs):
+            for right in output_dirs[index + 1:]:
+                if left == right or left in right.parents or right in left.parents:
+                    raise ValueError("task output directories must not be equal or ancestor/descendant")
         for task in tasks:
             missing = set(task.dependencies) - set(by_id)
             if missing:
@@ -397,26 +486,38 @@ class TaskRunner:
         )
 
     def _execute(self, task: TaskSpec) -> TaskResult:
-        task.output_dir.mkdir(parents=True, exist_ok=False)
         stdout_path = task.output_dir / "stdout.log"
         stderr_path = task.output_dir / "stderr.log"
         started_at = utc_now()
         started = time.monotonic()
-        self.cpu_tokens.acquire(task.cpu_tokens)
+        cpu_lease = CrossProcessWeightedLease(
+            self.profile.lock_root, "cpu", capacity=self.profile.cpu_workers,
+            tokens=task.cpu_tokens, task=task.task_id,
+        )
         gpu_acquired = False
         try:
+            task.output_dir.mkdir(parents=True, exist_ok=False)
+            cpu_lease.__enter__()
             if task.resource in {"gpu", "formal_timing"}:
                 self.gpu_tokens.acquire(1)
                 gpu_acquired = True
                 observed = self.gpu_usage()
-                projected = observed + task.gpu_vram_reservation_pct
-                if projected > self.profile.gpu_vram_limit_pct:
+                available = self.profile.gpu_vram_limit_pct - observed
+                requested = task.gpu_vram_reservation_pct or 0.001
+                if requested > available:
                     raise RuntimeError(
                         "GPU VRAM admission denied: "
-                        f"observed={observed:.2f}% reservation="
-                        f"{task.gpu_vram_reservation_pct:.2f}% limit="
-                        f"{self.profile.gpu_vram_limit_pct:.2f}%"
+                        f"observed={observed:.2f}% inflight+requested={requested:.2f}% "
+                        f"limit={self.profile.gpu_vram_limit_pct:.2f}%"
                     )
+                gpu_lease = CrossProcessWeightedLease(
+                    self.profile.lock_root, "gpu-vram", capacity=max(0.001, available),
+                    tokens=requested,
+                    task=task.task_id, device="0",
+                )
+                gpu_lease.__enter__()
+            else:
+                gpu_lease = None
             exclusive = task.resource == "formal_timing"
             with throughput_lease(self.profile, exclusive=exclusive):
                 env = os.environ.copy()
@@ -462,13 +563,30 @@ class TaskRunner:
                 error=f"{type(exc).__name__}: {exc}",
             )
         finally:
+            if 'gpu_lease' in locals() and gpu_lease is not None:
+                gpu_lease.__exit__()
             if gpu_acquired:
                 self.gpu_tokens.release(1)
-            self.cpu_tokens.release(task.cpu_tokens)
+            cpu_lease.__exit__()
 
     def run(self, tasks: Sequence[TaskSpec]) -> dict[str, TaskResult]:
-        by_id = self._validate(tasks)
         self.output_root.mkdir(parents=True, exist_ok=True)
+        try:
+            by_id = self._validate(tasks)
+        except Exception as exc:
+            temporary = self.manifest_path.with_suffix(".json.tmp")
+            temporary.write_text(json.dumps({
+                "schema_version": MANIFEST_SCHEMA,
+                "contract_id": CONTRACT_ID,
+                "generated_at": utc_now(),
+                "root": str(self.root),
+                "output_root": str(self.output_root),
+                "resource_profile": self.profile.as_dict(),
+                "scheduler_error": f"{type(exc).__name__}: {exc}",
+                "tasks": [],
+            }, indent=2, sort_keys=True) + "\n")
+            temporary.replace(self.manifest_path)
+            raise
         self._write_manifest(by_id)
         pending = set(by_id)
         running: dict[Future[TaskResult], str] = {}
@@ -520,4 +638,36 @@ def require_immutable_completion_marker(run_dir: Path) -> dict[str, Any]:
         raise ValueError(f"completion marker is not immutable: {marker}")
     if payload.get("capture_closed") is not True:
         raise ValueError(f"capture is not closed: {marker}")
+    nonce = payload.get("closure_nonce")
+    files = payload.get("source_files")
+    if not isinstance(nonce, str) or len(nonce) < 16 or not isinstance(files, list):
+        raise ValueError(f"completion marker lacks recursive closure evidence: {marker}")
+    for row in files:
+        path = run_dir / str(row.get("path"))
+        if not path.is_file() or path.stat().st_size != row.get("size"):
+            raise ValueError(f"closed source size changed: {path}")
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        if digest != row.get("sha256"):
+            raise ValueError(f"closed source hash changed: {path}")
     return payload
+
+
+def source_closure_snapshot(run_dir: Path, *, exit_codes: Mapping[str, int], nonce: str | None = None) -> dict[str, Any]:
+    marker = run_dir / ".capture_complete.json"
+    rows = []
+    for path in sorted(run_dir.rglob("*")):
+        if path.is_file() and path != marker:
+            rows.append({"path": str(path.relative_to(run_dir)), "size": path.stat().st_size,
+                         "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
+    return {"schema_version": "ur10e_capture_closure_v2", "immutable": True,
+            "capture_closed": True, "closure_nonce": nonce or uuid.uuid4().hex,
+            "exit_codes": dict(exit_codes), "source_files": rows}
+
+
+@contextmanager
+def verified_closed_source(run_dir: Path):
+    before = require_immutable_completion_marker(run_dir)
+    yield before
+    after = require_immutable_completion_marker(run_dir)
+    if before != after:
+        raise ValueError("capture closure marker changed during postprocess")

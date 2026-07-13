@@ -26,6 +26,7 @@ from ur10e_parallel import (  # noqa: E402
     WeightedSemaphore,
     physical_core_count,
     require_immutable_completion_marker,
+    source_closure_snapshot,
     throughput_lease,
 )
 
@@ -139,7 +140,7 @@ class Ur10eParallelTest(unittest.TestCase):
                 TaskSpec("one", ("true",), shared),
                 TaskSpec("two", ("true",), shared),
             ]
-            with self.assertRaisesRegex(ValueError, "must not overlap"):
+            with self.assertRaisesRegex(ValueError, "equal or ancestor/descendant"):
                 runner.run(tasks)
 
     def test_gpu_vram_admission_fails_closed(self) -> None:
@@ -222,10 +223,12 @@ class Ur10eParallelTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "marker missing"):
                 require_immutable_completion_marker(run_dir)
             marker = run_dir / ".capture_complete.json"
-            marker.write_text(
-                json.dumps({"immutable": True, "capture_closed": True}) + "\n"
-            )
+            (run_dir / "source.txt").write_text("immutable\n")
+            marker.write_text(json.dumps(source_closure_snapshot(run_dir, exit_codes={"capture": 0})) + "\n")
             self.assertTrue(require_immutable_completion_marker(run_dir)["immutable"])
+            (run_dir / "source.txt").write_text("mutated\n")
+            with self.assertRaisesRegex(ValueError, "hash changed|size changed"):
+                require_immutable_completion_marker(run_dir)
 
 
 if __name__ == "__main__":

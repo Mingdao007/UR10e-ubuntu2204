@@ -37,11 +37,15 @@ PY
 fi
 
 run_pytest() {
-  if [[ "${UR10E_PARALLEL:-1}" == "0" ]]; then
+  local test_count pytest_workers
+  test_count="$(rg -g 'test_*.py' -c '^[[:space:]]*def test_' tests | awk -F: '{total += $2} END {print total + 0}')"
+  pytest_workers=$((CPU_WORKERS - 2))
+  (( pytest_workers > 14 )) && pytest_workers=14
+  (( pytest_workers < 1 )) && pytest_workers=1
+  if [[ "${UR10E_PARALLEL:-1}" == "0" || "${test_count}" -lt 200 ]]; then
     "${TEST_PYTHON}" -m pytest tests -q
   else
-    PYTEST_XDIST_AUTO_NUM_WORKERS="${CPU_WORKERS}" \
-      "${TEST_PYTHON}" -m pytest tests -q -p xdist.plugin -n auto --dist worksteal
+    "${TEST_PYTHON}" -m pytest tests -q -p xdist.plugin -n "${pytest_workers}" --dist worksteal
   fi
 }
 
