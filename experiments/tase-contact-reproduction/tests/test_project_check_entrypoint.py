@@ -22,7 +22,10 @@ class ProjectCheckEntrypointTest(unittest.TestCase):
         text = check.read_text(encoding="utf-8")
         self.assertIn("tools/validate_tase_protocol_table.py", text)
         self.assertIn("tools/validate_cross_step_parameter_table.py", text)
-        self.assertIn("python3 -m pytest tests -q -p no:anyio", text)
+        self.assertIn("PYTEST_DISABLE_PLUGIN_AUTOLOAD=1", text)
+        self.assertIn("-p xdist.plugin -n auto --dist worksteal", text)
+        self.assertIn("UR10E_PARALLEL", text)
+        self.assertIn("requirements-test.txt", text)
         self.assertNotIn("/home/andy/.local/bin/check.sh", text)
 
 

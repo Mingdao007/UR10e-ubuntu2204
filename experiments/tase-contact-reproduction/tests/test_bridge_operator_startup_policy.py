@@ -21,7 +21,7 @@ class BridgeOperatorStartupPolicyTest(unittest.TestCase):
             cache = root / "long-check-cache.json"
             cache.write_text('{"ok": true, "seed": "must be invalidated"}\n', encoding="utf-8")
             bench_gate.write_text(
-                'print(\'{"ok": false, "issues": ["robot_ping_failed"]}\')\n',
+                'print(\'{"ok": false, "issues": ["robot_ping_failed"]}\')\nraise SystemExit(2)\n',
                 encoding="utf-8",
             )
             script = f"""
@@ -29,6 +29,7 @@ set -euo pipefail
 export BRIDGE_OPERATOR_SOURCE_ONLY=1
 source "{ROOT / 'scripts' / 'bridge-line-operator.sh'}"
 BENCH_GATE="{bench_gate}"
+READONLY_PREFLIGHT="{bench_gate}"
 LONG_CHECK_CACHE="{cache}"
 set +e
 refresh_bench_gate_cache
@@ -57,7 +58,12 @@ test ! -e "{cache}"
 
     def test_bridge_postprocess_emits_step5d_fast_analysis_json(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            run_dir = Path(tmp)
+            base = Path(tmp)
+            run_dir = base / "run"
+            run_dir.mkdir()
+            (run_dir / ".capture_complete.json").write_text(
+                '{"capture_closed": true, "immutable": true}\n', encoding="utf-8"
+            )
             bridge_csv = run_dir / "bridge_rtde_500hz.csv"
             with bridge_csv.open("w", newline="", encoding="utf-8") as handle:
                 writer = csv.DictWriter(
@@ -86,6 +92,7 @@ test ! -e "{cache}"
 set -euo pipefail
 export BRIDGE_OPERATOR_SOURCE_ONLY=1
 export BRIDGE_PROFILE=step5d_strict_rnn_ablation_v25
+export STEP5D_DERIVED_ROOT="{base / 'derived'}"
 source "{ROOT / 'scripts' / 'bridge-line-operator.sh'}"
 postprocess_run "{run_dir}"
 """
@@ -98,11 +105,17 @@ postprocess_run "{run_dir}"
             )
 
             self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
-            self.assertTrue((run_dir / "stage_frequency_summary.json").exists())
-            self.assertTrue((run_dir / "step5d_bridge_analysis.json").exists())
-            self.assertIn("[operator] run dir:", completed.stdout)
-            self.assertIn("[operator] stage frequency summary:", completed.stdout)
-            self.assertIn("[operator] Step5d bridge analysis:", completed.stdout)
+            derived = next((base / "derived").iterdir())
+            self.assertTrue(
+                (derived / "frequency-summary/stage_frequency_summary.json").exists()
+            )
+            self.assertTrue(
+                (derived / "step5d-analysis/step5d_bridge_analysis.json").exists()
+            )
+            self.assertFalse((run_dir / "stage_frequency_summary.json").exists())
+            self.assertFalse((run_dir / "step5d_bridge_analysis.json").exists())
+            self.assertIn("[operator] immutable source run:", completed.stdout)
+            self.assertIn("[operator] derived artifacts:", completed.stdout)
             self.assertIn("root-cause classification: no_stage25_preload_dwell_short", completed.stdout)
 
     def test_step5d_contact_bridge_defaults_to_short_start_path(self) -> None:

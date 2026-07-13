@@ -10,6 +10,7 @@ UPLOAD_TOOL="${ROOT}/tools/upload_ur_tp_package.py"
 READBACK_GATE="${ROOT}/tools/verify_step5d_current_binding.py"
 PROMOTE_TOOL="${ROOT}/tools/promote_step5d_current.py"
 PUBLISH_GATE="${ROOT}/tools/verify_step5d_publish_gate.py"
+PARALLEL_TOOL="${ROOT}/tools/run_step5d_parallel_workflow.py"
 OPERATOR="${SCRIPT_DIR}/step5d-liveprep-operator.sh"
 DRYRUN_READBACK_ROOT="${STEP5D_DRYRUN_READBACK_ROOT:-/tmp/ur10e_tp_readback_dryrun}"
 LATEST_CANDIDATE_INDEX="${RUN_ROOT}/local_tp_packages/.latest_step5d_candidate.json"
@@ -19,12 +20,20 @@ usage() {
 Usage:
   step5d-workflow.sh status
   step5d-workflow.sh dev-loop
+  step5d-workflow.sh parallel-check
+  step5d-workflow.sh offline-functional
+  step5d-workflow.sh formal-timing
+  step5d-workflow.sh offline-all
+  step5d-workflow.sh postprocess <immutable-run-dir>
   step5d-workflow.sh promote-package
   step5d-workflow.sh prep-long-checks
   STEP5D_CONFIRM='LIVE STEP5D STRICT RNN LIVEPREP' step5d-workflow.sh contact-bridge
 
 Boundary:
   - dev-loop is local-only; it never uploads, updates current_stage, or starts bridge.
+  - offline-functional uses short feature-bearing RNN windows and is diagnostic_only.
+  - formal-timing is the only full timing acceptance mode and takes the exclusive throughput lock.
+  - postprocess requires a closed immutable capture and writes only to a separate derived tree.
   - promote-package is controller file delivery plus read-back; it never starts bridge or motion.
   - contact-bridge delegates to the live-gated Step5d operator; it never rebuilds or uploads.
 EOF
@@ -168,6 +177,19 @@ case "${mode}" in
     run_quick_tests
     echo "local-only candidate verified: ${candidate_dir}"
     echo "not delivered; current_stage unchanged; do not open on Teach Pendant"
+    ;;
+  parallel-check|offline-functional|formal-timing|offline-all)
+    python3 "${PARALLEL_TOOL}" "${mode}"
+    ;;
+  postprocess)
+    run_dir="${2:-}"
+    if [[ -z "${run_dir}" ]]; then
+      echo "postprocess requires <immutable-run-dir>" >&2
+      exit 2
+    fi
+    derived_root="${STEP5D_DERIVED_ROOT:-${RUN_ROOT}/derived}"
+    output_root="${derived_root}/$(basename "$(readlink -f "${run_dir}")")_$(date +%Y%m%d_%H%M%S)"
+    python3 "${PARALLEL_TOOL}" postprocess "${run_dir}" --output-root "${output_root}"
     ;;
   promote-package)
     current="$(current_program)"

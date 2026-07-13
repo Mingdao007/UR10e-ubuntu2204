@@ -22,11 +22,11 @@ source_setup() {
 
 source_setup /opt/ros/humble/setup.bash
 if [[ ! -f "${ROOT}/install/setup.bash" ]]; then
-  colcon build --packages-select ur10e_example_controllers --symlink-install
+  python3 "${ROOT}/scripts/ur10e_colcon_build.py" ur10e_example_controllers
 fi
 source_setup "${ROOT}/install/setup.bash"
 if ! ros2 pkg prefix ur10e_example_controllers >/dev/null 2>&1; then
-  colcon build --packages-select ur10e_example_controllers --symlink-install
+  python3 "${ROOT}/scripts/ur10e_colcon_build.py" ur10e_example_controllers
   source_setup "${ROOT}/install/setup.bash"
 fi
 

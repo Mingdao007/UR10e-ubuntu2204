@@ -11,8 +11,11 @@ DASHBOARD_PORT="${DASHBOARD_PORT:-29999}"
 WAIT_FOR_PLAY_S="${WAIT_FOR_PLAY_S:-45}"
 AUTOWATCH_WAIT_FOR_PLAY_S="${AUTOWATCH_WAIT_FOR_PLAY_S:-30}"
 BENCH_GATE="/home/andy/codex-private-skills/skills/ur10e-realsetup/scripts/check_ubuntu_network.py"
+READONLY_PREFLIGHT="${READONLY_PREFLIGHT:-${ROOT}/tools/preflight_readonly.py}"
 LONG_CHECK_TTL_S="${LONG_CHECK_TTL_S:-7200}"
 LONG_CHECK_CACHE="${LONG_CHECK_CACHE:-${RUN_ROOT}/.bridge_long_checks_cache.json}"
+PARALLEL_WORKFLOW="${ROOT}/tools/run_step5d_parallel_workflow.py"
+UR10E_LOCK_ROOT="${UR10E_LOCK_ROOT:-/tmp/ur10e-resource-locks}"
 STEP5D_RUNTIME_INTERFACE="${ROOT}/tools/step5d_runtime_interface.py"
 STEP5D_CURRENT_BINDING_GATE="${ROOT}/tools/verify_step5d_current_binding.py"
 STEP5D_NO_CONTACT_P0_PROFILE="step5d_strict_rnn_no_contact_p0_v7"
@@ -705,8 +708,13 @@ step5d_live_bridge_authorized() {
 refresh_bench_gate_cache() {
   mkdir -p "$(dirname "${LONG_CHECK_CACHE}")"
   local tmp
+  local preflight_dir
   tmp="$(mktemp)"
-  if run_bench_gate | tee "${tmp}"; then
+  preflight_dir="$(mktemp -d)"
+  if python3 "${READONLY_PREFLIGHT}" \
+      --robot-host "${ROBOT_HOST}" \
+      --output-dir "${preflight_dir}" \
+      --json-only | tee "${tmp}"; then
     python3 - "${tmp}" "${LONG_CHECK_CACHE}" "${ROBOT_HOST}" <<'PY'
 import json
 import subprocess
@@ -749,14 +757,20 @@ source = Path(sys.argv[1])
 cache = Path(sys.argv[2])
 host = sys.argv[3]
 try:
-    gate = json.loads(source.read_text(encoding="utf-8"))
+    snapshot = json.loads(source.read_text(encoding="utf-8"))
 except Exception:
-    gate = {"raw": source.read_text(encoding="utf-8", errors="replace")}
+    snapshot = {"raw": source.read_text(encoding="utf-8", errors="replace")}
+remote = ((snapshot.get("stages") or {}).get("remote") or {}) if isinstance(snapshot, dict) else {}
+bench = remote.get("bench_network") or {}
+gate = bench.get("payload") if isinstance(bench, dict) else None
+if not isinstance(gate, dict):
+    gate = snapshot
 payload = {
     "ok": True,
     "checked_at_epoch": time.time(),
     "robot_host": host,
     "gate": gate,
+    "preflight_snapshot": snapshot,
     "fingerprint": current_fingerprint(gate),
 }
 tmp = cache.with_suffix(cache.suffix + ".tmp")
@@ -765,12 +779,15 @@ tmp.replace(cache)
 print(f"[operator] long-check cache refreshed: {cache}")
 PY
     rm -f "${tmp}"
+    rm -rf "${preflight_dir}"
     return 0
   else
     local rc="$?"
     rm -f "${tmp}"
+    rm -rf "${preflight_dir}"
     rm -f "${LONG_CHECK_CACHE}"
-    return "${rc}"
+    echo "[operator] read-only preflight failed with rc=${rc}; cache invalidated" >&2
+    return 24
   fi
 }
 
@@ -1131,20 +1148,17 @@ postprocess_run() {
   local out_dir="$1"
   local bridge_csv="${out_dir}/bridge_rtde_500hz.csv"
   if [[ -f "${bridge_csv}" ]]; then
-    local stage_summary="${out_dir}/stage_frequency_summary.json"
-    local step5d_analysis="${out_dir}/step5d_bridge_analysis.json"
-    if ! python3 "${ROOT}/tools/summarize_stage_frequency.py" "${bridge_csv}" --output "${stage_summary}"; then
-      echo "[operator] stage frequency summary failed: ${stage_summary}"
+    local derived_root="${STEP5D_DERIVED_ROOT:-${RUN_ROOT}/derived}"
+    local derived_dir="${derived_root}/$(basename "${out_dir}")_${STAMP}"
+    if ! python3 "${PARALLEL_WORKFLOW}" postprocess "${out_dir}" --output-root "${derived_dir}"; then
+      echo "[operator] parallel postprocess reported failure: ${derived_dir}"
     fi
-    if [[ "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_* || "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
-      if ! python3 "${ROOT}/tools/analyze_step5d_bridge_run.py" --run-dir "${out_dir}" --output "${step5d_analysis}"; then
-        echo "[operator] Step5d bridge analysis failed: ${step5d_analysis}"
-      fi
-      echo "[operator] run dir: ${out_dir}"
-      echo "[operator] stage frequency summary: ${stage_summary}"
-      echo "[operator] Step5d bridge analysis: ${step5d_analysis}"
-      if [[ -f "${step5d_analysis}" ]]; then
-        python3 - "${step5d_analysis}" <<'PY' || true
+    local stage_summary="${derived_dir}/frequency-summary/stage_frequency_summary.json"
+    local step5d_analysis="${derived_dir}/step5d-analysis/step5d_bridge_analysis.json"
+    echo "[operator] immutable source run: ${out_dir}"
+    echo "[operator] derived artifacts: ${derived_dir}"
+    if [[ -f "${step5d_analysis}" ]]; then
+      python3 - "${step5d_analysis}" <<'PY' || true
 import json
 import sys
 from pathlib import Path
@@ -1154,7 +1168,6 @@ classification = payload.get("classification", "unknown")
 next_action = payload.get("next_action", "")
 print(f"[operator] root-cause classification: {classification}; next_action={next_action}")
 PY
-      fi
     fi
   else
     echo "[operator] no bridge CSV found for postprocess: ${bridge_csv}"
@@ -1350,7 +1363,7 @@ PY
   return 24
 }
 
-run_bridge_for_mode() {
+_run_bridge_for_mode() {
   local out_dir="$1"
   local already_running="$2"
   require_step5d_realtime_launcher_policy || return "$?"
@@ -1502,7 +1515,28 @@ PY
     echo "[operator] Kunwei quiet stop reported issue: ${quiet_json}"
   fi
   [[ -f "${quiet_json}" ]] && cat "${quiet_json}"
-  postprocess_run "${out_dir}"
+  python3 - "${out_dir}" "${child_rc}" "${monitor_rc}" <<'PY'
+import json
+import os
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+run_dir = Path(sys.argv[1]).resolve()
+payload = {
+    "schema_version": "step5d_capture_completion_v1",
+    "capture_closed": True,
+    "immutable": True,
+    "completed_at": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
+    "bridge_child_exit_code": int(sys.argv[2]),
+    "monitor_exit_code": int(sys.argv[3]),
+    "source_run": str(run_dir),
+}
+marker = run_dir / ".capture_complete.json"
+temporary = marker.with_suffix(".json.tmp")
+temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+os.replace(temporary, marker)
+PY
   if [[ "${monitor_rc}" != "0" ]]; then
     return "${monitor_rc}"
   fi
@@ -1511,6 +1545,25 @@ PY
     return "${child_rc}"
   fi
   return 0
+}
+
+run_bridge_for_mode() {
+  mkdir -p "${UR10E_LOCK_ROOT}"
+  local throughput_fd
+  exec {throughput_fd}>>"${UR10E_LOCK_ROOT}/throughput.lock"
+  if ! flock -n -x "${throughput_fd}"; then
+    echo "refusing live writer: formal timing or offline throughput work owns the UR10e lock" >&2
+    exec {throughput_fd}>&-
+    return 24
+  fi
+  local rc=0
+  _run_bridge_for_mode "$@" || rc="$?"
+  flock -u "${throughput_fd}"
+  exec {throughput_fd}>&-
+  if [[ -f "$1/.capture_complete.json" ]]; then
+    postprocess_run "$1"
+  fi
+  return "${rc}"
 }
 
 if [[ "${BRIDGE_OPERATOR_SOURCE_ONLY:-0}" == "1" ]]; then
