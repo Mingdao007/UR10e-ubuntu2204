@@ -254,7 +254,7 @@ import time
 from pathlib import Path
 
 Path(sys.argv[1]).write_text(json.dumps({{
-    "ready_schema": "v29_bridge_ready_v1",
+    "ready_schema": "step5d_bridge_ready_v2",
     "ok": True,
     "pid": os.getpid(),
     "launch_nonce": os.environ["STEP5D_BRIDGE_LAUNCH_NONCE"],
@@ -262,7 +262,15 @@ Path(sys.argv[1]).write_text(json.dumps({{
     "rtde_hz": 500.0,
     "runtime_scheduler": {{"policy": "SCHED_FIFO", "priority": 20}},
     "prewarm_status": "ok",
+    "v30_runtime_complete": True,
     "rtde_connected": True,
+    "rtde_send_succeeded": True,
+    "sensor_stream_ready": True,
+    "sensor_samples": 1000,
+    "baseline_ready": True,
+    "sensor_age_s": 0.001,
+    "sensor_stale_s": 0.1,
+    "parse_errors": 0,
 }}), encoding="utf-8")
 time.sleep(0.2)
 PY
@@ -293,7 +301,7 @@ import sys
 from pathlib import Path
 
 Path(sys.argv[1]).write_text(json.dumps({{
-    "ready_schema": "v29_bridge_ready_v1",
+    "ready_schema": "step5d_bridge_ready_v2",
     "ok": True,
     "pid": int(sys.argv[2]),
     "launch_nonce": "old-nonce",
@@ -301,7 +309,15 @@ Path(sys.argv[1]).write_text(json.dumps({{
     "rtde_hz": 500.0,
     "runtime_scheduler": {{"policy": "SCHED_FIFO", "priority": 20}},
     "prewarm_status": "ok",
+    "v30_runtime_complete": True,
     "rtde_connected": True,
+    "rtde_send_succeeded": True,
+    "sensor_stream_ready": True,
+    "sensor_samples": 1000,
+    "baseline_ready": True,
+    "sensor_age_s": 0.001,
+    "sensor_stale_s": 0.1,
+    "parse_errors": 0,
 }}), encoding="utf-8")
 PY
 wait_for_bridge_output_started "{run_dir}" "$pid" new-nonce

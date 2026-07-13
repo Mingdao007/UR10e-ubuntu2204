@@ -56,6 +56,84 @@ def accepted_contract_row(*, terminal: bool = False) -> dict[str, str]:
 
 
 class Step5dNoContactP0V8Test(unittest.TestCase):
+    def test_stage_reset_retains_prewarmed_v30_runtime(self) -> None:
+        state = p0_bridge.base.BridgeState()
+        diagnostics = object()
+        policy = object()
+        state.step5d_v30_deferred_diagnostics = diagnostics
+        state.step5d_v30_policy = policy
+
+        state.reset_line_contact()
+
+        self.assertIs(state.step5d_v30_deferred_diagnostics, diagnostics)
+        self.assertIs(state.step5d_v30_policy, policy)
+
+    def test_bridge_ready_requires_live_sensor_and_complete_v30_runtime(self) -> None:
+        args = SimpleNamespace(
+            bridge_profile=PROFILE,
+            sensor_stale_s=0.1,
+            rtde_hz=500.0,
+            output_dir=ROOT / "runs" / "test",
+        )
+        state = p0_bridge.base.BridgeState()
+        state.step5d_model_bundle = object()
+        state.step5d_tcp_offset_tool0 = object()
+        state.step5d_solver = object()
+        state.step5d_v30_deferred_diagnostics = object()
+        state.step5d_v30_policy = object()
+        metadata = {
+            "runtime_scheduler": {"policy": "SCHED_FIFO", "priority": 20}
+        }
+        prewarm = {"status": "ok"}
+
+        missing_sensor = p0_bridge.base.step5d_bridge_ready_payload(
+            args,
+            metadata,
+            state,
+            prewarm,
+            rtde_connected=True,
+            rtde_send_succeeded=True,
+            samples=0,
+            baseline_ready=False,
+            sensor_age_s=float("inf"),
+            parse_errors=0,
+        )
+        self.assertIsNone(missing_sensor)
+
+        ready = p0_bridge.base.step5d_bridge_ready_payload(
+            args,
+            metadata,
+            state,
+            prewarm,
+            rtde_connected=True,
+            rtde_send_succeeded=True,
+            samples=1001,
+            baseline_ready=True,
+            sensor_age_s=0.001,
+            parse_errors=0,
+        )
+        self.assertIsNotNone(ready)
+        assert ready is not None
+        self.assertEqual(ready["ready_schema"], "step5d_bridge_ready_v2")
+        self.assertTrue(ready["sensor_stream_ready"])
+        self.assertTrue(ready["v30_runtime_complete"])
+
+        state.step5d_v30_policy = None
+        self.assertIsNone(
+            p0_bridge.base.step5d_bridge_ready_payload(
+                args,
+                metadata,
+                state,
+                prewarm,
+                rtde_connected=True,
+                rtde_send_succeeded=True,
+                samples=1001,
+                baseline_ready=True,
+                sensor_age_s=0.001,
+                parse_errors=0,
+            )
+        )
+
     def test_qualified_canary_clock_resets_across_unconsumed_tick(self) -> None:
         state = p0_bridge.base.BridgeState()
 
@@ -119,7 +197,14 @@ class Step5dNoContactP0V8Test(unittest.TestCase):
             script,
         )
         self.assertIn("reuses only the last", txt)
-        self.assertIn("if stale_s2 > 0.020:", script)
+        self.assertIn("if stale_s2 > 0.250:", script)
+
+        p0_spec = liveprep.spec_for(PROFILE)
+        self.assertEqual(p0_spec.stage25_stale_command_hold_s, 0.250)
+        self.assertTrue(p0_spec.publish_guard_approved_late_command)
+        v30_spec = liveprep.spec_for(interface.STEP5D_ABLATION_V30_STAGE_ID)
+        self.assertEqual(v30_spec.stage25_stale_command_hold_s, 0.020)
+        self.assertFalse(v30_spec.publish_guard_approved_late_command)
 
         bridge_source = (ROOT / "tools" / "step5d_p0_v8_bridge.py").read_text(
             encoding="utf-8"
@@ -154,10 +239,15 @@ class Step5dNoContactP0V8Test(unittest.TestCase):
         )
         self.assertTrue(runtime.hard_contract["v30_control_contract"])
         self.assertTrue(runtime.hard_contract["offline_candidate"])
-        self.assertEqual(
-            runtime.controller_target,
-            "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v8.urp",
+        capture = json.loads(
+            (ROOT / "config" / "current_stage.json").read_text(encoding="utf-8")
+        )["bridge_trigger"]["no_contact_p0_v8_capture"]
+        expected_target = (
+            "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v8.urp"
+            if capture["controller_readback_verified"]
+            else "LOCAL_ONLY_NOT_DELIVERED"
         )
+        self.assertEqual(runtime.controller_target, expected_target)
         self.assertIn("accepts only 47=524", runtime.register_contract["stage25_0"])
 
     def test_parser_gate_allows_only_explicit_v8_canary_phases(self) -> None:

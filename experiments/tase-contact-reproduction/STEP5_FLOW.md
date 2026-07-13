@@ -25,20 +25,21 @@ preparation may occur before P0, but v30 cannot become current, start a bridge,
 or run contact until all of the following are frozen and pass:
 
 Wall-clock evidence has two non-interchangeable classifications. A strict
-500 Hz hard-real-time claim still requires zero samples at or beyond 2 ms. For
-the bounded last-command-hold route, a late host candidate is discarded, the
-heartbeat remains unchanged, and TP continues the last successfully published
-guard-approved qdot. Held ticks are reported as consumed because TP executes
-them; the next fresh tick may recover, while continuous staleness beyond
-0.020 s stops. Before the first accepted command TP only syncs and issues no
-speed command. The bounded route requires at most 1% held ticks, at most ten
-consecutive held ticks, and no more than 1.5 ms schedule lateness. The
-lateness bound remains below one 2 ms control tick. At the
-0.05 rad/s qdot cap, one 20 ms event can carry at most 0.001 rad per joint.
+500 Hz hard-real-time claim still requires zero samples at or beyond 2 ms.
+Contact v30 retains the strict bounded route: a late host candidate is
+discarded, heartbeat remains unchanged, and TP continues the last successfully
+published guard-approved qdot for at most 0.020 s. P0 v8 is deliberately more
+tolerant: a completed safety-approved GPU qdot publishes even after the nominal
+release; while a new accepted result is unavailable, heartbeat remains
+unchanged and TP continues the previous accepted qdot for at most 0.250 s,
+without injecting a zero-qdot safe hold. Before the first accepted command TP
+only syncs and issues no speed command. At the 0.05 rad/s qdot cap, the P0 v8
+maximum theoretical 250 ms stale displacement is 0.0125 rad per joint.
 
-1. `step5d_strict_rnn_no_contact_p0_v8` passes one Review v2 `1+1` gate and
-   sequential same-fingerprint `2 -> 10 -> 60 s` canaries; only the final
-   continuous `60 s` verifier artifact passes P0.
+1. `step5d_strict_rnn_no_contact_p0_v8` has an explicit user review waiver
+   bound to its regenerated fingerprint and passes sequential same-fingerprint
+   `2 -> 10 -> 60 s` canaries; only the final continuous `60 s` verifier
+   artifact passes P0.
 2. v30 has a complete 10,000-solve and 60 s / 500 Hz timing plus safe-hold
    pass. The fresh source-bound RNN512 run satisfies the bounded
    last-command-hold route under the revised `1.5 ms` schedule-lateness
@@ -301,8 +302,8 @@ instead of preserving the later 22 s TP v3 timing.
 | `step5d_strict_rnn_ablation_v27` | bridge+TP | true | true | Step5b speedl live / Step5d paper+RNN shadow | `v31_filtered_live` | Retained successful 10 s fix-validation evidence from `runs/bridge_step5d_strict_rnn_ablation_v27_20260706_045513`; not current and not a 60 s reproduction claim. The earlier 040900 force overshoot remains retained failure evidence for the old paper-linear-live path. |
 | `step5d_strict_rnn_ablation_v28` | bridge+TP | true | true | Step5b speedl live / Step5d paper+RNN shadow | `v31_filtered_live` | Retained read-back verified diagnostic package, superseded by v29; not a completed reproduction claim. |
 | `step5d_strict_rnn_ablation_v29` | frozen fallback | true | false | strict TASE RNN speedj | `v31_filtered_live` | Current pointer is retained only because it is the last read-back-verified package. A future reactivation requires fresh readback/timing fingerprint, Review v2 `2+1`, and explicit live/contact authorization. |
-| `step5d_strict_rnn_no_contact_p0_v8` | offline P0 gate | false | false | v30 strict-RNN contract | none | Inactive layout-524-only package. Deadline overruns skip the late candidate and hold the last successfully published qdot for at most 20 ms; held ticks count toward canary time but must remain at most 1% overall and ten consecutive ticks. Regenerated package readback and sequential 2/10/60 s controller canaries remain required. |
-| `step5d_strict_rnn_ablation_v30` | offline contact-control prep | true | false | strict TASE RNN speedj; DLS shadow-only | `v31_filtered_live` | Inactive candidate using the same bounded last-command-hold contract as P0 v8. Hard-real-time remains a distinct zero-miss claim; bounded readiness requires the 1%/20 ms limits, live-runtime prewarm integration, P0 v8 controller canaries, and frozen package/readback. Contact still requires separate authorization. |
+| `step5d_strict_rnn_no_contact_p0_v8` | offline P0 gate | false | false | v30 strict-RNN contract | none | Inactive layout-524-only package. Guard-approved GPU results publish even when completion crosses a nominal 2 ms release; while no new result is accepted TP holds the last accepted qdot, without zero-qdot injection, for at most 250 ms. Regenerated package readback and sequential 2/10/60 s controller canaries remain required. |
+| `step5d_strict_rnn_ablation_v30` | offline contact-control prep | true | false | strict TASE RNN speedj; DLS shadow-only | `v31_filtered_live` | Inactive contact candidate retaining the stricter 1%/20 ms bounded last-command-hold contract. Hard-real-time remains a distinct zero-miss claim; readiness still requires live-runtime integration, P0 v8 controller canaries, and frozen package/readback. Contact requires separate authorization. |
 | `step5d_ros2_remote_shadow_v1` | ROS2 offline | true | false | ROS2 shadow replay | `v31_filtered_live` input logs | Diagnostic-only Step5d policy replay: replays v15a/v14/v11 and Step5b/Step6b CSVs, removes long zero-qdot hold recovery, but is not live-ready and must follow Step5b plumbing validation. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |
 

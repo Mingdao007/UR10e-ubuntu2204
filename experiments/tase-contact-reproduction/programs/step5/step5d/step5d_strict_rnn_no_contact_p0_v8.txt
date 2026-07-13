@@ -24,7 +24,7 @@ Boundary:
   when the TP loop accepts a current Stage25 command packet and reaches
   speedl/speedj.
   After the first accepted command, a repeated heartbeat reuses only the last
-  guard-approved qdot for at most 0.020 s;
+  guard-approved qdot for at most 0.250 s;
   before the first accepted command TP only syncs and sends no speed command. The bridge records
   every replay and a longer stale interval remains a stop.
 

@@ -179,7 +179,7 @@ def codex_step5d_strict_rnn_no_contact_p0_v8():
       end
       t2 = t2 + loop_dt2
       stop_reason = codex_step5d_no_contact_p0_guard_stop_reason()
-      if stale_s2 > 0.020:
+      if stale_s2 > 0.250:
         stop_reason = 2.0
       end
       if stop_reason == 0.0:

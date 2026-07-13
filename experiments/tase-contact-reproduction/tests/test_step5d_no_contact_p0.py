@@ -104,6 +104,8 @@ def _p0_fake_runtime(state: bridge.BridgeState, _args: object) -> None:
     state.step5d_tcp_offset_tool0 = np.zeros(3)
 
     class FakeSolver:
+        config = SimpleNamespace(epsilon=0.010, sigr_exponent_r=0.8)
+
         def reset_state(self) -> None:
             return None
 
@@ -129,6 +131,8 @@ def _p0_fake_runtime(state: bridge.BridgeState, _args: object) -> None:
             )
 
     state.step5d_solver = FakeSolver()
+    state.step5d_v30_policy = bridge.StrictRnnControlPolicy(state.step5d_solver)
+    state.step5d_v30_deferred_diagnostics = bridge.DeferredV30Diagnostics(capacity=32)
 
 
 def _p0_fake_outer(*_args: object, **_kwargs: object) -> SimpleNamespace:
@@ -194,6 +198,8 @@ def _p0_no_contact_runtime_values(
     latest_zeroed_override: list[float] | None = None,
     tcp_pose_override: list[float] | None = None,
     solver: object | None = None,
+    robot_stage: float = 25.0,
+    state_override: bridge.BridgeState | None = None,
 ) -> dict[str, float]:
     args = bridge.parse_args(
         [
@@ -215,12 +221,18 @@ def _p0_no_contact_runtime_values(
         "actual_TCP_speed": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         "actual_q": [0.0] * 6,
         "actual_qd": [0.0] * 6,
-        "output_double_register_35": 25.0,
+        "output_double_register_35": robot_stage,
     }
     if tcp_pose_override is not None:
         latest_output["actual_TCP_pose"] = tcp_pose_override
-    state = _p0_no_contact_state(normal_acquired=normal_acquired)
-    _p0_fake_runtime(state, args)
+    state = (
+        _p0_no_contact_state(normal_acquired=normal_acquired)
+        if state_override is None
+        else state_override
+    )
+    state.normal_acquired = normal_acquired
+    if state.step5d_model_bundle is None:
+        _p0_fake_runtime(state, args)
     if solver is not None:
         state.step5d_solver = solver
     rnn_target = {"shadow": True} if rnn_target_side_effect is None else rnn_target_side_effect
@@ -1006,6 +1018,77 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertEqual(metadata["status"], "not_required")
         self.assertTrue(metadata["before_socket_connect"])
         self.assertTrue(metadata["before_rtde_open"])
+
+    def test_no_contact_p0_v8_stage25_95_emits_zero_layout_522_clear_packet(self) -> None:
+        values = _p0_no_contact_runtime_values(
+            normal_acquired=False,
+            profile=iface.STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
+            robot_stage=25.95,
+        )
+
+        self.assertEqual(values["step4e_cmd_valid"], 0.0)
+        self.assertEqual(values["step4e_controller_state"], 522.0)
+        self.assertEqual(
+            [values[name] for name in bridge.BRIDGE_INPUT_NAMES[:6]],
+            [0.0] * 6,
+        )
+        self.assertTrue(
+            bridge.step5d_qdot_clear_packet_publishable(
+                values,
+                v30_contract_profile=True,
+                stop_dominant=False,
+            )
+        )
+
+    def test_p0_v8_complete_stage_and_transport_chain(self) -> None:
+        state = _p0_no_contact_state(normal_acquired=False)
+        _p0_fake_runtime(state, object())
+        stages = {}
+        for robot_stage in (26.0, 20.0, 25.95, 25.0):
+            stages[robot_stage] = _p0_no_contact_runtime_values(
+                normal_acquired=False,
+                profile=iface.STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
+                robot_stage=robot_stage,
+                state_override=state,
+            )
+
+        self.assertEqual(stages[26.0]["step4e_cmd_valid"], 0.0)
+        self.assertEqual(stages[20.0]["step4e_cmd_valid"], 0.0)
+        self.assertEqual(stages[25.95]["step4e_controller_state"], 522.0)
+        self.assertEqual(stages[25.95]["step4e_cmd_valid"], 0.0)
+        self.assertEqual(
+            [stages[25.95][name] for name in bridge.BRIDGE_INPUT_NAMES[:6]],
+            [0.0] * 6,
+        )
+        self.assertEqual(stages[25.0]["step4e_controller_state"], 524.0)
+        self.assertEqual(stages[25.0]["step4e_cmd_valid"], 1.0)
+        self.assertEqual(stages[25.0]["_step5d_p0_rnn_accepted"], 1.0)
+
+        clear_action = bridge.step5d_publish_action(
+            stages[25.95],
+            v30_contract_profile=True,
+            stop_dominant=False,
+            schedule_late=False,
+            publish_guard_approved_late_command=True,
+            last_published_command=None,
+        )
+        fresh_action = bridge.step5d_publish_action(
+            stages[25.0],
+            v30_contract_profile=True,
+            stop_dominant=False,
+            schedule_late=True,
+            publish_guard_approved_late_command=True,
+            last_published_command=None,
+        )
+        stop_action = bridge.step5d_publish_action(
+            dict(stages[25.0], stop_request=1.0),
+            v30_contract_profile=True,
+            stop_dominant=True,
+            schedule_late=False,
+            publish_guard_approved_late_command=True,
+            last_published_command=stages[25.0],
+        )
+        self.assertEqual((clear_action, fresh_action, stop_action), ("qdot_clear", "fresh_command", "stop"))
 
     def test_no_contact_p0_bridge_default_uses_v7_tuned_rnn_inner_loop(self) -> None:
         args = bridge.parse_args(

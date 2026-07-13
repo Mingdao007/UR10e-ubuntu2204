@@ -54,6 +54,8 @@ class Step5dAblationSpec:
     controller_dir: str = "/programs/andyl/kunwei/step5"
     no_contact_p0: bool = False
     qdot_cap_rad_s: float = 0.050
+    stage25_stale_command_hold_s: float = 0.020
+    publish_guard_approved_late_command: bool = False
 
     @property
     def stage_id(self) -> str:
@@ -163,6 +165,8 @@ ABLATION_SPECS = {
         controller_dir="/programs/andyl/kunwei/step5",
         no_contact_p0=True,
         qdot_cap_rad_s=0.050,
+        stage25_stale_command_hold_s=0.250,
+        publish_guard_approved_late_command=True,
     ),
 }
 DEFAULT_SPEC = ABLATION_SPECS[STEP5D_ABLATION_V27_STAGE_ID]
@@ -416,7 +420,7 @@ def _replace_line_stage_with_stage25_multimode(script: str, spec: Step5dAblation
 """
         validity_keyword = "elif"
     heartbeat_stale_stop_s = (
-        STAGE25_V30_STALE_COMMAND_HOLD_S
+        spec.stage25_stale_command_hold_s
         if spec.uses_v30_control_contract
         else STAGE25_HEARTBEAT_STALE_STOP_S
     )
@@ -1003,7 +1007,7 @@ def codex_{spec.program_name}():
       end
       t2 = t2 + loop_dt2
       stop_reason = codex_step5d_no_contact_p0_guard_stop_reason()
-      if stale_s2 > {STAGE25_V30_STALE_COMMAND_HOLD_S:.3f}:
+      if stale_s2 > {spec.stage25_stale_command_hold_s:.3f}:
         stop_reason = 2.0
       end
       if stop_reason == 0.0:
@@ -1278,7 +1282,7 @@ Boundary:
   when the TP loop accepts a current Stage25 command packet and reaches
   speedl/speedj.
   After the first accepted command, a repeated heartbeat reuses only the last
-  guard-approved qdot for at most {STAGE25_V30_STALE_COMMAND_HOLD_S:.3f} s;
+  guard-approved qdot for at most {spec.stage25_stale_command_hold_s:.3f} s;
   before the first accepted command TP only syncs and sends no speed command. The bridge records
   every replay and a longer stale interval remains a stop.
 
@@ -1413,7 +1417,7 @@ Boundary:
   reaches speedl/speedj; bridge CSV records echo tag, cmd_valid, command norm,
   row gap, and loop recv/compute/send/csv timing.
   For v30, after the first accepted command a repeated heartbeat reuses only
-  the last guard-approved command for at most {STAGE25_V30_STALE_COMMAND_HOLD_S:.3f} s;
+  the last guard-approved command for at most {spec.stage25_stale_command_hold_s:.3f} s;
   before the first accepted command TP only syncs and sends no speed command. The bridge records
   every replay and a longer stale interval remains a stop.
   Bridge control modes:
@@ -1800,9 +1804,13 @@ def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dic
             "deadline_overrun_policy": (
                 {
                     "stale_tick_command": "last_published_guard_approved_qdot_consumed",
-                    "late_candidate_policy": "discard_without_publish",
+                    "late_candidate_policy": (
+                        "publish_when_guard_approved"
+                        if spec.publish_guard_approved_late_command
+                        else "discard_without_publish"
+                    ),
                     "recovery": "next_fresh_heartbeat",
-                    "continuous_stale_stop_s": STAGE25_V30_STALE_COMMAND_HOLD_S,
+                    "continuous_stale_stop_s": spec.stage25_stale_command_hold_s,
                     "held_tick_counts_as_consumed": True,
                     "hold_ratio_max": 0.01,
                     "max_consecutive_hold_ticks": 10,
@@ -1856,9 +1864,13 @@ def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dic
         "deadline_overrun_policy": (
             {
                 "stale_tick_command": "last_published_guard_approved_qdot_consumed",
-                "late_candidate_policy": "discard_without_publish",
+                "late_candidate_policy": (
+                    "publish_when_guard_approved"
+                    if spec.publish_guard_approved_late_command
+                    else "discard_without_publish"
+                ),
                 "recovery": "next_fresh_heartbeat",
-                "continuous_stale_stop_s": STAGE25_V30_STALE_COMMAND_HOLD_S,
+                "continuous_stale_stop_s": spec.stage25_stale_command_hold_s,
                 "held_tick_counts_as_consumed": True,
                 "hold_ratio_max": 0.01,
                 "max_consecutive_hold_ticks": 10,

@@ -1182,7 +1182,7 @@ try:
     payload = json.loads(ready.read_text(encoding="utf-8"))
 except Exception:
     raise SystemExit(1)
-if payload.get("ready_schema") != "v29_bridge_ready_v1":
+if payload.get("ready_schema") != "step5d_bridge_ready_v2":
     raise SystemExit(1)
 if payload.get("ok") is not True:
     raise SystemExit(1)
@@ -1205,7 +1205,32 @@ if scheduler.get("policy") != "SCHED_FIFO" or scheduler.get("priority") != 20:
     raise SystemExit(1)
 if payload.get("prewarm_status") != "ok":
     raise SystemExit(1)
+if payload.get("v30_runtime_complete") is not True:
+    raise SystemExit(1)
 if payload.get("rtde_connected") is not True:
+    raise SystemExit(1)
+if payload.get("rtde_send_succeeded") is not True:
+    raise SystemExit(1)
+if payload.get("sensor_stream_ready") is not True:
+    raise SystemExit(1)
+if payload.get("baseline_ready") is not True:
+    raise SystemExit(1)
+if not isinstance(payload.get("sensor_samples"), int) or payload["sensor_samples"] < 1:
+    raise SystemExit(1)
+if payload.get("parse_errors") != 0:
+    raise SystemExit(1)
+try:
+    sensor_age_s = float(payload.get("sensor_age_s"))
+    sensor_stale_s = float(payload.get("sensor_stale_s"))
+except (TypeError, ValueError):
+    raise SystemExit(1)
+if (
+    not math.isfinite(sensor_age_s)
+    or not math.isfinite(sensor_stale_s)
+    or sensor_stale_s <= 0.0
+    or sensor_age_s < 0.0
+    or sensor_age_s > sensor_stale_s
+):
     raise SystemExit(1)
 PY
 }

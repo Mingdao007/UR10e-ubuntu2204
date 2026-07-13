@@ -114,6 +114,7 @@ from step5d_runtime_interface import (  # noqa: E402
     STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE,
     STEP5D_STAGE25_CONTROL_MODES,
     STEP5D_STAGE25_JOINT_LAYOUT_CODE,
+    STEP5D_QDOT_CLEAR_ZERO_TOL_RAD_S,
     STEP5D_NO_CONTACT_P0_BASELINE_S,
     STEP5D_NO_CONTACT_P0_DURATION_S,
     STEP5D_NO_CONTACT_P0_FORCE_GUARD_N,
@@ -399,11 +400,13 @@ STEP5D_DIAG_FIELDS = [
     "_step5d_solver_error",
     "_bridge_loop_gap_s",
     "_bridge_loop_deadline_lateness_s",
+    "_bridge_loop_compute_deadline_overrun",
     "_bridge_loop_missed_slots",
     "_bridge_loop_deadline_miss_total",
     "_bridge_loop_deadline_overrun_hold",
     "_bridge_loop_deadline_overrun_hold_total",
     "_bridge_loop_deadline_overrun_consecutive",
+    "_bridge_loop_io_wait_s",
     "_bridge_loop_sensor_recv_s",
     "_bridge_loop_rtde_recv_s",
     "_bridge_loop_compute_s",
@@ -3917,9 +3920,12 @@ class BridgeState:
         self.last_robot_stage = None
         self.step5d_outer_state = Step5dOuterLoopState()
         self.step5d_v30_sequence = 0
-        self.step5d_v30_deferred_diagnostics = None
         self.step5d_v30_safety_envelope = SafetyEnvelope()
-        self.step5d_v30_policy = None
+        # These two objects are preallocated before socket/RTDE startup.  A
+        # stage-boundary reset must retain them; clearing them here makes the
+        # first Stage 20 tick invalidate an otherwise complete v30 prewarm.
+        # The policy is stateless and the deferred buffer intentionally spans
+        # the whole bridge process.
         reset_step5d_solver_state_for_boundary(self, "inactive")
         self.step5d_settle_filtered_normal_load_n = None
         self.step5d_line_guard_loss_s = 0.0
@@ -6445,6 +6451,20 @@ def compute_bridge_values(
     values["_step4e_contact_offset_y_m"] = contact_offset_y
     if speed and len(speed) >= 6:
         values["_step4e_actual_speed_norm_m_s"] = norm3([float(speed[0]), float(speed[1]), float(speed[2])])
+    if qdot_clear_stage_active:
+        # Stage 25.95 is a TP/bridge protocol handshake, not a control stage.
+        # Re-assert it after the generic control_allowed fallback so a missing
+        # contact normal cannot overwrite layout 522 with controller state 1.
+        values.update(
+            {
+                **{name: 0.0 for name in BRIDGE_INPUT_NAMES[:6]},
+                "step4e_cmd_valid": 0.0,
+                "step4e_progress_m": 0.0,
+                "step4e_force_error_n": 0.0,
+                "step4e_orientation_error_rad": 0.0,
+                "step4e_controller_state": STEP5D_QDOT_CLEAR_MODE_CODE,
+            }
+        )
     if step5d_no_contact_p0_v8_profile:
         canary_phase_s = float(args.step5d_stop_register_canary_s)
         values["_step5d_p0_v8_contract_active"] = 1.0
@@ -7069,6 +7089,93 @@ def apply_step5d_unpublished_startup_packet(
     )
 
 
+def step5d_publish_action(
+    bridge_values: Mapping[str, float],
+    *,
+    v30_contract_profile: bool,
+    stop_dominant: bool,
+    schedule_late: bool,
+    publish_guard_approved_late_command: bool,
+    last_published_command: Mapping[str, float] | None,
+) -> str:
+    """Choose the v30/P0 transport action independently of 2 ms lateness.
+
+    For P0 v8, a completed guard-approved command remains publishable even when
+    the host missed its nominal release.  Until that command arrives, the
+    controller keeps the last accepted registers and heartbeat.  Other v30
+    profiles retain their stricter late-candidate policy until separately
+    promoted for contact use.
+    """
+
+    if not v30_contract_profile:
+        return "legacy"
+    if stop_dominant:
+        return "stop"
+    if step5d_qdot_clear_packet_publishable(
+        bridge_values,
+        v30_contract_profile=True,
+        stop_dominant=False,
+    ):
+        return "qdot_clear"
+    if (
+        float(bridge_values.get("step4e_cmd_valid", 0.0)) > 0.5
+        and float(bridge_values.get("step4e_controller_state", 0.0))
+        == float(STEP5D_STAGE25_JOINT_LAYOUT_CODE)
+    ):
+        if not schedule_late or publish_guard_approved_late_command:
+            return "fresh_command"
+        return "hold_last" if last_published_command is not None else "startup_invalid"
+    if last_published_command is not None:
+        return "hold_last"
+    return "startup_invalid"
+
+
+def step5d_startup_health_heartbeat_published(
+    *,
+    v30_contract_profile: bool,
+    rtde_send_succeeded: bool,
+    command_publishable: bool,
+    stop_dominant: bool,
+    last_published_command: Mapping[str, float] | None,
+) -> bool:
+    """Advance health heartbeat only before the first motion command exists.
+
+    The TP Stage 20 readiness handshake needs a changing heartbeat while the
+    bridge deliberately publishes cmd_valid=0 and zero qdot.  After the first
+    valid command, heartbeat again means command freshness and may not advance
+    for a held/deadline-missed packet.
+    """
+
+    return bool(
+        v30_contract_profile
+        and rtde_send_succeeded
+        and not command_publishable
+        and not stop_dominant
+        and last_published_command is None
+    )
+
+
+def step5d_qdot_clear_packet_publishable(
+    bridge_values: Mapping[str, float],
+    *,
+    v30_contract_profile: bool,
+    stop_dominant: bool,
+) -> bool:
+    """Keep the Stage 25.95 zero/invalid/layout-522 clear packet intact."""
+
+    return bool(
+        v30_contract_profile
+        and not stop_dominant
+        and float(bridge_values.get("step4e_cmd_valid", 0.0)) < 0.5
+        and float(bridge_values.get("step4e_controller_state", 0.0))
+        == float(STEP5D_QDOT_CLEAR_MODE_CODE)
+        and all(
+            abs(float(bridge_values.get(name, 0.0))) <= STEP5D_QDOT_CLEAR_ZERO_TOL_RAD_S
+            for name in BRIDGE_INPUT_NAMES[:6]
+        )
+    )
+
+
 def finalize_step5d_publish_history(
     state: "BridgeState",
     *,
@@ -7083,12 +7190,12 @@ def finalize_step5d_publish_history(
 
     ``compute_bridge_values`` necessarily computes the next candidate before
     the RTDE write and therefore updates the in-memory solver/qdot history
-    optimistically.  A deadline overrun discards that late candidate and may
-    publish the previous command under the previous heartbeat; a stop packet
-    or failed/absent RTDE connection also publishes no fresh command.  None of
-    those outcomes may become the previous command for the next solve.  The
-    solver history is restored to the actual last published qdot so the next
-    fresh solve ramps from what the TP really held, not from zero.
+    optimistically.  A held packet, stop packet, or failed/absent RTDE
+    connection publishes no fresh command.  None of those outcomes may become
+    the previous command for the next solve.  The solver history is restored
+    to the actual last published qdot so the next fresh solve ramps from what
+    the TP really held, not from zero.  Nominal 2 ms lateness alone does not
+    make a completed guard-approved candidate unpublished.
 
     Older profiles intentionally keep their historical bookkeeping semantics;
     this rollback contract is scoped to the inactive v30/P0 control contract.
@@ -8009,6 +8116,59 @@ def step5d_runtime_prewarm_metadata(bridge_profile: str) -> dict[str, Any]:
     }
 
 
+def step5d_bridge_ready_payload(
+    args: argparse.Namespace,
+    metadata: Mapping[str, Any],
+    state: BridgeState,
+    step5d_runtime_prewarm: Mapping[str, Any],
+    *,
+    rtde_connected: bool,
+    rtde_send_succeeded: bool,
+    samples: int,
+    baseline_ready: bool,
+    sensor_age_s: float,
+    parse_errors: int,
+) -> dict[str, Any] | None:
+    """Return an armed sentinel only after every live input is trustworthy."""
+
+    runtime_missing = step5d_liveprep_runtime_missing(state, args)
+    sensor_stream_ready = bool(
+        samples > 0
+        and baseline_ready
+        and math.isfinite(sensor_age_s)
+        and sensor_age_s <= float(args.sensor_stale_s)
+        and parse_errors == 0
+    )
+    if (
+        step5d_runtime_prewarm.get("status") != "ok"
+        or runtime_missing
+        or not rtde_connected
+        or not rtde_send_succeeded
+        or not sensor_stream_ready
+    ):
+        return None
+    return {
+        "ready_schema": "step5d_bridge_ready_v2",
+        "ok": True,
+        "pid": os.getpid(),
+        "launch_nonce": os.getenv("STEP5D_BRIDGE_LAUNCH_NONCE", ""),
+        "bridge_profile": args.bridge_profile,
+        "rtde_hz": args.rtde_hz,
+        "runtime_scheduler": metadata["runtime_scheduler"],
+        "prewarm_status": step5d_runtime_prewarm["status"],
+        "v30_runtime_complete": True,
+        "rtde_connected": True,
+        "rtde_send_succeeded": True,
+        "sensor_stream_ready": True,
+        "sensor_samples": int(samples),
+        "baseline_ready": True,
+        "sensor_age_s": float(sensor_age_s),
+        "sensor_stale_s": float(args.sensor_stale_s),
+        "parse_errors": 0,
+        "output_dir": str(args.output_dir),
+    }
+
+
 def step5d_dashboard_watch_metadata(
     bridge_profile: str,
     *,
@@ -8191,6 +8351,41 @@ def advance_periodic_deadline(deadline: float, now: float, period: float) -> tup
     lateness = max(0.0, now - deadline)
     missed_slots = max(0, int(math.floor(lateness / period)))
     return deadline + (missed_slots + 1) * period, missed_slots, lateness
+
+
+def wait_for_bridge_io_or_deadline(
+    sensor_socket: socket.socket,
+    rtde: RTDEBridgeClient | None,
+    *,
+    next_write_s: float,
+    now_s: float,
+    select_fn: Callable[..., tuple[list[Any], list[Any], list[Any]]] = select.select,
+) -> float:
+    """Block on live inputs until the next release instead of busy-spinning."""
+
+    timeout_s = max(0.0, float(next_write_s) - float(now_s))
+    if timeout_s <= 0.0:
+        return 0.0
+    read_sockets: list[Any] = []
+    for candidate in (
+        sensor_socket,
+        None if rtde is None else rtde.sock,
+    ):
+        if candidate is None:
+            continue
+        try:
+            if candidate.fileno() < 0:
+                continue
+        except (AttributeError, OSError, ValueError):
+            continue
+        if candidate not in read_sockets:
+            read_sockets.append(candidate)
+    wait_start = time.perf_counter()
+    try:
+        select_fn(read_sockets, [], [], timeout_s)
+    except InterruptedError:
+        pass
+    return time.perf_counter() - wait_start
 
 
 def dashboard_state_value(value: Any) -> str:
@@ -8551,7 +8746,7 @@ def main(argv: list[str] | None = None) -> int:
     baseline_raw_si: list[list[float]] = []
     baseline = [0.0] * 6
     baseline_ready = args.baseline_s == 0
-    baseline_start_mono = start_mono
+    baseline_start_mono: float | None = None
     baseline_epoch = 0
     bias_rate_estimate = [0.0] * 6
     bias_estimate_initialized = baseline_ready
@@ -8645,17 +8840,16 @@ def main(argv: list[str] | None = None) -> int:
             write_json(metadata_path, metadata)
             raise
         step5d_runtime_prewarm["elapsed_s"] = time.perf_counter() - prewarm_start
-        step5d_runtime_prewarm["status"] = (
-            "ok"
-            if step4e_state.step5d_model_bundle is not None
-            and step4e_state.step5d_tcp_offset_tool0 is not None
-            and step4e_state.step5d_solver is not None
-            else "incomplete"
-        )
+        prewarm_missing = step5d_liveprep_runtime_missing(step4e_state, args)
+        step5d_runtime_prewarm["missing"] = prewarm_missing
+        step5d_runtime_prewarm["status"] = "ok" if not prewarm_missing else "incomplete"
         if step5d_runtime_prewarm["status"] != "ok":
             metadata["step5d_liveprep_runtime_prewarm"] = step5d_runtime_prewarm
             write_json(metadata_path, metadata)
-            raise RuntimeError("Step5d liveprep runtime prewarm did not initialize model, TCP offset, and solver")
+            raise RuntimeError(
+                "Step5d liveprep runtime prewarm incomplete: "
+                + ",".join(prewarm_missing)
+            )
 
     next_write = start_mono
     write_period = 1.0 / args.rtde_hz
@@ -8820,23 +9014,11 @@ def main(argv: list[str] | None = None) -> int:
             last_csv_write_s = 0.0
             next_write = time.monotonic()
             ready_path = args.output_dir / "bridge_ready.json"
-            write_json(
-                ready_path,
-                {
-                    "ready_schema": "v29_bridge_ready_v1",
-                    "ok": True,
-                    "pid": os.getpid(),
-                    "launch_nonce": os.getenv("STEP5D_BRIDGE_LAUNCH_NONCE", ""),
-                    "bridge_profile": args.bridge_profile,
-                    "rtde_hz": args.rtde_hz,
-                    "runtime_scheduler": metadata["runtime_scheduler"],
-                    "prewarm_status": step5d_runtime_prewarm["status"],
-                    "rtde_connected": rtde is not None,
-                    "output_dir": str(args.output_dir),
-                },
-            )
+            ready_path.unlink(missing_ok=True)
+            ready_written = False
 
             while True:
+                loop_io_wait_s = 0.0
                 loop_sensor_recv_s = 0.0
                 loop_rtde_recv_s = 0.0
                 loop_compute_s = 0.0
@@ -8849,6 +9031,14 @@ def main(argv: list[str] | None = None) -> int:
                 if now - start_mono >= args.duration_s and not fail_stop_latched:
                     stop_reason = "duration"
                     break
+                if not fail_stop_latched:
+                    loop_io_wait_s = wait_for_bridge_io_or_deadline(
+                        sock,
+                        rtde,
+                        next_write_s=next_write,
+                        now_s=now,
+                    )
+                    now = time.monotonic()
                 if dashboard_watch_enabled and not fail_stop_latched and now >= next_dashboard_watch:
                     try:
                         dash = dashboard_exchange(
@@ -8930,6 +9120,8 @@ def main(argv: list[str] | None = None) -> int:
                             raw_values[5] * MOMENT_KG_M_TO_NM,
                         ]
                         if not baseline_ready:
+                            if baseline_start_mono is None:
+                                baseline_start_mono = latest_frame_time
                             baseline_raw_si.append(raw_si)
                             target_baseline_s = args.baseline_s if baseline_epoch == 0 else args.rezero_s
                             if latest_frame_time - baseline_start_mono >= target_baseline_s:
@@ -9257,35 +9449,34 @@ def main(argv: list[str] | None = None) -> int:
                             stop_request = 1.0
                             guard_reason = hard_guard_reason
                             stop_reason = hard_guard_reason
+                    v30_contract_profile = uses_v30_control_contract(
+                        args.bridge_profile
+                    )
                     deadline_overrun_detected = bool(
-                        uses_v30_control_contract(args.bridge_profile)
-                        and time.monotonic() >= next_write
+                        v30_contract_profile and time.monotonic() >= next_write
                     )
                     stop_dominant = bool(
-                        uses_v30_control_contract(args.bridge_profile)
+                        v30_contract_profile
                         and (
                             guard_reason is not None
                             or float(bridge_values.get("stop_request", 0.0)) > 0.5
                         )
                     )
-                    deadline_overrun_hold_active = bool(
-                        deadline_overrun_detected
-                        and not stop_dominant
-                        and last_published_step5d_command is not None
+                    publish_action = step5d_publish_action(
+                        bridge_values,
+                        v30_contract_profile=v30_contract_profile,
+                        stop_dominant=stop_dominant,
+                        schedule_late=deadline_overrun_detected,
+                        publish_guard_approved_late_command=(
+                            args.bridge_profile == STEP5D_NO_CONTACT_P0_V8_STAGE_ID
+                        ),
+                        last_published_command=last_published_step5d_command,
                     )
-                    command_publishable = bool(
-                        uses_v30_control_contract(args.bridge_profile)
-                        and not deadline_overrun_detected
-                        and not stop_dominant
-                        and float(bridge_values.get("step4e_cmd_valid", 0.0)) > 0.5
-                        and float(
-                            bridge_values.get("step4e_controller_state", 0.0)
-                        )
-                        == float(STEP5D_STAGE25_JOINT_LAYOUT_CODE)
-                    )
-                    if stop_dominant:
+                    command_publishable = publish_action == "fresh_command"
+                    deadline_overrun_hold_active = publish_action == "hold_last"
+                    if publish_action == "stop":
                         apply_step5d_explicit_stop_packet(bridge_values)
-                    if deadline_overrun_hold_active:
+                    elif deadline_overrun_hold_active:
                         deadline_overrun_hold_total += 1
                         deadline_overrun_consecutive += 1
                         bridge_values["heartbeat"] = last_published_heartbeat
@@ -9293,17 +9484,16 @@ def main(argv: list[str] | None = None) -> int:
                             bridge_values,
                             last_published_step5d_command,
                         )
+                    elif publish_action == "startup_invalid":
+                        deadline_overrun_consecutive = 0
+                        apply_step5d_unpublished_startup_packet(bridge_values)
                     else:
                         deadline_overrun_consecutive = 0
-                        if (
-                            uses_v30_control_contract(args.bridge_profile)
-                            and not stop_dominant
-                            and not command_publishable
-                        ):
-                            bridge_values["heartbeat"] = last_published_heartbeat
-                            apply_step5d_unpublished_startup_packet(bridge_values)
                     step4e_values["_bridge_loop_deadline_overrun_hold"] = (
                         1.0 if deadline_overrun_hold_active else 0.0
+                    )
+                    step4e_values["_bridge_loop_compute_deadline_overrun"] = (
+                        1.0 if deadline_overrun_detected else 0.0
                     )
                     step4e_values["_bridge_loop_deadline_overrun_hold_total"] = float(
                         deadline_overrun_hold_total
@@ -9311,6 +9501,7 @@ def main(argv: list[str] | None = None) -> int:
                     step4e_values["_bridge_loop_deadline_overrun_consecutive"] = float(
                         deadline_overrun_consecutive
                     )
+                    step4e_values["_bridge_loop_io_wait_s"] = loop_io_wait_s
                     rtde_connected = rtde is not None
                     rtde_send_succeeded = False
                     if rtde is not None:
@@ -9338,6 +9529,25 @@ def main(argv: list[str] | None = None) -> int:
                         else:
                             loop_rtde_send_s = time.perf_counter() - rtde_send_start
                             rtde_send_succeeded = True
+                    ready_payload = step5d_bridge_ready_payload(
+                        args,
+                        metadata,
+                        step4e_state,
+                        step5d_runtime_prewarm,
+                        rtde_connected=rtde_connected,
+                        rtde_send_succeeded=rtde_send_succeeded,
+                        samples=samples,
+                        baseline_ready=baseline_ready,
+                        sensor_age_s=sensor_age,
+                        parse_errors=parse_errors,
+                    )
+                    if ready_payload is None:
+                        if ready_written:
+                            ready_path.unlink(missing_ok=True)
+                            ready_written = False
+                    elif not ready_written:
+                        write_json(ready_path, ready_payload)
+                        ready_written = True
                     if v29_safety_fail_stop["latched_reason"] is not None:
                         if rtde_send_succeeded:
                             record_v29_fail_stop_rtde_packet(
@@ -9404,6 +9614,15 @@ def main(argv: list[str] | None = None) -> int:
                         last_published_command=last_published_step5d_command,
                         last_published_sequence=last_published_step5d_sequence,
                     )
+                    startup_health_published = step5d_startup_health_heartbeat_published(
+                        v30_contract_profile=uses_v30_control_contract(
+                            args.bridge_profile
+                        ),
+                        rtde_send_succeeded=rtde_send_succeeded,
+                        command_publishable=command_publishable,
+                        stop_dominant=stop_dominant,
+                        last_published_command=last_published_step5d_command,
+                    )
                     if fresh_candidate_published:
                         last_published_step5d_command = {
                             name: float(bridge_values.get(name, 0.0))
@@ -9413,6 +9632,9 @@ def main(argv: list[str] | None = None) -> int:
                         last_published_step5d_sequence = (
                             step4e_state.step5d_v30_sequence
                         )
+                        heartbeat += 1.0
+                    elif startup_health_published:
+                        last_published_heartbeat = float(bridge_values["heartbeat"])
                         heartbeat += 1.0
                     p0_v8_canary_guard = bool(
                         args.bridge_profile == STEP5D_NO_CONTACT_P0_V8_STAGE_ID

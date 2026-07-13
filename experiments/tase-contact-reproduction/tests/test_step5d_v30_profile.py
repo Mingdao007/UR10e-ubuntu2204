@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 import build_step5d_liveprep as build  # noqa: E402
+import kunwei_rtde_bridge as bridge  # noqa: E402
 import step5d_runtime_interface as interface  # noqa: E402
 import upload_ur_tp_package as upload  # noqa: E402
 from step5d_control_contract import RegisterCommand  # noqa: E402
@@ -155,8 +156,9 @@ class Step5dV30ProfileTest(unittest.TestCase):
         self.assertIn("command = decision_to_register_command(", contract_source)
         self.assertIn("deferred_diagnostics.record(", contract_source)
         self.assertIn("v30 raw bridge is an inactive offline candidate", source)
+        self.assertIn("publish_action = step5d_publish_action(", source)
         self.assertIn(
-            "apply_step5d_deadline_overrun_hold(\n                            bridge_values,",
+            "elif deadline_overrun_hold_active:\n                        deadline_overrun_hold_total += 1",
             source,
         )
         overrun_index = source.index("deadline_overrun_detected = bool(")
@@ -164,7 +166,126 @@ class Step5dV30ProfileTest(unittest.TestCase):
             overrun_index,
             source.index("rtde.send_input_sample(", overrun_index),
         )
-        self.assertIn("if stop_dominant:\n                        apply_step5d_explicit_stop_packet", source)
+        self.assertIn(
+            'if publish_action == "stop":\n                        apply_step5d_explicit_stop_packet',
+            source,
+        )
+
+    def test_p0_late_accepted_command_publishes_and_only_missing_work_holds(self) -> None:
+        accepted = {
+            **{name: 0.01 for name in bridge.BRIDGE_INPUT_NAMES[:6]},
+            "step4e_cmd_valid": 1.0,
+            "step4e_controller_state": 524.0,
+        }
+        held = dict(accepted)
+
+        for compute_ms in (2.544, 50.858):
+            with self.subTest(compute_ms=compute_ms):
+                self.assertEqual(
+                    bridge.step5d_publish_action(
+                        accepted,
+                        v30_contract_profile=True,
+                        stop_dominant=False,
+                        schedule_late=compute_ms >= 2.0,
+                        publish_guard_approved_late_command=True,
+                        last_published_command=None,
+                    ),
+                    "fresh_command",
+                )
+
+        rejected = dict(accepted, step4e_cmd_valid=0.0)
+        self.assertEqual(
+            bridge.step5d_publish_action(
+                rejected,
+                v30_contract_profile=True,
+                stop_dominant=False,
+                schedule_late=True,
+                publish_guard_approved_late_command=True,
+                last_published_command=held,
+            ),
+            "hold_last",
+        )
+        self.assertEqual(
+            bridge.step5d_publish_action(
+                rejected,
+                v30_contract_profile=True,
+                stop_dominant=False,
+                schedule_late=True,
+                publish_guard_approved_late_command=True,
+                last_published_command=None,
+            ),
+            "startup_invalid",
+        )
+
+    def test_contact_v30_retains_strict_late_candidate_policy(self) -> None:
+        accepted = {
+            **{name: 0.01 for name in bridge.BRIDGE_INPUT_NAMES[:6]},
+            "step4e_cmd_valid": 1.0,
+            "step4e_controller_state": 524.0,
+        }
+        self.assertEqual(
+            bridge.step5d_publish_action(
+                accepted,
+                v30_contract_profile=True,
+                stop_dominant=False,
+                schedule_late=True,
+                publish_guard_approved_late_command=False,
+                last_published_command=None,
+            ),
+            "startup_invalid",
+        )
+        self.assertEqual(
+            bridge.step5d_publish_action(
+                accepted,
+                v30_contract_profile=True,
+                stop_dominant=False,
+                schedule_late=True,
+                publish_guard_approved_late_command=False,
+                last_published_command=accepted,
+            ),
+            "hold_last",
+        )
+
+    def test_event_loop_waits_until_io_or_release_without_busy_spin(self) -> None:
+        class FakeSocket:
+            def __init__(self, fd: int) -> None:
+                self.fd = fd
+
+            def fileno(self) -> int:
+                return self.fd
+
+        sensor = FakeSocket(11)
+        rtde = type("FakeRtde", (), {"sock": FakeSocket(12)})()
+        calls: list[tuple[list[object], float]] = []
+
+        def fake_select(
+            readers: list[object], _writers: list[object], _errors: list[object], timeout: float
+        ) -> tuple[list[object], list[object], list[object]]:
+            calls.append((readers, timeout))
+            return [], [], []
+
+        bridge.wait_for_bridge_io_or_deadline(
+            sensor,
+            rtde,
+            next_write_s=10.002,
+            now_s=10.0005,
+            select_fn=fake_select,
+        )
+        self.assertEqual(calls[0][0], [sensor, rtde.sock])
+        self.assertAlmostEqual(calls[0][1], 0.0015, places=9)
+
+        calls.clear()
+        self.assertEqual(
+            bridge.wait_for_bridge_io_or_deadline(
+                sensor,
+                rtde,
+                next_write_s=10.0,
+                now_s=10.001,
+                select_fn=fake_select,
+            ),
+            0.0,
+        )
+        self.assertEqual(calls, [])
 
     def test_deadline_overrun_hold_reuses_last_command_without_masking_stop(self) -> None:
         source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(
@@ -340,6 +461,110 @@ class Step5dV30ProfileTest(unittest.TestCase):
         self.assertIsNone(startup_miss.step5d_last_qdot)
         self.assertEqual(startup_miss.step5d_v30_sequence, 0)
 
+    def test_v30_startup_health_heartbeat_is_precommand_only(self) -> None:
+        source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(
+            encoding="utf-8"
+        )
+        tree = ast.parse(source)
+        function = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.FunctionDef)
+            and node.name == "step5d_startup_health_heartbeat_published"
+        )
+        namespace = {"Mapping": Mapping}
+        exec(
+            compile(
+                ast.Module(body=[function], type_ignores=[]),
+                "<step5d_startup_health_heartbeat_published>",
+                "exec",
+            ),
+            namespace,
+        )
+        published = namespace["step5d_startup_health_heartbeat_published"]
+
+        self.assertTrue(
+            published(
+                v30_contract_profile=True,
+                rtde_send_succeeded=True,
+                command_publishable=False,
+                stop_dominant=False,
+                last_published_command=None,
+            )
+        )
+        for override in (
+            {"v30_contract_profile": False},
+            {"rtde_send_succeeded": False},
+            {"command_publishable": True},
+            {"stop_dominant": True},
+            {"last_published_command": {"step4e_cmd_valid": 1.0}},
+        ):
+            args = {
+                "v30_contract_profile": True,
+                "rtde_send_succeeded": True,
+                "command_publishable": False,
+                "stop_dominant": False,
+                "last_published_command": None,
+            }
+            args.update(override)
+            with self.subTest(override=override):
+                self.assertFalse(published(**args))
+
+    def test_v30_qdot_clear_packet_is_preserved_only_at_layout_522(self) -> None:
+        source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(
+            encoding="utf-8"
+        )
+        tree = ast.parse(source)
+        function = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.FunctionDef)
+            and node.name == "step5d_qdot_clear_packet_publishable"
+        )
+        namespace = {
+            "Mapping": Mapping,
+            "STEP5D_QDOT_CLEAR_MODE_CODE": 522.0,
+            "STEP5D_QDOT_CLEAR_ZERO_TOL_RAD_S": 0.0005,
+            "BRIDGE_INPUT_NAMES": tuple(f"carrier_{index}" for index in range(6)),
+        }
+        exec(
+            compile(
+                ast.Module(body=[function], type_ignores=[]),
+                "<step5d_qdot_clear_packet_publishable>",
+                "exec",
+            ),
+            namespace,
+        )
+        publishable = namespace["step5d_qdot_clear_packet_publishable"]
+        packet = {
+            **{f"carrier_{index}": 0.0 for index in range(6)},
+            "step4e_cmd_valid": 0.0,
+            "step4e_controller_state": 522.0,
+        }
+        self.assertTrue(
+            publishable(
+                packet,
+                v30_contract_profile=True,
+                stop_dominant=False,
+            )
+        )
+        for override, packet_override in (
+            ({"v30_contract_profile": False}, {}),
+            ({"stop_dominant": True}, {}),
+            ({}, {"step4e_cmd_valid": 1.0}),
+            ({}, {"step4e_controller_state": 524.0}),
+            ({}, {"carrier_0": 0.001}),
+        ):
+            args = {
+                "v30_contract_profile": True,
+                "stop_dominant": False,
+            }
+            args.update(override)
+            candidate = dict(packet)
+            candidate.update(packet_override)
+            with self.subTest(override=override, packet_override=packet_override):
+                self.assertFalse(publishable(candidate, **args))
+
     def test_v30_heartbeat_advances_from_publish_history_result(self) -> None:
         source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(
             encoding="utf-8"
@@ -354,10 +579,14 @@ class Step5dV30ProfileTest(unittest.TestCase):
             finalize_index,
         )
         heartbeat_index = source.index("heartbeat += 1.0", advance_index)
+        startup_index = source.index("elif startup_health_published:", heartbeat_index)
+        startup_heartbeat_index = source.index("heartbeat += 1.0", startup_index)
 
         self.assertLess(send_index, finalize_index)
         self.assertLess(finalize_index, advance_index)
         self.assertLess(advance_index, heartbeat_index)
+        self.assertLess(heartbeat_index, startup_index)
+        self.assertLess(startup_index, startup_heartbeat_index)
 
     def test_v30_reference_is_governed_before_warm_start_and_policy(self) -> None:
         source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(

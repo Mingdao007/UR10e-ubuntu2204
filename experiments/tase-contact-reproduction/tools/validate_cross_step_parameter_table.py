@@ -636,10 +636,10 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             p0_guard.get("deadline_overrun_stale_tick_command")
             != "last_published_guard_approved_qdot_consumed"
             or p0_guard.get("deadline_overrun_late_candidate_policy")
-            != "discard_without_publish"
+            != "publish_when_guard_approved"
             or p0_guard.get("deadline_overrun_next_fresh_tick_may_recover")
             is not True
-            or p0_guard.get("heartbeat_stale_stop_s") != 0.02
+            or p0_guard.get("heartbeat_stale_stop_s") != 0.25
             or p0_guard.get("hard_realtime_claim_requires_zero_deadline_miss")
             is not True
             or p0_guard.get("bounded_last_command_hold_claim_allowed") is not True
@@ -647,6 +647,8 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             or p0_guard.get("bounded_hold_lateness_max_ms") != 1.5
             or p0_guard.get("bounded_hold_max_consecutive_misses") != 10
             or p0_guard.get("held_tick_counts_as_consumed") is not True
+            or p0_guard.get("max_per_event_stale_joint_displacement_rad")
+            != 0.0125
         ):
             failures.append("P0 v8 bounded last-command hold policy is invalid")
         if (
@@ -1293,7 +1295,7 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
                 == "current_canonical_rnn512_bounded_last_command_hold_pass"
             )
             timing_is_current = timing_is_hard_realtime or timing_is_bounded_hold
-            if (
+            if timing_is_current and (
                 readiness_selected_timing.get("path")
                 != evidence.get("timing_raw")
                 or readiness_selected_timing.get("sha256")

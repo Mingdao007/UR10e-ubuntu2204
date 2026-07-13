@@ -24,16 +24,14 @@ class Step5dV30ReadinessTest(unittest.TestCase):
 
         rebuilt = readiness_builder.build(generated_at=tracked["generated_at"])
 
-        tracked_builder_projection = dict(tracked)
-        tracked_builder_projection.pop("numeric_sanity", None)
-        self.assertEqual(rebuilt, tracked_builder_projection)
+        self.assertEqual(rebuilt, tracked)
         self.assertEqual(
             tracked["schema_version"], "step5d_v30_offline_readiness_v2"
         )
         self.assertEqual(tracked["status"], readiness_builder.STATUS_BLOCKED)
         self.assertNotEqual(tracked["status"], readiness_builder.STATUS_READY)
 
-    def test_readiness_preserves_history_and_selects_bounded_timing_pass(self) -> None:
+    def test_readiness_preserves_history_but_invalidates_old_source_bound_timing(self) -> None:
         payload = json.loads(
             (ROOT / "config" / "step5d_v30_offline_readiness.json").read_text(
                 encoding="utf-8"
@@ -74,22 +72,13 @@ class Step5dV30ReadinessTest(unittest.TestCase):
         )
         self.assertFalse(history["runtime_shaped_smoke_not_acceptance"]["acceptance_eligible"])
         self.assertFalse(history["component_diagnostic_not_acceptance"]["acceptance_eligible"])
-        self.assertNotIn("timing_acceptance_failed", payload["blockers"])
-        self.assertNotIn(
+        self.assertIn("timing_acceptance_failed", payload["blockers"])
+        self.assertIn(
             "runtime_shaped_60s_500hz_acceptance_not_run", payload["blockers"]
         )
         current_bound = payload["timing"]["current_source_evidence"]
-        self.assertIsNotNone(current_bound)
-        self.assertTrue(current_bound["acceptance_eligible"])
-        self.assertTrue(current_bound["bounded_last_command_hold_pass"])
-        self.assertNotIn("current_source_solver_10k_not_run", payload["blockers"])
-        self.assertEqual(
-            current_bound["sha256"],
-            hashlib.sha256((ROOT / current_bound["path"]).read_bytes()).hexdigest(),
-        )
-        self.assertNotIn(
-            "current_runtime_source_bound_full_timing_not_run", payload["blockers"]
-        )
+        self.assertIsNone(current_bound)
+        self.assertIn("current_source_solver_10k_not_run", payload["blockers"])
 
     def test_readiness_denies_live_claims_and_binds_current_sources(self) -> None:
         payload = json.loads(
@@ -120,14 +109,19 @@ class Step5dV30ReadinessTest(unittest.TestCase):
             "discard_without_publish",
         )
         self.assertEqual(
+            deadline["p0_v8_late_candidate_publish_policy"],
+            "publish_when_guard_approved",
+        )
+        self.assertEqual(deadline["p0_v8_continuous_stale_stop_s"], 0.250)
+        self.assertEqual(
             deadline["tp_stale_tick_policy"],
             "same_heartbeat_last_published_guard_approved_qdot_consumed",
         )
         self.assertFalse(deadline["controller_or_ursim_execution_verified"])
-        self.assertTrue(
+        self.assertFalse(
             deadline["source_bound_bridge_hold_fault_injection_verified"]
         )
-        self.assertTrue(deadline["bounded_last_command_hold_claim_allowed"])
+        self.assertFalse(deadline["bounded_last_command_hold_claim_allowed"])
         self.assertEqual(deadline["bounded_hold_lateness_max_ms"], 1.5)
         self.assertEqual(
             payload["timing"]["acceptance_decision_source"],
@@ -135,18 +129,15 @@ class Step5dV30ReadinessTest(unittest.TestCase):
             "the aggregate summary is diagnostic only",
         )
         self.assertFalse(payload["timing"]["hard_realtime_pass"])
-        self.assertTrue(payload["timing"]["bounded_last_command_hold_pass"])
-        self.assertTrue(
+        self.assertFalse(payload["timing"]["bounded_last_command_hold_pass"])
+        self.assertFalse(
             payload["timing"]["profile_selection"]["formal_timing_satisfied"]
         )
         acceptance_raw = payload["timing"]["acceptance_raw_evidence"]
-        self.assertIsNotNone(acceptance_raw)
+        self.assertIsNone(acceptance_raw)
         current_source = payload["timing"]["current_source_evidence"]
-        self.assertEqual(
-            current_source["sha256"],
-            hashlib.sha256((ROOT / current_source["path"]).read_bytes()).hexdigest(),
-        )
-        self.assertTrue(
+        self.assertIsNone(current_source)
+        self.assertFalse(
             payload["runtime_prewarm"]["offline_timing_contract_proven"]
         )
         self.assertFalse(

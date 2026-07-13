@@ -7,10 +7,14 @@
     "tp_play_authorized": false
   },
   "blockers": [
+    "current_source_solver_10k_not_run",
     "live_runtime_prewarm_not_integrated_or_verified",
     "p0_v8_final_60s_not_passed",
     "p0_v8_passed_artifact_missing",
-    "review_v2_not_due_until_evidence_freeze"
+    "review_v2_not_due_until_evidence_freeze",
+    "runtime_shaped_60s_500hz_acceptance_not_run",
+    "system_level_host_driver_timing_outliers_unresolved",
+    "timing_acceptance_failed"
   ],
   "claim_boundary": {
     "allowed_claim": "inactive v30 offline candidate with partial replay/timing evidence",
@@ -32,7 +36,7 @@
     "bounded_hold_candidate_ratio_max": 0.01,
     "bounded_hold_lateness_max_ms": 1.5,
     "bounded_hold_max_consecutive_misses": 10,
-    "bounded_last_command_hold_claim_allowed": true,
+    "bounded_last_command_hold_claim_allowed": false,
     "claim_boundary": "offline package/static preparation only; no controller timing or motion proof",
     "continuous_stale_stop_s": 0.02,
     "controller_or_ursim_execution_verified": false,
@@ -40,13 +44,15 @@
     "intentional_stop_policy": "zero_qdot_stop_dominates_hold",
     "late_candidate_publish_policy": "discard_without_publish",
     "next_fresh_tick_may_recover": true,
+    "p0_v8_continuous_stale_stop_s": 0.25,
+    "p0_v8_late_candidate_publish_policy": "publish_when_guard_approved",
     "p0_v8_script": {
       "path": "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v8.script",
-      "sha256": "98998d6f4c2998bf61815b54b0444ea9ac367dce8746b6903b5bc0fb847f6786"
+      "sha256": "407f80e56eaa70d1e0e18597abbbddf535c8af88831c41fb117425583792ca9d"
     },
     "package_static_prepared": true,
     "pre_first_command_policy": "invalid_packet_tp_sync_no_speed_command",
-    "source_bound_bridge_hold_fault_injection_verified": true,
+    "source_bound_bridge_hold_fault_injection_verified": false,
     "tp_stale_tick_policy": "same_heartbeat_last_published_guard_approved_qdot_consumed",
     "v30_script": {
       "path": "programs/step5/step5d/step5d_strict_rnn_ablation_v30.script",
@@ -75,7 +81,7 @@
       "p0_v8_final_60s_not_passed",
       "p0_v8_passed_artifact_missing"
     ],
-    "composite_fingerprint": "61642f4a965a15c786c30d2412a35fcd7d7a6bdb46d1e7c92cad661519af1e5d",
+    "composite_fingerprint": "2f763ac723fe14dc260d5c2a511be7c931bdc1f4c54b163019b8132aedc8eca0",
     "passed": false,
     "passed_artifact": null,
     "passed_artifact_sha256": null,
@@ -124,9 +130,13 @@
     ],
     "composite_fingerprint": null,
     "deterministic_freeze_blockers": [
+      "current_source_solver_10k_not_run",
       "live_runtime_prewarm_not_integrated_or_verified",
       "p0_v8_final_60s_not_passed",
-      "p0_v8_passed_artifact_missing"
+      "p0_v8_passed_artifact_missing",
+      "runtime_shaped_60s_500hz_acceptance_not_run",
+      "system_level_host_driver_timing_outliers_unresolved",
+      "timing_acceptance_failed"
     ],
     "evidence_freeze_ready": false,
     "evidence_frozen": false,
@@ -151,7 +161,7 @@
       "measurement_follows_immediately": true,
       "safe_hold_samples": 100
     },
-    "offline_timing_contract_proven": true
+    "offline_timing_contract_proven": false
   },
   "schema_version": "step5d_v30_offline_readiness_v2",
   "source_contract": {
@@ -161,7 +171,7 @@
     },
     "bridge_sha256": {
       "path": "tools/kunwei_rtde_bridge.py",
-      "sha256": "4a875b27cfe4091217b1c9765f7b7a1ac856bbb6eadd0e800339839ed8d060f8"
+      "sha256": "ced84ccc35ad6bff0c7cb782784e1511a9a08b1488c82f1f8dfc9a723737ea38"
     },
     "bundler_sha256": {
       "path": "tools/build_step5d_v30_remote_timing_bundle.py",
@@ -189,7 +199,7 @@
     },
     "readiness_builder_sha256": {
       "path": "tools/build_step5d_v30_offline_readiness.py",
-      "sha256": "2e474a4af12c1d294f83c31b896212aa9fd3622c336fe4048c0f1aa2d20cb071"
+      "sha256": "f97b78d6b528275a40b87f0b59ca04c916ff0ca523cc77c97aa89ebc8c666661"
     },
     "runtime_interface_sha256": {
       "path": "tools/step5d_runtime_interface.py",
@@ -203,18 +213,10 @@
   "status": "v30_offline_blocked",
   "timing": {
     "acceptance_decision_source": "per-artifact recomputation from one hash-bound raw artifact; the aggregate summary is diagnostic only",
-    "acceptance_mode": "bounded_last_command_hold",
-    "acceptance_raw_evidence": {
-      "path": "config/step5d_v30_rnn512_last_command_hold_lateness1p5_formal_timing_raw.json",
-      "sha256": "72fbadbb632ec0df6b3b3e2efed16aa62a31f98b5a470f7d11f5f7d04edf18a3"
-    },
-    "bounded_last_command_hold_pass": true,
-    "current_source_evidence": {
-      "acceptance_eligible": true,
-      "bounded_last_command_hold_pass": true,
-      "path": "config/step5d_v30_rnn512_last_command_hold_lateness1p5_formal_timing_raw.json",
-      "sha256": "72fbadbb632ec0df6b3b3e2efed16aa62a31f98b5a470f7d11f5f7d04edf18a3"
-    },
+    "acceptance_mode": "none",
+    "acceptance_raw_evidence": null,
+    "bounded_last_command_hold_pass": false,
+    "current_source_evidence": null,
     "diagnostic_conclusion": "Timing acceptance is recomputed from versioned raw artifacts bound to the selected profile and current sources. Historical attempts remain diagnostic and cannot satisfy the current gate.",
     "diagnostic_summary_blockers": [
       "full_tick_deadline_miss",
@@ -4616,6 +4618,421 @@
         "acceptance_eligible": false,
         "acceptance_evaluation": {
           "blockers": [
+            "remote_timing_bridge_sha256_does_not_match_local_source",
+            "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+            "safe_hold_deadline_miss",
+            "safe_hold_max_reaches_2ms_deadline",
+            "safe_hold_schedule_deadline_miss"
+          ],
+          "deadline_robustness": {
+            "bounded_hold_timing_candidate": false,
+            "bounded_last_command_hold_contract_proven": true,
+            "bounded_last_command_hold_pass": false,
+            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics, and a hard 500 Hz hard-realtime claim still requires zero full-tick deadline misses; bounded acceptance permits at most 1% held ticks and at most 10 consecutive held ticks",
+            "compute_miss_budget": 300,
+            "deadline_miss_diagnostics": {
+              "full_tick_compute": {
+                "capacity": 512,
+                "max_consecutive": 0,
+                "overflowed": false,
+                "retained_indices": [],
+                "total": 0
+              },
+              "full_tick_schedule": {
+                "capacity": 512,
+                "max_consecutive": 0,
+                "overflowed": false,
+                "retained_indices": [],
+                "total": 0
+              },
+              "safe_hold_compute": {
+                "capacity": 512,
+                "max_consecutive": 1,
+                "overflowed": false,
+                "retained_indices": [
+                  6,
+                  4051,
+                  4159,
+                  4203,
+                  4513,
+                  4759,
+                  6068,
+                  6756,
+                  14174,
+                  15468
+                ],
+                "total": 10
+              },
+              "safe_hold_schedule": {
+                "capacity": 512,
+                "max_consecutive": 1,
+                "overflowed": false,
+                "retained_indices": [
+                  6,
+                  4051,
+                  4159,
+                  4203,
+                  4513,
+                  4759,
+                  6068,
+                  6756,
+                  14174,
+                  15468
+                ],
+                "total": 10
+              },
+              "solver_batch_reentry_compute": {
+                "capacity": 99,
+                "overflowed": false,
+                "retained_indices": [],
+                "total": 0
+              },
+              "solver_compute": {
+                "capacity": 512,
+                "overflowed": false,
+                "retained_indices": [],
+                "total": 0
+              }
+            },
+            "hard_realtime_pass": false,
+            "miss_index_diagnostics_valid": true,
+            "safe_hold_miss_budget": 300,
+            "unrelated_blockers": [
+              "remote_timing_bridge_sha256_does_not_match_local_source",
+              "remote_timing_readiness_builder_sha256_does_not_match_local_source"
+            ]
+          },
+          "elapsed_full_tick_wall_s": 59.99869478600158,
+          "elapsed_safe_hold_wall_s": 59.99865165099982,
+          "first_post_warm_ms": 0.6457880008383654,
+          "full_tick": {
+            "deadline_miss_count": 0,
+            "finite_samples": 30000,
+            "max_ms": 1.7568069997651037,
+            "mean_ms": 0.7187543470199065,
+            "nonfinite_count": 0,
+            "p50_ms": 0.7042430006549694,
+            "p95_ms": 0.7727575004537357,
+            "p99_ms": 1.1370583995812922,
+            "samples": 30000
+          },
+          "full_tick_schedule_deadline_miss_count": 0,
+          "pacing_provenance": {
+            "clock": "time.perf_counter",
+            "control_hz": 500.0,
+            "full_tick_release_policy": "absolute",
+            "period_s": 0.002,
+            "safe_hold_release_policy": "independent_absolute"
+          },
+          "pipeline_warmup_contract_proven": true,
+          "raw_sha256": "31ed44baf9b6d102ec253e478b77223c6d375df31ccdbe725a0175f9ec130b6f",
+          "recomputed_from_single_hash_bound_raw_artifact": true,
+          "safe_hold": {
+            "deadline_miss_count": 10,
+            "finite_samples": 30000,
+            "max_ms": 2.34726300186594,
+            "mean_ms": 0.7119566397324282,
+            "nonfinite_count": 0,
+            "p50_ms": 0.6661769984930288,
+            "p95_ms": 1.0745190013039971,
+            "p99_ms": 1.3097121986356794,
+            "samples": 30000
+          },
+          "safe_hold_schedule_deadline_miss_count": 10,
+          "solver": {
+            "deadline_miss_count": 0,
+            "finite_samples": 10000,
+            "max_ms": 0.995112000964582,
+            "mean_ms": 0.21946392421050404,
+            "nonfinite_count": 0,
+            "p50_ms": 0.21102399841765873,
+            "p95_ms": 0.24309700056619474,
+            "p99_ms": 0.42258350076735957,
+            "samples": 10000
+          },
+          "solver_batch_reentry": {
+            "deadline_miss_count": 0,
+            "max_ms": 0.8269880017905962,
+            "mean_ms": 0.3022108283752312,
+            "nonfinite_count": 0,
+            "p50_ms": 0.26524599888944067,
+            "p95_ms": 0.39372339997498773,
+            "p99_ms": 0.6305019176215857,
+            "samples": 99
+          },
+          "solver_batch_reentry_evidence": {
+            "acceptance_scope": "diagnostic_only; every post-yield reentry is retained but the 2 ms hard solver gate applies to the separate 10,000 steady samples",
+            "deadline_miss_count": 0,
+            "deadline_miss_indices": [],
+            "full_tick_zero_miss_required_for_hard_acceptance": true,
+            "hard_solver_deadline_gate_applied": false,
+            "raw_samples_bound": true,
+            "samples": 99,
+            "steady_sample_boundaries": [
+              100,
+              200,
+              300,
+              400,
+              500,
+              600,
+              700,
+              800,
+              900,
+              1000,
+              1100,
+              1200,
+              1300,
+              1400,
+              1500,
+              1600,
+              1700,
+              1800,
+              1900,
+              2000,
+              2100,
+              2200,
+              2300,
+              2400,
+              2500,
+              2600,
+              2700,
+              2800,
+              2900,
+              3000,
+              3100,
+              3200,
+              3300,
+              3400,
+              3500,
+              3600,
+              3700,
+              3800,
+              3900,
+              4000,
+              4100,
+              4200,
+              4300,
+              4400,
+              4500,
+              4600,
+              4700,
+              4800,
+              4900,
+              5000,
+              5100,
+              5200,
+              5300,
+              5400,
+              5500,
+              5600,
+              5700,
+              5800,
+              5900,
+              6000,
+              6100,
+              6200,
+              6300,
+              6400,
+              6500,
+              6600,
+              6700,
+              6800,
+              6900,
+              7000,
+              7100,
+              7200,
+              7300,
+              7400,
+              7500,
+              7600,
+              7700,
+              7800,
+              7900,
+              8000,
+              8100,
+              8200,
+              8300,
+              8400,
+              8500,
+              8600,
+              8700,
+              8800,
+              8900,
+              9000,
+              9100,
+              9200,
+              9300,
+              9400,
+              9500,
+              9600,
+              9700,
+              9800,
+              9900
+            ],
+            "steady_solver_hard_deadline_gate_applied": true
+          },
+          "unmeasured_pipeline_warmup": {
+            "clock": "time.perf_counter",
+            "commands_published": false,
+            "control_hz": 500.0,
+            "control_state_reset_after": true,
+            "deferred_diagnostics_complete": true,
+            "elapsed_wall_s": 2.1984808380038885,
+            "execute_count": 1000,
+            "execute_elapsed_wall_s": 1.9992627070023445,
+            "execute_samples": 1000,
+            "execute_schedule_deadline_miss_count": 0,
+            "execute_schedule_max_lateness_ms": 0.0,
+            "measurement_follows_immediately": true,
+            "outside_measured_loops": true,
+            "post_warmup_sleep_s": 0.0,
+            "release_policy": "independent_absolute_per_branch",
+            "safe_hold_count": 100,
+            "safe_hold_elapsed_wall_s": 0.19921813100154395,
+            "safe_hold_samples": 100,
+            "safe_hold_schedule_deadline_miss_count": 1,
+            "safe_hold_schedule_max_lateness_ms": 0.23739300013403408,
+            "schedule_misses_acceptance_scope": "diagnostic_only_outside_measured_loops",
+            "solver_state_reset_after": true
+          }
+        },
+        "artifact_binding": {
+          "calibration_yaml": {
+            "path": "/home/andy/.codex-worktrees/ur10e-v30-liveprep-20260714/src/ur10e_bringup/config/ur10e_calibration.yaml",
+            "sha256": "029aad03affc0cf60fc4274029463e683dc04b709f3a5e849f693d1c70409be8"
+          },
+          "paper_truth": {
+            "path": "/home/andy/.codex-worktrees/ur10e-v30-liveprep-20260714/experiments/tase-contact-reproduction/config/step5d_liveprep_solver_gate.json",
+            "sha256": "e4eb35d23de9018addf1918a0fbaa04aeb85222cd4cfc2024225fee2220d8555"
+          },
+          "profile_selection": {
+            "path": "/home/andy/.codex-worktrees/ur10e-v30-liveprep-20260714/experiments/tase-contact-reproduction/config/step5d_v30_profile_selection.json",
+            "sha256": "7df2f006edbe6210668eaa39ff2a3d85e03ac2bf9e81cd509aebeab57aa1b906"
+          },
+          "replay_csv": {
+            "path": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v29_20260710_104820/bridge_rtde_500hz.csv",
+            "sha256": "be6a84fe0eebc3df18ebb511874673cb3ee44832ba16335cd4de7a10f3260335",
+            "size": 43700470
+          },
+          "stage_table": {
+            "path": "/home/andy/.codex-worktrees/ur10e-v30-liveprep-20260714/experiments/tase-contact-reproduction/config/step5_stage_table.json",
+            "sha256": "47d8493c9e1d152ffc7f58be98058b27fa8ccfb04106d55d63e05027c24ece82"
+          },
+          "ur_xacro": {
+            "path": "/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro",
+            "sha256": "618ece26935c6cd146114374abc45142cc858420567005eed2713681ae55694c"
+          }
+        },
+        "classification": "diagnostic_only_not_acceptance",
+        "component_diagnostics": null,
+        "elapsed_full_tick_wall_s": 59.99869478600158,
+        "evidence_status": "current_canonical_profile_candidate",
+        "full_tick": {
+          "compute_deadline_miss_count": 0,
+          "max_ms": 1.7568069997651037,
+          "mean_ms": 0.7187543470199065,
+          "nonfinite_count": 0,
+          "p50_ms": 0.7042430006549694,
+          "p95_ms": 0.7727575004537357,
+          "p99_ms": 1.1370583995812922,
+          "samples": 30000
+        },
+        "paced_500hz": true,
+        "path": "config/step5d_v30_rnn512_bridge_ready_v2_formal_timing_raw.json",
+        "profile": {
+          "backend": "cupy",
+          "control_hz": 500.0,
+          "epsilon": 0.01,
+          "inner_iterations": 512,
+          "qdot_cap_rad_s": 0.05,
+          "sigr_exponent_r": 0.8
+        },
+        "profile_selection": {
+          "acceptance_profile_eligible": true,
+          "canonical_profile": {
+            "backend": "cupy",
+            "control_hz": 500.0,
+            "epsilon": 0.01,
+            "inner_iterations": 512,
+            "qdot_cap_rad_s": 0.05,
+            "sigr_exponent_r": 0.8
+          },
+          "canonical_profile_sha256": "3d811171fc46b66ad0c74be1060925ad2cae3650d3ae1db7544d0bf47dd9292a",
+          "diagnostic_override_requested": false,
+          "effective_profile": {
+            "backend": "cupy",
+            "control_hz": 500.0,
+            "epsilon": 0.01,
+            "inner_iterations": 512,
+            "qdot_cap_rad_s": 0.05,
+            "sigr_exponent_r": 0.8
+          },
+          "effective_profile_sha256": "3d811171fc46b66ad0c74be1060925ad2cae3650d3ae1db7544d0bf47dd9292a",
+          "fixed_contract": {
+            "backend": "cupy",
+            "control_hz": 500.0,
+            "dls_runtime_fallback_allowed": false,
+            "epsilon": 0.01,
+            "qdot_cap_rad_s": 0.05,
+            "safety_gates_unchanged": true,
+            "sigr_exponent_r": 0.8
+          },
+          "mode": "canonical_formal_candidate",
+          "requested_profile": {
+            "backend": "cupy",
+            "control_hz": 500.0,
+            "epsilon": 0.01,
+            "inner_iterations": 512,
+            "qdot_cap_rad_s": 0.05,
+            "sigr_exponent_r": 0.8
+          },
+          "requested_profile_sha256": "3d811171fc46b66ad0c74be1060925ad2cae3650d3ae1db7544d0bf47dd9292a",
+          "schema_version": "step5d_v30_timing_profile_selection_v1",
+          "selection_sha256": "f5dc8480e944c7622fb567d3a924e34ca251aab7b55297b40388781d83eb05f3"
+        },
+        "profile_selection_binding_matches_current": true,
+        "role": "parameter_selected_formal_timing_candidate",
+        "runtime_path": "Step5dObservation->SlewCompatibleReference->StrictRnnControlPolicy->ControlCandidate->step5d_v30_contract_pipeline->SafetyEnvelope->RegisterCommand->DeferredV30Diagnostics",
+        "safe_hold": {
+          "compute_deadline_miss_count": 10,
+          "max_ms": 2.34726300186594,
+          "mean_ms": 0.7119566397324282,
+          "nonfinite_count": 0,
+          "p50_ms": 0.6661769984930288,
+          "p95_ms": 1.0745190013039971,
+          "p99_ms": 1.3097121986356794,
+          "samples": 30000
+        },
+        "sha256": "31ed44baf9b6d102ec253e478b77223c6d375df31ccdbe725a0175f9ec130b6f",
+        "solver": {
+          "compute_deadline_miss_count": 0,
+          "max_ms": 0.995112000964582,
+          "mean_ms": 0.21946392421050404,
+          "nonfinite_count": 0,
+          "p50_ms": 0.21102399841765873,
+          "p95_ms": 0.24309700056619474,
+          "p99_ms": 0.42258350076735957,
+          "samples": 10000
+        },
+        "source_binding": {
+          "aggregator_sha256": "da56886cc53f1ebb05438fecaaf1b98980f8e89bbbd5de43fe0dd0b1571b8d97",
+          "bridge_sha256": "3c63a4f54f70778ce1f58b83544bc66e1c06607dcc78ec3128f17a4ab2536352",
+          "bundler_sha256": "320960ed2cf836f939b0a65e0cf7c602e6f58e9e4f35a7f9df87fc4cab4abd73",
+          "contact_semantics_sha256": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
+          "control_contract_sha256": "c34b0ad788e319a24e12ea6a1304201d0312045beee9339e8affbb1a9d6d50ee",
+          "delivery": "stdin_bundle",
+          "harness_sha256": "c83e7cafa7d8a9be6b687e21996d4f650e9bef63209b2f935bffec875ae72333",
+          "kinematics_sha256": "5454af16db870350759372ab42583a4f339c71e32f9190679987b3addf6e14fa",
+          "outer_loop_sha256": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
+          "readiness_builder_sha256": "2e474a4af12c1d294f83c31b896212aa9fd3622c336fe4048c0f1aa2d20cb071",
+          "runtime_interface_sha256": "b0856a338c5ba05d012ad1100aba8a72c10ec99595aceeebcc54ea475e17e8c4",
+          "solver_sha256": "2ea368dbb142ec635ebdb709d5bb5783ea9bc848705e191f935055463cf753b7"
+        }
+      },
+      {
+        "acceptance_eligible": false,
+        "acceptance_evaluation": {
+          "blockers": [
             "first_post_warm_exceeds_1p75_ms",
             "first_post_warm_summary_binding_mismatch",
             "full_pipeline_warmup_contract_missing_or_invalid",
@@ -6385,7 +6802,415 @@
             "full_tick_deadline_miss",
             "full_tick_max_reaches_2ms_deadline",
             "full_tick_schedule_deadline_miss",
+            "remote_timing_bridge_sha256_does_not_match_local_source",
+            "remote_timing_readiness_builder_sha256_does_not_match_local_source"
+          ],
+          "deadline_robustness": {
+            "bounded_hold_timing_candidate": false,
+            "bounded_last_command_hold_contract_proven": true,
+            "bounded_last_command_hold_pass": false,
+            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics, and a hard 500 Hz hard-realtime claim still requires zero full-tick deadline misses; bounded acceptance permits at most 1% held ticks and at most 10 consecutive held ticks",
+            "compute_miss_budget": 300,
+            "deadline_miss_diagnostics": {
+              "full_tick_compute": {
+                "capacity": 512,
+                "max_consecutive": 1,
+                "overflowed": false,
+                "retained_indices": [
+                  7170,
+                  12080,
+                  12406,
+                  13177,
+                  13192,
+                  13423
+                ],
+                "total": 6
+              },
+              "full_tick_schedule": {
+                "capacity": 512,
+                "max_consecutive": 1,
+                "overflowed": false,
+                "retained_indices": [
+                  7170,
+                  12080,
+                  12406,
+                  13177,
+                  13192,
+                  13423
+                ],
+                "total": 6
+              },
+              "safe_hold_compute": {
+                "capacity": 512,
+                "max_consecutive": 0,
+                "overflowed": false,
+                "retained_indices": [],
+                "total": 0
+              },
+              "safe_hold_schedule": {
+                "capacity": 512,
+                "max_consecutive": 0,
+                "overflowed": false,
+                "retained_indices": [],
+                "total": 0
+              },
+              "solver_batch_reentry_compute": {
+                "capacity": 99,
+                "overflowed": false,
+                "retained_indices": [],
+                "total": 0
+              },
+              "solver_compute": {
+                "capacity": 512,
+                "overflowed": false,
+                "retained_indices": [],
+                "total": 0
+              }
+            },
+            "hard_realtime_pass": false,
+            "miss_index_diagnostics_valid": true,
+            "safe_hold_miss_budget": 300,
+            "unrelated_blockers": [
+              "remote_timing_bridge_sha256_does_not_match_local_source",
+              "remote_timing_readiness_builder_sha256_does_not_match_local_source"
+            ]
+          },
+          "elapsed_full_tick_wall_s": 59.99867995000022,
+          "elapsed_safe_hold_wall_s": 59.99864913900092,
+          "first_post_warm_ms": 0.5453810008475557,
+          "full_tick": {
+            "deadline_miss_count": 6,
+            "finite_samples": 30000,
+            "max_ms": 2.4419610017503146,
+            "mean_ms": 0.7921222793106911,
+            "nonfinite_count": 0,
+            "p50_ms": 0.7084360004228074,
+            "p95_ms": 1.20491849957034,
+            "p99_ms": 1.3578648082693685,
+            "samples": 30000
+          },
+          "full_tick_schedule_deadline_miss_count": 6,
+          "pacing_provenance": {
+            "clock": "time.perf_counter",
+            "control_hz": 500.0,
+            "full_tick_release_policy": "absolute",
+            "period_s": 0.002,
+            "safe_hold_release_policy": "independent_absolute"
+          },
+          "pipeline_warmup_contract_proven": true,
+          "raw_sha256": "53441070112a89b30b00713f5c5edd54acbd07649a266b1ced8997e67283c495",
+          "recomputed_from_single_hash_bound_raw_artifact": true,
+          "safe_hold": {
+            "deadline_miss_count": 0,
+            "finite_samples": 30000,
+            "max_ms": 1.9258850006735884,
+            "mean_ms": 0.661751182615141,
+            "nonfinite_count": 0,
+            "p50_ms": 0.6472610002674628,
+            "p95_ms": 0.7132974516935064,
+            "p99_ms": 1.05548684026871,
+            "samples": 30000
+          },
+          "safe_hold_schedule_deadline_miss_count": 0,
+          "solver": {
+            "deadline_miss_count": 0,
+            "finite_samples": 10000,
+            "max_ms": 0.5453810008475557,
+            "mean_ms": 0.21198670091580424,
+            "nonfinite_count": 0,
+            "p50_ms": 0.210248499570298,
+            "p95_ms": 0.2173475018935278,
+            "p99_ms": 0.2650067014110391,
+            "samples": 10000
+          },
+          "solver_batch_reentry": {
+            "deadline_miss_count": 0,
+            "max_ms": 0.8635670019430108,
+            "mean_ms": 0.3209486366349574,
+            "nonfinite_count": 0,
+            "p50_ms": 0.2940800004580524,
+            "p95_ms": 0.472183898818912,
+            "p99_ms": 0.801268400318804,
+            "samples": 99
+          },
+          "solver_batch_reentry_evidence": {
+            "acceptance_scope": "diagnostic_only; every post-yield reentry is retained but the 2 ms hard solver gate applies to the separate 10,000 steady samples",
+            "deadline_miss_count": 0,
+            "deadline_miss_indices": [],
+            "full_tick_zero_miss_required_for_hard_acceptance": true,
+            "hard_solver_deadline_gate_applied": false,
+            "raw_samples_bound": true,
+            "samples": 99,
+            "steady_sample_boundaries": [
+              100,
+              200,
+              300,
+              400,
+              500,
+              600,
+              700,
+              800,
+              900,
+              1000,
+              1100,
+              1200,
+              1300,
+              1400,
+              1500,
+              1600,
+              1700,
+              1800,
+              1900,
+              2000,
+              2100,
+              2200,
+              2300,
+              2400,
+              2500,
+              2600,
+              2700,
+              2800,
+              2900,
+              3000,
+              3100,
+              3200,
+              3300,
+              3400,
+              3500,
+              3600,
+              3700,
+              3800,
+              3900,
+              4000,
+              4100,
+              4200,
+              4300,
+              4400,
+              4500,
+              4600,
+              4700,
+              4800,
+              4900,
+              5000,
+              5100,
+              5200,
+              5300,
+              5400,
+              5500,
+              5600,
+              5700,
+              5800,
+              5900,
+              6000,
+              6100,
+              6200,
+              6300,
+              6400,
+              6500,
+              6600,
+              6700,
+              6800,
+              6900,
+              7000,
+              7100,
+              7200,
+              7300,
+              7400,
+              7500,
+              7600,
+              7700,
+              7800,
+              7900,
+              8000,
+              8100,
+              8200,
+              8300,
+              8400,
+              8500,
+              8600,
+              8700,
+              8800,
+              8900,
+              9000,
+              9100,
+              9200,
+              9300,
+              9400,
+              9500,
+              9600,
+              9700,
+              9800,
+              9900
+            ],
+            "steady_solver_hard_deadline_gate_applied": true
+          },
+          "unmeasured_pipeline_warmup": {
+            "clock": "time.perf_counter",
+            "commands_published": false,
+            "control_hz": 500.0,
+            "control_state_reset_after": true,
+            "deferred_diagnostics_complete": true,
+            "elapsed_wall_s": 2.1974948289971508,
+            "execute_count": 1000,
+            "execute_elapsed_wall_s": 1.998790272999031,
+            "execute_samples": 1000,
+            "execute_schedule_deadline_miss_count": 0,
+            "execute_schedule_max_lateness_ms": 0.0,
+            "measurement_follows_immediately": true,
+            "outside_measured_loops": true,
+            "post_warmup_sleep_s": 0.0,
+            "release_policy": "independent_absolute_per_branch",
+            "safe_hold_count": 100,
+            "safe_hold_elapsed_wall_s": 0.19870455599811976,
+            "safe_hold_samples": 100,
+            "safe_hold_schedule_deadline_miss_count": 0,
+            "safe_hold_schedule_max_lateness_ms": 0.0,
+            "schedule_misses_acceptance_scope": "diagnostic_only_outside_measured_loops",
+            "solver_state_reset_after": true
+          }
+        },
+        "artifact_binding": {
+          "calibration_yaml": {
+            "path": "/home/andy/.codex-worktrees/ur10e-v30-liveprep-20260714/src/ur10e_bringup/config/ur10e_calibration.yaml",
+            "sha256": "029aad03affc0cf60fc4274029463e683dc04b709f3a5e849f693d1c70409be8"
+          },
+          "paper_truth": {
+            "path": "/home/andy/.codex-worktrees/ur10e-v30-liveprep-20260714/experiments/tase-contact-reproduction/config/step5d_liveprep_solver_gate.json",
+            "sha256": "e4eb35d23de9018addf1918a0fbaa04aeb85222cd4cfc2024225fee2220d8555"
+          },
+          "profile_selection": {
+            "path": "/home/andy/.codex-worktrees/ur10e-v30-liveprep-20260714/experiments/tase-contact-reproduction/config/step5d_v30_profile_selection.json",
+            "sha256": "7df2f006edbe6210668eaa39ff2a3d85e03ac2bf9e81cd509aebeab57aa1b906"
+          },
+          "replay_csv": {
+            "path": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v29_20260710_104820/bridge_rtde_500hz.csv",
+            "sha256": "be6a84fe0eebc3df18ebb511874673cb3ee44832ba16335cd4de7a10f3260335",
+            "size": 43700470
+          },
+          "stage_table": {
+            "path": "/home/andy/.codex-worktrees/ur10e-v30-liveprep-20260714/experiments/tase-contact-reproduction/config/step5_stage_table.json",
+            "sha256": "47d8493c9e1d152ffc7f58be98058b27fa8ccfb04106d55d63e05027c24ece82"
+          },
+          "ur_xacro": {
+            "path": "/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro",
+            "sha256": "618ece26935c6cd146114374abc45142cc858420567005eed2713681ae55694c"
+          }
+        },
+        "classification": "diagnostic_only_not_acceptance",
+        "component_diagnostics": null,
+        "elapsed_full_tick_wall_s": 59.99867995000022,
+        "evidence_status": "current_canonical_profile_candidate",
+        "full_tick": {
+          "compute_deadline_miss_count": 6,
+          "max_ms": 2.4419610017503146,
+          "mean_ms": 0.7921222793106911,
+          "nonfinite_count": 0,
+          "p50_ms": 0.7084360004228074,
+          "p95_ms": 1.20491849957034,
+          "p99_ms": 1.3578648082693685,
+          "samples": 30000
+        },
+        "paced_500hz": true,
+        "path": "config/step5d_v30_rnn512_final_97f7cd2_formal_timing_raw.json",
+        "profile": {
+          "backend": "cupy",
+          "control_hz": 500.0,
+          "epsilon": 0.01,
+          "inner_iterations": 512,
+          "qdot_cap_rad_s": 0.05,
+          "sigr_exponent_r": 0.8
+        },
+        "profile_selection": {
+          "acceptance_profile_eligible": true,
+          "canonical_profile": {
+            "backend": "cupy",
+            "control_hz": 500.0,
+            "epsilon": 0.01,
+            "inner_iterations": 512,
+            "qdot_cap_rad_s": 0.05,
+            "sigr_exponent_r": 0.8
+          },
+          "canonical_profile_sha256": "3d811171fc46b66ad0c74be1060925ad2cae3650d3ae1db7544d0bf47dd9292a",
+          "diagnostic_override_requested": false,
+          "effective_profile": {
+            "backend": "cupy",
+            "control_hz": 500.0,
+            "epsilon": 0.01,
+            "inner_iterations": 512,
+            "qdot_cap_rad_s": 0.05,
+            "sigr_exponent_r": 0.8
+          },
+          "effective_profile_sha256": "3d811171fc46b66ad0c74be1060925ad2cae3650d3ae1db7544d0bf47dd9292a",
+          "fixed_contract": {
+            "backend": "cupy",
+            "control_hz": 500.0,
+            "dls_runtime_fallback_allowed": false,
+            "epsilon": 0.01,
+            "qdot_cap_rad_s": 0.05,
+            "safety_gates_unchanged": true,
+            "sigr_exponent_r": 0.8
+          },
+          "mode": "canonical_formal_candidate",
+          "requested_profile": {
+            "backend": "cupy",
+            "control_hz": 500.0,
+            "epsilon": 0.01,
+            "inner_iterations": 512,
+            "qdot_cap_rad_s": 0.05,
+            "sigr_exponent_r": 0.8
+          },
+          "requested_profile_sha256": "3d811171fc46b66ad0c74be1060925ad2cae3650d3ae1db7544d0bf47dd9292a",
+          "schema_version": "step5d_v30_timing_profile_selection_v1",
+          "selection_sha256": "f5dc8480e944c7622fb567d3a924e34ca251aab7b55297b40388781d83eb05f3"
+        },
+        "profile_selection_binding_matches_current": true,
+        "role": "parameter_selected_formal_timing_candidate",
+        "runtime_path": "Step5dObservation->SlewCompatibleReference->StrictRnnControlPolicy->ControlCandidate->step5d_v30_contract_pipeline->SafetyEnvelope->RegisterCommand->DeferredV30Diagnostics",
+        "safe_hold": {
+          "compute_deadline_miss_count": 0,
+          "max_ms": 1.9258850006735884,
+          "mean_ms": 0.661751182615141,
+          "nonfinite_count": 0,
+          "p50_ms": 0.6472610002674628,
+          "p95_ms": 0.7132974516935064,
+          "p99_ms": 1.05548684026871,
+          "samples": 30000
+        },
+        "sha256": "53441070112a89b30b00713f5c5edd54acbd07649a266b1ced8997e67283c495",
+        "solver": {
+          "compute_deadline_miss_count": 0,
+          "max_ms": 0.5453810008475557,
+          "mean_ms": 0.21198670091580424,
+          "nonfinite_count": 0,
+          "p50_ms": 0.210248499570298,
+          "p95_ms": 0.2173475018935278,
+          "p99_ms": 0.2650067014110391,
+          "samples": 10000
+        },
+        "source_binding": {
+          "aggregator_sha256": "da56886cc53f1ebb05438fecaaf1b98980f8e89bbbd5de43fe0dd0b1571b8d97",
+          "bridge_sha256": "97f7cd29cd6d3910286e184efcfcdbfa914d1da6e0684cc56fc65ece60d2703e",
+          "bundler_sha256": "320960ed2cf836f939b0a65e0cf7c602e6f58e9e4f35a7f9df87fc4cab4abd73",
+          "contact_semantics_sha256": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
+          "control_contract_sha256": "c34b0ad788e319a24e12ea6a1304201d0312045beee9339e8affbb1a9d6d50ee",
+          "delivery": "stdin_bundle",
+          "harness_sha256": "c83e7cafa7d8a9be6b687e21996d4f650e9bef63209b2f935bffec875ae72333",
+          "kinematics_sha256": "5454af16db870350759372ab42583a4f339c71e32f9190679987b3addf6e14fa",
+          "outer_loop_sha256": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
+          "readiness_builder_sha256": "2e474a4af12c1d294f83c31b896212aa9fd3622c336fe4048c0f1aa2d20cb071",
+          "runtime_interface_sha256": "b0856a338c5ba05d012ad1100aba8a72c10ec99595aceeebcc54ea475e17e8c4",
+          "solver_sha256": "2ea368dbb142ec635ebdb709d5bb5783ea9bc848705e191f935055463cf753b7"
+        }
+      },
+      {
+        "acceptance_eligible": false,
+        "acceptance_evaluation": {
+          "blockers": [
+            "full_tick_deadline_miss",
+            "full_tick_max_reaches_2ms_deadline",
+            "full_tick_schedule_deadline_miss",
             "remote_timing_aggregator_sha256_does_not_match_local_source",
+            "remote_timing_bridge_sha256_does_not_match_local_source",
             "remote_timing_readiness_builder_sha256_does_not_match_local_source",
             "safe_hold_deadline_miss",
             "safe_hold_max_reaches_2ms_deadline",
@@ -6486,6 +7311,7 @@
             "safe_hold_miss_budget": 300,
             "unrelated_blockers": [
               "remote_timing_aggregator_sha256_does_not_match_local_source",
+              "remote_timing_bridge_sha256_does_not_match_local_source",
               "remote_timing_readiness_builder_sha256_does_not_match_local_source"
             ]
           },
@@ -6817,20 +7643,22 @@
         }
       },
       {
-        "acceptance_eligible": true,
+        "acceptance_eligible": false,
         "acceptance_evaluation": {
           "blockers": [
             "full_tick_deadline_miss",
             "full_tick_max_reaches_2ms_deadline",
             "full_tick_schedule_deadline_miss",
+            "remote_timing_bridge_sha256_does_not_match_local_source",
+            "remote_timing_readiness_builder_sha256_does_not_match_local_source",
             "safe_hold_deadline_miss",
             "safe_hold_max_reaches_2ms_deadline",
             "safe_hold_schedule_deadline_miss"
           ],
           "deadline_robustness": {
-            "bounded_hold_timing_candidate": true,
+            "bounded_hold_timing_candidate": false,
             "bounded_last_command_hold_contract_proven": true,
-            "bounded_last_command_hold_pass": true,
+            "bounded_last_command_hold_pass": false,
             "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics, and a hard 500 Hz hard-realtime claim still requires zero full-tick deadline misses; bounded acceptance permits at most 1% held ticks and at most 10 consecutive held ticks",
             "compute_miss_budget": 300,
             "deadline_miss_diagnostics": {
@@ -6921,7 +7749,10 @@
             "hard_realtime_pass": false,
             "miss_index_diagnostics_valid": true,
             "safe_hold_miss_budget": 300,
-            "unrelated_blockers": []
+            "unrelated_blockers": [
+              "remote_timing_bridge_sha256_does_not_match_local_source",
+              "remote_timing_readiness_builder_sha256_does_not_match_local_source"
+            ]
           },
           "elapsed_full_tick_wall_s": 59.99868308399891,
           "elapsed_safe_hold_wall_s": 59.9986443279995,
@@ -7144,7 +7975,7 @@
             "sha256": "618ece26935c6cd146114374abc45142cc858420567005eed2713681ae55694c"
           }
         },
-        "classification": "acceptance_eligible",
+        "classification": "diagnostic_only_not_acceptance",
         "component_diagnostics": null,
         "elapsed_full_tick_wall_s": 59.99868308399891,
         "evidence_status": "current_canonical_profile_candidate",
@@ -7238,6 +8069,426 @@
         "source_binding": {
           "aggregator_sha256": "da56886cc53f1ebb05438fecaaf1b98980f8e89bbbd5de43fe0dd0b1571b8d97",
           "bridge_sha256": "4a875b27cfe4091217b1c9765f7b7a1ac856bbb6eadd0e800339839ed8d060f8",
+          "bundler_sha256": "320960ed2cf836f939b0a65e0cf7c602e6f58e9e4f35a7f9df87fc4cab4abd73",
+          "contact_semantics_sha256": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
+          "control_contract_sha256": "c34b0ad788e319a24e12ea6a1304201d0312045beee9339e8affbb1a9d6d50ee",
+          "delivery": "stdin_bundle",
+          "harness_sha256": "c83e7cafa7d8a9be6b687e21996d4f650e9bef63209b2f935bffec875ae72333",
+          "kinematics_sha256": "5454af16db870350759372ab42583a4f339c71e32f9190679987b3addf6e14fa",
+          "outer_loop_sha256": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
+          "readiness_builder_sha256": "2e474a4af12c1d294f83c31b896212aa9fd3622c336fe4048c0f1aa2d20cb071",
+          "runtime_interface_sha256": "b0856a338c5ba05d012ad1100aba8a72c10ec99595aceeebcc54ea475e17e8c4",
+          "solver_sha256": "2ea368dbb142ec635ebdb709d5bb5783ea9bc848705e191f935055463cf753b7"
+        }
+      },
+      {
+        "acceptance_eligible": false,
+        "acceptance_evaluation": {
+          "blockers": [
+            "full_tick_deadline_miss",
+            "full_tick_max_reaches_2ms_deadline",
+            "full_tick_schedule_deadline_miss",
+            "remote_timing_bridge_sha256_does_not_match_local_source",
+            "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+            "safe_hold_deadline_miss",
+            "safe_hold_max_reaches_2ms_deadline",
+            "safe_hold_schedule_deadline_miss"
+          ],
+          "deadline_robustness": {
+            "bounded_hold_timing_candidate": false,
+            "bounded_last_command_hold_contract_proven": true,
+            "bounded_last_command_hold_pass": false,
+            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics, and a hard 500 Hz hard-realtime claim still requires zero full-tick deadline misses; bounded acceptance permits at most 1% held ticks and at most 10 consecutive held ticks",
+            "compute_miss_budget": 300,
+            "deadline_miss_diagnostics": {
+              "full_tick_compute": {
+                "capacity": 512,
+                "max_consecutive": 1,
+                "overflowed": false,
+                "retained_indices": [
+                  213,
+                  3728,
+                  5695,
+                  8325,
+                  10680,
+                  15641,
+                  17219,
+                  17466,
+                  25798
+                ],
+                "total": 9
+              },
+              "full_tick_schedule": {
+                "capacity": 512,
+                "max_consecutive": 1,
+                "overflowed": false,
+                "retained_indices": [
+                  213,
+                  3728,
+                  5695,
+                  8325,
+                  10680,
+                  15641,
+                  17219,
+                  17466,
+                  25798
+                ],
+                "total": 9
+              },
+              "safe_hold_compute": {
+                "capacity": 512,
+                "max_consecutive": 1,
+                "overflowed": false,
+                "retained_indices": [
+                  19194
+                ],
+                "total": 1
+              },
+              "safe_hold_schedule": {
+                "capacity": 512,
+                "max_consecutive": 1,
+                "overflowed": false,
+                "retained_indices": [
+                  19194
+                ],
+                "total": 1
+              },
+              "solver_batch_reentry_compute": {
+                "capacity": 99,
+                "overflowed": false,
+                "retained_indices": [],
+                "total": 0
+              },
+              "solver_compute": {
+                "capacity": 512,
+                "overflowed": false,
+                "retained_indices": [],
+                "total": 0
+              }
+            },
+            "hard_realtime_pass": false,
+            "miss_index_diagnostics_valid": true,
+            "safe_hold_miss_budget": 300,
+            "unrelated_blockers": [
+              "remote_timing_bridge_sha256_does_not_match_local_source",
+              "remote_timing_readiness_builder_sha256_does_not_match_local_source"
+            ]
+          },
+          "elapsed_full_tick_wall_s": 59.99869660499826,
+          "elapsed_safe_hold_wall_s": 59.998644670999056,
+          "first_post_warm_ms": 0.5291509987728205,
+          "full_tick": {
+            "deadline_miss_count": 9,
+            "finite_samples": 30000,
+            "max_ms": 2.307967999513494,
+            "mean_ms": 0.7913355210911202,
+            "nonfinite_count": 0,
+            "p50_ms": 0.7132749997253995,
+            "p95_ms": 1.225554048687627,
+            "p99_ms": 1.356019121376448,
+            "samples": 30000
+          },
+          "full_tick_schedule_deadline_miss_count": 9,
+          "pacing_provenance": {
+            "clock": "time.perf_counter",
+            "control_hz": 500.0,
+            "full_tick_release_policy": "absolute",
+            "period_s": 0.002,
+            "safe_hold_release_policy": "independent_absolute"
+          },
+          "pipeline_warmup_contract_proven": true,
+          "raw_sha256": "508e647d2796000d1d7def8e4596c3ce03b600d12931eeaaae9ce5b30effac3c",
+          "recomputed_from_single_hash_bound_raw_artifact": true,
+          "safe_hold": {
+            "deadline_miss_count": 1,
+            "finite_samples": 30000,
+            "max_ms": 2.0908049991703592,
+            "mean_ms": 0.6554217643656254,
+            "nonfinite_count": 0,
+            "p50_ms": 0.6406345000868896,
+            "p95_ms": 0.710741501825396,
+            "p99_ms": 1.0413806101860228,
+            "samples": 30000
+          },
+          "safe_hold_schedule_deadline_miss_count": 1,
+          "solver": {
+            "deadline_miss_count": 0,
+            "finite_samples": 10000,
+            "max_ms": 1.1186629999428988,
+            "mean_ms": 0.2173768765245768,
+            "nonfinite_count": 0,
+            "p50_ms": 0.2098420009133406,
+            "p95_ms": 0.22519299782288724,
+            "p99_ms": 0.3826201091214899,
+            "samples": 10000
+          },
+          "solver_batch_reentry": {
+            "deadline_miss_count": 0,
+            "max_ms": 0.7438719985657372,
+            "mean_ms": 0.3050451617155252,
+            "nonfinite_count": 0,
+            "p50_ms": 0.2990499997395091,
+            "p95_ms": 0.3750594009034102,
+            "p99_ms": 0.5258651209442169,
+            "samples": 99
+          },
+          "solver_batch_reentry_evidence": {
+            "acceptance_scope": "diagnostic_only; every post-yield reentry is retained but the 2 ms hard solver gate applies to the separate 10,000 steady samples",
+            "deadline_miss_count": 0,
+            "deadline_miss_indices": [],
+            "full_tick_zero_miss_required_for_hard_acceptance": true,
+            "hard_solver_deadline_gate_applied": false,
+            "raw_samples_bound": true,
+            "samples": 99,
+            "steady_sample_boundaries": [
+              100,
+              200,
+              300,
+              400,
+              500,
+              600,
+              700,
+              800,
+              900,
+              1000,
+              1100,
+              1200,
+              1300,
+              1400,
+              1500,
+              1600,
+              1700,
+              1800,
+              1900,
+              2000,
+              2100,
+              2200,
+              2300,
+              2400,
+              2500,
+              2600,
+              2700,
+              2800,
+              2900,
+              3000,
+              3100,
+              3200,
+              3300,
+              3400,
+              3500,
+              3600,
+              3700,
+              3800,
+              3900,
+              4000,
+              4100,
+              4200,
+              4300,
+              4400,
+              4500,
+              4600,
+              4700,
+              4800,
+              4900,
+              5000,
+              5100,
+              5200,
+              5300,
+              5400,
+              5500,
+              5600,
+              5700,
+              5800,
+              5900,
+              6000,
+              6100,
+              6200,
+              6300,
+              6400,
+              6500,
+              6600,
+              6700,
+              6800,
+              6900,
+              7000,
+              7100,
+              7200,
+              7300,
+              7400,
+              7500,
+              7600,
+              7700,
+              7800,
+              7900,
+              8000,
+              8100,
+              8200,
+              8300,
+              8400,
+              8500,
+              8600,
+              8700,
+              8800,
+              8900,
+              9000,
+              9100,
+              9200,
+              9300,
+              9400,
+              9500,
+              9600,
+              9700,
+              9800,
+              9900
+            ],
+            "steady_solver_hard_deadline_gate_applied": true
+          },
+          "unmeasured_pipeline_warmup": {
+            "clock": "time.perf_counter",
+            "commands_published": false,
+            "control_hz": 500.0,
+            "control_state_reset_after": true,
+            "deferred_diagnostics_complete": true,
+            "elapsed_wall_s": 2.1976373300021805,
+            "execute_count": 1000,
+            "execute_elapsed_wall_s": 1.9989449679997051,
+            "execute_samples": 1000,
+            "execute_schedule_deadline_miss_count": 0,
+            "execute_schedule_max_lateness_ms": 0.0,
+            "measurement_follows_immediately": true,
+            "outside_measured_loops": true,
+            "post_warmup_sleep_s": 0.0,
+            "release_policy": "independent_absolute_per_branch",
+            "safe_hold_count": 100,
+            "safe_hold_elapsed_wall_s": 0.19869236200247542,
+            "safe_hold_samples": 100,
+            "safe_hold_schedule_deadline_miss_count": 0,
+            "safe_hold_schedule_max_lateness_ms": 0.0,
+            "schedule_misses_acceptance_scope": "diagnostic_only_outside_measured_loops",
+            "solver_state_reset_after": true
+          }
+        },
+        "artifact_binding": {
+          "calibration_yaml": {
+            "path": "/home/andy/.codex-worktrees/ur10e-v30-liveprep-20260714/src/ur10e_bringup/config/ur10e_calibration.yaml",
+            "sha256": "029aad03affc0cf60fc4274029463e683dc04b709f3a5e849f693d1c70409be8"
+          },
+          "paper_truth": {
+            "path": "/home/andy/.codex-worktrees/ur10e-v30-liveprep-20260714/experiments/tase-contact-reproduction/config/step5d_liveprep_solver_gate.json",
+            "sha256": "e4eb35d23de9018addf1918a0fbaa04aeb85222cd4cfc2024225fee2220d8555"
+          },
+          "profile_selection": {
+            "path": "/home/andy/.codex-worktrees/ur10e-v30-liveprep-20260714/experiments/tase-contact-reproduction/config/step5d_v30_profile_selection.json",
+            "sha256": "7df2f006edbe6210668eaa39ff2a3d85e03ac2bf9e81cd509aebeab57aa1b906"
+          },
+          "replay_csv": {
+            "path": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v29_20260710_104820/bridge_rtde_500hz.csv",
+            "sha256": "be6a84fe0eebc3df18ebb511874673cb3ee44832ba16335cd4de7a10f3260335",
+            "size": 43700470
+          },
+          "stage_table": {
+            "path": "/home/andy/.codex-worktrees/ur10e-v30-liveprep-20260714/experiments/tase-contact-reproduction/config/step5_stage_table.json",
+            "sha256": "47d8493c9e1d152ffc7f58be98058b27fa8ccfb04106d55d63e05027c24ece82"
+          },
+          "ur_xacro": {
+            "path": "/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro",
+            "sha256": "618ece26935c6cd146114374abc45142cc858420567005eed2713681ae55694c"
+          }
+        },
+        "classification": "diagnostic_only_not_acceptance",
+        "component_diagnostics": null,
+        "elapsed_full_tick_wall_s": 59.99869660499826,
+        "evidence_status": "current_canonical_profile_candidate",
+        "full_tick": {
+          "compute_deadline_miss_count": 9,
+          "max_ms": 2.307967999513494,
+          "mean_ms": 0.7913355210911202,
+          "nonfinite_count": 0,
+          "p50_ms": 0.7132749997253995,
+          "p95_ms": 1.225554048687627,
+          "p99_ms": 1.356019121376448,
+          "samples": 30000
+        },
+        "paced_500hz": true,
+        "path": "config/step5d_v30_rnn512_qdot_clear_formal_timing_raw.json",
+        "profile": {
+          "backend": "cupy",
+          "control_hz": 500.0,
+          "epsilon": 0.01,
+          "inner_iterations": 512,
+          "qdot_cap_rad_s": 0.05,
+          "sigr_exponent_r": 0.8
+        },
+        "profile_selection": {
+          "acceptance_profile_eligible": true,
+          "canonical_profile": {
+            "backend": "cupy",
+            "control_hz": 500.0,
+            "epsilon": 0.01,
+            "inner_iterations": 512,
+            "qdot_cap_rad_s": 0.05,
+            "sigr_exponent_r": 0.8
+          },
+          "canonical_profile_sha256": "3d811171fc46b66ad0c74be1060925ad2cae3650d3ae1db7544d0bf47dd9292a",
+          "diagnostic_override_requested": false,
+          "effective_profile": {
+            "backend": "cupy",
+            "control_hz": 500.0,
+            "epsilon": 0.01,
+            "inner_iterations": 512,
+            "qdot_cap_rad_s": 0.05,
+            "sigr_exponent_r": 0.8
+          },
+          "effective_profile_sha256": "3d811171fc46b66ad0c74be1060925ad2cae3650d3ae1db7544d0bf47dd9292a",
+          "fixed_contract": {
+            "backend": "cupy",
+            "control_hz": 500.0,
+            "dls_runtime_fallback_allowed": false,
+            "epsilon": 0.01,
+            "qdot_cap_rad_s": 0.05,
+            "safety_gates_unchanged": true,
+            "sigr_exponent_r": 0.8
+          },
+          "mode": "canonical_formal_candidate",
+          "requested_profile": {
+            "backend": "cupy",
+            "control_hz": 500.0,
+            "epsilon": 0.01,
+            "inner_iterations": 512,
+            "qdot_cap_rad_s": 0.05,
+            "sigr_exponent_r": 0.8
+          },
+          "requested_profile_sha256": "3d811171fc46b66ad0c74be1060925ad2cae3650d3ae1db7544d0bf47dd9292a",
+          "schema_version": "step5d_v30_timing_profile_selection_v1",
+          "selection_sha256": "f5dc8480e944c7622fb567d3a924e34ca251aab7b55297b40388781d83eb05f3"
+        },
+        "profile_selection_binding_matches_current": true,
+        "role": "parameter_selected_formal_timing_candidate",
+        "runtime_path": "Step5dObservation->SlewCompatibleReference->StrictRnnControlPolicy->ControlCandidate->step5d_v30_contract_pipeline->SafetyEnvelope->RegisterCommand->DeferredV30Diagnostics",
+        "safe_hold": {
+          "compute_deadline_miss_count": 1,
+          "max_ms": 2.0908049991703592,
+          "mean_ms": 0.6554217643656254,
+          "nonfinite_count": 0,
+          "p50_ms": 0.6406345000868896,
+          "p95_ms": 0.710741501825396,
+          "p99_ms": 1.0413806101860228,
+          "samples": 30000
+        },
+        "sha256": "508e647d2796000d1d7def8e4596c3ce03b600d12931eeaaae9ce5b30effac3c",
+        "solver": {
+          "compute_deadline_miss_count": 0,
+          "max_ms": 1.1186629999428988,
+          "mean_ms": 0.2173768765245768,
+          "nonfinite_count": 0,
+          "p50_ms": 0.2098420009133406,
+          "p95_ms": 0.22519299782288724,
+          "p99_ms": 0.3826201091214899,
+          "samples": 10000
+        },
+        "source_binding": {
+          "aggregator_sha256": "da56886cc53f1ebb05438fecaaf1b98980f8e89bbbd5de43fe0dd0b1571b8d97",
+          "bridge_sha256": "15be9cd060993a053a1cd5b7b436aba1a30f25014e53dbed5e9be5cb7986481b",
           "bundler_sha256": "320960ed2cf836f939b0a65e0cf7c602e6f58e9e4f35a7f9df87fc4cab4abd73",
           "contact_semantics_sha256": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
           "control_contract_sha256": "c34b0ad788e319a24e12ea6a1304201d0312045beee9339e8affbb1a9d6d50ee",
@@ -8579,10 +9830,10 @@
         }
       }
     ],
-    "overall_pass": true,
+    "overall_pass": false,
     "profile_selection": {
       "classification": "diagnostic_selection_not_formal_timing",
-      "formal_timing_satisfied": true,
+      "formal_timing_satisfied": false,
       "path": "config/step5d_v30_profile_selection.json",
       "selected_inner_iterations": 512,
       "sha256": "7df2f006edbe6210668eaa39ff2a3d85e03ac2bf9e81cd509aebeab57aa1b906"

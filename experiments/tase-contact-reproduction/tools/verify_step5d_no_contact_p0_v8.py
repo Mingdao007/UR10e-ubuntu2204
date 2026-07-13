@@ -21,7 +21,7 @@ POLICY_PATH = ROOT / "config" / "step5d_review_policy_v2.json"
 CURRENT_PATH = ROOT / "config" / "current_stage.json"
 CONSUMPTION_MIN_RATIO = 0.98
 DEADLINE_HOLD_MAX_RATIO = 0.01
-DEADLINE_HOLD_MAX_CONSECUTIVE_S = 0.020
+DEADLINE_HOLD_MAX_CONSECUTIVE_S = 0.250
 CONTROL_PERIOD_S = 0.002
 SOLVER_OK_STATUS = 40.0
 
@@ -248,7 +248,7 @@ def validate_contract_rows(
     if deadline_hold_ratio > DEADLINE_HOLD_MAX_RATIO:
         blockers.append("deadline_hold_ratio_above_0p01")
     if deadline_hold_max_consecutive_s > DEADLINE_HOLD_MAX_CONSECUTIVE_S:
-        blockers.append("deadline_hold_consecutive_above_0p020s")
+        blockers.append("deadline_hold_consecutive_above_0p250s")
 
     terminal_zero_bad_rows = 0
     terminal_stop_bad_rows = 0

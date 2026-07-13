@@ -416,15 +416,16 @@ def build(*, generated_at: str) -> dict[str, Any]:
     )
     v30_script = v30_script_path.read_text(encoding="utf-8")
     p0_script = p0_script_path.read_text(encoding="utf-8")
-    deadline_overrun_static_prepared = all(
-        token in script
-        for script in (v30_script, p0_script)
-        for token in (
+    common_deadline_tokens = (
             "DEADLINE_OVERRUN_LAST_COMMAND_HOLD",
             "if not heartbeat_fresh:",
             "local stage25_have_accepted_command = False",
-            "if stale_s2 > 0.020:",
-        )
+    )
+    deadline_overrun_static_prepared = (
+        all(token in v30_script for token in common_deadline_tokens)
+        and "if stale_s2 > 0.020:" in v30_script
+        and all(token in p0_script for token in common_deadline_tokens)
+        and "if stale_s2 > 0.250:" in p0_script
     )
     blockers: list[str] = []
     if (
@@ -537,6 +538,35 @@ def build(*, generated_at: str) -> dict[str, Any]:
     blockers.extend(package_validation["blockers"])
     if not readback_verified:
         blockers.append("v30_controller_readback_not_frozen")
+    numeric_row = v30_row.get("numeric_sanity") or {}
+    numeric_path_rel = str(numeric_row.get("artifact") or "")
+    numeric_path = ROOT / numeric_path_rel
+    numeric_payload = load(numeric_path) if numeric_path.is_file() else {}
+    numeric_sanity = {
+        "path": numeric_path_rel,
+        "sha256": sha256(numeric_path) if numeric_path.is_file() else None,
+        "source_full_chain_artifact": numeric_row.get(
+            "source_full_chain_artifact"
+        ),
+        "source_full_chain_sha256": numeric_row.get("source_full_chain_sha256"),
+        "exact_profile_bound": (numeric_payload.get("gates") or {}).get(
+            "exact_profile_bound"
+        ),
+        "package_hashes_bound": (numeric_payload.get("gates") or {}).get(
+            "package_hashes_bound"
+        ),
+        "overall_pass": numeric_payload.get("overall_pass"),
+        "claim_effect": numeric_row.get("claim_effect"),
+    }
+    if (
+        not numeric_path.is_file()
+        or numeric_sanity["sha256"] != numeric_row.get("sha256")
+        or numeric_payload.get("stage_id") != V30_PROFILE
+        or numeric_sanity["exact_profile_bound"] is not True
+        or numeric_sanity["package_hashes_bound"] is not True
+        or numeric_sanity["overall_pass"] is not True
+    ):
+        blockers.append("v30_numeric_sanity_binding_invalid")
     blockers.extend(p0_v8["blockers"])
     deterministic_blockers = sorted(set(blockers))
     evidence_frozen = not deterministic_blockers
@@ -672,12 +702,14 @@ def build(*, generated_at: str) -> dict[str, Any]:
             "bounded_hold_lateness_max_ms": 1.5,
             "bounded_hold_max_consecutive_misses": 10,
             "late_candidate_publish_policy": "discard_without_publish",
+            "p0_v8_late_candidate_publish_policy": "publish_when_guard_approved",
             "tp_stale_tick_policy": (
                 "same_heartbeat_last_published_guard_approved_qdot_consumed"
             ),
             "pre_first_command_policy": "invalid_packet_tp_sync_no_speed_command",
             "intentional_stop_policy": "zero_qdot_stop_dominates_hold",
             "continuous_stale_stop_s": 0.020,
+            "p0_v8_continuous_stale_stop_s": 0.250,
             "next_fresh_tick_may_recover": True,
             "package_static_prepared": deadline_overrun_static_prepared,
             "v30_script": {
@@ -717,6 +749,7 @@ def build(*, generated_at: str) -> dict[str, Any]:
             "semantic_fingerprint": marker.get("semantic_fingerprint"),
             "triplet_sha256": package_validation["triplet_sha256"],
         },
+        "numeric_sanity": numeric_sanity,
         "source_contract": source_hashes,
         "p0_v8_gate": p0_v8,
         "review_v2": {
