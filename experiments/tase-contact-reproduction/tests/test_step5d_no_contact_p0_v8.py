@@ -255,19 +255,19 @@ class Step5dNoContactP0V8Test(unittest.TestCase):
             )["p0_v8_candidate"]["canary_policy"],
             {
                 "enabled": True,
-                "allowed_phases_s": [60.0],
-                "single_continuous_run_required": True,
+                "allowed_phases_s": [2.0, 10.0, 60.0],
+                "serial_same_fingerprint_sequence_required": True,
                 "final_continuous_phase_s": 60.0,
             },
         )
 
     def test_parser_gate_allows_only_explicit_v8_canary_phases(self) -> None:
         self.assertEqual(gate.validate_canary_phase(PROFILE, 0.0), 0.0)
+        self.assertEqual(gate.validate_canary_phase(PROFILE, 2.0), 2.0)
+        self.assertEqual(gate.validate_canary_phase(PROFILE, 10.0), 10.0)
         self.assertEqual(gate.validate_canary_phase(PROFILE, 60.0), 60.0)
-        with self.assertRaisesRegex(ValueError, "exactly 60"):
-            gate.validate_canary_phase(PROFILE, 10.0)
-        with self.assertRaisesRegex(ValueError, "exactly 60"):
-            gate.validate_canary_phase(PROFILE, 2.0)
+        with self.assertRaisesRegex(ValueError, "exactly 2, 10, or 60"):
+            gate.validate_canary_phase(PROFILE, 5.0)
         with self.assertRaisesRegex(ValueError, "restricted to P0 v8"):
             gate.validate_canary_phase("step5d_strict_rnn_ablation_v29", 60.0)
         bridge_source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(
@@ -276,17 +276,19 @@ class Step5dNoContactP0V8Test(unittest.TestCase):
         self.assertIn("validate_p0_v8_canary_phase(", bridge_source)
         self.assertIn("authorize_p0_v8_canary(args, current)", bridge_source)
 
-    def test_canary_authorization_is_fingerprint_bound_for_direct_60s(self) -> None:
+    def test_canary_authorization_requires_same_fingerprint_serial_sequence(self) -> None:
         fingerprint = "a" * 64
         current = {
             "p0_v8_candidate": {
                 "evidence_frozen": True,
                 "composite_fingerprint": fingerprint,
                 "completed_canaries": [],
-                "review_v2": {
-                    "status": "accepted",
+                "review_v3": {
+                    "policy_id": "ur10e_review_policy_v3",
+                    "required_stack": "0+0",
+                    "status": "not_required",
                     "composite_fingerprint": fingerprint,
-                    "manifest": "runs/review.json",
+                    "deterministic_canaries_still_required": True,
                 },
             },
             "bridge_trigger": {
@@ -301,9 +303,14 @@ class Step5dNoContactP0V8Test(unittest.TestCase):
         current["p0_v8_candidate"]["completed_canaries"] = [
             {
                 "phase_s": 2.0,
-                "composite_fingerprint": "f" * 64,
+                "composite_fingerprint": fingerprint,
                 "canary_passed": True,
-            }
+            },
+            {
+                "phase_s": 10.0,
+                "composite_fingerprint": fingerprint,
+                "canary_passed": True,
+            },
         ]
         args = SimpleNamespace(step5d_stop_register_canary_s=60.0)
 
@@ -311,7 +318,7 @@ class Step5dNoContactP0V8Test(unittest.TestCase):
         self.assertEqual(result["phase_s"], 60.0)
         self.assertEqual(result["composite_fingerprint"], fingerprint)
 
-    def test_canary_authorization_accepts_explicit_bound_user_review_waiver(self) -> None:
+    def test_canary_authorization_rejects_retired_review_v2_waiver(self) -> None:
         fingerprint = "b" * 64
         current = {
             "p0_v8_candidate": {
@@ -345,11 +352,7 @@ class Step5dNoContactP0V8Test(unittest.TestCase):
         }
         args = SimpleNamespace(step5d_stop_register_canary_s=60.0)
 
-        result = gate.authorize_canary(args, current)
-        self.assertEqual(result["phase_s"], 60.0)
-        self.assertEqual(result["composite_fingerprint"], fingerprint)
-        current["p0_v8_candidate"]["review_v2"]["waiver"]["explicit"] = False
-        with self.assertRaisesRegex(ValueError, "explicit bound user waiver"):
+        with self.assertRaisesRegex(ValueError, "Review v3 0\+0"):
             gate.authorize_canary(args, current)
 
     def test_contract_rows_require_dls_shadow_but_never_use_it_as_fallback(self) -> None:

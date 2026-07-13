@@ -18,23 +18,13 @@ from ur10e_parallel import (
     TaskRunner,
     TaskSpec,
     require_immutable_completion_marker,
+    verified_closed_source,
 )
 
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = ROOT / "tools"
 WORKFLOW = Path(__file__).resolve()
-DEFAULT_REPLAY_CSV = Path(
-    "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/"
-    "runs/bridge_step5d_strict_rnn_ablation_v29_20260710_104820/"
-    "bridge_rtde_500hz.csv"
-)
-DEFAULT_REPLAY_RUN = DEFAULT_REPLAY_CSV.parent
-DEFAULT_MODEL_MANIFEST = Path(
-    "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/"
-    "experiments/tase-contact-reproduction/runs/"
-    "digital_twin_models_20260711_v6/model_manifest.json"
-)
 FORMAL_SOURCE_FILES = (
     "tools/contact_semantics.py",
     "tools/step5c_strict_rnn.py",
@@ -53,7 +43,7 @@ SHORT_TIMING_SAMPLES = {
     "tick_samples": 256,
     "safe_hold_samples": 256,
     "component_diagnostic_samples": 64,
-    "inner_iterations": 256,
+    "inner_iterations": 512,
 }
 FEATURE_WINDOWS_S = {
     "mujoco_startup": 0.08,
@@ -86,28 +76,16 @@ def test_python() -> Path:
 
 
 def timing_environment() -> dict[str, str]:
-    current_pythonpath = os.getenv("PYTHONPATH", "")
-    current_ld = os.getenv("LD_LIBRARY_PATH", "")
+    declared_pythonpath = os.getenv("UR10E_TIMING_PYTHONPATH", "")
+    declared_ld = os.getenv("UR10E_TIMING_LD_LIBRARY_PATH", "")
+    if not declared_pythonpath or not declared_ld:
+        raise RuntimeError(
+            "formal/short timing requires explicit UR10E_TIMING_PYTHONPATH and "
+            "UR10E_TIMING_LD_LIBRARY_PATH; undeclared /tmp runtime defaults are forbidden"
+        )
     return {
-        "PYTHONPATH": ":".join(
-            value
-            for value in (
-                "/tmp/step5d_gpu_np124",
-                "/tmp/step5d_cuda129",
-                current_pythonpath,
-            )
-            if value
-        ),
-        "LD_LIBRARY_PATH": ":".join(
-            value
-            for value in (
-                "/tmp/step5d_cuda129/nvidia/nvjitlink/lib",
-                "/tmp/step5d_cuda129/nvidia/cuda_runtime/lib",
-                "/tmp/step5d_cuda129/nvidia/cuda_nvrtc/lib",
-                current_ld,
-            )
-            if value
-        ),
+        "PYTHONPATH": declared_pythonpath,
+        "LD_LIBRARY_PATH": declared_ld,
     }
 
 
@@ -167,7 +145,7 @@ def run_timing(
     after = source_fingerprint()
     metadata = {
         "formal": formal,
-        "claim_class": "formal_acceptance" if formal else "diagnostic_only",
+        "claim_class": "formal_raw_capture" if formal else "diagnostic_only",
         "source_fingerprint_before": before,
         "source_fingerprint_after": after,
         "source_fingerprint_stable": before == after,
@@ -313,9 +291,9 @@ def functional_tasks(
                 sys.executable,
                 TOOLS / "replay_step5d_v30.py",
                 "--run-dir",
-                DEFAULT_REPLAY_RUN,
+                replay_csv.parent,
                 "--source-run",
-                DEFAULT_REPLAY_RUN,
+                replay_csv.parent,
                 "--expected-csv-size",
                 str(replay_csv.stat().st_size),
                 "--replay-csv",
@@ -413,7 +391,7 @@ def formal_task(
         ],
         dependencies=dependencies,
         resource="formal_timing",
-        claim_class="formal_acceptance",
+        claim_class="formal_raw_capture",
         cpu_tokens=ResourceProfile.from_env().cpu_workers,
         gpu_vram_reservation_pct=0.0,
     )
@@ -534,8 +512,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("run_dir", nargs="?", type=Path)
     parser.add_argument("--output-root", type=Path)
-    parser.add_argument("--replay-csv", type=Path, default=DEFAULT_REPLAY_CSV)
-    parser.add_argument("--model-manifest", type=Path, default=DEFAULT_MODEL_MANIFEST)
+    parser.add_argument("--replay-csv", type=Path)
+    parser.add_argument("--model-manifest", type=Path)
     parser.add_argument("--serial", action="store_true")
     args = parser.parse_args(values)
 
@@ -545,17 +523,17 @@ def main(argv: list[str] | None = None) -> int:
     output_root = (args.output_root or default_output_root(args.mode)).resolve()
     if output_root.exists():
         parser.error(f"output root already exists: {output_root}")
-    if not args.replay_csv.is_file() and args.mode in {
+    if args.mode in {
         "offline-functional",
         "formal-timing",
         "offline-all",
-    }:
+    } and (args.replay_csv is None or not args.replay_csv.is_file()):
         parser.error(f"replay CSV missing: {args.replay_csv}")
     tasks: list[TaskSpec]
     if args.mode == "parallel-check":
         tasks = check_tasks(output_root, profile)
     elif args.mode == "offline-functional":
-        if not args.model_manifest.is_file():
+        if args.model_manifest is None or not args.model_manifest.is_file():
             parser.error(f"model manifest missing: {args.model_manifest}")
         tasks = functional_tasks(
             output_root,
@@ -565,7 +543,7 @@ def main(argv: list[str] | None = None) -> int:
     elif args.mode == "formal-timing":
         tasks = [formal_task(output_root, replay_csv=args.replay_csv.resolve())]
     elif args.mode == "offline-all":
-        if not args.model_manifest.is_file():
+        if args.model_manifest is None or not args.model_manifest.is_file():
             parser.error(f"model manifest missing: {args.model_manifest}")
         tasks = functional_tasks(
             output_root,
@@ -587,11 +565,16 @@ def main(argv: list[str] | None = None) -> int:
         tasks = postprocess_tasks(output_root, run_dir)
 
     runner = TaskRunner(root=ROOT, output_root=output_root, profile=profile)
-    results = runner.run(tasks)
-    passed = all(result.status == "passed" for result in results.values())
-    if args.mode == "postprocess" and passed:
+    if args.mode == "postprocess":
         assert args.run_dir is not None
-        write_postprocess_aggregate(output_root, args.run_dir.resolve())
+        with verified_closed_source(args.run_dir.resolve()):
+            results = runner.run(tasks)
+            passed = all(result.status == "passed" for result in results.values())
+            if passed:
+                write_postprocess_aggregate(output_root, args.run_dir.resolve())
+    else:
+        results = runner.run(tasks)
+        passed = all(result.status == "passed" for result in results.values())
     print(f"parallel_run_manifest={runner.manifest_path}")
     return 0 if passed else 3
 

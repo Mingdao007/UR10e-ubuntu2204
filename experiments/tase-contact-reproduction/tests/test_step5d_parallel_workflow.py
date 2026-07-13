@@ -42,7 +42,7 @@ class Step5dParallelWorkflowTest(unittest.TestCase):
                 "tick_samples": 256,
                 "safe_hold_samples": 256,
                 "component_diagnostic_samples": 64,
-                "inner_iterations": 256,
+                "inner_iterations": 512,
             },
         )
         self.assertEqual(FEATURE_WINDOWS_S, {"mujoco_startup": 0.08, "mujoco_steady": 0.40})
@@ -72,7 +72,7 @@ class Step5dParallelWorkflowTest(unittest.TestCase):
                 dependencies=[task.task_id for task in functional],
             )
         self.assertEqual(formal.resource, "formal_timing")
-        self.assertEqual(formal.claim_class, "formal_acceptance")
+        self.assertEqual(formal.claim_class, "formal_raw_capture")
         self.assertEqual(set(formal.dependencies), {task.task_id for task in functional})
 
     def test_postprocess_parallel_and_serial_have_identical_derived_metrics(self) -> None:

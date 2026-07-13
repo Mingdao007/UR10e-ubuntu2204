@@ -1173,7 +1173,7 @@
     "live_authorized": false,
     "p0_gate_required": false,
     "frozen_fallback": true,
-    "review_v2_baseline_rereview": {
+    "historical_review_v2_baseline_rereview": {
       "policy_id": "ur10e_review_policy_v2",
       "milestone": "v29_baseline_re_review",
       "required_stack": "1+0",
@@ -1184,14 +1184,14 @@
     },
     "future_reactivation_requires": [
       "fresh controller readback and timing fingerprint",
-      "Review v2 2+1 contact pre-live gate",
+      "Review v3 1+1 contact pre-live gate or evidence-backed degraded 1+0",
       "new explicit live/contact authorization"
     ]
   },
   "p0_v8_candidate": {
     "profile": "step5d_strict_rnn_no_contact_p0_v8",
     "gate_for": "step5d_strict_rnn_ablation_v30",
-    "state": "regenerated_package_pending_controller_readback_user_review_waived",
+    "state": "regenerated_package_pending_controller_readback",
     "package_sha256": {
       ".script": "407f80e56eaa70d1e0e18597abbbddf535c8af88831c41fb117425583792ca9d",
       ".txt": "3c07d18472d5780df813fc536e4505cb813659792058c5ec9c130b39060cf4e6",
@@ -1199,36 +1199,19 @@
     },
     "semantic_fingerprint": "7e9d6826f45bbec38f57169bc630e57ac1f0473cc4aded1e84bed766f5ad8446",
     "evidence_frozen": true,
-    "composite_fingerprint": "2f763ac723fe14dc260d5c2a511be7c931bdc1f4c54b163019b8132aedc8eca0",
-    "review_v2": {
-      "policy_id": "ur10e_review_policy_v2",
-      "milestone": "p0_v8_pre_live",
-      "required_stack": "1+1",
-      "status": "waived_by_user",
-      "composite_fingerprint": "2f763ac723fe14dc260d5c2a511be7c931bdc1f4c54b163019b8132aedc8eca0",
-      "manifest": null,
-      "waiver": {
-        "waiver_id": "p0-v8-one-batch-fix-20260714-0539",
-        "issued_at": "2026-07-14T05:39:10+08:00",
-        "authorized_by": "user",
-        "explicit": true,
-        "scope": "p0_v8_pre_live_review",
-        "composite_fingerprint": "2f763ac723fe14dc260d5c2a511be7c931bdc1f4c54b163019b8132aedc8eca0",
-        "authorization_evidence": "不再做人工 review；只使用确定性验证。",
-        "reason": "User explicitly waived another artificial review for the one-batch P0 v8 repair fingerprint."
-      }
-    },
+    "composite_fingerprint": "61642f4a965a15c786c30d2412a35fcd7d7a6bdb46d1e7c92cad661519af1e5d",
     "review_v3": {
       "policy_id": "ur10e_review_policy_v3",
       "milestone": "p0_v8_pre_live",
       "required_stack": "0+0",
       "status": "not_required",
+      "composite_fingerprint": "61642f4a965a15c786c30d2412a35fcd7d7a6bdb46d1e7c92cad661519af1e5d",
       "deterministic_canaries_still_required": true
     },
     "canary_policy": {
       "enabled": true,
-      "allowed_phases_s": [60.0],
-      "single_continuous_run_required": true,
+      "allowed_phases_s": [2.0, 10.0, 60.0],
+      "serial_same_fingerprint_sequence_required": true,
       "final_continuous_phase_s": 60.0
     },
     "offline_simulation_diagnostic": {
@@ -1281,12 +1264,12 @@
       "reproduction_complete": false
     },
     "blockers": [
-      "controller_continuous_60_second_canary_not_run"
+      "controller_serial_2_10_60_second_canaries_not_run"
     ]
   },
   "v30_candidate": {
     "profile": "step5d_strict_rnn_ablation_v30",
-    "state": "offline_bounded_timing_passed_package_readback_verified_liveprep_blocked",
+    "state": "offline_source_changed_readback_and_formal_timing_required",
     "current": false,
     "runtime_profile": {
       "backend": "cupy",
@@ -1297,7 +1280,7 @@
       "control_hz": 500.0
     },
     "timing": {
-      "acceptance_mode": "bounded_last_command_hold",
+      "acceptance_mode": "none",
       "source_commit": "review_v3_final_frozen_source",
       "cpu_affinity": [11, 13, 14, 15],
       "raw_artifact": "config/step5d_v30_rnn512_review_v3_final_formal_timing_raw.json",
@@ -1319,7 +1302,8 @@
       "deadline_miss_ratio": 0.0002,
       "max_consecutive_deadline_misses": 2,
       "hard_realtime_pass": false,
-      "bounded_last_command_hold_pass": true
+      "bounded_last_command_hold_pass": false,
+      "status": "historical_raw_invalidated_by_current_source_fingerprint"
     },
     "offline_prewarm": {
       "execute_samples": 1000,
@@ -1331,7 +1315,7 @@
     },
     "offline_readiness": {
       "artifact": "config/step5d_v30_offline_readiness.json",
-      "sha256": "61e136c417dacdd22a344e788cc6d5b78709bac213fdcbe2e268a6b8c12360ac",
+      "sha256": "e613023f0962c82b66aa5d555b88c3a8d1c549ada92d1c82a3ac81632f863e76",
       "status": "v30_offline_blocked"
     },
     "review_v3": {
@@ -1342,14 +1326,17 @@
       "status": "not_due"
     },
     "blockers": [
+      "v30_controller_readback_not_frozen",
+      "timing_acceptance_failed",
+      "runtime_shaped_60s_500hz_acceptance_not_run",
       "live_runtime_prewarm_not_integrated_or_verified",
       "p0_v8_final_60s_not_passed",
       "p0_v8_passed_artifact_missing",
       "review_v3_not_due_until_evidence_freeze"
     ],
     "claim_boundary": {
-      "offline_timing_pass": true,
-      "package_accepted": true,
+      "offline_timing_pass": false,
+      "package_accepted": false,
       "live_accepted": false,
       "reproduction_complete": false
     }

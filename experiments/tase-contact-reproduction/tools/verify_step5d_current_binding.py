@@ -24,6 +24,7 @@ from step5d_liveprep_readiness import (
 )
 from step5d_runtime_interface import resolve_runtime_interface
 from step5d_review_v3 import resolve as resolve_review_v3
+from step5d_timing_acceptance import evaluate_timing_raw
 from verify_current_stage_readback import EXPERIMENT_ROOT, fail, load_json, verify
 
 
@@ -207,6 +208,25 @@ def _verify_v30_timing_raw(root: Path, timing: dict[str, Any]) -> dict[str, Any]
         "v30 timing acceptance raw evidence",
         expected_sha256=evidence.get("sha256"),
     )
+    canonical = evaluate_timing_raw(root, raw_path)
+    if canonical["accepted"] is not True:
+        fail(
+            "v30 timing canonical evaluator rejected raw evidence: "
+            + ", ".join(canonical["blockers"])
+        )
+    evaluation = canonical["evaluation"]
+    return {
+        "path": _relative(root, raw_path),
+        "sha256": raw_sha256,
+        "evaluator": canonical["evaluator"],
+        "classification": canonical["classification"],
+        "solver_samples": int(evaluation["solver"]["samples"]),
+        "full_tick_samples": int(evaluation["full_tick"]["samples"]),
+        "safe_hold_samples": int(evaluation["safe_hold"]["samples"]),
+    }
+
+    # Historical consumer-specific checks below are intentionally unreachable;
+    # acceptance is decided exclusively by evaluate_timing_raw above.
     if raw.get("paced_500hz") is not True:
         fail("v30 timing raw evidence is not paced at 500 Hz")
     solver = raw.get("solver")

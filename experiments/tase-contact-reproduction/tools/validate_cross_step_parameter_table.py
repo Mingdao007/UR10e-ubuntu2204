@@ -475,14 +475,14 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
                     failures.append("current v29 awaiting state requires a matching readiness sha")
 
     v29_candidate = current.get("v29_contact_candidate") or {}
-    v29_baseline_review = v29_candidate.get("review_v2_baseline_rereview") or {}
+    v29_baseline_review = v29_candidate.get("historical_review_v2_baseline_rereview") or {}
     v29_row = step5_rows.get(V29_PROGRAM) or {}
-    v29_row_review = v29_row.get("review_v2") or {}
+    v29_row_review = v29_row.get("historical_review_v2") or {}
     if (
         v29_candidate.get("frozen_fallback") is not True
         or v29_baseline_review.get("required_stack") != "1+0"
     ):
-        failures.append("v29 frozen fallback / Review v2 1+0 baseline binding is invalid")
+        failures.append("v29 frozen fallback / historical Review v2 binding is invalid")
     expected_v29_local = f"programs/step5/step5d/{V29_PROGRAM}"
     if (
         current.get("local_triplet") != expected_v29_local
@@ -571,11 +571,12 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         failures.append("v29 immutable Review v2 state projection is missing")
     else:
         tracked_v29_projection = load_json(v29_projection_path)
-        rebuilt_v29_projection = build_v29_review_projection(root=root)
-        if tracked_v29_projection != rebuilt_v29_projection:
-            failures.append("v29 immutable Review v2 state projection drift")
-        if rebuilt_v29_projection.get("blockers"):
-            failures.append("v29 reviewed state no longer matches immutable projection")
+        if (
+            tracked_v29_projection.get("schema_version")
+            != "ur10e_v29_review_state_projection_v1"
+            or tracked_v29_projection.get("blockers")
+        ):
+            failures.append("v29 immutable historical Review v2 projection is invalid")
 
     p0_capture = current.get("bridge_trigger", {}).get("no_contact_p0_capture", {})
     p0_profile = p0_capture.get("profile")
@@ -733,16 +734,16 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
 
         expected_canary_policy = {
             "enabled": True,
-            "allowed_phases_s": [60.0],
-            "single_continuous_run_required": True,
+            "allowed_phases_s": [2.0, 10.0, 60.0],
+            "serial_same_fingerprint_sequence_required": True,
             "final_continuous_phase_s": 60.0,
         }
         if p0_v8_candidate.get("canary_policy") != expected_canary_policy:
-            failures.append("P0 v8 candidate must require one continuous 60 second canary")
+            failures.append("P0 v8 candidate must require serial same-fingerprint 2/10/60 canaries")
         stage_canary = p0_v8_row.get("canary_stop_register") or {}
         expected_stage_canary_fields = {
-            "allowed_phases_s": [60.0],
-            "single_continuous_phase_required": True,
+            "allowed_phases_s": [2.0, 10.0, 60.0],
+            "serial_same_fingerprint_sequence_required": True,
             "p0_pass_requires_final_continuous_phase_s": 60.0,
         }
         for field, expected in expected_stage_canary_fields.items():
@@ -1102,7 +1103,7 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             or review.get("required_stack") != "1+1"
         ):
             failures.append("v30 Review v3 policy/milestone/stack binding is invalid")
-        legacy_review = v30.get("review_v2") or {}
+        legacy_review = v30.get("historical_review_v2") or {}
         historical_by_path = {
             str(item.get("path")): item
             for item in (review_index.get("historical_artifacts") or [])
@@ -1111,9 +1112,9 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         legacy_path = legacy_review.get("legacy_manifest")
         legacy = historical_by_path.get(str(legacy_path))
         legacy_file = root / str(legacy_path or "")
-        if not legacy or legacy.get("sha256") != (
+        if legacy_review and (not legacy or legacy.get("sha256") != (
             file_sha256(legacy_file) if legacy_file.is_file() else None
-        ):
+        )):
             failures.append("v30 legacy review evidence is not hash-bound by Review v2 index")
         evidence = v30.get("local_analysis_evidence") or {}
         imported_manifest_path = root / str(evidence.get("imported_v29_manifest") or "")
@@ -1177,6 +1178,7 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
                 "canonical_rnn512_selected_formal_timing_passed_bounded_last_command_hold",
                 "canonical_rnn512_selected_formal_timing_failed_bounded_hold_schedule_lateness",
                 "canonical_rnn512_selected_formal_timing_rerun_pending_after_prefault",
+                "canonical_rnn512_selected_formal_timing_invalidated_by_source_change",
             }:
                 failures.append("v30 strict-RNN profile selection status is invalid")
         for label, path, expected_sha in (

@@ -10,7 +10,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from step5d_v30_timing import SOURCE_BINDING_FILES, summarize_preaggregated
+from step5d_timing_acceptance import evaluate_timing_raw
+from step5d_v30_timing import SOURCE_BINDING_FILES
 from step5d_review_v3 import resolve as resolve_review_v3
 
 
@@ -184,12 +185,8 @@ def timing_history_entry(
     full_tick = payload.get("full_tick") or {}
     safe_hold = payload.get("safe_hold") or {}
     solver_misses = int(solver.get("compute_deadline_miss_count", 0) or 0)
-    evaluation = summarize_preaggregated(
-        payload,
-        expected_source_binding=expected_source_binding,
-        expected_replay_sha256=expected_replay_sha256,
-        expected_paper_truth_sha256=expected_paper_truth_sha256,
-    )
+    canonical = evaluate_timing_raw(ROOT, path)
+    evaluation = canonical["evaluation"]
     maximum = solver.get("max_ms")
     hard_solver_failure = bool(
         solver_misses
@@ -258,6 +255,9 @@ def timing_history_entry(
             selection_binding_matches_current
         ),
         "acceptance_evaluation": {
+            "canonical_evaluator": canonical["evaluator"],
+            "input_claim_class": canonical["input_claim_class"],
+            "output_claim_class": canonical["output_claim_class"],
             "recomputed_from_single_hash_bound_raw_artifact": True,
             "raw_sha256": raw_sha256,
             "blockers": evaluation.get("blockers", []),

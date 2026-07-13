@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify one manifest-bound P0 v8 continuous 60 second no-contact canary."""
+"""Verify one manifest-bound P0 v8 2/10/60 second no-contact canary."""
 
 from __future__ import annotations
 
@@ -8,16 +8,16 @@ import hashlib
 import json
 import math
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import verify_step5d_no_contact_p0 as legacy
 
 
 ROOT = Path(__file__).resolve().parents[1]
 PROFILE = "step5d_strict_rnn_no_contact_p0_v8"
-PHASES_S = (60.0,)
+PHASES_S = (2.0, 10.0, 60.0)
 PACKAGE_BASE = ROOT / "programs" / "step5" / "step5d" / PROFILE
-POLICY_PATH = ROOT / "config" / "step5d_review_policy_v2.json"
+POLICY_PATH = ROOT / "config" / "step5d_review_policy_v3.json"
 CURRENT_PATH = ROOT / "config" / "current_stage.json"
 CONSUMPTION_MIN_RATIO = 0.98
 DEADLINE_HOLD_MAX_RATIO = 0.01
@@ -52,6 +52,14 @@ def phase_equal(left: object, right: float) -> bool:
         return math.isclose(float(left), right, abs_tol=1e-9)
     except (TypeError, ValueError):
         return False
+
+
+def required_prior_phases(phase_s: float) -> tuple[float, ...]:
+    if phase_s == 2.0:
+        return ()
+    if phase_s == 10.0:
+        return (2.0,)
+    return (2.0, 10.0)
 
 
 def validate_bindings(

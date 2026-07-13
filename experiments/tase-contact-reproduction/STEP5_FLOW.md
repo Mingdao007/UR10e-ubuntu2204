@@ -1,10 +1,10 @@
 # Step5 Flow
 
 `config/current_stage.json` currently selects
-`step5d_strict_rnn_ablation_v29` as the current pointer, but Review v2 classifies
-the controller-readback-verified package as a
+`step5d_strict_rnn_ablation_v29` as the current pointer. The
+controller-readback-verified package is a
 **frozen fallback**, not an active live candidate. Re-enabling v29 requires a
-fresh package/readback/timing fingerprint, a new `2+1` contact pre-live review,
+fresh package/readback/timing fingerprint, one Review v3 contact pre-live gate,
 and explicit live/contact authorization. Its historical controller evidence at
 `runs/controller_readback_step5d_strict_rnn_ablation_v29_20260710_014948`
 remains byte-for-byte evidence only.
@@ -36,9 +36,9 @@ without injecting a zero-qdot safe hold. Before the first accepted command TP
 only syncs and issues no speed command. At the 0.05 rad/s qdot cap, the P0 v8
 maximum theoretical 250 ms stale displacement is 0.0125 rad per joint.
 
-1. `step5d_strict_rnn_no_contact_p0_v8` has an explicit user review waiver
-   bound to its regenerated fingerprint and passes one continuous `60 s`
-   canary whose verifier artifact passes P0. The completed offline full rollout
+1. `step5d_strict_rnn_no_contact_p0_v8` uses Review v3 `0+0` and passes serial
+   `2 -> 10 -> 60 s` canaries on one frozen fingerprint; the final `60 s`
+   verifier artifact passes P0. The completed offline full rollout
    is not repeated as part of controller acceptance. Canary duration is a
    host-side stop policy and does not alter the TP motion package.
 2. v30 has a complete 10,000-solve and 60 s / 500 Hz timing plus safe-hold
@@ -46,7 +46,8 @@ maximum theoretical 250 ms stale displacement is 0.0125 rad per joint.
    last-command-hold route under the revised `1.5 ms` schedule-lateness
    bound. The former `0.5 ms`-gate failure remains retained history.
 3. The v30 package/readback hashes and evidence are frozen.
-4. The current composite fingerprint passes one Review v2 `2+1` gate.
+4. Immediately before real contact, the current composite fingerprint passes
+   one Review v3 `1+1` gate (or an evidence-backed degraded `1+0`).
 
 The v30/P0 production runtime and formal timing harness share one scheduler
 contract: `SCHED_FIFO` priority `20`, with `OPENBLAS_NUM_THREADS`,
@@ -118,15 +119,13 @@ for its older fingerprint and cannot satisfy the v4 gate. Geometry remains
 provisional, controller canaries have not run, and no simulator result can set
 P0 live passed or promote v30.
 
-Review v2 uses deterministic validation only (`0+0`) for ordinary coding,
-commit, push, and handoff. A direction change uses `1+0`; P0 v8 pre-live uses
-`1+1`; v29/v30 contact pre-live uses `2+1`. Codex defaults to
-`gpt-5.6-sol/high`; `max` is reserved for torque control, major
-safety/force-frame changes, reviewer disagreement, or a final reproduction
-claim. Reviews begin only after evidence freeze, and the same composite
-fingerprint cannot trigger a second full review. P0/P1 findings block; P2 is
-backlog-only; finding fixes use the targeted lane closer unless the risk
-fingerprint crosses lanes.
+Review v3 uses `0+0` for ordinary coding, no-contact P0, package, commit, push,
+and handoff. Direction changes join the next contact composite instead of
+triggering a separate review. Frozen v29/v30 contact pre-live uses exactly one
+`1+1`, or an evidence-backed degraded `1+0` if Fable5 is unavailable. Reviews
+begin only after evidence freeze, and one composite fingerprint cannot trigger
+a second full review. P0/P1 findings block; P2 is backlog-only; finding fixes
+use a bound targeted closer unless the risk fingerprint crosses lanes.
 
 Package acceptance is not live-run acceptance and is not reproduction
 completion. Bridge start, TP program load/Play, robot motion, payload/TCP
@@ -302,8 +301,8 @@ instead of preserving the later 22 s TP v3 timing.
 | `step5d_strict_rnn_ablation_v26` | bridge+TP | true | true | speedl Cartesian oracle with strict RNN shadow diagnostics | `v31_filtered_live` | Retained read-back/live-attempt evidence: default `speedl_cartesian_oracle`, Stage25.3 Step5b/Step6b evidence tube filtered 7-18 N / raw 5-20 N, superseded by v27 wider tube and 35 N hard guards; not current. |
 | `step5d_strict_rnn_ablation_v27` | bridge+TP | true | true | Step5b speedl live / Step5d paper+RNN shadow | `v31_filtered_live` | Retained successful 10 s fix-validation evidence from `runs/bridge_step5d_strict_rnn_ablation_v27_20260706_045513`; not current and not a 60 s reproduction claim. The earlier 040900 force overshoot remains retained failure evidence for the old paper-linear-live path. |
 | `step5d_strict_rnn_ablation_v28` | bridge+TP | true | true | Step5b speedl live / Step5d paper+RNN shadow | `v31_filtered_live` | Retained read-back verified diagnostic package, superseded by v29; not a completed reproduction claim. |
-| `step5d_strict_rnn_ablation_v29` | frozen fallback | true | false | strict TASE RNN speedj | `v31_filtered_live` | Current pointer is retained only because it is the last read-back-verified package. A future reactivation requires fresh readback/timing fingerprint, Review v2 `2+1`, and explicit live/contact authorization. |
-| `step5d_strict_rnn_no_contact_p0_v8` | offline P0 gate | false | false | v30 strict-RNN contract | none | Inactive layout-524-only package. Guard-approved GPU results publish even when completion crosses a nominal 2 ms release; while no new result is accepted TP holds the last accepted qdot, without zero-qdot injection, for at most 250 ms. Regenerated package readback and one continuous 60 s controller canary remain required. |
+| `step5d_strict_rnn_ablation_v29` | frozen fallback | true | false | strict TASE RNN speedj | `v31_filtered_live` | Current pointer is retained only because it is the last read-back-verified package. A future reactivation requires fresh readback/timing fingerprint, Review v3 contact gate, and explicit live/contact authorization. |
+| `step5d_strict_rnn_no_contact_p0_v8` | offline P0 gate | false | false | v30 strict-RNN contract | none | Inactive layout-524-only package. Guard-approved GPU results publish even when completion crosses a nominal 2 ms release; while no new result is accepted TP holds the last accepted qdot, without zero-qdot injection, for at most 250 ms. Regenerated package readback and serial same-fingerprint 2 -> 10 -> 60 s controller canaries remain required. |
 | `step5d_strict_rnn_ablation_v30` | offline contact-control prep | true | false | strict TASE RNN speedj; DLS shadow-only | `v31_filtered_live` | Inactive contact candidate retaining the stricter 1%/20 ms bounded last-command-hold contract. Hard-real-time remains a distinct zero-miss claim; readiness still requires live-runtime integration, P0 v8 controller canaries, and frozen package/readback. Contact requires separate authorization. |
 | `step5d_ros2_remote_shadow_v1` | ROS2 offline | true | false | ROS2 shadow replay | `v31_filtered_live` input logs | Diagnostic-only Step5d policy replay: replays v15a/v14/v11 and Step5b/Step6b CSVs, removes long zero-qdot hold recovery, but is not live-ready and must follow Step5b plumbing validation. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |
