@@ -1,0 +1,33 @@
+{
+  "attitude_guard": {
+    "angular_command_cap_rad_s": 0.15,
+    "home_orientation_tolerance_rad": 0.05
+  },
+  "checks": {
+    "duration_is_60s": true,
+    "fixed_angular_cap_0p15rad_s": true,
+    "fixed_force_guards": true,
+    "fixed_normal_cap_10mm_s": true,
+    "fixed_total_linear_cap_4mm_s": true,
+    "path_span_x_le_100mm": true,
+    "path_span_y_le_100mm": true,
+    "reference_speed_le_3mm_s": true,
+    "three_target_contexts": true,
+    "tier1_trust_region_is_local": true
+  },
+  "controller_target": "/programs/andyl/kunwei/step5/autotune/step5b_contact_cycloid_bayes_loop_v1.urp",
+  "guards": {
+    "force_norm_n": 60.0,
+    "raw_normal_n": 50.0,
+    "torque_norm_nm": 3.0
+  },
+  "metrics": {
+    "duration_s": 60.0,
+    "max_reference_speed_m_s": 0.0029999999999797615,
+    "path_span_x_m": 0.030510006393543343,
+    "path_span_y_m": 0.09417932238816043,
+    "tier1_neighbors_including_incumbent": 5
+  },
+  "pass": true,
+  "schema_version": "step5b_autotune_numeric_sanity_v1"
+}

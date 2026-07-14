@@ -1,0 +1,9 @@
+torch==2.13.0
+gpytorch==1.15.2
+botorch==0.16.1
+numpy==1.26.4
+scipy==1.15.3
+pandas==2.3.3
+matplotlib==3.10.9
+numexpr==2.14.1
+bottleneck==1.6.0

@@ -1,0 +1,116 @@
+{
+  "schema_version": "step5b_autotune_loop_v1",
+  "stage_id": "step5b_contact_cycloid_bayes_loop_v1",
+  "status": "experimental_not_current",
+  "independent_stage_table": "config/step5b_autotune_stage_table.json",
+  "isolation": {
+    "current_stage_unchanged": true,
+    "canonical_step5_table_merge_deferred": true,
+    "reason": "P0v9 and Step5d v30 are active in a separate worktree; this experiment must not modify their shared stage, bridge, or runtime files.",
+    "forbidden_mutation_paths": [
+      "config/current_stage.json",
+      "config/step5_stage_table.json",
+      "STEP5_FLOW.md",
+      "tools/kunwei_rtde_bridge.py",
+      "programs/step5/step5d/"
+    ]
+  },
+  "base_executable_spec": {
+    "program": "step5b_contact_cycloid_baseline_v2",
+    "bridge_profile": "step5b_v2",
+    "path": "60 s Step5 cycloid",
+    "orientation_branch": "4 degree conditional skip; otherwise lift, 25.2 attitude correction, and second search",
+    "force_frame_contract": "reaction_normal_for_load__approach_normal_for_posture"
+  },
+  "package": {
+    "basename": "step5b_contact_cycloid_bayes_loop_v1",
+    "local_directory": "programs/step5/autotune",
+    "controller_directory": "/programs/andyl/kunwei/step5/autotune",
+    "motion_class": "contact_motion",
+    "live_start_owned_by": "ur10e-live-bench"
+  },
+  "rtde_integer_register_contract": {
+    "inputs": {
+      "24": "session_epoch",
+      "25": "trial_id",
+      "26": "command: HOLD=0 ARM=1 STOP=2 ABORT_RETURN=3",
+      "27": "candidate_token_low31"
+    },
+    "outputs": {
+      "24": "ack_session_epoch",
+      "25": "ack_trial_id",
+      "26": "tp_state: BOOT=0 WAIT_ARM=10 RUN=20 RETRACT=30 RETURN=40 HOME=50 FAULT=90",
+      "27": "terminal_reason"
+    }
+  },
+  "home_gate": {
+    "tcp_position_tolerance_m": 0.003,
+    "tcp_orientation_tolerance_rad": 0.05,
+    "joint_tolerance_rad": 0.01
+  },
+  "contexts": {
+    "target_force_n": [10.0, 12.0, 15.0],
+    "schedule": "round_robin",
+    "incumbent_scope": "per_context",
+    "model_scope": "shared_contextual_gp"
+  },
+  "search_space": {
+    "tier1": {
+      "force_p_gain": {"min": 0.001, "max": 0.0015, "step": 0.0001},
+      "force_damping": {"min": 5.0, "max": 8.5, "step": 0.5},
+      "normal_filter_alpha": {"min": 0.55, "max": 0.7, "step": 0.05},
+      "force_i_gain": {"fixed": 0.00001}
+    },
+    "tier2": {
+      "force_i_gain": {"min": 0.00001, "max": 0.00002, "step": 0.000002},
+      "unlock": "each context has >=5 feasible full trials, two incumbent repeats differ <=15%, and the latest 6 trials have no failures"
+    },
+    "fixed": {
+      "path_p_gain": 1.5,
+      "orientation_gain": 0.2,
+      "integral_limit_n_s": 1.0,
+      "angular_limit_rad_s": 0.15,
+      "normal_velocity_limit_m_s": 0.01,
+      "total_linear_limit_m_s": 0.004,
+      "reacquire_velocity_m_s": 0.0004
+    }
+  },
+  "safety": {
+    "raw_normal_guard_n": 50.0,
+    "force_norm_guard_n": 60.0,
+    "torque_norm_guard_nm": 3.0,
+    "zero_policy": "software_baseline_only",
+    "forbidden": ["zero_ftsensor", "Kunwei tare", "Kunwei zero/config", "payload write", "TCP write"],
+    "recoverable_requires_verified_home": [1, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14],
+    "fatal_session_reasons": [2, 3, 14, 15],
+    "two_consecutive_constraint_violations": "pause_latched_until_operator_resume",
+    "protective_stop_or_estop": "end_session_no_auto_recovery"
+  },
+  "optimizer": {
+    "backend": "botorch_qLogNoisyExpectedImprovement_q1_cuda",
+    "device_policy": "cuda_required_for_live_no_cpu_fallback",
+    "gpu_vram_limit_pct": 85,
+    "max_gpu_workers": 3,
+    "cpu_postprocess_workers": 16,
+    "parallel_contract": "ur10e_concurrency_contract_v1",
+    "feasibility_probability_min": 0.95,
+    "trust_region": "one discrete grid step from the context incumbent per non-replicate trial",
+    "replication": "every fourth visit to a context repeats its incumbent",
+    "no_safe_candidate": "repeat incumbent",
+    "dependency_lock": "requirements-step5b-autotune.txt"
+  },
+  "loss": {
+    "force_nrmse": 0.35,
+    "force_p99_absolute_error_over_target": 0.2,
+    "xy_rmse_over_5mm": 0.2,
+    "normalized_command_total_variation": 0.15,
+    "near_limit_dwell_duty": 0.1,
+    "infeasible_policy": "record constraints; do not synthesize a scalar objective"
+  },
+  "acceptance": {
+    "canaries_s": [2, 10, 60],
+    "autonomous_gate": "two consecutive full 60 s trials at different target contexts with verified home",
+    "pre_contact_review": "Review v3 1+1 on the frozen composite fingerprint",
+    "live_status": "blocked_until_canonical_table_merge_review_and_live_authorization"
+  }
+}
