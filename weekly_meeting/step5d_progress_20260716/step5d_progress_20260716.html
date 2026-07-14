@@ -1,0 +1,843 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Step5D Force-Control Progress</title>
+  <style>
+    :root {
+      --ink: #172026;
+      --muted: #5c6872;
+      --line: #d9e0e6;
+      --panel: #f6f8fa;
+      --green: #2f8068;
+      --green-soft: #e9f3ef;
+      --blue: #2e6ea6;
+      --blue-soft: #eaf2f8;
+      --amber: #9a6b22;
+      --amber-soft: #f7f0e4;
+      --danger: #a84432;
+      --danger-soft: #f8ece9;
+      --white: #ffffff;
+      --shadow: 0 12px 34px rgba(23,32,38,.07);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; background: #eef2f5; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: #eef2f5;
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.62;
+      text-rendering: optimizeLegibility;
+    }
+    ::selection { background: #cfe2f2; color: var(--ink); }
+    a { color: var(--blue); text-underline-offset: 3px; }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      height: 52px;
+      background: rgba(255,255,255,.94);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--line);
+    }
+    .topbar-inner {
+      width: min(1320px, 100%);
+      height: 100%;
+      margin: 0 auto;
+      padding: 0 28px;
+      display: flex;
+      align-items: center;
+      gap: 28px;
+    }
+    .brand {
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 750;
+      letter-spacing: .01em;
+      white-space: nowrap;
+    }
+    nav { margin-left: auto; display: flex; align-items: center; gap: 22px; overflow-x: auto; }
+    nav a {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+      text-decoration: none;
+      white-space: nowrap;
+      padding: 16px 0 12px;
+      border-bottom: 3px solid transparent;
+    }
+    nav a:hover, nav a.active { color: var(--blue); border-bottom-color: var(--blue); }
+    main { width: min(1320px, 100%); margin: 0 auto; background: var(--white); box-shadow: var(--shadow); }
+    section {
+      position: relative;
+      padding: 58px 44px 68px;
+      border-bottom: 1px solid var(--line);
+      scroll-margin-top: 52px;
+    }
+    section.hero {
+      min-height: min(760px, calc(100vh - 52px));
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      background:
+        radial-gradient(circle at 88% 14%, rgba(46,110,166,.10), transparent 27%),
+        linear-gradient(180deg, #fff 0%, #fbfcfd 100%);
+    }
+    section.results-section { background: linear-gradient(180deg, #fbfdff 0%, #fff 100%); }
+    h1, h2, h3 { color: var(--ink); line-height: 1.16; letter-spacing: -.025em; }
+    h1 { margin: 0 0 18px; font-size: clamp(42px, 5.2vw, 68px); max-width: 850px; }
+    h2 { margin: 0 0 24px; font-size: clamp(30px, 3vw, 40px); }
+    h3 { margin: 30px 0 12px; font-size: 21px; }
+    p { margin: 0 0 16px; }
+    ul, ol { margin: 10px 0 18px; padding-left: 1.35em; }
+    li { margin: 6px 0; }
+    .eyebrow {
+      margin: 0 0 14px;
+      color: var(--blue);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    .grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 18px; align-items: stretch; }
+    .align-start { align-items: start; }
+    .span-4 { grid-column: span 4; }
+    .span-5 { grid-column: span 5; }
+    .span-6 { grid-column: span 6; }
+    .span-7 { grid-column: span 7; }
+    .span-12 { grid-column: span 12; }
+    .panel {
+      padding: 22px 24px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    .panel h3 { margin-top: 0; }
+    .metrics { display: grid; gap: 14px; margin: 26px 0 22px; }
+    .metrics-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .metric {
+      min-height: 132px;
+      padding: 18px 18px 16px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .metric span { color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+    .metric strong { color: var(--ink); font-size: clamp(24px, 2.4vw, 34px); letter-spacing: -.04em; }
+    .metric small { color: var(--green); font-size: 12px; font-weight: 650; }
+    .scope-note, .callout {
+      margin: 20px 0;
+      padding: 16px 18px;
+      border-left: 4px solid var(--blue);
+      background: var(--blue-soft);
+    }
+    .scope-note p:last-child, .callout p:last-child { margin-bottom: 0; }
+    .callout.green { border-color: var(--green); background: var(--green-soft); }
+    .callout.amber { border-color: var(--amber); background: var(--amber-soft); }
+    .callout.blue { border-color: var(--blue); background: var(--blue-soft); }
+    .contents { margin-top: 16px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+    .contents summary { padding: 13px 16px; cursor: pointer; color: var(--muted); font-weight: 700; }
+    .contents ol { columns: 2; column-gap: 32px; padding: 0 36px 14px; }
+    .timeline { position: relative; padding-left: 16px; border-left: 2px solid var(--line); }
+    .timeline div { padding: 0 0 18px 18px; position: relative; }
+    .timeline div::before { content: ""; width: 10px; height: 10px; background: var(--blue); border-radius: 50%; position: absolute; left: -22px; top: 7px; }
+    .timeline strong, .timeline span { display: block; }
+    .timeline span { color: var(--muted); font-size: 14px; }
+    .figure {
+      margin: 24px 0;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      break-inside: avoid;
+    }
+    .figure.wide { width: 100%; }
+    .figure img { display: block; width: 100%; height: auto; background: #fff; }
+    .figure figcaption { padding: 13px 16px 15px; color: var(--muted); font-size: 13px; line-height: 1.5; border-top: 1px solid var(--line); }
+    .abrasive-crop { height: 560px; overflow: hidden; background: var(--panel); }
+    .abrasive-crop img { width: 168%; max-width: none; transform: translate(-20.5%, -1%); }
+    .product-crop { height: 500px; overflow: hidden; background: var(--panel); }
+    .product-crop img { width: 128%; max-width: none; transform: translate(-11%, -1%); }
+    .spec-strip { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); }
+    .spec-strip span { padding: 10px 8px; font-size: 11px; text-align: center; color: var(--muted); border-right: 1px solid var(--line); }
+    .spec-strip span:last-child { border-right: 0; }
+    .spec-strip b { display: block; color: var(--ink); font-size: 12px; }
+    .schematic { width: 100%; height: auto; display: block; background: #fff; }
+    .schematic text { font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+    .svg-heading { font-size: 20px; font-weight: 750; fill: var(--ink); }
+    .svg-label { font-size: 14px; font-weight: 650; fill: var(--ink); }
+    .svg-note { font-size: 13px; fill: var(--muted); }
+    .surface-line { fill: none; stroke-width: 6; stroke-linecap: round; }
+    .surface-line.rough { stroke: var(--danger); }
+    .surface-line.smooth { stroke: var(--green); }
+    .ball { fill: var(--blue-soft); stroke: var(--blue); stroke-width: 3; }
+    .normal-arrow, .load-arrow { stroke-width: 3; fill: none; }
+    .normal-arrow { stroke: var(--muted); }
+    .load-arrow { stroke: var(--blue); }
+    .divider { stroke: var(--line); stroke-width: 2; }
+    .housing { fill: #e9edf0; stroke: var(--ink); stroke-width: 3; }
+    .main-ball { fill: var(--blue-soft); stroke: var(--blue); stroke-width: 4; }
+    .support-ball { fill: #d7dee4; stroke: var(--muted); stroke-width: 2; }
+    .contact-surface { fill: #c8d0d7; stroke: var(--ink); stroke-width: 2; }
+    .clearance-zone { fill: none; stroke: var(--amber); stroke-width: 4; stroke-dasharray: 8 6; }
+    .leader { stroke: var(--muted); stroke-width: 2; }
+    .evidence-ladder { margin: 24px 0; }
+    .evidence-ladder h3 { margin-top: 0; }
+    .evidence-step { padding: 15px 16px; margin: 0 0 11px; border-radius: 8px; border: 1px solid var(--line); background: #fff; }
+    .evidence-step p:last-child { margin-bottom: 0; }
+    .evidence-step.caution { border-left: 4px solid var(--danger); background: var(--danger-soft); }
+    .evidence-step.neutral { border-left: 4px solid var(--blue); background: var(--blue-soft); }
+    .evidence-step.success { border-left: 4px solid var(--green); background: var(--green-soft); }
+    .equation {
+      margin: 20px 0 24px;
+      padding: 18px 20px;
+      text-align: center;
+      font-family: "STIX Two Math", "Times New Roman", serif;
+      font-size: 24px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow-x: auto;
+    }
+    .equation.large { font-size: 30px; }
+    .equation.compact { font-size: 22px; }
+    .controller-compare { margin: 28px 0; display: grid; gap: 14px; }
+    .controller-row { display: flex; align-items: center; gap: 9px; padding: 14px; border: 1px solid var(--line); border-left: 4px solid var(--blue); background: #fff; overflow-x: auto; }
+    .controller-row.step5d { border-left-color: var(--green); }
+    .controller-name { min-width: 72px; font-weight: 800; }
+    .flow-node { min-width: 132px; padding: 10px 12px; text-align: center; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; font-size: 13px; }
+    .flow-arrow { color: var(--muted); font-size: 20px; }
+    table { width: 100%; border-collapse: collapse; margin: 20px 0 26px; font-size: 14px; }
+    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { background: var(--panel); font-weight: 750; }
+    td:not(:first-child), th:not(:first-child) { font-variant-numeric: tabular-nums; }
+    .status-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; margin: 24px 0; }
+    .status-card { padding: 20px; border: 1px solid var(--line); border-top: 4px solid var(--muted); border-radius: 8px; background: var(--panel); }
+    .status-card span { display: block; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; font-weight: 750; }
+    .status-card strong { display: block; margin: 6px 0 8px; font-size: 20px; }
+    .status-card p { color: var(--muted); font-size: 14px; margin: 0; }
+    .status-card.done { border-top-color: var(--green); }
+    .status-card.implemented { border-top-color: var(--blue); }
+    .status-card.pending { border-top-color: var(--amber); }
+    .experiment-loop, .pipeline { display: flex; align-items: stretch; gap: 8px; overflow-x: auto; margin: 28px 0; padding: 4px 0 10px; }
+    .experiment-loop div, .pipeline div { min-width: 126px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); font-size: 13px; font-weight: 650; }
+    .experiment-loop span, .pipeline span { display: flex; align-items: center; color: var(--muted); font-size: 20px; }
+    .pipeline div { min-width: 150px; background: var(--blue-soft); }
+    .video-figure video { width: 100%; max-height: 520px; display: block; object-fit: contain; background: #000; }
+    code { padding: 2px 5px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; font-size: .88em; }
+    footer { padding: 18px 32px 24px; color: var(--muted); font-size: 11px; background: #f8fafb; text-align: center; }
+    @media (max-width: 980px) {
+      .metrics-4 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+      .three-up .span-4 { grid-column: span 6; }
+      .three-up .span-4:last-child { grid-column: 1 / -1; }
+      .status-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 860px) {
+      .topbar-inner { padding: 0 16px; gap: 12px; }
+      .brand { display: none; }
+      nav { margin-left: 0; gap: 18px; }
+      section { padding: 44px 20px 54px; }
+      section.hero { min-height: auto; padding-top: 64px; }
+      .grid { grid-template-columns: 1fr; }
+      .span-4, .span-5, .span-6, .span-7, .span-12, .three-up .span-4, .three-up .span-4:last-child { grid-column: 1; }
+      .metrics-4 { grid-template-columns: 1fr 1fr; }
+      .contents ol { columns: 1; }
+      .abrasive-crop { height: 500px; }
+      .product-crop { height: 520px; }
+      .controller-row { padding-bottom: 18px; }
+    }
+    @media (max-width: 540px) {
+      .metrics-4 { grid-template-columns: 1fr; }
+      .spec-strip { grid-template-columns: 1fr; }
+      .spec-strip span { border-right: 0; border-bottom: 1px solid var(--line); }
+      .equation, .equation.large { font-size: 21px; }
+    }
+    @media print {
+      html, body { background: #fff; }
+      .topbar { position: static; backdrop-filter: none; }
+      main { width: 100%; box-shadow: none; }
+      section { padding: 34px 28px; break-inside: auto; }
+      section.hero { min-height: auto; }
+      .figure, .panel, .callout, .status-card { break-inside: avoid; }
+      video { display: none !important; }
+      .video-figure::before { content: "Video omitted from print; poster retained in the HTML report."; display: block; padding: 18px; color: var(--muted); }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">Step5D · Force-control progress</div>
+      <nav aria-label="Report navigation">
+        <a href="#summary">Summary</a>
+        <a href="#setup">Setup</a>
+        <a href="#why-12n">Why 12 N</a>
+        <a href="#force-stability">Comparison</a>
+        <a href="#tuning-objective">Tuning</a>
+        <a href="#video-next">Evidence / Next</a>
+      </nav>
+    </div>
+  </header>
+  <main>
+<section class="hero" id="summary">
+<p class="eyebrow">UR10e contact-control progress · Group meeting · 16 July 2026</p>
+<h1>Step5D Force-Control Progress</h1>
+<h2>Executive summary</h2>
+<p><strong>Under matched outer-loop gains and a common 12 N target, Step5D reduces force fluctuation and normal-motion activity without materially shifting the mean load.</strong></p>
+<ul>
+<li>Force standard deviation is <strong>57.1% lower</strong> than the mean of two Step5B references.</li>
+<li>Force MAE is <strong>52.7% lower</strong>, while coverage inside 12 ± 1 N increases by <strong>27.5 percentage points</strong>.</li>
+<li>Actual normal-speed RMS is <strong>48.6% lower</strong>, consistent with less normal-direction excitation.</li>
+<li>The surface was prepared before both comparison campaigns, so sanding is a common condition rather than an explanation for the controller difference.</li>
+<li>Twelve newtons is an empirical preload choice supported by a low-load dropout attempt, a completed 10 N run, and a completed 12 N reference. It is not derived from the KSM-8N model name and is not claimed to be mathematically optimal.</li>
+<li>The automatic-tuning framework is implemented, but this report contains <strong>no fabricated or provisional tuning result</strong>.</li>
+</ul>
+<div class="metrics metrics-4">
+<div class="metric"><span>Force std</span><strong>0.661 N</strong><small>57.1% below Step5B mean</small></div>
+<div class="metric"><span>Force MAE</span><strong>0.551 N</strong><small>52.7% below Step5B mean</small></div>
+<div class="metric"><span>Within ±1 N</span><strong>83.3%</strong><small>+27.5 percentage points</small></div>
+<div class="metric"><span>Normal-speed RMS</span><strong>0.187 mm/s</strong><small>48.6% below Step5B mean</small></div>
+</div>
+<div class="scope-note">
+<p><strong>Interpretation boundary.</strong> These values compare independent physical runs with matched outer-loop parameters. Step5B and Step5D use different inner command realizations, so the data support a stability comparison but do not isolate one causal component.</p>
+</div>
+<details class="contents">
+<summary>Report contents</summary>
+
+1. [Executive summary](#summary)
+2. [Experimental setup and contact mechanics](#setup)
+3. [Surface preparation](#surface-preparation)
+4. [Why 12 N instead of 5 N](#why-12n)
+5. [From Step5B to Step5D](#step5b-to-step5d)
+6. [Fair comparison protocol](#comparison-protocol)
+7. [Force stability results](#force-stability)
+8. [Why Step5D appears more stable](#stability-mechanism)
+9. [Current Step5D completion boundary](#completion-boundary)
+10. [Automatic tuning objective](#tuning-objective)
+11. [Parameter grid and Bayesian Optimization](#parameter-search)
+12. [Physical experiment loop](#physical-loop)
+13. [Video evidence and next experiment](#video-next)
+
+</details>
+</section>
+<section id="setup">
+<p class="eyebrow">Experiment basis</p>
+<h2>Experimental setup and contact mechanics</h2>
+<p>The UR10e end effector uses a KSM ball-transfer unit as the rolling contact point. The measured Cartesian force is projected onto the current control normal, while the robot follows the prescribed tangential cycloid motion and regulates the normal load.</p>
+<div class="grid">
+<div class="span-7">
+<h3>What the controller must regulate</h3>
+<ul>
+<li><strong>Normal direction:</strong> maintain a compressive contact load near 12 N.</li>
+<li><strong>Tangential direction:</strong> complete the same cycloid motion without injecting unnecessary normal motion.</li>
+<li><strong>Orientation:</strong> remain locally consistent with the contact frame.</li>
+<li><strong>Joint realization:</strong> convert the Cartesian objective into commands that the robot can execute smoothly and safely.</li>
+</ul>
+<p>The contact force is not determined by the outer force law alone. Surface geometry, the rolling-ball mechanism, robot kinematics, command smoothing, joint acceleration, and the low-level robot controller all affect the measured response.</p>
+</div>
+<div class="span-5 panel">
+<h3>Evidence timeline</h3>
+<div class="timeline">
+<div><strong>Before 29 June</strong><span>Controlled surface preparation completed</span></div>
+<div><strong>2 July</strong><span>Step5B reference data collected</span></div>
+<div><strong>15 July</strong><span>Step5D comparison data collected</span></div>
+</div>
+<p>The preparation therefore precedes both controller comparisons.</p>
+</div>
+</div>
+</section>
+<section id="surface-preparation">
+<p class="eyebrow">Controlled experimental condition</p>
+<h2>Surface preparation</h2>
+<p><strong>The contact plate was progressively prepared using 240#, 320#, 400#, and 600# abrasive papers.</strong> The purpose was to remove local high spots and reduce abrupt changes along the rolling-contact path.</p>
+<div class="grid align-start">
+<figure class="span-5 figure portrait-figure">
+<div class="abrasive-crop">
+    <img loading="lazy" src="assets/surface_preparation_abrasives.jpg" alt="Screenshot listing 240, 320, 400, and 600 grit abrasive papers">
+  </div>
+<figcaption>Abrasive papers used for controlled surface preparation: 240#, 320#, 400#, and 600#. The screenshot documents the selected materials; it is not a surface-roughness measurement.</figcaption>
+</figure>
+<figure class="span-7 figure">
+<svg class="schematic" viewBox="0 0 820 390" role="img" aria-labelledby="surface-title surface-desc">
+  <title id="surface-title">Before and after surface-preparation schematic</title>
+  <desc id="surface-desc">A rolling ball encounters a local high spot before preparation and a smoother path after preparation.</desc>
+  <defs>
+    <marker id="arrow-blue" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#2e6ea6"/></marker>
+    <marker id="arrow-gray" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#5c6872"/></marker>
+  </defs>
+  <text x="30" y="42" class="svg-heading">Before preparation</text>
+  <path d="M30 250 C100 238, 145 258, 205 246 L245 188 L285 248 C345 258, 372 238, 395 244" class="surface-line rough"/>
+  <circle cx="245" cy="132" r="49" class="ball"/>
+  <line x1="245" y1="182" x2="245" y2="220" class="load-arrow" marker-end="url(#arrow-blue)"/>
+  <line x1="176" y1="235" x2="154" y2="178" class="normal-arrow" marker-end="url(#arrow-gray)"/>
+  <line x1="245" y1="188" x2="286" y2="143" class="normal-arrow" marker-end="url(#arrow-gray)"/>
+  <line x1="310" y1="242" x2="330" y2="184" class="normal-arrow" marker-end="url(#arrow-gray)"/>
+  <text x="151" y="290" class="svg-label">local high spot</text>
+  <text x="81" y="328" class="svg-note">surface normal changes rapidly</text>
+
+  <line x1="410" y1="28" x2="410" y2="350" class="divider"/>
+
+  <text x="445" y="42" class="svg-heading">After progressive preparation</text>
+  <path d="M445 250 C520 244, 575 247, 635 242 C700 238, 752 244, 790 241" class="surface-line smooth"/>
+  <circle cx="630" cy="188" r="49" class="ball"/>
+  <line x1="630" y1="238" x2="630" y2="270" class="load-arrow" marker-end="url(#arrow-blue)"/>
+  <line x1="535" y1="243" x2="535" y2="183" class="normal-arrow" marker-end="url(#arrow-gray)"/>
+  <line x1="630" y1="240" x2="630" y2="180" class="normal-arrow" marker-end="url(#arrow-gray)"/>
+  <line x1="725" y1="240" x2="725" y2="180" class="normal-arrow" marker-end="url(#arrow-gray)"/>
+  <text x="492" y="303" class="svg-label">smoother height variation</text>
+  <text x="488" y="334" class="svg-note">surface normal changes more continuously</text>
+</svg>
+<figcaption>A local high spot can create a short contact-force disturbance as the rolling ball crosses it. Progressive preparation reduces this uncontrolled geometric input, but no profilometer or R<sub>a</sub>/R<sub>z</sub> measurement is available.</figcaption>
+</figure>
+</div>
+<div class="callout blue">
+<p><strong>Common-condition conclusion.</strong> Surface preparation was common to both Step5B and Step5D comparison runs. It reduced uncontrolled surface disturbances, but it does not explain the observed difference between the two controllers.</p>
+</div>
+</section>
+<section id="why-12n">
+<p class="eyebrow">Target-force decision</p>
+<h2>Why 12 N instead of 5 N</h2>
+<p>The preload target was selected from the installed contact mechanics and physical evidence, not from the text “8N” in the product name.</p>
+<div class="grid three-up align-start">
+<figure class="span-4 figure product-figure">
+<div class="product-crop">
+    <img loading="lazy" src="assets/ksm_8n_m6_product.jpg" alt="Vendor product image for the KSM-8N M6 ball transfer unit">
+  </div>
+<div class="spec-strip">
+    <span><b>Model</b>KSM-8N</span>
+    <span><b>Main ball</b>φ 8 mm</span>
+    <span><b>Vendor capacity</b>≤196 N</span>
+  </div>
+<figcaption>“KSM-8N” is the model identifier; 8N does not mean 8 newtons. The same vendor image separately specifies an 8 mm main ball and a nominal load capacity of up to 196 N.</figcaption>
+</figure>
+<figure class="span-4 figure">
+<svg class="schematic ksm" viewBox="0 0 430 470" role="img" aria-labelledby="ksm-title ksm-desc">
+  <title id="ksm-title">Schematic load path through the ball-transfer unit</title>
+  <desc id="ksm-desc">A main ball rests on supporting balls within a housing and contacts a surface below.</desc>
+  <defs><marker id="arrow-load" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#2e6ea6"/></marker></defs>
+  <path d="M88 110 L88 350 Q88 390 128 390 L302 390 Q342 390 342 350 L342 110" class="housing"/>
+  <circle cx="215" cy="185" r="86" class="ball main-ball"/>
+  <circle cx="145" cy="285" r="25" class="support-ball"/>
+  <circle cx="215" cy="305" r="25" class="support-ball"/>
+  <circle cx="285" cy="285" r="25" class="support-ball"/>
+  <rect x="58" y="390" width="314" height="18" class="contact-surface"/>
+  <path d="M112 222 C138 250, 164 250, 184 236" class="clearance-zone"/>
+  <line x1="215" y1="40" x2="215" y2="91" class="load-arrow" marker-end="url(#arrow-load)"/>
+  <text x="230" y="57" class="svg-label">normal preload</text>
+  <line x1="313" y1="158" x2="372" y2="127" class="leader"/><text x="309" y="112" class="svg-label">main ball</text>
+  <line x1="291" y1="285" x2="377" y2="285" class="leader"/><text x="300" y="270" class="svg-label">supporting balls</text>
+  <line x1="93" y1="160" x2="28" y2="132" class="leader"/><text x="16" y="116" class="svg-label">housing</text>
+  <line x1="110" y1="239" x2="21" y2="239" class="leader"/><text x="10" y="218" class="svg-label">free-play /</text><text x="10" y="237" class="svg-label">reseating region</text>
+  <text x="123" y="442" class="svg-label">contact surface</text>
+</svg>
+<figcaption>Engineering schematic, not to scale. The installed unit transfers load through a main ball, small supporting balls, and housing. The possible free-play/reseating region is a mechanical interpretation, not a measured deadband.</figcaption>
+</figure>
+<div class="span-4 evidence-ladder">
+<h3>Physical evidence ladder</h3>
+<div class="evidence-step caution">
+<p><strong>5 N — insufficient margin in one attempt</strong></p>
+<p>One 5→15 N ramp attempt lost contact before the target exceeded approximately <strong>5.1 N</strong>. This is one physical attempt, not a strict mechanical threshold.</p>
+</div>
+<div class="evidence-step neutral">
+<p><strong>10 N — continuous motion validated</strong></p>
+<p>60.2 s completed; mean/median 10.26/10.21 N; p05/p95 7.11/13.47 N; max 18.55 N; 0.20 s below 5 N; 0 s above 20 N.</p>
+</div>
+<div class="evidence-step success">
+<p><strong>12 N — selected operating point</strong></p>
+<p>60 s completed; mean/median 12.265/12.197 N; p05/p95 10.298/14.611 N; max 16.952 N; 0 s below 5 N and 0 s above 20 N.</p>
+</div>
+</div>
+</div>
+<div class="callout green">
+<p><strong>Decision.</strong> Twelve newtons provides more preload margin than 5 N while remaining well inside the observed force envelope. It is about 6.1% of the vendor’s nominal 196 N component capacity, but robot and EOAT safety still depend on the actual guards and assembly—not on the vendor rating alone.</p>
+</div>
+</section>
+<section id="step5b-to-step5d">
+<p class="eyebrow">Controller realization</p>
+<h2>From Step5B to Step5D</h2>
+<p>Both controllers use the same local outer force law and target:</p>
+<div class="equation">v<sub>n,cmd</sub> = 0.001 e<sub>F</sub> + 10<sup>−5</sup> ∫e<sub>F</sub>dt − 7 v<sub>n</sub>, &nbsp; F<sub>target</sub> = 12 N</div>
+<p>The difference is how that Cartesian objective becomes robot motion.</p>
+<div class="controller-compare">
+<div class="controller-row step5b">
+<div class="controller-name">Step5B</div>
+<div class="flow-node">outer force-motion law</div>
+<div class="flow-arrow">→</div>
+<div class="flow-node">Cartesian speed command</div>
+<div class="flow-arrow">→</div>
+<div class="flow-node">robot</div>
+</div>
+<div class="controller-row step5d">
+<div class="controller-name">Step5D</div>
+<div class="flow-node">outer force-motion law</div>
+<div class="flow-arrow">→</div>
+<div class="flow-node">constrained RNN joint velocity</div>
+<div class="flow-arrow">→</div>
+<div class="flow-node">host slew limit</div>
+<div class="flow-arrow">→</div>
+<div class="flow-node">robot acceleration limit</div>
+<div class="flow-arrow">→</div>
+<div class="flow-node">robot</div>
+</div>
+</div>
+<div class="grid">
+<div class="span-6 panel">
+<h3>What Step5D adds</h3>
+<ul>
+<li>A joint-space solver coordinates all six joints while satisfying the task-space objective.</li>
+<li>Joint-velocity changes are explicitly limited before transmission.</li>
+<li>The robot-side acceleration setting adds another smoothing boundary.</li>
+</ul>
+</div>
+<div class="span-6 panel">
+<h3>What remains matched</h3>
+<ul>
+<li>12 N target, <strong>P = 0.001</strong>, <strong>I = 10⁻⁵</strong>, <strong>damping = 7</strong>.</li>
+<li>Same integral limit and tangential gain.</li>
+<li>Locally equivalent orientation gain and the same contact path.</li>
+</ul>
+</div>
+</div>
+</section>
+<section id="comparison-protocol">
+<p class="eyebrow">Measurement contract</p>
+<h2>Fair comparison protocol</h2>
+<p><strong>The comparison keeps the outer-loop conditions fixed and reports two Step5B physical references rather than hiding run-to-run variation.</strong></p>
+<div class="grid align-start">
+<div class="span-7">
+<table>
+<thead>
+<tr>
+<th>Comparison item</th>
+<th style="text-align: right;">Locked value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Target force</td>
+<td style="text-align: right;">12 N</td>
+</tr>
+<tr>
+<td>P</td>
+<td style="text-align: right;">0.001</td>
+</tr>
+<tr>
+<td>I</td>
+<td style="text-align: right;">10⁻⁵</td>
+</tr>
+<tr>
+<td>Damping</td>
+<td style="text-align: right;">7</td>
+</tr>
+<tr>
+<td>Integral limit</td>
+<td style="text-align: right;">1 N·s</td>
+</tr>
+<tr>
+<td>Tangential gain</td>
+<td style="text-align: right;">1.5</td>
+</tr>
+<tr>
+<td>Headline interval</td>
+<td style="text-align: right;">5–60 s of main contact control</td>
+</tr>
+<tr>
+<td>Resampling</td>
+<td style="text-align: right;">fixed 100 ms bins</td>
+</tr>
+<tr>
+<td>Samples per run</td>
+<td style="text-align: right;">exactly 550 bin means</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="span-5 panel">
+<h3>Metric definitions</h3>
+<ul>
+<li><strong>Force standard deviation:</strong> population standard deviation of 550 mean-load bins.</li>
+<li><strong>Force MAE:</strong> mean (|F_i-12|) over the same bins.</li>
+<li><strong>Within ±1 N:</strong> share of bins satisfying |F<sub>i</sub> − 12| ≤ 1 N.</li>
+<li><strong>Normal-speed RMS:</strong> RMS of raw Cartesian speed projected onto the control normal over the same 5–60 s interval.</li>
+</ul>
+</div>
+</div>
+<p>The historical comparison uses elapsed monotonic time measured from the first main-control row. This preserves 550 bins for all three runs despite scheduler gaps in the Step5D recording. The first 5 s are shown separately as contact-transition context and are excluded from headline metrics.</p>
+<div class="callout amber">
+<p><strong>Limitations.</strong> These are independent physical runs, not a randomized A/B experiment. Step5B and Step5D have different inner realizations. The evidence therefore compares observed stability under matched outer parameters; it cannot attribute every improvement to the RNN alone.</p>
+</div>
+</section>
+<section class="results-section" id="force-stability">
+<p class="eyebrow">Matched 12 N comparison</p>
+<h2>Force stability results</h2>
+<h3>Step5D lowers fluctuation without shifting the mean load</h3>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th style="text-align: right;">Step5B mean</th>
+<th style="text-align: right;">Step5D</th>
+<th style="text-align: right;">Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Force standard deviation</td>
+<td style="text-align: right;">1.539 N</td>
+<td style="text-align: right;">0.661 N</td>
+<td style="text-align: right;">57.1% lower</td>
+</tr>
+<tr>
+<td>Force MAE</td>
+<td style="text-align: right;">1.165 N</td>
+<td style="text-align: right;">0.551 N</td>
+<td style="text-align: right;">52.7% lower</td>
+</tr>
+<tr>
+<td>Within ±1 N</td>
+<td style="text-align: right;">55.8%</td>
+<td style="text-align: right;">83.3%</td>
+<td style="text-align: right;">+27.5 percentage points</td>
+</tr>
+<tr>
+<td>Normal-speed RMS</td>
+<td style="text-align: right;">0.364 mm/s</td>
+<td style="text-align: right;">0.187 mm/s</td>
+<td style="text-align: right;">48.6% lower</td>
+</tr>
+<tr>
+<td>Mean load</td>
+<td style="text-align: right;">12.278 N</td>
+<td style="text-align: right;">12.265 N</td>
+<td style="text-align: right;">−0.013 N</td>
+</tr>
+</tbody>
+</table>
+<p>The mean load changes by only 0.013 N, so the primary difference is reduced variation rather than a shifted operating point.</p>
+<figure class="figure wide">
+  <img loading="lazy" src="assets/normal_load_vs_time.svg" alt="Three aligned time-series panels comparing normal load for two Step5B references and Step5D">
+  <figcaption><b>Normal load versus time.</b> The gray 0–5 s region is shown for context and excluded from headline metrics. Step5D remains visibly tighter around the 12 N target through the full cycloid interval. Source: physical RTDE logs, independently recomputed at 100 ms.</figcaption>
+</figure>
+<p>The time-series view shows where the aggregate improvement comes from: both Step5B references contain larger oscillatory intervals, while Step5D’s deviations are smaller and more uniform.</p>
+<figure class="figure wide">
+  <img loading="lazy" src="assets/metric_small_multiples.svg" alt="Four small-multiple dot plots comparing force standard deviation, force MAE, target-band coverage, and normal-speed RMS">
+  <figcaption><b>Four matched metrics.</b> Both Step5B physical points are shown, followed by their mean and the Step5D result. This avoids presenting a single favorable Step5B run as the baseline.</figcaption>
+</figure>
+<p>The improvement is consistent across all four headline measures: lower force spread, lower absolute error, greater target-band coverage, and lower actual normal-direction motion.</p>
+<figure class="figure wide">
+  <img loading="lazy" src="assets/five_second_stability_windows.svg" alt="Five-second mean and population-standard-deviation windows for Step5B and Step5D">
+  <figcaption><b>Five-second stability windows.</b> Error bars summarize raw-row mean ± population standard deviation in each 5 s interval. The first window is transition context; all later windows cover the motion used for the headline comparison.</figcaption>
+</figure>
+<p>Step5D’s window-to-window mean still follows the contact path, but its within-window spread remains consistently smaller—especially where Step5B exhibits the largest oscillations.</p>
+</section>
+<section id="stability-mechanism">
+<p class="eyebrow">Mechanism and limits</p>
+<h2>Why Step5D appears more stable</h2>
+<p>The strongest direct mechanism evidence is the reduction in actual normal-direction motion: <strong>0.364 mm/s RMS for the Step5B mean versus 0.187 mm/s for Step5D</strong>. Less normal-motion excitation is consistent with smaller contact-force fluctuation.</p>
+<figure class="figure wide">
+  <img loading="lazy" src="assets/motion_force_relationship.svg" alt="Three scatter panels showing 100 ms normal-speed RMS against absolute force error">
+  <figcaption><b>Motion–force relationship at 100 ms grain.</b> Step5D occupies a tighter low-motion, low-error region. Within-run correlations are weak (r = +0.08 to +0.22), so the chart supports co-occurrence at the run level rather than a simple one-variable causal model.</figcaption>
+</figure>
+<p>Three mechanisms plausibly act together:</p>
+<ol>
+<li>The constrained RNN solver coordinates the six joints while satisfying the Cartesian task.</li>
+<li>The host joint-velocity slew limit suppresses abrupt command changes.</li>
+<li>The robot-side acceleration limit further smooths the realized joint motion.</li>
+</ol>
+<div class="callout amber">
+<p><strong>Causal boundary.</strong> The current runs change the entire inner realization together. The next controlled study should separately remove or vary the host slew limit and the robot-side acceleration limit before assigning the full improvement to the RNN solver.</p>
+</div>
+</section>
+<section id="completion-boundary">
+<p class="eyebrow">Current evidence boundary</p>
+<h2>Current Step5D completion boundary</h2>
+<div class="status-grid">
+<div class="status-card done"><span>Physical evidence</span><strong>Completed</strong><p>A complete contact trajectory produced the force/path data used in this report, with the robot remaining inside the observed force envelope.</p></div>
+<div class="status-card implemented"><span>Scheduler remediation</span><strong>Implemented and checked offline</strong><p>The revised scheduling route completed an offline 60.15 s timing test with 1.18 ms p99, 4.01 ms maximum gap, and no gap above 20 ms.</p></div>
+<div class="status-card pending"><span>Remaining confirmation</span><strong>Physical run pending</strong><p>The scheduler-remediated route still needs a physical contact confirmation. A new Step5D video and tuning campaign follow after that check.</p></div>
+</div>
+<p>The force-stability conclusion is tied to the completed physical run. The timing remediation is described as implemented and offline-verified—not as fully validated on the robot.</p>
+</section>
+<section id="tuning-objective">
+<p class="eyebrow">No invented tuning results</p>
+<h2>Automatic tuning objective</h2>
+<p>The optimizer minimizes force-tracking error over the same 55 s evaluation window:</p>
+<div class="equation large">J(θ) = (1/N) Σ<sub>i=1</sub><sup>N</sup> |12 N − F<sub>i</sub>|, &nbsp; N = 550</div>
+<p>Here, F<sub>i</sub> is the mean normal load in one fixed 100 ms bin from 5–60 s. The first 5 s are excluded from the objective.</p>
+<div class="grid">
+<div class="span-6 panel">
+<h3>Optimization variables</h3>
+<ul>
+<li>P</li>
+<li>I</li>
+<li>damping</li>
+</ul>
+<p>The execution profile—normal rate, host slew, and robot acceleration—is recorded separately so controller gains are not silently mixed with motion aggressiveness.</p>
+</div>
+<div class="span-6 panel">
+<h3>Feasibility constraints</h3>
+<ul>
+<li>safety and force-envelope checks;</li>
+<li>continuous contact;</li>
+<li>path and orientation tracking;</li>
+<li>feedback freshness and controller alignment;</li>
+<li>complete retraction and return home;</li>
+<li>a complete, immutable evidence bundle.</li>
+</ul>
+</div>
+</div>
+<p>An infrastructure or platform failure is not treated as evidence that a gain candidate is bad. Only eligible physical trials enter the optimizer history.</p>
+<div class="callout blue">
+<p><strong>Current report state.</strong> The framework is implemented, but no eligible tuning trial is presented here. The page will add parameter history, best-so-far MAE, repeatability, and the next candidate only after real evidence exists.</p>
+</div>
+</section>
+<section id="parameter-search">
+<p class="eyebrow">Structured search</p>
+<h2>Parameter grid and Bayesian Optimization</h2>
+<h3>Log-scale parameter lattice</h3>
+<div class="equation">θ = θ<sub>0</sub> · 2<sup>k/4</sup>, &nbsp; adjacent ratio = 2<sup>0.25</sup> ≈ 1.189</div>
+<p>Baseline: P₀ = 0.001, I₀ = 10⁻⁵, damping₀ = 7.</p>
+<table>
+<thead>
+<tr>
+<th>Search condition</th>
+<th style="text-align: right;">P</th>
+<th style="text-align: right;">I</th>
+<th style="text-align: right;">damping</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Initial neighborhood</td>
+<td style="text-align: right;">k = −4,…,4</td>
+<td style="text-align: right;">fixed at baseline</td>
+<td style="text-align: right;">k = −4,…,4</td>
+</tr>
+<tr>
+<td>After ≥6 eligible trials and ≤15% repeat error</td>
+<td style="text-align: right;">k = −6,…,6</td>
+<td style="text-align: right;">off or k = −4,…,4</td>
+<td style="text-align: right;">k = −6,…,6</td>
+</tr>
+<tr>
+<td>After repeated improvement at a boundary</td>
+<td style="text-align: right;">k = −8,…,8</td>
+<td style="text-align: right;">off or k = −8,…,8</td>
+<td style="text-align: right;">k = −8,…,8</td>
+</tr>
+</tbody>
+</table>
+<p>The controller interpretation is</p>
+<div class="equation compact">M<sub>d</sub> = 1/P, &nbsp; k<sub>f</sub> = I/P, &nbsp; B<sub>d</sub> = damping/P.</div>
+<h3>Controller gains and execution profile remain separate</h3>
+<table>
+<thead>
+<tr>
+<th>Controller optimization</th>
+<th>Execution-profile choices</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P, I, damping</td>
+<td>normal rate: 0.010, 0.015, 0.020 rad/s</td>
+</tr>
+<tr>
+<td>objective: force MAE</td>
+<td>host q̇ slew: 0.1, 0.2, 0.5 rad/s²</td>
+</tr>
+<tr>
+<td>candidate must remain feasible</td>
+<td>robot acceleration: 0.1, 0.2, 0.5 rad/s²</td>
+</tr>
+<tr>
+<td></td>
+<td>q̇ cap fixed at 0.5 rad/s</td>
+</tr>
+</tbody>
+</table>
+<h3>Bayesian Optimization loop</h3>
+<ol>
+<li>Run the exact baseline.</li>
+<li>Explore adjacent grid points until at least six eligible observations exist.</li>
+<li>Fit a Gaussian Process to objective and uncertainty.</li>
+<li>Use <code>qLogNoisyExpectedImprovement</code> to choose one candidate.</li>
+<li>Limit each candidate to one grid step and one coordinate from the incumbent.</li>
+<li>Re-test the incumbent every fourth trial.</li>
+<li>Immediately repeat any candidate with MAE ≤ 0.30 N.</li>
+<li>Declare success only when two eligible repeats are both ≤ 0.30 N and differ by no more than 15%.</li>
+</ol>
+</section>
+<section id="physical-loop">
+<p class="eyebrow">Physical evidence generation</p>
+<h2>Physical experiment loop</h2>
+<div aria-label="Physical tuning loop from home verification through candidate selection" class="experiment-loop" role="img">
+<div>verify home</div><span>→</span>
+  <div>load candidate</div><span>→</span>
+  <div>approach</div><span>→</span>
+  <div>establish contact</div><span>→</span>
+  <div>run 60 s cycloid at 12 N</div><span>→</span>
+  <div>retract</div><span>→</span>
+  <div>return home</div><span>→</span>
+  <div>verify safety and save evidence</div><span>→</span>
+  <div>select next candidate</div>
+</div>
+<p>The loop is serial: one candidate is physically evaluated, safely closed out, checked for evidence eligibility, and only then exposed to the optimizer. Safety, contact continuity, path tracking, and the return-home result remain hard gates rather than soft objective penalties.</p>
+<h3>Report update pipeline</h3>
+<div class="pipeline">
+<div>raw CSVs</div><span>→</span><div>comparison script</div>
+<p><span>→</span><div>metrics JSON + SVG/PNG</div><span>→</span><div>Markdown source</div><span>→</span><div>HTML report</div>
+</div></p>
+<p>If eligible tuning trials become available, the same pipeline adds parameter history, best-so-far MAE, repeatability, and the next proposed candidate. If no eligible trial exists, the report keeps the framework only.</p>
+</section>
+<section id="video-next">
+<p class="eyebrow">Evidence handoff</p>
+<h2>Video evidence and next experiment</h2>
+<div class="grid align-start">
+<figure class="span-5 figure video-figure">
+<video aria-label="Previous external-loop contact-control demo used as a temporary video placeholder" controls poster="assets/previous_contact_control_demo_poster.jpg" preload="metadata" src="assets/previous_contact_control_demo.mp4"></video>
+<figcaption><b>Previous contact-control demo — placeholder until the new Step5D recording is available.</b> This is context footage from an earlier external-loop experiment, not Step5D physical evidence.</figcaption>
+</figure>
+<div class="span-7">
+<h3>Next physical sequence</h3>
+<ol>
+<li>Confirm the scheduler-remediated route in one guarded physical contact run.</li>
+<li>Record a new Step5D video under the matched 12 N condition.</li>
+<li>Run the exact tuning baseline before proposing a new candidate.</li>
+<li>Admit only complete, safe trials with all 550 objective bins.</li>
+<li>Update this report automatically from the new evidence bundle.</li>
+</ol>
+<h3>Questions the next experiment should answer</h3>
+<ul>
+<li>Does the timing remediation preserve the force-stability result on hardware?</li>
+<li>How much improvement comes from the RNN solver versus host slew limiting and robot acceleration limiting?</li>
+<li>Can the tuning objective reach MAE ≤ 0.30 N twice with ≤15% repeat error?</li>
+</ul>
+<div class="callout green">
+<p><strong>Current takeaway.</strong> Step5D has completed the contact task with materially lower force fluctuation and normal-motion activity under the matched outer-loop setting. The next claim boundary is physical timing confirmation, followed by controlled gain and execution-profile ablations.</p>
+</div>
+</div>
+</div>
+</section>
+    <footer>Audience-facing report generated from the retained Markdown source and independently recomputed physical evidence.</footer>
+  </main>
+  <script>
+    (() => {
+      const links = [...document.querySelectorAll('nav a')];
+      const targets = links.map(link => document.querySelector(link.getAttribute('href'))).filter(Boolean);
+      const observer = new IntersectionObserver(entries => {
+        const visible = entries.filter(entry => entry.isIntersecting).sort((a,b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (!visible) return;
+        links.forEach(link => link.classList.toggle('active', link.getAttribute('href') === '#' + visible.target.id));
+      }, { rootMargin: '-25% 0px -60% 0px', threshold: [0, .1, .4] });
+      targets.forEach(target => observer.observe(target));
+    })();
+  </script>
+</body>
+</html>
