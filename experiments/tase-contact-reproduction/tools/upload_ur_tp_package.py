@@ -1869,7 +1869,8 @@ def write_manifest(
     target_override_reason: str | None = None,
     program: str | None = None,
     inactive_candidate_delivery: dict | None = None,
-) -> None:
+    upload_transaction_id: str | None = None,
+) -> Path | None:
     manifest = {
         "status": "dry-run" if dry_run else "controller read-back verified",
         "controller": controller,
@@ -1910,9 +1911,35 @@ def write_manifest(
             "semantic_fingerprint": local_candidate_marker.get("semantic_fingerprint"),
             "stamp": local_candidate_marker.get("stamp"),
         }
+    if upload_transaction_id is not None:
+        manifest["upload_transaction_id"] = upload_transaction_id
     if not dry_run:
-        (readback_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        manifest_path = readback_dir / "manifest.json"
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    else:
+        manifest_path = None
     print(json.dumps(manifest, indent=2))
+    return manifest_path
+
+
+def write_manifest_result(
+    output: Path,
+    *,
+    manifest_path: Path,
+    upload_transaction_id: str,
+) -> None:
+    if output.exists():
+        die(f"refusing to overwrite manifest-path output: {output}")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": "ur10e_upload_result_v1",
+        "upload_transaction_id": upload_transaction_id,
+        "manifest_path": str(manifest_path.resolve()),
+        "manifest_sha256": sha256(manifest_path),
+    }
+    temporary = output.with_suffix(output.suffix + ".tmp")
+    temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temporary.replace(output)
 
 
 def _main(argv: list[str] | None = None) -> int:
@@ -1942,13 +1969,34 @@ def _main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--local-dir", type=Path, default=PROGRAM_DIR, help=f"default: {PROGRAM_DIR}")
     parser.add_argument("--readback-root", type=Path, default=RUN_ROOT, help=f"default: {RUN_ROOT}")
+    parser.add_argument(
+        "--upload-transaction-id",
+        default=None,
+        help="opaque identity supplied by a serialized transaction coordinator",
+    )
+    parser.add_argument(
+        "--manifest-path-output",
+        type=Path,
+        default=None,
+        help="write an exact manifest-path handoff for the transaction coordinator",
+    )
     parser.add_argument("--dry-run", action="store_true", help="print SSH/SCP plan and validate local files only")
     parser.add_argument(
         "--force-upload-readback",
         action="store_true",
-        help="disable SHA-matched read-back reuse and force put/get verification",
+        help="compatibility flag; fresh put/get verification is already the default",
+    )
+    parser.add_argument(
+        "--allow-readback-reuse",
+        action="store_true",
+        help="development-only optimization; controller_verified promotion still requires fresh put/get",
     )
     args = parser.parse_args(argv)
+
+    if (args.upload_transaction_id is None) != (args.manifest_path_output is None):
+        die("--upload-transaction-id and --manifest-path-output must be supplied together")
+    if args.dry_run and args.manifest_path_output is not None:
+        die("dry-run cannot publish a controller read-back manifest path")
 
     program = normalize_program(args.program)
     inactive_delivery_policy = enforce_offline_candidate_delivery_block(program)
@@ -2014,7 +2062,7 @@ def _main(argv: list[str] | None = None) -> int:
     delivery_mode = "full_upload_readback"
     readback_source = "fresh_controller_get"
     reuse_result = None
-    if not args.dry_run and not args.force_upload_readback:
+    if args.allow_readback_reuse and not args.dry_run and not args.force_upload_readback:
         reuse_result = reuse_readback_if_remote_sha_matches(
             files,
             program,
@@ -2058,6 +2106,7 @@ def _main(argv: list[str] | None = None) -> int:
             target_resolution=table_resolution,
             target_override_reason=target_override_reason,
             inactive_candidate_delivery=inactive_candidate_delivery,
+            upload_transaction_id=args.upload_transaction_id,
         )
         return 0
 
@@ -2068,7 +2117,7 @@ def _main(argv: list[str] | None = None) -> int:
         target_dir,
         require_exact_cached_script=True,
     )
-    write_manifest(
+    manifest_path = write_manifest(
         readback_dir,
         program=program,
         controller=args.controller,
@@ -2086,7 +2135,16 @@ def _main(argv: list[str] | None = None) -> int:
         target_resolution=table_resolution,
         target_override_reason=target_override_reason,
         inactive_candidate_delivery=inactive_candidate_delivery,
+        upload_transaction_id=args.upload_transaction_id,
     )
+    assert manifest_path is not None
+    if args.manifest_path_output is not None:
+        assert args.upload_transaction_id is not None
+        write_manifest_result(
+            args.manifest_path_output,
+            manifest_path=manifest_path,
+            upload_transaction_id=args.upload_transaction_id,
+        )
     if local_candidate_marker is not None and local_candidate_marker.get("program") == program:
         promote_local_candidate_marker_after_readback(
             args.local_dir,

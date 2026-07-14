@@ -8,11 +8,21 @@
   ],
   "cache_external_fixture_globs": [
     "config/**/*.json",
+    "tools/ur10e_artifact_store.py",
+    "tools/step5d_workflow_state.py",
     "tests/fixtures/**/*",
     "requirements-test.txt",
     "pytest.ini"
   ],
   "rules": [
+    {
+      "paths": ["tools/ur10e_artifact_store.py", "tools/step5d_workflow_state.py", "tools/step5d_fast_gate.py", "config/step5d/current.json", "config/step5d/manifests/**", "config/step5d/artifact_locators/**"],
+      "tests": ["tests/test_step5d_workflow_state.py", "tests/test_step5d_fast_gate.py", "tests/test_step5d_current_binding_gate.py"]
+    },
+    {
+      "paths": ["tools/build_step5d_v35_freeze_binding.py", "tools/verify_step5d_contact_v35.py", "tools/run_step5d_v34_live_path_timing.py", "config/step5d_v35_*.json", "config/reviews/step5d_v35_*"],
+      "tests": ["tests/test_step5d_v35_quota_safe_scheduler.py", "tests/test_step5d_current_binding_gate.py", "tests/test_step5d_workflow_state.py"]
+    },
     {
       "paths": ["tools/step5d_control_contract.py"],
       "tests": ["tests/test_step5d_v30_control_contract.py", "tests/test_step5d_p0_hotpath_equivalence.py", "tests/test_step5d_v30_profile.py", "tests/test_step5d_simulator_adapter.py"]
