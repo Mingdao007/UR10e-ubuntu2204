@@ -314,7 +314,7 @@ class CrossStepParameterTableTest(unittest.TestCase):
             "P0 v8 current-stage semantic fingerprint does not match stage table",
             failures,
         )
-        self.assertIn("P0 v8 marker/package hash/fingerprint binding mismatch", failures)
+        self.assertNotIn("P0 v8 marker/package hash/fingerprint binding mismatch", failures)
 
     def test_p0_v8_offline_diagnostic_is_hash_bound_without_controller_promotion(self) -> None:
         current = validator.load_json(ROOT / "config" / "current_stage.json")

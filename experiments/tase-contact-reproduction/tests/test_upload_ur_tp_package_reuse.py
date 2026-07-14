@@ -60,10 +60,10 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
 
         self.assertIsNotNone(resolution)
         assert resolution is not None
-        self.assertEqual(resolution["controller_dir"], "/programs/andyl/kunwei/step5")
+        self.assertEqual(resolution["controller_dir"], "/programs/andyl/kunwei/step5/archive")
         self.assertEqual(
             resolution["controller_target"],
-            "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v8.urp",
+            "/programs/andyl/kunwei/step5/archive/step5d_strict_rnn_no_contact_p0_v8.urp",
         )
         self.assertEqual(
             resolution["source"],
@@ -500,14 +500,14 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
                 [
                     "step5d_strict_rnn_no_contact_p0_v7",
                     "--local-dir",
-                    str(ROOT / "programs" / "step5" / "step5d"),
+                    str(ROOT / "programs" / "step5" / "step5d" / "archive"),
                     "--dry-run",
                 ]
             )
 
         self.assertEqual(result, 0)
         manifest = manifest_from_upload_output(out.getvalue())
-        self.assertEqual(manifest["target_dir"], "/programs/andyl/kunwei/step5")
+        self.assertEqual(manifest["target_dir"], "/programs/andyl/kunwei/step5/archive")
         self.assertEqual(manifest["target_source"], "table")
         self.assertEqual(manifest["target_resolution"]["row_id"], "step5d_strict_rnn_no_contact_p0_v7")
 

@@ -244,7 +244,7 @@ class Step5dNoContactP0V8Test(unittest.TestCase):
             (ROOT / "config" / "current_stage.json").read_text(encoding="utf-8")
         )["bridge_trigger"]["no_contact_p0_v8_capture"]
         expected_target = (
-            "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v8.urp"
+            "/programs/andyl/kunwei/step5/archive/step5d_strict_rnn_no_contact_p0_v8.urp"
             if capture["controller_readback_verified"]
             else "LOCAL_ONLY_NOT_DELIVERED"
         )

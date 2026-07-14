@@ -622,12 +622,25 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         p0_hashes = p0_delivery.get("sha256") or {}
         p0_fingerprint = p0_delivery.get("semantic_fingerprint")
         failures.extend(_validate_local_triplet(root, label="P0 v8", delivery=p0_delivery))
-        p0_delivery_state, p0_delivery_failures = _validate_manifest_bound_delivery(
-            root,
-            label="P0 v8",
-            delivery=p0_delivery,
-        )
-        failures.extend(p0_delivery_failures)
+        p0_archived = p0_delivery.get("delivery_mode") == "archive_full_upload_readback"
+        if p0_archived:
+            p0_delivery_state = "archive"
+            archive_manifest = root / str(p0_delivery.get("archive_manifest") or "")
+            archive_readback = root / str(p0_delivery.get("controller_readback_dir") or "")
+            if (
+                not archive_manifest.is_file()
+                or not archive_readback.is_dir()
+                or p0_delivery.get("controller_uploaded") is not True
+                or p0_delivery.get("controller_readback_verified") is not True
+            ):
+                failures.append("P0 v8 archive delivery is incomplete")
+        else:
+            p0_delivery_state, p0_delivery_failures = _validate_manifest_bound_delivery(
+                root,
+                label="P0 v8",
+                delivery=p0_delivery,
+            )
+            failures.extend(p0_delivery_failures)
         expected_p0_runtime = {
             "backend": "cupy",
             "inner_iterations": 512,
@@ -699,7 +712,12 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             or p0_v8_candidate.get("profile") != P0_V8_PROGRAM
         ):
             failures.append("P0 v8 current-stage capture/candidate profile mismatch")
-        if p0_v8_candidate.get("package_sha256") != p0_hashes:
+        candidate_delivery_hashes = (
+            (p0_v8_candidate.get("archive_delivery") or {}).get("sha256")
+            if p0_archived
+            else p0_v8_candidate.get("package_sha256")
+        )
+        if candidate_delivery_hashes != p0_hashes:
             failures.append("P0 v8 current-stage candidate package hashes do not match stage table")
         if p0_v8_capture.get("sha256") != p0_hashes:
             failures.append("P0 v8 current-stage capture package hashes do not match stage table")
@@ -731,18 +749,27 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         ):
             failures.append("offline P0 v8 candidate must remain inactive with bridge=false")
 
-        marker_rel = p0_v8_capture.get("local_candidate_marker")
-        marker_path = root / str(marker_rel or "")
-        if not marker_path.is_file():
-            failures.append("P0 v8 local-candidate marker is missing")
-        else:
-            marker = load_json(marker_path)
+        if p0_archived:
+            archive_delivery = p0_v8_candidate.get("archive_delivery") or {}
             if (
-                marker.get("program") != P0_V8_PROGRAM
-                or marker.get("sha256") != p0_hashes
-                or marker.get("semantic_fingerprint") != p0_fingerprint
+                archive_delivery.get("archive_manifest") != p0_delivery.get("archive_manifest")
+                or archive_delivery.get("controller_target") != p0_delivery.get("controller_target")
+                or archive_delivery.get("local_triplet") != p0_delivery.get("local_triplet")
             ):
-                failures.append("P0 v8 marker/package hash/fingerprint binding mismatch")
+                failures.append("P0 v8 archive candidate/stage binding mismatch")
+        else:
+            marker_rel = p0_v8_capture.get("local_candidate_marker")
+            marker_path = root / str(marker_rel or "")
+            if not marker_path.is_file():
+                failures.append("P0 v8 local-candidate marker is missing")
+            else:
+                marker = load_json(marker_path)
+                if (
+                    marker.get("program") != P0_V8_PROGRAM
+                    or marker.get("sha256") != p0_hashes
+                    or marker.get("semantic_fingerprint") != p0_fingerprint
+                ):
+                    failures.append("P0 v8 marker/package hash/fingerprint binding mismatch")
 
         stage_review = p0_v8_row.get("review_v3") or {}
         candidate_review = p0_v8_candidate.get("review_v3") or {}

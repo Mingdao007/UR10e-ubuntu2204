@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -339,8 +340,8 @@ def verify_p0_unit_run(run_dir: Path, **kwargs: object) -> dict[str, object]:
 P0_V7_STAGE_ID = "step5d_strict_rnn_no_contact_p0_v7"
 P0_V7_SHA256 = {
     ".script": "2e22e7bc89355d7d01c6f0102bcce4103f104bce0a4f1bab72a044934745a297",
-    ".txt": "2d88b3f6d670a9eaf8790c50b4286b1000d9c4121ba65d0c4fcf3a2e3ead8663",
-    ".urp": "e06d7da1949a2f76ab57e6786296a6f65e8c2a6808223fe95ef9709b687de251",
+    ".txt": "4f0fc12fd85d92b90d7ab1732766cd1eb4535c5569953838445dd21211dec5b9",
+    ".urp": "c44cf75baadac584f5e98341186eb0492dc2bc07cd0e22437b577d53d9eba736",
 }
 
 
@@ -353,8 +354,8 @@ def install_sandbox_p0_readback(config_root: Path, run_root: Path) -> Path:
             {
                 "validation": {
                     "program": iface.STEP5D_NO_CONTACT_P0_STAGE_ID,
-                    "target_dir": "/programs/andyl/kunwei/step5",
-                    "script_node_path": f"/programs/andyl/kunwei/step5/{iface.STEP5D_NO_CONTACT_P0_STAGE_ID}.script",
+                    "target_dir": "/programs/andyl/kunwei/step5/archive",
+                    "script_node_path": f"/programs/andyl/kunwei/step5/archive/{iface.STEP5D_NO_CONTACT_P0_STAGE_ID}.script",
                 },
                 "sha256": {
                     "local": P0_V7_SHA256,
@@ -1215,7 +1216,7 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertEqual(args.max_torque_norm_nm, 3.0)
 
     def test_worktree_no_contact_p0_triplet_matches_current_stage_metadata(self) -> None:
-        stem = ROOT / "programs" / "step5" / "step5d" / iface.STEP5D_NO_CONTACT_P0_STAGE_ID
+        stem = ROOT / "programs" / "step5" / "step5d" / "archive" / iface.STEP5D_NO_CONTACT_P0_STAGE_ID
         files = {ext: stem.with_suffix(ext) for ext in (".script", ".txt", ".urp")}
         current = json.loads((ROOT / "config" / "current_stage.json").read_text(encoding="utf-8"))
         capture = current["bridge_trigger"]["no_contact_p0_capture"]
@@ -1228,16 +1229,19 @@ class Step5dNoContactP0Test(unittest.TestCase):
         else:
             self.assertTrue(capture["archived_not_gate_for_v29"])
             self.assertEqual(capture["status"], "abandoned_archived_not_v29_gate")
-        self.assertEqual(capture["local_triplet"], f"programs/step5/step5d/{P0_V7_STAGE_ID}")
+        self.assertEqual(capture["local_triplet"], f"programs/step5/step5d/archive/{P0_V7_STAGE_ID}")
         self.assertEqual(
             capture["controller_target"],
-            f"/programs/andyl/kunwei/step5/{P0_V7_STAGE_ID}.urp",
+            f"/programs/andyl/kunwei/step5/archive/{P0_V7_STAGE_ID}.urp",
         )
         for ext, path in files.items():
             self.assertTrue(path.exists(), path)
             self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), capture["sha256"][ext])
 
-        spec = liveprep.spec_for(iface.STEP5D_NO_CONTACT_P0_STAGE_ID)
+        spec = replace(
+            liveprep.spec_for(iface.STEP5D_NO_CONTACT_P0_STAGE_ID),
+            controller_dir="/programs/andyl/kunwei/step5/archive",
+        )
         liveprep.validate_package(
             files[".script"].read_text(encoding="utf-8"),
             files[".txt"].read_text(encoding="utf-8"),

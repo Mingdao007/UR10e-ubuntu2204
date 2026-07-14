@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "source_controller_directory": "/programs/andyl/kunwei/step5",
+  "archive_controller_directory": "/programs/andyl/kunwei/step5/archive",
+  "triplets": [
+    {
+      "basename": "step5d_strict_rnn_no_contact_p0_v1",
+      "sha256": {
+        ".script": "d1bf2644d0b686094a4f420fcc5e25cb19f51f65845b5a3ff40377c634e3e0cf",
+        ".txt": "f9a1034c71873cf07e32e0701dcbf6fa8dd1ae9d6733bba3cc1fa48db8a66295",
+        ".urp": "5f85f51f256cf5511506cfd19d933d6338c9d8387e17169ff82638bc69896ef8"
+      }
+    },
+    {
+      "basename": "step5d_strict_rnn_no_contact_p0_v2",
+      "sha256": {
+        ".script": "2baf14592809b3f7ca6c21d7e56fa4f97317297f2868547890a4a6f3c7d0f596",
+        ".txt": "51c21d4657c3dcc16031cac826a092dfdf7c8caaff90eb7207a6fc265cd8c9ca",
+        ".urp": "4ef1a1010f6204eb224a151d4fc3347ce096482a1294aec5239176aafc51da5b"
+      }
+    },
+    {
+      "basename": "step5d_strict_rnn_no_contact_p0_v3",
+      "sha256": {
+        ".script": "072e5d4fd69516e59d715ac8c8a3c97a19a5896819188f2bfa430eea23db6757",
+        ".txt": "8e99abb1811d719e83f16cb499602681d2f6cd89609437c3c7e952d5bc5313cb",
+        ".urp": "44caad0697496aef04f0caa0b8e7d84704cbc5c039572b916423227d501e8fc1"
+      }
+    },
+    {
+      "basename": "step5d_strict_rnn_no_contact_p0_v4",
+      "sha256": {
+        ".script": "860e0f126d45e4c791a04b8a48b36d19feeffba651f708d6e6cc5bd5b57d90b7",
+        ".txt": "5aeaec997bb4a9243c89b82f04cbc202238e37754d0682a5d4f0fa4829c2d1de",
+        ".urp": "2f959f8dfbe89b8f1416ea798d99faf7ee5c3ed9ee523f9a715ca167eb3711dd"
+      }
+    },
+    {
+      "basename": "step5d_strict_rnn_no_contact_p0_v6",
+      "sha256": {
+        ".script": "5e1a077ef60a60893e6150d8ceb4560faac0b43ac3b34ffa53ca133daac202f3",
+        ".txt": "ec5d96e86ffcb7f81a564152da539cb8da5d41b316a9030d9408edb6e3fa5767",
+        ".urp": "49d6df02f119ad15e843705071ba755afc5a876905e144805d9649cc80908de2"
+      }
+    },
+    {
+      "basename": "step5d_strict_rnn_no_contact_p0_v7",
+      "sha256": {
+        ".script": "2e22e7bc89355d7d01c6f0102bcce4103f104bce0a4f1bab72a044934745a297",
+        ".txt": "4f0fc12fd85d92b90d7ab1732766cd1eb4535c5569953838445dd21211dec5b9",
+        ".urp": "c44cf75baadac584f5e98341186eb0492dc2bc07cd0e22437b577d53d9eba736"
+      }
+    },
+    {
+      "basename": "step5d_strict_rnn_no_contact_p0_v8",
+      "sha256": {
+        ".script": "407f80e56eaa70d1e0e18597abbbddf535c8af88831c41fb117425583792ca9d",
+        ".txt": "fd2068a19277a0e053ab2bfceff8b4f1e8c3d876f4e912c7deb0f3cd0fdc070d",
+        ".urp": "a4ef6cebe32511df3aa154a8e94a7d29911c61a5fb577853956e4e1e0e9bba34"
+      }
+    }
+  ]
+}

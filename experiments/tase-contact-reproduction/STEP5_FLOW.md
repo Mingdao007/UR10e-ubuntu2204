@@ -24,6 +24,14 @@ shadow-only with no runtime fallback. Manifest-bound v30 upload/readback
 preparation may occur before P0, but v30 cannot become current, start a bridge,
 or run contact until all of the following are frozen and pass:
 
+Controller TP cleanup keeps current/successful evidence in
+`/programs/andyl/kunwei/step5/` and moves only failed or abandoned P0 packages
+v1-v4 and v6-v8 into `/programs/andyl/kunwei/step5/archive/`. Each archived
+triplet has a mirrored local package under `programs/step5/step5d/archive`, a
+rewritten Script-node path, and fresh controller read-back evidence. Successful
+v27/v28 evidence, v29 fallback, v30 candidate, P0v5, and current P0v9 remain in
+the outer controller folder.
+
 Wall-clock evidence has two non-interchangeable classifications. A strict
 500 Hz hard-real-time claim still requires zero samples at or beyond 2 ms.
 Contact v30 retains the strict bounded route: a late host candidate is
@@ -39,14 +47,16 @@ is now frozen failed historical evidence: its press-only target conflicted
 with the intended no-contact semantics and its TP package did not provide the
 full command echo required for semantic qualification.
 
-1. `step5d_strict_rnn_no_contact_p0_v9` is the inactive controller-readback-verified successor.
-   It freezes the Stage25 entry TCP pose, projects safe-frame `u_along_xy`
-   into the plane orthogonal to the approach normal, and tracks
-   `s(t)=0.001(1-cos(2*pi*t/20)) m`: 0..2 mm, 20 s period, three cycles in
-   60 s. Its normal target is exactly zero; it performs no contact search,
+1. `step5d_strict_rnn_no_contact_p0_v9` is the inactive permissive successor.
+   It freezes the actual Stage25 entry TCP pose and tracks the canonical Step5
+   cycloid in the safe-frame XY basis: `A=15 mm`, `theta=0.1*t`, `theta=0..6`
+   over 60 s, giving about 94.19 mm along travel and a 30 mm lateral peak.
+   In parallel, base Z follows a quintic smoothstep from the anchor to +20 mm,
+   with zero Z velocity at both endpoints. It performs no contact search,
    preload, force target, or active orientation oscillation. Weak posture hold
-   remains at `effective_ko=0.01`. Its exact TP triplet was uploaded and freshly
-   read back from the controller; it is not current and has not been run live.
+   remains at `effective_ko=0.01`. The regenerated TP triplet was uploaded and
+   freshly read back at `20260714_185412`; the next required evidence is the
+   canonical full-path live run.
 2. v30 has a complete 10,000-solve and 60 s / 500 Hz timing plus safe-hold
    pass. The fresh source-bound RNN512 run satisfies the bounded
    last-command-hold route under the revised `1.5 ms` schedule-lateness
@@ -312,7 +322,7 @@ instead of preserving the later 22 s TP v3 timing.
 | `step5d_strict_rnn_ablation_v28` | bridge+TP | true | true | Step5b speedl live / Step5d paper+RNN shadow | `v31_filtered_live` | Retained read-back verified diagnostic package, superseded by v29; not a completed reproduction claim. |
 | `step5d_strict_rnn_ablation_v29` | frozen fallback | true | false | strict TASE RNN speedj | `v31_filtered_live` | Current pointer is retained only because it is the last read-back-verified package. A future reactivation requires fresh readback/timing fingerprint, Review v3 contact gate, and explicit live/contact authorization. |
 | `step5d_strict_rnn_no_contact_p0_v8` | frozen failed P0 evidence | false | false | v30 strict-RNN contract | none | Retained 60 s failed canary and controller readback evidence. Its press-only target conflicts with the intended no-contact experiment and its TP package lacks the full command echo required for semantic qualification. It cannot be promoted and is superseded by P0 v9. |
-| `step5d_strict_rnn_no_contact_p0_v9` | permissive P0 guard v2 | false | false | strict-RNN layout-524 structural contract | none | Guard v2 bring-up candidate: 0..2 mm one-sided smooth cycle, 20 s period for three cycles; `qdot<=0.5 rad/s`; 2 s sensor stale, 1 s heartbeat stale, 75 s TP runtime. Force/torque, Cartesian/normal speed, normal displacement, DLS, residual magnitude, active bounds, end-offset and RMS are diagnostic-only. Success requires 60 continuous consumed/accepted seconds, at least 2.0 mm actual tangential travel, and terminal TP stop acknowledgement. |
+| `step5d_strict_rnn_no_contact_p0_v9` | permissive P0 guard v2 | false | false | strict-RNN layout-524 structural contract | none | Canonical free-space candidate: 60 s cycloid with `A=15 mm`, `theta=0..6`, about 94.19 mm along travel, 30 mm lateral peak, and smooth relative base `Z=+20 mm`; `qdot<=0.5 rad/s`; 2 s sensor stale, 1 s heartbeat stale, 75 s TP runtime. Force/torque, Cartesian/normal speed, approach-normal displacement, DLS, residual magnitude, and active bounds are diagnostic-only. Success requires 60 continuous consumed/accepted seconds, along endpoint >=90 mm, lateral peak >=25 mm, relative Z endpoint >=18 mm, and terminal TP stop acknowledgement. |
 | `step5d_strict_rnn_ablation_v30` | offline contact-control prep | true | false | strict TASE RNN speedj; DLS shadow-only | `v31_filtered_live` | Inactive contact candidate retaining the stricter 1%/20 ms bounded last-command-hold contract. Hard-real-time remains a distinct zero-miss claim; readiness still requires live-runtime integration, a passing successor no-contact canary, and frozen package/readback. Contact requires separate authorization. |
 | `step5d_ros2_remote_shadow_v1` | ROS2 offline | true | false | ROS2 shadow replay | `v31_filtered_live` input logs | Diagnostic-only Step5d policy replay: replays v15a/v14/v11 and Step5b/Step6b CSVs, removes long zero-qdot hold recovery, but is not live-ready and must follow Step5b plumbing validation. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |

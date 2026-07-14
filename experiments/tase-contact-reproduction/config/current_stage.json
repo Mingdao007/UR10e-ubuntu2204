@@ -1071,17 +1071,18 @@
       "profile": "step5d_strict_rnn_no_contact_p0_v7",
       "entrypoint": "scripts/step5d-strict-rnn-p0.sh capture-bridge",
       "confirm_token": "LIVE STEP5D STRICT RNN NO CONTACT P0",
-      "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v7.urp",
-      "local_triplet": "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v7",
+      "controller_target": "/programs/andyl/kunwei/step5/archive/step5d_strict_rnn_no_contact_p0_v7.urp",
+      "local_triplet": "programs/step5/step5d/archive/step5d_strict_rnn_no_contact_p0_v7",
       "controller_readback_verified": true,
-      "controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v7_20260708_055730",
-      "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v7_20260708_055730/manifest.json",
-      "delivery_mode": "full_upload_readback",
+      "controller_readback_dir": "runs/controller_readback_archive_step5d_strict_rnn_no_contact_p0_v7_20260714_190209",
+      "controller_readback_manifest": null,
+      "archive_manifest": "config/step5_tp_archive_manifest_v1.json",
+      "delivery_mode": "archive_full_upload_readback",
       "readback_source": "fresh_controller_get",
       "sha256": {
         ".script": "2e22e7bc89355d7d01c6f0102bcce4103f104bce0a4f1bab72a044934745a297",
-        ".txt": "2d88b3f6d670a9eaf8790c50b4286b1000d9c4121ba65d0c4fcf3a2e3ead8663",
-        ".urp": "e06d7da1949a2f76ab57e6786296a6f65e8c2a6808223fe95ef9709b687de251"
+        ".txt": "4f0fc12fd85d92b90d7ab1732766cd1eb4535c5569953838445dd21211dec5b9",
+        ".urp": "c44cf75baadac584f5e98341186eb0492dc2bc07cd0e22437b577d53d9eba736"
       },
       "capture_authorized": false,
       "passed": false,
@@ -1093,23 +1094,26 @@
       "profile": "step5d_strict_rnn_no_contact_p0_v8",
       "entrypoint": "scripts/step5d-strict-rnn-p0-v8.sh capture-bridge",
       "confirm_token": "LIVE STEP5D STRICT RNN NO CONTACT P0 V8",
-      "planned_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v8.urp",
-      "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v8.urp",
-      "local_triplet": "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v8",
+      "planned_controller_target": "/programs/andyl/kunwei/step5/archive/step5d_strict_rnn_no_contact_p0_v8.urp",
+      "controller_target": "/programs/andyl/kunwei/step5/archive/step5d_strict_rnn_no_contact_p0_v8.urp",
+      "local_triplet": "programs/step5/step5d/archive/step5d_strict_rnn_no_contact_p0_v8",
       "local_candidate_marker": "programs/step5/step5d/.step5d_strict_rnn_no_contact_p0_v8.local_candidate.json",
       "controller_uploaded": true,
       "controller_readback_verified": true,
-      "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v8_20260714_163545/manifest.json",
-      "delivery_mode": "full_upload_readback",
+      "controller_readback_manifest": null,
+      "controller_readback_dir": "runs/controller_readback_archive_step5d_strict_rnn_no_contact_p0_v8_20260714_190209",
+      "archive_manifest": "config/step5_tp_archive_manifest_v1.json",
+      "delivery_mode": "archive_full_upload_readback",
       "sha256": {
         ".script": "407f80e56eaa70d1e0e18597abbbddf535c8af88831c41fb117425583792ca9d",
-        ".txt": "fa78883b403d01c697c40470528570d5ff6dae8f62f5c8141aa12353a4a963e4",
-        ".urp": "5dad62e6682675a2dc1a2f062e5ca8f17a47497d8477640931ec0afbb49d43fa"
+        ".txt": "fd2068a19277a0e053ab2bfceff8b4f1e8c3d876f4e912c7deb0f3cd0fdc070d",
+        ".urp": "a4ef6cebe32511df3aa154a8e94a7d29911c61a5fb577853956e4e1e0e9bba34"
       },
-      "capture_authorized": true,
+      "capture_authorized": false,
       "passed": false,
       "summary_artifact": null,
-      "status": "controller_readback_verified_ready_for_direct_canary"
+      "archived_not_gate_for_v30": true,
+      "status": "frozen_failed_archived_superseded_by_p0_v9"
     },
     "no_contact_p0_v9_capture": {
       "profile": "step5d_strict_rnn_no_contact_p0_v9",
@@ -1121,17 +1125,17 @@
       "local_candidate_marker": "programs/step5/step5d/.step5d_strict_rnn_no_contact_p0_v9.local_candidate.json",
       "controller_uploaded": true,
       "controller_readback_verified": true,
-      "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_20260714_183546/manifest.json",
+      "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_20260714_185412/manifest.json",
       "delivery_mode": "full_upload_readback",
       "sha256": {
-        ".script": "ad48057589f18ec8b45e1ffd26f1ab37516f7133709f04e9b869b9fb39e8a8d6",
-        ".txt": "9a986ad04a264a69e290e5a7c974a925e77c099dbe5c0b445edb318c1e13e80c",
-        ".urp": "08aba556f9c94fb917ee09e83ac1d88173928ad25d283fa01a67745cf6b5239e"
+        ".script": "d4f2425ab78f61d1b7ebb1b5d57b7619965d90fde9d3708067ee6abb53fac787",
+        ".txt": "b6c1713ba911f651bd4907989ac235a0215bac0bc8adce991388a7e568847fe9",
+        ".urp": "a8f145d8850d4928610819b370b1c01de8bd7756e7370d29ce78fa330f41690b"
       },
       "capture_authorized": true,
       "passed": false,
-      "summary_artifact": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v9_20260714_182540/step5d_no_contact_p0_summary.json",
-      "status": "guard_v2_live_failed_host_control_path_fixed_rerun_required"
+      "summary_artifact": null,
+      "status": "controller_readback_verified_ready_for_canonical_full_path_canary"
     },
     "required_before_live": [
       "operator outside UR reach/cage boundary",
@@ -1218,6 +1222,17 @@
       ".script": "407f80e56eaa70d1e0e18597abbbddf535c8af88831c41fb117425583792ca9d",
       ".txt": "fa78883b403d01c697c40470528570d5ff6dae8f62f5c8141aa12353a4a963e4",
       ".urp": "5dad62e6682675a2dc1a2f062e5ca8f17a47497d8477640931ec0afbb49d43fa"
+    },
+    "archive_delivery": {
+      "local_triplet": "programs/step5/step5d/archive/step5d_strict_rnn_no_contact_p0_v8",
+      "controller_target": "/programs/andyl/kunwei/step5/archive/step5d_strict_rnn_no_contact_p0_v8.urp",
+      "archive_manifest": "config/step5_tp_archive_manifest_v1.json",
+      "controller_readback_dir": "runs/controller_readback_archive_step5d_strict_rnn_no_contact_p0_v8_20260714_190209",
+      "sha256": {
+        ".script": "407f80e56eaa70d1e0e18597abbbddf535c8af88831c41fb117425583792ca9d",
+        ".txt": "fd2068a19277a0e053ab2bfceff8b4f1e8c3d876f4e912c7deb0f3cd0fdc070d",
+        ".urp": "a4ef6cebe32511df3aa154a8e94a7d29911c61a5fb577853956e4e1e0e9bba34"
+      }
     },
     "semantic_fingerprint": "7d1b1457e5149ddb84bf456a538e9ea8e81c0f027b094dfe693626e1b755990f",
     "evidence_frozen": true,
@@ -1318,22 +1333,23 @@
   "p0_v9_candidate": {
     "profile": "step5d_strict_rnn_no_contact_p0_v9",
     "gate_for": "step5d_strict_rnn_ablation_v30",
-    "state": "guard_v2_live_failed_host_control_path_fixed_awaiting_rerun",
+    "state": "canonical_full_path_controller_readback_verified_awaiting_live_run",
     "current": false,
     "package_sha256": {
-      ".script": "ad48057589f18ec8b45e1ffd26f1ab37516f7133709f04e9b869b9fb39e8a8d6",
-      ".txt": "9a986ad04a264a69e290e5a7c974a925e77c099dbe5c0b445edb318c1e13e80c",
-      ".urp": "08aba556f9c94fb917ee09e83ac1d88173928ad25d283fa01a67745cf6b5239e"
+      ".script": "d4f2425ab78f61d1b7ebb1b5d57b7619965d90fde9d3708067ee6abb53fac787",
+      ".txt": "b6c1713ba911f651bd4907989ac235a0215bac0bc8adce991388a7e568847fe9",
+      ".urp": "a8f145d8850d4928610819b370b1c01de8bd7756e7370d29ce78fa330f41690b"
     },
     "semantic_fingerprint": "ddaa322f7877b8705ee11ec9bac7b0f76b75b63925ffdcd2068805c7dd840b2f",
     "motion_semantics": {
-      "mode": "tangential_free_space",
+      "mode": "stage25_relative_canonical_step5_cycloid_plus_base_z_lift",
       "guard_schema": "p0_v9_guard_v2",
       "normal_motion_policy": "diagnostic_only",
-      "path": "s(t)=0.001*(1-cos(2*pi*t/20)) m",
-      "peak_to_peak_m": 0.002,
-      "period_s": 20.0,
-      "cycles": 3,
+      "path": "theta=0.1*t; along=0.015*(theta-sin(theta)); lateral=0.015*(1-cos(theta)); z=0.020*quintic_smoothstep(t/60)",
+      "theta_final_rad": 6.0,
+      "along_endpoint_m": 0.09419123247298389,
+      "lateral_peak_m": 0.03,
+      "z_endpoint_m": 0.02,
       "effective_ko": 0.01,
       "orientation_policy": "weak_posture_hold_only",
       "command_slew_rad_s2": 0.05,
@@ -1362,20 +1378,19 @@
       "reproduction_complete": false
     },
     "latest_live_evidence": {
-      "run": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v9_20260714_182540",
-      "summary": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v9_20260714_182540/step5d_no_contact_p0_summary.json",
+      "run": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v9_20260714_184211",
+      "summary": null,
       "ok": false,
-      "max_continuous_qualified_s": 0.651439408,
-      "tangent_peak_to_peak_m": 0.0622006357,
-      "tangent_end_offset_m": 0.0499772239,
+      "max_continuous_qualified_s": 30.6698325,
+      "actual_tangent_peak_to_peak_m": 0.0022006006,
+      "tcp_delta_m": [0.0002121689, 0.0020023264, -0.000560931],
       "terminal_rows": 0,
-      "diagnosis": "legacy_press_only_gate_plus_unslewed_host_reversal_vs_tp_speedj_acceleration"
+      "diagnosis": "corrected control path moved as commanded; the 2 mm bring-up reference was too small to be visually obvious and the run was manually stopped before 60 s acceptance"
     },
     "blockers": [
-      "guard_v2_live_tracking_unstable_after_about_30s",
       "continuous_qualified_duration_short",
       "terminal_zero_stop_packet_missing",
-      "fresh_live_rerun_after_host_fix_required"
+      "fresh_live_rerun_with_canonical_full_path_required"
     ]
   },
   "v30_candidate": {
