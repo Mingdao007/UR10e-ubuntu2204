@@ -5,7 +5,7 @@
     "config/step5d_v34_offline_validation.json": "44d9481539243527b2fdef6102655c047678013af33bb6bc9286d0c1d294625e"
   },
   "claim_boundary": "package/read-back/offline freeze only; live authorization remains separate",
-  "composite_fingerprint": "a87a69b49dd6e12ee0fe5a7d16f140227b4fb38d69ffe5ece24095b2ae66d69d",
+  "composite_fingerprint": "7f8c0811cf89836f380773b1ef4ab2eeecc9e68075e3be3bb4b9f0acb7aba9eb",
   "package_binding": {
     "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v34_20260715_010525/manifest.json",
     "controller_readback_manifest_sha256": "161abbfbe1cede921b1d47b51a8af15844103a46aa240b3f5890a1c2b2e9d53d",
@@ -25,15 +25,15 @@
     "tools/analyze_step5d_bridge_run.py": "1d426010d358bca55d780c5ac4ad13aef0a91fdcc6543179d92776f816c9d8f8",
     "tools/build_step5d_liveprep.py": "c8143083c4d20f4698915c73bbafc4b29b74bfb9dd5db857f2a33edb122557a4",
     "tools/build_step5d_v34_freeze_binding.py": "be841db400ef005723bddbdffafc7e66fc3f17a59c5c5988acc87f67832eef67",
-    "tools/kunwei_rtde_bridge.py": "4098c05cccdf132bbe47cbd37f97ed04bda8d3d95b86e241fa71975513f344f5",
+    "tools/kunwei_rtde_bridge.py": "c8c8487d9550e8ff7f4dabab0b9798c71e5929961af9075b798f5b73d21b0501",
     "tools/run_step5d_v34_live_path_timing.py": "b262b407b11b806327fe355f518e031a9275d73cb65cbc25dcb1b52d416ed752",
     "tools/step5c_strict_rnn.py": "2ea368dbb142ec635ebdb709d5bb5783ea9bc848705e191f935055463cf753b7",
     "tools/step5d_control_contract.py": "488c67a4f7f5e54807cd125cf707821cfea70fcf4d47ed7b8c7ee5bb348508b9",
     "tools/step5d_paper_outer_loop.py": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
-    "tools/step5d_runtime_interface.py": "6d494c08e470a6456444faf27d100b5a2e00554785c3718b459c42a551e7c189",
+    "tools/step5d_runtime_interface.py": "e347446225c085e84e9b0b2cfab1276611f8c49412490d5517a225c52ca657d0",
     "tools/validate_step5d_v34.py": "e5fc8e574a38d482d4398556b4e292144d09645e41e72357ab353b2b2cd45e7c",
     "tools/verify_step5d_contact_v34.py": "fed477aaef03a28f9927fb42675a6881a06a37139543e1d7c00f2b18dacae6ca",
-    "tools/verify_step5d_current_binding.py": "31e9c8b15ce7e6e48aa1457d9d63ff979203422e189459ba8234fbc0b7ef18cf"
+    "tools/verify_step5d_current_binding.py": "b4df411d2920f499362e731973dfdac90e8d343c3c4d633549459aa68677949b"
   },
   "stage_contract": {
     "acceptance": {

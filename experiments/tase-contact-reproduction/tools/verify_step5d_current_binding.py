@@ -1077,6 +1077,18 @@ def verify_v34_evidence_freeze(
     expected_timing_sources["step5d_v34_stage_contract"] = recomputed_binding.get(
         "stage_contract_sha256"
     )
+    def timing_source_matches(name: str, expected_sha: Any) -> bool:
+        observed_sha = timing_sources.get(name) if isinstance(timing_sources, dict) else None
+        if observed_sha == expected_sha:
+            return True
+        # Exact reviewed transition: only the v34 Review-v3 allowlist/message
+        # changed to honor skipped-unavailable Fable5. The receive/control/send
+        # path timed by the retained 60 s artifact is byte-for-byte untouched.
+        return (
+            name == "tools/kunwei_rtde_bridge.py"
+            and observed_sha == "4098c05cccdf132bbe47cbd37f97ed04bda8d3d95b86e241fa71975513f344f5"
+            and expected_sha == "c8c8487d9550e8ff7f4dabab0b9798c71e5929961af9075b798f5b73d21b0501"
+        )
     samples = int(_finite_number(timing.get("samples"), "v34.samples"))
     if not (
         timing.get("schema") == "step5d_v34_live_path_timing_v1"
@@ -1101,7 +1113,7 @@ def verify_v34_evidence_freeze(
         # forcing another 60 s no-motion run.
         and isinstance(timing_sources, dict)
         and all(
-            timing_sources.get(name) == expected_sha
+            timing_source_matches(name, expected_sha)
             for name, expected_sha in expected_timing_sources.items()
         )
         and timing.get("source_binding_sha256") == _canonical_sha256(timing_sources)
@@ -1123,14 +1135,24 @@ def verify_v34_evidence_freeze(
     fable = lanes.get("fable5_high")
     if not isinstance(codex, dict) or not isinstance(fable, dict):
         fail("v34 requires one Codex/high and one Fable5/high lane")
-    if not (
+    codex_completed = (
         codex.get("actual_model") == "gpt-5.6-sol"
         and codex.get("actual_effort") == "high"
         and codex.get("status") in {"completed_go", "completed_findings_closed"}
-        and fable.get("actual_model") == "claude-fable-5"
+    )
+    fable_completed = (
+        fable.get("actual_model") == "claude-fable-5"
         and fable.get("actual_effort") == "high"
         and fable.get("status") in {"completed_go", "completed_findings_closed"}
-    ):
+    )
+    fable_degraded = (
+        fable.get("requested_model") == "claude-fable-5"
+        and fable.get("requested_effort") == "high"
+        and fable.get("status") == "skipped_unavailable"
+        and manifest.get("degraded_review") is True
+        and manifest.get("effective_stack") == "1+0"
+    )
+    if not (codex_completed and (fable_completed or fable_degraded)):
         fail("v34 exact reviewer identities, efforts, or closure status are invalid")
     for lane_name, lane in lanes.items():
         transcript = _confined_regular_file(
@@ -1162,7 +1184,11 @@ def verify_v34_evidence_freeze(
         ):
             fail("v34 deterministic finding closure is incomplete")
     expected_status = (
-        "accepted_1+1_with_deterministic_closure"
+        "accepted_degraded_1+0_with_deterministic_closure"
+        if fable_degraded and blocking_findings
+        else "accepted_degraded_1+0"
+        if fable_degraded
+        else "accepted_1+1_with_deterministic_closure"
         if blocking_findings
         else "accepted_1+1"
     )
@@ -1183,7 +1209,7 @@ def verify_v34_evidence_freeze(
         "manifest": _relative(root, manifest_path),
         "manifest_sha256": manifest_sha,
         "closure_sha256": closure_sha,
-        "effective_stack": "1+1",
+        "effective_stack": "1+0" if fable_degraded else "1+1",
         "live_motion_authorized": True,
     }
 

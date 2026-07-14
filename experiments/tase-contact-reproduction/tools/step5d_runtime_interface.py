@@ -938,7 +938,11 @@ def v34_live_readiness(current: Mapping[str, Any]) -> dict[str, Any]:
     if not (
         isinstance(review, Mapping)
         and review.get("status")
-        in {"accepted_1+1", "accepted_1+1_with_deterministic_closure"}
+        in {
+            "accepted_1+1",
+            "accepted_1+1_with_deterministic_closure",
+            "accepted_degraded_1+0_with_deterministic_closure",
+        }
     ):
         blockers.append("review_v3_1+1_not_accepted")
     if not (

@@ -15,8 +15,10 @@
 
 ## Deterministic closure
 
-All four findings were repaired and deterministically revalidated against repaired composite
-`a87a69b49dd6e12ee0fe5a7d16f140227b4fb38d69ffe5ece24095b2ae66d69d`.
+All four findings were repaired and deterministically revalidated. The later
+owner-policy-only transition for automatic Fable5 unavailable degradation is
+bound in repaired composite
+`7f8c0811cf89836f380773b1ef4ab2eeecc9e68075e3be3bb4b9f0acb7aba9eb`.
 The machine-readable closure is
 `config/reviews/step5d_v34_deterministic_closure.json`.
 

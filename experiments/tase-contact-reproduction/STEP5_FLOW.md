@@ -1,16 +1,16 @@
 # Step5 Flow
 
-`config/current_stage.json` selects the 20 s
-`step5d_strict_rnn_ablation_v33c20` canary. The separate 60 s
-`step5d_strict_rnn_ablation_v33` identity is staged behind it. The
+`config/current_stage.json` currently selects the 60 s
+`step5d_strict_rnn_ablation_v34` full-run identity. The earlier
+`step5d_strict_rnn_ablation_v33c20` canary is retained as failure evidence. The
 `20260715_002234` v33c20 live attempt is retained as a cadence acceptance
 failure: freshness, XY, qd alignment, RNN consumption, Safety NORMAL, and gross
 guards passed, but 28 Stage25 row gaps exceeded 20 ms, the maximum gap was
 53.3 ms, and sent/echo gap reached 6 versus the limit 5. The one-shot live
-authorization is revoked; a new explicit user command is required for retry.
+authorization was revoked and it is no longer current.
 
-`step5d_strict_rnn_ablation_v34` is the next 60 s full-run candidate, but it
-is intentionally not current yet. Its TP triplet is uploaded and fresh
+`step5d_strict_rnn_ablation_v34` is current and explicitly live-authorized.
+Its TP triplet is uploaded and fresh
 read-back verified. Host qdot slew and TP `speedj(a)` are both
 `0.1 rad/s²`. CUDA/RNN/BLAS prewarm and socket/RTDE initialization occur under
 `SCHED_OTHER`; only the control thread is then promoted to `SCHED_FIFO/20`,
@@ -28,11 +28,13 @@ tests and do not trigger another 60 s no-motion run.
 
 The Codex/high Review v3 lane found four P1 defects in the first freeze; all
 four are deterministically closed in the repaired composite
-`a87a69b49dd6e12ee0fe5a7d16f140227b4fb38d69ffe5ece24095b2ae66d69d`.
+`7f8c0811cf89836f380773b1ef4ab2eeecc9e68075e3be3bb4b9f0acb7aba9eb`.
 The required Fable5/high invocation returned an external session-limit error,
-not a verdict. Therefore v34 remains inactive and blocked on that exact lane,
-current promotion, and a later explicit live authorization. Package/read-back,
-timing, or Codex closure alone cannot start the bridge.
+not a verdict. The standing user rule records that lane as
+`skipped_unavailable` and automatically uses the owner-approved degraded `1+0`
+stack without another confirmation. The user's separate `开 bridge` command
+authorizes this exact v34 live run; package/read-back or review alone still
+cannot authorize future runs.
 
 v32 fixed the v31 failure at Stage25.05. Register state is interpreted by
 TP stage: Stage25.05 passes latch-ready state `33`, Stage25.3 passes preload

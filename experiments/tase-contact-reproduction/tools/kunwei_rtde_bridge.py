@@ -8790,8 +8790,9 @@ def require_v29_live_bridge_authorization(
         if not isinstance(review, Mapping) or review.get("status") not in {
             "accepted_1+1",
             "accepted_1+1_with_deterministic_closure",
+            "accepted_degraded_1+0_with_deterministic_closure",
         }:
-            raise SystemExit("v34 raw bridge blocked: frozen fingerprint has not passed Review v3 1+1")
+            raise SystemExit("v34 raw bridge blocked: frozen fingerprint lacks an accepted Review v3 decision")
         if candidate.get("live_authorized") is not True:
             raise SystemExit("v34 raw bridge blocked: explicit live/contact authorization is missing")
         if args.step5d_stage25_control_mode != "speedj_rnn_live":
