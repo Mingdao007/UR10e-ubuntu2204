@@ -1,22 +1,30 @@
 {
-  "schema_version": "step5d_p0_v9_guard_v2_numeric_sanity_v1",
+  "schema_version": "step5d_p0_v9_guard_v2_numeric_sanity_v2",
   "profile": "step5d_strict_rnn_no_contact_p0_v9",
   "status": "pass_offline_numeric_only",
   "path": {
-    "law": "s(t)=0.001*(1-cos(2*pi*t/20)) m",
-    "minimum_m": 0.0,
-    "maximum_m": 0.002,
-    "peak_to_peak_m": 0.002,
-    "period_s": 20.0,
+    "law": "theta=0.1*t; along=0.015*(theta-sin(theta)); lateral=0.015*(1-cos(theta)); z=0.020*(10*s^3-15*s^4+6*s^5), s=t/60",
+    "anchor": "actual_stage25_entry_tcp_pose",
+    "amplitude_m": 0.015,
+    "theta_start_rad": 0.0,
+    "theta_end_rad": 6.0,
     "duration_s": 60.0,
-    "cycles": 3,
-    "analytic_peak_speed_m_s": 0.0003141592653589793,
+    "endpoint_m": {
+      "along": 0.09419123247298389,
+      "lateral": 0.0005974457002445104,
+      "z": 0.02
+    },
+    "lateral_peak_m": 0.03,
+    "analytic_peak_along_speed_m_s": 0.003,
+    "analytic_peak_lateral_speed_m_s": 0.0015,
+    "analytic_peak_z_speed_m_s": 0.000625,
+    "sampled_peak_xyz_speed_m_s": 0.0030638868007253767,
     "cartesian_speed_guard_enabled": false,
     "speed_feasible": true
   },
   "normal_semantics": {
     "policy": "diagnostic_only",
-    "tangent_projection": "normalize(u_along_base - dot(u_along_base,n_approach)*n_approach)",
+    "reference_basis": "safe-frame u_along_xy and p_lateral_xy in base XY plus base +Z",
     "normal_velocity_guard_enabled": false,
     "normal_displacement_guard_enabled": false
   },
@@ -45,7 +53,12 @@
   "controller_target": {
     "planned": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v9.urp",
     "delivery_state": "controller_readback_verified",
-    "readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_20260714_183546/manifest.json"
+    "readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_20260714_185412/manifest.json",
+    "sha256": {
+      ".script": "d4f2425ab78f61d1b7ebb1b5d57b7619965d90fde9d3708067ee6abb53fac787",
+      ".txt": "b6c1713ba911f651bd4907989ac235a0215bac0bc8adce991388a7e568847fe9",
+      ".urp": "a8f145d8850d4928610819b370b1c01de8bd7756e7370d29ce78fa330f41690b"
+    }
   },
   "claim_boundary": "Offline analytic sanity plus controller package read-back only; no bridge, TP Play, or robot acceptance claim."
 }

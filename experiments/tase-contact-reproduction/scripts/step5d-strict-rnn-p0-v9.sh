@@ -18,8 +18,9 @@ Usage:
   STEP5D_P0_CONFIRM='LIVE STEP5D STRICT RNN NO CONTACT P0 V9' \
     step5d-strict-rnn-p0-v9.sh capture-bridge
 
-P0 v9 guard v2 is a 60 s permissive tangential free-space canary: 0..2 mm,
-20 s period, three cycles, layout 524, strict RNN, and weak posture hold.
+P0 v9 guard v2 is a 60 s permissive canonical free-space canary: A=15 mm,
+theta=0..6 (about 94.19 mm along and 30 mm lateral peak), plus a smooth
+relative base Z lift to +20 mm, layout 524, strict RNN, and weak posture hold.
 Force, Cartesian/normal speed, normal displacement, DLS, residual magnitude,
 and active bounds are diagnostic-only.
 generate-deliver always uploads the generated TP triplet and performs a fresh

@@ -1,6 +1,6 @@
 {
   "controller_urp": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v9.urp",
-  "generated_at": "2026-07-14T18:20:43+08:00",
+  "generated_at": "2026-07-14T18:54:12+08:00",
   "local_only": false,
   "not_delivered": false,
   "program": "step5d_strict_rnn_no_contact_p0_v9",
@@ -12,16 +12,16 @@
   "schema": "ur_tp_local_candidate_v1",
   "semantic_fingerprint": "ddaa322f7877b8705ee11ec9bac7b0f76b75b63925ffdcd2068805c7dd840b2f",
   "sha256": {
-    ".script": "ad48057589f18ec8b45e1ffd26f1ab37516f7133709f04e9b869b9fb39e8a8d6",
-    ".txt": "9a986ad04a264a69e290e5a7c974a925e77c099dbe5c0b445edb318c1e13e80c",
-    ".urp": "08aba556f9c94fb917ee09e83ac1d88173928ad25d283fa01a67745cf6b5239e"
+    ".script": "d4f2425ab78f61d1b7ebb1b5d57b7619965d90fde9d3708067ee6abb53fac787",
+    ".txt": "b6c1713ba911f651bd4907989ac235a0215bac0bc8adce991388a7e568847fe9",
+    ".urp": "a8f145d8850d4928610819b370b1c01de8bd7756e7370d29ce78fa330f41690b"
   },
-  "stamp": "2026-07-14T1820HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V9_GUARD_V2",
+  "stamp": "2026-07-14T1854HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V9_GUARD_V2",
   "status": "controller read-back verified",
   "target_dir": "/programs/andyl/kunwei/step5",
-  "controller_readback_verified": true,
-  "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_20260714_183546/manifest.json",
-  "delivery_mode": "full_upload_readback",
   "controller": "root@192.168.1.18",
-  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v9.urp"
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v9.urp",
+  "controller_readback_verified": true,
+  "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_20260714_185412/manifest.json",
+  "delivery_mode": "full_upload_readback"
 }

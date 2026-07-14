@@ -353,7 +353,7 @@ if [[ "${BRIDGE_PROFILE}" == "step6b_v2" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step6/step6b_contact_eight_baseline_v2.urp"
 fi
 if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_no_contact_p0_v9" ]]; then
-  SEARCH_DESCRIPTION="Step5d P0 v9 no-contact capture: no search, no preload, zero normal target, projected safe-frame tangential 0..2 mm cycle for 60 s, layout-524 speedj_rnn_live, full TP command echo, and continuous qualification"
+  SEARCH_DESCRIPTION="Step5d P0 v9 no-contact capture: no search or preload; 60 s canonical safe-frame cycloid A=15 mm theta=0..6 plus smooth relative base Z=+20 mm, layout-524 speedj_rnn_live, full TP command echo, and continuous qualification"
 elif [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
   SEARCH_DESCRIPTION="Step5d strict RNN no-contact P0 capture: no contact search, no preload, no zero/tare, wait for bridge heartbeat/sensor_ok, direct Stage25.95 register-clear barrier then 60s Stage25.0 layout-524 speedj_rnn_live warm-start capture"
 elif [[ "${BRIDGE_PROFILE}" == "p0_geo_v1" ]]; then

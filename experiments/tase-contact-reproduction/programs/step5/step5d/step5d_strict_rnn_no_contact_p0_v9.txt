@@ -4,7 +4,7 @@ Open on Teach Pendant only after the no-contact P0 capture package is explicitly
   /programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v9.urp
 
 Version:
-  2026-07-14T1820HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V9_GUARD_V2
+  2026-07-14T1854HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V9_GUARD_V2
 
 Boundary:
   NO_CONTACT_P0_CAPTURE diagnostic package; not a contact reproduction claim.
@@ -19,7 +19,7 @@ Boundary:
   Stage 25.0 accepts only joint speedj layout 524.0: registers 37..42 are qd0..qd5. Cartesian speedl and DLS runtime fallback are forbidden; DLS is diagnostic shadow-only.
   The intended bridge mode is STEP5D_STAGE25_CONTROL_MODE=speedj_rnn_live so
   the first consumed Stage25 tick records solver_warm_start and layout 524.
-  P0 v9 uses a tangential free-space 0..2 mm one-sided cosine cycle with a 20 s period for three cycles. Guard v2 uses diagnostic_only normal semantics: force, torque, normal velocity/displacement, DLS, residual magnitude, active bounds, and Cartesian speed are logged but cannot stop or reset qualification. Weak posture hold remains at effective_ko=0.01. Outputs 36..46 echo inputs 37..47; output 47 proves TP command consumption. Success requires 60 continuous seconds and at least 2.0 mm actual tangential peak-to-peak travel.
+  P0 v9 uses the 60 s canonical Step5 cycloid with A=15 mm and theta=0..6 (about 94.19 mm along and 30 mm lateral peak), plus a smooth relative base Z lift to +20 mm. Guard v2 uses diagnostic_only normal semantics: force, torque, normal velocity/displacement, DLS, residual magnitude, active bounds, and Cartesian speed are logged but cannot stop or reset qualification. Weak posture hold remains at effective_ko=0.01. Outputs 36..46 echo inputs 37..47; output 47 proves TP command consumption. Success requires 60 continuous seconds, along endpoint >=90 mm, lateral peak >=25 mm, and relative base Z endpoint >=18 mm.
   Stage25.0 command-consumption instrumentation: output register 47 is 1 only
   when the TP loop accepts a current Stage25 command packet and reaches
   speedl/speedj.

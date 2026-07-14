@@ -1343,14 +1343,16 @@ def build_txt(stamp: str, spec: Step5dAblationSpec = DEFAULT_SPEC) -> str:
             )
         )
         control_contract = (
-            "P0 v9 uses a tangential free-space 0..2 mm one-sided cosine cycle "
-            "with a 20 s period for three cycles. Guard v2 uses diagnostic_only "
+            "P0 v9 uses the 60 s canonical Step5 cycloid with A=15 mm and "
+            "theta=0..6 (about 94.19 mm along and 30 mm lateral peak), plus a "
+            "smooth relative base Z lift to +20 mm. Guard v2 uses diagnostic_only "
             "normal semantics: force, torque, normal velocity/displacement, DLS, "
             "residual magnitude, active bounds, and Cartesian speed are logged but "
             "cannot stop or reset qualification. Weak posture hold remains at "
             "effective_ko=0.01. Outputs 36..46 echo inputs 37..47; "
             "output 47 proves TP command consumption. Success requires 60 continuous "
-            "seconds and at least 2.0 mm actual tangential peak-to-peak travel."
+            "seconds, along endpoint >=90 mm, lateral peak >=25 mm, and relative "
+            "base Z endpoint >=18 mm."
             if spec.version_label == "no_contact_p0_v9"
             else "P0 v8 is bound to Step5dObservation -> StrictRnnControlPolicy -> "
             "ControlCandidate -> SafetyEnvelope -> RegisterCommand, with canonical "

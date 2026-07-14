@@ -29,7 +29,7 @@ from step5d_control_contract import (  # noqa: E402
 )
 from step5d_p0_v9_control_core import (  # noqa: E402
     build_p0_v9_target,
-    one_sided_smooth_reference,
+    canonical_cycloid_lift_reference,
 )
 from step5d_runtime_interface import STEP5D_NO_CONTACT_P0_V9_STAGE_ID  # noqa: E402
 
@@ -114,29 +114,38 @@ class Step5dNoContactP0V9Test(unittest.TestCase):
         self.assertIn("--force-upload-readback", script)
         self.assertNotIn("generate-local never uploads", script)
 
-    def test_reference_is_two_mm_one_sided_three_cycle(self) -> None:
-        self.assertAlmostEqual(one_sided_smooth_reference(0.0)[0], 0.0)
-        self.assertAlmostEqual(one_sided_smooth_reference(10.0)[0], 0.002)
-        self.assertAlmostEqual(one_sided_smooth_reference(20.0)[0], 0.0)
-        self.assertAlmostEqual(one_sided_smooth_reference(60.0)[0], 0.0)
-        peak_velocity = one_sided_smooth_reference(5.0)[1]
-        self.assertAlmostEqual(peak_velocity, math.pi * 1e-4)
+    def test_reference_is_full_canonical_cycloid_with_twenty_mm_z_lift(self) -> None:
+        self.assertEqual(canonical_cycloid_lift_reference(0.0)[0], (0.0, 0.0, 0.0))
+        midpoint, midpoint_velocity = canonical_cycloid_lift_reference(30.0)
+        self.assertAlmostEqual(midpoint[0], 0.04288319987910199)
+        self.assertAlmostEqual(midpoint[1], 0.02984988744900668)
+        self.assertAlmostEqual(midpoint[2], 0.010)
+        endpoint, endpoint_velocity = canonical_cycloid_lift_reference(60.0)
+        self.assertAlmostEqual(endpoint[0], 0.09419123247298389)
+        self.assertAlmostEqual(endpoint[1], 0.0005974457002445104)
+        self.assertAlmostEqual(endpoint[2], 0.020)
+        self.assertGreater(midpoint_velocity[2], 0.0)
+        self.assertAlmostEqual(endpoint_velocity[2], 0.0)
 
-    def test_target_projects_safe_tangent_without_cartesian_speed_cap(self) -> None:
+    def test_target_uses_safe_xy_basis_and_relative_base_z_without_speed_cap(self) -> None:
         target = build_p0_v9_target(
             tcp_pose_base=(0.4, 0.1, 0.2, 0.0, 0.0, 0.0),
             anchor_tcp_pose_base=(0.4, 0.1, 0.2, 0.0, 0.0, 0.0),
             safe_u_along_xy=(-0.01, 0.99995),
+            safe_p_lateral_xy=(-0.99995, -0.01),
             approach_normal_base=(0.1, 0.0, -0.994987437),
-            path_time_s=10.0,
+            path_time_s=30.0,
             normal_load_n=1.9,
             jacobian=np.eye(6),
         )
-        approach = np.asarray(target.approach_normal_base)
         tangent = np.asarray(target.tangent_base)
-        self.assertAlmostEqual(float(np.dot(tangent, approach)), 0.0, places=12)
-        self.assertAlmostEqual(float(np.dot(target.desired_twist[:3], approach)), 0.0, places=12)
+        lateral = np.asarray(target.lateral_base)
+        self.assertAlmostEqual(float(np.dot(tangent, lateral)), 0.0, places=12)
         self.assertGreater(abs(target.path_diagnostics["commanded_tangent_velocity_m_s"]), 0.0005)
+        self.assertAlmostEqual(target.path_diagnostics["target_along_displacement_m"], 0.04288319987910199)
+        self.assertAlmostEqual(target.path_diagnostics["target_lateral_displacement_m"], 0.02984988744900668)
+        self.assertAlmostEqual(target.path_diagnostics["target_z_displacement_m"], 0.010)
+        self.assertGreater(target.desired_twist[2], 0.0)
         self.assertEqual(
             target.path_diagnostics["force_sign_convention"],
             "step5_step6_positive_normal_load",
@@ -278,7 +287,12 @@ class Step5dNoContactP0V9Test(unittest.TestCase):
 
     def test_verifier_accepts_complete_synthetic_contract(self) -> None:
         rows = []
-        for tangent_m, terminal in ((0.0, False), (0.002, False), (0.0, True)):
+        samples = (
+            (0.0, 0.0, 0.0, False),
+            (0.043, 0.030, 0.010, False),
+            (0.0942, 0.0006, 0.020, True),
+        )
+        for along_m, lateral_m, z_m, terminal in samples:
             rows.append(
                 {
                     "_step5d_p0_v9_qualified": 1.0,
@@ -291,8 +305,15 @@ class Step5dNoContactP0V9Test(unittest.TestCase):
                     "_step5d_stage25_echo_cmd_valid": 1.0,
                     "_step5d_stage25_echo_consumed": 1.0,
                     "_step5d_rnn_inner_iterations": 512.0,
-                    "_step5d_p0_v9_actual_tangent_displacement_m": tangent_m,
-                    "_step5d_p0_v9_target_tangent_displacement_m": tangent_m,
+                    "_step5d_p0_v9_actual_tangent_displacement_m": along_m,
+                    "_step5d_p0_v9_target_tangent_displacement_m": along_m,
+                    "_step5d_p0_v9_actual_along_displacement_m": along_m,
+                    "_step5d_p0_v9_target_along_displacement_m": along_m,
+                    "_step5d_p0_v9_actual_lateral_displacement_m": lateral_m,
+                    "_step5d_p0_v9_target_lateral_displacement_m": lateral_m,
+                    "_step5d_p0_v9_actual_z_displacement_m": z_m,
+                    "_step5d_p0_v9_target_z_displacement_m": z_m,
+                    "_step5d_p0_v9_xyz_tracking_error_norm_m": 0.0,
                     "_step5d_p0_v9_anchor_normal_displacement_m": 1.0,
                     "normal_force_n": 1000.0,
                     "force_norm_n": 1000.0,

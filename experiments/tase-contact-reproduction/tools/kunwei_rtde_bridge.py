@@ -169,13 +169,18 @@ from step6_eight import (  # noqa: E402
 )
 
 
+STEP5_SAFE_FRAME = json.loads(
+    (EXPERIMENT_ROOT / "config" / "step5_safe_frame.json").read_text(
+        encoding="utf-8"
+    )
+)
 STEP5_SAFE_U_ALONG_XY = tuple(
     float(value)
-    for value in json.loads(
-        (EXPERIMENT_ROOT / "config" / "step5_safe_frame.json").read_text(
-            encoding="utf-8"
-        )
-    )["basis"]["u_along_xy"]
+    for value in STEP5_SAFE_FRAME["basis"]["u_along_xy"]
+)
+STEP5_SAFE_P_LATERAL_XY = tuple(
+    float(value)
+    for value in STEP5_SAFE_FRAME["basis"]["p_lateral_xy"]
 )
 
 
@@ -415,6 +420,13 @@ STEP5D_DIAG_FIELDS = [
     "_step5d_dls_shadow_normal_direction_class_difference",
     "_step5d_p0_v9_target_tangent_displacement_m",
     "_step5d_p0_v9_actual_tangent_displacement_m",
+    "_step5d_p0_v9_target_along_displacement_m",
+    "_step5d_p0_v9_actual_along_displacement_m",
+    "_step5d_p0_v9_target_lateral_displacement_m",
+    "_step5d_p0_v9_actual_lateral_displacement_m",
+    "_step5d_p0_v9_target_z_displacement_m",
+    "_step5d_p0_v9_actual_z_displacement_m",
+    "_step5d_p0_v9_xyz_tracking_error_norm_m",
     "_step5d_p0_v9_anchor_normal_displacement_m",
     "_step5d_dls_shadow_present",
     "_step5d_dls_shadow_runtime_fallback_allowed",
@@ -5191,6 +5203,7 @@ def compute_bridge_values(
                             tcp_pose_base=tuple(float(value) for value in pose[:6]),
                             anchor_tcp_pose_base=state.step5d_p0_v9_anchor_tcp_pose,
                             safe_u_along_xy=STEP5_SAFE_U_ALONG_XY,
+                            safe_p_lateral_xy=STEP5_SAFE_P_LATERAL_XY,
                             approach_normal_base=tuple(-float(value) for value in n_control_b),
                             path_time_s=float(progress),
                             normal_load_n=normal_load_n,
@@ -6312,6 +6325,24 @@ def compute_bridge_values(
                     )
                     values["_step5d_p0_v9_actual_tangent_displacement_m"] = float(
                         step5d_p0_v9_target.path_diagnostics["actual_tangent_displacement_m"]
+                    )
+                    for component in ("along", "lateral", "z"):
+                        values[
+                            f"_step5d_p0_v9_target_{component}_displacement_m"
+                        ] = float(
+                            step5d_p0_v9_target.path_diagnostics[
+                                f"target_{component}_displacement_m"
+                            ]
+                        )
+                        values[
+                            f"_step5d_p0_v9_actual_{component}_displacement_m"
+                        ] = float(
+                            step5d_p0_v9_target.path_diagnostics[
+                                f"actual_{component}_displacement_m"
+                            ]
+                        )
+                    values["_step5d_p0_v9_xyz_tracking_error_norm_m"] = float(
+                        step5d_p0_v9_target.path_diagnostics["xyz_tracking_error_norm_m"]
                     )
                     values["_step5d_p0_v9_anchor_normal_displacement_m"] = float(
                         step5d_p0_v9_target.path_diagnostics["anchor_normal_displacement_m"]

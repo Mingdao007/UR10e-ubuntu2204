@@ -1033,8 +1033,9 @@ def live_ready_lines(
             "[guards-disabled] force, Cartesian speed, normal speed/displacement; DLS, residual magnitude, and active bounds are diagnostic-only",
             "[control-shaping] qdot_slew=0.05rad/s^2 to match TP speedj acceleration; this is not a stop guard",
             (
-                "[tuning] tangential one-sided cosine peak-to-peak=2mm "
-                "period=20s cycles=3; normal command is diagnostic-only"
+                "[tuning] canonical cycloid A=15mm theta=0..6 over 60s "
+                "with along endpoint=94.19mm, lateral peak=30mm, and "
+                "relative base Z endpoint=+20mm"
             ),
             (
                 "[tuning] stage25 "

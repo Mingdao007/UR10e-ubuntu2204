@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pure tangential/free-space target builder for Step5d P0 v9."""
+"""Canonical free-space Step5 target builder for Step5d P0 v9."""
 
 from __future__ import annotations
 
@@ -19,9 +19,10 @@ from step5d_paper_outer_loop import rotvec_to_matrix
 
 
 P0_V9_EFFECTIVE_KO = 0.01
-P0_V9_PATH_AMPLITUDE_M = 0.001
-P0_V9_PATH_PERIOD_S = 20.0
+P0_V9_PATH_AMPLITUDE_M = 0.015
+P0_V9_PATH_THETA_RATE_RAD_S = 0.1
 P0_V9_PATH_DURATION_S = 60.0
+P0_V9_PATH_Z_LIFT_M = 0.020
 P0_V9_PATH_KP_S_INV = 1.0
 
 
@@ -34,35 +35,57 @@ class P0V9Target:
     path_diagnostics: dict[str, Any]
     feasibility_diagnostics: dict[str, Any]
     tangent_base: tuple[float, float, float]
+    lateral_base: tuple[float, float, float]
     approach_normal_base: tuple[float, float, float]
 
 
-def project_tangent_orthogonal_to_normal(
-    safe_u_along_xy: Sequence[float],
-    approach_normal_base: Sequence[float],
-) -> np.ndarray:
-    """Project the safe-frame along direction into the no-contact tangent plane."""
-
-    along_xy = np.asarray(safe_u_along_xy, dtype=float)
-    if along_xy.shape != (2,) or not np.all(np.isfinite(along_xy)):
-        raise ValueError("P0 v9 safe-frame u_along_xy must be a finite 2-vector")
-    normal = _normalized3(approach_normal_base)
-    tangent = np.asarray((along_xy[0], along_xy[1], 0.0), dtype=float)
-    tangent -= float(np.dot(tangent, normal)) * normal
-    tangent_norm = float(np.linalg.norm(tangent))
-    if tangent_norm < 1e-9:
-        raise ValueError("P0 v9 tangent projection is degenerate")
-    return tangent / tangent_norm
+def _base_xy_unit(direction_xy: Sequence[float], *, name: str) -> np.ndarray:
+    direction = np.asarray(direction_xy, dtype=float)
+    if direction.shape != (2,) or not np.all(np.isfinite(direction)):
+        raise ValueError(f"P0 v9 {name} must be a finite 2-vector")
+    norm = float(np.linalg.norm(direction))
+    if norm < 1e-9:
+        raise ValueError(f"P0 v9 {name} is degenerate")
+    return np.asarray((direction[0] / norm, direction[1] / norm, 0.0), dtype=float)
 
 
-def one_sided_smooth_reference(path_time_s: float) -> tuple[float, float]:
-    """Return 0..2 mm position and its smooth 20 s-period velocity."""
+def canonical_cycloid_lift_reference(
+    path_time_s: float,
+) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+    """Return canonical Step5 along/lateral/Z offsets and velocities.
+
+    The XY path uses A=15 mm and theta=0..6 over 60 s.  Z is a monotonic
+    quintic smoothstep from the Stage25 anchor to +20 mm, with zero endpoint
+    velocity.
+    """
 
     time_s = min(max(float(path_time_s), 0.0), P0_V9_PATH_DURATION_S)
-    omega = 2.0 * math.pi / P0_V9_PATH_PERIOD_S
-    target_m = P0_V9_PATH_AMPLITUDE_M * (1.0 - math.cos(omega * time_s))
-    target_velocity_m_s = P0_V9_PATH_AMPLITUDE_M * omega * math.sin(omega * time_s)
-    return target_m, target_velocity_m_s
+    theta = P0_V9_PATH_THETA_RATE_RAD_S * time_s
+    along_m = P0_V9_PATH_AMPLITUDE_M * (theta - math.sin(theta))
+    lateral_m = P0_V9_PATH_AMPLITUDE_M * (1.0 - math.cos(theta))
+    along_velocity_m_s = (
+        P0_V9_PATH_AMPLITUDE_M
+        * P0_V9_PATH_THETA_RATE_RAD_S
+        * (1.0 - math.cos(theta))
+    )
+    lateral_velocity_m_s = (
+        P0_V9_PATH_AMPLITUDE_M
+        * P0_V9_PATH_THETA_RATE_RAD_S
+        * math.sin(theta)
+    )
+    phase = time_s / P0_V9_PATH_DURATION_S
+    smoothstep = 10.0 * phase**3 - 15.0 * phase**4 + 6.0 * phase**5
+    smoothstep_rate = (
+        30.0 * phase**2 - 60.0 * phase**3 + 30.0 * phase**4
+    ) / P0_V9_PATH_DURATION_S
+    return (
+        (along_m, lateral_m, P0_V9_PATH_Z_LIFT_M * smoothstep),
+        (
+            along_velocity_m_s,
+            lateral_velocity_m_s,
+            P0_V9_PATH_Z_LIFT_M * smoothstep_rate,
+        ),
+    )
 
 
 def _orientation_hold_velocity(
@@ -87,28 +110,36 @@ def build_p0_v9_target(
     tcp_pose_base: Sequence[float],
     anchor_tcp_pose_base: Sequence[float],
     safe_u_along_xy: Sequence[float],
+    safe_p_lateral_xy: Sequence[float],
     approach_normal_base: Sequence[float],
     path_time_s: float,
     normal_load_n: float,
     jacobian: Any,
     qdot_cap_rad_s: float = P0_QDOT_CAP_RAD_S,
 ) -> P0V9Target:
-    """Build the guard-v2 tangential target without Cartesian speed guards."""
+    """Build the guard-v2 canonical XYZ target without Cartesian speed guards."""
 
     pose = np.asarray(tcp_pose_base, dtype=float)
     anchor = np.asarray(anchor_tcp_pose_base, dtype=float)
     if pose.shape != (6,) or anchor.shape != (6,) or not np.all(np.isfinite(pose)) or not np.all(np.isfinite(anchor)):
         raise ValueError("P0 v9 target requires finite current and anchor TCP poses")
     approach = _normalized3(approach_normal_base)
-    tangent = project_tangent_orthogonal_to_normal(safe_u_along_xy, approach)
-    target_m, feedforward_m_s = one_sided_smooth_reference(path_time_s)
-    actual_m = float(np.dot(pose[:3] - anchor[:3], tangent))
-    normal_displacement_m = float(np.dot(pose[:3] - anchor[:3], approach))
-    commanded_m_s = feedforward_m_s + P0_V9_PATH_KP_S_INV * (target_m - actual_m)
+    along = _base_xy_unit(safe_u_along_xy, name="safe-frame u_along_xy")
+    lateral = _base_xy_unit(safe_p_lateral_xy, name="safe-frame p_lateral_xy")
+    if abs(float(np.dot(along, lateral))) > 1e-6:
+        raise ValueError("P0 v9 safe-frame along/lateral directions must be orthogonal")
+    target_local, feedforward_local = canonical_cycloid_lift_reference(path_time_s)
+    basis = np.column_stack((along, lateral, np.asarray((0.0, 0.0, 1.0))))
+    actual_base = pose[:3] - anchor[:3]
+    actual_local = basis.T @ actual_base
+    target_base = basis @ np.asarray(target_local, dtype=float)
+    feedforward_base = basis @ np.asarray(feedforward_local, dtype=float)
+    tracking_error_base = target_base - actual_base
     raw = np.zeros(6, dtype=float)
-    raw[:3] = commanded_m_s * tangent
+    raw[:3] = feedforward_base + P0_V9_PATH_KP_S_INV * tracking_error_base
     raw[3:] = _orientation_hold_velocity(pose[3:], anchor[3:])
     desired_normal_m_s = float(np.dot(raw[:3], approach))
+    normal_displacement_m = float(np.dot(actual_base, approach))
     feasible, feasibility = scale_xdot_for_joint_feasibility(
         raw,
         jacobian,
@@ -130,18 +161,29 @@ def build_p0_v9_target(
         limited_twist=_tuple6(raw),
         posture_policy=posture_policy,
         path_diagnostics={
-            "policy": "tangential_one_sided_cosine_v1",
+            "policy": "canonical_step5_cycloid_plus_base_z_lift_v1",
             "force_sign_convention": "step5_step6_positive_normal_load",
-            "target_tangent_displacement_m": target_m,
-            "actual_tangent_displacement_m": actual_m,
-            "tangent_tracking_error_m": target_m - actual_m,
-            "target_tangent_velocity_m_s": feedforward_m_s,
-            "commanded_tangent_velocity_m_s": commanded_m_s,
+            "target_along_displacement_m": target_local[0],
+            "actual_along_displacement_m": float(actual_local[0]),
+            "target_lateral_displacement_m": target_local[1],
+            "actual_lateral_displacement_m": float(actual_local[1]),
+            "target_z_displacement_m": target_local[2],
+            "actual_z_displacement_m": float(actual_local[2]),
+            "xyz_tracking_error_norm_m": float(np.linalg.norm(tracking_error_base)),
+            "target_along_velocity_m_s": feedforward_local[0],
+            "target_lateral_velocity_m_s": feedforward_local[1],
+            "target_z_velocity_m_s": feedforward_local[2],
+            "target_tangent_displacement_m": target_local[0],
+            "actual_tangent_displacement_m": float(actual_local[0]),
+            "tangent_tracking_error_m": target_local[0] - float(actual_local[0]),
+            "target_tangent_velocity_m_s": feedforward_local[0],
+            "commanded_tangent_velocity_m_s": float(np.dot(raw[:3], along)),
             "target_normal_velocity_m_s": desired_normal_m_s,
             "anchor_normal_displacement_m": normal_displacement_m,
             "path_time_s": min(max(float(path_time_s), 0.0), P0_V9_PATH_DURATION_S),
         },
         feasibility_diagnostics=feasibility,
-        tangent_base=tuple(float(value) for value in tangent),  # type: ignore[arg-type]
+        tangent_base=tuple(float(value) for value in along),  # type: ignore[arg-type]
+        lateral_base=tuple(float(value) for value in lateral),  # type: ignore[arg-type]
         approach_normal_base=tuple(float(value) for value in approach),  # type: ignore[arg-type]
     )

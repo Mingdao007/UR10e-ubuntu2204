@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify one direct 60 s P0 v9 tangential no-contact canary."""
+"""Verify one direct 60 s P0 v9 canonical free-space canary."""
 
 from __future__ import annotations
 
@@ -13,6 +13,9 @@ from typing import Any
 
 PROFILE = "step5d_strict_rnn_no_contact_p0_v9"
 REQUIRED_DURATION_S = 60.0
+MIN_ALONG_ENDPOINT_M = 0.090
+MIN_LATERAL_PEAK_M = 0.025
+MIN_Z_ENDPOINT_M = 0.018
 
 
 def _finite(row: dict[str, str], field: str) -> float:
@@ -35,12 +38,12 @@ def verify(run: Path, *, phase_s: float = REQUIRED_DURATION_S) -> dict[str, Any]
         blockers.append("phase_must_equal_60s")
     csv_path = _csv_path(run)
     if not csv_path.is_file():
-        return {"schema_version": "step5d_no_contact_p0_v9_verification_v1", "ok": False, "blockers": ["bridge_csv_missing"]}
+        return {"schema_version": "step5d_no_contact_p0_v9_verification_v2", "ok": False, "blockers": ["bridge_csv_missing"]}
     with csv_path.open(newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
     if not rows:
         blockers.append("bridge_csv_empty")
-        return {"schema_version": "step5d_no_contact_p0_v9_verification_v1", "ok": False, "blockers": blockers}
+        return {"schema_version": "step5d_no_contact_p0_v9_verification_v2", "ok": False, "blockers": blockers}
 
     qualified = [row for row in rows if _finite(row, "_step5d_p0_v9_qualified") >= 0.5]
     terminal = [row for row in rows if _finite(row, "_step5d_p0_v9_canary_stop_active") >= 0.5]
@@ -58,20 +61,41 @@ def verify(run: Path, *, phase_s: float = REQUIRED_DURATION_S) -> dict[str, Any]
     if any(int(round(_finite(row, "_step5d_rnn_inner_iterations"))) != 512 for row in qualified):
         blockers.append("rnn_inner_iterations_not_512")
 
-    tangent = [_finite(row, "_step5d_p0_v9_actual_tangent_displacement_m") for row in qualified]
-    target = [_finite(row, "_step5d_p0_v9_target_tangent_displacement_m") for row in qualified]
-    tangent = [value for value in tangent if math.isfinite(value)]
-    target = [value for value in target if math.isfinite(value)]
-    peak_to_peak_m = max(tangent) - min(tangent) if tangent else math.nan
-    end_offset_m = abs(tangent[-1]) if tangent else math.nan
-    rms_tracking_m = (
-        math.sqrt(sum((actual - desired) ** 2 for actual, desired in zip(tangent, target)) / min(len(tangent), len(target)))
-        if tangent and target
-        else math.nan
+    actual_components = {
+        component: [
+            _finite(row, f"_step5d_p0_v9_actual_{component}_displacement_m")
+            for row in qualified
+        ]
+        for component in ("along", "lateral", "z")
+    }
+    target_components = {
+        component: [
+            _finite(row, f"_step5d_p0_v9_target_{component}_displacement_m")
+            for row in qualified
+        ]
+        for component in ("along", "lateral", "z")
+    }
+    for values in (*actual_components.values(), *target_components.values()):
+        values[:] = [value for value in values if math.isfinite(value)]
+    along_endpoint_m = actual_components["along"][-1] if actual_components["along"] else math.nan
+    lateral_peak_m = max(actual_components["lateral"], default=math.nan)
+    z_endpoint_m = actual_components["z"][-1] if actual_components["z"] else math.nan
+    motion_observed = any(
+        math.isfinite(value) and abs(value) > 0.0
+        for values in actual_components.values()
+        for value in values
     )
-    motion_observed = math.isfinite(peak_to_peak_m) and peak_to_peak_m > 0.0
-    if not math.isfinite(peak_to_peak_m) or peak_to_peak_m < 0.002:
-        blockers.append("full_two_mm_tangent_travel_not_reached")
+    if not math.isfinite(along_endpoint_m) or along_endpoint_m < MIN_ALONG_ENDPOINT_M:
+        blockers.append("canonical_along_endpoint_below_90mm")
+    if not math.isfinite(lateral_peak_m) or lateral_peak_m < MIN_LATERAL_PEAK_M:
+        blockers.append("canonical_lateral_peak_below_25mm")
+    if not math.isfinite(z_endpoint_m) or z_endpoint_m < MIN_Z_ENDPOINT_M:
+        blockers.append("relative_base_z_endpoint_below_18mm")
+    xyz_tracking_errors = [
+        _finite(row, "_step5d_p0_v9_xyz_tracking_error_norm_m") for row in qualified
+    ]
+    xyz_tracking_errors = [value for value in xyz_tracking_errors if math.isfinite(value)]
+    max_xyz_tracking_error_m = max(xyz_tracking_errors, default=math.nan)
 
     normal_displacements = [abs(_finite(row, "_step5d_p0_v9_anchor_normal_displacement_m")) for row in rows]
     max_normal_displacement_m = max((value for value in normal_displacements if math.isfinite(value)), default=math.inf)
@@ -96,7 +120,7 @@ def verify(run: Path, *, phase_s: float = REQUIRED_DURATION_S) -> dict[str, Any]
         blockers.append("tp_terminal_stop_ack_missing")
     blockers = sorted(set(blockers))
     return {
-        "schema_version": "step5d_no_contact_p0_v9_verification_v1",
+        "schema_version": "step5d_no_contact_p0_v9_verification_v2",
         "ok": not blockers,
         "profile": PROFILE,
         "phase_s": phase_s,
@@ -105,10 +129,11 @@ def verify(run: Path, *, phase_s: float = REQUIRED_DURATION_S) -> dict[str, Any]
             "rows": len(rows),
             "qualified_rows": len(qualified),
             "max_continuous_qualified_s": max_qualified_s,
-            "tangent_peak_to_peak_m": peak_to_peak_m,
             "motion_observed": motion_observed,
-            "tangent_end_offset_m": end_offset_m,
-            "tangent_rms_tracking_m": rms_tracking_m,
+            "actual_along_endpoint_m": along_endpoint_m,
+            "actual_lateral_peak_m": lateral_peak_m,
+            "actual_z_endpoint_m": z_endpoint_m,
+            "max_xyz_tracking_error_m": max_xyz_tracking_error_m,
             "max_normal_displacement_m": max_normal_displacement_m,
             "terminal_rows": len(terminal),
             "tp_terminal_stop_acknowledged": tp_ack,
