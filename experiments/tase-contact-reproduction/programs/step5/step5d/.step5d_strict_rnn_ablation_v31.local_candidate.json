@@ -1,0 +1,27 @@
+{
+  "controller_urp": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v31.urp",
+  "generated_at": "2026-07-14T19:42:43+08:00",
+  "local_only": false,
+  "not_delivered": false,
+  "program": "step5d_strict_rnn_ablation_v31",
+  "safety_boundary": [
+    "controller package upload and fresh read-back only",
+    "not current_stage",
+    "no live bridge or TP Play performed by delivery"
+  ],
+  "schema": "ur_tp_local_candidate_v1",
+  "semantic_fingerprint": "7f9b501df32feeed86bb5a9f8622774754f133be7778beb8c179d0e0a5efb955",
+  "sha256": {
+    ".script": "ad09917dff170b6536425dc834a96f0f19b1e7fafb1e1204f3ddc9d8ef4b675b",
+    ".txt": "1946e95133beb11e3c4811d9f10df06484e7b5a91366985aeb5f742d663ba141",
+    ".urp": "a4ce194ed7b64af1bbdaa6bb8af166434bbc66e9ca6db6ec719863dc1a503818"
+  },
+  "stamp": "2026-07-14T1942HKT_STEP5D_STRICT_RNN_ABLATION_V31_PERMISSIVE_CONTACT",
+  "status": "controller read-back verified",
+  "target_dir": "/programs/andyl/kunwei/step5",
+  "controller": "root@192.168.1.18",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v31.urp",
+  "controller_readback_verified": true,
+  "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v31_20260714_201805/manifest.json",
+  "delivery_mode": "full_upload_readback"
+}

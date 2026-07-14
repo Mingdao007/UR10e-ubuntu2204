@@ -1,0 +1,40 @@
+{
+  "schema_version": "step5d_v31_deterministic_owner_validation_v1",
+  "status": "pass",
+  "no_reviewer_invoked": true,
+  "parent_review_manifest": "runs/step5d_v31_review_v3_20260714_2000/review_manifest_v3.json",
+  "parent_review_manifest_sha256": "85202d84502c3aa3367ae4ccf901d899617f7d1845928b1dda45bce5a1a5adba",
+  "reviewed_composite_fingerprint": "d784edf9fc84e6f2170c598fb518732a6aafa5b1dcba687bea703b06b04a2c3a",
+  "repaired_composite_fingerprint": "a6e3e6ac762dc92f6ee42c85910e1264cdf95db38c42b54d6d39b7797a42f1b9",
+  "decision_digest": "94b7186b1e60e19af8d0f05531dc4756ad4f5b4992e4dd766ea19f2d211909d4",
+  "resolutions": {
+    "STEP5D-V31-TIMING-BINDING-001": "captured exact v31 CuPy512 500Hz formal timing raw+summary with qdot 0.5, frame_contract_only, SCHED_FIFO/20, 30k full ticks, 30k structural-stop ticks, deadline and stale-publish evidence",
+    "STEP5D-V31-OPERATOR-BINDING-001": "bound canonical resolved operator config and transitive wrapper/runtime/gate source closure; wrapper explicitly exports baseline 1s, rezero 1s, filtered_live, min force 2N",
+    "STEP5D-V31-REVIEW-GATE-001": "added v31 evidence-freeze verifier that recomputes binding/composite/package/readback/timing/source/operator/review closure and is required by wrapper and raw bridge",
+    "STEP5D-V31-LAYOUT-CLAIM-001": "regenerated script/URP with layout-524-only header and verifier rejection of stale multi-layout/523/v30 claims"
+  },
+  "validation": {
+    "unit_tests": "39 passed",
+    "package_verifier": "pass",
+    "cross_step_parameter_table": "pass",
+    "textbook_alignment": "pass",
+    "tase_protocol_table": "pass",
+    "formal_timing_summary": "pass",
+    "controller_fresh_readback": "pass"
+  },
+  "artifacts": {
+    "binding": "config/reviews/step5d_v31_review_v3_binding.json",
+    "binding_sha256": "f7e65cd6fd07f5236b3a71c365a87aeef5de0cd574a285ab51a9bfa10d53359c",
+    "evidence": "config/reviews/step5d_v31_review_v3_evidence.json",
+    "evidence_sha256": "a1f92eee0cb02fd4563406ad8013ea4881ec22323e97f5ef759ad4fce95aebd2",
+    "timing_raw_sha256": "36c27e6c7f43d495eb40419aa04bb63159afc82dc50dfb19add4f60ed099711f",
+    "timing_summary_sha256": "53069b9438d9a9fbca873e48ccfb0b1a6d02176134fa0fb51c901b7c6d283867",
+    "controller_readback_manifest_sha256": "c4b94d8978490568b38bd427a47ec951cfaa69b353b038281973f7a03bd1bddb"
+  },
+  "safety_boundary": {
+    "bridge_started": false,
+    "tp_loaded_or_played": false,
+    "robot_motion_produced": false,
+    "live_contact_authorized": false
+  }
+}

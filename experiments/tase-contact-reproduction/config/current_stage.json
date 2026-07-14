@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "updated_at": "2026-07-12T03:45:00+08:00",
+  "updated_at": "2026-07-14T20:00:00+08:00",
   "current_step": "Step5d",
   "current_stage_id": "step5d_strict_rnn_ablation_v29",
   "program": "step5d_strict_rnn_ablation_v29",
@@ -1175,7 +1175,9 @@
     "No v23 post-RNN normal-direction guard is active for this package.",
     "This file is the single current pointer for UR/Kunwei package and bridge handoffs.",
     "TP program load/Play, robot motion, payload/TCP writes, and zero_ftsensor remain explicit live gates.",
-    "Earlier Step5d live-prep packages remain retained evidence only."
+    "Earlier Step5d live-prep packages remain retained evidence only.",
+    "P0v9 is user-accepted as engineering convergence from run 20260714_191925; its original formal threshold failure remains retained.",
+    "v31 is an inactive successor contact candidate and preserves the permissive guard profile until the user explicitly requests tightening."
   ],
   "sha256": {
     ".script": "ff88cb56f5e28aa1cba495f5431b6f137269a1f04eb0414f80058fb8f7a0e9ff",
@@ -1333,7 +1335,7 @@
   "p0_v9_candidate": {
     "profile": "step5d_strict_rnn_no_contact_p0_v9",
     "gate_for": "step5d_strict_rnn_ablation_v30",
-    "state": "canonical_full_path_controller_readback_verified_awaiting_live_run",
+    "state": "user_accepted_engineering_convergence",
     "current": false,
     "package_sha256": {
       ".script": "d4f2425ab78f61d1b7ebb1b5d57b7619965d90fde9d3708067ee6abb53fac787",
@@ -1375,23 +1377,27 @@
       "controller_readback_verified": true,
       "no_contact_p0_accepted": false,
       "contact_live_accepted": false,
-      "reproduction_complete": false
+      "reproduction_complete": false,
+      "user_accepted_engineering_convergence": true
     },
     "latest_live_evidence": {
-      "run": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v9_20260714_184211",
-      "summary": null,
-      "ok": false,
-      "max_continuous_qualified_s": 30.6698325,
-      "actual_tangent_peak_to_peak_m": 0.0022006006,
-      "tcp_delta_m": [0.0002121689, 0.0020023264, -0.000560931],
-      "terminal_rows": 0,
-      "diagnosis": "corrected control path moved as commanded; the 2 mm bring-up reference was too small to be visually obvious and the run was manually stopped before 60 s acceptance"
+      "run": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v9_20260714_191925",
+      "formal_threshold_passed": false,
+      "user_accepted_engineering_convergence": true,
+      "max_continuous_qualified_s": 61.5026671,
+      "actual_along_endpoint_m": 0.0874588186,
+      "actual_lateral_peak_m": 0.0306705648,
+      "actual_relative_z_m": 0.0130032248,
+      "motion_observed": true,
+      "terminal_tp_ack": true,
+      "diagnosis": "P0 control path and full-path motion are engineering-converged for v31 design; original formal endpoint threshold miss remains retained"
     },
-    "blockers": [
-      "continuous_qualified_duration_short",
-      "terminal_zero_stop_packet_missing",
-      "fresh_live_rerun_with_canonical_full_path_required"
-    ]
+    "blockers": [],
+    "stale_analyzer": {
+      "artifact": "runs/derived/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v9_20260714_191925/step5d-analysis/step5d_bridge_analysis.json",
+      "status": "inapplicable_to_p0_v9",
+      "reason": "superseded press-only/layout-1024 assumptions; immutable artifact retained"
+    }
   },
   "v30_candidate": {
     "profile": "step5d_strict_rnn_ablation_v30",
@@ -1408,7 +1414,12 @@
     "timing": {
       "acceptance_mode": "none",
       "source_commit": "review_v3_final_frozen_source",
-      "cpu_affinity": [11, 13, 14, 15],
+      "cpu_affinity": [
+        11,
+        13,
+        14,
+        15
+      ],
       "raw_artifact": "config/step5d_v30_rnn512_review_v3_final_formal_timing_raw.json",
       "raw_sha256": "5933825c956f79e045f601660cd21a65d44f508496eb32e5121f9877b3ca6e88",
       "summary_artifact": "config/step5d_v30_rnn512_review_v3_final_formal_timing_summary.json",
@@ -1448,7 +1459,10 @@
       "policy_id": "ur10e_review_policy_v3",
       "milestone": "v30_contact_pre_live",
       "required_stack": "1+1",
-      "effective_stack_allowed": ["1+1", "1+0"],
+      "effective_stack_allowed": [
+        "1+1",
+        "1+0"
+      ],
       "status": "not_due"
     },
     "blockers": [
@@ -1482,5 +1496,106 @@
   "reproduction_status": {
     "state": "incomplete",
     "accepted_artifact": null
+  },
+  "v31_candidate": {
+    "profile": "step5d_strict_rnn_ablation_v31",
+    "state": "review_v3_accepted_degraded_awaiting_explicit_live_authorization",
+    "current": false,
+    "guard_policy": "permissive_until_user_requests_tightening",
+    "gross_limits": {
+      "raw_normal_load_abs_n": 60,
+      "force_norm_n": 100,
+      "torque_norm_nm": 3
+    },
+    "runtime_profile": {
+      "backend": "cupy",
+      "inner_iterations": 512,
+      "epsilon": 0.01,
+      "sigr_exponent_r": 0.8,
+      "qdot_cap_rad_s": 0.5,
+      "qdot_slew_rad_s2": 0.05,
+      "normal_motion_policy": "frame_contract_only",
+      "control_hz": 500
+    },
+    "lifecycle": [
+      "save_home_pose",
+      "fixed_entry_xy_gravity_down",
+      "far_near_contact_search",
+      "contact_latch",
+      "stage25_60s",
+      "retract_plus_10mm_on_normal_or_recoverable_stop",
+      "movel_home_pose",
+      "no_auto_home_from_protective_or_estop"
+    ],
+    "package": {
+      "local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v31",
+      "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v31.urp",
+      "controller_uploaded": true,
+      "controller_readback_verified": true,
+      "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v31_20260714_201805/manifest.json",
+      "controller_readback_manifest_sha256": "c4b94d8978490568b38bd427a47ec951cfaa69b353b038281973f7a03bd1bddb",
+      "sha256": {
+        ".script": "ad09917dff170b6536425dc834a96f0f19b1e7fafb1e1204f3ddc9d8ef4b675b",
+        ".txt": "1946e95133beb11e3c4811d9f10df06484e7b5a91366985aeb5f742d663ba141",
+        ".urp": "a4ce194ed7b64af1bbdaa6bb8af166434bbc66e9ca6db6ec719863dc1a503818"
+      }
+    },
+    "formal_timing": {
+      "status": "pass",
+      "raw": "config/step5d_v31_formal_timing_raw.json",
+      "raw_sha256": "36c27e6c7f43d495eb40419aa04bb63159afc82dc50dfb19add4f60ed099711f",
+      "summary": "config/step5d_v31_formal_timing_summary.json",
+      "summary_sha256": "53069b9438d9a9fbca873e48ccfb0b1a6d02176134fa0fb51c901b7c6d283867"
+    },
+    "review_v3": {
+      "required_stack": "1+1",
+      "effective_stack_allowed": [
+        "1+1",
+        "1+0"
+      ],
+      "status": "accepted_degraded_1+0",
+      "work_item_id": "step5d-v31-contact-20260714",
+      "binding": "config/reviews/step5d_v31_review_v3_binding.json",
+      "binding_sha256": "f7e65cd6fd07f5236b3a71c365a87aeef5de0cd574a285ab51a9bfa10d53359c",
+      "evidence": "config/reviews/step5d_v31_review_v3_evidence.json",
+      "evidence_sha256": "a1f92eee0cb02fd4563406ad8013ea4881ec22323e97f5ef759ad4fce95aebd2",
+      "composite_fingerprint": "a6e3e6ac762dc92f6ee42c85910e1264cdf95db38c42b54d6d39b7797a42f1b9",
+      "reviewed_composite_fingerprint": "d784edf9fc84e6f2170c598fb518732a6aafa5b1dcba687bea703b06b04a2c3a",
+      "manifest": "runs/step5d_v31_review_v3_20260714_2000/review_manifest_v3.json",
+      "manifest_sha256": "85202d84502c3aa3367ae4ccf901d899617f7d1845928b1dda45bce5a1a5adba",
+      "policy": "config/step5d_review_policy_v31.json",
+      "policy_sha256": "40e1e719aa8258936acdc38dfcaf214d79ba5dad001b430e013a7d028337a11a",
+      "index": "config/step5d_review_index_v31.json",
+      "index_sha256": "4610842257676e51ba2971080d5720dfa63990c649fc9eb9bce7ee5cfb5a2324",
+      "effective_stack": "1+0",
+      "degraded_reason": "skipped_unavailable",
+      "decision_digest": "94b7186b1e60e19af8d0f05531dc4756ad4f5b4992e4dd766ea19f2d211909d4",
+      "deterministic_finding_closure": {
+        "no_reviewer_invoked": true,
+        "parent_review_manifest_sha256": "85202d84502c3aa3367ae4ccf901d899617f7d1845928b1dda45bce5a1a5adba",
+        "reviewed_composite_fingerprint": "d784edf9fc84e6f2170c598fb518732a6aafa5b1dcba687bea703b06b04a2c3a",
+        "repaired_composite_fingerprint": "a6e3e6ac762dc92f6ee42c85910e1264cdf95db38c42b54d6d39b7797a42f1b9",
+        "finding_ids": [
+          "STEP5D-V31-OPERATOR-BINDING-001",
+          "STEP5D-V31-REVIEW-GATE-001",
+          "STEP5D-V31-TIMING-BINDING-001"
+        ],
+        "decision_digest": "94b7186b1e60e19af8d0f05531dc4756ad4f5b4992e4dd766ea19f2d211909d4",
+        "owner_validation": {
+          "path": "config/reviews/step5d_v31_deterministic_owner_validation.json",
+          "sha256": "e8599138c800af6a88cb477c19b9f207d62b352c2635885a5b0624326a98a3fe",
+          "status": "pass"
+        }
+      }
+    },
+    "live_authorized": false,
+    "blockers": [
+      "explicit_live_contact_authorization_missing"
+    ],
+    "claim_boundary": {
+      "package_accepted": true,
+      "live_accepted": false,
+      "reproduction_complete": false
+    }
   }
 }

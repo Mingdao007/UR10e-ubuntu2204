@@ -1,0 +1,85 @@
+{
+  "checks": {
+    "compute_deadline_policy": true,
+    "elapsed_full_60s": true,
+    "elapsed_safe_60s": true,
+    "exact_profile": true,
+    "finite": true,
+    "full_tick_30000": true,
+    "paced_500hz": true,
+    "safe_hold_30000": true,
+    "schedule_deadline_policy": true,
+    "stale_hold_contract": true
+  },
+  "full_tick": {
+    "compute_deadline_miss_count": 1,
+    "max_ms": 2.04970600316301,
+    "mean_ms": 0.95034825989084,
+    "nonfinite_count": 0,
+    "p50_ms": 0.8034839993342757,
+    "p95_ms": 1.228700044885045,
+    "p99_ms": 1.2832676978723603,
+    "samples": 30000
+  },
+  "full_tick_schedule_deadline_miss_count": 2,
+  "overall_pass": true,
+  "profile": {
+    "backend": "cupy",
+    "control_hz": 500.0,
+    "inner_iterations": 512,
+    "measured_rejection_branch": "structural_stop_zero_qdot",
+    "normal_motion_policy": "frame_contract_only",
+    "profile": "step5d_strict_rnn_ablation_v31",
+    "qdot_cap_rad_s": 0.5,
+    "scheduler_policy_required": "SCHED_FIFO",
+    "scheduler_priority_required": 20
+  },
+  "raw_path": "config/step5d_v31_formal_timing_raw.json",
+  "raw_sha256": "36c27e6c7f43d495eb40419aa04bb63159afc82dc50dfb19add4f60ed099711f",
+  "safe_hold": {
+    "compute_deadline_miss_count": 0,
+    "max_ms": 1.817550990381278,
+    "mean_ms": 0.7446879193526305,
+    "nonfinite_count": 0,
+    "p50_ms": 0.6561230038641952,
+    "p95_ms": 1.1039500073820818,
+    "p99_ms": 1.1838569022074805,
+    "samples": 30000
+  },
+  "safe_hold_schedule_deadline_miss_count": 1,
+  "safety_boundary": [
+    "read-only source evidence",
+    "stdout JSON only",
+    "no RTDE connection",
+    "no Dashboard connection",
+    "no controller write",
+    "no bridge start",
+    "no motion authorization"
+  ],
+  "schema_version": "step5d_v31_formal_timing_summary_v1",
+  "solver": {
+    "compute_deadline_miss_count": 0,
+    "max_ms": 0.9936199930962175,
+    "mean_ms": 0.21810797280777477,
+    "nonfinite_count": 0,
+    "p50_ms": 0.2105939929606393,
+    "p95_ms": 0.23629255520063452,
+    "p99_ms": 0.3334604187693914,
+    "samples": 10000
+  },
+  "stale_hold": {
+    "continuous_stale_stop_s": 1.0,
+    "guard_approved_late_action": "fresh_command",
+    "heartbeat_stale_stop_s": 1.0,
+    "held_tick_counts_as_consumed": true,
+    "late_candidate_policy": "publish_when_guard_approved",
+    "max_consecutive_held_ticks": 10,
+    "miss_ratio_max": 0.01,
+    "pass": true,
+    "pre_first_command_policy": "invalid_packet_tp_sync_no_speed_command",
+    "same_heartbeat_republished": true,
+    "solver_history_restored_to_held_qdot": true,
+    "stale_tick_command": "last_published_guard_approved_qdot_consumed",
+    "stop_dominates_hold": true
+  }
+}

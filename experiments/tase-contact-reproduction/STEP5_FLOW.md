@@ -9,7 +9,18 @@ and explicit live/contact authorization. Its historical controller evidence at
 `runs/controller_readback_step5d_strict_rnn_ablation_v29_20260710_014948`
 remains byte-for-byte evidence only.
 
-The successor `step5d_strict_rnn_ablation_v30` is an inactive offline
+The successor `step5d_strict_rnn_ablation_v30` remains immutable inactive
+history. New contact work is owned by `step5d_strict_rnn_ablation_v31`, an
+inactive candidate that carries the user-selected permissive P0v9 guard policy
+into contact control. It keeps layout-524 strict RNN, qdot cap `0.5 rad/s`,
+`0.05 rad/s²` shaping, 2 s sensor stale, 1 s heartbeat stale, and a 75 s
+Stage25 runtime. Cartesian/normal speed and displacement, force-window, DLS,
+residual, active-bound, and ordinary normal-direction checks are diagnostic;
+the hard gates are structural/frame semantics, layout/cmd validity, qdot,
+heartbeat, and gross `60 N` raw-normal / `100 N` force-norm / `3 Nm` torque.
+No guard may be tightened until the user explicitly requests it.
+
+The historical `step5d_strict_rnn_ablation_v30` is an inactive offline
 candidate. It keeps CuPy, epsilon `0.010`, finite-time exponent `r=0.8`, qdot
 cap `0.05 rad/s`, and now uses the 512-iteration candidate. A source-bound
 SCHED_FIFO/20 diagnostic sweep compared 128/256/512: 128 executed 333/500
@@ -324,6 +335,7 @@ instead of preserving the later 22 s TP v3 timing.
 | `step5d_strict_rnn_no_contact_p0_v8` | frozen failed P0 evidence | false | false | v30 strict-RNN contract | none | Retained 60 s failed canary and controller readback evidence. Its press-only target conflicts with the intended no-contact experiment and its TP package lacks the full command echo required for semantic qualification. It cannot be promoted and is superseded by P0 v9. |
 | `step5d_strict_rnn_no_contact_p0_v9` | permissive P0 guard v2 | false | false | strict-RNN layout-524 structural contract | none | Canonical free-space candidate: 60 s cycloid with `A=15 mm`, `theta=0..6`, about 94.19 mm along travel, 30 mm lateral peak, and smooth relative base `Z=+20 mm`; `qdot<=0.5 rad/s`; 2 s sensor stale, 1 s heartbeat stale, 75 s TP runtime. Force/torque, Cartesian/normal speed, approach-normal displacement, DLS, residual magnitude, and active bounds are diagnostic-only. Success requires 60 continuous consumed/accepted seconds, along endpoint >=90 mm, lateral peak >=25 mm, relative Z endpoint >=18 mm, and terminal TP stop acknowledgement. |
 | `step5d_strict_rnn_ablation_v30` | offline contact-control prep | true | false | strict TASE RNN speedj; DLS shadow-only | `v31_filtered_live` | Inactive contact candidate retaining the stricter 1%/20 ms bounded last-command-hold contract. Hard-real-time remains a distinct zero-miss claim; readiness still requires live-runtime integration, a passing successor no-contact canary, and frozen package/readback. Contact requires separate authorization. |
+| `step5d_strict_rnn_ablation_v31` | inactive permissive contact candidate | true | false | strict TASE RNN layout-524; DLS/Cartesian shadow-only | latched contact normal | Full lifecycle: save Play-time home pose, fixed entry/gravity-down, far/near search and contact latch, 60 s Stage25, +10 mm retract and return home on normal/recoverable completion. Protective/E-stop states never auto-home. Hard guards remain structural/frame, layout/cmd validity, qdot/heartbeat, and user-selected gross limits; all other listed constraints stay diagnostic until the user asks to tighten. Package/read-back, frozen fingerprint, one Review v3, and explicit contact authorization are required before bridge start. |
 | `step5d_ros2_remote_shadow_v1` | ROS2 offline | true | false | ROS2 shadow replay | `v31_filtered_live` input logs | Diagnostic-only Step5d policy replay: replays v15a/v14/v11 and Step5b/Step6b CSVs, removes long zero-qdot hold recovery, but is not live-ready and must follow Step5b plumbing validation. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |
 
