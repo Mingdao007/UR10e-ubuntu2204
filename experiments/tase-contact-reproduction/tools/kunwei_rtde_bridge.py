@@ -79,6 +79,10 @@ from step5d_p0_v8_control_core import (  # noqa: E402
     press_only_outer_output as shared_press_only_outer_output,
     scale_xdot_for_joint_feasibility as shared_scale_xdot_for_joint_feasibility,
 )
+from step5d_p0_v9_control_core import (  # noqa: E402
+    P0V9Target,
+    build_p0_v9_target as shared_build_p0_v9_target,
+)
 from step5d_control_contract import (  # noqa: E402
     ControlCandidate,
     DeferredV30Diagnostics,
@@ -97,6 +101,10 @@ from step5d_p0_v8_gate import (  # noqa: E402
     authorize_canary as authorize_p0_v8_canary,
     validate_canary_phase as validate_p0_v8_canary_phase,
 )
+from step5d_p0_v9_gate import (  # noqa: E402
+    authorize_canary as authorize_p0_v9_canary,
+    validate_canary_phase as validate_p0_v9_canary_phase,
+)
 from step5d_runtime_interface import (  # noqa: E402
     STEP5D_ABLATION_STAGE_IDS,
     STEP5D_ABLATION_V25_STAGE_ID,
@@ -108,6 +116,7 @@ from step5d_runtime_interface import (  # noqa: E402
     STEP5D_NO_CONTACT_P0_STAGE_ID,
     STEP5D_NO_CONTACT_P0_STAGE_IDS,
     STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
+    STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
     STEP5D_V30_CONTROL_CONTRACT_STAGE_IDS,
     STEP5D_LINE_ENTRY_PARAM_VALID_CODE,
     STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE,
@@ -134,6 +143,7 @@ from step5d_runtime_interface import (  # noqa: E402
     STEP5D_NO_CONTACT_P0_RNN_BACKEND,
     STEP5D_NO_CONTACT_P0_RNN_INNER_ITERATIONS,
     STEP5D_NO_CONTACT_P0_V8_RNN_INNER_ITERATIONS,
+    STEP5D_NO_CONTACT_P0_V9_RNN_INNER_ITERATIONS,
     STEP5D_NO_CONTACT_P0_RTDE_HZ,
     STEP5D_NO_CONTACT_P0_SENSOR_STALE_S,
     STEP5D_NO_CONTACT_P0_SIGR_EXPONENT_R,
@@ -154,6 +164,16 @@ from step6_eight import (  # noqa: E402
     step6_stage,
     transform_local as step6_transform_local,
     transform_velocity as step6_transform_velocity,
+)
+
+
+STEP5_SAFE_U_ALONG_XY = tuple(
+    float(value)
+    for value in json.loads(
+        (EXPERIMENT_ROOT / "config" / "step5_safe_frame.json").read_text(
+            encoding="utf-8"
+        )
+    )["basis"]["u_along_xy"]
 )
 
 
@@ -384,6 +404,16 @@ STEP5D_DIAG_FIELDS = [
     "_step5d_p0_v8_contract_active",
     "_step5d_p0_v8_canary_phase_s",
     "_step5d_p0_v8_canary_stop_active",
+    "_step5d_p0_v9_contract_active",
+    "_step5d_normal_motion_policy",
+    "_step5d_raw_desired_normal_m_s",
+    "_step5d_governed_desired_normal_m_s",
+    "_step5d_strict_predicted_normal_m_s",
+    "_step5d_dls_predicted_normal_m_s",
+    "_step5d_dls_shadow_normal_direction_class_difference",
+    "_step5d_p0_v9_target_tangent_displacement_m",
+    "_step5d_p0_v9_actual_tangent_displacement_m",
+    "_step5d_p0_v9_anchor_normal_displacement_m",
     "_step5d_dls_shadow_present",
     "_step5d_dls_shadow_runtime_fallback_allowed",
     "_step5d_dls_shadow_normal_sign_difference",
@@ -895,18 +925,22 @@ def write_bridge_run_manifest(
         "rtde_hz": float(getattr(args, "rtde_hz", 0.0)),
         "bridge_mode": str(getattr(args, "bridge_mode", getattr(args, "step4e_mode", ""))),
     }
-    if profile == STEP5D_NO_CONTACT_P0_V8_STAGE_ID:
+    if profile in {
+        STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
+        STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
+    }:
         current = json.loads(
             (EXPERIMENT_ROOT / "config" / "current_stage.json").read_text(
                 encoding="utf-8"
             )
         )
-        candidate = current.get("p0_v8_candidate") or {}
+        version = "v9" if profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID else "v8"
+        candidate = current.get(f"p0_{version}_candidate") or {}
         capture = (current.get("bridge_trigger") or {}).get(
-            "no_contact_p0_v8_capture"
+            f"no_contact_p0_{version}_capture"
         ) or {}
         policy_path = EXPERIMENT_ROOT / "config" / "step5d_review_policy_v3.json"
-        manifest["p0_v8_canary"] = {
+        manifest[f"p0_{version}_canary"] = {
             "phase_s": float(getattr(args, "step5d_stop_register_canary_s", 0.0)),
             "composite_fingerprint": candidate.get("composite_fingerprint"),
             "review_manifest": (candidate.get("review_v3") or {}).get("manifest"),
@@ -3855,6 +3889,9 @@ class BridgeState:
         self.step5d_v30_deferred_diagnostics: DeferredV30Diagnostics | None = None
         self.step5d_v30_safety_envelope = SafetyEnvelope()
         self.step5d_v30_policy: StrictRnnControlPolicy | None = None
+        self.step5d_p0_v9_anchor_tcp_pose: tuple[float, ...] | None = None
+        self.step5d_p0_v9_approach_normal: tuple[float, float, float] | None = None
+        self.step5d_p0_v9_tangent_base: tuple[float, float, float] | None = None
         self.step5d_settle_filtered_normal_load_n: float | None = None
         self.step5d_line_guard_loss_s = 0.0
         self.step5d_last_qdot: np.ndarray | None = None
@@ -3919,6 +3956,9 @@ class BridgeState:
         self.step5d_outer_state = Step5dOuterLoopState()
         self.step5d_v30_sequence = 0
         self.step5d_v30_safety_envelope = SafetyEnvelope()
+        self.step5d_p0_v9_anchor_tcp_pose = None
+        self.step5d_p0_v9_approach_normal = None
+        self.step5d_p0_v9_tangent_base = None
         # These two objects are preallocated before socket/RTDE startup.  A
         # stage-boundary reset must retain them; clearing them here makes the
         # first Stage 20 tick invalidate an otherwise complete v30 prewarm.
@@ -4060,6 +4100,9 @@ def compute_bridge_values(
     step5d_no_contact_p0_profile = is_no_contact_p0_stage(args.bridge_profile)
     step5d_no_contact_p0_v8_profile = (
         args.bridge_profile == STEP5D_NO_CONTACT_P0_V8_STAGE_ID
+    )
+    step5d_no_contact_p0_v9_profile = (
+        args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID
     )
     step5d_v30_contract_profile = uses_v30_control_contract(args.bridge_profile)
     step5d_step5b_speedl_live_profile = (
@@ -4979,6 +5022,7 @@ def compute_bridge_values(
         step5d_p0_rnn_reject_reason = "not_active"
         step5d_p0_safe_hold_active = math.nan
         step5d_p0_v8_target: P0V8Target | None = None
+        step5d_p0_v9_target: P0V9Target | None = None
         step5d_rnn_accepted = math.nan
         step5d_rnn_reject_reason = "not_active"
         step5d_safe_hold_active = math.nan
@@ -5107,7 +5151,11 @@ def compute_bridge_values(
                     else state.step5d_outer_state
                 )
                 base_step5d_ko = STEP5D_V28_SHADOW_KO if step5d_step5b_speedl_live_profile else 5.0
-                if step5d_no_contact_p0_profile and not step5d_no_contact_p0_v8_profile:
+                if (
+                    step5d_no_contact_p0_profile
+                    and not step5d_no_contact_p0_v8_profile
+                    and not step5d_no_contact_p0_v9_profile
+                ):
                     step5d_p0_posture_policy = step5d_no_contact_p0_low_force_posture_policy(
                         normal_load_n=normal_load_n,
                         base_ko=base_step5d_ko,
@@ -5120,7 +5168,39 @@ def compute_bridge_values(
                     step5d_x_pd_base = (float(pose[0]), float(pose[1]), float(pose[2]))
                     step5d_xdot_pd_base = (0.0, 0.0, 0.0)
                 if step5d_no_contact_p0_profile:
-                    if step5d_no_contact_p0_v8_profile:
+                    if step5d_no_contact_p0_v9_profile:
+                        if state.step5d_p0_v9_anchor_tcp_pose is None:
+                            state.step5d_p0_v9_anchor_tcp_pose = tuple(
+                                float(value) for value in pose[:6]
+                            )
+                        step5d_p0_v9_target = shared_build_p0_v9_target(
+                            tcp_pose_base=tuple(float(value) for value in pose[:6]),
+                            anchor_tcp_pose_base=state.step5d_p0_v9_anchor_tcp_pose,
+                            safe_u_along_xy=STEP5_SAFE_U_ALONG_XY,
+                            approach_normal_base=tuple(-float(value) for value in n_control_b),
+                            path_time_s=float(progress),
+                            normal_load_n=normal_load_n,
+                            jacobian=jacobian,
+                            qdot_cap_rad_s=float(args.step5d_qdot_limit_rad_s),
+                        )
+                        state.step5d_p0_v9_approach_normal = (
+                            step5d_p0_v9_target.approach_normal_base
+                        )
+                        state.step5d_p0_v9_tangent_base = step5d_p0_v9_target.tangent_base
+                        step5d_p0_posture_policy = dict(step5d_p0_v9_target.posture_policy)
+                        step5d_outer_output = SimpleNamespace(
+                            xdot_c=np.asarray(step5d_p0_v9_target.raw_outer_twist, dtype=float),
+                            cmd_valid=True,
+                            next_state=Step5dOuterLoopState(),
+                            diagnostics={
+                                "outer_orientation_angle_rad": 0.0,
+                                "e_f": 0.0,
+                                "R_d_z_dot_R_cur_z": 1.0,
+                                "effective_ko": float(step5d_p0_posture_policy["effective_ko"]),
+                                **step5d_p0_v9_target.path_diagnostics,
+                            },
+                        )
+                    elif step5d_no_contact_p0_v8_profile:
                         step5d_p0_v8_target = shared_build_p0_v8_target(
                             tcp_pose_base=tuple(float(value) for value in pose[:6]),
                             tcp_speed_base=tuple(float(value) for value in speed[:6]),
@@ -5201,7 +5281,22 @@ def compute_bridge_values(
                     r=float(args.step5d_sigr_exponent_r),
                 )
                 step5d_outer_xdot_limited = np.asarray(step5d_outer_output.xdot_c, dtype=float)
-                if step5d_no_contact_p0_v8_profile:
+                if step5d_no_contact_p0_v9_profile:
+                    if step5d_p0_v9_target is None:
+                        raise RuntimeError("shared P0 v9 target was not built")
+                    step5d_outer_xdot_limited = np.asarray(
+                        step5d_p0_v9_target.limited_twist,
+                        dtype=float,
+                    )
+                    step5d_outer_xdot_limiter_active = False
+                    step5d_p0_frame_diagnostics = {
+                        "valid": True,
+                        "mode": "base_tangent_plane_v1",
+                        "reason": "ok",
+                        "limited_base": step5d_outer_xdot_limited,
+                        "tcp_press_speed_m_s": 0.0,
+                    }
+                elif step5d_no_contact_p0_v8_profile:
                     if step5d_p0_v8_target is None:
                         raise RuntimeError("shared P0 v8 target was not built")
                     step5d_outer_xdot_limited = np.asarray(
@@ -5235,7 +5330,17 @@ def compute_bridge_values(
                         max_angular_rad_s=float(args.bridge_angular_limit_rad_s),
                     )
                 step5d_outer_xdot_joint_feasible = step5d_outer_xdot_limited
-                if step5d_no_contact_p0_v8_profile:
+                if step5d_no_contact_p0_v9_profile:
+                    if step5d_p0_v9_target is None:
+                        raise RuntimeError("shared P0 v9 target was not built")
+                    step5d_outer_xdot_joint_feasible = np.asarray(
+                        step5d_p0_v9_target.desired_twist,
+                        dtype=float,
+                    )
+                    step5d_xdot_feasibility_diagnostics = dict(
+                        step5d_p0_v9_target.feasibility_diagnostics
+                    )
+                elif step5d_no_contact_p0_v8_profile:
                     if step5d_p0_v8_target is None:
                         raise RuntimeError("shared P0 v8 target was not built")
                     step5d_outer_xdot_joint_feasible = np.asarray(
@@ -5296,6 +5401,17 @@ def compute_bridge_values(
                         omega_minus=tuple(float(value) for value in omega_minus),  # type: ignore[arg-type]
                         omega_plus=tuple(float(value) for value in omega_plus),  # type: ignore[arg-type]
                         dt_s=float(dt_s),
+                        normal_motion_policy=(
+                            "normal_zero"
+                            if step5d_no_contact_p0_v9_profile
+                            else "approach_positive"
+                        ),
+                        target_normal_tolerance_m_s=(
+                            1e-9 if step5d_no_contact_p0_v9_profile else 1e-9
+                        ),
+                        predicted_normal_tolerance_m_s=(
+                            1e-5 if step5d_no_contact_p0_v9_profile else 1e-5
+                        ),
                     )
                 try:
                     if step5d_v30_contract_profile:
@@ -5689,13 +5805,13 @@ def compute_bridge_values(
                         if decision_v30.action == "stop":
                             step5d_contact_safety_stop = True
                             step5d_engage_gate_ok = False
-                    if step5d_no_contact_p0_v8_profile:
+                    if step5d_no_contact_p0_v8_profile or step5d_no_contact_p0_v9_profile:
                         step5d_p0_rnn_accepted = step5d_rnn_accepted
                         step5d_p0_rnn_reject_reason = step5d_rnn_reject_reason
                         step5d_p0_safe_hold_active = step5d_safe_hold_active
                         if not decision_v30.accepted:
                             step5d_intervention_reasons.append(
-                                f"p0_v8_contract:{decision_v30.reason}"
+                                f"p0_contract:{decision_v30.reason}"
                             )
                 if (
                     step5d_liveprep_v29_profile
@@ -6156,6 +6272,32 @@ def compute_bridge_values(
                 values["_step5d_p0_v8_contract_active"] = (
                     1.0 if step5d_no_contact_p0_v8_profile else 0.0
                 )
+                values["_step5d_p0_v9_contract_active"] = (
+                    1.0 if step5d_no_contact_p0_v9_profile else 0.0
+                )
+                if step5d_p0_v9_target is not None:
+                    approach_v9 = np.asarray(
+                        step5d_p0_v9_target.approach_normal_base, dtype=float
+                    )
+                    values["_step5d_normal_motion_policy"] = "normal_zero"
+                    values["_step5d_raw_desired_normal_m_s"] = float(
+                        np.dot(np.asarray(step5d_p0_v9_target.raw_outer_twist[:3]), approach_v9)
+                    )
+                    values["_step5d_governed_desired_normal_m_s"] = float(
+                        np.dot(np.asarray(step5d_p0_v9_target.desired_twist[:3]), approach_v9)
+                    )
+                    values["_step5d_strict_predicted_normal_m_s"] = float(
+                        np.dot(np.asarray(step5d_predicted_twist[:3]), approach_v9)
+                    )
+                    values["_step5d_p0_v9_target_tangent_displacement_m"] = float(
+                        step5d_p0_v9_target.path_diagnostics["target_tangent_displacement_m"]
+                    )
+                    values["_step5d_p0_v9_actual_tangent_displacement_m"] = float(
+                        step5d_p0_v9_target.path_diagnostics["actual_tangent_displacement_m"]
+                    )
+                    values["_step5d_p0_v9_anchor_normal_displacement_m"] = float(
+                        step5d_p0_v9_target.path_diagnostics["anchor_normal_displacement_m"]
+                    )
                 values["_step5d_cmd_valid_reason"] = step5d_cmd_valid_reason
             if dls_shadow_v30 is not None:
                 values["_step5d_dls_shadow_present"] = 1.0
@@ -6164,6 +6306,12 @@ def compute_bridge_values(
                 )
                 values["_step5d_dls_shadow_normal_sign_difference"] = (
                     1.0 if dls_shadow_v30.normal_sign_difference else 0.0
+                )
+                values["_step5d_dls_shadow_normal_direction_class_difference"] = (
+                    1.0 if dls_shadow_v30.normal_direction_class_difference else 0.0
+                )
+                values["_step5d_dls_predicted_normal_m_s"] = float(
+                    dls_shadow_v30.dls_approach_m_s
                 )
                 values["_step5d_dls_shadow_residual_norm"] = float(
                     dls_shadow_v30.residual_norm
@@ -7954,6 +8102,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             args.step5d_rnn_inner_iterations = (
                 STEP5D_NO_CONTACT_P0_V8_RNN_INNER_ITERATIONS
             )
+        elif args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID:
+            args.step5d_qdot_limit_rad_s = 0.050
+            args.step5d_rnn_inner_iterations = (
+                STEP5D_NO_CONTACT_P0_V9_RNN_INNER_ITERATIONS
+            )
+            args.target_force_n = 0.0
     elif args.bridge_profile in STEP5D_ABLATION_STAGE_IDS:
         def preload_default_was_not_supplied(flag: str, *env_names: str) -> bool:
             return flag not in argv_list and all(os.environ.get(name, "") == "" for name in env_names)
@@ -8095,10 +8249,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             else 0.30
         )
     try:
-        args.step5d_stop_register_canary_s = validate_p0_v8_canary_phase(
-            args.bridge_profile,
-            args.step5d_stop_register_canary_s,
-        )
+        if args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID:
+            args.step5d_stop_register_canary_s = validate_p0_v9_canary_phase(
+                args.bridge_profile, args.step5d_stop_register_canary_s
+            )
+        else:
+            args.step5d_stop_register_canary_s = validate_p0_v8_canary_phase(
+                args.bridge_profile, args.step5d_stop_register_canary_s
+            )
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
     return args
@@ -8198,6 +8356,16 @@ def require_p0_v8_canary_authorization(
         raise SystemExit(str(exc)) from exc
 
 
+def require_p0_v9_canary_authorization(
+    args: argparse.Namespace,
+    current: Mapping[str, Any],
+) -> dict[str, Any]:
+    try:
+        return authorize_p0_v9_canary(args, current)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+
+
 def require_v29_live_bridge_authorization(
     args: argparse.Namespace,
     *,
@@ -8217,6 +8385,8 @@ def require_v29_live_bridge_authorization(
         raise SystemExit("raw bridge cannot resolve current-stage identity: JSON root is not an object")
     if args.bridge_profile == STEP5D_NO_CONTACT_P0_V8_STAGE_ID:
         return require_p0_v8_canary_authorization(args, current)
+    if args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID:
+        return require_p0_v9_canary_authorization(args, current)
     if args.bridge_profile == STEP5D_NO_CONTACT_P0_STAGE_ID:
         raise SystemExit("P0 v7 is frozen historical evidence; use the P0 v8 workflow")
     current_program = str(current.get("program") or "")
@@ -8749,8 +8919,8 @@ def main(argv: list[str] | None = None) -> int:
     stop_request = 0.0
     stop_reason = "duration"
     guard_reason: str | None = None
-    p0_v8_canary_stop_sent_at: float | None = None
-    p0_v8_canary_tp_acknowledged = False
+    p0_canary_stop_sent_at: float | None = None
+    p0_canary_tp_acknowledged = False
     parse_errors = 0
     dropped_sync_bytes = 0
     samples = 0
@@ -9260,7 +9430,7 @@ def main(argv: list[str] | None = None) -> int:
                         previous_kinematics_output = sample
                         previous_kinematics_time = rtde_output_time
                         latest_output = sample
-                        if p0_v8_canary_stop_sent_at is not None:
+                        if p0_canary_stop_sent_at is not None:
                             try:
                                 p0_stop_echo = float(
                                     sample.get("output_double_register_28", 0.0)
@@ -9271,7 +9441,7 @@ def main(argv: list[str] | None = None) -> int:
                             except (TypeError, ValueError):
                                 p0_stop_echo = 0.0
                                 p0_stage_echo = 0.0
-                            p0_v8_canary_tp_acknowledged = (
+                            p0_canary_tp_acknowledged = (
                                 p0_stop_echo > 0.5 or abs(p0_stage_echo - 26.0) < 0.05
                             )
                         rtde_output_times.append(rtde_output_time)
@@ -9446,7 +9616,11 @@ def main(argv: list[str] | None = None) -> int:
                         stop_dominant=stop_dominant,
                         schedule_late=deadline_overrun_detected,
                         publish_guard_approved_late_command=(
-                            args.bridge_profile == STEP5D_NO_CONTACT_P0_V8_STAGE_ID
+                            args.bridge_profile
+                            in {
+                                STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
+                                STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
+                            }
                         ),
                         last_published_command=last_published_step5d_command,
                     )
@@ -9614,19 +9788,37 @@ def main(argv: list[str] | None = None) -> int:
                     elif startup_health_published:
                         last_published_heartbeat = float(bridge_values["heartbeat"])
                         heartbeat += 1.0
-                    p0_v8_canary_guard = bool(
-                        args.bridge_profile == STEP5D_NO_CONTACT_P0_V8_STAGE_ID
+                    p0_canary_guard = bool(
+                        args.bridge_profile
+                        in {
+                            STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
+                            STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
+                        }
                         and guard_reason is not None
-                        and "p0_v8_canary_" in guard_reason
+                        and (
+                            "p0_v8_canary_" in guard_reason
+                            or "p0_v9_qualified_" in guard_reason
+                            or "no_contact_" in guard_reason
+                        )
                     )
-                    if p0_v8_canary_guard:
-                        if p0_v8_canary_stop_sent_at is None:
-                            p0_v8_canary_stop_sent_at = now
-                        if p0_v8_canary_tp_acknowledged:
-                            stop_reason = "p0_v8_canary_tp_stop_acknowledged"
+                    if p0_canary_guard:
+                        if p0_canary_stop_sent_at is None:
+                            p0_canary_stop_sent_at = now
+                        p0_version = (
+                            "v9"
+                            if args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID
+                            else "v8"
+                        )
+                        if p0_canary_tp_acknowledged:
+                            stop_reason = f"p0_{p0_version}_canary_tp_stop_acknowledged"
                             break
-                        if now - p0_v8_canary_stop_sent_at >= 1.0:
-                            stop_reason = "p0_v8_canary_tp_stop_ack_timeout"
+                        p0_ack_timeout_s = (
+                            1.5
+                            if args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID
+                            else 1.0
+                        )
+                        if now - p0_canary_stop_sent_at >= p0_ack_timeout_s:
+                            stop_reason = f"p0_{p0_version}_canary_tp_stop_ack_timeout"
                             break
                     elif (
                         not v29_safety_fail_stop["enabled"]
@@ -9722,25 +9914,37 @@ def main(argv: list[str] | None = None) -> int:
         summary["step5b_ramp_5_to_15_sentinel"] = trial_summary
         summary["paths"]["step5b_ramp_5_to_15_sentinel_summary_json"] = trial_summary["paths"]["trial_summary_json"]
         summary["paths"]["step5b_ramp_5_to_15_sentinel_summary_md"] = trial_summary["paths"]["trial_summary_md"]
-    if args.bridge_profile == STEP5D_NO_CONTACT_P0_V8_STAGE_ID:
-        summary["p0_v8_canary"] = {
+    if args.bridge_profile in {
+        STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
+        STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
+    }:
+        p0_version = (
+            "v9"
+            if args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID
+            else "v8"
+        )
+        p0_canary_key = f"p0_{p0_version}_canary"
+        summary[p0_canary_key] = {
             "phase_s": float(args.step5d_stop_register_canary_s),
-            "stop_request_sent": p0_v8_canary_stop_sent_at is not None,
-            "tp_stop_acknowledged": p0_v8_canary_tp_acknowledged,
-            "stop_request_first_sent_monotonic_s": p0_v8_canary_stop_sent_at,
+            "stop_request_sent": p0_canary_stop_sent_at is not None,
+            "tp_stop_acknowledged": p0_canary_tp_acknowledged,
+            "stop_request_first_sent_monotonic_s": p0_canary_stop_sent_at,
         }
     write_json(summary_path, summary)
-    if args.bridge_profile == STEP5D_NO_CONTACT_P0_V8_STAGE_ID:
+    if args.bridge_profile in {
+        STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
+        STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
+    }:
         manifest_path = args.output_dir / "bridge_run_manifest.json"
         run_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        canary_manifest = run_manifest.get("p0_v8_canary") or {}
+        canary_manifest = run_manifest.get(p0_canary_key) or {}
         canary_manifest["terminal"] = {
-            "stop_request_sent": p0_v8_canary_stop_sent_at is not None,
-            "tp_stop_acknowledged": p0_v8_canary_tp_acknowledged,
+            "stop_request_sent": p0_canary_stop_sent_at is not None,
+            "tp_stop_acknowledged": p0_canary_tp_acknowledged,
             "stop_reason": stop_reason,
         }
         canary_manifest["summary_sha256"] = file_sha256(summary_path)
-        run_manifest["p0_v8_canary"] = canary_manifest
+        run_manifest[p0_canary_key] = canary_manifest
         run_manifest["finished_at"] = summary["finished_at"]
         write_json(manifest_path, run_manifest)
     print(json.dumps(summary, indent=2, sort_keys=True))

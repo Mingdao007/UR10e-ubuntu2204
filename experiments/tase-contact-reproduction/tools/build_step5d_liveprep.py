@@ -32,6 +32,7 @@ from step5d_runtime_interface import (
     STEP5D_LINE_ENTRY_PARAM_VALID_CODE,
     STEP5D_NO_CONTACT_P0_STAGE_ID,
     STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
+    STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
     STEP5D_STAGE25_V27_FIX_VALIDATION_TARGET_S,
     STEP5D_STAGE25_V27_RUNTIME_LIMIT_S,
     STEP5D_STAGE25_V28_FULL_RUN_TARGET_S,
@@ -71,11 +72,15 @@ class Step5dAblationSpec:
 
     @property
     def inactive_offline_candidate(self) -> bool:
-        return self.version_label in {"v30", "no_contact_p0_v8"}
+        return self.version_label in {"v30", "no_contact_p0_v8", "no_contact_p0_v9"}
 
     @property
     def uses_v30_control_contract(self) -> bool:
-        return self.version_label in {"v30", "no_contact_p0_v8"}
+        return self.version_label in {"v30", "no_contact_p0_v8", "no_contact_p0_v9"}
+
+    @property
+    def full_stage25_echo(self) -> bool:
+        return self.version_label == "no_contact_p0_v9"
 
 
 @dataclass(frozen=True)
@@ -158,6 +163,20 @@ ABLATION_SPECS = {
         program_name=STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
         version_label="no_contact_p0_v8",
         stamp_token="STEP5D_STRICT_RNN_NO_CONTACT_P0_V8",
+        cartesian_angular_cap_rad_s=0.015,
+        default_stage25_control_mode="speedj_rnn_live",
+        stage25_success_target_s=STEP5D_STAGE25_V28_FULL_RUN_TARGET_S,
+        stage25_runtime_limit_s=STEP5D_STAGE25_V28_RUNTIME_LIMIT_S,
+        controller_dir="/programs/andyl/kunwei/step5",
+        no_contact_p0=True,
+        qdot_cap_rad_s=0.050,
+        stage25_stale_command_hold_s=0.250,
+        publish_guard_approved_late_command=True,
+    ),
+    STEP5D_NO_CONTACT_P0_V9_STAGE_ID: Step5dAblationSpec(
+        program_name=STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
+        version_label="no_contact_p0_v9",
+        stamp_token="STEP5D_STRICT_RNN_NO_CONTACT_P0_V9",
         cartesian_angular_cap_rad_s=0.015,
         default_stage25_control_mode="speedj_rnn_live",
         stage25_success_target_s=STEP5D_STAGE25_V28_FULL_RUN_TARGET_S,
@@ -1080,6 +1099,31 @@ codex_{spec.program_name}()
             """        else:
 """,
         )
+    if spec.full_stage25_echo:
+        script = script.replace(
+            "# FORCE_FRAME_CONTRACT: reaction normal for load, approach normal for posture/press direction; no-contact capture uses the bridge fallback normal rather than live force as the normal source.",
+            "# FORCE_FRAME_CONTRACT: approach normal defines the forbidden normal-motion axis; P0 v9 commands tangent-plane motion only and uses the bridge fallback normal rather than live force as the normal source.",
+            1,
+        )
+        echo_anchor = """      local cmd_qd5 = read_input_float_register(42)
+      local cmd_vx = cmd_qd0"""
+        echo_block = """      local cmd_qd5 = read_input_float_register(42)
+      # P0V9_FULL_STAGE25_ECHO: outputs 36..46 mirror inputs 37..47.
+      write_output_float_register(36, cmd_qd0)
+      write_output_float_register(37, cmd_qd1)
+      write_output_float_register(38, cmd_qd2)
+      write_output_float_register(39, cmd_qd3)
+      write_output_float_register(40, cmd_qd4)
+      write_output_float_register(41, cmd_qd5)
+      write_output_float_register(42, cmd_valid)
+      write_output_float_register(43, read_input_float_register(44))
+      write_output_float_register(44, read_input_float_register(45))
+      write_output_float_register(45, read_input_float_register(46))
+      write_output_float_register(46, stage25_layout_tag)
+      local cmd_vx = cmd_qd0"""
+        if echo_anchor not in script:
+            raise RuntimeError("P0 v9 full Stage25 echo insertion point not found")
+        script = script.replace(echo_anchor, echo_block, 1)
     return script
 
 
@@ -1247,7 +1291,15 @@ def build_txt(stamp: str, spec: Step5dAblationSpec = DEFAULT_SPEC) -> str:
             )
         )
         control_contract = (
-            "P0 v8 is bound to Step5dObservation -> StrictRnnControlPolicy -> "
+            "P0 v9 uses a tangential free-space 0..2 mm one-sided cosine cycle "
+            "with a 20 s period for three cycles. Its SafetyEnvelope policy is "
+            "normal_zero: no force target, contact search, or preload. It uses "
+            "weak posture hold only at effective_ko=0.01, and DLS remains "
+            "shadow-only. Outputs 36..46 echo inputs 37..47; output 47 proves "
+            "TP command consumption. Only 60 continuous seconds satisfying all "
+            "echo, host-acceptance, no-safe-hold, and DLS-neutral gates may pass."
+            if spec.version_label == "no_contact_p0_v9"
+            else "P0 v8 is bound to Step5dObservation -> StrictRnnControlPolicy -> "
             "ControlCandidate -> SafetyEnvelope -> RegisterCommand, with canonical "
             "n_reaction=-n_approach, strict solver status 40, direction-preserving "
             "qdot slew, and DLS shadow-only. Low-load effective_ko is 0.01."
@@ -1288,7 +1340,7 @@ Boundary:
 
 Bridge profile:
   --step4e-version {spec.bridge_version} --step4e-path-shape cycloid
-  --target-force-n 1.0
+  --target-force-n {0.0 if spec.version_label == "no_contact_p0_v9" else 1.0:.1f}
   --step4e-normal-follow-mode locked
   --duration-s 180.0
 
@@ -1301,8 +1353,8 @@ Safety:
   This package is not a bridge-start, TP-Play, upload, or live-contact authorization.
 
 Reference:
-  tools/verify_step5d_no_contact_p0.py
-  scripts/step5d-strict-rnn-p0.sh
+  tools/{"verify_step5d_no_contact_p0_v9.py" if spec.version_label == "no_contact_p0_v9" else "verify_step5d_no_contact_p0.py"}
+  scripts/{"step5d-strict-rnn-p0-v9.sh" if spec.version_label == "no_contact_p0_v9" else "step5d-strict-rnn-p0.sh"}
   UR_FORCE_FRAME_CONTRACT.md
 """
     bridge_wait_timeout_s = bridge_start_wait_timeout_s(spec)
@@ -1535,7 +1587,11 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5d
             "v30 control contract": (
                 not spec.uses_v30_control_contract
                 or (
-                    "Step5dObservation -> StrictRnnControlPolicy ->" in txt
+                    "normal_zero" in txt
+                    and "effective_ko=0.01" in txt
+                    and "Outputs 36..46 echo inputs 37..47" in txt
+                    if spec.version_label == "no_contact_p0_v9"
+                    else "Step5dObservation -> StrictRnnControlPolicy ->" in txt
                     and "SafetyEnvelope -> RegisterCommand" in txt
                     and "Low-load effective_ko is 0.01" in txt
                 )

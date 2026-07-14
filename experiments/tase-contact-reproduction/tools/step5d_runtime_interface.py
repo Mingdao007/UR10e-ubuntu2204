@@ -38,6 +38,7 @@ STEP5D_ABLATION_V29_STAGE_ID = "step5d_strict_rnn_ablation_v29"
 STEP5D_ABLATION_V30_STAGE_ID = "step5d_strict_rnn_ablation_v30"
 STEP5D_NO_CONTACT_P0_V7_STAGE_ID = "step5d_strict_rnn_no_contact_p0_v7"
 STEP5D_NO_CONTACT_P0_V8_STAGE_ID = "step5d_strict_rnn_no_contact_p0_v8"
+STEP5D_NO_CONTACT_P0_V9_STAGE_ID = "step5d_strict_rnn_no_contact_p0_v9"
 # Compatibility name for the immutable v7 evidence path.  New work must use
 # STEP5D_NO_CONTACT_P0_V8_STAGE_ID explicitly so historical v7 evidence is not
 # silently reinterpreted under the v30 control contract.
@@ -45,10 +46,12 @@ STEP5D_NO_CONTACT_P0_STAGE_ID = STEP5D_NO_CONTACT_P0_V7_STAGE_ID
 STEP5D_NO_CONTACT_P0_STAGE_IDS = (
     STEP5D_NO_CONTACT_P0_V7_STAGE_ID,
     STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
+    STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
 )
 STEP5D_V30_CONTROL_CONTRACT_STAGE_IDS = (
     STEP5D_ABLATION_V30_STAGE_ID,
     STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
+    STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
 )
 STEP5D_ABLATION_STAGE_IDS = (
     STEP5D_ABLATION_V25_STAGE_ID,
@@ -192,6 +195,7 @@ def build_stage_env(stage_id: str, root: Path = EXPERIMENT_ROOT) -> dict[str, st
 
 _P0_ENV = build_stage_env(STEP5D_NO_CONTACT_P0_STAGE_ID)
 _P0_V8_ENV = build_stage_env(STEP5D_NO_CONTACT_P0_V8_STAGE_ID)
+_P0_V9_ENV = build_stage_env(STEP5D_NO_CONTACT_P0_V9_STAGE_ID)
 _V30_ROW = _stage_row(STEP5D_ABLATION_V30_STAGE_ID)
 STEP5D_NO_CONTACT_P0_DURATION_S = float(_P0_ENV["BRIDGE_DURATION_S"])
 STEP5D_NO_CONTACT_P0_TARGET_FORCE_N = float(_P0_ENV["BRIDGE_TARGET_FORCE_N"])
@@ -217,6 +221,9 @@ STEP5D_NO_CONTACT_P0_RNN_INNER_ITERATIONS = int(_P0_ENV["STEP5D_RNN_INNER_ITERAT
 STEP5D_NO_CONTACT_P0_RNN_BACKEND = _P0_ENV["STEP5D_RNN_BACKEND"]
 STEP5D_NO_CONTACT_P0_V8_RNN_INNER_ITERATIONS = int(
     _P0_V8_ENV["STEP5D_RNN_INNER_ITERATIONS"]
+)
+STEP5D_NO_CONTACT_P0_V9_RNN_INNER_ITERATIONS = int(
+    _P0_V9_ENV["STEP5D_RNN_INNER_ITERATIONS"]
 )
 STEP5D_V30_RNN_INNER_ITERATIONS = int(
     _stage_field(_V30_ROW, "runtime_profile.inner_iterations")
@@ -355,7 +362,11 @@ def controller_target_for(
         row_target = None
     if isinstance(row_target, str) and row_target:
         return row_target
-    if program in {STEP5D_ABLATION_V30_STAGE_ID, STEP5D_NO_CONTACT_P0_V8_STAGE_ID}:
+    if program in {
+        STEP5D_ABLATION_V30_STAGE_ID,
+        STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
+        STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
+    }:
         return "LOCAL_ONLY_NOT_DELIVERED"
     if is_no_contact_p0_stage(program):
         return f"/programs/andyl/kunwei/step5/{program}.urp"
@@ -384,6 +395,13 @@ def stage25_0_register_contract(program: str) -> str:
         return (
             "no-contact P0 v8: Stage25.95 first requires bridge-cleared 37..47, then "
             f"Stage25.0 accepts only 47={STEP5D_STAGE25_JOINT_LAYOUT_CODE:g} joint qd0..qd5 for TP speedj; "
+            "strict-RNN is the only command source and DLS is shadow-only"
+        )
+    if program == STEP5D_NO_CONTACT_P0_V9_STAGE_ID:
+        return (
+            "no-contact P0 v9: Stage25.95 first requires bridge-cleared 37..47, then "
+            f"Stage25.0 accepts only 47={STEP5D_STAGE25_JOINT_LAYOUT_CODE:g} joint qd0..qd5; "
+            "TP echoes inputs 37..47 to outputs 36..46 and output 47 proves consumption; "
             "strict-RNN is the only command source and DLS is shadow-only"
         )
     if program == STEP5D_NO_CONTACT_P0_V7_STAGE_ID:
@@ -764,7 +782,11 @@ def resolve_runtime_interface(
             "no_kunwei_tare_or_config": True,
             "no_tcp_payload_write": True,
             "offline_candidate": selected
-            in {STEP5D_ABLATION_V30_STAGE_ID, STEP5D_NO_CONTACT_P0_V8_STAGE_ID},
+            in {
+                STEP5D_ABLATION_V30_STAGE_ID,
+                STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
+                STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
+            },
         },
     )
 

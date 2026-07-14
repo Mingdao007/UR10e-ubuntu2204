@@ -54,6 +54,9 @@ class Step5dObservation:
     reference_prior_qdot: Vector6 = ZERO6
     reference_ramp_scale: float = 1.0
     reference_ramp_active: bool = False
+    normal_motion_policy: str = "approach_positive"
+    target_normal_tolerance_m_s: float = 1e-9
+    predicted_normal_tolerance_m_s: float = 1e-5
 
 
 @dataclass(frozen=True)
@@ -79,6 +82,9 @@ class DlsShadowEvidence:
     strict_rnn_approach_m_s: float
     dls_approach_m_s: float
     normal_sign_difference: bool
+    strict_normal_class: str = "neutral"
+    dls_normal_class: str = "neutral"
+    normal_direction_class_difference: bool = False
     runtime_fallback_allowed: bool = False
 
 
@@ -193,6 +199,8 @@ def compute_dls_shadow(
     saturation_count = int(
         np.count_nonzero(np.isclose(qdot, lower) | np.isclose(qdot, upper))
     )
+    strict_normal_class = classify_normal_motion(strict_approach)
+    dls_normal_class = classify_normal_motion(dls_approach)
     return DlsShadowEvidence(
         qdot=tuple(float(value) for value in qdot),  # type: ignore[arg-type]
         predicted_twist=tuple(float(value) for value in twist),  # type: ignore[arg-type]
@@ -204,8 +212,25 @@ def compute_dls_shadow(
         strict_rnn_approach_m_s=strict_approach,
         dls_approach_m_s=dls_approach,
         normal_sign_difference=(strict_approach > 0.0) != (dls_approach > 0.0),
+        strict_normal_class=strict_normal_class,
+        dls_normal_class=dls_normal_class,
+        normal_direction_class_difference=strict_normal_class != dls_normal_class,
         runtime_fallback_allowed=False,
     )
+
+
+def classify_normal_motion(value_m_s: float, *, threshold_m_s: float = 1e-5) -> str:
+    """Classify approach-normal motion without turning near-zero into retreat."""
+
+    value = float(value_m_s)
+    threshold = float(threshold_m_s)
+    if not math.isfinite(value) or not math.isfinite(threshold) or threshold < 0.0:
+        raise ValueError("normal motion classification inputs must be finite")
+    if value > threshold:
+        return "approach"
+    if value < -threshold:
+        return "retreat"
+    return "neutral"
 
 
 @dataclass(frozen=True)
@@ -628,12 +653,21 @@ class SafetyEnvelope:
             "active_bounds_count": float(candidate.active_bounds_count),
             "frame_transform_applied": frame_transform_applied,
         }
-        if desired_approach <= 0.0:
-            return self._decision(False, "safe_hold", "outer_approach_not_pressing", **metrics)
-        if predicted_approach <= 0.0:
-            return self._decision(False, "safe_hold", "approach_normal_unload_mismatch", **metrics)
-        if normal_tracking_error > float(self.max_normal_tracking_error_m_s):
-            return self._decision(False, "safe_hold", "approach_normal_tracking_error", **metrics)
+        normal_policy = str(observation.normal_motion_policy)
+        if normal_policy == "approach_positive":
+            if desired_approach <= 0.0:
+                return self._decision(False, "safe_hold", "outer_approach_not_pressing", **metrics)
+            if predicted_approach <= 0.0:
+                return self._decision(False, "safe_hold", "approach_normal_unload_mismatch", **metrics)
+            if normal_tracking_error > float(self.max_normal_tracking_error_m_s):
+                return self._decision(False, "safe_hold", "approach_normal_tracking_error", **metrics)
+        elif normal_policy == "normal_zero":
+            if abs(desired_approach) > float(observation.target_normal_tolerance_m_s):
+                return self._decision(False, "safe_hold", "no_contact_target_normal_nonzero", **metrics)
+            if abs(predicted_approach) > float(observation.predicted_normal_tolerance_m_s):
+                return self._decision(False, "safe_hold", "no_contact_predicted_normal_nonzero", **metrics)
+        else:
+            return self._decision(False, "stop", "normal_motion_policy_invalid", **metrics)
         if not math.isclose(
             computed_residual,
             float(candidate.residual_norm),

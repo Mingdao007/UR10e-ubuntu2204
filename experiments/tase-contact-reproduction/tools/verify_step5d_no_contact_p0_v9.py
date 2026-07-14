@@ -1,0 +1,155 @@
+#!/usr/bin/env python3
+"""Verify one direct 60 s P0 v9 tangential no-contact canary."""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+import math
+from pathlib import Path
+from typing import Any
+
+
+PROFILE = "step5d_strict_rnn_no_contact_p0_v9"
+REQUIRED_DURATION_S = 60.0
+
+
+def _finite(row: dict[str, str], field: str) -> float:
+    try:
+        value = float(row.get(field, "nan"))
+    except (TypeError, ValueError):
+        return math.nan
+    return value if math.isfinite(value) else math.nan
+
+
+def _csv_path(run: Path) -> Path:
+    if run.is_file():
+        return run
+    return run / "bridge_rtde_500hz.csv"
+
+
+def verify(run: Path, *, phase_s: float = REQUIRED_DURATION_S) -> dict[str, Any]:
+    blockers: list[str] = []
+    if not math.isclose(float(phase_s), REQUIRED_DURATION_S, abs_tol=1e-9):
+        blockers.append("phase_must_equal_60s")
+    csv_path = _csv_path(run)
+    if not csv_path.is_file():
+        return {"schema_version": "step5d_no_contact_p0_v9_verification_v1", "ok": False, "blockers": ["bridge_csv_missing"]}
+    with csv_path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    if not rows:
+        blockers.append("bridge_csv_empty")
+        return {"schema_version": "step5d_no_contact_p0_v9_verification_v1", "ok": False, "blockers": blockers}
+
+    qualified = [row for row in rows if _finite(row, "_step5d_p0_v9_qualified") >= 0.5]
+    terminal = [row for row in rows if _finite(row, "_step5d_p0_v9_canary_stop_active") >= 0.5]
+    max_qualified_s = max((_finite(row, "_step5d_p0_v9_qualified_s") for row in rows), default=0.0)
+    if max_qualified_s < REQUIRED_DURATION_S:
+        blockers.append("continuous_qualified_duration_short")
+    if any(_finite(row, "_step5d_p0_rnn_accepted") < 0.5 for row in qualified):
+        blockers.append("host_rejection_in_qualified_window")
+    if any(_finite(row, "_step5d_p0_safe_hold_active") >= 0.5 for row in qualified):
+        blockers.append("safe_hold_in_qualified_window")
+    if any(_finite(row, "_step5d_dls_shadow_normal_direction_class_difference") >= 0.5 for row in qualified):
+        blockers.append("dls_normal_direction_mismatch")
+    if any(not math.isclose(_finite(row, "_step5d_stage25_echo_layout_tag"), 524.0, abs_tol=1e-3) for row in qualified):
+        blockers.append("layout_echo_mismatch")
+    if any(_finite(row, "_step5d_stage25_echo_cmd_valid") < 0.5 for row in qualified):
+        blockers.append("cmd_valid_echo_mismatch")
+    if any(_finite(row, "_step5d_stage25_echo_consumed") < 0.5 for row in qualified):
+        blockers.append("tp_consumption_gap")
+    if any(int(round(_finite(row, "_step5d_rnn_inner_iterations"))) != 512 for row in qualified):
+        blockers.append("rnn_inner_iterations_not_512")
+
+    tangent = [_finite(row, "_step5d_p0_v9_actual_tangent_displacement_m") for row in qualified]
+    target = [_finite(row, "_step5d_p0_v9_target_tangent_displacement_m") for row in qualified]
+    tangent = [value for value in tangent if math.isfinite(value)]
+    target = [value for value in target if math.isfinite(value)]
+    peak_to_peak_m = max(tangent) - min(tangent) if tangent else math.nan
+    end_offset_m = abs(tangent[-1]) if tangent else math.nan
+    rms_tracking_m = (
+        math.sqrt(sum((actual - desired) ** 2 for actual, desired in zip(tangent, target)) / min(len(tangent), len(target)))
+        if tangent and target
+        else math.nan
+    )
+    if not math.isfinite(peak_to_peak_m) or not 0.0015 <= peak_to_peak_m <= 0.0025:
+        blockers.append("tangent_peak_to_peak_out_of_range")
+    if not math.isfinite(end_offset_m) or end_offset_m > 0.0005:
+        blockers.append("tangent_end_offset_exceeded")
+    if not math.isfinite(rms_tracking_m) or rms_tracking_m > 0.0005:
+        blockers.append("tangent_rms_tracking_exceeded")
+
+    normal_displacements = [abs(_finite(row, "_step5d_p0_v9_anchor_normal_displacement_m")) for row in rows]
+    max_normal_displacement_m = max((value for value in normal_displacements if math.isfinite(value)), default=math.inf)
+    if max_normal_displacement_m > 0.0005:
+        blockers.append("normal_displacement_exceeded")
+    if any(abs(_finite(row, "normal_force_n")) > 2.0 for row in rows):
+        blockers.append("raw_normal_force_guard_breached")
+    if any(_finite(row, "force_norm_n") > 5.0 for row in rows):
+        blockers.append("force_norm_guard_breached")
+    if any(_finite(row, "torque_norm_nm") > 3.0 for row in rows):
+        blockers.append("torque_norm_guard_breached")
+    if not terminal:
+        blockers.append("terminal_zero_stop_packet_missing")
+    else:
+        last = terminal[-1]
+        if any(abs(_finite(last, f"step4e_cmd_v{axis}_m_s")) > 1e-12 for axis in ("x", "y", "z")):
+            blockers.append("terminal_linear_command_nonzero")
+        if any(abs(_finite(last, f"step4e_cmd_w{axis}_rad_s")) > 1e-12 for axis in ("x", "y", "z")):
+            blockers.append("terminal_angular_command_nonzero")
+        if not math.isclose(_finite(last, "step4e_controller_state"), 524.0, abs_tol=1e-3):
+            blockers.append("terminal_layout_not_524")
+        if _finite(last, "step4e_cmd_valid") < 0.5 or _finite(last, "stop_request") < 0.5:
+            blockers.append("terminal_valid_stop_request_missing")
+    tp_ack = any(
+        math.isclose(_finite(row, "ur_output_double_register_35"), 26.0, abs_tol=0.05)
+        and _finite(row, "ur_output_double_register_28") > 0.5
+        for row in rows
+    )
+    if not tp_ack:
+        blockers.append("tp_terminal_stop_ack_missing")
+    blockers = sorted(set(blockers))
+    return {
+        "schema_version": "step5d_no_contact_p0_v9_verification_v1",
+        "ok": not blockers,
+        "profile": PROFILE,
+        "phase_s": phase_s,
+        "blockers": blockers,
+        "metrics": {
+            "rows": len(rows),
+            "qualified_rows": len(qualified),
+            "max_continuous_qualified_s": max_qualified_s,
+            "tangent_peak_to_peak_m": peak_to_peak_m,
+            "tangent_end_offset_m": end_offset_m,
+            "tangent_rms_tracking_m": rms_tracking_m,
+            "max_normal_displacement_m": max_normal_displacement_m,
+            "terminal_rows": len(terminal),
+            "tp_terminal_stop_acknowledged": tp_ack,
+        },
+        "claim_boundary": {
+            "offline_tooling_accepted": not blockers,
+            "no_contact_live_accepted": not blockers,
+            "contact_live_accepted": False,
+            "reproduction_complete": False,
+        },
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("run", type=Path)
+    parser.add_argument("--phase-s", type=float, default=REQUIRED_DURATION_S)
+    parser.add_argument("--output", type=Path)
+    args = parser.parse_args(argv)
+    result = verify(args.run, phase_s=args.phase_s)
+    payload = json.dumps(result, indent=2, sort_keys=True) + "\n"
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(payload, encoding="utf-8")
+    print(payload, end="")
+    return 0 if result["ok"] else 24
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

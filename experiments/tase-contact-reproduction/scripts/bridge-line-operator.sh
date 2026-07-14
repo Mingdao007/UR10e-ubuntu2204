@@ -72,7 +72,7 @@ case "${BRIDGE_PROFILE}" in
     BRIDGE_PROFILE="step6b_v2"
     ;;
 esac
-if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_no_contact_p0_v8" ]]; then
+if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_no_contact_p0_v8" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_no_contact_p0_v9" ]]; then
   STEP5D_NO_CONTACT_P0_PROFILE="${BRIDGE_PROFILE}"
 fi
 BRIDGE_DURATION_S="${BRIDGE_DURATION_S:-${STEP5D_DURATION_S:-180}}"
@@ -117,7 +117,11 @@ BRIDGE_LINE_SPEED_M_S="${BRIDGE_LINE_SPEED_M_S:-0.003}"
 BRIDGE_LINE_SETTLE_S="${BRIDGE_LINE_SETTLE_S:-0.0}"
 BRIDGE_STAGE25_ONLY="${BRIDGE_STAGE25_ONLY:-0}"
 if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
-  BRIDGE_TARGET_FORCE_N="1.0"
+  if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_no_contact_p0_v9" ]]; then
+    BRIDGE_TARGET_FORCE_N="0.0"
+  else
+    BRIDGE_TARGET_FORCE_N="1.0"
+  fi
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v18" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v19" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v20" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v21" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v22" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v23" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v24" || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_v* ]]; then
   BRIDGE_TARGET_FORCE_N="${BRIDGE_TARGET_FORCE_N:-${STEP4E_TARGET_FORCE_N:-12.0}}"
 else
@@ -327,7 +331,9 @@ fi
 if [[ "${BRIDGE_PROFILE}" == "step6b_v2" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step6/step6b_contact_eight_baseline_v2.urp"
 fi
-if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
+if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_no_contact_p0_v9" ]]; then
+  SEARCH_DESCRIPTION="Step5d P0 v9 no-contact capture: no search, no preload, zero normal target, projected safe-frame tangential 0..2 mm cycle for 60 s, layout-524 speedj_rnn_live, full TP command echo, and continuous qualification"
+elif [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
   SEARCH_DESCRIPTION="Step5d strict RNN no-contact P0 capture: no contact search, no preload, no zero/tare, wait for bridge heartbeat/sensor_ok, direct Stage25.95 register-clear barrier then 60s Stage25.0 layout-524 speedj_rnn_live warm-start capture"
 elif [[ "${BRIDGE_PROFILE}" == "p0_geo_v1" ]]; then
   SEARCH_DESCRIPTION="P0-geo ball-first contact witness: vertical TCP entry, far 15 mm/s until 80 mm depth, then near 3 mm/s until first 1-1.5 N contact or 92 mm max depth; after contact it holds still for visual confirmation, retracts base-Z 2 mm, and never runs attitude, 5N acquisition, or line motion"
@@ -829,12 +835,12 @@ require_bench_gate_cache() {
 }
 
 ensure_no_existing_bridge() {
-  if pgrep -f "${ROOT}/tools/(kunwei_rtde_bridge|step5d_p0_v8_bridge)\\.py" >/dev/null 2>&1; then
+  if pgrep -f "${ROOT}/tools/(kunwei_rtde_bridge|step5d_p0_v8_bridge|step5d_p0_v9_bridge)\\.py" >/dev/null 2>&1; then
     echo "refusing: an existing Kunwei RTDE bridge process is already active"
     if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
       echo "next: stop existing bridge processes, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
     fi
-    pgrep -af "${ROOT}/tools/(kunwei_rtde_bridge|step5d_p0_v8_bridge)\\.py" || true
+    pgrep -af "${ROOT}/tools/(kunwei_rtde_bridge|step5d_p0_v8_bridge|step5d_p0_v9_bridge)\\.py" || true
     exit 3
   fi
 }
@@ -1098,6 +1104,10 @@ PY
         seen_running=1
       elif [[ "${rc}" == "11" && "${seen_running}" == "1" ]]; then
         echo "[operator] TP program stopped"
+        if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_no_contact_p0_v9" ]]; then
+          echo "[operator] waiting 1.5 s for P0 v9 terminal RTDE acknowledgement"
+          sleep 1.5
+        fi
         stop_bridge_process "${bridge_pid}" "TP program stopped"
         return 0
       elif [[ "${rc}" == "20" ]]; then
@@ -1370,6 +1380,8 @@ _run_bridge_for_mode() {
   local bridge_entrypoint="${ROOT}/tools/kunwei_rtde_bridge.py"
   if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_no_contact_p0_v8" ]]; then
     bridge_entrypoint="${ROOT}/tools/step5d_p0_v8_bridge.py"
+  elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_no_contact_p0_v9" ]]; then
+    bridge_entrypoint="${ROOT}/tools/step5d_p0_v9_bridge.py"
   fi
   if requires_step5d_realtime_launcher; then
     bridge_launcher=(chrt -f 20 python3)

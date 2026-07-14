@@ -1,0 +1,46 @@
+{
+  "schema_version": "step5d_p0_v9_numeric_sanity_v1",
+  "profile": "step5d_strict_rnn_no_contact_p0_v9",
+  "status": "pass_offline_numeric_only",
+  "path": {
+    "law": "s(t)=0.001*(1-cos(2*pi*t/20)) m",
+    "minimum_m": 0.0,
+    "maximum_m": 0.002,
+    "peak_to_peak_m": 0.002,
+    "period_s": 20.0,
+    "duration_s": 60.0,
+    "cycles": 3,
+    "analytic_peak_speed_m_s": 0.0003141592653589793,
+    "command_speed_cap_m_s": 0.0005,
+    "speed_feasible": true
+  },
+  "normal_semantics": {
+    "policy": "normal_zero",
+    "tangent_projection": "normalize(u_along_base - dot(u_along_base,n_approach)*n_approach)",
+    "target_normal_tolerance_m_s": 1e-9,
+    "predicted_normal_tolerance_m_s": 1e-5,
+    "actual_normal_speed_stop_m_s": 0.0002,
+    "actual_normal_speed_stop_dwell_s": 0.004,
+    "anchor_normal_displacement_stop_m": 0.0005
+  },
+  "joint_and_attitude": {
+    "qdot_cap_rad_s": 0.05,
+    "qdot_slew_rad_s2": 0.2,
+    "effective_ko": 0.01,
+    "attitude_cap_rad_s": 0.015,
+    "orientation_policy": "weak_posture_hold_only_no_oscillation"
+  },
+  "force_torque_guards": {
+    "raw_normal_guard_n": 2.0,
+    "force_norm_guard_n": 5.0,
+    "torque_norm_guard_nm": 3.0,
+    "force_target_n": 0.0,
+    "contact_search": false,
+    "preload": false
+  },
+  "controller_target": {
+    "planned": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v9.urp",
+    "delivery_state": "local_only_not_uploaded"
+  },
+  "claim_boundary": "Offline analytic sanity only; no controller, bridge, TP Play, or robot acceptance claim."
+}
