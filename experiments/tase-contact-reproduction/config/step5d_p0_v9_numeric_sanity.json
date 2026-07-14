@@ -40,7 +40,8 @@
   },
   "controller_target": {
     "planned": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v9.urp",
-    "delivery_state": "local_only_not_uploaded"
+    "delivery_state": "controller_readback_verified",
+    "readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_20260714_174306/manifest.json"
   },
-  "claim_boundary": "Offline analytic sanity only; no controller, bridge, TP Play, or robot acceptance claim."
+  "claim_boundary": "Offline analytic sanity plus controller package read-back only; no bridge, TP Play, or robot acceptance claim."
 }

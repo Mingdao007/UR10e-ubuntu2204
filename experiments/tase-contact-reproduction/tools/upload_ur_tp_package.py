@@ -207,8 +207,8 @@ def load_local_candidate_marker(local_dir: Path, program: str | None = None) -> 
         marker = json.loads(marker_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         die(f"invalid local candidate marker {marker_path}: {exc}")
-    if marker.get("local_only") is not True:
-        die(f"local candidate marker does not declare local_only=true: {marker_path}")
+    if marker.get("local_only") is not True and marker.get("controller_readback_verified") is not True:
+        die(f"candidate marker has neither staged-local nor verified-readback state: {marker_path}")
     return marker
 
 
@@ -1894,27 +1894,18 @@ def _main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="disable SHA-matched read-back reuse and force put/get verification",
     )
-    parser.add_argument(
-        "--allow-local-candidate-promote",
-        action="store_true",
-        help="legacy explicit delivery flag for a local-only candidate; does not change current-stage state",
-    )
-    parser.add_argument(
-        "--allow-inactive-prelive-delivery",
-        action="store_true",
-        help=(
-            "allow exact manifest-bound upload/read-back preparation for inactive v30 or P0 v8; "
-            "never promotes, loads, starts, or opens a bridge"
-        ),
-    )
     args = parser.parse_args(argv)
 
     program = normalize_program(args.program)
     inactive_delivery_policy = enforce_offline_candidate_delivery_block(program)
-    table_resolution = resolve_table_target(
-        program,
-        required=not args.override_table,
-        local_dir=args.local_dir,
+    table_resolution = (
+        None
+        if args.override_table
+        else resolve_table_target(
+            program,
+            required=True,
+            local_dir=args.local_dir,
+        )
     )
     target_source = "table"
     target_override_reason = None
@@ -1950,16 +1941,6 @@ def _main(argv: list[str] | None = None) -> int:
                 program=program,
                 target_dir=target_dir,
                 local_sha=local_sha,
-            )
-        if not args.dry_run and inactive_delivery_policy is not None and not args.allow_inactive_prelive_delivery:
-            die(
-                "refusing inactive pre-live package upload/read-back without "
-                "--allow-inactive-prelive-delivery"
-            )
-        if not args.dry_run and inactive_delivery_policy is None and not args.allow_local_candidate_promote:
-            die(
-                "refusing to upload local-only TP candidate without "
-                "--allow-local-candidate-promote; run a local dev-loop dry-run or promote explicitly"
             )
     elif inactive_delivery_policy is not None:
         die("inactive pre-live delivery requires the exact program-specific local candidate marker")

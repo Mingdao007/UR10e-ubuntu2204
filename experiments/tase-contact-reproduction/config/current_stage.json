@@ -58,7 +58,7 @@
     "stage_id": "step5d_strict_rnn_reproduction_v1",
     "blocked": true,
     "paper_truth_config": "config/step5d_liveprep_solver_gate.json",
-    "reason": "v29 is the last controller-readback-verified package but is frozen fallback evidence. v30 remains offline and blocked by live-runtime prewarm integration, a passing successor no-contact canary, readback freeze, Review v3, and separate live/contact authorization. P0 v8 is frozen failed evidence; P0 v9 is the local-only successor and has not been delivered or run."
+    "reason": "v29 remains the frozen current fallback. v30 is blocked by live-runtime prewarm integration, a passing successor no-contact canary, Review v3, and separate live/contact authorization. P0 v8 is frozen failed evidence; P0 v9 is controller-readback-verified but inactive and has not been run."
   },
   "evidence": {
     "v11_escape_replay_summary": "runs/step5d_v11_escape_replay_20260615/summary.json",
@@ -1116,13 +1116,13 @@
       "entrypoint": "scripts/step5d-strict-rnn-p0-v9.sh capture-bridge",
       "confirm_token": "LIVE STEP5D STRICT RNN NO CONTACT P0 V9",
       "planned_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v9.urp",
-      "controller_target": "LOCAL_ONLY_NOT_DELIVERED",
+      "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v9.urp",
       "local_triplet": "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v9",
       "local_candidate_marker": "programs/step5/step5d/.step5d_strict_rnn_no_contact_p0_v9.local_candidate.json",
-      "controller_uploaded": false,
-      "controller_readback_verified": false,
-      "controller_readback_manifest": null,
-      "delivery_mode": "explicit_local_only",
+      "controller_uploaded": true,
+      "controller_readback_verified": true,
+      "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_20260714_174306/manifest.json",
+      "delivery_mode": "full_upload_readback",
       "sha256": {
         ".script": "3dcdd6817a05082e17408d702d08d99e81717dcfaf1dbdbf0d22635326284615",
         ".txt": "f036512f3f67b430e0279c8797f2be3e47e370a34cfa412b70e8ad02cd58e12c",
@@ -1131,7 +1131,7 @@
       "capture_authorized": false,
       "passed": false,
       "summary_artifact": null,
-      "status": "local_package_verified_not_uploaded_not_live_authorized"
+      "status": "controller_readback_verified_inactive_not_live_authorized"
     },
     "required_before_live": [
       "operator outside UR reach/cage boundary",
@@ -1318,7 +1318,7 @@
   "p0_v9_candidate": {
     "profile": "step5d_strict_rnn_no_contact_p0_v9",
     "gate_for": "step5d_strict_rnn_ablation_v30",
-    "state": "local_package_verified_not_delivered",
+    "state": "controller_readback_verified_inactive",
     "current": false,
     "package_sha256": {
       ".script": "3dcdd6817a05082e17408d702d08d99e81717dcfaf1dbdbf0d22635326284615",
@@ -1347,14 +1347,12 @@
     },
     "claim_boundary": {
       "local_package_verified": true,
-      "controller_readback_verified": false,
+      "controller_readback_verified": true,
       "no_contact_p0_accepted": false,
       "contact_live_accepted": false,
       "reproduction_complete": false
     },
     "blockers": [
-      "explicit_local_only_no_controller_upload",
-      "controller_readback_not_verified",
       "no_contact_live_authorization_not_granted",
       "direct_60s_canary_not_run"
     ]

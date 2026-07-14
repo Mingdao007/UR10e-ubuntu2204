@@ -16,8 +16,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--readback-root", type=Path)
     args = parser.parse_args(argv)
-    upload_args = [args.program, "--local-dir", str(args.local_dir),
-                   "--allow-local-candidate-promote"]
+    upload_args = [args.program, "--local-dir", str(args.local_dir)]
     if args.dry_run:
         upload_args += ["--dry-run", "--readback-root", str(args.readback_root)]
         return upload._main(upload_args)

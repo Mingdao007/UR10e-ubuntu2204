@@ -37,7 +37,7 @@ def authorize_canary(args: Any, current: Mapping[str, Any]) -> dict[str, Any]:
     candidate = current.get("p0_v9_candidate")
     capture = (current.get("bridge_trigger") or {}).get("no_contact_p0_v9_capture")
     if not isinstance(candidate, Mapping) or not isinstance(capture, Mapping):
-        raise ValueError("P0 v9 remains local-only: canonical candidate/capture state is absent")
+        raise ValueError("P0 v9 canonical candidate/capture state is absent")
     if capture.get("profile") != PROFILE:
         raise ValueError("P0 v9 capture profile is not canonically bound")
     if capture.get("controller_readback_verified") is not True:

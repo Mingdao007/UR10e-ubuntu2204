@@ -8614,7 +8614,7 @@
       "complete": false,
       "completion_target": false,
       "gate_for": "step5d_strict_rnn_ablation_v30",
-      "block_reason": "Frozen failed historical P0 v8 evidence. Its press-only target conflicts with the intended no-contact experiment and its TP package lacks the full command echo needed for semantic qualification. It remains retained for audit only and is superseded by the independent local-only P0 v9 candidate.",
+      "block_reason": "Frozen failed historical P0 v8 evidence. Its press-only target conflicts with the intended no-contact experiment and its TP package lacks the full command echo needed for semantic qualification. It remains retained for audit only and is superseded by the controller-readback-verified inactive P0 v9 candidate.",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": false,
@@ -8837,7 +8837,7 @@
       "complete": false,
       "completion_target": false,
       "gate_for": "step5d_strict_rnn_ablation_v30",
-      "block_reason": "Local-only P0 v9 candidate. It replaces P0 v8 press-only semantics with a zero-normal tangential free-space cycle. Controller upload/read-back, live authorization, bridge start, TP Play, and robot acceptance are intentionally not part of this implementation state.",
+      "block_reason": "P0 v9 is controller-readback-verified but remains inactive. It replaces P0 v8 press-only semantics with a zero-normal tangential free-space cycle. Live authorization, bridge start, TP Play, and robot acceptance have not occurred.",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": false,
@@ -8947,7 +8947,7 @@
           "no TCP/payload write",
           "no contact search or preload"
         ],
-        "live_readiness_state": "offline_package_only"
+        "live_readiness_state": "controller_readback_verified_pending_explicit_live_authorization"
       },
       "bridge_runtime": {
         "duration_s": 180.0,
@@ -8962,16 +8962,23 @@
         "normal_min_force_n": 0.001
       },
       "package_delivery": {
-        "status": "local_package_candidate_only",
+        "status": "controller_readback_verified",
         "program_basename": "step5d_strict_rnn_no_contact_p0_v9",
         "local_program_dir": "programs/step5/step5d",
         "local_triplet": "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v9",
         "planned_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v9.urp",
-        "controller_target": "LOCAL_ONLY_NOT_DELIVERED",
+        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v9.urp",
         "controller_dir": "/programs/andyl/kunwei/step5",
-        "controller_uploaded": false,
-        "controller_readback_verified": false,
-        "delivery_mode": "explicit_local_only"
+        "controller_uploaded": true,
+        "controller_readback_verified": true,
+        "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_20260714_174306/manifest.json",
+        "delivery_mode": "full_upload_readback",
+        "sha256": {
+          ".script": "3dcdd6817a05082e17408d702d08d99e81717dcfaf1dbdbf0d22635326284615",
+          ".txt": "f036512f3f67b430e0279c8797f2be3e47e370a34cfa412b70e8ad02cd58e12c",
+          ".urp": "192e318d0a2036a6e1bd2d5e834bc50deba1b44f070bf07efd29b8a171ab58b1"
+        },
+        "semantic_fingerprint": "64f92d098ea988bea7618ac81e534bbb912b7f75c38a48ec8ab544a88f414565"
       },
       "acceptance": {
         "package_generation_required": true,

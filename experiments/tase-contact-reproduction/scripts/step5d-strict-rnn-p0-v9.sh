@@ -11,7 +11,7 @@ usage() {
   cat <<'EOF'
 Usage:
   step5d-strict-rnn-p0-v9.sh status
-  step5d-strict-rnn-p0-v9.sh generate-local
+  step5d-strict-rnn-p0-v9.sh generate-deliver
   step5d-strict-rnn-p0-v9.sh validate-run RUN_DIR_OR_CSV
   step5d-strict-rnn-p0-v9.sh capture-ready
   STEP5D_P0_CONFIRM='LIVE STEP5D STRICT RNN NO CONTACT P0 V9' \
@@ -19,7 +19,8 @@ Usage:
 
 P0 v9 is a 60 s tangential free-space canary: 0..2 mm, 20 s period,
 three cycles, zero commanded normal motion, and weak posture hold only.
-generate-local never uploads, loads, Plays, starts a bridge, or moves the robot.
+generate-deliver always uploads the generated TP triplet and performs a fresh
+controller read-back. It never loads, Plays, starts a bridge, or moves the robot.
 capture commands fail closed until controller read-back and live authorization
 are recorded in the canonical current-stage state.
 EOF
@@ -66,15 +67,18 @@ PY
   live-ready)
     exec "${BASE_WRAPPER}" status
     ;;
-  generate-local)
+  generate-deliver|generate-local)
     if [[ $# -ne 1 ]]; then
       usage
       exit 2
     fi
-    exec python3 "${ROOT}/tools/build_step5d_liveprep.py" \
+    python3 "${ROOT}/tools/build_step5d_liveprep.py" \
       --program "${PROFILE}" \
       --output-dir "${ROOT}/programs/step5/step5d" \
       --local-only
+    exec python3 "${ROOT}/tools/upload_ur_tp_package.py" "${PROFILE}" \
+      --local-dir "${ROOT}/programs/step5/step5d" \
+      --force-upload-readback
     ;;
   capture-ready|capture-bridge)
     if [[ $# -ne 1 ]]; then

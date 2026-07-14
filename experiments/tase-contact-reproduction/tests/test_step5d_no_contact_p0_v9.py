@@ -62,6 +62,13 @@ def observation(desired: tuple[float, ...]) -> Step5dObservation:
 
 
 class Step5dNoContactP0V9Test(unittest.TestCase):
+    def test_generation_entrypoint_always_deploys_and_fresh_reads_back(self) -> None:
+        script = (ROOT / "scripts" / "step5d-strict-rnn-p0-v9.sh").read_text(encoding="utf-8")
+        self.assertIn("generate-deliver|generate-local)", script)
+        self.assertIn('upload_ur_tp_package.py" "${PROFILE}"', script)
+        self.assertIn("--force-upload-readback", script)
+        self.assertNotIn("generate-local never uploads", script)
+
     def test_reference_is_two_mm_one_sided_three_cycle(self) -> None:
         self.assertAlmostEqual(one_sided_smooth_reference(0.0)[0], 0.0)
         self.assertAlmostEqual(one_sided_smooth_reference(10.0)[0], 0.002)
