@@ -110,6 +110,12 @@ else
   MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-60}"
   MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-3.0}"
 fi
+if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_no_contact_p0_v9" ]]; then
+  # P0v9 guard v2: these are the only host-side liveness/velocity limits.
+  # Legacy force/Cartesian CLI values are still passed for parser compatibility,
+  # but the P0v9 runtime does not qualify or stop on them.
+  BRIDGE_SENSOR_STALE_S="2.0"
+fi
 BRIDGE_ORIENTATION_GAIN="${BRIDGE_ORIENTATION_GAIN:-0.20}"
 BRIDGE_ORIENTATION_WX_SIGN="${BRIDGE_ORIENTATION_WX_SIGN:-1}"
 BRIDGE_ORIENTATION_WY_SIGN="${BRIDGE_ORIENTATION_WY_SIGN:-1}"
@@ -165,7 +171,11 @@ if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
   STEP5D_SIGR_EXPONENT_R="${STEP5D_SIGR_EXPONENT_R:-0.800}"
   STEP5D_RNN_INNER_ITERATIONS="${STEP5D_RNN_INNER_ITERATIONS:-512}"
   STEP5D_RNN_BACKEND="${STEP5D_RNN_BACKEND:-cupy}"
-  STEP5D_QDOT_LIMIT_RAD_S="${STEP5D_QDOT_LIMIT_RAD_S:-0.050}"
+  if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_no_contact_p0_v9" ]]; then
+    STEP5D_QDOT_LIMIT_RAD_S="0.500"
+  else
+    STEP5D_QDOT_LIMIT_RAD_S="${STEP5D_QDOT_LIMIT_RAD_S:-0.050}"
+  fi
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v25" ]]; then
   STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedl_cartesian_oracle}"
   BRIDGE_ANGULAR_LIMIT_RAD_S="${BRIDGE_ANGULAR_LIMIT_RAD_S:-0.150}"
@@ -195,6 +205,7 @@ else
   STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedj_rnn_live}"
   BRIDGE_ANGULAR_LIMIT_RAD_S="${BRIDGE_ANGULAR_LIMIT_RAD_S:-0.015}"
 fi
+
 BRIDGE_MOTION_LIMIT_M_S="${BRIDGE_MOTION_LIMIT_M_S:-0.004}"
 BRIDGE_TOTAL_LINEAR_LIMIT_M_S="${BRIDGE_TOTAL_LINEAR_LIMIT_M_S:-0.006}"
 BRIDGE_NORMAL_VELOCITY_LIMIT_M_S="${BRIDGE_NORMAL_VELOCITY_LIMIT_M_S:-0.003}"
@@ -254,6 +265,16 @@ if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
   BRIDGE_NORMAL_FILTER_ALPHA="${BRIDGE_NORMAL_FILTER_ALPHA:-0.55}"
   BRIDGE_NORMAL_FOLLOW_MODE="${BRIDGE_NORMAL_FOLLOW_MODE:-locked}"
   BRIDGE_NORMAL_MIN_FORCE_N="${BRIDGE_NORMAL_MIN_FORCE_N:-0.001}"
+fi
+
+if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_no_contact_p0_v9" ]]; then
+  BRIDGE_MOTION_DESCRIPTION="strict RNN joint command; qdot hard limit = ${STEP5D_QDOT_LIMIT_RAD_S} rad/s; no Cartesian/tangential/total/normal speed guard"
+  BRIDGE_FORCE_DESCRIPTION="force/torque channels are diagnostic only; no force guard or preload qualification"
+  BRIDGE_NORMAL_DESCRIPTION="approach-normal command, speed, displacement, DLS direction, residual magnitude, and active-bound checks are diagnostic only"
+else
+  BRIDGE_MOTION_DESCRIPTION="path shape = ${BRIDGE_PATH_SHAPE}; line XY speed command = ${BRIDGE_LINE_SPEED_M_S} m/s for line shape, path cap = ${BRIDGE_MOTION_LIMIT_M_S} m/s, total linear cap = ${BRIDGE_TOTAL_LINEAR_LIMIT_M_S} m/s"
+  BRIDGE_FORCE_DESCRIPTION="force target = ${BRIDGE_TARGET_FORCE_N} N; raw normal guard = ${MAX_NORMAL_FORCE_N} N, force norm guard = ${MAX_FORCE_NORM_N} N, torque guard = ${MAX_TORQUE_NORM_NM} Nm"
+  BRIDGE_NORMAL_DESCRIPTION="normal follow = ${BRIDGE_NORMAL_FOLLOW_MODE}, tau = ${BRIDGE_NORMAL_FILTER_TAU_S}s, max rate = ${BRIDGE_NORMAL_MAX_RATE_RAD_S} rad/s, min force = ${BRIDGE_NORMAL_MIN_FORCE_N} N, gate = ${BRIDGE_NORMAL_MAX_ANGLE_FROM_LATCH_DEG} deg, friction projection = ${BRIDGE_NORMAL_FRICTION_PROJECTION}"
 fi
 
 PROGRAM_PREVIEW="/programs/andyl/kunwei/step4/step4e_preview_line_${BRIDGE_PROFILE}.urp"
@@ -531,8 +552,9 @@ Step4e motion boundary:
   axis: no-contact four-quadrant attitude axis isolation.
   hold: contact search, then 12 s force/orientation hold.
   line: contact search, then XY path from the selected Step4e/Step4f/Step4g bridge reference.
-  force target = ${BRIDGE_TARGET_FORCE_N} N for hold/line only; geo contact witness triggers around 1-1.5 N.
-  raw normal guard = ${MAX_NORMAL_FORCE_N} N, force norm guard = ${MAX_FORCE_NORM_N} N, torque guard = ${MAX_TORQUE_NORM_NM} Nm.
+  ${BRIDGE_MOTION_DESCRIPTION}.
+  ${BRIDGE_FORCE_DESCRIPTION}.
+  ${BRIDGE_NORMAL_DESCRIPTION}.
 USAGE
 }
 
@@ -1229,11 +1251,12 @@ if payload.get("rtde_send_succeeded") is not True:
     raise SystemExit(1)
 if payload.get("sensor_stream_ready") is not True:
     raise SystemExit(1)
-if payload.get("baseline_ready") is not True:
+guard_v2 = expected_profile == "step5d_strict_rnn_no_contact_p0_v9"
+if not guard_v2 and payload.get("baseline_ready") is not True:
     raise SystemExit(1)
 if not isinstance(payload.get("sensor_samples"), int) or payload["sensor_samples"] < 1:
     raise SystemExit(1)
-if payload.get("parse_errors") != 0:
+if not guard_v2 and payload.get("parse_errors") != 0:
     raise SystemExit(1)
 try:
     sensor_age_s = float(payload.get("sensor_age_s"))
@@ -1679,12 +1702,11 @@ Before pressing Play, open this Teach Pendant program:
 
 Motion/control:
   preview = no motion, geo/hold/line setup = ${SEARCH_DESCRIPTION}
-  path shape = ${BRIDGE_PATH_SHAPE}; line XY speed command = ${BRIDGE_LINE_SPEED_M_S} m/s for line shape, path cap = ${BRIDGE_MOTION_LIMIT_M_S} m/s, total linear cap = ${BRIDGE_TOTAL_LINEAR_LIMIT_M_S} m/s
+  ${BRIDGE_MOTION_DESCRIPTION}
   speedl acceleration = 300 mm/s^2, hold time = 2 ms
-  force target = ${BRIDGE_TARGET_FORCE_N} N for hold/line only; geo contact witness triggers around 1-1.5 N
-  raw normal guard = ${MAX_NORMAL_FORCE_N} N, force norm guard = ${MAX_FORCE_NORM_N} N, torque guard = ${MAX_TORQUE_NORM_NM} Nm
+  ${BRIDGE_FORCE_DESCRIPTION}
   attitude proxy = bounded wx/wy velocity command, gain = ${BRIDGE_ORIENTATION_GAIN}, angular limit = ${BRIDGE_ANGULAR_LIMIT_RAD_S} rad/s, wx sign = ${BRIDGE_ORIENTATION_WX_SIGN}, wy sign = ${BRIDGE_ORIENTATION_WY_SIGN}, yaw frozen
-  normal follow = ${BRIDGE_NORMAL_FOLLOW_MODE}, tau = ${BRIDGE_NORMAL_FILTER_TAU_S}s, max rate = ${BRIDGE_NORMAL_MAX_RATE_RAD_S} rad/s, min force = ${BRIDGE_NORMAL_MIN_FORCE_N} N, gate = ${BRIDGE_NORMAL_MAX_ANGLE_FROM_LATCH_DEG} deg, friction projection = ${BRIDGE_NORMAL_FRICTION_PROJECTION}
+  ${BRIDGE_NORMAL_DESCRIPTION}
 
 Type START_BRIDGE_${CONFIRM_TOKEN}_${BRIDGE_PROFILE_CONFIRM_TOKEN} to continue:
 WARNING

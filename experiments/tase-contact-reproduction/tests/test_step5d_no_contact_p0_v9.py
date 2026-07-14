@@ -28,7 +28,6 @@ from step5d_control_contract import (  # noqa: E402
     compute_dls_shadow,
 )
 from step5d_p0_v9_control_core import (  # noqa: E402
-    P0_V9_TANGENTIAL_SPEED_CAP_M_S,
     build_p0_v9_target,
     one_sided_smooth_reference,
 )
@@ -55,18 +54,18 @@ def observation(desired: tuple[float, ...]) -> Step5dObservation:
         approach_normal=(0.0, 0.0, -1.0),
         command_frame="base",
         normal_frame="base",
-        omega_minus=(-0.05,) * 6,
-        omega_plus=(0.05,) * 6,
-        normal_motion_policy="normal_zero",
+        omega_minus=(-0.5,) * 6,
+        omega_plus=(0.5,) * 6,
+        normal_motion_policy="diagnostic_only",
     )
 
 
 class Step5dNoContactP0V9Test(unittest.TestCase):
-    def test_cli_target_force_validator_accepts_only_zero_for_normal_zero_profile(self) -> None:
+    def test_cli_target_force_validator_keeps_force_controller_disabled(self) -> None:
         bridge.base.validate_common_target_force(
             SimpleNamespace(bridge_profile=PROFILE, target_force_n=0.0)
         )
-        with self.assertRaisesRegex(SystemExit, "normal_zero requires --target-force-n 0.0"):
+        with self.assertRaisesRegex(SystemExit, "requires --target-force-n 0.0"):
             bridge.base.validate_common_target_force(
                 SimpleNamespace(bridge_profile=PROFILE, target_force_n=1.0)
             )
@@ -86,13 +85,13 @@ class Step5dNoContactP0V9Test(unittest.TestCase):
         peak_velocity = one_sided_smooth_reference(5.0)[1]
         self.assertAlmostEqual(peak_velocity, math.pi * 1e-4)
 
-    def test_target_projects_safe_tangent_and_commands_zero_normal(self) -> None:
+    def test_target_projects_safe_tangent_without_cartesian_speed_cap(self) -> None:
         target = build_p0_v9_target(
             tcp_pose_base=(0.4, 0.1, 0.2, 0.0, 0.0, 0.0),
             anchor_tcp_pose_base=(0.4, 0.1, 0.2, 0.0, 0.0, 0.0),
             safe_u_along_xy=(-0.01, 0.99995),
             approach_normal_base=(0.1, 0.0, -0.994987437),
-            path_time_s=5.0,
+            path_time_s=10.0,
             normal_load_n=1.9,
             jacobian=np.eye(6),
         )
@@ -100,7 +99,7 @@ class Step5dNoContactP0V9Test(unittest.TestCase):
         tangent = np.asarray(target.tangent_base)
         self.assertAlmostEqual(float(np.dot(tangent, approach)), 0.0, places=12)
         self.assertAlmostEqual(float(np.dot(target.desired_twist[:3], approach)), 0.0, places=12)
-        self.assertLessEqual(abs(target.path_diagnostics["commanded_tangent_velocity_m_s"]), P0_V9_TANGENTIAL_SPEED_CAP_M_S)
+        self.assertGreater(abs(target.path_diagnostics["commanded_tangent_velocity_m_s"]), 0.0005)
         self.assertEqual(
             target.path_diagnostics["force_sign_convention"],
             "step5_step6_positive_normal_load",
@@ -108,7 +107,7 @@ class Step5dNoContactP0V9Test(unittest.TestCase):
         self.assertAlmostEqual(target.posture_policy["effective_ko"], 0.01)
         self.assertEqual(target.posture_policy["load_schedule"], "disabled_constant_weak_hold")
 
-    def test_normal_zero_policy_accepts_neutral_and_rejects_nonzero(self) -> None:
+    def test_guard_v2_accepts_normal_residual_and_active_bound_diagnostics(self) -> None:
         desired = (0.0002, 0.0, 0.0, 0.0, 0.0, 0.0)
         obs = observation(desired)
         candidate = ControlCandidate(
@@ -119,18 +118,19 @@ class Step5dNoContactP0V9Test(unittest.TestCase):
             frame_id="base",
             solver_status="40",
         )
-        self.assertTrue(SafetyEnvelope().evaluate(obs, candidate).accepted)
-        bad_desired = (0.0002, 0.0, 2e-8, 0.0, 0.0, 0.0)
-        bad_obs = observation(bad_desired)
-        bad = ControlCandidate(
-            qdot=bad_desired,
-            predicted_twist=bad_desired,
-            residual_norm=0.0,
-            active_bounds_count=0,
+        self.assertTrue(SafetyEnvelope(qdot_cap_rad_s=0.5).evaluate(obs, candidate).accepted)
+        diagnostic_desired = (0.2, 0.0, 0.2, 0.0, 0.0, 0.0)
+        diagnostic_obs = observation(diagnostic_desired)
+        diagnostic = ControlCandidate(
+            qdot=(0.2, 0.0, 0.1, 0.0, 0.0, 0.0),
+            predicted_twist=(0.2, 0.0, 0.1, 0.0, 0.0, 0.0),
+            residual_norm=0.1,
+            active_bounds_count=1,
             frame_id="base",
             solver_status="40",
         )
-        self.assertEqual(SafetyEnvelope().evaluate(bad_obs, bad).reason, "no_contact_target_normal_nonzero")
+        decision = SafetyEnvelope(qdot_cap_rad_s=0.5).evaluate(diagnostic_obs, diagnostic)
+        self.assertTrue(decision.accepted, decision.reason)
 
     def test_dls_neutral_classification_does_not_report_mismatch(self) -> None:
         self.assertEqual(classify_normal_motion(9e-6), "neutral")
@@ -148,35 +148,59 @@ class Step5dNoContactP0V9Test(unittest.TestCase):
             "_step5d_stage25_echo_cmd_valid": 1.0,
             "_step5d_stage25_echo_consumed": 1.0,
             "_step5d_p0_rnn_accepted": 1.0,
-            "_step5d_p0_safe_hold_active": 0.0,
-            "_step5d_dls_shadow_normal_direction_class_difference": 0.0,
+            "_step5d_p0_safe_hold_active": 1.0,
+            "_step5d_dls_shadow_normal_direction_class_difference": 1.0,
         }
         output = {"output_double_register_35": 25.0}
         self.assertEqual(bridge._qualification(values, output), (True, "qualified"))
         values["_step5d_stage25_echo_layout_tag"] = 0.0
         self.assertEqual(bridge._qualification(values, output), (False, "echo_layout_not_524"))
 
-    def test_runtime_guards_stop_normal_speed_dwell_and_displacement(self) -> None:
+    def test_runtime_has_no_normal_speed_or_displacement_guard(self) -> None:
+        self.assertFalse(hasattr(bridge, "_apply_no_contact_runtime_guards"))
+
+    def test_guard_v2_ignores_force_and_allows_unbaselined_stream_ready(self) -> None:
+        args = SimpleNamespace(
+            bridge_profile=PROFILE,
+            max_normal_force_n=2.0,
+            max_force_norm_n=5.0,
+            max_torque_norm_nm=3.0,
+            sensor_stale_s=2.0,
+            rtde_hz=500.0,
+            output_dir=Path("/tmp/p0-v9-guard-v2-test"),
+        )
+        self.assertIsNone(
+            bridge.base.guard_stop_reason(
+                args,
+                {
+                    "normal_force_n": 1000.0,
+                    "force_norm_n": 1000.0,
+                    "torque_norm_nm": 1000.0,
+                },
+            )
+        )
         state = bridge.base.BridgeState()
-        state.step5d_p0_v9_anchor_tcp_pose = (0.4, 0.1, 0.2, 0.0, 0.0, 0.0)
-        state.step5d_p0_v9_approach_normal = (0.0, 0.0, 1.0)
-        output = {
-            "actual_TCP_pose": (0.4, 0.1, 0.2, 0.0, 0.0, 0.0),
-            "actual_TCP_speed": (0.0, 0.0, 0.00021, 0.0, 0.0, 0.0),
-        }
-        values: dict[str, float] = {}
-        self.assertIsNone(bridge._apply_no_contact_runtime_guards(state, output, values, 0.002))
-        self.assertEqual(
-            bridge._apply_no_contact_runtime_guards(state, output, values, 0.002),
-            "no_contact_actual_normal_speed_dwell_exceeded",
+        state.step5d_model_bundle = object()
+        state.step5d_tcp_offset_tool0 = np.zeros(3)
+        state.step5d_solver = object()
+        state.step5d_v30_deferred_diagnostics = object()
+        state.step5d_v30_policy = object()
+        runtime = {"status": "ok"}
+        payload = bridge.base.step5d_bridge_ready_payload(
+            args,
+            {"runtime_scheduler": {}},
+            state,
+            runtime,
+            rtde_connected=True,
+            rtde_send_succeeded=True,
+            samples=1,
+            baseline_ready=False,
+            sensor_age_s=1.9,
+            parse_errors=7,
         )
-        state.p0_v9_normal_speed_violation_s = 0.0
-        output["actual_TCP_speed"] = ZERO6
-        output["actual_TCP_pose"] = (0.4, 0.1, 0.20051, 0.0, 0.0, 0.0)
-        self.assertEqual(
-            bridge._apply_no_contact_runtime_guards(state, output, values, 0.002),
-            "no_contact_anchor_normal_displacement_exceeded",
-        )
+        self.assertIsNotNone(payload)
+        self.assertFalse(payload["baseline_ready"])
+        self.assertEqual(payload["parse_errors"], 7)
 
     def test_generated_package_has_full_echo_and_no_speedl_path(self) -> None:
         spec = liveprep.spec_for(PROFILE)
@@ -185,6 +209,15 @@ class Step5dNoContactP0V9Test(unittest.TestCase):
         self.assertIn("write_output_float_register(46, stage25_layout_tag)", script)
         self.assertIn("write_output_float_register(42, cmd_valid)", script)
         self.assertNotIn("speedl([cmd_vx", script)
+        self.assertIn("local qdot_cap_rad_s = 0.500", script)
+        self.assertIn("if stale_s_clear > 1.000", script)
+        self.assertIn("if stale_s2 > 1.000", script)
+        self.assertIn("local stage25_runtime_limit_s = 75.000", script)
+        self.assertNotIn("codex_abs(normal_force) >", script)
+        self.assertNotIn("force_norm >", script)
+        self.assertNotIn("torque_norm >", script)
+        self.assertNotIn("cartesian_linear_cap_m_s", script)
+        self.assertNotIn("cartesian_angular_cap_rad_s", script)
         self.assertIn("write_output_float_register(28, stop_reason)", script)
         self.assertIn("write_output_float_register(35, 26.0)", script)
 
@@ -215,18 +248,18 @@ class Step5dNoContactP0V9Test(unittest.TestCase):
                     "_step5d_p0_v9_qualified_s": 60.0 if terminal else 30.0,
                     "_step5d_p0_v9_canary_stop_active": 1.0 if terminal else 0.0,
                     "_step5d_p0_rnn_accepted": 1.0,
-                    "_step5d_p0_safe_hold_active": 0.0,
-                    "_step5d_dls_shadow_normal_direction_class_difference": 0.0,
+                    "_step5d_p0_safe_hold_active": 1.0,
+                    "_step5d_dls_shadow_normal_direction_class_difference": 1.0,
                     "_step5d_stage25_echo_layout_tag": 524.0,
                     "_step5d_stage25_echo_cmd_valid": 1.0,
                     "_step5d_stage25_echo_consumed": 1.0,
                     "_step5d_rnn_inner_iterations": 512.0,
                     "_step5d_p0_v9_actual_tangent_displacement_m": tangent_m,
                     "_step5d_p0_v9_target_tangent_displacement_m": tangent_m,
-                    "_step5d_p0_v9_anchor_normal_displacement_m": 0.0,
-                    "normal_force_n": 0.0,
-                    "force_norm_n": 0.0,
-                    "torque_norm_nm": 0.0,
+                    "_step5d_p0_v9_anchor_normal_displacement_m": 1.0,
+                    "normal_force_n": 1000.0,
+                    "force_norm_n": 1000.0,
+                    "torque_norm_nm": 1000.0,
                     **{f"step4e_cmd_v{axis}_m_s": 0.0 for axis in ("x", "y", "z")},
                     **{f"step4e_cmd_w{axis}_rad_s": 0.0 for axis in ("x", "y", "z")},
                     "step4e_controller_state": 524.0,

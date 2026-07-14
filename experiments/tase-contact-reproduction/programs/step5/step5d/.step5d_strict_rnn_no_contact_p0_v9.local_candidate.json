@@ -1,25 +1,25 @@
 {
   "controller_urp": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v9.urp",
-  "generated_at": "2026-07-14T17:17:49+08:00",
+  "generated_at": "2026-07-14T18:20:43+08:00",
   "local_only": false,
   "not_delivered": false,
-  "controller_readback_verified": true,
-  "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_20260714_174306/manifest.json",
   "program": "step5d_strict_rnn_no_contact_p0_v9",
   "safety_boundary": [
-    "controller package read-back verified",
+    "controller package upload and fresh read-back only",
     "not current_stage",
-    "not loaded or opened on Teach Pendant",
-    "no live bridge"
+    "no live bridge or TP Play performed by delivery"
   ],
   "schema": "ur_tp_local_candidate_v1",
-  "semantic_fingerprint": "64f92d098ea988bea7618ac81e534bbb912b7f75c38a48ec8ab544a88f414565",
+  "semantic_fingerprint": "ddaa322f7877b8705ee11ec9bac7b0f76b75b63925ffdcd2068805c7dd840b2f",
   "sha256": {
-    ".script": "3dcdd6817a05082e17408d702d08d99e81717dcfaf1dbdbf0d22635326284615",
-    ".txt": "f036512f3f67b430e0279c8797f2be3e47e370a34cfa412b70e8ad02cd58e12c",
-    ".urp": "192e318d0a2036a6e1bd2d5e834bc50deba1b44f070bf07efd29b8a171ab58b1"
+    ".script": "ad48057589f18ec8b45e1ffd26f1ab37516f7133709f04e9b869b9fb39e8a8d6",
+    ".txt": "9a986ad04a264a69e290e5a7c974a925e77c099dbe5c0b445edb318c1e13e80c",
+    ".urp": "08aba556f9c94fb917ee09e83ac1d88173928ad25d283fa01a67745cf6b5239e"
   },
-  "stamp": "2026-07-14T1717HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V9",
+  "stamp": "2026-07-14T1820HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V9_GUARD_V2",
   "status": "controller read-back verified",
-  "target_dir": "/programs/andyl/kunwei/step5"
+  "target_dir": "/programs/andyl/kunwei/step5",
+  "controller_readback_verified": true,
+  "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_20260714_182043/manifest.json",
+  "delivery_mode": "full_upload_readback"
 }

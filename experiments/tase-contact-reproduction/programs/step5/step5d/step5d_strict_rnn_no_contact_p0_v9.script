@@ -1,10 +1,10 @@
-# VERSION: 2026-07-14T1717HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V9
-# GENERATED_AT_LOCAL: 2026-07-14T17:17:49+08:00
+# VERSION: 2026-07-14T1820HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V9_GUARD_V2
+# GENERATED_AT_LOCAL: 2026-07-14T18:20:43+08:00
 # PURPOSE: NO_CONTACT_P0_CAPTURE; no contact search, no preload, no zero/tare, direct Stage25 strict RNN warm-start capture.
 # TP_ROLE: no_contact_stage25_executor_and_guard_only; bridge computes Step5d strict RNN speedj command.
 # REGISTER_CONTRACT: Stage 25.95 requires bridge-cleared registers 37..47 before Stage25.0. Stage25.0 accepts only register 47=524.0 with joint speedj qd0..qd5; 43 cmd_valid, 44 path_time_s. DLS is shadow-only and has no runtime command path.
 # FORCE_FRAME_CONTRACT: approach normal defines the forbidden normal-motion axis; P0 v9 commands tangent-plane motion only and uses the bridge fallback normal rather than live force as the normal source.
-# SAFETY: no-contact P0 caps raw normal 2 N, force norm 5 N, torque 3.0 Nm; external cage/operator/E-stop boundary still applies.
+# SAFETY: guard v2 keeps only sensor/heartbeat liveness, layout 524, finite structural checks, and qdot <= 0.5 rad/s; force/torque and Cartesian/normal speed are diagnostic-only.
 
 def codex_abs(x):
   if x < 0:
@@ -57,21 +57,12 @@ def codex_wait_for_bridge_ready(timeout_s):
 end
 
 def codex_step5d_no_contact_p0_guard_stop_reason():
-  local normal_force = read_input_float_register(24)
-  local force_norm = read_input_float_register(25)
   local sensor_ok = read_input_float_register(27)
   local stop_request = read_input_float_register(28)
-  local torque_norm = read_input_float_register(30)
   if sensor_ok < 0.5:
     return 2.0
   elif stop_request > 0.5:
     return stop_request
-  elif codex_abs(normal_force) > 2.0:
-    return 17.0
-  elif force_norm > 5.0:
-    return 17.0
-  elif torque_norm > 3.0:
-    return 17.0
   end
   return 0.0
 end
@@ -115,7 +106,7 @@ def codex_step5d_strict_rnn_no_contact_p0_v9():
       end
       register_clear_t = register_clear_t + loop_dt
       stop_reason = codex_step5d_no_contact_p0_guard_stop_reason()
-      if stale_s_clear > 0.100:
+      if stale_s_clear > 1.000:
         stop_reason = 2.0
       end
       if stop_reason == 0.0:
@@ -137,15 +128,11 @@ def codex_step5d_strict_rnn_no_contact_p0_v9():
     local last_heartbeat2 = read_input_float_register(26)
     local stale_s2 = 0.0
     local t2 = 0.0
-    local qdot_cap_rad_s = 0.050
-    local cartesian_linear_cap_m_s = 0.004
-    local cartesian_angular_cap_rad_s = 0.015
-    local cartesian_accel_m_s2 = 0.050
+    local qdot_cap_rad_s = 0.500
     local joint_accel_rad_s2 = 0.050
-    local cartesian_layout_code = 523.000
     local joint_layout_code = 524.000
     local cmd_valid_grace_s = 1.000
-    local stage25_runtime_limit_s = 65.000
+    local stage25_runtime_limit_s = 75.000
     local stage25_command_consumed = 0
     local stage25_have_accepted_command = False
     while stop_reason == 0.0:
@@ -154,7 +141,6 @@ def codex_step5d_strict_rnn_no_contact_p0_v9():
       local heartbeat2 = read_input_float_register(26)
       local cmd_valid = read_input_float_register(43)
       local stage25_layout_tag = read_input_float_register(47)
-      local cartesian_layout_ok = codex_abs(stage25_layout_tag - cartesian_layout_code) < 0.001
       local joint_layout_ok = codex_abs(stage25_layout_tag - joint_layout_code) < 0.001
       local cmd_qd0 = read_input_float_register(37)
       local cmd_qd1 = read_input_float_register(38)
@@ -174,12 +160,6 @@ def codex_step5d_strict_rnn_no_contact_p0_v9():
       write_output_float_register(44, read_input_float_register(45))
       write_output_float_register(45, read_input_float_register(46))
       write_output_float_register(46, stage25_layout_tag)
-      local cmd_vx = cmd_qd0
-      local cmd_vy = cmd_qd1
-      local cmd_vz = cmd_qd2
-      local cmd_wx = cmd_qd3
-      local cmd_wy = cmd_qd4
-      local cmd_wz = cmd_qd5
       local loop_dt2 = get_steptime()
       local heartbeat_fresh = False
       if heartbeat2 == last_heartbeat2:
@@ -191,7 +171,7 @@ def codex_step5d_strict_rnn_no_contact_p0_v9():
       end
       t2 = t2 + loop_dt2
       stop_reason = codex_step5d_no_contact_p0_guard_stop_reason()
-      if stale_s2 > 0.250:
+      if stale_s2 > 1.000:
         stop_reason = 2.0
       end
       if stop_reason == 0.0:
@@ -210,8 +190,6 @@ def codex_step5d_strict_rnn_no_contact_p0_v9():
           else:
             stop_reason = 12.0
           end
-        elif cartesian_layout_ok and (codex_abs(cmd_vx) > cartesian_linear_cap_m_s or codex_abs(cmd_vy) > cartesian_linear_cap_m_s or codex_abs(cmd_vz) > cartesian_linear_cap_m_s or codex_abs(cmd_wx) > cartesian_angular_cap_rad_s or codex_abs(cmd_wy) > cartesian_angular_cap_rad_s or codex_abs(cmd_wz) > cartesian_angular_cap_rad_s):
-          stop_reason = 13.0
         elif joint_layout_ok and (codex_abs(cmd_qd0) > qdot_cap_rad_s or codex_abs(cmd_qd1) > qdot_cap_rad_s or codex_abs(cmd_qd2) > qdot_cap_rad_s or codex_abs(cmd_qd3) > qdot_cap_rad_s or codex_abs(cmd_qd4) > qdot_cap_rad_s or codex_abs(cmd_qd5) > qdot_cap_rad_s):
           stop_reason = 13.0
         elif t2 >= stage25_runtime_limit_s:

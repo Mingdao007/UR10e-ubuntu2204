@@ -17,8 +17,10 @@ Usage:
   STEP5D_P0_CONFIRM='LIVE STEP5D STRICT RNN NO CONTACT P0 V9' \
     step5d-strict-rnn-p0-v9.sh capture-bridge
 
-P0 v9 is a 60 s tangential free-space canary: 0..2 mm, 20 s period,
-three cycles, zero commanded normal motion, and weak posture hold only.
+P0 v9 guard v2 is a 60 s permissive tangential free-space canary: 0..2 mm,
+20 s period, three cycles, layout 524, strict RNN, and weak posture hold.
+Force, Cartesian/normal speed, normal displacement, DLS, residual magnitude,
+and active bounds are diagnostic-only.
 generate-deliver always uploads the generated TP triplet and performs a fresh
 controller read-back. It never loads, Plays, starts a bridge, or moves the robot.
 capture commands fail closed until controller read-back and live authorization
@@ -56,7 +58,7 @@ if candidate.get("profile") != profile or capture.get("profile") != profile:
 print(f"profile={profile}")
 print(f"state={candidate.get('state')}")
 print(f"current={str(bool(candidate.get('current'))).lower()}")
-print("rnn_backend=cupy rnn_inner_iterations=512 normal_motion_policy=normal_zero")
+print("guard_schema=p0_v9_guard_v2 rnn_backend=cupy rnn_inner_iterations=512 normal_motion_policy=diagnostic_only qdot_cap_rad_s=0.5")
 print(f"local_package_verified={str(bool((candidate.get('claim_boundary') or {}).get('local_package_verified'))).lower()}")
 print(f"controller_uploaded={str(bool(capture.get('controller_uploaded'))).lower()}")
 print(f"controller_readback_verified={str(bool(capture.get('controller_readback_verified'))).lower()}")

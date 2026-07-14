@@ -119,7 +119,7 @@ class Step5dRuntimeInterfaceTest(unittest.TestCase):
         self.assertIn("strict RNN live", runtime.register_contract["stage25_0"])
         self.assertIn("layout 524", runtime.register_contract["stage25_0"])
 
-    def test_p0_v9_normal_zero_accepts_disabled_force_controller(self) -> None:
+    def test_p0_v9_guard_v2_accepts_disabled_force_controller(self) -> None:
         stage_env = iface.build_stage_env(iface.STEP5D_NO_CONTACT_P0_V9_STAGE_ID, ROOT)
         runtime = iface.resolve_runtime_interface(
             program=iface.STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
@@ -131,9 +131,13 @@ class Step5dRuntimeInterfaceTest(unittest.TestCase):
         self.assertEqual(runtime.bridge_defaults.force_p_gain, 0.0)
         self.assertEqual(runtime.bridge_defaults.force_i_gain, 0.0)
         self.assertEqual(runtime.bridge_defaults.integral_limit_n_s, 0.0)
-        self.assertEqual(stage_env["BRIDGE_MOTION_LIMIT_M_S"], "0.0005")
-        self.assertEqual(stage_env["BRIDGE_TOTAL_LINEAR_LIMIT_M_S"], "0.0005")
-        self.assertEqual(stage_env["BRIDGE_NORMAL_VELOCITY_LIMIT_M_S"], "0.0002")
+        self.assertEqual(stage_env["STEP5D_QDOT_LIMIT_RAD_S"], "0.500")
+        self.assertEqual(stage_env["BRIDGE_SENSOR_STALE_S"], "2.00")
+        self.assertEqual(runtime.hard_contract["runtime_profile"]["guard_schema"], "p0_v9_guard_v2")
+        self.assertFalse(runtime.hard_contract["runtime_profile"]["force_guards_enabled"])
+        self.assertFalse(runtime.hard_contract["runtime_profile"]["cartesian_speed_guards_enabled"])
+        self.assertFalse(runtime.hard_contract["runtime_profile"]["normal_motion_guards_enabled"])
+        self.assertEqual(runtime.hard_contract["stage25_runtime_limit_s"], 75.0)
         self.assertTrue(runtime.hard_contract["no_contact_p0_capture"])
 
     def test_live_ready_without_authorization_never_claims_live_bridge(self) -> None:

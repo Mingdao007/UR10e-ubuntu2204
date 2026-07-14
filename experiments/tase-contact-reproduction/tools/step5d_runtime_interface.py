@@ -187,9 +187,20 @@ _STAGE_ENV_MAP: tuple[tuple[str, str, object], ...] = (
 
 def build_stage_env(stage_id: str, root: Path = EXPERIMENT_ROOT) -> dict[str, str]:
     row = _stage_row(stage_id, root)
+    compatibility_row = (
+        _stage_row(STEP5D_NO_CONTACT_P0_STAGE_ID, root)
+        if stage_id == STEP5D_NO_CONTACT_P0_V9_STAGE_ID
+        else None
+    )
     env: dict[str, str] = {}
     for env_name, dotted, formatter in _STAGE_ENV_MAP:
-        env[env_name] = formatter(_stage_field(row, dotted))  # type: ignore[operator]
+        try:
+            value = _stage_field(row, dotted)
+        except StageEnvError:
+            if compatibility_row is None:
+                raise
+            value = _stage_field(compatibility_row, dotted)
+        env[env_name] = formatter(value)  # type: ignore[operator]
     return env
 
 
@@ -224,6 +235,12 @@ STEP5D_NO_CONTACT_P0_V8_RNN_INNER_ITERATIONS = int(
 )
 STEP5D_NO_CONTACT_P0_V9_RNN_INNER_ITERATIONS = int(
     _P0_V9_ENV["STEP5D_RNN_INNER_ITERATIONS"]
+)
+STEP5D_NO_CONTACT_P0_V9_QDOT_CAP_RAD_S = float(
+    _P0_V9_ENV["STEP5D_QDOT_LIMIT_RAD_S"]
+)
+STEP5D_NO_CONTACT_P0_V9_SENSOR_STALE_S = float(
+    _P0_V9_ENV["BRIDGE_SENSOR_STALE_S"]
 )
 STEP5D_V30_RNN_INNER_ITERATIONS = int(
     _stage_field(_V30_ROW, "runtime_profile.inner_iterations")
@@ -464,6 +481,8 @@ def stage25_success_target_s(program: str) -> float | None:
 
 
 def stage25_runtime_limit_s(program: str) -> float | None:
+    if program == STEP5D_NO_CONTACT_P0_V9_STAGE_ID:
+        return float(_stage_field(_stage_row(program), "guard.stage25_runtime_limit_s"))
     if is_no_contact_p0_stage(program):
         return STEP5D_STAGE25_V28_RUNTIME_LIMIT_S
     if program in {STEP5D_ABLATION_V28_STAGE_ID, STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID}:
@@ -767,9 +786,23 @@ def resolve_runtime_interface(
                     "inner_iterations": 512,
                     "epsilon": 0.010,
                     "sigr_exponent_r": 0.8,
-                    "qdot_cap_rad_s": 0.05,
+                    "qdot_cap_rad_s": (
+                        STEP5D_NO_CONTACT_P0_V9_QDOT_CAP_RAD_S
+                        if selected == STEP5D_NO_CONTACT_P0_V9_STAGE_ID
+                        else 0.05
+                    ),
                     "control_mode": "speedj_rnn_live",
                     "joint_layout_code": 524.0,
+                    **(
+                        {
+                            "guard_schema": "p0_v9_guard_v2",
+                            "force_guards_enabled": False,
+                            "cartesian_speed_guards_enabled": False,
+                            "normal_motion_guards_enabled": False,
+                        }
+                        if selected == STEP5D_NO_CONTACT_P0_V9_STAGE_ID
+                        else {}
+                    ),
                 }
                 if selected in STEP5D_V30_CONTROL_CONTRACT_STAGE_IDS
                 else None

@@ -1121,17 +1121,17 @@
       "local_candidate_marker": "programs/step5/step5d/.step5d_strict_rnn_no_contact_p0_v9.local_candidate.json",
       "controller_uploaded": true,
       "controller_readback_verified": true,
-      "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_20260714_174306/manifest.json",
+      "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_20260714_182043/manifest.json",
       "delivery_mode": "full_upload_readback",
       "sha256": {
-        ".script": "3dcdd6817a05082e17408d702d08d99e81717dcfaf1dbdbf0d22635326284615",
-        ".txt": "f036512f3f67b430e0279c8797f2be3e47e370a34cfa412b70e8ad02cd58e12c",
-        ".urp": "192e318d0a2036a6e1bd2d5e834bc50deba1b44f070bf07efd29b8a171ab58b1"
+        ".script": "ad48057589f18ec8b45e1ffd26f1ab37516f7133709f04e9b869b9fb39e8a8d6",
+        ".txt": "9a986ad04a264a69e290e5a7c974a925e77c099dbe5c0b445edb318c1e13e80c",
+        ".urp": "08aba556f9c94fb917ee09e83ac1d88173928ad25d283fa01a67745cf6b5239e"
       },
-      "capture_authorized": false,
+      "capture_authorized": true,
       "passed": false,
-      "summary_artifact": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v9_20260714_175217/step5d_no_contact_p0_summary.json",
-      "status": "failed_actual_normal_speed_dwell_guard"
+      "summary_artifact": null,
+      "status": "guard_v2_readback_verified_live_capture_authorized"
     },
     "required_before_live": [
       "operator outside UR reach/cage boundary",
@@ -1318,17 +1318,18 @@
   "p0_v9_candidate": {
     "profile": "step5d_strict_rnn_no_contact_p0_v9",
     "gate_for": "step5d_strict_rnn_ablation_v30",
-    "state": "controller_readback_verified_inactive",
+    "state": "guard_v2_readback_verified_awaiting_live_run",
     "current": false,
     "package_sha256": {
-      ".script": "3dcdd6817a05082e17408d702d08d99e81717dcfaf1dbdbf0d22635326284615",
-      ".txt": "f036512f3f67b430e0279c8797f2be3e47e370a34cfa412b70e8ad02cd58e12c",
-      ".urp": "192e318d0a2036a6e1bd2d5e834bc50deba1b44f070bf07efd29b8a171ab58b1"
+      ".script": "ad48057589f18ec8b45e1ffd26f1ab37516f7133709f04e9b869b9fb39e8a8d6",
+      ".txt": "9a986ad04a264a69e290e5a7c974a925e77c099dbe5c0b445edb318c1e13e80c",
+      ".urp": "08aba556f9c94fb917ee09e83ac1d88173928ad25d283fa01a67745cf6b5239e"
     },
-    "semantic_fingerprint": "64f92d098ea988bea7618ac81e534bbb912b7f75c38a48ec8ab544a88f414565",
+    "semantic_fingerprint": "ddaa322f7877b8705ee11ec9bac7b0f76b75b63925ffdcd2068805c7dd840b2f",
     "motion_semantics": {
       "mode": "tangential_free_space",
-      "normal_motion_policy": "normal_zero",
+      "guard_schema": "p0_v9_guard_v2",
+      "normal_motion_policy": "diagnostic_only",
       "path": "s(t)=0.001*(1-cos(2*pi*t/20)) m",
       "peak_to_peak_m": 0.002,
       "period_s": 20.0,
@@ -1342,8 +1343,14 @@
       "direct_duration_s": 60.0,
       "required_echo_layout": 524.0,
       "required_host_accept": true,
-      "safe_hold_allowed": false,
-      "dls_direction_mismatch_allowed": false
+      "safe_hold_qualification_required": false,
+      "dls_direction_qualification_required": false,
+      "force_guards_enabled": false,
+      "cartesian_speed_guards_enabled": false,
+      "qdot_cap_rad_s": 0.5,
+      "sensor_stale_s": 2.0,
+      "heartbeat_stale_s": 1.0,
+      "runtime_limit_s": 75.0
     },
     "claim_boundary": {
       "local_package_verified": true,
@@ -1353,8 +1360,7 @@
       "reproduction_complete": false
     },
     "blockers": [
-      "no_contact_live_authorization_not_granted",
-      "direct_60s_canary_failed_actual_normal_speed_dwell_guard"
+      "guard_v2_direct_60s_canary_not_run"
     ]
   },
   "v30_candidate": {

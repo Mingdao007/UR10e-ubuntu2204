@@ -147,7 +147,7 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
         self.assertTrue(marker["controller_readback_verified"])
         self.assertEqual(
             marker["controller_readback_manifest"],
-            "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_20260714_174306/manifest.json",
+            "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_20260714_182043/manifest.json",
         )
 
     def test_upload_validator_checks_installation_relative_path(self) -> None:
@@ -413,7 +413,21 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
             tmp_path = Path(tmp)
             program = "step5d_strict_rnn_no_contact_p0_v9"
             target_dir = "/programs/andyl/kunwei/step5"
-            local_dir = ROOT / "programs" / "step5" / "step5d"
+            source_dir = ROOT / "programs" / "step5" / "step5d"
+            local_dir = tmp_path / "local"
+            local_dir.mkdir()
+            files = {
+                ext: local_dir / f"{program}{ext}"
+                for ext in upload.EXTENSIONS
+            }
+            for ext, destination in files.items():
+                destination.write_bytes((source_dir / f"{program}{ext}").read_bytes())
+            self._write_local_candidate_marker(
+                local_dir,
+                program=program,
+                target_dir=target_dir,
+                files=files,
+            )
 
             def fake_upload_and_readback(
                 package_files,
@@ -467,6 +481,12 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
             self.assertEqual(len(manifests), 1)
             manifest = json.loads(manifests[0].read_text(encoding="utf-8"))
             self.assertEqual(manifest["status"], "controller read-back verified")
+            marker = upload.load_local_candidate_marker(local_dir, program)
+            assert marker is not None
+            self.assertFalse(marker["local_only"])
+            self.assertFalse(marker["not_delivered"])
+            self.assertTrue(marker["controller_readback_verified"])
+            self.assertEqual(marker["delivery_mode"], "full_upload_readback")
 
     def test_upload_derives_step5d_p0_target_from_table_without_target_dir(self) -> None:
         out = io.StringIO()

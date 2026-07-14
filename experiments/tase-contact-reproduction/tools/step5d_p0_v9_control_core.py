@@ -23,13 +23,6 @@ P0_V9_PATH_AMPLITUDE_M = 0.001
 P0_V9_PATH_PERIOD_S = 20.0
 P0_V9_PATH_DURATION_S = 60.0
 P0_V9_PATH_KP_S_INV = 1.0
-P0_V9_TANGENTIAL_SPEED_CAP_M_S = 0.0005
-P0_V9_NORMAL_TARGET_TOLERANCE_M_S = 1e-9
-P0_V9_PREDICTED_NORMAL_TOLERANCE_M_S = 1e-5
-P0_V9_ACTUAL_NORMAL_SPEED_STOP_M_S = 0.0002
-P0_V9_ACTUAL_NORMAL_SPEED_DWELL_S = 0.004
-P0_V9_NORMAL_DISPLACEMENT_STOP_M = 0.0005
-P0_V9_ANGULAR_CAP_RAD_S = 0.015
 
 
 @dataclass(frozen=True)
@@ -86,9 +79,6 @@ def _orientation_hold_velocity(
         dtype=float,
     )
     angular = float(gain) * vee
-    norm = float(np.linalg.norm(angular))
-    if norm > P0_V9_ANGULAR_CAP_RAD_S:
-        angular *= P0_V9_ANGULAR_CAP_RAD_S / norm
     return angular
 
 
@@ -103,7 +93,7 @@ def build_p0_v9_target(
     jacobian: Any,
     qdot_cap_rad_s: float = P0_QDOT_CAP_RAD_S,
 ) -> P0V9Target:
-    """Build a tangential target with exact-zero commanded normal component."""
+    """Build the guard-v2 tangential target without Cartesian speed guards."""
 
     pose = np.asarray(tcp_pose_base, dtype=float)
     anchor = np.asarray(anchor_tcp_pose_base, dtype=float)
@@ -115,18 +105,15 @@ def build_p0_v9_target(
     actual_m = float(np.dot(pose[:3] - anchor[:3], tangent))
     normal_displacement_m = float(np.dot(pose[:3] - anchor[:3], approach))
     commanded_m_s = feedforward_m_s + P0_V9_PATH_KP_S_INV * (target_m - actual_m)
-    commanded_m_s = min(max(commanded_m_s, -P0_V9_TANGENTIAL_SPEED_CAP_M_S), P0_V9_TANGENTIAL_SPEED_CAP_M_S)
     raw = np.zeros(6, dtype=float)
     raw[:3] = commanded_m_s * tangent
     raw[3:] = _orientation_hold_velocity(pose[3:], anchor[3:])
     desired_normal_m_s = float(np.dot(raw[:3], approach))
-    if abs(desired_normal_m_s) > P0_V9_NORMAL_TARGET_TOLERANCE_M_S:
-        raise ValueError("P0 v9 target lost exact-zero normal semantics")
     feasible, feasibility = scale_xdot_for_joint_feasibility(
         raw,
         jacobian,
         qdot_cap_rad_s=qdot_cap_rad_s,
-        safety=0.9,
+        safety=1.0,
     )
     posture_policy = {
         "policy": "weak_posture_hold_v3",

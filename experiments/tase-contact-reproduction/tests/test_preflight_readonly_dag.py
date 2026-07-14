@@ -47,12 +47,16 @@ class PreflightReadonlyDagTest(unittest.TestCase):
     def test_p0_v9_uses_its_capture_binding_instead_of_current_v29(self) -> None:
         result = preflight.p0_controller_binding(preflight.P0_V9_PROFILE, ROOT)
 
-        self.assertFalse(result["ok"])
-        self.assertEqual(result["errors"], ["capture_not_authorized"])
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["errors"], [])
         self.assertEqual(result["program"], preflight.P0_V9_PROFILE)
         self.assertEqual(
             result["controller_target"],
             "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v9.urp",
+        )
+        self.assertEqual(
+            result["manifest"],
+            "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_20260714_182043/manifest.json",
         )
 
     def test_open_probe_accepts_open_only_payloads(self) -> None:

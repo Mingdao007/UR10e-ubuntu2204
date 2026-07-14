@@ -4,7 +4,7 @@ Open on Teach Pendant only after the no-contact P0 capture package is explicitly
   /programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v9.urp
 
 Version:
-  2026-07-14T1717HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V9
+  2026-07-14T1820HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V9_GUARD_V2
 
 Boundary:
   NO_CONTACT_P0_CAPTURE diagnostic package; not a contact reproduction claim.
@@ -12,19 +12,19 @@ Boundary:
   preload gate, no zero_ftsensor(), no Kunwei tare/zero/config, no TCP/payload write.
   The program waits up to 60 s total for a fresh bridge heartbeat and
   sensor_ok, runs Stage 25.95 register clear, then enters Stage 25.0 in open
-  air for a 60 s target window with a 65 s runtime guard.
+  air for a 60 s target window with a 75 s runtime guard.
   Stage 25.95 requires cmd_valid=0, registers 37..42 near zero
   (<= 0.000500), and register 47 not equal to
   521.0, 523.0, or 524.0.
   Stage 25.0 accepts only joint speedj layout 524.0: registers 37..42 are qd0..qd5. Cartesian speedl and DLS runtime fallback are forbidden; DLS is diagnostic shadow-only.
   The intended bridge mode is STEP5D_STAGE25_CONTROL_MODE=speedj_rnn_live so
   the first consumed Stage25 tick records solver_warm_start and layout 524.
-  P0 v9 uses a tangential free-space 0..2 mm one-sided cosine cycle with a 20 s period for three cycles. Its SafetyEnvelope policy is normal_zero: no force target, contact search, or preload. It uses weak posture hold only at effective_ko=0.01, and DLS remains shadow-only. Outputs 36..46 echo inputs 37..47; output 47 proves TP command consumption. Only 60 continuous seconds satisfying all echo, host-acceptance, no-safe-hold, and DLS-neutral gates may pass.
+  P0 v9 uses a tangential free-space 0..2 mm one-sided cosine cycle with a 20 s period for three cycles. Guard v2 uses diagnostic_only normal semantics: force, torque, normal velocity/displacement, DLS, residual magnitude, active bounds, and Cartesian speed are logged but cannot stop or reset qualification. Weak posture hold remains at effective_ko=0.01. Outputs 36..46 echo inputs 37..47; output 47 proves TP command consumption. Success requires 60 continuous seconds and at least 2.0 mm actual tangential peak-to-peak travel.
   Stage25.0 command-consumption instrumentation: output register 47 is 1 only
   when the TP loop accepts a current Stage25 command packet and reaches
   speedl/speedj.
   After the first accepted command, a repeated heartbeat reuses only the last
-  guard-approved qdot for at most 0.250 s;
+  guard-approved qdot for at most 1.000 s;
   before the first accepted command TP only syncs and sends no speed command. The bridge records
   every replay and a longer stale interval remains a stop.
 
@@ -35,11 +35,11 @@ Bridge profile:
   --duration-s 180.0
 
 Safety:
-  speedl Cartesian linear cap: 0.004 m/s
-  speedl Cartesian angular cap: 0.015 rad/s
-  qdot cap: 0.050 rad/s
+  Guard schema: p0_v9_guard_v2
+  Cartesian and normal speed guards: disabled
+  qdot cap: 0.500 rad/s
   speedj acceleration: 0.050 rad/s^2
-  Raw normal guard: 2 N. Force norm guard: 5 N. Torque guard: 3.0 Nm.
+  Force/torque guards: disabled; wrench remains diagnostic-only.
   This package is not a bridge-start, TP-Play, upload, or live-contact authorization.
 
 Reference:

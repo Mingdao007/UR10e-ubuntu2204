@@ -82,6 +82,10 @@ class Step5dAblationSpec:
     def full_stage25_echo(self) -> bool:
         return self.version_label == "no_contact_p0_v9"
 
+    @property
+    def guard_v2(self) -> bool:
+        return self.version_label == "no_contact_p0_v9"
+
 
 @dataclass(frozen=True)
 class LineEntryConfig:
@@ -176,15 +180,15 @@ ABLATION_SPECS = {
     STEP5D_NO_CONTACT_P0_V9_STAGE_ID: Step5dAblationSpec(
         program_name=STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
         version_label="no_contact_p0_v9",
-        stamp_token="STEP5D_STRICT_RNN_NO_CONTACT_P0_V9",
+        stamp_token="STEP5D_STRICT_RNN_NO_CONTACT_P0_V9_GUARD_V2",
         cartesian_angular_cap_rad_s=0.015,
         default_stage25_control_mode="speedj_rnn_live",
         stage25_success_target_s=STEP5D_STAGE25_V28_FULL_RUN_TARGET_S,
-        stage25_runtime_limit_s=STEP5D_STAGE25_V28_RUNTIME_LIMIT_S,
+        stage25_runtime_limit_s=75.0,
         controller_dir="/programs/andyl/kunwei/step5",
         no_contact_p0=True,
-        qdot_cap_rad_s=0.050,
-        stage25_stale_command_hold_s=0.250,
+        qdot_cap_rad_s=0.500,
+        stage25_stale_command_hold_s=1.000,
         publish_guard_approved_late_command=True,
     ),
 }
@@ -845,13 +849,38 @@ def _add_down_search_force_trigger_echo(script: str) -> str:
 
 
 def build_no_contact_p0_script(stamp: str, gen_at: str, spec: Step5dAblationSpec) -> str:
+    safety_contract = (
+        "guard v2 keeps only sensor/heartbeat liveness, layout 524, finite structural checks, and qdot <= 0.5 rad/s; force/torque and Cartesian/normal speed are diagnostic-only."
+        if spec.guard_v2
+        else "no-contact P0 caps raw normal 2 N, force norm 5 N, torque 3.0 Nm; external cage/operator/E-stop boundary still applies."
+    )
+    guard_body = (
+        """  if sensor_ok < 0.5:
+    return 2.0
+  elif stop_request > 0.5:
+    return stop_request
+  end"""
+        if spec.guard_v2
+        else """  if sensor_ok < 0.5:
+    return 2.0
+  elif stop_request > 0.5:
+    return stop_request
+  elif codex_abs(normal_force) > 2.0:
+    return 17.0
+  elif force_norm > 5.0:
+    return 17.0
+  elif torque_norm > 3.0:
+    return 17.0
+  end"""
+    )
+    register_clear_stale_s = 1.0 if spec.guard_v2 else 0.1
     script = f"""# VERSION: {stamp}
 # GENERATED_AT_LOCAL: {gen_at}
 # PURPOSE: NO_CONTACT_P0_CAPTURE; no contact search, no preload, no zero/tare, direct Stage25 strict RNN warm-start capture.
 # TP_ROLE: no_contact_stage25_executor_and_guard_only; bridge computes Step5d strict RNN speedj command.
 # REGISTER_CONTRACT: Stage 25.95 requires bridge-cleared registers 37..47 before Stage25.0. Stage25.0 reads register 47 as layout tag: {STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:.1f}=Cartesian speedl vx/vy/vz/wx/wy/wz, {STEP5D_STAGE25_JOINT_LAYOUT_CODE:.1f}=joint speedj qd0..qd5; 43 cmd_valid, 44 path_time_s.
 # FORCE_FRAME_CONTRACT: reaction normal for load, approach normal for posture/press direction; no-contact capture uses the bridge fallback normal rather than live force as the normal source.
-# SAFETY: no-contact P0 caps raw normal 2 N, force norm 5 N, torque 3.0 Nm; external cage/operator/E-stop boundary still applies.
+# SAFETY: {safety_contract}
 
 def codex_abs(x):
   if x < 0:
@@ -909,17 +938,7 @@ def codex_step5d_no_contact_p0_guard_stop_reason():
   local sensor_ok = read_input_float_register(27)
   local stop_request = read_input_float_register(28)
   local torque_norm = read_input_float_register(30)
-  if sensor_ok < 0.5:
-    return 2.0
-  elif stop_request > 0.5:
-    return stop_request
-  elif codex_abs(normal_force) > 2.0:
-    return 17.0
-  elif force_norm > 5.0:
-    return 17.0
-  elif torque_norm > 3.0:
-    return 17.0
-  end
+{guard_body}
   return 0.0
 end
 
@@ -962,7 +981,7 @@ def codex_{spec.program_name}():
       end
       register_clear_t = register_clear_t + loop_dt
       stop_reason = codex_step5d_no_contact_p0_guard_stop_reason()
-      if stale_s_clear > 0.100:
+      if stale_s_clear > {register_clear_stale_s:.3f}:
         stop_reason = 2.0
       end
       if stop_reason == 0.0:
@@ -1124,6 +1143,39 @@ codex_{spec.program_name}()
         if echo_anchor not in script:
             raise RuntimeError("P0 v9 full Stage25 echo insertion point not found")
         script = script.replace(echo_anchor, echo_block, 1)
+    if spec.guard_v2:
+        script = script.replace("  local normal_force = read_input_float_register(24)\n", "")
+        script = script.replace("  local force_norm = read_input_float_register(25)\n", "")
+        script = script.replace("  local torque_norm = read_input_float_register(30)\n", "")
+        script = script.replace(
+            f"    local cartesian_linear_cap_m_s = {CARTESIAN_LINEAR_CAP_M_S:.3f}\n",
+            "",
+        )
+        script = script.replace(
+            f"    local cartesian_angular_cap_rad_s = {spec.cartesian_angular_cap_rad_s:.3f}\n",
+            "",
+        )
+        script = script.replace(
+            f"    local cartesian_accel_m_s2 = {LINE_ACCEL_M_S2:.3f}\n",
+            "",
+        )
+        script = script.replace(
+            f"    local cartesian_layout_code = {STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:.3f}\n",
+            "",
+        )
+        script = script.replace(
+            "      local cartesian_layout_ok = codex_abs(stage25_layout_tag - cartesian_layout_code) < 0.001\n",
+            "",
+        )
+        for alias in ("vx", "vy", "vz", "wx", "wy", "wz"):
+            source = {"vx": 0, "vy": 1, "vz": 2, "wx": 3, "wy": 4, "wz": 5}[alias]
+            script = script.replace(f"      local cmd_{alias} = cmd_qd{source}\n", "")
+        script = script.replace(
+            """        elif cartesian_layout_ok and (codex_abs(cmd_vx) > cartesian_linear_cap_m_s or codex_abs(cmd_vy) > cartesian_linear_cap_m_s or codex_abs(cmd_vz) > cartesian_linear_cap_m_s or codex_abs(cmd_wx) > cartesian_angular_cap_rad_s or codex_abs(cmd_wy) > cartesian_angular_cap_rad_s or codex_abs(cmd_wz) > cartesian_angular_cap_rad_s):
+          stop_reason = 13.0
+""",
+            "",
+        )
     return script
 
 
@@ -1292,12 +1344,13 @@ def build_txt(stamp: str, spec: Step5dAblationSpec = DEFAULT_SPEC) -> str:
         )
         control_contract = (
             "P0 v9 uses a tangential free-space 0..2 mm one-sided cosine cycle "
-            "with a 20 s period for three cycles. Its SafetyEnvelope policy is "
-            "normal_zero: no force target, contact search, or preload. It uses "
-            "weak posture hold only at effective_ko=0.01, and DLS remains "
-            "shadow-only. Outputs 36..46 echo inputs 37..47; output 47 proves "
-            "TP command consumption. Only 60 continuous seconds satisfying all "
-            "echo, host-acceptance, no-safe-hold, and DLS-neutral gates may pass."
+            "with a 20 s period for three cycles. Guard v2 uses diagnostic_only "
+            "normal semantics: force, torque, normal velocity/displacement, DLS, "
+            "residual magnitude, active bounds, and Cartesian speed are logged but "
+            "cannot stop or reset qualification. Weak posture hold remains at "
+            "effective_ko=0.01. Outputs 36..46 echo inputs 37..47; "
+            "output 47 proves TP command consumption. Success requires 60 continuous "
+            "seconds and at least 2.0 mm actual tangential peak-to-peak travel."
             if spec.version_label == "no_contact_p0_v9"
             else "P0 v8 is bound to Step5dObservation -> StrictRnnControlPolicy -> "
             "ControlCandidate -> SafetyEnvelope -> RegisterCommand, with canonical "
@@ -1322,7 +1375,7 @@ Boundary:
   preload gate, no zero_ftsensor(), no Kunwei tare/zero/config, no TCP/payload write.
   The program waits up to 60 s total for a fresh bridge heartbeat and
   sensor_ok, runs Stage 25.95 register clear, then enters Stage 25.0 in open
-  air for a 60 s target window with a 65 s runtime guard.
+  air for a 60 s target window with a {spec.stage25_runtime_limit_s:.0f} s runtime guard.
   Stage 25.95 requires cmd_valid=0, registers 37..42 near zero
   (<= {QDOT_CLEAR_ZERO_TOL_RAD_S:.6f}), and register 47 not equal to
   {STEP5D_LINE_ENTRY_PARAM_VALID_CODE:.1f}, {STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:.1f}, or {STEP5D_STAGE25_JOINT_LAYOUT_CODE:.1f}.
@@ -1345,11 +1398,11 @@ Bridge profile:
   --duration-s 180.0
 
 Safety:
-  speedl Cartesian linear cap: {CARTESIAN_LINEAR_CAP_M_S:.3f} m/s
-  speedl Cartesian angular cap: {spec.cartesian_angular_cap_rad_s:.3f} rad/s
+  Guard schema: {"p0_v9_guard_v2" if spec.guard_v2 else "legacy_no_contact_p0"}
+  Cartesian and normal speed guards: {"disabled" if spec.guard_v2 else "enabled"}
   qdot cap: {qdot_cap_rad_s(spec):.3f} rad/s
   speedj acceleration: {JOINT_ACCEL_RAD_S2:.3f} rad/s^2
-  Raw normal guard: 2 N. Force norm guard: 5 N. Torque guard: 3.0 Nm.
+  Force/torque guards: {"disabled; wrench remains diagnostic-only" if spec.guard_v2 else "raw normal 2 N, force norm 5 N, torque 3.0 Nm"}.
   This package is not a bridge-start, TP-Play, upload, or live-contact authorization.
 
 Reference:
@@ -1539,7 +1592,9 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5d
             and "deadband_contact_acquire" not in script,
             "layout tag read": "local stage25_layout_tag = read_input_float_register(47)" in script,
             "cartesian layout code": (
-                f"local cartesian_layout_code = {STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:.3f}" in script
+                f"local cartesian_layout_code = {STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:.3f}" not in script
+                if spec.guard_v2
+                else f"local cartesian_layout_code = {STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:.3f}" in script
                 and (
                     f"register 47={STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:.1f}" not in txt
                     if spec.uses_v30_control_contract
@@ -1580,15 +1635,26 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5d
             "no live settings write": "zero_ftsensor" not in script
             and "set_payload" not in script
             and "set_tcp" not in script,
-            "force caps": "codex_abs(normal_force) > 2.0" in script
-            and "force_norm > 5.0" in script
-            and "torque_norm > 3.0" in script,
+            "force policy": (
+                "codex_abs(normal_force) > 2.0" not in script
+                and "force_norm > 5.0" not in script
+                and "torque_norm > 3.0" not in script
+                and "Force/torque guards: disabled" in txt
+                if spec.guard_v2
+                else "codex_abs(normal_force) > 2.0" in script
+                and "force_norm > 5.0" in script
+                and "torque_norm > 3.0" in script
+            ),
             "not stale ablation": "step5d_strict_rnn_ablation_v28" not in script + txt,
             "v30 control contract": (
                 not spec.uses_v30_control_contract
                 or (
-                    "normal_zero" in txt
+                    "diagnostic_only" in txt
                     and "effective_ko=0.01" in txt
+                    and "p0_v9_guard_v2" in txt
+                    and "local qdot_cap_rad_s = 0.500" in script
+                    and "if stale_s_clear > 1.000:" in script
+                    and "if stale_s2 > 1.000:" in script
                     and "Outputs 36..46 echo inputs 37..47" in txt
                     if spec.version_label == "no_contact_p0_v9"
                     else "Step5dObservation -> StrictRnnControlPolicy ->" in txt
@@ -1832,14 +1898,22 @@ def write_bytes_if_changed(path: Path, data: bytes) -> bool:
 def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dict[str, object]:
     if spec.no_contact_p0:
         return {
-            "schema": "step5d_no_contact_p0_semantic_fingerprint_v1",
+            "schema": (
+                "step5d_no_contact_p0_v9_guard_v2_semantic_fingerprint_v1"
+                if spec.guard_v2
+                else "step5d_no_contact_p0_semantic_fingerprint_v1"
+            ),
             "interface_class": STEP5D_INTERFACE_CLASS,
             "program_family": "step5d_strict_rnn_no_contact_p0",
             "program": spec.program_name,
             "controller_dir": spec.controller_dir,
             "qdot_cap_rad_s": qdot_cap_rad_s(spec),
-            "cartesian_linear_cap_m_s": CARTESIAN_LINEAR_CAP_M_S,
-            "cartesian_angular_cap_rad_s": spec.cartesian_angular_cap_rad_s,
+            "guard_schema": "p0_v9_guard_v2" if spec.guard_v2 else "legacy_no_contact_p0",
+            "cartesian_speed_guards_enabled": not spec.guard_v2,
+            "normal_motion_guards_enabled": not spec.guard_v2,
+            "force_guards_enabled": not spec.guard_v2,
+            "residual_magnitude_guard_enabled": not spec.guard_v2,
+            "active_bounds_guard_enabled": not spec.guard_v2,
             "default_stage25_control_mode": spec.default_stage25_control_mode,
             "v30_control_contract": spec.uses_v30_control_contract,
             "effective_ko": 0.01 if spec.uses_v30_control_contract else 0.0,
@@ -1867,20 +1941,14 @@ def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dic
                     "recovery": "next_fresh_heartbeat",
                     "continuous_stale_stop_s": spec.stage25_stale_command_hold_s,
                     "held_tick_counts_as_consumed": True,
-                    "hold_ratio_max": 0.01,
-                    "max_consecutive_hold_ticks": 10,
                 }
                 if spec.uses_v30_control_contract
                 else None
             ),
-            "cartesian_accel_m_s2": LINE_ACCEL_M_S2,
             "stage25_success_target_s": spec.stage25_success_target_s,
             "stage25_runtime_limit_s": spec.stage25_runtime_limit_s,
-            "no_contact_force_caps": {
-                "raw_normal_guard_n": 2.0,
-                "force_norm_guard_n": 5.0,
-                "torque_norm_guard_nm": 3.0,
-            },
+            "sensor_stale_s": 2.0 if spec.guard_v2 else 0.1,
+            "register_clear_heartbeat_stale_s": 1.0 if spec.guard_v2 else 0.1,
             "register_contract": {
                 "stage25_95": (
                     f"37..47 bridge-cleared register barrier, 37..42 near-zero <= {QDOT_CLEAR_ZERO_TOL_RAD_S:.6f}, "

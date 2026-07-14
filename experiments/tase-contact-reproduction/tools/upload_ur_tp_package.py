@@ -212,6 +212,50 @@ def load_local_candidate_marker(local_dir: Path, program: str | None = None) -> 
     return marker
 
 
+def promote_local_candidate_marker_after_readback(
+    local_dir: Path,
+    program: str,
+    marker: dict,
+    *,
+    controller: str,
+    target_dir: str,
+    readback_dir: Path,
+    delivery_mode: str,
+) -> Path:
+    """Persist the successful upload/read-back state beside the exact triplet."""
+
+    marker_path = (
+        local_dir / f".{program}.local_candidate.json"
+        if (local_dir / f".{program}.local_candidate.json").is_file()
+        else local_dir / LOCAL_CANDIDATE_MARKER
+    )
+    manifest_path = readback_dir / "manifest.json"
+    try:
+        manifest_ref = str(manifest_path.resolve().relative_to(EXPERIMENT_ROOT.resolve()))
+    except ValueError:
+        manifest_ref = str(manifest_path.resolve())
+    promoted = dict(marker)
+    promoted.update(
+        {
+            "status": "controller read-back verified",
+            "local_only": False,
+            "not_delivered": False,
+            "controller": controller,
+            "controller_target": str(PurePosixPath(target_dir) / f"{program}.urp"),
+            "controller_readback_verified": True,
+            "controller_readback_manifest": manifest_ref,
+            "delivery_mode": delivery_mode,
+            "safety_boundary": [
+                "controller package upload and fresh read-back only",
+                "not current_stage",
+                "no live bridge or TP Play performed by delivery",
+            ],
+        }
+    )
+    marker_path.write_text(json.dumps(promoted, indent=2) + "\n", encoding="utf-8")
+    return marker_path
+
+
 def enforce_offline_candidate_delivery_block(
     program: str,
     *,
@@ -2033,6 +2077,16 @@ def _main(argv: list[str] | None = None) -> int:
         target_override_reason=target_override_reason,
         inactive_candidate_delivery=inactive_candidate_delivery,
     )
+    if local_candidate_marker is not None and local_candidate_marker.get("program") == program:
+        promote_local_candidate_marker_after_readback(
+            args.local_dir,
+            program,
+            local_candidate_marker,
+            controller=args.controller,
+            target_dir=target_dir,
+            readback_dir=readback_dir,
+            delivery_mode=delivery_mode,
+        )
     if reused_from_manifest is None:
         print(f"controller read-back verified: {readback_dir}")
     else:

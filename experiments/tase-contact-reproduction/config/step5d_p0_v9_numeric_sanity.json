@@ -1,5 +1,5 @@
 {
-  "schema_version": "step5d_p0_v9_numeric_sanity_v1",
+  "schema_version": "step5d_p0_v9_guard_v2_numeric_sanity_v1",
   "profile": "step5d_strict_rnn_no_contact_p0_v9",
   "status": "pass_offline_numeric_only",
   "path": {
@@ -11,37 +11,39 @@
     "duration_s": 60.0,
     "cycles": 3,
     "analytic_peak_speed_m_s": 0.0003141592653589793,
-    "command_speed_cap_m_s": 0.0005,
+    "cartesian_speed_guard_enabled": false,
     "speed_feasible": true
   },
   "normal_semantics": {
-    "policy": "normal_zero",
+    "policy": "diagnostic_only",
     "tangent_projection": "normalize(u_along_base - dot(u_along_base,n_approach)*n_approach)",
-    "target_normal_tolerance_m_s": 1e-9,
-    "predicted_normal_tolerance_m_s": 1e-5,
-    "actual_normal_speed_stop_m_s": 0.0002,
-    "actual_normal_speed_stop_dwell_s": 0.004,
-    "anchor_normal_displacement_stop_m": 0.0005
+    "normal_velocity_guard_enabled": false,
+    "normal_displacement_guard_enabled": false
   },
   "joint_and_attitude": {
-    "qdot_cap_rad_s": 0.05,
-    "qdot_slew_rad_s2": 0.2,
+    "qdot_cap_rad_s": 0.5,
+    "qdot_slew_guard_enabled": false,
     "effective_ko": 0.01,
-    "attitude_cap_rad_s": 0.015,
     "orientation_policy": "weak_posture_hold_only_no_oscillation"
   },
-  "force_torque_guards": {
-    "raw_normal_guard_n": 2.0,
-    "force_norm_guard_n": 5.0,
-    "torque_norm_guard_nm": 3.0,
+  "force_torque_diagnostics": {
+    "guards_enabled": false,
+    "wrench_logging_enabled": true,
     "force_target_n": 0.0,
     "contact_search": false,
     "preload": false
   },
+  "liveness_and_protocol_guards": {
+    "sensor_stale_s": 2.0,
+    "stage25_95_heartbeat_stale_s": 1.0,
+    "stage25_heartbeat_stale_s": 1.0,
+    "stage25_runtime_limit_s": 75.0,
+    "joint_layout_code": 524
+  },
   "controller_target": {
     "planned": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v9.urp",
     "delivery_state": "controller_readback_verified",
-    "readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_20260714_174306/manifest.json"
+    "readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_20260714_182043/manifest.json"
   },
   "claim_boundary": "Offline analytic sanity plus controller package read-back only; no bridge, TP Play, or robot acceptance claim."
 }

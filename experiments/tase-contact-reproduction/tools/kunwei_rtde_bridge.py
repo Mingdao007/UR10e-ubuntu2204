@@ -144,6 +144,8 @@ from step5d_runtime_interface import (  # noqa: E402
     STEP5D_NO_CONTACT_P0_RNN_INNER_ITERATIONS,
     STEP5D_NO_CONTACT_P0_V8_RNN_INNER_ITERATIONS,
     STEP5D_NO_CONTACT_P0_V9_RNN_INNER_ITERATIONS,
+    STEP5D_NO_CONTACT_P0_V9_QDOT_CAP_RAD_S,
+    STEP5D_NO_CONTACT_P0_V9_SENSOR_STALE_S,
     STEP5D_NO_CONTACT_P0_RTDE_HZ,
     STEP5D_NO_CONTACT_P0_SENSOR_STALE_S,
     STEP5D_NO_CONTACT_P0_SIGR_EXPONENT_R,
@@ -3543,6 +3545,10 @@ def ensure_step5d_liveprep_runtime(state: "BridgeState", args: argparse.Namespac
         if state.step5d_solver is None:
             raise RuntimeError("v30 strict-RNN policy requires a prewarmed solver")
         state.step5d_v30_policy = StrictRnnControlPolicy(state.step5d_solver)
+    if uses_v30_control_contract(args.bridge_profile):
+        state.step5d_v30_safety_envelope = SafetyEnvelope(
+            qdot_cap_rad_s=float(args.step5d_qdot_limit_rad_s)
+        )
 
 
 def step5d_liveprep_runtime_missing(state: "BridgeState", args: argparse.Namespace) -> list[str]:
@@ -3955,7 +3961,6 @@ class BridgeState:
         self.last_robot_stage = None
         self.step5d_outer_state = Step5dOuterLoopState()
         self.step5d_v30_sequence = 0
-        self.step5d_v30_safety_envelope = SafetyEnvelope()
         self.step5d_p0_v9_anchor_tcp_pose = None
         self.step5d_p0_v9_approach_normal = None
         self.step5d_p0_v9_tangent_base = None
@@ -5402,15 +5407,9 @@ def compute_bridge_values(
                         omega_plus=tuple(float(value) for value in omega_plus),  # type: ignore[arg-type]
                         dt_s=float(dt_s),
                         normal_motion_policy=(
-                            "normal_zero"
+                            "diagnostic_only"
                             if step5d_no_contact_p0_v9_profile
                             else "approach_positive"
-                        ),
-                        target_normal_tolerance_m_s=(
-                            1e-9 if step5d_no_contact_p0_v9_profile else 1e-9
-                        ),
-                        predicted_normal_tolerance_m_s=(
-                            1e-5 if step5d_no_contact_p0_v9_profile else 1e-5
                         ),
                     )
                 try:
@@ -6279,7 +6278,7 @@ def compute_bridge_values(
                     approach_v9 = np.asarray(
                         step5d_p0_v9_target.approach_normal_base, dtype=float
                     )
-                    values["_step5d_normal_motion_policy"] = "normal_zero"
+                    values["_step5d_normal_motion_policy"] = "diagnostic_only"
                     values["_step5d_raw_desired_normal_m_s"] = float(
                         np.dot(np.asarray(step5d_p0_v9_target.raw_outer_twist[:3]), approach_v9)
                     )
@@ -7166,6 +7165,8 @@ def flatten_output(output: dict[str, Any] | None) -> dict[str, Any]:
 
 
 def guard_stop_reason(args: argparse.Namespace, bridge_values: dict[str, float]) -> str | None:
+    if getattr(args, "bridge_profile", "") == STEP5D_NO_CONTACT_P0_V9_STAGE_ID:
+        return None
     if abs(bridge_values["normal_force_n"]) > args.max_normal_force_n:
         return "normal_force_guard"
     if bridge_values["force_norm_n"] > args.max_force_norm_n:
@@ -7506,7 +7507,7 @@ def validate_common_target_force(args: argparse.Namespace) -> None:
         raise SystemExit("--target-force-n must be finite")
     if getattr(args, "bridge_profile", "") == STEP5D_NO_CONTACT_P0_V9_STAGE_ID:
         if target != 0.0:
-            raise SystemExit("P0 v9 normal_zero requires --target-force-n 0.0")
+            raise SystemExit("P0 v9 guard v2 requires --target-force-n 0.0")
         return
     if target <= 0.0:
         raise SystemExit("--target-force-n must be finite and positive")
@@ -8109,11 +8110,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                 STEP5D_NO_CONTACT_P0_V8_RNN_INNER_ITERATIONS
             )
         elif args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID:
-            args.step5d_qdot_limit_rad_s = 0.050
+            args.step5d_qdot_limit_rad_s = STEP5D_NO_CONTACT_P0_V9_QDOT_CAP_RAD_S
             args.step5d_rnn_inner_iterations = (
                 STEP5D_NO_CONTACT_P0_V9_RNN_INNER_ITERATIONS
             )
             args.target_force_n = 0.0
+            args.sensor_stale_s = STEP5D_NO_CONTACT_P0_V9_SENSOR_STALE_S
     elif args.bridge_profile in STEP5D_ABLATION_STAGE_IDS:
         def preload_default_was_not_supplied(flag: str, *env_names: str) -> bool:
             return flag not in argv_list and all(os.environ.get(name, "") == "" for name in env_names)
@@ -8294,12 +8296,12 @@ def step5d_bridge_ready_payload(
     """Return an armed sentinel only after every live input is trustworthy."""
 
     runtime_missing = step5d_liveprep_runtime_missing(state, args)
+    p0_v9_guard_v2 = args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID
     sensor_stream_ready = bool(
         samples > 0
-        and baseline_ready
         and math.isfinite(sensor_age_s)
         and sensor_age_s <= float(args.sensor_stale_s)
-        and parse_errors == 0
+        and (p0_v9_guard_v2 or (baseline_ready and parse_errors == 0))
     )
     if (
         step5d_runtime_prewarm.get("status") != "ok"
@@ -8323,10 +8325,10 @@ def step5d_bridge_ready_payload(
         "rtde_send_succeeded": True,
         "sensor_stream_ready": True,
         "sensor_samples": int(samples),
-        "baseline_ready": True,
+        "baseline_ready": bool(baseline_ready),
         "sensor_age_s": float(sensor_age_s),
         "sensor_stale_s": float(args.sensor_stale_s),
-        "parse_errors": 0,
+        "parse_errors": int(parse_errors),
         "output_dir": str(args.output_dir),
     }
 
@@ -8712,9 +8714,25 @@ def main(argv: list[str] | None = None) -> int:
             "no Kunwei zero/tare/config write",
         ],
         "guard_contract": {
-            "max_normal_force_n": args.max_normal_force_n,
-            "max_force_norm_n": args.max_force_norm_n,
-            "max_torque_norm_nm": args.max_torque_norm_nm,
+            "schema": (
+                "p0_v9_guard_v2"
+                if args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID
+                else "profile_default"
+            ),
+            "force_guards_enabled": args.bridge_profile != STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
+            "cartesian_speed_guards_enabled": args.bridge_profile != STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
+            "normal_motion_guards_enabled": args.bridge_profile != STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
+            "qdot_cap_rad_s": args.step5d_qdot_limit_rad_s,
+            "sensor_stale_s": args.sensor_stale_s,
+            "max_normal_force_n": (
+                None if args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID else args.max_normal_force_n
+            ),
+            "max_force_norm_n": (
+                None if args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID else args.max_force_norm_n
+            ),
+            "max_torque_norm_nm": (
+                None if args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID else args.max_torque_norm_nm
+            ),
             "v29_bridge_safety_fail_stop": {
                 "primary": "RTDE sensor_ok=0, stop_request=0, zero motion carriers; TP selects non-auto-home reason 3",
                 "secondary": "hard-coded Dashboard stop command",
@@ -8758,14 +8776,48 @@ def main(argv: list[str] | None = None) -> int:
             timeout_s=args.dashboard_program_watch_timeout_s,
         ),
         "step5d_preload_gate": {
-            "profile": args.bridge_profile if args.bridge_profile in STEP5D_LIVEPREP_STAGE_IDS else None,
-            "filtered_min_n": args.step5d_preload_filtered_min_n,
-            "filtered_max_n": args.step5d_preload_filtered_max_n,
-            "raw_min_n": args.step5d_preload_raw_min_n,
-            "raw_max_n": args.step5d_preload_raw_max_n,
-            "force_norm_max_n": args.step5d_preload_force_norm_max_n,
-            "hold_s": args.step5d_preload_hold_s,
-            "timeout_s": args.step5d_preload_timeout_s,
+            "enabled": args.bridge_profile != STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
+            "profile": (
+                args.bridge_profile
+                if args.bridge_profile in STEP5D_LIVEPREP_STAGE_IDS
+                and args.bridge_profile != STEP5D_NO_CONTACT_P0_V9_STAGE_ID
+                else None
+            ),
+            "filtered_min_n": (
+                None
+                if args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID
+                else args.step5d_preload_filtered_min_n
+            ),
+            "filtered_max_n": (
+                None
+                if args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID
+                else args.step5d_preload_filtered_max_n
+            ),
+            "raw_min_n": (
+                None
+                if args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID
+                else args.step5d_preload_raw_min_n
+            ),
+            "raw_max_n": (
+                None
+                if args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID
+                else args.step5d_preload_raw_max_n
+            ),
+            "force_norm_max_n": (
+                None
+                if args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID
+                else args.step5d_preload_force_norm_max_n
+            ),
+            "hold_s": (
+                None
+                if args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID
+                else args.step5d_preload_hold_s
+            ),
+            "timeout_s": (
+                None
+                if args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID
+                else args.step5d_preload_timeout_s
+            ),
             "param_valid_code": STEP5D_LINE_ENTRY_PARAM_VALID_CODE,
         },
         "register_map": dict(zip(INPUT_FIELDS, INPUT_NAMES)),
@@ -8884,10 +8936,24 @@ def main(argv: list[str] | None = None) -> int:
             if args.bridge_profile in {"step6b_v1", "step6b_v2"}
             else None,
             "step6_safe_frame": load_step6_safe_frame() if args.bridge_profile in {"step6b_v1", "step6b_v2"} else None,
-            "step4e_motion_limit_m_s": args.bridge_motion_limit_m_s,
-            "step4e_total_linear_limit_m_s": args.bridge_total_linear_limit_m_s,
-            "step4e_normal_velocity_limit_m_s": args.bridge_normal_velocity_limit_m_s,
-            "step4e_angular_limit_rad_s": args.bridge_angular_limit_rad_s,
+            "step4e_motion_limit_m_s": (
+                None if args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID else args.bridge_motion_limit_m_s
+            ),
+            "step4e_total_linear_limit_m_s": (
+                None
+                if args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID
+                else args.bridge_total_linear_limit_m_s
+            ),
+            "step4e_normal_velocity_limit_m_s": (
+                None
+                if args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID
+                else args.bridge_normal_velocity_limit_m_s
+            ),
+            "step4e_angular_limit_rad_s": (
+                None
+                if args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID
+                else args.bridge_angular_limit_rad_s
+            ),
         },
     }
     sock: socket.socket | None = None
@@ -9493,7 +9559,10 @@ def main(argv: list[str] | None = None) -> int:
                         write_deadline_overrun_events += 1
                     write_deadline_max_lateness_s = max(write_deadline_max_lateness_s, deadline_lateness_s)
                     sensor_age = math.inf if latest_frame_time is None else now - latest_frame_time
-                    sensor_ok = 1.0 if baseline_ready and sensor_age <= args.sensor_stale_s and parse_errors == 0 else 0.0
+                    if args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID:
+                        sensor_ok = 1.0 if sensor_age <= args.sensor_stale_s else 0.0
+                    else:
+                        sensor_ok = 1.0 if baseline_ready and sensor_age <= args.sensor_stale_s and parse_errors == 0 else 0.0
                     bridge_values = {
                         "normal_force_n": normal_component(latest_zeroed, args.normal_axis, args.normal_sign),
                         "force_norm_n": vec_norm(latest_zeroed[:3]),
@@ -9954,6 +10023,8 @@ def main(argv: list[str] | None = None) -> int:
         run_manifest["finished_at"] = summary["finished_at"]
         write_json(manifest_path, run_manifest)
     print(json.dumps(summary, indent=2, sort_keys=True))
+    if args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID:
+        return 0 if samples > 0 else 3
     return 0 if samples > 0 and parse_errors == 0 else 3
 
 

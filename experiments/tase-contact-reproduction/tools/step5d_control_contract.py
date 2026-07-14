@@ -322,12 +322,13 @@ def _canonical_normals_in_command_frame(
     observation: Step5dObservation,
     *,
     normal_contract_tolerance: float = 1e-6,
+    enforce_opposition: bool = True,
 ) -> tuple[np.ndarray | None, np.ndarray | None, float, str | None]:
     reaction = _normalized(observation.reaction_normal)
     approach = _normalized(observation.approach_normal)
     if reaction is None or approach is None:
         return None, None, 0.0, "nonfinite_or_bad_shape"
-    if float(np.linalg.norm(reaction + approach)) > normal_contract_tolerance:
+    if enforce_opposition and float(np.linalg.norm(reaction + approach)) > normal_contract_tolerance:
         return None, None, 0.0, "normal_contract_mismatch"
     frame_transform_applied = 0.0
     if observation.normal_frame != observation.command_frame:
@@ -503,7 +504,10 @@ def _prepare_control_tick_workspace(
     if any(value is None for value in arrays):
         return None
     reaction, approach, frame_transform_applied, normal_error = (
-        _canonical_normals_in_command_frame(observation)
+        _canonical_normals_in_command_frame(
+            observation,
+            enforce_opposition=observation.normal_motion_policy != "diagnostic_only",
+        )
     )
     if normal_error is not None or reaction is None or approach is None:
         return None
@@ -614,6 +618,8 @@ class SafetyEnvelope:
             frame_transform_applied = _workspace.frame_transform_applied
             normal_error = None
             if (
+                observation.normal_motion_policy != "diagnostic_only"
+                and
                 float(np.linalg.norm(reaction + approach))
                 > self.normal_contract_tolerance
             ):
@@ -623,6 +629,7 @@ class SafetyEnvelope:
                 _canonical_normals_in_command_frame(
                     observation,
                     normal_contract_tolerance=self.normal_contract_tolerance,
+                    enforce_opposition=observation.normal_motion_policy != "diagnostic_only",
                 )
             )
         if normal_error is not None:
@@ -666,6 +673,8 @@ class SafetyEnvelope:
                 return self._decision(False, "safe_hold", "no_contact_target_normal_nonzero", **metrics)
             if abs(predicted_approach) > float(observation.predicted_normal_tolerance_m_s):
                 return self._decision(False, "safe_hold", "no_contact_predicted_normal_nonzero", **metrics)
+        elif normal_policy == "diagnostic_only":
+            pass
         else:
             return self._decision(False, "stop", "normal_motion_policy_invalid", **metrics)
         if not math.isclose(
@@ -681,9 +690,9 @@ class SafetyEnvelope:
                 computed_residual_norm=computed_residual,
                 claimed_residual_norm=float(candidate.residual_norm),
             )
-        if computed_residual > float(self.max_residual_norm):
+        if normal_policy != "diagnostic_only" and computed_residual > float(self.max_residual_norm):
             return self._decision(False, "safe_hold", "constraint_residual_norm_exceeded", **metrics)
-        if int(candidate.active_bounds_count) > 0:
+        if normal_policy != "diagnostic_only" and int(candidate.active_bounds_count) > 0:
             return self._decision(False, "safe_hold", "active_bounds_present", **metrics)
         return self._decision(True, "execute", "ok", qdot=qdot, **metrics)
 
@@ -877,16 +886,19 @@ def step5d_v30_contract_pipeline(
             raw_candidate,
             prior,
         )
-        candidate = apply_direction_preserving_slew(
-            observation,
-            raw_candidate,
-            previous_qdot=prior,
-            dt_s=float(observation.dt_s),
-            max_slew_rad_s2=float(max_slew_rad_s2),
-            dt_max_s=float(dt_max_s),
-            copy_diagnostics=False,
-            _workspace=workspace,
-        )
+        if observation.normal_motion_policy == "diagnostic_only":
+            candidate = raw_candidate
+        else:
+            candidate = apply_direction_preserving_slew(
+                observation,
+                raw_candidate,
+                previous_qdot=prior,
+                dt_s=float(observation.dt_s),
+                max_slew_rad_s2=float(max_slew_rad_s2),
+                dt_max_s=float(dt_max_s),
+                copy_diagnostics=False,
+                _workspace=workspace,
+            )
         decision = safety_envelope.evaluate(
             observation,
             candidate,
@@ -899,7 +911,7 @@ def step5d_v30_contract_pipeline(
                 _workspace=workspace,
             )
         except (ValueError, np.linalg.LinAlgError, FloatingPointError, OverflowError):
-            if decision.accepted:
+            if decision.accepted and observation.normal_motion_policy != "diagnostic_only":
                 raise
             # A candidate already rejected by the authoritative SafetyEnvelope
             # must remain rejected with its specific reason.  Missing DLS
@@ -959,12 +971,13 @@ def step5d_v30_control_step(
 
     governed_observation = observation
     try:
-        governed_observation = build_slew_compatible_reference(
-            observation,
-            previous_qdot=previous_qdot,
-            max_slew_rad_s2=max_slew_rad_s2,
-            dt_max_s=dt_max_s,
-        )
+        if observation.normal_motion_policy != "diagnostic_only":
+            governed_observation = build_slew_compatible_reference(
+                observation,
+                previous_qdot=previous_qdot,
+                max_slew_rad_s2=max_slew_rad_s2,
+                dt_max_s=dt_max_s,
+            )
         if prepare_policy is not None:
             prepare_policy(governed_observation)
         raw_candidate = policy.compute(governed_observation)
