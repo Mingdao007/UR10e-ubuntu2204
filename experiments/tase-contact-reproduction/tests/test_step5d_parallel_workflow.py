@@ -170,6 +170,18 @@ class Step5dParallelWorkflowTest(unittest.TestCase):
                 )
             self.assertEqual(payloads[0], payloads[1])
 
+    def test_force_overview_waits_for_analysis_and_is_diagnostic_only(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run_dir = root / "immutable-run"
+            run_dir.mkdir()
+            (run_dir / "bridge_rtde_500hz.csv").write_text("t_monotonic_s\n0\n", encoding="utf-8")
+            tasks = {item.task_id: item for item in postprocess_tasks(root / "out", run_dir)}
+        overview = tasks["force-overview"]
+        self.assertEqual(set(overview.dependencies), {"frequency-summary", "step5d-analysis"})
+        self.assertEqual(overview.claim_class, "diagnostic_only")
+        self.assertIn("build_step5d_force_overview.py", " ".join(overview.command))
+
 
 if __name__ == "__main__":
     unittest.main()

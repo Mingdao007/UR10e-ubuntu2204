@@ -498,6 +498,25 @@ def postprocess_tasks(output_root: Path, run_dir: Path) -> list[TaskSpec]:
             claim_class="diagnostic_only",
             cpu_tokens=2,
         ),
+        task(
+            output_root,
+            "force-overview",
+            [
+                sys.executable,
+                TOOLS / "build_step5d_force_overview.py",
+                run_dir,
+                "--output",
+                output_root / "force-overview" / f"{run_dir.name}_force_overview.png",
+                "--summary-output",
+                output_root / "force-overview" / f"{run_dir.name}_force_overview_summary.json",
+                "--analysis",
+                output_root / "step5d-analysis" / "step5d_bridge_analysis.json",
+            ],
+            dependencies=("frequency-summary", "step5d-analysis"),
+            resource="cpu",
+            claim_class="diagnostic_only",
+            cpu_tokens=2,
+        ),
     ]
 
 
@@ -508,6 +527,8 @@ def write_postprocess_aggregate(output_root: Path, run_dir: Path) -> None:
         output_root / "source-checksums/derived_checksums.json",
         output_root / "diagnostic-plot/plot_metadata.json",
         output_root / "diagnostic-plot/step5d_bridge.png",
+        output_root / "force-overview" / f"{run_dir.name}_force_overview_summary.json",
+        output_root / "force-overview" / f"{run_dir.name}_force_overview.png",
     ]
     aggregate = {
         "schema_version": "step5d_parallel_postprocess_v1",
