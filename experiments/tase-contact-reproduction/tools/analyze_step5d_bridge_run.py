@@ -24,6 +24,7 @@ from step5d_runtime_interface import (
     STEP5D_ABLATION_V32_STAGE_ID,
     STEP5D_ABLATION_V33C20_STAGE_ID,
     STEP5D_ABLATION_V33_STAGE_ID,
+    STEP5D_ABLATION_V34_STAGE_ID,
     STEP5D_LIVEPREP_V24_STAGE_ID,
     STEP5D_NO_CONTACT_P0_STAGE_ID,
     STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
@@ -170,6 +171,7 @@ def infer_step5d_profile(run_dir: Path | None, metadata: dict[str, Any]) -> str:
             return no_contact_match.group(0)
         for profile in (
             STEP5D_NO_CONTACT_P0_STAGE_ID,
+            STEP5D_ABLATION_V34_STAGE_ID,
             STEP5D_ABLATION_V33C20_STAGE_ID,
             STEP5D_ABLATION_V33_STAGE_ID,
             STEP5D_ABLATION_V32_STAGE_ID,
@@ -664,6 +666,37 @@ def longest_continuous_duration_s(times: list[float], *, max_gap_s: float) -> fl
     return max(best, previous - start)
 
 
+def orientation_stable_target_divergence_windows(rows: list[dict[str, str]]) -> int:
+    """Count 1 s windows where a stable normal target has a growing orientation error."""
+
+    samples: list[tuple[float, tuple[float, float, float], float]] = []
+    for row in rows:
+        t_s = finite_float(row.get("t_monotonic_s"))
+        normal = tuple(
+            finite_float(row.get(f"_step4e_control_normal_b_{axis}"))
+            for axis in ("x", "y", "z")
+        )
+        error = abs(finite_float(row.get("_step5d_outer_orientation_error_rad")))
+        norm = math.sqrt(sum(value * value for value in normal))
+        if math.isfinite(t_s) and all(math.isfinite(value) for value in normal) and norm > 1e-12 and math.isfinite(error):
+            samples.append((t_s, tuple(value / norm for value in normal), error))
+    if len(samples) < 2:
+        return 0
+    divergence_windows = 0
+    window_start = 0
+    for index in range(1, len(samples)):
+        if samples[index][0] - samples[window_start][0] < 1.0:
+            continue
+        first = samples[window_start]
+        last = samples[index]
+        dot = max(-1.0, min(1.0, sum(a * b for a, b in zip(first[1], last[1]))))
+        target_angle = math.acos(dot)
+        if target_angle <= 0.005 and last[2] - first[2] > 0.005:
+            divergence_windows += 1
+        window_start = index
+    return divergence_windows
+
+
 def stage25_control_attribution(rows: list[dict[str, str]], metadata: dict[str, Any]) -> dict[str, Any]:
     normal_loads = finite_values(rows, "_step4e_normal_load_n")
     lambda_norms = finite_values(rows, "_step5d_lambda_norm")
@@ -742,7 +775,30 @@ def stage25_control_attribution(rows: list[dict[str, str]], metadata: dict[str, 
         ]
         if math.isfinite(x_error) and math.isfinite(y_error)
     ]
-    rnn_oracle_delta = finite_values(rows, "_step5d_rnn_vs_oracle_qdot_norm")
+    rnn_oracle_delta = finite_values(accepted_rnn_rows, "_step5d_rnn_vs_oracle_qdot_norm")
+    raw_rnn_residual = finite_values(accepted_rnn_rows, "_step5d_raw_rnn_residual_norm")
+    post_slew_residual = finite_values(accepted_rnn_rows, "_step5d_post_slew_residual_norm")
+    legacy_raw_residual_mismatch_rows = sum(
+        1
+        for row in accepted_rnn_rows
+        for legacy, raw in [
+            (
+                finite_float(row.get("_step5d_constraint_residual_norm")),
+                finite_float(row.get("_step5d_raw_rnn_residual_norm")),
+            )
+        ]
+        if not (
+            math.isfinite(legacy)
+            and math.isfinite(raw)
+            and math.isclose(legacy, raw, rel_tol=0.0, abs_tol=1e-12)
+        )
+    )
+    orientation_errors = [
+        abs(value) for value in finite_values(rows, "_step5d_outer_orientation_error_rad")
+    ]
+    scheduler_lifecycle = metadata.get("runtime_scheduler_lifecycle")
+    if not isinstance(scheduler_lifecycle, dict):
+        scheduler_lifecycle = {}
     qd_alignment = command_actual_qd_alignment(rows)
     final_safety_mode = last_finite(rows, "ur_safety_mode")
     gross_guard_rows = sum(1 for row in rows if str(row.get("guard_reason") or "").strip())
@@ -820,6 +876,26 @@ def stage25_control_attribution(rows: list[dict[str, str]], metadata: dict[str, 
         "xy_tracking_error_max_m": max_or_none(xy_errors),
         "rnn_oracle_qdot_delta_p99": percentile_or_none(rnn_oracle_delta, 0.99),
         "rnn_oracle_qdot_delta_max": max_or_none(rnn_oracle_delta),
+        "rnn_oracle_qdot_delta_rows": len(rnn_oracle_delta),
+        "raw_rnn_residual_p99": percentile_or_none(raw_rnn_residual, 0.99),
+        "raw_rnn_residual_max": max_or_none(raw_rnn_residual),
+        "raw_rnn_residual_rows": len(raw_rnn_residual),
+        "post_slew_command_residual_p99": percentile_or_none(post_slew_residual, 0.99),
+        "post_slew_command_residual_max": max_or_none(post_slew_residual),
+        "post_slew_command_residual_rows": len(post_slew_residual),
+        "legacy_raw_residual_mismatch_rows": legacy_raw_residual_mismatch_rows,
+        "orientation_error_p95_rad": percentile_or_none(orientation_errors, 0.95),
+        "orientation_error_max_rad": max_or_none(orientation_errors),
+        "orientation_stable_target_divergence_windows": orientation_stable_target_divergence_windows(rows),
+        "scheduler_promotion_verified": scheduler_lifecycle.get("promotion_verified"),
+        "scheduler_initial_policy": (scheduler_lifecycle.get("initial_process_scheduler") or {}).get("policy"),
+        "scheduler_control_policy": (scheduler_lifecycle.get("control_thread_scheduler") or {}).get("policy"),
+        "scheduler_control_priority": (scheduler_lifecycle.get("control_thread_scheduler") or {}).get("priority"),
+        "scheduler_helper_non_other_thread_count": scheduler_lifecycle.get("helper_non_other_thread_count"),
+        "scheduler_kernel_rt_bandwidth_unchanged": scheduler_lifecycle.get("kernel_rt_bandwidth_unchanged"),
+        "scheduler_python_gc_enabled_during_control": scheduler_lifecycle.get(
+            "python_gc_enabled_during_control"
+        ),
         "final_safety_mode": maybe_int(final_safety_mode) if math.isfinite(final_safety_mode) else None,
         "gross_guard_rows": gross_guard_rows,
         **qd_alignment,
@@ -969,6 +1045,7 @@ def stage25_speedj_rnn_live_success(profile: str, result: dict[str, Any], contro
         STEP5D_ABLATION_V29_STAGE_ID,
         STEP5D_ABLATION_V33C20_STAGE_ID,
         STEP5D_ABLATION_V33_STAGE_ID,
+        STEP5D_ABLATION_V34_STAGE_ID,
     }
     if profile not in supported_profiles or control_mode != STAGE25_SPEEDJ_RNN_MODE:
         return False
@@ -983,7 +1060,11 @@ def stage25_speedj_rnn_live_success(profile: str, result: dict[str, Any], contro
     normal_max = finite_float(attribution.get("normal_load_max_n"))
     force_norm_max = finite_float(attribution.get("force_norm_max_n"))
     accepted_duration_s = finite_float(attribution.get("rnn_accepted_continuous_duration_s"))
-    if profile in {STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID}:
+    if profile in {
+        STEP5D_ABLATION_V33C20_STAGE_ID,
+        STEP5D_ABLATION_V33_STAGE_ID,
+        STEP5D_ABLATION_V34_STAGE_ID,
+    }:
         feedback_age_p99 = finite_float(attribution.get("feedback_age_p99_s"))
         heartbeat_gap_max = finite_float(attribution.get("sent_echo_heartbeat_gap_max"))
         xy_error_p95 = finite_float(attribution.get("xy_tracking_error_p95_m"))
@@ -991,6 +1072,39 @@ def stage25_speedj_rnn_live_success(profile: str, result: dict[str, Any], contro
         qd_correlation = finite_float(attribution.get("command_actual_qd_correlation"))
         qd_lag_s = finite_float(attribution.get("command_actual_qd_lag_s"))
         accepted_ratio = finite_float(attribution.get("rnn_accepted_consumed_ratio"))
+        orientation_p95 = finite_float(attribution.get("orientation_error_p95_rad"))
+        orientation_max = finite_float(attribution.get("orientation_error_max_rad"))
+        oracle_delta_max = finite_float(attribution.get("rnn_oracle_qdot_delta_max"))
+        accepted_rows = int(attribution.get("rnn_accepted_rows") or 0)
+        complete_residual_evidence = (
+            accepted_rows > 0
+            and int(attribution.get("rnn_oracle_qdot_delta_rows") or 0) == accepted_rows
+            and int(attribution.get("raw_rnn_residual_rows") or 0) == accepted_rows
+            and int(attribution.get("post_slew_command_residual_rows") or 0) == accepted_rows
+            and int(attribution.get("legacy_raw_residual_mismatch_rows") or 0) == 0
+            and math.isfinite(finite_float(attribution.get("raw_rnn_residual_max")))
+            and math.isfinite(finite_float(attribution.get("post_slew_command_residual_max")))
+        )
+        v34_scheduler_and_tracking = (
+            int(result.get("stage25_row_gap_count") or 0) == 0
+            and math.isfinite(orientation_p95)
+            and orientation_p95 <= 0.03
+            and math.isfinite(orientation_max)
+            and orientation_max <= 0.05
+            and int(attribution.get("orientation_stable_target_divergence_windows") or 0) == 0
+            and math.isfinite(oracle_delta_max)
+            and oracle_delta_max <= 1e-6
+            and complete_residual_evidence
+            and attribution.get("scheduler_promotion_verified") is True
+            and attribution.get("scheduler_initial_policy") == "SCHED_OTHER"
+            and attribution.get("scheduler_control_policy") == "SCHED_FIFO"
+            and attribution.get("scheduler_control_priority") == 20
+            and int(attribution.get("scheduler_helper_non_other_thread_count") or 0) == 0
+            and attribution.get("scheduler_kernel_rt_bandwidth_unchanged") is True
+            and attribution.get("scheduler_python_gc_enabled_during_control") is False
+            if profile == STEP5D_ABLATION_V34_STAGE_ID
+            else True
+        )
         v33_acceptance = (
             math.isfinite(feedback_age_p99) and feedback_age_p99 <= 0.010
             and math.isfinite(heartbeat_gap_max) and heartbeat_gap_max <= 5
@@ -1001,6 +1115,7 @@ def stage25_speedj_rnn_live_success(profile: str, result: dict[str, Any], contro
             and math.isfinite(accepted_ratio) and accepted_ratio >= 0.98
             and attribution.get("final_safety_mode") == 1
             and int(attribution.get("gross_guard_rows") or 0) == 0
+            and v34_scheduler_and_tracking
         )
     else:
         v33_acceptance = True
@@ -1320,6 +1435,7 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
                 STEP5D_ABLATION_V32_STAGE_ID,
                 STEP5D_ABLATION_V33C20_STAGE_ID,
                 STEP5D_ABLATION_V33_STAGE_ID,
+                STEP5D_ABLATION_V34_STAGE_ID,
             }
             and (
                 (math.isfinite(feedback_age_max) and feedback_age_max > 0.05)
@@ -1377,6 +1493,12 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
                 result["reproduction_status"] = "passed_60s_strict_rnn_live_candidate_run"
                 result["acceptance_status"] = "v33_full_acceptance_contract_passed"
                 result["next_action"] = "archive the v33 full-run evidence and keep reproduction claims owner-gated"
+            elif profile == STEP5D_ABLATION_V34_STAGE_ID:
+                result["classification"] = "v34_full_run_passed"
+                result["fix_validation_status"] = "passed_60s_late_fifo_accel_0p1_full_run"
+                result["reproduction_status"] = "passed_60s_strict_rnn_live_candidate_run"
+                result["acceptance_status"] = "v34_full_acceptance_contract_passed"
+                result["next_action"] = "archive the v34 full-run evidence and keep reproduction claims owner-gated"
             else:
                 result["classification"] = "stage25_speedj_rnn_live_success"
                 result["fix_validation_status"] = "passed_60s_strict_rnn_live"

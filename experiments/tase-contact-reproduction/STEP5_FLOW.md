@@ -9,6 +9,31 @@ guards passed, but 28 Stage25 row gaps exceeded 20 ms, the maximum gap was
 53.3 ms, and sent/echo gap reached 6 versus the limit 5. The one-shot live
 authorization is revoked; a new explicit user command is required for retry.
 
+`step5d_strict_rnn_ablation_v34` is the next 60 s full-run candidate, but it
+is intentionally not current yet. Its TP triplet is uploaded and fresh
+read-back verified. Host qdot slew and TP `speedj(a)` are both
+`0.1 rad/s²`. CUDA/RNN/BLAS prewarm and socket/RTDE initialization occur under
+`SCHED_OTHER`; only the control thread is then promoted to `SCHED_FIFO/20`,
+all helper threads remain `SCHED_OTHER`, kernel RT quota is unchanged, and
+cyclic GC is disabled only for the control loop. Raw RNN residual,
+post-slew command residual, and the legacy raw-compatible residual are logged
+separately. The retained 60 s no-motion production-seam timing completed
+30,065 ticks with compute p99 `1.297 ms`, maximum row gap `3.694 ms`, zero
+gaps over 20 ms, and zero 45–60 ms gaps.
+
+That timing gate is not a generic post-edit check. Its freeze invalidates only
+when the timing-critical bridge, outer, RNN, control contract, operator, or
+timing harness changes; status/reporting-only edits use short deterministic
+tests and do not trigger another 60 s no-motion run.
+
+The Codex/high Review v3 lane found four P1 defects in the first freeze; all
+four are deterministically closed in the repaired composite
+`a87a69b49dd6e12ee0fe5a7d16f140227b4fb38d69ffe5ece24095b2ae66d69d`.
+The required Fable5/high invocation returned an external session-limit error,
+not a verdict. Therefore v34 remains inactive and blocked on that exact lane,
+current promotion, and a later explicit live authorization. Package/read-back,
+timing, or Codex closure alone cannot start the bridge.
+
 v32 fixed the v31 failure at Stage25.05. Register state is interpreted by
 TP stage: Stage25.05 passes latch-ready state `33`, Stage25.3 passes preload
 state `521`, Stage25.95 passes zero-invalid clear state `522`, and only

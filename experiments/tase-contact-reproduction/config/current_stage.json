@@ -1780,5 +1780,47 @@
     "live_authorized": false,
     "blockers": ["v33c20_live_acceptance_missing", "explicit_full_run_authorization_missing"],
     "claim_boundary": {"package_accepted": false, "live_accepted": false, "reproduction_complete": false}
+  },
+  "v34_candidate": {
+    "profile": "step5d_strict_rnn_ablation_v34",
+    "state": "controller_readback_verified_pending_review_v3",
+    "current": false,
+    "guard_policy": "permissive_until_user_requests_tightening",
+    "runtime_profile": {
+      "backend": "cupy", "inner_iterations": 512, "epsilon": 0.01,
+      "sigr_exponent_r": 0.8, "qdot_cap_rad_s": 0.5,
+      "host_qdot_command_slew_rad_s2": 0.1, "tp_speedj_acceleration_rad_s2": 0.1,
+      "control_hz": 500, "stage25_success_target_s": 60, "stage25_runtime_limit_s": 75,
+      "feedback_receive": "drain_all_currently_readable_packets_use_latest",
+      "feedback_age_limit_s": 0.05, "feedback_age_dwell_stop_s": 0.1,
+      "scheduler_lifecycle": "SCHED_OTHER prewarm then control thread SCHED_FIFO/20; helpers SCHED_OTHER; cyclic GC disabled during control"
+    },
+    "outer_profile": {
+      "profile_id": "step5d_v33_step5b_discrete_equivalent_v1", "exact_binding": true,
+      "tangential_kp": 1.5, "orientation_ko": 0.4, "force_Md": 1000,
+      "force_Bd": 7000, "force_kf": 0.01, "force_integral_limit_n_s": 1
+    },
+    "package": {
+      "local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v34",
+      "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v34.urp",
+      "controller_uploaded": true, "controller_readback_verified": true,
+      "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v34_20260715_010525/manifest.json",
+      "controller_readback_manifest_sha256": "161abbfbe1cede921b1d47b51a8af15844103a46aa240b3f5890a1c2b2e9d53d",
+      "semantic_fingerprint": "96403fb84b8b90fc50e70ddd89f04288121a805042bb4916ec2f888a53be13f0",
+      "sha256": {".script": "0df62ef88f7f284570f573ffd5a8b6e7ccd1444948270a1eaf5ac3df0a3c685b", ".txt": "258f42128ed04df84708126c36a8d6a97d70c3403f38398fb8439d49b937e3c7", ".urp": "3eec7c75442cd75df18f406c7ef59e308e3fe91f431ba299e0efa19cd4154dde"}
+    },
+    "offline_validation": {"status": "pass", "artifact": "config/step5d_v34_offline_validation.json", "sha256": "44d9481539243527b2fdef6102655c047678013af33bb6bc9286d0c1d294625e"},
+    "formal_timing": {"status": "pass", "artifact": "config/step5d_v34_live_path_timing.json", "sha256": "43d0f46baf48aeef8e043caa116a0f2f38a79bf745bbd106bd9b974707b2844c"},
+    "review_v3": {
+      "required_stack": "1xCodex/high+1xFable5/high", "status": "blocked_fable5_session_limit",
+      "binding": "config/step5d_v34_freeze_binding.json", "binding_sha256": "73efc52b63f2121682f0d63ba9de5ab986d5ac9df58f0569e908bd90371598ab",
+      "composite_fingerprint": "a87a69b49dd6e12ee0fe5a7d16f140227b4fb38d69ffe5ece24095b2ae66d69d",
+      "codex_high": {"status": "completed_findings_closed", "runtime_evidence_path": "config/reviews/step5d_v34_codex_high.md", "runtime_evidence_sha256": "dc7ffaccce88c2c3ae2444e9af2dba7af421290357e59b1a642226dd9b1012de"},
+      "deterministic_finding_closure": {"path": "config/reviews/step5d_v34_deterministic_closure.json", "sha256": "9903c4b3c3373029a8191f02e9d7d77624a3ec8109e050bc075d52c9829d9299"},
+      "fable5_high": {"status": "skipped_unavailable", "runtime_evidence_path": "config/reviews/step5d_v34_fable5_unavailable.md", "runtime_evidence_sha256": "131be41647294f7617fc3a4ee1b6b67c46f0b841dfad24909498771479840a0a"}
+    },
+    "live_authorized": false,
+    "blockers": ["fable5_high_review_missing", "current_promotion_pending", "explicit_full_run_authorization_missing"],
+    "claim_boundary": {"package_accepted": true, "live_accepted": false, "reproduction_complete": false}
   }
 }

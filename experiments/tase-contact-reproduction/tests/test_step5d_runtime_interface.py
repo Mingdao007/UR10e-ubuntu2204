@@ -227,6 +227,33 @@ class Step5dRuntimeInterfaceTest(unittest.TestCase):
             },
         )
 
+    def test_v34_live_ready_requires_review_current_and_explicit_authorization(self) -> None:
+        current = {
+            "program": iface.STEP5D_ABLATION_V33C20_STAGE_ID,
+            "v34_candidate": {
+                "current": False,
+                "package": {
+                    "controller_uploaded": True,
+                    "controller_readback_verified": True,
+                },
+                "review_v3": {"status": "blocked_fable5_session_limit"},
+                "live_authorized": False,
+            },
+        }
+        readiness = iface.v34_live_readiness(current)
+        runtime = iface.resolve_runtime_interface(
+            program=iface.STEP5D_ABLATION_V34_STAGE_ID,
+            root=ROOT,
+            env={},
+        )
+        joined = "\n".join(iface.live_ready_lines(runtime, readiness=readiness))
+
+        self.assertIn("phase=liveprep-blocked", joined)
+        self.assertIn("review_v3_1+1_not_accepted", joined)
+        self.assertIn("v34_not_current", joined)
+        self.assertIn("explicit_live_authorization_missing", joined)
+        self.assertNotIn("TP Play wait", joined)
+
     def test_step5d_env_overrides_use_step5d_namespace(self) -> None:
         runtime = iface.resolve_runtime_interface(
             program=iface.STEP5D_LIVEPREP_V24_STAGE_ID,

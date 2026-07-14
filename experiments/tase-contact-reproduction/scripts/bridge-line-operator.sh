@@ -227,7 +227,8 @@ BRIDGE_PATH_SHAPE="${BRIDGE_PATH_SHAPE:-line}"
 if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v31" \
   || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v32" \
   || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v33c20" \
-  || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v33" ]]; then
+  || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v33" \
+  || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v34" ]]; then
   BRIDGE_DURATION_S="180"
   BRIDGE_BASELINE_S="1.0"
   BRIDGE_REZERO_S="1.0"
@@ -740,6 +741,11 @@ requires_step5d_realtime_launcher() {
     || "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]
 }
 
+requires_step5d_realtime_ready_sentinel() {
+  requires_step5d_realtime_launcher \
+    || [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v34" ]]
+}
+
 require_step5d_realtime_launcher_policy() {
   if ! requires_step5d_realtime_launcher; then
     return 0
@@ -1127,6 +1133,21 @@ if not isinstance(scheduler, dict):
     raise SystemExit(1)
 if scheduler.get("policy") != "SCHED_FIFO" or scheduler.get("priority") != 20:
     raise SystemExit(1)
+if expected_profile == "step5d_strict_rnn_ablation_v34":
+    lifecycle = payload.get("runtime_scheduler_lifecycle")
+    if not isinstance(lifecycle, dict) or lifecycle.get("promotion_verified") is not True:
+        raise SystemExit(1)
+    initial = lifecycle.get("initial_process_scheduler")
+    if not isinstance(initial, dict) or initial.get("policy") != "SCHED_OTHER" or initial.get("priority") != 0:
+        raise SystemExit(1)
+    if lifecycle.get("helper_realtime_thread_count") != 0:
+        raise SystemExit(1)
+    if lifecycle.get("helper_non_other_thread_count") != 0:
+        raise SystemExit(1)
+    if lifecycle.get("kernel_rt_bandwidth_unchanged") is not True:
+        raise SystemExit(1)
+    if lifecycle.get("python_gc_enabled_during_control") is not False:
+        raise SystemExit(1)
 if payload.get("prewarm_status") != "ok":
     raise SystemExit(1)
 if payload.get("v30_runtime_complete") is not True:
@@ -1182,13 +1203,13 @@ wait_for_bridge_output_started() {
       fi
       return 1
     fi
-    if requires_step5d_realtime_launcher && [[ -s "${ready}" ]] \
+    if requires_step5d_realtime_ready_sentinel && [[ -s "${ready}" ]] \
       && step5d_bridge_ready_sentinel_valid "${ready}" "${bridge_pid}" "${launch_nonce}" "${BRIDGE_PROFILE}"; then
       echo "[operator] bridge armed: ${BRIDGE_PROFILE} ${ready}"
       return 0
     fi
     if [[ -s "${bridge_csv}" || -s "${metadata}" ]]; then
-      if requires_step5d_realtime_launcher; then
+      if requires_step5d_realtime_ready_sentinel; then
         sleep 0.1
         continue
       fi
@@ -1292,7 +1313,7 @@ _run_bridge_for_mode() {
     bridge_launcher=(chrt -f 20 python3)
     echo "[operator] strict Step5d bridge launcher: SCHED_FIFO priority 20"
   fi
-  if requires_step5d_realtime_launcher; then
+  if requires_step5d_realtime_ready_sentinel; then
     rm -f "${out_dir}/bridge_ready.json"
     launch_nonce="$(python3 - <<'PY'
 import uuid
@@ -1378,7 +1399,7 @@ PY
   bridge_pid="$!"
   output_started_rc=0
   wait_for_bridge_output_started "${out_dir}" "${bridge_pid}" "${launch_nonce}" || output_started_rc="$?"
-  if requires_step5d_realtime_launcher; then
+  if requires_step5d_realtime_ready_sentinel; then
     if [[ "${output_started_rc}" != "0" ]]; then
       echo "refusing: mandatory bridge startup confirmation failed for ${BRIDGE_PROFILE}"
       stop_bridge_process "${bridge_pid}" "mandatory output-start confirmation failed"
@@ -1464,7 +1485,7 @@ PY
   if [[ "${monitor_rc}" != "0" ]]; then
     return "${monitor_rc}"
   fi
-  if requires_step5d_realtime_launcher && [[ "${child_rc}" != "0" ]]; then
+  if requires_step5d_realtime_ready_sentinel && [[ "${child_rc}" != "0" ]]; then
     echo "refusing: strict Step5d bridge child exited with rc=${child_rc}"
     return "${child_rc}"
   fi

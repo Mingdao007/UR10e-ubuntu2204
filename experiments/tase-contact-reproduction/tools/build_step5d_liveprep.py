@@ -30,6 +30,7 @@ from step5d_runtime_interface import (
     STEP5D_ABLATION_V32_STAGE_ID,
     STEP5D_ABLATION_V33C20_STAGE_ID,
     STEP5D_ABLATION_V33_STAGE_ID,
+    STEP5D_ABLATION_V34_STAGE_ID,
     STEP5D_INTERFACE_CLASS,
     STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE,
     STEP5D_STAGE25_JOINT_LAYOUT_CODE,
@@ -59,6 +60,8 @@ class Step5dAblationSpec:
     controller_dir: str = "/programs/andyl/kunwei/step5"
     no_contact_p0: bool = False
     qdot_cap_rad_s: float = 0.050
+    joint_accel_rad_s2: float = 0.050
+    host_qdot_slew_rad_s2: float | None = None
     stage25_stale_command_hold_s: float = 0.020
     publish_guard_approved_late_command: bool = False
 
@@ -72,15 +75,15 @@ class Step5dAblationSpec:
 
     @property
     def strict_rnn_live_candidate(self) -> bool:
-        return self.version_label in {"v29", "v30", "v31", "v32", "v33c20", "v33"}
+        return self.version_label in {"v29", "v30", "v31", "v32", "v33c20", "v33", "v34"}
 
     @property
     def inactive_offline_candidate(self) -> bool:
-        return self.version_label in {"v30", "v31", "v32", "v33c20", "v33", "no_contact_p0_v8", "no_contact_p0_v9"}
+        return self.version_label in {"v30", "v31", "v32", "v33c20", "v33", "v34", "no_contact_p0_v8", "no_contact_p0_v9"}
 
     @property
     def uses_v30_control_contract(self) -> bool:
-        return self.version_label in {"v30", "v31", "v32", "v33c20", "v33", "no_contact_p0_v8", "no_contact_p0_v9"}
+        return self.version_label in {"v30", "v31", "v32", "v33c20", "v33", "v34", "no_contact_p0_v8", "no_contact_p0_v9"}
 
     @property
     def full_stage25_echo(self) -> bool:
@@ -92,7 +95,7 @@ class Step5dAblationSpec:
 
     @property
     def permissive_contact_guard(self) -> bool:
-        return self.version_label in {"v31", "v32", "v33c20", "v33"}
+        return self.version_label in {"v31", "v32", "v33c20", "v33", "v34"}
 
 
 @dataclass(frozen=True)
@@ -204,6 +207,20 @@ ABLATION_SPECS = {
         stage25_success_target_s=60.0,
         stage25_runtime_limit_s=75.0,
         qdot_cap_rad_s=0.500,
+        stage25_stale_command_hold_s=1.000,
+        publish_guard_approved_late_command=True,
+    ),
+    STEP5D_ABLATION_V34_STAGE_ID: Step5dAblationSpec(
+        program_name=STEP5D_ABLATION_V34_STAGE_ID,
+        version_label="v34",
+        stamp_token="STEP5D_STRICT_RNN_ABLATION_V34_LATE_FIFO_ACCEL_0P1",
+        cartesian_angular_cap_rad_s=1.0,
+        default_stage25_control_mode="speedj_rnn_live",
+        stage25_success_target_s=60.0,
+        stage25_runtime_limit_s=75.0,
+        qdot_cap_rad_s=0.500,
+        joint_accel_rad_s2=0.100,
+        host_qdot_slew_rad_s2=0.100,
         stage25_stale_command_hold_s=1.000,
         publish_guard_approved_late_command=True,
     ),
@@ -374,6 +391,21 @@ def qdot_cap_rad_s(spec: Step5dAblationSpec = DEFAULT_SPEC) -> float:
     return guard_value(spec, "qdot_cap_rad_s", spec.qdot_cap_rad_s)
 
 
+def joint_accel_rad_s2(spec: Step5dAblationSpec = DEFAULT_SPEC) -> float:
+    return guard_value(spec, "tp_speedj_acceleration_rad_s2", spec.joint_accel_rad_s2)
+
+
+def host_qdot_slew_rad_s2(spec: Step5dAblationSpec = DEFAULT_SPEC) -> float:
+    default = (
+        spec.host_qdot_slew_rad_s2
+        if spec.host_qdot_slew_rad_s2 is not None
+        else 0.05
+        if spec.permissive_contact_guard
+        else 0.2
+    )
+    return guard_value(spec, "qdot_slew_rad_s2", default)
+
+
 def default_line_entry_config(spec: Step5dAblationSpec) -> LineEntryConfig:
     if spec.version_label in {"v27", "v28", "v29", "v30"}:
         return LineEntryConfig(
@@ -518,7 +550,7 @@ def _replace_line_stage_with_stage25_multimode(script: str, spec: Step5dAblation
     local cartesian_linear_cap_m_s = {CARTESIAN_LINEAR_CAP_M_S:.3f}
     local cartesian_angular_cap_rad_s = {spec.cartesian_angular_cap_rad_s:.3f}
     local cartesian_accel_m_s2 = {LINE_ACCEL_M_S2:.3f}
-    local joint_accel_rad_s2 = {JOINT_ACCEL_RAD_S2:.3f}
+    local joint_accel_rad_s2 = {joint_accel_rad_s2(spec):.3f}
     local cartesian_layout_code = {STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:.3f}
     local joint_layout_code = {STEP5D_STAGE25_JOINT_LAYOUT_CODE:.3f}
     local stage25_have_accepted_command = False
@@ -1122,7 +1154,7 @@ def codex_{spec.program_name}():
     local cartesian_linear_cap_m_s = {CARTESIAN_LINEAR_CAP_M_S:.3f}
     local cartesian_angular_cap_rad_s = {spec.cartesian_angular_cap_rad_s:.3f}
     local cartesian_accel_m_s2 = {LINE_ACCEL_M_S2:.3f}
-    local joint_accel_rad_s2 = {JOINT_ACCEL_RAD_S2:.3f}
+    local joint_accel_rad_s2 = {joint_accel_rad_s2(spec):.3f}
     local cartesian_layout_code = {STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:.3f}
     local joint_layout_code = {STEP5D_STAGE25_JOINT_LAYOUT_CODE:.3f}
     local cmd_valid_grace_s = 1.000
@@ -1363,7 +1395,7 @@ def build_script(
     )
     script = _force_gravity_down_search_pose(script)
     script = _speed_up_entry_and_first_search(script)
-    if spec.version_label in {"v30", "v31", "v32", "v33c20", "v33"}:
+    if spec.version_label in {"v30", "v31", "v32", "v33c20", "v33", "v34"}:
         stage25_mode_policy = (
             "speedj_rnn_live is the only future live command source; speedl_cartesian_oracle and "
             "speedj_dls_oracle are offline shadow/diagnostic only and must never be sent as runtime fallback.\n"
@@ -1549,7 +1581,7 @@ Safety:
   Guard schema: {"p0_v9_guard_v2" if spec.guard_v2 else "legacy_no_contact_p0"}
   Cartesian and normal speed guards: {"disabled" if spec.guard_v2 else "enabled"}
   qdot cap: {qdot_cap_rad_s(spec):.3f} rad/s
-  speedj acceleration: {JOINT_ACCEL_RAD_S2:.3f} rad/s^2
+  speedj acceleration: {joint_accel_rad_s2(spec):.3f} rad/s^2
   Force/torque guards: {"disabled; wrench remains diagnostic-only" if spec.guard_v2 else "raw normal 2 N, force norm 5 N, torque 3.0 Nm"}.
   This package is not a bridge-start, TP-Play, upload, or live-contact authorization.
 
@@ -1568,7 +1600,7 @@ Reference:
         speedl_mode_description = (
             "STEP5D_STAGE25_CONTROL_MODE=speedl_cartesian_oracle is offline shadow/diagnostic only for v30 and cannot be selected as a runtime fallback; the only future live command mode is speedj_rnn_live."
         )
-    elif spec.version_label in {"v31", "v32", "v33c20", "v33"}:
+    elif spec.version_label in {"v31", "v32", "v33c20", "v33", "v34"}:
         speedl_mode_description = (
             f"STEP5D_STAGE25_CONTROL_MODE=speedl_cartesian_oracle is shadow/diagnostic only for {spec.version_label} and cannot be selected as a runtime fallback; the only live command mode is speedj_rnn_live, whose Stage25 joint packet carries internal wire marker 524."
         )
@@ -1605,7 +1637,7 @@ Reference:
             "  Stage25.0 is not authorized now; after later delivery/readback and explicit authorization,\n"
             "  only speedj_rnn_live on layout 524 may be sent to TP. speedl and DLS remain shadow-only."
         )
-    elif spec.version_label in {"v31", "v32", "v33c20", "v33"}:
+    elif spec.version_label in {"v31", "v32", "v33c20", "v33", "v34"}:
         first_run = (
             f"{spec.version_label} is an inactive strict RNN candidate:\n"
             "  Stage25.0 is not authorized now; after delivery/readback, frozen fingerprint, Review v3, and explicit authorization,\n"
@@ -1631,7 +1663,7 @@ Reference:
         "STEP5D_STAGE25_CONTROL_MODE=speedj_dls_oracle computes DLS shadow diagnostics only; v30 forbids sending DLS qdot to TP and forbids DLS runtime fallback."
         if spec.version_label == "v30"
         else "STEP5D_STAGE25_CONTROL_MODE=speedj_dls_oracle computes DLS shadow diagnostics only; v31 forbids sending DLS qdot to TP and forbids DLS runtime fallback."
-        if spec.version_label in {"v31", "v32", "v33c20", "v33"}
+        if spec.version_label in {"v31", "v32", "v33c20", "v33", "v34"}
         else "STEP5D_STAGE25_CONTROL_MODE=speedj_dls_oracle sends a DLS/Jacobian qdot oracle to speedj for explicit fallback/debug comparison."
     )
     open_instruction = (
@@ -1708,7 +1740,7 @@ Safety:
   speedl Cartesian linear cap: {CARTESIAN_LINEAR_CAP_M_S:.3f} m/s
   speedl Cartesian angular cap: {spec.cartesian_angular_cap_rad_s:.3f} rad/s
   qdot cap: {qdot_cap_rad_s(spec):.3f} rad/s
-  speedj acceleration: {JOINT_ACCEL_RAD_S2:.3f} rad/s^2
+  speedj acceleration: {joint_accel_rad_s2(spec):.3f} rad/s^2
   Raw normal guard: {raw_guard:.0f} N. Force norm guard: {force_guard:.0f} N. Torque guard: {torque_norm_guard_nm(spec):.1f} Nm.
   {raw_guard:.0f} N raw-normal/{force_guard:.0f} N force-norm and {torque_norm_guard_nm(spec):.1f} Nm torque are sensor hard guards only;
   human safety still depends on the external cage/operator/E-stop boundary.
@@ -1925,7 +1957,7 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5d
             "inactive local-only strict RNN candidate" in txt
             if spec.version_label == "v30"
             else "inactive strict RNN candidate" in txt
-            if spec.version_label in {"v31", "v32", "v33c20", "v33"}
+            if spec.version_label in {"v31", "v32", "v33c20", "v33", "v34"}
             else "strict RNN live candidate" in txt
             if spec.strict_rnn_live_candidate
             else "RNN is shadow-only" in txt
@@ -1937,7 +1969,7 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5d
         )
         and "stop_request" in script + txt,
         "v30 no runtime fallback claim": (
-            spec.version_label not in {"v30", "v31", "v32", "v33c20", "v33"}
+            spec.version_label not in {"v30", "v31", "v32", "v33c20", "v33", "v34"}
             or (
                 "DLS shadow diagnostics only" in script + txt
                 and "forbids DLS runtime fallback" in txt
@@ -2171,7 +2203,7 @@ def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dic
                 else None
             ),
             "register_clear_zero_tol": QDOT_CLEAR_ZERO_TOL_RAD_S,
-            "joint_accel_rad_s2": JOINT_ACCEL_RAD_S2,
+            "joint_accel_rad_s2": joint_accel_rad_s2(spec),
             "deadline_overrun_policy": (
                 {
                     "stale_tick_command": "last_published_guard_approved_qdot_consumed",
@@ -2232,7 +2264,7 @@ def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dic
         "force_window_guard_role": "diagnostic_only" if spec.permissive_contact_guard else "hard_guard",
         "default_stage25_control_mode": spec.default_stage25_control_mode,
         "register_clear_zero_tol": QDOT_CLEAR_ZERO_TOL_RAD_S,
-        "joint_accel_rad_s2": JOINT_ACCEL_RAD_S2,
+        "joint_accel_rad_s2": joint_accel_rad_s2(spec),
         "deadline_overrun_policy": (
             {
                 "stale_tick_command": "last_published_guard_approved_qdot_consumed",
@@ -2247,7 +2279,7 @@ def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dic
                 "hold_ratio_max": 0.01,
                 "max_consecutive_hold_ticks": 10,
             }
-            if spec.version_label in {"v30", "v31", "v32", "v33c20", "v33"}
+            if spec.version_label in {"v30", "v31", "v32", "v33c20", "v33", "v34"}
             else None
         ),
         "cartesian_accel_m_s2": LINE_ACCEL_M_S2,
@@ -2258,7 +2290,7 @@ def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dic
         "stage25_runtime_limit_s": spec.stage25_runtime_limit_s,
         "scaffold_delta": (
             "v32_stage_aware_packet_permissive_contact_60s"
-            if spec.version_label in {"v32", "v33c20", "v33"}
+            if spec.version_label in {"v32", "v33c20", "v33", "v34"}
             else "v31_permissive_contact_frame_contract_layout524_60s"
             if spec.version_label == "v31"
             else "v30_frame_aware_normal_contract_strict_rnn_candidate_60s"
@@ -2271,7 +2303,7 @@ def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dic
             if spec.version_label == "v27"
             else "step5b_v3_ablation_scaffold"
         ),
-        "stage25_consumption_instrumentation": spec.version_label in {"v27", "v28", "v29", "v30", "v31", "v32", "v33c20", "v33"},
+        "stage25_consumption_instrumentation": spec.version_label in {"v27", "v28", "v29", "v30", "v31", "v32", "v33c20", "v33", "v34"},
         "stage25_control_modes": (
             ["speedj_rnn_live"]
             if spec.permissive_contact_guard
@@ -2279,7 +2311,7 @@ def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dic
         ),
         "sensor_stale_s": 2.0 if spec.permissive_contact_guard else 0.1,
         "heartbeat_stale_s": 1.0 if spec.permissive_contact_guard else spec.stage25_stale_command_hold_s,
-        "qdot_slew_rad_s2": 0.05 if spec.permissive_contact_guard else 0.2,
+        "qdot_slew_rad_s2": host_qdot_slew_rad_s2(spec),
         "line_entry": {
             "filtered_min_n": line_entry.normal_load_min_n,
             "filtered_max_n": line_entry.normal_load_max_n,

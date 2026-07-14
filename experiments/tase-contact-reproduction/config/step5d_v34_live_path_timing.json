@@ -1,0 +1,179 @@
+{
+  "claim_boundary": "paced local replay only; no network, controller write, bridge start, or motion authorization",
+  "components": [
+    "SCHED_OTHER CUDA/RNN/BLAS prewarm",
+    "late control-thread SCHED_FIFO/20 promotion",
+    "rtde drain-latest decode",
+    "feedback age guard",
+    "Step5b-equivalent outer",
+    "calibrated Jacobian",
+    "CuPy RNN512",
+    "production candidate-to-slew-to-safety-to-register seam",
+    "host qdot slew 0.1",
+    "full 24-register RTDE input transport encode",
+    "full input-register CSV serialization"
+  ],
+  "deferred_control_rows": 30065,
+  "encoded_bytes": 5802545,
+  "missed_slots_total": 11,
+  "paced_elapsed_s": 60.14996966900071,
+  "pass": true,
+  "profile": "step5d_strict_rnn_ablation_v34",
+  "replay_source": "/home/andy/.codex-worktrees/ur10e-step5d-concurrency-20260714/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v33c20_20260715_002234/bridge_rtde_500hz.csv",
+  "replay_source_sha256": "7bf03acd68e0bd48cbcfb4f327a765968d96b9bc212ab45f31635bc8c543123f",
+  "row_gap_45_to_60ms_count": 0,
+  "row_gap_max_s": 0.0036938900011591613,
+  "row_gap_over_20ms_count": 0,
+  "samples": 30065,
+  "scheduler_lifecycle": {
+    "after_promotion_threads": {
+      "current_tid": 1161322,
+      "policy_counts": {
+        "SCHED_FIFO/20": 1,
+        "SCHED_OTHER/0": 5
+      },
+      "thread_count": 6,
+      "threads": [
+        {
+          "is_control_thread": true,
+          "policy": "SCHED_FIFO",
+          "policy_value": 1,
+          "priority": 20,
+          "tid": 1161322
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1161326
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1161331
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1161336
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1161337
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1161338
+        }
+      ]
+    },
+    "before_promotion_threads": {
+      "current_tid": 1161322,
+      "policy_counts": {
+        "SCHED_OTHER/0": 6
+      },
+      "thread_count": 6,
+      "threads": [
+        {
+          "is_control_thread": true,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1161322
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1161326
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1161331
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1161336
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1161337
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1161338
+        }
+      ]
+    },
+    "control_thread_scheduler": {
+      "policy": "SCHED_FIFO",
+      "policy_value": 1,
+      "priority": 20
+    },
+    "helper_non_other_thread_count": 0,
+    "helper_realtime_thread_count": 0,
+    "initial_process_scheduler": {
+      "policy": "SCHED_OTHER",
+      "policy_value": 0,
+      "priority": 0
+    },
+    "kernel_rt_bandwidth": {
+      "sched_rt_period_us": 1000000,
+      "sched_rt_runtime_us": 950000
+    },
+    "kernel_rt_bandwidth_after_promotion": {
+      "sched_rt_period_us": 1000000,
+      "sched_rt_runtime_us": 950000
+    },
+    "kernel_rt_bandwidth_unchanged": true,
+    "mode": "late_control_thread_fifo_after_prewarm",
+    "promotion_verified": true,
+    "python_gc_enabled_during_control": false,
+    "python_gc_was_enabled": true
+  },
+  "scheduler_restored_to_other": true,
+  "schema": "step5d_v34_live_path_timing_v1",
+  "source_binding": {
+    "scripts/bridge-line-operator.sh": "5fc54059cb34a334078be1e2a8c7b4d9091290af1eb167208d60efc13811a902",
+    "step5d_v34_stage_contract": "b575fe968908eb2a76f0f362e93f5e5dd19b37b40343fa1e03ae01e2187c7f3a",
+    "tools/kunwei_rtde_bridge.py": "4098c05cccdf132bbe47cbd37f97ed04bda8d3d95b86e241fa71975513f344f5",
+    "tools/run_step5d_v34_live_path_timing.py": "b262b407b11b806327fe355f518e031a9275d73cb65cbc25dcb1b52d416ed752",
+    "tools/step5c_strict_rnn.py": "2ea368dbb142ec635ebdb709d5bb5783ea9bc848705e191f935055463cf753b7",
+    "tools/step5d_control_contract.py": "488c67a4f7f5e54807cd125cf707821cfea70fcf4d47ed7b8c7ee5bb348508b9",
+    "tools/step5d_paper_outer_loop.py": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
+    "tools/step5d_runtime_interface.py": "6d494c08e470a6456444faf27d100b5a2e00554785c3718b459c42a551e7c189"
+  },
+  "source_binding_sha256": "bc886dd2aafb29a6da115212797d36a3c5005bde1dc1db1ed692f1fc8acf5b62",
+  "timing": {
+    "max_ms": 1.8512880051275715,
+    "mean_ms": 0.9200009332085818,
+    "p50_ms": 0.9797149978112429,
+    "p95_ms": 1.1738789908122271,
+    "p99_ms": 1.2969590025022626
+  },
+  "transport_frames": 30065
+}
