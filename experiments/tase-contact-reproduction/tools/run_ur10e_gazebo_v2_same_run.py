@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -18,6 +19,8 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import IO, Any, Sequence
+
+from ur10e_parallel import ResourceProfile, gazebo_headless_lease
 
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
@@ -548,7 +551,22 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    return run(parse_args(argv))
+    args = parse_args(argv)
+    profile = ResourceProfile.from_env()
+    lease = gazebo_headless_lease(profile, f"gazebo-v2:{args.run_dir}")
+    with lease:
+        assert lease.slot is not None
+        os.environ["ROS_DOMAIN_ID"] = str(180 + lease.slot)
+        partition = f"ur10e-gz-{lease.lease_id}"
+        os.environ["IGN_PARTITION"] = partition
+        os.environ["GZ_PARTITION"] = partition
+        temporary = args.run_dir.resolve().parent / f".{args.run_dir.name}.tmp-{lease.lease_id}"
+        temporary.mkdir(parents=True, exist_ok=False)
+        os.environ["TMPDIR"] = str(temporary)
+        try:
+            return run(args)
+        finally:
+            shutil.rmtree(temporary, ignore_errors=True)
 
 
 if __name__ == "__main__":

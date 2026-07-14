@@ -872,8 +872,8 @@ class Step5dReviewPolicyV2Test(unittest.TestCase):
 
     def test_v29_archived_review_uses_immutable_projection(self) -> None:
         tracked = v29_projection.build()
-        self.assertEqual(tracked["blockers"], [])
-        self.assertTrue(tracked["current_projection_matches_reviewed"])
+        self.assertIn("v29_reviewed_state_projection_drift", tracked["blockers"])
+        self.assertFalse(tracked["current_projection_matches_reviewed"])
         packet = json.loads(
             (ROOT / "config/reviews/v29_baseline_review_v2_closer_packet.json").read_text(
                 encoding="utf-8"
@@ -900,8 +900,9 @@ class Step5dReviewPolicyV2Test(unittest.TestCase):
             source_manifest=source_manifest,
             source_packet=source_packet,
         )
-        self.assertTrue(result["accepted"], result["blockers"])
-        self.assertTrue(result["review_gate_satisfied_for_milestone"])
+        self.assertFalse(result["accepted"])
+        self.assertIn("v29_immutable_state_projection_drift", result["blockers"])
+        self.assertFalse(result["review_gate_satisfied_for_milestone"])
         self.assertFalse(result["live_authorization_review_prerequisite_satisfied"])
 
 

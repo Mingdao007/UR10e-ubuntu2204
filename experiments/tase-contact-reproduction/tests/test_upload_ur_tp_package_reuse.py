@@ -46,13 +46,10 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
         self.assertEqual(result, 0)
         manifest = manifest_from_upload_output(out.getvalue())
         self.assertEqual(manifest["target_dir"], "/programs/andyl/kunwei/step5")
-        self.assertFalse(manifest["promotion_performed"])
-        self.assertEqual(
-            manifest["inactive_candidate_delivery"]["policy"],
-            "manifest_bound_inactive_prelive_delivery_v1",
-        )
-        self.assertFalse(manifest["inactive_candidate_delivery"]["program_start_performed"])
-        self.assertFalse(manifest["inactive_candidate_delivery"]["bridge_start_performed"])
+        self.assertEqual(manifest["delivery_mode"], "dry-run")
+        self.assertIn("promoted_from_local_candidate", manifest)
+        self.assertIn("no program start", manifest["safety_boundary"])
+        self.assertIn("no live bridge", manifest["safety_boundary"])
 
     def test_p0_v8_target_resolves_from_current_planned_capture_target(self) -> None:
         resolution = upload.resolve_table_target(
@@ -98,7 +95,7 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
                 )
 
     def test_v30_non_dry_delivery_requires_inactive_prelive_flag(self) -> None:
-        with self.assertRaisesRegex(RuntimeError, "--allow-inactive-prelive-delivery"):
+        with self.assertRaisesRegex(RuntimeError, "--allow-local-candidate-promote"):
             upload.main(
                 [
                     "step5d_strict_rnn_ablation_v30",

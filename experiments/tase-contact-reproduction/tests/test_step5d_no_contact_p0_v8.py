@@ -7,6 +7,7 @@ import hashlib
 import json
 import sys
 import unittest
+from unittest import mock
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -314,7 +315,9 @@ class Step5dNoContactP0V8Test(unittest.TestCase):
         ]
         args = SimpleNamespace(step5d_stop_register_canary_s=60.0)
 
-        result = gate.authorize_canary(args, current)
+        with mock.patch.object(gate, "validate_completed_canary_ledger") as ledger:
+            result = gate.authorize_canary(args, current)
+        ledger.assert_called_once_with(current["p0_v8_candidate"], fingerprint, (2.0, 10.0))
         self.assertEqual(result["phase_s"], 60.0)
         self.assertEqual(result["composite_fingerprint"], fingerprint)
 

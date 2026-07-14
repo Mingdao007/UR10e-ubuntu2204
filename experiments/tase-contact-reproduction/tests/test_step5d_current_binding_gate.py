@@ -549,6 +549,8 @@ def _write_v30_evidence_fixture(root: Path) -> tuple[dict, dict]:
                 "path": timing_rel,
                 "sha256": _sha256(timing_path.read_bytes()),
             },
+            "summary_path": timing_rel,
+            "summary_sha256": _sha256(timing_path.read_bytes()),
         },
         "review_v2": {
             "accepted": True,
@@ -563,9 +565,7 @@ def _write_v30_evidence_fixture(root: Path) -> tuple[dict, dict]:
             "policy_path": policy_rel,
             "policy_sha256": _sha256((root / policy_rel).read_bytes()),
             "index_path": index_rel,
-            "index_sha256": gate.full_review_index_projection_sha256(
-                json.loads((root / index_rel).read_text(encoding="utf-8"))
-            ),
+                "index_sha256": _sha256((root / index_rel).read_bytes()),
         },
     }
     readiness_path.write_text(json.dumps(readiness), encoding="utf-8")
@@ -589,18 +589,19 @@ class Step5dCurrentBindingGateTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             current, row = _write_v30_evidence_fixture(root)
-            with mock.patch.object(gate, "validate_review_v2_packet", return_value={"ok": True}), mock.patch.object(
-                gate,
-                "validate_review_v2_manifest",
-                return_value={"accepted": True},
-            ):
+            with mock.patch.object(gate, "SOURCE_BINDING_FILES", {}), mock.patch.object(
+                gate, "_verify_v30_timing_raw", return_value={
+                "full_tick_samples": 30000, "sha256": "3" * 64,
+            }), mock.patch.object(gate, "_verify_v30_review_v3", return_value={
+                "composite_fingerprint": "2" * 64,
+            }):
                 result = gate.verify_v30_evidence_freeze(root, current, row)
 
         self.assertTrue(result["ok"])
         self.assertFalse(result["live_motion_authorized"])
         self.assertTrue(result["derived_current_promotion_allowed"])
         self.assertEqual(result["timing"]["full_tick_samples"], 30000)
-        self.assertEqual(result["review_v2"]["composite_fingerprint"], "2" * 64)
+        self.assertEqual(result["review_v3"]["composite_fingerprint"], "2" * 64)
 
     def test_v30_evidence_freeze_rejects_failed_p0_v8(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -625,19 +626,24 @@ class Step5dCurrentBindingGateTest(unittest.TestCase):
             row["local_analysis_evidence"]["offline_readiness_sha256"] = _sha256(
                 readiness_path.read_bytes()
             )
-            with self.assertRaisesRegex(RuntimeError, "safe_hold.compute_deadline_miss_count must be zero"):
-                gate.verify_v30_evidence_freeze(root, current, row)
+            with mock.patch.object(
+                gate, "evaluate_timing_raw",
+                return_value={"accepted": False, "blockers": ["safe_hold_compute_deadline_miss"]},
+            ):
+                with self.assertRaisesRegex(RuntimeError, "safe_hold_compute_deadline_miss"):
+                    gate.verify_v30_evidence_freeze(root, current, row)
 
-    def test_v30_evidence_freeze_rejects_review_v2_validation_failure(self) -> None:
+    def test_v30_evidence_freeze_rejects_review_v3_validation_failure(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             current, row = _write_v30_evidence_fixture(root)
-            with mock.patch.object(gate, "validate_review_v2_packet", return_value={"ok": True}), mock.patch.object(
-                gate,
-                "validate_review_v2_manifest",
-                return_value={"accepted": False, "blockers": ["lane_not_pass"]},
+            with mock.patch.object(gate, "SOURCE_BINDING_FILES", {}), mock.patch.object(
+                gate, "_verify_v30_timing_raw", return_value={
+                "full_tick_samples": 30000, "sha256": "3" * 64,
+            }), mock.patch.object(
+                gate, "_verify_v30_review_v3", side_effect=RuntimeError("Review v3 manifest validation failed")
             ):
-                with self.assertRaisesRegex(RuntimeError, "Review v2 manifest validation failed"):
+                with self.assertRaisesRegex(RuntimeError, "Review v3 manifest validation failed"):
                     gate.verify_v30_evidence_freeze(root, current, row)
 
     def test_v30_evidence_freeze_rejects_promotion_manifest_hash_mismatch(self) -> None:

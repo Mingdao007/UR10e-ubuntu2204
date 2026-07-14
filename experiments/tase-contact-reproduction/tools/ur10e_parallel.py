@@ -192,6 +192,7 @@ class CrossProcessWeightedLease:
         self.root, self.lane, self.capacity, self.tokens = root, lane, capacity, tokens
         self.task, self.device, self.timeout_s = task, device, timeout_s
         self.lease_id = uuid.uuid4().hex
+        self.slot: int | None = None
 
     @property
     def _state(self) -> Path:
@@ -221,8 +222,11 @@ class CrossProcessWeightedLease:
         while True:
             handle, records = self._locked()
             if sum(float(row["tokens"]) for row in records) + self.tokens <= self.capacity:
+                occupied = {int(row["slot"]) for row in records if row.get("slot") is not None}
+                self.slot = next(slot for slot in range(int(self.capacity)) if slot not in occupied)
                 records.append({"lease_id": self.lease_id, "pid": os.getpid(), "task": self.task,
-                                "tokens": self.tokens, "device": self.device, "created_at": utc_now()})
+                                "tokens": self.tokens, "device": self.device, "slot": self.slot,
+                                "created_at": utc_now()})
                 self._write_unlock(handle, records)
                 return self
             self._write_unlock(handle, records)
@@ -495,12 +499,21 @@ class TaskRunner:
             tokens=task.cpu_tokens, task=task.task_id,
         )
         gpu_acquired = False
+        cpu_acquired = False
+        gpu_worker_lease = None
         try:
             task.output_dir.mkdir(parents=True, exist_ok=False)
             cpu_lease.__enter__()
+            cpu_acquired = True
             if task.resource in {"gpu", "formal_timing"}:
                 self.gpu_tokens.acquire(1)
                 gpu_acquired = True
+                gpu_worker_lease = CrossProcessWeightedLease(
+                    self.profile.lock_root, "gpu-workers",
+                    capacity=self.profile.gpu_workers, tokens=1,
+                    task=task.task_id, device="0",
+                )
+                gpu_worker_lease.__enter__()
                 observed = self.gpu_usage()
                 available = self.profile.gpu_vram_limit_pct - observed
                 requested = task.gpu_vram_reservation_pct or 0.001
@@ -565,9 +578,12 @@ class TaskRunner:
         finally:
             if 'gpu_lease' in locals() and gpu_lease is not None:
                 gpu_lease.__exit__()
+            if gpu_worker_lease is not None:
+                gpu_worker_lease.__exit__()
             if gpu_acquired:
                 self.gpu_tokens.release(1)
-            cpu_lease.__exit__()
+            if cpu_acquired:
+                cpu_lease.__exit__()
 
     def run(self, tasks: Sequence[TaskSpec]) -> dict[str, TaskResult]:
         self.output_root.mkdir(parents=True, exist_ok=True)
@@ -649,6 +665,13 @@ def require_immutable_completion_marker(run_dir: Path) -> dict[str, Any]:
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
         if digest != row.get("sha256"):
             raise ValueError(f"closed source hash changed: {path}")
+    expected_paths = {str(row.get("path")) for row in files}
+    current_paths = {
+        str(path.relative_to(run_dir)) for path in run_dir.rglob("*")
+        if path.is_file() and path != marker
+    }
+    if current_paths != expected_paths:
+        raise ValueError("closed source file set changed after completion marker")
     return payload
 
 

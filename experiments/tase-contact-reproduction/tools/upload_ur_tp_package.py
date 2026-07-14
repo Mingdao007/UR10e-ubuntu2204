@@ -1861,7 +1861,7 @@ def write_manifest(
     print(json.dumps(manifest, indent=2))
 
 
-def main(argv: list[str] | None = None) -> int:
+def _main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("program", help="program basename, for example step4e_seed_normal_loop_v29")
     parser.add_argument(
@@ -2057,6 +2057,18 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print(f"controller read-back verified via SHA-matched reuse: {readback_dir}")
     return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    values = list(argv) if argv is not None else list(sys.argv[1:])
+    if "--dry-run" in values:
+        return _main(values)
+    from ur10e_mutation_lock import acquire_controller_mutation_locks, release_controller_mutation_locks
+    handles = acquire_controller_mutation_locks()
+    try:
+        return _main(values)
+    finally:
+        release_controller_mutation_locks(handles)
 
 
 if __name__ == "__main__":

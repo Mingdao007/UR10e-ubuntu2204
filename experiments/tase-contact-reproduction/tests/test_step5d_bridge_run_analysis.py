@@ -1518,7 +1518,7 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
                 self.assertEqual(analysis["classification"], classification)
                 self.assertEqual(analysis["acceptance_status"], acceptance)
 
-    def test_p0_v8_analyzer_rejects_retired_short_manifest_phases(self) -> None:
+    def test_p0_v8_analyzer_accepts_canonical_short_canary_phases(self) -> None:
         for phase_s in (2.0, 10.0):
             with self.subTest(phase_s=phase_s), tempfile.TemporaryDirectory() as tmp:
                 run_dir = Path(tmp)
@@ -1544,14 +1544,9 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
                         )
                     )
 
-                verifier.assert_not_called()
-                self.assertIsNone(observed_phase)
+                verifier.assert_called_once()
+                self.assertEqual(observed_phase, phase_s)
                 self.assertEqual(tool, "verify_step5d_no_contact_p0_v8.py")
-                assert result is not None
-                self.assertIn(
-                    "bridge_run_manifest_canary_phase_missing_or_invalid",
-                    result["blockers"],
-                )
 
     def test_p0_v8_analyzer_fails_closed_when_manifest_phase_is_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

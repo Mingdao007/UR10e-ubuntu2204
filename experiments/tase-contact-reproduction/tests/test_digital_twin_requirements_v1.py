@@ -30,21 +30,21 @@ class DigitalTwinRequirementsV1Test(unittest.TestCase):
         self.assertFalse(matrix["live_motion_authorized"])
         self.assertEqual(
             p0["status"],
-            "offline_control_diagnostic_timing_blocked_controller_canaries_pending",
+            "offline_control_diagnostic_pass_controller_canaries_pending",
         )
         self.assertEqual(
             p0["summary_sha256"],
             hashlib.sha256(summary_path.read_bytes()).hexdigest(),
         )
         self.assertTrue(p0["control_and_fault_path_pass"])
-        self.assertFalse(p0["offline_control_timing_pass"])
-        self.assertEqual(p0["final_60s_control_deadline_miss_count"], 198)
+        self.assertTrue(p0["offline_control_timing_pass"])
+        self.assertEqual(p0["final_60s_control_deadline_miss_count"], 0)
         self.assertFalse(p0["simulator_cycle_500hz_diagnostic_pass"])
         self.assertFalse(p0["p0_sim_physics_pass"])
         self.assertEqual(p0["controller_canaries_completed"], [])
         self.assertTrue(summary["diagnostic"]["all_control_paths_diagnostic_pass"])
         self.assertTrue(summary["diagnostic"]["all_required_faults_exact_zero"])
-        self.assertFalse(summary["diagnostic"]["offline_control_timing_pass"])
+        self.assertTrue(summary["diagnostic"]["offline_control_timing_pass"])
         self.assertEqual(
             summary["diagnostic"]["timing_scope_status"],
             "current_control_hard_500hz_measurement_scope",

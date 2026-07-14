@@ -60,7 +60,7 @@
       "sha256": "0f12722ddd54a2fc7676c2c79f0b1d596d1952aac10b06694bef46417a9ff992"
     }
   },
-  "generated_at": "2026-07-14T04:52:29+08:00",
+  "generated_at": "2026-07-14T08:08:14",
   "historical_review": {
     "counts_as_review_v3": false,
     "path": "config/step5d_v30_milestone_reviews.json",
@@ -182,7 +182,7 @@
     },
     "bridge_sha256": {
       "path": "tools/kunwei_rtde_bridge.py",
-      "sha256": "ca5b5da9624716900dbebf22ad46dee438e85e5d4e8acca17fbf844a185fe2db"
+      "sha256": "d7673f17993f4163e8c0a80d3ccfcceb4cad7cdbd09febbfe3cebde181adf1ff"
     },
     "bundler_sha256": {
       "path": "tools/build_step5d_v30_remote_timing_bundle.py",
@@ -7328,6 +7328,7 @@
             "full_tick_deadline_miss",
             "full_tick_max_reaches_2ms_deadline",
             "full_tick_schedule_deadline_miss",
+            "remote_timing_bridge_sha256_does_not_match_local_source",
             "remote_timing_readiness_builder_sha256_does_not_match_local_source"
           ],
           "canonical_evaluator": "tools/step5d_timing_acceptance.py:evaluate_timing_raw",
@@ -7403,6 +7404,7 @@
             "miss_index_diagnostics_valid": true,
             "safe_hold_miss_budget": 300,
             "unrelated_blockers": [
+              "remote_timing_bridge_sha256_does_not_match_local_source",
               "remote_timing_readiness_builder_sha256_does_not_match_local_source"
             ]
           },

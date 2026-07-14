@@ -1555,17 +1555,27 @@ PY
 
 run_bridge_for_mode() {
   mkdir -p "${UR10E_LOCK_ROOT}"
-  local throughput_fd
+  local throughput_fd writer_fd
+  exec {writer_fd}>>"${UR10E_LOCK_ROOT}/live-writer-throughput.lock"
+  if ! flock -n -x "${writer_fd}"; then
+    echo "refusing live writer: another bridge/controller writer owns the UR10e writer lock" >&2
+    exec {writer_fd}>&-
+    return 24
+  fi
   exec {throughput_fd}>>"${UR10E_LOCK_ROOT}/throughput.lock"
   if ! flock -n -x "${throughput_fd}"; then
     echo "refusing live writer: formal timing or offline throughput work owns the UR10e lock" >&2
     exec {throughput_fd}>&-
+    flock -u "${writer_fd}"
+    exec {writer_fd}>&-
     return 24
   fi
   local rc=0
   _run_bridge_for_mode "$@" || rc="$?"
   flock -u "${throughput_fd}"
   exec {throughput_fd}>&-
+  flock -u "${writer_fd}"
+  exec {writer_fd}>&-
   if [[ -f "$1/.capture_complete.json" ]]; then
     postprocess_run "$1" || rc="$?"
   fi

@@ -561,6 +561,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.run_dir is None:
             parser.error("postprocess requires <run-dir>")
         run_dir = args.run_dir.resolve()
+        if output_root == run_dir or output_root in run_dir.parents or run_dir in output_root.parents:
+            parser.error("postprocess output root must be disjoint from immutable source run")
         require_immutable_completion_marker(run_dir)
         tasks = postprocess_tasks(output_root, run_dir)
 

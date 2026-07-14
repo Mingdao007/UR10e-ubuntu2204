@@ -226,6 +226,11 @@ class Ur10eParallelTest(unittest.TestCase):
             (run_dir / "source.txt").write_text("immutable\n")
             marker.write_text(json.dumps(source_closure_snapshot(run_dir, exit_codes={"capture": 0})) + "\n")
             self.assertTrue(require_immutable_completion_marker(run_dir)["immutable"])
+            added = run_dir / "late-file.txt"
+            added.write_text("late\n")
+            with self.assertRaisesRegex(ValueError, "file set changed"):
+                require_immutable_completion_marker(run_dir)
+            added.unlink()
             (run_dir / "source.txt").write_text("mutated\n")
             with self.assertRaisesRegex(ValueError, "hash changed|size changed"):
                 require_immutable_completion_marker(run_dir)

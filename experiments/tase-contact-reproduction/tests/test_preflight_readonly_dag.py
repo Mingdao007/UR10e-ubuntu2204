@@ -18,6 +18,19 @@ import preflight_readonly as preflight  # noqa: E402
 
 
 class PreflightReadonlyDagTest(unittest.TestCase):
+    def test_dashboard_predicate_does_not_cross_match_other_response_fields(self) -> None:
+        result = preflight.dashboard_predicate({
+            "remote_control": False,
+            "safetymode": "NORMAL",
+            "robotmode": "POWER_OFF",
+            "programState": "UNKNOWN",
+            "running": True,
+        })
+        self.assertFalse(result["ok"])
+        self.assertFalse(result["checks"]["remote_control"])
+        self.assertFalse(result["checks"]["robot_mode"])
+        self.assertFalse(result["checks"]["program_state"])
+
     def test_local_stage_precedes_parallel_remote_snapshot(self) -> None:
         def command(args: list[str]) -> dict[str, object]:
             payload: dict[str, object] = {

@@ -29,8 +29,14 @@ def add_no_contact_p0_capture_fixture(root: Path) -> None:
 
 def copy_project_fixture(destination: Path) -> None:
     """Preserve optional archive symlinks instead of following 14 GB runs."""
-
-    shutil.copytree(ROOT, destination, dirs_exist_ok=True, symlinks=True)
+    for attempt in range(3):
+        try:
+            shutil.copytree(ROOT, destination, dirs_exist_ok=True, symlinks=True)
+            return
+        except shutil.Error:
+            if attempt == 2:
+                raise
+            shutil.rmtree(destination, ignore_errors=True)
 
 
 class CrossStepParameterTableTest(unittest.TestCase):
@@ -119,7 +125,7 @@ class CrossStepParameterTableTest(unittest.TestCase):
             table_path = tmp_root / "config" / "step5_stage_table.json"
             table = validator.load_json(table_path)
             v30 = next(item for item in table["stages"] if item.get("id") == "step5d_strict_rnn_ablation_v30")
-            v30["package_delivery"]["controller_readback_verified"] = False
+            v30["package_delivery"]["controller_uploaded"] = True
             table_path.write_text(json.dumps(table), encoding="utf-8")
 
             failures = validator.validate(tmp_root)

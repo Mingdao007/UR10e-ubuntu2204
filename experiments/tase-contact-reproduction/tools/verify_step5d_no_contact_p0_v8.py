@@ -126,6 +126,25 @@ def validate_bindings(
         blockers.append("current_fingerprint_mismatch")
     if capture.get("sha256") != package_sha:
         blockers.append("current_package_hash_mismatch")
+    prior = canary.get("prior_canaries") or []
+    for required_phase in required_prior_phases(phase_s):
+        valid_prior = False
+        for item in prior:
+            if not (isinstance(item, Mapping)
+                    and phase_equal(item.get("phase_s"), required_phase)
+                    and item.get("composite_fingerprint") == fingerprint
+                    and item.get("canary_passed") is True):
+                continue
+            artifact = (ROOT / str(item.get("artifact") or "")).resolve()
+            try:
+                artifact.relative_to(ROOT.resolve())
+            except ValueError:
+                continue
+            if artifact.is_file() and sha256_file(artifact) == item.get("artifact_sha256"):
+                valid_prior = True
+                break
+        if not valid_prior:
+            blockers.append(f"prior_{required_phase:g}s_same_fingerprint_pass_missing")
     details.update(
         {
             "manifest": str(manifest_path),

@@ -30,13 +30,13 @@
     },
     {
       "id": "p0_v8_2_10_60",
-      "status": "offline_control_diagnostic_timing_blocked_controller_canaries_pending",
+      "status": "offline_control_diagnostic_pass_controller_canaries_pending",
       "owner": "tools/run_step5d_p0_v8_mujoco.py",
       "acceptance": "Same frozen fingerprint completes deterministic 2, 10, and 60 second 500 Hz phases; every late tick is exact-zero stopped before the sink, and the final 60 second hard gate still requires zero misses.",
       "summary_artifact": "config/step5d_p0_v8_offline_simulation_diagnostic.json",
-      "summary_sha256": "ca6a77f3ddbebfece0ace63e0b468bf1614a684c283a5adeb0a9cdfa45c66f68",
+      "summary_sha256": "61c78fde75807fb29ad49bd52004faac4c53294ebfabca1f84a99f78efb32f77",
       "control_and_fault_path_pass": true,
-      "offline_control_timing_pass": false,
+      "offline_control_timing_pass": true,
       "production_path_prewarm": {
         "execute_ticks": 1000,
         "paced_hz": 500,
@@ -45,19 +45,17 @@
         "sha256": "9ba35266b4ae47c39954e183d6074555c6dc95c6f0b156c565d883b9b69ea6e3"
       },
       "short_phase_timing_diagnostic": {
-        "2s_deadline_misses": 40,
-        "10s_deadline_misses": 369,
-        "classification": "retained_cold_or_gpu_clock_ramp_outliers_not_discarded"
+        "2s_deadline_misses": 0,
+        "10s_deadline_misses": 0,
+        "classification": "current_control_hard_500hz_measurement_pass"
       },
-      "final_60s_control_p99_ms": 0.799177095759658,
-      "final_60s_control_max_ms": 5.408059107139707,
-      "final_60s_control_deadline_miss_count": 198,
+      "final_60s_control_p99_ms": 0.8457486998486273,
+      "final_60s_control_max_ms": 1.6500780002388638,
+      "final_60s_control_deadline_miss_count": 0,
       "simulator_cycle_500hz_diagnostic_pass": false,
       "p0_sim_physics_pass": false,
       "controller_canaries_completed": [],
       "blockers": [
-        "control_hard_500hz_gate_failed_60s",
-        "offline_control_timing_failed",
         "geometry_provisional_no_p0_physics_claim",
         "controller_canaries_not_run"
       ]

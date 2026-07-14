@@ -35,17 +35,14 @@ class Step5dV30ProfileTest(unittest.TestCase):
         self.assertTrue(v30["blocked"])
         self.assertFalse(v30["current_binding"]["is_current"])
         delivery = v30["package_delivery"]
-        self.assertEqual(delivery["status"], "controller_readback_verified_inactive")
+        self.assertEqual(delivery["status"], "local_offline_candidate_pending_fresh_readback")
         self.assertEqual(
-            delivery["controller_target"],
+            delivery["planned_controller_target"],
             "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v30.urp",
         )
-        self.assertTrue(delivery["controller_uploaded"])
-        self.assertTrue(delivery["controller_readback_verified"])
-        self.assertEqual(
-            delivery["controller_readback_manifest"],
-            "runs/controller_readback_step5d_strict_rnn_ablation_v30_20260714_041851/manifest.json",
-        )
+        self.assertFalse(delivery["controller_uploaded"])
+        self.assertFalse(delivery["controller_readback_verified"])
+        self.assertIsNone(delivery["controller_readback_manifest"])
         self.assertFalse(v30["canary_stop_register"]["enabled"])
         self.assertFalse(v30["canary_stop_register"]["armed"])
         self.assertEqual(v30["canary_stop_register"]["phases_s"], [2.0, 10.0, 60.0])
@@ -104,10 +101,10 @@ class Step5dV30ProfileTest(unittest.TestCase):
 
         self.assertEqual(
             runtime.controller_target,
-            "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v30.urp",
+            "LOCAL_ONLY_NOT_DELIVERED",
         )
         self.assertTrue(runtime.hard_contract["offline_candidate"])
-        self.assertTrue(runtime.hard_contract["controller_readback_verified"])
+        self.assertFalse(runtime.hard_contract["controller_readback_verified"])
         self.assertIn("phase=v30-offline-candidate", rendered)
         self.assertIn("upload=no", rendered)
         self.assertNotIn("phase=live-bridge", rendered)
@@ -118,12 +115,7 @@ class Step5dV30ProfileTest(unittest.TestCase):
             root=ROOT,
         )
 
-        self.assertIsNotNone(policy)
-        assert policy is not None
-        self.assertEqual(policy["status"], "inactive_prelive_delivery_preparation")
-        self.assertFalse(policy["promotion_performed"])
-        self.assertFalse(policy["program_start_performed"])
-        self.assertFalse(policy["bridge_start_performed"])
+        self.assertIsNone(policy)
         table = json.loads(
             (ROOT / "config" / "step5_stage_table.json").read_text(encoding="utf-8")
         )
@@ -134,7 +126,7 @@ class Step5dV30ProfileTest(unittest.TestCase):
         )
         self.assertEqual(
             v30["package_delivery"]["status"],
-            "controller_readback_verified_inactive",
+            "local_offline_candidate_pending_fresh_readback",
         )
         self.assertFalse(v30["promotion_gate"]["current_promotion_allowed"])
         self.assertFalse(v30["promotion_gate"]["bridge_start_allowed"])

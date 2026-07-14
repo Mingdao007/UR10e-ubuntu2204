@@ -1,5 +1,7 @@
 from pathlib import Path
 import csv
+import hashlib
+import json
 import os
 import subprocess
 import tempfile
@@ -61,9 +63,6 @@ test ! -e "{cache}"
             base = Path(tmp)
             run_dir = base / "run"
             run_dir.mkdir()
-            (run_dir / ".capture_complete.json").write_text(
-                '{"capture_closed": true, "immutable": true}\n', encoding="utf-8"
-            )
             bridge_csv = run_dir / "bridge_rtde_500hz.csv"
             with bridge_csv.open("w", newline="", encoding="utf-8") as handle:
                 writer = csv.DictWriter(
@@ -88,6 +87,13 @@ test ! -e "{cache}"
                         "force_norm_n": "11.2",
                     }
                 )
+            marker = run_dir / ".capture_complete.json"
+            marker.write_text(json.dumps({
+                "capture_closed": True, "immutable": True, "closure_nonce": "a" * 32,
+                "exit_codes": {"capture": 0},
+                "source_files": [{"path": bridge_csv.name, "size": bridge_csv.stat().st_size,
+                                  "sha256": hashlib.sha256(bridge_csv.read_bytes()).hexdigest()}],
+            }) + "\n", encoding="utf-8")
             script = f"""
 set -euo pipefail
 export BRIDGE_OPERATOR_SOURCE_ONLY=1
@@ -559,9 +565,9 @@ PY
 
     def test_step5d_workflow_upload_uses_table_resolved_target(self) -> None:
         script = read_script("step5d-workflow.sh")
-        upload_calls = [line for line in script.splitlines() if 'python3 "${UPLOAD_TOOL}"' in line]
+        upload_calls = [line for line in script.splitlines() if 'python3 "${TP_COORDINATOR}"' in line]
 
-        self.assertGreaterEqual(len(upload_calls), 2)
+        self.assertEqual(len(upload_calls), 1)
         self.assertNotIn('--target-dir "${TARGET_DIR}"', script)
         self.assertNotIn('--target-dir "${target_dir}"', script)
 
@@ -895,14 +901,14 @@ maybe_start_background_push "{tmp}"
         self.assertIn('record_latest_candidate "${candidate_dir}"', script)
         self.assertIn("promoting latest local-only candidate", script)
         self.assertIn('READBACK_GATE="${ROOT}/tools/verify_step5d_current_binding.py"', script)
-        self.assertIn('python3 "${PROMOTE_TOOL}"', script)
+        self.assertIn('python3 "${TP_COORDINATOR}"', script)
         self.assertIn('python3 "${PUBLISH_GATE}" --root "${ROOT}" --json', script)
         self.assertIn("dev-loop)", script)
         self.assertIn("--local-only --output-dir", script)
         self.assertIn("--dry-run", script)
         self.assertIn("not delivered; current_stage unchanged", script)
         self.assertIn("promote-package)", script)
-        self.assertIn("--allow-local-candidate-promote", script)
+        self.assertIn('TP_COORDINATOR="${ROOT}/tools/run_step5d_tp_transaction.py"', script)
         self.assertIn("contact-bridge)", script)
         self.assertIn('"${OPERATOR}" contact-bridge', script)
         contact_section = script.split("contact-bridge)", 1)[1]

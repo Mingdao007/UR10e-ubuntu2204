@@ -1794,7 +1794,7 @@ def promote(root: Path, program: str, target_dir: str, local_dir: Path, manifest
     }
 
 
-def main(argv: list[str] | None = None) -> int:
+def _main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=EXPERIMENT_ROOT)
     parser.add_argument("--program", required=True)
@@ -1817,6 +1817,15 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print(f"promoted {result['program']} using {result['manifest']}")
     return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    from ur10e_mutation_lock import acquire_controller_mutation_locks, release_controller_mutation_locks
+    handles = acquire_controller_mutation_locks()
+    try:
+        return _main(argv)
+    finally:
+        release_controller_mutation_locks(handles)
 
 
 if __name__ == "__main__":

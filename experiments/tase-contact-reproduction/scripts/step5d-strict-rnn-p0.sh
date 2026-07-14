@@ -230,6 +230,9 @@ PY
     fi
     verifier_args+=(--output "${run_dir}/step5d_no_contact_p0_summary.json")
     python3 "${P0_VERIFIER}" "${verifier_args[@]}"
+    if [[ "${P0_PROFILE}" == "step5d_strict_rnn_no_contact_p0_v8" ]]; then
+      python3 "${ROOT}/tools/register_step5d_p0_v8_canary.py" "${run_dir}/step5d_no_contact_p0_summary.json"
+    fi
     echo "[operator] Step5d no-contact P0 summary: ${run_dir}/step5d_no_contact_p0_summary.json"
     ;;
   validate-run)

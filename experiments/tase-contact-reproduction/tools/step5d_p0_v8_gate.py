@@ -4,12 +4,44 @@
 from __future__ import annotations
 
 import math
+import hashlib
+import json
 import re
+from pathlib import Path
 from typing import Any, Mapping
 
 
 PROFILE = "step5d_strict_rnn_no_contact_p0_v8"
 CANARY_PHASES_S = (2.0, 10.0, 60.0)
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def validate_completed_canary_ledger(candidate: Mapping[str, Any], fingerprint: str,
+                                      required_phases: tuple[float, ...]) -> None:
+    completed = candidate.get("completed_canaries") or []
+    for required_phase in required_phases:
+        valid = False
+        for item in completed:
+            if not isinstance(item, Mapping):
+                continue
+            artifact = (ROOT / str(item.get("artifact") or "")).resolve()
+            try:
+                artifact.relative_to(ROOT)
+                payload = json.loads(artifact.read_text(encoding="utf-8"))
+            except (ValueError, OSError, json.JSONDecodeError):
+                continue
+            digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+            if (math.isclose(float(item.get("phase_s", -1)), required_phase, abs_tol=1e-9)
+                    and item.get("composite_fingerprint") == fingerprint
+                    and item.get("canary_passed") is True
+                    and item.get("artifact_sha256") == digest
+                    and payload.get("ok") is True and payload.get("canary_passed") is True
+                    and math.isclose(float(payload.get("phase_s", -1)), required_phase, abs_tol=1e-9)
+                    and (payload.get("binding") or {}).get("composite_fingerprint") == fingerprint):
+                valid = True
+                break
+        if not valid:
+            raise ValueError(f"P0 v8 prior {required_phase:g}s artifact ledger is missing or stale")
 
 
 def review_authorized(review: Mapping[str, Any], fingerprint: str) -> bool:
@@ -69,6 +101,7 @@ def authorize_canary(args: Any, current: Mapping[str, Any]) -> dict[str, Any]:
     phase = validate_canary_phase(PROFILE, getattr(args, "step5d_stop_register_canary_s", 0.0), allow_disabled=False)
     completed = candidate.get("completed_canaries") or []
     required_previous = () if phase == 2.0 else (2.0,) if phase == 10.0 else (2.0, 10.0)
+    validate_completed_canary_ledger(candidate, fingerprint, required_previous)
     for required_phase in required_previous:
         if not any(
             isinstance(item, Mapping)

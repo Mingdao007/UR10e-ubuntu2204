@@ -9,6 +9,7 @@ BUILD_TOOL="${ROOT}/tools/build_step5d_liveprep.py"
 UPLOAD_TOOL="${ROOT}/tools/upload_ur_tp_package.py"
 READBACK_GATE="${ROOT}/tools/verify_step5d_current_binding.py"
 PROMOTE_TOOL="${ROOT}/tools/promote_step5d_current.py"
+TP_COORDINATOR="${ROOT}/tools/run_step5d_tp_transaction.py"
 PUBLISH_GATE="${ROOT}/tools/verify_step5d_publish_gate.py"
 PARALLEL_TOOL="${ROOT}/tools/run_step5d_parallel_workflow.py"
 OPERATOR="${SCRIPT_DIR}/step5d-liveprep-operator.sh"
@@ -203,22 +204,11 @@ case "${mode}" in
       program="${STEP5D_VERSION:-${current:-$(builder_program)}}"
       local_dir="${ROOT}/programs/step5"
     fi
-    extra_args=()
+    transaction_args=()
     if [[ "${STEP5D_PROMOTE_DRY_RUN:-0}" == "1" ]]; then
-      extra_args+=(--dry-run --readback-root "${DRYRUN_READBACK_ROOT}")
+      transaction_args+=(--dry-run --readback-root "${DRYRUN_READBACK_ROOT}")
     fi
-    python3 "${UPLOAD_TOOL}" "${program}" \
-      --local-dir "${local_dir}" \
-      --allow-local-candidate-promote \
-      "${extra_args[@]}"
-    if [[ "${STEP5D_PROMOTE_DRY_RUN:-0}" != "1" ]]; then
-      python3 "${PROMOTE_TOOL}" \
-        --root "${ROOT}" \
-        --program "${program}" \
-        --local-dir "${local_dir}" \
-        --json
-      python3 "${READBACK_GATE}" --root "${ROOT}" --program "${program}" --json
-    fi
+    python3 "${TP_COORDINATOR}" "${program}" --root "${ROOT}" --local-dir "${local_dir}" "${transaction_args[@]}"
     ;;
   prep-long-checks)
     "${OPERATOR}" prep-long-checks

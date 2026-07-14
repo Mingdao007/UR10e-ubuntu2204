@@ -25,6 +25,7 @@ from step5d_liveprep_readiness import (
 from step5d_runtime_interface import resolve_runtime_interface
 from step5d_review_v3 import resolve as resolve_review_v3
 from step5d_timing_acceptance import evaluate_timing_raw
+from step5d_v30_timing import SOURCE_BINDING_FILES
 from verify_current_stage_readback import EXPERIMENT_ROOT, fail, load_json, verify
 
 
@@ -189,6 +190,12 @@ def _finite_number(value: Any, label: str) -> float:
     return result
 
 
+def _canonical_sha256(value: Any) -> str:
+    return hashlib.sha256(
+        json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
 def _zero_counter(container: dict[str, Any], label: str, *keys: str) -> None:
     for key in keys:
         if key in container:
@@ -225,65 +232,11 @@ def _verify_v30_timing_raw(root: Path, timing: dict[str, Any]) -> dict[str, Any]
         "safe_hold_samples": int(evaluation["safe_hold"]["samples"]),
     }
 
-    # Historical consumer-specific checks below are intentionally unreachable;
-    # acceptance is decided exclusively by evaluate_timing_raw above.
-    if raw.get("paced_500hz") is not True:
-        fail("v30 timing raw evidence is not paced at 500 Hz")
-    solver = raw.get("solver")
-    full_tick = raw.get("full_tick")
-    safe_hold = raw.get("safe_hold")
-    if not all(isinstance(item, dict) for item in (solver, full_tick, safe_hold)):
-        fail("v30 timing raw evidence is missing solver/full_tick/safe_hold sections")
-    assert isinstance(solver, dict) and isinstance(full_tick, dict) and isinstance(safe_hold, dict)
-
-    if _finite_number(solver.get("samples"), "solver.samples") < 10_000:
-        fail("v30 timing solver evidence has fewer than 10,000 samples")
-    first_post_warm = raw.get("first_post_warm_ms", solver.get("first_post_warm_ms"))
-    if _finite_number(first_post_warm, "solver.first_post_warm_ms") > 1.75:
-        fail("v30 timing solver first post-warm exceeds 1.75 ms")
-    if _finite_number(solver.get("p99_ms"), "solver.p99_ms") > 1.50:
-        fail("v30 timing solver p99 exceeds 1.50 ms")
-    if _finite_number(solver.get("max_ms"), "solver.max_ms") >= 2.0:
-        fail("v30 timing solver max reaches the 2.00 ms deadline")
-    _zero_counter(solver, "solver", "compute_deadline_miss_count", "deadline_miss_count")
-    _zero_counter(solver, "solver", "nonfinite_count")
-
-    if _finite_number(full_tick.get("samples"), "full_tick.samples") < 30_000:
-        fail("v30 timing full tick evidence has fewer than 30,000 samples")
-    if _finite_number(raw.get("elapsed_full_tick_wall_s"), "elapsed_full_tick_wall_s") < 60.0:
-        fail("v30 timing full tick evidence is shorter than 60 seconds")
-    if _finite_number(full_tick.get("p99_ms"), "full_tick.p99_ms") > 1.80:
-        fail("v30 timing full tick p99 exceeds 1.80 ms")
-    if _finite_number(full_tick.get("max_ms"), "full_tick.max_ms") >= 2.0:
-        fail("v30 timing full tick max reaches the 2.00 ms deadline")
-    _zero_counter(full_tick, "full_tick", "compute_deadline_miss_count", "deadline_miss_count")
-    _zero_counter(full_tick, "full_tick", "nonfinite_count")
-    _zero_counter(raw, "full_tick_schedule", "full_tick_schedule_deadline_miss_count")
-
-    if _finite_number(safe_hold.get("samples"), "safe_hold.samples") < 30_000:
-        fail("v30 timing safe-hold evidence has fewer than 30,000 samples")
-    if _finite_number(raw.get("elapsed_safe_hold_wall_s"), "elapsed_safe_hold_wall_s") < 60.0:
-        fail("v30 timing safe-hold evidence is shorter than 60 seconds")
-    if _finite_number(safe_hold.get("p99_ms"), "safe_hold.p99_ms") >= 2.0:
-        fail("v30 timing safe-hold p99 reaches the 2.00 ms deadline")
-    if _finite_number(safe_hold.get("max_ms"), "safe_hold.max_ms") >= 2.0:
-        fail("v30 timing safe-hold max reaches the 2.00 ms deadline")
-    _zero_counter(safe_hold, "safe_hold", "compute_deadline_miss_count", "deadline_miss_count")
-    _zero_counter(safe_hold, "safe_hold", "nonfinite_count")
-    _zero_counter(raw, "safe_hold_schedule", "safe_hold_schedule_deadline_miss_count")
-    return {
-        "path": _relative(root, raw_path),
-        "sha256": raw_sha256,
-        "solver_samples": int(_finite_number(solver.get("samples"), "solver.samples")),
-        "full_tick_samples": int(_finite_number(full_tick.get("samples"), "full_tick.samples")),
-        "safe_hold_samples": int(_finite_number(safe_hold.get("samples"), "safe_hold.samples")),
-    }
-
-
 def _verify_v30_review_v3(
     root: Path,
     stage_entry: dict[str, Any],
     readiness_review: dict[str, Any],
+    expected_composite_binding: dict[str, str],
 ) -> dict[str, Any]:
     stage_review = stage_entry.get("review_v3")
     if not isinstance(stage_review, dict):
@@ -325,10 +278,29 @@ def _verify_v30_review_v3(
         fail("v30 Review v3 composite fingerprint is invalid")
     if readiness_review.get("composite_fingerprint") != composite:
         fail("v30 readiness Review v3 composite fingerprint is stale")
+    if manifest.get("composite_binding") != expected_composite_binding:
+        fail("v30 Review v3 composite does not bind current frozen artifacts")
+    for lane_name, lane in (manifest.get("lanes") or {}).items():
+        if not isinstance(lane, dict):
+            fail(f"v30 Review v3 lane is invalid: {lane_name}")
+        evidence_path = _confined_regular_file(root, lane.get("runtime_evidence_path"), f"{lane_name} transcript")
+        if _sha256_file(evidence_path) != lane.get("runtime_evidence_sha256"):
+            fail(f"v30 Review v3 lane transcript hash mismatch: {lane_name}")
+    matching_index_records = [
+        record for record in review_index.get("review_records", [])
+        if isinstance(record, dict)
+        and record.get("review_mode") == manifest.get("review_mode")
+        and record.get("composite_fingerprint") == composite
+    ]
+    if len(matching_index_records) != 1 or matching_index_records[0].get(
+        "manifest_sha256"
+    ) != manifest_sha256:
+        fail("v30 Review v3 index does not bind the exact manifest hash")
     resolved = resolve_review_v3(
         workflow="v30",
         milestone="contact_pre_live",
-        gate={"evidence_frozen": True, "composite_fingerprint": composite},
+        gate={"evidence_frozen": True, "composite_fingerprint": composite,
+              "manifest_sha256": manifest_sha256},
         manifest=manifest,
         policy=policy,
         index=review_index,
@@ -466,7 +438,31 @@ def verify_v30_evidence_freeze(
     if not isinstance(timing, dict) or timing.get("overall_pass") is not True:
         fail("v30 60 second timing/safe-hold acceptance is not complete")
     timing_result = _verify_v30_timing_raw(root, timing)
-    review = _verify_v30_review_v3(root, stage_entry, readiness.get("review_v3") or {})
+    _, _, timing_summary_sha256 = _hash_bound_json(
+        root, timing.get("summary_path"), "v30 timing summary",
+        expected_sha256=timing.get("summary_sha256"),
+    )
+    source_fingerprint = {
+        field: _sha256_file(root / relative)
+        for field, relative in SOURCE_BINDING_FILES.items()
+    }
+    operator_config = {
+        "runtime_profile": stage_entry.get("runtime_profile"),
+        "runtime_scheduler": stage_entry.get("runtime_scheduler"),
+        "contact_policy": stage_entry.get("contact_policy"),
+        "guard": stage_entry.get("guard"),
+    }
+    expected_composite_binding = {
+        "package_triplet": _canonical_sha256(package_sha256),
+        "controller_readback": readback_sha256,
+        "timing_raw": timing_result["sha256"],
+        "timing_summary": timing_summary_sha256,
+        "source_fingerprint": _canonical_sha256(source_fingerprint),
+        "effective_operator_config": _canonical_sha256(operator_config),
+    }
+    review = _verify_v30_review_v3(
+        root, stage_entry, readiness.get("review_v3") or {}, expected_composite_binding
+    )
     return {
         "ok": True,
         "program": STEP5D_ABLATION_V30,

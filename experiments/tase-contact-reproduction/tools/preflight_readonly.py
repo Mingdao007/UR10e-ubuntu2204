@@ -103,12 +103,21 @@ def _open(result: Any) -> bool:
 
 
 def dashboard_predicate(result: Any) -> dict[str, Any]:
-    text = json.dumps(result, sort_keys=True).lower() if isinstance(result, dict) else ""
+    result = result if isinstance(result, dict) else {}
+    def value(*keys: str) -> str:
+        raw = next((result[key] for key in keys if key in result), "")
+        text = str(raw).strip()
+        return text.split(":", 1)[-1].strip().upper()
+    robot_mode = value("robotmode", "robot_mode")
+    program_state = value("programState", "program_state")
+    safety_mode = value("safetymode", "safety_mode")
+    remote = result.get("remote_control") is True or value("is in remote control") == "TRUE"
+    program_token = program_state.split(maxsplit=1)[0] if program_state else ""
     checks = {
-        "remote_control": "true" in text and "remote" in text,
-        "safety_normal": "normal" in text,
-        "robot_mode": any(value in text for value in ("running", "idle", "power_on")),
-        "program_state": any(value in text for value in ("stopped", "playing", "paused", "running")),
+        "remote_control": remote,
+        "safety_normal": safety_mode == "NORMAL",
+        "robot_mode": robot_mode in {"RUNNING", "IDLE", "POWER_ON"},
+        "program_state": program_token in {"STOPPED", "PLAYING", "PAUSED", "RUNNING"},
     }
     return {"ok": all(checks.values()), "checks": checks}
 

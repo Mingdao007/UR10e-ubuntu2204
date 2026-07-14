@@ -906,11 +906,11 @@ def write_bridge_run_manifest(
         capture = (current.get("bridge_trigger") or {}).get(
             "no_contact_p0_v8_capture"
         ) or {}
-        policy_path = EXPERIMENT_ROOT / "config" / "step5d_review_policy_v2.json"
+        policy_path = EXPERIMENT_ROOT / "config" / "step5d_review_policy_v3.json"
         manifest["p0_v8_canary"] = {
             "phase_s": float(getattr(args, "step5d_stop_register_canary_s", 0.0)),
             "composite_fingerprint": candidate.get("composite_fingerprint"),
-            "review_manifest": (candidate.get("review_v2") or {}).get("manifest"),
+            "review_manifest": (candidate.get("review_v3") or {}).get("manifest"),
             "package_sha256": capture.get("sha256"),
             "review_policy_sha256": file_sha256(policy_path),
             "prior_canaries": candidate.get("completed_canaries") or [],
