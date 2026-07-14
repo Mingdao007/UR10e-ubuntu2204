@@ -87,9 +87,10 @@ class CrossStepParameterTableTest(unittest.TestCase):
         self.assertEqual(current["current_stage_id"], "step5d_strict_rnn_ablation_v32")
         self.assertTrue(row["package_delivery"]["controller_readback_verified"])
         self.assertTrue(current["v32_candidate"]["package"]["controller_readback_verified"])
-        self.assertEqual(current["liveprep_status"]["state"], "blocked")
+        self.assertEqual(current["liveprep_status"]["state"], "live_authorized")
+        self.assertTrue(current["bridge_trigger"]["live_motion_authorized"])
+        self.assertTrue(current["v32_candidate"]["live_authorized"])
         self.assertTrue(row["blocked"])
-        self.assertEqual(row["blocked"], current["liveprep_status"]["state"] == "blocked")
         self.assertEqual(current["live_run_status"]["state"], "not_started")
         self.assertEqual(current["reproduction_status"]["state"], "incomplete")
 
@@ -427,15 +428,15 @@ class CrossStepParameterTableTest(unittest.TestCase):
         self.assertEqual(raw["solver"]["samples"], 10_000)
         self.assertGreater(raw["solver"]["compute_deadline_miss_count"], 0)
 
-    def test_current_v32_blocked_state_does_not_claim_legacy_readiness(self) -> None:
+    def test_current_v32_live_authorization_binds_exact_readiness(self) -> None:
         current = validator.load_json(ROOT / "config" / "current_stage.json")
         liveprep = current["liveprep_status"]
 
         self.assertEqual(current["current_stage_id"], "step5d_strict_rnn_ablation_v32")
-        self.assertEqual(liveprep["state"], "blocked")
-        self.assertIsNone(liveprep["readiness_artifact"])
-        self.assertNotIn("readiness_sha256", liveprep)
-        self.assertIn("explicit_v32_live_authorization_not_granted", liveprep["blockers"])
+        self.assertEqual(liveprep["state"], "live_authorized")
+        self.assertEqual(liveprep["readiness_artifact"], "config/step5d_v32_liveprep_readiness.json")
+        self.assertEqual(len(liveprep["readiness_sha256"]), 64)
+        self.assertEqual(liveprep["blockers"], [])
 
     def test_live_startup_gates_are_not_cacheable(self) -> None:
         table = validator.load_json(ROOT / "config" / "step5_stage_table.json")

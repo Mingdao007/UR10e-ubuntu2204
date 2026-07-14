@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "updated_at": "2026-07-14T21:55:26+08:00",
+  "updated_at": "2026-07-14T22:55:56+08:00",
   "current_step": "Step5d",
   "current_stage_id": "step5d_strict_rnn_ablation_v32",
   "program": "step5d_strict_rnn_ablation_v32",
@@ -1069,9 +1069,12 @@
       "LIVE STEP5D STRICT RNN LIVEPREP"
     ],
     "bridge_has_started": false,
-    "live_motion_authorized": false,
+    "live_motion_authorized": true,
     "zero_ftsensor_authorized": false,
-    "blocked_reason": "v32 is delivered and current, but a separate explicit bridge/live authorization has not been granted",
+    "blocked_reason": null,
+    "authorized_at": "2026-07-14T22:55:56+08:00",
+    "authorization_source": "user_command_open_bridge",
+    "authorization_scope": "step5d_strict_rnn_ablation_v32_current_frozen_composite",
     "no_contact_p0_capture": {
       "profile": "step5d_strict_rnn_no_contact_p0_v7",
       "entrypoint": "scripts/step5d-strict-rnn-p0.sh capture-bridge",
@@ -1488,11 +1491,10 @@
     }
   },
   "liveprep_status": {
-    "state": "blocked",
-    "readiness_artifact": null,
-    "blockers": [
-      "explicit_v32_live_authorization_not_granted"
-    ]
+    "state": "live_authorized",
+    "readiness_artifact": "config/step5d_v32_liveprep_readiness.json",
+    "readiness_sha256": "597373cc9c6bd8f1a60b1d58cf1d7cfcc9ed52bbb125d4579fa9195d7b6e63de",
+    "blockers": []
   },
   "live_run_status": {
     "state": "not_started",
@@ -1605,7 +1607,7 @@
   },
   "v32_candidate": {
     "profile": "step5d_strict_rnn_ablation_v32",
-    "state": "controller_readback_verified_user_review_waived_waiting_for_explicit_live_authorization",
+    "state": "live_authorized_waiting_for_bridge_start",
     "current": true,
     "guard_policy": "permissive_until_user_requests_tightening",
     "wire_protocol": {
@@ -1677,10 +1679,8 @@
       "manifest": "config/reviews/step5d_v32_user_review_waiver.json",
       "manifest_sha256": "5c64a5a9384bed41554648a325e882485861a3feaa5fafa28bb8c18cc464bf69"
     },
-    "live_authorized": false,
-    "blockers": [
-      "explicit_v32_live_authorization_not_granted"
-    ],
+    "live_authorized": true,
+    "blockers": [],
     "claim_boundary": {
       "package_accepted": true,
       "model_review_performed": false,
