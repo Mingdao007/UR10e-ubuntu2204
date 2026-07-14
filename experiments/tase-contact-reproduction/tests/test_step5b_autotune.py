@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import signal
 import subprocess
@@ -243,6 +244,75 @@ class Step5bAutotuneSanityTest(unittest.TestCase):
 
 
 class Step5bAutotuneSupervisorTest(unittest.TestCase):
+    def _write_delivery_fixture(self, root: Path) -> tuple[Path, Path]:
+        local_dir = root / "programs" / "step5" / "autotune"
+        fetched_dir = root / "runs" / "controller_readback" / "fetched"
+        config_dir = root / "config"
+        local_dir.mkdir(parents=True)
+        fetched_dir.mkdir(parents=True)
+        config_dir.mkdir()
+        artifacts = []
+        for suffix in (".script", ".txt", ".urp"):
+            name = f"{PROGRAM_BASENAME}{suffix}"
+            payload = f"fixture-{suffix}".encode()
+            local_path = local_dir / name
+            readback_path = fetched_dir / name
+            local_path.write_bytes(payload)
+            readback_path.write_bytes(payload)
+            artifacts.append(
+                {
+                    "local_path": str(local_path.relative_to(root)),
+                    "readback_path": str(readback_path.relative_to(root)),
+                    "sha256": hashlib.sha256(payload).hexdigest(),
+                }
+            )
+        validation_path = fetched_dir.parent / "urp_validation.json"
+        validation_path.write_text(
+            json.dumps(
+                {
+                    "pass": True,
+                    "state": "controller read-back verified",
+                    "basename": PROGRAM_BASENAME,
+                }
+            ),
+            encoding="utf-8",
+        )
+        delivery_path = config_dir / "step5b_autotune_delivery_v2.json"
+        delivery_path.write_text(
+            json.dumps(
+                {
+                    "controller_readback_verified": True,
+                    "basename": PROGRAM_BASENAME,
+                    "artifacts": artifacts,
+                    "urp_validation_evidence": str(validation_path.relative_to(root)),
+                }
+            ),
+            encoding="utf-8",
+        )
+        return delivery_path, fetched_dir / f"{PROGRAM_BASENAME}.script"
+
+    def test_delivery_evidence_reopens_and_hashes_fresh_readback(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            delivery_path, _ = self._write_delivery_fixture(root)
+            with mock.patch.object(supervisor, "EXPERIMENT_ROOT", root), mock.patch.object(
+                supervisor, "DELIVERY_EVIDENCE", delivery_path
+            ):
+                ok, detail = supervisor.verify_delivery_evidence()
+        self.assertTrue(ok, detail)
+
+    def test_delivery_evidence_rejects_tampered_fresh_readback(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            delivery_path, fetched_script = self._write_delivery_fixture(root)
+            fetched_script.write_text("tampered", encoding="utf-8")
+            with mock.patch.object(supervisor, "EXPERIMENT_ROOT", root), mock.patch.object(
+                supervisor, "DELIVERY_EVIDENCE", delivery_path
+            ):
+                ok, detail = supervisor.verify_delivery_evidence()
+        self.assertFalse(ok)
+        self.assertIn("fresh read-back SHA mismatch", detail)
+
     def test_observer_failure_stops_bridge_before_capture_marker(self) -> None:
         candidate = Candidate(target_force_n=10.0)
         fake_process = mock.Mock()

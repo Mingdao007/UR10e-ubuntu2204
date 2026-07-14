@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import fcntl
+import hashlib
 import json
 import math
 import multiprocessing
@@ -215,20 +216,58 @@ def local_bridge_processes() -> list[str]:
 def verify_delivery_evidence() -> tuple[bool, str]:
     if not DELIVERY_EVIDENCE.is_file():
         return False, f"missing {DELIVERY_EVIDENCE}"
-    evidence = json.loads(DELIVERY_EVIDENCE.read_text(encoding="utf-8"))
+    try:
+        evidence = json.loads(DELIVERY_EVIDENCE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return False, f"delivery evidence unreadable: {type(exc).__name__}"
     if not evidence.get("controller_readback_verified"):
         return False, "controller read-back is not verified"
     if evidence.get("basename") != PROGRAM_BASENAME:
         return False, "delivery evidence basename mismatch"
-    for artifact in evidence.get("artifacts", []):
-        path = EXPERIMENT_ROOT / artifact["local_path"]
-        if not path.is_file():
-            return False, f"local package artifact missing: {path}"
-        import hashlib
+    artifacts = evidence.get("artifacts")
+    if not isinstance(artifacts, list) or len(artifacts) != 3:
+        return False, "delivery evidence must bind exactly three artifacts"
 
-        digest = hashlib.sha256(path.read_bytes()).hexdigest()
-        if digest != artifact.get("sha256"):
-            return False, f"local package SHA mismatch: {path.name}"
+    expected_names = {f"{PROGRAM_BASENAME}{suffix}" for suffix in (".script", ".txt", ".urp")}
+    observed_names: set[str] = set()
+    root = EXPERIMENT_ROOT.resolve()
+    for artifact in artifacts:
+        if not isinstance(artifact, dict):
+            return False, "delivery artifact entry is not an object"
+        expected_sha = artifact.get("sha256")
+        if not isinstance(expected_sha, str) or len(expected_sha) != 64:
+            return False, "delivery artifact SHA256 is invalid"
+        for label, key in (("local package", "local_path"), ("fresh read-back", "readback_path")):
+            raw_path = artifact.get(key)
+            if not isinstance(raw_path, str) or not raw_path:
+                return False, f"{label} path missing from delivery evidence"
+            path = (EXPERIMENT_ROOT / raw_path).resolve()
+            if path.parent == root or root not in path.parents:
+                return False, f"{label} path escapes experiment root: {raw_path}"
+            if not path.is_file() or path.is_symlink():
+                return False, f"{label} artifact missing or unsafe: {path}"
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            if digest != expected_sha:
+                return False, f"{label} SHA mismatch: {path.name}"
+        observed_names.add(Path(artifact["local_path"]).name)
+
+    if observed_names != expected_names:
+        return False, "delivery evidence triplet basename mismatch"
+
+    validation_path_raw = evidence.get("urp_validation_evidence")
+    if not isinstance(validation_path_raw, str) or not validation_path_raw:
+        return False, "URP read-back validation evidence is missing"
+    validation_path = (EXPERIMENT_ROOT / validation_path_raw).resolve()
+    if root not in validation_path.parents or not validation_path.is_file() or validation_path.is_symlink():
+        return False, "URP read-back validation evidence is missing or unsafe"
+    try:
+        validation = json.loads(validation_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return False, f"URP read-back validation unreadable: {type(exc).__name__}"
+    if not validation.get("pass") or validation.get("state") != "controller read-back verified":
+        return False, "URP read-back validation did not pass"
+    if validation.get("basename") != PROGRAM_BASENAME:
+        return False, "URP read-back validation basename mismatch"
     return True, "controller read-back verified"
 
 
