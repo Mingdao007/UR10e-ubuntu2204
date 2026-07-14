@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import signal
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -26,7 +28,12 @@ from step5b_autotune_contract import (  # noqa: E402
 )
 from step5b_autotune_evaluator import evaluate_run  # noqa: E402
 from step5b_autotune_numeric_sanity import run_sanity  # noqa: E402
-from step5b_autotune_optimizer import Observation, choose_candidate, tier2_is_unlocked  # noqa: E402
+from step5b_autotune_optimizer import (  # noqa: E402
+    Observation,
+    choose_candidate,
+    read_observations,
+    tier2_is_unlocked,
+)
 import step5b_autotune_supervisor as supervisor  # noqa: E402
 
 
@@ -62,7 +69,7 @@ class Step5bAutotuneContractTest(unittest.TestCase):
 
 class Step5bAutotunePackageTest(unittest.TestCase):
     def test_package_is_v2_loop_with_home_and_integer_gates(self) -> None:
-        stamp = "2026-07-14T1800HKT_STEP5B_CONTACT_CYCLOID_BAYES_LOOP_V1"
+        stamp = "2026-07-14T1800HKT_STEP5B_CONTACT_CYCLOID_BAYES_LOOP_V2"
         script = build_script(stamp, "2026-07-14T18:00:00+08:00")
         txt = build_txt(stamp)
         urp = build_urp(script, PROGRAM_BASENAME, CONTROLLER_DIRECTORY)
@@ -71,7 +78,9 @@ class Step5bAutotunePackageTest(unittest.TestCase):
         self.assertIn("write_output_float_register(35, 25.2)", script)
         self.assertIn("read_input_integer_register(24)", script)
         self.assertIn("position_error_m <= 0.003", script)
-        self.assertEqual(script.count("\ncodex_step5b_contact_cycloid_bayes_loop_v1()\n"), 1)
+        self.assertIn("write_output_integer_register(28, candidate_token)", script)
+        self.assertIn("release_token == active_token", script)
+        self.assertEqual(script.count("\ncodex_step5b_contact_cycloid_bayes_loop_v2()\n"), 1)
 
 
 class Step5bAutotuneEvaluatorTest(unittest.TestCase):
@@ -85,7 +94,8 @@ class Step5bAutotuneEvaluatorTest(unittest.TestCase):
                 "t_monotonic_s": times,
                 "ur_output_double_register_35": np.full(count, 25.0),
                 "step4e_progress_m": times,
-                "_step4e_live_normal_candidate_force_n": np.full(count, load_n),
+                "_step4e_normal_load_n": np.full(count, load_n),
+                "_step4e_live_normal_candidate_force_n": np.full(count, -999.0),
                 "normal_force_n": np.full(count, -load_n),
                 "force_norm_n": np.full(count, load_n),
                 "mx_nm_zeroed": np.zeros(count),
@@ -138,6 +148,21 @@ class Step5bAutotuneEvaluatorTest(unittest.TestCase):
         self.assertIsNone(result["objective"])
         self.assertIn("missing_or_zero_contact_load", result["failures"])
 
+    def test_raw_normal_guard_and_nonfinite_values_are_infeasible(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            run_dir = self._make_run(Path(temporary), load_n=50.0)
+            guarded = evaluate_run(run_dir)
+        self.assertIn("raw_normal_guard_reached", guarded["failures"])
+        with tempfile.TemporaryDirectory() as temporary:
+            run_dir = self._make_run(Path(temporary))
+            csv_path = next(run_dir.glob("bridge_rtde_*hz.csv"))
+            df = pd.read_csv(csv_path)
+            df.loc[3, "step4e_cmd_vx_m_s"] = np.nan
+            df.to_csv(csv_path, index=False)
+            nonfinite = evaluate_run(run_dir)
+        self.assertIn("nonfinite_required_data", nonfinite["failures"])
+        self.assertFalse(nonfinite["feasible"])
+
 
 class Step5bAutotuneOptimizerTest(unittest.TestCase):
     def test_initial_selection_is_bounded_and_round_robin(self) -> None:
@@ -160,6 +185,22 @@ class Step5bAutotuneOptimizerTest(unittest.TestCase):
         ]
         self.assertFalse(tier2_is_unlocked(observations))
 
+    def test_corrupt_jsonl_is_fatal_and_tier2_relock_resets_i_gain(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "observations.jsonl"
+            path.write_text("{broken\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "corrupt observation JSONL"):
+                read_observations(path)
+        observations = [Observation(Candidate(10.0, force_i_gain=0.00002), True, 0.1, True, "latest")]
+        observations.extend(
+            Observation(Candidate(target), True, 0.2 + index, True, f"{target}-{index}")
+            for target in (12.0, 15.0)
+            for index in range(2)
+        )
+        selected, details = choose_candidate(observations, require_botorch=False)
+        self.assertEqual(details["target_context_n"], 10.0)
+        self.assertEqual(selected.force_i_gain, 0.00001)
+
     def test_bayesian_selection_runs_on_cuda(self) -> None:
         try:
             import torch
@@ -167,6 +208,10 @@ class Step5bAutotuneOptimizerTest(unittest.TestCase):
             self.skipTest("torch not installed")
         if not torch.cuda.is_available():
             self.skipTest("CUDA not available")
+        initial_candidate, initial_details = choose_candidate([], require_botorch=True)
+        self.assertEqual(initial_candidate.target_force_n, 10.0)
+        self.assertEqual(initial_details["device"], "cuda:0")
+        self.assertTrue(initial_details["gpu_name"])
         visits = {10.0: 2, 12.0: 3, 15.0: 3}
         observations = [
             Observation(
@@ -186,6 +231,8 @@ class Step5bAutotuneOptimizerTest(unittest.TestCase):
         candidate, details = choose_candidate(observations, require_botorch=True)
         self.assertEqual(candidate.target_force_n, 10.0)
         self.assertEqual(details["device"], "cuda:0")
+        self.assertEqual(details["gpu_workers"], 2)
+        self.assertTrue(details["gpu_name"])
         self.assertIn("botorch", details["selection"])
 
 
@@ -205,6 +252,8 @@ class Step5bAutotuneSupervisorTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
             supervisor, "tp_observer", return_value=observer_context
         ), mock.patch.object(
+            supervisor, "write_handshake"
+        ), mock.patch.object(
             supervisor.subprocess, "Popen", return_value=fake_process
         ), mock.patch.object(
             supervisor, "wait_for_bridge_output", side_effect=RuntimeError("observer broke")
@@ -214,9 +263,114 @@ class Step5bAutotuneSupervisorTest(unittest.TestCase):
             outcome = supervisor.run_one_trial(
                 Path(temporary), 123, 1, candidate, Path(temporary) / "STOP_REQUESTED"
             )
-            self.assertTrue((outcome["run_dir"] / "capture_complete.json").is_file())
+            self.assertTrue((outcome["run_dir"] / "capture_incomplete.json").is_file())
+            self.assertFalse(outcome["capture_complete"])
         stop_child.assert_called_once_with(fake_process, home_observed=False)
         self.assertIn("observer failure", outcome["runtime"]["fatal_detail"])
+
+    def test_stale_home_is_rejected_until_exact_token_run(self) -> None:
+        base = {
+            "output_int_register_24": 7,
+            "output_int_register_25": 3,
+            "output_int_register_27": 1,
+            "output_int_register_28": 99,
+        }
+        stale_home = {**base, "output_int_register_26": 50, "output_int_register_28": 98}
+        saw_run, home, ack, _, _ = supervisor.handshake_progress(
+            stale_home, session_epoch=7, trial_id=3, token=99, saw_run=False, home_release_sent=False
+        )
+        self.assertFalse(saw_run or home or ack)
+        fresh_run = {**base, "output_int_register_26": 20}
+        saw_run, home, _, _, _ = supervisor.handshake_progress(
+            fresh_run, session_epoch=7, trial_id=3, token=99, saw_run=False, home_release_sent=False
+        )
+        self.assertTrue(saw_run)
+        fresh_home = {**base, "output_int_register_26": 50}
+        _, home, _, _, _ = supervisor.handshake_progress(
+            fresh_home, session_epoch=7, trial_id=3, token=99, saw_run=saw_run, home_release_sent=False
+        )
+        self.assertTrue(home)
+        wait_ack = {**base, "output_int_register_26": 10}
+        _, _, ack, _, _ = supervisor.handshake_progress(
+            wait_ack, session_epoch=7, trial_id=3, token=99, saw_run=True, home_release_sent=True
+        )
+        self.assertTrue(ack)
+
+    def test_bridge_cleanup_escalates_process_group_and_metadata_is_exact(self) -> None:
+        fake_process = mock.Mock(pid=4242)
+        fake_process.poll.return_value = None
+        fake_process.wait.side_effect = [
+            subprocess.TimeoutExpired("bridge", 20.0),
+            subprocess.TimeoutExpired("bridge", 5.0),
+            -9,
+        ]
+        with mock.patch.object(
+            supervisor, "process_group_exists", side_effect=[True, True, True, False]
+        ), mock.patch.object(supervisor.os, "killpg") as killpg:
+            self.assertEqual(supervisor.stop_bridge_child(fake_process, home_observed=False), -9)
+        self.assertEqual(
+            [call.args[1] for call in killpg.call_args_list],
+            [signal.SIGINT, signal.SIGTERM, signal.SIGKILL],
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            run_dir = Path(temporary)
+            (run_dir / "metadata.json").write_text(
+                json.dumps({"args": {"step4e_version": "wrong", "output_dir": str(run_dir)}}),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(RuntimeError, "profile mismatch"):
+                supervisor.verify_bridge_metadata(run_dir, Candidate(10.0))
+
+    def test_surviving_descendant_blocks_capture_and_history_is_globally_sorted(self) -> None:
+        fake_process = mock.Mock(pid=4242)
+        fake_process.poll.return_value = 0
+        with mock.patch.object(supervisor, "process_group_exists", return_value=True), self.assertRaisesRegex(
+            RuntimeError, "descendant survived"
+        ):
+            supervisor.stop_bridge_child(fake_process, home_observed=True)
+        with tempfile.TemporaryDirectory() as temporary:
+            root_a = Path(temporary) / "a"
+            root_b = Path(temporary) / "b"
+            root_a.mkdir()
+            root_b.mkdir()
+            newer = root_a / "bridge_step5b_contact_cycloid_baseline_v2_20260702_120000"
+            older = root_b / "bridge_step5b_contact_cycloid_baseline_v2_20260630_120000"
+            newer.mkdir()
+            older.mkdir()
+            with mock.patch.object(supervisor, "historical_run_roots", return_value=[root_a, root_b]):
+                ordered = supervisor.historical_run_dirs()
+        self.assertEqual([path.name for path in ordered], [older.name, newer.name])
+
+    def test_authorization_ledger_is_a_hard_preflight_gate(self) -> None:
+        with mock.patch.object(supervisor, "verify_delivery_evidence", return_value=(True, "ok")), mock.patch.object(
+            supervisor, "dependency_status", return_value=(True, "ok")
+        ), mock.patch.object(
+            supervisor, "gpu_capacity_status", return_value={"ok": True}
+        ), mock.patch.object(
+            supervisor, "lock_available", return_value=(True, "available")
+        ), mock.patch.object(
+            supervisor, "local_bridge_processes", return_value=[]
+        ):
+            result = supervisor.preflight(offline=True)
+        self.assertFalse(result["ok"])
+        self.assertFalse(result["authorization"]["ok"])
+        self.assertIn("live_authorized", result["authorization"]["required_true"])
+
+    def test_diagnostic_spawn_failure_closes_log(self) -> None:
+        handle = mock.Mock()
+        with mock.patch.object(Path, "open", return_value=handle), mock.patch.object(
+            supervisor.subprocess, "Popen", side_effect=OSError("spawn failed")
+        ), self.assertRaisesRegex(OSError, "spawn failed"):
+            supervisor.start_diagnostic(Path("/tmp/not-used"))
+        handle.close.assert_called_once_with()
+
+    def test_session_lock_is_nonblocking(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "session.lock"
+            with supervisor.exclusive_lock(path):
+                ok, detail = supervisor.lock_available(path)
+            self.assertFalse(ok)
+            self.assertIn("lock busy", detail)
 
 
 if __name__ == "__main__":

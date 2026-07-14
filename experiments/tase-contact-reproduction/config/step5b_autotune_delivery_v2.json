@@ -1,0 +1,14 @@
+{
+  "schema_version": "step5b_autotune_delivery_v2",
+  "status": "local_package_only_controller_delivery_not_authorized",
+  "controller_readback_verified": false,
+  "basename": "step5b_contact_cycloid_bayes_loop_v2",
+  "controller_directory": "/programs/andyl/kunwei/step5/autotune",
+  "source_stamp": "2026-07-14T1900HKT_STEP5B_CONTACT_CYCLOID_BAYES_LOOP_V2",
+  "artifacts": [
+    {"local_path": "programs/step5/autotune/step5b_contact_cycloid_bayes_loop_v2.script", "sha256": "0ac1d58f602adc21074ea10b2ca52522e12ac40ded2d17f905525f60b670481a"},
+    {"local_path": "programs/step5/autotune/step5b_contact_cycloid_bayes_loop_v2.txt", "sha256": "46acc34da89c3c86ed9191b3fcbe50f38f02c4df04f32dd48dbe72f6a988b3dd"},
+    {"local_path": "programs/step5/autotune/step5b_contact_cycloid_bayes_loop_v2.urp", "sha256": "2a75774853506bbc8ec85e4a28a939daf197d9e589908b518046d22601035ad3"}
+  ],
+  "note": "This implementation round intentionally performs no controller write, readback, program load, bridge start, TP Play, or motion."
+}

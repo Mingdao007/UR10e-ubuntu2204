@@ -11,7 +11,14 @@ from pathlib import Path
 import numpy as np
 
 from step5_table import step5_path_reference
-from step5b_autotune_contract import EXPERIMENT_ROOT, TARGET_CONTEXTS_N, Candidate, bridge_command, one_step_neighbors
+from step5b_autotune_contract import (
+    CONTROLLER_PROGRAM,
+    EXPERIMENT_ROOT,
+    TARGET_CONTEXTS_N,
+    Candidate,
+    bridge_command,
+    one_step_neighbors,
+)
 
 
 DEFAULT_OUTPUT = EXPERIMENT_ROOT / "config" / "step5b_autotune_numeric_sanity.json"
@@ -41,7 +48,7 @@ def run_sanity() -> dict:
         "tier1_trust_region_is_local": len(neighbors) == 5,
     }
     return {
-        "schema_version": "step5b_autotune_numeric_sanity_v1",
+        "schema_version": "step5b_autotune_numeric_sanity_v2",
         "pass": all(checks.values()),
         "checks": checks,
         "metrics": {
@@ -51,7 +58,7 @@ def run_sanity() -> dict:
             "duration_s": float(times[-1]),
             "tier1_neighbors_including_incumbent": len(neighbors),
         },
-        "controller_target": "/programs/andyl/kunwei/step5/autotune/step5b_contact_cycloid_bayes_loop_v1.urp",
+        "controller_target": CONTROLLER_PROGRAM,
         "guards": {"raw_normal_n": 50.0, "force_norm_n": 60.0, "torque_norm_nm": 3.0},
         "attitude_guard": {"angular_command_cap_rad_s": 0.15, "home_orientation_tolerance_rad": 0.05},
     }

@@ -1,0 +1,63 @@
+{
+  "schema_version": "step5b_autotune_loop_v2",
+  "stage_id": "step5b_contact_cycloid_bayes_loop_v2",
+  "route_id": "tp_local_autotune_bridge",
+  "status": "implemented_offline_blocked_for_live",
+  "authorization_ledger": "config/step5b_tp_autotune_authorization_v2.json",
+  "isolation": {
+    "current_stage_unchanged": true,
+    "ros2_step5b_baseline_unchanged": true,
+    "p0v9_and_step5d_v30_worktrees_untouched": true
+  },
+  "package": {
+    "basename": "step5b_contact_cycloid_bayes_loop_v2",
+    "controller_directory": "/programs/andyl/kunwei/step5/autotune",
+    "delivery": "config/step5b_autotune_delivery_v2.json",
+    "controller_readback_required_before_live": true
+  },
+  "rtde_integer_register_contract": {
+    "inputs": {"24": "session_epoch", "25": "strictly_increasing_trial_id", "26": "HOLD=0 ARM=1 STOP=2 ABORT_RETURN=3", "27": "candidate_token_low31"},
+    "outputs": {"24": "ack_session_epoch", "25": "ack_trial_id", "26": "tp_state", "27": "terminal_reason", "28": "ack_candidate_token_low31"},
+    "fresh_trial_gate": "exact epoch and token; fresh RUN must precede HOME; HOME remains asserted until exact-token HOLD acknowledgement"
+  },
+  "session": {
+    "epoch": "cryptographically_random_positive_31_bit",
+    "directory": "microsecond_timestamp_plus_epoch",
+    "session_lock": "$XDG_RUNTIME_DIR/ur10e/step5b_autotune_session.lock",
+    "live_writer_lock": "$XDG_RUNTIME_DIR/ur10e/live_writer.lock",
+    "lock_mode": "fcntl_nonblocking"
+  },
+  "bridge": {
+    "profile": "step5b_v2",
+    "process_group": true,
+    "shutdown": "SIGINT_then_SIGTERM_then_SIGKILL_then_wait",
+    "capture_complete_requires": ["process_group_reaped", "fresh_exact_token_RUN", "verified_HOME", "exact_token_HOLD_ack", "no_fatal_detail"],
+    "metadata_match_before_arm": ["candidate", "profile", "output_dir"]
+  },
+  "optimizer": {
+    "objective_model": "SingleTaskGP_on_feasible_full_trials_only",
+    "feasibility_model": "Bernoulli_SingleTaskVariationalGP_on_all_eligible_trials",
+    "acquisition": "qLogNoisyExpectedImprovement_q1",
+    "device_policy": "cuda_required_for_every_live_selection_no_cpu_fallback",
+    "gpu_parallelism": "feasibility_and_objective_fit_on_two_cuda_stream_workers_when_both_models_apply",
+    "feasibility_probability_min": 0.95,
+    "no_safe_candidate": "known_feasible_context_incumbent",
+    "max_gpu_workers": 3,
+    "vram_limit_pct": 85,
+    "blas_threads_per_worker": 1,
+    "history_policy": "chronological_all_eligible_including_infeasible_corruption_is_fatal",
+    "tier2_relock": "force_i_gain_returns_to_1e-5_incumbent"
+  },
+  "evaluation": {
+    "signed_load_column": "_step4e_normal_load_n",
+    "raw_normal_guard_n": 50.0,
+    "force_norm_guard_n": 60.0,
+    "torque_norm_guard_nm": 3.0,
+    "nonfinite_required_fields": "infeasible"
+  },
+  "concurrency": {
+    "cpu_workers": "physical_cores_capped_at_16",
+    "postprocess": "evaluator_and_diagnostic_parallel_after_closed_capture_only",
+    "join_before_next_live_writer": true
+  }
+}

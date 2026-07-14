@@ -54,13 +54,13 @@ def read_observations(path: Path) -> list[Observation]:
     if not path.is_file():
         return []
     result: list[Observation] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         if not line.strip():
             continue
         try:
             result.append(Observation.from_payload(json.loads(line)))
-        except (KeyError, TypeError, ValueError):
-            continue
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+            raise ValueError(f"corrupt observation JSONL at {path}:{line_number}: {exc}") from exc
     return result
 
 
@@ -88,9 +88,11 @@ def tier2_is_unlocked(observations: list[Observation]) -> bool:
         if len(feasible) < 5:
             return False
         inc = incumbent(observations, target)
-        repeats = sorted(
-            [float(obs.objective) for obs in feasible if obs.candidate == inc and obs.objective is not None]
-        )
+        repeats = [
+            float(obs.objective)
+            for obs in feasible
+            if obs.candidate == inc and obs.objective is not None
+        ]
         if len(repeats) < 2:
             return False
         denominator = max(1e-9, min(repeats[-2:]))
@@ -123,13 +125,16 @@ def _botorch_candidate(
     incumbent_candidate: Candidate,
     feasibility_probability_min: float,
 ) -> tuple[Candidate, dict[str, Any]]:
+    import concurrent.futures
     import torch
     from botorch.acquisition.logei import qLogNoisyExpectedImprovement
     from botorch.fit import fit_gpytorch_mll
     from botorch.models import SingleTaskGP
+    from botorch.models.approximate_gp import SingleTaskVariationalGP
     from botorch.models.transforms import Normalize, Standardize
     from botorch.sampling.normal import SobolQMCNormalSampler
-    from gpytorch.mlls import ExactMarginalLogLikelihood
+    from gpytorch.likelihoods import BernoulliLikelihood
+    from gpytorch.mlls import ExactMarginalLogLikelihood, VariationalELBO
 
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is required for live Step5b Bayesian optimization")
@@ -138,56 +143,84 @@ def _botorch_candidate(
     torch.set_default_dtype(torch.double)
     torch.set_num_threads(1)
     all_x = torch.tensor([normalized_candidate(obs.candidate) for obs in observations], device=device)
-    all_feas = torch.tensor([[1.0 if obs.feasible else 0.0] for obs in observations], device=device)
+    all_feas = torch.tensor([1.0 if obs.feasible else 0.0 for obs in observations], device=device)
     candidate_x = torch.tensor(
         [normalized_candidate(candidate) for candidate in candidates], device=device
     ).unsqueeze(1)
 
-    feasible_flags = [obs.feasible for obs in observations]
-    if all(feasible_flags):
-        # A constant all-safe label carries no classification information and
-        # Standardize cannot infer a useful output scale from it. Treat every
-        # bounded trust-region candidate as safe until contrary evidence arrives.
-        safe_probability = torch.ones(len(candidates), device=device)
-    elif not any(feasible_flags):
-        return incumbent_candidate, {
-            "backend": "botorch_no_feasible_evidence_repeat_incumbent",
-            "device": str(device),
-            "gpu_name": torch.cuda.get_device_name(device),
-            "safe_candidate_count": 0,
-            "max_feasibility_probability": 0.0,
-        }
-    else:
-        feasibility_model = SingleTaskGP(
+    def fit_feasibility() -> tuple[Any, Any]:
+        likelihood = BernoulliLikelihood().to(device=device, dtype=torch.double)
+        model = SingleTaskVariationalGP(
             all_x,
-            all_feas,
-            train_Yvar=torch.full_like(all_feas, 0.02),
+            likelihood=likelihood,
+        ).to(device=device, dtype=torch.double)
+        model.train()
+        likelihood.train()
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.05)
+        mll = VariationalELBO(likelihood, model.model, num_data=all_feas.numel())
+        stream = torch.cuda.Stream(device=device)
+        with torch.cuda.stream(stream):
+            for _ in range(100):
+                optimizer.zero_grad(set_to_none=True)
+                loss = -mll(model(all_x), all_feas)
+                loss.backward()
+                optimizer.step()
+        stream.synchronize()
+        model.eval()
+        likelihood.eval()
+        return model, likelihood
+    feasible_observations = [
+        obs for obs in observations if obs.feasible and obs.objective is not None and obs.full_trial
+    ]
+    def fit_objective() -> Any:
+        train_x = torch.tensor(
+            [normalized_candidate(obs.candidate) for obs in feasible_observations], device=device
+        )
+        train_y = torch.tensor(
+            [[-float(obs.objective)] for obs in feasible_observations], device=device
+        )
+        model = SingleTaskGP(
+            train_x,
+            train_y,
+            train_Yvar=torch.full_like(train_y, 1e-5),
             input_transform=Normalize(d=5),
             outcome_transform=Standardize(m=1),
         )
-        fit_gpytorch_mll(ExactMarginalLogLikelihood(feasibility_model.likelihood, feasibility_model))
-        feasibility_posterior = feasibility_model.posterior(candidate_x.squeeze(1))
-        mean = feasibility_posterior.mean.squeeze(-1)
-        std = feasibility_posterior.variance.clamp_min(1e-12).sqrt().squeeze(-1)
-        normal = torch.distributions.Normal(0.0, 1.0)
-        safe_probability = normal.cdf((mean - 0.5) / std)
+        stream = torch.cuda.Stream(device=device)
+        with torch.cuda.stream(stream):
+            fit_gpytorch_mll(ExactMarginalLogLikelihood(model.likelihood, model))
+        stream.synchronize()
+        return model, train_x
+
+    objective_result: tuple[Any, Any] | None = None
+    if len(feasible_observations) >= 2:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            feasibility_future = pool.submit(fit_feasibility)
+            objective_future = pool.submit(fit_objective)
+            feasibility_model, feasibility_likelihood = feasibility_future.result()
+            objective_result = objective_future.result()
+    else:
+        feasibility_model, feasibility_likelihood = fit_feasibility()
+
+    with torch.no_grad():
+        safe_probability = feasibility_likelihood(
+            feasibility_model(candidate_x.squeeze(1))
+        ).mean
     safe_indices = [
         index for index, probability in enumerate(safe_probability.tolist())
         if probability >= feasibility_probability_min
     ]
     if not safe_indices:
         return incumbent_candidate, {
-            "backend": "botorch_no_safe_candidate_repeat_incumbent",
+            "backend": "botorch_bernoulli_no_safe_candidate_repeat_incumbent",
             "device": str(device),
             "gpu_name": torch.cuda.get_device_name(device),
+            "gpu_workers": 2 if objective_result is not None else 1,
             "safe_candidate_count": 0,
             "max_feasibility_probability": torch.max(safe_probability).detach().item(),
         }
 
-    feasible_observations = [
-        obs for obs in observations if obs.feasible and obs.objective is not None and obs.full_trial
-    ]
-    if len(feasible_observations) < 2:
+    if objective_result is None:
         best_index = max(
             safe_indices,
             key=lambda index: safe_probability[index].detach().item(),
@@ -196,25 +229,12 @@ def _botorch_candidate(
             "backend": "botorch_feasibility_only",
             "device": str(device),
             "gpu_name": torch.cuda.get_device_name(device),
+            "gpu_workers": 1,
             "safe_candidate_count": len(safe_indices),
             "selected_feasibility_probability": safe_probability[best_index].detach().item(),
         }
 
-    train_x = torch.tensor(
-        [normalized_candidate(obs.candidate) for obs in feasible_observations], device=device
-    )
-    # Maximize negative loss.
-    train_y = torch.tensor(
-        [[-float(obs.objective)] for obs in feasible_observations], device=device
-    )
-    objective_model = SingleTaskGP(
-        train_x,
-        train_y,
-        train_Yvar=torch.full_like(train_y, 1e-5),
-        input_transform=Normalize(d=5),
-        outcome_transform=Standardize(m=1),
-    )
-    fit_gpytorch_mll(ExactMarginalLogLikelihood(objective_model.likelihood, objective_model))
+    objective_model, train_x = objective_result
     acquisition = qLogNoisyExpectedImprovement(
         model=objective_model,
         X_baseline=train_x,
@@ -229,6 +249,7 @@ def _botorch_candidate(
         "backend": "botorch_qLogNoisyExpectedImprovement_q1_cuda",
         "device": str(device),
         "gpu_name": torch.cuda.get_device_name(device),
+        "gpu_workers": 2,
         "safe_candidate_count": len(safe_indices),
         "selected_acquisition": float(values[local_index]),
         "selected_feasibility_probability": safe_probability[selected_index].detach().item(),
@@ -240,10 +261,31 @@ def choose_candidate(
     *,
     require_botorch: bool = True,
 ) -> tuple[Candidate, dict[str, Any]]:
+    cuda_details: dict[str, Any] = {}
+    if require_botorch:
+        try:
+            import torch
+        except ImportError:
+            raise RuntimeError("PyTorch is required for live Step5b Bayesian optimization") from None
+        if not torch.cuda.is_available():
+            raise RuntimeError("CUDA is required before any live Step5b candidate selection")
+        device = torch.device("cuda:0")
+        torch.cuda.set_device(device)
+        probe = torch.tensor([1.0, 2.0], device=device).square().sum()
+        torch.cuda.synchronize(device)
+        cuda_details = {
+            "device": str(device),
+            "gpu_name": torch.cuda.get_device_name(device),
+            "gpu_workers": 1,
+            "cuda_probe": float(probe.item()),
+        }
+
     target = next_context(observations)
     visits = context_observations(observations, target)
-    center = incumbent(observations, target)
     unlocked = tier2_is_unlocked(observations)
+    center = incumbent(observations, target)
+    if not unlocked and not math.isclose(center.force_i_gain, 0.00001, abs_tol=1e-12):
+        center = Candidate(**{**center.payload(), "force_i_gain": 0.00001})
 
     # Every fourth visit is a physical-noise replicate of the incumbent.
     if visits and (len(visits) + 1) % 4 == 0:
@@ -251,6 +293,7 @@ def choose_candidate(
             "selection": "scheduled_incumbent_replication",
             "target_context_n": target,
             "tier2_unlocked": unlocked,
+            **cuda_details,
         }
 
     candidates = one_step_neighbors(center, tier2_unlocked=unlocked)
@@ -261,6 +304,7 @@ def choose_candidate(
             "target_context_n": target,
             "tier2_unlocked": unlocked,
             "trust_region_candidates": len(candidates),
+            **cuda_details,
         }
 
     try:

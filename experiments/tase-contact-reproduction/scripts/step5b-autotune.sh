@@ -12,7 +12,7 @@ usage() {
 Usage:
   step5b-autotune.sh install
   step5b-autotune.sh preflight [--offline]
-  STEP5B_AUTOTUNE_CONFIRM='LIVE STEP5B AUTOTUNE SESSION' step5b-autotune.sh start
+  STEP5B_AUTOTUNE_CONFIRM='LIVE STEP5B TP AUTOTUNE V2 SESSION' step5b-autotune.sh start
   step5b-autotune.sh status
   step5b-autotune.sh stop
   step5b-autotune.sh resume
@@ -22,7 +22,8 @@ Usage:
 Live boundary:
   start is a TP Local contact-motion supervisor. It never loads a program and
   never presses TP Play. Open the controller-read-back-verified package and
-  press Play manually only after the live gate is accepted.
+  v2 is currently local-only and live-blocked. A fresh controller readback and
+  UR live/contact authorization are required before any manual TP Play.
 EOF
 }
 

@@ -21,16 +21,17 @@ LOCAL_PROGRAM_DIR = Path(__file__).resolve().parents[1] / "programs" / "step5" /
 
 
 def source_stamp(now: datetime) -> str:
-    return now.strftime("%Y-%m-%dT%H%MHKT_STEP5B_CONTACT_CYCLOID_BAYES_LOOP_V1")
+    return now.strftime("%Y-%m-%dT%H%MHKT_STEP5B_CONTACT_CYCLOID_BAYES_LOOP_V2")
 
 
 def loop_helpers() -> str:
     return r'''
-def codex_autotune_set_state(session_epoch, trial_id, state_code, terminal_reason):
+def codex_autotune_set_state(session_epoch, trial_id, state_code, terminal_reason, candidate_token):
   write_output_integer_register(24, session_epoch)
   write_output_integer_register(25, trial_id)
   write_output_integer_register(26, state_code)
   write_output_integer_register(27, terminal_reason)
+  write_output_integer_register(28, candidate_token)
 end
 
 def codex_autotune_home_verified(home_pose, home_q):
@@ -51,56 +52,74 @@ def codex_autotune_home_verified(home_pose, home_q):
   return position_error_m <= 0.003 and orientation_error_rad <= 0.050 and joint_error_rad <= 0.010
 end
 
-def codex_step5b_contact_cycloid_bayes_loop_v1():
+def codex_step5b_contact_cycloid_bayes_loop_v2():
   local home_pose = get_actual_tcp_pose()
   local home_q = get_actual_joint_positions()
   local last_trial_id = -1
   local session_epoch = 0
   local trial_id = -1
   local terminal_reason = 0
-  codex_autotune_set_state(0, -1, 0, 0)
+  local active_token = 0
+  codex_autotune_set_state(0, -1, 0, 0, 0)
   sync()
   while True:
     local requested_epoch = read_input_integer_register(24)
     local requested_trial = read_input_integer_register(25)
     local requested_command = read_input_integer_register(26)
     local candidate_token = read_input_integer_register(27)
-    codex_autotune_set_state(session_epoch, trial_id, 10, terminal_reason)
     if requested_command == 2:
       if codex_autotune_home_verified(home_pose, home_q):
-        codex_autotune_set_state(session_epoch, trial_id, 50, terminal_reason)
+        codex_autotune_set_state(session_epoch, trial_id, 50, terminal_reason, active_token)
       else:
-        codex_autotune_set_state(session_epoch, trial_id, 90, 91)
+        codex_autotune_set_state(session_epoch, trial_id, 90, 91, active_token)
       end
       return
-    elif requested_command == 1 and requested_epoch > 0 and requested_trial >= 0 and requested_trial != last_trial_id and candidate_token > 0:
+    elif requested_command == 1 and requested_epoch > 0 and requested_trial > last_trial_id and candidate_token > 0:
       session_epoch = requested_epoch
       trial_id = requested_trial
+      active_token = candidate_token
       terminal_reason = 0
-      codex_autotune_set_state(session_epoch, trial_id, 20, 0)
+      codex_autotune_set_state(session_epoch, trial_id, 20, 0, active_token)
       terminal_reason = codex_step5b_autotune_trial(home_pose)
       if terminal_reason == 3 or terminal_reason == 15:
-        codex_autotune_set_state(session_epoch, trial_id, 90, terminal_reason)
+        codex_autotune_set_state(session_epoch, trial_id, 90, terminal_reason, active_token)
         return
       elif codex_should_auto_home(terminal_reason):
         if codex_autotune_home_verified(home_pose, home_q):
+          codex_autotune_set_state(session_epoch, trial_id, 50, terminal_reason, active_token)
+          local supervisor_released_home = False
+          while not supervisor_released_home:
+            local release_epoch = read_input_integer_register(24)
+            local release_trial = read_input_integer_register(25)
+            local release_command = read_input_integer_register(26)
+            local release_token = read_input_integer_register(27)
+            if release_epoch == session_epoch and release_trial == trial_id and release_command == 0 and release_token == active_token:
+              supervisor_released_home = True
+            elif release_command == 2:
+              return
+            else:
+              codex_autotune_set_state(session_epoch, trial_id, 50, terminal_reason, active_token)
+              sync()
+            end
+          end
           last_trial_id = trial_id
-          codex_autotune_set_state(session_epoch, trial_id, 50, terminal_reason)
+          codex_autotune_set_state(session_epoch, trial_id, 10, terminal_reason, active_token)
         else:
-          codex_autotune_set_state(session_epoch, trial_id, 90, 91)
+          codex_autotune_set_state(session_epoch, trial_id, 90, 91, active_token)
           return
         end
       else:
-        codex_autotune_set_state(session_epoch, trial_id, 90, terminal_reason)
+        codex_autotune_set_state(session_epoch, trial_id, 90, terminal_reason, active_token)
         return
       end
     else:
+      codex_autotune_set_state(session_epoch, trial_id, 10, terminal_reason, active_token)
       sync()
     end
   end
 end
 
-codex_step5b_contact_cycloid_bayes_loop_v1()
+codex_step5b_contact_cycloid_bayes_loop_v2()
 '''
 
 
@@ -112,10 +131,10 @@ def build_script(stamp: str, gen_at: str) -> str:
         raise RuntimeError("Step5b v2 executable-spec call marker changed")
     base = base[: -len(call)]
     replacements = {
-        "# Step5b contact cycloid baseline v2.": "# Step5b contact cycloid Bayesian infinite loop v1.",
+        "# Step5b contact cycloid baseline v2.": "# Step5b contact cycloid Bayesian infinite loop v2.",
         "def codex_step5b_contact_cycloid_baseline_v2():": "def codex_step5b_autotune_trial(home_pose):",
         "  local home_pose = get_actual_tcp_pose()\n": "",
-        "start step5b_contact_cycloid_baseline_v2": "start step5b_contact_cycloid_bayes_loop_v1 trial",
+        "start step5b_contact_cycloid_baseline_v2": "start step5b_contact_cycloid_bayes_loop_v2 trial",
     }
     for old, new in replacements.items():
         if old not in base:
@@ -142,13 +161,13 @@ end
         raise RuntimeError("Step5b v2 transformed tail marker changed")
     new_tail = old_tail.replace(
         f"codex step4e version {stamp} stop reason:",
-        f"codex step4e version {stamp} step5b_contact_cycloid_bayes_loop_v1 trial stop reason:",
+        f"codex step4e version {stamp} step5b_contact_cycloid_bayes_loop_v2 trial stop reason:",
     ).replace("end\n", "  return stop_reason\nend\n", 1)
     base = base[: -len(old_tail)] + new_tail
     header_insert = (
         "# AUTOTUNE_FLOW: STEP5B_AUTOTUNE_FLOW.md\n"
-        "# AUTOTUNE_CONTRACT: config/step5b_autotune_loop_v1.json\n"
-        "# AUTOTUNE_HANDSHAKE: RTDE integer input/output registers 24..27.\n"
+        "# AUTOTUNE_CONTRACT: config/step5b_autotune_loop_v2.json\n"
+        "# AUTOTUNE_HANDSHAKE: RTDE integer inputs 24..27 and outputs 24..28.\n"
         "# HOME_GATE: TCP position <=0.003 m, orientation <=0.050 rad, joints <=0.010 rad.\n"
         "# SESSION_POLICY: wait at home; one bridge child per armed trial; fatal faults end the program.\n"
     )
@@ -158,7 +177,7 @@ end
 
 
 def build_txt(stamp: str) -> str:
-    return f"""Step5b TP Local Bayesian autotune loop v1
+    return f"""Step5b TP Local Bayesian autotune loop v2
 
 Open on Teach Pendant:
   {CONTROLLER_DIRECTORY}/{PROGRAM_BASENAME}.urp
@@ -179,7 +198,7 @@ Motion boundary:
 Companion:
   step5b-autotune.sh
   STEP5B_AUTOTUNE_FLOW.md
-  config/step5b_autotune_loop_v1.json
+  config/step5b_autotune_loop_v2.json
 """
 
 
@@ -191,13 +210,14 @@ def validate(script: str, txt: str, urp: bytes, stamp: str) -> None:
         "controller directory": f'directory="{CONTROLLER_DIRECTORY}"' in xml,
         "script path": f"{CONTROLLER_DIRECTORY}/{PROGRAM_BASENAME}.script" in xml,
         "v2 flow": "local skip_lift_attitude = 0" in script and "write_output_float_register(35, 25.2)" in script,
-        "int handshake": "read_input_integer_register(24)" in script and "write_output_integer_register(27" in script,
+        "token-bound handshake": "read_input_integer_register(24)" in script and "write_output_integer_register(28, candidate_token)" in script,
+        "home hold release": "release_command == 0 and release_token == active_token" in script,
         "home gate": "position_error_m <= 0.003" in script and "joint_error_rad <= 0.010" in script,
         "infinite wait": "while True:" in script,
         "fatal fault": "codex_autotune_set_state(session_epoch, trial_id, 90" in script,
         "force guards": "codex_abs(normal_force) > 50.0" in script and "force_norm > 60.0" in script and "torque_norm > 3.0" in script,
         "no hardware zero": "zero_ftsensor" not in script and "tare" not in script.lower(),
-        "single invocation": script.count("\ncodex_step5b_contact_cycloid_bayes_loop_v1()\n") == 1,
+        "single invocation": script.count("\ncodex_step5b_contact_cycloid_bayes_loop_v2()\n") == 1,
     }
     failed = [name for name, passed in required.items() if not passed]
     if failed:

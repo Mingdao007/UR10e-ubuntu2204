@@ -55,16 +55,9 @@ def active_stage25(df: pd.DataFrame) -> pd.DataFrame:
     return df[(stage - 25.0).abs() < 0.05].copy()
 
 
-def positive_normal_load(active: pd.DataFrame) -> pd.Series:
-    for column in (
-        "_step4e_live_normal_candidate_force_n",
-        "_step5d_force_settle_filtered_normal_load_n",
-    ):
-        values = numeric(active, column)
-        if values.notna().any():
-            return values
-    raw = numeric(active, "normal_force_n")
-    return raw.abs()
+def signed_normal_load(active: pd.DataFrame) -> pd.Series:
+    """Return the force-frame-contract load without magnitude/sign substitution."""
+    return numeric(active, "_step4e_normal_load_n")
 
 
 def elapsed_s(active: pd.DataFrame) -> float:
@@ -147,7 +140,7 @@ def evaluate_run(run_dir: Path, *, allow_history: bool = False) -> dict[str, Any
 
     if failures or candidate is None or not csv_paths:
         return {
-            "schema_version": "step5b_autotune_evaluation_v1",
+            "schema_version": "step5b_autotune_evaluation_v2",
             "run_dir": str(run_dir),
             "eligible": False,
             "feasible": False,
@@ -160,7 +153,8 @@ def evaluate_run(run_dir: Path, *, allow_history: bool = False) -> dict[str, Any
     duration_s = elapsed_s(active)
     progress = numeric(active, "step4e_progress_m").dropna()
     max_progress_s = float(progress.max()) if not progress.empty else 0.0
-    load = positive_normal_load(active).replace([np.inf, -np.inf], np.nan).dropna()
+    load_raw = signed_normal_load(active)
+    load = load_raw.replace([np.inf, -np.inf], np.nan).dropna()
     target = candidate.target_force_n
 
     if len(active) < 5000:
@@ -171,6 +165,23 @@ def evaluate_run(run_dir: Path, *, allow_history: bool = False) -> dict[str, Any
         failures.append("path_progress_lt_59p9s")
     if load.empty or float(load.median()) < 2.0:
         failures.append("missing_or_zero_contact_load")
+
+    required_columns = [
+        "_step4e_normal_load_n",
+        "force_norm_n",
+        "mx_nm_zeroed",
+        "my_nm_zeroed",
+        "mz_nm_zeroed",
+        "_step4e_path_error_x_m",
+        "_step4e_path_error_y_m",
+        *[f"step4e_cmd_v{axis}_m_s" for axis in "xyz"],
+        *[f"step4e_cmd_w{axis}_rad_s" for axis in "xyz"],
+    ]
+    missing_required = [column for column in required_columns if column not in active]
+    if missing_required:
+        failures.append("required_columns_missing:" + ",".join(missing_required))
+    elif any(not np.isfinite(numeric(active, column).to_numpy(dtype=float)).all() for column in required_columns):
+        failures.append("nonfinite_required_data")
 
     terminal_reason = runtime.get("terminal_reason")
     if terminal_reason is not None:
@@ -191,6 +202,8 @@ def evaluate_run(run_dir: Path, *, allow_history: bool = False) -> dict[str, Any
     )
     if force_norm.notna().any() and float(force_norm.max()) >= 60.0:
         failures.append("force_norm_guard_reached")
+    if load_raw.notna().any() and float(load_raw.abs().max()) >= 50.0:
+        failures.append("raw_normal_guard_reached")
     if torque_norm.size and float(np.nanmax(torque_norm)) >= 3.0:
         failures.append("torque_guard_reached")
 
@@ -237,7 +250,7 @@ def evaluate_run(run_dir: Path, *, allow_history: bool = False) -> dict[str, Any
         else None
     )
     return {
-        "schema_version": "step5b_autotune_evaluation_v1",
+        "schema_version": "step5b_autotune_evaluation_v2",
         "run_dir": str(run_dir),
         "eligible": eligible,
         "feasible": feasible,

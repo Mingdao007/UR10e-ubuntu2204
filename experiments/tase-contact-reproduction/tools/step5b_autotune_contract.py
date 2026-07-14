@@ -12,12 +12,12 @@ from typing import Any, Iterable
 
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
-CONTRACT_PATH = EXPERIMENT_ROOT / "config" / "step5b_autotune_loop_v1.json"
-PROGRAM_BASENAME = "step5b_contact_cycloid_bayes_loop_v1"
+CONTRACT_PATH = EXPERIMENT_ROOT / "config" / "step5b_autotune_loop_v2.json"
+PROGRAM_BASENAME = "step5b_contact_cycloid_bayes_loop_v2"
 CONTROLLER_DIRECTORY = "/programs/andyl/kunwei/step5/autotune"
 CONTROLLER_PROGRAM = f"{CONTROLLER_DIRECTORY}/{PROGRAM_BASENAME}.urp"
 BRIDGE_PROFILE = "step5b_v2"
-CONFIRMATION_TOKEN = "LIVE STEP5B AUTOTUNE SESSION"
+CONFIRMATION_TOKEN = "LIVE STEP5B TP AUTOTUNE V2 SESSION"
 
 TARGET_CONTEXTS_N = (10.0, 12.0, 15.0)
 
@@ -113,6 +113,10 @@ def normalized_candidate(candidate: Candidate) -> tuple[float, ...]:
 
 
 def one_step_neighbors(candidate: Candidate, *, tier2_unlocked: bool) -> list[Candidate]:
+    if not tier2_unlocked and not math.isclose(
+        candidate.force_i_gain, 0.00001, rel_tol=0.0, abs_tol=1e-12
+    ):
+        candidate = Candidate(**{**candidate.payload(), "force_i_gain": 0.00001})
     candidate.validate(tier2_unlocked=tier2_unlocked)
     dimensions: list[tuple[str, Iterable[float]]] = [
         ("force_p_gain", grid_values(0.001, 0.0015, 0.0001)),
