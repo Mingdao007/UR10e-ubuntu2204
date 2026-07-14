@@ -1,6 +1,6 @@
 {
   "schema_version": "step5b_autotune_delivery_v2",
-  "status": "local_package_only_controller_delivery_not_authorized",
+  "status": "controller_delivery_authorized_pending_upload",
   "controller_readback_verified": false,
   "basename": "step5b_contact_cycloid_bayes_loop_v2",
   "controller_directory": "/programs/andyl/kunwei/step5/autotune",
@@ -10,5 +10,5 @@
     {"local_path": "programs/step5/autotune/step5b_contact_cycloid_bayes_loop_v2.txt", "sha256": "46acc34da89c3c86ed9191b3fcbe50f38f02c4df04f32dd48dbe72f6a988b3dd"},
     {"local_path": "programs/step5/autotune/step5b_contact_cycloid_bayes_loop_v2.urp", "sha256": "2a75774853506bbc8ec85e4a28a939daf197d9e589908b518046d22601035ad3"}
   ],
-  "note": "This implementation round intentionally performs no controller write, readback, program load, bridge start, TP Play, or motion."
+  "note": "Controller triplet upload and fresh read-back are authorized as serialized package file delivery only. Program load, bridge start, TP Play, and motion remain unauthorized."
 }
