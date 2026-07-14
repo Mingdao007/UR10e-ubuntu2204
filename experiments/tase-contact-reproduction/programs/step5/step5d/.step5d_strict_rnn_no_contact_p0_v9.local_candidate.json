@@ -1,0 +1,25 @@
+{
+  "controller_urp": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v9.urp",
+  "generated_at": "2026-07-14T17:17:49+08:00",
+  "local_only": true,
+  "not_delivered": true,
+  "program": "step5d_strict_rnn_no_contact_p0_v9",
+  "safety_boundary": [
+    "local candidate only",
+    "no controller upload",
+    "no controller read-back",
+    "not current_stage",
+    "do not open on Teach Pendant",
+    "no live bridge"
+  ],
+  "schema": "ur_tp_local_candidate_v1",
+  "semantic_fingerprint": "64f92d098ea988bea7618ac81e534bbb912b7f75c38a48ec8ab544a88f414565",
+  "sha256": {
+    ".script": "3dcdd6817a05082e17408d702d08d99e81717dcfaf1dbdbf0d22635326284615",
+    ".txt": "f036512f3f67b430e0279c8797f2be3e47e370a34cfa412b70e8ad02cd58e12c",
+    ".urp": "192e318d0a2036a6e1bd2d5e834bc50deba1b44f070bf07efd29b8a171ab58b1"
+  },
+  "stamp": "2026-07-14T1717HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V9",
+  "status": "local package verified",
+  "target_dir": "/programs/andyl/kunwei/step5"
+}

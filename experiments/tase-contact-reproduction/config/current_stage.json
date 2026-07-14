@@ -58,7 +58,7 @@
     "stage_id": "step5d_strict_rnn_reproduction_v1",
     "blocked": true,
     "paper_truth_config": "config/step5d_liveprep_solver_gate.json",
-    "reason": "v29 is the last controller-readback-verified package but is frozen fallback evidence. v30 now has source-bound Ubuntu hard-control timing evidence, but remains offline and blocked by live-runtime prewarm integration, P0 v8 controller canaries, readback freeze, Review v3, and separate live/contact authorization."
+    "reason": "v29 is the last controller-readback-verified package but is frozen fallback evidence. v30 remains offline and blocked by live-runtime prewarm integration, a passing successor no-contact canary, readback freeze, Review v3, and separate live/contact authorization. P0 v8 is frozen failed evidence; P0 v9 is the local-only successor and has not been delivered or run."
   },
   "evidence": {
     "v11_escape_replay_summary": "runs/step5d_v11_escape_replay_20260615/summary.json",
@@ -1111,6 +1111,28 @@
       "summary_artifact": null,
       "status": "controller_readback_verified_ready_for_direct_canary"
     },
+    "no_contact_p0_v9_capture": {
+      "profile": "step5d_strict_rnn_no_contact_p0_v9",
+      "entrypoint": "scripts/step5d-strict-rnn-p0-v9.sh capture-bridge",
+      "confirm_token": "LIVE STEP5D STRICT RNN NO CONTACT P0 V9",
+      "planned_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v9.urp",
+      "controller_target": "LOCAL_ONLY_NOT_DELIVERED",
+      "local_triplet": "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v9",
+      "local_candidate_marker": "programs/step5/step5d/.step5d_strict_rnn_no_contact_p0_v9.local_candidate.json",
+      "controller_uploaded": false,
+      "controller_readback_verified": false,
+      "controller_readback_manifest": null,
+      "delivery_mode": "explicit_local_only",
+      "sha256": {
+        ".script": "3dcdd6817a05082e17408d702d08d99e81717dcfaf1dbdbf0d22635326284615",
+        ".txt": "f036512f3f67b430e0279c8797f2be3e47e370a34cfa412b70e8ad02cd58e12c",
+        ".urp": "192e318d0a2036a6e1bd2d5e834bc50deba1b44f070bf07efd29b8a171ab58b1"
+      },
+      "capture_authorized": false,
+      "passed": false,
+      "summary_artifact": null,
+      "status": "local_package_verified_not_uploaded_not_live_authorized"
+    },
     "required_before_live": [
       "operator outside UR reach/cage boundary",
       "TP program opened on controller read-back v29 package",
@@ -1191,7 +1213,7 @@
   "p0_v8_candidate": {
     "profile": "step5d_strict_rnn_no_contact_p0_v8",
     "gate_for": "step5d_strict_rnn_ablation_v30",
-    "state": "controller_readback_verified_pending_direct_canary",
+    "state": "frozen_failed_historical_superseded_by_p0_v9",
     "package_sha256": {
       ".script": "407f80e56eaa70d1e0e18597abbbddf535c8af88831c41fb117425583792ca9d",
       ".txt": "fa78883b403d01c697c40470528570d5ff6dae8f62f5c8141aa12353a4a963e4",
@@ -1269,7 +1291,15 @@
         }
       ]
     },
-    "direct_canary_result": null,
+    "direct_canary_result": {
+      "phase_s": 60.0,
+      "composite_fingerprint": "2e283925ce0ec789c460a76ab5b706a301b82530f5df4bf080ca27cf75f33ef8",
+      "canary_passed": false,
+      "artifact": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v8_20260714_164335/step5d_no_contact_p0_summary.json",
+      "artifact_sha256": "0e64b8dbb884fa636b93741c15b313ad4c872f08aa4fb9c773b25085d324216b",
+      "failure_class": "press_only_no_contact_semantic_and_full_echo_qualification_failure",
+      "superseded_by": "step5d_strict_rnn_no_contact_p0_v9"
+    },
     "p0_v8_passed": false,
     "passed_artifact": null,
     "claim_boundary": {
@@ -1279,7 +1309,54 @@
       "reproduction_complete": false
     },
     "blockers": [
-      "controller_direct_current_stage_duration_canary_not_run"
+      "p0_v8_direct_canary_failed",
+      "p0_v8_press_only_target_conflicts_with_no_contact_intent",
+      "p0_v8_full_tp_command_echo_missing",
+      "superseded_by_step5d_strict_rnn_no_contact_p0_v9"
+    ]
+  },
+  "p0_v9_candidate": {
+    "profile": "step5d_strict_rnn_no_contact_p0_v9",
+    "gate_for": "step5d_strict_rnn_ablation_v30",
+    "state": "local_package_verified_not_delivered",
+    "current": false,
+    "package_sha256": {
+      ".script": "3dcdd6817a05082e17408d702d08d99e81717dcfaf1dbdbf0d22635326284615",
+      ".txt": "f036512f3f67b430e0279c8797f2be3e47e370a34cfa412b70e8ad02cd58e12c",
+      ".urp": "192e318d0a2036a6e1bd2d5e834bc50deba1b44f070bf07efd29b8a171ab58b1"
+    },
+    "semantic_fingerprint": "64f92d098ea988bea7618ac81e534bbb912b7f75c38a48ec8ab544a88f414565",
+    "motion_semantics": {
+      "mode": "tangential_free_space",
+      "normal_motion_policy": "normal_zero",
+      "path": "s(t)=0.001*(1-cos(2*pi*t/20)) m",
+      "peak_to_peak_m": 0.002,
+      "period_s": 20.0,
+      "cycles": 3,
+      "effective_ko": 0.01,
+      "orientation_policy": "weak_posture_hold_only"
+    },
+    "canary_policy": {
+      "enabled": true,
+      "mode": "continuous_all_conditions_qualified",
+      "direct_duration_s": 60.0,
+      "required_echo_layout": 524.0,
+      "required_host_accept": true,
+      "safe_hold_allowed": false,
+      "dls_direction_mismatch_allowed": false
+    },
+    "claim_boundary": {
+      "local_package_verified": true,
+      "controller_readback_verified": false,
+      "no_contact_p0_accepted": false,
+      "contact_live_accepted": false,
+      "reproduction_complete": false
+    },
+    "blockers": [
+      "explicit_local_only_no_controller_upload",
+      "controller_readback_not_verified",
+      "no_contact_live_authorization_not_granted",
+      "direct_60s_canary_not_run"
     ]
   },
   "v30_candidate": {
