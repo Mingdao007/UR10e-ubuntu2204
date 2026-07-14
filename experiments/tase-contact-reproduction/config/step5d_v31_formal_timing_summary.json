@@ -1,5 +1,6 @@
 {
   "checks": {
+    "artifact_bindings_match": true,
     "compute_deadline_policy": true,
     "elapsed_full_60s": true,
     "elapsed_safe_60s": true,
@@ -9,19 +10,20 @@
     "paced_500hz": true,
     "safe_hold_30000": true,
     "schedule_deadline_policy": true,
+    "source_bindings_match": true,
     "stale_hold_contract": true
   },
   "full_tick": {
-    "compute_deadline_miss_count": 1,
-    "max_ms": 2.04970600316301,
-    "mean_ms": 0.95034825989084,
+    "compute_deadline_miss_count": 0,
+    "max_ms": 1.869701998657547,
+    "mean_ms": 0.8754593232137268,
     "nonfinite_count": 0,
-    "p50_ms": 0.8034839993342757,
-    "p95_ms": 1.228700044885045,
-    "p99_ms": 1.2832676978723603,
+    "p50_ms": 0.7648829996469431,
+    "p95_ms": 1.2375815058476292,
+    "p99_ms": 1.3552480086218566,
     "samples": 30000
   },
-  "full_tick_schedule_deadline_miss_count": 2,
+  "full_tick_schedule_deadline_miss_count": 0,
   "overall_pass": true,
   "profile": {
     "backend": "cupy",
@@ -35,18 +37,18 @@
     "scheduler_priority_required": 20
   },
   "raw_path": "config/step5d_v31_formal_timing_raw.json",
-  "raw_sha256": "36c27e6c7f43d495eb40419aa04bb63159afc82dc50dfb19add4f60ed099711f",
+  "raw_sha256": "502fa7d8a2e10aa3c5239234174efcf88ceb72fa55b57499b2203cf6cfdc5735",
   "safe_hold": {
     "compute_deadline_miss_count": 0,
-    "max_ms": 1.817550990381278,
-    "mean_ms": 0.7446879193526305,
+    "max_ms": 1.6529659915249795,
+    "mean_ms": 0.6440444851560945,
     "nonfinite_count": 0,
-    "p50_ms": 0.6561230038641952,
-    "p95_ms": 1.1039500073820818,
-    "p99_ms": 1.1838569022074805,
+    "p50_ms": 0.6199909985298291,
+    "p95_ms": 0.7369145583652423,
+    "p99_ms": 1.1275844225019662,
     "samples": 30000
   },
-  "safe_hold_schedule_deadline_miss_count": 1,
+  "safe_hold_schedule_deadline_miss_count": 0,
   "safety_boundary": [
     "read-only source evidence",
     "stdout JSON only",
@@ -59,12 +61,12 @@
   "schema_version": "step5d_v31_formal_timing_summary_v1",
   "solver": {
     "compute_deadline_miss_count": 0,
-    "max_ms": 0.9936199930962175,
-    "mean_ms": 0.21810797280777477,
+    "max_ms": 0.9729629964567721,
+    "mean_ms": 0.21686105447006412,
     "nonfinite_count": 0,
-    "p50_ms": 0.2105939929606393,
-    "p95_ms": 0.23629255520063452,
-    "p99_ms": 0.3334604187693914,
+    "p50_ms": 0.20893100008834153,
+    "p95_ms": 0.23561300913570446,
+    "p99_ms": 0.3270764312765098,
     "samples": 10000
   },
   "stale_hold": {

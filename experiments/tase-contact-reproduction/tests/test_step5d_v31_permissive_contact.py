@@ -127,6 +127,17 @@ class V31PermissiveContactTest(unittest.TestCase):
         bridge = (ROOT / "tools/kunwei_rtde_bridge.py").read_text()
         self.assertIn("return verify_v31_evidence_freeze(", bridge)
 
+    def test_safety_and_transport_stop_reasons_never_auto_home(self) -> None:
+        script = (ROOT / "programs/step5/step5d/step5d_strict_rnn_ablation_v31.script").read_text()
+        self.assertIn("elif stop_reason == 2.0:\n    # Transport/heartbeat loss may follow a protective stop; never auto-home.\n    return False", script)
+        self.assertIn("elif stop_reason == 17.0:\n    # Reserved unsafe-entry/safety interruption reason; never auto-home.\n    return False", script)
+
+    def test_live_gate_authenticates_owner_validation_file(self) -> None:
+        gate = (ROOT / "tools/verify_step5d_current_binding.py").read_text()
+        self.assertIn('"v31 deterministic owner validation"', gate)
+        self.assertIn("expected_sha256=owner_ref.get(\"sha256\")", gate)
+        self.assertIn("owner_validation.get(\"repaired_composite_fingerprint\") == composite", gate)
+
 
 if __name__ == "__main__":
     unittest.main()

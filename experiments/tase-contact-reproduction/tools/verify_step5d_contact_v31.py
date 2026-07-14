@@ -62,7 +62,8 @@ def verify(root: Path) -> dict[str, object]:
         "DLS no fallback": guard["dls_runtime_fallback_allowed"] is False and "forbids DLS runtime fallback" in txt,
         "entry has no force/speed hard stop": "stop_reason = 17.0" not in script and "speedl([cmd_vx, cmd_vy, cmd_vz, 0.0, 0.0, 0.0]" not in script,
         "normal completion retract and home": "short_retract_start[2] + short_retract_z_m" in script and "movel(home_pose" in script,
-        "unsafe stop does not auto-home": "def codex_should_auto_home" in script and "elif stop_reason == 17.0" in script and "return False" in script,
+        "unsafe stop does not auto-home": "  elif stop_reason == 2.0:\n    # Transport/heartbeat loss may follow a protective stop; never auto-home.\n    return False" in script
+        and "  elif stop_reason == 17.0:\n    # Reserved unsafe-entry/safety interruption reason; never auto-home.\n    return False" in script,
         "no settings writes": all(token not in script for token in ("zero_ftsensor", "set_payload", "set_tcp")),
     }
     failed = [name for name, passed in checks.items() if not passed]

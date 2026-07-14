@@ -96,7 +96,8 @@ def codex_should_auto_home(stop_reason):
   if stop_reason == 1.0:
     return True
   elif stop_reason == 2.0:
-    return True
+    # Transport/heartbeat loss may follow a protective stop; never auto-home.
+    return False
   elif stop_reason == 4.0:
     return True
   elif stop_reason == 5.0:
@@ -118,7 +119,8 @@ def codex_should_auto_home(stop_reason):
   elif stop_reason == 14.0:
     return True
   elif stop_reason == 17.0:
-    return True
+    # Reserved unsafe-entry/safety interruption reason; never auto-home.
+    return False
   end
   return False
 end

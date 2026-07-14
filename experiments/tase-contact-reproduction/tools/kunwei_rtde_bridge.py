@@ -8305,6 +8305,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                 raise SystemExit("v31 permits only speedj_rnn_live layout 524; Cartesian and DLS are shadow-only")
             args.step5d_qdot_limit_rad_s = STEP5D_V31_QDOT_CAP_RAD_S
             args.sensor_stale_s = STEP5D_V31_SENSOR_STALE_S
+            args.baseline_s = 1.0
+            args.rezero_s = 1.0
+            args.rtde_hz = 500.0
+            args.bridge_normal_follow_mode = "filtered_live"
+            args.step4e_normal_follow_mode = "filtered_live"
+            args.bridge_normal_filter_alpha = 0.55
+            args.step4e_normal_filter_alpha = 0.55
+            args.bridge_normal_min_force_n = 2.0
+            args.step4e_normal_min_force_n = 2.0
             args.max_normal_force_n = 60.0
             args.max_force_norm_n = 100.0
             args.max_torque_norm_nm = 3.0

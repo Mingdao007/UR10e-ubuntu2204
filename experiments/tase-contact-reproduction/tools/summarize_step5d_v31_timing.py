@@ -8,9 +8,55 @@ import hashlib
 import json
 from pathlib import Path
 
+from build_step5d_v31_timing_bundle import v31_harness
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
 
 def sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def source_bindings_match(raw: dict) -> bool:
+    paths = {
+        "aggregator_sha256": ROOT / "tools/summarize_step5d_v31_timing.py",
+        "bridge_sha256": ROOT / "tools/kunwei_rtde_bridge.py",
+        "bundler_sha256": ROOT / "tools/build_step5d_v31_timing_bundle.py",
+        "contact_semantics_sha256": ROOT / "tools/contact_semantics.py",
+        "control_contract_sha256": ROOT / "tools/step5d_control_contract.py",
+        "kinematics_sha256": ROOT / "tools/step5c_calibrated_kinematics_audit.py",
+        "outer_loop_sha256": ROOT / "tools/step5d_paper_outer_loop.py",
+        "readiness_builder_sha256": ROOT / "tools/build_step5d_v31_review_binding.py",
+        "runtime_interface_sha256": ROOT / "tools/step5d_runtime_interface.py",
+        "solver_sha256": ROOT / "tools/step5c_strict_rnn.py",
+    }
+    bound = raw.get("source_binding") or {}
+    if any(bound.get(key) != sha(path) for key, path in paths.items()):
+        return False
+    return bound.get("harness_sha256") == hashlib.sha256(v31_harness().encode()).hexdigest()
+
+
+def artifact_bindings_match(raw: dict) -> bool:
+    for item in (raw.get("artifact_binding") or {}).values():
+        try:
+            path = Path(item["path"])
+            if not path.is_file():
+                return False
+            if item.get("binding") == "v31_timing_contract_projection_v1":
+                table = json.loads(path.read_text())
+                stage = next(row for row in table["stages"] if row["id"] == "step5d_strict_rnn_ablation_v31")
+                projection = {key: stage[key] for key in (
+                    "runtime_profile", "runtime_scheduler", "guard", "bridge_runtime", "contact_policy"
+                )}
+                actual = hashlib.sha256(json.dumps(projection, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+            else:
+                actual = sha(path)
+            if actual != item["sha256"]:
+                return False
+        except (KeyError, TypeError):
+            return False
+    return True
 
 
 def main() -> int:
@@ -25,6 +71,8 @@ def main() -> int:
     solver = raw.get("solver") or {}
     stale = raw.get("controller_stale_hold_fault_evidence") or {}
     checks = {
+        "source_bindings_match": source_bindings_match(raw),
+        "artifact_bindings_match": artifact_bindings_match(raw),
         "exact_profile": profile.get("qdot_cap_rad_s") == 0.5
         and profile.get("normal_motion_policy") == "frame_contract_only"
         and profile.get("inner_iterations") == 512,

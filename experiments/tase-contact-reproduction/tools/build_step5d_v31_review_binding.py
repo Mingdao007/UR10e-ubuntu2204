@@ -13,7 +13,6 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 PROFILE = "step5d_strict_rnn_ablation_v31"
 PACKAGE_BASE = ROOT / "programs/step5/step5d" / PROFILE
-READBACK = ROOT / "runs/controller_readback_step5d_strict_rnn_ablation_v31_20260714_201805/manifest.json"
 TIMING_RAW = ROOT / "config/step5d_v31_formal_timing_raw.json"
 TIMING_SUMMARY = ROOT / "config/step5d_v31_formal_timing_summary.json"
 SOURCE_PATHS = (
@@ -56,6 +55,7 @@ def compute_payloads() -> tuple[dict[str, str], dict[str, Any]]:
     """Return the canonical binding and its fully expanded evidence inventory."""
     stage_table = json.loads((ROOT / "config/step5_stage_table.json").read_text())
     stage = next(row for row in stage_table["stages"] if row["id"] == PROFILE)
+    readback = ROOT / stage["package_delivery"]["controller_readback_manifest"]
     package = {suffix: sha(PACKAGE_BASE.with_suffix(suffix)) for suffix in (".script", ".txt", ".urp")}
     source_files = {path: sha(ROOT / path) for path in SOURCE_PATHS}
     resolved_operator_config = {
@@ -97,7 +97,7 @@ def compute_payloads() -> tuple[dict[str, str], dict[str, Any]]:
         "schema_version": "step5d_v31_review_binding_evidence_v1",
         "profile": PROFILE,
         "package_triplet_sha256": package,
-        "controller_readback": {"path": str(READBACK.relative_to(ROOT)), "sha256": sha(READBACK)},
+        "controller_readback": {"path": str(readback.relative_to(ROOT)), "sha256": sha(readback)},
         "timing_raw": {"path": str(TIMING_RAW.relative_to(ROOT)), "sha256": sha(TIMING_RAW)},
         "timing_summary": {"path": str(TIMING_SUMMARY.relative_to(ROOT)), "sha256": sha(TIMING_SUMMARY)},
         "source_files_sha256": source_files,

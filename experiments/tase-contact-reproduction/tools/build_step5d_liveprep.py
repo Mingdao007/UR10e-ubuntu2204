@@ -1290,6 +1290,12 @@ def build_script(
     script = script.replace("codex_abs(normal_force) > 50.0", f"codex_abs(normal_force) > {raw_guard:.1f}")
     script = script.replace("force_norm > 60.0", f"force_norm > {force_guard:.1f}")
     script = script.replace("torque_norm > 3.0", f"torque_norm > {torque_guard:.1f}")
+    if spec.permissive_contact_guard:
+        script = _replace_exact(
+            script,
+            "  elif stop_reason == 2.0:\n    return True\n",
+            "  elif stop_reason == 2.0:\n    # Transport/heartbeat loss may follow a protective stop; never auto-home.\n    return False\n",
+        )
     script = script.replace(
         "# SAFETY: raw normal guard 50 N, force norm guard 60 N, torque guard 3.0 Nm.",
         f"# SAFETY: raw normal guard {raw_guard:.0f} N, force norm guard {force_guard:.0f} N, torque guard {torque_guard:.1f} Nm.",
@@ -1417,6 +1423,12 @@ def build_script(
     script = _replace_exact(script, "STEP5_STAGE_ID: step5_contact_cycloid_baseline_v1", f"STEP5_STAGE_ID: {spec.stage_id}")
     script = _add_down_search_force_trigger_echo(script)
     script = _add_force_envelope_auto_home(script)
+    if spec.permissive_contact_guard:
+        script = _replace_exact(
+            script,
+            "  elif stop_reason == 17.0:\n    return True\n",
+            "  elif stop_reason == 17.0:\n    # Reserved unsafe-entry/safety interruption reason; never auto-home.\n    return False\n",
+        )
     script = _replace_line_entry_with_force_settle(script, spec)
     script = _replace_line_stage_with_stage25_multimode(script, spec)
     if f"def codex_{spec.program_name}()" not in script:
@@ -1968,7 +1980,11 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5d
         and "Stage 25.95 requires the bridge to clear registers 37..47" in txt
         and "near zero" in txt,
         "no second contact search": "codex_step5d_down_search(24.3, 24.4" not in script,
-        "force envelope auto-home": "elif stop_reason == 17.0:\n    return True" in script,
+        "force envelope stop mapping": (
+            "elif stop_reason == 17.0:\n    # Reserved unsafe-entry/safety interruption reason; never auto-home.\n    return False" in script
+            if spec.permissive_contact_guard
+            else "elif stop_reason == 17.0:\n    return True" in script
+        ),
         "v31 scaffold retained": "first-contact normal latch" in script
         and "no lift/25.2 attitude cycle and no second contact search" in script
         and f"25.3 bridge deadband acquire into the {line_entry.normal_load_min_n:.1f}-{line_entry.normal_load_max_n:.1f}N filtered preload window with {line_entry.raw_sanity_min_n:.1f}-{line_entry.raw_sanity_max_n:.1f}N raw sanity" in script,

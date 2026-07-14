@@ -1532,20 +1532,20 @@
       "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v31.urp",
       "controller_uploaded": true,
       "controller_readback_verified": true,
-      "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v31_20260714_201805/manifest.json",
-      "controller_readback_manifest_sha256": "c4b94d8978490568b38bd427a47ec951cfaa69b353b038281973f7a03bd1bddb",
+      "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v31_20260714_204913/manifest.json",
+      "controller_readback_manifest_sha256": "9f4c081376659236fe6a4f8e342bc48b1a38d44bc16089cbf974eea863d2a5db",
       "sha256": {
-        ".script": "ad09917dff170b6536425dc834a96f0f19b1e7fafb1e1204f3ddc9d8ef4b675b",
+        ".script": "c76aac1ce66d9f5df64b39b56e08af6970fe11f5ed9523a904623f7004dbe046",
         ".txt": "1946e95133beb11e3c4811d9f10df06484e7b5a91366985aeb5f742d663ba141",
-        ".urp": "a4ce194ed7b64af1bbdaa6bb8af166434bbc66e9ca6db6ec719863dc1a503818"
+        ".urp": "389d26412337cdd5b989150b875b0e3dcdcf686b388dc16efe18007a150e5657"
       }
     },
     "formal_timing": {
       "status": "pass",
       "raw": "config/step5d_v31_formal_timing_raw.json",
-      "raw_sha256": "36c27e6c7f43d495eb40419aa04bb63159afc82dc50dfb19add4f60ed099711f",
+      "raw_sha256": "502fa7d8a2e10aa3c5239234174efcf88ceb72fa55b57499b2203cf6cfdc5735",
       "summary": "config/step5d_v31_formal_timing_summary.json",
-      "summary_sha256": "53069b9438d9a9fbca873e48ccfb0b1a6d02176134fa0fb51c901b7c6d283867"
+      "summary_sha256": "bfd530189a679497949af794d48a5bd0b9aa166f2b5e7e78ac35bea2c45f8b0e"
     },
     "review_v3": {
       "required_stack": "1+1",
@@ -1556,10 +1556,10 @@
       "status": "accepted_degraded_1+0",
       "work_item_id": "step5d-v31-contact-20260714",
       "binding": "config/reviews/step5d_v31_review_v3_binding.json",
-      "binding_sha256": "f7e65cd6fd07f5236b3a71c365a87aeef5de0cd574a285ab51a9bfa10d53359c",
+      "binding_sha256": "5a917c2bb0204a828c57c7654e63c754fe7a201951ea4bada5ae0bb6f7f7329e",
       "evidence": "config/reviews/step5d_v31_review_v3_evidence.json",
-      "evidence_sha256": "a1f92eee0cb02fd4563406ad8013ea4881ec22323e97f5ef759ad4fce95aebd2",
-      "composite_fingerprint": "a6e3e6ac762dc92f6ee42c85910e1264cdf95db38c42b54d6d39b7797a42f1b9",
+      "evidence_sha256": "5990f6091750d6a56e438211702873d66c900ec97cb800fef73e89f25694819f",
+      "composite_fingerprint": "dda7b5a147a44055000bccbc477c23d2d19d35ad464beb7d905d47cad61e5f7d",
       "reviewed_composite_fingerprint": "d784edf9fc84e6f2170c598fb518732a6aafa5b1dcba687bea703b06b04a2c3a",
       "manifest": "runs/step5d_v31_review_v3_20260714_2000/review_manifest_v3.json",
       "manifest_sha256": "85202d84502c3aa3367ae4ccf901d899617f7d1845928b1dda45bce5a1a5adba",
@@ -1574,7 +1574,7 @@
         "no_reviewer_invoked": true,
         "parent_review_manifest_sha256": "85202d84502c3aa3367ae4ccf901d899617f7d1845928b1dda45bce5a1a5adba",
         "reviewed_composite_fingerprint": "d784edf9fc84e6f2170c598fb518732a6aafa5b1dcba687bea703b06b04a2c3a",
-        "repaired_composite_fingerprint": "a6e3e6ac762dc92f6ee42c85910e1264cdf95db38c42b54d6d39b7797a42f1b9",
+        "repaired_composite_fingerprint": "dda7b5a147a44055000bccbc477c23d2d19d35ad464beb7d905d47cad61e5f7d",
         "finding_ids": [
           "STEP5D-V31-OPERATOR-BINDING-001",
           "STEP5D-V31-REVIEW-GATE-001",
@@ -1583,7 +1583,7 @@
         "decision_digest": "94b7186b1e60e19af8d0f05531dc4756ad4f5b4992e4dd766ea19f2d211909d4",
         "owner_validation": {
           "path": "config/reviews/step5d_v31_deterministic_owner_validation.json",
-          "sha256": "e8599138c800af6a88cb477c19b9f207d62b352c2635885a5b0624326a98a3fe",
+          "sha256": "91abc0c8c9265fb91c724c5aee23235400f877b843f54a94b2dd1f7d42488f33",
           "status": "pass"
         }
       }

@@ -630,6 +630,31 @@ def verify_v31_evidence_freeze(
     )
     if resolved.get("accepted") is not True:
         fail("v31 Review v3 deterministic closure is not accepted: " + ",".join(resolved.get("blockers") or []))
+    closure = review.get("deterministic_finding_closure") or {}
+    owner_ref = closure.get("owner_validation") or {}
+    _, owner_validation, owner_sha = _hash_bound_json(
+        root, owner_ref.get("path"), "v31 deterministic owner validation",
+        expected_sha256=owner_ref.get("sha256"),
+    )
+    finding_ids = {
+        finding.get("id")
+        for lane in (manifest.get("lanes") or {}).values()
+        for finding in (lane.get("findings") or [])
+        if finding.get("severity") in {"P0", "P1"}
+    }
+    if not (
+        owner_sha == owner_ref.get("sha256")
+        and owner_validation.get("status") == "pass"
+        and owner_validation.get("no_reviewer_invoked") is True
+        and owner_validation.get("parent_review_manifest_sha256") == manifest_sha
+        and owner_validation.get("reviewed_composite_fingerprint") == closure.get("reviewed_composite_fingerprint")
+        and owner_validation.get("repaired_composite_fingerprint") == composite
+        and owner_validation.get("decision_digest") == closure.get("decision_digest")
+        and finding_ids.issubset(set((owner_validation.get("resolutions") or {}).keys()))
+        and all(str(value).startswith("pass") or str(value).endswith("passed")
+                for value in (owner_validation.get("validation") or {}).values())
+    ):
+        fail("v31 deterministic owner validation artifact is invalid or stale")
     if candidate.get("live_authorized") is not True:
         fail("v31 explicit live/contact authorization is missing")
     return {
