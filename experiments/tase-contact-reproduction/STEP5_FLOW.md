@@ -1,21 +1,24 @@
 # Step5 Flow
 
 `config/current_stage.json` currently selects
-`step5d_strict_rnn_ablation_v31` as the live-authorized current pointer after
-fresh controller read-back, final-source timing, Review v3 closure, and the
-user's explicit `开bridge` authorization on 2026-07-14. The v29 package remains
-frozen fallback evidence only.
+`step5d_strict_rnn_ablation_v32`. Its TP triplet was uploaded and freshly read
+back from `/programs/andyl/kunwei/step5/` at `20260714_215219`; local,
+controller, and read-back hashes match. Bridge/live motion is not authorized by
+this delivery.
 
-The successor `step5d_strict_rnn_ablation_v30` remains immutable inactive
-history. New contact work is owned by `step5d_strict_rnn_ablation_v31`, an
-live-authorized candidate that carries the user-selected permissive P0v9 guard policy
-into contact control. It keeps layout-524 strict RNN, qdot cap `0.5 rad/s`,
+v32 fixes the v31 failure at Stage25.05. Register state is now interpreted by
+TP stage: Stage25.05 passes latch-ready state `33`, Stage25.3 passes preload
+state `521`, Stage25.95 passes zero-invalid clear state `522`, and only
+Stage25.0 carries strict-RNN qdot with internal marker `524`. Therefore `524`
+is no longer a global publisher/readiness gate.
+
+The user-selected permissive policy remains in force: qdot cap `0.5 rad/s`,
 `0.05 rad/s²` shaping, 2 s sensor stale, 1 s heartbeat stale, and a 75 s
-Stage25 runtime. Cartesian/normal speed and displacement, force-window, DLS,
-residual, active-bound, and ordinary normal-direction checks are diagnostic;
-the hard gates are structural/frame semantics, layout/cmd validity, qdot,
-heartbeat, and gross `60 N` raw-normal / `100 N` force-norm / `3 Nm` torque.
-No guard may be tightened until the user explicitly requests it.
+Stage25 runtime. Force-window, Cartesian/normal speed and displacement, DLS,
+residual, active-bound, and ordinary normal-direction checks are diagnostic.
+No guard may be tightened until the user explicitly requests it. The user
+explicitly waived this delivery's `1×xhigh + 1×Fable5` model audit; the frozen
+waiver records `model_review_performed=false` and does not authorize motion.
 
 The historical `step5d_strict_rnn_ablation_v30` is an inactive offline
 candidate. It keeps CuPy, epsilon `0.010`, finite-time exponent `r=0.8`, qdot
@@ -328,11 +331,12 @@ instead of preserving the later 22 s TP v3 timing.
 | `step5d_strict_rnn_ablation_v26` | bridge+TP | true | true | speedl Cartesian oracle with strict RNN shadow diagnostics | `v31_filtered_live` | Retained read-back/live-attempt evidence: default `speedl_cartesian_oracle`, Stage25.3 Step5b/Step6b evidence tube filtered 7-18 N / raw 5-20 N, superseded by v27 wider tube and 35 N hard guards; not current. |
 | `step5d_strict_rnn_ablation_v27` | bridge+TP | true | true | Step5b speedl live / Step5d paper+RNN shadow | `v31_filtered_live` | Retained successful 10 s fix-validation evidence from `runs/bridge_step5d_strict_rnn_ablation_v27_20260706_045513`; not current and not a 60 s reproduction claim. The earlier 040900 force overshoot remains retained failure evidence for the old paper-linear-live path. |
 | `step5d_strict_rnn_ablation_v28` | bridge+TP | true | true | Step5b speedl live / Step5d paper+RNN shadow | `v31_filtered_live` | Retained read-back verified diagnostic package, superseded by v29; not a completed reproduction claim. |
-| `step5d_strict_rnn_ablation_v29` | frozen fallback | true | false | strict TASE RNN speedj | `v31_filtered_live` | Current pointer is retained only because it is the last read-back-verified package. A future reactivation requires fresh readback/timing fingerprint, Review v3 contact gate, and explicit live/contact authorization. |
+| `step5d_strict_rnn_ablation_v29` | frozen fallback | true | false | strict TASE RNN speedj | `v31_filtered_live` | Superseded historical fallback. A future reactivation requires fresh readback/timing fingerprint and explicit live/contact authorization. |
 | `step5d_strict_rnn_no_contact_p0_v8` | frozen failed P0 evidence | false | false | v30 strict-RNN contract | none | Retained 60 s failed canary and controller readback evidence. Its press-only target conflicts with the intended no-contact experiment and its TP package lacks the full command echo required for semantic qualification. It cannot be promoted and is superseded by P0 v9. |
 | `step5d_strict_rnn_no_contact_p0_v9` | permissive P0 guard v2 | false | false | strict-RNN layout-524 structural contract | none | Canonical free-space candidate: 60 s cycloid with `A=15 mm`, `theta=0..6`, about 94.19 mm along travel, 30 mm lateral peak, and smooth relative base `Z=+20 mm`; `qdot<=0.5 rad/s`; 2 s sensor stale, 1 s heartbeat stale, 75 s TP runtime. Force/torque, Cartesian/normal speed, approach-normal displacement, DLS, residual magnitude, and active bounds are diagnostic-only. Success requires 60 continuous consumed/accepted seconds, along endpoint >=90 mm, lateral peak >=25 mm, relative Z endpoint >=18 mm, and terminal TP stop acknowledgement. |
 | `step5d_strict_rnn_ablation_v30` | offline contact-control prep | true | false | strict TASE RNN speedj; DLS shadow-only | `v31_filtered_live` | Inactive contact candidate retaining the stricter 1%/20 ms bounded last-command-hold contract. Hard-real-time remains a distinct zero-miss claim; readiness still requires live-runtime integration, a passing successor no-contact canary, and frozen package/readback. Contact requires separate authorization. |
-| `step5d_strict_rnn_ablation_v31` | inactive permissive contact candidate | true | false | strict TASE RNN layout-524; DLS/Cartesian shadow-only | latched contact normal | Full lifecycle: save Play-time home pose, fixed entry/gravity-down, far/near search and contact latch, 60 s Stage25, +10 mm retract and return home on normal/recoverable completion. Protective/E-stop states never auto-home. Hard guards remain structural/frame, layout/cmd validity, qdot/heartbeat, and user-selected gross limits; all other listed constraints stay diagnostic until the user asks to tighten. Package/read-back, frozen fingerprint, one Review v3, and explicit contact authorization are required before bridge start. |
+| `step5d_strict_rnn_ablation_v31` | superseded failure evidence | true | false | strict TASE RNN layout-524; DLS/Cartesian shadow-only | latched contact normal | Immutable failed run: TP reached Stage25.05, but the old global 524 publisher gate suppressed latch-ready state 33, so TP timed out before preload/continuous contact. Superseded by v32. |
+| `step5d_strict_rnn_ablation_v32` | current delivered contact candidate | true | false | stage-aware strict TASE RNN speedj; DLS/Cartesian shadow-only | latched contact normal | Fresh read-back verified. Stage-specific wire states are 33/521/522 and internal Stage25.0 marker 524. Permissive guards remain. Model audit was explicitly waived for this frozen delivery; live motion still requires separate authorization. |
 | `step5d_ros2_remote_shadow_v1` | ROS2 offline | true | false | ROS2 shadow replay | `v31_filtered_live` input logs | Diagnostic-only Step5d policy replay: replays v15a/v14/v11 and Step5b/Step6b CSVs, removes long zero-qdot hold recovery, but is not live-ready and must follow Step5b plumbing validation. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |
 
@@ -1000,9 +1004,11 @@ On a valid trigger:
      scripts/step5b-contact-operator.sh contact-bridge
    ```
 
-3. Long checks (network/Kunwei route) come from the operator's 30-min TTL
-   cache. Warm it with `prep-long-checks` once at bench-session start. If the
-   cache is stale the operator refreshes it itself; do not add manual checks.
+3. The fast trigger has no TTL cache, duplicate RTDE probe, or blocking full
+   bench preflight. Exact package binding, live authorization, Dashboard
+   snapshot, realtime launcher, and ready sentinel remain. `diagnose-bench`
+   (`prep-long-checks` compatibility alias) is an explicit optional snapshot
+   whose result never grants bridge authorization.
 4. Target from user trigger to bridge process start is a few seconds.
 
 ## Step5b Post-Run Diagnostic Bundle
