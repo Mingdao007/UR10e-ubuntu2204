@@ -4,7 +4,7 @@ Open on Teach Pendant only after the no-contact P0 capture package is explicitly
   /programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v9.urp
 
 Version:
-  2026-07-14T1854HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V9_GUARD_V2
+  2026-07-14T1919HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V9_GUARD_V2
 
 Boundary:
   NO_CONTACT_P0_CAPTURE diagnostic package; not a contact reproduction claim.

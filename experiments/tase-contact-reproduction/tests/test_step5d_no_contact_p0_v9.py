@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import math
 import sys
 import tempfile
@@ -115,6 +116,10 @@ class Step5dNoContactP0V9Test(unittest.TestCase):
         self.assertNotIn("generate-local never uploads", script)
 
     def test_reference_is_full_canonical_cycloid_with_twenty_mm_z_lift(self) -> None:
+        stage = json.loads((ROOT / "config" / "step5_stage_table.json").read_text(encoding="utf-8"))
+        p0_v9 = next(item for item in stage["stages"] if item["id"] == PROFILE)
+        self.assertEqual(p0_v9["phase_law"]["omega_rad_s"], 0.1)
+        self.assertEqual(p0_v9["phase_law"]["theta_rate_rad_s"], 0.1)
         self.assertEqual(canonical_cycloid_lift_reference(0.0)[0], (0.0, 0.0, 0.0))
         midpoint, midpoint_velocity = canonical_cycloid_lift_reference(30.0)
         self.assertAlmostEqual(midpoint[0], 0.04288319987910199)

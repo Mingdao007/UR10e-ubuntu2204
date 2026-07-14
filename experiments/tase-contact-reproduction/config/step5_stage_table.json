@@ -8884,6 +8884,7 @@
       "amplitude_m": 0.015,
       "phase_law": {
         "type": "canonical_cycloid_linear_time",
+        "omega_rad_s": 0.1,
         "theta_rate_rad_s": 0.1,
         "final_phase_rad": 6.0,
         "relative_z_lift_m": 0.02,

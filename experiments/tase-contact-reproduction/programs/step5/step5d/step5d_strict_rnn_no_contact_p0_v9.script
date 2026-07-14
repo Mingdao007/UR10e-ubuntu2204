@@ -1,5 +1,5 @@
-# VERSION: 2026-07-14T1854HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V9_GUARD_V2
-# GENERATED_AT_LOCAL: 2026-07-14T18:54:12+08:00
+# VERSION: 2026-07-14T1919HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V9_GUARD_V2
+# GENERATED_AT_LOCAL: 2026-07-14T19:19:12+08:00
 # PURPOSE: NO_CONTACT_P0_CAPTURE; no contact search, no preload, no zero/tare, direct Stage25 strict RNN warm-start capture.
 # TP_ROLE: no_contact_stage25_executor_and_guard_only; bridge computes Step5d strict RNN speedj command.
 # REGISTER_CONTRACT: Stage 25.95 requires bridge-cleared registers 37..47 before Stage25.0. Stage25.0 accepts only register 47=524.0 with joint speedj qd0..qd5; 43 cmd_valid, 44 path_time_s. DLS is shadow-only and has no runtime command path.
