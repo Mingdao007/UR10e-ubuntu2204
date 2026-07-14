@@ -23,6 +23,7 @@
   },
   "session": {
     "epoch": "cryptographically_random_positive_31_bit",
+    "session_uid": "cryptographically_random_256_bit_hex",
     "directory": "microsecond_timestamp_plus_epoch",
     "session_lock": "$XDG_RUNTIME_DIR/ur10e/step5b_autotune_session.lock",
     "live_writer_lock": "$XDG_RUNTIME_DIR/ur10e/live_writer.lock",
@@ -32,7 +33,7 @@
     "profile": "step5b_v2",
     "process_group": true,
     "shutdown": "SIGINT_then_SIGTERM_then_SIGKILL_then_wait",
-    "capture_complete_requires": ["process_group_reaped", "fresh_exact_token_RUN", "verified_HOME", "exact_token_HOLD_ack", "no_fatal_detail"],
+    "capture_complete_requires": ["process_group_reaped", "fresh_exact_token_RUN", "verified_HOME", "exact_token_HOLD_ack", "matching_pre_post_source_config_fingerprint", "no_fatal_detail"],
     "metadata_match_before_arm": ["candidate", "profile", "output_dir"]
   },
   "optimizer": {
@@ -40,7 +41,7 @@
     "feasibility_model": "Bernoulli_SingleTaskVariationalGP_on_all_eligible_trials",
     "acquisition": "qLogNoisyExpectedImprovement_q1",
     "device_policy": "cuda_required_for_every_live_selection_no_cpu_fallback",
-    "gpu_parallelism": "feasibility_and_objective_fit_on_two_cuda_stream_workers_when_both_models_apply",
+    "gpu_parallelism": "serial_default; two CUDA stream workers only with explicit verified_parallel attestation",
     "feasibility_probability_min": 0.95,
     "target_contexts_n": [12.0],
     "initial_candidate": {"target_force_n": 12.0, "force_p_gain": 0.001, "force_i_gain": 0.00001, "force_damping": 7.0, "normal_filter_alpha": 0.55},
@@ -50,18 +51,26 @@
     "max_gpu_workers": 3,
     "vram_limit_pct": 85,
     "blas_threads_per_worker": 1,
-    "history_policy": "chronological_all_eligible_including_infeasible_corruption_is_fatal",
+    "history_policy": "chronological eligible evidence requires one backend fingerprint epoch and uniqueness of both full-width trial_uid and raw-capture-derived physical_capture_uid; malformed or duplicate evidence is durably quarantined and excluded; quarantine write or verification failure is fatal",
     "tier2_relock": "force_i_gain_returns_to_1e-5_incumbent"
   },
   "evaluation": {
     "signed_load_column": "_step4e_normal_load_n",
-    "schema_version": "step5b_autotune_evaluation_v3",
+    "schema_version": "step5b_autotune_evaluation_v4",
+    "backend_id": "step5b_tp_local_autotune_bridge_v2",
+    "trial_uid": "sha256_of_backend_id_session_uid_trial_id_candidate_uid_excluding_run_dir_and_mutable_runtime_fields",
+    "physical_capture_uid": "sha256_of_backend_id_and_raw_bridge_capture_sha256",
+    "trial_spec": "pre-motion atomic binding of session_uid trial_uid candidate_uid candidate token and pre fingerprint",
+    "dispositions": ["OBJECTIVE", "PARAMETER_CONSTRAINT", "INTEGRITY_FAILURE", "PLATFORM_FAILURE"],
+    "disposition_policy": "only explicit force/torque parameter guard events (TP reasons 5/6/7) with verified safe closure train feasibility; operator stop reason 4, contact-search/infra reasons 8/10/12, host-TP contract reason 13, and short/cadence/sensor/required-column/fatal/fingerprint/closure failures never enter optimizer history",
+    "fingerprint": "matching pre/post source and config content hashes required",
     "objective_name": "force_mae_n",
+    "full_trial_requires": ["stage25_duration_gte_59p5s", "path_progress_gte_59p9s", "strictly_monotonic_time", "max_sample_gap_lte_0p1s", "sensor_ok_all_samples", "fresh_RUN_HOME_HOLD_and_reaped_capture_closure"],
     "diagnostic_only_metrics": ["force_rmse_n", "force_p99_absolute_error_n", "xy_rmse_m", "normalized_command_total_variation", "near_limit_dwell_duty"],
     "raw_normal_guard_n": 50.0,
     "force_norm_guard_n": 60.0,
     "torque_norm_guard_nm": 3.0,
-    "nonfinite_required_fields": "infeasible"
+    "nonfinite_required_fields": "platform_failure_not_optimizer_evidence"
   },
   "concurrency": {
     "cpu_workers": "physical_cores_capped_at_16",
@@ -70,8 +79,9 @@
   },
   "step5d_promotion": {
     "schema_version": "step5b_to_step5d_outer_loop_v1",
-    "requires": "same_candidate_two_feasible_full_60s_trials_within_15pct_force_mae",
+    "requires": "same_candidate_two_distinct_feasible_closed_full_60s_trials_within_15pct_force_mae",
     "selection": "lowest_observed_12n_force_mae_incumbent_with_latest_two_repeatability",
+    "fingerprint_scope": "raw_trial_hashes_plus_tp_readback_bridge_evaluator_optimizer_supervisor_promotion_and_step5d_consumer",
     "auto_apply": false,
     "live_authorization": false,
     "env_fields": ["STEP5D_FORCE_P_GAIN", "STEP5D_FORCE_I_GAIN", "STEP5D_FORCE_DAMPING", "STEP5D_NORMAL_FILTER_ALPHA"]

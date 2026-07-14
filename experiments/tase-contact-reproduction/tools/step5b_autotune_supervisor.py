@@ -34,7 +34,6 @@ from step5b_autotune_contract import (
     COMMAND_HOLD,
     COMMAND_STOP,
     CONFIRMATION_TOKEN,
-    CONSTRAINT_VIOLATION_REASONS,
     CONTROLLER_PROGRAM,
     EXPERIMENT_ROOT,
     FATAL_SESSION_REASONS,
@@ -49,6 +48,21 @@ from step5b_autotune_contract import (
     load_contract,
 )
 from step5b_autotune_evaluator import evaluate_run
+from step5b_autotune_evidence import (
+    BACKEND_ID,
+    EVALUATION_SCHEMA,
+    OBJECTIVE_NAME,
+    OBJECTIVE_UNIT,
+    atomic_write_json,
+    fingerprint_core,
+    fingerprint_record,
+    physical_capture_uid_from_sha256,
+    quarantine_evidence,
+    read_evaluation_jsonl,
+    sha256_file,
+    source_config_fingerprint,
+    trial_spec_payload,
+)
 from step5b_autotune_optimizer import choose_candidate, read_observations
 from step5b_autotune_promotion import write_promotion_artifacts
 
@@ -320,13 +334,21 @@ def gpu_capacity_status() -> dict[str, Any]:
         timeout=5,
     )
     workers = len([line for line in compute.stdout.splitlines() if line.strip().isdigit()])
-    predicted_mib = 1024.0
+    planned_optimizer_workers = 1
+    predicted_mib_per_worker = 1024.0
+    predicted_mib = planned_optimizer_workers * predicted_mib_per_worker
     projected_pct = 100.0 * (used_mib + predicted_mib) / total_mib
     return {
-        "ok": memory.returncode == 0 and workers < 3 and projected_pct <= 85.0,
+        "ok": (
+            memory.returncode == 0
+            and workers + planned_optimizer_workers <= 3
+            and projected_pct <= 85.0
+        ),
         "total_mib": total_mib,
         "used_mib": used_mib,
         "predicted_optimizer_mib": predicted_mib,
+        "predicted_mib_per_worker": predicted_mib_per_worker,
+        "planned_optimizer_workers": planned_optimizer_workers,
         "projected_vram_pct": projected_pct,
         "observed_compute_workers": workers,
         "max_compute_workers": 3,
@@ -393,6 +415,119 @@ def historical_run_roots() -> list[Path]:
     return roots
 
 
+def observation_history_paths() -> list[Path]:
+    seen: set[str] = set()
+    paths: list[Path] = []
+    for runs_root in historical_run_roots():
+        sessions_root = runs_root / "step5b_autotune_sessions"
+        if not sessions_root.is_dir():
+            continue
+        for path in sessions_root.glob("session_*/observations.jsonl"):
+            resolved = str(path.resolve())
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            paths.append(path)
+    return sorted(paths, key=lambda path: str(path.resolve()))
+
+
+def trial_identity_occurrences(
+    trial_uid: str,
+    physical_capture_uid: str,
+) -> list[dict[str, Any]]:
+    occurrences: list[dict[str, Any]] = []
+    for history_path in observation_history_paths():
+        validated_identities = {
+            (observation.trial_uid, observation.physical_capture_uid)
+            for observation in read_observations(history_path)
+        }
+        for record in read_evaluation_jsonl(history_path):
+            payload = record.payload
+            if not payload.get("eligible") or payload.get("quarantined"):
+                continue
+            if (
+                str(payload.get("trial_uid", "")),
+                str(payload.get("physical_capture_uid", "")),
+            ) not in validated_identities:
+                continue
+            duplicate_fields = [
+                field
+                for field, value in {
+                    "trial_uid": trial_uid,
+                    "physical_capture_uid": physical_capture_uid,
+                }.items()
+                if value and payload.get(field) == value
+            ]
+            if not duplicate_fields:
+                continue
+            occurrences.append(
+                {
+                    "source_jsonl": str(history_path.resolve()),
+                    "line_number": record.line_number,
+                    "run_dir": str(payload.get("run_dir", "")),
+                    "duplicate_fields": duplicate_fields,
+                }
+            )
+    return occurrences
+
+
+def enforce_unique_trial_uid(
+    evaluation: dict[str, Any],
+    *,
+    observations_path: Path,
+    run_dir: Path,
+) -> dict[str, Any]:
+    if not evaluation.get("eligible"):
+        return evaluation
+    trial_uid = str(evaluation.get("trial_uid", ""))
+    physical_capture_uid = str(evaluation.get("physical_capture_uid", ""))
+    fingerprint = evaluation.get("fingerprint")
+    identity_failures: list[str] = []
+    if len(trial_uid) != 64:
+        identity_failures.append("eligible_evaluation_missing_stable_trial_uid")
+    if len(physical_capture_uid) != 64:
+        identity_failures.append("eligible_evaluation_missing_physical_capture_uid")
+    if evaluation.get("backend_id") != BACKEND_ID:
+        identity_failures.append("eligible_evaluation_backend_mismatch")
+    if not isinstance(fingerprint, dict) or not fingerprint.get("verified"):
+        identity_failures.append("eligible_evaluation_fingerprint_unverified")
+
+    duplicates = (
+        trial_identity_occurrences(trial_uid, physical_capture_uid)
+        if not identity_failures
+        else []
+    )
+    if duplicates:
+        identity_failures.append("duplicate_trial_or_physical_capture_uid_across_history")
+    if not identity_failures:
+        return evaluation
+
+    quarantine_path = quarantine_evidence(
+        run_dir,
+        reasons=identity_failures,
+        artifact_paths=[run_dir / "evaluation.json", observations_path],
+        context={
+            "trial_uid": trial_uid,
+            "physical_capture_uid": physical_capture_uid,
+            "backend_id": evaluation.get("backend_id"),
+            "duplicate_occurrences": duplicates,
+        },
+    )
+    failures = list(evaluation.get("failures") or [])
+    failures.extend(reason for reason in identity_failures if reason not in failures)
+    return {
+        **evaluation,
+        "eligible": False,
+        "feasible": False,
+        "objective": None,
+        "disposition": "INTEGRITY_FAILURE",
+        "failures": failures,
+        "quarantined": True,
+        "quarantine_path": str(quarantine_path) if quarantine_path else None,
+        "duplicate_occurrences": duplicates,
+    }
+
+
 def _evaluate_history_run(run_dir: Path) -> dict[str, Any]:
     return evaluate_run(run_dir, allow_history=True)
 
@@ -413,13 +548,34 @@ def bootstrap_history(observations_path: Path, parallel_manifest_path: Path) -> 
     run_dirs = historical_run_dirs()
     started_at = now_iso()
     reference_path = observations_path.parent / "legacy_history_reference.json"
+    grouped: dict[str, dict[str, Any]] = {}
+    unresolved: list[str] = []
+    for run_dir in run_dirs:
+        csv_paths = sorted(run_dir.glob("bridge_rtde_*hz.csv"))
+        capture_sha256 = sha256_file(csv_paths[0]) if len(csv_paths) == 1 else None
+        if capture_sha256 is None:
+            unresolved.append(str(run_dir))
+            continue
+        physical_capture_uid = physical_capture_uid_from_sha256(capture_sha256)
+        record = grouped.setdefault(
+            physical_capture_uid,
+            {
+                "physical_capture_uid": physical_capture_uid,
+                "bridge_csv_sha256": capture_sha256,
+                "aliases": [],
+                "training_eligible": False,
+            },
+        )
+        record["aliases"].append(str(run_dir))
     write_json(
         reference_path,
         {
             "schema_version": "step5b_autotune_legacy_history_reference_v1",
             "training_observations_imported": 0,
-            "reason": "pre-v3 multi-objective and non-supervisor history is audit-only",
+            "reason": "pre-v4 or non-supervisor history is content-grouped audit-only evidence",
             "run_dirs": [str(path) for path in run_dirs],
+            "content_grouped_captures": [grouped[key] for key in sorted(grouped)],
+            "unresolved_run_dirs": unresolved,
         },
     )
     write_json(
@@ -538,12 +694,14 @@ def _run_one_trial_locked(
     trial_id: int,
     candidate: Candidate,
     stop_file: Path,
+    *,
+    session_uid: str,
+    frozen_fingerprint: dict[str, Any],
 ) -> dict[str, Any]:
     run_dir = session_dir / "trials" / f"trial_{trial_id:05d}_{int(candidate.target_force_n):02d}n"
     run_dir.mkdir(parents=True, exist_ok=False)
     token = candidate_token_low31(session_epoch, trial_id, candidate)
     command = bridge_command(candidate, run_dir, python_executable=str(VENV_PYTHON))
-    write_json(run_dir / "candidate.json", {"candidate": candidate.payload(), "token_low31": token, "command": command})
 
     bridge_log = (run_dir / "bridge_console.log").open("w", encoding="utf-8")
     process: subprocess.Popen[Any] | None = None
@@ -555,7 +713,37 @@ def _run_one_trial_locked(
     bridge_rc: int | None = None
     saw_run = False
     home_release_ack = False
+    fingerprint_pre_record: dict[str, Any] | None = None
+    fingerprint_post_record: dict[str, Any] | None = None
+    fingerprint_verified = False
+    trial_spec: dict[str, Any] | None = None
+    trial_spec_sha256: str | None = None
     try:
+        fingerprint_pre_record = fingerprint_record("pre")
+        atomic_write_json(run_dir / "trial_fingerprint_pre.json", fingerprint_pre_record)
+        pre_core = fingerprint_core(fingerprint_pre_record, expected_phase="pre")
+        if pre_core != frozen_fingerprint:
+            raise RuntimeError("trial pre fingerprint differs from frozen session fingerprint")
+        trial_spec = trial_spec_payload(
+            session_uid=session_uid,
+            trial_id=trial_id,
+            candidate=candidate.payload(),
+            candidate_token_low31=token,
+            fingerprint_pre_sha256=pre_core["combined_sha256"],
+        )
+        atomic_write_json(run_dir / "trial_spec.json", trial_spec)
+        trial_spec_sha256 = sha256_file(run_dir / "trial_spec.json")
+        if trial_spec_sha256 is None:
+            raise RuntimeError("trial_spec.json digest unavailable")
+        write_json(
+            run_dir / "candidate.json",
+            {
+                **trial_spec,
+                "trial_spec_sha256": trial_spec_sha256,
+                "token_low31": token,
+                "command": command,
+            },
+        )
         with tp_observer() as (observer, recipe_id, type_names):
             write_handshake(session_epoch, trial_id, COMMAND_HOLD, token)
             process = subprocess.Popen(
@@ -628,8 +816,52 @@ def _run_one_trial_locked(
                 )
         bridge_log.close()
 
+    try:
+        fingerprint_post_record = fingerprint_record("post")
+        atomic_write_json(run_dir / "trial_fingerprint_post.json", fingerprint_post_record)
+        pre_core = fingerprint_core(fingerprint_pre_record or {}, expected_phase="pre")
+        post_core = fingerprint_core(fingerprint_post_record, expected_phase="post")
+        fingerprint_verified = pre_core == post_core == frozen_fingerprint
+        if not fingerprint_verified:
+            fatal_detail = fatal_detail or "source/config fingerprint differs from frozen session contract"
+    except (KeyError, OSError, TypeError, ValueError) as exc:
+        fatal_detail = (
+            f"{fatal_detail}; fingerprint closure failure: {type(exc).__name__}: {exc}"
+            if fatal_detail
+            else f"fingerprint closure failure: {type(exc).__name__}: {exc}"
+        )
+
+    fingerprint_pre_sha256 = (
+        fingerprint_pre_record.get("fingerprint", {}).get("combined_sha256")
+        if fingerprint_pre_record
+        else None
+    )
+    fingerprint_post_sha256 = (
+        fingerprint_post_record.get("fingerprint", {}).get("combined_sha256")
+        if fingerprint_post_record
+        else None
+    )
+    bridge_csv_paths = sorted(run_dir.glob("bridge_rtde_*hz.csv"))
+    bridge_csv_sha256 = sha256_file(bridge_csv_paths[0]) if len(bridge_csv_paths) == 1 else None
+    physical_capture_uid = (
+        physical_capture_uid_from_sha256(bridge_csv_sha256)
+        if bridge_csv_sha256 is not None
+        else None
+    )
+    if physical_capture_uid is None:
+        fatal_detail = fatal_detail or "exactly one readable bridge CSV is required for capture identity"
+
+    full_identity = {
+        "backend_id": BACKEND_ID,
+        "session_uid": session_uid,
+        "candidate_uid": trial_spec.get("candidate_uid") if trial_spec else None,
+        "trial_uid": trial_spec.get("trial_uid") if trial_spec else None,
+        "trial_spec_sha256": trial_spec_sha256,
+        "physical_capture_uid": physical_capture_uid,
+    }
+
     runtime = {
-        "schema_version": "step5b_autotune_trial_runtime_v3",
+        "schema_version": "step5b_autotune_trial_runtime_v4",
         "started_at": started_at,
         "finished_at": now_iso(),
         "session_epoch": session_epoch,
@@ -639,6 +871,10 @@ def _run_one_trial_locked(
         "home_verified": home_observed,
         "fresh_run_observed": saw_run,
         "home_release_ack": home_release_ack,
+        **full_identity,
+        "fingerprint_pre_sha256": fingerprint_pre_sha256,
+        "fingerprint_post_sha256": fingerprint_post_sha256,
+        "fingerprint_verified": fingerprint_verified,
         "fatal_detail": fatal_detail,
         "bridge_returncode": bridge_rc,
         "last_tp_sample": last_sample,
@@ -650,11 +886,19 @@ def _run_one_trial_locked(
         and bridge_rc is not None
         and not process_group_exists(process.pid)
     )
-    capture_complete = bool(reaped and saw_run and home_observed and home_release_ack and not fatal_detail)
+    capture_complete = bool(
+        reaped
+        and saw_run
+        and home_observed
+        and home_release_ack
+        and fingerprint_verified
+        and not fatal_detail
+    )
     marker = "capture_complete.json" if capture_complete else "capture_incomplete.json"
     write_json(
         run_dir / marker,
         {
+            "schema_version": "step5b_autotune_capture_manifest_v4",
             "complete": capture_complete,
             "at": now_iso(),
             "bridge_returncode": bridge_rc,
@@ -662,6 +906,10 @@ def _run_one_trial_locked(
             "fresh_run_observed": saw_run,
             "home_verified": home_observed,
             "home_release_ack": home_release_ack,
+            **full_identity,
+            "fingerprint_pre_sha256": fingerprint_pre_sha256,
+            "fingerprint_post_sha256": fingerprint_post_sha256,
+            "fingerprint_verified": fingerprint_verified,
             "fatal_detail": fatal_detail,
         },
     )
@@ -674,9 +922,59 @@ def run_one_trial(
     trial_id: int,
     candidate: Candidate,
     stop_file: Path,
+    *,
+    session_uid: str | None = None,
+    frozen_fingerprint: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    session_uid = session_uid or secrets.token_hex(32)
+    frozen_fingerprint = frozen_fingerprint or source_config_fingerprint()
     with exclusive_lock(LIVE_WRITER_LOCK_PATH):
-        return _run_one_trial_locked(session_dir, session_epoch, trial_id, candidate, stop_file)
+        return _run_one_trial_locked(
+            session_dir,
+            session_epoch,
+            trial_id,
+            candidate,
+            stop_file,
+            session_uid=session_uid,
+            frozen_fingerprint=frozen_fingerprint,
+        )
+
+
+def trial_continuation(runtime: dict[str, Any], *, stop_requested: bool) -> tuple[int | None, str | None, bool]:
+    reason = runtime.get("terminal_reason")
+    reason = int(reason) if reason is not None else None
+    fatal_detail = runtime.get("fatal_detail") or None
+    if not runtime.get("home_verified"):
+        fatal_detail = fatal_detail or "home not verified"
+    if reason in FATAL_SESSION_REASONS:
+        fatal_detail = fatal_detail or f"fatal terminal reason {reason}"
+    return reason, fatal_detail, not fatal_detail and not stop_requested
+
+
+def evidence_continuation(evaluation: dict[str, Any]) -> tuple[bool, str | None]:
+    failures = ",".join(str(item) for item in evaluation.get("failures", []))
+    if evaluation.get("quarantined"):
+        return (
+            False,
+            "trial evidence quarantined; fix evidence/code before another live trial: "
+            + failures,
+        )
+    if evaluation.get("disposition") not in {"OBJECTIVE", "PARAMETER_CONSTRAINT"}:
+        return (
+            False,
+            "trial is not eligible for optimizer history; inspect platform evidence "
+            "before another live trial: "
+            + failures,
+        )
+    if (
+        evaluation.get("eligible") is not True
+        or evaluation.get("supervisor_closure_verified") is not True
+    ):
+        return (
+            False,
+            "trainable disposition lacks explicit eligibility or verified closure: " + failures,
+        )
+    return True, None
 
 
 def wait_for_resume_or_stop(session_dir: Path) -> bool:
@@ -692,9 +990,20 @@ def wait_for_resume_or_stop(session_dir: Path) -> bool:
 
 def _run_session_after_preflight() -> int:
     session_epoch = secrets.randbelow(0x7FFFFFFF) + 1
+    session_uid = secrets.token_hex(32)
+    frozen_fingerprint = source_config_fingerprint()
     timestamp = datetime.now().astimezone().strftime("%Y%m%d_%H%M%S_%f")
     session_dir = RUNS_ROOT / f"session_{timestamp}_e{session_epoch}"
     session_dir.mkdir(parents=True, exist_ok=False)
+    write_json(
+        session_dir / "session_fingerprint.json",
+        {
+            "schema_version": "step5b_autotune_session_fingerprint_v1",
+            "backend_id": BACKEND_ID,
+            "session_uid": session_uid,
+            "fingerprint": frozen_fingerprint,
+        },
+    )
     observations_path = session_dir / "observations.jsonl"
     parallel_manifest_path = session_dir / "parallel_run_manifest.json"
     stop_file = session_dir / "STOP_REQUESTED"
@@ -703,7 +1012,13 @@ def _run_session_after_preflight() -> int:
     capacity = gpu_capacity_status()
     if not capacity["ok"]:
         raise RuntimeError(f"GPU capacity gate failed before initial selection: {capacity}")
-    candidate, selection = choose_candidate(read_observations(observations_path), require_botorch=True)
+    candidate, selection = choose_candidate(
+        read_observations(
+            observations_path,
+            expected_fingerprint_sha256=frozen_fingerprint["combined_sha256"],
+        ),
+        require_botorch=True,
+    )
     append_parallel_task(
         parallel_manifest_path,
         {
@@ -720,11 +1035,14 @@ def _run_session_after_preflight() -> int:
         },
     )
     state = {
-        "schema_version": "step5b_autotune_session_v3",
+        "schema_version": "step5b_autotune_session_v4",
         "status": "running",
         "started_at": now_iso(),
         "session_dir": str(session_dir),
         "session_epoch": session_epoch,
+        "session_uid": session_uid,
+        "backend_id": BACKEND_ID,
+        "frozen_fingerprint_sha256": frozen_fingerprint["combined_sha256"],
         "pid": os.getpid(),
         "history_observations": history_count,
         "last_trial_id": 0,
@@ -750,7 +1068,15 @@ def _run_session_after_preflight() -> int:
                 state.update({"last_trial_id": trial_id, "selection": selection, "candidate": candidate.payload()})
                 write_json(session_dir / "session.json", state)
                 write_json(ACTIVE_POINTER, state)
-                outcome = run_one_trial(session_dir, session_epoch, trial_id, candidate, stop_file)
+                outcome = run_one_trial(
+                    session_dir,
+                    session_epoch,
+                    trial_id,
+                    candidate,
+                    stop_file,
+                    session_uid=session_uid,
+                    frozen_fingerprint=frozen_fingerprint,
+                )
                 append_parallel_task(
                     parallel_manifest_path,
                     {
@@ -789,8 +1115,44 @@ def _run_session_after_preflight() -> int:
                 postprocess_started = now_iso()
                 diagnostic_process, diagnostic_log, diagnostic_started = start_diagnostic(outcome["run_dir"])
                 evaluation_future = cpu_pool.submit(evaluate_run, outcome["run_dir"])
-                evaluation = evaluation_future.result()
+                try:
+                    evaluation = evaluation_future.result()
+                except Exception as exc:
+                    reason = f"evaluator_exception:{type(exc).__name__}:{exc}"
+                    quarantine_path = quarantine_evidence(
+                        outcome["run_dir"],
+                        reasons=[reason],
+                        artifact_paths=[
+                            outcome["run_dir"] / "metadata.json",
+                            outcome["run_dir"] / "trial_runtime.json",
+                            outcome["run_dir"] / "capture_complete.json",
+                        ],
+                        context={"backend_id": BACKEND_ID},
+                    )
+                    evaluation = {
+                        "schema_version": EVALUATION_SCHEMA,
+                        "backend_id": BACKEND_ID,
+                        "run_dir": str(outcome["run_dir"]),
+                        "trial_uid": None,
+                        "eligible": False,
+                        "feasible": False,
+                        "objective": None,
+                        "objective_name": OBJECTIVE_NAME,
+                        "objective_unit": OBJECTIVE_UNIT,
+                        "full_trial": False,
+                        "supervisor_closure_verified": False,
+                        "disposition": "INTEGRITY_FAILURE",
+                        "fingerprint": {"verified": False},
+                        "failures": [reason],
+                        "quarantined": True,
+                        "quarantine_path": str(quarantine_path) if quarantine_path else None,
+                    }
                 evaluation_finished = now_iso()
+                evaluation = enforce_unique_trial_uid(
+                    evaluation,
+                    observations_path=observations_path,
+                    run_dir=outcome["run_dir"],
+                )
                 write_json(outcome["run_dir"] / "evaluation.json", evaluation)
                 append_jsonl(observations_path, evaluation)
                 promotion_started = now_iso()
@@ -802,11 +1164,13 @@ def _run_session_after_preflight() -> int:
                     "promotion_id": promotion.get("promotion_id"),
                 }
 
-                reason = outcome["runtime"].get("terminal_reason")
-                fatal = outcome["runtime"].get("fatal_detail") or not outcome["runtime"].get("home_verified")
-                if reason in FATAL_SESSION_REASONS:
-                    fatal = fatal or f"fatal terminal reason {reason}"
-                should_continue = not fatal and not stop_file.exists() and reason != 4
+                reason, fatal, should_continue = trial_continuation(
+                    outcome["runtime"], stop_requested=stop_file.exists()
+                )
+                evidence_can_continue, evidence_fatal = evidence_continuation(evaluation)
+                if not evidence_can_continue:
+                    fatal = evidence_fatal
+                    should_continue = False
                 next_candidate: Candidate | None = None
                 next_selection: dict[str, Any] | None = None
                 optimizer_finished: str | None = None
@@ -818,7 +1182,13 @@ def _run_session_after_preflight() -> int:
                         should_continue = False
                     else:
                         next_candidate, next_selection = choose_candidate(
-                            read_observations(observations_path), require_botorch=True
+                            read_observations(
+                                observations_path,
+                                expected_fingerprint_sha256=frozen_fingerprint[
+                                    "combined_sha256"
+                                ],
+                            ),
+                            require_botorch=True,
                         )
                         optimizer_finished = now_iso()
 
@@ -890,11 +1260,11 @@ def _run_session_after_preflight() -> int:
                     state.update({"status": "fatal", "fatal_detail": str(fatal), "finished_at": now_iso()})
                     exit_code = 4
                     break
-                if stop_file.exists() or reason == 4:
+                if stop_file.exists():
                     state.update({"status": "stopped", "finished_at": now_iso()})
                     break
 
-                violation = (not evaluation.get("feasible")) or reason in CONSTRAINT_VIOLATION_REASONS
+                violation = evaluation.get("disposition") == "PARAMETER_CONSTRAINT"
                 if violation:
                     state["consecutive_constraint_violations"] += 1
                 else:

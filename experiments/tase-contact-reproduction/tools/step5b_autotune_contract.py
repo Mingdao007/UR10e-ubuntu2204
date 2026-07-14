@@ -47,8 +47,37 @@ TP_STATE_NAMES = {
 }
 
 RECOVERABLE_AUTO_HOME_REASONS = frozenset({1, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14})
-CONSTRAINT_VIOLATION_REASONS = frozenset({5, 6, 7, 8, 10, 12, 13})
+PARAMETER_TERMINAL_REASONS = frozenset({5, 6, 7})
+# Backward-compatible name for consumers that mean trainable parameter events.
+CONSTRAINT_VIOLATION_REASONS = PARAMETER_TERMINAL_REASONS
 FATAL_SESSION_REASONS = frozenset({2, 3, 14, 15})
+PARAMETER_GUARD_FAILURES = frozenset(
+    {
+        "force_norm_guard_reached",
+        "raw_normal_guard_reached",
+        "torque_guard_reached",
+    }
+)
+PARAMETER_TRUNCATION_FAILURES = frozenset(
+    {
+        "insufficient_stage25_samples",
+        "stage25_duration_lt_59p5s",
+        "path_progress_lt_59p9s",
+    }
+)
+
+
+def is_parameter_constraint_failure(reason: str) -> bool:
+    if reason in PARAMETER_GUARD_FAILURES:
+        return True
+    prefix = "constraint_terminal_reason_"
+    if not reason.startswith(prefix):
+        return False
+    try:
+        terminal_reason = int(reason.removeprefix(prefix))
+    except ValueError:
+        return False
+    return terminal_reason in PARAMETER_TERMINAL_REASONS
 
 
 @dataclass(frozen=True)

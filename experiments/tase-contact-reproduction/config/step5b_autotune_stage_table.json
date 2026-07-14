@@ -54,13 +54,13 @@
       "frame": {"load_normal": "signed_reaction_normal", "posture_and_press_normal": "approach_normal"},
       "contact": {"target_contexts_n": [12.0], "raw_normal_guard_n": 50.0, "force_norm_guard_n": 60.0, "torque_norm_guard_nm": 3.0},
       "bridge": {"implementation": "tools/kunwei_rtde_bridge.py", "profile": "step5b_v2", "session_lock": true, "live_writer_lock": true, "token_echo_register": 28},
-      "optimizer": {"backend": "bernoulli_variational_safe_botorch_cuda", "device_policy": "cuda_required_for_every_live_selection_no_cpu_fallback", "parallel_gpu_workers": 2, "objective": "force_mae_n_only", "target_context_n": 12.0},
+      "optimizer": {"backend": "bernoulli_variational_safe_botorch_cuda", "device_policy": "cuda_required_for_every_live_selection_no_cpu_fallback", "cuda_fit_default": "serial", "verified_parallel_gpu_workers": 2, "objective": "force_mae_n_only", "target_context_n": 12.0},
       "package_delivery": "config/step5b_autotune_delivery_v2.json",
       "runtime_contract": "config/step5b_autotune_loop_v2.json",
       "authorization_ledger": "config/step5b_tp_autotune_authorization_v2.json",
-      "success_condition": "owner-gated supervised 60 s baseline followed by indefinite serialized 60 s trials; Step5d promotion requires two repeatable feasible full trials of one 12 N candidate with fresh token-bound RUN and verified HOME/HOLD closure",
+      "success_condition": "owner-gated supervised 60 s baseline followed by indefinite serialized 60 s trials; Step5d promotion requires two repeatable feasible full trials of one 12 N candidate with full-width trial_uid, unique physical_capture_uid, matching pre/post source+config fingerprint, fresh token-bound RUN, and verified HOME/HOLD closure",
       "controller_readback_status": "controller read-back verified",
-      "unblock_requires": ["read-only bench preflight", "UR live/contact authorization", "operator supervised 60 s gate"]
+      "unblock_requires": ["dedicated v2 owner-policy exception merged and active", "read-only bench preflight", "UR live/contact authorization", "operator supervised 60 s gate"]
     }
   ]
 }
