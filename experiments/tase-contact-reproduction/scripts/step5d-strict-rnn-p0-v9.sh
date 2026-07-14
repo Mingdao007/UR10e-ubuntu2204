@@ -13,6 +13,7 @@ Usage:
   step5d-strict-rnn-p0-v9.sh status
   step5d-strict-rnn-p0-v9.sh generate-deliver
   step5d-strict-rnn-p0-v9.sh validate-run RUN_DIR_OR_CSV
+  step5d-strict-rnn-p0-v9.sh live-ready
   step5d-strict-rnn-p0-v9.sh capture-ready
   STEP5D_P0_CONFIRM='LIVE STEP5D STRICT RNN NO CONTACT P0 V9' \
     step5d-strict-rnn-p0-v9.sh capture-bridge
@@ -63,11 +64,16 @@ print(f"local_package_verified={str(bool((candidate.get('claim_boundary') or {})
 print(f"controller_uploaded={str(bool(capture.get('controller_uploaded'))).lower()}")
 print(f"controller_readback_verified={str(bool(capture.get('controller_readback_verified'))).lower()}")
 print(f"capture_authorized={str(bool(capture.get('capture_authorized'))).lower()}")
-print("live_execution=not_run")
+evidence = candidate.get("latest_live_evidence") or {}
+print(f"live_execution={'failed' if evidence and not evidence.get('ok') else 'not_run'}")
+if evidence:
+    print(f"latest_live_summary={evidence.get('summary')}")
+    print(f"latest_live_diagnosis={evidence.get('diagnosis')}")
 PY
     ;;
   live-ready)
-    exec "${BASE_WRAPPER}" status
+    export STEP5D_P0_PHASE_S="$(configured_duration)"
+    exec "${BASE_WRAPPER}" capture-ready
     ;;
   generate-deliver|generate-local)
     if [[ $# -ne 1 ]]; then

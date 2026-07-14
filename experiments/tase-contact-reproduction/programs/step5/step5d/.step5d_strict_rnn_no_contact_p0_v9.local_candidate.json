@@ -20,6 +20,8 @@
   "status": "controller read-back verified",
   "target_dir": "/programs/andyl/kunwei/step5",
   "controller_readback_verified": true,
-  "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_20260714_182043/manifest.json",
-  "delivery_mode": "full_upload_readback"
+  "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_20260714_183546/manifest.json",
+  "delivery_mode": "full_upload_readback",
+  "controller": "root@192.168.1.18",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v9.urp"
 }

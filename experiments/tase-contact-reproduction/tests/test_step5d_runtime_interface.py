@@ -140,6 +140,32 @@ class Step5dRuntimeInterfaceTest(unittest.TestCase):
         self.assertEqual(runtime.hard_contract["stage25_runtime_limit_s"], 75.0)
         self.assertTrue(runtime.hard_contract["no_contact_p0_capture"])
 
+    def test_p0_v9_live_ready_does_not_print_removed_guards(self) -> None:
+        runtime = iface.resolve_runtime_interface(
+            program=iface.STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
+            root=ROOT,
+            env={},
+        )
+
+        joined = "\n".join(
+            iface.live_ready_lines(
+                runtime,
+                {
+                    "state": "HIT",
+                    "age_s": 60.0,
+                    "ttl_s": 7200.0,
+                    "fingerprint_ok": True,
+                },
+            )
+        )
+
+        self.assertIn("schema=p0_v9_guard_v2", joined)
+        self.assertIn("[guards-disabled] force, Cartesian speed, normal speed/displacement", joined)
+        self.assertIn("qdot_slew=0.05rad/s^2", joined)
+        self.assertNotIn("[tuning] preload", joined)
+        self.assertNotIn("hard_force=", joined)
+        self.assertNotIn("legacy_total_linear_debug=", joined)
+
     def test_live_ready_without_authorization_never_claims_live_bridge(self) -> None:
         runtime = iface.resolve_runtime_interface(program=iface.STEP5D_ABLATION_V29_STAGE_ID, root=ROOT, env={})
 

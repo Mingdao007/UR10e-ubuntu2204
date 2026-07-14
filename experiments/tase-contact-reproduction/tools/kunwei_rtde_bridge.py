@@ -690,6 +690,7 @@ STEP5D_V11_ACQUIRE_V_MAX_M_S = 0.0012
 STEP5D_V11_ACQUIRE_SLEW_M_S2 = 0.012
 STEP5D_V12_QDOT_LIMIT_RAD_S = 0.05
 STEP5D_V12_QDOT_SLEW_RAD_S2 = 0.20
+STEP5D_P0_V9_QDOT_SLEW_RAD_S2 = 0.05
 STEP5D_NO_CONTACT_P0_LINEAR_XY_COMPONENT_LIMIT_M_S = 0.010
 STEP5D_NO_CONTACT_P0_LINEAR_Z_COMPONENT_LIMIT_M_S = 0.020
 STEP5D_NO_CONTACT_P0_ANGULAR_COMPONENT_LIMIT_RAD_S = STEP5D_NO_CONTACT_P0_ANGULAR_LIMIT_RAD_S
@@ -3140,7 +3141,11 @@ def step5d_v30_contract_pipeline(
         ),
         safety_envelope=safety_envelope,
         deferred_diagnostics=deferred_diagnostics,
-        max_slew_rad_s2=STEP5D_V12_QDOT_SLEW_RAD_S2,
+        max_slew_rad_s2=(
+            STEP5D_P0_V9_QDOT_SLEW_RAD_S2
+            if observation.normal_motion_policy == "diagnostic_only"
+            else STEP5D_V12_QDOT_SLEW_RAD_S2
+        ),
         dt_max_s=STEP5D_V12_GUARD_DT_MAX_S,
     )
     return (
@@ -3179,7 +3184,11 @@ def step5d_v30_bridge_control_step(
         safety_envelope=safety_envelope,
         deferred_diagnostics=deferred_diagnostics,
         prepare_policy=prepare_policy,
-        max_slew_rad_s2=STEP5D_V12_QDOT_SLEW_RAD_S2,
+        max_slew_rad_s2=(
+            STEP5D_P0_V9_QDOT_SLEW_RAD_S2
+            if observation.normal_motion_policy == "diagnostic_only"
+            else STEP5D_V12_QDOT_SLEW_RAD_S2
+        ),
         dt_max_s=STEP5D_V12_GUARD_DT_MAX_S,
     )
 
@@ -5665,6 +5674,7 @@ def compute_bridge_values(
                 if (
                     step5d_no_contact_p0_profile
                     and not step5d_no_contact_p0_v8_profile
+                    and not step5d_no_contact_p0_v9_profile
                     and step5d_stage25_control_mode == "speedj_rnn_live"
                     and step5d_qdot_command is not None
                     and step5d_outer_xdot_limited is not None
@@ -5802,6 +5812,11 @@ def compute_bridge_values(
                             else "rnn_invalid_reject"
                         )
                         if decision_v30.action == "stop":
+                            # Reuse the existing stop-reason transport, but do
+                            # not report the inactive contact guard as the cause.
+                            step5d_contact_safety["reason"] = (
+                                f"v30_contract:{decision_v30.reason}"
+                            )
                             step5d_contact_safety_stop = True
                             step5d_engage_gate_ok = False
                     if step5d_no_contact_p0_v8_profile or step5d_no_contact_p0_v9_profile:
@@ -5957,7 +5972,11 @@ def compute_bridge_values(
                 register_force_error = force_error
                 register_pose_error = orientation_error
                 register_status = joint_result.solver_status if joint_result is not None else STATUS_INVALID
-            if step5d_no_contact_p0_profile and not step5d_no_contact_p0_v8_profile:
+            if (
+                step5d_no_contact_p0_profile
+                and not step5d_no_contact_p0_v8_profile
+                and not step5d_no_contact_p0_v9_profile
+            ):
                 values.update(
                     step5d_stage25_register_values(
                         step5d_stage25_command

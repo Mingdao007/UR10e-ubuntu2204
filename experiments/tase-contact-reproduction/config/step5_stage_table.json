@@ -8837,7 +8837,7 @@
       "complete": false,
       "completion_target": false,
       "gate_for": "step5d_strict_rnn_ablation_v30",
-      "block_reason": "P0 v9 guard v2 is a permissive no-contact bring-up candidate. It retains structural/protocol checks and a 0.5 rad/s qdot limit while force, Cartesian-speed, normal-motion, DLS, residual-magnitude, and active-bound checks are diagnostic-only. Fresh package read-back is verified; a direct 60 s live run is required.",
+      "block_reason": "P0 v9 guard v2 live run 20260714_182540 failed: the legacy press-only P0 gate still intercepted v9 packets and TP speedj acceleration lagged unslewed host command reversals. Qualification reached only 0.651 s continuously and the TCP drifted about 50 mm from its start. The host path now excludes v9 from the legacy gate and applies 0.05 rad/s^2 command slew to match TP acceleration; a fresh live run is required.",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": false,
@@ -8864,6 +8864,8 @@
         "solver_ok_status": 40.0,
         "guard_schema": "p0_v9_guard_v2",
         "normal_motion_policy": "diagnostic_only",
+        "command_slew_rad_s2": 0.05,
+        "command_slew_role": "tp_speedj_dynamics_alignment_not_stop_guard",
         "control_contract": "Step5dObservation->StrictRnnControlPolicy->ControlCandidate->SafetyEnvelope(structural_only)->RegisterCommand",
         "dls_shadow_only": true,
         "dls_runtime_fallback_allowed": false
@@ -8960,7 +8962,7 @@
         "controller_dir": "/programs/andyl/kunwei/step5",
         "controller_uploaded": true,
         "controller_readback_verified": true,
-        "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_20260714_182043/manifest.json",
+        "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_20260714_183546/manifest.json",
         "delivery_mode": "full_upload_readback",
         "sha256": {
           ".script": "ad48057589f18ec8b45e1ffd26f1ab37516f7133709f04e9b869b9fb39e8a8d6",
@@ -8974,7 +8976,17 @@
         "controller_readback_required": true,
         "strict_rnn_no_contact_p0_passed": false,
         "p0_v9_passed": false,
-        "not_a_completed_reproduction_claim": true
+        "not_a_completed_reproduction_claim": true,
+        "latest_live_evidence": {
+          "run": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v9_20260714_182540",
+          "summary": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v9_20260714_182540/step5d_no_contact_p0_summary.json",
+          "ok": false,
+          "max_continuous_qualified_s": 0.651439408,
+          "tangent_peak_to_peak_m": 0.0622006357,
+          "tangent_end_offset_m": 0.0499772239,
+          "terminal_rows": 0,
+          "tp_safety_mode_after_stop": "NORMAL"
+        }
       },
       "success_condition": "P0 v9 guard v2 live acceptance requires 60 continuous seconds of Stage25 layout-524 consumed and structurally host-accepted packets with full TP echo, at least 2.0 mm actual tangential peak-to-peak travel, and terminal exact-zero TP stop acknowledgement. Force, Cartesian-speed, normal-motion/displacement, DLS, residual magnitude, active bounds, end-offset, and RMS remain diagnostics only."
     },

@@ -145,10 +145,14 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
         self.assertFalse(marker["local_only"])
         self.assertFalse(marker["not_delivered"])
         self.assertTrue(marker["controller_readback_verified"])
-        self.assertEqual(
-            marker["controller_readback_manifest"],
-            "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_20260714_182043/manifest.json",
+        manifest = str(marker["controller_readback_manifest"])
+        self.assertTrue(
+            manifest.startswith(
+                "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_"
+            )
         )
+        self.assertTrue(manifest.endswith("/manifest.json"))
+        self.assertTrue((ROOT / manifest).is_file())
 
     def test_upload_validator_checks_installation_relative_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -613,6 +617,17 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
             self.assertTrue(manifest["fresh_controller_sha_verified"])
             self.assertEqual(manifest["readback_source"], "prior_full_readback")
             self.assertIn("fresh_controller_checked_at", manifest)
+
+    def test_manifest_fresh_controller_flag_accepts_full_readback_sha_agreement(self) -> None:
+        shas = {
+            "local": {".script": "1", ".txt": "2", ".urp": "3"},
+            "controller": {".script": "1", ".txt": "2", ".urp": "3"},
+            "readback": {".script": "1", ".txt": "2", ".urp": "3"},
+        }
+
+        self.assertTrue(upload.triplet_sha_sets_match(shas))
+        shas["readback"][".urp"] = "different"
+        self.assertFalse(upload.triplet_sha_sets_match(shas))
 
 
 if __name__ == "__main__":

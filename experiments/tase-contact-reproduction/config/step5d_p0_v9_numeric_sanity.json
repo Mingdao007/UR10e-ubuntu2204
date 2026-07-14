@@ -23,6 +23,8 @@
   "joint_and_attitude": {
     "qdot_cap_rad_s": 0.5,
     "qdot_slew_guard_enabled": false,
+    "command_slew_rad_s2": 0.05,
+    "command_slew_role": "tp_speedj_dynamics_alignment_not_stop_guard",
     "effective_ko": 0.01,
     "orientation_policy": "weak_posture_hold_only_no_oscillation"
   },
@@ -43,7 +45,7 @@
   "controller_target": {
     "planned": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v9.urp",
     "delivery_state": "controller_readback_verified",
-    "readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_20260714_182043/manifest.json"
+    "readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_20260714_183546/manifest.json"
   },
   "claim_boundary": "Offline analytic sanity plus controller package read-back only; no bridge, TP Play, or robot acceptance claim."
 }

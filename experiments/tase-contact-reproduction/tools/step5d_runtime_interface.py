@@ -1017,6 +1017,31 @@ def live_ready_lines(
                 f"joint_tag={STEP5D_STAGE25_JOINT_LAYOUT_CODE:g}"
             ),
         ]
+    if interface.program == STEP5D_NO_CONTACT_P0_V9_STAGE_ID:
+        runtime_profile = interface.hard_contract["runtime_profile"]
+        return [
+            "[step5d][phase=live-bridge][rebuild=no][upload=no]",
+            "[touches=kunwei+rtde][experiment=no-contact]",
+            f"[cache] long-check={cache.get('state', 'MISS')} age={age_text} ttl={ttl_text} fingerprint={fp}",
+            f"[next] short checks ETA=1-3s, TP Play wait<=20s, baseline+rezero={bridge.baseline_s + bridge.rezero_s:g}s",
+            (
+                "[guard] schema=p0_v9_guard_v2 "
+                f"sensor_stale={bridge.sensor_stale_s:g}s heartbeat_stale=1s "
+                f"runtime={float(interface.hard_contract['stage25_runtime_limit_s']):g}s "
+                f"qdot_cap={float(runtime_profile['qdot_cap_rad_s']):g}rad/s"
+            ),
+            "[guards-disabled] force, Cartesian speed, normal speed/displacement; DLS, residual magnitude, and active bounds are diagnostic-only",
+            "[control-shaping] qdot_slew=0.05rad/s^2 to match TP speedj acceleration; this is not a stop guard",
+            (
+                "[tuning] tangential one-sided cosine peak-to-peak=2mm "
+                "period=20s cycles=3; normal command is diagnostic-only"
+            ),
+            (
+                "[tuning] stage25 "
+                f"mode={interface.stage25_control_mode} "
+                f"joint_tag={STEP5D_STAGE25_JOINT_LAYOUT_CODE:g}"
+            ),
+        ]
     return [
         "[step5d][phase=live-bridge][rebuild=no][upload=no]",
         "[touches=kunwei+rtde]",

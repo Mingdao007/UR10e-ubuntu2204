@@ -886,19 +886,19 @@ def step5d_v30_contract_pipeline(
             raw_candidate,
             prior,
         )
-        if observation.normal_motion_policy == "diagnostic_only":
-            candidate = raw_candidate
-        else:
-            candidate = apply_direction_preserving_slew(
-                observation,
-                raw_candidate,
-                previous_qdot=prior,
-                dt_s=float(observation.dt_s),
-                max_slew_rad_s2=float(max_slew_rad_s2),
-                dt_max_s=float(dt_max_s),
-                copy_diagnostics=False,
-                _workspace=workspace,
-            )
+        # Command slew is actuator-dynamics shaping, not a normal-motion guard.
+        # Keep it active when normal semantics are diagnostic-only so the host
+        # cannot reverse qdot faster than the TP speedj acceleration can follow.
+        candidate = apply_direction_preserving_slew(
+            observation,
+            raw_candidate,
+            previous_qdot=prior,
+            dt_s=float(observation.dt_s),
+            max_slew_rad_s2=float(max_slew_rad_s2),
+            dt_max_s=float(dt_max_s),
+            copy_diagnostics=False,
+            _workspace=workspace,
+        )
         decision = safety_envelope.evaluate(
             observation,
             candidate,

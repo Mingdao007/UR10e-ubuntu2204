@@ -61,6 +61,43 @@ def observation(desired: tuple[float, ...]) -> Step5dObservation:
 
 
 class Step5dNoContactP0V9Test(unittest.TestCase):
+    def test_diagnostic_normal_policy_keeps_tp_matched_qdot_slew(self) -> None:
+        obs = observation((0.1, 0.0, 0.0, 0.0, 0.0, 0.0))
+        raw = ControlCandidate(
+            qdot=(0.1, 0.0, 0.0, 0.0, 0.0, 0.0),
+            predicted_twist=(0.1, 0.0, 0.0, 0.0, 0.0, 0.0),
+            residual_norm=0.0,
+            active_bounds_count=0,
+            frame_id="base",
+            solver_status="40",
+            diagnostics={"active_bounds_mask": (False,) * 6},
+        )
+        deferred = bridge.base.DeferredV30Diagnostics(capacity=1)
+
+        candidate, _dls, decision, _command = (
+            bridge.base.step5d_v30_contract_pipeline(
+                obs,
+                raw,
+                previous_qdot=ZERO6,
+                safety_envelope=SafetyEnvelope(),
+                deferred_diagnostics=deferred,
+            )
+        )
+
+        self.assertTrue(decision.accepted)
+        self.assertTrue(candidate.diagnostics["slew_active"])
+        self.assertAlmostEqual(candidate.qdot[0], 0.0001)
+
+    def test_v9_bypasses_legacy_press_only_p0_gate_and_register_path(self) -> None:
+        source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertGreaterEqual(
+            source.count("and not step5d_no_contact_p0_v9_profile"),
+            2,
+        )
+
     def test_cli_target_force_validator_keeps_force_controller_disabled(self) -> None:
         bridge.base.validate_common_target_force(
             SimpleNamespace(bridge_profile=PROFILE, target_force_n=0.0)

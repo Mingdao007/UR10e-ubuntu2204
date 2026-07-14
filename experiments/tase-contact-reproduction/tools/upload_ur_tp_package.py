@@ -1541,6 +1541,15 @@ def package_sha(files: dict[str, Path]) -> dict[str, str]:
     return {ext: sha256(path) for ext, path in files.items()}
 
 
+def triplet_sha_sets_match(shas: dict[str, dict[str, str]]) -> bool:
+    return all(
+        shas["local"][ext]
+        == shas["controller"][ext]
+        == shas["readback"][ext]
+        for ext in EXTENSIONS
+    )
+
+
 def readback_controller_sha256(
     helper: Path,
     files: dict[str, Path],
@@ -2069,7 +2078,7 @@ def _main(argv: list[str] | None = None) -> int:
         dry_run=False,
         delivery_mode=delivery_mode,
         reused_from_manifest=reused_from_manifest,
-        fresh_controller_sha_verified=reused_from_manifest is not None,
+        fresh_controller_sha_verified=triplet_sha_sets_match(shas),
         readback_source=readback_source,
         local_candidate_marker=local_candidate_marker,
         target_source=target_source,
