@@ -1,0 +1,702 @@
+# Step5b contact cycloid Bayesian infinite loop v1.
+# VERSION: 2026-07-14T1748HKT_STEP5B_CONTACT_CYCLOID_BAYES_LOOP_V1
+# AUTOTUNE_FLOW: STEP5B_AUTOTUNE_FLOW.md
+# AUTOTUNE_CONTRACT: config/step5b_autotune_loop_v1.json
+# AUTOTUNE_HANDSHAKE: RTDE integer input/output registers 24..27.
+# HOME_GATE: TCP position <=0.003 m, orientation <=0.050 rad, joints <=0.010 rad.
+# SESSION_POLICY: wait at home; one bridge child per armed trial; fatal faults end the program.
+# GENERATED_AT_LOCAL: 2026-07-14T17:48:19+08:00
+# ENTRY_XY_M: [0.487795411, 0.129326793]
+# SAFE_FRAME_SOURCE: config/step5_safe_frame.json from confirmed drag-teach start/mid/end.
+# NO_SCALE_POLICY: Step5 table frame uses rotation+translation only.
+# X_GUARD: guard_line=0.488878434 m, path_max_x=0.487795411 m.
+# TARGET_ROTVEC_RAD: [-3.044172198, -0.130573165, -0.202188631]
+# PURPOSE: v31 contact search, first-contact normal latch, optional 4deg skip-lift/25.2 gate, otherwise lift and 25.2 attitude correction, 25.3 line-entry gate, then Step5 table-driven contact cycloid reference for 60 s.
+# FLOW_TABLE: STEP5_FLOW.md
+# STEP5_STAGE_ID: step5_contact_cycloid_baseline_v1
+# STEP5_TABLE_SOURCE: config/step5_stage_table.json
+# TP_ROLE: executor_and_guard_only; Step5 trajectory reference is computed by the bridge.
+# STEP5_PATH_FORMULA: Step5 table stage step5_contact_cycloid_baseline_v1: local-basis x=0.015 * (0.1t - sin(0.1t)), y=0.015 * (1 - cos(0.1t)), duration=60s
+# FIRST_CONTACT_Z_EVIDENCE: bridge_step4e_line_outerloop_v13_autowatch_20260609_141027 force jump at z=0.008044839 m; v16 cross-check z=0.007996174 m.
+# CONTROL: bridge step4e-version=step5b_v2 --step4e-path-shape cycloid step4e-normal-follow-mode=filtered_live step4e-normal-filter-alpha=0.70 step4e-normal-min-force-n=2.0; 25.0 uses desired_velocity + path_p_gain*(desired-actual) before normal projection and force-loop composition.
+# SAFETY: raw normal guard 50 N, force norm guard 60 N, torque guard 3.0 Nm.
+
+def codex_abs(x):
+  if x < 0.0:
+    return -x
+  end
+  return x
+end
+
+def codex_clamp(x, lo, hi):
+  if x < lo:
+    return lo
+  elif x > hi:
+    return hi
+  end
+  return x
+end
+
+def codex_wait_for_fresh_heartbeat(timeout_s):
+  local t = 0.0
+  local initial_heartbeat = read_input_float_register(26)
+  local current_heartbeat = initial_heartbeat
+  while t < timeout_s:
+    current_heartbeat = read_input_float_register(26)
+    write_output_float_register(26, current_heartbeat)
+    if read_input_float_register(27) > 0.5 and current_heartbeat != initial_heartbeat:
+      return True
+    end
+    sync()
+    t = t + get_steptime()
+  end
+  return False
+end
+
+def codex_wait_for_rezero_complete(timeout_s):
+  local t = 0.0
+  local initial_heartbeat = read_input_float_register(26)
+  local current_heartbeat = initial_heartbeat
+  local saw_sensor_not_ready = False
+  while t < timeout_s:
+    current_heartbeat = read_input_float_register(26)
+    write_output_float_register(26, current_heartbeat)
+    if read_input_float_register(27) < 0.5:
+      saw_sensor_not_ready = True
+    elif saw_sensor_not_ready and read_input_float_register(27) > 0.5 and current_heartbeat != initial_heartbeat:
+      return True
+    end
+    sync()
+    t = t + get_steptime()
+  end
+  return False
+end
+
+def codex_step4e_guard_stop_reason():
+  local normal_force = read_input_float_register(24)
+  local force_norm = read_input_float_register(25)
+  local sensor_ok = read_input_float_register(27)
+  local stop_request = read_input_float_register(28)
+  local torque_norm = read_input_float_register(30)
+  if sensor_ok < 0.5:
+    return 3.0
+  elif stop_request > 0.5:
+    return 4.0
+  elif codex_abs(normal_force) > 50.0:
+    return 5.0
+  elif force_norm > 60.0:
+    return 6.0
+  elif torque_norm > 3.0:
+    return 7.0
+  end
+  return 0.0
+end
+
+def codex_should_auto_home(stop_reason):
+  if stop_reason == 1.0:
+    return True
+  elif stop_reason == 2.0:
+    return True
+  elif stop_reason == 4.0:
+    return True
+  elif stop_reason == 5.0:
+    return True
+  elif stop_reason == 6.0:
+    return True
+  elif stop_reason == 7.0:
+    return True
+  elif stop_reason == 8.0:
+    return True
+  elif stop_reason == 9.0:
+    return True
+  elif stop_reason == 10.0:
+    return True
+  elif stop_reason == 12.0:
+    return True
+  elif stop_reason == 13.0:
+    return True
+  elif stop_reason == 14.0:
+    return True
+  end
+  return False
+end
+
+def codex_echo_basic(stop_reason):
+  write_output_float_register(24, read_input_float_register(24))
+  write_output_float_register(25, read_input_float_register(25))
+  write_output_float_register(26, read_input_float_register(26))
+  write_output_float_register(27, read_input_float_register(27))
+  write_output_float_register(28, read_input_float_register(28))
+  write_output_float_register(29, read_input_float_register(29))
+  write_output_float_register(30, stop_reason)
+end
+
+def codex_echo_step4e(stop_reason):
+  codex_echo_basic(stop_reason)
+  write_output_float_register(31, read_input_float_register(44))
+  write_output_float_register(32, read_input_float_register(45))
+  write_output_float_register(33, read_input_float_register(39))
+  write_output_float_register(36, read_input_float_register(37))
+  write_output_float_register(37, read_input_float_register(38))
+  write_output_float_register(38, read_input_float_register(39))
+  write_output_float_register(39, read_input_float_register(40))
+  write_output_float_register(40, read_input_float_register(41))
+  write_output_float_register(41, read_input_float_register(42))
+  write_output_float_register(42, read_input_float_register(43))
+  write_output_float_register(43, read_input_float_register(44))
+  write_output_float_register(44, read_input_float_register(45))
+  write_output_float_register(45, read_input_float_register(46))
+  write_output_float_register(46, read_input_float_register(47))
+end
+
+
+def codex_wait_for_cmd_valid(stage_code, timeout_s):
+  local t = 0.0
+  local last_heartbeat = read_input_float_register(26)
+  local stale_s = 0.0
+  while t < timeout_s:
+    write_output_float_register(35, stage_code)
+    local heartbeat = read_input_float_register(26)
+    if heartbeat == last_heartbeat:
+      stale_s = stale_s + get_steptime()
+    else:
+      stale_s = 0.0
+      last_heartbeat = heartbeat
+    end
+    codex_echo_step4e(0.0)
+    if stale_s > 0.100:
+      return 2.0
+    end
+    local guard_reason = codex_step4e_guard_stop_reason()
+    if guard_reason != 0.0:
+      return guard_reason
+    end
+    if read_input_float_register(43) >= 0.5:
+      return 0.0
+    end
+    sync()
+    t = t + get_steptime()
+  end
+  return 12.0
+end
+
+
+def codex_wait_for_stage_linear_zero(stage_code, timeout_s):
+  local t = 0.0
+  local last_heartbeat = read_input_float_register(26)
+  local stale_s = 0.0
+  while t < timeout_s:
+    write_output_float_register(35, stage_code)
+    local heartbeat = read_input_float_register(26)
+    if heartbeat == last_heartbeat:
+      stale_s = stale_s + get_steptime()
+    else:
+      stale_s = 0.0
+      last_heartbeat = heartbeat
+    end
+    codex_echo_step4e(0.0)
+    if stale_s > 0.100:
+      return 2.0
+    end
+    local guard_reason = codex_step4e_guard_stop_reason()
+    if guard_reason != 0.0:
+      return guard_reason
+    end
+    if read_input_float_register(43) >= 0.5 and codex_abs(read_input_float_register(37)) <= 0.000001 and codex_abs(read_input_float_register(38)) <= 0.000001 and codex_abs(read_input_float_register(39)) <= 0.000001:
+      return 0.0
+    end
+    sync()
+    t = t + get_steptime()
+  end
+  return 12.0
+end
+
+def codex_step5b_down_search(search_stage, near_stage, max_search_down_m, search_near_start_depth_m, search_runtime_limit_s, search_far_speed_m_s, search_near_speed_m_s):
+  local stop_reason = 0.0
+  local search_accel_m_s2 = 0.300
+  local search_hold_s = 0.002
+  local stale_limit_s = 0.100
+  local search_start = get_actual_tcp_pose()
+  local last_heartbeat = read_input_float_register(26)
+  local stale_s = 0.0
+  local t = 0.0
+  while stop_reason == 0.0:
+    local heartbeat = read_input_float_register(26)
+    local normal_force = read_input_float_register(24)
+    local force_norm = read_input_float_register(25)
+    local pose_now = get_actual_tcp_pose()
+    local search_depth_m = search_start[2] - pose_now[2]
+    if heartbeat == last_heartbeat:
+      stale_s = stale_s + get_steptime()
+    else:
+      stale_s = 0.0
+      last_heartbeat = heartbeat
+    end
+    if normal_force <= -1.0 or force_norm > 1.5:
+      stop_reason = 11.0
+    elif stale_s > stale_limit_s:
+      stop_reason = 2.0
+    else:
+      stop_reason = codex_step4e_guard_stop_reason()
+    end
+    if stop_reason == 0.0:
+      if search_depth_m >= max_search_down_m:
+        stop_reason = 8.0
+      elif t >= search_runtime_limit_s:
+        stop_reason = 10.0
+      else:
+        if search_depth_m < search_near_start_depth_m:
+          write_output_float_register(35, search_stage)
+          codex_echo_step4e(stop_reason)
+          speedl([0.0, 0.0, search_far_speed_m_s, 0.0, 0.0, 0.0], search_accel_m_s2, search_hold_s)
+        else:
+          write_output_float_register(35, near_stage)
+          codex_echo_step4e(stop_reason)
+          speedl([0.0, 0.0, search_near_speed_m_s, 0.0, 0.0, 0.0], search_accel_m_s2, search_hold_s)
+        end
+        t = t + get_steptime()
+      end
+    end
+  end
+  stopl(0.1)
+  return stop_reason
+end
+
+def codex_step5b_autotune_trial(home_pose):
+  local stop_reason = 0.0
+  local entry_x = 0.487795411
+  local entry_y = 0.129326793
+  local target_rx = -3.044172198
+  local target_ry = -0.130573165
+  local target_rz = -0.202188631
+  local line_accel_m_s2 = 0.300
+  local line_hold_s = 0.002
+  local line_runtime_limit_s = 65.000
+  local line_success_progress_m = 60.000000000
+  local end_hold_required_s = 0.100
+  local end_hold_s = 0.0
+  local max_cmd_angular_xy_rad_s = 0.120
+  local cmd_valid_grace_s = 0.250
+  local cmd_valid_loss_limit_s = 0.100
+  local cmd_invalid_s = 0.0
+  local saw_cmd_valid = 0
+  local short_retract_z_m = 0.010
+  local short_retract_speed_m_s = 0.040
+  local home_return_speed_m_s = 0.050
+  local final_progress_m = 0.0
+
+  textmsg("codex step4e version 2026-07-14T1748HKT_STEP5B_CONTACT_CYCLOID_BAYES_LOOP_V1 start step5b_contact_cycloid_bayes_loop_v1 trial")
+  write_output_float_register(34, 0.0)
+  write_output_float_register(35, 20.0)
+  codex_echo_step4e(0.0)
+  if not codex_wait_for_fresh_heartbeat(30.0):
+    stop_reason = 3.0
+  end
+
+  if stop_reason == 0.0:
+    write_output_float_register(35, 22.0)
+    local p_current = get_actual_tcp_pose()
+    local entry_xy_pose = p[entry_x, entry_y, p_current[2], target_rx, target_ry, target_rz]
+    codex_echo_step4e(stop_reason)
+    movel(entry_xy_pose, a=0.060, v=0.040, r=0.0)
+    stopl(0.1)
+    sleep(0.20)
+    write_output_float_register(35, 23.0)
+    codex_echo_step4e(stop_reason)
+    write_output_float_register(34, 1.0)
+    if not codex_wait_for_rezero_complete(5.0):
+      stop_reason = 14.0
+    end
+    if stop_reason == 0.0:
+      sleep(0.20)
+      stop_reason = codex_step4e_guard_stop_reason()
+    end
+  end
+
+  if stop_reason == 0.0:
+    local first_contact_z_m = 0.008044839
+    local first_near_start_z_m = first_contact_z_m + 0.020
+    local first_max_end_z_m = first_contact_z_m - 0.004
+    local first_search_start_pose = get_actual_tcp_pose()
+    local first_search_near_start_depth_m = first_search_start_pose[2] - first_near_start_z_m
+    local first_search_max_down_m = first_search_start_pose[2] - first_max_end_z_m
+    if first_search_near_start_depth_m < 0.0:
+      first_search_near_start_depth_m = 0.0
+    end
+    if first_search_max_down_m < 0.020:
+      first_search_max_down_m = 0.020
+    end
+    if first_search_max_down_m < first_search_near_start_depth_m + 0.010:
+      first_search_max_down_m = first_search_near_start_depth_m + 0.010
+    end
+    stop_reason = codex_step5b_down_search(24.0, 24.2, first_search_max_down_m, first_search_near_start_depth_m, 40.000, -0.015, -0.0025)
+    if stop_reason == 11.0:
+      stop_reason = 0.0
+    end
+  end
+
+  if stop_reason == 0.0:
+    write_output_float_register(35, 25.05)
+    stop_reason = codex_wait_for_cmd_valid(25.05, 1.000)
+  end
+
+  local skip_lift_attitude = 0
+  if stop_reason == 0.0:
+    write_output_float_register(35, 25.15)
+    local orientation_skip_error_rad = 0.069813
+    local t_skip = 0.0
+    local skip_timeout_s = 1.000
+    local last_heartbeat_skip = read_input_float_register(26)
+    local stale_s_skip = 0.0
+    while stop_reason == 0.0 and skip_lift_attitude == 0 and t_skip < skip_timeout_s:
+      local heartbeat_skip = read_input_float_register(26)
+      local cmd_valid = read_input_float_register(43)
+      local orientation_error = read_input_float_register(46)
+      local loop_dt = get_steptime()
+      if heartbeat_skip == last_heartbeat_skip:
+        stale_s_skip = stale_s_skip + loop_dt
+      else:
+        stale_s_skip = 0.0
+        last_heartbeat_skip = heartbeat_skip
+      end
+      t_skip = t_skip + loop_dt
+      codex_echo_step4e(stop_reason)
+      if stale_s_skip > 0.100:
+        stop_reason = 2.0
+      else:
+        stop_reason = codex_step4e_guard_stop_reason()
+      end
+      if stop_reason == 0.0:
+        if cmd_valid >= 0.5 and orientation_error <= orientation_skip_error_rad:
+          skip_lift_attitude = 1
+        elif cmd_valid >= 0.5:
+          t_skip = skip_timeout_s
+        else:
+          sync()
+        end
+      end
+    end
+  end
+
+  if stop_reason == 0.0 and skip_lift_attitude == 0:
+    write_output_float_register(35, 25.1)
+    local p_lift = get_actual_tcp_pose()
+    local lift_pose = p[p_lift[0], p_lift[1], p_lift[2] + 0.020, p_lift[3], p_lift[4], p_lift[5]]
+    codex_echo_step4e(stop_reason)
+    movel(lift_pose, a=0.060, v=0.040, r=0.0)
+    stopl(0.1)
+  end
+
+  if stop_reason == 0.0 and skip_lift_attitude == 0:
+    write_output_float_register(35, 25.2)
+    stop_reason = codex_wait_for_stage_linear_zero(25.2, 1.000)
+    if stop_reason == 0.0:
+      local orientation_ignore_error_rad = 0.052360
+      local orientation_hard_stop_error_rad = 0.523599
+      local orientation_runtime_limit_s = 8.000
+      local t_orient = 0.0
+      local stale_s_orient = 0.0
+      local last_heartbeat_orient = read_input_float_register(26)
+      saw_cmd_valid = 0
+      cmd_invalid_s = 0.0
+      while stop_reason == 0.0:
+        local heartbeat_orient = read_input_float_register(26)
+        local cmd_valid = read_input_float_register(43)
+        local orientation_error = read_input_float_register(46)
+        local cmd_vx = read_input_float_register(37)
+        local cmd_vy = read_input_float_register(38)
+        local cmd_vz = read_input_float_register(39)
+        local cmd_wx = read_input_float_register(40)
+        local cmd_wy = read_input_float_register(41)
+        local cmd_wz = read_input_float_register(42)
+        local loop_dt = get_steptime()
+        if cmd_valid >= 0.5:
+          saw_cmd_valid = 1
+          cmd_invalid_s = 0.0
+        else:
+          cmd_invalid_s = cmd_invalid_s + loop_dt
+        end
+        if heartbeat_orient == last_heartbeat_orient:
+          stale_s_orient = stale_s_orient + loop_dt
+        else:
+          stale_s_orient = 0.0
+          last_heartbeat_orient = heartbeat_orient
+        end
+        t_orient = t_orient + loop_dt
+        codex_echo_step4e(stop_reason)
+        if stale_s_orient > 0.100:
+          stop_reason = 2.0
+        else:
+          stop_reason = codex_step4e_guard_stop_reason()
+        end
+        if stop_reason == 0.0:
+          if orientation_error > orientation_hard_stop_error_rad:
+            stop_reason = 15.0
+          elif orientation_error <= orientation_ignore_error_rad:
+            stop_reason = 17.0
+          elif cmd_valid < 0.5:
+            if saw_cmd_valid == 0 and t_orient < cmd_valid_grace_s:
+              speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)
+            elif saw_cmd_valid == 1 and cmd_invalid_s <= cmd_valid_loss_limit_s:
+              speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)
+            else:
+              stop_reason = 12.0
+            end
+          elif codex_abs(cmd_vx) > 0.001 or codex_abs(cmd_vy) > 0.001 or codex_abs(cmd_vz) > 0.001:
+            stop_reason = 13.0
+          elif codex_abs(cmd_wx) > max_cmd_angular_xy_rad_s or codex_abs(cmd_wy) > max_cmd_angular_xy_rad_s or codex_abs(cmd_wz) > max_cmd_angular_xy_rad_s:
+            stop_reason = 13.0
+          elif t_orient >= orientation_runtime_limit_s:
+            stop_reason = 10.0
+          else:
+            speedl([0.0, 0.0, 0.0, cmd_wx, cmd_wy, cmd_wz], line_accel_m_s2, line_hold_s)
+          end
+        end
+      end
+      stopl(0.1)
+      if stop_reason == 17.0:
+        stop_reason = 0.0
+      end
+    end
+  end
+
+  if stop_reason == 0.0:
+    stop_reason = codex_step5b_down_search(24.3, 24.4, 0.070, 0.040, 45.000, -0.005, -0.003)
+    if stop_reason == 11.0:
+      stop_reason = 0.0
+    end
+  end
+
+  if stop_reason == 0.0:
+    write_output_float_register(35, 25.3)
+    local last_heartbeat_entry = read_input_float_register(26)
+    local stale_s_entry = 0.0
+    local t_entry = 0.0
+    local line_entry_s = 0.0
+    local line_entry_required_s = 0.100
+    local line_entry_timeout_s = 1.000
+    saw_cmd_valid = 0
+    cmd_invalid_s = 0.0
+    while stop_reason == 0.0:
+      local heartbeat_entry = read_input_float_register(26)
+      local cmd_valid = read_input_float_register(43)
+      local cmd_vx = read_input_float_register(37)
+      local cmd_vy = read_input_float_register(38)
+      local cmd_vz = read_input_float_register(39)
+      local loop_dt = get_steptime()
+      if cmd_valid >= 0.5:
+        saw_cmd_valid = 1
+        cmd_invalid_s = 0.0
+      else:
+        cmd_invalid_s = cmd_invalid_s + loop_dt
+      end
+      if heartbeat_entry == last_heartbeat_entry:
+        stale_s_entry = stale_s_entry + loop_dt
+      else:
+        stale_s_entry = 0.0
+        last_heartbeat_entry = heartbeat_entry
+      end
+      t_entry = t_entry + loop_dt
+      if cmd_valid >= 0.5 and codex_abs(cmd_vx) <= 0.000001 and codex_abs(cmd_vy) <= 0.000001 and codex_abs(cmd_vz) <= 0.000001:
+        line_entry_s = line_entry_s + loop_dt
+      else:
+        line_entry_s = 0.0
+      end
+      codex_echo_step4e(stop_reason)
+      if stale_s_entry > 0.100:
+        stop_reason = 2.0
+      else:
+        stop_reason = codex_step4e_guard_stop_reason()
+      end
+      if stop_reason == 0.0:
+        if line_entry_s >= line_entry_required_s:
+          stop_reason = 16.0
+        elif cmd_valid < 0.5:
+          if saw_cmd_valid == 0 and t_entry < cmd_valid_grace_s:
+            sync()
+          elif saw_cmd_valid == 1 and cmd_invalid_s <= cmd_valid_loss_limit_s:
+            sync()
+          else:
+            stop_reason = 12.0
+          end
+        elif codex_abs(cmd_vx) > 0.001 or codex_abs(cmd_vy) > 0.001 or codex_abs(cmd_vz) > 0.001:
+          stop_reason = 13.0
+        elif t_entry >= line_entry_timeout_s:
+          stop_reason = 12.0
+        else:
+          sync()
+        end
+      end
+    end
+    stopl(0.1)
+    if stop_reason == 16.0:
+      stop_reason = 0.0
+      saw_cmd_valid = 0
+      cmd_invalid_s = 0.0
+      end_hold_s = 0.0
+    end
+  end
+
+  if stop_reason == 0.0:
+    write_output_float_register(35, 25.0)
+    local last_heartbeat2 = read_input_float_register(26)
+    local stale_s2 = 0.0
+    local t2 = 0.0
+    while stop_reason == 0.0:
+      local heartbeat2 = read_input_float_register(26)
+      local cmd_valid = read_input_float_register(43)
+      local progress_m = read_input_float_register(44)
+      local cmd_vx = read_input_float_register(37)
+      local cmd_vy = read_input_float_register(38)
+      local cmd_vz = read_input_float_register(39)
+      local cmd_wx = read_input_float_register(40)
+      local cmd_wy = read_input_float_register(41)
+      local cmd_wz = read_input_float_register(42)
+      local loop_dt = get_steptime()
+      final_progress_m = progress_m
+      if cmd_valid >= 0.5:
+        saw_cmd_valid = 1
+        cmd_invalid_s = 0.0
+      else:
+        cmd_invalid_s = cmd_invalid_s + loop_dt
+      end
+      if heartbeat2 == last_heartbeat2:
+        stale_s2 = stale_s2 + loop_dt
+      else:
+        stale_s2 = 0.0
+        last_heartbeat2 = heartbeat2
+      end
+      t2 = t2 + loop_dt
+      if progress_m >= line_success_progress_m:
+        end_hold_s = end_hold_s + loop_dt
+      else:
+        end_hold_s = 0.0
+      end
+      codex_echo_step4e(stop_reason)
+      if stale_s2 > 0.100:
+        stop_reason = 2.0
+      else:
+        stop_reason = codex_step4e_guard_stop_reason()
+      end
+      if stop_reason == 0.0:
+        if cmd_valid < 0.5:
+          if saw_cmd_valid == 0 and t2 < cmd_valid_grace_s:
+            speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)
+          elif saw_cmd_valid == 1 and cmd_invalid_s <= cmd_valid_loss_limit_s:
+            speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)
+          else:
+            stop_reason = 12.0
+          end
+        elif codex_abs(cmd_vx) > 0.010 or codex_abs(cmd_vy) > 0.010 or codex_abs(cmd_vz) > 0.010:
+          stop_reason = 13.0
+        elif codex_abs(cmd_wx) > max_cmd_angular_xy_rad_s or codex_abs(cmd_wy) > max_cmd_angular_xy_rad_s or codex_abs(cmd_wz) > 0.005:
+          stop_reason = 13.0
+        elif end_hold_s >= end_hold_required_s:
+          stop_reason = 1.0
+        elif t2 >= line_runtime_limit_s:
+          stop_reason = 10.0
+        else:
+          speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy, 0.0], line_accel_m_s2, line_hold_s)
+        end
+      end
+    end
+    stopl(0.1)
+  end
+
+  if codex_should_auto_home(stop_reason):
+    write_output_integer_register(26, 30)
+    write_output_float_register(35, 26.0)
+    local short_retract_start = get_actual_tcp_pose()
+    local short_retract_pose = p[short_retract_start[0], short_retract_start[1], short_retract_start[2] + short_retract_z_m, short_retract_start[3], short_retract_start[4], short_retract_start[5]]
+    codex_echo_step4e(stop_reason)
+    movel(short_retract_pose, a=0.060, v=short_retract_speed_m_s, r=0.0)
+    stopl(0.1)
+    write_output_integer_register(26, 40)
+    write_output_float_register(35, 27.0)
+    codex_echo_step4e(stop_reason)
+    movel(home_pose, a=0.030, v=home_return_speed_m_s, r=0.0)
+    stopl(0.1)
+  end
+
+  write_output_float_register(30, stop_reason)
+  write_output_float_register(31, final_progress_m)
+  write_output_float_register(35, 29.0)
+  textmsg("codex step4e version 2026-07-14T1748HKT_STEP5B_CONTACT_CYCLOID_BAYES_LOOP_V1 step5b_contact_cycloid_bayes_loop_v1 trial stop reason:", stop_reason)
+  return stop_reason
+end
+
+def codex_autotune_set_state(session_epoch, trial_id, state_code, terminal_reason):
+  write_output_integer_register(24, session_epoch)
+  write_output_integer_register(25, trial_id)
+  write_output_integer_register(26, state_code)
+  write_output_integer_register(27, terminal_reason)
+end
+
+def codex_autotune_home_verified(home_pose, home_q):
+  local current_pose = get_actual_tcp_pose()
+  local home_delta = pose_trans(pose_inv(home_pose), current_pose)
+  local position_error_m = sqrt(home_delta[0] * home_delta[0] + home_delta[1] * home_delta[1] + home_delta[2] * home_delta[2])
+  local orientation_error_rad = sqrt(home_delta[3] * home_delta[3] + home_delta[4] * home_delta[4] + home_delta[5] * home_delta[5])
+  local current_q = get_actual_joint_positions()
+  local joint_error_rad = 0.0
+  local joint_index = 0
+  while joint_index < 6:
+    local this_error = codex_abs(current_q[joint_index] - home_q[joint_index])
+    if this_error > joint_error_rad:
+      joint_error_rad = this_error
+    end
+    joint_index = joint_index + 1
+  end
+  return position_error_m <= 0.003 and orientation_error_rad <= 0.050 and joint_error_rad <= 0.010
+end
+
+def codex_step5b_contact_cycloid_bayes_loop_v1():
+  local home_pose = get_actual_tcp_pose()
+  local home_q = get_actual_joint_positions()
+  local last_trial_id = -1
+  local session_epoch = 0
+  local trial_id = -1
+  local terminal_reason = 0
+  codex_autotune_set_state(0, -1, 0, 0)
+  sync()
+  while True:
+    local requested_epoch = read_input_integer_register(24)
+    local requested_trial = read_input_integer_register(25)
+    local requested_command = read_input_integer_register(26)
+    local candidate_token = read_input_integer_register(27)
+    codex_autotune_set_state(session_epoch, trial_id, 10, terminal_reason)
+    if requested_command == 2:
+      if codex_autotune_home_verified(home_pose, home_q):
+        codex_autotune_set_state(session_epoch, trial_id, 50, terminal_reason)
+      else:
+        codex_autotune_set_state(session_epoch, trial_id, 90, 91)
+      end
+      return
+    elif requested_command == 1 and requested_epoch > 0 and requested_trial >= 0 and requested_trial != last_trial_id and candidate_token > 0:
+      session_epoch = requested_epoch
+      trial_id = requested_trial
+      terminal_reason = 0
+      codex_autotune_set_state(session_epoch, trial_id, 20, 0)
+      terminal_reason = codex_step5b_autotune_trial(home_pose)
+      if terminal_reason == 3 or terminal_reason == 15:
+        codex_autotune_set_state(session_epoch, trial_id, 90, terminal_reason)
+        return
+      elif codex_should_auto_home(terminal_reason):
+        if codex_autotune_home_verified(home_pose, home_q):
+          last_trial_id = trial_id
+          codex_autotune_set_state(session_epoch, trial_id, 50, terminal_reason)
+        else:
+          codex_autotune_set_state(session_epoch, trial_id, 90, 91)
+          return
+        end
+      else:
+        codex_autotune_set_state(session_epoch, trial_id, 90, terminal_reason)
+        return
+      end
+    else:
+      sync()
+    end
+  end
+end
+
+codex_step5b_contact_cycloid_bayes_loop_v1()

@@ -1,0 +1,36 @@
+{
+  "schema_version": "step5b_autotune_delivery_v1",
+  "status": "controller read-back verified",
+  "controller_readback_verified": true,
+  "verified_at": "2026-07-14T17:50:00+08:00",
+  "basename": "step5b_contact_cycloid_bayes_loop_v1",
+  "source_stamp": "2026-07-14T1748HKT_STEP5B_CONTACT_CYCLOID_BAYES_LOOP_V1",
+  "controller_directory": "/programs/andyl/kunwei/step5/autotune",
+  "controller_urp": "/programs/andyl/kunwei/step5/autotune/step5b_contact_cycloid_bayes_loop_v1.urp",
+  "readback_directory": "/home/andy/.codex-worktrees/ur10e-step5b-tp-autotune-20260714/experiments/tase-contact-reproduction/runs/controller_readback_step5b_contact_cycloid_bayes_loop_v1_20260714_174914/fetched",
+  "urp_internal_content_gate": {
+    "local": true,
+    "fresh_readback": true,
+    "sha_closure": true,
+    "installationRelativePath": "../../../../default",
+    "script_node": "/programs/andyl/kunwei/step5/autotune/step5b_contact_cycloid_bayes_loop_v1.script"
+  },
+  "artifacts": [
+    {
+      "local_path": "programs/step5/autotune/step5b_contact_cycloid_bayes_loop_v1.script",
+      "controller_path": "/programs/andyl/kunwei/step5/autotune/step5b_contact_cycloid_bayes_loop_v1.script",
+      "sha256": "0592ea774de3d892e6b93c160acc5067b1f1af3e18dde5e18cf0062012f694e6"
+    },
+    {
+      "local_path": "programs/step5/autotune/step5b_contact_cycloid_bayes_loop_v1.txt",
+      "controller_path": "/programs/andyl/kunwei/step5/autotune/step5b_contact_cycloid_bayes_loop_v1.txt",
+      "sha256": "64aacf7e73e11507d37b1dbd89e93962a9af11d393afe2df124b881e6f7dba54"
+    },
+    {
+      "local_path": "programs/step5/autotune/step5b_contact_cycloid_bayes_loop_v1.urp",
+      "controller_path": "/programs/andyl/kunwei/step5/autotune/step5b_contact_cycloid_bayes_loop_v1.urp",
+      "sha256": "55c59409569f77bf89cc42d6b485ffc9dccdc6f91bd03cefadb25ff3fe7a57ae"
+    }
+  ],
+  "delivery_note": "Used the current manifest-bound deploy-triplet helper after the legacy upload wrapper failed before transfer because its removed arbitrary run subcommand is no longer available. No program load, TP Play, bridge start, or robot motion occurred."
+}
