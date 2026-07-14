@@ -16,18 +16,11 @@ from step5b_autotune_contract import (
     BRIDGE_PROFILE,
     CONSTRAINT_VIOLATION_REASONS,
     FATAL_SESSION_REASONS,
+    OBJECTIVE_NAME,
+    OBJECTIVE_UNIT,
     Candidate,
     is_known_bad_history_path,
 )
-
-
-LOSS_WEIGHTS = {
-    "force_nrmse": 0.35,
-    "force_p99_absolute_error_over_target": 0.20,
-    "xy_rmse_over_5mm": 0.20,
-    "normalized_command_total_variation": 0.15,
-    "near_limit_dwell_duty": 0.10,
-}
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -140,11 +133,13 @@ def evaluate_run(run_dir: Path, *, allow_history: bool = False) -> dict[str, Any
 
     if failures or candidate is None or not csv_paths:
         return {
-            "schema_version": "step5b_autotune_evaluation_v2",
+            "schema_version": "step5b_autotune_evaluation_v3",
             "run_dir": str(run_dir),
             "eligible": False,
             "feasible": False,
             "objective": None,
+            "objective_name": OBJECTIVE_NAME,
+            "objective_unit": OBJECTIVE_UNIT,
             "failures": failures,
         }
 
@@ -172,8 +167,6 @@ def evaluate_run(run_dir: Path, *, allow_history: bool = False) -> dict[str, Any
         "mx_nm_zeroed",
         "my_nm_zeroed",
         "mz_nm_zeroed",
-        "_step4e_path_error_x_m",
-        "_step4e_path_error_y_m",
         *[f"step4e_cmd_v{axis}_m_s" for axis in "xyz"],
         *[f"step4e_cmd_w{axis}_rad_s" for axis in "xyz"],
     ]
@@ -220,6 +213,9 @@ def evaluate_run(run_dir: Path, *, allow_history: bool = False) -> dict[str, Any
         failures.append("missing_supervisor_runtime_or_history_gate")
 
     force_error = load.to_numpy(dtype=float) - target
+    force_mae_n = float(np.mean(np.abs(force_error))) if load.size else math.inf
+    force_rmse_n = float(np.sqrt(np.mean(force_error**2))) if load.size else math.inf
+    force_p99_absolute_error_n = float(np.quantile(np.abs(force_error), 0.99)) if load.size else math.inf
     force_nrmse = float(np.clip(np.sqrt(np.mean(force_error**2)) / target, 0.0, 1.0)) if load.size else 1.0
     p99_error = float(np.clip(np.quantile(np.abs(force_error), 0.99) / target, 0.0, 1.0)) if load.size else 1.0
     path_x = numeric(active, "_step4e_path_error_x_m")
@@ -231,6 +227,9 @@ def evaluate_run(run_dir: Path, *, allow_history: bool = False) -> dict[str, Any
     limit_duty = near_limit_duty(active)
 
     metrics = {
+        "force_mae_n": force_mae_n if math.isfinite(force_mae_n) else None,
+        "force_rmse_n": force_rmse_n if math.isfinite(force_rmse_n) else None,
+        "force_p99_absolute_error_n": force_p99_absolute_error_n if math.isfinite(force_p99_absolute_error_n) else None,
         "force_nrmse": force_nrmse,
         "force_p99_absolute_error_over_target": p99_error,
         "xy_rmse_m": xy_rmse_m if math.isfinite(xy_rmse_m) else None,
@@ -244,17 +243,15 @@ def evaluate_run(run_dir: Path, *, allow_history: bool = False) -> dict[str, Any
         "normal_load_p99_n": float(load.quantile(0.99)) if load.size else None,
     }
     feasible = eligible and not failures
-    objective = (
-        sum(LOSS_WEIGHTS[name] * float(metrics[name]) for name in LOSS_WEIGHTS)
-        if feasible
-        else None
-    )
+    objective = force_mae_n if feasible and math.isfinite(force_mae_n) else None
     return {
-        "schema_version": "step5b_autotune_evaluation_v2",
+        "schema_version": "step5b_autotune_evaluation_v3",
         "run_dir": str(run_dir),
         "eligible": eligible,
         "feasible": feasible,
         "objective": objective,
+        "objective_name": OBJECTIVE_NAME,
+        "objective_unit": OBJECTIVE_UNIT,
         "candidate": candidate.payload(),
         "metrics": metrics,
         "failures": failures,

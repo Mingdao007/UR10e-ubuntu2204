@@ -51,12 +51,14 @@ bridge, pressing TP Play, or moving/contacting the robot.
 
 ## Search and acceptance
 
-Target-force contexts rotate through 10 N, 12 N, and 15 N. Tier 1 tunes force
-P gain, damping, and normal-filter alpha on bounded discrete grids. Tier 2 may
-also tune force I gain only after every context has five feasible full trials,
+The target force is fixed at 12 N so the selected outer-loop parameters map
+directly to the shared Step5/Step5d profile. The first 60 s trial uses the
+retained baseline (`Kp=0.001`, `Ki=1e-5`, damping `7.0`, filter alpha `0.55`).
+Tier 1 tunes force P gain, damping, and normal-filter alpha on bounded discrete
+grids. Tier 2 may also tune force I gain after five feasible full trials,
 repeatability is within 15%, and the latest six trials contain no failure.
 
-The optimizer uses contextual Bayesian optimization with q=1
+The optimizer uses single-context constrained Bayesian optimization with q=1
 `qLogNoisyExpectedImprovement`, an explicit 0.95 feasibility threshold, a
 one-grid-step trust region around each context incumbent, and an incumbent
 replicate every fourth visit. Live candidate selection requires CUDA and runs
@@ -64,12 +66,22 @@ the GP, feasibility model, and batched acquisition evaluation on `cuda:0`; it
 does not silently fall back to CPU. Independent history scans and completed-run
 postprocessing use up to 16 CPU workers, and CPU diagnostics may overlap GPU
 selection after the immutable capture marker. All heavy workers join before
-the next live writer starts. The loss combines force tracking, p99 force error,
-XY tracking, command smoothness, and near-limit dwell.
+the next live writer starts. The only scalar objective is the 60 s signed-load
+force MAE in newtons. Force RMSE/p99, XY tracking, command smoothness, and
+near-limit dwell remain diagnostics; raw force/torque, finite-command, stale,
+path-completion, and HOME gates remain hard feasibility/safety constraints.
+
+After every completed trial the supervisor writes a fingerprinted Step5b to
+Step5d promotion status. A candidate becomes promotable only after the same
+parameter tuple completes two feasible full 60 s trials whose force MAE differs
+by no more than 15%. The generated JSON and `.env` overlay map the four outer
+loop parameters to `STEP5D_FORCE_P_GAIN`, `STEP5D_FORCE_I_GAIN`,
+`STEP5D_FORCE_DAMPING`, and `STEP5D_NORMAL_FILTER_ALPHA`. The overlay never
+changes Step5d state and never authorizes a live run.
 
 Offline implementation acceptance does not authorize contact. Before an
-infinite session, merge this isolated stage into the canonical Step5 table
-after the P0v9/v30 work is clear, freeze the composite fingerprint, run Review
-v3 1+1, and pass serialized 2 s, 10 s, and 60 s canaries. Autonomous operation
-requires two consecutive full 60 s trials at different target contexts with a
-verified home return.
+infinite session, activate the dedicated owner-policy exception, freeze the
+composite fingerprint, and run Review v3 1+1. Per the user's explicit choice,
+the physical gate starts with one operator-supervised 60 s baseline rather
+than 2 s and 10 s duration clones. Every subsequent trial remains serialized,
+returns HOME, and keeps the same live/contact authorization boundary.

@@ -44,11 +44,11 @@ def run_sanity() -> dict:
         "fixed_normal_cap_10mm_s": command[command.index("--step4e-normal-velocity-limit-m-s") + 1] == "0.01",
         "fixed_angular_cap_0p15rad_s": command[command.index("--step4e-angular-limit-rad-s") + 1] == "0.150",
         "fixed_force_guards": all(token in command for token in ("50", "60", "3.0")),
-        "three_target_contexts": TARGET_CONTEXTS_N == (10.0, 12.0, 15.0),
+        "single_12n_target_context": TARGET_CONTEXTS_N == (12.0,),
         "tier1_trust_region_is_local": len(neighbors) == 5,
     }
     return {
-        "schema_version": "step5b_autotune_numeric_sanity_v2",
+        "schema_version": "step5b_autotune_numeric_sanity_v3",
         "pass": all(checks.values()),
         "checks": checks,
         "metrics": {

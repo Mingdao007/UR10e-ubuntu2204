@@ -16,8 +16,9 @@
   "current_stage_pointer_changed": false,
   "ros2_step5b_baseline_changed": false,
   "unblock_requires": [
+    "dedicated v2 owner-policy exception merged and active",
     "read-only bench preflight with both locks available and exact loaded program",
     "UR10e live/contact owner authorization",
-    "operator e-stop and canary gate"
+    "operator at e-stop and supervised 60 s baseline gate"
   ]
 }

@@ -35,6 +35,7 @@ from step5b_autotune_optimizer import (  # noqa: E402
     read_observations,
     tier2_is_unlocked,
 )
+from step5b_autotune_promotion import build_promotion_payload, write_promotion_artifacts  # noqa: E402
 import step5b_autotune_supervisor as supervisor  # noqa: E402
 
 
@@ -60,7 +61,7 @@ class Step5bAutotuneContractTest(unittest.TestCase):
         self.assertEqual(len(one_step_neighbors(candidate, tier2_unlocked=False)), 5)
 
     def test_bridge_command_preserves_v2_and_locked_safety_caps(self) -> None:
-        command = bridge_command(Candidate(target_force_n=15.0), Path("/tmp/trial"), python_executable="python3")
+        command = bridge_command(Candidate(target_force_n=12.0), Path("/tmp/trial"), python_executable="python3")
         self.assertEqual(command[command.index("--step4e-version") + 1], "step5b_v2")
         self.assertEqual(command[command.index("--max-normal-force-n") + 1], "50")
         self.assertEqual(command[command.index("--max-force-norm-n") + 1], "60")
@@ -137,10 +138,25 @@ class Step5bAutotuneEvaluatorTest(unittest.TestCase):
 
     def test_feasible_full_trial_gets_scalar_loss(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            result = evaluate_run(self._make_run(Path(temporary)))
+            result = evaluate_run(self._make_run(Path(temporary), load_n=14.0))
         self.assertTrue(result["eligible"])
         self.assertTrue(result["feasible"])
-        self.assertIsNotNone(result["objective"])
+        self.assertEqual(result["schema_version"], "step5b_autotune_evaluation_v3")
+        self.assertEqual(result["objective_name"], "force_mae_n")
+        self.assertAlmostEqual(result["objective"], 2.0)
+
+    def test_xy_metrics_are_diagnostic_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            run_dir = self._make_run(Path(temporary), load_n=13.0)
+            csv_path = next(run_dir.glob("bridge_rtde_*hz.csv"))
+            df = pd.read_csv(csv_path).drop(
+                columns=["_step4e_path_error_x_m", "_step4e_path_error_y_m"]
+            )
+            df.to_csv(csv_path, index=False)
+            result = evaluate_run(run_dir)
+        self.assertTrue(result["feasible"], result["failures"])
+        self.assertAlmostEqual(result["objective"], 1.0)
+        self.assertIsNone(result["metrics"]["xy_rmse_m"])
 
     def test_zero_load_trial_is_infeasible_without_fake_loss(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -168,20 +184,19 @@ class Step5bAutotuneEvaluatorTest(unittest.TestCase):
 class Step5bAutotuneOptimizerTest(unittest.TestCase):
     def test_initial_selection_is_bounded_and_round_robin(self) -> None:
         candidate, details = choose_candidate([], require_botorch=False)
-        self.assertEqual(candidate.target_force_n, 10.0)
-        self.assertEqual(details["selection"], "bounded_initial_exploration")
+        self.assertEqual(candidate, Candidate(target_force_n=12.0))
+        self.assertEqual(details["selection"], "fixed_12n_baseline_seed")
         candidate.validate()
 
     def test_tier2_remains_locked_without_repeats(self) -> None:
         observations = [
             Observation(
-                Candidate(target_force_n=target, force_damping=5.0 + 0.5 * index),
+                Candidate(target_force_n=12.0, force_damping=5.0 + 0.5 * index),
                 True,
                 0.1 + 0.01 * index,
                 True,
-                f"run-{target}-{index}",
+                f"run-{index}",
             )
-            for target in (10.0, 12.0, 15.0)
             for index in range(5)
         ]
         self.assertFalse(tier2_is_unlocked(observations))
@@ -192,14 +207,13 @@ class Step5bAutotuneOptimizerTest(unittest.TestCase):
             path.write_text("{broken\n", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "corrupt observation JSONL"):
                 read_observations(path)
-        observations = [Observation(Candidate(10.0, force_i_gain=0.00002), True, 0.1, True, "latest")]
+        observations = [Observation(Candidate(12.0, force_i_gain=0.00002), True, 0.1, True, "latest")]
         observations.extend(
-            Observation(Candidate(target), True, 0.2 + index, True, f"{target}-{index}")
-            for target in (12.0, 15.0)
+            Observation(Candidate(12.0), True, 0.2 + index, True, f"12-{index}")
             for index in range(2)
         )
         selected, details = choose_candidate(observations, require_botorch=False)
-        self.assertEqual(details["target_context_n"], 10.0)
+        self.assertEqual(details["target_context_n"], 12.0)
         self.assertEqual(selected.force_i_gain, 0.00001)
 
     def test_bayesian_selection_runs_on_cuda(self) -> None:
@@ -210,31 +224,97 @@ class Step5bAutotuneOptimizerTest(unittest.TestCase):
         if not torch.cuda.is_available():
             self.skipTest("CUDA not available")
         initial_candidate, initial_details = choose_candidate([], require_botorch=True)
-        self.assertEqual(initial_candidate.target_force_n, 10.0)
+        self.assertEqual(initial_candidate.target_force_n, 12.0)
         self.assertEqual(initial_details["device"], "cuda:0")
         self.assertTrue(initial_details["gpu_name"])
-        visits = {10.0: 2, 12.0: 3, 15.0: 3}
         observations = [
             Observation(
                 Candidate(
-                    target_force_n=target,
+                    target_force_n=12.0,
                     force_p_gain=0.001 + 0.0001 * min(index, 1),
                     force_damping=7.0 + 0.5 * (index % 2),
                 ),
                 True,
-                0.08 + 0.01 * index + 0.001 * target,
+                0.8 + 0.01 * index,
                 True,
-                f"cuda-run-{target}-{index}",
+                f"cuda-run-{index}",
             )
-            for target, count in visits.items()
-            for index in range(count)
+            for index in range(8)
         ]
         candidate, details = choose_candidate(observations, require_botorch=True)
-        self.assertEqual(candidate.target_force_n, 10.0)
+        self.assertEqual(candidate.target_force_n, 12.0)
         self.assertEqual(details["device"], "cuda:0")
         self.assertEqual(details["gpu_workers"], 2)
         self.assertTrue(details["gpu_name"])
         self.assertIn("botorch", details["selection"])
+
+
+class Step5bAutotunePromotionTest(unittest.TestCase):
+    @staticmethod
+    def _evaluation(candidate: Candidate, objective: float, run: str) -> dict:
+        return {
+            "schema_version": "step5b_autotune_evaluation_v3",
+            "objective_name": "force_mae_n",
+            "objective_unit": "N",
+            "eligible": True,
+            "feasible": True,
+            "objective": objective,
+            "candidate": candidate.payload(),
+            "run_dir": run,
+            "metrics": {"stage25_duration_s": 60.0, "max_path_progress_s": 60.0},
+            "failures": [],
+        }
+
+    def test_promotion_requires_repeatability_and_maps_step5d_fields(self) -> None:
+        candidate = Candidate(12.0, force_p_gain=0.0012, force_damping=6.5, normal_filter_alpha=0.60)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            observations = root / "observations.jsonl"
+            first = self._evaluation(candidate, 1.0, "run-a")
+            observations.write_text(json.dumps(first) + "\n", encoding="utf-8")
+            blocked = build_promotion_payload(observations)
+            self.assertEqual(blocked["status"], "candidate_not_promotable")
+            second = self._evaluation(candidate, 1.1, "run-b")
+            observations.write_text(
+                json.dumps(first) + "\n" + json.dumps(second) + "\n",
+                encoding="utf-8",
+            )
+            promoted = write_promotion_artifacts(observations, root)
+            self.assertEqual(promoted["status"], "promotable")
+            self.assertAlmostEqual(promoted["selection_score_mean_latest_two_force_mae_n"], 1.05)
+            self.assertEqual(promoted["step5d_env"]["STEP5D_FORCE_P_GAIN"], 0.0012)
+            self.assertEqual(promoted["step5d_env"]["STEP5D_FORCE_DAMPING"], 6.5)
+            env_path = Path(promoted["immutable_env"])
+            self.assertIn("export STEP5D_NORMAL_FILTER_ALPHA=0.6", env_path.read_text(encoding="utf-8"))
+            repeated = write_promotion_artifacts(observations, root)
+            self.assertEqual(repeated["promotion_id"], promoted["promotion_id"])
+
+    def test_promotion_rejects_old_objective_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            observations = Path(temporary) / "observations.jsonl"
+            payload = self._evaluation(Candidate(12.0), 1.0, "legacy")
+            payload["schema_version"] = "step5b_autotune_evaluation_v2"
+            observations.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "unsupported observation schema"):
+                build_promotion_payload(observations)
+
+    def test_repeatable_nonincumbent_cannot_be_promoted(self) -> None:
+        repeatable = Candidate(12.0, force_damping=7.0)
+        incumbent = Candidate(12.0, force_damping=6.5)
+        payloads = [
+            self._evaluation(repeatable, 1.0, "repeat-a"),
+            self._evaluation(repeatable, 1.05, "repeat-b"),
+            self._evaluation(incumbent, 0.8, "incumbent-once"),
+        ]
+        with tempfile.TemporaryDirectory() as temporary:
+            observations = Path(temporary) / "observations.jsonl"
+            observations.write_text(
+                "".join(json.dumps(payload) + "\n" for payload in payloads),
+                encoding="utf-8",
+            )
+            result = build_promotion_payload(observations)
+        self.assertEqual(result["status"], "candidate_not_promotable")
+        self.assertEqual(result["incumbent_candidate"], incumbent.payload())
 
 
 class Step5bAutotuneSanityTest(unittest.TestCase):
@@ -314,7 +394,7 @@ class Step5bAutotuneSupervisorTest(unittest.TestCase):
         self.assertIn("fresh read-back SHA mismatch", detail)
 
     def test_observer_failure_stops_bridge_before_capture_marker(self) -> None:
-        candidate = Candidate(target_force_n=10.0)
+        candidate = Candidate(target_force_n=12.0)
         fake_process = mock.Mock()
         fake_process.poll.return_value = None
         observer_context = mock.MagicMock()
@@ -389,7 +469,7 @@ class Step5bAutotuneSupervisorTest(unittest.TestCase):
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(RuntimeError, "profile mismatch"):
-                supervisor.verify_bridge_metadata(run_dir, Candidate(10.0))
+                supervisor.verify_bridge_metadata(run_dir, Candidate(12.0))
 
     def test_surviving_descendant_blocks_capture_and_history_is_globally_sorted(self) -> None:
         fake_process = mock.Mock(pid=4242)

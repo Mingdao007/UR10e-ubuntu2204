@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Contextual safe Bayesian candidate selection for Step5b autotune."""
+"""Single-context safe Bayesian candidate selection for Step5b autotune."""
 
 from __future__ import annotations
 
@@ -13,6 +13,8 @@ from typing import Any, Iterable
 import numpy as np
 
 from step5b_autotune_contract import (
+    OBJECTIVE_NAME,
+    OBJECTIVE_UNIT,
     TARGET_CONTEXTS_N,
     Candidate,
     normalized_candidate,
@@ -36,6 +38,10 @@ class Observation:
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> "Observation":
+        if payload.get("schema_version") != "step5b_autotune_evaluation_v3":
+            raise ValueError("observation schema is not step5b_autotune_evaluation_v3")
+        if payload.get("objective_name") != OBJECTIVE_NAME or payload.get("objective_unit") != OBJECTIVE_UNIT:
+            raise ValueError("observation objective is not force_mae_n in N")
         candidate = Candidate(**payload["candidate"])
         candidate.validate(tier2_unlocked=True)
         objective = payload.get("objective")
@@ -45,7 +51,10 @@ class Observation:
             candidate=candidate,
             feasible=bool(payload.get("feasible", False)),
             objective=objective,
-            full_trial=float(payload.get("metrics", {}).get("max_path_progress_s", 0.0)) >= 59.9,
+            full_trial=(
+                float(payload.get("metrics", {}).get("stage25_duration_s", 0.0)) >= 55.0
+                and float(payload.get("metrics", {}).get("max_path_progress_s", 0.0)) >= 59.9
+            ),
             run_dir=str(payload.get("run_dir", "")),
         )
 
@@ -183,7 +192,7 @@ def _botorch_candidate(
             train_x,
             train_y,
             train_Yvar=torch.full_like(train_y, 1e-5),
-            input_transform=Normalize(d=5),
+            input_transform=Normalize(d=4),
             outcome_transform=Standardize(m=1),
         )
         stream = torch.cuda.Stream(device=device)
@@ -286,6 +295,15 @@ def choose_candidate(
     center = incumbent(observations, target)
     if not unlocked and not math.isclose(center.force_i_gain, 0.00001, abs_tol=1e-12):
         center = Candidate(**{**center.payload(), "force_i_gain": 0.00001})
+
+    if not observations:
+        return center, {
+            "selection": "fixed_12n_baseline_seed",
+            "target_context_n": target,
+            "tier2_unlocked": False,
+            "trust_region_candidates": len(one_step_neighbors(center, tier2_unlocked=False)),
+            **cuda_details,
+        }
 
     # Every fourth visit is a physical-noise replicate of the incumbent.
     if visits and (len(visits) + 1) % 4 == 0:

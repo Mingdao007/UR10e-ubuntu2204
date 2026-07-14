@@ -50,6 +50,7 @@ from step5b_autotune_contract import (
 )
 from step5b_autotune_evaluator import evaluate_run
 from step5b_autotune_optimizer import choose_candidate, read_observations
+from step5b_autotune_promotion import write_promotion_artifacts
 
 
 REALSETUP_SCRIPTS = Path("/home/andy/codex-private-skills-shared-main/skills/ur10e-realsetup/scripts")
@@ -411,15 +412,16 @@ def historical_run_dirs() -> list[Path]:
 def bootstrap_history(observations_path: Path, parallel_manifest_path: Path) -> int:
     run_dirs = historical_run_dirs()
     started_at = now_iso()
-    context = multiprocessing.get_context("spawn")
-    with concurrent.futures.ProcessPoolExecutor(
-        max_workers=min(physical_cpu_workers(), max(1, len(run_dirs))),
-        mp_context=context,
-    ) as pool:
-        results = list(pool.map(_evaluate_history_run, run_dirs))
-    accepted = [result for result in results if result.get("eligible")]
-    for result in accepted:
-        append_jsonl(observations_path, result)
+    reference_path = observations_path.parent / "legacy_history_reference.json"
+    write_json(
+        reference_path,
+        {
+            "schema_version": "step5b_autotune_legacy_history_reference_v1",
+            "training_observations_imported": 0,
+            "reason": "pre-v3 multi-objective and non-supervisor history is audit-only",
+            "run_dirs": [str(path) for path in run_dirs],
+        },
+    )
     write_json(
         parallel_manifest_path,
         {
@@ -430,18 +432,18 @@ def bootstrap_history(observations_path: Path, parallel_manifest_path: Path) -> 
                     "id": "history_bootstrap",
                     "dependencies": [],
                     "resource_lane": "CPU throughput",
-                    "workers": min(physical_cpu_workers(), max(1, len(run_dirs))),
+                    "workers": 1,
                     "claim_class": "diagnostic_only",
                     "started_at": started_at,
                     "finished_at": now_iso(),
                     "exit_code": 0,
                     "inputs": [str(path) for path in run_dirs],
-                    "outputs": [str(observations_path)],
+                    "outputs": [str(reference_path)],
                 }
             ],
         },
     )
-    return len(accepted)
+    return 0
 
 
 def append_parallel_task(path: Path, task: dict[str, Any]) -> None:
@@ -627,7 +629,7 @@ def _run_one_trial_locked(
         bridge_log.close()
 
     runtime = {
-        "schema_version": "step5b_autotune_trial_runtime_v2",
+        "schema_version": "step5b_autotune_trial_runtime_v3",
         "started_at": started_at,
         "finished_at": now_iso(),
         "session_epoch": session_epoch,
@@ -718,7 +720,7 @@ def _run_session_after_preflight() -> int:
         },
     )
     state = {
-        "schema_version": "step5b_autotune_session_v2",
+        "schema_version": "step5b_autotune_session_v3",
         "status": "running",
         "started_at": now_iso(),
         "session_dir": str(session_dir),
@@ -791,6 +793,14 @@ def _run_session_after_preflight() -> int:
                 evaluation_finished = now_iso()
                 write_json(outcome["run_dir"] / "evaluation.json", evaluation)
                 append_jsonl(observations_path, evaluation)
+                promotion_started = now_iso()
+                promotion = write_promotion_artifacts(observations_path, session_dir)
+                promotion_finished = now_iso()
+                state["step5d_promotion"] = {
+                    "status": promotion["status"],
+                    "latest_json": promotion["latest_json"],
+                    "promotion_id": promotion.get("promotion_id"),
+                }
 
                 reason = outcome["runtime"].get("terminal_reason")
                 fatal = outcome["runtime"].get("fatal_detail") or not outcome["runtime"].get("home_verified")
@@ -829,6 +839,20 @@ def _run_session_after_preflight() -> int:
                         "finished_at": evaluation_finished,
                         "exit_code": 0,
                         "outputs": [str(outcome["run_dir"] / "evaluation.json")],
+                    },
+                )
+                append_parallel_task(
+                    parallel_manifest_path,
+                    {
+                        "id": f"trial_{trial_id:05d}_step5d_promotion",
+                        "dependencies": [f"trial_{trial_id:05d}_evaluator"],
+                        "resource_lane": "CPU throughput",
+                        "workers": 1,
+                        "claim_class": "offline_tooling",
+                        "started_at": promotion_started,
+                        "finished_at": promotion_finished,
+                        "exit_code": 0,
+                        "outputs": [promotion["latest_json"]],
                     },
                 )
                 append_parallel_task(

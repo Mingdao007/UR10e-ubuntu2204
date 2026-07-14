@@ -7,7 +7,7 @@
   "isolation": {
     "current_stage_unchanged": true,
     "ros2_step5b_baseline_unchanged": true,
-    "p0v9_and_step5d_v30_worktrees_untouched": true
+    "concurrent_p0_and_step5d_worktrees_untouched": true
   },
   "package": {
     "basename": "step5b_contact_cycloid_bayes_loop_v2",
@@ -42,7 +42,11 @@
     "device_policy": "cuda_required_for_every_live_selection_no_cpu_fallback",
     "gpu_parallelism": "feasibility_and_objective_fit_on_two_cuda_stream_workers_when_both_models_apply",
     "feasibility_probability_min": 0.95,
-    "no_safe_candidate": "known_feasible_context_incumbent",
+    "target_contexts_n": [12.0],
+    "initial_candidate": {"target_force_n": 12.0, "force_p_gain": 0.001, "force_i_gain": 0.00001, "force_damping": 7.0, "normal_filter_alpha": 0.55},
+    "objective": "force_mae_n_only",
+    "objective_unit": "N",
+    "no_safe_candidate": "known_feasible_12n_incumbent",
     "max_gpu_workers": 3,
     "vram_limit_pct": 85,
     "blas_threads_per_worker": 1,
@@ -51,6 +55,9 @@
   },
   "evaluation": {
     "signed_load_column": "_step4e_normal_load_n",
+    "schema_version": "step5b_autotune_evaluation_v3",
+    "objective_name": "force_mae_n",
+    "diagnostic_only_metrics": ["force_rmse_n", "force_p99_absolute_error_n", "xy_rmse_m", "normalized_command_total_variation", "near_limit_dwell_duty"],
     "raw_normal_guard_n": 50.0,
     "force_norm_guard_n": 60.0,
     "torque_norm_guard_nm": 3.0,
@@ -60,5 +67,13 @@
     "cpu_workers": "physical_cores_capped_at_16",
     "postprocess": "evaluator_and_diagnostic_parallel_after_closed_capture_only",
     "join_before_next_live_writer": true
+  },
+  "step5d_promotion": {
+    "schema_version": "step5b_to_step5d_outer_loop_v1",
+    "requires": "same_candidate_two_feasible_full_60s_trials_within_15pct_force_mae",
+    "selection": "lowest_observed_12n_force_mae_incumbent_with_latest_two_repeatability",
+    "auto_apply": false,
+    "live_authorization": false,
+    "env_fields": ["STEP5D_FORCE_P_GAIN", "STEP5D_FORCE_I_GAIN", "STEP5D_FORCE_DAMPING", "STEP5D_NORMAL_FILTER_ALPHA"]
   }
 }

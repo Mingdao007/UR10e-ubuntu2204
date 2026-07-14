@@ -19,7 +19,9 @@ CONTROLLER_PROGRAM = f"{CONTROLLER_DIRECTORY}/{PROGRAM_BASENAME}.urp"
 BRIDGE_PROFILE = "step5b_v2"
 CONFIRMATION_TOKEN = "LIVE STEP5B TP AUTOTUNE V2 SESSION"
 
-TARGET_CONTEXTS_N = (10.0, 12.0, 15.0)
+TARGET_CONTEXTS_N = (12.0,)
+OBJECTIVE_NAME = "force_mae_n"
+OBJECTIVE_UNIT = "N"
 
 COMMAND_HOLD = 0
 COMMAND_ARM = 1
@@ -104,7 +106,6 @@ def candidate_token_low31(session_epoch: int, trial_id: int, candidate: Candidat
 
 def normalized_candidate(candidate: Candidate) -> tuple[float, ...]:
     return (
-        (candidate.target_force_n - 10.0) / 5.0,
         (candidate.force_p_gain - 0.001) / 0.0005,
         (candidate.force_i_gain - 0.00001) / 0.00001,
         (candidate.force_damping - 5.0) / 3.5,

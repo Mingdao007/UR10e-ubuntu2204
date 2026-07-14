@@ -604,7 +604,13 @@
         "cuda_required": true,
         "token_echo_output_register": 28
       },
-      "success_condition": "Owner-gated 2 s, 10 s, and 60 s canaries, then two full trials in different contexts with fresh exact-token RUN, verified HOME, and exact-token HOLD acknowledgement."
+      "optimizer_contract": {
+        "target_force_n": 12.0,
+        "objective": "force_mae_n_only",
+        "evaluation_schema": "step5b_autotune_evaluation_v3",
+        "step5d_promotion_schema": "step5b_to_step5d_outer_loop_v1"
+      },
+      "success_condition": "Owner-gated supervised 60 s baseline followed by indefinite serialized 60 s trials; Step5d promotion requires two repeatable feasible full trials of one 12 N candidate with fresh exact-token RUN, verified HOME, and exact-token HOLD acknowledgement."
     },
     {
       "id": "step5b_ros2_remote_shadow_v1",

@@ -12,7 +12,7 @@
     "path_span_x_le_100mm": true,
     "path_span_y_le_100mm": true,
     "reference_speed_le_3mm_s": true,
-    "three_target_contexts": true,
+    "single_12n_target_context": true,
     "tier1_trust_region_is_local": true
   },
   "controller_target": "/programs/andyl/kunwei/step5/autotune/step5b_contact_cycloid_bayes_loop_v2.urp",
@@ -29,5 +29,5 @@
     "tier1_neighbors_including_incumbent": 5
   },
   "pass": true,
-  "schema_version": "step5b_autotune_numeric_sanity_v2"
+  "schema_version": "step5b_autotune_numeric_sanity_v3"
 }
