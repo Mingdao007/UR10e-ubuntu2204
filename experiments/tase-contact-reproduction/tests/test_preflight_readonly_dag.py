@@ -27,9 +27,26 @@ class PreflightReadonlyDagTest(unittest.TestCase):
             "running": True,
         })
         self.assertFalse(result["ok"])
-        self.assertFalse(result["checks"]["remote_control"])
+        self.assertFalse(result["checks"]["remote_control_mode"])
         self.assertFalse(result["checks"]["robot_mode"])
         self.assertFalse(result["checks"]["program_state"])
+
+    def test_tp_local_p0_requires_local_not_remote_control(self) -> None:
+        result = preflight.dashboard_predicate(
+            {
+                "remote_control": False,
+                "safetymode": "NORMAL",
+                "robotmode": "RUNNING",
+                "programState": "STOPPED",
+            },
+            expected_remote_control=False,
+        )
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["checks"]["remote_control_mode"])
+
+    def test_open_probe_accepts_open_only_payloads(self) -> None:
+        self.assertTrue(preflight._open({"open": True}))
+        self.assertFalse(preflight._open({"ok": False, "open": True}))
 
     def test_local_stage_precedes_parallel_remote_snapshot(self) -> None:
         def command(args: list[str]) -> dict[str, object]:

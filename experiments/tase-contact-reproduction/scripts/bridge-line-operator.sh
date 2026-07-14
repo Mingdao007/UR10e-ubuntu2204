@@ -705,6 +705,7 @@ refresh_bench_gate_cache() {
   preflight_dir="$(mktemp -d)"
   if python3 "${READONLY_PREFLIGHT}" \
       --robot-host "${ROBOT_HOST}" \
+      --bridge-profile "${BRIDGE_PROFILE}" \
       --output-dir "${preflight_dir}" \
       --json-only | tee "${tmp}"; then
     python3 - "${tmp}" "${LONG_CHECK_CACHE}" "${ROBOT_HOST}" <<'PY'

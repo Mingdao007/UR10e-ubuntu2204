@@ -1094,22 +1094,22 @@
       "entrypoint": "scripts/step5d-strict-rnn-p0-v8.sh capture-bridge",
       "confirm_token": "LIVE STEP5D STRICT RNN NO CONTACT P0 V8",
       "planned_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v8.urp",
-      "controller_target": null,
+      "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v8.urp",
       "local_triplet": "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v8",
       "local_candidate_marker": "programs/step5/step5d/.step5d_strict_rnn_no_contact_p0_v8.local_candidate.json",
-      "controller_uploaded": false,
-      "controller_readback_verified": false,
-      "controller_readback_manifest": null,
-      "delivery_mode": "pending_regenerated_upload_readback",
+      "controller_uploaded": true,
+      "controller_readback_verified": true,
+      "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v8_20260714_163545/manifest.json",
+      "delivery_mode": "full_upload_readback",
       "sha256": {
         ".script": "407f80e56eaa70d1e0e18597abbbddf535c8af88831c41fb117425583792ca9d",
         ".txt": "fa78883b403d01c697c40470528570d5ff6dae8f62f5c8141aa12353a4a963e4",
         ".urp": "5dad62e6682675a2dc1a2f062e5ca8f17a47497d8477640931ec0afbb49d43fa"
       },
-      "capture_authorized": false,
+      "capture_authorized": true,
       "passed": false,
       "summary_artifact": null,
-      "status": "regenerated_package_pending_controller_readback"
+      "status": "controller_readback_verified_ready_for_direct_canary"
     },
     "required_before_live": [
       "operator outside UR reach/cage boundary",
@@ -1191,7 +1191,7 @@
   "p0_v8_candidate": {
     "profile": "step5d_strict_rnn_no_contact_p0_v8",
     "gate_for": "step5d_strict_rnn_ablation_v30",
-    "state": "regenerated_package_pending_controller_readback",
+    "state": "controller_readback_verified_pending_direct_canary",
     "package_sha256": {
       ".script": "407f80e56eaa70d1e0e18597abbbddf535c8af88831c41fb117425583792ca9d",
       ".txt": "fa78883b403d01c697c40470528570d5ff6dae8f62f5c8141aa12353a4a963e4",

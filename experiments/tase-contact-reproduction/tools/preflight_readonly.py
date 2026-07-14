@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import socket
@@ -41,6 +42,7 @@ RTDE_FIELDS = [
     "payload_cog",
     "tcp_offset",
 ]
+P0_V8_PROFILE = "step5d_strict_rnn_no_contact_p0_v8"
 
 
 def now_stamp() -> str:
@@ -99,10 +101,18 @@ def realtime_capability() -> dict[str, Any]:
 
 
 def _open(result: Any) -> bool:
-    return isinstance(result, dict) and result.get("ok") is True and result.get("open", True) is True
+    return (
+        isinstance(result, dict)
+        and result.get("ok", True) is True
+        and result.get("open", True) is True
+    )
 
 
-def dashboard_predicate(result: Any) -> dict[str, Any]:
+def dashboard_predicate(
+    result: Any,
+    *,
+    expected_remote_control: bool = True,
+) -> dict[str, Any]:
     result = result if isinstance(result, dict) else {}
     def value(*keys: str) -> str:
         raw = next((result[key] for key in keys if key in result), "")
@@ -114,12 +124,87 @@ def dashboard_predicate(result: Any) -> dict[str, Any]:
     remote = result.get("remote_control") is True or value("is in remote control") == "TRUE"
     program_token = program_state.split(maxsplit=1)[0] if program_state else ""
     checks = {
-        "remote_control": remote,
+        "remote_control_mode": remote is expected_remote_control,
         "safety_normal": safety_mode == "NORMAL",
         "robot_mode": robot_mode in {"RUNNING", "IDLE", "POWER_ON"},
         "program_state": program_token in {"STOPPED", "PLAYING", "PAUSED", "RUNNING"},
     }
     return {"ok": all(checks.values()), "checks": checks}
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def p0_v8_controller_binding(root: Path = EXPERIMENT_ROOT) -> dict[str, Any]:
+    current = json.loads((root / "config/current_stage.json").read_text(encoding="utf-8"))
+    table = json.loads((root / "config/step5_stage_table.json").read_text(encoding="utf-8"))
+    capture = ((current.get("bridge_trigger") or {}).get("no_contact_p0_v8_capture") or {})
+    row = next((item for item in table.get("stages", []) if item.get("id") == P0_V8_PROFILE), {})
+    delivery = row.get("package_delivery") or {}
+    manifest_rel = capture.get("controller_readback_manifest")
+    expected_target = f"/programs/andyl/kunwei/step5/{P0_V8_PROFILE}.urp"
+    expected_script = f"/programs/andyl/kunwei/step5/{P0_V8_PROFILE}.script"
+    errors: list[str] = []
+    if capture.get("profile") != P0_V8_PROFILE:
+        errors.append("capture_profile_mismatch")
+    if capture.get("capture_authorized") is not True:
+        errors.append("capture_not_authorized")
+    if capture.get("controller_readback_verified") is not True:
+        errors.append("capture_readback_not_verified")
+    if capture.get("controller_target") != expected_target:
+        errors.append("capture_controller_target_mismatch")
+    if not isinstance(manifest_rel, str) or not manifest_rel:
+        errors.append("capture_manifest_missing")
+        manifest_path = None
+    else:
+        manifest_path = (root / manifest_rel).resolve()
+        try:
+            manifest_path.relative_to(root.resolve())
+        except ValueError:
+            errors.append("capture_manifest_outside_root")
+        if not manifest_path.is_file():
+            errors.append("capture_manifest_not_found")
+    manifest: dict[str, Any] = {}
+    if manifest_path is not None and manifest_path.is_file() and not errors:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        validation = manifest.get("validation") or {}
+        manifest_sha = manifest.get("sha256") or {}
+        expected_sha = capture.get("sha256") or {}
+        if manifest.get("status") != "controller read-back verified":
+            errors.append("manifest_status_invalid")
+        if validation.get("program") != P0_V8_PROFILE:
+            errors.append("manifest_program_mismatch")
+        if validation.get("target_dir") != "/programs/andyl/kunwei/step5":
+            errors.append("manifest_target_dir_mismatch")
+        if validation.get("script_node_path") != expected_script:
+            errors.append("manifest_script_path_mismatch")
+        for section in ("local", "controller", "readback"):
+            if manifest_sha.get(section) != expected_sha:
+                errors.append(f"manifest_{section}_sha_mismatch")
+        for ext in (".script", ".txt", ".urp"):
+            path = manifest_path.parent / f"{P0_V8_PROFILE}{ext}"
+            if not path.is_file() or _sha256(path) != expected_sha.get(ext):
+                errors.append(f"readback_{ext[1:]}_invalid")
+    if delivery.get("status") != "controller_readback_verified_inactive":
+        errors.append("stage_delivery_status_invalid")
+    if delivery.get("controller_readback_verified") is not True:
+        errors.append("stage_delivery_readback_not_verified")
+    if delivery.get("controller_readback_manifest") != manifest_rel:
+        errors.append("stage_delivery_manifest_mismatch")
+    if delivery.get("sha256") != capture.get("sha256"):
+        errors.append("stage_delivery_sha_mismatch")
+    return {
+        "ok": not errors,
+        "program": P0_V8_PROFILE,
+        "controller_target": expected_target,
+        "manifest": manifest_rel,
+        "errors": errors,
+    }
 
 
 def rtde_predicate(result: Any) -> dict[str, Any]:
@@ -154,6 +239,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--sensor-port", type=int, default=5152)
     parser.add_argument("--output-dir", type=Path, default=default_output_dir())
     parser.add_argument("--timeout-s", type=float, default=2.0)
+    parser.add_argument("--bridge-profile", default=None)
     parser.add_argument("--json-only", action="store_true")
     args = parser.parse_args(argv)
 
@@ -208,14 +294,18 @@ def main(argv: list[str] | None = None) -> int:
             "kunwei_tcp_connect_only": lambda: tcp_connect_only(
                 args.sensor_ip, args.sensor_port, args.timeout_s
             ),
-            "controller_binding": lambda: run_command(
-                [
-                    sys.executable,
-                    str(EXPERIMENT_ROOT / "tools/verify_step5d_current_binding.py"),
-                    "--root",
-                    str(EXPERIMENT_ROOT),
-                    "--json",
-                ]
+            "controller_binding": (
+                (lambda: p0_v8_controller_binding(EXPERIMENT_ROOT))
+                if args.bridge_profile == P0_V8_PROFILE
+                else (lambda: run_command(
+                    [
+                        sys.executable,
+                        str(EXPERIMENT_ROOT / "tools/verify_step5d_current_binding.py"),
+                        "--root",
+                        str(EXPERIMENT_ROOT),
+                        "--json",
+                    ]
+                ))
             ),
             "bench_network": lambda: run_command(
                 [sys.executable, str(BENCH_GATE), "--include-kunwei", "--json-only"]
@@ -243,7 +333,10 @@ def main(argv: list[str] | None = None) -> int:
             bench_network["error"] = "bench network output was not JSON"
     predicates = {
         "realtime": {"ok": local.get("realtime", {}).get("ok") is True},
-        "dashboard": dashboard_predicate(dashboard),
+        "dashboard": dashboard_predicate(
+            dashboard,
+            expected_remote_control=args.bridge_profile != P0_V8_PROFILE,
+        ),
         "rtde": rtde_predicate(rtde),
         "robot_ports": {"ok": local_ok and all(_open(value) for value in (remote.get("robot_ports") or {}).values())},
         "kunwei": {"ok": _open(remote.get("kunwei_tcp_connect_only"))},
