@@ -22,6 +22,16 @@ V30_QDOT_SLEW_RAD_S2 = 0.20
 V30_GUARD_DT_MAX_S = 0.010
 
 
+def _normal_opposition_is_hard(policy: str) -> bool:
+    """Keep frame semantics hard while allowing motion checks to be diagnostic."""
+
+    return policy in {"approach_positive", "normal_zero", "frame_contract_only"}
+
+
+def _normal_motion_constraints_are_hard(policy: str) -> bool:
+    return policy in {"approach_positive", "normal_zero"}
+
+
 Vector3 = tuple[float, float, float]
 Vector6 = tuple[float, float, float, float, float, float]
 Matrix3 = tuple[Vector3, Vector3, Vector3]
@@ -506,7 +516,7 @@ def _prepare_control_tick_workspace(
     reaction, approach, frame_transform_applied, normal_error = (
         _canonical_normals_in_command_frame(
             observation,
-            enforce_opposition=observation.normal_motion_policy != "diagnostic_only",
+            enforce_opposition=_normal_opposition_is_hard(observation.normal_motion_policy),
         )
     )
     if normal_error is not None or reaction is None or approach is None:
@@ -618,7 +628,7 @@ class SafetyEnvelope:
             frame_transform_applied = _workspace.frame_transform_applied
             normal_error = None
             if (
-                observation.normal_motion_policy != "diagnostic_only"
+                _normal_opposition_is_hard(observation.normal_motion_policy)
                 and
                 float(np.linalg.norm(reaction + approach))
                 > self.normal_contract_tolerance
@@ -629,7 +639,7 @@ class SafetyEnvelope:
                 _canonical_normals_in_command_frame(
                     observation,
                     normal_contract_tolerance=self.normal_contract_tolerance,
-                    enforce_opposition=observation.normal_motion_policy != "diagnostic_only",
+                    enforce_opposition=_normal_opposition_is_hard(observation.normal_motion_policy),
                 )
             )
         if normal_error is not None:
@@ -673,7 +683,7 @@ class SafetyEnvelope:
                 return self._decision(False, "safe_hold", "no_contact_target_normal_nonzero", **metrics)
             if abs(predicted_approach) > float(observation.predicted_normal_tolerance_m_s):
                 return self._decision(False, "safe_hold", "no_contact_predicted_normal_nonzero", **metrics)
-        elif normal_policy == "diagnostic_only":
+        elif normal_policy in {"diagnostic_only", "frame_contract_only"}:
             pass
         else:
             return self._decision(False, "stop", "normal_motion_policy_invalid", **metrics)
@@ -690,9 +700,9 @@ class SafetyEnvelope:
                 computed_residual_norm=computed_residual,
                 claimed_residual_norm=float(candidate.residual_norm),
             )
-        if normal_policy != "diagnostic_only" and computed_residual > float(self.max_residual_norm):
+        if _normal_motion_constraints_are_hard(normal_policy) and computed_residual > float(self.max_residual_norm):
             return self._decision(False, "safe_hold", "constraint_residual_norm_exceeded", **metrics)
-        if normal_policy != "diagnostic_only" and int(candidate.active_bounds_count) > 0:
+        if _normal_motion_constraints_are_hard(normal_policy) and int(candidate.active_bounds_count) > 0:
             return self._decision(False, "safe_hold", "active_bounds_present", **metrics)
         return self._decision(True, "execute", "ok", qdot=qdot, **metrics)
 
@@ -911,7 +921,7 @@ def step5d_v30_contract_pipeline(
                 _workspace=workspace,
             )
         except (ValueError, np.linalg.LinAlgError, FloatingPointError, OverflowError):
-            if decision.accepted and observation.normal_motion_policy != "diagnostic_only":
+            if decision.accepted and _normal_motion_constraints_are_hard(observation.normal_motion_policy):
                 raise
             # A candidate already rejected by the authoritative SafetyEnvelope
             # must remain rejected with its specific reason.  Missing DLS
@@ -971,7 +981,7 @@ def step5d_v30_control_step(
 
     governed_observation = observation
     try:
-        if observation.normal_motion_policy != "diagnostic_only":
+        if _normal_motion_constraints_are_hard(observation.normal_motion_policy):
             governed_observation = build_slew_compatible_reference(
                 observation,
                 previous_qdot=previous_qdot,

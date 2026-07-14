@@ -36,6 +36,7 @@ LOCAL_CANDIDATE_MARKER = ".local_tp_candidate.json"
 INACTIVE_PRELIVE_DELIVERY_PROGRAMS = frozenset(
     {
         "step5d_strict_rnn_ablation_v30",
+        "step5d_strict_rnn_ablation_v31",
         "step5d_strict_rnn_no_contact_p0_v8",
     }
 )

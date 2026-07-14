@@ -89,7 +89,7 @@ class Step5dV30ProfileTest(unittest.TestCase):
         self.assertTrue(marker["not_delivered"])
         self.assertIn("no live bridge", marker["safety_boundary"])
 
-    def test_v30_runtime_interface_never_reports_live_bridge_or_upload(self) -> None:
+    def test_v30_runtime_interface_uses_real_tp_target_but_remains_inactive(self) -> None:
         runtime = interface.resolve_runtime_interface(
             program=interface.STEP5D_ABLATION_V30_STAGE_ID,
             root=ROOT,
@@ -101,12 +101,12 @@ class Step5dV30ProfileTest(unittest.TestCase):
 
         self.assertEqual(
             runtime.controller_target,
-            "LOCAL_ONLY_NOT_DELIVERED",
+            "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v30.urp",
         )
         self.assertTrue(runtime.hard_contract["offline_candidate"])
         self.assertFalse(runtime.hard_contract["controller_readback_verified"])
         self.assertIn("phase=v30-offline-candidate", rendered)
-        self.assertIn("upload=no", rendered)
+        self.assertIn("upload=required-after-build", rendered)
         self.assertNotIn("phase=live-bridge", rendered)
 
     def test_v30_completed_delivery_remains_inactive_not_current_promotion(self) -> None:

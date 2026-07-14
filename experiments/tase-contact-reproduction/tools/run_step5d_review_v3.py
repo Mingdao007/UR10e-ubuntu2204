@@ -160,6 +160,7 @@ def main() -> int:
     parser.add_argument("--codex-command", nargs="+", required=True)
     parser.add_argument("--fable-command", nargs="+", required=True)
     parser.add_argument("--fable-preflight-command", nargs="+")
+    parser.add_argument("--lane-policy", type=Path)
     parser.add_argument("--work-item-id", required=True)
     args = parser.parse_args()
     binding = json.loads(args.binding.read_text())
@@ -171,9 +172,21 @@ def main() -> int:
     reserve_full_review(args.index, composite, work_item_id)
     args.output_dir.mkdir(parents=True, exist_ok=False)
     preflight = fable_preflight(args.fable_command, args.fable_preflight_command)
+    lane_policy = json.loads(args.lane_policy.read_text())["lanes"] if args.lane_policy else {
+        "control_timing_claim": {"model": "gpt-5.6-sol", "effort": "xhigh"},
+        "physical_operator_safety": {"model": "claude-fable-5", "effort": "high"},
+    }
     specs = {
-        "control_timing_claim": (args.codex_command, "gpt-5.6-sol", "xhigh"),
-        "physical_operator_safety": (args.fable_command, "claude-fable-5", "high"),
+        "control_timing_claim": (
+            args.codex_command,
+            lane_policy["control_timing_claim"]["model"],
+            lane_policy["control_timing_claim"]["effort"],
+        ),
+        "physical_operator_safety": (
+            args.fable_command,
+            lane_policy["physical_operator_safety"]["model"],
+            lane_policy["physical_operator_safety"]["effort"],
+        ),
     }
     with ThreadPoolExecutor(max_workers=2) as pool:
         futures = {

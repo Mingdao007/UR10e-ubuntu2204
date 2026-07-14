@@ -24,6 +24,8 @@ from step5d_liveprep_readiness import (
 )
 from step5d_runtime_interface import resolve_runtime_interface
 from step5d_review_v3 import resolve as resolve_review_v3
+from step5d_review_v3 import canonical_composite
+from build_step5d_v31_review_binding import compute_payloads as compute_v31_review_payloads
 from step5d_timing_acceptance import evaluate_timing_raw
 from step5d_v30_timing import SOURCE_BINDING_FILES
 from verify_current_stage_readback import EXPERIMENT_ROOT, fail, load_json, verify
@@ -32,6 +34,7 @@ from verify_current_stage_readback import EXPERIMENT_ROOT, fail, load_json, veri
 STEP5D_PACKAGE_PREFIXES = ("step5d_strict_rnn_liveprep_", "step5d_strict_rnn_ablation_")
 STEP5D_ABLATION_V29 = "step5d_strict_rnn_ablation_v29"
 STEP5D_ABLATION_V30 = "step5d_strict_rnn_ablation_v30"
+STEP5D_ABLATION_V31 = "step5d_strict_rnn_ablation_v31"
 V29_EXACT_RUNTIME_PROFILE: dict[str, Any] = {
     "backend": "cupy",
     "inner_iterations": 1024,
@@ -44,6 +47,10 @@ V29_EXACT_RUNTIME_PROFILE: dict[str, Any] = {
 V30_EXACT_RUNTIME_PROFILE: dict[str, Any] = {
     **V29_EXACT_RUNTIME_PROFILE,
     "inner_iterations": 512,
+}
+V31_EXACT_RUNTIME_PROFILE: dict[str, Any] = {
+    **V30_EXACT_RUNTIME_PROFILE,
+    "qdot_cap_rad_s": 0.5,
 }
 V30_READINESS = "config/step5d_v30_offline_readiness.json"
 V30_REVIEW_POLICY = "config/step5d_review_policy_v3.json"
@@ -516,7 +523,9 @@ def _exact_v29_runtime_profile(
     except (TypeError, ValueError):
         fail(f"{profile_label} live bridge requires the exact runtime profile")
     expected = (
-        V30_EXACT_RUNTIME_PROFILE
+        V31_EXACT_RUNTIME_PROFILE
+        if profile_label == "v31"
+        else V30_EXACT_RUNTIME_PROFILE
         if profile_label == "v30"
         else V29_EXACT_RUNTIME_PROFILE
     )
@@ -524,12 +533,121 @@ def _exact_v29_runtime_profile(
         fail(
             f"{profile_label} live bridge requires the exact runtime profile "
             + (
-                "speedj_rnn_live/cupy/512/epsilon=0.01/r=0.8/qdot=0.05"
-                if profile_label == "v30"
+                f"speedj_rnn_live/cupy/512/epsilon=0.01/r=0.8/qdot={'0.5' if profile_label == 'v31' else '0.05'}"
+                if profile_label in {"v30", "v31"}
                 else "speedj_rnn_live/cupy/1024/epsilon=0.01/r=0.8/qdot=0.05"
             )
         )
     return observed
+
+
+def verify_v31_evidence_freeze(
+    root: Path,
+    current: dict[str, Any] | None = None,
+    *,
+    stage25_control_mode: str | None = None,
+    rnn_backend: str | None = None,
+    rnn_inner_iterations: int | None = None,
+    epsilon: float | None = None,
+    sigr_exponent_r: float | None = None,
+    qdot_cap_rad_s: float | None = None,
+) -> dict[str, Any]:
+    """Recompute every v31 package/timing/operator/review binding before live use."""
+
+    current = current or load_json(root / "config/current_stage.json")
+    candidate = current.get("v31_candidate")
+    if not isinstance(candidate, dict):
+        fail("v31 candidate ledger is missing")
+    runtime_profile = _exact_v29_runtime_profile(
+        stage25_control_mode=stage25_control_mode,
+        rnn_backend=rnn_backend,
+        rnn_inner_iterations=rnn_inner_iterations,
+        epsilon=epsilon,
+        sigr_exponent_r=sigr_exponent_r,
+        qdot_cap_rad_s=qdot_cap_rad_s,
+        profile_label="v31",
+    )
+    review = candidate.get("review_v3")
+    package = candidate.get("package")
+    timing = candidate.get("formal_timing")
+    if not all(isinstance(value, dict) for value in (review, package, timing)):
+        fail("v31 package/timing/review ledger is incomplete")
+    if package.get("controller_uploaded") is not True or package.get("controller_readback_verified") is not True:
+        fail("v31 controller upload/fresh read-back is not verified")
+    if timing.get("status") != "pass":
+        fail("v31 exact-profile formal timing is not accepted")
+    _, timing_summary, timing_summary_sha = _hash_bound_json(
+        root, timing.get("summary"), "v31 formal timing summary",
+        expected_sha256=timing.get("summary_sha256"),
+    )
+    if timing_summary.get("overall_pass") is not True:
+        fail("v31 formal timing summary does not pass")
+
+    binding_path, tracked_binding, binding_sha = _hash_bound_json(
+        root, review.get("binding"), "v31 Review v3 binding",
+        expected_sha256=review.get("binding_sha256"),
+    )
+    evidence_path, tracked_evidence, evidence_sha = _hash_bound_json(
+        root, review.get("evidence"), "v31 Review v3 evidence",
+        expected_sha256=review.get("evidence_sha256"),
+    )
+    recomputed_binding, recomputed_evidence = compute_v31_review_payloads()
+    if tracked_binding != recomputed_binding or tracked_evidence != recomputed_evidence:
+        fail("v31 Review v3 package/readback/timing/source/operator evidence is stale")
+    composite = canonical_composite(recomputed_binding)
+    if review.get("composite_fingerprint") != composite:
+        fail("v31 Review v3 composite fingerprint is stale")
+
+    manifest_path, manifest, manifest_sha = _hash_bound_json(
+        root, review.get("manifest"), "v31 Review v3 manifest",
+        expected_sha256=review.get("manifest_sha256"),
+    )
+    policy_path, policy, policy_sha = _hash_bound_json(
+        root, review.get("policy"), "v31 Review v3 policy",
+        expected_sha256=review.get("policy_sha256"),
+    )
+    index_path, index, index_sha = _hash_bound_json(
+        root, review.get("index"), "v31 Review v3 index",
+        expected_sha256=review.get("index_sha256"),
+    )
+    for lane_name, lane in (manifest.get("lanes") or {}).items():
+        if not isinstance(lane, dict):
+            fail(f"v31 Review v3 lane is invalid: {lane_name}")
+        transcript = _confined_regular_file(root, lane.get("runtime_evidence_path"), f"v31 {lane_name} transcript")
+        if _sha256_file(transcript) != lane.get("runtime_evidence_sha256"):
+            fail(f"v31 Review v3 lane transcript hash mismatch: {lane_name}")
+    gate = {
+        "evidence_frozen": True,
+        "work_item_id": review.get("work_item_id"),
+        "composite_fingerprint": composite,
+        "manifest_sha256": manifest_sha,
+        "decision_digest": review.get("decision_digest"),
+        "deterministic_finding_closure": review.get("deterministic_finding_closure"),
+    }
+    resolved = resolve_review_v3(
+        workflow="v31", milestone="contact_pre_live", gate=gate,
+        manifest=manifest, policy=policy, index=index,
+    )
+    if resolved.get("accepted") is not True:
+        fail("v31 Review v3 deterministic closure is not accepted: " + ",".join(resolved.get("blockers") or []))
+    if candidate.get("live_authorized") is not True:
+        fail("v31 explicit live/contact authorization is missing")
+    return {
+        "ok": True,
+        "program": STEP5D_ABLATION_V31,
+        "runtime_profile": runtime_profile,
+        "binding": _relative(root, binding_path),
+        "binding_sha256": binding_sha,
+        "evidence": _relative(root, evidence_path),
+        "evidence_sha256": evidence_sha,
+        "composite_fingerprint": composite,
+        "manifest": _relative(root, manifest_path),
+        "manifest_sha256": manifest_sha,
+        "policy_sha256": policy_sha,
+        "index_sha256": index_sha,
+        "effective_stack": resolved.get("effective_stack"),
+        "deterministic_finding_closure_accepted": resolved.get("deterministic_finding_closure_accepted"),
+    }
 
 
 def _verify_v29_readiness(
@@ -682,6 +800,17 @@ def verify_live_bridge_authorization(
             profile_label="v30",
         )
         readiness = verify_v30_evidence_freeze(root, current, stage_entry)
+    elif selected == STEP5D_ABLATION_V31:
+        readiness = verify_v31_evidence_freeze(
+            root, current,
+            stage25_control_mode=stage25_control_mode,
+            rnn_backend=rnn_backend,
+            rnn_inner_iterations=rnn_inner_iterations,
+            epsilon=epsilon,
+            sigr_exponent_r=sigr_exponent_r,
+            qdot_cap_rad_s=qdot_cap_rad_s,
+        )
+        runtime_profile = readiness["runtime_profile"]
     p0_required = _stage_bool(
         stage_entry,
         "strict_rnn_no_contact_p0_required_before_live",
