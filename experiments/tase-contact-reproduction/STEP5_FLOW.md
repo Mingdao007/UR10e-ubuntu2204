@@ -1,17 +1,14 @@
 # Step5 Flow
 
 `config/current_stage.json` currently selects
-`step5d_strict_rnn_ablation_v29` as the current pointer. The
-controller-readback-verified package is a
-**frozen fallback**, not an active live candidate. Re-enabling v29 requires a
-fresh package/readback/timing fingerprint, one Review v3 contact pre-live gate,
-and explicit live/contact authorization. Its historical controller evidence at
-`runs/controller_readback_step5d_strict_rnn_ablation_v29_20260710_014948`
-remains byte-for-byte evidence only.
+`step5d_strict_rnn_ablation_v31` as the live-authorized current pointer after
+fresh controller read-back, final-source timing, Review v3 closure, and the
+user's explicit `开bridge` authorization on 2026-07-14. The v29 package remains
+frozen fallback evidence only.
 
 The successor `step5d_strict_rnn_ablation_v30` remains immutable inactive
 history. New contact work is owned by `step5d_strict_rnn_ablation_v31`, an
-inactive candidate that carries the user-selected permissive P0v9 guard policy
+live-authorized candidate that carries the user-selected permissive P0v9 guard policy
 into contact control. It keeps layout-524 strict RNN, qdot cap `0.5 rad/s`,
 `0.05 rad/s²` shaping, 2 s sensor stale, 1 s heartbeat stale, and a 75 s
 Stage25 runtime. Cartesian/normal speed and displacement, force-window, DLS,

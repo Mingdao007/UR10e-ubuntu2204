@@ -7233,7 +7233,7 @@
       "canonical_profile_ref": "Step5.step5d_rnn",
       "stage": "Step5d",
       "owner": "frozen_fallback",
-      "active": true,
+      "active": false,
       "blocked": true,
       "complete": false,
       "completion_target": true,
@@ -7724,7 +7724,7 @@
       },
       "current_binding": {
         "source": "config/current_stage.json",
-        "is_current": true,
+        "is_current": false,
         "stage_id": "step5d_strict_rnn_ablation_v29",
         "program": "step5d_strict_rnn_ablation_v29",
         "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v29.urp",
@@ -9440,7 +9440,7 @@
       "canonical_profile_ref": "Step5.step5d_rnn",
       "stage": "Step5d",
       "owner": "contact_control_candidate",
-      "active": false,
+      "active": true,
       "blocked": true,
       "complete": false,
       "completion_target": false,
@@ -9660,12 +9660,12 @@
         "manifest": "runs/step5d_v31_review_v3_20260714_2000/review_manifest_v3.json",
         "manifest_sha256": "85202d84502c3aa3367ae4ccf901d899617f7d1845928b1dda45bce5a1a5adba",
         "owner_validation": "config/reviews/step5d_v31_deterministic_owner_validation.json",
-        "owner_validation_sha256": "e8599138c800af6a88cb477c19b9f207d62b352c2635885a5b0624326a98a3fe"
+        "owner_validation_sha256": "91abc0c8c9265fb91c724c5aee23235400f877b843f54a94b2dd1f7d42488f33"
       },
       "current_binding": {
-        "is_current": false,
+        "is_current": true,
         "current_stage_pointer": "config/current_stage.json",
-        "live_authorized": false
+        "live_authorized": true
       }
     }
   ]
