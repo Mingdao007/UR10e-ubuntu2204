@@ -100,8 +100,8 @@ fi
 usage() {
   cat <<EOF
 Usage:
-  step5d-liveprep-operator.sh prep-long-checks  # manual diagnostics only
-  step5d-liveprep-operator.sh live-ready        # read-only cache/ETA/profile status
+  step5d-liveprep-operator.sh prep-long-checks  # explicit diagnose-bench snapshot only
+  step5d-liveprep-operator.sh live-ready        # read-only binding/profile status
   STEP5D_CONFIRM='LIVE STEP5D STRICT RNN LIVEPREP' step5d-liveprep-operator.sh contact-bridge
 
 Teach Pendant target:
@@ -129,8 +129,8 @@ Boundary:
   - Stage 25.0 v24 computes/logs the strict RNN qdot path, but low-load/no-contact writes zero qdot instead of executing active_reacquire_solver qdot and adds post-RNN tracking reversal detection.
   - No UR zero_ftsensor(), no Kunwei tare/zero/config, no TCP/payload write.
   - This wrapper never loads a program or presses Play.
-  - contact-bridge requires a fresh cached long-check result; refresh it during
-    prep-long-checks, then the live trigger runs only short checks.
+  - prep-long-checks is optional diagnostics; it does not authorize or block contact-bridge.
+  - contact-bridge relies on exact binding and the bridge's actual RTDE/sensor/prewarm ready sentinel.
   - Review v3 cannot bypass exact profile, readback, Dashboard, RTDE, runtime,
     or explicit user live/contact authorization gates.
 EOF

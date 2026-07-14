@@ -27,6 +27,7 @@ from step5d_runtime_interface import (
     STEP5D_ABLATION_V29_STAGE_ID,
     STEP5D_ABLATION_V30_STAGE_ID,
     STEP5D_ABLATION_V31_STAGE_ID,
+    STEP5D_ABLATION_V32_STAGE_ID,
     STEP5D_INTERFACE_CLASS,
     STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE,
     STEP5D_STAGE25_JOINT_LAYOUT_CODE,
@@ -69,15 +70,15 @@ class Step5dAblationSpec:
 
     @property
     def strict_rnn_live_candidate(self) -> bool:
-        return self.version_label in {"v29", "v30", "v31"}
+        return self.version_label in {"v29", "v30", "v31", "v32"}
 
     @property
     def inactive_offline_candidate(self) -> bool:
-        return self.version_label in {"v30", "v31", "no_contact_p0_v8", "no_contact_p0_v9"}
+        return self.version_label in {"v30", "v31", "v32", "no_contact_p0_v8", "no_contact_p0_v9"}
 
     @property
     def uses_v30_control_contract(self) -> bool:
-        return self.version_label in {"v30", "v31", "no_contact_p0_v8", "no_contact_p0_v9"}
+        return self.version_label in {"v30", "v31", "v32", "no_contact_p0_v8", "no_contact_p0_v9"}
 
     @property
     def full_stage25_echo(self) -> bool:
@@ -89,7 +90,7 @@ class Step5dAblationSpec:
 
     @property
     def permissive_contact_guard(self) -> bool:
-        return self.version_label == "v31"
+        return self.version_label in {"v31", "v32"}
 
 
 @dataclass(frozen=True)
@@ -160,6 +161,18 @@ ABLATION_SPECS = {
         program_name=STEP5D_ABLATION_V31_STAGE_ID,
         version_label="v31",
         stamp_token="STEP5D_STRICT_RNN_ABLATION_V31_PERMISSIVE_CONTACT",
+        cartesian_angular_cap_rad_s=1.0,
+        default_stage25_control_mode="speedj_rnn_live",
+        stage25_success_target_s=STEP5D_STAGE25_V28_FULL_RUN_TARGET_S,
+        stage25_runtime_limit_s=75.0,
+        qdot_cap_rad_s=0.500,
+        stage25_stale_command_hold_s=1.000,
+        publish_guard_approved_late_command=True,
+    ),
+    STEP5D_ABLATION_V32_STAGE_ID: Step5dAblationSpec(
+        program_name=STEP5D_ABLATION_V32_STAGE_ID,
+        version_label="v32",
+        stamp_token="STEP5D_STRICT_RNN_ABLATION_V32_STAGE_AWARE_PACKET",
         cartesian_angular_cap_rad_s=1.0,
         default_stage25_control_mode="speedj_rnn_live",
         stage25_success_target_s=STEP5D_STAGE25_V28_FULL_RUN_TARGET_S,
@@ -1324,7 +1337,7 @@ def build_script(
     )
     script = _force_gravity_down_search_pose(script)
     script = _speed_up_entry_and_first_search(script)
-    if spec.version_label in {"v30", "v31"}:
+    if spec.version_label in {"v30", "v31", "v32"}:
         stage25_mode_policy = (
             "speedj_rnn_live is the only future live command source; speedl_cartesian_oracle and "
             "speedj_dls_oracle are offline shadow/diagnostic only and must never be sent as runtime fallback.\n"
@@ -1375,16 +1388,16 @@ def build_script(
             "Stage25.0 layout-524-only speedj strict RNN live candidate",
         )
         script = script.replace(
-            "TP_ROLE: multimode_executor_and_guard_only; Step5d v31 command layout is computed by the bridge.",
-            "TP_ROLE: layout524_speedj_executor_and_structural_guard_only; Step5d v31 accepts only bridge-computed strict RNN qdot.",
+            f"TP_ROLE: multimode_executor_and_guard_only; Step5d {spec.version_label} command layout is computed by the bridge.",
+            f"TP_ROLE: layout524_speedj_executor_and_structural_guard_only; Step5d {spec.version_label} accepts only bridge-computed strict RNN qdot; marker 524 is internal to the Stage25 joint packet.",
         )
         script = script.replace(
-            f"# REGISTER_CONTRACT: Stage 25.3 consumes 37..39 as Cartesian deadband-acquire vx/vy/vz, plus v31 preload overrides in 40/41/42/44/46/47; Stage 25.95 requires bridge-cleared registers 37..47 before Stage 25.0. Stage 25.0 reads register 47 as layout tag: {STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:.1f}=Cartesian speedl vx/vy/vz/wx/wy/wz in 37..42, {STEP5D_STAGE25_JOINT_LAYOUT_CODE:.1f}=joint speedj qd0..qd5 in 37..42; 43 cmd_valid, 44 path_time_s.",
+            f"# REGISTER_CONTRACT: Stage 25.3 consumes 37..39 as Cartesian deadband-acquire vx/vy/vz, plus {spec.version_label} preload overrides in 40/41/42/44/46/47; Stage 25.95 requires bridge-cleared registers 37..47 before Stage 25.0. Stage 25.0 reads register 47 as layout tag: {STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:.1f}=Cartesian speedl vx/vy/vz/wx/wy/wz in 37..42, {STEP5D_STAGE25_JOINT_LAYOUT_CODE:.1f}=joint speedj qd0..qd5 in 37..42; 43 cmd_valid, 44 path_time_s.",
             f"# REGISTER_CONTRACT: Stage 25.3 is a no-motion structural handoff. Stage 25.95 requires bridge-cleared registers 37..47 before Stage 25.0. Stage 25.0 accepts only register 47={STEP5D_STAGE25_JOINT_LAYOUT_CODE:.1f}; registers 37..42 are strict RNN qd0..qd5, 43 cmd_valid, 44 path_time_s. Layout {STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:.1f} and Cartesian/DLS runtime commands are forbidden.",
         )
         script = script.replace(
             "25.0 retains layout-tagged TP mechanics for package continuity, but v30 host policy permits only strict RNN speedj live; Cartesian speedl and DLS speedj are offline shadow diagnostics and are forbidden as runtime fallback.",
-            "25.0 accepts only v31 strict RNN speedj on layout 524; Cartesian speedl and DLS speedj are shadow diagnostics with no TP runtime path.",
+            f"25.0 accepts only {spec.version_label} strict RNN speedj; marker 524 is emitted internally for the joint packet. Cartesian speedl and DLS speedj are shadow diagnostics with no TP runtime path.",
         )
     if spec.version_label == "v27":
         script = script.replace(
@@ -1529,9 +1542,9 @@ Reference:
         speedl_mode_description = (
             "STEP5D_STAGE25_CONTROL_MODE=speedl_cartesian_oracle is offline shadow/diagnostic only for v30 and cannot be selected as a runtime fallback; the only future live command mode is speedj_rnn_live."
         )
-    elif spec.version_label == "v31":
+    elif spec.version_label in {"v31", "v32"}:
         speedl_mode_description = (
-            "STEP5D_STAGE25_CONTROL_MODE=speedl_cartesian_oracle is shadow/diagnostic only for v31 and cannot be selected as a runtime fallback; the only future live command mode is speedj_rnn_live on layout 524."
+            f"STEP5D_STAGE25_CONTROL_MODE=speedl_cartesian_oracle is shadow/diagnostic only for {spec.version_label} and cannot be selected as a runtime fallback; the only live command mode is speedj_rnn_live, whose Stage25 joint packet carries internal wire marker 524."
         )
     elif spec.strict_rnn_live_candidate:
         speedl_mode_description = (
@@ -1566,11 +1579,11 @@ Reference:
             "  Stage25.0 is not authorized now; after later delivery/readback and explicit authorization,\n"
             "  only speedj_rnn_live on layout 524 may be sent to TP. speedl and DLS remain shadow-only."
         )
-    elif spec.version_label == "v31":
+    elif spec.version_label in {"v31", "v32"}:
         first_run = (
-            "v31 is an inactive strict RNN candidate:\n"
+            f"{spec.version_label} is an inactive strict RNN candidate:\n"
             "  Stage25.0 is not authorized now; after delivery/readback, frozen fingerprint, Review v3, and explicit authorization,\n"
-            "  only speedj_rnn_live on layout 524 may be sent to TP. speedl and DLS remain shadow-only."
+            "  only speedj_rnn_live may be sent to TP; marker 524 is internal to the Stage25 joint packet encoder. speedl and DLS remain shadow-only."
         )
     elif spec.strict_rnn_live_candidate:
         first_run = (
@@ -1592,7 +1605,7 @@ Reference:
         "STEP5D_STAGE25_CONTROL_MODE=speedj_dls_oracle computes DLS shadow diagnostics only; v30 forbids sending DLS qdot to TP and forbids DLS runtime fallback."
         if spec.version_label == "v30"
         else "STEP5D_STAGE25_CONTROL_MODE=speedj_dls_oracle computes DLS shadow diagnostics only; v31 forbids sending DLS qdot to TP and forbids DLS runtime fallback."
-        if spec.version_label == "v31"
+        if spec.version_label in {"v31", "v32"}
         else "STEP5D_STAGE25_CONTROL_MODE=speedj_dls_oracle sends a DLS/Jacobian qdot oracle to speedj for explicit fallback/debug comparison."
     )
     open_instruction = (
@@ -1886,7 +1899,7 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5d
             "inactive local-only strict RNN candidate" in txt
             if spec.version_label == "v30"
             else "inactive strict RNN candidate" in txt
-            if spec.version_label == "v31"
+            if spec.version_label in {"v31", "v32"}
             else "strict RNN live candidate" in txt
             if spec.strict_rnn_live_candidate
             else "RNN is shadow-only" in txt
@@ -1898,7 +1911,7 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5d
         )
         and "stop_request" in script + txt,
         "v30 no runtime fallback claim": (
-            spec.version_label not in {"v30", "v31"}
+            spec.version_label not in {"v30", "v31", "v32"}
             or (
                 "DLS shadow diagnostics only" in script + txt
                 and "forbids DLS runtime fallback" in txt
@@ -2208,7 +2221,7 @@ def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dic
                 "hold_ratio_max": 0.01,
                 "max_consecutive_hold_ticks": 10,
             }
-            if spec.version_label in {"v30", "v31"}
+            if spec.version_label in {"v30", "v31", "v32"}
             else None
         ),
         "cartesian_accel_m_s2": LINE_ACCEL_M_S2,
@@ -2218,7 +2231,9 @@ def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dic
         "stage25_success_target_s": spec.stage25_success_target_s,
         "stage25_runtime_limit_s": spec.stage25_runtime_limit_s,
         "scaffold_delta": (
-            "v31_permissive_contact_frame_contract_layout524_60s"
+            "v32_stage_aware_packet_permissive_contact_60s"
+            if spec.version_label == "v32"
+            else "v31_permissive_contact_frame_contract_layout524_60s"
             if spec.version_label == "v31"
             else "v30_frame_aware_normal_contract_strict_rnn_candidate_60s"
             if spec.version_label == "v30"
@@ -2230,7 +2245,7 @@ def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dic
             if spec.version_label == "v27"
             else "step5b_v3_ablation_scaffold"
         ),
-        "stage25_consumption_instrumentation": spec.version_label in {"v27", "v28", "v29", "v30", "v31"},
+        "stage25_consumption_instrumentation": spec.version_label in {"v27", "v28", "v29", "v30", "v31", "v32"},
         "stage25_control_modes": (
             ["speedj_rnn_live"]
             if spec.permissive_contact_guard

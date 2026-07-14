@@ -1,16 +1,16 @@
 {
   "version": 2,
-  "updated_at": "2026-07-14T21:00:01+08:00",
+  "updated_at": "2026-07-14T21:55:26+08:00",
   "current_step": "Step5d",
-  "current_stage_id": "step5d_strict_rnn_ablation_v31",
-  "program": "step5d_strict_rnn_ablation_v31",
+  "current_stage_id": "step5d_strict_rnn_ablation_v32",
+  "program": "step5d_strict_rnn_ablation_v32",
   "flow_path": "STEP5_FLOW.md",
   "stage_table_path": "config/step5_stage_table.json",
-  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v31.urp",
-  "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v31.script",
-  "local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v31",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v32.urp",
+  "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v32.script",
+  "local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v32",
   "bridge_profile": {
-    "step4e_version": "step5d_strict_rnn_ablation_v31",
+    "step4e_version": "step5d_strict_rnn_ablation_v32",
     "step4e_path_shape": "cycloid",
     "step5d_qdot_limit_rad_s": 0.5,
     "target_force_n": 12.0,
@@ -18,7 +18,7 @@
     "normal_filter_alpha": 0.55,
     "normal_follow_settle_s": 0.15,
     "stage22_24_pose_contract": "pre_contact_search_gravity_down_v1: TCP +Z targets base -Z with rotvec [pi,0,0]",
-    "stage25_3_preload_gate": "filtered 5-22N, raw sanity 3-25N, force_norm <=35N, bridge param-valid code 521 for 0.100s",
+    "stage25_3_preload_gate": "filtered 5-22N, raw sanity 3-25N, bridge param-valid state 521 with no dwell hard gate; force values are diagnostic in the current permissive policy",
     "online_tcp_cage": "broad_stagewise_aabb_from_success_step5b_step6b",
     "cage_primary_policy": "In speedl_cartesian_oracle, low-load re-press is bounded: <2N for 0.100s hard-stops, <5N for 0.500s stops, while cage margin, force norm, and actual speed remain hard stops.",
     "sensor_hard_guards": {
@@ -30,13 +30,15 @@
     "stage22_entry_movel_accel_m_s2": 0.09,
     "stage24_far_search_speed_m_s": -0.0225,
     "stage24_near_search_speed_m_s": -0.0025,
-    "stage25_95_register_clear_barrier": "TP writes stage 25.95 after preload; bridge writes zero command/cmd_valid=0 and a layout tag that is not 521/523/524 until TP observes registers 37..47 clear before Stage25.0 consumption",
+    "stage25_95_register_clear_barrier": "TP writes stage 25.95 after preload; bridge publishes the typed zero-invalid clear packet state 522 until TP observes registers 37..47 clear before Stage25.0 consumption",
     "stage25_control_mode": "speedj_rnn_live",
-    "stage25_layout_contract": {
-      "cartesian_layout_tag": 523.0,
-      "cartesian_registers": "37..42 vx/vy/vz/wx/wy/wz, TP executes speedl",
-      "joint_layout_tag": 524.0,
-      "joint_registers": "37..42 qd0..qd5, TP executes speedj"
+    "stage25_wire_protocol": {
+      "schema": "step5d_stage_aware_packet_v1",
+      "stage25_05": "latch-ready scaffold state 33",
+      "stage25_3": "preload parameter state 521",
+      "stage25_95": "zero-invalid clear state 522",
+      "stage25_0": "strict RNN qd0..qd5 with internal joint marker 524",
+      "layout_524_is_global_gate": false
     },
     "stage25_cadence_consumption_instrumentation": {
       "max_row_gap_s": 0.02,
@@ -50,17 +52,20 @@
     "stage25_success_target_s": 60.0,
     "stage25_runtime_limit_s": 75.0,
     "stage25_0_success_target_s": 60.0,
-    "stage25_speedj_live_source": "strict RNN qdot from feasibility-scaled xdot_c is sent to TP speedj on layout 524; speedl_cartesian_oracle and speedj_dls_oracle are explicit debug/fallback modes",
-    "stage25_rnn_evidence_policy": "RNN accepted rows require layout 524, cmd_valid=1, TP echo consumption, and _step5d_rnn_accepted=1; non-safety evidence rejection records diagnostics and uses bounded hold without treating the row as accepted evidence."
+    "stage25_speedj_live_source": "strict RNN qdot from feasibility-scaled xdot_c is sent to TP speedj; marker 524 exists only inside the Stage25.0 joint packet and is not a global readiness/publish gate",
+    "stage25_rnn_evidence_policy": "RNN accepted rows require Stage25.0 internal marker 524, cmd_valid=1, TP echo consumption, and _step5d_rnn_accepted=1; Stage25.05/25.3/25.95 use their own typed packets."
   },
-  "status": "v31_controller_readback_verified_live_authorized_waiting_for_bridge_and_tp_play",
+  "status": "v32_controller_readback_verified_user_review_waived_live_not_authorized",
   "strict_rnn_status": {
     "stage_id": "step5d_strict_rnn_reproduction_v1",
     "blocked": true,
     "paper_truth_config": "config/step5d_liveprep_solver_gate.json",
-    "reason": "v29 remains the frozen current fallback. v30 is blocked by live-runtime prewarm integration, a passing successor no-contact canary, Review v3, and separate live/contact authorization. P0 v8 is frozen failed evidence. P0 v9 guard v2 was run on 2026-07-14 and failed after legacy press-only gating plus host/TP acceleration mismatch caused qualification resets and large drift; host fixes require a fresh live run."
+    "reason": "v32 fixes the v31 Stage25.05 transport blockage by treating 33/521/522/524 as stage-specific packet types. Its package is controller read-back verified and selected current; the user waived this delivery's model audit, while bridge/live motion remain separately unauthorized."
   },
   "evidence": {
+    "v32_controller_readback_verified": true,
+    "v32_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v32_20260714_215219/manifest.json",
+    "v32_controller_readback_manifest_sha256": "60fb9e157f948ac66062f4b20fc3d290d9a9bb381f6e1bb15dad751dd0043fd8",
     "v11_escape_replay_summary": "runs/step5d_v11_escape_replay_20260615/summary.json",
     "v12_controller_readback_dir": "runs/controller_readback_step5d_strict_rnn_liveprep_v12_20260615_212614",
     "v12_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_liveprep_v12_20260615_212614/manifest.json",
@@ -1064,9 +1069,9 @@
       "LIVE STEP5D STRICT RNN LIVEPREP"
     ],
     "bridge_has_started": false,
-    "live_motion_authorized": true,
+    "live_motion_authorized": false,
     "zero_ftsensor_authorized": false,
-    "blocked_reason": null,
+    "blocked_reason": "v32 is delivered and current, but a separate explicit bridge/live authorization has not been granted",
     "no_contact_p0_capture": {
       "profile": "step5d_strict_rnn_no_contact_p0_v7",
       "entrypoint": "scripts/step5d-strict-rnn-p0.sh capture-bridge",
@@ -1139,11 +1144,10 @@
     },
     "required_before_live": [
       "operator outside UR reach/cage boundary",
-      "TP program opened on controller read-back v29 package",
-      "v29 package readback verified on controller",
-      "fresh v29 readback and timing fingerprint if fallback reactivation is requested",
-      "one Review v3 1+1 contact pre-live gate (or valid degraded 1+0) for that fresh fingerprint",
-      "explicit live/contact authorization for v29 speedj_rnn_live"
+      "TP program opened on controller read-back v32 package",
+      "v32 package readback verified on controller",
+      "frozen v32 evidence/waiver composite remains current",
+      "explicit live/contact authorization for v32 speedj_rnn_live"
     ]
   },
   "retained_steps": [
@@ -1156,7 +1160,7 @@
       "step": "Step5",
       "flow_path": "STEP5_FLOW.md",
       "stage_table_path": "config/step5_stage_table.json",
-      "role": "v29 TP/script package generated, controller read-back verified, and selected as current cage-primary diagnostic package; earlier Step5d packages retained as evidence"
+      "role": "v32 stage-aware TP/script package generated, controller read-back verified, and selected current; v31 failure retained as immutable evidence"
     },
     {
       "step": "Step6",
@@ -1177,15 +1181,17 @@
     "TP program load/Play, robot motion, payload/TCP writes, and zero_ftsensor remain explicit live gates.",
     "Earlier Step5d live-prep packages remain retained evidence only.",
     "P0v9 is user-accepted as engineering convergence from run 20260714_191925; its original formal threshold failure remains retained.",
-    "v31 is an inactive successor contact candidate and preserves the permissive guard profile until the user explicitly requests tightening."
+    "v31 is superseded and retained as failed Stage25.05 transport evidence.",
+    "v32 is current and preserves the permissive guard profile until the user explicitly requests tightening.",
+    "The user explicitly waived this v32 delivery's 1×xhigh + 1×Fable5 model audit; no model review is claimed and the waiver does not authorize live motion."
   ],
   "sha256": {
-    ".script": "c76aac1ce66d9f5df64b39b56e08af6970fe11f5ed9523a904623f7004dbe046",
-    ".txt": "1946e95133beb11e3c4811d9f10df06484e7b5a91366985aeb5f742d663ba141",
-    ".urp": "389d26412337cdd5b989150b875b0e3dcdcf686b388dc16efe18007a150e5657"
+    ".script": "8b0735ca222f37490aebfdf768498c55afcac0d909d8599400d7304da829893b",
+    ".txt": "d1beccd46e792d30ed67cc95b95789efe2ae52da50bd6b292880721fc0d087bc",
+    ".urp": "caabd4f969ba6de513c402739ad83beb56bceac3e1f7168b207de59fc946d3ba"
   },
-  "delivery_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v31_20260714_204913/manifest.json",
-  "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v31_20260714_204913/manifest.json",
+  "delivery_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v32_20260714_215219/manifest.json",
+  "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v32_20260714_215219/manifest.json",
   "v29_contact_candidate": {
     "profile": "step5d_strict_rnn_ablation_v29",
     "local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v29",
@@ -1482,9 +1488,11 @@
     }
   },
   "liveprep_status": {
-    "state": "awaiting_live_authorization",
-    "readiness_artifact": "runs/step5d_v31_liveprep_authorization_20260714_210001/liveprep_readiness.json",
-    "blockers": []
+    "state": "blocked",
+    "readiness_artifact": null,
+    "blockers": [
+      "explicit_v32_live_authorization_not_granted"
+    ]
   },
   "live_run_status": {
     "state": "not_started",
@@ -1496,8 +1504,8 @@
   },
   "v31_candidate": {
     "profile": "step5d_strict_rnn_ablation_v31",
-    "state": "live_authorized_waiting_for_bridge",
-    "current": true,
+    "state": "superseded_by_v32_after_stage25_05_transport_failure",
+    "current": false,
     "guard_policy": "permissive_until_user_requests_tightening",
     "gross_limits": {
       "raw_normal_load_abs_n": 60,
@@ -1585,10 +1593,98 @@
         }
       }
     },
-    "live_authorized": true,
-    "blockers": [],
+    "live_authorized": false,
+    "blockers": [
+      "superseded_by_step5d_strict_rnn_ablation_v32"
+    ],
     "claim_boundary": {
       "package_accepted": true,
+      "live_accepted": false,
+      "reproduction_complete": false
+    }
+  },
+  "v32_candidate": {
+    "profile": "step5d_strict_rnn_ablation_v32",
+    "state": "controller_readback_verified_user_review_waived_waiting_for_explicit_live_authorization",
+    "current": true,
+    "guard_policy": "permissive_until_user_requests_tightening",
+    "wire_protocol": {
+      "schema": "step5d_stage_aware_packet_v1",
+      "stage25_05": "latch_ready_state_33",
+      "stage25_3": "preload_state_521",
+      "stage25_95": "zero_invalid_clear_state_522",
+      "stage25_0": "strict_rnn_joint_packet_internal_marker_524",
+      "layout_is_not_a_global_publish_gate": true
+    },
+    "runtime_profile": {
+      "backend": "cupy",
+      "inner_iterations": 512,
+      "epsilon": 0.01,
+      "sigr_exponent_r": 0.8,
+      "qdot_cap_rad_s": 0.5,
+      "qdot_slew_rad_s2": 0.05,
+      "sensor_stale_s": 2.0,
+      "heartbeat_stale_s": 1.0,
+      "stage25_runtime_limit_s": 75.0,
+      "force_guards_enabled": false,
+      "cartesian_speed_guards_enabled": false,
+      "normal_motion_guards_enabled": false,
+      "control_hz": 500
+    },
+    "package": {
+      "local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v32",
+      "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v32.urp",
+      "controller_uploaded": true,
+      "controller_readback_verified": true,
+      "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v32_20260714_215219/manifest.json",
+      "controller_readback_manifest_sha256": "60fb9e157f948ac66062f4b20fc3d290d9a9bb381f6e1bb15dad751dd0043fd8",
+      "sha256": {
+        ".script": "8b0735ca222f37490aebfdf768498c55afcac0d909d8599400d7304da829893b",
+        ".txt": "d1beccd46e792d30ed67cc95b95789efe2ae52da50bd6b292880721fc0d087bc",
+        ".urp": "caabd4f969ba6de513c402739ad83beb56bceac3e1f7168b207de59fc946d3ba"
+      }
+    },
+    "evidence": {
+      "numeric_sanity": {
+        "path": "config/step5d_v32_numeric_sanity.json",
+        "sha256": "36ff48c512df5ccd82b43cbd8e1a95ea6f27d87c897093d385a46e706653834d"
+      },
+      "transport_timing_smoke": {
+        "path": "config/step5d_v32_transport_timing_smoke.json",
+        "sha256": "b114931321d009cdcde2ef5e08b29ae9be8188369c6e7e7dd6da2d2c261f0584"
+      },
+      "inherited_control_core_timing": {
+        "raw": {
+          "path": "config/step5d_v31_formal_timing_raw.json",
+          "sha256": "502fa7d8a2e10aa3c5239234174efcf88ceb72fa55b57499b2203cf6cfdc5735"
+        },
+        "summary": {
+          "path": "config/step5d_v31_formal_timing_summary.json",
+          "sha256": "bfd530189a679497949af794d48a5bd0b9aa166f2b5e7e78ac35bea2c45f8b0e"
+        }
+      }
+    },
+    "review_v3": {
+      "status": "accepted_user_waived",
+      "required_stack": "waived_by_user_for_this_delivery",
+      "effective_stack": "0+0_user_waived",
+      "model_review_performed": false,
+      "binding": "config/step5d_v32_review_binding.json",
+      "binding_sha256": "a72507942aa062e070da65af58f579410d2c5b3289d3f97a36fe54bc12df81b2",
+      "evidence": "config/step5d_v32_review_evidence.json",
+      "evidence_sha256": "fb5395c77c86caab384e8734015e0898d15c035c99d359681d797e4c7fa77e48",
+      "composite_fingerprint": "2821fdae45503f9df3d1907682b9bb6bd073110178b7087ebd8f70653f194abc",
+      "manifest": "config/reviews/step5d_v32_user_review_waiver.json",
+      "manifest_sha256": "5c64a5a9384bed41554648a325e882485861a3feaa5fafa28bb8c18cc464bf69"
+    },
+    "live_authorized": false,
+    "blockers": [
+      "explicit_v32_live_authorization_not_granted"
+    ],
+    "claim_boundary": {
+      "package_accepted": true,
+      "model_review_performed": false,
+      "review_waiver_recorded": true,
       "live_accepted": false,
       "reproduction_complete": false
     }

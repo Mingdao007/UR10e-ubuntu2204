@@ -25,12 +25,12 @@ from step5d_control_contract import RegisterCommand  # noqa: E402
 
 
 class Step5dV30ProfileTest(unittest.TestCase):
-    def test_v30_is_inactive_and_does_not_replace_current_v29(self) -> None:
+    def test_v30_is_inactive_and_does_not_replace_current_program(self) -> None:
         current = json.loads((ROOT / "config" / "current_stage.json").read_text(encoding="utf-8"))
         table = json.loads((ROOT / "config" / "step5_stage_table.json").read_text(encoding="utf-8"))
         v30 = next(row for row in table["stages"] if row.get("id") == interface.STEP5D_ABLATION_V30_STAGE_ID)
 
-        self.assertEqual(current["program"], interface.STEP5D_ABLATION_V29_STAGE_ID)
+        self.assertNotEqual(current["program"], interface.STEP5D_ABLATION_V30_STAGE_ID)
         self.assertFalse(v30["active"])
         self.assertTrue(v30["blocked"])
         self.assertFalse(v30["current_binding"]["is_current"])
@@ -96,7 +96,10 @@ class Step5dV30ProfileTest(unittest.TestCase):
             env={},
         )
 
-        lines = interface.live_ready_lines(runtime, {"state": "MISS", "fingerprint_ok": False})
+        lines = interface.live_ready_lines(
+            runtime,
+            readiness={"state": "MISS", "fingerprint_ok": False},
+        )
         rendered = "\n".join(lines)
 
         self.assertEqual(
@@ -176,6 +179,7 @@ class Step5dV30ProfileTest(unittest.TestCase):
                 self.assertEqual(
                     bridge.step5d_publish_action(
                         accepted,
+                        robot_stage=25.0,
                         v30_contract_profile=True,
                         stop_dominant=False,
                         schedule_late=compute_ms >= 2.0,
@@ -189,6 +193,7 @@ class Step5dV30ProfileTest(unittest.TestCase):
         self.assertEqual(
             bridge.step5d_publish_action(
                 rejected,
+                robot_stage=25.0,
                 v30_contract_profile=True,
                 stop_dominant=False,
                 schedule_late=True,
@@ -200,6 +205,7 @@ class Step5dV30ProfileTest(unittest.TestCase):
         self.assertEqual(
             bridge.step5d_publish_action(
                 rejected,
+                robot_stage=25.0,
                 v30_contract_profile=True,
                 stop_dominant=False,
                 schedule_late=True,
@@ -218,6 +224,7 @@ class Step5dV30ProfileTest(unittest.TestCase):
         self.assertEqual(
             bridge.step5d_publish_action(
                 accepted,
+                robot_stage=25.0,
                 v30_contract_profile=True,
                 stop_dominant=False,
                 schedule_late=True,
@@ -229,6 +236,7 @@ class Step5dV30ProfileTest(unittest.TestCase):
         self.assertEqual(
             bridge.step5d_publish_action(
                 accepted,
+                robot_stage=25.0,
                 v30_contract_profile=True,
                 stop_dominant=False,
                 schedule_late=True,
@@ -237,6 +245,46 @@ class Step5dV30ProfileTest(unittest.TestCase):
             ),
             "hold_last",
         )
+
+    def test_stage_aware_transport_preserves_scaffold_before_joint_stage(self) -> None:
+        base = {name: 0.0 for name in bridge.BRIDGE_INPUT_NAMES[:6]}
+        cases = (
+            (25.05, {**base, "step4e_cmd_valid": 1.0, "step4e_controller_state": 33.0}, "scaffold"),
+            (25.30, {**base, "step4e_cmd_valid": 1.0, "step4e_controller_state": 521.0}, "preload"),
+            (25.95, {**base, "step4e_cmd_valid": 0.0, "step4e_controller_state": 522.0}, "qdot_clear"),
+            (25.00, {**base, "step4e_cmd_valid": 1.0, "step4e_controller_state": 524.0}, "fresh_command"),
+        )
+        for robot_stage, packet, expected_action in cases:
+            with self.subTest(robot_stage=robot_stage):
+                before = dict(packet)
+                action = bridge.step5d_publish_action(
+                    packet,
+                    robot_stage=robot_stage,
+                    v30_contract_profile=True,
+                    stop_dominant=False,
+                    schedule_late=False,
+                    publish_guard_approved_late_command=True,
+                    last_published_command=None,
+                )
+                self.assertEqual(action, expected_action)
+                self.assertEqual(packet, before)
+
+        invalid_joint = {**base, "step4e_cmd_valid": 1.0, "step4e_controller_state": 33.0}
+        self.assertEqual(
+            bridge.step5d_publish_action(
+                invalid_joint,
+                robot_stage=25.0,
+                v30_contract_profile=True,
+                stop_dominant=False,
+                schedule_late=False,
+                publish_guard_approved_late_command=True,
+                last_published_command=None,
+            ),
+            "startup_invalid",
+        )
+        bridge.apply_step5d_unpublished_startup_packet(invalid_joint)
+        self.assertEqual(invalid_joint["step4e_controller_state"], 0.0)
+        self.assertEqual(invalid_joint["step4e_cmd_valid"], 0.0)
 
     def test_event_loop_waits_until_io_or_release_without_busy_spin(self) -> None:
         class FakeSocket:

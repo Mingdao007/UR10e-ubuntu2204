@@ -24,10 +24,14 @@ class TaseProtocolTableTest(unittest.TestCase):
         self.assertEqual(step5["flow"]["zero_timing"], "after_far_search_before_near_search")
         self.assertEqual(step5["parameters"]["trajectory_duration_s"], 60.0)
         self.assertEqual(step5["parameters"]["diagnostic_window_s"], 10.0)
-        self.assertEqual(step5["parameters"]["zero_hold_s"], 0.25)
+        self.assertEqual(step5["parameters"]["zero_hold_s"], 1.0)
         self.assertEqual(step5["parameters"]["normal_filter_alpha"], 0.55)
-        self.assertEqual(step5["safety_limits"]["total_linear_limit_m_s"], 0.004)
+        self.assertEqual(step5["safety_limits"]["total_linear_limit_m_s"], 1.0)
         self.assertEqual(step5["evidence"]["source_profile"], "step5b_v3_success")
+
+        legacy = protocol.resolve_experiment_profile("Step5.step5d_rnn_legacy_v27", root=ROOT)
+        self.assertEqual(legacy["parameters"]["zero_hold_s"], 0.25)
+        self.assertEqual(legacy["safety_limits"]["total_linear_limit_m_s"], 0.004)
 
         step6 = protocol.resolve_experiment_profile("Step6.contact_eight", root=ROOT)
         self.assertEqual(step6["step"], "Step6")
@@ -52,7 +56,7 @@ class TaseProtocolTableTest(unittest.TestCase):
     def test_step5d_runtime_defaults_come_from_protocol_table(self) -> None:
         profile = protocol.resolve_experiment_profile("Step5.step5d_rnn", root=ROOT)
         runtime = step5d_iface.resolve_runtime_interface(
-            program=step5d_iface.STEP5D_ABLATION_V27_STAGE_ID,
+            program=step5d_iface.STEP5D_ABLATION_V32_STAGE_ID,
             root=ROOT,
             env={},
         )

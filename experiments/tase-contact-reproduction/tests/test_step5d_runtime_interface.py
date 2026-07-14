@@ -150,12 +150,6 @@ class Step5dRuntimeInterfaceTest(unittest.TestCase):
         joined = "\n".join(
             iface.live_ready_lines(
                 runtime,
-                {
-                    "state": "HIT",
-                    "age_s": 60.0,
-                    "ttl_s": 7200.0,
-                    "fingerprint_ok": True,
-                },
             )
         )
 
@@ -169,7 +163,7 @@ class Step5dRuntimeInterfaceTest(unittest.TestCase):
     def test_live_ready_without_authorization_never_claims_live_bridge(self) -> None:
         runtime = iface.resolve_runtime_interface(program=iface.STEP5D_ABLATION_V29_STAGE_ID, root=ROOT, env={})
 
-        lines = iface.live_ready_lines(runtime, {"state": "HIT", "age_s": 60.0, "ttl_s": 7200.0, "fingerprint_ok": True})
+        lines = iface.live_ready_lines(runtime)
 
         joined = "\n".join(lines)
         self.assertIn("[step5d][phase=liveprep-blocked][rebuild=no][upload=no]", lines)
@@ -188,7 +182,6 @@ class Step5dRuntimeInterfaceTest(unittest.TestCase):
 
         lines = iface.live_ready_lines(
             runtime,
-            {"state": "HIT", "age_s": 60.0, "ttl_s": 7200.0, "fingerprint_ok": True},
             readiness=readiness,
         )
 
@@ -210,7 +203,7 @@ class Step5dRuntimeInterfaceTest(unittest.TestCase):
             table_path.write_text(json.dumps(table), encoding="utf-8")
             runtime = iface.resolve_runtime_interface(program=iface.STEP5D_ABLATION_V29_STAGE_ID, root=tmp_root, env={})
 
-        lines = iface.live_ready_lines(runtime, {"state": "HIT", "age_s": 60.0, "ttl_s": 7200.0, "fingerprint_ok": True})
+        lines = iface.live_ready_lines(runtime)
 
         joined = "\n".join(lines)
         self.assertIn("[step5d][phase=readback-blocked][rebuild=no][upload=required]", lines)

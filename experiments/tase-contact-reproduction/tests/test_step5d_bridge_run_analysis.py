@@ -1260,6 +1260,55 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
         self.assertEqual(analysis["classification"], "stage20_bridge_ready_handshake_failed")
         self.assertEqual(analysis["next_action"], "fix P0 bridge/TP lifecycle handshake before retrying capture")
 
+    def test_stage25_05_cmd_valid_timeout_is_not_misclassified_as_stage20(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            csv_path = run_dir / "bridge_rtde_500hz.csv"
+            fieldnames = [*FIELDNAMES, "ur_output_double_register_36", "step4e_cmd_valid"]
+            write_bridge_csv(
+                csv_path,
+                [
+                    {
+                        "t_monotonic_s": "1.000",
+                        "ur_output_double_register_30": "0",
+                        "ur_output_double_register_35": "20.0",
+                        "ur_output_double_register_36": "20.02",
+                        "step4e_cmd_valid": "0",
+                        "_step4e_normal_load_n": "0",
+                        "_step5d_force_settle_filtered_normal_load_n": "",
+                        "force_norm_n": "0.2",
+                    },
+                    {
+                        "t_monotonic_s": "2.000",
+                        "ur_output_double_register_30": "0",
+                        "ur_output_double_register_35": "25.05",
+                        "ur_output_double_register_36": "0",
+                        "step4e_cmd_valid": "0",
+                        "_step4e_normal_load_n": "7.9",
+                        "_step5d_force_settle_filtered_normal_load_n": "7.9",
+                        "force_norm_n": "8.0",
+                    },
+                    {
+                        "t_monotonic_s": "3.000",
+                        "ur_output_double_register_30": "12",
+                        "ur_output_double_register_35": "26.0",
+                        "ur_output_double_register_36": "0",
+                        "step4e_cmd_valid": "0",
+                        "_step4e_normal_load_n": "7.9",
+                        "_step5d_force_settle_filtered_normal_load_n": "7.9",
+                        "force_norm_n": "8.0",
+                    },
+                ],
+                fieldnames=fieldnames,
+            )
+
+            analysis = analyze_step5d_bridge_run.analyze_run_dir(run_dir)
+
+        self.assertEqual(analysis["classification"], "stage25_05_cmd_valid_timeout")
+        self.assertEqual(analysis["stage25_05_rows"], 1)
+        self.assertEqual(analysis["stage25_05_cmd_valid_rows"], 0)
+        self.assertGreater(analysis["max_tp_stage"], 20.1)
+
     def test_p0_joint_layout_uses_command_carrier_when_tp_echo_layout_is_absent(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = Path(tmp)

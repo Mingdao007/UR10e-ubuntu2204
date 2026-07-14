@@ -929,6 +929,9 @@ def base_analysis(csv_path: Path, run_dir: Path | None, profile: str, gate: Step
         "stage25_control_attribution": {},
         "stage25_3_rows": 0,
         "stage25_3_duration_s": 0.0,
+        "stage25_05_rows": 0,
+        "stage25_05_cmd_valid_rows": 0,
+        "max_tp_stage": None,
         "stage20_bridge_ready_rows": 0,
         "stage20_bridge_ready_statuses": [],
         "stage20_bridge_ready_reached": False,
@@ -1021,6 +1024,9 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
             stage = finite_float(row.get("ur_output_double_register_35"))
             stop_reason = finite_float(row.get("ur_output_double_register_30"))
             stage20_status = finite_float(row.get("ur_output_double_register_36"))
+            if math.isfinite(stage):
+                current_max_stage = result["max_tp_stage"]
+                result["max_tp_stage"] = stage if current_max_stage is None else max(current_max_stage, stage)
             if not no_contact_p0_profile:
                 if result["first_tp_stop_reason"] is None and math.isfinite(stop_reason) and stop_reason != 0.0:
                     result["first_tp_stop_reason"] = maybe_int(stop_reason)
@@ -1060,6 +1066,12 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
             else:
                 close_stage25_segment()
                 stage25_previous_t = None
+
+            if stage_is(stage, 25.05):
+                result["stage25_05_rows"] += 1
+                cmd_valid = finite_float(row.get("step4e_cmd_valid"))
+                if math.isfinite(cmd_valid) and cmd_valid >= 0.5:
+                    result["stage25_05_cmd_valid_rows"] += 1
 
             if stage_is(stage, 25.3):
                 result["stage25_3_rows"] += 1
@@ -1249,7 +1261,22 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
             result["classification"] = "entered_stage25"
             result["next_action"] = "audit Stage25.0 behavior and acceptance evidence"
     elif result["stage25_3_rows"] == 0:
-        if result["stage20_bridge_ready_rows"] > 0 and not result["stage20_bridge_ready_reached"]:
+        if (
+            result["stage25_05_rows"] > 0
+            and result["stage25_05_cmd_valid_rows"] == 0
+            and result["terminal_tp_stop_reason"] == 12
+        ):
+            result["classification"] = "stage25_05_cmd_valid_timeout"
+            result["acceptance_status"] = "failed_stage25_05_transport_packet"
+            result["next_action"] = (
+                "preserve the run as Stage25.05 transport evidence; verify that the stage-aware publisher "
+                "passes latch-ready cmd_valid without requiring the Stage25 joint marker"
+            )
+        elif (
+            result["stage20_bridge_ready_rows"] > 0
+            and not result["stage20_bridge_ready_reached"]
+            and (result["max_tp_stage"] is None or float(result["max_tp_stage"]) <= 20.1)
+        ):
             result["classification"] = "stage20_bridge_ready_handshake_failed"
             result["next_action"] = "fix P0 bridge/TP lifecycle handshake before retrying capture"
         else:

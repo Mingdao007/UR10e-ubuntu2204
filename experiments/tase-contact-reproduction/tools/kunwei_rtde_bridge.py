@@ -64,6 +64,7 @@ from verify_step5d_current_binding import (  # noqa: E402
     verify_binding as verify_step5d_binding,
     verify_live_bridge_authorization as verify_step5d_live_bridge_authorization,
     verify_v31_evidence_freeze,
+    verify_v32_evidence_freeze,
 )
 from step5d_paper_outer_loop import (  # noqa: E402
     Step5dOuterLoopConfig,
@@ -115,6 +116,7 @@ from step5d_runtime_interface import (  # noqa: E402
     STEP5D_ABLATION_V29_STAGE_ID,
     STEP5D_ABLATION_V30_STAGE_ID,
     STEP5D_ABLATION_V31_STAGE_ID,
+    STEP5D_ABLATION_V32_STAGE_ID,
     STEP5D_NO_CONTACT_P0_STAGE_ID,
     STEP5D_NO_CONTACT_P0_STAGE_IDS,
     STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
@@ -283,6 +285,10 @@ STEP5C_DIAG_FIELDS = [
     "_step5c_solver_error",
 ]
 STEP5D_DIAG_FIELDS = [
+    "_step5d_computed_packet_kind",
+    "_step5d_published_packet_kind",
+    "_step5d_expected_stage",
+    "_step5d_transport_rewrite_reason",
     "_step5d_stage25_control_mode",
     "_step5d_stage25_echo_layout_tag",
     "_step5d_stage25_echo_cmd_valid",
@@ -651,6 +657,7 @@ STEP5D_LIVEPREP_STAGE_IDS = {
     STEP5D_ABLATION_V29_STAGE_ID,
     STEP5D_ABLATION_V30_STAGE_ID,
     STEP5D_ABLATION_V31_STAGE_ID,
+    STEP5D_ABLATION_V32_STAGE_ID,
     *STEP5D_NO_CONTACT_P0_STAGE_IDS,
 }
 STEP5D_TCP_CAGE_PROFILES = {
@@ -4130,6 +4137,10 @@ def compute_bridge_values(
     step5d_liveprep_v29_profile = args.bridge_profile == STEP5D_ABLATION_V29_STAGE_ID
     step5d_liveprep_v30_profile = args.bridge_profile == STEP5D_ABLATION_V30_STAGE_ID
     step5d_liveprep_v31_profile = args.bridge_profile == STEP5D_ABLATION_V31_STAGE_ID
+    step5d_liveprep_v32_profile = args.bridge_profile == STEP5D_ABLATION_V32_STAGE_ID
+    step5d_permissive_contact_profile = (
+        step5d_liveprep_v31_profile or step5d_liveprep_v32_profile
+    )
     step5d_no_contact_p0_profile = is_no_contact_p0_stage(args.bridge_profile)
     step5d_no_contact_p0_v8_profile = (
         args.bridge_profile == STEP5D_NO_CONTACT_P0_V8_STAGE_ID
@@ -4144,6 +4155,7 @@ def compute_bridge_values(
         or step5d_liveprep_v29_profile
         or step5d_liveprep_v30_profile
         or step5d_liveprep_v31_profile
+        or step5d_liveprep_v32_profile
     )
     step5d_ablation_profile = (
         step5d_liveprep_v25_profile
@@ -4535,15 +4547,15 @@ def compute_bridge_values(
         or step5d_liveprep_v15_profile
         or step5d_liveprep_online_cage_profile
     )
-    if step5d_liveprep_v31_profile and step5d_joint_line_profile:
+    if step5d_permissive_contact_profile and step5d_joint_line_profile:
         step5d_contact_safety = {
             "state": "diagnostic_only",
             "action": "pass_solver",
-            "reason": "v31_permissive_contact_force_window_and_speed_checks_not_hard_guards",
+            "reason": "permissive_contact_force_window_and_speed_checks_not_hard_guards",
             "hold_s": state.step5d_contact_hold_s,
             "high_window_s": state.step5d_contact_high_window_s,
         }
-    if step5d_contact_safety_profile and step5d_joint_line_profile and not step5d_liveprep_v31_profile:
+    if step5d_contact_safety_profile and step5d_joint_line_profile and not step5d_permissive_contact_profile:
         step5d_contact_safety_fn = (
             step5d_v18_guard
             if step5d_liveprep_v18_or_newer_profile
@@ -4981,7 +4993,7 @@ def compute_bridge_values(
                 if detached_profile and acquire_stage_active:
                     orientation_cmd = (0.0, 0.0, 0.0)
         cmd_norm = norm3(cmd)
-        if cmd_norm > args.bridge_total_linear_limit_m_s and not step5d_liveprep_v31_profile:
+        if cmd_norm > args.bridge_total_linear_limit_m_s and not step5d_permissive_contact_profile:
             scale = args.bridge_total_linear_limit_m_s / cmd_norm
             cmd = tuple(value * scale for value in cmd)
         if angular_speedl_profile and orient_stage_active and (
@@ -5366,7 +5378,7 @@ def compute_bridge_values(
                         ),
                         return_diagnostics=True,
                     )
-                elif step5d_liveprep_guarded_profile and not step5d_liveprep_v31_profile:
+                elif step5d_liveprep_guarded_profile and not step5d_permissive_contact_profile:
                     step5d_outer_xdot_limited, step5d_outer_xdot_limiter_active = limit_step5d_live_xdot(
                         step5d_outer_xdot_limited,
                         max_linear_m_s=float(args.bridge_total_linear_limit_m_s),
@@ -5448,7 +5460,7 @@ def compute_bridge_values(
                             "diagnostic_only"
                             if step5d_no_contact_p0_v9_profile
                             else "frame_contract_only"
-                            if step5d_liveprep_v31_profile
+                            if step5d_permissive_contact_profile
                             else "approach_positive"
                         ),
                     )
@@ -7294,26 +7306,61 @@ def apply_step5d_explicit_stop_packet(bridge_values: dict[str, float]) -> None:
 def apply_step5d_unpublished_startup_packet(
     bridge_values: dict[str, float],
 ) -> None:
-    """Invalidate a missed pre-first-command slot so the TP only calls sync()."""
+    """Invalidate a missed packet without pretending it is a Stage25 joint packet."""
 
     for name in BRIDGE_INPUT_NAMES[:6]:
         bridge_values[name] = 0.0
     bridge_values["step4e_cmd_valid"] = 0.0
-    bridge_values["step4e_controller_state"] = float(
-        STEP5D_STAGE25_JOINT_LAYOUT_CODE
-    )
+    bridge_values["step4e_controller_state"] = 0.0
+
+
+def step5d_wire_packet_kind(
+    bridge_values: Mapping[str, float],
+    *,
+    robot_stage: float,
+    stop_dominant: bool,
+) -> str:
+    """Classify the register packet by TP stage before transport policy runs.
+
+    Layout marker 524 is meaningful only for the Stage25.0 joint packet.  The
+    pre-contact latch, preload handoff, and clear barrier intentionally use
+    different register-47 states and must pass through unchanged.
+    """
+
+    if stop_dominant:
+        return "stop"
+    if step5d_qdot_clear_packet_publishable(
+        bridge_values,
+        v30_contract_profile=True,
+        stop_dominant=False,
+    ):
+        return "qdot_clear"
+    state = float(bridge_values.get("step4e_controller_state", 0.0))
+    if math.isfinite(robot_stage) and abs(robot_stage - 25.0) < 0.03:
+        if (
+            float(bridge_values.get("step4e_cmd_valid", 0.0)) > 0.5
+            and state == float(STEP5D_STAGE25_JOINT_LAYOUT_CODE)
+        ):
+            return "joint"
+        return "joint_invalid"
+    if state == float(STEP5D_LINE_ENTRY_PARAM_VALID_CODE):
+        return "preload"
+    if math.isfinite(robot_stage) and 20.0 <= robot_stage < 26.0:
+        return "scaffold"
+    return "idle"
 
 
 def step5d_publish_action(
     bridge_values: Mapping[str, float],
     *,
+    robot_stage: float,
     v30_contract_profile: bool,
     stop_dominant: bool,
     schedule_late: bool,
     publish_guard_approved_late_command: bool,
     last_published_command: Mapping[str, float] | None,
 ) -> str:
-    """Choose the v30/P0 transport action independently of 2 ms lateness.
+    """Choose a stage-aware transport action independently of 2 ms lateness.
 
     For P0 v8, a completed guard-approved command remains publishable even when
     the host missed its nominal release.  Until that command arrives, the
@@ -7324,22 +7371,23 @@ def step5d_publish_action(
 
     if not v30_contract_profile:
         return "legacy"
-    if stop_dominant:
-        return "stop"
-    if step5d_qdot_clear_packet_publishable(
+    packet_kind = step5d_wire_packet_kind(
         bridge_values,
-        v30_contract_profile=True,
-        stop_dominant=False,
-    ):
+        robot_stage=robot_stage,
+        stop_dominant=stop_dominant,
+    )
+    if packet_kind == "stop":
+        return "stop"
+    if packet_kind == "qdot_clear":
         return "qdot_clear"
-    if (
-        float(bridge_values.get("step4e_cmd_valid", 0.0)) > 0.5
-        and float(bridge_values.get("step4e_controller_state", 0.0))
-        == float(STEP5D_STAGE25_JOINT_LAYOUT_CODE)
-    ):
+    if packet_kind in {"scaffold", "preload"}:
+        return packet_kind
+    if packet_kind == "joint":
         if not schedule_late or publish_guard_approved_late_command:
             return "fresh_command"
         return "hold_last" if last_published_command is not None else "startup_invalid"
+    if packet_kind == "idle":
+        return "idle_invalid"
     if last_published_command is not None:
         return "hold_last"
     return "startup_invalid"
@@ -8113,6 +8161,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                 STEP5D_ABLATION_V29_STAGE_ID,
                 STEP5D_ABLATION_V30_STAGE_ID,
                 STEP5D_ABLATION_V31_STAGE_ID,
+                STEP5D_ABLATION_V32_STAGE_ID,
                 *STEP5D_NO_CONTACT_P0_STAGE_IDS,
             }
             else "speedl_cartesian_oracle"
@@ -8195,6 +8244,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             STEP5D_ABLATION_V29_STAGE_ID,
             STEP5D_ABLATION_V30_STAGE_ID,
             STEP5D_ABLATION_V31_STAGE_ID,
+            STEP5D_ABLATION_V32_STAGE_ID,
         }:
             default_filtered_min_n = STEP5D_V27_ENTRY_FILTERED_NORMAL_LOAD_MIN_N
             default_filtered_max_n = STEP5D_V27_ENTRY_FILTERED_NORMAL_LOAD_MAX_N
@@ -8285,6 +8335,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             STEP5D_ABLATION_V29_STAGE_ID,
             STEP5D_ABLATION_V30_STAGE_ID,
             STEP5D_ABLATION_V31_STAGE_ID,
+            STEP5D_ABLATION_V32_STAGE_ID,
         }:
             if "--step5d-epsilon" not in argv_list:
                 args.step5d_epsilon = STEP5D_NO_CONTACT_P0_EPSILON
@@ -8293,16 +8344,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             if "--step5d-rnn-inner-iterations" not in argv_list:
                 args.step5d_rnn_inner_iterations = (
                     STEP5D_V31_RNN_INNER_ITERATIONS
-                    if args.bridge_profile == STEP5D_ABLATION_V31_STAGE_ID
+                    if args.bridge_profile in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}
                     else STEP5D_V30_RNN_INNER_ITERATIONS
                     if args.bridge_profile == STEP5D_ABLATION_V30_STAGE_ID
                     else STEP5D_NO_CONTACT_P0_RNN_INNER_ITERATIONS
                 )
             if "--step5d-rnn-backend" not in argv_list:
                 args.step5d_rnn_backend = STEP5D_NO_CONTACT_P0_RNN_BACKEND
-        if args.bridge_profile == STEP5D_ABLATION_V31_STAGE_ID:
+        if args.bridge_profile in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}:
             if args.step5d_stage25_control_mode != "speedj_rnn_live":
-                raise SystemExit("v31 permits only speedj_rnn_live layout 524; Cartesian and DLS are shadow-only")
+                raise SystemExit("v31/v32 permit only speedj_rnn_live; Cartesian and DLS are shadow-only")
             args.step5d_qdot_limit_rad_s = STEP5D_V31_QDOT_CAP_RAD_S
             args.sensor_stale_s = STEP5D_V31_SENSOR_STALE_S
             args.baseline_s = 1.0
@@ -8348,6 +8399,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                 STEP5D_ABLATION_V29_STAGE_ID,
                 STEP5D_ABLATION_V30_STAGE_ID,
                 STEP5D_ABLATION_V31_STAGE_ID,
+                STEP5D_ABLATION_V32_STAGE_ID,
                 *STEP5D_NO_CONTACT_P0_STAGE_IDS,
             }
             else 0.30
@@ -8491,6 +8543,8 @@ def require_v29_live_bridge_authorization(
         candidate = current.get("v31_candidate")
         if not isinstance(candidate, Mapping):
             raise SystemExit("v31 raw bridge requires a bound v31_candidate in current_stage.json")
+        if current.get("program") != STEP5D_ABLATION_V31_STAGE_ID or candidate.get("current") is not True:
+            raise SystemExit("v31 raw bridge blocked: v31 is not the current Step5d binding")
         package = candidate.get("package")
         review = candidate.get("review_v3")
         if not isinstance(package, Mapping) or package.get("controller_readback_verified") is not True:
@@ -8502,6 +8556,35 @@ def require_v29_live_bridge_authorization(
         if args.step5d_stage25_control_mode != "speedj_rnn_live":
             raise SystemExit("v31 raw bridge requires speedj_rnn_live layout 524")
         return verify_v31_evidence_freeze(
+            root, dict(current),
+            stage25_control_mode=args.step5d_stage25_control_mode,
+            rnn_backend=args.step5d_rnn_backend,
+            rnn_inner_iterations=args.step5d_rnn_inner_iterations,
+            epsilon=args.step5d_epsilon,
+            sigr_exponent_r=args.step5d_sigr_exponent_r,
+            qdot_cap_rad_s=args.step5d_qdot_limit_rad_s,
+        )
+    if args.bridge_profile == STEP5D_ABLATION_V32_STAGE_ID:
+        candidate = current.get("v32_candidate")
+        if not isinstance(candidate, Mapping):
+            raise SystemExit("v32 raw bridge requires a bound v32_candidate in current_stage.json")
+        if current.get("program") != STEP5D_ABLATION_V32_STAGE_ID or candidate.get("current") is not True:
+            raise SystemExit("v32 raw bridge blocked: v32 is not the current Step5d binding")
+        package = candidate.get("package")
+        review = candidate.get("review_v3")
+        if not isinstance(package, Mapping) or package.get("controller_readback_verified") is not True:
+            raise SystemExit("v32 raw bridge blocked: controller upload/fresh read-back is not verified")
+        if not isinstance(review, Mapping) or review.get("status") not in {
+            "accepted_1+1",
+            "accepted_degraded_1+0",
+            "accepted_user_waived",
+        }:
+            raise SystemExit("v32 raw bridge blocked: the frozen fingerprint lacks an accepted review decision or explicit user waiver")
+        if candidate.get("live_authorized") is not True:
+            raise SystemExit("v32 raw bridge blocked: explicit live/contact authorization is missing")
+        if args.step5d_stage25_control_mode != "speedj_rnn_live":
+            raise SystemExit("v32 raw bridge requires speedj_rnn_live with the stage-aware joint packet protocol")
+        return verify_v32_evidence_freeze(
             root, dict(current),
             stage25_control_mode=args.step5d_stage25_control_mode,
             rnn_backend=args.step5d_rnn_backend,
@@ -8552,6 +8635,7 @@ def requires_step5d_realtime_scheduler(bridge_profile: str) -> bool:
         STEP5D_ABLATION_V29_STAGE_ID,
         STEP5D_ABLATION_V30_STAGE_ID,
         STEP5D_ABLATION_V31_STAGE_ID,
+        STEP5D_ABLATION_V32_STAGE_ID,
         *STEP5D_NO_CONTACT_P0_STAGE_IDS,
     }
 
@@ -8837,15 +8921,15 @@ def main(argv: list[str] | None = None) -> int:
             "schema": (
                 "p0_v9_guard_v2"
                 if args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID
-                else "step5d_v31_permissive_contact"
-                if args.bridge_profile == STEP5D_ABLATION_V31_STAGE_ID
+                else "step5d_permissive_contact"
+                if args.bridge_profile in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}
                 else "profile_default"
             ),
-            "force_guards_enabled": args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID},
+            "force_guards_enabled": args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID},
             "gross_force_guards_enabled": args.bridge_profile != STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
-            "cartesian_speed_guards_enabled": args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID},
-            "normal_motion_guards_enabled": args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID},
-            "force_window_role": "diagnostic_only" if args.bridge_profile == STEP5D_ABLATION_V31_STAGE_ID else "hard_guard",
+            "cartesian_speed_guards_enabled": args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID},
+            "normal_motion_guards_enabled": args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID},
+            "force_window_role": "diagnostic_only" if args.bridge_profile in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID} else "hard_guard",
             "qdot_cap_rad_s": args.step5d_qdot_limit_rad_s,
             "sensor_stale_s": args.sensor_stale_s,
             "max_normal_force_n": (
@@ -8900,11 +8984,11 @@ def main(argv: list[str] | None = None) -> int:
             timeout_s=args.dashboard_program_watch_timeout_s,
         ),
         "step5d_preload_gate": {
-            "enabled": args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID},
+            "enabled": args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID},
             "profile": (
                 args.bridge_profile
                 if args.bridge_profile in STEP5D_LIVEPREP_STAGE_IDS
-                and args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID}
+                and args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}
                 else None
             ),
             "filtered_min_n": (
@@ -9809,8 +9893,20 @@ def main(argv: list[str] | None = None) -> int:
                             or float(bridge_values.get("stop_request", 0.0)) > 0.5
                         )
                     )
+                    try:
+                        transport_robot_stage = float(
+                            (latest_output or {}).get("output_double_register_35", math.nan)
+                        )
+                    except (TypeError, ValueError):
+                        transport_robot_stage = math.nan
+                    computed_packet_kind = step5d_wire_packet_kind(
+                        bridge_values,
+                        robot_stage=transport_robot_stage,
+                        stop_dominant=stop_dominant,
+                    ) if v30_contract_profile else "legacy"
                     publish_action = step5d_publish_action(
                         bridge_values,
+                        robot_stage=transport_robot_stage,
                         v30_contract_profile=v30_contract_profile,
                         stop_dominant=stop_dominant,
                         schedule_late=deadline_overrun_detected,
@@ -9820,6 +9916,7 @@ def main(argv: list[str] | None = None) -> int:
                                 STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
                                 STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
                                 STEP5D_ABLATION_V31_STAGE_ID,
+                                STEP5D_ABLATION_V32_STAGE_ID,
                             }
                         ),
                         last_published_command=last_published_step5d_command,
@@ -9836,11 +9933,21 @@ def main(argv: list[str] | None = None) -> int:
                             bridge_values,
                             last_published_step5d_command,
                         )
-                    elif publish_action == "startup_invalid":
+                    elif publish_action in {"startup_invalid", "idle_invalid"}:
                         deadline_overrun_consecutive = 0
                         apply_step5d_unpublished_startup_packet(bridge_values)
                     else:
                         deadline_overrun_consecutive = 0
+                    rewrite_reason = {
+                        "stop": "explicit_stop",
+                        "hold_last": "stage25_hold_last",
+                        "startup_invalid": "stage25_joint_packet_invalid",
+                        "idle_invalid": "outside_active_tp_stage",
+                    }.get(publish_action, "")
+                    step4e_values["_step5d_computed_packet_kind"] = computed_packet_kind
+                    step4e_values["_step5d_published_packet_kind"] = publish_action
+                    step4e_values["_step5d_expected_stage"] = transport_robot_stage
+                    step4e_values["_step5d_transport_rewrite_reason"] = rewrite_reason
                     step4e_values["_bridge_loop_deadline_overrun_hold"] = (
                         1.0 if deadline_overrun_hold_active else 0.0
                     )

@@ -172,34 +172,9 @@ def fake_v27_outer_with_matching_orientation(_config: object, _state: object, in
 
 
 class Step5dV27AblationTest(unittest.TestCase):
-    def test_long_check_cache_rejects_nonempty_gate_issues(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            cache = Path(tmp) / "long-check.json"
-            fingerprint = {"boot_id": "test"}
-            gate = {
-                "ok": True,
-                "issues": ["stale_failure"],
-                "robot_host": "192.168.1.18",
-                "same_subnet": True,
-                "device": "enp3s0",
-                "kunwei": {"route_ok": True, "tcp_connect": {"ok": True}},
-            }
-            cache.write_text(
-                json.dumps(
-                    {
-                        "ok": True,
-                        "checked_at_epoch": time.time(),
-                        "robot_host": "192.168.1.18",
-                        "gate": gate,
-                        "fingerprint": fingerprint,
-                    }
-                ),
-                encoding="utf-8",
-            )
-            with patch.object(iface, "current_long_check_fingerprint", return_value=fingerprint):
-                status = iface.long_check_cache_status(cache)
-            self.assertFalse(status["ok"])
-            self.assertEqual(status["state"], "MISS")
+    def test_runtime_interface_has_no_long_check_cache_contract(self) -> None:
+        self.assertFalse(hasattr(iface, "long_check_cache_status"))
+        self.assertFalse(hasattr(iface, "current_long_check_fingerprint"))
 
     def test_bridge_parse_args_recognizes_v27_step5b_envelope_with_speedl_shadow(self) -> None:
         args = bridge.parse_args(

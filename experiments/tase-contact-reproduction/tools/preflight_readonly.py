@@ -50,6 +50,14 @@ P0_LOCAL_PROFILES = {
 }
 
 
+def bridge_profile_uses_tp_local(profile: str | None) -> bool:
+    if not profile:
+        return False
+    return profile in P0_LOCAL_PROFILES or profile.startswith(
+        ("step5d_strict_rnn_liveprep_", "step5d_strict_rnn_ablation_")
+    )
+
+
 def now_stamp() -> str:
     return datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -342,7 +350,7 @@ def main(argv: list[str] | None = None) -> int:
         "realtime": {"ok": local.get("realtime", {}).get("ok") is True},
         "dashboard": dashboard_predicate(
             dashboard,
-            expected_remote_control=args.bridge_profile not in P0_LOCAL_PROFILES,
+            expected_remote_control=not bridge_profile_uses_tp_local(args.bridge_profile),
         ),
         "rtde": rtde_predicate(rtde),
         "robot_ports": {"ok": local_ok and all(_open(value) for value in (remote.get("robot_ports") or {}).values())},

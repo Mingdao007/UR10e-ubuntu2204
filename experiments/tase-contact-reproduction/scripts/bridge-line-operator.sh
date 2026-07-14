@@ -12,8 +12,6 @@ WAIT_FOR_PLAY_S="${WAIT_FOR_PLAY_S:-45}"
 AUTOWATCH_WAIT_FOR_PLAY_S="${AUTOWATCH_WAIT_FOR_PLAY_S:-30}"
 BENCH_GATE="/home/andy/codex-private-skills/skills/ur10e-realsetup/scripts/check_ubuntu_network.py"
 READONLY_PREFLIGHT="${READONLY_PREFLIGHT:-${ROOT}/tools/preflight_readonly.py}"
-LONG_CHECK_TTL_S="${LONG_CHECK_TTL_S:-7200}"
-LONG_CHECK_CACHE="${LONG_CHECK_CACHE:-${RUN_ROOT}/.bridge_long_checks_cache.json}"
 PARALLEL_WORKFLOW="${ROOT}/tools/run_step5d_parallel_workflow.py"
 UR10E_LOCK_ROOT="${UR10E_LOCK_ROOT:-/tmp/ur10e-resource-locks}"
 STEP5D_RUNTIME_INTERFACE="${ROOT}/tools/step5d_runtime_interface.py"
@@ -522,7 +520,7 @@ Usage:
   bridge-line-operator.sh axis-bridge
   bridge-line-operator.sh geo-bridge
   bridge-line-operator.sh witness-bridge
-  bridge-line-operator.sh prep-long-checks
+  bridge-line-operator.sh prep-long-checks  # explicit diagnose-bench compatibility alias
   bridge-line-operator.sh live-ready
 
 Teach Pendant programs:
@@ -547,10 +545,10 @@ Teach Pendant programs:
 
 Bridge lifecycle:
   * bridge starts Kunwei/RTDE bridge immediately, then waits up to 45 s for TP Play.
-  * line-bridge-fast requires a fresh long-check cache and only runs short
-    loaded-program/safety/no-old-bridge checks at trigger time.
-  * BRIDGE_SKIP_BENCH_GATE=1 skips long bench-gate refresh for prepared live
-    triggers; use prep-long-checks to refresh the cache when bench state changed.
+  * line-bridge-fast has no cached preflight prerequisite. It runs exact binding,
+    scheduler, actual RTDE/sensor/prewarm readiness, and the bridge-ready sentinel.
+  * prep-long-checks is an explicit diagnostic snapshot only and never grants or
+    blocks a later bridge start.
   * autowatch waits for TP Play before starting the bridge; keep it for manual
     testing only, not for the normal 开bridge trigger.
   * bridge is stopped when TP program stops, safety is not NORMAL, or Dashboard is unreachable.
@@ -669,34 +667,11 @@ if not isinstance(gate, dict) or gate.get("ok") is not True or gate.get("issues"
 ' <<<"${output}"
 }
 
-long_gate_cache_valid() {
-  python3 - "${ROOT}" "${LONG_CHECK_CACHE}" "${LONG_CHECK_TTL_S}" "${ROBOT_HOST}" <<'PY'
-import sys
-from pathlib import Path
-
-root = Path(sys.argv[1])
-sys.path.insert(0, str(root / "tools"))
-from step5d_runtime_interface import long_check_cache_status
-
-cache = Path(sys.argv[2])
-ttl_s = float(sys.argv[3])
-host = sys.argv[4]
-status = long_check_cache_status(cache, robot_host=host, ttl_s=ttl_s)
-if status.get("ok"):
-    print(f"[operator] long-check cache hit: age={float(status['age_s']):.1f}s ttl={ttl_s:.1f}s {cache}")
-    raise SystemExit(0)
-raise SystemExit(1)
-PY
-}
-
 step5d_live_ready() {
   if [[ "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_* || "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
     python3 "${STEP5D_RUNTIME_INTERFACE}" \
       --root "${ROOT}" \
       --program "${BRIDGE_PROFILE}" \
-      --robot-host "${ROBOT_HOST}" \
-      --long-check-cache "${LONG_CHECK_CACHE}" \
-      --long-check-ttl-s "${LONG_CHECK_TTL_S}" \
       live-ready
   fi
 }
@@ -735,96 +710,28 @@ step5d_live_bridge_authorized() {
   fi
 }
 
-refresh_bench_gate_cache() {
-  mkdir -p "$(dirname "${LONG_CHECK_CACHE}")"
-  local tmp
-  local preflight_dir
-  tmp="$(mktemp)"
-  preflight_dir="$(mktemp -d)"
-  if python3 "${READONLY_PREFLIGHT}" \
+run_bench_diagnostics() {
+  local out_dir="${RUN_ROOT}/diagnose_bench_${BRIDGE_PROFILE}_${STAMP}"
+  mkdir -p "${out_dir}"
+  local rc=0
+  python3 "${READONLY_PREFLIGHT}" \
       --robot-host "${ROBOT_HOST}" \
       --bridge-profile "${BRIDGE_PROFILE}" \
-      --output-dir "${preflight_dir}" \
-      --json-only | tee "${tmp}"; then
-    python3 - "${tmp}" "${LONG_CHECK_CACHE}" "${ROBOT_HOST}" <<'PY'
-import json
-import subprocess
-import sys
-import time
-from pathlib import Path
-
-def run_json(args):
-    completed = subprocess.run(args, text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False)
-    if completed.returncode != 0 or not completed.stdout.strip():
-        return []
-    try:
-        return json.loads(completed.stdout)
-    except Exception:
-        return []
-
-def route_get(host):
-    completed = subprocess.run(["ip", "route", "get", host], text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False)
-    return completed.stdout.strip() if completed.returncode == 0 else ""
-
-def boot_id():
-    try:
-        return Path("/proc/sys/kernel/random/boot_id").read_text(encoding="utf-8").strip()
-    except Exception:
-        return ""
-
-def current_fingerprint(gate):
-    device = gate.get("device", "enp3s0")
-    kunwei = gate.get("kunwei") or {}
-    kunwei_host = kunwei.get("sensor_host", "")
-    return {
-        "boot_id": boot_id(),
-        "device": device,
-        "ipv4_addresses": run_json(["ip", "-j", "-4", "addr", "show", "dev", device]),
-        "default_routes": run_json(["ip", "-j", "route", "show", "default"]),
-        "kunwei_route_get": route_get(kunwei_host) if kunwei_host else "",
-    }
-
-source = Path(sys.argv[1])
-cache = Path(sys.argv[2])
-host = sys.argv[3]
-try:
-    snapshot = json.loads(source.read_text(encoding="utf-8"))
-except Exception:
-    snapshot = {"raw": source.read_text(encoding="utf-8", errors="replace")}
-remote = ((snapshot.get("stages") or {}).get("remote") or {}) if isinstance(snapshot, dict) else {}
-bench = remote.get("bench_network") or {}
-gate = bench.get("payload") if isinstance(bench, dict) else None
-if not isinstance(gate, dict):
-    gate = snapshot
-payload = {
-    "ok": True,
-    "checked_at_epoch": time.time(),
-    "robot_host": host,
-    "gate": gate,
-    "preflight_snapshot": snapshot,
-    "fingerprint": current_fingerprint(gate),
-}
-tmp = cache.with_suffix(cache.suffix + ".tmp")
-tmp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-tmp.replace(cache)
-print(f"[operator] long-check cache refreshed: {cache}")
-PY
-    rm -f "${tmp}"
-    rm -rf "${preflight_dir}"
+      --output-dir "${out_dir}" \
+      --json-only >"${out_dir}/preflight.json" 2>"${out_dir}/preflight.stderr.log" || rc="$?"
+  if [[ "${rc}" == "0" ]]; then
+    echo "[operator] bench diagnostics passed: ${out_dir}"
     return 0
-  else
-    local rc="$?"
-    rm -f "${tmp}"
-    rm -rf "${preflight_dir}"
-    rm -f "${LONG_CHECK_CACHE}"
-    echo "[operator] read-only preflight failed with rc=${rc}; cache invalidated" >&2
-    return 24
   fi
+  echo "[operator] bench diagnostics failed rc=${rc}: ${out_dir}" >&2
+  return "${rc}"
 }
 
 requires_step5d_realtime_launcher() {
   [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" \
     || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v30" \
+    || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v31" \
+    || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v32" \
     || "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]
 }
 
@@ -833,37 +740,17 @@ require_step5d_realtime_launcher_policy() {
     return 0
   fi
   if ! command -v chrt >/dev/null 2>&1; then
-    echo "refusing v29/v30/P0 bridge: chrt is required for SCHED_FIFO priority 20"
+    echo "refusing strict Step5d bridge: chrt is required for SCHED_FIFO priority 20"
     return 24
   fi
   if [[ "${STEP5D_RT_PRIORITY:-20}" != "20" ]]; then
-    echo "refusing v29/v30/P0 bridge: STEP5D_RT_PRIORITY must be exactly 20"
+    echo "refusing strict Step5d bridge: STEP5D_RT_PRIORITY must be exactly 20"
     return 24
   fi
 }
 
 require_v29_realtime_launcher_policy() {
   require_step5d_realtime_launcher_policy
-}
-
-run_bench_gate_cached() {
-  if [[ "${BRIDGE_SKIP_BENCH_GATE:-0}" == "1" || "${BRIDGE_SKIP_LONG_CHECKS:-0}" == "1" ]]; then
-    echo "[operator] skipping long bench gate by request (BRIDGE_SKIP_BENCH_GATE=${BRIDGE_SKIP_BENCH_GATE:-0}, BRIDGE_SKIP_LONG_CHECKS=${BRIDGE_SKIP_LONG_CHECKS:-0})"
-    return 0
-  fi
-  if long_gate_cache_valid; then
-    return 0
-  fi
-  refresh_bench_gate_cache
-}
-
-require_bench_gate_cache() {
-  if long_gate_cache_valid; then
-    return 0
-  fi
-  echo "refusing fast bridge: long-check cache is missing or older than ${LONG_CHECK_TTL_S}s"
-  echo "run: BRIDGE_PROFILE=${BRIDGE_PROFILE} ${BASH_SOURCE[0]} prep-long-checks"
-  exit 24
 }
 
 ensure_no_existing_bridge() {
@@ -922,22 +809,6 @@ raise SystemExit(12)
 
 dashboard_snapshot() {
   python3 -c "${dashboard_snapshot_py}" "${EXPECTED_PROGRAM}" "${EXPECTED_BASENAME}" "${ROBOT_HOST}" "${DASHBOARD_PORT}"
-}
-
-require_rtde_quick_probe() {
-  python3 - "${ROBOT_HOST}" <<'PY'
-import socket
-import sys
-
-host = sys.argv[1]
-try:
-    with socket.create_connection((host, 30004), timeout=1.0):
-        pass
-except OSError as exc:
-    print(f"refusing fast bridge: RTDE 30004 is not reachable on {host}: {type(exc).__name__}: {exc}")
-    raise SystemExit(25)
-print(f"[operator] RTDE quick probe passed: {host}:30004")
-PY
 }
 
 p0_profile_active() {
@@ -1306,17 +1177,13 @@ wait_for_bridge_output_started() {
       fi
       return 1
     fi
-    if [[ ( "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" || "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ) && -s "${ready}" ]] \
+    if requires_step5d_realtime_launcher && [[ -s "${ready}" ]] \
       && step5d_bridge_ready_sentinel_valid "${ready}" "${bridge_pid}" "${launch_nonce}" "${BRIDGE_PROFILE}"; then
-      if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" ]]; then
-        echo "[operator] v29 bridge startup confirmed: ${ready}"
-      else
-        echo "[operator] P0 bridge startup confirmed: ${ready}"
-      fi
+      echo "[operator] bridge armed: ${BRIDGE_PROFILE} ${ready}"
       return 0
     fi
     if [[ -s "${bridge_csv}" || -s "${metadata}" ]]; then
-      if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" || "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
+      if requires_step5d_realtime_launcher; then
         sleep 0.1
         continue
       fi
@@ -1418,9 +1285,9 @@ _run_bridge_for_mode() {
   fi
   if requires_step5d_realtime_launcher; then
     bridge_launcher=(chrt -f 20 python3)
-    echo "[operator] v29/v30/P0 bridge launcher: SCHED_FIFO priority 20"
+    echo "[operator] strict Step5d bridge launcher: SCHED_FIFO priority 20"
   fi
-  if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" || "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
+  if requires_step5d_realtime_launcher; then
     rm -f "${out_dir}/bridge_ready.json"
     launch_nonce="$(python3 - <<'PY'
 import uuid
@@ -1506,7 +1373,7 @@ PY
   bridge_pid="$!"
   output_started_rc=0
   wait_for_bridge_output_started "${out_dir}" "${bridge_pid}" "${launch_nonce}" || output_started_rc="$?"
-  if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" ]]; then
+  if requires_step5d_realtime_launcher; then
     if [[ "${output_started_rc}" != "0" ]]; then
       echo "refusing: mandatory bridge startup confirmation failed for ${BRIDGE_PROFILE}"
       stop_bridge_process "${bridge_pid}" "mandatory output-start confirmation failed"
@@ -1592,8 +1459,8 @@ PY
   if [[ "${monitor_rc}" != "0" ]]; then
     return "${monitor_rc}"
   fi
-  if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" && "${child_rc}" != "0" ]]; then
-    echo "refusing: v29 bridge child exited with rc=${child_rc}"
+  if requires_step5d_realtime_launcher && [[ "${child_rc}" != "0" ]]; then
+    echo "refusing: strict Step5d bridge child exited with rc=${child_rc}"
     return "${child_rc}"
   fi
   return 0
@@ -1634,7 +1501,7 @@ fi
 
 mode="${1:-}"
 if [[ "${mode}" == "prep-long-checks" ]]; then
-  refresh_bench_gate_cache
+  run_bench_diagnostics
   exit 0
 fi
 if [[ "${mode}" == "live-ready" || "${mode}" == "status" ]]; then
@@ -1665,7 +1532,7 @@ WARNING
       p0_recovery_next_action
       exit 24
     fi
-    run_bench_gate_cached
+    run_bench_gate
     if [[ "${BRIDGE_PROFILE}" != "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
       step5d_live_bridge_authorized
     fi
@@ -1678,26 +1545,33 @@ WARNING
       echo "fast trigger is currently implemented only for line-bridge-fast"
       exit 2
     fi
-    if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
-      step5d_live_bridge_authorized
+    attempt_dir="${RUN_ROOT}/bridge_${RUN_LABEL}_${STAMP}"
+    mkdir -p "${attempt_dir}"
+    if ! step5d_live_ready >"${attempt_dir}/live_ready.log" 2>&1; then
+      echo "refusing: Step5d binding/status check failed; log=${attempt_dir}/live_ready.log"
+      tail -n 20 "${attempt_dir}/live_ready.log" || true
+      exit 24
     fi
-    step5d_live_ready
-    require_bench_gate_cache
-    if [[ "${BRIDGE_PROFILE}" != "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
-      step5d_live_bridge_authorized
+    echo "[operator] binding/status ready: ${BRIDGE_PROFILE}"
+    if ! step5d_live_bridge_authorized >"${attempt_dir}/binding_gate.log" 2>&1; then
+      echo "refusing: exact binding/live authorization gate failed; log=${attempt_dir}/binding_gate.log"
+      tail -n 20 "${attempt_dir}/binding_gate.log" || true
+      exit 24
     fi
-    require_rtde_quick_probe
+    echo "[operator] exact binding gate passed"
     ensure_no_existing_bridge
     trigger_rc=0
     set +e
-    trigger_dashboard_check
+    trigger_dashboard_check >"${attempt_dir}/dashboard_snapshot.log" 2>&1
     trigger_rc="$?"
     set -e
     if [[ "${trigger_rc}" == "10" ]]; then
-      run_bridge_for_mode "${RUN_ROOT}/bridge_${RUN_LABEL}_${STAMP}" 1
+      run_bridge_for_mode "${attempt_dir}" 1
     elif [[ "${trigger_rc}" == "0" ]]; then
-      run_bridge_for_mode "${RUN_ROOT}/bridge_${RUN_LABEL}_${STAMP}" 0
+      run_bridge_for_mode "${attempt_dir}" 0
     else
+      echo "refusing: dashboard program/safety state is not ready; log=${attempt_dir}/dashboard_snapshot.log"
+      tail -n 20 "${attempt_dir}/dashboard_snapshot.log" || true
       exit "${trigger_rc}"
     fi
     ;;
@@ -1726,7 +1600,7 @@ WARNING
       exit 2
     fi
     step5d_live_bridge_authorized
-    run_bench_gate_cached
+    run_bench_gate
     ensure_no_existing_bridge
     run_bridge_for_mode "${RUN_ROOT}/bridge_${RUN_LABEL}_${STAMP}" 0
     ;;

@@ -26,6 +26,7 @@ from step5d_runtime_interface import resolve_runtime_interface
 from step5d_review_v3 import resolve as resolve_review_v3
 from step5d_review_v3 import canonical_composite
 from build_step5d_v31_review_binding import compute_payloads as compute_v31_review_payloads
+from build_step5d_v32_review_binding import compute_payloads as compute_v32_review_payloads
 from step5d_timing_acceptance import evaluate_timing_raw
 from step5d_v30_timing import SOURCE_BINDING_FILES
 from verify_current_stage_readback import EXPERIMENT_ROOT, fail, load_json, verify
@@ -35,6 +36,7 @@ STEP5D_PACKAGE_PREFIXES = ("step5d_strict_rnn_liveprep_", "step5d_strict_rnn_abl
 STEP5D_ABLATION_V29 = "step5d_strict_rnn_ablation_v29"
 STEP5D_ABLATION_V30 = "step5d_strict_rnn_ablation_v30"
 STEP5D_ABLATION_V31 = "step5d_strict_rnn_ablation_v31"
+STEP5D_ABLATION_V32 = "step5d_strict_rnn_ablation_v32"
 V29_EXACT_RUNTIME_PROFILE: dict[str, Any] = {
     "backend": "cupy",
     "inner_iterations": 1024,
@@ -51,6 +53,16 @@ V30_EXACT_RUNTIME_PROFILE: dict[str, Any] = {
 V31_EXACT_RUNTIME_PROFILE: dict[str, Any] = {
     **V30_EXACT_RUNTIME_PROFILE,
     "qdot_cap_rad_s": 0.5,
+}
+V32_EXACT_RUNTIME_PROFILE: dict[str, Any] = {
+    "backend": "cupy",
+    "inner_iterations": 512,
+    "epsilon": 0.01,
+    "sigr_exponent_r": 0.8,
+    "qdot_cap_rad_s": 0.5,
+    "control_mode": "speedj_rnn_live",
+    "wire_protocol": "stage_aware_joint_v1",
+    "joint_marker_internal": 524.0,
 }
 V30_READINESS = "config/step5d_v30_offline_readiness.json"
 V30_REVIEW_POLICY = "config/step5d_review_policy_v3.json"
@@ -518,12 +530,21 @@ def _exact_v29_runtime_profile(
             "sigr_exponent_r": float(sigr_exponent_r) if sigr_exponent_r is not None else None,
             "qdot_cap_rad_s": float(qdot_cap_rad_s) if qdot_cap_rad_s is not None else None,
             "control_mode": str(stage25_control_mode or ""),
-            "joint_layout_code": 524.0,
+            **(
+                {
+                    "wire_protocol": "stage_aware_joint_v1",
+                    "joint_marker_internal": 524.0,
+                }
+                if profile_label == "v32"
+                else {"joint_layout_code": 524.0}
+            ),
         }
     except (TypeError, ValueError):
         fail(f"{profile_label} live bridge requires the exact runtime profile")
     expected = (
-        V31_EXACT_RUNTIME_PROFILE
+        V32_EXACT_RUNTIME_PROFILE
+        if profile_label == "v32"
+        else V31_EXACT_RUNTIME_PROFILE
         if profile_label == "v31"
         else V30_EXACT_RUNTIME_PROFILE
         if profile_label == "v30"
@@ -533,8 +554,8 @@ def _exact_v29_runtime_profile(
         fail(
             f"{profile_label} live bridge requires the exact runtime profile "
             + (
-                f"speedj_rnn_live/cupy/512/epsilon=0.01/r=0.8/qdot={'0.5' if profile_label == 'v31' else '0.05'}"
-                if profile_label in {"v30", "v31"}
+                f"speedj_rnn_live/cupy/512/epsilon=0.01/r=0.8/qdot={'0.5' if profile_label in {'v31', 'v32'} else '0.05'}"
+                if profile_label in {"v30", "v31", "v32"}
                 else "speedj_rnn_live/cupy/1024/epsilon=0.01/r=0.8/qdot=0.05"
             )
         )
@@ -672,6 +693,170 @@ def verify_v31_evidence_freeze(
         "index_sha256": index_sha,
         "effective_stack": resolved.get("effective_stack"),
         "deterministic_finding_closure_accepted": resolved.get("deterministic_finding_closure_accepted"),
+    }
+
+
+def verify_v32_evidence_freeze(
+    root: Path,
+    current: dict[str, Any] | None = None,
+    *,
+    stage25_control_mode: str | None = None,
+    rnn_backend: str | None = None,
+    rnn_inner_iterations: int | None = None,
+    epsilon: float | None = None,
+    sigr_exponent_r: float | None = None,
+    qdot_cap_rad_s: float | None = None,
+) -> dict[str, Any]:
+    """Recompute the v32 split core/transport composite before live use."""
+
+    current = current or load_json(root / "config/current_stage.json")
+    candidate = current.get("v32_candidate")
+    if not isinstance(candidate, dict):
+        fail("v32 candidate ledger is missing")
+    runtime_profile = _exact_v29_runtime_profile(
+        stage25_control_mode=stage25_control_mode,
+        rnn_backend=rnn_backend,
+        rnn_inner_iterations=rnn_inner_iterations,
+        epsilon=epsilon,
+        sigr_exponent_r=sigr_exponent_r,
+        qdot_cap_rad_s=qdot_cap_rad_s,
+        profile_label="v32",
+    )
+    package = candidate.get("package")
+    evidence = candidate.get("evidence")
+    review = candidate.get("review_v3")
+    if not all(isinstance(value, dict) for value in (package, evidence, review)):
+        fail("v32 package/evidence/review ledger is incomplete")
+    if package.get("controller_uploaded") is not True or package.get("controller_readback_verified") is not True:
+        fail("v32 controller upload/fresh read-back is not verified")
+
+    for key, label in (
+        ("numeric_sanity", "v32 numeric sanity"),
+        ("transport_timing_smoke", "v32 transport timing smoke"),
+    ):
+        artifact = evidence.get(key)
+        if not isinstance(artifact, dict):
+            fail(f"{label} ledger is missing")
+        _, payload, _ = _hash_bound_json(
+            root, artifact.get("path"), label, expected_sha256=artifact.get("sha256")
+        )
+        if payload.get("overall_pass") is not True:
+            fail(f"{label} does not pass")
+    inherited = evidence.get("inherited_control_core_timing")
+    if not isinstance(inherited, dict):
+        fail("v32 inherited control-core timing ledger is missing")
+    for key in ("raw", "summary"):
+        item = inherited.get(key)
+        if not isinstance(item, dict):
+            fail(f"v32 inherited timing {key} is missing")
+        _, payload, _ = _hash_bound_json(
+            root,
+            item.get("path"),
+            f"v32 inherited timing {key}",
+            expected_sha256=item.get("sha256"),
+        )
+        if key == "summary" and payload.get("overall_pass") is not True:
+            fail("v32 inherited control-core timing summary does not pass")
+
+    binding_path, tracked_binding, binding_sha = _hash_bound_json(
+        root, review.get("binding"), "v32 review binding", expected_sha256=review.get("binding_sha256")
+    )
+    evidence_path, tracked_evidence, evidence_sha = _hash_bound_json(
+        root, review.get("evidence"), "v32 review evidence", expected_sha256=review.get("evidence_sha256")
+    )
+    recomputed_binding, recomputed_evidence = compute_v32_review_payloads(root)
+    if tracked_binding != recomputed_binding or tracked_evidence != recomputed_evidence:
+        fail("v32 package/readback/core/transport/operator evidence is stale")
+    composite = canonical_composite(recomputed_binding)
+    if review.get("composite_fingerprint") != composite:
+        fail("v32 review composite fingerprint is stale")
+
+    manifest_path, manifest, manifest_sha = _hash_bound_json(
+        root, review.get("manifest"), "v32 review manifest", expected_sha256=review.get("manifest_sha256")
+    )
+    if review.get("status") == "accepted_user_waived":
+        if not (
+            manifest.get("schema_version") == "step5d_v32_user_review_waiver_v1"
+            and manifest.get("program") == STEP5D_ABLATION_V32
+            and manifest.get("requested_by") == "user"
+            and manifest.get("decision") == "skip_model_audit_for_this_delivery"
+            and manifest.get("model_review_performed") is False
+            and manifest.get("composite_fingerprint") == composite
+        ):
+            fail("v32 user review waiver is missing, stale, or ambiguous")
+        return {
+            "ok": True,
+            "program": STEP5D_ABLATION_V32,
+            "runtime_profile": runtime_profile,
+            "binding": _relative(root, binding_path),
+            "binding_sha256": binding_sha,
+            "evidence": _relative(root, evidence_path),
+            "evidence_sha256": evidence_sha,
+            "composite_fingerprint": composite,
+            "manifest": _relative(root, manifest_path),
+            "manifest_sha256": manifest_sha,
+            "effective_stack": "0+0_user_waived",
+            "live_motion_authorized": candidate.get("live_authorized") is True,
+        }
+    lanes = manifest.get("lanes")
+    if not isinstance(lanes, dict):
+        fail("v32 review lanes are missing")
+    sol = lanes.get("sol_xhigh")
+    fable = lanes.get("fable5_high")
+    if not isinstance(sol, dict) or not isinstance(fable, dict):
+        fail("v32 requires sol_xhigh and fable5_high review lane records")
+    if not (
+        sol.get("actual_model") == "gpt-5.6-sol"
+        and sol.get("actual_effort") == "xhigh"
+        and sol.get("decision") == "GO"
+    ):
+        fail("v32 Sol review did not prove gpt-5.6-sol/xhigh GO")
+    fable_completed = (
+        fable.get("status") == "completed"
+        and fable.get("actual_model") == "claude-fable-5"
+        and fable.get("actual_effort") == "high"
+        and fable.get("decision") == "GO"
+    )
+    fable_degraded = (
+        fable.get("status") == "skipped_unavailable"
+        and manifest.get("degraded_review") is True
+        and manifest.get("effective_stack") == "1+0"
+    )
+    if not (fable_completed or fable_degraded):
+        fail("v32 Fable5/high review is neither completed GO nor owner-approved unavailable evidence")
+    blocking_findings = [
+        finding
+        for lane in lanes.values()
+        for finding in (lane.get("findings") or [])
+        if isinstance(finding, dict) and finding.get("severity") in {"P0", "P1"}
+    ]
+    if blocking_findings:
+        closure = review.get("deterministic_finding_closure")
+        if not isinstance(closure, dict):
+            fail("v32 blocking review findings lack deterministic owner closure")
+        _, closure_payload, _ = _hash_bound_json(
+            root,
+            closure.get("path"),
+            "v32 deterministic finding closure",
+            expected_sha256=closure.get("sha256"),
+        )
+        if closure_payload.get("status") != "pass":
+            fail("v32 deterministic finding closure does not pass")
+    if review.get("status") not in {"accepted_1+1", "accepted_degraded_1+0"}:
+        fail("v32 review status is not accepted")
+    return {
+        "ok": True,
+        "program": STEP5D_ABLATION_V32,
+        "runtime_profile": runtime_profile,
+        "binding": _relative(root, binding_path),
+        "binding_sha256": binding_sha,
+        "evidence": _relative(root, evidence_path),
+        "evidence_sha256": evidence_sha,
+        "composite_fingerprint": composite,
+        "manifest": _relative(root, manifest_path),
+        "manifest_sha256": manifest_sha,
+        "effective_stack": manifest.get("effective_stack"),
+        "live_motion_authorized": candidate.get("live_authorized") is True,
     }
 
 
@@ -836,6 +1021,17 @@ def verify_live_bridge_authorization(
             qdot_cap_rad_s=qdot_cap_rad_s,
         )
         runtime_profile = readiness["runtime_profile"]
+    elif selected == STEP5D_ABLATION_V32:
+        readiness = verify_v32_evidence_freeze(
+            root, current,
+            stage25_control_mode=stage25_control_mode,
+            rnn_backend=rnn_backend,
+            rnn_inner_iterations=rnn_inner_iterations,
+            epsilon=epsilon,
+            sigr_exponent_r=sigr_exponent_r,
+            qdot_cap_rad_s=qdot_cap_rad_s,
+        )
+        runtime_profile = readiness["runtime_profile"]
     p0_required = _stage_bool(
         stage_entry,
         "strict_rnn_no_contact_p0_required_before_live",
@@ -882,6 +1078,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--qdot-cap-rad-s", type=float, default=None)
     parser.add_argument("--require-live-bridge-authorization", action="store_true")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args(argv)
 
     if args.require_live_bridge_authorization:
@@ -900,8 +1097,12 @@ def main(argv: list[str] | None = None) -> int:
         result = verify_binding(args.root, args.program, args.target_dir)
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))
-    else:
-        print(f"[operator] Step5d current binding passed for {result['program']}: {result['manifest']}")
+    elif not args.quiet:
+        manifest = result.get("manifest") or result.get("controller_readback_manifest")
+        if manifest is None and isinstance(result.get("readiness"), dict):
+            manifest = result["readiness"].get("manifest")
+        suffix = "" if manifest is None else f": {manifest}"
+        print(f"[operator] Step5d current binding passed for {result['program']}{suffix}")
     return 0
 
 

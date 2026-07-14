@@ -494,9 +494,8 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
     ):
         failures.append("v29 frozen fallback / historical Review v2 binding is invalid")
     expected_v29_local = f"programs/step5/step5d/{V29_PROGRAM}"
-    if (
-        current.get("local_triplet") != expected_v29_local
-        or v29_candidate.get("local_triplet") != expected_v29_local
+    if v29_candidate.get("local_triplet") != expected_v29_local or (
+        current_program == V29_PROGRAM and current.get("local_triplet") != expected_v29_local
     ):
         failures.append("v29 local triplet must use the canonical nested step5d path")
     expected_v29_triplet = f"{expected_v29_local}.{{script,txt,urp}}"

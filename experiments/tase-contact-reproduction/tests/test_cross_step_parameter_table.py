@@ -79,13 +79,14 @@ class CrossStepParameterTableTest(unittest.TestCase):
             failures,
         )
 
-    def test_current_v29_readback_flags_and_claim_states_are_consistent(self) -> None:
+    def test_current_v32_readback_flags_and_claim_states_are_consistent(self) -> None:
         current = validator.load_json(ROOT / "config" / "current_stage.json")
         table = validator.load_json(ROOT / "config" / "step5_stage_table.json")
         row = next(row for row in table["stages"] if row.get("id") == current["current_stage_id"])
 
-        self.assertTrue(row["acceptance"]["controller_readback_verified"])
-        self.assertTrue(current["v29_contact_candidate"]["controller_readback_verified"])
+        self.assertEqual(current["current_stage_id"], "step5d_strict_rnn_ablation_v32")
+        self.assertTrue(row["package_delivery"]["controller_readback_verified"])
+        self.assertTrue(current["v32_candidate"]["package"]["controller_readback_verified"])
         self.assertEqual(current["liveprep_status"]["state"], "blocked")
         self.assertTrue(row["blocked"])
         self.assertEqual(row["blocked"], current["liveprep_status"]["state"] == "blocked")
@@ -426,38 +427,15 @@ class CrossStepParameterTableTest(unittest.TestCase):
         self.assertEqual(raw["solver"]["samples"], 10_000)
         self.assertGreater(raw["solver"]["compute_deadline_miss_count"], 0)
 
-    def test_awaiting_v29_requires_matching_readiness_pointer_and_sha(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_root = Path(tmp)
-            shutil.copytree(ROOT / "config", tmp_root / "config")
-            shutil.copy2(ROOT / "STEP5_FLOW.md", tmp_root / "STEP5_FLOW.md")
-            current_path = tmp_root / "config" / "current_stage.json"
-            table_path = tmp_root / "config" / "step5_stage_table.json"
-            current = validator.load_json(current_path)
-            table = validator.load_json(table_path)
-            row = next(item for item in table["stages"] if item.get("id") == current["current_stage_id"])
-            current["liveprep_status"] = {
-                "state": "awaiting_live_authorization",
-                "readiness_artifact": "runs/final/liveprep_readiness.json",
-                "blockers": [],
-            }
-            row["blocked"] = False
-            row["liveprep_status"] = {
-                "state": "awaiting_live_authorization",
-                "readiness_artifact": "runs/final/liveprep_readiness.json",
-            }
-            current_path.write_text(json.dumps(current), encoding="utf-8")
-            table_path.write_text(json.dumps(table), encoding="utf-8")
+    def test_current_v32_blocked_state_does_not_claim_legacy_readiness(self) -> None:
+        current = validator.load_json(ROOT / "config" / "current_stage.json")
+        liveprep = current["liveprep_status"]
 
-            failures = validator.validate(tmp_root)
-            self.assertTrue(any("readiness sha" in failure for failure in failures), failures)
-
-            current["liveprep_status"]["readiness_sha256"] = "a" * 64
-            row["liveprep_status"]["readiness_sha256"] = "a" * 64
-            current_path.write_text(json.dumps(current), encoding="utf-8")
-            table_path.write_text(json.dumps(table), encoding="utf-8")
-            failures = validator.validate(tmp_root)
-            self.assertFalse(any("readiness sha" in failure for failure in failures), failures)
+        self.assertEqual(current["current_stage_id"], "step5d_strict_rnn_ablation_v32")
+        self.assertEqual(liveprep["state"], "blocked")
+        self.assertIsNone(liveprep["readiness_artifact"])
+        self.assertNotIn("readiness_sha256", liveprep)
+        self.assertIn("explicit_v32_live_authorization_not_granted", liveprep["blockers"])
 
     def test_live_startup_gates_are_not_cacheable(self) -> None:
         table = validator.load_json(ROOT / "config" / "step5_stage_table.json")

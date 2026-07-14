@@ -67,6 +67,7 @@ def v31_harness() -> str:
     }
     late_action = step5d_publish_action(
         late_candidate,
+        robot_stage=25.0,
         v30_contract_profile=True,
         stop_dominant=False,
         schedule_late=True,

@@ -7,8 +7,6 @@ import argparse
 import json
 import math
 import os
-import subprocess
-import time
 from dataclasses import asdict, dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
@@ -18,10 +16,6 @@ from tase_protocol_table import ProtocolTableError, resolve_experiment_profile
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
 CURRENT_STAGE_PATH = EXPERIMENT_ROOT / "config" / "current_stage.json"
-RUN_ROOT = EXPERIMENT_ROOT / "runs"
-DEFAULT_LONG_CHECK_TTL_S = 7200.0
-DEFAULT_ROBOT_HOST = "192.168.1.18"
-DEFAULT_LONG_CHECK_CACHE = RUN_ROOT / ".bridge_long_checks_cache.json"
 
 STEP5D_INTERFACE_CLASS = "tp_speedj_strict_rnn_liveprep_v1"
 STEP5D_TUNING_BUNDLE = "v24_startup_quarantine_rnn_tracking_guard"
@@ -37,6 +31,7 @@ STEP5D_ABLATION_V28_STAGE_ID = "step5d_strict_rnn_ablation_v28"
 STEP5D_ABLATION_V29_STAGE_ID = "step5d_strict_rnn_ablation_v29"
 STEP5D_ABLATION_V30_STAGE_ID = "step5d_strict_rnn_ablation_v30"
 STEP5D_ABLATION_V31_STAGE_ID = "step5d_strict_rnn_ablation_v31"
+STEP5D_ABLATION_V32_STAGE_ID = "step5d_strict_rnn_ablation_v32"
 STEP5D_NO_CONTACT_P0_V7_STAGE_ID = "step5d_strict_rnn_no_contact_p0_v7"
 STEP5D_NO_CONTACT_P0_V8_STAGE_ID = "step5d_strict_rnn_no_contact_p0_v8"
 STEP5D_NO_CONTACT_P0_V9_STAGE_ID = "step5d_strict_rnn_no_contact_p0_v9"
@@ -52,6 +47,7 @@ STEP5D_NO_CONTACT_P0_STAGE_IDS = (
 STEP5D_V30_CONTROL_CONTRACT_STAGE_IDS = (
     STEP5D_ABLATION_V30_STAGE_ID,
     STEP5D_ABLATION_V31_STAGE_ID,
+    STEP5D_ABLATION_V32_STAGE_ID,
     STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
     STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
 )
@@ -63,6 +59,7 @@ STEP5D_ABLATION_STAGE_IDS = (
     STEP5D_ABLATION_V29_STAGE_ID,
     STEP5D_ABLATION_V30_STAGE_ID,
     STEP5D_ABLATION_V31_STAGE_ID,
+    STEP5D_ABLATION_V32_STAGE_ID,
     *STEP5D_NO_CONTACT_P0_STAGE_IDS,
 )
 STEP5D_STAGE25_CONTROL_MODES = ("speedl_cartesian_oracle", "speedj_dls_oracle", "speedj_rnn_live")
@@ -399,6 +396,7 @@ def uses_step5b_speedl_live_source(program: str) -> bool:
         STEP5D_ABLATION_V29_STAGE_ID,
         STEP5D_ABLATION_V30_STAGE_ID,
         STEP5D_ABLATION_V31_STAGE_ID,
+        STEP5D_ABLATION_V32_STAGE_ID,
     }
 
 
@@ -411,6 +409,12 @@ def speedl_orientation_policy(program: str) -> str | None:
 
 
 def stage25_0_register_contract(program: str) -> str:
+    if program == STEP5D_ABLATION_V32_STAGE_ID:
+        return (
+            "v32 Stage25.0 accepts strict RNN qd0..qd5 only; the typed joint encoder "
+            "writes internal wire marker 524. Marker 524 is not a global readiness or publish gate; "
+            "Stage25.05/25.3/25.95 use their own packet types."
+        )
     if program == STEP5D_NO_CONTACT_P0_V8_STAGE_ID:
         return (
             "no-contact P0 v8: Stage25.95 first requires bridge-cleared 37..47, then "
@@ -432,7 +436,7 @@ def stage25_0_register_contract(program: str) -> str:
             "43 cmd_valid; 44 path_time; 45 force_error; 46 pose/orientation_error."
         )
     prefix = (
-        "v25/v26/v27/v28/v29/v30/v31: 37..42 cartesian vx/vy/vz/wx/wy/wz when "
+        "v25/v26/v27/v28/v29/v30/v31/v32: 37..42 cartesian vx/vy/vz/wx/wy/wz when "
         f"47={STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:g}; "
     )
     suffix = (
@@ -449,11 +453,11 @@ def stage25_0_register_contract(program: str) -> str:
             + "Step5b/step4e orientation follow wx/wy/wz; Step5d paper/RNN outputs are logged as shadow diagnostics; "
             + suffix
         )
-    if program in {STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID}:
+    if program in {STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}:
         route = "strict RNN live speedj" if program == STEP5D_ABLATION_V29_STAGE_ID else "strict RNN offline-candidate speedj"
         alternatives = (
             "speedl_cartesian_oracle and speedj_dls_oracle are offline shadow/diagnostic only and forbidden as runtime fallback; "
-            if program in {STEP5D_ABLATION_V30_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID}
+            if program in {STEP5D_ABLATION_V30_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}
             else "speedl_cartesian_oracle and speedj_dls_oracle remain explicit debug/fallback modes; "
         )
         return (
@@ -476,7 +480,7 @@ def stage25_0_register_contract(program: str) -> str:
 def stage25_success_target_s(program: str) -> float | None:
     if is_no_contact_p0_stage(program):
         return STEP5D_STAGE25_V28_FULL_RUN_TARGET_S
-    if program in {STEP5D_ABLATION_V28_STAGE_ID, STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID}:
+    if program in {STEP5D_ABLATION_V28_STAGE_ID, STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}:
         return STEP5D_STAGE25_V28_FULL_RUN_TARGET_S
     if program == STEP5D_ABLATION_V27_STAGE_ID:
         return STEP5D_STAGE25_V27_FIX_VALIDATION_TARGET_S
@@ -484,11 +488,11 @@ def stage25_success_target_s(program: str) -> float | None:
 
 
 def stage25_runtime_limit_s(program: str) -> float | None:
-    if program in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID}:
+    if program in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}:
         return float(_stage_field(_stage_row(program), "guard.stage25_runtime_limit_s"))
     if is_no_contact_p0_stage(program):
         return STEP5D_STAGE25_V28_RUNTIME_LIMIT_S
-    if program in {STEP5D_ABLATION_V28_STAGE_ID, STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID}:
+    if program in {STEP5D_ABLATION_V28_STAGE_ID, STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}:
         return STEP5D_STAGE25_V28_RUNTIME_LIMIT_S
     if program == STEP5D_ABLATION_V27_STAGE_ID:
         return STEP5D_STAGE25_V27_RUNTIME_LIMIT_S
@@ -578,14 +582,23 @@ def default_preload_gate(program: str) -> Step5dPreloadGate:
 
 def default_bridge_rezero_s(program: str, root: Path = EXPERIMENT_ROOT) -> float:
     if uses_step5b_speedl_live_source(program):
-        profile = runtime_protocol_profile(root)
+        profile = runtime_protocol_profile(root, program=program)
         return float(profile["parameters"]["zero_hold_s"])
     return 1.0
 
 
-def runtime_protocol_profile(root: Path = EXPERIMENT_ROOT) -> dict[str, Any]:
+def runtime_protocol_profile(
+    root: Path = EXPERIMENT_ROOT,
+    *,
+    program: str | None = None,
+) -> dict[str, Any]:
+    profile_id = (
+        "Step5.step5d_rnn"
+        if program in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}
+        else "Step5.step5d_rnn_legacy_v27"
+    )
     try:
-        return resolve_experiment_profile("Step5.step5d_rnn", root)
+        return resolve_experiment_profile(profile_id, root)
     except ProtocolTableError:
         if (root / "config" / "tase_protocol_table.json").exists():
             raise
@@ -606,6 +619,21 @@ def resolve_runtime_interface(
         selected_row = _stage_row(selected, root)
     except StageEnvError:
         selected_row = {}
+    if selected in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}:
+        stage_env = build_stage_env(selected, root)
+        stage_guard = selected_row.get("guard") or {}
+        optional_stage_env = {
+            "STEP5D_PRELOAD_RAW_MIN_N": stage_guard.get("line_entry_raw_sanity_min_n"),
+            "STEP5D_PRELOAD_RAW_MAX_N": stage_guard.get("line_entry_raw_sanity_max_n"),
+            "STEP5D_PRELOAD_CMD_LIMIT_M_S": stage_guard.get("line_entry_cmd_limit_m_s"),
+            "STEP5D_PRELOAD_RECOVERY_NORMAL_MIN_N": stage_guard.get("line_entry_recovery_normal_load_min_n"),
+            "STEP5D_PRELOAD_RECOVERY_NORMAL_MAX_N": stage_guard.get("line_entry_recovery_normal_load_max_n"),
+            "STEP5D_PRELOAD_FORCE_NORM_STOP_N": stage_guard.get("line_entry_force_norm_stop_n"),
+        }
+        stage_env.update(
+            {key: str(value) for key, value in optional_stage_env.items() if value is not None}
+        )
+        env_map = {**stage_env, **dict(env_map)}
     selected_acceptance = selected_row.get("acceptance") if isinstance(selected_row, dict) else {}
     selected_delivery = selected_row.get("local_delivery_evidence") if isinstance(selected_row, dict) else {}
     selected_package_delivery = selected_row.get("package_delivery") if isinstance(selected_row, dict) else {}
@@ -623,7 +651,7 @@ def resolve_runtime_interface(
     )
     target = controller_target_for(selected, current, root)
     default_gate = default_preload_gate(selected)
-    protocol_profile = runtime_protocol_profile(root)
+    protocol_profile = runtime_protocol_profile(root, program=selected)
     protocol_params = protocol_profile["parameters"]
     protocol_limits = protocol_profile["safety_limits"]
     if is_no_contact_p0_stage(selected):
@@ -649,7 +677,7 @@ def resolve_runtime_interface(
             env_map.get(
                 "STEP5D_STAGE25_CONTROL_MODE",
                 "speedj_rnn_live"
-                if selected in {STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID}
+                if selected in {STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}
                 else "speedl_cartesian_oracle"
                 if selected in STEP5D_ABLATION_STAGE_IDS
                 else "speedj_rnn_live",
@@ -791,21 +819,32 @@ def resolve_runtime_interface(
                     "sigr_exponent_r": 0.8,
                     "qdot_cap_rad_s": (
                         STEP5D_V31_QDOT_CAP_RAD_S
-                        if selected == STEP5D_ABLATION_V31_STAGE_ID
+                        if selected in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}
                         else STEP5D_NO_CONTACT_P0_V9_QDOT_CAP_RAD_S
                         if selected == STEP5D_NO_CONTACT_P0_V9_STAGE_ID
                         else 0.05
                     ),
                     "control_mode": "speedj_rnn_live",
-                    "joint_layout_code": 524.0,
                     **(
                         {
-                            "guard_schema": "p0_v9_guard_v2",
+                            "wire_protocol": "stage_aware_joint_v1",
+                            "joint_marker_internal": 524.0,
+                        }
+                        if selected == STEP5D_ABLATION_V32_STAGE_ID
+                        else {"joint_layout_code": 524.0}
+                    ),
+                    **(
+                        {
+                            "guard_schema": (
+                                str((selected_row.get("guard") or {}).get("schema"))
+                                if selected in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}
+                                else "p0_v9_guard_v2"
+                            ),
                             "force_guards_enabled": False,
                             "cartesian_speed_guards_enabled": False,
                             "normal_motion_guards_enabled": False,
                         }
-                        if selected in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID}
+                        if selected in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}
                         else {}
                     ),
                 }
@@ -826,7 +865,6 @@ def resolve_runtime_interface(
             "offline_candidate": selected
             in {
                 STEP5D_ABLATION_V30_STAGE_ID,
-                STEP5D_ABLATION_V31_STAGE_ID,
                 STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
                 STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
             },
@@ -862,119 +900,20 @@ def validate_interface_values(
             raise ValueError(f"{label} must be non-negative")
 
 
-def _run_json(args: list[str]) -> Any:
-    completed = subprocess.run(args, text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False)
-    if completed.returncode != 0 or not completed.stdout.strip():
-        return []
-    try:
-        return json.loads(completed.stdout)
-    except json.JSONDecodeError:
-        return []
-
-
-def _route_get(host: str) -> str:
-    completed = subprocess.run(
-        ["ip", "route", "get", host],
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    )
-    return completed.stdout.strip() if completed.returncode == 0 else ""
-
-
-def _boot_id() -> str:
-    try:
-        return Path("/proc/sys/kernel/random/boot_id").read_text(encoding="utf-8").strip()
-    except OSError:
-        return ""
-
-
-def current_long_check_fingerprint(gate: Mapping[str, Any]) -> dict[str, Any]:
-    device = str(gate.get("device", "enp3s0"))
-    kunwei = gate.get("kunwei") or {}
-    kunwei_host = str(kunwei.get("sensor_host", ""))
-    return {
-        "boot_id": _boot_id(),
-        "device": device,
-        "ipv4_addresses": _run_json(["ip", "-j", "-4", "addr", "show", "dev", device]),
-        "default_routes": _run_json(["ip", "-j", "route", "show", "default"]),
-        "kunwei_route_get": _route_get(kunwei_host) if kunwei_host else "",
-    }
-
-
-def long_check_cache_status(
-    cache_path: Path = DEFAULT_LONG_CHECK_CACHE,
-    *,
-    robot_host: str = DEFAULT_ROBOT_HOST,
-    ttl_s: float = DEFAULT_LONG_CHECK_TTL_S,
-) -> dict[str, Any]:
-    status = {
-        "ok": False,
-        "state": "MISS",
-        "age_s": None,
-        "ttl_s": ttl_s,
-        "fingerprint_ok": False,
-        "path": str(cache_path),
-    }
-    try:
-        payload = json.loads(cache_path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        status["reason"] = "missing"
-        return status
-    except json.JSONDecodeError as exc:
-        status["reason"] = f"invalid_json:{exc}"
-        return status
-
-    gate = payload.get("gate") or {}
-    kunwei = gate.get("kunwei") or {}
-    age_s = time.time() - float(payload.get("checked_at_epoch", 0.0))
-    fingerprint_ok = payload.get("fingerprint") == current_long_check_fingerprint(gate)
-    cache_ok = (
-        payload.get("ok") is True
-        and payload.get("robot_host") == robot_host
-        and gate.get("ok") is True
-        and not gate.get("issues")
-        and gate.get("robot_host") == robot_host
-        and gate.get("same_subnet") is True
-        and gate.get("device") == "enp3s0"
-        and kunwei.get("route_ok") is True
-        and (kunwei.get("tcp_connect") or {}).get("ok") is True
-        and fingerprint_ok
-        and 0.0 <= age_s <= ttl_s
-    )
-    status.update(
-        {
-            "ok": bool(cache_ok),
-            "state": "HIT" if cache_ok else "MISS",
-            "age_s": age_s,
-            "fingerprint_ok": bool(fingerprint_ok),
-            "reason": "ok" if cache_ok else "stale_or_mismatch",
-        }
-    )
-    return status
-
-
 def live_ready_lines(
     interface: Step5dRuntimeInterface,
-    cache: Mapping[str, Any],
     *,
     readiness: Mapping[str, Any] | None = None,
 ) -> list[str]:
-    age = cache.get("age_s")
-    age_text = "n/a" if age is None else f"{float(age) / 60.0:.1f}m"
-    ttl_text = f"{float(cache.get('ttl_s', DEFAULT_LONG_CHECK_TTL_S)) / 3600.0:.1f}h"
-    fp = "ok" if cache.get("fingerprint_ok") else "mismatch"
     gate = interface.preload_gate
     bridge = interface.bridge_defaults
     linear_cap_label = "legacy_total_linear_debug" if is_no_contact_p0_stage(interface.program) else "total_linear"
-    if interface.program in {STEP5D_ABLATION_V30_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID}:
+    if interface.program == STEP5D_ABLATION_V30_STAGE_ID:
         version = interface.program.rsplit("_", 1)[-1]
         return [
             f"[step5d][phase={version}-offline-candidate][rebuild=no][upload=required-after-build]",
             "[touches=offline-evidence-only]",
-            f"[cache] long-check={cache.get('state', 'MISS')} age={age_text} ttl={ttl_text} fingerprint={fp}",
-            f"[next] complete {version} deterministic gates, package upload/readback, fingerprint freeze, and milestone review; current pointer remains v29",
+            f"[next] complete {version} deterministic gates, package upload/readback, fingerprint freeze, and milestone review",
             "[authorization] controller upload/readback, bridge start, TP Play, and live motion are not authorized",
         ]
     if (
@@ -984,13 +923,11 @@ def live_ready_lines(
         return [
             "[step5d][phase=readback-blocked][rebuild=no][upload=required]",
             "[touches=controller-files-only]",
-            f"[cache] long-check={cache.get('state', 'MISS')} age={age_text} ttl={ttl_text} fingerprint={fp}",
             f"[next] controller read-back required before TP handoff: {interface.controller_target}",
             (
                 "[tuning] stage25 "
                 f"mode={interface.stage25_control_mode} "
-                f"cartesian_tag={STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:g} "
-                f"joint_tag={STEP5D_STAGE25_JOINT_LAYOUT_CODE:g}"
+                "protocol=stage-aware; Stage25.0=strict_rnn_speedj; wire marker is internal"
             ),
         ]
     if interface.program == STEP5D_ABLATION_V29_STAGE_ID:
@@ -1014,7 +951,6 @@ def live_ready_lines(
         return [
             f"[step5d][phase={phase}][rebuild=no][upload=no]",
             "[touches=offline-evidence-only]",
-            f"[cache] long-check={cache.get('state', 'MISS')} age={age_text} ttl={ttl_text} fingerprint={fp}",
             next_line,
             (
                 "[tuning] stage25 "
@@ -1029,7 +965,6 @@ def live_ready_lines(
         return [
             "[step5d][phase=live-bridge][rebuild=no][upload=no]",
             "[touches=kunwei+rtde][experiment=no-contact]",
-            f"[cache] long-check={cache.get('state', 'MISS')} age={age_text} ttl={ttl_text} fingerprint={fp}",
             f"[next] short checks ETA=1-3s, TP Play wait<=20s, baseline+rezero={bridge.baseline_s + bridge.rezero_s:g}s",
             (
                 "[guard] schema=p0_v9_guard_v2 "
@@ -1053,8 +988,7 @@ def live_ready_lines(
     return [
         "[step5d][phase=live-bridge][rebuild=no][upload=no]",
         "[touches=kunwei+rtde]",
-        f"[cache] long-check={cache.get('state', 'MISS')} age={age_text} ttl={ttl_text} fingerprint={fp}",
-        f"[next] short checks ETA=1-3s, TP Play wait<=20s, baseline+rezero={bridge.baseline_s + bridge.rezero_s:g}s",
+        f"[next] bridge startup performs only actual binding/scheduler/RTDE/sensor/prewarm checks; TP Play wait<=20s, baseline+rezero={bridge.baseline_s + bridge.rezero_s:g}s",
         (
             "[tuning] preload "
             f"filtered={gate.filtered_min_n:g}..{gate.filtered_max_n:g}N "
@@ -1069,8 +1003,7 @@ def live_ready_lines(
         (
             "[tuning] stage25 "
             f"mode={interface.stage25_control_mode} "
-            f"cartesian_tag={STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:g} "
-            f"joint_tag={STEP5D_STAGE25_JOINT_LAYOUT_CODE:g}"
+            "protocol=stage-aware; Stage25.0=strict_rnn_speedj; wire marker is internal"
         ),
         (
             "[caps] "
@@ -1086,15 +1019,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=EXPERIMENT_ROOT)
     parser.add_argument("--program", default=None)
-    parser.add_argument("--robot-host", default=DEFAULT_ROBOT_HOST)
-    parser.add_argument("--long-check-cache", type=Path, default=DEFAULT_LONG_CHECK_CACHE)
-    parser.add_argument("--long-check-ttl-s", type=float, default=DEFAULT_LONG_CHECK_TTL_S)
     parser.add_argument("--json", action="store_true")
     parser.add_argument("command", choices=("live-ready", "interface-json"))
     args = parser.parse_args(argv)
 
     interface = resolve_runtime_interface(program=args.program, root=args.root)
-    cache = long_check_cache_status(args.long_check_cache, robot_host=args.robot_host, ttl_s=args.long_check_ttl_s)
     readiness: dict[str, Any] | None = None
     if interface.program == STEP5D_ABLATION_V29_STAGE_ID:
         current = _current_stage(args.root / "config" / "current_stage.json")
@@ -1109,14 +1038,13 @@ def main(argv: list[str] | None = None) -> int:
             json.dumps(
                 {
                     "interface": asdict(interface),
-                    "long_check_cache": cache,
                 },
                 indent=2,
                 sort_keys=True,
             )
         )
     else:
-        print("\n".join(live_ready_lines(interface, cache, readiness=readiness)))
+        print("\n".join(live_ready_lines(interface, readiness=readiness)))
     return 0
 
 

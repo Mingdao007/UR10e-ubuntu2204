@@ -1,0 +1,249 @@
+{
+  "claim_boundary": {
+    "contact_accepted": false,
+    "full_formal_timing_rerun": false,
+    "live_motion_authorized": false,
+    "offline_tooling_accepted_only": true,
+    "review_does_not_start_bridge_or_motion": true
+  },
+  "control_core_source_files_sha256": {
+    "tools/contact_semantics.py": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
+    "tools/step5c_calibrated_kinematics_audit.py": "5454af16db870350759372ab42583a4f339c71e32f9190679987b3addf6e14fa",
+    "tools/step5c_strict_rnn.py": "2ea368dbb142ec635ebdb709d5bb5783ea9bc848705e191f935055463cf753b7",
+    "tools/step5d_control_contract.py": "488c67a4f7f5e54807cd125cf707821cfea70fcf4d47ed7b8c7ee5bb348508b9",
+    "tools/step5d_paper_outer_loop.py": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08"
+  },
+  "controller_readback": {
+    "path": "runs/controller_readback_step5d_strict_rnn_ablation_v32_20260714_215219/manifest.json",
+    "sha256": "60fb9e157f948ac66062f4b20fc3d290d9a9bb381f6e1bb15dad751dd0043fd8"
+  },
+  "effective_operator_config": {
+    "acceptance": {
+      "along_endpoint_min_m": 0.09,
+      "auto_home_orientation_error_max_rad": 0.02,
+      "auto_home_position_error_max_m": 0.002,
+      "command_consumption_ratio_min": 0.98,
+      "contact_live_accepted": false,
+      "continuous_accepted_consumed_s": 60,
+      "controller_readback_required": true,
+      "direct_contact_run_duration_s": 60,
+      "explicit_live_contact_authorization_required": true,
+      "final_safety_mode": "NORMAL",
+      "gross_stop_required": false,
+      "lateral_peak_min_m": 0.025,
+      "package_generation_required": true,
+      "postrun_force_window_n": [
+        5,
+        22
+      ],
+      "postrun_force_window_role": "diagnostic_acceptance_not_live_guard",
+      "postrun_force_window_valid_fraction_min": 0.95,
+      "reproduction_complete": false,
+      "review_v3_pre_live_stack": "user_waived_for_this_v32_delivery",
+      "terminal_stop_ack_required": true
+    },
+    "bridge_runtime": {
+      "duration_s": 180,
+      "force_damping": 7,
+      "force_i_gain": 1e-05,
+      "force_p_gain": 0.001,
+      "integral_limit_n_s": 1,
+      "normal_follow_mode": "filtered_live",
+      "normal_min_force_n": 2,
+      "rtde_hz": 500,
+      "sensor_stale_s": 2,
+      "socket_timeout_s": 0
+    },
+    "contact_policy": {
+      "bridge_required": true,
+      "contact_latch": true,
+      "contact_search": true,
+      "default_stage25_control_mode": "speedj_rnn_live",
+      "dls_fallback_allowed": false,
+      "dls_shadow_only": true,
+      "force_control": true,
+      "guard_policy": "permissive_until_user_requests_tightening",
+      "live_authorization": "none",
+      "reference_owner": "paper_outer_loop_then_strict_rnn_policy",
+      "tp_role": "full_contact_search_stage25_strict_rnn_and_auto_home"
+    },
+    "guard": {
+      "active_bounds_guard_enabled": false,
+      "attitude_cap_rad_s": 1,
+      "cartesian_speed_guards_enabled": false,
+      "cmd_valid_required": true,
+      "deadline_overrun_late_candidate_policy": "publish_when_guard_approved",
+      "deadline_overrun_next_fresh_tick_may_recover": true,
+      "deadline_overrun_stale_tick_command": "last_published_guard_approved_qdot_consumed",
+      "dls_qualification_enabled": false,
+      "dls_runtime_fallback_allowed": false,
+      "force_guards_enabled": false,
+      "force_norm_guard_n": 100,
+      "force_window_guards_enabled": false,
+      "heartbeat_required": true,
+      "heartbeat_stale_stop_s": 1,
+      "held_tick_counts_as_consumed": true,
+      "line_entry_force_norm_max_n": 100,
+      "line_entry_force_norm_stop_n": 100,
+      "line_entry_normal_load_max_n": 22,
+      "line_entry_normal_load_min_n": 5,
+      "line_entry_raw_sanity_max_n": 25,
+      "line_entry_raw_sanity_min_n": 3,
+      "line_entry_recovery_normal_load_max_n": 100,
+      "line_entry_recovery_normal_load_min_n": 0,
+      "line_entry_required_s": 0,
+      "line_entry_timeout_s": 60,
+      "normal_displacement_guards_enabled": false,
+      "normal_load_filter_alpha": 0.55,
+      "normal_motion_guards_enabled": false,
+      "normal_motion_policy": "frame_contract_only",
+      "normal_velocity_cap_m_s": 1,
+      "path_cap_m_s": 1,
+      "post_far_search_rezero_s": 1.0,
+      "qdot_cap_rad_s": 0.5,
+      "qdot_slew_rad_s2": 0.05,
+      "raw_normal_guard_n": 60,
+      "residual_magnitude_guard_enabled": false,
+      "runtime_limit_s": 75,
+      "schema": "step5d_v32_permissive_contact",
+      "speedl_angular_cap_rad_s": 1,
+      "speedl_linear_cap_m_s": 1,
+      "stage25_95_heartbeat_stale_stop_s": 1,
+      "stage25_95_register_clear_required_s": 0.006,
+      "stage25_95_register_clear_timeout_s": 1,
+      "stage25_95_register_clear_zero_tol": 0.0005,
+      "stage25_default_control_mode": "speedj_rnn_live",
+      "stage25_runtime_limit_s": 75,
+      "stage25_success_target_s": 60,
+      "step5d_epsilon": 0.01,
+      "step5d_rnn_backend": "cupy",
+      "step5d_rnn_inner_iterations": 512,
+      "step5d_sigr_exponent_r": 0.8,
+      "target_force_n": 12,
+      "torque_norm_guard_nm": 3,
+      "total_linear_cap_m_s": 1
+    },
+    "operator_lifecycle": {
+      "base_operator": "scripts/bridge-line-operator.sh",
+      "baseline_s": 1,
+      "canary_duration_source": "frozen_stage_row.duration_s",
+      "confirm_env": "STEP5D_V32_CONTACT_CONFIRM",
+      "confirm_token": "LIVE STEP5D STRICT RNN CONTACT V32",
+      "dashboard_stopped_ack_wait_s": 1.5,
+      "diagnose_bench_is_optional": true,
+      "entrypoint": "scripts/step5d-strict-rnn-contact-v32.sh",
+      "expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v32.urp",
+      "live_readiness_state": "blocked_pending_explicit_live_authorization",
+      "mode": "line-bridge-fast",
+      "operator_boundaries": [
+        "wrapper never loads a program or presses Play",
+        "no zero_ftsensor",
+        "no Kunwei tare/zero/config",
+        "no TCP/payload write",
+        "contact motion requires explicit live authorization; this delivery's model audit was explicitly waived by the user"
+      ],
+      "preflight_cache_required": false,
+      "rezero_s": 1
+    },
+    "package_delivery": {
+      "controller_dir": "/programs/andyl/kunwei/step5",
+      "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v32_20260714_215219/manifest.json",
+      "controller_readback_manifest_sha256": "60fb9e157f948ac66062f4b20fc3d290d9a9bb381f6e1bb15dad751dd0043fd8",
+      "controller_readback_verified": true,
+      "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v32.urp",
+      "controller_uploaded": true,
+      "delivery_mode": "full_upload_readback",
+      "local_program_dir": "programs/step5/step5d",
+      "local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v32",
+      "planned_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v32.urp",
+      "program_basename": "step5d_strict_rnn_ablation_v32",
+      "semantic_fingerprint": "246a03b95a818f9e48d4f2dcc972280a36c4fd57eaae5fccff6a44525f019f62",
+      "sha256": {
+        ".script": "8b0735ca222f37490aebfdf768498c55afcac0d909d8599400d7304da829893b",
+        ".txt": "d1beccd46e792d30ed67cc95b95789efe2ae52da50bd6b292880721fc0d087bc",
+        ".urp": "caabd4f969ba6de513c402739ad83beb56bceac3e1f7168b207de59fc946d3ba"
+      },
+      "status": "controller_readback_verified"
+    },
+    "profile": "step5d_strict_rnn_ablation_v32",
+    "runtime_profile": {
+      "backend": "cupy",
+      "command_slew_rad_s2": 0.05,
+      "command_slew_role": "tp_speedj_dynamics_alignment_not_stop_guard",
+      "control_contract": "Step5dObservation->StrictRnnControlPolicy->ControlCandidate->SafetyEnvelope(structural_only)->RegisterCommand",
+      "control_mode": "speedj_rnn_live",
+      "dls_runtime_fallback_allowed": false,
+      "dls_shadow_only": true,
+      "effective_ko": 0.01,
+      "epsilon": 0.01,
+      "guard_schema": "step5d_v32_permissive_contact",
+      "inner_iterations": 512,
+      "normal_motion_policy": "frame_contract_only",
+      "qdot_cap_rad_s": 0.5,
+      "sigr_exponent_r": 0.8,
+      "solver_ok_status": 40,
+      "wire_protocol": "stage_aware_joint_v1"
+    },
+    "runtime_scheduler": {
+      "policy": "SCHED_FIFO",
+      "priority": 20
+    },
+    "wire_protocol": {
+      "joint_marker_internal": 524,
+      "layout_is_not_a_global_publish_gate": true,
+      "schema": "step5d_stage_aware_packet_v1",
+      "stage25_0": "strict_rnn_joint_packet",
+      "stage25_05": "latch_ready_state_33",
+      "stage25_3": "preload_state_521",
+      "stage25_95": "zero_invalid_clear_state_522"
+    }
+  },
+  "inherited_control_core_timing": {
+    "claim": "v31 CuPy512 control-core timing inherited; not exact full-source v32 timing",
+    "raw": {
+      "path": "config/step5d_v31_formal_timing_raw.json",
+      "sha256": "502fa7d8a2e10aa3c5239234174efcf88ceb72fa55b57499b2203cf6cfdc5735"
+    },
+    "summary": {
+      "path": "config/step5d_v31_formal_timing_summary.json",
+      "sha256": "bfd530189a679497949af794d48a5bd0b9aa166f2b5e7e78ac35bea2c45f8b0e"
+    }
+  },
+  "numeric_sanity": {
+    "path": "config/step5d_v32_numeric_sanity.json",
+    "sha256": "36ff48c512df5ccd82b43cbd8e1a95ea6f27d87c897093d385a46e706653834d"
+  },
+  "package_triplet_sha256": {
+    ".script": "8b0735ca222f37490aebfdf768498c55afcac0d909d8599400d7304da829893b",
+    ".txt": "d1beccd46e792d30ed67cc95b95789efe2ae52da50bd6b292880721fc0d087bc",
+    ".urp": "caabd4f969ba6de513c402739ad83beb56bceac3e1f7168b207de59fc946d3ba"
+  },
+  "profile": "step5d_strict_rnn_ablation_v32",
+  "schema_version": "step5d_v32_review_binding_evidence_v1",
+  "transport_operator_source_files_sha256": {
+    "scripts/bridge-line-operator.sh": "68a9448a98b2ad61b43ff77f8c11e0f93066998f365e99b98f1818b104e7f18d",
+    "scripts/step5d-liveprep-operator.sh": "2613ef7efe2073c33d82414a14880acb6b3b3194c3224eea7645e70b3be43668",
+    "scripts/step5d-strict-rnn-contact-v32.sh": "94ec4b138ace023807e711d747b8aba710299bc46d8dd5a3202c5da9342ca88a",
+    "scripts/step5d-workflow.sh": "00cf41590138d239a1ecc757856af0c8b7e565e0681c28c28d199cbde4d341ee",
+    "tests/test_bridge_operator_startup_policy.py": "9136d3cbf2ca2284e1d3230ba4ed4828f8871d0f0cc1e52f31892364ab93eb6f",
+    "tests/test_preflight_readonly_dag.py": "3cd967f5fa517cbcd40e5bf3a36dd8022ff58bb11e169ed3502f0d2f347e6252",
+    "tests/test_step5d_bridge_run_analysis.py": "cf7cab6f1880a17cc6c29e984af6b655df148f1b82977cbca72dfd874f2b45d8",
+    "tests/test_step5d_current_binding_gate.py": "be2fab82bc931f6b5946b54de2538aa75ff2588456ac61357eaedfdd83a652d3",
+    "tests/test_step5d_v30_profile.py": "4ed67dbeff6461df9299e30247085c34b7f8872f6e867496815b80cb6178c3df",
+    "tests/test_step5d_v32_stage_aware.py": "24a4d9ca048bafcc0657f2f8ccbf7b96dd9a2680952a263352650712949db3c5",
+    "tools/analyze_step5d_bridge_run.py": "317aa62a2e2918143edbfa4e37552203b9d1edba7994eec633da7314e87f27ed",
+    "tools/build_step5d_liveprep.py": "e253520234af42407d70ced349fc12225fae814f64e7d73f65a8cc02dbb27541",
+    "tools/build_step5d_v32_evidence.py": "afc94a3b798cdfb9dbd924a5b195de76645feb1344d629cf82a3370d6e60c2fd",
+    "tools/build_step5d_v32_review_binding.py": "1dde9cffdd12009a24d4f979c0d76694e3105f6a60a7b95e96ea0fb0dd8fa1f3",
+    "tools/kunwei_rtde_bridge.py": "0818799b4ef6289cc89790a36bea95892f22097325675f97440974b023082e83",
+    "tools/preflight_readonly.py": "c5a58571b91fda7faf476a391c0c9db7ae962a6723c22d810b695f3331fd52eb",
+    "tools/step5d_runtime_interface.py": "0ba7520c6a9ba8eb1dffbf2451a532b9ce6f704c388c920f56e203605cc0c564",
+    "tools/upload_ur_tp_package.py": "1a540d0d435fff721c41176c38c2b53fc84939d6301620f48c20df65328aa91c",
+    "tools/verify_step5d_contact_v32.py": "265952a7f00825715d443268a950ff571bf04fc650c56aee0b2e7e5ef4f6852c",
+    "tools/verify_step5d_current_binding.py": "c426fcefbd6d0983005dcbcc4e6c34c93632ae8236039e5d4fc546d1c99cd037"
+  },
+  "transport_timing_smoke": {
+    "path": "config/step5d_v32_transport_timing_smoke.json",
+    "sha256": "b114931321d009cdcde2ef5e08b29ae9be8188369c6e7e7dd6da2d2c261f0584"
+  }
+}

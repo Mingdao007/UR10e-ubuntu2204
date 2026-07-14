@@ -543,13 +543,13 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertEqual(ref["path_time_s"], 0.0)
         self.assertIn("desired_velocity_xy", ref)
 
-    def test_no_contact_p0_version_is_single_v7_across_current_runtime_wrapper_and_table(self) -> None:
+    def test_no_contact_p0_version_is_single_v7_across_retained_runtime_wrapper_and_table(self) -> None:
         wrapper = (ROOT / "scripts" / "step5d-strict-rnn-p0.sh").read_text(encoding="utf-8")
         bridge_operator = (ROOT / "scripts" / "bridge-line-operator.sh").read_text(encoding="utf-8")
         current = json.loads((ROOT / "config" / "current_stage.json").read_text(encoding="utf-8"))
         stage = step5_table.step5_stage(iface.STEP5D_NO_CONTACT_P0_STAGE_ID)
-        active_row = step5_table.step5_stage(current["current_stage_id"])
-        active_p0 = active_row["package_delivery"]["strict_rnn_no_contact_p0"]
+        retained_row = step5_table.step5_stage("step5d_strict_rnn_ablation_v28")
+        retained_p0 = retained_row["package_delivery"]["strict_rnn_no_contact_p0"]
         capture = current["bridge_trigger"]["no_contact_p0_capture"]
 
         self.assertEqual(iface.STEP5D_NO_CONTACT_P0_STAGE_ID, P0_V7_STAGE_ID)
@@ -583,11 +583,11 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertEqual(capture["profile"], iface.STEP5D_NO_CONTACT_P0_STAGE_ID)
         self.assertIn("P0_PROFILE", wrapper)
         self.assertEqual(capture["controller_target"], stage["package_delivery"]["controller_target"])
-        self.assertEqual(active_row["operator_lifecycle"]["no_contact_p0_expected_program"], capture["controller_target"])
-        self.assertEqual(active_p0["program_basename"], iface.STEP5D_NO_CONTACT_P0_STAGE_ID)
-        self.assertEqual(active_p0["controller_target"], capture["controller_target"])
-        self.assertEqual(active_p0["controller_readback_manifest"], capture["controller_readback_manifest"])
-        self.assertEqual(active_p0["sha256"], capture["sha256"])
+        self.assertEqual(retained_row["operator_lifecycle"]["no_contact_p0_expected_program"], capture["controller_target"])
+        self.assertEqual(retained_p0["program_basename"], iface.STEP5D_NO_CONTACT_P0_STAGE_ID)
+        self.assertEqual(retained_p0["controller_target"], capture["controller_target"])
+        self.assertEqual(retained_p0["controller_readback_manifest"], capture["controller_readback_manifest"])
+        self.assertEqual(retained_p0["sha256"], capture["sha256"])
 
     def test_no_contact_p0_runtime_interface_ignores_ambient_live_caps(self) -> None:
         runtime = iface.resolve_runtime_interface(
@@ -1079,6 +1079,7 @@ class Step5dNoContactP0Test(unittest.TestCase):
 
         clear_action = bridge.step5d_publish_action(
             stages[25.95],
+            robot_stage=25.95,
             v30_contract_profile=True,
             stop_dominant=False,
             schedule_late=False,
@@ -1087,6 +1088,7 @@ class Step5dNoContactP0Test(unittest.TestCase):
         )
         fresh_action = bridge.step5d_publish_action(
             stages[25.0],
+            robot_stage=25.0,
             v30_contract_profile=True,
             stop_dominant=False,
             schedule_late=True,
@@ -1095,6 +1097,7 @@ class Step5dNoContactP0Test(unittest.TestCase):
         )
         stop_action = bridge.step5d_publish_action(
             dict(stages[25.0], stop_request=1.0),
+            robot_stage=25.0,
             v30_contract_profile=True,
             stop_dominant=True,
             schedule_late=False,

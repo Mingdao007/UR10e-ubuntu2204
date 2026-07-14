@@ -4,11 +4,13 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from contextlib import redirect_stdout
 from unittest import mock
 
 import numpy as np
@@ -586,9 +588,33 @@ def _write_v30_evidence_fixture(root: Path) -> tuple[dict, dict]:
 
 
 class Step5dCurrentBindingGateTest(unittest.TestCase):
-    def test_frozen_v29_current_pointer_is_not_a_live_binding(self) -> None:
-        with self.assertRaisesRegex(RuntimeError, "current status is not read-back verified"):
-            gate.verify_binding(ROOT)
+    def test_live_authorization_human_output_handles_nested_manifest(self) -> None:
+        result = {
+            "ok": True,
+            "program": "step5d_strict_rnn_ablation_v32",
+            "readiness": {"manifest": "runs/review_v32/manifest.json"},
+        }
+        with mock.patch.object(gate, "verify_live_bridge_authorization", return_value=result):
+            output = io.StringIO()
+            with redirect_stdout(output):
+                rc = gate.main(["--require-live-bridge-authorization"])
+        self.assertEqual(rc, 0)
+        self.assertIn("runs/review_v32/manifest.json", output.getvalue())
+
+    def test_quiet_binding_output_is_empty(self) -> None:
+        result = {"ok": True, "program": "step5d_strict_rnn_ablation_v32"}
+        with mock.patch.object(gate, "verify_binding", return_value=result):
+            output = io.StringIO()
+            with redirect_stdout(output):
+                rc = gate.main(["--quiet"])
+        self.assertEqual(rc, 0)
+        self.assertEqual(output.getvalue(), "")
+
+    def test_current_pointer_has_a_readback_verified_binding(self) -> None:
+        current = json.loads((ROOT / "config" / "current_stage.json").read_text(encoding="utf-8"))
+        result = gate.verify_binding(ROOT)
+        self.assertEqual(result["program"], current["program"])
+        self.assertTrue(result["runtime_interface"]["hard_contract"]["controller_readback_verified"])
 
     def test_v30_evidence_freeze_accepts_without_live_authorization(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

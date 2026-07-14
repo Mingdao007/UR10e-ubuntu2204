@@ -125,25 +125,6 @@ for key, value in values.items():
 PY
 }
 
-cache_status() {
-  python3 - "${RUN_ROOT}/.bridge_long_checks_cache.json" "${LONG_CHECK_TTL_S:-7200}" <<'PY'
-import json
-import sys
-import time
-from pathlib import Path
-
-path = Path(sys.argv[1])
-ttl = float(sys.argv[2])
-if not path.is_file():
-    print("long_check_cache=missing")
-    raise SystemExit(0)
-payload = json.loads(path.read_text(encoding="utf-8"))
-age = time.time() - float(payload.get("checked_at_epoch", 0.0))
-state = "fresh" if 0 <= age <= ttl else "stale"
-print(f"long_check_cache={state} age_s={age:.1f} ttl_s={ttl:.1f} path={path}")
-PY
-}
-
 run_quick_tests() {
   (
     cd "${ROOT}"
@@ -164,7 +145,6 @@ case "${mode}" in
     if [[ -n "${program}" ]]; then
       python3 "${READBACK_GATE}" --root "${ROOT}" --program "${program}" --json
     fi
-    cache_status
     ;;
   dev-loop)
     program="$(builder_program)"
