@@ -2,6 +2,7 @@
   "schema_version": "ur10e_review_index_v3",
   "policy_id": "ur10e_review_policy_v3",
   "full_review_count_by_composite_fingerprint": {},
+  "full_review_count_by_work_item_id": {},
   "review_records": [],
   "historical_review_v2": {
     "immutable": true,

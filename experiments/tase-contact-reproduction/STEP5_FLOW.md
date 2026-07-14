@@ -91,9 +91,10 @@ consecutive count one; and the independent 60 s safe-hold p99/max were
 `1.064/2.236 ms` with one compute/schedule miss and maximum consecutive count
 one. Full-tick and safe-hold schedule lateness were `0.422128 ms` and
 `0.238373 ms`, respectively. Hard-real-time remains false, while bounded
-last-command-hold acceptance passes. The regenerated P0 v8 and v30 triplets
-are controller read-back verified; P0 canaries and the live-runtime prewarm
-gate remain separate from this offline timing result.
+last-command-hold acceptance passes. The P0 v8 triplet has retained controller
+upload and byte-for-byte read-back evidence. The v30 triplet remains a local
+offline candidate pending a fresh controller read-back. The P0 canary and
+live-runtime prewarm gate remain separate from this offline timing result.
 
 The retained source-bound P0 MuJoCo diagnostic uses the v4 evidence contract
 as a separate legacy hard-deadline lane; it is not the controller

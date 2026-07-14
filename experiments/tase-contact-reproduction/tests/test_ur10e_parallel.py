@@ -18,6 +18,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 from ur10e_parallel import (  # noqa: E402
     CONTRACT_ID,
+    CrossProcessWeightedLease,
     FileLease,
     ObserverBarrier,
     ResourceProfile,
@@ -28,6 +29,7 @@ from ur10e_parallel import (  # noqa: E402
     require_immutable_completion_marker,
     source_closure_snapshot,
     throughput_lease,
+    writer_lease,
 )
 
 
@@ -165,6 +167,18 @@ class Ur10eParallelTest(unittest.TestCase):
             self.assertEqual(results["gpu"].status, "failed")
             self.assertIn("VRAM admission denied", results["gpu"].error or "")
 
+    def test_fractional_weighted_capacity_assigns_slots_without_stop_iteration(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with CrossProcessWeightedLease(
+                root, "gpu-vram", capacity=0.5, tokens=0.1, task="one"
+            ) as first:
+                with CrossProcessWeightedLease(
+                    root, "gpu-vram", capacity=0.5, tokens=0.1, task="two"
+                ) as second:
+                    self.assertEqual(first.slot, 0)
+                    self.assertEqual(second.slot, 1)
+
     def test_rnn_tasks_share_one_serial_lane_per_physical_gpu(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -192,6 +206,13 @@ class Ur10eParallelTest(unittest.TestCase):
                     with throughput_lease(profile, exclusive=True, blocking=False):
                         pass
             with throughput_lease(profile, exclusive=True):
+                with self.assertRaises(BlockingIOError):
+                    with throughput_lease(profile, exclusive=False, blocking=False):
+                        pass
+            with writer_lease(profile, "live"):
+                with self.assertRaises(BlockingIOError):
+                    with writer_lease(profile, "second-live", blocking=False):
+                        pass
                 with self.assertRaises(BlockingIOError):
                     with throughput_lease(profile, exclusive=False, blocking=False):
                         pass
