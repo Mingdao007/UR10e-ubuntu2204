@@ -7502,7 +7502,13 @@ def step5b_trial_enabled(args: argparse.Namespace) -> bool:
 
 def validate_common_target_force(args: argparse.Namespace) -> None:
     target = float(args.target_force_n)
-    if not math.isfinite(target) or target <= 0.0:
+    if not math.isfinite(target):
+        raise SystemExit("--target-force-n must be finite")
+    if getattr(args, "bridge_profile", "") == STEP5D_NO_CONTACT_P0_V9_STAGE_ID:
+        if target != 0.0:
+            raise SystemExit("P0 v9 normal_zero requires --target-force-n 0.0")
+        return
+    if target <= 0.0:
         raise SystemExit("--target-force-n must be finite and positive")
 
 

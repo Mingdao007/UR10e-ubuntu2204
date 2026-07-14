@@ -44,6 +44,17 @@ class PreflightReadonlyDagTest(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertTrue(result["checks"]["remote_control_mode"])
 
+    def test_p0_v9_uses_its_capture_binding_instead_of_current_v29(self) -> None:
+        result = preflight.p0_controller_binding(preflight.P0_V9_PROFILE, ROOT)
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["errors"], ["capture_not_authorized"])
+        self.assertEqual(result["program"], preflight.P0_V9_PROFILE)
+        self.assertEqual(
+            result["controller_target"],
+            "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v9.urp",
+        )
+
     def test_open_probe_accepts_open_only_payloads(self) -> None:
         self.assertTrue(preflight._open({"open": True}))
         self.assertFalse(preflight._open({"ok": False, "open": True}))

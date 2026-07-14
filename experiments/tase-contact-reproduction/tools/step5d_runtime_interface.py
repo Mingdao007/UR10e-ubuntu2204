@@ -164,9 +164,9 @@ _STAGE_ENV_MAP: tuple[tuple[str, str, object], ...] = (
     ("BRIDGE_NORMAL_FOLLOW_MODE", "bridge_runtime.normal_follow_mode", _fmt_text),
     ("BRIDGE_NORMAL_FILTER_ALPHA", "guard.normal_load_filter_alpha", lambda value: _fmt_float(value, 2)),
     ("BRIDGE_NORMAL_MIN_FORCE_N", "bridge_runtime.normal_min_force_n", lambda value: _fmt_float(value, 3)),
-    ("BRIDGE_MOTION_LIMIT_M_S", "guard.path_cap_m_s", lambda value: _fmt_float(value, 3)),
-    ("BRIDGE_TOTAL_LINEAR_LIMIT_M_S", "guard.total_linear_cap_m_s", lambda value: _fmt_float(value, 3)),
-    ("BRIDGE_NORMAL_VELOCITY_LIMIT_M_S", "guard.normal_velocity_cap_m_s", lambda value: _fmt_float(value, 3)),
+    ("BRIDGE_MOTION_LIMIT_M_S", "guard.path_cap_m_s", _fmt_float),
+    ("BRIDGE_TOTAL_LINEAR_LIMIT_M_S", "guard.total_linear_cap_m_s", _fmt_float),
+    ("BRIDGE_NORMAL_VELOCITY_LIMIT_M_S", "guard.normal_velocity_cap_m_s", _fmt_float),
     ("BRIDGE_ANGULAR_LIMIT_RAD_S", "guard.attitude_cap_rad_s", lambda value: _fmt_float(value, 3)),
     ("STEP5D_STAGE25_CONTROL_MODE", "guard.stage25_default_control_mode", _fmt_text),
     ("STEP5D_QDOT_LIMIT_RAD_S", "guard.qdot_cap_rad_s", lambda value: _fmt_float(value, 3)),
@@ -708,7 +708,11 @@ def resolve_runtime_interface(
             sensor_stale_s=env_float(env_map, "STEP5D_SENSOR_STALE_S", 0.10, legacy="BRIDGE_SENSOR_STALE_S"),
             socket_timeout_s=env_float(env_map, "STEP5D_SOCKET_TIMEOUT_S", 0.0, legacy="BRIDGE_SOCKET_TIMEOUT_S"),
         )
-    validate_interface_values(gate, bridge_defaults)
+    validate_interface_values(
+        gate,
+        bridge_defaults,
+        allow_zero_force_control=selected == STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
+    )
     return Step5dRuntimeInterface(
         interface_class=STEP5D_INTERFACE_CLASS,
         tuning_bundle=STEP5D_TUNING_BUNDLE,
@@ -791,7 +795,12 @@ def resolve_runtime_interface(
     )
 
 
-def validate_interface_values(gate: Step5dPreloadGate, bridge: Step5dBridgeDefaults) -> None:
+def validate_interface_values(
+    gate: Step5dPreloadGate,
+    bridge: Step5dBridgeDefaults,
+    *,
+    allow_zero_force_control: bool = False,
+) -> None:
     if gate.filtered_min_n < 0.0 or gate.filtered_max_n < gate.filtered_min_n:
         raise ValueError("STEP5D_PRELOAD_FILTERED range is invalid")
     if gate.raw_min_n < 0.0 or gate.raw_max_n < gate.raw_min_n:
@@ -804,10 +813,13 @@ def validate_interface_values(gate: Step5dPreloadGate, bridge: Step5dBridgeDefau
         raise ValueError("STEP5D_PRELOAD_CMD_LIMIT_M_S must be positive")
     if not 0.0 <= bridge.normal_filter_alpha <= 1.0:
         raise ValueError("STEP5D_NORMAL_FILTER_ALPHA must be in [0, 1]")
+    non_negative = {"socket_timeout_s"}
+    if allow_zero_force_control:
+        non_negative.update({"target_force_n", "force_p_gain", "force_i_gain", "integral_limit_n_s"})
     for label, value in asdict(bridge).items():
-        if value <= 0.0 and label not in {"socket_timeout_s"}:
+        if value <= 0.0 and label not in non_negative:
             raise ValueError(f"{label} must be positive")
-        if label == "socket_timeout_s" and value < 0.0:
+        if label in non_negative and value < 0.0:
             raise ValueError(f"{label} must be non-negative")
 
 

@@ -119,6 +119,23 @@ class Step5dRuntimeInterfaceTest(unittest.TestCase):
         self.assertIn("strict RNN live", runtime.register_contract["stage25_0"])
         self.assertIn("layout 524", runtime.register_contract["stage25_0"])
 
+    def test_p0_v9_normal_zero_accepts_disabled_force_controller(self) -> None:
+        stage_env = iface.build_stage_env(iface.STEP5D_NO_CONTACT_P0_V9_STAGE_ID, ROOT)
+        runtime = iface.resolve_runtime_interface(
+            program=iface.STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
+            root=ROOT,
+            env={},
+        )
+
+        self.assertEqual(runtime.bridge_defaults.target_force_n, 0.0)
+        self.assertEqual(runtime.bridge_defaults.force_p_gain, 0.0)
+        self.assertEqual(runtime.bridge_defaults.force_i_gain, 0.0)
+        self.assertEqual(runtime.bridge_defaults.integral_limit_n_s, 0.0)
+        self.assertEqual(stage_env["BRIDGE_MOTION_LIMIT_M_S"], "0.0005")
+        self.assertEqual(stage_env["BRIDGE_TOTAL_LINEAR_LIMIT_M_S"], "0.0005")
+        self.assertEqual(stage_env["BRIDGE_NORMAL_VELOCITY_LIMIT_M_S"], "0.0002")
+        self.assertTrue(runtime.hard_contract["no_contact_p0_capture"])
+
     def test_live_ready_without_authorization_never_claims_live_bridge(self) -> None:
         runtime = iface.resolve_runtime_interface(program=iface.STEP5D_ABLATION_V29_STAGE_ID, root=ROOT, env={})
 

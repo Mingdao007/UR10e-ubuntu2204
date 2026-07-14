@@ -144,6 +144,7 @@ def build_p0_v9_target(
         posture_policy=posture_policy,
         path_diagnostics={
             "policy": "tangential_one_sided_cosine_v1",
+            "force_sign_convention": "step5_step6_positive_normal_load",
             "target_tangent_displacement_m": target_m,
             "actual_tangent_displacement_m": actual_m,
             "tangent_tracking_error_m": target_m - actual_m,

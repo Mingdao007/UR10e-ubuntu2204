@@ -43,6 +43,11 @@ RTDE_FIELDS = [
     "tcp_offset",
 ]
 P0_V8_PROFILE = "step5d_strict_rnn_no_contact_p0_v8"
+P0_V9_PROFILE = "step5d_strict_rnn_no_contact_p0_v9"
+P0_LOCAL_PROFILES = {
+    P0_V8_PROFILE: "no_contact_p0_v8_capture",
+    P0_V9_PROFILE: "no_contact_p0_v9_capture",
+}
 
 
 def now_stamp() -> str:
@@ -87,7 +92,7 @@ def vector_norm(values: list[float]) -> float:
 
 def no_existing_writer() -> dict[str, Any]:
     result = run_command(
-        ["pgrep", "-af", "kunwei_rtde_bridge.py|step5d_p0_v8_bridge.py"]
+        ["pgrep", "-af", "kunwei_rtde_bridge.py|step5d_p0_v8_bridge.py|step5d_p0_v9_bridge.py"]
     )
     matches = [line for line in result.get("stdout", "").splitlines() if line]
     return {"ok": not matches, "active_writers": matches}
@@ -140,17 +145,19 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def p0_v8_controller_binding(root: Path = EXPERIMENT_ROOT) -> dict[str, Any]:
+def p0_controller_binding(profile: str, root: Path = EXPERIMENT_ROOT) -> dict[str, Any]:
+    if profile not in P0_LOCAL_PROFILES:
+        return {"ok": False, "program": profile, "errors": ["unsupported_p0_profile"]}
     current = json.loads((root / "config/current_stage.json").read_text(encoding="utf-8"))
     table = json.loads((root / "config/step5_stage_table.json").read_text(encoding="utf-8"))
-    capture = ((current.get("bridge_trigger") or {}).get("no_contact_p0_v8_capture") or {})
-    row = next((item for item in table.get("stages", []) if item.get("id") == P0_V8_PROFILE), {})
+    capture = ((current.get("bridge_trigger") or {}).get(P0_LOCAL_PROFILES[profile]) or {})
+    row = next((item for item in table.get("stages", []) if item.get("id") == profile), {})
     delivery = row.get("package_delivery") or {}
     manifest_rel = capture.get("controller_readback_manifest")
-    expected_target = f"/programs/andyl/kunwei/step5/{P0_V8_PROFILE}.urp"
-    expected_script = f"/programs/andyl/kunwei/step5/{P0_V8_PROFILE}.script"
+    expected_target = f"/programs/andyl/kunwei/step5/{profile}.urp"
+    expected_script = f"/programs/andyl/kunwei/step5/{profile}.script"
     errors: list[str] = []
-    if capture.get("profile") != P0_V8_PROFILE:
+    if capture.get("profile") != profile:
         errors.append("capture_profile_mismatch")
     if capture.get("capture_authorized") is not True:
         errors.append("capture_not_authorized")
@@ -177,7 +184,7 @@ def p0_v8_controller_binding(root: Path = EXPERIMENT_ROOT) -> dict[str, Any]:
         expected_sha = capture.get("sha256") or {}
         if manifest.get("status") != "controller read-back verified":
             errors.append("manifest_status_invalid")
-        if validation.get("program") != P0_V8_PROFILE:
+        if validation.get("program") != profile:
             errors.append("manifest_program_mismatch")
         if validation.get("target_dir") != "/programs/andyl/kunwei/step5":
             errors.append("manifest_target_dir_mismatch")
@@ -187,10 +194,10 @@ def p0_v8_controller_binding(root: Path = EXPERIMENT_ROOT) -> dict[str, Any]:
             if manifest_sha.get(section) != expected_sha:
                 errors.append(f"manifest_{section}_sha_mismatch")
         for ext in (".script", ".txt", ".urp"):
-            path = manifest_path.parent / f"{P0_V8_PROFILE}{ext}"
+            path = manifest_path.parent / f"{profile}{ext}"
             if not path.is_file() or _sha256(path) != expected_sha.get(ext):
                 errors.append(f"readback_{ext[1:]}_invalid")
-    if delivery.get("status") != "controller_readback_verified_inactive":
+    if delivery.get("status") not in {"controller_readback_verified", "controller_readback_verified_inactive"}:
         errors.append("stage_delivery_status_invalid")
     if delivery.get("controller_readback_verified") is not True:
         errors.append("stage_delivery_readback_not_verified")
@@ -200,7 +207,7 @@ def p0_v8_controller_binding(root: Path = EXPERIMENT_ROOT) -> dict[str, Any]:
         errors.append("stage_delivery_sha_mismatch")
     return {
         "ok": not errors,
-        "program": P0_V8_PROFILE,
+        "program": profile,
         "controller_target": expected_target,
         "manifest": manifest_rel,
         "errors": errors,
@@ -295,8 +302,8 @@ def main(argv: list[str] | None = None) -> int:
                 args.sensor_ip, args.sensor_port, args.timeout_s
             ),
             "controller_binding": (
-                (lambda: p0_v8_controller_binding(EXPERIMENT_ROOT))
-                if args.bridge_profile == P0_V8_PROFILE
+                (lambda: p0_controller_binding(args.bridge_profile, EXPERIMENT_ROOT))
+                if args.bridge_profile in P0_LOCAL_PROFILES
                 else (lambda: run_command(
                     [
                         sys.executable,
@@ -335,7 +342,7 @@ def main(argv: list[str] | None = None) -> int:
         "realtime": {"ok": local.get("realtime", {}).get("ok") is True},
         "dashboard": dashboard_predicate(
             dashboard,
-            expected_remote_control=args.bridge_profile != P0_V8_PROFILE,
+            expected_remote_control=args.bridge_profile not in P0_LOCAL_PROFILES,
         ),
         "rtde": rtde_predicate(rtde),
         "robot_ports": {"ok": local_ok and all(_open(value) for value in (remote.get("robot_ports") or {}).values())},

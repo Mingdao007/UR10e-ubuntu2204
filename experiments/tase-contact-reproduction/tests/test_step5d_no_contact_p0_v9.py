@@ -62,6 +62,15 @@ def observation(desired: tuple[float, ...]) -> Step5dObservation:
 
 
 class Step5dNoContactP0V9Test(unittest.TestCase):
+    def test_cli_target_force_validator_accepts_only_zero_for_normal_zero_profile(self) -> None:
+        bridge.base.validate_common_target_force(
+            SimpleNamespace(bridge_profile=PROFILE, target_force_n=0.0)
+        )
+        with self.assertRaisesRegex(SystemExit, "normal_zero requires --target-force-n 0.0"):
+            bridge.base.validate_common_target_force(
+                SimpleNamespace(bridge_profile=PROFILE, target_force_n=1.0)
+            )
+
     def test_generation_entrypoint_always_deploys_and_fresh_reads_back(self) -> None:
         script = (ROOT / "scripts" / "step5d-strict-rnn-p0-v9.sh").read_text(encoding="utf-8")
         self.assertIn("generate-deliver|generate-local)", script)
@@ -92,6 +101,10 @@ class Step5dNoContactP0V9Test(unittest.TestCase):
         self.assertAlmostEqual(float(np.dot(tangent, approach)), 0.0, places=12)
         self.assertAlmostEqual(float(np.dot(target.desired_twist[:3], approach)), 0.0, places=12)
         self.assertLessEqual(abs(target.path_diagnostics["commanded_tangent_velocity_m_s"]), P0_V9_TANGENTIAL_SPEED_CAP_M_S)
+        self.assertEqual(
+            target.path_diagnostics["force_sign_convention"],
+            "step5_step6_positive_normal_load",
+        )
         self.assertAlmostEqual(target.posture_policy["effective_ko"], 0.01)
         self.assertEqual(target.posture_policy["load_schedule"], "disabled_constant_weak_hold")
 

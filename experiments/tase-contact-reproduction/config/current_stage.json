@@ -1130,8 +1130,8 @@
       },
       "capture_authorized": false,
       "passed": false,
-      "summary_artifact": null,
-      "status": "controller_readback_verified_inactive_not_live_authorized"
+      "summary_artifact": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v9_20260714_175217/step5d_no_contact_p0_summary.json",
+      "status": "failed_actual_normal_speed_dwell_guard"
     },
     "required_before_live": [
       "operator outside UR reach/cage boundary",
@@ -1354,7 +1354,7 @@
     },
     "blockers": [
       "no_contact_live_authorization_not_granted",
-      "direct_60s_canary_not_run"
+      "direct_60s_canary_failed_actual_normal_speed_dwell_guard"
     ]
   },
   "v30_candidate": {
