@@ -1,40 +1,38 @@
 # Step5 Flow
 
 `config/current_stage.json` currently selects the 60 s
-`step5d_strict_rnn_ablation_v34` full-run identity. The earlier
-`step5d_strict_rnn_ablation_v33c20` canary is retained as failure evidence. The
-`20260715_002234` v33c20 live attempt is retained as a cadence acceptance
-failure: freshness, XY, qd alignment, RNN consumption, Safety NORMAL, and gross
-guards passed, but 28 Stage25 row gaps exceeded 20 ms, the maximum gap was
-53.3 ms, and sent/echo gap reached 6 versus the limit 5. The one-shot live
-authorization was revoked and it is no longer current.
+`step5d_strict_rnn_ablation_v35` full-run identity. Its TP triplet is uploaded
+and fresh read-back verified. It is not live-authorized: package/read-back,
+offline timing, and Review v3 do not substitute for a fresh `开bridge` command.
 
-`step5d_strict_rnn_ablation_v34` is current and explicitly live-authorized.
-Its TP triplet is uploaded and fresh
-read-back verified. Host qdot slew and TP `speedj(a)` are both
-`0.1 rad/s²`. CUDA/RNN/BLAS prewarm and socket/RTDE initialization occur under
-`SCHED_OTHER`; only the control thread is then promoted to `SCHED_FIFO/20`,
-all helper threads remain `SCHED_OTHER`, kernel RT quota is unchanged, and
-cyclic GC is disabled only for the control loop. Raw RNN residual,
-post-slew command residual, and the legacy raw-compatible residual are logged
-separately. The retained 60 s no-motion production-seam timing completed
-30,065 ticks with compute p99 `1.297 ms`, maximum row gap `3.694 ms`, zero
-gaps over 20 ms, and zero 45–60 ms gaps.
+v35 preserves the Step5b-equivalent outer, RNN512, `qdot<=0.5`, matched host/TP
+acceleration `0.1 rad/s²`, fresh-feedback drain, permissive ordinary guards,
+and gross 60 N / 100 N / 3 Nm protection. The scheduler-only delta keeps the
+control thread and every helper thread at `SCHED_OTHER/0`; it never writes the
+Linux RT quota. The single retained 60 s no-motion production-seam timing
+completed 30,052 ticks with compute p99 `1.181 ms`, maximum row gap `4.011 ms`,
+zero gaps over 20 ms, and zero 45–60 ms gaps.
+
+v34 is retained as immutable physical failure evidence. Its Stage25 feedback,
+XY, qd alignment, RNN consumption, Safety NORMAL, and gross guards passed, but
+the FIFO control thread exhausted Linux's default 950 ms/s RT budget and was
+throttled for roughly 43–50 ms almost every second. v33c20 is also retained as
+earlier cadence failure evidence; neither package is current or authorized.
 
 That timing gate is not a generic post-edit check. Its freeze invalidates only
 when the timing-critical bridge, outer, RNN, control contract, operator, or
 timing harness changes; status/reporting-only edits use short deterministic
 tests and do not trigger another 60 s no-motion run.
 
-The Codex/high Review v3 lane found four P1 defects in the first freeze; all
-four are deterministically closed in the repaired composite
-`7f8c0811cf89836f380773b1ef4ab2eeecc9e68075e3be3bb4b9f0acb7aba9eb`.
+The Codex/high Review v3 lane found four P1 defects in the first v35 freeze; all
+are deterministically closed. The final closure also binds the raw bridge to
+the exact v35 source/package/read-back/timing/review fingerprint before any
+RTDE write path may proceed.
 The required Fable5/high invocation returned an external session-limit error,
 not a verdict. The standing user rule records that lane as
 `skipped_unavailable` and automatically uses the owner-approved degraded `1+0`
-stack without another confirmation. The user's separate `开 bridge` command
-authorizes this exact v34 live run; package/read-back or review alone still
-cannot authorize future runs.
+stack without another confirmation. A fresh explicit authorization is still
+required for the current v35 run.
 
 v32 fixed the v31 failure at Stage25.05. Register state is interpreted by
 TP stage: Stage25.05 passes latch-ready state `33`, Stage25.3 passes preload
@@ -1106,7 +1104,12 @@ gate, the qdot register path is repaired, strict RNN paper-truth extraction is
 closed where applicable, numeric sanity passes, and a separate live plan is
 explicitly accepted.
 
-There is no valid full Step5d reproduction bridge command yet. Step5d remains
-the full RNN completion target. `scripts/step5d-liveprep-operator.sh
-contact-bridge` is only the explicitly accepted live-prep bridge route after
-package read-back; it is not a full reproduction authorization.
+Step5d v35 is the current full-run candidate. It preserves the v34
+Step5b-equivalent outer, RNN512, `qdot<=0.5`, matched host/TP acceleration
+`0.1 rad/s^2`, fresh-feedback drain, permissive ordinary guards, and gross
+60 N / 100 N / 3 Nm protection. Its scheduler-only delta keeps the control
+thread and every helper thread at `SCHED_OTHER/0`; it never writes Linux RT
+quota settings. Package upload/read-back, offline timing, freeze, and review
+remain distinct from live authorization. `scripts/step5d-strict-rnn-contact-v35.sh
+contact-bridge` must stay blocked until v35 is the canonical current binding
+and the user issues a fresh bridge authorization.
