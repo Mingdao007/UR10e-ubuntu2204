@@ -1079,10 +1079,10 @@
     "bridge_has_started": false,
     "live_motion_authorized": false,
     "zero_ftsensor_authorized": false,
-    "blocked_reason": "v32 authorization revoked on v33c20 promotion; a new explicit user command is required after v33c20 review and fresh read-back",
-    "authorized_at": null,
-    "authorization_source": null,
-    "authorization_scope": null,
+    "blocked_reason": "v33c20 live evidence retained after Stage25 cadence acceptance failure; a new explicit user command is required for any retry",
+    "authorized_at": "2026-07-15T00:22:01+08:00",
+    "authorization_source": "user_explicit_command: 开bridge",
+    "authorization_scope": "step5d_strict_rnn_ablation_v33c20_contact_bridge_canary_only",
     "no_contact_p0_capture": {
       "profile": "step5d_strict_rnn_no_contact_p0_v7",
       "entrypoint": "scripts/step5d-strict-rnn-p0.sh capture-bridge",
@@ -1505,8 +1505,10 @@
     "blockers": []
   },
   "live_run_status": {
-    "state": "not_started",
-    "accepted_artifact": null
+    "state": "failed_acceptance_stage25_cadence_or_consumption",
+    "accepted_artifact": null,
+    "run_dir": "runs/bridge_step5d_strict_rnn_ablation_v33c20_20260715_002234",
+    "analysis": "runs/derived/bridge_step5d_strict_rnn_ablation_v33c20_20260715_002234_20260715_002234/step5d-analysis/step5d_bridge_analysis.json"
   },
   "reproduction_status": {
     "state": "incomplete",
@@ -1699,7 +1701,7 @@
   },
   "v33c20_candidate": {
     "profile": "step5d_strict_rnn_ablation_v33c20",
-    "state": "package_readback_review_and_deterministic_closure_accepted_live_not_authorized",
+    "state": "live_run_failed_stage25_cadence_or_consumption_evidence_retained",
     "current": true,
     "guard_policy": "permissive_until_user_requests_tightening",
     "runtime_profile": {
@@ -1732,8 +1734,25 @@
       "manifest_sha256": "e361cca334ee4bd0b8377ec657ddb1067eeb1cf466a15f0f82ccb15578a6617c",
       "deterministic_finding_closure": {"path": "config/reviews/step5d_v33_deterministic_closure.json", "sha256": "08963f2078e57bb4b9359d0741af540050fc3a6ca5a1888607865d903c9133d7"}
     },
+    "live_run": {
+      "run_dir": "runs/bridge_step5d_strict_rnn_ablation_v33c20_20260715_002234",
+      "analysis": "runs/derived/bridge_step5d_strict_rnn_ablation_v33c20_20260715_002234_20260715_002234/step5d-analysis/step5d_bridge_analysis.json",
+      "classification": "stage25_cadence_or_consumption_failure",
+      "stage25_duration_s": 26.194089323995286,
+      "feedback_age_p99_s": 0.00210736200097017,
+      "sent_echo_heartbeat_gap_max": 6,
+      "xy_tracking_error_p95_m": 0.0003900022127576593,
+      "xy_tracking_error_max_m": 0.0006231814400560537,
+      "command_actual_qd_correlation": 0.9826518623010235,
+      "command_actual_qd_lag_s": 0.012132054980611429,
+      "rnn_accepted_consumed_ratio": 0.9992038216560509,
+      "stage25_max_row_gap_s": 0.05328677000943571,
+      "stage25_row_gap_count": 28,
+      "final_safety_mode": "NORMAL",
+      "gross_guard_rows": 0
+    },
     "live_authorized": false,
-    "blockers": ["explicit_live_authorization_missing"],
+    "blockers": ["v33c20_live_acceptance_failed_stage25_cadence_or_consumption", "new_explicit_live_authorization_required"],
     "claim_boundary": {"package_accepted": true, "live_accepted": false, "reproduction_complete": false}
   },
   "v33_candidate": {

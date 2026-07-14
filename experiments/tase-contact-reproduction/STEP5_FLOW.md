@@ -2,9 +2,12 @@
 
 `config/current_stage.json` selects the 20 s
 `step5d_strict_rnn_ablation_v33c20` canary. The separate 60 s
-`step5d_strict_rnn_ablation_v33` identity is staged behind it. Package
-generation/upload/read-back and Review v3 do not authorize bridge/live motion;
-a new explicit user command is required.
+`step5d_strict_rnn_ablation_v33` identity is staged behind it. The
+`20260715_002234` v33c20 live attempt is retained as a cadence acceptance
+failure: freshness, XY, qd alignment, RNN consumption, Safety NORMAL, and gross
+guards passed, but 28 Stage25 row gaps exceeded 20 ms, the maximum gap was
+53.3 ms, and sent/echo gap reached 6 versus the limit 5. The one-shot live
+authorization is revoked; a new explicit user command is required for retry.
 
 v32 fixed the v31 failure at Stage25.05. Register state is interpreted by
 TP stage: Stage25.05 passes latch-ready state `33`, Stage25.3 passes preload
@@ -34,7 +37,9 @@ required a fresh `1×Sol/xhigh + 1×Fable5/high` audit for this delivery. Both
 lanes returned NO-GO findings; every finding was repaired and closed by the
 single deterministic owner-validation pass. Both TP identities are uploaded
 and fresh-read-back verified. Review and read-back still do not authorize
-motion; v33c20 remains blocked until a new explicit user command.
+motion. The first v33c20 live attempt did not show the former stale-feedback
+XY drift, but failed cadence acceptance and remains blocked pending analysis
+plus a new explicit user command.
 
 The historical `step5d_strict_rnn_ablation_v30` is an inactive offline
 candidate. It keeps CuPy, epsilon `0.010`, finite-time exponent `r=0.8`, qdot
@@ -353,7 +358,7 @@ instead of preserving the later 22 s TP v3 timing.
 | `step5d_strict_rnn_ablation_v30` | offline contact-control prep | true | false | strict TASE RNN speedj; DLS shadow-only | `v31_filtered_live` | Inactive contact candidate retaining the stricter 1%/20 ms bounded last-command-hold contract. Hard-real-time remains a distinct zero-miss claim; readiness still requires live-runtime integration, a passing successor no-contact canary, and frozen package/readback. Contact requires separate authorization. |
 | `step5d_strict_rnn_ablation_v31` | superseded failure evidence | true | false | strict TASE RNN layout-524; DLS/Cartesian shadow-only | latched contact normal | Immutable failed run: TP reached Stage25.05, but the old global 524 publisher gate suppressed latch-ready state 33, so TP timed out before preload/continuous contact. Superseded by v32. |
 | `step5d_strict_rnn_ablation_v32` | immutable failure evidence | true | false | stage-aware strict TASE RNN speedj; DLS/Cartesian shadow-only | latched contact normal | Live run reached Stage25 but accumulated about 2.7 s stale RTDE feedback, drifted in XY, and ended at the 60 N gross normal guard. Superseded by v33; never rerun or reinterpret. |
-| `step5d_strict_rnn_ablation_v33c20` | current 20 s canary candidate | true | false | latest-sample strict TASE RNN speedj; Step5b-equivalent outer | latched contact normal | Drains RTDE backlog, records freshness/heartbeat evidence, stops after 0.1 s continuously above 50 ms feedback age, and keeps permissive non-gross guards. Package/read-back/review do not authorize live motion. |
+| `step5d_strict_rnn_ablation_v33c20` | current 20 s canary; first live attempt failed cadence acceptance | true | false | latest-sample strict TASE RNN speedj; Step5b-equivalent outer | latched contact normal | Freshness/XY/qd/RNN/Safety/gross criteria passed in `20260715_002234`; 28 row gaps >20 ms, max 53.3 ms, sent/echo gap 6. Retry requires analysis and new explicit authorization. |
 | `step5d_strict_rnn_ablation_v33` | staged 60 s full candidate | true | false | latest-sample strict TASE RNN speedj; Step5b-equivalent outer | latched contact normal | Separate full-run identity; may become current only after v33c20 passes and the user separately authorizes the full run. |
 | `step5d_ros2_remote_shadow_v1` | ROS2 offline | true | false | ROS2 shadow replay | `v31_filtered_live` input logs | Diagnostic-only Step5d policy replay: replays v15a/v14/v11 and Step5b/Step6b CSVs, removes long zero-qdot hold recovery, but is not live-ready and must follow Step5b plumbing validation. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |

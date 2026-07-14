@@ -9925,7 +9925,7 @@
       "blocked": true,
       "complete": false,
       "completion_target": false,
-      "block_reason": "20 s v33 canary package candidate; controller read-back and Review v3 do not grant live motion. Explicit new bridge authorization remains required.",
+      "block_reason": "The 20260715_002234 live canary met freshness, XY, qd correlation/lag, RNN consumption, Safety NORMAL, and gross-guard criteria, but failed cadence acceptance: 28 Stage25 row gaps exceeded 20 ms, max gap was 53.3 ms, and sent/echo gap reached 6 versus the limit 5. Evidence is retained and any retry requires new explicit authorization.",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": true,
@@ -9983,7 +9983,7 @@
         "mode": "line-bridge-fast", "confirm_env": "STEP5D_V33_CONTACT_CONFIRM",
         "confirm_token": "LIVE STEP5D STRICT RNN CONTACT V33C20",
         "expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v33c20.urp",
-        "baseline_s": 1, "rezero_s": 1, "live_readiness_state": "blocked_pending_review_readback_and_explicit_authorization"
+        "baseline_s": 1, "rezero_s": 1, "live_readiness_state": "blocked_after_failed_cadence_acceptance_pending_analysis_and_explicit_authorization"
       },
       "bridge_runtime": {
         "duration_s": 180, "rtde_hz": 500, "sensor_stale_s": 2, "socket_timeout_s": 0,
@@ -10012,6 +10012,23 @@
         "sent_echo_heartbeat_gap_max": 5, "xy_error_p95_max_m": 0.0005, "xy_error_max_m": 0.001,
         "command_actual_qd_correlation_min": 0.9, "command_actual_qd_lag_max_s": 0.02,
         "rnn_accepted_consumed_ratio_min": 0.98, "final_safety_mode": "NORMAL", "gross_stop_required": false
+      },
+      "live_attempt": {
+        "status": "failed_stage25_cadence_or_consumption",
+        "run_dir": "runs/bridge_step5d_strict_rnn_ablation_v33c20_20260715_002234",
+        "analysis": "runs/derived/bridge_step5d_strict_rnn_ablation_v33c20_20260715_002234_20260715_002234/step5d-analysis/step5d_bridge_analysis.json",
+        "stage25_duration_s": 26.194089323995286,
+        "feedback_age_p99_s": 0.00210736200097017,
+        "sent_echo_heartbeat_gap_max": 6,
+        "xy_tracking_error_p95_m": 0.0003900022127576593,
+        "xy_tracking_error_max_m": 0.0006231814400560537,
+        "command_actual_qd_correlation": 0.9826518623010235,
+        "command_actual_qd_lag_s": 0.012132054980611429,
+        "rnn_accepted_consumed_ratio": 0.9992038216560509,
+        "stage25_max_row_gap_s": 0.05328677000943571,
+        "stage25_row_gap_count": 28,
+        "final_safety_mode": "NORMAL",
+        "gross_guard_rows": 0
       },
       "offline_validation": {"status": "pass", "artifact": "config/step5d_v33_offline_validation.json", "sha256": "3daf9288529c8fd4e7fd258f5c2629246bfc115a58d3c8e66031a23b788dced4"},
       "formal_timing": {"status": "pass", "artifact": "config/step5d_v33_live_path_timing.json", "sha256": "8008c661bae1953cb08dc47deef1b624d86e0062be30565c8d7bc7c15644c30e", "p99_ms": 0.2828189899446443},
