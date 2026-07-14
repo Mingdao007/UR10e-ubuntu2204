@@ -16,10 +16,12 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 from run_step5d_parallel_workflow import (  # noqa: E402
     FEATURE_WINDOWS_S,
+    FORMAL_SOURCE_FILES,
     SHORT_TIMING_SAMPLES,
     formal_task,
     functional_tasks,
     postprocess_tasks,
+    source_fingerprint,
 )
 from ur10e_parallel import ResourceProfile, TaskRunner  # noqa: E402
 
@@ -58,6 +60,34 @@ class Step5dParallelWorkflowTest(unittest.TestCase):
         self.assertEqual(lane.claim_class, "diagnostic_only")
         self.assertEqual(lane.resource, "gpu_rnn")
         self.assertIn("run_step5d_rnn_diagnostic_lane.py", " ".join(lane.command))
+
+    def test_formal_fingerprint_binds_workflow_evaluator_replay_bundle_and_environment(self) -> None:
+        self.assertIn("tools/run_step5d_parallel_workflow.py", FORMAL_SOURCE_FILES)
+        self.assertIn("tools/step5d_timing_acceptance.py", FORMAL_SOURCE_FILES)
+        with tempfile.TemporaryDirectory() as directory:
+            replay = Path(directory) / "replay.csv"
+            replay.write_text("first\n", encoding="utf-8")
+            first = source_fingerprint(
+                replay_csv=replay, environment={"PYTHONPATH": "/a"}, bundle=b"bundle-a",
+            )
+            replay.write_text("second\n", encoding="utf-8")
+            replay_changed = source_fingerprint(
+                replay_csv=replay, environment={"PYTHONPATH": "/a"}, bundle=b"bundle-a",
+            )
+            environment_changed = source_fingerprint(
+                replay_csv=replay, environment={"PYTHONPATH": "/b"}, bundle=b"bundle-a",
+            )
+            bundle_changed = source_fingerprint(
+                replay_csv=replay, environment={"PYTHONPATH": "/b"}, bundle=b"bundle-b",
+            )
+            execution_changed = source_fingerprint(
+                replay_csv=replay, environment={"PYTHONPATH": "/b"}, bundle=b"bundle-b",
+                execution_contract={"formal": True},
+            )
+        self.assertNotEqual(first, replay_changed)
+        self.assertNotEqual(replay_changed, environment_changed)
+        self.assertNotEqual(environment_changed, bundle_changed)
+        self.assertNotEqual(bundle_changed, execution_changed)
 
     def test_offline_all_formal_gate_depends_on_every_functional_task(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

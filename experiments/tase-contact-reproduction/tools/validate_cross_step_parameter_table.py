@@ -344,11 +344,19 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         failures.append("Review v3 policy/index binding is invalid")
     execution_v3 = review_v3_policy.get("execution") or {}
     if (
-        execution_v3.get("fable5_preflight_timeout_seconds") != 20
-        or execution_v3.get("review_lane_timeout_seconds") != 300
-        or execution_v3.get("total_gate_timeout_seconds") != 330
+        execution_v3.get("review_lanes_have_wall_clock_timeout") is not False
+        or any(key in execution_v3 for key in (
+            "fable5_preflight_timeout_seconds", "review_lane_timeout_seconds",
+            "total_gate_timeout_seconds",
+        ))
     ):
-        failures.append("Review v3 timeout contract must be 20/300/330 seconds")
+        failures.append("Review v3 lanes must not have wall-clock timeouts")
+    lanes_v3 = review_v3_policy.get("lanes") or {}
+    if (
+        (lanes_v3.get("control_timing_claim") or {}).get("effort") != "xhigh"
+        or (lanes_v3.get("physical_operator_safety") or {}).get("effort") != "high"
+    ):
+        failures.append("Review v3 lane effort contract must be Sol xhigh + Fable high")
     current_stage_id = current.get("current_stage_id")
     current_program = current.get("program")
     current_target = current.get("controller_target")

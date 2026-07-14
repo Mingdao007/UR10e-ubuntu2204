@@ -6,7 +6,25 @@
     "tests/test_ur10e_impact_selector.py",
     "tests/test_cross_step_parameter_table.py"
   ],
+  "cache_external_fixture_globs": [
+    "config/**/*.json",
+    "tests/fixtures/**/*",
+    "requirements-test.txt",
+    "pytest.ini"
+  ],
   "rules": [
+    {
+      "paths": ["tools/step5d_control_contract.py"],
+      "tests": ["tests/test_step5d_v30_control_contract.py", "tests/test_step5d_p0_hotpath_equivalence.py", "tests/test_step5d_v30_profile.py", "tests/test_step5d_simulator_adapter.py"]
+    },
+    {
+      "paths": ["tools/step5d_paper_outer_loop.py"],
+      "tests": ["tests/test_step5d_paper_outer_loop.py", "tests/test_step5d_p0_v8_control_core.py", "tests/test_step5d_no_contact_p0.py", "tests/test_step5d_v30_timing.py"]
+    },
+    {
+      "paths": ["runs/controller_readback_step5d_strict_rnn_no_contact_p0_v8_*/**"],
+      "tests": ["tests/test_step5d_no_contact_p0_v8.py", "tests/test_step5d_current_binding_gate.py", "tests/test_current_stage_readback_gate.py"]
+    },
     {
       "paths": ["tools/ur10e_parallel.py", "tools/run_step5d_parallel_workflow.py", "scripts/step5d-workflow.sh"],
       "tests": ["tests/test_ur10e_parallel.py", "tests/test_step5d_parallel_workflow.py"]

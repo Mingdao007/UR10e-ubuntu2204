@@ -211,11 +211,13 @@ class CrossProcessWeightedLease:
         return handle, records
 
     def _write_unlock(self, handle: Any, records: list[dict[str, Any]]) -> None:
-        temporary = self._state.with_suffix(".json.tmp")
-        temporary.write_text(json.dumps(records, indent=2, sort_keys=True) + "\n")
-        temporary.replace(self._state)
-        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
-        handle.close()
+        try:
+            temporary = self._state.with_suffix(".json.tmp")
+            temporary.write_text(json.dumps(records, indent=2, sort_keys=True) + "\n")
+            temporary.replace(self._state)
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            handle.close()
 
     def __enter__(self) -> "CrossProcessWeightedLease":
         deadline = time.monotonic() + self.timeout_s
@@ -223,7 +225,9 @@ class CrossProcessWeightedLease:
             handle, records = self._locked()
             if sum(float(row["tokens"]) for row in records) + self.tokens <= self.capacity:
                 occupied = {int(row["slot"]) for row in records if row.get("slot") is not None}
-                self.slot = next(slot for slot in range(int(self.capacity)) if slot not in occupied)
+                self.slot = 0
+                while self.slot in occupied:
+                    self.slot += 1
                 records.append({"lease_id": self.lease_id, "pid": os.getpid(), "task": self.task,
                                 "tokens": self.tokens, "device": self.device, "slot": self.slot,
                                 "created_at": utc_now()})
@@ -247,8 +251,12 @@ def tp_transaction_lease(profile: ResourceProfile, task: str) -> FileLease:
     return exclusive_lane(profile, "tp-deploy-readback-sha-promotion", task)
 
 
-def writer_lease(profile: ResourceProfile, task: str) -> FileLease:
-    return exclusive_lane(profile, "live-writer-throughput", task)
+@contextmanager
+def writer_lease(profile: ResourceProfile, task: str, *, blocking: bool = True):
+    """Match the live shell writer contract: writer lock plus throughput exclusion."""
+    with exclusive_lane(profile, "live-writer-throughput", task, blocking=blocking):
+        with throughput_lease(profile, exclusive=True, blocking=blocking):
+            yield
 
 
 def observer_endpoint_lease(profile: ResourceProfile, endpoint: str, task: str) -> FileLease:

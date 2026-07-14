@@ -7,16 +7,8 @@
     "formal_review_rounds_per_work_item": 1,
     "finding_fix_closure": "deterministic_owner_validation_no_reviewer",
     "lanes_run_in_parallel": true,
-    "fable5_preflight_timeout_seconds": 20,
-    "review_lane_timeout_seconds": 300,
-    "total_gate_timeout_seconds": 330,
+    "review_lanes_have_wall_clock_timeout": false,
     "fable5_degraded_statuses": [
-      "unavailable",
-      "unavailable_error",
-      "unavailable_not_installed",
-      "unavailable_not_logged_in",
-      "timeout",
-      "model_unverified",
       "skipped_unavailable"
     ],
     "degraded_effective_stack": "1+0",
@@ -66,8 +58,8 @@
     }
   },
   "lanes": {
-    "control_timing_claim": {"provider": "codex", "required": true},
-    "physical_operator_safety": {"provider": "fable5", "required": true}
+    "control_timing_claim": {"provider": "codex", "model": "gpt-5.6-sol", "effort": "xhigh", "required": true},
+    "physical_operator_safety": {"provider": "fable5", "model": "claude-fable-5", "effort": "high", "required": true}
   },
   "authorization_boundary": {
     "deterministic_live_gates_never_degrade": true,

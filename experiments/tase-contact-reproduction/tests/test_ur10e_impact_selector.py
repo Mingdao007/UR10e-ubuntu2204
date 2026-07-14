@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -25,10 +26,39 @@ class Ur10eImpactSelectorTest(unittest.TestCase):
         result = select(root=ROOT, paths=["docs/offline-note.md"])
         self.assertEqual(result["selected_tests"], result["always_run_tests"])
 
+    def test_unmapped_code_fails_closed_instead_of_running_only_invariants(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unmapped code paths"):
+            select(root=ROOT, paths=["tools/not-yet-mapped-control.py"])
+
+    def test_control_and_outer_loop_sources_have_explicit_impact_rules(self) -> None:
+        control = select(root=ROOT, paths=["tools/step5d_control_contract.py"])
+        outer = select(root=ROOT, paths=["tools/step5d_paper_outer_loop.py"])
+        self.assertIn("tests/test_step5d_v30_control_contract.py", control["selected_tests"])
+        self.assertIn("tests/test_step5d_paper_outer_loop.py", outer["selected_tests"])
+
+    def test_p0_v8_controller_readback_evidence_has_explicit_impact_rule(self) -> None:
+        result = select(
+            root=ROOT,
+            paths=[
+                "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v8_20260714/manifest.json"
+            ],
+        )
+        self.assertEqual(result["unmapped_changed_paths"], [])
+        self.assertIn("tests/test_current_stage_readback_gate.py", result["selected_tests"])
+
     def test_changed_paths_include_untracked_files(self) -> None:
-        paths = changed_paths(ROOT)
-        self.assertIn("tools/ur10e_impact_selector.py", paths)
-        self.assertIn("config/ur10e_test_dependency_map_v1.json", paths)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.name", "UR10e test"], cwd=root, check=True)
+            (root / "tracked.txt").write_text("tracked\n")
+            subprocess.run(["git", "add", "tracked.txt"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "fixture"], cwd=root, check=True)
+            (root / "tools").mkdir()
+            (root / "tools/untracked.py").write_text("# untracked\n")
+            paths = changed_paths(root)
+        self.assertEqual(paths, ["tools/untracked.py"])
 
     def test_content_addressed_pass_is_reused_for_unchanged_dependencies(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -56,6 +86,7 @@ class Ur10eImpactSelectorTest(unittest.TestCase):
                 "rules": [],
                 "resource_groups": {},
                 "validators": ["tools/cheap_validator.py"],
+                "cache_external_fixture_globs": ["config/**/*.json"],
             }
             for path, payload in (
                 ("config/ur10e_user_decisions_v1.json", decisions),
@@ -67,6 +98,7 @@ class Ur10eImpactSelectorTest(unittest.TestCase):
             cache = root / "cache"
             first = root / "first"
             second = root / "second"
+            third = root / "third"
             common = [
                 "--root", str(root), "--python", sys.executable,
                 "--dependency-map", str(root / "config/dependency.json"),
@@ -81,6 +113,13 @@ class Ur10eImpactSelectorTest(unittest.TestCase):
             self.assertTrue(second_manifest["reused"])
             self.assertEqual(first_manifest["composite_fingerprint"], second_manifest["composite_fingerprint"])
             self.assertEqual(first_manifest["selected_tests"], second_manifest["selected_tests"])
+            (root / "config/fixture.json").write_text('{"changed": true}\n')
+            self.assertEqual(run_impacted([*common, "--output-dir", str(third)]), 0)
+            third_manifest = json.loads((third / "validation_manifest.json").read_text())
+            self.assertFalse(third_manifest["reused"])
+            self.assertNotEqual(
+                second_manifest["composite_fingerprint"], third_manifest["composite_fingerprint"]
+            )
 
 
 if __name__ == "__main__":

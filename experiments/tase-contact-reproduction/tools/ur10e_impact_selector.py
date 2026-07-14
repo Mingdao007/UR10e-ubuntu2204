@@ -14,6 +14,8 @@ from typing import Any, Iterable
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MAP = ROOT / "config/ur10e_test_dependency_map_v1.json"
+FAIL_CLOSED_PREFIXES = ("tools/", "scripts/", "config/", "programs/", "tests/")
+FAIL_CLOSED_ROOT_FILES = {"check.sh", "pytest.ini", "requirements-test.txt"}
 
 
 def sha(path: Path) -> str:
@@ -76,6 +78,16 @@ def select(*, root: Path, paths: list[str], dependency_map: Path = DEFAULT_MAP,
     missing = sorted(test for test in tests if not (root / _test_file(test)).is_file())
     if missing:
         raise ValueError(f"dependency map selected missing tests: {missing}")
+    unmapped = sorted(set(paths) - matched_paths)
+    unmapped_code = [
+        path for path in unmapped
+        if path in FAIL_CLOSED_ROOT_FILES or path.startswith(FAIL_CLOSED_PREFIXES)
+    ]
+    if unmapped_code and not full_suite:
+        raise ValueError(
+            "dependency map has unmapped code paths; add an explicit rule or use "
+            f"--full-suite: {unmapped_code}"
+        )
     grouped: dict[str, str] = {}
     for group, patterns in mapping.get("resource_groups", {}).items():
         for test in tests:
@@ -98,7 +110,7 @@ def select(*, root: Path, paths: list[str], dependency_map: Path = DEFAULT_MAP,
         "selected_tests": selected,
         "skipped_tests": sorted(set(all_tests) - {_test_file(test) for test in selected}),
         "matched_changed_paths": sorted(matched_paths),
-        "unmapped_changed_paths": sorted(set(paths) - matched_paths),
+        "unmapped_changed_paths": unmapped,
         "dependency_hashes": file_hashes,
         "full_suite": full_suite,
     }
@@ -114,7 +126,7 @@ def select(*, root: Path, paths: list[str], dependency_map: Path = DEFAULT_MAP,
         "selected_tests": selected,
         "skipped_tests": sorted(set(all_tests) - {_test_file(test) for test in selected}),
         "matched_changed_paths": sorted(matched_paths),
-        "unmapped_changed_paths": sorted(set(paths) - matched_paths),
+        "unmapped_changed_paths": unmapped,
         "parallel_tests": parallel,
         "serial_tests": serial,
         "resource_groups": {test: grouped[test] for test in sorted(grouped)},

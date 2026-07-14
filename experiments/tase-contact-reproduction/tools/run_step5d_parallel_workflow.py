@@ -9,6 +9,7 @@ import json
 import os
 import subprocess
 import sys
+import platform
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
@@ -28,6 +29,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TOOLS = ROOT / "tools"
 WORKFLOW = Path(__file__).resolve()
 FORMAL_SOURCE_FILES = (
+    "tools/run_step5d_parallel_workflow.py",
     "tools/contact_semantics.py",
     "tools/step5c_strict_rnn.py",
     "tools/step5d_paper_outer_loop.py",
@@ -39,6 +41,15 @@ FORMAL_SOURCE_FILES = (
     "tools/build_step5d_v30_remote_timing_bundle.py",
     "tools/step5d_v30_timing.py",
     "tools/build_step5d_v30_offline_readiness.py",
+    "tools/step5d_timing_acceptance.py",
+)
+FORMAL_INPUT_FILES = (
+    "config/step5d_liveprep_solver_gate.json",
+    "config/step5d_v30_profile_selection.json",
+    "config/step5_stage_table.json",
+    "config/current_stage.json",
+    "config/ur10e_user_decisions_v1.json",
+    "config/step5d_v29_remote_evidence_sha256.json",
 )
 SHORT_TIMING_SAMPLES = {
     "solver_samples": 128,
@@ -61,8 +72,45 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def source_fingerprint() -> dict[str, str]:
-    return {relative: sha256_file(ROOT / relative) for relative in FORMAL_SOURCE_FILES}
+def external_model_input_fingerprint() -> dict[str, str]:
+    """Bind calibration and the complete UR xacro include directory."""
+    import step5c_calibrated_kinematics_audit as kinematics
+
+    calibration = Path(kinematics.DEFAULT_CALIBRATION_YAML).resolve()
+    xacro = Path(kinematics.DEFAULT_XACRO_PATH).resolve()
+    paths = {calibration, xacro}
+    paths.update(path for path in xacro.parent.rglob("*") if path.is_file())
+    return {str(path): sha256_file(path) for path in sorted(paths)}
+
+
+def source_fingerprint(
+    *, replay_csv: Path | None = None, environment: dict[str, str] | None = None,
+    bundle: bytes | None = None, execution_contract: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    files = {
+        relative: sha256_file(ROOT / relative)
+        for relative in (*FORMAL_SOURCE_FILES, *FORMAL_INPUT_FILES)
+    }
+    return {
+        "files": files,
+        "replay_csv": (
+            {"path": str(replay_csv.resolve()), "sha256": sha256_file(replay_csv.resolve())}
+            if replay_csv is not None else None
+        ),
+        "timing_bundle_sha256": (
+            hashlib.sha256(bundle).hexdigest() if bundle is not None else None
+        ),
+        "external_model_inputs": external_model_input_fingerprint(),
+        "effective_environment": dict(sorted((environment or {}).items())),
+        "execution_contract": execution_contract or {},
+        "interpreter": {
+            "path": str(Path(sys.executable).resolve()),
+            "sha256": sha256_file(Path(sys.executable).resolve()),
+            "version": sys.version,
+            "platform": platform.platform(),
+        },
+        "cpu_affinity": sorted(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else None,
+    }
 
 
 def test_python() -> Path:
@@ -85,10 +133,24 @@ def timing_environment() -> dict[str, str]:
             "formal/short timing requires explicit UR10E_TIMING_PYTHONPATH and "
             "UR10E_TIMING_LD_LIBRARY_PATH; undeclared /tmp runtime defaults are forbidden"
         )
-    return {
+    effective = {
         "PYTHONPATH": declared_pythonpath,
         "LD_LIBRARY_PATH": declared_ld,
     }
+    for key in (
+        "CUDA_VISIBLE_DEVICES", "OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS",
+        "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS", "UR10E_RNN_GPU_DEVICE",
+    ):
+        if key in os.environ:
+            effective[key] = os.environ[key]
+    return effective
+
+
+def build_timing_bundle() -> subprocess.CompletedProcess[bytes]:
+    return subprocess.run(
+        [sys.executable, str(TOOLS / "build_step5d_v30_remote_timing_bundle.py")],
+        cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+    )
 
 
 def run_timing(
@@ -97,14 +159,19 @@ def run_timing(
     output: Path,
     formal: bool,
 ) -> int:
-    before = source_fingerprint()
-    output.parent.mkdir(parents=True, exist_ok=True)
-    bundler = subprocess.Popen(
-        [sys.executable, str(TOOLS / "build_step5d_v30_remote_timing_bundle.py")],
-        cwd=ROOT,
-        stdout=subprocess.PIPE,
+    environment = timing_environment()
+    execution_contract = {
+        "formal": formal,
+        "command_prefix": ["taskset", "-c", "11,13,14,15", "chrt", "-f", "20"]
+        if formal else [],
+        "stdin_delivery": "generated_bundle_bytes",
+    }
+    bundle_before = build_timing_bundle()
+    before = source_fingerprint(
+        replay_csv=replay_csv, environment=environment, bundle=bundle_before.stdout,
+        execution_contract=execution_contract,
     )
-    assert bundler.stdout is not None
+    output.parent.mkdir(parents=True, exist_ok=True)
     command = [sys.executable, "-"]
     if formal:
         command = ["taskset", "-c", "11,13,14,15", "chrt", "-f", "20", *command]
@@ -137,21 +204,25 @@ def run_timing(
         completed = subprocess.run(
             command,
             cwd=ROOT,
-            env={**os.environ, **timing_environment()},
-            stdin=bundler.stdout,
+            env={**os.environ, **environment},
+            input=bundle_before.stdout,
             stdout=handle,
             check=False,
         )
-    bundler.stdout.close()
-    bundler_rc = bundler.wait()
-    after = source_fingerprint()
+    bundle_after = build_timing_bundle()
+    after = source_fingerprint(
+        replay_csv=replay_csv, environment=environment, bundle=bundle_after.stdout,
+        execution_contract=execution_contract,
+    )
     metadata = {
         "formal": formal,
         "claim_class": "formal_raw_capture" if formal else "diagnostic_only",
         "source_fingerprint_before": before,
         "source_fingerprint_after": after,
         "source_fingerprint_stable": before == after,
-        "bundler_exit_code": bundler_rc,
+        "bundler_exit_code": bundle_before.returncode,
+        "bundler_after_exit_code": bundle_after.returncode,
+        "bundler_stderr_sha256": hashlib.sha256(bundle_before.stderr).hexdigest(),
         "harness_exit_code": completed.returncode,
         "output": str(output),
     }
@@ -168,8 +239,8 @@ def run_timing(
     output.with_suffix(".metadata.json").write_text(
         json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
-    if bundler_rc != 0 or completed.returncode != 0:
-        return completed.returncode or bundler_rc
+    if bundle_before.returncode != 0 or bundle_after.returncode != 0 or completed.returncode != 0:
+        return completed.returncode or bundle_before.returncode or bundle_after.returncode
     if formal:
         evaluation = evaluate_timing_raw(ROOT, output)
         output.with_suffix(".evaluation.json").write_text(

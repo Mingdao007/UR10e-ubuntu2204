@@ -30,6 +30,78 @@ def digest(payload: Any) -> str:
     ).hexdigest()
 
 
+def _command_identity(command: list[str], *, cwd: Path) -> dict[str, Any]:
+    completed = subprocess.run(command, cwd=cwd, text=True, capture_output=True, check=False)
+    return {
+        "command": command,
+        "exit_code": completed.returncode,
+        "stdout": completed.stdout.strip(),
+        "stderr_sha256": hashlib.sha256(completed.stderr.encode()).hexdigest(),
+    }
+
+
+def environment_binding(*, python: Path, root: Path, dependency_map: Path) -> dict[str, Any]:
+    """Bind cache reuse to the interpreter, dependencies, GPU and fixture closure."""
+    mapping = json.loads(dependency_map.read_text(encoding="utf-8"))
+    patterns = mapping.get("cache_external_fixture_globs")
+    fixture_declaration_present = isinstance(patterns, list) and all(
+        isinstance(pattern, str) and pattern for pattern in patterns
+    )
+    fixture_closure: dict[str, list[dict[str, Any]]] = {}
+    for pattern in patterns if fixture_declaration_present else []:
+        rows = []
+        for path in sorted(root.glob(pattern)):
+            if path.is_file():
+                rows.append({
+                    "path": path.relative_to(root).as_posix(),
+                    "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                    "size": path.stat().st_size,
+                })
+        fixture_closure[pattern] = rows
+
+    resolved_python = python.resolve()
+    # importlib.metadata raises for absent optional packages, so use a small explicit loop.
+    probe = (
+        "import importlib.metadata as m,json,sys\n"
+        "versions={}\n"
+        "for n in ('pytest','pytest-xdist','cupy','cupy-cuda11x','cupy-cuda12x','numpy'):\n"
+        "  try: versions[n]=m.version(n)\n"
+        "  except m.PackageNotFoundError: versions[n]=None\n"
+        "print(json.dumps({'executable':sys.executable,'version':sys.version,'packages':versions},sort_keys=True))\n"
+    )
+    python_probe = _command_identity([str(resolved_python), "-c", probe], cwd=root)
+    try:
+        gpu = subprocess.run(
+            ["nvidia-smi", "--query-gpu=index,uuid,name,driver_version,memory.total",
+             "--format=csv,noheader,nounits"],
+            cwd=root, text=True, capture_output=True, check=False, timeout=5.0,
+        )
+        gpu_identity = {
+            "exit_code": gpu.returncode,
+            "stdout": gpu.stdout.strip(),
+            "stderr_sha256": hashlib.sha256(gpu.stderr.encode()).hexdigest(),
+        }
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        gpu_identity = {"exit_code": None, "unavailable": type(exc).__name__}
+    return {
+        "schema_version": "ur10e_validation_environment_binding_v1",
+        "python": {
+            "requested": str(python),
+            "resolved": str(resolved_python),
+            "sha256": hashlib.sha256(resolved_python.read_bytes()).hexdigest(),
+            "probe": python_probe,
+        },
+        "git_head": _command_identity(["git", "rev-parse", "HEAD"], cwd=root),
+        "git_tree": _command_identity(["git", "rev-parse", "HEAD^{tree}"], cwd=root),
+        "gpu": gpu_identity,
+        "gpu_environment": {
+            key: os.environ.get(key) for key in ("CUDA_VISIBLE_DEVICES", "UR10E_RNN_GPU_DEVICE")
+        },
+        "fixture_declaration_present": fixture_declaration_present,
+        "external_fixture_closure": fixture_closure,
+    }
+
+
 def run_command(name: str, command: list[str], *, root: Path, env: dict[str, str],
                 output: Path) -> dict[str, Any]:
     started_at, started = now(), time.monotonic()
@@ -65,6 +137,7 @@ def execute(selection: dict[str, Any], *, python: Path, root: Path, output: Path
         "OPENBLAS_NUM_THREADS": "1",
         "MKL_NUM_THREADS": "1",
         "NUMEXPR_NUM_THREADS": "1",
+        "UR10E_TEST_PYTHON": str(python.resolve()),
     })
     validators = [
         (Path(path).stem, [str(python), path]) for path in selection["validators"]
@@ -138,17 +211,26 @@ def main(argv: list[str] | None = None) -> int:
         full_suite=args.full_suite,
     )
     decision = build_snapshot(root=root)
+    environment = environment_binding(
+        python=Path(os.path.abspath(args.python)), root=root,
+        dependency_map=args.dependency_map.resolve(),
+    )
+    cache_reuse_eligible = environment["fixture_declaration_present"] is True
     composite = digest({
         "source_fingerprint": selection["source_fingerprint"],
         "decision_digest": decision["decision_digest"],
         "current_stage_sha256": decision["source_bindings"]["current_stage_sha256"],
         "stage_table_sha256": decision["source_bindings"]["stage_table_sha256"],
         "execution_scope": "full" if args.full_suite else "impacted",
+        "environment_binding": environment,
     })
     cache = args.cache_root.resolve() / composite / args.execution
-    if not args.no_reuse and (cache / "validation_manifest.json").is_file():
+    if cache_reuse_eligible and not args.no_reuse and (cache / "validation_manifest.json").is_file():
         cached = json.loads((cache / "validation_manifest.json").read_text())
-        if cached.get("passed") is True and cached.get("composite_fingerprint") == composite:
+        if (cached.get("passed") is True
+                and cached.get("composite_fingerprint") == composite
+                and cached.get("environment_binding") == environment
+                and cached.get("cache_reuse_eligible") is True):
             shutil.copytree(cache, output)
             manifest_path = output / "validation_manifest.json"
             manifest = json.loads(manifest_path.read_text())
@@ -176,6 +258,8 @@ def main(argv: list[str] | None = None) -> int:
         "serial_resource_tests": selection["serial_tests"],
         "source_fingerprint": selection["source_fingerprint"],
         "decision_digest": decision["decision_digest"],
+        "environment_binding": environment,
+        "cache_reuse_eligible": cache_reuse_eligible,
         "composite_fingerprint": composite,
         "reused": False,
         "skipped_tests": selection["skipped_tests"],
@@ -188,7 +272,7 @@ def main(argv: list[str] | None = None) -> int:
     }
     manifest_path = output / "validation_manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
-    if passed:
+    if passed and cache_reuse_eligible:
         cache.parent.mkdir(parents=True, exist_ok=True)
         if cache.exists():
             shutil.rmtree(cache)

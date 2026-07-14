@@ -68,12 +68,12 @@ def lane_contract_valid(lane: Any) -> bool:
                 and lane.get("effort") and lane.get("started_at") and lane.get("ended_at"))
 
 
-def exact_lane_valid(lane: dict[str, Any], provider: str, model: str) -> bool:
+def exact_lane_valid(lane: dict[str, Any], provider: str, model: str, effort: str) -> bool:
     return bool(lane.get("provider") == provider
                 and lane.get("requested_model") == model
                 and lane.get("actual_model") == model
-                and lane.get("requested_effort") == "xhigh"
-                and lane.get("actual_effort") == "xhigh"
+                and lane.get("requested_effort") == effort
+                and lane.get("actual_effort") == effort
                 and lane.get("effort") == lane.get("actual_effort")
                 and lane.get("exact_model_verified") is True)
 
@@ -133,11 +133,15 @@ def resolve(
         return result
 
     composite = gate.get("composite_fingerprint")
+    work_item_id = gate.get("work_item_id")
     result["composite_fingerprint"] = composite
+    result["work_item_id"] = work_item_id
     if gate.get("evidence_frozen") is not True:
         result["blockers"].append("deterministic_evidence_not_frozen")
     if not isinstance(composite, str) or SHA256_RE.fullmatch(composite) is None:
         result["blockers"].append("composite_fingerprint_invalid")
+    if not isinstance(work_item_id, str) or not work_item_id.strip():
+        result["blockers"].append("work_item_id_invalid")
     if manifest is None:
         result["blockers"].append("review_v3_manifest_missing")
         result["status"] = "not_due" if gate.get("evidence_frozen") is not True else "blocked"
@@ -155,14 +159,23 @@ def resolve(
     review_mode = manifest.get("review_mode", "full")
     if review_mode != "full":
         result["blockers"].append("review_mode_must_be_single_full_review")
+    if manifest.get("work_item_id") != work_item_id:
+        result["blockers"].append("review_v3_work_item_id_mismatch")
     count = int(
         (index.get("full_review_count_by_composite_fingerprint") or {}).get(reviewed_composite, 0)
         or 0
     )
     if count != 1:
         result["blockers"].append("full_review_count_must_equal_one")
+    work_count = int(
+        (index.get("full_review_count_by_work_item_id") or {}).get(str(work_item_id), 0)
+        or 0
+    )
+    if work_count != 1:
+        result["blockers"].append("full_review_work_item_count_must_equal_one")
     matching = [row for row in (index.get("review_records") or [])
                 if isinstance(row, dict) and row.get("composite_fingerprint") == reviewed_composite
+                and row.get("work_item_id") == work_item_id
                 and row.get("review_mode") == "full"]
     if len(matching) != 1:
         result["blockers"].append("full_review_index_record_must_equal_one")
@@ -182,11 +195,13 @@ def resolve(
         result["blockers"].append("codex_lane_runtime_contract_invalid")
     if not lane_contract_valid(fable):
         result["blockers"].append("fable_lane_runtime_contract_invalid")
-    if review_mode == "full" and (not exact_lane_valid(codex, "codex", "gpt-5.6-sol")
+    codex_effort = str(policy["lanes"]["control_timing_claim"]["effort"])
+    fable_effort = str(policy["lanes"]["physical_operator_safety"]["effort"])
+    if review_mode == "full" and (not exact_lane_valid(codex, "codex", "gpt-5.6-sol", codex_effort)
                                   or codex.get("status") != "pass"):
         result["blockers"].append("codex_control_timing_claim_not_passed")
     fable_status = str(fable.get("status") or "missing")
-    if fable_status == "pass" and exact_lane_valid(fable, "fable5", "claude-fable-5"):
+    if fable_status == "pass" and exact_lane_valid(fable, "fable5", "claude-fable-5", fable_effort):
         result["effective_stack"] = "1+1"
     elif fable_status in set(policy["execution"]["fable5_degraded_statuses"]):
         transcript = fable.get("degraded_transcript")

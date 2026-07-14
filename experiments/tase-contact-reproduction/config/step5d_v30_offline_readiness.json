@@ -132,6 +132,7 @@
     "blockers": [
       "deterministic_evidence_not_frozen",
       "composite_fingerprint_invalid",
+      "work_item_id_invalid",
       "review_v3_manifest_missing"
     ],
     "composite_fingerprint": null,
@@ -150,16 +151,17 @@
     "evidence_freeze_ready": false,
     "evidence_frozen": false,
     "index_path": "config/step5d_review_index_v3.json",
-    "index_sha256": "411da9d732cc75990771833aeb5556e0fe55f463905e2f58eebe278a2324d375",
+    "index_sha256": "748d6c91e6af24ec9c8c5876aaeb12be10187dc9ac17ea915b6040cf3fdd538d",
     "manifest": null,
     "milestone": "contact_pre_live",
     "policy_id": "ur10e_review_policy_v3",
     "policy_path": "config/step5d_review_policy_v3.json",
-    "policy_sha256": "056c42673bdffad0a4cfee14e66965e1d26ab4440f271fced74681766e330937",
+    "policy_sha256": "776ef12aae8e7cbdb8873f08fe7917f1c52b5dba9d680c5d3bfb246b0455fc6b",
     "required_stack": "1+1",
     "review_class": "contact_pre_live",
     "review_invocation_required": true,
     "status": "not_due",
+    "work_item_id": null,
     "workflow": "v30"
   },
   "runtime_prewarm": {
