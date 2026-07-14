@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Atomically register one verified P0 v8 phase on the frozen fingerprint."""
+"""Atomically register the verified direct P0 v8 canary."""
 
 from __future__ import annotations
 
 import argparse, fcntl, hashlib, json, os
 from pathlib import Path
+
+from ur10e_decision_manifest import p0_duration
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -23,8 +25,6 @@ def main() -> int:
     if summary.get("ok") is not True or summary.get("canary_passed") is not True:
         raise SystemExit("refusing: canary verifier summary did not pass")
     phase = float(summary.get("phase_s", 0))
-    if phase not in (2.0, 10.0, 60.0):
-        raise SystemExit("refusing: canary phase is not canonical")
     binding = summary.get("binding") or {}
     fingerprint = binding.get("composite_fingerprint")
     manifest_path = Path(binding.get("manifest", "")).resolve()
@@ -35,30 +35,22 @@ def main() -> int:
     if float(canary.get("phase_s", 0)) != phase or canary.get("composite_fingerprint") != fingerprint:
         raise SystemExit("refusing: run manifest does not match verifier phase/fingerprint")
     current_path = ROOT / "config/current_stage.json"
-    lock_path = ROOT / "config/.p0_v8_canary_ledger.lock"
+    lock_path = ROOT / "config/.p0_v8_direct_canary.lock"
     with lock_path.open("a+") as lock:
         fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
         current = load(current_path)
         candidate = current.get("p0_v8_candidate") or {}
+        table = load(ROOT / "config/step5_stage_table.json")
+        configured_duration = p0_duration(current, table)
+        if phase != configured_duration:
+            raise SystemExit("refusing: canary phase differs from frozen current-stage duration")
         if candidate.get("composite_fingerprint") != fingerprint:
             raise SystemExit("refusing: current P0 v8 fingerprint changed")
-        completed = candidate.get("completed_canaries") or []
-        required = [] if phase == 2 else [2] if phase == 10 else [2, 10]
-        for prior_phase in required:
-            rows = [row for row in completed if float(row.get("phase_s", -1)) == prior_phase
-                    and row.get("composite_fingerprint") == fingerprint
-                    and row.get("canary_passed") is True]
-            if len(rows) != 1:
-                raise SystemExit(f"refusing: prior {prior_phase}s ledger entry missing")
-            artifact = (ROOT / rows[0].get("artifact", "")).resolve()
-            if not artifact.is_file() or sha(artifact) != rows[0].get("artifact_sha256"):
-                raise SystemExit(f"refusing: prior {prior_phase}s artifact hash is stale")
         relative = str(summary_path.relative_to(ROOT))
         entry = {"phase_s": phase, "composite_fingerprint": fingerprint,
                  "canary_passed": True, "artifact": relative,
                  "artifact_sha256": sha(summary_path)}
-        candidate["completed_canaries"] = [row for row in completed
-                                             if float(row.get("phase_s", -1)) != phase] + [entry]
+        candidate["direct_canary_result"] = entry
         temporary = current_path.with_suffix(".json.tmp")
         temporary.write_text(json.dumps(current, indent=2, sort_keys=True) + "\n")
         os.replace(temporary, current_path)

@@ -54,9 +54,10 @@ class Step5dParallelWorkflowTest(unittest.TestCase):
             model.write_text("{}\n", encoding="utf-8")
             tasks = functional_tasks(root / "out", replay_csv=replay, model_manifest=model)
         by_id = {task.task_id: task for task in tasks}
-        self.assertEqual(by_id["rnn-short-timing"].claim_class, "diagnostic_only")
-        self.assertEqual(by_id["mujoco-startup-window"].claim_class, "diagnostic_only")
-        self.assertEqual(by_id["mujoco-steady-window"].claim_class, "diagnostic_only")
+        lane = by_id["persistent-rnn-gpu-lane"]
+        self.assertEqual(lane.claim_class, "diagnostic_only")
+        self.assertEqual(lane.resource, "gpu_rnn")
+        self.assertIn("run_step5d_rnn_diagnostic_lane.py", " ".join(lane.command))
 
     def test_offline_all_formal_gate_depends_on_every_functional_task(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

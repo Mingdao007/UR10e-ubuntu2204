@@ -256,19 +256,17 @@ class Step5dNoContactP0V8Test(unittest.TestCase):
             )["p0_v8_candidate"]["canary_policy"],
             {
                 "enabled": True,
-                "allowed_phases_s": [2.0, 10.0, 60.0],
-                "serial_same_fingerprint_sequence_required": True,
-                "final_continuous_phase_s": 60.0,
+                "mode": "direct_single_duration",
+                "direct_duration_s": 60.0,
+                "duration_source": "config/step5_stage_table.json#step5d_strict_rnn_no_contact_p0_v8.duration_s",
             },
         )
 
-    def test_parser_gate_allows_only_explicit_v8_canary_phases(self) -> None:
+    def test_parser_gate_allows_only_frozen_direct_duration(self) -> None:
         self.assertEqual(gate.validate_canary_phase(PROFILE, 0.0), 0.0)
-        self.assertEqual(gate.validate_canary_phase(PROFILE, 2.0), 2.0)
-        self.assertEqual(gate.validate_canary_phase(PROFILE, 10.0), 10.0)
         self.assertEqual(gate.validate_canary_phase(PROFILE, 60.0), 60.0)
-        with self.assertRaisesRegex(ValueError, "exactly 2, 10, or 60"):
-            gate.validate_canary_phase(PROFILE, 5.0)
+        with self.assertRaisesRegex(ValueError, "frozen current-stage duration"):
+            gate.validate_canary_phase(PROFILE, 10.0)
         with self.assertRaisesRegex(ValueError, "restricted to P0 v8"):
             gate.validate_canary_phase("step5d_strict_rnn_ablation_v29", 60.0)
         bridge_source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(
@@ -277,21 +275,13 @@ class Step5dNoContactP0V8Test(unittest.TestCase):
         self.assertIn("validate_p0_v8_canary_phase(", bridge_source)
         self.assertIn("authorize_p0_v8_canary(args, current)", bridge_source)
 
-    def test_canary_authorization_requires_same_fingerprint_serial_sequence(self) -> None:
-        fingerprint = "a" * 64
+    def test_canary_authorization_requires_direct_frozen_duration(self) -> None:
+        candidate = json.loads(
+            (ROOT / "config" / "current_stage.json").read_text(encoding="utf-8")
+        )["p0_v8_candidate"]
+        fingerprint = candidate["composite_fingerprint"]
         current = {
-            "p0_v8_candidate": {
-                "evidence_frozen": True,
-                "composite_fingerprint": fingerprint,
-                "completed_canaries": [],
-                "review_v3": {
-                    "policy_id": "ur10e_review_policy_v3",
-                    "required_stack": "0+0",
-                    "status": "not_required",
-                    "composite_fingerprint": fingerprint,
-                    "deterministic_canaries_still_required": True,
-                },
-            },
+            "p0_v8_candidate": candidate,
             "bridge_trigger": {
                 "no_contact_p0_v8_capture": {
                     "profile": PROFILE,
@@ -301,49 +291,29 @@ class Step5dNoContactP0V8Test(unittest.TestCase):
                 }
             },
         }
-        current["p0_v8_candidate"]["completed_canaries"] = [
-            {
-                "phase_s": 2.0,
-                "composite_fingerprint": fingerprint,
-                "canary_passed": True,
-            },
-            {
-                "phase_s": 10.0,
-                "composite_fingerprint": fingerprint,
-                "canary_passed": True,
-            },
-        ]
         args = SimpleNamespace(step5d_stop_register_canary_s=60.0)
-
-        with mock.patch.object(gate, "validate_completed_canary_ledger") as ledger:
-            result = gate.authorize_canary(args, current)
-        ledger.assert_called_once_with(current["p0_v8_candidate"], fingerprint, (2.0, 10.0))
+        result = gate.authorize_canary(args, current)
         self.assertEqual(result["phase_s"], 60.0)
         self.assertEqual(result["composite_fingerprint"], fingerprint)
 
+        stale = json.loads(json.dumps(candidate))
+        stale["composite_binding"]["canary_policy"]["direct_duration_s"] = 10.0
+        current["p0_v8_candidate"] = stale
+        with self.assertRaisesRegex(ValueError, "canary-policy binding is stale"):
+            gate.authorize_canary(args, current)
+
     def test_canary_authorization_rejects_retired_review_v2_waiver(self) -> None:
-        fingerprint = "b" * 64
+        candidate = json.loads(
+            (ROOT / "config" / "current_stage.json").read_text(encoding="utf-8")
+        )["p0_v8_candidate"]
+        fingerprint = candidate["composite_fingerprint"]
+        candidate.pop("review_v3", None)
+        candidate["review_v2"] = {
+            "status": "waived_by_user",
+            "composite_fingerprint": fingerprint,
+        }
         current = {
-            "p0_v8_candidate": {
-                "evidence_frozen": True,
-                "composite_fingerprint": fingerprint,
-                "completed_canaries": [],
-                "review_v2": {
-                    "status": "waived_by_user",
-                    "composite_fingerprint": fingerprint,
-                    "manifest": None,
-                    "waiver": {
-                        "waiver_id": "user-direct-bridge-20260714",
-                        "issued_at": "2026-07-14T05:00:00+08:00",
-                        "authorized_by": "user",
-                        "explicit": True,
-                        "scope": "p0_v8_pre_live_review",
-                        "composite_fingerprint": fingerprint,
-                        "authorization_evidence": "直接开bridge吧 不要再review了",
-                        "reason": "user explicitly waived the pre-live review",
-                    },
-                },
-            },
+            "p0_v8_candidate": candidate,
             "bridge_trigger": {
                 "no_contact_p0_v8_capture": {
                     "profile": PROFILE,

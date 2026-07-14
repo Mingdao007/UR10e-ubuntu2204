@@ -165,6 +165,24 @@ class Ur10eParallelTest(unittest.TestCase):
             self.assertEqual(results["gpu"].status, "failed")
             self.assertIn("VRAM admission denied", results["gpu"].error or "")
 
+    def test_rnn_tasks_share_one_serial_lane_per_physical_gpu(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runner = TaskRunner(
+                root=root,
+                output_root=root / "run",
+                profile=self.profile(root),
+                gpu_usage=lambda: 0.0,
+            )
+            command = (sys.executable, "-c", "import time; time.sleep(0.08)")
+            started = time.monotonic()
+            results = runner.run([
+                self.task(root / "run", "rnn-one", command=command, resource="gpu_rnn", reservation=1.0),
+                self.task(root / "run", "rnn-two", command=command, resource="gpu_rnn", reservation=1.0),
+            ])
+            self.assertTrue(all(result.status == "passed" for result in results.values()))
+            self.assertGreaterEqual(time.monotonic() - started, 0.14)
+
     def test_formal_and_live_exclusive_lock_blocks_throughput(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -20,6 +20,8 @@ from ur10e_parallel import (
     require_immutable_completion_marker,
     verified_closed_source,
 )
+from ur10e_decision_manifest import freeze as freeze_decisions
+from step5d_timing_acceptance import evaluate_timing_raw
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -72,7 +74,7 @@ def test_python() -> Path:
             "uv venv --system-site-packages --python python3 .venv && "
             "uv pip install --python .venv/bin/python -r requirements-test.txt"
         )
-    return candidate.resolve()
+    return Path(os.path.abspath(candidate))
 
 
 def timing_environment() -> dict[str, str]:
@@ -160,7 +162,7 @@ def run_timing(
             "mujoco_duration_s": FEATURE_WINDOWS_S,
             "not_valid_for": [
                 "formal_timing_acceptance",
-                "canonical_2_10_60_s_canary_acceptance",
+                "direct_live_no_contact_canary_acceptance",
             ],
         }
     output.with_suffix(".metadata.json").write_text(
@@ -168,6 +170,11 @@ def run_timing(
     )
     if bundler_rc != 0 or completed.returncode != 0:
         return completed.returncode or bundler_rc
+    if formal:
+        evaluation = evaluate_timing_raw(ROOT, output)
+        output.with_suffix(".evaluation.json").write_text(
+            json.dumps(evaluation, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
     return 0 if before == after else 76
 
 
@@ -228,6 +235,7 @@ def task(
     claim_class: str = "diagnostic_only",
     cpu_tokens: int = 1,
     gpu_vram_reservation_pct: float = 0.0,
+    gpu_device: str = "0",
     env: dict[str, str] | None = None,
 ) -> TaskSpec:
     return TaskSpec(
@@ -239,6 +247,7 @@ def task(
         claim_class=claim_class,
         cpu_tokens=cpu_tokens,
         gpu_vram_reservation_pct=gpu_vram_reservation_pct,
+        gpu_device=gpu_device,
         env=env or {},
         cwd=ROOT,
     )
@@ -308,65 +317,23 @@ def functional_tasks(
         ),
         task(
             output_root,
-            "rnn-short-timing",
+            "persistent-rnn-gpu-lane",
             [
                 sys.executable,
-                WORKFLOW,
-                "__short-timing",
-                "--replay-csv",
-                replay_csv,
-                "--output",
-                output_root / "rnn-short-timing" / "timing.json",
-            ],
-            resource="gpu",
-            cpu_tokens=2,
-            gpu_vram_reservation_pct=25.0,
-        ),
-        task(
-            output_root,
-            "mujoco-startup-window",
-            [
-                sys.executable,
-                TOOLS / "sweep_step5d_p0_rnn_profiles.py",
+                TOOLS / "run_step5d_rnn_diagnostic_lane.py",
                 "--model-manifest",
                 model_manifest,
-                "--iterations",
-                "128,512",
-                "--epsilon-values",
-                "0.010",
-                "--r-values",
-                "0.8",
-                "--duration-s",
+                "--output-dir",
+                output_root / "persistent-rnn-gpu-lane",
+                "--startup-duration-s",
                 str(FEATURE_WINDOWS_S["mujoco_startup"]),
-                "--output",
-                output_root / "mujoco-startup-window" / "sweep.json",
-            ],
-            resource="gpu",
-            cpu_tokens=2,
-            gpu_vram_reservation_pct=25.0,
-        ),
-        task(
-            output_root,
-            "mujoco-steady-window",
-            [
-                sys.executable,
-                TOOLS / "sweep_step5d_p0_rnn_profiles.py",
-                "--model-manifest",
-                model_manifest,
-                "--iterations",
-                "512",
-                "--epsilon-values",
-                "0.010",
-                "--r-values",
-                "0.8",
-                "--duration-s",
+                "--steady-duration-s",
                 str(FEATURE_WINDOWS_S["mujoco_steady"]),
-                "--output",
-                output_root / "mujoco-steady-window" / "sweep.json",
             ],
-            resource="gpu",
+            resource="gpu_rnn",
             cpu_tokens=2,
             gpu_vram_reservation_pct=25.0,
+            gpu_device=os.getenv("UR10E_RNN_GPU_DEVICE", "0"),
         ),
     ]
 
@@ -529,6 +496,9 @@ def main(argv: list[str] | None = None) -> int:
         "offline-all",
     } and (args.replay_csv is None or not args.replay_csv.is_file()):
         parser.error(f"replay CSV missing: {args.replay_csv}")
+    output_root.mkdir(parents=True, exist_ok=False)
+    decision_manifest = output_root / "user_decision_manifest.json"
+    freeze_decisions(decision_manifest, root=ROOT)
     tasks: list[TaskSpec]
     if args.mode == "parallel-check":
         tasks = check_tasks(output_root, profile)
@@ -566,7 +536,10 @@ def main(argv: list[str] | None = None) -> int:
         require_immutable_completion_marker(run_dir)
         tasks = postprocess_tasks(output_root, run_dir)
 
-    runner = TaskRunner(root=ROOT, output_root=output_root, profile=profile)
+    runner = TaskRunner(
+        root=ROOT, output_root=output_root, profile=profile,
+        decision_manifest=decision_manifest,
+    )
     if args.mode == "postprocess":
         assert args.run_dir is not None
         with verified_closed_source(args.run_dir.resolve()):

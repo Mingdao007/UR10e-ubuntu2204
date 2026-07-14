@@ -485,6 +485,11 @@ def _write_v30_evidence_fixture(root: Path) -> tuple[dict, dict]:
         "p0_v8_candidate": {
             "profile": gate.P0_V8_PROFILE,
             "p0_v8_passed": True,
+            "canary_policy": {
+                "mode": "direct_single_duration",
+                "direct_duration_s": 60.0,
+                "duration_source": "config/step5_stage_table.json#step5d_strict_rnn_no_contact_p0_v8.direct_duration_s",
+            },
             "passed_artifact": p0_rel,
             "passed_artifact_sha256": _sha256(p0_path.read_bytes()),
             "composite_fingerprint": p0_fingerprint,
@@ -608,7 +613,7 @@ class Step5dCurrentBindingGateTest(unittest.TestCase):
             root = Path(tmpdir)
             current, row = _write_v30_evidence_fixture(root)
             current["p0_v8_candidate"]["p0_v8_passed"] = False
-            with self.assertRaisesRegex(RuntimeError, "P0 v8 final continuous 60 second pass"):
+            with self.assertRaisesRegex(RuntimeError, "direct frozen-duration P0 v8 pass"):
                 gate.verify_v30_evidence_freeze(root, current, row)
 
     def test_v30_evidence_freeze_rejects_safe_hold_deadline_miss(self) -> None:

@@ -37,7 +37,7 @@ from step5d_control_contract import (
     StrictRnnControlPolicy,
 )
 from step5d_simulator_adapter import (
-    P0_V8_CANARY_PHASES_S,
+    P0_V8_HISTORICAL_DIAGNOSTIC_PHASES_S,
     P0_V8_CONTROL_HZ,
     P0_V8_DBIL_HZ,
     P0_V8_EFFECTIVE_KO,
@@ -887,7 +887,7 @@ def reset_after_production_path_prewarm(
         "control_adapter_discarded_after_prewarm": True,
         "measured_phase_first_sequence": 0,
         "post_reset_unmeasured_execute_tick_count": 0,
-        "next_action": "measured_canonical_2_10_60_sequence",
+        "next_action": "measured_direct_frozen_current_stage_duration",
     }
 
 
@@ -1667,8 +1667,8 @@ def write_phase_artifacts(
 
 def parse_phases(values: Sequence[float]) -> list[PhaseSpec]:
     durations = tuple(float(value) for value in values)
-    if not durations or durations != P0_V8_CANARY_PHASES_S[: len(durations)]:
-        raise ValueError("phases must be the canonical prefix: 2, then 10, then 60 seconds")
+    if not durations or durations != P0_V8_HISTORICAL_DIAGNOSTIC_PHASES_S[: len(durations)]:
+        raise ValueError("phases must match the retained historical offline diagnostic prefix")
     return [
         PhaseSpec(duration_s=duration, sequence_index=index)
         for index, duration in enumerate(durations)
@@ -1702,7 +1702,7 @@ def run_nominal_measurement_sequence(
 
     Each phase still owns an independent plant reset and sequence-zero trace.
     Keeping only the bounded in-memory results here avoids fault injection and
-    compressed NPZ/JSON writes between the 2, 10, and 60 second GPU lanes.
+    compressed NPZ/JSON writes between retained historical diagnostic lanes.
     """
 
     measured: list[tuple[PhaseSpec, NominalPhaseResult]] = []
@@ -1745,7 +1745,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model-manifest", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--phases", nargs="+", type=float, default=list(P0_V8_CANARY_PHASES_S))
+    parser.add_argument(
+        "--phases", nargs="+", type=float,
+        default=list(P0_V8_HISTORICAL_DIAGNOSTIC_PHASES_S),
+        help="historical offline diagnostic phases; never the active live canary contract",
+    )
     parser.add_argument(
         "--pace-wall-clock",
         action=argparse.BooleanOptionalAction,
@@ -1873,7 +1877,7 @@ def main() -> int:
             }
         )
 
-    complete = len(specs) == len(P0_V8_CANARY_PHASES_S)
+    complete = len(specs) == len(P0_V8_HISTORICAL_DIAGNOSTIC_PHASES_S)
     control_diagnostic_pass = all_valid and all(
         bool(entry["control_path_diagnostic_pass"]) for entry in phase_entries
     )

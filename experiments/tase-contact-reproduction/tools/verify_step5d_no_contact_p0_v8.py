@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify one manifest-bound P0 v8 2/10/60 second no-contact canary."""
+"""Verify the manifest-bound direct P0 v8 no-contact canary."""
 
 from __future__ import annotations
 
@@ -8,14 +8,13 @@ import hashlib
 import json
 import math
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 import verify_step5d_no_contact_p0 as legacy
 
 
 ROOT = Path(__file__).resolve().parents[1]
 PROFILE = "step5d_strict_rnn_no_contact_p0_v8"
-PHASES_S = (2.0, 10.0, 60.0)
 PACKAGE_BASE = ROOT / "programs" / "step5" / "step5d" / PROFILE
 POLICY_PATH = ROOT / "config" / "step5d_review_policy_v3.json"
 CURRENT_PATH = ROOT / "config" / "current_stage.json"
@@ -24,6 +23,12 @@ DEADLINE_HOLD_MAX_RATIO = 0.01
 DEADLINE_HOLD_MAX_CONSECUTIVE_S = 0.250
 CONTROL_PERIOD_S = 0.002
 SOLVER_OK_STATUS = 40.0
+
+
+def configured_direct_duration() -> float:
+    from step5d_p0_v8_gate import configured_canary_duration
+
+    return configured_canary_duration()
 
 
 def sha256_file(path: Path) -> str:
@@ -52,14 +57,6 @@ def phase_equal(left: object, right: float) -> bool:
         return math.isclose(float(left), right, abs_tol=1e-9)
     except (TypeError, ValueError):
         return False
-
-
-def required_prior_phases(phase_s: float) -> tuple[float, ...]:
-    if phase_s == 2.0:
-        return ()
-    if phase_s == 10.0:
-        return (2.0,)
-    return (2.0, 10.0)
 
 
 def validate_bindings(
@@ -126,25 +123,15 @@ def validate_bindings(
         blockers.append("current_fingerprint_mismatch")
     if capture.get("sha256") != package_sha:
         blockers.append("current_package_hash_mismatch")
-    prior = canary.get("prior_canaries") or []
-    for required_phase in required_prior_phases(phase_s):
-        valid_prior = False
-        for item in prior:
-            if not (isinstance(item, Mapping)
-                    and phase_equal(item.get("phase_s"), required_phase)
-                    and item.get("composite_fingerprint") == fingerprint
-                    and item.get("canary_passed") is True):
-                continue
-            artifact = (ROOT / str(item.get("artifact") or "")).resolve()
-            try:
-                artifact.relative_to(ROOT.resolve())
-            except ValueError:
-                continue
-            if artifact.is_file() and sha256_file(artifact) == item.get("artifact_sha256"):
-                valid_prior = True
-                break
-        if not valid_prior:
-            blockers.append(f"prior_{required_phase:g}s_same_fingerprint_pass_missing")
+    try:
+        from step5d_p0_v8_gate import configured_canary_duration
+
+        configured = configured_canary_duration(current)
+    except (OSError, ValueError, KeyError, json.JSONDecodeError) as exc:
+        blockers.append(f"configured_direct_duration_invalid:{type(exc).__name__}")
+    else:
+        if not phase_equal(phase_s, configured):
+            blockers.append("canary_duration_not_current_frozen_stage_duration")
     details.update(
         {
             "manifest": str(manifest_path),
@@ -328,12 +315,13 @@ def verify(path: Path, *, phase_s: float) -> dict[str, Any]:
     binding_blockers, binding = validate_bindings(run_dir, phase_s=phase_s)
     contract_blockers, contract = validate_contract_rows(rows, phase_s=phase_s)
     blockers = list(dict.fromkeys([*base.get("blockers", []), *binding_blockers, *contract_blockers]))
-    canary_passed = not blockers
+    configured = configured_direct_duration()
+    direct_duration_passed = canary_passed = not blockers and phase_equal(phase_s, configured)
     return {
         "schema_version": "step5d_no_contact_p0_v8_canary_verification_v1",
         "ok": canary_passed,
         "canary_passed": canary_passed,
-        "p0_v8_passed": canary_passed and phase_s == 60.0,
+        "p0_v8_passed": direct_duration_passed,
         "phase_s": phase_s,
         "blockers": blockers,
         "binding": binding,
@@ -341,7 +329,7 @@ def verify(path: Path, *, phase_s: float) -> dict[str, Any]:
         "base_verifier": base,
         "claim_boundary": {
             "no_contact_canary_accepted": canary_passed,
-            "p0_v8_accepted": canary_passed and phase_s == 60.0,
+            "p0_v8_accepted": direct_duration_passed,
             "contact_live_accepted": False,
             "reproduction_complete": False,
         },
@@ -351,7 +339,7 @@ def verify(path: Path, *, phase_s: float) -> dict[str, Any]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("run", type=Path)
-    parser.add_argument("--phase-s", type=float, required=True, choices=PHASES_S)
+    parser.add_argument("--phase-s", type=float, required=True)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args(argv)
     result = verify(args.run, phase_s=float(args.phase_s))

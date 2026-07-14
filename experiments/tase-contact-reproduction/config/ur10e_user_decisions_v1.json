@@ -1,0 +1,14 @@
+{
+  "schema_version": "ur10e_user_decisions_v1",
+  "decisions": {
+    "p0_v8_canary": "one direct no-contact duration resolved from frozen current-stage config",
+    "p0_v8_is_contact_acceptance": false,
+    "offline_formal_substitutes_live_canary": false,
+    "rnn_gpu_policy": "one serial RNN/CuPy lane per physical GPU; no CPU fallback",
+    "formal_timing_policy": "global exclusive and once per final frozen fingerprint",
+    "review_policy": "one formal review round per work item; remediation uses deterministic owner validation",
+    "fable_limit_policy": "quota/rate/session limit becomes skipped_unavailable without wait or retry",
+    "onrobot_mainline_enabled": false,
+    "live_actions_authorized_by_this_manifest": false
+  }
+}

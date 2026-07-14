@@ -576,9 +576,9 @@ class Step5dP0V8MujocoRunnerTest(unittest.TestCase):
             [spec.duration_s for spec in runner.parse_phases((2.0, 10.0))],
             [2.0, 10.0],
         )
-        with self.assertRaisesRegex(ValueError, "canonical prefix"):
+        with self.assertRaisesRegex(ValueError, "historical offline diagnostic prefix"):
             runner.parse_phases((10.0,))
-        with self.assertRaisesRegex(ValueError, "canonical prefix"):
+        with self.assertRaisesRegex(ValueError, "historical offline diagnostic prefix"):
             runner.parse_phases((2.0, 60.0))
 
     def test_no_contact_scene_must_be_hash_bound_and_cover_60_seconds(self) -> None:

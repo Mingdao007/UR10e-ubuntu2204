@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify a chained 2 -> 10 -> 60 s MuJoCo P0 v8 evidence bundle."""
+"""Verify a retained historical chained MuJoCo P0 v8 diagnostic bundle."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ import numpy as np
 
 from step5d_control_contract import V30_DEFERRED_NUMERIC_FIELDS
 from step5d_simulator_adapter import (
-    P0_V8_CANARY_PHASES_S,
+    P0_V8_HISTORICAL_DIAGNOSTIC_PHASES_S,
     P0_V8_CONTROL_HZ,
     P0_V8_DBIL_HZ,
     P0_V8_EFFECTIVE_KO,
@@ -254,7 +254,7 @@ def validate_prewarm_evidence(payload: Mapping[str, object]) -> list[str]:
         "control_adapter_discarded_after_prewarm": True,
         "measured_phase_first_sequence": 0,
         "post_reset_unmeasured_execute_tick_count": 0,
-        "next_action": "measured_canonical_2_10_60_sequence",
+        "next_action": "measured_direct_frozen_current_stage_duration",
     }
     if payload.get("reset") != expected_reset:
         blockers.append("reset:invalid")
@@ -1014,7 +1014,11 @@ def _validate_run_manifest_v1(
     phases = payload.get("phases")
     if not isinstance(phases, Sequence) or isinstance(phases, (str, bytes)):
         return sorted(set(blockers + ["phases:missing_or_not_array"]))
-    expected = P0_V8_CANARY_PHASES_S if require_complete else P0_V8_CANARY_PHASES_S[: len(phases)]
+    expected = (
+        P0_V8_HISTORICAL_DIAGNOSTIC_PHASES_S
+        if require_complete
+        else P0_V8_HISTORICAL_DIAGNOSTIC_PHASES_S[: len(phases)]
+    )
     actual = tuple(
         float(row.get("duration_s", math.nan)) if isinstance(row, Mapping) else math.nan
         for row in phases
@@ -1141,7 +1145,7 @@ def _validate_run_manifest_v1(
         blockers.append("claims:non_promotion_boundary_mismatch")
     if payload.get("claim_boundary") != simulation_claim_boundary():
         blockers.append("claim_boundary:non_promotion_boundary_mismatch")
-    complete = len(phases) == len(P0_V8_CANARY_PHASES_S)
+    complete = len(phases) == len(P0_V8_HISTORICAL_DIAGNOSTIC_PHASES_S)
     final_timing = next(
         (row.get("pass") for row in observed_timing if row.get("duration_s") == 60.0),
         False,
@@ -1606,9 +1610,9 @@ def _validate_run_manifest_v2(
     if not isinstance(phases, Sequence) or isinstance(phases, (str, bytes)):
         return sorted(set(blockers + ["phases:missing_or_not_array"]))
     expected = (
-        P0_V8_CANARY_PHASES_S
+        P0_V8_HISTORICAL_DIAGNOSTIC_PHASES_S
         if require_complete
-        else P0_V8_CANARY_PHASES_S[: len(phases)]
+        else P0_V8_HISTORICAL_DIAGNOSTIC_PHASES_S[: len(phases)]
     )
     actual = tuple(
         float(row.get("duration_s", math.nan))
@@ -1726,7 +1730,7 @@ def _validate_run_manifest_v2(
                 require_timing_threshold=control_pass is True,
             )
         )
-    complete = len(phases) == len(P0_V8_CANARY_PHASES_S)
+    complete = len(phases) == len(P0_V8_HISTORICAL_DIAGNOSTIC_PHASES_S)
     if require_complete and payload.get("canonical_phase_sequence_complete") is not True:
         blockers.append("canonical_phase_sequence_complete:false")
     expected_control_pass = bool(

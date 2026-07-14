@@ -361,7 +361,11 @@ def verify_v30_evidence_freeze(
     if not isinstance(p0_current, dict) or not isinstance(p0_gate, dict):
         fail("v30 promotion requires the P0 v8 gate")
     if p0_current.get("p0_v8_passed") is not True or p0_gate.get("passed") is not True:
-        fail("v30 promotion requires P0 v8 final continuous 60 second pass")
+        fail("v30 promotion requires the direct frozen-duration P0 v8 pass")
+    try:
+        configured_p0_duration = float((p0_current.get("canary_policy") or {})["direct_duration_s"])
+    except (KeyError, TypeError, ValueError):
+        fail("v30 P0 v8 frozen direct duration is invalid")
     p0_artifact_rel = p0_gate.get("passed_artifact") or p0_current.get("passed_artifact")
     if p0_artifact_rel != p0_current.get("passed_artifact"):
         fail("v30 P0 v8 passed artifact pointers disagree")
@@ -378,10 +382,13 @@ def verify_v30_evidence_freeze(
         p0_artifact.get("ok") is not True
         or p0_artifact.get("canary_passed") is not True
         or p0_artifact.get("p0_v8_passed") is not True
-        or not math.isclose(_finite_number(p0_artifact.get("phase_s"), "P0 v8 phase_s"), 60.0)
+        or not math.isclose(
+            _finite_number(p0_artifact.get("phase_s"), "P0 v8 phase_s"),
+            configured_p0_duration,
+        )
         or p0_artifact.get("blockers") != []
     ):
-        fail("v30 promotion requires a clean final continuous 60 second P0 v8 artifact")
+        fail("v30 promotion requires a clean direct frozen-duration P0 v8 artifact")
     p0_fingerprint = (p0_artifact.get("binding") or {}).get("composite_fingerprint")
     if p0_fingerprint != p0_current.get("composite_fingerprint"):
         fail("v30 P0 v8 artifact composite fingerprint is stale")

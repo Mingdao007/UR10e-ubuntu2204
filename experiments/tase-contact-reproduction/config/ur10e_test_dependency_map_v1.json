@@ -1,0 +1,85 @@
+{
+  "schema_version": "ur10e_test_dependency_map_v1",
+  "always_run": [
+    "tests/test_project_check_entrypoint.py",
+    "tests/test_ur10e_decision_manifest.py",
+    "tests/test_ur10e_impact_selector.py",
+    "tests/test_cross_step_parameter_table.py"
+  ],
+  "rules": [
+    {
+      "paths": ["tools/ur10e_parallel.py", "tools/run_step5d_parallel_workflow.py", "scripts/step5d-workflow.sh"],
+      "tests": ["tests/test_ur10e_parallel.py", "tests/test_step5d_parallel_workflow.py"]
+    },
+    {
+      "paths": ["tools/ur10e_decision_manifest.py", "config/ur10e_user_decisions_v1.json", "config/current_stage.json", "config/step5_stage_table.json"],
+      "tests": ["tests/test_ur10e_decision_manifest.py", "tests/test_step5d_no_contact_p0_v8.py", "tests/test_step5d_full_chain_sanity.py::Step5dFullChainSanityTest::test_bridge_knows_step5d_but_hard_blocks_live_start", "tests/test_step5d_full_chain_sanity.py::Step5dFullChainSanityTest::test_step5d_operator_points_to_current_controller_package", "tests/test_step5d_full_chain_sanity.py::Step5dFullChainSanityTest::test_full_chain_sanity_has_no_dls_or_live_side_effect_path"]
+    },
+    {
+      "paths": ["tools/step5d_p0_v8_gate.py", "tools/register_step5d_p0_v8_canary.py", "tools/verify_step5d_no_contact_p0_v8.py", "tools/analyze_step5d_bridge_run.py", "tools/build_step5d_liveprep.py", "scripts/step5d-strict-rnn-p0-v8.sh", "tools/kunwei_rtde_bridge.py", "STEP5_FLOW.md", "config/digital_twin_requirements_v1.json", "config/schemas/step5d_p0_v8_production_path_prewarm_v1.schema.json"],
+      "tests": ["tests/test_step5d_no_contact_p0_v8.py", "tests/test_step5d_no_contact_p0.py", "tests/test_step5d_bridge_run_analysis.py", "tests/test_step5d_v30_profile.py", "tests/test_bridge_operator_startup_policy.py", "tests/test_digital_twin_requirements_v1.py"]
+    },
+    {
+      "paths": ["tools/step5d_review_v3.py", "tools/run_step5d_review_v3.py", "config/step5d_review_policy_v3.json", "config/step5d_review_index_v3.json"],
+      "tests": ["tests/test_step5d_review_policy_v3.py", "tests/test_step5d_current_binding_gate.py"]
+    },
+    {
+      "paths": ["tools/build_step5d_v30_offline_readiness.py", "tools/step5d_timing_acceptance.py", "config/step5d_v30_offline_readiness.json"],
+      "tests": ["tests/test_step5d_v30_readiness.py", "tests/test_step5d_current_binding_gate.py"]
+    },
+    {
+      "paths": ["tools/run_step5d_p0_v8_mujoco.py", "tools/verify_step5d_p0_v8_mujoco.py", "tools/step5d_simulator_adapter.py", "tools/verify_step5d_sim_evidence.py"],
+      "tests": ["tests/test_step5d_p0_v8_mujoco_runner.py", "tests/test_step5d_p0_v8_mujoco_verifier.py", "tests/test_step5d_simulator_adapter.py", "tests/test_step5d_sim_evidence.py"]
+    },
+    {
+      "paths": ["tools/verify_step5d_current_binding.py"],
+      "tests": ["tests/test_step5d_current_binding_gate.py", "tests/test_step5d_current_promotion.py"]
+    },
+    {
+      "paths": ["programs/step5/step5d/.step5d_strict_rnn_no_contact_p0_v8.local_candidate.json", "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v8.txt"],
+      "tests": ["tests/test_step5d_no_contact_p0_v8.py", "tests/test_step5d_p0_v8_mujoco_verifier.py"]
+    },
+    {
+      "paths": ["tools/run_step5d_rnn_diagnostic_lane.py", "tools/step5c_strict_rnn.py", "tools/sweep_step5d_p0_rnn_profiles.py", "tools/run_step5d_v30_remote_timing.py"],
+      "tests": ["tests/test_step5d_parallel_workflow.py", "tests/test_step5d_strict_rnn_solver.py", "tests/test_step5d_p0_rnn_profile_sweep.py"]
+    },
+    {
+      "paths": ["check.sh", "pytest.ini", "tests/conftest.py", "tools/run_ur10e_impacted_tests.py", "tools/ur10e_impact_selector.py", "config/ur10e_test_dependency_map_v1.json"],
+      "tests": ["tests/test_project_check_entrypoint.py", "tests/test_ur10e_impact_selector.py"]
+    },
+    {
+      "paths": ["tools/preflight_readonly.py", "scripts/step5d-liveprep-operator.sh", "scripts/bridge-line-operator.sh"],
+      "tests": ["tests/test_preflight_readonly_dag.py", "tests/test_step5d_liveprep_readiness.py", "tests/test_bridge_operator_startup_policy.py"]
+    },
+    {
+      "paths": ["tools/run_step5d_tp_transaction.py", "tools/upload_ur_tp_package.py", "tools/promote_step5d_current.py", "tools/verify_current_stage_readback.py"],
+      "tests": ["tests/test_step5d_tp_transaction.py", "tests/test_upload_ur_tp_package_reuse.py", "tests/test_step5d_current_promotion.py", "tests/test_current_stage_readback_gate.py"]
+    },
+    {
+      "paths": ["tools/validate_cross_step_parameter_table.py", "tools/validate_tase_protocol_table.py", "config/step5_stage_table.json", "config/current_stage.json"],
+      "tests": ["tests/test_cross_step_parameter_table.py", "tests/test_step5d_full_chain_sanity.py::Step5dFullChainSanityTest::test_bridge_knows_step5d_but_hard_blocks_live_start", "tests/test_step5d_full_chain_sanity.py::Step5dFullChainSanityTest::test_step5d_operator_points_to_current_controller_package", "tests/test_step5d_full_chain_sanity.py::Step5dFullChainSanityTest::test_full_chain_sanity_has_no_dls_or_live_side_effect_path", "tests/test_step5d_no_contact_p0.py", "tests/test_step5d_no_contact_p0_v8.py"]
+    }
+  ],
+  "resource_groups": {
+    "controller_lock": [
+      "tests/test_step5d_tp_transaction.py",
+      "tests/test_upload_ur_tp_package_reuse.py",
+      "tests/test_step5d_current_promotion.py"
+    ],
+    "gpu": [
+      "tests/test_step5d_strict_rnn_solver.py",
+      "tests/test_step5d_p0_rnn_profile_sweep.py",
+      "tests/test_step5d_v30_timing.py",
+      "tests/test_step5d_p0_v8_mujoco_runner.py",
+      "tests/test_step5d_p0_v8_mujoco_verifier.py"
+    ],
+    "shared_fixture": [
+      "tests/test_cross_step_parameter_table.py",
+      "tests/test_project_check_entrypoint.py"
+    ]
+  },
+  "validators": [
+    "tools/validate_tase_protocol_table.py",
+    "tools/validate_cross_step_parameter_table.py"
+  ]
+}

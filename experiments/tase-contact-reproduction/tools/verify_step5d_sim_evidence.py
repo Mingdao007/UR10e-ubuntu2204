@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from step5d_simulator_adapter import (
-    P0_V8_CANARY_PHASES_S,
+    P0_V8_HISTORICAL_DIAGNOSTIC_PHASES_S,
     P0_V8_CONTROL_HZ,
     P0_V8_QDOT_CAP_RAD_S,
     SIMULATION_CLAIMS,
@@ -172,10 +172,10 @@ def validate_evidence(
     phase = _mapping(payload, "phase", blockers)
     duration = _number(phase.get("duration_s"))
     sequence_index = _integer(phase.get("sequence_index"))
-    if duration not in P0_V8_CANARY_PHASES_S:
+    if duration not in P0_V8_HISTORICAL_DIAGNOSTIC_PHASES_S:
         blockers.append("phase.duration_s:not_2_10_60")
     else:
-        expected_index = P0_V8_CANARY_PHASES_S.index(duration)
+        expected_index = P0_V8_HISTORICAL_DIAGNOSTIC_PHASES_S.index(duration)
         if sequence_index != expected_index:
             blockers.append("phase.sequence_index:mismatch")
         expected_same = expected_index > 0

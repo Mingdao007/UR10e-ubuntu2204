@@ -19,7 +19,7 @@ Boundary:
   Stage 25.0 accepts only joint speedj layout 524.0: registers 37..42 are qd0..qd5. Cartesian speedl and DLS runtime fallback are forbidden; DLS is diagnostic shadow-only.
   The intended bridge mode is STEP5D_STAGE25_CONTROL_MODE=speedj_rnn_live so
   the first consumed Stage25 tick records solver_warm_start and layout 524.
-  P0 v8 is bound to Step5dObservation -> StrictRnnControlPolicy -> ControlCandidate -> SafetyEnvelope -> RegisterCommand, with canonical n_reaction=-n_approach, strict solver status 40, direction-preserving qdot slew, and DLS shadow-only. Low-load effective_ko is 0.01. Future stop-register canaries are sequential 2/10/60 second phases; only the final continuous 60 second artifact may pass P0.
+  P0 v8 is bound to Step5dObservation -> StrictRnnControlPolicy -> ControlCandidate -> SafetyEnvelope -> RegisterCommand, with canonical n_reaction=-n_approach, strict solver status 40, direction-preserving qdot slew, and DLS shadow-only. Low-load effective_ko is 0.01. The future stop-register canary uses the direct duration from frozen current-stage config; only that continuous direct artifact may pass P0.
   Stage25.0 command-consumption instrumentation: output register 47 is 1 only
   when the TP loop accepts a current Stage25 command packet and reaches
   speedl/speedj.

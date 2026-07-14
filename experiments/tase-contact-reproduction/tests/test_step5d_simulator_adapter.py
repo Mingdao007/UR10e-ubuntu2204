@@ -22,7 +22,7 @@ from step5d_control_contract import (  # noqa: E402
     SafetyEnvelope,
 )
 from step5d_simulator_adapter import (  # noqa: E402
-    P0_V8_CANARY_PHASES_S,
+    P0_V8_HISTORICAL_DIAGNOSTIC_PHASES_S,
     FrameLineage,
     IntegerRateSchedule,
     SimulatorState,
@@ -140,7 +140,7 @@ class Step5dSimulatorAdapterTest(unittest.TestCase):
                 "dls_runtime_fallback_allowed": False,
             }
         )
-        self.assertEqual(P0_V8_CANARY_PHASES_S, (2.0, 10.0, 60.0))
+        self.assertEqual(P0_V8_HISTORICAL_DIAGNOSTIC_PHASES_S, (2.0, 10.0, 60.0))
         with self.assertRaisesRegex(ValueError, "profile drift"):
             assert_p0_v8_profile(
                 {

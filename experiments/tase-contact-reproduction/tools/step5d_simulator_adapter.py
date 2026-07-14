@@ -51,7 +51,9 @@ P0_V8_INNER_ITERATIONS = 512
 P0_V8_FORCE_GUARD_N = 5.0
 P0_V8_TORQUE_GUARD_NM = 3.0
 P0_V8_SENSOR_STALE_S = 0.100
-P0_V8_CANARY_PHASES_S = (2.0, 10.0, 60.0)
+# Retained only to reproduce the historical offline diagnostic evidence. The
+# active real-robot canary duration is resolved from frozen current-stage JSON.
+P0_V8_HISTORICAL_DIAGNOSTIC_PHASES_S = (2.0, 10.0, 60.0)
 
 SIMULATION_CLAIMS = (
     "p0_sim_physics_pass",

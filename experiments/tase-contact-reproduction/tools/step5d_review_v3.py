@@ -78,22 +78,25 @@ def exact_lane_valid(lane: dict[str, Any], provider: str, model: str) -> bool:
                 and lane.get("exact_model_verified") is True)
 
 
-def targeted_closer_blockers(manifest: dict[str, Any]) -> list[str]:
-    if manifest.get("review_mode") != "targeted_closer":
-        return []
-    binding = manifest.get("closer_binding") or {}
-    blockers = []
-    if SHA256_RE.fullmatch(str(binding.get("parent_manifest_sha256") or "")) is None:
-        blockers.append("closer_parent_manifest_sha_invalid")
-    if not isinstance(binding.get("finding_ids"), list) or not binding.get("finding_ids"):
-        blockers.append("closer_finding_ids_missing")
-    if SHA256_RE.fullmatch(str(binding.get("repaired_composite_fingerprint") or "")) is None:
-        blockers.append("closer_repaired_fingerprint_invalid")
-    allowed = {"control_timing_claim", "physical_operator_safety"}
-    scope = binding.get("allowed_lane_scope")
-    if not isinstance(scope, list) or not scope or not set(scope).issubset(allowed):
-        blockers.append("closer_lane_scope_invalid")
-    return blockers
+def deterministic_closure_valid(
+    closure: Any, *, gate: dict[str, Any], reviewed_composite: str,
+    repaired_composite: str, finding_ids: set[str],
+) -> bool:
+    validation = closure.get("owner_validation") if isinstance(closure, dict) else None
+    return bool(
+        isinstance(closure, dict)
+        and closure.get("no_reviewer_invoked") is True
+        and closure.get("parent_review_manifest_sha256") == gate.get("manifest_sha256")
+        and closure.get("reviewed_composite_fingerprint") == reviewed_composite
+        and closure.get("repaired_composite_fingerprint") == repaired_composite
+        and set(closure.get("finding_ids") or []) == finding_ids
+        and isinstance(validation, dict)
+        and validation.get("status") == "pass"
+        and validation.get("path")
+        and SHA256_RE.fullmatch(str(validation.get("sha256") or "")) is not None
+        and closure.get("decision_digest") == gate.get("decision_digest")
+        and SHA256_RE.fullmatch(str(closure.get("decision_digest") or "")) is not None
+    )
 
 
 def resolve(
@@ -141,107 +144,38 @@ def resolve(
         return result
     if manifest.get("schema_version") != "ur10e_review_manifest_v3":
         result["blockers"].append("review_v3_manifest_schema_invalid")
-    if manifest.get("composite_fingerprint") != composite:
-        result["blockers"].append("review_v3_composite_fingerprint_stale")
+    reviewed_composite = str(manifest.get("composite_fingerprint") or "")
     binding = manifest.get("composite_binding")
     try:
         recomputed = canonical_composite(binding) if isinstance(binding, dict) else None
     except ValueError:
         recomputed = None
-    if recomputed != composite:
+    if recomputed != reviewed_composite:
         result["blockers"].append("review_v3_composite_not_recomputed_from_binding")
-    result["blockers"].extend(targeted_closer_blockers(manifest))
     review_mode = manifest.get("review_mode", "full")
-    if review_mode == "full":
-        count = int(
-            (index.get("full_review_count_by_composite_fingerprint") or {}).get(composite, 0)
-            or 0
-        )
-        if count != 1:
-            result["blockers"].append("full_review_count_must_equal_one")
-        matching = [row for row in (index.get("review_records") or [])
-                    if isinstance(row, dict) and row.get("composite_fingerprint") == composite
-                    and row.get("review_mode") == "full"]
-        if len(matching) != 1:
-            result["blockers"].append("full_review_index_record_must_equal_one")
-    elif review_mode == "targeted_closer":
-        closer = manifest.get("closer_binding") or {}
-        if closer.get("repaired_composite_fingerprint") != composite:
-            result["blockers"].append("closer_repaired_fingerprint_stale")
-        parent_sha = closer.get("parent_manifest_sha256")
-        parents = [row for row in (index.get("review_records") or [])
-                   if isinstance(row, dict) and row.get("review_mode") == "full"
-                   and row.get("manifest_sha256") == parent_sha]
-        if len(parents) != 1:
-            result["blockers"].append("closer_parent_full_review_not_indexed")
-        elif (set(parents[0].get("open_blocking_finding_ids") or [])
-              != set(closer.get("finding_ids") or [])):
-            result["blockers"].append("closer_finding_ids_do_not_match_parent_open_blockers")
-        elif parents[0].get("composite_fingerprint") == composite:
-            result["blockers"].append("closer_repaired_fingerprint_not_changed")
-        else:
-            owner_scope = {str(value.get("lane")) for value in
-                           (parents[0].get("open_blocking_findings") or {}).values()
-                           if isinstance(value, dict)}
-            if owner_scope != set(closer.get("allowed_lane_scope") or []):
-                result["blockers"].append("closer_lane_scope_does_not_match_parent_findings")
-        manifest_sha = gate.get("manifest_sha256")
-        closers = [row for row in (index.get("review_records") or [])
-                   if isinstance(row, dict) and row.get("review_mode") == "targeted_closer"
-                   and row.get("composite_fingerprint") == composite
-                   and row.get("manifest_sha256") == manifest_sha]
-        if len(closers) != 1:
-            result["blockers"].append("targeted_closer_index_record_must_equal_one")
-        if set((manifest.get("lanes") or {})) != set(closer.get("allowed_lane_scope") or []):
-            result["blockers"].append("closer_lane_scope_not_exact")
-    else:
-        result["blockers"].append("review_mode_invalid")
+    if review_mode != "full":
+        result["blockers"].append("review_mode_must_be_single_full_review")
+    count = int(
+        (index.get("full_review_count_by_composite_fingerprint") or {}).get(reviewed_composite, 0)
+        or 0
+    )
+    if count != 1:
+        result["blockers"].append("full_review_count_must_equal_one")
+    matching = [row for row in (index.get("review_records") or [])
+                if isinstance(row, dict) and row.get("composite_fingerprint") == reviewed_composite
+                and row.get("review_mode") == "full"]
+    if len(matching) != 1:
+        result["blockers"].append("full_review_index_record_must_equal_one")
 
     lanes = manifest.get("lanes") or {}
     codex = lanes.get("control_timing_claim") or {}
     fable = lanes.get("physical_operator_safety") or {}
-    if review_mode == "targeted_closer":
-        closer = manifest.get("closer_binding") or {}
-        expected_findings = set(closer.get("finding_ids") or [])
-        closed_findings: set[str] = set()
-        closed_finding_owners: dict[str, dict[str, str]] = {}
-        for lane_name, lane in lanes.items():
-            if not lane_contract_valid(lane):
-                result["blockers"].append(f"{lane_name}_runtime_contract_invalid")
-                continue
-            provider, model = (("codex", "gpt-5.6-sol") if lane_name == "control_timing_claim"
-                               else ("fable5", "claude-fable-5"))
-            if not exact_lane_valid(lane, provider, model) or lane.get("status") != "pass":
-                result["blockers"].append(f"{lane_name}_targeted_closer_not_passed")
-            if (lane.get("reviewed_composite_fingerprint") != composite
-                    or lane.get("reviewed_binding_sha256") != manifest.get("binding_document_sha256")):
-                result["blockers"].append(f"{lane_name}_review_input_not_bound")
-            for finding in lane.get("findings") or []:
-                if isinstance(finding, dict) and finding.get("status") == "closed":
-                    finding_id = str(finding.get("id") or "")
-                    closed_findings.add(finding_id)
-                    closed_finding_owners[finding_id] = {
-                        "lane": lane_name, "severity": str(finding.get("severity") or "")
-                    }
-        if closed_findings != expected_findings:
-            result["blockers"].append("closer_closed_finding_ids_not_exact")
-        parent_findings = parents[0].get("open_blocking_findings") if len(parents) == 1 else {}
-        if closed_finding_owners != parent_findings:
-            result["blockers"].append("closer_finding_owner_or_severity_mismatch")
-        result["blocking_findings"] = open_blocking_findings(manifest)
-        if result["blocking_findings"]:
-            result["blockers"].append("open_p0_or_p1_finding")
-        result["effective_stack"] = f"{int('control_timing_claim' in lanes)}+{int('physical_operator_safety' in lanes)}"
-        result["blockers"] = sorted(set(result["blockers"]))
-        result["accepted"] = not result["blockers"]
-        result["status"] = "accepted" if result["accepted"] else "blocked"
-        return result
     for lane_name, lane in lanes.items():
         degraded_fable = (lane_name == "physical_operator_safety"
                           and lane.get("status") in set(policy["execution"]["fable5_degraded_statuses"]))
         if (isinstance(lane, dict)
                 and not degraded_fable
-                and (lane.get("reviewed_composite_fingerprint") != composite
+                and (lane.get("reviewed_composite_fingerprint") != reviewed_composite
                      or lane.get("reviewed_binding_sha256") != manifest.get("binding_document_sha256"))):
             result["blockers"].append(f"{lane_name}_review_input_not_bound")
     if not lane_contract_valid(codex):
@@ -267,9 +201,18 @@ def resolve(
     else:
         result["blockers"].append("fable5_lane_neither_passed_nor_degradable")
     blocking = open_blocking_findings(manifest)
-    if blocking:
+    finding_ids = {str(row.get("id") or "") for row in blocking}
+    closure = gate.get("deterministic_finding_closure")
+    closure_valid = bool(blocking) and deterministic_closure_valid(
+        closure, gate=gate, reviewed_composite=reviewed_composite,
+        repaired_composite=str(composite), finding_ids=finding_ids,
+    )
+    if reviewed_composite != composite and not closure_valid:
+        result["blockers"].append("review_v3_composite_fingerprint_stale")
+    if blocking and not closure_valid:
         result["blockers"].append("open_p0_or_p1_finding")
-    result["blocking_findings"] = blocking
+    result["blocking_findings"] = [] if closure_valid else blocking
+    result["deterministic_finding_closure_accepted"] = closure_valid
     result["blockers"] = sorted(set(result["blockers"]))
     result["accepted"] = not result["blockers"] and result["effective_stack"] in {"1+1", "1+0"}
     result["status"] = "accepted" if result["accepted"] else "blocked"

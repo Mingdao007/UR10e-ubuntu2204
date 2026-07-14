@@ -1251,8 +1251,8 @@ def build_txt(stamp: str, spec: Step5dAblationSpec = DEFAULT_SPEC) -> str:
             "ControlCandidate -> SafetyEnvelope -> RegisterCommand, with canonical "
             "n_reaction=-n_approach, strict solver status 40, direction-preserving "
             "qdot slew, and DLS shadow-only. Low-load effective_ko is 0.01."
-            " Future stop-register canaries are sequential 2/10/60 second phases; "
-            "only the final continuous 60 second artifact may pass P0."
+            " The future stop-register canary uses the direct duration from frozen "
+            "current-stage config; only that continuous direct artifact may pass P0."
             if spec.uses_v30_control_contract
             else "P0 v7 retains its historical bridge-side evidence gate."
         )
@@ -1792,9 +1792,8 @@ def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dic
             "stop_register_canary": (
                 {
                     "enabled": False,
-                    "allowed_phases_s": [2.0, 10.0, 60.0],
-                    "sequential_same_fingerprint_required": True,
-                    "p0_pass_requires_final_continuous_phase_s": 60.0,
+                    "mode": "direct_single_duration",
+                    "duration_source": "frozen_current_stage_config",
                 }
                 if spec.uses_v30_control_contract
                 else None

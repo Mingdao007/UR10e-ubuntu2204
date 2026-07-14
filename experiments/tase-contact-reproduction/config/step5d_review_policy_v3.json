@@ -4,7 +4,8 @@
   "execution": {
     "ordinary_work_produces_reviewer_invocation": false,
     "full_review_limit_per_composite_fingerprint": 1,
-    "targeted_closer_after_finding_fix": true,
+    "formal_review_rounds_per_work_item": 1,
+    "finding_fix_closure": "deterministic_owner_validation_no_reviewer",
     "lanes_run_in_parallel": true,
     "fable5_preflight_timeout_seconds": 20,
     "review_lane_timeout_seconds": 300,
@@ -15,14 +16,15 @@
       "unavailable_not_installed",
       "unavailable_not_logged_in",
       "timeout",
-      "model_unverified"
+      "model_unverified",
+      "skipped_unavailable"
     ],
     "degraded_effective_stack": "1+0",
     "codex_lane_may_degrade": false
   },
   "severity": {
-    "P0": {"blocks": true, "closure": "targeted_closer_required"},
-    "P1": {"blocks": true, "closure": "targeted_closer_required"},
+    "P0": {"blocks": true, "closure": "deterministic_owner_validation_required"},
+    "P1": {"blocks": true, "closure": "deterministic_owner_validation_required"},
     "P2": {"blocks": false, "closure": "backlog"}
   },
   "workflow_milestone_map": {

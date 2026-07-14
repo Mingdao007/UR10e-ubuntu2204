@@ -94,7 +94,6 @@ from step5d_control_contract import (  # noqa: E402
     step5d_v30_control_step as shared_step5d_v30_control_step,
 )
 from step5d_p0_v8_gate import (  # noqa: E402
-    CANARY_PHASES_S as STEP5D_P0_V8_CANARY_PHASES_S,
     authorize_canary as authorize_p0_v8_canary,
     validate_canary_phase as validate_p0_v8_canary_phase,
 )
@@ -913,7 +912,6 @@ def write_bridge_run_manifest(
             "review_manifest": (candidate.get("review_v3") or {}).get("manifest"),
             "package_sha256": capture.get("sha256"),
             "review_policy_sha256": file_sha256(policy_path),
-            "prior_canaries": candidate.get("completed_canaries") or [],
             "terminal": {
                 "stop_request_sent": False,
                 "tp_stop_acknowledged": False,
@@ -7878,7 +7876,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--step5d-stop-register-canary-s",
         type=float,
         default=env_float("STEP5D_STOP_REGISTER_CANARY_S", 0.0),
-        help="disabled by default; P0 v8 permits only Stage25 phases 2, 10, or 60 seconds",
+        help="disabled by default; P0 v8 permits only the frozen current-stage direct duration",
     )
     args = parser.parse_args(argv)
     for key, value in list(vars(args).items()):

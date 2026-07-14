@@ -273,13 +273,18 @@ def throughput_lease(
     )
 
 
-def gpu_memory_usage_pct() -> float:
-    completed = subprocess.run(
+def gpu_memory_usage_pct(device: str | None = None) -> float:
+    command = ["nvidia-smi"]
+    if device is not None:
+        command.extend(["--id", str(device)])
+    command.extend(
         [
-            "nvidia-smi",
             "--query-gpu=memory.used,memory.total",
             "--format=csv,noheader,nounits",
-        ],
+        ]
+    )
+    completed = subprocess.run(
+        command,
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -310,6 +315,7 @@ class TaskSpec:
     claim_class: str = "diagnostic_only"
     cpu_tokens: int = 1
     gpu_vram_reservation_pct: float = 0.0
+    gpu_device: str = "0"
     env: Mapping[str, str] = field(default_factory=dict)
     cwd: Path | None = None
 
@@ -318,7 +324,7 @@ class TaskSpec:
             raise ValueError("task_id is required")
         if not self.command:
             raise ValueError(f"task {self.task_id} has no command")
-        if self.resource not in {"cpu", "gpu", "io", "formal_timing"}:
+        if self.resource not in {"cpu", "gpu", "gpu_rnn", "io", "formal_timing"}:
             raise ValueError(f"unsupported resource lane: {self.resource}")
 
 
@@ -351,6 +357,7 @@ class TaskResult:
             "claim_class": task.claim_class,
             "cpu_tokens": task.cpu_tokens,
             "gpu_vram_reservation_pct": task.gpu_vram_reservation_pct,
+            "gpu_device": task.gpu_device,
             "command": list(task.command),
             "status": self.status,
             "start_time": self.started_at,
@@ -396,7 +403,8 @@ class TaskRunner:
         root: Path,
         output_root: Path,
         profile: ResourceProfile | None = None,
-        gpu_usage: Callable[[], float] = gpu_memory_usage_pct,
+        gpu_usage: Callable[..., float] = gpu_memory_usage_pct,
+        decision_manifest: Path | None = None,
     ) -> None:
         self.root = root.resolve()
         self.output_root = output_root.resolve()
@@ -406,6 +414,14 @@ class TaskRunner:
         self.gpu_tokens = WeightedSemaphore(self.profile.gpu_workers)
         self.results: dict[str, TaskResult] = {}
         self._manifest_lock = threading.Lock()
+        self.decision_manifest = decision_manifest.resolve() if decision_manifest else None
+
+    def _decision_binding(self) -> dict[str, Any] | None:
+        if self.decision_manifest is None:
+            return None
+        from ur10e_decision_manifest import verify
+
+        return verify(self.decision_manifest, root=self.root)
 
     @property
     def manifest_path(self) -> Path:
@@ -451,6 +467,7 @@ class TaskRunner:
         return by_id
 
     def _manifest_payload(self, tasks: Mapping[str, TaskSpec]) -> dict[str, Any]:
+        decision = self._decision_binding()
         return {
             "schema_version": MANIFEST_SCHEMA,
             "contract_id": CONTRACT_ID,
@@ -458,6 +475,13 @@ class TaskRunner:
             "root": str(self.root),
             "output_root": str(self.output_root),
             "resource_profile": self.profile.as_dict(),
+            "user_decision_manifest": (
+                None if decision is None else {
+                    "path": str(self.decision_manifest),
+                    "decision_digest": decision["decision_digest"],
+                    "source_bindings": decision["source_bindings"],
+                }
+            ),
             "tasks": [
                 self.results[task_id].as_dict(tasks[task_id])
                 for task_id in sorted(self.results)
@@ -501,20 +525,30 @@ class TaskRunner:
         gpu_acquired = False
         cpu_acquired = False
         gpu_worker_lease = None
+        rnn_device_lease = None
         try:
             task.output_dir.mkdir(parents=True, exist_ok=False)
+            decision = self._decision_binding()
             cpu_lease.__enter__()
             cpu_acquired = True
-            if task.resource in {"gpu", "formal_timing"}:
+            if task.resource in {"gpu", "gpu_rnn", "formal_timing"}:
                 self.gpu_tokens.acquire(1)
                 gpu_acquired = True
                 gpu_worker_lease = CrossProcessWeightedLease(
                     self.profile.lock_root, "gpu-workers",
                     capacity=self.profile.gpu_workers, tokens=1,
-                    task=task.task_id, device="0",
+                    task=task.task_id, device=task.gpu_device,
                 )
                 gpu_worker_lease.__enter__()
-                observed = self.gpu_usage()
+                if task.resource in {"gpu_rnn", "formal_timing"}:
+                    rnn_device_lease = exclusive_lane(
+                        self.profile, f"gpu-rnn-device-{task.gpu_device}", task.task_id
+                    )
+                    rnn_device_lease.__enter__()
+                try:
+                    observed = self.gpu_usage(task.gpu_device)
+                except TypeError:
+                    observed = self.gpu_usage()
                 available = self.profile.gpu_vram_limit_pct - observed
                 requested = task.gpu_vram_reservation_pct or 0.001
                 if requested > available:
@@ -526,7 +560,7 @@ class TaskRunner:
                 gpu_lease = CrossProcessWeightedLease(
                     self.profile.lock_root, "gpu-vram", capacity=max(0.001, available),
                     tokens=requested,
-                    task=task.task_id, device="0",
+                    task=task.task_id, device=task.gpu_device,
                 )
                 gpu_lease.__enter__()
             else:
@@ -538,6 +572,11 @@ class TaskRunner:
                 env.update({str(key): str(value) for key, value in task.env.items()})
                 env["UR10E_CONCURRENCY_CONTRACT"] = CONTRACT_ID
                 env["UR10E_CLAIM_CLASS"] = task.claim_class
+                if task.resource in {"gpu", "gpu_rnn", "formal_timing"}:
+                    env["CUDA_VISIBLE_DEVICES"] = task.gpu_device
+                if decision is not None:
+                    env["UR10E_USER_DECISION_DIGEST"] = decision["decision_digest"]
+                    env["UR10E_USER_DECISION_MANIFEST"] = str(self.decision_manifest)
                 with stdout_path.open("w", encoding="utf-8") as stdout, stderr_path.open(
                     "w", encoding="utf-8"
                 ) as stderr:
@@ -549,17 +588,25 @@ class TaskRunner:
                         stderr=stderr,
                         check=False,
                     )
-            status = "passed" if completed.returncode == 0 else "failed"
+            decision_after = self._decision_binding()
+            decision_stable = decision == decision_after
+            status = "passed" if completed.returncode == 0 and decision_stable else "failed"
+            exit_code = completed.returncode if decision_stable else 76
             return TaskResult(
                 task_id=task.task_id,
                 status=status,
                 started_at=started_at,
                 ended_at=utc_now(),
                 elapsed_s=time.monotonic() - started,
-                exit_code=completed.returncode,
+                exit_code=exit_code,
                 output_dir=str(task.output_dir),
                 stdout=str(stdout_path),
                 stderr=str(stderr_path),
+                error=(
+                    None
+                    if decision_stable
+                    else "user-decision manifest changed while task was running"
+                ),
             )
         except Exception as exc:
             stderr_path.write_text(f"{type(exc).__name__}: {exc}\n", encoding="utf-8")
@@ -578,6 +625,8 @@ class TaskRunner:
         finally:
             if 'gpu_lease' in locals() and gpu_lease is not None:
                 gpu_lease.__exit__()
+            if rnn_device_lease is not None:
+                rnn_device_lease.__exit__()
             if gpu_worker_lease is not None:
                 gpu_worker_lease.__exit__()
             if gpu_acquired:

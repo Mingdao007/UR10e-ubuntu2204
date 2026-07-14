@@ -816,7 +816,7 @@ class Step5dP0V8MujocoVerifierTest(unittest.TestCase):
                 "control_adapter_discarded_after_prewarm": True,
                 "measured_phase_first_sequence": 0,
                 "post_reset_unmeasured_execute_tick_count": 0,
-                "next_action": "measured_canonical_2_10_60_sequence",
+                "next_action": "measured_direct_frozen_current_stage_duration",
             },
             "claim_boundary": {
                 "prewarm_is_not_measured_timing_evidence": True,

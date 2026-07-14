@@ -29,10 +29,11 @@
       ]
     },
     {
-      "id": "p0_v8_2_10_60",
+      "id": "p0_v8_direct_frozen_duration",
       "status": "offline_control_diagnostic_pass_controller_canaries_pending",
       "owner": "tools/run_step5d_p0_v8_mujoco.py",
-      "acceptance": "Same frozen fingerprint completes deterministic 2, 10, and 60 second 500 Hz phases; every late tick is exact-zero stopped before the sink, and the final 60 second hard gate still requires zero misses.",
+      "acceptance": "The real no-contact controller run uses one direct duration resolved from the frozen P0 v8 stage row. Offline simulation cannot replace it; the retained 2/10/60 phase data remains diagnostic history.",
+      "direct_controller_duration_source": "config/step5_stage_table.json#step5d_strict_rnn_no_contact_p0_v8.duration_s",
       "summary_artifact": "config/step5d_p0_v8_offline_simulation_diagnostic.json",
       "summary_sha256": "61c78fde75807fb29ad49bd52004faac4c53294ebfabca1f84a99f78efb32f77",
       "control_and_fault_path_pass": true,

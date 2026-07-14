@@ -147,7 +147,8 @@ def no_contact_p0_verification(
         )
     manifest = read_json(run_dir / "bridge_run_manifest.json")
     phase_s = finite_float((manifest.get("p0_v8_canary") or {}).get("phase_s"))
-    if not any(math.isclose(phase_s, allowed, abs_tol=1e-9) for allowed in verify_step5d_no_contact_p0_v8.PHASES_S):
+    configured_phase_s = verify_step5d_no_contact_p0_v8.configured_direct_duration()
+    if not math.isclose(phase_s, configured_phase_s, abs_tol=1e-9):
         return (
             {
                 "ok": False,
@@ -1133,26 +1134,15 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
         phase_s = float(no_contact_p0_v8_phase_s or 0.0)
         canary_passed = no_contact_p0_verifier.get("canary_passed") is True
         p0_passed = no_contact_p0_verifier.get("p0_v8_passed") is True
-        if math.isclose(phase_s, 60.0, abs_tol=1e-9) and p0_passed:
+        configured_phase_s = verify_step5d_no_contact_p0_v8.configured_direct_duration()
+        if math.isclose(phase_s, configured_phase_s, abs_tol=1e-9) and p0_passed:
             result["classification"] = "p0_v8_passed"
-            result["fix_validation_status"] = "passed_60s_no_contact_p0_v8"
+            result["fix_validation_status"] = "passed_direct_duration_no_contact_p0_v8"
             result["reproduction_status"] = "contact_run_not_started"
-            result["acceptance_status"] = "p0_v8_60s_p0_passed"
+            result["acceptance_status"] = "p0_v8_direct_duration_passed"
             result["next_action"] = (
-                "bind this 60 s P0 v8 artifact to the frozen fingerprint; v30 contact remains gated by "
+                "bind this direct-duration P0 v8 artifact to the frozen fingerprint; v30 contact remains gated by "
                 "timing/readback, Review v3 1+1 or valid degraded 1+0, and explicit live/contact authorization"
-            )
-        elif canary_passed and any(
-            math.isclose(phase_s, allowed, abs_tol=1e-9) for allowed in (2.0, 10.0)
-        ):
-            result["classification"] = "p0_v8_canary_passed"
-            result["fix_validation_status"] = f"passed_{phase_s:g}s_no_contact_canary"
-            result["reproduction_status"] = "p0_v8_not_complete"
-            result["acceptance_status"] = "p0_v8_canary_passed_not_p0_complete"
-            next_phase_s = 10 if math.isclose(phase_s, 2.0, abs_tol=1e-9) else 60
-            result["next_action"] = (
-                f"retain the fingerprint-bound {phase_s:g} s canary and run the sequential "
-                f"{next_phase_s} s P0 v8 phase only after its authorization gate"
             )
         else:
             result["classification"] = "p0_v8_verifier_claim_mismatch"

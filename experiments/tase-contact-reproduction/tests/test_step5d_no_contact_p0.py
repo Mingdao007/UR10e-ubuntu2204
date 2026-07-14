@@ -567,8 +567,8 @@ class Step5dNoContactP0Test(unittest.TestCase):
             'STEP5D_P0_PROFILE_OVERRIDE="step5d_strict_rnn_no_contact_p0_v8"',
             v8_wrapper,
         )
-        self.assertIn("2|10|60", v8_wrapper)
-        self.assertIn("capture-bridge PHASE_S", v8_wrapper)
+        self.assertIn("ur10e_decision_manifest.py", v8_wrapper)
+        self.assertNotIn("capture-bridge PHASE_S", v8_wrapper)
         v8_capture = current["bridge_trigger"]["no_contact_p0_v8_capture"]
         v8_stage = step5_table.step5_stage("step5d_strict_rnn_no_contact_p0_v8")
         self.assertEqual(
@@ -576,8 +576,8 @@ class Step5dNoContactP0Test(unittest.TestCase):
             "scripts/step5d-strict-rnn-p0-v8.sh capture-bridge",
         )
         self.assertEqual(
-            v8_stage["operator_lifecycle"]["canary_phase_sequence_s"],
-            [2.0, 10.0, 60.0],
+            v8_stage["operator_lifecycle"]["canary_duration_source"],
+            "frozen_stage_row.duration_s",
         )
         self.assertEqual(capture["profile"], iface.STEP5D_NO_CONTACT_P0_STAGE_ID)
         self.assertIn("P0_PROFILE", wrapper)
@@ -1754,7 +1754,7 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertNotIn("BRIDGE_FORCE_I_GAIN=0.00001", script)
         self.assertNotIn("contact-bridge", script)
 
-    def test_v8_operator_exposes_serial_canonical_phase_arguments(self) -> None:
+    def test_v8_operator_resolves_one_direct_duration_from_current_stage(self) -> None:
         wrapper = ROOT / "scripts" / "step5d-strict-rnn-p0-v8.sh"
         help_result = subprocess.run(
             ["bash", str(wrapper), "--help"],
@@ -1765,8 +1765,8 @@ class Step5dNoContactP0Test(unittest.TestCase):
         )
 
         self.assertEqual(help_result.returncode, 0, help_result.stdout + help_result.stderr)
-        self.assertIn("exactly 2, 10, or 60", help_result.stdout)
-        self.assertIn("capture-ready PHASE_S", help_result.stdout)
+        self.assertIn("resolved from the frozen current-stage config", help_result.stdout)
+        self.assertNotIn("PHASE_S", help_result.stdout)
         for argv in (
             ["capture-ready", "5"],
             ["capture-bridge", "11"],

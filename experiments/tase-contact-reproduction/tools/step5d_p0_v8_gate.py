@@ -10,38 +10,43 @@ import re
 from pathlib import Path
 from typing import Any, Mapping
 
+from ur10e_decision_manifest import p0_duration
+
 
 PROFILE = "step5d_strict_rnn_no_contact_p0_v8"
-CANARY_PHASES_S = (2.0, 10.0, 60.0)
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def validate_completed_canary_ledger(candidate: Mapping[str, Any], fingerprint: str,
-                                      required_phases: tuple[float, ...]) -> None:
-    completed = candidate.get("completed_canaries") or []
-    for required_phase in required_phases:
-        valid = False
-        for item in completed:
-            if not isinstance(item, Mapping):
-                continue
-            artifact = (ROOT / str(item.get("artifact") or "")).resolve()
-            try:
-                artifact.relative_to(ROOT)
-                payload = json.loads(artifact.read_text(encoding="utf-8"))
-            except (ValueError, OSError, json.JSONDecodeError):
-                continue
-            digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
-            if (math.isclose(float(item.get("phase_s", -1)), required_phase, abs_tol=1e-9)
-                    and item.get("composite_fingerprint") == fingerprint
-                    and item.get("canary_passed") is True
-                    and item.get("artifact_sha256") == digest
-                    and payload.get("ok") is True and payload.get("canary_passed") is True
-                    and math.isclose(float(payload.get("phase_s", -1)), required_phase, abs_tol=1e-9)
-                    and (payload.get("binding") or {}).get("composite_fingerprint") == fingerprint):
-                valid = True
-                break
-        if not valid:
-            raise ValueError(f"P0 v8 prior {required_phase:g}s artifact ledger is missing or stale")
+def configured_canary_duration(current: Mapping[str, Any] | None = None) -> float:
+    if current is None:
+        current = json.loads((ROOT / "config/current_stage.json").read_text(encoding="utf-8"))
+    table = json.loads((ROOT / "config/step5_stage_table.json").read_text(encoding="utf-8"))
+    return p0_duration(dict(current), table)
+
+
+def composite_fingerprint(candidate: Mapping[str, Any]) -> str:
+    """Return the canonical fingerprint for the decision/package/canary binding."""
+
+    binding = candidate.get("composite_binding")
+    if not isinstance(binding, Mapping):
+        raise ValueError("P0 v8 composite binding is missing")
+    payload = {
+        "decision_source_digest": binding.get("decision_source_digest"),
+        "package_sha256": binding.get("package_sha256"),
+        "semantic_fingerprint": binding.get("semantic_fingerprint"),
+        "canary_policy": binding.get("canary_policy"),
+    }
+    if payload["package_sha256"] != candidate.get("package_sha256"):
+        raise ValueError("P0 v8 composite package binding is stale")
+    if payload["semantic_fingerprint"] != candidate.get("semantic_fingerprint"):
+        raise ValueError("P0 v8 composite semantic binding is stale")
+    if payload["canary_policy"] != candidate.get("canary_policy"):
+        raise ValueError("P0 v8 composite canary-policy binding is stale")
+    decision_digest = payload["decision_source_digest"]
+    if re.fullmatch(r"[0-9a-f]{64}", str(decision_digest or "")) is None:
+        raise ValueError("P0 v8 composite decision digest is invalid")
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def review_authorized(review: Mapping[str, Any], fingerprint: str) -> bool:
@@ -59,7 +64,8 @@ def review_authorized(review: Mapping[str, Any], fingerprint: str) -> bool:
     )
 
 
-def validate_canary_phase(profile: str, phase_s: float, *, allow_disabled: bool = True) -> float:
+def validate_canary_phase(profile: str, phase_s: float, *, allow_disabled: bool = True,
+                          current: Mapping[str, Any] | None = None) -> float:
     try:
         phase = float(phase_s)
     except (TypeError, ValueError) as exc:
@@ -70,13 +76,16 @@ def validate_canary_phase(profile: str, phase_s: float, *, allow_disabled: bool 
         return phase
     if profile != PROFILE:
         raise ValueError("--step5d-stop-register-canary-s is restricted to P0 v8")
-    if not any(math.isclose(phase, allowed, abs_tol=1e-9) for allowed in CANARY_PHASES_S):
-        raise ValueError("P0 v8 stop-register canary phase must be exactly 2, 10, or 60 seconds")
+    configured = configured_canary_duration(current)
+    if not math.isclose(phase, configured, abs_tol=1e-9):
+        raise ValueError(
+            f"P0 v8 stop-register canary must match frozen current-stage duration ({configured:g}s)"
+        )
     return phase
 
 
 def authorize_canary(args: Any, current: Mapping[str, Any]) -> dict[str, Any]:
-    """Validate frozen state and the serial same-fingerprint 2 -> 10 -> 60 sequence."""
+    """Validate the one direct canary duration on the frozen fingerprint."""
 
     candidate = current.get("p0_v8_candidate")
     capture = (current.get("bridge_trigger") or {}).get("no_contact_p0_v8_capture")
@@ -92,27 +101,18 @@ def authorize_canary(args: Any, current: Mapping[str, Any]) -> dict[str, Any]:
     fingerprint = str(candidate.get("composite_fingerprint") or "")
     if re.fullmatch(r"[0-9a-f]{64}", fingerprint) is None:
         raise ValueError("P0 v8 composite fingerprint is missing or invalid")
+    if composite_fingerprint(candidate) != fingerprint:
+        raise ValueError("P0 v8 composite fingerprint does not match its canonical binding")
     if not isinstance(review, Mapping) or not review_authorized(review, fingerprint):
         raise ValueError(
             "P0 v8 no-contact requires the bound Review v3 0+0 policy record"
         )
     if candidate.get("evidence_frozen") is not True:
         raise ValueError("P0 v8 canaries may run only after evidence freeze")
-    phase = validate_canary_phase(PROFILE, getattr(args, "step5d_stop_register_canary_s", 0.0), allow_disabled=False)
-    completed = candidate.get("completed_canaries") or []
-    required_previous = () if phase == 2.0 else (2.0,) if phase == 10.0 else (2.0, 10.0)
-    validate_completed_canary_ledger(candidate, fingerprint, required_previous)
-    for required_phase in required_previous:
-        if not any(
-            isinstance(item, Mapping)
-            and math.isclose(float(item.get("phase_s", -1.0)), required_phase, abs_tol=1e-9)
-            and item.get("composite_fingerprint") == fingerprint
-            and item.get("canary_passed") is True
-            for item in completed
-        ):
-            raise ValueError(
-                f"P0 v8 {phase:g}s canary requires prior {required_phase:g}s pass on the same fingerprint"
-            )
+    phase = validate_canary_phase(
+        PROFILE, getattr(args, "step5d_stop_register_canary_s", 0.0),
+        allow_disabled=False, current=current,
+    )
     return {
         "profile": PROFILE,
         "phase_s": phase,

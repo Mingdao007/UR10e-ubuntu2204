@@ -9,7 +9,7 @@
   "blockers": [
     "current_source_solver_10k_not_run",
     "live_runtime_prewarm_not_integrated_or_verified",
-    "p0_v8_final_60s_not_passed",
+    "p0_v8_direct_current_stage_duration_not_passed",
     "p0_v8_passed_artifact_missing",
     "review_v3_not_due_until_evidence_freeze",
     "runtime_shaped_60s_500hz_acceptance_not_run",
@@ -81,10 +81,11 @@
   },
   "p0_v8_gate": {
     "blockers": [
-      "p0_v8_final_60s_not_passed",
+      "p0_v8_direct_current_stage_duration_not_passed",
       "p0_v8_passed_artifact_missing"
     ],
-    "composite_fingerprint": "61642f4a965a15c786c30d2412a35fcd7d7a6bdb46d1e7c92cad661519af1e5d",
+    "composite_fingerprint": "2e283925ce0ec789c460a76ab5b706a301b82530f5df4bf080ca27cf75f33ef8",
+    "direct_duration_s": 60.0,
     "passed": false,
     "passed_artifact": null,
     "passed_artifact_sha256": null,
@@ -138,7 +139,7 @@
     "deterministic_freeze_blockers": [
       "current_source_solver_10k_not_run",
       "live_runtime_prewarm_not_integrated_or_verified",
-      "p0_v8_final_60s_not_passed",
+      "p0_v8_direct_current_stage_duration_not_passed",
       "p0_v8_passed_artifact_missing",
       "runtime_shaped_60s_500hz_acceptance_not_run",
       "system_level_host_driver_timing_outliers_unresolved",
@@ -154,7 +155,7 @@
     "milestone": "contact_pre_live",
     "policy_id": "ur10e_review_policy_v3",
     "policy_path": "config/step5d_review_policy_v3.json",
-    "policy_sha256": "a7ec47d8dd842efcbe5d993dd36cac1073261d8523f6b3b5445ad26e63a788c1",
+    "policy_sha256": "056c42673bdffad0a4cfee14e66965e1d26ab4440f271fced74681766e330937",
     "required_stack": "1+1",
     "review_class": "contact_pre_live",
     "review_invocation_required": true,
@@ -182,7 +183,7 @@
     },
     "bridge_sha256": {
       "path": "tools/kunwei_rtde_bridge.py",
-      "sha256": "d7673f17993f4163e8c0a80d3ccfcceb4cad7cdbd09febbfe3cebde181adf1ff"
+      "sha256": "e0d447d22d8246a5f103c7b71158eb5efa55b4d3bfb9c1037aca849e258adbd5"
     },
     "bundler_sha256": {
       "path": "tools/build_step5d_v30_remote_timing_bundle.py",
@@ -210,7 +211,7 @@
     },
     "readiness_builder_sha256": {
       "path": "tools/build_step5d_v30_offline_readiness.py",
-      "sha256": "250f7aa05f3eb3f68042cfedc68bd411bceb18464911b4354b0da573d020fe99"
+      "sha256": "0c3d2e8dc19712f95acf7d0343e54cb2729f6177fe7804896ea6234e276e5be3"
     },
     "runtime_interface_sha256": {
       "path": "tools/step5d_runtime_interface.py",

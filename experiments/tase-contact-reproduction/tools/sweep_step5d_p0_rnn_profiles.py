@@ -274,7 +274,7 @@ def run(
         "selected_profile_sha256": (
             None if selected is None else selected["profile_sha256"]
         ),
-        "selection_requires_followup_2_10_60": True,
+        "selection_requires_direct_live_canary_from_current_stage": True,
         "safety_boundary": {
             "qdot_cap_rad_s": p0.P0_V8_QDOT_CAP_RAD_S,
             "dls_runtime_fallback_allowed": False,

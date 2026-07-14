@@ -27,6 +27,13 @@ export OPENBLAS_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
 
+# ROS Python packages are installed outside the isolated venv on bench hosts.
+for ros_python in /opt/ros/*/lib/python3.*/site-packages /opt/ros/*/local/lib/python3.*/dist-packages; do
+  if [[ -d "${ros_python}" ]]; then
+    export PYTHONPATH="${ros_python}:${PYTHONPATH:-}"
+  fi
+done
+
 CPU_WORKERS="${UR10E_CPU_WORKERS:-auto}"
 if [[ "${CPU_WORKERS}" == "auto" ]]; then
   CPU_WORKERS="$(PYTHONPATH="${ROOT}/tools:${PYTHONPATH:-}" "${TEST_PYTHON}" - <<'PY'
@@ -36,38 +43,35 @@ PY
 )"
 fi
 
-run_pytest() {
-  local test_count pytest_workers
-  test_count="$(rg -g 'test_*.py' -c '^[[:space:]]*def test_' tests | awk -F: '{total += $2} END {print total + 0}')"
-  pytest_workers=$((CPU_WORKERS - 2))
-  (( pytest_workers > 14 )) && pytest_workers=14
-  (( pytest_workers < 1 )) && pytest_workers=1
-  if [[ "${UR10E_PARALLEL:-1}" == "0" || "${test_count}" -lt 200 ]]; then
-    "${TEST_PYTHON}" -m pytest tests -q
-  else
-    "${TEST_PYTHON}" -m pytest tests -q -p xdist.plugin -n "${pytest_workers}" --dist worksteal
-  fi
-}
+pytest_workers=$((CPU_WORKERS - 2))
+(( pytest_workers > 14 )) && pytest_workers=14
+(( pytest_workers < 1 )) && pytest_workers=1
 
+execution="dag"
 if [[ "${UR10E_PARALLEL:-1}" == "0" ]]; then
-  failed=0
-  "${TEST_PYTHON}" tools/validate_tase_protocol_table.py || failed=1
-  "${TEST_PYTHON}" tools/validate_cross_step_parameter_table.py || failed=1
-  run_pytest || failed=1
-  exit "${failed}"
-else
-  pids=()
-  "${TEST_PYTHON}" tools/validate_tase_protocol_table.py &
-  pids+=("$!")
-  "${TEST_PYTHON}" tools/validate_cross_step_parameter_table.py &
-  pids+=("$!")
-  run_pytest &
-  pids+=("$!")
-  failed=0
-  for pid in "${pids[@]}"; do
-    if ! wait "${pid}"; then
-      failed=1
-    fi
-  done
-  exit "${failed}"
+  execution="serial"
 fi
+
+stamp="$(date +%Y%m%d_%H%M%S)_$$_${execution}"
+output_dir="${UR10E_TEST_EVIDENCE_DIR:-${ROOT}/runs/validation/${stamp}}"
+args=(
+  --root "${ROOT}"
+  --python "${TEST_PYTHON}"
+  --output-dir "${output_dir}"
+  --execution "${execution}"
+  --workers "${pytest_workers}"
+)
+if [[ -n "${UR10E_TEST_BASE_REF:-}" ]]; then
+  args+=(--base-ref "${UR10E_TEST_BASE_REF}")
+fi
+if [[ -n "${UR10E_CHANGED_PATHS_FILE:-}" ]]; then
+  args+=(--changed-paths-file "${UR10E_CHANGED_PATHS_FILE}")
+fi
+if [[ "${UR10E_FULL_SUITE:-0}" == "1" ]]; then
+  args+=(--full-suite)
+fi
+if [[ "${UR10E_TEST_REUSE:-1}" == "0" ]]; then
+  args+=(--no-reuse)
+fi
+
+exec "${TEST_PYTHON}" tools/run_ur10e_impacted_tests.py "${args[@]}"

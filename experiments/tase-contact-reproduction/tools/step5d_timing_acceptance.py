@@ -41,10 +41,14 @@ def evaluate_timing_raw(root: Path, raw_path: Path) -> dict[str, Any]:
         ),
     )
     accepted = evaluation.get("acceptance_eligible") is True
+    try:
+        recorded_raw_path = str(raw_path.relative_to(root))
+    except ValueError:
+        recorded_raw_path = str(raw_path)
     return {
         "schema_version": "step5d_timing_acceptance_evaluation_v1",
         "evaluator": "tools/step5d_timing_acceptance.py:evaluate_timing_raw",
-        "raw_path": str(raw_path.relative_to(root)),
+        "raw_path": recorded_raw_path,
         "raw_sha256": _sha256(raw_path),
         "input_claim_class": "formal_raw_capture",
         "output_claim_class": "formal_acceptance" if accepted else "diagnostic_only",

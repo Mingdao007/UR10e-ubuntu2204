@@ -457,7 +457,7 @@ class Step5dCurrentPromotionTest(unittest.TestCase):
             (config / "current_stage.json").write_text(json.dumps(current), encoding="utf-8")
             (config / "step5_stage_table.json").write_text(json.dumps(table), encoding="utf-8")
 
-            with self.assertRaisesRegex(RuntimeError, "P0 v8 final continuous 60 second pass"):
+            with self.assertRaisesRegex(RuntimeError, "direct frozen-duration P0 v8 pass"):
                 promote.promote(root, V30, TARGET_DIR, candidate, manifest_path)
 
             self.assertFalse((root / "programs" / "step5" / f"{V30}.script").exists())

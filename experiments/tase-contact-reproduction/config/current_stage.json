@@ -1103,7 +1103,7 @@
       "delivery_mode": "pending_regenerated_upload_readback",
       "sha256": {
         ".script": "407f80e56eaa70d1e0e18597abbbddf535c8af88831c41fb117425583792ca9d",
-        ".txt": "3c07d18472d5780df813fc536e4505cb813659792058c5ec9c130b39060cf4e6",
+        ".txt": "fa78883b403d01c697c40470528570d5ff6dae8f62f5c8141aa12353a4a963e4",
         ".urp": "5dad62e6682675a2dc1a2f062e5ca8f17a47497d8477640931ec0afbb49d43fa"
       },
       "capture_authorized": false,
@@ -1194,25 +1194,40 @@
     "state": "regenerated_package_pending_controller_readback",
     "package_sha256": {
       ".script": "407f80e56eaa70d1e0e18597abbbddf535c8af88831c41fb117425583792ca9d",
-      ".txt": "3c07d18472d5780df813fc536e4505cb813659792058c5ec9c130b39060cf4e6",
+      ".txt": "fa78883b403d01c697c40470528570d5ff6dae8f62f5c8141aa12353a4a963e4",
       ".urp": "5dad62e6682675a2dc1a2f062e5ca8f17a47497d8477640931ec0afbb49d43fa"
     },
-    "semantic_fingerprint": "7e9d6826f45bbec38f57169bc630e57ac1f0473cc4aded1e84bed766f5ad8446",
+    "semantic_fingerprint": "7d1b1457e5149ddb84bf456a538e9ea8e81c0f027b094dfe693626e1b755990f",
     "evidence_frozen": true,
-    "composite_fingerprint": "61642f4a965a15c786c30d2412a35fcd7d7a6bdb46d1e7c92cad661519af1e5d",
+    "composite_binding": {
+      "decision_source_digest": "8f990860ae546339520033d0a8665c72c90e5918221ad7cb124a720322e724a9",
+      "package_sha256": {
+        ".script": "407f80e56eaa70d1e0e18597abbbddf535c8af88831c41fb117425583792ca9d",
+        ".txt": "fa78883b403d01c697c40470528570d5ff6dae8f62f5c8141aa12353a4a963e4",
+        ".urp": "5dad62e6682675a2dc1a2f062e5ca8f17a47497d8477640931ec0afbb49d43fa"
+      },
+      "semantic_fingerprint": "7d1b1457e5149ddb84bf456a538e9ea8e81c0f027b094dfe693626e1b755990f",
+      "canary_policy": {
+        "enabled": true,
+        "mode": "direct_single_duration",
+        "direct_duration_s": 60.0,
+        "duration_source": "config/step5_stage_table.json#step5d_strict_rnn_no_contact_p0_v8.duration_s"
+      }
+    },
+    "composite_fingerprint": "2e283925ce0ec789c460a76ab5b706a301b82530f5df4bf080ca27cf75f33ef8",
     "review_v3": {
       "policy_id": "ur10e_review_policy_v3",
       "milestone": "p0_v8_pre_live",
       "required_stack": "0+0",
       "status": "not_required",
-      "composite_fingerprint": "61642f4a965a15c786c30d2412a35fcd7d7a6bdb46d1e7c92cad661519af1e5d",
+      "composite_fingerprint": "2e283925ce0ec789c460a76ab5b706a301b82530f5df4bf080ca27cf75f33ef8",
       "deterministic_canaries_still_required": true
     },
     "canary_policy": {
       "enabled": true,
-      "allowed_phases_s": [2.0, 10.0, 60.0],
-      "serial_same_fingerprint_sequence_required": true,
-      "final_continuous_phase_s": 60.0
+      "mode": "direct_single_duration",
+      "direct_duration_s": 60.0,
+      "duration_source": "config/step5_stage_table.json#step5d_strict_rnn_no_contact_p0_v8.duration_s"
     },
     "offline_simulation_diagnostic": {
       "status": "bound_diagnostic_complete",
@@ -1254,7 +1269,7 @@
         }
       ]
     },
-    "completed_canaries": [],
+    "direct_canary_result": null,
     "p0_v8_passed": false,
     "passed_artifact": null,
     "claim_boundary": {
@@ -1264,7 +1279,7 @@
       "reproduction_complete": false
     },
     "blockers": [
-      "controller_serial_2_10_60_second_canaries_not_run"
+      "controller_direct_current_stage_duration_canary_not_run"
     ]
   },
   "v30_candidate": {
@@ -1315,7 +1330,7 @@
     },
     "offline_readiness": {
       "artifact": "config/step5d_v30_offline_readiness.json",
-      "sha256": "e613023f0962c82b66aa5d555b88c3a8d1c549ada92d1c82a3ac81632f863e76",
+      "sha256": "1b3e91f796620d5499e229b1f627d81f8355dc4cfe8e0a45eb9e606feea325da",
       "status": "v30_offline_blocked"
     },
     "review_v3": {
@@ -1330,7 +1345,7 @@
       "timing_acceptance_failed",
       "runtime_shaped_60s_500hz_acceptance_not_run",
       "live_runtime_prewarm_not_integrated_or_verified",
-      "p0_v8_final_60s_not_passed",
+      "p0_v8_direct_current_stage_duration_not_passed",
       "p0_v8_passed_artifact_missing",
       "review_v3_not_due_until_evidence_freeze"
     ],

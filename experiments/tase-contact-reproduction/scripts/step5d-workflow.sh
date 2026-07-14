@@ -22,9 +22,9 @@ Usage:
   step5d-workflow.sh status
   step5d-workflow.sh dev-loop
   step5d-workflow.sh parallel-check
-  step5d-workflow.sh offline-functional
-  step5d-workflow.sh formal-timing
-  step5d-workflow.sh offline-all
+  step5d-workflow.sh offline-functional --replay-csv <csv> --model-manifest <json>
+  step5d-workflow.sh formal-timing --replay-csv <csv>
+  step5d-workflow.sh offline-all --replay-csv <csv> --model-manifest <json>
   step5d-workflow.sh postprocess <immutable-run-dir>
   step5d-workflow.sh promote-package
   step5d-workflow.sh prep-long-checks
@@ -180,7 +180,7 @@ case "${mode}" in
     echo "not delivered; current_stage unchanged; do not open on Teach Pendant"
     ;;
   parallel-check|offline-functional|formal-timing|offline-all)
-    python3 "${PARALLEL_TOOL}" "${mode}"
+    python3 "${PARALLEL_TOOL}" "${mode}" "${@:2}"
     ;;
   postprocess)
     run_dir="${2:-}"

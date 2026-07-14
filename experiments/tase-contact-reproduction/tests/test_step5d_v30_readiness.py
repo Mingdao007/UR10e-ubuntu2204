@@ -160,7 +160,7 @@ class Step5dV30ReadinessTest(unittest.TestCase):
         self.assertIsNone(payload["package"]["controller_readback_manifest"])
         self.assertFalse(payload["p0_v8_gate"]["passed"])
         self.assertIn(
-            "p0_v8_final_60s_not_passed", payload["p0_v8_gate"]["blockers"]
+            "p0_v8_direct_current_stage_duration_not_passed", payload["p0_v8_gate"]["blockers"]
         )
         numeric = payload["numeric_sanity"]
         numeric_path = ROOT / numeric["path"]

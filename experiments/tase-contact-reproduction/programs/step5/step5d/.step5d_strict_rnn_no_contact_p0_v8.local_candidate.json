@@ -13,10 +13,10 @@
     "no live bridge"
   ],
   "schema": "ur_tp_local_candidate_v1",
-  "semantic_fingerprint": "7e9d6826f45bbec38f57169bc630e57ac1f0473cc4aded1e84bed766f5ad8446",
+  "semantic_fingerprint": "7d1b1457e5149ddb84bf456a538e9ea8e81c0f027b094dfe693626e1b755990f",
   "sha256": {
     ".script": "407f80e56eaa70d1e0e18597abbbddf535c8af88831c41fb117425583792ca9d",
-    ".txt": "3c07d18472d5780df813fc536e4505cb813659792058c5ec9c130b39060cf4e6",
+    ".txt": "fa78883b403d01c697c40470528570d5ff6dae8f62f5c8141aa12353a4a963e4",
     ".urp": "5dad62e6682675a2dc1a2f062e5ca8f17a47497d8477640931ec0afbb49d43fa"
   },
   "stamp": "2026-07-14T0335HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V8",

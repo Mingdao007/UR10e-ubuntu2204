@@ -17,6 +17,8 @@ from build_step5d_p0_v8_offline_diagnostic import (
     validate_state_binding as validate_p0_offline_state_binding,
 )
 from tase_protocol_table import resolve_experiment_profile
+from step5d_p0_v8_gate import composite_fingerprint as p0_composite_fingerprint
+from ur10e_decision_manifest import canonical_digest
 
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
@@ -636,11 +638,17 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         for field, expected in expected_p0_runtime.items():
             if runtime.get(field) != expected:
                 failures.append(f"P0 v8 runtime profile mismatch: {field}")
+        try:
+            p0_duration_s = float(p0_v8_row["duration_s"])
+        except (KeyError, TypeError, ValueError):
+            p0_duration_s = 0.0
+        phase_law = p0_v8_row.get("phase_law") or {}
         if (
-            p0_v8_row.get("duration_s") != 60.0
+            p0_duration_s <= 0.0
             or p0_v8_row.get("amplitude_m") != 0.015
-            or p0_v8_row.get("phase_law")
-            != {"type": "linear_time", "omega_rad_s": 0.1, "final_phase_rad": 6.0}
+            or phase_law.get("type") != "linear_time"
+            or phase_law.get("omega_rad_s") != 0.1
+            or phase_law.get("final_phase_rad") != 0.1 * p0_duration_s
         ):
             failures.append("P0 v8 cycloid reference contract is incomplete")
         if p0_v8_row.get("runtime_scheduler") != {
@@ -689,6 +697,18 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             failures.append("P0 v8 current-stage capture package hashes do not match stage table")
         if p0_v8_candidate.get("semantic_fingerprint") != p0_fingerprint:
             failures.append("P0 v8 current-stage semantic fingerprint does not match stage table")
+        try:
+            expected_p0_composite = p0_composite_fingerprint(p0_v8_candidate)
+        except ValueError as exc:
+            failures.append(str(exc))
+        else:
+            if p0_v8_candidate.get("composite_fingerprint") != expected_p0_composite:
+                failures.append("P0 v8 composite fingerprint is not canonical")
+        decision_source = load_json(root / "config/ur10e_user_decisions_v1.json")
+        if (p0_v8_candidate.get("composite_binding") or {}).get(
+            "decision_source_digest"
+        ) != canonical_digest(decision_source):
+            failures.append("P0 v8 composite decision-source binding is stale")
         for field in (
             "controller_target",
             "controller_uploaded",
@@ -734,17 +754,16 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
 
         expected_canary_policy = {
             "enabled": True,
-            "allowed_phases_s": [2.0, 10.0, 60.0],
-            "serial_same_fingerprint_sequence_required": True,
-            "final_continuous_phase_s": 60.0,
+            "mode": "direct_single_duration",
+            "direct_duration_s": p0_v8_row.get("duration_s"),
+            "duration_source": "config/step5_stage_table.json#step5d_strict_rnn_no_contact_p0_v8.duration_s",
         }
         if p0_v8_candidate.get("canary_policy") != expected_canary_policy:
-            failures.append("P0 v8 candidate must require serial same-fingerprint 2/10/60 canaries")
+            failures.append("P0 v8 candidate must require the direct frozen-stage duration canary")
         stage_canary = p0_v8_row.get("canary_stop_register") or {}
         expected_stage_canary_fields = {
-            "allowed_phases_s": [2.0, 10.0, 60.0],
-            "serial_same_fingerprint_sequence_required": True,
-            "p0_pass_requires_final_continuous_phase_s": 60.0,
+            "mode": "direct_single_duration",
+            "duration_source": "frozen_stage_row.duration_s",
         }
         for field, expected in expected_stage_canary_fields.items():
             if stage_canary.get(field) != expected:
@@ -967,17 +986,18 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         if p0_v8_capture.get("passed") is not p0_passed:
             failures.append("P0 v8 capture pass state mismatch")
         if p0_passed:
+            direct_duration = float((p0_v8_candidate.get("canary_policy") or {}).get("direct_duration_s", 0.0))
             final_canary = any(
                 isinstance(item, dict)
                 and isinstance(item.get("phase_s"), (int, float))
-                and float(item["phase_s"]) == 60.0
+                and float(item["phase_s"]) == direct_duration
                 and item.get("canary_passed") is True
                 and item.get("composite_fingerprint")
                 == stage_review.get("composite_fingerprint")
                 for item in (p0_v8_candidate.get("completed_canaries") or [])
             )
             if not p0_v8_candidate.get("passed_artifact") or not final_canary:
-                failures.append("P0 v8 passed requires a final continuous 60 second artifact")
+                failures.append("P0 v8 passed requires the direct frozen-stage duration artifact")
             if stage_review.get("status") != "not_required":
                 failures.append("P0 v8 Review v3 must remain 0+0/not_required")
 
@@ -1221,12 +1241,19 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             ("aggregator", "aggregator_sha256"),
             ("readiness_builder", "readiness_builder_sha256"),
         )
+        timing_status = str(((current.get("v30_candidate") or {}).get("timing") or {}).get("status") or "")
+        timing_source_is_current = timing_status != "historical_raw_invalidated_by_current_source_fingerprint"
+        observed_source_mismatches = []
         for path_field, sha_field in source_fields:
             source_path = root / str(source_contract.get(path_field) or "")
             if not source_path.is_file():
                 failures.append(f"v30 timing source is missing: {path_field}")
             elif file_sha256(source_path) != source_contract.get(sha_field):
-                failures.append(f"v30 timing source sha mismatch: {path_field}")
+                observed_source_mismatches.append(path_field)
+                if timing_source_is_current:
+                    failures.append(f"v30 timing source sha mismatch: {path_field}")
+        if not timing_source_is_current and not observed_source_mismatches:
+            failures.append("v30 timing is marked source-invalidated but every bound source still matches")
         if timing_path.is_file() and timing_raw_path.is_file():
             timing = load_json(timing_path)
             offline_status = v30.get("offline_acceptance", {}).get("status")

@@ -112,12 +112,19 @@ def validate_inactive_package_delivery(
 
 def validate_p0_v8_gate(current: dict[str, Any]) -> dict[str, Any]:
     candidate = current.get("p0_v8_candidate") or {}
+    policy = candidate.get("canary_policy") or {}
+    try:
+        configured_duration = float(policy["direct_duration_s"])
+    except (KeyError, TypeError, ValueError):
+        configured_duration = 0.0
     artifact_rel = candidate.get("passed_artifact")
     blockers: list[str] = []
     if candidate.get("profile") != P0_V8_PROFILE:
         blockers.append("p0_v8_profile_mismatch")
     if candidate.get("p0_v8_passed") is not True:
-        blockers.append("p0_v8_final_60s_not_passed")
+        blockers.append("p0_v8_direct_current_stage_duration_not_passed")
+    if configured_duration <= 0 or policy.get("mode") != "direct_single_duration":
+        blockers.append("p0_v8_direct_duration_config_invalid")
     artifact_sha256 = None
     if not artifact_rel:
         blockers.append("p0_v8_passed_artifact_missing")
@@ -130,7 +137,7 @@ def validate_p0_v8_gate(current: dict[str, Any]) -> dict[str, Any]:
             artifact = load(artifact_path)
             if (
                 artifact.get("p0_v8_passed") is not True
-                or float(artifact.get("phase_s", 0.0) or 0.0) != 60.0
+                or float(artifact.get("phase_s", 0.0) or 0.0) != configured_duration
                 or (artifact.get("binding") or {}).get("composite_fingerprint")
                 != candidate.get("composite_fingerprint")
             ):
@@ -141,6 +148,7 @@ def validate_p0_v8_gate(current: dict[str, Any]) -> dict[str, Any]:
         "passed_artifact": artifact_rel,
         "passed_artifact_sha256": artifact_sha256,
         "composite_fingerprint": candidate.get("composite_fingerprint"),
+        "direct_duration_s": configured_duration,
         "blockers": sorted(set(blockers)),
     }
 

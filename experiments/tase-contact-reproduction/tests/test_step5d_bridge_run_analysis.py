@@ -1457,8 +1457,8 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
         self.assertIn("first_speedj_rnn_tick_cmd_press_unload_mismatch", analysis["no_contact_p0_verifier"]["blockers"])
         self.assertIsNone(analysis["first_tp_stop_reason"])
 
-    def test_p0_v8_analyzer_accepts_only_direct_60s_manifest_phase(self) -> None:
-        cases = ((60.0, True, True, "p0_v8_passed", "p0_v8_60s_p0_passed"),)
+    def test_p0_v8_analyzer_accepts_only_configured_direct_manifest_phase(self) -> None:
+        cases = ((60.0, True, True, "p0_v8_passed", "p0_v8_direct_duration_passed"),)
         for phase_s, canary_passed, p0_passed, classification, acceptance in cases:
             with self.subTest(phase_s=phase_s), tempfile.TemporaryDirectory() as tmp:
                 run_dir = Path(tmp)
@@ -1518,7 +1518,7 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
                 self.assertEqual(analysis["classification"], classification)
                 self.assertEqual(analysis["acceptance_status"], acceptance)
 
-    def test_p0_v8_analyzer_accepts_canonical_short_canary_phases(self) -> None:
+    def test_p0_v8_analyzer_rejects_retired_short_canary_phases(self) -> None:
         for phase_s in (2.0, 10.0):
             with self.subTest(phase_s=phase_s), tempfile.TemporaryDirectory() as tmp:
                 run_dir = Path(tmp)
@@ -1544,9 +1544,11 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
                         )
                     )
 
-                verifier.assert_called_once()
-                self.assertEqual(observed_phase, phase_s)
+                verifier.assert_not_called()
+                self.assertIsNone(observed_phase)
                 self.assertEqual(tool, "verify_step5d_no_contact_p0_v8.py")
+                self.assertFalse(result["ok"])
+                self.assertIn("bridge_run_manifest_canary_phase_missing_or_invalid", result["blockers"])
 
     def test_p0_v8_analyzer_fails_closed_when_manifest_phase_is_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

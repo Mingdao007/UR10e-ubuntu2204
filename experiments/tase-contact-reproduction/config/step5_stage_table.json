@@ -8614,7 +8614,7 @@
       "complete": false,
       "completion_target": false,
       "gate_for": "step5d_strict_rnn_ablation_v30",
-      "block_reason": "Inactive P0 v8 candidate pending regenerated controller upload/readback and the serial same-fingerprint 2 -> 10 -> 60 s no-contact canary sequence. Review v3 assigns this no-contact pre-live work 0+0, while the deterministic canaries remain mandatory. A completed guard-approved GPU qdot publishes even after the nominal 2 ms release; while no new accepted qdot is available, TP continues the last accepted qdot without a zero-qdot injection for at most 250 ms. Hard guards, solver exceptions, stop requests, and staleness beyond 250 ms remain fail-closed.",
+      "block_reason": "Inactive P0 v8 candidate pending regenerated controller upload/readback and one direct no-contact canary at the duration resolved from this frozen current-stage row. Review v3 assigns this no-contact pre-live work 0+0, while the deterministic canary remains mandatory. A completed guard-approved GPU qdot publishes even after the nominal 2 ms release; while no new accepted qdot is available, TP continues the last accepted qdot without a zero-qdot injection for at most 250 ms. Hard guards, solver exceptions, stop requests, and staleness beyond 250 ms remain fail-closed.",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": false,
@@ -8709,7 +8709,7 @@
         "entrypoint": "scripts/step5d-strict-rnn-p0-v8.sh",
         "base_operator": "scripts/bridge-line-operator.sh",
         "mode": "line-bridge-fast",
-        "canary_phase_sequence_s": [2.0, 10.0, 60.0],
+        "canary_duration_source": "frozen_stage_row.duration_s",
         "confirm_env": "STEP5D_P0_CONFIRM",
         "confirm_token": "LIVE STEP5D STRICT RNN NO CONTACT P0 V8",
         "expected_program": null,
@@ -8747,10 +8747,10 @@
         "controller_uploaded": false,
         "controller_readback_verified": false,
         "controller_readback_manifest": null,
-        "semantic_fingerprint": "7e9d6826f45bbec38f57169bc630e57ac1f0473cc4aded1e84bed766f5ad8446",
+        "semantic_fingerprint": "7d1b1457e5149ddb84bf456a538e9ea8e81c0f027b094dfe693626e1b755990f",
         "sha256": {
           ".script": "407f80e56eaa70d1e0e18597abbbddf535c8af88831c41fb117425583792ca9d",
-          ".txt": "3c07d18472d5780df813fc536e4505cb813659792058c5ec9c130b39060cf4e6",
+          ".txt": "fa78883b403d01c697c40470528570d5ff6dae8f62f5c8141aa12353a4a963e4",
           ".urp": "5dad62e6682675a2dc1a2f062e5ca8f17a47497d8477640931ec0afbb49d43fa"
         },
         "stamp": "2026-07-14T0335HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V8",
@@ -8761,7 +8761,7 @@
         "milestone": "p0_v8_pre_live",
         "required_stack": "0+0",
         "evidence_frozen": true,
-        "composite_fingerprint": "61642f4a965a15c786c30d2412a35fcd7d7a6bdb46d1e7c92cad661519af1e5d",
+        "composite_fingerprint": "2e283925ce0ec789c460a76ab5b706a301b82530f5df4bf080ca27cf75f33ef8",
         "manifest": null,
         "status": "not_required",
         "deterministic_gates_still_required": true
@@ -8810,10 +8810,9 @@
         "enabled": false,
         "armed": false,
         "input_double_register": 28,
-        "allowed_phases_s": [2.0, 10.0, 60.0],
-        "completed_phases_s": [],
-        "serial_same_fingerprint_sequence_required": true,
-        "p0_pass_requires_final_continuous_phase_s": 60.0,
+        "mode": "direct_single_duration",
+        "duration_source": "frozen_stage_row.duration_s",
+        "direct_result": null,
         "policy": "At 60 seconds of qualified Stage25 consumption the host sends exact zero qdot with cmd_valid=true and stop_request=1."
       },
       "acceptance": {
@@ -8825,7 +8824,7 @@
         "p0_v8_passed": false,
         "not_a_completed_reproduction_claim": true
       },
-      "success_condition": "P0 v8 passes only after one frozen composite fingerprint completes serial 2, 10, then 60 second canaries and the final artifact passes the v8 deterministic verifier. Review v3 is 0+0 here; this is not contact acceptance or reproduction completion."
+      "success_condition": "P0 v8 passes only after one direct no-contact canary at the duration resolved from this frozen stage row and the resulting artifact passes the v8 deterministic verifier. Review v3 is 0+0 here; this is not v30 contact acceptance or reproduction completion."
     },
     {
       "id": "step5d_strict_rnn_ablation_v30",
@@ -9099,7 +9098,7 @@
         "component_diagnostic": "config/step5d_v30_component_diagnostic_summary.json",
         "component_diagnostic_sha256": "a06ea0c56440f5dcfe2a9939a74cc3574a56cd2ab109983f599923a03e55d2bf",
         "offline_readiness": "config/step5d_v30_offline_readiness.json",
-        "offline_readiness_sha256": "e578885a7d6dbaf6dbe30d9ab21754ed26d4daaf8eb3b1620b4dc5516d0fd839",
+        "offline_readiness_sha256": "0f5494a3efce08f9ff12a601a50996f496af8dd18d786999dad792f4bb4dec3c",
         "milestone_reviews": "config/step5d_v30_milestone_reviews.json",
         "milestone_reviews_sha256": "df28791a0999a8809ae6adb97ae8737f7bee74cbb509ed41f9c740fd88c12bcb",
         "timing_source_contract": {

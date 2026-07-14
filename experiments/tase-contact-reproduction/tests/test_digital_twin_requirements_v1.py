@@ -22,7 +22,7 @@ class DigitalTwinRequirementsV1Test(unittest.TestCase):
         summary_path = ROOT / "config" / "step5d_p0_v8_offline_simulation_diagnostic.json"
         summary = load(summary_path)
         rows = {row["id"]: row for row in matrix["requirements"]}
-        p0 = rows["p0_v8_2_10_60"]
+        p0 = rows["p0_v8_direct_frozen_duration"]
 
         self.assertEqual(matrix["workflow_state"], "liveprep_blocked")
         self.assertEqual(matrix["current_program"], "step5d_strict_rnn_ablation_v29")
@@ -31,6 +31,10 @@ class DigitalTwinRequirementsV1Test(unittest.TestCase):
         self.assertEqual(
             p0["status"],
             "offline_control_diagnostic_pass_controller_canaries_pending",
+        )
+        self.assertEqual(
+            p0["direct_controller_duration_source"],
+            "config/step5_stage_table.json#step5d_strict_rnn_no_contact_p0_v8.duration_s",
         )
         self.assertEqual(
             p0["summary_sha256"],

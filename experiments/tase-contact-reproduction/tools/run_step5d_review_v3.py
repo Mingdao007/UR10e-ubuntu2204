@@ -8,14 +8,36 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
+import re
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from step5d_review_v3 import canonical_composite
+
+
+FABLE_LIMIT_RE = re.compile(
+    r"(?:quota|rate[ -]?limit|session[ -]?limit|usage[ -]?limit|limit reached)",
+    re.IGNORECASE,
+)
+
+
+def fable_limit_returned(text: str) -> bool:
+    return FABLE_LIMIT_RE.search(text) is not None
+
+
+FABLE_LIMIT_RE = re.compile(
+    r"(?:quota|rate[ -]?limit|session[ -]?limit|usage[ -]?limit|limit reached)",
+    re.IGNORECASE,
+)
+
+
+def fable_limit_returned(text: str) -> bool:
+    return FABLE_LIMIT_RE.search(text) is not None
 
 
 def now() -> str:
@@ -37,7 +59,12 @@ def run_lane(name: str, command: list[str], output: Path, timeout: float | None,
         completed = subprocess.run(command, text=True, capture_output=True, timeout=timeout,
                                    check=False, env=env)
         transcript = completed.stdout + completed.stderr
-        status = "pass" if completed.returncode == 0 else "unavailable_error" if name == "physical_operator_safety" else "fail"
+        if name == "physical_operator_safety" and fable_limit_returned(transcript):
+            status = "skipped_unavailable"
+        else:
+            status = "pass" if completed.returncode == 0 else "unavailable_error" if name == "physical_operator_safety" else "fail"
+        if name == "physical_operator_safety" and fable_limit_returned(transcript):
+            status = "skipped_unavailable"
     except subprocess.TimeoutExpired as exc:
         transcript = (exc.stdout or "") + (exc.stderr or "")
         status = "timeout"
@@ -77,8 +104,13 @@ def fable_preflight(command: list[str], explicit: list[str] | None) -> dict[str,
             completed = subprocess.run(
                 explicit, text=True, capture_output=True, timeout=20.0, check=False
             )
-            status = "available" if completed.returncode == 0 else "unavailable_error"
             detail = (completed.stdout + completed.stderr)[-4000:]
+            if fable_limit_returned(detail):
+                status = "skipped_unavailable"
+            else:
+                status = "available" if completed.returncode == 0 else "unavailable_error"
+            if fable_limit_returned(detail):
+                status = "skipped_unavailable"
         except subprocess.TimeoutExpired:
             status, detail = "timeout", "Fable preflight exceeded 20 seconds"
     else:
@@ -166,6 +198,7 @@ def main() -> int:
         raise SystemExit("blocking Review v3 findings require unique nonempty IDs")
     manifest = {"schema_version": "ur10e_review_manifest_v3", "review_mode": "full",
                 "explicit_wait_override": args.explicit_wait_override,
+                "explicit_wait_override_excludes_limit_status": True,
                 "fable5_preflight": preflight,
                 "binding_document_sha256": binding_sha256,
                 "composite_binding": binding, "composite_fingerprint": composite,

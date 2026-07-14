@@ -1231,7 +1231,7 @@ def update_v30_current_stage(
                 "operator outside UR reach/cage boundary",
                 "TP program opened on controller-readback-verified v30 package",
                 "v30 package/readback and frozen evidence fingerprint remain current",
-                "P0 v8 final continuous 60 second artifact remains accepted",
+                "P0 v8 direct frozen-duration artifact remains accepted",
                 "Review v3 current composite 1+1 or valid degraded 1+0 remains accepted",
                 "explicit live/contact authorization for v30 speedj_rnn_live",
             ],

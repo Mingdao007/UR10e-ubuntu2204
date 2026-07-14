@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 from step5d_review_v3 import canonical_composite, resolve  # noqa: E402
-from run_step5d_review_v3 import run_lane  # noqa: E402
+from run_step5d_review_v3 import fable_limit_returned, run_lane  # noqa: E402
 
 
 BINDING = {
@@ -85,44 +85,58 @@ class Step5dReviewPolicyV3Test(unittest.TestCase):
         self.assertEqual(fable["status"], "model_unverified")
         self.assertEqual(fable["degraded_transcript"]["status"], "model_unverified")
 
-    def test_targeted_closer_binds_parent_index_scope_and_closed_finding(self) -> None:
-        closer = {
-            "schema_version": "ur10e_review_manifest_v3",
-            "review_mode": "targeted_closer",
-            "composite_fingerprint": FINGERPRINT,
-            "composite_binding": BINDING,
-            "binding_document_sha256": "b" * 64,
-            "closer_binding": {
-                "parent_manifest_sha256": "9" * 64,
-                "finding_ids": ["P1-fixture"],
-                "repaired_composite_fingerprint": FINGERPRINT,
-                "allowed_lane_scope": ["control_timing_claim"],
-            },
-            "lanes": {"control_timing_claim": lane("codex")},
-        }
-        closer["lanes"]["control_timing_claim"]["findings"] = [
-            {"id": "P1-fixture", "severity": "P1", "status": "closed"}
+    def test_fable_quota_result_is_skipped_without_wait_or_retry(self) -> None:
+        self.assertTrue(fable_limit_returned("session limit reached; reset tomorrow"))
+        command = [sys.executable, "-c", "import sys; print('quota limit reached'); sys.exit(1)"]
+        with tempfile.TemporaryDirectory() as directory:
+            lane_result = run_lane(
+                "physical_operator_safety", command, Path(directory) / "f.txt", None,
+                "claude-fable-5", "xhigh", FINGERPRINT, "b" * 64,
+            )
+        self.assertEqual(lane_result["status"], "skipped_unavailable")
+
+    def test_finding_fix_uses_deterministic_owner_validation_without_reviewer(self) -> None:
+        reviewed = manifest()
+        reviewed["lanes"]["control_timing_claim"]["findings"] = [
+            {"id": "P1-fixture", "severity": "P1", "status": "open"}
         ]
-        review_index = {
-            "review_records": [
-                {"review_mode": "full", "manifest_sha256": "9" * 64,
-                 "composite_fingerprint": "8" * 64,
-                 "open_blocking_finding_ids": ["P1-fixture"],
-                 "open_blocking_findings": {
-                     "P1-fixture": {"lane": "control_timing_claim", "severity": "P1"}
-                 }},
-                {"review_mode": "targeted_closer", "composite_fingerprint": FINGERPRINT,
-                 "manifest_sha256": "a" * 64},
-            ]
-        }
+        repaired = "a" * 64
         result = resolve(
             workflow="v30", milestone="contact_pre_live",
-            gate={"evidence_frozen": True, "composite_fingerprint": FINGERPRINT,
-                  "manifest_sha256": "a" * 64},
-            manifest=closer, index=review_index,
+            gate={
+                "evidence_frozen": True,
+                "composite_fingerprint": repaired,
+                "manifest_sha256": "9" * 64,
+                "decision_digest": "d" * 64,
+                "decision_digest": "d" * 64,
+                "deterministic_finding_closure": {
+                    "no_reviewer_invoked": True,
+                    "parent_review_manifest_sha256": "9" * 64,
+                    "reviewed_composite_fingerprint": FINGERPRINT,
+                    "repaired_composite_fingerprint": repaired,
+                    "finding_ids": ["P1-fixture"],
+                    "decision_digest": "d" * 64,
+                    "owner_validation": {
+                        "path": "runs/owner-validation.json",
+                        "sha256": "e" * 64,
+                        "status": "pass",
+                    },
+                },
+            },
+            manifest=reviewed, index=index(),
         )
         self.assertTrue(result["accepted"], result["blockers"])
-        self.assertEqual(result["effective_stack"], "1+0")
+        self.assertTrue(result["deterministic_finding_closure_accepted"])
+
+    def test_targeted_closer_is_rejected(self) -> None:
+        candidate = manifest()
+        candidate["review_mode"] = "targeted_closer"
+        result = resolve(
+            workflow="v30", milestone="contact_pre_live",
+            gate={"evidence_frozen": True, "composite_fingerprint": FINGERPRINT},
+            manifest=candidate, index=index(),
+        )
+        self.assertIn("review_mode_must_be_single_full_review", result["blockers"])
 
     def test_ordinary_direction_p0_postrun_package_and_push_are_zero_plus_zero(self) -> None:
         routes = [
