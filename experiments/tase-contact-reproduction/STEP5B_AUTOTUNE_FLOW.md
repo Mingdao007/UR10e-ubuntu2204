@@ -1,9 +1,10 @@
 # Step5b TP Local Bayesian Autotune Flow
 
 This is an isolated experimental flow. It does not replace the current Step5d
-route and does not modify `config/current_stage.json`, `STEP5_FLOW.md`,
-`config/step5_stage_table.json`, or `tools/kunwei_rtde_bridge.py` while P0v9 and
-Step5d v30 are active.
+route and does not modify `config/current_stage.json` or
+`tools/kunwei_rtde_bridge.py` while P0v9 and Step5d v30 are active. Its status
+rows in `STEP5_FLOW.md` and `config/step5_stage_table.json` remain inactive and
+current-pointer-independent.
 
 Its isolated row lives in `config/step5b_autotune_stage_table.json`. That file
 is deliberately inactive and blocked; it is not a second current-stage pointer
@@ -27,7 +28,7 @@ is part of this flow.
 ## Session loop
 
 The operator opens the controller-read-back-verified
-`step5b_contact_cycloid_bayes_loop_v1.urp` in Local Control and presses Play
+`step5b_contact_cycloid_bayes_loop_v2.urp` in Local Control and presses Play
 once. The TP then waits at the captured home pose. The Ubuntu supervisor arms
 one candidate through RTDE integer registers, starts exactly one existing
 `kunwei_rtde_bridge.py` child, observes the TP state, and stops that child only
@@ -39,6 +40,14 @@ fabricated objective value. Fatal sensor, RTDE, controller, protective-stop,
 e-stop, TP-pause, or home-verification failures end the session. Two
 consecutive recoverable constraint violations latch a pause until the operator
 uses `resume`.
+
+The v2 triplet reached `controller read-back verified` on 2026-07-14. The
+fresh fetched-back files and URP internal gate are recorded under
+`runs/controller_readback_step5b_contact_cycloid_bayes_loop_v2_20260714T202201HKT`;
+the controller path is
+`/programs/andyl/kunwei/step5/autotune/step5b_contact_cycloid_bayes_loop_v2.urp`.
+This file-delivery result does not authorize loading the program, starting the
+bridge, pressing TP Play, or moving/contacting the robot.
 
 ## Search and acceptance
 

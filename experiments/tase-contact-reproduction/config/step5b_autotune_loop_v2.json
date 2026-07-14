@@ -13,7 +13,8 @@
     "basename": "step5b_contact_cycloid_bayes_loop_v2",
     "controller_directory": "/programs/andyl/kunwei/step5/autotune",
     "delivery": "config/step5b_autotune_delivery_v2.json",
-    "controller_readback_required_before_live": true
+    "controller_readback_required_before_live": true,
+    "controller_readback_verified": true
   },
   "rtde_integer_register_contract": {
     "inputs": {"24": "session_epoch", "25": "strictly_increasing_trial_id", "26": "HOLD=0 ARM=1 STOP=2 ABORT_RETURN=3", "27": "candidate_token_low31"},

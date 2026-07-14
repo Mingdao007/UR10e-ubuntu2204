@@ -59,7 +59,8 @@
       "runtime_contract": "config/step5b_autotune_loop_v2.json",
       "authorization_ledger": "config/step5b_tp_autotune_authorization_v2.json",
       "success_condition": "owner-gated 2 s, 10 s, and 60 s canaries followed by two consecutive full trials in different contexts with fresh token-bound RUN and verified HOME/HOLD closure",
-      "unblock_requires": ["fresh controller readback", "read-only bench preflight", "UR live/contact authorization", "operator canary gate"]
+      "controller_readback_status": "controller read-back verified",
+      "unblock_requires": ["read-only bench preflight", "UR live/contact authorization", "operator canary gate"]
     }
   ]
 }

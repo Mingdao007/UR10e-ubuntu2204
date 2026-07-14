@@ -592,7 +592,9 @@
         "program_basename": "step5b_contact_cycloid_bayes_loop_v2",
         "local_triplet": "programs/step5/autotune/step5b_contact_cycloid_bayes_loop_v2.{script,txt,urp}",
         "controller_target": "/programs/andyl/kunwei/step5/autotune/step5b_contact_cycloid_bayes_loop_v2.urp",
-        "controller_readback_status": "not_delivered_not_authorized",
+        "controller_readback_status": "controller read-back verified",
+        "controller_readback_verified": true,
+        "controller_readback_evidence": "config/step5b_autotune_delivery_v2.json",
         "delivery_evidence": "config/step5b_autotune_delivery_v2.json"
       },
       "runtime_interface_ref": {

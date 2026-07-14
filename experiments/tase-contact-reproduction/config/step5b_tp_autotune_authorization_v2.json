@@ -7,14 +7,15 @@
   "controller_delivery_authorized": true,
   "controller_delivery_authorized_at": "2026-07-14T20:19:38+08:00",
   "controller_delivery_authorization_basis": "User explicitly approved serial controller upload/read-back and requested implementation; authorization is limited to package file delivery.",
-  "controller_readback_verified": false,
+  "controller_readback_verified": true,
+  "controller_readback_verified_at": "2026-07-14T20:23:09+08:00",
+  "controller_readback_evidence": "config/step5b_autotune_delivery_v2.json",
   "bridge_start_authorized": false,
   "tp_play_authorized": false,
   "contact_motion_authorized": false,
   "current_stage_pointer_changed": false,
   "ros2_step5b_baseline_changed": false,
   "unblock_requires": [
-    "fresh controller triplet delivery and readback closure",
     "read-only bench preflight with both locks available and exact loaded program",
     "UR10e live/contact owner authorization",
     "operator e-stop and canary gate"
