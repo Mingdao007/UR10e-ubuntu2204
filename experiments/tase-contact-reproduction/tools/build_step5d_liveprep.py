@@ -28,6 +28,8 @@ from step5d_runtime_interface import (
     STEP5D_ABLATION_V30_STAGE_ID,
     STEP5D_ABLATION_V31_STAGE_ID,
     STEP5D_ABLATION_V32_STAGE_ID,
+    STEP5D_ABLATION_V33C20_STAGE_ID,
+    STEP5D_ABLATION_V33_STAGE_ID,
     STEP5D_INTERFACE_CLASS,
     STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE,
     STEP5D_STAGE25_JOINT_LAYOUT_CODE,
@@ -70,15 +72,15 @@ class Step5dAblationSpec:
 
     @property
     def strict_rnn_live_candidate(self) -> bool:
-        return self.version_label in {"v29", "v30", "v31", "v32"}
+        return self.version_label in {"v29", "v30", "v31", "v32", "v33c20", "v33"}
 
     @property
     def inactive_offline_candidate(self) -> bool:
-        return self.version_label in {"v30", "v31", "v32", "no_contact_p0_v8", "no_contact_p0_v9"}
+        return self.version_label in {"v30", "v31", "v32", "v33c20", "v33", "no_contact_p0_v8", "no_contact_p0_v9"}
 
     @property
     def uses_v30_control_contract(self) -> bool:
-        return self.version_label in {"v30", "v31", "v32", "no_contact_p0_v8", "no_contact_p0_v9"}
+        return self.version_label in {"v30", "v31", "v32", "v33c20", "v33", "no_contact_p0_v8", "no_contact_p0_v9"}
 
     @property
     def full_stage25_echo(self) -> bool:
@@ -90,7 +92,7 @@ class Step5dAblationSpec:
 
     @property
     def permissive_contact_guard(self) -> bool:
-        return self.version_label in {"v31", "v32"}
+        return self.version_label in {"v31", "v32", "v33c20", "v33"}
 
 
 @dataclass(frozen=True)
@@ -176,6 +178,30 @@ ABLATION_SPECS = {
         cartesian_angular_cap_rad_s=1.0,
         default_stage25_control_mode="speedj_rnn_live",
         stage25_success_target_s=STEP5D_STAGE25_V28_FULL_RUN_TARGET_S,
+        stage25_runtime_limit_s=75.0,
+        qdot_cap_rad_s=0.500,
+        stage25_stale_command_hold_s=1.000,
+        publish_guard_approved_late_command=True,
+    ),
+    STEP5D_ABLATION_V33C20_STAGE_ID: Step5dAblationSpec(
+        program_name=STEP5D_ABLATION_V33C20_STAGE_ID,
+        version_label="v33c20",
+        stamp_token="STEP5D_STRICT_RNN_ABLATION_V33C20_FRESH_FEEDBACK",
+        cartesian_angular_cap_rad_s=1.0,
+        default_stage25_control_mode="speedj_rnn_live",
+        stage25_success_target_s=20.0,
+        stage25_runtime_limit_s=35.0,
+        qdot_cap_rad_s=0.500,
+        stage25_stale_command_hold_s=1.000,
+        publish_guard_approved_late_command=True,
+    ),
+    STEP5D_ABLATION_V33_STAGE_ID: Step5dAblationSpec(
+        program_name=STEP5D_ABLATION_V33_STAGE_ID,
+        version_label="v33",
+        stamp_token="STEP5D_STRICT_RNN_ABLATION_V33_FRESH_FEEDBACK",
+        cartesian_angular_cap_rad_s=1.0,
+        default_stage25_control_mode="speedj_rnn_live",
+        stage25_success_target_s=60.0,
         stage25_runtime_limit_s=75.0,
         qdot_cap_rad_s=0.500,
         stage25_stale_command_hold_s=1.000,
@@ -1337,7 +1363,7 @@ def build_script(
     )
     script = _force_gravity_down_search_pose(script)
     script = _speed_up_entry_and_first_search(script)
-    if spec.version_label in {"v30", "v31", "v32"}:
+    if spec.version_label in {"v30", "v31", "v32", "v33c20", "v33"}:
         stage25_mode_policy = (
             "speedj_rnn_live is the only future live command source; speedl_cartesian_oracle and "
             "speedj_dls_oracle are offline shadow/diagnostic only and must never be sent as runtime fallback.\n"
@@ -1542,7 +1568,7 @@ Reference:
         speedl_mode_description = (
             "STEP5D_STAGE25_CONTROL_MODE=speedl_cartesian_oracle is offline shadow/diagnostic only for v30 and cannot be selected as a runtime fallback; the only future live command mode is speedj_rnn_live."
         )
-    elif spec.version_label in {"v31", "v32"}:
+    elif spec.version_label in {"v31", "v32", "v33c20", "v33"}:
         speedl_mode_description = (
             f"STEP5D_STAGE25_CONTROL_MODE=speedl_cartesian_oracle is shadow/diagnostic only for {spec.version_label} and cannot be selected as a runtime fallback; the only live command mode is speedj_rnn_live, whose Stage25 joint packet carries internal wire marker 524."
         )
@@ -1579,7 +1605,7 @@ Reference:
             "  Stage25.0 is not authorized now; after later delivery/readback and explicit authorization,\n"
             "  only speedj_rnn_live on layout 524 may be sent to TP. speedl and DLS remain shadow-only."
         )
-    elif spec.version_label in {"v31", "v32"}:
+    elif spec.version_label in {"v31", "v32", "v33c20", "v33"}:
         first_run = (
             f"{spec.version_label} is an inactive strict RNN candidate:\n"
             "  Stage25.0 is not authorized now; after delivery/readback, frozen fingerprint, Review v3, and explicit authorization,\n"
@@ -1605,7 +1631,7 @@ Reference:
         "STEP5D_STAGE25_CONTROL_MODE=speedj_dls_oracle computes DLS shadow diagnostics only; v30 forbids sending DLS qdot to TP and forbids DLS runtime fallback."
         if spec.version_label == "v30"
         else "STEP5D_STAGE25_CONTROL_MODE=speedj_dls_oracle computes DLS shadow diagnostics only; v31 forbids sending DLS qdot to TP and forbids DLS runtime fallback."
-        if spec.version_label in {"v31", "v32"}
+        if spec.version_label in {"v31", "v32", "v33c20", "v33"}
         else "STEP5D_STAGE25_CONTROL_MODE=speedj_dls_oracle sends a DLS/Jacobian qdot oracle to speedj for explicit fallback/debug comparison."
     )
     open_instruction = (
@@ -1899,7 +1925,7 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5d
             "inactive local-only strict RNN candidate" in txt
             if spec.version_label == "v30"
             else "inactive strict RNN candidate" in txt
-            if spec.version_label in {"v31", "v32"}
+            if spec.version_label in {"v31", "v32", "v33c20", "v33"}
             else "strict RNN live candidate" in txt
             if spec.strict_rnn_live_candidate
             else "RNN is shadow-only" in txt
@@ -1911,7 +1937,7 @@ def validate_package(script: str, txt: str, urp: bytes, stamp: str, spec: Step5d
         )
         and "stop_request" in script + txt,
         "v30 no runtime fallback claim": (
-            spec.version_label not in {"v30", "v31", "v32"}
+            spec.version_label not in {"v30", "v31", "v32", "v33c20", "v33"}
             or (
                 "DLS shadow diagnostics only" in script + txt
                 and "forbids DLS runtime fallback" in txt
@@ -2221,7 +2247,7 @@ def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dic
                 "hold_ratio_max": 0.01,
                 "max_consecutive_hold_ticks": 10,
             }
-            if spec.version_label in {"v30", "v31", "v32"}
+            if spec.version_label in {"v30", "v31", "v32", "v33c20", "v33"}
             else None
         ),
         "cartesian_accel_m_s2": LINE_ACCEL_M_S2,
@@ -2232,7 +2258,7 @@ def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dic
         "stage25_runtime_limit_s": spec.stage25_runtime_limit_s,
         "scaffold_delta": (
             "v32_stage_aware_packet_permissive_contact_60s"
-            if spec.version_label == "v32"
+            if spec.version_label in {"v32", "v33c20", "v33"}
             else "v31_permissive_contact_frame_contract_layout524_60s"
             if spec.version_label == "v31"
             else "v30_frame_aware_normal_contract_strict_rnn_candidate_60s"
@@ -2245,7 +2271,7 @@ def semantic_fingerprint_payload(spec: Step5dAblationSpec = DEFAULT_SPEC) -> dic
             if spec.version_label == "v27"
             else "step5b_v3_ablation_scaffold"
         ),
-        "stage25_consumption_instrumentation": spec.version_label in {"v27", "v28", "v29", "v30", "v31", "v32"},
+        "stage25_consumption_instrumentation": spec.version_label in {"v27", "v28", "v29", "v30", "v31", "v32", "v33c20", "v33"},
         "stage25_control_modes": (
             ["speedj_rnn_live"]
             if spec.permissive_contact_guard

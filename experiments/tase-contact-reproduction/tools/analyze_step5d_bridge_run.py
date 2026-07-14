@@ -8,6 +8,7 @@ import csv
 import json
 import math
 import re
+import statistics
 from collections import Counter
 from dataclasses import asdict
 from pathlib import Path
@@ -19,6 +20,10 @@ from step5d_runtime_interface import (
     STEP5D_ABLATION_V27_STAGE_ID,
     STEP5D_ABLATION_V28_STAGE_ID,
     STEP5D_ABLATION_V29_STAGE_ID,
+    STEP5D_ABLATION_V31_STAGE_ID,
+    STEP5D_ABLATION_V32_STAGE_ID,
+    STEP5D_ABLATION_V33C20_STAGE_ID,
+    STEP5D_ABLATION_V33_STAGE_ID,
     STEP5D_LIVEPREP_V24_STAGE_ID,
     STEP5D_NO_CONTACT_P0_STAGE_ID,
     STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
@@ -78,6 +83,62 @@ def finite_float(value: Any) -> float:
     return parsed if math.isfinite(parsed) else math.nan
 
 
+def percentile_or_none(values: list[float], fraction: float) -> float | None:
+    finite = sorted(value for value in values if math.isfinite(value))
+    if not finite:
+        return None
+    index = min(len(finite) - 1, max(0, int(math.ceil(fraction * len(finite))) - 1))
+    return finite[index]
+
+
+def pearson_correlation(xs: list[float], ys: list[float]) -> float | None:
+    if len(xs) != len(ys) or len(xs) < 2:
+        return None
+    mean_x = sum(xs) / len(xs)
+    mean_y = sum(ys) / len(ys)
+    centered_x = [value - mean_x for value in xs]
+    centered_y = [value - mean_y for value in ys]
+    denominator = math.sqrt(
+        sum(value * value for value in centered_x)
+        * sum(value * value for value in centered_y)
+    )
+    if denominator <= 1e-15:
+        return None
+    return sum(x * y for x, y in zip(centered_x, centered_y)) / denominator
+
+
+def command_actual_qd_alignment(rows: list[dict[str, str]], max_lag_s: float = 0.020) -> dict[str, float | None]:
+    times = [finite_float(row.get("t_monotonic_s")) for row in rows]
+    dts = [
+        later - earlier
+        for earlier, later in zip(times, times[1:])
+        if math.isfinite(earlier) and math.isfinite(later) and later > earlier
+    ]
+    dt_s = statistics.median(dts) if dts else 0.002
+    max_lag_ticks = max(0, int(math.floor(max_lag_s / dt_s + 1e-9)))
+    best_correlation: float | None = None
+    best_lag_ticks = 0
+    for lag_ticks in range(max_lag_ticks + 1):
+        commands: list[float] = []
+        actuals: list[float] = []
+        for index in range(0, max(0, len(rows) - lag_ticks)):
+            actual_row = rows[index + lag_ticks]
+            for axis in range(6):
+                command = finite_float(rows[index].get(f"_step5d_post_slew_qd{axis}_rad_s"))
+                actual = finite_float(actual_row.get(f"ur_actual_qd_{axis}"))
+                if math.isfinite(command) and math.isfinite(actual):
+                    commands.append(command)
+                    actuals.append(actual)
+        correlation = pearson_correlation(commands, actuals)
+        if correlation is not None and (best_correlation is None or correlation > best_correlation):
+            best_correlation = correlation
+            best_lag_ticks = lag_ticks
+    return {
+        "command_actual_qd_correlation": best_correlation,
+        "command_actual_qd_lag_s": best_lag_ticks * dt_s if best_correlation is not None else None,
+    }
+
+
 def maybe_int(value: float) -> int | float:
     rounded = int(round(value))
     if math.isclose(value, float(rounded), abs_tol=1e-9):
@@ -109,6 +170,10 @@ def infer_step5d_profile(run_dir: Path | None, metadata: dict[str, Any]) -> str:
             return no_contact_match.group(0)
         for profile in (
             STEP5D_NO_CONTACT_P0_STAGE_ID,
+            STEP5D_ABLATION_V33C20_STAGE_ID,
+            STEP5D_ABLATION_V33_STAGE_ID,
+            STEP5D_ABLATION_V32_STAGE_ID,
+            STEP5D_ABLATION_V31_STAGE_ID,
             STEP5D_ABLATION_V29_STAGE_ID,
             STEP5D_ABLATION_V28_STAGE_ID,
             STEP5D_ABLATION_V27_STAGE_ID,
@@ -254,6 +319,14 @@ def first_finite(rows: list[dict[str, str]], key: str) -> float:
         parsed = finite_float(row.get(key))
         if math.isfinite(parsed):
             return parsed
+    return math.nan
+
+
+def last_finite(rows: list[dict[str, str]], key: str) -> float:
+    for row in reversed(rows):
+        value = finite_float(row.get(key))
+        if math.isfinite(value):
+            return value
     return math.nan
 
 
@@ -643,6 +716,36 @@ def stage25_control_attribution(rows: list[dict[str, str]], metadata: dict[str, 
     ]
     accepted_rnn_times = [finite_float(row.get("t_monotonic_s")) for row in accepted_rnn_rows]
     accepted_rnn_times = [value for value in accepted_rnn_times if math.isfinite(value)]
+    feedback_ages = finite_values(rows, "rtde_feedback_age_s")
+    heartbeat_gaps = finite_values(rows, "rtde_sent_echo_heartbeat_gap")
+    if not heartbeat_gaps:
+        heartbeat_gaps = [
+            max(0.0, sent - echoed)
+            for row in rows
+            for sent, echoed in [
+                (
+                    finite_float(row.get("heartbeat")),
+                    finite_float(row.get("ur_output_double_register_26")),
+                )
+            ]
+            if math.isfinite(sent) and math.isfinite(echoed)
+        ]
+    drained_packets = finite_values(rows, "rtde_packets_drained")
+    xy_errors = [
+        math.hypot(x_error, y_error)
+        for row in rows
+        for x_error, y_error in [
+            (
+                finite_float(row.get("_step4e_path_error_x_m")),
+                finite_float(row.get("_step4e_path_error_y_m")),
+            )
+        ]
+        if math.isfinite(x_error) and math.isfinite(y_error)
+    ]
+    rnn_oracle_delta = finite_values(rows, "_step5d_rnn_vs_oracle_qdot_norm")
+    qd_alignment = command_actual_qd_alignment(rows)
+    final_safety_mode = last_finite(rows, "ur_safety_mode")
+    gross_guard_rows = sum(1 for row in rows if str(row.get("guard_reason") or "").strip())
     return {
         "stage25_rows": len(rows),
         "entry_orientation_error_rad": first_finite(rows, "step4e_orientation_error_rad"),
@@ -707,6 +810,19 @@ def stage25_control_attribution(rows: list[dict[str, str]], metadata: dict[str, 
         ),
         "rnn_reject_reason_counts": reason_counts(rows, "_step5d_rnn_reject_reason"),
         "rnn_safe_hold_rows": sum(1 for value in finite_values(rows, "_step5d_safe_hold_active") if value >= 0.5),
+        "rnn_accepted_consumed_ratio": len(accepted_rnn_rows) / len(rows) if rows else 0.0,
+        "feedback_age_p99_s": percentile_or_none(feedback_ages, 0.99),
+        "feedback_age_max_s": max_or_none(feedback_ages),
+        "sent_echo_heartbeat_gap_max": max_or_none(heartbeat_gaps),
+        "drained_packet_count_p99": percentile_or_none(drained_packets, 0.99),
+        "drained_packet_count_max": max_or_none(drained_packets),
+        "xy_tracking_error_p95_m": percentile_or_none(xy_errors, 0.95),
+        "xy_tracking_error_max_m": max_or_none(xy_errors),
+        "rnn_oracle_qdot_delta_p99": percentile_or_none(rnn_oracle_delta, 0.99),
+        "rnn_oracle_qdot_delta_max": max_or_none(rnn_oracle_delta),
+        "final_safety_mode": maybe_int(final_safety_mode) if math.isfinite(final_safety_mode) else None,
+        "gross_guard_rows": gross_guard_rows,
+        **qd_alignment,
         **approach_normal_tracking(rows),
     }
 
@@ -849,7 +965,12 @@ def stage25_speedj_dls_branch_success(profile: str, result: dict[str, Any], cont
 
 
 def stage25_speedj_rnn_live_success(profile: str, result: dict[str, Any], control_mode: str | None) -> bool:
-    if profile != STEP5D_ABLATION_V29_STAGE_ID or control_mode != STAGE25_SPEEDJ_RNN_MODE:
+    supported_profiles = {
+        STEP5D_ABLATION_V29_STAGE_ID,
+        STEP5D_ABLATION_V33C20_STAGE_ID,
+        STEP5D_ABLATION_V33_STAGE_ID,
+    }
+    if profile not in supported_profiles or control_mode != STAGE25_SPEEDJ_RNN_MODE:
         return False
     target_s = stage25_success_target_s(profile)
     if target_s is None:
@@ -862,6 +983,37 @@ def stage25_speedj_rnn_live_success(profile: str, result: dict[str, Any], contro
     normal_max = finite_float(attribution.get("normal_load_max_n"))
     force_norm_max = finite_float(attribution.get("force_norm_max_n"))
     accepted_duration_s = finite_float(attribution.get("rnn_accepted_continuous_duration_s"))
+    if profile in {STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID}:
+        feedback_age_p99 = finite_float(attribution.get("feedback_age_p99_s"))
+        heartbeat_gap_max = finite_float(attribution.get("sent_echo_heartbeat_gap_max"))
+        xy_error_p95 = finite_float(attribution.get("xy_tracking_error_p95_m"))
+        xy_error_max = finite_float(attribution.get("xy_tracking_error_max_m"))
+        qd_correlation = finite_float(attribution.get("command_actual_qd_correlation"))
+        qd_lag_s = finite_float(attribution.get("command_actual_qd_lag_s"))
+        accepted_ratio = finite_float(attribution.get("rnn_accepted_consumed_ratio"))
+        v33_acceptance = (
+            math.isfinite(feedback_age_p99) and feedback_age_p99 <= 0.010
+            and math.isfinite(heartbeat_gap_max) and heartbeat_gap_max <= 5
+            and math.isfinite(xy_error_p95) and xy_error_p95 <= 0.0005
+            and math.isfinite(xy_error_max) and xy_error_max <= 0.001
+            and math.isfinite(qd_correlation) and qd_correlation >= 0.9
+            and math.isfinite(qd_lag_s) and qd_lag_s <= 0.020
+            and math.isfinite(accepted_ratio) and accepted_ratio >= 0.98
+            and attribution.get("final_safety_mode") == 1
+            and int(attribution.get("gross_guard_rows") or 0) == 0
+        )
+    else:
+        v33_acceptance = True
+    legacy_force_window_acceptance = (
+        math.isfinite(normal_min)
+        and normal_min >= STAGE25_SUCCESS_NORMAL_LOAD_MIN_N
+        and math.isfinite(normal_max)
+        and normal_max <= STAGE25_SUCCESS_NORMAL_LOAD_MAX_N
+        and math.isfinite(force_norm_max)
+        and force_norm_max < 60.0
+        if profile == STEP5D_ABLATION_V29_STAGE_ID
+        else True
+    )
     return (
         int(result.get("stage25_rows") or 0) > 0
         and accepted_duration_s >= target_s
@@ -870,13 +1022,9 @@ def stage25_speedj_rnn_live_success(profile: str, result: dict[str, Any], contro
         and isinstance(layout_counts, dict)
         and int(layout_counts.get(str(STAGE25_JOINT_LAYOUT_TAG), 0))
         >= int(result.get("stage25_rows") or 0) * STAGE25_SUCCESS_MIN_CONSUMPTION_RATIO
-        and math.isfinite(normal_min)
-        and normal_min >= STAGE25_SUCCESS_NORMAL_LOAD_MIN_N
-        and math.isfinite(normal_max)
-        and normal_max <= STAGE25_SUCCESS_NORMAL_LOAD_MAX_N
-        and math.isfinite(force_norm_max)
-        and force_norm_max < 60.0
+        and legacy_force_window_acceptance
         and attribution.get("terminal_contact_safety_reason") is None
+        and v33_acceptance
     )
 
 
@@ -1162,7 +1310,31 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
             result["next_action"] = "keep v30 gated; reconcile the P0 v8 verifier phase and claim fields"
     elif result["entered_stage25"]:
         oscillation_reason = stage25_control_oscillation_reason(result["stage25_control_attribution"])
-        if stage25_speedl_fix_success(profile, result, control_mode=stage25_control_mode):
+        attribution = result["stage25_control_attribution"]
+        feedback_age_max = finite_float(attribution.get("feedback_age_max_s"))
+        heartbeat_gap_max = finite_float(attribution.get("sent_echo_heartbeat_gap_max"))
+        xy_error_max = finite_float(attribution.get("xy_tracking_error_max_m"))
+        if (
+            profile in {
+                STEP5D_ABLATION_V31_STAGE_ID,
+                STEP5D_ABLATION_V32_STAGE_ID,
+                STEP5D_ABLATION_V33C20_STAGE_ID,
+                STEP5D_ABLATION_V33_STAGE_ID,
+            }
+            and (
+                (math.isfinite(feedback_age_max) and feedback_age_max > 0.05)
+                or (math.isfinite(heartbeat_gap_max) and heartbeat_gap_max > 5)
+            )
+            and math.isfinite(xy_error_max)
+            and xy_error_max > 0.001
+        ):
+            result["classification"] = "stale_feedback_xy_tracking_failure"
+            result["acceptance_status"] = "failed_feedback_freshness_and_xy_tracking"
+            result["next_action"] = (
+                "drain all currently readable RTDE output packets and control only from the latest sample; "
+                "then replay the Step5b-equivalent outer and rerun the freshness/XY canary"
+            )
+        elif stage25_speedl_fix_success(profile, result, control_mode=stage25_control_mode):
             if profile == STEP5D_ABLATION_V28_STAGE_ID:
                 result["classification"] = "stage25_full_run_success"
                 result["fix_validation_status"] = "passed_60s_full_run"
@@ -1190,14 +1362,30 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
                 "keep it out of speedl full-run acceptance and compare RNN live qdot against DLS"
             )
         elif stage25_speedj_rnn_live_success(profile, result, stage25_control_mode):
-            result["classification"] = "stage25_speedj_rnn_live_success"
-            result["fix_validation_status"] = "passed_60s_strict_rnn_live"
-            result["reproduction_status"] = "passed_60s_strict_rnn_live_candidate_run"
-            result["acceptance_status"] = "speedj_rnn_live_full_run_passed"
-            result["next_action"] = (
-                "archive v29 as strict RNN speedj live evidence; keep controller/package publication "
-                "and live claims gated by owner audit and explicit user authorization"
-            )
+            if profile == STEP5D_ABLATION_V33C20_STAGE_ID:
+                result["classification"] = "v33c20_canary_passed"
+                result["fix_validation_status"] = "passed_20s_fresh_feedback_canary"
+                result["reproduction_status"] = "pending_v33_60s_full_run"
+                result["acceptance_status"] = "v33c20_acceptance_contract_passed"
+                result["next_action"] = (
+                    "freeze the accepted v33c20 live artifact, promote the separately delivered v33 60s package, "
+                    "and require a new explicit full-run authorization"
+                )
+            elif profile == STEP5D_ABLATION_V33_STAGE_ID:
+                result["classification"] = "v33_full_run_passed"
+                result["fix_validation_status"] = "passed_60s_fresh_feedback_full_run"
+                result["reproduction_status"] = "passed_60s_strict_rnn_live_candidate_run"
+                result["acceptance_status"] = "v33_full_acceptance_contract_passed"
+                result["next_action"] = "archive the v33 full-run evidence and keep reproduction claims owner-gated"
+            else:
+                result["classification"] = "stage25_speedj_rnn_live_success"
+                result["fix_validation_status"] = "passed_60s_strict_rnn_live"
+                result["reproduction_status"] = "passed_60s_strict_rnn_live_candidate_run"
+                result["acceptance_status"] = "speedj_rnn_live_full_run_passed"
+                result["next_action"] = (
+                    "archive v29 as strict RNN speedj live evidence; keep controller/package publication "
+                    "and live claims gated by owner audit and explicit user authorization"
+                )
         elif stage25_speedj_rnn_short_soft_hold_failure(result, stage25_control_mode):
             attribution = result["stage25_control_attribution"]
             cold_start_evidence = isinstance(attribution, dict) and stage25_speedj_rnn_cold_start_evidence(attribution)
@@ -1223,8 +1411,7 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
                     "root cause, and keep strict RNN live blocked pending no-contact P0 verification"
                 )
         elif (
-            uses_step5b_speedl_live_source(profile)
-            and profile != STEP5D_ABLATION_V29_STAGE_ID
+            profile in {STEP5D_ABLATION_V27_STAGE_ID, STEP5D_ABLATION_V28_STAGE_ID}
             and stage25_control_mode not in {None, "", "speedl_cartesian_oracle"}
         ):
             result["classification"] = "stage25_control_mode_mismatch"

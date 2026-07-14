@@ -1,24 +1,40 @@
 # Step5 Flow
 
-`config/current_stage.json` currently selects
-`step5d_strict_rnn_ablation_v32`. Its TP triplet was uploaded and freshly read
-back from `/programs/andyl/kunwei/step5/` at `20260714_215219`; local,
-controller, and read-back hashes match. Bridge/live motion is not authorized by
-this delivery.
+`config/current_stage.json` selects the 20 s
+`step5d_strict_rnn_ablation_v33c20` canary. The separate 60 s
+`step5d_strict_rnn_ablation_v33` identity is staged behind it. Package
+generation/upload/read-back and Review v3 do not authorize bridge/live motion;
+a new explicit user command is required.
 
-v32 fixes the v31 failure at Stage25.05. Register state is now interpreted by
+v32 fixed the v31 failure at Stage25.05. Register state is interpreted by
 TP stage: Stage25.05 passes latch-ready state `33`, Stage25.3 passes preload
 state `521`, Stage25.95 passes zero-invalid clear state `522`, and only
 Stage25.0 carries strict-RNN qdot with internal marker `524`. Therefore `524`
-is no longer a global publisher/readiness gate.
+is no longer a global publisher/readiness gate. Its live run is immutable
+failure evidence: the bridge consumed one RTDE packet per loop while the
+controller produced faster, so feedback accumulated to roughly 2.7 s stale;
+the aggressive outer then drifted in XY and hit the 60 N gross guard.
+
+v33 drains every currently readable RTDE packet and controls from only the
+latest sample. It logs controller timestamp, estimated feedback age, drained
+packet count, and sent/echo heartbeat gap. Feedback age above 50 ms is a
+structural stop only after 0.1 s continuous dwell. Stage25 outer is exactly
+bound to the Step5b-equivalent discrete profile: tangential `kp=1.5`,
+orientation `ko=0.4`, force `Md=1000`, `Bd=7000`, `kf=0.01`, and integral
+limit `1 N·s`; contact-search CLI gains are explicitly not these active outer
+parameters.
 
 The user-selected permissive policy remains in force: qdot cap `0.5 rad/s`,
-`0.05 rad/s²` shaping, 2 s sensor stale, 1 s heartbeat stale, and a 75 s
-Stage25 runtime. Force-window, Cartesian/normal speed and displacement, DLS,
+`0.05 rad/s²` shaping, 2 s sensor stale, 1 s heartbeat stale, and Stage25
+runtime limits of 35 s for v33c20 / 75 s for v33. Force-window,
+Cartesian/normal speed and displacement, DLS,
 residual, active-bound, and ordinary normal-direction checks are diagnostic.
 No guard may be tightened until the user explicitly requests it. The user
-explicitly waived this delivery's `1×xhigh + 1×Fable5` model audit; the frozen
-waiver records `model_review_performed=false` and does not authorize motion.
+required a fresh `1×Sol/xhigh + 1×Fable5/high` audit for this delivery. Both
+lanes returned NO-GO findings; every finding was repaired and closed by the
+single deterministic owner-validation pass. Both TP identities are uploaded
+and fresh-read-back verified. Review and read-back still do not authorize
+motion; v33c20 remains blocked until a new explicit user command.
 
 The historical `step5d_strict_rnn_ablation_v30` is an inactive offline
 candidate. It keeps CuPy, epsilon `0.010`, finite-time exponent `r=0.8`, qdot
@@ -336,7 +352,9 @@ instead of preserving the later 22 s TP v3 timing.
 | `step5d_strict_rnn_no_contact_p0_v9` | permissive P0 guard v2 | false | false | strict-RNN layout-524 structural contract | none | Canonical free-space candidate: 60 s cycloid with `A=15 mm`, `theta=0..6`, about 94.19 mm along travel, 30 mm lateral peak, and smooth relative base `Z=+20 mm`; `qdot<=0.5 rad/s`; 2 s sensor stale, 1 s heartbeat stale, 75 s TP runtime. Force/torque, Cartesian/normal speed, approach-normal displacement, DLS, residual magnitude, and active bounds are diagnostic-only. Success requires 60 continuous consumed/accepted seconds, along endpoint >=90 mm, lateral peak >=25 mm, relative Z endpoint >=18 mm, and terminal TP stop acknowledgement. |
 | `step5d_strict_rnn_ablation_v30` | offline contact-control prep | true | false | strict TASE RNN speedj; DLS shadow-only | `v31_filtered_live` | Inactive contact candidate retaining the stricter 1%/20 ms bounded last-command-hold contract. Hard-real-time remains a distinct zero-miss claim; readiness still requires live-runtime integration, a passing successor no-contact canary, and frozen package/readback. Contact requires separate authorization. |
 | `step5d_strict_rnn_ablation_v31` | superseded failure evidence | true | false | strict TASE RNN layout-524; DLS/Cartesian shadow-only | latched contact normal | Immutable failed run: TP reached Stage25.05, but the old global 524 publisher gate suppressed latch-ready state 33, so TP timed out before preload/continuous contact. Superseded by v32. |
-| `step5d_strict_rnn_ablation_v32` | current delivered contact candidate | true | false | stage-aware strict TASE RNN speedj; DLS/Cartesian shadow-only | latched contact normal | Fresh read-back verified. Stage-specific wire states are 33/521/522 and internal Stage25.0 marker 524. Permissive guards remain. Model audit was explicitly waived for this frozen delivery; live motion still requires separate authorization. |
+| `step5d_strict_rnn_ablation_v32` | immutable failure evidence | true | false | stage-aware strict TASE RNN speedj; DLS/Cartesian shadow-only | latched contact normal | Live run reached Stage25 but accumulated about 2.7 s stale RTDE feedback, drifted in XY, and ended at the 60 N gross normal guard. Superseded by v33; never rerun or reinterpret. |
+| `step5d_strict_rnn_ablation_v33c20` | current 20 s canary candidate | true | false | latest-sample strict TASE RNN speedj; Step5b-equivalent outer | latched contact normal | Drains RTDE backlog, records freshness/heartbeat evidence, stops after 0.1 s continuously above 50 ms feedback age, and keeps permissive non-gross guards. Package/read-back/review do not authorize live motion. |
+| `step5d_strict_rnn_ablation_v33` | staged 60 s full candidate | true | false | latest-sample strict TASE RNN speedj; Step5b-equivalent outer | latched contact normal | Separate full-run identity; may become current only after v33c20 passes and the user separately authorizes the full run. |
 | `step5d_ros2_remote_shadow_v1` | ROS2 offline | true | false | ROS2 shadow replay | `v31_filtered_live` input logs | Diagnostic-only Step5d policy replay: replays v15a/v14/v11 and Step5b/Step6b CSVs, removes long zero-qdot hold recovery, but is not live-ready and must follow Step5b plumbing validation. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |
 

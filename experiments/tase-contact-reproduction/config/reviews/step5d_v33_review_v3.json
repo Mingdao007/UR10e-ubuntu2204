@@ -1,0 +1,54 @@
+{
+  "schema": "step5d_v33_review_v3_manifest_v1",
+  "programs": [
+    "step5d_strict_rnn_ablation_v33c20",
+    "step5d_strict_rnn_ablation_v33"
+  ],
+  "required_stack": "1xCodex/xhigh+1xFable5/high",
+  "effective_stack": "1+1",
+  "reviewed_diff_sha256": "d91cc1feb31a002ed13a27ef7f08623e80cad9afee56872c050fcea395468144",
+  "reviewed_untracked_set_sha256": "01d1c2a5b6675aaf16c4db0c9663d2d8211d6152b011c67c2e87840a082f6538",
+  "repaired_composite_fingerprint": "552d5748d02d932d54bbea05f4fb859c45b68a7c1309790afa1556b348090b0c",
+  "decision": "ACCEPT_AFTER_DETERMINISTIC_FINDING_CLOSURE",
+  "lanes": {
+    "sol_xhigh": {
+      "status": "completed_no_go_findings_closed",
+      "original_decision": "NO-GO",
+      "actual_model": "gpt-5.6-sol",
+      "actual_effort": "xhigh",
+      "runtime_provenance": "persisted first-attempt turn_context plus same-selector replacement verdict after CLI tool-result failure",
+      "runtime_evidence_path": "config/reviews/step5d_v33_codex_xhigh.md",
+      "runtime_evidence_sha256": "46f0a8127cc13505fdf899748a2ff513ed3b66e3bff14893e3aef1107cb35b60",
+      "findings": [
+        {"id": "C1", "severity": "P1"},
+        {"id": "C2", "severity": "P1"},
+        {"id": "C3", "severity": "P1"},
+        {"id": "C4", "severity": "P1"},
+        {"id": "C5", "severity": "P1"},
+        {"id": "C6", "severity": "P1"}
+      ]
+    },
+    "fable5_high": {
+      "status": "completed_no_go_findings_closed",
+      "original_decision": "NO-GO",
+      "actual_model": "claude-fable-5",
+      "actual_effort": "high",
+      "runtime_provenance": "returned session f085fa15-3912-40ac-8c26-abb431e9c090 bound to its captured --effort high invocation",
+      "runtime_evidence_path": "config/reviews/step5d_v33_fable5_high.md",
+      "runtime_evidence_sha256": "3360b8afd4c2b4cd9ae9e294cc9200b29727f87d66c74c62dab7491ecf462b9a",
+      "findings": [
+        {"id": "F1", "severity": "P1"},
+        {"id": "F2", "severity": "P1"},
+        {"id": "F3", "severity": "P1"},
+        {"id": "F4", "severity": "P1"},
+        {"id": "F5", "severity": "P1"},
+        {"id": "F6", "severity": "P1"}
+      ]
+    }
+  },
+  "deterministic_finding_closure": {
+    "path": "config/reviews/step5d_v33_deterministic_closure.json",
+    "sha256": "08963f2078e57bb4b9359d0741af540050fc3a6ca5a1888607865d903c9133d7"
+  },
+  "claim_boundary": "review and deterministic closure accept the repaired package fingerprint; live authorization remains separate"
+}

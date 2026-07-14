@@ -224,7 +224,10 @@ BRIDGE_NORMAL_MIN_FORCE_N="${BRIDGE_NORMAL_MIN_FORCE_N:-2.0}"
 BRIDGE_NORMAL_MAX_ANGLE_FROM_LATCH_DEG="${BRIDGE_NORMAL_MAX_ANGLE_FROM_LATCH_DEG:-20}"
 BRIDGE_NORMAL_FRICTION_PROJECTION="${BRIDGE_NORMAL_FRICTION_PROJECTION:-on}"
 BRIDGE_PATH_SHAPE="${BRIDGE_PATH_SHAPE:-line}"
-if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v31" ]]; then
+if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v31" \
+  || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v32" \
+  || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v33c20" \
+  || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v33" ]]; then
   BRIDGE_DURATION_S="180"
   BRIDGE_BASELINE_S="1.0"
   BRIDGE_REZERO_S="1.0"
@@ -732,6 +735,8 @@ requires_step5d_realtime_launcher() {
     || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v30" \
     || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v31" \
     || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v32" \
+    || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v33c20" \
+    || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v33" \
     || "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]
 }
 

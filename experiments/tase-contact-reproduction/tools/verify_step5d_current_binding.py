@@ -27,6 +27,7 @@ from step5d_review_v3 import resolve as resolve_review_v3
 from step5d_review_v3 import canonical_composite
 from build_step5d_v31_review_binding import compute_payloads as compute_v31_review_payloads
 from build_step5d_v32_review_binding import compute_payloads as compute_v32_review_payloads
+from build_step5d_v33_freeze_binding import build_payload as build_v33_freeze_payload
 from step5d_timing_acceptance import evaluate_timing_raw
 from step5d_v30_timing import SOURCE_BINDING_FILES
 from verify_current_stage_readback import EXPERIMENT_ROOT, fail, load_json, verify
@@ -37,6 +38,8 @@ STEP5D_ABLATION_V29 = "step5d_strict_rnn_ablation_v29"
 STEP5D_ABLATION_V30 = "step5d_strict_rnn_ablation_v30"
 STEP5D_ABLATION_V31 = "step5d_strict_rnn_ablation_v31"
 STEP5D_ABLATION_V32 = "step5d_strict_rnn_ablation_v32"
+STEP5D_ABLATION_V33C20 = "step5d_strict_rnn_ablation_v33c20"
+STEP5D_ABLATION_V33 = "step5d_strict_rnn_ablation_v33"
 V29_EXACT_RUNTIME_PROFILE: dict[str, Any] = {
     "backend": "cupy",
     "inner_iterations": 1024,
@@ -535,7 +538,7 @@ def _exact_v29_runtime_profile(
                     "wire_protocol": "stage_aware_joint_v1",
                     "joint_marker_internal": 524.0,
                 }
-                if profile_label == "v32"
+                if profile_label in {"v32", "v33"}
                 else {"joint_layout_code": 524.0}
             ),
         }
@@ -543,7 +546,7 @@ def _exact_v29_runtime_profile(
         fail(f"{profile_label} live bridge requires the exact runtime profile")
     expected = (
         V32_EXACT_RUNTIME_PROFILE
-        if profile_label == "v32"
+        if profile_label in {"v32", "v33"}
         else V31_EXACT_RUNTIME_PROFILE
         if profile_label == "v31"
         else V30_EXACT_RUNTIME_PROFILE
@@ -554,8 +557,8 @@ def _exact_v29_runtime_profile(
         fail(
             f"{profile_label} live bridge requires the exact runtime profile "
             + (
-                f"speedj_rnn_live/cupy/512/epsilon=0.01/r=0.8/qdot={'0.5' if profile_label in {'v31', 'v32'} else '0.05'}"
-                if profile_label in {"v30", "v31", "v32"}
+                f"speedj_rnn_live/cupy/512/epsilon=0.01/r=0.8/qdot={'0.5' if profile_label in {'v31', 'v32', 'v33'} else '0.05'}"
+                if profile_label in {"v30", "v31", "v32", "v33"}
                 else "speedj_rnn_live/cupy/1024/epsilon=0.01/r=0.8/qdot=0.05"
             )
         )
@@ -860,6 +863,123 @@ def verify_v32_evidence_freeze(
     }
 
 
+def verify_v33_evidence_freeze(
+    root: Path,
+    current: dict[str, Any] | None = None,
+    *,
+    program: str,
+    stage25_control_mode: str | None = None,
+    rnn_backend: str | None = None,
+    rnn_inner_iterations: int | None = None,
+    epsilon: float | None = None,
+    sigr_exponent_r: float | None = None,
+    qdot_cap_rad_s: float | None = None,
+) -> dict[str, Any]:
+    """Recompute the repaired v33 source/package/read-back/review freeze before live use."""
+
+    if program not in {STEP5D_ABLATION_V33C20, STEP5D_ABLATION_V33}:
+        fail(f"unsupported v33 freeze program: {program}")
+    current = current or load_json(root / "config" / "current_stage.json")
+    candidate_key = "v33c20_candidate" if program == STEP5D_ABLATION_V33C20 else "v33_candidate"
+    candidate = current.get(candidate_key)
+    if not isinstance(candidate, dict):
+        fail(f"{candidate_key} ledger is missing")
+    runtime_profile = _exact_v29_runtime_profile(
+        stage25_control_mode=stage25_control_mode,
+        rnn_backend=rnn_backend,
+        rnn_inner_iterations=rnn_inner_iterations,
+        epsilon=epsilon,
+        sigr_exponent_r=sigr_exponent_r,
+        qdot_cap_rad_s=qdot_cap_rad_s,
+        profile_label="v33",
+    )
+    package = candidate.get("package")
+    review = candidate.get("review_v3")
+    if not isinstance(package, dict) or not isinstance(review, dict):
+        fail("v33 package/review ledger is incomplete")
+    if package.get("controller_uploaded") is not True or package.get("controller_readback_verified") is not True:
+        fail("v33 controller upload/fresh read-back is not verified")
+    binding_path, tracked_binding, binding_sha = _hash_bound_json(
+        root,
+        review.get("binding"),
+        "v33 freeze binding",
+        expected_sha256=review.get("binding_sha256"),
+    )
+    recomputed_binding = build_v33_freeze_payload(root)
+    if tracked_binding != recomputed_binding:
+        fail("v33 source/package/read-back/timing freeze binding is stale")
+    composite = str(recomputed_binding.get("composite_fingerprint") or "")
+    if not composite or review.get("composite_fingerprint") != composite:
+        fail("v33 repaired composite fingerprint is stale")
+    manifest_path, manifest, manifest_sha = _hash_bound_json(
+        root,
+        review.get("manifest"),
+        "v33 Review v3 manifest",
+        expected_sha256=review.get("manifest_sha256"),
+    )
+    lanes = manifest.get("lanes")
+    if not isinstance(lanes, dict):
+        fail("v33 Review v3 lanes are missing")
+    sol = lanes.get("sol_xhigh")
+    fable = lanes.get("fable5_high")
+    if not isinstance(sol, dict) or not isinstance(fable, dict):
+        fail("v33 requires one Sol/xhigh and one Fable5/high lane")
+    if not (
+        sol.get("actual_model") == "gpt-5.6-sol"
+        and sol.get("actual_effort") == "xhigh"
+        and sol.get("status") == "completed_no_go_findings_closed"
+        and fable.get("actual_model") == "claude-fable-5"
+        and fable.get("actual_effort") == "high"
+        and fable.get("status") == "completed_no_go_findings_closed"
+    ):
+        fail("v33 exact reviewer identities/efforts or deterministic closure status are invalid")
+    for lane_name, lane in lanes.items():
+        transcript = _confined_regular_file(
+            root, lane.get("runtime_evidence_path"), f"v33 {lane_name} review transcript"
+        )
+        if _sha256_file(transcript) != lane.get("runtime_evidence_sha256"):
+            fail(f"v33 {lane_name} transcript hash mismatch")
+    closure_ref = manifest.get("deterministic_finding_closure")
+    if not isinstance(closure_ref, dict):
+        fail("v33 deterministic finding closure is missing")
+    _, closure, closure_sha = _hash_bound_json(
+        root,
+        closure_ref.get("path"),
+        "v33 deterministic finding closure",
+        expected_sha256=closure_ref.get("sha256"),
+    )
+    finding_ids = {
+        str(finding.get("id"))
+        for lane in lanes.values()
+        for finding in (lane.get("findings") or [])
+        if isinstance(finding, dict)
+    }
+    if not (
+        closure.get("status") == "pass"
+        and closure.get("reviewed_diff_sha256") == manifest.get("reviewed_diff_sha256")
+        and closure.get("repaired_composite_fingerprint") == composite
+        and finding_ids.issubset(set((closure.get("resolutions") or {}).keys()))
+    ):
+        fail("v33 deterministic finding closure is invalid or incomplete")
+    if review.get("status") != "accepted_1+1_with_deterministic_closure":
+        fail("v33 Review v3 repaired fingerprint is not accepted")
+    if candidate.get("live_authorized") is not True:
+        fail("v33 explicit live/contact authorization is missing")
+    return {
+        "ok": True,
+        "program": program,
+        "runtime_profile": runtime_profile,
+        "binding": _relative(root, binding_path),
+        "binding_sha256": binding_sha,
+        "composite_fingerprint": composite,
+        "manifest": _relative(root, manifest_path),
+        "manifest_sha256": manifest_sha,
+        "closure_sha256": closure_sha,
+        "effective_stack": "1+1",
+        "live_motion_authorized": True,
+    }
+
+
 def _verify_v29_readiness(
     root: Path,
     current: dict[str, Any],
@@ -1024,6 +1144,19 @@ def verify_live_bridge_authorization(
     elif selected == STEP5D_ABLATION_V32:
         readiness = verify_v32_evidence_freeze(
             root, current,
+            stage25_control_mode=stage25_control_mode,
+            rnn_backend=rnn_backend,
+            rnn_inner_iterations=rnn_inner_iterations,
+            epsilon=epsilon,
+            sigr_exponent_r=sigr_exponent_r,
+            qdot_cap_rad_s=qdot_cap_rad_s,
+        )
+        runtime_profile = readiness["runtime_profile"]
+    elif selected in {STEP5D_ABLATION_V33C20, STEP5D_ABLATION_V33}:
+        readiness = verify_v33_evidence_freeze(
+            root,
+            current,
+            program=selected,
             stage25_control_mode=stage25_control_mode,
             rnn_backend=rnn_backend,
             rnn_inner_iterations=rnn_inner_iterations,

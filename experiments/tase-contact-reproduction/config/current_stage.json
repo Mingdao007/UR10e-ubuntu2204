@@ -1,16 +1,16 @@
 {
   "version": 2,
-  "updated_at": "2026-07-14T22:55:56+08:00",
+  "updated_at": "2026-07-15T00:03:00+08:00",
   "current_step": "Step5d",
-  "current_stage_id": "step5d_strict_rnn_ablation_v32",
-  "program": "step5d_strict_rnn_ablation_v32",
+  "current_stage_id": "step5d_strict_rnn_ablation_v33c20",
+  "program": "step5d_strict_rnn_ablation_v33c20",
   "flow_path": "STEP5_FLOW.md",
   "stage_table_path": "config/step5_stage_table.json",
-  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v32.urp",
-  "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v32.script",
-  "local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v32",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v33c20.urp",
+  "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v33c20.script",
+  "local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v33c20",
   "bridge_profile": {
-    "step4e_version": "step5d_strict_rnn_ablation_v32",
+    "step4e_version": "step5d_strict_rnn_ablation_v33c20",
     "step4e_path_shape": "cycloid",
     "step5d_qdot_limit_rad_s": 0.5,
     "target_force_n": 12.0,
@@ -49,20 +49,30 @@
         "_bridge_loop_rtde_send_s"
       ]
     },
-    "stage25_success_target_s": 60.0,
-    "stage25_runtime_limit_s": 75.0,
-    "stage25_0_success_target_s": 60.0,
+    "stage25_success_target_s": 20.0,
+    "stage25_runtime_limit_s": 35.0,
+    "stage25_0_success_target_s": 20.0,
     "stage25_speedj_live_source": "strict RNN qdot from feasibility-scaled xdot_c is sent to TP speedj; marker 524 exists only inside the Stage25.0 joint packet and is not a global readiness/publish gate",
     "stage25_rnn_evidence_policy": "RNN accepted rows require Stage25.0 internal marker 524, cmd_valid=1, TP echo consumption, and _step5d_rnn_accepted=1; Stage25.05/25.3/25.95 use their own typed packets."
   },
-  "status": "v32_controller_readback_verified_user_review_waived_live_not_authorized",
+  "status": "v33c20_controller_readback_verified_review_accepted_live_not_authorized",
   "strict_rnn_status": {
     "stage_id": "step5d_strict_rnn_reproduction_v1",
     "blocked": true,
     "paper_truth_config": "config/step5d_liveprep_solver_gate.json",
-    "reason": "v32 fixes the v31 Stage25.05 transport blockage by treating 33/521/522/524 as stage-specific packet types. Its package is controller read-back verified and selected current; the user waived this delivery's model audit, while bridge/live motion remain separately unauthorized."
+    "reason": "v32 is frozen failure evidence after RTDE backlog produced about 2.7 s stale feedback and XY drift. v33c20 drains to the latest controller sample and uses the Step5b-equivalent Stage25 outer; package/read-back/review remain separate from live authorization."
   },
   "evidence": {
+    "v33c20_controller_readback_verified": true,
+    "v33c20_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v33c20_20260715_000210/manifest.json",
+    "v33c20_controller_readback_manifest_sha256": "27642bedb00a7d35b0ccadda257a8e604d51ac828017003b15306d0e84ae0030",
+    "v33_controller_readback_verified": true,
+    "v33_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v33_20260715_000215/manifest.json",
+    "v33_controller_readback_manifest_sha256": "aedb7649abd8c12da087185caad6b1f4f9b24776940e168efbe4b4bcc16b29f5",
+    "v33_offline_validation": "config/step5d_v33_offline_validation.json",
+    "v33_offline_validation_sha256": "3daf9288529c8fd4e7fd258f5c2629246bfc115a58d3c8e66031a23b788dced4",
+    "v33_live_path_timing": "config/step5d_v33_live_path_timing.json",
+    "v33_live_path_timing_sha256": "8008c661bae1953cb08dc47deef1b624d86e0062be30565c8d7bc7c15644c30e",
     "v32_controller_readback_verified": true,
     "v32_controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v32_20260714_215219/manifest.json",
     "v32_controller_readback_manifest_sha256": "60fb9e157f948ac66062f4b20fc3d290d9a9bb381f6e1bb15dad751dd0043fd8",
@@ -1065,16 +1075,14 @@
     }
   },
   "bridge_trigger": {
-    "allowed_tokens": [
-      "LIVE STEP5D STRICT RNN LIVEPREP"
-    ],
+    "allowed_tokens": [],
     "bridge_has_started": false,
-    "live_motion_authorized": true,
+    "live_motion_authorized": false,
     "zero_ftsensor_authorized": false,
-    "blocked_reason": null,
-    "authorized_at": "2026-07-14T22:55:56+08:00",
-    "authorization_source": "user_command_open_bridge",
-    "authorization_scope": "step5d_strict_rnn_ablation_v32_current_frozen_composite",
+    "blocked_reason": "v32 authorization revoked on v33c20 promotion; a new explicit user command is required after v33c20 review and fresh read-back",
+    "authorized_at": null,
+    "authorization_source": null,
+    "authorization_scope": null,
     "no_contact_p0_capture": {
       "profile": "step5d_strict_rnn_no_contact_p0_v7",
       "entrypoint": "scripts/step5d-strict-rnn-p0.sh capture-bridge",
@@ -1185,16 +1193,16 @@
     "Earlier Step5d live-prep packages remain retained evidence only.",
     "P0v9 is user-accepted as engineering convergence from run 20260714_191925; its original formal threshold failure remains retained.",
     "v31 is superseded and retained as failed Stage25.05 transport evidence.",
-    "v32 is current and preserves the permissive guard profile until the user explicitly requests tightening.",
-    "The user explicitly waived this v32 delivery's 1×xhigh + 1×Fable5 model audit; no model review is claimed and the waiver does not authorize live motion."
+    "v32 is immutable failure evidence; v33c20 is current and preserves the permissive guard profile until the user explicitly requests tightening.",
+    "The v32 review waiver did not carry forward. v33 uses a fresh 1×Sol/xhigh + 1×Fable5/high review with deterministic finding closure, and review/read-back do not authorize live motion."
   ],
   "sha256": {
-    ".script": "8b0735ca222f37490aebfdf768498c55afcac0d909d8599400d7304da829893b",
-    ".txt": "d1beccd46e792d30ed67cc95b95789efe2ae52da50bd6b292880721fc0d087bc",
-    ".urp": "caabd4f969ba6de513c402739ad83beb56bceac3e1f7168b207de59fc946d3ba"
+    ".script": "c25a3b5a232ec76b32ee83b87853061d7f8f080eb9623b789661c21798d779ac",
+    ".txt": "c9c510e358f9fc7f8ade675843c1bd357c24ab9008eb67d8e684837d51b45b90",
+    ".urp": "3d9f04c4d762747b541a3041c0a0f62b40215b39ace2a5e2deeebf90a3a3fe3c"
   },
-  "delivery_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v32_20260714_215219/manifest.json",
-  "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v32_20260714_215219/manifest.json",
+  "delivery_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v33c20_20260715_000210/manifest.json",
+  "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v33c20_20260715_000210/manifest.json",
   "v29_contact_candidate": {
     "profile": "step5d_strict_rnn_ablation_v29",
     "local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v29",
@@ -1491,9 +1499,9 @@
     }
   },
   "liveprep_status": {
-    "state": "live_authorized",
-    "readiness_artifact": "config/step5d_v32_liveprep_readiness.json",
-    "readiness_sha256": "597373cc9c6bd8f1a60b1d58cf1d7cfcc9ed52bbb125d4579fa9195d7b6e63de",
+    "state": "awaiting_live_authorization",
+    "readiness_artifact": "config/step5d_v33c20_liveprep_readiness.json",
+    "readiness_sha256": "97d2c0f7efd178bc56dedcb71e2d68f5bd2a97a1b023905c7c2780a04b7476b4",
     "blockers": []
   },
   "live_run_status": {
@@ -1607,8 +1615,8 @@
   },
   "v32_candidate": {
     "profile": "step5d_strict_rnn_ablation_v32",
-    "state": "live_authorized_waiting_for_bridge_start",
-    "current": true,
+    "state": "immutable_failed_rtde_backlog_xy_drift_gross_normal_stop",
+    "current": false,
     "guard_policy": "permissive_until_user_requests_tightening",
     "wire_protocol": {
       "schema": "step5d_stage_aware_packet_v1",
@@ -1679,8 +1687,8 @@
       "manifest": "config/reviews/step5d_v32_user_review_waiver.json",
       "manifest_sha256": "5c64a5a9384bed41554648a325e882485861a3feaa5fafa28bb8c18cc464bf69"
     },
-    "live_authorized": true,
-    "blockers": [],
+    "live_authorized": false,
+    "blockers": ["superseded_by_step5d_strict_rnn_ablation_v33c20"],
     "claim_boundary": {
       "package_accepted": true,
       "model_review_performed": false,
@@ -1688,5 +1696,70 @@
       "live_accepted": false,
       "reproduction_complete": false
     }
+  },
+  "v33c20_candidate": {
+    "profile": "step5d_strict_rnn_ablation_v33c20",
+    "state": "package_readback_review_and_deterministic_closure_accepted_live_not_authorized",
+    "current": true,
+    "guard_policy": "permissive_until_user_requests_tightening",
+    "runtime_profile": {
+      "backend": "cupy", "inner_iterations": 512, "epsilon": 0.01,
+      "sigr_exponent_r": 0.8, "qdot_cap_rad_s": 0.5, "qdot_slew_rad_s2": 0.05,
+      "control_hz": 500, "stage25_success_target_s": 20, "stage25_runtime_limit_s": 35,
+      "feedback_receive": "drain_all_currently_readable_packets_use_latest",
+      "feedback_age_limit_s": 0.05, "feedback_age_dwell_stop_s": 0.1
+    },
+    "outer_profile": {
+      "profile_id": "step5d_v33_step5b_discrete_equivalent_v1", "exact_binding": true,
+      "tangential_kp": 1.5, "orientation_ko": 0.4, "force_Md": 1000,
+      "force_Bd": 7000, "force_kf": 0.01, "force_integral_limit_n_s": 1
+    },
+    "package": {
+      "local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v33c20",
+      "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v33c20.urp",
+      "controller_uploaded": true, "controller_readback_verified": true,
+      "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v33c20_20260715_000210/manifest.json",
+      "controller_readback_manifest_sha256": "27642bedb00a7d35b0ccadda257a8e604d51ac828017003b15306d0e84ae0030",
+      "sha256": {".script": "c25a3b5a232ec76b32ee83b87853061d7f8f080eb9623b789661c21798d779ac", ".txt": "c9c510e358f9fc7f8ade675843c1bd357c24ab9008eb67d8e684837d51b45b90", ".urp": "3d9f04c4d762747b541a3041c0a0f62b40215b39ace2a5e2deeebf90a3a3fe3c"}
+    },
+    "review_v3": {
+      "required_stack": "1+1", "effective_stack": "1+1",
+      "status": "accepted_1+1_with_deterministic_closure",
+      "binding": "config/step5d_v33_freeze_binding.json",
+      "binding_sha256": "4967288854d09ae5da174dc0bfac94d29db52634cd46daa7636e451fed5eff39",
+      "composite_fingerprint": "552d5748d02d932d54bbea05f4fb859c45b68a7c1309790afa1556b348090b0c",
+      "manifest": "config/reviews/step5d_v33_review_v3.json",
+      "manifest_sha256": "e361cca334ee4bd0b8377ec657ddb1067eeb1cf466a15f0f82ccb15578a6617c",
+      "deterministic_finding_closure": {"path": "config/reviews/step5d_v33_deterministic_closure.json", "sha256": "08963f2078e57bb4b9359d0741af540050fc3a6ca5a1888607865d903c9133d7"}
+    },
+    "live_authorized": false,
+    "blockers": ["explicit_live_authorization_missing"],
+    "claim_boundary": {"package_accepted": true, "live_accepted": false, "reproduction_complete": false}
+  },
+  "v33_candidate": {
+    "profile": "step5d_strict_rnn_ablation_v33",
+    "state": "staged_behind_v33c20_canary",
+    "current": false,
+    "package": {
+      "local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v33",
+      "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v33.urp",
+      "controller_uploaded": true, "controller_readback_verified": true,
+      "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v33_20260715_000215/manifest.json",
+      "controller_readback_manifest_sha256": "aedb7649abd8c12da087185caad6b1f4f9b24776940e168efbe4b4bcc16b29f5",
+      "sha256": {".script": "0d444d333013095e777e24eabc482275831af228d9a3b9637478d85be599c331", ".txt": "6be69d6c0270586502a7df0282f29dde49bc4599c91df67ef0e8be3e23db4627", ".urp": "4bef71b3d0690479cba13c9ca01a9bcd2e5d2c7802c64b6bf7d2f86dab3c4e5f"}
+    },
+    "review_v3": {
+      "required_stack": "same_frozen_v33_fingerprint", "effective_stack": "1+1",
+      "status": "accepted_1+1_with_deterministic_closure",
+      "binding": "config/step5d_v33_freeze_binding.json",
+      "binding_sha256": "4967288854d09ae5da174dc0bfac94d29db52634cd46daa7636e451fed5eff39",
+      "composite_fingerprint": "552d5748d02d932d54bbea05f4fb859c45b68a7c1309790afa1556b348090b0c",
+      "manifest": "config/reviews/step5d_v33_review_v3.json",
+      "manifest_sha256": "e361cca334ee4bd0b8377ec657ddb1067eeb1cf466a15f0f82ccb15578a6617c",
+      "deterministic_finding_closure": {"path": "config/reviews/step5d_v33_deterministic_closure.json", "sha256": "08963f2078e57bb4b9359d0741af540050fc3a6ca5a1888607865d903c9133d7"}
+    },
+    "live_authorized": false,
+    "blockers": ["v33c20_live_acceptance_missing", "explicit_full_run_authorization_missing"],
+    "claim_boundary": {"package_accepted": false, "live_accepted": false, "reproduction_complete": false}
   }
 }

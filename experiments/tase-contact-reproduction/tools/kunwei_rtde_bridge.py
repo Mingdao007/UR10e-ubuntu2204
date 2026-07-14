@@ -65,6 +65,7 @@ from verify_step5d_current_binding import (  # noqa: E402
     verify_live_bridge_authorization as verify_step5d_live_bridge_authorization,
     verify_v31_evidence_freeze,
     verify_v32_evidence_freeze,
+    verify_v33_evidence_freeze,
 )
 from step5d_paper_outer_loop import (  # noqa: E402
     Step5dOuterLoopConfig,
@@ -117,6 +118,8 @@ from step5d_runtime_interface import (  # noqa: E402
     STEP5D_ABLATION_V30_STAGE_ID,
     STEP5D_ABLATION_V31_STAGE_ID,
     STEP5D_ABLATION_V32_STAGE_ID,
+    STEP5D_ABLATION_V33C20_STAGE_ID,
+    STEP5D_ABLATION_V33_STAGE_ID,
     STEP5D_NO_CONTACT_P0_STAGE_ID,
     STEP5D_NO_CONTACT_P0_STAGE_IDS,
     STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
@@ -470,6 +473,7 @@ STEP5D_DIAG_FIELDS = [
 INPUT_FIELDS = BASE_INPUT_FIELDS + BRIDGE_INPUT_FIELDS
 INPUT_NAMES = BASE_INPUT_NAMES + BRIDGE_INPUT_NAMES
 OUTPUT_FIELDS = [
+    "timestamp",
     "actual_TCP_pose",
     "actual_TCP_speed",
     "actual_q",
@@ -658,6 +662,8 @@ STEP5D_LIVEPREP_STAGE_IDS = {
     STEP5D_ABLATION_V30_STAGE_ID,
     STEP5D_ABLATION_V31_STAGE_ID,
     STEP5D_ABLATION_V32_STAGE_ID,
+    STEP5D_ABLATION_V33C20_STAGE_ID,
+    STEP5D_ABLATION_V33_STAGE_ID,
     *STEP5D_NO_CONTACT_P0_STAGE_IDS,
 }
 STEP5D_TCP_CAGE_PROFILES = {
@@ -810,6 +816,14 @@ STEP5D_V28_SHADOW_ADMITTANCE_SCALE = 20.0
 STEP5D_V28_SHADOW_MD = 12.0 * STEP5D_V28_SHADOW_ADMITTANCE_SCALE
 STEP5D_V28_SHADOW_BD = 550.0 * STEP5D_V28_SHADOW_ADMITTANCE_SCALE
 STEP5D_V28_SHADOW_KO = 0.5
+STEP5D_V33_TANGENTIAL_KP = 1.5
+STEP5D_V33_ORIENTATION_KO = 0.4
+STEP5D_V33_FORCE_MD = 1000.0
+STEP5D_V33_FORCE_BD = 7000.0
+STEP5D_V33_FORCE_KF = 0.01
+STEP5D_V33_FORCE_INTEGRAL_LIMIT_N_S = 1.0
+STEP5D_V33_FEEDBACK_AGE_LIMIT_S = 0.050
+STEP5D_V33_FEEDBACK_AGE_DWELL_S = 0.100
 STEP5D_ABLATION_SPEEDL_ORIENTATION_SHADOW_ONLY = True
 # v29 step: execute the Step5b/step4e orientation-follow command live again
 # (gain 0.2 against the re-latched normal reference, existing 0.015 rad/s
@@ -4138,8 +4152,11 @@ def compute_bridge_values(
     step5d_liveprep_v30_profile = args.bridge_profile == STEP5D_ABLATION_V30_STAGE_ID
     step5d_liveprep_v31_profile = args.bridge_profile == STEP5D_ABLATION_V31_STAGE_ID
     step5d_liveprep_v32_profile = args.bridge_profile == STEP5D_ABLATION_V32_STAGE_ID
+    step5d_liveprep_v33c20_profile = args.bridge_profile == STEP5D_ABLATION_V33C20_STAGE_ID
+    step5d_liveprep_v33_profile = args.bridge_profile == STEP5D_ABLATION_V33_STAGE_ID
+    step5d_v33_outer_profile = step5d_liveprep_v33c20_profile or step5d_liveprep_v33_profile
     step5d_permissive_contact_profile = (
-        step5d_liveprep_v31_profile or step5d_liveprep_v32_profile
+        step5d_liveprep_v31_profile or step5d_liveprep_v32_profile or step5d_v33_outer_profile
     )
     step5d_no_contact_p0_profile = is_no_contact_p0_stage(args.bridge_profile)
     step5d_no_contact_p0_v8_profile = (
@@ -4156,6 +4173,7 @@ def compute_bridge_values(
         or step5d_liveprep_v30_profile
         or step5d_liveprep_v31_profile
         or step5d_liveprep_v32_profile
+        or step5d_v33_outer_profile
     )
     step5d_ablation_profile = (
         step5d_liveprep_v25_profile
@@ -5204,7 +5222,13 @@ def compute_bridge_values(
                     if low_load_active_reacquire_reset
                     else state.step5d_outer_state
                 )
-                base_step5d_ko = STEP5D_V28_SHADOW_KO if step5d_step5b_speedl_live_profile else 5.0
+                base_step5d_ko = (
+                    STEP5D_V33_ORIENTATION_KO
+                    if step5d_v33_outer_profile
+                    else STEP5D_V28_SHADOW_KO
+                    if step5d_step5b_speedl_live_profile
+                    else 5.0
+                )
                 if (
                     step5d_no_contact_p0_profile
                     and not step5d_no_contact_p0_v8_profile
@@ -5287,12 +5311,17 @@ def compute_bridge_values(
                     )
                     step5d_outer_output = compute_step5d_outer_loop(
                         Step5dOuterLoopConfig(
-                            kp=4.0,
+                            kp=STEP5D_V33_TANGENTIAL_KP if step5d_v33_outer_profile else 4.0,
                             ko=base_step5d_ko,
                             orientation_gain_scale=float(step5d_p0_posture_policy["orientation_gain_scale"]),
-                            kf=1.0,
-                            Md_scalar=STEP5D_V28_SHADOW_MD if step5d_step5b_speedl_live_profile else 12.0,
-                            Bd_scalar=STEP5D_V28_SHADOW_BD if step5d_step5b_speedl_live_profile else 550.0,
+                            kf=STEP5D_V33_FORCE_KF if step5d_v33_outer_profile else 1.0,
+                            Md_scalar=STEP5D_V33_FORCE_MD if step5d_v33_outer_profile else STEP5D_V28_SHADOW_MD if step5d_step5b_speedl_live_profile else 12.0,
+                            Bd_scalar=STEP5D_V33_FORCE_BD if step5d_v33_outer_profile else STEP5D_V28_SHADOW_BD if step5d_step5b_speedl_live_profile else 550.0,
+                            force_integral_limit_n_s=(
+                                STEP5D_V33_FORCE_INTEGRAL_LIMIT_N_S
+                                if step5d_v33_outer_profile
+                                else 5.0
+                            ),
                             force_target_n=float(args.target_force_n),
                             delay_T_s=dt_s,
                             force_sign_convention="step5_step6_positive_normal_load",
@@ -7058,6 +7087,40 @@ def write_step5b_ramp_trial_summary(
     return payload
 
 
+class RTDEFeedbackFreshness:
+    """Estimate controller-sample age without assuming synchronized clocks."""
+
+    def __init__(self) -> None:
+        self.offset_floor_s: float | None = None
+        self.stale_dwell_s = 0.0
+        self.stale_started_monotonic_s: float | None = None
+
+    def observe(self, controller_timestamp_s: float, receive_monotonic_s: float) -> float:
+        offset = float(receive_monotonic_s) - float(controller_timestamp_s)
+        if self.offset_floor_s is None or offset < self.offset_floor_s:
+            self.offset_floor_s = offset
+        return max(0.0, offset - self.offset_floor_s)
+
+    def age(self, controller_timestamp_s: float, now_monotonic_s: float) -> float:
+        if self.offset_floor_s is None:
+            return math.inf
+        return max(
+            0.0,
+            float(now_monotonic_s) - float(controller_timestamp_s) - self.offset_floor_s,
+        )
+
+    def update_guard(self, feedback_age_s: float, now_monotonic_s: float) -> bool:
+        now = float(now_monotonic_s)
+        if math.isfinite(feedback_age_s) and feedback_age_s > STEP5D_V33_FEEDBACK_AGE_LIMIT_S:
+            if self.stale_started_monotonic_s is None:
+                self.stale_started_monotonic_s = now
+            self.stale_dwell_s = max(0.0, now - self.stale_started_monotonic_s)
+        else:
+            self.stale_started_monotonic_s = None
+            self.stale_dwell_s = 0.0
+        return self.stale_dwell_s >= STEP5D_V33_FEEDBACK_AGE_DWELL_S
+
+
 class RTDEBridgeClient(RTDEClient):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
@@ -7116,6 +7179,10 @@ class RTDEBridgeClient(RTDEClient):
         ptype, payload = self._recv_packet()
         if ptype != ord("U") or not payload or payload[0] != recipe_id:
             return None
+        return self._decode_output_sample(payload, type_names)
+
+    @staticmethod
+    def _decode_output_sample(payload: bytes, type_names: list[str]) -> dict[str, Any]:
         cursor = 1
         values: list[Any] = []
         for type_name in type_names:
@@ -7125,6 +7192,27 @@ class RTDEBridgeClient(RTDEClient):
             cursor += width
             values.append(unpacked[0] if len(unpacked) == 1 else list(unpacked))
         return {field: value for field, value in zip(OUTPUT_FIELDS, values)}
+
+    def recv_latest_available_sample(
+        self, recipe_id: int, type_names: list[str], timeout_s: float = 0.0
+    ) -> tuple[dict[str, Any] | None, int]:
+        """Drain every currently readable RTDE packet and return only the newest sample."""
+
+        assert self.sock is not None
+        ready, _, _ = select.select([self.sock], [], [], timeout_s)
+        if not ready:
+            return None, 0
+        latest: dict[str, Any] | None = None
+        drained = 0
+        while True:
+            ptype, payload = self._recv_packet()
+            drained += 1
+            if ptype == ord("U") and payload and payload[0] == recipe_id:
+                latest = self._decode_output_sample(payload, type_names)
+            ready, _, _ = select.select([self.sock], [], [], 0.0)
+            if not ready:
+                break
+        return latest, drained
 
 
 def open_rtde_bridge(
@@ -8162,6 +8250,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                 STEP5D_ABLATION_V30_STAGE_ID,
                 STEP5D_ABLATION_V31_STAGE_ID,
                 STEP5D_ABLATION_V32_STAGE_ID,
+                STEP5D_ABLATION_V33C20_STAGE_ID,
+                STEP5D_ABLATION_V33_STAGE_ID,
+                STEP5D_ABLATION_V33C20_STAGE_ID,
+                STEP5D_ABLATION_V33_STAGE_ID,
                 *STEP5D_NO_CONTACT_P0_STAGE_IDS,
             }
             else "speedl_cartesian_oracle"
@@ -8245,6 +8337,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             STEP5D_ABLATION_V30_STAGE_ID,
             STEP5D_ABLATION_V31_STAGE_ID,
             STEP5D_ABLATION_V32_STAGE_ID,
+            STEP5D_ABLATION_V33C20_STAGE_ID,
+            STEP5D_ABLATION_V33_STAGE_ID,
         }:
             default_filtered_min_n = STEP5D_V27_ENTRY_FILTERED_NORMAL_LOAD_MIN_N
             default_filtered_max_n = STEP5D_V27_ENTRY_FILTERED_NORMAL_LOAD_MAX_N
@@ -8336,6 +8430,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             STEP5D_ABLATION_V30_STAGE_ID,
             STEP5D_ABLATION_V31_STAGE_ID,
             STEP5D_ABLATION_V32_STAGE_ID,
+            STEP5D_ABLATION_V33C20_STAGE_ID,
+            STEP5D_ABLATION_V33_STAGE_ID,
         }:
             if "--step5d-epsilon" not in argv_list:
                 args.step5d_epsilon = STEP5D_NO_CONTACT_P0_EPSILON
@@ -8344,16 +8440,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             if "--step5d-rnn-inner-iterations" not in argv_list:
                 args.step5d_rnn_inner_iterations = (
                     STEP5D_V31_RNN_INNER_ITERATIONS
-                    if args.bridge_profile in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}
+                    if args.bridge_profile in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID}
                     else STEP5D_V30_RNN_INNER_ITERATIONS
                     if args.bridge_profile == STEP5D_ABLATION_V30_STAGE_ID
                     else STEP5D_NO_CONTACT_P0_RNN_INNER_ITERATIONS
                 )
             if "--step5d-rnn-backend" not in argv_list:
                 args.step5d_rnn_backend = STEP5D_NO_CONTACT_P0_RNN_BACKEND
-        if args.bridge_profile in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}:
+        if args.bridge_profile in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID}:
             if args.step5d_stage25_control_mode != "speedj_rnn_live":
-                raise SystemExit("v31/v32 permit only speedj_rnn_live; Cartesian and DLS are shadow-only")
+                raise SystemExit("v31/v32/v33 permit only speedj_rnn_live; Cartesian and DLS are shadow-only")
             args.step5d_qdot_limit_rad_s = STEP5D_V31_QDOT_CAP_RAD_S
             args.sensor_stale_s = STEP5D_V31_SENSOR_STALE_S
             args.baseline_s = 1.0
@@ -8593,6 +8689,38 @@ def require_v29_live_bridge_authorization(
             sigr_exponent_r=args.step5d_sigr_exponent_r,
             qdot_cap_rad_s=args.step5d_qdot_limit_rad_s,
         )
+    if args.bridge_profile in {STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID}:
+        candidate_key = (
+            "v33c20_candidate"
+            if args.bridge_profile == STEP5D_ABLATION_V33C20_STAGE_ID
+            else "v33_candidate"
+        )
+        candidate = current.get(candidate_key)
+        if not isinstance(candidate, Mapping):
+            raise SystemExit(f"{candidate_key} is missing from current_stage.json")
+        if current.get("program") != args.bridge_profile or candidate.get("current") is not True:
+            raise SystemExit("v33 raw bridge blocked: requested package is not the current binding")
+        package = candidate.get("package")
+        review = candidate.get("review_v3")
+        if not isinstance(package, Mapping) or package.get("controller_readback_verified") is not True:
+            raise SystemExit("v33 raw bridge blocked: controller upload/fresh read-back is not verified")
+        if not isinstance(review, Mapping) or review.get("status") != "accepted_1+1_with_deterministic_closure":
+            raise SystemExit("v33 raw bridge blocked: frozen fingerprint has not passed Review v3")
+        if candidate.get("live_authorized") is not True:
+            raise SystemExit("v33 raw bridge blocked: explicit live/contact authorization is missing")
+        if args.step5d_stage25_control_mode != "speedj_rnn_live":
+            raise SystemExit("v33 raw bridge requires speedj_rnn_live with stage-aware joint packets")
+        return verify_v33_evidence_freeze(
+            root,
+            dict(current),
+            program=args.bridge_profile,
+            stage25_control_mode=args.step5d_stage25_control_mode,
+            rnn_backend=args.step5d_rnn_backend,
+            rnn_inner_iterations=args.step5d_rnn_inner_iterations,
+            epsilon=args.step5d_epsilon,
+            sigr_exponent_r=args.step5d_sigr_exponent_r,
+            qdot_cap_rad_s=args.step5d_qdot_limit_rad_s,
+        )
     if args.bridge_profile == STEP5D_NO_CONTACT_P0_V8_STAGE_ID:
         return require_p0_v8_canary_authorization(args, current)
     if args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID:
@@ -8636,6 +8764,8 @@ def requires_step5d_realtime_scheduler(bridge_profile: str) -> bool:
         STEP5D_ABLATION_V30_STAGE_ID,
         STEP5D_ABLATION_V31_STAGE_ID,
         STEP5D_ABLATION_V32_STAGE_ID,
+        STEP5D_ABLATION_V33C20_STAGE_ID,
+        STEP5D_ABLATION_V33_STAGE_ID,
         *STEP5D_NO_CONTACT_P0_STAGE_IDS,
     }
 
@@ -8922,14 +9052,14 @@ def main(argv: list[str] | None = None) -> int:
                 "p0_v9_guard_v2"
                 if args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID
                 else "step5d_permissive_contact"
-                if args.bridge_profile in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}
+                if args.bridge_profile in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID}
                 else "profile_default"
             ),
-            "force_guards_enabled": args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID},
+            "force_guards_enabled": args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID},
             "gross_force_guards_enabled": args.bridge_profile != STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
-            "cartesian_speed_guards_enabled": args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID},
-            "normal_motion_guards_enabled": args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID},
-            "force_window_role": "diagnostic_only" if args.bridge_profile in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID} else "hard_guard",
+            "cartesian_speed_guards_enabled": args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID},
+            "normal_motion_guards_enabled": args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID},
+            "force_window_role": "diagnostic_only" if args.bridge_profile in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID} else "hard_guard",
             "qdot_cap_rad_s": args.step5d_qdot_limit_rad_s,
             "sensor_stale_s": args.sensor_stale_s,
             "max_normal_force_n": (
@@ -8950,6 +9080,31 @@ def main(argv: list[str] | None = None) -> int:
                 "retry_s": STEP5D_V29_FAIL_STOP_DASHBOARD_RETRY_S,
             },
         },
+        "step5d_stage25_outer_profile": (
+            {
+                "profile_id": "step5d_v33_step5b_discrete_equivalent_v1",
+                "exact_binding": True,
+                "active_only_in_stage25_paper_outer": True,
+                "contact_search_cli_parameters_are_not_active_outer_parameters": True,
+                "tangential_kp": STEP5D_V33_TANGENTIAL_KP,
+                "orientation_ko": STEP5D_V33_ORIENTATION_KO,
+                "force_Md": STEP5D_V33_FORCE_MD,
+                "force_Bd": STEP5D_V33_FORCE_BD,
+                "force_kf": STEP5D_V33_FORCE_KF,
+                "force_integral_limit_n_s": STEP5D_V33_FORCE_INTEGRAL_LIMIT_N_S,
+                "equivalent_step5b_force_update": "0.001*e + 1e-5*integral(e) - 7*v",
+                "equivalent_step5b_tangential": "desired_v + 1.5*(desired_x-actual_x)",
+                "feedback_policy": {
+                    "receive": "drain_all_currently_readable_packets_use_latest",
+                    "age_limit_s": STEP5D_V33_FEEDBACK_AGE_LIMIT_S,
+                    "continuous_dwell_s": STEP5D_V33_FEEDBACK_AGE_DWELL_S,
+                    "single_sample_jitter": "diagnostic_only",
+                },
+            }
+            if args.bridge_profile
+            in {STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID}
+            else None
+        ),
         "bias_estimator_logging_contract": {
             "source": "STARS-2024-001-inspired logging only; no online Kalman bias estimator is run here",
             "zero_event_id": "alias of software baseline epoch, emitted per sensor and bridge row",
@@ -8984,11 +9139,11 @@ def main(argv: list[str] | None = None) -> int:
             timeout_s=args.dashboard_program_watch_timeout_s,
         ),
         "step5d_preload_gate": {
-            "enabled": args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID},
+            "enabled": args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID},
             "profile": (
                 args.bridge_profile
                 if args.bridge_profile in STEP5D_LIVEPREP_STAGE_IDS
-                and args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}
+                and args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID}
                 else None
             ),
             "filtered_min_n": (
@@ -9208,6 +9363,10 @@ def main(argv: list[str] | None = None) -> int:
     bridge_write_times: list[float] = []
     rtde_output_times: list[float] = []
     rtde_output_sequence = 0
+    rtde_feedback_freshness = RTDEFeedbackFreshness()
+    rtde_packets_drained = 0
+    feedback_age_s = math.inf
+    sent_echo_heartbeat_gap = math.nan
     echo_transition_times: list[float] = []
     rtde_reconnect_events: list[dict[str, Any]] = []
     next_rtde_reconnect_mono = start_mono
@@ -9328,6 +9487,11 @@ def main(argv: list[str] | None = None) -> int:
             "t_wall_ns",
             "t_monotonic_s",
             "sensor_age_s",
+            "rtde_controller_timestamp_s",
+            "rtde_feedback_age_s",
+            "rtde_packets_drained",
+            "rtde_feedback_stale_dwell_s",
+            "rtde_sent_echo_heartbeat_gap",
             *INPUT_NAMES,
             "guard_reason",
             "v29_fail_stop_latched",
@@ -9424,7 +9588,7 @@ def main(argv: list[str] | None = None) -> int:
             for idx in range(6)
         ]
         bridge_output_fields += KINEMATIC_DERIVED_FIELDS
-        bridge_output_fields += ["ur_runtime_state", "ur_robot_mode", "ur_safety_mode", "ur_speed_scaling"]
+        bridge_output_fields += ["ur_timestamp", "ur_runtime_state", "ur_robot_mode", "ur_safety_mode", "ur_speed_scaling"]
         bridge_output_fields += [f"ur_output_double_register_{idx}" for idx in range(24, 48)]
 
         with (
@@ -9661,6 +9825,7 @@ def main(argv: list[str] | None = None) -> int:
                                 "count": len(rtde_reconnect_events) + 1,
                             }
                         )
+                        rtde_feedback_freshness = RTDEFeedbackFreshness()
                     except (OSError, RuntimeError, socket.timeout) as exc:
                         rtde_reconnect_events.append(
                             {
@@ -9677,7 +9842,9 @@ def main(argv: list[str] | None = None) -> int:
                 if rtde is not None:
                     rtde_recv_start = time.perf_counter()
                     try:
-                        sample = rtde.recv_available_sample(rtde_output_recipe, rtde_output_types)
+                        sample, rtde_packets_drained = rtde.recv_latest_available_sample(
+                            rtde_output_recipe, rtde_output_types
+                        )
                     except (OSError, RuntimeError, socket.timeout) as exc:
                         loop_rtde_recv_s = time.perf_counter() - rtde_recv_start
                         rtde_reconnect_events.append(
@@ -9692,11 +9859,18 @@ def main(argv: list[str] | None = None) -> int:
                         rtde = None
                         next_rtde_reconnect_mono = now + 0.05
                         sample = None
+                        rtde_packets_drained = 0
                     else:
                         loop_rtde_recv_s = time.perf_counter() - rtde_recv_start
                     if sample is not None:
                         rtde_output_sequence += 1
                         rtde_output_time = time.monotonic()
+                        try:
+                            feedback_age_s = rtde_feedback_freshness.observe(
+                                float(sample["timestamp"]), rtde_output_time
+                            )
+                        except (KeyError, TypeError, ValueError):
+                            feedback_age_s = math.inf
                         kinematics_dt_s = (
                             None
                             if previous_kinematics_time is None
@@ -9731,6 +9905,9 @@ def main(argv: list[str] | None = None) -> int:
                             if last_echo_heartbeat is None or echo_float != last_echo_heartbeat:
                                 echo_transition_times.append(rtde_output_time)
                                 last_echo_heartbeat = echo_float
+                            sent_echo_heartbeat_gap = max(
+                                0.0, float(last_published_heartbeat) - echo_float
+                            )
                         zero_request = float(sample.get("output_double_register_34", 0.0))
                         if last_zero_request is None:
                             last_zero_request = zero_request
@@ -9767,6 +9944,29 @@ def main(argv: list[str] | None = None) -> int:
                         write_deadline_overrun_events += 1
                     write_deadline_max_lateness_s = max(write_deadline_max_lateness_s, deadline_lateness_s)
                     sensor_age = math.inf if latest_frame_time is None else now - latest_frame_time
+                    try:
+                        controller_timestamp_s = float((latest_output or {})["timestamp"])
+                        feedback_age_s = rtde_feedback_freshness.age(controller_timestamp_s, now)
+                    except (KeyError, TypeError, ValueError):
+                        controller_timestamp_s = math.nan
+                        feedback_age_s = math.inf
+                    try:
+                        feedback_robot_stage = float(
+                            (latest_output or {}).get("output_double_register_35", math.nan)
+                        )
+                    except (TypeError, ValueError):
+                        feedback_robot_stage = math.nan
+                    v33_feedback_guard_active = bool(
+                        args.bridge_profile
+                        in {STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID}
+                        and math.isfinite(feedback_robot_stage)
+                        and abs(feedback_robot_stage - 25.0) < 0.03
+                    )
+                    feedback_structural_stop = (
+                        rtde_feedback_freshness.update_guard(feedback_age_s, now)
+                        if v33_feedback_guard_active
+                        else rtde_feedback_freshness.update_guard(0.0, now)
+                    )
                     if args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID:
                         sensor_ok = 1.0 if sensor_age <= args.sensor_stale_s else 0.0
                     else:
@@ -9857,6 +10057,11 @@ def main(argv: list[str] | None = None) -> int:
                             step4e_values.get("_step5d_contact_safety_reason", "stop_request")
                         )
                     hard_guard_reason = guard_stop_reason(args, bridge_values) if sensor_ok else None
+                    if feedback_structural_stop:
+                        bridge_values["stop_request"] = 1.0
+                        stop_request = 1.0
+                        guard_reason = "rtde_feedback_stale_structural_stop"
+                        stop_reason = guard_reason
                     if v29_safety_fail_stop["enabled"]:
                         v29_safety_fail_stop["latched_reason"] = select_v29_fail_stop_reason(
                             v29_safety_fail_stop["latched_reason"],
@@ -9870,6 +10075,8 @@ def main(argv: list[str] | None = None) -> int:
                             stop_request = 0.0
                             apply_v29_fail_stop(bridge_values)
                     else:
+                        if feedback_structural_stop:
+                            bridge_values["stop_request"] = 1.0
                         if step4e_stop_request:
                             bridge_values["stop_request"] = 1.0
                             stop_request = 1.0
@@ -9917,6 +10124,8 @@ def main(argv: list[str] | None = None) -> int:
                                 STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
                                 STEP5D_ABLATION_V31_STAGE_ID,
                                 STEP5D_ABLATION_V32_STAGE_ID,
+                                STEP5D_ABLATION_V33C20_STAGE_ID,
+                                STEP5D_ABLATION_V33_STAGE_ID,
                             }
                         ),
                         last_published_command=last_published_step5d_command,
@@ -10030,6 +10239,11 @@ def main(argv: list[str] | None = None) -> int:
                         "t_wall_ns": time.time_ns(),
                         "t_monotonic_s": f"{now:.9f}",
                         "sensor_age_s": sensor_age if math.isfinite(sensor_age) else "",
+                        "rtde_controller_timestamp_s": controller_timestamp_s if math.isfinite(controller_timestamp_s) else "",
+                        "rtde_feedback_age_s": feedback_age_s if math.isfinite(feedback_age_s) else "",
+                        "rtde_packets_drained": rtde_packets_drained,
+                        "rtde_feedback_stale_dwell_s": rtde_feedback_freshness.stale_dwell_s,
+                        "rtde_sent_echo_heartbeat_gap": sent_echo_heartbeat_gap if math.isfinite(sent_echo_heartbeat_gap) else "",
                         **{key: csv_value(value) for key, value in bridge_values.items()},
                         **{key: csv_value(step4e_values.get(key, "")) for key in step4e_diag_fields},
                         "guard_reason": guard_reason or "",

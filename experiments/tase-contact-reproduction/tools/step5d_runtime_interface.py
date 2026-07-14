@@ -32,6 +32,8 @@ STEP5D_ABLATION_V29_STAGE_ID = "step5d_strict_rnn_ablation_v29"
 STEP5D_ABLATION_V30_STAGE_ID = "step5d_strict_rnn_ablation_v30"
 STEP5D_ABLATION_V31_STAGE_ID = "step5d_strict_rnn_ablation_v31"
 STEP5D_ABLATION_V32_STAGE_ID = "step5d_strict_rnn_ablation_v32"
+STEP5D_ABLATION_V33C20_STAGE_ID = "step5d_strict_rnn_ablation_v33c20"
+STEP5D_ABLATION_V33_STAGE_ID = "step5d_strict_rnn_ablation_v33"
 STEP5D_NO_CONTACT_P0_V7_STAGE_ID = "step5d_strict_rnn_no_contact_p0_v7"
 STEP5D_NO_CONTACT_P0_V8_STAGE_ID = "step5d_strict_rnn_no_contact_p0_v8"
 STEP5D_NO_CONTACT_P0_V9_STAGE_ID = "step5d_strict_rnn_no_contact_p0_v9"
@@ -48,6 +50,8 @@ STEP5D_V30_CONTROL_CONTRACT_STAGE_IDS = (
     STEP5D_ABLATION_V30_STAGE_ID,
     STEP5D_ABLATION_V31_STAGE_ID,
     STEP5D_ABLATION_V32_STAGE_ID,
+    STEP5D_ABLATION_V33C20_STAGE_ID,
+    STEP5D_ABLATION_V33_STAGE_ID,
     STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
     STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
 )
@@ -60,6 +64,8 @@ STEP5D_ABLATION_STAGE_IDS = (
     STEP5D_ABLATION_V30_STAGE_ID,
     STEP5D_ABLATION_V31_STAGE_ID,
     STEP5D_ABLATION_V32_STAGE_ID,
+    STEP5D_ABLATION_V33C20_STAGE_ID,
+    STEP5D_ABLATION_V33_STAGE_ID,
     *STEP5D_NO_CONTACT_P0_STAGE_IDS,
 )
 STEP5D_STAGE25_CONTROL_MODES = ("speedl_cartesian_oracle", "speedj_dls_oracle", "speedj_rnn_live")
@@ -397,6 +403,8 @@ def uses_step5b_speedl_live_source(program: str) -> bool:
         STEP5D_ABLATION_V30_STAGE_ID,
         STEP5D_ABLATION_V31_STAGE_ID,
         STEP5D_ABLATION_V32_STAGE_ID,
+        STEP5D_ABLATION_V33C20_STAGE_ID,
+        STEP5D_ABLATION_V33_STAGE_ID,
     }
 
 
@@ -409,9 +417,9 @@ def speedl_orientation_policy(program: str) -> str | None:
 
 
 def stage25_0_register_contract(program: str) -> str:
-    if program == STEP5D_ABLATION_V32_STAGE_ID:
+    if program in {STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID}:
         return (
-            "v32 Stage25.0 accepts strict RNN qd0..qd5 only; the typed joint encoder "
+            f"{program.rsplit('_', 1)[-1]} Stage25.0 accepts strict RNN qd0..qd5 only; the typed joint encoder "
             "writes internal wire marker 524. Marker 524 is not a global readiness or publish gate; "
             "Stage25.05/25.3/25.95 use their own packet types."
         )
@@ -436,7 +444,7 @@ def stage25_0_register_contract(program: str) -> str:
             "43 cmd_valid; 44 path_time; 45 force_error; 46 pose/orientation_error."
         )
     prefix = (
-        "v25/v26/v27/v28/v29/v30/v31/v32: 37..42 cartesian vx/vy/vz/wx/wy/wz when "
+        "v25/v26/v27/v28/v29/v30/v31/v32/v33: 37..42 cartesian vx/vy/vz/wx/wy/wz when "
         f"47={STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE:g}; "
     )
     suffix = (
@@ -453,11 +461,11 @@ def stage25_0_register_contract(program: str) -> str:
             + "Step5b/step4e orientation follow wx/wy/wz; Step5d paper/RNN outputs are logged as shadow diagnostics; "
             + suffix
         )
-    if program in {STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}:
+    if program in {STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID}:
         route = "strict RNN live speedj" if program == STEP5D_ABLATION_V29_STAGE_ID else "strict RNN offline-candidate speedj"
         alternatives = (
             "speedl_cartesian_oracle and speedj_dls_oracle are offline shadow/diagnostic only and forbidden as runtime fallback; "
-            if program in {STEP5D_ABLATION_V30_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}
+            if program in {STEP5D_ABLATION_V30_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID}
             else "speedl_cartesian_oracle and speedj_dls_oracle remain explicit debug/fallback modes; "
         )
         return (
@@ -480,6 +488,8 @@ def stage25_0_register_contract(program: str) -> str:
 def stage25_success_target_s(program: str) -> float | None:
     if is_no_contact_p0_stage(program):
         return STEP5D_STAGE25_V28_FULL_RUN_TARGET_S
+    if program in {STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID}:
+        return float(_stage_field(_stage_row(program), "guard.stage25_success_target_s"))
     if program in {STEP5D_ABLATION_V28_STAGE_ID, STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}:
         return STEP5D_STAGE25_V28_FULL_RUN_TARGET_S
     if program == STEP5D_ABLATION_V27_STAGE_ID:
@@ -488,11 +498,11 @@ def stage25_success_target_s(program: str) -> float | None:
 
 
 def stage25_runtime_limit_s(program: str) -> float | None:
-    if program in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}:
+    if program in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID}:
         return float(_stage_field(_stage_row(program), "guard.stage25_runtime_limit_s"))
     if is_no_contact_p0_stage(program):
         return STEP5D_STAGE25_V28_RUNTIME_LIMIT_S
-    if program in {STEP5D_ABLATION_V28_STAGE_ID, STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}:
+    if program in {STEP5D_ABLATION_V28_STAGE_ID, STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID}:
         return STEP5D_STAGE25_V28_RUNTIME_LIMIT_S
     if program == STEP5D_ABLATION_V27_STAGE_ID:
         return STEP5D_STAGE25_V27_RUNTIME_LIMIT_S
@@ -594,7 +604,7 @@ def runtime_protocol_profile(
 ) -> dict[str, Any]:
     profile_id = (
         "Step5.step5d_rnn"
-        if program in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}
+        if program in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID}
         else "Step5.step5d_rnn_legacy_v27"
     )
     try:
@@ -619,7 +629,7 @@ def resolve_runtime_interface(
         selected_row = _stage_row(selected, root)
     except StageEnvError:
         selected_row = {}
-    if selected in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}:
+    if selected in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID}:
         stage_env = build_stage_env(selected, root)
         stage_guard = selected_row.get("guard") or {}
         optional_stage_env = {
@@ -677,7 +687,7 @@ def resolve_runtime_interface(
             env_map.get(
                 "STEP5D_STAGE25_CONTROL_MODE",
                 "speedj_rnn_live"
-                if selected in {STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}
+                if selected in {STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID}
                 else "speedl_cartesian_oracle"
                 if selected in STEP5D_ABLATION_STAGE_IDS
                 else "speedj_rnn_live",
@@ -819,7 +829,7 @@ def resolve_runtime_interface(
                     "sigr_exponent_r": 0.8,
                     "qdot_cap_rad_s": (
                         STEP5D_V31_QDOT_CAP_RAD_S
-                        if selected in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}
+                        if selected in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID}
                         else STEP5D_NO_CONTACT_P0_V9_QDOT_CAP_RAD_S
                         if selected == STEP5D_NO_CONTACT_P0_V9_STAGE_ID
                         else 0.05
@@ -830,21 +840,21 @@ def resolve_runtime_interface(
                             "wire_protocol": "stage_aware_joint_v1",
                             "joint_marker_internal": 524.0,
                         }
-                        if selected == STEP5D_ABLATION_V32_STAGE_ID
+                        if selected in {STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID}
                         else {"joint_layout_code": 524.0}
                     ),
                     **(
                         {
                             "guard_schema": (
                                 str((selected_row.get("guard") or {}).get("schema"))
-                                if selected in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}
+                                if selected in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID}
                                 else "p0_v9_guard_v2"
                             ),
                             "force_guards_enabled": False,
                             "cartesian_speed_guards_enabled": False,
                             "normal_motion_guards_enabled": False,
                         }
-                        if selected in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}
+                        if selected in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID}
                         else {}
                     ),
                 }
