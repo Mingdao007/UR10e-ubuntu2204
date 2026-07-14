@@ -1,11 +1,12 @@
 {
-  "schema_version": "step5b_autotune_stage_table_v1",
-  "status": "experimental_not_current",
-  "canonical_merge_status": "deferred_while_p0v9_and_step5d_v30_are_active",
+  "schema_version": "step5b_autotune_stage_table_v2",
+  "status": "canonical_route_recorded_but_live_blocked",
+  "canonical_merge_status": "v2_additive_entry_only_current_pointer_unchanged",
   "canonical_current_pointer_unchanged": "config/current_stage.json",
   "stages": [
     {
       "id": "step5b_contact_cycloid_bayes_loop_v1",
+      "lifecycle": "superseded_no_go_retained_for_audit",
       "stage": "Step5b TP Local Bayesian autotune loop",
       "owner": "ur10e-live-bench",
       "active": false,
@@ -41,6 +42,24 @@
         "frozen composite fingerprint Review v3 1+1",
         "live authorization and owner-gated canaries"
       ]
+    },
+    {
+      "id": "step5b_contact_cycloid_bayes_loop_v2",
+      "route_id": "tp_local_autotune_bridge",
+      "stage": "Step5b TP Local GPU safe Bayesian autotune loop",
+      "owner": "ur10e-live-bench",
+      "active": false,
+      "blocked": true,
+      "shape": "60_s_step5_cycloid",
+      "frame": {"load_normal": "signed_reaction_normal", "posture_and_press_normal": "approach_normal"},
+      "contact": {"target_contexts_n": [10.0, 12.0, 15.0], "raw_normal_guard_n": 50.0, "force_norm_guard_n": 60.0, "torque_norm_guard_nm": 3.0},
+      "bridge": {"implementation": "tools/kunwei_rtde_bridge.py", "profile": "step5b_v2", "session_lock": true, "live_writer_lock": true, "token_echo_register": 28},
+      "optimizer": {"backend": "bernoulli_variational_safe_botorch_cuda", "device_policy": "cuda_required_for_every_live_selection_no_cpu_fallback", "parallel_gpu_workers": 2},
+      "package_delivery": "config/step5b_autotune_delivery_v2.json",
+      "runtime_contract": "config/step5b_autotune_loop_v2.json",
+      "authorization_ledger": "config/step5b_tp_autotune_authorization_v2.json",
+      "success_condition": "owner-gated 2 s, 10 s, and 60 s canaries followed by two consecutive full trials in different contexts with fresh token-bound RUN and verified HOME/HOLD closure",
+      "unblock_requires": ["fresh controller readback", "read-only bench preflight", "UR live/contact authorization", "operator canary gate"]
     }
   ]
 }

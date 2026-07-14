@@ -32,7 +32,7 @@
       "evidence"
     ]
   },
-  "source_of_truth": "Step5 trajectory/stage table; Step4f/Step4g and Step5b are historical evidence routes. Step5c DLS dry-run and contact are quarantined. Step5d is the complete strict TASE RNN reproduction route and completion target, blocked until PDF truth extraction, strict RNN implementation, calibrated kinematics, qdot register path, numeric sanity, package read-back, and live-plan gates pass.",
+  "source_of_truth": "Step5 trajectory/stage table; Step4f/Step4g and the legacy Step5b baseline are historical evidence routes. step5b_contact_cycloid_bayes_loop_v2 is a dedicated additive TP-autotune route that remains inactive and live-blocked with the current pointer and ROS2 baseline unchanged. Step5c DLS dry-run and contact are quarantined. Step5d is the complete strict TASE RNN reproduction route and completion target, blocked until PDF truth extraction, strict RNN implementation, calibrated kinematics, qdot register path, numeric sanity, package read-back, and live-plan gates pass.",
   "register_contract": {
     "command_registers": {
       "qd0_rad_s": 37,
@@ -551,6 +551,58 @@
         "line_stage_uses_filtered_live_normal": true
       },
       "success_condition": "Bridge computes desired_xy, desired_vxy, path_error, progress, and feedback command; TP consumes registers 37..44 only and stops on stale/invalid/over-cap/end/runtime faults."
+    },
+    {
+      "id": "step5b_contact_cycloid_bayes_loop_v2",
+      "stage": "Step5b TP Local GPU safe Bayesian autotune",
+      "owner": "ur10e-live-bench",
+      "active": false,
+      "blocked": true,
+      "complete": false,
+      "completion_target": false,
+      "shape": "cycloid",
+      "frame": "config/step5_safe_frame.json",
+      "contact": true,
+      "bridge": true,
+      "policy_refs": {
+        "runtime_contract": "config/step5b_autotune_loop_v2.json",
+        "authorization_ledger": "config/step5b_tp_autotune_authorization_v2.json",
+        "force_frame_contract": "UR_FORCE_FRAME_CONTRACT.md"
+      },
+      "lifecycle": {
+        "state": "implemented_offline_blocked_for_live",
+        "current_candidate": false,
+        "retained_evidence": false,
+        "claim_status": "no_live_or_motion_claim"
+      },
+      "current_binding": {
+        "source": "config/current_stage.json",
+        "is_current": false,
+        "flow_claim_status": "dedicated_additive_route_current_pointer_unchanged"
+      },
+      "operator_lifecycle": {
+        "entrypoint": "scripts/step5b-autotune.sh",
+        "confirm_env": "STEP5B_AUTOTUNE_CONFIRM",
+        "confirm_token": "LIVE STEP5B TP AUTOTUNE V2 SESSION",
+        "expected_program": "/programs/andyl/kunwei/step5/autotune/step5b_contact_cycloid_bayes_loop_v2.urp",
+        "controller_readback_required": true,
+        "tp_play_is_manual_and_separately_authorized": true
+      },
+      "package_delivery": {
+        "program_basename": "step5b_contact_cycloid_bayes_loop_v2",
+        "local_triplet": "programs/step5/autotune/step5b_contact_cycloid_bayes_loop_v2.{script,txt,urp}",
+        "controller_target": "/programs/andyl/kunwei/step5/autotune/step5b_contact_cycloid_bayes_loop_v2.urp",
+        "controller_readback_status": "not_delivered_not_authorized",
+        "delivery_evidence": "config/step5b_autotune_delivery_v2.json"
+      },
+      "runtime_interface_ref": {
+        "route_id": "tp_local_autotune_bridge",
+        "session_lock": "$XDG_RUNTIME_DIR/ur10e/step5b_autotune_session.lock",
+        "live_writer_lock": "$XDG_RUNTIME_DIR/ur10e/live_writer.lock",
+        "cuda_required": true,
+        "token_echo_output_register": 28
+      },
+      "success_condition": "Owner-gated 2 s, 10 s, and 60 s canaries, then two full trials in different contexts with fresh exact-token RUN, verified HOME, and exact-token HOLD acknowledgement."
     },
     {
       "id": "step5b_ros2_remote_shadow_v1",
