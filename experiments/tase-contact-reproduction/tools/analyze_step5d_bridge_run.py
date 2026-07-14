@@ -25,6 +25,7 @@ from step5d_runtime_interface import (
     STEP5D_ABLATION_V33C20_STAGE_ID,
     STEP5D_ABLATION_V33_STAGE_ID,
     STEP5D_ABLATION_V34_STAGE_ID,
+    STEP5D_ABLATION_V35_STAGE_ID,
     STEP5D_LIVEPREP_V24_STAGE_ID,
     STEP5D_NO_CONTACT_P0_STAGE_ID,
     STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
@@ -172,6 +173,7 @@ def infer_step5d_profile(run_dir: Path | None, metadata: dict[str, Any]) -> str:
         for profile in (
             STEP5D_NO_CONTACT_P0_STAGE_ID,
             STEP5D_ABLATION_V34_STAGE_ID,
+            STEP5D_ABLATION_V35_STAGE_ID,
             STEP5D_ABLATION_V33C20_STAGE_ID,
             STEP5D_ABLATION_V33_STAGE_ID,
             STEP5D_ABLATION_V32_STAGE_ID,
@@ -888,6 +890,10 @@ def stage25_control_attribution(rows: list[dict[str, str]], metadata: dict[str, 
         "orientation_error_max_rad": max_or_none(orientation_errors),
         "orientation_stable_target_divergence_windows": orientation_stable_target_divergence_windows(rows),
         "scheduler_promotion_verified": scheduler_lifecycle.get("promotion_verified"),
+        "scheduler_quota_safe_verified": scheduler_lifecycle.get("quota_safe_verified"),
+        "scheduler_rt_runtime_consumption_policy": scheduler_lifecycle.get(
+            "rt_runtime_consumption_policy"
+        ),
         "scheduler_initial_policy": (scheduler_lifecycle.get("initial_process_scheduler") or {}).get("policy"),
         "scheduler_control_policy": (scheduler_lifecycle.get("control_thread_scheduler") or {}).get("policy"),
         "scheduler_control_priority": (scheduler_lifecycle.get("control_thread_scheduler") or {}).get("priority"),
@@ -1046,6 +1052,7 @@ def stage25_speedj_rnn_live_success(profile: str, result: dict[str, Any], contro
         STEP5D_ABLATION_V33C20_STAGE_ID,
         STEP5D_ABLATION_V33_STAGE_ID,
         STEP5D_ABLATION_V34_STAGE_ID,
+        STEP5D_ABLATION_V35_STAGE_ID,
     }
     if profile not in supported_profiles or control_mode != STAGE25_SPEEDJ_RNN_MODE:
         return False
@@ -1064,6 +1071,7 @@ def stage25_speedj_rnn_live_success(profile: str, result: dict[str, Any], contro
         STEP5D_ABLATION_V33C20_STAGE_ID,
         STEP5D_ABLATION_V33_STAGE_ID,
         STEP5D_ABLATION_V34_STAGE_ID,
+        STEP5D_ABLATION_V35_STAGE_ID,
     }:
         feedback_age_p99 = finite_float(attribution.get("feedback_age_p99_s"))
         heartbeat_gap_max = finite_float(attribution.get("sent_echo_heartbeat_gap_max"))
@@ -1085,6 +1093,19 @@ def stage25_speedj_rnn_live_success(profile: str, result: dict[str, Any], contro
             and math.isfinite(finite_float(attribution.get("raw_rnn_residual_max")))
             and math.isfinite(finite_float(attribution.get("post_slew_command_residual_max")))
         )
+        scheduler_contract_ok = (
+            attribution.get("scheduler_quota_safe_verified") is True
+            and attribution.get("scheduler_initial_policy") == "SCHED_OTHER"
+            and attribution.get("scheduler_control_policy") == "SCHED_OTHER"
+            and attribution.get("scheduler_control_priority") == 0
+            and attribution.get("scheduler_rt_runtime_consumption_policy")
+            == "no_sched_fifo_threads"
+            if profile == STEP5D_ABLATION_V35_STAGE_ID
+            else attribution.get("scheduler_promotion_verified") is True
+            and attribution.get("scheduler_initial_policy") == "SCHED_OTHER"
+            and attribution.get("scheduler_control_policy") == "SCHED_FIFO"
+            and attribution.get("scheduler_control_priority") == 20
+        )
         v34_scheduler_and_tracking = (
             int(result.get("stage25_row_gap_count") or 0) == 0
             and math.isfinite(orientation_p95)
@@ -1095,14 +1116,11 @@ def stage25_speedj_rnn_live_success(profile: str, result: dict[str, Any], contro
             and math.isfinite(oracle_delta_max)
             and oracle_delta_max <= 1e-6
             and complete_residual_evidence
-            and attribution.get("scheduler_promotion_verified") is True
-            and attribution.get("scheduler_initial_policy") == "SCHED_OTHER"
-            and attribution.get("scheduler_control_policy") == "SCHED_FIFO"
-            and attribution.get("scheduler_control_priority") == 20
+            and scheduler_contract_ok
             and int(attribution.get("scheduler_helper_non_other_thread_count") or 0) == 0
             and attribution.get("scheduler_kernel_rt_bandwidth_unchanged") is True
             and attribution.get("scheduler_python_gc_enabled_during_control") is False
-            if profile == STEP5D_ABLATION_V34_STAGE_ID
+            if profile in {STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID}
             else True
         )
         v33_acceptance = (
@@ -1499,6 +1517,12 @@ def analyze_csv(csv_path: Path, *, run_dir: Path | None = None) -> dict[str, Any
                 result["reproduction_status"] = "passed_60s_strict_rnn_live_candidate_run"
                 result["acceptance_status"] = "v34_full_acceptance_contract_passed"
                 result["next_action"] = "archive the v34 full-run evidence and keep reproduction claims owner-gated"
+            elif profile == STEP5D_ABLATION_V35_STAGE_ID:
+                result["classification"] = "v35_full_run_passed"
+                result["fix_validation_status"] = "passed_60s_quota_safe_sched_other_full_run"
+                result["reproduction_status"] = "passed_60s_strict_rnn_live_candidate_run"
+                result["acceptance_status"] = "v35_full_acceptance_contract_passed"
+                result["next_action"] = "archive the v35 full-run evidence and keep reproduction claims owner-gated"
             else:
                 result["classification"] = "stage25_speedj_rnn_live_success"
                 result["fix_validation_status"] = "passed_60s_strict_rnn_live"

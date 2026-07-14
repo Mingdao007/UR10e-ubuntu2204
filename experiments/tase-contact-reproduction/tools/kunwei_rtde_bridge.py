@@ -69,6 +69,7 @@ from verify_step5d_current_binding import (  # noqa: E402
     verify_v32_evidence_freeze,
     verify_v33_evidence_freeze,
     verify_v34_evidence_freeze,
+    verify_v35_evidence_freeze,
 )
 from step5d_paper_outer_loop import (  # noqa: E402
     Step5dOuterLoopConfig,
@@ -124,6 +125,7 @@ from step5d_runtime_interface import (  # noqa: E402
     STEP5D_ABLATION_V33C20_STAGE_ID,
     STEP5D_ABLATION_V33_STAGE_ID,
     STEP5D_ABLATION_V34_STAGE_ID,
+    STEP5D_ABLATION_V35_STAGE_ID,
     STEP5D_NO_CONTACT_P0_STAGE_ID,
     STEP5D_NO_CONTACT_P0_STAGE_IDS,
     STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
@@ -671,6 +673,7 @@ STEP5D_LIVEPREP_STAGE_IDS = {
     STEP5D_ABLATION_V33C20_STAGE_ID,
     STEP5D_ABLATION_V33_STAGE_ID,
     STEP5D_ABLATION_V34_STAGE_ID,
+    STEP5D_ABLATION_V35_STAGE_ID,
     *STEP5D_NO_CONTACT_P0_STAGE_IDS,
 }
 STEP5D_TCP_CAGE_PROFILES = {
@@ -4169,7 +4172,10 @@ def compute_bridge_values(
     step5d_liveprep_v32_profile = args.bridge_profile == STEP5D_ABLATION_V32_STAGE_ID
     step5d_liveprep_v33c20_profile = args.bridge_profile == STEP5D_ABLATION_V33C20_STAGE_ID
     step5d_liveprep_v33_profile = args.bridge_profile == STEP5D_ABLATION_V33_STAGE_ID
-    step5d_liveprep_v34_profile = args.bridge_profile == STEP5D_ABLATION_V34_STAGE_ID
+    step5d_liveprep_v34_profile = args.bridge_profile in {
+        STEP5D_ABLATION_V34_STAGE_ID,
+        STEP5D_ABLATION_V35_STAGE_ID,
+    }
     step5d_v33_outer_profile = (
         step5d_liveprep_v33c20_profile
         or step5d_liveprep_v33_profile
@@ -8299,6 +8305,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                 STEP5D_ABLATION_V33C20_STAGE_ID,
                 STEP5D_ABLATION_V33_STAGE_ID,
                 STEP5D_ABLATION_V34_STAGE_ID,
+                STEP5D_ABLATION_V35_STAGE_ID,
                 *STEP5D_NO_CONTACT_P0_STAGE_IDS,
             }
             else "speedl_cartesian_oracle"
@@ -8385,6 +8392,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             STEP5D_ABLATION_V33C20_STAGE_ID,
             STEP5D_ABLATION_V33_STAGE_ID,
             STEP5D_ABLATION_V34_STAGE_ID,
+            STEP5D_ABLATION_V35_STAGE_ID,
         }:
             default_filtered_min_n = STEP5D_V27_ENTRY_FILTERED_NORMAL_LOAD_MIN_N
             default_filtered_max_n = STEP5D_V27_ENTRY_FILTERED_NORMAL_LOAD_MAX_N
@@ -8479,6 +8487,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             STEP5D_ABLATION_V33C20_STAGE_ID,
             STEP5D_ABLATION_V33_STAGE_ID,
             STEP5D_ABLATION_V34_STAGE_ID,
+            STEP5D_ABLATION_V35_STAGE_ID,
         }:
             if "--step5d-epsilon" not in argv_list:
                 args.step5d_epsilon = STEP5D_NO_CONTACT_P0_EPSILON
@@ -8487,16 +8496,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             if "--step5d-rnn-inner-iterations" not in argv_list:
                 args.step5d_rnn_inner_iterations = (
                     STEP5D_V31_RNN_INNER_ITERATIONS
-                    if args.bridge_profile in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID}
+                    if args.bridge_profile in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID}
                     else STEP5D_V30_RNN_INNER_ITERATIONS
                     if args.bridge_profile == STEP5D_ABLATION_V30_STAGE_ID
                     else STEP5D_NO_CONTACT_P0_RNN_INNER_ITERATIONS
                 )
             if "--step5d-rnn-backend" not in argv_list:
                 args.step5d_rnn_backend = STEP5D_NO_CONTACT_P0_RNN_BACKEND
-        if args.bridge_profile in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID}:
+        if args.bridge_profile in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID}:
             if args.step5d_stage25_control_mode != "speedj_rnn_live":
-                raise SystemExit("v31/v32/v33/v34 permit only speedj_rnn_live; Cartesian and DLS are shadow-only")
+                raise SystemExit("v31/v32/v33/v34/v35 permit only speedj_rnn_live; Cartesian and DLS are shadow-only")
             args.step5d_qdot_limit_rad_s = STEP5D_V31_QDOT_CAP_RAD_S
             args.sensor_stale_s = STEP5D_V31_SENSOR_STALE_S
             args.baseline_s = 1.0
@@ -8589,12 +8598,17 @@ def step5d_bridge_ready_payload(
     runtime_missing = step5d_liveprep_runtime_missing(state, args)
     p0_v9_guard_v2 = args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID
     scheduler_lifecycle = metadata.get("runtime_scheduler_lifecycle")
-    scheduler_ready = (
-        isinstance(scheduler_lifecycle, Mapping)
-        and scheduler_lifecycle.get("promotion_verified") is True
-        if args.bridge_profile == STEP5D_ABLATION_V34_STAGE_ID
-        else True
-    )
+    scheduler_ready = True
+    if args.bridge_profile == STEP5D_ABLATION_V34_STAGE_ID:
+        scheduler_ready = bool(
+            isinstance(scheduler_lifecycle, Mapping)
+            and scheduler_lifecycle.get("promotion_verified") is True
+        )
+    elif args.bridge_profile == STEP5D_ABLATION_V35_STAGE_ID:
+        scheduler_ready = bool(
+            isinstance(scheduler_lifecycle, Mapping)
+            and scheduler_lifecycle.get("quota_safe_verified") is True
+        )
     sensor_stream_ready = bool(
         samples > 0
         and math.isfinite(sensor_age_s)
@@ -8807,6 +8821,36 @@ def require_v29_live_bridge_authorization(
             sigr_exponent_r=args.step5d_sigr_exponent_r,
             qdot_cap_rad_s=args.step5d_qdot_limit_rad_s,
         )
+    if args.bridge_profile == STEP5D_ABLATION_V35_STAGE_ID:
+        candidate = current.get("v35_candidate")
+        if not isinstance(candidate, Mapping):
+            raise SystemExit("v35_candidate is missing from current_stage.json")
+        if current.get("program") != STEP5D_ABLATION_V35_STAGE_ID or candidate.get("current") is not True:
+            raise SystemExit("v35 raw bridge blocked: v35 is not the current binding")
+        package = candidate.get("package")
+        review = candidate.get("review_v3")
+        if not isinstance(package, Mapping) or package.get("controller_readback_verified") is not True:
+            raise SystemExit("v35 raw bridge blocked: controller upload/fresh read-back is not verified")
+        if not isinstance(review, Mapping) or review.get("status") not in {
+            "accepted_1+1",
+            "accepted_1+1_with_deterministic_closure",
+            "accepted_degraded_1+0_with_deterministic_closure",
+        }:
+            raise SystemExit("v35 raw bridge blocked: frozen fingerprint lacks an accepted Review v3 decision")
+        if candidate.get("live_authorized") is not True:
+            raise SystemExit("v35 raw bridge blocked: explicit live/contact authorization is missing")
+        if args.step5d_stage25_control_mode != "speedj_rnn_live":
+            raise SystemExit("v35 raw bridge requires speedj_rnn_live with stage-aware joint packets")
+        return verify_v35_evidence_freeze(
+            root,
+            dict(current),
+            stage25_control_mode=args.step5d_stage25_control_mode,
+            rnn_backend=args.step5d_rnn_backend,
+            rnn_inner_iterations=args.step5d_rnn_inner_iterations,
+            epsilon=args.step5d_epsilon,
+            sigr_exponent_r=args.step5d_sigr_exponent_r,
+            qdot_cap_rad_s=args.step5d_qdot_limit_rad_s,
+        )
     if args.bridge_profile == STEP5D_NO_CONTACT_P0_V8_STAGE_ID:
         return require_p0_v8_canary_authorization(args, current)
     if args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID:
@@ -8858,12 +8902,12 @@ def requires_step5d_realtime_scheduler(bridge_profile: str) -> bool:
 
 def require_step5d_realtime_scheduler(args: argparse.Namespace) -> None:
     """Fail closed unless v29/v30/P0 executes under production FIFO/20."""
-    if args.bridge_profile == STEP5D_ABLATION_V34_STAGE_ID:
+    if args.bridge_profile in {STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID}:
         scheduler = os.sched_getscheduler(0)
         priority = os.sched_getparam(0).sched_priority
         if scheduler != os.SCHED_OTHER or priority != 0:
             raise SystemExit(
-                "v34 must start under SCHED_OTHER/0 so CUDA/BLAS helper threads do not "
+                "v34/v35 must start under SCHED_OTHER/0 so CUDA/BLAS helper threads do not "
                 f"inherit FIFO (scheduler={scheduler}, priority={priority})"
             )
         return
@@ -9030,6 +9074,49 @@ def promote_v34_control_thread_scheduler(bridge_profile: str) -> dict[str, Any]:
         }
     )
     return lifecycle
+
+
+def configure_v35_quota_safe_scheduler(bridge_profile: str) -> dict[str, Any]:
+    """Keep v35 control and helper threads in SCHED_OTHER to avoid RT throttling."""
+
+    initial = runtime_scheduler_metadata()
+    threads = runtime_thread_scheduler_snapshot()
+    bandwidth = linux_rt_bandwidth_metadata()
+    if bridge_profile != STEP5D_ABLATION_V35_STAGE_ID:
+        return promote_v34_control_thread_scheduler(bridge_profile)
+    expected = {"policy": "SCHED_OTHER", "policy_value": os.SCHED_OTHER, "priority": 0}
+    if initial != expected:
+        raise RuntimeError(f"v35 quota-safe initial scheduler mismatch: {initial}")
+    non_other = [
+        row
+        for row in threads["threads"]
+        if row["policy"] != "SCHED_OTHER"
+        or row["policy_value"] != os.SCHED_OTHER
+        or row["priority"] != 0
+    ]
+    if non_other:
+        raise RuntimeError(f"v35 requires every process thread to remain SCHED_OTHER/0: {non_other}")
+    bandwidth_after = linux_rt_bandwidth_metadata()
+    if not bandwidth or not bandwidth_after or bandwidth_after != bandwidth:
+        raise RuntimeError(
+            "v35 cannot prove kernel RT bandwidth remained unchanged: "
+            f"before={bandwidth} after={bandwidth_after}"
+        )
+    return {
+        "mode": "quota_safe_sched_other_after_prewarm",
+        "initial_process_scheduler": initial,
+        "before_promotion_threads": threads,
+        "control_thread_scheduler": initial,
+        "after_promotion_threads": threads,
+        "helper_realtime_thread_count": 0,
+        "helper_non_other_thread_count": 0,
+        "kernel_rt_bandwidth": bandwidth,
+        "kernel_rt_bandwidth_after_promotion": bandwidth_after,
+        "kernel_rt_bandwidth_unchanged": True,
+        "promotion_verified": False,
+        "quota_safe_verified": True,
+        "rt_runtime_consumption_policy": "no_sched_fifo_threads",
+    }
 
 
 def advance_periodic_deadline(deadline: float, now: float, period: float) -> tuple[float, int, float]:
@@ -9238,7 +9325,9 @@ def main(argv: list[str] | None = None) -> int:
         "dashboard_preflight": dashboard,
         "runtime_scheduler": runtime_scheduler_metadata(),
         "runtime_scheduler_lifecycle": {
-            "mode": "pending_late_control_thread_fifo"
+            "mode": "pending_quota_safe_sched_other"
+            if args.bridge_profile == STEP5D_ABLATION_V35_STAGE_ID
+            else "pending_late_control_thread_fifo"
             if args.bridge_profile == STEP5D_ABLATION_V34_STAGE_ID
             else "launch_inherited",
             "initial_process_scheduler": runtime_scheduler_metadata(),
@@ -9257,14 +9346,14 @@ def main(argv: list[str] | None = None) -> int:
                 "p0_v9_guard_v2"
                 if args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID
                 else "step5d_permissive_contact"
-                if args.bridge_profile in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID}
+                if args.bridge_profile in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID}
                 else "profile_default"
             ),
-            "force_guards_enabled": args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID},
+            "force_guards_enabled": args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID},
             "gross_force_guards_enabled": args.bridge_profile != STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
-            "cartesian_speed_guards_enabled": args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID},
-            "normal_motion_guards_enabled": args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID},
-            "force_window_role": "diagnostic_only" if args.bridge_profile in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID} else "hard_guard",
+            "cartesian_speed_guards_enabled": args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID},
+            "normal_motion_guards_enabled": args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID},
+            "force_window_role": "diagnostic_only" if args.bridge_profile in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID} else "hard_guard",
             "qdot_cap_rad_s": args.step5d_qdot_limit_rad_s,
             "sensor_stale_s": args.sensor_stale_s,
             "max_normal_force_n": (
@@ -9299,12 +9388,12 @@ def main(argv: list[str] | None = None) -> int:
                 "force_integral_limit_n_s": STEP5D_V33_FORCE_INTEGRAL_LIMIT_N_S,
                 "host_qdot_command_slew_rad_s2": (
                     STEP5D_V34_HOST_QDOT_SLEW_RAD_S2
-                    if args.bridge_profile == STEP5D_ABLATION_V34_STAGE_ID
+                    if args.bridge_profile in {STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID}
                     else STEP5D_P0_V9_QDOT_SLEW_RAD_S2
                 ),
                 "tp_speedj_acceleration_rad_s2": (
                     STEP5D_V34_TP_SPEEDJ_ACCELERATION_RAD_S2
-                    if args.bridge_profile == STEP5D_ABLATION_V34_STAGE_ID
+                    if args.bridge_profile in {STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID}
                     else 0.050
                 ),
                 "equivalent_step5b_force_update": "0.001*e + 1e-5*integral(e) - 7*v",
@@ -9317,7 +9406,7 @@ def main(argv: list[str] | None = None) -> int:
                 },
             }
             if args.bridge_profile
-            in {STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID}
+            in {STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID}
             else None
         ),
         "bias_estimator_logging_contract": {
@@ -9354,11 +9443,11 @@ def main(argv: list[str] | None = None) -> int:
             timeout_s=args.dashboard_program_watch_timeout_s,
         ),
         "step5d_preload_gate": {
-            "enabled": args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID},
+            "enabled": args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID},
             "profile": (
                 args.bridge_profile
                 if args.bridge_profile in STEP5D_LIVEPREP_STAGE_IDS
-                and args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID}
+                and args.bridge_profile not in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID}
                 else None
             ),
             "filtered_min_n": (
@@ -9681,10 +9770,10 @@ def main(argv: list[str] | None = None) -> int:
         if args.write_rtde_inputs:
             rtde, rtde_input_recipe, rtde_input_types, rtde_output_recipe, rtde_output_types = open_rtde_bridge(args)
 
-        if args.bridge_profile == STEP5D_ABLATION_V34_STAGE_ID:
+        if args.bridge_profile in {STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID}:
             gc.collect()
             gc.disable()
-        scheduler_lifecycle = promote_v34_control_thread_scheduler(args.bridge_profile)
+        scheduler_lifecycle = configure_v35_quota_safe_scheduler(args.bridge_profile)
         scheduler_lifecycle["python_gc_was_enabled"] = v34_gc_was_enabled
         scheduler_lifecycle["python_gc_enabled_during_control"] = gc.isenabled()
         metadata["runtime_scheduler_lifecycle"] = scheduler_lifecycle
@@ -10184,7 +10273,7 @@ def main(argv: list[str] | None = None) -> int:
                         feedback_robot_stage = math.nan
                     v33_feedback_guard_active = bool(
                         args.bridge_profile
-                        in {STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID}
+                        in {STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID}
                         and math.isfinite(feedback_robot_stage)
                         and abs(feedback_robot_stage - 25.0) < 0.03
                     )
@@ -10353,6 +10442,7 @@ def main(argv: list[str] | None = None) -> int:
                                 STEP5D_ABLATION_V33C20_STAGE_ID,
                                 STEP5D_ABLATION_V33_STAGE_ID,
                                 STEP5D_ABLATION_V34_STAGE_ID,
+                                STEP5D_ABLATION_V35_STAGE_ID,
                             }
                         ),
                         last_published_command=last_published_step5d_command,
@@ -10574,7 +10664,7 @@ def main(argv: list[str] | None = None) -> int:
                     ) or terminate_after_write:
                         break
     finally:
-        if args.bridge_profile == STEP5D_ABLATION_V34_STAGE_ID and v34_gc_was_enabled:
+        if args.bridge_profile in {STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID} and v34_gc_was_enabled:
             gc.enable()
         if sock is not None and not args.no_stop_command:
             try:

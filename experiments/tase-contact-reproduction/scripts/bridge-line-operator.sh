@@ -228,7 +228,8 @@ if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v31" \
   || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v32" \
   || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v33c20" \
   || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v33" \
-  || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v34" ]]; then
+  || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v34" \
+  || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v35" ]]; then
   BRIDGE_DURATION_S="180"
   BRIDGE_BASELINE_S="1.0"
   BRIDGE_REZERO_S="1.0"
@@ -743,7 +744,8 @@ requires_step5d_realtime_launcher() {
 
 requires_step5d_realtime_ready_sentinel() {
   requires_step5d_realtime_launcher \
-    || [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v34" ]]
+    || [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v34" ]] \
+    || [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v35" ]]
 }
 
 require_step5d_realtime_launcher_policy() {
@@ -1131,8 +1133,23 @@ if not math.isclose(rtde_hz, 500.0, rel_tol=0.0, abs_tol=1e-9):
 scheduler = payload.get("runtime_scheduler")
 if not isinstance(scheduler, dict):
     raise SystemExit(1)
-if scheduler.get("policy") != "SCHED_FIFO" or scheduler.get("priority") != 20:
-    raise SystemExit(1)
+if expected_profile == "step5d_strict_rnn_ablation_v35":
+    if scheduler.get("policy") != "SCHED_OTHER" or scheduler.get("priority") != 0:
+        raise SystemExit(1)
+    lifecycle = payload.get("runtime_scheduler_lifecycle")
+    if not isinstance(lifecycle, dict) or lifecycle.get("quota_safe_verified") is not True:
+        raise SystemExit(1)
+    if lifecycle.get("rt_runtime_consumption_policy") != "no_sched_fifo_threads":
+        raise SystemExit(1)
+    if lifecycle.get("helper_non_other_thread_count") != 0:
+        raise SystemExit(1)
+    if lifecycle.get("kernel_rt_bandwidth_unchanged") is not True:
+        raise SystemExit(1)
+    if lifecycle.get("python_gc_enabled_during_control") is not False:
+        raise SystemExit(1)
+else:
+    if scheduler.get("policy") != "SCHED_FIFO" or scheduler.get("priority") != 20:
+        raise SystemExit(1)
 if expected_profile == "step5d_strict_rnn_ablation_v34":
     lifecycle = payload.get("runtime_scheduler_lifecycle")
     if not isinstance(lifecycle, dict) or lifecycle.get("promotion_verified") is not True:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Paced v34 receive-to-log timing gate with late control-thread FIFO promotion."""
+"""Paced v34/v35 receive-to-log timing gate and short development probe."""
 
 from __future__ import annotations
 
@@ -37,7 +37,10 @@ from step5d_paper_outer_loop import (
     Step5dOuterLoopState,
     compute_step5d_outer_loop,
 )
-from step5d_runtime_interface import STEP5D_ABLATION_V34_STAGE_ID
+from step5d_runtime_interface import (
+    STEP5D_ABLATION_V34_STAGE_ID,
+    STEP5D_ABLATION_V35_STAGE_ID,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -54,7 +57,9 @@ SOURCE_FILES = (
     "tools/step5c_strict_rnn.py",
     "tools/step5d_control_contract.py",
     "tools/step5d_runtime_interface.py",
+    "tools/verify_step5d_contact_v35.py",
     "scripts/bridge-line-operator.sh",
+    "scripts/step5d-strict-rnn-contact-v35.sh",
 )
 
 
@@ -108,11 +113,19 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--replay-csv", type=Path, default=DEFAULT_REPLAY)
     parser.add_argument("--duration-s", type=float, default=60.2)
+    parser.add_argument(
+        "--profile",
+        choices=(STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID),
+        default=STEP5D_ABLATION_V34_STAGE_ID,
+    )
+    parser.add_argument("--development-short-probe", action="store_true")
     parser.add_argument("--prewarm-samples", type=int, default=100)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    if args.duration_s < 60.0:
-        raise SystemExit("--duration-s must be at least 60.0 for the frozen full-run timing gate")
+    minimum_duration_s = 5.0 if args.development_short_probe else 60.0
+    if args.duration_s < minimum_duration_s:
+        scope = "development short probe" if args.development_short_probe else "frozen full-run timing gate"
+        raise SystemExit(f"--duration-s must be at least {minimum_duration_s:.1f} for the {args.profile} {scope}")
     if bridge.runtime_scheduler_metadata() != {"policy": "SCHED_OTHER", "policy_value": os.SCHED_OTHER, "priority": 0}:
         raise SystemExit("v34 timing must launch under SCHED_OTHER/0")
 
@@ -283,7 +296,7 @@ def main() -> int:
     try:
         gc.collect()
         gc.disable()
-        lifecycle = bridge.promote_v34_control_thread_scheduler(STEP5D_ABLATION_V34_STAGE_ID)
+        lifecycle = bridge.configure_v35_quota_safe_scheduler(args.profile)
         lifecycle["python_gc_was_enabled"] = gc_was_enabled
         lifecycle["python_gc_enabled_during_control"] = gc.isenabled()
         start = time.monotonic()
@@ -303,7 +316,11 @@ def main() -> int:
                 release_times.append(released)
                 started = time.perf_counter()
                 row = rows[(args.prewarm_samples + sample_count) % len(rows)]
-                controller_timestamp = sample_count * 0.002
+                # The controller clock advances with wall time even when the host
+                # intentionally skips missed 2 ms slots instead of burst-catching up.
+                # Binding it to sample_count would manufacture stale feedback after
+                # any accumulated host misses during a long timing run.
+                controller_timestamp = released - start
                 pending_packets.extend(
                     (ord("U"), bytes([1]) + struct.pack("!d", timestamp))
                     for timestamp in (controller_timestamp - 0.004, controller_timestamp - 0.002, controller_timestamp)
@@ -451,7 +468,7 @@ def main() -> int:
     timing = distribution_ms(compute_ms)
     source_binding = {name: sha256(ROOT / name) for name in SOURCE_FILES}
     table = json.loads((ROOT / "config" / "step5_stage_table.json").read_text(encoding="utf-8"))
-    stage_row = next(row for row in table["stages"] if row.get("id") == STEP5D_ABLATION_V34_STAGE_ID)
+    stage_row = next(row for row in table["stages"] if row.get("id") == args.profile)
     stage_contract = {
         key: stage_row[key]
         for key in (
@@ -467,30 +484,43 @@ def main() -> int:
             "acceptance",
         )
     }
-    source_binding["step5d_v34_stage_contract"] = hashlib.sha256(
+    source_binding[f"{args.profile}_stage_contract"] = hashlib.sha256(
         json.dumps(stage_contract, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
+    scheduler_ok = (
+        lifecycle.get("quota_safe_verified") is True
+        and lifecycle.get("control_thread_scheduler", {}).get("policy") == "SCHED_OTHER"
+        if args.profile == STEP5D_ABLATION_V35_STAGE_ID
+        else lifecycle.get("promotion_verified") is True
+    )
     passed = (
-        elapsed_s >= 60.0
-        and sample_count >= 30_000
+        elapsed_s >= minimum_duration_s - 0.01
+        and sample_count >= int(minimum_duration_s * 500) - 5
         and deferred.count == sample_count
         and transport_frames == sample_count
         and transport_payload_bytes == encoded_bytes
         and gap_over_20ms_count == 0
         and gap_45_to_60ms_count == 0
         and timing["p99_ms"] <= 2.0
-        and lifecycle.get("promotion_verified") is True
+        and scheduler_ok
         and lifecycle.get("helper_non_other_thread_count") == 0
         and lifecycle.get("kernel_rt_bandwidth_unchanged") is True
         and lifecycle.get("python_gc_enabled_during_control") is False
         and scheduler_restored
     )
     payload: dict[str, Any] = {
-        "schema": "step5d_v34_live_path_timing_v1",
-        "profile": STEP5D_ABLATION_V34_STAGE_ID,
+        "schema": (
+            "step5d_v35_development_cadence_probe_v1"
+            if args.development_short_probe
+            else "step5d_v35_live_path_timing_v1"
+            if args.profile == STEP5D_ABLATION_V35_STAGE_ID
+            else "step5d_v34_live_path_timing_v1"
+        ),
+        "profile": args.profile,
+        "acceptance_scope": "development_short_probe_not_live_authorization" if args.development_short_probe else "frozen_full_run_timing_gate",
         "components": [
             "SCHED_OTHER CUDA/RNN/BLAS prewarm",
-            "late control-thread SCHED_FIFO/20 promotion",
+            "quota-safe all-thread SCHED_OTHER/0" if args.profile == STEP5D_ABLATION_V35_STAGE_ID else "late control-thread SCHED_FIFO/20 promotion",
             "rtde drain-latest decode",
             "feedback age guard",
             "Step5b-equivalent outer",
