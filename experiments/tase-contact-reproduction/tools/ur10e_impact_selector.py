@@ -22,16 +22,47 @@ def sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def changed_paths(root: Path, base_ref: str | None = None) -> list[str]:
-    paths: set[str] = set()
+def _git_lines(root: Path, args: list[str], *, check: bool = True) -> list[str]:
+    completed = subprocess.run(
+        ["git", *args], cwd=root, text=True, capture_output=True, check=False,
+    )
+    if check and completed.returncode != 0:
+        raise ValueError(completed.stderr.strip() or f"git {' '.join(args)} failed")
+    return completed.stdout.splitlines() if completed.returncode == 0 else []
+
+
+def resolve_comparison(root: Path, base_ref: str | None = None,
+                       head_ref: str = "HEAD") -> dict[str, str]:
     if base_ref:
-        completed = subprocess.run(
-            ["git", "diff", "--name-only", f"{base_ref}...HEAD"], cwd=root,
-            text=True, capture_output=True, check=False,
-        )
-        if completed.returncode != 0:
-            raise ValueError(completed.stderr.strip() or f"cannot diff {base_ref}")
-        paths.update(completed.stdout.splitlines())
+        bases = _git_lines(root, ["merge-base", base_ref, head_ref])
+        if not bases:
+            raise ValueError(f"cannot resolve merge-base for {base_ref} and {head_ref}")
+        return {"base_ref": base_ref, "head_ref": head_ref, "merge_base": bases[0], "source": "explicit"}
+    upstream = _git_lines(
+        root, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"], check=False,
+    )
+    if upstream:
+        bases = _git_lines(root, ["merge-base", upstream[0], head_ref])
+        if bases:
+            return {
+                "base_ref": upstream[0], "head_ref": head_ref,
+                "merge_base": bases[0], "source": "upstream_merge_base",
+            }
+    # A dirty worktree has an explicit immutable comparison boundary at HEAD.
+    dirty = _git_lines(root, ["status", "--porcelain"], check=False)
+    if dirty:
+        head = _git_lines(root, ["rev-parse", head_ref])
+        return {"base_ref": head_ref, "head_ref": head_ref, "merge_base": head[0], "source": "workspace_head"}
+    raise ValueError(
+        "impact selection needs --base-ref or an upstream merge-base; clean tree has no comparison scope"
+    )
+
+
+def changed_scope(root: Path, base_ref: str | None = None,
+                  head_ref: str = "HEAD") -> tuple[list[str], dict[str, str]]:
+    comparison = resolve_comparison(root, base_ref, head_ref)
+    paths: set[str] = set()
+    paths.update(_git_lines(root, ["diff", "--name-only", f"{comparison['merge_base']}...{head_ref}"]))
     for args in (["git", "diff", "--name-only"], ["git", "diff", "--cached", "--name-only"]):
         completed = subprocess.run(args, cwd=root, text=True, capture_output=True, check=True)
         paths.update(completed.stdout.splitlines())
@@ -44,7 +75,15 @@ def changed_paths(root: Path, base_ref: str | None = None) -> list[str]:
     )
     paths.update(untracked.stdout.splitlines())
     prefix = "experiments/tase-contact-reproduction/"
-    return sorted(path[len(prefix):] if path.startswith(prefix) else path for path in paths if path)
+    normalized = sorted(path[len(prefix):] if path.startswith(prefix) else path for path in paths if path)
+    if not normalized:
+        raise ValueError("impact comparison resolved but contains no changed paths")
+    return normalized, comparison
+
+
+def changed_paths(root: Path, base_ref: str | None = None,
+                  head_ref: str = "HEAD") -> list[str]:
+    return changed_scope(root, base_ref, head_ref)[0]
 
 
 def _matches(path: str, patterns: Iterable[str]) -> bool:
@@ -56,7 +95,7 @@ def _test_file(node: str) -> str:
 
 
 def select(*, root: Path, paths: list[str], dependency_map: Path = DEFAULT_MAP,
-           full_suite: bool = False) -> dict[str, Any]:
+           full_suite: bool = False, comparison: dict[str, str] | None = None) -> dict[str, Any]:
     mapping = json.loads(dependency_map.read_text(encoding="utf-8"))
     tests = set(mapping["always_run"])
     all_tests = sorted(
@@ -113,6 +152,7 @@ def select(*, root: Path, paths: list[str], dependency_map: Path = DEFAULT_MAP,
         "unmapped_changed_paths": unmapped,
         "dependency_hashes": file_hashes,
         "full_suite": full_suite,
+        "comparison": comparison or {"source": "explicit_paths"},
     }
     fingerprint = hashlib.sha256(
         json.dumps(fingerprint_payload, sort_keys=True, separators=(",", ":")).encode()
@@ -127,12 +167,14 @@ def select(*, root: Path, paths: list[str], dependency_map: Path = DEFAULT_MAP,
         "skipped_tests": sorted(set(all_tests) - {_test_file(test) for test in selected}),
         "matched_changed_paths": sorted(matched_paths),
         "unmapped_changed_paths": unmapped,
+        "dependency_hashes": file_hashes,
         "parallel_tests": parallel,
         "serial_tests": serial,
         "resource_groups": {test: grouped[test] for test in sorted(grouped)},
         "validators": mapping["validators"],
         "source_fingerprint": fingerprint,
         "full_suite": full_suite,
+        "comparison": comparison or {"source": "explicit_paths"},
     }
 
 
@@ -141,6 +183,7 @@ def main() -> int:
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--dependency-map", type=Path, default=DEFAULT_MAP)
     parser.add_argument("--base-ref")
+    parser.add_argument("--head-ref", default="HEAD")
     parser.add_argument("--changed-path", action="append", default=[])
     parser.add_argument("--changed-paths-file", type=Path)
     parser.add_argument("--full-suite", action="store_true")
@@ -149,10 +192,12 @@ def main() -> int:
     paths = list(args.changed_path)
     if args.changed_paths_file:
         paths.extend(line.strip() for line in args.changed_paths_file.read_text().splitlines() if line.strip())
+    comparison = {"source": "explicit_paths"}
     if not paths:
-        paths = changed_paths(args.root.resolve(), args.base_ref)
+        paths, comparison = changed_scope(args.root.resolve(), args.base_ref, args.head_ref)
     payload = select(root=args.root.resolve(), paths=sorted(set(paths)),
-                     dependency_map=args.dependency_map.resolve(), full_suite=args.full_suite)
+                     dependency_map=args.dependency_map.resolve(), full_suite=args.full_suite,
+                     comparison=comparison)
     rendered = json.dumps(payload, indent=2, sort_keys=True) + "\n"
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)

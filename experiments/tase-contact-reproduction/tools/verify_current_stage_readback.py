@@ -8,6 +8,8 @@ import json
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from step5d_workflow_state import WorkflowStateError, verify_current
+
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
 ALLOWED_DELIVERY_MODES = {
@@ -59,7 +61,30 @@ def current_sha(current: dict[str, Any]) -> dict[str, str]:
     return {ext: sha.get(ext, "") for ext in (".script", ".txt", ".urp")}
 
 
-def verify(root: Path, program: str | None = None, target_dir: str | None = None) -> dict[str, Any]:
+def retained_manifest_path(root: Path, program: str) -> Path:
+    """Resolve an ignored historical readback through the canonical locator."""
+    try:
+        status = verify_current(root=root)
+    except WorkflowStateError as exc:
+        fail(f"canonical retained-artifact binding is invalid: {exc}")
+    if status.get("program") != program or status.get("controller_verified") is not True:
+        fail(f"canonical retained-artifact binding does not verify {program}")
+    retained = status.get("retained_artifacts") or {}
+    value = retained.get("controller_readback_manifest")
+    if not isinstance(value, str):
+        fail("canonical retained-artifact binding has no controller read-back manifest")
+    path = Path(value)
+    if not path.is_file():
+        fail(f"canonical retained controller read-back is missing: {path}")
+    return path
+
+
+def verify(
+    root: Path,
+    program: str | None = None,
+    target_dir: str | None = None,
+    manifest_path: Path | None = None,
+) -> dict[str, Any]:
     current_path = root / "config" / "current_stage.json"
     current = load_json(current_path)
     selected_program = program or current.get("program") or current.get("current_stage_id")
@@ -89,9 +114,19 @@ def verify(root: Path, program: str | None = None, target_dir: str | None = None
     if verified_key in evidence and evidence.get(verified_key) is not True:
         fail(f"{verified_key} is not true")
 
-    manifest_path = manifest_path_from_current(root, current, selected_program)
-    if not manifest_path.exists():
-        fail(f"read-back manifest does not exist: {manifest_path.relative_to(root)}")
+    current_manifest_path = manifest_path_from_current(root, current, selected_program)
+    if manifest_path is None:
+        manifest_path = current_manifest_path
+        if not manifest_path.exists():
+            manifest_path = retained_manifest_path(root, selected_program)
+    else:
+        manifest_path = manifest_path.resolve()
+        expected_current = current_manifest_path.resolve()
+        if expected_current != manifest_path:
+            fail(
+                "explicit transaction manifest does not match the promoted current-stage pointer: "
+                f"{manifest_path} != {expected_current}"
+            )
     manifest = load_json(manifest_path)
     if manifest.get("status") != "controller read-back verified":
         fail(f"manifest status is {manifest.get('status')}")
@@ -144,7 +179,11 @@ def verify(root: Path, program: str | None = None, target_dir: str | None = None
         "ok": True,
         "program": selected_program,
         "target_dir": expected_target_dir,
-        "manifest": str(manifest_path.relative_to(root)),
+        "manifest": (
+            str(manifest_path.relative_to(root))
+            if manifest_path.is_relative_to(root)
+            else str(manifest_path)
+        ),
         "delivery_mode": delivery_mode or "legacy_full_upload_readback",
     }
 
@@ -154,10 +193,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--root", type=Path, default=EXPERIMENT_ROOT)
     parser.add_argument("--program", default=None)
     parser.add_argument("--target-dir", default=None)
+    parser.add_argument("--manifest", type=Path, default=None)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
 
-    result = verify(args.root, args.program, args.target_dir)
+    result = verify(args.root, args.program, args.target_dir, args.manifest)
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))
     else:

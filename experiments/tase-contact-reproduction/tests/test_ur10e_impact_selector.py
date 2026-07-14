@@ -5,13 +5,18 @@ import json
 import subprocess
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 from ur10e_impact_selector import changed_paths, select  # noqa: E402
-from run_ur10e_impacted_tests import main as run_impacted  # noqa: E402
+from run_ur10e_impacted_tests import (  # noqa: E402
+    atomic_publish_cache,
+    cache_key_lock,
+    main as run_impacted,
+)
 
 
 class Ur10eImpactSelectorTest(unittest.TestCase):
@@ -59,6 +64,18 @@ class Ur10eImpactSelectorTest(unittest.TestCase):
             (root / "tools/untracked.py").write_text("# untracked\n")
             paths = changed_paths(root)
         self.assertEqual(paths, ["tools/untracked.py"])
+
+    def test_clean_tree_without_base_or_upstream_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.name", "UR10e test"], cwd=root, check=True)
+            (root / "tracked.txt").write_text("tracked\n")
+            subprocess.run(["git", "add", "tracked.txt"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "fixture"], cwd=root, check=True)
+            with self.assertRaisesRegex(ValueError, "needs --base-ref or an upstream"):
+                changed_paths(root)
 
     def test_content_addressed_pass_is_reused_for_unchanged_dependencies(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -120,6 +137,102 @@ class Ur10eImpactSelectorTest(unittest.TestCase):
             self.assertNotEqual(
                 second_manifest["composite_fingerprint"], third_manifest["composite_fingerprint"]
             )
+
+    def test_tampered_cached_log_is_not_reused(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "config").mkdir()
+            (root / "tests").mkdir()
+            (root / "tools").mkdir()
+            (root / "tests/test_cheap.py").write_text("def test_ok():\n    assert True\n")
+            (root / "tools/cheap_validator.py").write_text("raise SystemExit(0)\n")
+            payloads = {
+                "config/ur10e_user_decisions_v1.json": {"offline_only": True},
+                "config/current_stage.json": {
+                    "current_stage_id": "offline",
+                    "workflow_state": "blocked",
+                    "p0_v8_candidate": {
+                        "canary_policy": {
+                            "mode": "direct_single_duration",
+                            "direct_duration_s": 60.0,
+                        }
+                    },
+                },
+                "config/step5_stage_table.json": {
+                    "stages": [
+                        {
+                            "id": "step5d_strict_rnn_no_contact_p0_v8",
+                            "duration_s": 60.0,
+                        }
+                    ]
+                },
+                "config/dependency.json": {
+                    "schema_version": "test_map_v1",
+                    "always_run": ["tests/test_cheap.py"],
+                    "rules": [],
+                    "resource_groups": {},
+                    "validators": ["tools/cheap_validator.py"],
+                    "cache_external_fixture_globs": ["config/**/*.json"],
+                },
+            }
+            for relative, payload in payloads.items():
+                (root / relative).write_text(json.dumps(payload) + "\n")
+            common = [
+                "--root", str(root), "--python", sys.executable,
+                "--dependency-map", str(root / "config/dependency.json"),
+                "--cache-root", str(root / "cache"), "--execution", "serial",
+                "--changed-path", "docs/note.md",
+            ]
+            first, second = root / "first", root / "second"
+            third, fourth = root / "third", root / "fourth"
+            self.assertEqual(run_impacted([*common, "--output-dir", str(first)]), 0)
+            cache_manifest = next((root / "cache").rglob("validation_manifest.json"))
+            (cache_manifest.parent / "cheap_validator.stdout.log").write_text("tampered\n")
+            self.assertEqual(run_impacted([*common, "--output-dir", str(second)]), 0)
+            manifest = json.loads((second / "validation_manifest.json").read_text())
+            self.assertFalse(manifest["reused"])
+            self.assertFalse(manifest["cache_reuse_acceptance_eligible"])
+
+            cache_manifest = next((root / "cache").rglob("validation_manifest.json"))
+            cached = json.loads(cache_manifest.read_text())
+            cached["selected_tests"] = ["tampered/test.py"]
+            cache_manifest.write_text(json.dumps(cached) + "\n")
+            self.assertEqual(run_impacted([*common, "--output-dir", str(third)]), 0)
+            self.assertFalse(json.loads((third / "validation_manifest.json").read_text())["reused"])
+
+            cache_manifest = next((root / "cache").rglob("validation_manifest.json"))
+            (cache_manifest.parent / "unexpected-extra.log").write_text("extra\n")
+            self.assertEqual(run_impacted([*common, "--output-dir", str(fourth)]), 0)
+            self.assertFalse(json.loads((fourth / "validation_manifest.json").read_text())["reused"])
+
+    def test_per_key_lock_and_atomic_cache_publish_never_mix_outputs(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            first, second = root / "first", root / "second"
+            first.mkdir()
+            second.mkdir()
+            (first / "identity.txt").write_text("first\n")
+            (first / "first-only.txt").write_text("first\n")
+            (second / "identity.txt").write_text("second\n")
+            (second / "second-only.txt").write_text("second\n")
+            cache = root / "cache" / ("a" * 64) / "serial"
+
+            def publish(source: Path) -> None:
+                with cache_key_lock(cache):
+                    atomic_publish_cache(source, cache)
+
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                list(pool.map(publish, (first, second)))
+            identity = (cache / "identity.txt").read_text().strip()
+            if identity == "first":
+                self.assertTrue((cache / "first-only.txt").is_file())
+                self.assertFalse((cache / "second-only.txt").exists())
+            else:
+                self.assertEqual(identity, "second")
+                self.assertTrue((cache / "second-only.txt").is_file())
+                self.assertFalse((cache / "first-only.txt").exists())
+            self.assertEqual(list(cache.parent.glob(".serial.publish-*")), [])
+            self.assertEqual(list(cache.parent.glob(".serial.stale-*")), [])
 
 
 if __name__ == "__main__":

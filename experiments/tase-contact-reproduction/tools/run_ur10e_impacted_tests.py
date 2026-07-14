@@ -4,20 +4,23 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import json
 import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator, Mapping
 
 from ur10e_decision_manifest import build_snapshot
-from ur10e_impact_selector import DEFAULT_MAP, ROOT, changed_paths, select
+from ur10e_impact_selector import DEFAULT_MAP, ROOT, changed_scope, select
 
 
 def now() -> str:
@@ -28,6 +31,91 @@ def digest(payload: Any) -> str:
     return hashlib.sha256(
         json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
+
+
+def file_record(path: Path, *, root: Path) -> dict[str, Any]:
+    return {
+        "path": path.relative_to(root).as_posix(),
+        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "size": path.stat().st_size,
+    }
+
+
+def output_closure(output: Path) -> list[dict[str, Any]]:
+    return [
+        file_record(path, root=output)
+        for path in sorted(output.rglob("*"))
+        if path.is_file() and path.name != "validation_manifest.json"
+    ]
+
+
+def cache_closure_matches(cache: Path, records: Any) -> bool:
+    if not isinstance(records, list) or not records:
+        return False
+    expected_paths: set[str] = set()
+    for row in records:
+        if not isinstance(row, dict) or not isinstance(row.get("path"), str):
+            return False
+        expected_paths.add(row["path"])
+        path = cache / row["path"]
+        if (not path.is_file() or path.stat().st_size != row.get("size")
+                or hashlib.sha256(path.read_bytes()).hexdigest() != row.get("sha256")):
+            return False
+    actual_paths = {
+        path.relative_to(cache).as_posix()
+        for path in cache.rglob("*")
+        if path.is_file() and path.name != "validation_manifest.json"
+    }
+    return actual_paths == expected_paths
+
+
+def manifest_core_digest(payload: Mapping[str, Any]) -> str:
+    core = dict(payload)
+    for key in ("manifest_core_sha256", "reused", "reused_from", "reused_at"):
+        core.pop(key, None)
+    return digest(core)
+
+
+@contextmanager
+def cache_key_lock(cache: Path) -> Iterator[None]:
+    """Serialize lookup, execution, and publish for one composite cache key."""
+    cache_root = cache.parent.parent
+    lock_dir = cache_root / ".locks"
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = lock_dir / f"{cache.parent.name}-{cache.name}.lock"
+    with lock_path.open("a+b") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
+
+def atomic_publish_cache(output: Path, cache: Path) -> None:
+    """Publish a complete cache directory without exposing partial output."""
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    temporary: Path | None = Path(
+        tempfile.mkdtemp(prefix=f".{cache.name}.publish-", dir=cache.parent)
+    )
+    stale: Path | None = None
+    try:
+        temporary.rmdir()
+        shutil.copytree(output, temporary)
+        if cache.exists():
+            stale = cache.parent / f".{cache.name}.stale-{os.getpid()}-{time.monotonic_ns()}"
+            os.replace(cache, stale)
+        os.replace(temporary, cache)
+        temporary = None
+        descriptor = os.open(cache.parent, os.O_RDONLY)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+    finally:
+        if temporary is not None and temporary.exists():
+            shutil.rmtree(temporary)
+        if stale is not None and stale.exists():
+            shutil.rmtree(stale)
 
 
 def _command_identity(command: list[str], *, cwd: Path) -> dict[str, Any]:
@@ -189,6 +277,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--python", type=Path, required=True)
     parser.add_argument("--dependency-map", type=Path, default=DEFAULT_MAP)
     parser.add_argument("--base-ref")
+    parser.add_argument("--head-ref", default="HEAD")
     parser.add_argument("--changed-path", action="append", default=[])
     parser.add_argument("--changed-paths-file", type=Path)
     parser.add_argument("--output-dir", type=Path, required=True)
@@ -204,11 +293,12 @@ def main(argv: list[str] | None = None) -> int:
     paths = list(args.changed_path)
     if args.changed_paths_file:
         paths.extend(line.strip() for line in args.changed_paths_file.read_text().splitlines() if line.strip())
+    comparison = {"source": "explicit_paths"}
     if not paths:
-        paths = changed_paths(root, args.base_ref)
+        paths, comparison = changed_scope(root, args.base_ref, args.head_ref)
     selection = select(
         root=root, paths=sorted(set(paths)), dependency_map=args.dependency_map.resolve(),
-        full_suite=args.full_suite,
+        full_suite=args.full_suite, comparison=comparison,
     )
     decision = build_snapshot(root=root)
     environment = environment_binding(
@@ -225,60 +315,72 @@ def main(argv: list[str] | None = None) -> int:
         "environment_binding": environment,
     })
     cache = args.cache_root.resolve() / composite / args.execution
-    if cache_reuse_eligible and not args.no_reuse and (cache / "validation_manifest.json").is_file():
-        cached = json.loads((cache / "validation_manifest.json").read_text())
-        if (cached.get("passed") is True
-                and cached.get("composite_fingerprint") == composite
+    with cache_key_lock(cache):
+        if cache_reuse_eligible and not args.no_reuse and (cache / "validation_manifest.json").is_file():
+            cached = json.loads((cache / "validation_manifest.json").read_text())
+            if (cached.get("passed") is True
+                    and cached.get("composite_fingerprint") == composite
                 and cached.get("environment_binding") == environment
-                and cached.get("cache_reuse_eligible") is True):
-            shutil.copytree(cache, output)
-            manifest_path = output / "validation_manifest.json"
-            manifest = json.loads(manifest_path.read_text())
-            manifest.update({"reused": True, "reused_from": str(cache), "reused_at": now()})
-            manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
-            print(manifest_path)
-            return 0
-    output.mkdir(parents=True)
-    (output / "test_selection.json").write_text(json.dumps(selection, indent=2, sort_keys=True) + "\n")
-    (output / "user_decision_manifest.json").write_text(json.dumps(decision, indent=2, sort_keys=True) + "\n")
-    started = time.monotonic()
-    results = execute(
-        selection, python=Path(os.path.abspath(args.python)), root=root, output=output,
-        mode=args.execution, workers=max(1, args.workers),
-    )
-    passed = all(row["exit_code"] == 0 for row in results)
-    manifest = {
-        "schema_version": "ur10e_impacted_validation_manifest_v1",
-        "execution": args.execution,
-        "full_suite": args.full_suite,
-        "dependency_map_version": selection["dependency_map_version"],
-        "changed_paths": selection["changed_paths"],
-        "selected_tests": selection["selected_tests"],
-        "always_run_tests": selection["always_run_tests"],
-        "serial_resource_tests": selection["serial_tests"],
-        "source_fingerprint": selection["source_fingerprint"],
-        "decision_digest": decision["decision_digest"],
-        "environment_binding": environment,
-        "cache_reuse_eligible": cache_reuse_eligible,
-        "composite_fingerprint": composite,
-        "reused": False,
-        "skipped_tests": selection["skipped_tests"],
-        "matched_changed_paths": selection["matched_changed_paths"],
-        "unmapped_changed_paths": selection["unmapped_changed_paths"],
-        "results": results,
-        "wall_time_s": time.monotonic() - started,
-        "passed": passed,
-        "claim_scope": "full_suite" if args.full_suite else "focused_impacted_validation",
-    }
-    manifest_path = output / "validation_manifest.json"
-    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
-    if passed and cache_reuse_eligible:
-        cache.parent.mkdir(parents=True, exist_ok=True)
-        if cache.exists():
-            shutil.rmtree(cache)
-        shutil.copytree(output, cache)
-    print(manifest_path)
-    return 0 if passed else 3
+                and cached.get("cache_reuse_eligible") is True
+                and cached.get("manifest_core_sha256") == manifest_core_digest(cached)
+                and cache_closure_matches(cache, cached.get("cached_outputs"))):
+                shutil.copytree(cache, output)
+                manifest_path = output / "validation_manifest.json"
+                manifest = json.loads(manifest_path.read_text())
+                manifest.update({"reused": True, "reused_from": str(cache), "reused_at": now()})
+                manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+                print(manifest_path)
+                return 0
+        output.mkdir(parents=True)
+        (output / "test_selection.json").write_text(
+            json.dumps(selection, indent=2, sort_keys=True) + "\n"
+        )
+        (output / "user_decision_manifest.json").write_text(
+            json.dumps(decision, indent=2, sort_keys=True) + "\n"
+        )
+        started = time.monotonic()
+        results = execute(
+            selection, python=Path(os.path.abspath(args.python)), root=root, output=output,
+            mode=args.execution, workers=max(1, args.workers),
+        )
+        passed = all(row["exit_code"] == 0 for row in results)
+        cached_outputs = output_closure(output)
+        manifest = {
+            "schema_version": "ur10e_impacted_validation_manifest_v1",
+            "execution": args.execution,
+            "full_suite": args.full_suite,
+            "dependency_map_version": selection["dependency_map_version"],
+            "dependency_map_sha256": selection["dependency_map_sha256"],
+            "dependency_hashes": selection["dependency_hashes"],
+            "changed_paths": selection["changed_paths"],
+            "comparison": selection["comparison"],
+            "selected_tests": selection["selected_tests"],
+            "always_run_tests": selection["always_run_tests"],
+            "serial_resource_tests": selection["serial_tests"],
+            "source_fingerprint": selection["source_fingerprint"],
+            "decision_digest": decision["decision_digest"],
+            "environment_binding": environment,
+            "cache_reuse_eligible": cache_reuse_eligible,
+            "cache_role": "development_acceleration_only",
+            "cache_reuse_acceptance_eligible": False,
+            "cached_outputs": cached_outputs,
+            "composite_fingerprint": composite,
+            "reused": False,
+            "skipped_tests": selection["skipped_tests"],
+            "matched_changed_paths": selection["matched_changed_paths"],
+            "unmapped_changed_paths": selection["unmapped_changed_paths"],
+            "results": results,
+            "wall_time_s": time.monotonic() - started,
+            "passed": passed,
+            "claim_scope": "full_suite" if args.full_suite else "focused_impacted_validation",
+        }
+        manifest["manifest_core_sha256"] = manifest_core_digest(manifest)
+        manifest_path = output / "validation_manifest.json"
+        manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+        if passed and cache_reuse_eligible:
+            atomic_publish_cache(output, cache)
+        print(manifest_path)
+        return 0 if passed else 3
 
 
 if __name__ == "__main__":
