@@ -566,28 +566,14 @@ class CampaignSupervisor:
             disposition is TrialDisposition.FAIL_CLOSED
             and returned_safe
             and ack_permitted
-            and probe is not None
-            and probe.stage == "b"
-            and profile_diagnostic
-        ):
-            # A complete, threshold-failing orientation profile is a failed
-            # governor experiment, not missing evidence.  Return to retained A
-            # immediately instead of retrying the same B/A-prime forever.
-            self.execution_profile = probe.profile_a
-            self._governor_probe = None
-            self._cooldown_remaining = 3
-            post_ack_phase = CampaignPhase.HOME
-            reason = "governor_orientation_regression_reverted"
-        elif (
-            disposition is TrialDisposition.FAIL_CLOSED
-            and returned_safe
-            and ack_permitted
             and profile_diagnostic
         ):
             # Persistent normal-rate limiting can itself violate the <=5%
             # orientation-duty qualification.  Preserve its force MAE only in
             # the typed non-trainable diagnostic seam: it may seed/complete a
             # governor comparison, but it never enters BO observations.
+            if probe is None and self._cooldown_remaining > 0:
+                self._cooldown_remaining -= 1
             post_ack_phase = CampaignPhase.HOME
             reason = (
                 "governor_a_prime_profile_diagnostic_closed"
@@ -611,7 +597,9 @@ class CampaignSupervisor:
 
         governor_outcome_closed = bool(
             disposition is TrialDisposition.OBJECTIVE and evaluation.eligible
-            or profile_diagnostic and probe is not None and probe.stage == "a_prime"
+            or profile_diagnostic
+            and probe is not None
+            and probe.stage in {"b", "a_prime"}
         )
         if probe is not None and governor_outcome_closed and returned_safe and ack_permitted:
             identity = AbTrialIdentity(
@@ -942,11 +930,10 @@ class CampaignSupervisor:
             raise ValueError(f"caller {name} differs from immutable trial evidence")
 
     @classmethod
-    def _bound_governor_metrics(
+    def _derived_governor_metrics(
         cls,
         *,
         layer: str,
-        evidence: AbEvidence,
         outcome_a: Observation,
         outcome_b: Observation,
         outcome_a_prime: Observation | None,
@@ -954,7 +941,9 @@ class CampaignSupervisor:
         a = cls._governor_trial_metrics(
             outcome_a, layer=layer, allow_profile_diagnostic=True
         )
-        b = cls._governor_trial_metrics(outcome_b, layer=layer)
+        b = cls._governor_trial_metrics(
+            outcome_b, layer=layer, allow_profile_diagnostic=True
+        )
         a_prime = (
             None
             if outcome_a_prime is None
@@ -982,8 +971,11 @@ class CampaignSupervisor:
             <= min(row["orientation_duty"] for row in references) + 1e-12
         )
         guards_clean = bool(
-            outcome_b.evaluation.eligible
-            and not outcome_b.evaluation.structural_failures
+            (
+                outcome_b.evaluation.eligible
+                and not outcome_b.evaluation.structural_failures
+                or cls._is_profile_diagnostic(outcome_b)
+            )
             and all(
                 row.evaluation.eligible
                 and not row.evaluation.structural_failures
@@ -1002,7 +994,7 @@ class CampaignSupervisor:
                 *((outcome_a_prime,) if outcome_a_prime is not None else ()),
             )
         )
-        actual = {
+        return {
             "burden_a": a["burden"],
             "burden_b": b["burden"],
             "tracking_not_worse": tracking_not_worse,
@@ -1016,6 +1008,23 @@ class CampaignSupervisor:
             "correlation_improvement": b["correlation"] - correlation_reference,
             "burden_a_prime": None if a_prime is None else a_prime["burden"],
         }
+
+    @classmethod
+    def _bound_governor_metrics(
+        cls,
+        *,
+        layer: str,
+        evidence: AbEvidence,
+        outcome_a: Observation,
+        outcome_b: Observation,
+        outcome_a_prime: Observation | None,
+    ) -> dict[str, Any]:
+        actual = cls._derived_governor_metrics(
+            layer=layer,
+            outcome_a=outcome_a,
+            outcome_b=outcome_b,
+            outcome_a_prime=outcome_a_prime,
+        )
         for name, value in actual.items():
             supplied = getattr(evidence, name)
             if value is None:
@@ -1104,6 +1113,51 @@ class CampaignSupervisor:
             )
         return candidate, decision
 
+    def build_governor_evidence(self) -> AbEvidence:
+        """Derive A/B evidence only from supervisor-closed immutable trials."""
+
+        probe = self._governor_probe
+        if probe is None or probe.identity_b is None:
+            raise RuntimeError("closed governor A/B trials are not available")
+        outcome_a = self._closed_governor_outcome(
+            probe.identity_a, allow_profile_diagnostic=True
+        )
+        outcome_b = self._closed_governor_outcome(
+            probe.identity_b, allow_profile_diagnostic=True
+        )
+        outcome_a_prime = (
+            None
+            if probe.identity_a_prime is None
+            else self._closed_governor_outcome(
+                probe.identity_a_prime, allow_profile_diagnostic=True
+            )
+        )
+        mae_a = self._actual_mae(outcome_a)
+        mae_b = self._actual_mae(outcome_b)
+        mae_a_prime = (
+            None if outcome_a_prime is None else self._actual_mae(outcome_a_prime)
+        )
+        if mae_a is None or mae_b is None or (
+            outcome_a_prime is not None and mae_a_prime is None
+        ):
+            raise RuntimeError("governor closed trial lacks measured force MAE")
+        metrics = self._derived_governor_metrics(
+            layer=probe.layer,
+            outcome_a=outcome_a,
+            outcome_b=outcome_b,
+            outcome_a_prime=outcome_a_prime,
+        )
+        return AbEvidence(
+            **metrics,
+            mae_a_n=mae_a,
+            mae_b_n=mae_b,
+            mae_a_prime_n=mae_a_prime,
+            phase="a_prime" if outcome_a_prime is not None else "ab",
+            identity_a=probe.identity_a,
+            identity_b=probe.identity_b,
+            identity_a_prime=probe.identity_a_prime,
+        )
+
     def complete_governor_probe(self, evidence: AbEvidence) -> GovernorDecision:
         probe = self._governor_probe
         if probe is None:
@@ -1127,7 +1181,9 @@ class CampaignSupervisor:
             probe.identity_a, allow_profile_diagnostic=True
         )
         assert probe.identity_b is not None
-        outcome_b = self._closed_governor_outcome(probe.identity_b)
+        outcome_b = self._closed_governor_outcome(
+            probe.identity_b, allow_profile_diagnostic=True
+        )
         self._require_actual_mae("A", evidence.mae_a_n, outcome_a)
         self._require_actual_mae("B", evidence.mae_b_n, outcome_b)
         actual_a_prime = probe.identity_a_prime

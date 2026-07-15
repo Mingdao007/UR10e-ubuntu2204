@@ -4,7 +4,10 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 from pathlib import Path
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -12,6 +15,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 from run_step5d_autotune_campaign import (  # noqa: E402
     closure_sample_from_bridge_row,
+    ensure_mailbox_parent,
     tp_snapshot_from_bridge_row,
 )
 
@@ -53,3 +57,16 @@ def test_bridge_row_maps_to_safe_closure_input_shape() -> None:
     assert sample["actual_TCP_pose"] == [index / 1000.0 for index in range(6)]
     assert sample["output_int_register_26"] == 70
     assert sample["output_double_register_38"] == 0.003
+
+
+def test_campaign_creates_its_own_runtime_mailbox_directory() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        bridge_run = Path(tmp) / "bridge"
+        bridge_run.mkdir()
+        mailbox = bridge_run / "runtime" / "command.json"
+
+        ensure_mailbox_parent(mailbox, bridge_run)
+
+        assert mailbox.parent.is_dir()
+        with pytest.raises(RuntimeError, match="selected bridge run"):
+            ensure_mailbox_parent(Path(tmp) / "other" / "command.json", bridge_run)

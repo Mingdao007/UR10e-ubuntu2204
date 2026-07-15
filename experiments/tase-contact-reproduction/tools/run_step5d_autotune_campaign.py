@@ -191,6 +191,15 @@ def _event(path: Path, event: str, **payload: Any) -> None:
         os.fsync(handle.fileno())
 
 
+def ensure_mailbox_parent(mailbox_path: Path, bridge_run: Path) -> None:
+    expected = (bridge_run / "runtime").resolve()
+    if mailbox_path.parent.resolve() != expected:
+        raise RuntimeError("mailbox must belong to the selected bridge run")
+    mailbox_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if not mailbox_path.parent.is_dir() or mailbox_path.parent.is_symlink():
+        raise RuntimeError("mailbox parent must be a real directory")
+
+
 def run(args: argparse.Namespace) -> int:
     root = args.experiment_root.resolve()
     bridge_run = args.bridge_run.resolve()
@@ -207,8 +216,7 @@ def run(args: argparse.Namespace) -> int:
         )
     ):
         raise RuntimeError("bridge readiness is not live-complete")
-    if mailbox_path.parent.resolve() != (bridge_run / "runtime").resolve():
-        raise RuntimeError("mailbox must belong to the selected bridge run")
+    ensure_mailbox_parent(mailbox_path, bridge_run)
     initial = tp_snapshot_from_bridge_row(_latest_complete_row(bridge_csv))
     if initial.state != "READY_HOME":
         raise RuntimeError(f"TP must start at READY_HOME, got {initial.state}")
@@ -349,6 +357,51 @@ def run(args: argparse.Namespace) -> int:
             _event(event_path, "post_ack", phase=supervisor.phase.value)
             if supervisor.phase is CampaignPhase.WAIT_INFRA_READY:
                 break
+            if supervisor.phase is CampaignPhase.HOME:
+                recovery = supervisor.recovery_snapshot()
+                probe = recovery.governor_probe
+                probe_closed = bool(
+                    probe is not None
+                    and (
+                        probe.stage == "b" and probe.identity_b is not None
+                        or probe.stage == "a_prime"
+                        and probe.identity_a_prime is not None
+                    )
+                )
+                if probe_closed:
+                    evidence = supervisor.build_governor_evidence()
+                    governor_decision = coordinator.complete_governor_probe(
+                        evidence
+                    )
+                    _event(
+                        event_path,
+                        "governor_probe_completed",
+                        decision=asdict(governor_decision),
+                    )
+                elif (
+                    not result.close_decision.same_candidate_retry_pending
+                    and (
+                        result.evaluation.eligible
+                        or result.close_decision.reason
+                        in {
+                            "governor_profile_diagnostic_ready",
+                            "governor_a_prime_profile_diagnostic_closed",
+                        }
+                    )
+                ):
+                    proposed_profile, governor_decision = (
+                        coordinator.begin_governor_probe()
+                    )
+                    _event(
+                        event_path,
+                        "governor_probe_considered",
+                        proposed_profile=(
+                            None
+                            if proposed_profile is None
+                            else proposed_profile.payload()
+                        ),
+                        decision=asdict(governor_decision),
+                    )
     finally:
         follower.close()
 

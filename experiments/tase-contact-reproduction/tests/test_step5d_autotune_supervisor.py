@@ -167,7 +167,7 @@ def evaluation(
                     "qualified": True,
                     "p95_error_rad": 0.01,
                     "max_error_rad": 0.02,
-                    "saturation_duty": 0.01,
+                    "saturation_duty": governor_burden,
                 },
             }
         },
@@ -658,7 +658,7 @@ class Step5dAutotuneSupervisorTest(unittest.TestCase):
         self.assertEqual(manager.plant_epoch, 2)
         self.assertEqual(manager.cooldown_remaining, 3)
 
-    def test_complete_orientation_failure_reverts_governor_without_retry(self) -> None:
+    def test_profile_diagnostic_b_is_compared_from_immutable_evidence(self) -> None:
         manager = supervisor()
         samples = [
             SaturationSample(index * 0.1, normal_filter_limited=True)
@@ -688,8 +688,13 @@ class Step5dAutotuneSupervisorTest(unittest.TestCase):
                 failed,
                 root,
             )
+            self.assertEqual(decision.reason, "governor_profile_diagnostic_ready")
+            evidence = manager.build_governor_evidence()
+            governor_decision = manager.complete_governor_probe(evidence)
         self.assertEqual(manager.phase, CampaignPhase.HOME)
-        self.assertEqual(manager.execution_profile, trial_a.execution_profile)
+        self.assertTrue(governor_decision.keep)
+        self.assertEqual(manager.execution_profile, trial_b.execution_profile)
+        self.assertEqual(manager.plant_epoch, 2)
         self.assertEqual(manager.cooldown_remaining, 3)
         self.assertFalse(decision.same_candidate_retry_pending)
         self.assertIsNone(manager.recovery_snapshot().governor_probe)
