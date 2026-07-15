@@ -18,7 +18,7 @@ import os
 import subprocess
 import sys
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any, Iterator, Mapping
 
@@ -595,7 +595,10 @@ def _settle_home_after_restart(
     ):
         evidence, consumed_snapshot = _infra_abort_evidence(latest)
         coordinator.terminalize_consumed_infra_abort(
-            consumed_snapshot,
+            replace(
+                snapshot,
+                consumed_command_seq=consumed_snapshot.consumed_command_seq,
+            ),
             evidence=evidence,
             persist=persist,
         )
