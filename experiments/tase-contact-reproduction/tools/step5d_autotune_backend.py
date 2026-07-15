@@ -153,6 +153,7 @@ class Step5dV35Backend:
         "tools/step5d_autotune_supervisor.py",
         "tools/step5d_autotune_coordinator.py",
         "tools/run_step5d_autotune_campaign.py",
+        "tools/step5_table.py",
         "tools/step5d_paper_outer_loop.py",
         "tools/step5d_control_contract.py",
         "tools/step5c_strict_rnn.py",
