@@ -25,10 +25,10 @@ class Step5dAutotuneConfigTest(unittest.TestCase):
         self.payload = json.loads(self.config_path.read_text())
         self.schema = json.loads(self.schema_path.read_text())
 
-    def test_source_contract_validates_and_keeps_live_inactive(self) -> None:
+    def test_source_contract_validates_and_records_live_activation(self) -> None:
         Draft202012Validator(self.schema).validate(self.payload)
-        self.assertFalse(self.payload["activation"]["active"])
-        self.assertFalse(self.payload["activation"]["live_authorized"])
+        self.assertTrue(self.payload["activation"]["active"])
+        self.assertTrue(self.payload["activation"]["live_authorized"])
         self.assertNotIn(
             "controller_delivery_authorized", self.payload["activation"]
         )
@@ -57,7 +57,7 @@ class Step5dAutotuneConfigTest(unittest.TestCase):
             set(range(24, 31)),
         )
 
-    def test_stage_delivery_is_verified_but_review_and_live_are_unclosed(self) -> None:
+    def test_stage_delivery_review_and_live_binding_are_closed(self) -> None:
         table = json.loads((ROOT / "config/step5_stage_table.json").read_text())
         rows = [
             row
@@ -68,14 +68,20 @@ class Step5dAutotuneConfigTest(unittest.TestCase):
         row = rows[0]
         self.assertEqual(
             row["acceptance"]["review_v3_pre_live_stack"],
-            "1xCodex/high+1xFable5/high",
+            "Fable5/high_or_automatic_degraded_0+0_when_quota_unavailable",
         )
         self.assertEqual(
-            row["package_delivery"]["artifact_locator"],
+            row["review_v3"]["status"],
+            "accepted_degraded_0+0_fable_unavailable",
+        )
+        self.assertTrue(row["current_binding"]["is_current"])
+        self.assertTrue(row["current_binding"]["live_authorized"])
+        self.assertEqual(
+            row["package_delivery"]["controller_readback_manifest"],
             "config/step5d_autotune_controller_readback_v1.json",
         )
         self.assertTrue(row["package_delivery"]["controller_readback_verified"])
-        manifest_path = ROOT / row["package_delivery"]["artifact_locator"]
+        manifest_path = ROOT / row["package_delivery"]["controller_readback_manifest"]
         self.assertEqual(
             row["package_delivery"]["controller_readback_manifest_sha256"],
             hashlib.sha256(manifest_path.read_bytes()).hexdigest(),

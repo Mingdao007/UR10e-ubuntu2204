@@ -48,6 +48,9 @@ class PreflightReadonlyDagTest(unittest.TestCase):
         self.assertTrue(
             preflight.bridge_profile_uses_tp_local("step5d_strict_rnn_ablation_v32")
         )
+        self.assertTrue(
+            preflight.bridge_profile_uses_tp_local("step5d_strict_rnn_autotune_v1")
+        )
         self.assertFalse(preflight.bridge_profile_uses_tp_local("step5b_contact_cycloid_baseline_v1"))
 
     def test_p0_v9_uses_its_capture_binding_instead_of_current_v29(self) -> None:

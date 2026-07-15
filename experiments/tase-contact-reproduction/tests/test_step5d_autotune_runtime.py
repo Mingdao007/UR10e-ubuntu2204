@@ -41,20 +41,20 @@ def parse_autotune(*extra: str):
 
 
 class Step5dAutotuneRuntimeTest(unittest.TestCase):
-    def test_stage_is_inactive_readback_verified_and_v35_stays_current(self) -> None:
+    def test_stage_is_active_readback_verified_and_current(self) -> None:
         table = json.loads((ROOT / "config" / "step5_stage_table.json").read_text(encoding="utf-8"))
         row = next(item for item in table["stages"] if item["id"] == AUTOTUNE)
         current = json.loads((ROOT / "config" / "current_stage.json").read_text(encoding="utf-8"))
 
-        self.assertFalse(row["active"])
-        self.assertFalse(row["current_binding"]["is_current"])
+        self.assertTrue(row["active"])
+        self.assertTrue(row["current_binding"]["is_current"])
         self.assertTrue(row["package_delivery"]["controller_uploaded"])
         self.assertTrue(row["package_delivery"]["controller_readback_verified"])
         self.assertEqual(
-            row["package_delivery"]["status"], "controller_readback_verified"
+            row["package_delivery"]["status"], "controller_readback_verified_current"
         )
-        self.assertEqual(current["program"], V35)
-        self.assertEqual(current["current_stage_id"], V35)
+        self.assertEqual(current["program"], AUTOTUNE)
+        self.assertEqual(current["current_stage_id"], AUTOTUNE)
 
     def test_stage_binds_exact_v35_script_bytes(self) -> None:
         table = json.loads((ROOT / "config" / "step5_stage_table.json").read_text(encoding="utf-8"))
@@ -89,7 +89,7 @@ class Step5dAutotuneRuntimeTest(unittest.TestCase):
 
         self.assertEqual(interface.stage25_control_mode, "speedj_rnn_live")
         self.assertTrue(interface.hard_contract["v30_control_contract"])
-        self.assertTrue(interface.hard_contract["offline_candidate"])
+        self.assertFalse(interface.hard_contract["offline_candidate"])
         self.assertEqual(profile["qdot_cap_rad_s"], 0.5)
         self.assertEqual(profile["guard_schema"], "step5d_v35_permissive_contact_quota_safe_other")
         self.assertEqual(interface.hard_contract["runtime_scheduler"]["policy"], "SCHED_OTHER")
@@ -270,11 +270,11 @@ class Step5dAutotuneRuntimeTest(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "must be one of"):
                 parse_autotune("--step5d-autotune-speedj-acceleration-rad-s2", "0.3")
 
-    def test_raw_bridge_execution_is_blocked_before_current_binding_lookup(self) -> None:
+    def test_raw_bridge_execution_requires_continuous_mailbox(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
             args = parse_autotune()
-        with self.assertRaisesRegex(SystemExit, "inactive and controller-unverified"):
-            bridge.require_v29_live_bridge_authorization(args, root=ROOT / "missing")
+        with self.assertRaisesRegex(SystemExit, "continuous command mailbox"):
+            bridge.require_v29_live_bridge_authorization(args, root=ROOT)
 
     def test_saturation_telemetry_fields_are_part_of_csv_contract(self) -> None:
         expected = {

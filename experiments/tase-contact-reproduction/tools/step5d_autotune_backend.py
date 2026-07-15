@@ -310,7 +310,8 @@ class Step5dV35Backend:
         for key, expected in expected_runtime.items():
             if runtime.get(key) != expected:
                 raise ValueError(f"v35 runtime contract mismatch for {key}: {runtime.get(key)!r}")
-        campaign_is_current = workflow.get("program") == CAMPAIGN_STAGE_ID
+        promoted = _json(self.root / "config" / "current_stage.json")
+        campaign_is_current = promoted.get("program") == CAMPAIGN_STAGE_ID
         source_binding = campaign_row.get("source_binding") or {}
         rendered_script = render_autotune_tp_script()
         rendered_script_bytes = rendered_script.encode("utf-8")

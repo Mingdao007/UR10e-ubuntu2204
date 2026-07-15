@@ -44,6 +44,7 @@ RTDE_FIELDS = [
 ]
 P0_V8_PROFILE = "step5d_strict_rnn_no_contact_p0_v8"
 P0_V9_PROFILE = "step5d_strict_rnn_no_contact_p0_v9"
+STEP5D_AUTOTUNE_PROFILE = "step5d_strict_rnn_autotune_v1"
 P0_LOCAL_PROFILES = {
     P0_V8_PROFILE: "no_contact_p0_v8_capture",
     P0_V9_PROFILE: "no_contact_p0_v9_capture",
@@ -53,7 +54,7 @@ P0_LOCAL_PROFILES = {
 def bridge_profile_uses_tp_local(profile: str | None) -> bool:
     if not profile:
         return False
-    return profile in P0_LOCAL_PROFILES or profile.startswith(
+    return profile == STEP5D_AUTOTUNE_PROFILE or profile in P0_LOCAL_PROFILES or profile.startswith(
         ("step5d_strict_rnn_liveprep_", "step5d_strict_rnn_ablation_")
     )
 

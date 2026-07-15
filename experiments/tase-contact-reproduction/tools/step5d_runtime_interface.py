@@ -960,7 +960,6 @@ def resolve_runtime_interface(
             "offline_candidate": selected
             in {
                 STEP5D_ABLATION_V30_STAGE_ID,
-                STEP5D_AUTOTUNE_STAGE_ID,
                 STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
                 STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
             },

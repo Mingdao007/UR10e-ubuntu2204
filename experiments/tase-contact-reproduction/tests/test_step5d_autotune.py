@@ -985,18 +985,19 @@ class StoreAndBackendTest(unittest.TestCase):
         )
         offline = backend.preflight(offline=True)
         self.assertTrue(offline.ok, offline.blockers)
-        self.assertFalse(offline.controller_readback_sha_closed)
-        self.assertFalse(offline.controller_readback_verified)
+        self.assertTrue(offline.controller_readback_sha_closed)
+        self.assertTrue(offline.controller_readback_verified)
         self.assertTrue(
             offline.evidence["baseline_controller_readback_sha_closed"]
         )
         live = backend.preflight(offline=False)
         self.assertFalse(live.ok)
-        self.assertIn(
+        self.assertNotIn(
             "autotune_controller_delivery_and_fresh_readback_required",
             live.blockers,
         )
-        self.assertIn("autotune_campaign_must_be_current_and_active", live.blockers)
+        self.assertNotIn("autotune_campaign_must_be_current_and_active", live.blockers)
+        self.assertIn("bounded_campaign_live_authorization_missing_or_mismatched", live.blockers)
 
     def test_autotune_readback_flags_cannot_spoof_sha_authoritative_closure(self) -> None:
         closed, evidence = Step5dV35Backend(ROOT)._campaign_readback_closure(

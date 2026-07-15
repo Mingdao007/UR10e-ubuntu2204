@@ -1,0 +1,36 @@
+{
+  "schema_version": "ur10e_artifact_locator_v1",
+  "program": "step5d_strict_rnn_autotune_v1",
+  "store_layout": "sha256/<digest>",
+  "destructive_migration_performed": false,
+  "artifacts": [
+    {
+      "logical_role": "controller_readback_manifest",
+      "original_path": "config/step5d_autotune_controller_readback_v1.json",
+      "sha256": "efbf057f29883a3113595418c9d5858613215765ff728907e326942ca88d5aca",
+      "size": 2313,
+      "store_key": "sha256/efbf057f29883a3113595418c9d5858613215765ff728907e326942ca88d5aca"
+    },
+    {
+      "logical_role": "controller_readback_script",
+      "original_path": "programs/step5/step5d/step5d_strict_rnn_autotune_v1.script",
+      "sha256": "bfec603db15c9c07902881e74263ca50030e379036688c5b3694fc2644093476",
+      "size": 34009,
+      "store_key": "sha256/bfec603db15c9c07902881e74263ca50030e379036688c5b3694fc2644093476"
+    },
+    {
+      "logical_role": "controller_readback_txt",
+      "original_path": "programs/step5/step5d/step5d_strict_rnn_autotune_v1.txt",
+      "sha256": "2b16180f8c6dcaec94dbb6a29663c93c84ff7b0fe7a85b2535c70c147ba5331f",
+      "size": 714,
+      "store_key": "sha256/2b16180f8c6dcaec94dbb6a29663c93c84ff7b0fe7a85b2535c70c147ba5331f"
+    },
+    {
+      "logical_role": "controller_readback_urp",
+      "original_path": "programs/step5/step5d/step5d_strict_rnn_autotune_v1.urp",
+      "sha256": "fd129d3056ac9e4b34528d2c9ad0ccb137c7acd8e18ab99f0bc7bb40cf235fc6",
+      "size": 7717,
+      "store_key": "sha256/fd129d3056ac9e4b34528d2c9ad0ccb137c7acd8e18ab99f0bc7bb40cf235fc6"
+    }
+  ]
+}

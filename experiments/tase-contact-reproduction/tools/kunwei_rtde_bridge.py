@@ -9151,18 +9151,63 @@ def require_v29_live_bridge_authorization(
             "v30 raw bridge is an inactive offline candidate; live execution requires "
             "a separate promotion, delivered/read-back package, and new authorization"
         )
-    if args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID:
-        raise SystemExit(
-            "Step5d autotune raw bridge is inactive and controller-unverified; "
-            "package delivery, fresh read-back, frozen campaign review, and explicit "
-            "live authorization are all required before execution"
-        )
     try:
         current = json.loads((root / "config" / "current_stage.json").read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise SystemExit(f"raw bridge cannot resolve current-stage identity: {exc}") from exc
     if not isinstance(current, Mapping):
         raise SystemExit("raw bridge cannot resolve current-stage identity: JSON root is not an object")
+    if args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID:
+        try:
+            binding = verify_step5d_binding(
+                root,
+                STEP5D_AUTOTUNE_STAGE_ID,
+                "/programs/andyl/kunwei/step5",
+            )
+        except RuntimeError as exc:
+            raise SystemExit(f"Step5d autotune binding verification failed: {exc}") from exc
+        table_path = root / str(
+            current.get("stage_table_path") or "config/step5_stage_table.json"
+        )
+        try:
+            table = json.loads(table_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise SystemExit(f"Step5d autotune stage table is unreadable: {exc}") from exc
+        rows = [
+            row
+            for row in table.get("stages", [])
+            if isinstance(row, Mapping)
+            and row.get("id") == STEP5D_AUTOTUNE_STAGE_ID
+        ]
+        if len(rows) != 1:
+            raise SystemExit("Step5d autotune requires exactly one stage-table binding")
+        row = rows[0]
+        package = row.get("package_delivery")
+        review = row.get("review_v3")
+        current_binding = row.get("current_binding")
+        if current.get("program") != STEP5D_AUTOTUNE_STAGE_ID:
+            raise SystemExit("Step5d autotune raw bridge blocked: campaign is not current")
+        if row.get("active") is not True or row.get("blocked") is True:
+            raise SystemExit("Step5d autotune raw bridge blocked: campaign is not active")
+        if not isinstance(package, Mapping) or package.get("controller_readback_verified") is not True:
+            raise SystemExit("Step5d autotune raw bridge blocked: fresh controller read-back is not verified")
+        if not isinstance(review, Mapping) or not str(review.get("status", "")).startswith("accepted_"):
+            raise SystemExit("Step5d autotune raw bridge blocked: campaign review is not accepted")
+        if not isinstance(current_binding, Mapping) or current_binding.get("is_current") is not True:
+            raise SystemExit("Step5d autotune raw bridge blocked: current binding is not active")
+        if current_binding.get("live_authorized") is not True:
+            raise SystemExit("Step5d autotune raw bridge blocked: explicit bounded-campaign authorization is missing")
+        if args.step5d_autotune_command_mailbox is None:
+            raise SystemExit("Step5d autotune raw bridge requires the continuous command mailbox")
+        if args.step5d_stage25_control_mode != "speedj_rnn_live":
+            raise SystemExit("Step5d autotune raw bridge requires speedj_rnn_live")
+        return {
+            "ok": True,
+            "program": binding["program"],
+            "manifest": binding["manifest"],
+            "review_status": review["status"],
+            "live_motion_authorized": True,
+        }
     if args.bridge_profile == STEP5D_ABLATION_V31_STAGE_ID:
         candidate = current.get("v31_candidate")
         if not isinstance(candidate, Mapping):
@@ -9633,30 +9678,43 @@ def dashboard_loaded_program_basenames(value: Any) -> set[str]:
     }
 
 
-def v29_dashboard_program_identity_matches(value: Any) -> bool:
-    expected = f"{STEP5D_ABLATION_V29_STAGE_ID}.urp".lower()
+def step5d_dashboard_program_identity_matches(value: Any, program: str) -> bool:
+    expected = f"{program}.urp".lower()
     return dashboard_loaded_program_basenames(value) == {expected}
+
+
+def v29_dashboard_program_identity_matches(value: Any) -> bool:
+    """Retained narrow helper for the v29 runtime drift watchdog."""
+
+    return step5d_dashboard_program_identity_matches(
+        value, STEP5D_ABLATION_V29_STAGE_ID
+    )
 
 
 def require_v29_dashboard_program_binding(
     args: argparse.Namespace,
     dashboard: Mapping[str, Any] | None,
 ) -> None:
-    if args.bridge_profile != STEP5D_ABLATION_V29_STAGE_ID:
+    if args.bridge_profile not in {
+        STEP5D_ABLATION_V29_STAGE_ID,
+        STEP5D_AUTOTUNE_STAGE_ID,
+    }:
         return
     if not isinstance(dashboard, Mapping):
         raise SystemExit("v29 Dashboard preflight is missing")
     remote_state = dashboard_state_value(dashboard.get("is in remote control"))
     safety_state = dashboard_state_value(dashboard.get("safetymode"))
     robot_state = dashboard_state_value(dashboard.get("robotmode"))
-    if not v29_dashboard_program_identity_matches(dashboard.get("programState")):
-        raise SystemExit("v29 Dashboard program identity does not match the current package")
-    if remote_state != "TRUE":
+    if not step5d_dashboard_program_identity_matches(
+        dashboard.get("programState"), args.bridge_profile
+    ):
+        raise SystemExit("Step5d Dashboard program identity does not match the current package")
+    if args.bridge_profile == STEP5D_ABLATION_V29_STAGE_ID and remote_state != "TRUE":
         raise SystemExit("v29 Dashboard remote-control state is not true")
     if safety_state != "NORMAL":
-        raise SystemExit("v29 Dashboard safety state is not NORMAL")
+        raise SystemExit("Step5d Dashboard safety state is not NORMAL")
     if robot_state != "RUNNING":
-        raise SystemExit("v29 Dashboard robot mode is not RUNNING")
+        raise SystemExit("Step5d Dashboard robot mode is not RUNNING")
 
 
 def main(argv: list[str] | None = None) -> int:

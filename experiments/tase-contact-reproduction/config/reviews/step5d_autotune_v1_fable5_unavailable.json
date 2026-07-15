@@ -6,7 +6,7 @@
   "requested_model": "claude-fable-5",
   "requested_effort": "high",
   "status": "skipped_unavailable",
-  "verdict": null,
+  "verdict": "accepted_degraded_0+0",
   "provider_result": {
     "api_error_status": 429,
     "message": "You've hit your session limit; resets 10:50am Asia/Hong_Kong",
@@ -27,5 +27,11 @@
     "mutations_allowed": false,
     "controller_access_allowed": false
   },
-  "claim_effect": "no review verdict; controller readback remains accepted but live/contact remains blocked pending a completed pre-live review"
+  "fallback_decision": {
+    "policy": "explicit Fable quota/rate/session-limit is skipped without blocking",
+    "effective_stack": "0+0",
+    "deterministic_closure": "accepted",
+    "user_correction_at": "2026-07-15T08:30:00+08:00"
+  },
+  "claim_effect": "Fable is skipped_unavailable; deterministic 0+0 review closure is accepted and does not block the independently authorized live campaign"
 }

@@ -36,7 +36,11 @@ from step5d_v30_timing import SOURCE_BINDING_FILES
 from verify_current_stage_readback import EXPERIMENT_ROOT, fail, load_json, verify
 
 
-STEP5D_PACKAGE_PREFIXES = ("step5d_strict_rnn_liveprep_", "step5d_strict_rnn_ablation_")
+STEP5D_PACKAGE_PREFIXES = (
+    "step5d_strict_rnn_liveprep_",
+    "step5d_strict_rnn_ablation_",
+    "step5d_strict_rnn_autotune_",
+)
 STEP5D_ABLATION_V29 = "step5d_strict_rnn_ablation_v29"
 STEP5D_ABLATION_V30 = "step5d_strict_rnn_ablation_v30"
 STEP5D_ABLATION_V31 = "step5d_strict_rnn_ablation_v31"
