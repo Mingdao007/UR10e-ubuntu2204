@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
-  <title>Step5D Force-Control Progress</title>
+  <title>UR10e Rolling-Contact Force-Control Progress</title>
   <style>
     :root {
       --ink: #172026;
@@ -94,6 +94,16 @@
     p { margin: 0 0 16px; }
     ul, ol { margin: 10px 0 18px; padding-left: 1.35em; }
     li { margin: 6px 0; }
+    .headline-claim {
+      max-width: 1060px;
+      margin: 0 0 24px;
+      color: var(--ink);
+      font-size: clamp(20px, 2vw, 27px);
+      line-height: 1.35;
+      letter-spacing: -.015em;
+    }
+    .hero .headline-claim { max-width: 980px; font-size: clamp(24px, 2.6vw, 34px); }
+    .compact-note { margin: 14px 0; color: var(--muted); font-size: 14px; }
     .eyebrow {
       margin: 0 0 14px;
       color: var(--blue);
@@ -116,6 +126,42 @@
       border-radius: 8px;
     }
     .panel h3 { margin-top: 0; }
+    .compact-panel { min-height: 0; }
+    .compact-panel h3 { margin-bottom: 14px; }
+    .big-number { color: var(--blue); font-size: 58px; font-weight: 800; line-height: 1; letter-spacing: -.05em; }
+    .concept-strip, .mechanism-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap: 12px;
+      margin: 22px 0;
+    }
+    .concept-strip div, .mechanism-strip div {
+      min-height: 106px;
+      padding: 17px;
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--blue);
+      border-radius: 8px;
+      background: var(--panel);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 6px;
+    }
+    .concept-strip b { color: var(--blue); font-size: 13px; text-transform: uppercase; letter-spacing: .07em; }
+    .concept-strip span, .mechanism-strip span { font-size: 14px; font-weight: 650; line-height: 1.35; }
+    .mechanism-strip { grid-template-columns: repeat(3, minmax(0,1fr)); }
+    .mechanism-strip div { border-top-color: var(--green); flex-direction: row; align-items: center; justify-content: flex-start; }
+    .mechanism-strip b { color: var(--green); font-size: 28px; }
+    .comparison-strip { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; margin: 18px 0; }
+    .comparison-strip div { padding: 16px 18px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+    .comparison-strip b, .comparison-strip span { display: block; }
+    .comparison-strip b { margin-bottom: 5px; color: var(--blue); font-size: 13px; text-transform: uppercase; letter-spacing: .05em; }
+    .comparison-strip span { font-size: 14px; line-height: 1.45; }
+    .tag-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 14px; }
+    .tag-row span { padding: 7px 11px; border: 1px solid #c9dbe9; border-radius: 999px; background: var(--blue-soft); color: #214f77; font-size: 13px; font-weight: 700; }
+    .technical-details { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+    .technical-details summary { color: var(--blue); cursor: pointer; font-size: 13px; font-weight: 750; }
+    .technical-details ul { margin-bottom: 0; font-size: 13px; }
     .metrics { display: grid; gap: 14px; margin: 26px 0 22px; }
     .metrics-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     .metric {
@@ -160,8 +206,8 @@
     .figure.wide { width: 100%; }
     .figure img { display: block; width: 100%; height: auto; background: #fff; }
     .figure figcaption { padding: 13px 16px 15px; color: var(--muted); font-size: 13px; line-height: 1.5; border-top: 1px solid var(--line); }
-    .abrasive-crop { height: 560px; overflow: hidden; background: var(--panel); }
-    .abrasive-crop img { width: 168%; max-width: none; transform: translate(-20.5%, -1%); }
+    .abrasive-crop { height: 560px; overflow: hidden; background: var(--panel); display: grid; place-items: center; }
+    .abrasive-crop img { width: 100%; height: 100%; max-width: 100%; object-fit: contain; transform: none; }
     .product-crop { height: 500px; overflow: hidden; background: var(--panel); }
     .product-crop img { width: 128%; max-width: none; transform: translate(-11%, -1%); }
     .spec-strip { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); }
@@ -209,7 +255,7 @@
     .equation.compact { font-size: 22px; }
     .controller-compare { margin: 28px 0; display: grid; gap: 14px; }
     .controller-row { display: flex; align-items: center; gap: 9px; padding: 14px; border: 1px solid var(--line); border-left: 4px solid var(--blue); background: #fff; overflow-x: auto; }
-    .controller-row.step5d { border-left-color: var(--green); }
+    .controller-row.constrained { border-left-color: var(--green); }
     .controller-name { min-width: 72px; font-weight: 800; }
     .flow-node { min-width: 132px; padding: 10px 12px; text-align: center; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; font-size: 13px; }
     .flow-arrow { color: var(--muted); font-size: 20px; }
@@ -229,6 +275,11 @@
     .experiment-loop div, .pipeline div { min-width: 126px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); font-size: 13px; font-weight: 650; }
     .experiment-loop span, .pipeline span { display: flex; align-items: center; color: var(--muted); font-size: 20px; }
     .pipeline div { min-width: 150px; background: var(--blue-soft); }
+    .bo-loop { display: flex; align-items: stretch; gap: 10px; margin: 20px 0; }
+    .bo-loop div { flex: 1; min-height: 92px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--green-soft); display: flex; align-items: center; gap: 10px; }
+    .bo-loop b { color: var(--green); font-size: 28px; }
+    .bo-loop span { font-size: 14px; font-weight: 700; line-height: 1.35; }
+    .bo-loop i { display: flex; align-items: center; color: var(--muted); font-size: 20px; font-style: normal; }
     .video-figure video { width: 100%; max-height: 520px; display: block; object-fit: contain; background: #000; }
     code { padding: 2px 5px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; font-size: .88em; }
     footer { padding: 18px 32px 24px; color: var(--muted); font-size: 11px; background: #f8fafb; text-align: center; }
@@ -237,6 +288,7 @@
       .three-up .span-4 { grid-column: span 6; }
       .three-up .span-4:last-child { grid-column: 1 / -1; }
       .status-grid { grid-template-columns: 1fr; }
+      .concept-strip { grid-template-columns: repeat(2, minmax(0,1fr)); }
     }
     @media (max-width: 860px) {
       .topbar-inner { padding: 0 16px; gap: 12px; }
@@ -251,6 +303,9 @@
       .abrasive-crop { height: 500px; }
       .product-crop { height: 520px; }
       .controller-row { padding-bottom: 18px; }
+      .mechanism-strip, .comparison-strip { grid-template-columns: 1fr; }
+      .bo-loop { overflow-x: auto; padding-bottom: 8px; }
+      .bo-loop div { min-width: 180px; }
     }
     @media (max-width: 540px) {
       .metrics-4 { grid-template-columns: 1fr; }
@@ -273,7 +328,7 @@
 <body>
   <header class="topbar">
     <div class="topbar-inner">
-      <div class="brand">Step5D · Force-control progress</div>
+      <div class="brand">UR10e · Group meeting · 16 July 2026</div>
       <nav aria-label="Report navigation">
         <a href="#summary">Summary</a>
         <a href="#setup">Setup</a>
@@ -286,7 +341,7 @@
   </header>
   <main>
 {{ body | safe }}
-    <footer>Audience-facing report generated from the retained Markdown source and independently recomputed physical evidence.</footer>
+    <footer>UR10e contact-control progress · Group meeting · 16 July 2026</footer>
   </main>
   <script>
     (() => {

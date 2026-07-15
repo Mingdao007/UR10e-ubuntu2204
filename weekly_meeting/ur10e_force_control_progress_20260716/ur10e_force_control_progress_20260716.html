@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
-  <title>Step5D Force-Control Progress</title>
+  <title>UR10e Rolling-Contact Force-Control Progress</title>
   <style>
     :root {
       --ink: #172026;
@@ -94,6 +94,16 @@
     p { margin: 0 0 16px; }
     ul, ol { margin: 10px 0 18px; padding-left: 1.35em; }
     li { margin: 6px 0; }
+    .headline-claim {
+      max-width: 1060px;
+      margin: 0 0 24px;
+      color: var(--ink);
+      font-size: clamp(20px, 2vw, 27px);
+      line-height: 1.35;
+      letter-spacing: -.015em;
+    }
+    .hero .headline-claim { max-width: 980px; font-size: clamp(24px, 2.6vw, 34px); }
+    .compact-note { margin: 14px 0; color: var(--muted); font-size: 14px; }
     .eyebrow {
       margin: 0 0 14px;
       color: var(--blue);
@@ -116,6 +126,42 @@
       border-radius: 8px;
     }
     .panel h3 { margin-top: 0; }
+    .compact-panel { min-height: 0; }
+    .compact-panel h3 { margin-bottom: 14px; }
+    .big-number { color: var(--blue); font-size: 58px; font-weight: 800; line-height: 1; letter-spacing: -.05em; }
+    .concept-strip, .mechanism-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap: 12px;
+      margin: 22px 0;
+    }
+    .concept-strip div, .mechanism-strip div {
+      min-height: 106px;
+      padding: 17px;
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--blue);
+      border-radius: 8px;
+      background: var(--panel);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 6px;
+    }
+    .concept-strip b { color: var(--blue); font-size: 13px; text-transform: uppercase; letter-spacing: .07em; }
+    .concept-strip span, .mechanism-strip span { font-size: 14px; font-weight: 650; line-height: 1.35; }
+    .mechanism-strip { grid-template-columns: repeat(3, minmax(0,1fr)); }
+    .mechanism-strip div { border-top-color: var(--green); flex-direction: row; align-items: center; justify-content: flex-start; }
+    .mechanism-strip b { color: var(--green); font-size: 28px; }
+    .comparison-strip { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; margin: 18px 0; }
+    .comparison-strip div { padding: 16px 18px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+    .comparison-strip b, .comparison-strip span { display: block; }
+    .comparison-strip b { margin-bottom: 5px; color: var(--blue); font-size: 13px; text-transform: uppercase; letter-spacing: .05em; }
+    .comparison-strip span { font-size: 14px; line-height: 1.45; }
+    .tag-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 14px; }
+    .tag-row span { padding: 7px 11px; border: 1px solid #c9dbe9; border-radius: 999px; background: var(--blue-soft); color: #214f77; font-size: 13px; font-weight: 700; }
+    .technical-details { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+    .technical-details summary { color: var(--blue); cursor: pointer; font-size: 13px; font-weight: 750; }
+    .technical-details ul { margin-bottom: 0; font-size: 13px; }
     .metrics { display: grid; gap: 14px; margin: 26px 0 22px; }
     .metrics-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     .metric {
@@ -160,8 +206,8 @@
     .figure.wide { width: 100%; }
     .figure img { display: block; width: 100%; height: auto; background: #fff; }
     .figure figcaption { padding: 13px 16px 15px; color: var(--muted); font-size: 13px; line-height: 1.5; border-top: 1px solid var(--line); }
-    .abrasive-crop { height: 560px; overflow: hidden; background: var(--panel); }
-    .abrasive-crop img { width: 168%; max-width: none; transform: translate(-20.5%, -1%); }
+    .abrasive-crop { height: 560px; overflow: hidden; background: var(--panel); display: grid; place-items: center; }
+    .abrasive-crop img { width: 100%; height: 100%; max-width: 100%; object-fit: contain; transform: none; }
     .product-crop { height: 500px; overflow: hidden; background: var(--panel); }
     .product-crop img { width: 128%; max-width: none; transform: translate(-11%, -1%); }
     .spec-strip { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); }
@@ -209,7 +255,7 @@
     .equation.compact { font-size: 22px; }
     .controller-compare { margin: 28px 0; display: grid; gap: 14px; }
     .controller-row { display: flex; align-items: center; gap: 9px; padding: 14px; border: 1px solid var(--line); border-left: 4px solid var(--blue); background: #fff; overflow-x: auto; }
-    .controller-row.step5d { border-left-color: var(--green); }
+    .controller-row.constrained { border-left-color: var(--green); }
     .controller-name { min-width: 72px; font-weight: 800; }
     .flow-node { min-width: 132px; padding: 10px 12px; text-align: center; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; font-size: 13px; }
     .flow-arrow { color: var(--muted); font-size: 20px; }
@@ -229,6 +275,11 @@
     .experiment-loop div, .pipeline div { min-width: 126px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); font-size: 13px; font-weight: 650; }
     .experiment-loop span, .pipeline span { display: flex; align-items: center; color: var(--muted); font-size: 20px; }
     .pipeline div { min-width: 150px; background: var(--blue-soft); }
+    .bo-loop { display: flex; align-items: stretch; gap: 10px; margin: 20px 0; }
+    .bo-loop div { flex: 1; min-height: 92px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--green-soft); display: flex; align-items: center; gap: 10px; }
+    .bo-loop b { color: var(--green); font-size: 28px; }
+    .bo-loop span { font-size: 14px; font-weight: 700; line-height: 1.35; }
+    .bo-loop i { display: flex; align-items: center; color: var(--muted); font-size: 20px; font-style: normal; }
     .video-figure video { width: 100%; max-height: 520px; display: block; object-fit: contain; background: #000; }
     code { padding: 2px 5px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; font-size: .88em; }
     footer { padding: 18px 32px 24px; color: var(--muted); font-size: 11px; background: #f8fafb; text-align: center; }
@@ -237,6 +288,7 @@
       .three-up .span-4 { grid-column: span 6; }
       .three-up .span-4:last-child { grid-column: 1 / -1; }
       .status-grid { grid-template-columns: 1fr; }
+      .concept-strip { grid-template-columns: repeat(2, minmax(0,1fr)); }
     }
     @media (max-width: 860px) {
       .topbar-inner { padding: 0 16px; gap: 12px; }
@@ -251,6 +303,9 @@
       .abrasive-crop { height: 500px; }
       .product-crop { height: 520px; }
       .controller-row { padding-bottom: 18px; }
+      .mechanism-strip, .comparison-strip { grid-template-columns: 1fr; }
+      .bo-loop { overflow-x: auto; padding-bottom: 8px; }
+      .bo-loop div { min-width: 180px; }
     }
     @media (max-width: 540px) {
       .metrics-4 { grid-template-columns: 1fr; }
@@ -273,7 +328,7 @@
 <body>
   <header class="topbar">
     <div class="topbar-inner">
-      <div class="brand">Step5D · Force-control progress</div>
+      <div class="brand">UR10e · Group meeting · 16 July 2026</div>
       <nav aria-label="Report navigation">
         <a href="#summary">Summary</a>
         <a href="#setup">Setup</a>
@@ -287,81 +342,71 @@
   <main>
 <section class="hero" id="summary">
 <p class="eyebrow">UR10e contact-control progress · Group meeting · 16 July 2026</p>
-<h1>Step5D Force-Control Progress</h1>
+<h1>UR10e Rolling-Contact Force-Control Progress</h1>
 <h2>Executive summary</h2>
-<p><strong>Under matched outer-loop gains and a common 12 N target, Step5D reduces force fluctuation and normal-motion activity without materially shifting the mean load.</strong></p>
-<ul>
-<li>Force standard deviation is <strong>57.1% lower</strong> than the mean of two Step5B references.</li>
-<li>Force MAE is <strong>52.7% lower</strong>, while coverage inside 12 ± 1 N increases by <strong>27.5 percentage points</strong>.</li>
-<li>Actual normal-speed RMS is <strong>48.6% lower</strong>, consistent with less normal-direction excitation.</li>
-<li>The surface was prepared before both comparison campaigns, so sanding is a common condition rather than an explanation for the controller difference.</li>
-<li>Twelve newtons is an empirical preload choice supported by a low-load dropout attempt, a completed 10 N run, and a completed 12 N reference. It is not derived from the KSM-8N model name and is not claimed to be mathematically optimal.</li>
-<li>The automatic-tuning framework is implemented, but this report contains <strong>no fabricated or provisional tuning result</strong>.</li>
-</ul>
+<p class="headline-claim"><strong>At the same 12 N target and outer-loop gains, the constrained joint-space controller is markedly steadier without shifting the mean load.</strong></p>
 <div class="metrics metrics-4">
-<div class="metric"><span>Force std</span><strong>0.661 N</strong><small>57.1% below Step5B mean</small></div>
-<div class="metric"><span>Force MAE</span><strong>0.551 N</strong><small>52.7% below Step5B mean</small></div>
+<div class="metric"><span>Force std</span><strong>0.661 N</strong><small>57.1% below baseline mean</small></div>
+<div class="metric"><span>Force MAE</span><strong>0.551 N</strong><small>52.7% below baseline mean</small></div>
 <div class="metric"><span>Within ±1 N</span><strong>83.3%</strong><small>+27.5 percentage points</small></div>
-<div class="metric"><span>Normal-speed RMS</span><strong>0.187 mm/s</strong><small>48.6% below Step5B mean</small></div>
+<div class="metric"><span>Normal-speed RMS</span><strong>0.187 mm/s</strong><small>48.6% below baseline mean</small></div>
 </div>
 <div class="scope-note">
-<p><strong>Interpretation boundary.</strong> These values compare independent physical runs with matched outer-loop parameters. Step5B and Step5D use different inner command realizations, so the data support a stability comparison but do not isolate one causal component.</p>
+<p><strong>Evidence boundary.</strong> Independent physical runs support the stability comparison; they do not isolate one inner component as the sole cause.</p>
 </div>
 <details class="contents">
 <summary>Report contents</summary>
-
-1. [Executive summary](#summary)
-2. [Experimental setup and contact mechanics](#setup)
-3. [Surface preparation](#surface-preparation)
-4. [Why 12 N instead of 5 N](#why-12n)
-5. [From Step5B to Step5D](#step5b-to-step5d)
-6. [Fair comparison protocol](#comparison-protocol)
-7. [Force stability results](#force-stability)
-8. [Why Step5D appears more stable](#stability-mechanism)
-9. [Current Step5D completion boundary](#completion-boundary)
-10. [Automatic tuning objective](#tuning-objective)
-11. [Parameter grid and Bayesian Optimization](#parameter-search)
-12. [Physical experiment loop](#physical-loop)
-13. [Video evidence and next experiment](#video-next)
-
+<ol>
+<li><a href="#summary">Executive summary</a></li>
+<li><a href="#setup">Experimental setup and contact mechanics</a></li>
+<li><a href="#surface-preparation">Surface preparation</a></li>
+<li><a href="#why-12n">Why 12 N instead of 5 N</a></li>
+<li><a href="#controller-realization">Controller realization</a></li>
+<li><a href="#comparison-protocol">Fair comparison protocol</a></li>
+<li><a href="#force-stability">Force stability results</a></li>
+<li><a href="#stability-mechanism">Why the constrained controller appears more stable</a></li>
+<li><a href="#completion-boundary">Current completion boundary</a></li>
+<li><a href="#tuning-objective">Automatic tuning objective</a></li>
+<li><a href="#parameter-search">Parameter grid and Bayesian Optimization</a></li>
+<li><a href="#physical-loop">Physical experiment loop</a></li>
+<li><a href="#video-next">Video evidence and next experiment</a></li>
+</ol>
 </details>
 </section>
 <section id="setup">
 <p class="eyebrow">Experiment basis</p>
 <h2>Experimental setup and contact mechanics</h2>
-<p>The UR10e end effector uses a KSM ball-transfer unit as the rolling contact point. The measured Cartesian force is projected onto the current control normal, while the robot follows the prescribed tangential cycloid motion and regulates the normal load.</p>
+<p class="headline-claim">The robot follows a tangential cycloid while regulating compressive load through a rolling-ball contact.</p>
 <div class="grid">
 <div class="span-7">
-<h3>What the controller must regulate</h3>
-<ul>
-<li><strong>Normal direction:</strong> maintain a compressive contact load near 12 N.</li>
-<li><strong>Tangential direction:</strong> complete the same cycloid motion without injecting unnecessary normal motion.</li>
-<li><strong>Orientation:</strong> remain locally consistent with the contact frame.</li>
-<li><strong>Joint realization:</strong> convert the Cartesian objective into commands that the robot can execute smoothly and safely.</li>
-</ul>
-<p>The contact force is not determined by the outer force law alone. Surface geometry, the rolling-ball mechanism, robot kinematics, command smoothing, joint acceleration, and the low-level robot controller all affect the measured response.</p>
+<div class="concept-strip">
+<div><b>Measure</b><span>Cartesian force</span></div>
+<div><b>Project</b><span>control normal</span></div>
+<div><b>Regulate</b><span>12 N contact</span></div>
+<div><b>Move</b><span>tangential cycloid</span></div>
+</div>
+<p class="compact-note">Observed force also reflects surface geometry, ball mechanics, kinematics, command smoothing, and robot-side control.</p>
 </div>
 <div class="span-5 panel">
-<h3>Evidence timeline</h3>
+<h3>Shared experiment timeline</h3>
 <div class="timeline">
 <div><strong>Before 29 June</strong><span>Controlled surface preparation completed</span></div>
-<div><strong>2 July</strong><span>Step5B reference data collected</span></div>
-<div><strong>15 July</strong><span>Step5D comparison data collected</span></div>
+<div><strong>2 July</strong><span>Cartesian-baseline data collected</span></div>
+<div><strong>15 July</strong><span>Constrained-controller data collected</span></div>
 </div>
-<p>The preparation therefore precedes both controller comparisons.</p>
 </div>
 </div>
 </section>
 <section id="surface-preparation">
 <p class="eyebrow">Controlled experimental condition</p>
 <h2>Surface preparation</h2>
-<p><strong>The contact plate was progressively prepared using 240#, 320#, 400#, and 600# abrasive papers.</strong> The purpose was to remove local high spots and reduce abrupt changes along the rolling-contact path.</p>
+<p class="headline-claim"><strong>240# → 320# → 400# → 600#</strong> progressive preparation reduced local high spots along the rolling path.</p>
 <div class="grid align-start">
 <figure class="span-5 figure portrait-figure">
 <div class="abrasive-crop">
     <img loading="lazy" src="assets/surface_preparation_abrasives.jpg" alt="Screenshot listing 240, 320, 400, and 600 grit abrasive papers">
   </div>
-<figcaption>Abrasive papers used for controlled surface preparation: 240#, 320#, 400#, and 600#. The screenshot documents the selected materials; it is not a surface-roughness measurement.</figcaption>
+<figcaption>Used abrasive papers. No profilometer or roughness measurement is claimed.</figcaption>
 </figure>
 <figure class="span-7 figure">
 <svg class="schematic" viewBox="0 0 820 390" role="img" aria-labelledby="surface-title surface-desc">
@@ -372,11 +417,11 @@
     <marker id="arrow-gray" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#5c6872"/></marker>
   </defs>
   <text x="30" y="42" class="svg-heading">Before preparation</text>
-  <path d="M30 250 C100 238, 145 258, 205 246 L245 188 L285 248 C345 258, 372 238, 395 244" class="surface-line rough"/>
-  <circle cx="245" cy="132" r="49" class="ball"/>
-  <line x1="245" y1="182" x2="245" y2="220" class="load-arrow" marker-end="url(#arrow-blue)"/>
+  <path d="M30 250 C100 244, 145 253, 174 247 Q184 246 184 236 L184 222 Q184 215 192 215 L298 215 Q306 215 306 222 L306 237 Q306 245 318 247 C344 252, 372 240, 395 244" class="surface-line rough"/>
+  <circle cx="245" cy="166" r="49" class="ball"/>
+  <line x1="245" y1="166" x2="245" y2="205" class="load-arrow" marker-end="url(#arrow-blue)"/>
   <line x1="176" y1="235" x2="154" y2="178" class="normal-arrow" marker-end="url(#arrow-gray)"/>
-  <line x1="245" y1="188" x2="286" y2="143" class="normal-arrow" marker-end="url(#arrow-gray)"/>
+  <line x1="245" y1="214" x2="245" y2="158" class="normal-arrow" marker-end="url(#arrow-gray)"/>
   <line x1="310" y1="242" x2="330" y2="184" class="normal-arrow" marker-end="url(#arrow-gray)"/>
   <text x="151" y="290" class="svg-label">local high spot</text>
   <text x="81" y="328" class="svg-note">surface normal changes rapidly</text>
@@ -393,17 +438,17 @@
   <text x="492" y="303" class="svg-label">smoother height variation</text>
   <text x="488" y="334" class="svg-note">surface normal changes more continuously</text>
 </svg>
-<figcaption>A local high spot can create a short contact-force disturbance as the rolling ball crosses it. Progressive preparation reduces this uncontrolled geometric input, but no profilometer or R<sub>a</sub>/R<sub>z</sub> measurement is available.</figcaption>
+<figcaption>Preparation reduces abrupt geometric disturbances along the rolling path.</figcaption>
 </figure>
 </div>
 <div class="callout blue">
-<p><strong>Common-condition conclusion.</strong> Surface preparation was common to both Step5B and Step5D comparison runs. It reduced uncontrolled surface disturbances, but it does not explain the observed difference between the two controllers.</p>
+<p><strong>Comparison boundary.</strong> Both matched controller runs used the prepared surface. A pre-sanding 5 N run is shown later as context, not as a controlled controller comparison.</p>
 </div>
 </section>
 <section id="why-12n">
 <p class="eyebrow">Target-force decision</p>
 <h2>Why 12 N instead of 5 N</h2>
-<p>The preload target was selected from the installed contact mechanics and physical evidence, not from the text “8N” in the product name.</p>
+<p class="headline-claim">12 N was selected from preload behavior and completed physical runs—not from the model name.</p>
 <div class="grid three-up align-start">
 <figure class="span-4 figure product-figure">
 <div class="product-crop">
@@ -414,7 +459,7 @@
     <span><b>Main ball</b>φ 8 mm</span>
     <span><b>Vendor capacity</b>≤196 N</span>
   </div>
-<figcaption>“KSM-8N” is the model identifier; 8N does not mean 8 newtons. The same vendor image separately specifies an 8 mm main ball and a nominal load capacity of up to 196 N.</figcaption>
+<figcaption>KSM-8N is a model identifier; 8N does not mean 8 newtons. The main ball is φ8 mm.</figcaption>
 </figure>
 <figure class="span-4 figure">
 <svg class="schematic ksm" viewBox="0 0 430 470" role="img" aria-labelledby="ksm-title ksm-desc">
@@ -436,45 +481,44 @@
   <line x1="110" y1="239" x2="21" y2="239" class="leader"/><text x="10" y="218" class="svg-label">free-play /</text><text x="10" y="237" class="svg-label">reseating region</text>
   <text x="123" y="442" class="svg-label">contact surface</text>
 </svg>
-<figcaption>Engineering schematic, not to scale. The installed unit transfers load through a main ball, small supporting balls, and housing. The possible free-play/reseating region is a mechanical interpretation, not a measured deadband.</figcaption>
+<figcaption>Load passes through the main ball, supporting balls, and housing. The free-play region is an engineering interpretation, not a measured deadband.</figcaption>
 </figure>
 <div class="span-4 evidence-ladder">
 <h3>Physical evidence ladder</h3>
 <div class="evidence-step caution">
 <p><strong>5 N — insufficient margin in one attempt</strong></p>
-<p>One 5→15 N ramp attempt lost contact before the target exceeded approximately <strong>5.1 N</strong>. This is one physical attempt, not a strict mechanical threshold.</p>
+<p>Contact was lost before the ramp target exceeded approximately <strong>5.1 N</strong>. One attempt—not a threshold.</p>
 </div>
 <div class="evidence-step neutral">
 <p><strong>10 N — continuous motion validated</strong></p>
-<p>60.2 s completed; mean/median 10.26/10.21 N; p05/p95 7.11/13.47 N; max 18.55 N; 0.20 s below 5 N; 0 s above 20 N.</p>
+<p><strong>60.2 s completed</strong> · mean 10.26 N · max 18.55 N · 0 s above 20 N.</p>
 </div>
 <div class="evidence-step success">
 <p><strong>12 N — selected operating point</strong></p>
-<p>60 s completed; mean/median 12.265/12.197 N; p05/p95 10.298/14.611 N; max 16.952 N; 0 s below 5 N and 0 s above 20 N.</p>
+<p><strong>60 s completed</strong> · mean 12.265 N · max 16.952 N · 0 s below 5 N or above 20 N.</p>
 </div>
 </div>
 </div>
 <div class="callout green">
-<p><strong>Decision.</strong> Twelve newtons provides more preload margin than 5 N while remaining well inside the observed force envelope. It is about 6.1% of the vendor’s nominal 196 N component capacity, but robot and EOAT safety still depend on the actual guards and assembly—not on the vendor rating alone.</p>
+<p><strong>Decision.</strong> 12 N gives more preload margin than 5 N while remaining inside the observed envelope. It is empirical, conservative, and not claimed optimal.</p>
 </div>
 </section>
-<section id="step5b-to-step5d">
+<section id="controller-realization">
 <p class="eyebrow">Controller realization</p>
-<h2>From Step5B to Step5D</h2>
-<p>Both controllers use the same local outer force law and target:</p>
+<h2>Controller realization: Cartesian baseline versus constrained joint space</h2>
+<p class="headline-claim">The outer law is matched; the inner command realization changes.</p>
 <div class="equation">v<sub>n,cmd</sub> = 0.001 e<sub>F</sub> + 10<sup>−5</sup> ∫e<sub>F</sub>dt − 7 v<sub>n</sub>, &nbsp; F<sub>target</sub> = 12 N</div>
-<p>The difference is how that Cartesian objective becomes robot motion.</p>
 <div class="controller-compare">
-<div class="controller-row step5b">
-<div class="controller-name">Step5B</div>
+<div class="controller-row baseline">
+<div class="controller-name">Cartesian baseline</div>
 <div class="flow-node">outer force-motion law</div>
 <div class="flow-arrow">→</div>
 <div class="flow-node">Cartesian speed command</div>
 <div class="flow-arrow">→</div>
 <div class="flow-node">robot</div>
 </div>
-<div class="controller-row step5d">
-<div class="controller-name">Step5D</div>
+<div class="controller-row constrained">
+<div class="controller-name">Constrained joint-space controller</div>
 <div class="flow-node">outer force-motion law</div>
 <div class="flow-arrow">→</div>
 <div class="flow-node">constrained RNN joint velocity</div>
@@ -486,29 +530,15 @@
 <div class="flow-node">robot</div>
 </div>
 </div>
-<div class="grid">
-<div class="span-6 panel">
-<h3>What Step5D adds</h3>
-<ul>
-<li>A joint-space solver coordinates all six joints while satisfying the task-space objective.</li>
-<li>Joint-velocity changes are explicitly limited before transmission.</li>
-<li>The robot-side acceleration setting adds another smoothing boundary.</li>
-</ul>
-</div>
-<div class="span-6 panel">
-<h3>What remains matched</h3>
-<ul>
-<li>12 N target, <strong>P = 0.001</strong>, <strong>I = 10⁻⁵</strong>, <strong>damping = 7</strong>.</li>
-<li>Same integral limit and tangential gain.</li>
-<li>Locally equivalent orientation gain and the same contact path.</li>
-</ul>
-</div>
+<div class="comparison-strip">
+<div><b>Matched</b><span>12 N · P 0.001 · I 10⁻⁵ · damping 7 · path</span></div>
+<div><b>Added in the constrained route</b><span>joint-space RNN · q̇ slew limit · robot acceleration limit</span></div>
 </div>
 </section>
 <section id="comparison-protocol">
 <p class="eyebrow">Measurement contract</p>
 <h2>Fair comparison protocol</h2>
-<p><strong>The comparison keeps the outer-loop conditions fixed and reports two Step5B physical references rather than hiding run-to-run variation.</strong></p>
+<p class="headline-claim">Two Cartesian-baseline runs expose run-to-run variation under the same outer-loop settings.</p>
 <div class="grid align-start">
 <div class="span-7">
 <table>
@@ -558,31 +588,34 @@
 </tbody>
 </table>
 </div>
-<div class="span-5 panel">
-<h3>Metric definitions</h3>
+<div class="span-5 panel compact-panel">
+<h3>Headline window</h3>
+<div class="big-number">550</div>
+<p>100 ms bin means per run from 5–60 s.</p>
+<details class="technical-details">
+<summary>Metric definitions</summary>
 <ul>
-<li><strong>Force standard deviation:</strong> population standard deviation of 550 mean-load bins.</li>
-<li><strong>Force MAE:</strong> mean (|F_i-12|) over the same bins.</li>
-<li><strong>Within ±1 N:</strong> share of bins satisfying |F<sub>i</sub> − 12| ≤ 1 N.</li>
-<li><strong>Normal-speed RMS:</strong> RMS of raw Cartesian speed projected onto the control normal over the same 5–60 s interval.</li>
+<li>Force standard deviation and MAE use the 550 load bins.</li>
+<li>Within ±1 N counts bins in the 11–13 N band.</li>
+<li>Normal-speed RMS uses the matched 5–60 s interval.</li>
 </ul>
+</details>
 </div>
 </div>
-<p>The historical comparison uses elapsed monotonic time measured from the first main-control row. This preserves 550 bins for all three runs despite scheduler gaps in the Step5D recording. The first 5 s are shown separately as contact-transition context and are excluded from headline metrics.</p>
 <div class="callout amber">
-<p><strong>Limitations.</strong> These are independent physical runs, not a randomized A/B experiment. Step5B and Step5D have different inner realizations. The evidence therefore compares observed stability under matched outer parameters; it cannot attribute every improvement to the RNN alone.</p>
+<p><strong>Boundary.</strong> Independent runs compare observed stability; they are not randomized A/B evidence and cannot isolate the RNN alone.</p>
 </div>
 </section>
 <section class="results-section" id="force-stability">
 <p class="eyebrow">Matched 12 N comparison</p>
 <h2>Force stability results</h2>
-<h3>Step5D lowers fluctuation without shifting the mean load</h3>
+<h3>The constrained controller lowers fluctuation without shifting the mean load</h3>
 <table>
 <thead>
 <tr>
 <th>Metric</th>
-<th style="text-align: right;">Step5B mean</th>
-<th style="text-align: right;">Step5D</th>
+<th style="text-align: right;">Cartesian baseline mean</th>
+<th style="text-align: right;">Constrained controller</th>
 <th style="text-align: right;">Change</th>
 </tr>
 </thead>
@@ -619,90 +652,72 @@
 </tr>
 </tbody>
 </table>
-<p>The mean load changes by only 0.013 N, so the primary difference is reduced variation rather than a shifted operating point.</p>
 <figure class="figure wide">
-  <img loading="lazy" src="assets/normal_load_vs_time.svg" alt="Three aligned time-series panels comparing normal load for two Step5B references and Step5D">
-  <figcaption><b>Normal load versus time.</b> The gray 0–5 s region is shown for context and excluded from headline metrics. Step5D remains visibly tighter around the 12 N target through the full cycloid interval. Source: physical RTDE logs, independently recomputed at 100 ms.</figcaption>
+  <img loading="lazy" src="assets/normal_load_vs_time.svg" alt="Three aligned normal-load panels showing a pre-sanding 5 N context run, one prepared Cartesian-baseline 12 N run, and the prepared constrained-controller 12 N run">
+  <figcaption><b>Normal load versus time.</b> The pre-sanding panel uses its older logged normal-load channel and a 5 N target, so it is context only. The matched comparison remains Cartesian baseline versus constrained joint-space control at 12 N; gray 0–5 s transitions are excluded from headline metrics.</figcaption>
 </figure>
-<p>The time-series view shows where the aggregate improvement comes from: both Step5B references contain larger oscillatory intervals, while Step5D’s deviations are smaller and more uniform.</p>
 <figure class="figure wide">
   <img loading="lazy" src="assets/metric_small_multiples.svg" alt="Four small-multiple dot plots comparing force standard deviation, force MAE, target-band coverage, and normal-speed RMS">
-  <figcaption><b>Four matched metrics.</b> Both Step5B physical points are shown, followed by their mean and the Step5D result. This avoids presenting a single favorable Step5B run as the baseline.</figcaption>
+  <figcaption><b>Four matched metrics.</b> Both Cartesian-baseline runs, their mean, and the constrained controller are shown.</figcaption>
 </figure>
-<p>The improvement is consistent across all four headline measures: lower force spread, lower absolute error, greater target-band coverage, and lower actual normal-direction motion.</p>
 <figure class="figure wide">
-  <img loading="lazy" src="assets/five_second_stability_windows.svg" alt="Five-second mean and population-standard-deviation windows for Step5B and Step5D">
-  <figcaption><b>Five-second stability windows.</b> Error bars summarize raw-row mean ± population standard deviation in each 5 s interval. The first window is transition context; all later windows cover the motion used for the headline comparison.</figcaption>
+  <img loading="lazy" src="assets/five_second_stability_windows.svg" alt="Five-second mean and population-standard-deviation windows for the Cartesian baseline and constrained joint-space controller">
+  <figcaption><b>Five-second windows.</b> The constrained controller shows smaller within-window spread across the motion.</figcaption>
 </figure>
-<p>Step5D’s window-to-window mean still follows the contact path, but its within-window spread remains consistently smaller—especially where Step5B exhibits the largest oscillations.</p>
 </section>
 <section id="stability-mechanism">
 <p class="eyebrow">Mechanism and limits</p>
-<h2>Why Step5D appears more stable</h2>
-<p>The strongest direct mechanism evidence is the reduction in actual normal-direction motion: <strong>0.364 mm/s RMS for the Step5B mean versus 0.187 mm/s for Step5D</strong>. Less normal-motion excitation is consistent with smaller contact-force fluctuation.</p>
+<h2>Why the constrained controller appears more stable</h2>
+<p class="headline-claim">Normal-motion RMS falls from <strong>0.364 to 0.187 mm/s</strong>, consistent with lower force excitation.</p>
 <figure class="figure wide">
   <img loading="lazy" src="assets/motion_force_relationship.svg" alt="Three scatter panels showing 100 ms normal-speed RMS against absolute force error">
-  <figcaption><b>Motion–force relationship at 100 ms grain.</b> Step5D occupies a tighter low-motion, low-error region. Within-run correlations are weak (r = +0.08 to +0.22), so the chart supports co-occurrence at the run level rather than a simple one-variable causal model.</figcaption>
+  <figcaption><b>Motion–force relationship.</b> The constrained controller occupies the tighter low-motion, low-error region; weak within-run correlations do not establish single-variable causality.</figcaption>
 </figure>
-<p>Three mechanisms plausibly act together:</p>
-<ol>
-<li>The constrained RNN solver coordinates the six joints while satisfying the Cartesian task.</li>
-<li>The host joint-velocity slew limit suppresses abrupt command changes.</li>
-<li>The robot-side acceleration limit further smooths the realized joint motion.</li>
-</ol>
+<div class="mechanism-strip">
+<div><b>1</b><span>Constrained RNN coordinates six joints</span></div>
+<div><b>2</b><span>Host slew limit suppresses q̇ jumps</span></div>
+<div><b>3</b><span>Robot acceleration limit smooths realization</span></div>
+</div>
 <div class="callout amber">
-<p><strong>Causal boundary.</strong> The current runs change the entire inner realization together. The next controlled study should separately remove or vary the host slew limit and the robot-side acceleration limit before assigning the full improvement to the RNN solver.</p>
+<p><strong>Causal boundary.</strong> The inner realization changed as a bundle; slew and acceleration limits still require separate ablation.</p>
 </div>
 </section>
 <section id="completion-boundary">
 <p class="eyebrow">Current evidence boundary</p>
-<h2>Current Step5D completion boundary</h2>
+<h2>Current completion boundary</h2>
 <div class="status-grid">
-<div class="status-card done"><span>Physical evidence</span><strong>Completed</strong><p>A complete contact trajectory produced the force/path data used in this report, with the robot remaining inside the observed force envelope.</p></div>
-<div class="status-card implemented"><span>Scheduler remediation</span><strong>Implemented and checked offline</strong><p>The revised scheduling route completed an offline 60.15 s timing test with 1.18 ms p99, 4.01 ms maximum gap, and no gap above 20 ms.</p></div>
-<div class="status-card pending"><span>Remaining confirmation</span><strong>Physical run pending</strong><p>The scheduler-remediated route still needs a physical contact confirmation. A new Step5D video and tuning campaign follow after that check.</p></div>
+<div class="status-card done"><span>Physical evidence</span><strong>Completed</strong><p>Full contact trajectory and matched comparison data.</p></div>
+<div class="status-card implemented"><span>Scheduler remediation</span><strong>Offline checked</strong><p>60.15 s test · 1.18 ms p99 · 4.01 ms max gap.</p></div>
+<div class="status-card pending"><span>Remaining confirmation</span><strong>Timing evidence pending</strong><p>Link the remediated route to a synchronized run log before tuning.</p></div>
 </div>
-<p>The force-stability conclusion is tied to the completed physical run. The timing remediation is described as implemented and offline-verified—not as fully validated on the robot.</p>
+<p class="compact-note">The stability result is physical; the scheduler remediation is implemented and offline-verified, not yet physically confirmed.</p>
 </section>
 <section id="tuning-objective">
-<p class="eyebrow">No invented tuning results</p>
+<p class="eyebrow">Tuning framework</p>
 <h2>Automatic tuning objective</h2>
-<p>The optimizer minimizes force-tracking error over the same 55 s evaluation window:</p>
+<p class="headline-claim">Optimize force MAE only across complete, feasible 60 s physical trials.</p>
 <div class="equation large">J(θ) = (1/N) Σ<sub>i=1</sub><sup>N</sup> |12 N − F<sub>i</sub>|, &nbsp; N = 550</div>
-<p>Here, F<sub>i</sub> is the mean normal load in one fixed 100 ms bin from 5–60 s. The first 5 s are excluded from the objective.</p>
 <div class="grid">
-<div class="span-6 panel">
+<div class="span-6 panel compact-panel">
 <h3>Optimization variables</h3>
-<ul>
-<li>P</li>
-<li>I</li>
-<li>damping</li>
-</ul>
-<p>The execution profile—normal rate, host slew, and robot acceleration—is recorded separately so controller gains are not silently mixed with motion aggressiveness.</p>
+<div class="tag-row"><span>P</span><span>I</span><span>damping</span></div>
+<p>Execution-profile settings remain separate.</p>
 </div>
-<div class="span-6 panel">
+<div class="span-6 panel compact-panel">
 <h3>Feasibility constraints</h3>
-<ul>
-<li>safety and force-envelope checks;</li>
-<li>continuous contact;</li>
-<li>path and orientation tracking;</li>
-<li>feedback freshness and controller alignment;</li>
-<li>complete retraction and return home;</li>
-<li>a complete, immutable evidence bundle.</li>
-</ul>
+<div class="tag-row"><span>safety</span><span>contact</span><span>path</span><span>freshness</span><span>return home</span><span>evidence</span></div>
 </div>
 </div>
-<p>An infrastructure or platform failure is not treated as evidence that a gain candidate is bad. Only eligible physical trials enter the optimizer history.</p>
 <div class="callout blue">
-<p><strong>Current report state.</strong> The framework is implemented, but no eligible tuning trial is presented here. The page will add parameter history, best-so-far MAE, repeatability, and the next candidate only after real evidence exists.</p>
+<p><strong>Current state.</strong> The framework is implemented, but no eligible tuning trial is presented here. Platform failures do not count as bad gain candidates.</p>
 </div>
 </section>
 <section id="parameter-search">
 <p class="eyebrow">Structured search</p>
 <h2>Parameter grid and Bayesian Optimization</h2>
-<h3>Log-scale parameter lattice</h3>
+<p class="headline-claim">A log-scale lattice constrains Bayesian Optimization to nearby, interpretable candidates.</p>
 <div class="equation">θ = θ<sub>0</sub> · 2<sup>k/4</sup>, &nbsp; adjacent ratio = 2<sup>0.25</sup> ≈ 1.189</div>
-<p>Baseline: P₀ = 0.001, I₀ = 10⁻⁵, damping₀ = 7.</p>
+<p class="compact-note"><b>Baseline:</b> P₀ = 0.001 · I₀ = 10⁻⁵ · damping₀ = 7</p>
 <table>
 <thead>
 <tr>
@@ -733,9 +748,8 @@
 </tr>
 </tbody>
 </table>
-<p>The controller interpretation is</p>
 <div class="equation compact">M<sub>d</sub> = 1/P, &nbsp; k<sub>f</sub> = I/P, &nbsp; B<sub>d</sub> = damping/P.</div>
-<h3>Controller gains and execution profile remain separate</h3>
+<h3>Separate gain search from motion aggressiveness</h3>
 <table>
 <thead>
 <tr>
@@ -763,69 +777,59 @@
 </tbody>
 </table>
 <h3>Bayesian Optimization loop</h3>
-<ol>
-<li>Run the exact baseline.</li>
-<li>Explore adjacent grid points until at least six eligible observations exist.</li>
-<li>Fit a Gaussian Process to objective and uncertainty.</li>
-<li>Use <code>qLogNoisyExpectedImprovement</code> to choose one candidate.</li>
-<li>Limit each candidate to one grid step and one coordinate from the incumbent.</li>
-<li>Re-test the incumbent every fourth trial.</li>
-<li>Immediately repeat any candidate with MAE ≤ 0.30 N.</li>
-<li>Declare success only when two eligible repeats are both ≤ 0.30 N and differ by no more than 15%.</li>
-</ol>
+<div class="bo-loop">
+<div><b>1</b><span>Exact baseline</span></div><i>→</i>
+  <div><b>2</b><span>Adjacent lattice trials</span></div><i>→</i>
+  <div><b>3</b><span>GP + qLogNEI</span></div><i>→</i>
+  <div><b>4</b><span>Repeat and confirm</span></div>
+</div>
+<div class="comparison-strip">
+<div><b>Exploration guard</b><span>one coordinate · one grid step · incumbent retest every fourth trial</span></div>
+<div><b>Success gate</b><span>two repeats ≤ 0.30 N MAE · repeat error ≤ 15%</span></div>
+</div>
 </section>
 <section id="physical-loop">
 <p class="eyebrow">Physical evidence generation</p>
 <h2>Physical experiment loop</h2>
 <div aria-label="Physical tuning loop from home verification through candidate selection" class="experiment-loop" role="img">
-<div>verify home</div><span>→</span>
-  <div>load candidate</div><span>→</span>
-  <div>approach</div><span>→</span>
-  <div>establish contact</div><span>→</span>
+<div>verify home + load candidate</div><span>→</span>
+  <div>approach + establish contact</div><span>→</span>
   <div>run 60 s cycloid at 12 N</div><span>→</span>
-  <div>retract</div><span>→</span>
-  <div>return home</div><span>→</span>
-  <div>verify safety and save evidence</div><span>→</span>
-  <div>select next candidate</div>
+  <div>retract + return home</div><span>→</span>
+  <div>validate evidence + select next candidate</div>
 </div>
-<p>The loop is serial: one candidate is physically evaluated, safely closed out, checked for evidence eligibility, and only then exposed to the optimizer. Safety, contact continuity, path tracking, and the return-home result remain hard gates rather than soft objective penalties.</p>
 <h3>Report update pipeline</h3>
 <div class="pipeline">
-<div>raw CSVs</div><span>→</span><div>comparison script</div>
-<p><span>→</span><div>metrics JSON + SVG/PNG</div><span>→</span><div>Markdown source</div><span>→</span><div>HTML report</div>
-</div></p>
-<p>If eligible tuning trials become available, the same pipeline adds parameter history, best-so-far MAE, repeatability, and the next proposed candidate. If no eligible trial exists, the report keeps the framework only.</p>
+<div>raw CSVs</div><span>→</span>
+  <div>comparison script</div><span>→</span>
+  <div>metrics JSON + SVG/PNG</div><span>→</span>
+  <div>Markdown source</div><span>→</span>
+  <div>HTML report</div>
+</div>
+<p class="compact-note">Only a complete, safe trial enters optimizer history; the report adds results only after eligible evidence exists.</p>
 </section>
 <section id="video-next">
-<p class="eyebrow">Evidence handoff</p>
+<p class="eyebrow">Physical evidence</p>
 <h2>Video evidence and next experiment</h2>
 <div class="grid align-start">
 <figure class="span-5 figure video-figure">
-<video aria-label="Previous external-loop contact-control demo used as a temporary video placeholder" controls poster="assets/previous_contact_control_demo_poster.jpg" preload="metadata" src="assets/previous_contact_control_demo.mp4"></video>
-<figcaption><b>Previous contact-control demo — placeholder until the new Step5D recording is available.</b> This is context footage from an earlier external-loop experiment, not Step5D physical evidence.</figcaption>
+<video aria-label="Latest constrained-controller physical rolling-contact recording" controls poster="assets/latest_constrained_controller_contact_demo_poster.jpg" preload="metadata" src="assets/latest_constrained_controller_contact_demo.mp4"></video>
+<figcaption><b>Latest constrained-controller contact recording.</b> The video shows physical rolling contact on the prepared surface; it does not by itself validate scheduler timing or the force metrics.</figcaption>
 </figure>
 <div class="span-7">
 <h3>Next physical sequence</h3>
 <ol>
 <li>Confirm the scheduler-remediated route in one guarded physical contact run.</li>
-<li>Record a new Step5D video under the matched 12 N condition.</li>
-<li>Run the exact tuning baseline before proposing a new candidate.</li>
-<li>Admit only complete, safe trials with all 550 objective bins.</li>
-<li>Update this report automatically from the new evidence bundle.</li>
+<li>Link the video, controller configuration, and synchronized run log.</li>
+<li>Run the exact tuning baseline, then admit only complete 550-bin trials.</li>
 </ol>
-<h3>Questions the next experiment should answer</h3>
-<ul>
-<li>Does the timing remediation preserve the force-stability result on hardware?</li>
-<li>How much improvement comes from the RNN solver versus host slew limiting and robot acceleration limiting?</li>
-<li>Can the tuning objective reach MAE ≤ 0.30 N twice with ≤15% repeat error?</li>
-</ul>
 <div class="callout green">
-<p><strong>Current takeaway.</strong> Step5D has completed the contact task with materially lower force fluctuation and normal-motion activity under the matched outer-loop setting. The next claim boundary is physical timing confirmation, followed by controlled gain and execution-profile ablations.</p>
+<p><strong>Next questions.</strong> Does the timing fix preserve stability? Which inner limit contributes most? Can MAE reach 0.30 N twice with ≤15% repeat error?</p>
 </div>
 </div>
 </div>
 </section>
-    <footer>Audience-facing report generated from the retained Markdown source and independently recomputed physical evidence.</footer>
+    <footer>UR10e contact-control progress · Group meeting · 16 July 2026</footer>
   </main>
   <script>
     (() => {

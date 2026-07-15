@@ -13,12 +13,26 @@
     "success_mae_n": 0.3
   },
   "comparison": {
+    "baseline_mean": {
+      "force_mae_n": 1.1654249391819245,
+      "force_std_n": 1.539412733604462,
+      "mean_load_n": 12.277543907674218,
+      "normal_speed_rms_mm_s": 0.3643261184250232,
+      "within_1n_pct": 55.81818181818181
+    },
     "bin_width_s": 0.1,
+    "constrained_change": {
+      "force_mae_reduction_pct": 52.68571586643815,
+      "force_std_reduction_pct": 57.07205861014122,
+      "mean_load_change_n": -0.012719910823198788,
+      "normal_speed_rms_reduction_pct": 48.621767061629015,
+      "within_1n_change_pp": 27.454545454545467
+    },
     "first_5s": "shown as transition context; excluded from headline metrics",
     "headline_metrics_use": "550 mean-load values from fixed 100 ms bins",
     "normal_speed_metric_use": "raw rows in the same 5-60 s interval",
     "runs": {
-      "step5b_a": {
+      "baseline_a": {
         "five_second_windows": [
           {
             "end_s": 5.0,
@@ -105,7 +119,7 @@
             "std_n": 0.7329408641080059
           }
         ],
-        "label": "Step5B Reference A",
+        "label": "Cartesian baseline A",
         "metrics": {
           "bins": 550,
           "force_mae_n": 0.9733963246305695,
@@ -120,7 +134,7 @@
         "projection_check_max_abs_n": 1.0420614771078363e-07,
         "sha256": "b8351dd7641300703dbd3a53eb247beadba5b00833b1126bf2abc094edaf368c"
       },
-      "step5b_b": {
+      "baseline_b": {
         "five_second_windows": [
           {
             "end_s": 5.0,
@@ -207,7 +221,7 @@
             "std_n": 1.1855271216587002
           }
         ],
-        "label": "Step5B Reference B",
+        "label": "Cartesian baseline B",
         "metrics": {
           "bins": 550,
           "force_mae_n": 1.3574535537332795,
@@ -222,7 +236,7 @@
         "projection_check_max_abs_n": 1.0553167406612829e-07,
         "sha256": "9dfddc7dc9410b412f25017eaad715488bdaed2889805875b247efb9aa3a5c85"
       },
-      "step5d": {
+      "constrained": {
         "five_second_windows": [
           {
             "end_s": 5.0,
@@ -309,7 +323,7 @@
             "std_n": 0.5531746203123994
           }
         ],
-        "label": "Step5D",
+        "label": "Constrained joint-space controller",
         "metrics": {
           "bins": 550,
           "force_mae_n": 0.5514124670879261,
@@ -325,20 +339,6 @@
         "sha256": "521b8dcdea0a9698dec64a4b0d7112b14d9e300d55fec7d4ebaec8271c2633ff"
       }
     },
-    "step5b_mean": {
-      "force_mae_n": 1.1654249391819245,
-      "force_std_n": 1.539412733604462,
-      "mean_load_n": 12.277543907674218,
-      "normal_speed_rms_mm_s": 0.3643261184250232,
-      "within_1n_pct": 55.81818181818181
-    },
-    "step5d_change": {
-      "force_mae_reduction_pct": 52.68571586643815,
-      "force_std_reduction_pct": 57.07205861014122,
-      "mean_load_change_n": -0.012719910823198788,
-      "normal_speed_rms_reduction_pct": 48.621767061629015,
-      "within_1n_change_pp": 27.454545454545467
-    },
     "target_force_n": 12.0,
     "time_basis": "monotonic elapsed from first main contact-control row",
     "time_window_s": [
@@ -346,7 +346,7 @@
       60.0
     ]
   },
-  "schema": "step5d_group_meeting_metrics_v1",
+  "schema": "ur10e_force_control_group_meeting_metrics_v1",
   "surface_preparation": {
     "abrasive_grits": [
       240,
@@ -354,7 +354,16 @@
       400,
       600
     ],
-    "common_to_step5b_and_step5d": true,
+    "common_to_matched_controllers": true,
+    "pre_sanding_context": {
+      "bins": 550,
+      "comparison_role": "visual context only; not part of matched controller headline metrics",
+      "label": "Before surface preparation \u00b7 5 N context",
+      "load_source": "logged direct normal-load channel",
+      "projection_check_max_abs_n": 0.49810239155542824,
+      "sha256": "0d9f2b69a0e4fa19bdf9a52bf0bd4ded037b7e67f95a8b004954cd7f50cd71ce",
+      "target_force_n": 5.0
+    },
     "roughness_measurement_available": false
   },
   "target_selection": {

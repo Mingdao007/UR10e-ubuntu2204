@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Recompute the Step5B/Step5D comparison and build report figures.
+"""Recompute the baseline/constrained-controller comparison and build report figures.
 
 This script is deliberately read-only with respect to experiment evidence. It
 selects the main contact-control interval, reconstructs the projected normal
@@ -10,7 +10,7 @@ Historical comparison time base:
     elapsed = t_monotonic_s - first_main_control_t_monotonic_s
 
 This is intentionally different from the future autotune campaign's frozen
-path-time contract. Using path time for the historical Step5D run produces 545
+path-time contract. Using path time for the historical constrained-controller run produces 545
 instead of 550 comparison bins and therefore fails validation.
 """
 
@@ -50,27 +50,42 @@ LIGHT_GREEN = "#e9f3ef"
 
 RUN_SPECS = (
     {
-        "key": "step5b_a",
-        "label": "Step5B Reference A",
+        "key": "baseline_a",
+        "label": "Cartesian baseline A",
+        "display_label": "Prepared surface · Cartesian baseline",
         "state": 30,
+        "target_n": 12.0,
         "color": BLUE,
         "sha256": "b8351dd7641300703dbd3a53eb247beadba5b00833b1126bf2abc094edaf368c",
     },
     {
-        "key": "step5b_b",
-        "label": "Step5B Reference B",
+        "key": "baseline_b",
+        "label": "Cartesian baseline B",
         "state": 30,
+        "target_n": 12.0,
         "color": AMBER,
         "sha256": "9dfddc7dc9410b412f25017eaad715488bdaed2889805875b247efb9aa3a5c85",
     },
     {
-        "key": "step5d",
-        "label": "Step5D",
+        "key": "constrained",
+        "label": "Constrained joint-space controller",
+        "display_label": "Prepared surface · Constrained joint-space controller",
         "state": 524,
+        "target_n": 12.0,
         "color": GREEN,
         "sha256": "521b8dcdea0a9698dec64a4b0d7112b14d9e300d55fec7d4ebaec8271c2633ff",
     },
 )
+
+PRE_SANDING_SPEC = {
+    "key": "pre_sanding_context",
+    "label": "Before surface preparation · 5 N context",
+    "state": 30,
+    "target_n": 5.0,
+    "load_source": "logged direct normal-load channel",
+    "color": DANGER,
+    "sha256": "0d9f2b69a0e4fa19bdf9a52bf0bd4ded037b7e67f95a8b004954cd7f50cd71ce",
+}
 
 REQUIRED_COLUMNS = (
     "t_monotonic_s",
@@ -90,9 +105,10 @@ REQUIRED_COLUMNS = (
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--step5b-a", type=Path, required=True)
-    parser.add_argument("--step5b-b", type=Path, required=True)
-    parser.add_argument("--step5d", type=Path, required=True)
+    parser.add_argument("--pre-sanding", type=Path, required=True)
+    parser.add_argument("--baseline-a", type=Path, required=True)
+    parser.add_argument("--baseline-b", type=Path, required=True)
+    parser.add_argument("--constrained", type=Path, required=True)
     parser.add_argument("--five-n-summary", type=Path, required=True)
     parser.add_argument("--ten-n-summary", type=Path, required=True)
     parser.add_argument("--twelve-n-summary", type=Path, required=True)
@@ -151,11 +167,15 @@ def prepare_run(path: Path, spec: Mapping[str, Any]) -> Dict[str, Any]:
         ["ur_actual_TCP_speed_0", "ur_actual_TCP_speed_1", "ur_actual_TCP_speed_2"]
     ].apply(pd.to_numeric, errors="coerce").to_numpy(float)
 
-    selected["normal_load_n"] = np.einsum("ij,ij->i", force, normal)
+    projected_load = np.einsum("ij,ij->i", force, normal)
     selected["normal_speed_mm_s"] = 1000.0 * np.einsum("ij,ij->i", speed, normal)
     direct = pd.to_numeric(selected["_step4e_normal_load_n"], errors="coerce").to_numpy(float)
-    max_load_disagreement = float(np.nanmax(np.abs(direct - selected["normal_load_n"].to_numpy())))
-    if max_load_disagreement > 1e-5:
+    max_load_disagreement = float(np.nanmax(np.abs(direct - projected_load)))
+    if spec.get("load_source") == "logged direct normal-load channel":
+        selected["normal_load_n"] = direct
+    else:
+        selected["normal_load_n"] = projected_load
+    if spec.get("load_source") != "logged direct normal-load channel" and max_load_disagreement > 1e-5:
         raise ValueError(
             f"{spec['label']}: projected-load reconstruction disagrees by {max_load_disagreement:.6g} N"
         )
@@ -244,6 +264,7 @@ def prepare_run(path: Path, spec: Mapping[str, Any]) -> Dict[str, Any]:
         "sha256": actual_hash,
         "metrics": metrics,
         "windows": windows,
+        "plot_raw": plot_rows,
         "plot_binned": plot_binned,
         "binned": binned,
         "correlation": correlation,
@@ -335,36 +356,60 @@ def plot_normal_load(runs: List[Mapping[str, Any]], assets: Path) -> None:
     fig, axes = plt.subplots(3, 1, figsize=(12.0, 7.6), sharex=True, sharey=True)
     fig.suptitle("Normal load versus time", x=0.08, ha="left", fontsize=17, color=INK, weight="bold")
     for axis, run in zip(axes, runs):
-        data = run["plot_binned"]
-        axis.axhspan(11.0, 13.0, color=LIGHT_BLUE, alpha=0.8, zorder=0)
+        raw = run["plot_raw"]
+        mean = run["plot_binned"]
+        target_n = float(run["spec"]["target_n"])
+        band_color = "#f8e9e5" if target_n == 5.0 else LIGHT_BLUE
+        axis.axhspan(target_n - 1.0, target_n + 1.0, color=band_color, alpha=0.8, zorder=0)
         axis.axvspan(0.0, 5.0, color=LINE, alpha=0.65, zorder=0)
-        axis.axhline(TARGET_N, color=INK, linewidth=1.0, linestyle="--", zorder=1)
+        axis.axhline(target_n, color=INK, linewidth=1.0, linestyle="--", zorder=1)
         axis.plot(
-            data["elapsed_s"],
-            data["normal_load_n"],
+            raw["elapsed_s"],
+            raw["normal_load_n"],
             color=run["spec"]["color"],
-            linewidth=1.15,
+            alpha=0.18,
+            linewidth=0.35,
+            label="RTDE-row normal load",
+            zorder=2,
+        )
+        axis.plot(
+            mean["elapsed_s"],
+            mean["normal_load_n"],
+            color=run["spec"]["color"],
+            linewidth=1.25,
+            label="100 ms mean",
+            zorder=3,
         )
         axis.text(
             0.012,
             0.84,
-            run["spec"]["label"],
+            run["spec"].get("display_label", run["spec"]["label"]),
             transform=axis.transAxes,
             color=INK,
             fontsize=10.5,
             weight="bold",
         )
-        axis.set_ylim(4.5, 20.2)
+        axis.set_ylim(0.0, 30.0)
         axis.set_ylabel("Load [N]", color=INK, fontsize=10)
+        axis.text(
+            0.988,
+            target_n / 30.0 + 0.012,
+            f"{target_n:.0f} N target",
+            transform=axis.transAxes,
+            ha="right",
+            va="bottom",
+            fontsize=8.2,
+            color=INK,
+        )
         style_axis(axis)
     axes[-1].set_xlim(0.0, 60.0)
     axes[-1].set_xlabel("Elapsed main-control time [s]", color=INK, fontsize=10.5)
     axes[0].text(2.5, 18.6, "excluded transition", ha="center", va="center", fontsize=8.5, color=MUTED)
-    axes[0].text(58.8, 12.2, "12 N", ha="right", va="bottom", fontsize=8.5, color=INK)
+    axes[0].legend(frameon=False, ncol=2, loc="upper right", fontsize=8.5)
     fig.text(
         0.08,
         0.925,
-        "100 ms mean load; first 5 s shown for context and excluded from headline metrics",
+        "Pre-sanding 5 N run is contextual only; both prepared controllers use the matched 12 N condition",
         ha="left",
         fontsize=10,
         color=MUTED,
@@ -380,7 +425,7 @@ def plot_metric_comparison(runs: List[Mapping[str, Any]], b_mean: Mapping[str, f
         ("within_1n_pct", "Samples within +/-1 N", "%", "higher is better"),
         ("normal_speed_rms_mm_s", "Actual normal-speed RMS", "mm/s", "lower is better"),
     )
-    labels = ["B Ref A", "B Ref B", "B mean", "Step5D"]
+    labels = ["Baseline A", "Baseline B", "Baseline mean", "Constrained"]
     x = np.arange(4)
     fig, axes = plt.subplots(2, 2, figsize=(12.0, 7.6))
     fig.suptitle("Matched-condition metric comparison", x=0.08, ha="left", fontsize=17, color=INK, weight="bold")
@@ -412,7 +457,7 @@ def plot_metric_comparison(runs: List[Mapping[str, Any]], b_mean: Mapping[str, f
     fig.text(
         0.08,
         0.925,
-        "Two physical Step5B references are retained; the comparison baseline is their arithmetic mean",
+        "Two physical Cartesian-baseline runs are retained; the comparison baseline is their arithmetic mean",
         ha="left",
         fontsize=10,
         color=MUTED,
@@ -529,10 +574,11 @@ def main() -> None:
     assets.mkdir(parents=True, exist_ok=True)
 
     paths = {
-        "step5b_a": args.step5b_a,
-        "step5b_b": args.step5b_b,
-        "step5d": args.step5d,
+        "baseline_a": args.baseline_a,
+        "baseline_b": args.baseline_b,
+        "constrained": args.constrained,
     }
+    pre_sanding = prepare_run(args.pre_sanding, PRE_SANDING_SPEC)
     runs = [prepare_run(paths[spec["key"]], spec) for spec in RUN_SPECS]
     b_mean = mean_metrics(runs[:2])
     d = runs[2]["metrics"]
@@ -549,13 +595,13 @@ def main() -> None:
         args.five_n_summary, args.ten_n_summary, args.twelve_n_summary
     )
 
-    plot_normal_load(runs, assets)
+    plot_normal_load([pre_sanding, runs[0], runs[2]], assets)
     plot_metric_comparison(runs, b_mean, assets)
     plot_five_second_windows(runs, assets)
     plot_motion_force_relationship(runs, assets)
 
     metrics = {
-        "schema": "step5d_group_meeting_metrics_v1",
+        "schema": "ur10e_force_control_group_meeting_metrics_v1",
         "comparison": {
             "target_force_n": TARGET_N,
             "time_window_s": [COMPARISON_START_S, COMPARISON_END_S],
@@ -575,14 +621,23 @@ def main() -> None:
                 }
                 for run in runs
             },
-            "step5b_mean": b_mean,
-            "step5d_change": changes,
+            "baseline_mean": b_mean,
+            "constrained_change": changes,
         },
         "target_selection": target_selection,
         "surface_preparation": {
             "abrasive_grits": [240, 320, 400, 600],
-            "common_to_step5b_and_step5d": True,
+            "common_to_matched_controllers": True,
             "roughness_measurement_available": False,
+            "pre_sanding_context": {
+                "label": pre_sanding["spec"]["label"],
+                "target_force_n": pre_sanding["spec"]["target_n"],
+                "load_source": pre_sanding["spec"]["load_source"],
+                "sha256": pre_sanding["sha256"],
+                "bins": pre_sanding["metrics"]["bins"],
+                "projection_check_max_abs_n": pre_sanding["projection_check_max_abs_n"],
+                "comparison_role": "visual context only; not part of matched controller headline metrics",
+            },
         },
         "autotune": {
             "physical_tuning_results_available": False,
