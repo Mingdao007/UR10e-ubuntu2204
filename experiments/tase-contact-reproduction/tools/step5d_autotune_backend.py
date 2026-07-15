@@ -152,6 +152,7 @@ class Step5dV35Backend:
         "tools/step5d_autotune_store.py",
         "tools/step5d_autotune_supervisor.py",
         "tools/step5d_autotune_coordinator.py",
+        "tools/run_step5d_autotune_campaign.py",
         "tools/step5d_paper_outer_loop.py",
         "tools/step5d_control_contract.py",
         "tools/step5c_strict_rnn.py",
@@ -162,6 +163,7 @@ class Step5dV35Backend:
     CONFIG_PATHS = (
         "config/step5d_autotune_campaign_v1.json",
         "config/schemas/step5d_autotune_campaign_v1.schema.json",
+        "config/reviews/step5d_autotune_campaign_launcher_fable5_unavailable.json",
         "config/step5_stage_table.json",
         "config/current_stage.json",
         "config/step5_safe_frame.json",
@@ -453,15 +455,31 @@ class Step5dV35Backend:
             and (campaign_row.get("current_binding") or {}).get("is_current") is True
         )
         evidence["campaign_current_active"] = campaign_current_active
+        cuda_available = False
+        try:
+            import cupy
+
+            cupy_devices = int(cupy.cuda.runtime.getDeviceCount())
+            evidence["cupy_version"] = cupy.__version__
+            evidence["cupy_device_count"] = cupy_devices
+            cuda_available = cupy_devices > 0
+            if cuda_available:
+                properties = cupy.cuda.runtime.getDeviceProperties(0)
+                name = properties.get("name", "unknown")
+                evidence["gpu_name"] = (
+                    name.decode("utf-8", errors="replace")
+                    if isinstance(name, bytes)
+                    else str(name)
+                )
+        except (ImportError, RuntimeError):
+            evidence["cupy_device_count"] = 0
         try:
             import torch
 
-            cuda_available = bool(torch.cuda.is_available())
             evidence["torch_version"] = torch.__version__
-            if cuda_available:
-                evidence["gpu_name"] = torch.cuda.get_device_name(0)
+            evidence["torch_cuda_available"] = bool(torch.cuda.is_available())
         except ImportError:
-            cuda_available = False
+            evidence["torch_cuda_available"] = False
         live_authorized = bool(
             authorization
             and authorization.live_authorized

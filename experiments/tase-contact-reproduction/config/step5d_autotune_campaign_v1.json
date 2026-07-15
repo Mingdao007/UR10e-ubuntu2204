@@ -20,6 +20,7 @@
     "execution_profile_integer_id": 111,
     "normal_filter_tau_s": 0.35,
     "normal_filter_dt_mode": "fixed_0.002s",
+    "f0_shadow_reaction_normal_base": [0.0, 0.0, 1.0],
     "normal_max_rate_rad_s": 0.01,
     "qdot_cap_rad_s": 0.5,
     "host_qdot_slew_rad_s2": 0.1,

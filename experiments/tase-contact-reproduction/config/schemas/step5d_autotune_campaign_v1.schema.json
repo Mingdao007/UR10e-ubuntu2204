@@ -21,7 +21,7 @@
     },
     "baseline": {
       "type": "object", "additionalProperties": false,
-      "required": ["target_force_n", "force_candidate", "outer_tangential_kp", "execution_profile_id", "execution_profile_integer_id", "normal_filter_tau_s", "normal_filter_dt_mode", "normal_max_rate_rad_s", "qdot_cap_rad_s", "host_qdot_slew_rad_s2", "tp_speedj_accel_rad_s2"],
+      "required": ["target_force_n", "force_candidate", "outer_tangential_kp", "execution_profile_id", "execution_profile_integer_id", "normal_filter_tau_s", "normal_filter_dt_mode", "f0_shadow_reaction_normal_base", "normal_max_rate_rad_s", "qdot_cap_rad_s", "host_qdot_slew_rad_s2", "tp_speedj_accel_rad_s2"],
       "properties": {
         "target_force_n": {"const": 12.0},
         "force_candidate": {
@@ -38,6 +38,7 @@
         "execution_profile_integer_id": {"const": 111},
         "normal_filter_tau_s": {"const": 0.35},
         "normal_filter_dt_mode": {"const": "fixed_0.002s"},
+        "f0_shadow_reaction_normal_base": {"type": "array", "prefixItems": [{"const": 0.0}, {"const": 0.0}, {"const": 1.0}], "items": false, "minItems": 3, "maxItems": 3},
         "normal_max_rate_rad_s": {"const": 0.01},
         "qdot_cap_rad_s": {"const": 0.5},
         "host_qdot_slew_rad_s2": {"const": 0.1},
