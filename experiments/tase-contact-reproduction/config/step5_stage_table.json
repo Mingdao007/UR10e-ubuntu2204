@@ -10366,7 +10366,7 @@
         }
       },
       "formal_timing": {"status": "pending"},
-      "review_v3": {"status": "pending"},
+      "review_v3": {"status": "skipped_unavailable_pending_completed_review", "requested_stack": "fable_only_by_explicit_user_direction", "effective_stack": "0+0", "verdict": null, "evidence": "config/reviews/step5d_autotune_v1_fable5_unavailable.json", "evidence_sha256": "368e6dbc80d87677bdaf903061cf7dacb8933acee9aa0d490707a2337233a428", "live_effect": "blocked"},
       "current_binding": {"is_current": false, "stage_id": "step5d_strict_rnn_autotune_v1", "program": "step5d_strict_rnn_autotune_v1", "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v1.urp", "current_stage_pointer": "config/current_stage.json", "live_authorized": false}
     }
   ]
