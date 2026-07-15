@@ -1,0 +1,100 @@
+{
+  "schema": "step5d.autotune.deployment/v2",
+  "deployment": {
+    "id": "step5d-autotune-v2-offline-20260715-r1",
+    "code_fingerprint": "auto",
+    "tp_fingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
+    "guard_fingerprint": "auto",
+    "authorized": false,
+    "controller_readback_verified": false,
+    "readback_attestation": null
+  },
+  "controller": {
+    "host": "192.168.1.18",
+    "required_ports": [29999, 30004],
+    "program": "step5d_strict_rnn_autotune_v2",
+    "waypoint_policy": "fetch_current_triplet_before_build"
+  },
+  "execution_profile": {
+    "normal_max_rate_rad_s": "0.05",
+    "host_qdot_slew_rad_s2": "0.5",
+    "tp_speedj_accel_rad_s2": "0.5",
+    "qdot_cap_rad_s": "0.5"
+  },
+  "search_envelope": {
+    "p_d_log2_octaves": ["-1", "1"], "i_log2_octaves": ["0", "11"],
+    "log2_step": "0.25", "i_gain_max": "0.021",
+    "coarse_i_multipliers": ["10", "50", "100", "500", "1000"]
+  },
+  "control_contract": {
+    "force_math_changed": false,
+    "trajectory_changed": false,
+    "command_order_changed": false,
+    "guard_sources": [
+      "config/step5_safe_frame.json",
+      "config/step5d_autotune_i_scale_sanity_v1.json",
+      "tools/contact_semantics.py",
+      "tools/step5d_control_contract.py"
+    ]
+  },
+  "code_sources": [
+    "tools/kunwei_rtde_bridge.py",
+    "tools/step5d_runtime_interface.py",
+    "tools/step5d_paper_outer_loop.py",
+    "tools/step5d_autotune_v2/model.py",
+    "tools/step5d_autotune_v2/config.py",
+    "tools/step5d_autotune_v2/reducer.py", "tools/step5d_autotune_v2/repository_schema.py",
+    "tools/step5d_autotune_v2/repository_runtime.py", "tools/step5d_autotune_v2/repository_views.py",
+    "tools/step5d_autotune_v2/repository.py",
+    "tools/step5d_autotune_v2/mailbox.py",
+    "tools/step5d_autotune_v2/dashboard.py",
+    "tools/step5d_autotune_v2/bridge.py",
+    "tools/step5d_autotune_v2/heartbeat.py",
+    "tools/step5d_autotune_v2/runtime.py",
+    "tools/step5d_autotune_v2/supervisor.py",
+    "tools/step5d_autotune_v2/readiness.py",
+    "tools/step5d_autotune_v2/postprocess.py", "tools/step5d_autotune_v2/report.py",
+    "tools/step5d_autotune_v2/transfer.py",
+    "tools/step5d_autotune_v2/tp_watchdog.py",
+    "tools/step5d_autotune_v2/service.py",
+    "tools/step5d_autotune_v2/cli.py",
+    "tools/step5d-autotunectl.py",
+    "tools/postprocess_step5d_autotune_v2.py",
+    "tools/publish_step5d_autotune_plot.py"
+  ],
+  "bridge": {
+    "live_enabled": false,
+    "argv": [],
+    "environment": {},
+    "analyzer_argv": [
+      "python3",
+      "{root}/tools/postprocess_step5d_autotune_v2.py",
+      "--capture", "{capture}",
+      "--trial-id", "{trial_id}",
+      "--output-dir", "{runtime_root}/plots"
+    ],
+    "ready_timeout_s": 15,
+    "trial_timeout_s": 180
+  },
+  "postprocess": {
+    "mac_destination": "andyl@100.127.94.11:/Users/andyl/Downloads/step5d_autotune/",
+    "transfer_timeout_s": 15
+  },
+  "paths": {
+    "database": "runs/step5d_autotune_v2/control_plane.sqlite3",
+    "mailbox": "runs/step5d_autotune_v2/runtime/command.json",
+    "heartbeat": "runs/step5d_autotune_v2/runtime/host_heartbeat.json",
+    "runtime_root": "runs/step5d_autotune_v2/runtime"
+  },
+  "live_cutover": {
+    "enabled": false,
+    "status_freshness_s": 5,
+    "golden_replay_attestation": "config/step5/golden_replay_g10_v2_result.json",
+    "blocked_until": [
+      "controller_reachable",
+      "current_triplet_fetched",
+      "tp_watchdog_diff_verified",
+      "fresh_controller_readback"
+    ]
+  }
+}
