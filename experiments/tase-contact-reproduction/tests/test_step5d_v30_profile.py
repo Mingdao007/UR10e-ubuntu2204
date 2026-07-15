@@ -501,7 +501,7 @@ class Step5dV30ProfileTest(unittest.TestCase):
         self.assertIsNone(startup_miss.step5d_last_qdot)
         self.assertEqual(startup_miss.step5d_v30_sequence, 0)
 
-    def test_v30_startup_health_heartbeat_is_precommand_only(self) -> None:
+    def test_v30_health_heartbeat_covers_continuous_autotune_intertrial(self) -> None:
         source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(
             encoding="utf-8"
         )
@@ -526,10 +526,23 @@ class Step5dV30ProfileTest(unittest.TestCase):
         self.assertTrue(
             published(
                 v30_contract_profile=True,
+                continuous_autotune_profile=False,
                 rtde_send_succeeded=True,
                 command_publishable=False,
                 stop_dominant=False,
                 last_published_command=None,
+                publish_action="scaffold",
+            )
+        )
+        self.assertTrue(
+            published(
+                v30_contract_profile=True,
+                continuous_autotune_profile=True,
+                rtde_send_succeeded=True,
+                command_publishable=False,
+                stop_dominant=False,
+                last_published_command={"step4e_cmd_valid": 1.0},
+                publish_action="scaffold",
             )
         )
         for override in (
@@ -537,14 +550,25 @@ class Step5dV30ProfileTest(unittest.TestCase):
             {"rtde_send_succeeded": False},
             {"command_publishable": True},
             {"stop_dominant": True},
-            {"last_published_command": {"step4e_cmd_valid": 1.0}},
+            {
+                "continuous_autotune_profile": True,
+                "last_published_command": {"step4e_cmd_valid": 1.0},
+                "publish_action": "hold_last",
+            },
+            {
+                "continuous_autotune_profile": True,
+                "last_published_command": {"step4e_cmd_valid": 1.0},
+                "publish_action": "startup_invalid",
+            },
         ):
             args = {
                 "v30_contract_profile": True,
+                "continuous_autotune_profile": False,
                 "rtde_send_succeeded": True,
                 "command_publishable": False,
                 "stop_dominant": False,
                 "last_published_command": None,
+                "publish_action": "scaffold",
             }
             args.update(override)
             with self.subTest(override=override):

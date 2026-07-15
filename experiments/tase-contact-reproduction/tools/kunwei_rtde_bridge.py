@@ -7897,26 +7897,39 @@ def step5d_publish_action(
 def step5d_startup_health_heartbeat_published(
     *,
     v30_contract_profile: bool,
+    continuous_autotune_profile: bool,
     rtde_send_succeeded: bool,
     command_publishable: bool,
     stop_dominant: bool,
     last_published_command: Mapping[str, float] | None,
+    publish_action: str,
 ) -> bool:
-    """Advance health heartbeat only before the first motion command exists.
+    """Advance health heartbeat while a sent packet is deliberately motionless.
 
     The TP Stage 20 readiness handshake needs a changing heartbeat while the
-    bridge deliberately publishes cmd_valid=0 and zero qdot.  After the first
-    valid command, heartbeat again means command freshness and may not advance
-    for a held/deadline-missed packet.
+    bridge deliberately publishes cmd_valid=0 and zero qdot.  Continuous
+    autotune returns to that state between trials, after a motion command has
+    already existed, so its scaffold/idle/clear packets must keep advancing
+    the health heartbeat too.  Stage25 invalid/held packets are excluded:
+    there heartbeat still means command freshness.
     """
 
-    return bool(
+    precommand_health = bool(
         v30_contract_profile
         and rtde_send_succeeded
         and not command_publishable
         and not stop_dominant
         and last_published_command is None
     )
+    continuous_autotune_health = bool(
+        continuous_autotune_profile
+        and v30_contract_profile
+        and rtde_send_succeeded
+        and not command_publishable
+        and not stop_dominant
+        and publish_action in {"scaffold", "preload", "qdot_clear", "idle_invalid"}
+    )
+    return precommand_health or continuous_autotune_health
 
 
 def step5d_qdot_clear_packet_publishable(
@@ -11233,10 +11246,14 @@ def main(argv: list[str] | None = None) -> int:
                         v30_contract_profile=uses_v30_control_contract(
                             args.bridge_profile
                         ),
+                        continuous_autotune_profile=(
+                            args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID
+                        ),
                         rtde_send_succeeded=rtde_send_succeeded,
                         command_publishable=command_publishable,
                         stop_dominant=stop_dominant,
                         last_published_command=last_published_step5d_command,
+                        publish_action=publish_action,
                     )
                     if fresh_candidate_published:
                         last_published_step5d_command = {
