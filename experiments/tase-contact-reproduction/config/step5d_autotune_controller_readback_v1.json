@@ -5,30 +5,30 @@
   "target_source": "table",
   "local_dir": "programs/step5/step5d",
   "validation": {
-    "stamp": "20260715_094500",
+    "stamp": "2026-07-15T1001HKT_STEP5D_STRICT_RNN_AUTOTUNE_V1",
     "program": "step5d_strict_rnn_autotune_v1",
     "target_dir": "/programs/andyl/kunwei/step5",
     "installation_relative_path": "../../../default",
     "script_node_path": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v1.script",
-    "urp_sha256": "8e905698cbda0bdc7dc38e85497dd0418e629fce299818c3205de553c87227f5",
-    "script_sha256": "dac941202364056e651121d471eac143fb19d5811f7846b76b3d91c26a9ded7a",
-    "txt_sha256": "08bc34274bd387fd8b7a55b7eb10ff96439d8365e29fc553ba38133fb02ed098"
+    "urp_sha256": "c76a7d652fb53d1539eb892e1bba31bcf3223ad7c9ae513a5a5037b9eade16d4",
+    "script_sha256": "a148fe6d8d4c9488bec5e286e736b6595f641cf36ad278a7adf9b47426dba4e3",
+    "txt_sha256": "4595ace93bf277894b9bc851f3550118e8a646c0ab7b6f355b187e6b69c1dab0"
   },
   "sha256": {
     "local": {
-      ".script": "dac941202364056e651121d471eac143fb19d5811f7846b76b3d91c26a9ded7a",
-      ".txt": "08bc34274bd387fd8b7a55b7eb10ff96439d8365e29fc553ba38133fb02ed098",
-      ".urp": "8e905698cbda0bdc7dc38e85497dd0418e629fce299818c3205de553c87227f5"
+      ".script": "a148fe6d8d4c9488bec5e286e736b6595f641cf36ad278a7adf9b47426dba4e3",
+      ".txt": "4595ace93bf277894b9bc851f3550118e8a646c0ab7b6f355b187e6b69c1dab0",
+      ".urp": "c76a7d652fb53d1539eb892e1bba31bcf3223ad7c9ae513a5a5037b9eade16d4"
     },
     "controller": {
-      ".script": "dac941202364056e651121d471eac143fb19d5811f7846b76b3d91c26a9ded7a",
-      ".txt": "08bc34274bd387fd8b7a55b7eb10ff96439d8365e29fc553ba38133fb02ed098",
-      ".urp": "8e905698cbda0bdc7dc38e85497dd0418e629fce299818c3205de553c87227f5"
+      ".script": "a148fe6d8d4c9488bec5e286e736b6595f641cf36ad278a7adf9b47426dba4e3",
+      ".txt": "4595ace93bf277894b9bc851f3550118e8a646c0ab7b6f355b187e6b69c1dab0",
+      ".urp": "c76a7d652fb53d1539eb892e1bba31bcf3223ad7c9ae513a5a5037b9eade16d4"
     },
     "readback": {
-      ".script": "dac941202364056e651121d471eac143fb19d5811f7846b76b3d91c26a9ded7a",
-      ".txt": "08bc34274bd387fd8b7a55b7eb10ff96439d8365e29fc553ba38133fb02ed098",
-      ".urp": "8e905698cbda0bdc7dc38e85497dd0418e629fce299818c3205de553c87227f5"
+      ".script": "a148fe6d8d4c9488bec5e286e736b6595f641cf36ad278a7adf9b47426dba4e3",
+      ".txt": "4595ace93bf277894b9bc851f3550118e8a646c0ab7b6f355b187e6b69c1dab0",
+      ".urp": "c76a7d652fb53d1539eb892e1bba31bcf3223ad7c9ae513a5a5037b9eade16d4"
     }
   },
   "safety_boundary": [
@@ -47,6 +47,6 @@
     "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v1.urp"
   },
   "fresh_controller_sha_verified": true,
-  "fresh_controller_checked_at": "2026-07-15T09:45:22+08:00",
+  "fresh_controller_checked_at": "2026-07-15T10:01:20+08:00",
   "readback_source": "fresh_controller_get"
 }

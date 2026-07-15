@@ -59,15 +59,18 @@ class Step5dAutotuneTpBuilderTest(unittest.TestCase):
         )
         self.assertNotIn("40.000, -0.0225, -0.0025)", rendered)
 
-    def test_each_continuous_trial_accepts_an_advancing_ready_heartbeat(self) -> None:
+    def test_each_continuous_trial_requires_the_rezero_not_ready_ready_edge(self) -> None:
         rendered = builder.render_script()
         self.assertIn(
-            "if read_input_float_register(27) > 0.5 and current_heartbeat != initial_heartbeat:",
+            "elif saw_sensor_not_ready and read_input_float_register(27) > 0.5 and current_heartbeat != initial_heartbeat:",
             rendered,
         )
-        self.assertNotIn(
-            "elif saw_sensor_not_ready and read_input_float_register(27) > 0.5",
-            rendered,
+        trial = rendered.split(
+            "def codex_step5d_autotune_trial_v1", 1
+        )[1].split("return stop_reason", 1)[0]
+        self.assertLess(
+            trial.index("write_output_float_register(34, 0.0)"),
+            trial.index("write_output_float_register(34, 1.0)"),
         )
 
     def test_stage23_waits_for_sensor_rearm_after_rezero(self) -> None:
@@ -75,9 +78,8 @@ class Step5dAutotuneTpBuilderTest(unittest.TestCase):
         stage23 = rendered.split("write_output_float_register(35, 23.0)", 1)[1]
         stage23 = stage23.split("write_output_float_register(35, 24.0)", 1)[0]
         self.assertIn("codex_wait_for_rezero_complete(5.0)", stage23)
-        self.assertIn("codex_wait_for_fresh_heartbeat(5.0)", stage23)
         self.assertLess(
-            stage23.index("codex_wait_for_fresh_heartbeat(5.0)"),
+            stage23.index("codex_wait_for_rezero_complete(5.0)"),
             stage23.index("codex_step4e_guard_stop_reason()"),
         )
 
