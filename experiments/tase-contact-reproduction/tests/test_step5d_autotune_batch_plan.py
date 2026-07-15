@@ -85,10 +85,18 @@ class CandidateBatchPlanTest(unittest.TestCase):
                     ],
                 }
             ]
+            replay_candidate = candidate_from_log2_payload(
+                payload["batches"][0]["candidates"][0]
+            )
+            payload["code_fix_replay_candidate_uid"] = replay_candidate.candidate_uid
             path.write_text(json.dumps(payload), encoding="utf-8")
             recovered = load_plan(path, campaign_id="campaign-1")
             self.assertTrue(recovered.closed)
             self.assertEqual(len(recovered.candidates), 4)
+            self.assertEqual(
+                recovered.code_fix_replay_candidate_uid,
+                replay_candidate.candidate_uid,
+            )
 
             payload["closed"] = False
             path.write_text(json.dumps(payload), encoding="utf-8")

@@ -661,6 +661,11 @@ def _wait_for_codex_candidate(
                     item
                     for item in plan.candidates
                     if item.candidate_uid not in attempted
+                    or (
+                        item.candidate_uid == plan.code_fix_replay_candidate_uid
+                        and item.candidate_uid
+                        not in supervisor.current_epoch_attempted_candidate_uids
+                    )
                 ),
                 None,
             )
@@ -1011,6 +1016,12 @@ def run(args: argparse.Namespace) -> int:
                 require_cuda_botorch=args.selection_policy == "adaptive",
                 cuda_fit_mode="serial",
                 forced_candidate=forced_candidate,
+                allow_archived_code_fix_replay=(
+                    current_plan is not None
+                    and forced_candidate is not None
+                    and forced_candidate.candidate_uid
+                    == current_plan.code_fix_replay_candidate_uid
+                ),
             )
             plan_revision = None if current_plan is None else current_plan.revision
             if args.selection_policy == "codex_batches":

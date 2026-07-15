@@ -964,6 +964,7 @@ class CampaignCoordinator:
         parallel_cuda_verified: bool = False,
         search_attestations: Sequence[SearchAttestation] = (),
         forced_candidate: ForceCandidate | None = None,
+        allow_archived_code_fix_replay: bool = False,
     ) -> HostPacket:
         """Register TrialSpec, fsync ARM intent, then return its HostPacket."""
 
@@ -975,6 +976,7 @@ class CampaignCoordinator:
                 parallel_cuda_verified=parallel_cuda_verified,
                 search_attestations=search_attestations,
                 forced_candidate=forced_candidate,
+                allow_archived_code_fix_replay=allow_archived_code_fix_replay,
                 forbidden_candidate_uids={
                     fate.trial.candidate_uid
                     for fate in self._terminal_fates

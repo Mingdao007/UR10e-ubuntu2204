@@ -487,6 +487,21 @@ class Step5dAutotuneSupervisorTest(unittest.TestCase):
             identity.trial_uid,
         )
 
+        replay_manager = seeded_manager("codex_batches")
+        replay_manager.resume_after_code_change(
+            campaign=campaign(epoch=2, fingerprint="9" * 64),
+            source_fingerprint="8" * 64,
+            config_fingerprint="7" * 64,
+        )
+        replay = replay_manager.next_trial(
+            require_cuda_botorch=False,
+            forced_candidate=seed,
+            allow_archived_code_fix_replay=True,
+        ).trial
+        self.assertEqual(replay.candidate, seed)
+        self.assertEqual(replay.transition.kind, TrialTransitionKind.RETRY)
+        self.assertEqual(replay.transition.retry_kind, "code_fix")
+
         widened_p_probe = ForceCandidate.from_log2(p=1.25, damping=0.0, i=0.25)
         with self.assertRaisesRegex(ValueError, "selection-policy envelope"):
             seeded_manager("codex_batches").next_trial(

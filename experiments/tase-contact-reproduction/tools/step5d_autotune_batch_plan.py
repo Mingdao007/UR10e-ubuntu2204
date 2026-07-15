@@ -23,6 +23,7 @@ class CandidateBatchPlan:
     campaign_id: str
     revision: int
     closed: bool
+    code_fix_replay_candidate_uid: str | None
     batches: tuple[tuple[ForceCandidate, ...], ...]
     payload: Mapping[str, Any]
 
@@ -102,7 +103,10 @@ def load_plan(path: Path, *, campaign_id: str | None = None) -> CandidateBatchPl
         "closed",
         "batches",
     }
-    if not isinstance(payload, Mapping) or set(payload) != required:
+    optional = {"code_fix_replay_candidate_uid"}
+    if not isinstance(payload, Mapping) or not (
+        set(payload) == required or set(payload) == required | optional
+    ):
         raise ValueError("candidate plan schema is incomplete")
     if payload["schema_version"] != SCHEMA_VERSION:
         raise ValueError("candidate plan schema version differs")
@@ -159,10 +163,23 @@ def load_plan(path: Path, *, campaign_id: str | None = None) -> CandidateBatchPl
         batches.append(candidates)
     if payload["revision"] != len(batches):
         raise ValueError("candidate plan revision must equal the batch count")
+    replay_uid = payload.get("code_fix_replay_candidate_uid")
+    if replay_uid is not None:
+        if (
+            not isinstance(replay_uid, str)
+            or len(replay_uid) != 64
+            or any(char not in "0123456789abcdef" for char in replay_uid)
+        ):
+            raise ValueError("code-fix replay candidate uid is invalid")
+        if sum(item.candidate_uid == replay_uid for item in (
+            candidate for batch in batches for candidate in batch
+        )) != 1:
+            raise ValueError("code-fix replay candidate must appear exactly once")
     return CandidateBatchPlan(
         campaign_id=payload["campaign_id"],
         revision=payload["revision"],
         closed=payload["closed"],
+        code_fix_replay_candidate_uid=replay_uid,
         batches=tuple(batches),
         payload=payload,
     )
@@ -173,6 +190,8 @@ def assert_append_only(previous: CandidateBatchPlan, current: CandidateBatchPlan
         raise ValueError("candidate plan campaign identity changed")
     if current.revision < previous.revision:
         raise ValueError("candidate plan revision regressed")
+    if current.code_fix_replay_candidate_uid != previous.code_fix_replay_candidate_uid:
+        raise ValueError("candidate plan code-fix replay identity changed")
     if current.batches[: previous.revision] != previous.batches:
         raise ValueError("candidate plan rewrote a prior batch")
     if previous.closed and current != previous:

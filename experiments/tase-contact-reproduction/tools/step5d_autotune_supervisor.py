@@ -266,6 +266,10 @@ class CampaignSupervisor:
         )
 
     @property
+    def current_epoch_attempted_candidate_uids(self) -> frozenset[str]:
+        return frozenset(outcome.candidate.candidate_uid for outcome in self.outcome_timeline)
+
+    @property
     def current_search_tier(self) -> SearchTier:
         return unlocked_tier(
             [
@@ -386,6 +390,7 @@ class CampaignSupervisor:
         search_attestations: Sequence[SearchAttestation] = (),
         forced_candidate: ForceCandidate | None = None,
         forbidden_candidate_uids: Collection[str] = (),
+        allow_archived_code_fix_replay: bool = False,
     ) -> TrialIntent:
         if self.phase is not CampaignPhase.HOME:
             raise RuntimeError(f"campaign cannot arm from phase {self.phase.value}")
@@ -414,6 +419,7 @@ class CampaignSupervisor:
             else None
         )
         self._pending_retry = None
+        code_fix_replay = False
         if probe is not None:
             candidate = probe.force_candidate
             token = self._token_for(candidate)
@@ -445,6 +451,20 @@ class CampaignSupervisor:
                 if outcome.profile_id == trial_profile.profile_id
                 and outcome.plant_epoch == self.plant_epoch
             ]
+            replay_sources = [
+                outcome
+                for outcome in self._all_outcomes()
+                if outcome.candidate == forced_candidate
+                and outcome.evaluation.trial_uid in self._archived_trial_sources
+                and outcome.profile_id == trial_profile.profile_id
+                and outcome.plant_epoch == self.plant_epoch
+            ]
+            code_fix_replay = bool(
+                allow_archived_code_fix_replay
+                and replay_sources
+                and forced_candidate.candidate_uid
+                not in self.current_epoch_attempted_candidate_uids
+            )
             tier = unlocked_tier(context, pending_candidate=forced_candidate)
             if not self.planned_candidate_within_policy_envelope(forced_candidate):
                 raise ValueError(
@@ -462,11 +482,17 @@ class CampaignSupervisor:
                 )
             ]
             baseline_start = not context and forced_candidate == ForceCandidate()
-            if not anchors and not baseline_start:
+            if not anchors and not baseline_start and not code_fix_replay:
                 raise ValueError(
                     "forced live candidate must be one lattice step from an executed candidate"
                 )
-            source_outcome = None if baseline_start else anchors[-1]
+            source_outcome = (
+                None
+                if baseline_start
+                else replay_sources[-1]
+                if code_fix_replay
+                else anchors[-1]
+            )
             candidate = forced_candidate
             token = self._token_for(candidate)
             retry_kind = pending_release_kind
@@ -475,6 +501,8 @@ class CampaignSupervisor:
                 kind=(
                     TrialTransitionKind.BASELINE
                     if source_outcome is None
+                    else TrialTransitionKind.RETRY
+                    if code_fix_replay
                     else TrialTransitionKind.CODE_EPOCH_SEARCH
                     if source_outcome.evaluation.trial_uid
                     in self._archived_trial_sources
@@ -490,6 +518,7 @@ class CampaignSupervisor:
                     if source_outcome is None
                     else self._source_from_outcome(source_outcome)
                 ),
+                retry_kind="code_fix" if code_fix_replay else None,
             )
             selection = {
                 "selection": (
@@ -512,7 +541,7 @@ class CampaignSupervisor:
                 "source_trial_uid": (
                     None if source_outcome is None else source_outcome.evaluation.trial_uid
                 ),
-                "exact_parameter_set_reuse_allowed": False,
+                "exact_parameter_set_reuse_allowed": code_fix_replay,
             }
         else:
             candidate, selection = choose_candidate(
@@ -576,8 +605,10 @@ class CampaignSupervisor:
                     ),
                     source=source,
                 )
-        if candidate.candidate_uid in self._forbidden_candidate_uids(
-            trial_profile.profile_id
+        if (
+            not code_fix_replay
+            and candidate.candidate_uid
+            in self._forbidden_candidate_uids(trial_profile.profile_id)
         ):
             raise RuntimeError("exact parameter set has already been executed")
         self._trial_counter += 1
