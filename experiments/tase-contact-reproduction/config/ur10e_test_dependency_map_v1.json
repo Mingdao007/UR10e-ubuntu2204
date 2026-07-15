@@ -72,8 +72,48 @@
       "tests": ["tests/test_step5d_parallel_workflow.py", "tests/test_step5d_strict_rnn_solver.py", "tests/test_step5d_p0_rnn_profile_sweep.py"]
     },
     {
-      "paths": ["tools/step5d_autotune_*.py", "tools/build_step5d_autotune_tp.py", "tools/step5d_runtime_interface.py", "tools/kunwei_rtde_bridge.py", "config/step5d_autotune_campaign_v1.json", "config/schemas/step5d_autotune_campaign_v1.schema.json", "config/step5_stage_table.json", "tests/test_step5d_autotune*.py"],
-      "tests": ["tests/test_step5d_autotune.py", "tests/test_step5d_autotune_config.py", "tests/test_step5d_autotune_journal.py", "tests/test_step5d_autotune_live_driver.py", "tests/test_step5d_autotune_recovery.py", "tests/test_step5d_autotune_replay.py", "tests/test_step5d_autotune_runtime.py", "tests/test_step5d_autotune_search_attestation.py", "tests/test_step5d_autotune_store.py", "tests/test_step5d_autotune_supervisor.py", "tests/test_step5d_autotune_tp.py"]
+      "paths": ["tools/step5d_autotune_optimizer.py", "tools/step5d_autotune_governor.py", "tools/step5d_autotune_evaluator.py"],
+      "tests": ["tests/test_step5d_autotune.py", "tests/test_step5d_autotune_supervisor.py", "tests/test_step5d_autotune_search_attestation.py"]
+    },
+    {
+      "paths": ["tools/step5d_autotune_supervisor.py"],
+      "tests": ["tests/test_step5d_autotune_supervisor.py", "tests/test_step5d_autotune_recovery.py"]
+    },
+    {
+      "paths": ["tools/step5d_autotune_coordinator.py", "tools/step5d_autotune_journal.py", "tools/step5d_autotune_live_driver.py"],
+      "tests": ["tests/test_step5d_autotune_journal.py", "tests/test_step5d_autotune_live_driver.py", "tests/test_step5d_autotune_recovery.py"]
+    },
+    {
+      "paths": ["tools/step5d_autotune_store.py"],
+      "tests": ["tests/test_step5d_autotune_store.py"]
+    },
+    {
+      "paths": ["tools/step5d_autotune_replay.py"],
+      "tests": ["tests/test_step5d_autotune_replay.py", "tests/test_step5d_autotune_search_attestation.py"]
+    },
+    {
+      "paths": ["tools/step5d_autotune_backend.py", "tools/step5d_autotune_contract.py", "tools/step5d_autotune_state_machine.py"],
+      "tests": ["tests/test_step5d_autotune.py", "tests/test_step5d_autotune_runtime.py"]
+    },
+    {
+      "paths": ["tools/build_step5d_autotune_tp.py"],
+      "tests": ["tests/test_step5d_autotune_tp.py"]
+    },
+    {
+      "paths": ["tools/step5d_runtime_interface.py"],
+      "tests": ["tests/test_step5d_autotune_runtime.py", "tests/test_step5d_autotune_live_driver.py"]
+    },
+    {
+      "paths": ["config/step5d_autotune_campaign_v1.json", "config/schemas/step5d_autotune_campaign_v1.schema.json"],
+      "tests": ["tests/test_step5d_autotune_config.py", "tests/test_step5d_autotune.py"]
+    },
+    {
+      "paths": ["tools/run_step5d_autotune_campaign.py"],
+      "tests": ["tests/test_step5d_autotune_campaign_runner.py"]
+    },
+    {
+      "paths": ["tools/publish_step5d_autotune_plot.py"],
+      "tests": ["tests/test_publish_step5d_autotune_plot.py"]
     },
     {
       "paths": ["check.sh", "pytest.ini", "tests/conftest.py", "tools/run_ur10e_impacted_tests.py", "tools/ur10e_impact_selector.py", "config/ur10e_test_dependency_map_v1.json"],
@@ -113,5 +153,26 @@
   "validators": [
     "tools/validate_tase_protocol_table.py",
     "tools/validate_cross_step_parameter_table.py"
-  ]
+  ],
+  "explicit_lanes": {
+    "autotune_integration": [
+      "tests/test_step5d_autotune.py",
+      "tests/test_step5d_autotune_config.py",
+      "tests/test_step5d_autotune_journal.py",
+      "tests/test_step5d_autotune_live_driver.py",
+      "tests/test_step5d_autotune_recovery.py",
+      "tests/test_step5d_autotune_replay.py",
+      "tests/test_step5d_autotune_runtime.py",
+      "tests/test_step5d_autotune_search_attestation.py",
+      "tests/test_step5d_autotune_store.py",
+      "tests/test_step5d_autotune_supervisor.py",
+      "tests/test_step5d_autotune_tp.py"
+    ],
+    "freeze_package": [
+      "tests/test_step5d_autotune_config.py",
+      "tests/test_step5d_autotune_runtime.py",
+      "tests/test_step5d_current_binding_gate.py",
+      "tests/test_current_stage_readback_gate.py"
+    ]
+  }
 }

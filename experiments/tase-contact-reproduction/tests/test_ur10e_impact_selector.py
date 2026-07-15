@@ -41,6 +41,40 @@ class Ur10eImpactSelectorTest(unittest.TestCase):
         self.assertIn("tests/test_step5d_v30_control_contract.py", control["selected_tests"])
         self.assertIn("tests/test_step5d_paper_outer_loop.py", outer["selected_tests"])
 
+    def test_autotune_edit_loop_uses_narrow_component_rules(self) -> None:
+        supervisor = select(
+            root=ROOT, paths=["tools/step5d_autotune_supervisor.py"]
+        )
+        builder = select(
+            root=ROOT, paths=["tools/build_step5d_autotune_tp.py"]
+        )
+        runner = select(
+            root=ROOT, paths=["tools/run_step5d_autotune_campaign.py"]
+        )
+        publisher = select(
+            root=ROOT, paths=["tools/publish_step5d_autotune_plot.py"]
+        )
+
+        self.assertIn(
+            "tests/test_step5d_autotune_supervisor.py",
+            supervisor["selected_tests"],
+        )
+        self.assertNotIn(
+            "tests/test_step5d_autotune_store.py", supervisor["selected_tests"]
+        )
+        self.assertIn("tests/test_step5d_autotune_tp.py", builder["selected_tests"])
+        self.assertNotIn(
+            "tests/test_step5d_autotune_journal.py", builder["selected_tests"]
+        )
+        self.assertIn(
+            "tests/test_step5d_autotune_campaign_runner.py",
+            runner["selected_tests"],
+        )
+        self.assertIn(
+            "tests/test_publish_step5d_autotune_plot.py",
+            publisher["selected_tests"],
+        )
+
     def test_p0_v8_controller_readback_evidence_has_explicit_impact_rule(self) -> None:
         result = select(
             root=ROOT,
