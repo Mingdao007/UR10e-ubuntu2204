@@ -57,7 +57,7 @@ class Step5dAutotuneConfigTest(unittest.TestCase):
             set(range(24, 31)),
         )
 
-    def test_stage_delivery_and_review_are_explicitly_unclosed(self) -> None:
+    def test_stage_delivery_is_verified_but_review_and_live_are_unclosed(self) -> None:
         table = json.loads((ROOT / "config/step5_stage_table.json").read_text())
         rows = [
             row
@@ -70,11 +70,16 @@ class Step5dAutotuneConfigTest(unittest.TestCase):
             row["acceptance"]["review_v3_pre_live_stack"],
             "1xCodex/high+1xFable5/high",
         )
-        self.assertIsNone(row["package_delivery"]["artifact_locator"])
-        self.assertIsNone(
-            row["package_delivery"]["controller_readback_manifest_sha256"]
+        self.assertEqual(
+            row["package_delivery"]["artifact_locator"],
+            "config/step5d_autotune_controller_readback_v1.json",
         )
-        self.assertFalse(row["package_delivery"]["controller_readback_verified"])
+        self.assertTrue(row["package_delivery"]["controller_readback_verified"])
+        manifest_path = ROOT / row["package_delivery"]["artifact_locator"]
+        self.assertEqual(
+            row["package_delivery"]["controller_readback_manifest_sha256"],
+            hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+        )
         builder_bytes = (ROOT / "tools/build_step5d_autotune_tp.py").read_bytes()
         rendered_bytes = render_script().encode("utf-8")
         self.assertEqual(

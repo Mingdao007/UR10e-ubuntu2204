@@ -41,16 +41,18 @@ def parse_autotune(*extra: str):
 
 
 class Step5dAutotuneRuntimeTest(unittest.TestCase):
-    def test_stage_is_inactive_unuploaded_and_v35_stays_current(self) -> None:
+    def test_stage_is_inactive_readback_verified_and_v35_stays_current(self) -> None:
         table = json.loads((ROOT / "config" / "step5_stage_table.json").read_text(encoding="utf-8"))
         row = next(item for item in table["stages"] if item["id"] == AUTOTUNE)
         current = json.loads((ROOT / "config" / "current_stage.json").read_text(encoding="utf-8"))
 
         self.assertFalse(row["active"])
         self.assertFalse(row["current_binding"]["is_current"])
-        self.assertFalse(row["package_delivery"]["controller_uploaded"])
-        self.assertFalse(row["package_delivery"]["controller_readback_verified"])
-        self.assertEqual(row["package_delivery"]["status"], "not_built")
+        self.assertTrue(row["package_delivery"]["controller_uploaded"])
+        self.assertTrue(row["package_delivery"]["controller_readback_verified"])
+        self.assertEqual(
+            row["package_delivery"]["status"], "controller_readback_verified"
+        )
         self.assertEqual(current["program"], V35)
         self.assertEqual(current["current_stage_id"], V35)
 

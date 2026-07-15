@@ -13,6 +13,14 @@ Linux RT quota. The single retained 60 s no-motion production-seam timing
 completed 30,052 ticks with compute p99 `1.181 ms`, maximum row gap `4.011 ms`,
 zero gaps over 20 ms, and zero 45–60 ms gaps.
 
+The inactive `step5d_strict_rnn_autotune_v1` candidate is now built from the
+exact frozen v35 source and controller read-back verified. Its package stamp is
+`2026-07-15T0835HKT_STEP5D_STRICT_RNN_AUTOTUNE_V1`; local, controller, and
+fresh-readback SHA agree for the `.script/.txt/.urp` triplet. Package delivery
+was an automatic file transaction and did not load or run the program. v35
+remains current; autotune v1 remains inactive pending frozen campaign Review
+v3 and explicit live/contact authorization.
+
 v34 is retained as immutable physical failure evidence. Its Stage25 feedback,
 XY, qd alignment, RNN consumption, Safety NORMAL, and gross guards passed, but
 the FIFO control thread exhausted Linux's default 950 ms/s RT budget and was
